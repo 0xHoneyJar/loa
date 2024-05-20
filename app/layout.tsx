@@ -5,6 +5,7 @@ import { Web3Provider } from "@/components/web3-provider";
 import { Metadata } from "next";
 import "../styles/globals.css";
 import "../styles/tailwind.css";
+import localFont from "next/font/local";
 
 export const metadata: Metadata = {
   // metadataBase: new URL(""),
@@ -25,21 +26,28 @@ export const metadata: Metadata = {
   },
 };
 
+const switzer = localFont({
+  src: "../assets/Switzer.ttf",
+  variable: "--font-switzer",
+});
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html>
+    <html
+      className={`${switzer.variable}`}
+    >
       <head></head>
       <body>
-        <Web3Provider>
-          <div className="mx-auto">
-            <Navbar />
-            {children}
-          </div>
-        </Web3Provider>
+        {/* <Web3Provider> */}
+        <div className="mx-auto min-w-[24rem] max-w-[112rem]">
+          <Navbar />
+          {children}
+        </div>
+        {/* </Web3Provider> */}
       </body>
     </html>
   );

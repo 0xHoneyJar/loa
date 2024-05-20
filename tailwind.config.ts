@@ -19,7 +19,7 @@ const config = {
     },
     extend: {
       fontFamily: {
-        wagmi: "Gilroy",
+        switzer: ["var(--font-switzer)"],
       },
       colors: {
         border: "hsl(var(--border))",
