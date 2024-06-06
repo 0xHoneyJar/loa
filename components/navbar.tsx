@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import Sidebar from "./sidebar";
+import AudioPlayer from "./audio/audio-player";
+import { TRACKS } from "@/constants/tracks";
 
 const Navbar = () => {
   const pathname = usePathname();
@@ -39,28 +41,13 @@ const Navbar = () => {
             >
               <Image src={"/thj-logo.png"} alt="logo" fill />
             </Link>
-            <p className="text-[#F4C10B] md:text-lg text-sm whitespace-nowrap">
+            <p className="text-white md:text-lg text-sm whitespace-nowrap">
               For Community
             </p>
           </div>
-          <div className="flex flex-row items-center sm:gap-6 gap-4">
-            <div className="text-[#F4C10B] lg:gap-8 gap-6 flex-row md:flex hidden md:text-base text-sm">
-              <Link href="">Blog</Link>
-              <Link
-                href={"/"}
-                onClick={(e) => {
-                  if (pathname === "/") {
-                    e.preventDefault(); // Stop Page Reloading
-                  }
-                  const section = document.getElementById("faq");
-                  section && section.scrollIntoView({ behavior: "smooth" });
-                }}
-              >
-                FAQ
-              </Link>
-              <Link href="">Dashboard</Link>
-            </div>
-            <a className="md:px-6 px-4 py-2 ml-8 bg-[#F4C10B] rounded-full text-black cursor-pointer md:text-lg text-sm whitespace-nowrap font-medium">
+          <div className="flex flex-row items-center md:gap-6 gap-4">
+            <AudioPlayer tracks={TRACKS}/>
+            <a className="md:px-8 px-4 py-3 bg-[#43AA77] rounded-full text-white cursor-pointer md:text-lg text-sm whitespace-nowrap font-semibold">
               Join Us
             </a>
             <button
