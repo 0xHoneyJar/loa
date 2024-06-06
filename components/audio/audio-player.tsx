@@ -133,20 +133,21 @@ const AudioPlayer = ({ tracks }: { tracks: any }) => {
               {title.toUpperCase()}&nbsp;&nbsp;
               <span className="font-light text-[#FFFFFF4D]">by {artist}</span>
             </p>
-            {/* <input
-              type="range"
-              value={trackProgress}
-              step="1"
-              min="0"
-              max={duration ? duration : `${duration}`}
-              onChange={(e) => onScrub(e.target.value)}
-              onMouseUp={onScrubEnd}
-              onKeyUp={onScrubEnd}
-              className="bg-[#F5DA7F1F]"
-            /> */}
             <div className="flex items-center gap-2 text-[#F5DA7F42] text-xs">
               <p>0:00</p>
-              <div className="h-1 w-28 bg-[#F5DA7F1F] rounded-full" />
+              {/* <div className="h-1 w-28 bg-[#F5DA7F1F] rounded-full" /> */}
+              <input
+                type="range"
+                value={trackProgress}
+                step="1"
+                min="0"
+                max={duration ? duration : `${duration}`}
+                onChange={(e) => onScrub(e.target.value)}
+                onMouseUp={onScrubEnd}
+                onKeyUp={onScrubEnd}
+                className="[&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-thumb]:outline-none rounded-full accent-[#F4C10B] [&::-webkit-slider-runnable-track]:bg-[#F5DA7F1F]"
+                // className="rounded-full cursor-pointer bg-transparent appearance-none accent-[#F5DA7F1F] [&::-webkit-slider-runnable-track]:rounded-full h-1 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#F4C10B]"
+              />
               <p>0:00</p>
             </div>
           </div>

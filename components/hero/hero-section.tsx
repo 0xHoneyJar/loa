@@ -36,7 +36,7 @@ const HeroSection = () => {
                 <div className="flex gap-3">
                   {Socials.map((social, id) => (
                     <a
-                      className="px-6 py-3 rounded-xl bg-[#FFFFFF14] flex items-center gap-2 cursor-pointer z-10"
+                      className="px-6 py-3 rounded-xl bg-[#FFFFFF14] flex items-center gap-2 cursor-blue z-10 hover:bg-[#FFFFFF3D]"
                       key={id}
                     >
                       <div className="relative aspect-square h-[24px]">

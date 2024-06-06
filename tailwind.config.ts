@@ -21,6 +21,13 @@ const config = {
       fontFamily: {
         switzer: ["var(--font-switzer)"],
       },
+      boxShadow: {
+        evergreen: "0 0 20px 0 #43AA774D",
+        yellow: "0 0 20px 0 #F4C10B40",
+      },
+      cursor: {
+        blue: "url(/cursor.svg), default",
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
