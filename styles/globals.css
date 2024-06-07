@@ -66,6 +66,10 @@
   }
 }
 
+.react-grid-item.react-grid-placeholder {
+  @apply rounded-3xl
+}
+
 @layer base {
   * {
     @apply border-border;
