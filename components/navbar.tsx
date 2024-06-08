@@ -47,10 +47,10 @@ const Navbar = () => {
           </div>
           <div className="flex items-center md:gap-4 gap-2">
             <AudioPlayer tracks={TRACKS} />
-            <a className="md:px-8 px-4 py-3 bg-[#FFFFFF26] rounded-full text-white cursor-pointer md:text-base text-sm whitespace-nowrap font-medium">
+            <a className="md:px-8 px-4 py-3 bg-[#FFFFFF26] rounded-full text-white cursor-pointer md:text-sm text-sm whitespace-nowrap font-medium">
               Join Us
             </a>
-            <a className="md:px-8 px-4 py-3 bg-[#43AA77] rounded-full text-white cursor-pointer md:text-base text-sm whitespace-nowrap font-medium hover:shadow-evergreen">
+            <a className="md:px-8 px-4 py-3 bg-[#43AA77] rounded-full text-white cursor-pointer md:text-sm text-sm whitespace-nowrap font-medium hover:shadow-evergreen">
               Delegate to THJ
             </a>
             <button

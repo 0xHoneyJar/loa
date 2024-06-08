@@ -30,7 +30,7 @@ const Tools = () => {
           </div>
         </div>
         <CarouselContent className="-ml-0 flex gap-4 items-center pl-10">
-          <CarouselItem>
+          <CarouselItem className="hover:cursor-blue">
             <div className="h-[180px] aspect-square rounded-lg border bg-[#121212] border-[#161616] flex items-center justify-center flex-col">
               <div className="h-[90px] aspect-square bg-[#FD4D01] rounded-full mb-4" />
               <p className="text-[#C4C4C4]">Faucet</p>

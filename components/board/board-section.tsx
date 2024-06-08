@@ -19,8 +19,9 @@ const BoardSection = () => {
   };
 
   return (
-    <div className="h-full w-full flex items-center flex-col">
-      <div className="w-3/4 h-full flex flex-col">
+    <div className="h-full w-full flex items-center flex-col mb-40">
+      <div className="w-3/4 h-full flex flex-col relative items-center">
+        <div className="h-[100px] w-full bg-[#F8A9291F] blur-[100px] absolute top-20" />
         <div className="w-full rounded-full py-3 px-4 border border-[#BCBCBC1A] mb-6">
           <div className="py-1.5 px-4 bg-gradient-to-r from-[#F2C8481F] to-[#F8A9291F] rounded-full w-fit">
             <p className="text-xs bg-gradient-to-r from-[#F2C848] to-[#F8A929] bg-clip-text text-transparent">
@@ -39,11 +40,7 @@ const BoardSection = () => {
           onLayoutChange={handleLayoutChange as any}
         >
           {DASHBOARD.map((dashboard) => {
-            return (
-              <div key={dashboard.key}>
-                {dashboard.ui}
-              </div>
-            );
+            return <div key={dashboard.key}>{dashboard.ui}</div>;
           })}
         </ReactGridLayout>
       </div>

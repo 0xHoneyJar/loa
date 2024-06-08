@@ -10,6 +10,12 @@ const HeroSection = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   return (
     <div className="h-full w-full flex items-center flex-col pt-24 relative">
+      {/* <Image
+        src={"/sunshine.png"}
+        alt="sunshine"
+        fill
+        className="-z-10 object-cover"
+      /> */}
       <div className="md:h-24 h-16 w-full absolute top-0">
         <Image
           src={"/navbar-hero.png"}
@@ -18,8 +24,9 @@ const HeroSection = () => {
           className="z-[-1] object-cover"
         />
       </div>
-      <div className="relative flex h-[calc(100vh-6rem)] w-full pt-6 pb-10 flex-col gap-10">
+      <div className="relative flex h-[calc(100vh-6rem)] w-full pt-6 pb-10 flex-col gap-10 items-center">
         <div className="w-full h-2/5 absolute bottom-0 bg-gradient-to-t from-[#0A0601]" />
+        <div className="h-[100px] w-1/3 bg-[#F5D011] absolute blur-[250px] bottom-40 z-[-2]" />
         <Image
           src={"/hero-bg.png"}
           alt="bg"
@@ -105,8 +112,7 @@ const HeroSection = () => {
           ))}
         </div>
       </Marquee>
-      <div className="h-[2px] w-1/4 bg-gradient-to-r from-[#F5D01100] via-[#F5D011] via-50% mb-10" />
-      {/* <div className="h-[300px] w-1/2  bg-[#F5D011] absolute blur-[250px]" /> */}
+      <div className="h-[1px] w-1/4 bg-gradient-to-r from-[#F5D01100] via-[#F5D011] via-50% mb-10" />
       <div className="aspect-square h-[75px] relative -mb-10 z-10">
         <Image
           src={"/arrow-down-container.svg"}
@@ -170,8 +176,8 @@ const HeroSection = () => {
             </div>
           </div>
         </div>
-        <div className="h-1/2 w-2/5 bg-[#F8A9291F] blur-[100px] absolute -bottom-40"></div>
-        <div className="h-1/2 w-full bg-gradient-to-t from-[#0A0A0A] absolute -bottom-10" />
+        <div className="h-1/2 w-2/5 bg-[#F8A9291F] blur-[100px] absolute -bottom-40"/>
+        {/* <div className="h-1/2 w-full bg-gradient-to-t from-[#0A0A0A] absolute -bottom-10" /> */}
       </div>
       <div
         className="flex flex-col text-white items-center mb-20"
