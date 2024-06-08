@@ -67,7 +67,18 @@
 }
 
 .react-grid-item.react-grid-placeholder {
-  @apply rounded-3xl
+  @apply rounded-3xl;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  @apply w-1.5 h-1.5;
+  /* removing default appearance */
+  -webkit-appearance: none;
+  appearance: none; 
+  border-radius: 50%;
+  background: #F4C10B;
+  /*  slider progress trick  */
+  box-shadow: -408px 0 0 405px #F4C10B;
 }
 
 @layer base {

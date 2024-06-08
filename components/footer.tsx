@@ -70,12 +70,12 @@ const Footer = () => {
           </div>
         </div>
       </div>
-      <div className="h-[500px] z-[-2] text-white w-full bg-[#F4C10B] overflow-hidden flex items-center justify-center flex-col relative">
+      <div className="h-[500px] text-white w-full bg-[#F4C10B] overflow-hidden flex items-center justify-center flex-col relative">
         <Image
           src={"/thj-outline.svg"}
           alt="thj-outline"
           fill
-          className="object-contain !top-10 z-[-1]"
+          className="object-contain !top-10 z-[1]"
         />
         <div className="aspect-square h-[100px] relative mb-8">
           <Image
@@ -90,7 +90,7 @@ const Footer = () => {
           Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc
           vulputate libero et velit interdum, ac aliquet odio mattis.
         </p>
-        <button className="rounded-xl px-6 py-2 bg-[#43AA77]">
+        <button className="rounded-xl px-6 py-2 bg-[#43AA77] z-10">
           Join The Honey Jar
         </button>
         <div className="aspect-square h-[140px] absolute -bottom-6 inset-x-0 mx-auto left-80">

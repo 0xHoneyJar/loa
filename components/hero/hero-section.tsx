@@ -177,14 +177,24 @@ const HeroSection = () => {
         className="flex flex-col text-white items-center mb-20"
         ref={scrollRef}
       >
-        <div className="h-[40px] aspect-square relative mb-4">
+        <motion.div
+          className="h-[40px] aspect-square relative mb-4"
+          animate={{
+            x: [15, -5],
+          }}
+          transition={{
+            duration: 2,
+            repeat: Infinity,
+            repeatType: "loop",
+          }}
+        >
           <Image
             src={"/hand-move.svg"}
             alt="hand"
             fill
             className="object-contain"
           />
-        </div>
+        </motion.div>
         <p className="font-medium text-4xl mb-2">Control The THJ</p>
         <p className="text-[#FFFFFFB3] text-xl">
           Manage & Custom Your THJ Board
