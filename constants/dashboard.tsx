@@ -9,6 +9,7 @@ export const DASHBOARD = [
   {
     key: "tools",
     dataGrid: {
+      i: "tools",
       x: 0,
       y: 0,
       w: 3,
@@ -18,52 +19,27 @@ export const DASHBOARD = [
   },
   {
     key: "incubated",
-    dataGrid: {
-      x: 0,
-      y: 1,
-      w: 3,
-      h: 1,
-    },
+    dataGrid: { i: "incubated", x: 0, y: 1, w: 3, h: 1 },
     ui: <Incubated />,
   },
   {
     key: "nft",
-    dataGrid: {
-      x: 0,
-      y: 3,
-      w: 3,
-      h: 1,
-    },
+    dataGrid: { i: "nft", x: 0, y: 3, w: 3, h: 1 },
     ui: <NFT />,
   },
   {
     key: "feed",
-    dataGrid: {
-      x: 0,
-      y: 4,
-      w: 1,
-      h: 1,
-    },
+    dataGrid: { i: "feed", x: 0, y: 4, w: 1, h: 1 },
     ui: <Feed />,
   },
   {
     key: "quote",
-    dataGrid: {
-      x: 1,
-      y: 4,
-      w: 1,
-      h: 1,
-    },
+    dataGrid: { i: "quote", x: 1, y: 4, w: 1, h: 1 },
     ui: <Quotes />,
   },
   {
     key: "development",
-    dataGrid: {
-      x: 3,
-      y: 4,
-      w: 1,
-      h: 3,
-    },
+    dataGrid: { i: "development", x: 3, y: 4, w: 1, h: 3 },
     ui: <Development />,
   },
 ];

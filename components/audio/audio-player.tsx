@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import AudioControls from "./audio-controls";
 import Image from "next/image";
+import { convertSecondsToMinutes } from "@/lib/utils";
 
 const AudioPlayer = ({ tracks }: { tracks: any }) => {
   // State
@@ -9,7 +10,7 @@ const AudioPlayer = ({ tracks }: { tracks: any }) => {
   const [isPlaying, setIsPlaying] = useState(false);
 
   // Destructure for conciseness
-  const { title, artist, color, image, audioSrc } = tracks[trackIndex];
+  const { title, artist, image, audioSrc } = tracks[trackIndex];
 
   // Refs
   const audioRef = useRef(new Audio(audioSrc));
@@ -19,25 +20,6 @@ const AudioPlayer = ({ tracks }: { tracks: any }) => {
   // Destructure for conciseness
   const { duration } = audioRef.current;
 
-  const currentPercentage = duration
-    ? `${(trackProgress / duration) * 100}%`
-    : "0%";
-  const trackStyling = `
-    -webkit-gradient(linear, 0% 0%, 100% 0%, color-stop(${currentPercentage}, #fff), color-stop(${currentPercentage}, #777))
-  `;
-
-  // const startTimer = () => {
-  //   // Clear any timers already running
-  //   clearInterval(intervalRef.current);
-
-  //   intervalRef.current = setInterval(() => {
-  //     if (audioRef.current.ended) {
-  //       toNextTrack();
-  //     } else {
-  //       setTrackProgress(audioRef.current.currentTime);
-  //     }
-  //   }, [1000]);
-  // };
   const startTimer = () => {
     // Clear any timers already running
     clearInterval(intervalRef.current);
@@ -100,6 +82,7 @@ const AudioPlayer = ({ tracks }: { tracks: any }) => {
 
     if (isReady.current) {
       audioRef.current.play();
+      audioRef.current.volume = 0.1;
       setIsPlaying(true);
       startTimer();
     } else {
@@ -109,6 +92,7 @@ const AudioPlayer = ({ tracks }: { tracks: any }) => {
   }, [trackIndex]);
 
   useEffect(() => {
+    setIsPlaying(false)
     // Pause and clean up on unmount
     return () => {
       audioRef.current.pause();
@@ -134,7 +118,7 @@ const AudioPlayer = ({ tracks }: { tracks: any }) => {
               <span className="font-light text-[#FFFFFF4D]">by {artist}</span>
             </p>
             <div className="flex items-center gap-2 text-[#F5DA7F42] text-xs">
-              <p>0:00</p>
+              <p className="text-[#F5DA7F]">{convertSecondsToMinutes(trackProgress)}</p>
               {/* <div className="h-1 w-28 bg-[#F5DA7F1F] rounded-full" /> */}
               <input
                 type="range"
@@ -148,7 +132,9 @@ const AudioPlayer = ({ tracks }: { tracks: any }) => {
                 className="[&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-thumb]:outline-none rounded-full accent-[#F4C10B] [&::-webkit-slider-runnable-track]:bg-[#F5DA7F1F]"
                 // className="rounded-full cursor-pointer bg-transparent appearance-none accent-[#F5DA7F1F] [&::-webkit-slider-runnable-track]:rounded-full h-1 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#F4C10B]"
               />
-              <p>0:00</p>
+              <p className="text-[#F5DA7F]">
+                -{convertSecondsToMinutes(duration - trackProgress)}
+              </p>
             </div>
           </div>
         </div>

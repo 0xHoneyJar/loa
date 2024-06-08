@@ -1,19 +1,23 @@
 "use client";
 
-import Image from "next/image";
 import RGL, { WidthProvider } from "react-grid-layout";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselPrevious,
-  CarouselNext,
-} from "@/components/ui/carousel";
 import { DASHBOARD } from "@/constants/dashboard";
 
 const ReactGridLayout = WidthProvider(RGL);
 
 const BoardSection = () => {
+  const layout = DASHBOARD.map((dashboard)=>dashboard.dataGrid);
+
+  const handleLayoutChange = (layouts: any) => {
+    localStorage.setItem("grid-layout", JSON.stringify(layouts));
+  };
+
+  const getLayout = () => {
+    const savedLayout = localStorage.getItem("grid-layout");
+
+    return savedLayout ? JSON.parse(savedLayout) : layout;
+  };
+
   return (
     <div className="h-full w-full flex items-center flex-col">
       <div className="w-3/4 h-full flex flex-col">
@@ -31,10 +35,12 @@ const BoardSection = () => {
           draggableHandle=".dragHandle"
           margin={[20, 20]}
           containerPadding={[32, 48]}
+          layout={getLayout()}
+          onLayoutChange={handleLayoutChange as any}
         >
           {DASHBOARD.map((dashboard) => {
             return (
-              <div key={dashboard.key} data-grid={{ ...dashboard.dataGrid }}>
+              <div key={dashboard.key}>
                 {dashboard.ui}
               </div>
             );
