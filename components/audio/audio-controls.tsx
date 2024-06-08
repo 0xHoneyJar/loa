@@ -15,7 +15,7 @@ const AudioControls = ({
   <div className="flex gap-4 px-3 items-center justify-center rounded-r-full border-r border-y border-[#FFFFFF1F] bg-[#E1E1E108] flex-grow">
     <button
       type="button"
-      className="aspect-square h-[16px] relative cursor-blue"
+      className="aspect-square h-[16px] relative cursor-blue opacity-20 hover:opacity-100 duration-300"
       aria-label="Previous"
       onClick={onPrevClick}
     >
@@ -29,12 +29,12 @@ const AudioControls = ({
     {isPlaying ? (
       <button
         type="button"
-        className="aspect-square h-[16px] relative cursor-blue"
+        className="aspect-square h-[16px] relative cursor-blue opacity-20 hover:opacity-100 duration-300"
         onClick={() => onPlayPauseClick(false)}
         aria-label="Pause"
       >
         <Image
-          src={"/audio/play.svg"}
+          src={"/audio/pause.svg"}
           alt="play"
           fill
           className="object-contain"
@@ -43,7 +43,7 @@ const AudioControls = ({
     ) : (
       <button
         type="button"
-        className="aspect-square h-[16px] relative cursor-blue"
+        className="aspect-square h-[16px] relative cursor-blue opacity-20 hover:opacity-100 duration-300"
         onClick={() => onPlayPauseClick(true)}
         aria-label="Play"
       >
@@ -57,7 +57,7 @@ const AudioControls = ({
     )}
     <button
       type="button"
-      className="aspect-square h-[16px] relative cursor-blue"
+      className="aspect-square h-[16px] relative cursor-blue opacity-20 hover:opacity-100 duration-300"
       aria-label="Next"
       onClick={onNextClick}
     >

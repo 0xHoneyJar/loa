@@ -140,10 +140,7 @@ const HeroSection = () => {
           />
         </motion.button>
       </div>
-      <div
-        className="h-[600px] w-full relative flex justify-center overflow-hidden"
-        ref={scrollRef}
-      >
+      <div className="h-[600px] w-full relative flex justify-center overflow-hidden">
         <div className="h-full w-2/5 absolute -left-6">
           <Image
             src={"/octo.png"}
@@ -175,6 +172,23 @@ const HeroSection = () => {
         </div>
         <div className="h-1/2 w-2/5 bg-[#F8A9291F] blur-[100px] absolute -bottom-40"></div>
         <div className="h-1/2 w-full bg-gradient-to-t from-[#0A0A0A] absolute -bottom-10" />
+      </div>
+      <div
+        className="flex flex-col text-white items-center mb-20"
+        ref={scrollRef}
+      >
+        <div className="h-[40px] aspect-square relative mb-4">
+          <Image
+            src={"/hand-move.svg"}
+            alt="hand"
+            fill
+            className="object-contain"
+          />
+        </div>
+        <p className="font-medium text-4xl mb-2">Control The THJ</p>
+        <p className="text-[#FFFFFFB3] text-xl">
+          Manage & Custom Your THJ Board
+        </p>
       </div>
     </div>
   );

@@ -42,7 +42,7 @@ const AudioPlayer = ({ tracks }: { tracks: any }) => {
     // Clear any timers already running
     clearInterval(intervalRef.current);
 
-    intervalRef.current = setInterval(() => {
+    (intervalRef.current as any) = setInterval(() => {
       if (audioRef.current.ended) {
         toNextTrack();
       } else {

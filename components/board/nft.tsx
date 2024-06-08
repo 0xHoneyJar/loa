@@ -7,11 +7,11 @@ import {
 } from "@/components/ui/carousel";
 import Image from "next/image";
 
-const Tools = () => {
+const NFT = () => {
   return (
-    <div className="border-2 bg-[#0F0F0F] rounded-2xl border-[#FFFFFF0A] overflow-hidden h-full">
+    <div className="border-2 bg-[#43AA7703] rounded-2xl border-[#43AA7714] overflow-hidden h-full">
       <Carousel className="flex flex-col h-full">
-        <div className="w-full h-2 bg-white rounded-t-3xl" />
+        <div className="w-full h-2 bg-[#43AA77] rounded-t-3xl" />
         <div className="flex justify-between items-center py-6 px-10 border-b border-dashed border-[#FFFFFF1F]">
           <div className="flex gap-2 items-center">
             <div className="h-[26px] aspect-square relative dragHandle">
@@ -22,7 +22,7 @@ const Tools = () => {
                 className="object-contain"
               />
             </div>
-            <p className="text-white text-lg">Tools & Products</p>
+            <p className="text-white text-lg">The Honey Jar NFTs</p>
           </div>
           <div className="flex relative gap-3">
             <CarouselPrevious className="h-8 w-8 border-[#848484] bg-transparent border-2" />
@@ -42,4 +42,4 @@ const Tools = () => {
   );
 };
 
-export default Tools;
+export default NFT;
