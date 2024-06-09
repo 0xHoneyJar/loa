@@ -85,13 +85,13 @@ const Footer = () => {
             className="object-contain"
           />
         </div>
-        <p className="font-semibold text-7xl mb-4">Be Part of Honey Jar</p>
+        <p className="font-semibold text-7xl mb-4">Be a Part of the Honey Jar</p>
         <p className="text-lg mb-8 w-2/5 text-center">
           Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc
           vulputate libero et velit interdum, ac aliquet odio mattis.
         </p>
         <button className="rounded-xl px-6 py-2 bg-[#43AA77] z-10">
-          Join The Honey Jar
+          Delegate Now
         </button>
         <div className="aspect-square h-[140px] absolute -bottom-6 inset-x-0 mx-auto left-80">
           <Image

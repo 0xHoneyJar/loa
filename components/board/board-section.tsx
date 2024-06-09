@@ -37,7 +37,8 @@ const BoardSection = () => {
           margin={[20, 20]}
           containerPadding={[32, 48]}
           layout={getLayout()}
-          onLayoutChange={handleLayoutChange as any}
+          // onLayoutChange={handleLayoutChange as any}
+          isResizable={false}
         >
           {DASHBOARD.map((dashboard) => {
             return <div key={dashboard.key}>{dashboard.ui}</div>;
