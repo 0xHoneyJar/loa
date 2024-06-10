@@ -19,7 +19,7 @@ const BoardSection = () => {
   };
 
   return (
-    <div className="h-full w-full flex items-center flex-col mb-40">
+    <div className="h-full w-full flex items-center flex-col mb-60">
       <div className="w-3/4 h-full flex flex-col relative items-center">
         <div className="h-[100px] w-full bg-[#F8A9291F] blur-[100px] absolute top-20" />
         <div className="w-full rounded-full py-3 px-4 border border-[#BCBCBC1A] mb-6">
@@ -44,6 +44,7 @@ const BoardSection = () => {
             return <div key={dashboard.key}>{dashboard.ui}</div>;
           })}
         </ReactGridLayout>
+        <div className="h-[1px] w-1/2 bg-gradient-to-r from-[#F5D01100] via-[#43AA77] via-50%" />
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-const Quotes = () => {
+const Meme = () => {
   return (
     <div className="flex flex-col border-2 bg-[#0F0F0F] rounded-2xl border-[#FFFFFF0A] overflow-hidden h-full">
       <div className="w-full h-2 bg-white rounded-t-3xl" />
@@ -14,16 +14,14 @@ const Quotes = () => {
               className="object-contain"
             />
           </div>
-          <p className="text-white text-lg">Our Quotes 001</p>
+          <p className="text-white text-lg">Our Artwork / Meme</p>
         </div>
       </div>
-      <div className="flex grow px-6 items-center justify-center">
-        <p className="uppercase text-white font-semibold text-4xl">
-          <span className="text-[#F5D011]">Honey Jar</span> is the best in da west for sure
-        </p>
+      <div className="flex grow items-center justify-center">
+        
       </div>
     </div>
   );
 };
 
-export default Quotes;
+export default Meme;

@@ -5,11 +5,12 @@ const Footer = () => {
   return (
     <div className="h-full w-full relative flex items-center flex-col">
       <div className="z-[-1] flex items-center justify-center aspect-square h-[1000px] absolute rounded-full border border-[#F5D01105] -top-72 p-4">
+        <div className="h-[100px] w-1/4 bg-[#43AA7780] blur-[100px] absolute -top-20" />
         <div className="h-[95%] w-[95%] rounded-full border border-[#F5D0110D] flex items-center justify-center">
           <div className="h-[90%] w-[90%] rounded-full border border-[#F5D0110D] flex items-center justify-center">
             <div className="h-[90%] w-[90%] rounded-full border border-[#F5D0110D] flex items-center justify-center">
               <div className="h-[90%] w-[90%] rounded-full border border-[#F5D0110D] flex items-center justify-center">
-                <div className="h-1/2 w-1/2 bg-[#F8A9291F] blur-[80px]"/>
+                <div className="h-1/2 w-1/2 bg-[#F8A9291F] blur-[80px]" />
               </div>
             </div>
           </div>
@@ -85,7 +86,9 @@ const Footer = () => {
             className="object-contain"
           />
         </div>
-        <p className="font-semibold text-7xl mb-4">Be a Part of the Honey Jar</p>
+        <p className="font-semibold text-7xl mb-4">
+          Be a Part of the Honey Jar
+        </p>
         <p className="text-lg mb-8 w-2/5 text-center">
           Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc
           vulputate libero et velit interdum, ac aliquet odio mattis.

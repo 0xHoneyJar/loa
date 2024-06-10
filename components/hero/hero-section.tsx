@@ -140,8 +140,8 @@ const HeroSection = () => {
             />
           </motion.button>
         </div>
-        <div className="h-[600px] w-full relative flex justify-center overflow-x-clip">
-          <div className="h-full w-2/5 absolute -left-6">
+        <div className="h-[600px] w-full relative flex justify-center overflow-x-clip mb-6">
+          <div className="h-full w-2/5 absolute -left-6 top-10">
             <Image
               src={"/octo.png"}
               alt="octo"
@@ -159,7 +159,7 @@ const HeroSection = () => {
           </div>
           <div className="h-[80%] w-full absolute bottom-0 flex justify-center">
             <Image src={"/dots.png"} alt="dots" fill className="object-cover" />
-            <div className="h-full aspect-square rounded-full border border-[#DADADA1F] relative p-5 -top-4">
+            <div className="h-full aspect-square rounded-full border border-[#DADADA1F] relative p-5">
               <div className="h-full w-full rounded-full border border-[#DADADA59] relative">
                 <Image
                   src={"/control-thj.png"}

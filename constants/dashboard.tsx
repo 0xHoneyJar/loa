@@ -10,6 +10,13 @@ import Quotes from "@/components/board/quotes";
 import Spotlight from "@/components/board/spotlight";
 import Tools from "@/components/board/tools";
 import Updates from "@/components/board/updates";
+import NewPartners from "@/components/board/new-partners";
+import Quests from "@/components/board/quests";
+import Delegate from "@/components/board/delegate";
+import Meme from "@/components/board/meme";
+import Data from "@/components/board/data";
+import Honeycomb from "@/components/board/honeycomb";
+import Validator from "@/components/board/validator";
 
 export const DASHBOARD = [
   {
@@ -29,15 +36,15 @@ export const DASHBOARD = [
     ui: <Quotes />,
   },
   {
-    key: "partners",
+    key: "newPartners",
     dataGrid: {
-      i: "partners",
+      i: "newPartners",
       x: 0,
       y: 1,
       w: 3,
       h: 1,
     },
-    ui: <Partners />,
+    ui: <NewPartners />,
   },
   {
     key: "mint",
@@ -112,5 +119,50 @@ export const DASHBOARD = [
     key: "nft",
     dataGrid: { i: "nft", x: 0, y: 10, w: 3, h: 1 },
     ui: <NFT />,
+  },
+  {
+    key: "quote3",
+    dataGrid: { i: "quote3", x: 0, y: 11, w: 1, h: 1 },
+    ui: <Quotes />,
+  },
+  {
+    key: "quests",
+    dataGrid: { i: "quests", x: 1, y: 11, w: 1, h: 3 },
+    ui: <Quests />,
+  },
+  {
+    key: "delegate",
+    dataGrid: { i: "delegate", x: 2, y: 11, w: 1, h: 2 },
+    ui: <Delegate />,
+  },
+  {
+    key: "partners",
+    dataGrid: { i: "partners", x: 0, y: 12, w: 1, h: 2 },
+    ui: <Partners />,
+  },
+  {
+    key: "quote4",
+    dataGrid: { i: "quote4", x: 3, y: 12, w: 1, h: 1 },
+    ui: <Quotes />,
+  },
+  {
+    key: "meme",
+    dataGrid: { i: "meme", x: 0, y: 13, w: 2, h: 1 },
+    ui: <Meme />,
+  },
+  {
+    key: "data",
+    dataGrid: { i: "data", x: 2, y: 13, w: 1, h: 4 },
+    ui: <Data />,
+  },
+  {
+    key: "honeycomb",
+    dataGrid: { i: "honeycomb", x: 0, y: 14, w: 2, h: 3 },
+    ui: <Honeycomb />,
+  },
+  {
+    key: "validator",
+    dataGrid: { i: "validator", x: 0, y: 17, w: 3, h: 1.5 },
+    ui: <Validator />,
   },
 ];
