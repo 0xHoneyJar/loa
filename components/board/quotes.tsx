@@ -17,7 +17,7 @@ const Quotes = () => {
           <p className="text-white text-lg">Our Quotes 001</p>
         </div>
       </div>
-      <div className="flex grow px-6 items-center justify-center">
+      <div className="flex grow px-8 items-center justify-center">
         <p className="uppercase text-white font-semibold text-4xl">
           <span className="text-[#F5D011]">Honey Jar</span> is the best in da west for sure
         </p>

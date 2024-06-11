@@ -1,4 +1,8 @@
 import Image from "next/image";
+import {
+  CircularProgressbarWithChildren,
+  buildStyles,
+} from "react-circular-progressbar";
 
 const Validator = () => {
   return (
@@ -18,7 +22,7 @@ const Validator = () => {
         </div>
       </div>
       <div className="flex grow flex-col">
-        <div className="h-4/5 w-full grid grid-cols-4 p-6 gap-8">
+        <div className="h-4/5 w-full grid grid-cols-4 py-6 px-8 gap-8">
           <div className="h-full w-full bg-[#121212] border border-[#161616] rounded-2xl flex flex-col py-6 items-center">
             <p className="text-[#6B6B6B]">Delegated to THJ (BGT)</p>
             <div className="h-full w-full items-center justify-center flex">
@@ -37,9 +41,39 @@ const Validator = () => {
               <p className="font-semibold text-white text-6xl">21st</p>
             </div>
           </div>
-          <div className="h-full w-full bg-[#121212] border border-[#161616] rounded-2xl flex flex-col py-6 items-center">
-            <p className="text-[#6B6B6B]">Voting Rank</p>
-            <div className="h-full w-full items-center justify-center flex"></div>
+          <div className="h-full w-full bg-[#121212] border relative border-[#161616] rounded-2xl flex flex-col py-6 items-center">
+            <div className="h-full w-full items-center justify-center flex relative">
+              <p className="text-[#6B6B6B] absolute top-0">Voting Rank</p>
+              <div className="h-[135px] aspect-square">
+                <CircularProgressbarWithChildren
+                  value={50}
+                  strokeWidth={14}
+                  styles={buildStyles({
+                    rotation: 0.5,
+                    strokeLinecap: "butt",
+                    pathColor: "#43AA77",
+                    trailColor: "#F4C10B",
+                  })}
+                >
+                  <p className="font-medium text-sm text-[#C1C1C1] absolute -left-10">
+                    50%
+                  </p>
+                  <p className="font-medium text-sm text-[#C1C1C1] absolute -right-10">
+                    50%
+                  </p>
+                </CircularProgressbarWithChildren>
+              </div>
+              <div className="flex gap-2 text-[#C7C7C7] justify-center absolute bottom-0">
+                <div className="flex gap-1 items-center justify-center">
+                  <div className="h-[14px] aspect-square rounded-full bg-[#43AA77]" />
+                  <p className="font-light md:text-sm text-xs">Lorem</p>
+                </div>
+                <div className="flex gap-1 items-center justify-center">
+                  <div className="h-[14px] aspect-square rounded-full bg-[#F4C10B]" />
+                  <p className="font-light md:text-sm text-xs">Lorem</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div className="h-1/5 w-full flex justify-between items-center border-t border-[#1B271B] px-6">

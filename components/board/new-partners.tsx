@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/carousel";
 import Image from "next/image";
 import { ArrowUpRight, LockKeyhole } from "lucide-react";
+import { PARTNERS } from "@/constants/partners";
 
 const NewPartners = () => {
   return (
@@ -38,17 +39,27 @@ const NewPartners = () => {
             <CarouselNext className="h-8 w-8 border-[#848484] bg-transparent border-2" />
           </div>
         </div>
-        <CarouselContent className="-ml-0 flex gap-4 pl-10 items-center">
+        <CarouselContent className="flex items-center pl-8 h-full w-full">
+          {PARTNERS.map((item, id) => (
+            <CarouselItem className="">
+              <div className="h-[196px] aspect-square rounded-lg border bg-[#18140C] border-[#F4C10B0F] flex items-center justify-center flex-col relative hover:bg-[#332200] hover:border-[#F4C10B38] text-[#E0E0E0] hover:text-white/90 hover:cursor-blue">
+                <div className="h-[2px] bg-[#EE511E] absolute top-0 w-8 rounded-full" />
+                <div className="h-[100px] aspect-square mb-2 relative bg-[#18140C05] border border-[#F4C10B0F] rounded-full">
+                  <Image
+                    src={item.image}
+                    alt={item.name}
+                    fill
+                    className="object-contain p-4"
+                  />
+                </div>
+                <p className="mb-1">{item.name}</p>
+                <StatusDisplay status={item.status} />
+              </div>
+            </CarouselItem>
+          ))}
           <CarouselItem className="">
-            <div className="h-[180px] aspect-square rounded-lg border bg-[#18140C] border-[#F4C10B0F] flex items-center justify-center flex-col relative hover:bg-[#332200] hover:border-[#F4C10B38] text-[#C4C4C4] hover:text-white/90 hover:cursor-blue">
-              <div className="h-[2px] bg-[#EE511E] absolute top-0 w-8 rounded-full" />
-              <div className="h-[90px] aspect-square bg-[#18140C05] border border-[#F4C10B0F] rounded-full mb-4" />
-              <p className="">Standard & Paws</p>
-            </div>
-          </CarouselItem>
-          <CarouselItem className="">
-            <div className="h-[180px] aspect-square rounded-lg border bg-[#18140C] border-[#F4C10B0F] flex items-center justify-center relative hover:bg-[#423520] hover:border-[#F4C10B]/10 text-[#C4C4C4] hover:text-white/90 hover:cursor-blue">
-              <p className="flex gap-2">
+            <div className="h-[196px] aspect-square rounded-lg border bg-[#18140C] border-[#F4C10B0F] flex items-center justify-center relative hover:bg-[#533802] hover:border-[#F4C10B]/10 text-[#C4C4C4] hover:text-white/90 hover:cursor-blue">
+              <p className="flex">
                 Explore All <ArrowUpRight />
               </p>
             </div>
@@ -61,3 +72,39 @@ const NewPartners = () => {
 };
 
 export default NewPartners;
+
+const StatusDisplay = ({ status }: { status: string }) => {
+  const statusImage =
+    status === "platinum"
+      ? "/partners/status/plat.png"
+      : status === "gold"
+      ? "/partners/status/gold.png"
+      : status === "silver"
+      ? "/partners/status/silver.png"
+      : "/partners/status/bronze.png";
+
+  return (
+    <div className="flex gap-1 items-center rounded-lg border border-[#1C1C1C] bg-gradient-to-b from-[#262626] to-[#141414] px-2 py-1">
+      <div className="relative aspect-square h-[16px]">
+        <Image src={statusImage} alt="status" fill />
+      </div>
+      <p
+        className={`bg-gradient-to-b bg-clip-text font-switzer text-xs text-transparent ${
+          status === "platinum"
+            ? "from-white to-[#B9B9B9]"
+            : status === "gold"
+            ? "from-[#F5CF13] to-[#766511]"
+            : status === "silver"
+            ? "from-white to-[#6C6C6C]"
+            : "from-[#EC7634] to-[#592C13]"
+        }`}
+        style={{
+          filter:
+            status === "platinum" ? "drop-shadow(#FFFFFF80 0 0 10px)" : "none",
+        }}
+      >
+        {status.toUpperCase()}
+      </p>
+    </div>
+  );
+};

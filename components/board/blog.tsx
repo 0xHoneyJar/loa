@@ -1,3 +1,4 @@
+import { ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 
 const Blog = () => {
@@ -17,7 +18,16 @@ const Blog = () => {
           <p className="text-[#FFD700] text-lg">Our Blog</p>
         </div>
       </div>
-      <div className="flex grow px-6 items-center justify-center"></div>
+      <div className="flex grow px-8 py-6">
+        <div className="grid grid-cols-4 w-full gap-8">
+          <div className="h-full w-full relative rounded-xl overflow-hidden border border-[#2B2B2B] flex items-center justify-center">
+            <Image src={"/blog.png"} alt="blog" fill className="object-cover" />
+            <button className="hover:cursor-blue px-4 py-2 flex rounded-full gap-1 border border-[#3B3B3B] backdrop-blur-lg bg-[#5A5A5A]/30 z-10">
+              Read Now <ArrowUpRight />
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

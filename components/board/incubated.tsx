@@ -6,6 +6,7 @@ import {
   CarouselNext,
 } from "@/components/ui/carousel";
 import Image from "next/image";
+import { INCUBATED } from "@/constants/incubated";
 
 const Incubated = () => {
   return (
@@ -42,14 +43,23 @@ const Incubated = () => {
             <CarouselNext className="h-8 w-8 border-[#848484] bg-transparent border-2" />
           </div>
         </div>
-        <CarouselContent className="-ml-0 flex gap-4 pl-10 items-center">
-          <CarouselItem>
-            <div className="h-[180px] aspect-square rounded-lg border bg-[#18140C] border-[#F4C10B0F] flex items-center justify-center flex-col relative hover:bg-[#332200] hover:border-[#F4C10B38] text-[#C4C4C4] hover:text-white/90 hover:cursor-blue">
-              <div className="h-[2px] bg-[#EE511E] absolute top-0 w-8 rounded-full" />
-              <div className="h-[90px] aspect-square bg-[#18140C05] border border-[#F4C10B0F] rounded-full mb-4" />
-              <p className="">Standard & Paws</p>
-            </div>
-          </CarouselItem>
+        <CarouselContent className="flex items-center pl-8 h-full w-full">
+          {INCUBATED.map((item, id) => (
+            <CarouselItem key={id} className="pl-5">
+              <div className="h-[196px] aspect-square rounded-lg border bg-[#18140C] border-[#F4C10B0F] flex items-center justify-center flex-col relative hover:bg-[#332200] hover:border-[#F4C10B38] text-[#C4C4C4] hover:text-white/90 hover:cursor-blue hover:font-medium">
+                <div className="h-[2px] bg-[#EE511E] absolute top-0 w-8 rounded-full" />
+                <div className="h-[100px] mt-6 relative aspect-square bg-[#18140C05] border border-[#F4C10B0F] rounded-full mb-4">
+                  <Image
+                    src={item.image}
+                    alt={item.name}
+                    fill
+                    className="object-contain p-4"
+                  />
+                </div>
+                <p className="text-lg">{item.name}</p>
+              </div>
+            </CarouselItem>
+          ))}
         </CarouselContent>
       </Carousel>
       {/* </div> */}

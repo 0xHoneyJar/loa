@@ -31,11 +31,9 @@ const Updates = () => {
             <CarouselNext className="h-8 w-8 border-[#848484] bg-transparent border-2" />
           </div>
         </div>
-        <CarouselContent className="-ml-0 flex gap-8 pl-10 items-center">
+        <CarouselContent className="flex items-center pl-8 h-full w-full">
           <CarouselItem>
-            <div className="h-[180px] aspect-square rounded-lg border bg-[#18140C] border-[#F4C10B0F] flex items-center justify-center flex-col relative">
-              
-            </div>
+            <div className="h-[180px] aspect-square rounded-lg border bg-[#18140C] border-[#F4C10B0F] flex items-center justify-center flex-col relative"></div>
           </CarouselItem>
         </CarouselContent>
       </Carousel>

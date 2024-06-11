@@ -90,7 +90,7 @@ const HeroSection = () => {
           gradient
           gradientColor="#0A0A0A"
           gradientWidth={50}
-          // className="mb-10 relative"
+          className="!w-[90%]"
         >
           <div className="flex py-2 bg-[#0A0601]">
             {We.map((item, id) => (

@@ -6,6 +6,7 @@ import {
   CarouselNext,
 } from "@/components/ui/carousel";
 import Image from "next/image";
+import { TOOLS } from "@/constants/tools";
 
 const Tools = () => {
   return (
@@ -29,13 +30,15 @@ const Tools = () => {
             <CarouselNext className="h-8 w-8 border-[#848484] bg-transparent border-2" />
           </div>
         </div>
-        <CarouselContent className="-ml-0 flex gap-4 items-center pl-10">
-          <CarouselItem className="hover:cursor-blue">
-            <div className="h-[180px] aspect-square rounded-lg border bg-[#121212] border-[#161616] flex items-center justify-center flex-col hover:cursor-blue hover:bg-[#1A1A1A] hover:border-[#373737] text-[#C4C4C4] hover:text-white">
-              <div className="h-[90px] aspect-square bg-[#FD4D01] rounded-full mb-4" />
-              <p className="text-[#C4C4C4]">Faucet</p>
-            </div>
-          </CarouselItem>
+        <CarouselContent className="flex items-center pl-8 h-full w-full">
+          {TOOLS.map((item, id) => (
+            <CarouselItem key={id} className="pl-5">
+              <div className="h-[196px] aspect-square rounded-lg border bg-[#121212] border-[#161616] flex items-center justify-center flex-col hover:cursor-blue hover:bg-[#1A1A1A] hover:border-[#373737] text-[#C4C4C4] hover:text-white hover:font-medium">
+                <div className="h-[100px] aspect-square bg-[#FD4D01] rounded-full mb-4 mt-6" />
+                <p className="">{item.name}</p>
+              </div>
+            </CarouselItem>
+          ))}
         </CarouselContent>
       </Carousel>
     </div>

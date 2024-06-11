@@ -18,7 +18,7 @@ const Data = () => {
         </div>
       </div>
       <div className="flex grow flex-col">
-        <div className="flex flex-col p-6 border-b border-[#F4C10B]/20">
+        <div className="flex flex-col py-6 px-8 border-b border-[#F4C10B]/20">
           <div className="flex gap-2 items-center mb-2">
             <div className="h-[20px] aspect-square relative">
               <Image

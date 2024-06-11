@@ -13,7 +13,7 @@ import Updates from "@/components/board/updates";
 import NewPartners from "@/components/board/new-partners";
 import Quests from "@/components/board/quests";
 import Delegate from "@/components/board/delegate";
-import Meme from "@/components/board/meme";
+import Artwork from "@/components/board/artwork";
 import Data from "@/components/board/data";
 import Honeycomb from "@/components/board/honeycomb";
 import Validator from "@/components/board/validator";
@@ -146,9 +146,9 @@ export const DASHBOARD = [
     ui: <Quotes />,
   },
   {
-    key: "meme",
-    dataGrid: { i: "meme", x: 0, y: 13, w: 2, h: 1 },
-    ui: <Meme />,
+    key: "artwork",
+    dataGrid: { i: "artwork", x: 0, y: 13, w: 2, h: 1 },
+    ui: <Artwork />,
   },
   {
     key: "data",

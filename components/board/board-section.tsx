@@ -2,11 +2,12 @@
 
 import RGL, { WidthProvider } from "react-grid-layout";
 import { DASHBOARD } from "@/constants/dashboard";
+import Marquee from "react-fast-marquee";
 
 const ReactGridLayout = WidthProvider(RGL);
 
 const BoardSection = () => {
-  const layout = DASHBOARD.map((dashboard)=>dashboard.dataGrid);
+  const layout = DASHBOARD.map((dashboard) => dashboard.dataGrid);
 
   const handleLayoutChange = (layouts: any) => {
     localStorage.setItem("grid-layout", JSON.stringify(layouts));
@@ -22,12 +23,20 @@ const BoardSection = () => {
     <div className="h-full w-full flex items-center flex-col mb-60">
       <div className="w-3/4 h-full flex flex-col relative items-center">
         <div className="h-[100px] w-full bg-[#F8A9291F] blur-[100px] absolute top-20" />
-        <div className="w-full rounded-full py-3 px-4 border border-[#BCBCBC1A] mb-6">
+        <div className="w-full gap-2 rounded-full py-3 px-4 border border-[#BCBCBC1A] mb-6 flex">
           <div className="py-1.5 px-4 bg-gradient-to-r from-[#F2C8481F] to-[#F8A9291F] rounded-full w-fit">
             <p className="text-xs bg-gradient-to-r from-[#F2C848] to-[#F8A929] bg-clip-text text-transparent">
               ACTIVITY
             </p>
           </div>
+          <Marquee
+            autoFill
+            speed={30}
+          >
+            <p className="text-white px-2 text-sm">
+              Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+            </p>
+          </Marquee>
         </div>
         <ReactGridLayout
           className="w-full rounded-2xl border border-[#BCBCBC1A] text-white bg-[#0A0A0A] overflow-hidden"
