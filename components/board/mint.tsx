@@ -10,7 +10,7 @@ const Mint = () => {
           <LockKeyhole className="h-[26px] aspect-square text-[#FFD7004D]" />
           <p className="text-[#FFD700] text-lg whitespace-nowrap">New Mint</p>
         </div>
-        <button className="flex gap-1 items-center font-medium text-lg text-[#848484]">
+        <button className="flex gap-1 items-center font-medium text-lg text-[#848484] hover:text-white">
           Explore <ArrowUpRight size={24}/>
         </button>
       </div>

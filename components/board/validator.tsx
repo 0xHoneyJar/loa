@@ -67,7 +67,7 @@ const Validator = () => {
               />
             </div>
             <div className="p-1.5 border border-dashed rounded-full border-[#848484]">
-              <button className="px-6 py-2 bg-[#43AA77] rounded-full text-black">
+              <button className="px-6 py-2 bg-[#43AA77] rounded-full text-black font-medium hover:shadow-evergreen">
                 Delegate Now
               </button>
             </div>

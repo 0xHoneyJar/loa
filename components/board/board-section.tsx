@@ -34,7 +34,7 @@ const BoardSection = () => {
           cols={3}
           rowHeight={340}
           draggableHandle=".dragHandle"
-          margin={[20, 20]}
+          margin={[30, 30]}
           containerPadding={[32, 48]}
           layout={getLayout()}
           // onLayoutChange={handleLayoutChange as any}

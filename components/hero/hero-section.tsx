@@ -107,9 +107,7 @@ const HeroSection = () => {
                     fill
                   />
                 </div>
-                <p className="md:text-sm text-xs font-light">
-                  <span className="font-medium">We</span> {item.title}
-                </p>
+                <p className="md:text-sm text-xs font-light">{item.title}</p>
               </div>
             ))}
           </div>
@@ -140,7 +138,7 @@ const HeroSection = () => {
             />
           </motion.button>
         </div>
-        <div className="h-[600px] w-full relative flex justify-center overflow-x-clip mb-6">
+        <div className="h-[600px] w-full relative flex justify-center mb-6">
           <div className="h-full w-2/5 absolute -left-6 top-10">
             <Image
               src={"/octo.png"}
@@ -196,9 +194,9 @@ const HeroSection = () => {
             className="object-contain"
           />
         </motion.div>
-        <p className="font-medium text-4xl mb-2">Control The THJ</p>
+        <p className="font-medium text-4xl mb-2">Customize the THJ Board</p>
         <p className="text-[#FFFFFFB3] text-xl">
-          Manage & Custom Your THJ Board
+          Manage & Customize your THJ Board
         </p>
       </div>
     </div>

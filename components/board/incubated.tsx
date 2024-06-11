@@ -44,10 +44,10 @@ const Incubated = () => {
         </div>
         <CarouselContent className="-ml-0 flex gap-4 pl-10 items-center">
           <CarouselItem>
-            <div className="h-[180px] aspect-square rounded-lg border bg-[#18140C] border-[#F4C10B0F] flex items-center justify-center flex-col relative">
+            <div className="h-[180px] aspect-square rounded-lg border bg-[#18140C] border-[#F4C10B0F] flex items-center justify-center flex-col relative hover:bg-[#332200] hover:border-[#F4C10B38] text-[#C4C4C4] hover:text-white/90 hover:cursor-blue">
               <div className="h-[2px] bg-[#EE511E] absolute top-0 w-8 rounded-full" />
               <div className="h-[90px] aspect-square bg-[#18140C05] border border-[#F4C10B0F] rounded-full mb-4" />
-              <p className="text-[#C4C4C4]">Standard & Paws</p>
+              <p className="">Standard & Paws</p>
             </div>
           </CarouselItem>
         </CarouselContent>

@@ -22,12 +22,12 @@ const Footer = () => {
         className="z-[-1] overflow-hidden relative top-8"
       >
         <p
-          className="font-bold text-[12rem] text-[#F5D0110D] leading-none"
+          className="font-bold text-[14rem] text-[#F5D0110D] leading-none"
           style={{
             WebkitTextStroke: "1px #F5D01145",
           }}
         >
-          Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+          Based Community Gateway on Berachain
         </p>
       </Marquee>
       <div className="h-[400px] w-full border-t border-dashed border-[#878787] flex text-white bg-[#121212]">

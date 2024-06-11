@@ -6,7 +6,7 @@ import {
   CarouselNext,
 } from "@/components/ui/carousel";
 import Image from "next/image";
-import { LockKeyhole } from "lucide-react";
+import { ArrowUpRight, LockKeyhole } from "lucide-react";
 
 const NewPartners = () => {
   return (
@@ -16,7 +16,9 @@ const NewPartners = () => {
         <div className="flex justify-between items-center py-6 px-8 border-b border-dashed border-[#F4C10B6B]">
           <div className="flex gap-2 items-center">
             <LockKeyhole className="h-[26px] aspect-square text-[#FFD7004D]" />
-            <p className="text-[#FFD700] text-lg whitespace-nowrap">New Partners</p>
+            <p className="text-[#FFD700] text-lg whitespace-nowrap">
+              New Partners
+            </p>
             <div className="flex gap-2 items-center rounded-full border py-1 px-2 border-[#F8A9291F] bg-gradient-to-r from-[#F5D0110D] to-[#F8A9290D]">
               <div className="h-[20px] aspect-square relative">
                 <Image
@@ -37,11 +39,18 @@ const NewPartners = () => {
           </div>
         </div>
         <CarouselContent className="-ml-0 flex gap-4 pl-10 items-center">
-          <CarouselItem>
-            <div className="h-[180px] aspect-square rounded-lg border bg-[#18140C] border-[#F4C10B0F] flex items-center justify-center flex-col relative">
+          <CarouselItem className="">
+            <div className="h-[180px] aspect-square rounded-lg border bg-[#18140C] border-[#F4C10B0F] flex items-center justify-center flex-col relative hover:bg-[#332200] hover:border-[#F4C10B38] text-[#C4C4C4] hover:text-white/90 hover:cursor-blue">
               <div className="h-[2px] bg-[#EE511E] absolute top-0 w-8 rounded-full" />
               <div className="h-[90px] aspect-square bg-[#18140C05] border border-[#F4C10B0F] rounded-full mb-4" />
-              <p className="text-[#C4C4C4]">Standard & Paws</p>
+              <p className="">Standard & Paws</p>
+            </div>
+          </CarouselItem>
+          <CarouselItem className="">
+            <div className="h-[180px] aspect-square rounded-lg border bg-[#18140C] border-[#F4C10B0F] flex items-center justify-center relative hover:bg-[#423520] hover:border-[#F4C10B]/10 text-[#C4C4C4] hover:text-white/90 hover:cursor-blue">
+              <p className="flex gap-2">
+                Explore All <ArrowUpRight />
+              </p>
             </div>
           </CarouselItem>
         </CarouselContent>

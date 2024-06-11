@@ -29,7 +29,7 @@ const AudioControls = ({
     {isPlaying ? (
       <button
         type="button"
-        className="aspect-square h-[16px] relative cursor-blue opacity-30 hover:opacity-100 duration-300"
+        className="aspect-square h-[20px] relative cursor-blue opacity-30 hover:opacity-100 duration-300"
         onClick={() => onPlayPauseClick(false)}
         aria-label="Pause"
       >
@@ -43,7 +43,7 @@ const AudioControls = ({
     ) : (
       <button
         type="button"
-        className="aspect-square h-[16px] relative cursor-blue opacity-30 hover:opacity-100 duration-300"
+        className="aspect-square h-[20px] relative cursor-blue opacity-30 hover:opacity-100 duration-300"
         onClick={() => onPlayPauseClick(true)}
         aria-label="Play"
       >

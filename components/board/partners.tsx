@@ -6,7 +6,7 @@ import { useState } from "react";
 const Partners = () => {
   const [hover, setHover] = useState(false);
   return (
-    <div className="flex flex-col border-2 bg-[#43AA7703] rounded-2xl border-[#43AA7714] overflow-hidden h-full">
+    <div className="flex flex-col border-2 bg-[#10120D] rounded-2xl border-[#121A12] overflow-hidden h-full">
       <div className="w-full h-2 bg-[#43AA77] rounded-t-3xl" />
       <div className="flex justify-between items-center py-6 px-8 border-b border-dashed border-[#FFFFFF1F]">
         <div className="flex gap-2 items-center">
@@ -30,7 +30,7 @@ const Partners = () => {
           <div className="w-full p-6 bg-[#43AA772E] rounded-xl relative">
             <p className="font-medium text-5xl text-[#00AB55]">561</p>
             <p className="text-sm text-[#A9A9A9] flex items-center gap-1 absolute right-6 bottom-4">
-              / Total Parnters <HelpCircle size={14} />
+              / Total Partners <HelpCircle size={14} />
             </p>
           </div>
           <div className="w-full p-6 bg-[#43AA772E] rounded-xl relative">
@@ -82,16 +82,27 @@ const Partners = () => {
             <button
               onMouseEnter={() => setHover(true)}
               onMouseLeave={() => setHover(false)}
-              className="flex rounded-full bg-[#43AA77] px-2 py-1 items-center text-black font-semibold w-full hover:cursor-blue text-lg partnersButton"
+              style={{
+                justifyContent: !hover ? "flex-start" : "flex-end",
+              }}
+              className="flex rounded-full bg-[#43AA77] px-2 py-1 items-center text-black font-semibold w-full hover:cursor-blue text-lg"
             >
               <motion.div
                 layout
-                className="h-[40px] aspect-square bg-[#171717] rounded-full flex items-center justify-center"
-                transition={{ duration: 3 }}
+                className={`h-[40px] z-10 aspect-square rounded-full flex items-center justify-center ${
+                  hover ? "bg-white" : "bg-[#171717]"
+                }`}
+                transition={{ duration: 0.3 }}
               >
                 <ArrowRight className="text-[#43AA77]" />
               </motion.div>
-              <p className="absolute mx-auto inset-x-0">Become a Partner</p>
+              <p
+                className={`absolute mx-auto inset-x-0 ${
+                  hover && "text-white"
+                }`}
+              >
+                Become a Partner
+              </p>
             </button>
           </div>
         </div>
