@@ -20,7 +20,7 @@ const Quests = () => {
           </div>
         </div>
       </div>
-      <div className="flex grow px-6 items-center">
+      <div className="flex grow px-8 items-center">
         <p className="text-white uppercase">
           Take part in{" "}
           <span className="text-[#E1A94E]">THJ specials Quests</span> and{" "}

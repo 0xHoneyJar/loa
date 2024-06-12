@@ -76,7 +76,7 @@ const Validator = () => {
             </div>
           </div>
         </div>
-        <div className="h-1/5 w-full flex justify-between items-center border-t border-[#1B271B] px-6">
+        <div className="h-1/5 w-full flex justify-between items-center border-t border-[#1B271B] px-8">
           <div className="flex gap-2 items-center">
             <div className="aspect-square h-[38px] relative">
               <Image

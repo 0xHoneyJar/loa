@@ -20,7 +20,7 @@ const Spotlight = () => {
           </div>
         </div>
       </div>
-      <div className="flex grow px-6 items-center justify-center"></div>
+      <div className="flex grow px-8 items-center justify-center"></div>
     </div>
   );
 };

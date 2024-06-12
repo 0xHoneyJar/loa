@@ -41,7 +41,7 @@ const NewPartners = () => {
         </div>
         <CarouselContent className="flex items-center pl-8 h-full w-full">
           {PARTNERS.map((item, id) => (
-            <CarouselItem className="">
+            <CarouselItem className="" key={id}>
               <div className="h-[196px] aspect-square rounded-lg border bg-[#18140C] border-[#F4C10B0F] flex items-center justify-center flex-col relative hover:bg-[#332200] hover:border-[#F4C10B38] text-[#E0E0E0] hover:text-white/90 hover:cursor-blue">
                 <div className="h-[2px] bg-[#EE511E] absolute top-0 w-8 rounded-full" />
                 <div className="h-[100px] aspect-square mb-2 relative bg-[#18140C05] border border-[#F4C10B0F] rounded-full">
