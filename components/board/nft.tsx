@@ -13,7 +13,7 @@ const NFT = () => {
     <div className="border-2 bg-[#10120D] rounded-2xl border-[#121A12] overflow-hidden h-full">
       <Carousel className="flex flex-col h-full">
         <div className="w-full h-2 bg-[#43AA77] rounded-t-3xl" />
-        <div className="flex justify-between items-center py-6 px-8 border-b border-dashed border-[#1B271B]">
+        <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#1B271B]">
           <div className="flex gap-2 items-center">
             <div className="h-[26px] aspect-square relative dragHandle">
               <Image
@@ -30,10 +30,10 @@ const NFT = () => {
             <CarouselNext className="h-8 w-8 border-[#848484] bg-transparent border-2" />
           </div>
         </div>
-        <CarouselContent className="flex items-center pl-8 h-full w-full">
+        <CarouselContent className="flex items-center pl-6 h-full w-full py-6">
           {NFTItems.map((nft, id) => (
-            <CarouselItem key={id} className="pl-5">
-              <div className="h-[196px] gap-3 aspect-square rounded-lg border bg-[#121212] border-[#161616] flex items-center justify-center flex-col hover:cursor-blue hover:bg-[#1A1A1A] hover:border-[#373737] text-[#C4C4C4] hover:text-white">
+            <CarouselItem key={id} className="pl-5 h-full">
+              <div className="w-[196px] gap-3 h-full rounded-lg border bg-[#121212] border-[#161616] flex items-center justify-center flex-col hover:cursor-blue hover:bg-[#1A1A1A] hover:border-[#373737] text-[#C4C4C4] hover:text-white">
                 <div className="h-[10%] w-full py-1 flex items-center justify-center">
                   {nft.new && (
                     <div className="flex gap-2 items-center border border-[#F4C10B] bg-[#F5DA7F14] rounded-full px-1.5 py-0.5">

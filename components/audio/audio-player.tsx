@@ -101,7 +101,7 @@ const AudioPlayer = ({ tracks }: { tracks: any }) => {
   }, []);
 
   return (
-    <div className="h-full flex">
+    <div className="flex absolute inset-x-0 mx-auto w-fit">
       <div className="flex bg-[#AFAFAF1F] border border-[#A6A6A647] rounded-l-full p-2 items-center backdrop-blur-2xl">
         <div className="flex items-center">
           <div className="aspect-square h-[40px] relative border border-[#2C2C2C] rounded-full mr-3">

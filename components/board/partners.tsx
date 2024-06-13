@@ -8,7 +8,7 @@ const Partners = () => {
   return (
     <div className="flex flex-col border-2 bg-[#10120D] rounded-2xl border-[#121A12] overflow-hidden h-full">
       <div className="w-full h-2 bg-[#43AA77] rounded-t-3xl" />
-      <div className="flex justify-between items-center py-6 px-8 border-b border-dashed border-[#FFFFFF1F]">
+      <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#FFFFFF1F]">
         <div className="flex gap-2 items-center">
           <div className="h-[26px] aspect-square relative dragHandle">
             <Image
@@ -22,7 +22,7 @@ const Partners = () => {
         </div>
       </div>
       <div className="flex grow flex-col">
-        <div className="h-4/5 w-full flex flex-col px-8 justify-center gap-5">
+        <div className="h-4/5 w-full flex flex-col px-6 justify-center gap-5">
           <p className="text-[#A9A9A9]">
             THJ has a vast and constantly growing network of partners. Many of
             them are providing perks to Honeycomb holders.
@@ -61,7 +61,7 @@ const Partners = () => {
             <ChevronRight size={18} className="text-[#FFFFFF66]" />
           </button>
         </div>
-        <div className="h-1/5 w-full flex items-center justify-center px-8 border-t border-[#43AA771A] relative">
+        <div className="h-1/5 w-full flex items-center justify-center px-6 border-t border-[#43AA771A] relative">
           <div className="aspect-square h-[40px] absolute -left-0 -bottom-2">
             <Image
               src={"/arrow-swirl-partner.svg"}

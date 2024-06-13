@@ -6,7 +6,7 @@ const Development = () => {
   return (
     <div className="flex flex-col border-2 bg-[#0F0F0F] rounded-2xl border-[#FFFFFF0A] overflow-hidden h-full">
       <div className="w-full h-2 bg-white rounded-t-3xl" />
-      <div className="flex justify-between items-center py-6 px-8 border-b border-dashed border-[#FFFFFF1F]">
+      <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#FFFFFF1F]">
         <div className="flex gap-2 items-center">
           <div className="h-[26px] aspect-square relative dragHandle">
             <Image
@@ -21,7 +21,7 @@ const Development = () => {
           </p>
         </div>
       </div>
-      <div className="flex grow justify-center py-6 pl-10 relative">
+      <div className="flex grow justify-center py-6 pl-8 relative">
         <div className="h-1/6 w-full absolute top-0 bg-gradient-to-b from-[#0F0F0F] z-10" />
         <div className="h-1/6 w-full absolute bottom-0 bg-gradient-to-t from-[#0F0F0F] z-10" />
         <div className="h-full w-full border-l border-dashed border-[#4C4C4C] pl-12 flex flex-col pt-6 relative gap-20">

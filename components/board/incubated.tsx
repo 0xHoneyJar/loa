@@ -13,7 +13,7 @@ const Incubated = () => {
     <div className="rounded-2xl overflow-hidden bg-gradient-to-b from-[#F8A92917] to-[#14131017] h-full border-2 border-[#F8A92952]">
       <Carousel className="flex flex-col h-full">
         <div className="w-full h-2 bg-[#FFD700] rounded-t-3xl" />
-        <div className="flex justify-between items-center py-6 px-8 border-b border-dashed border-[#F4C10B6B]">
+        <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#F4C10B6B]">
           <div className="flex gap-2 items-center">
             <div className="h-[26px] aspect-square relative dragHandle">
               <Image
@@ -43,10 +43,10 @@ const Incubated = () => {
             <CarouselNext className="h-8 w-8 border-[#848484] bg-transparent border-2" />
           </div>
         </div>
-        <CarouselContent className="flex items-center pl-8 h-full w-full">
+        <CarouselContent className="flex items-center pl-6 h-full w-full py-6">
           {INCUBATED.map((item, id) => (
-            <CarouselItem key={id} className="pl-5">
-              <div className="h-[196px] aspect-square rounded-lg border bg-[#18140C] border-[#F4C10B0F] flex items-center justify-center flex-col relative hover:bg-[#332200] hover:border-[#F4C10B38] text-[#C4C4C4] hover:text-white/90 hover:cursor-blue hover:font-medium">
+            <CarouselItem key={id} className="pl-5 h-full">
+              <div className="w-[196px] h-full rounded-lg border bg-[#18140C] border-[#F4C10B0F] flex items-center justify-center flex-col relative hover:bg-[#332200] hover:border-[#F4C10B38] text-[#C4C4C4] hover:text-white/90 hover:cursor-blue hover:font-medium">
                 <div className="h-[2px] bg-[#EE511E] absolute top-0 w-8 rounded-full" />
                 <div className="h-[100px] mt-6 relative aspect-square bg-[#18140C05] border border-[#F4C10B0F] rounded-full mb-4">
                   <Image

@@ -51,7 +51,7 @@ const HeroSection = () => {
             </div>
             {/* </div> */}
             <div className="w-1/3 flex flex-col gap-5 justify-end mt-12">
-              <p className="">
+              <p className="text-xl">
                 THJ is Berachain-native community venture studio. We're the
                 creators of Honeycomb, a perks aggregator for Bera eco projects.
               </p>
