@@ -27,6 +27,7 @@ export const DASHBOARD = [
       y: 0,
       w: 2,
       h: 1,
+      static: true
     },
     ui: <Updates />,
   },
@@ -43,6 +44,7 @@ export const DASHBOARD = [
       y: 1,
       w: 3,
       h: 1,
+      static: true
     },
     ui: <NewPartners />,
   },
@@ -54,6 +56,7 @@ export const DASHBOARD = [
       y: 2,
       w: 3,
       h: 1.3,
+      static: true
     },
     ui: <Mint />,
   },

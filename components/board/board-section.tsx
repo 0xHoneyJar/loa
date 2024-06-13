@@ -3,6 +3,8 @@
 import RGL, { WidthProvider } from "react-grid-layout";
 import { DASHBOARD } from "@/constants/dashboard";
 import Marquee from "react-fast-marquee";
+// import "react-grid-layout/css/styles.css";
+// import "react-resizable/css/styles.css";
 
 const ReactGridLayout = WidthProvider(RGL);
 
@@ -39,15 +41,15 @@ const BoardSection = () => {
           </Marquee>
         </div>
         <ReactGridLayout
-          className="w-full rounded-2xl border border-[#BCBCBC1A] text-white bg-[#0A0A0A] overflow-hidden"
+          className="w-full rounded-2xl border border-[#BCBCBC1A] text-white bg-[#0A0A0A]"
           cols={3}
           rowHeight={340}
           draggableHandle=".dragHandle"
           margin={[30, 30]}
           containerPadding={[32, 48]}
           layout={getLayout()}
-          // onLayoutChange={handleLayoutChange as any}
           isResizable={false}
+          // onLayoutChange={handleLayoutChange as any}
         >
           {DASHBOARD.map((dashboard) => {
             return <div key={dashboard.key}>{dashboard.ui}</div>;
