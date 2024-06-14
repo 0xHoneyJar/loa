@@ -20,6 +20,7 @@ import Validator from "@/components/board/validator";
 
 export const DASHBOARD = [
   {
+    name: "Updates",
     key: "updates",
     dataGrid: {
       i: "updates",
@@ -27,16 +28,18 @@ export const DASHBOARD = [
       y: 0,
       w: 2,
       h: 1,
-      static: true
+      static: true,
     },
     ui: <Updates />,
   },
   {
+    name: "Quote",
     key: "quote",
     dataGrid: { i: "quote", x: 2, y: 0, w: 1, h: 1 },
     ui: <Quotes />,
   },
   {
+    name: "New Partners",
     key: "newPartners",
     dataGrid: {
       i: "newPartners",
@@ -44,11 +47,12 @@ export const DASHBOARD = [
       y: 1,
       w: 3,
       h: 1,
-      static: true
+      static: true,
     },
     ui: <NewPartners />,
   },
   {
+    name: "New Mint",
     key: "mint",
     dataGrid: {
       i: "mint",
@@ -56,11 +60,12 @@ export const DASHBOARD = [
       y: 2,
       w: 3,
       h: 1.3,
-      static: true
+      static: true,
     },
     ui: <Mint />,
   },
   {
+    name: "Blog",
     key: "blog",
     dataGrid: {
       i: "blog",
@@ -72,6 +77,7 @@ export const DASHBOARD = [
     ui: <Blog />,
   },
   {
+    name: "Spotlight",
     key: "spotlight",
     dataGrid: {
       i: "spotlight",
@@ -83,31 +89,37 @@ export const DASHBOARD = [
     ui: <Spotlight />,
   },
   {
+    name: "Development Pipeline",
     key: "development",
     dataGrid: { i: "development", x: 3, y: 5, w: 1, h: 3 },
     ui: <Development />,
   },
   {
+    name: "Quote2",
     key: "quote2",
     dataGrid: { i: "quote2", x: 0, y: 6, w: 1, h: 1 },
     ui: <Quotes />,
   },
   {
+    name: "Feed",
     key: "feed",
     dataGrid: { i: "feed", x: 1, y: 6, w: 1, h: 1 },
     ui: <Feed />,
   },
   {
+    name: "Guide",
     key: "guide",
     dataGrid: { i: "guide", x: 0, y: 7, w: 3, h: 1 },
     ui: <Guide />,
   },
   {
+    name: "Incubated Projects",
     key: "incubated",
     dataGrid: { i: "incubated", x: 0, y: 8, w: 3, h: 1 },
     ui: <Incubated />,
   },
   {
+    name: "Tools & Products",
     key: "tools",
     dataGrid: {
       i: "tools",
@@ -119,51 +131,61 @@ export const DASHBOARD = [
     ui: <Tools />,
   },
   {
+    name: "NFT",
     key: "nft",
     dataGrid: { i: "nft", x: 0, y: 10, w: 3, h: 1 },
     ui: <NFT />,
   },
   {
+    name: "Quote3",
     key: "quote3",
     dataGrid: { i: "quote3", x: 0, y: 11, w: 1, h: 1 },
     ui: <Quotes />,
   },
   {
+    name: "Quests",
     key: "quests",
     dataGrid: { i: "quests", x: 1, y: 11, w: 1, h: 3 },
     ui: <Quests />,
   },
   {
+    name: "Delegate",
     key: "delegate",
     dataGrid: { i: "delegate", x: 2, y: 11, w: 1, h: 2 },
     ui: <Delegate />,
   },
   {
+    name: "Partners",
     key: "partners",
     dataGrid: { i: "partners", x: 0, y: 12, w: 1, h: 2 },
     ui: <Partners />,
   },
   {
+    name: "Quote4",
     key: "quote4",
     dataGrid: { i: "quote4", x: 3, y: 12, w: 1, h: 1 },
     ui: <Quotes />,
   },
   {
+    name: "Artwork / Meme",
     key: "artwork",
     dataGrid: { i: "artwork", x: 0, y: 13, w: 2, h: 1 },
     ui: <Artwork />,
   },
   {
+    name: "Data",
     key: "data",
     dataGrid: { i: "data", x: 2, y: 13, w: 1, h: 4 },
     ui: <Data />,
   },
   {
+    name: "Honeycomb",
     key: "honeycomb",
     dataGrid: { i: "honeycomb", x: 0, y: 14, w: 2, h: 3 },
     ui: <Honeycomb />,
   },
   {
+    name: "Validator",
     key: "validator",
     dataGrid: { i: "validator", x: 0, y: 17, w: 3, h: 1.5 },
     ui: <Validator />,

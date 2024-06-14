@@ -3,6 +3,7 @@ import Image from "next/image";
 const Delegate = () => {
   return (
     <div className="flex flex-col relative border-2 bg-gradient-to-br from-[#FFC100] to-[#F8A929] rounded-2xl border-[#FFCA0C] overflow-hidden h-full p-2">
+      <div className="absolute -top-40 w-full h-1" id="delegate" />
       <div className="aspect-square h-[52px] absolute inset-y-0 my-auto left-0 -bottom-12">
         <Image
           src={"/arrow-delegate.svg"}

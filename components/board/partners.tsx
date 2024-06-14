@@ -6,7 +6,8 @@ import { useState } from "react";
 const Partners = () => {
   const [hover, setHover] = useState(false);
   return (
-    <div className="flex flex-col border-2 bg-[#10120D] rounded-2xl border-[#121A12] overflow-hidden h-full">
+    <div className="relative flex flex-col border-2 bg-[#10120D] rounded-2xl border-[#121A12] overflow-hidden h-full">
+      <div className="absolute -top-40 w-full h-1" id="partners" />
       <div className="w-full h-2 bg-[#43AA77] rounded-t-3xl" />
       <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#FFFFFF1F]">
         <div className="flex gap-2 items-center">

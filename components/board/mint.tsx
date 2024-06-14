@@ -3,7 +3,8 @@ import { LockKeyhole, ArrowUpRight } from "lucide-react";
 
 const Mint = () => {
   return (
-    <div className="flex flex-col h-full rounded-2xl overflow-hidden bg-gradient-to-b from-[#F8A92917] to-[#14131017] border-2 border-[#F8A92952]">
+    <div className="relative flex flex-col h-full rounded-2xl overflow-hidden bg-gradient-to-b from-[#F8A92917] to-[#14131017] border-2 border-[#F8A92952]">
+      <div className="absolute -top-40 w-full h-1" id="mint" />
       <div className="w-full h-2 bg-[#FFD700] rounded-t-3xl" />
       <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#F4C10B6B]">
         <div className="flex gap-2 items-center">
@@ -14,11 +15,11 @@ const Mint = () => {
           Explore <ArrowUpRight size={24} />
         </button>
       </div>
-      <div className="flex grow p-6 items-center justify-center">
+      <div className="flex grow p-6">
         <div className="grid grid-cols-5 w-full h-full gap-6">
-          <div className="h-full w-full bg-[#221C11] rounded-lg border border-[#F4C10B14] flex flex-col">
-            <div className="h-4/5 w-full p-2 border-b border-[#F4C10B14]">
-              <div className="h-full w-full rounded-lg relative overflow-hidden flex items-end">
+          <div className="h-full w-full bg-[#221C11] rounded-lg border border-[#F4C10B14] flex flex-col divide-y divide-[#F4C10B14] hover:bg-[#423520] hover:border-[#F4C10B47] hover:divide-[#F4C10B47] hover:cursor-blue">
+            <div className="h-4/5 w-full p-2">
+              <div className="h-full w-full rounded-t-lg relative overflow-hidden flex items-end">
                 <Image
                   src={"/mint.png"}
                   alt="mint"

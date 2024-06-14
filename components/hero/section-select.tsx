@@ -5,7 +5,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
-import { SECTION } from "@/constants/section";
+import { DASHBOARD } from "@/constants/dashboard";
 
 const SectionSelect = () => {
   return (
@@ -25,10 +25,10 @@ const SectionSelect = () => {
       >
         {/* <div className="h-1/6 w-full absolute bottom-0 bg-gradient-to-t from-[#0F0F0F] z-10" /> */}
         <SelectGroup className="gap-2 flex flex-col">
-          {SECTION.map((section, id) => (
+          {DASHBOARD.map((section, id) => (
             <SelectItem
               key={id}
-              value={section.value}
+              value={section.key}
               className="text-[#E7E7E7] bg-[#121212] rounded-lg text-sm py-3 focus:bg-[#F8A9292E] focus:text-[#FFD700]"
             >
               {section.name}

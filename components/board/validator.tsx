@@ -6,7 +6,8 @@ import {
 
 const Validator = () => {
   return (
-    <div className="flex flex-col border-2 bg-[#10120D] rounded-2xl border-[#121A12] overflow-hidden h-full">
+    <div className="relative flex flex-col border-2 bg-[#10120D] rounded-2xl border-[#121A12] overflow-hidden h-full">
+      <div className="absolute -top-40 w-full h-1" id="validator" />
       <div className="w-full h-2 bg-[#43AA77] rounded-t-3xl" />
       <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#1B271B]">
         <div className="flex gap-2 items-center">
@@ -101,7 +102,7 @@ const Validator = () => {
               />
             </div>
             <div className="p-1.5 border border-dashed rounded-full border-[#848484]">
-              <button className="px-6 py-2 bg-[#43AA77] rounded-full text-black font-medium hover:shadow-evergreen">
+              <button className="px-6 py-2 bg-[#43AA77] rounded-full text-black font-medium hover:shadow-evergreen hover:cursor-blue">
                 Delegate Now
               </button>
             </div>

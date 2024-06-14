@@ -4,7 +4,8 @@ import { Play } from "lucide-react";
 
 const Development = () => {
   return (
-    <div className="flex flex-col border-2 bg-[#0F0F0F] rounded-2xl border-[#FFFFFF0A] overflow-hidden h-full">
+    <div className="relative flex flex-col border-2 bg-[#0F0F0F] rounded-2xl border-[#FFFFFF0A] overflow-hidden h-full">
+      <div className="absolute -top-40 w-full h-1" id="development" />
       <div className="w-full h-2 bg-white rounded-t-3xl" />
       <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#FFFFFF1F]">
         <div className="flex gap-2 items-center">

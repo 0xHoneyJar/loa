@@ -10,7 +10,8 @@ import { TOOLS } from "@/constants/tools";
 
 const Tools = () => {
   return (
-    <div className="border-2 bg-[#0F0F0F] rounded-2xl border-[#FFFFFF0A] overflow-hidden h-full">
+    <div className="relative border-2 bg-[#0F0F0F] rounded-2xl border-[#FFFFFF0A] overflow-hidden h-full">
+      <div className="absolute -top-40 w-full h-1" id="tools" />
       <Carousel className="flex flex-col h-full">
         <div className="w-full h-2 bg-white rounded-t-3xl" />
         <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#FFFFFF1F]">
