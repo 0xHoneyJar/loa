@@ -44,8 +44,10 @@ export default function RootLayout({
       <body>
         {/* <Web3Provider> */}
         <div className="mx-auto min-w-[24rem] max-w-[112rem] relative overflow-hidden">
-          <Navbar />
-          {children}
+          <>
+            <Navbar />
+            {children}
+          </>
         </div>
         {/* </Web3Provider> */}
       </body>
