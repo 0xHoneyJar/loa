@@ -35,7 +35,7 @@ const Artwork = () => {
       >
         <div className="flex">
           {ARTWORK.map((item, id) => (
-            <div className="relative h-[200px] aspect-square mx-2 rounded-lg overflow-hidden">
+            <div className="relative h-[200px] aspect-square mx-2 rounded-lg overflow-hidden" key={id}>
               <Image
                 src={item}
                 alt={"artwork-" + id}

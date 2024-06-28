@@ -52,7 +52,7 @@ const HeroSection = () => {
             {/* </div> */}
             <div className="w-1/3 flex flex-col gap-5 justify-end mt-12">
               <p className="text-xl">
-                THJ is Berachain-native community venture studio. We're the
+                THJ is Berachain-native community venture studio. We&apos;re the
                 creators of Honeycomb, a perks aggregator for Bera eco projects.
               </p>
               <div className="w-full flex gap-5">

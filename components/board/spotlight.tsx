@@ -18,7 +18,7 @@ const Spotlight = () => {
           </div>
           <p className="text-[#FFD700] text-lg mr-2">Spotlight</p>
           <div className="flex items-center rounded-full py-1 px-2 bg-[#F5D01124]">
-            <p className="text-[#F5D011] uppercase text-xs">Don't miss it</p>
+            <p className="text-[#F5D011] uppercase text-xs">Don&apos;t miss it</p>
           </div>
         </div>
       </div>

@@ -89,7 +89,7 @@ const Data = () => {
             <div className="flex gap-1 items-center justify-center">
               <div className="h-[14px] aspect-square rounded-full bg-[#F5DA7F]" />
               <p className="font-light md:text-sm text-xs text-[#C7C7C7] whitespace-nowrap">
-                Don't Hold Honeycomb
+                Don&apos;t Hold Honeycomb
               </p>
             </div>
             <div className="flex gap-1 items-center justify-center">
