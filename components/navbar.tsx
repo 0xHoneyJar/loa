@@ -8,6 +8,7 @@ import AudioPlayer from "./audio/audio-player";
 import { TRACKS } from "@/constants/tracks";
 import { ChevronDown } from "lucide-react";
 import SectionSelect from "./hero/section-select";
+import React from "react";
 
 const Navbar: React.FC = () => {
   const [toggle, setToggle] = useState(false);
@@ -36,7 +37,7 @@ const Navbar: React.FC = () => {
               Section
               <ChevronDown size={16} className="text-[#8B8B8B]" />
             </button> */}
-            <SectionSelect/>
+            <SectionSelect />
             <a className="md:px-6 px-4 py-3 bg-[#FFFFFF26] rounded-full text-white cursor-pointer md:text-sm text-xs whitespace-nowrap font-medium">
               Join Us
             </a>
