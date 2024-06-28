@@ -3,11 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import Sidebar from "../components/sidebar";
-import AudioPlayer from "../components/audio/audio-player";
 import { TRACKS } from "@/constants/tracks";
 import { ChevronDown } from "lucide-react";
-import SectionSelect from "../components/hero/section-select";
+import Sidebar from "@/components/sidebar";
+import SectionSelect from "@/components/hero/section-select";
+import AudioPlayer from "@/components/audio/audio-player";
 
 const Navbar = () => {
   const [toggle, setToggle] = useState(false);
