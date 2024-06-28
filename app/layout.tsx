@@ -3,7 +3,7 @@ import "../styles/globals.css";
 import "../styles/tailwind.css";
 import localFont from "next/font/local";
 import "react-grid-layout/css/styles.css";
-import Navbar from "@/app/Navbar";
+import Navbar from "@/components/navbar";
 
 export const metadata: Metadata = {
   // metadataBase: new URL(""),
@@ -40,7 +40,7 @@ export default function RootLayout({
       <body>
         <div className="mx-auto min-w-[24rem] max-w-[112rem] relative overflow-hidden">
           <>
-            {/* <Navbar /> */}
+            <Navbar />
             {children}
           </>
         </div>
