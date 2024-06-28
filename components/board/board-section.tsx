@@ -12,11 +12,11 @@ const BoardSection = () => {
   const layout = DASHBOARD.map((dashboard) => dashboard.dataGrid);
 
   const handleLayoutChange = (layouts: any) => {
-    localStorage.setItem("grid-layout", JSON.stringify(layouts));
+    window.localStorage.setItem("grid-layout", JSON.stringify(layouts));
   };
 
   const getLayout = () => {
-    const savedLayout = localStorage.getItem("grid-layout");
+    const savedLayout = window.localStorage.getItem("grid-layout");
 
     return savedLayout ? JSON.parse(savedLayout) : layout;
   };
