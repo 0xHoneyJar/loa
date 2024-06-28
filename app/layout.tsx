@@ -39,10 +39,8 @@ export default function RootLayout({
       <head></head>
       <body>
         <div className="mx-auto min-w-[24rem] max-w-[112rem] relative overflow-hidden">
-          <>
-            <Navbar />
-            {children}
-          </>
+          <Navbar />
+          {children}
         </div>
       </body>
     </html>
