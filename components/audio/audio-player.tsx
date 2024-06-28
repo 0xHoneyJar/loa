@@ -13,22 +13,25 @@ const AudioPlayer = ({ tracks }: { tracks: any }) => {
   const { title, artist, image, audioSrc } = tracks[trackIndex];
 
   // Refs
-  const audioRef = useRef(new Audio(audioSrc));
+  const [audio] = useState<HTMLAudioElement | null>(typeof Audio !== 'undefined' ? new Audio(audioSrc) : null)
+  const audioRef = useRef(audio);
   const intervalRef = useRef();
   const isReady = useRef(false);
 
   // Destructure for conciseness
-  const { duration } = audioRef.current;
+  // const { duration } = audioRef.current;
+  const duration = audioRef.current?.duration ?? 0;
 
   const startTimer = () => {
     // Clear any timers already running
     clearInterval(intervalRef.current);
 
     (intervalRef.current as any) = setInterval(() => {
-      if (audioRef.current.ended) {
+      if (audioRef.current?.ended) {
         toNextTrack();
       } else {
-        setTrackProgress(audioRef.current.currentTime);
+        // setTrackProgress(audioRef.current?.currentTime);
+        setTrackProgress(audioRef.current?.currentTime ?? 0);
       }
     }, 1000); // Corrected the interval argument to be a number (milliseconds)
   };
@@ -36,8 +39,10 @@ const AudioPlayer = ({ tracks }: { tracks: any }) => {
   const onScrub = (value: any) => {
     // Clear any timers already running
     clearInterval(intervalRef.current);
-    audioRef.current.currentTime = value;
-    setTrackProgress(audioRef.current.currentTime);
+    audioRef.current ? audioRef.current.currentTime = value : null;
+    setTrackProgress(audioRef.current?.currentTime ?? 0);
+    // audioRef.current?.currentTime = value;
+    // setTrackProgress(audioRef.current.currentTime);
   };
 
   const onScrubEnd = () => {
@@ -66,16 +71,16 @@ const AudioPlayer = ({ tracks }: { tracks: any }) => {
 
   useEffect(() => {
     if (isPlaying) {
-      audioRef.current.play();
+      audioRef.current?.play();
       startTimer();
     } else {
-      audioRef.current.pause();
+      audioRef.current?.pause();
     }
   }, [isPlaying]);
 
   // Handles cleanup and setup when changing tracks
   useEffect(() => {
-    audioRef.current.pause();
+    audioRef.current?.pause();
 
     audioRef.current = new Audio(audioSrc);
     setTrackProgress(audioRef.current.currentTime);
@@ -95,7 +100,7 @@ const AudioPlayer = ({ tracks }: { tracks: any }) => {
     setIsPlaying(false);
     // Pause and clean up on unmount
     return () => {
-      audioRef.current.pause();
+      audioRef.current?.pause();
       clearInterval(intervalRef.current);
     };
   }, []);

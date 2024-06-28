@@ -14,7 +14,7 @@ const Navbar = () => {
 
   return (
     <>
-      {/* <Sidebar open={toggle} setOpen={setToggle} /> */}
+      <Sidebar open={toggle} setOpen={setToggle} />
       <div
         className={`z-30 w-full fixed top-0 md:h-24 h-16 border-b border-[#C8C8C842] bg-[#5050500D] backdrop-blur-xl max-w-[112rem]`}
       >

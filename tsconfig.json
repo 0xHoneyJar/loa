@@ -16,8 +16,7 @@
     "jsx": "preserve",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"],
-      "react": [ "./node_modules/@types/react" ]
+      "@/*": ["./*"]
     },
     "plugins": [
       {
