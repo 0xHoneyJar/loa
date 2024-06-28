@@ -11,12 +11,20 @@ const ReactGridLayout = WidthProvider(RGL);
 const BoardSection = () => {
   const layout = DASHBOARD.map((dashboard) => dashboard.dataGrid);
 
-  // const handleLayoutChange = (layouts: any) => {
-  //   localStorage.setItem("grid-layout", JSON.stringify(layouts));
-  // };
+  const handleLayoutChange = (layouts: any) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("grid-layout", JSON.stringify(layouts));
+    }
+  };
 
   const getLayout = () => {
-    return localStorage.getItem("grid-layout") ? JSON.parse(localStorage.getItem("grid-layout")!) : layout;
+    if (typeof window === "undefined") {
+      return true; // Default to true on server-side
+    }
+
+    const savedLayout = localStorage.getItem("grid-layout");
+
+    return savedLayout ? JSON.parse(savedLayout) : layout;
   };
 
   return (
