@@ -1,12 +1,12 @@
 /* eslint-disable @next/next/no-head-element */
 
-import Navbar from "@/components/navbar";
 import { Web3Provider } from "@/components/web3-provider";
 import { Metadata } from "next";
 import "../styles/globals.css";
 import "../styles/tailwind.css";
 import localFont from "next/font/local";
 import "react-grid-layout/css/styles.css";
+import Navbar from "@/app/Navbar";
 // import "react-resizable/css/styles.css";
 
 export const metadata: Metadata = {

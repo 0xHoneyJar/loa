@@ -3,11 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import Sidebar from "./sidebar";
-import AudioPlayer from "./audio/audio-player";
+import Sidebar from "../components/sidebar";
+import AudioPlayer from "../components/audio/audio-player";
 import { TRACKS } from "@/constants/tracks";
 import { ChevronDown } from "lucide-react";
-import SectionSelect from "./hero/section-select";
+import SectionSelect from "../components/hero/section-select";
 import React, { FC } from "react";
 
 const Navbar: FC = () => {
