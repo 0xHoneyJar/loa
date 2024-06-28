@@ -9,7 +9,7 @@ import { TRACKS } from "@/constants/tracks";
 import { ChevronDown } from "lucide-react";
 import SectionSelect from "./hero/section-select";
 
-const Navbar = () => {
+const Navbar: React.FC = () => {
   const [toggle, setToggle] = useState(false);
 
   return (
