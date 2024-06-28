@@ -8,9 +8,8 @@ import AudioPlayer from "../components/audio/audio-player";
 import { TRACKS } from "@/constants/tracks";
 import { ChevronDown } from "lucide-react";
 import SectionSelect from "../components/hero/section-select";
-import React, { FC } from "react";
 
-const Navbar: FC = () => {
+const Navbar = () => {
   const [toggle, setToggle] = useState(false);
 
   return (
