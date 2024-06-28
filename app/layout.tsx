@@ -39,9 +39,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html
-      className={`${switzer.variable}`}
-    >
+    <html className={`${switzer.variable}`}>
       <head></head>
       <body>
         {/* <Web3Provider> */}
