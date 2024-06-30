@@ -13,7 +13,7 @@ const ReactGridLayout = WidthProvider(RGL);
 const ogLayout = DASHBOARD.map((dashboard) => dashboard.dataGrid);
 
 const BoardSection = () => {
-  const constraintsRef = useRef(null)
+  const constraintsRef = useRef<HTMLDivElement>(null);
 
   const [layout, setLayout] = useState<any[]>([]);
 
@@ -42,33 +42,58 @@ const BoardSection = () => {
     return savedLayout ? JSON.parse(savedLayout) : ogLayout;
   };
 
+  const handleDragEnd = (event: any, info: any) => {
+    if (constraintsRef.current) {
+      const containerWidth = constraintsRef.current.offsetWidth;
+      const elementWidth = event.target.offsetWidth;
+
+      console.log(containerWidth, elementWidth, info);
+
+      if (info.point.x >= containerWidth - elementWidth) {
+        console.log("Element hit the right end!");
+        // Perform any action you want when the element hits the right end
+      }
+    }
+  };
+
   return (
-    <div className="h-full w-full flex items-center flex-col mb-60">
-      <div ref={constraintsRef} className="overflow-hidden bg-[#FFFFFF14] mt-3 mb-20 py-2 px-3 rounded-full flex gap-3 items-center">
-        <motion.div drag="x" dragSnapToOrigin className="h-[28px] aspect-square p-1 bg-white rounded-full">
-          <RotateCcw className="h-full w-full text-black -rotate-90 scale-x-[-1]" />
-        </motion.div>
-        <p className="text-[#E7E7E7] text-sm">Swipe to reset to the default layout</p>
+    <div className="mb-60 flex h-full w-full flex-col items-center">
+      <div className="mb-20 mt-3 rounded-full bg-[#FFFFFF14] px-3 py-2">
+        <div
+          ref={constraintsRef}
+          className="flex h-full w-full items-center gap-2"
+        >
+          <motion.div
+            drag="x"
+            dragSnapToOrigin
+            dragConstraints={constraintsRef}
+            dragElastic={{ right: 0, left: 0 }}
+            onDragEnd={(event, info) => handleDragEnd(event, info)}
+            className="aspect-square h-[28px] rounded-full bg-white p-1"
+          >
+            <RotateCcw className="h-full w-full -rotate-90 scale-x-[-1] text-black" />
+          </motion.div>
+          <p className="text-sm text-[#E7E7E7]">
+            Swipe to reset to the default layout
+          </p>
+        </div>
       </div>
-      <div className="w-3/4 h-full flex flex-col relative items-center">
-        <div className="h-[100px] w-full bg-[#F8A9291F] blur-[100px] absolute top-20" />
-        <div className="w-full gap-2 rounded-full py-3 px-4 border border-[#BCBCBC1A] mb-6 flex">
-          <div className="py-1.5 px-4 bg-gradient-to-r from-[#F2C8481F] to-[#F8A9291F] rounded-full w-fit">
-            <p className="text-xs bg-gradient-to-r from-[#F2C848] to-[#F8A929] bg-clip-text text-transparent">
+      <div className="relative flex h-full w-3/4 flex-col items-center">
+        <div className="absolute top-20 h-[100px] w-full bg-[#F8A9291F] blur-[100px]" />
+        <div className="mb-6 flex w-full gap-2 rounded-full border border-[#BCBCBC1A] px-4 py-3">
+          <div className="w-fit rounded-full bg-gradient-to-r from-[#F2C8481F] to-[#F8A9291F] px-4 py-1.5">
+            <p className="bg-gradient-to-r from-[#F2C848] to-[#F8A929] bg-clip-text text-xs text-transparent">
               ACTIVITY
             </p>
           </div>
-          <Marquee
-            autoFill
-            speed={30}
-          >
-            <p className="text-white px-2 text-sm">
+          <Marquee autoFill speed={30}>
+            <p className="px-2 text-sm text-white">
               Lorem ipsum dolor sit amet, consectetur adipiscing elit.
             </p>
           </Marquee>
         </div>
         <ReactGridLayout
-          className="w-full rounded-2xl border border-[#BCBCBC1A] text-white bg-[#0A0A0A]"
+          className="w-full rounded-2xl border border-[#BCBCBC1A] bg-[#0A0A0A] text-white"
           cols={3}
           rowHeight={340}
           draggableHandle=".dragHandle"
