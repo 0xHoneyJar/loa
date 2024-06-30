@@ -28,15 +28,15 @@ const Partners = () => {
             THJ has a vast and constantly growing network of partners. Many of
             them are providing perks to Honeycomb holders.
           </p>
-          <div className="w-full p-6 bg-[#43AA772E] rounded-xl relative">
+          <div className="w-full py-6 px-4 bg-[#43AA772E] rounded-xl relative">
             <p className="font-medium text-5xl text-[#00AB55]">561</p>
-            <p className="text-sm text-[#A9A9A9] flex items-center gap-1 absolute right-6 bottom-4">
+            <p className="text-sm text-[#A9A9A9] flex items-center gap-1 absolute right-4 bottom-4">
               / Total Partners <HelpCircle size={14} />
             </p>
           </div>
-          <div className="w-full p-6 bg-[#43AA772E] rounded-xl relative">
-            <p className="font-medium text-5xl text-[#00AB55]">9,000,000</p>
-            <p className="text-sm text-[#A9A9A9] flex items-center gap-1 absolute right-6 bottom-4">
+          <div className="w-full px-4 py-6 bg-[#43AA772E] rounded-xl relative">
+            <p className="font-medium text-5xl text-[#00AB55]">$9,000,000</p>
+            <p className="text-sm text-[#A9A9A9] flex items-center gap-1 absolute right-4 bottom-4">
               / Raised <HelpCircle size={14} />
             </p>
           </div>

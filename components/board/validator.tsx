@@ -44,7 +44,7 @@ const Validator = () => {
           </div>
           <div className="h-full w-full bg-[#121212] border relative border-[#161616] rounded-2xl flex flex-col py-6 items-center">
             <div className="h-full w-full items-center justify-center flex relative">
-              <p className="text-[#6B6B6B] absolute top-0">Voting Rank</p>
+              <p className="text-[#6B6B6B] absolute top-0">Voting Power</p>
               <div className="h-[135px] aspect-square">
                 <CircularProgressbarWithChildren
                   value={50}
@@ -67,11 +67,11 @@ const Validator = () => {
               <div className="flex gap-2 text-[#C7C7C7] justify-center absolute bottom-0">
                 <div className="flex gap-1 items-center justify-center">
                   <div className="h-[14px] aspect-square rounded-full bg-[#43AA77]" />
-                  <p className="font-light md:text-sm text-xs">Lorem</p>
+                  <p className="font-light md:text-sm text-xs">THJ</p>
                 </div>
                 <div className="flex gap-1 items-center justify-center">
                   <div className="h-[14px] aspect-square rounded-full bg-[#F4C10B]" />
-                  <p className="font-light md:text-sm text-xs">Lorem</p>
+                  <p className="font-light md:text-sm text-xs">Other Validators</p>
                 </div>
               </div>
             </div>
@@ -88,8 +88,7 @@ const Validator = () => {
               />
             </div>
             <p className="text-white text-xl font-light">
-              <span className="font-medium">THJ</span> Needs Your Vote! Delegate
-              to THJ Now
+              <span className="font-medium">THJ</span> Needs Your Vote! Delegate to us now!
             </p>
           </div>
           <div className="flex gap-2 items-center">

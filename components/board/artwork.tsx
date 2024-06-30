@@ -22,7 +22,7 @@ const Artwork = () => {
               className="object-contain"
             />
           </div>
-          <p className="text-white text-lg">Our Artwork / Meme</p>
+          <p className="text-white text-lg">Our Arts and Memes</p>
         </div>
       </div>
       <Marquee

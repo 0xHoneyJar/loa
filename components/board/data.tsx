@@ -38,14 +38,14 @@ const Data = () => {
           <p className="text-[#E4E4E4] mb-6">
             How much was raised by THJ and Berachain eco in general
           </p>
-          <div className="w-full p-6 bg-[#F8A9291F] rounded-xl relative mb-4 border border-[#F8A9290F]">
-            <p className="font-medium text-5xl text-[#F8A929]">5,042,000</p>
+          <div className="w-full py-6 px-4 bg-[#F8A9291F] rounded-xl relative mb-4 border border-[#F8A9290F]">
+            <p className="font-medium text-5xl text-[#F8A929]">$5,042,000</p>
             <p className="text-sm text-[#A9A9A9]/50 flex items-center gap-1 absolute right-2 bottom-2">
               / By Bera Eco
             </p>
           </div>
-          <div className="w-full p-6 bg-[#F8A9291F] rounded-xl relative mb-4 border border-[#F8A9290F]">
-            <p className="font-medium text-5xl text-[#F8A929]">9,000,000</p>
+          <div className="w-full px-4 py-6 bg-[#F8A9291F] rounded-xl relative mb-4 border border-[#F8A9290F]">
+            <p className="font-medium text-5xl text-[#F8A929]">$9,000,000</p>
             <p className="text-sm text-[#A9A9A9]/50 flex items-center gap-1 absolute right-2 bottom-2">
               / By THJ
             </p>

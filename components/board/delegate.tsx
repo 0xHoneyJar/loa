@@ -21,19 +21,29 @@ const Delegate = () => {
         />
       </div>
       <div className="h-full w-full border border-black/50 rounded-2xl flex flex-col relative gap-10 p-6">
-        <div className="flex gap-3 items-center">
-          <div className="aspect-square h-[44px] relative">
-            <Image
-              src={"/thj-logo.png"}
-              alt="thj-logo"
-              fill
-              className="object-contain"
-            />
+        <div className="flex justify-between items-center">
+          <div className="flex gap-3 items-center">
+            <div className="aspect-square h-[44px] relative">
+              <Image
+                src={"/thj-logo.png"}
+                alt="thj-logo"
+                fill
+                className="object-contain"
+              />
+            </div>
+            <div className="aspect-square h-[44px] relative">
+              <Image
+                src={"/jani-coin.png"}
+                alt="jani-coin"
+                fill
+                className="object-contain"
+              />
+            </div>
           </div>
-          <div className="aspect-square h-[44px] relative">
+          <div className="dragHandle relative aspect-square h-[26px]">
             <Image
-              src={"/jani-coin.png"}
-              alt="jani-coin"
+              src={"/drag-handle.svg"}
+              alt="drag"
               fill
               className="object-contain"
             />

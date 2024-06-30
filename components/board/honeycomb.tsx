@@ -101,7 +101,7 @@ const Honeycomb = () => {
                 </div>
                 <div className="h-full w-full rounded-lg border bg-[#15120B] border-[#F5D0110A] flex items-center flex-col justify-center relative">
                   <div className="h-[2px] bg-[#EE511E] absolute top-0 w-8 rounded-full" />
-                  <p className="text-sm text-[#6B6B6B]">Total Perks</p>
+                  <p className="text-sm text-[#6B6B6B]">Perk Value</p>
                   <p className="flex gap-2 items-center">
                     <div className="h-[16px] aspect-square relative">
                       <Image
@@ -118,7 +118,7 @@ const Honeycomb = () => {
               <div className="grid h-full w-full grid-rows-2 gap-6">
                 <div className="h-full w-full rounded-lg border bg-[#15120B] border-[#F5D0110A] flex items-center flex-col justify-center relative">
                   <div className="h-[2px] bg-[#EE511E] absolute top-0 w-8 rounded-full" />
-                  <p className="text-sm text-[#6B6B6B]">Holder</p>
+                  <p className="text-sm text-[#6B6B6B]">Holders</p>
                   <p className="flex gap-2 items-center">
                     <div className="h-[16px] aspect-square relative">
                       <Image
@@ -133,16 +133,9 @@ const Honeycomb = () => {
                 </div>
                 <div className="h-full w-full rounded-lg border bg-[#15120B] border-[#F5D0110A] flex items-center flex-col justify-center relative">
                   <div className="h-[2px] bg-[#EE511E] absolute top-0 w-8 rounded-full" />
-                  <p className="text-sm text-[#6B6B6B]">Perks Value (USD)</p>
+                  <p className="text-sm text-[#6B6B6B]">Perks Value</p>
                   <p className="flex gap-2 items-center">
-                    <div className="h-[16px] aspect-square relative">
-                      <Image
-                        src={"/money.svg"}
-                        alt="money"
-                        fill
-                        className="object-contain"
-                      />
-                    </div>
+                    <span className="text-sm">$</span>
                     333,286.24
                   </p>
                 </div>
