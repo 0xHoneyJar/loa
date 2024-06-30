@@ -17,6 +17,8 @@ import Artwork from "@/components/board/artwork";
 import Data from "@/components/board/data";
 import Honeycomb from "@/components/board/honeycomb";
 import Validator from "@/components/board/validator";
+import Follow from "@/components/board/follow";
+import OogaBooga from "@/components/board/ooga-booga";
 
 export const DASHBOARD = [
   {
@@ -33,10 +35,10 @@ export const DASHBOARD = [
     ui: <Updates />,
   },
   {
-    name: "Quote",
-    key: "quote",
-    dataGrid: { i: "quote", x: 2, y: 0, w: 1, h: 1 },
-    ui: <Quotes />,
+    name: "Follow Us",
+    key: "follow",
+    dataGrid: { i: "follow", x: 2, y: 0, w: 1, h: 1 },
+    ui: <Follow />,
   },
   {
     name: "New Partners",
@@ -95,10 +97,10 @@ export const DASHBOARD = [
     ui: <Development />,
   },
   {
-    name: "Quote2",
-    key: "quote2",
-    dataGrid: { i: "quote2", x: 0, y: 6, w: 1, h: 1 },
-    ui: <Quotes />,
+    name: "OOGA BOOGA",
+    key: "oogabooga",
+    dataGrid: { i: "oogabooga", x: 0, y: 6, w: 1, h: 1 },
+    ui: <OogaBooga />,
   },
   {
     name: "Feed",

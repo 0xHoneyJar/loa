@@ -173,7 +173,7 @@ const HeroSection = () => {
         </div>
       </div>
       <div
-        className="flex flex-col text-white items-center mb-20"
+        className="flex flex-col text-white items-center"
         ref={scrollRef}
       >
         <motion.div

@@ -3,13 +3,29 @@
 import RGL, { WidthProvider } from "react-grid-layout";
 import { DASHBOARD } from "@/constants/dashboard";
 import Marquee from "react-fast-marquee";
+import { motion } from "framer-motion";
+import { useRef, useState, useEffect } from "react";
+import { RotateCcw } from "lucide-react";
 // import "react-grid-layout/css/styles.css";
 // import "react-resizable/css/styles.css";
 
 const ReactGridLayout = WidthProvider(RGL);
+const ogLayout = DASHBOARD.map((dashboard) => dashboard.dataGrid);
 
 const BoardSection = () => {
-  const layout = DASHBOARD.map((dashboard) => dashboard.dataGrid);
+  const constraintsRef = useRef(null)
+
+  const [layout, setLayout] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Load layout from localStorage on component mount
+    const savedLayout = getLayout();
+    setLayout(savedLayout);
+  }, []);
+
+  const resetLayout = () => {
+    setLayout(ogLayout);
+  };
 
   const handleLayoutChange = (layouts: any) => {
     if (typeof window !== "undefined") {
@@ -21,14 +37,19 @@ const BoardSection = () => {
     if (typeof window === "undefined") {
       return true; // Default to true on server-side
     }
-
     const savedLayout = localStorage.getItem("grid-layout");
 
-    return savedLayout ? JSON.parse(savedLayout) : layout;
+    return savedLayout ? JSON.parse(savedLayout) : ogLayout;
   };
 
   return (
     <div className="h-full w-full flex items-center flex-col mb-60">
+      <div ref={constraintsRef} className="overflow-hidden bg-[#FFFFFF14] mt-3 mb-20 py-2 px-3 rounded-full flex gap-3 items-center">
+        <motion.div drag="x" dragSnapToOrigin dragConstraints={{ left: 0, right: 300 }} className="h-[28px] aspect-square p-1 bg-white rounded-full">
+          <RotateCcw className="h-full w-full text-black -rotate-90 scale-x-[-1]" />
+        </motion.div>
+        <p className="text-[#E7E7E7] text-sm">Swipe to reset to the default layout</p>
+      </div>
       <div className="w-3/4 h-full flex flex-col relative items-center">
         <div className="h-[100px] w-full bg-[#F8A9291F] blur-[100px] absolute top-20" />
         <div className="w-full gap-2 rounded-full py-3 px-4 border border-[#BCBCBC1A] mb-6 flex">
@@ -53,7 +74,7 @@ const BoardSection = () => {
           draggableHandle=".dragHandle"
           margin={[30, 30]}
           containerPadding={[32, 48]}
-          layout={getLayout()}
+          layout={layout}
           isResizable={false}
           // onLayoutChange={handleLayoutChange as any}
         >
