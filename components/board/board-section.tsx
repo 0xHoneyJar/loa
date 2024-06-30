@@ -45,7 +45,7 @@ const BoardSection = () => {
   return (
     <div className="h-full w-full flex items-center flex-col mb-60">
       <div ref={constraintsRef} className="overflow-hidden bg-[#FFFFFF14] mt-3 mb-20 py-2 px-3 rounded-full flex gap-3 items-center">
-        <motion.div drag="x" dragSnapToOrigin dragConstraints={{ left: 0, right: 300 }} className="h-[28px] aspect-square p-1 bg-white rounded-full">
+        <motion.div drag="x" dragSnapToOrigin className="h-[28px] aspect-square p-1 bg-white rounded-full">
           <RotateCcw className="h-full w-full text-black -rotate-90 scale-x-[-1]" />
         </motion.div>
         <p className="text-[#E7E7E7] text-sm">Swipe to reset to the default layout</p>
