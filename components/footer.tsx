@@ -3,13 +3,13 @@ import Marquee from "react-fast-marquee";
 
 const Footer = () => {
   return (
-    <div className="h-full w-full relative flex items-center flex-col">
-      <div className="z-[-1] flex items-center justify-center aspect-square h-[1000px] absolute rounded-full border border-[#F5D01105] -top-72 p-4">
-        <div className="h-[100px] w-1/4 bg-[#43AA7780] blur-[100px] absolute -top-20" />
-        <div className="h-[95%] w-[95%] rounded-full border border-[#F5D0110D] flex items-center justify-center">
-          <div className="h-[90%] w-[90%] rounded-full border border-[#F5D0110D] flex items-center justify-center">
-            <div className="h-[90%] w-[90%] rounded-full border border-[#F5D0110D] flex items-center justify-center">
-              <div className="h-[90%] w-[90%] rounded-full border border-[#F5D0110D] flex items-center justify-center">
+    <div className="relative flex h-full w-full flex-col items-center">
+      <div className="absolute -top-72 z-[-1] flex aspect-square h-[1000px] items-center justify-center rounded-full border border-[#F5D01105] p-4">
+        <div className="absolute -top-20 h-[100px] w-1/4 bg-[#43AA7780] blur-[100px]" />
+        <div className="flex h-[95%] w-[95%] items-center justify-center rounded-full border border-[#F5D0110D]">
+          <div className="flex h-[90%] w-[90%] items-center justify-center rounded-full border border-[#F5D0110D]">
+            <div className="flex h-[90%] w-[90%] items-center justify-center rounded-full border border-[#F5D0110D]">
+              <div className="flex h-[90%] w-[90%] items-center justify-center rounded-full border border-[#F5D0110D]">
                 <div className="h-1/2 w-1/2 bg-[#F8A9291F] blur-[80px]" />
               </div>
             </div>
@@ -19,10 +19,10 @@ const Footer = () => {
       <Marquee
         autoFill
         // speed={50}
-        className="z-[-1] overflow-hidden relative top-8"
+        className="relative top-8 z-[-1] overflow-hidden"
       >
         <p
-          className="font-bold text-[14rem] text-[#F5D0110D] leading-none"
+          className="text-[14rem] font-bold leading-none text-[#F5D0110D]"
           style={{
             WebkitTextStroke: "1px #F5D01145",
           }}
@@ -30,20 +30,22 @@ const Footer = () => {
           Based Community Gateway on Berachain
         </p>
       </Marquee>
-      <div className="h-[400px] w-full border-t border-dashed border-[#878787] flex text-white bg-[#121212]">
-        <div className="w-2/5 h-full flex justify-end">
-          <div className="h-full w-1/2 flex flex-col px-8 justify-center text-white">
-            <p className="font-semibold text-2xl mb-2">Brand Kit</p>
-            <p className="text-base w-3/4 mb-4">
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+      <div className="flex h-[400px] w-full border-t border-dashed border-[#878787] bg-[#0B0701] text-white">
+        <div className="flex h-full w-2/5 justify-end">
+          <div className="flex h-full w-1/2 flex-col justify-center px-8 text-white">
+            <p className="font-clash mb-2 text-2xl font-semibold">
+              Partnership Guidelines
             </p>
-            <button className="rounded-xl border border-[#FEFEFE1A] flex px-3 py-1.5 w-fit text-[#DBDBDB]">
-              Lorem ipsum
+            <p className="mb-4 w-[90%] text-base">
+              Learn what you get from becoming a THJ Partner
+            </p>
+            <button className="flex w-fit rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-[#DBDBDB]">
+              Learn More
             </button>
           </div>
         </div>
-        <div className="w-1/5 h-full border-x px-8 border-dashed border-[#DCE0E5] text-white flex justify-center flex-col relative">
-          <div className="aspect-square h-[80px] absolute -top-16 inset-x-0 mx-auto">
+        <div className="relative flex h-full w-1/5 flex-col justify-center border-x border-dashed border-[#DCE0E5] px-8 text-white">
+          <div className="absolute inset-x-0 -top-16 mx-auto aspect-square h-[80px]">
             <Image
               src={"/jani-coin.png"}
               alt="jani-coin"
@@ -51,34 +53,36 @@ const Footer = () => {
               className="object-contain"
             />
           </div>
-          <p className="font-semibold text-2xl mb-2">Brand Kit</p>
-          <p className="text-base w-3/4 mb-4">
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+          <p className="font-clash mb-2 text-2xl font-semibold">Brand Kit</p>
+          <p className="mb-4 w-[90%] text-base">
+            Find all assets and guidelines of THJ branding here
           </p>
-          <button className="rounded-xl border border-[#FEFEFE1A] flex px-3 py-1.5 w-fit text-[#DBDBDB]">
-            Lorem ipsum
+          <button className="flex w-fit rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-[#DBDBDB]">
+            Learn More
           </button>
         </div>
-        <div className="w-2/5 h-full">
-          <div className="h-full w-1/2 flex flex-col px-8 justify-center text-white">
-            <p className="font-semibold text-2xl mb-2">Document</p>
-            <p className="text-base w-3/4 mb-4">
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+        <div className="h-full w-2/5">
+          <div className="flex h-full w-1/2 flex-col justify-center px-8 text-white">
+            <p className="font-clash mb-2 text-2xl font-semibold">
+              Beekeeper Kit
             </p>
-            <button className="rounded-xl border border-[#FEFEFE1A] flex px-3 py-1.5 w-fit text-[#DBDBDB]">
-              Lorem ipsum
+            <p className="mb-4 w-[90%] text-base">
+              Product suite, integrations and co-markerting guidelines
+            </p>
+            <button className="flex w-fit rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-[#DBDBDB]">
+              Learn More
             </button>
           </div>
         </div>
       </div>
-      <div className="h-[500px] text-white w-full bg-[#F4C10B] overflow-hidden flex items-center justify-center flex-col relative">
+      <div className="relative flex h-[500px] w-full flex-col items-center justify-center overflow-hidden bg-[#F4C10B] text-white">
         <Image
           src={"/thj-outline.svg"}
           alt="thj-outline"
           fill
-          className="object-contain !top-10 z-[1]"
+          className="!top-10 z-[1] object-contain"
         />
-        <div className="aspect-square h-[100px] relative mb-8">
+        <div className="relative mb-8 aspect-square h-[100px]">
           <Image
             src={"/thj-white.svg"}
             alt="thj-white"
@@ -86,17 +90,21 @@ const Footer = () => {
             className="object-contain"
           />
         </div>
-        <p className="font-semibold text-7xl mb-4">
+        <p className="font-clash mb-4 text-7xl font-semibold">
           Be a Part of the Honey Jar
         </p>
-        <p className="text-lg mb-8 w-2/5 text-center">
-          Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc
-          vulputate libero et velit interdum, ac aliquet odio mattis.
+        <p className="mb-8 w-2/5 text-center text-lg">
+          By delegating to the THJ Validator, you help us to grow and contribute
         </p>
-        <button className="rounded-xl px-6 py-2 bg-[#43AA77] z-10">
-          Delegate Now
-        </button>
-        <div className="aspect-square h-[140px] absolute -bottom-6 inset-x-0 mx-auto left-80">
+        <div className="flex items-center gap-2">
+          <button className="z-10 w-[240px] rounded-xl bg-black py-3">
+            Join the Commmunity
+          </button>
+          <button className="z-10 w-[240px] rounded-xl bg-[#43AA77] py-3">
+            Delegate Now
+          </button>
+        </div>
+        <div className="absolute -bottom-6 right-[30rem] z-10 aspect-square h-[172px]">
           <Image
             src={"/arrow-angled.svg"}
             alt="angled"

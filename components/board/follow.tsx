@@ -18,8 +18,8 @@ const Follow = () => {
         </div>
       </div>
       <div className="relative flex grow items-center justify-center px-6">
-        <div className="flex flex-row gap-3 rounded-full border items-center border-dashed border-[#747474]/40 px-4 py-3">
-          <a className="relative aspect-square h-[40px] hover:cursor-blue">
+        <div className="flex flex-row items-center gap-3 rounded-full border border-dashed border-[#747474]/40 px-4 py-3">
+          <a className="relative aspect-square h-[40px] opacity-70 hover:cursor-blue hover:opacity-100">
             <Image
               src={"/follow/twitter.svg"}
               alt="twitter"
@@ -27,7 +27,7 @@ const Follow = () => {
               className="object-contain"
             />
           </a>
-          <a className="relative aspect-square h-[58px] hover:cursor-blue">
+          <a className="relative aspect-square h-[58px] opacity-70 hover:cursor-blue hover:opacity-100">
             <Image
               src={"/follow/discord.svg"}
               alt="discord"
@@ -35,7 +35,7 @@ const Follow = () => {
               className="object-contain"
             />
           </a>
-          <a className="relative aspect-square h-[58px] hover:cursor-blue">
+          <a className="relative aspect-square h-[58px] opacity-70 hover:cursor-blue hover:opacity-100">
             <Image
               src={"/follow/farcaster.svg"}
               alt="farcaster"
@@ -45,15 +45,15 @@ const Follow = () => {
           </a>
         </div>
         <div className="absolute bottom-8 right-6 flex items-end gap-2">
-          <div className="relative h-[50px] aspect-square">
+          <div className="relative aspect-square h-[50px]">
             <Image
               src={"/follow/arrow-swirl.svg"}
               alt="arrow-swirl"
               fill
-              className="object-contain scale-x-110"
+              className="scale-x-110 object-contain"
             />
           </div>
-          <p className="text-[#747474]/65 text-xs">Follow Us For More</p>
+          <p className="text-xs text-[#747474]/65">Follow Us For More</p>
         </div>
       </div>
     </div>

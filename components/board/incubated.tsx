@@ -35,7 +35,7 @@ const Incubated = () => {
                 />
               </div>
               <p className="bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-transparent">
-                On The Rise
+                Updated Recently
               </p>
             </div>
           </div>

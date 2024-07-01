@@ -20,6 +20,7 @@ const config = {
     extend: {
       fontFamily: {
         switzer: ["var(--font-switzer)"],
+        clash: ["var(--font-clash)"],
       },
       boxShadow: {
         evergreen: "0 0 20px 0 #43AA774D",

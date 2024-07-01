@@ -29,16 +29,21 @@ const switzer = localFont({
   variable: "--font-switzer",
 });
 
+const clash = localFont({
+  src: "../assets/ClashDisplay.ttf",
+  variable: "--font-clash",
+});
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html className={`${switzer.variable}`}>
+    <html className={`${switzer.variable} ${clash.variable}`}>
       <head></head>
       <body>
-        <div className="mx-auto min-w-[24rem] max-w-[112rem] relative overflow-hidden">
+        <div className="relative mx-auto min-w-[24rem] max-w-[112rem] overflow-hidden">
           <Navbar />
           {children}
         </div>
