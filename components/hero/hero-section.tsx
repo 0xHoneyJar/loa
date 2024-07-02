@@ -12,12 +12,12 @@ const HeroSection = () => {
   return (
     <div className="relative flex h-full w-full flex-col items-center">
       <div className="relative flex h-full w-full flex-col items-center pt-24">
-        {/* <Image
+        <Image
           src={"/sunshine.png"}
           alt="sunshine"
           fill
-          className="z-10 object-cover"
-        /> */}
+          className="z-10 object-cover opacity-20"
+        />
         <div className="absolute top-0 h-16 w-full md:h-24">
           <Image
             src={"/navbar-hero.png"}

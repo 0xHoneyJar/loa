@@ -61,7 +61,7 @@ export const DASHBOARD = [
       x: 0,
       y: 2,
       w: 3,
-      h: 1.3,
+      h: 1,
       static: true,
     },
     ui: <Mint />,

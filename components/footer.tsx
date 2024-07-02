@@ -33,7 +33,7 @@ const Footer = () => {
       <div className="flex h-[400px] w-full border-t border-dashed border-[#878787] bg-[#0B0701] text-white">
         <div className="flex h-full w-2/5 justify-end">
           <div className="flex h-full w-1/2 flex-col justify-center px-8 text-white">
-            <p className="font-clash mb-2 text-2xl font-semibold">
+            <p className="mb-2 font-clash text-2xl font-semibold">
               Partnership Guidelines
             </p>
             <p className="mb-4 w-[90%] text-base">
@@ -53,7 +53,7 @@ const Footer = () => {
               className="object-contain"
             />
           </div>
-          <p className="font-clash mb-2 text-2xl font-semibold">Brand Kit</p>
+          <p className="mb-2 font-clash text-2xl font-semibold">Brand Kit</p>
           <p className="mb-4 w-[90%] text-base">
             Find all assets and guidelines of THJ branding here
           </p>
@@ -63,7 +63,7 @@ const Footer = () => {
         </div>
         <div className="h-full w-2/5">
           <div className="flex h-full w-1/2 flex-col justify-center px-8 text-white">
-            <p className="font-clash mb-2 text-2xl font-semibold">
+            <p className="mb-2 font-clash text-2xl font-semibold">
               Beekeeper Kit
             </p>
             <p className="mb-4 w-[90%] text-base">
@@ -90,27 +90,27 @@ const Footer = () => {
             className="object-contain"
           />
         </div>
-        <p className="font-clash mb-4 text-7xl font-semibold">
+        <p className="mb-4 font-clash text-7xl font-semibold">
           Be a Part of the Honey Jar
         </p>
         <p className="mb-8 w-2/5 text-center text-lg">
           By delegating to the THJ Validator, you help us to grow and contribute
         </p>
-        <div className="flex items-center gap-2">
+        <div className="relative flex items-center gap-2">
           <button className="z-10 w-[240px] rounded-xl bg-black py-3">
             Join the Commmunity
           </button>
           <button className="z-10 w-[240px] rounded-xl bg-[#43AA77] py-3">
             Delegate Now
           </button>
-        </div>
-        <div className="absolute -bottom-6 right-[30rem] z-10 aspect-square h-[172px]">
-          <Image
-            src={"/arrow-angled.svg"}
-            alt="angled"
-            fill
-            className="object-contain"
-          />
+          <div className="absolute -bottom-28 -right-40 z-10 aspect-square h-[172px]">
+            <Image
+              src={"/arrow-angled.svg"}
+              alt="angled"
+              fill
+              className="object-contain"
+            />
+          </div>
         </div>
       </div>
     </div>
