@@ -42,14 +42,21 @@ const BoardSection = () => {
     return savedLayout ? JSON.parse(savedLayout) : ogLayout;
   };
 
-  const handleDragEnd = (info: any) => {
+  const handleDragEnd = (event: any, info: any) => {
     console.log(info);
+    // if (constraintsRef) {
+    //   const container = constraintsRef.current;
+
+    //   const containerRect = container?.getBoundingClientRect();
+    //   const elementRect = event.target.getBoundingClientRect();
+    //   console.log(containerRect, elementRect)
+    // }
   };
 
   return (
     <div className="mb-60 flex h-full w-full flex-col items-center">
       <div className="mb-20 mt-3 rounded-full bg-[#FFFFFF14] px-3 py-2">
-        <motion.div
+        <div
           ref={constraintsRef}
           className="flex h-full w-full items-center gap-2"
         >
@@ -58,7 +65,7 @@ const BoardSection = () => {
             dragSnapToOrigin
             dragConstraints={constraintsRef}
             dragElastic={{ right: 0, left: 0 }}
-            onDragEnd={(event, info) => handleDragEnd(info)}
+            onDragEnd={(event, info) => handleDragEnd(event, info)}
             className="aspect-square h-[28px] touch-none rounded-full bg-white p-1"
           >
             <RotateCcw className="h-full w-full -rotate-90 scale-x-[-1] text-black" />
@@ -66,7 +73,7 @@ const BoardSection = () => {
           <p className="text-sm text-[#E7E7E7]">
             Swipe to reset to the default layout
           </p>
-        </motion.div>
+        </div>
       </div>
       <div className="relative flex h-full w-3/4 flex-col items-center">
         <div className="absolute top-20 h-[100px] w-full bg-[#F8A9291F] blur-[100px]" />
