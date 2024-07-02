@@ -6,7 +6,7 @@ import Marquee from "react-fast-marquee";
 import { motion } from "framer-motion";
 import { useRef, useState, useEffect } from "react";
 import { RotateCcw } from "lucide-react";
-// import "react-grid-layout/css/styles.css";
+import "react-grid-layout/css/styles.css";
 // import "react-resizable/css/styles.css";
 
 const ReactGridLayout = WidthProvider(RGL);
@@ -42,24 +42,14 @@ const BoardSection = () => {
     return savedLayout ? JSON.parse(savedLayout) : ogLayout;
   };
 
-  const handleDragEnd = (event: any, info: any) => {
-    if (constraintsRef.current) {
-      const containerWidth = constraintsRef.current.offsetWidth;
-      const elementWidth = event.target.offsetWidth;
-
-      console.log(containerWidth, elementWidth, info);
-
-      if (info.point.x >= containerWidth - elementWidth) {
-        console.log("Element hit the right end!");
-        // Perform any action you want when the element hits the right end
-      }
-    }
+  const handleDragEnd = (info: any) => {
+    console.log(info);
   };
 
   return (
     <div className="mb-60 flex h-full w-full flex-col items-center">
       <div className="mb-20 mt-3 rounded-full bg-[#FFFFFF14] px-3 py-2">
-        <div
+        <motion.div
           ref={constraintsRef}
           className="flex h-full w-full items-center gap-2"
         >
@@ -68,15 +58,15 @@ const BoardSection = () => {
             dragSnapToOrigin
             dragConstraints={constraintsRef}
             dragElastic={{ right: 0, left: 0 }}
-            onDragEnd={(event, info) => handleDragEnd(event, info)}
-            className="aspect-square h-[28px] rounded-full bg-white p-1"
+            onDragEnd={(event, info) => handleDragEnd(info)}
+            className="aspect-square h-[28px] touch-none rounded-full bg-white p-1"
           >
             <RotateCcw className="h-full w-full -rotate-90 scale-x-[-1] text-black" />
           </motion.div>
           <p className="text-sm text-[#E7E7E7]">
             Swipe to reset to the default layout
           </p>
-        </div>
+        </motion.div>
       </div>
       <div className="relative flex h-full w-3/4 flex-col items-center">
         <div className="absolute top-20 h-[100px] w-full bg-[#F8A9291F] blur-[100px]" />

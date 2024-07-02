@@ -63,7 +63,7 @@ const Data = () => {
             </div>
             <p className="text-lg font-medium">THJ Faucet</p>
           </div>
-          <div className="mb-10 flex aspect-square h-[240px] justify-center items-center">
+          <div className="mb-10 flex grow-0 items-center justify-center">
             <CircularProgressbarWithChildren
               value={75}
               strokeWidth={14}
@@ -73,7 +73,7 @@ const Data = () => {
                 pathColor: "#F5DA7F",
                 trailColor: "#342911",
               })}
-              className="h-full w-full"
+              className="h-full max-h-[240px] w-full"
             >
               {/* <p className="text-xl font-medium">500,000</p>
               <p className="text-sm">Total Wallets</p> */}
@@ -118,7 +118,7 @@ const Data = () => {
           </div>
           <div className="relative flex h-full w-full flex-col items-center justify-between">
             <div className="flex w-full flex-col">
-              <div className="mb-10 flex aspect-square h-[240px] justify-center items-center">
+              <div className="mb-10 flex items-center justify-center">
                 <CircularProgressbarWithChildren
                   value={75}
                   strokeWidth={14}
@@ -128,7 +128,7 @@ const Data = () => {
                     pathColor: "#F5DA7F",
                     trailColor: "#342911",
                   })}
-                  className="h-full w-full"
+                  className="h-full max-h-[240px] w-full"
                 >
                   <p className="text-xl font-medium">50,000</p>
                   <p className="text-sm">Holders</p>

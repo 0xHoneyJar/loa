@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import "../styles/globals.css";
 import "../styles/tailwind.css";
 import localFont from "next/font/local";
-import "react-grid-layout/css/styles.css";
+// import "react-grid-layout/css/styles.css";
 import Navbar from "@/components/navbar";
 
 export const metadata: Metadata = {

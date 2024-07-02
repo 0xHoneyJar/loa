@@ -1,15 +1,14 @@
 import Image from "next/image";
 import { DEVELOPMENT } from "@/constants/development";
-import { Play } from "lucide-react";
 
 const Development = () => {
   return (
-    <div className="relative flex flex-col border-2 bg-[#0F0F0F] rounded-2xl border-[#FFFFFF0A] overflow-hidden h-full">
-      <div className="absolute -top-40 w-full h-1" id="development" />
-      <div className="w-full h-2 bg-white rounded-t-3xl" />
-      <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#FFFFFF1F]">
-        <div className="flex gap-2 items-center">
-          <div className="h-[26px] aspect-square relative dragHandle">
+    <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]">
+      <div className="absolute -top-40 h-1 w-full" id="development" />
+      <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-white" />
+      <div className="flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-6">
+        <div className="flex items-center gap-2">
+          <div className="dragHandle relative aspect-square h-[26px]">
             <Image
               src={"/drag-handle.svg"}
               alt="drag"
@@ -17,95 +16,97 @@ const Development = () => {
               className="object-contain"
             />
           </div>
-          <p className="text-white text-lg whitespace-nowrap">
+          <p className="whitespace-nowrap text-lg text-white">
             Development Pipeline
           </p>
         </div>
       </div>
-      <div className="flex grow justify-center py-6 pl-8 relative">
-        <div className="h-1/6 w-full absolute top-0 bg-gradient-to-b from-[#0F0F0F] z-10" />
-        <div className="h-1/6 w-full absolute bottom-0 bg-gradient-to-t from-[#0F0F0F] z-10" />
-        <div className="h-full w-full border-l border-dashed border-[#4C4C4C] pl-12 flex flex-col pt-6 relative gap-20">
-          <div className="flex gap-3 flex-col relative">
-            <div className="h-[12px] aspect-[4/1] absolute top-2 -left-[54px]">
-              <Image
-                src={"/development-pointer.svg"}
-                alt="pointer"
-                fill
-                className="object-contain"
-              />
-            </div>
-            <p className="text-[#F4C10B] text-lg">1st Quarter, 2024</p>
-            {DEVELOPMENT.filter((item) => item.quarter === 1).map(
-              (item, id) => (
-                <div className="flex gap-2" key={id}>
-                  <div className="h-[24px] aspect-square relative">
-                    <Image
-                      src={"/development-arrow.svg"}
-                      alt="arrow"
-                      fill
-                      className="object-contain"
-                    />
+      <div className="relative flex grow overflow-y-auto">
+        <div className="h-full w-full overflow-y-auto overflow-x-hidden py-6 pl-8 ">
+          <div className="absolute left-0 top-0 z-10 h-1/6 w-full bg-gradient-to-b from-[#0F0F0F]" />
+          <div className="absolute bottom-0 left-0 z-10 h-1/6 w-full bg-gradient-to-t from-[#0F0F0F]" />
+          <div className="relative flex w-full flex-col gap-20 border-l border-dashed border-[#4C4C4C] pl-12 pt-6">
+            <div className="relative flex flex-col gap-3">
+              <div className="absolute -left-[54px] top-2 aspect-[4/1] h-[12px]">
+                <Image
+                  src={"/development-pointer.svg"}
+                  alt="pointer"
+                  fill
+                  className="object-contain"
+                />
+              </div>
+              <p className="text-lg text-[#F4C10B]">1st Quarter, 2024</p>
+              {DEVELOPMENT.filter((item) => item.quarter === 1).map(
+                (item, id) => (
+                  <div className="flex gap-2" key={id}>
+                    <div className="relative aspect-square h-[24px]">
+                      <Image
+                        src={"/development-arrow.svg"}
+                        alt="arrow"
+                        fill
+                        className="object-contain"
+                      />
+                    </div>
+                    <p className="whitespace-nowrap">{item.name}</p>
+                    <p className="font-light text-[#424242]/90">{item.date}</p>
                   </div>
-                  <p className="whitespace-nowrap">{item.name}</p>
-                  <p className="text-[#424242]/90 font-light">{item.date}</p>
-                </div>
-              )
-            )}
-          </div>
-          <div className="flex gap-3 flex-col relative">
-            <div className="h-[12px] aspect-[4/1] absolute top-2 -left-[54px]">
-              <Image
-                src={"/development-pointer.svg"}
-                alt="pointer"
-                fill
-                className="object-contain"
-              />
+                ),
+              )}
             </div>
-            <p className="text-[#F4C10B] text-lg">2nd Quarter, 2024</p>
-            {DEVELOPMENT.filter((item) => item.quarter === 2).map(
-              (item, id) => (
-                <div className="flex gap-2" key={id}>
-                  <div className="h-[24px] aspect-square relative">
-                    <Image
-                      src={"/development-arrow.svg"}
-                      alt="arrow"
-                      fill
-                      className="object-contain"
-                    />
+            <div className="relative flex flex-col gap-3">
+              <div className="absolute -left-[54px] top-2 aspect-[4/1] h-[12px]">
+                <Image
+                  src={"/development-pointer.svg"}
+                  alt="pointer"
+                  fill
+                  className="object-contain"
+                />
+              </div>
+              <p className="text-lg text-[#F4C10B]">2nd Quarter, 2024</p>
+              {DEVELOPMENT.filter((item) => item.quarter === 2).map(
+                (item, id) => (
+                  <div className="flex gap-2" key={id}>
+                    <div className="relative aspect-square h-[24px]">
+                      <Image
+                        src={"/development-arrow.svg"}
+                        alt="arrow"
+                        fill
+                        className="object-contain"
+                      />
+                    </div>
+                    <p className="whitespace-nowrap">{item.name}</p>
+                    <p className="font-light text-[#424242]/90">{item.date}</p>
                   </div>
-                  <p className="whitespace-nowrap">{item.name}</p>
-                  <p className="text-[#424242]/90 font-light">{item.date}</p>
-                </div>
-              )
-            )}
-          </div>
-          <div className="flex gap-3 flex-col relative">
-            <div className="h-[12px] aspect-[4/1] absolute top-2 -left-[54px]">
-              <Image
-                src={"/development-pointer.svg"}
-                alt="pointer"
-                fill
-                className="object-contain"
-              />
+                ),
+              )}
             </div>
-            <p className="text-[#F4C10B] text-lg">4th Quarter, 2024</p>
-            {DEVELOPMENT.filter((item) => item.quarter === 4).map(
-              (item, id) => (
-                <div className="flex gap-2" key={id}>
-                  <div className="h-[24px] aspect-square relative">
-                    <Image
-                      src={"/development-arrow.svg"}
-                      alt="arrow"
-                      fill
-                      className="object-contain"
-                    />
+            <div className="relative flex flex-col gap-3">
+              <div className="absolute -left-[54px] top-2 aspect-[4/1] h-[12px]">
+                <Image
+                  src={"/development-pointer.svg"}
+                  alt="pointer"
+                  fill
+                  className="object-contain"
+                />
+              </div>
+              <p className="text-lg text-[#F4C10B]">4th Quarter, 2024</p>
+              {DEVELOPMENT.filter((item) => item.quarter === 4).map(
+                (item, id) => (
+                  <div className="flex gap-2" key={id}>
+                    <div className="relative aspect-square h-[24px]">
+                      <Image
+                        src={"/development-arrow.svg"}
+                        alt="arrow"
+                        fill
+                        className="object-contain"
+                      />
+                    </div>
+                    <p className="whitespace-nowrap">{item.name}</p>
+                    <p className="font-light text-[#424242]/90">{item.date}</p>
                   </div>
-                  <p className="whitespace-nowrap">{item.name}</p>
-                  <p className="text-[#424242]/90 font-light">{item.date}</p>
-                </div>
-              )
-            )}
+                ),
+              )}
+            </div>
           </div>
         </div>
       </div>
