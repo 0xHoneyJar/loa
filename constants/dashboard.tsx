@@ -142,7 +142,7 @@ export const DASHBOARD = [
     name: "Quote3",
     key: "quote3",
     dataGrid: { i: "quote3", x: 0, y: 11, w: 1, h: 1 },
-    ui: <Quotes />,
+    ui: <Quotes quoteNumber={1}/>,
   },
   {
     name: "Quests",
@@ -166,7 +166,7 @@ export const DASHBOARD = [
     name: "Quote4",
     key: "quote4",
     dataGrid: { i: "quote4", x: 3, y: 12, w: 1, h: 1 },
-    ui: <Quotes />,
+    ui: <Quotes quoteNumber={0}/>,
   },
   {
     name: "Artwork / Meme",

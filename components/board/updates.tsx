@@ -6,16 +6,16 @@ import {
   CarouselNext,
 } from "@/components/ui/carousel";
 import Image from "next/image";
-import { LockKeyhole } from "lucide-react";
+import { ArrowUpRight, LockKeyhole } from "lucide-react";
 
 const Updates = () => {
   return (
-    <div className="relative rounded-2xl overflow-hidden bg-gradient-to-b from-[#F8A92917] to-[#14131017] h-full border-2 border-[#F8A92952]">
-      <div className="absolute -top-40 w-full h-1" id="updates" />
-      <Carousel className="flex flex-col h-full">
-        <div className="w-full h-2 bg-[#FFD700] rounded-t-3xl" />
-        <div className="flex justify-between items-center h-16 px-6 border-b border-dashed border-[#F4C10B6B]">
-          <div className="flex gap-2 items-center">
+    <div className="relative h-full overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]">
+      <div className="absolute -top-40 h-1 w-full" id="updates" />
+      <Carousel className="flex h-full flex-col">
+        <div className="h-2 w-full rounded-t-3xl bg-[#FFD700]" />
+        <div className="flex h-16 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6">
+          <div className="flex items-center gap-2">
             {/* <div className="h-[26px] aspect-square relative dragHandle">
               <Image
                 src={"/drag-handle-y.svg"}
@@ -24,17 +24,33 @@ const Updates = () => {
                 className="object-contain"
               />
             </div> */}
-            <LockKeyhole className="h-[26px] aspect-square text-[#FFD7004D]" />
-            <p className="text-[#FFD700] text-lg">Updates</p>
+            <LockKeyhole className="aspect-square h-[26px] text-[#FFD7004D]" />
+            <p className="text-lg text-[#FFD700]">Updates</p>
           </div>
-          <div className="flex relative gap-3">
-            <CarouselPrevious className="h-8 w-8 border-[#848484] bg-transparent border-2" />
-            <CarouselNext className="h-8 w-8 border-[#848484] bg-transparent border-2" />
+          <div className="relative flex gap-3">
+            <CarouselPrevious className="h-8 w-8 border-2 border-[#848484] bg-transparent" />
+            <CarouselNext className="h-8 w-8 border-2 border-[#848484] bg-transparent" />
           </div>
         </div>
-        <CarouselContent className="flex pl-6 py-6 h-full w-full">
+        <CarouselContent className="flex h-full w-full py-6 pl-6">
           <CarouselItem>
-            <div className="w-[270px] h-full rounded-lg border bg-[#18140C] border-[#F4C10B0F] flex items-center justify-center flex-col relative"></div>
+            <div className="relative flex h-full w-[270px] flex-col gap-3">
+              <div className="relative h-[140px] w-full overflow-hidden rounded-xl border border-[#2B2B2B]">
+                <Image
+                  src={"/update-placeholder.png"}
+                  alt=""
+                  fill
+                  className="object-cover"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <p className="font-medium text-white">Heading</p>
+                  <ArrowUpRight className="aspect-square h-[20px] text-white/15" />
+                </div>
+                <p className="text-[#A9A9A9] text-sm">Description</p>
+              </div>
+            </div>
           </CarouselItem>
         </CarouselContent>
       </Carousel>

@@ -18,7 +18,7 @@ export const We = [
     icon: "/hero-icons/create.svg",
     title: (
       <>
-        <span className="font-medium">Deep Integrations</span> witho your favorite projects
+        <span className="font-medium">Deep Integrations</span> with your favorite projects
       </>
     ),
   },

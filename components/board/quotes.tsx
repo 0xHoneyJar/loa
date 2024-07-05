@@ -1,12 +1,13 @@
 import Image from "next/image";
+import { QUOTES } from "@/constants/quotes";
 
-const Quotes = () => {
+const Quotes = ({quoteNumber}: {quoteNumber: number}) => {
   return (
-    <div className="flex flex-col border-2 bg-[#0F0F0F] rounded-2xl border-[#FFFFFF0A] overflow-hidden h-full">
-      <div className="w-full h-2 bg-white rounded-t-3xl" />
-      <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#FFFFFF1F]">
-        <div className="flex gap-2 items-center">
-          <div className="h-[26px] aspect-square relative dragHandle">
+    <div className="flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]">
+      <div className="h-2 w-full rounded-t-3xl bg-white" />
+      <div className="flex h-16 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-6">
+        <div className="flex items-center gap-2">
+          <div className="dragHandle relative aspect-square h-[26px]">
             <Image
               src={"/drag-handle.svg"}
               alt="drag"
@@ -14,12 +15,12 @@ const Quotes = () => {
               className="object-contain"
             />
           </div>
-          <p className="text-white text-lg">Our Quotes 001</p>
+          <p className="text-lg text-white">Our Quotes 001</p>
         </div>
       </div>
-      <div className="flex grow px-6 items-center justify-center">
-        <p className="uppercase text-white font-semibold text-4xl">
-          <span className="text-[#F5D011]">Honey Jar</span> is the best in da west for sure
+      <div className="flex grow px-6 py-10">
+        <p className="text-4xl font-semibold uppercase text-white">
+          {QUOTES[quoteNumber].quote}
         </p>
       </div>
     </div>

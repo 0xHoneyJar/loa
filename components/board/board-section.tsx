@@ -44,13 +44,13 @@ const BoardSection = () => {
 
   const handleDragEnd = (event: any, info: any) => {
     console.log(info);
-    // if (constraintsRef) {
-    //   const container = constraintsRef.current;
-
+    if (constraintsRef) {
+      const container = constraintsRef.current;
+      console.log(constraintsRef);
     //   const containerRect = container?.getBoundingClientRect();
     //   const elementRect = event.target.getBoundingClientRect();
     //   console.log(containerRect, elementRect)
-    // }
+    }
   };
 
   return (
@@ -70,7 +70,7 @@ const BoardSection = () => {
           >
             <RotateCcw className="h-full w-full -rotate-90 scale-x-[-1] text-black" />
           </motion.div>
-          <p className="text-sm text-[#E7E7E7]">
+          <p className="md:text-sm text-xs text-[#E7E7E7]">
             Swipe to reset to the default layout
           </p>
         </div>

@@ -3,12 +3,12 @@ import Image from "next/image";
 
 const Blog = () => {
   return (
-    <div className="flex relative flex-col rounded-2xl overflow-hidden bg-gradient-to-b from-[#F8A92917] to-[#14131017] h-full border-2 border-[#F8A92952]">
-      <div className="absolute -top-40 w-full h-1" id="blog" />
-      <div className="w-full h-2 bg-[#FFD700] rounded-t-3xl" />
-      <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#F4C10B6B]">
-        <div className="flex gap-2 items-center">
-          <div className="h-[26px] aspect-square relative dragHandle">
+    <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]">
+      <div className="absolute -top-40 h-1 w-full" id="blog" />
+      <div className="h-2 w-full rounded-t-3xl bg-[#FFD700]" />
+      <div className="flex h-16 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6">
+        <div className="flex items-center gap-2">
+          <div className="dragHandle relative aspect-square h-[26px]">
             <Image
               src={"/drag-handle-y.svg"}
               alt="drag"
@@ -16,14 +16,31 @@ const Blog = () => {
               className="object-contain"
             />
           </div>
-          <p className="text-[#FFD700] text-lg">Our Blog</p>
+          <p className="text-lg text-[#FFD700]">Our Blog</p>
         </div>
       </div>
       <div className="flex grow p-6">
-        <div className="grid grid-cols-4 w-full gap-8">
-          <div className="h-full w-full relative rounded-xl overflow-hidden border border-[#2B2B2B] flex items-center justify-center">
+        <div className="grid w-full grid-cols-4 gap-6">
+          <div className="relative flex h-full w-full flex-col gap-3">
+            <div className="relative h-[140px] w-full overflow-hidden rounded-xl border border-[#2B2B2B]">
+              <Image
+                src={"/update-placeholder.png"}
+                alt=""
+                fill
+                className="object-cover"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center justify-between">
+                <p className="font-medium text-white">Heading</p>
+                <ArrowUpRight className="aspect-square h-[20px] text-white/15" />
+              </div>
+              <p className="text-sm text-[#A9A9A9]">Description</p>
+            </div>
+          </div>
+          <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-xl border border-[#2B2B2B]">
             <Image src={"/blog.png"} alt="blog" fill className="object-cover" />
-            <button className="hover:cursor-blue px-4 py-2 flex rounded-full gap-1 border border-[#3B3B3B] backdrop-blur-lg bg-[#5A5A5A]/30 z-10">
+            <button className="z-10 flex gap-1 rounded-full border border-[#3B3B3B] bg-[#5A5A5A]/30 px-4 py-2 backdrop-blur-lg hover:cursor-blue">
               Read Now <ArrowUpRight />
             </button>
           </div>

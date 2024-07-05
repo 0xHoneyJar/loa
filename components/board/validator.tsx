@@ -6,12 +6,12 @@ import {
 
 const Validator = () => {
   return (
-    <div className="relative flex flex-col border-2 bg-[#10120D] rounded-2xl border-[#121A12] overflow-hidden h-full">
-      <div className="absolute -top-40 w-full h-1" id="validator" />
-      <div className="w-full h-2 bg-[#43AA77] rounded-t-3xl" />
-      <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#1B271B]">
-        <div className="flex gap-2 items-center">
-          <div className="h-[26px] aspect-square relative dragHandle">
+    <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D]">
+      <div className="absolute -top-40 h-1 w-full" id="validator" />
+      <div className="h-2 w-full rounded-t-3xl bg-[#43AA77]" />
+      <div className="flex h-16 items-center justify-between border-b border-dashed border-[#1B271B] px-6">
+        <div className="flex items-center gap-2">
+          <div className="dragHandle relative aspect-square h-[26px]">
             <Image
               src={"/drag-handle.svg"}
               alt="drag"
@@ -19,67 +19,85 @@ const Validator = () => {
               className="object-contain"
             />
           </div>
-          <p className="text-white text-lg">Validator</p>
+          <p className="text-lg text-white">Validator</p>
         </div>
       </div>
       <div className="flex grow flex-col">
-        <div className="h-4/5 w-full grid grid-cols-4 p-6 gap-8">
-          <div className="h-full w-full bg-[#121212] border border-[#161616] rounded-2xl flex flex-col py-6 items-center">
-            <p className="text-[#6B6B6B]">Delegated to THJ (BGT)</p>
-            <div className="h-full w-full items-center justify-center flex">
-              <p className="font-semibold text-white text-6xl">12,324</p>
-            </div>
-          </div>
-          <div className="h-full w-full bg-[#121212] border border-[#161616] rounded-2xl flex flex-col py-6 items-center">
-            <p className="text-[#6B6B6B]">Amount of Delegators</p>
-            <div className="h-full w-full items-center justify-center flex">
-              <p className="font-semibold text-white text-6xl">12,324</p>
-            </div>
-          </div>
-          <div className="h-full w-full bg-[#121212] border border-[#161616] rounded-2xl flex flex-col py-6 items-center">
-            <p className="text-[#6B6B6B]">Amount of Delegators</p>
-            <div className="h-full w-full items-center justify-center flex">
-              <p className="font-semibold text-white text-6xl">21st</p>
-            </div>
-          </div>
-          <div className="h-full w-full bg-[#121212] border relative border-[#161616] rounded-2xl flex flex-col py-6 items-center">
-            <div className="h-full w-full items-center justify-center flex relative">
-              <p className="text-[#6B6B6B] absolute top-0">Voting Power</p>
-              <div className="h-[135px] aspect-square">
-                <CircularProgressbarWithChildren
-                  value={50}
-                  strokeWidth={14}
-                  styles={buildStyles({
-                    rotation: 0.5,
-                    strokeLinecap: "butt",
-                    pathColor: "#43AA77",
-                    trailColor: "#F4C10B",
-                  })}
-                >
-                  <p className="font-medium text-sm text-[#C1C1C1] absolute -left-10">
-                    50%
-                  </p>
-                  <p className="font-medium text-sm text-[#C1C1C1] absolute -right-10">
-                    50%
-                  </p>
-                </CircularProgressbarWithChildren>
-              </div>
-              <div className="flex gap-2 text-[#C7C7C7] justify-center absolute bottom-0">
-                <div className="flex gap-1 items-center justify-center">
-                  <div className="h-[14px] aspect-square rounded-full bg-[#43AA77]" />
-                  <p className="font-light md:text-sm text-xs">THJ</p>
+        <div className="grid h-4/5 w-full grid-rows-2 gap-8 p-6">
+          <div className="grid h-full w-full grid-cols-2 gap-6">
+            <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
+              <p className="text-[#6B6B6B]">Delegated to THJ (BGT)</p>
+              <div className="flex items-center gap-2 text-2xl">
+                <p className="font-semibold">
+                  12,324 <span className="font-light">BGT</span>
+                </p>
+                <div className="relative aspect-square h-[28px]">
+                  <Image
+                    src={"/delegate-bee.png"}
+                    alt="bee"
+                    fill
+                    className="object-contain"
+                  />
                 </div>
-                <div className="flex gap-1 items-center justify-center">
-                  <div className="h-[14px] aspect-square rounded-full bg-[#F4C10B]" />
-                  <p className="font-light md:text-sm text-xs">Other Validators</p>
+              </div>
+            </div>
+            <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
+              <p className="text-[#6B6B6B]">Number of Delegators</p>
+              <p className="text-2xl font-semibold">12,3245,213</p>
+            </div>
+          </div>
+          <div className="grid h-full w-full grid-cols-4 gap-8">
+            <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
+              <p className="text-[#6B6B6B]">Validator&apos;s Rank</p>
+              <p className="text-2xl font-semibold">1st</p>
+            </div>
+            <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
+              <p className="text-[#6B6B6B]">Active Incentives</p>
+
+              <p className="text-2xl font-semibold">
+                $0{" "}
+                <span className="text-xs font-normal text-[#989898]">
+                  (The Value)
+                </span>
+              </p>
+            </div>
+            <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
+              <p className="text-[#6B6B6B]">Reward Rate</p>
+              <div className="flex items-center gap-2 text-2xl">
+                <p className="font-semibold">
+                  12,324 <span className="text-2xl font-light">BGT</span>
+                </p>
+                <div className="relative aspect-square h-[28px]">
+                  <Image
+                    src={"/delegate-bee.png"}
+                    alt="bee"
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
+              <p className="text-[#6B6B6B]">Return per BGT</p>
+              <div className="flex items-center gap-2 text-2xl">
+                <p className="font-semibold text-2xl">
+                  $123.13
+                </p>
+                <div className="relative aspect-square h-[28px]">
+                  <Image
+                    src={"/bgt-honey.png"}
+                    alt="honey"
+                    fill
+                    className="object-contain"
+                  />
                 </div>
               </div>
             </div>
           </div>
         </div>
-        <div className="h-1/5 w-full flex justify-between items-center border-t border-[#1B271B] px-6">
-          <div className="flex gap-2 items-center">
-            <div className="aspect-square h-[38px] relative">
+        <div className="flex h-1/5 w-full items-center justify-between border-t border-[#1B271B] px-6">
+          <div className="flex items-center gap-2">
+            <div className="relative aspect-square h-[38px]">
               <Image
                 src={"/jani-coin.png"}
                 alt="jani-coin"
@@ -87,12 +105,12 @@ const Validator = () => {
                 className="object-contain"
               />
             </div>
-            <p className="text-white text-xl font-light">
-              <span className="font-medium">THJ</span> Needs Your Vote! Delegate to us now!
+            <p className="text-xl font-light text-white">
+              Needs Your Support
             </p>
           </div>
-          <div className="flex gap-2 items-center">
-            <div className="aspect-square h-[100px] relative">
+          <div className="flex items-center gap-2">
+            <div className="relative aspect-square h-[100px]">
               <Image
                 src={"/arrow-wiggle.svg"}
                 alt="arrow-wiggle"
@@ -100,8 +118,8 @@ const Validator = () => {
                 className="object-contain"
               />
             </div>
-            <div className="p-1.5 border border-dashed rounded-full border-[#848484]">
-              <button className="px-6 py-2 bg-[#43AA77] rounded-full text-black font-medium hover:shadow-evergreen hover:cursor-blue">
+            <div className="rounded-full border border-dashed border-[#848484] p-1.5">
+              <button className="rounded-full bg-[#43AA77] px-6 py-2 font-medium text-black hover:cursor-blue hover:shadow-evergreen">
                 Delegate Now
               </button>
             </div>

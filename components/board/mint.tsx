@@ -16,36 +16,37 @@ const Mint = () => {
         </button>
       </div>
       <div className="flex grow p-6">
-        <div className="grid h-full w-full grid-cols-5 gap-6">
-          <div className="flex h-full w-full flex-col divide-y divide-[#F4C10B14] rounded-lg border border-[#F4C10B14] bg-[#221C11] hover:cursor-blue hover:divide-[#F4C10B47] hover:border-[#F4C10B47] hover:bg-[#423520]">
-            <div className="h-4/5 w-full p-2">
-              <div className="relative flex h-full w-full flex-col justify-between overflow-hidden rounded-t-lg p-2">
-                <Image
-                  src={"/mint.png"}
-                  alt="mint"
-                  fill
-                  className="object-cover"
-                />
-                <div className="bg-[#D8D8D8]/10 px-4 py-1 z-10 rounded-full w-fit">
-                  <p className="text-xs font-light text-[#AFAFAF]">
-                    24:10:59 <span className="text-[#525252]">left</span>
-                  </p>
-                </div>
-                <div className="z-10 flex flex-col">
-                  <p className="text-sm text-[#FBFBFB]">The Title For Sure</p>
-                  <p className="text-xs text-[#A9A9A9]">Placeholder</p>
-                </div>
-              </div>
-            </div>
-            <div className="flex h-1/5 w-full items-center justify-between px-2">
-              <div className="flex items-center gap-2">
-                <div className="relative aspect-square h-[20px]">
-                  <Image src={"/thj-logo.png"} alt="logo" fill />
-                </div>
-                <p className="whitespace-nowrap text-xs text-[#6B6B6B]">
-                  By the Honey
+        <div className="grid h-full w-full grid-cols-4 gap-6">
+          <div className="relative flex h-full w-full flex-col justify-between overflow-hidden rounded-lg border border-[#F4C10B14] bg-[#221C11] px-4 py-2 hover:cursor-blue hover:divide-[#F4C10B47] hover:border-[#F4C10B47] hover:bg-[#423520]">
+            <Image
+              src={"/mint-placeholder.png"}
+              alt=""
+              fill
+              className="object-co"
+            />
+            <div className="z-10 flex gap-2">
+              <div className="rounded-full bg-[#D8D8D8]/10 px-3 py-1">
+                <p className="text-xs font-light text-white">
+                  24:10:59 <span className="text-[#E2E2E2]">left</span>
                 </p>
               </div>
+              <div className="rounded-full bg-[#D8D8D8]/10 px-3 py-1">
+                <p className="text-xs font-light text-white">NFT Supply</p>
+              </div>
+            </div>
+            <div className="z-10 flex w-full items-center justify-between py-2">
+              <div className="flex flex-col gap-0.5">
+                <p className="text-sm text-[#FBFBFB]">Title</p>
+                <div className="flex items-center gap-2">
+                  <div className="relative aspect-square h-[20px]">
+                    <Image src={"/thj-logo.png"} alt="logo" fill />
+                  </div>
+                  <p className="whitespace-nowrap text-xs text-[#6B6B6B]">
+                    By The Honey jar
+                  </p>
+                </div>
+              </div>
+
               <div className="flex flex-col items-end">
                 <div className="flex items-center gap-1">
                   <div className="relative aspect-square h-[12px]">
@@ -53,7 +54,7 @@ const Mint = () => {
                   </div>
                   <p className="text-sm font-semibold text-white">12.00</p>
                 </div>
-                <p className="text-[8px] text-[#9E9E9E]">$123,145.00</p>
+                <p className="text-[8px] text-[#BABABA]">$123,145.00</p>
               </div>
             </div>
           </div>
