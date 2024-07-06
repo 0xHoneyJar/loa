@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { motion } from "framer-motion";
 
 const Follow = () => {
   return (
@@ -6,14 +7,19 @@ const Follow = () => {
       <div className="h-2 w-full rounded-t-3xl bg-white" />
       <div className="flex h-16 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-6">
         <div className="flex items-center gap-2">
-          <div className="dragHandle relative aspect-square h-[26px]">
+          <motion.div
+            className="dragHandle relative aspect-square h-[26px] cursor-grab"
+            whileTap={{
+              cursor: "url('/grabbing.svg'), grabbing",
+            }}
+          >
             <Image
               src={"/drag-handle.svg"}
               alt="drag"
               fill
               className="object-contain"
             />
-          </div>
+          </motion.div>
           <p className="text-lg text-white">Follow Us</p>
         </div>
       </div>

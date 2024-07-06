@@ -67,7 +67,7 @@
 }
 
 .react-grid-item.react-grid-placeholder {
-  @apply rounded-3xl;
+  @apply rounded-3xl !bg-[#130F01] border-dashed border-[3px] border-[#453806];
 }
 
 input[type="range"]::-webkit-slider-thumb {

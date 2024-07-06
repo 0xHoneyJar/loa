@@ -14,7 +14,7 @@ const ogLayout = DASHBOARD.map((dashboard) => dashboard.dataGrid);
 
 const BoardSection = () => {
   const constraintsRef = useRef<HTMLDivElement>(null);
-
+  const resetRef = useRef<HTMLDivElement>(null);
   const [layout, setLayout] = useState<any[]>([]);
 
   useEffect(() => {
@@ -24,6 +24,7 @@ const BoardSection = () => {
   }, []);
 
   const resetLayout = () => {
+    console.log("reset");
     setLayout(ogLayout);
   };
 
@@ -42,14 +43,13 @@ const BoardSection = () => {
     return savedLayout ? JSON.parse(savedLayout) : ogLayout;
   };
 
-  const handleDragEnd = (event: any, info: any) => {
-    console.log(info);
-    if (constraintsRef) {
-      const container = constraintsRef.current;
-      console.log(constraintsRef);
-    //   const containerRect = container?.getBoundingClientRect();
-    //   const elementRect = event.target.getBoundingClientRect();
-    //   console.log(containerRect, elementRect)
+  const handleDragEnd = () => {
+    if (constraintsRef && resetRef) {
+      const containerRect = constraintsRef.current?.getBoundingClientRect();
+      const dragElementRect = resetRef.current?.getBoundingClientRect();
+      if (containerRect?.right === dragElementRect?.right) {
+        resetLayout();
+      }
     }
   };
 
@@ -65,12 +65,13 @@ const BoardSection = () => {
             dragSnapToOrigin
             dragConstraints={constraintsRef}
             dragElastic={{ right: 0, left: 0 }}
-            onDragEnd={(event, info) => handleDragEnd(event, info)}
+            onDragEnd={handleDragEnd}
             className="aspect-square h-[28px] touch-none rounded-full bg-white p-1"
+            ref={resetRef}
           >
             <RotateCcw className="h-full w-full -rotate-90 scale-x-[-1] text-black" />
           </motion.div>
-          <p className="md:text-sm text-xs text-[#E7E7E7]">
+          <p className="text-xs text-[#E7E7E7] md:text-sm">
             Swipe to reset to the default layout
           </p>
         </div>
