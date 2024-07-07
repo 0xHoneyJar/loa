@@ -10,12 +10,13 @@ import "react-grid-layout/css/styles.css";
 // import "react-resizable/css/styles.css";
 
 const ReactGridLayout = WidthProvider(RGL);
-const ogLayout = DASHBOARD.map((dashboard) => dashboard.dataGrid);
 
 const BoardSection = () => {
   const constraintsRef = useRef<HTMLDivElement>(null);
   const resetRef = useRef<HTMLDivElement>(null);
   const [layout, setLayout] = useState<any[]>([]);
+
+  const ogLayout = DASHBOARD.map((dashboard) => dashboard.dataGrid);
 
   useEffect(() => {
     // Load layout from localStorage on component mount
@@ -25,6 +26,7 @@ const BoardSection = () => {
 
   const resetLayout = () => {
     console.log("reset");
+    handleLayoutChange(ogLayout);
     setLayout(ogLayout);
   };
 
@@ -32,6 +34,7 @@ const BoardSection = () => {
     if (typeof window !== "undefined") {
       localStorage.setItem("grid-layout", JSON.stringify(layouts));
     }
+    setLayout(layouts)
   };
 
   const getLayout = () => {
@@ -99,7 +102,7 @@ const BoardSection = () => {
           containerPadding={[32, 48]}
           layout={layout}
           isResizable={false}
-          // onLayoutChange={handleLayoutChange as any}
+          // onLayoutChange={handleLayoutChange}
         >
           {DASHBOARD.map((dashboard) => {
             return <div key={dashboard.key}>{dashboard.ui}</div>;
