@@ -7,26 +7,27 @@ import {
 } from "@/components/ui/carousel";
 import Image from "next/image";
 import { INCUBATED } from "@/constants/incubated";
+import DragHandleY from "../drag-handle-y";
+import { useState } from "react";
 
 const Incubated = () => {
+  const [glow, setGlow] = useState(false);
   return (
-    <div className="relative rounded-2xl overflow-hidden bg-gradient-to-b from-[#F8A92917] to-[#14131017] h-full border-2 border-[#F8A92952]">
-      <div className="absolute -top-40 w-full h-1" id="incubated" />
-      <Carousel className="flex flex-col h-full">
-        <div className="w-full h-2 bg-[#FFD700] rounded-t-3xl" />
-        <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#F4C10B6B]">
-          <div className="flex gap-2 items-center">
-            <div className="h-[26px] aspect-square relative dragHandle">
-              <Image
-                src={"/drag-handle-y.svg"}
-                alt="drag"
-                fill
-                className="object-contain"
-              />
-            </div>
-            <p className="text-[#FFD700] text-lg">Incubated Projects</p>
-            <div className="flex gap-2 items-center rounded-full border py-1 px-2 border-[#F8A9291F] bg-gradient-to-r from-[#F5D0110D] to-[#F8A9290D]">
-              <div className="h-[20px] aspect-square relative">
+    <div
+      className={`${glow && "rotate-[1deg]"} relative h-full overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
+    >
+      <div className="absolute -top-40 h-1 w-full" id="incubated" />
+      <Carousel className="flex h-full flex-col">
+        <div className="h-2 w-full rounded-t-3xl bg-[#FFD700]" />
+        <div className="flex relative h-16 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6">
+          <div
+            className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
+          />
+          <div className="flex items-center gap-2">
+            <DragHandleY setGlow={setGlow} />
+            <p className="text-lg text-[#FFD700]">Incubated Projects</p>
+            <div className="flex items-center gap-2 rounded-full border border-[#F8A9291F] bg-gradient-to-r from-[#F5D0110D] to-[#F8A9290D] px-2 py-1">
+              <div className="relative aspect-square h-[20px]">
                 <Image
                   src={"/rise.svg"}
                   alt="rise"
@@ -39,17 +40,17 @@ const Incubated = () => {
               </p>
             </div>
           </div>
-          <div className="flex relative gap-3">
-            <CarouselPrevious className="h-8 w-8 border-[#848484] bg-transparent border-2" />
-            <CarouselNext className="h-8 w-8 border-[#848484] bg-transparent border-2" />
+          <div className="relative flex gap-3">
+            <CarouselPrevious className="h-8 w-8 border-2 border-[#848484] bg-transparent" />
+            <CarouselNext className="h-8 w-8 border-2 border-[#848484] bg-transparent" />
           </div>
         </div>
-        <CarouselContent className="flex items-center pl-6 h-full w-full py-6">
+        <CarouselContent className="flex h-full w-full items-center py-6 pl-6">
           {INCUBATED.map((item, id) => (
-            <CarouselItem key={id} className="pl-5 h-full">
-              <div className="w-[196px] h-full rounded-lg border bg-[#18140C] border-[#F4C10B0F] flex items-center justify-center flex-col relative hover:bg-[#332200] hover:border-[#F4C10B38] text-[#C4C4C4] hover:text-white/90 hover:cursor-blue hover:font-medium">
-                <div className="h-[2px] bg-[#EE511E] absolute top-0 w-8 rounded-full" />
-                <div className="h-[100px] mt-6 relative aspect-square bg-[#18140C05] border border-[#F4C10B0F] rounded-full mb-4">
+            <CarouselItem key={id} className="h-full pl-5">
+              <div className="relative flex h-full w-[196px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90">
+                <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
+                <div className="relative mb-4 mt-6 aspect-square h-[100px] rounded-full border border-[#F4C10B0F] bg-[#18140C05]">
                   <Image
                     src={item.image}
                     alt={item.name}

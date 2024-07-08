@@ -1,29 +1,30 @@
 import Image from "next/image";
+import { useState } from "react";
 import {
   CircularProgressbarWithChildren,
   buildStyles,
 } from "react-circular-progressbar";
+import DragHandleY from "../drag-handle-y";
 
 const Data = () => {
+  const [glow, setGlow] = useState(false)
   return (
-    <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]">
+    <div
+      className={`${glow && "rotate-[1deg]"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
+    >
       <div className="absolute -top-40 h-1 w-full" id="data" />
       <div className="h-2 w-full rounded-t-3xl bg-[#FFD700]" />
-      <div className="flex h-16 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6">
+      <div className="flex relative h-16 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6">
+        <div
+          className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
+        />
         <div className="flex items-center gap-2">
-          <div className="dragHandle relative aspect-square h-[26px]">
-            <Image
-              src={"/drag-handle-y.svg"}
-              alt="drag"
-              fill
-              className="object-contain"
-            />
-          </div>
+          <DragHandleY setGlow={setGlow} />
           <p className="text-lg text-[#FFD700]">Data</p>
         </div>
       </div>
       <div className="flex grow flex-col">
-        <div className="flex flex-col border-b border-[#F4C10B]/20 p-6">
+        <div className="flex flex-col border-b border-[#F4C10B]/20 px-6 py-8">
           <div className="mb-2 flex items-center gap-2">
             <div className="relative aspect-square h-[20px]">
               <Image
@@ -44,14 +45,14 @@ const Data = () => {
               / By Bera Eco
             </p>
           </div>
-          <div className="relative mb-4 w-full rounded-xl border border-[#F8A9290F] bg-[#F8A9291F] px-4 py-6">
+          <div className="relative w-full rounded-xl border border-[#F8A9290F] bg-[#F8A9291F] px-4 py-6">
             <p className="text-5xl font-medium text-[#F8A929]">$9,000,000</p>
             <p className="absolute bottom-2 right-2 flex items-center gap-1 text-sm text-[#A9A9A9]/50">
               / By THJ
             </p>
           </div>
         </div>
-        <div className="flex flex-col border-b border-[#F4C10B]/20 p-6">
+        <div className="flex flex-col border-b border-[#F4C10B]/20 px-6 py-8">
           <div className="mb-8 flex items-center gap-2">
             <div className="relative aspect-square h-[20px]">
               <Image

@@ -2,54 +2,54 @@ import Image from "next/image";
 import { Map, ChevronRight, ArrowRight, HelpCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
+import DragHandle from "../drag-handle";
 
 const Partners = () => {
   const [hover, setHover] = useState(false);
+  const [glow, setGlow] = useState(false);
   return (
-    <div className="relative flex flex-col border-2 bg-[#10120D] rounded-2xl border-[#121A12] overflow-hidden h-full">
-      <div className="absolute -top-40 w-full h-1" id="partners" />
-      <div className="w-full h-2 bg-[#43AA77] rounded-t-3xl" />
-      <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#FFFFFF1F]">
-        <div className="flex gap-2 items-center">
-          <div className="h-[26px] aspect-square relative dragHandle">
-            <Image
-              src={"/drag-handle.svg"}
-              alt="drag"
-              fill
-              className="object-contain"
-            />
-          </div>
-          <p className="text-white text-lg">Partners</p>
+    <div
+      className={`${glow && "rotate-[1deg]"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D]`}
+    >
+      <div className="absolute -top-40 h-1 w-full" id="partners" />
+      <div className="h-2 w-full rounded-t-3xl bg-[#43AA77]" />
+      <div className="relative flex h-16 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-6">
+        <div
+          className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#43AA77] blur-2xl ${glow ? "flex" : "hidden"}`}
+        />
+        <div className="flex items-center gap-2">
+          <DragHandle setGlow={setGlow} />
+          <p className="text-lg text-white">Partners</p>
         </div>
       </div>
       <div className="flex grow flex-col">
-        <div className="h-4/5 w-full flex flex-col px-6 justify-center gap-5">
+        <div className="flex w-full flex-col justify-center gap-5 p-6">
           <p className="text-[#A9A9A9]">
             THJ has a vast and constantly growing network of partners. Many of
             them are providing perks to Honeycomb holders.
           </p>
-          <div className="w-full py-6 px-4 bg-[#43AA772E] rounded-xl relative">
-            <p className="font-medium text-5xl text-[#00AB55]">561</p>
-            <p className="text-sm text-[#A9A9A9] flex items-center gap-1 absolute right-4 bottom-4">
+          <div className="relative w-full rounded-xl bg-[#43AA772E] px-4 py-6">
+            <p className="text-5xl font-medium text-[#00AB55]">561</p>
+            <p className="absolute bottom-4 right-4 flex items-center gap-1 text-sm text-[#A9A9A9]">
               / Total Partners <HelpCircle size={14} />
             </p>
           </div>
-          <div className="w-full px-4 py-6 bg-[#43AA772E] rounded-xl relative">
-            <p className="font-medium text-5xl text-[#00AB55]">$9,000,000</p>
-            <p className="text-sm text-[#A9A9A9] flex items-center gap-1 absolute right-4 bottom-4">
+          <div className="relative w-full rounded-xl bg-[#43AA772E] px-4 py-6">
+            <p className="text-5xl font-medium text-[#00AB55]">$9,000,000</p>
+            <p className="absolute bottom-4 right-4 flex items-center gap-1 text-sm text-[#A9A9A9]">
               / Raised <HelpCircle size={14} />
             </p>
           </div>
-          <button className="flex items-center justify-between rounded-lg bg-[#FFFFFF0A] border border-[#E8E8E80A] py-3 px-4 hover:cursor-blue hover:bg-[#FFFFFF24] hover:border-[#E8E8E81F]">
+          <button className="flex items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 hover:cursor-blue hover:border-[#E8E8E81F] hover:bg-[#FFFFFF24]">
             <div className="flex gap-2">
               <Map />
               THJ Partner Map
             </div>
             <ChevronRight size={18} className="text-[#FFFFFF66]" />
           </button>
-          <button className="flex items-center justify-between rounded-lg bg-[#FFFFFF0A] border border-[#E8E8E80A] py-3 px-4 hover:cursor-blue hover:bg-[#FFFFFF24] hover:border-[#E8E8E81F]">
+          <button className="flex items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 hover:cursor-blue hover:border-[#E8E8E81F] hover:bg-[#FFFFFF24]">
             <div className="flex gap-2">
-              <div className="aspect-square h-[28px] relative">
+              <div className="relative aspect-square h-[28px]">
                 <Image
                   src={"/partners.svg"}
                   alt="partners"
@@ -62,8 +62,8 @@ const Partners = () => {
             <ChevronRight size={18} className="text-[#FFFFFF66]" />
           </button>
         </div>
-        <div className="h-1/5 w-full flex items-center justify-center px-6 border-t border-[#43AA771A] relative">
-          <div className="aspect-square h-[40px] absolute -left-0 -bottom-2">
+        <div className="relative flex w-full grow items-center justify-center border-t border-[#43AA771A] px-6">
+          <div className="absolute -bottom-2 -left-0 aspect-square h-[40px]">
             <Image
               src={"/arrow-swirl-partner.svg"}
               alt="arrow-swirl"
@@ -71,7 +71,7 @@ const Partners = () => {
               className="object-contain"
             />
           </div>
-          <div className="aspect-square h-[40px] absolute -right-0 -top-2 rotate-180">
+          <div className="absolute -right-0 -top-2 aspect-square h-[40px] rotate-180">
             <Image
               src={"/arrow-swirl-partner.svg"}
               alt="arrow-swirl"
@@ -79,18 +79,18 @@ const Partners = () => {
               className="object-contain"
             />
           </div>
-          <div className="p-2 border border-dashed border-[#9F9F9F63] rounded-full w-full">
+          <div className="w-full rounded-full border border-dashed border-[#9F9F9F63] p-2">
             <button
               onMouseEnter={() => setHover(true)}
               onMouseLeave={() => setHover(false)}
               style={{
                 justifyContent: !hover ? "flex-start" : "flex-end",
               }}
-              className="flex rounded-full bg-[#43AA77] px-2 py-1 items-center text-black font-semibold w-full hover:cursor-blue text-lg"
+              className="flex w-full items-center rounded-full bg-[#43AA77] px-2 py-1 text-lg font-semibold text-black hover:cursor-blue"
             >
               <motion.div
                 layout
-                className={`h-[40px] z-10 aspect-square rounded-full flex items-center justify-center ${
+                className={`z-10 flex aspect-square h-[40px] items-center justify-center rounded-full ${
                   hover ? "bg-white" : "bg-[#171717]"
                 }`}
                 transition={{ duration: 0.3 }}
@@ -98,7 +98,7 @@ const Partners = () => {
                 <ArrowRight className="text-[#43AA77]" />
               </motion.div>
               <p
-                className={`absolute mx-auto inset-x-0 ${
+                className={`absolute inset-x-0 mx-auto ${
                   hover && "text-white"
                 }`}
               >

@@ -8,25 +8,26 @@ import {
   CarouselNext,
 } from "@/components/ui/carousel";
 import { PERKS } from "@/constants/perks";
+import { useState } from "react";
+import DragHandleY from "../drag-handle-y";
 
 const Honeycomb = () => {
+  const [glow, setGlow] = useState(false)
   return (
-    <div className="relative flex flex-col rounded-2xl overflow-hidden bg-gradient-to-b from-[#F8A92917] to-[#14131017] h-full border-2 border-[#F8A92952]">
-      <div className="absolute -top-40 w-full h-1" id="honeycomb" />
-      <div className="w-full h-2 bg-[#FFD700] rounded-t-3xl" />
-      <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#F4C10B6B]">
-        <div className="flex gap-2 items-center">
-          <div className="h-[26px] aspect-square relative dragHandle">
-            <Image
-              src={"/drag-handle-y.svg"}
-              alt="drag"
-              fill
-              className="object-contain"
-            />
-          </div>
-          <p className="text-[#FFD700] text-lg">Honeycomb</p>
+    <div
+      className={`${glow && "rotate-[1deg]"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
+    >
+      <div className="absolute -top-40 h-1 w-full" id="honeycomb" />
+      <div className="h-2 w-full rounded-t-3xl bg-[#FFD700]" />
+      <div className="relative flex h-16 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6">
+        <div
+          className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
+        />
+        <div className="flex items-center gap-2">
+          <DragHandleY setGlow={setGlow} />
+          <p className="text-lg text-[#FFD700]">Honeycomb</p>
         </div>
-        <div className="h-[34px] aspect-square rounded-full border border-[#353535] relative">
+        <div className="relative aspect-square h-[34px] rounded-full border border-[#353535]">
           <Image
             src={"/opensea.svg"}
             alt="opensea"
@@ -35,23 +36,23 @@ const Honeycomb = () => {
           />
         </div>
       </div>
-      <div className="flex grow flex-col w-full">
-        <div className="flex flex-col p-6 w-full gap-4">
-          <div className="h-[220px] w-full relative rounded-xl overflow-hidden flex items-center justify-end">
+      <div className="flex w-full grow flex-col">
+        <div className="flex w-full flex-col gap-4 p-6">
+          <div className="relative flex h-[225px] w-full items-center justify-end overflow-hidden rounded-xl">
             <Image
               src={"/honeycomb.png"}
               alt="honeycomb"
               fill
               className="object-cover"
             />
-            <div className="flex flex-col gap-4 z-10 w-1/2 pr-12">
+            <div className="z-10 flex w-1/2 flex-col gap-4 pr-12">
               <p className="text-[#D1D1D1]">
                 Honeycomb is an anti-hustle tech and a perk aggregator of the
                 Berachain eco. It gives you whitelist to most projects in the
                 ecosystem
               </p>
-              <button className="flex gap-2 items-center border border-[#1E1E1E] bg-[#0F0D08] py-3 justify-center rounded-lg">
-                <div className="h-[26px] aspect-square rounded-full relative">
+              <button className="flex items-center justify-center gap-2 rounded-lg border border-[#1E1E1E] bg-[#0F0D08] py-3">
+                <div className="relative aspect-square h-[26px] rounded-full">
                   <Image
                     src={"/opensea.svg"}
                     alt="opensea"
@@ -63,32 +64,32 @@ const Honeycomb = () => {
               </button>
             </div>
           </div>
-          <div className="h-[214px] w-full relative">
-            <div className="grid grid-cols-4 w-full h-full gap-4">
-              <div className="h-full w-full rounded-lg py-8 border bg-[#15120B] border-[#F5D0110A] flex items-center flex-col relative">
-                <div className="h-[2px] bg-[#EE511E] absolute top-0 w-8 rounded-full" />
+          <div className="relative h-[220px] w-full">
+            <div className="grid h-full w-full grid-cols-4 gap-4">
+              <div className="relative flex h-full w-full flex-col items-center rounded-lg border border-[#F5D0110A] bg-[#15120B] py-8">
+                <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                 <p className="text-lg text-[#6B6B6B]">Total Perks</p>
-                <div className="h-full w-full flex items-center justify-center">
-                  <p className="bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-transparent font-medium text-7xl">
+                <div className="flex h-full w-full items-center justify-center">
+                  <p className="bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-7xl font-medium text-transparent">
                     94
                   </p>
                 </div>
               </div>
-              <div className="h-full w-full rounded-lg py-8 border bg-[#15120B] border-[#F5D0110A] flex items-center flex-col relative">
-                <div className="h-[2px] bg-[#EE511E] absolute top-0 w-8 rounded-full" />
+              <div className="relative flex h-full w-full flex-col items-center rounded-lg border border-[#F5D0110A] bg-[#15120B] py-8">
+                <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                 <p className="text-lg text-[#6B6B6B]">Active Perks</p>
-                <div className="h-full w-full flex items-center justify-center">
-                  <p className="bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-transparent font-medium text-7xl">
+                <div className="flex h-full w-full items-center justify-center">
+                  <p className="bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-7xl font-medium text-transparent">
                     78
                   </p>
                 </div>
               </div>
               <div className="grid h-full w-full grid-rows-2 gap-6">
-                <div className="h-full w-full rounded-lg border bg-[#15120B] border-[#F5D0110A] flex items-center flex-col justify-center relative">
-                  <div className="h-[2px] bg-[#EE511E] absolute top-0 w-8 rounded-full" />
+                <div className="relative flex h-full w-full flex-col items-center justify-center rounded-lg border border-[#F5D0110A] bg-[#15120B]">
+                  <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                   <p className="text-sm text-[#6B6B6B]">Floor Price</p>
-                  <p className="flex gap-2 items-center">
-                    <div className="h-[16px] aspect-square relative">
+                  <p className="flex items-center gap-2">
+                    <div className="relative aspect-square h-[16px]">
                       <Image
                         src={"/floor-price.svg"}
                         alt="floor-price"
@@ -99,11 +100,11 @@ const Honeycomb = () => {
                     333,286.24 ETH
                   </p>
                 </div>
-                <div className="h-full w-full rounded-lg border bg-[#15120B] border-[#F5D0110A] flex items-center flex-col justify-center relative">
-                  <div className="h-[2px] bg-[#EE511E] absolute top-0 w-8 rounded-full" />
+                <div className="relative flex h-full w-full flex-col items-center justify-center rounded-lg border border-[#F5D0110A] bg-[#15120B]">
+                  <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                   <p className="text-sm text-[#6B6B6B]">Perk Value</p>
-                  <p className="flex gap-2 items-center">
-                    <div className="h-[16px] aspect-square relative">
+                  <p className="flex items-center gap-2">
+                    <div className="relative aspect-square h-[16px]">
                       <Image
                         src={"/gem.svg"}
                         alt="gem"
@@ -116,11 +117,11 @@ const Honeycomb = () => {
                 </div>
               </div>
               <div className="grid h-full w-full grid-rows-2 gap-6">
-                <div className="h-full w-full rounded-lg border bg-[#15120B] border-[#F5D0110A] flex items-center flex-col justify-center relative">
-                  <div className="h-[2px] bg-[#EE511E] absolute top-0 w-8 rounded-full" />
+                <div className="relative flex h-full w-full flex-col items-center justify-center rounded-lg border border-[#F5D0110A] bg-[#15120B]">
+                  <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                   <p className="text-sm text-[#6B6B6B]">Holders</p>
-                  <p className="flex gap-2 items-center">
-                    <div className="h-[16px] aspect-square relative">
+                  <p className="flex items-center gap-2">
+                    <div className="relative aspect-square h-[16px]">
                       <Image
                         src={"/holder.svg"}
                         alt="holder"
@@ -131,10 +132,10 @@ const Honeycomb = () => {
                     413,425
                   </p>
                 </div>
-                <div className="h-full w-full rounded-lg border bg-[#15120B] border-[#F5D0110A] flex items-center flex-col justify-center relative">
-                  <div className="h-[2px] bg-[#EE511E] absolute top-0 w-8 rounded-full" />
+                <div className="relative flex h-full w-full flex-col items-center justify-center rounded-lg border border-[#F5D0110A] bg-[#15120B]">
+                  <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                   <p className="text-sm text-[#6B6B6B]">Perks Value</p>
-                  <p className="flex gap-2 items-center">
+                  <p className="flex items-center gap-2">
                     <span className="text-sm">$</span>
                     333,286.24
                   </p>
@@ -142,32 +143,43 @@ const Honeycomb = () => {
               </div>
             </div>
           </div>
-          <button className="w-full items-center text-[#F4C10B] bg-[#F4C10B]/10 px-6 py-3 rounded-lg flex justify-between text-lg hover:bg-[#F4C10B] hover:text-[#121212] hover:font-semibold hover:cursor-blue">
+          <button className="flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-6 py-3 text-lg text-[#F4C10B] hover:cursor-blue hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]">
             Visit Honeycomb Dashboard
             <ArrowUpRight size={28} />
           </button>
         </div>
-        <Carousel className="flex flex-col h-full">
-          <div className="flex justify-between items-center py-4 px-6 border-y border-dashed border-[#FEFEFE14]">
-            <p className="text-white text-lg">Recent Perks</p>
-            <div className="flex relative gap-3">
-              <CarouselPrevious className="h-8 w-8 border-[#848484] bg-transparent border-2" />
-              <CarouselNext className="h-8 w-8 border-[#848484] bg-transparent border-2" />
+        <Carousel className="flex h-full flex-col">
+          <div className="flex items-center justify-between border-y border-dashed border-[#FEFEFE14] px-6 py-4">
+            <p className="text-lg text-white">Recent Perks</p>
+            <div className="relative flex gap-3">
+              <CarouselPrevious className="h-8 w-8 border-2 border-[#848484] bg-transparent" />
+              <CarouselNext className="h-8 w-8 border-2 border-[#848484] bg-transparent" />
             </div>
           </div>
-          <CarouselContent className="flex items-center pl-6 h-full w-full">
+          <CarouselContent className="flex h-full w-full items-center pl-6">
             {PERKS.map((item, id) => (
               <CarouselItem key={id} className="pl-5">
-                <div className="h-[196px] aspect-square rounded-lg border bg-[#18140C] border-[#F4C10B0F] flex items-center justify-center flex-col relative hover:bg-[#332200] hover:border-[#F4C10B38] text-[#C4C4C4] hover:text-white/90 hover:cursor-blue hover:font-medium">
-                  <div className="h-[100px] mt-6 relative aspect-square bg-[#18140C05] border border-[#F4C10B0F] rounded-full mb-4">
-                    <Image
-                      src={item.image}
-                      alt={item.name}
-                      fill
-                      className="object-contain p-4"
-                    />
+                <div className="relative flex aspect-[1.1/1] h-[196px] py-4 flex-col items-center justify-between rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90">
+                  <div className="flex flex-col items-center gap-2 mt-2">
+                    <div className="relative aspect-square h-[54px] rounded-full border border-[#F4C10B0F] bg-[#18140C05]">
+                      <Image
+                        src={item.image}
+                        alt={item.name}
+                        fill
+                        className="object-contain p-2"
+                      />
+                    </div>
+                    <p className="text-sm">{item.name}</p>
+                    <div className="rounded-full bg-gradient-to-r from-[#F8A929]/5 to-[#F5D011]/5 px-4 py-1">
+                      <p className="text-xs font-light text-[#F8A929]">
+                        Perks Type
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-lg">{item.name}</p>
+                  <div className="flex items-center gap-1">
+                    <div className="relative aspect-square h-[14px] rounded-full bg-purple-500"></div>
+                    <p className="text-[8px] text-[#A8A8A8]">The Lorem Ip</p>
+                  </div>
                 </div>
               </CarouselItem>
             ))}

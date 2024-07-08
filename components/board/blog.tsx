@@ -5,21 +5,17 @@ import { useState } from "react";
 
 const Blog = () => {
   const [hover, setHover] = useState(false);
+  const [glow, setGlow] = useState(false)
   return (
-    <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]">
+    <div className={`relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017] ${glow && "rotate-[1deg]"}`}>
       <div className="absolute -top-40 h-1 w-full" id="blog" />
       <div className="h-2 w-full rounded-t-3xl bg-[#FFD700]" />
-      <div className="flex h-16 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6">
+      <div className="relative flex h-16 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6">
+        <div
+          className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
+        />
         <div className="flex items-center gap-2">
-          {/* <div className="dragHandle relative aspect-square h-[26px]">
-            <Image
-              src={"/drag-handle-y.svg"}
-              alt="drag"
-              fill
-              className="object-contain"
-            />
-          </div> */}
-          <DragHandleY />
+          <DragHandleY setGlow={setGlow} />
           <p className="text-lg text-[#FFD700]">Our Blog</p>
         </div>
       </div>

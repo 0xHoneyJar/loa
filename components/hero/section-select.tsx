@@ -15,25 +15,28 @@ const SectionSelect = () => {
         section && section.scrollIntoView({ behavior: "smooth" });
       }}
     >
-      <SelectTrigger className="md:px-6 px-4 py-3 h-full flex gap-1 items-center text-[#CCCCCC] rounded-full border border-[#FFFFFF]/15 md:text-sm text-xs bg-transparent">
+      <SelectTrigger className="flex h-full items-center gap-1 rounded-full border border-[#FFFFFF]/15 bg-transparent px-4 py-3 text-xs text-[#CCCCCC] md:px-6 md:text-sm">
         <p>Section</p>
       </SelectTrigger>
       <SelectContent
         align="center"
         sideOffset={30}
-        className="items-center bg-[#0F0F0F] border border-[#171717] rounded-xl max-h-[490px] w-[220px] p-1 relative"
+        className="relative max-h-[490px] w-[220px] items-center rounded-xl border border-[#171717] bg-[#0F0F0F] p-1"
       >
         {/* <div className="h-1/6 w-full absolute bottom-0 bg-gradient-to-t from-[#0F0F0F] z-10" /> */}
-        <SelectGroup className="gap-2 flex flex-col">
-          {DASHBOARD.map((section, id) => (
-            <SelectItem
-              key={id}
-              value={section.key}
-              className="text-[#E7E7E7] bg-[#121212] rounded-lg text-sm py-3 focus:bg-[#F8A9292E] focus:text-[#FFD700]"
-            >
-              {section.name}
-            </SelectItem>
-          ))}
+        <SelectGroup className="flex flex-col gap-2">
+          {DASHBOARD.map(
+            (section, id) =>
+              !section.hidden && (
+                <SelectItem
+                  key={id}
+                  value={section.key}
+                  className="rounded-lg bg-[#121212] py-3 text-sm text-[#E7E7E7] focus:bg-[#F8A9292E] focus:text-[#FFD700]"
+                >
+                  {section.name}
+                </SelectItem>
+              ),
+          )}
         </SelectGroup>
       </SelectContent>
     </Select>

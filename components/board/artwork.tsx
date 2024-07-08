@@ -1,5 +1,7 @@
 import Image from "next/image";
 import Marquee from "react-fast-marquee";
+import DragHandle from "../drag-handle";
+import { useState } from "react";
 
 const Artwork = () => {
   const ARTWORK = [
@@ -8,21 +10,20 @@ const Artwork = () => {
     "/artwork/artwork-2.png",
     "/artwork/artwork-3.png",
   ];
+  const [glow, setGlow] = useState(false);
   return (
-    <div className="relative flex flex-col border-2 bg-[#0F0F0F] rounded-2xl border-[#FFFFFF0A] overflow-hidden h-full">
-      <div className="absolute -top-40 w-full h-1" id="artwork" />
-      <div className="w-full h-2 bg-white rounded-t-3xl" />
-      <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#FFFFFF1F]">
-        <div className="flex gap-2 items-center">
-          <div className="h-[26px] aspect-square relative dragHandle">
-            <Image
-              src={"/drag-handle.svg"}
-              alt="drag"
-              fill
-              className="object-contain"
-            />
-          </div>
-          <p className="text-white text-lg">Our Arts and Memes</p>
+    <div
+      className={`${glow && "rotate-[1deg]"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]`}
+    >
+      <div className="absolute -top-40 h-1 w-full" id="artwork" />
+      <div className="h-2 w-full rounded-t-3xl bg-white" />
+      <div className="flex relative h-16 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-6">
+        <div
+          className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#B8B8B8] blur-2xl ${glow ? "flex" : "hidden"}`}
+        />
+        <div className="flex items-center gap-2">
+          <DragHandle setGlow={setGlow} />
+          <p className="text-lg text-white">Our Arts and Memes</p>
         </div>
       </div>
       <Marquee
@@ -35,7 +36,10 @@ const Artwork = () => {
       >
         <div className="flex">
           {ARTWORK.map((item, id) => (
-            <div className="relative h-[200px] aspect-square mx-2 rounded-lg overflow-hidden" key={id}>
+            <div
+              className="relative mx-2 aspect-square h-[200px] overflow-hidden rounded-lg"
+              key={id}
+            >
               <Image
                 src={item}
                 alt={"artwork-" + id}

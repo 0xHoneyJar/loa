@@ -1,13 +1,36 @@
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
 
-const DragHandle = () => {
+const DragHandle = ({
+  setGlow,
+}: {
+  setGlow: React.Dispatch<React.SetStateAction<boolean>>;
+}) => {
+  const [drag, setDrag] = useState(false);
+  const mouseDownHandler = () => {
+    setDrag(true);
+    setTimeout(() => {
+      setGlow(true)
+    }, 300);
+  };
+
+  useEffect(() => {
+    const handleMouseUp = () => {
+      setDrag(false);
+      setGlow(false);
+    };
+
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
+
   return (
-    <motion.div
-      className="dragHandle relative aspect-square h-[26px] cursor-grab"
-      whileTap={{
-        cursor: "url('/grabbing.svg'), grabbing",
-      }}
+    <div
+      onMouseDown={mouseDownHandler}
+      className={`dragHandle relative aspect-square h-[26px] ${drag ? "cursor-grabbing" : "cursor-grab"}`}
     >
       <Image
         src={"/drag-handle.svg"}
@@ -15,8 +38,8 @@ const DragHandle = () => {
         fill
         className="object-contain"
       />
-    </motion.div>
+    </div>
   );
-}
+};
 
-export default DragHandle
+export default DragHandle;
