@@ -14,38 +14,30 @@ const ReactGridLayout = WidthProvider(RGL);
 const BoardSection = () => {
   const constraintsRef = useRef<HTMLDivElement>(null);
   const resetRef = useRef<HTMLDivElement>(null);
-  const [layout, setLayout] = useState<any[]>([]);
-
   const ogLayout = DASHBOARD.map((dashboard) => dashboard.dataGrid);
 
-  useEffect(() => {
-    // Load layout from localStorage on component mount
-    const savedLayout = getLayout();
-    setLayout(savedLayout);
-  }, []);
+  const getLayout = () => {
+    if (typeof window !== "undefined") {
+      const savedLayout = localStorage.getItem("grid-layout");
+
+      return savedLayout ? JSON.parse(savedLayout) : ogLayout;
+    }
+  };
+
+  const savedLayout = getLayout();
+
+  const [layout, setLayout] = useState<any[]>(savedLayout);
 
   const resetLayout = () => {
-    console.log("reset");
     handleLayoutChange(ogLayout);
     setLayout(ogLayout);
   };
 
   const handleLayoutChange = (layouts: any) => {
-    console.log("hree")
     if (typeof window !== "undefined") {
       localStorage.setItem("grid-layout", JSON.stringify(layouts));
       setLayout(layouts);
     }
-  };
-
-  const getLayout = () => {
-    if (typeof window === "undefined") {
-      return true; // Default to true on server-side
-    }
-    console.log("hrere2")
-    const savedLayout = localStorage.getItem("grid-layout");
-
-    return savedLayout ? JSON.parse(savedLayout) : ogLayout;
   };
 
   const handleDragEnd = () => {
