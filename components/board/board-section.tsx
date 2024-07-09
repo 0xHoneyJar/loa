@@ -31,16 +31,18 @@ const BoardSection = () => {
   };
 
   const handleLayoutChange = (layouts: any) => {
+    console.log("hree")
     if (typeof window !== "undefined") {
       localStorage.setItem("grid-layout", JSON.stringify(layouts));
+      setLayout(layouts);
     }
-    setLayout(layouts)
   };
 
   const getLayout = () => {
     if (typeof window === "undefined") {
       return true; // Default to true on server-side
     }
+    console.log("hrere2")
     const savedLayout = localStorage.getItem("grid-layout");
 
     return savedLayout ? JSON.parse(savedLayout) : ogLayout;
@@ -102,7 +104,7 @@ const BoardSection = () => {
           containerPadding={[32, 48]}
           layout={layout}
           isResizable={false}
-          // onLayoutChange={handleLayoutChange}
+          onLayoutChange={handleLayoutChange}
         >
           {DASHBOARD.map((dashboard) => {
             return <div key={dashboard.key}>{dashboard.ui}</div>;

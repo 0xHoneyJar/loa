@@ -5,7 +5,9 @@ import { useState } from "react";
 const Follow = () => {
   const [glow, setGlow] = useState(false);
   return (
-    <div className={`flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F] ${glow && "rotate-[1deg]"}`}>
+    <div
+      className={`flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F] ${glow && "rotate-[1deg]"}`}
+    >
       <div className="h-2 w-full rounded-t-3xl bg-white" />
       <div className="relative flex h-16 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-6">
         <div

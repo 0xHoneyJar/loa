@@ -26,7 +26,7 @@ const Development = () => {
         <div className="h-full w-full overflow-y-auto overflow-x-hidden py-6 pl-8">
           <div className="absolute left-0 top-0 z-10 h-1/6 w-full bg-gradient-to-b from-[#0F0F0F]" />
           <div className="absolute bottom-0 left-0 z-10 h-1/6 w-full bg-gradient-to-t from-[#0F0F0F]" />
-          <div className="relative flex w-full flex-col gap-20 border-l border-dashed border-[#4C4C4C] pl-12 pt-6">
+          <div className="relative flex w-full grow min-h-full flex-col gap-20 border-l border-dashed border-[#4C4C4C] pl-12 pt-6">
             <div className="relative flex flex-col gap-3">
               <div className="absolute -left-[54px] top-2 aspect-[4/1] h-[12px]">
                 <Image
