@@ -6,6 +6,8 @@ import Marquee from "react-fast-marquee";
 import { motion } from "framer-motion";
 import { useRef } from "react";
 import { ArrowDown } from "lucide-react";
+import Lottie from "lottie-react";
+import fireflies from "@/public/fireflies.json"
 
 const HeroSection = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -35,10 +37,11 @@ const HeroSection = () => {
             fill
             className="z-[-1] object-cover"
           />
+          <Lottie animationData={fireflies} className="absolute top-0 h-full w-full" loop={true} />
           {/* <div className="h-1/3 w-full flex items-center flex-col"> */}
           <div className="flex w-full justify-center gap-16 text-white">
             {/* <div className="w-1/2"> */}
-            <div className="font-clash whitespace-nowrap text-5xl font-medium">
+            <div className="whitespace-nowrap font-clash text-5xl font-medium">
               <span className="text-3xl font-normal">The</span> <br />
               <span className="text-[#F4C10B]">Honey Jar</span> Based Community{" "}
               <br />
@@ -173,7 +176,7 @@ const HeroSection = () => {
         </div>
       </div>
       <div className="relative flex flex-col items-center text-white">
-        <div className="absolute h-1 w-1 -top-32" ref={scrollRef} />
+        <div className="absolute -top-32 h-1 w-1" ref={scrollRef} />
         <motion.div
           className="relative mb-4 aspect-square h-[40px]"
           animate={{
