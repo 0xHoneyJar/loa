@@ -30,7 +30,7 @@ const Validator = () => {
               <p className="text-[#6B6B6B]">Delegated to THJ (BGT)</p>
               <div className="flex items-center gap-2 text-2xl">
                 <p className="font-semibold">
-                  12,324 <span className="font-light">BGT</span>
+                  12,324
                 </p>
                 <div className="relative aspect-square h-[28px]">
                   <Image
@@ -66,7 +66,7 @@ const Validator = () => {
               <p className="text-[#6B6B6B]">Reward Rate</p>
               <div className="flex items-center gap-2 text-2xl">
                 <p className="font-semibold">
-                  12,324 <span className="text-2xl font-light">BGT</span>
+                  12,324
                 </p>
                 <div className="relative aspect-square h-[28px]">
                   <Image

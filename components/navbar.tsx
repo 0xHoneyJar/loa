@@ -16,7 +16,7 @@ const Navbar = () => {
     <>
       <Sidebar open={toggle} setOpen={setToggle} />
       <div
-        className={`z-30 w-full fixed top-0 md:h-24 h-16 border-b border-[#C8C8C842] bg-[#5050500D] backdrop-blur-xl max-w-[112rem]`}
+        className={`z-30 w-full fixed top-0 md:h-24 h-20 border-b border-[#C8C8C842] bg-[#5050500D] backdrop-blur-xl max-w-[112rem]`}
       >
         <div className="h-full w-full flex justify-between items-center md:px-20 px-10 relative">
           <div className="flex items-center md:gap-3 gap-2">

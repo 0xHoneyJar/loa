@@ -30,7 +30,7 @@ const Raffles = () => {
           <div className="h-[250px] w-full bg-white"></div>
           <div className="h-[250px] w-full bg-white"></div>
         </div>
-        <button className="flex w-full cursor-blue items-center justify-between rounded-lg border border-[#E8E8E8]/5 bg-[#FFFFFF]/5 px-4 py-3">
+        <button className="flex w-full cursor-blue items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D]">
           <div className="flex items-center gap-2">
             <div className="relative aspect-square h-[32px]">
               <Image

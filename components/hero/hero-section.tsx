@@ -7,13 +7,13 @@ import { motion } from "framer-motion";
 import { useRef } from "react";
 import { ArrowDown } from "lucide-react";
 import Lottie from "lottie-react";
-import fireflies from "@/public/fireflies.json"
+import HeroBg from "@/public/hero-bg.json";
 
 const HeroSection = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   return (
     <div className="relative flex h-full w-full flex-col items-center">
-      <div className="relative flex h-full w-full flex-col items-center pt-24">
+      <div className="relative flex h-full w-full flex-col items-center md:pt-24 pt-20">
         <Image
           src={"/sunshine.png"}
           alt="sunshine"
@@ -28,16 +28,23 @@ const HeroSection = () => {
             className="z-[-1] object-cover"
           />
         </div>
-        <div className="relative flex h-[calc(100vh-6rem)] w-full flex-col items-center gap-10 pb-10 pt-6">
+        <div className="h-[calc(100vh-5rem)] md:h-[calc(100vh-6rem)] relative flex w-full flex-col items-center gap-10 pb-10 pt-6">
           <div className="absolute bottom-0 h-2/5 w-full bg-gradient-to-t from-[#0A0601]" />
           <div className="absolute bottom-40 z-[-2] h-[100px] w-1/3 bg-[#F5D011] blur-[250px]" />
-          <Image
+          {/* <Image
             src={"/hero-bg.png"}
             alt="bg"
             fill
             className="z-[-1] object-cover"
+          /> */}
+          <Lottie
+            animationData={HeroBg}
+            className="absolute top-0 z-[-1] w-full h-full"
+            loop={true}
+            rendererSettings={{
+              preserveAspectRatio: "xMidYMid slice",
+            }}
           />
-          <Lottie animationData={fireflies} className="absolute top-0 h-full w-full" loop={true} />
           {/* <div className="h-1/3 w-full flex items-center flex-col"> */}
           <div className="flex w-full justify-center gap-16 text-white">
             {/* <div className="w-1/2"> */}
