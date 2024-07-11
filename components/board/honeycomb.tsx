@@ -12,14 +12,14 @@ import { useState } from "react";
 import DragHandleY from "../drag-handle-y";
 
 const Honeycomb = () => {
-  const [glow, setGlow] = useState(false)
+  const [glow, setGlow] = useState(false);
   return (
     <div
       className={`${glow && "rotate-[1deg]"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
     >
       <div className="absolute -top-40 h-1 w-full" id="honeycomb" />
-      <div className="h-2 w-full rounded-t-3xl bg-[#FFD700]" />
-      <div className="relative flex h-16 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6">
+      <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
@@ -159,8 +159,8 @@ const Honeycomb = () => {
           <CarouselContent className="flex h-full w-full items-center pl-6">
             {PERKS.map((item, id) => (
               <CarouselItem key={id} className="pl-5">
-                <div className="relative flex aspect-[1.1/1] h-[196px] py-4 flex-col items-center justify-between rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90">
-                  <div className="flex flex-col items-center gap-2 mt-2">
+                <div className="relative flex aspect-[1.1/1] h-[196px] flex-col items-center justify-between rounded-lg border border-[#F4C10B0F] bg-[#18140C] py-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90">
+                  <div className="mt-2 flex flex-col items-center gap-2">
                     <div className="relative aspect-square h-[54px] rounded-full border border-[#F4C10B0F] bg-[#18140C05]">
                       <Image
                         src={item.image}

@@ -13,8 +13,8 @@ const Mint = () => {
     <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]">
       <div className="absolute -top-40 h-1 w-full" id="mint" />
       <Carousel className="flex h-full flex-col">
-        <div className="h-2 w-full rounded-t-3xl bg-[#FFD700]" />
-        <div className="flex h-16 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6">
+        <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
+        <div className="flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6">
           <div className="flex items-center gap-2">
             <LockKeyhole className="aspect-square h-[26px] text-[#FFD7004D]" />
             <p className="whitespace-nowrap text-lg text-[#FFD700]">New Mint</p>

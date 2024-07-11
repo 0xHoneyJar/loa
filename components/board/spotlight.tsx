@@ -10,8 +10,8 @@ const Spotlight = () => {
       className={`${glow && "rotate-[1deg]"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
     >
       <div className="absolute -top-40 h-1 w-full" id="spotlight" />
-      <div className="h-2 w-full rounded-t-3xl bg-[#FFD700]" />
-      <div className="relative flex h-16 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6">
+      <div className="bg-[#FFD700 flex h-2 w-full shrink-0 rounded-t-3xl" />
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
         />

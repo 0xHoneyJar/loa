@@ -17,8 +17,8 @@ const Tools = () => {
     >
       <div className="absolute -top-40 h-1 w-full" id="tools" />
       <Carousel className="flex h-full flex-col">
-        <div className="h-2 w-full rounded-t-3xl bg-white" />
-        <div className="relative flex h-16 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-6">
+        <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-white" />
+        <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-6">
           <div
             className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#B8B8B8] blur-2xl ${glow ? "flex" : "hidden"}`}
           />
