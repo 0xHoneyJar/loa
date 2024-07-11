@@ -18,7 +18,7 @@ const HeroSection = () => {
           src={"/sunshine.png"}
           alt="sunshine"
           fill
-          className="z-10 object-cover opacity-20"
+          className="z-10 object-cover opacity-30"
         />
         <div className="absolute top-0 h-16 w-full md:h-24">
           <Image
