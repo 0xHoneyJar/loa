@@ -12,18 +12,18 @@ const Raffles = () => {
   const [glow, setGlow] = useState(false);
   const currentTime = useUserStore((state) => state.currentTime);
   const [raffles, setRaffles] = useState<Raffle[]>([]);
-  
+
   useEffect(() => {
     async function getRaffles() {
       const retrievedRaffles = await retrieveRaffles();
 
-      const liveAndUpcomingRaffles = retrievedRaffles.filter(
-        (raffle) =>
-          (raffle.startTime <= currentTime && currentTime < raffle.endTime) ||
-          raffle.startTime > currentTime,
-      );
+      // const liveAndUpcomingRaffles = retrievedRaffles.filter(
+      //   (raffle) =>
+      //     (raffle.startTime <= currentTime && currentTime < raffle.endTime) ||
+      //     raffle.startTime > currentTime,
+      // );
 
-      setRaffles(liveAndUpcomingRaffles);
+      setRaffles(retrievedRaffles);
     }
 
     getRaffles();
@@ -50,7 +50,7 @@ const Raffles = () => {
           <span className="text-[#E1A94E]">BERACHAIN ECOSYSTEM!</span>
         </p>
         <div className="grid w-full grid-rows-3 gap-6">
-          {raffles.map((raffle, id) => (
+          {raffles.slice(0, 3).map((raffle, id) => (
             <RaffleDisplay raffle={raffle} key={id} />
           ))}
         </div>

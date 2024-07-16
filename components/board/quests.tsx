@@ -15,15 +15,14 @@ const Quests = () => {
     async function getQuests() {
       const retrievedQuests = await retrieveQuests();
 
-      const liveAndUpcomingQuests = retrievedQuests.filter(
-        (quest) =>
-          !quest.disabled &&
-          !quest.paused &&
-          ((quest.startTime <= currentTime && currentTime < quest.endTime) ||
-            quest.startTime > currentTime),
-      );
-
-      setQuests(liveAndUpcomingQuests);
+      // const liveAndUpcomingQuests = retrievedQuests.filter(
+      //   (quest) =>
+      //     !quest.disabled &&
+      //     !quest.paused &&
+      //     ((quest.startTime <= currentTime && currentTime < quest.endTime) ||
+      //       quest.startTime > currentTime),
+      // );
+      setQuests(retrievedQuests);
     }
 
     getQuests();
@@ -54,7 +53,7 @@ const Quests = () => {
           <span className="text-[#E1A94E]">get rewarded! like seriously</span>
         </p>
         <div className="grid w-full grid-rows-3 gap-6">
-          {quests.map((quest, id) => (
+          {quests.slice(0, 3).map((quest, id) => (
             <QuestDisplay quest={quest} key={id} />
           ))}
         </div>

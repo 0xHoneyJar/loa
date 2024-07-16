@@ -21,6 +21,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
   const [hover, setHover] = useState(false);
 
   const upcomingQuest = quest.startTime - currentTime > 0;
+  const endedQuest = quest.endTime - currentTime < 0;
 
   const calculateWidth = (
     startTime: number,
@@ -57,8 +58,8 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
   return (
     <div className="h-[250px] w-full">
       <div
-        onMouseEnter={() => !upcomingQuest && setHover(true)}
-        onMouseLeave={() => !upcomingQuest && setHover(false)}
+        onMouseEnter={() => !upcomingQuest && !endedQuest && setHover(true)}
+        onMouseLeave={() => !upcomingQuest && !endedQuest && setHover(false)}
         className={`relative flex h-[85%] w-full flex-col justify-between overflow-hidden rounded-lg border border-[#3A3A3A] px-2 py-4`}
       >
         {hover && (
@@ -72,6 +73,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
                 Join Now <ArrowUpRight size={20} />
               </div>
             </a>
+            <div className="absolute bottom-0 h-1/2 w-full bg-gradient-to-t from-black" />
           </div>
         )}
         <S3Image
@@ -91,6 +93,17 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
         ) : (
           <>
             <div className="flex items-center gap-2">
+              {quest.reward.map((reward) => (
+                <div className="relative aspect-square h-[45px]">
+                  <S3Image
+                    src={`/faucet/badges/${reward}.png`}
+                    fill
+                    width={128}
+                    className="object-cover"
+                    alt=""
+                  />
+                </div>
+              ))}
               {newQuest && (
                 <div className="flex w-fit items-center gap-2 rounded-full border border-[#F4C10B] bg-[#F4C10B]/10 px-2 py-1 backdrop-blur-sm">
                   <div className="relative aspect-square h-[12px] rounded-full bg-[#F4C10B]">

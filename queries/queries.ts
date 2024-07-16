@@ -16,7 +16,7 @@ export const getRafflesQuery = async () => {
 export const getQuestsQuery = async () => {
   const { data } = await supabase
     .from("quests")
-    .select("title,startTime,endTime,image,logo,disabled,paused,slug")
+    .select("title,startTime,endTime,image,logo,disabled,paused,slug,reward")
     .throwOnError();
 
   const quests = data;
@@ -24,10 +24,11 @@ export const getQuestsQuery = async () => {
   const finalQuest = quests?.map((quest) => ({
     ...quest,
     logo: quest.logo ? quest.logo.split(",") : null,
+    reward: quest.reward.split(",").map(Number),
   }));
 
   // Order alphabetically
-  finalQuest?.sort((a: any, b: any) => a.title.localeCompare(b.title));
+  // finalQuest?.sort((a: any, b: any) => a.title.localeCompare(b.title));
 
   return finalQuest;
 };

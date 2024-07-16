@@ -7,4 +7,5 @@ export interface Quest {
   logo?: string[] | null;
   paused?: boolean;
   slug: string;
+  reward: number[];
 }

@@ -7,6 +7,7 @@ export async function retrieveRaffles() {
   let raffles: Raffle[] = [];
   
   raffles = await getRaffles();
+  raffles?.sort((a: any, b: any) => b.endTime - a.endTime);
 
   return raffles;
 }

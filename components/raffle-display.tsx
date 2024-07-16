@@ -21,6 +21,7 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
   const [hover, setHover] = useState(false);
 
   const upcomingRaffle = raffle.startTime - currentTime > 0;
+  const endedRaffle = raffle.endTime - currentTime < 0; 
 
   const calculateWidth = (
     startTime: number,
@@ -60,8 +61,8 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
   return (
     <div className="h-[250px] w-full">
       <div
-        onMouseEnter={() => !upcomingRaffle && setHover(true)}
-        onMouseLeave={() => !upcomingRaffle && setHover(false)}
+        onMouseEnter={() => !upcomingRaffle && !endedRaffle && setHover(true)}
+        onMouseLeave={() => !upcomingRaffle && !endedRaffle && setHover(false)}
         className="relative flex h-[85%] w-full flex-col justify-between overflow-hidden rounded-lg border border-[#3A3A3A] px-2 py-4"
       >
         {hover && (
