@@ -21,7 +21,7 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
   const [hover, setHover] = useState(false);
 
   const upcomingRaffle = raffle.startTime - currentTime > 0;
-  const endedRaffle = raffle.endTime - currentTime < 0; 
+  const endedRaffle = raffle.endTime - currentTime < 0;
 
   const calculateWidth = (
     startTime: number,
@@ -48,7 +48,9 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
       currentTime,
     );
 
-    if (upcomingRaffle) {
+    if (endedRaffle) {
+      setTimeRemaining("Ended on " + convertUnixToLocalTime(raffle.endTime));
+    } else if (upcomingRaffle) {
       setTimeRemaining("Coming Soon");
     } else if (raffle.endTime - currentTime > 0) {
       if (endTimeRemaining == "") setTimeRemaining("Ends Soon");
@@ -63,8 +65,9 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
       <div
         onMouseEnter={() => !upcomingRaffle && !endedRaffle && setHover(true)}
         onMouseLeave={() => !upcomingRaffle && !endedRaffle && setHover(false)}
-        className="relative flex h-[85%] w-full flex-col justify-between overflow-hidden rounded-lg border border-[#3A3A3A] px-2 py-4"
+        className={`${endedRaffle && "bg-gradient-to-t from-black to-black/40"} relative flex h-[85%] w-full flex-col justify-between overflow-hidden rounded-lg border border-[#3A3A3A] px-2 py-4`}
       >
+        <div className={`absolute bottom-0 left-0 h-1/2 w-full bg-gradient-to-t from-black ${endedRaffle && "hidden"}`} />
         {hover && (
           <div className="absolute left-0 top-0 z-10 flex h-full w-full cursor-blue items-center justify-center bg-black/75">
             <a
@@ -109,7 +112,7 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
               <div className="h-full w-full rounded-full border border-[#737373]/60 bg-[#D8D8D8]/20 p-1 backdrop-blur-sm">
                 <div className="relative flex h-full w-full items-center overflow-hidden rounded-full bg-[#75643C]">
                   <motion.div
-                    className="h-full rounded-full bg-[#F8A929]"
+                    className={`h-full rounded-full ${endedRaffle ? "bg-[#444444]" : "bg-[#F8A929]"}`}
                     initial={false}
                     animate={{ width: `${width}%` }}
                     // transition={{ duration: 0.5, ease: "linear" }}

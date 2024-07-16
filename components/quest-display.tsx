@@ -45,7 +45,9 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
   useEffect(() => {
     const endTimeRemaining = calculateTimeRemaining(quest.endTime, currentTime);
 
-    if (upcomingQuest) {
+    if (endedQuest) {
+      setTimeRemaining("Quest Ended");
+    } else if (upcomingQuest) {
       setTimeRemaining("Coming Soon");
     } else if (quest.endTime - currentTime > 0) {
       if (endTimeRemaining == "") setTimeRemaining("Ends Soon");
@@ -62,6 +64,14 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
         onMouseLeave={() => !upcomingQuest && !endedQuest && setHover(false)}
         className={`relative flex h-[85%] w-full flex-col justify-between overflow-hidden rounded-lg border border-[#3A3A3A] px-2 py-4`}
       >
+        <div
+          className={`absolute bottom-0 left-0 h-1/2 w-full bg-gradient-to-t from-black ${endedQuest && "hidden"}`}
+        />
+        {endedQuest && (
+          <div className="absolute left-0 top-0 z-10 flex h-full w-full items-center justify-center bg-gradient-to-t from-black to-black/40">
+            <p className="text-2xl font-medium">{timeRemaining}</p>
+          </div>
+        )}
         {hover && (
           <div className="absolute left-0 top-0 z-10 flex h-full w-full cursor-blue items-center justify-center bg-black/75">
             <a
@@ -73,7 +83,6 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
                 Join Now <ArrowUpRight size={20} />
               </div>
             </a>
-            <div className="absolute bottom-0 h-1/2 w-full bg-gradient-to-t from-black" />
           </div>
         )}
         <S3Image
@@ -93,8 +102,8 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
         ) : (
           <>
             <div className="flex items-center gap-2">
-              {quest.reward.map((reward) => (
-                <div className="relative aspect-square h-[45px]">
+              {quest.reward.map((reward, id) => (
+                <div className="relative z-20 aspect-square h-[45px]" key={id}>
                   <S3Image
                     src={`/faucet/badges/${reward}.png`}
                     fill
