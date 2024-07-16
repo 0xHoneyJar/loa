@@ -10,9 +10,12 @@ import { Raffle } from "@/constants/raffle";
 import { ArrowUpRight } from "lucide-react";
 
 const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
-  // const { data: questData, error } = useSWR<{
-  //   numParticipants: number;
-  // }>(`/api/quests?${new URLSearchParams({ questName: quest.title })}`, fetcher);
+   const { data: raffleData } = useSWR<{
+     numEntries: number;
+   }>(
+     `/api/raffles?${new URLSearchParams({ raffleName: raffle.title })}`,
+     fetcher,
+   );
 
   const [timeRemaining, setTimeRemaining] = useState("");
   const [width, setWidth] = useState(0);
@@ -129,7 +132,7 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
                     className="object-contain"
                   />
                 </div>
-                {/* <p>{questData?.numParticipants ?? 0}</p> */}
+                <p>{raffleData?.numEntries ?? 0}</p>
               </div>
             </div>
           </>
