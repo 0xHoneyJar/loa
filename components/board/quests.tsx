@@ -1,10 +1,34 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import DragHandleY from "../drag-handle-y";
 import Image from "next/image";
 import { ChevronRight } from "lucide-react";
+import { retrieveQuests } from "@/actions/retrieve-quests";
+import { Quest } from "@/constants/quest";
+import useUserStore from "@/state/user/useUserStore";
+import QuestDisplay from "../quest-display";
 
 const Quests = () => {
   const [glow, setGlow] = useState(false);
+  const currentTime = useUserStore((state) => state.currentTime);
+  const [quests, setQuests] = useState<Quest[]>([]);
+  useEffect(() => {
+    async function getQuests() {
+      const retrievedQuests = await retrieveQuests();
+
+      const liveAndUpcomingQuests = retrievedQuests.filter(
+        (quest) =>
+          !quest.disabled &&
+          !quest.paused &&
+          ((quest.startTime <= currentTime && currentTime < quest.endTime) ||
+            quest.startTime > currentTime),
+      );
+
+      setQuests(liveAndUpcomingQuests);
+    }
+
+    getQuests();
+  }, []);
+
   return (
     <div
       className={`${glow && "rotate-[1deg]"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
@@ -27,14 +51,18 @@ const Quests = () => {
         <p className="uppercase text-white">
           Take part in{" "}
           <span className="text-[#E1A94E]">THJ specials Quests</span> and{" "}
-          <span className="text-[#E1A94E]">get rewarded!like seriously</span>
+          <span className="text-[#E1A94E]">get rewarded! like seriously</span>
         </p>
         <div className="grid w-full grid-rows-3 gap-6">
-          <div className="h-[250px] w-full bg-white"></div>
-          <div className="h-[250px] w-full bg-white"></div>
-          <div className="h-[250px] w-full bg-white"></div>
+          {quests.map((quest, id) => (
+            <QuestDisplay quest={quest} key={id} />
+          ))}
         </div>
-        <button className="flex w-full cursor-blue items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D]">
+        <a
+          href={"https://faucet.0xhoneyjar.xyz/quests"}
+          target="_blank"
+          className="flex w-full cursor-blue items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D]"
+        >
           <div className="flex items-center gap-2">
             <div className="relative aspect-square h-[32px]">
               <Image
@@ -47,7 +75,7 @@ const Quests = () => {
             <p>Explore All Quests</p>
           </div>
           <ChevronRight className="aspect-square h-[18px] text-[#FFFFFF]/40" />
-        </button>
+        </a>
       </div>
     </div>
   );

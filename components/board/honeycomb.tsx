@@ -38,7 +38,7 @@ const Honeycomb = () => {
       </div>
       <div className="flex w-full grow flex-col">
         <div className="flex w-full flex-col gap-4 p-6">
-          <div className="relative flex h-[225px] w-full items-center justify-end overflow-hidden rounded-xl">
+          <div className="relative flex h-[250px] w-full items-center justify-end overflow-hidden rounded-xl">
             <Image
               src={"/honeycomb.png"}
               alt="honeycomb"
@@ -64,7 +64,7 @@ const Honeycomb = () => {
               </button>
             </div>
           </div>
-          <div className="relative h-[220px] w-full">
+          <div className="relative h-[250px] w-full">
             <div className="grid h-full w-full grid-cols-4 gap-4">
               <div className="relative flex h-full w-full flex-col items-center rounded-lg border border-[#F5D0110A] bg-[#15120B] py-8">
                 <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
@@ -156,10 +156,10 @@ const Honeycomb = () => {
               <CarouselNext className="h-8 w-8 border-2 border-[#848484] bg-transparent" />
             </div>
           </div>
-          <CarouselContent className="flex h-full w-full items-center pl-6">
+          <CarouselContent className="flex h-full w-full py-6 pl-6">
             {PERKS.map((item, id) => (
-              <CarouselItem key={id} className="pl-5">
-                <div className="relative flex aspect-[1.1/1] h-[196px] flex-col items-center justify-between rounded-lg border border-[#F4C10B0F] bg-[#18140C] py-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90">
+              <CarouselItem key={id}>
+                <div className="relative flex h-full w-[210px] flex-col items-center justify-around rounded-lg border border-[#F4C10B0F] bg-[#18140C] py-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90">
                   <div className="mt-2 flex flex-col items-center gap-2">
                     <div className="relative aspect-square h-[54px] rounded-full border border-[#F4C10B0F] bg-[#18140C05]">
                       <Image

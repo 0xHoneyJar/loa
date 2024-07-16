@@ -75,14 +75,14 @@ const Footer = () => {
           </div>
         </div>
       </div>
-      <div className="relative flex h-[500px] w-full flex-col items-center justify-center overflow-hidden bg-[#F4C10B] text-white">
+      <div className="relative flex w-full flex-col items-center gap-8 overflow-hidden bg-[#F4C10B] pt-20 text-white">
         <Image
           src={"/thj-outline.svg"}
           alt="thj-outline"
           fill
           className="!top-10 z-[1] object-contain"
         />
-        <div className="relative mb-8 aspect-square h-[100px]">
+        <div className="relative aspect-square h-[100px]">
           <Image
             src={"/thj-white.svg"}
             alt="thj-white"
@@ -90,10 +90,10 @@ const Footer = () => {
             className="object-contain"
           />
         </div>
-        <p className="mb-4 font-clash text-7xl font-semibold">
+        <p className="font-clash text-7xl font-semibold">
           Be a Part of the Honey Jar
         </p>
-        <p className="mb-8 w-2/5 text-center text-lg">
+        <p className="w-2/5 text-center text-lg">
           By delegating to the THJ Validator, you help us to grow and contribute
         </p>
         <div className="relative flex items-center gap-2">
@@ -111,6 +111,15 @@ const Footer = () => {
               className="object-contain"
             />
           </div>
+        </div>
+        <div className="relative z-10 aspect-[1/1.9] h-[165px]">
+          <Image
+            src={"/jani-sweep.gif"}
+            alt="sweep"
+            fill
+            className="object-cover"
+            unoptimized={true}
+          />
         </div>
       </div>
     </div>

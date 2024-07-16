@@ -4,6 +4,7 @@ import "../styles/tailwind.css";
 import localFont from "next/font/local";
 // import "react-grid-layout/css/styles.css";
 import Navbar from "@/components/navbar";
+import MainWrapper from "@/components/main-wrapper";
 
 export const metadata: Metadata = {
   // metadataBase: new URL(""),
@@ -43,10 +44,10 @@ export default function RootLayout({
     <html className={`${switzer.variable} ${clash.variable}`}>
       <head></head>
       <body>
-        <div className="relative mx-auto min-w-[24rem] max-w-[112rem] overflow-hidden">
+        <MainWrapper>
           <Navbar />
           {children}
-        </div>
+        </MainWrapper>
       </body>
     </html>
   );
