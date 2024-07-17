@@ -24,8 +24,8 @@ const Validator = () => {
         </div>
       </div>
       <div className="flex grow flex-col">
-        <div className="grid h-full w-full grid-rows-2 gap-8 p-6">
-          <div className="grid h-full w-full grid-cols-2 gap-6">
+        <div className="grid h-full w-full grid-cols-3 gap-4 p-6">
+          <div className="grid h-full w-full grid-rows-3 gap-4">
             <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
               <p className="text-[#6B6B6B]">Delegated to THJ (BGT)</p>
               <div className="flex items-center gap-2 text-2xl">
@@ -44,15 +44,28 @@ const Validator = () => {
               <p className="text-[#6B6B6B]">Number of Delegators</p>
               <p className="text-2xl font-semibold">12,3245,213</p>
             </div>
+            <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
+              <p className="text-[#6B6B6B]">Return per BGT</p>
+              <div className="flex items-center gap-2 text-2xl">
+                <p className="text-2xl font-semibold">$123.13</p>
+                <div className="relative aspect-square h-[28px]">
+                  <Image
+                    src={"/bgt-honey.png"}
+                    alt="honey"
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="grid h-full w-full grid-cols-4 gap-8">
+          <div className="grid h-full w-full grid-rows-3 gap-4">
             <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
               <p className="text-[#6B6B6B]">Validator&apos;s Rank</p>
               <p className="text-2xl font-semibold">1st</p>
             </div>
             <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
               <p className="text-[#6B6B6B]">Active Incentives</p>
-
               <p className="text-2xl font-semibold">
                 $0{" "}
                 <span className="text-xs font-normal text-[#989898]">
@@ -74,26 +87,11 @@ const Validator = () => {
                 </div>
               </div>
             </div>
-            <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
-              <p className="text-[#6B6B6B]">Return per BGT</p>
-              <div className="flex items-center gap-2 text-2xl">
-                <p className="text-2xl font-semibold">$123.13</p>
-                <div className="relative aspect-square h-[28px]">
-                  <Image
-                    src={"/bgt-honey.png"}
-                    alt="honey"
-                    fill
-                    className="object-contain"
-                  />
-                </div>
-              </div>
-            </div>
           </div>
-        </div>
-        {/* <div className="h-full w-full bg-[#121212] border relative border-[#161616] rounded-2xl flex flex-col py-6 items-center">
-            <div className="h-full w-full items-center justify-center flex relative">
-              <p className="text-[#6B6B6B] absolute top-0">Voting Rank</p>
-              <div className="h-[135px] aspect-square">
+          <div className="relative flex h-full w-full flex-col items-center rounded-2xl border border-[#202020] bg-[#121212] py-6">
+            <div className="relative flex h-full w-full items-center justify-center flex-col">
+              <p className="absolute top-0 text-[#6B6B6B]">Voting Rank</p>
+              <div className="aspect-square h-[135px] mb-8">
                 <CircularProgressbarWithChildren
                   value={50}
                   strokeWidth={14}
@@ -104,27 +102,27 @@ const Validator = () => {
                     trailColor: "#F4C10B",
                   })}
                 >
-                  <p className="font-medium text-sm text-[#C1C1C1] absolute -left-10">
+                  <p className="absolute -left-10 text-sm font-medium text-[#C1C1C1]">
                     50%
                   </p>
-                  <p className="font-medium text-sm text-[#C1C1C1] absolute -right-10">
+                  <p className="absolute -right-10 text-sm font-medium text-[#C1C1C1]">
                     50%
                   </p>
                 </CircularProgressbarWithChildren>
               </div>
-              <div className="flex gap-2 text-[#C7C7C7] justify-center absolute bottom-0">
-                <div className="flex gap-1 items-center justify-center">
-                  <div className="h-[14px] aspect-square rounded-full bg-[#43AA77]" />
-                  <p className="font-light md:text-sm text-xs">Lorem</p>
+              <div className=" flex justify-center gap-2 text-[#C7C7C7]">
+                <div className="flex items-center justify-center gap-1">
+                  <div className="aspect-square h-[14px] rounded-full bg-[#43AA77]" />
+                  <p className="text-xs font-light md:text-sm">Lorem</p>
                 </div>
-                <div className="flex gap-1 items-center justify-center">
-                  <div className="h-[14px] aspect-square rounded-full bg-[#F4C10B]" />
-                  <p className="font-light md:text-sm text-xs">Lorem</p>
+                <div className="flex items-center justify-center gap-1">
+                  <div className="aspect-square h-[14px] rounded-full bg-[#F4C10B]" />
+                  <p className="text-xs font-light md:text-sm">Lorem</p>
                 </div>
               </div>
             </div>
           </div>
-        </div> */}
+        </div>
         <div className="flex h-[112px] w-full shrink-0 items-center justify-between border-t border-[#1B271B] px-6">
           <div className="flex items-center gap-2">
             <div className="relative aspect-square h-[38px]">

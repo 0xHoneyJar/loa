@@ -51,10 +51,10 @@ const Navbar = () => {
         </div>
       </div> */}
       <div
-        className="fixed inset-x-0 top-5 z-30 mx-auto flex w-1/2 max-w-6xl divide-x divide-[#FFFFFF1F] rounded-full border border-[#FFFFFF1F] bg-[#505050]/5 backdrop-blur-xl"
+        className="fixed inset-x-0 top-5 z-30 mx-auto flex w-1/2 max-w-4xl divide-x divide-[#FFFFFF1F] rounded-full border border-[#FFFFFF1F] bg-[#505050]/5 backdrop-blur-xl"
         // style={{ boxShadow: "0px 2px 56px #0000001F" }}
       >
-        <div className="flex items-center gap-2 px-4 py-2 md:gap-3">
+        <div className="flex items-center gap-2 px-4 py-3 md:gap-3">
           <Link className="relative aspect-square h-[30px]" href="/">
             <Image src={"/thj-logo.png"} alt="logo" fill />
           </Link>
@@ -62,7 +62,7 @@ const Navbar = () => {
             For Community
           </p>
         </div>
-        <div className="flex w-full items-center justify-end px-4 py-2">
+        <div className="flex w-full items-center justify-end px-4 py-3">
           <div className="flex items-center gap-2 md:gap-3">
             <button className="flex h-[36px] items-center gap-2 rounded-full border border-[#F4C10B]/50 bg-gradient-to-b from-[#F4C10B1F] to-[#F8A9291F] px-4 text-xs font-medium text-white md:px-6 md:text-sm">
               <p>Explore</p>

@@ -20,8 +20,6 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  console.log(raffleData);
-
   return NextResponse.json({
     numEntries: raffleData,
   });
