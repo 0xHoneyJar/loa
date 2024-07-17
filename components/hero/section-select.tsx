@@ -15,7 +15,7 @@ const SectionSelect = () => {
         section && section.scrollIntoView({ behavior: "smooth" });
       }}
     >
-      <SelectTrigger className="flex h-full items-center gap-1 rounded-full border border-[#FFFFFF]/15 bg-transparent px-4 py-3 text-xs text-[#CCCCCC] md:px-6 md:text-sm">
+      <SelectTrigger className="flex h-[36px] items-center gap-1 rounded-full bg-[#FFFFFF0F] px-4 text-xs text-white md:px-6 md:text-sm">
         <p>Section</p>
       </SelectTrigger>
       <SelectContent
