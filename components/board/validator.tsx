@@ -90,6 +90,41 @@ const Validator = () => {
             </div>
           </div>
         </div>
+        {/* <div className="h-full w-full bg-[#121212] border relative border-[#161616] rounded-2xl flex flex-col py-6 items-center">
+            <div className="h-full w-full items-center justify-center flex relative">
+              <p className="text-[#6B6B6B] absolute top-0">Voting Rank</p>
+              <div className="h-[135px] aspect-square">
+                <CircularProgressbarWithChildren
+                  value={50}
+                  strokeWidth={14}
+                  styles={buildStyles({
+                    rotation: 0.5,
+                    strokeLinecap: "butt",
+                    pathColor: "#43AA77",
+                    trailColor: "#F4C10B",
+                  })}
+                >
+                  <p className="font-medium text-sm text-[#C1C1C1] absolute -left-10">
+                    50%
+                  </p>
+                  <p className="font-medium text-sm text-[#C1C1C1] absolute -right-10">
+                    50%
+                  </p>
+                </CircularProgressbarWithChildren>
+              </div>
+              <div className="flex gap-2 text-[#C7C7C7] justify-center absolute bottom-0">
+                <div className="flex gap-1 items-center justify-center">
+                  <div className="h-[14px] aspect-square rounded-full bg-[#43AA77]" />
+                  <p className="font-light md:text-sm text-xs">Lorem</p>
+                </div>
+                <div className="flex gap-1 items-center justify-center">
+                  <div className="h-[14px] aspect-square rounded-full bg-[#F4C10B]" />
+                  <p className="font-light md:text-sm text-xs">Lorem</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div> */}
         <div className="flex h-[112px] w-full shrink-0 items-center justify-between border-t border-[#1B271B] px-6">
           <div className="flex items-center gap-2">
             <div className="relative aspect-square h-[38px]">

@@ -20,6 +20,7 @@ import Validator from "@/components/board/validator";
 import Follow from "@/components/board/follow";
 import OogaBooga from "@/components/board/ooga-booga";
 import Raffles from "@/components/board/raffles";
+import Beardrops from "@/components/board/beardrops";
 
 export const DASHBOARD = [
   {
@@ -208,17 +209,17 @@ export const DASHBOARD = [
     hidden: false,
   },
   {
-    name: "Validator",
-    key: "validator",
-    dataGrid: { i: "validator", x: 0, y: 17, w: 3, h: 2 },
-    ui: <Validator />,
-    hidden: false,
-  },
-  {
     name: "Raffles",
     key: "raffles",
     dataGrid: { i: "raffles", x: 0, y: 19, w: 1, h: 3 },
     ui: <Raffles />,
+    hidden: false,
+  },
+  {
+    name: "Validator",
+    key: "validator",
+    dataGrid: { i: "validator", x: 1, y: 19, w: 2, h: 2 },
+    ui: <Validator />,
     hidden: false,
   },
   {
@@ -227,7 +228,7 @@ export const DASHBOARD = [
     dataGrid: {
       i: "tools",
       x: 1,
-      y: 19,
+      y: 21,
       w: 2,
       h: 1,
     },
@@ -235,17 +236,16 @@ export const DASHBOARD = [
     hidden: false,
   },
   {
-    name: "Quote3",
-    key: "quote3",
-    dataGrid: { i: "quote3", x: 1, y: 20, w: 1, h: 1 },
-    ui: <Quotes quoteNumber={0} />,
-    hidden: true,
-  },
-  {
-    name: "Quote4",
-    key: "quote4",
-    dataGrid: { i: "quote4", x: 2, y: 20, w: 1, h: 1 },
-    ui: <Quotes quoteNumber={1} />,
-    hidden: true,
+    name: "Beardrops",
+    key: "beardrops",
+    dataGrid: {
+      i: "beardrops",
+      x: 1,
+      y: 22,
+      w: 3,
+      h: 1,
+    },
+    ui: <Beardrops />,
+    hidden: false,
   },
 ];
