@@ -34,13 +34,13 @@ const Quests = () => {
     >
       <div className="absolute -top-40 h-1 w-full" id="quests" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
-      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6">
+      <div className="relative flex h-20 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
         <div className="flex items-center gap-2">
           <DragHandleY setGlow={setGlow} />
-          <p className="text-lg text-[#FFD700]">Quests</p>
+          <p className="text-xl font-medium text-[#FFD700]">Quests</p>
           <div className="relative aspect-square h-[12px] rounded-full bg-[#FF0000]">
             <div className="absolute aspect-square h-full w-full animate-ping rounded-full bg-[#FF0000]" />
           </div>

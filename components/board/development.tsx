@@ -11,13 +11,13 @@ const Development = () => {
     >
       <div className="absolute -top-40 h-1 w-full" id="development" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-white" />
-      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-6">
+      <div className="relative flex h-20 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-6">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#B8B8B8] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
         <div className="flex items-center gap-2">
           <DragHandle setGlow={setGlow} />
-          <p className="whitespace-nowrap text-lg text-white">
+          <p className="whitespace-nowrap text-xl font-medium text-white">
             Development Pipeline
           </p>
         </div>
@@ -26,7 +26,7 @@ const Development = () => {
         <div className="h-full w-full overflow-y-auto overflow-x-hidden py-6 pl-8">
           <div className="absolute left-0 top-0 z-10 h-1/6 w-full bg-gradient-to-b from-[#0F0F0F]" />
           <div className="absolute bottom-0 left-0 z-10 h-1/6 w-full bg-gradient-to-t from-[#0F0F0F]" />
-          <div className="relative flex w-full grow min-h-full flex-col gap-20 border-l border-dashed border-[#4C4C4C] pl-12 pt-6">
+          <div className="relative flex min-h-full w-full grow flex-col gap-20 border-l border-dashed border-[#4C4C4C] pl-12 pt-6">
             <div className="relative flex flex-col gap-3">
               <div className="absolute -left-[54px] top-2 aspect-[4/1] h-[12px]">
                 <Image

@@ -57,9 +57,8 @@ const Delegate = () => {
           </button>
         </div>
         <p className="text-2xl text-[#414141]">
-          Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc
-          vulputate libero et velit interdum, ac aliquet odio mattis. Class
-          aptent taciti sociosqu.
+          Help us make the Fat Bera Thesis come true! Delegate to THJ and get
+          rewarded!
         </p>
       </div>
     </div>

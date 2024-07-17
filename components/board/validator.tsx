@@ -14,13 +14,13 @@ const Validator = () => {
     >
       <div className="absolute -top-40 h-1 w-full" id="validator" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#43AA77]" />
-      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#1B271B] px-6">
+      <div className="relative flex h-20 shrink-0 items-center justify-between border-b border-dashed border-[#1B271B] px-6">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#43AA77] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
         <div className="flex items-center gap-2">
           <DragHandle setGlow={setGlow} />
-          <p className="text-lg text-white">Validator</p>
+          <p className="text-xl text-white font-medium">Validator</p>
         </div>
       </div>
       <div className="flex grow flex-col">
@@ -68,9 +68,9 @@ const Validator = () => {
               <p className="text-[#6B6B6B]">Active Incentives</p>
               <p className="text-2xl font-semibold">
                 $0{" "}
-                <span className="text-xs font-normal text-[#989898]">
+                {/* <span className="text-xs font-normal text-[#989898]">
                   (The Value)
-                </span>
+                </span> */}
               </p>
             </div>
             <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
@@ -90,7 +90,7 @@ const Validator = () => {
           </div>
           <div className="relative flex h-full w-full flex-col items-center rounded-2xl border border-[#202020] bg-[#121212] py-6">
             <div className="relative flex h-full w-full items-center justify-center flex-col">
-              <p className="absolute top-0 text-[#6B6B6B]">Voting Rank</p>
+              <p className="absolute top-0 text-[#6B6B6B]">Voting Power</p>
               <div className="aspect-square h-[135px] mb-8">
                 <CircularProgressbarWithChildren
                   value={50}
@@ -113,11 +113,11 @@ const Validator = () => {
               <div className=" flex justify-center gap-2 text-[#C7C7C7]">
                 <div className="flex items-center justify-center gap-1">
                   <div className="aspect-square h-[14px] rounded-full bg-[#43AA77]" />
-                  <p className="text-xs font-light md:text-sm">Lorem</p>
+                  <p className="text-xs font-light md:text-sm">THJ</p>
                 </div>
                 <div className="flex items-center justify-center gap-1">
                   <div className="aspect-square h-[14px] rounded-full bg-[#F4C10B]" />
-                  <p className="text-xs font-light md:text-sm">Lorem</p>
+                  <p className="text-xs font-light md:text-sm">Other</p>
                 </div>
               </div>
             </div>

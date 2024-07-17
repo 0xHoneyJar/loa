@@ -13,14 +13,14 @@ const HeroSection = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   return (
     <div className="relative flex h-full w-full flex-col items-center">
-      <div className="relative flex h-full w-full flex-col items-center md:pt-24 pt-20">
+      <div className="relative flex h-full w-full flex-col items-center pt-20 md:pt-24">
         <Image
           src={"/sunshine.png"}
           alt="sunshine"
           fill
           className="z-10 object-cover opacity-20"
         />
-        <div className="absolute top-0 h-16 w-full md:h-24">
+        <div className="absolute top-0 h-20 w-full md:h-24">
           <Image
             src={"/navbar-hero.png"}
             alt="bg"
@@ -28,7 +28,7 @@ const HeroSection = () => {
             className="z-[-1] object-cover"
           />
         </div>
-        <div className="h-[calc(100vh-5rem)] md:h-[calc(100vh-6rem)] relative flex w-full flex-col items-center gap-10 pb-10 pt-6">
+        <div className="relative flex h-[calc(100vh-5rem)] w-full flex-col items-center gap-10 pb-10 pt-6 md:h-[calc(100vh-6rem)]">
           <div className="absolute bottom-0 h-2/5 w-full bg-gradient-to-t from-[#0A0601]" />
           <div className="absolute bottom-40 z-[-2] h-[100px] w-1/3 bg-[#F5D011] blur-[250px]" />
           {/* <Image
@@ -39,7 +39,7 @@ const HeroSection = () => {
           /> */}
           <Lottie
             animationData={HeroBg}
-            className="absolute top-0 z-[-1] w-full h-full"
+            className="absolute top-0 z-[-1] h-full w-full"
             loop={true}
             rendererSettings={{
               preserveAspectRatio: "xMidYMid slice",
@@ -70,6 +70,8 @@ const HeroSection = () => {
                   <div className="flex gap-3">
                     {Socials.map((social, id) => (
                       <a
+                        target="_blank"
+                        href={social.link}
                         className="z-10 flex cursor-blue items-center gap-2 rounded-xl border border-[#FFFFFF1F] bg-[#FFFFFF26] px-6 py-3 hover:bg-[#FFFFFF3D]"
                         key={id}
                       >

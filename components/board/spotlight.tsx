@@ -11,14 +11,14 @@ const Spotlight = () => {
     >
       <div className="absolute -top-40 h-1 w-full" id="spotlight" />
       <div className="bg-[#FFD700 flex h-2 w-full shrink-0 rounded-t-3xl" />
-      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6">
+      <div className="relative flex h-20 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
         <div className="flex items-center gap-2">
           <DragHandleY setGlow={setGlow} />
-          <p className="mr-2 text-lg text-[#FFD700]">Spotlight</p>
-          <div className="flex items-center rounded-full bg-[#F5D01124] px-2 py-1">
+          <p className="text-xl font-medium text-[#FFD700]">Spotlight</p>
+          <div className="flex items-center rounded-full bg-[#F5D01124] px-2 py-1 ml-2">
             <p className="text-xs uppercase text-[#F5D011]">
               Don&apos;t miss it
             </p>

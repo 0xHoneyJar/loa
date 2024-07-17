@@ -1,8 +1,20 @@
 export const Socials = [
-  { name: "Discord", image: "/discord.svg" },
-  { name: "Twitter", image: "/twitter.svg" },
-  { name: "Mirror", image: "/mirror.svg" },
-  { name: "Warpcast", image: "/warpcast.svg" },
+  {
+    name: "Discord",
+    image: "/discord.svg",
+    link: "https://discord.com/invite/thehoneyjar",
+  },
+  { name: "Twitter", image: "/twitter.svg", link: "https://x.com/0xhoneyjar" },
+  {
+    name: "Mirror",
+    image: "/mirror.svg",
+    link: "https://0xhoneyjar.mirror.xyz/",
+  },
+  {
+    name: "Warpcast",
+    image: "/warpcast.svg",
+    link: "https://warpcast.com/0xhoneyjar",
+  },
 ];
 
 export const We = [
