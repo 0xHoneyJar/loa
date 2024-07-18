@@ -8,6 +8,7 @@ import { useRef } from "react";
 import { ArrowDown } from "lucide-react";
 import Lottie from "lottie-react";
 import HeroBg from "@/public/hero-bg.json";
+import OctoBear from "@/public/octo-bear.json";
 
 const HeroSection = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -150,8 +151,8 @@ const HeroSection = () => {
             />
           </motion.button>
         </div>
-        <div className="relative mb-6 flex h-[600px] w-full justify-center">
-          <div className="absolute -left-6 top-10 h-full w-2/5">
+        <div className="relative mb-6 mt-20 flex h-[600px] w-full justify-center items-center">
+          {/* <div className="absolute -left-6 top-10 h-full w-2/5">
             <Image
               src={"/octo.png"}
               alt="octo"
@@ -166,8 +167,19 @@ const HeroSection = () => {
               fill
               className="z-10 object-contain"
             />
-          </div>
-          <div className="absolute bottom-0 flex h-[80%] w-full justify-center">
+          </div> */}
+          <Lottie
+            animationData={OctoBear}
+            className="absolute z-10 h-full w-full top-0"
+            loop={true}
+            rendererSettings={{
+              preserveAspectRatio: "xMidYMid slice",
+            }}
+          />
+          <div className="flex h-[80%] w-full relative">
+            <Image src={"/dots.png"} alt="dots" fill className="object-cover" />
+            </div>
+          {/* <div className="absolute bottom-0 flex h-[80%] w-full justify-center">
             <Image src={"/dots.png"} alt="dots" fill className="object-cover" />
             <div className="relative aspect-square h-full rounded-full border border-[#DADADA1F] p-5">
               <div className="relative h-full w-full rounded-full border border-[#DADADA59]">
@@ -179,12 +191,12 @@ const HeroSection = () => {
                 />
               </div>
             </div>
-          </div>
+          </div> */}
           <div className="absolute -bottom-40 h-1/2 w-2/5 bg-[#F8A9291F] blur-[100px]" />
           {/* <div className="h-1/2 w-full bg-gradient-to-t from-[#0A0A0A] absolute -bottom-10" /> */}
         </div>
       </div>
-      <div className="relative flex flex-col items-center text-white">
+      <div className="relative flex flex-col items-center text-white -mt-10">
         <div className="absolute -top-32 h-1 w-1" ref={scrollRef} />
         <motion.div
           className="relative mb-4 aspect-square h-[40px]"
