@@ -22,7 +22,7 @@ const Footer = () => {
         className="relative top-8 z-[-1] overflow-hidden"
       >
         <p
-          className="text-[14rem] font-bold leading-none text-[#F5D0110D]"
+          className="font-bold leading-none text-[#F5D0110D] text-[12rem] lg:text-[14rem]"
           style={{
             WebkitTextStroke: "1px #F5D01145",
           }}
@@ -30,59 +30,62 @@ const Footer = () => {
           Based Community Gateway on Berachain
         </p>
       </Marquee>
-      <div className="flex h-[400px] w-full border-t border-dashed border-[#878787] bg-[#0B0701] text-white">
-        <div className="flex h-full w-2/5 justify-end">
-          <div className="flex h-full w-1/2 flex-col justify-center px-8 text-white">
-            <p className="mb-2 font-clash text-2xl font-semibold">
-              Partnership Guidelines
-            </p>
-            <p className="mb-4 w-[90%] text-base">
-              Learn what you get from becoming a THJ Partner
-            </p>
-            <button className="flex w-fit rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-[#DBDBDB]">
-              Learn More
-            </button>
-          </div>
+      <div className="grid sm:h-[300px] h-full relative w-full grid-cols-1 border-t border-dashed border-[#878787] bg-[#0B0701] text-white sm:grid-cols-3 md:h-[400px] lg:grid-cols-5 sm:gap-0 gap-2">
+        <div className="absolute inset-x-0 -top-12 mx-auto aspect-square h-[60px] md:-top-16 md:h-[80px]">
+          <Image
+            src={"/jani-coin.png"}
+            alt="jani-coin"
+            fill
+            className="object-contain"
+          />
         </div>
-        <div className="relative flex h-full w-1/5 flex-col justify-center border-x border-dashed border-[#DCE0E5] px-8 text-white">
-          <div className="absolute inset-x-0 -top-16 mx-auto aspect-square h-[80px]">
-            <Image
-              src={"/jani-coin.png"}
-              alt="jani-coin"
-              fill
-              className="object-contain"
-            />
-          </div>
-          <p className="mb-2 font-clash text-2xl font-semibold">Brand Kit</p>
-          <p className="mb-4 w-[90%] text-base">
-            Find all assets and guidelines of THJ branding here
+        <div className="hidden lg:flex" />
+        {/* <div className="flex h-full w-full"> */}
+        <div className="flex h-full w-full flex-col justify-center px-4 text-white md:px-8">
+          <p className="mb-2 font-clash text-lg font-semibold md:text-2xl">
+            Partnership Guidelines
           </p>
-          <button className="flex w-fit rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-[#DBDBDB]">
+          <p className="mb-4 w-full text-xs md:w-[90%] md:text-base">
+            Learn what you get from becoming a THJ Partner
+          </p>
+          <button className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] md:text-base">
             Learn More
           </button>
         </div>
-        <div className="h-full w-2/5">
-          <div className="flex h-full w-1/2 flex-col justify-center px-8 text-white">
-            <p className="mb-2 font-clash text-2xl font-semibold">
-              Beekeeper Kit
-            </p>
-            <p className="mb-4 w-[90%] text-base">
-              Product suite, integrations and co-markerting guidelines
-            </p>
-            <button className="flex w-fit rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-[#DBDBDB]">
-              Learn More
-            </button>
-          </div>
+        {/* </div> */}
+        <div className="relative flex h-full w-full flex-col justify-center sm:border-x sm:border-y-0 border-y border-dashed border-[#DCE0E5] px-4 text-white md:px-8">
+          <p className="mb-2 whitespace-nowrap font-clash text-lg font-semibold md:text-2xl">
+            Brand Kit
+          </p>
+          <p className="mb-4 w-full text-xs md:w-[90%] md:text-base">
+            Find all assets and guidelines of THJ branding here
+          </p>
+          <button className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] md:text-base">
+            Learn More
+          </button>
         </div>
+        {/* <div className="h-full w-1/3 lg:w-full"> */}
+        <div className="flex h-full w-full flex-col justify-center px-4 text-white md:px-8">
+          <p className="mb-2 whitespace-nowrap font-clash text-lg font-semibold md:text-2xl">
+            Beekeeper Kit
+          </p>
+          <p className="mb-4 w-full text-xs md:w-[90%] md:text-base">
+            Product suite, integrations and co-markerting guidelines
+          </p>
+          <button className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] md:text-base">
+            Learn More
+          </button>
+        </div>
+        {/* </div> */}
       </div>
-      <div className="relative flex w-full flex-col items-center gap-8 overflow-hidden bg-[#F4C10B] pt-20 text-white">
+      <div className="relative flex w-full flex-col items-center gap-4 overflow-hidden bg-[#F4C10B] pt-10 text-white md:gap-6 md:pt-20 lg:gap-8">
         <Image
           src={"/thj-outline.svg"}
           alt="thj-outline"
           fill
-          className="!top-10 z-[1] object-contain"
+          className="!top-10 z-[1] object-cover md:object-contain"
         />
-        <div className="relative aspect-square h-[100px]">
+        <div className="relative aspect-square h-[60px] sm:h-[80px] md:h-[100px]">
           <Image
             src={"/thj-white.svg"}
             alt="thj-white"
@@ -90,20 +93,20 @@ const Footer = () => {
             className="object-contain"
           />
         </div>
-        <p className="font-clash text-7xl font-semibold">
+        <p className="text-center font-clash text-3xl font-semibold md:text-5xl lg:text-7xl">
           Be a Part of the Honey Jar
         </p>
-        <p className="w-2/5 text-center text-lg">
+        <p className="w-4/5 text-center text-sm sm:w-3/5 md:w-2/5 md:text-lg">
           By delegating to the THJ Validator, you help us to grow and contribute
         </p>
-        <div className="relative flex items-center gap-2">
-          <button className="z-10 w-[240px] rounded-xl bg-black py-3">
+        <div className="relative flex flex-col items-center gap-2 sm:flex-row">
+          <button className="z-10 w-[180px] rounded-xl bg-black py-3 text-xs font-medium md:w-[240px] md:text-base">
             Join the Commmunity
           </button>
-          <button className="z-10 w-[240px] rounded-xl bg-[#43AA77] py-3">
+          <button className="z-10 w-[180px] rounded-xl bg-[#43AA77] py-3 text-xs font-medium md:w-[240px] md:text-base">
             Delegate Now
           </button>
-          <div className="absolute -bottom-28 -right-40 z-10 aspect-square h-[172px]">
+          <div className="absolute -bottom-24 -right-32 z-10 aspect-square h-[140px] md:-bottom-28 md:-right-40 md:h-[172px]">
             <Image
               src={"/arrow-angled.svg"}
               alt="angled"

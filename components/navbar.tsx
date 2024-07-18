@@ -51,7 +51,7 @@ const Navbar = () => {
         </div>
       </div> */}
       <div
-        className="fixed inset-x-0 top-5 z-30 mx-auto flex w-1/2 max-w-4xl divide-x divide-[#FFFFFF1F] rounded-full border border-[#FFFFFF1F] bg-[#505050]/5 backdrop-blur-xl"
+        className="fixed inset-x-0 top-5 z-30 mx-auto flex w-fit divide-x divide-[#FFFFFF1F] rounded-full border border-[#FFFFFF1F] bg-[#505050]/5 backdrop-blur-xl"
         // style={{ boxShadow: "0px 2px 56px #0000001F" }}
       >
         <div className="flex items-center gap-2 px-4 py-3 md:gap-3">
@@ -62,8 +62,8 @@ const Navbar = () => {
             For Community
           </p>
         </div>
-        <div className="flex w-full items-center justify-end px-4 py-3">
-          <div className="flex items-center gap-2 md:gap-3">
+        <div className="flex w-full items-center px-4 py-3">
+          <div className="md:flex items-center gap-2 md:gap-3 hidden lg:ml-20 ml-12">
             <button className="flex h-[36px] items-center gap-2 rounded-full border border-[#F4C10B]/50 bg-gradient-to-b from-[#F4C10B1F] to-[#F8A9291F] px-4 text-xs font-medium text-white md:px-6 md:text-sm">
               <p>Explore</p>
               <p className="rounded-full border bg-[#FFFFFF14] px-2 text-[7px]">
@@ -77,15 +77,15 @@ const Navbar = () => {
             <a className="flex h-[36px] cursor-pointer items-center whitespace-nowrap rounded-full bg-[#43AA77] px-4 text-xs font-medium text-white hover:shadow-evergreen md:px-6 md:text-sm">
               Delegate to THJ
             </a>
-            <button
-              className="flex flex-col gap-2 md:hidden"
-              onClick={() => setToggle(!toggle)}
-            >
-              <hr className="w-6 border" />
-              <hr className="w-6 border" />
-              <hr className="w-6 border" />
-            </button>
           </div>
+          <button
+            className="flex flex-col gap-1.5 md:hidden ml-10"
+            onClick={() => setToggle(!toggle)}
+          >
+            <hr className="w-6 border" />
+            <hr className="w-6 border" />
+            <hr className="w-6 border" />
+          </button>
         </div>
       </div>
     </>

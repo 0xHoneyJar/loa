@@ -26,7 +26,7 @@ const Raffles = () => {
       setRaffles(retrievedRaffles);
     }
 
-    getRaffles();
+    // getRaffles();
   }, []);
 
   return (

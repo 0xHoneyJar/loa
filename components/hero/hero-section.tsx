@@ -47,10 +47,10 @@ const HeroSection = () => {
             }}
           />
           {/* <div className="h-1/3 w-full flex items-center flex-col"> */}
-          <div className="flex w-full justify-center gap-16 text-white">
+          <div className="flex w-full justify-center gap-16 text-white lg:flex-row flex-col">
             {/* <div className="w-1/2"> */}
-            <div className="whitespace-nowrap font-clash text-5xl font-medium">
-              <span className="text-3xl font-normal">The</span> <br />
+            <div className="whitespace-nowrap font-clash md:text-5xl text-3xl font-medium">
+              <span className="md:text-3xl text-xl font-normal">The</span> <br />
               <span className="text-[#F4C10B]">Honey Jar</span> Based Community{" "}
               <br />
               <span className="flex items-end gap-4">
@@ -108,7 +108,7 @@ const HeroSection = () => {
           <div className="flex bg-[#0A0601] py-2">
             {We.map((item, id) => (
               <div
-                className="mx-2 flex w-[260px] items-center gap-4 rounded-xl border border-[#F4C10B05] bg-[#F4C10B0A] p-4 text-white"
+                className="mx-2 flex md:w-[260px] w-[200px] items-center gap-4 rounded-xl border border-[#F4C10B05] bg-[#F4C10B0A] p-4 text-white"
                 key={id}
               >
                 <div className="relative aspect-square h-[24px] md:h-[28px]">
@@ -125,8 +125,8 @@ const HeroSection = () => {
             ))}
           </div>
         </Marquee>
-        <div className="mb-10 h-[1px] w-1/4 bg-gradient-to-r from-[#F5D01100] via-[#F5D011] via-50%" />
-        <div className="relative z-10 -mb-10 aspect-square h-[46px] rounded-full bg-white shadow-white">
+        <div className="mb-10 h-[1px] md:w-1/4 w-1/2 bg-gradient-to-r from-[#F5D01100] via-[#F5D011] via-50%" />
+        <div className="relative z-10 -mb-10 aspect-square md:h-[46px] h-[38px] rounded-full bg-white shadow-white">
           <motion.button
             className="relative h-full w-full"
             animate={{
@@ -151,7 +151,7 @@ const HeroSection = () => {
             />
           </motion.button>
         </div>
-        <div className="relative mb-6 mt-20 flex h-[600px] w-full justify-center items-center">
+        <div className="relative mb-6 md:mt-20 mt-10 flex md:h-[600px] h-[400px] w-full justify-center items-center">
           {/* <div className="absolute -left-6 top-10 h-full w-2/5">
             <Image
               src={"/octo.png"}
@@ -199,7 +199,7 @@ const HeroSection = () => {
       <div className="relative flex flex-col items-center text-white -mt-10">
         <div className="absolute -top-32 h-1 w-1" ref={scrollRef} />
         <motion.div
-          className="relative mb-4 aspect-square h-[40px]"
+          className="relative mb-4 aspect-square md:h-[40px] h-[32px]"
           animate={{
             x: [15, -5],
           }}
@@ -216,8 +216,8 @@ const HeroSection = () => {
             className="object-contain"
           />
         </motion.div>
-        <p className="mb-2 text-4xl font-medium">Customize the THJ Board</p>
-        <p className="text-xl text-[#FFFFFFB3]">
+        <p className="mb-2 md:text-4xl text-2xl font-medium">Customize the THJ Board</p>
+        <p className="md:text-xl text-lg text-[#FFFFFFB3]">
           Manage & Customize your THJ Board
         </p>
       </div>
