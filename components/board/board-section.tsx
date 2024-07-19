@@ -17,6 +17,18 @@ const BoardSection = () => {
   const resetRef = useRef<HTMLDivElement>(null);
   const ogLayout = DASHBOARD.map((dashboard) => dashboard.dataGrid);
 
+  const breakpoints = ["md", "sm", "xs"];
+  const ogLayouts = breakpoints.reduce((acc: any, breakpoint: any) => {
+    acc[breakpoint] = DASHBOARD.map(
+      (dashboard: any) =>
+        dashboard[`dataGrid_${breakpoint}`] || dashboard.dataGrid,
+    );
+    return acc;
+  }, {});
+
+  const [rowHeight, setRowHeight] = useState(0);
+
+  // reactgridlayout
   const getLayout = () => {
     if (typeof window !== "undefined") {
       const savedLayout = localStorage.getItem("grid-layout");
@@ -25,15 +37,34 @@ const BoardSection = () => {
     }
   };
 
+  // responsivegridlayout
+  const getLayouts = () => {
+    if (typeof window !== "undefined") {
+      const savedLayout = localStorage.getItem("grid-layout");
+
+      return savedLayout ? JSON.parse(savedLayout)["layouts"] : ogLayouts;
+    }
+  };
+
   const savedLayout = getLayout();
 
-  const [layout, setLayout] = useState<any[]>(savedLayout);
+  const savedLayouts = getLayouts();
 
+  const [layout, setLayout] = useState(savedLayout);
+  const [layouts, setLayouts] = useState(savedLayouts);
+
+  // reactgridlayout
   const resetLayout = () => {
     handleLayoutChange(ogLayout);
     setLayout(ogLayout);
   };
 
+  const resetLayouts = () => {
+    handleLayoutsChange(null, ogLayouts);
+    setLayouts(ogLayouts);
+  };
+
+  // reactgridlayout
   const handleLayoutChange = (layouts: any) => {
     if (typeof window !== "undefined") {
       localStorage.setItem("grid-layout", JSON.stringify(layouts));
@@ -41,19 +72,39 @@ const BoardSection = () => {
     }
   };
 
+  const handleLayoutsChange = (layout: any, layouts: any) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(
+        "grid-layout",
+        JSON.stringify({
+          layouts: layouts,
+        }),
+      );
+      setLayouts(layouts);
+    }
+  };
+
+  const handleBreakpointChange = (breakpoint: any, newCols: any) => {
+    if (breakpoint === "md") setRowHeight(340);
+    else if (breakpoint === "sm") setRowHeight(300);
+    else setRowHeight(240);
+  };
+
+  // determines if the swipe has hit the end
   const handleDragEnd = () => {
     if (constraintsRef && resetRef) {
       const containerRect = constraintsRef.current?.getBoundingClientRect();
       const dragElementRect = resetRef.current?.getBoundingClientRect();
       if (containerRect?.right === dragElementRect?.right) {
-        resetLayout();
+        // resetLayout();
+        resetLayouts();
       }
     }
   };
 
   return (
-    <div className="md:mb-60 mb-40 flex h-full w-full flex-col items-center">
-      <div className="md:mb-20 mb-10 mt-3 rounded-full bg-[#FFFFFF14] px-3 py-2">
+    <div className="mb-40 flex h-full w-full flex-col items-center md:mb-60">
+      <div className="mb-10 mt-3 rounded-full bg-[#FFFFFF14] px-3 py-2 md:mb-20">
         <div
           ref={constraintsRef}
           className="flex h-full w-full items-center gap-2"
@@ -90,14 +141,16 @@ const BoardSection = () => {
         </div>
         <ResponsiveGridLayout
           className="w-full rounded-2xl border border-[#BCBCBC1A] bg-[#0A0A0A] text-white"
-          breakpoints={{ lg: 1024, md: 768, sm: 640, xs: 450 }}
-          cols={{ lg: 3, md: 3, sm: 2, xs: 1 }}
-          rowHeight={340}
+          breakpoints={{ md: 768, sm: 640, xs: 450 }}
+          cols={{ md: 3, sm: 2, xs: 1 }}
+          rowHeight={rowHeight}
           draggableHandle=".dragHandle"
-          layouts={{ lg: layout, md: layout, sm: layout, xs: layout }}
+          layouts={layouts}
           isResizable={false}
-          margin={{ lg: [30, 30], md: [30, 30] }}
-          containerPadding={{ lg: [32, 48], md: [32, 48] }}
+          margin={{ md: [30, 30], sm: [24, 24], xs: [16, 16] }}
+          containerPadding={{ md: [32, 48], sm: [28, 42], xs: [20, 30] }}
+          onLayoutChange={handleLayoutsChange}
+          onBreakpointChange={handleBreakpointChange}
         >
           {DASHBOARD.map((dashboard) => {
             return <div key={dashboard.key}>{dashboard.ui}</div>;

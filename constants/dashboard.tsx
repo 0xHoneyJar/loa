@@ -21,6 +21,7 @@ import Follow from "@/components/board/follow";
 import OogaBooga from "@/components/board/ooga-booga";
 import Raffles from "@/components/board/raffles";
 import Beardrops from "@/components/board/beardrops";
+import JaniSweeping from "@/components/board/jani-sweeping";
 
 export const DASHBOARD = [
   {
@@ -41,6 +42,8 @@ export const DASHBOARD = [
     name: "Follow Us",
     key: "follow",
     dataGrid: { i: "follow", x: 2, y: 0, w: 1, h: 1 },
+    dataGrid_sm: { i: "follow", x: 0, y: 7, w: 1, h: 1 },
+    dataGrid_xs: { i: "follow", x: 0, y: 7, w: 1, h: 1 },
     ui: <Follow />,
     hidden: false,
   },
@@ -112,12 +115,19 @@ export const DASHBOARD = [
     ui: <OogaBooga />,
     hidden: true,
   },
+  // {
+  //   name: "Feed",
+  //   key: "feed",
+  //   dataGrid: { i: "feed", x: 1, y: 6, w: 1, h: 1 },
+  //   ui: <Feed />,
+  //   hidden: false,
+  // },
   {
-    name: "Feed",
-    key: "feed",
-    dataGrid: { i: "feed", x: 1, y: 6, w: 1, h: 1 },
-    ui: <Feed />,
-    hidden: false,
+    name: "Sweep",
+    key: "sweep",
+    dataGrid: { i: "sweep", x: 1, y: 6, w: 1, h: 1 },
+    ui: <JaniSweeping />,
+    hidden: true,
   },
   {
     name: "Guide",

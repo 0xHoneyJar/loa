@@ -21,7 +21,7 @@ const Blog = () => {
           <p className="text-xl font-medium text-[#FFD700]">Our Blog</p>
         </div>
       </div>
-      <div className="flex grow p-6">
+      <div className="flex p-6 grow">
         <div className="grid w-full grid-cols-4 gap-6">
           <div className="relative flex h-full w-full flex-col gap-3">
             <div

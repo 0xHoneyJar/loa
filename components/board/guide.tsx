@@ -16,11 +16,11 @@ const Guide = () => {
               className="object-contain"
             />
           </div>
-          <p className="text-3xl font-medium text-white">
+          <p className="md:text-3xl sm:text-2xl text-xl whitespace-nowrap font-medium text-white">
             New to THJ? Start with THJ 101 Guide!
           </p>
         </div>
-        <button className="py-2 px-8 bg-[#F4C10B] text-black text-lg font-medium rounded-full hover:shadow-yellow">
+        <button className="py-2 px-8 whitespace-nowrap bg-[#F4C10B] text-black text-lg font-medium rounded-full hover:shadow-yellow">
           Visit Us
         </button>
       </div>

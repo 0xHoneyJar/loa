@@ -47,49 +47,53 @@ const HeroSection = () => {
             }}
           />
           {/* <div className="h-1/3 w-full flex items-center flex-col"> */}
-          <div className="flex w-full justify-center gap-16 text-white lg:flex-row flex-col">
+          <div className="flex w-full flex-col justify-center gap-2 px-4 text-white sm:px-6 md:gap-4 md:px-10 2xl:flex-row 2xl:gap-16">
             {/* <div className="w-1/2"> */}
-            <div className="whitespace-nowrap font-clash md:text-5xl text-3xl font-medium">
-              <span className="md:text-3xl text-xl font-normal">The</span> <br />
+            <div className="whitespace-nowrap font-clash text-2xl font-medium sm:text-3xl md:text-4xl lg:text-5xl">
+              <span className="text-xl font-normal md:text-3xl">The</span>{" "}
+              <br />
               <span className="text-[#F4C10B]">Honey Jar</span> Based Community{" "}
               <br />
               <span className="flex items-end gap-4">
                 Gateway on Berachain
-                <div className="relative aspect-[1.7/1] h-[44px]">
+                <div className="relative aspect-[1.7/1] h-[30px] sm:h-[38px] md:h-[44px]">
                   <Image src={"/berachain.svg"} alt="berachain" fill />
                 </div>
               </span>
             </div>
             {/* </div> */}
-            <div className="mt-12 flex w-1/3 flex-col justify-end gap-5">
-              <p className="text-xl">
+            <div className="mt-0 flex w-[90%] flex-col justify-end gap-5 sm:w-4/5 lg:w-3/5 2xl:mt-12 2xl:w-2/5">
+              <p className="text-sm sm:text-base md:text-lg lg:text-xl">
                 THJ is Berachain-native community venture studio. We&apos;re the
                 creators of Honeycomb, a perks aggregator for Bera eco projects.
               </p>
-              <div className="flex w-full gap-5">
-                <div className="rounded-xl border border-dashed border-[#FFFFFF3B] p-2">
-                  <div className="flex gap-3">
+              <div className="flex w-full gap-1 sm:gap-3 lg:gap-5">
+                <div className="h-fit rounded-xl border border-dashed border-[#FFFFFF3B] p-1 lg:p-2">
+                  <div className="flex gap-1.5 md:gap-3">
                     {Socials.map((social, id) => (
                       <a
                         target="_blank"
                         href={social.link}
-                        className="z-10 flex cursor-blue items-center gap-2 rounded-xl border border-[#FFFFFF1F] bg-[#FFFFFF26] px-6 py-3 hover:bg-[#FFFFFF3D]"
+                        className="z-10 flex cursor-blue items-center gap-2 rounded-xl border border-[#FFFFFF1F] bg-[#FFFFFF26] px-4 py-2 hover:bg-[#FFFFFF3D] lg:px-6 lg:py-3"
                         key={id}
                       >
-                        <div className="relative aspect-square h-[24px]">
+                        <div className="relative aspect-square h-[18px] md:h-[24px]">
                           <Image src={social.image} alt={social.name} fill />
                         </div>
-                        <p className="text-xs md:text-sm">{social.name}</p>
+                        <p className="hidden text-xs sm:flex md:text-sm">
+                          {social.name}
+                        </p>
                       </a>
                     ))}
                   </div>
                 </div>
-                <div className="flex w-1/5 items-end">
-                  <div className="relative -right-2 -top-2 aspect-square h-[55px] scale-x-125 scale-y-110">
+                <div className="flex items-end">
+                  <div className="relative -right-2 -top-2 aspect-square h-[44px] scale-x-125 scale-y-110 md:h-[55px]">
                     <Image src={"/arrow-swirl.svg"} alt="arrow" fill />
                   </div>
                   <p className="whitespace-nowrap text-xs text-[#FFFFFFA8] md:text-sm">
-                    Follow us for more
+                    Follow us{" "}
+                    <span className="hidden md:inline-flex">for more</span>
                   </p>
                 </div>
               </div>
@@ -108,7 +112,7 @@ const HeroSection = () => {
           <div className="flex bg-[#0A0601] py-2">
             {We.map((item, id) => (
               <div
-                className="mx-2 flex md:w-[260px] w-[200px] items-center gap-4 rounded-xl border border-[#F4C10B05] bg-[#F4C10B0A] p-4 text-white"
+                className="mx-2 flex w-[200px] items-center gap-4 rounded-xl border border-[#F4C10B05] bg-[#F4C10B0A] p-4 text-white md:w-[260px]"
                 key={id}
               >
                 <div className="relative aspect-square h-[24px] md:h-[28px]">
@@ -125,8 +129,8 @@ const HeroSection = () => {
             ))}
           </div>
         </Marquee>
-        <div className="mb-10 h-[1px] md:w-1/4 w-1/2 bg-gradient-to-r from-[#F5D01100] via-[#F5D011] via-50%" />
-        <div className="relative z-10 -mb-10 aspect-square md:h-[46px] h-[38px] rounded-full bg-white shadow-white">
+        <div className="mb-10 h-[1px] w-1/2 bg-gradient-to-r from-[#F5D01100] via-[#F5D011] via-50% md:w-1/4" />
+        <div className="relative z-10 -mb-10 aspect-square h-[38px] rounded-full bg-white shadow-white md:h-[46px]">
           <motion.button
             className="relative h-full w-full"
             animate={{
@@ -151,7 +155,7 @@ const HeroSection = () => {
             />
           </motion.button>
         </div>
-        <div className="relative mb-6 md:mt-20 mt-10 flex md:h-[600px] h-[400px] w-full justify-center items-center">
+        <div className="relative mb-6 mt-10 flex h-[400px] w-full items-center justify-center md:mt-20 md:h-[600px]">
           {/* <div className="absolute -left-6 top-10 h-full w-2/5">
             <Image
               src={"/octo.png"}
@@ -170,15 +174,15 @@ const HeroSection = () => {
           </div> */}
           <Lottie
             animationData={OctoBear}
-            className="absolute z-10 h-full w-full top-0"
+            className="absolute top-0 z-10 h-full w-full"
             loop={true}
             rendererSettings={{
               preserveAspectRatio: "xMidYMid slice",
             }}
           />
-          <div className="flex h-[80%] w-full relative">
+          <div className="relative flex h-[80%] w-full">
             <Image src={"/dots.png"} alt="dots" fill className="object-cover" />
-            </div>
+          </div>
           {/* <div className="absolute bottom-0 flex h-[80%] w-full justify-center">
             <Image src={"/dots.png"} alt="dots" fill className="object-cover" />
             <div className="relative aspect-square h-full rounded-full border border-[#DADADA1F] p-5">
@@ -196,10 +200,10 @@ const HeroSection = () => {
           {/* <div className="h-1/2 w-full bg-gradient-to-t from-[#0A0A0A] absolute -bottom-10" /> */}
         </div>
       </div>
-      <div className="relative flex flex-col items-center text-white -mt-10">
+      <div className="relative -mt-10 flex flex-col items-center text-white">
         <div className="absolute -top-32 h-1 w-1" ref={scrollRef} />
         <motion.div
-          className="relative mb-4 aspect-square md:h-[40px] h-[32px]"
+          className="relative mb-4 aspect-square h-[32px] md:h-[40px]"
           animate={{
             x: [15, -5],
           }}
@@ -216,8 +220,10 @@ const HeroSection = () => {
             className="object-contain"
           />
         </motion.div>
-        <p className="mb-2 md:text-4xl text-2xl font-medium">Customize the THJ Board</p>
-        <p className="md:text-xl text-lg text-[#FFFFFFB3]">
+        <p className="mb-2 text-2xl font-medium md:text-4xl">
+          Customize the THJ Board
+        </p>
+        <p className="text-lg text-[#FFFFFFB3] md:text-xl">
           Manage & Customize your THJ Board
         </p>
       </div>

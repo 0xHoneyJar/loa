@@ -22,7 +22,7 @@ const Footer = () => {
         className="relative top-8 z-[-1] overflow-hidden"
       >
         <p
-          className="font-bold leading-none text-[#F5D0110D] text-[12rem] lg:text-[14rem]"
+          className="text-[12rem] font-bold leading-none text-[#F5D0110D] lg:text-[14rem]"
           style={{
             WebkitTextStroke: "1px #F5D01145",
           }}
@@ -30,7 +30,7 @@ const Footer = () => {
           Based Community Gateway on Berachain
         </p>
       </Marquee>
-      <div className="grid sm:h-[300px] h-full relative w-full grid-cols-1 border-t border-dashed border-[#878787] bg-[#0B0701] text-white sm:grid-cols-3 md:h-[400px] lg:grid-cols-5 sm:gap-0 gap-2">
+      <div className="relative grid h-full w-full grid-cols-1 gap-2 border-t border-dashed border-[#878787] bg-[#0B0701] text-white sm:h-[300px] sm:grid-cols-3 sm:gap-0 md:h-[400px] lg:grid-cols-5">
         <div className="absolute inset-x-0 -top-12 mx-auto aspect-square h-[60px] md:-top-16 md:h-[80px]">
           <Image
             src={"/jani-coin.png"}
@@ -41,7 +41,7 @@ const Footer = () => {
         </div>
         <div className="hidden lg:flex" />
         {/* <div className="flex h-full w-full"> */}
-        <div className="flex h-full w-full flex-col justify-center px-4 text-white md:px-8">
+        <div className="flex h-full w-full flex-col justify-center px-4 py-3 text-white sm:py-0 md:px-8">
           <p className="mb-2 font-clash text-lg font-semibold md:text-2xl">
             Partnership Guidelines
           </p>
@@ -53,7 +53,7 @@ const Footer = () => {
           </button>
         </div>
         {/* </div> */}
-        <div className="relative flex h-full w-full flex-col justify-center sm:border-x sm:border-y-0 border-y border-dashed border-[#DCE0E5] px-4 text-white md:px-8">
+        <div className="relative flex h-full w-full flex-col justify-center border-y border-dashed border-[#DCE0E5] px-4 py-3 text-white sm:border-x sm:border-y-0 sm:py-0 md:px-8">
           <p className="mb-2 whitespace-nowrap font-clash text-lg font-semibold md:text-2xl">
             Brand Kit
           </p>
@@ -65,7 +65,7 @@ const Footer = () => {
           </button>
         </div>
         {/* <div className="h-full w-1/3 lg:w-full"> */}
-        <div className="flex h-full w-full flex-col justify-center px-4 text-white md:px-8">
+        <div className="flex h-full w-full flex-col justify-center px-4 py-3 text-white sm:py-0 md:px-8">
           <p className="mb-2 whitespace-nowrap font-clash text-lg font-semibold md:text-2xl">
             Beekeeper Kit
           </p>
