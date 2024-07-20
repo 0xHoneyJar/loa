@@ -41,11 +41,11 @@ const Footer = () => {
         </div>
         <div className="hidden lg:flex" />
         {/* <div className="flex h-full w-full"> */}
-        <div className="flex h-full w-full flex-col justify-center px-4 py-3 text-white sm:py-0 md:px-8">
+        <div className="flex h-full w-full flex-col items-center justify-center px-4 py-3 text-white sm:items-start sm:py-0 md:px-8">
           <p className="mb-2 font-clash text-lg font-semibold md:text-2xl">
             Partnership Guidelines
           </p>
-          <p className="mb-4 w-full text-xs md:w-[90%] md:text-base">
+          <p className="mb-4 w-full text-center text-xs sm:text-left md:w-[90%] md:text-base">
             Learn what you get from becoming a THJ Partner
           </p>
           <button className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] md:text-base">
@@ -53,11 +53,11 @@ const Footer = () => {
           </button>
         </div>
         {/* </div> */}
-        <div className="relative flex h-full w-full flex-col justify-center border-y border-dashed border-[#DCE0E5] px-4 py-3 text-white sm:border-x sm:border-y-0 sm:py-0 md:px-8">
+        <div className="relative flex h-full w-full flex-col items-center justify-center border-y border-dashed border-[#DCE0E5] px-4 py-3 text-white sm:items-start sm:border-x sm:border-y-0 sm:py-0 md:px-8">
           <p className="mb-2 whitespace-nowrap font-clash text-lg font-semibold md:text-2xl">
             Brand Kit
           </p>
-          <p className="mb-4 w-full text-xs md:w-[90%] md:text-base">
+          <p className="mb-4 w-full text-center text-xs sm:text-left md:w-[90%] md:text-base">
             Find all assets and guidelines of THJ branding here
           </p>
           <button className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] md:text-base">
@@ -65,11 +65,11 @@ const Footer = () => {
           </button>
         </div>
         {/* <div className="h-full w-1/3 lg:w-full"> */}
-        <div className="flex h-full w-full flex-col justify-center px-4 py-3 text-white sm:py-0 md:px-8">
+        <div className="flex h-full w-full flex-col items-center justify-center px-4 py-3 text-white sm:items-start sm:py-0 md:px-8">
           <p className="mb-2 whitespace-nowrap font-clash text-lg font-semibold md:text-2xl">
             Beekeeper Kit
           </p>
-          <p className="mb-4 w-full text-xs md:w-[90%] md:text-base">
+          <p className="mb-4 w-full text-center text-xs sm:text-left md:w-[90%] md:text-base">
             Product suite, integrations and co-markerting guidelines
           </p>
           <button className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] md:text-base">

@@ -26,6 +26,24 @@ const BoardSection = () => {
     return acc;
   }, {});
 
+  const [drag, setDrag] = useState(false);
+
+  const mouseDownHandler = () => {
+    setDrag(true);
+  };
+
+  useEffect(() => {
+    const handleMouseUp = () => {
+      setDrag(false);
+    };
+
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
+
   const [rowHeight, setRowHeight] = useState(0);
 
   // reactgridlayout
@@ -98,7 +116,10 @@ const BoardSection = () => {
 
     if (width >= convertedTailwindBreakpoints.md) {
       setRowHeight(340);
-    } else if (width >= convertedTailwindBreakpoints.sm && width < convertedTailwindBreakpoints.md) {
+    } else if (
+      width >= convertedTailwindBreakpoints.sm &&
+      width < convertedTailwindBreakpoints.md
+    ) {
       setRowHeight(300);
     } else {
       setRowHeight(280);
@@ -130,8 +151,9 @@ const BoardSection = () => {
             dragConstraints={constraintsRef}
             dragElastic={{ right: 0, left: 0 }}
             onDragEnd={handleDragEnd}
-            className="aspect-square h-[28px] touch-none rounded-full bg-white p-1"
+            className={`aspect-square h-[28px] touch-none rounded-full bg-white p-1 ${drag ? "cursor-grabbing" : "cursor-grab"}`}
             ref={resetRef}
+            onMouseDown={mouseDownHandler}
           >
             <RotateCcw className="h-full w-full -rotate-90 scale-x-[-1] text-black" />
           </motion.div>
