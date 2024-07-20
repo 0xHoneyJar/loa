@@ -9,13 +9,13 @@ const Follow = () => {
       className={`flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F] ${glow && "rotate-[1deg]"}`}
     >
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-white" />
-      <div className="relative flex h-20 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-6">
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-20 md:px-6">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#B8B8B8] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
         <div className="flex items-center gap-2">
           <DragHandle setGlow={setGlow} />
-          <p className="text-xl font-medium text-white">Follow Us</p>
+          <p className="font-medium text-white md:text-xl">Follow Us</p>
         </div>
       </div>
       <div className="relative flex grow items-center justify-center px-6">
@@ -23,7 +23,7 @@ const Follow = () => {
           <a
             href={"https://x.com/0xhoneyjar"}
             target="_blank"
-            className="relative aspect-square h-[40px] opacity-70 hover:cursor-blue hover:opacity-100"
+            className="relative aspect-square h-[32px] opacity-70 hover:cursor-blue hover:opacity-100 md:h-[40px]"
           >
             <Image
               src={"/follow/twitter.svg"}
@@ -35,7 +35,7 @@ const Follow = () => {
           <a
             href={"https://discord.com/invite/thehoneyjar"}
             target="_blank"
-            className="relative aspect-square h-[58px] opacity-70 hover:cursor-blue hover:opacity-100"
+            className="relative aspect-square h-[46px] opacity-70 hover:cursor-blue hover:opacity-100 md:h-[58px]"
           >
             <Image
               src={"/follow/discord.svg"}
@@ -47,7 +47,7 @@ const Follow = () => {
           <a
             href={"https://warpcast.com/0xhoneyjar"}
             target="_blank"
-            className="relative aspect-square h-[58px] opacity-70 hover:cursor-blue hover:opacity-100"
+            className="relative aspect-square h-[46px] opacity-70 hover:cursor-blue hover:opacity-100 md:h-[58px]"
           >
             <Image
               src={"/follow/farcaster.svg"}
@@ -57,8 +57,8 @@ const Follow = () => {
             />
           </a>
         </div>
-        <div className="absolute bottom-8 right-6 flex items-end gap-2">
-          <div className="relative aspect-square h-[50px]">
+        <div className="absolute flex items-end gap-2 md:bottom-8 bottom-6 justify-center inset-x-0 mx-auto">
+          <div className="relative aspect-square h-[42px] md:h-[50px]">
             <Image
               src={"/follow/arrow-swirl.svg"}
               alt="arrow-swirl"
@@ -66,7 +66,9 @@ const Follow = () => {
               className="scale-x-110 object-contain"
             />
           </div>
-          <p className="text-xs text-[#747474]/65">Follow Us For More</p>
+          <p className="text-[10px] text-[#747474]/65 md:text-xs">
+            Follow Us <span className="md:inline-flex hidden">For More</span>
+          </p>
         </div>
       </div>
     </div>

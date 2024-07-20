@@ -17,13 +17,15 @@ const Artwork = () => {
     >
       <div className="absolute -top-40 h-1 w-full" id="artwork" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-white" />
-      <div className="relative flex h-20 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-6">
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-20 md:px-6">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#B8B8B8] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
         <div className="flex items-center gap-2">
           <DragHandle setGlow={setGlow} />
-          <p className="text-xl font-medium text-white">Our Arts and Memes</p>
+          <p className="font-medium text-white md:text-xl">
+            Our Arts and Memes
+          </p>
         </div>
       </div>
       <Marquee
@@ -34,21 +36,19 @@ const Artwork = () => {
         gradientWidth={50}
         className="flex grow items-center"
       >
-        <div className="flex">
-          {ARTWORK.map((item, id) => (
-            <div
-              className="relative mx-2 aspect-square h-[200px] overflow-hidden rounded-lg"
-              key={id}
-            >
-              <Image
-                src={item}
-                alt={"artwork-" + id}
-                fill
-                className="object-cover"
-              />
-            </div>
-          ))}
-        </div>
+        {ARTWORK.map((item, id) => (
+          <div
+            className="relative mx-2 aspect-square h-[172px] overflow-hidden rounded-lg sm:h-[192px] md:h-[200px]"
+            key={id}
+          >
+            <Image
+              src={item}
+              alt={"artwork-" + id}
+              fill
+              className="object-cover"
+            />
+          </div>
+        ))}
       </Marquee>
     </div>
   );

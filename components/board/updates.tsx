@@ -16,14 +16,14 @@ const Updates = () => {
       <div className="absolute -top-40 h-1 w-full" id="updates" />
       <Carousel className="flex h-full flex-col">
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
-        <div className="flex h-20 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6">
+        <div className="flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-20 md:px-6">
           <div className="flex items-center gap-2">
-            <LockKeyhole className="aspect-square h-[26px] text-[#FFD7004D]" />
-            <p className="text-xl font-medium text-[#FFD700]">Updates</p>
+            <LockKeyhole className="aspect-square md:h-[26px] h-5 text-[#FFD7004D]" />
+            <p className="font-medium text-[#FFD700] md:text-xl">Updates</p>
           </div>
-          <div className="relative flex gap-3">
-            <CarouselPrevious className="h-8 w-8 border-2 border-[#848484] bg-transparent" />
-            <CarouselNext className="h-8 w-8 border-2 border-[#848484] bg-transparent" />
+          <div className="relative flex md:gap-3 gap-1.5">
+            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-8" />
+            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-8" />
           </div>
         </div>
         <CarouselContent className="flex h-full w-full py-6 pl-6">

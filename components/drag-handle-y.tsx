@@ -31,7 +31,7 @@ const DragHandleY = ({
   return (
     <div
       onMouseDown={mouseDownHandler}
-      className={`dragHandle relative aspect-square h-[26px] ${drag ? "cursor-grabbing" : "cursor-grab"}`}
+      className={`dragHandle relative aspect-square h-5 md:h-[26px] ${drag ? "cursor-grabbing" : "cursor-grab"}`}
     >
       <Image
         src={"/drag-handle-y.svg"}

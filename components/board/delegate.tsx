@@ -22,7 +22,7 @@ const Delegate = () => {
       </div>
       <div className="relative flex h-full w-full flex-col gap-10 rounded-2xl border border-black/50 p-6">
         <div className="flex items-center gap-1">
-          <div className="dragHandle relative aspect-square h-[26px]">
+          <div className="dragHandle relative aspect-square md:h-[26px] h-5">
             <Image
               src={"/drag-handle.svg"}
               alt="drag"
@@ -30,7 +30,7 @@ const Delegate = () => {
               className="object-contain"
             />
           </div>
-          <div className="relative aspect-square h-[44px]">
+          <div className="relative aspect-square h-[36px] md:h-[44px]">
             <Image
               src={"/thj-logo.png"}
               alt="thj-logo"
@@ -38,7 +38,7 @@ const Delegate = () => {
               className="object-contain"
             />
           </div>
-          <div className="relative aspect-square h-[44px]">
+          <div className="relative aspect-square h-[36px] md:h-[44px]">
             <Image
               src={"/jani-coin.png"}
               alt="jani-coin"
@@ -48,15 +48,15 @@ const Delegate = () => {
           </div>
         </div>
 
-        <p className="text-5xl font-bold text-black">
+        <p className="md:text-5xl text-3xl font-bold text-black">
           Delegate With The Honey Jar <span className="font-light">(THJ)</span>
         </p>
-        <div className="rounded-full border border-dashed border-black/40 p-2">
-          <button className="w-full rounded-full bg-black py-3 text-lg">
+        <div className="rounded-full border border-dashed border-black/40 md:p-2 p-1">
+          <button className="w-full rounded-full bg-black py-3 md:text-lg text-sm">
             Delegate Now
           </button>
         </div>
-        <p className="text-2xl text-[#414141]">
+        <p className="md:text-2xl text-lg text-[#414141]">
           Help us make the Fat Bera Thesis come true! Delegate to THJ and get
           rewarded!
         </p>

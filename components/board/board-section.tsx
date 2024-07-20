@@ -17,7 +17,7 @@ const BoardSection = () => {
   const resetRef = useRef<HTMLDivElement>(null);
   const ogLayout = DASHBOARD.map((dashboard) => dashboard.dataGrid);
 
-  const breakpoints = ["md", "sm", "xs"];
+  const breakpoints = ["lg", "md", "sm", "xs"];
   const ogLayouts = breakpoints.reduce((acc: any, breakpoint: any) => {
     acc[breakpoint] = DASHBOARD.map(
       (dashboard: any) =>
@@ -84,10 +84,25 @@ const BoardSection = () => {
     }
   };
 
-  const handleBreakpointChange = (breakpoint: any, newCols: any) => {
-    if (breakpoint === "md") setRowHeight(340);
-    else if (breakpoint === "sm") setRowHeight(300);
-    else setRowHeight(240);
+  const convertedTailwindBreakpoints = {
+    xs: 450 * 0.75,
+    sm: 640 * 0.75,
+    md: 768 * 0.75,
+    lg: 1024 * 0.75,
+  };
+
+  const handleBreakpointChange = (width: any) => {
+    // if (breakpoint === "md") setRowHeight(340);
+    // else if (breakpoint === "sm") setRowHeight(300);
+    // else setRowHeight(240);
+
+    if (width >= convertedTailwindBreakpoints.md) {
+      setRowHeight(340);
+    } else if (width >= convertedTailwindBreakpoints.sm && width < convertedTailwindBreakpoints.md) {
+      setRowHeight(300);
+    } else {
+      setRowHeight(280);
+    }
   };
 
   // determines if the swipe has hit the end
@@ -125,7 +140,7 @@ const BoardSection = () => {
           </p>
         </div>
       </div>
-      <div className="relative flex h-full w-[90%] flex-col items-center sm:w-4/5 lg:w-3/4">
+      <div className="relative flex h-full w-3/4 flex-col items-center">
         <div className="absolute top-20 h-[100px] w-full bg-[#F8A9291F] blur-[100px]" />
         <div className="mb-6 flex w-full gap-2 rounded-full border border-[#BCBCBC1A] px-2 py-1 md:px-4 md:py-3">
           <div className="w-fit rounded-full bg-gradient-to-r from-[#F2C8481F] to-[#F8A9291F] px-4 py-1.5">
@@ -141,16 +156,26 @@ const BoardSection = () => {
         </div>
         <ResponsiveGridLayout
           className="w-full rounded-2xl border border-[#BCBCBC1A] bg-[#0A0A0A] text-white"
-          breakpoints={{ md: 768, sm: 640, xs: 450 }}
-          cols={{ md: 3, sm: 2, xs: 1 }}
+          breakpoints={{
+            lg: convertedTailwindBreakpoints.lg,
+            md: convertedTailwindBreakpoints.md,
+            sm: convertedTailwindBreakpoints.sm,
+            xs: convertedTailwindBreakpoints.xs,
+          }}
+          cols={{ lg: 3, md: 2, sm: 2, xs: 1 }}
           rowHeight={rowHeight}
           draggableHandle=".dragHandle"
           layouts={layouts}
           isResizable={false}
-          margin={{ md: [30, 30], sm: [24, 24], xs: [16, 16] }}
-          containerPadding={{ md: [32, 48], sm: [28, 42], xs: [20, 30] }}
+          margin={{ lg: [30, 30], md: [28, 28], sm: [24, 24], xs: [16, 16] }}
+          containerPadding={{
+            lg: [32, 48],
+            md: [30, 45],
+            sm: [28, 42],
+            xs: [20, 30],
+          }}
           onLayoutChange={handleLayoutsChange}
-          onBreakpointChange={handleBreakpointChange}
+          onWidthChange={handleBreakpointChange}
         >
           {DASHBOARD.map((dashboard) => {
             return <div key={dashboard.key}>{dashboard.ui}</div>;
