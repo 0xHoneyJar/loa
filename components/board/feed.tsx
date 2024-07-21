@@ -1,9 +1,22 @@
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import DragHandle from "../drag-handle";
+import { retrieveTwitterFeed } from "@/actions/retrieve-twitter-feed";
+import TwitterDisplay from "../tweet-display";
 
 const Feed = () => {
   const [glow, setGlow] = useState(false);
+  const [tweets, setTweets] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function retrieveTweets() {
+      const data = await retrieveTwitterFeed();
+      setTweets(data);
+    }
+
+    retrieveTweets();
+  }, []);
+
   return (
     <div
       className={`relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D] ${glow && "rotate-[1deg]"}`}
@@ -18,7 +31,11 @@ const Feed = () => {
           <DragHandle setGlow={setGlow} />
           <p className="text-xl font-medium text-white">Feed</p>
         </div>
-        <a className="relative aspect-square h-[34px] cursor-pointer rounded-full border border-[#353535]">
+        <a
+          className="relative aspect-square h-[34px] cursor-pointer rounded-full border border-[#353535]"
+          href={"https://twitter.com/0xhoneyjar"}
+          target="_blank"
+        >
           <Image
             src={"/twitter.svg"}
             alt="twitter"
@@ -27,7 +44,12 @@ const Feed = () => {
           />
         </a>
       </div>
-      <div className="flex grow items-center justify-center"></div>
+      <div className="flex grow p-6 overflow-hidden">
+        <TwitterDisplay text={""} />
+        {/* {tweets.map((tweet, id) => (
+          <TwitterDisplay key={id}/>
+        ))} */}
+      </div>
     </div>
   );
 };
