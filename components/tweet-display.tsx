@@ -4,16 +4,10 @@ import { useEffect, useState } from "react";
 
 const TwitterDisplay = ({
   text,
-  //   id,
-  //   hidden,
-  //   tweetNum,
   show,
   swipeAction,
 }: {
   text: string;
-  //   id: number;
-  //   hidden: boolean;
-  //   tweetNum: number;
   show: boolean;
   swipeAction: () => void;
 }) => {
@@ -65,16 +59,16 @@ const TwitterDisplay = ({
       onMouseDown={mouseDownHandler}
     >
       <div className="flex items-center gap-2 px-6 py-4">
-        <div className="relative aspect-square h-[40px]">
+        <div className="relative aspect-square md:h-[40px] h-[32px]">
           <Image src={"/thj-logo.png"} alt="logo" fill />
         </div>
         <div className="flex flex-col">
-          <p>The Honey Jar</p>
-          <p className="text-sm text-[#ABABAB]">@0xhoneyjar</p>
+          <p className="md:text-base text-xs whitespace-nowrap">The Honey Jar</p>
+          <p className="md:text-sm text-[10px] text-[#ABABAB]">@0xhoneyjar</p>
         </div>
       </div>
-      <div className="flex h-full w-full overflow-hidden p-6">
-        <p className="overflow-y-auto">{text}</p>
+      <div className="flex h-full w-full overflow-hidden md:p-6 p-4">
+        <p className="overflow-y-auto font-light md:text-base text-xs overflow-x-hidden">{text}</p>
       </div>
     </motion.div>
   );

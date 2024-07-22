@@ -57,7 +57,7 @@ const Follow = () => {
             />
           </a>
         </div>
-        <div className="absolute flex items-end gap-2 md:bottom-8 bottom-6 justify-center inset-x-0 mx-auto">
+        <div className="absolute flex items-end gap-2 md:bottom-8 bottom-6 left-32 justify-center inset-x-0 mx-auto">
           <div className="relative aspect-square h-[42px] md:h-[50px]">
             <Image
               src={"/follow/arrow-swirl.svg"}
@@ -66,7 +66,7 @@ const Follow = () => {
               className="scale-x-110 object-contain"
             />
           </div>
-          <p className="text-[10px] text-[#747474]/65 md:text-xs">
+          <p className="text-[10px] text-[#747474]/65 md:text-xs whitespace-nowrap">
             Follow Us <span className="md:inline-flex hidden">For More</span>
           </p>
         </div>

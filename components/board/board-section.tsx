@@ -114,6 +114,8 @@ const BoardSection = () => {
     // else if (breakpoint === "sm") setRowHeight(300);
     // else setRowHeight(240);
 
+    // console.log(width)
+
     if (width >= convertedTailwindBreakpoints.md) {
       setRowHeight(340);
     } else if (
