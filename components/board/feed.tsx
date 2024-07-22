@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import DragHandle from "../drag-handle";
 import { retrieveTwitterFeed } from "@/actions/retrieve-twitter-feed";
 import TwitterDisplay from "../tweet-display";
+import { AnimatePresence } from "framer-motion";
+import SecondaryTweetDisplay from "../secondary-tweet-display";
 
 const Feed = () => {
   const [glow, setGlow] = useState(false);
@@ -24,7 +26,7 @@ const Feed = () => {
     //   const newTweets = [...prevTweets.slice(1), firstElement];
     //   return newTweets;
     // });
-    if (tweetNum >= tweets.length - 1) {
+    if (tweetNum === tweets.length - 1) {
       setTweetNum(0);
     } else {
       setTweetNum((prevNum) => prevNum + 1);
@@ -60,16 +62,33 @@ const Feed = () => {
       </div>
       <div className="flex grow overflow-hidden p-6">
         <div className="relative h-full w-full">
-        {tweets.map((tweet, id) => (
-          <TwitterDisplay
-            key={id}
-            text={id === tweetNum ? tweet.full_text : ""}
-            id={id}
-            tweetNum = {tweetNum}
-            hidden={id > 1}
-            swipeAction={swipeAction}
+          {/* <div className="absolute inset-x-0 -top-5 mx-auto h-full w-full scale-90 rounded-lg bg-[#1E1E1E]/30" /> */}
+          {/* {tweets.map((tweet, id) => (
+            <TwitterDisplay
+              key={id}
+              text={id === tweetNum ? tweet.full_text : ""}
+              id={id}
+              tweetNum={tweetNum}
+              hidden={id !== tweetNum}
+              swipeAction={swipeAction}
+            />
+          ))} */}
+          <SecondaryTweetDisplay
+            text={tweets[(tweetNum + 1) % (tweets.length - 1)]?.full_text}
           />
-        ))}
+          <AnimatePresence>
+            {tweets.map((tweet, id) => (
+              <TwitterDisplay
+                key={id}
+                text={tweet.full_text}
+                // id={id}
+                // tweetNum={tweetNum}
+                // hidden={id !== tweetNum}
+                show={id === tweetNum}
+                swipeAction={swipeAction}
+              />
+            ))}
+          </AnimatePresence>
         </div>
       </div>
     </div>

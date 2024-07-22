@@ -4,15 +4,17 @@ import { useEffect, useState } from "react";
 
 const TwitterDisplay = ({
   text,
-  id,
-  hidden,
-  tweetNum,
+  //   id,
+  //   hidden,
+  //   tweetNum,
+  show,
   swipeAction,
 }: {
   text: string;
-  id: number;
-  hidden: boolean;
-  tweetNum: number;
+  //   id: number;
+  //   hidden: boolean;
+  //   tweetNum: number;
+  show: boolean;
   swipeAction: () => void;
 }) => {
   const [scope, animate] = useAnimate();
@@ -50,34 +52,28 @@ const TwitterDisplay = ({
 
   return (
     <motion.div
-      className={`h-full w-full ${hidden && "hidden"} ${id == 1 ? "absolute -top-5 !scale-90" : "relative z-10"}`}
-      layout
-      // transition={{ type: "spring", stiffness: 600, damping: 30 }}
+      className={`relative flex h-full w-full flex-col divide-y divide-[#292929] rounded-lg bg-[#181818] ${drag ? "cursor-grabbing" : "cursor-grab"} ${!show ? "hidden" : ""}`}
+      drag="x"
+      animate={show ? { scale: 1, opacity: 1, top: 0 } : { opacity: 0 }}
+      initial={{ scale: 0.9, opacity: 0, top: -6 }}
+      exit={{ scale: 0.9, opacity: 0, x: 0 }}
+      transition={{ duration: 0.3 }}
+      onDragEnd={handleDragEnd}
+      ref={scope}
+      onMouseDown={mouseDownHandler}
     >
-      {/* <div className="absolute inset-x-0 -top-5 mx-auto h-full w-full scale-90 rounded-lg bg-[#1E1E1E]/30" /> */}
-      <motion.div
-        initial={id === tweetNum && { scale: 0.9 }}
-        animate={id === tweetNum && { scale: 1 }}
-        transition={{ duration: 0.3 }}
-        className={`relative flex h-full w-full flex-col divide-y divide-[#292929] rounded-lg ${id == 1 ? "bg-[#1E1E1E]/30" : "bg-[#181818]"} ${drag ? "cursor-grabbing" : "cursor-grab"}`}
-        drag="x"
-        onDragEnd={handleDragEnd}
-        ref={scope}
-        onMouseDown={mouseDownHandler}
-      >
-        <div className="flex items-center gap-2 px-6 py-4">
-          <div className="relative aspect-square h-[40px]">
-            <Image src={"/thj-logo.png"} alt="logo" fill />
-          </div>
-          <div className="flex flex-col">
-            <p>The Honey Jar</p>
-            <p className="text-sm text-[#ABABAB]">@0xhoneyjar</p>
-          </div>
+      <div className="flex items-center gap-2 px-6 py-4">
+        <div className="relative aspect-square h-[40px]">
+          <Image src={"/thj-logo.png"} alt="logo" fill />
         </div>
-        <div className="flex h-full w-full overflow-hidden p-6">
-          <p className="overflow-y-auto">{text}</p>
+        <div className="flex flex-col">
+          <p>The Honey Jar</p>
+          <p className="text-sm text-[#ABABAB]">@0xhoneyjar</p>
         </div>
-      </motion.div>
+      </div>
+      <div className="flex h-full w-full overflow-hidden p-6">
+        <p className="overflow-y-auto">{text}</p>
+      </div>
     </motion.div>
   );
 };
