@@ -10,8 +10,15 @@ import { INCUBATED } from "@/constants/incubated";
 import DragHandleY from "../drag-handle-y";
 import { useState } from "react";
 
-const Incubated = () => {
+const Incubated = ({ partners }: { partners?: any }) => {
   const [glow, setGlow] = useState(false);
+
+  const incubated = Array.isArray(partners)
+    ? partners.filter((partner: any) => partner.partner === "Incubated")
+    : [];
+
+  console.log(incubated);
+
   return (
     <div
       className={`${glow && "rotate-[1deg]"} relative h-full overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
@@ -48,19 +55,21 @@ const Incubated = () => {
           </div>
         </div>
         <CarouselContent className="flex h-full w-full items-center py-6 pl-6">
-          {INCUBATED.map((item, id) => (
+          {incubated.map((item, id) => (
             <CarouselItem key={id} className="h-full pl-5">
               <div className="relative flex h-full w-[196px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90">
                 <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                 <div className="relative mb-4 mt-6 aspect-square h-[100px] rounded-full border border-[#F4C10B0F] bg-[#18140C05]">
                   <Image
-                    src={item.image}
+                    src={
+                      "https://d163aeqznbc6js.cloudfront.net/images" + item.logo
+                    }
                     alt={item.name}
                     fill
-                    className="object-contain p-4"
+                    className="rounded-full object-cover p-4"
                   />
                 </div>
-                <p className="text-lg">{item.name}</p>
+                <p className="text-lg">{item._title}</p>
               </div>
             </CarouselItem>
           ))}

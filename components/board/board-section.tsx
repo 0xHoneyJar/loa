@@ -4,7 +4,7 @@ import RGL, { WidthProvider, Responsive } from "react-grid-layout";
 import { DASHBOARD } from "@/constants/dashboard";
 import Marquee from "react-fast-marquee";
 import { motion } from "framer-motion";
-import { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { RotateCcw } from "lucide-react";
 import "react-grid-layout/css/styles.css";
 // import "react-resizable/css/styles.css";
@@ -12,7 +12,7 @@ import "react-grid-layout/css/styles.css";
 // const ReactGridLayout = WidthProvider(RGL);
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
-const BoardSection = () => {
+const BoardSection = ({ partners }: { partners: any }) => {
   const constraintsRef = useRef<HTMLDivElement>(null);
   const resetRef = useRef<HTMLDivElement>(null);
   const ogLayout = DASHBOARD.map((dashboard) => dashboard.dataGrid);
@@ -200,6 +200,13 @@ const BoardSection = () => {
           onWidthChange={handleBreakpointChange}
         >
           {DASHBOARD.map((dashboard) => {
+            if (dashboard.key === "incubated") {
+              return (
+                <div key={dashboard.key}>
+                  {React.cloneElement(dashboard.ui, { partners })}
+                </div>
+              );
+            }
             return <div key={dashboard.key}>{dashboard.ui}</div>;
           })}
         </ResponsiveGridLayout>

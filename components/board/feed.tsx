@@ -73,7 +73,7 @@ const Feed = () => {
               swipeAction={swipeAction}
             />
           ))} */}
-          <SecondaryTweetDisplay
+          {/* <SecondaryTweetDisplay
             text={tweets[(tweetNum + 1) % (tweets.length - 1)]?.full_text}
           />
           {tweets.map((tweet, id) => (
@@ -86,7 +86,7 @@ const Feed = () => {
               show={id === tweetNum}
               swipeAction={swipeAction}
             />
-          ))}
+          ))} */}
         </div>
       </div>
     </div>
