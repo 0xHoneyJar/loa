@@ -62,31 +62,17 @@ const Feed = () => {
       </div>
       <div className="flex grow overflow-hidden p-6">
         <div className="relative h-full w-full">
-          {/* <div className="absolute inset-x-0 -top-5 mx-auto h-full w-full scale-90 rounded-lg bg-[#1E1E1E]/30" /> */}
-          {/* {tweets.map((tweet, id) => (
-            <TwitterDisplay
-              key={id}
-              text={id === tweetNum ? tweet.full_text : ""}
-              id={id}
-              tweetNum={tweetNum}
-              hidden={id !== tweetNum}
-              swipeAction={swipeAction}
-            />
-          ))} */}
-          {/* <SecondaryTweetDisplay
+          <SecondaryTweetDisplay
             text={tweets[(tweetNum + 1) % (tweets.length - 1)]?.full_text}
           />
           {tweets.map((tweet, id) => (
             <TwitterDisplay
               key={id}
               text={tweet.full_text}
-              // id={id}
-              // tweetNum={tweetNum}
-              // hidden={id !== tweetNum}
               show={id === tweetNum}
               swipeAction={swipeAction}
             />
-          ))} */}
+          ))}
         </div>
       </div>
     </div>
