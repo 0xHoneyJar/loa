@@ -88,7 +88,7 @@ const Honeycomb = () => {
                 <div className="relative flex h-full w-full flex-col items-center justify-center rounded-lg border border-[#F5D0110A] bg-[#15120B]">
                   <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                   <p className="text-sm text-[#6B6B6B]">Floor Price</p>
-                  <p className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
                     <div className="relative aspect-square h-[16px]">
                       <Image
                         src={"/floor-price.svg"}
@@ -97,8 +97,8 @@ const Honeycomb = () => {
                         className="object-contain"
                       />
                     </div>
-                    333,286.24 ETH
-                  </p>
+                    <p className="whitespace-nowrap">333,286.24 ETH</p>
+                  </div>
                 </div>
                 <div className="relative flex h-full w-full flex-col items-center justify-center rounded-lg border border-[#F5D0110A] bg-[#15120B]">
                   <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />

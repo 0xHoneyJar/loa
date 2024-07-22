@@ -17,6 +17,14 @@ const Feed = () => {
     retrieveTweets();
   }, []);
 
+  const swipeAction = () => {
+    setTweets((prevTweets) => {
+      const firstElement = prevTweets[0];
+      const newTweets = [...prevTweets.slice(1), firstElement];
+      return newTweets;
+    });
+  };
+
   return (
     <div
       className={`relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D] ${glow && "rotate-[1deg]"}`}
@@ -44,11 +52,17 @@ const Feed = () => {
           />
         </a>
       </div>
-      <div className="flex grow p-6 overflow-hidden">
-        <TwitterDisplay text={""} />
-        {/* {tweets.map((tweet, id) => (
-          <TwitterDisplay key={id}/>
-        ))} */}
+      <div className="flex grow overflow-hidden p-6">
+        <div className="relative h-full w-full">
+          {tweets.map((tweet, id) => (
+            <TwitterDisplay
+              key={id}
+              text={tweet.full_text}
+              id={id}
+              swipeAction={swipeAction}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
