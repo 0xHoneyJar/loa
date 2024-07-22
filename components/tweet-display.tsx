@@ -54,9 +54,11 @@ const TwitterDisplay = ({
     <motion.div
       className={`relative flex h-full w-full flex-col divide-y divide-[#292929] rounded-lg bg-[#181818] ${drag ? "cursor-grabbing" : "cursor-grab"} ${!show ? "hidden" : ""}`}
       drag="x"
-      animate={show ? { scale: 1, opacity: 1, top: 0 } : { opacity: 0 }}
-      initial={{ scale: 0.9, opacity: 0, top: -6 }}
-      exit={{ scale: 0.9, opacity: 0, x: 0 }}
+      animate={
+        show
+          ? { scale: 1, opacity: 1 }
+          : { scale: 0.9, opacity: 0, x: 0, y: -24 }
+      }
       transition={{ duration: 0.3 }}
       onDragEnd={handleDragEnd}
       ref={scope}

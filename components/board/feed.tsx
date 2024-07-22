@@ -76,19 +76,17 @@ const Feed = () => {
           <SecondaryTweetDisplay
             text={tweets[(tweetNum + 1) % (tweets.length - 1)]?.full_text}
           />
-          <AnimatePresence>
-            {tweets.map((tweet, id) => (
-              <TwitterDisplay
-                key={id}
-                text={tweet.full_text}
-                // id={id}
-                // tweetNum={tweetNum}
-                // hidden={id !== tweetNum}
-                show={id === tweetNum}
-                swipeAction={swipeAction}
-              />
-            ))}
-          </AnimatePresence>
+          {tweets.map((tweet, id) => (
+            <TwitterDisplay
+              key={id}
+              text={tweet.full_text}
+              // id={id}
+              // tweetNum={tweetNum}
+              // hidden={id !== tweetNum}
+              show={id === tweetNum}
+              swipeAction={swipeAction}
+            />
+          ))}
         </div>
       </div>
     </div>
