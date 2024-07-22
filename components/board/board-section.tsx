@@ -200,7 +200,10 @@ const BoardSection = ({ partners }: { partners: any }) => {
           onWidthChange={handleBreakpointChange}
         >
           {DASHBOARD.map((dashboard) => {
-            if (dashboard.key === "incubated") {
+            if (
+              dashboard.key === "incubated" ||
+              dashboard.key === "newPartners"
+            ) {
               return (
                 <div key={dashboard.key}>
                   {React.cloneElement(dashboard.ui, { partners })}

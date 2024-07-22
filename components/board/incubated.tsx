@@ -17,8 +17,6 @@ const Incubated = ({ partners }: { partners?: any }) => {
     ? partners.filter((partner: any) => partner.partner === "Incubated")
     : [];
 
-  console.log(incubated);
-
   return (
     <div
       className={`${glow && "rotate-[1deg]"} relative h-full overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}

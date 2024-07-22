@@ -13,6 +13,7 @@ export default async function Home() {
           _title: true,
           logo: true,
           partner: true,
+          startDate: true,
         },
       },
     },
