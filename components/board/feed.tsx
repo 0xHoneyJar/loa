@@ -7,6 +7,7 @@ import TwitterDisplay from "../tweet-display";
 const Feed = () => {
   const [glow, setGlow] = useState(false);
   const [tweets, setTweets] = useState<any[]>([]);
+  const [tweetNum, setTweetNum] = useState(0);
 
   useEffect(() => {
     async function retrieveTweets() {
@@ -18,11 +19,16 @@ const Feed = () => {
   }, []);
 
   const swipeAction = () => {
-    setTweets((prevTweets) => {
-      const firstElement = prevTweets[0];
-      const newTweets = [...prevTweets.slice(1), firstElement];
-      return newTweets;
-    });
+    // setTweets((prevTweets) => {
+    //   const firstElement = prevTweets[0];
+    //   const newTweets = [...prevTweets.slice(1), firstElement];
+    //   return newTweets;
+    // });
+    if (tweetNum >= tweets.length - 1) {
+      setTweetNum(0);
+    } else {
+      setTweetNum((prevNum) => prevNum + 1);
+    }
   };
 
   return (
@@ -54,14 +60,16 @@ const Feed = () => {
       </div>
       <div className="flex grow overflow-hidden p-6">
         <div className="relative h-full w-full">
-          {tweets.map((tweet, id) => (
-            <TwitterDisplay
-              key={id}
-              text={tweet.full_text}
-              id={id}
-              swipeAction={swipeAction}
-            />
-          ))}
+        {tweets.map((tweet, id) => (
+          <TwitterDisplay
+            key={id}
+            text={id === tweetNum ? tweet.full_text : ""}
+            id={id}
+            tweetNum = {tweetNum}
+            hidden={id > 1}
+            swipeAction={swipeAction}
+          />
+        ))}
         </div>
       </div>
     </div>

@@ -5,10 +5,14 @@ import { useEffect, useState } from "react";
 const TwitterDisplay = ({
   text,
   id,
+  hidden,
+  tweetNum,
   swipeAction,
 }: {
   text: string;
   id: number;
+  hidden: boolean;
+  tweetNum: number;
   swipeAction: () => void;
 }) => {
   const [scope, animate] = useAnimate();
@@ -46,12 +50,16 @@ const TwitterDisplay = ({
 
   return (
     <motion.div
-      className={`h-full ${id > 1 && "hidden"} ${id == 1 ? "absolute inset-x-0 -top-5 mx-auto !scale-90" : "relative z-10 w-full"}`}
+      className={`h-full w-full ${hidden && "hidden"} ${id == 1 ? "absolute -top-5 !scale-90" : "relative z-10"}`}
       layout
-      transition={{ type: "spring", stiffness: 600, damping: 30 }}
+      // transition={{ type: "spring", stiffness: 600, damping: 30 }}
     >
+      {/* <div className="absolute inset-x-0 -top-5 mx-auto h-full w-full scale-90 rounded-lg bg-[#1E1E1E]/30" /> */}
       <motion.div
-        className={`flex h-full w-full flex-col divide-y divide-[#292929] rounded-lg ${id == 1 ? "bg-[#1E1E1E]/30" : "bg-[#181818]"} ${drag ? "cursor-grabbing" : "cursor-grab"}`}
+        initial={id === tweetNum && { scale: 0.9 }}
+        animate={id === tweetNum && { scale: 1 }}
+        transition={{ duration: 0.3 }}
+        className={`relative flex h-full w-full flex-col divide-y divide-[#292929] rounded-lg ${id == 1 ? "bg-[#1E1E1E]/30" : "bg-[#181818]"} ${drag ? "cursor-grabbing" : "cursor-grab"}`}
         drag="x"
         onDragEnd={handleDragEnd}
         ref={scope}
