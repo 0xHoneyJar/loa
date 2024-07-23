@@ -12,6 +12,7 @@ import { PARTNERS } from "@/constants/partners";
 const NewPartners = ({ partners }: { partners?: any }) => {
   const recentPartners = partners
     .sort((a: any, b: any) => b.startDate?.getTime() - a.startDate?.getTime())
+    .filter((partner: any) => partner.partner !== "Incubated")
     .slice(0, 10);
 
   return (
