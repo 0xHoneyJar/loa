@@ -37,8 +37,8 @@ const Tools = () => {
           {TOOLS.map((item, id) => (
             <CarouselItem key={id} className="h-full pl-5">
               <div className="flex h-full w-[196px] flex-col items-center justify-center rounded-lg border border-[#161616] bg-[#121212] text-[#C4C4C4] hover:cursor-blue hover:border-[#373737] hover:bg-[#1A1A1A] hover:font-medium hover:text-white">
-                <div className="mb-4 mt-6 aspect-square h-[100px] rounded-full bg-[#FD4D01]" />
-                <p className="">{item.name}</p>
+                <div className="mb-4 mt-6 aspect-square md:h-[100px] h-[80px] rounded-full bg-[#FD4D01]" />
+                <p className="md:text-base text-xs">{item.name}</p>
               </div>
             </CarouselItem>
           ))}

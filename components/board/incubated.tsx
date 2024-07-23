@@ -42,7 +42,7 @@ const Incubated = ({ partners }: { partners?: any }) => {
                   className="object-contain"
                 />
               </div>
-              <p className="whitespace-nowrap bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-transparent">
+              <p className="whitespace-nowrap bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-transparent md:text-base text-xs">
                 Updated Recently
               </p>
             </div>
@@ -57,17 +57,17 @@ const Incubated = ({ partners }: { partners?: any }) => {
             <CarouselItem key={id} className="h-full pl-5">
               <div className="relative flex h-full w-[196px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90">
                 <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                <div className="relative mb-4 mt-6 aspect-square h-[100px] rounded-full border border-[#F4C10B0F] bg-[#18140C05]">
+                <div className="relative mb-4 mt-6 aspect-square md:h-[100px] h-[80px] rounded-full border border-[#F4C10B0F] bg-[#18140C05]">
                   <Image
                     src={
                       "https://d163aeqznbc6js.cloudfront.net/images" + item.logo
                     }
                     alt={item.name}
                     fill
-                    className="rounded-full object-cover p-4"
+                    className="rounded-full object-cover md:p-4 p-2"
                   />
                 </div>
-                <p className="text-lg">{item._title}</p>
+                <p className="md:text-lg text-sm">{item._title}</p>
               </div>
             </CarouselItem>
           ))}

@@ -103,10 +103,10 @@ const BoardSection = ({ partners }: { partners: any }) => {
   };
 
   const convertedTailwindBreakpoints = {
-    xs: 380,
-    sm: 540,
-    md: 648,
-    lg: 864,
+    xs: 378,
+    sm: 538,
+    md: 646,
+    lg: 862,
   };
 
   const handleBreakpointChange = (width: any) => {
@@ -114,7 +114,7 @@ const BoardSection = ({ partners }: { partners: any }) => {
     // else if (breakpoint === "sm") setRowHeight(300);
     // else setRowHeight(240);
 
-    // console.log(width);
+    console.log(width);
 
     if (width >= convertedTailwindBreakpoints.md) {
       setRowHeight(340);

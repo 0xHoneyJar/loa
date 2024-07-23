@@ -28,7 +28,7 @@ const Development = () => {
           <div className="absolute bottom-0 left-0 z-10 h-1/6 w-full bg-gradient-to-t from-[#0F0F0F]" />
           <div className="relative flex min-h-full w-full grow flex-col gap-12 border-l border-dashed border-[#4C4C4C] pl-8 pt-4 md:gap-20 md:pl-12 md:pt-6">
             <div className="relative flex flex-col gap-3">
-              <div className="absolute -left-[54px] top-2 aspect-[4/1] h-2 md:h-3">
+              <div className="absolute -left-[36px] top-2 aspect-[4/1] h-2 md:-left-[54px] md:h-3">
                 <Image
                   src={"/development-pointer.svg"}
                   alt="pointer"
@@ -61,7 +61,7 @@ const Development = () => {
               )}
             </div>
             <div className="relative flex flex-col gap-3">
-              <div className="absolute -left-[54px] top-2 aspect-[4/1] h-2 md:h-3">
+              <div className="absolute -left-[36px] top-2 aspect-[4/1] h-2 md:-left-[54px] md:h-3">
                 <Image
                   src={"/development-pointer.svg"}
                   alt="pointer"
@@ -94,7 +94,7 @@ const Development = () => {
               )}
             </div>
             <div className="relative flex flex-col gap-3">
-              <div className="absolute -left-[54px] top-2 aspect-[4/1] md:h-3 h-2">
+              <div className="absolute -left-[36px] top-2 aspect-[4/1] h-2 md:-left-[54px] md:h-3">
                 <Image
                   src={"/development-pointer.svg"}
                   alt="pointer"
