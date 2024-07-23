@@ -103,10 +103,10 @@ const BoardSection = ({ partners }: { partners: any }) => {
   };
 
   const convertedTailwindBreakpoints = {
-    xs: 450 * 0.75,
-    sm: 640 * 0.75,
-    md: 768 * 0.75,
-    lg: 1024 * 0.75,
+    xs: 380,
+    sm: 540,
+    md: 648,
+    lg: 864,
   };
 
   const handleBreakpointChange = (width: any) => {
@@ -114,7 +114,7 @@ const BoardSection = ({ partners }: { partners: any }) => {
     // else if (breakpoint === "sm") setRowHeight(300);
     // else setRowHeight(240);
 
-    // console.log(width)
+    // console.log(width);
 
     if (width >= convertedTailwindBreakpoints.md) {
       setRowHeight(340);
@@ -164,7 +164,7 @@ const BoardSection = ({ partners }: { partners: any }) => {
           </p>
         </div>
       </div>
-      <div className="relative flex h-full w-3/4 flex-col items-center">
+      <div className="relative flex h-full w-[380px] flex-col items-center sm:w-[540px] md:w-[648px] lg:w-[864px] xl:w-[1080px] 2xl:w-[1296px]">
         <div className="absolute top-20 h-[100px] w-full bg-[#F8A9291F] blur-[100px]" />
         <div className="mb-6 flex w-full gap-2 rounded-full border border-[#BCBCBC1A] px-2 py-1 md:px-4 md:py-3">
           <div className="w-fit rounded-full bg-gradient-to-r from-[#F2C8481F] to-[#F8A9291F] px-4 py-1.5">
