@@ -103,10 +103,10 @@ const BoardSection = ({ partners }: { partners: any }) => {
   };
 
   const convertedTailwindBreakpoints = {
-    xs: 378,
-    sm: 538,
-    md: 646,
-    lg: 862,
+    xs: 0,
+    sm: 380,
+    md: 540,
+    lg: 648,
   };
 
   const handleBreakpointChange = (width: any) => {
@@ -114,7 +114,7 @@ const BoardSection = ({ partners }: { partners: any }) => {
     // else if (breakpoint === "sm") setRowHeight(300);
     // else setRowHeight(240);
 
-    console.log(width);
+    // console.log(width);
 
     if (width >= convertedTailwindBreakpoints.md) {
       setRowHeight(340);
@@ -186,12 +186,17 @@ const BoardSection = ({ partners }: { partners: any }) => {
             sm: convertedTailwindBreakpoints.sm,
             xs: convertedTailwindBreakpoints.xs,
           }}
-          cols={{ lg: 3, md: 2, sm: 2, xs: 1 }}
+          cols={{ xl: 3, lg: 3, md: 2, sm: 2, xs: 1 }}
           rowHeight={rowHeight}
           draggableHandle=".dragHandle"
           layouts={layouts}
           isResizable={false}
-          margin={{ lg: [30, 30], md: [28, 28], sm: [24, 24], xs: [16, 16] }}
+          margin={{
+            lg: [30, 30],
+            md: [28, 28],
+            sm: [24, 24],
+            xs: [16, 16],
+          }}
           containerPadding={{
             lg: [32, 48],
             md: [30, 45],

@@ -52,7 +52,7 @@ const Incubated = ({ partners }: { partners?: any }) => {
             <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-8" />
           </div>
         </div>
-        <CarouselContent className="flex h-full w-full items-center py-6 pl-6">
+        <CarouselContent className="flex h-full w-full items-center md:py-6 py-4 md:pl-6 pl-4">
           {incubated.map((item, id) => (
             <CarouselItem key={id} className="h-full pl-5">
               <div className="relative flex h-full w-[196px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90">

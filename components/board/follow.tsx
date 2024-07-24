@@ -19,11 +19,11 @@ const Follow = () => {
         </div>
       </div>
       <div className="relative flex grow items-center justify-center px-6">
-        <div className="flex flex-row items-center gap-3 rounded-full border border-dashed border-[#747474]/40 px-4 py-3">
+        <div className="flex flex-row items-center gap-2 rounded-full border border-dashed border-[#747474]/40 px-4 py-3 md:gap-3">
           <a
             href={"https://x.com/0xhoneyjar"}
             target="_blank"
-            className="relative aspect-square h-[32px] opacity-70 hover:cursor-blue hover:opacity-100 md:h-[40px]"
+            className="relative aspect-square md:h-[32px] h-[26px] opacity-70 hover:cursor-blue hover:opacity-100 lg:h-[40px]"
           >
             <Image
               src={"/follow/twitter.svg"}
@@ -35,7 +35,7 @@ const Follow = () => {
           <a
             href={"https://discord.com/invite/thehoneyjar"}
             target="_blank"
-            className="relative aspect-square h-[46px] opacity-70 hover:cursor-blue hover:opacity-100 md:h-[58px]"
+            className="relative aspect-square h-[38px] opacity-70 hover:cursor-blue hover:opacity-100 md:h-[46px] lg:h-[58px]"
           >
             <Image
               src={"/follow/discord.svg"}
@@ -47,7 +47,7 @@ const Follow = () => {
           <a
             href={"https://warpcast.com/0xhoneyjar"}
             target="_blank"
-            className="relative aspect-square h-[46px] opacity-70 hover:cursor-blue hover:opacity-100 md:h-[58px]"
+            className="relative aspect-square h-[38px] opacity-70 hover:cursor-blue hover:opacity-100 md:h-[46px] lg:h-[58px]"
           >
             <Image
               src={"/follow/farcaster.svg"}
@@ -57,7 +57,7 @@ const Follow = () => {
             />
           </a>
         </div>
-        <div className="absolute flex items-end gap-2 md:bottom-8 bottom-6 left-32 justify-center inset-x-0 mx-auto">
+        <div className="absolute inset-x-0 bottom-6 left-32 mx-auto flex items-end justify-center gap-2 md:bottom-8">
           <div className="relative aspect-square h-[42px] md:h-[50px]">
             <Image
               src={"/follow/arrow-swirl.svg"}
@@ -66,8 +66,8 @@ const Follow = () => {
               className="scale-x-110 object-contain"
             />
           </div>
-          <p className="text-[10px] text-[#747474]/65 md:text-xs whitespace-nowrap">
-            Follow Us <span className="md:inline-flex hidden">For More</span>
+          <p className="whitespace-nowrap text-[10px] text-[#747474]/65 md:text-xs">
+            Follow Us <span className="hidden md:inline-flex">For More</span>
           </p>
         </div>
       </div>

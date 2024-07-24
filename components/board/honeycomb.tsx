@@ -46,12 +46,12 @@ const Honeycomb = () => {
               className="object-cover"
             />
             <div className="z-10 flex w-1/2 flex-col gap-4 pr-12">
-              <p className="text-[#D1D1D1]">
+              <p className="text-[#D1D1D1] lg:text-base md:text-sm text-xs">
                 Honeycomb is an anti-hustle tech and a perk aggregator of the
                 Berachain eco. It gives you whitelist to most projects in the
                 ecosystem
               </p>
-              <button className="flex items-center justify-center gap-2 rounded-lg border border-[#1E1E1E] bg-[#0F0D08] py-3">
+              <button className="flex whitespace-nowrap items-center justify-center gap-2 rounded-lg border border-[#1E1E1E] bg-[#0F0D08] py-3">
                 <div className="relative aspect-square h-[26px] rounded-full">
                   <Image
                     src={"/opensea.svg"}

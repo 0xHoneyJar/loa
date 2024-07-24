@@ -2,9 +2,9 @@ import { ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 import DragHandleY from "../drag-handle-y";
 import { useState } from "react";
+import { BLOGS } from "@/constants/blog";
 
 const Blog = () => {
-  const [hover, setHover] = useState(false);
   const [glow, setGlow] = useState(false);
   return (
     <div
@@ -12,49 +12,35 @@ const Blog = () => {
     >
       <div className="absolute -top-40 h-1 w-full" id="blog" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
-      <div className="relative flex md:h-20 h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] md:px-6 px-4">
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-20 md:px-6">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
         <div className="flex items-center gap-2">
           <DragHandleY setGlow={setGlow} />
-          <p className="md:text-xl font-medium text-[#FFD700]">Our Blog</p>
+          <p className="font-medium text-[#FFD700] md:text-xl">Our Blog</p>
         </div>
       </div>
-      <div className="flex md:p-6 p-4 grow">
-        <div className="grid w-full grid-cols-4 gap-6">
-          <div className="relative flex h-full w-full flex-col gap-3">
-            <div
-              onMouseEnter={() => setHover(true)}
-              onMouseLeave={() => setHover(false)}
-              className={`relative h-[140px] w-full overflow-hidden rounded-xl border ${hover ? "cursor-blue border-[#F5D011D9]" : "border-[#2B2B2B]"}`}
-            >
-              <Image
-                src={"/update-placeholder.png"}
-                alt=""
-                fill
-                className="object-cover"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center justify-between">
-                <p
-                  className={`font-medium ${hover ? "text-[#F5D011]" : "text-white"}`}
-                >
-                  Heading
-                </p>
-                <ArrowUpRight
-                  className={`aspect-square h-[20px] ${hover ? "text-[#F5D011]" : "text-white/15"} `}
-                />
-              </div>
-              <p className="text-sm text-[#A9A9A9]">Description</p>
-            </div>
-          </div>
+      <div className="flex grow overflow-hidden p-4 md:p-6">
+        <div className="grid w-full grid-cols-2 gap-4 md:grid-cols-4 md:gap-5 lg:gap-6">
+          {BLOGS.map((blog, id) => (
+            <BlogDisplay
+              heading={blog.heading}
+              description={blog.desc}
+              link={blog.link}
+              key={id}
+            />
+          ))}
           <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-xl border border-[#2B2B2B]">
             <Image src={"/blog.png"} alt="blog" fill className="object-cover" />
-            <button className="hover:bg-[#5A5A5A]/50 z-10 flex gap-1 rounded-full border border-[#3B3B3B] bg-[#5A5A5A]/30 px-4 py-2 backdrop-blur-lg hover:cursor-blue">
-              Read Now <ArrowUpRight />
-            </button>
+            <a
+              href={"https://0xhoneyjar.mirror.xyz/"}
+              target="_blank"
+              className="z-10 flex items-center gap-1 whitespace-nowrap rounded-full border border-[#3B3B3B] bg-[#5A5A5A]/30 px-2 py-1 text-xs backdrop-blur-lg hover:cursor-blue hover:bg-[#5A5A5A]/50 md:px-3 md:py-2 md:text-sm lg:px-4 lg:text-base"
+            >
+              Read Now{" "}
+              <ArrowUpRight className="aspect-square h-4 md:h-5 lg:h-6" />
+            </a>
           </div>
         </div>
       </div>
@@ -63,3 +49,46 @@ const Blog = () => {
 };
 
 export default Blog;
+
+const BlogDisplay = ({
+  heading,
+  description,
+  link,
+}: {
+  heading: string;
+  description: string;
+  link: string;
+}) => {
+  const [hover, setHover] = useState(false);
+  return (
+    <div className="relative flex h-full w-full flex-col gap-2 overflow-hidden md:gap-3">
+      <a
+        href={link}
+        target="_blank"
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        className={`relative flex h-[140px] w-full shrink-0 overflow-hidden rounded-xl border ${hover ? "cursor-blue border-[#F5D011D9]" : "border-[#2B2B2B]"}`}
+      >
+        <Image
+          src={"/update-placeholder.png"}
+          alt=""
+          fill
+          className="object-cover"
+        />
+      </a>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between">
+          <p
+            className={`whitespace-nowrap text-xs font-medium md:text-base ${hover ? "text-[#F5D011]" : "text-white"}`}
+          >
+            {heading}
+          </p>
+          <ArrowUpRight
+            className={`aspect-square h-3 md:h-4 lg:h-5 ${hover ? "text-[#F5D011]" : "text-white/15"} `}
+          />
+        </div>
+        <p className="text-[10px] text-[#A9A9A9] md:text-sm">{description}</p>
+      </div>
+    </div>
+  );
+};
