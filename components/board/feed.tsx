@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import DragHandle from "../drag-handle";
 import { retrieveTwitterFeed } from "@/actions/retrieve-twitter-feed";
 import TwitterDisplay from "../tweet-display";
-import { AnimatePresence } from "framer-motion";
 import SecondaryTweetDisplay from "../secondary-tweet-display";
 
 const Feed = () => {

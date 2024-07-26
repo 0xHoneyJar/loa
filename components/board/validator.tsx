@@ -14,17 +14,17 @@ const Validator = () => {
     >
       <div className="absolute -top-40 h-1 w-full" id="validator" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#43AA77]" />
-      <div className="relative flex md:h-20 h-16 shrink-0 items-center justify-between border-b border-dashed border-[#1B271B] md:px-6 px-4">
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#1B271B] px-4 md:h-20 md:px-6">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#43AA77] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
         <div className="flex items-center gap-2">
           <DragHandle setGlow={setGlow} />
-          <p className="md:text-xl text-white font-medium">Validator</p>
+          <p className="font-medium text-white md:text-xl">Validator</p>
         </div>
       </div>
       <div className="flex grow flex-col">
-        <div className="grid h-full w-full grid-cols-3 gap-4 p-6">
+        <div className="grid h-[85%] w-full grid-cols-3 gap-4 p-6">
           <div className="grid h-full w-full grid-rows-3 gap-4">
             <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
               <p className="text-[#6B6B6B]">Delegated to THJ (BGT)</p>
@@ -89,9 +89,9 @@ const Validator = () => {
             </div>
           </div>
           <div className="relative flex h-full w-full flex-col items-center rounded-2xl border border-[#202020] bg-[#121212] py-6">
-            <div className="relative flex h-full w-full items-center justify-center flex-col">
+            <div className="relative flex h-full w-full flex-col items-center justify-center">
               <p className="absolute top-0 text-[#6B6B6B]">Voting Power</p>
-              <div className="aspect-square h-[135px] mb-8">
+              <div className="mb-8 aspect-square h-[135px]">
                 <CircularProgressbarWithChildren
                   value={50}
                   strokeWidth={14}
@@ -110,7 +110,7 @@ const Validator = () => {
                   </p>
                 </CircularProgressbarWithChildren>
               </div>
-              <div className=" flex justify-center gap-2 text-[#C7C7C7]">
+              <div className="flex justify-center gap-2 text-[#C7C7C7]">
                 <div className="flex items-center justify-center gap-1">
                   <div className="aspect-square h-[14px] rounded-full bg-[#43AA77]" />
                   <p className="text-xs font-light md:text-sm">THJ</p>
@@ -123,7 +123,7 @@ const Validator = () => {
             </div>
           </div>
         </div>
-        <div className="flex h-[112px] w-full shrink-0 items-center justify-between border-t border-[#1B271B] px-6">
+        <div className="flex h-[15%] w-full items-center justify-between border-t border-[#1B271B] p-4 px-6 md:p-6">
           <div className="flex items-center gap-2">
             <div className="relative aspect-square h-[38px]">
               <Image
@@ -135,8 +135,14 @@ const Validator = () => {
             </div>
             <p className="text-xl font-light text-white">Needs Your Support</p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="relative aspect-square h-[100px]">
+          <div className="flex h-full items-center gap-2">
+            <button className="h-full rounded-full border border-white/5 bg-white/5 px-6 font-medium text-white hover:cursor-blue hover:border-white/20 hover:bg-white/20">
+              View Validator
+            </button>
+            <button className="h-full rounded-full bg-[#43AA77] px-6 font-medium text-black hover:cursor-blue hover:shadow-evergreen">
+              Delegate Now
+            </button>
+            {/* <div className="relative aspect-square h-[100px]">
               <Image
                 src={"/arrow-wiggle.svg"}
                 alt="arrow-wiggle"
@@ -148,7 +154,7 @@ const Validator = () => {
               <button className="rounded-full bg-[#43AA77] px-6 py-2 font-medium text-black hover:cursor-blue hover:shadow-evergreen">
                 Delegate Now
               </button>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>

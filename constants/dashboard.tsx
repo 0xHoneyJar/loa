@@ -254,10 +254,10 @@ export const DASHBOARD = [
     key: "beardrops",
     dataGrid: {
       i: "beardrops",
-      x: 1,
+      x: 0,
       y: 22,
       w: 3,
-      h: 1,
+      h: 2,
     },
     ui: <Beardrops />,
     hidden: false,
