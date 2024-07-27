@@ -48,26 +48,28 @@ const NewPartners = ({ partners }: { partners?: any }) => {
         <CarouselContent className="flex h-full w-full py-4 pl-4 md:py-6 md:pl-6">
           {recentPartners.map((item: any, id: any) => (
             <CarouselItem className="" key={id}>
-              <div className="relative flex h-full w-[196px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#E0E0E0] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:text-white/90">
+              <div className="relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#E0E0E0] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:text-white/90 md:w-[196px]">
                 <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                <div className="relative mb-2 aspect-square md:h-[100px] h-[80px] rounded-full border border-[#F4C10B0F] bg-[#18140C05]">
+                <div className="relative mb-2 aspect-square h-16 overflow-hidden rounded-full border border-[#F4C10B0F] bg-[#18140C05] sm:h-[80px] md:h-[100px]">
                   <Image
                     src={
                       "https://d163aeqznbc6js.cloudfront.net/images" + item.logo
                     }
                     alt={item._title}
                     fill
-                    className="rounded-full object-cover md:p-4 p-2"
+                    className="object-cover"
                   />
                 </div>
-                <p className="mb-1 md:text-base text-xs">{item._title}</p>
+                <p className="mb-1 text-xs sm:text-sm md:text-base">
+                  {item._title}
+                </p>
                 <StatusDisplay status={item.partner.toLowerCase()} />
               </div>
             </CarouselItem>
           ))}
           <CarouselItem className="">
-            <div className="relative flex aspect-square h-full w-[196px] items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B]/10 hover:bg-[#533802] hover:text-white/90">
-              <p className="flex md:text-base text-xs">
+            <div className="relative flex aspect-square h-full w-[178px] items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B]/10 hover:bg-[#533802] hover:text-white/90 md:w-[196px]">
+              <p className="flex text-xs sm:text-sm md:text-base">
                 Explore All <ArrowUpRight />
               </p>
             </div>
@@ -99,7 +101,7 @@ const StatusDisplay = ({ status }: { status: string }) => {
         <Image src={statusImage} alt="status" fill />
       </div>
       <p
-        className={`bg-gradient-to-b bg-clip-text font-switzer md:text-xs text-[10px] text-transparent ${
+        className={`bg-gradient-to-b bg-clip-text font-switzer text-[10px] text-transparent md:text-xs ${
           status === "platinum"
             ? "from-white to-[#B9B9B9]"
             : status === "gold"

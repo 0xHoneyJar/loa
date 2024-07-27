@@ -4,7 +4,7 @@ const Delegate = () => {
   return (
     <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFCA0C] bg-gradient-to-br from-[#FFC100] to-[#F8A929] p-2">
       <div className="absolute -top-40 h-1 w-full" id="delegate" />
-      <div className="absolute inset-y-0 -bottom-12 left-0 my-auto aspect-square h-[52px]">
+      <div className="absolute inset-y-0 -bottom-0 left-0 my-auto aspect-square h-12 sm:-bottom-20 md:-bottom-0 lg:-bottom-16 lg:h-[52px] xl:-bottom-32 2xl:-bottom-12">
         <Image
           src={"/arrow-delegate.svg"}
           alt="arrow"
@@ -12,7 +12,7 @@ const Delegate = () => {
           className="scale-150 object-contain"
         />
       </div>
-      <div className="absolute inset-y-0 -right-0 -top-20 my-auto aspect-square h-[52px]">
+      <div className="absolute inset-y-0 -right-0 -top-28 my-auto aspect-square h-12 sm:-top-32 lg:-top-16 lg:h-[52px] xl:-top-6 2xl:-top-24">
         <Image
           src={"/arrow-delegate-dashed.svg"}
           alt="arrow"
@@ -22,7 +22,7 @@ const Delegate = () => {
       </div>
       <div className="relative flex h-full w-full flex-col gap-10 rounded-2xl border border-black/50 p-6">
         <div className="flex items-center gap-1">
-          <div className="dragHandle relative aspect-square md:h-[26px] h-5">
+          <div className="dragHandle relative aspect-square h-5 md:h-[26px]">
             <Image
               src={"/drag-handle.svg"}
               alt="drag"
@@ -47,16 +47,15 @@ const Delegate = () => {
             />
           </div>
         </div>
-
-        <p className="md:text-5xl text-3xl font-bold text-black">
-          Delegate With The Honey Jar <span className="font-light">(THJ)</span>
+        <p className="text-3xl font-bold text-black md:text-4xl xl:text-5xl">
+          Delegate to The Honey Jar <span className="font-light">(THJ)</span>
         </p>
-        <div className="rounded-full border border-dashed border-black/40 md:p-2 p-1">
-          <button className="w-full rounded-full bg-black py-3 md:text-lg text-sm">
+        <div className="rounded-full border border-dashed border-black/40 p-1 md:p-2">
+          <button className="w-full rounded-full bg-black py-3 text-sm md:text-base xl:text-lg">
             Delegate Now
           </button>
         </div>
-        <p className="md:text-2xl text-lg text-[#414141]">
+        <p className="text-lg text-[#414141] md:text-xl xl:text-2xl">
           Help us make the Fat Bera Thesis come true! Delegate to THJ and get
           rewarded!
         </p>

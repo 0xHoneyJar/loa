@@ -10,17 +10,17 @@ const Quotes = ({ quoteNumber }: { quoteNumber: number }) => {
       className={`${glow && "rotate-[1deg]"} flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]`}
     >
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-white" />
-      <div className="relative flex md:h-20 h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] md:px-6 px-4">
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-20 md:px-6">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#B8B8B8] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
         <div className="flex items-center gap-2">
           <DragHandle setGlow={setGlow} />
-          <p className="md:text-xl font-medium text-white">Our Quotes 001</p>
+          <p className="font-medium text-white md:text-xl">Our Quotes 001</p>
         </div>
       </div>
-      <div className="flex grow md:px-6 px-4 md:py-10 py-6">
-        <p className="md:text-4xl text-3xl font-semibold uppercase text-white">
+      <div className="flex grow px-4 py-6 md:px-6 md:py-10">
+        <p className="text-2xl font-semibold uppercase text-white md:text-3xl xl:text-4xl">
           {QUOTES[quoteNumber].quote}
         </p>
       </div>

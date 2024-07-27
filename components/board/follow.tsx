@@ -23,7 +23,7 @@ const Follow = () => {
           <a
             href={"https://x.com/0xhoneyjar"}
             target="_blank"
-            className="relative aspect-square md:h-[32px] h-[26px] opacity-70 hover:cursor-blue hover:opacity-100 lg:h-[40px]"
+            className="relative aspect-square h-[26px] opacity-70 hover:cursor-blue hover:opacity-100 md:h-[32px] lg:h-[40px]"
           >
             <Image
               src={"/follow/twitter.svg"}
@@ -57,7 +57,7 @@ const Follow = () => {
             />
           </a>
         </div>
-        <div className="absolute inset-x-0 bottom-6 left-32 mx-auto flex items-end justify-center gap-2 md:bottom-8">
+        <div className="absolute inset-x-0 bottom-6 left-24 mx-auto flex items-end justify-center gap-2 sm:bottom-8 md:left-32">
           <div className="relative aspect-square h-[42px] md:h-[50px]">
             <Image
               src={"/follow/arrow-swirl.svg"}
@@ -67,7 +67,7 @@ const Follow = () => {
             />
           </div>
           <p className="whitespace-nowrap text-[10px] text-[#747474]/65 md:text-xs">
-            Follow Us <span className="hidden md:inline-flex">For More</span>
+            Follow Us <span className="hidden lg:inline-flex">For More</span>
           </p>
         </div>
       </div>

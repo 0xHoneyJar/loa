@@ -38,16 +38,16 @@ const Feed = () => {
     >
       <div className="absolute -top-40 h-1 w-full" id="feed" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#43AA77]" />
-      <div className="relative flex h-20 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-6">
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-20 md:px-6">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#43AA77] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
         <div className="flex items-center gap-2">
           <DragHandle setGlow={setGlow} />
-          <p className="text-xl font-medium text-white">Feed</p>
+          <p className="font-medium text-white md:text-xl">Feed</p>
         </div>
         <a
-          className="relative aspect-square h-[34px] cursor-pointer rounded-full border border-[#353535]"
+          className="relative aspect-square h-[28px] cursor-pointer rounded-full border border-[#353535] md:h-[34px]"
           href={"https://twitter.com/0xhoneyjar"}
           target="_blank"
         >
@@ -55,11 +55,11 @@ const Feed = () => {
             src={"/twitter.svg"}
             alt="twitter"
             fill
-            className="object-contain p-2"
+            className="object-contain p-1.5 md:p-2"
           />
         </a>
       </div>
-      <div className="flex grow overflow-hidden p-6">
+      <div className="flex grow overflow-hidden p-4 md:p-6">
         <div className="relative h-full w-full">
           <SecondaryTweetDisplay
             text={tweets[(tweetNum + 1) % (tweets.length - 1)]?.full_text}

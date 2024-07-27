@@ -42,7 +42,7 @@ const Incubated = ({ partners }: { partners?: any }) => {
                   className="object-contain"
                 />
               </div>
-              <p className="whitespace-nowrap bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-transparent md:text-base text-xs">
+              <p className="whitespace-nowrap bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-xs text-transparent md:text-base">
                 Updated Recently
               </p>
             </div>
@@ -52,22 +52,22 @@ const Incubated = ({ partners }: { partners?: any }) => {
             <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-8" />
           </div>
         </div>
-        <CarouselContent className="flex h-full w-full items-center md:py-6 py-4 md:pl-6 pl-4">
+        <CarouselContent className="flex h-full w-full items-center py-4 pl-4 md:py-6 md:pl-6">
           {incubated.map((item, id) => (
-            <CarouselItem key={id} className="h-full pl-5">
-              <div className="relative flex h-full w-[196px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90">
+            <CarouselItem key={id} className="h-full">
+              <div className="relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90 md:w-[196px]">
                 <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                <div className="relative mb-4 mt-6 aspect-square md:h-[100px] h-[80px] rounded-full border border-[#F4C10B0F] bg-[#18140C05]">
+                <div className="relative mb-4 mt-6 aspect-square h-16 overflow-hidden rounded-full border border-[#F4C10B0F] bg-[#18140C05] sm:h-[80px] md:h-[100px]">
                   <Image
                     src={
                       "https://d163aeqznbc6js.cloudfront.net/images" + item.logo
                     }
                     alt={item.name}
                     fill
-                    className="rounded-full object-cover md:p-4 p-2"
+                    className="object-cover"
                   />
                 </div>
-                <p className="md:text-lg text-sm">{item._title}</p>
+                <p className="text-sm sm:text-base md:text-lg">{item._title}</p>
               </div>
             </CarouselItem>
           ))}

@@ -17,7 +17,7 @@ const OogaBooga = () => {
           <p className="font-medium text-white md:text-xl">OOGA BOOGA</p>
         </div>
       </div>
-      <div className="flex grow flex-col justify-center px-4 text-4xl font-semibold tracking-wide md:px-6 md:text-5xl">
+      <div className="flex grow flex-col justify-center px-4 text-3xl font-semibold tracking-wide md:px-6 md:text-4xl xl:text-5xl">
         <p>A CULT</p>
         <p>A PONZI</p>
         <p>A SCAM</p>
