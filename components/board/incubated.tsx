@@ -19,7 +19,7 @@ const Incubated = ({ partners }: { partners?: any }) => {
 
   return (
     <div
-      className={`${glow && "rotate-[1deg]"} relative h-full overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
+      className={`${glow && "rotate-1"} relative h-full overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
     >
       <div className="absolute -top-40 h-1 w-full" id="incubated" />
       <Carousel className="flex h-full flex-col">
@@ -30,7 +30,7 @@ const Incubated = ({ partners }: { partners?: any }) => {
           />
           <div className="flex items-center gap-2">
             <DragHandleY setGlow={setGlow} />
-            <p className="font-medium text-[#FFD700] md:text-xl">
+            <p className="text-sm font-medium text-[#FFD700] md:text-base xl:text-xl">
               Incubated Projects
             </p>
             <div className="hidden items-center gap-2 rounded-full border border-[#F8A9291F] bg-gradient-to-r from-[#F5D0110D] to-[#F8A9290D] px-2 py-1 md:flex">

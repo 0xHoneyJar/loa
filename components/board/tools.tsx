@@ -13,7 +13,7 @@ const Tools = () => {
   const [glow, setGlow] = useState(false);
   return (
     <div
-      className={`${glow && "rotate-[1deg]"} relative h-full overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]`}
+      className={`${glow && "rotate-1"} relative h-full overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]`}
     >
       <div className="absolute -top-40 h-1 w-full" id="tools" />
       <Carousel className="flex h-full flex-col">
@@ -24,7 +24,7 @@ const Tools = () => {
           />
           <div className="flex items-center gap-2">
             <DragHandle setGlow={setGlow} />
-            <p className="font-medium text-white md:text-xl">
+            <p className="text-sm font-medium text-white md:text-base xl:text-xl">
               Tools & Products
             </p>
           </div>
@@ -33,12 +33,12 @@ const Tools = () => {
             <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-8" />
           </div>
         </div>
-        <CarouselContent className="flex h-full w-full items-center md:py-6 py-4 md:pl-6 pl-4">
+        <CarouselContent className="flex h-full w-full items-center py-4 pl-4 md:py-6 md:pl-6">
           {TOOLS.map((item, id) => (
             <CarouselItem key={id} className="h-full pl-5">
-              <div className="flex h-full md:w-[196px] w-[180px] flex-col items-center justify-center rounded-lg border border-[#161616] bg-[#121212] text-[#C4C4C4] hover:cursor-blue hover:border-[#373737] hover:bg-[#1A1A1A] hover:font-medium hover:text-white">
-                <div className="mb-4 mt-6 aspect-square md:h-[100px] h-[80px] rounded-full bg-[#FD4D01]" />
-                <p className="md:text-base text-xs">{item.name}</p>
+              <div className="flex h-full w-[180px] flex-col items-center justify-center rounded-lg border border-[#161616] bg-[#121212] text-[#C4C4C4] hover:cursor-blue hover:border-[#373737] hover:bg-[#1A1A1A] hover:font-medium hover:text-white md:w-[196px]">
+                <div className="mb-4 mt-6 aspect-square h-[80px] rounded-full bg-[#FD4D01] md:h-[100px]" />
+                <p className="text-xs md:text-base">{item.name}</p>
               </div>
             </CarouselItem>
           ))}

@@ -19,14 +19,16 @@ const Updates = () => {
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-20 md:px-6">
           <div className="flex items-center gap-2">
             <LockKeyhole className="aspect-square h-5 text-[#FFD7004D] md:h-[26px]" />
-            <p className="font-medium text-[#FFD700] md:text-xl">Updates</p>
+            <p className="text-sm font-medium text-[#FFD700] md:text-base xl:text-xl">
+              Updates
+            </p>
           </div>
           <div className="relative flex gap-1.5 md:gap-3">
-            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-8" />
-            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-8" />
+            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-6" />
+            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-6" />
           </div>
         </div>
-        <CarouselContent className="flex h-full w-full py-4 pl-4 md:py-6 md:pl-6">
+        <CarouselContent className="flex size-full py-4 pl-4 md:py-6 md:pl-6">
           <CarouselItem>
             <div className="relative flex h-full w-[200px] flex-col gap-2 overflow-hidden sm:w-[240px] md:w-[270px] md:gap-3">
               <div

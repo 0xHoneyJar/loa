@@ -13,7 +13,7 @@ const Artwork = () => {
   const [glow, setGlow] = useState(false);
   return (
     <div
-      className={`${glow && "rotate-[1deg]"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]`}
+      className={`${glow && "rotate-1"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]`}
     >
       <div className="absolute -top-40 h-1 w-full" id="artwork" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-white" />
@@ -23,7 +23,7 @@ const Artwork = () => {
         />
         <div className="flex items-center gap-2">
           <DragHandle setGlow={setGlow} />
-          <p className="font-medium text-white md:text-xl">
+          <p className="text-sm font-medium text-white md:text-base xl:text-xl">
             Our Arts and Memes
           </p>
         </div>

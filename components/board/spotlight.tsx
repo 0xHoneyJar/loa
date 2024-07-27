@@ -7,17 +7,17 @@ const Spotlight = () => {
   const [glow, setGlow] = useState(false);
   return (
     <div
-      className={`${glow && "rotate-[1deg]"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
+      className={`${glow && "rotate-1"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
     >
       <div className="absolute -top-40 h-1 w-full" id="spotlight" />
-      <div className="bg-[#FFD700] flex h-2 w-full shrink-0 rounded-t-3xl" />
+      <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
       <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6 md:h-20">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
         <div className="flex items-center gap-2">
           <DragHandleY setGlow={setGlow} />
-          <p className="font-medium text-[#FFD700] md:text-xl">
+          <p className="text-sm font-medium text-[#FFD700] md:text-base xl:text-xl">
             Spotlight
           </p>
           <div className="ml-2 flex items-center rounded-full bg-[#F5D01124] px-2 py-1">
@@ -44,8 +44,8 @@ const Spotlight = () => {
             <p className="text-xs text-[#A9A9A9] md:text-base">Details</p>
           </div>
           <button className="flex items-center justify-between rounded-lg bg-[#F4C10B]/10 px-4 py-3 text-[#F4C10B] hover:cursor-blue hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]">
-            <p className="md:text-base text-xs">Read Now</p>
-            <ArrowUpRight className="md:h-[24px] h-[16px] aspect-square"/>
+            <p className="text-xs md:text-base">Read Now</p>
+            <ArrowUpRight className="aspect-square h-[16px] md:h-[24px]" />
           </button>
         </div>
       </div>

@@ -7,7 +7,7 @@ const Development = () => {
   const [glow, setGlow] = useState(false);
   return (
     <div
-      className={`${glow && "rotate-[1deg]"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]`}
+      className={`${glow && "rotate-1"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]`}
     >
       <div className="absolute -top-40 h-1 w-full" id="development" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-white" />
@@ -17,18 +17,18 @@ const Development = () => {
         />
         <div className="flex items-center gap-2">
           <DragHandle setGlow={setGlow} />
-          <p className="whitespace-nowrap font-medium text-white md:text-xl">
+          <p className="whitespace-nowrap text-sm font-medium text-white md:text-base xl:text-xl">
             Development Pipeline
           </p>
         </div>
       </div>
       <div className="relative flex grow overflow-hidden">
-        <div className="h-full w-full overflow-y-auto overflow-x-hidden py-4 pl-6 md:py-6 md:pl-8">
+        <div className="size-full overflow-y-auto overflow-x-hidden py-4 pl-6 md:py-6 md:pl-8">
           <div className="absolute left-0 top-0 z-10 h-1/6 w-full bg-gradient-to-b from-[#0F0F0F]" />
           <div className="absolute bottom-0 left-0 z-10 h-1/6 w-full bg-gradient-to-t from-[#0F0F0F]" />
           <div className="relative flex min-h-full w-full grow flex-col gap-12 border-l border-dashed border-[#4C4C4C] pl-8 pt-4 md:gap-20 md:pl-12 md:pt-6">
             <div className="relative flex flex-col gap-3">
-              <div className="absolute -left-[36px] top-2 aspect-[4/1] h-2 md:-left-[54px] md:h-3">
+              <div className="absolute left-[-36px] top-2 aspect-[4/1] h-2 md:left-[-54px] md:h-3">
                 <Image
                   src={"/development-pointer.svg"}
                   alt="pointer"
@@ -61,7 +61,7 @@ const Development = () => {
               )}
             </div>
             <div className="relative flex flex-col gap-3">
-              <div className="absolute -left-[36px] top-2 aspect-[4/1] h-2 md:-left-[54px] md:h-3">
+              <div className="absolute left-[-36px] top-2 aspect-[4/1] h-2 md:left-[-54px] md:h-3">
                 <Image
                   src={"/development-pointer.svg"}
                   alt="pointer"
@@ -94,7 +94,7 @@ const Development = () => {
               )}
             </div>
             <div className="relative flex flex-col gap-3">
-              <div className="absolute -left-[36px] top-2 aspect-[4/1] h-2 md:-left-[54px] md:h-3">
+              <div className="absolute left-[-36px] top-2 aspect-[4/1] h-2 md:left-[-54px] md:h-3">
                 <Image
                   src={"/development-pointer.svg"}
                   alt="pointer"

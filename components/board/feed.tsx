@@ -34,7 +34,7 @@ const Feed = () => {
 
   return (
     <div
-      className={`relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D] ${glow && "rotate-[1deg]"}`}
+      className={`relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D] ${glow && "rotate-1"}`}
     >
       <div className="absolute -top-40 h-1 w-full" id="feed" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#43AA77]" />
@@ -44,7 +44,9 @@ const Feed = () => {
         />
         <div className="flex items-center gap-2">
           <DragHandle setGlow={setGlow} />
-          <p className="font-medium text-white md:text-xl">Feed</p>
+          <p className="text-sm font-medium text-white md:text-base xl:text-xl">
+            Feed
+          </p>
         </div>
         <a
           className="relative aspect-square h-[28px] cursor-pointer rounded-full border border-[#353535] md:h-[34px]"
@@ -60,7 +62,7 @@ const Feed = () => {
         </a>
       </div>
       <div className="flex grow overflow-hidden p-4 md:p-6">
-        <div className="relative h-full w-full">
+        <div className="relative size-full">
           <SecondaryTweetDisplay
             text={tweets[(tweetNum + 1) % (tweets.length - 1)]?.full_text}
           />

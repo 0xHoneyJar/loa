@@ -1,6 +1,13 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { DASHBOARD } from "@/constants/dashboard";
 
 const Sidebar = ({
   open,
@@ -75,17 +82,44 @@ const Sidebar = ({
             initial="initial"
             animate="open"
             exit="initial"
-            className="flex h-full w-full flex-col items-center justify-center gap-6 text-lg text-white"
+            className="flex size-full flex-col items-center justify-center gap-6 text-lg text-white"
           >
             {pathname === "/" ? (
               <>
                 <div className="overflow-hidden">
+                  <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="item-1">
+                      <AccordionTrigger>
+                        <motion.div
+                          // onClick={closeSidebarHandler}
+                          variants={mobileLinkVars}
+                        >
+                          <p className="hover:text-[#FFC500]">Section</p>
+                        </motion.div>
+                      </AccordionTrigger>
+                      <AccordionContent className="max-h-[100px] overflow-y-auto">
+                        {DASHBOARD.map(
+                          (section, id) =>
+                            !section.hidden && (
+                              <div
+                                key={id}
+                                className="rounded-lg bg-[#121212] py-3 text-sm text-[#E7E7E7] focus:bg-[#F8A9292E] focus:text-[#FFD700]"
+                              >
+                                {section.name}
+                              </div>
+                            ),
+                        )}
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </div>
+                <div className="overflow-hidden">
                   <motion.div
                     onClick={closeSidebarHandler}
                     variants={mobileLinkVars}
                   >
-                    <a href="#blog" className="hover:text-[#FFC500]">
-                      Blog
+                    <a className="hover:cursor-blue hover:text-[#FFC500]">
+                      Join Us
                     </a>
                   </motion.div>
                 </div>
@@ -94,18 +128,8 @@ const Sidebar = ({
                     onClick={closeSidebarHandler}
                     variants={mobileLinkVars}
                   >
-                    <a href="#faq" className="hover:text-[#FFC500]">
-                      FAQ
-                    </a>
-                  </motion.div>
-                </div>
-                <div className="overflow-hidden">
-                  <motion.div
-                    onClick={closeSidebarHandler}
-                    variants={mobileLinkVars}
-                  >
-                    <a href="#dashboard" className="hover:text-[#FFC500]">
-                      Dashboard
+                    <a className="hover:cursor-blue hover:text-[#FFC500]">
+                      Delegate to THJ
                     </a>
                   </motion.div>
                 </div>

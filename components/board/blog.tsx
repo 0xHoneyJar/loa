@@ -15,7 +15,7 @@ const Blog = () => {
   const [glow, setGlow] = useState(false);
   return (
     <div
-      className={`relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017] ${glow && "rotate-[1deg]"}`}
+      className={`relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017] ${glow && "rotate-1"}`}
     >
       <div className="absolute -top-40 h-1 w-full" id="blog" />
       <Carousel className="flex h-full flex-col">
@@ -26,7 +26,9 @@ const Blog = () => {
           />
           <div className="flex items-center gap-2">
             <DragHandleY setGlow={setGlow} />
-            <p className="font-medium text-[#FFD700] md:text-xl">Our Blog</p>
+            <p className="text-sm font-medium text-[#FFD700] md:text-base xl:text-xl">
+              Our Blog
+            </p>
           </div>
           <div className="relative flex gap-1.5 lg:hidden">
             <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-8" />
@@ -34,7 +36,7 @@ const Blog = () => {
           </div>
         </div>
         {/* <div className="flex grow overflow-hidden p-4 md:p-6"> */}
-        <CarouselContent className="flex h-full w-full p-4 pr-0 md:p-6 lg:-ml-0 lg:grid lg:!transform-none lg:grid-cols-4 lg:gap-5 xl:gap-6">
+        <CarouselContent className="flex size-full p-4 pr-0 md:p-6 lg:-ml-0 lg:grid lg:!transform-none lg:grid-cols-4 lg:gap-5 xl:gap-6">
           {/* <div className="flex h-full lg:grid lg:w-full lg:grid-cols-4 lg:gap-5 xl:gap-6"> */}
           {BLOGS.map((blog, id) => (
             <BlogDisplay

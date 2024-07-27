@@ -5,7 +5,7 @@ const OogaBooga = () => {
   const [glow, setGlow] = useState(false);
   return (
     <div
-      className={`${glow && "rotate-[1deg]"} flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]`}
+      className={`${glow && "rotate-1"} flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]`}
     >
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-white" />
       <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-20 md:px-6">
@@ -14,7 +14,9 @@ const OogaBooga = () => {
         />
         <div className="flex items-center gap-2">
           <DragHandle setGlow={setGlow} />
-          <p className="font-medium text-white md:text-xl">OOGA BOOGA</p>
+          <p className="text-sm font-medium text-white md:text-base xl:text-xl">
+            OOGA BOOGA
+          </p>
         </div>
       </div>
       <div className="flex grow flex-col justify-center px-4 text-3xl font-semibold tracking-wide md:px-6 md:text-4xl xl:text-5xl">

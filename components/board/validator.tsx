@@ -10,23 +10,25 @@ const Validator = () => {
   const [glow, setGlow] = useState(false);
   return (
     <div
-      className={`${glow && "rotate-[1deg]"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D]`}
+      className={`${glow && "rotate-1"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D]`}
     >
       <div className="absolute -top-40 h-1 w-full" id="validator" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#43AA77]" />
-      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#1B271B] px-4 md:h-20 md:px-6">
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#1B271B] px-4 md:px-6 xl:h-20">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#43AA77] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
         <div className="flex items-center gap-2">
           <DragHandle setGlow={setGlow} />
-          <p className="font-medium text-white md:text-xl">Validator</p>
+          <p className="text-sm font-medium text-white md:text-base xl:text-xl">
+            Validator
+          </p>
         </div>
       </div>
       <div className="flex grow flex-col">
         <div className="grid h-[85%] w-full grid-cols-3 gap-4 p-6">
-          <div className="grid h-full w-full grid-rows-3 gap-4">
-            <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
+          <div className="grid size-full grid-rows-3 gap-4">
+            <div className="flex size-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
               <p className="text-[#6B6B6B]">Delegated to THJ (BGT)</p>
               <div className="flex items-center gap-2 text-2xl">
                 <p className="font-semibold">12,324</p>
@@ -40,11 +42,11 @@ const Validator = () => {
                 </div>
               </div>
             </div>
-            <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
+            <div className="flex size-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
               <p className="text-[#6B6B6B]">Number of Delegators</p>
               <p className="text-2xl font-semibold">12,3245,213</p>
             </div>
-            <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
+            <div className="flex size-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
               <p className="text-[#6B6B6B]">Return per BGT</p>
               <div className="flex items-center gap-2 text-2xl">
                 <p className="text-2xl font-semibold">$123.13</p>
@@ -59,7 +61,7 @@ const Validator = () => {
               </div>
             </div>
           </div>
-          <div className="grid h-full w-full grid-rows-3 gap-4">
+          <div className="grid size-full grid-rows-3 gap-4">
             <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
               <p className="text-[#6B6B6B]">Validator&apos;s Rank</p>
               <p className="text-2xl font-semibold">1st</p>
@@ -88,8 +90,8 @@ const Validator = () => {
               </div>
             </div>
           </div>
-          <div className="relative flex h-full w-full flex-col items-center rounded-2xl border border-[#202020] bg-[#121212] py-6">
-            <div className="relative flex h-full w-full flex-col items-center justify-center">
+          <div className="relative flex size-full flex-col items-center rounded-2xl border border-[#202020] bg-[#121212] py-6">
+            <div className="relative flex size-full flex-col items-center justify-center">
               <p className="absolute top-0 text-[#6B6B6B]">Voting Power</p>
               <div className="mb-8 aspect-square h-[135px]">
                 <CircularProgressbarWithChildren
