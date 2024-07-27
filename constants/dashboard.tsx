@@ -21,7 +21,6 @@ import Follow from "@/components/board/follow";
 import OogaBooga from "@/components/board/ooga-booga";
 import Raffles from "@/components/board/raffles";
 import Beardrops from "@/components/board/beardrops";
-import JaniSweeping from "@/components/board/jani-sweeping";
 
 export const DASHBOARD = [
   {
