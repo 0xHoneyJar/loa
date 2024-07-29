@@ -47,7 +47,7 @@ const Raffles = () => {
         </div>
       </div>
       <div className="flex grow flex-col justify-between p-4 md:p-6">
-        <p className="text-xs uppercase text-white md:text-base">
+        <p className="text-xs uppercase text-white md:text-sm xl:text-base">
           TAKE PART IN RAFFLES TO WIN PRIZES FROM AROUND THE&nbsp;
           <span className="text-[#E1A94E]">BERACHAIN ECOSYSTEM!</span>
         </p>
@@ -62,7 +62,7 @@ const Raffles = () => {
           className="flex w-full cursor-blue items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D]"
         >
           <div className="flex items-center gap-2">
-            <div className="relative aspect-square h-[26px] md:h-[32px]">
+            <div className="relative aspect-square h-6 md:h-[26px] xl:h-[32px]">
               <Image
                 src={"/question.svg"}
                 alt="question"
@@ -70,9 +70,11 @@ const Raffles = () => {
                 className="object-contain"
               />
             </div>
-            <p className="text-xs md:text-base">Explore All Raffles</p>
+            <p className="whitespace-nowrap text-xs md:text-sm xl:text-base">
+              Explore All Raffles
+            </p>
           </div>
-          <ChevronRight className="aspect-square h-[14px] text-[#FFFFFF]/40 md:h-[18px]" />
+          <ChevronRight className="aspect-square h-3 text-[#FFFFFF]/40 md:h-[14px] xl:h-[18px]" />
         </a>
       </div>
     </div>

@@ -24,7 +24,7 @@ const Honeycomb = () => {
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
         <div className="flex items-center gap-2">
-          <DragHandleY setGlow={setGlow} />ƒ
+          <DragHandleY setGlow={setGlow} />
           <p className="text-sm font-medium text-[#FFD700] md:text-base xl:text-xl">
             Honeycomb
           </p>
@@ -153,9 +153,9 @@ const Honeycomb = () => {
         <Carousel className="flex h-full flex-col">
           <div className="flex items-center justify-between border-y border-dashed border-[#FEFEFE14] px-6 py-4">
             <p className="text-lg text-white">Recent Perks</p>
-            <div className="relative flex gap-3">
-              <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-6" />
-              <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-6" />
+            <div className="relative flex gap-1.5 md:gap-2 xl:gap-3">
+              <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
+              <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
             </div>
           </div>
           <CarouselContent className="flex size-full py-6 pl-6">

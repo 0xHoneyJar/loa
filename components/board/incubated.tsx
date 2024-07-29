@@ -14,7 +14,7 @@ const Incubated = ({ partners }: { partners?: any }) => {
   const [glow, setGlow] = useState(false);
 
   const incubated = Array.isArray(partners)
-    ? partners.filter((partner: any) => partner.partner === "Incubated")
+    ? partners.filter((partner: any) => partner.partner === "Joint")
     : [];
 
   return (
@@ -22,7 +22,7 @@ const Incubated = ({ partners }: { partners?: any }) => {
       className={`${glow && "rotate-1"} relative h-full overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
     >
       <div className="absolute -top-40 h-1 w-full" id="incubated" />
-      <Carousel className="flex h-full flex-col">
+      <Carousel className="flex h-full flex-col" opts={{ dragFree: true }}>
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
         <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-20 md:px-6">
           <div
@@ -47,9 +47,9 @@ const Incubated = ({ partners }: { partners?: any }) => {
               </p>
             </div>
           </div>
-          <div className="relative flex gap-1.5 md:gap-3">
-            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-8" />
-            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-8" />
+          <div className="relative flex gap-1.5 md:gap-2 xl:gap-3">
+            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
+            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
           </div>
         </div>
         <CarouselContent className="flex h-full w-full items-center py-4 pl-4 md:py-6 md:pl-6">
@@ -57,7 +57,7 @@ const Incubated = ({ partners }: { partners?: any }) => {
             <CarouselItem key={id} className="h-full">
               <div className="relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90 md:w-[196px]">
                 <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                <div className="relative mb-4 mt-6 aspect-square h-16 overflow-hidden rounded-full border border-[#F4C10B0F] bg-[#18140C05] sm:h-[80px] md:h-[100px]">
+                <div className="relative mb-4 mt-4 aspect-square h-16 overflow-hidden rounded-full border border-[#F4C10B0F] bg-[#18140C05] md:mt-6 md:h-[80px] xl:h-[100px]">
                   <Image
                     src={
                       "https://d163aeqznbc6js.cloudfront.net/images" + item.logo
@@ -67,7 +67,7 @@ const Incubated = ({ partners }: { partners?: any }) => {
                     className="object-cover"
                   />
                 </div>
-                <p className="text-sm sm:text-base md:text-lg">{item._title}</p>
+                <p className="text-sm md:text-base xl:text-lg">{item._title}</p>
               </div>
             </CarouselItem>
           ))}

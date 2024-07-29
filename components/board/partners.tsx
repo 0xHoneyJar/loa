@@ -30,32 +30,33 @@ const Partners = () => {
             THJ has a vast and constantly growing network of partners. Many of
             them are providing perks to Honeycomb holders.
           </p>
-          <div className="relative w-full rounded-xl bg-[#43AA772E] px-4 py-6">
-            <p className="text-3xl font-medium text-[#00AB55] md:text-4xl xl:text-5xl">
+          <div className="relative w-full rounded-xl bg-[#43AA772E] px-2 py-4 md:px-4 md:py-6">
+            <p className="text-2xl font-medium text-[#00AB55] md:text-3xl xl:text-4xl 2xl:text-5xl">
               561
             </p>
-            <p className="absolute bottom-4 right-4 flex items-center gap-1 text-sm text-[#A9A9A9]">
-              / Total Partners <HelpCircle size={14} />
+            <p className="absolute bottom-2 right-2 flex items-center text-[10px] text-[#A9A9A9] md:text-xs xl:bottom-4 xl:right-4 xl:text-sm">
+              / Total Partners
+              <HelpCircle className="aspect-square h-3 md:h-[14px]" />
             </p>
           </div>
-          <div className="relative w-full rounded-xl bg-[#43AA772E] px-4 py-6">
-            <p className="text-3xl font-medium text-[#00AB55] md:text-4xl xl:text-5xl">
+          <div className="relative w-full rounded-xl bg-[#43AA772E] px-2 py-4 md:px-4 md:py-6">
+            <p className="text-2xl font-medium text-[#00AB55] md:text-3xl xl:text-4xl 2xl:text-5xl">
               $9,000,000
             </p>
-            <p className="absolute bottom-4 right-4 flex items-center gap-1 text-sm text-[#A9A9A9]">
-              / Raised <HelpCircle size={14} />
+            <p className="absolute bottom-2 right-2 flex items-center text-[10px] text-[#A9A9A9] md:text-xs xl:bottom-4 xl:right-4 xl:text-sm">
+              / Raised <HelpCircle className="aspect-square h-3 md:h-[14px]" />
             </p>
           </div>
           <button className="flex items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 hover:cursor-blue hover:border-[#E8E8E81F] hover:bg-[#FFFFFF24]">
-            <div className="flex gap-2 whitespace-nowrap">
-              <Map />
-              THJ Partner Map
+            <div className="flex items-center gap-2 whitespace-nowrap">
+              <Map className="aspect-square h-4 md:h-[22px] xl:h-[28px]" />
+              <p className="text-xs md:text-sm xl:text-base">THJ Partner Map</p>
             </div>
-            <ChevronRight size={18} className="text-[#FFFFFF66]" />
+            <ChevronRight className="aspect-square h-3 text-[#FFFFFF66] md:h-[14px] xl:h-[18px]" />
           </button>
           <button className="flex items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 hover:cursor-blue hover:border-[#E8E8E81F] hover:bg-[#FFFFFF24]">
-            <div className="flex gap-2 whitespace-nowrap">
-              <div className="relative aspect-square h-[28px]">
+            <div className="flex items-center gap-2 whitespace-nowrap">
+              <div className="relative aspect-square h-4 md:h-[22px] xl:h-[28px]">
                 <Image
                   src={"/partners.svg"}
                   alt="partners"
@@ -63,9 +64,11 @@ const Partners = () => {
                   className="object-contain"
                 />
               </div>
-              Explore Partners
+              <p className="text-xs md:text-sm xl:text-base">
+                Explore Partners
+              </p>
             </div>
-            <ChevronRight size={18} className="text-[#FFFFFF66]" />
+            <ChevronRight className="aspect-square h-3 text-[#FFFFFF66] md:h-[14px] xl:h-[18px]" />
           </button>
         </div>
         <div className="relative flex w-full grow items-center justify-center border-t border-[#43AA771A] px-6">
@@ -96,7 +99,7 @@ const Partners = () => {
             >
               <motion.div
                 layout
-                className={`z-10 flex aspect-square h-[40px] items-center justify-center rounded-full ${
+                className={`z-10 flex aspect-square h-6 items-center justify-center rounded-full md:h-8 xl:h-[40px] ${
                   hover ? "bg-white" : "bg-[#171717]"
                 }`}
                 transition={{ duration: 0.3 }}

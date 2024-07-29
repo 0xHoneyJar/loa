@@ -18,7 +18,7 @@ const Blog = () => {
       className={`relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017] ${glow && "rotate-1"}`}
     >
       <div className="absolute -top-40 h-1 w-full" id="blog" />
-      <Carousel className="flex h-full flex-col">
+      <Carousel className="flex h-full flex-col" opts={{ dragFree: true }}>
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
         <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-20 md:px-6">
           <div
@@ -30,9 +30,9 @@ const Blog = () => {
               Our Blog
             </p>
           </div>
-          <div className="relative flex gap-1.5 lg:hidden">
-            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-8" />
-            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-8" />
+          <div className="relative flex gap-1.5 md:gap-2 lg:hidden">
+            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
+            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
           </div>
         </div>
         {/* <div className="flex grow overflow-hidden p-4 md:p-6"> */}

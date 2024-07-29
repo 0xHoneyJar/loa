@@ -16,7 +16,9 @@ const Validator = () => {
         />
         <div className="flex items-center gap-2">
           <DragHandle setGlow={setGlow} />
-          <p className="font-medium text-white md:text-xl">Beardrops</p>
+          <p className="text-sm font-medium text-white md:text-base xl:text-xl">
+            Beardrops
+          </p>
         </div>
       </div>
       <div className="relative flex grow flex-col">
@@ -28,7 +30,7 @@ const Validator = () => {
               fill
               className="object-cover"
             />
-            <p className="z-10 text-sm md:text-lg">
+            <p className="z-10 text-sm md:text-base xl:text-lg">
               Want to target one of the strongest cults on Berachain?
             </p>
             <div className="absolute bottom-0 left-0 h-1/2 w-full bg-gradient-to-t from-[#0E0D09]" />
@@ -36,7 +38,7 @@ const Validator = () => {
         </div>
         <div className="flex h-[15%] w-full items-center justify-between border-t border-[#1B271B] p-4 md:p-6">
           <div className="flex items-center gap-2">
-            <div className="relative aspect-square h-[28px]">
+            <div className="relative aspect-square h-5 md:h-6 xl:h-[28px]">
               <Image
                 src={"/parachute.svg"}
                 alt="parachute"
@@ -44,11 +46,11 @@ const Validator = () => {
                 className="object-contain"
               />
             </div>
-            <p className="text-sm md:text-lg">
+            <p className="text-sm md:text-base xl:text-lg">
               Snapshot Honeycomb in a single click
             </p>
           </div>
-          <button className="h-full rounded-full bg-[#43AA77] px-6 text-sm font-medium text-black hover:cursor-blue hover:shadow-evergreen md:text-lg">
+          <button className="h-full rounded-full bg-[#43AA77] px-6 text-sm font-medium text-black hover:cursor-blue hover:shadow-evergreen md:text-base xl:text-lg">
             Snapshot
           </button>
         </div>

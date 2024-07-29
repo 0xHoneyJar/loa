@@ -59,7 +59,7 @@ const Follow = () => {
             />
           </a>
         </div>
-        <div className="absolute inset-x-0 bottom-6 left-24 mx-auto flex items-end justify-center gap-2 sm:bottom-8">
+        <div className="absolute inset-x-0 bottom-6 left-24 mx-auto flex items-end justify-center gap-2 sm:bottom-8 xl:left-32">
           <div className="relative aspect-square h-[42px] md:h-[50px]">
             <Image
               src={"/follow/arrow-swirl.svg"}

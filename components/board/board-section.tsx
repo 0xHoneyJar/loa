@@ -141,7 +141,7 @@ const BoardSection = ({ partners }: { partners: any }) => {
   };
 
   return (
-    <div className="mb-40 flex h-full w-full flex-col items-center md:mb-60">
+    <div className="mb-20 flex h-full w-full flex-col items-center md:mb-40 xl:mb-60">
       <div className="mb-10 mt-3 rounded-full bg-[#FFFFFF14] px-3 py-2 md:mb-20">
         <div
           ref={constraintsRef}

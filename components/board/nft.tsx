@@ -17,7 +17,7 @@ const NFT = () => {
       className={`${glow && "rotate-1"} relative h-full overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D]`}
     >
       <div className="absolute -top-40 h-1 w-full" id="nft" />
-      <Carousel className="flex h-full flex-col">
+      <Carousel className="flex h-full flex-col" opts={{ dragFree: true }}>
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#43AA77]" />
         <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#1B271B] px-4 md:h-20 md:px-6">
           <div
@@ -29,9 +29,9 @@ const NFT = () => {
               The Honey Jar NFTs
             </p>
           </div>
-          <div className="relative flex gap-1.5 md:gap-3">
-            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-8" />
-            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-8" />
+          <div className="relative flex gap-1.5 md:gap-2 xl:gap-3">
+            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
+            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
           </div>
         </div>
         <CarouselContent className="flex size-full items-center py-4 pl-4 md:py-6 md:pl-6">
@@ -48,12 +48,12 @@ const NFT = () => {
                     </div>
                   )}
                 </div>
-                <div className="relative aspect-square h-16 rounded-full border border-[#1A1A1A] bg-[#FFFFFF03] sm:h-20 md:h-[100px]">
+                <div className="relative aspect-square h-16 rounded-full border border-[#1A1A1A] bg-[#FFFFFF03] md:h-20 xl:h-[100px]">
                   <Image
                     src={nft.image}
                     alt={nft.name}
                     fill
-                    className="object-contain p-3 sm:p-4 md:p-5"
+                    className="object-contain p-3 md:p-4 xl:p-5"
                   />
                 </div>
                 <p className="">{nft.name}</p>

@@ -16,7 +16,7 @@ const Tools = () => {
       className={`${glow && "rotate-1"} relative h-full overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]`}
     >
       <div className="absolute -top-40 h-1 w-full" id="tools" />
-      <Carousel className="flex h-full flex-col">
+      <Carousel className="flex h-full flex-col" opts={{ dragFree: true }}>
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-white" />
         <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-20 md:px-6">
           <div
@@ -28,17 +28,17 @@ const Tools = () => {
               Tools & Products
             </p>
           </div>
-          <div className="relative flex gap-1.5 md:gap-3">
-            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-8" />
-            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-8" />
+          <div className="relative flex gap-1.5 md:gap-2 xl:gap-3">
+            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
+            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
           </div>
         </div>
         <CarouselContent className="flex h-full w-full items-center py-4 pl-4 md:py-6 md:pl-6">
           {TOOLS.map((item, id) => (
             <CarouselItem key={id} className="h-full pl-5">
               <div className="flex h-full w-[180px] flex-col items-center justify-center rounded-lg border border-[#161616] bg-[#121212] text-[#C4C4C4] hover:cursor-blue hover:border-[#373737] hover:bg-[#1A1A1A] hover:font-medium hover:text-white md:w-[196px]">
-                <div className="mb-4 mt-6 aspect-square h-[80px] rounded-full bg-[#FD4D01] md:h-[100px]" />
-                <p className="text-xs md:text-base">{item.name}</p>
+                <div className="mb-4 mt-4 aspect-square h-16 rounded-full bg-[#FD4D01] md:mt-6 md:h-[80px] xl:h-[100px]" />
+                <p className="text-xs md:text-sm xl:text-base">{item.name}</p>
               </div>
             </CarouselItem>
           ))}

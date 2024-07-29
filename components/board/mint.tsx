@@ -12,7 +12,7 @@ const Mint = () => {
   return (
     <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]">
       <div className="absolute -top-40 h-1 w-full" id="mint" />
-      <Carousel className="flex h-full flex-col">
+      <Carousel className="flex h-full flex-col" opts={{ dragFree: true }}>
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-20 md:px-6">
           <div className="flex items-center gap-2">
@@ -21,9 +21,9 @@ const Mint = () => {
               New Mint
             </p>
           </div>
-          <div className="relative flex gap-1.5 md:gap-3">
-            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-8" />
-            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-8" />
+          <div className="relative flex gap-1.5 md:gap-2 xl:gap-3">
+            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
+            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
           </div>
           {/* <button className="flex items-center gap-1 text-lg font-medium text-[#848484] hover:text-white">
             Explore <ArrowUpRight size={24} />

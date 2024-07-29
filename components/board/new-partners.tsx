@@ -12,13 +12,13 @@ import { PARTNERS } from "@/constants/partners";
 const NewPartners = ({ partners }: { partners?: any }) => {
   const recentPartners = partners
     .sort((a: any, b: any) => b.startDate?.getTime() - a.startDate?.getTime())
-    .filter((partner: any) => partner.partner !== "Incubated")
+    .filter((partner: any) => partner.partner !== "Joint")
     .slice(0, 10);
 
   return (
     <div className="relative h-full overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]">
       <div className="absolute -top-40 h-1 w-full" id="newPartners" />
-      <Carousel className="flex h-full flex-col">
+      <Carousel className="flex h-full flex-col" opts={{ dragFree: true }}>
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-20 md:px-6">
           <div className="flex items-center gap-2">
@@ -26,8 +26,8 @@ const NewPartners = ({ partners }: { partners?: any }) => {
             <p className="whitespace-nowrap text-sm font-medium text-[#FFD700] md:text-base xl:text-xl">
               New Partners
             </p>
-            <div className="hidden items-center gap-2 rounded-full border border-[#F8A9291F] bg-gradient-to-r from-[#F5D0110D] to-[#F8A9290D] px-2 py-1 md:flex">
-              <div className="relative aspect-square h-[20px]">
+            <div className="hidden items-center gap-2 rounded-full border border-[#F8A9291F] bg-gradient-to-r from-[#F5D0110D] to-[#F8A9290D] px-2 py-1 sm:flex">
+              <div className="relative aspect-square h-4 md:h-5">
                 <Image
                   src={"/rise.svg"}
                   alt="rise"
@@ -35,14 +35,14 @@ const NewPartners = ({ partners }: { partners?: any }) => {
                   className="object-contain"
                 />
               </div>
-              <p className="whitespace-nowrap bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-xs font-medium text-transparent md:text-base">
+              <p className="whitespace-nowrap bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-xs font-medium text-transparent md:text-sm xl:text-base">
                 On The Rise
               </p>
             </div>
           </div>
-          <div className="relative flex gap-1.5 md:gap-3">
-            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-8" />
-            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-8 md:w-8" />
+          <div className="relative flex gap-1.5 md:gap-2 xl:gap-3">
+            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
+            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
           </div>
         </div>
         <CarouselContent className="flex size-full py-4 pl-4 md:py-6 md:pl-6">
@@ -50,7 +50,7 @@ const NewPartners = ({ partners }: { partners?: any }) => {
             <CarouselItem className="" key={id}>
               <div className="relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#E0E0E0] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:text-white/90 md:w-[196px]">
                 <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                <div className="relative mb-2 aspect-square h-16 overflow-hidden rounded-full border border-[#F4C10B0F] bg-[#18140C05] sm:h-[80px] md:h-[100px]">
+                <div className="relative mb-2 aspect-square h-16 overflow-hidden rounded-full border border-[#F4C10B0F] bg-[#18140C05] md:h-[80px] xl:h-[100px]">
                   <Image
                     src={
                       "https://d163aeqznbc6js.cloudfront.net/images" + item.logo
@@ -60,7 +60,7 @@ const NewPartners = ({ partners }: { partners?: any }) => {
                     className="object-cover"
                   />
                 </div>
-                <p className="mb-1 text-xs sm:text-sm md:text-base">
+                <p className="mb-2 text-xs md:text-sm xl:mb-1 xl:text-base">
                   {item._title}
                 </p>
                 <StatusDisplay status={item.partner.toLowerCase()} />
