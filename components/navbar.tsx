@@ -92,9 +92,9 @@ const Navbar = () => {
                 </a>
               </NavigationMenuItem>
             </NavigationMenuList>
-            <NavigationMenuViewport
-              className={`${openItem === "explore" && "left-[-40%]"} ${openItem === "section" && "left-[50%]"} }`}
-            />
+            {/* <NavigationMenuViewport
+              className={`${openItem === "explore" ? "-left-48" : openItem === "section" ? "-left-12" : ""} `}
+            /> */}
           </NavigationMenu>
           {/* <button className="flex h-[36px] items-center gap-2 rounded-full border border-[#F4C10B]/50 bg-gradient-to-b from-[#F4C10B1F] to-[#F8A9291F] px-4 text-xs font-medium text-white md:px-6 md:text-sm">
               <p>Explore</p>

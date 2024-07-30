@@ -15,7 +15,7 @@ const Explore = () => {
           NEW
         </p>
       </NavigationMenuTrigger>
-      <NavigationMenuContent className="flex flex-col rounded-xl border border-[#66666632] bg-[#0D0D0D] md:flex-row">
+      <NavigationMenuContent className="-left-48 top-[60px] flex flex-col rounded-xl border border-[#66666632] bg-[#0D0D0D] lg:flex-row">
         <div className="flex flex-col gap-1 p-2 pb-0 md:pb-2">
           {EXPLOREITEMS.slice(0, 5).map((item) => (
             <ListItem key={item.title} {...item} />

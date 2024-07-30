@@ -84,7 +84,7 @@ const Data = () => {
                 pathColor: "#F5DA7F",
                 trailColor: "#342911",
               })}
-              className="size-full max-h-[180px] md:max-h-[200px] xl:max-h-[240px]"
+              className="h-[180px] md:h-[200px] xl:h-[240px]"
             >
               {/* <p className="text-xl font-medium">500,000</p>
               <p className="text-sm">Total Wallets</p> */}
@@ -141,7 +141,7 @@ const Data = () => {
                     pathColor: "#F5DA7F",
                     trailColor: "#342911",
                   })}
-                  className="size-full max-h-[180px] md:max-h-[200px] xl:max-h-[240px]"
+                  className="h-[180px] md:h-[200px] xl:h-[240px]"
                 >
                   <p className="font-medium md:text-xl">50,000</p>
                   <p className="text-xs md:text-sm">Holders</p>

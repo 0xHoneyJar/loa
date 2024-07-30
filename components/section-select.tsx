@@ -51,7 +51,7 @@ const SectionSelect = () => {
       <NavigationMenuTrigger className="flex items-center gap-1 rounded-full bg-[#FFFFFF0F] px-6 py-2.5 text-xs text-white md:text-sm">
         Section
       </NavigationMenuTrigger>
-      <NavigationMenuContent>
+      <NavigationMenuContent className="left-32 top-[60px]">
         <ScrollArea className="relative h-[490px] w-[220px] items-center rounded-xl border border-[#171717] bg-[#0F0F0F] p-1">
           {/* <div className="h-1/6 w-full absolute bottom-0 bg-gradient-to-t from-[#0F0F0F] z-10" /> */}
           <div className="flex flex-col gap-2">
