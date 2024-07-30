@@ -14,7 +14,7 @@ const Validator = () => {
     >
       <div className="absolute -top-40 h-1 w-full" id="validator" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#43AA77]" />
-      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#1B271B] px-4 md:px-6 xl:h-20">
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#1B271B] px-4 md:h-[72px] md:px-6 xl:h-20">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#43AA77] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
@@ -28,9 +28,11 @@ const Validator = () => {
       <div className="flex grow flex-col">
         <div className="grid h-[85%] w-full grid-cols-3 gap-4 p-6">
           <div className="grid size-full grid-rows-3 gap-4">
-            <div className="flex size-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
-              <p className="text-[#6B6B6B]">Delegated to THJ (BGT)</p>
-              <div className="flex items-center gap-2 text-2xl">
+            <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+              <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm xl:text-base">
+                Delegated to THJ (BGT)
+              </p>
+              <div className="flex items-center gap-2 text-lg md:text-xl xl:text-2xl">
                 <p className="font-semibold">12,324</p>
                 <div className="relative aspect-square h-[28px]">
                   <Image
@@ -42,14 +44,22 @@ const Validator = () => {
                 </div>
               </div>
             </div>
-            <div className="flex size-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
-              <p className="text-[#6B6B6B]">Number of Delegators</p>
-              <p className="text-2xl font-semibold">12,3245,213</p>
+            <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+              <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm xl:text-base">
+                Number of Delegators
+              </p>
+              <p className="text-lg font-semibold md:text-xl xl:text-2xl">
+                12,3245,213
+              </p>
             </div>
-            <div className="flex size-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
-              <p className="text-[#6B6B6B]">Return per BGT</p>
+            <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+              <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
+                Return per BGT
+              </p>
               <div className="flex items-center gap-2 text-2xl">
-                <p className="text-2xl font-semibold">$123.13</p>
+                <p className="text-lg font-semibold md:text-xl xl:text-2xl">
+                  $123.13
+                </p>
                 <div className="relative aspect-square h-[28px]">
                   <Image
                     src={"/bgt-honey.png"}
@@ -62,22 +72,30 @@ const Validator = () => {
             </div>
           </div>
           <div className="grid size-full grid-rows-3 gap-4">
-            <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
-              <p className="text-[#6B6B6B]">Validator&apos;s Rank</p>
-              <p className="text-2xl font-semibold">1st</p>
+            <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+              <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
+                Validator&apos;s Rank
+              </p>
+              <p className="text-lg font-semibold md:text-xl xl:text-2xl">
+                1st
+              </p>
             </div>
-            <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
-              <p className="text-[#6B6B6B]">Active Incentives</p>
-              <p className="text-2xl font-semibold">
+            <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+              <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
+                Active Incentives
+              </p>
+              <p className="text-lg font-semibold md:text-xl xl:text-2xl">
                 $0{" "}
                 {/* <span className="text-xs font-normal text-[#989898]">
                   (The Value)
                 </span> */}
               </p>
             </div>
-            <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-[#202020] bg-[#121212]">
-              <p className="text-[#6B6B6B]">Reward Rate</p>
-              <div className="flex items-center gap-2 text-2xl">
+            <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+              <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
+                Reward Rate
+              </p>
+              <div className="flex items-center gap-2 text-lg md:text-xl xl:text-2xl">
                 <p className="font-semibold">12,324</p>
                 <div className="relative aspect-square h-[28px]">
                   <Image
@@ -90,9 +108,11 @@ const Validator = () => {
               </div>
             </div>
           </div>
-          <div className="relative flex size-full flex-col items-center rounded-2xl border border-[#202020] bg-[#121212] py-6">
+          <div className="relative flex size-full flex-col items-center overflow-hidden rounded-2xl border border-[#202020] bg-[#121212] py-6">
             <div className="relative flex size-full flex-col items-center justify-center">
-              <p className="absolute top-0 text-[#6B6B6B]">Voting Power</p>
+              <p className="absolute top-0 text-xs text-[#6B6B6B] md:text-sm xl:text-base">
+                Voting Power
+              </p>
               <div className="mb-8 aspect-square h-[135px]">
                 <CircularProgressbarWithChildren
                   value={50}
@@ -125,9 +145,9 @@ const Validator = () => {
             </div>
           </div>
         </div>
-        <div className="flex h-[15%] w-full items-center justify-between border-t border-[#1B271B] p-4 px-6 md:p-6">
+        <div className="flex h-[15%] w-full items-center justify-between border-t border-[#1B271B] p-4 md:p-6">
           <div className="flex items-center gap-2">
-            <div className="relative aspect-square h-[38px]">
+            <div className="relative aspect-square h-8 md:h-[38px]">
               <Image
                 src={"/jani-coin.png"}
                 alt="jani-coin"
@@ -135,14 +155,16 @@ const Validator = () => {
                 className="object-contain"
               />
             </div>
-            <p className="text-xl font-light text-white">Needs Your Support</p>
+            <p className="hidden whitespace-nowrap text-base font-light text-white sm:block md:text-lg xl:text-xl">
+              Needs Your Support
+            </p>
           </div>
           <div className="flex h-full items-center gap-2">
-            <button className="h-full rounded-full border border-white/5 bg-white/5 px-6 font-medium text-white hover:cursor-blue hover:border-white/20 hover:bg-white/20">
-              View Validator
+            <button className="h-full whitespace-nowrap rounded-full border border-white/5 bg-white/5 px-6 text-xs font-medium text-white hover:cursor-blue hover:border-white/20 hover:bg-white/20 md:text-sm xl:text-base">
+              <span className="hidden xl:inline-flex">View</span> Validator
             </button>
-            <button className="h-full rounded-full bg-[#43AA77] px-6 font-medium text-black hover:cursor-blue hover:shadow-evergreen">
-              Delegate Now
+            <button className="h-full whitespace-nowrap rounded-full bg-[#43AA77] px-6 text-xs font-medium text-black hover:cursor-blue hover:shadow-evergreen md:text-sm xl:text-base">
+              Delegate <span className="hidden xl:inline-flex">Now</span>
             </button>
             {/* <div className="relative aspect-square h-[100px]">
               <Image

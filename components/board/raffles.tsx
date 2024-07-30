@@ -17,12 +17,6 @@ const Raffles = () => {
     async function getRaffles() {
       const retrievedRaffles = await retrieveRaffles();
 
-      // const liveAndUpcomingRaffles = retrievedRaffles.filter(
-      //   (raffle) =>
-      //     (raffle.startTime <= currentTime && currentTime < raffle.endTime) ||
-      //     raffle.startTime > currentTime,
-      // );
-
       setRaffles(retrievedRaffles);
     }
 
@@ -35,7 +29,7 @@ const Raffles = () => {
     >
       <div className="absolute -top-40 h-1 w-full" id="quests" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
-      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-20 md:px-6">
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6 xl:h-20">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
@@ -51,7 +45,7 @@ const Raffles = () => {
           TAKE PART IN RAFFLES TO WIN PRIZES FROM AROUND THE&nbsp;
           <span className="text-[#E1A94E]">BERACHAIN ECOSYSTEM!</span>
         </p>
-        <div className="grid w-full grid-rows-3 gap-6">
+        <div className="grid w-full grid-rows-3 gap-4 overflow-hidden md:gap-6">
           {raffles.slice(0, 3).map((raffle, id) => (
             <RaffleDisplay raffle={raffle} key={id} />
           ))}
@@ -61,7 +55,7 @@ const Raffles = () => {
           target="_blank"
           className="flex w-full cursor-blue items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D]"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 md:gap-2">
             <div className="relative aspect-square h-6 md:h-[26px] xl:h-[32px]">
               <Image
                 src={"/question.svg"}

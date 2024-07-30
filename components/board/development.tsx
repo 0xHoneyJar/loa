@@ -2,6 +2,7 @@ import Image from "next/image";
 import { DEVELOPMENT } from "@/constants/development";
 import DragHandle from "../drag-handle";
 import { useState } from "react";
+import { ScrollArea } from "../ui/scroll-area";
 
 const Development = () => {
   const [glow, setGlow] = useState(false);
@@ -11,7 +12,7 @@ const Development = () => {
     >
       <div className="absolute -top-40 h-1 w-full" id="development" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-white" />
-      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-20 md:px-6">
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-[72px] md:px-6 xl:h-20">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#B8B8B8] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
@@ -22,8 +23,8 @@ const Development = () => {
           </p>
         </div>
       </div>
-      <div className="relative flex grow overflow-hidden">
-        <div className="size-full overflow-y-auto overflow-x-hidden py-4 pl-6 md:py-6 md:pl-8">
+      <ScrollArea className="relative flex grow overflow-hidden">
+        <div className="size-full py-4 pl-6 md:py-6 md:pl-8">
           <div className="absolute left-0 top-0 z-10 h-1/6 w-full bg-gradient-to-b from-[#0F0F0F]" />
           <div className="absolute bottom-0 left-0 z-10 h-1/6 w-full bg-gradient-to-t from-[#0F0F0F]" />
           <div className="relative flex min-h-full w-full grow flex-col gap-12 border-l border-dashed border-[#4C4C4C] px-8 pt-4 md:gap-16 md:pt-6 xl:gap-20 xl:px-12">
@@ -128,7 +129,7 @@ const Development = () => {
             </div>
           </div>
         </div>
-      </div>
+      </ScrollArea>
     </div>
   );
 };

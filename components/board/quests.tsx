@@ -14,14 +14,6 @@ const Quests = () => {
   useEffect(() => {
     async function getQuests() {
       const retrievedQuests = await retrieveQuests();
-
-      // const liveAndUpcomingQuests = retrievedQuests.filter(
-      //   (quest) =>
-      //     !quest.disabled &&
-      //     !quest.paused &&
-      //     ((quest.startTime <= currentTime && currentTime < quest.endTime) ||
-      //       quest.startTime > currentTime),
-      // );
       setQuests(retrievedQuests);
     }
 
@@ -34,7 +26,7 @@ const Quests = () => {
     >
       <div className="absolute -top-40 h-1 w-full" id="quests" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
-      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-20 md:px-6">
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6 xl:h-20">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
@@ -43,7 +35,7 @@ const Quests = () => {
           <p className="text-sm font-medium text-[#FFD700] md:text-base xl:text-xl">
             Quests
           </p>
-          <div className="relative aspect-square h-[12px] rounded-full bg-[#FF0000]">
+          <div className="relative aspect-square h-2 rounded-full bg-[#FF0000] md:h-[12px]">
             <div className="absolute aspect-square size-full animate-ping rounded-full bg-[#FF0000]" />
           </div>
         </div>
@@ -54,7 +46,7 @@ const Quests = () => {
           <span className="text-[#E1A94E]">THJ specials Quests</span> and{" "}
           <span className="text-[#E1A94E]">get rewarded! like seriously</span>
         </p>
-        <div className="grid w-full grid-rows-3 gap-6">
+        <div className="grid w-full grid-rows-3 gap-4 overflow-hidden md:gap-6">
           {quests.slice(0, 3).map((quest, id) => (
             <QuestDisplay quest={quest} key={id} />
           ))}
@@ -64,7 +56,7 @@ const Quests = () => {
           target="_blank"
           className="flex w-full cursor-blue items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-2 py-2 hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D] md:px-3 md:py-3 xl:px-4"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 md:gap-2">
             <div className="relative aspect-square h-6 md:h-[26px] xl:h-[32px]">
               <Image
                 src={"/question.svg"}

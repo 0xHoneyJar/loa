@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { motion, useAnimate } from "framer-motion";
 import { useEffect, useState } from "react";
+import { ScrollArea } from "./ui/scroll-area";
 
 const TwitterDisplay = ({
   text,
@@ -59,16 +60,20 @@ const TwitterDisplay = ({
       onMouseDown={mouseDownHandler}
     >
       <div className="flex items-center gap-2 px-6 py-4">
-        <div className="relative aspect-square md:h-[40px] h-[32px]">
+        <div className="relative aspect-square h-[32px] md:h-[40px]">
           <Image src={"/thj-logo.png"} alt="logo" fill />
         </div>
         <div className="flex flex-col">
-          <p className="md:text-base text-xs whitespace-nowrap">The Honey Jar</p>
-          <p className="md:text-sm text-[10px] text-[#ABABAB]">@0xhoneyjar</p>
+          <p className="whitespace-nowrap text-xs md:text-base">
+            The Honey Jar
+          </p>
+          <p className="text-[10px] text-[#ABABAB] md:text-sm">@0xhoneyjar</p>
         </div>
       </div>
-      <div className="flex h-full w-full overflow-hidden md:p-6 p-4">
-        <p className="overflow-y-auto font-light md:text-base text-xs overflow-x-hidden">{text}</p>
+      <div className="flex h-full w-full overflow-hidden p-4 md:p-6">
+        <ScrollArea>
+          <p className="text-xs font-light md:text-sm xl:text-base">{text}</p>
+        </ScrollArea>
       </div>
     </motion.div>
   );

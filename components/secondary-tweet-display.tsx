@@ -10,7 +10,9 @@ const SecondaryTweetDisplay = ({ text }: { text: string }) => {
           <Image src={"/thj-logo.png"} alt="logo" fill />
         </div>
         <div className="flex flex-col">
-          <p className="text-xs text-white/30 md:text-base">The Honey Jar</p>
+          <p className="whitespace-nowrap text-xs text-white/30 md:text-base">
+            The Honey Jar
+          </p>
           <p className="text-[10px] text-[#ABABAB]/30 md:text-sm">
             @0xhoneyjar
           </p>

@@ -58,7 +58,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
   }, [currentTime]);
 
   return (
-    <div className="h-[250px] w-full">
+    <div className="h-[210px] w-full overflow-hidden sm:h-[230px] md:h-[240px] xl:h-[250px]">
       <div
         onMouseEnter={() => !upcomingQuest && !endedQuest && setHover(true)}
         onMouseLeave={() => !upcomingQuest && !endedQuest && setHover(false)}
@@ -79,8 +79,8 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
               target="_blank"
               className="cursor-blue rounded-full bg-white/25 px-4 py-2 backdrop-blur-md"
             >
-              <div className="flex items-center gap-1 font-medium">
-                Join Now <ArrowUpRight size={20} />
+              <div className="flex items-center gap-1 text-xs font-medium md:text-sm xl:text-base">
+                Join Now <ArrowUpRight className="aspect-square h-4 md:h-5" />
               </div>
             </a>
           </div>
@@ -94,16 +94,21 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
         />
         {upcomingQuest ? (
           <div className="flex h-full w-full flex-col items-center justify-center">
-            <p className="text-2xl font-medium">{timeRemaining}</p>
-            <p className="text-[#E0E0E0]">
+            <p className="text-lg font-medium md:text-xl xl:text-2xl">
+              {timeRemaining}
+            </p>
+            <p className="text-xs text-[#E0E0E0] md:text-sm xl:text-base">
               {convertUnixToLocalTime(quest.startTime)}
             </p>
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 md:gap-2">
               {quest.reward.map((reward, id) => (
-                <div className="relative z-20 aspect-square h-[45px]" key={id}>
+                <div
+                  className="relative z-20 aspect-square h-[38px] md:h-[45px]"
+                  key={id}
+                >
                   <S3Image
                     src={`/faucet/badges/${reward}.png`}
                     fill
@@ -122,8 +127,8 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
                 </div>
               )}
             </div>
-            <div className="flex h-[40px] w-full gap-3">
-              <div className="h-full w-full rounded-full border border-[#737373]/60 bg-[#D8D8D8]/20 p-1 backdrop-blur-sm">
+            <div className="flex w-full flex-col-reverse gap-2 xl:h-[40px] xl:flex-row xl:gap-3">
+              <div className="h-8 w-full rounded-full border border-[#737373]/60 bg-[#D8D8D8]/20 p-1 backdrop-blur-sm xl:h-full">
                 <div className="relative flex h-full w-full items-center overflow-hidden rounded-full bg-[#75643C]">
                   <motion.div
                     className="h-full rounded-full bg-[#F8A929]"
@@ -134,7 +139,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
                   <p className="absolute left-4 text-[10px]">{timeRemaining}</p>
                 </div>
               </div>
-              <div className="flex h-full w-fit items-center gap-1 rounded-full border border-[#747474]/60 bg-[#D8D8D8]/20 px-3 backdrop-blur-sm">
+              <div className="flex h-8 w-fit items-center gap-1 rounded-full border border-[#747474]/60 bg-[#D8D8D8]/20 px-3 backdrop-blur-sm xl:h-full">
                 <div className="relative aspect-square h-[18px]">
                   <Image
                     src={"/users.svg"}
@@ -143,22 +148,26 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
                     className="object-contain"
                   />
                 </div>
-                <p>{questData?.numParticipants ?? 0}</p>
+                <p className="text-xs md:text-sm xl:text-base">
+                  {questData?.numParticipants ?? 0}
+                </p>
               </div>
             </div>
           </>
         )}
       </div>
-      <div className="flex h-[15%] w-full items-center justify-between">
-        <p className="whitespace-nowrap text-[#FBFBFB]">{quest.title}</p>
+      <div className="flex h-[15%] w-full items-center justify-between gap-2">
+        <p className="truncate whitespace-nowrap text-xs text-[#FBFBFB] md:text-sm xl:text-base">
+          {quest.title}
+        </p>
         <div className="flex items-center gap-2">
-          <p className="whitespace-nowrap text-sm text-[#6B6B6B]">
+          <p className="hidden text-sm text-[#6B6B6B] 2xl:block">
             Partner with
           </p>
           <div className="flex items-center gap-1">
             {quest.logo?.map((logo, id) => (
               <div
-                className="relative aspect-square h-[24px] overflow-hidden rounded-full"
+                className="relative aspect-square h-5 overflow-hidden rounded-full md:h-[24px]"
                 key={id}
               >
                 <S3Image

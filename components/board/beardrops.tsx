@@ -10,7 +10,7 @@ const Validator = () => {
     >
       <div className="absolute -top-40 h-1 w-full" id="validator" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#43AA77]" />
-      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#1B271B] px-4 md:h-20 md:px-6">
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#1B271B] px-4 md:h-[72px] md:px-6 xl:h-20">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#43AA77] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
@@ -36,7 +36,7 @@ const Validator = () => {
             <div className="absolute bottom-0 left-0 h-1/2 w-full bg-gradient-to-t from-[#0E0D09]" />
           </div>
         </div>
-        <div className="flex h-[15%] w-full items-center justify-between border-t border-[#1B271B] p-4 md:p-6">
+        <div className="flex h-[15%] w-full items-center justify-between gap-4 border-t border-[#1B271B] p-4 md:p-6">
           <div className="flex items-center gap-2">
             <div className="relative aspect-square h-5 md:h-6 xl:h-[28px]">
               <Image

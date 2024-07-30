@@ -20,7 +20,7 @@ const Blog = () => {
       <div className="absolute -top-40 h-1 w-full" id="blog" />
       <Carousel className="flex h-full flex-col" opts={{ dragFree: true }}>
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
-        <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-20 md:px-6">
+        <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6 xl:h-20">
           <div
             className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
           />
@@ -44,6 +44,7 @@ const Blog = () => {
               description={blog.desc}
               link={blog.link}
               key={id}
+              image={blog.image}
             />
           ))}
           <CarouselItem className="lg:pl-0">
@@ -78,10 +79,12 @@ const BlogDisplay = ({
   heading,
   description,
   link,
+  image,
 }: {
   heading: string;
   description: string;
   link: string;
+  image: string;
 }) => {
   const [hover, setHover] = useState(false);
   return (
@@ -94,12 +97,7 @@ const BlogDisplay = ({
           onMouseLeave={() => setHover(false)}
           className={`relative flex h-2/3 w-full shrink-0 overflow-hidden rounded-xl border ${hover ? "cursor-blue border-[#F5D011D9]" : "border-[#2B2B2B]"}`}
         >
-          <Image
-            src={"/update-placeholder.png"}
-            alt=""
-            fill
-            className="object-cover"
-          />
+          <Image src={image} alt="" fill className="object-cover" />
         </a>
         <div className="flex h-1/3 flex-col gap-1">
           <div className="flex items-center justify-between">

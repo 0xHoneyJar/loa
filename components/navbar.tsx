@@ -6,7 +6,7 @@ import { useState } from "react";
 import { TRACKS } from "@/constants/tracks";
 import { ChevronDown } from "lucide-react";
 import Sidebar from "@/components/sidebar";
-import SectionSelect from "@/components/hero/section-select";
+import SectionSelect from "./section-select";
 import AudioPlayer from "@/components/audio/audio-player";
 import { EXPLOREITEMS } from "@/constants/explore";
 import {
@@ -15,7 +15,7 @@ import {
   NavigationMenuList,
   NavigationMenuViewport,
 } from "@/components/ui/navigation-menu";
-import Explore from "./hero/explore";
+import Explore from "./explore";
 
 const Navbar = () => {
   const [toggle, setToggle] = useState(false);
@@ -60,10 +60,10 @@ const Navbar = () => {
         </div>
       </div> */}
       <div
-        className="fixed inset-x-0 top-5 z-30 mx-auto flex w-fit divide-x divide-[#FFFFFF1F] rounded-full border border-[#FFFFFF1F] bg-[#505050]/5 backdrop-blur-xl"
+        className="fixed inset-x-0 top-5 z-30 mx-auto flex w-fit divide-x divide-[#FFFFFF1F] rounded-full border border-[#FFFFFF14] bg-[#7272721F] backdrop-blur-xl"
         // style={{ boxShadow: "0px 2px 56px #0000001F" }}
       >
-        <div className="flex items-center gap-2 px-4 py-3 md:gap-3">
+        <div className="flex items-center gap-2 px-4 py-2 md:gap-3">
           <Link className="relative aspect-square h-[30px]" href="/">
             <Image src={"/thj-logo.png"} alt="logo" fill />
           </Link>
@@ -71,29 +71,29 @@ const Navbar = () => {
             For Community
           </p>
         </div>
-        <div className="flex items-center px-4 py-3">
+        <div className="flex items-center px-4 py-2">
           {/* <div className=""> */}
           <NavigationMenu
             className="ml-12 hidden items-center md:flex lg:ml-28"
             value={openItem}
             onValueChange={setOpenItem}
           >
-            <NavigationMenuList className="space-x-2 md:space-x-3">
+            <NavigationMenuList className="space-x-2 text-sm md:space-x-3">
               <Explore />
               <SectionSelect />
               <NavigationMenuItem>
-                <a className="flex h-[36px] cursor-pointer items-center whitespace-nowrap rounded-full bg-[#FFFFFF0F] px-4 text-xs font-medium text-white md:px-6 md:text-sm">
+                <a className="flex cursor-pointer items-center whitespace-nowrap rounded-full bg-[#FFFFFF0F] px-6 py-2.5 text-xs font-medium text-white md:px-6 md:text-sm">
                   Join Us
                 </a>
               </NavigationMenuItem>
               <NavigationMenuItem>
-                <a className="flex h-[36px] cursor-pointer items-center whitespace-nowrap rounded-full bg-[#43AA77] px-4 text-xs font-medium text-white hover:shadow-evergreen md:px-6 md:text-sm">
+                <a className="flex cursor-pointer items-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 py-2.5 text-xs font-medium text-white hover:shadow-evergreen md:px-6 md:text-sm">
                   Delegate to THJ
                 </a>
               </NavigationMenuItem>
             </NavigationMenuList>
             <NavigationMenuViewport
-              className={`${openItem === "explore" ? "left-[-40%]" : "left-[50%]"}`}
+              className={`${openItem === "explore" && "left-[-40%]"} ${openItem === "section" && "left-[50%]"} }`}
             />
           </NavigationMenu>
           {/* <button className="flex h-[36px] items-center gap-2 rounded-full border border-[#F4C10B]/50 bg-gradient-to-b from-[#F4C10B1F] to-[#F8A9291F] px-4 text-xs font-medium text-white md:px-6 md:text-sm">

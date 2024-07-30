@@ -13,7 +13,7 @@ const Partners = () => {
     >
       <div className="absolute -top-40 h-1 w-full" id="partners" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#43AA77]" />
-      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-20 md:px-6">
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-[72px] md:px-6 xl:h-20">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#43AA77] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
@@ -107,7 +107,7 @@ const Partners = () => {
                 <ArrowRight className="text-[#43AA77]" />
               </motion.div>
               <p
-                className={`absolute inset-x-0 mx-auto ${
+                className={`absolute inset-x-0 mx-auto text-xs md:text-sm xl:text-base ${
                   hover && "text-white"
                 }`}
               >

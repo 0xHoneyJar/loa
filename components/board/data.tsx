@@ -14,7 +14,7 @@ const Data = () => {
     >
       <div className="absolute -top-40 h-1 w-full" id="data" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
-      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-20 md:px-6">
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6 xl:h-20">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
@@ -26,7 +26,7 @@ const Data = () => {
         </div>
       </div>
       <div className="flex grow flex-col">
-        <div className="flex flex-col border-b border-[#F4C10B]/20 px-4 py-6 md:px-6 md:py-8">
+        <div className="flex flex-col border-b border-[#F4C10B]/20 p-4 md:p-6">
           <div className="mb-2 flex items-center gap-2">
             <div className="relative aspect-square h-4 md:h-5">
               <Image
@@ -60,9 +60,9 @@ const Data = () => {
             </p>
           </div>
         </div>
-        <div className="flex flex-col border-b border-[#F4C10B]/20 px-4 py-6 md:px-6 md:py-8">
+        <div className="flex flex-col border-b border-[#F4C10B]/20 p-4 md:p-6">
           <div className="mb-8 flex items-center gap-2">
-            <div className="relative aspect-square h-[20px]">
+            <div className="relative aspect-square h-4 md:h-5">
               <Image
                 src={"/faucet.svg"}
                 alt="faucet"
@@ -84,23 +84,23 @@ const Data = () => {
                 pathColor: "#F5DA7F",
                 trailColor: "#342911",
               })}
-              className="size-full max-h-[240px]"
+              className="size-full max-h-[180px] md:max-h-[200px] xl:max-h-[240px]"
             >
               {/* <p className="text-xl font-medium">500,000</p>
               <p className="text-sm">Total Wallets</p> */}
               <div className="flex size-full flex-col items-center justify-center">
-                <p className="text-xl font-medium">500,000</p>
-                <p className="text-sm">Total Wallets</p>
+                <p className="font-medium md:text-xl">500,000</p>
+                <p className="text-xs md:text-sm">Total Wallets</p>
               </div>
-              <p className="absolute -left-0 bottom-0 text-sm font-medium text-[#7E6E4B]">
+              <p className="absolute -left-0 bottom-0 text-xs font-medium text-[#7E6E4B] md:text-sm">
                 25%
               </p>
-              <p className="absolute -right-0 top-0 text-sm font-medium text-[#F5DA7F]">
+              <p className="absolute -right-0 top-0 text-xs font-medium text-[#F5DA7F] md:text-sm">
                 75%
               </p>
             </CircularProgressbarWithChildren>
           </div>
-          <div className="flex justify-center gap-4 text-[#C7C7C7]">
+          <div className="flex flex-row justify-center gap-4 text-[#C7C7C7] sm:flex-col xl:flex-row">
             <div className="flex items-center justify-center gap-1">
               <div className="aspect-square h-[14px] rounded-full bg-[#F5DA7F]" />
               <p className="whitespace-nowrap text-xs font-light text-[#C7C7C7] md:text-sm">
@@ -115,7 +115,7 @@ const Data = () => {
             </div>
           </div>
         </div>
-        <div className="flex grow flex-col p-6">
+        <div className="flex grow flex-col p-4 md:p-6">
           <div className="mb-8 flex items-center gap-2">
             <div className="relative aspect-square h-4 md:h-5">
               <Image
@@ -141,19 +141,19 @@ const Data = () => {
                     pathColor: "#F5DA7F",
                     trailColor: "#342911",
                   })}
-                  className="size-full max-h-[240px]"
+                  className="size-full max-h-[180px] md:max-h-[200px] xl:max-h-[240px]"
                 >
-                  <p className="text-xl font-medium">50,000</p>
-                  <p className="text-sm">Holders</p>
-                  <p className="absolute -left-0 bottom-0 text-sm font-medium text-[#7E6E4B]">
+                  <p className="font-medium md:text-xl">50,000</p>
+                  <p className="text-xs md:text-sm">Holders</p>
+                  <p className="absolute -left-0 bottom-0 text-xs font-medium text-[#7E6E4B] md:text-sm">
                     25%
                   </p>
-                  <p className="absolute -right-0 top-0 text-sm font-medium text-[#F5DA7F]">
+                  <p className="absolute -right-0 top-0 text-xs font-medium text-[#F5DA7F] md:text-sm">
                     75%
                   </p>
                 </CircularProgressbarWithChildren>
               </div>
-              <div className="flex justify-center gap-4 text-[#C7C7C7]">
+              <div className="flex flex-row justify-center gap-4 text-[#C7C7C7] sm:flex-col xl:flex-row">
                 <div className="flex items-center justify-center gap-1">
                   <div className="aspect-square h-[14px] rounded-full bg-[#F5DA7F]" />
                   <p className="whitespace-nowrap text-xs font-light text-[#C7C7C7] md:text-sm">
@@ -168,8 +168,8 @@ const Data = () => {
                 </div>
               </div>
             </div>
-            <button className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-[#F4C10B] py-3 font-medium text-black hover:cursor-blue hover:shadow-yellow">
-              <div className="relative aspect-square h-[18px]">
+            <button className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#F4C10B] py-3 font-medium text-black hover:cursor-blue hover:shadow-yellow">
+              <div className="relative aspect-square h-3 md:h-4 xl:h-[18px]">
                 <Image
                   src={"/dashboard.svg"}
                   alt="dashboard"
@@ -177,7 +177,7 @@ const Data = () => {
                   className="object-contain"
                 />
               </div>
-              <p className="text-sm md:text-base xl:text-lg">
+              <p className="text-xs md:text-sm xl:text-lg">
                 Honeycomb Dashboard
               </p>
             </button>
