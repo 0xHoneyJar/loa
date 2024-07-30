@@ -8,9 +8,9 @@ import {
 import Image from "next/image";
 import { ArrowUpRight, LockKeyhole } from "lucide-react";
 import { useState } from "react";
+import { UPDATES } from "@/constants/update";
 
 const Updates = () => {
-  const [hover, setHover] = useState(false);
   return (
     <div className="relative h-full overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]">
       <div className="absolute -top-40 h-1 w-full" id="updates" />
@@ -29,37 +29,15 @@ const Updates = () => {
           </div>
         </div>
         <CarouselContent className="flex size-full py-4 pl-4 md:py-6 md:pl-6">
-          <CarouselItem>
-            <div className="relative flex h-full w-[200px] flex-col gap-2 overflow-hidden sm:w-[240px] md:w-[270px] md:gap-3">
-              <div
-                onMouseEnter={() => setHover(true)}
-                onMouseLeave={() => setHover(false)}
-                className={`relative h-2/3 w-full overflow-hidden rounded-xl border ${hover ? "cursor-blue border-[#F5D011D9]" : "border-[#2B2B2B]"}`}
-              >
-                <Image
-                  src={"/update-placeholder.png"}
-                  alt=""
-                  fill
-                  className="object-cover"
-                />
-              </div>
-              <div className="flex h-1/3 flex-col gap-0.5 md:gap-1">
-                <div className="flex items-center justify-between">
-                  <p
-                    className={`text-xs font-medium md:text-sm lg:text-base ${hover ? "text-[#F5D011]" : "text-white"}`}
-                  >
-                    Heading
-                  </p>
-                  <ArrowUpRight
-                    className={`aspect-square h-4 md:h-5 ${hover ? "text-[#F5D011]" : "text-white/15"}`}
-                  />
-                </div>
-                <p className="text-[10px] text-[#A9A9A9] md:text-xs lg:text-sm">
-                  Description
-                </p>
-              </div>
-            </div>
-          </CarouselItem>
+          {UPDATES.map((update, id) => (
+            <UpdateDisplay
+              key={id}
+              title={update.title}
+              image={update.image}
+              link={update.link}
+              desc={update.desc}
+            />
+          ))}
         </CarouselContent>
       </Carousel>
       {/* </div> */}
@@ -68,3 +46,47 @@ const Updates = () => {
 };
 
 export default Updates;
+
+const UpdateDisplay = ({
+  image,
+  link,
+  title,
+  desc,
+}: {
+  image: string;
+  link: string;
+  title: string;
+  desc: string;
+}) => {
+  const [hover, setHover] = useState(false);
+  return (
+    <CarouselItem>
+      <div className="relative flex h-full w-[200px] flex-col gap-2 overflow-hidden sm:w-[240px] md:w-[270px] md:gap-3">
+        <a
+          target="_blank"
+          href={link}
+          onMouseEnter={() => setHover(true)}
+          onMouseLeave={() => setHover(false)}
+          className={`relative h-2/3 w-full overflow-hidden rounded-xl border ${hover ? "cursor-blue border-[#F5D011D9]" : "border-[#2B2B2B]"}`}
+        >
+          <Image src={image} alt="" fill className="object-cover" />
+        </a>
+        <div className="flex h-1/3 flex-col gap-0.5 md:gap-1">
+          <div className="flex items-center justify-between">
+            <p
+              className={`truncate text-xs font-medium md:text-sm lg:text-base ${hover ? "text-[#F5D011]" : "text-white"}`}
+            >
+              {title}
+            </p>
+            <ArrowUpRight
+              className={`aspect-square h-4 md:h-5 ${hover ? "text-[#F5D011]" : "text-white/15"}`}
+            />
+          </div>
+          <p className="text-[10px] text-[#A9A9A9] md:text-xs lg:text-sm">
+            {desc}
+          </p>
+        </div>
+      </div>
+    </CarouselItem>
+  );
+};

@@ -74,56 +74,58 @@ const Mint = () => {
             </div>
           </div>
         </div> */}
-        <CarouselContent className="flex h-full w-full py-6 pl-6">
-          <CarouselItem className="">
-            <div className="relative flex h-full w-[196px] flex-col justify-between overflow-hidden rounded-lg border border-[#F4C10B14] bg-[#221C11] px-4 py-2 hover:cursor-blue hover:divide-[#F4C10B47] hover:border-[#F4C10B47] hover:bg-[#423520]">
-              <Image
-                src={"/mint-placeholder.png"}
-                alt=""
-                fill
-                className="object-cover"
-              />
-              <div className="z-10 flex gap-2">
-                <div className="rounded-full bg-[#D8D8D8]/10 px-3 py-1">
-                  <p className="whitespace-nowrap text-[10px] font-light text-white">
-                    24:10:59 <span className="text-[#E2E2E2]">left</span>
-                  </p>
-                </div>
-                <div className="rounded-full bg-[#D8D8D8]/10 px-3 py-1">
-                  <p className="whitespace-nowrap text-[10px] font-light text-white">
-                    NFT Supply
-                  </p>
-                </div>
-              </div>
-              <div className="z-10 flex w-full items-center justify-between py-2">
-                <div className="flex flex-col gap-0.5">
-                  <p className="text-sm text-[#FBFBFB]">Title</p>
-                  <div className="flex items-center gap-2">
-                    <div className="relative aspect-square h-[20px]">
-                      <Image src={"/thj-logo.png"} alt="logo" fill />
-                    </div>
-                    <p className="whitespace-nowrap text-xs text-[#6B6B6B]">
-                      By The Honey jar
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-col items-end">
-                  <div className="flex items-center gap-1">
-                    <div className="relative aspect-square h-[12px]">
-                      <Image src={"/eth.svg"} alt="eth" fill />
-                    </div>
-                    <p className="text-sm font-semibold text-white">12.00</p>
-                  </div>
-                  <p className="text-[8px] text-[#BABABA]">$123,145.00</p>
-                </div>
-              </div>
-            </div>
-          </CarouselItem>
-        </CarouselContent>
+        <CarouselContent className="flex h-full w-full py-4 pl-4 md:py-6 md:pl-6"></CarouselContent>
       </Carousel>
     </div>
   );
 };
 
 export default Mint;
+
+const MintDisplay = () => {
+  <CarouselItem className="">
+    <div className="relative flex h-full w-[196px] flex-col justify-between overflow-hidden rounded-lg border border-[#F4C10B14] bg-[#221C11] px-4 py-2 hover:cursor-blue hover:divide-[#F4C10B47] hover:border-[#F4C10B47] hover:bg-[#423520]">
+      <Image
+        src={"/mint-placeholder.png"}
+        alt=""
+        fill
+        className="object-cover"
+      />
+      <div className="z-10 flex gap-2">
+        <div className="rounded-full bg-[#D8D8D8]/10 px-3 py-1">
+          <p className="whitespace-nowrap text-[10px] font-light text-white">
+            24:10:59 <span className="text-[#E2E2E2]">left</span>
+          </p>
+        </div>
+        <div className="rounded-full bg-[#D8D8D8]/10 px-3 py-1">
+          <p className="whitespace-nowrap text-[10px] font-light text-white">
+            NFT Supply
+          </p>
+        </div>
+      </div>
+      <div className="z-10 flex w-full items-center justify-between py-2">
+        <div className="flex flex-col gap-0.5">
+          <p className="text-sm text-[#FBFBFB]">Title</p>
+          <div className="flex items-center gap-2">
+            <div className="relative aspect-square h-[20px]">
+              <Image src={"/thj-logo.png"} alt="logo" fill />
+            </div>
+            <p className="whitespace-nowrap text-xs text-[#6B6B6B]">
+              By The Honey jar
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col items-end">
+          <div className="flex items-center gap-1">
+            <div className="relative aspect-square h-[12px]">
+              <Image src={"/eth.svg"} alt="eth" fill />
+            </div>
+            <p className="text-sm font-semibold text-white">12.00</p>
+          </div>
+          <p className="text-[8px] text-[#BABABA]">$123,145.00</p>
+        </div>
+      </div>
+    </div>
+  </CarouselItem>;
+};

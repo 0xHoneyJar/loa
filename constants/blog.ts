@@ -1,17 +1,17 @@
 export const BLOGS = [
   {
-    heading: "Lore 7",
-    desc: "Set 7 of 7. Full set of sets gets [REDACTED]",
-    link: "https://0xhoneyjar.mirror.xyz/A79gl6lTz-rZdHlrgaR4mt2EdghG6LUtVZp8PYAe5qc",
+    heading: "Berachain, Cults and the Dawn of The Honey Jar",
+    desc: "This a FrenGate collectible article needed also for InfinityGate.",
+    link: "https://0xhoneyjar.mirror.xyz/nQE-5CbhhirIeTJi7w48P97Ir0-HISuvb6NnwHr-eSA",
   },
   {
-    heading: "Lore 6",
-    desc: "Set 6 of 7. Full set of sets gets [REDACTED]",
-    link: "https://0xhoneyjar.mirror.xyz/wr2WuLyOcqs_1VcHArJqIrLdl2JptvisI4wjWVCgGqY",
+    heading: "Bonga Bera 101",
+    desc: "This is the Bong Bear OG equivalent article and is needed for BearGate and InfinityGate.",
+    link: "https://0xhoneyjar.mirror.xyz/5-Skgz_rKNB3FQP4QnfeCWO3f8Ew5G7KLTt-rHZq2Ro",
   },
   {
-    heading: "Lore 5",
-    desc: "Set 5 of 7. Full set of sets gets [REDACTED]",
-    link: "https://0xhoneyjar.mirror.xyz/m84Rmtqo1EYJDXcuyw7V0dQ0qvuvLiuxuGNR4NWWtmw",
+    heading: "Lore 1 ♡ Introducing Mibera",
+    desc: "Set 1 of 7. Full set of sets gets [REDACTED]. Follow @miberamaker333. Collect all Lore 1 ♡ multimedia accessories here if u wanna avoid the mirror lazy premiums",
+    link: "https://0xhoneyjar.mirror.xyz/GTBSEjmFrVJ1CrCS0kUl-vaRZA6PY-c7IBs259jF1Fo",
   },
 ];

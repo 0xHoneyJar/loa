@@ -48,7 +48,7 @@ const Honeycomb = () => {
               className="object-cover"
             />
             <div className="z-10 flex w-1/2 flex-col gap-4 pr-12">
-              <p className="text-xs text-[#D1D1D1] md:text-sm lg:text-base">
+              <p className="text-xs text-[#D1D1D1] md:text-sm xl:text-base">
                 Honeycomb is an anti-hustle tech and a perk aggregator of the
                 Berachain eco. It gives you whitelist to most projects in the
                 ecosystem
@@ -62,26 +62,32 @@ const Honeycomb = () => {
                     className="object-contain p-1"
                   />
                 </div>
-                Buy a Honeycomb
+                <p className="text-xs md:text-sm xl:text-base">
+                  Buy a Honeycomb
+                </p>
               </button>
             </div>
           </div>
           <div className="relative h-[250px] w-full">
-            <div className="grid size-full grid-cols-4 gap-4">
+            <div className="grid size-full grid-cols-4 gap-2 md:gap-3 xl:gap-4">
               <div className="relative flex size-full flex-col items-center rounded-lg border border-[#F5D0110A] bg-[#15120B] py-8">
                 <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                <p className="text-lg text-[#6B6B6B]">Total Perks</p>
+                <p className="whitespace-nowrap text-sm text-[#6B6B6B] md:text-base xl:text-lg">
+                  Total Perks
+                </p>
                 <div className="flex size-full items-center justify-center">
-                  <p className="bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-7xl font-medium text-transparent">
+                  <p className="bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-5xl font-medium text-transparent md:text-6xl xl:text-7xl">
                     94
                   </p>
                 </div>
               </div>
               <div className="relative flex size-full flex-col items-center rounded-lg border border-[#F5D0110A] bg-[#15120B] py-8">
                 <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                <p className="text-lg text-[#6B6B6B]">Active Perks</p>
+                <p className="whitespace-nowrap text-sm text-[#6B6B6B] md:text-base xl:text-lg">
+                  Active Perks
+                </p>
                 <div className="flex size-full items-center justify-center">
-                  <p className="bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-7xl font-medium text-transparent">
+                  <p className="bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-5xl font-medium text-transparent md:text-6xl xl:text-7xl">
                     78
                   </p>
                 </div>
@@ -89,7 +95,9 @@ const Honeycomb = () => {
               <div className="grid size-full grid-rows-2 gap-6">
                 <div className="relative flex size-full flex-col items-center justify-center rounded-lg border border-[#F5D0110A] bg-[#15120B]">
                   <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                  <p className="text-sm text-[#6B6B6B]">Floor Price</p>
+                  <p className="text-[10px] text-[#6B6B6B] md:text-xs xl:text-sm">
+                    Floor Price
+                  </p>
                   <div className="flex items-center gap-2">
                     <div className="relative aspect-square h-[16px]">
                       <Image
@@ -104,7 +112,9 @@ const Honeycomb = () => {
                 </div>
                 <div className="relative flex size-full flex-col items-center justify-center rounded-lg border border-[#F5D0110A] bg-[#15120B]">
                   <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                  <p className="text-sm text-[#6B6B6B]">Perk Value</p>
+                  <p className="text-[10px] text-[#6B6B6B] md:text-xs xl:text-sm">
+                    Perk Value
+                  </p>
                   <p className="flex items-center gap-2">
                     <div className="relative aspect-square h-[16px]">
                       <Image
@@ -121,7 +131,9 @@ const Honeycomb = () => {
               <div className="grid size-full grid-rows-2 gap-6">
                 <div className="relative flex size-full flex-col items-center justify-center rounded-lg border border-[#F5D0110A] bg-[#15120B]">
                   <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                  <p className="text-sm text-[#6B6B6B]">Holders</p>
+                  <p className="text-[10px] text-[#6B6B6B] md:text-xs xl:text-sm">
+                    Holders
+                  </p>
                   <p className="flex items-center gap-2">
                     <div className="relative aspect-square h-[16px]">
                       <Image
@@ -136,7 +148,9 @@ const Honeycomb = () => {
                 </div>
                 <div className="relative flex size-full flex-col items-center justify-center rounded-lg border border-[#F5D0110A] bg-[#15120B]">
                   <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                  <p className="text-sm text-[#6B6B6B]">Perks Value</p>
+                  <p className="text-[10px] text-[#6B6B6B] md:text-xs xl:text-sm">
+                    Perks Value
+                  </p>
                   <p className="flex items-center gap-2">
                     <span className="text-sm">$</span>
                     333,286.24
@@ -145,14 +159,18 @@ const Honeycomb = () => {
               </div>
             </div>
           </div>
-          <button className="flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-6 py-3 text-lg text-[#F4C10B] hover:cursor-blue hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]">
-            Visit Honeycomb Dashboard
-            <ArrowUpRight size={28} />
+          <button className="flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-6 py-3 text-[#F4C10B] hover:cursor-blue hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]">
+            <p className="text-sm md:text-base xl:text-lg">
+              Visit Honeycomb Dashboard
+            </p>
+            <ArrowUpRight className="aspect-square h-5 md:h-6 xl:h-[28px]" />
           </button>
         </div>
         <Carousel className="flex h-full flex-col">
           <div className="flex items-center justify-between border-y border-dashed border-[#FEFEFE14] px-6 py-4">
-            <p className="text-lg text-white">Recent Perks</p>
+            <p className="text-sm text-white md:text-base xl:text-lg">
+              Recent Perks
+            </p>
             <div className="relative flex gap-1.5 md:gap-2 xl:gap-3">
               <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
               <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />

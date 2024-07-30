@@ -8,9 +8,18 @@ import { ChevronDown } from "lucide-react";
 import Sidebar from "@/components/sidebar";
 import SectionSelect from "@/components/hero/section-select";
 import AudioPlayer from "@/components/audio/audio-player";
+import { EXPLOREITEMS } from "@/constants/explore";
+import {
+  NavigationMenu,
+  NavigationMenuItem,
+  NavigationMenuList,
+  NavigationMenuViewport,
+} from "@/components/ui/navigation-menu";
+import Explore from "./hero/explore";
 
 const Navbar = () => {
   const [toggle, setToggle] = useState(false);
+  const [openItem, setOpenItem] = useState("");
 
   return (
     <>
@@ -63,8 +72,31 @@ const Navbar = () => {
           </p>
         </div>
         <div className="flex items-center px-4 py-3">
-          <div className="md:flex items-center gap-2 md:gap-3 hidden lg:ml-28 ml-12">
-            <button className="flex h-[36px] items-center gap-2 rounded-full border border-[#F4C10B]/50 bg-gradient-to-b from-[#F4C10B1F] to-[#F8A9291F] px-4 text-xs font-medium text-white md:px-6 md:text-sm">
+          {/* <div className=""> */}
+          <NavigationMenu
+            className="ml-12 hidden items-center md:flex lg:ml-28"
+            value={openItem}
+            onValueChange={setOpenItem}
+          >
+            <NavigationMenuList className="space-x-2 md:space-x-3">
+              <Explore />
+              <SectionSelect />
+              <NavigationMenuItem>
+                <a className="flex h-[36px] cursor-pointer items-center whitespace-nowrap rounded-full bg-[#FFFFFF0F] px-4 text-xs font-medium text-white md:px-6 md:text-sm">
+                  Join Us
+                </a>
+              </NavigationMenuItem>
+              <NavigationMenuItem>
+                <a className="flex h-[36px] cursor-pointer items-center whitespace-nowrap rounded-full bg-[#43AA77] px-4 text-xs font-medium text-white hover:shadow-evergreen md:px-6 md:text-sm">
+                  Delegate to THJ
+                </a>
+              </NavigationMenuItem>
+            </NavigationMenuList>
+            <NavigationMenuViewport
+              className={`${openItem === "explore" ? "left-[-40%]" : "left-[50%]"}`}
+            />
+          </NavigationMenu>
+          {/* <button className="flex h-[36px] items-center gap-2 rounded-full border border-[#F4C10B]/50 bg-gradient-to-b from-[#F4C10B1F] to-[#F8A9291F] px-4 text-xs font-medium text-white md:px-6 md:text-sm">
               <p>Explore</p>
               <p className="rounded-full border bg-[#FFFFFF14] px-2 text-[7px]">
                 NEW
@@ -76,10 +108,10 @@ const Navbar = () => {
             </a>
             <a className="flex h-[36px] cursor-pointer items-center whitespace-nowrap rounded-full bg-[#43AA77] px-4 text-xs font-medium text-white hover:shadow-evergreen md:px-6 md:text-sm">
               Delegate to THJ
-            </a>
-          </div>
+            </a> */}
+          {/* </div> */}
           <button
-            className="flex flex-col gap-1.5 md:hidden ml-10"
+            className="ml-10 flex flex-col gap-1.5 md:hidden"
             onClick={() => setToggle(!toggle)}
           >
             <hr className="w-6 border" />

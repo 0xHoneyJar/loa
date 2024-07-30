@@ -26,9 +26,9 @@ const Data = () => {
         </div>
       </div>
       <div className="flex grow flex-col">
-        <div className="flex flex-col border-b border-[#F4C10B]/20 px-6 py-8">
+        <div className="flex flex-col border-b border-[#F4C10B]/20 px-4 py-6 md:px-6 md:py-8">
           <div className="mb-2 flex items-center gap-2">
-            <div className="relative aspect-square h-[20px]">
+            <div className="relative aspect-square h-4 md:h-5">
               <Image
                 src={"/raised.svg"}
                 alt="raised"
@@ -36,27 +36,31 @@ const Data = () => {
                 className="object-contain"
               />
             </div>
-            <p className="text-lg font-medium">Total Raised</p>
+            <p className="text-sm font-medium md:text-base xl:text-lg">
+              Total Raised
+            </p>
           </div>
-          <p className="mb-6 text-sm text-[#E4E4E4] xl:text-base">
+          <p className="mb-4 text-xs text-[#E4E4E4] md:mb-6 md:text-sm xl:text-base">
             How much was raised by THJ and Berachain eco in general
           </p>
-          <div className="relative mb-4 w-full rounded-xl border border-[#F8A9290F] bg-[#F8A9291F] px-4 py-6">
-            <p className="text-3xl font-medium text-[#F8A929] md:text-4xl xl:text-5xl">
+          <div className="relative mb-4 w-full rounded-xl border border-[#F8A9290F] bg-[#F8A9291F] px-2 py-4 md:px-4 md:py-6">
+            <p className="text-2xl font-medium text-[#F8A929] md:text-3xl xl:text-4xl 2xl:text-5xl">
               $5,042,000
             </p>
-            <p className="absolute bottom-2 right-2 flex items-center gap-1 text-sm text-[#A9A9A9]/50">
+            <p className="absolute bottom-2 right-2 flex items-center text-[10px] text-[#A9A9A9]/50 md:text-xs xl:text-sm">
               / By Bera Eco
             </p>
           </div>
-          <div className="relative w-full rounded-xl border border-[#F8A9290F] bg-[#F8A9291F] px-4 py-6">
-            <p className="text-5xl font-medium text-[#F8A929]">$9,000,000</p>
-            <p className="absolute bottom-2 right-2 flex items-center gap-1 text-sm text-[#A9A9A9]/50">
+          <div className="relative w-full rounded-xl border border-[#F8A9290F] bg-[#F8A9291F] px-2 py-4 md:px-4 md:py-6">
+            <p className="text-2xl font-medium text-[#F8A929] md:text-3xl xl:text-4xl 2xl:text-5xl">
+              $9,000,000
+            </p>
+            <p className="absolute bottom-2 right-2 flex items-center text-[10px] text-[#A9A9A9]/50 md:text-xs xl:text-sm">
               / By THJ
             </p>
           </div>
         </div>
-        <div className="flex flex-col border-b border-[#F4C10B]/20 px-6 py-8">
+        <div className="flex flex-col border-b border-[#F4C10B]/20 px-4 py-6 md:px-6 md:py-8">
           <div className="mb-8 flex items-center gap-2">
             <div className="relative aspect-square h-[20px]">
               <Image
@@ -66,7 +70,9 @@ const Data = () => {
                 className="object-contain"
               />
             </div>
-            <p className="text-lg font-medium">THJ Faucet</p>
+            <p className="text-sm font-medium md:text-base xl:text-lg">
+              THJ Faucet
+            </p>
           </div>
           <div className="mb-10 flex grow-0 items-center justify-center">
             <CircularProgressbarWithChildren
@@ -111,7 +117,7 @@ const Data = () => {
         </div>
         <div className="flex grow flex-col p-6">
           <div className="mb-8 flex items-center gap-2">
-            <div className="relative aspect-square h-[20px]">
+            <div className="relative aspect-square h-4 md:h-5">
               <Image
                 src={"/faucet.svg"}
                 alt="faucet"
@@ -119,7 +125,9 @@ const Data = () => {
                 className="object-contain"
               />
             </div>
-            <p className="text-lg font-medium">Honeycomb Holders</p>
+            <p className="whitespace-nowrap text-sm font-medium md:text-base xl:text-lg">
+              Honeycomb Holders
+            </p>
           </div>
           <div className="relative flex size-full flex-col items-center justify-between">
             <div className="flex w-full flex-col">
@@ -160,7 +168,7 @@ const Data = () => {
                 </div>
               </div>
             </div>
-            <button className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-[#F4C10B] py-3 text-lg font-medium text-black hover:cursor-blue hover:shadow-yellow">
+            <button className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-[#F4C10B] py-3 font-medium text-black hover:cursor-blue hover:shadow-yellow">
               <div className="relative aspect-square h-[18px]">
                 <Image
                   src={"/dashboard.svg"}
@@ -169,7 +177,9 @@ const Data = () => {
                   className="object-contain"
                 />
               </div>
-              Honeycomb Dashboard
+              <p className="text-sm md:text-base xl:text-lg">
+                Honeycomb Dashboard
+              </p>
             </button>
           </div>
         </div>

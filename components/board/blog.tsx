@@ -57,9 +57,9 @@ const Blog = () => {
               <a
                 href={"https://0xhoneyjar.mirror.xyz/"}
                 target="_blank"
-                className="z-10 flex items-center gap-1 whitespace-nowrap rounded-full border border-[#3B3B3B] bg-[#5A5A5A]/30 px-2 py-1 text-xs backdrop-blur-lg hover:cursor-blue hover:bg-[#5A5A5A]/50 md:px-3 md:py-2 md:text-sm lg:px-4 lg:text-base"
+                className="z-10 flex items-center gap-1 whitespace-nowrap rounded-full border border-[#3B3B3B] bg-[#5A5A5A]/30 px-2 py-1 text-xs backdrop-blur-lg hover:cursor-blue hover:border-white/20 hover:bg-white/25 md:px-3 md:py-2 md:text-sm lg:px-4 lg:text-base"
               >
-                Read Now{" "}
+                Read Now
                 <ArrowUpRight className="aspect-square h-4 md:h-5 lg:h-6" />
               </a>
             </div>
@@ -104,15 +104,17 @@ const BlogDisplay = ({
         <div className="flex h-1/3 flex-col gap-1">
           <div className="flex items-center justify-between">
             <p
-              className={`whitespace-nowrap text-xs font-medium md:text-base ${hover ? "text-[#F5D011]" : "text-white"}`}
+              className={`truncate whitespace-nowrap text-xs font-medium md:text-base ${hover ? "text-[#F5D011]" : "text-white"}`}
             >
               {heading}
             </p>
             <ArrowUpRight
-              className={`aspect-square h-3 md:h-4 lg:h-5 ${hover ? "text-[#F5D011]" : "text-white/15"} `}
+              className={`aspect-square h-3 shrink-0 md:h-4 lg:h-5 ${hover ? "text-[#F5D011]" : "text-white/15"} `}
             />
           </div>
-          <p className="text-[10px] text-[#A9A9A9] md:text-sm">{description}</p>
+          <p className="truncate text-[10px] text-[#A9A9A9] md:text-sm">
+            {description}
+          </p>
         </div>
       </div>
     </CarouselItem>
