@@ -8,6 +8,7 @@ import {
 import { TOOLS } from "@/constants/tools";
 import DragHandle from "../drag-handle";
 import { useState } from "react";
+import Image from "next/image";
 
 const Tools = () => {
   const [glow, setGlow] = useState(false);
@@ -37,7 +38,18 @@ const Tools = () => {
           {TOOLS.map((item, id) => (
             <CarouselItem key={id} className="h-full">
               <div className="flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#161616] bg-[#121212] text-[#C4C4C4] hover:cursor-blue hover:border-[#373737] hover:bg-[#1A1A1A] hover:font-medium hover:text-white md:w-[196px]">
-                <div className="mb-4 mt-4 aspect-square h-16 rounded-full bg-[#FD4D01] md:mt-6 md:h-[80px] xl:h-[100px]" />
+                {item.image ? (
+                  <div className="relative mb-4 mt-4 aspect-square h-16 overflow-hidden rounded-full md:mt-6 md:h-[80px] xl:h-[100px]">
+                    <Image
+                      src={item.image}
+                      alt={item.name}
+                      fill
+                      className="object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="mb-4 mt-4 aspect-square h-16 rounded-full bg-[#FD4D01] md:mt-6 md:h-[80px] xl:h-[100px]" />
+                )}
                 <p className="text-xs md:text-sm xl:text-base">{item.name}</p>
               </div>
             </CarouselItem>

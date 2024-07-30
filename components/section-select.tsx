@@ -48,7 +48,7 @@ const SectionSelect = () => {
     //   </SelectContent>
     // </Select>
     <NavigationMenuItem value="section">
-      <NavigationMenuTrigger className="flex items-center gap-1 rounded-full bg-[#FFFFFF0F] px-6 py-2.5 text-xs text-white md:text-sm">
+      <NavigationMenuTrigger className="flex items-center gap-1 rounded-full bg-[#FFFFFF0F] px-6 py-2.5 text-xs text-white lg:text-sm">
         Section
       </NavigationMenuTrigger>
       <NavigationMenuContent className="left-32 top-[60px]">

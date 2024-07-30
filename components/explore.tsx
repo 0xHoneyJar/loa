@@ -9,13 +9,13 @@ import Image from "next/image";
 const Explore = () => {
   return (
     <NavigationMenuItem className="" value="explore">
-      <NavigationMenuTrigger className="flex items-center rounded-full border border-[#F4C10B24] bg-gradient-to-b from-[#F4C10B1F] to-[#F8A9291F] px-6 py-2.5 text-white hover:border-[#F4C10B58] hover:from-[#F4C10B32] hover:to-[#F8A92932] md:text-sm">
+      <NavigationMenuTrigger className="flex items-center rounded-full border border-[#F4C10B24] bg-gradient-to-b from-[#F4C10B1F] to-[#F8A9291F] px-6 py-2.5 text-xs text-white hover:border-[#F4C10B58] hover:from-[#F4C10B32] hover:to-[#F8A92932] lg:text-sm">
         <p>Explore</p>
         <p className="ml-2 mr-1 rounded-full border bg-[#FFFFFF14] px-2 text-[7px]">
           NEW
         </p>
       </NavigationMenuTrigger>
-      <NavigationMenuContent className="-left-48 top-[60px] flex flex-col rounded-xl border border-[#66666632] bg-[#0D0D0D] lg:flex-row">
+      <NavigationMenuContent className="-left-20 top-[60px] flex flex-col rounded-xl border border-[#66666632] bg-[#0D0D0D] lg:-left-52 lg:flex-row">
         <div className="flex flex-col gap-1 p-2 pb-0 md:pb-2">
           {EXPLOREITEMS.slice(0, 5).map((item) => (
             <ListItem key={item.title} {...item} />

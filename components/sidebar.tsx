@@ -82,7 +82,7 @@ const Sidebar = ({
             initial="initial"
             animate="open"
             exit="initial"
-            className="flex size-full flex-col items-center justify-center gap-6 text-lg text-white"
+            className="flex h-full w-full flex-col items-center justify-center gap-6 text-lg text-white"
           >
             {pathname === "/" ? (
               <>

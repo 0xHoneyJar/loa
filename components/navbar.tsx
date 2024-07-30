@@ -19,7 +19,6 @@ import Explore from "./explore";
 
 const Navbar = () => {
   const [toggle, setToggle] = useState(false);
-  const [openItem, setOpenItem] = useState("");
 
   return (
     <>
@@ -73,28 +72,21 @@ const Navbar = () => {
         </div>
         <div className="flex items-center px-4 py-2">
           {/* <div className=""> */}
-          <NavigationMenu
-            className="ml-12 hidden items-center md:flex lg:ml-28"
-            value={openItem}
-            onValueChange={setOpenItem}
-          >
-            <NavigationMenuList className="space-x-2 text-sm md:space-x-3">
+          <NavigationMenu className="ml-12 hidden items-center md:flex lg:ml-28">
+            <NavigationMenuList className="space-x-2 text-xs md:space-x-3 lg:text-sm">
               <Explore />
               <SectionSelect />
               <NavigationMenuItem>
-                <a className="flex cursor-pointer items-center whitespace-nowrap rounded-full bg-[#FFFFFF0F] px-6 py-2.5 text-xs font-medium text-white md:px-6 md:text-sm">
+                <a className="flex cursor-pointer items-center whitespace-nowrap rounded-full bg-[#FFFFFF0F] px-6 py-2.5 font-medium text-white">
                   Join Us
                 </a>
               </NavigationMenuItem>
               <NavigationMenuItem>
-                <a className="flex cursor-pointer items-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 py-2.5 text-xs font-medium text-white hover:shadow-evergreen md:px-6 md:text-sm">
+                <a className="flex cursor-pointer items-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 py-2.5 font-medium text-white hover:shadow-evergreen">
                   Delegate to THJ
                 </a>
               </NavigationMenuItem>
             </NavigationMenuList>
-            {/* <NavigationMenuViewport
-              className={`${openItem === "explore" ? "-left-48" : openItem === "section" ? "-left-12" : ""} `}
-            /> */}
           </NavigationMenu>
           {/* <button className="flex h-[36px] items-center gap-2 rounded-full border border-[#F4C10B]/50 bg-gradient-to-b from-[#F4C10B1F] to-[#F8A9291F] px-4 text-xs font-medium text-white md:px-6 md:text-sm">
               <p>Explore</p>

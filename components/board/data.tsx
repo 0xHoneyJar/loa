@@ -61,7 +61,7 @@ const Data = () => {
           </div>
         </div>
         <div className="flex flex-col border-b border-[#F4C10B]/20 p-4 md:p-6">
-          <div className="mb-8 flex items-center gap-2">
+          <div className="mb-10 flex items-center gap-2">
             <div className="relative aspect-square h-4 md:h-5">
               <Image
                 src={"/faucet.svg"}
@@ -88,7 +88,7 @@ const Data = () => {
             >
               {/* <p className="text-xl font-medium">500,000</p>
               <p className="text-sm">Total Wallets</p> */}
-              <div className="flex size-full flex-col items-center justify-center">
+              <div className="flex h-full w-full flex-col items-center justify-center">
                 <p className="font-medium md:text-xl">500,000</p>
                 <p className="text-xs md:text-sm">Total Wallets</p>
               </div>
@@ -116,7 +116,7 @@ const Data = () => {
           </div>
         </div>
         <div className="flex grow flex-col p-4 md:p-6">
-          <div className="mb-8 flex items-center gap-2">
+          <div className="mb-10 flex items-center gap-2">
             <div className="relative aspect-square h-4 md:h-5">
               <Image
                 src={"/faucet.svg"}
@@ -129,7 +129,7 @@ const Data = () => {
               Honeycomb Holders
             </p>
           </div>
-          <div className="relative flex size-full flex-col items-center justify-between">
+          <div className="relative flex h-full w-full flex-col items-center justify-between">
             <div className="flex w-full flex-col">
               <div className="mb-10 flex items-center justify-center">
                 <CircularProgressbarWithChildren

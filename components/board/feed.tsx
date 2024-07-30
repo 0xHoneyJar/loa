@@ -62,7 +62,7 @@ const Feed = () => {
         </a>
       </div>
       <div className="flex grow overflow-hidden p-4 md:p-6">
-        <div className="relative size-full">
+        <div className="relative h-full w-full">
           <SecondaryTweetDisplay
             text={tweets[(tweetNum + 1) % (tweets.length - 1)]?.full_text}
           />

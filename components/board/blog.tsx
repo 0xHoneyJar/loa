@@ -36,7 +36,7 @@ const Blog = () => {
           </div>
         </div>
         {/* <div className="flex grow overflow-hidden p-4 md:p-6"> */}
-        <CarouselContent className="flex size-full p-4 pr-0 md:p-6 lg:-ml-0 lg:grid lg:!transform-none lg:grid-cols-4 lg:gap-5 xl:gap-6">
+        <CarouselContent className="flex h-full w-full p-4 pr-0 md:p-6 lg:-ml-0 lg:grid lg:!transform-none lg:grid-cols-4 lg:gap-5 xl:gap-6">
           {/* <div className="flex h-full lg:grid lg:w-full lg:grid-cols-4 lg:gap-5 xl:gap-6"> */}
           {BLOGS.map((blog, id) => (
             <BlogDisplay

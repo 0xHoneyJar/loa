@@ -28,7 +28,7 @@ const Updates = () => {
             <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
           </div>
         </div>
-        <CarouselContent className="flex size-full py-4 pl-4 md:py-6 md:pl-6">
+        <CarouselContent className="flex h-full w-full py-4 pl-4 md:py-6 md:pl-6">
           {UPDATES.map((update, id) => (
             <UpdateDisplay
               key={id}

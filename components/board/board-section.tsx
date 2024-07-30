@@ -186,11 +186,11 @@ const BoardSection = ({ partners }: { partners: any }) => {
             sm: convertedTailwindBreakpoints.sm,
             xs: convertedTailwindBreakpoints.xs,
           }}
-          cols={{ xl: 3, lg: 3, md: 2, sm: 2, xs: 1 }}
+          cols={{ lg: 3, md: 2, sm: 2, xs: 1 }}
           rowHeight={rowHeight}
           draggableHandle=".dragHandle"
           layouts={layouts}
-          isResizable={false}
+          // isResizable={false}
           margin={{
             lg: [30, 30],
             md: [28, 28],

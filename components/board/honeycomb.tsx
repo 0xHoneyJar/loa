@@ -38,8 +38,8 @@ const Honeycomb = () => {
           />
         </div>
       </div>
-      <div className="flex w-full grow flex-col">
-        <div className="flex w-full flex-col gap-4 p-4 md:p-6">
+      <div className="flex h-full w-full grow flex-col">
+        <Carousel className="flex h-full w-full flex-col gap-4 p-4 md:p-6">
           <div className="relative flex h-[200px] w-full items-center justify-center overflow-hidden rounded-xl sm:h-[230px] md:h-[250px] md:justify-end">
             <Image
               src={"/honeycomb.png"}
@@ -68,110 +68,118 @@ const Honeycomb = () => {
               </button>
             </div>
           </div>
-          <div className="relative h-[230px] w-full md:h-[250px]">
-            <div className="grid size-full grid-cols-4 gap-2 md:gap-3 xl:gap-4">
-              <div className="relative flex size-full flex-col items-center rounded-lg border border-[#F5D0110A] bg-[#15120B] py-8">
-                <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                <p className="whitespace-nowrap text-sm text-[#6B6B6B] md:text-base xl:text-lg">
-                  Total Perks
-                </p>
-                <div className="flex size-full items-center justify-center">
-                  <p className="bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-5xl font-medium text-transparent md:text-6xl xl:text-7xl">
-                    94
-                  </p>
-                </div>
-              </div>
-              <div className="relative flex size-full flex-col items-center rounded-lg border border-[#F5D0110A] bg-[#15120B] py-8">
-                <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                <p className="whitespace-nowrap text-sm text-[#6B6B6B] md:text-base xl:text-lg">
-                  Active Perks
-                </p>
-                <div className="flex size-full items-center justify-center">
-                  <p className="bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-5xl font-medium text-transparent md:text-6xl xl:text-7xl">
-                    78
-                  </p>
-                </div>
-              </div>
-              <div className="grid size-full grid-rows-2 gap-3 md:gap-4 xl:gap-6">
-                <div className="relative flex size-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F5D0110A] bg-[#15120B]">
+          <Carousel className="relative flex h-[230px] w-full md:h-[250px]">
+            <CarouselContent className="flex h-full w-full xl:-ml-0 xl:grid xl:!transform-none xl:grid-cols-4 xl:gap-4">
+              <CarouselItem className="h-full w-full basis-1/2 xl:pl-0">
+                <div className="relative flex h-full w-full flex-col items-center rounded-lg border border-[#F5D0110A] bg-[#15120B] py-8">
                   <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                  <p className="text-[10px] text-[#6B6B6B] md:text-xs xl:text-sm">
-                    Floor Price
+                  <p className="whitespace-nowrap text-sm text-[#6B6B6B] md:text-base xl:text-lg">
+                    Total Perks
                   </p>
-                  <div className="flex items-center gap-2">
-                    <div className="relative aspect-square h-[16px]">
-                      <Image
-                        src={"/floor-price.svg"}
-                        alt="floor-price"
-                        fill
-                        className="object-contain"
-                      />
-                    </div>
-                    <p className="whitespace-nowrap text-xs md:text-sm xl:text-base">
-                      333,286.24 ETH
+                  <div className="flex h-full w-full items-center justify-center">
+                    <p className="bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-5xl font-medium text-transparent md:text-6xl xl:text-7xl">
+                      94
                     </p>
                   </div>
                 </div>
-                <div className="relative flex size-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F5D0110A] bg-[#15120B]">
+              </CarouselItem>
+              <CarouselItem className="h-full w-full basis-1/2 xl:pl-0">
+                <div className="relative flex h-full w-full flex-col items-center rounded-lg border border-[#F5D0110A] bg-[#15120B] py-8">
                   <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                  <p className="text-[10px] text-[#6B6B6B] md:text-xs xl:text-sm">
-                    Perk Value
+                  <p className="whitespace-nowrap text-sm text-[#6B6B6B] md:text-base xl:text-lg">
+                    Active Perks
                   </p>
-                  <div className="flex items-center gap-2">
-                    <div className="relative aspect-square h-[16px]">
-                      <Image
-                        src={"/gem.svg"}
-                        alt="gem"
-                        fill
-                        className="object-contain"
-                      />
-                    </div>
-                    <p className="text-xs md:text-sm xl:text-base">
-                      333,286.24
+                  <div className="flex h-full w-full items-center justify-center">
+                    <p className="bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-5xl font-medium text-transparent md:text-6xl xl:text-7xl">
+                      78
                     </p>
                   </div>
                 </div>
-              </div>
-              <div className="grid size-full grid-rows-2 gap-3 md:gap-4 xl:gap-6">
-                <div className="relative flex size-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F5D0110A] bg-[#15120B]">
-                  <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                  <p className="text-[10px] text-[#6B6B6B] md:text-xs xl:text-sm">
-                    Holders
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <div className="relative aspect-square h-[16px]">
-                      <Image
-                        src={"/holder.svg"}
-                        alt="holder"
-                        fill
-                        className="object-contain"
-                      />
+              </CarouselItem>
+              <CarouselItem className="h-full w-full basis-1/2 xl:pl-0">
+                <div className="grid h-full w-full grid-rows-2 gap-3 md:gap-4 xl:gap-6">
+                  <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F5D0110A] bg-[#15120B]">
+                    <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
+                    <p className="text-[10px] text-[#6B6B6B] md:text-xs xl:text-sm">
+                      Floor Price
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <div className="relative aspect-square h-[16px]">
+                        <Image
+                          src={"/floor-price.svg"}
+                          alt="floor-price"
+                          fill
+                          className="object-contain"
+                        />
+                      </div>
+                      <p className="whitespace-nowrap text-xs md:text-sm xl:text-base">
+                        333,286.24 ETH
+                      </p>
                     </div>
-                    <p className="text-xs md:text-sm xl:text-base">413,425</p>
+                  </div>
+                  <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F5D0110A] bg-[#15120B]">
+                    <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
+                    <p className="text-[10px] text-[#6B6B6B] md:text-xs xl:text-sm">
+                      Perk Value
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <div className="relative aspect-square h-[16px]">
+                        <Image
+                          src={"/gem.svg"}
+                          alt="gem"
+                          fill
+                          className="object-contain"
+                        />
+                      </div>
+                      <p className="text-xs md:text-sm xl:text-base">
+                        333,286.24
+                      </p>
+                    </div>
                   </div>
                 </div>
-                <div className="relative flex size-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F5D0110A] bg-[#15120B]">
-                  <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                  <p className="text-[10px] text-[#6B6B6B] md:text-xs xl:text-sm">
-                    Perks Value
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <span className="text-sm">$</span>
-                    <p className="text-xs md:text-sm xl:text-base">
-                      333,286.24
+              </CarouselItem>
+              <CarouselItem className="h-full w-full basis-1/2 xl:pl-0">
+                <div className="grid h-full w-full grid-rows-2 gap-3 md:gap-4 xl:gap-6">
+                  <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F5D0110A] bg-[#15120B]">
+                    <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
+                    <p className="text-[10px] text-[#6B6B6B] md:text-xs xl:text-sm">
+                      Holders
                     </p>
-                  </p>
+                    <div className="flex items-center gap-2">
+                      <div className="relative aspect-square h-[16px]">
+                        <Image
+                          src={"/holder.svg"}
+                          alt="holder"
+                          fill
+                          className="object-contain"
+                        />
+                      </div>
+                      <p className="text-xs md:text-sm xl:text-base">413,425</p>
+                    </div>
+                  </div>
+                  <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F5D0110A] bg-[#15120B]">
+                    <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
+                    <p className="text-[10px] text-[#6B6B6B] md:text-xs xl:text-sm">
+                      Perks Value
+                    </p>
+                    <p className="flex items-center gap-2">
+                      <span className="text-sm">$</span>
+                      <p className="text-xs md:text-sm xl:text-base">
+                        333,286.24
+                      </p>
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </div>
-          </div>
+              </CarouselItem>
+            </CarouselContent>
+          </Carousel>
           <button className="flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-6 py-3 text-[#F4C10B] hover:cursor-blue hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]">
             <p className="text-sm md:text-base xl:text-lg">
               Visit Honeycomb Dashboard
             </p>
             <ArrowUpRight className="aspect-square h-5 md:h-6 xl:h-[28px]" />
           </button>
-        </div>
+        </Carousel>
         <Carousel className="flex h-full flex-col" opts={{ dragFree: true }}>
           <div className="flex items-center justify-between border-y border-dashed border-[#FEFEFE14] px-6 py-4">
             <p className="text-sm text-white md:text-base xl:text-lg">
@@ -182,7 +190,7 @@ const Honeycomb = () => {
               <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
             </div>
           </div>
-          <CarouselContent className="flex size-full py-6 pl-6">
+          <CarouselContent className="flex h-full w-full py-6 pl-6">
             {PERKS.map((item, id) => (
               <CarouselItem key={id}>
                 <div className="relative flex h-full w-[210px] flex-col items-center justify-around rounded-lg border border-[#F4C10B0F] bg-[#18140C] py-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90">

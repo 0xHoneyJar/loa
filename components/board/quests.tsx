@@ -36,7 +36,7 @@ const Quests = () => {
             Quests
           </p>
           <div className="relative aspect-square h-2 rounded-full bg-[#FF0000] md:h-[12px]">
-            <div className="absolute aspect-square size-full animate-ping rounded-full bg-[#FF0000]" />
+            <div className="absolute aspect-square h-full w-full animate-ping rounded-full bg-[#FF0000]" />
           </div>
         </div>
       </div>
