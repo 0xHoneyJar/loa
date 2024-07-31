@@ -8,6 +8,7 @@ import {
   CarouselNext,
 } from "@/components/ui/carousel";
 import { useEffect, useState } from "react";
+import S3Image from "@/components/s3-image";
 
 const Mint = ({ mints }: { mints?: any }) => {
   return (
@@ -36,7 +37,10 @@ const Mint = ({ mints }: { mints?: any }) => {
 
         <CarouselContent className="size-full py-4 pl-4 md:py-6 md:pl-6">
           {mints.items.map((mint: any) => (
-            <CarouselItem key={mint._title} className="basis-1/2 xl:basis-1/3">
+            <CarouselItem
+              key={mint._title}
+              className="basis-full md:basis-1/2 xl:basis-1/3"
+            >
               <MintDisplay mint={mint} />
             </CarouselItem>
           ))}
@@ -82,8 +86,19 @@ const TimeLeft = ({ endDate }: { endDate: number }) => {
 export default Mint;
 
 const MintDisplay = ({ mint }: { mint: any }) => (
-  <div className="relative flex h-full w-full flex-col justify-between overflow-hidden rounded-lg border border-[#F4C10B14] bg-[#221C11] p-4 hover:cursor-blue hover:divide-[#F4C10B47] hover:border-[#F4C10B47] hover:bg-[#423520]">
-    {/* <Image src={mint.image} alt="" fill className="object-cover" /> */}
+  <a
+    href={mint.link}
+    target="_blank"
+    className="relative flex h-full w-full flex-col justify-between overflow-hidden rounded-lg border border-[#F4C10B14] bg-[#221C11] p-4 hover:cursor-blue hover:divide-[#F4C10B47] hover:border-[#F4C10B47] hover:bg-[#423520]"
+  >
+    <div className="absolute left-0 top-0 size-full bg-[#0a0500]">
+      <S3Image
+        src={mint.image}
+        alt=""
+        fill
+        className="z-0 object-cover opacity-25"
+      />
+    </div>
     <div className="z-10 flex items-center justify-start gap-2">
       {mint.endDate && <TimeLeft endDate={mint.endDate} />}
       <div className="rounded-full bg-[#D8D8D8]/10 px-3 py-1">
@@ -95,7 +110,7 @@ const MintDisplay = ({ mint }: { mint: any }) => (
     </div>
     <div className="z-10 flex w-full items-center justify-between">
       <div className="flex flex-col gap-1">
-        <p className="text-sm text-[#FBFBFB]">{mint._title}</p>
+        <p className="text-base text-[#FBFBFB]">{mint._title}</p>
         <div className="flex items-center gap-2">
           <div className="relative aspect-square h-[20px]">
             <Image src={"/thj-logo.png"} alt="logo" fill />
@@ -116,5 +131,5 @@ const MintDisplay = ({ mint }: { mint: any }) => (
         {/* <p className="text-[8px] text-[#BABABA]">$123,145.00</p> */}
       </div>
     </div>
-  </div>
+  </a>
 );
