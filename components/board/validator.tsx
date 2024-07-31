@@ -20,7 +20,7 @@ const Validator = () => {
       className={`${glow && "rotate-1"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D]`}
     >
       <div className="absolute -top-40 h-1 w-full" id="validator" />
-      <Carousel className="flex h-full flex-col">
+      <Carousel className="flex h-full w-full flex-col">
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#43AA77]" />
         <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#1B271B] px-4 md:h-[72px] md:px-6 xl:h-20">
           <div
@@ -38,90 +38,94 @@ const Validator = () => {
           </div>
         </div>
         <div className="flex grow flex-col">
-          <div className="flex h-full w-full p-4 md:p-6">
-            <CarouselContent className="-ml-0 flex basis-full xl:grid xl:!transform-none xl:grid-cols-3 xl:gap-4">
-              <CarouselItem className="grid basis-full grid-rows-3 gap-4 pl-0 sm:basis-1/2 xl:basis-full">
-                <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
-                  <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm xl:text-base">
-                    Delegated to THJ (BGT)
-                  </p>
-                  <div className="flex items-center gap-2 text-lg md:text-xl xl:text-2xl">
-                    <p className="font-semibold">12,324</p>
-                    <div className="relative aspect-square h-[28px]">
-                      <Image
-                        src={"/delegate-bee.png"}
-                        alt="bee"
-                        fill
-                        className="object-contain"
-                      />
+          <div className="flex h-full w-full px-4 md:px-6">
+            <CarouselContent className="flex py-4 md:-my-6 md:py-6 xl:-ml-0 xl:grid xl:!transform-none xl:grid-cols-3 xl:gap-4">
+              <CarouselItem className="basis-full sm:basis-1/2 md:pl-6 xl:basis-full xl:pl-0">
+                <div className="grid h-full w-full grid-rows-3 gap-4">
+                  <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+                    <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm xl:text-base">
+                      Delegated to THJ (BGT)
+                    </p>
+                    <div className="flex items-center gap-2 text-lg md:text-xl xl:text-2xl">
+                      <p className="font-semibold">12,324</p>
+                      <div className="relative aspect-square h-[28px]">
+                        <Image
+                          src={"/delegate-bee.png"}
+                          alt="bee"
+                          fill
+                          className="object-contain"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
-                  <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm xl:text-base">
-                    Number of Delegators
-                  </p>
-                  <p className="text-lg font-semibold md:text-xl xl:text-2xl">
-                    12,3245,213
-                  </p>
-                </div>
-                <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
-                  <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
-                    Return per BGT
-                  </p>
-                  <div className="flex items-center gap-2 text-2xl">
-                    <p className="text-lg font-semibold md:text-xl xl:text-2xl">
-                      $123.13
+                  <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+                    <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm xl:text-base">
+                      Number of Delegators
                     </p>
-                    <div className="relative aspect-square h-[28px]">
-                      <Image
-                        src={"/bgt-honey.png"}
-                        alt="honey"
-                        fill
-                        className="object-contain"
-                      />
+                    <p className="text-lg font-semibold md:text-xl xl:text-2xl">
+                      12,3245,213
+                    </p>
+                  </div>
+                  <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+                    <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
+                      Return per BGT
+                    </p>
+                    <div className="flex items-center gap-2 text-2xl">
+                      <p className="text-lg font-semibold md:text-xl xl:text-2xl">
+                        $123.13
+                      </p>
+                      <div className="relative aspect-square h-[28px]">
+                        <Image
+                          src={"/bgt-honey.png"}
+                          alt="honey"
+                          fill
+                          className="object-contain"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
               </CarouselItem>
-              <CarouselItem className="grid basis-full grid-rows-3 gap-4 sm:basis-1/2 xl:basis-full xl:pl-0">
-                <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
-                  <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
-                    Validator&apos;s Rank
-                  </p>
-                  <p className="text-lg font-semibold md:text-xl xl:text-2xl">
-                    1st
-                  </p>
-                </div>
-                <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
-                  <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
-                    Active Incentives
-                  </p>
-                  <p className="text-lg font-semibold md:text-xl xl:text-2xl">
-                    $0{" "}
-                    {/* <span className="text-xs font-normal text-[#989898]">
+              <CarouselItem className="basis-full sm:basis-1/2 md:pl-6 xl:basis-full xl:pl-0">
+                <div className="grid h-full grid-rows-3 gap-4">
+                  <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+                    <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
+                      Validator&apos;s Rank
+                    </p>
+                    <p className="text-lg font-semibold md:text-xl xl:text-2xl">
+                      1st
+                    </p>
+                  </div>
+                  <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+                    <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
+                      Active Incentives
+                    </p>
+                    <p className="text-lg font-semibold md:text-xl xl:text-2xl">
+                      $0{" "}
+                      {/* <span className="text-xs font-normal text-[#989898]">
                   (The Value)
                 </span> */}
-                  </p>
-                </div>
-                <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
-                  <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
-                    Reward Rate
-                  </p>
-                  <div className="flex items-center gap-2 text-lg md:text-xl xl:text-2xl">
-                    <p className="font-semibold">12,324</p>
-                    <div className="relative aspect-square h-[28px]">
-                      <Image
-                        src={"/delegate-bee.png"}
-                        alt="bee"
-                        fill
-                        className="object-contain"
-                      />
+                    </p>
+                  </div>
+                  <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+                    <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
+                      Reward Rate
+                    </p>
+                    <div className="flex items-center gap-2 text-lg md:text-xl xl:text-2xl">
+                      <p className="font-semibold">12,324</p>
+                      <div className="relative aspect-square h-[28px]">
+                        <Image
+                          src={"/delegate-bee.png"}
+                          alt="bee"
+                          fill
+                          className="object-contain"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
               </CarouselItem>
-              <CarouselItem className="basis-full sm:basis-1/2 xl:pl-0">
+              <CarouselItem className="basis-full sm:basis-1/2 md:pl-6 xl:pl-0">
                 <div className="relative flex h-full w-full flex-col items-center overflow-hidden rounded-2xl border border-[#202020] bg-[#121212] py-6">
                   <div className="relative flex h-full w-full flex-col items-center justify-center">
                     <p className="absolute top-0 text-xs text-[#6B6B6B] md:text-sm xl:text-base">
@@ -138,10 +142,10 @@ const Validator = () => {
                           trailColor: "#F4C10B",
                         })}
                       >
-                        <p className="absolute -left-4 top-0 text-sm font-medium text-[#C1C1C1] 2xl:-left-10 2xl:top-auto">
+                        <p className="absolute -left-10 top-auto text-sm font-medium text-[#C1C1C1] sm:-left-4 sm:top-0 2xl:-left-10 2xl:top-auto">
                           50%
                         </p>
-                        <p className="absolute -right-4 bottom-0 text-sm font-medium text-[#C1C1C1] 2xl:-right-10 2xl:bottom-auto">
+                        <p className="absolute -right-10 bottom-auto text-sm font-medium text-[#C1C1C1] sm:-right-4 sm:bottom-0 2xl:-right-10 2xl:bottom-auto">
                           50%
                         </p>
                       </CircularProgressbarWithChildren>
@@ -161,7 +165,6 @@ const Validator = () => {
               </CarouselItem>
             </CarouselContent>
           </div>
-
           <div className="flex h-[15%] w-full shrink-0 items-center justify-between border-t border-[#1B271B] p-4 md:p-6">
             <div className="flex items-center gap-2">
               <div className="relative aspect-square h-8 md:h-[38px]">

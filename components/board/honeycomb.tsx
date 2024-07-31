@@ -39,7 +39,7 @@ const Honeycomb = () => {
         </div>
       </div>
       <div className="flex h-full w-full grow flex-col">
-        <Carousel className="flex h-full w-full flex-col gap-4 p-4 md:p-6">
+        <div className="flex h-full w-full flex-col gap-4 p-4 md:p-6">
           <div className="relative flex h-[200px] w-full items-center justify-center overflow-hidden rounded-xl sm:h-[230px] md:h-[250px] md:justify-end">
             <Image
               src={"/honeycomb.png"}
@@ -68,9 +68,9 @@ const Honeycomb = () => {
               </button>
             </div>
           </div>
-          <Carousel className="relative flex h-[230px] w-full md:h-[250px]">
-            <CarouselContent className="flex h-full w-full xl:-ml-0 xl:grid xl:!transform-none xl:grid-cols-4 xl:gap-4">
-              <CarouselItem className="h-full w-full basis-1/2 xl:pl-0">
+          <Carousel className="flex h-[230px] w-full md:h-[250px]">
+            <CarouselContent className="!basis-1/2 md:-ml-6 xl:-ml-0 xl:grid xl:!transform-none xl:grid-cols-4 xl:gap-4 2xl:gap-6">
+              <CarouselItem className="h-full w-full md:pl-6 xl:pl-0">
                 <div className="relative flex h-full w-full flex-col items-center rounded-lg border border-[#F5D0110A] bg-[#15120B] py-8">
                   <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                   <p className="whitespace-nowrap text-sm text-[#6B6B6B] md:text-base xl:text-lg">
@@ -83,7 +83,7 @@ const Honeycomb = () => {
                   </div>
                 </div>
               </CarouselItem>
-              <CarouselItem className="h-full w-full basis-1/2 xl:pl-0">
+              <CarouselItem className="h-full w-full md:pl-6 xl:pl-0">
                 <div className="relative flex h-full w-full flex-col items-center rounded-lg border border-[#F5D0110A] bg-[#15120B] py-8">
                   <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                   <p className="whitespace-nowrap text-sm text-[#6B6B6B] md:text-base xl:text-lg">
@@ -96,8 +96,8 @@ const Honeycomb = () => {
                   </div>
                 </div>
               </CarouselItem>
-              <CarouselItem className="h-full w-full basis-1/2 xl:pl-0">
-                <div className="grid h-full w-full grid-rows-2 gap-3 md:gap-4 xl:gap-6">
+              <CarouselItem className="h-full w-full md:pl-6 xl:pl-0">
+                <div className="grid h-full w-full grid-rows-2 gap-3 md:gap-4 2xl:gap-6">
                   <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F5D0110A] bg-[#15120B]">
                     <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                     <p className="text-[10px] text-[#6B6B6B] md:text-xs xl:text-sm">
@@ -138,8 +138,8 @@ const Honeycomb = () => {
                   </div>
                 </div>
               </CarouselItem>
-              <CarouselItem className="h-full w-full basis-1/2 xl:pl-0">
-                <div className="grid h-full w-full grid-rows-2 gap-3 md:gap-4 xl:gap-6">
+              <CarouselItem className="h-full w-full md:pl-6 xl:pl-0">
+                <div className="grid h-full w-full grid-rows-2 gap-3 md:gap-4 2xl:gap-6">
                   <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F5D0110A] bg-[#15120B]">
                     <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                     <p className="text-[10px] text-[#6B6B6B] md:text-xs xl:text-sm">
@@ -179,7 +179,7 @@ const Honeycomb = () => {
             </p>
             <ArrowUpRight className="aspect-square h-5 md:h-6 xl:h-[28px]" />
           </button>
-        </Carousel>
+        </div>
         <Carousel className="flex h-full flex-col" opts={{ dragFree: true }}>
           <div className="flex items-center justify-between border-y border-dashed border-[#FEFEFE14] px-6 py-4">
             <p className="text-sm text-white md:text-base xl:text-lg">

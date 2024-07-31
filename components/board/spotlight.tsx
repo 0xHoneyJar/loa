@@ -2,6 +2,7 @@ import { ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 import DragHandleY from "../drag-handle-y";
 import { useState } from "react";
+import { ScrollArea } from "../ui/scroll-area";
 
 const Spotlight = () => {
   const [glow, setGlow] = useState(false);
@@ -29,7 +30,7 @@ const Spotlight = () => {
         </div>
       </div>
       <div className="flex grow flex-col items-center gap-4 p-4 md:p-6">
-        <div className="relative h-3/5 w-full overflow-hidden rounded-lg border border-[#1C1C1C]">
+        <div className="relative flex h-3/5 w-full shrink-0 overflow-hidden rounded-lg border border-[#1C1C1C]">
           <Image
             src={hover ? "/spotlight-hover.png" : "/spotlight.png"}
             alt="spotlight"
@@ -37,22 +38,26 @@ const Spotlight = () => {
             className="object-cover"
           />
         </div>
-        <div className="relative flex h-2/5 w-full flex-col justify-between gap-3">
-          <div className="flex flex-col">
-            <p className="text-sm font-medium text-[#FBFBFB] md:text-lg">
-              Text
+        <div className="relative flex h-full w-full flex-col overflow-hidden">
+          {/* <div className="flex w-full flex-col"> */}
+          <p className="mb-1 text-sm font-medium text-[#FBFBFB] md:text-base xl:text-lg">
+            Text
+          </p>
+          <ScrollArea>
+            <p className="text-xs text-[#A9A9A9] md:text-sm xl:text-base">
+              Details
             </p>
-            <p className="text-xs text-[#A9A9A9] md:text-base">Details</p>
-          </div>
-          <button
-            onMouseEnter={() => setHover(true)}
-            onMouseLeave={() => setHover(false)}
-            className="flex items-center justify-between rounded-lg bg-[#F4C10B]/10 px-4 py-3 text-[#F4C10B] hover:cursor-blue hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]"
-          >
-            <p className="text-xs md:text-base">Read Now</p>
-            <ArrowUpRight className="aspect-square h-[16px] md:h-[24px]" />
-          </button>
+          </ScrollArea>
+          {/* </div> */}
         </div>
+        <button
+          onMouseEnter={() => setHover(true)}
+          onMouseLeave={() => setHover(false)}
+          className="flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-4 py-3 text-[#F4C10B] hover:cursor-blue hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]"
+        >
+          <p className="text-xs md:text-base">Read Now</p>
+          <ArrowUpRight className="aspect-square h-[16px] md:h-[24px]" />
+        </button>
       </div>
     </div>
   );
