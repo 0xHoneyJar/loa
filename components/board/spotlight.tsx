@@ -3,6 +3,7 @@ import Image from "next/image";
 import DragHandleY from "../drag-handle-y";
 import { useState } from "react";
 import { ScrollArea } from "../ui/scroll-area";
+import S3Image from "../s3-image";
 
 const Spotlight = ({ spotlight }: { spotlight?: any }) => {
   const [glow, setGlow] = useState(false);
@@ -32,11 +33,12 @@ const Spotlight = ({ spotlight }: { spotlight?: any }) => {
       </div>
       <div className="flex grow flex-col items-center gap-4 p-4 md:p-6">
         <div className="relative flex h-3/5 w-full shrink-0 overflow-hidden rounded-lg border border-[#1C1C1C]">
-          <Image
-            src={hover ? spotlight.hoverImage : spotlight.Image}
-            alt="spotlight"
+          <S3Image
+            src={hover ? spotlight.hoverImage : spotlight.image}
+            width={1000}
             fill
-            className="object-cover"
+            alt="spotlight"
+            className="z-[-1] object-cover"
           />
         </div>
         <div className="relative flex h-full w-full flex-col overflow-hidden">
