@@ -42,8 +42,6 @@ export default async function Home() {
     },
   });
 
-  console.log(community);
-
   return (
     <div>
       <HeroSection />
