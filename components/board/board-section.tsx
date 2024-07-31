@@ -12,7 +12,13 @@ import "react-grid-layout/css/styles.css";
 // const ReactGridLayout = WidthProvider(RGL);
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
-const BoardSection = ({ partners }: { partners: any }) => {
+const BoardSection = ({
+  partners,
+  spotlight,
+}: {
+  partners: any;
+  spotlight: any;
+}) => {
   const constraintsRef = useRef<HTMLDivElement>(null);
   const resetRef = useRef<HTMLDivElement>(null);
   const ogLayout = DASHBOARD.map((dashboard) => dashboard.dataGrid);
@@ -214,6 +220,12 @@ const BoardSection = ({ partners }: { partners: any }) => {
               return (
                 <div key={dashboard.key}>
                   {React.cloneElement(dashboard.ui, { partners })}
+                </div>
+              );
+            } else if (dashboard.key === "spotlight") {
+              return (
+                <div key={dashboard.key}>
+                  {React.cloneElement(dashboard.ui, { spotlight })}
                 </div>
               );
             }

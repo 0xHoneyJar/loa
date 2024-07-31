@@ -19,10 +19,21 @@ export default async function Home() {
     },
   });
 
+  const { spotlight } = await basehub({ cache: "no-store" }).query({
+    spotlight: {
+      _title: true,
+      title: true,
+      description: true,
+      link: true,
+      image: true,
+      hoverImage: true,
+    },
+  });
+
   return (
     <div>
       <HeroSection />
-      <BoardSection partners={partners.items} />
+      <BoardSection partners={partners.items} spotlight={spotlight} />
       <Footer />
     </div>
   );

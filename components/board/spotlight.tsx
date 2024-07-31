@@ -4,9 +4,10 @@ import DragHandleY from "../drag-handle-y";
 import { useState } from "react";
 import { ScrollArea } from "../ui/scroll-area";
 
-const Spotlight = () => {
+const Spotlight = ({ spotlight }: { spotlight?: any }) => {
   const [glow, setGlow] = useState(false);
   const [hover, setHover] = useState(false);
+
   return (
     <div
       className={`${glow && "rotate-1"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
@@ -32,7 +33,7 @@ const Spotlight = () => {
       <div className="flex grow flex-col items-center gap-4 p-4 md:p-6">
         <div className="relative flex h-3/5 w-full shrink-0 overflow-hidden rounded-lg border border-[#1C1C1C]">
           <Image
-            src={hover ? "/spotlight-hover.png" : "/spotlight.png"}
+            src={hover ? spotlight.hoverImage : spotlight.Image}
             alt="spotlight"
             fill
             className="object-cover"
@@ -41,23 +42,25 @@ const Spotlight = () => {
         <div className="relative flex h-full w-full flex-col overflow-hidden">
           {/* <div className="flex w-full flex-col"> */}
           <p className="mb-1 text-sm font-medium text-[#FBFBFB] md:text-base xl:text-lg">
-            Text
+            {spotlight.title}
           </p>
           <ScrollArea>
             <p className="text-xs text-[#A9A9A9] md:text-sm xl:text-base">
-              Details
+              {spotlight.description}
             </p>
           </ScrollArea>
           {/* </div> */}
         </div>
-        <button
+        <a
           onMouseEnter={() => setHover(true)}
           onMouseLeave={() => setHover(false)}
           className="flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-4 py-3 text-[#F4C10B] hover:cursor-blue hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]"
+          href={spotlight.link}
+          target="_blank"
         >
           <p className="text-xs md:text-base">Read Now</p>
           <ArrowUpRight className="aspect-square h-[16px] md:h-[24px]" />
-        </button>
+        </a>
       </div>
     </div>
   );
