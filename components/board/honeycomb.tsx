@@ -68,9 +68,10 @@ const Honeycomb = () => {
               </button>
             </div>
           </div>
-          <Carousel className="flex h-[230px] w-full md:h-[250px]">
-            <CarouselContent className="!basis-1/2 md:-ml-6 xl:-ml-0 xl:grid xl:!transform-none xl:grid-cols-4 xl:gap-4 2xl:gap-6">
-              <CarouselItem className="h-full w-full md:pl-6 xl:pl-0">
+          <Carousel className="flex h-[200px] w-full sm:h-[230px] md:h-[250px]">
+            {/* <div className="flex h-full w-full"> */}
+            <CarouselContent className="flex grow md:-ml-6 xl:-ml-0 xl:grid xl:!transform-none xl:grid-cols-4 xl:gap-4 2xl:gap-6">
+              <CarouselItem className="basis-full sm:basis-1/2 md:pl-6 xl:pl-0">
                 <div className="relative flex h-full w-full flex-col items-center rounded-lg border border-[#F5D0110A] bg-[#15120B] py-8">
                   <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                   <p className="whitespace-nowrap text-sm text-[#6B6B6B] md:text-base xl:text-lg">
@@ -83,7 +84,7 @@ const Honeycomb = () => {
                   </div>
                 </div>
               </CarouselItem>
-              <CarouselItem className="h-full w-full md:pl-6 xl:pl-0">
+              <CarouselItem className="basis-full sm:basis-1/2 md:pl-6 xl:pl-0">
                 <div className="relative flex h-full w-full flex-col items-center rounded-lg border border-[#F5D0110A] bg-[#15120B] py-8">
                   <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                   <p className="whitespace-nowrap text-sm text-[#6B6B6B] md:text-base xl:text-lg">
@@ -96,7 +97,7 @@ const Honeycomb = () => {
                   </div>
                 </div>
               </CarouselItem>
-              <CarouselItem className="h-full w-full md:pl-6 xl:pl-0">
+              <CarouselItem className="basis-full sm:basis-1/2 md:pl-6 xl:pl-0">
                 <div className="grid h-full w-full grid-rows-2 gap-3 md:gap-4 2xl:gap-6">
                   <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F5D0110A] bg-[#15120B]">
                     <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
@@ -138,7 +139,7 @@ const Honeycomb = () => {
                   </div>
                 </div>
               </CarouselItem>
-              <CarouselItem className="h-full w-full md:pl-6 xl:pl-0">
+              <CarouselItem className="basis-full sm:basis-1/2 md:pl-6 xl:pl-0">
                 <div className="grid h-full w-full grid-rows-2 gap-3 md:gap-4 2xl:gap-6">
                   <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F5D0110A] bg-[#15120B]">
                     <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
@@ -172,6 +173,7 @@ const Honeycomb = () => {
                 </div>
               </CarouselItem>
             </CarouselContent>
+            {/* </div> */}
           </Carousel>
           <button className="flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-6 py-3 text-[#F4C10B] hover:cursor-blue hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]">
             <p className="text-sm md:text-base xl:text-lg">

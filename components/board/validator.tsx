@@ -38,8 +38,8 @@ const Validator = () => {
           </div>
         </div>
         <div className="flex grow flex-col">
-          <div className="flex h-full w-full px-4 md:px-6">
-            <CarouselContent className="flex py-4 md:-my-6 md:py-6 xl:-ml-0 xl:grid xl:!transform-none xl:grid-cols-3 xl:gap-4">
+          <div className="flex h-[85%] w-full px-4 md:px-6">
+            <CarouselContent className="flex grow py-4 md:-ml-6 md:py-6 xl:-ml-0 xl:grid xl:!transform-none xl:grid-cols-3 xl:gap-4">
               <CarouselItem className="basis-full sm:basis-1/2 md:pl-6 xl:basis-full xl:pl-0">
                 <div className="grid h-full w-full grid-rows-3 gap-4">
                   <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">

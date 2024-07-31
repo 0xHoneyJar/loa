@@ -71,7 +71,7 @@ const Partners = () => {
             <ChevronRight className="aspect-square h-3 text-[#FFFFFF66] md:h-[14px] xl:h-[18px]" />
           </button>
         </div>
-        <div className="relative flex w-full grow items-center justify-center border-t border-[#43AA771A] px-6">
+        <div className="relative flex w-full grow items-center justify-center border-t border-[#43AA771A] px-4 md:px-6">
           <div className="absolute -bottom-2 -left-0 aspect-square h-[40px]">
             <Image
               src={"/arrow-swirl-partner.svg"}
