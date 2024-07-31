@@ -19,21 +19,35 @@ export default async function Home() {
     },
   });
 
-  const { spotlight } = await basehub({ cache: "no-store" }).query({
-    spotlight: {
-      _title: true,
-      title: true,
-      description: true,
-      link: true,
-      image: true,
-      hoverImage: true,
+  const { community } = await basehub({ cache: "no-store" }).query({
+    community: {
+      spotlight: {
+        _title: true,
+        title: true,
+        description: true,
+        link: true,
+        image: true,
+        hoverImage: true,
+      },
+      mints: {
+        items: {
+          _title: true,
+          price: true,
+          supply: true,
+          link: true,
+          image: true,
+          endDate: true,
+        },
+      },
     },
   });
+
+  console.log(community);
 
   return (
     <div>
       <HeroSection />
-      <BoardSection partners={partners.items} spotlight={spotlight} />
+      <BoardSection partners={partners.items} community={community} />
       <Footer />
     </div>
   );

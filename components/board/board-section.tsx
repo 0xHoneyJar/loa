@@ -14,10 +14,10 @@ const ResponsiveGridLayout = WidthProvider(Responsive);
 
 const BoardSection = ({
   partners,
-  spotlight,
+  community,
 }: {
   partners: any;
-  spotlight: any;
+  community: any;
 }) => {
   const constraintsRef = useRef<HTMLDivElement>(null);
   const resetRef = useRef<HTMLDivElement>(null);
@@ -225,7 +225,17 @@ const BoardSection = ({
             } else if (dashboard.key === "spotlight") {
               return (
                 <div key={dashboard.key}>
-                  {React.cloneElement(dashboard.ui, { spotlight })}
+                  {React.cloneElement(dashboard.ui, {
+                    spotlight: community.spotlight,
+                  })}
+                </div>
+              );
+            } else if (dashboard.key === "mint") {
+              return (
+                <div key={dashboard.key}>
+                  {React.cloneElement(dashboard.ui, {
+                    mints: community.mints,
+                  })}
                 </div>
               );
             }
