@@ -53,7 +53,7 @@ const BoardSection = ({
     };
   }, []);
 
-  const [rowHeight, setRowHeight] = useState(340);
+  const [rowHeight, setRowHeight] = useState(0);
 
   // reactgridlayout
   const getLayout = () => {

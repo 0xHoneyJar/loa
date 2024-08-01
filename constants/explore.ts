@@ -66,7 +66,7 @@ export const EXPLOREITEMS: ListItemData[] = [
     color: "#12242A",
   },
   {
-    title: "Apiology Dao",
+    title: "Apiology DAO",
     description: "Honeycomb on steroids",
     icon: "/navbar/apiology.png",
     link: "https://www.apiologydao.xyz/",

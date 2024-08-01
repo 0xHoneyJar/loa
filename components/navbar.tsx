@@ -13,7 +13,6 @@ import {
   NavigationMenu,
   NavigationMenuItem,
   NavigationMenuList,
-  NavigationMenuViewport,
 } from "@/components/ui/navigation-menu";
 import Explore from "./explore";
 
@@ -77,7 +76,11 @@ const Navbar = () => {
               <Explore />
               <SectionSelect />
               <NavigationMenuItem>
-                <a className="flex cursor-pointer items-center whitespace-nowrap rounded-full bg-[#FFFFFF0F] px-6 py-2.5 font-medium text-white">
+                <a
+                  href={"https://discord.com/invite/thehoneyjar"}
+                  target="_blank"
+                  className="flex cursor-pointer items-center whitespace-nowrap rounded-full bg-[#FFFFFF0F] px-6 py-2.5 font-medium text-white"
+                >
                   Join Us
                 </a>
               </NavigationMenuItem>
