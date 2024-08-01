@@ -44,7 +44,7 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
   };
 
   useEffect(() => {
-    async function fetchFloor() {
+    async function fetchHoneycomb() {
       const res = await fetch(
         `https://api.simplehash.com/api/v0/nfts/collections/ids?collection_ids=5d0a382e24d6a4983ca7932e20f66cd3`,
         options,
@@ -54,25 +54,8 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
       setHoneycombData(data.collections[0]);
     }
 
-    fetchFloor();
+    fetchHoneycomb();
   }, []);
-
-  const badgeIconHandler = (category: string) => {
-    switch (category) {
-      case "Gaming":
-        return <Gamepad2 className="size-4" />;
-      case "Community":
-        return <Users className="size-4" />;
-      case "DeFi":
-        return <Landmark className="size-4" />;
-      case "NFT":
-        return <Hexagon className="size-4" />;
-      case "Memecoin":
-        return <Coins className="size-4" />;
-      case "Infrastrucutre":
-        return <Pyramid className="size-4" />;
-    }
-  };
 
   return (
     <div
@@ -288,13 +271,6 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
                         {perk.perks}
                       </p>
                     </div>
-                    {/* <p className="text-center text-xs">{perk.details}</p> */}
-                  </div>
-                  <div className="flex items-center gap-2 opacity-75">
-                    {badgeIconHandler(perk.partner?.category[0])}
-                    <p className="text-xs text-[#A8A8A8]">
-                      {perk.partner?.category[0]}
-                    </p>
                   </div>
                 </div>
               </CarouselItem>
