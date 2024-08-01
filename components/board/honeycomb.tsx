@@ -1,4 +1,12 @@
-import { ArrowUpRight } from "lucide-react";
+import {
+  ArrowUpRight,
+  Coins,
+  Gamepad2,
+  Hexagon,
+  Landmark,
+  Pyramid,
+  Users,
+} from "lucide-react";
 import Image from "next/image";
 import {
   Carousel,
@@ -48,6 +56,23 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
 
     fetchFloor();
   }, []);
+
+  const badgeIconHandler = (category: string) => {
+    switch (category) {
+      case "Gaming":
+        return <Gamepad2 className="size-4" />;
+      case "Community":
+        return <Users className="size-4" />;
+      case "DeFi":
+        return <Landmark className="size-4" />;
+      case "NFT":
+        return <Hexagon className="size-4" />;
+      case "Memecoin":
+        return <Coins className="size-4" />;
+      case "Infrastrucutre":
+        return <Pyramid className="size-4" />;
+    }
+  };
 
   return (
     <div
@@ -238,8 +263,8 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
           <CarouselContent className="flex h-full w-full py-6 pl-6">
             {perks.map((perk: any, id: any) => (
               <CarouselItem key={id}>
-                <div className="relative flex h-full w-[210px] flex-col items-center justify-around rounded-lg border border-[#F4C10B0F] bg-[#18140C] py-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90">
-                  <div className="mt-2 flex flex-col items-center gap-2">
+                <div className="relative flex h-full w-[210px] flex-col items-center justify-around rounded-lg border border-[#F4C10B0F] bg-[#18140C] px-4 py-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90">
+                  <div className="mt-2 flex flex-col items-center justify-center gap-2">
                     <div className="relative aspect-square h-[54px] rounded-full border border-[#F4C10B0F] bg-[#18140C05]">
                       {perk.partner?.logo ? (
                         <S3Image
@@ -263,10 +288,13 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
                         {perk.perks}
                       </p>
                     </div>
+                    {/* <p className="text-center text-xs">{perk.details}</p> */}
                   </div>
-                  <div className="flex items-center gap-1">
-                    <div className="relative aspect-square h-[14px] rounded-full bg-purple-500"></div>
-                    <p className="text-[8px] text-[#A8A8A8]">The Lorem Ip</p>
+                  <div className="flex items-center gap-2 opacity-75">
+                    {badgeIconHandler(perk.partner?.category[0])}
+                    <p className="text-xs text-[#A8A8A8]">
+                      {perk.partner?.category[0]}
+                    </p>
                   </div>
                 </div>
               </CarouselItem>

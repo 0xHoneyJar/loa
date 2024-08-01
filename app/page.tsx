@@ -29,8 +29,10 @@ export default async function Home() {
           perks: true,
           startDate: true,
           endDate: true,
+          details: true,
           partner: {
             logo: true,
+            category: true,
           },
         },
       },

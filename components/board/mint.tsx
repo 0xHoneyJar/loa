@@ -31,7 +31,7 @@ const Mint = ({ mints }: { mints?: any }) => {
             Explore <ArrowUpRight size={24} />
           </button> */}
         </div>
-        <CarouselContent className="flex size-full grow p-4 md:-ml-6 md:p-6">
+        <CarouselContent className="mr-6 flex size-full grow p-4 md:-ml-6 md:p-6">
           {mints.items.map((mint: any) => (
             <CarouselItem
               key={mint._title}
