@@ -27,7 +27,7 @@ const Raffles = () => {
     <div
       className={`${glow && "rotate-1"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
     >
-      <div className="absolute -top-40 h-1 w-full" id="quests" />
+      <div className="absolute -top-40 h-1 w-full" id="raffles" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
       <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6 xl:h-20">
         <div

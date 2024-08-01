@@ -4,13 +4,13 @@ import RGL, { WidthProvider, Responsive } from "react-grid-layout";
 import { DASHBOARD } from "@/constants/dashboard";
 import Marquee from "react-fast-marquee";
 import { motion } from "framer-motion";
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useMemo } from "react";
 import { RotateCcw } from "lucide-react";
 import "react-grid-layout/css/styles.css";
 // import "react-resizable/css/styles.css";
 
 // const ReactGridLayout = WidthProvider(RGL);
-const ResponsiveGridLayout = WidthProvider(Responsive);
+// const ResponsiveGridLayout = WidthProvider(Responsive);
 
 const BoardSection = ({
   partners,
@@ -19,6 +19,7 @@ const BoardSection = ({
   partners: any;
   community: any;
 }) => {
+  const ResponsiveGridLayout = useMemo(() => WidthProvider(Responsive), []);
   const constraintsRef = useRef<HTMLDivElement>(null);
   const resetRef = useRef<HTMLDivElement>(null);
   const ogLayout = DASHBOARD.map((dashboard) => dashboard.dataGrid);
@@ -50,7 +51,7 @@ const BoardSection = ({
     };
   }, []);
 
-  const [rowHeight, setRowHeight] = useState(0);
+  const [rowHeight, setRowHeight] = useState(340);
 
   // reactgridlayout
   const getLayout = () => {
@@ -196,7 +197,7 @@ const BoardSection = ({
           rowHeight={rowHeight}
           draggableHandle=".dragHandle"
           layouts={layouts}
-          // isResizable={false}
+          isResizable={false}
           margin={{
             lg: [30, 30],
             md: [28, 28],

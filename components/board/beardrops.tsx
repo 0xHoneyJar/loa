@@ -8,7 +8,7 @@ const Validator = () => {
     <div
       className={`${glow && "rotate-[1deg]"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D]`}
     >
-      <div className="absolute -top-40 h-1 w-full" id="validator" />
+      <div className="absolute -top-40 h-1 w-full" id="beardrops" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#43AA77]" />
       <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#1B271B] px-4 md:h-[72px] md:px-6 xl:h-20">
         <div

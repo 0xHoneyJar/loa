@@ -8,6 +8,7 @@ const Follow = () => {
     <div
       className={`flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F] ${glow && "rotate-1"}`}
     >
+      <div className="absolute -top-40 h-1 w-full" id="follow" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-white" />
       <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-[72px] md:px-6 xl:h-20">
         <div

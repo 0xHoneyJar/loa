@@ -14,10 +14,7 @@ const Mint = ({ mints }: { mints?: any }) => {
   return (
     <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]">
       <div className="absolute -top-40 h-1 w-full" id="mint" />
-      <Carousel
-        className="flex h-full flex-col"
-        opts={{ align: "start", dragFree: true }}
-      >
+      <Carousel className="flex h-full flex-col" opts={{ dragFree: true }}>
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6 xl:h-20">
           <div className="flex items-center gap-2">
@@ -34,12 +31,11 @@ const Mint = ({ mints }: { mints?: any }) => {
             Explore <ArrowUpRight size={24} />
           </button> */}
         </div>
-
-        <CarouselContent className="size-full py-4 pl-4 md:py-6 md:pl-6">
+        <CarouselContent className="flex size-full grow p-4 md:-ml-6 md:p-6">
           {mints.items.map((mint: any) => (
             <CarouselItem
               key={mint._title}
-              className="basis-full md:basis-1/2 xl:basis-1/3"
+              className="basis-full md:basis-1/2 md:pl-6 xl:basis-1/3"
             >
               <MintDisplay mint={mint} />
             </CarouselItem>
@@ -108,7 +104,7 @@ const MintDisplay = ({ mint }: { mint: any }) => (
         </p>
       </div>
     </div>
-    <div className="z-10 flex w-full items-center justify-between">
+    <div className="z-10 flex w-full items-start justify-between">
       <div className="flex flex-col gap-1">
         <p className="text-base text-[#FBFBFB]">{mint._title}</p>
         <div className="flex items-center gap-2">
@@ -120,16 +116,15 @@ const MintDisplay = ({ mint }: { mint: any }) => (
           </p>
         </div>
       </div>
-
-      <div className="flex flex-col items-end">
-        <div className="flex items-center gap-1">
-          <div className="relative aspect-square h-4">
-            <Image src={"/eth.svg"} alt="eth" fill />
-          </div>
-          <p className="text-lg font-semibold text-white">{mint.price}</p>
+      {/* <div className="flex flex-col items-end"> */}
+      <div className="flex items-center gap-1">
+        <div className="relative aspect-square h-4">
+          <Image src={"/eth.svg"} alt="eth" fill />
         </div>
-        {/* <p className="text-[8px] text-[#BABABA]">$123,145.00</p> */}
+        <p className="text-lg font-semibold text-white">{mint.price}</p>
       </div>
+      {/* <p className="text-[8px] text-[#BABABA]">$123,145.00</p> */}
+      {/* </div> */}
     </div>
   </a>
 );
