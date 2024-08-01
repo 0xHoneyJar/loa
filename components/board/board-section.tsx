@@ -36,6 +36,7 @@ const BoardSection = ({
   }, {});
 
   const [drag, setDrag] = useState(false);
+  const [rowHeight, setRowHeight] = useState(0);
 
   const mouseDownHandler = () => {
     setDrag(true);
@@ -47,13 +48,12 @@ const BoardSection = ({
     };
 
     window.addEventListener("mouseup", handleMouseUp);
+    setRowHeight(340);
 
     return () => {
       window.removeEventListener("mouseup", handleMouseUp);
     };
   }, []);
-
-  const [rowHeight, setRowHeight] = useState(340);
 
   // reactgridlayout
   const getLayout = () => {
@@ -73,6 +73,7 @@ const BoardSection = ({
     }
   };
 
+  // reactgridlayout
   const savedLayout = getLayout();
 
   const savedLayouts = getLayouts();
