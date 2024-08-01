@@ -15,7 +15,7 @@ const Explore = () => {
           NEW
         </p>
       </NavigationMenuTrigger>
-      <NavigationMenuContent className="data-[state=open]:animate-scaleIn data-[state=closed]:animate-scaleOut data-[motion=from-start]:animate-enterFromLeft data-[motion=from-end]:animate-enterFromRight data-[motion=to-start]:animate-exitToLeft data-[motion=to-end]:animate-exitToRight -left-20 top-[60px] flex flex-col rounded-xl border border-[#66666632] bg-[#0D0D0D] lg:-left-52 lg:flex-row">
+      <NavigationMenuContent className="-left-20 top-[60px] flex flex-col rounded-xl border border-[#66666632] bg-[#0D0D0D] data-[motion=from-end]:animate-enterFromRight data-[motion=from-start]:animate-enterFromLeft data-[motion=to-end]:animate-exitToRight data-[motion=to-start]:animate-exitToLeft data-[state=closed]:animate-scaleOut data-[state=open]:animate-scaleIn lg:-left-52 lg:flex-row">
         <div className="flex flex-col gap-1 p-2 pb-0 md:pb-2">
           {EXPLOREITEMS.slice(0, 5).map((item) => (
             <ListItem key={item.title} {...item} />
@@ -55,7 +55,7 @@ const ListItem = ({
         className={`flex items-center justify-center rounded-lg p-3`}
         style={{ backgroundColor: color }}
       >
-        <div className="relative size-5">
+        <div className="relative h-5 aspect-square">
           <Image
             src={icon}
             alt=""
