@@ -82,8 +82,8 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
           />
         </div>
       </div>
-      <div className="flex h-full w-full grow flex-col">
-        <div className="flex h-full w-full flex-col gap-4 p-4 md:p-6">
+      <div className="flex size-full grow flex-col">
+        <div className="flex size-full flex-col gap-4 p-4 md:p-6">
           <div className="relative flex h-[200px] w-full items-center justify-center overflow-hidden rounded-xl sm:h-[230px] md:h-[250px] md:justify-end">
             <Image
               src={"/honeycomb.png"}
@@ -116,12 +116,12 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
             {/* <div className="flex h-full w-full"> */}
             <CarouselContent className="flex grow md:-ml-6 xl:-ml-0 xl:grid xl:!transform-none xl:grid-cols-4 xl:gap-4 2xl:gap-6">
               <CarouselItem className="basis-full sm:basis-1/2 md:pl-6 xl:pl-0">
-                <div className="relative flex h-full w-full flex-col items-center rounded-lg border border-[#F5D0110A] bg-[#15120B] py-8">
+                <div className="relative flex size-full flex-col items-center rounded-lg border border-[#F5D0110A] bg-[#15120B] py-8">
                   <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                   <p className="whitespace-nowrap text-sm text-[#6B6B6B] md:text-base xl:text-lg">
                     Total Perks
                   </p>
-                  <div className="flex h-full w-full items-center justify-center">
+                  <div className="flex size-full items-center justify-center">
                     <p className="bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-5xl font-medium text-transparent md:text-6xl xl:text-7xl">
                       {perks.length}
                     </p>
@@ -129,12 +129,12 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
                 </div>
               </CarouselItem>
               <CarouselItem className="basis-full sm:basis-1/2 md:pl-6 xl:pl-0">
-                <div className="relative flex h-full w-full flex-col items-center rounded-lg border border-[#F5D0110A] bg-[#15120B] py-8">
+                <div className="relative flex size-full flex-col items-center rounded-lg border border-[#F5D0110A] bg-[#15120B] py-8">
                   <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                   <p className="whitespace-nowrap text-sm text-[#6B6B6B] md:text-base xl:text-lg">
                     Active Perks
                   </p>
-                  <div className="flex h-full w-full items-center justify-center">
+                  <div className="flex size-full items-center justify-center">
                     <p className="bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-5xl font-medium text-transparent md:text-6xl xl:text-7xl">
                       {activePerksCount}
                     </p>
@@ -142,8 +142,8 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
                 </div>
               </CarouselItem>
               <CarouselItem className="basis-full sm:basis-1/2 md:pl-6 xl:pl-0">
-                <div className="grid h-full w-full grid-rows-2 gap-3 md:gap-4 2xl:gap-6">
-                  <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F5D0110A] bg-[#15120B]">
+                <div className="grid size-full gap-3 md:gap-4 2xl:gap-6">
+                  <div className="relative flex size-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F5D0110A] bg-[#15120B]">
                     <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                     <p className="text-[10px] text-[#6B6B6B] md:text-xs xl:text-sm">
                       Floor Price
@@ -189,8 +189,8 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
                 </div>
               </CarouselItem>
               <CarouselItem className="basis-full sm:basis-1/2 md:pl-6 xl:pl-0">
-                <div className="grid h-full w-full grid-rows-2 gap-3 md:gap-4 2xl:gap-6">
-                  <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F5D0110A] bg-[#15120B]">
+                <div className="grid size-full gap-3 md:gap-4 2xl:gap-6">
+                  <div className="relative flex size-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F5D0110A] bg-[#15120B]">
                     <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                     <p className="text-[10px] text-[#6B6B6B] md:text-xs xl:text-sm">
                       Holders
@@ -239,14 +239,14 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
               Recent Perks
             </p>
             <div className="relative flex gap-1.5 md:gap-2 xl:gap-3">
-              <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
-              <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
+              <CarouselPrevious className="size-6 border-2 border-[#848484] bg-transparent md:size-7 xl:size-8" />
+              <CarouselNext className="size-6 border-2 border-[#848484] bg-transparent md:size-7 xl:size-8" />
             </div>
           </div>
-          <CarouselContent className="flex h-full w-full py-6 pl-6">
+          <CarouselContent className="flex size-full py-6 pl-6">
             {perks.map((perk: any, id: any) => (
               <CarouselItem key={id}>
-                <div className="relative flex h-full w-[210px] flex-col items-center justify-around rounded-lg border border-[#F4C10B0F] bg-[#18140C] px-4 py-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90">
+                <div className="relative flex h-full w-[210px] flex-col items-center justify-around rounded-lg border border-[#F4C10B0F] bg-[#18140C] p-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90">
                   <div className="mt-2 flex flex-col items-center justify-center gap-2">
                     <div className="relative aspect-square h-[54px] rounded-full border border-[#F4C10B0F] bg-[#18140C05]">
                       {perk.partner?.logo ? (
