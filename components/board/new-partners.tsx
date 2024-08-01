@@ -50,7 +50,7 @@ const NewPartners = ({ partners }: { partners?: any }) => {
             <CarouselItem className="" key={id}>
               <div className="relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#E0E0E0] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:text-white/90 md:w-[196px]">
                 <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                <div className="relative mb-2 aspect-square h-16 overflow-hidden rounded-full border border-[#F4C10B0F] bg-[#18140C05] md:h-[80px] xl:h-[100px]">
+                <div className="relative mb-4 aspect-square h-16 overflow-hidden rounded-full border border-[#F4C10B0F] bg-[#18140C05]">
                   <Image
                     src={
                       "https://d163aeqznbc6js.cloudfront.net/images" + item.logo
@@ -60,9 +60,7 @@ const NewPartners = ({ partners }: { partners?: any }) => {
                     className="object-cover"
                   />
                 </div>
-                <p className="mb-2 text-xs md:text-sm xl:mb-1 xl:text-base">
-                  {item._title}
-                </p>
+                <p className="mb-4 text-sm">{item._title}</p>
                 <StatusDisplay status={item.partner.toLowerCase()} />
               </div>
             </CarouselItem>
@@ -101,7 +99,7 @@ const StatusDisplay = ({ status }: { status: string }) => {
         <Image src={statusImage} alt="status" fill />
       </div>
       <p
-        className={`bg-gradient-to-b bg-clip-text font-switzer text-[10px] text-transparent md:text-xs ${
+        className={`bg-gradient-to-b bg-clip-text font-switzer text-xs text-transparent ${
           status === "platinum"
             ? "from-white to-[#B9B9B9]"
             : status === "gold"
