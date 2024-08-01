@@ -243,12 +243,12 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
               <CarouselNext className="size-6 border-2 border-[#848484] bg-transparent md:size-7 xl:size-8" />
             </div>
           </div>
-          <CarouselContent className="flex size-full py-6 pl-6">
+          <CarouselContent className="flex size-full grow py-4 pl-4 md:py-6 md:pl-6">
             {perks.map((perk: any, id: any) => (
               <CarouselItem key={id}>
                 <div className="relative flex h-full w-[210px] flex-col items-center justify-around rounded-lg border border-[#F4C10B0F] bg-[#18140C] p-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90">
                   <div className="mt-2 flex flex-col items-center justify-center gap-2">
-                    <div className="relative aspect-square h-[54px] rounded-full border border-[#F4C10B0F] bg-[#18140C05]">
+                    <div className="relative aspect-square h-[54px] rounded-full border border-[#F4C10B0F] bg-[#18140C05] md:h-[64px]">
                       {perk.partner?.logo ? (
                         <S3Image
                           src={perk.partner.logo}

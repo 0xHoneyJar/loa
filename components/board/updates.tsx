@@ -24,11 +24,11 @@ const Updates = () => {
             </p>
           </div>
           <div className="relative flex gap-1.5 md:gap-2 xl:gap-3">
-            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
-            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
+            <CarouselPrevious className="size-6 border-2 border-[#848484] bg-transparent md:size-7 xl:size-8" />
+            <CarouselNext className="size-6 border-2 border-[#848484] bg-transparent md:size-7 xl:size-8" />
           </div>
         </div>
-        <CarouselContent className="flex h-full w-full py-4 pl-4 md:py-6 md:pl-6">
+        <CarouselContent className="flex h-full w-full grow p-4 md:p-6">
           {UPDATES.map((update, id) => (
             <UpdateDisplay
               key={id}

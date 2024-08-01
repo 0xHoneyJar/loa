@@ -45,7 +45,7 @@ const NewPartners = ({ partners }: { partners?: any }) => {
             <CarouselNext className="size-6 border-2 border-[#848484] bg-transparent md:size-7 xl:size-8" />
           </div>
         </div>
-        <CarouselContent className="flex size-full py-4 pl-4 md:py-6 md:pl-6">
+        <CarouselContent className="flex size-full grow p-4 md:p-6">
           {recentPartners.map((item: any, id: any) => (
             <CarouselItem className="" key={id}>
               <div className="relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#E0E0E0] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:text-white/90 md:w-[196px]">
@@ -66,11 +66,15 @@ const NewPartners = ({ partners }: { partners?: any }) => {
             </CarouselItem>
           ))}
           <CarouselItem className="">
-            <div className="relative flex aspect-square h-full w-[178px] items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B]/10 hover:bg-[#533802] hover:text-white/90 md:w-[196px]">
+            <a
+              target="_blank"
+              href={"https://explorer-interface.vercel.app/"}
+              className="relative flex aspect-square h-full w-[178px] items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B]/10 hover:bg-[#533802] hover:text-white/90 md:w-[196px]"
+            >
               <p className="flex text-xs sm:text-sm md:text-base">
                 Explore All <ArrowUpRight />
               </p>
-            </div>
+            </a>
           </CarouselItem>
         </CarouselContent>
       </Carousel>

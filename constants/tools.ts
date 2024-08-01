@@ -8,8 +8,8 @@ export const TOOLS = [
     image: "/tools/data.png",
   },
   {
-    name: "Berafy",
-    image: "",
+    name: "Beraflip",
+    image: "/tools/beraflip.png",
   },
   {
     name: "Quest",
@@ -17,10 +17,6 @@ export const TOOLS = [
   },
   {
     name: "Merch",
-    image: "",
-  },
-  {
-    name: "Faucet",
-    image: "",
+    image: "/tools/merch.png",
   },
 ];

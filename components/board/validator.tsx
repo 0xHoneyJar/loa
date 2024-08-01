@@ -33,14 +33,14 @@ const Validator = () => {
             </p>
           </div>
           <div className="relative flex gap-1.5 md:gap-2 lg:hidden">
-            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
-            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
+            <CarouselPrevious className="size-6 border-2 border-[#848484] bg-transparent md:size-7 xl:size-8" />
+            <CarouselNext className="size-6 border-2 border-[#848484] bg-transparent md:size-7 xl:size-8" />
           </div>
         </div>
         <div className="flex grow flex-col">
           <div className="flex h-[85%] w-full px-4 md:px-6">
-            <CarouselContent className="flex grow py-4 md:-ml-6 md:py-6 xl:-ml-0 xl:grid xl:!transform-none xl:grid-cols-3 xl:gap-4">
-              <CarouselItem className="basis-full sm:basis-1/2 md:pl-6 xl:basis-full xl:pl-0">
+            <CarouselContent className="flex grow py-4 md:py-6 xl:-ml-0 xl:grid xl:!transform-none xl:grid-cols-3 xl:gap-4">
+              <CarouselItem className="basis-full sm:basis-1/2 xl:basis-full xl:pl-0">
                 <div className="grid h-full w-full grid-rows-3 gap-4">
                   <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
                     <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm xl:text-base">
@@ -86,7 +86,7 @@ const Validator = () => {
                   </div>
                 </div>
               </CarouselItem>
-              <CarouselItem className="basis-full sm:basis-1/2 md:pl-6 xl:basis-full xl:pl-0">
+              <CarouselItem className="basis-full sm:basis-1/2 xl:basis-full xl:pl-0">
                 <div className="grid h-full grid-rows-3 gap-4">
                   <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
                     <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
@@ -125,7 +125,7 @@ const Validator = () => {
                   </div>
                 </div>
               </CarouselItem>
-              <CarouselItem className="basis-full sm:basis-1/2 md:pl-6 xl:pl-0">
+              <CarouselItem className="basis-full sm:basis-1/2 xl:pl-0">
                 <div className="relative flex h-full w-full flex-col items-center overflow-hidden rounded-2xl border border-[#202020] bg-[#121212] py-6">
                   <div className="relative flex h-full w-full flex-col items-center justify-center">
                     <p className="absolute top-0 text-xs text-[#6B6B6B] md:text-sm xl:text-base">

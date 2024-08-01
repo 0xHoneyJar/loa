@@ -31,11 +31,11 @@ const Mint = ({ mints }: { mints?: any }) => {
             Explore <ArrowUpRight size={24} />
           </button> */}
         </div>
-        <CarouselContent className="mr-6 flex size-full grow p-4 md:-ml-6 md:p-6">
+        <CarouselContent className="flex size-full grow p-4 md:p-6">
           {mints.items.map((mint: any) => (
             <CarouselItem
               key={mint._title}
-              className="basis-full md:basis-1/2 md:pl-6 xl:basis-1/3"
+              className="basis-full md:basis-1/2 xl:basis-1/3"
             >
               <MintDisplay mint={mint} />
             </CarouselItem>
@@ -45,6 +45,8 @@ const Mint = ({ mints }: { mints?: any }) => {
     </div>
   );
 };
+
+export default Mint;
 
 // New component to handle time calculation
 const TimeLeft = ({ endDate }: { endDate: number }) => {
@@ -78,8 +80,6 @@ const TimeLeft = ({ endDate }: { endDate: number }) => {
     </div>
   );
 };
-
-export default Mint;
 
 const MintDisplay = ({ mint }: { mint: any }) => (
   <a
