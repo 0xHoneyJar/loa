@@ -62,7 +62,7 @@ const SectionSelect = () => {
                     key={id}
                     // value={section.key}
                     onClick={() => {
-                      const id = document.getElementById(section.key);
+                      const id = document?.getElementById(section.key);
                       id &&
                         id.scrollIntoView({
                           behavior: "smooth",

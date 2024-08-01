@@ -129,7 +129,7 @@ const Sidebar = ({
                                     key={id}
                                     // value={section.key}
                                     onClick={() => {
-                                      const id = document.getElementById(
+                                      const id = document?.getElementById(
                                         section.key,
                                       );
                                       id &&
