@@ -8,12 +8,14 @@ import {
   CarouselNext,
 } from "@/components/ui/carousel";
 import { PERKS } from "@/constants/perks";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import DragHandleY from "../drag-handle-y";
 import S3Image from "@/components/s3-image";
+import { formatEther } from "viem";
 
 const Honeycomb = ({ perks }: { perks?: any }) => {
   const [glow, setGlow] = useState(false);
+  const [honeycombData, setHoneycombData] = useState<any>(null);
 
   const activePerksCount = useMemo(() => {
     if (!perks) return 0;
@@ -24,6 +26,28 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
       return startDate <= currentDate && currentDate <= endDate;
     }).length;
   }, [perks]);
+
+  const options = {
+    method: "GET",
+    headers: {
+      accept: "application/json",
+      "X-API-KEY": process.env.NEXT_PUBLIC_SIMPLEHASH_API_KEY ?? "",
+    },
+  };
+
+  useEffect(() => {
+    async function fetchFloor() {
+      const res = await fetch(
+        `https://api.simplehash.com/api/v0/nfts/collections/ids?collection_ids=5d0a382e24d6a4983ca7932e20f66cd3`,
+        options,
+      );
+
+      const data = await res.json();
+      setHoneycombData(data.collections[0]);
+    }
+
+    fetchFloor();
+  }, []);
 
   return (
     <div
@@ -125,12 +149,17 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
                           className="object-contain"
                         />
                       </div>
-                      <p className="whitespace-nowrap text-xs md:text-sm xl:text-base">
-                        333,286.24 ETH
+                      <p className="whitespace-nowrap text-xs font-medium md:text-sm xl:text-base">
+                        {honeycombData?.floor_prices?.[1]?.value
+                          ? Number(
+                              formatEther(honeycombData.floor_prices[1].value),
+                            ).toFixed(3)
+                          : "N/A"}{" "}
+                        <span className="font-normal">ETH</span>
                       </p>
                     </div>
                   </div>
-                  <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F5D0110A] bg-[#15120B]">
+                  {/* <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F5D0110A] bg-[#15120B]">
                     <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                     <p className="text-[10px] text-[#6B6B6B] md:text-xs xl:text-sm">
                       Perk Value
@@ -144,11 +173,11 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
                           className="object-contain"
                         />
                       </div>
-                      <p className="text-xs md:text-sm xl:text-base">
+                      <p className="text-xs font-medium md:text-sm xl:text-base">
                         333,286.24
                       </p>
                     </div>
-                  </div>
+                  </div> */}
                 </div>
               </CarouselItem>
               <CarouselItem className="basis-full sm:basis-1/2 md:pl-6 xl:pl-0">
@@ -167,21 +196,23 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
                           className="object-contain"
                         />
                       </div>
-                      <p className="text-xs md:text-sm xl:text-base">413,425</p>
+                      <p className="text-xs font-medium md:text-sm xl:text-base">
+                        {honeycombData?.distinct_owner_count}
+                      </p>
                     </div>
                   </div>
-                  <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F5D0110A] bg-[#15120B]">
+                  {/* <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F5D0110A] bg-[#15120B]">
                     <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                     <p className="text-[10px] text-[#6B6B6B] md:text-xs xl:text-sm">
                       Perks Value
                     </p>
                     <p className="flex items-center gap-2">
                       <span className="text-sm">$</span>
-                      <p className="text-xs md:text-sm xl:text-base">
+                      <p className="text-xs font-medium md:text-sm xl:text-base">
                         333,286.24
                       </p>
                     </p>
-                  </div>
+                  </div> */}
                 </div>
               </CarouselItem>
             </CarouselContent>
