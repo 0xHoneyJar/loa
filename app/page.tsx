@@ -19,6 +19,24 @@ export default async function Home() {
     },
   });
 
+  const {
+    perks: { perks },
+  } = await basehub({ cache: "no-store" }).query({
+    perks: {
+      perks: {
+        items: {
+          _title: true,
+          perks: true,
+          startDate: true,
+          endDate: true,
+          partner: {
+            logo: true,
+          },
+        },
+      },
+    },
+  });
+
   const { community } = await basehub({ cache: "no-store" }).query({
     community: {
       spotlight: {
@@ -45,7 +63,11 @@ export default async function Home() {
   return (
     <div>
       <HeroSection />
-      <BoardSection partners={partners.items} community={community} />
+      <BoardSection
+        partners={partners.items}
+        community={community}
+        perks={perks.items}
+      />
       <Footer />
     </div>
   );

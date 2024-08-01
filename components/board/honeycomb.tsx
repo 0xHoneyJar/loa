@@ -8,11 +8,23 @@ import {
   CarouselNext,
 } from "@/components/ui/carousel";
 import { PERKS } from "@/constants/perks";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import DragHandleY from "../drag-handle-y";
+import S3Image from "@/components/s3-image";
 
-const Honeycomb = () => {
+const Honeycomb = ({ perks }: { perks?: any }) => {
   const [glow, setGlow] = useState(false);
+
+  const activePerksCount = useMemo(() => {
+    if (!perks) return 0;
+    const currentDate = new Date();
+    return perks.filter((perk: any) => {
+      const startDate = new Date(perk.startDate);
+      const endDate = new Date(perk.endDate);
+      return startDate <= currentDate && currentDate <= endDate;
+    }).length;
+  }, [perks]);
+
   return (
     <div
       className={`${glow && "rotate-1"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
@@ -79,7 +91,7 @@ const Honeycomb = () => {
                   </p>
                   <div className="flex h-full w-full items-center justify-center">
                     <p className="bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-5xl font-medium text-transparent md:text-6xl xl:text-7xl">
-                      94
+                      {perks.length}
                     </p>
                   </div>
                 </div>
@@ -92,7 +104,7 @@ const Honeycomb = () => {
                   </p>
                   <div className="flex h-full w-full items-center justify-center">
                     <p className="bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-5xl font-medium text-transparent md:text-6xl xl:text-7xl">
-                      78
+                      {activePerksCount}
                     </p>
                   </div>
                 </div>
@@ -193,22 +205,31 @@ const Honeycomb = () => {
             </div>
           </div>
           <CarouselContent className="flex h-full w-full py-6 pl-6">
-            {PERKS.map((item, id) => (
+            {perks.map((perk: any, id: any) => (
               <CarouselItem key={id}>
                 <div className="relative flex h-full w-[210px] flex-col items-center justify-around rounded-lg border border-[#F4C10B0F] bg-[#18140C] py-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90">
                   <div className="mt-2 flex flex-col items-center gap-2">
                     <div className="relative aspect-square h-[54px] rounded-full border border-[#F4C10B0F] bg-[#18140C05]">
-                      <Image
-                        src={item.image}
-                        alt={item.name}
-                        fill
-                        className="object-contain p-2"
-                      />
+                      {perk.partner?.logo ? (
+                        <S3Image
+                          src={perk.partner.logo}
+                          alt={perk._title}
+                          fill
+                          className="rounded-full object-cover p-1"
+                        />
+                      ) : (
+                        <Image
+                          src={"/partners/sleuth.png"}
+                          alt={perk._title}
+                          fill
+                          className="object-contain p-2"
+                        />
+                      )}
                     </div>
-                    <p className="text-sm">{item.name}</p>
+                    <p className="text-sm">{perk._title}</p>
                     <div className="rounded-full bg-gradient-to-r from-[#F8A929]/5 to-[#F5D011]/5 px-4 py-1">
                       <p className="text-xs font-light text-[#F8A929]">
-                        Perks Type
+                        {perk.perks}
                       </p>
                     </div>
                   </div>

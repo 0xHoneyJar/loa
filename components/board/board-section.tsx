@@ -15,9 +15,11 @@ import "react-grid-layout/css/styles.css";
 const BoardSection = ({
   partners,
   community,
+  perks,
 }: {
   partners: any;
   community: any;
+  perks: any;
 }) => {
   const ResponsiveGridLayout = useMemo(() => WidthProvider(Responsive), []);
   const constraintsRef = useRef<HTMLDivElement>(null);
@@ -237,6 +239,12 @@ const BoardSection = ({
                   {React.cloneElement(dashboard.ui, {
                     mints: community.mints,
                   })}
+                </div>
+              );
+            } else if (dashboard.key === "honeycomb") {
+              return (
+                <div key={dashboard.key}>
+                  {React.cloneElement(dashboard.ui, { perks })}
                 </div>
               );
             }
