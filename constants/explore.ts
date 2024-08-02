@@ -53,7 +53,7 @@ export const EXPLOREITEMS: ListItemData[] = [
     comingSoon: true,
   },
   {
-    title: "Thj Website (old)",
+    title: "THJ Old",
     description: "Old, but gold",
     icon: "/navbar/thj.png",
     link: "https://www.0xhoneyjar.xyz/",
