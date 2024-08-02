@@ -1,26 +1,34 @@
-import Image from "next/image";
-import {
-  CircularProgressbarWithChildren,
-  buildStyles,
-} from "react-circular-progressbar";
-import DragHandle from "../drag-handle";
-import { useState } from "react";
 import {
   Carousel,
   CarouselContent,
   CarouselItem,
-  CarouselPrevious,
   CarouselNext,
+  CarouselPrevious,
 } from "@/components/ui/carousel";
+import fetcher from "@/lib/fetcher";
+import { formatToken } from "@/lib/utils";
+import Image from "next/image";
+import { useState } from "react";
+import {
+  CircularProgressbarWithChildren,
+  buildStyles,
+} from "react-circular-progressbar";
+import useSWR from "swr";
+import DragHandle from "../drag-handle";
 
 const Validator = () => {
+  const { data } = useSWR<{
+    amountDelegated: string;
+    commission: string;
+  }>("/api/validator", fetcher);
+
   const [glow, setGlow] = useState(false);
   return (
     <div
       className={`${glow && "rotate-1"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D]`}
     >
       <div className="absolute -top-40 h-1 w-full" id="validator" />
-      <Carousel className="flex h-full w-full flex-col">
+      <Carousel className="flex size-full flex-col">
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#43AA77]" />
         <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#1B271B] px-4 md:h-[72px] md:px-6 xl:h-20">
           <div
@@ -41,13 +49,15 @@ const Validator = () => {
           <div className="flex h-[85%] w-full px-4 md:px-6">
             <CarouselContent className="flex grow py-4 md:py-6 xl:-ml-0 xl:grid xl:!transform-none xl:grid-cols-3 xl:gap-4">
               <CarouselItem className="basis-full sm:basis-1/2 xl:basis-full xl:pl-0">
-                <div className="grid h-full w-full grid-rows-3 gap-4">
-                  <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+                <div className="grid size-full grid-rows-3 gap-4">
+                  <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
                     <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm xl:text-base">
                       Delegated to THJ (BGT)
                     </p>
                     <div className="flex items-center gap-2 text-lg md:text-xl xl:text-2xl">
-                      <p className="font-semibold">12,324</p>
+                      <p className="font-semibold">
+                        {formatToken(BigInt(data?.amountDelegated ?? "0"))}
+                      </p>
                       <div className="relative aspect-square h-[28px]">
                         <Image
                           src={"/delegate-bee.png"}
@@ -58,7 +68,7 @@ const Validator = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+                  <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
                     <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm xl:text-base">
                       Number of Delegators
                     </p>
@@ -66,7 +76,7 @@ const Validator = () => {
                       12,3245,213
                     </p>
                   </div>
-                  <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+                  <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
                     <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
                       Return per BGT
                     </p>
@@ -88,7 +98,7 @@ const Validator = () => {
               </CarouselItem>
               <CarouselItem className="basis-full sm:basis-1/2 xl:basis-full xl:pl-0">
                 <div className="grid h-full grid-rows-3 gap-4">
-                  <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+                  <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
                     <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
                       Validator&apos;s Rank
                     </p>
@@ -96,7 +106,7 @@ const Validator = () => {
                       1st
                     </p>
                   </div>
-                  <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+                  <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
                     <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
                       Active Incentives
                     </p>
@@ -107,7 +117,7 @@ const Validator = () => {
                 </span> */}
                     </p>
                   </div>
-                  <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+                  <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
                     <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
                       Reward Rate
                     </p>
@@ -126,8 +136,8 @@ const Validator = () => {
                 </div>
               </CarouselItem>
               <CarouselItem className="basis-full sm:basis-1/2 xl:pl-0">
-                <div className="relative flex h-full w-full flex-col items-center overflow-hidden rounded-2xl border border-[#202020] bg-[#121212] py-6">
-                  <div className="relative flex h-full w-full flex-col items-center justify-center">
+                <div className="relative flex size-full flex-col items-center overflow-hidden rounded-2xl border border-[#202020] bg-[#121212] py-6">
+                  <div className="relative flex size-full flex-col items-center justify-center">
                     <p className="absolute top-0 text-xs text-[#6B6B6B] md:text-sm xl:text-base">
                       Voting Power
                     </p>

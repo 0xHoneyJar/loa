@@ -1,4 +1,5 @@
 import { type ClassValue, clsx } from "clsx";
+import { format } from "dnum";
 import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
@@ -42,3 +43,9 @@ export function convertUnixToLocalTime(timestamp: number): string {
   });
 }
 
+export const formatToken = (amount: bigint, decimals = 18) => {
+  return format([amount, decimals], {
+    digits: 2,
+    trailingZeros: true,
+  });
+};
