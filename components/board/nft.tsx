@@ -37,14 +37,22 @@ const NFT = () => {
         <CarouselContent className="flex size-full grow items-center p-4 md:p-6">
           {NFTItems.map((nft, id) => (
             <CarouselItem key={id} className="h-full">
-              <div className="flex h-full w-[178px] flex-col items-center justify-center gap-3 rounded-lg border border-[#161616] bg-[#121212] text-[#C4C4C4] hover:cursor-blue hover:border-[#373737] hover:bg-[#1A1A1A] hover:font-medium hover:text-white md:w-[196px]">
-                <div className="flex h-[10%] w-full items-center justify-center py-1">
+              <div className="flex h-full w-[178px] flex-col items-center justify-center gap-3 rounded-lg border border-[#161616] bg-[#121212] px-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#373737] hover:bg-[#1A1A1A] hover:font-medium hover:text-white md:w-[196px]">
+                <div className="flex h-[10%] w-full items-center justify-center gap-1 py-1">
                   {nft.new && (
                     <div className="flex items-center gap-2 rounded-full border border-[#F4C10B] bg-[#F5DA7F14] px-1.5 py-0.5">
                       <div className="aspect-square h-[8px] rounded-full bg-[#F4C10B]">
                         <div className="h-full w-full animate-ping rounded-full bg-[#F4C10B]" />
                       </div>
                       <p className="text-[10px] text-[#F4C10B]">NEW</p>
+                    </div>
+                  )}
+                  {nft.soon && (
+                    <div className="flex items-center gap-2 rounded-full border border-white bg-[#F5DA7F14] px-1.5 py-0.5">
+                      <div className="aspect-square h-[8px] rounded-full bg-white">
+                        <div className="h-full w-full animate-ping rounded-full bg-white" />
+                      </div>
+                      <p className="text-[10px] text-white">Coming Soon</p>
                     </div>
                   )}
                 </div>

@@ -51,9 +51,15 @@ const Delegate = () => {
           Delegate to The Honey Jar <span className="font-light">(THJ)</span>
         </p>
         <div className="rounded-full border border-dashed border-black/40 p-1 md:p-2">
-          <button className="w-full rounded-full bg-black py-3 text-sm md:text-base xl:text-lg">
+          <a
+            href={
+              "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
+            }
+            target="_blank"
+            className="flex w-full cursor-blue items-center justify-center rounded-full bg-black py-3 text-sm md:text-base xl:text-lg"
+          >
             Delegate Now
-          </button>
+          </a>
         </div>
         <p className="text-lg text-[#414141] md:text-xl xl:text-2xl">
           Help us make the Fat Bera Thesis come true! Delegate to THJ and get

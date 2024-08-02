@@ -168,7 +168,11 @@ const Data = () => {
                 </div>
               </div>
             </div>
-            <button className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#F4C10B] py-3 font-medium text-black hover:cursor-blue hover:shadow-yellow">
+            <a
+              href={"https://dune.com/thj"}
+              target="_blank"
+              className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#F4C10B] py-3 font-medium text-black hover:cursor-blue hover:shadow-yellow"
+            >
               <div className="relative aspect-square h-3 md:h-4 xl:h-[18px]">
                 <Image
                   src={"/dashboard.svg"}
@@ -177,10 +181,8 @@ const Data = () => {
                   className="object-contain"
                 />
               </div>
-              <p className="text-xs md:text-sm xl:text-lg">
-                Honeycomb Dashboard
-              </p>
-            </button>
+              <p className="text-xs md:text-sm xl:text-lg">Data Dashboards</p>
+            </a>
           </div>
         </div>
       </div>

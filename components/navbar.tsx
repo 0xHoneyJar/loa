@@ -85,7 +85,13 @@ const Navbar = () => {
                 </a>
               </NavigationMenuItem>
               <NavigationMenuItem>
-                <a className="flex cursor-pointer items-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 py-2.5 font-medium text-white hover:shadow-evergreen">
+                <a
+                  href={
+                    "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
+                  }
+                  target="_blank"
+                  className="flex cursor-pointer items-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 py-2.5 font-medium text-white hover:shadow-evergreen"
+                >
                   Delegate to THJ
                 </a>
               </NavigationMenuItem>

@@ -20,7 +20,7 @@ const Raffles = () => {
       setRaffles(retrievedRaffles);
     }
 
-    // getRaffles();
+    getRaffles();
   }, []);
 
   return (
@@ -41,7 +41,7 @@ const Raffles = () => {
         </div>
       </div>
       <div className="flex grow flex-col justify-between p-4 md:p-6">
-        <p className="text-xs uppercase text-white md:text-sm xl:text-base">
+        <p className="text-xs uppercase text-white md:text-sm">
           TAKE PART IN RAFFLES TO WIN PRIZES FROM AROUND THE&nbsp;
           <span className="text-[#E1A94E]">BERACHAIN ECOSYSTEM!</span>
         </p>

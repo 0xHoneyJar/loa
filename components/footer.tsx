@@ -100,12 +100,22 @@ const Footer = () => {
           By delegating to the THJ Validator, you help us to grow and contribute
         </p>
         <div className="relative flex flex-col items-center gap-2 sm:flex-row">
-          <button className="z-10 w-[180px] rounded-xl bg-black py-3 text-xs font-medium md:w-[240px] md:text-base">
+          <a
+            href={"https://discord.com/invite/thehoneyjar"}
+            target="_blank"
+            className="z-10 flex w-[180px] justify-center rounded-xl bg-black py-3 text-xs font-medium md:w-[240px] md:text-base"
+          >
             Join the Commmunity
-          </button>
-          <button className="z-10 w-[180px] rounded-xl bg-[#43AA77] py-3 text-xs font-medium md:w-[240px] md:text-base">
-            Delegate Now
-          </button>
+          </a>
+          <a
+            href={
+              "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
+            }
+            target="_blank"
+            className="z-10 flex w-[180px] justify-center rounded-xl bg-[#43AA77] py-3 text-xs font-medium md:w-[240px] md:text-base"
+          >
+            <p>Delegate Now</p>
+          </a>
           <div className="absolute -bottom-24 -right-32 z-10 aspect-square h-[140px] md:-bottom-28 md:-right-40 md:h-[172px]">
             <Image
               src={"/arrow-angled.svg"}
