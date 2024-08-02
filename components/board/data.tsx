@@ -14,13 +14,13 @@ const Data = () => {
     >
       <div className="absolute -top-40 h-1 w-full" id="data" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
-      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6 xl:h-20">
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
         <div className="flex items-center gap-2">
           <DragHandleY setGlow={setGlow} />
-          <p className="text-sm font-medium text-[#FFD700] md:text-base xl:text-xl">
+          <p className="text-sm font-medium text-[#FFD700] md:text-base">
             Data
           </p>
         </div>
@@ -36,26 +36,24 @@ const Data = () => {
                 className="object-contain"
               />
             </div>
-            <p className="text-sm font-medium md:text-base xl:text-lg">
-              Total Raised
-            </p>
+            <p className="text-sm font-medium md:text-base">Total Raised</p>
           </div>
-          <p className="mb-4 text-xs text-[#E4E4E4] md:mb-6 md:text-sm xl:text-base">
+          <p className="mb-4 text-xs text-[#E4E4E4] md:mb-6 md:text-sm">
             How much was raised by THJ and Berachain eco in general
           </p>
           <div className="relative mb-4 w-full rounded-xl border border-[#F8A9290F] bg-[#F8A9291F] px-2 py-4 md:px-4 md:py-6">
-            <p className="text-2xl font-medium text-[#F8A929] md:text-3xl xl:text-4xl 2xl:text-5xl">
+            <p className="text-2xl font-medium text-[#F8A929] md:text-3xl xl:text-4xl">
               $5,042,000
             </p>
-            <p className="absolute bottom-2 right-2 flex items-center text-[10px] text-[#A9A9A9]/50 md:text-xs xl:text-sm">
+            <p className="absolute bottom-2 right-2 flex items-center text-[10px] text-[#A9A9A9]/50 md:text-xs">
               / By Bera Eco
             </p>
           </div>
           <div className="relative w-full rounded-xl border border-[#F8A9290F] bg-[#F8A9291F] px-2 py-4 md:px-4 md:py-6">
-            <p className="text-2xl font-medium text-[#F8A929] md:text-3xl xl:text-4xl 2xl:text-5xl">
+            <p className="text-2xl font-medium text-[#F8A929] md:text-3xl xl:text-4xl">
               $9,000,000
             </p>
-            <p className="absolute bottom-2 right-2 flex items-center text-[10px] text-[#A9A9A9]/50 md:text-xs xl:text-sm">
+            <p className="absolute bottom-2 right-2 flex items-center text-[10px] text-[#A9A9A9]/50 md:text-xs">
               / By THJ
             </p>
           </div>
@@ -70,9 +68,7 @@ const Data = () => {
                 className="object-contain"
               />
             </div>
-            <p className="text-sm font-medium md:text-base xl:text-lg">
-              THJ Faucet
-            </p>
+            <p className="text-sm font-medium md:text-base">THJ Faucet</p>
           </div>
           <div className="mb-10 flex grow-0 items-center justify-center">
             <CircularProgressbarWithChildren
@@ -84,7 +80,7 @@ const Data = () => {
                 pathColor: "#F5DA7F",
                 trailColor: "#342911",
               })}
-              className="h-[180px] md:h-[200px] xl:h-[240px]"
+              className="h-[180px] md:h-[200px]"
             >
               {/* <p className="text-xl font-medium">500,000</p>
               <p className="text-sm">Total Wallets</p> */}
@@ -100,7 +96,7 @@ const Data = () => {
               </p>
             </CircularProgressbarWithChildren>
           </div>
-          <div className="flex flex-row justify-center gap-4 text-[#C7C7C7] sm:flex-col xl:flex-row">
+          <div className="flex flex-row justify-center gap-4 text-[#C7C7C7] sm:flex-col 2xl:flex-row">
             <div className="flex items-center justify-center gap-1">
               <div className="aspect-square h-[14px] rounded-full bg-[#F5DA7F]" />
               <p className="whitespace-nowrap text-xs font-light text-[#C7C7C7] md:text-sm">
@@ -125,7 +121,7 @@ const Data = () => {
                 className="object-contain"
               />
             </div>
-            <p className="whitespace-nowrap text-sm font-medium md:text-base xl:text-lg">
+            <p className="whitespace-nowrap text-sm font-medium md:text-base">
               Honeycomb Holders
             </p>
           </div>
@@ -141,7 +137,7 @@ const Data = () => {
                     pathColor: "#F5DA7F",
                     trailColor: "#342911",
                   })}
-                  className="h-[180px] md:h-[200px] xl:h-[240px]"
+                  className="h-[180px] md:h-[200px]"
                 >
                   <p className="font-medium md:text-xl">50,000</p>
                   <p className="text-xs md:text-sm">Holders</p>
@@ -153,7 +149,7 @@ const Data = () => {
                   </p>
                 </CircularProgressbarWithChildren>
               </div>
-              <div className="flex flex-row justify-center gap-4 text-[#C7C7C7] sm:flex-col xl:flex-row">
+              <div className="flex flex-row justify-center gap-4 text-[#C7C7C7] sm:flex-col 2xl:flex-row">
                 <div className="flex items-center justify-center gap-1">
                   <div className="aspect-square h-[14px] rounded-full bg-[#F5DA7F]" />
                   <p className="whitespace-nowrap text-xs font-light text-[#C7C7C7] md:text-sm">
@@ -173,7 +169,7 @@ const Data = () => {
               target="_blank"
               className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#F4C10B] py-3 font-medium text-black hover:cursor-blue hover:shadow-yellow"
             >
-              <div className="relative aspect-square h-3 md:h-4 xl:h-[18px]">
+              <div className="relative aspect-square h-3 md:h-4">
                 <Image
                   src={"/dashboard.svg"}
                   alt="dashboard"
@@ -181,7 +177,7 @@ const Data = () => {
                   className="object-contain"
                 />
               </div>
-              <p className="text-xs md:text-sm xl:text-lg">Data Dashboards</p>
+              <p className="text-xs md:text-base">Data Dashboards</p>
             </a>
           </div>
         </div>

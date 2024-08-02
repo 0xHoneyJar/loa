@@ -16,7 +16,7 @@ const Guide = () => {
               className="object-contain"
             />
           </div>
-          <p className="text-lg font-medium text-white sm:text-xl md:text-2xl lg:text-3xl">
+          <p className="text-lg font-medium text-white md:text-2xl">
             New to THJ? Start with THJ 101 Guide!
           </p>
         </div>
@@ -25,7 +25,7 @@ const Guide = () => {
             "https://0xhoneyjar.mirror.xyz/dHB3l29gAfLsPhPUPLGvg6_UAM1LxgxHMSJ054_QuDM"
           }
           target="_blank"
-          className="whitespace-nowrap rounded-full bg-[#F4C10B] px-6 py-1 text-sm font-medium text-black hover:shadow-yellow md:px-8 md:py-2 md:text-base lg:text-lg"
+          className="whitespace-nowrap rounded-full bg-[#F4C10B] px-6 py-1 text-sm font-medium text-black hover:shadow-yellow md:px-8 md:py-2 md:text-base"
         >
           Explore
         </a>

@@ -30,19 +30,19 @@ const Validator = () => {
       <div className="absolute -top-40 h-1 w-full" id="validator" />
       <Carousel className="flex size-full flex-col">
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#43AA77]" />
-        <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#1B271B] px-4 md:h-[72px] md:px-6 xl:h-20">
+        <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#1B271B] px-4 md:h-[72px] md:px-6">
           <div
             className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#43AA77] blur-2xl ${glow ? "flex" : "hidden"}`}
           />
           <div className="flex items-center gap-2">
             <DragHandle setGlow={setGlow} />
-            <p className="text-sm font-medium text-white md:text-base xl:text-xl">
+            <p className="text-sm font-medium text-white md:text-base">
               Validator
             </p>
           </div>
           <div className="relative flex gap-1.5 md:gap-2 lg:hidden">
-            <CarouselPrevious className="size-6 border-2 border-[#848484] bg-transparent md:size-7 xl:size-8" />
-            <CarouselNext className="size-6 border-2 border-[#848484] bg-transparent md:size-7 xl:size-8" />
+            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7" />
+            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7" />
           </div>
         </div>
         <div className="flex grow flex-col">
@@ -51,10 +51,10 @@ const Validator = () => {
               <CarouselItem className="basis-full sm:basis-1/2 xl:basis-full xl:pl-0">
                 <div className="grid size-full grid-rows-3 gap-4">
                   <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
-                    <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm xl:text-base">
+                    <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm">
                       Delegated to THJ (BGT)
                     </p>
-                    <div className="flex items-center gap-2 text-lg md:text-xl xl:text-2xl">
+                    <div className="flex items-center gap-2 text-lg md:text-xl">
                       <p className="font-semibold">
                         {formatToken(BigInt(data?.amountDelegated ?? "0"))}
                       </p>
@@ -69,19 +69,19 @@ const Validator = () => {
                     </div>
                   </div>
                   <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
-                    <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm xl:text-base">
+                    <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm">
                       Number of Delegators
                     </p>
-                    <p className="text-lg font-semibold md:text-xl xl:text-2xl">
+                    <p className="text-lg font-semibold md:text-xl">
                       12,3245,213
                     </p>
                   </div>
                   <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
-                    <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
+                    <p className="text-xs text-[#6B6B6B] md:text-sm">
                       Return per BGT
                     </p>
                     <div className="flex items-center gap-2 text-2xl">
-                      <p className="text-lg font-semibold md:text-xl xl:text-2xl">
+                      <p className="text-lg font-semibold md:text-xl">
                         $123.13
                       </p>
                       <div className="relative aspect-square h-[28px]">
@@ -99,29 +99,27 @@ const Validator = () => {
               <CarouselItem className="basis-full sm:basis-1/2 xl:basis-full xl:pl-0">
                 <div className="grid h-full grid-rows-3 gap-4">
                   <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
-                    <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
+                    <p className="text-xs text-[#6B6B6B] md:text-sm">
                       Validator&apos;s Rank
                     </p>
-                    <p className="text-lg font-semibold md:text-xl xl:text-2xl">
-                      1st
-                    </p>
+                    <p className="text-lg font-semibold md:text-xl">1st</p>
                   </div>
                   <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
-                    <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
+                    <p className="text-xs text-[#6B6B6B] md:text-sm">
                       Active Incentives
                     </p>
-                    <p className="text-lg font-semibold md:text-xl xl:text-2xl">
-                      $0{" "}
+                    <p className="text-lg font-semibold md:text-xl">
+                      $0
                       {/* <span className="text-xs font-normal text-[#989898]">
                   (The Value)
                 </span> */}
                     </p>
                   </div>
                   <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
-                    <p className="text-xs text-[#6B6B6B] md:text-sm xl:text-base">
+                    <p className="text-xs text-[#6B6B6B] md:text-sm">
                       Reward Rate
                     </p>
-                    <div className="flex items-center gap-2 text-lg md:text-xl xl:text-2xl">
+                    <div className="flex items-center gap-2 text-lg md:text-xl">
                       <p className="font-semibold">
                         {formatToken(BigInt(data?.boostedRewardRate ?? "0"))}
                       </p>
@@ -140,7 +138,7 @@ const Validator = () => {
               <CarouselItem className="basis-full sm:basis-1/2 xl:pl-0">
                 <div className="relative flex size-full flex-col items-center overflow-hidden rounded-2xl border border-[#202020] bg-[#121212] py-6">
                   <div className="relative flex size-full flex-col items-center justify-center">
-                    <p className="absolute top-0 text-xs text-[#6B6B6B] md:text-sm xl:text-base">
+                    <p className="absolute top-0 text-xs text-[#6B6B6B] md:text-sm">
                       Voting Power
                     </p>
                     <div className="mb-8 aspect-square h-[135px]">
@@ -187,7 +185,7 @@ const Validator = () => {
                   className="object-contain"
                 />
               </div>
-              <p className="hidden whitespace-nowrap text-base font-light text-white sm:block md:text-lg xl:text-xl">
+              <p className="hidden whitespace-nowrap text-base font-light text-white sm:block md:text-lg">
                 Needs Your Support
               </p>
             </div>
@@ -197,7 +195,7 @@ const Validator = () => {
                 href={
                   "https://bartio.station.berachain.com/validators/0x40495A781095932e2FC8dccA69F5e358711Fdd41"
                 }
-                className="flex h-full items-center justify-center whitespace-nowrap rounded-full border border-white/5 bg-white/5 px-6 text-xs font-medium text-white hover:cursor-blue hover:border-white/20 hover:bg-white/20 md:text-sm xl:text-base"
+                className="flex h-full items-center justify-center whitespace-nowrap rounded-full border border-white/5 bg-white/5 px-6 text-xs font-medium text-white hover:cursor-blue hover:border-white/20 hover:bg-white/20 md:text-sm"
               >
                 <span className="hidden xl:inline-flex">View</span> Validator
               </a>
@@ -206,7 +204,7 @@ const Validator = () => {
                 href={
                   "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
                 }
-                className="flex h-full items-center justify-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 text-xs font-medium text-black hover:cursor-blue hover:shadow-evergreen md:text-sm xl:text-base"
+                className="flex h-full items-center justify-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 text-xs font-medium text-black hover:cursor-blue hover:shadow-evergreen md:text-sm"
               >
                 Delegate <span className="hidden xl:inline-flex">Now</span>
               </a>

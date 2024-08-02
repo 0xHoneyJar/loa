@@ -16,7 +16,7 @@ const Follow = () => {
         />
         <div className="flex items-center gap-2">
           <DragHandle setGlow={setGlow} />
-          <p className="text-sm font-medium text-white md:text-base xl:text-xl">
+          <p className="text-sm font-medium text-white md:text-base">
             Follow Us
           </p>
         </div>
@@ -26,7 +26,7 @@ const Follow = () => {
           <a
             href={"https://x.com/0xhoneyjar"}
             target="_blank"
-            className="relative aspect-square h-[26px] opacity-70 hover:cursor-blue hover:opacity-100 md:h-[32px] lg:h-[40px]"
+            className="relative aspect-square h-[26px] opacity-70 hover:cursor-blue hover:opacity-100 md:h-[32px]"
           >
             <Image
               src={"/follow/twitter.svg"}
@@ -38,7 +38,7 @@ const Follow = () => {
           <a
             href={"https://discord.com/invite/thehoneyjar"}
             target="_blank"
-            className="relative aspect-square h-[38px] opacity-70 hover:cursor-blue hover:opacity-100 md:h-[46px] lg:h-[58px]"
+            className="relative aspect-square h-[38px] opacity-70 hover:cursor-blue hover:opacity-100 md:h-[46px]"
           >
             <Image
               src={"/follow/discord.svg"}
@@ -50,7 +50,7 @@ const Follow = () => {
           <a
             href={"https://warpcast.com/0xhoneyjar"}
             target="_blank"
-            className="relative aspect-square h-[38px] opacity-70 hover:cursor-blue hover:opacity-100 md:h-[46px] lg:h-[58px]"
+            className="relative aspect-square h-[38px] opacity-70 hover:cursor-blue hover:opacity-100 md:h-[46px]"
           >
             <Image
               src={"/follow/farcaster.svg"}
@@ -60,7 +60,7 @@ const Follow = () => {
             />
           </a>
         </div>
-        <div className="absolute inset-x-0 bottom-6 left-24 mx-auto flex items-end justify-center gap-2 sm:bottom-8 xl:left-32">
+        <div className="absolute inset-x-0 bottom-6 left-24 mx-auto flex items-end justify-center gap-2 sm:bottom-8 xl:left-36">
           <div className="relative aspect-square h-[42px] md:h-[50px]">
             <Image
               src={"/follow/arrow-swirl.svg"}

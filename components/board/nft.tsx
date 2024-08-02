@@ -19,19 +19,19 @@ const NFT = () => {
       <div className="absolute -top-40 h-1 w-full" id="nft" />
       <Carousel className="flex h-full flex-col" opts={{ dragFree: true }}>
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#43AA77]" />
-        <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#1B271B] px-4 md:h-[72px] md:px-6 xl:h-20">
+        <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#1B271B] px-4 md:h-[72px] md:px-6">
           <div
             className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#43AA77] blur-2xl ${glow ? "flex" : "hidden"}`}
           />
           <div className="flex items-center gap-2">
             <DragHandle setGlow={setGlow} />
-            <p className="whitespace-nowrap text-sm font-medium text-white md:text-base xl:text-xl">
+            <p className="whitespace-nowrap text-sm font-medium text-white md:text-base">
               The Honey Jar NFTs
             </p>
           </div>
-          <div className="relative flex gap-1.5 md:gap-2 xl:gap-3">
-            <CarouselPrevious className="size-6 border-2 border-[#848484] bg-transparent md:size-7 xl:size-8" />
-            <CarouselNext className="size-6 border-2 border-[#848484] bg-transparent md:size-7 xl:size-8" />
+          <div className="relative flex gap-1.5 md:gap-2">
+            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7" />
+            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7" />
           </div>
         </div>
         <CarouselContent className="flex size-full grow items-center p-4 md:p-6">
@@ -56,12 +56,12 @@ const NFT = () => {
                     </div>
                   )}
                 </div>
-                <div className="relative aspect-square h-16 rounded-full border border-[#1A1A1A] bg-[#FFFFFF03] md:h-20 xl:h-[100px]">
+                <div className="relative aspect-square h-16 rounded-full border border-[#1A1A1A] bg-[#FFFFFF03] md:h-20">
                   <Image
                     src={nft.image}
                     alt={nft.name}
                     fill
-                    className="object-contain p-3 md:p-4 xl:p-5"
+                    className="object-contain p-3 md:p-4"
                   />
                 </div>
                 <p className="">{nft.name}</p>

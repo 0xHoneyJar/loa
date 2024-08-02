@@ -17,13 +17,13 @@ const Artwork = () => {
     >
       <div className="absolute -top-40 h-1 w-full" id="artwork" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-white" />
-      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-[72px] md:px-6 xl:h-20">
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-[72px] md:px-6">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#B8B8B8] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
         <div className="flex items-center gap-2">
           <DragHandle setGlow={setGlow} />
-          <p className="text-sm font-medium text-white md:text-base xl:text-xl">
+          <p className="text-sm font-medium text-white md:text-base">
             Our Arts and Memes
           </p>
         </div>

@@ -12,7 +12,7 @@ const Delegate = () => {
           className="scale-150 object-contain"
         />
       </div>
-      <div className="absolute inset-y-0 -right-0 -top-28 my-auto aspect-square h-12 sm:-top-32 lg:-top-16 lg:h-[52px] xl:-top-6 2xl:-top-24">
+      <div className="absolute inset-y-0 -right-0 -top-28 my-auto aspect-square h-12 sm:-top-12 md:-top-32 lg:-top-16 lg:h-[52px] xl:-top-6 2xl:-top-24">
         <Image
           src={"/arrow-delegate-dashed.svg"}
           alt="arrow"

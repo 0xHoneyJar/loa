@@ -16,16 +16,16 @@ const Mint = ({ mints }: { mints?: any }) => {
       <div className="absolute -top-40 h-1 w-full" id="mint" />
       <Carousel className="flex h-full flex-col" opts={{ dragFree: true }}>
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
-        <div className="flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6 xl:h-20">
+        <div className="flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6">
           <div className="flex items-center gap-2">
             <LockKeyhole className="aspect-square h-5 text-[#FFD7004D] md:h-[26px]" />
-            <p className="whitespace-nowrap text-sm font-medium text-[#FFD700] md:text-base xl:text-xl">
+            <p className="whitespace-nowrap text-sm font-medium text-[#FFD700] md:text-base">
               New Mints
             </p>
           </div>
           <div className="relative flex gap-1.5 md:gap-2 xl:gap-3">
-            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
-            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7 xl:h-8 xl:w-8" />
+            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7" />
+            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7" />
           </div>
           {/* <button className="flex items-center gap-1 text-lg font-medium text-[#848484] hover:text-white">
             Explore <ArrowUpRight size={24} />
@@ -35,7 +35,7 @@ const Mint = ({ mints }: { mints?: any }) => {
           {mints.items.map((mint: any) => (
             <CarouselItem
               key={mint._title}
-              className="basis-full md:basis-1/2 xl:basis-1/3"
+              className="basis-full sm:basis-1/2 xl:basis-1/3"
             >
               <MintDisplay mint={mint} />
             </CarouselItem>
@@ -106,7 +106,7 @@ const MintDisplay = ({ mint }: { mint: any }) => (
     </div>
     <div className="z-10 flex w-full items-start justify-between">
       <div className="flex flex-col gap-1">
-        <p className="text-base text-[#FBFBFB]">{mint._title}</p>
+        <p className="text-sm text-[#FBFBFB] md:text-base">{mint._title}</p>
         <div className="flex items-center gap-2">
           <div className="relative aspect-square h-[20px]">
             <Image src={"/thj-logo.png"} alt="logo" fill />
@@ -121,7 +121,9 @@ const MintDisplay = ({ mint }: { mint: any }) => (
         <div className="relative aspect-square h-4">
           <Image src={"/eth.svg"} alt="eth" fill />
         </div>
-        <p className="text-lg font-semibold text-white">{mint.price}</p>
+        <p className="text-sm font-semibold text-white md:text-lg">
+          {mint.price}
+        </p>
       </div>
       {/* <p className="text-[8px] text-[#BABABA]">$123,145.00</p> */}
       {/* </div> */}

@@ -24,13 +24,13 @@ const Incubated = ({ partners }: { partners?: any }) => {
       <div className="absolute -top-40 h-1 w-full" id="incubated" />
       <Carousel className="flex h-full flex-col" opts={{ dragFree: true }}>
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
-        <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6 xl:h-20">
+        <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6">
           <div
             className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
           />
           <div className="flex items-center gap-2">
             <DragHandleY setGlow={setGlow} />
-            <p className="text-sm font-medium text-[#FFD700] md:text-base xl:text-xl">
+            <p className="text-sm font-medium text-[#FFD700] md:text-base">
               Incubated Projects
             </p>
             <div className="hidden items-center gap-2 rounded-full border border-[#F8A9291F] bg-gradient-to-r from-[#F5D0110D] to-[#F8A9290D] px-2 py-1 md:flex">
@@ -47,9 +47,9 @@ const Incubated = ({ partners }: { partners?: any }) => {
               </p>
             </div>
           </div>
-          <div className="relative flex gap-1.5 md:gap-2 xl:gap-3">
-            <CarouselPrevious className="size-6 border-2 border-[#848484] bg-transparent md:size-7 xl:size-8" />
-            <CarouselNext className="size-6 border-2 border-[#848484] bg-transparent md:size-7 xl:size-8" />
+          <div className="relative flex gap-1.5 md:gap-2">
+            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7" />
+            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7" />
           </div>
         </div>
         <CarouselContent className="flex size-full grow items-center py-4 pl-4 md:py-6 md:pl-6">
@@ -57,7 +57,7 @@ const Incubated = ({ partners }: { partners?: any }) => {
             <CarouselItem key={id} className={`h-full`}>
               <div className="relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90 md:w-[196px]">
                 <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                <div className="relative mb-4 mt-4 aspect-square h-16 overflow-hidden rounded-full border border-[#F4C10B0F] bg-[#18140C05] md:mt-6 md:h-[80px] xl:h-[100px]">
+                <div className="relative mb-4 mt-4 aspect-square h-16 overflow-hidden rounded-full border border-[#F4C10B0F] bg-[#18140C05] md:mt-6 md:h-[80px]">
                   <Image
                     src={
                       "https://d163aeqznbc6js.cloudfront.net/images" + item.logo
@@ -67,7 +67,7 @@ const Incubated = ({ partners }: { partners?: any }) => {
                     className="object-cover"
                   />
                 </div>
-                <p className="text-sm md:text-base xl:text-lg">{item._title}</p>
+                <p className="text-sm md:text-base">{item._title}</p>
               </div>
             </CarouselItem>
           ))}

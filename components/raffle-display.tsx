@@ -80,7 +80,7 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
               target="_blank"
               className="cursor-blue rounded-full bg-white/25 px-4 py-2 backdrop-blur-md"
             >
-              <div className="flex items-center gap-1 text-xs font-medium md:text-sm xl:text-base">
+              <div className="flex items-center gap-1 text-xs font-medium md:text-sm">
                 Join Now <ArrowUpRight size={20} />
               </div>
             </a>
@@ -96,10 +96,8 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
 
         {upcomingRaffle ? (
           <div className="flex h-full w-full flex-col items-center justify-center">
-            <p className="text-lg font-medium md:text-xl xl:text-2xl">
-              {timeRemaining}
-            </p>
-            <p className="text-xs text-[#E0E0E0] md:text-sm xl:text-base">
+            <p className="text-lg font-medium md:text-xl">{timeRemaining}</p>
+            <p className="text-xs text-[#E0E0E0] md:text-sm">
               {convertUnixToLocalTime(raffle.startTime)}
             </p>
           </div>
@@ -149,7 +147,9 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
           {raffle.title}
         </p>
         <div className="flex items-center gap-2">
-          <p className="hidden text-sm text-[#6B6B6B] xl:block">Partner with</p>
+          <p className="hidden whitespace-nowrap text-sm text-[#6B6B6B] xl:block">
+            Partner with
+          </p>
           <div className="flex items-center gap-1">
             <div className="relative aspect-square h-5 overflow-hidden rounded-full md:h-[24px]">
               <S3Image

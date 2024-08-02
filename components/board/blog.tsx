@@ -20,19 +20,19 @@ const Blog = () => {
       <div className="absolute -top-40 h-1 w-full" id="blog" />
       <Carousel className="flex h-full flex-col" opts={{ dragFree: true }}>
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
-        <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6 xl:h-20">
+        <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6">
           <div
             className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
           />
           <div className="flex items-center gap-2">
             <DragHandleY setGlow={setGlow} />
-            <p className="text-sm font-medium text-[#FFD700] md:text-base xl:text-xl">
+            <p className="text-sm font-medium text-[#FFD700] md:text-base">
               Our Blog
             </p>
           </div>
           <div className="relative flex gap-1.5 md:gap-2 lg:hidden">
-            <CarouselPrevious className="size-6 border-2 border-[#848484] bg-transparent md:size-7 xl:size-8" />
-            <CarouselNext className="size-6 border-2 border-[#848484] bg-transparent md:size-7 xl:size-8" />
+            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7" />
+            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7" />
           </div>
         </div>
         {/* <div className="flex grow overflow-hidden p-4 md:p-6"> */}

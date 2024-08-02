@@ -79,7 +79,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
               target="_blank"
               className="cursor-blue rounded-full bg-white/25 px-4 py-2 backdrop-blur-md"
             >
-              <div className="flex items-center gap-1 text-xs font-medium md:text-sm xl:text-base">
+              <div className="flex items-center gap-1 text-xs font-medium md:text-sm">
                 Join Now <ArrowUpRight className="aspect-square h-4 md:h-5" />
               </div>
             </a>
@@ -94,10 +94,8 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
         />
         {upcomingQuest ? (
           <div className="flex h-full w-full flex-col items-center justify-center">
-            <p className="text-lg font-medium md:text-xl xl:text-2xl">
-              {timeRemaining}
-            </p>
-            <p className="text-xs text-[#E0E0E0] md:text-sm xl:text-base">
+            <p className="text-lg font-medium md:text-xl">{timeRemaining}</p>
+            <p className="text-xs text-[#E0E0E0] md:text-sm">
               {convertUnixToLocalTime(quest.startTime)}
             </p>
           </div>
@@ -157,11 +155,11 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
         )}
       </div>
       <div className="flex h-[15%] w-full items-center justify-between gap-2">
-        <p className="truncate whitespace-nowrap text-xs text-[#FBFBFB] md:text-sm xl:text-base">
+        <p className="truncate whitespace-nowrap text-xs text-[#FBFBFB] md:text-sm">
           {quest.title}
         </p>
         <div className="flex items-center gap-2">
-          <p className="hidden text-sm text-[#6B6B6B] 2xl:block">
+          <p className="hidden whitespace-nowrap text-sm text-[#6B6B6B] xl:block">
             Partner with
           </p>
           <div className="flex items-center gap-1">

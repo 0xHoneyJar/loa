@@ -38,15 +38,13 @@ const Feed = () => {
     >
       <div className="absolute -top-40 h-1 w-full" id="feed" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#43AA77]" />
-      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-[72px] md:px-6 xl:h-20">
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-[72px] md:px-6">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#43AA77] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
         <div className="flex items-center gap-2">
           <DragHandle setGlow={setGlow} />
-          <p className="text-sm font-medium text-white md:text-base xl:text-xl">
-            Feed
-          </p>
+          <p className="text-sm font-medium text-white md:text-base">Feed</p>
         </div>
         <a
           className="relative aspect-square h-[28px] cursor-pointer rounded-full border border-[#353535] md:h-[34px]"

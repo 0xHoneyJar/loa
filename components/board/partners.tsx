@@ -13,50 +13,51 @@ const Partners = () => {
     >
       <div className="absolute -top-40 h-1 w-full" id="partners" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#43AA77]" />
-      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-[72px] md:px-6 xl:h-20">
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-[72px] md:px-6">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#43AA77] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
         <div className="flex items-center gap-2">
           <DragHandle setGlow={setGlow} />
-          <p className="text-sm font-medium text-white md:text-base xl:text-xl">
+          <p className="text-sm font-medium text-white md:text-base">
             Partners
           </p>
         </div>
       </div>
       <div className="flex grow flex-col">
-        <div className="flex w-full flex-col justify-center gap-5 p-4 md:p-6">
-          <p className="text-xs text-[#A9A9A9] md:text-sm xl:text-base">
+        <div className="flex w-full flex-col justify-center gap-4 p-4 md:gap-6 md:p-6">
+          <p className="text-xs text-[#A9A9A9] md:text-sm">
             THJ has a vast and constantly growing network of partners. Many of
             them are providing perks to Honeycomb holders.
           </p>
-          <div className="relative w-full rounded-xl bg-[#43AA772E] px-2 py-4 md:px-4 md:py-6">
-            <p className="text-2xl font-medium text-[#00AB55] md:text-3xl xl:text-4xl 2xl:text-5xl">
+          <div className="relative w-full rounded-xl bg-[#43AA772E] px-4 py-6">
+            <p className="text-2xl font-medium text-[#00AB55] md:text-3xl xl:text-4xl">
               561
             </p>
-            <p className="absolute bottom-2 right-2 flex items-center text-[10px] text-[#A9A9A9] md:text-xs xl:bottom-4 xl:right-4 xl:text-sm">
+            <p className="absolute bottom-2 right-2 flex items-center text-[10px] text-[#A9A9A9] md:text-xs">
               / Total Partners
-              <HelpCircle className="aspect-square h-3 md:h-[14px]" />
+              {/* <HelpCircle className="aspect-square h-3 md:h-[14px]" /> */}
             </p>
           </div>
-          <div className="relative w-full rounded-xl bg-[#43AA772E] px-2 py-4 md:px-4 md:py-6">
-            <p className="text-2xl font-medium text-[#00AB55] md:text-3xl xl:text-4xl 2xl:text-5xl">
+          <div className="relative w-full rounded-xl bg-[#43AA772E] px-4 py-6">
+            <p className="text-2xl font-medium text-[#00AB55] md:text-3xl xl:text-4xl">
               $9,000,000
             </p>
-            <p className="absolute bottom-2 right-2 flex items-center text-[10px] text-[#A9A9A9] md:text-xs xl:bottom-4 xl:right-4 xl:text-sm">
-              / Raised <HelpCircle className="aspect-square h-3 md:h-[14px]" />
+            <p className="absolute bottom-2 right-2 flex items-center text-[10px] text-[#A9A9A9] md:text-xs">
+              / Raised
+              {/* <HelpCircle className="aspect-square h-3 md:h-[14px]" /> */}
             </p>
           </div>
           <button className="flex items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 hover:cursor-blue hover:border-[#E8E8E81F] hover:bg-[#FFFFFF24]">
             <div className="flex items-center gap-2 whitespace-nowrap">
-              <Map className="aspect-square h-4 md:h-[22px] xl:h-[28px]" />
-              <p className="text-xs md:text-sm xl:text-base">THJ Partner Map</p>
+              <Map className="aspect-square h-4 md:h-[22px]" />
+              <p className="text-xs md:text-sm">THJ Partner Map</p>
             </div>
-            <ChevronRight className="aspect-square h-3 text-[#FFFFFF66] md:h-[14px] xl:h-[18px]" />
+            <ChevronRight className="aspect-square h-3 text-[#FFFFFF66] md:h-[14px]" />
           </button>
           <button className="flex items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 hover:cursor-blue hover:border-[#E8E8E81F] hover:bg-[#FFFFFF24]">
             <div className="flex items-center gap-2 whitespace-nowrap">
-              <div className="relative aspect-square h-4 md:h-[22px] xl:h-[28px]">
+              <div className="relative aspect-square h-4 md:h-[22px]">
                 <Image
                   src={"/partners.svg"}
                   alt="partners"
@@ -64,11 +65,9 @@ const Partners = () => {
                   className="object-contain"
                 />
               </div>
-              <p className="text-xs md:text-sm xl:text-base">
-                Explore Partners
-              </p>
+              <p className="text-xs md:text-sm">Explore Partners</p>
             </div>
-            <ChevronRight className="aspect-square h-3 text-[#FFFFFF66] md:h-[14px] xl:h-[18px]" />
+            <ChevronRight className="aspect-square h-3 text-[#FFFFFF66] md:h-[14px]" />
           </button>
         </div>
         <div className="relative flex w-full grow items-center justify-center border-t border-[#43AA771A] px-4 md:px-6">
@@ -99,7 +98,7 @@ const Partners = () => {
             >
               <motion.div
                 layout
-                className={`z-10 flex aspect-square h-6 items-center justify-center rounded-full md:h-8 xl:h-[40px] ${
+                className={`z-10 flex aspect-square h-6 items-center justify-center rounded-full md:h-8 ${
                   hover ? "bg-white" : "bg-[#171717]"
                 }`}
                 transition={{ duration: 0.3 }}
@@ -107,7 +106,7 @@ const Partners = () => {
                 <ArrowRight className="text-[#43AA77]" />
               </motion.div>
               <p
-                className={`absolute inset-x-0 mx-auto text-xs md:text-sm xl:text-base ${
+                className={`absolute inset-x-0 mx-auto text-xs md:text-sm lg:left-6 xl:left-0 ${
                   hover && "text-white"
                 }`}
               >

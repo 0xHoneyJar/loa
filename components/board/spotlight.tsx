@@ -15,13 +15,13 @@ const Spotlight = ({ spotlight }: { spotlight?: any }) => {
     >
       <div className="absolute -top-40 h-1 w-full" id="spotlight" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
-      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6 md:h-[72px] xl:h-20">
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-6 md:h-[72px]">
         <div
           className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
         />
         <div className="flex items-center gap-2">
           <DragHandleY setGlow={setGlow} />
-          <p className="text-sm font-medium text-[#FFD700] md:text-base xl:text-xl">
+          <p className="text-sm font-medium text-[#FFD700] md:text-base">
             Spotlight
           </p>
           <div className="ml-2 flex items-center rounded-full bg-[#F5D01124] px-2 py-1">
@@ -43,11 +43,11 @@ const Spotlight = ({ spotlight }: { spotlight?: any }) => {
         </div>
         <div className="relative flex h-full w-full flex-col overflow-hidden">
           {/* <div className="flex w-full flex-col"> */}
-          <p className="mb-1 text-sm font-medium text-[#FBFBFB] md:text-base xl:text-lg">
+          <p className="mb-1 text-sm font-medium text-[#FBFBFB] md:text-base">
             {spotlight.title}
           </p>
           <ScrollArea>
-            <p className="text-xs text-[#A9A9A9] md:text-sm xl:text-base">
+            <p className="text-xs text-[#A9A9A9] md:text-sm">
               {spotlight.description}
             </p>
           </ScrollArea>

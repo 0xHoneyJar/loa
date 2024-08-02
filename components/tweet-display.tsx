@@ -72,7 +72,7 @@ const TwitterDisplay = ({
       </div>
       <div className="flex h-full w-full overflow-hidden p-4 md:p-6">
         <ScrollArea>
-          <p className="text-xs font-light md:text-sm xl:text-base">{text}</p>
+          <p className="text-xs font-light md:text-sm">{text}</p>
         </ScrollArea>
       </div>
     </motion.div>
