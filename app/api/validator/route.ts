@@ -14,12 +14,12 @@ import {
   http,
 } from "viem";
 
-export const bartioPublicClient = createPublicClient({
+const bartioPublicClient = createPublicClient({
   chain: berachainBartio,
   transport: http(process.env.RPC_URL_80084),
 });
 
-export const bartioClient = createWalletClient({
+const bartioClient = createWalletClient({
   chain: berachainBartio,
   transport: http(process.env.RPC_URL_80084),
 });
