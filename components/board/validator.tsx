@@ -192,12 +192,24 @@ const Validator = () => {
               </p>
             </div>
             <div className="flex h-full items-center gap-2">
-              <button className="h-full whitespace-nowrap rounded-full border border-white/5 bg-white/5 px-6 text-xs font-medium text-white hover:cursor-blue hover:border-white/20 hover:bg-white/20 md:text-sm xl:text-base">
+              <a
+                target="_blank"
+                href={
+                  "https://bartio.station.berachain.com/validators/0x40495A781095932e2FC8dccA69F5e358711Fdd41"
+                }
+                className="flex h-full items-center justify-center whitespace-nowrap rounded-full border border-white/5 bg-white/5 px-6 text-xs font-medium text-white hover:cursor-blue hover:border-white/20 hover:bg-white/20 md:text-sm xl:text-base"
+              >
                 <span className="hidden xl:inline-flex">View</span> Validator
-              </button>
-              <button className="h-full whitespace-nowrap rounded-full bg-[#43AA77] px-6 text-xs font-medium text-black hover:cursor-blue hover:shadow-evergreen md:text-sm xl:text-base">
+              </a>
+              <a
+                target="_blank"
+                href={
+                  "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
+                }
+                className="flex h-full items-center justify-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 text-xs font-medium text-black hover:cursor-blue hover:shadow-evergreen md:text-sm xl:text-base"
+              >
                 Delegate <span className="hidden xl:inline-flex">Now</span>
-              </button>
+              </a>
               {/* <div className="relative aspect-square h-[100px]">
               <Image
                 src={"/arrow-wiggle.svg"}

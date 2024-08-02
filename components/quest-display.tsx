@@ -148,7 +148,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
                     className="object-contain"
                   />
                 </div>
-                <p className="text-xs md:text-sm xl:text-base">
+                <p className="text-xs md:text-sm">
                   {questData?.numParticipants ?? 0}
                 </p>
               </div>

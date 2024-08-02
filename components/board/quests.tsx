@@ -17,7 +17,7 @@ const Quests = () => {
       setQuests(retrievedQuests);
     }
 
-    // getQuests();
+    getQuests();
   }, []);
 
   return (

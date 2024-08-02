@@ -21,7 +21,7 @@ const HeroSection = () => {
           fill
           className="z-10 object-cover opacity-20"
         />
-        <div className="absolute top-0 h-20 w-full md:h-24">
+        <div className="absolute top-0 h-20 w-full opacity-30 md:h-24">
           <Image
             src={"/navbar-hero.png"}
             alt="bg"

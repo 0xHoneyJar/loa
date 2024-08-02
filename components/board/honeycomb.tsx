@@ -97,7 +97,12 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
                 Berachain eco. It gives you whitelist to most projects in the
                 ecosystem
               </p>
-              <button className="flex items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[#1E1E1E] bg-[#0F0D08] py-2 md:py-3">
+              <a
+                target="_blank"
+                href={"https://pro.opensea.io/collection/honey-comb-2"}
+                rel="noopener noreferrer"
+                className="flex cursor-blue items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[#1E1E1E] bg-[#0F0D08] py-2 md:py-3"
+              >
                 <div className="relative aspect-square h-5 rounded-full md:h-[26px]">
                   <Image
                     src={"/opensea.svg"}
@@ -109,7 +114,7 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
                 <p className="text-xs md:text-sm xl:text-base">
                   Buy a Honeycomb
                 </p>
-              </button>
+              </a>
             </div>
           </div>
           <Carousel className="flex h-[200px] w-full sm:h-[230px] md:h-[250px]">

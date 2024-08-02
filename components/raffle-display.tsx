@@ -136,20 +136,20 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
                     className="object-contain"
                   />
                 </div>
-                <p>{raffleData?.numEntries ?? 0}</p>
+                <p className="text-xs md:text-sm">
+                  {raffleData?.numEntries ?? 0}
+                </p>
               </div>
             </div>
           </>
         )}
       </div>
       <div className="flex h-[15%] w-full items-center justify-between">
-        <p className="truncate whitespace-nowrap text-xs text-[#FBFBFB] md:text-sm xl:text-base">
+        <p className="truncate whitespace-nowrap text-xs text-[#FBFBFB] md:text-sm">
           {raffle.title}
         </p>
         <div className="flex items-center gap-2">
-          <p className="hidden text-sm text-[#6B6B6B] 2xl:block">
-            Partner with
-          </p>
+          <p className="hidden text-sm text-[#6B6B6B] xl:block">Partner with</p>
           <div className="flex items-center gap-1">
             <div className="relative aspect-square h-5 overflow-hidden rounded-full md:h-[24px]">
               <S3Image
