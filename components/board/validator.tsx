@@ -19,7 +19,7 @@ import DragHandle from "../drag-handle";
 const Validator = () => {
   const { data } = useSWR<{
     amountDelegated: string;
-    commission: string;
+    boostedRewardRate: string;
   }>("/api/validator", fetcher);
 
   const [glow, setGlow] = useState(false);
@@ -122,7 +122,9 @@ const Validator = () => {
                       Reward Rate
                     </p>
                     <div className="flex items-center gap-2 text-lg md:text-xl xl:text-2xl">
-                      <p className="font-semibold">12,324</p>
+                      <p className="font-semibold">
+                        {formatToken(BigInt(data?.boostedRewardRate ?? "0"))}
+                      </p>
                       <div className="relative aspect-square h-[28px]">
                         <Image
                           src={"/delegate-bee.png"}
