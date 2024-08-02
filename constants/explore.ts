@@ -18,7 +18,7 @@ export const EXPLOREITEMS: ListItemData[] = [
   {
     title: "For Partners",
     description: "Learn more about the THJ org",
-    icon: "/navbar/partners.png",
+    icon: "/navbar/partner.png",
     link: "https://partners-interface.vercel.app/",
     color: "#2D2313",
   },
@@ -73,11 +73,11 @@ export const EXPLOREITEMS: ListItemData[] = [
     color: "#1E1E1E",
   },
   {
-    title: "Beardrops",
+    title: "beardrops",
     description: "The best tool for snapshots",
-    icon: "/navbar/apiology.png",
+    icon: "/navbar/beardrops.png",
     link: "https://beardrops-interface.vercel.app/",
-    color: "#1A2E2B",
+    color: "#2B3234",
     comingSoon: true,
   },
 ];
