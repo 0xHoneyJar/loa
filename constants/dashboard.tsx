@@ -2,7 +2,7 @@ import Blog from "@/components/board/blog";
 import Development from "@/components/board/development";
 import Feed from "@/components/board/feed";
 import Guide from "@/components/board/guide";
-import Incubated from "@/components/board/incubated";
+import Portfolio from "@/components/board/portfolio";
 import Mint from "@/components/board/mint";
 import NFT from "@/components/board/nft";
 import Partners from "@/components/board/partners";
@@ -147,7 +147,7 @@ export const DASHBOARD = [
     dataGrid: { i: "incubated", x: 0, y: 8, w: 3, h: 1 },
     dataGrid_md: { i: "incubated", x: 0, y: 10, w: 3, h: 1 },
     dataGrid_sm: { i: "incubated", x: 0, y: 10, w: 3, h: 1 },
-    ui: <Incubated />,
+    ui: <Portfolio />,
     hidden: false,
   },
   // {

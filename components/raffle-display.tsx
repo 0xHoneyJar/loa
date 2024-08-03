@@ -148,7 +148,7 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
         </p>
         <div className="flex items-center gap-2">
           <p className="hidden whitespace-nowrap text-sm text-[#6B6B6B] xl:block">
-            Partner with
+            In partnership with
           </p>
           <div className="flex items-center gap-1">
             <div className="relative aspect-square h-5 overflow-hidden rounded-full md:h-[24px]">

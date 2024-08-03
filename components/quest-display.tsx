@@ -160,7 +160,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
         </p>
         <div className="flex items-center gap-2">
           <p className="hidden whitespace-nowrap text-sm text-[#6B6B6B] xl:block">
-            Partner with
+            In partnership with
           </p>
           <div className="flex items-center gap-1">
             {quest.logo?.map((logo, id) => (

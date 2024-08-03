@@ -8,7 +8,7 @@ import MainWrapper from "@/components/main-wrapper";
 
 export const metadata: Metadata = {
   // metadataBase: new URL(""),
-  title: "",
+  title: "THJ Community",
   description: "",
   openGraph: {
     type: "website",

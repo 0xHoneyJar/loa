@@ -24,7 +24,7 @@ const Artwork = () => {
         <div className="flex items-center gap-2">
           <DragHandle setGlow={setGlow} />
           <p className="text-sm font-medium text-white md:text-base">
-            Our Arts and Memes
+            Apiculture Exhibition
           </p>
         </div>
       </div>

@@ -43,7 +43,7 @@ const Data = () => {
           </p>
           <div className="relative mb-4 w-full rounded-xl border border-[#F8A9290F] bg-[#F8A9291F] px-2 py-4 md:px-4 md:py-6">
             <p className="text-2xl font-medium text-[#F8A929] md:text-3xl xl:text-4xl">
-              $5,042,000
+              $32,100,977
             </p>
             <p className="absolute bottom-2 right-2 flex items-center text-[10px] text-[#A9A9A9]/50 md:text-xs">
               / By Bera Eco
@@ -51,7 +51,7 @@ const Data = () => {
           </div>
           <div className="relative w-full rounded-xl border border-[#F8A9290F] bg-[#F8A9291F] px-2 py-4 md:px-4 md:py-6">
             <p className="text-2xl font-medium text-[#F8A929] md:text-3xl xl:text-4xl">
-              $9,000,000
+              $4,222,768
             </p>
             <p className="absolute bottom-2 right-2 flex items-center text-[10px] text-[#A9A9A9]/50 md:text-xs">
               / By THJ
@@ -129,23 +129,23 @@ const Data = () => {
             <div className="flex w-full flex-col">
               <div className="mb-10 flex items-center justify-center">
                 <CircularProgressbarWithChildren
-                  value={75}
+                  value={88.8}
                   strokeWidth={14}
                   styles={buildStyles({
-                    rotation: 0.7,
+                    rotation: 0.65,
                     strokeLinecap: "butt",
                     pathColor: "#F5DA7F",
                     trailColor: "#342911",
                   })}
                   className="h-[180px] md:h-[200px]"
                 >
-                  <p className="font-medium md:text-xl">50,000</p>
+                  <p className="font-medium md:text-xl">4792</p>
                   <p className="text-xs md:text-sm">Holders</p>
                   <p className="absolute -left-0 bottom-0 text-xs font-medium text-[#7E6E4B] md:text-sm">
-                    25%
+                    11.2%
                   </p>
                   <p className="absolute -right-0 top-0 text-xs font-medium text-[#F5DA7F] md:text-sm">
-                    75%
+                    88.8%
                   </p>
                 </CircularProgressbarWithChildren>
               </div>

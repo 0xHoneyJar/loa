@@ -12,6 +12,11 @@ import DragHandle from "../drag-handle";
 
 const NFT = () => {
   const [glow, setGlow] = useState(false);
+  const handleRedirect = (e: any, link: string) => {
+    if (!link) {
+      e.preventDefault(); // Prevent default navigation when disabled
+    }
+  };
   return (
     <div
       className={`${glow && "rotate-1"} relative h-full overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D]`}
@@ -37,7 +42,12 @@ const NFT = () => {
         <CarouselContent className="flex size-full grow items-center p-4 md:p-6">
           {NFTItems.map((nft, id) => (
             <CarouselItem key={id} className="h-full">
-              <div className="flex h-full w-[178px] flex-col items-center justify-center gap-3 rounded-lg border border-[#161616] bg-[#121212] px-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#373737] hover:bg-[#1A1A1A] hover:font-medium hover:text-white md:w-[196px]">
+              <a
+                target="_blank"
+                href={nft.link}
+                onClick={(e) => handleRedirect(e, nft.link)}
+                className="flex h-full w-[178px] flex-col items-center justify-center gap-3 rounded-lg border border-[#161616] bg-[#121212] px-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#373737] hover:bg-[#1A1A1A] hover:font-medium hover:text-white md:w-[196px]"
+              >
                 <div className="flex h-[10%] w-full items-center justify-center gap-1 py-1">
                   {nft.new && (
                     <div className="flex items-center gap-2 rounded-full border border-[#F4C10B] bg-[#F5DA7F14] px-1.5 py-0.5">
@@ -65,7 +75,7 @@ const NFT = () => {
                   />
                 </div>
                 <p className="">{nft.name}</p>
-              </div>
+              </a>
             </CarouselItem>
           ))}
         </CarouselContent>

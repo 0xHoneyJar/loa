@@ -55,14 +55,18 @@ const Footer = () => {
         {/* </div> */}
         <div className="relative flex h-full w-full flex-col items-center justify-center border-y border-dashed border-[#DCE0E5] px-4 py-3 text-white sm:items-start sm:border-x sm:border-y-0 sm:py-0 md:px-8">
           <p className="mb-2 whitespace-nowrap font-clash text-lg font-semibold md:text-xl xl:text-2xl">
-            Brand Kit
+            Branding Kit
           </p>
           <p className="mb-4 w-full text-center text-xs sm:text-left md:w-[90%] md:text-sm xl:text-base">
             Find all assets and guidelines of THJ branding here
           </p>
-          <button className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] md:text-sm xl:text-base">
+          <a
+            href={"https://docs.0xhoneyjar.xyz/docs/branding"}
+            target="_blank"
+            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] md:text-sm xl:text-base"
+          >
             Learn More
-          </button>
+          </a>
         </div>
         {/* <div className="h-full w-1/3 lg:w-full"> */}
         <div className="flex h-full w-full flex-col items-center justify-center px-4 py-3 text-white sm:items-start sm:py-0 md:px-8">
