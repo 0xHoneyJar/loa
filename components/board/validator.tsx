@@ -141,34 +141,36 @@ const Validator = () => {
                     <p className="absolute top-0 text-xs text-[#6B6B6B] md:text-sm">
                       Voting Power
                     </p>
-                    <div className="mb-8 aspect-square h-[135px]">
+                    <div className="aspect-square h-[135px]">
                       <CircularProgressbarWithChildren
-                        value={50}
+                        value={90.42}
                         strokeWidth={14}
                         styles={buildStyles({
-                          rotation: 0.5,
+                          rotation: 0.43,
                           strokeLinecap: "butt",
                           pathColor: "#43AA77",
                           trailColor: "#F4C10B",
                         })}
                       >
-                        <p className="absolute -left-10 top-auto text-sm font-medium text-[#C1C1C1] sm:-left-4 sm:top-0 2xl:-left-10 2xl:top-auto">
-                          50%
+                        <p className="absolute -left-4 -top-4 text-sm font-medium text-[#C1C1C1]">
+                          90.42%
                         </p>
-                        <p className="absolute -right-10 bottom-auto text-sm font-medium text-[#C1C1C1] sm:-right-4 sm:bottom-0 2xl:-right-10 2xl:bottom-auto">
-                          50%
+                        <p className="absolute -bottom-4 -right-4 text-sm font-medium text-[#C1C1C1]">
+                          9.58%
                         </p>
+                        <div className="absolute -bottom-16 flex justify-center gap-2 text-[#C7C7C7]">
+                          <div className="flex items-center justify-center gap-1">
+                            <div className="aspect-square h-[14px] rounded-full bg-[#43AA77]" />
+                            <p className="text-xs font-light md:text-sm">THJ</p>
+                          </div>
+                          <div className="flex items-center justify-center gap-1">
+                            <div className="aspect-square h-[14px] rounded-full bg-[#F4C10B]" />
+                            <p className="text-xs font-light md:text-sm">
+                              Other
+                            </p>
+                          </div>
+                        </div>
                       </CircularProgressbarWithChildren>
-                    </div>
-                    <div className="flex justify-center gap-2 text-[#C7C7C7]">
-                      <div className="flex items-center justify-center gap-1">
-                        <div className="aspect-square h-[14px] rounded-full bg-[#43AA77]" />
-                        <p className="text-xs font-light md:text-sm">THJ</p>
-                      </div>
-                      <div className="flex items-center justify-center gap-1">
-                        <div className="aspect-square h-[14px] rounded-full bg-[#F4C10B]" />
-                        <p className="text-xs font-light md:text-sm">Other</p>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -197,7 +199,8 @@ const Validator = () => {
                 }
                 className="flex h-full items-center justify-center whitespace-nowrap rounded-full border border-white/5 bg-white/5 px-6 text-xs font-medium text-white hover:cursor-blue hover:border-white/20 hover:bg-white/20 md:text-sm"
               >
-                <span className="hidden xl:inline-flex">View</span> Validator
+                <span className="hidden xl:inline-flex">View</span>
+                &nbsp;Validator
               </a>
               <a
                 target="_blank"
@@ -206,7 +209,7 @@ const Validator = () => {
                 }
                 className="flex h-full items-center justify-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 text-xs font-medium text-black hover:cursor-blue hover:shadow-evergreen md:text-sm"
               >
-                Delegate <span className="hidden xl:inline-flex">Now</span>
+                Delegate&nbsp;<span className="hidden xl:inline-flex">Now</span>
               </a>
               {/* <div className="relative aspect-square h-[100px]">
               <Image
