@@ -31,7 +31,7 @@ const Mint = ({ mints }: { mints?: any }) => {
             Explore <ArrowUpRight size={24} />
           </button> */}
         </div>
-        <CarouselContent className="flex size-full grow p-4 md:p-6">
+        <CarouselContent className="mr-6 flex size-full grow p-4 md:p-6">
           {mints.items.map((mint: any) => (
             <CarouselItem
               key={mint._title}
@@ -109,10 +109,15 @@ const MintDisplay = ({ mint }: { mint: any }) => (
         <p className="text-sm text-[#FBFBFB] md:text-base">{mint._title}</p>
         <div className="flex items-center gap-2">
           <div className="relative aspect-square h-[20px]">
-            <Image src={"/thj-logo.png"} alt="logo" fill />
+            <S3Image
+              src={mint.partner.logo}
+              alt="logo"
+              fill
+              className="rounded-full"
+            />
           </div>
           <p className="whitespace-nowrap text-xs text-[#9E9E9E]">
-            By The Honey jar
+            By {mint.partner._title}
           </p>
         </div>
       </div>

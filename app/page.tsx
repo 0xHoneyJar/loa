@@ -57,6 +57,10 @@ export default async function Home() {
           link: true,
           image: true,
           endDate: true,
+          partner: {
+            logo: true,
+            _title: true,
+          },
         },
       },
     },
