@@ -23,7 +23,7 @@ const NewPartners = ({ partners }: { partners?: any }) => {
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6">
           <div className="flex items-center gap-2">
             <LockKeyhole className="aspect-square h-5 text-[#FFD7004D] md:h-[26px]" />
-            <p className="md:text-basel whitespace-nowrap text-sm font-medium text-[#FFD700]">
+            <p className="md:text-basel whitespace-nowrap text-base font-medium text-[#FFD700]">
               New Partners
             </p>
             <div className="hidden items-center gap-2 rounded-full border border-[#F8A9291F] bg-gradient-to-r from-[#F5D0110D] to-[#F8A9290D] px-2 py-1 sm:flex">
@@ -45,7 +45,7 @@ const NewPartners = ({ partners }: { partners?: any }) => {
             <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7" />
           </div>
         </div>
-        <CarouselContent className="flex size-full grow p-4 md:p-6">
+        <CarouselContent className="mr-6 flex size-full grow p-4 md:p-6">
           {recentPartners.map((item: any, id: any) => (
             <CarouselItem className="" key={id}>
               <div className="relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#E0E0E0] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:text-white/90 md:w-[196px]">

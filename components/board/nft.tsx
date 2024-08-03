@@ -39,7 +39,7 @@ const NFT = () => {
             <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7" />
           </div>
         </div>
-        <CarouselContent className="flex size-full grow items-center p-4 md:p-6">
+        <CarouselContent className="mr-6 flex size-full grow items-center p-4 md:p-6">
           {NFTItems.map((nft, id) => (
             <CarouselItem key={id} className="h-full">
               <a

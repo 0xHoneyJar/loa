@@ -58,28 +58,32 @@ const Portfolio = ({ partners }: { partners?: any }) => {
             <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7" />
           </div>
         </div>
-        <CarouselContent className="flex size-full grow items-center py-4 pl-4 md:py-6 md:pl-6">
-          {incubated.map((item, id) => (
-            <CarouselItem key={id} className={`h-full`}>
-              <a
-                // onClick={(e) => handleRedirect(e, item.link)}
-                className="relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90 md:w-[196px]"
-              >
-                <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                <div className="relative mb-4 mt-4 aspect-square h-16 overflow-hidden rounded-full border border-[#F4C10B0F] bg-[#18140C05] md:mt-6 md:h-[80px]">
-                  <Image
-                    src={
-                      "https://d163aeqznbc6js.cloudfront.net/images" + item.logo
-                    }
-                    alt={item.name}
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-                <p className="text-sm md:text-base">{item._title}</p>
-              </a>
-            </CarouselItem>
-          ))}
+        <CarouselContent className="mr-6 flex size-full grow items-center py-4 pl-4 md:py-6 md:pl-6">
+          {incubated
+            .filter((item) => item._title !== "Inversebera")
+            .map((item, id) => (
+              <CarouselItem key={id} className={`h-full`}>
+                <a className="relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90 md:w-[196px]">
+                  <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
+                  <div className="relative mb-4 mt-4 aspect-square h-16 overflow-hidden rounded-full border border-[#F4C10B0F] bg-[#18140C05] md:mt-6 md:h-[80px]">
+                    <Image
+                      src={
+                        "https://d163aeqznbc6js.cloudfront.net/images" +
+                        item.logo
+                      }
+                      alt={item._title}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                  <p className="text-sm md:text-base">
+                    {item._title === "The Honey Jar"
+                      ? "Honeycomb"
+                      : item._title}
+                  </p>
+                </a>
+              </CarouselItem>
+            ))}
         </CarouselContent>
       </Carousel>
       {/* </div> */}

@@ -41,7 +41,7 @@ const Tools = () => {
             <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7" />
           </div>
         </div>
-        <CarouselContent className="flex h-full w-full grow items-center py-4 pl-4 md:py-6 md:pl-6">
+        <CarouselContent className="mr-6 flex h-full w-full grow items-center py-4 pl-4 md:py-6 md:pl-6">
           {TOOLS.map((item, id) => (
             <CarouselItem key={id} className={`h-full`}>
               <a
