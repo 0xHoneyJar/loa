@@ -63,7 +63,11 @@ const Portfolio = ({ partners }: { partners?: any }) => {
             .filter((item) => item._title !== "Inversebera")
             .map((item, id) => (
               <CarouselItem key={id} className={`h-full`}>
-                <a className="relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90 md:w-[196px]">
+                <a
+                  className="relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90 md:w-[196px]"
+                  href={item.twitter}
+                  target="_blank"
+                >
                   <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                   <div className="relative mb-4 mt-4 aspect-square h-16 overflow-hidden rounded-full border border-[#F4C10B0F] bg-[#18140C05] md:mt-6 md:h-[80px]">
                     <Image

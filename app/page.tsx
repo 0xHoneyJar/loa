@@ -14,6 +14,7 @@ export default async function Home() {
           logo: true,
           partner: true,
           startDate: true,
+          twitter: true,
         },
       },
     },

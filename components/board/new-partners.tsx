@@ -48,7 +48,11 @@ const NewPartners = ({ partners }: { partners?: any }) => {
         <CarouselContent className="mr-6 flex size-full grow p-4 md:p-6">
           {recentPartners.map((item: any, id: any) => (
             <CarouselItem className="" key={id}>
-              <div className="relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#E0E0E0] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:text-white/90 md:w-[196px]">
+              <a
+                className="relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#E0E0E0] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:text-white/90 md:w-[196px]"
+                href={item.twitter}
+                target="_blank"
+              >
                 <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                 <div className="relative mb-2 aspect-square h-14 overflow-hidden rounded-full border border-[#F4C10B0F] bg-[#18140C05] md:mb-4 md:h-16">
                   <Image
@@ -62,7 +66,7 @@ const NewPartners = ({ partners }: { partners?: any }) => {
                 </div>
                 <p className="mb-2 text-xs md:mb-4 md:text-sm">{item._title}</p>
                 <StatusDisplay status={item.partner.toLowerCase()} />
-              </div>
+              </a>
             </CarouselItem>
           ))}
           <CarouselItem className="">
