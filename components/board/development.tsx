@@ -23,11 +23,12 @@ const Development = () => {
           </p>
         </div>
       </div>
-      <ScrollArea className="relative flex grow">
+      <ScrollArea className="relative flex grow py-4 md:py-6">
+        <div className="absolute left-6 top-4 size-full border-l border-dashed border-[#4C4C4C] md:left-8 md:top-6" />
         <div className="absolute left-0 top-0 z-10 h-1/6 w-full bg-gradient-to-b from-[#0F0F0F]" />
         <div className="absolute bottom-0 left-0 z-10 h-1/6 w-full bg-gradient-to-t from-[#0F0F0F]" />
-        <div className="relative h-full w-full py-4 pl-6 md:py-6 md:pl-8">
-          <div className="relative flex h-full w-full grow flex-col gap-12 border-l border-dashed border-[#4C4C4C] px-8 pt-4 md:gap-16 md:pt-6">
+        <div className="relative size-full pl-6 md:pl-8">
+          <div className="relative flex size-full grow flex-col gap-12 px-8 pt-4 md:gap-16 md:pt-6">
             <div className="relative flex flex-col gap-3">
               <div className="absolute left-[-36px] top-2 aspect-[4/1] h-2 md:top-2.5">
                 <Image

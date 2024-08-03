@@ -12,11 +12,7 @@ import DragHandle from "../drag-handle";
 
 const NFT = () => {
   const [glow, setGlow] = useState(false);
-  const handleRedirect = (e: any, link: string) => {
-    if (!link) {
-      e.preventDefault(); // Prevent default navigation when disabled
-    }
-  };
+
   return (
     <div
       className={`${glow && "rotate-1"} relative h-full overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D]`}
@@ -45,7 +41,6 @@ const NFT = () => {
               <a
                 target="_blank"
                 href={nft.link}
-                onClick={(e) => handleRedirect(e, nft.link)}
                 className="flex h-full w-[178px] flex-col items-center justify-center gap-3 rounded-lg border border-[#161616] bg-[#121212] px-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#373737] hover:bg-[#1A1A1A] hover:font-medium hover:text-white md:w-[196px]"
               >
                 <div className="flex h-[10%] w-full items-center justify-center gap-1 py-1">

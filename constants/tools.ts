@@ -22,6 +22,6 @@ export const TOOLS = [
   {
     name: "Merch (coming soon)",
     image: "/tools/merch.png",
-    link: "",
+    link: undefined,
   },
 ];

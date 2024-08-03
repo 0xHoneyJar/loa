@@ -30,6 +30,7 @@ export default async function Home() {
           perks: true,
           startDate: true,
           endDate: true,
+          link: true,
           details: true,
           partner: {
             logo: true,

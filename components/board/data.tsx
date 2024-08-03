@@ -72,10 +72,10 @@ const Data = () => {
           </div>
           <div className="mb-10 flex grow-0 items-center justify-center">
             <CircularProgressbarWithChildren
-              value={75}
+              value={98.12}
               strokeWidth={14}
               styles={buildStyles({
-                rotation: 0.7,
+                rotation: 0.62,
                 strokeLinecap: "butt",
                 pathColor: "#F5DA7F",
                 trailColor: "#342911",
@@ -85,14 +85,14 @@ const Data = () => {
               {/* <p className="text-xl font-medium">500,000</p>
               <p className="text-sm">Total Wallets</p> */}
               <div className="flex h-full w-full flex-col items-center justify-center">
-                <p className="font-medium md:text-xl">500,000</p>
+                <p className="font-medium md:text-xl">73391</p>
                 <p className="text-xs md:text-sm">Total Wallets</p>
               </div>
               <p className="absolute -left-0 bottom-0 text-xs font-medium text-[#7E6E4B] md:text-sm">
-                25%
+                1.9%
               </p>
               <p className="absolute -right-0 top-0 text-xs font-medium text-[#F5DA7F] md:text-sm">
-                75%
+                98.1%
               </p>
             </CircularProgressbarWithChildren>
           </div>
@@ -125,14 +125,14 @@ const Data = () => {
               Honeycomb Holders
             </p>
           </div>
-          <div className="relative flex h-full w-full flex-col items-center justify-between">
+          <div className="relative flex size-full flex-col items-center justify-between">
             <div className="flex w-full flex-col">
               <div className="mb-10 flex items-center justify-center">
                 <CircularProgressbarWithChildren
                   value={88.8}
                   strokeWidth={14}
                   styles={buildStyles({
-                    rotation: 0.65,
+                    rotation: 0.66,
                     strokeLinecap: "butt",
                     pathColor: "#F5DA7F",
                     trailColor: "#342911",

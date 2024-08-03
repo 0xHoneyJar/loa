@@ -6,7 +6,6 @@ import {
   CarouselNext,
 } from "@/components/ui/carousel";
 import Image from "next/image";
-import { INCUBATED } from "@/constants/incubated";
 import DragHandleY from "../drag-handle-y";
 import { useState } from "react";
 
@@ -14,14 +13,11 @@ const Portfolio = ({ partners }: { partners?: any }) => {
   const [glow, setGlow] = useState(false);
 
   const incubated = Array.isArray(partners)
-    ? partners.filter((partner: any) => partner.partner === "Joint")
+    ? partners.filter(
+        (partner: any) =>
+          partner.partner === "Joint" && partner._title !== "Inversebera",
+      )
     : [];
-
-  const handleRedirect = (e: any, link: string) => {
-    if (!link) {
-      e.preventDefault(); // Prevent default navigation when disabled
-    }
-  };
 
   return (
     <div
@@ -59,35 +55,30 @@ const Portfolio = ({ partners }: { partners?: any }) => {
           </div>
         </div>
         <CarouselContent className="mr-6 flex size-full grow items-center py-4 pl-4 md:py-6 md:pl-6">
-          {incubated
-            .filter((item) => item._title !== "Inversebera")
-            .map((item, id) => (
-              <CarouselItem key={id} className={`h-full`}>
-                <a
-                  className="relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90 md:w-[196px]"
-                  href={item.twitter}
-                  target="_blank"
-                >
-                  <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                  <div className="relative mb-4 mt-4 aspect-square h-16 overflow-hidden rounded-full border border-[#F4C10B0F] bg-[#18140C05] md:mt-6 md:h-[80px]">
-                    <Image
-                      src={
-                        "https://d163aeqznbc6js.cloudfront.net/images" +
-                        item.logo
-                      }
-                      alt={item._title}
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
-                  <p className="text-sm md:text-base">
-                    {item._title === "The Honey Jar"
-                      ? "Honeycomb"
-                      : item._title}
-                  </p>
-                </a>
-              </CarouselItem>
-            ))}
+          {incubated.map((item, id) => (
+            <CarouselItem key={id} className={`h-full`}>
+              <a
+                className="relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90 md:w-[196px]"
+                href={item.twitter}
+                target="_blank"
+              >
+                <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
+                <div className="relative my-4 aspect-square h-16 overflow-hidden rounded-full border border-[#F4C10B0F] bg-[#18140C05] md:mt-6 md:h-[80px]">
+                  <Image
+                    src={
+                      "https://d163aeqznbc6js.cloudfront.net/images" + item.logo
+                    }
+                    alt={item._title}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+                <p className="text-sm md:text-base">
+                  {item._title === "The Honey Jar" ? "Honeycomb" : item._title}
+                </p>
+              </a>
+            </CarouselItem>
+          ))}
         </CarouselContent>
       </Carousel>
       {/* </div> */}

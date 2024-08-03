@@ -13,12 +13,6 @@ import Image from "next/image";
 const Tools = () => {
   const [glow, setGlow] = useState(false);
 
-  const handleRedirect = (e: any, link: string) => {
-    if (!link) {
-      e.preventDefault(); // Prevent default navigation when disabled
-    }
-  };
-
   return (
     <div
       className={`${glow && "rotate-1"} relative h-full overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]`}
@@ -47,7 +41,6 @@ const Tools = () => {
               <a
                 target="_blank"
                 href={item.link}
-                onClick={(e) => handleRedirect(e, item.link)}
                 className={`flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#161616] bg-[#121212] px-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#373737] hover:bg-[#1A1A1A] hover:font-medium hover:text-white md:w-[196px]`}
               >
                 {item.image ? (

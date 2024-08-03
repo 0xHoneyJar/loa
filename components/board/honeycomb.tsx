@@ -229,10 +229,14 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
             </CarouselContent>
             {/* </div> */}
           </Carousel>
-          <button className="flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-6 py-3 text-[#F4C10B] hover:cursor-blue hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]">
+          <a
+            target="_blank"
+            href={undefined}
+            className="flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-6 py-3 text-[#F4C10B] hover:cursor-blue hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]"
+          >
             <p className="text-sm md:text-base">Visit Honeycomb Dashboard</p>
             <ArrowUpRight className="aspect-square h-5 md:h-6" />
-          </button>
+          </a>
         </div>
         <Carousel className="flex h-full flex-col" opts={{ dragFree: true }}>
           <div className="flex items-center justify-between border-y border-dashed border-[#FEFEFE14] px-6 py-4">
@@ -245,7 +249,11 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
           <CarouselContent className="flex size-full grow py-4 pl-4 md:py-6 md:pl-6">
             {perks.map((perk: any, id: any) => (
               <CarouselItem key={id}>
-                <div className="relative flex h-full w-[210px] flex-col items-center justify-around rounded-lg border border-[#F4C10B1F] bg-[#18140C] p-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90">
+                <a
+                  target="_blank"
+                  href={perk.link}
+                  className="relative flex h-full w-[210px] flex-col items-center justify-around overflow-hidden rounded-lg border border-[#F4C10B1F] bg-[#18140C] p-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90"
+                >
                   <div className="mt-2 flex flex-col items-center justify-center gap-2">
                     <div className="relative aspect-square h-[54px] rounded-full border border-[#F4C10B1F] bg-[#18140C05] md:h-[64px]">
                       {perk.partner?.logo ? (
@@ -264,14 +272,14 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
                         />
                       )}
                     </div>
-                    <p className="text-sm">{perk._title}</p>
+                    <p className="text-center text-sm">{perk._title}</p>
                     <div className="rounded-full bg-gradient-to-r from-[#F8A929]/5 to-[#F5D011]/5 px-4 py-1">
                       <p className="text-xs font-light text-[#F8A929]">
                         {perk.perks}
                       </p>
                     </div>
                   </div>
-                </div>
+                </a>
               </CarouselItem>
             ))}
           </CarouselContent>
