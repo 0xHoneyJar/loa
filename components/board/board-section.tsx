@@ -184,7 +184,7 @@ const BoardSection = ({
           </div>
           <Marquee autoFill speed={30}>
             <p className="px-2 text-xs text-white md:text-sm">
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+              Henlo, and furthermore, ooga booga!
             </p>
           </Marquee>
         </div>

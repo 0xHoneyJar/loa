@@ -19,7 +19,7 @@ const Development = () => {
         <div className="flex items-center gap-2">
           <DragHandle setGlow={setGlow} />
           <p className="whitespace-nowrap text-sm font-medium text-white md:text-base">
-            Development Pipeline
+            Development Updates
           </p>
         </div>
       </div>
