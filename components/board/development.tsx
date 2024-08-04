@@ -6,7 +6,6 @@ import { ScrollArea } from "../ui/scroll-area";
 
 const Development = ({ developments }: { developments?: any }) => {
   const [glow, setGlow] = useState(false);
-  console.log(developments);
   return (
     <div
       className={`${glow && "rotate-1"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]`}
