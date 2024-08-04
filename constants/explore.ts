@@ -12,7 +12,7 @@ export const EXPLOREITEMS: ListItemData[] = [
     title: "For Community",
     description: "The front page of The Honey Jar",
     icon: "/navbar/community.png",
-    link: "https://community-interface.vercel.app/",
+    link: "https://community.0xhoneyjar.xyz/",
     color: "#2C2610",
   },
   {
@@ -40,7 +40,7 @@ export const EXPLOREITEMS: ListItemData[] = [
     title: "Moneycomb",
     description: "All about Honeycomb and its perks",
     icon: "/navbar/moneycomb.png",
-    link: "http://moneycomb.0xhoneyjar.xyz/",
+    link: "https://honeycomb.0xhoneyjar.xyz/",
     color: "#151429",
     comingSoon: true,
   },
