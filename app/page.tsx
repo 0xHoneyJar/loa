@@ -65,6 +65,18 @@ export default async function Home() {
           },
         },
       },
+      developments: {
+        items: {
+          _title: true,
+          milestones: {
+            items: {
+              _title: true,
+              link: true,
+              date: true
+            }
+          }
+        },
+      },
     },
   });
 

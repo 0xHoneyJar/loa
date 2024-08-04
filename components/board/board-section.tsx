@@ -248,6 +248,14 @@ const BoardSection = ({
                   {React.cloneElement(dashboard.ui, { perks })}
                 </div>
               );
+            } else if (dashboard.key === "development") {
+              return (
+                <div key={dashboard.key}>
+                  {React.cloneElement(dashboard.ui, {
+                    development: community.development,
+                  })}
+                </div>
+              );
             }
             return <div key={dashboard.key}>{dashboard.ui}</div>;
           })}

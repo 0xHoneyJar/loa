@@ -4,7 +4,7 @@ import DragHandle from "../drag-handle";
 import { useState } from "react";
 import { ScrollArea } from "../ui/scroll-area";
 
-const Development = () => {
+const Development = ({ development }: { development?: any }) => {
   const [glow, setGlow] = useState(false);
   return (
     <div
