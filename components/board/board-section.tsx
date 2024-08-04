@@ -252,7 +252,7 @@ const BoardSection = ({
               return (
                 <div key={dashboard.key}>
                   {React.cloneElement(dashboard.ui, {
-                    development: community.development,
+                    developments: community.developments,
                   })}
                 </div>
               );
@@ -275,7 +275,7 @@ const BoardSection = ({
             return <div key={dashboard.key}>{dashboard.ui}</div>;
           })}
         </ReactGridLayout> */}
-        <div className="h-[1px] w-1/2 bg-gradient-to-r from-[#F5D01100] via-[#43AA77] via-50%" />
+        <div className="h-px w-1/2 bg-gradient-to-r from-[#F5D01100] via-[#43AA77] via-50%" />
       </div>
     </div>
   );
