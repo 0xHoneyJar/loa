@@ -231,7 +231,7 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
           </Carousel>
           <a
             target="_blank"
-            href={undefined}
+            href={"https://honeycomb.0xhoneyjar.xyz/"}
             className="flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-6 py-3 text-[#F4C10B] hover:cursor-blue hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]"
           >
             <p className="text-sm md:text-base">Visit Honeycomb Dashboard</p>

@@ -77,7 +77,7 @@ export const EXPLOREITEMS: ListItemData[] = [
     title: "Beardrops",
     description: "The best tool for snapshots",
     icon: "/navbar/beardrops.png",
-    link: "https://beardrops-interface.vercel.app/",
+    link: "https://beardrops.0xhoneyjar.xyz/",
     color: "#2B3234",
     comingSoon: true,
   },

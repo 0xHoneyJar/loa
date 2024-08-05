@@ -1,5 +1,4 @@
 import Image from "next/image";
-import { DEVELOPMENT } from "@/constants/development";
 import DragHandle from "../drag-handle";
 import { useState } from "react";
 import { ScrollArea } from "../ui/scroll-area";

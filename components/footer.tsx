@@ -30,7 +30,7 @@ const Footer = () => {
           Based Community Gateway on Berachain
         </p>
       </Marquee>
-      <div className="relative grid h-full w-full grid-cols-1 gap-2 border-t border-dashed border-[#878787] bg-[#0B0701] text-white sm:h-[300px] sm:grid-cols-3 sm:gap-0 md:h-[400px] xl:grid-cols-5">
+      <div className="relative grid size-full grid-cols-1 gap-2 border-t border-dashed border-[#878787] bg-[#0B0701] text-white sm:h-[300px] sm:grid-cols-3 sm:gap-0 md:h-[400px] xl:grid-cols-5">
         <div className="absolute inset-x-0 -top-12 mx-auto aspect-square h-[60px] md:-top-16 md:h-[80px]">
           <Image
             src={"/jani-coin.png"}
@@ -41,44 +41,52 @@ const Footer = () => {
         </div>
         <div className="hidden xl:flex" />
         {/* <div className="flex h-full w-full"> */}
-        <div className="flex h-full w-full flex-col items-center justify-center px-4 py-3 text-white sm:items-start sm:py-0 md:px-8">
-          <p className="mb-2 font-clash text-lg font-semibold md:text-xl xl:text-2xl">
+        <div className="flex size-full flex-col items-center justify-center px-4 py-3 text-white sm:items-start sm:py-0 md:px-8">
+          <p className="mb-2 font-clash text-lg font-semibold md:text-xl">
             Partnership Guidelines
           </p>
-          <p className="mb-4 w-full text-center text-xs sm:text-left md:w-[90%] md:text-sm xl:text-base">
+          <p className="mb-4 w-full text-center text-xs sm:text-left md:w-[90%] md:text-sm">
             Learn what you get from becoming a THJ Partner
           </p>
-          <button className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] md:text-sm xl:text-base">
+          <a
+            target="_blank"
+            href={"https://partners.0xhoneyjar.xyz/"}
+            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] hover:cursor-blue md:text-sm"
+          >
             Learn More
-          </button>
+          </a>
         </div>
         {/* </div> */}
-        <div className="relative flex h-full w-full flex-col items-center justify-center border-y border-dashed border-[#DCE0E5] px-4 py-3 text-white sm:items-start sm:border-x sm:border-y-0 sm:py-0 md:px-8">
-          <p className="mb-2 whitespace-nowrap font-clash text-lg font-semibold md:text-xl xl:text-2xl">
+        <div className="relative flex size-full flex-col items-center justify-center border-y border-dashed border-[#DCE0E5] px-4 py-3 text-white sm:items-start sm:border-x sm:border-y-0 sm:py-0 md:px-8">
+          <p className="mb-2 whitespace-nowrap font-clash text-lg font-semibold md:text-xl">
             Branding Kit
           </p>
-          <p className="mb-4 w-full text-center text-xs sm:text-left md:w-[90%] md:text-sm xl:text-base">
+          <p className="mb-4 w-full text-center text-xs sm:text-left md:w-[90%] md:text-sm">
             Find all assets and guidelines of THJ branding here
           </p>
           <a
             href={"https://docs.0xhoneyjar.xyz/docs/branding"}
             target="_blank"
-            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] md:text-sm xl:text-base"
+            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] hover:cursor-blue md:text-sm"
           >
             Learn More
           </a>
         </div>
         {/* <div className="h-full w-1/3 lg:w-full"> */}
-        <div className="flex h-full w-full flex-col items-center justify-center px-4 py-3 text-white sm:items-start sm:py-0 md:px-8">
-          <p className="mb-2 whitespace-nowrap font-clash text-lg font-semibold md:text-xl xl:text-2xl">
+        <div className="flex size-full flex-col items-center justify-center px-4 py-3 text-white sm:items-start sm:py-0 md:px-8">
+          <p className="mb-2 whitespace-nowrap font-clash text-lg font-semibold md:text-xl">
             Beekeeper Kit
           </p>
-          <p className="mb-4 w-full text-center text-xs sm:text-left md:w-[90%] md:text-sm xl:text-base">
+          <p className="mb-4 w-full text-center text-xs sm:text-left md:w-[90%] md:text-sm">
             Product suite, integrations and co-markerting guidelines
           </p>
-          <button className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] md:text-sm xl:text-base">
+          <a
+            target="_blank"
+            href={"https://partners.0xhoneyjar.xyz/"}
+            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] hover:cursor-blue md:text-sm"
+          >
             Learn More
-          </button>
+          </a>
         </div>
         {/* </div> */}
       </div>

@@ -50,9 +50,13 @@ const Validator = () => {
               Snapshot Honeycomb in a single click
             </p>
           </div>
-          <button className="h-full rounded-full bg-[#43AA77] px-6 text-sm font-medium text-black hover:cursor-blue hover:shadow-evergreen md:text-base">
+          <a
+            target="_blank"
+            href={"https://beardrops.0xhoneyjar.xyz/"}
+            className="flex h-full items-center justify-center rounded-full bg-[#43AA77] px-6 text-sm font-medium text-black hover:cursor-blue hover:shadow-evergreen md:text-base"
+          >
             Snapshot
-          </button>
+          </a>
         </div>
       </div>
     </div>
