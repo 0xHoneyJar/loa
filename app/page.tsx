@@ -49,7 +49,6 @@ export default async function Home() {
         description: true,
         link: true,
         image: true,
-        hoverImage: true,
       },
       mints: {
         items: {

@@ -7,7 +7,6 @@ import S3Image from "../s3-image";
 
 const Spotlight = ({ spotlight }: { spotlight?: any }) => {
   const [glow, setGlow] = useState(false);
-  const [hover, setHover] = useState(false);
 
   return (
     <div
@@ -34,33 +33,31 @@ const Spotlight = ({ spotlight }: { spotlight?: any }) => {
       <div className="flex grow flex-col items-center gap-4 p-4 md:p-6">
         <div className="relative flex h-3/5 w-full shrink-0 overflow-hidden rounded-lg border border-[#1C1C1C]">
           <S3Image
-            src={hover ? spotlight.hoverImage : spotlight.image}
+            src={spotlight.image}
             width={1000}
             fill
             alt="spotlight"
             className="z-[-1] object-cover"
           />
         </div>
-        <div className="relative flex h-full w-full flex-col overflow-hidden">
+        <div className="relative flex size-full flex-col overflow-hidden">
           {/* <div className="flex w-full flex-col"> */}
-          <p className="mb-1 text-sm font-medium text-[#FBFBFB] md:text-base">
+          <p className="mb-1 text-sm font-medium text-[#FBFBFB] md:text-lg">
             {spotlight.title}
           </p>
           <ScrollArea>
-            <p className="text-xs text-[#A9A9A9] md:text-sm">
+            <p className="text-xs text-[#A9A9A9] md:text-base">
               {spotlight.description}
             </p>
           </ScrollArea>
           {/* </div> */}
         </div>
         <a
-          onMouseEnter={() => setHover(true)}
-          onMouseLeave={() => setHover(false)}
           className="flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-4 py-3 text-[#F4C10B] hover:cursor-blue hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]"
           href={spotlight.link}
           target="_blank"
         >
-          <p className="text-xs md:text-base">Read Now</p>
+          <p className="text-xs md:text-base">Learn More</p>
           <ArrowUpRight className="aspect-square h-[16px] md:h-[24px]" />
         </a>
       </div>

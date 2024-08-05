@@ -25,7 +25,7 @@ export const NFTItems = [
     image: "/nft/gen3.svg",
     new: true,
     soon: false,
-    link: undefined,
+    link: "https://www.0xhoneyjar.xyz/mint/pudgyfrens",
   },
   {
     name: "Honey Jar (Gen 4)",
