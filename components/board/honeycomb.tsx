@@ -28,11 +28,22 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
   const activePerksCount = useMemo(() => {
     if (!perks) return 0;
     const currentDate = new Date();
-    return perks.filter((perk: any) => {
+
+    const perksWithDate = perks.filter((perk: any) => perk.startDate);
+
+    const activePerks = perksWithDate.filter((perk: any) => {
       const startDate = new Date(perk.startDate);
-      const endDate = new Date(perk.endDate);
-      return startDate <= currentDate && currentDate <= endDate;
-    }).length;
+      if (perk.endDate) {
+        const endDate = new Date(perk.endDate);
+        return startDate <= currentDate && currentDate <= endDate;
+      } else {
+        return startDate <= currentDate;
+      }
+    });
+
+    console.log("Active perks:", activePerks.length);
+
+    return activePerks.length;
   }, [perks]);
 
   const options = {
