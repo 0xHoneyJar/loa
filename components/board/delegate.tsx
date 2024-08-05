@@ -60,7 +60,7 @@ const Delegate = () => {
               "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
             }
             target="_blank"
-            className="flex w-full cursor-blue items-center justify-center rounded-full bg-black py-3 text-sm md:text-base xl:text-lg"
+            className="flex w-full cursor-blue items-center justify-center rounded-full bg-black py-3 text-sm hover:bg-white hover:text-black md:text-base xl:text-lg"
           >
             Delegate Now
           </a>

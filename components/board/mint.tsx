@@ -23,7 +23,7 @@ const Mint = ({ mints }: { mints?: any }) => {
               New Mints
             </p>
           </div>
-          <div className="relative flex gap-1.5 md:gap-2 xl:gap-3">
+          <div className="relative flex gap-1.5 md:gap-2">
             <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7" />
             <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7" />
           </div>

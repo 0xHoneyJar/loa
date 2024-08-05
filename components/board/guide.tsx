@@ -29,7 +29,7 @@ const Guide = () => {
             "https://0xhoneyjar.mirror.xyz/dHB3l29gAfLsPhPUPLGvg6_UAM1LxgxHMSJ054_QuDM"
           }
           target="_blank"
-          className="whitespace-nowrap rounded-full bg-[#F4C10B] px-6 py-1 text-sm font-medium text-black hover:shadow-yellow md:px-8 md:py-2 md:text-base"
+          className="cursor-blue whitespace-nowrap rounded-full bg-[#F4C10B] px-6 py-1 text-sm font-medium text-black hover:shadow-yellow md:px-8 md:py-2 md:text-base"
         >
           Explore
         </a>

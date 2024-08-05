@@ -9,7 +9,7 @@ import Image from "next/image";
 const Explore = () => {
   return (
     <NavigationMenuItem className="" value="explore">
-      <NavigationMenuTrigger className="flex items-center rounded-full border border-[#F4C10B24] bg-gradient-to-b from-[#F4C10B1F] to-[#F8A9291F] px-6 py-2.5 text-xs text-white hover:border-[#F4C10B58] hover:from-[#F4C10B32] hover:to-[#F8A92932] lg:text-sm">
+      <NavigationMenuTrigger className="flex cursor-blue items-center rounded-full border border-[#F4C10B24] bg-gradient-to-b from-[#F4C10B1F] to-[#F8A9291F] px-6 py-2.5 text-xs text-white hover:border-[#F4C10B58] hover:from-[#F4C10B32] hover:to-[#F8A92932] lg:text-sm">
         <p>Explore</p>
         <p className="ml-2 mr-1 rounded-full border bg-[#FFFFFF14] px-2 text-[7px]">
           NEW
@@ -55,7 +55,7 @@ const ListItem = ({
         className={`flex items-center justify-center rounded-lg p-3`}
         style={{ backgroundColor: color }}
       >
-        <div className="relative h-5 aspect-square">
+        <div className="relative aspect-square h-5">
           <Image
             src={icon}
             alt=""
@@ -78,10 +78,10 @@ const ListItem = ({
     </>
   );
 
-  const className = `flex w-72 flex-row items-center justify-start gap-3 rounded-lg p-2 ${
+  const className = `flex w-72 flex-row items-center justify-start gap-3 rounded-lg p-2  ${
     comingSoon
       ? "cursor-default opacity-50"
-      : "cursor-pointer hover:bg-[#2B2B2B45]"
+      : "cursor-blue hover:bg-[#2B2B2B45]"
   }`;
 
   return comingSoon ? (

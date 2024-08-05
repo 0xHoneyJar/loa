@@ -27,7 +27,7 @@ const Development = ({ developments }: { developments?: any }) => {
         <div className="absolute left-0 top-0 z-10 h-24 w-full bg-gradient-to-b from-[#0F0F0F]" />
         <div className="absolute bottom-0 left-0 z-10 h-24 w-full bg-gradient-to-t from-[#0F0F0F]" />
         <div className="relative size-full pl-6 md:pl-8">
-          <div className="relative flex size-full grow flex-col gap-12 px-8 pt-4 md:gap-16 md:pt-6">
+          <div className="relative flex size-full grow flex-col gap-12 px-8 py-4 md:gap-16 md:py-6">
             {developments.items.map((development: any, id: any) => (
               <div className="relative flex flex-col gap-3" key={id}>
                 <div className="absolute left-[-36px] top-2 aspect-[4/1] h-2 md:top-2.5">
@@ -58,7 +58,7 @@ const Development = ({ developments }: { developments?: any }) => {
 
                   return item.link ? (
                     <a
-                      className="flex cursor-pointer items-center gap-1 underline hover:text-white/75 md:gap-2"
+                      className="flex cursor-blue items-center gap-1 underline hover:text-white/75 md:gap-2"
                       key={id}
                       href={item.link}
                       target="_blank"

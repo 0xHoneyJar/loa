@@ -74,11 +74,11 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
           className={`absolute bottom-0 left-0 h-1/2 w-full bg-gradient-to-t from-black ${endedRaffle && "hidden"}`}
         />
         {hover && (
-          <div className="absolute left-0 top-0 z-10 flex h-full w-full cursor-blue items-center justify-center bg-black/75">
+          <div className="absolute left-0 top-0 z-10 flex size-full cursor-blue items-center justify-center bg-black/75">
             <a
               href={`https://faucet.0xhoneyjar.xyz/raffles`}
               target="_blank"
-              className="cursor-blue rounded-full bg-white/25 px-4 py-2 backdrop-blur-md"
+              className="cursor-blue rounded-full bg-white/25 px-4 py-2 backdrop-blur-md hover:bg-white/50"
             >
               <div className="flex items-center gap-1 text-xs font-medium md:text-sm">
                 Join Now <ArrowUpRight size={20} />
@@ -91,11 +91,11 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
           width={1000}
           fill
           alt="Quest Background"
-          className="z-[-1] object-cover"
+          className="z-[-1] object-cover opacity-70"
         />
 
         {upcomingRaffle ? (
-          <div className="flex h-full w-full flex-col items-center justify-center">
+          <div className="flex size-full flex-col items-center justify-center">
             <p className="text-lg font-medium md:text-xl">{timeRemaining}</p>
             <p className="text-xs text-[#E0E0E0] md:text-sm">
               {convertUnixToLocalTime(raffle.startTime)}
@@ -107,7 +107,7 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
               {newRaffle && (
                 <div className="flex w-fit items-center gap-2 rounded-full border border-[#F4C10B] bg-[#F4C10B]/10 px-2 py-1 backdrop-blur-sm">
                   <div className="relative aspect-square h-[12px] rounded-full bg-[#F4C10B]">
-                    <div className="absolute aspect-square h-full w-full animate-ping rounded-full bg-[#F4C10B]" />
+                    <div className="absolute aspect-square size-full animate-ping rounded-full bg-[#F4C10B]" />
                   </div>
                   <p className="text-[10px] text-[#F4C10B]">NEW</p>
                 </div>

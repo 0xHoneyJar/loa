@@ -15,7 +15,6 @@ import {
   CarouselPrevious,
   CarouselNext,
 } from "@/components/ui/carousel";
-import { PERKS } from "@/constants/perks";
 import { useState, useMemo, useEffect } from "react";
 import DragHandleY from "../drag-handle-y";
 import S3Image from "@/components/s3-image";
@@ -110,7 +109,7 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
                 target="_blank"
                 href={"https://pro.opensea.io/collection/honey-comb-2"}
                 rel="noopener noreferrer"
-                className="flex cursor-blue items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[#1E1E1E] bg-[#0F0D08] py-2 md:py-3"
+                className="flex cursor-blue items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[#1E1E1E] bg-[#0F0D08] py-2 hover:border-[#363636] hover:bg-[#14130f] md:py-3"
               >
                 <div className="relative aspect-square h-5 rounded-full md:h-[26px]">
                   <Image

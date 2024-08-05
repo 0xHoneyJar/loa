@@ -49,7 +49,7 @@ const Partners = ({ partners }: { partners?: any }) => {
             </p>
           </div>
           <a href="https://ecosystem.0xhoneyjar.xyz/" target="_blank">
-            <button className="flex items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 hover:cursor-blue hover:border-[#E8E8E81F] hover:bg-[#FFFFFF24]">
+            <button className="flex w-full items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 hover:cursor-blue hover:border-[#E8E8E81F] hover:bg-[#FFFFFF24]">
               <div className="flex items-center gap-2 whitespace-nowrap">
                 <Map className="aspect-square h-4 md:h-[22px]" />
                 <p className="text-xs md:text-sm">THJ Partner Map</p>
@@ -58,7 +58,7 @@ const Partners = ({ partners }: { partners?: any }) => {
             </button>
           </a>
           <a href="https://ecosystem.0xhoneyjar.xyz/" target="_blank">
-            <button className="flex items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 hover:cursor-blue hover:border-[#E8E8E81F] hover:bg-[#FFFFFF24]">
+            <button className="flex w-full items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 hover:cursor-blue hover:border-[#E8E8E81F] hover:bg-[#FFFFFF24]">
               <div className="flex items-center gap-2 whitespace-nowrap">
                 <div className="relative aspect-square h-4 md:h-[22px]">
                   <Image

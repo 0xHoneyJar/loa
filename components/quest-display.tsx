@@ -77,7 +77,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
             <a
               href={`https://faucet.0xhoneyjar.xyz/quests/${quest.slug}`}
               target="_blank"
-              className="cursor-blue rounded-full bg-white/25 px-4 py-2 backdrop-blur-md"
+              className="cursor-blue rounded-full bg-white/25 px-4 py-2 backdrop-blur-md hover:bg-white/50"
             >
               <div className="flex items-center gap-1 text-xs font-medium md:text-sm">
                 Join Now <ArrowUpRight className="aspect-square h-4 md:h-5" />
@@ -90,7 +90,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
           width={1000}
           fill
           alt="Quest Background"
-          className="z-[-1] object-cover"
+          className="z-[-1] object-cover opacity-70"
         />
         {upcomingQuest ? (
           <div className="flex size-full flex-col items-center justify-center">

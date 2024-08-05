@@ -62,7 +62,10 @@ const Navbar = () => {
         // style={{ boxShadow: "0px 2px 56px #0000001F" }}
       >
         <div className="flex items-center gap-2 px-4 py-2 md:gap-3">
-          <Link className="relative aspect-square h-[30px]" href="/">
+          <Link
+            className="relative aspect-square h-[30px] cursor-blue"
+            href="/"
+          >
             <Image src={"/thj-logo.png"} alt="logo" fill />
           </Link>
           <p className="whitespace-nowrap text-[10px] text-white md:text-xs">
@@ -79,7 +82,7 @@ const Navbar = () => {
                 <a
                   href={"https://discord.com/invite/thehoneyjar"}
                   target="_blank"
-                  className="flex cursor-pointer items-center whitespace-nowrap rounded-full bg-[#FFFFFF0F] px-6 py-2.5 font-medium text-white hover:bg-white/30"
+                  className="flex cursor-blue items-center whitespace-nowrap rounded-full bg-[#FFFFFF0F] px-6 py-2.5 font-medium text-white hover:bg-white/30"
                 >
                   Join Us
                 </a>
@@ -90,7 +93,7 @@ const Navbar = () => {
                     "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
                   }
                   target="_blank"
-                  className="flex cursor-pointer items-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 py-2.5 font-medium text-white hover:shadow-evergreen"
+                  className="flex cursor-blue items-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 py-2.5 font-medium text-white hover:shadow-evergreen"
                 >
                   Delegate to THJ
                 </a>

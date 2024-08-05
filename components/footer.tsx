@@ -3,14 +3,14 @@ import Marquee from "react-fast-marquee";
 
 const Footer = () => {
   return (
-    <div className="relative flex h-full w-full flex-col items-center">
+    <div className="relative flex size-full flex-col items-center">
       <div className="absolute -top-72 z-[-1] flex aspect-square h-[1000px] items-center justify-center rounded-full border border-[#F5D01105] p-4">
         <div className="absolute -top-20 h-[100px] w-1/4 bg-[#43AA7780] blur-[100px]" />
-        <div className="flex h-[95%] w-[95%] items-center justify-center rounded-full border border-[#F5D0110D]">
-          <div className="flex h-[90%] w-[90%] items-center justify-center rounded-full border border-[#F5D0110D]">
-            <div className="flex h-[90%] w-[90%] items-center justify-center rounded-full border border-[#F5D0110D]">
-              <div className="flex h-[90%] w-[90%] items-center justify-center rounded-full border border-[#F5D0110D]">
-                <div className="h-1/2 w-1/2 bg-[#F8A9291F] blur-[80px]" />
+        <div className="flex size-[95%] items-center justify-center rounded-full border border-[#F5D0110D]">
+          <div className="flex size-[90%] items-center justify-center rounded-full border border-[#F5D0110D]">
+            <div className="flex size-[90%] items-center justify-center rounded-full border border-[#F5D0110D]">
+              <div className="flex size-[90%] items-center justify-center rounded-full border border-[#F5D0110D]">
+                <div className="size-1/2 bg-[#F8A9291F] blur-[80px]" />
               </div>
             </div>
           </div>
@@ -115,7 +115,7 @@ const Footer = () => {
           <a
             href={"https://discord.com/invite/thehoneyjar"}
             target="_blank"
-            className="z-10 flex w-[180px] justify-center rounded-xl bg-black py-3 text-xs font-medium md:w-[240px] md:text-base"
+            className="z-10 flex w-[180px] cursor-blue justify-center rounded-xl bg-black py-3 text-xs font-medium hover:bg-white hover:text-black md:w-[240px] md:text-base"
           >
             Join the Commmunity
           </a>
@@ -124,7 +124,7 @@ const Footer = () => {
               "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
             }
             target="_blank"
-            className="z-10 flex w-[180px] justify-center rounded-xl bg-[#43AA77] py-3 text-xs font-medium md:w-[240px] md:text-base"
+            className="z-10 flex w-[180px] cursor-blue justify-center rounded-xl bg-[#43AA77] py-3 text-xs font-medium hover:bg-[#086134] md:w-[240px] md:text-base"
           >
             <p>Delegate Now</p>
           </a>

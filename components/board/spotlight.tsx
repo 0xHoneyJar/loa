@@ -42,11 +42,11 @@ const Spotlight = ({ spotlight }: { spotlight?: any }) => {
         </div>
         <div className="relative flex size-full flex-col overflow-hidden">
           {/* <div className="flex w-full flex-col"> */}
-          <p className="mb-1 text-sm font-medium text-[#FBFBFB] md:text-lg">
+          <p className="mb-1 text-sm font-medium text-[#FBFBFB] md:text-base">
             {spotlight.title}
           </p>
           <ScrollArea>
-            <p className="text-xs text-[#A9A9A9] md:text-base">
+            <p className="text-xs text-[#A9A9A9] md:text-sm">
               {spotlight.description}
             </p>
           </ScrollArea>
@@ -57,7 +57,7 @@ const Spotlight = ({ spotlight }: { spotlight?: any }) => {
           href={spotlight.link}
           target="_blank"
         >
-          <p className="text-xs md:text-base">Learn More</p>
+          <p className="text-xs md:text-sm">Learn More</p>
           <ArrowUpRight className="aspect-square h-[16px] md:h-[24px]" />
         </a>
       </div>
