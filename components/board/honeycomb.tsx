@@ -41,8 +41,6 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
       }
     });
 
-    console.log("Active perks:", activePerks.length);
-
     return activePerks.length;
   }, [perks]);
 

@@ -7,17 +7,17 @@ import {
 } from "@/components/ui/carousel";
 import Image from "next/image";
 import { ArrowUpRight, LockKeyhole } from "lucide-react";
-import { PARTNERS } from "@/constants/partners";
+import { useMemo } from "react";
 
 const NewPartners = ({ partners }: { partners?: any }) => {
-  const recentPartners = partners
-    .sort((a: any, b: any) => {
-      const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
-      const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
-      return dateB - dateA;
-    })
-    .filter((partner: any) => partner.partner !== "Joint")
-    .slice(0, 10);
+  const recentPartners = useMemo(() => {
+    if (!partners || !Array.isArray(partners)) return [];
+
+    return partners
+      .filter((partner: any) => partner.partner && partner.logo)
+      .reverse()
+      .slice(0, 10);
+  }, [partners]);
 
   return (
     <div className="relative h-full overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]">
@@ -101,7 +101,7 @@ const StatusDisplay = ({ status }: { status: string }) => {
         ? "/partners/status/gold.png"
         : status === "silver"
           ? "/partners/status/silver.png"
-          : status === "incubated"
+          : status === "backed" || status === "joint"
             ? "/partners/status/incubated.png"
             : "/partners/status/bronze.png";
 
@@ -118,7 +118,7 @@ const StatusDisplay = ({ status }: { status: string }) => {
               ? "from-[#F5CF13] to-[#766511]"
               : status === "silver"
                 ? "from-white to-[#6C6C6C]"
-                : status === "incubated"
+                : status === "backed" || status === "joint"
                   ? "from-[#7FA255] to-[#22B642]"
                   : "from-[#EC7634] to-[#592C13]"
         }`}
