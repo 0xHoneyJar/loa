@@ -51,7 +51,7 @@ const Footer = () => {
           <a
             target="_blank"
             href={"https://partners.0xhoneyjar.xyz/"}
-            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] hover:cursor-blue md:text-sm"
+            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] hover:cursor-blue hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D] md:text-sm"
           >
             Learn More
           </a>
@@ -67,7 +67,7 @@ const Footer = () => {
           <a
             href={"https://docs.0xhoneyjar.xyz/docs/branding"}
             target="_blank"
-            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] hover:cursor-blue md:text-sm"
+            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] hover:cursor-blue hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D] md:text-sm"
           >
             Learn More
           </a>
@@ -83,7 +83,7 @@ const Footer = () => {
           <a
             target="_blank"
             href={"https://docs.cubquests.com/"}
-            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] hover:cursor-blue md:text-sm"
+            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] hover:cursor-blue hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D] md:text-sm"
           >
             Learn More
           </a>

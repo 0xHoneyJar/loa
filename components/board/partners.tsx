@@ -40,7 +40,7 @@ const Partners = () => {
             </p>
           </div>
           <div className="relative w-full rounded-xl bg-[#43AA772E] px-4 py-6">
-            <p className="text-2xl font-medium text-[#00AB55] md:text-3xl xl:text-4xl">
+            <p className="w-full truncate text-2xl font-medium text-[#00AB55] md:text-3xl xl:text-4xl">
               $11,000,000+
             </p>
             <p className="absolute bottom-2 right-2 flex items-center text-[10px] text-[#A9A9A9] md:text-xs">
