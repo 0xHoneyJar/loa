@@ -219,7 +219,8 @@ const BoardSection = ({
           {DASHBOARD.map((dashboard) => {
             if (
               dashboard.key === "incubated" ||
-              dashboard.key === "newPartners"
+              dashboard.key === "newPartners" ||
+              dashboard.key === "partners"
             ) {
               return (
                 <div key={dashboard.key}>

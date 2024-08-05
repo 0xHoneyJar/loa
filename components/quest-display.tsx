@@ -73,7 +73,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
           </div>
         )}
         {hover && (
-          <div className="absolute left-0 top-0 z-10 flex size-full cursor-blue items-center justify-center bg-black/75">
+          <div className="absolute left-0 top-0 z-50 flex size-full cursor-blue items-center justify-center bg-black/75">
             <a
               href={`https://faucet.0xhoneyjar.xyz/quests/${quest.slug}`}
               target="_blank"
