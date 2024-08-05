@@ -11,7 +11,11 @@ import { PARTNERS } from "@/constants/partners";
 
 const NewPartners = ({ partners }: { partners?: any }) => {
   const recentPartners = partners
-    .sort((a: any, b: any) => b.startDate?.getTime() - a.startDate?.getTime())
+    .sort((a: any, b: any) => {
+      const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
+      const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
+      return dateB - dateA;
+    })
     .filter((partner: any) => partner.partner !== "Joint")
     .slice(0, 10);
 

@@ -24,8 +24,8 @@ const Development = ({ developments }: { developments?: any }) => {
       </div>
       <ScrollArea className="relative flex grow py-4 md:py-6">
         <div className="absolute left-6 top-4 size-full border-l border-dashed border-[#4C4C4C] md:left-8 md:top-6" />
-        <div className="absolute left-0 top-0 z-10 h-1/6 w-full bg-gradient-to-b from-[#0F0F0F]" />
-        <div className="absolute bottom-0 left-0 z-10 h-1/6 w-full bg-gradient-to-t from-[#0F0F0F]" />
+        <div className="absolute left-0 top-0 z-10 h-24 w-full bg-gradient-to-b from-[#0F0F0F]" />
+        <div className="absolute bottom-0 left-0 z-10 h-24 w-full bg-gradient-to-t from-[#0F0F0F]" />
         <div className="relative size-full pl-6 md:pl-8">
           <div className="relative flex size-full grow flex-col gap-12 px-8 pt-4 md:gap-16 md:pt-6">
             {developments.items.map((development: any, id: any) => (
@@ -41,22 +41,37 @@ const Development = ({ developments }: { developments?: any }) => {
                 <p className="text-sm text-[#F4C10B] md:text-base">
                   {development._title}
                 </p>
-                {development.milestones.items.map((item: any, id: any) => (
-                  <div className="flex items-center gap-1 md:gap-2" key={id}>
-                    <div className="relative aspect-square h-4 md:h-6">
-                      <Image
-                        src={"/development-arrow.svg"}
-                        alt="arrow"
-                        fill
-                        className="object-contain"
-                      />
+                {development.milestones.items.map((item: any, id: any) => {
+                  const CommonContent = () => (
+                    <>
+                      <div className="relative aspect-square h-4 md:h-6">
+                        <Image
+                          src={"/development-arrow.svg"}
+                          alt="arrow"
+                          fill
+                          className="object-contain"
+                        />
+                      </div>
+                      <p className="text-xs md:text-sm">{item._title}</p>
+                    </>
+                  );
+
+                  return item.link ? (
+                    <a
+                      className="flex cursor-pointer items-center gap-1 underline hover:text-white/75 md:gap-2"
+                      key={id}
+                      href={item.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <CommonContent />
+                    </a>
+                  ) : (
+                    <div className="flex items-center gap-1 md:gap-2" key={id}>
+                      <CommonContent />
                     </div>
-                    <p className="text-xs md:text-sm">{item._title}</p>
-                    <p className="text-xs font-light text-[#424242]/90 md:text-sm">
-                      {item.date}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ))}
           </div>

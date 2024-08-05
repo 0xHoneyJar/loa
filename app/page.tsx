@@ -72,7 +72,6 @@ export default async function Home() {
             items: {
               _title: true,
               link: true,
-              date: true,
             },
           },
         },

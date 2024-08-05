@@ -82,7 +82,7 @@ const Footer = () => {
           </p>
           <a
             target="_blank"
-            href={"https://partners.0xhoneyjar.xyz/"}
+            href={"https://docs.cubquests.com/"}
             className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] hover:cursor-blue md:text-sm"
           >
             Learn More
