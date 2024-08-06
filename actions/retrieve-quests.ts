@@ -7,6 +7,5 @@ export async function retrieveQuests() {
   let quests: Quest[] = [];
   quests = (await getQuests()) ?? [];
 
-  quests?.sort((a: any, b: any) => b.endTime - a.endTime);
-  return quests
+  return quests;
 }

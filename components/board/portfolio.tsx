@@ -66,11 +66,14 @@ const Portfolio = ({ partners }: { partners?: any }) => {
                 <div className="relative my-4 aspect-square h-16 overflow-hidden rounded-full border border-[#F4C10B0F] bg-[#18140C05] md:mt-6 md:h-[80px]">
                   <Image
                     src={
-                      "https://d163aeqznbc6js.cloudfront.net/images" + item.logo
+                      item._title === "The Honey Jar"
+                        ? "/honeycomb-icon.png"
+                        : "https://d163aeqznbc6js.cloudfront.net/images" +
+                          item.logo
                     }
                     alt={item._title}
                     fill
-                    className="object-cover"
+                    className={`${item._title === "The Honey Jar" && "p-1 md:p-2"} object-cover`}
                   />
                 </div>
                 <p className="text-sm md:text-base">

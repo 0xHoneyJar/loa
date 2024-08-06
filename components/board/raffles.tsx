@@ -16,6 +16,27 @@ const Raffles = () => {
   useEffect(() => {
     async function getRaffles() {
       const retrievedRaffles = await retrieveRaffles();
+      retrievedRaffles.sort((a, b) => {
+        // Define a priority for each quest based on current time
+        const getPriority = (raffle: Raffle) => {
+          if (raffle.startTime <= currentTime && raffle.endTime >= currentTime)
+            return 1; // Recent Active Quests
+          if (raffle.startTime > currentTime) return 2; // Coming Soon
+          if (raffle.endTime < currentTime) return 3; // Ended
+          return 4; // Default priority for undefined statuses
+        };
+
+        // Compare based on priority first
+        const priorityA = getPriority(a);
+        const priorityB = getPriority(b);
+
+        if (priorityA !== priorityB) {
+          return priorityA - priorityB;
+        }
+
+        // If priorities are the same, sort by endTime descending
+        return b.endTime - a.endTime;
+      });
 
       setRaffles(retrievedRaffles);
     }
@@ -53,7 +74,7 @@ const Raffles = () => {
         <a
           href={"https://faucet.0xhoneyjar.xyz/raffles"}
           target="_blank"
-          className="flex w-full cursor-blue items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-2 py-2 hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D] md:px-4 md:py-3"
+          className="flex w-full cursor-blue items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] p-2 hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D] md:px-4 md:py-3"
         >
           <div className="flex items-center gap-1 md:gap-2">
             <div className="relative aspect-square h-6 md:h-[26px]">

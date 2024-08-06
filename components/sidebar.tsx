@@ -73,7 +73,7 @@ const Sidebar = ({
           className="fixed z-40 flex h-full w-full origin-top items-center bg-[#0e0e0f] text-white md:hidden"
         >
           <button
-            className="absolute right-0 top-0 flex h-20 cursor-pointer items-center justify-end px-10 text-xl"
+            className="absolute right-10 top-10 flex cursor-blue items-center justify-end text-xl"
             onClick={closeSidebarHandler}
           >
             <X size={28} />
@@ -110,15 +110,14 @@ const Sidebar = ({
                 <div className="overflow-hidden">
                   <Accordion type="single" collapsible className="w-full">
                     <AccordionItem value="item-1" className="border-0">
-                      <AccordionTrigger className="w-[100px] gap-2 py-0 hover:no-underline">
+                      <AccordionTrigger className="w-[100px] cursor-blue gap-2 py-0 hover:text-[#FFC500] hover:no-underline">
                         <motion.div
                           // onClick={closeSidebarHandler}
                           variants={mobileLinkVars}
                         >
-                          <p className="hover:text-[#FFC500]">Section</p>
+                          <p className="">Section</p>
                         </motion.div>
                       </AccordionTrigger>
-
                       <AccordionContent>
                         <ScrollArea className="h-[150px]">
                           <div className="flex flex-col gap-2">
@@ -138,7 +137,7 @@ const Sidebar = ({
                                         });
                                       closeSidebarHandler();
                                     }}
-                                    className="rounded-lg px-8 py-3 text-left text-sm text-[#E7E7E7] hover:bg-[#FFFFFF2E] hover:font-medium hover:text-white"
+                                    className="cursor-blue rounded-lg px-8 py-3 text-left text-sm text-[#E7E7E7] hover:bg-[#FFFFFF2E] hover:font-medium hover:text-white"
                                   >
                                     {section.name}
                                   </button>

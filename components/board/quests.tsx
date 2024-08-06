@@ -14,6 +14,28 @@ const Quests = () => {
   useEffect(() => {
     async function getQuests() {
       const retrievedQuests = await retrieveQuests();
+      retrievedQuests.sort((a, b) => {
+        // Define a priority for each quest based on current time
+        const getPriority = (quest: Quest) => {
+          if (quest.startTime <= currentTime && quest.endTime >= currentTime)
+            return 1; // Recent Active Quests
+          if (quest.startTime > currentTime) return 2; // Coming Soon
+          if (quest.endTime < currentTime) return 3; // Ended
+          return 4; // Default priority for undefined statuses
+        };
+
+        // Compare based on priority first
+        const priorityA = getPriority(a);
+        const priorityB = getPriority(b);
+
+        if (priorityA !== priorityB) {
+          return priorityA - priorityB;
+        }
+
+        // If priorities are the same, sort by endTime descending
+        return b.endTime - a.endTime;
+      });
+
       setQuests(retrievedQuests);
     }
 
