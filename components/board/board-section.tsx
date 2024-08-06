@@ -257,6 +257,14 @@ const BoardSection = ({
                   })}
                 </div>
               );
+            } else if (dashboard.key === "updates") {
+              return (
+                <div key={dashboard.key}>
+                  {React.cloneElement(dashboard.ui, {
+                    updates: community.updates,
+                  })}
+                </div>
+              );
             }
             return <div key={dashboard.key}>{dashboard.ui}</div>;
           })}

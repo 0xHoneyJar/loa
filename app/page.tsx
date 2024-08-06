@@ -75,6 +75,14 @@ export default async function Home() {
           },
         },
       },
+      updates: {
+        items: {
+          _title: true,
+          description: true,
+          link: true,
+          image: true,
+        },
+      },
     },
   });
 

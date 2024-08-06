@@ -1,3 +1,4 @@
+import S3Image from "@/components/s3-image";
 import {
   Carousel,
   CarouselContent,
@@ -5,12 +6,10 @@ import {
   CarouselPrevious,
   CarouselNext,
 } from "@/components/ui/carousel";
-import Image from "next/image";
 import { ArrowUpRight, LockKeyhole } from "lucide-react";
 import { useState } from "react";
-import { UPDATES } from "@/constants/update";
 
-const Updates = () => {
+const Updates = ({ updates }: { updates?: any }) => {
   return (
     <div className="relative h-full overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]">
       <div className="absolute -top-40 h-1 w-full" id="updates" />
@@ -28,14 +27,14 @@ const Updates = () => {
             <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7" />
           </div>
         </div>
-        <CarouselContent className="flex h-full w-full grow p-4 md:p-6">
-          {UPDATES.map((update, id) => (
+        <CarouselContent className="mr-4 flex size-full grow p-4 md:mr-6 md:p-6">
+          {updates?.items?.map((update: any, id: any) => (
             <UpdateDisplay
               key={id}
-              title={update.title}
+              title={update._title}
               image={update.image}
               link={update.link}
-              desc={update.desc}
+              desc={update.description}
             />
           ))}
         </CarouselContent>
@@ -69,7 +68,7 @@ const UpdateDisplay = ({
           onMouseLeave={() => setHover(false)}
           className={`relative h-2/3 w-full overflow-hidden rounded-xl border ${hover ? "cursor-blue border-[#F5D011D9]" : "border-[#2B2B2B]"}`}
         >
-          <Image src={image} alt="" fill className="object-cover" />
+          <S3Image src={image} alt="" fill className="object-cover" />
         </a>
         <div className="flex h-1/3 flex-col gap-0.5 md:gap-1">
           <div className="flex items-center justify-between">
