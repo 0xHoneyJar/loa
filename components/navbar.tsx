@@ -82,9 +82,9 @@ const Navbar = () => {
                 <a
                   href={"https://discord.com/invite/thehoneyjar"}
                   target="_blank"
-                  className="flex cursor-blue items-center whitespace-nowrap rounded-full bg-[#FFFFFF0F] px-6 py-2.5 font-medium text-white hover:bg-white/30"
+                  className="flex cursor-blue items-center whitespace-nowrap rounded-full bg-[#F4C10B]/80 px-6 py-2.5 font-medium text-white hover:shadow-yellow"
                 >
-                  Join Us
+                  Open App
                 </a>
               </NavigationMenuItem>
               <NavigationMenuItem>
