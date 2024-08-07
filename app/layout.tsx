@@ -1,10 +1,11 @@
 import { Metadata } from "next";
+import localFont from "next/font/local";
 import "../styles/globals.css";
 import "../styles/tailwind.css";
-import localFont from "next/font/local";
 // import "react-grid-layout/css/styles.css";
-import Navbar from "@/components/navbar";
 import MainWrapper from "@/components/main-wrapper";
+import Navbar from "@/components/navbar";
+import { OpenpanelProvider } from "@openpanel/nextjs";
 
 export const metadata: Metadata = {
   // metadataBase: new URL(""),
@@ -44,6 +45,14 @@ export default function RootLayout({
     <html className={`${switzer.variable} ${clash.variable}`}>
       <head></head>
       <body>
+        <OpenpanelProvider
+          clientId="ad8840e6-ded2-4779-81dc-38fbf92d7232"
+          trackScreenViews={true}
+          trackAttributes={true}
+          trackOutgoingLinks={true}
+          // If you have a user id, you can pass it here to identify the user
+          // profileId={'123'}
+        />
         <MainWrapper>
           <Navbar />
           {children}

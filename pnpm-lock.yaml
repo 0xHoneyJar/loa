@@ -1,6 +1,9 @@
 lockfileVersion: '6.0'
 
 dependencies:
+  '@openpanel/nextjs':
+    specifier: 0.0.10-beta
+    version: 0.0.10-beta(next@14.2.3)(react-dom@18.3.1)(react@18.3.1)
   '@privy-io/react-auth':
     specifier: ^1.59.5
     version: 1.65.0(@babel/core@7.24.5)(@types/react@17.0.80)(react-dom@18.3.1)(react-is@18.3.1)(react@18.3.1)(typescript@5.4.5)
@@ -3002,6 +3005,29 @@ packages:
     dependencies:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.17.1
+
+  /@openpanel/nextjs@0.0.10-beta(next@14.2.3)(react-dom@18.3.1)(react@18.3.1):
+    resolution: {integrity: sha512-sPR0ctTVnSfSXx2kaXBNyEfDRzwXc61L+pRR2HoQHWOJSYj69GwDjDUcIHM1FDPyMRrHYYDlihCPYVKUCB9LoA==}
+    peerDependencies:
+      next: ^12.0.0 || ^13.0.0 || ^14.0.0
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0
+      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0
+    dependencies:
+      '@openpanel/web': 0.0.9-beta
+      next: 14.2.3(@babel/core@7.24.5)(react-dom@18.3.1)(react@18.3.1)
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+    dev: false
+
+  /@openpanel/sdk@0.0.9-beta:
+    resolution: {integrity: sha512-AjTpynr5wwN7qca7bQcHfV2Z9zZaCCK4mA+JIXO1LznoR6hLhnbkK91FbNN8jRFRD+2fPTcTAxG0YZlelAjdyw==}
+    dev: false
+
+  /@openpanel/web@0.0.9-beta:
+    resolution: {integrity: sha512-u08sYhjnI3aJYIQiBkHYQGJns8FwcQXKx+bNg0kM8tel7y2tD82E5veFdtbp7DSMvBANgpw/efS6PhYfEOjWhg==}
+    dependencies:
+      '@openpanel/sdk': 0.0.9-beta
+    dev: false
 
   /@parcel/watcher-android-arm64@2.4.1:
     resolution: {integrity: sha512-LOi/WTbbh3aTn2RYddrO8pnapixAziFl6SMxHM69r3tvdSm94JtCenaKgk1GRg5FJ5wpMCpHeW+7yqPlvZv7kg==}
