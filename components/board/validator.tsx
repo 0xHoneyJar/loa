@@ -72,18 +72,14 @@ const Validator = () => {
                     <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm">
                       Number of Delegators
                     </p>
-                    <p className="text-lg font-semibold md:text-xl">
-                      12,3245,213
-                    </p>
+                    <p className="text-lg font-semibold md:text-xl">TBD</p>
                   </div>
                   <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
                     <p className="text-xs text-[#6B6B6B] md:text-sm">
                       Return per BGT
                     </p>
                     <div className="flex items-center gap-2 text-2xl">
-                      <p className="text-lg font-semibold md:text-xl">
-                        $123.13
-                      </p>
+                      <p className="text-lg font-semibold md:text-xl">$6.90</p>
                       <div className="relative aspect-square h-[28px]">
                         <Image
                           src={"/bgt-honey.png"}
@@ -109,7 +105,7 @@ const Validator = () => {
                       Active Incentives
                     </p>
                     <p className="text-lg font-semibold md:text-xl">
-                      $0
+                      $9.24M
                       {/* <span className="text-xs font-normal text-[#989898]">
                   (The Value)
                 </span> */}
