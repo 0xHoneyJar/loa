@@ -51,7 +51,7 @@ export const EXPLOREITEMS: ListItemData[] = [
     color: "#2E1811",
   },
   {
-    title: "THJ Old",
+    title: "THJ App",
     description: "Old, but gold",
     icon: "/navbar/thj.png",
     link: "https://www.0xhoneyjar.xyz/",
