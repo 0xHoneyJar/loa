@@ -42,7 +42,6 @@ export const EXPLOREITEMS: ListItemData[] = [
     icon: "/navbar/moneycomb.png",
     link: "https://honeycomb.0xhoneyjar.xyz/",
     color: "#151429",
-    comingSoon: true,
   },
   {
     title: "Ecosystem Explorer",
@@ -50,7 +49,6 @@ export const EXPLOREITEMS: ListItemData[] = [
     icon: "/navbar/explorer.png",
     link: "http://ecosystem.0xhoneyjar.xyz/",
     color: "#2E1811",
-    comingSoon: true,
   },
   {
     title: "THJ Old",
@@ -79,6 +77,5 @@ export const EXPLOREITEMS: ListItemData[] = [
     icon: "/navbar/beardrops.png",
     link: "https://beardrops.0xhoneyjar.xyz/",
     color: "#2B3234",
-    comingSoon: true,
   },
 ];
