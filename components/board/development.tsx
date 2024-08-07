@@ -58,7 +58,7 @@ const Development = ({ developments }: { developments?: any }) => {
 
                   return item.link ? (
                     <a
-                      className="flex cursor-blue items-center gap-1 underline hover:text-white/75 md:gap-2"
+                      className="z-10 flex cursor-blue items-center gap-1 underline hover:text-white/75 md:gap-2"
                       key={id}
                       href={item.link}
                       target="_blank"

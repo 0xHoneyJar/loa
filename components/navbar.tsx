@@ -74,7 +74,7 @@ const Navbar = () => {
         </div>
         <div className="flex items-center px-4 py-2">
           {/* <div className=""> */}
-          <NavigationMenu className="ml-8 items-center md:ml-16 lg:ml-28">
+          <NavigationMenu className="items-center md:ml-16 lg:ml-28">
             <NavigationMenuList className="text-xs md:space-x-3 lg:text-sm">
               <Explore />
               <SectionSelect />

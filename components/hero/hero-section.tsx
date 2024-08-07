@@ -4,7 +4,7 @@ import Image from "next/image";
 import { Socials, We } from "@/constants/hero";
 import Marquee from "react-fast-marquee";
 import { motion } from "framer-motion";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { ArrowDown } from "lucide-react";
 import Lottie from "lottie-react";
 import HeroBg from "@/public/hero-bg.json";
@@ -12,9 +12,28 @@ import OctoBear from "@/public/octo-bear.json";
 
 const HeroSection = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const lottieRef = useRef(null);
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth <= 768) {
+        // Assuming 768px is the breakpoint for medium screens
+        (lottieRef.current as any)?.pause(); // Pause the animation
+      } else {
+        (lottieRef.current as any)?.play(); // Play the animation
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    handleResize(); // Initial check
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
   return (
-    <div className="relative flex h-full w-full flex-col items-center">
-      <div className="relative flex h-full w-full flex-col items-center pt-20 md:pt-24">
+    <div className="relative flex size-full flex-col items-center">
+      <div className="relative flex size-full flex-col items-center pt-20 md:pt-24">
         <Image
           src={"/sunshine.png"}
           alt="sunshine"
@@ -40,7 +59,7 @@ const HeroSection = () => {
           /> */}
           <Lottie
             animationData={HeroBg}
-            className="absolute top-0 z-[-1] h-full w-full"
+            className="absolute top-0 z-[-1] size-full"
             loop={true}
             rendererSettings={{
               preserveAspectRatio: "xMidYMid slice",
@@ -132,7 +151,7 @@ const HeroSection = () => {
         <div className="mb-10 h-[1px] w-1/2 bg-gradient-to-r from-[#F5D01100] via-[#F5D011] via-50% md:w-1/4" />
         <div className="relative z-10 -mb-10 aspect-square h-[38px] rounded-full bg-white shadow-white md:h-[46px]">
           <motion.button
-            className="relative h-full w-full"
+            className="relative size-full"
             animate={{
               y: [-1, 4, -1],
             }}
@@ -149,10 +168,7 @@ const HeroSection = () => {
               }
             }}
           >
-            <ArrowDown
-              className="h-full w-full p-2 text-black"
-              strokeWidth={1}
-            />
+            <ArrowDown className="size-full p-2 text-black" strokeWidth={1} />
           </motion.button>
         </div>
         <div className="relative mb-6 mt-10 flex h-[400px] w-full items-center justify-center md:mt-20 md:h-[600px]">
@@ -174,8 +190,9 @@ const HeroSection = () => {
           </div> */}
           <Lottie
             animationData={OctoBear}
-            className="absolute top-0 z-10 size-full"
+            className="absolute top-0 z-10 size-full scale-110 md:scale-100"
             loop={true}
+            lottieRef={lottieRef}
             rendererSettings={{
               preserveAspectRatio: "xMidYMid slice",
             }}
@@ -201,7 +218,7 @@ const HeroSection = () => {
         </div>
       </div>
       <div className="relative -mt-10 flex flex-col items-center text-white">
-        <div className="absolute -top-32 h-1 w-1" ref={scrollRef} />
+        <div className="absolute -top-32 size-1" ref={scrollRef} />
         <motion.div
           className="relative mb-4 aspect-square h-[32px] md:h-[40px]"
           animate={{
