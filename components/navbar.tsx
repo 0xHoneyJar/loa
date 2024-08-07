@@ -80,7 +80,7 @@ const Navbar = () => {
               <SectionSelect />
               <NavigationMenuItem>
                 <a
-                  href={"https://discord.com/invite/thehoneyjar"}
+                  href={"https://www.0xhoneyjar.xyz/"}
                   target="_blank"
                   className="flex cursor-blue items-center whitespace-nowrap rounded-full bg-[#F4C10B]/80 px-6 py-2.5 font-medium text-white hover:shadow-yellow"
                 >
