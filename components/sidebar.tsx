@@ -83,7 +83,7 @@ const Sidebar = ({
             initial="initial"
             animate="open"
             exit="initial"
-            className="flex h-full w-full flex-col items-center justify-center gap-6 text-lg text-white"
+            className="flex size-full flex-col items-center justify-center gap-6 text-lg text-white"
           >
             {pathname === "/" ? (
               <>
@@ -92,8 +92,12 @@ const Sidebar = ({
                     onClick={closeSidebarHandler}
                     variants={mobileLinkVars}
                   >
-                    <a className="hover:cursor-blue hover:text-[#FFC500]">
-                      Join Us
+                    <a
+                      className="hover:cursor-blue hover:text-[#FFC500]"
+                      href={"https://www.0xhoneyjar.xyz/"}
+                      target="_blank"
+                    >
+                      Open App
                     </a>
                   </motion.div>
                 </div>
@@ -102,7 +106,13 @@ const Sidebar = ({
                     onClick={closeSidebarHandler}
                     variants={mobileLinkVars}
                   >
-                    <a className="hover:cursor-blue hover:text-[#FFC500]">
+                    <a
+                      className="hover:cursor-blue hover:text-[#FFC500]"
+                      href={
+                        "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
+                      }
+                      target="_blank"
+                    >
                       Delegate to THJ
                     </a>
                   </motion.div>

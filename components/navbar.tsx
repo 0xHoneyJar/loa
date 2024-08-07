@@ -74,15 +74,15 @@ const Navbar = () => {
         </div>
         <div className="flex items-center px-4 py-2">
           {/* <div className=""> */}
-          <NavigationMenu className="ml-12 hidden items-center md:flex lg:ml-28">
-            <NavigationMenuList className="space-x-2 text-xs md:space-x-3 lg:text-sm">
+          <NavigationMenu className="ml-8 items-center md:ml-16 lg:ml-28">
+            <NavigationMenuList className="text-xs md:space-x-3 lg:text-sm">
               <Explore />
               <SectionSelect />
               <NavigationMenuItem>
                 <a
                   href={"https://www.0xhoneyjar.xyz/"}
                   target="_blank"
-                  className="flex cursor-blue items-center whitespace-nowrap rounded-full bg-[#F4C10B]/80 px-6 py-2.5 font-medium text-white hover:shadow-yellow"
+                  className="hidden cursor-blue items-center whitespace-nowrap rounded-full bg-[#F4C10B]/80 px-6 py-2.5 font-medium text-white hover:shadow-yellow md:flex"
                 >
                   Open App
                 </a>
@@ -93,7 +93,7 @@ const Navbar = () => {
                     "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
                   }
                   target="_blank"
-                  className="flex cursor-blue items-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 py-2.5 font-medium text-white hover:shadow-evergreen"
+                  className="hidden cursor-blue items-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 py-2.5 font-medium text-white hover:shadow-evergreen md:flex"
                 >
                   Delegate to THJ
                 </a>
@@ -115,7 +115,7 @@ const Navbar = () => {
             </a> */}
           {/* </div> */}
           <button
-            className="ml-10 flex flex-col gap-1.5 md:hidden"
+            className="flex flex-col gap-1.5 md:hidden"
             onClick={() => setToggle(!toggle)}
           >
             <hr className="w-6 border" />

@@ -174,13 +174,13 @@ const HeroSection = () => {
           </div> */}
           <Lottie
             animationData={OctoBear}
-            className="absolute top-0 z-10 h-full w-full"
+            className="absolute top-0 z-10 size-full"
             loop={true}
             rendererSettings={{
               preserveAspectRatio: "xMidYMid slice",
             }}
           />
-          <div className="relative flex h-[80%] w-full">
+          <div className="relative flex h-4/5 w-full">
             <Image src={"/dots.png"} alt="dots" fill className="object-cover" />
           </div>
           {/* <div className="absolute bottom-0 flex h-[80%] w-full justify-center">
