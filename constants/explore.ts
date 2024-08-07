@@ -1,0 +1,81 @@
+export interface ListItemData {
+  title: string;
+  description: string;
+  icon: string;
+  link: string;
+  color: string;
+  comingSoon?: boolean;
+}
+
+export const EXPLOREITEMS: ListItemData[] = [
+  {
+    title: "For Community",
+    description: "The front page of The Honey Jar",
+    icon: "/navbar/community.png",
+    link: "https://community.0xhoneyjar.xyz/",
+    color: "#2C2610",
+  },
+  {
+    title: "For Partners",
+    description: "Learn more about the THJ org",
+    icon: "/navbar/partner.png",
+    link: "http://partners.0xhoneyjar.xyz/",
+    color: "#2D2313",
+  },
+  {
+    title: "Cub Quests",
+    description: "Explore Berachain and get rewarded",
+    icon: "/navbar/cub.png",
+    link: "https://www.cubquests.com/",
+    color: "#241A0F",
+  },
+  {
+    title: "THJ Validator",
+    description: "Validating Berachain 24/7",
+    icon: "/navbar/validator.png",
+    link: "https://bartio.station.berachain.com/validators/0x40495A781095932e2FC8dccA69F5e358711Fdd41",
+    color: "#17231D",
+  },
+  {
+    title: "Moneycomb",
+    description: "All about Honeycomb and its perks",
+    icon: "/navbar/moneycomb.png",
+    link: "https://honeycomb.0xhoneyjar.xyz/",
+    color: "#151429",
+  },
+  {
+    title: "Ecosystem Explorer",
+    description: "THJ Ecosystem Explorer",
+    icon: "/navbar/explorer.png",
+    link: "http://ecosystem.0xhoneyjar.xyz/",
+    color: "#2E1811",
+  },
+  {
+    title: "THJ Old",
+    description: "Old, but gold",
+    icon: "/navbar/thj.png",
+    link: "https://www.0xhoneyjar.xyz/",
+    color: "#122618",
+  },
+  {
+    title: "Faucet",
+    description: "Official bArtio v2 testnet faucet",
+    icon: "/navbar/faucet.png",
+    link: "https://www.cubquests.com/",
+    color: "#12242A",
+  },
+  {
+    title: "Apiology DAO",
+    description: "Honeycomb on steroids",
+    icon: "/navbar/apiology.png",
+    link: "https://www.apiologydao.xyz/",
+    color: "#1E1E1E",
+  },
+  {
+    title: "Beardrops",
+    description: "The best tool for snapshots",
+    icon: "/navbar/beardrops.png",
+    link: "https://beardrops.0xhoneyjar.xyz/",
+    color: "#2B3234",
+  },
+];

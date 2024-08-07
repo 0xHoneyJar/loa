@@ -1,32 +1,98 @@
+import { useEffect, useState } from "react";
+import DragHandleY from "../drag-handle-y";
 import Image from "next/image";
+import { ChevronRight } from "lucide-react";
+import { retrieveQuests } from "@/actions/retrieve-quests";
+import { Quest } from "@/constants/quest";
+import useUserStore from "@/state/user/useUserStore";
+import QuestDisplay from "../quest-display";
 
 const Quests = () => {
+  const [glow, setGlow] = useState(false);
+  const currentTime = useUserStore((state) => state.currentTime);
+  const [quests, setQuests] = useState<Quest[]>([]);
+  useEffect(() => {
+    async function getQuests() {
+      const retrievedQuests = await retrieveQuests();
+      retrievedQuests.sort((a, b) => {
+        // Define a priority for each quest based on current time
+        const getPriority = (quest: Quest) => {
+          if (quest.startTime <= currentTime && quest.endTime >= currentTime)
+            return 1; // Recent Active Quests
+          if (quest.startTime > currentTime) return 2; // Coming Soon
+          if (quest.endTime < currentTime) return 3; // Ended
+          return 4; // Default priority for undefined statuses
+        };
+
+        // Compare based on priority first
+        const priorityA = getPriority(a);
+        const priorityB = getPriority(b);
+
+        if (priorityA !== priorityB) {
+          return priorityA - priorityB;
+        }
+
+        // If priorities are the same, sort by endTime descending
+        return b.endTime - a.endTime;
+      });
+
+      setQuests(retrievedQuests);
+    }
+
+    getQuests();
+  }, []);
+
   return (
-    <div className="relative flex flex-col rounded-2xl overflow-hidden bg-gradient-to-b from-[#F8A92917] to-[#14131017] h-full border-2 border-[#F8A92952]">
-      <div className="absolute -top-40 w-full h-1" id="quests" />
-      <div className="w-full h-2 bg-[#FFD700] rounded-t-3xl" />
-      <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#F4C10B6B]">
-        <div className="flex gap-2 items-center">
-          <div className="h-[26px] aspect-square relative dragHandle">
-            <Image
-              src={"/drag-handle-y.svg"}
-              alt="drag"
-              fill
-              className="object-contain"
-            />
-          </div>
-          <p className="text-[#FFD700] text-lg">Quests</p>
-          <div className="h-[12px] aspect-square bg-[#FF0000] rounded-full relative">
-            <div className="h-full w-full aspect-square absolute bg-[#FF0000] rounded-full animate-ping" />
+    <div
+      className={`${glow && "rotate-1"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
+    >
+      <div className="absolute -top-40 h-1 w-full" id="quests" />
+      <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6">
+        <div
+          className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
+        />
+        <div className="flex items-center gap-2">
+          <DragHandleY setGlow={setGlow} />
+          <p className="text-sm font-medium text-[#FFD700] md:text-base">
+            Quests
+          </p>
+          <div className="relative aspect-square h-2 rounded-full bg-[#FF0000] md:h-[12px]">
+            <div className="absolute aspect-square h-full w-full animate-ping rounded-full bg-[#FF0000]" />
           </div>
         </div>
       </div>
-      <div className="flex grow px-6 items-center">
-        <p className="text-white uppercase">
+      <div className="flex grow flex-col justify-between p-4 md:p-6">
+        <p className="text-xs uppercase text-white md:text-sm">
           Take part in{" "}
           <span className="text-[#E1A94E]">THJ specials Quests</span> and{" "}
-          <span className="text-[#E1A94E]">get rewarded!like seriously</span>
+          <span className="text-[#E1A94E]">get rewarded! like seriously</span>
         </p>
+        <div className="grid w-full grid-rows-3 gap-4 overflow-hidden md:gap-6">
+          {quests.slice(0, 3).map((quest, id) => (
+            <QuestDisplay quest={quest} key={id} />
+          ))}
+        </div>
+        <a
+          href={"https://faucet.0xhoneyjar.xyz/quests"}
+          target="_blank"
+          className="flex w-full cursor-blue items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-2 py-2 hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D] md:px-4 md:py-3"
+        >
+          <div className="flex items-center gap-1 md:gap-2">
+            <div className="relative aspect-square h-6 md:h-[26px]">
+              <Image
+                src={"/question.svg"}
+                alt="question"
+                fill
+                className="object-contain"
+              />
+            </div>
+            <p className="whitespace-nowrap text-xs md:text-sm">
+              Explore All Quests
+            </p>
+          </div>
+          <ChevronRight className="aspect-square h-3 text-[#FFFFFF]/40 md:h-[14px]" />
+        </a>
       </div>
     </div>
   );

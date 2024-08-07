@@ -1,32 +1,79 @@
 import Image from "next/image";
+import { useEffect, useState } from "react";
+import DragHandle from "../drag-handle";
+import { retrieveTwitterFeed } from "@/actions/retrieve-twitter-feed";
+import TwitterDisplay from "../tweet-display";
+import SecondaryTweetDisplay from "../secondary-tweet-display";
 
 const Feed = () => {
+  const [glow, setGlow] = useState(false);
+  const [tweets, setTweets] = useState<any[]>([]);
+  const [tweetNum, setTweetNum] = useState(0);
+
+  useEffect(() => {
+    async function retrieveTweets() {
+      const data = await retrieveTwitterFeed();
+      setTweets(data);
+    }
+
+    retrieveTweets();
+  }, []);
+
+  const swipeAction = () => {
+    // setTweets((prevTweets) => {
+    //   const firstElement = prevTweets[0];
+    //   const newTweets = [...prevTweets.slice(1), firstElement];
+    //   return newTweets;
+    // });
+    if (tweetNum === tweets.length - 1) {
+      setTweetNum(0);
+    } else {
+      setTweetNum((prevNum) => prevNum + 1);
+    }
+  };
+
   return (
-    <div className="relative flex flex-col border-2 bg-[#10120D] rounded-2xl border-[#121A12] overflow-hidden h-full">
-      <div className="absolute -top-40 w-full h-1" id="feed" />
-      <div className="w-full h-2 bg-[#43AA77] rounded-t-3xl" />
-      <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#FFFFFF1F]">
-        <div className="flex gap-2 items-center">
-          <div className="h-[26px] aspect-square relative dragHandle">
-            <Image
-              src={"/drag-handle.svg"}
-              alt="drag"
-              fill
-              className="object-contain"
-            />
-          </div>
-          <p className="text-white text-lg">Feed</p>
+    <div
+      className={`relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D] ${glow && "rotate-1"}`}
+    >
+      <div className="absolute -top-40 h-1 w-full" id="feed" />
+      <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#43AA77]" />
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-[72px] md:px-6">
+        <div
+          className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#43AA77] blur-2xl ${glow ? "flex" : "hidden"}`}
+        />
+        <div className="flex items-center gap-2">
+          <DragHandle setGlow={setGlow} />
+          <p className="text-sm font-medium text-white md:text-base">Feed</p>
         </div>
-        <a className="h-[34px] aspect-square rounded-full border border-[#353535] relative cursor-pointer">
+        <a
+          className="relative aspect-square h-[28px] cursor-pointer rounded-full border border-[#353535] md:h-[34px]"
+          href={"https://twitter.com/0xhoneyjar"}
+          target="_blank"
+        >
           <Image
             src={"/twitter.svg"}
             alt="twitter"
             fill
-            className="object-contain p-2"
+            className="object-contain p-1.5 md:p-2"
           />
         </a>
       </div>
-      <div className="flex items-center grow justify-center"></div>
+      <div className="flex grow overflow-hidden p-4 md:p-6">
+        <div className="relative h-full w-full">
+          <SecondaryTweetDisplay
+            text={tweets[(tweetNum + 1) % (tweets.length - 1)]?.full_text}
+          />
+          {tweets.map((tweet, id) => (
+            <TwitterDisplay
+              key={id}
+              text={tweet.full_text}
+              show={id === tweetNum}
+              swipeAction={swipeAction}
+            />
+          ))}
+        </div>
+      </div>
     </div>
   );
 };

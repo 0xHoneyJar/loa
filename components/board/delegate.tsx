@@ -1,28 +1,40 @@
 import Image from "next/image";
+import { useState } from "react";
+import DragHandle from "../drag-handle";
 
 const Delegate = () => {
+  const [glow, setGlow] = useState(false);
   return (
-    <div className="flex flex-col relative border-2 bg-gradient-to-br from-[#FFC100] to-[#F8A929] rounded-2xl border-[#FFCA0C] overflow-hidden h-full p-2">
-      <div className="absolute -top-40 w-full h-1" id="delegate" />
-      <div className="aspect-square h-[52px] absolute inset-y-0 my-auto left-0 -bottom-12">
+    <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFCA0C] bg-gradient-to-br from-[#FFC100] to-[#F8A929] p-2">
+      <div className="absolute -top-40 h-1 w-full" id="delegate" />
+      <div className="absolute inset-y-0 -bottom-0 left-0 my-auto aspect-square h-12 sm:-bottom-20 md:-bottom-0 lg:-bottom-16 lg:h-[52px] xl:-bottom-32 2xl:-bottom-12">
         <Image
           src={"/arrow-delegate.svg"}
           alt="arrow"
           fill
-          className="object-contain scale-150"
+          className="scale-150 object-contain"
         />
       </div>
-      <div className="aspect-square h-[52px] absolute inset-y-0 my-auto -right-0 -top-20">
+      <div className="absolute inset-y-0 -right-0 -top-28 my-auto aspect-square h-12 sm:-top-12 md:-top-32 lg:-top-16 lg:h-[52px] xl:-top-6 2xl:-top-24">
         <Image
           src={"/arrow-delegate-dashed.svg"}
           alt="arrow"
           fill
-          className="object-contain scale-150"
+          className="scale-150 object-contain"
         />
       </div>
-      <div className="h-full w-full border border-black/50 rounded-2xl flex flex-col relative gap-10 p-6">
-        <div className="flex gap-3 items-center">
-          <div className="aspect-square h-[44px] relative">
+      <div className="relative flex size-full flex-col gap-10 rounded-2xl border border-black/50 p-6">
+        <div className="flex items-center gap-1">
+          {/* <div className="dragHandle relative aspect-square h-5 md:h-[26px]">
+            <Image
+              src={"/drag-handle.svg"}
+              alt="drag"
+              fill
+              className="object-contain"
+            />
+          </div> */}
+          <DragHandle setGlow={setGlow} />
+          <div className="relative aspect-square h-[36px] md:h-[44px]">
             <Image
               src={"/thj-logo.png"}
               alt="thj-logo"
@@ -30,7 +42,7 @@ const Delegate = () => {
               className="object-contain"
             />
           </div>
-          <div className="aspect-square h-[44px] relative">
+          <div className="relative aspect-square h-[36px] md:h-[44px]">
             <Image
               src={"/jani-coin.png"}
               alt="jani-coin"
@@ -39,18 +51,23 @@ const Delegate = () => {
             />
           </div>
         </div>
-        <p className="font-bold text-5xl text-black">
-          Delegate With The Honey Jar <span className="font-light">(THJ)</span>
+        <p className="text-3xl font-bold text-black md:text-4xl xl:text-5xl">
+          Delegate to The Honey Jar <span className="font-light">(THJ)</span>
         </p>
-        <div className="border rounded-full border-dashed border-black/40 p-2">
-          <button className="py-3 bg-black w-full rounded-full text-lg">
+        <div className="rounded-full border border-dashed border-black/40 p-1 md:p-2">
+          <a
+            href={
+              "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
+            }
+            target="_blank"
+            className="flex w-full cursor-blue items-center justify-center rounded-full bg-black py-3 text-sm hover:bg-white hover:text-black md:text-base xl:text-lg"
+          >
             Delegate Now
-          </button>
+          </a>
         </div>
-        <p className="text-2xl text-[#414141]">
-          Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc
-          vulputate libero et velit interdum, ac aliquet odio mattis. Class
-          aptent taciti sociosqu.
+        <p className="text-lg text-[#414141] md:text-xl xl:text-2xl">
+          Help us make the Fat Bera Thesis come true! Delegate to THJ and get
+          rewarded!
         </p>
       </div>
     </div>

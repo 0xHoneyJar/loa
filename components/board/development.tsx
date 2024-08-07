@@ -1,114 +1,82 @@
 import Image from "next/image";
-import { DEVELOPMENT } from "@/constants/development";
-import { Play } from "lucide-react";
+import DragHandle from "../drag-handle";
+import { useState } from "react";
+import { ScrollArea } from "../ui/scroll-area";
 
-const Development = () => {
+const Development = ({ developments }: { developments?: any }) => {
+  const [glow, setGlow] = useState(false);
   return (
-    <div className="relative flex flex-col border-2 bg-[#0F0F0F] rounded-2xl border-[#FFFFFF0A] overflow-hidden h-full">
-      <div className="absolute -top-40 w-full h-1" id="development" />
-      <div className="w-full h-2 bg-white rounded-t-3xl" />
-      <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#FFFFFF1F]">
-        <div className="flex gap-2 items-center">
-          <div className="h-[26px] aspect-square relative dragHandle">
-            <Image
-              src={"/drag-handle.svg"}
-              alt="drag"
-              fill
-              className="object-contain"
-            />
-          </div>
-          <p className="text-white text-lg whitespace-nowrap">
-            Development Pipeline
+    <div
+      className={`${glow && "rotate-1"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]`}
+    >
+      <div className="absolute -top-40 h-1 w-full" id="development" />
+      <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-white" />
+      <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-[72px] md:px-6">
+        <div
+          className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#B8B8B8] blur-2xl ${glow ? "flex" : "hidden"}`}
+        />
+        <div className="flex items-center gap-2">
+          <DragHandle setGlow={setGlow} />
+          <p className="whitespace-nowrap text-sm font-medium text-white md:text-base">
+            Development Updates
           </p>
         </div>
       </div>
-      <div className="flex grow justify-center py-6 pl-8 relative">
-        <div className="h-1/6 w-full absolute top-0 bg-gradient-to-b from-[#0F0F0F] z-10" />
-        <div className="h-1/6 w-full absolute bottom-0 bg-gradient-to-t from-[#0F0F0F] z-10" />
-        <div className="h-full w-full border-l border-dashed border-[#4C4C4C] pl-12 flex flex-col pt-6 relative gap-20">
-          <div className="flex gap-3 flex-col relative">
-            <div className="h-[12px] aspect-[4/1] absolute top-2 -left-[54px]">
-              <Image
-                src={"/development-pointer.svg"}
-                alt="pointer"
-                fill
-                className="object-contain"
-              />
-            </div>
-            <p className="text-[#F4C10B] text-lg">1st Quarter, 2024</p>
-            {DEVELOPMENT.filter((item) => item.quarter === 1).map(
-              (item, id) => (
-                <div className="flex gap-2" key={id}>
-                  <div className="h-[24px] aspect-square relative">
-                    <Image
-                      src={"/development-arrow.svg"}
-                      alt="arrow"
-                      fill
-                      className="object-contain"
-                    />
-                  </div>
-                  <p className="whitespace-nowrap">{item.name}</p>
-                  <p className="text-[#424242]/90 font-light">{item.date}</p>
+      <ScrollArea className="relative flex grow py-4 md:py-6">
+        <div className="absolute left-6 top-4 size-full border-l border-dashed border-[#4C4C4C] md:left-8 md:top-6" />
+        <div className="absolute left-0 top-0 z-10 h-24 w-full bg-gradient-to-b from-[#0F0F0F]" />
+        <div className="absolute bottom-0 left-0 z-10 h-24 w-full bg-gradient-to-t from-[#0F0F0F]" />
+        <div className="relative size-full pl-6 md:pl-8">
+          <div className="relative flex size-full grow flex-col gap-12 px-8 py-4 md:gap-16 md:py-6">
+            {developments.items.map((development: any, id: any) => (
+              <div className="relative flex flex-col gap-3" key={id}>
+                <div className="absolute left-[-36px] top-2 aspect-[4/1] h-2 md:top-2.5">
+                  <Image
+                    src={"/development-pointer.svg"}
+                    alt="pointer"
+                    fill
+                    className="object-contain"
+                  />
                 </div>
-              )
-            )}
-          </div>
-          <div className="flex gap-3 flex-col relative">
-            <div className="h-[12px] aspect-[4/1] absolute top-2 -left-[54px]">
-              <Image
-                src={"/development-pointer.svg"}
-                alt="pointer"
-                fill
-                className="object-contain"
-              />
-            </div>
-            <p className="text-[#F4C10B] text-lg">2nd Quarter, 2024</p>
-            {DEVELOPMENT.filter((item) => item.quarter === 2).map(
-              (item, id) => (
-                <div className="flex gap-2" key={id}>
-                  <div className="h-[24px] aspect-square relative">
-                    <Image
-                      src={"/development-arrow.svg"}
-                      alt="arrow"
-                      fill
-                      className="object-contain"
-                    />
-                  </div>
-                  <p className="whitespace-nowrap">{item.name}</p>
-                  <p className="text-[#424242]/90 font-light">{item.date}</p>
-                </div>
-              )
-            )}
-          </div>
-          <div className="flex gap-3 flex-col relative">
-            <div className="h-[12px] aspect-[4/1] absolute top-2 -left-[54px]">
-              <Image
-                src={"/development-pointer.svg"}
-                alt="pointer"
-                fill
-                className="object-contain"
-              />
-            </div>
-            <p className="text-[#F4C10B] text-lg">4th Quarter, 2024</p>
-            {DEVELOPMENT.filter((item) => item.quarter === 4).map(
-              (item, id) => (
-                <div className="flex gap-2" key={id}>
-                  <div className="h-[24px] aspect-square relative">
-                    <Image
-                      src={"/development-arrow.svg"}
-                      alt="arrow"
-                      fill
-                      className="object-contain"
-                    />
-                  </div>
-                  <p className="whitespace-nowrap">{item.name}</p>
-                  <p className="text-[#424242]/90 font-light">{item.date}</p>
-                </div>
-              )
-            )}
+                <p className="text-sm text-[#F4C10B] md:text-base">
+                  {development._title}
+                </p>
+                {development.milestones.items.map((item: any, id: any) => {
+                  const CommonContent = () => (
+                    <>
+                      <div className="relative aspect-square h-4 md:h-6">
+                        <Image
+                          src={"/development-arrow.svg"}
+                          alt="arrow"
+                          fill
+                          className="object-contain"
+                        />
+                      </div>
+                      <p className="text-xs md:text-sm">{item._title}</p>
+                    </>
+                  );
+
+                  return item.link ? (
+                    <a
+                      className="flex cursor-blue items-center gap-1 underline hover:text-white/75 md:gap-2"
+                      key={id}
+                      href={item.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <CommonContent />
+                    </a>
+                  ) : (
+                    <div className="flex items-center gap-1 md:gap-2" key={id}>
+                      <CommonContent />
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      </ScrollArea>
     </div>
   );
 };

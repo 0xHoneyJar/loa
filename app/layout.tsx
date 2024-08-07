@@ -2,12 +2,13 @@ import { Metadata } from "next";
 import "../styles/globals.css";
 import "../styles/tailwind.css";
 import localFont from "next/font/local";
-import "react-grid-layout/css/styles.css";
+// import "react-grid-layout/css/styles.css";
 import Navbar from "@/components/navbar";
+import MainWrapper from "@/components/main-wrapper";
 
 export const metadata: Metadata = {
   // metadataBase: new URL(""),
-  title: "",
+  title: "THJ Community",
   description: "",
   openGraph: {
     type: "website",
@@ -29,19 +30,24 @@ const switzer = localFont({
   variable: "--font-switzer",
 });
 
+const clash = localFont({
+  src: "../assets/ClashDisplay.ttf",
+  variable: "--font-clash",
+});
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html className={`${switzer.variable}`}>
+    <html className={`${switzer.variable} ${clash.variable}`}>
       <head></head>
       <body>
-        <div className="mx-auto min-w-[24rem] max-w-[112rem] relative overflow-hidden">
+        <MainWrapper>
           <Navbar />
           {children}
-        </div>
+        </MainWrapper>
       </body>
     </html>
   );

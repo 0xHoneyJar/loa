@@ -1,99 +1,213 @@
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
+import fetcher from "@/lib/fetcher";
+import { formatToken } from "@/lib/utils";
 import Image from "next/image";
+import { useState } from "react";
 import {
   CircularProgressbarWithChildren,
   buildStyles,
 } from "react-circular-progressbar";
+import useSWR from "swr";
+import DragHandle from "../drag-handle";
 
 const Validator = () => {
+  const { data } = useSWR<{
+    amountDelegated: string;
+    boostedRewardRate: string;
+  }>("/api/validator", fetcher);
+
+  const [glow, setGlow] = useState(false);
   return (
-    <div className="relative flex flex-col border-2 bg-[#10120D] rounded-2xl border-[#121A12] overflow-hidden h-full">
-      <div className="absolute -top-40 w-full h-1" id="validator" />
-      <div className="w-full h-2 bg-[#43AA77] rounded-t-3xl" />
-      <div className="flex justify-between items-center px-6 h-16 border-b border-dashed border-[#1B271B]">
-        <div className="flex gap-2 items-center">
-          <div className="h-[26px] aspect-square relative dragHandle">
-            <Image
-              src={"/drag-handle.svg"}
-              alt="drag"
-              fill
-              className="object-contain"
-            />
-          </div>
-          <p className="text-white text-lg">Validator</p>
-        </div>
-      </div>
-      <div className="flex grow flex-col">
-        <div className="h-4/5 w-full grid grid-cols-4 p-6 gap-8">
-          <div className="h-full w-full bg-[#121212] border border-[#161616] rounded-2xl flex flex-col py-6 items-center">
-            <p className="text-[#6B6B6B]">Delegated to THJ (BGT)</p>
-            <div className="h-full w-full items-center justify-center flex">
-              <p className="font-semibold text-white text-6xl">12,324</p>
-            </div>
-          </div>
-          <div className="h-full w-full bg-[#121212] border border-[#161616] rounded-2xl flex flex-col py-6 items-center">
-            <p className="text-[#6B6B6B]">Amount of Delegators</p>
-            <div className="h-full w-full items-center justify-center flex">
-              <p className="font-semibold text-white text-6xl">12,324</p>
-            </div>
-          </div>
-          <div className="h-full w-full bg-[#121212] border border-[#161616] rounded-2xl flex flex-col py-6 items-center">
-            <p className="text-[#6B6B6B]">Amount of Delegators</p>
-            <div className="h-full w-full items-center justify-center flex">
-              <p className="font-semibold text-white text-6xl">21st</p>
-            </div>
-          </div>
-          <div className="h-full w-full bg-[#121212] border relative border-[#161616] rounded-2xl flex flex-col py-6 items-center">
-            <div className="h-full w-full items-center justify-center flex relative">
-              <p className="text-[#6B6B6B] absolute top-0">Voting Rank</p>
-              <div className="h-[135px] aspect-square">
-                <CircularProgressbarWithChildren
-                  value={50}
-                  strokeWidth={14}
-                  styles={buildStyles({
-                    rotation: 0.5,
-                    strokeLinecap: "butt",
-                    pathColor: "#43AA77",
-                    trailColor: "#F4C10B",
-                  })}
-                >
-                  <p className="font-medium text-sm text-[#C1C1C1] absolute -left-10">
-                    50%
-                  </p>
-                  <p className="font-medium text-sm text-[#C1C1C1] absolute -right-10">
-                    50%
-                  </p>
-                </CircularProgressbarWithChildren>
-              </div>
-              <div className="flex gap-2 text-[#C7C7C7] justify-center absolute bottom-0">
-                <div className="flex gap-1 items-center justify-center">
-                  <div className="h-[14px] aspect-square rounded-full bg-[#43AA77]" />
-                  <p className="font-light md:text-sm text-xs">Lorem</p>
-                </div>
-                <div className="flex gap-1 items-center justify-center">
-                  <div className="h-[14px] aspect-square rounded-full bg-[#F4C10B]" />
-                  <p className="font-light md:text-sm text-xs">Lorem</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="h-1/5 w-full flex justify-between items-center border-t border-[#1B271B] px-6">
-          <div className="flex gap-2 items-center">
-            <div className="aspect-square h-[38px] relative">
-              <Image
-                src={"/jani-coin.png"}
-                alt="jani-coin"
-                fill
-                className="object-contain"
-              />
-            </div>
-            <p className="text-white text-xl font-light">
-              <span className="font-medium">THJ</span> Needs Your Vote! Delegate
-              to THJ Now
+    <div
+      className={`${glow && "rotate-1"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D]`}
+    >
+      <div className="absolute -top-40 h-1 w-full" id="validator" />
+      <Carousel className="flex size-full flex-col">
+        <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#43AA77]" />
+        <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#1B271B] px-4 md:h-[72px] md:px-6">
+          <div
+            className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#43AA77] blur-2xl ${glow ? "flex" : "hidden"}`}
+          />
+          <div className="flex items-center gap-2">
+            <DragHandle setGlow={setGlow} />
+            <p className="text-sm font-medium text-white md:text-base">
+              Validator
             </p>
           </div>
-          <div className="flex gap-2 items-center">
-            <div className="aspect-square h-[100px] relative">
+          <div className="relative flex gap-1.5 md:gap-2 lg:hidden">
+            <CarouselPrevious className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7" />
+            <CarouselNext className="h-6 w-6 border-2 border-[#848484] bg-transparent md:h-7 md:w-7" />
+          </div>
+        </div>
+        <div className="flex grow flex-col">
+          <div className="flex h-[85%] w-full px-4 md:px-6">
+            <CarouselContent className="flex grow py-4 md:py-6 xl:-ml-0 xl:grid xl:!transform-none xl:grid-cols-3 xl:gap-4">
+              <CarouselItem className="basis-full sm:basis-1/2 xl:basis-full xl:pl-0">
+                <div className="grid size-full grid-rows-3 gap-4">
+                  <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+                    <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm">
+                      Delegated to THJ (BGT)
+                    </p>
+                    <div className="flex items-center gap-2 text-lg md:text-xl">
+                      <p className="font-semibold">
+                        {formatToken(BigInt(data?.amountDelegated ?? "0"))}
+                      </p>
+                      <div className="relative aspect-square h-[28px]">
+                        <Image
+                          src={"/delegate-bee.png"}
+                          alt="bee"
+                          fill
+                          className="object-contain"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+                    <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm">
+                      Number of Delegators
+                    </p>
+                    <p className="text-lg font-semibold md:text-xl">TBD</p>
+                  </div>
+                  <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+                    <p className="text-xs text-[#6B6B6B] md:text-sm">
+                      Return per BGT
+                    </p>
+                    <div className="flex items-center gap-2 text-2xl">
+                      <p className="text-lg font-semibold md:text-xl">$6.90</p>
+                      <div className="relative aspect-square h-[28px]">
+                        <Image
+                          src={"/bgt-honey.png"}
+                          alt="honey"
+                          fill
+                          className="object-contain"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CarouselItem>
+              <CarouselItem className="basis-full sm:basis-1/2 xl:basis-full xl:pl-0">
+                <div className="grid h-full grid-rows-3 gap-4">
+                  <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+                    <p className="text-xs text-[#6B6B6B] md:text-sm">
+                      Validator&apos;s Rank
+                    </p>
+                    <p className="text-lg font-semibold md:text-xl">1st</p>
+                  </div>
+                  <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+                    <p className="text-xs text-[#6B6B6B] md:text-sm">
+                      Active Incentives
+                    </p>
+                    <p className="text-lg font-semibold md:text-xl">
+                      $9.24M
+                      {/* <span className="text-xs font-normal text-[#989898]">
+                  (The Value)
+                </span> */}
+                    </p>
+                  </div>
+                  <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
+                    <p className="text-xs text-[#6B6B6B] md:text-sm">
+                      Reward Rate
+                    </p>
+                    <div className="flex items-center gap-2 text-lg md:text-xl">
+                      <p className="font-semibold">
+                        {formatToken(BigInt(data?.boostedRewardRate ?? "0"))}
+                      </p>
+                      <div className="relative aspect-square h-[28px]">
+                        <Image
+                          src={"/delegate-bee.png"}
+                          alt="bee"
+                          fill
+                          className="object-contain"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CarouselItem>
+              <CarouselItem className="basis-full sm:basis-1/2 xl:pl-0">
+                <div className="relative flex size-full flex-col items-center overflow-hidden rounded-2xl border border-[#202020] bg-[#121212] py-6">
+                  <div className="relative flex size-full flex-col items-center justify-center">
+                    <p className="absolute top-0 text-xs text-[#6B6B6B] md:text-sm">
+                      Voting Power
+                    </p>
+                    <div className="aspect-square h-[135px]">
+                      <CircularProgressbarWithChildren
+                        value={90.42}
+                        strokeWidth={14}
+                        styles={buildStyles({
+                          rotation: 0.43,
+                          strokeLinecap: "butt",
+                          pathColor: "#43AA77",
+                          trailColor: "#F4C10B",
+                        })}
+                      >
+                        <p className="absolute -left-4 -top-4 text-sm font-medium text-[#C1C1C1]">
+                          90.42%
+                        </p>
+                        <p className="absolute -bottom-4 -right-4 text-sm font-medium text-[#C1C1C1]">
+                          9.58%
+                        </p>
+                        <div className="absolute -bottom-16 flex justify-center gap-2 text-[#C7C7C7]">
+                          <div className="flex items-center justify-center gap-1">
+                            <div className="aspect-square h-[14px] rounded-full bg-[#43AA77]" />
+                            <p className="text-xs font-light md:text-sm">THJ</p>
+                          </div>
+                          <div className="flex items-center justify-center gap-1">
+                            <div className="aspect-square h-[14px] rounded-full bg-[#F4C10B]" />
+                            <p className="text-xs font-light md:text-sm">
+                              Other
+                            </p>
+                          </div>
+                        </div>
+                      </CircularProgressbarWithChildren>
+                    </div>
+                  </div>
+                </div>
+              </CarouselItem>
+            </CarouselContent>
+          </div>
+          <div className="flex h-[15%] w-full shrink-0 items-center justify-between border-t border-[#1B271B] p-4 md:p-6">
+            <div className="flex items-center gap-2">
+              <div className="relative aspect-square h-8 md:h-[38px]">
+                <Image
+                  src={"/jani-coin.png"}
+                  alt="jani-coin"
+                  fill
+                  className="object-contain"
+                />
+              </div>
+              <p className="hidden whitespace-nowrap text-base font-light text-white sm:block md:text-lg">
+                Needs Your Support
+              </p>
+            </div>
+            <div className="flex h-full items-center gap-2">
+              <a
+                target="_blank"
+                href={
+                  "https://bartio.station.berachain.com/validators/0x40495A781095932e2FC8dccA69F5e358711Fdd41"
+                }
+                className="flex h-full items-center justify-center whitespace-nowrap rounded-full border border-white/5 bg-white/5 px-6 text-xs font-medium text-white hover:cursor-blue hover:border-white/20 hover:bg-white/20 md:text-sm"
+              >
+                <span className="hidden xl:inline-flex">View</span>
+                &nbsp;Validator
+              </a>
+              <a
+                target="_blank"
+                href={
+                  "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
+                }
+                className="flex h-full items-center justify-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 text-xs font-medium text-black hover:cursor-blue hover:shadow-evergreen md:text-sm"
+              >
+                Delegate&nbsp;<span className="hidden xl:inline-flex">Now</span>
+              </a>
+              {/* <div className="relative aspect-square h-[100px]">
               <Image
                 src={"/arrow-wiggle.svg"}
                 alt="arrow-wiggle"
@@ -101,14 +215,15 @@ const Validator = () => {
                 className="object-contain"
               />
             </div>
-            <div className="p-1.5 border border-dashed rounded-full border-[#848484]">
-              <button className="px-6 py-2 bg-[#43AA77] rounded-full text-black font-medium hover:shadow-evergreen hover:cursor-blue">
+            <div className="rounded-full border border-dashed border-[#848484] p-1.5">
+              <button className="rounded-full bg-[#43AA77] px-6 py-2 font-medium text-black hover:cursor-blue hover:shadow-evergreen">
                 Delegate Now
               </button>
+            </div> */}
             </div>
           </div>
         </div>
-      </div>
+      </Carousel>
     </div>
   );
 };

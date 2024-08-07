@@ -12,7 +12,7 @@ const AudioControls = ({
   onPrevClick: () => void;
   onNextClick: () => void;
 }) => (
-  <div className="flex gap-4 px-3 items-center justify-center rounded-r-full border-r border-y bg-[#AFAFAF1F] border-[#A6A6A647] flex-grow backdrop-blur-2xl">
+  <div className="flex gap-4 px-3 items-center justify-center rounded-r-full border-r border-y bg-[#AFAFAF1F] border-[#A6A6A647] grow backdrop-blur-2xl">
     <button
       type="button"
       className="aspect-square h-[16px] relative cursor-blue opacity-30 hover:opacity-100 duration-300"
