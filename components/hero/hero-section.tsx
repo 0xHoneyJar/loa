@@ -33,14 +33,14 @@ const HeroSection = () => {
 
   return (
     <div className="relative flex size-full flex-col items-center">
-      <div className="relative flex size-full flex-col items-center pt-20 md:pt-24">
+      <div className="relative flex size-full flex-col items-center pt-[65px] md:pt-24">
         <Image
           src={"/sunshine.png"}
           alt="sunshine"
           fill
           className="z-10 object-cover opacity-20"
         />
-        <div className="absolute top-0 h-20 w-full opacity-30 md:h-24">
+        <div className="absolute top-0 h-[65px] w-full md:h-24 md:opacity-30">
           <Image
             src={"/navbar-hero.png"}
             alt="bg"

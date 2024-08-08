@@ -47,8 +47,8 @@ const SectionSelect = () => {
     //     </SelectGroup>
     //   </SelectContent>
     // </Select>
-    <NavigationMenuItem value="section">
-      <NavigationMenuTrigger className="hidden cursor-blue items-center gap-1 rounded-full bg-[#FFFFFF0F] px-6 py-2.5 text-xs text-white hover:bg-white/30 md:flex lg:text-sm">
+    <NavigationMenuItem>
+      <NavigationMenuTrigger className="hidden cursor-blue items-center gap-1 rounded-full bg-[#FFFFFF0F] px-6 py-2.5 text-xs text-white hover:bg-white/30 md:flex">
         Section
       </NavigationMenuTrigger>
       <NavigationMenuContent className="left-32 top-[60px] data-[motion=from-end]:animate-enterFromRight data-[motion=from-start]:animate-enterFromLeft data-[motion=to-end]:animate-exitToRight data-[motion=to-start]:animate-exitToLeft data-[state=closed]:animate-scaleOut data-[state=open]:animate-scaleIn">

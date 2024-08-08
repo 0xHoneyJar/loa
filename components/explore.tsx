@@ -5,11 +5,12 @@ import {
 } from "@/components/ui/navigation-menu";
 import { EXPLOREITEMS } from "@/constants/explore";
 import Image from "next/image";
+import { trackEvent } from "@openpanel/nextjs";
 
 const Explore = () => {
   return (
     <NavigationMenuItem className="">
-      <NavigationMenuTrigger className="flex cursor-blue items-center rounded-full border border-[#F4C10B24] bg-gradient-to-b from-[#F4C10B1F] to-[#F8A9291F] px-6 py-2.5 text-xs text-white hover:border-[#F4C10B58] hover:from-[#F4C10B32] hover:to-[#F8A92932] lg:text-sm">
+      <NavigationMenuTrigger className="flex cursor-blue items-center rounded-full border border-[#F4C10B24] bg-gradient-to-b from-[#F4C10B1F] to-[#F8A9291F] px-6 py-2.5 text-xs text-white hover:border-[#F4C10B58] hover:from-[#F4C10B32] hover:to-[#F8A92932]">
         <p>Explore</p>
         <p className="ml-2 mr-1 rounded-full border bg-[#FFFFFF14] px-2 text-[7px]">
           NEW
@@ -34,13 +35,14 @@ const Explore = () => {
 
 export default Explore;
 
-const ListItem = ({
+export const ListItem = ({
   title,
   description,
   icon,
   link,
   color,
   comingSoon,
+  style,
 }: {
   title: string;
   description: string;
@@ -48,6 +50,7 @@ const ListItem = ({
   link: string;
   color: string;
   comingSoon?: boolean;
+  style?: React.CSSProperties;
 }) => {
   const CommonContent = (
     <>
@@ -78,16 +81,26 @@ const ListItem = ({
     </>
   );
 
-  const className = `flex w-72 flex-row items-center justify-start gap-3 rounded-lg p-2  ${
+  const className = `flex w-full md:w-72 flex-row items-center justify-start gap-3 rounded-lg p-2 ${
     comingSoon
       ? "cursor-default opacity-50"
-      : "cursor-blue hover:bg-[#2B2B2B45]"
+      : "cursor-pointer hover:bg-[#2B2B2B45]"
   }`;
 
   return comingSoon ? (
-    <div className={className}>{CommonContent}</div>
+    <div className={className} style={style}>
+      {CommonContent}
+    </div>
   ) : (
-    <a className={className} href={link} target="_blank">
+    <a
+      className={className}
+      href={link}
+      target="_blank"
+      onClick={() => {
+        trackEvent(`explore_item_${title.toLowerCase()}_navbar`);
+      }}
+      style={style}
+    >
       {CommonContent}
     </a>
   );

@@ -9,6 +9,12 @@ import {
 } from "@/components/ui/accordion";
 import { DASHBOARD } from "@/constants/dashboard";
 import { ScrollArea } from "./ui/scroll-area";
+import { trackEvent } from "@openpanel/nextjs";
+import * as NavigationMenu from "@radix-ui/react-navigation-menu";
+import { useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { EXPLOREITEMS } from "@/constants/explore";
+import { ListItem } from "./explore";
 
 const Sidebar = ({
   open,
@@ -17,165 +23,168 @@ const Sidebar = ({
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }) => {
+  const [isExploreOpen, setIsExploreOpen] = useState(false);
+
+  const mobileNavVariants = {
+    hidden: { opacity: 0, y: 10 },
+    visible: (i: number) => ({
+      opacity: 1,
+      y: 0,
+      transition: {
+        delay: i * 0.05,
+        duration: 0.3,
+        ease: "easeOut",
+      },
+    }),
+  };
+
   const closeSidebarHandler = () => {
     setOpen(false);
   };
 
-  const menuVars = {
-    initial: { scaleY: 0 },
-    animate: {
-      scaleY: 1,
-      transition: { duration: 0.5, ease: [0.12, 0, 0.39, 0] },
-    },
-    exit: {
-      scaleY: 0,
-      transition: { delay: 0.5, duration: 0.5, ease: [0.22, 1, 0.36, 1] },
-    },
-  };
-
-  const mobileLinkVars = {
-    initial: {
-      y: "20vh",
-      transition: {
-        duration: 0.5,
-        ease: [0.37, 0, 0.63, 1],
-      },
-    },
-    open: {
-      y: 0,
-      transition: { duration: 0.7, ease: [0, 0.55, 0.45, 1] },
-    },
-  };
-
-  const containerVars = {
-    initial: {
-      transition: { staggerChildren: 0.09, staggerDirection: -1 },
-    },
-    open: {
-      transition: {
-        delayChildren: 0.4,
-        staggerChildren: 0.1,
-        staggerDirection: 1,
-      },
-    },
-  };
-
-  const pathname = usePathname();
-
   return (
-    <AnimatePresence>
+    <>
       {open && (
         <motion.div
-          variants={menuVars}
-          initial="initial"
-          animate="animate"
-          exit="exit"
-          className="fixed z-40 flex h-full w-full origin-top items-center bg-[#0e0e0f] text-white md:hidden"
+          initial="hidden"
+          animate="visible"
+          className="fixed inset-0 top-[65px] z-30 flex h-[calc(100vh-65px)] w-full flex-col overflow-y-auto bg-[#72727212] p-6 font-switzer text-white backdrop-blur-xl transition-all duration-300 ease-linear md:hidden"
         >
-          <button
-            className="absolute right-10 top-10 flex cursor-blue items-center justify-end text-xl"
-            onClick={closeSidebarHandler}
-          >
-            <X size={28} />
-          </button>
-          <motion.div
-            variants={containerVars}
-            initial="initial"
-            animate="open"
-            exit="initial"
-            className="flex size-full flex-col items-center justify-center gap-6 text-lg text-white"
-          >
-            {pathname === "/" ? (
-              <>
-                <div className="overflow-hidden">
-                  <motion.div
-                    onClick={closeSidebarHandler}
-                    variants={mobileLinkVars}
-                  >
-                    <a
-                      className="hover:cursor-blue hover:text-[#FFC500]"
-                      href={"https://www.0xhoneyjar.xyz/"}
-                      target="_blank"
+          <div className="grow p-6">
+            <NavigationMenu.Root>
+              <NavigationMenu.List className="flex flex-col">
+                <motion.div custom={0} variants={mobileNavVariants}>
+                  <NavigationMenu.Item className="border-b border-white/10 py-3">
+                    <NavigationMenu.Trigger
+                      className="group flex w-full items-center justify-between text-white"
+                      onClick={() => setIsExploreOpen(!isExploreOpen)}
                     >
-                      Open App
-                    </a>
-                  </motion.div>
-                </div>
-                <div className="overflow-hidden">
-                  <motion.div
-                    onClick={closeSidebarHandler}
-                    variants={mobileLinkVars}
-                  >
-                    <a
-                      className="hover:cursor-blue hover:text-[#FFC500]"
-                      href={
-                        "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
-                      }
-                      target="_blank"
-                    >
-                      Delegate to THJ
-                    </a>
-                  </motion.div>
-                </div>
-                <div className="overflow-hidden">
-                  <Accordion type="single" collapsible className="w-full">
-                    <AccordionItem value="item-1" className="border-0">
-                      <AccordionTrigger className="w-[100px] cursor-blue gap-2 py-0 hover:text-[#FFC500] hover:no-underline">
+                      <span>Explore</span>
+                      <ChevronDown
+                        className="duration-[250] relative top-px aspect-square h-4 transition-transform ease-in group-data-[state=open]:-rotate-180"
+                        aria-hidden
+                      />
+                    </NavigationMenu.Trigger>
+                    <AnimatePresence initial={false}>
+                      {isExploreOpen && (
                         <motion.div
-                          // onClick={closeSidebarHandler}
-                          variants={mobileLinkVars}
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.3, ease: "easeInOut" }}
                         >
-                          <p className="">Section</p>
-                        </motion.div>
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <ScrollArea className="h-[150px]">
-                          <div className="flex flex-col gap-2">
-                            {DASHBOARD.map(
-                              (section, id) =>
-                                !section.hidden && (
-                                  <button
-                                    key={id}
-                                    // value={section.key}
-                                    onClick={() => {
-                                      const id = document?.getElementById(
-                                        section.key,
-                                      );
-                                      id &&
-                                        id.scrollIntoView({
-                                          behavior: "smooth",
-                                        });
-                                      closeSidebarHandler();
+                          <NavigationMenu.Content className="mt-2 overflow-hidden">
+                            <motion.div
+                              initial={{ y: -10, opacity: 0 }}
+                              animate={{ y: 0, opacity: 1 }}
+                              exit={{ y: -10, opacity: 0 }}
+                              transition={{ duration: 0.2, delay: 0.1 }}
+                            >
+                              <div className="flex flex-col gap-0">
+                                {EXPLOREITEMS.map((item, index) => (
+                                  <ListItem
+                                    key={item.title}
+                                    {...item}
+                                    style={{
+                                      transition: `opacity 0.3s ease, transform 0.3s ease ${index * 0.05}s`,
                                     }}
-                                    className="cursor-blue rounded-lg px-8 py-3 text-left text-sm text-[#E7E7E7] hover:bg-[#FFFFFF2E] hover:font-medium hover:text-white"
-                                  >
-                                    {section.name}
-                                  </button>
-                                ),
-                            )}
-                          </div>
-                        </ScrollArea>
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                </div>
-              </>
-            ) : (
-              <div className="overflow-hidden">
-                <motion.div
-                  onClick={closeSidebarHandler}
-                  variants={mobileLinkVars}
-                >
-                  <a href="/" className="hover:text-[#FFC500]">
-                    Home
-                  </a>
+                                  />
+                                ))}
+                              </div>
+                            </motion.div>
+                          </NavigationMenu.Content>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </NavigationMenu.Item>
                 </motion.div>
-              </div>
-            )}
-          </motion.div>
+                <Accordion type="single" collapsible className="w-full">
+                  <AccordionItem value="item-1" className="border-0">
+                    <AccordionTrigger className="w-full cursor-blue gap-2 border-b border-white/10 py-0 hover:no-underline">
+                      <motion.a
+                        custom={1}
+                        variants={mobileNavVariants}
+                        // onClick={() => {
+                        //   trackEvent("join_us_discord_navbar");
+                        // }}
+                        className="py-3 text-white"
+                      >
+                        Section
+                      </motion.a>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <ScrollArea className="h-[150px]">
+                        <div className="flex flex-col gap-2">
+                          {DASHBOARD.map(
+                            (section, id) =>
+                              !section.hidden && (
+                                <button
+                                  key={id}
+                                  // value={section.key}
+                                  onClick={() => {
+                                    const id = document?.getElementById(
+                                      section.key,
+                                    );
+                                    id &&
+                                      id.scrollIntoView({
+                                        behavior: "smooth",
+                                      });
+                                    closeSidebarHandler();
+                                  }}
+                                  className="cursor-blue rounded-lg px-4 py-3 text-left text-sm"
+                                >
+                                  {section.name}
+                                </button>
+                              ),
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+                <motion.a
+                  custom={2}
+                  variants={mobileNavVariants}
+                  href="https://discord.com/invite/thehoneyjar"
+                  target="_blank"
+                  onClick={() => {
+                    trackEvent("join_us_discord_navbar");
+                  }}
+                  className="border-b border-white/10 py-3 text-white"
+                >
+                  Join Us
+                </motion.a>
+
+                <motion.a
+                  custom={3}
+                  variants={mobileNavVariants}
+                  href="https://0xhoneyjar.xyz"
+                  target="_blank"
+                  onClick={() => {
+                    trackEvent("open_app_navbar");
+                  }}
+                  className="border-b border-white/10 py-3 text-white"
+                >
+                  Open App
+                </motion.a>
+                <motion.a
+                  custom={4}
+                  variants={mobileNavVariants}
+                  href="https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
+                  target="_blank"
+                  onClick={() => {
+                    trackEvent("delegate_to_thj_navbar");
+                  }}
+                  className="border-b border-white/10 py-3 text-white"
+                >
+                  Delegate to THJ
+                </motion.a>
+              </NavigationMenu.List>
+            </NavigationMenu.Root>
+          </div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </>
   );
 };
 

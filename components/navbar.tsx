@@ -9,63 +9,27 @@ import Sidebar from "@/components/sidebar";
 import SectionSelect from "./section-select";
 import AudioPlayer from "@/components/audio/audio-player";
 import { EXPLOREITEMS } from "@/constants/explore";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   NavigationMenu,
   NavigationMenuItem,
   NavigationMenuList,
 } from "@/components/ui/navigation-menu";
 import Explore from "./explore";
+import { Menu, X } from "lucide-react";
 
 const Navbar = () => {
-  const [toggle, setToggle] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <>
-      <Sidebar open={toggle} setOpen={setToggle} />
-      {/* <div
-        className={`z-30 w-full fixed top-0 md:h-24 h-20 border-b border-[#C8C8C842] bg-[#5050500D] backdrop-blur-xl max-w-[112rem]`}
-      >
-        <div className="h-full w-full flex justify-between items-center md:px-20 px-10 relative">
-          <div className="flex items-center md:gap-3 gap-2">
-            <Link
-              className="relative md:h-[40px] h-[30px] aspect-square"
-              href="/"
-            >
-              <Image src={"/thj-logo.png"} alt="logo" fill />
-            </Link>
-            <p className="text-white md:text-base text-sm whitespace-nowrap">
-              For Community
-            </p>
-          </div>
-          <AudioPlayer tracks={TRACKS} />
-          <div className="flex items-center md:gap-4 gap-2">
-            <SectionSelect />
-            <a className="md:px-6 px-4 py-3 bg-[#FFFFFF26] rounded-full text-white cursor-pointer md:text-sm text-xs whitespace-nowrap font-medium">
-              Join Us
-            </a>
-            <a className="md:px-6 px-4 py-3 bg-[#43AA77] rounded-full text-white cursor-pointer md:text-sm text-xs whitespace-nowrap font-medium hover:shadow-evergreen">
-              Delegate to THJ
-            </a>
-            <button
-              className="md:hidden flex flex-col gap-2"
-              onClick={() => setToggle(!toggle)}
-            >
-              <hr className="w-6 border" />
-              <hr className="w-6 border" />
-              <hr className="w-6 border" />
-            </button>
-          </div>
-        </div>
-      </div> */}
+      <Sidebar open={mobileMenuOpen} setOpen={setMobileMenuOpen} />
       <div
-        className="fixed inset-x-0 top-5 z-30 mx-auto flex w-fit divide-x divide-[#FFFFFF1F] rounded-full border border-[#FFFFFF14] bg-[#7272721F] backdrop-blur-xl"
+        className="fixed inset-x-0 top-0 z-30 mx-auto flex w-full justify-between border-b border-[#FFFFFF14] bg-[#7272721F] backdrop-blur-xl md:top-5 md:w-fit md:rounded-full md:border lg:gap-24"
         // style={{ boxShadow: "0px 2px 56px #0000001F" }}
       >
-        <div className="flex items-center gap-2 px-4 py-2 md:gap-3">
-          <Link
-            className="relative aspect-square h-[30px] cursor-blue"
-            href="/"
-          >
+        <div className="flex items-center gap-2 border-r border-white/10 px-4 py-3 md:gap-3 md:py-2">
+          <Link className="relative aspect-square h-10 cursor-blue" href="/">
             <Image src={"/thj-logo.png"} alt="logo" fill />
           </Link>
           <p className="whitespace-nowrap text-[10px] text-white md:text-xs">
@@ -74,8 +38,8 @@ const Navbar = () => {
         </div>
         <div className="flex items-center px-4 py-2">
           {/* <div className=""> */}
-          <NavigationMenu className="items-center md:ml-16 lg:ml-28">
-            <NavigationMenuList className="text-xs md:space-x-3 lg:text-sm">
+          <NavigationMenu className="hidden items-center md:flex">
+            <NavigationMenuList className="text-xs md:space-x-3">
               <Explore />
               <SectionSelect />
               <NavigationMenuItem>
@@ -100,27 +64,33 @@ const Navbar = () => {
               </NavigationMenuItem>
             </NavigationMenuList>
           </NavigationMenu>
-          {/* <button className="flex h-[36px] items-center gap-2 rounded-full border border-[#F4C10B]/50 bg-gradient-to-b from-[#F4C10B1F] to-[#F8A9291F] px-4 text-xs font-medium text-white md:px-6 md:text-sm">
-              <p>Explore</p>
-              <p className="rounded-full border bg-[#FFFFFF14] px-2 text-[7px]">
-                NEW
-              </p>
-            </button>
-            <SectionSelect />
-            <a className="flex h-[36px] cursor-pointer items-center whitespace-nowrap rounded-full bg-[#FFFFFF0F] px-4 text-xs font-medium text-white md:px-6 md:text-sm">
-              Join Us
-            </a>
-            <a className="flex h-[36px] cursor-pointer items-center whitespace-nowrap rounded-full bg-[#43AA77] px-4 text-xs font-medium text-white hover:shadow-evergreen md:px-6 md:text-sm">
-              Delegate to THJ
-            </a> */}
-          {/* </div> */}
           <button
-            className="flex flex-col gap-1.5 md:hidden"
-            onClick={() => setToggle(!toggle)}
+            className="md:hidden"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
-            <hr className="w-6 border" />
-            <hr className="w-6 border" />
-            <hr className="w-6 border" />
+            <AnimatePresence mode="wait" initial={false}>
+              {mobileMenuOpen ? (
+                <motion.div
+                  key="close"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.1 }}
+                >
+                  <X className="text-white" size={24} />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="menu"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.1 }}
+                >
+                  <Menu className="text-white" size={24} />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </button>
         </div>
       </div>
