@@ -158,7 +158,7 @@ const Sidebar = ({
                 <motion.a
                   custom={3}
                   variants={mobileNavVariants}
-                  href="https://0xhoneyjar.xyz"
+                  href="https://app.0xhoneyjar.xyz/"
                   target="_blank"
                   onClick={() => {
                     trackEvent("open_app_navbar");
