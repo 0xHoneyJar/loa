@@ -50,138 +50,138 @@ const Sidebar = ({
           animate="visible"
           className="fixed inset-0 top-[65px] z-30 flex h-[calc(100vh-65px)] w-full flex-col overflow-y-auto bg-[#72727212] p-6 font-switzer text-white backdrop-blur-xl transition-all duration-300 ease-linear md:hidden"
         >
-          <div className="grow p-6">
-            <NavigationMenu.Root>
-              <NavigationMenu.List className="flex flex-col">
-                <motion.div custom={0} variants={mobileNavVariants}>
-                  <NavigationMenu.Item className="border-b border-white/10 py-3">
-                    <NavigationMenu.Trigger
-                      className="group flex w-full items-center justify-between text-white"
-                      onClick={() => setIsExploreOpen(!isExploreOpen)}
-                    >
-                      <span>Explore</span>
-                      <ChevronDown
-                        className="duration-[250] relative top-px aspect-square h-4 transition-transform ease-in group-data-[state=open]:-rotate-180"
-                        aria-hidden
-                      />
-                    </NavigationMenu.Trigger>
-                    <AnimatePresence initial={false}>
-                      {isExploreOpen && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.3, ease: "easeInOut" }}
-                        >
-                          <NavigationMenu.Content className="mt-2 overflow-hidden">
-                            <motion.div
-                              initial={{ y: -10, opacity: 0 }}
-                              animate={{ y: 0, opacity: 1 }}
-                              exit={{ y: -10, opacity: 0 }}
-                              transition={{ duration: 0.2, delay: 0.1 }}
-                            >
-                              <div className="flex flex-col gap-0">
-                                {EXPLOREITEMS.map((item, index) => (
-                                  <ListItem
-                                    key={item.title}
-                                    {...item}
-                                    style={{
-                                      transition: `opacity 0.3s ease, transform 0.3s ease ${index * 0.05}s`,
-                                    }}
-                                  />
-                                ))}
-                              </div>
-                            </motion.div>
-                          </NavigationMenu.Content>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </NavigationMenu.Item>
-                </motion.div>
-                <Accordion type="single" collapsible className="w-full">
-                  <AccordionItem value="item-1" className="border-0">
-                    <AccordionTrigger className="w-full cursor-blue gap-2 border-b border-white/10 py-0 hover:no-underline">
-                      <motion.a
-                        custom={1}
-                        variants={mobileNavVariants}
-                        // onClick={() => {
-                        //   trackEvent("join_us_discord_navbar");
-                        // }}
-                        className="py-3 text-white"
+          {/* <div className="grow p-6"> */}
+          <NavigationMenu.Root>
+            <NavigationMenu.List className="flex flex-col">
+              <motion.div custom={0} variants={mobileNavVariants}>
+                <NavigationMenu.Item className="border-b border-white/10 py-3">
+                  <NavigationMenu.Trigger
+                    className="group flex w-full items-center justify-between text-white"
+                    onClick={() => setIsExploreOpen(!isExploreOpen)}
+                  >
+                    <span>Explore</span>
+                    <ChevronDown
+                      className="duration-[250] relative top-px aspect-square h-4 transition-transform ease-in group-data-[state=open]:-rotate-180"
+                      aria-hidden
+                    />
+                  </NavigationMenu.Trigger>
+                  <AnimatePresence initial={false}>
+                    {isExploreOpen && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3, ease: "easeInOut" }}
                       >
-                        Section
-                      </motion.a>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <ScrollArea className="h-[150px]">
-                        <div className="flex flex-col gap-2">
-                          {DASHBOARD.map(
-                            (section, id) =>
-                              !section.hidden && (
-                                <button
-                                  key={id}
-                                  // value={section.key}
-                                  onClick={() => {
-                                    const id = document?.getElementById(
-                                      section.key,
-                                    );
-                                    id &&
-                                      id.scrollIntoView({
-                                        behavior: "smooth",
-                                      });
-                                    closeSidebarHandler();
+                        <NavigationMenu.Content className="mt-2 overflow-hidden">
+                          <motion.div
+                            initial={{ y: -10, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            exit={{ y: -10, opacity: 0 }}
+                            transition={{ duration: 0.2, delay: 0.1 }}
+                          >
+                            <div className="flex flex-col gap-0">
+                              {EXPLOREITEMS.map((item, index) => (
+                                <ListItem
+                                  key={item.title}
+                                  {...item}
+                                  style={{
+                                    transition: `opacity 0.3s ease, transform 0.3s ease ${index * 0.05}s`,
                                   }}
-                                  className="cursor-blue rounded-lg px-4 py-3 text-left text-sm"
-                                >
-                                  {section.name}
-                                </button>
-                              ),
-                          )}
-                        </div>
-                      </ScrollArea>
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
-                <motion.a
-                  custom={2}
-                  variants={mobileNavVariants}
-                  href="https://discord.com/invite/thehoneyjar"
-                  target="_blank"
-                  onClick={() => {
-                    trackEvent("join_us_discord_navbar");
-                  }}
-                  className="border-b border-white/10 py-3 text-white"
-                >
-                  Join Us
-                </motion.a>
+                                />
+                              ))}
+                            </div>
+                          </motion.div>
+                        </NavigationMenu.Content>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </NavigationMenu.Item>
+              </motion.div>
+              <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="item-1" className="border-0">
+                  <AccordionTrigger className="w-full cursor-blue gap-2 border-b border-white/10 py-0 hover:no-underline">
+                    <motion.a
+                      custom={1}
+                      variants={mobileNavVariants}
+                      // onClick={() => {
+                      //   trackEvent("join_us_discord_navbar");
+                      // }}
+                      className="py-3 text-white"
+                    >
+                      Section
+                    </motion.a>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <ScrollArea className="h-[150px]">
+                      <div className="flex flex-col gap-2">
+                        {DASHBOARD.map(
+                          (section, id) =>
+                            !section.hidden && (
+                              <button
+                                key={id}
+                                // value={section.key}
+                                onClick={() => {
+                                  const id = document?.getElementById(
+                                    section.key,
+                                  );
+                                  id &&
+                                    id.scrollIntoView({
+                                      behavior: "smooth",
+                                    });
+                                  closeSidebarHandler();
+                                }}
+                                className="cursor-blue rounded-lg px-4 py-3 text-left text-sm"
+                              >
+                                {section.name}
+                              </button>
+                            ),
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+              <motion.a
+                custom={2}
+                variants={mobileNavVariants}
+                href="https://discord.com/invite/thehoneyjar"
+                target="_blank"
+                onClick={() => {
+                  trackEvent("join_us_discord_navbar");
+                }}
+                className="border-b border-white/10 py-3 text-white"
+              >
+                Join Us
+              </motion.a>
 
-                <motion.a
-                  custom={3}
-                  variants={mobileNavVariants}
-                  href="https://app.0xhoneyjar.xyz/"
-                  target="_blank"
-                  onClick={() => {
-                    trackEvent("open_app_navbar");
-                  }}
-                  className="border-b border-white/10 py-3 text-white"
-                >
-                  Open App
-                </motion.a>
-                <motion.a
-                  custom={4}
-                  variants={mobileNavVariants}
-                  href="https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
-                  target="_blank"
-                  onClick={() => {
-                    trackEvent("delegate_to_thj_navbar");
-                  }}
-                  className="border-b border-white/10 py-3 text-white"
-                >
-                  Delegate to THJ
-                </motion.a>
-              </NavigationMenu.List>
-            </NavigationMenu.Root>
-          </div>
+              <motion.a
+                custom={3}
+                variants={mobileNavVariants}
+                href="https://app.0xhoneyjar.xyz/"
+                target="_blank"
+                onClick={() => {
+                  trackEvent("open_app_navbar");
+                }}
+                className="border-b border-white/10 py-3 text-white"
+              >
+                Open App
+              </motion.a>
+              <motion.a
+                custom={4}
+                variants={mobileNavVariants}
+                href="https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
+                target="_blank"
+                onClick={() => {
+                  trackEvent("delegate_to_thj_navbar");
+                }}
+                className="border-b border-white/10 py-3 text-white"
+              >
+                Delegate to THJ
+              </motion.a>
+            </NavigationMenu.List>
+          </NavigationMenu.Root>
+          {/* </div> */}
         </motion.div>
       )}
     </>
