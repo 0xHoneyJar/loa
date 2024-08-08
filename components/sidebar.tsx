@@ -48,7 +48,7 @@ const Sidebar = ({
         <motion.div
           initial="hidden"
           animate="visible"
-          className="fixed inset-0 top-[65px] z-30 flex h-[calc(100vh-65px)] w-full flex-col overflow-y-auto bg-[#72727212] p-6 font-switzer text-white backdrop-blur-xl transition-all duration-300 ease-linear md:hidden"
+          className="fixed inset-0 top-[65px] z-30 flex h-[calc(100vh-65px)] w-full flex-col overflow-y-auto bg-[#72727212] p-6 pb-32 font-switzer text-white backdrop-blur-xl transition-all duration-300 ease-linear md:hidden"
         >
           {/* <div className="grow p-6"> */}
           <NavigationMenu.Root>
