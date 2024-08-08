@@ -12,7 +12,7 @@ export const EXPLOREITEMS: ListItemData[] = [
     title: "For Community",
     description: "The front page of The Honey Jar",
     icon: "/navbar/community.png",
-    link: "https://community.0xhoneyjar.xyz/",
+    link: "https://0xhoneyjar.xyz/",
     color: "#2C2610",
   },
   {
@@ -54,7 +54,7 @@ export const EXPLOREITEMS: ListItemData[] = [
     title: "THJ App",
     description: "Old, but gold",
     icon: "/navbar/thj.png",
-    link: "https://www.0xhoneyjar.xyz/",
+    link: "https://app.0xhoneyjar.xyz/",
     color: "#122618",
   },
   {
