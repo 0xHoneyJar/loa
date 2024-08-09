@@ -26,10 +26,10 @@ const Spotlight = ({ spotlight }: { spotlight?: any }) => {
       <div className="flex grow flex-col items-center gap-4 p-4 md:p-6">
         <div className="relative flex h-3/5 w-full shrink-0 overflow-hidden rounded-lg border border-[#1C1C1C]">
           <S3Image
-            src={"/community/spotlight-image.png"}
+            src={spotlight.image}
             fill
             alt="spotlight"
-            className="z-[-1] object-cover"
+            className="object-cover"
           />
         </div>
         <div className="relative flex size-full flex-col overflow-hidden">

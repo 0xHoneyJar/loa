@@ -90,7 +90,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
           width={1000}
           fill
           alt="Quest Background"
-          className="z-[-1] object-cover opacity-70"
+          className="object-cover opacity-70"
         />
         {upcomingQuest ? (
           <div className="flex size-full flex-col items-center justify-center">

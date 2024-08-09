@@ -91,7 +91,7 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
           width={1000}
           fill
           alt="Quest Background"
-          className="z-[-1] object-cover opacity-70"
+          className="object-cover opacity-70"
         />
 
         {upcomingRaffle ? (
