@@ -9,15 +9,15 @@ import { OpenpanelProvider } from "@openpanel/nextjs";
 
 export const metadata: Metadata = {
   // metadataBase: new URL(""),
-  title: "THJ Community",
-  description: "",
+  title: "TheHoneyJar",
+  description: "THJ is Berachain-native community...",
   openGraph: {
     type: "website",
     title: "",
     description: "",
     images: [
       {
-        url: "https://res.cloudinary.com/honeyjar/image/upload/v1677023883/THJ_WebBanner.jpg",
+        url: "/metadata_bg.png",
       },
     ],
   },
