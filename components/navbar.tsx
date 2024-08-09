@@ -3,12 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { TRACKS } from "@/constants/tracks";
-import { ChevronDown } from "lucide-react";
 import Sidebar from "@/components/sidebar";
 import SectionSelect from "./section-select";
-import AudioPlayer from "@/components/audio/audio-player";
-import { EXPLOREITEMS } from "@/constants/explore";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   NavigationMenu,
@@ -17,6 +13,7 @@ import {
 } from "@/components/ui/navigation-menu";
 import Explore from "./explore";
 import { Menu, X } from "lucide-react";
+import { trackEvent } from "@openpanel/nextjs";
 
 const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -32,7 +29,7 @@ const Navbar = () => {
           <Link className="relative aspect-square h-10 cursor-blue" href="/">
             <Image src={"/thj-logo.png"} alt="logo" fill />
           </Link>
-          <p className="whitespace-nowrap text-[10px] text-white md:text-xs">
+          <p className="hidden whitespace-nowrap text-[10px] text-white md:flex md:text-xs">
             For Community
           </p>
         </div>
@@ -47,6 +44,9 @@ const Navbar = () => {
                   href={"https://app.0xhoneyjar.xyz/"}
                   target="_blank"
                   className="hidden cursor-blue items-center whitespace-nowrap rounded-full bg-[#F4C10B]/80 px-6 py-2.5 font-medium text-white hover:shadow-yellow md:flex"
+                  onClick={() => {
+                    trackEvent("open_app_navbar");
+                  }}
                 >
                   Open App
                 </a>
@@ -58,6 +58,9 @@ const Navbar = () => {
                   }
                   target="_blank"
                   className="hidden cursor-blue items-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 py-2.5 font-medium text-white hover:shadow-evergreen md:flex"
+                  onClick={() => {
+                    trackEvent("delegate_navbar");
+                  }}
                 >
                   Delegate to THJ
                 </a>

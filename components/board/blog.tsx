@@ -1,6 +1,5 @@
 import { ArrowUpRight } from "lucide-react";
 import Image from "next/image";
-import DragHandleY from "../drag-handle-y";
 import { useState } from "react";
 import { BLOGS } from "@/constants/blog";
 import {
@@ -13,21 +12,16 @@ import {
 import { trackEvent } from "@openpanel/nextjs";
 
 const Blog = () => {
-  const [glow, setGlow] = useState(false);
   return (
     <div
-      className={`relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017] ${glow && "rotate-1"}`}
+      className={`relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
     >
       <div className="absolute -top-40 h-1 w-full" id="blog" />
       <Carousel className="flex h-full flex-col" opts={{ dragFree: true }}>
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
         <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6">
-          <div
-            className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
-          />
           <div className="flex items-center gap-2">
-            <DragHandleY setGlow={setGlow} />
-            <p className="text-sm font-medium text-[#FFD700] md:text-base">
+            <p className="text-base font-medium text-[#FFD700] md:text-lg">
               Our Blog
             </p>
           </div>
@@ -59,13 +53,13 @@ const Blog = () => {
               <a
                 href={"https://0xhoneyjar.mirror.xyz/"}
                 target="_blank"
+                className="z-10 flex items-center gap-1 whitespace-nowrap rounded-full border border-[#3B3B3B] bg-[#5A5A5A]/30 px-2 py-1 text-xs backdrop-blur-lg hover:cursor-blue hover:border-white/20 hover:bg-white/25 md:px-3 md:py-2 md:text-sm lg:px-4"
                 onClick={() => {
                   trackEvent(`read_now_blog`);
                 }}
-                className="z-10 flex items-center gap-1 whitespace-nowrap rounded-full border border-[#3B3B3B] bg-[#5A5A5A]/30 px-2 py-1 text-xs backdrop-blur-lg hover:cursor-blue hover:border-white/20 hover:bg-white/25 md:px-3 md:py-2 md:text-sm lg:px-4 lg:text-base"
               >
                 Read Now
-                <ArrowUpRight className="aspect-square h-4 md:h-5 lg:h-6" />
+                <ArrowUpRight className="aspect-square h-4 md:h-5" />
               </a>
             </div>
           </CarouselItem>

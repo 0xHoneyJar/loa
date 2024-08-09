@@ -1,10 +1,3 @@
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
 import { DASHBOARD } from "@/constants/dashboard";
 import {
   NavigationMenuItem,
@@ -16,45 +9,13 @@ import { ScrollArea } from "./ui/scroll-area";
 
 const SectionSelect = () => {
   return (
-    // <Select
-    //   onValueChange={(value: any) => {
-    //     const section = document.getElementById(value);
-    //     section && section.scrollIntoView({ behavior: "smooth" });
-    //   }}
-    // >
-    //   <SelectTrigger className="flex h-[36px] items-center gap-1 rounded-full bg-[#FFFFFF0F] px-4 text-xs text-white md:px-6 md:text-sm">
-    //     <p>Section</p>
-    //   </SelectTrigger>
-    //   <SelectContent
-    //     align="center"
-    //     sideOffset={30}
-    //     className="relative max-h-[490px] w-[220px] items-center rounded-xl border border-[#171717] bg-[#0F0F0F] p-1"
-    //   >
-    //     {/* <div className="h-1/6 w-full absolute bottom-0 bg-gradient-to-t from-[#0F0F0F] z-10" /> */}
-    //     <SelectGroup className="flex flex-col gap-2">
-    //       {DASHBOARD.map(
-    //         (section, id) =>
-    //           !section.hidden && (
-    //             <SelectItem
-    //               key={id}
-    //               value={section.key}
-    //               className="rounded-lg py-3 text-sm text-[#E7E7E7] focus:bg-[#FFFFFF2E] focus:font-medium focus:text-white"
-    //             >
-    //               {section.name}
-    //             </SelectItem>
-    //           ),
-    //       )}
-    //     </SelectGroup>
-    //   </SelectContent>
-    // </Select>
-    <NavigationMenuItem>
+    <NavigationMenuItem className="">
       <NavigationMenuTrigger className="hidden cursor-blue items-center gap-1 rounded-full bg-[#FFFFFF0F] px-6 py-2.5 text-xs text-white hover:bg-white/30 md:flex">
         Section
       </NavigationMenuTrigger>
-      <NavigationMenuContent className="left-32 top-[60px] data-[motion=from-end]:animate-enterFromRight data-[motion=from-start]:animate-enterFromLeft data-[motion=to-end]:animate-exitToRight data-[motion=to-start]:animate-exitToLeft data-[state=closed]:animate-scaleOut data-[state=open]:animate-scaleIn">
+      <NavigationMenuContent className="left-32 top-[48px] data-[motion=from-end]:animate-enterFromRight data-[motion=from-start]:animate-enterFromLeft data-[motion=to-end]:animate-exitToRight data-[motion=to-start]:animate-exitToLeft data-[state=closed]:animate-scaleOut data-[state=open]:animate-scaleIn">
         <ScrollArea className="relative h-[490px] w-[220px] items-center rounded-xl border border-[#171717] bg-[#0F0F0F] p-1">
-          {/* <div className="h-1/6 w-full absolute bottom-0 bg-gradient-to-t from-[#0F0F0F] z-10" /> */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1 p-2 pr-4">
             {DASHBOARD.map(
               (section, id) =>
                 !section.hidden && (
@@ -68,7 +29,7 @@ const SectionSelect = () => {
                           behavior: "smooth",
                         });
                     }}
-                    className="cursor-blue rounded-lg px-8 py-3 text-left text-sm text-[#E7E7E7] hover:bg-[#FFFFFF2E] hover:font-medium hover:text-white"
+                    className="cursor-blue rounded-lg px-3 py-3 text-left text-sm text-[#D4D4D4] hover:bg-[#2B2B2B45] hover:text-white"
                   >
                     {section.name}
                   </button>

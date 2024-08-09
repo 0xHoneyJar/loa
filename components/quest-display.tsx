@@ -62,7 +62,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
       <div
         onMouseEnter={() => !upcomingQuest && !endedQuest && setHover(true)}
         onMouseLeave={() => !upcomingQuest && !endedQuest && setHover(false)}
-        className={`relative flex h-[85%] w-full flex-col justify-between overflow-hidden rounded-lg border border-[#3A3A3A] px-2 py-4`}
+        className={`relative flex h-[85%] w-full flex-col justify-between overflow-hidden rounded-lg border border-[#3A3A3A] p-3`}
       >
         <div
           className={`absolute bottom-0 left-0 h-1/2 w-full bg-gradient-to-t from-black ${endedQuest && "hidden"}`}
@@ -73,7 +73,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
           </div>
         )}
         {hover && (
-          <div className="absolute left-0 top-0 z-50 flex size-full cursor-blue items-center justify-center bg-black/75">
+          <div className="absolute left-0 top-0 z-10 flex size-full cursor-blue items-center justify-center bg-black/75">
             <a
               href={`https://faucet.0xhoneyjar.xyz/quests/${quest.slug}`}
               target="_blank"
@@ -101,7 +101,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-1 md:gap-2">
+            <div className="z-0 flex items-center gap-1 md:gap-3">
               {quest.reward.map((reward, id) => (
                 <div
                   className="relative z-20 aspect-square h-[38px] md:h-[45px]"
@@ -117,28 +117,28 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
                 </div>
               ))}
               {newQuest && (
-                <div className="flex w-fit items-center gap-2 rounded-full border border-[#F4C10B] bg-[#F4C10B]/10 px-2 py-1 backdrop-blur-sm">
-                  <div className="relative aspect-square h-[10px] rounded-full bg-[#F4C10B]">
-                    <div className="absolute aspect-square h-full w-full animate-ping rounded-full bg-[#F4C10B]" />
+                <div className="flex w-fit items-center gap-2 rounded-lg border border-[#F4C10B] bg-[#F4C10B]/10 px-2 py-1 backdrop-blur-sm">
+                  <div className="relative aspect-square h-2 rounded-lg bg-[#F4C10B]">
+                    <div className="absolute aspect-square h-full w-full animate-ping rounded-lg bg-[#F4C10B]" />
                   </div>
                   <p className="text-[10px] text-[#F4C10B]">NEW</p>
                 </div>
               )}
             </div>
-            <div className="flex w-full flex-col-reverse gap-2 xl:h-[40px] xl:flex-row xl:gap-3">
-              <div className="h-8 w-full rounded-full border border-[#737373]/60 bg-[#D8D8D8]/20 p-1 backdrop-blur-sm xl:h-full">
-                <div className="relative flex h-full w-full items-center overflow-hidden rounded-full bg-[#75643C]">
+            <div className="flex w-full flex-col-reverse gap-2 xl:h-[40px] xl:flex-row">
+              <div className="h-8 w-full rounded-lg border border-[#737373]/60 bg-[#D8D8D8]/20 p-1 backdrop-blur-sm xl:h-full">
+                <div className="relative flex h-full w-full items-center overflow-hidden rounded-lg bg-[#75643C]">
                   <motion.div
-                    className="h-full rounded-full bg-[#F8A929]"
+                    className="h-full rounded-lg bg-[#F8A929]"
                     initial={false}
                     animate={{ width: `${width}%` }}
                     // transition={{ duration: 0.5, ease: "linear" }}
                   />
-                  <p className="absolute left-4 text-[10px]">{timeRemaining}</p>
+                  <p className="absolute left-2 text-xs">{timeRemaining}</p>
                 </div>
               </div>
-              <div className="flex h-8 w-fit items-center gap-1 rounded-full border border-[#747474]/60 bg-[#D8D8D8]/20 px-3 backdrop-blur-sm xl:h-full">
-                <div className="relative aspect-square h-[18px]">
+              <div className="flex h-8 w-fit items-center gap-1 rounded-lg border border-[#747474]/60 bg-[#D8D8D8]/20 px-2 backdrop-blur-sm xl:h-full">
+                <div className="relative aspect-square h-4">
                   <Image
                     src={"/users.svg"}
                     alt=""
@@ -146,9 +146,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
                     className="object-contain"
                   />
                 </div>
-                <p className="text-xs md:text-sm">
-                  {questData?.numParticipants ?? 0}
-                </p>
+                <p className="text-xs">{questData?.numParticipants ?? 0}</p>
               </div>
             </div>
           </>
@@ -165,7 +163,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
           <div className="flex items-center gap-1">
             {quest.logo?.map((logo, id) => (
               <div
-                className="relative aspect-square h-5 overflow-hidden rounded-full md:h-[24px]"
+                className="relative aspect-square h-5 overflow-hidden rounded-full"
                 key={id}
               >
                 <S3Image

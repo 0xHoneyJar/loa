@@ -6,7 +6,7 @@ import {
   CarouselNext,
 } from "@/components/ui/carousel";
 import Image from "next/image";
-import { ArrowUpRight, LockKeyhole } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { useMemo } from "react";
 
 const NewPartners = ({ partners }: { partners?: any }) => {
@@ -25,13 +25,12 @@ const NewPartners = ({ partners }: { partners?: any }) => {
       <Carousel className="flex h-full flex-col" opts={{ dragFree: true }}>
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6">
-          <div className="flex items-center gap-2">
-            <LockKeyhole className="aspect-square h-5 text-[#FFD7004D] md:h-[26px]" />
-            <p className="md:text-basel whitespace-nowrap text-base font-medium text-[#FFD700]">
+          <div className="flex items-center gap-3">
+            <p className="whitespace-nowrap text-base font-medium text-[#FFD700] md:text-lg">
               New Partners
             </p>
             <div className="hidden items-center gap-2 rounded-full border border-[#F8A9291F] bg-gradient-to-r from-[#F5D0110D] to-[#F8A9290D] px-2 py-1 sm:flex">
-              <div className="relative aspect-square h-4 md:h-5">
+              <div className="relative aspect-square h-4">
                 <Image
                   src={"/rise.svg"}
                   alt="rise"
@@ -39,7 +38,7 @@ const NewPartners = ({ partners }: { partners?: any }) => {
                   className="object-contain"
                 />
               </div>
-              <p className="whitespace-nowrap bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-xs font-medium text-transparent md:text-sm">
+              <p className="whitespace-nowrap bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-xs font-medium text-transparent">
                 On The Rise
               </p>
             </div>

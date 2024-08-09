@@ -1,26 +1,17 @@
 import Image from "next/image";
-import { Map, ChevronRight, ArrowRight, HelpCircle } from "lucide-react";
-import { motion } from "framer-motion";
-import { useState } from "react";
-import DragHandle from "../drag-handle";
+import { Map, ChevronRight } from "lucide-react";
 import { trackEvent } from "@openpanel/nextjs";
 
 const Partners = ({ partners }: { partners?: any }) => {
-  const [hover, setHover] = useState(false);
-  const [glow, setGlow] = useState(false);
   return (
     <div
-      className={`${glow && "rotate-1"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D]`}
+      className={`relative col-span-full row-span-1 flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D]`}
     >
       <div className="absolute -top-40 h-1 w-full" id="partners" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#43AA77]" />
       <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-[72px] md:px-6">
-        <div
-          className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#43AA77] blur-2xl ${glow ? "flex" : "hidden"}`}
-        />
         <div className="flex items-center gap-2">
-          <DragHandle setGlow={setGlow} />
-          <p className="text-sm font-medium text-white md:text-base">
+          <p className="text-base font-medium text-white md:text-lg">
             Partners
           </p>
         </div>
@@ -32,7 +23,7 @@ const Partners = ({ partners }: { partners?: any }) => {
             them are providing perks to Honeycomb holders.
           </p>
           <div className="relative w-full rounded-xl bg-[#43AA772E] px-4 py-6">
-            <p className="text-2xl font-medium text-[#00AB55] md:text-3xl xl:text-4xl">
+            <p className="text-3xl font-medium text-[#00AB55]">
               {partners?.length}
             </p>
             <p className="absolute bottom-2 right-2 flex items-center text-[10px] text-[#A9A9A9] md:text-xs">
@@ -41,7 +32,7 @@ const Partners = ({ partners }: { partners?: any }) => {
             </p>
           </div>
           <div className="relative w-full rounded-xl bg-[#43AA772E] px-4 py-6">
-            <p className="w-full truncate text-2xl font-medium text-[#00AB55] md:text-3xl xl:text-4xl">
+            <p className="w-full truncate text-3xl font-medium text-[#00AB55]">
               $11,000,000+
             </p>
             <p className="absolute bottom-2 right-2 flex items-center text-[10px] text-[#A9A9A9] md:text-xs">
@@ -112,30 +103,8 @@ const Partners = ({ partners }: { partners?: any }) => {
                 trackEvent(`become_partner_partners`);
               }}
             >
-              <button
-                onMouseEnter={() => setHover(true)}
-                onMouseLeave={() => setHover(false)}
-                style={{
-                  justifyContent: !hover ? "flex-start" : "flex-end",
-                }}
-                className="flex w-full items-center rounded-full bg-[#43AA77] px-2 py-1 text-sm font-semibold text-black hover:cursor-blue md:text-base xl:text-lg"
-              >
-                <motion.div
-                  layout
-                  className={`z-10 flex aspect-square h-6 items-center justify-center rounded-full md:h-8 ${
-                    hover ? "bg-white" : "bg-[#171717]"
-                  }`}
-                  transition={{ duration: 0.3 }}
-                >
-                  <ArrowRight className="text-[#43AA77]" />
-                </motion.div>
-                <p
-                  className={`absolute inset-x-0 mx-auto text-xs md:text-sm lg:left-6 xl:left-0 ${
-                    hover && "text-white"
-                  }`}
-                >
-                  Become a Partner
-                </p>
+              <button className="flex w-full items-center justify-center rounded-full bg-[#43AA77] p-3 text-sm font-medium text-black hover:cursor-blue hover:shadow-evergreen md:text-base xl:text-lg">
+                <p className="text-sm">Become a Partner</p>
               </button>
             </a>
           </div>

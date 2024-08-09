@@ -1,5 +1,4 @@
 import { useState } from "react";
-import DragHandleY from "../drag-handle-y";
 import { ChevronRight } from "lucide-react";
 import Image from "next/image";
 import useUserStore from "@/state/user/useUserStore";
@@ -10,7 +9,6 @@ import RaffleDisplay from "../raffle-display";
 import { trackEvent } from "@openpanel/nextjs";
 
 const Raffles = () => {
-  const [glow, setGlow] = useState(false);
   const currentTime = useUserStore((state) => state.currentTime);
   const [raffles, setRaffles] = useState<Raffle[]>([]);
 
@@ -46,18 +44,12 @@ const Raffles = () => {
   }, []);
 
   return (
-    <div
-      className={`${glow && "rotate-1"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
-    >
+    <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]">
       <div className="absolute -top-40 h-1 w-full" id="raffles" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
       <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6">
-        <div
-          className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
-        />
         <div className="flex items-center gap-2">
-          <DragHandleY setGlow={setGlow} />
-          <p className="text-sm font-medium text-[#FFD700] md:text-base">
+          <p className="text-base font-medium text-[#FFD700] md:text-lg">
             Raffles
           </p>
         </div>

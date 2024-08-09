@@ -1,6 +1,4 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { usePathname } from "next/navigation";
-import { X } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -24,6 +22,7 @@ const Sidebar = ({
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }) => {
   const [isExploreOpen, setIsExploreOpen] = useState(false);
+  const [isSectionOpen, setIsSectionOpen] = useState(false);
 
   const mobileNavVariants = {
     hidden: { opacity: 0, y: 10 },
@@ -50,7 +49,6 @@ const Sidebar = ({
           animate="visible"
           className="fixed inset-0 top-[65px] z-30 flex h-[calc(100vh-65px)] w-full flex-col overflow-y-auto bg-[#72727212] p-6 pb-32 font-switzer text-white backdrop-blur-xl transition-all duration-300 ease-linear md:hidden"
         >
-          {/* <div className="grow p-6"> */}
           <NavigationMenu.Root>
             <NavigationMenu.List className="flex flex-col">
               <motion.div custom={0} variants={mobileNavVariants}>
@@ -98,50 +96,65 @@ const Sidebar = ({
                   </AnimatePresence>
                 </NavigationMenu.Item>
               </motion.div>
-              <Accordion type="single" collapsible className="w-full">
-                <AccordionItem value="item-1" className="border-0">
-                  <AccordionTrigger className="w-full cursor-blue gap-2 border-b border-white/10 py-0 hover:no-underline">
-                    <motion.a
-                      custom={1}
-                      variants={mobileNavVariants}
-                      // onClick={() => {
-                      //   trackEvent("join_us_discord_navbar");
-                      // }}
-                      className="py-3 text-white"
-                    >
-                      Section
-                    </motion.a>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <ScrollArea className="h-[150px]">
-                      <div className="flex flex-col gap-2">
-                        {DASHBOARD.map(
-                          (section, id) =>
-                            !section.hidden && (
-                              <button
-                                key={id}
-                                // value={section.key}
-                                onClick={() => {
-                                  const id = document?.getElementById(
-                                    section.key,
-                                  );
-                                  id &&
-                                    id.scrollIntoView({
-                                      behavior: "smooth",
-                                    });
-                                  closeSidebarHandler();
-                                }}
-                                className="cursor-blue rounded-lg px-4 py-3 text-left text-sm"
-                              >
-                                {section.name}
-                              </button>
-                            ),
-                        )}
-                      </div>
-                    </ScrollArea>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
+              <motion.div custom={1} variants={mobileNavVariants}>
+                <NavigationMenu.Item className="border-b border-white/10 py-3">
+                  <NavigationMenu.Trigger
+                    className="group flex w-full items-center justify-between text-white"
+                    onClick={() => setIsSectionOpen(!isSectionOpen)}
+                  >
+                    <span>Section</span>
+                    <ChevronDown
+                      className="duration-[250] relative top-px aspect-square h-4 transition-transform ease-in group-data-[state=open]:-rotate-180"
+                      aria-hidden
+                    />
+                  </NavigationMenu.Trigger>
+                  <AnimatePresence initial={false}>
+                    {isSectionOpen && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                      >
+                        <NavigationMenu.Content className="mt-2 overflow-hidden">
+                          <motion.div
+                            initial={{ y: -10, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            exit={{ y: -10, opacity: 0 }}
+                            transition={{ duration: 0.2, delay: 0.1 }}
+                          >
+                            <ScrollArea className="h-[350px]">
+                              <div className="flex flex-col gap-2">
+                                {DASHBOARD.map(
+                                  (section, id) =>
+                                    !section.hidden && (
+                                      <button
+                                        key={id}
+                                        onClick={() => {
+                                          const id = document?.getElementById(
+                                            section.key,
+                                          );
+                                          id &&
+                                            id.scrollIntoView({
+                                              behavior: "smooth",
+                                            });
+                                          closeSidebarHandler();
+                                        }}
+                                        className="cursor-blue rounded-lg px-4 py-3 text-left text-sm text-white"
+                                      >
+                                        {section.name}
+                                      </button>
+                                    ),
+                                )}
+                              </div>
+                            </ScrollArea>
+                          </motion.div>
+                        </NavigationMenu.Content>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </NavigationMenu.Item>
+              </motion.div>
               <motion.a
                 custom={2}
                 variants={mobileNavVariants}
@@ -181,7 +194,6 @@ const Sidebar = ({
               </motion.a>
             </NavigationMenu.List>
           </NavigationMenu.Root>
-          {/* </div> */}
         </motion.div>
       )}
     </>

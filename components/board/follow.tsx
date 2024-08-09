@@ -1,23 +1,16 @@
 import Image from "next/image";
-import DragHandle from "../drag-handle";
-import { useState } from "react";
 import { trackEvent } from "@openpanel/nextjs";
 
 const Follow = () => {
-  const [glow, setGlow] = useState(false);
   return (
     <div
-      className={`flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F] ${glow && "rotate-1"}`}
+      className={`col-span-1 row-span-1 flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]`}
     >
       <div className="absolute -top-40 h-1 w-full" id="follow" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-white" />
       <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#FFFFFF1F] px-4 md:h-[72px] md:px-6 xl:h-20">
-        <div
-          className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#B8B8B8] blur-2xl ${glow ? "flex" : "hidden"}`}
-        />
         <div className="flex items-center gap-2">
-          <DragHandle setGlow={setGlow} />
-          <p className="text-sm font-medium text-white md:text-base">
+          <p className="text-base font-medium text-white md:text-lg">
             Follow Us
           </p>
         </div>

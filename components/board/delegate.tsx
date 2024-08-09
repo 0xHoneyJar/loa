@@ -1,10 +1,7 @@
 import Image from "next/image";
-import { useState } from "react";
-import DragHandle from "../drag-handle";
 import { trackEvent } from "@openpanel/nextjs";
 
 const Delegate = () => {
-  const [glow, setGlow] = useState(false);
   return (
     <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#FFCA0C] bg-gradient-to-br from-[#FFC100] to-[#F8A929] p-2">
       <div className="absolute -top-40 h-1 w-full" id="delegate" />
@@ -26,15 +23,6 @@ const Delegate = () => {
       </div>
       <div className="relative flex size-full flex-col gap-10 rounded-2xl border border-black/50 p-6">
         <div className="flex items-center gap-1">
-          {/* <div className="dragHandle relative aspect-square h-5 md:h-[26px]">
-            <Image
-              src={"/drag-handle.svg"}
-              alt="drag"
-              fill
-              className="object-contain"
-            />
-          </div> */}
-          <DragHandle setGlow={setGlow} />
           <div className="relative aspect-square h-[36px] md:h-[44px]">
             <Image
               src={"/thj-logo.png"}
@@ -64,12 +52,12 @@ const Delegate = () => {
               trackEvent(`delegate_thj`);
             }}
             target="_blank"
-            className="flex w-full cursor-blue items-center justify-center rounded-full bg-black py-3 text-sm hover:bg-white hover:text-black md:text-base xl:text-lg"
+            className="flex w-full cursor-blue items-center justify-center rounded-full bg-black py-3 text-sm font-medium hover:bg-white hover:text-black md:text-base"
           >
             Delegate Now
           </a>
         </div>
-        <p className="text-lg text-[#414141] md:text-xl xl:text-2xl">
+        <p className="text-base text-[#414141]">
           Help us make the Fat Bera Thesis come true! Delegate to THJ and get
           rewarded!
         </p>

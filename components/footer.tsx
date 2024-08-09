@@ -19,21 +19,19 @@ const Footer = () => {
           </div>
         </div>
       </div>
-      <Marquee
-        autoFill
-        // speed={50}
-        className="relative top-8 z-[-1] overflow-hidden"
-      >
-        <p
-          className="text-[12rem] font-bold leading-none text-[#F5D0110D] lg:text-[14rem]"
-          style={{
-            WebkitTextStroke: "1px #F5D01145",
-          }}
-        >
-          Based Community Gateway on Berachain
-        </p>
-      </Marquee>
-      <div className="relative grid size-full grid-cols-1 gap-2 border-t border-dashed border-[#878787] bg-[#0B0701] text-white sm:h-[300px] sm:grid-cols-3 sm:gap-0 md:h-[400px] xl:grid-cols-5">
+      <div className="relative top-0 z-[-1] h-[192px] w-full overflow-hidden border-b border-dashed border-[#878787]">
+        <Marquee autoFill className="relative overflow-hidden">
+          <p
+            className="text-[12rem] font-bold leading-[242px] text-[#F5D0110D] md:leading-[230px] lg:text-[14rem]"
+            style={{
+              WebkitTextStroke: "1px #F5D01145",
+            }}
+          >
+            Based Community Gateway on Berachain
+          </p>
+        </Marquee>
+      </div>
+      <div className="relative grid size-full grid-cols-1 gap-2 bg-[#0B0701] text-white sm:h-[300px] md:h-[400px] md:grid-cols-3 xl:mx-auto xl:max-w-7xl">
         <div className="absolute inset-x-0 -top-12 mx-auto aspect-square h-[60px] md:-top-16 md:h-[80px]">
           <Image
             src={"/jani-coin.png"}
@@ -42,13 +40,11 @@ const Footer = () => {
             className="object-contain"
           />
         </div>
-        <div className="hidden xl:flex" />
-        {/* <div className="flex h-full w-full"> */}
-        <div className="flex size-full flex-col items-center justify-center px-4 py-3 text-white sm:items-start sm:py-0 md:px-8">
+        <div className="flex size-full flex-col items-center justify-center px-4 py-10 text-white sm:items-start md:px-8 md:py-0">
           <p className="mb-2 font-clash text-lg font-semibold md:text-xl">
             Partnership Guidelines
           </p>
-          <p className="mb-4 w-full text-center text-xs sm:text-left md:w-[90%] md:text-sm">
+          <p className="mb-4 w-full text-center text-xs text-white/75 sm:text-left md:w-[90%] md:text-sm">
             Learn what you get from becoming a THJ Partner
           </p>
           <a
@@ -57,17 +53,16 @@ const Footer = () => {
               trackEvent(`learn_more_partners_footer`);
             }}
             href={"https://partners.0xhoneyjar.xyz/"}
-            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] hover:cursor-blue hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D] md:text-sm"
+            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-sm text-[#DBDBDB] hover:cursor-blue hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D]"
           >
             Learn More
           </a>
         </div>
-        {/* </div> */}
-        <div className="relative flex size-full flex-col items-center justify-center border-y border-dashed border-[#DCE0E5] px-4 py-3 text-white sm:items-start sm:border-x sm:border-y-0 sm:py-0 md:px-8">
+        <div className="relative flex size-full flex-col items-center justify-center border-y border-dashed border-[#DCE0E5] px-4 py-10 text-white sm:items-start sm:border-x sm:border-y-0 md:px-8 md:py-0">
           <p className="mb-2 whitespace-nowrap font-clash text-lg font-semibold md:text-xl">
             Branding Kit
           </p>
-          <p className="mb-4 w-full text-center text-xs sm:text-left md:w-[90%] md:text-sm">
+          <p className="mb-4 w-full text-center text-xs text-white/75 sm:text-left md:w-[90%] md:text-sm">
             Find all assets and guidelines of THJ branding here
           </p>
           <a
@@ -76,17 +71,16 @@ const Footer = () => {
             onClick={() => {
               trackEvent(`learn_more_branding_footer`);
             }}
-            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] hover:cursor-blue hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D] md:text-sm"
+            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-sm text-[#DBDBDB] hover:cursor-blue hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D]"
           >
             Learn More
           </a>
         </div>
-        {/* <div className="h-full w-1/3 lg:w-full"> */}
-        <div className="flex size-full flex-col items-center justify-center px-4 py-3 text-white sm:items-start sm:py-0 md:px-8">
+        <div className="flex size-full flex-col items-center justify-center px-4 py-10 text-white sm:items-start md:px-8 md:py-0">
           <p className="mb-2 whitespace-nowrap font-clash text-lg font-semibold md:text-xl">
             Beekeeper Kit
           </p>
-          <p className="mb-4 w-full text-center text-xs sm:text-left md:w-[90%] md:text-sm">
+          <p className="mb-4 w-full text-center text-xs text-white/75 sm:text-left md:w-[90%] md:text-sm">
             Product suite, integrations and co-markerting guidelines
           </p>
           <a
@@ -95,14 +89,13 @@ const Footer = () => {
             onClick={() => {
               trackEvent(`learn_more_beekeeper_footer`);
             }}
-            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] hover:cursor-blue hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D] md:text-sm"
+            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-sm text-[#DBDBDB] hover:cursor-blue hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D]"
           >
             Learn More
           </a>
         </div>
-        {/* </div> */}
       </div>
-      <div className="relative flex w-full flex-col items-center gap-4 overflow-hidden bg-[#F4C10B] pt-10 text-white md:gap-6 md:pt-20 lg:gap-8">
+      <div className="relative flex w-full flex-col items-center gap-4 overflow-hidden bg-[#F4C10B] pt-10 text-white md:gap-6 md:pt-20">
         <Image
           src={"/thj-outline.svg"}
           alt="thj-outline"
@@ -117,7 +110,7 @@ const Footer = () => {
             className="object-contain"
           />
         </div>
-        <p className="text-center font-clash text-3xl font-semibold md:text-5xl xl:text-7xl">
+        <p className="text-center font-clash text-3xl font-semibold md:text-5xl">
           Be a Part of the Honey Jar
         </p>
         <p className="w-4/5 text-center text-sm sm:w-3/5 md:w-2/5 md:text-lg">

@@ -103,30 +103,30 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-2">
+            <div className="z-0 flex items-center gap-3">
               {newRaffle && (
-                <div className="flex w-fit items-center gap-2 rounded-full border border-[#F4C10B] bg-[#F4C10B]/10 px-2 py-1 backdrop-blur-sm">
-                  <div className="relative aspect-square h-[12px] rounded-full bg-[#F4C10B]">
-                    <div className="absolute aspect-square size-full animate-ping rounded-full bg-[#F4C10B]" />
+                <div className="flex w-fit items-center gap-2 rounded-lg border border-[#F4C10B] bg-[#F4C10B]/10 px-2 py-1 backdrop-blur-sm">
+                  <div className="relative aspect-square h-[12px] rounded-lg bg-[#F4C10B]">
+                    <div className="absolute aspect-square size-full animate-ping rounded-lg bg-[#F4C10B]" />
                   </div>
                   <p className="text-[10px] text-[#F4C10B]">NEW</p>
                 </div>
               )}
             </div>
             <div className="flex w-full flex-col-reverse gap-2 xl:h-[40px] xl:flex-row xl:gap-3">
-              <div className="h-8 w-full rounded-full border border-[#737373]/60 bg-[#D8D8D8]/20 p-1 backdrop-blur-sm xl:h-full">
-                <div className="relative flex h-full w-full items-center overflow-hidden rounded-full bg-[#75643C]">
+              <div className="h-8 w-full rounded-lg border border-[#737373]/60 bg-[#D8D8D8]/20 p-1 backdrop-blur-sm xl:h-full">
+                <div className="relative flex h-full w-full items-center overflow-hidden rounded-lg bg-[#75643C]">
                   <motion.div
-                    className={`h-full rounded-full ${endedRaffle ? "bg-[#444444]" : "bg-[#F8A929]"}`}
+                    className={`h-full rounded-lg ${endedRaffle ? "bg-[#444444]" : "bg-[#F8A929]"}`}
                     initial={false}
                     animate={{ width: `${width}%` }}
                     // transition={{ duration: 0.5, ease: "linear" }}
                   />
-                  <p className="absolute left-4 text-[10px]">{timeRemaining}</p>
+                  <p className="absolute left-3 text-[10px]">{timeRemaining}</p>
                 </div>
               </div>
-              <div className="flex h-8 w-fit items-center gap-1 rounded-full border border-[#747474]/60 bg-[#D8D8D8]/20 px-3 backdrop-blur-sm xl:h-full">
-                <div className="relative aspect-square h-[18px]">
+              <div className="flex h-8 w-fit items-center gap-1 rounded-lg border border-[#747474]/60 bg-[#D8D8D8]/20 px-2 backdrop-blur-sm xl:h-full">
+                <div className="relative aspect-square h-4">
                   <Image
                     src={"/users.svg"}
                     alt=""
@@ -134,9 +134,7 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
                     className="object-contain"
                   />
                 </div>
-                <p className="text-xs md:text-sm">
-                  {raffleData?.numEntries ?? 0}
-                </p>
+                <p className="text-xs">{raffleData?.numEntries ?? 0}</p>
               </div>
             </div>
           </>
@@ -147,11 +145,11 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
           {raffle.title}
         </p>
         <div className="flex items-center gap-2">
-          <p className="hidden whitespace-nowrap text-sm text-[#6B6B6B] xl:block">
+          <p className="hidden whitespace-nowrap text-xs text-[#6B6B6B] xl:block">
             In partnership with
           </p>
           <div className="flex items-center gap-1">
-            <div className="relative aspect-square h-5 overflow-hidden rounded-full md:h-[24px]">
+            <div className="relative aspect-square h-5 overflow-hidden rounded-full">
               <S3Image
                 src={`${raffle.logo}`}
                 fill

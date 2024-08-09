@@ -1,27 +1,20 @@
 import Image from "next/image";
-import { useState } from "react";
 import {
   CircularProgressbarWithChildren,
   buildStyles,
 } from "react-circular-progressbar";
-import DragHandleY from "../drag-handle-y";
 import { trackEvent } from "@openpanel/nextjs";
 
 const Data = () => {
-  const [glow, setGlow] = useState(false);
   return (
     <div
-      className={`${glow && "rotate-1"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
+      className={`relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
     >
       <div className="absolute -top-40 h-1 w-full" id="data" />
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
       <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6">
-        <div
-          className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#FFC500] blur-2xl ${glow ? "flex" : "hidden"}`}
-        />
         <div className="flex items-center gap-2">
-          <DragHandleY setGlow={setGlow} />
-          <p className="text-sm font-medium text-[#FFD700] md:text-base">
+          <p className="text-base font-medium text-[#FFD700] md:text-lg">
             Data
           </p>
         </div>
@@ -43,7 +36,7 @@ const Data = () => {
             How much was raised by THJ and Berachain eco in general
           </p>
           <div className="relative mb-4 w-full rounded-xl border border-[#F8A9290F] bg-[#F8A9291F] px-2 py-4 md:px-4 md:py-6">
-            <p className="text-2xl font-medium text-[#F8A929] md:text-3xl xl:text-4xl">
+            <p className="truncate text-3xl font-medium text-[#F8A929] md:text-4xl">
               $32,100,977
             </p>
             <p className="absolute bottom-2 right-2 flex items-center text-[10px] text-[#A9A9A9]/50 md:text-xs">
@@ -51,7 +44,7 @@ const Data = () => {
             </p>
           </div>
           <div className="relative w-full rounded-xl border border-[#F8A9290F] bg-[#F8A9291F] px-2 py-4 md:px-4 md:py-6">
-            <p className="text-2xl font-medium text-[#F8A929] md:text-3xl xl:text-4xl">
+            <p className="truncate text-3xl font-medium text-[#F8A929] md:text-4xl">
               $4,222,768
             </p>
             <p className="absolute bottom-2 right-2 flex items-center text-[10px] text-[#A9A9A9]/50 md:text-xs">
@@ -59,7 +52,7 @@ const Data = () => {
             </p>
           </div>
         </div>
-        <div className="flex flex-col border-b border-[#F4C10B]/20 p-4 md:p-6">
+        <div className="flex h-1/3 flex-col border-b border-[#F4C10B]/20 p-4 md:p-6">
           <div className="mb-10 flex items-center gap-2">
             <div className="relative aspect-square h-4 md:h-5">
               <Image
@@ -92,27 +85,27 @@ const Data = () => {
               <p className="absolute -left-0 bottom-0 text-xs font-medium text-[#7E6E4B] md:text-sm">
                 1.9%
               </p>
-              <p className="absolute -right-0 top-0 text-xs font-medium text-[#F5DA7F] md:text-sm">
+              <p className="absolute -right-2 top-0 text-xs font-medium text-[#F5DA7F] md:text-sm">
                 98.1%
               </p>
             </CircularProgressbarWithChildren>
           </div>
-          <div className="flex flex-row justify-center gap-4 text-[#C7C7C7] sm:flex-col 2xl:flex-row">
-            <div className="flex items-center justify-center gap-1">
-              <div className="aspect-square h-[14px] rounded-full bg-[#F5DA7F]" />
+          <div className="flex flex-row justify-center gap-3 text-[#C7C7C7] sm:flex-col 2xl:flex-row">
+            <div className="flex items-center justify-center gap-2">
+              <div className="aspect-square h-3 rounded-full bg-[#F5DA7F]" />
               <p className="whitespace-nowrap text-xs font-light text-[#C7C7C7] md:text-sm">
                 Don&apos;t Hold Honeycomb
               </p>
             </div>
-            <div className="flex items-center justify-center gap-1">
-              <div className="aspect-square h-[14px] rounded-full bg-[#342911]" />
+            <div className="flex items-center justify-center gap-2">
+              <div className="aspect-square h-3 rounded-full bg-[#342911]" />
               <p className="whitespace-nowrap text-xs font-light text-[#C7C7C7] md:text-sm">
                 Hold Honeycomb
               </p>
             </div>
           </div>
         </div>
-        <div className="flex grow flex-col p-4 md:p-6">
+        <div className="flex h-1/3 grow flex-col p-4 md:p-6">
           <div className="mb-10 flex items-center gap-2">
             <div className="relative aspect-square h-4 md:h-5">
               <Image
@@ -145,20 +138,20 @@ const Data = () => {
                   <p className="absolute -left-0 bottom-0 text-xs font-medium text-[#7E6E4B] md:text-sm">
                     11.2%
                   </p>
-                  <p className="absolute -right-0 top-0 text-xs font-medium text-[#F5DA7F] md:text-sm">
+                  <p className="absolute -right-2 top-0 text-xs font-medium text-[#F5DA7F] md:text-sm">
                     88.8%
                   </p>
                 </CircularProgressbarWithChildren>
               </div>
-              <div className="flex flex-row justify-center gap-4 text-[#C7C7C7] sm:flex-col 2xl:flex-row">
-                <div className="flex items-center justify-center gap-1">
-                  <div className="aspect-square h-[14px] rounded-full bg-[#F5DA7F]" />
+              <div className="flex flex-row justify-center gap-3 text-[#C7C7C7] sm:flex-col 2xl:flex-row">
+                <div className="flex items-center justify-center gap-2">
+                  <div className="aspect-square h-3 rounded-full bg-[#F5DA7F]" />
                   <p className="whitespace-nowrap text-xs font-light text-[#C7C7C7] md:text-sm">
                     Bera Holders
                   </p>
                 </div>
-                <div className="flex items-center justify-center gap-1">
-                  <div className="aspect-square h-[14px] rounded-full bg-[#342911]" />
+                <div className="flex items-center justify-center gap-2">
+                  <div className="aspect-square h-3 rounded-full bg-[#342911]" />
                   <p className="whitespace-nowrap text-xs font-light text-[#C7C7C7] md:text-sm">
                     Non-Bera Holders
                   </p>
@@ -173,7 +166,7 @@ const Data = () => {
               target="_blank"
               className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#F4C10B] py-3 font-medium text-black hover:cursor-blue hover:shadow-yellow"
             >
-              <div className="relative aspect-square h-3 md:h-4">
+              <div className="relative aspect-square h-4">
                 <Image
                   src={"/dashboard.svg"}
                   alt="dashboard"
@@ -181,7 +174,7 @@ const Data = () => {
                   className="object-contain"
                 />
               </div>
-              <p className="text-xs md:text-base">Data Dashboards</p>
+              <p className="text-sm">Data Dashboards</p>
             </a>
           </div>
         </div>

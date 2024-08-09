@@ -8,13 +8,11 @@ import {
 import fetcher from "@/lib/fetcher";
 import { formatToken } from "@/lib/utils";
 import Image from "next/image";
-import { useState } from "react";
 import {
   CircularProgressbarWithChildren,
   buildStyles,
 } from "react-circular-progressbar";
 import useSWR from "swr";
-import DragHandle from "../drag-handle";
 import { trackEvent } from "@openpanel/nextjs";
 
 const Validator = () => {
@@ -23,21 +21,16 @@ const Validator = () => {
     boostedRewardRate: string;
   }>("/api/validator", fetcher);
 
-  const [glow, setGlow] = useState(false);
   return (
     <div
-      className={`${glow && "rotate-1"} relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D]`}
+      className={`relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D]`}
     >
       <div className="absolute -top-40 h-1 w-full" id="validator" />
       <Carousel className="flex size-full flex-col">
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#43AA77]" />
         <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#1B271B] px-4 md:h-[72px] md:px-6">
-          <div
-            className={`absolute inset-x-0 -top-6 mx-auto h-4 w-[90%] animate-pulse bg-[#43AA77] blur-2xl ${glow ? "flex" : "hidden"}`}
-          />
           <div className="flex items-center gap-2">
-            <DragHandle setGlow={setGlow} />
-            <p className="text-sm font-medium text-white md:text-base">
+            <p className="text-base font-medium text-white md:text-lg">
               Validator
             </p>
           </div>
@@ -55,11 +48,11 @@ const Validator = () => {
                     <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm">
                       Delegated to THJ (BGT)
                     </p>
-                    <div className="flex items-center gap-2 text-lg md:text-xl">
+                    <div className="flex items-center gap-2 text-2xl md:text-xl">
                       <p className="font-semibold">
                         {formatToken(BigInt(data?.amountDelegated ?? "0"))}
                       </p>
-                      <div className="relative aspect-square h-[28px]">
+                      <div className="relative aspect-square h-5">
                         <Image
                           src={"/delegate-bee.png"}
                           alt="bee"
@@ -73,15 +66,15 @@ const Validator = () => {
                     <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm">
                       Number of Delegators
                     </p>
-                    <p className="text-lg font-semibold md:text-xl">TBD</p>
+                    <p className="text-2xl font-semibold md:text-xl">TBD</p>
                   </div>
                   <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
                     <p className="text-xs text-[#6B6B6B] md:text-sm">
                       Return per BGT
                     </p>
                     <div className="flex items-center gap-2 text-2xl">
-                      <p className="text-lg font-semibold md:text-xl">$6.90</p>
-                      <div className="relative aspect-square h-[28px]">
+                      <p className="text-2xl font-semibold md:text-xl">$6.90</p>
+                      <div className="relative aspect-square h-5">
                         <Image
                           src={"/bgt-honey.png"}
                           alt="honey"
@@ -120,7 +113,7 @@ const Validator = () => {
                       <p className="font-semibold">
                         {formatToken(BigInt(data?.boostedRewardRate ?? "0"))}
                       </p>
-                      <div className="relative aspect-square h-[28px]">
+                      <div className="relative aspect-square h-5">
                         <Image
                           src={"/delegate-bee.png"}
                           alt="bee"
@@ -155,13 +148,13 @@ const Validator = () => {
                         <p className="absolute -bottom-4 -right-4 text-sm font-medium text-[#C1C1C1]">
                           9.58%
                         </p>
-                        <div className="absolute -bottom-16 flex justify-center gap-2 text-[#C7C7C7]">
-                          <div className="flex items-center justify-center gap-1">
-                            <div className="aspect-square h-[14px] rounded-full bg-[#43AA77]" />
+                        <div className="absolute -bottom-16 flex justify-center gap-3 text-[#C7C7C7]">
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="aspect-square h-3 rounded-full bg-[#43AA77]" />
                             <p className="text-xs font-light md:text-sm">THJ</p>
                           </div>
-                          <div className="flex items-center justify-center gap-1">
-                            <div className="aspect-square h-[14px] rounded-full bg-[#F4C10B]" />
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="aspect-square h-3 rounded-full bg-[#F4C10B]" />
                             <p className="text-xs font-light md:text-sm">
                               Other
                             </p>
@@ -175,7 +168,7 @@ const Validator = () => {
             </CarouselContent>
           </div>
           <div className="flex h-[15%] w-full shrink-0 items-center justify-between border-t border-[#1B271B] p-4 md:p-6">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <div className="relative aspect-square h-8 md:h-[38px]">
                 <Image
                   src={"/jani-coin.png"}
@@ -184,7 +177,7 @@ const Validator = () => {
                   className="object-contain"
                 />
               </div>
-              <p className="hidden whitespace-nowrap text-base font-light text-white sm:block md:text-lg">
+              <p className="hidden whitespace-nowrap text-sm font-light text-white sm:block">
                 Needs Your Support
               </p>
             </div>
@@ -197,7 +190,7 @@ const Validator = () => {
                 onClick={() => {
                   trackEvent(`view_validator`);
                 }}
-                className="flex h-full items-center justify-center whitespace-nowrap rounded-full border border-white/5 bg-white/5 px-6 text-xs font-medium text-white hover:cursor-blue hover:border-white/20 hover:bg-white/20 md:text-sm"
+                className="flex h-full items-center justify-center whitespace-nowrap rounded-full border border-white/5 bg-white/5 px-6 text-sm font-medium text-white hover:cursor-blue hover:border-white/20 hover:bg-white/20 md:text-sm"
               >
                 <span className="hidden xl:inline-flex">View</span>
                 &nbsp;Validator
@@ -210,7 +203,7 @@ const Validator = () => {
                 onClick={() => {
                   trackEvent(`delegate_validator`);
                 }}
-                className="flex h-full items-center justify-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 text-xs font-medium text-black hover:cursor-blue hover:shadow-evergreen md:text-sm"
+                className="flex h-full items-center justify-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 text-sm font-medium text-black hover:cursor-blue hover:shadow-evergreen md:text-sm"
               >
                 Delegate&nbsp;<span className="hidden xl:inline-flex">Now</span>
               </a>

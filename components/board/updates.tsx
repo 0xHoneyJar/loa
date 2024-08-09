@@ -6,20 +6,19 @@ import {
   CarouselPrevious,
   CarouselNext,
 } from "@/components/ui/carousel";
-import { trackEvent } from "@openpanel/nextjs";
-import { ArrowUpRight, LockKeyhole } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { useState } from "react";
+import { trackEvent } from "@openpanel/nextjs";
 
 const Updates = ({ updates }: { updates?: any }) => {
   return (
-    <div className="relative h-full overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]">
+    <div className="relative col-span-2 row-span-1 h-full overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]">
       <div className="absolute -top-40 h-1 w-full" id="updates" />
       <Carousel className="flex h-full flex-col" opts={{ dragFree: true }}>
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6">
           <div className="flex items-center gap-2">
-            <LockKeyhole className="aspect-square h-5 text-[#FFD7004D] md:h-[26px]" />
-            <p className="text-sm font-medium text-[#FFD700] md:text-base">
+            <p className="text-base font-medium text-[#FFD700] md:text-lg">
               Updates
             </p>
           </div>
