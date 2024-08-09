@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/carousel";
 import { useEffect, useState } from "react";
 import S3Image from "@/components/s3-image";
+import { trackEvent } from "@openpanel/nextjs";
 
 const Mint = ({ mints }: { mints?: any }) => {
   return (
@@ -85,6 +86,9 @@ const MintDisplay = ({ mint }: { mint: any }) => (
   <a
     href={mint.link}
     target="_blank"
+    onClick={() => {
+      trackEvent(`${mint._title}_mint`);
+    }}
     className="relative flex h-full w-full flex-col justify-between overflow-hidden rounded-lg border border-[#F4C10B14] bg-[#221C11] p-4 hover:cursor-blue hover:divide-[#F4C10B47] hover:border-[#F4C10B47] hover:bg-[#423520]"
   >
     <div className="absolute left-0 top-0 size-full bg-[#0a0500]">

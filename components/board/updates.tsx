@@ -6,6 +6,7 @@ import {
   CarouselPrevious,
   CarouselNext,
 } from "@/components/ui/carousel";
+import { trackEvent } from "@openpanel/nextjs";
 import { ArrowUpRight, LockKeyhole } from "lucide-react";
 import { useState } from "react";
 
@@ -64,6 +65,9 @@ const UpdateDisplay = ({
         <a
           target="_blank"
           href={link}
+          onClick={() => {
+            trackEvent(`${title}_updates`);
+          }}
           onMouseEnter={() => setHover(true)}
           onMouseLeave={() => setHover(false)}
           className={`relative h-2/3 w-full overflow-hidden rounded-xl border ${hover ? "cursor-blue border-[#F5D011D9]" : "border-[#2B2B2B]"}`}

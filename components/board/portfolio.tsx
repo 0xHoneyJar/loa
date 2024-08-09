@@ -8,6 +8,7 @@ import {
 import Image from "next/image";
 import DragHandleY from "../drag-handle-y";
 import { useState } from "react";
+import { trackEvent } from "@openpanel/nextjs";
 
 const Portfolio = ({ partners }: { partners?: any }) => {
   const [glow, setGlow] = useState(false);
@@ -60,6 +61,13 @@ const Portfolio = ({ partners }: { partners?: any }) => {
               <a
                 className="relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90 md:w-[196px]"
                 href={item.twitter}
+                onClick={() => {
+                  trackEvent(
+                    item._title === "The Honey Jar"
+                      ? "Honeycomb_portfolio"
+                      : `${item._title}_portfolio`,
+                  );
+                }}
                 target="_blank"
               >
                 <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />

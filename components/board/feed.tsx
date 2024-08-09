@@ -4,6 +4,7 @@ import DragHandle from "../drag-handle";
 import { retrieveTwitterFeed } from "@/actions/retrieve-twitter-feed";
 import TwitterDisplay from "../tweet-display";
 import SecondaryTweetDisplay from "../secondary-tweet-display";
+import { trackEvent } from "@openpanel/nextjs";
 
 const Feed = () => {
   const [glow, setGlow] = useState(false);
@@ -49,6 +50,9 @@ const Feed = () => {
         <a
           className="relative aspect-square h-[28px] cursor-blue rounded-full border border-[#353535] md:h-[34px]"
           href={"https://twitter.com/0xhoneyjar"}
+          onClick={() => {
+            trackEvent(`twitter_feed`);
+          }}
           target="_blank"
         >
           <Image

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import DragHandle from "../drag-handle";
 import { useState } from "react";
+import { trackEvent } from "@openpanel/nextjs";
 
 const Validator = () => {
   const [glow, setGlow] = useState(false);
@@ -53,6 +54,9 @@ const Validator = () => {
           <a
             target="_blank"
             href={"https://beardrops.0xhoneyjar.xyz/"}
+            onClick={() => {
+              trackEvent(`beardrops_snapshot`);
+            }}
             className="flex h-full items-center justify-center rounded-full bg-[#43AA77] px-6 text-sm font-medium text-black hover:cursor-blue hover:shadow-evergreen md:text-base"
           >
             Snapshot

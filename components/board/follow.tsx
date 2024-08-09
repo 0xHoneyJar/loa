@@ -1,6 +1,7 @@
 import Image from "next/image";
 import DragHandle from "../drag-handle";
 import { useState } from "react";
+import { trackEvent } from "@openpanel/nextjs";
 
 const Follow = () => {
   const [glow, setGlow] = useState(false);
@@ -26,6 +27,9 @@ const Follow = () => {
           <a
             href={"https://x.com/0xhoneyjar"}
             target="_blank"
+            onClick={() => {
+              trackEvent("follow_us_twitter");
+            }}
             className="relative aspect-square h-[26px] opacity-70 hover:cursor-blue hover:opacity-100 md:h-[32px]"
           >
             <Image
@@ -38,6 +42,9 @@ const Follow = () => {
           <a
             href={"https://discord.com/invite/thehoneyjar"}
             target="_blank"
+            onClick={() => {
+              trackEvent("follow_us_discord");
+            }}
             className="relative aspect-square h-[38px] opacity-70 hover:cursor-blue hover:opacity-100 md:h-[46px]"
           >
             <Image
@@ -50,6 +57,9 @@ const Follow = () => {
           <a
             href={"https://warpcast.com/0xhoneyjar"}
             target="_blank"
+            onClick={() => {
+              trackEvent("follow_us_farcaster");
+            }}
             className="relative aspect-square h-[38px] opacity-70 hover:cursor-blue hover:opacity-100 md:h-[46px]"
           >
             <Image

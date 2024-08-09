@@ -9,6 +9,7 @@ import { TOOLS } from "@/constants/tools";
 import DragHandle from "../drag-handle";
 import { useState } from "react";
 import Image from "next/image";
+import { trackEvent } from "@openpanel/nextjs";
 
 const Tools = () => {
   const [glow, setGlow] = useState(false);
@@ -41,6 +42,9 @@ const Tools = () => {
               <a
                 target="_blank"
                 href={item.link}
+                onClick={() => {
+                  trackEvent(`${item.name}_tools_product`);
+                }}
                 className={`flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#161616] bg-[#121212] px-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#373737] hover:bg-[#1A1A1A] hover:font-medium hover:text-white md:w-[196px]`}
               >
                 {item.image ? (

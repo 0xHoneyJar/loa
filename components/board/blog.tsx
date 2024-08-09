@@ -10,6 +10,7 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "../ui/carousel";
+import { trackEvent } from "@openpanel/nextjs";
 
 const Blog = () => {
   const [glow, setGlow] = useState(false);
@@ -58,6 +59,9 @@ const Blog = () => {
               <a
                 href={"https://0xhoneyjar.mirror.xyz/"}
                 target="_blank"
+                onClick={() => {
+                  trackEvent(`read_now_blog`);
+                }}
                 className="z-10 flex items-center gap-1 whitespace-nowrap rounded-full border border-[#3B3B3B] bg-[#5A5A5A]/30 px-2 py-1 text-xs backdrop-blur-lg hover:cursor-blue hover:border-white/20 hover:bg-white/25 md:px-3 md:py-2 md:text-sm lg:px-4 lg:text-base"
               >
                 Read Now
@@ -91,6 +95,9 @@ const BlogDisplay = ({
     <CarouselItem className="lg:pl-0">
       <div className="relative flex h-full w-[178px] flex-col gap-2 overflow-hidden md:w-[196px] md:gap-3 lg:w-full">
         <a
+          onClick={() => {
+            trackEvent(`${heading}_blog`);
+          }}
           href={link}
           target="_blank"
           onMouseEnter={() => setHover(true)}

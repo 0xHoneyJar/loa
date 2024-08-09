@@ -15,6 +15,7 @@ import {
 } from "react-circular-progressbar";
 import useSWR from "swr";
 import DragHandle from "../drag-handle";
+import { trackEvent } from "@openpanel/nextjs";
 
 const Validator = () => {
   const { data } = useSWR<{
@@ -193,6 +194,9 @@ const Validator = () => {
                 href={
                   "https://bartio.station.berachain.com/validators/0x40495A781095932e2FC8dccA69F5e358711Fdd41"
                 }
+                onClick={() => {
+                  trackEvent(`view_validator`);
+                }}
                 className="flex h-full items-center justify-center whitespace-nowrap rounded-full border border-white/5 bg-white/5 px-6 text-xs font-medium text-white hover:cursor-blue hover:border-white/20 hover:bg-white/20 md:text-sm"
               >
                 <span className="hidden xl:inline-flex">View</span>
@@ -203,6 +207,9 @@ const Validator = () => {
                 href={
                   "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
                 }
+                onClick={() => {
+                  trackEvent(`delegate_validator`);
+                }}
                 className="flex h-full items-center justify-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 text-xs font-medium text-black hover:cursor-blue hover:shadow-evergreen md:text-sm"
               >
                 Delegate&nbsp;<span className="hidden xl:inline-flex">Now</span>

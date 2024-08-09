@@ -7,6 +7,7 @@ import { Raffle } from "@/constants/raffle";
 import { useEffect } from "react";
 import { retrieveRaffles } from "@/actions/retrieve-raffles";
 import RaffleDisplay from "../raffle-display";
+import { trackEvent } from "@openpanel/nextjs";
 
 const Raffles = () => {
   const [glow, setGlow] = useState(false);
@@ -74,6 +75,9 @@ const Raffles = () => {
         <a
           href={"https://faucet.0xhoneyjar.xyz/raffles"}
           target="_blank"
+          onClick={() => {
+            trackEvent(`explore_raffles`);
+          }}
           className="flex w-full cursor-blue items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] p-2 hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D] md:px-4 md:py-3"
         >
           <div className="flex items-center gap-1 md:gap-2">

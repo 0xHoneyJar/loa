@@ -4,6 +4,7 @@ import DragHandleY from "../drag-handle-y";
 import { useState } from "react";
 import { ScrollArea } from "../ui/scroll-area";
 import S3Image from "../s3-image";
+import { trackEvent } from "@openpanel/nextjs";
 
 const Spotlight = ({ spotlight }: { spotlight?: any }) => {
   const [glow, setGlow] = useState(false);
@@ -55,6 +56,9 @@ const Spotlight = ({ spotlight }: { spotlight?: any }) => {
         <a
           className="flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-4 py-3 text-[#F4C10B] hover:cursor-blue hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]"
           href={spotlight.link}
+          onClick={() => {
+            trackEvent(`${spotlight._title}_spotlight`);
+          }}
           target="_blank"
         >
           <p className="text-xs md:text-sm">Learn More</p>

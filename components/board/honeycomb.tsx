@@ -19,6 +19,7 @@ import { useState, useMemo, useEffect } from "react";
 import DragHandleY from "../drag-handle-y";
 import S3Image from "@/components/s3-image";
 import { formatEther } from "viem";
+import { trackEvent } from "@openpanel/nextjs";
 
 const Honeycomb = ({ perks }: { perks?: any }) => {
   const [glow, setGlow] = useState(false);
@@ -108,6 +109,9 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
               <a
                 target="_blank"
                 href={"https://pro.opensea.io/collection/honey-comb-2"}
+                onClick={() => {
+                  trackEvent(`opensea_honeycomb`);
+                }}
                 rel="noopener noreferrer"
                 className="flex cursor-blue items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[#1E1E1E] bg-[#0F0D08] py-2 hover:border-[#363636] hover:bg-[#14130f] md:py-3"
               >
@@ -240,6 +244,9 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
           <a
             target="_blank"
             href={"https://honeycomb.0xhoneyjar.xyz/"}
+            onClick={() => {
+              trackEvent(`visit_honeycomb_dashboard`);
+            }}
             className="flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-6 py-3 text-[#F4C10B] hover:cursor-blue hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]"
           >
             <p className="text-sm md:text-base">Visit Honeycomb Dashboard</p>

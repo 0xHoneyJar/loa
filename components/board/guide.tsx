@@ -1,6 +1,7 @@
 import Image from "next/image";
 import DragHandle from "../drag-handle";
 import { useState } from "react";
+import { trackEvent } from "@openpanel/nextjs";
 
 const Guide = () => {
   const [glow, setGlow] = useState(false);
@@ -28,6 +29,9 @@ const Guide = () => {
           href={
             "https://0xhoneyjar.mirror.xyz/dHB3l29gAfLsPhPUPLGvg6_UAM1LxgxHMSJ054_QuDM"
           }
+          onClick={() => {
+            trackEvent(`explore_guide`);
+          }}
           target="_blank"
           className="cursor-blue whitespace-nowrap rounded-full bg-[#F4C10B] px-6 py-1 text-sm font-medium text-black hover:shadow-yellow md:px-8 md:py-2 md:text-base"
         >

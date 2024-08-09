@@ -9,6 +9,7 @@ import { ArrowDown } from "lucide-react";
 import Lottie from "lottie-react";
 import HeroBg from "@/public/hero-bg.json";
 import OctoBear from "@/public/octo-bear.json";
+import { trackEvent } from "@openpanel/nextjs";
 
 const HeroSection = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -93,6 +94,9 @@ const HeroSection = () => {
                       <a
                         target="_blank"
                         href={social.link}
+                        onClick={() => {
+                          trackEvent(`follow_us_${social.name}_hero`);
+                        }}
                         className="z-10 flex cursor-blue items-center gap-2 rounded-xl border border-[#FFFFFF1F] bg-[#FFFFFF26] px-4 py-2 hover:bg-[#FFFFFF3D] lg:px-6 lg:py-3"
                         key={id}
                       >

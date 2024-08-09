@@ -1,3 +1,6 @@
+"use client";
+
+import { trackEvent } from "@openpanel/nextjs";
 import Image from "next/image";
 import Marquee from "react-fast-marquee";
 
@@ -50,6 +53,9 @@ const Footer = () => {
           </p>
           <a
             target="_blank"
+            onClick={() => {
+              trackEvent(`learn_more_partners_footer`);
+            }}
             href={"https://partners.0xhoneyjar.xyz/"}
             className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] hover:cursor-blue hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D] md:text-sm"
           >
@@ -67,6 +73,9 @@ const Footer = () => {
           <a
             href={"https://docs.0xhoneyjar.xyz/docs/branding"}
             target="_blank"
+            onClick={() => {
+              trackEvent(`learn_more_branding_footer`);
+            }}
             className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] hover:cursor-blue hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D] md:text-sm"
           >
             Learn More
@@ -83,6 +92,9 @@ const Footer = () => {
           <a
             target="_blank"
             href={"https://docs.cubquests.com/"}
+            onClick={() => {
+              trackEvent(`learn_more_beekeeper_footer`);
+            }}
             className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-xs text-[#DBDBDB] hover:cursor-blue hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D] md:text-sm"
           >
             Learn More
@@ -115,6 +127,9 @@ const Footer = () => {
           <a
             href={"https://discord.com/invite/thehoneyjar"}
             target="_blank"
+            onClick={() => {
+              trackEvent(`join_discord_footer`);
+            }}
             className="z-10 flex w-[180px] cursor-blue justify-center rounded-xl bg-black py-3 text-xs font-medium hover:bg-white hover:text-black md:w-[240px] md:text-base"
           >
             Join the Commmunity
@@ -124,6 +139,9 @@ const Footer = () => {
               "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
             }
             target="_blank"
+            onClick={() => {
+              trackEvent(`delegate_footer`);
+            }}
             className="z-10 flex w-[180px] cursor-blue justify-center rounded-xl bg-[#43AA77] py-3 text-xs font-medium hover:bg-[#086134] md:w-[240px] md:text-base"
           >
             <p>Delegate Now</p>

@@ -6,6 +6,7 @@ import { retrieveQuests } from "@/actions/retrieve-quests";
 import { Quest } from "@/constants/quest";
 import useUserStore from "@/state/user/useUserStore";
 import QuestDisplay from "../quest-display";
+import { trackEvent } from "@openpanel/nextjs";
 
 const Quests = () => {
   const [glow, setGlow] = useState(false);
@@ -75,6 +76,9 @@ const Quests = () => {
         </div>
         <a
           href={"https://faucet.0xhoneyjar.xyz/quests"}
+          onClick={() => {
+            trackEvent(`explore_quests`);
+          }}
           target="_blank"
           className="flex w-full cursor-blue items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-2 py-2 hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D] md:px-4 md:py-3"
         >

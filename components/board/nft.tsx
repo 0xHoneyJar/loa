@@ -9,6 +9,7 @@ import Image from "next/image";
 import { NFTItems } from "@/constants/nft";
 import { useState } from "react";
 import DragHandle from "../drag-handle";
+import { trackEvent } from "@openpanel/nextjs";
 
 const NFT = () => {
   const [glow, setGlow] = useState(false);
@@ -41,6 +42,9 @@ const NFT = () => {
               <a
                 target="_blank"
                 href={nft.link}
+                onClick={() => {
+                  trackEvent(`${nft.name}_nft`);
+                }}
                 className="flex h-full w-[178px] flex-col items-center justify-center gap-3 rounded-lg border border-[#161616] bg-[#121212] px-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#373737] hover:bg-[#1A1A1A] hover:font-medium hover:text-white md:w-[196px]"
               >
                 <div className="flex h-[10%] w-full items-center justify-center gap-1 py-1">

@@ -2,6 +2,7 @@ import Image from "next/image";
 import DragHandle from "../drag-handle";
 import { useState } from "react";
 import { ScrollArea } from "../ui/scroll-area";
+import { trackEvent } from "@openpanel/nextjs";
 
 const Development = ({ developments }: { developments?: any }) => {
   const [glow, setGlow] = useState(false);
@@ -62,6 +63,9 @@ const Development = ({ developments }: { developments?: any }) => {
                       key={id}
                       href={item.link}
                       target="_blank"
+                      onClick={() => {
+                        trackEvent(`development_${item._title}`);
+                      }}
                       rel="noopener noreferrer"
                     >
                       <CommonContent />

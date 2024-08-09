@@ -3,6 +3,7 @@ import { Map, ChevronRight, ArrowRight, HelpCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import DragHandle from "../drag-handle";
+import { trackEvent } from "@openpanel/nextjs";
 
 const Partners = ({ partners }: { partners?: any }) => {
   const [hover, setHover] = useState(false);
@@ -48,7 +49,13 @@ const Partners = ({ partners }: { partners?: any }) => {
               {/* <HelpCircle className="aspect-square h-3 md:h-[14px]" /> */}
             </p>
           </div>
-          <a href="https://ecosystem.0xhoneyjar.xyz/" target="_blank">
+          <a
+            href="https://ecosystem.0xhoneyjar.xyz/"
+            target="_blank"
+            onClick={() => {
+              trackEvent(`partner_map_partners`);
+            }}
+          >
             <button className="flex w-full items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 hover:cursor-blue hover:border-[#E8E8E81F] hover:bg-[#FFFFFF24]">
               <div className="flex items-center gap-2 whitespace-nowrap">
                 <Map className="aspect-square h-4 md:h-[22px]" />
@@ -57,7 +64,13 @@ const Partners = ({ partners }: { partners?: any }) => {
               <ChevronRight className="aspect-square h-3 text-[#FFFFFF66] md:h-[14px]" />
             </button>
           </a>
-          <a href="https://ecosystem.0xhoneyjar.xyz/" target="_blank">
+          <a
+            href="https://ecosystem.0xhoneyjar.xyz/"
+            target="_blank"
+            onClick={() => {
+              trackEvent(`explore_partners_partners`);
+            }}
+          >
             <button className="flex w-full items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 hover:cursor-blue hover:border-[#E8E8E81F] hover:bg-[#FFFFFF24]">
               <div className="flex items-center gap-2 whitespace-nowrap">
                 <div className="relative aspect-square h-4 md:h-[22px]">
@@ -92,7 +105,13 @@ const Partners = ({ partners }: { partners?: any }) => {
             />
           </div>
           <div className="w-full rounded-full border border-dashed border-[#9F9F9F63] p-2">
-            <a href="https://partners.0xhoneyjar.xyz/" target="_blank">
+            <a
+              href="https://partners.0xhoneyjar.xyz/"
+              target="_blank"
+              onClick={() => {
+                trackEvent(`become_partner_partners`);
+              }}
+            >
               <button
                 onMouseEnter={() => setHover(true)}
                 onMouseLeave={() => setHover(false)}

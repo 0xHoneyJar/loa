@@ -5,6 +5,7 @@ import {
   buildStyles,
 } from "react-circular-progressbar";
 import DragHandleY from "../drag-handle-y";
+import { trackEvent } from "@openpanel/nextjs";
 
 const Data = () => {
   const [glow, setGlow] = useState(false);
@@ -166,6 +167,9 @@ const Data = () => {
             </div>
             <a
               href={"https://dune.com/thj"}
+              onClick={() => {
+                trackEvent(`data_dashboard_data`);
+              }}
               target="_blank"
               className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#F4C10B] py-3 font-medium text-black hover:cursor-blue hover:shadow-yellow"
             >
