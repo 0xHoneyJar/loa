@@ -10,7 +10,8 @@ import { OpenpanelProvider } from "@openpanel/nextjs";
 export const metadata: Metadata = {
   // metadataBase: new URL(""),
   title: "TheHoneyJar",
-  description: "THJ is Berachain-native community...",
+  description:
+    "THJ is Berachain-native community venture studio. We're the creators of Honeycomb, a perks aggregator for Bera eco projects.",
   openGraph: {
     type: "website",
     title: "",
