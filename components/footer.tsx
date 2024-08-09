@@ -19,10 +19,10 @@ const Footer = () => {
           </div>
         </div>
       </div>
-      <div className="relative top-0 z-[-1] h-[192px] w-full overflow-hidden border-b border-dashed border-[#878787]">
+      <div className="relative top-0 z-[-1] hidden h-[198px] w-full overflow-hidden border-b border-dashed border-[#878787] md:flex">
         <Marquee autoFill className="relative overflow-hidden">
           <p
-            className="text-[12rem] font-bold leading-[242px] text-[#F5D0110D] md:leading-[230px] lg:text-[14rem]"
+            className="text-[12rem] font-bold leading-none text-[#F5D0110D] lg:text-[17rem]"
             style={{
               WebkitTextStroke: "1px #F5D01145",
             }}
@@ -31,7 +31,7 @@ const Footer = () => {
           </p>
         </Marquee>
       </div>
-      <div className="relative grid size-full grid-cols-1 gap-2 bg-[#0B0701] text-white sm:h-[300px] md:h-[400px] md:grid-cols-3 xl:mx-auto xl:max-w-7xl">
+      <div className="relative mt-24 grid size-full h-auto grid-cols-1 gap-2 bg-[#0B0701] text-white sm:h-[300px] md:mt-0 md:h-[400px] md:grid-cols-3 xl:mx-auto xl:max-w-7xl">
         <div className="absolute inset-x-0 -top-12 mx-auto aspect-square h-[60px] md:-top-16 md:h-[80px]">
           <Image
             src={"/jani-coin.png"}
@@ -40,7 +40,7 @@ const Footer = () => {
             className="object-contain"
           />
         </div>
-        <div className="flex size-full flex-col items-center justify-center px-4 py-10 text-white sm:items-start md:px-8 md:py-0">
+        <div className="flex size-full flex-col items-center justify-center border-t border-dashed border-[#DCE0E5] px-4 py-10 text-white sm:items-start md:border-t-0 md:px-8 md:py-0">
           <p className="mb-2 font-clash text-lg font-semibold md:text-xl">
             Partnership Guidelines
           </p>
@@ -95,7 +95,7 @@ const Footer = () => {
           </a>
         </div>
       </div>
-      <div className="relative flex w-full flex-col items-center gap-4 overflow-hidden bg-[#F4C10B] pt-10 text-white md:gap-6 md:pt-20">
+      <div className="relative flex h-auto w-full flex-col items-center gap-4 overflow-hidden bg-[#F4C10B] pt-10 text-white md:gap-6 md:pt-20">
         <Image
           src={"/thj-outline.svg"}
           alt="thj-outline"
