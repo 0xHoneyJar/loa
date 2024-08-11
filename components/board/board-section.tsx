@@ -34,7 +34,7 @@ const BoardSection = ({
   perks: any;
 }) => {
   return (
-    <div className="mb-20 flex h-full w-full flex-col items-center md:mb-40 xl:mb-60">
+    <div className="mb-20 flex size-full flex-col items-center md:mb-40 xl:mb-60">
       <div className="relative flex size-full flex-col items-center px-4 sm:w-[540px] md:w-[648px] lg:w-[864px] xl:w-[1080px] 2xl:w-[1296px]">
         <div className="absolute top-20 h-[100px] w-full bg-[#F8A9291F] blur-[100px]" />
         <div className="mb-6 flex w-full gap-2 rounded-full border border-[#BCBCBC1A] px-2 py-1 md:px-4 md:py-3">
@@ -49,7 +49,7 @@ const BoardSection = ({
             </p>
           </Marquee>
         </div>
-        <div className="md:grid-rows-22 xl:grid-rows-24 grid-rows-40 grid w-full grid-cols-1 gap-4 rounded-2xl border border-[#BCBCBC1A] bg-[#0A0A0A] p-2 text-white md:grid-cols-3 md:gap-6 md:p-6">
+        <div className="grid w-full grid-cols-1 grid-rows-40 gap-4 rounded-2xl border border-[#BCBCBC1A] bg-[#0A0A0A] p-2 text-white md:max-h-[8220px] md:grid-cols-3 md:grid-rows-22 md:gap-6 md:p-6 xl:grid-rows-24">
           <div className="row-span-1 md:col-span-3">
             <Guide />
           </div>
