@@ -147,7 +147,7 @@ const HeroSection = () => {
                   className="mx-2 flex w-[200px] items-center gap-4 rounded-xl border border-[#F4C10B05] bg-[#F4C10B0A] p-4 text-white md:w-[260px]"
                   key={id}
                 >
-                  <div className="relative aspect-square h-[24px] md:h-[28px]">
+                  <div className="relative aspect-square h-5 md:h-6">
                     <Image src={item.icon} alt="" fill />
                   </div>
                   <p className="text-xs font-light md:text-sm">{item.title}</p>
@@ -157,7 +157,7 @@ const HeroSection = () => {
           </Marquee>
         </div>
 
-        <div className="mb-10 h-[1px] w-1/2 bg-gradient-to-r from-[#F5D01100] via-[#F5D011] via-50% md:w-1/4" />
+        <div className="mb-10 h-[1px] w-1/2 bg-gradient-to-r from-[#F5D01100] via-[#F5D011] to-[#F5D01100] md:w-1/4" />
         <div className="relative z-10 -mb-10 hidden aspect-square h-[38px] rounded-full bg-white shadow-white md:flex md:h-[46px]">
           <motion.button
             className="relative size-full"

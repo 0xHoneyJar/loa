@@ -1,7 +1,5 @@
-"use client";
-
 import Marquee from "react-fast-marquee";
-import React, { useState, useEffect } from "react";
+import React from "react";
 import Updates from "@/components/board/updates";
 import Follow from "@/components/board/follow";
 import NewPartners from "@/components/board/new-partners";
@@ -35,16 +33,6 @@ const BoardSection = ({
   community: any;
   perks: any;
 }) => {
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, []);
-
   return (
     <div className="mb-20 flex h-full w-full flex-col items-center md:mb-40 xl:mb-60">
       <div className="relative flex size-full flex-col items-center px-4 sm:w-[540px] md:w-[648px] lg:w-[864px] xl:w-[1080px] 2xl:w-[1296px]">
@@ -135,7 +123,7 @@ const BoardSection = ({
             <Beardrops />
           </div>
         </div>
-        <div className="h-px w-1/2 bg-gradient-to-r from-[#F5D01100] via-[#43AA77] via-50%" />
+        <div className="h-px w-1/2 bg-gradient-to-r from-[#F5D01100] via-[#43AA77] to-[#F5D01100]" />
       </div>
     </div>
   );

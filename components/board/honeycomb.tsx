@@ -1,3 +1,5 @@
+"use client";
+
 import { ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 import {
@@ -9,7 +11,6 @@ import {
 } from "@/components/ui/carousel";
 import { useState, useMemo, useEffect } from "react";
 import S3Image from "@/components/s3-image";
-import { formatEther } from "viem";
 import { trackEvent } from "@openpanel/nextjs";
 
 const Honeycomb = ({ perks }: { perks?: any }) => {

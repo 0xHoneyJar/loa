@@ -1,5 +1,6 @@
+import { GuideButton } from "@/components/ui/buttons";
 import Image from "next/image";
-import { trackEvent } from "@openpanel/nextjs";
+
 const Guide = () => {
   return (
     <div className="relative flex h-full flex-col justify-end overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]">
@@ -12,18 +13,7 @@ const Guide = () => {
             New to THJ? Start with THJ 101 Guide!
           </p>
         </div>
-        <a
-          href={
-            "https://0xhoneyjar.mirror.xyz/dHB3l29gAfLsPhPUPLGvg6_UAM1LxgxHMSJ054_QuDM"
-          }
-          onClick={() => {
-            trackEvent(`explore_guide`);
-          }}
-          target="_blank"
-          className="w-full cursor-blue whitespace-nowrap rounded-full bg-[#F4C10B] px-6 py-3 text-center text-sm font-medium text-black hover:shadow-yellow md:w-auto md:px-8 md:text-left"
-        >
-          Explore
-        </a>
+        <GuideButton />
       </div>
     </div>
   );

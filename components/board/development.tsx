@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { ScrollArea } from "../ui/scroll-area";
-import { trackEvent } from "@openpanel/nextjs";
+import { DevelopmentButton } from "@/components/ui/buttons";
 
 const Development = ({ developments }: { developments?: any }) => {
   return (
@@ -49,18 +49,7 @@ const Development = ({ developments }: { developments?: any }) => {
                   );
 
                   return item.link ? (
-                    <a
-                      className="z-10 flex cursor-blue items-center gap-1 underline hover:text-white/75 md:gap-2"
-                      key={id}
-                      href={item.link}
-                      target="_blank"
-                      onClick={() => {
-                        trackEvent(`development_${item._title}`);
-                      }}
-                      rel="noopener noreferrer"
-                    >
-                      <CommonContent />
-                    </a>
+                    <DevelopmentButton item={item} id={id} />
                   ) : (
                     <div className="flex items-center gap-1 md:gap-2" key={id}>
                       <CommonContent />

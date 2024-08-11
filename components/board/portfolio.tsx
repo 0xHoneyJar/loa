@@ -1,3 +1,4 @@
+import { IncubatedItem } from "@/components/ui/buttons";
 import {
   Carousel,
   CarouselContent,
@@ -6,14 +7,10 @@ import {
   CarouselNext,
 } from "@/components/ui/carousel";
 import Image from "next/image";
-import { trackEvent } from "@openpanel/nextjs";
 
 const Portfolio = ({ partners }: { partners?: any }) => {
   const incubated = Array.isArray(partners)
-    ? partners.filter(
-        (partner: any) =>
-          partner.partner === "Joint" && partner._title !== "Inversebera",
-      )
+    ? partners.filter((partner: any) => partner.partner === "Joint")
     : [];
 
   return (
@@ -48,41 +45,11 @@ const Portfolio = ({ partners }: { partners?: any }) => {
         <CarouselContent className="mr-6 flex size-full grow items-center py-4 pl-4 md:py-6 md:pl-6">
           {incubated.map((item, id) => (
             <CarouselItem key={id} className={`h-full`}>
-              <a
-                className="relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90 md:w-[196px]"
-                href={item.twitter}
-                onClick={() => {
-                  trackEvent(
-                    item._title === "The Honey Jar"
-                      ? "Honeycomb_portfolio"
-                      : `${item._title}_portfolio`,
-                  );
-                }}
-                target="_blank"
-              >
-                <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
-                <div className="relative my-4 aspect-square h-16 overflow-hidden rounded-full border border-[#F4C10B0F] bg-[#18140C05] md:mt-6 md:h-[80px]">
-                  <Image
-                    src={
-                      item._title === "The Honey Jar"
-                        ? "/honeycomb-icon.png"
-                        : "https://d163aeqznbc6js.cloudfront.net/images" +
-                          item.logo
-                    }
-                    alt={item._title}
-                    fill
-                    className={`${item._title === "The Honey Jar" && "p-1 md:p-2"} object-cover`}
-                  />
-                </div>
-                <p className="text-sm md:text-base">
-                  {item._title === "The Honey Jar" ? "Honeycomb" : item._title}
-                </p>
-              </a>
+              <IncubatedItem item={item} />
             </CarouselItem>
           ))}
         </CarouselContent>
       </Carousel>
-      {/* </div> */}
     </div>
   );
 };

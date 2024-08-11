@@ -1,10 +1,8 @@
-import { ArrowUpRight } from "lucide-react";
 import { ScrollArea } from "../ui/scroll-area";
 import S3Image from "../s3-image";
-import { trackEvent } from "@openpanel/nextjs";
+import { SpotlightButton } from "@/components/ui/buttons";
 
 const Spotlight = ({ spotlight }: { spotlight?: any }) => {
-  console.log(spotlight.image);
   return (
     <div
       className={`relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
@@ -33,7 +31,6 @@ const Spotlight = ({ spotlight }: { spotlight?: any }) => {
           />
         </div>
         <div className="relative flex size-full flex-col overflow-hidden">
-          {/* <div className="flex w-full flex-col"> */}
           <p className="mb-1 text-sm font-medium text-[#FBFBFB] md:text-base">
             {spotlight.title}
           </p>
@@ -42,19 +39,8 @@ const Spotlight = ({ spotlight }: { spotlight?: any }) => {
               {spotlight.description}
             </p>
           </ScrollArea>
-          {/* </div> */}
         </div>
-        <a
-          className="flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-4 py-3 text-[#F4C10B] hover:cursor-blue hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]"
-          href={spotlight.link}
-          onClick={() => {
-            trackEvent(`${spotlight._title}_spotlight`);
-          }}
-          target="_blank"
-        >
-          <p className="text-sm">Learn More</p>
-          <ArrowUpRight className="aspect-square h-[16px] md:h-[24px]" />
-        </a>
+        <SpotlightButton spotlight={spotlight} />
       </div>
     </div>
   );

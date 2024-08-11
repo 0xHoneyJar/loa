@@ -1,4 +1,4 @@
-import { trackEvent } from "@openpanel/nextjs";
+import { SnapshotButton } from "@/components/ui/buttons";
 import Image from "next/image";
 
 const Validator = () => {
@@ -42,16 +42,7 @@ const Validator = () => {
             </div>
             <p className="text-base">Snapshot Honeycomb in a single click</p>
           </div>
-          <a
-            target="_blank"
-            href={"https://beardrops.0xhoneyjar.xyz/"}
-            onClick={() => {
-              trackEvent(`beardrops_snapshot`);
-            }}
-            className="flex size-full items-center justify-center rounded-full bg-[#43AA77] px-6 py-3 text-sm font-medium text-black hover:cursor-blue hover:shadow-evergreen md:w-auto md:px-8"
-          >
-            Snapshot
-          </a>
+          <SnapshotButton />
         </div>
       </div>
     </div>

@@ -26,10 +26,7 @@ export const getQuestsQuery = async () => {
     logo: quest.logo ? quest.logo.split(",") : null,
     reward: quest.reward.split(",").map(Number),
   }));
-
-  // Order alphabetically
-  // finalQuest?.sort((a: any, b: any) => a.title.localeCompare(b.title));
-
+  
   return finalQuest;
 };
 

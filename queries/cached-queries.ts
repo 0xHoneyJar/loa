@@ -1,9 +1,7 @@
 "use server";
 
 import {
-  // getQuestQuery,
   getQuestsQuery,
-  // getRaffleQuery,
   getRafflesQuery,
 } from "@/queries/queries";
 import { unstable_cache } from "next/cache";
@@ -20,19 +18,6 @@ export async function getRaffles() {
     },
   )();
 }
-
-// export async function getRaffle(slug: string) {
-//   return unstable_cache(
-//     async () => {
-//       return getRaffleQuery(slug);
-//     },
-//     ["raffle", slug],
-//     {
-//       tags: ["raffle", `raffle_${slug}`],
-//       revalidate: 3600,
-//     },
-//   )();
-// }
 
 export async function getQuests() {
   return unstable_cache(

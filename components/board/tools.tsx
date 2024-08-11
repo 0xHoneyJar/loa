@@ -1,3 +1,4 @@
+import { ToolsButton } from "@/components/ui/buttons";
 import {
   Carousel,
   CarouselContent,
@@ -6,8 +7,6 @@ import {
   CarouselNext,
 } from "@/components/ui/carousel";
 import { TOOLS } from "@/constants/tools";
-import Image from "next/image";
-import { trackEvent } from "@openpanel/nextjs";
 
 const Tools = () => {
   return (
@@ -31,28 +30,7 @@ const Tools = () => {
         <CarouselContent className="mr-6 flex h-full w-full grow items-center py-4 pl-4 md:py-6 md:pl-6">
           {TOOLS.map((item, id) => (
             <CarouselItem key={id} className={`h-full`}>
-              <a
-                target="_blank"
-                href={item.link}
-                onClick={() => {
-                  trackEvent(`${item.name}_tools_product`);
-                }}
-                className={`flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#161616] bg-[#121212] px-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#373737] hover:bg-[#1A1A1A] hover:font-medium hover:text-white md:w-[196px]`}
-              >
-                {item.image ? (
-                  <div className="relative mb-4 mt-4 aspect-square h-16 overflow-hidden rounded-full md:mt-6 md:h-[80px]">
-                    <Image
-                      src={item.image}
-                      alt={item.name}
-                      fill
-                      className="object-contain"
-                    />
-                  </div>
-                ) : (
-                  <div className="mb-4 mt-4 aspect-square h-16 rounded-full bg-[#FD4D01] md:mt-6 md:h-[80px]" />
-                )}
-                <p className="text-xs md:text-sm">{item.name}</p>
-              </a>
+              <ToolsButton item={item} />
             </CarouselItem>
           ))}
         </CarouselContent>

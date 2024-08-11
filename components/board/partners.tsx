@@ -1,6 +1,5 @@
+import { PartnerButton, PartnersButton } from "@/components/ui/buttons";
 import Image from "next/image";
-import { Map, ChevronRight } from "lucide-react";
-import { trackEvent } from "@openpanel/nextjs";
 
 const Partners = ({ partners }: { partners?: any }) => {
   return (
@@ -40,43 +39,7 @@ const Partners = ({ partners }: { partners?: any }) => {
               {/* <HelpCircle className="aspect-square h-3 md:h-[14px]" /> */}
             </p>
           </div>
-          <a
-            href="https://ecosystem.0xhoneyjar.xyz/"
-            target="_blank"
-            onClick={() => {
-              trackEvent(`partner_map_partners`);
-            }}
-          >
-            <button className="flex w-full items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 hover:cursor-blue hover:border-[#E8E8E81F] hover:bg-[#FFFFFF24]">
-              <div className="flex items-center gap-2 whitespace-nowrap">
-                <Map className="aspect-square h-4 md:h-[22px]" />
-                <p className="text-xs md:text-sm">THJ Partner Map</p>
-              </div>
-              <ChevronRight className="aspect-square h-3 text-[#FFFFFF66] md:h-[14px]" />
-            </button>
-          </a>
-          <a
-            href="https://ecosystem.0xhoneyjar.xyz/"
-            target="_blank"
-            onClick={() => {
-              trackEvent(`explore_partners_partners`);
-            }}
-          >
-            <button className="flex w-full items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 hover:cursor-blue hover:border-[#E8E8E81F] hover:bg-[#FFFFFF24]">
-              <div className="flex items-center gap-2 whitespace-nowrap">
-                <div className="relative aspect-square h-4 md:h-[22px]">
-                  <Image
-                    src={"/partners.svg"}
-                    alt="partners"
-                    fill
-                    className="object-contain"
-                  />
-                </div>
-                <p className="text-xs md:text-sm">Explore Partners</p>
-              </div>
-              <ChevronRight className="aspect-square h-3 text-[#FFFFFF66] md:h-[14px]" />
-            </button>
-          </a>
+          <PartnersButton />
         </div>
         <div className="relative flex w-full grow items-center justify-center border-t border-[#43AA771A] px-4 md:px-6">
           <div className="absolute -bottom-2 -left-0 aspect-square h-[40px]">
@@ -96,17 +59,7 @@ const Partners = ({ partners }: { partners?: any }) => {
             />
           </div>
           <div className="w-full rounded-full border border-dashed border-[#9F9F9F63] p-2">
-            <a
-              href="https://partners.0xhoneyjar.xyz/"
-              target="_blank"
-              onClick={() => {
-                trackEvent(`become_partner_partners`);
-              }}
-            >
-              <button className="flex w-full items-center justify-center rounded-full bg-[#43AA77] p-3 text-sm font-medium text-black hover:cursor-blue hover:shadow-evergreen md:text-base xl:text-lg">
-                <p className="text-sm">Become a Partner</p>
-              </button>
-            </a>
+            <PartnerButton />
           </div>
         </div>
       </div>

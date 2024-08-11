@@ -1,3 +1,5 @@
+"use client";
+
 import S3Image from "@/components/s3-image";
 import {
   Carousel,

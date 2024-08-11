@@ -1,3 +1,5 @@
+"use client";
+
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { retrieveTwitterFeed } from "@/actions/retrieve-twitter-feed";
@@ -19,11 +21,6 @@ const Feed = () => {
   }, []);
 
   const swipeAction = () => {
-    // setTweets((prevTweets) => {
-    //   const firstElement = prevTweets[0];
-    //   const newTweets = [...prevTweets.slice(1), firstElement];
-    //   return newTweets;
-    // });
     if (tweetNum === tweets.length - 1) {
       setTweetNum(0);
     } else {

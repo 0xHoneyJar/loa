@@ -1,5 +1,5 @@
+import { DelegateButton } from "@/components/ui/buttons";
 import Image from "next/image";
-import { trackEvent } from "@openpanel/nextjs";
 
 const Delegate = () => {
   return (
@@ -44,18 +44,7 @@ const Delegate = () => {
           Delegate to The Honey Jar <span className="font-light">(THJ)</span>
         </p>
         <div className="rounded-full border border-dashed border-black/40 p-1 md:p-2">
-          <a
-            href={
-              "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
-            }
-            onClick={() => {
-              trackEvent(`delegate_thj`);
-            }}
-            target="_blank"
-            className="flex w-full cursor-blue items-center justify-center rounded-full bg-black py-3 text-sm font-medium hover:bg-white hover:text-black md:text-base"
-          >
-            Delegate Now
-          </a>
+          <DelegateButton />
         </div>
         <p className="text-base text-[#414141]">
           Help us make the Fat Bera Thesis come true! Delegate to THJ and get

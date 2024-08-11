@@ -1,3 +1,5 @@
+"use client";
+
 import Image from "next/image";
 import {
   CircularProgressbarWithChildren,
@@ -76,8 +78,6 @@ const Data = () => {
               })}
               className="h-[180px] md:h-[200px]"
             >
-              {/* <p className="text-xl font-medium">500,000</p>
-              <p className="text-sm">Total Wallets</p> */}
               <div className="flex h-full w-full flex-col items-center justify-center">
                 <p className="font-medium md:text-xl">73391</p>
                 <p className="text-xs md:text-sm">Total Wallets</p>
