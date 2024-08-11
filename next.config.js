@@ -11,7 +11,7 @@ module.exports = {
     return [
       {
         source: "/mint",
-        destination: "https://app.0xhoneyjar.xyz/mint",
+        destination: "https://app.0xhoneyjar.xyz",
         permanent: true,
       },
       {
