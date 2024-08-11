@@ -49,77 +49,77 @@ const BoardSection = ({
             </p>
           </Marquee>
         </div>
-        <div className="grid w-full grid-cols-1 grid-rows-40 gap-4 rounded-2xl border border-[#BCBCBC1A] bg-[#0A0A0A] p-2 text-white md:max-h-[8220px] md:grid-cols-3 md:grid-rows-22 md:gap-6 md:p-6 xl:grid-rows-24">
-          <div className="row-span-1 md:col-span-3">
+        <div className="grid w-full grid-cols-1 grid-rows-40 gap-4 rounded-2xl border border-[#BCBCBC1A] bg-[#0A0A0A] p-2 text-white md:gap-6 md:p-6 lg:max-h-[8220px] lg:grid-cols-3 lg:grid-rows-22 xl:grid-rows-24">
+          <div className="row-span-1 lg:col-span-3">
             <Guide />
           </div>
-          <div className="row-span-1 md:col-span-2">
+          <div className="row-span-1 lg:col-span-2">
             <Updates updates={community.updates} />
           </div>
-          <div className="row-span-1 md:col-span-1">
+          <div className="row-span-1 lg:col-span-1">
             <Follow />
           </div>
-          <div className="row-span-1 md:col-span-full">
+          <div className="row-span-1 lg:col-span-full">
             <NewPartners partners={partners} />
           </div>
-          <div className="row-span-1 md:col-span-full">
+          <div className="row-span-1 lg:col-span-full">
             <Mint mints={community.mints} />
           </div>
-          <div className="row-span-1 md:col-span-full">
+          <div className="row-span-1 lg:col-span-full">
             <Blog />
           </div>
-          <div className="row-span-2 md:col-span-2">
+          <div className="row-span-2 lg:col-span-2">
             <Spotlight spotlight={community.spotlight} />
           </div>
-          <div className="row-span-3 md:col-span-1">
+          <div className="row-span-3 lg:col-span-1">
             <Development developments={community.developments} />
           </div>
-          <div className="row-span-1 md:col-span-1">
+          <div className="row-span-1 lg:col-span-1">
             <OogaBooga />
           </div>
-          <div className="row-span-1 md:col-span-1">
+          <div className="row-span-1 lg:col-span-1">
             <Feed />
           </div>
-          <div className="row-span-1 md:col-span-full">
+          <div className="row-span-1 lg:col-span-full">
             <Portfolio partners={partners} />
           </div>
-          <div className="row-span-1 md:col-span-full">
+          <div className="row-span-1 lg:col-span-full">
             <NFT />
           </div>
-          <div className="row-span-1 md:col-span-1">
+          <div className="row-span-1 lg:col-span-1">
             <Quotes quoteNumber={1} />
           </div>
-          <div className="row-span-3 md:col-span-1">
+          <div className="row-span-3 lg:col-span-1">
             <Quests />
           </div>
-          <div className="row-span-2 md:col-span-1">
+          <div className="row-span-2 lg:col-span-1">
             <Delegate />
           </div>
-          <div className="row-span-2 md:col-span-1">
+          <div className="row-span-2 lg:col-span-1">
             <Partners partners={partners} />
           </div>
-          <div className="row-span-1 md:col-span-1">
+          <div className="row-span-1 lg:col-span-1">
             <Quotes quoteNumber={0} />
           </div>
-          <div className="row-span-1 md:col-span-2">
+          <div className="row-span-1 lg:col-span-2">
             <Artwork />
           </div>
-          <div className="row-span-4 md:col-span-1">
+          <div className="row-span-4 lg:col-span-1">
             <Data />
           </div>
-          <div className="row-span-3 md:col-span-2">
+          <div className="row-span-3 lg:col-span-2">
             <Honeycomb perks={perks} />
           </div>
-          <div className="row-span-3 md:col-span-1">
+          <div className="row-span-3 lg:col-span-1">
             <Raffles />
           </div>
-          <div className="row-span-2 md:col-span-2">
+          <div className="row-span-2 lg:col-span-2">
             <Validator />
           </div>
-          <div className="row-span-1 md:col-span-2">
+          <div className="row-span-1 lg:col-span-2">
             <Tools />
           </div>
-          <div className="row-span-2 md:col-span-full">
+          <div className="row-span-2 lg:col-span-full">
             <Beardrops />
           </div>
         </div>
