@@ -21,7 +21,7 @@ const config = {
       gridTemplateRows: {
         "22": "repeat(22, minmax(0, 0.27fr))",
         "24": "repeat(22, minmax(0, 0.32fr))",
-        "40": "repeat(40, minmax(0, 0.5fr))",
+        "40": "repeat(40, minmax(0, 0.34fr))",
       },
       fontFamily: {
         switzer: ["var(--font-switzer)"],
