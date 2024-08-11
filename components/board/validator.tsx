@@ -192,7 +192,7 @@ const Validator = () => {
                 onClick={() => {
                   trackEvent(`view_validator`);
                 }}
-                className="flex h-full items-center justify-center whitespace-nowrap rounded-full border border-white/5 bg-white/5 px-6 text-sm font-medium text-white hover:cursor-blue hover:border-white/20 hover:bg-white/20 md:text-sm"
+                className="flex h-full items-center justify-center whitespace-nowrap rounded-full border border-white/5 bg-white/5 px-6 text-xs font-medium text-white hover:cursor-blue hover:border-white/20 hover:bg-white/20 md:text-sm"
               >
                 <span className="hidden xl:inline-flex">View</span>
                 &nbsp;Validator
@@ -205,7 +205,7 @@ const Validator = () => {
                 onClick={() => {
                   trackEvent(`delegate_validator`);
                 }}
-                className="flex h-full items-center justify-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 text-sm font-medium text-black hover:cursor-blue hover:shadow-evergreen md:text-sm"
+                className="flex h-full items-center justify-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 text-xs font-medium text-black hover:cursor-blue hover:shadow-evergreen md:text-sm"
               >
                 Delegate&nbsp;<span className="hidden xl:inline-flex">Now</span>
               </a>

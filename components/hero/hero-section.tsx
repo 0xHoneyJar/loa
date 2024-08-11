@@ -139,7 +139,7 @@ const HeroSection = () => {
             gradient
             gradientColor="#0A0A0A"
             gradientWidth={50}
-            className="h-[88px] !w-[90%]"
+            className="!w-[90%]"
           >
             <div className="flex bg-[#0A0601] py-2">
               {We.map((item, id) => (
@@ -157,7 +157,7 @@ const HeroSection = () => {
           </Marquee>
         </div>
 
-        <div className="mb-10 h-[1px] w-1/2 bg-gradient-to-r from-[#F5D01100] via-[#F5D011] to-[#F5D01100] md:w-1/4" />
+        <div className="mb-10 h-px w-1/2 bg-gradient-to-r from-[#F5D01100] via-[#F5D011] to-[#F5D01100] md:w-1/4" />
         <div className="relative z-10 -mb-10 hidden aspect-square h-[38px] rounded-full bg-white shadow-white md:flex md:h-[46px]">
           <motion.button
             className="relative size-full"

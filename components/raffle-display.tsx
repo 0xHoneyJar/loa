@@ -74,7 +74,7 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
           className={`absolute bottom-0 left-0 h-1/2 w-full bg-gradient-to-t from-black ${endedRaffle && "hidden"}`}
         />
         {hover && (
-          <div className="absolute left-0 top-0 z-10 flex size-full cursor-blue items-center justify-center bg-black/75">
+          <div className="absolute left-0 top-0 z-20 flex size-full cursor-blue items-center justify-center bg-black/75">
             <a
               href={`https://faucet.0xhoneyjar.xyz/raffles`}
               target="_blank"
@@ -93,9 +93,8 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
           alt="Quest Background"
           className="object-cover opacity-70"
         />
-
         {upcomingRaffle ? (
-          <div className="flex size-full flex-col items-center justify-center">
+          <div className="z-10 flex size-full flex-col items-center justify-center">
             <p className="text-lg font-medium md:text-xl">{timeRemaining}</p>
             <p className="text-xs text-[#E0E0E0] md:text-sm">
               {convertUnixToLocalTime(raffle.startTime)}
@@ -115,7 +114,7 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
             </div>
             <div className="flex w-full flex-col-reverse gap-2 xl:h-[40px] xl:flex-row xl:gap-3">
               <div className="h-8 w-full rounded-lg border border-[#737373]/60 bg-[#D8D8D8]/20 p-1 backdrop-blur-sm xl:h-full">
-                <div className="relative flex h-full w-full items-center overflow-hidden rounded-lg bg-[#75643C]">
+                <div className="relative flex size-full items-center overflow-hidden rounded-lg bg-[#75643C]">
                   <motion.div
                     className={`h-full rounded-lg ${endedRaffle ? "bg-[#444444]" : "bg-[#F8A929]"}`}
                     initial={false}
