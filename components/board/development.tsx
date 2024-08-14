@@ -49,7 +49,7 @@ const Development = ({ developments }: { developments?: any }) => {
                   );
 
                   return item.link ? (
-                    <DevelopmentButton item={item} id={id} />
+                    <DevelopmentButton item={item} id={id} key={id} />
                   ) : (
                     <div className="flex items-center gap-1 md:gap-2" key={id}>
                       <CommonContent />

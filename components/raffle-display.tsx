@@ -64,7 +64,7 @@ const RaffleDisplay = ({ raffle }: { raffle: Raffle }) => {
   }, [currentTime]);
 
   return (
-    <div className="h-[210px] w-full overflow-hidden sm:h-[230px] md:h-[240px] xl:h-[250px]">
+    <div className="size-full overflow-hidden">
       <div
         onMouseEnter={() => !upcomingRaffle && !endedRaffle && setHover(true)}
         onMouseLeave={() => !upcomingRaffle && !endedRaffle && setHover(false)}

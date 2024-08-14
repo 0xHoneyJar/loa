@@ -58,7 +58,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
   }, [currentTime]);
 
   return (
-    <div className="h-[210px] w-full overflow-hidden sm:h-[230px] md:h-[240px] xl:h-[250px]">
+    <div className="size-full overflow-hidden">
       <div
         onMouseEnter={() => !upcomingQuest && !endedQuest && setHover(true)}
         onMouseLeave={() => !upcomingQuest && !endedQuest && setHover(false)}

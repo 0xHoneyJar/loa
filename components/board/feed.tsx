@@ -6,15 +6,19 @@ import { retrieveTwitterFeed } from "@/actions/retrieve-twitter-feed";
 import TwitterDisplay from "../tweet-display";
 import SecondaryTweetDisplay from "../secondary-tweet-display";
 import { trackEvent } from "@openpanel/nextjs";
+import TweetSkeleton from "../tweet-skeleton";
 
 const Feed = () => {
   const [tweets, setTweets] = useState<any[]>([]);
   const [tweetNum, setTweetNum] = useState(0);
+  const [loadingTweet, setLoadingTweet] = useState(false);
 
   useEffect(() => {
     async function retrieveTweets() {
+      setLoadingTweet(true);
       const data = await retrieveTwitterFeed();
       setTweets(data);
+      setLoadingTweet(false);
     }
 
     retrieveTweets();
@@ -55,18 +59,22 @@ const Feed = () => {
         </a>
       </div>
       <div className="flex grow overflow-hidden p-4 pt-6">
-        <div className="relative h-full w-full">
+        <div className="relative size-full">
           <SecondaryTweetDisplay
             text={tweets[(tweetNum + 1) % (tweets.length - 1)]?.full_text}
           />
-          {tweets.map((tweet, id) => (
-            <TwitterDisplay
-              key={id}
-              text={tweet.full_text}
-              show={id === tweetNum}
-              swipeAction={swipeAction}
-            />
-          ))}
+          {loadingTweet ? (
+            <TweetSkeleton />
+          ) : (
+            tweets.map((tweet, id) => (
+              <TwitterDisplay
+                key={id}
+                text={tweet.full_text}
+                show={id === tweetNum}
+                swipeAction={swipeAction}
+              />
+            ))
+          )}
         </div>
       </div>
     </div>

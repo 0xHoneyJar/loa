@@ -47,7 +47,7 @@ const TwitterDisplay = ({
 
   return (
     <motion.div
-      className={`relative flex h-full w-full flex-col divide-y divide-[#292929] rounded-lg bg-[#181818] ${drag ? "cursor-grabbing" : "cursor-grab"} ${!show ? "hidden" : ""}`}
+      className={`relative flex size-full flex-col divide-y divide-[#292929] rounded-lg bg-[#181818] ${drag ? "cursor-grabbing" : "cursor-grab"} ${!show ? "hidden" : ""}`}
       drag="x"
       animate={
         show
@@ -70,7 +70,7 @@ const TwitterDisplay = ({
           <p className="text-[10px] text-[#ABABAB] md:text-sm">@0xhoneyjar</p>
         </div>
       </div>
-      <div className="flex h-full w-full overflow-hidden p-4 md:p-6">
+      <div className="flex size-full overflow-hidden p-4 md:p-6">
         <ScrollArea>
           <p className="text-xs font-light md:text-sm">{text}</p>
         </ScrollArea>

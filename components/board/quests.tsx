@@ -8,12 +8,16 @@ import { Quest } from "@/constants/quest";
 import useUserStore from "@/state/user/useUserStore";
 import QuestDisplay from "../quest-display";
 import { trackEvent } from "@openpanel/nextjs";
+import SkeletonDisplay from "../skeleton-display";
 
 const Quests = () => {
   const currentTime = useUserStore((state) => state.currentTime);
   const [quests, setQuests] = useState<Quest[]>([]);
+  const [loadingQuest, setLoadingQuest] = useState(false);
+
   useEffect(() => {
     async function getQuests() {
+      setLoadingQuest(true);
       const retrievedQuests = await retrieveQuests();
       retrievedQuests.sort((a, b) => {
         // Define a priority for each quest based on current time
@@ -38,6 +42,7 @@ const Quests = () => {
       });
 
       setQuests(retrievedQuests);
+      setLoadingQuest(false);
     }
 
     getQuests();
@@ -55,20 +60,24 @@ const Quests = () => {
             Quests
           </p>
           <div className="relative aspect-square h-2 rounded-full bg-[#FF0000]">
-            <div className="absolute aspect-square h-full w-full animate-ping rounded-full bg-[#FF0000]" />
+            <div className="absolute aspect-square size-full animate-ping rounded-full bg-[#FF0000]" />
           </div>
         </div>
       </div>
       <div className="flex grow flex-col justify-between p-4 md:p-6">
-        <p className="mb-2 text-xs uppercase text-white md:text-sm">
+        <p className="mb-4 text-xs uppercase text-white md:text-sm">
           Take part in{" "}
           <span className="text-[#E1A94E]">THJ specials Quests</span> and{" "}
           <span className="text-[#E1A94E]">get rewarded! like seriously</span>
         </p>
-        <div className="mb-4 grid w-full grid-rows-3 gap-4 overflow-hidden">
-          {quests.slice(0, 3).map((quest, id) => (
-            <QuestDisplay quest={quest} key={id} />
-          ))}
+        <div className="mb-4 grid size-full grid-rows-3 gap-4 overflow-hidden md:gap-6">
+          {loadingQuest
+            ? quests
+                .slice(0, 3)
+                .map((quest, id) => <QuestDisplay quest={quest} key={id} />)
+            : Array.from({ length: 3 }).map((_, id) => (
+                <SkeletonDisplay key={id} />
+              ))}
         </div>
         <a
           href={"https://faucet.0xhoneyjar.xyz/quests"}

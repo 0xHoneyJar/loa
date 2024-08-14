@@ -24,6 +24,6 @@ export async function retrieveTwitterFeed() {
     return res.tweets;
   } catch (error) {
     console.error("Error fetching Twitter feed:", error);
-    return []; // Return an empty array or handle the error as needed
+    return [{ full_text: "" }]; // Return an empty array or handle the error as needed
   }
 }

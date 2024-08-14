@@ -9,13 +9,16 @@ import { useEffect } from "react";
 import { retrieveRaffles } from "@/actions/retrieve-raffles";
 import RaffleDisplay from "../raffle-display";
 import { trackEvent } from "@openpanel/nextjs";
+import SkeletonDisplay from "../skeleton-display";
 
 const Raffles = () => {
   const currentTime = useUserStore((state) => state.currentTime);
   const [raffles, setRaffles] = useState<Raffle[]>([]);
+  const [loadingRaffle, setLoadingRaffle] = useState(false);
 
   useEffect(() => {
     async function getRaffles() {
+      setLoadingRaffle(true);
       const retrievedRaffles = await retrieveRaffles();
       retrievedRaffles.sort((a, b) => {
         // Define a priority for each quest based on current time
@@ -40,6 +43,7 @@ const Raffles = () => {
       });
 
       setRaffles(retrievedRaffles);
+      setLoadingRaffle(false);
     }
 
     getRaffles();
@@ -57,14 +61,18 @@ const Raffles = () => {
         </div>
       </div>
       <div className="flex grow flex-col justify-between p-4 md:p-6">
-        <p className="text-xs uppercase text-white md:text-sm">
+        <p className="mb-4 text-xs uppercase text-white md:text-sm">
           TAKE PART IN RAFFLES TO WIN PRIZES FROM AROUND THE&nbsp;
           <span className="text-[#E1A94E]">BERACHAIN ECOSYSTEM!</span>
         </p>
-        <div className="grid w-full grid-rows-3 gap-4 overflow-hidden md:gap-6">
-          {raffles.slice(0, 3).map((raffle, id) => (
-            <RaffleDisplay raffle={raffle} key={id} />
-          ))}
+        <div className="mb-4 grid size-full grid-rows-3 gap-4 overflow-hidden md:gap-6">
+          {loadingRaffle
+            ? raffles
+                .slice(0, 3)
+                .map((raffle, id) => <RaffleDisplay raffle={raffle} key={id} />)
+            : Array.from({ length: 3 }).map((_, id) => (
+                <SkeletonDisplay key={id} />
+              ))}
         </div>
         <a
           href={"https://faucet.0xhoneyjar.xyz/raffles"}
