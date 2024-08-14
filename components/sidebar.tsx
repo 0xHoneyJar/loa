@@ -140,7 +140,7 @@ const Sidebar = ({
                                             });
                                           closeSidebarHandler();
                                         }}
-                                        className="cursor-blue rounded-lg px-4 py-3 text-left text-sm text-white"
+                                        className="rounded-lg px-4 py-3 text-left text-sm text-white"
                                       >
                                         {section.name}
                                       </button>

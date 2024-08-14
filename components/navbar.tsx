@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Sidebar from "@/components/sidebar";
 import SectionSelect from "./section-select";
 import { AnimatePresence, motion } from "framer-motion";
@@ -12,11 +12,29 @@ import {
   NavigationMenuList,
 } from "@/components/ui/navigation-menu";
 import Explore from "./explore";
-import { Menu, X } from "lucide-react";
+import { Copy, Menu, X, Download } from "lucide-react";
 import { trackEvent } from "@openpanel/nextjs";
 
 const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState({ isOpen: false });
+
+  const handleLogoContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({
+      isOpen: true,
+    });
+  };
+
+  const closeContextMenu = () => {
+    setContextMenu({ ...contextMenu, isOpen: false });
+  };
+
+  useEffect(() => {
+    const handleClickOutside = () => closeContextMenu();
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, []);
 
   return (
     <>
@@ -26,9 +44,18 @@ const Navbar = () => {
         // style={{ boxShadow: "0px 2px 56px #0000001F" }}
       >
         <div className="flex items-center gap-2 border-r border-white/10 px-4 py-3 md:gap-3 md:py-2">
-          <Link className="relative aspect-square h-10 cursor-blue" href="/">
-            <Image src={"/thj-logo.png"} alt="logo" fill />
-          </Link>
+          <div
+            className="relative size-10 cursor-pointer"
+            onContextMenu={handleLogoContextMenu}
+          >
+            <Link href="/" onClick={(e) => e.stopPropagation()}>
+              <Image src="/globe.png" alt="" fill className="object-contain" />
+            </Link>
+            <LogoContextMenu
+              isOpen={contextMenu.isOpen}
+              onClose={closeContextMenu}
+            />
+          </div>
           <p className="hidden whitespace-nowrap text-[10px] text-white md:flex md:text-xs">
             For Community
           </p>
@@ -43,7 +70,7 @@ const Navbar = () => {
                 <a
                   href={"https://app.0xhoneyjar.xyz/"}
                   target="_blank"
-                  className="hidden cursor-blue items-center whitespace-nowrap rounded-full bg-[#F4C10B]/80 px-6 py-2.5 font-medium text-white hover:shadow-yellow md:flex"
+                  className="hidden items-center whitespace-nowrap rounded-full bg-[#F4C10B]/80 px-6 py-2.5 font-medium text-white hover:shadow-yellow md:flex"
                   onClick={() => {
                     trackEvent("open_app_navbar");
                   }}
@@ -57,7 +84,7 @@ const Navbar = () => {
                     "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
                   }
                   target="_blank"
-                  className="hidden cursor-blue items-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 py-2.5 font-medium text-white hover:shadow-evergreen md:flex"
+                  className="hidden items-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 py-2.5 font-medium text-white hover:shadow-evergreen md:flex"
                   onClick={() => {
                     trackEvent("delegate_navbar");
                   }}
@@ -102,3 +129,59 @@ const Navbar = () => {
 };
 
 export default Navbar;
+
+interface LogoContextMenuProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const LogoContextMenu: React.FC<LogoContextMenuProps> = ({
+  isOpen,
+  onClose,
+}) => {
+  const handleCopyLogo = useCallback(async () => {
+    try {
+      const response = await fetch("/globe.svg");
+      const svgText = await response.text();
+
+      await navigator.clipboard.writeText(svgText);
+      console.log("Logo SVG copied to clipboard");
+    } catch (error) {
+      console.error("Failed to copy logo:", error);
+    } finally {
+      onClose();
+    }
+  }, [onClose]);
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.1 }}
+          className="absolute -left-20 top-[calc(100%+8px)] z-50 w-48 -translate-x-1/2 overflow-hidden rounded-lg border border-[#66666632] bg-[#0D0D0D] p-1 text-white"
+        >
+          <div className="flex flex-col">
+            <button
+              onClick={handleCopyLogo}
+              className="flex w-full items-center whitespace-nowrap rounded-sm p-2 text-sm text-[#D4D4D4] hover:bg-[#2B2B2B45]"
+            >
+              <Copy className="mr-2 size-4" />
+              Copy Logo (SVG)
+            </button>
+            <a
+              href="/thj/THJ_Brandkit.zip"
+              download
+              className="flex w-full items-center whitespace-nowrap rounded-sm p-2 text-sm text-[#D4D4D4] hover:bg-[#2B2B2B45]"
+            >
+              <Download className="mr-2 size-4" />
+              Download Branding Kit
+            </a>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};

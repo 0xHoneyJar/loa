@@ -79,7 +79,7 @@ const Raffles = () => {
           onClick={() => {
             trackEvent(`explore_raffles`);
           }}
-          className="flex w-full cursor-blue items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] p-2 transition-all duration-500 ease-in-out hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D] md:px-4 md:py-3"
+          className="flex w-full items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] p-2 transition-all duration-500 ease-in-out hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D] md:px-4 md:py-3"
         >
           <div className="flex items-center gap-1 md:gap-2">
             <div className="relative aspect-square h-6 md:h-[26px]">

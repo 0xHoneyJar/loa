@@ -100,7 +100,7 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
                   trackEvent(`opensea_honeycomb`);
                 }}
                 rel="noopener noreferrer"
-                className="flex cursor-blue items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[#1E1E1E] bg-[#0F0D08] py-2 hover:border-[#363636] hover:bg-[#14130f] md:py-3"
+                className="flex items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[#1E1E1E] bg-[#0F0D08] py-2 hover:border-[#363636] hover:bg-[#14130f] md:py-3"
               >
                 <div className="relative aspect-square h-5 rounded-full md:h-[26px]">
                   <Image
@@ -152,7 +152,7 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
             onClick={() => {
               trackEvent(`visit_honeycomb_dashboard`);
             }}
-            className="flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-6 py-3 text-[#F4C10B] transition-all duration-500 ease-in-out hover:cursor-blue hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]"
+            className="hover: flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-6 py-3 text-[#F4C10B] transition-all duration-500 ease-in-out hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]"
           >
             <p className="text-sm">Visit Honeycomb Dashboard</p>
             <ArrowUpRight className="aspect-square h-5" />
@@ -172,7 +172,7 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
                 <a
                   target="_blank"
                   href={perk.link}
-                  className="relative flex h-full w-[210px] flex-col items-center justify-around overflow-hidden rounded-lg border border-[#F4C10B1F] bg-[#18140C] p-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90"
+                  className="hover: relative flex h-full w-[210px] flex-col items-center justify-around overflow-hidden rounded-lg border border-[#F4C10B1F] bg-[#18140C] p-4 text-[#C4C4C4] hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90"
                 >
                   <div className="mt-2 flex flex-col items-center justify-center gap-2">
                     <div className="relative aspect-square h-[54px] rounded-full border border-[#F4C10B1F] bg-[#18140C05] md:h-[64px]">

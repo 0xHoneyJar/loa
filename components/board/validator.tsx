@@ -192,7 +192,7 @@ const Validator = () => {
                 onClick={() => {
                   trackEvent(`view_validator`);
                 }}
-                className="flex h-full items-center justify-center whitespace-nowrap rounded-full border border-white/5 bg-white/5 px-6 text-xs font-medium text-white transition-all duration-500 ease-in-out hover:cursor-blue hover:border-white/20 hover:bg-white/20 md:text-sm"
+                className="flex h-full items-center justify-center whitespace-nowrap rounded-full border border-white/5 bg-white/5 px-6 text-xs font-medium text-white transition-all duration-500 ease-in-out hover:border-white/20 hover:bg-white/20 md:text-sm"
               >
                 <span className="hidden xl:inline-flex">View</span>
                 &nbsp;Validator
@@ -205,7 +205,7 @@ const Validator = () => {
                 onClick={() => {
                   trackEvent(`delegate_validator`);
                 }}
-                className="flex h-full items-center justify-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 text-xs font-medium text-black transition-all duration-500 ease-in-out hover:cursor-blue hover:shadow-evergreen md:text-sm"
+                className="flex h-full items-center justify-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 text-xs font-medium text-black transition-all duration-500 ease-in-out hover:shadow-evergreen md:text-sm"
               >
                 Delegate&nbsp;<span className="hidden xl:inline-flex">Now</span>
               </a>
@@ -218,7 +218,7 @@ const Validator = () => {
               />
             </div>
             <div className="rounded-full border border-dashed border-[#848484] p-1.5">
-              <button className="rounded-full bg-[#43AA77] px-6 py-2 font-medium text-black hover:cursor-blue hover:shadow-evergreen">
+              <button className="rounded-full bg-[#43AA77] px-6 py-2 font-medium text-black  hover:shadow-evergreen">
                 Delegate Now
               </button>
             </div> */}

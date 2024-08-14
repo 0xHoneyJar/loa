@@ -89,7 +89,7 @@ const MintDisplay = ({ mint }: { mint: any }) => (
     onClick={() => {
       trackEvent(`${mint._title}_mint`);
     }}
-    className="relative flex h-full w-full flex-col justify-between overflow-hidden rounded-lg border border-[#F4C10B14] bg-[#221C11] p-4 hover:cursor-blue hover:divide-[#F4C10B47] hover:border-[#F4C10B47] hover:bg-[#423520]"
+    className="relative flex h-full w-full flex-col justify-between overflow-hidden rounded-lg border border-[#F4C10B14] bg-[#221C11] p-4 hover:divide-[#F4C10B47] hover:border-[#F4C10B47] hover:bg-[#423520]"
   >
     <div className="absolute left-0 top-0 size-full bg-[#0a0500]">
       <S3Image

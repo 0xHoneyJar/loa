@@ -14,7 +14,7 @@ export const GuideButton = () => {
         trackEvent(`explore_guide`);
       }}
       target="_blank"
-      className="w-full cursor-blue whitespace-nowrap rounded-full bg-[#F4C10B] px-6 py-3 text-center text-sm font-medium text-black transition-all duration-500 ease-in-out hover:shadow-yellow md:w-auto md:px-8 md:text-left"
+      className="w-full whitespace-nowrap rounded-full bg-[#F4C10B] px-6 py-3 text-center text-sm font-medium text-black transition-all duration-500 ease-in-out hover:shadow-yellow md:w-auto md:px-8 md:text-left"
     >
       Explore
     </a>
@@ -50,7 +50,7 @@ export const FollowButton = ({
       onClick={() => {
         trackEvent(`follow_us_${platform}`);
       }}
-      className={`relative aspect-square ${height} opacity-70 transition-all duration-500 ease-in-out hover:cursor-blue hover:opacity-100`}
+      className={`relative aspect-square ${height} hover: opacity-70 transition-all duration-500 ease-in-out hover:opacity-100`}
     >
       <Image
         src={`/follow/${platform}.svg`}
@@ -65,7 +65,7 @@ export const FollowButton = ({
 export const SpotlightButton = ({ spotlight }: { spotlight: any }) => {
   return (
     <a
-      className="flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-4 py-3 text-[#F4C10B] transition-all duration-500 ease-in-out hover:cursor-blue hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]"
+      className="hover: flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-4 py-3 text-[#F4C10B] transition-all duration-500 ease-in-out hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]"
       href={spotlight.link}
       onClick={() => {
         trackEvent(`${spotlight._title}_spotlight`);
@@ -95,7 +95,7 @@ export const DevelopmentButton = ({ item, id }: { item: any; id: any }) => {
 
   return (
     <a
-      className="z-10 flex cursor-blue items-center gap-1 underline transition-all duration-500 ease-in-out hover:text-white/75 md:gap-2"
+      className="z-10 flex items-center gap-1 underline transition-all duration-500 ease-in-out hover:text-white/75 md:gap-2"
       key={id}
       href={item.link}
       target="_blank"
@@ -112,7 +112,7 @@ export const DevelopmentButton = ({ item, id }: { item: any; id: any }) => {
 export const IncubatedItem = ({ item }: { item: any }) => {
   return (
     <a
-      className="relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:cursor-blue hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90 md:w-[196px]"
+      className="hover: relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90 md:w-[196px]"
       href={item.twitter}
       onClick={() => {
         trackEvent(
@@ -151,7 +151,7 @@ export const NftItem = ({ nft }: { nft: any }) => {
       onClick={() => {
         trackEvent(`${nft.name}_nft`);
       }}
-      className="flex h-full w-[178px] flex-col items-center justify-center gap-3 rounded-lg border border-[#161616] bg-[#121212] px-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#373737] hover:bg-[#1A1A1A] hover:font-medium hover:text-white md:w-[196px]"
+      className="hover: flex h-full w-[178px] flex-col items-center justify-center gap-3 rounded-lg border border-[#161616] bg-[#121212] px-4 text-[#C4C4C4] hover:border-[#373737] hover:bg-[#1A1A1A] hover:font-medium hover:text-white md:w-[196px]"
     >
       <div className="flex h-[10%] w-full items-center justify-center gap-1 py-1">
         {nft.new && (
@@ -194,7 +194,7 @@ export const DelegateButton = () => {
         trackEvent(`delegate_thj`);
       }}
       target="_blank"
-      className="flex w-full cursor-blue items-center justify-center rounded-full bg-black py-3 text-sm font-medium transition-all duration-500 ease-in-out hover:bg-white hover:text-black md:text-base"
+      className="flex w-full items-center justify-center rounded-full bg-black py-3 text-sm font-medium transition-all duration-500 ease-in-out hover:bg-white hover:text-black md:text-base"
     >
       Delegate Now
     </a>
@@ -211,7 +211,7 @@ export const PartnersButton = () => {
           trackEvent(`partner_map_partners`);
         }}
       >
-        <button className="flex w-full items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 transition-all duration-500 ease-in-out hover:cursor-blue hover:border-[#E8E8E81F] hover:bg-[#FFFFFF24]">
+        <button className="hover: flex w-full items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 transition-all duration-500 ease-in-out hover:border-[#E8E8E81F] hover:bg-[#FFFFFF24]">
           <div className="flex items-center gap-2 whitespace-nowrap">
             <Map className="aspect-square h-4 md:h-[22px]" />
             <p className="text-xs md:text-sm">THJ Partner Map</p>
@@ -226,7 +226,7 @@ export const PartnersButton = () => {
           trackEvent(`explore_partners_partners`);
         }}
       >
-        <button className="flex w-full items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 transition-all duration-500 ease-in-out hover:cursor-blue hover:border-[#E8E8E81F] hover:bg-[#FFFFFF24]">
+        <button className="hover: flex w-full items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-4 py-3 transition-all duration-500 ease-in-out hover:border-[#E8E8E81F] hover:bg-[#FFFFFF24]">
           <div className="flex items-center gap-2 whitespace-nowrap">
             <div className="relative aspect-square h-4 md:h-[22px]">
               <Image
@@ -254,7 +254,7 @@ export const PartnerButton = () => {
         trackEvent(`become_partner_partners`);
       }}
     >
-      <button className="flex w-full items-center justify-center rounded-full bg-[#43AA77] p-3 text-sm font-medium text-black transition-all duration-500 ease-in-out hover:cursor-blue hover:shadow-evergreen md:text-base xl:text-lg">
+      <button className="hover: flex w-full items-center justify-center rounded-full bg-[#43AA77] p-3 text-sm font-medium text-black transition-all duration-500 ease-in-out hover:shadow-evergreen md:text-base xl:text-lg">
         <p className="text-sm">Become a Partner</p>
       </button>
     </a>
@@ -269,7 +269,7 @@ export const ToolsButton = ({ item }: { item: any }) => {
       onClick={() => {
         trackEvent(`${item.name}_tools_product`);
       }}
-      className={`flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#161616] bg-[#121212] px-4 text-[#C4C4C4] hover:cursor-blue hover:border-[#373737] hover:bg-[#1A1A1A] hover:font-medium hover:text-white md:w-[196px]`}
+      className={`hover: flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#161616] bg-[#121212] px-4 text-[#C4C4C4] hover:border-[#373737] hover:bg-[#1A1A1A] hover:font-medium hover:text-white md:w-[196px]`}
     >
       {item.image ? (
         <div className="relative mb-4 mt-4 aspect-square h-16 overflow-hidden rounded-full md:mt-6 md:h-[80px]">
@@ -296,7 +296,7 @@ export const SnapshotButton = () => {
       onClick={() => {
         trackEvent(`beardrops_snapshot`);
       }}
-      className="flex size-full items-center justify-center rounded-full bg-[#43AA77] px-6 py-3 text-sm font-medium text-black transition-all duration-500 ease-in-out hover:cursor-blue hover:shadow-evergreen md:w-auto md:px-8"
+      className="hover: flex size-full items-center justify-center rounded-full bg-[#43AA77] px-6 py-3 text-sm font-medium text-black transition-all duration-500 ease-in-out hover:shadow-evergreen md:w-auto md:px-8"
     >
       Snapshot
     </a>

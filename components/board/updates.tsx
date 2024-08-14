@@ -71,7 +71,7 @@ const UpdateDisplay = ({
           }}
           onMouseEnter={() => setHover(true)}
           onMouseLeave={() => setHover(false)}
-          className={`relative h-2/3 w-full overflow-hidden rounded-xl border ${hover ? "cursor-blue border-[#F5D011D9]" : "border-[#2B2B2B]"}`}
+          className={`relative h-2/3 w-full overflow-hidden rounded-xl border ${hover ? "border-[#F5D011D9]" : "border-[#2B2B2B]"}`}
         >
           <S3Image src={image} alt="" fill className="object-cover" />
         </a>

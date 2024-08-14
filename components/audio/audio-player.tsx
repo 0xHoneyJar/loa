@@ -13,7 +13,9 @@ const AudioPlayer = ({ tracks }: { tracks: any }) => {
   const { title, artist, image, audioSrc } = tracks[trackIndex];
 
   // Refs
-  const [audio] = useState<HTMLAudioElement | null>(typeof Audio !== 'undefined' ? new Audio(audioSrc) : null)
+  const [audio] = useState<HTMLAudioElement | null>(
+    typeof Audio !== "undefined" ? new Audio(audioSrc) : null,
+  );
   const audioRef = useRef(audio);
   const intervalRef = useRef();
   const isReady = useRef(false);
@@ -39,7 +41,7 @@ const AudioPlayer = ({ tracks }: { tracks: any }) => {
   const onScrub = (value: any) => {
     // Clear any timers already running
     clearInterval(intervalRef.current);
-    audioRef.current ? audioRef.current.currentTime = value : null;
+    audioRef.current ? (audioRef.current.currentTime = value) : null;
     setTrackProgress(audioRef.current?.currentTime ?? 0);
     // audioRef.current?.currentTime = value;
     // setTrackProgress(audioRef.current.currentTime);
@@ -106,10 +108,10 @@ const AudioPlayer = ({ tracks }: { tracks: any }) => {
   }, []);
 
   return (
-    <div className="flex absolute inset-x-0 mx-auto w-fit">
-      <div className="flex bg-[#AFAFAF1F] border border-[#A6A6A647] rounded-l-full p-2 items-center backdrop-blur-2xl">
+    <div className="absolute inset-x-0 mx-auto flex w-fit">
+      <div className="flex items-center rounded-l-full border border-[#A6A6A647] bg-[#AFAFAF1F] p-2 backdrop-blur-2xl">
         <div className="flex items-center">
-          <div className="aspect-square h-[40px] relative border border-[#2C2C2C] rounded-full mr-3">
+          <div className="relative mr-3 aspect-square h-[40px] rounded-full border border-[#2C2C2C]">
             <Image
               src={image}
               alt={`track artwork for ${title} by ${artist}`}
@@ -118,11 +120,11 @@ const AudioPlayer = ({ tracks }: { tracks: any }) => {
             />
           </div>
           <div className="flex flex-col">
-            <p className="text-white font-medium text-sm mb-1">
+            <p className="mb-1 text-sm font-medium text-white">
               {title.toUpperCase()}&nbsp;&nbsp;
               <span className="font-light text-[#FFFFFF4D]">by {artist}</span>
             </p>
-            <div className="flex items-center gap-2 text-[#F5DA7F42] text-xs">
+            <div className="flex items-center gap-2 text-xs text-[#F5DA7F42]">
               <p className="text-[#F5DA7F]">
                 {convertSecondsToMinutes(trackProgress)}
               </p>
@@ -136,7 +138,7 @@ const AudioPlayer = ({ tracks }: { tracks: any }) => {
                 onChange={(e) => onScrub(e.target.value)}
                 onMouseUp={onScrubEnd}
                 onKeyUp={onScrubEnd}
-                className="cursor-blue appearance-none overflow-hidden [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-[#F5DA7F1F] bg-[#171717] rounded-full"
+                className="appearance-none overflow-hidden rounded-full bg-[#171717] [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-[#F5DA7F1F]"
               />
               <p className="text-[#F5DA7F]">
                 -{convertSecondsToMinutes(duration - trackProgress)}

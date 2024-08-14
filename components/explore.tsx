@@ -10,7 +10,7 @@ import { trackEvent } from "@openpanel/nextjs";
 const Explore = () => {
   return (
     <NavigationMenuItem className="">
-      <NavigationMenuTrigger className="flex cursor-blue items-center rounded-full border border-[#F4C10B24] bg-gradient-to-b from-[#F4C10B1F] to-[#F8A9291F] px-6 py-2.5 text-xs text-white hover:border-[#F4C10B58] hover:from-[#F4C10B32] hover:to-[#F8A92932]">
+      <NavigationMenuTrigger className="flex items-center rounded-full border border-[#F4C10B24] bg-gradient-to-b from-[#F4C10B1F] to-[#F8A9291F] px-6 py-2.5 text-xs text-white hover:border-[#F4C10B58] hover:from-[#F4C10B32] hover:to-[#F8A92932]">
         <p>Explore</p>
         <p className="ml-2 mr-1 rounded-full border bg-[#FFFFFF14] px-2 text-[7px]">
           NEW

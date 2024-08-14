@@ -43,7 +43,7 @@ const Feed = () => {
           <p className="text-base font-medium text-white md:text-lg">Feed</p>
         </div>
         <a
-          className="relative aspect-square h-[28px] cursor-blue rounded-full border border-[#353535] md:h-[34px]"
+          className="relative aspect-square h-[28px] rounded-full border border-[#353535] md:h-[34px]"
           href={"https://twitter.com/0xhoneyjar"}
           onClick={() => {
             trackEvent(`twitter_feed`);

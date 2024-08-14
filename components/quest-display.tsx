@@ -73,11 +73,11 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
           </div>
         )}
         {hover && (
-          <div className="absolute left-0 top-0 z-10 flex size-full cursor-blue items-center justify-center bg-black/75">
+          <div className="absolute left-0 top-0 z-10 flex size-full items-center justify-center bg-black/75">
             <a
               href={`https://faucet.0xhoneyjar.xyz/quests/${quest.slug}`}
               target="_blank"
-              className="cursor-blue rounded-full bg-white/25 px-4 py-2 backdrop-blur-md hover:bg-white/50"
+              className="rounded-full bg-white/25 px-4 py-2 backdrop-blur-md hover:bg-white/50"
             >
               <div className="flex items-center gap-1 text-xs font-medium md:text-sm">
                 Join Now <ArrowUpRight className="aspect-square h-4 md:h-5" />

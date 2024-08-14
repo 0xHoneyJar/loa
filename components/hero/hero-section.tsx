@@ -107,7 +107,7 @@ const HeroSection = () => {
                         onClick={() => {
                           trackEvent(`follow_us_${social.name}_hero`);
                         }}
-                        className="z-10 flex cursor-blue items-center gap-2 rounded-sm border border-[#FFFFFF1F] bg-[#FFFFFF26] px-4 py-2 backdrop-blur-sm transition-all duration-500 ease-in-out hover:bg-[#FFFFFF3D] lg:px-6 lg:py-3"
+                        className="z-10 flex items-center gap-2 rounded-sm border border-[#FFFFFF1F] bg-[#FFFFFF26] px-4 py-2 backdrop-blur-sm transition-all duration-500 ease-in-out hover:bg-[#FFFFFF3D] lg:px-6 lg:py-3"
                         key={id}
                       >
                         <div className="relative aspect-square h-[18px] md:h-[24px]">

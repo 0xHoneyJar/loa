@@ -55,7 +55,7 @@ const Blog = () => {
               <a
                 href={"https://0xhoneyjar.mirror.xyz/"}
                 target="_blank"
-                className="z-10 flex items-center gap-1 whitespace-nowrap rounded-full border border-[#3B3B3B] bg-[#5A5A5A]/30 px-2 py-1 text-xs backdrop-blur-lg transition-all duration-500 ease-in-out hover:cursor-blue hover:border-white/20 hover:bg-white/25 md:px-3 md:py-2 md:text-sm lg:px-4"
+                className="z-10 flex items-center gap-1 whitespace-nowrap rounded-full border border-[#3B3B3B] bg-[#5A5A5A]/30 px-2 py-1 text-xs backdrop-blur-lg transition-all duration-500 ease-in-out hover:border-white/20 hover:bg-white/25 md:px-3 md:py-2 md:text-sm lg:px-4"
                 onClick={() => {
                   trackEvent(`read_now_blog`);
                 }}
@@ -98,7 +98,7 @@ const BlogDisplay = ({
           target="_blank"
           onMouseEnter={() => setHover(true)}
           onMouseLeave={() => setHover(false)}
-          className={`relative flex h-2/3 w-full shrink-0 overflow-hidden rounded-xl border ${hover ? "cursor-blue border-[#F5D011D9]" : "border-[#2B2B2B]"}`}
+          className={`relative flex h-2/3 w-full shrink-0 overflow-hidden rounded-xl border ${hover ? "border-[#F5D011D9]" : "border-[#2B2B2B]"}`}
         >
           <Image src={image} alt="" fill className="object-cover" />
         </a>
