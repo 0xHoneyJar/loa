@@ -164,7 +164,7 @@ const Data = () => {
                 trackEvent(`data_dashboard_data`);
               }}
               target="_blank"
-              className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#F4C10B] py-3 font-medium text-black hover:cursor-blue hover:shadow-yellow"
+              className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#F4C10B] py-3 font-medium text-black transition-all duration-500 ease-in-out hover:cursor-blue hover:shadow-yellow"
             >
               <div className="relative aspect-square h-4">
                 <Image

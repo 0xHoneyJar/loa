@@ -76,7 +76,7 @@ const Quests = () => {
             trackEvent(`explore_quests`);
           }}
           target="_blank"
-          className="flex w-full cursor-blue items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-2 py-2 hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D] md:px-3 md:py-3"
+          className="flex w-full cursor-blue items-center justify-between rounded-lg border border-[#E8E8E80A] bg-[#FFFFFF0A] px-2 py-2 transition-all duration-500 ease-in-out hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D] md:px-3 md:py-3"
         >
           <div className="flex w-full flex-row items-center justify-between">
             <div className="flex items-center gap-2">

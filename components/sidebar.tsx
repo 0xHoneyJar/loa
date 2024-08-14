@@ -59,7 +59,7 @@ const Sidebar = ({
                   >
                     <span>Explore</span>
                     <ChevronDown
-                      className="duration-[250] relative top-px aspect-square h-4 transition-transform ease-in group-data-[state=open]:-rotate-180"
+                      className="relative top-px aspect-square h-4 transition-transform duration-300 ease-in group-data-[state=open]:-rotate-180"
                       aria-hidden
                     />
                   </NavigationMenu.Trigger>
@@ -104,7 +104,7 @@ const Sidebar = ({
                   >
                     <span>Section</span>
                     <ChevronDown
-                      className="duration-[250] relative top-px aspect-square h-4 transition-transform ease-in group-data-[state=open]:-rotate-180"
+                      className="relative top-px aspect-square h-4 transition-transform duration-300 ease-in group-data-[state=open]:-rotate-180"
                       aria-hidden
                     />
                   </NavigationMenu.Trigger>

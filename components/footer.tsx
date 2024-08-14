@@ -53,7 +53,7 @@ const Footer = () => {
               trackEvent(`learn_more_partners_footer`);
             }}
             href={"https://partners.0xhoneyjar.xyz/"}
-            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-sm text-[#DBDBDB] hover:cursor-blue hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D]"
+            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-sm text-[#DBDBDB] transition-all duration-500 ease-in-out hover:cursor-blue hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D]"
           >
             Learn More
           </a>
@@ -71,7 +71,7 @@ const Footer = () => {
             onClick={() => {
               trackEvent(`learn_more_branding_footer`);
             }}
-            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-sm text-[#DBDBDB] hover:cursor-blue hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D]"
+            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-sm text-[#DBDBDB] transition-all duration-500 ease-in-out hover:cursor-blue hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D]"
           >
             Learn More
           </a>
@@ -89,7 +89,7 @@ const Footer = () => {
             onClick={() => {
               trackEvent(`learn_more_beekeeper_footer`);
             }}
-            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-sm text-[#DBDBDB] hover:cursor-blue hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D]"
+            className="flex w-fit whitespace-nowrap rounded-xl border border-[#FEFEFE1A] px-6 py-1.5 text-sm text-[#DBDBDB] transition-all duration-500 ease-in-out hover:cursor-blue hover:border-[#E8E8E80F] hover:bg-[#FFFFFF3D]"
           >
             Learn More
           </a>
@@ -123,7 +123,7 @@ const Footer = () => {
             onClick={() => {
               trackEvent(`join_discord_footer`);
             }}
-            className="z-10 flex w-[180px] cursor-blue justify-center rounded-xl bg-black py-3 text-xs font-medium hover:bg-white hover:text-black md:w-[240px] md:text-base"
+            className="z-10 flex w-[180px] cursor-blue justify-center rounded-xl bg-black py-3 text-xs font-medium transition-all duration-500 ease-in-out hover:bg-white hover:text-black md:w-[240px] md:text-base"
           >
             Join the Commmunity
           </a>
@@ -135,7 +135,7 @@ const Footer = () => {
             onClick={() => {
               trackEvent(`delegate_footer`);
             }}
-            className="z-10 flex w-[180px] cursor-blue justify-center rounded-xl bg-[#43AA77] py-3 text-xs font-medium hover:bg-[#086134] md:w-[240px] md:text-base"
+            className="z-10 flex w-[180px] cursor-blue justify-center rounded-xl bg-[#43AA77] py-3 text-xs font-medium transition-all duration-500 ease-in-out hover:bg-[#086134] md:w-[240px] md:text-base"
           >
             <p>Delegate Now</p>
           </a>

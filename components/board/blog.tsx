@@ -55,7 +55,7 @@ const Blog = () => {
               <a
                 href={"https://0xhoneyjar.mirror.xyz/"}
                 target="_blank"
-                className="z-10 flex items-center gap-1 whitespace-nowrap rounded-full border border-[#3B3B3B] bg-[#5A5A5A]/30 px-2 py-1 text-xs backdrop-blur-lg hover:cursor-blue hover:border-white/20 hover:bg-white/25 md:px-3 md:py-2 md:text-sm lg:px-4"
+                className="z-10 flex items-center gap-1 whitespace-nowrap rounded-full border border-[#3B3B3B] bg-[#5A5A5A]/30 px-2 py-1 text-xs backdrop-blur-lg transition-all duration-500 ease-in-out hover:cursor-blue hover:border-white/20 hover:bg-white/25 md:px-3 md:py-2 md:text-sm lg:px-4"
                 onClick={() => {
                   trackEvent(`read_now_blog`);
                 }}

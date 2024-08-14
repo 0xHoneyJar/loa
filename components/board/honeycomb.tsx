@@ -152,7 +152,7 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
             onClick={() => {
               trackEvent(`visit_honeycomb_dashboard`);
             }}
-            className="flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-6 py-3 text-[#F4C10B] hover:cursor-blue hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]"
+            className="flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-6 py-3 text-[#F4C10B] transition-all duration-500 ease-in-out hover:cursor-blue hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]"
           >
             <p className="text-sm">Visit Honeycomb Dashboard</p>
             <ArrowUpRight className="aspect-square h-5" />
