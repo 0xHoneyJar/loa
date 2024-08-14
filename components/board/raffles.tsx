@@ -41,7 +41,6 @@ const Raffles = () => {
         // If priorities are the same, sort by endTime descending
         return b.endTime - a.endTime;
       });
-
       setRaffles(retrievedRaffles);
       setLoadingRaffle(false);
     }
@@ -66,7 +65,7 @@ const Raffles = () => {
           <span className="text-[#E1A94E]">BERACHAIN ECOSYSTEM!</span>
         </p>
         <div className="mb-4 grid size-full grid-rows-3 gap-4 overflow-hidden md:gap-6">
-          {loadingRaffle
+          {!loadingRaffle
             ? raffles
                 .slice(0, 3)
                 .map((raffle, id) => <RaffleDisplay raffle={raffle} key={id} />)

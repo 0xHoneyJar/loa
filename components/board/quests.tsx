@@ -71,7 +71,7 @@ const Quests = () => {
           <span className="text-[#E1A94E]">get rewarded! like seriously</span>
         </p>
         <div className="mb-4 grid size-full grid-rows-3 gap-4 overflow-hidden md:gap-6">
-          {loadingQuest
+          {!loadingQuest
             ? quests
                 .slice(0, 3)
                 .map((quest, id) => <QuestDisplay quest={quest} key={id} />)
