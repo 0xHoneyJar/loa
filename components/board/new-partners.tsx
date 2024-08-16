@@ -106,6 +106,13 @@ const StatusDisplay = ({ status }: { status: string }) => {
             ? "/partners/status/incubated.png"
             : "/partners/status/bronze.png";
 
+  const statusConversion = {
+    platinum: "Flagship",
+    gold: "Strategic",
+    silver: "Integration",
+    bronze: "Ecosystem",
+  };
+
   return (
     <div className="flex items-center gap-1 rounded-lg border border-[#1C1C1C] bg-gradient-to-b from-[#262626] to-[#141414] px-2 py-1">
       <div className="relative aspect-square h-[16px]">
@@ -128,7 +135,8 @@ const StatusDisplay = ({ status }: { status: string }) => {
             status === "platinum" ? "drop-shadow(#FFFFFF80 0 0 10px)" : "none",
         }}
       >
-        {status.toUpperCase()}
+        {/* @ts-ignore */}
+        {statusConversion[status].toUpperCase()}
       </p>
     </div>
   );
