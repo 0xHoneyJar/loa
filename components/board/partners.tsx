@@ -2,6 +2,10 @@ import { PartnerButton, PartnersButton } from "@/components/ui/buttons";
 import Image from "next/image";
 
 const Partners = ({ partners }: { partners?: any }) => {
+  const filteredPartners = partners?.filter(
+    (partner: any) => partner.partner && partner.status && partner.category,
+  );
+
   return (
     <div
       className={`relative col-span-full row-span-1 flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#121A12] bg-[#10120D]`}
@@ -23,7 +27,7 @@ const Partners = ({ partners }: { partners?: any }) => {
           </p>
           <div className="relative w-full rounded-xl bg-[#43AA772E] px-4 py-6">
             <p className="text-3xl font-medium text-[#00AB55]">
-              {partners?.length}
+              {filteredPartners?.length}
             </p>
             <p className="absolute bottom-2 right-2 flex items-center text-[10px] text-[#A9A9A9] md:text-xs">
               / Total Partners
