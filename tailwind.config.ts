@@ -34,7 +34,7 @@ const config = {
       },
       cursor: {
         blue: "url(/cursor.svg), default",
-        grabbing: "url(/grabbing.svg), default",
+        // grabbing: "url(/grabbing.svg), default",
       },
       colors: {
         border: "hsl(var(--border))",
