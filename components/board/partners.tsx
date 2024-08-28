@@ -3,7 +3,11 @@ import Image from "next/image";
 
 const Partners = ({ partners }: { partners?: any }) => {
   const filteredPartners = partners?.filter(
-    (partner: any) => partner.partner && partner.status && partner.category,
+    (partner: any) =>
+      partner.partner &&
+      partner.status &&
+      partner.category &&
+      partner.partner !== "Unknown",
   );
 
   return (
