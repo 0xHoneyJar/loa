@@ -16,7 +16,13 @@ const NewPartners = ({ partners }: { partners?: any }) => {
     if (!partners || !Array.isArray(partners)) return [];
 
     return partners
-      .filter((partner: any) => partner.partner && partner.logo)
+      .filter(
+        (partner: any) =>
+          partner.partner &&
+          partner.logo &&
+          partner.partner !== "Unknown" &&
+          partner.logo !== undefined,
+      )
       .reverse()
       .slice(0, 10);
   }, [partners]);
@@ -136,7 +142,7 @@ const StatusDisplay = ({ status }: { status: string }) => {
         }}
       >
         {/* @ts-ignore */}
-        {statusConversion[status].toUpperCase()}
+        {statusConversion?.[status]?.toUpperCase()}
       </p>
     </div>
   );
