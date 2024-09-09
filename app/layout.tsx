@@ -6,6 +6,7 @@ import "../styles/tailwind.css";
 import MainWrapper from "@/components/main-wrapper";
 import Navbar from "@/components/navbar";
 import { OpenpanelProvider } from "@openpanel/nextjs";
+import Web3ModalProvider from "@/components/web3-provider";
 
 export const metadata: Metadata = {
   // metadataBase: new URL(""),
@@ -52,10 +53,12 @@ export default function RootLayout({
           trackAttributes={true}
           trackOutgoingLinks={true}
         />
-        <MainWrapper>
-          <Navbar />
-          {children}
-        </MainWrapper>
+        <Web3ModalProvider>
+          <MainWrapper>
+            <Navbar />
+            {children}
+          </MainWrapper>
+        </Web3ModalProvider>
       </body>
     </html>
   );

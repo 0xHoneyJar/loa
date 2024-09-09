@@ -14,6 +14,7 @@ import {
 import Explore from "./explore";
 import { Copy, Menu, X, Download } from "lucide-react";
 import { trackEvent } from "@openpanel/nextjs";
+import { ValidatorWidget } from "@0xhoneyjar/validator-widget";
 
 const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -79,7 +80,7 @@ const Navbar = () => {
                 </a>
               </NavigationMenuItem>
               <NavigationMenuItem>
-                <a
+                {/* <a
                   href={
                     "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
                   }
@@ -90,7 +91,11 @@ const Navbar = () => {
                   }}
                 >
                   Delegate to THJ
-                </a>
+                </a> */}
+                <ValidatorWidget
+                  apiUrl="/api/delegate"
+                  referrer="thj-community"
+                />
               </NavigationMenuItem>
             </NavigationMenuList>
           </NavigationMenu>

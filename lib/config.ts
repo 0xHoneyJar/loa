@@ -1,10 +1,15 @@
+// config/index.tsx
+
 import { http, createConfig } from "wagmi";
-import { mainnet, sepolia } from "wagmi/chains";
+import { berachainTestnetbArtio } from "wagmi/chains";
+import { metaMask } from "wagmi/connectors";
+
+export const projectId = "fb297a4ca0bff468a184d944ed22510a";
 
 export const config = createConfig({
-  chains: [mainnet, sepolia],
+  chains: [berachainTestnetbArtio] as const,
+  connectors: [metaMask()],
   transports: {
-    [mainnet.id]: http(),
-    [sepolia.id]: http(),
+    [berachainTestnetbArtio.id]: http(),
   },
 });
