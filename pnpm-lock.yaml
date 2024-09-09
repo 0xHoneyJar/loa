@@ -41,6 +41,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.55.4
         version: 5.55.4(react@18.3.1)
+      '@thehoneyjar/sdk':
+        specifier: ^0.1.1
+        version: 0.1.1
       '@types/node':
         specifier: ^17.0.21
         version: 17.0.45
@@ -2445,6 +2448,9 @@ packages:
 
   '@tanstack/virtual-core@3.10.7':
     resolution: {integrity: sha512-ND5dfsU0n9F4gROzwNNDJmg6y8n9pI8YWxtgbfJ5UcNn7Hx+MxEXtXcQ189tS7sh8pmCObgz2qSiyRKTZxT4dg==}
+
+  '@thehoneyjar/sdk@0.1.1':
+    resolution: {integrity: sha512-bZSnrmFT5dB14aln6Yx9qeqyqvNEZNixmz/R0l+bDRSiroI+Wak8haQZQdrHSdYgNE/IY/1LtBatWhyecDYdhw==}
 
   '@types/bn.js@5.1.5':
     resolution: {integrity: sha512-V46N0zwKRF5Q00AZ6hWtN0T8gGmDUaUzLWQvHFo5yThtVwK/VCenFY3wXVbOvNfajEpsTfQM4IN9k/d6gUVX3A==}
@@ -10106,6 +10112,8 @@ snapshots:
       react-dom: 18.3.1(react@18.3.1)
 
   '@tanstack/virtual-core@3.10.7': {}
+
+  '@thehoneyjar/sdk@0.1.1': {}
 
   '@types/bn.js@5.1.5':
     dependencies:
