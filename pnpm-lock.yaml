@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@0xhoneyjar/validator-widget':
-        specifier: ^1.0.36
-        version: 1.0.36(7nq2yywzxsdbl3tystvxl52xma)
+        specifier: ^1.0.39
+        version: 1.0.39(7nq2yywzxsdbl3tystvxl52xma)
       '@openpanel/nextjs':
         specifier: 0.0.10-beta
         version: 0.0.10-beta(next@14.2.9(@babel/core@7.25.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -183,8 +183,8 @@ importers:
 
 packages:
 
-  '@0xhoneyjar/validator-widget@1.0.36':
-    resolution: {integrity: sha512-iaDPt/UPXnQb1obwZtTBlyUo9owHZNToffzStfvebGKtOAc83rJg2MIp+AYeSlKbgWKwvIl5KT2MSOPLdRT3QQ==}
+  '@0xhoneyjar/validator-widget@1.0.39':
+    resolution: {integrity: sha512-nqr8bapMURXH1u4HNgpCjJAoQpHbMfZdYHx/HnRfleDSpo8dQSwAhYpAv5+MVacR7pIea4lO934pCgtwWd4GCQ==}
     peerDependencies:
       '@web3modal/wagmi': ^5.1.1
       class-variance-authority: ^0.7.0
@@ -7191,7 +7191,7 @@ packages:
 
 snapshots:
 
-  '@0xhoneyjar/validator-widget@1.0.36(7nq2yywzxsdbl3tystvxl52xma)':
+  '@0xhoneyjar/validator-widget@1.0.39(7nq2yywzxsdbl3tystvxl52xma)':
     dependencies:
       '@web3modal/wagmi': 5.1.6(qtaatrfnkry6wro743vxdnbl4a)
       class-variance-authority: 0.7.0
