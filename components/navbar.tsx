@@ -92,10 +92,7 @@ const Navbar = () => {
                 >
                   Delegate to THJ
                 </a> */}
-                <ValidatorWidget
-                  apiUrl="/api/delegate"
-                  referrer="thj-community"
-                />
+                <ValidatorWidget apiUrl="/api/delegate" referrer="thj" />
               </NavigationMenuItem>
             </NavigationMenuList>
           </NavigationMenu>
