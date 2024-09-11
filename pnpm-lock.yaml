@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@0xhoneyjar/validator-widget':
-        specifier: ^1.0.39
-        version: 1.0.39(7nq2yywzxsdbl3tystvxl52xma)
+        specifier: ^1.0.45
+        version: 1.0.45(eo6nv75evgjmvl4czarvrfd6aa)
       '@openpanel/nextjs':
         specifier: 0.0.10-beta
         version: 0.0.10-beta(next@14.2.9(@babel/core@7.25.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -183,20 +183,16 @@ importers:
 
 packages:
 
-  '@0xhoneyjar/validator-widget@1.0.39':
-    resolution: {integrity: sha512-nqr8bapMURXH1u4HNgpCjJAoQpHbMfZdYHx/HnRfleDSpo8dQSwAhYpAv5+MVacR7pIea4lO934pCgtwWd4GCQ==}
+  '@0xhoneyjar/validator-widget@1.0.45':
+    resolution: {integrity: sha512-Tpy6/bGB03dV3sThKyDJDe6LkzfuP8bxk+cl669xiC+yWT0NpmWo/E4oMfABrDQ/ZKY6NHW2LUBy/S6fV61v0A==}
     peerDependencies:
-      '@web3modal/wagmi': ^5.1.1
-      class-variance-authority: ^0.7.0
-      clsx: ^2.1.1
-      framer-motion: ^11.3.31
-      lucide-react: ^0.323.0
-      next: 14.2.6
-      react: 18.3.1
-      react-dom: 18.3.1
-      react-spinners: ^0.14.1
-      styled-components: ^5.3.11
+      next: ^14.0.0
+      react: ^18.0.0
+      react-dom: ^18.0.0
       wagmi: ^2.12.7
+    peerDependenciesMeta:
+      next:
+        optional: true
 
   '@adraffy/ens-normalize@1.10.0':
     resolution: {integrity: sha512-nA9XHtlAkYfJxY7bce8DcN7eKxWWCWkU+1GR9d+U6MbNpfwQp8TI7vqOsBsMcHoT4mBu2kypKoSKnghEzOOq5Q==}
@@ -7191,19 +7187,45 @@ packages:
 
 snapshots:
 
-  '@0xhoneyjar/validator-widget@1.0.39(7nq2yywzxsdbl3tystvxl52xma)':
+  '@0xhoneyjar/validator-widget@1.0.45(eo6nv75evgjmvl4czarvrfd6aa)':
     dependencies:
+      '@thehoneyjar/sdk': 0.1.1
       '@web3modal/wagmi': 5.1.6(qtaatrfnkry6wro743vxdnbl4a)
-      class-variance-authority: 0.7.0
-      clsx: 2.1.1
       framer-motion: 11.5.4(@emotion/is-prop-valid@1.3.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       lucide-react: 0.323.0(react@18.3.1)
-      next: 14.2.9(@babel/core@7.25.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
       react-spinners: 0.14.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       styled-components: 5.3.11(@babel/core@7.25.2)(react-dom@18.3.1(react@18.3.1))(react-is@18.3.1)(react@18.3.1)
       wagmi: 2.12.9(@tanstack/query-core@5.55.4)(@tanstack/react-query@5.55.4(react@18.3.1))(@types/react@17.0.80)(bufferutil@4.0.8)(encoding@0.1.13)(immer@9.0.21)(react-dom@18.3.1(react@18.3.1))(react-native@0.75.2(@babel/core@7.25.2)(@babel/preset-env@7.25.4(@babel/core@7.25.2))(@types/react@17.0.80)(bufferutil@4.0.8)(encoding@0.1.13)(react@18.3.1)(typescript@5.6.2)(utf-8-validate@5.0.10))(react@18.3.1)(typescript@5.6.2)(utf-8-validate@5.0.10)(viem@2.21.3(bufferutil@4.0.8)(typescript@5.6.2)(utf-8-validate@5.0.10)(zod@3.23.8))(zod@3.23.8)
+    optionalDependencies:
+      next: 14.2.9(@babel/core@7.25.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+    transitivePeerDependencies:
+      - '@azure/app-configuration'
+      - '@azure/cosmos'
+      - '@azure/data-tables'
+      - '@azure/identity'
+      - '@azure/keyvault-secrets'
+      - '@azure/storage-blob'
+      - '@babel/core'
+      - '@capacitor/preferences'
+      - '@emotion/is-prop-valid'
+      - '@netlify/blobs'
+      - '@planetscale/database'
+      - '@react-native-async-storage/async-storage'
+      - '@types/react'
+      - '@upstash/redis'
+      - '@vercel/kv'
+      - '@wagmi/connectors'
+      - '@wagmi/core'
+      - bufferutil
+      - encoding
+      - ioredis
+      - react-is
+      - uWebSockets.js
+      - utf-8-validate
+      - viem
+      - vue
 
   '@adraffy/ens-normalize@1.10.0': {}
 

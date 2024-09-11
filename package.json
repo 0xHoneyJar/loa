@@ -8,7 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
-    "@0xhoneyjar/validator-widget": "^1.0.39",
+    "@0xhoneyjar/validator-widget": "^1.0.45",
     "@openpanel/nextjs": "0.0.10-beta",
     "@privy-io/react-auth": "^1.59.5",
     "@privy-io/wagmi": "^0.2.1",
