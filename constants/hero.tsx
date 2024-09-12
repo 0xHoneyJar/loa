@@ -15,6 +15,11 @@ export const Socials = [
     image: "/warpcast.svg",
     link: "https://warpcast.com/0xhoneyjar",
   },
+  {
+    name: "Youtube",
+    image: "/youtube.svg",
+    link: "https://www.youtube.com/@0xhoneyjar",
+  },
 ];
 
 export const We = [
@@ -30,7 +35,8 @@ export const We = [
     icon: "/hero-icons/create.svg",
     title: (
       <>
-        <span className="font-medium">Deep Integrations</span> with your favorite projects
+        <span className="font-medium">Deep Integrations</span> with your
+        favorite projects
       </>
     ),
   },
