@@ -23,16 +23,16 @@ export const NFTItems = [
   {
     name: "Honey Jar (Gen 3)",
     image: "/nft/gen3.svg",
-    new: true,
+    new: false,
     soon: false,
     link: "https://app.0xhoneyjar.xyz/mint/pudgyfrens",
   },
   {
     name: "Honey Jar (Gen 4)",
     image: "/nft/gen4.svg",
-    new: false,
-    soon: true,
-    link: undefined,
+    new: true,
+    soon: false,
+    link: "https://app.0xhoneyjar.xyz/mint/triforcebees",
   },
   {
     name: "Honey Jar (Gen 5)",
