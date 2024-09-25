@@ -78,4 +78,18 @@ export const EXPLOREITEMS: ListItemData[] = [
     link: "https://beardrops.0xhoneyjar.xyz/",
     color: "#2B3234",
   },
+  {
+    title: "Beraflip",
+    description: "Your bera mememaker",
+    icon: "/navbar/beraflip.svg",
+    link: "https://www.beraflip.com/",
+    color: "#1A2A2E",
+  },
+  {
+    title: "Set & Forgetti",
+    description: "Easiest way to Farm Berachain PoL",
+    icon: "/navbar/set&forgetti.svg",
+    link: "https://www.setandforgetti.io/",
+    color: "#2A1F26",
+  },
 ];
