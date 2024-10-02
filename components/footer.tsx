@@ -1,5 +1,6 @@
 "use client";
 
+import { ValidatorWidget } from "@0xhoneyjar/validator-widget";
 import { trackEvent } from "@openpanel/nextjs";
 import Image from "next/image";
 import Marquee from "react-fast-marquee";
@@ -127,18 +128,13 @@ const Footer = () => {
           >
             Join the Commmunity
           </a>
-          <a
-            href={
-              "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
-            }
-            target="_blank"
-            onClick={() => {
-              trackEvent(`delegate_footer`);
-            }}
-            className="z-10 flex w-[180px] justify-center rounded-xl bg-[#43AA77] py-3 text-xs font-medium transition-all duration-500 ease-in-out hover:bg-[#086134] md:w-[240px] md:text-base"
-          >
-            <p>Delegate Now</p>
-          </a>
+          <div className="relative z-10">
+            <ValidatorWidget apiUrl="/api/delegate" referrer="thj">
+              <div className="z-10 flex w-[180px] cursor-pointer justify-center rounded-xl bg-[#43AA77] py-3 text-xs font-medium transition-all duration-500 ease-in-out hover:bg-[#086134] md:w-[240px] md:text-base">
+                <p>Delegate Now</p>
+              </div>
+            </ValidatorWidget>
+          </div>
           <div className="absolute -bottom-24 -right-32 z-10 aspect-square h-[140px] md:-bottom-28 md:-right-40 md:h-[172px]">
             <Image
               src={"/arrow-angled.svg"}

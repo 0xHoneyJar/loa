@@ -1,5 +1,6 @@
 "use client";
 
+import { ValidatorWidget } from "@0xhoneyjar/validator-widget";
 import { trackEvent } from "@openpanel/nextjs";
 import { ArrowUpRight, ChevronRight, Map } from "lucide-react";
 import Image from "next/image";
@@ -186,18 +187,11 @@ export const NftItem = ({ nft }: { nft: any }) => {
 
 export const DelegateButton = () => {
   return (
-    <a
-      href={
-        "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
-      }
-      onClick={() => {
-        trackEvent(`delegate_thj`);
-      }}
-      target="_blank"
-      className="flex w-full items-center justify-center rounded-full bg-black py-3 text-sm font-medium transition-all duration-500 ease-in-out hover:bg-white hover:text-black md:text-base"
-    >
-      Delegate Now
-    </a>
+    <ValidatorWidget apiUrl="/api/delegate" referrer="thj">
+      <div className="flex w-full cursor-pointer items-center justify-center rounded-full bg-black py-3 text-sm font-medium transition-all duration-500 ease-in-out hover:bg-white hover:text-black md:text-base">
+        Delegate Now
+      </div>
+    </ValidatorWidget>
   );
 };
 

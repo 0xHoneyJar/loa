@@ -16,6 +16,7 @@ import {
 } from "react-circular-progressbar";
 import useSWR from "swr";
 import { trackEvent } from "@openpanel/nextjs";
+import { ValidatorWidget } from "@0xhoneyjar/validator-widget";
 
 const Validator = () => {
   const { data } = useSWR<{
@@ -197,18 +198,14 @@ const Validator = () => {
                 <span className="hidden xl:inline-flex">View</span>
                 &nbsp;Validator
               </a>
-              <a
-                target="_blank"
-                href={
-                  "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
-                }
-                onClick={() => {
-                  trackEvent(`delegate_validator`);
-                }}
-                className="flex h-full items-center justify-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 text-xs font-medium text-black transition-all duration-500 ease-in-out hover:shadow-evergreen md:text-sm"
-              >
-                Delegate&nbsp;<span className="hidden xl:inline-flex">Now</span>
-              </a>
+              <div className="relative z-10 flex h-full items-center justify-center">
+                <ValidatorWidget apiUrl="/api/delegate" referrer="thj">
+                  <div className="flex h-[46px] cursor-pointer items-center justify-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 text-xs font-medium text-black transition-all duration-500 ease-in-out hover:shadow-evergreen md:text-sm">
+                    Delegate&nbsp;
+                    <span className="hidden xl:inline-flex">Now</span>
+                  </div>
+                </ValidatorWidget>
+              </div>
               {/* <div className="relative aspect-square h-[100px]">
               <Image
                 src={"/arrow-wiggle.svg"}
