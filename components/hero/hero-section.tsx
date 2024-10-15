@@ -120,15 +120,24 @@ const HeroSection = () => {
                     ))}
                   </div>
                 </div>
-                {/* <div className="flex items-end">
-                  <div className="relative -right-2 -top-2 aspect-square h-[44px] scale-x-125 scale-y-110 md:h-[55px]">
+                <div className="flex items-end 2xl:hidden">
+                  <div className="relative mr-2 aspect-square h-[44px] scale-x-125 scale-y-110 md:h-[55px]">
                     <Image src={"/arrow-swirl.svg"} alt="arrow" fill />
                   </div>
                   <p className="whitespace-nowrap text-xs text-[#FFFFFFA8] md:text-sm">
                     Follow us{" "}
                     <span className="hidden md:inline-flex">for more</span>
                   </p>
-                </div> */}
+                </div>
+              </div>
+              <div className="-mt-4 hidden items-end justify-end lg:-mt-2 2xl:flex">
+                <div className="relative mr-2 aspect-square h-[44px] rotate-45 scale-x-125 scale-y-[-1] md:h-[55px]">
+                  <Image src={"/arrow-swirl.svg"} alt="arrow" fill />
+                </div>
+                <p className="whitespace-nowrap text-xs text-[#FFFFFFA8] md:text-sm">
+                  Follow us{" "}
+                  <span className="hidden md:inline-flex">for more</span>
+                </p>
               </div>
             </div>
           </div>
