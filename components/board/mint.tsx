@@ -11,6 +11,7 @@ import {
 import { useEffect, useState } from "react";
 import S3Image from "@/components/s3-image";
 import { trackEvent } from "@openpanel/nextjs";
+import PartnerImage from "../partner-image";
 
 const Mint = ({ mints }: { mints?: any }) => {
   return (
@@ -113,7 +114,7 @@ const MintDisplay = ({ mint }: { mint: any }) => (
         <p className="text-sm text-[#FBFBFB] md:text-base">{mint._title}</p>
         <div className="flex items-center gap-2">
           <div className="relative aspect-square h-[20px]">
-            <S3Image
+            <PartnerImage
               src={mint.partner.logo}
               alt="logo"
               fill

@@ -120,7 +120,7 @@ const HeroSection = () => {
                     ))}
                   </div>
                 </div>
-                <div className="flex items-end">
+                {/* <div className="flex items-end">
                   <div className="relative -right-2 -top-2 aspect-square h-[44px] scale-x-125 scale-y-110 md:h-[55px]">
                     <Image src={"/arrow-swirl.svg"} alt="arrow" fill />
                   </div>
@@ -128,7 +128,7 @@ const HeroSection = () => {
                     Follow us{" "}
                     <span className="hidden md:inline-flex">for more</span>
                   </p>
-                </div>
+                </div> */}
               </div>
             </div>
           </div>
@@ -156,7 +156,6 @@ const HeroSection = () => {
             </div>
           </Marquee>
         </div>
-
         <div className="mb-10 h-px w-1/2 bg-gradient-to-r from-[#F5D01100] via-[#F5D011] to-[#F5D01100] md:w-1/4" />
         <div className="relative z-10 -mb-10 hidden aspect-square h-[38px] rounded-full bg-white shadow-white md:flex md:h-[46px]">
           <motion.button

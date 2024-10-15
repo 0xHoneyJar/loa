@@ -10,8 +10,8 @@ import {
   CarouselNext,
 } from "@/components/ui/carousel";
 import { useState, useMemo, useEffect } from "react";
-import S3Image from "@/components/s3-image";
 import { trackEvent } from "@openpanel/nextjs";
+import PartnerImage from "../partner-image";
 
 const Honeycomb = ({ perks }: { perks?: any }) => {
   const [honeycombData, setHoneycombData] = useState<any>(null);
@@ -172,12 +172,13 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
                 <a
                   target="_blank"
                   href={perk.link}
-                  className="hover: relative flex h-full w-[210px] flex-col items-center justify-around overflow-hidden rounded-lg border border-[#F4C10B1F] bg-[#18140C] p-4 text-[#C4C4C4] hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90"
+                  className="hover: relative flex h-full w-[210px] flex-col items-center gap-2 overflow-hidden rounded-lg border border-[#F4C10B1F] bg-[#18140C] p-4 text-[#C4C4C4] hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90"
                 >
-                  <div className="mt-2 flex flex-col items-center justify-center gap-2">
+                  {/* <div className="flex flex-col items-center justify-center gap-2"> */}
+                  <div className="flex h-1/2 w-full items-end justify-center">
                     <div className="relative aspect-square h-[54px] rounded-full border border-[#F4C10B1F] bg-[#18140C05] md:h-[64px]">
                       {perk.partner?.logo ? (
-                        <S3Image
+                        <PartnerImage
                           src={perk.partner.logo}
                           alt={perk._title}
                           fill
@@ -185,20 +186,21 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
                         />
                       ) : (
                         <Image
-                          src={"/partners/sleuth.png"}
+                          src={"/partners/perk_placeholder.png"}
                           alt={perk._title}
                           fill
                           className="object-contain p-2"
                         />
                       )}
                     </div>
-                    <p className="text-center text-sm">{perk._title}</p>
-                    <div className="rounded-full bg-gradient-to-r from-[#F8A929]/5 to-[#F5D011]/5 px-4 py-1">
-                      <p className="text-xs font-light text-[#F8A929]">
-                        {perk.perks}
-                      </p>
-                    </div>
                   </div>
+                  <p className="h-1/5 text-center text-sm">{perk._title}</p>
+                  <div className="rounded-full bg-gradient-to-r from-[#F8A929]/5 to-[#F5D011]/5 px-4 py-1">
+                    <p className="text-xs font-light text-[#F8A929]">
+                      {perk.perks}
+                    </p>
+                  </div>
+                  {/* </div> */}
                 </a>
               </CarouselItem>
             ))}

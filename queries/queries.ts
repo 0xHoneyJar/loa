@@ -6,7 +6,7 @@ export const getRafflesQuery = async () => {
     .select("*")
     .throwOnError();
 
-  if (!data) {
+  if (!data || error) {
     return [];
   }
 
@@ -14,10 +14,14 @@ export const getRafflesQuery = async () => {
 };
 
 export const getQuestsQuery = async () => {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("quests")
     .select("title,startTime,endTime,image,logo,disabled,paused,slug,reward")
     .throwOnError();
+
+  if (!data || error) {
+    return [];
+  }
 
   const quests = data;
 
@@ -26,7 +30,7 @@ export const getQuestsQuery = async () => {
     logo: quest.logo ? quest.logo.split(",") : null,
     reward: quest.reward.split(",").map(Number),
   }));
-  
+
   return finalQuest;
 };
 

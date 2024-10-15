@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import useUserStore from "@/state/user/useUserStore";
 import { calculateTimeRemaining, convertUnixToLocalTime } from "@/lib/utils";
 import { ArrowUpRight } from "lucide-react";
+import BadgeImage from "./badge-image";
 
 const QuestDisplay = ({ quest }: { quest: Quest }) => {
   const { data: questData, error } = useSWR<{
@@ -75,7 +76,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
         {hover && (
           <div className="absolute left-0 top-0 z-10 flex size-full items-center justify-center bg-black/75">
             <a
-              href={`https://faucet.0xhoneyjar.xyz/quests/${quest.slug}`}
+              href={`https://www.cubquests.com/quests/${quest.slug}`}
               target="_blank"
               className="rounded-full bg-white/25 px-4 py-2 backdrop-blur-md hover:bg-white/50"
             >
@@ -107,7 +108,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
                   className="relative z-20 aspect-square h-[38px] md:h-[45px]"
                   key={id}
                 >
-                  <S3Image
+                  <BadgeImage
                     src={`/faucet/badges/${reward}.png`}
                     fill
                     width={128}

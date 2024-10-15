@@ -10,6 +10,7 @@ import {
 import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
 import { useMemo } from "react";
+import PartnerImage from "../partner-image";
 
 const NewPartners = ({ partners }: { partners?: any }) => {
   const recentPartners = useMemo(() => {
@@ -66,10 +67,8 @@ const NewPartners = ({ partners }: { partners?: any }) => {
               >
                 <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
                 <div className="relative mb-2 aspect-square h-14 overflow-hidden rounded-full border border-[#F4C10B0F] bg-[#18140C05] md:mb-4 md:h-16">
-                  <Image
-                    src={
-                      "https://d163aeqznbc6js.cloudfront.net/images" + item.logo
-                    }
+                  <PartnerImage
+                    src={item.logo}
                     alt={item._title}
                     fill
                     className="object-cover"
@@ -117,6 +116,8 @@ const StatusDisplay = ({ status }: { status: string }) => {
     gold: "Strategic",
     silver: "Integration",
     bronze: "Ecosystem",
+    backed: "Backed",
+    joint: "Joint",
   };
 
   return (
