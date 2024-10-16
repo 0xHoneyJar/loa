@@ -140,18 +140,24 @@ export type Database = {
       badges: {
         Row: {
           created_at: string
+          eligibility: string
           id: number
           reward: number
+          title: string
         }
         Insert: {
           created_at?: string
+          eligibility: string
           id: number
           reward: number
+          title: string
         }
         Update: {
           created_at?: string
+          eligibility?: string
           id?: number
           reward?: number
+          title?: string
         }
         Relationships: []
       }
@@ -170,6 +176,42 @@ export type Database = {
           address?: string
           amount?: string
           tokenid?: string
+        }
+        Relationships: []
+      }
+      badges_mainnet: {
+        Row: {
+          address: string
+          amounts: number[]
+          created_at: string
+          id: number
+          index: number
+          is_hc_holder: boolean
+          proof: string[]
+          root: string
+          token_ids: number[]
+        }
+        Insert: {
+          address: string
+          amounts: number[]
+          created_at?: string
+          id?: number
+          index: number
+          is_hc_holder: boolean
+          proof: string[]
+          root: string
+          token_ids: number[]
+        }
+        Update: {
+          address?: string
+          amounts?: number[]
+          created_at?: string
+          id?: number
+          index?: number
+          is_hc_holder?: boolean
+          proof?: string[]
+          root?: string
+          token_ids?: number[]
         }
         Relationships: []
       }
@@ -293,6 +335,39 @@ export type Database = {
           index?: string | null
           proof?: string | null
           tokenids?: string | null
+        }
+        Relationships: []
+      }
+      badges_snapshot_mainnet: {
+        Row: {
+          address: string
+          amount: number
+          created_at: string
+          id: number
+          index: number
+          proof: string[]
+          root: string
+          token_id: number
+        }
+        Insert: {
+          address: string
+          amount: number
+          created_at?: string
+          id?: number
+          index: number
+          proof: string[]
+          root: string
+          token_id: number
+        }
+        Update: {
+          address?: string
+          amount?: number
+          created_at?: string
+          id?: number
+          index?: number
+          proof?: string[]
+          root?: string
+          token_id?: number
         }
         Relationships: []
       }
@@ -536,6 +611,42 @@ export type Database = {
         }
         Relationships: []
       }
+      campaigns: {
+        Row: {
+          cronScheduleId: string | null
+          description: string
+          image: string
+          logo: string | null
+          partnerName: string | null
+          quests: Json
+          reward: string
+          slug: string
+          title: string
+        }
+        Insert: {
+          cronScheduleId?: string | null
+          description: string
+          image: string
+          logo?: string | null
+          partnerName?: string | null
+          quests: Json
+          reward: string
+          slug: string
+          title: string
+        }
+        Update: {
+          cronScheduleId?: string | null
+          description?: string
+          image?: string
+          logo?: string | null
+          partnerName?: string | null
+          quests?: Json
+          reward?: string
+          slug?: string
+          title?: string
+        }
+        Relationships: []
+      }
       dict: {
         Row: {
           create_at: string | null
@@ -560,6 +671,21 @@ export type Database = {
           key?: string
           kind?: string
           value?: string | null
+        }
+        Relationships: []
+      }
+      discord_role: {
+        Row: {
+          address: string
+          id: string
+        }
+        Insert: {
+          address: string
+          id: string
+        }
+        Update: {
+          address?: string
+          id?: string
         }
         Relationships: []
       }
@@ -1009,6 +1135,7 @@ export type Database = {
       quests: {
         Row: {
           admins: string | null
+          campaignName: string | null
           created_at: string
           cronScheduleId: string | null
           description: string
@@ -1020,10 +1147,97 @@ export type Database = {
           link: string | null
           logo: string | null
           onchainConfig: Json | null
-          optionSteps: Json | null
           partnerName: string | null
           paused: boolean
           prerequisites: string | null
+          questPaths: Json | null
+          requiredNFTs: string | null
+          requiredQuests: string | null
+          reward: string
+          slug: string
+          startTime: number
+          steps: Json[] | null
+          supportedChains: number[] | null
+          title: string
+          type: string
+        }
+        Insert: {
+          admins?: string | null
+          campaignName?: string | null
+          created_at?: string
+          cronScheduleId?: string | null
+          description: string
+          disabled?: boolean | null
+          endTime: number
+          farcasterSteps?: Json[] | null
+          id?: number
+          image: string
+          link?: string | null
+          logo?: string | null
+          onchainConfig?: Json | null
+          partnerName?: string | null
+          paused?: boolean
+          prerequisites?: string | null
+          questPaths?: Json | null
+          requiredNFTs?: string | null
+          requiredQuests?: string | null
+          reward: string
+          slug: string
+          startTime: number
+          steps?: Json[] | null
+          supportedChains?: number[] | null
+          title: string
+          type?: string
+        }
+        Update: {
+          admins?: string | null
+          campaignName?: string | null
+          created_at?: string
+          cronScheduleId?: string | null
+          description?: string
+          disabled?: boolean | null
+          endTime?: number
+          farcasterSteps?: Json[] | null
+          id?: number
+          image?: string
+          link?: string | null
+          logo?: string | null
+          onchainConfig?: Json | null
+          partnerName?: string | null
+          paused?: boolean
+          prerequisites?: string | null
+          questPaths?: Json | null
+          requiredNFTs?: string | null
+          requiredQuests?: string | null
+          reward?: string
+          slug?: string
+          startTime?: number
+          steps?: Json[] | null
+          supportedChains?: number[] | null
+          title?: string
+          type?: string
+        }
+        Relationships: []
+      }
+      quests_duplicate: {
+        Row: {
+          admins: string | null
+          created_at: string
+          cronScheduleId: string | null
+          description: string
+          disabled: boolean | null
+          endTime: number
+          farcasterSteps: Json[] | null
+          id: number
+          image: string
+          link: string | null
+          logo: string | null
+          onchainConfig: Json | null
+          partnerName: string | null
+          paused: boolean
+          prerequisites: string | null
+          questPaths: Json | null
+          requiredQuests: string | null
           reward: string
           slug: string
           startTime: number
@@ -1045,10 +1259,11 @@ export type Database = {
           link?: string | null
           logo?: string | null
           onchainConfig?: Json | null
-          optionSteps?: Json | null
           partnerName?: string | null
           paused?: boolean
           prerequisites?: string | null
+          questPaths?: Json | null
+          requiredQuests?: string | null
           reward: string
           slug: string
           startTime: number
@@ -1070,78 +1285,16 @@ export type Database = {
           link?: string | null
           logo?: string | null
           onchainConfig?: Json | null
-          optionSteps?: Json | null
           partnerName?: string | null
           paused?: boolean
           prerequisites?: string | null
+          questPaths?: Json | null
+          requiredQuests?: string | null
           reward?: string
           slug?: string
           startTime?: number
           steps?: Json[] | null
           supportedChains?: number[] | null
-          title?: string
-          type?: string
-        }
-        Relationships: []
-      }
-      quests_duplicate: {
-        Row: {
-          admins: string | null
-          created_at: string
-          description: string
-          disabled: boolean | null
-          endTime: number
-          farcasterSteps: Json[] | null
-          id: number
-          image: string
-          link: string | null
-          logo: string | null
-          partnerName: string | null
-          prerequisites: string | null
-          reward: number
-          slug: string
-          startTime: number
-          steps: Json[] | null
-          title: string
-          type: string
-        }
-        Insert: {
-          admins?: string | null
-          created_at?: string
-          description: string
-          disabled?: boolean | null
-          endTime: number
-          farcasterSteps?: Json[] | null
-          id?: number
-          image: string
-          link?: string | null
-          logo?: string | null
-          partnerName?: string | null
-          prerequisites?: string | null
-          reward: number
-          slug: string
-          startTime: number
-          steps?: Json[] | null
-          title: string
-          type?: string
-        }
-        Update: {
-          admins?: string | null
-          created_at?: string
-          description?: string
-          disabled?: boolean | null
-          endTime?: number
-          farcasterSteps?: Json[] | null
-          id?: number
-          image?: string
-          link?: string | null
-          logo?: string | null
-          partnerName?: string | null
-          prerequisites?: string | null
-          reward?: number
-          slug?: string
-          startTime?: number
-          steps?: Json[] | null
           title?: string
           type?: string
         }
@@ -1389,8 +1542,8 @@ export type Database = {
       }
       raffles: {
         Row: {
+          contact: string | null
           created_at: string
-          cronScheduleId: string | null
           description: string | null
           endTime: number
           id: number
@@ -1403,11 +1556,14 @@ export type Database = {
           slug: string
           snapshotTime: number
           startTime: number
+          ticketCronScheduleId: string | null
           title: string
+          website: string | null
+          winnerCronScheduleId: string | null
         }
         Insert: {
+          contact?: string | null
           created_at?: string
-          cronScheduleId?: string | null
           description?: string | null
           endTime: number
           id?: number
@@ -1420,11 +1576,14 @@ export type Database = {
           slug: string
           snapshotTime: number
           startTime: number
+          ticketCronScheduleId?: string | null
           title: string
+          website?: string | null
+          winnerCronScheduleId?: string | null
         }
         Update: {
+          contact?: string | null
           created_at?: string
-          cronScheduleId?: string | null
           description?: string | null
           endTime?: number
           id?: number
@@ -1437,7 +1596,73 @@ export type Database = {
           slug?: string
           snapshotTime?: number
           startTime?: number
+          ticketCronScheduleId?: string | null
           title?: string
+          website?: string | null
+          winnerCronScheduleId?: string | null
+        }
+        Relationships: []
+      }
+      raffles_duplicate: {
+        Row: {
+          contact: string | null
+          created_at: string
+          description: string | null
+          endTime: number
+          id: number
+          image: string
+          logo: string | null
+          partnerName: string | null
+          paused: boolean
+          prizes: Json[]
+          qualifiedUsers: Json[]
+          slug: string
+          snapshotTime: number
+          startTime: number
+          ticketCronScheduleId: string | null
+          title: string
+          website: string | null
+          winnerCronScheduleId: string | null
+        }
+        Insert: {
+          contact?: string | null
+          created_at?: string
+          description?: string | null
+          endTime: number
+          id?: number
+          image: string
+          logo?: string | null
+          partnerName?: string | null
+          paused?: boolean
+          prizes: Json[]
+          qualifiedUsers: Json[]
+          slug: string
+          snapshotTime: number
+          startTime: number
+          ticketCronScheduleId?: string | null
+          title: string
+          website?: string | null
+          winnerCronScheduleId?: string | null
+        }
+        Update: {
+          contact?: string | null
+          created_at?: string
+          description?: string | null
+          endTime?: number
+          id?: number
+          image?: string
+          logo?: string | null
+          partnerName?: string | null
+          paused?: boolean
+          prizes?: Json[]
+          qualifiedUsers?: Json[]
+          slug?: string
+          snapshotTime?: number
+          startTime?: number
+          ticketCronScheduleId?: string | null
+          title?: string
+          website?: string | null
+          winnerCronScheduleId?: string | null
         }
         Relationships: []
       }
@@ -1658,6 +1883,71 @@ export type Database = {
         }
         Relationships: []
       }
+      user_tokens: {
+        Row: {
+          access_token: string
+          expires_at: string | null
+          id: string
+          provider: string
+          refresh_token: string | null
+          user_id: string | null
+        }
+        Insert: {
+          access_token: string
+          expires_at?: string | null
+          id?: string
+          provider: string
+          refresh_token?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          access_token?: string
+          expires_at?: string | null
+          id?: string
+          provider?: string
+          refresh_token?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          created_at: string | null
+          discord_id: string | null
+          discord_username: string | null
+          id: string
+          referral_code: string | null
+          twitter_id: string | null
+          twitter_username: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          discord_id?: string | null
+          discord_username?: string | null
+          id?: string
+          referral_code?: string | null
+          twitter_id?: string | null
+          twitter_username?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          discord_id?: string | null
+          discord_username?: string | null
+          id?: string
+          referral_code?: string | null
+          twitter_id?: string | null
+          twitter_username?: string | null
+        }
+        Relationships: []
+      }
       verified_retweets_apiology: {
         Row: {
           address: string
@@ -1693,6 +1983,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_badges_leaderboard: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          address: string
+          count: number
+        }[]
+      }
       get_distinct_root_token_id: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -1872,4 +2169,19 @@ export type Enums<
   ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : PublicEnumNameOrOptions extends keyof PublicSchema["Enums"]
     ? PublicSchema["Enums"][PublicEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof PublicSchema["CompositeTypes"]
+    | { schema: keyof Database },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof PublicSchema["CompositeTypes"]
+    ? PublicSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never

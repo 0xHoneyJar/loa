@@ -16,7 +16,9 @@ export const getRafflesQuery = async () => {
 export const getQuestsQuery = async () => {
   const { data, error } = await supabase
     .from("quests")
-    .select("title,startTime,endTime,image,logo,disabled,paused,slug,reward")
+    .select(
+      "title,startTime,endTime,image,logo,disabled,paused,slug,reward,campaignName",
+    )
     .throwOnError();
 
   if (!data || error) {

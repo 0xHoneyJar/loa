@@ -23,6 +23,9 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
 
   const upcomingQuest = quest.startTime - currentTime > 0;
   const endedQuest = quest.endTime - currentTime < 0;
+  const link = quest.campaignName
+    ? `https://www.cubquests.com/campaigns/${quest.campaignName.toLowerCase()}?quest=${quest.slug}`
+    : `https://www.cubquests.com/quests/${quest.slug}`;
 
   const calculateWidth = (
     startTime: number,
@@ -76,7 +79,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
         {hover && (
           <div className="absolute left-0 top-0 z-10 flex size-full items-center justify-center bg-black/75">
             <a
-              href={`https://www.cubquests.com/quests/${quest.slug}`}
+              href={link}
               target="_blank"
               className="rounded-full bg-white/25 px-4 py-2 backdrop-blur-md hover:bg-white/50"
             >

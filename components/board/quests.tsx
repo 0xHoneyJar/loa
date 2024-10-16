@@ -80,7 +80,7 @@ const Quests = () => {
               ))}
         </div>
         <a
-          href={"https://faucet.0xhoneyjar.xyz/quests"}
+          href={"https://www.cubquests.com/quests"}
           onClick={() => {
             trackEvent(`explore_quests`);
           }}
