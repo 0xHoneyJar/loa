@@ -158,6 +158,18 @@ const Sidebar = ({
               <motion.a
                 custom={2}
                 variants={mobileNavVariants}
+                href={"https://blog.0xhoneyjar.xyz/"}
+                target="_blank"
+                onClick={() => {
+                  trackEvent("open_blog_navbar");
+                }}
+                className="border-b border-white/10 py-3 text-white"
+              >
+                Blog
+              </motion.a>
+              <motion.a
+                custom={3}
+                variants={mobileNavVariants}
                 href="https://discord.com/invite/thehoneyjar"
                 target="_blank"
                 onClick={() => {
@@ -167,9 +179,8 @@ const Sidebar = ({
               >
                 Join Us
               </motion.a>
-
               <motion.a
-                custom={3}
+                custom={4}
                 variants={mobileNavVariants}
                 href="https://app.0xhoneyjar.xyz/"
                 target="_blank"
@@ -181,7 +192,7 @@ const Sidebar = ({
                 Open App
               </motion.a>
               <motion.a
-                custom={4}
+                custom={5}
                 variants={mobileNavVariants}
                 href="https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
                 target="_blank"

@@ -1,4 +1,4 @@
-import Blog from "@/components/board/blog";
+import Article from "@/components/board/article";
 import Development from "@/components/board/development";
 import Feed from "@/components/board/feed";
 import Guide from "@/components/board/guide";
@@ -54,9 +54,9 @@ export const DASHBOARD = [
     hidden: false,
   },
   {
-    name: "Blog",
-    key: "blog",
-    ui: <Blog />,
+    name: "Articles",
+    key: "articles",
+    ui: <Article />,
     hidden: false,
   },
   {

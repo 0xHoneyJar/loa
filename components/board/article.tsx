@@ -3,7 +3,7 @@
 import { ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
-import { BLOGS } from "@/constants/blog";
+import { ARTICLES } from "@/constants/articles";
 import {
   Carousel,
   CarouselContent,
@@ -13,18 +13,18 @@ import {
 } from "../ui/carousel";
 import { trackEvent } from "@openpanel/nextjs";
 
-const Blog = () => {
+const Article = () => {
   return (
     <div
       className={`relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
     >
-      <div className="absolute -top-40 h-1 w-full" id="blog" />
+      <div className="absolute -top-40 h-1 w-full" id="articles" />
       <Carousel className="flex h-full flex-col" opts={{ dragFree: true }}>
         <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-[#FFD700]" />
         <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6">
           <div className="flex items-center gap-2">
             <p className="text-base font-medium text-[#FFD700] md:text-lg">
-              Our Blog
+              Our Articles
             </p>
           </div>
           <div className="relative flex gap-1.5 md:gap-2 lg:hidden">
@@ -35,8 +35,8 @@ const Blog = () => {
         {/* <div className="flex grow overflow-hidden p-4 md:p-6"> */}
         <CarouselContent className="flex size-full grow p-4 md:p-6 lg:-ml-0 lg:grid lg:!transform-none lg:grid-cols-4 lg:gap-5 xl:gap-6">
           {/* <div className="flex h-full lg:grid lg:w-full lg:grid-cols-4 lg:gap-5 xl:gap-6"> */}
-          {BLOGS.map((blog, id) => (
-            <BlogDisplay
+          {ARTICLES.map((blog, id) => (
+            <ArticleDisplay
               heading={blog.heading}
               description={blog.desc}
               link={blog.link}
@@ -73,9 +73,9 @@ const Blog = () => {
   );
 };
 
-export default Blog;
+export default Article;
 
-const BlogDisplay = ({
+const ArticleDisplay = ({
   heading,
   description,
   link,

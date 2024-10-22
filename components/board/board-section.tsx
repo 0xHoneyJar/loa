@@ -4,7 +4,7 @@ import Updates from "@/components/board/updates";
 import Follow from "@/components/board/follow";
 import NewPartners from "@/components/board/new-partners";
 import Mint from "@/components/board/mint";
-import Blog from "@/components/board/blog";
+import Article from "@/components/board/article";
 import Spotlight from "@/components/board/spotlight";
 import Development from "@/components/board/development";
 import Feed from "@/components/board/feed";
@@ -66,7 +66,7 @@ const BoardSection = ({
             <Mint mints={community.mints} />
           </div>
           <div className="row-span-1 lg:col-span-full">
-            <Blog />
+            <Article />
           </div>
           <div className="row-span-2 lg:col-span-2">
             <Spotlight spotlight={community.spotlight} />
