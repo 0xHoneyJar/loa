@@ -66,7 +66,7 @@ export const FollowButton = ({
 export const SpotlightButton = ({ spotlight }: { spotlight: any }) => {
   return (
     <a
-      className="hover: flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-4 py-3 text-[#F4C10B] transition-all duration-500 ease-in-out hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]"
+      className="flex w-full items-center justify-between rounded-lg bg-[#F4C10B]/10 px-4 py-3 text-[#F4C10B] transition-all duration-500 ease-in-out hover:bg-[#F4C10B] hover:font-semibold hover:text-[#121212]"
       href={spotlight.link}
       onClick={() => {
         trackEvent(`${spotlight._title}_spotlight`);
@@ -74,6 +74,22 @@ export const SpotlightButton = ({ spotlight }: { spotlight: any }) => {
       target="_blank"
     >
       <p className="text-sm">Learn More</p>
+      <ArrowUpRight className="aspect-square h-[16px] md:h-[24px]" />
+    </a>
+  );
+};
+
+export const NewMintButton = () => {
+  return (
+    <a
+      className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#F4C10B]/10 px-4 py-3 text-[#F4C10B] transition-all duration-500 ease-in-out hover:bg-[#F4C10B] hover:text-[#121212]"
+      href={"/mint-collection"}
+      onClick={() => {
+        trackEvent(`mint-collection-button`);
+      }}
+      // target="_blank"
+    >
+      <p className="text-sm">View Collections Drop</p>
       <ArrowUpRight className="aspect-square h-[16px] md:h-[24px]" />
     </a>
   );

@@ -30,7 +30,7 @@ const Validator = () => {
             <div className="absolute bottom-0 left-0 h-1/2 w-full bg-gradient-to-t from-[#0E0D09]" />
           </div>
         </div>
-        <div className="flex w-full items-center justify-between gap-4 border-t border-[#1B271B] p-4 md:p-6">
+        <div className="flex w-full items-center justify-between gap-4 border-t border-[#1B271B] p-4">
           <div className="hidden items-center gap-3 md:flex">
             <div className="relative aspect-square h-5">
               <Image

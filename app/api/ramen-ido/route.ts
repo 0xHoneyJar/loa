@@ -8,8 +8,6 @@ export async function GET(req: NextRequest) {
 
     const data = await response.json();
 
-    console.log(data);
-
     if (data.status !== "OK") {
       throw new Error("Error status");
     }

@@ -67,18 +67,26 @@
 }
 
 .react-grid-item.react-grid-placeholder {
-  @apply rounded-3xl !bg-[#130F01] border-dashed border-[3px] border-[#453806];
+  @apply rounded-3xl border-[3px] border-dashed border-[#453806] !bg-[#130F01];
+}
+
+.rfm-initial-child-container {
+  @apply h-full;
+}
+
+.rfm-child {
+  @apply h-full;
 }
 
 input[type="range"]::-webkit-slider-thumb {
-  @apply w-1.5 h-1.5;
+  @apply h-1.5 w-1.5;
   /* removing default appearance */
   -webkit-appearance: none;
-  appearance: none; 
+  appearance: none;
   border-radius: 50%;
-  background: #F4C10B;
+  background: #f4c10b;
   /*  slider progress trick  */
-  box-shadow: -408px 0 0 405px #F4C10B;
+  box-shadow: -408px 0 0 405px #f4c10b;
 }
 
 @layer base {
@@ -86,6 +94,6 @@ input[type="range"]::-webkit-slider-thumb {
     @apply border-border;
   }
   body {
-    @apply text-foreground bg-[#0A0601] font-switzer;
+    @apply bg-[#0A0601] font-switzer text-foreground;
   }
 }

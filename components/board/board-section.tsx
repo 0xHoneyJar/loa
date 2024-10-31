@@ -44,9 +44,11 @@ const BoardSection = ({
             </p>
           </div>
           <Marquee autoFill speed={30}>
-            <p className="px-2 text-xs text-white md:text-sm">
-              Henlo, and furthermore, ooga booga!
-            </p>
+            <div className="flex h-full items-center">
+              <p className="px-2 text-xs text-white md:text-sm">
+                Henlo, and furthermore, ooga booga!
+              </p>
+            </div>
           </Marquee>
         </div>
         <div className="grid w-full grid-cols-1 grid-rows-40 gap-4 rounded-2xl border border-[#BCBCBC1A] bg-[#0A0A0A] p-2 text-white md:gap-6 md:p-6 lg:max-h-[8220px] lg:grid-cols-3 lg:grid-rows-22 xl:grid-rows-24">
@@ -62,7 +64,7 @@ const BoardSection = ({
           <div className="row-span-1 lg:col-span-full">
             <NewPartners partners={partners} />
           </div>
-          <div className="row-span-1 lg:col-span-full">
+          <div className="row-span-2 lg:col-span-full">
             <Mint mints={community.mints} />
           </div>
           <div className="row-span-1 lg:col-span-full">

@@ -15,10 +15,12 @@ import Explore from "./explore";
 import { Copy, Menu, X, Download } from "lucide-react";
 import { trackEvent } from "@openpanel/nextjs";
 import { ValidatorWidget } from "@0xhoneyjar/validator-widget";
+import { usePathname } from "next/navigation";
 
 const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState({ isOpen: false });
+  const pathname = usePathname();
 
   const handleLogoContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -66,7 +68,7 @@ const Navbar = () => {
           <NavigationMenu className="hidden items-center md:flex">
             <NavigationMenuList className="text-sm md:space-x-3">
               <Explore />
-              <SectionSelect />
+              {pathname === "/" && <SectionSelect />}
               <NavigationMenuItem>
                 <a
                   href={"https://blog.0xhoneyjar.xyz/"}

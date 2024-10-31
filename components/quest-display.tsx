@@ -23,6 +23,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
 
   const upcomingQuest = quest.startTime - currentTime > 0;
   const endedQuest = quest.endTime - currentTime < 0;
+
   const link = quest.campaignName
     ? `https://www.cubquests.com/campaigns/${quest.campaignName.toLowerCase()}?quest=${quest.slug}`
     : `https://www.cubquests.com/quests/${quest.slug}`;
