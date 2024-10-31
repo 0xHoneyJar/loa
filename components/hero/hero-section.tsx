@@ -8,6 +8,7 @@ import { useEffect, useRef, useMemo } from "react";
 import { ArrowDown } from "lucide-react";
 import Lottie from "lottie-react";
 import HeroBg from "@/public/hero-bg.json";
+import HeroHalloween from "@/public/jani-halloween.json";
 import OctoBear from "@/public/octo-bear.json";
 import { trackEvent } from "@openpanel/nextjs";
 
@@ -18,6 +19,17 @@ const HeroSection = () => {
   const heroBgOptions = useMemo(
     () => ({
       animationData: HeroBg,
+      loop: true,
+      rendererSettings: {
+        preserveAspectRatio: "xMidYMid slice",
+      },
+    }),
+    [],
+  );
+
+  const heroHalloweenBgOptions = useMemo(
+    () => ({
+      animationData: HeroHalloween,
       loop: true,
       rendererSettings: {
         preserveAspectRatio: "xMidYMid slice",
@@ -76,7 +88,7 @@ const HeroSection = () => {
           <div className="absolute bottom-0 h-2/5 w-full bg-gradient-to-t from-[#0A0601]" />
           <div className="absolute bottom-40 z-[-2] h-[100px] w-1/3 bg-[#F5D011] blur-[250px]" />
           <Lottie
-            {...heroBgOptions}
+            {...heroHalloweenBgOptions}
             className="absolute top-0 z-[-1] size-full"
           />
           <div className="flex w-full flex-col justify-center gap-2 px-4 text-white sm:px-6 md:gap-4 md:px-10 2xl:flex-row 2xl:gap-16">
