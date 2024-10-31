@@ -113,7 +113,9 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
                   key={id}
                 >
                   <BadgeImage
-                    src={`/faucet/badges/${reward}.png`}
+                    src={
+                      quest.campaignName ? "" : `/faucet/badges/${reward}.png`
+                    }
                     fill
                     width={128}
                     className="object-cover"
