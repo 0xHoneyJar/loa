@@ -78,17 +78,19 @@ const HeroSection = () => {
         />
         <div className="absolute top-0 h-[65px] w-full md:h-24 md:opacity-30">
           <Image
-            src={"/navbar-hero.png"}
+            // src={"/navbar-hero.png"}
+            src={"/halloween-navbar.png"}
             alt="bg"
             fill
             className="z-[-1] object-cover"
           />
         </div>
-        <div className="relative flex h-[calc(100vh-64px)] w-full flex-col items-center gap-10 pb-10 pt-6 md:h-[calc(100vh-96px)]">
+        <div className="relative flex h-[calc(100vh-65px)] w-full flex-col items-center gap-10 pb-10 pt-6 md:h-[calc(100vh-96px)]">
           <div className="absolute bottom-0 h-2/5 w-full bg-gradient-to-t from-[#0A0601]" />
           <div className="absolute bottom-40 z-[-2] h-[100px] w-1/3 bg-[#F5D011] blur-[250px]" />
           <Lottie
             {...heroHalloweenBgOptions}
+            // {...heroBgOptions}
             className="absolute top-0 z-[-1] size-full"
           />
           <div className="flex w-full flex-col justify-center gap-2 px-4 text-white sm:px-6 md:gap-4 md:px-10 2xl:flex-row 2xl:gap-16">
