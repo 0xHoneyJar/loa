@@ -18,6 +18,7 @@ const Mint = ({ mints }: { mints?: any }) => {
   return (
     <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#EE511E]/10 from-[12%] via-[#F8A929]/10 via-[38%] to-[#141310]/10">
       <div className="absolute -top-40 h-1 w-full" id="mint" />
+      {/* eslint-disable-next-line tailwindcss/no-contradicting-classname */}
       <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-gradient-to-r from-[#FFD700] via-[#FF7F0B] via-60% to-[#FF4C12]" />
       <div className="flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6">
         <div className="flex items-center gap-2">
