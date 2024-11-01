@@ -1,7 +1,7 @@
 "use client";
 
 import fetcher from "@/lib/fetcher";
-import { ChevronRight, Search } from "lucide-react";
+import { AlertTriangle, ChevronRight, Loader2, Search } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import useSWR from "swr";
@@ -16,63 +16,145 @@ import {
 } from "./ui/select";
 import { useState } from "react";
 import { Input } from "./ui/input";
+import S3Image from "./s3-image";
 
-const ExploreMint = () => {
+type Mint = {
+  image: string;
+  price: string;
+  currency: string;
+  status: "live" | "upcoming" | "completed";
+  title: string;
+  link: string;
+  source: string;
+  logo: string;
+};
+
+const ExploreMint = ({ mints }: { mints: any }) => {
   const { data, error, isLoading } = useSWR<{
     mints: any;
   }>(`/api/kingdomly-mints`, fetcher);
+
+  const kingdomlyMints = data?.mints;
+
+  function processKindomlyMint(
+    mint: any,
+    status: "live" | "upcoming" | "completed",
+  ) {
+    return {
+      image: mint.profile_image ? mint.profile_image : mint.header_image,
+      price: mint.mint_group_data[0].price,
+      currency: mint.chain.native_currency,
+      status: status,
+      logo: "faucet/quests/kingdomly.png",
+      title: mint.slug || "",
+      link: `https://www.kingdomly.app/${mint.slug}` || "",
+      source: "kingdomly",
+    };
+  }
+
+  function processMint(mint: any) {
+    return {
+      image: mint.image,
+      price: mint.price,
+      currency: "ETH",
+      status: "live",
+      logo: mint.partner.logo,
+      title: mint._title,
+      link: mint.link,
+      source: "basehub",
+    };
+  }
+
+  const allMints: Mint[] = [
+    ...mints.items.map(processMint),
+    ...(kingdomlyMints?.live.map((mint: any) =>
+      processKindomlyMint(mint, "live"),
+    ) ?? []),
+    ...(kingdomlyMints?.upcoming.map((mint: any) =>
+      processKindomlyMint(mint, "upcoming"),
+    ) ?? []),
+    ...(kingdomlyMints?.sold_out.map((mint: any) =>
+      processKindomlyMint(mint, "completed"),
+    ) ?? []),
+  ];
+
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [selectedSort, setSelectedSort] = useState("");
 
-  //   const filteredMints = data?.mints.filter((mints) =>
-  //     product.name.toLowerCase().includes(searchTerm.toLowerCase()),
-  //   );
+  const filteredMints = allMints.filter(
+    (mint: Mint) =>
+      (selectedStatus === "all" || mint.status === selectedStatus) &&
+      mint.title.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
+
+  // const filteredMints = allMints;
+
+  console.log(filteredMints);
+
+  const partnerMintsNum =
+    data?.mints.live.length +
+    data?.mints.upcoming.length +
+    data?.mints.sold_out.length;
+
+  const allMintsNum = mints.items.length + partnerMintsNum;
 
   return (
-    <div className="relative flex size-full flex-col px-20 pt-[65px] text-white md:pt-24">
+    <div className="relative flex size-full flex-col px-10 pb-20 pt-[65px] text-white md:px-20 md:pt-24">
       <div className="flex w-full items-center gap-2 py-10">
-        <Link href="/" className="font-light text-[#FFFFFF]/70">
+        <Link
+          href="/"
+          className="text-sm font-light text-[#FFFFFF]/70 md:text-base"
+        >
           Home
         </Link>
         <ChevronRight className="aspect-square h-[20px] text-[#FFC500]" />
         <p className="text-[#FFC500]">Partner Collections</p>
       </div>
-      <p className="mb-1 text-3xl font-semibold">Explore Our Partners Mint</p>
-      <p className="text-lg">Deets</p>
-      <div className="relative my-6 flex items-center justify-between">
-        <Search className="absolute left-4 aspect-square h-6 text-[#FFFFFF]/70" />
-        <Input
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="relative h-12 w-1/2 rounded-xl border-none bg-[#FFFFFF]/10 pl-12 placeholder:text-[#FFFFFF]/70"
-          placeholder="Search by mint name"
-        />
+      <p className="mb-1 text-2xl font-semibold md:text-3xl">
+        Explore Our Partners Mint
+      </p>
+      {/* <p className="text-lg">Deets</p> */}
+      <div className="relative my-6 flex flex-col-reverse items-start justify-between gap-4 md:flex-row md:items-center">
+        <div className="relative w-full">
+          <Search className="absolute inset-y-0 left-4 my-auto aspect-square h-6 text-[#FFFFFF]/70" />
+          <Input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="relative h-12 w-full rounded-xl border-none bg-[#FFFFFF]/10 pl-12 placeholder:text-[#FFFFFF]/70 md:w-3/4"
+            placeholder="Search by mint name"
+          />
+        </div>
+
         <div className="flex items-center gap-2">
           <StatusSelect
             setSelectedStatus={setSelectedStatus}
             selectedStatus={selectedStatus}
           />
-          <SortSelect
+          {/* <SortSelect
             setSelectedSort={setSelectedSort}
             selectedSort={selectedSort}
-          />
+            allMintsNum={allMintsNum}
+            partnerMintsNum={partnerMintsNum}
+          /> */}
         </div>
       </div>
       {error ? (
-        <div>Error retrieving partners mints</div>
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="text-[#FFC500]" />
+          Error retrieving partners mints
+        </div>
       ) : isLoading ? (
-        <div>Loading...</div>
+        <div className="flex items-center gap-2">
+          <Loader2 className="animate-spin text-white" />
+          Loading...
+        </div>
+      ) : filteredMints.length === 0 ? (
+        <p>No Mints Found</p>
       ) : (
         <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(18rem,1fr))] gap-4">
-          {data?.mints.live.map((mint: any, id: number) => (
-            <MintDisplay key={id} mint={mint} status={"live"} />
-          ))}
-          {data?.mints.upcoming.map((mint: any, id: number) => (
-            <MintDisplay key={id} mint={mint} status={"upcoming"} />
-          ))}
-          {data?.mints.sold_out.map((mint: any, id: number) => (
-            <MintDisplay key={id} mint={mint} status={"soldOut"} />
+          {filteredMints.map((mint: Mint, id: number) => (
+            <MintDisplay key={id} mint={mint} status={mint.status} />
           ))}
         </div>
       )}
@@ -87,54 +169,92 @@ const MintDisplay = ({
   status,
 }: {
   mint: any;
-  status: "live" | "upcoming" | "soldOut";
+  status: "live" | "upcoming" | "completed";
 }) => {
+  const [hover, setHover] = useState(false);
   return (
-    <div className="flex h-[400px] w-full flex-col overflow-hidden rounded-xl border border-[#FFFFFF]/10 bg-[#FFFFFF]/5 p-2">
-      <div className="relative h-full w-full overflow-hidden rounded-lg">
-        <Image
-          src={mint.header_image ? mint.header_image : mint.profile_image}
-          alt=""
-          fill
-          className="z-0 object-cover"
-        />
-      </div>
-      <div className="flex items-center justify-between py-3">
-        <p className="font-medium">The Collection Name</p>
-        <div className="relative aspect-square h-[20px]">
-          <PartnerImage
-            src={"faucet/quests/kingdomly.png"}
-            alt="logo"
-            fill
-            className="rounded-full"
-          />
-        </div>
-      </div>
-      <div className="grid w-full grid-cols-2 gap-4 rounded-xl bg-[#FFFFFF]/10 px-4 py-2">
-        <div className="flex h-full w-full flex-col justify-center">
-          <p className="text-xs text-[#FFFFFF]/70">Status</p>
-          <div className="flex items-center gap-2">
-            {status === "live" ? (
-              <div className="aspect-square h-2 rounded-full bg-[#22B642]" />
-            ) : status === "upcoming" ? (
-              <div className="aspect-square h-2 rounded-full bg-gradient-to-b from-[#F4C10B] to-[#FF4C12]" />
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className={`flex h-[300px] w-full rounded-xl bg-gradient-to-b md:h-[400px] ${!hover ? "from-[#F4C10B]/80 via-[#F8A929]/50 via-20% to-[#F2C8481F] p-px" : "from-[#FFC500]/75 via-[#F8A929]/75 via-40% to-[#FF4C12]/75 p-[2px]"} `}
+    >
+      <div className="h-full w-full rounded-xl bg-[#0A0601]">
+        <div
+          className={`bg-gradient-to-r ${!hover ? "from-[#F2C848]/5 to-[#F8A929]/5" : "shadow-partner from-[#F2C848]/10 to-[#F8A929]/10"} flex h-full w-full flex-col overflow-hidden rounded-xl p-2`}
+        >
+          <div className="relative flex h-full w-full items-end overflow-hidden rounded-xl p-2">
+            {mint.source === "kingdomly" ? (
+              mint.image.toLowerCase().includes(".mp4") ? (
+                <video
+                  src={mint.image}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="absolute left-0 z-0 overflow-hidden object-cover"
+                />
+              ) : (
+                <Image
+                  src={mint.image}
+                  alt=""
+                  fill
+                  className="z-0 object-cover"
+                />
+              )
             ) : (
-              <div className="aspect-square h-2 rounded-full bg-[#5B5B5B]" />
+              <S3Image
+                src={mint.image}
+                alt=""
+                fill
+                className="z-0 object-cover"
+              />
             )}
-            <p className="text-sm font-medium">
-              {status === "live"
-                ? "Mint Now"
-                : status === "upcoming"
-                  ? "Upcoming"
-                  : "Completed"}
-            </p>
+            {hover && (
+              <a href={mint.link} className="z-10 w-full" target="_blank">
+                <button className="w-full rounded-xl bg-[#F4C10B] py-2 font-semibold text-[#121212]">
+                  Explore Now
+                </button>
+              </a>
+            )}
           </div>
-        </div>
-        <div className="flex h-full w-full flex-col justify-center">
-          <p className="text-xs text-[#FFFFFF]/70">Price</p>
-          <p className="text-sm">
-            {mint.mint_group_data[0].price}&nbsp;{mint.chain.native_currency}
-          </p>
+          <div className="flex items-center justify-between py-3">
+            <p className="font-medium">{mint.title}</p>
+            <div className="relative aspect-square h-[20px]">
+              <PartnerImage
+                src={mint.logo}
+                alt="logo"
+                fill
+                className="rounded-full"
+              />
+            </div>
+          </div>
+          <div className="grid w-full grid-cols-2 gap-4 rounded-xl bg-[#FFFFFF]/10 px-4 py-2">
+            <div className="flex h-full w-full flex-col justify-center">
+              <p className="text-xs text-[#FFFFFF]/70">Status</p>
+              <div className="flex items-center gap-2">
+                {status === "live" ? (
+                  <div className="aspect-square h-2 rounded-full bg-[#22B642]" />
+                ) : status === "upcoming" ? (
+                  <div className="aspect-square h-2 rounded-full bg-gradient-to-b from-[#F4C10B] to-[#FF4C12]" />
+                ) : (
+                  <div className="aspect-square h-2 rounded-full bg-[#5B5B5B]" />
+                )}
+                <p className="text-sm font-medium">
+                  {status === "live"
+                    ? "Mint Now"
+                    : status === "upcoming"
+                      ? "Upcoming"
+                      : "Completed"}
+                </p>
+              </div>
+            </div>
+            <div className="flex h-full w-full flex-col justify-center">
+              <p className="text-xs text-[#FFFFFF]/70">Price</p>
+              <p className="text-sm">
+                {mint.price}&nbsp;{mint.currency}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -150,6 +270,7 @@ const StatusSelect = ({
 }) => {
   const ITEMS = [
     { title: "All Status", value: "all" },
+    { title: "Live", value: "live" },
     { title: "Upcoming", value: "upcoming" },
     { title: "Completed", value: "completed" },
   ];
@@ -158,7 +279,7 @@ const StatusSelect = ({
       defaultValue={selectedStatus}
       onValueChange={(value) => setSelectedStatus(value)}
     >
-      <SelectTrigger className="h-12 gap-4 whitespace-nowrap rounded-lg border border-[#FFFFFF]/10 bg-transparent">
+      <SelectTrigger className="h-12 gap-4 whitespace-nowrap rounded-xl border border-[#FFFFFF]/10 bg-transparent">
         <SelectValue />
       </SelectTrigger>
       <SelectContent className="rounded-xl border border-[#666666]/30 bg-[#0D0D0D]/90 p-1">
@@ -171,13 +292,15 @@ const StatusSelect = ({
             >
               <div className="flex items-center gap-2">
                 {item.value === "all" ? (
+                  <div className="aspect-square h-2 rounded-full bg-[#F4C10B]" />
+                ) : item.value === "live" ? (
                   <div className="aspect-square h-2 rounded-full bg-[#22B642]" />
                 ) : item.value === "upcoming" ? (
                   <div className="aspect-square h-2 rounded-full bg-gradient-to-b from-[#F4C10B] to-[#FF4C12]" />
                 ) : (
                   <div className="aspect-square h-2 rounded-full bg-[#5B5B5B]" />
                 )}
-                <p>{item.title}</p>
+                <p className="text-xs md:text-sm">{item.title}</p>
               </div>
             </SelectItem>
           ))}
@@ -190,13 +313,17 @@ const StatusSelect = ({
 const SortSelect = ({
   selectedSort,
   setSelectedSort,
+  partnerMintsNum,
+  allMintsNum,
 }: {
   selectedSort: string;
   setSelectedSort: React.Dispatch<React.SetStateAction<string>>;
+  partnerMintsNum: number;
+  allMintsNum: number;
 }) => {
   const ITEMS = [
-    { title: "Partners mint only", value: "partners" },
-    { title: "All Mints", value: "all" },
+    { title: "Partners mint only", value: "partners", num: partnerMintsNum },
+    { title: "All Mints", value: "all", num: allMintsNum },
   ];
   return (
     <Select
@@ -206,7 +333,7 @@ const SortSelect = ({
       <SelectTrigger className="h-12 min-w-[180px] rounded-xl border border-[#FFFFFF]/10 bg-transparent">
         <SelectValue placeholder="Sort by" />
       </SelectTrigger>
-      <SelectContent className="border border-[#666666]/30 bg-[#0D0D0D]/90 p-1">
+      <SelectContent className="rounded-xl border border-[#666666]/30 bg-[#0D0D0D]/90 p-1">
         <SelectGroup>
           {ITEMS.map((item, id) => (
             <SelectItem
@@ -214,7 +341,10 @@ const SortSelect = ({
               value={item.value}
               className="rounded-xl p-3 text-[#FFFFFF]/70 focus:bg-[#FFFFFF]/20 focus:font-medium focus:text-white"
             >
-              <p>{item.title}</p>
+              <p>
+                {item.title}&nbsp;
+                <span className="text-[#FFFFFF]/30">({item.num})</span>
+              </p>
             </SelectItem>
           ))}
         </SelectGroup>

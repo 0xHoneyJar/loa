@@ -9,9 +9,10 @@ import useSWR from "swr";
 import fetcher from "@/lib/fetcher";
 import Marquee from "react-fast-marquee";
 import { NewMintButton } from "../ui/buttons";
+import { AlertTriangle, Loader2 } from "lucide-react";
 
 const Mint = ({ mints }: { mints?: any }) => {
-  const { data, error } = useSWR<{
+  const { data, error, isLoading } = useSWR<{
     mints: any;
   }>(`/api/kingdomly-mints`, fetcher);
 
@@ -19,7 +20,7 @@ const Mint = ({ mints }: { mints?: any }) => {
     <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#EE511E]/10 from-[12%] via-[#F8A929]/10 via-[38%] to-[#141310]/10">
       <div className="absolute -top-40 h-1 w-full" id="mint" />
       {/* eslint-disable-next-line tailwindcss/no-contradicting-classname */}
-      <div className="flex h-2 w-full shrink-0 rounded-t-3xl bg-gradient-to-r from-[#FFD700] via-[#FF7F0B] via-60% to-[#FF4C12]" />
+      <div className="animate-gradient-x flex h-2 w-full shrink-0 rounded-t-3xl bg-gradient-to-r from-[#FFD700] via-[#FF7F0B] via-60% to-[#FF4C12] bg-[length:200%_200%]" />
       <div className="flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6">
         <div className="flex items-center gap-2">
           <p className="whitespace-nowrap text-base font-medium text-[#FFD700] md:text-lg">
@@ -32,45 +33,50 @@ const Mint = ({ mints }: { mints?: any }) => {
       </div>
       <div className="relative flex h-full w-full flex-col">
         <div className="relative flex w-full grow flex-col gap-6 py-4">
-          <div className="absolute left-0 top-0 z-10 h-full w-16 bg-gradient-to-r from-[#0D0803]" />
-          <div className="absolute right-0 top-0 z-10 h-full w-16 bg-gradient-to-l from-[#0D0803]" />
-          <Marquee
-            autoFill
-            speed={25}
-            // gradient
-            // gradientColor="#0D0803"
-            // gradientWidth={50}
-            className="h-1/2"
-          >
-            {/* <div className="flex h-full w-full items-center gap-6"> */}
-            {mints.items.map((mint: any) => (
-              <div
-                key={mint._title}
-                className="mr-6 flex h-full w-[300px] grow md:w-[400px]"
-              >
-                <MintDisplay mint={mint} />
-              </div>
-            ))}
-            {/* </div> */}
-          </Marquee>
-          <Marquee
-            autoFill
-            speed={25}
-            direction="right"
-            // gradient
-            // gradientColor="#0D0803"
-            // gradientWidth={50}
-            className="h-1/2"
-          >
-            {data?.mints.live.map((mint: any) => (
-              <div
-                key={mint._title}
-                className="mr-6 flex h-full w-[300px] grow md:w-[400px]"
-              >
-                <KingdomlyMintDisplay mint={mint} />
-              </div>
-            ))}
-          </Marquee>
+          {error ? (
+            <div className="flex h-full w-full items-center justify-center gap-2">
+              <AlertTriangle className="text-[#FFC500]" />
+              Error retrieving partners mints
+            </div>
+          ) : isLoading ? (
+            <div className="flex h-full w-full items-center justify-center gap-2">
+              <Loader2 className="animate-spin text-white" />
+              Loading...
+            </div>
+          ) : (
+            <>
+              <div className="absolute left-0 top-0 z-10 h-full w-16 bg-gradient-to-r from-[#0D0803]" />
+              <div className="absolute right-0 top-0 z-10 h-full w-16 bg-gradient-to-l from-[#0D0803]" />
+              <Marquee autoFill speed={25} className="h-1/2">
+                {mints.items.map((mint: any) => (
+                  <div
+                    key={mint._title}
+                    className="mr-6 flex h-full w-[300px] grow md:w-[400px]"
+                  >
+                    <MintDisplay mint={mint} />
+                  </div>
+                ))}
+              </Marquee>
+              <Marquee autoFill speed={25} direction="right" className="h-1/2">
+                {data?.mints.live.length < 0 ? (
+                  data?.mints.live.map((mint: any) => (
+                    <div
+                      key={mint._title}
+                      className="mr-6 flex h-full w-[300px] grow md:w-[400px]"
+                    >
+                      <KingdomlyMintDisplay mint={mint} />
+                    </div>
+                  ))
+                ) : (
+                  <div className="mr-6 flex h-full w-[300px] grow md:w-[400px]">
+                    <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-lg border border-[#F4C10B14] bg-[#221C11] p-4 hover:border-[#F4C10B47] hover:bg-[#423520]">
+                      <p>No live mints found</p>
+                    </div>
+                  </div>
+                )}
+              </Marquee>
+            </>
+          )}
         </div>
         <div className="w-full border-t border-[#F4C10B]/10 p-6">
           <NewMintButton />
@@ -122,7 +128,7 @@ const MintDisplay = ({ mint }: { mint: any }) => (
     onClick={() => {
       trackEvent(`${mint._title}_mint`);
     }}
-    className="relative flex h-full w-full flex-col justify-between overflow-hidden rounded-lg border border-[#F4C10B14] bg-[#221C11] p-4 hover:divide-[#F4C10B47] hover:border-[#F4C10B47] hover:bg-[#423520]"
+    className="relative flex h-full w-full flex-col justify-between overflow-hidden rounded-lg border border-[#F4C10B14] bg-[#221C11] p-4 hover:border-[#F4C10B47] hover:bg-[#423520]"
   >
     <div className="absolute left-0 top-0 size-full bg-[#0a0500]">
       <S3Image
@@ -184,7 +190,7 @@ const KingdomlyMintDisplay = ({ mint }: { mint: any }) => (
   >
     <div className="absolute left-0 top-0 size-full bg-[#0a0500]">
       <Image
-        src={mint.header_image ? mint.header_image : mint.profile_image}
+        src={mint.profile_image}
         alt=""
         fill
         className="z-0 object-cover opacity-25"
