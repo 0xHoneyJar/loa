@@ -58,7 +58,7 @@ const Mint = ({ mints }: { mints?: any }) => {
                 ))}
               </Marquee>
               <Marquee autoFill speed={25} direction="right" className="h-1/2">
-                {data?.mints.live.length < 0 ? (
+                {data?.mints.live.length > 0 ? (
                   data?.mints.live.map((mint: any) => (
                     <div
                       key={mint._title}
