@@ -20,7 +20,7 @@ const Mint = ({ mints }: { mints?: any }) => {
     <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#EE511E]/10 from-[12%] via-[#F8A929]/10 via-[38%] to-[#141310]/10">
       <div className="absolute -top-40 h-1 w-full" id="mint" />
       {/* eslint-disable-next-line tailwindcss/no-contradicting-classname */}
-      <div className="animate-gradient-x flex h-2 w-full shrink-0 rounded-t-3xl bg-gradient-to-r from-[#FFD700] via-[#FF7F0B] via-60% to-[#FF4C12] bg-[length:200%_200%]" />
+      <div className="flex h-2 w-full shrink-0 animate-gradient-x rounded-t-3xl bg-gradient-to-r from-[#FFD700] via-[#FF7F0B] via-60% to-[#FF4C12] bg-[length:200%_200%]" />
       <div className="flex h-16 shrink-0 items-center justify-between border-b border-dashed border-[#F4C10B6B] px-4 md:h-[72px] md:px-6">
         <div className="flex items-center gap-2">
           <p className="whitespace-nowrap text-base font-medium text-[#FFD700] md:text-lg">
@@ -61,7 +61,7 @@ const Mint = ({ mints }: { mints?: any }) => {
                 {data?.mints.live.length > 0 ? (
                   data?.mints.live.map((mint: any) => (
                     <div
-                      key={mint._title}
+                      key={mint.collection_name}
                       className="mr-6 flex h-full w-[300px] grow md:w-[400px]"
                     >
                       <KingdomlyMintDisplay mint={mint} />
@@ -190,7 +190,7 @@ const KingdomlyMintDisplay = ({ mint }: { mint: any }) => (
   >
     <div className="absolute left-0 top-0 size-full bg-[#0a0500]">
       <Image
-        src={mint.profile_image}
+        src={mint.profile_image ? mint.profile_image : mint.header_image}
         alt=""
         fill
         className="z-0 object-cover opacity-25"
@@ -207,7 +207,7 @@ const KingdomlyMintDisplay = ({ mint }: { mint: any }) => (
     <div className="z-10 flex w-full items-start justify-between">
       <div className="flex flex-col gap-1">
         <p className="text-sm text-[#FBFBFB] md:text-base">
-          {mint?.title ?? "Unknown"}
+          {mint?.collection_name ?? "Unknown"}
         </p>
         <div className="flex items-center gap-2">
           <div className="relative aspect-square h-[20px]">

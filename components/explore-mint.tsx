@@ -46,7 +46,7 @@ const ExploreMint = ({ mints }: { mints: any }) => {
       currency: mint.chain.native_currency,
       status: status,
       logo: "faucet/quests/kingdomly.png",
-      title: mint.slug || "",
+      title: mint.collection_name || "Unknown",
       link: `https://www.kingdomly.app/${mint.slug}` || "",
       source: "kingdomly",
     };
@@ -180,7 +180,7 @@ const MintDisplay = ({
     >
       <div className="h-full w-full rounded-xl bg-[#0A0601]">
         <div
-          className={`bg-gradient-to-r ${!hover ? "from-[#F2C848]/5 to-[#F8A929]/5" : "shadow-partner from-[#F2C848]/10 to-[#F8A929]/10"} flex h-full w-full flex-col overflow-hidden rounded-xl p-2`}
+          className={`bg-gradient-to-r ${!hover ? "from-[#F2C848]/5 to-[#F8A929]/5" : "from-[#F2C848]/10 to-[#F8A929]/10 shadow-partner"} flex h-full w-full flex-col overflow-hidden rounded-xl p-2`}
         >
           <div className="relative flex h-full w-full items-end overflow-hidden rounded-xl p-2">
             {mint.source === "kingdomly" ? (
