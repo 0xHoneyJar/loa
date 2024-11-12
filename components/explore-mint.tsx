@@ -90,7 +90,7 @@ const ExploreMint = ({ mints }: { mints: any }) => {
 
   // const filteredMints = allMints;
 
-  console.log(filteredMints);
+  // console.log(filteredMints);
 
   const partnerMintsNum =
     data?.mints.live.length +
