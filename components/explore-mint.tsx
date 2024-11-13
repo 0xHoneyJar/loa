@@ -65,6 +65,8 @@ const ExploreMint = ({ mints }: { mints: any }) => {
     };
   }
 
+  const uniqueTitles = new Set<string>();
+
   const allMints: Mint[] = [
     ...mints.items.map(processMint),
     ...(kingdomlyMints?.live.map((mint: any) =>
@@ -76,7 +78,17 @@ const ExploreMint = ({ mints }: { mints: any }) => {
     ...(kingdomlyMints?.sold_out.map((mint: any) =>
       processKindomlyMint(mint, "completed"),
     ) ?? []),
-  ];
+  ].filter((mint) => {
+    // If the title is "Unknown", keep it
+    if (mint.title === "Unknown") {
+      return true;
+    }
+    if (uniqueTitles.has(mint.title.toLowerCase())) {
+      return false; // Skip this mint as we've already seen this title
+    }
+    uniqueTitles.add(mint.title.toLowerCase());
+    return true;
+  });
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("all");
@@ -88,16 +100,14 @@ const ExploreMint = ({ mints }: { mints: any }) => {
       mint.title.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
-  // const filteredMints = allMints;
-
   // console.log(filteredMints);
 
-  const partnerMintsNum =
-    data?.mints.live.length +
-    data?.mints.upcoming.length +
-    data?.mints.sold_out.length;
+  // const partnerMintsNum =
+  //   data?.mints.live.length +
+  //   data?.mints.upcoming.length +
+  //   data?.mints.sold_out.length;
 
-  const allMintsNum = mints.items.length + partnerMintsNum;
+  // const allMintsNum = mints.items.length + partnerMintsNum;
 
   return (
     <div className="relative flex size-full flex-col px-10 pb-20 pt-[65px] text-white md:px-20 md:pt-24">
@@ -174,8 +184,8 @@ const MintDisplay = ({
   const [hover, setHover] = useState(false);
   return (
     <div
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
+      onMouseEnter={() => status !== "completed" && setHover(true)}
+      onMouseLeave={() => status !== "completed" && setHover(false)}
       className={`flex h-[300px] w-full rounded-xl bg-gradient-to-b md:h-[400px] ${!hover ? "from-[#F4C10B]/80 via-[#F8A929]/50 via-20% to-[#F2C8481F] p-px" : "from-[#FFC500]/75 via-[#F8A929]/75 via-40% to-[#FF4C12]/75 p-[2px]"} `}
     >
       <div className="h-full w-full rounded-xl bg-[#0A0601]">
@@ -292,7 +302,7 @@ const StatusSelect = ({
             >
               <div className="flex items-center gap-2">
                 {item.value === "all" ? (
-                  <div className="aspect-square h-2 rounded-full bg-[#F4C10B]" />
+                  <div className="aspect-square h-2 rounded-full bg-white" />
                 ) : item.value === "live" ? (
                   <div className="aspect-square h-2 rounded-full bg-[#22B642]" />
                 ) : item.value === "upcoming" ? (
