@@ -3,7 +3,7 @@ import {
   NavigationMenuTrigger,
   NavigationMenuContent,
 } from "@/components/ui/navigation-menu";
-import { EXPLOREITEMS } from "@/constants/explore";
+import { FLAGSHIP_ITEMS, ECOSYSTEM_ITEMS } from "@/constants/explore";
 import Image from "next/image";
 import { trackEvent } from "@openpanel/nextjs";
 
@@ -17,16 +17,22 @@ const Explore = () => {
         </p>
       </NavigationMenuTrigger>
       <NavigationMenuContent className="absolute -left-20 top-[64px] flex w-auto flex-col rounded-xl border border-[#66666632] bg-[#0D0D0D] data-[motion=from-end]:animate-enterFromRight data-[motion=from-start]:animate-enterFromLeft data-[motion=to-end]:animate-exitToRight data-[motion=to-start]:animate-exitToLeft data-[state=closed]:animate-scaleOut data-[state=open]:animate-scaleIn lg:-left-52 lg:flex-row">
-        <div className="flex flex-col gap-1 p-2 pb-0 md:pb-2">
-          {EXPLOREITEMS.slice(0, 6).map((item) => (
-            <ListItem key={item.title} {...item} />
-          ))}
+        <div className="p-5">
+          <div className="mb-2 text-xs uppercase text-[#9B9B9B]">Flagship</div>
+          <div className="-mx-2 -mb-2 flex flex-col gap-0.5">
+            {FLAGSHIP_ITEMS.slice(0, 8).map((item) => (
+              <ListItem key={item.title} {...item} />
+            ))}
+          </div>
         </div>
         <div className="w-px self-stretch bg-[#66666632]" />
-        <div className="flex flex-col gap-1 p-2 pt-0 md:pt-2">
-          {EXPLOREITEMS.slice(6, 12).map((item: any) => (
-            <ListItem key={item.title} {...item} />
-          ))}
+        <div className="p-5">
+          <div className="mb-2 text-xs uppercase text-[#9B9B9B]">Ecosystem</div>
+          <div className="-mx-2 -mb-2 flex flex-col gap-0.5">
+            {ECOSYSTEM_ITEMS.slice(0, 8).map((item) => (
+              <ListItem key={item.title} {...item} />
+            ))}
+          </div>
         </div>
       </NavigationMenuContent>
     </NavigationMenuItem>

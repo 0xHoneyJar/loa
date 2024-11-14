@@ -11,7 +11,7 @@ import { trackEvent } from "@openpanel/nextjs";
 import * as NavigationMenu from "@radix-ui/react-navigation-menu";
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { EXPLOREITEMS } from "@/constants/explore";
+import { FLAGSHIP_ITEMS, ECOSYSTEM_ITEMS } from "@/constants/explore";
 import { ListItem } from "./explore";
 
 const Sidebar = ({
@@ -79,7 +79,16 @@ const Sidebar = ({
                             transition={{ duration: 0.2, delay: 0.1 }}
                           >
                             <div className="flex flex-col gap-0">
-                              {EXPLOREITEMS.map((item, index) => (
+                              {FLAGSHIP_ITEMS.map((item, index) => (
+                                <ListItem
+                                  key={item.title}
+                                  {...item}
+                                  style={{
+                                    transition: `opacity 0.3s ease, transform 0.3s ease ${index * 0.05}s`,
+                                  }}
+                                />
+                              ))}
+                              {ECOSYSTEM_ITEMS.map((item, index) => (
                                 <ListItem
                                   key={item.title}
                                   {...item}
