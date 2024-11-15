@@ -100,7 +100,7 @@ export const ListItem = ({
     </>
   );
 
-  const className = `flex w-full md:w-72 whitespace-nowrap flex-row items-center justify-start gap-3 rounded-lg p-2 ${
+  const className = `flex w-full md:w-full flex-row items-center justify-start gap-3 rounded-lg p-2 ${
     comingSoon
       ? "cursor-default opacity-50"
       : "cursor-pointer hover:bg-[#2B2B2B45]"
