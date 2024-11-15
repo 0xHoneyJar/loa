@@ -1,41 +1,54 @@
-import {
-  NavigationMenuItem,
-  NavigationMenuTrigger,
-  NavigationMenuContent,
-} from "@/components/ui/navigation-menu";
 import { FLAGSHIP_ITEMS, ECOSYSTEM_ITEMS } from "@/constants/explore";
 import Image from "next/image";
 import { trackEvent } from "@openpanel/nextjs";
+import * as NavigationMenu from "@radix-ui/react-navigation-menu";
+import { ChevronDown } from "lucide-react";
 
 const Explore = () => {
   return (
-    <NavigationMenuItem className="">
-      <NavigationMenuTrigger className="flex items-center rounded-full border border-[#F4C10B24] bg-gradient-to-b from-[#F4C10B1F] to-[#F8A9291F] px-6 py-2.5 text-xs text-white hover:border-[#F4C10B58] hover:from-[#F4C10B32] hover:to-[#F8A92932]">
-        <p>Explore</p>
-        <p className="ml-2 mr-1 rounded-full border bg-[#FFFFFF14] px-2 text-[7px]">
-          NEW
-        </p>
-      </NavigationMenuTrigger>
-      <NavigationMenuContent className="absolute -left-20 top-[64px] flex w-auto flex-col rounded-xl border border-[#66666632] bg-[#0D0D0D] data-[motion=from-end]:animate-enterFromRight data-[motion=from-start]:animate-enterFromLeft data-[motion=to-end]:animate-exitToRight data-[motion=to-start]:animate-exitToLeft data-[state=closed]:animate-scaleOut data-[state=open]:animate-scaleIn lg:-left-52 lg:flex-row">
-        <div className="p-5">
-          <div className="mb-2 text-xs uppercase text-[#9B9B9B]">Flagship</div>
-          <div className="-mx-2 -mb-2 flex flex-col gap-0.5">
-            {FLAGSHIP_ITEMS.slice(0, 8).map((item) => (
-              <ListItem key={item.title} {...item} />
-            ))}
+    <NavigationMenu.Root>
+      <NavigationMenu.List>
+        <NavigationMenu.Item className="">
+          <NavigationMenu.Trigger className="group border-none outline-none">
+            <div className="flex cursor-pointer flex-row items-center justify-center gap-[6px] rounded-full border border-[#F4C10B24] bg-gradient-to-b from-[#F4C10B12] to-[#F8A92912] px-4 py-2 text-sm text-white hover:border-[#F4C10B58] hover:from-[#F4C10B32] hover:to-[#F8A92932] md:px-5">
+              <p className="">Explore</p>
+              <p className="rounded-xl bg-gradient-to-b from-[#FFC500] to-[#FFD700] px-1 text-[10px] font-light uppercase leading-4 text-black">
+                New
+              </p>
+              <ChevronDown
+                className="duration-[250] relative top-px size-3 transition-transform ease-in group-data-[state=open]:-rotate-180"
+                aria-hidden
+              />
+            </div>
+          </NavigationMenu.Trigger>
+          <div className="fixed left-1/2 top-[66px] mt-2 -translate-x-1/2">
+            <NavigationMenu.Content className="relative flex size-auto w-[90vw] max-w-6xl origin-top flex-row items-stretch rounded-xl border border-[#66666632] bg-[#0D0D0D] data-[motion=from-end]:animate-enterFromRight data-[motion=from-start]:animate-enterFromLeft data-[motion=to-end]:animate-exitToRight data-[motion=to-start]:animate-exitToLeft data-[state=closed]:animate-scaleOut data-[state=open]:animate-scaleIn">
+              <div className="grow p-5">
+                <div className="mb-2 text-xs uppercase text-[#9B9B9B]">
+                  Flagship
+                </div>
+                <div className="-mx-2 -mb-2 grid grid-cols-1 gap-0.5 lg:grid-cols-2">
+                  {FLAGSHIP_ITEMS.slice(0, 8).map((item) => (
+                    <ListItem key={item.title} {...item} />
+                  ))}
+                </div>
+              </div>
+              <div className="w-px self-stretch bg-[#66666632]" />
+              <div className="grow p-5">
+                <div className="mb-2 text-xs uppercase text-[#9B9B9B]">
+                  Ecosystem
+                </div>
+                <div className="-mx-2 -mb-2 grid grid-cols-1 gap-0.5 lg:grid-cols-2">
+                  {ECOSYSTEM_ITEMS.slice(0, 8).map((item) => (
+                    <ListItem key={item.title} {...item} />
+                  ))}
+                </div>
+              </div>
+            </NavigationMenu.Content>
           </div>
-        </div>
-        <div className="w-px self-stretch bg-[#66666632]" />
-        <div className="p-5">
-          <div className="mb-2 text-xs uppercase text-[#9B9B9B]">Ecosystem</div>
-          <div className="-mx-2 -mb-2 flex flex-col gap-0.5">
-            {ECOSYSTEM_ITEMS.slice(0, 8).map((item) => (
-              <ListItem key={item.title} {...item} />
-            ))}
-          </div>
-        </div>
-      </NavigationMenuContent>
-    </NavigationMenuItem>
+        </NavigationMenu.Item>
+      </NavigationMenu.List>
+    </NavigationMenu.Root>
   );
 };
 
@@ -87,7 +100,7 @@ export const ListItem = ({
     </>
   );
 
-  const className = `flex w-full md:w-72 flex-row items-center justify-start gap-3 rounded-lg p-2 ${
+  const className = `flex w-full md:w-full flex-row items-center justify-start gap-3 rounded-lg p-2 ${
     comingSoon
       ? "cursor-default opacity-50"
       : "cursor-pointer hover:bg-[#2B2B2B45]"
