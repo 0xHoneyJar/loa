@@ -34,6 +34,14 @@ const ExploreMint = ({ mints }: { mints: any }) => {
     mints: any;
   }>(`/api/kingdomly-mints`, fetcher);
 
+  const {
+    data: liquidMintData,
+    error: liquidMintError,
+    isLoading: liquidMintLoading,
+  } = useSWR<{
+    mints: any;
+  }>(`/api/liquidmint-mints`, fetcher);
+
   const kingdomlyMints = data?.mints;
 
   function processKindomlyMint(
@@ -149,12 +157,12 @@ const ExploreMint = ({ mints }: { mints: any }) => {
           /> */}
         </div>
       </div>
-      {error ? (
+      {error || liquidMintError ? (
         <div className="flex items-center gap-2">
           <AlertTriangle className="text-[#FFC500]" />
           Error retrieving partners mints
         </div>
-      ) : isLoading ? (
+      ) : isLoading || liquidMintLoading ? (
         <div className="flex items-center gap-2">
           <Loader2 className="animate-spin text-white" />
           Loading...

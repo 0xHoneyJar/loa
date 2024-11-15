@@ -51,7 +51,7 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
       );
 
       const data = await res.json();
-      setHoneycombData(data.collections[0]);
+      setHoneycombData(data.collections?.[0]);
     }
 
     fetchHoneycomb();
