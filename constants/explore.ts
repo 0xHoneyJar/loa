@@ -7,19 +7,19 @@ export interface ListItemData {
   comingSoon?: boolean;
 }
 
-export const EXPLOREITEMS: ListItemData[] = [
+export const FLAGSHIP_ITEMS: ListItemData[] = [
   {
-    title: "For Community",
+    title: "The Honey Jar",
     description: "The front page of The Honey Jar",
     icon: "/navbar/community.png",
     link: "https://0xhoneyjar.xyz/",
     color: "#2C2610",
   },
   {
-    title: "For Partners",
-    description: "Learn more about the THJ org",
-    icon: "/navbar/partner.png",
-    link: "http://partners.0xhoneyjar.xyz/",
+    title: "Henlo",
+    description: "Memecoin built by The Honey Jar",
+    icon: "/navbar/henlo.png",
+    link: "https://www.henlo.com/",
     color: "#2D2313",
   },
   {
@@ -30,11 +30,11 @@ export const EXPLOREITEMS: ListItemData[] = [
     color: "#241A0F",
   },
   {
-    title: "THJ Validator",
-    description: "Validating Berachain 24/7",
-    icon: "/navbar/validator.png",
-    link: "https://bartio.station.berachain.com/validators/0x40495A781095932e2FC8dccA69F5e358711Fdd41",
-    color: "#17231D",
+    title: "Set & Forgetti",
+    description: "Easiest way to Farm Berachain PoL",
+    icon: "/navbar/set&forgetti.svg",
+    link: "https://www.setandforgetti.io/",
+    color: "#2A1F26",
   },
   {
     title: "Moneycomb",
@@ -44,19 +44,29 @@ export const EXPLOREITEMS: ListItemData[] = [
     color: "#151429",
   },
   {
-    title: "Ecosystem Explorer",
-    description: "THJ Ecosystem Explorer",
-    icon: "/navbar/explorer.png",
-    link: "http://ecosystem.0xhoneyjar.xyz/",
-    color: "#2E1811",
+    title: "Apiology DAO",
+    description: "Honeycomb on steroids",
+    icon: "/navbar/apiology.png",
+    link: "https://www.apiologydao.xyz/",
+    color: "#1E1E1E",
   },
   {
-    title: "THJ App",
-    description: "Old, but gold",
-    icon: "/navbar/thj.png",
-    link: "https://app.0xhoneyjar.xyz/",
-    color: "#122618",
+    title: "THJ Validator",
+    description: "Validating Berachain 24/7",
+    icon: "/navbar/validator.png",
+    link: "https://bartio.station.berachain.com/validators/0x40495A781095932e2FC8dccA69F5e358711Fdd41",
+    color: "#17231D",
   },
+  {
+    title: "Interpol",
+    description: "Get the most out of your locked liquidity",
+    icon: "/navbar/interpol.png",
+    link: "https://www.notinterpol.com/",
+    color: "#0A1A2E",
+  },
+];
+
+export const ECOSYSTEM_ITEMS: ListItemData[] = [
   {
     title: "Faucet",
     description: "Official bArtio v2 testnet faucet",
@@ -65,18 +75,11 @@ export const EXPLOREITEMS: ListItemData[] = [
     color: "#12242A",
   },
   {
-    title: "Apiology DAO",
-    description: "Honeycomb on steroids",
-    icon: "/navbar/apiology.png",
-    link: "https://www.apiologydao.xyz/",
-    color: "#1E1E1E",
-  },
-  {
-    title: "Beardrops",
-    description: "The best tool for snapshots",
-    icon: "/navbar/beardrops.png",
-    link: "https://beardrops.0xhoneyjar.xyz/",
-    color: "#2B3234",
+    title: "Mint Mania",
+    description: "Old, but gold",
+    icon: "/navbar/thj.png",
+    link: "https://app.0xhoneyjar.xyz/",
+    color: "#122618",
   },
   {
     title: "Beraflip",
@@ -86,10 +89,40 @@ export const EXPLOREITEMS: ListItemData[] = [
     color: "#1A2A2E",
   },
   {
-    title: "Set & Forgetti",
-    description: "Easiest way to Farm Berachain PoL",
-    icon: "/navbar/set&forgetti.svg",
-    link: "https://www.setandforgetti.io/",
-    color: "#2A1F26",
+    title: "Beardrops",
+    description: "The best tool for snapshots",
+    icon: "/navbar/beardrops.png",
+    link: "https://beardrops.0xhoneyjar.xyz/",
+    color: "#2B3234",
+  },
+  {
+    title: "For Partners",
+    description: "Learn more about the THJ org",
+    icon: "/navbar/partner.png",
+    link: "http://partners.0xhoneyjar.xyz/",
+    color: "#2D2313",
+  },
+  {
+    title: "Ecosystem Explorer",
+    description: "THJ Ecosystem Explorer",
+    icon: "/navbar/explorer.png",
+    link: "http://ecosystem.0xhoneyjar.xyz/",
+    color: "#2E1811",
+  },
+  {
+    title: "OBB",
+    description: "Cutest Beras on Berachain",
+    icon: "/navbar/obb.png",
+    link: "",
+    color: "#20242C",
+    comingSoon: true,
+  },
+  {
+    title: "Mibera",
+    description: "Mibera Maker",
+    icon: "/navbar/mibera.png",
+    link: "",
+    color: "#2B150E",
+    comingSoon: true,
   },
 ];
