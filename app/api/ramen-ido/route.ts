@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
       throw new Error("Error status");
     }
     return NextResponse.json({
-      projects: data.data.projects,
+      projects: data.data.projects ?? [],
     });
   } catch (error) {
     console.error("Error retrieving projects:", error);

@@ -7,9 +7,10 @@ export interface Raffle {
   logo?: string | null;
   startTime: number;
   endTime: number;
+  paused?: boolean;
   // snapshotTime: number;
-//   qualifiedUsers: QualifiedUser[];
-//   prizes: Prize[];
+  //   qualifiedUsers: QualifiedUser[];
+  //   prizes: Prize[];
   // createdAt?: number;
 }
 

@@ -10,11 +10,46 @@ import fetcher from "@/lib/fetcher";
 import Marquee from "react-fast-marquee";
 import { NewMintButton } from "../ui/buttons";
 import { AlertTriangle, Loader2 } from "lucide-react";
+import { processKindomlyMint, processMint, MintType } from "@/lib/process-mint";
 
 const Mint = ({ mints }: { mints?: any }) => {
   const { data, error, isLoading } = useSWR<{
     mints: any;
   }>(`/api/kingdomly-mints`, fetcher);
+
+  const {
+    data: liquidMintData,
+    error: liquidMintError,
+    isLoading: liquidMintLoading,
+  } = useSWR<{
+    mints: any;
+  }>(`/api/liquidmint-mints`, fetcher);
+
+  const kingdomlyMints = data?.mints;
+
+  const uniqueTitles = new Set<string>();
+
+  const allMints: MintType[] = [
+    ...mints.items.map(processMint),
+    ...(kingdomlyMints?.live.map((mint: any) =>
+      processKindomlyMint(mint, "live"),
+    ) ?? []),
+  ]
+    .filter((mint) => {
+      // If the title is "Unknown", keep it
+      if (mint.title === "Unknown") {
+        return true;
+      }
+      if (uniqueTitles.has(mint.title.toLowerCase())) {
+        return false; // Skip this mint as we've already seen this title
+      }
+      uniqueTitles.add(mint.title.toLowerCase());
+      return true;
+    })
+    .sort((a, b) => {
+      // Compare titles case-insensitively
+      return a.title.toLowerCase().localeCompare(b.title.toLowerCase());
+    });
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#EE511E]/10 from-[12%] via-[#F8A929]/10 via-[38%] to-[#141310]/10">
@@ -26,9 +61,37 @@ const Mint = ({ mints }: { mints?: any }) => {
           <p className="whitespace-nowrap text-base font-medium text-[#FFD700] md:text-lg">
             New Mints
           </p>
-          <div className="rounded-full border border-[#EBEBEB]/10 px-2 py-1">
+          <div className="hidden rounded-full border border-[#EBEBEB]/10 px-2 py-1 md:flex">
             <p className="text-xs font-normal">Partners Collection</p>
           </div>
+        </div>
+        <div className="w-[125px] overflow-hidden rounded-full border border-[#F4C10B]/5 bg-gradient-to-r from-[#F5D01105] to-[#F8A92905] py-2">
+          <Marquee autoFill speed={10}>
+            <div className="relative mr-1 aspect-square h-[22px]">
+              <PartnerImage
+                src={"faucet/quests/liquidmint.png"}
+                alt="liquidmint-logo"
+                fill
+                className="rounded-full"
+              />
+            </div>
+            <div className="relative mr-1 aspect-square h-[22px]">
+              <PartnerImage
+                src={"honeypedia/kingdomly.png"}
+                alt="kingdomly-logo"
+                fill
+                className="rounded-full"
+              />
+            </div>
+            <div className="relative mr-1 aspect-square h-[22px]">
+              <PartnerImage
+                src={"faucet/honey_jar_globe.png"}
+                alt="thj-logo"
+                fill
+                className="rounded-full"
+              />
+            </div>
+          </Marquee>
         </div>
       </div>
       <div className="relative flex h-full w-full flex-col">
@@ -48,32 +111,28 @@ const Mint = ({ mints }: { mints?: any }) => {
               <div className="absolute left-0 top-0 z-10 h-full w-16 bg-gradient-to-r from-[#0D0803]" />
               <div className="absolute right-0 top-0 z-10 h-full w-16 bg-gradient-to-l from-[#0D0803]" />
               <Marquee autoFill speed={25} className="h-1/2">
-                {mints.items.map((mint: any) => (
-                  <div
-                    key={mint._title}
-                    className="mr-6 flex h-full w-[300px] grow md:w-[400px]"
-                  >
-                    <MintDisplay mint={mint} />
-                  </div>
-                ))}
-              </Marquee>
-              <Marquee autoFill speed={25} direction="right" className="h-1/2">
-                {data?.mints.live.length > 0 ? (
-                  data?.mints.live.map((mint: any) => (
+                {allMints
+                  .slice(0, Math.ceil(allMints.length / 2))
+                  .map((mint: any, id: number) => (
                     <div
-                      key={mint.collection_name}
+                      key={id}
                       className="mr-6 flex h-full w-[300px] grow md:w-[400px]"
                     >
-                      <KingdomlyMintDisplay mint={mint} />
+                      <MintDisplay mint={mint} />
                     </div>
-                  ))
-                ) : (
-                  <div className="mr-6 flex h-full w-[300px] grow md:w-[400px]">
-                    <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-lg border border-[#F4C10B14] bg-[#221C11] p-4 hover:border-[#F4C10B47] hover:bg-[#423520]">
-                      <p>No live mints found</p>
+                  ))}
+              </Marquee>
+              <Marquee autoFill speed={25} direction="right" className="h-1/2">
+                {allMints
+                  .slice(Math.ceil(allMints.length / 2))
+                  .map((mint: any, id: number) => (
+                    <div
+                      key={id}
+                      className="mr-6 flex h-full w-[300px] grow md:w-[400px]"
+                    >
+                      <MintDisplay mint={mint} />
                     </div>
-                  </div>
-                )}
+                  ))}
               </Marquee>
             </>
           )}
@@ -121,22 +180,33 @@ const TimeLeft = ({ endDate }: { endDate: number }) => {
   );
 };
 
-const MintDisplay = ({ mint }: { mint: any }) => (
+const MintDisplay = ({ mint }: { mint: MintType }) => (
   <a
     href={mint.link}
     target="_blank"
     onClick={() => {
-      trackEvent(`${mint._title}_mint`);
+      trackEvent(`${mint.link}_mint`);
     }}
     className="relative flex h-full w-full flex-col justify-between overflow-hidden rounded-lg border border-[#F4C10B14] bg-[#221C11] p-4 hover:border-[#F4C10B47] hover:bg-[#423520]"
   >
-    <div className="absolute left-0 top-0 size-full bg-[#0a0500]">
-      <S3Image
-        src={mint.image}
-        alt=""
-        fill
-        className="z-0 object-cover opacity-25"
-      />
+    <div className="absolute bottom-0 left-0 z-10 h-1/2 w-full bg-gradient-to-t from-[#000000]" />
+    <div className="absolute left-0 top-0 size-full bg-[#0a0500] opacity-25">
+      {mint.source === "kingdomly" ? (
+        mint.image.toLowerCase().includes(".mp4") ? (
+          <video
+            src={mint.image}
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="absolute left-0 z-0 overflow-hidden object-cover"
+          />
+        ) : (
+          <Image src={mint.image} alt="" fill className="z-0 object-cover" />
+        )
+      ) : (
+        <S3Image src={mint.image} alt="" fill className="z-0 object-cover" />
+      )}
     </div>
     <div className="z-10 flex items-center justify-start gap-2">
       {mint.endDate && <TimeLeft endDate={mint.endDate} />}
@@ -149,22 +219,21 @@ const MintDisplay = ({ mint }: { mint: any }) => (
     </div>
     <div className="z-10 flex w-full items-start justify-between">
       <div className="flex flex-col gap-1">
-        <p className="text-sm text-[#FBFBFB] md:text-base">{mint._title}</p>
+        <p className="text-sm text-[#FBFBFB] md:text-base">{mint.title}</p>
         <div className="flex items-center gap-2">
           <div className="relative aspect-square h-[20px]">
             <PartnerImage
-              src={mint.partner.logo}
+              src={mint.logo}
               alt="logo"
               fill
               className="rounded-full"
             />
           </div>
           <p className="whitespace-nowrap text-xs text-[#9E9E9E]">
-            By {mint.partner._title}
+            By {mint.partnerName}
           </p>
         </div>
       </div>
-      {/* <div className="flex flex-col items-end"> */}
       <div className="flex items-center gap-1">
         <div className="relative aspect-square h-4">
           <Image src={"/eth.svg"} alt="eth" fill />
@@ -173,67 +242,6 @@ const MintDisplay = ({ mint }: { mint: any }) => (
           {mint.price}
         </p>
       </div>
-      {/* <p className="text-[8px] text-[#BABABA]">$123,145.00</p> */}
-      {/* </div> */}
-    </div>
-  </a>
-);
-
-const KingdomlyMintDisplay = ({ mint }: { mint: any }) => (
-  <a
-    href={`https://www.kingdomly.app/${mint.slug}`}
-    target="_blank"
-    onClick={() => {
-      trackEvent(`kingdomly_${mint.slug}_mint`);
-    }}
-    className="relative flex h-full w-full flex-col justify-between overflow-hidden rounded-lg border border-[#F4C10B14] bg-[#221C11] p-4 hover:divide-[#F4C10B47] hover:border-[#F4C10B47] hover:bg-[#423520]"
-  >
-    <div className="absolute left-0 top-0 size-full bg-[#0a0500]">
-      <Image
-        src={mint.profile_image ? mint.profile_image : mint.header_image}
-        alt=""
-        fill
-        className="z-0 object-cover opacity-25"
-      />
-    </div>
-    <div className="z-10 flex items-center justify-start gap-2">
-      <div className="rounded-full bg-[#D8D8D8]/10 px-3 py-1">
-        <p className="text-xs font-light text-[#E2E2E2]">
-          <span className="font-normal text-white">{mint.total_supply}</span>{" "}
-          total supply
-        </p>
-      </div>
-    </div>
-    <div className="z-10 flex w-full items-start justify-between">
-      <div className="flex flex-col gap-1">
-        <p className="text-sm text-[#FBFBFB] md:text-base">
-          {mint?.collection_name ?? "Unknown"}
-        </p>
-        <div className="flex items-center gap-2">
-          <div className="relative aspect-square h-[20px]">
-            <PartnerImage
-              src={"faucet/quests/kingdomly.png"}
-              alt="logo"
-              fill
-              className="rounded-full"
-            />
-          </div>
-          <p className="whitespace-nowrap text-xs text-[#9E9E9E]">
-            By Kingdomly
-          </p>
-        </div>
-      </div>
-      {/* <div className="flex flex-col items-end"> */}
-      <div className="flex items-center gap-1">
-        <div className="relative aspect-square h-4">
-          <Image src={"/eth.svg"} alt="eth" fill />
-        </div>
-        <p className="text-sm font-semibold text-white md:text-lg">
-          {mint.mint_group_data[0].price}
-        </p>
-      </div>
-      {/* <p className="text-[8px] text-[#BABABA]">$123,145.00</p> */}
-      {/* </div> */}
     </div>
   </a>
 );

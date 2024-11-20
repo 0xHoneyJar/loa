@@ -23,6 +23,7 @@ import Tools from "@/components/board/tools";
 import Beardrops from "@/components/board/beardrops";
 import OogaBooga from "@/components/board/ooga-booga";
 import Quotes from "@/components/board/quotes";
+import Ramen from "@/components/board/ramen";
 
 const BoardSection = ({
   partners,
@@ -51,7 +52,7 @@ const BoardSection = ({
             </div>
           </Marquee>
         </div>
-        <div className="grid w-full grid-cols-1 grid-rows-40 gap-4 rounded-2xl border border-[#BCBCBC1A] bg-[#0A0A0A] p-2 text-white md:gap-6 md:p-6 lg:max-h-[8220px] lg:grid-cols-3 lg:grid-rows-22 xl:grid-rows-24">
+        <div className="grid w-full auto-rows-[280px] grid-cols-1 gap-4 rounded-2xl border border-[#BCBCBC1A] bg-[#0A0A0A] p-2 text-white sm:auto-rows-[300px] md:auto-rows-[340px] md:gap-6 md:p-6 lg:grid-cols-3">
           <div className="row-span-1 lg:col-span-3">
             <Guide />
           </div>
@@ -63,6 +64,9 @@ const BoardSection = ({
           </div>
           <div className="row-span-1 lg:col-span-full">
             <NewPartners partners={partners} />
+          </div>
+          <div className="row-span-1 lg:col-span-full">
+            <Ramen />
           </div>
           <div className="row-span-2 lg:col-span-full">
             <Mint mints={community.mints} />
@@ -121,7 +125,7 @@ const BoardSection = ({
           <div className="row-span-1 lg:col-span-2">
             <Tools />
           </div>
-          <div className="row-span-2 lg:col-span-full">
+          <div className="!row-span-2 lg:col-span-full">
             <Beardrops />
           </div>
         </div>

@@ -17,17 +17,7 @@ import {
 import { useState } from "react";
 import { Input } from "./ui/input";
 import S3Image from "./s3-image";
-
-type Mint = {
-  image: string;
-  price: string;
-  currency: string;
-  status: "live" | "upcoming" | "completed";
-  title: string;
-  link: string;
-  source: string;
-  logo: string;
-};
+import { MintType, processKindomlyMint, processMint } from "@/lib/process-mint";
 
 const ExploreMint = ({ mints }: { mints: any }) => {
   const { data, error, isLoading } = useSWR<{
@@ -44,38 +34,9 @@ const ExploreMint = ({ mints }: { mints: any }) => {
 
   const kingdomlyMints = data?.mints;
 
-  function processKindomlyMint(
-    mint: any,
-    status: "live" | "upcoming" | "completed",
-  ) {
-    return {
-      image: mint.profile_image ? mint.profile_image : mint.header_image,
-      price: mint.mint_group_data[0].price,
-      currency: mint.chain.native_currency,
-      status: status,
-      logo: "faucet/quests/kingdomly.png",
-      title: mint.collection_name || "Unknown",
-      link: `https://www.kingdomly.app/${mint.slug}` || "",
-      source: "kingdomly",
-    };
-  }
-
-  function processMint(mint: any) {
-    return {
-      image: mint.image,
-      price: mint.price,
-      currency: "ETH",
-      status: "live",
-      logo: mint.partner.logo,
-      title: mint._title,
-      link: mint.link,
-      source: "basehub",
-    };
-  }
-
   const uniqueTitles = new Set<string>();
 
-  const allMints: Mint[] = [
+  const allMints: MintType[] = [
     ...mints.items.map(processMint),
     ...(kingdomlyMints?.live.map((mint: any) =>
       processKindomlyMint(mint, "live"),
@@ -103,7 +64,7 @@ const ExploreMint = ({ mints }: { mints: any }) => {
   const [selectedSort, setSelectedSort] = useState("");
 
   const filteredMints = allMints.filter(
-    (mint: Mint) =>
+    (mint: MintType) =>
       (selectedStatus === "all" || mint.status === selectedStatus) &&
       mint.title.toLowerCase().includes(searchTerm.toLowerCase()),
   );
@@ -171,7 +132,7 @@ const ExploreMint = ({ mints }: { mints: any }) => {
         <p>No Mints Found</p>
       ) : (
         <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(18rem,1fr))] gap-4">
-          {filteredMints.map((mint: Mint, id: number) => (
+          {filteredMints.map((mint: MintType, id: number) => (
             <MintDisplay key={id} mint={mint} status={mint.status} />
           ))}
         </div>

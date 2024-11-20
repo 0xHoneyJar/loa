@@ -73,6 +73,7 @@ const Quests = () => {
         <div className="mb-4 grid size-full grid-rows-3 gap-4 overflow-hidden md:gap-6">
           {!loadingQuest
             ? quests
+                .filter((q) => !q.paused && !q.disabled)
                 .slice(0, 3)
                 .map((quest, id) => <QuestDisplay quest={quest} key={id} />)
             : Array.from({ length: 3 }).map((_, id) => (
