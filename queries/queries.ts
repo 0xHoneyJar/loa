@@ -17,7 +17,7 @@ export const getQuestsQuery = async () => {
   const { data, error } = await supabase
     .from("quests")
     .select(
-      "title,startTime,endTime,image,logo,disabled,paused,slug,reward,campaignName",
+      "title,startTime,endTime,image,logo,disabled,paused,slug,reward,campaignSlug",
     )
     .throwOnError();
 
