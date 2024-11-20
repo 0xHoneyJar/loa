@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_noStore } from "next/cache";
 
 export async function GET(req: NextRequest) {
+  unstable_noStore();
   try {
     const response = await fetch(
       "https://kingdomly.app/api/fetchPartnerMints",
