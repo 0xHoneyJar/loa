@@ -133,7 +133,7 @@ const Data = () => {
                   })}
                   className="h-[180px] md:h-[200px]"
                 >
-                  <p className="font-medium md:text-xl">4792</p>
+                  <p className="font-medium md:text-xl">6273</p>
                   <p className="text-xs md:text-sm">Holders</p>
                   <p className="absolute -left-0 bottom-0 text-xs font-medium text-[#7E6E4B] md:text-sm">
                     11.2%
