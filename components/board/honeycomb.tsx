@@ -14,7 +14,7 @@ import { trackEvent } from "@openpanel/nextjs";
 import PartnerImage from "../partner-image";
 
 const Honeycomb = ({ perks }: { perks?: any }) => {
-  const [honeycombData, setHoneycombData] = useState<any>(null);
+  // const [honeycombData, setHoneycombData] = useState<any>(null);
 
   const activePerksCount = useMemo(() => {
     if (!perks) return 0;
@@ -43,19 +43,19 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
     },
   };
 
-  useEffect(() => {
-    async function fetchHoneycomb() {
-      const res = await fetch(
-        `https://api.simplehash.com/api/v0/nfts/collections/ids?collection_ids=5d0a382e24d6a4983ca7932e20f66cd3`,
-        options,
-      );
+  // useEffect(() => {
+  //   async function fetchHoneycomb() {
+  //     const res = await fetch(
+  //       `https://api.simplehash.com/api/v0/nfts/collections/ids?collection_ids=5d0a382e24d6a4983ca7932e20f66cd3`,
+  //       options,
+  //     );
 
-      const data = await res.json();
-      setHoneycombData(data.collections[0]);
-    }
+  //     const data = await res.json();
+  //     setHoneycombData(data.collections[0]);
+  //   }
 
-    fetchHoneycomb();
-  }, []);
+  //   fetchHoneycomb();
+  // }, []);
 
   return (
     <div

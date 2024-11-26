@@ -6,8 +6,14 @@ import {
   buildStyles,
 } from "react-circular-progressbar";
 import { trackEvent } from "@openpanel/nextjs";
+import useSWR from "swr";
+import fetcher from "@/lib/fetcher";
 
 const Data = () => {
+  const { data: holderData } = useSWR<{
+    uniqueHolders: number;
+  }>(`/api/holders`, fetcher);
+
   return (
     <div
       className={`relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-[#F8A92952] bg-gradient-to-b from-[#F8A92917] to-[#14131017]`}
@@ -78,7 +84,7 @@ const Data = () => {
               })}
               className="h-[180px] md:h-[200px]"
             >
-              <div className="flex h-full w-full flex-col items-center justify-center">
+              <div className="flex size-full flex-col items-center justify-center">
                 <p className="font-medium md:text-xl">73391</p>
                 <p className="text-xs md:text-sm">Total Wallets</p>
               </div>
@@ -133,7 +139,9 @@ const Data = () => {
                   })}
                   className="h-[180px] md:h-[200px]"
                 >
-                  <p className="font-medium md:text-xl">4792</p>
+                  <p className="font-medium md:text-xl">
+                    {holderData?.uniqueHolders ?? "?"}
+                  </p>
                   <p className="text-xs md:text-sm">Holders</p>
                   <p className="absolute -left-0 bottom-0 text-xs font-medium text-[#7E6E4B] md:text-sm">
                     11.2%
