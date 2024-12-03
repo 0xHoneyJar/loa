@@ -25,7 +25,7 @@ const Ramen = () => {
   }>(`/api/ramen-ido`, fetcher);
 
   const ramenProjects = data?.projects;
-
+  console.log(ramenProjects);
   return (
     <div className="relative h-full overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]">
       <div className="absolute -top-40 h-1 w-full" id="newPartners" />
@@ -84,7 +84,7 @@ const Ramen = () => {
             ) : (
               <div className="flex h-full w-full items-center justify-center gap-2">
                 <AlertCircle className="text-[#D8382B]" />
-                No IDOs found
+                No upcoming launches
               </div>
             )}
           </>

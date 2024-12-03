@@ -24,13 +24,13 @@ const ExploreMint = ({ mints }: { mints: any }) => {
     mints: any;
   }>(`/api/kingdomly-mints`, fetcher);
 
-  const {
-    data: liquidMintData,
-    error: liquidMintError,
-    isLoading: liquidMintLoading,
-  } = useSWR<{
-    mints: any;
-  }>(`/api/liquidmint-mints`, fetcher);
+  // const {
+  //   data: liquidMintData,
+  //   error: liquidMintError,
+  //   isLoading: liquidMintLoading,
+  // } = useSWR<{
+  //   mints: any;
+  // }>(`/api/liquidmint-mints`, fetcher);
 
   const kingdomlyMints = data?.mints;
 
@@ -118,12 +118,12 @@ const ExploreMint = ({ mints }: { mints: any }) => {
           /> */}
         </div>
       </div>
-      {error || liquidMintError ? (
+      {error ? (
         <div className="flex items-center gap-2">
           <AlertTriangle className="text-[#FFC500]" />
           Error retrieving partners mints
         </div>
-      ) : isLoading || liquidMintLoading ? (
+      ) : isLoading ? (
         <div className="flex items-center gap-2">
           <Loader2 className="animate-spin text-white" />
           Loading...
@@ -196,8 +196,8 @@ const MintDisplay = ({
               </a>
             )}
           </div>
-          <div className="flex items-center justify-between py-3">
-            <p className="font-medium">{mint.title}</p>
+          <div className="flex items-center justify-between gap-2 py-3">
+            <p className="truncate font-medium">{mint.title}</p>
             <div className="relative aspect-square h-[20px]">
               <PartnerImage
                 src={mint.logo}

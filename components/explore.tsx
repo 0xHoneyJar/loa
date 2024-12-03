@@ -16,7 +16,7 @@ const Explore = () => {
                 New
               </p>
               <ChevronDown
-                className="duration-[250] relative top-px size-3 transition-transform ease-in group-data-[state=open]:-rotate-180"
+                className="duration-[250ms] relative top-px size-3 transition-transform ease-in group-data-[state=open]:-rotate-180"
                 aria-hidden
               />
             </div>

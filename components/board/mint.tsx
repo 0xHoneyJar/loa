@@ -17,13 +17,13 @@ const Mint = ({ mints }: { mints?: any }) => {
     mints: any;
   }>(`/api/kingdomly-mints`, fetcher);
 
-  const {
-    data: liquidMintData,
-    error: liquidMintError,
-    isLoading: liquidMintLoading,
-  } = useSWR<{
-    mints: any;
-  }>(`/api/liquidmint-mints`, fetcher);
+  // const {
+  //   data: liquidMintData,
+  //   error: liquidMintError,
+  //   isLoading: liquidMintLoading,
+  // } = useSWR<{
+  //   mints: any;
+  // }>(`/api/liquidmint-mints`, fetcher);
 
   const kingdomlyMints = data?.mints;
 

@@ -8,6 +8,10 @@ export async function GET(req: NextRequest) {
       "https://launchpad-staging-wor6ijn2wa-uc.a.run.app/v1/featured-projects",
     );
 
+    if (!response.ok) {
+      throw new Error("Error status");
+    }
+
     const data = await response.json();
 
     if (data.status !== "OK") {
