@@ -10,6 +10,7 @@
   "dependencies": {
     "@apollo/client": "^3.11.8",
     "@0xhoneyjar/validator-widget": "^1.0.54",
+    "@apollo/client": "^3.11.10",
     "@openpanel/nextjs": "0.0.10-beta",
     "@privy-io/react-auth": "^1.92.2",
     "@privy-io/wagmi": "^0.2.12",
