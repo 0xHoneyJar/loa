@@ -20,7 +20,7 @@ const Footer = () => {
           </div>
         </div>
       </div>
-      <div className="relative top-0 z-[-1] hidden h-[198px] w-full overflow-hidden border-b border-dashed border-[#878787] md:flex">
+      <div className="relative top-0 z-[-1] hidden w-full overflow-hidden md:-mb-6 md:flex lg:-mb-10">
         <Marquee autoFill className="relative overflow-hidden">
           <p
             className="text-[12rem] font-bold leading-none text-[#F5D0110D] lg:text-[17rem]"
@@ -32,7 +32,7 @@ const Footer = () => {
           </p>
         </Marquee>
       </div>
-      <div className="relative mt-24 grid size-full h-auto grid-cols-1 gap-2 bg-[#0B0701] text-white sm:h-[300px] md:mt-0 md:h-[400px] md:grid-cols-3 xl:mx-auto xl:max-w-7xl">
+      <div className="relative mt-24 grid w-full grid-cols-1 gap-2 border-t border-dashed border-[#878787] bg-[#0B0701] text-white md:mt-0 md:h-[400px] md:grid-cols-3">
         <div className="absolute inset-x-0 -top-12 mx-auto aspect-square h-[60px] md:-top-16 md:h-[80px]">
           <Image
             src={"/jani-coin.png"}
@@ -41,11 +41,11 @@ const Footer = () => {
             className="object-contain"
           />
         </div>
-        <div className="flex size-full flex-col items-center justify-center border-t border-dashed border-[#DCE0E5] px-4 py-10 text-white sm:items-start md:border-t-0 md:px-8 md:py-0">
-          <p className="mb-2 font-clash text-lg font-semibold md:text-xl">
+        <div className="flex h-[250px] w-full flex-col items-center justify-center border-t border-dashed border-[#DCE0E5] px-4 py-10 text-white md:h-full md:items-start md:border-t-0 md:px-8 md:py-0">
+          <p className="mb-2 whitespace-nowrap font-clash text-lg font-semibold md:text-xl">
             Partnership Guidelines
           </p>
-          <p className="mb-4 w-full text-center text-xs text-white/75 sm:text-left md:w-[90%] md:text-sm">
+          <p className="mb-4 w-full text-center text-xs text-white/75 md:w-[90%] md:text-left md:text-sm">
             Learn what you get from becoming a THJ Partner
           </p>
           <a
@@ -59,11 +59,11 @@ const Footer = () => {
             Learn More
           </a>
         </div>
-        <div className="relative flex size-full flex-col items-center justify-center border-y border-dashed border-[#DCE0E5] px-4 py-10 text-white sm:items-start sm:border-x sm:border-y-0 md:px-8 md:py-0">
+        <div className="relative flex h-[250px] w-full flex-col items-center justify-center border-y border-dashed border-[#DCE0E5] px-4 py-10 text-white md:h-full md:items-start md:border-x md:border-y-0 md:px-8 md:py-0">
           <p className="mb-2 whitespace-nowrap font-clash text-lg font-semibold md:text-xl">
             Branding Kit
           </p>
-          <p className="mb-4 w-full text-center text-xs text-white/75 sm:text-left md:w-[90%] md:text-sm">
+          <p className="mb-4 w-full text-center text-xs text-white/75 md:w-[90%] md:text-left md:text-sm">
             Find all assets and guidelines of THJ branding here
           </p>
           <a
@@ -77,11 +77,11 @@ const Footer = () => {
             Learn More
           </a>
         </div>
-        <div className="flex size-full flex-col items-center justify-center px-4 py-10 text-white sm:items-start md:px-8 md:py-0">
+        <div className="flex h-[250px] w-full flex-col items-center justify-center px-4 py-10 text-white md:h-full md:items-start md:px-8 md:py-0">
           <p className="mb-2 whitespace-nowrap font-clash text-lg font-semibold md:text-xl">
             Beekeeper Kit
           </p>
-          <p className="mb-4 w-full text-center text-xs text-white/75 sm:text-left md:w-[90%] md:text-sm">
+          <p className="mb-4 w-full text-center text-xs text-white/75 md:w-[90%] md:text-left md:text-sm">
             Product suite, integrations and co-markerting guidelines
           </p>
           <a
@@ -96,7 +96,7 @@ const Footer = () => {
           </a>
         </div>
       </div>
-      <div className="relative flex h-auto w-full flex-col items-center gap-4 overflow-hidden bg-[#F4C10B] pt-10 text-white md:gap-6 md:pt-20">
+      <div className="relative flex w-full flex-col items-center gap-4 overflow-hidden bg-[#F4C10B] pt-10 text-white md:gap-6 md:pt-20">
         <Image
           src={"/thj-outline.svg"}
           alt="thj-outline"

@@ -8,5 +8,5 @@ export interface Quest {
   paused?: boolean;
   slug: string;
   reward: number[];
-  campaignName: string | null;
+  campaignSlug: string | null;
 }

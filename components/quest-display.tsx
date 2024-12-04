@@ -23,8 +23,9 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
 
   const upcomingQuest = quest.startTime - currentTime > 0;
   const endedQuest = quest.endTime - currentTime < 0;
-  const link = quest.campaignName
-    ? `https://www.cubquests.com/campaigns/${quest.campaignName.toLowerCase()}?quest=${quest.slug}`
+
+  const link = quest.campaignSlug
+    ? `https://www.cubquests.com/campaigns/${quest.campaignSlug.toLowerCase()}?quest=${quest.slug}`
     : `https://www.cubquests.com/quests/${quest.slug}`;
 
   const calculateWidth = (
@@ -113,7 +114,7 @@ const QuestDisplay = ({ quest }: { quest: Quest }) => {
                 >
                   <BadgeImage
                     src={
-                      quest.campaignName ? "" : `/faucet/badges/${reward}.png`
+                      quest.campaignSlug ? "" : `/faucet/badges/${reward}.png`
                     }
                     fill
                     width={128}

@@ -1,4 +1,4 @@
-export const BLOGS = [
+export const ARTICLES = [
   {
     heading: "Berachain, Cults and the Dawn of The Honey Jar",
     desc: "This a FrenGate collectible article needed also for InfinityGate.",

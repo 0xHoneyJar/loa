@@ -31,6 +31,7 @@ const config = {
         evergreen: "0 0 20px 0 #43AA774D",
         yellow: "0 0 20px 0 #F4C10B40",
         white: "0 0 20px 0 #FFFFFF40",
+        partner: "0 0 12px 0 #FFC50029",
       },
       cursor: {
         blue: "url(/cursor.svg), default",
@@ -117,6 +118,14 @@ const config = {
           from: { opacity: "1" },
           to: { opacity: "0" },
         },
+        "gradient-x": {
+          "0%, 100%": {
+            "background-position": "0% 50%",
+          },
+          "50%": {
+            "background-position": "100% 50%",
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -129,6 +138,7 @@ const config = {
         enterFromRight: "enterFromRight 250ms ease",
         exitToLeft: "exitToLeft 250ms ease",
         exitToRight: "exitToRight 250ms ease",
+        "gradient-x": "gradient-x 5s ease infinite",
       },
     },
   },

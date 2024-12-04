@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { gql } from "@apollo/client";
-import { createApolloClient } from "@/lib/apollo";
+import { createApolloClientHC } from "@/lib/apollo";
 
-const client = createApolloClient();
+const client = createApolloClientHC();
 
 export async function GET(req: NextRequest) {
   const query = gql`

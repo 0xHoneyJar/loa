@@ -15,10 +15,12 @@ import Explore from "./explore";
 import { Copy, Menu, X, Download } from "lucide-react";
 import { trackEvent } from "@openpanel/nextjs";
 import { ValidatorWidget } from "@0xhoneyjar/validator-widget";
+import { usePathname } from "next/navigation";
 
 const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState({ isOpen: false });
+  const pathname = usePathname();
 
   const handleLogoContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -64,14 +66,26 @@ const Navbar = () => {
         <div className="flex items-center px-4 py-2">
           {/* <div className=""> */}
           <NavigationMenu className="hidden items-center md:flex">
-            <NavigationMenuList className="text-xs md:space-x-3">
+            <NavigationMenuList className="text-sm md:space-x-3">
               <Explore />
-              <SectionSelect />
+              {pathname === "/" && <SectionSelect />}
+              <NavigationMenuItem>
+                <a
+                  href={"https://blog.0xhoneyjar.xyz/"}
+                  target="_blank"
+                  className="hidden h-[38px] items-center whitespace-nowrap rounded-full bg-[#FFFFFF0F] px-6 text-white hover:bg-white/30 md:flex"
+                  onClick={() => {
+                    trackEvent("open_blog_navbar");
+                  }}
+                >
+                  Blog
+                </a>
+              </NavigationMenuItem>
               <NavigationMenuItem>
                 <a
                   href={"https://app.0xhoneyjar.xyz/"}
                   target="_blank"
-                  className="hidden items-center whitespace-nowrap rounded-full bg-[#F4C10B]/80 px-6 py-2.5 font-medium text-white hover:shadow-yellow md:flex"
+                  className="hidden h-[38px] items-center whitespace-nowrap rounded-full bg-[#F4C10B]/80 px-6 text-white hover:shadow-yellow md:flex"
                   onClick={() => {
                     trackEvent("open_app_navbar");
                   }}

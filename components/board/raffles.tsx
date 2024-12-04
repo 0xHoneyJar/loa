@@ -67,6 +67,7 @@ const Raffles = () => {
         <div className="mb-4 grid size-full grid-rows-3 gap-4 overflow-hidden md:gap-6">
           {!loadingRaffle
             ? raffles
+                .filter((r) => !r.paused)
                 .slice(0, 3)
                 .map((raffle, id) => <RaffleDisplay raffle={raffle} key={id} />)
             : Array.from({ length: 3 }).map((_, id) => (

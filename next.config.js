@@ -5,6 +5,8 @@ module.exports = {
         hostname: "cdn.simplehash.com",
       },
       { hostname: "d163aeqznbc6js.cloudfront.net" },
+      { hostname: "firebasestorage.googleapis.com" },
+      { hostname: "storage.googleapis.com" },
     ],
   },
   async redirects() {

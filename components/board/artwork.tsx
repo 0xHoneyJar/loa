@@ -21,28 +21,32 @@ const Artwork = () => {
           </p>
         </div>
       </div>
-      <Marquee
-        autoFill
-        speed={25}
-        gradient
-        gradientColor="#0F0F0F"
-        gradientWidth={50}
-        className="flex grow items-center"
-      >
-        {ARTWORK.map((item, id) => (
-          <div
-            className="relative mx-2 aspect-square h-[172px] overflow-hidden rounded-lg sm:h-[192px] md:h-[200px]"
-            key={id}
-          >
-            <Image
-              src={item}
-              alt={"artwork-" + id}
-              fill
-              className="object-cover"
-            />
-          </div>
-        ))}
-      </Marquee>
+      <div className="flex h-full w-full grow py-6">
+        <Marquee
+          autoFill
+          speed={25}
+          gradient
+          gradientColor="#0F0F0F"
+          gradientWidth={50}
+          className="flex h-full"
+        >
+          {/* <div className="h-full w-full"> */}
+          {ARTWORK.map((item, id) => (
+            <div
+              className="relative mx-2 aspect-square h-full overflow-hidden rounded-lg"
+              key={id}
+            >
+              <Image
+                src={item}
+                alt={"artwork-" + id}
+                fill
+                className="object-cover"
+              />
+            </div>
+          ))}
+          {/* </div> */}
+        </Marquee>
+      </div>
     </div>
   );
 };

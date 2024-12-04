@@ -114,8 +114,7 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
               </a>
             </div>
           </div>
-          <Carousel className="flex h-[200px] w-full sm:h-[230px] md:h-[250px]">
-            {/* <div className="flex h-full w-full"> */}
+          {/* <Carousel className="flex h-[200px] w-full sm:h-[230px] md:h-[250px]">
             <CarouselContent className="flex grow md:-ml-6 xl:-ml-0 xl:grid xl:!transform-none xl:grid-cols-2 xl:gap-4 2xl:gap-6">
               <CarouselItem className="basis-1/2 md:pl-6 xl:pl-0">
                 <div className="relative flex size-full flex-col items-center rounded-lg border border-[#F5D0110A] bg-[#15120B] py-8">
@@ -144,8 +143,32 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
                 </div>
               </CarouselItem>
             </CarouselContent>
-            {/* </div> */}
-          </Carousel>
+          </Carousel> */}
+          <div className="grid h-[200px] w-full grid-cols-2 gap-4 md:h-[250px] md:gap-6">
+            <div className="relative flex size-full flex-col items-center rounded-lg border border-[#F5D0110A] bg-[#15120B] py-8">
+              <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
+              <p className="whitespace-nowrap text-sm text-[#6B6B6B] md:text-base">
+                Total Perks
+              </p>
+              <div className="flex size-full items-center justify-center">
+                <p className="bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-5xl font-medium text-transparent md:text-6xl xl:text-7xl">
+                  {perks.length}
+                </p>
+              </div>
+            </div>
+
+            <div className="relative flex size-full flex-col items-center rounded-lg border border-[#F5D0110A] bg-[#15120B] py-8">
+              <div className="absolute top-0 h-[2px] w-8 rounded-full bg-[#EE511E]" />
+              <p className="whitespace-nowrap text-sm text-[#6B6B6B] md:text-base">
+                Active Perks
+              </p>
+              <div className="flex size-full items-center justify-center">
+                <p className="bg-gradient-to-r from-[#F5D011] to-[#F8A929] bg-clip-text text-5xl font-medium text-transparent md:text-6xl xl:text-7xl">
+                  {activePerksCount}
+                </p>
+              </div>
+            </div>
+          </div>
           <a
             target="_blank"
             href={"https://honeycomb.0xhoneyjar.xyz/"}

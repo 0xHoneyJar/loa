@@ -4,7 +4,7 @@ import Updates from "@/components/board/updates";
 import Follow from "@/components/board/follow";
 import NewPartners from "@/components/board/new-partners";
 import Mint from "@/components/board/mint";
-import Blog from "@/components/board/blog";
+import Article from "@/components/board/article";
 import Spotlight from "@/components/board/spotlight";
 import Development from "@/components/board/development";
 import Feed from "@/components/board/feed";
@@ -23,6 +23,7 @@ import Tools from "@/components/board/tools";
 import Beardrops from "@/components/board/beardrops";
 import OogaBooga from "@/components/board/ooga-booga";
 import Quotes from "@/components/board/quotes";
+import Ramen from "@/components/board/ramen";
 
 const BoardSection = ({
   partners,
@@ -44,12 +45,14 @@ const BoardSection = ({
             </p>
           </div>
           <Marquee autoFill speed={30}>
-            <p className="px-2 text-xs text-white md:text-sm">
-              Henlo, and furthermore, ooga booga!
-            </p>
+            <div className="flex h-full items-center">
+              <p className="px-2 text-xs text-white md:text-sm">
+                Henlo, and furthermore, ooga booga!
+              </p>
+            </div>
           </Marquee>
         </div>
-        <div className="grid w-full grid-cols-1 grid-rows-40 gap-4 rounded-2xl border border-[#BCBCBC1A] bg-[#0A0A0A] p-2 text-white md:gap-6 md:p-6 lg:max-h-[8220px] lg:grid-cols-3 lg:grid-rows-22 xl:grid-rows-24">
+        <div className="grid w-full auto-rows-[280px] grid-cols-1 gap-4 rounded-2xl border border-[#BCBCBC1A] bg-[#0A0A0A] p-2 text-white sm:auto-rows-[300px] md:auto-rows-[340px] md:gap-6 md:p-6 lg:grid-cols-3">
           <div className="row-span-1 lg:col-span-3">
             <Guide />
           </div>
@@ -63,10 +66,13 @@ const BoardSection = ({
             <NewPartners partners={partners} />
           </div>
           <div className="row-span-1 lg:col-span-full">
+            <Ramen />
+          </div>
+          <div className="row-span-2 lg:col-span-full">
             <Mint mints={community.mints} />
           </div>
           <div className="row-span-1 lg:col-span-full">
-            <Blog />
+            <Article />
           </div>
           <div className="row-span-2 lg:col-span-2">
             <Spotlight spotlight={community.spotlight} />
@@ -119,7 +125,7 @@ const BoardSection = ({
           <div className="row-span-1 lg:col-span-2">
             <Tools />
           </div>
-          <div className="row-span-2 lg:col-span-full">
+          <div className="!row-span-2 lg:col-span-full">
             <Beardrops />
           </div>
         </div>

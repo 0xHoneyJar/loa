@@ -89,6 +89,30 @@ export type Database = {
         }
         Relationships: []
       }
+      angry_migration: {
+        Row: {
+          address: string | null
+          created_at: string
+          current_owner: string
+          id: number
+          signature: string | null
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          current_owner: string
+          id?: number
+          signature?: string | null
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          current_owner?: string
+          id?: number
+          signature?: string | null
+        }
+        Relationships: []
+      }
       angry_wl: {
         Row: {
           address: string
@@ -1099,6 +1123,7 @@ export type Database = {
       quest_progress: {
         Row: {
           address: string
+          created_at: string | null
           quest_name: string
           tracked_steps: Json
           twitter_id: string | null
@@ -1106,6 +1131,7 @@ export type Database = {
         }
         Insert: {
           address: string
+          created_at?: string | null
           quest_name: string
           tracked_steps?: Json
           twitter_id?: string | null
@@ -1113,6 +1139,7 @@ export type Database = {
         }
         Update: {
           address?: string
+          created_at?: string | null
           quest_name?: string
           tracked_steps?: Json
           twitter_id?: string | null
@@ -1135,7 +1162,7 @@ export type Database = {
       quests: {
         Row: {
           admins: string | null
-          campaignName: string | null
+          campaignSlug: string | null
           created_at: string
           cronScheduleId: string | null
           description: string
@@ -1163,7 +1190,7 @@ export type Database = {
         }
         Insert: {
           admins?: string | null
-          campaignName?: string | null
+          campaignSlug?: string | null
           created_at?: string
           cronScheduleId?: string | null
           description: string
@@ -1191,7 +1218,7 @@ export type Database = {
         }
         Update: {
           admins?: string | null
-          campaignName?: string | null
+          campaignSlug?: string | null
           created_at?: string
           cronScheduleId?: string | null
           description?: string
@@ -1548,6 +1575,7 @@ export type Database = {
           endTime: number
           id: number
           image: string
+          limit: string
           logo: string | null
           partnerName: string | null
           paused: boolean
@@ -1568,6 +1596,7 @@ export type Database = {
           endTime: number
           id?: number
           image: string
+          limit: string
           logo?: string | null
           partnerName?: string | null
           paused?: boolean
@@ -1588,6 +1617,7 @@ export type Database = {
           endTime?: number
           id?: number
           image?: string
+          limit?: string
           logo?: string | null
           partnerName?: string | null
           paused?: boolean
@@ -1883,6 +1913,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_teams: {
+        Row: {
+          created_at: string
+          id: number
+          partner_name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          partner_name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          partner_name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_tokens: {
         Row: {
           access_token: string
@@ -2009,6 +2060,53 @@ export type Database = {
         Returns: {
           root: string
           token_id: number
+        }[]
+      }
+      get_partner_quest_data: {
+        Args: {
+          partner_name: string
+        }
+        Returns: {
+          quest_id: number
+          quest_title: string
+          quest_description: string
+          quest_reward: string
+          quest_start_time: number
+          quest_end_time: number
+          completion_count: number
+        }[]
+      }
+      get_partner_quest_progress: {
+        Args: {
+          partner_name: string
+        }
+        Returns: {
+          quest_name: string
+          created_at: string
+          completion_count: number
+        }[]
+      }
+      get_partner_raffle_data: {
+        Args: {
+          partner_name: string
+        }
+        Returns: {
+          raffle_id: number
+          raffle_title: string
+          raffle_slug: string
+          raffle_start_time: number
+          raffle_end_time: number
+          submission_count: number
+        }[]
+      }
+      get_partner_raffle_submissions: {
+        Args: {
+          partner_name: string
+        }
+        Returns: {
+          raffle_name: string
+          created_at: string
+          submission_count: number
         }[]
       }
       get_referrals_for_address:
