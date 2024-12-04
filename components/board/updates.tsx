@@ -71,7 +71,7 @@ const UpdateDisplay = ({
           }}
           onMouseEnter={() => setHover(true)}
           onMouseLeave={() => setHover(false)}
-          className={`relative h-2/3 w-full overflow-hidden rounded-xl border ${hover ? "border-[#F5D011D9]" : "border-[#2B2B2B]"}`}
+          className={`relative flex h-2/3 w-full shrink-0 overflow-hidden rounded-xl border ${hover ? "border-[#F5D011D9]" : "border-[#2B2B2B]"}`}
         >
           <S3Image src={image} alt="" fill className="object-cover" />
         </a>
@@ -86,7 +86,9 @@ const UpdateDisplay = ({
               className={`aspect-square h-4 md:h-5 ${hover ? "text-[#F5D011]" : "text-white/15"}`}
             />
           </div>
-          <p className="text-[10px] text-[#A9A9A9] md:text-xs">{desc}</p>
+          <p className="text-ellipsis text-[10px] text-[#A9A9A9] md:text-xs">
+            {desc}
+          </p>
         </div>
       </div>
     </CarouselItem>
