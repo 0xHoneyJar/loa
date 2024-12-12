@@ -90,8 +90,10 @@ const ExploreMint = ({ mints }: { mints: any }) => {
         <ChevronRight className="aspect-square h-[20px] text-[#FFC500]" />
         <p className="text-[#FFC500]">Partner Collections</p>
       </div>
-      <p className="mb-1 text-2xl font-semibold md:text-3xl">
-        Explore Our Partners Mint
+      <p className="text-2xl font-semibold md:text-3xl">Featured Mints</p>
+      <p className="mb-1 font-light md:text-lg">
+        Find recent mints from THJ and mints featured on THJ&apos;s partner
+        platforms.
       </p>
       {/* <p className="text-lg">Deets</p> */}
       <div className="relative my-6 flex flex-col-reverse items-start justify-between gap-4 md:flex-row md:items-center">
