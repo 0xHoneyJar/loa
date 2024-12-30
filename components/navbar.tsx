@@ -71,7 +71,7 @@ const Navbar = () => {
               {pathname === "/" && <SectionSelect />}
               <NavigationMenuItem>
                 <a
-                  href={"https://blog.0xhoneyjar.xyz/"}
+                  href={"https://0xhoneyjar.mirror.xyz/"}
                   target="_blank"
                   className="hidden h-[38px] items-center whitespace-nowrap rounded-full bg-[#FFFFFF0F] px-6 text-white hover:bg-white/30 md:flex"
                   onClick={() => {
