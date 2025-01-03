@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@0xhoneyjar/validator-widget':
-        specifier: ^1.0.54
-        version: 1.0.54(3mxxbpopulw2ktpnpkcu2kdzz4)
+        specifier: ^1.0.55
+        version: 1.0.55(3mxxbpopulw2ktpnpkcu2kdzz4)
       '@apollo/client':
         specifier: ^3.11.10
         version: 3.11.10(@types/react@17.0.83)(graphql@16.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -189,8 +189,8 @@ importers:
 
 packages:
 
-  '@0xhoneyjar/validator-widget@1.0.54':
-    resolution: {integrity: sha512-JmqxH9Ht9gBw0G/aF/nO+rVWlc4We7W/Hn8+eBnMzkLKGnWXpqFN2DgV0g5deXSPKJhxOojMbRl27yAKm+kWqw==}
+  '@0xhoneyjar/validator-widget@1.0.55':
+    resolution: {integrity: sha512-WFkULgIOBYwdBB4ywF201yi9qLPQt65ZyuaYMQkWSiBAqR9Fhl+6ojaxMetAYnnkLbuhg40LLCnBilJBiJW+3A==}
     peerDependencies:
       next: ^14.0.0
       react: ^18.0.0
@@ -7765,7 +7765,7 @@ packages:
 
 snapshots:
 
-  '@0xhoneyjar/validator-widget@1.0.54(3mxxbpopulw2ktpnpkcu2kdzz4)':
+  '@0xhoneyjar/validator-widget@1.0.55(3mxxbpopulw2ktpnpkcu2kdzz4)':
     dependencies:
       '@thehoneyjar/sdk': 0.1.1
       '@web3modal/wagmi': 5.1.11(ej3q5zufh3gz6fnbqjos6bflga)
@@ -13561,7 +13561,7 @@ snapshots:
       debug: 4.3.7(supports-color@5.5.0)
       enhanced-resolve: 5.17.1
       eslint: 8.57.1
-      eslint-module-utils: 2.12.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.3)(eslint@8.57.1)
+      eslint-module-utils: 2.12.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.3(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.31.0)(eslint@8.57.1))(eslint@8.57.1)
       fast-glob: 3.3.2
       get-tsconfig: 4.8.1
       is-bun-module: 1.2.1
@@ -13574,7 +13574,7 @@ snapshots:
       - eslint-import-resolver-webpack
       - supports-color
 
-  eslint-module-utils@2.12.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.3)(eslint@8.57.1):
+  eslint-module-utils@2.12.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.3(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.31.0)(eslint@8.57.1))(eslint@8.57.1):
     dependencies:
       debug: 3.2.7
     optionalDependencies:
@@ -13596,7 +13596,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 8.57.1
       eslint-import-resolver-node: 0.3.9
-      eslint-module-utils: 2.12.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.3)(eslint@8.57.1)
+      eslint-module-utils: 2.12.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.3(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.31.0)(eslint@8.57.1))(eslint@8.57.1)
       hasown: 2.0.2
       is-core-module: 2.15.1
       is-glob: 4.0.3
