@@ -16,7 +16,7 @@ const MainWrapper = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div className="relative mx-auto min-w-[24rem] max-w-[112rem] overflow-hidden">
-      <Snowfall
+      {/* <Snowfall
         style={{
           position: "fixed",
           width: "100vw",
@@ -27,7 +27,7 @@ const MainWrapper = ({ children }: { children: React.ReactNode }) => {
         speed={[0.1, 0.5]}
         snowflakeCount={100}
         wind={[-1, 0.5]}
-      />
+      /> */}
       {children}
     </div>
   );

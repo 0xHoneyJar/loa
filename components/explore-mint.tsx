@@ -135,7 +135,11 @@ const ExploreMint = ({ mints }: { mints: any }) => {
       ) : (
         <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(18rem,1fr))] gap-4">
           {filteredMints.map((mint: MintType, id: number) => (
-            <MintDisplay key={id} mint={mint} status={mint.status} />
+            <MintDisplay
+              key={`${mint.title}_${id}`}
+              mint={mint}
+              status={mint.status}
+            />
           ))}
         </div>
       )}

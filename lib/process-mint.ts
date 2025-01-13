@@ -4,7 +4,7 @@ export function processKindomlyMint(
 ) {
   return {
     image: mint.profile_image ? mint.profile_image : mint.header_image,
-    price: mint.mint_group_data[0].price,
+    price: mint.mint_group_data[0]?.price || 0,
     currency: mint.chain.native_currency,
     status: status,
     logo: "faucet/quests/kingdomly.png",
