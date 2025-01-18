@@ -86,7 +86,7 @@ const UpdateDisplay = ({
               className={`aspect-square h-4 md:h-5 ${hover ? "text-[#F5D011]" : "text-white/15"}`}
             />
           </div>
-          <p className="text-ellipsis text-[10px] text-[#A9A9A9] md:text-xs">
+          <p className="line-clamp-2 text-[10px] text-[#A9A9A9] md:text-xs">
             {desc}
           </p>
         </div>
