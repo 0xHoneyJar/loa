@@ -54,7 +54,7 @@ export const FLAGSHIP_ITEMS: ListItemData[] = [
     title: "THJ Validator",
     description: "Validating Berachain 24/7",
     icon: "/navbar/validator.png",
-    link: "https://bartio.station.berachain.com/validators/0x40495A781095932e2FC8dccA69F5e358711Fdd41",
+    link: "https://hub.berachain.com/validators/0xb77084d2b92baa3e01ec5ce57fbd529d3c8e60941c637bdc7c85d9ca2cc56545c3cbea86879dcbe9402f8a55d0284e7b/",
     color: "#17231D",
   },
   {
