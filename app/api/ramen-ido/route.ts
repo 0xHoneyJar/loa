@@ -5,7 +5,7 @@ export async function GET(req: NextRequest) {
   unstable_noStore();
   try {
     const response = await fetch(
-      "https://launchpad-staging-wor6ijn2wa-uc.a.run.app/v1/featured-projects",
+      "https://api.ramen.finance/v1/featured-projects",
     );
 
     if (!response.ok) {
