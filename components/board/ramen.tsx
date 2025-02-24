@@ -28,7 +28,7 @@ const Ramen = () => {
   console.log(ramenProjects);
   return (
     <div className="relative h-full overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]">
-      <div className="absolute -top-40 h-1 w-full" id="newPartners" />
+      <div className="absolute -top-40 h-1 w-full" id="ramen" />
       <Carousel className="flex h-full flex-col" opts={{ dragFree: true }}>
         {/* eslint-disable-next-line tailwindcss/no-contradicting-classname */}
         <div className="flex h-2 w-full shrink-0 animate-gradient-x rounded-t-3xl bg-gradient-to-r from-white to-[#D8382B] bg-[length:200%_200%]" />
@@ -99,12 +99,12 @@ export default Ramen;
 const RamenDisplay = ({ ido }: { ido: any }) => {
   return (
     <a
-      href={`/${ido.slug}`}
+      href={`https://app.ramen.finance/${ido.slug}`}
       target="_blank"
       onClick={() => {
         trackEvent(`ramen_${ido.slug}`);
       }}
-      className="relative flex w-[300px] flex-col justify-between overflow-hidden rounded-lg border border-[#F4C10B14] bg-[#221C11] p-4 hover:divide-[#F4C10B47] hover:border-[#F4C10B47] hover:bg-[#423520] md:w-[400px]"
+      className="relative flex h-full w-[300px] flex-col justify-between overflow-hidden rounded-lg border border-[#F4C10B14] bg-[#221C11] p-4 hover:divide-[#F4C10B47] hover:border-[#F4C10B47] hover:bg-[#423520] md:w-[400px]"
     >
       <div className="absolute bottom-0 left-0 z-10 h-1/2 w-full bg-gradient-to-t from-[#000000]" />
       <div className="absolute left-0 top-0 size-full">
@@ -116,12 +116,12 @@ const RamenDisplay = ({ ido }: { ido: any }) => {
         />
       </div>
       <div className="z-10 flex items-center justify-start gap-2">
-        <div className="rounded-full bg-[#D8D8D8]/10 px-3 py-1">
+        {/* <div className="rounded-full bg-[#D8D8D8]/10 px-3 py-1">
           <p className="text-xs font-light text-[#E2E2E2]">
             <span className="font-normal text-white">{ido.total_supply}</span>{" "}
             total supply
           </p>
-        </div>
+        </div> */}
       </div>
       <div className="z-10 flex w-full items-start justify-between">
         <div className="flex flex-col gap-1">

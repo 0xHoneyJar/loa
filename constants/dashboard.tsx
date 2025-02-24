@@ -21,6 +21,7 @@ import Follow from "@/components/board/follow";
 import OogaBooga from "@/components/board/ooga-booga";
 import Raffles from "@/components/board/raffles";
 import Beardrops from "@/components/board/beardrops";
+import Ramen from "@/components/board/ramen";
 
 export const DASHBOARD = [
   {
@@ -45,6 +46,12 @@ export const DASHBOARD = [
     name: "New Partners",
     key: "newPartners",
     ui: <NewPartners />,
+    hidden: false,
+  },
+  {
+    name: "Ramen IDO",
+    key: "ramen",
+    ui: <Ramen />,
     hidden: false,
   },
   {
