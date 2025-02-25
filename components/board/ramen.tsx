@@ -25,7 +25,7 @@ const Ramen = () => {
   }>(`/api/ramen-ido`, fetcher);
 
   const ramenProjects = data?.projects;
-  console.log(ramenProjects);
+  // console.log(ramenProjects);
   return (
     <div className="relative h-full overflow-hidden rounded-2xl border-2 border-[#FFFFFF0A] bg-[#0F0F0F]">
       <div className="absolute -top-40 h-1 w-full" id="ramen" />
@@ -71,7 +71,7 @@ const Ramen = () => {
                   <CarouselItem className="">
                     <a
                       target="_blank"
-                      href={""}
+                      href={"https://app.ramen.finance/"}
                       className="relative flex h-full w-[300px] flex-col items-center justify-center overflow-hidden rounded-lg border border-[#F4C10B14] bg-[#221C11] p-4 hover:border-[#F4C10B47] hover:bg-[#423520] md:w-[400px]"
                     >
                       <p className="flex text-xs sm:text-sm md:text-base">

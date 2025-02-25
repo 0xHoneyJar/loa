@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
     if (data.status !== "OK") {
       throw new Error("Error status");
     }
+
     return NextResponse.json({
       projects: data.data.projects ?? [],
     });
