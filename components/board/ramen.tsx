@@ -97,6 +97,11 @@ const Ramen = () => {
 export default Ramen;
 
 const RamenDisplay = ({ ido }: { ido: any }) => {
+  function formatBera(wei: bigint, decimals: number = 4) {
+    const bera: number = Number(wei) / 1_000_000_000_000_000_000;
+    return bera.toFixed(decimals);
+  }
+
   return (
     <a
       href={`https://app.ramen.finance/${ido.slug}`}
@@ -142,14 +147,14 @@ const RamenDisplay = ({ ido }: { ido: any }) => {
             </p>
           </div>
         </div>
-        {/* <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1">
           <div className="relative aspect-square h-4">
-            <Image src={"/eth.svg"} alt="eth" fill />
+            <Image src={"/BERA.svg"} alt="bera" fill />
           </div>
           <p className="text-sm font-semibold text-white md:text-lg">
-            {mint.mint_group_data[0].price}
+            {formatBera(ido.token_price_in_bera)}
           </p>
-        </div> */}
+        </div>
       </div>
     </a>
   );
