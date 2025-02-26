@@ -93,21 +93,10 @@ const Navbar = () => {
                   Open App
                 </a>
               </NavigationMenuItem>
-              <NavigationMenuItem>
-                {/* <a
-                  href={
-                    "https://bartio.station.berachain.com/delegate?action=delegate&validator=0x40495A781095932e2FC8dccA69F5e358711Fdd41"
-                  }
-                  target="_blank"
-                  className="hidden items-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 py-2.5 font-medium text-white hover:shadow-evergreen md:flex"
-                  onClick={() => {
-                    trackEvent("delegate_navbar");
-                  }}
-                >
-                  Delegate to THJ
-                </a> */}
+              {/* <NavigationMenuItem>
+              
                 <ValidatorWidget apiUrl="/api/delegate" referrer="thj" />
-              </NavigationMenuItem>
+              </NavigationMenuItem> */}
             </NavigationMenuList>
           </NavigationMenu>
           <button
