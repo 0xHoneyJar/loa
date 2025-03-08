@@ -203,11 +203,22 @@ export const NftItem = ({ nft }: { nft: any }) => {
 
 export const DelegateButton = () => {
   return (
-    <ValidatorWidget apiUrl="/api/delegate" referrer="thj">
+    // <ValidatorWidget apiUrl="/api/delegate" referrer="thj">
+    <a
+      href={
+        "https://hub.berachain.com/validators/0xa0c673180d97213c1c35fe3bf4e684dd3534baab235a106d1f71b9c8a37e4d37a056d47546964fd075501dff7f76aeaf/"
+      }
+      onClick={() => {
+        trackEvent(`boost_validator`);
+      }}
+      target="_blank"
+    >
       <div className="flex w-full cursor-pointer items-center justify-center rounded-full bg-black py-3 text-sm font-medium transition-all duration-500 ease-in-out hover:bg-white hover:text-black md:text-base">
-        Delegate Now
+        Boost Now
       </div>
-    </ValidatorWidget>
+    </a>
+
+    // </ValidatorWidget>
   );
 };
 

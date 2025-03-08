@@ -49,7 +49,7 @@ const Validator = () => {
                 <div className="grid size-full grid-rows-3 gap-4">
                   <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
                     <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm">
-                      Delegated to THJ (BGT)
+                      Boosts (BGT)
                     </p>
                     <div className="flex items-center gap-2 text-2xl md:text-xl">
                       <p className="font-semibold">
@@ -67,7 +67,7 @@ const Validator = () => {
                   </div>
                   <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
                     <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm">
-                      Number of Delegators
+                      Number of Boosters
                     </p>
                     <p className="text-2xl font-semibold md:text-xl">TBD</p>
                   </div>
@@ -76,7 +76,7 @@ const Validator = () => {
                       Return per BGT
                     </p>
                     <div className="flex items-center gap-2 text-2xl">
-                      <p className="text-2xl font-semibold md:text-xl">$6.90</p>
+                      <p className="text-2xl font-semibold md:text-xl">6.90</p>
                       <div className="relative aspect-square h-5">
                         <Image
                           src={"/bgt-honey.png"}
@@ -188,7 +188,7 @@ const Validator = () => {
               <a
                 target="_blank"
                 href={
-                  "https://bartio.station.berachain.com/validators/0x40495A781095932e2FC8dccA69F5e358711Fdd41"
+                  "https://hub.berachain.com/validators/0xa0c673180d97213c1c35fe3bf4e684dd3534baab235a106d1f71b9c8a37e4d37a056d47546964fd075501dff7f76aeaf/"
                 }
                 onClick={() => {
                   trackEvent(`view_validator`);
@@ -199,12 +199,22 @@ const Validator = () => {
                 &nbsp;Validator
               </a>
               <div className="relative z-10 flex h-full items-center justify-center">
-                <ValidatorWidget apiUrl="/api/delegate" referrer="thj">
+                {/* <ValidatorWidget apiUrl="/api/delegate" referrer="thj"> */}
+                <a
+                  href={
+                    "https://hub.berachain.com/validators/0xa0c673180d97213c1c35fe3bf4e684dd3534baab235a106d1f71b9c8a37e4d37a056d47546964fd075501dff7f76aeaf/"
+                  }
+                  onClick={() => {
+                    trackEvent(`boost_validator`);
+                  }}
+                  target="_blank"
+                >
                   <div className="flex h-[46px] cursor-pointer items-center justify-center whitespace-nowrap rounded-full bg-[#43AA77] px-6 text-xs font-medium text-black transition-all duration-500 ease-in-out hover:shadow-evergreen md:text-sm">
-                    Delegate&nbsp;
+                    Boost&nbsp;
                     <span className="hidden xl:inline-flex">Now</span>
                   </div>
-                </ValidatorWidget>
+                </a>
+                {/* </ValidatorWidget> */}
               </div>
               {/* <div className="relative aspect-square h-[100px]">
               <Image

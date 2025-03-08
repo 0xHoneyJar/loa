@@ -1,10 +1,9 @@
-import { BGTABI } from "@/abis/BGT";
-import { BlockRewardControllerAbi } from "@/abis/BlockRewardController";
-import { berachainBartio } from "@/constants/chains";
+import { BGTMainnetABI } from "@/abis/BGT_Mainnet";
+import { BlockRewardControllerMainnetAbi } from "@/abis/BlockRewardController_Mainnet";
 import {
-  BGT_ADDRESS,
-  BLOCK_REWARD_CONTROLLER_ADDRESS,
-  THJ_VALIDATOR_ADDRESS,
+  BGT_MAINNET_ADDRESS,
+  BLOCK_REWARD_CONTROLLER_MAINNET_ADDRESS,
+  THJ_MAINNET_VALIDATOR_ADDRESS,
 } from "@/constants/contracts";
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -13,49 +12,54 @@ import {
   getContract,
   http,
 } from "viem";
+import { berachain } from "viem/chains";
 
-const bartioPublicClient = createPublicClient({
-  chain: berachainBartio,
-  transport: http(process.env.RPC_URL_80084),
+const beraMainnetClient = createWalletClient({
+  chain: berachain,
+  transport: http(process.env.RPC_URL_80094),
 });
 
-const bartioClient = createWalletClient({
-  chain: berachainBartio,
-  transport: http(process.env.RPC_URL_80084),
+const beraMainnetPublicClient = createPublicClient({
+  chain: berachain,
+  transport: http(process.env.RPC_URL_80094),
 });
 
 export async function GET(req: NextRequest) {
   const BGTContract = getContract({
-    abi: BGTABI,
-    address: BGT_ADDRESS,
+    abi: BGTMainnetABI,
+    address: BGT_MAINNET_ADDRESS,
     client: {
-      public: bartioPublicClient,
-      wallet: bartioClient,
+      public: beraMainnetPublicClient,
+      wallet: beraMainnetClient,
     },
   });
 
   const blockRewardController = getContract({
-    abi: BlockRewardControllerAbi,
-    address: BLOCK_REWARD_CONTROLLER_ADDRESS,
+    abi: BlockRewardControllerMainnetAbi,
+    address: BLOCK_REWARD_CONTROLLER_MAINNET_ADDRESS,
     client: {
-      public: bartioPublicClient,
-      wallet: bartioClient,
+      public: beraMainnetPublicClient,
+      wallet: beraMainnetClient,
     },
   });
 
   const rewardRate = await blockRewardController.read.rewardRate();
 
   const amountDelegated = await BGTContract.read.boostees([
-    THJ_VALIDATOR_ADDRESS,
+    THJ_MAINNET_VALIDATOR_ADDRESS,
   ]);
 
-  const boostedRewardRate = await BGTContract.read.boostedRewardRate([
-    THJ_VALIDATOR_ADDRESS,
-    rewardRate,
-  ]);
+  // console.log(amountDelegated.toString());
+  // const boostedRewardRate = await BGTContract.read.boostedRewardRate([
+  //   THJ_MAINNET_VALIDATOR_ADDRESS,
+  //   rewardRate,
+  // ]);
+
+  // console.log(rewardRate.toString());
 
   return NextResponse.json({
     amountDelegated: amountDelegated.toString(),
-    boostedRewardRate: boostedRewardRate.toString(),
+    boostedRewardRate: "",
+    // boostedRewardRate.toString(),
   });
 }

@@ -1,0 +1,662 @@
+export const BlockRewardControllerMainnetAbi = [
+  {
+    type: "function",
+    name: "baseRate",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "boostMultiplier",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "computeReward",
+    inputs: [
+      {
+        name: "boostPower",
+        type: "uint256",
+        internalType: "uint256",
+      },
+      {
+        name: "_rewardRate",
+        type: "uint256",
+        internalType: "uint256",
+      },
+      {
+        name: "_boostMultiplier",
+        type: "uint256",
+        internalType: "uint256",
+      },
+      {
+        name: "_rewardConvexity",
+        type: "int256",
+        internalType: "int256",
+      },
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "pure",
+  },
+  {
+    type: "function",
+    name: "minBoostedRewardRate",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "processRewards",
+    inputs: [
+      {
+        name: "pubkey",
+        type: "bytes",
+        internalType: "bytes",
+      },
+      {
+        name: "nextTimestamp",
+        type: "uint64",
+        internalType: "uint64",
+      },
+      {
+        name: "isReady",
+        type: "bool",
+        internalType: "bool",
+      },
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "rewardConvexity",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "int256",
+        internalType: "int256",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "rewardRate",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "setBaseRate",
+    inputs: [
+      {
+        name: "_baseRate",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "setBoostMultiplier",
+    inputs: [
+      {
+        name: "_boostMultiplier",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "setDistributor",
+    inputs: [
+      {
+        name: "_distributor",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "setMinBoostedRewardRate",
+    inputs: [
+      {
+        name: "_minBoostedRewardRate",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "setRewardConvexity",
+    inputs: [
+      {
+        name: "_rewardConvexity",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "setRewardRate",
+    inputs: [
+      {
+        name: "_rewardRate",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "event",
+    name: "BaseRateChanged",
+    inputs: [
+      {
+        name: "oldBaseRate",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+      {
+        name: "newBaseRate",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "BlockRewardProcessed",
+    inputs: [
+      {
+        name: "pubkey",
+        type: "bytes",
+        indexed: true,
+        internalType: "bytes",
+      },
+      {
+        name: "nextTimestamp",
+        type: "uint64",
+        indexed: false,
+        internalType: "uint64",
+      },
+      {
+        name: "baseRate",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+      {
+        name: "rewardRate",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "BoostMultiplierChanged",
+    inputs: [
+      {
+        name: "oldBoostMultiplier",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+      {
+        name: "newBoostMultiplier",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "MinBoostedRewardRateChanged",
+    inputs: [
+      {
+        name: "oldMinBoostedRewardRate",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+      {
+        name: "newMinBoostedRewardRate",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "RewardConvexityChanged",
+    inputs: [
+      {
+        name: "oldRewardConvexity",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+      {
+        name: "newRewardConvexity",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "RewardRateChanged",
+    inputs: [
+      {
+        name: "oldRewardRate",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+      {
+        name: "newRewardRate",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "SetDistributor",
+    inputs: [
+      {
+        name: "rewardDistribution",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "error",
+    name: "AmountLessThanMinIncentiveRate",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "CannotRecoverIncentiveToken",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "CannotRecoverRewardToken",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "CannotRecoverStakingToken",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "DepositNotMultipleOfGwei",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "DepositValueTooHigh",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "DonateAmountLessThanPayoutAmount",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "IncentiveRateTooHigh",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "IndexOutOfRange",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InsolventReward",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InsufficientDelegateStake",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InsufficientDeposit",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InsufficientSelfStake",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InsufficientStake",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidActivateBoostDelay",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidBaseRate",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidBoostMultiplier",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidCredentialsLength",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidDropBoostDelay",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidMaxIncentiveTokensCount",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidMinBoostedRewardRate",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidProof",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidPubKeyLength",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidRewardAllocationWeights",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidRewardConvexity",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidRewardRate",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidSignatureLength",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidStartBlock",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidateDefaultRewardAllocation",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvariantCheckFailed",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "MaxNumWeightsPerRewardAllocationIsZero",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "MinIncentiveRateIsZero",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "NotAContract",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "NotApprovedSender",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "NotBGT",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "NotBlockRewardController",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "NotDelegate",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "NotDistributor",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "NotEnoughBalance",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "NotEnoughBoostedBalance",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "NotEnoughTime",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "NotFactoryVault",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "NotFeeCollector",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "NotIncentiveManager",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "NotNewOperator",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "NotOperator",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "NotWhitelistedVault",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "OperatorAlreadySet",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "PayoutAmountIsZero",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "RewardAllocationAlreadyQueued",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "RewardAllocationBlockDelayTooLarge",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "RewardCycleNotEnded",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "RewardsDurationIsZero",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "StakeAmountIsZero",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "TimestampAlreadyProcessed",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "TokenAlreadyWhitelistedOrLimitReached",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "TokenNotWhitelisted",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "TooManyWeights",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "TotalSupplyOverflow",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "WithdrawAmountIsZero",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "ZeroAddress",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "ZeroOperatorOnFirstDeposit",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "ZeroPercentageWeight",
+    inputs: [],
+  },
+] as const;
