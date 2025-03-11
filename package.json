@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbo",
+    "dev": "basehub dev && next dev --turbo",
     "build": "basehub && next build",
     "start": "next start"
   },
