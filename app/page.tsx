@@ -4,8 +4,6 @@ import HeroSection from "@/components/hero/hero-section";
 import { basehub } from "basehub";
 
 export default async function Home() {
-  let perksData: any;
-
   const {
     partners: { partners },
   } = await basehub({ cache: "no-store" }).query({
@@ -24,31 +22,26 @@ export default async function Home() {
     },
   });
 
-  try {
-    const {
-      perks: { perks },
-    } = await basehub({ cache: "no-store" }).query({
+  const {
+    perks: { perks },
+  } = await basehub({ cache: "no-store" }).query({
+    perks: {
       perks: {
-        perks: {
-          items: {
-            _title: true,
-            perks: true,
-            startDate: true,
-            endDate: true,
-            link: true,
-            details: true,
-            partner: {
-              logo: true,
-              category: true,
-            },
+        items: {
+          _title: true,
+          perks: true,
+          startDate: true,
+          endDate: true,
+          link: true,
+          details: true,
+          partner: {
+            logo: true,
+            category: true,
           },
         },
       },
-    });
-    perksData = perks.items;
-  } catch (e) {
-    console.log(e);
-  }
+    },
+  });
 
   const { community } = await basehub({ cache: "no-store" }).query({
     community: {
@@ -101,7 +94,7 @@ export default async function Home() {
       <BoardSection
         partners={partners.items}
         community={community}
-        perks={perksData || []}
+        perks={perks.items}
       />
       <Footer />
     </div>
