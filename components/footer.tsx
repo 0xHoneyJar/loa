@@ -129,11 +129,21 @@ const Footer = () => {
             Join the Commmunity
           </a>
           <div className="relative z-10">
-            <ValidatorWidget apiUrl="/api/delegate" referrer="thj">
+            {/* <ValidatorWidget apiUrl="/api/delegate" referrer="thj"> */}
+            <a
+              href={
+                "https://hub.berachain.com/validators/0xa0c673180d97213c1c35fe3bf4e684dd3534baab235a106d1f71b9c8a37e4d37a056d47546964fd075501dff7f76aeaf/"
+              }
+              onClick={() => {
+                trackEvent(`boost_validator`);
+              }}
+              target="_blank"
+            >
               <div className="z-10 flex w-[180px] cursor-pointer justify-center rounded-xl bg-[#43AA77] py-3 text-xs font-medium transition-all duration-500 ease-in-out hover:bg-[#086134] md:w-[240px] md:text-base">
-                <p>Delegate Now</p>
+                <p>Boost Now</p>
               </div>
-            </ValidatorWidget>
+            </a>
+            {/* </ValidatorWidget> */}
           </div>
           <div className="absolute -bottom-24 -right-32 z-10 aspect-square h-[140px] md:-bottom-28 md:-right-40 md:h-[172px]">
             <Image

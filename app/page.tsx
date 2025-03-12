@@ -4,32 +4,25 @@ import HeroSection from "@/components/hero/hero-section";
 import { basehub } from "basehub";
 
 export default async function Home() {
-  let partnersData: any;
   let perksData: any;
-  let communityData: any;
 
-  try {
-    const {
-      partners: { partners },
-    } = await basehub({ cache: "no-store" }).query({
+  const {
+    partners: { partners },
+  } = await basehub({ cache: "no-store" }).query({
+    partners: {
       partners: {
-        partners: {
-          items: {
-            _title: true,
-            logo: true,
-            partner: true,
-            startDate: true,
-            twitter: true,
-            status: true,
-            category: true,
-          },
+        items: {
+          _title: true,
+          logo: true,
+          partner: true,
+          startDate: true,
+          twitter: true,
+          status: true,
+          category: true,
         },
       },
-    });
-    partnersData = partners.items;
-  } catch (e) {
-    console.log(e);
-  }
+    },
+  });
 
   try {
     const {
@@ -57,62 +50,57 @@ export default async function Home() {
     console.log(e);
   }
 
-  try {
-    const { community } = await basehub({ cache: "no-store" }).query({
-      community: {
-        spotlight: {
+  const { community } = await basehub({ cache: "no-store" }).query({
+    community: {
+      spotlight: {
+        _title: true,
+        title: true,
+        description: true,
+        link: true,
+        image: true,
+      },
+      mints: {
+        items: {
           _title: true,
-          title: true,
+          price: true,
+          supply: true,
+          link: true,
+          image: true,
+          endDate: true,
+          partner: {
+            logo: true,
+            _title: true,
+          },
+        },
+      },
+      developments: {
+        items: {
+          _title: true,
+          milestones: {
+            items: {
+              _title: true,
+              link: true,
+            },
+          },
+        },
+      },
+      updates: {
+        items: {
+          _title: true,
           description: true,
           link: true,
           image: true,
         },
-        mints: {
-          items: {
-            _title: true,
-            price: true,
-            supply: true,
-            link: true,
-            image: true,
-            endDate: true,
-            partner: {
-              logo: true,
-              _title: true,
-            },
-          },
-        },
-        developments: {
-          items: {
-            _title: true,
-            milestones: {
-              items: {
-                _title: true,
-                link: true,
-              },
-            },
-          },
-        },
-        updates: {
-          items: {
-            _title: true,
-            description: true,
-            link: true,
-            image: true,
-          },
-        },
       },
-    });
-    communityData = community;
-  } catch (e) {
-    console.log(e);
-  }
+    },
+  });
 
   return (
     <div>
       <HeroSection />
       <BoardSection
-        partners={partnersData || []}
-        community={communityData}
+        partners={partners.items}
+        community={community}
         perks={perksData || []}
       />
       <Footer />

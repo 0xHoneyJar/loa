@@ -190,43 +190,49 @@ const Honeycomb = ({ perks }: { perks?: any }) => {
             </div>
           </div>
           <CarouselContent className="mr-6 flex size-full grow py-4 pl-4 md:py-6 md:pl-6">
-            {perks.map((perk: any, id: any) => (
-              <CarouselItem key={id}>
-                <a
-                  target="_blank"
-                  href={perk.link}
-                  className="hover: relative flex h-full w-[210px] flex-col items-center gap-2 overflow-hidden rounded-lg border border-[#F4C10B1F] bg-[#18140C] p-4 text-[#C4C4C4] hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90"
-                >
-                  {/* <div className="flex flex-col items-center justify-center gap-2"> */}
-                  <div className="flex h-1/2 w-full items-end justify-center">
-                    <div className="relative aspect-square h-[54px] rounded-full border border-[#F4C10B1F] bg-[#18140C05] md:h-[64px]">
-                      {perk.partner?.logo ? (
-                        <PartnerImage
-                          src={perk.partner.logo}
-                          alt={perk._title}
-                          fill
-                          className="rounded-full object-cover p-1"
-                        />
-                      ) : (
-                        <Image
-                          src={"/partners/perk_placeholder.png"}
-                          alt={perk._title}
-                          fill
-                          className="object-contain p-2"
-                        />
-                      )}
+            {perks.length > 0 ? (
+              perks.map((perk: any, id: any) => (
+                <CarouselItem key={id}>
+                  <a
+                    target="_blank"
+                    href={perk.link}
+                    className="hover: relative flex h-full w-[210px] flex-col items-center gap-2 overflow-hidden rounded-lg border border-[#F4C10B1F] bg-[#18140C] p-4 text-[#C4C4C4] hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90"
+                  >
+                    {/* <div className="flex flex-col items-center justify-center gap-2"> */}
+                    <div className="flex h-1/2 w-full items-end justify-center">
+                      <div className="relative aspect-square h-[54px] rounded-full border border-[#F4C10B1F] bg-[#18140C05] md:h-[64px]">
+                        {perk.partner?.logo ? (
+                          <PartnerImage
+                            src={perk.partner.logo}
+                            alt={perk._title}
+                            fill
+                            className="rounded-full object-cover p-1"
+                          />
+                        ) : (
+                          <Image
+                            src={"/partners/perk_placeholder.png"}
+                            alt={perk._title}
+                            fill
+                            className="object-contain p-2"
+                          />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <p className="h-1/5 text-center text-sm">{perk._title}</p>
-                  <div className="rounded-full bg-gradient-to-r from-[#F8A929]/5 to-[#F5D011]/5 px-4 py-1">
-                    <p className="text-xs font-light text-[#F8A929]">
-                      {perk.perks}
-                    </p>
-                  </div>
-                  {/* </div> */}
-                </a>
-              </CarouselItem>
-            ))}
+                    <p className="h-1/5 text-center text-sm">{perk._title}</p>
+                    <div className="rounded-full bg-gradient-to-r from-[#F8A929]/5 to-[#F5D011]/5 px-4 py-1">
+                      <p className="text-xs font-light text-[#F8A929]">
+                        {perk.perks}
+                      </p>
+                    </div>
+                    {/* </div> */}
+                  </a>
+                </CarouselItem>
+              ))
+            ) : (
+              <div className="flex size-full items-center justify-center">
+                <p>No Perks Found</p>
+              </div>
+            )}
           </CarouselContent>
         </Carousel>
       </div>
