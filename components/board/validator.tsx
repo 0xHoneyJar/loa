@@ -21,8 +21,34 @@ import { ValidatorWidget } from "@0xhoneyjar/validator-widget";
 const Validator = () => {
   const { data } = useSWR<{
     amountDelegated: string;
-    boostedRewardRate: string;
+    // boostedRewardRate: string;
+    rewardRate: string;
+    rank: string;
+    boosters: string;
   }>("/api/validator", fetcher);
+
+  const formatOrdinal = (num: string) => {
+    const n = parseInt(num);
+    if (isNaN(n)) return "1st";
+
+    const j = n % 10;
+    const k = n % 100;
+
+    if (j === 1 && k !== 11) return `${n}st`;
+    if (j === 2 && k !== 12) return `${n}nd`;
+    if (j === 3 && k !== 13) return `${n}rd`;
+    return `${n}th`;
+  };
+
+  const formatNumberWithK = (num: string) => {
+    const n = parseInt(num);
+    if (isNaN(n)) return "0";
+
+    if (n >= 1000) {
+      return (n / 1000).toFixed(2) + "k";
+    }
+    return n.toString();
+  };
 
   return (
     <div
@@ -53,11 +79,12 @@ const Validator = () => {
                     </p>
                     <div className="flex items-center gap-2 text-2xl md:text-xl">
                       <p className="font-semibold">
-                        {formatToken(BigInt(data?.amountDelegated ?? "0"))}
+                        {/* {formatToken(BigInt(data?.amountDelegated ?? "0"))} */}
+                        {formatNumberWithK(data?.amountDelegated ?? "0")}
                       </p>
                       <div className="relative aspect-square h-5">
                         <Image
-                          src={"/delegate-bee.png"}
+                          src={"/delegate-bee-v2.png"}
                           alt="bee"
                           fill
                           className="object-contain"
@@ -69,7 +96,9 @@ const Validator = () => {
                     <p className="whitespace-nowrap text-xs text-[#6B6B6B] md:text-sm">
                       Number of Boosters
                     </p>
-                    <p className="text-2xl font-semibold md:text-xl">TBD</p>
+                    <p className="text-2xl font-semibold md:text-xl">
+                      {formatNumberWithK(data?.boosters ?? "0")}
+                    </p>
                   </div>
                   <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
                     <p className="text-xs text-[#6B6B6B] md:text-sm">
@@ -79,7 +108,7 @@ const Validator = () => {
                       <p className="text-2xl font-semibold md:text-xl">6.90</p>
                       <div className="relative aspect-square h-5">
                         <Image
-                          src={"/bgt-honey.png"}
+                          src={"/bgt-honey-v2.png"}
                           alt="honey"
                           fill
                           className="object-contain"
@@ -95,7 +124,9 @@ const Validator = () => {
                     <p className="text-xs text-[#6B6B6B] md:text-sm">
                       Validator&apos;s Rank
                     </p>
-                    <p className="text-lg font-semibold md:text-xl">1st</p>
+                    <p className="text-lg font-semibold md:text-xl">
+                      {formatOrdinal(data?.rank ?? "1")}
+                    </p>
                   </div>
                   <div className="flex size-full flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-[#202020] bg-[#121212]">
                     <p className="text-xs text-[#6B6B6B] md:text-sm">
@@ -114,11 +145,12 @@ const Validator = () => {
                     </p>
                     <div className="flex items-center gap-2 text-lg md:text-xl">
                       <p className="font-semibold">
-                        {formatToken(BigInt(data?.boostedRewardRate ?? "0"))}
+                        {/* {formatToken(BigInt(data?.boostedRewardRate ?? "0"))} */}
+                        {Number(data?.rewardRate ?? "0").toFixed(2)}
                       </p>
                       <div className="relative aspect-square h-5">
                         <Image
-                          src={"/delegate-bee.png"}
+                          src={"/delegate-bee-v2.png"}
                           alt="bee"
                           fill
                           className="object-contain"
