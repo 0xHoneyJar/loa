@@ -112,8 +112,6 @@ export async function GET(req: NextRequest) {
 
   const data = await res.json();
 
-  console.log(data);
-
   const amountDelegated = data.data.validator.dynamicData.activeBoostAmount;
   const rewardRate = data.data.validator.dynamicData.rewardRate;
   const rank = data.data.validator.dynamicData.activeBoostAmountRank;
