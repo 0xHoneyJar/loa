@@ -10,14 +10,15 @@ module.exports = {
     ],
   },
   async headers() {
+    const allowedParentUrl = process.env.ALLOWED_PARENT_URL;
+
     return [
       {
         source: "/:path*",
         headers: [
           {
             key: "Content-Security-Policy",
-            value:
-              "frame-ancestors 'self' https://hub-interface.vercel.app http://localhost:3000",
+            value: `frame-ancestors 'self' ${allowedParentUrl} http://localhost:3000`,
           },
           {
             key: "X-Content-Type-Options",
