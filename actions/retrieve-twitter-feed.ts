@@ -3,7 +3,7 @@
 export async function retrieveTwitterFeed() {
   try {
     const response = await fetch(
-      `https://api.socialdata.tools/twitter/user/1610189982395670528/tweets`,
+      `https://api.socialapi.me/twitter/user/1610189982395670528/tweets`,
       {
         headers: {
           Authorization: `Bearer ${process.env.BEARER_TOKEN}`,
