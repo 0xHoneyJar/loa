@@ -28,7 +28,7 @@ const Explore = () => {
                   Flagship
                 </div>
                 <div className="-mx-2 -mb-2 grid grid-cols-1 gap-0.5 lg:grid-cols-2">
-                  {FLAGSHIP_ITEMS.slice(0, 8).map((item) => (
+                  {FLAGSHIP_ITEMS.map((item) => (
                     <ListItem key={item.title} {...item} />
                   ))}
                 </div>
@@ -39,7 +39,7 @@ const Explore = () => {
                   Ecosystem
                 </div>
                 <div className="-mx-2 -mb-2 grid grid-cols-1 gap-0.5 lg:grid-cols-2">
-                  {ECOSYSTEM_ITEMS.slice(0, 8).map((item) => (
+                  {ECOSYSTEM_ITEMS.map((item) => (
                     <ListItem key={item.title} {...item} />
                   ))}
                 </div>

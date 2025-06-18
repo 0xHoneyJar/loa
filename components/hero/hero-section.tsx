@@ -12,6 +12,17 @@ import HeroChristmas from "@/public/snowfall-hero.json";
 import HeroHalloween from "@/public/jani-halloween.json";
 import OctoBear from "@/public/octo-bear.json";
 import { trackEvent } from "@openpanel/nextjs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 
 const HeroSection = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -127,30 +138,87 @@ const HeroSection = () => {
             </div>
             <div className="mt-0 flex w-[90%] flex-col justify-end gap-5 sm:w-4/5 lg:w-3/4 xl:w-3/5 2xl:mt-12 2xl:w-2/5">
               <p className="text-sm text-white/90 sm:text-base md:text-lg">
-                THJ is Berachain-native community venture studio. We&apos;re the
-                creators of Honeycomb, a perks aggregator for Bera eco projects.
+                THJ is Berachain-native community venture studio. We build both
+                DeFi and culture-centric projects and products and run one of
+                the biggest Berachain validators.
               </p>
               <div className="flex w-full gap-1 sm:gap-3 lg:gap-5">
                 <div className="h-fit rounded-xl border border-dashed border-[#FFFFFF3B] p-1 lg:p-2">
                   <div className="flex gap-1.5 md:gap-3">
-                    {Socials.map((social, id) => (
-                      <a
-                        target="_blank"
-                        href={social.link}
-                        onClick={() => {
-                          trackEvent(`follow_us_${social.name}_hero`);
-                        }}
-                        className="z-10 flex items-center gap-2 rounded-sm border border-[#FFFFFF1F] bg-[#FFFFFF26] px-4 py-2 backdrop-blur-sm transition-all duration-500 ease-in-out hover:bg-[#FFFFFF3D] lg:px-6 lg:py-3"
-                        key={id}
-                      >
-                        <div className="relative aspect-square h-[18px] md:h-[24px]">
-                          <Image src={social.image} alt={social.name} fill />
-                        </div>
-                        <p className="hidden text-xs sm:flex md:text-sm">
-                          {social.name}
-                        </p>
-                      </a>
-                    ))}
+                    {Socials.map((social, id) =>
+                      social.dropdown ? (
+                        <DropdownMenu key={id}>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              onClick={() => {
+                                trackEvent(`follow_us_${social.name}_hero`);
+                              }}
+                              className="z-10 flex items-center gap-2 rounded-sm border border-[#FFFFFF1F] bg-[#FFFFFF26] px-4 py-2 backdrop-blur-sm transition-all duration-500 ease-in-out hover:bg-[#FFFFFF3D] lg:px-6 lg:py-3"
+                            >
+                              <div className="relative aspect-square h-[18px] md:h-[24px]">
+                                <Image
+                                  src={social.image}
+                                  alt={social.name}
+                                  fill
+                                />
+                              </div>
+                              <p className="hidden text-xs sm:flex md:text-sm">
+                                {social.name}
+                              </p>
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            {social.dropdown.map((item, id) => (
+                              <DropdownMenuSub key={id}>
+                                <DropdownMenuSubTrigger className="cursor-pointer">
+                                  {item.name}
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuPortal>
+                                  <DropdownMenuSubContent sideOffset={8}>
+                                    {item.dropdown.map((dropdownItem, id) => (
+                                      <DropdownMenuItem key={id} asChild>
+                                        <a
+                                          target="_blank"
+                                          href={dropdownItem.link}
+                                          onClick={() => {
+                                            trackEvent(
+                                              `follow_us_${social.name}_${item.name}_${dropdownItem.name}_hero`,
+                                            );
+                                          }}
+                                          className="cursor-pointer"
+                                          key={id}
+                                        >
+                                          <p className="text-xs sm:text-sm">
+                                            {dropdownItem.name}
+                                          </p>
+                                        </a>
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuSubContent>
+                                </DropdownMenuPortal>
+                              </DropdownMenuSub>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <a
+                          target="_blank"
+                          href={social.link}
+                          onClick={() => {
+                            trackEvent(`follow_us_${social.name}_hero`);
+                          }}
+                          className="z-10 flex items-center gap-2 rounded-sm border border-[#FFFFFF1F] bg-[#FFFFFF26] px-4 py-2 backdrop-blur-sm transition-all duration-500 ease-in-out hover:bg-[#FFFFFF3D] lg:px-6 lg:py-3"
+                          key={id}
+                        >
+                          <div className="relative aspect-square h-[18px] md:h-[24px]">
+                            <Image src={social.image} alt={social.name} fill />
+                          </div>
+                          <p className="hidden text-xs sm:flex md:text-sm">
+                            {social.name}
+                          </p>
+                        </a>
+                      ),
+                    )}
                   </div>
                 </div>
                 <div className="flex items-end 2xl:hidden">

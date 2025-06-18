@@ -64,16 +64,23 @@ export const FLAGSHIP_ITEMS: ListItemData[] = [
     link: "https://www.notinterpol.com/",
     color: "#0A1A2E",
   },
+  {
+    title: "fatBERA",
+    description: "Innovative Bera LST",
+    icon: "/navbar/fatbera.svg",
+    link: "https://www.fatbera.xyz/",
+    color: "#12242A",
+  },
 ];
 
 export const ECOSYSTEM_ITEMS: ListItemData[] = [
-  {
-    title: "Faucet",
-    description: "Official bArtio v2 testnet faucet",
-    icon: "/navbar/faucet.png",
-    link: "https://www.cubquests.com/",
-    color: "#12242A",
-  },
+  // {
+  //   title: "Faucet",
+  //   description: "Official bArtio v2 testnet faucet",
+  //   icon: "/navbar/faucet.png",
+  //   link: "https://www.cubquests.com/",
+  //   color: "#12242A",
+  // },
   {
     title: "Mint Mania",
     description: "Old, but gold",
@@ -110,19 +117,19 @@ export const ECOSYSTEM_ITEMS: ListItemData[] = [
     color: "#2E1811",
   },
   {
+    title: "Mibera",
+    description: "Mibera Maker",
+    icon: "/navbar/mibera.png",
+    link: "https://www.honeyroad.xyz/",
+    color: "#2B150E",
+    // comingSoon: true,
+  },
+  {
     title: "OBB",
     description: "Cutest Beras on Berachain",
     icon: "/navbar/obb.png",
     link: "",
     color: "#20242C",
-    comingSoon: true,
-  },
-  {
-    title: "Mibera",
-    description: "Mibera Maker",
-    icon: "/navbar/mibera.png",
-    link: "",
-    color: "#2B150E",
     comingSoon: true,
   },
 ];

@@ -53,15 +53,15 @@ const BoardSection = ({
           </Marquee>
         </div>
         <div className="grid w-full auto-rows-[280px] grid-cols-1 gap-4 rounded-2xl border border-[#BCBCBC1A] bg-[#0A0A0A] p-2 text-white sm:auto-rows-[300px] md:auto-rows-[340px] md:gap-6 md:p-6 lg:grid-cols-3">
-          <div className="row-span-1 lg:col-span-3">
+          <div className="row-span-1 lg:col-span-full">
             <Guide />
           </div>
-          <div className="row-span-1 lg:col-span-2">
+          <div className="row-span-1 lg:col-span-full">
             <Updates updates={community.updates} />
           </div>
-          <div className="row-span-1 lg:col-span-1">
+          {/* <div className="row-span-1 lg:col-span-1">
             <Follow />
-          </div>
+          </div> */}
           <div className="row-span-1 lg:col-span-full">
             <NewPartners partners={partners} />
           </div>

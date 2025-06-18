@@ -11,9 +11,32 @@ export const Socials = [
     link: "https://0xhoneyjar.mirror.xyz/",
   },
   {
-    name: "Warpcast",
-    image: "/warpcast.svg",
-    link: "https://warpcast.com/0xhoneyjar",
+    name: "Local",
+    image: "/earth.svg",
+    dropdown: [
+      {
+        name: "Chinese",
+        dropdown: [
+          {
+            name: "Telegram",
+            link: "https://t.me/thehoneyjarannoun",
+          },
+          {
+            name: "X",
+            link: "https://x.com/0xhoneyjar_cn",
+          },
+        ],
+      },
+      {
+        name: "Korean",
+        dropdown: [
+          {
+            name: "Telegram",
+            link: "https://t.me/THJ_KR",
+          },
+        ],
+      },
+    ],
   },
   {
     name: "Youtube",
