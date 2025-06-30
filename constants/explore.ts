@@ -67,7 +67,7 @@ export const FLAGSHIP_ITEMS: ListItemData[] = [
   {
     title: "fatBERA",
     description: "Innovative Bera LST",
-    icon: "/navbar/fatbera.svg",
+    icon: "/navbar/fatbera.png",
     link: "https://www.fatbera.xyz/",
     color: "#12242A",
   },
