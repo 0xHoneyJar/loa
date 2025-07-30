@@ -4,7 +4,7 @@ export const NFTItems = [
     image: "/nft/honeycomb.svg",
     new: false,
     soon: false,
-    link: "https://pro.opensea.io/collection/honey-comb-2",
+    link: "https://magiceden.io/collections/berachain/honey-comb-106",
   },
   {
     name: "Honey Jar (Gen 1)",

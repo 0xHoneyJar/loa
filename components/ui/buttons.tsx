@@ -130,7 +130,11 @@ export const IncubatedItem = ({ item }: { item: any }) => {
   return (
     <a
       className="hover: relative flex h-full w-[178px] flex-col items-center justify-center rounded-lg border border-[#F4C10B0F] bg-[#18140C] text-[#C4C4C4] hover:border-[#F4C10B38] hover:bg-[#332200] hover:font-medium hover:text-white/90 md:w-[196px]"
-      href={item.twitter}
+      href={
+        item._title === "The Honey Jar"
+          ? "https://magiceden.us/collections/berachain/0x886d2176d899796cd1affa07eff07b9b2b80f1be "
+          : item.twitter
+      }
       onClick={() => {
         trackEvent(
           item._title === "The Honey Jar"
