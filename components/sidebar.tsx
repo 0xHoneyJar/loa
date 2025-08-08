@@ -1,19 +1,13 @@
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { DASHBOARD } from "@/constants/dashboard";
-import { ScrollArea } from "./ui/scroll-area";
+import { ECOSYSTEM_ITEMS, FLAGSHIP_ITEMS } from "@/constants/explore";
 import { trackEvent } from "@openpanel/nextjs";
 import * as NavigationMenu from "@radix-ui/react-navigation-menu";
-import { useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
-import { FLAGSHIP_ITEMS, ECOSYSTEM_ITEMS } from "@/constants/explore";
-import { ListItem } from "./explore";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { ListItem } from "./explore";
+import { ScrollArea } from "./ui/scroll-area";
 
 const Sidebar = ({
   open,
@@ -196,7 +190,7 @@ const Sidebar = ({
               <motion.a
                 custom={4}
                 variants={mobileNavVariants}
-                href="https://app.0xhoneyjar.xyz/"
+                href="https://hub.0xhoneyjar.xyz/"
                 target="_blank"
                 onClick={() => {
                   trackEvent("open_app_navbar");

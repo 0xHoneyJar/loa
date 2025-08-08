@@ -1,21 +1,20 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
 import Sidebar from "@/components/sidebar";
-import SectionSelect from "./section-select";
-import { AnimatePresence, motion } from "framer-motion";
 import {
   NavigationMenu,
   NavigationMenuItem,
   NavigationMenuList,
 } from "@/components/ui/navigation-menu";
-import Explore from "./explore";
-import { Copy, Menu, X, Download } from "lucide-react";
 import { trackEvent } from "@openpanel/nextjs";
-import { ValidatorWidget } from "@0xhoneyjar/validator-widget";
+import { AnimatePresence, motion } from "framer-motion";
+import { Copy, Download, Menu, X } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import Explore from "./explore";
+import SectionSelect from "./section-select";
 
 const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -83,7 +82,7 @@ const Navbar = () => {
               </NavigationMenuItem>
               <NavigationMenuItem>
                 <a
-                  href={"https://app.0xhoneyjar.xyz/"}
+                  href={"https://hub.0xhoneyjar.xyz/"}
                   target="_blank"
                   className="hidden h-[38px] items-center whitespace-nowrap rounded-full bg-[#F4C10B]/80 px-6 text-white hover:shadow-yellow md:flex"
                   onClick={() => {
