@@ -22,12 +22,12 @@ export function processMint(mint: any) {
     price: mint.price,
     currency: "ETH",
     status: "live",
-    logo: mint.partner.logo,
+    logo: mint.partner?.logo,
     title: mint._title,
     link: mint.link,
     source: "basehub",
     supply: mint.supply,
-    partnerName: mint.partner._title,
+    partnerName: mint.partner?._title,
     endDate: mint.endDate,
   };
 }

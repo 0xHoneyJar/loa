@@ -65,12 +65,12 @@ const BoardSection = ({
           <div className="row-span-1 lg:col-span-full">
             <NewPartners partners={partners} />
           </div>
-          <div className="row-span-1 lg:col-span-full">
+          {/* <div className="row-span-1 lg:col-span-full">
             <Ramen />
           </div>
           <div className="row-span-2 lg:col-span-full">
             <Mint mints={community.mints} />
-          </div>
+          </div> */}
           <div className="row-span-1 lg:col-span-full">
             <Article />
           </div>
