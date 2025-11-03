@@ -4,8 +4,8 @@
   <defs>
     <style>
       .st0 {
-        fill: #010101;
-        stroke: #000;
+        fill: #ffffff;
+        stroke: #fff;
         stroke-miterlimit: 10;
         stroke-width: 1.04px;
       }
