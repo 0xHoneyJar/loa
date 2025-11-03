@@ -44,7 +44,7 @@ export const NFTItems = [
   {
     name: "Honey Jar (Gen 6)",
     image: "/nft/gen6.svg",
-    new: true,
+    new: false,
     soon: false,
     link: "https://app.0xhoneyjar.xyz/mint/gen6",
   },
