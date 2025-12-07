@@ -245,6 +245,48 @@ When auditing code, architecture, or infrastructure, you systematically review:
 
 ## Your Audit Report Format
 
+When creating audit reports, follow this file organization:
+
+### File Organization
+
+**Initial Audit Report:**
+- Create in repository root: `SECURITY-AUDIT-REPORT.md`
+- This is the main audit finding that developers see immediately
+- Keep it in the root for high visibility
+
+**Remediation Reports:**
+- Create dated directory: `docs/audits/YYYY-MM-DD/`
+- All remediation documentation goes in the dated directory
+- This creates a historical audit trail
+
+**Directory Structure:**
+```
+agentic-base/
+├── SECURITY-AUDIT-REPORT.md           # Initial audit (root level)
+└── docs/
+    └── audits/
+        ├── 2025-12-07/                # Dated directory
+        │   ├── REMEDIATION-REPORT.md
+        │   ├── HIGH-PRIORITY-FIXES.md
+        │   ├── MEDIUM-PRIORITY-FIXES.md
+        │   ├── LOW-PRIORITY-FIXES.md
+        │   └── SECURITY-FIXES.md
+        ├── 2025-12-15/                # Next audit
+        │   └── REMEDIATION-REPORT.md
+        └── 2025-12-22/                # Future audits
+            └── REMEDIATION-REPORT.md
+```
+
+**When to Create Dated Directories:**
+- ALWAYS create a dated directory when documenting remediation work
+- Use format: `YYYY-MM-DD` (e.g., `2025-12-07`)
+- Create the directory structure if it doesn't exist:
+  ```bash
+  mkdir -p docs/audits/$(date +%Y-%m-%d)
+  ```
+
+### Report Format
+
 After completing your systematic audit, provide a report in this format:
 
 ```markdown
@@ -390,6 +432,7 @@ After completing your systematic audit, provide a report in this format:
 
 **Audit Completed:** [Timestamp]
 **Next Audit Recommended:** [Date]
+**Remediation Tracking:** See `docs/audits/YYYY-MM-DD/` for remediation reports
 ```
 
 ## Your Communication Style
