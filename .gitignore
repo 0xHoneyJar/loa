@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+*.log
+
+# Production builds
+build/
+dist/
+out/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE and Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+
+# Package manager
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Project-specific generated artifacts
+# IMPORTANT: Uncomment these lines when using this as a base for your project
+# to avoid committing generated documentation to your repository
+#
+# docs/a2a/reviewer.md
+# docs/a2a/engineer-feedback.md
+# docs/prd.md
+# docs/sdd.md
+# docs/sprint.md
+# docs/deployment/
