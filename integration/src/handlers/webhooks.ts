@@ -69,6 +69,13 @@ function verifyVercelSignature(
  */
 export async function handleLinearWebhook(req: Request, res: Response): Promise<void> {
   try {
+    // MEDIUM #11: Enforce HTTPS
+    if (process.env.NODE_ENV === 'production' && req.protocol !== 'https') {
+      logger.warn('Linear webhook received over HTTP in production');
+      res.status(400).send('HTTPS required');
+      return;
+    }
+
     const signature = req.headers['x-linear-signature'] as string;
     const payload = req.body;
 
@@ -172,6 +179,13 @@ export async function handleLinearWebhook(req: Request, res: Response): Promise<
  */
 export async function handleVercelWebhook(req: Request, res: Response): Promise<void> {
   try {
+    // MEDIUM #11: Enforce HTTPS
+    if (process.env.NODE_ENV === 'production' && req.protocol !== 'https') {
+      logger.warn('Vercel webhook received over HTTP in production');
+      res.status(400).send('HTTPS required');
+      return;
+    }
+
     const signature = req.headers['x-vercel-signature'] as string;
     const payload = req.body.toString();
 
