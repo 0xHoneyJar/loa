@@ -70,7 +70,7 @@ function verifyVercelSignature(
 export async function handleLinearWebhook(req: Request, res: Response): Promise<void> {
   try {
     // MEDIUM #11: Enforce HTTPS
-    if (process.env.NODE_ENV === 'production' && req.protocol !== 'https') {
+    if (process.env['NODE_ENV'] === 'production' && req.protocol !== 'https') {
       logger.warn('Linear webhook received over HTTP in production');
       res.status(400).send('HTTPS required');
       return;
@@ -86,7 +86,7 @@ export async function handleLinearWebhook(req: Request, res: Response): Promise<
       return;
     }
 
-    const webhookSecret = process.env.LINEAR_WEBHOOK_SECRET;
+    const webhookSecret = process.env['LINEAR_WEBHOOK_SECRET'];
     if (!webhookSecret) {
       logger.error('LINEAR_WEBHOOK_SECRET not configured');
       res.status(500).send('Server misconfiguration');
@@ -100,6 +100,7 @@ export async function handleLinearWebhook(req: Request, res: Response): Promise<
         action: 'webhook.signature_failed',
         resource: 'linear',
         userId: 'system',
+        timestamp: new Date().toISOString(),
         details: { headers: req.headers, ip: req.ip },
       });
       res.status(401).send('Invalid signature');
@@ -155,6 +156,7 @@ export async function handleLinearWebhook(req: Request, res: Response): Promise<
       action: 'webhook.received',
       resource: 'linear',
       userId: 'system',
+      timestamp: new Date().toISOString(),
       details: {
         webhookId,
         action: data.action,
@@ -180,7 +182,7 @@ export async function handleLinearWebhook(req: Request, res: Response): Promise<
 export async function handleVercelWebhook(req: Request, res: Response): Promise<void> {
   try {
     // MEDIUM #11: Enforce HTTPS
-    if (process.env.NODE_ENV === 'production' && req.protocol !== 'https') {
+    if (process.env['NODE_ENV'] === 'production' && req.protocol !== 'https') {
       logger.warn('Vercel webhook received over HTTP in production');
       res.status(400).send('HTTPS required');
       return;
@@ -196,7 +198,7 @@ export async function handleVercelWebhook(req: Request, res: Response): Promise<
       return;
     }
 
-    const webhookSecret = process.env.VERCEL_WEBHOOK_SECRET;
+    const webhookSecret = process.env['VERCEL_WEBHOOK_SECRET'];
     if (!webhookSecret) {
       logger.error('VERCEL_WEBHOOK_SECRET not configured');
       res.status(500).send('Server misconfiguration');
@@ -210,6 +212,7 @@ export async function handleVercelWebhook(req: Request, res: Response): Promise<
         action: 'webhook.signature_failed',
         resource: 'vercel',
         userId: 'system',
+        timestamp: new Date().toISOString(),
         details: { headers: req.headers, ip: req.ip },
       });
       res.status(401).send('Invalid signature');
@@ -242,6 +245,7 @@ export async function handleVercelWebhook(req: Request, res: Response): Promise<
       action: 'webhook.received',
       resource: 'vercel',
       userId: 'system',
+      timestamp: new Date().toISOString(),
       details: {
         webhookId,
         type: data.type,

@@ -5,11 +5,11 @@
  */
 
 // Set test environment variables
-process.env.NODE_ENV = 'test';
-process.env.DISCORD_TOKEN = 'test_discord_token';
-process.env.LINEAR_API_KEY = 'test_linear_key';
-process.env.LINEAR_WEBHOOK_SECRET = 'test_webhook_secret';
-process.env.VERCEL_WEBHOOK_SECRET = 'test_vercel_secret';
+process.env['NODE_ENV'] = 'test';
+process.env['DISCORD_TOKEN'] = 'test_discord_token';
+process.env['LINEAR_API_KEY'] = 'test_linear_key';
+process.env['LINEAR_WEBHOOK_SECRET'] = 'test_webhook_secret';
+process.env['VERCEL_WEBHOOK_SECRET'] = 'test_vercel_secret';
 
 // Mock console methods to reduce noise in tests
 global.console = {

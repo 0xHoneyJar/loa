@@ -94,11 +94,11 @@ const consoleTransport = new winston.transports.Console({
  * Main logger instance
  */
 export const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
+  level: process.env['LOG_LEVEL'] || 'info',
   transports: [
     fileRotateTransport,
     errorRotateTransport,
-    ...(process.env.NODE_ENV !== 'production' ? [consoleTransport] : []),
+    ...(process.env['NODE_ENV'] !== 'production' ? [consoleTransport] : []),
   ],
   // Handle uncaught exceptions
   exceptionHandlers: [
@@ -157,6 +157,7 @@ export interface AuditEntry {
   details?: Record<string, any>;
   result?: 'success' | 'failure';
   error?: string;
+  resource?: string; // Resource being accessed (e.g., webhook, Linear API)
 }
 
 /**
@@ -274,8 +275,8 @@ export function logStartup(): void {
   logger.info('Agentic-Base Integration Bot Starting');
   logger.info(`Node version: ${process.version}`);
   logger.info(`Platform: ${process.platform}`);
-  logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  logger.info(`Log level: ${process.env.LOG_LEVEL || 'info'}`);
+  logger.info(`Environment: ${process.env['NODE_ENV'] || 'development'}`);
+  logger.info(`Log level: ${process.env['LOG_LEVEL'] || 'info'}`);
   logger.info('='.repeat(80));
 }
 

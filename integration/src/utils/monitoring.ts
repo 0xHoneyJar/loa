@@ -211,7 +211,7 @@ export function performHealthCheck(): HealthStatus {
 /**
  * Create health check endpoint handler
  */
-export function handleHealthCheck(req: Request, res: Response): void {
+export function handleHealthCheck(_req: Request, res: Response): void {
   const health = performHealthCheck();
 
   // Set HTTP status based on health
@@ -223,7 +223,7 @@ export function handleHealthCheck(req: Request, res: Response): void {
 /**
  * Create metrics endpoint handler
  */
-export function handleMetrics(req: Request, res: Response): void {
+export function handleMetrics(_req: Request, res: Response): void {
   const metrics = getSystemMetrics();
   res.status(200).json(metrics);
 }
@@ -241,14 +241,14 @@ export function createMonitoringRouter(): express.Router {
   router.get('/metrics', handleMetrics);
 
   // Readiness probe (for Kubernetes)
-  router.get('/ready', (req, res) => {
+  router.get('/ready', (_req, res) => {
     const health = performHealthCheck();
     const statusCode = health.status === 'unhealthy' ? 503 : 200;
     res.status(statusCode).send(health.status);
   });
 
   // Liveness probe (for Kubernetes)
-  router.get('/live', (req, res) => {
+  router.get('/live', (_req, res) => {
     res.status(200).send('alive');
   });
 

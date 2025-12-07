@@ -1,0 +1,136 @@
+# Linear Integration Configuration
+# This controls how the integration syncs with Linear
+
+linear:
+  # Linear team ID (can be overridden by LINEAR_TEAM_ID env var)
+  # Find this in Linear: Settings > API > Team ID
+  team_id: "LINEAR_TEAM_ID"
+
+  # Issue state mapping (Linear state names to internal status)
+  # This maps Linear's workflow states to standard statuses
+  status_mapping:
+    todo: "Todo"
+    backlog: "Backlog"
+    in_progress: "In Progress"
+    in_review: "In Review"
+    done: "Done"
+    canceled: "Canceled"
+
+  # Priority mapping (Linear priority numbers to labels)
+  priority_mapping:
+    0: "No Priority"
+    1: "🔴 Urgent"
+    2: "🟠 High"
+    3: "🟡 Normal"
+    4: "🔵 Low"
+
+  # Labels to automatically apply to issues created from Discord
+  auto_labels:
+    - "discord-capture"
+
+  # Default assignee for issues created from Discord (optional)
+  # Use Linear user ID or email, or leave empty for unassigned
+  default_assignee: ""
+
+  # Rate limiting settings
+  rate_limit:
+    # Maximum requests per minute
+    max_requests_per_minute: 33
+    # Maximum concurrent requests
+    max_concurrent: 5
+
+# Webhook configuration
+webhooks:
+  # Enable webhook processing
+  enabled: true
+
+  # Events to process (Linear webhook events)
+  events:
+    - "Issue"
+    - "IssueUpdate"
+    - "Comment"
+    - "Cycle"
+
+  # Retry configuration for failed webhook processing
+  retry:
+    max_attempts: 3
+    initial_delay_ms: 1000
+    max_delay_ms: 10000
+    backoff_multiplier: 2
+
+# Sync settings
+sync:
+  # Enable periodic sync (in addition to webhooks)
+  enabled: false
+
+  # Sync interval in minutes
+  interval_minutes: 30
+
+  # What to sync
+  sync_items:
+    - "issues"
+    - "cycles"
+
+# Notifications to Discord
+discord_notifications:
+  # Send notifications to Discord when Linear events occur
+  enabled: true
+
+  # Which events trigger Discord notifications
+  notify_on:
+    issue_created: true
+    issue_updated: true
+    issue_completed: true
+    issue_assigned: true
+    issue_status_changed: true
+    comment_created: false
+    cycle_started: true
+    cycle_completed: true
+
+  # Channel mappings for different notification types
+  # Use channel IDs (find via right-click in Discord with Developer Mode)
+  channels:
+    # Default channel for all notifications
+    default: "DISCORD_CHANNEL_ID"
+    # Override for specific event types (optional)
+    # cycle_events: "DISCORD_SPRINT_CHANNEL_ID"
+    # urgent_issues: "DISCORD_URGENT_CHANNEL_ID"
+
+# Issue creation from Discord feedback
+feedback_capture:
+  # Enable feedback capture via emoji reactions
+  enabled: true
+
+  # Emoji to trigger feedback capture (default: 📌)
+  trigger_emoji: "📌"
+
+  # Create issues in draft state
+  create_as_draft: true
+
+  # Require permissions to create issues
+  require_permissions:
+    enabled: true
+    # Roles that can create issues (Discord role names or IDs)
+    allowed_roles:
+      - "developers"
+      - "product"
+
+  # Auto-populate issue fields
+  auto_fields:
+    # Add context from the Discord message
+    include_message_link: true
+    include_author: true
+    include_channel_context: true
+    include_thread_context: true
+
+# Caching settings
+cache:
+  # Enable caching for frequently accessed data
+  enabled: true
+
+  # Cache TTL in seconds
+  ttl_seconds:
+    issue: 60
+    team: 300
+    user: 300
+    cycle: 60

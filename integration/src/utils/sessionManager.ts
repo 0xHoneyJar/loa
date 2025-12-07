@@ -337,7 +337,7 @@ setInterval(() => {
  */
 export function sessionMiddleware(
   req: any,
-  res: any,
+  _res: any,
   next: () => void
 ): void {
   const sessionId = req.headers['x-session-id'] as string;
@@ -397,11 +397,11 @@ export function advanceWorkflow(
 ): WorkflowState | null {
   const session = sessionManager.getSession(sessionId);
 
-  if (!session || !session.state.workflow) {
+  if (!session || !session.state['workflow']) {
     return null;
   }
 
-  const workflow: WorkflowState = session.state.workflow;
+  const workflow: WorkflowState = session.state['workflow'];
   workflow.data = { ...workflow.data, ...stepData };
   workflow.step++;
 

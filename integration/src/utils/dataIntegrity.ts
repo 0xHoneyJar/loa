@@ -179,8 +179,9 @@ export function readUserPreferences(): UserPreferencesData {
       .reverse();
 
     if (backups.length > 0) {
-      logger.warn(`Attempting to restore from backup: ${backups[0]}`);
-      const backupPath = path.join(BACKUP_DIR, backups[0]);
+      const latestBackup = backups[0]!;
+      logger.warn(`Attempting to restore from backup: ${latestBackup}`);
+      const backupPath = path.join(BACKUP_DIR, latestBackup);
       const backupContent = fs.readFileSync(backupPath, 'utf-8');
       const backupData = JSON.parse(backupContent) as UserPreferencesData;
 

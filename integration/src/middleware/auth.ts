@@ -1,5 +1,4 @@
-import { User, Guild, GuildMember, PermissionFlagsBits } from 'discord.js';
-import { getSecretsManager } from '../utils/secrets';
+import { User, Guild, GuildMember } from 'discord.js';
 import { logger } from '../utils/logger';
 
 /**
@@ -50,8 +49,6 @@ export type Permission =
  * Override by setting environment variables or config file
  */
 function getDefaultRoleConfig(): Record<UserRole, RoleConfig> {
-  const secrets = getSecretsManager();
-
   return {
     [UserRole.GUEST]: {
       discordRoleId: '@everyone', // Special: matches all users
@@ -59,7 +56,7 @@ function getDefaultRoleConfig(): Record<UserRole, RoleConfig> {
       description: 'Basic read-only access',
     },
     [UserRole.RESEARCHER]: {
-      discordRoleId: process.env.RESEARCHER_ROLE_ID || '',
+      discordRoleId: process.env['RESEARCHER_ROLE_ID'] || '',
       permissions: [
         'show-sprint',
         'preview',
@@ -70,7 +67,7 @@ function getDefaultRoleConfig(): Record<UserRole, RoleConfig> {
       description: 'Can view and provide feedback',
     },
     [UserRole.DEVELOPER]: {
-      discordRoleId: process.env.DEVELOPER_ROLE_ID || '',
+      discordRoleId: process.env['DEVELOPER_ROLE_ID'] || '',
       permissions: [
         'show-sprint',
         'preview',
@@ -87,7 +84,7 @@ function getDefaultRoleConfig(): Record<UserRole, RoleConfig> {
       description: 'Full development access',
     },
     [UserRole.ADMIN]: {
-      discordRoleId: process.env.ADMIN_ROLE_ID || '',
+      discordRoleId: process.env['ADMIN_ROLE_ID'] || '',
       permissions: ['*'],
       description: 'Full administrative access',
     },

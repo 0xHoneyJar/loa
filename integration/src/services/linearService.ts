@@ -7,7 +7,7 @@ import { AppError, ErrorCode } from '../utils/errors';
 
 // Initialize Linear client
 const linearClient = new LinearClient({
-  apiKey: process.env.LINEAR_API_TOKEN!,
+  apiKey: process.env['LINEAR_API_TOKEN']!,
 });
 
 // LINEAR API RATE LIMITING
@@ -20,7 +20,7 @@ const linearRateLimiter = new Bottleneck({
   minTime: 100, // Min 100ms between requests
 });
 
-linearRateLimiter.on('failed', async (error: any, jobInfo) => {
+linearRateLimiter.on('failed', async (error: any) => {
   const retryAfter = error.response?.headers?.['retry-after'];
   if (retryAfter) {
     logger.warn(`Linear rate limit hit, retrying after ${retryAfter}s`);
@@ -205,34 +205,86 @@ export async function updateLinearIssue(
 /**
  * Get team issues with filters
  */
-export async function getTeamIssues(teamId: string, filter?: any): Promise<any> {
+export async function getTeamIssues(teamId?: string, filter?: any): Promise<any[]> {
+  const effectiveTeamId = teamId || process.env['LINEAR_TEAM_ID'];
+
+  if (!effectiveTeamId) {
+    logger.warn('No team ID provided and LINEAR_TEAM_ID not configured');
+    return [];
+  }
+
   try {
-    return await linearCircuitBreaker.fire(() =>
+    const result = await linearCircuitBreaker.fire(() =>
       linearRateLimiter.schedule(() =>
         linearClient.issues({
           filter: {
-            team: { id: { eq: teamId } },
+            team: { id: { eq: effectiveTeamId } },
             ...filter,
           },
         })
       )
     );
+    return result.nodes || [];
   } catch (error: any) {
     if (linearCircuitBreaker.opened) {
-      throw new AppError(
-        ErrorCode.SERVICE_UNAVAILABLE,
-        'Linear integration is temporarily unavailable.',
-        `Linear circuit breaker is open: ${error.message}`,
-        503
-      );
+      logger.error('Linear circuit breaker is open, returning empty array');
+      return [];
     }
 
+    logger.error('Error fetching team issues:', error);
+    return [];
+  }
+}
+
+/**
+ * Create a draft Linear issue
+ */
+export async function createDraftIssue(
+  title: string,
+  description: string,
+  teamId?: string
+): Promise<any> {
+  const effectiveTeamId = teamId || process.env['LINEAR_TEAM_ID'];
+
+  if (!effectiveTeamId) {
     throw new AppError(
-      ErrorCode.SERVICE_UNAVAILABLE,
-      'Unable to fetch team issues. Please try again.',
-      `Linear API error: ${error.message}`,
-      503
+      ErrorCode.CONFIGURATION_ERROR,
+      'Linear team ID not configured',
+      'LINEAR_TEAM_ID not set',
+      500
     );
+  }
+
+  return createLinearIssue({
+    title,
+    description,
+    teamId: effectiveTeamId,
+  });
+}
+
+/**
+ * Get current sprint/cycle
+ */
+export async function getCurrentSprint(teamId?: string): Promise<any> {
+  const effectiveTeamId = teamId || process.env['LINEAR_TEAM_ID'];
+
+  if (!effectiveTeamId) {
+    logger.warn('No team ID provided and LINEAR_TEAM_ID not configured');
+    return null;
+  }
+
+  try {
+    const team = await linearRateLimiter.schedule(() =>
+      linearClient.team(effectiveTeamId)
+    );
+
+    const cycles = await team.cycles();
+    const activeCycle = cycles.nodes.find((c: any) => !c.completedAt);
+
+    return activeCycle || null;
+  } catch (error) {
+    logger.error('Error fetching current sprint:', error);
+    return null;
   }
 }
 

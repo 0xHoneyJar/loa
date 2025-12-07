@@ -27,6 +27,7 @@ export enum ErrorCode {
   API_ERROR = 'API_ERROR',
   AUTH_ERROR = 'AUTH_ERROR',
   CONFIG_ERROR = 'CONFIG_ERROR',
+  CONFIGURATION_ERROR = 'CONFIGURATION_ERROR',
 }
 
 /**
@@ -98,11 +99,11 @@ export function handleError(error: unknown, userId?: string, context?: string): 
   };
 
   if (userId) {
-    logContext.userId = userId;
+    logContext['userId'] = userId;
   }
 
   if (context) {
-    logContext.context = context;
+    logContext['context'] = context;
   }
 
   if (error instanceof AppError) {
@@ -342,7 +343,7 @@ export function setupGlobalErrorHandlers(): void {
     });
 
     // In production, consider graceful shutdown
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env['NODE_ENV'] === 'production') {
       logger.error('Shutting down due to uncaught exception');
       process.exit(1);
     }
@@ -360,7 +361,7 @@ export function setupGlobalErrorHandlers(): void {
     });
 
     // In production, consider graceful shutdown
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env['NODE_ENV'] === 'production') {
       logger.error('Shutting down due to unhandled rejection');
       process.exit(1);
     }
