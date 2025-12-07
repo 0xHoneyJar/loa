@@ -1,6 +1,43 @@
 ---
 name: sprint-task-implementer
-description: Use this agent when:\n\n<example>\nContext: A sprint plan has been created and tasks need to be implemented across the codebase.\nuser: "We need to implement the tasks from sprint 4 that are assigned to all developers"\nassistant: "I'm going to use the Task tool to launch the sprint-task-implementer agent to review the sprint plan and implement all assigned tasks with tests and documentation."\n<commentary>\nThe user is requesting implementation of sprint tasks, which is the core purpose of the sprint-task-implementer agent. Launch it to handle the complete implementation cycle.\n</commentary>\n</example>\n\n<example>\nContext: User has updated docs/a2a/engineer-feedback.md with review comments.\nuser: "The senior lead has provided feedback on the sprint implementation"\nassistant: "I'm going to use the Task tool to launch the sprint-task-implementer agent to review the feedback and address the issues."\n<commentary>\nFeedback has been provided in the expected location. The sprint-task-implementer agent should be used to read the feedback, seek clarification if needed, fix issues, and generate a new report.\n</commentary>\n</example>\n\n<example>\nContext: A new sprint has just been planned and documented.\nuser: "I've finished documenting sprint 5 in docs/sprint.md"\nassistant: "Now let me use the Task tool to launch the sprint-task-implementer agent to begin implementing the tasks."\n<commentary>\nA sprint plan has been created, triggering the need for implementation. Proactively launch the sprint-task-implementer agent to review and execute the tasks.\n</commentary>\n</example>\n\n<example>\nContext: Development cycle requires implementation of planned features.\nuser: "Let's start working on the features we planned for this sprint"\nassistant: "I'm going to use the Task tool to launch the sprint-task-implementer agent to implement the sprint tasks with full test coverage."\n<commentary>\nThe user wants to begin sprint implementation work, which is exactly what the sprint-task-implementer agent is designed to handle.\n</commentary>\n</example>
+description: |
+  Use this agent when:
+  
+  <example>
+  Context: A sprint plan has been created and tasks need to be implemented across the codebase.
+  user: "We need to implement the tasks from sprint 4 that are assigned to all developers"
+  assistant: "I'm going to use the Task tool to launch the sprint-task-implementer agent to review the sprint plan and implement all assigned tasks with tests and documentation."
+  <commentary>
+  The user is requesting implementation of sprint tasks, which is the core purpose of the sprint-task-implementer agent. Launch it to handle the complete implementation cycle.
+  </commentary>
+  </example>
+  
+  <example>
+  Context: User has updated docs/a2a/engineer-feedback.md with review comments.
+  user: "The senior lead has provided feedback on the sprint implementation"
+  assistant: "I'm going to use the Task tool to launch the sprint-task-implementer agent to review the feedback and address the issues."
+  <commentary>
+  Feedback has been provided in the expected location. The sprint-task-implementer agent should be used to read the feedback, seek clarification if needed, fix issues, and generate a new report.
+  </commentary>
+  </example>
+  
+  <example>
+  Context: A new sprint has just been planned and documented.
+  user: "I've finished documenting sprint 5 in docs/sprint.md"
+  assistant: "Now let me use the Task tool to launch the sprint-task-implementer agent to begin implementing the tasks."
+  <commentary>
+  A sprint plan has been created, triggering the need for implementation. Proactively launch the sprint-task-implementer agent to review and execute the tasks.
+  </commentary>
+  </example>
+  
+  <example>
+  Context: Development cycle requires implementation of planned features.
+  user: "Let's start working on the features we planned for this sprint"
+  assistant: "I'm going to use the Task tool to launch the sprint-task-implementer agent to implement the sprint tasks with full test coverage."
+  <commentary>
+  The user wants to begin sprint implementation work, which is exactly what the sprint-task-implementer agent is designed to handle.
+  </commentary>
+  </example>
 model: sonnet
 color: yellow
 ---

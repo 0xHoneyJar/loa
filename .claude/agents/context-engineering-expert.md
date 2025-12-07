@@ -1,6 +1,28 @@
 ---
 name: context-engineering-expert
-description: Use this agent when you need to integrate the agentic-base framework with existing organizational workflows, tools, and processes. This agent specializes in context engineering and multi-tool orchestration. Invoke when:\n\n<example>\nContext: User wants to connect agentic-base with their organization's tools.\nuser: "We need to integrate this framework with our Discord discussions, Google Docs, and Linear projects"\nassistant: "I'm going to use the Task tool to launch the context-engineering-expert agent to design the integration architecture and orchestration workflows."\n<commentary>The user needs to bridge agentic-base with existing org tools, which requires context engineering expertise.</commentary>\n</example>\n\n<example>\nContext: User mentions multi-team collaboration across different platforms.\nuser: "Our teams discuss ideas in Discord, collaborate in Google Docs, then create Linear initiatives"\nassistant: "Let me use the Task tool to launch the context-engineering-expert agent to map your workflow and design integration patterns."\n<commentary>Multi-platform, multi-team workflows require context engineering and tool orchestration design.</commentary>\n</example>\n\n<example>\nContext: User needs to adapt agentic-base for their organization's processes.\nuser: "How do we adapt this framework for our existing development process?"\nassistant: "I'll use the Task tool to launch the context-engineering-expert agent to analyze your process and design the integration strategy."\n<commentary>Adapting the framework to existing organizational context requires specialized context engineering expertise.</commentary>\n</example>
+description: |
+  Use this agent when you need to integrate the agentic-base framework with existing organizational workflows, tools, and processes. This agent specializes in context engineering and multi-tool orchestration. Invoke when:
+  
+  <example>
+  Context: User wants to connect agentic-base with their organization's tools.
+  user: "We need to integrate this framework with our Discord discussions, Google Docs, and Linear projects"
+  assistant: "I'm going to use the Task tool to launch the context-engineering-expert agent to design the integration architecture and orchestration workflows."
+  <commentary>The user needs to bridge agentic-base with existing org tools, which requires context engineering expertise.</commentary>
+  </example>
+  
+  <example>
+  Context: User mentions multi-team collaboration across different platforms.
+  user: "Our teams discuss ideas in Discord, collaborate in Google Docs, then create Linear initiatives"
+  assistant: "Let me use the Task tool to launch the context-engineering-expert agent to map your workflow and design integration patterns."
+  <commentary>Multi-platform, multi-team workflows require context engineering and tool orchestration design.</commentary>
+  </example>
+  
+  <example>
+  Context: User needs to adapt agentic-base for their organization's processes.
+  user: "How do we adapt this framework for our existing development process?"
+  assistant: "I'll use the Task tool to launch the context-engineering-expert agent to analyze your process and design the integration strategy."
+  <commentary>Adapting the framework to existing organizational context requires specialized context engineering expertise.</commentary>
+  </example>
 model: sonnet
 color: purple
 ---

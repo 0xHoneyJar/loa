@@ -1,6 +1,28 @@
 ---
 name: architecture-designer
-description: Use this agent when you need to create a comprehensive Software Design Document (SDD) from a Product Requirements Document (PRD). Specifically:\n\n<example>\nContext: User has completed their PRD and needs architectural planning before development begins.\nuser: "I've finished writing the PRD for our new e-commerce platform. Can you help me create the software design document?"\nassistant: "I'll use the Task tool to launch the architecture-designer agent to analyze your PRD and create a comprehensive Software Design Document."\n<commentary>The user needs architectural planning from their PRD, which is the primary function of the architecture-designer agent.</commentary>\n</example>\n\n<example>\nContext: User mentions they have a PRD file and are ready for technical planning.\nuser: "The PRD is at docs/prd.md. What's next?"\nassistant: "Let me use the architecture-designer agent to review your PRD and create the Software Design Document that will guide your development sprints."\n<commentary>The user has a PRD ready and needs the next phase of planning, which is creating the SDD.</commentary>\n</example>\n\n<example>\nContext: User is starting a new project and has documentation ready.\nuser: "I need to plan the technical architecture for the project described in docs/prd.md"\nassistant: "I'll launch the architecture-designer agent to analyze your requirements and produce a detailed Software Design Document."\n<commentary>Direct request for architectural planning from existing PRD.</commentary>\n</example>
+description: |
+  Use this agent when you need to create a comprehensive Software Design Document (SDD) from a Product Requirements Document (PRD). Specifically:
+  
+  <example>
+  Context: User has completed their PRD and needs architectural planning before development begins.
+  user: "I've finished writing the PRD for our new e-commerce platform. Can you help me create the software design document?"
+  assistant: "I'll use the Task tool to launch the architecture-designer agent to analyze your PRD and create a comprehensive Software Design Document."
+  <commentary>The user needs architectural planning from their PRD, which is the primary function of the architecture-designer agent.</commentary>
+  </example>
+  
+  <example>
+  Context: User mentions they have a PRD file and are ready for technical planning.
+  user: "The PRD is at docs/prd.md. What's next?"
+  assistant: "Let me use the architecture-designer agent to review your PRD and create the Software Design Document that will guide your development sprints."
+  <commentary>The user has a PRD ready and needs the next phase of planning, which is creating the SDD.</commentary>
+  </example>
+  
+  <example>
+  Context: User is starting a new project and has documentation ready.
+  user: "I need to plan the technical architecture for the project described in docs/prd.md"
+  assistant: "I'll launch the architecture-designer agent to analyze your requirements and produce a detailed Software Design Document."
+  <commentary>Direct request for architectural planning from existing PRD.</commentary>
+  </example>
 model: sonnet
 color: blue
 ---

@@ -1,6 +1,28 @@
 ---
 name: senior-tech-lead-reviewer
-description: Use this agent when you need to review sprint implementation work, validate completeness, and provide feedback to engineers. Invoke when:\n\n<example>\nContext: Engineer has completed sprint implementation and generated a report.\nuser: "Review the sprint 1 implementation"\nassistant: "I'm going to use the Task tool to launch the senior-tech-lead-reviewer agent to thoroughly review the implementation, validate against acceptance criteria, and provide feedback."\n<commentary>Sprint implementation needs review from the senior technical lead to ensure quality and completeness.</commentary>\n</example>\n\n<example>\nContext: Engineer has addressed previous feedback and generated an updated report.\nuser: "The engineer has fixed the issues, please review again"\nassistant: "Let me use the Task tool to launch the senior-tech-lead-reviewer agent to verify all feedback has been properly addressed."\n<commentary>Follow-up review after engineer has addressed feedback requires senior technical lead validation.</commentary>\n</example>\n\n<example>\nContext: User wants to check sprint progress and code quality.\nuser: "Check if sprint 2 is complete and meets our quality standards"\nassistant: "I'll use the Task tool to launch the senior-tech-lead-reviewer agent to review sprint 2 completeness and quality."\n<commentary>Sprint validation and quality assessment is the senior technical lead's responsibility.</commentary>\n</example>
+description: |
+  Use this agent when you need to review sprint implementation work, validate completeness, and provide feedback to engineers. Invoke when:
+  
+  <example>
+  Context: Engineer has completed sprint implementation and generated a report.
+  user: "Review the sprint 1 implementation"
+  assistant: "I'm going to use the Task tool to launch the senior-tech-lead-reviewer agent to thoroughly review the implementation, validate against acceptance criteria, and provide feedback."
+  <commentary>Sprint implementation needs review from the senior technical lead to ensure quality and completeness.</commentary>
+  </example>
+  
+  <example>
+  Context: Engineer has addressed previous feedback and generated an updated report.
+  user: "The engineer has fixed the issues, please review again"
+  assistant: "Let me use the Task tool to launch the senior-tech-lead-reviewer agent to verify all feedback has been properly addressed."
+  <commentary>Follow-up review after engineer has addressed feedback requires senior technical lead validation.</commentary>
+  </example>
+  
+  <example>
+  Context: User wants to check sprint progress and code quality.
+  user: "Check if sprint 2 is complete and meets our quality standards"
+  assistant: "I'll use the Task tool to launch the senior-tech-lead-reviewer agent to review sprint 2 completeness and quality."
+  <commentary>Sprint validation and quality assessment is the senior technical lead's responsibility.</commentary>
+  </example>
 model: sonnet
 color: purple
 ---
