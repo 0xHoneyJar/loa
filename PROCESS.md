@@ -560,6 +560,96 @@ The engineer will read this file on the next `/implement {sprint}` invocation, c
 
 ---
 
+## Multi-Developer Usage Warning
+
+⚠️ **CRITICAL**: This framework is architected for **single-threaded workflows**. The agent system assumes one active development stream at a time.
+
+### Why Multi-Developer Concurrent Usage Breaks
+
+If multiple developers use `/implement` simultaneously on the same project:
+
+1. **A2A File Collisions**:
+   - `docs/a2a/reviewer.md` gets overwritten by each engineer
+   - `docs/a2a/engineer-feedback.md` is shared across all engineers
+   - Engineer A reads feedback intended for Engineer B
+   - Reports are overwritten before senior lead can review them
+
+2. **Sprint Status Conflicts**:
+   - Multiple engineers update `docs/sprint.md` simultaneously
+   - Merge conflicts on task completion status
+   - Inconsistent ✅ markers depending on who pushed last
+
+3. **Context Confusion**:
+   - Implementation reports reference different code changes
+   - Senior lead reviews incomplete or mixed context
+   - Feedback becomes ambiguous about which engineer/task it addresses
+
+4. **Broken Feedback Loops**:
+   - The A2A cycle is inherently single-threaded
+   - Assumes one engineer ↔ one reviewer conversation
+   - Parallel conversations in the same files create chaos
+
+### Solutions for Team Collaboration
+
+To adapt this framework for multiple developers, you must modify the structure:
+
+#### Option 1: Developer-Scoped A2A Communication
+```
+docs/a2a/
+├── alice/
+│   ├── reviewer.md
+│   └── engineer-feedback.md
+├── bob/
+│   ├── reviewer.md
+│   └── engineer-feedback.md
+```
+
+**Requires**: Modifying agent prompts to read/write from developer-specific directories.
+
+#### Option 2: Task-Scoped Implementation Reports
+```
+docs/a2a/
+├── sprint-1-task-1/
+│   ├── implementation-report.md
+│   └── review-feedback.md
+├── sprint-1-task-2/
+│   ├── implementation-report.md
+│   └── review-feedback.md
+```
+
+**Requires**: Task-based invocation (e.g., `/implement sprint-1-task-1`) with isolated A2A channels per task.
+
+#### Option 3: External System Integration
+- Keep `docs/prd.md`, `docs/sdd.md`, `docs/sprint.md` in git as **read-only shared references**
+- Assign sprint tasks via Linear/GitHub Issues
+- Conduct A2A communication in issue comments (not files)
+- Use PR reviews for code validation instead of A2A files
+- Coordinate `docs/sprint.md` updates through a single point of authority (tech lead)
+
+**Advantage**: Leverages existing project management tools and PR workflows that are designed for concurrency.
+
+#### Option 4: Feature Branches with Scoped Documentation
+- Each developer works on a feature branch with their own `docs/` snapshot
+- A2A communication happens in branch-specific files
+- On merge, consolidate sprint status in main branch
+- Conflicts resolved during PR review
+
+**Advantage**: Git branching model provides isolation; disadvantage: documentation divergence across branches.
+
+### Recommended Approach
+
+For teams with 2+ developers working concurrently:
+
+1. **Use Linear/GitHub Issues** (already in MCP config) for task assignment and tracking
+2. **Keep planning docs** (prd.md, sdd.md, sprint.md) in git as shared, read-only references
+3. **Use PR comments** for implementation feedback instead of A2A files
+4. **Coordinate sprint status** updates through a designated tech lead who maintains sprint.md
+5. **Consider task-scoped branches** if you want to preserve the A2A feedback loop model per task
+
+The current framework's `.gitignore` excludes `docs/` precisely because these are **ephemeral artifacts** for a single-threaded workflow, not durable documentation designed for concurrent multi-developer editing.
+
+---
+
 ## Best Practices
 
 ### For All Phases

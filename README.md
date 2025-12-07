@@ -178,6 +178,49 @@ README.md              # This file
 4. **Use feedback loops** - Iterative refinement ensures quality
 5. **Security first** - Never compromise on security fundamentals
 
+## Multi-Developer Usage Warning
+
+⚠️ **IMPORTANT**: This framework is designed for **single-threaded development workflows**. If multiple developers use this framework simultaneously on the same project, you will encounter:
+
+- **Merge conflicts** on all `docs/` artifacts (prd.md, sdd.md, sprint.md)
+- **Overwritten A2A communication** - multiple engineers will overwrite `docs/a2a/reviewer.md` and `docs/a2a/engineer-feedback.md`
+- **Broken feedback loops** - reviews intended for one engineer will be read by others
+- **Inconsistent sprint status** - conflicting updates to `docs/sprint.md`
+
+### Solutions for Team Collaboration
+
+If you have multiple developers, consider one of these approaches:
+
+1. **Developer-Scoped A2A**:
+   ```
+   docs/a2a/
+   ├── alice/
+   │   ├── reviewer.md
+   │   └── engineer-feedback.md
+   ├── bob/
+   │   ├── reviewer.md
+   │   └── engineer-feedback.md
+   ```
+
+2. **Task-Scoped Reports**:
+   ```
+   docs/a2a/
+   ├── sprint-1-task-1/
+   │   ├── implementation-report.md
+   │   └── review-feedback.md
+   ├── sprint-1-task-2/
+   │   ├── implementation-report.md
+   │   └── review-feedback.md
+   ```
+
+3. **External System Integration**:
+   - Keep docs in git as shared reference
+   - Use Linear/GitHub Issues for task assignments
+   - Conduct A2A communication in issue comments
+   - Coordinate sprint.md updates through PR reviews
+
+The framework's gitignore for `docs/` exists precisely because these are **ephemeral working artifacts** for a single development stream, not durable project documentation suitable for concurrent editing.
+
 ## Why Use This Framework?
 
 - **Systematic discovery** prevents costly mistakes later
