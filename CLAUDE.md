@@ -10,14 +10,15 @@ This is an agent-driven development framework that orchestrates a complete produ
 
 ### Agent System
 
-The framework uses six specialized agents that work together in a structured workflow:
+The framework uses seven specialized agents that work together in a structured workflow:
 
-1. **prd-architect** (Product Manager) - Requirements discovery and PRD creation
-2. **architecture-designer** (Software Architect) - System design and SDD creation
-3. **sprint-planner** (Technical PM) - Sprint planning and task breakdown
-4. **sprint-task-implementer** (Senior Engineer) - Implementation with feedback loops
-5. **senior-tech-lead-reviewer** (Senior Technical Lead) - Code review and quality gates
-6. **devops-crypto-architect** (DevOps Architect) - Production deployment and infrastructure
+1. **context-engineering-expert** (AI & Context Engineering Expert) - Organizational workflow integration and multi-tool orchestration
+2. **prd-architect** (Product Manager) - Requirements discovery and PRD creation
+3. **architecture-designer** (Software Architect) - System design and SDD creation
+4. **sprint-planner** (Technical PM) - Sprint planning and task breakdown
+5. **sprint-task-implementer** (Senior Engineer) - Implementation with feedback loops
+6. **senior-tech-lead-reviewer** (Senior Technical Lead) - Code review and quality gates
+7. **devops-crypto-architect** (DevOps Architect) - Production deployment and infrastructure
 
 Agents are defined in `.claude/agents/` and invoked via custom slash commands in `.claude/commands/`.
 
@@ -25,6 +26,9 @@ Agents are defined in `.claude/agents/` and invoked via custom slash commands in
 
 The workflow produces structured artifacts in the `docs/` directory:
 
+- `docs/integration-architecture.md` - Integration architecture for org tools (optional)
+- `docs/tool-setup.md` - Tool configuration and setup guide (optional)
+- `docs/team-playbook.md` - Team playbook for using integrated system (optional)
 - `docs/prd.md` - Product Requirements Document
 - `docs/sdd.md` - Software Design Document
 - `docs/sprint.md` - Sprint plan with tasks and acceptance criteria
@@ -41,6 +45,12 @@ The implementation phase uses a feedback loop:
 - Cycle continues until senior lead approves
 
 ## Development Workflow Commands
+
+### Phase 0: Organizational Integration (Optional)
+```bash
+/integrate-org-workflow
+```
+Launches `context-engineering-expert` agent to integrate agentic-base with your organization's existing tools and workflows (Discord, Google Docs, Linear, etc.). Especially valuable for multi-team initiatives and multi-developer concurrent collaboration. Agent asks targeted questions about current workflows, pain points, integration requirements, team structure, and generates comprehensive integration architecture, tool setup guides, team playbooks, and implementation code. Outputs `docs/integration-architecture.md`, `docs/tool-setup.md`, `docs/team-playbook.md`, and integration code.
 
 ### Phase 1: Requirements
 ```bash
@@ -150,6 +160,7 @@ Command definitions in `.claude/commands/` contain the slash command expansion t
 
 ### When to Use Each Agent
 
+- **context-engineering-expert**: Integrating with org tools (Discord, Linear, Google Docs), adapting framework for multi-developer teams, designing context flow across platforms
 - **prd-architect**: Starting new features, unclear requirements
 - **architecture-designer**: Technical design decisions, choosing tech stack
 - **sprint-planner**: Breaking down work, planning implementation
@@ -177,11 +188,14 @@ When providing feedback in `docs/a2a/engineer-feedback.md`:
 
 ```
 .claude/
-├── agents/              # Agent definitions (6 agents)
-├── commands/           # Slash command definitions (6 commands)
+├── agents/              # Agent definitions (7 agents)
+├── commands/           # Slash command definitions (7 commands)
 └── settings.local.json # MCP server configuration
 
 docs/
+├── integration-architecture.md  # Org tool integration design (optional)
+├── tool-setup.md       # Integration setup guide (optional)
+├── team-playbook.md    # Team usage guide (optional)
 ├── prd.md              # Product Requirements Document
 ├── sdd.md              # Software Design Document
 ├── sprint.md           # Sprint plan with tasks

@@ -46,7 +46,12 @@ This framework uses six specialized AI agents working together in a structured w
 
 That's it! The PRD architect agent will guide you through structured discovery.
 
-## The Six-Phase Workflow
+## The Workflow
+
+### Phase 0: Organizational Integration (`/integrate-org-workflow`) [Optional]
+The **context-engineering-expert** agent integrates agentic-base with your organization's tools and processes.
+- For teams using Discord, Google Docs, Linear, and multi-developer workflows
+- Output: `docs/integration-architecture.md`, `docs/tool-setup.md`, `docs/team-playbook.md`
 
 ### Phase 1: Planning (`/plan-and-analyze`)
 The **prd-architect** agent guides you through 7 discovery phases to extract complete requirements.
@@ -76,6 +81,7 @@ The **devops-crypto-architect** agent deploys to production with full infrastruc
 
 | Command | Purpose | Output |
 |---------|---------|--------|
+| `/integrate-org-workflow` | Integrate with organizational tools (Discord, Linear, etc.) | `docs/integration-architecture.md`, configs, playbook |
 | `/plan-and-analyze` | Define requirements and create PRD | `docs/prd.md` |
 | `/architect` | Design system architecture | `docs/sdd.md` |
 | `/sprint-plan` | Plan implementation sprints | `docs/sprint.md` |
@@ -85,12 +91,13 @@ The **devops-crypto-architect** agent deploys to production with full infrastruc
 
 ## The Agents
 
-1. **prd-architect** - Senior Product Manager (15 years experience)
-2. **architecture-designer** - Senior Software Architect
-3. **sprint-planner** - Technical Product Manager
-4. **sprint-task-implementer** - Elite Software Engineer (15 years experience)
-5. **senior-tech-lead-reviewer** - Senior Technical Lead (15+ years experience)
-6. **devops-crypto-architect** - DevOps Architect (15 years crypto experience)
+1. **context-engineering-expert** - AI & Context Engineering Expert (15 years, pioneered context prompting)
+2. **prd-architect** - Senior Product Manager (15 years experience)
+3. **architecture-designer** - Senior Software Architect
+4. **sprint-planner** - Technical Product Manager
+5. **sprint-task-implementer** - Elite Software Engineer (15 years experience)
+6. **senior-tech-lead-reviewer** - Senior Technical Lead (15+ years experience)
+7. **devops-crypto-architect** - DevOps Architect (15 years crypto experience)
 
 ## Key Features
 
@@ -139,6 +146,10 @@ README.md              # This file
 ## Example Workflow
 
 ```bash
+# 0. (Optional) Integrate with your org's tools
+/integrate-org-workflow
+# Map workflows, design integrations with Discord/Linear/Google Docs
+
 # 1. Define requirements
 /plan-and-analyze
 # Answer discovery questions, review docs/prd.md

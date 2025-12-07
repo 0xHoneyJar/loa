@@ -18,14 +18,15 @@ This document outlines the comprehensive agent-driven development workflow. Our 
 
 ## Overview
 
-Our development process follows a structured, six-phase approach:
+Our development process follows a structured, seven-phase approach:
 
-1. **Planning** → Product Requirements Document (PRD)
-2. **Architecture** → Software Design Document (SDD)
-3. **Sprint Planning** → Sprint Plan
-4. **Implementation** → Production Code with Feedback Loop
-5. **Review** → Quality Validation and Sprint Approval
-6. **Deployment** → Production Infrastructure and Handover
+1. **Organizational Integration** → Integration Architecture and Tool Setup (optional, for teams)
+2. **Planning** → Product Requirements Document (PRD)
+3. **Architecture** → Software Design Document (SDD)
+4. **Sprint Planning** → Sprint Plan
+5. **Implementation** → Production Code with Feedback Loop
+6. **Review** → Quality Validation and Sprint Approval
+7. **Deployment** → Production Infrastructure and Handover
 
 Each phase is handled by a specialized agent with deep domain expertise, ensuring thorough discovery, clear documentation, high-quality implementation, rigorous quality control, and enterprise-grade production deployment.
 
@@ -33,7 +34,19 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 
 ## Agents
 
-### 1. **prd-architect** (Product Manager)
+### 1. **context-engineering-expert** (AI & Context Engineering Expert)
+- **Role**: Pioneering AI expert with 15 years of experience in context engineering
+- **Expertise**: Multi-tool orchestration, prompt engineering, workflow integration, agent coordination
+- **Responsibilities**:
+  - Map and analyze existing organizational workflows
+  - Design integration architecture between agentic-base and org tools
+  - Create context flow patterns across Discord, Google Docs, Linear, etc.
+  - Adapt framework for multi-developer concurrent collaboration
+  - Generate implementation code and configuration for tool integrations
+  - Design adoption and change management strategy
+- **Output**: `docs/integration-architecture.md`, `docs/tool-setup.md`, `docs/team-playbook.md`, integration code
+
+### 2. **prd-architect** (Product Manager)
 - **Role**: Senior Product Manager with 15 years of experience
 - **Expertise**: Requirements gathering, product strategy, user research
 - **Responsibilities**:
@@ -99,6 +112,68 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 ---
 
 ## Workflow
+
+### Phase 0: Organizational Integration (`/integrate-org-workflow`) [Optional]
+
+**Agent**: `context-engineering-expert`
+
+**Goal**: Integrate agentic-base with your organization's existing tools and workflows
+
+**When to Use**:
+- You have multi-team initiatives spanning departments
+- Discussions happen in Discord/Slack
+- Requirements documented in Google Docs/Notion
+- Project tracking in Linear/Jira
+- Multiple developers working concurrently
+- Need to adapt agentic-base to your organizational processes
+
+**Process**:
+1. Agent asks targeted questions across 6 discovery phases:
+   - Current Workflow Mapping (tools, roles, handoffs)
+   - Pain Points & Bottlenecks (where context gets lost)
+   - Integration Requirements (which tools, automation level)
+   - Team Structure & Permissions (authority, access controls)
+   - Data & Context Requirements (what info agents need)
+   - Success Criteria & Constraints (goals, limitations)
+2. Agent designs integration architecture
+3. Agent proposes adaptation strategies for multi-developer teams
+4. Generates comprehensive integration documentation
+5. Provides implementation code and configurations
+
+**Command**:
+```bash
+/integrate-org-workflow
+```
+
+**Outputs**:
+- `docs/integration-architecture.md` - Architecture and data flow diagrams
+- `docs/tool-setup.md` - Configuration guide for APIs, webhooks, bots
+- `docs/team-playbook.md` - How teams use the integrated system
+- Implementation code (Discord bots, Linear webhooks, sync scripts)
+- Adoption and change management plan
+
+**Integration Architecture Includes**:
+- Current vs. proposed workflow diagrams
+- Tool interaction map (which tools communicate)
+- Data flow diagrams (how information moves)
+- Agent trigger points (when agents activate)
+- Context preservation strategy
+- Security and permissions model
+- Rollout phases (incremental adoption)
+
+**Multi-Developer Adaptation Strategies**:
+- Initiative-based isolation (per Linear initiative)
+- Linear-centric workflow (issues as source of truth)
+- Branch-based workflows (feature branch scoped docs)
+- Hybrid orchestration (mix of shared docs and per-task issues)
+
+**Common Integration Patterns**:
+1. **Discord → Linear → Agentic-Base**: Team discusses in Discord, creates Linear initiative, triggers agent workflow
+2. **Google Docs → Linear → Implementation**: Collaborative requirements doc → Linear project → agent implementation
+3. **Multi-Team Orchestration**: Leadership initiative → multiple sub-projects → coordinated implementation
+4. **Discord-Native**: Agents as bot team members, all workflow in Discord
+
+---
 
 ### Phase 1: Planning (`/plan-and-analyze`)
 
@@ -459,6 +534,12 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 ---
 
 ## Custom Commands
+
+### `/integrate-org-workflow`
+Integrate agentic-base with organizational tools and workflows.
+- **Location**: `.claude/commands/integrate-org-workflow.md`
+- **Agent**: `context-engineering-expert`
+- **Output**: `docs/integration-architecture.md`, `docs/tool-setup.md`, `docs/team-playbook.md`, integration code
 
 ### `/plan-and-analyze`
 Launch PRD architect to define goals, requirements, and scope.
