@@ -14,7 +14,12 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "verify-secrets": "ts-node scripts/verify-secrets.ts"
+    "verify-secrets": "ts-node scripts/verify-secrets.ts",
+    "security:audit": "npm audit --audit-level=moderate",
+    "security:audit:fix": "npm audit fix",
+    "security:check": "npm run security:audit && npm run lint",
+    "precommit": "npm run lint && npm run security:audit && npm run test",
+    "ci": "npm run lint && npm run test && npm run security:audit && npm run build"
   },
   "keywords": [
     "discord",
