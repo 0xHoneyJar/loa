@@ -10,7 +10,7 @@ This is an agent-driven development framework that orchestrates a complete produ
 
 ### Agent System
 
-The framework uses seven specialized agents that work together in a structured workflow:
+The framework uses eight specialized agents that work together in a structured workflow:
 
 1. **context-engineering-expert** (AI & Context Engineering Expert) - Organizational workflow integration and multi-tool orchestration
 2. **prd-architect** (Product Manager) - Requirements discovery and PRD creation
@@ -19,6 +19,7 @@ The framework uses seven specialized agents that work together in a structured w
 5. **sprint-task-implementer** (Senior Engineer) - Implementation with feedback loops
 6. **senior-tech-lead-reviewer** (Senior Technical Lead) - Code review and quality gates
 7. **devops-crypto-architect** (DevOps Architect) - Production deployment and infrastructure
+8. **paranoid-auditor** (Security Auditor) - Comprehensive security and quality audits (ad-hoc use)
 
 Agents are defined in `.claude/agents/` and invoked via custom slash commands in `.claude/commands/`.
 
@@ -87,6 +88,28 @@ Launches `senior-tech-lead-reviewer` agent to validate implementation against ac
 /deploy-production
 ```
 Launches `devops-crypto-architect` agent to design and deploy production infrastructure. Creates IaC, CI/CD pipelines, monitoring, and comprehensive operational documentation in `docs/deployment/`.
+
+### Ad-Hoc: Security Audit
+```bash
+/audit
+```
+Launches `paranoid-auditor` agent to perform comprehensive security and quality audit of the codebase. Use this proactively:
+- Before production deployment
+- After major code changes or new integrations
+- When implementing security-sensitive features (auth, payments, data handling)
+- Periodically for ongoing projects
+
+The agent performs:
+- OWASP Top 10 vulnerability assessment
+- Cryptographic implementation review
+- Secrets and credential management audit
+- Input validation and sanitization review
+- Authentication and authorization analysis
+- Data privacy and PII handling review
+- Infrastructure security assessment
+- Dependency and supply chain analysis
+
+Outputs `SECURITY-AUDIT-REPORT.md` with prioritized findings (CRITICAL/HIGH/MEDIUM/LOW) and actionable remediation guidance.
 
 ## Key Architectural Patterns
 
@@ -167,6 +190,7 @@ Command definitions in `.claude/commands/` contain the slash command expansion t
 - **sprint-task-implementer**: Writing production code
 - **senior-tech-lead-reviewer**: Validating implementation quality
 - **devops-crypto-architect**: Infrastructure, deployment, CI/CD, monitoring
+- **paranoid-auditor**: Security audits, vulnerability assessment, pre-production validation, compliance review
 
 ### Agent Communication Style
 

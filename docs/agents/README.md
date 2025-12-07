@@ -1,6 +1,6 @@
 # Agent Documentation
 
-This directory contains comprehensive documentation for all 7 agents in the agentic-base framework.
+This directory contains comprehensive documentation for all 8 agents in the agentic-base framework.
 
 ## Quick Links
 
@@ -12,6 +12,7 @@ This directory contains comprehensive documentation for all 7 agents in the agen
 - **[05-sprint-task-implementer.md](./05-sprint-task-implementer.md)** - Code implementation
 - **[06-senior-tech-lead-reviewer.md](./06-senior-tech-lead-reviewer.md)** - Quality validation and review
 - **[07-devops-crypto-architect.md](./07-devops-crypto-architect.md)** - Infrastructure and deployment
+- **[08-paranoid-auditor.md](./08-paranoid-auditor.md)** - Security audit (ad-hoc)
 
 ## Navigation
 

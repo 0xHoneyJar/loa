@@ -2,9 +2,9 @@
 
 ## Overview
 
-The agentic-base framework includes 7 specialized AI agents that work together to orchestrate the complete product development lifecycle—from requirements gathering through production deployment.
+The agentic-base framework includes 8 specialized AI agents that work together to orchestrate the complete product development lifecycle—from requirements gathering through production deployment, with security auditing available on-demand.
 
-## The Seven Agents
+## The Eight Agents
 
 ### Phase 0: Integration (Optional)
 1. **[Context Engineering Expert](./01-context-engineering-expert.md)** - Organizational workflow integration
@@ -48,12 +48,19 @@ The agentic-base framework includes 7 specialized AI agents that work together t
    - **Purpose**: Validate implementation quality and provide feedback
    - **When to Use**: Reviewing code, validating completeness, ensuring quality standards
 
-### Phase 7: Deployment
+### Phase 6: Deployment
 7. **[DevOps Crypto Architect](./07-devops-crypto-architect.md)** - Infrastructure and deployment
    - **Role**: DevOps Architect (15 years crypto experience)
    - **Command**: `/deploy-production`
    - **Purpose**: Deploy to production with enterprise-grade infrastructure
    - **When to Use**: Infrastructure setup, deployment, CI/CD, monitoring, blockchain operations
+
+### Ad-Hoc: Security Audit
+8. **[Paranoid Auditor](./08-paranoid-auditor.md)** - Security and quality audit
+   - **Role**: Paranoid Cypherpunk Security Auditor (30+ years)
+   - **Command**: `/audit`
+   - **Purpose**: Comprehensive security and quality audit with prioritized findings
+   - **When to Use**: Before production, after major changes, periodically, for compliance
 
 ## Agent Interaction Flow
 
@@ -76,9 +83,11 @@ User Idea/Requirement
         ↓ (repeat until approved)
 [5. Senior Tech Lead Reviewer] → Approval ✅
         ↓
-[Next Sprint or Phase 7]
+[Next Sprint or Phase 6]
         ↓
-[7. DevOps Crypto Architect] → Production Infrastructure
+[Ad-hoc: Paranoid Auditor] ← Optional but recommended before production
+        ↓ (fix critical issues)
+[6. DevOps Crypto Architect] → Production Infrastructure
 ```
 
 ## Agent-to-Agent (A2A) Communication
@@ -117,6 +126,7 @@ docs/
     ├── deployment-guide.md
     ├── runbooks/
     └── ...
+SECURITY-AUDIT-REPORT.md        # Paranoid Auditor output (ad-hoc)
 ```
 
 ## Key Principles
@@ -163,6 +173,7 @@ Every phase produces durable artifacts:
 | Have PRD+SDD, need task breakdown | Sprint Planner | `/sprint-plan` |
 | Ready to implement sprint tasks | Sprint Task Implementer | `/implement sprint-X` |
 | Code ready for review | Senior Tech Lead Reviewer | `/review-sprint` |
+| Need security audit | Paranoid Auditor | `/audit` |
 | Need infrastructure/deployment | DevOps Crypto Architect | `/deploy-production` |
 
 ## Agent Communication Style
@@ -182,6 +193,7 @@ Every phase produces durable artifacts:
 - **Sprint Task Implementer**: Technical, detailed, autonomous
 - **Senior Tech Lead Reviewer**: Critical, constructive, educational
 - **DevOps Crypto Architect**: Security-first, pragmatic, transparent
+- **Paranoid Auditor**: Brutally honest, security-paranoid, detailed
 
 ## Multi-Developer Usage
 
@@ -208,15 +220,15 @@ Every phase produces durable artifacts:
 
 ## Getting Started
 
-1. Start with `/plan-and-analyze` to create your PRD
-2. Use `/architect` to design your system
-3. Run `/sprint-plan` to break down work
-4. Execute `/implement sprint-1` to start coding
-5. Use `/review-sprint` to validate quality
-6. Repeat implementation/review until approved
-7. Finally `/deploy-production` when ready
-
-For organizational integration, start with `/integrate-org-workflow` before Phase 1.
+1. (Optional) Start with `/integrate-org-workflow` for organizational tool integration
+2. Use `/plan-and-analyze` to create your PRD
+3. Use `/architect` to design your system
+4. Run `/sprint-plan` to break down work
+5. Execute `/implement sprint-1` to start coding
+6. Use `/review-sprint` to validate quality
+7. Repeat implementation/review until approved
+8. (Recommended) Run `/audit` before production deployment
+9. Finally `/deploy-production` when ready
 
 ---
 

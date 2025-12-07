@@ -109,6 +109,22 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
   - Optimize performance and cost
 - **Output**: Infrastructure code, deployment configs, runbooks
 
+### 7. **paranoid-auditor** (Security Auditor)
+- **Role**: Paranoid Cypherpunk Security Auditor with 30+ years of experience
+- **Expertise**: OWASP Top 10, cryptographic implementation, secrets management, penetration testing
+- **Responsibilities**:
+  - Perform comprehensive security and quality audits
+  - Identify vulnerabilities across OWASP Top 10 categories
+  - Review cryptographic implementations and key management
+  - Audit authentication, authorization, and access controls
+  - Assess input validation and sanitization
+  - Review data privacy and PII handling
+  - Evaluate infrastructure security
+  - Analyze dependencies and supply chain risks
+  - Provide prioritized remediation guidance
+- **Output**: `SECURITY-AUDIT-REPORT.md` with findings and remediation steps
+- **Usage**: Ad-hoc, invoked before production, after major changes, or periodically
+
 ---
 
 ## Workflow
@@ -533,6 +549,84 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 
 ---
 
+### Ad-Hoc: Security Audit (`/audit`)
+
+**Agent**: `paranoid-auditor`
+
+**Goal**: Perform comprehensive security and quality audit of the codebase and infrastructure
+
+**When to Use**:
+- Before production deployment (highly recommended)
+- After major code changes or new features
+- When implementing security-sensitive functionality (authentication, payments, data handling)
+- After adding new dependencies or integrations
+- Periodically for ongoing projects (quarterly recommended)
+- When compliance or security certification is required
+
+**Process**:
+1. **Comprehensive Security Assessment**:
+   - OWASP Top 10 vulnerability scanning
+   - Code review for security anti-patterns
+   - Dependency and supply chain analysis
+   - Cryptographic implementation review
+   - Secrets and credential management audit
+   - Input validation and sanitization review
+   - Authentication and authorization analysis
+   - Data privacy and PII handling assessment
+   - Infrastructure security evaluation
+   - Error handling and information disclosure review
+
+2. **Audit Report Generation**:
+   - Findings categorized by severity (CRITICAL/HIGH/MEDIUM/LOW)
+   - Each finding includes:
+     - Detailed description of the vulnerability
+     - Affected files and code locations
+     - Security impact and exploitation scenarios
+     - Specific remediation guidance
+     - Code examples for fixes
+   - Overall risk assessment and security posture evaluation
+   - Prioritized action plan
+
+3. **Remediation**:
+   - Address CRITICAL issues immediately (must be fixed before production)
+   - Plan HIGH priority fixes in current sprint
+   - Schedule MEDIUM issues for upcoming sprints
+   - Track LOW priority items in backlog
+
+**Command**:
+```bash
+/audit
+```
+
+**Output**:
+- `SECURITY-AUDIT-REPORT.md` - Comprehensive security audit report with findings and remediation guidance
+
+**Audit Scope Includes**:
+- ✅ Injection vulnerabilities (SQL, command, XSS, etc.)
+- ✅ Authentication and session management
+- ✅ Sensitive data exposure
+- ✅ XML/XXE attacks
+- ✅ Broken access control
+- ✅ Security misconfiguration
+- ✅ Cross-Site Scripting (XSS)
+- ✅ Insecure deserialization
+- ✅ Using components with known vulnerabilities
+- ✅ Insufficient logging and monitoring
+- ✅ Cryptographic implementation
+- ✅ API security
+- ✅ Secrets management
+- ✅ Infrastructure security
+
+**Best Practices**:
+- Run audit before every production deployment
+- Address all CRITICAL findings before going live
+- Re-run audit after fixing critical issues to verify fixes
+- Use audit report as input for security documentation
+- Track security debt and remediation progress
+- Integrate security reviews into CI/CD pipeline
+
+---
+
 ## Custom Commands
 
 ### `/integrate-org-workflow`
@@ -577,6 +671,13 @@ Launch DevOps crypto architect to deploy application to production with enterpri
 - **Agent**: `devops-crypto-architect`
 - **Output**: Production infrastructure, IaC configs, CI/CD pipelines, `docs/deployment/`
 
+### `/audit`
+Launch paranoid security auditor to perform comprehensive security and quality audit (ad-hoc).
+- **Location**: `.claude/commands/audit.md`
+- **Agent**: `paranoid-auditor`
+- **Output**: `SECURITY-AUDIT-REPORT.md`
+- **Usage**: Before production, after major changes, or periodically
+
 ---
 
 ## Document Artifacts
@@ -588,6 +689,7 @@ Launch DevOps crypto architect to deploy application to production with enterpri
 | **PRD** | `docs/prd.md` | `prd-architect` | Product requirements and business context |
 | **SDD** | `docs/sdd.md` | `architecture-designer` | System design and technical architecture |
 | **Sprint Plan** | `docs/sprint.md` | `sprint-planner` | Sprint tasks with acceptance criteria |
+| **Security Audit Report** | `SECURITY-AUDIT-REPORT.md` | `paranoid-auditor` | Security vulnerabilities and remediation guidance |
 
 ### Agent-to-Agent (A2A) Communication
 
