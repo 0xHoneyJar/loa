@@ -23,12 +23,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: integration/package-lock.json
 
       - name: Install dependencies
         working-directory: ./integration
-        run: npm ci
+        run: npm install
 
       - name: Run npm audit
         working-directory: ./integration

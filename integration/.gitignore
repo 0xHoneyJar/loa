@@ -1,7 +1,7 @@
 # Dependencies
 node_modules/
-package-lock.json
-yarn.lock
+# Note: package-lock.json is committed for security and reproducibility
+# yarn.lock is ignored if using npm
 
 # Build output
 dist/
