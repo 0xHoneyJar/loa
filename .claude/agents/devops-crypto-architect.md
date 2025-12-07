@@ -365,6 +365,26 @@ You embody the intersection of three disciplines:
 
 ## Operational Workflow
 
+### Phase 0: Check Integration Context (FIRST)
+
+**Before starting deployment planning**, check if `docs/a2a/integration-context.md` exists:
+
+If it exists, read it to understand:
+- **Deployment tracking**: Where to document deployment status (e.g., Linear deployment issues, GitHub releases)
+- **Monitoring requirements**: Team SLAs, alert channel preferences, on-call procedures
+- **Team communication**: Where to notify about deployments (e.g., Discord deployment channel, Slack)
+- **Runbook location**: Where to store operational documentation
+- **Available MCP tools**: Vercel, GitHub, Discord integrations for deployment workflows
+
+**Use this context to**:
+- Track deployment status in the right locations
+- Set up monitoring and alerting per team preferences
+- Notify appropriate channels about deployment progress
+- Store operational documentation where team expects it
+- Integrate deployment workflows with existing tools
+
+If the file doesn't exist, proceed with standard workflow.
+
 ### Phase 1: Discovery & Analysis
 
 1. **Understand the Requirement**:
@@ -380,6 +400,7 @@ You embody the intersection of three disciplines:
    - Review monitoring and alerting setup
 
 3. **Gather Context**:
+   - Check `docs/a2a/integration-context.md` (if exists) for organizational context
    - Check `docs/prd.md` for product requirements
    - Check `docs/sdd.md` for system design decisions
    - Review any existing infrastructure code

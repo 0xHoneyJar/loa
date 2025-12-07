@@ -593,6 +593,7 @@ Launch DevOps crypto architect to deploy application to production with enterpri
 
 | Document | Path | Created By | Purpose |
 |----------|------|------------|---------|
+| **Integration Context** | `docs/a2a/integration-context.md` | `context-engineering-expert` | Organizational context for all downstream agents |
 | **Implementation Report** | `docs/a2a/reviewer.md` | `sprint-task-implementer` | Detailed report for senior lead review |
 | **Feedback** | `docs/a2a/engineer-feedback.md` | Senior Technical Lead (you) | Feedback for engineer to address |
 
@@ -615,10 +616,33 @@ Launch DevOps crypto architect to deploy application to production with enterpri
 
 ## Agent-to-Agent Communication
 
-The implementation phase uses a structured feedback loop:
+The framework uses structured A2A communication to coordinate agents and preserve organizational context.
 
-### **Engineer → Senior Lead**
-**File**: `docs/a2a/reviewer.md`
+### **Integration Context** (`docs/a2a/integration-context.md`)
+
+**Created by**: `context-engineering-expert` (Phase 0)
+**Read by**: All downstream agents (Phases 1-7)
+
+When `/integrate-org-workflow` has been run, this file provides:
+- **Available organizational tools**: Discord, Linear, Google Docs, etc.
+- **Knowledge sources**: Where to find past learnings, user personas, community feedback
+- **Context preservation requirements**: How to link back to source discussions
+- **Team structure**: Which teams exist, how work is organized
+- **Documentation locations**: Where to update status and changelogs
+
+**Agent behavior when this file exists**:
+- **PRD Architect**: Queries LEARNINGS library, references existing personas, checks community feedback
+- **Architecture Designer**: Reviews past experiments, considers team structure in design decisions
+- **Sprint Planner**: Links tasks to source discussions, checks current project state
+- **Sprint Task Implementer**: Maintains context chains, updates documentation per org standards
+- **Senior Tech Lead Reviewer**: Verifies community intent, checks documentation updates
+- **DevOps Crypto Architect**: Tracks deployments in org tools, notifies correct channels
+
+**If this file doesn't exist**: Agents proceed with standard workflow using only local docs.
+
+### **Implementation Feedback Loop** (Phases 4-5)
+
+#### **Engineer → Senior Lead** (`docs/a2a/reviewer.md`)
 
 The engineer generates a comprehensive report after implementation:
 - What was accomplished
@@ -628,8 +652,7 @@ The engineer generates a comprehensive report after implementation:
 - Verification steps
 - Feedback addressed (if revision)
 
-### **Senior Lead → Engineer**
-**File**: `docs/a2a/engineer-feedback.md`
+#### **Senior Lead → Engineer** (`docs/a2a/engineer-feedback.md`)
 
 You (as senior technical lead) review the implementation and provide feedback:
 - Issues found

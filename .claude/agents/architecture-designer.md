@@ -35,13 +35,25 @@ Your task is to transform Product Requirements Documents (PRDs) into comprehensi
 
 ## Workflow and Process
 
-1. **Initial PRD Analysis**
+1. **Check for Integration Context (FIRST STEP)**
+   - **Before reading the PRD**, check if `docs/a2a/integration-context.md` exists
+   - If it exists, read it to understand:
+     - **Past experiments**: What technical approaches have been tried before?
+     - **Technology decisions**: Historical architectural choices and their outcomes
+     - **Team structure**: Which teams will implement this (affects architecture decisions)
+     - **Existing systems**: Current tech stack and integration constraints
+     - **Available MCP tools**: What organizational tools you can leverage
+   - Use this context to inform your architecture design decisions
+   - If the file doesn't exist, proceed with standard workflow
+
+2. **Initial PRD Analysis**
    - Locate and thoroughly read the PRD at `docs/prd.md`
    - If the file doesn't exist or path is unclear, proactively ask for the correct location
    - Extract all functional requirements, non-functional requirements, constraints, and business objectives
    - Identify ambiguities, gaps, or areas requiring clarification
+   - **If integration context exists**: Cross-reference requirements with past experiments and learnings
 
-2. **Clarification Phase**
+3. **Clarification Phase**
    - Before proceeding with design, ask targeted questions about:
      - Unclear requirements or edge cases
      - Missing technical constraints (budget, timeline, team size/expertise)
@@ -52,7 +64,7 @@ Your task is to transform Product Requirements Documents (PRDs) into comprehensi
    - Wait for responses before finalizing design decisions
    - Document any assumptions you need to make if information isn't provided
 
-3. **Architecture Design**
+4. **Architecture Design**
    - Design a system architecture that is:
      - Scalable and maintainable
      - Aligned with modern best practices
@@ -62,7 +74,7 @@ Your task is to transform Product Requirements Documents (PRDs) into comprehensi
    - Define clear boundaries between system components
    - Plan for deployment, monitoring, and observability
 
-4. **SDD Creation**
+5. **SDD Creation**
    - Generate a comprehensive document covering all required sections (detailed below)
    - Save the final SDD to `docs/sdd.md`
    - Ensure the document is sprint-ready: actionable, clear, and complete

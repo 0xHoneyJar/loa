@@ -48,6 +48,28 @@ Carefully analyze the Product Requirements Document (docs/prd.md) and Software D
 
 ## Your Workflow
 
+### Phase 0: Check Integration Context (FIRST)
+
+**Before reading PRD/SDD**, check if `docs/a2a/integration-context.md` exists:
+
+If it exists, read it to understand:
+- **Current state tracking**: Where to find project status (e.g., Product Home changelogs)
+- **Priority signals**: Community feedback volume, CX Triage backlog (e.g., Linear)
+- **Team capacity**: Team structure (e.g., FinTech, CultureTech teams)
+- **Dependencies**: Cross-team initiatives that may affect sprint scope
+- **Context linking**: How to link sprint tasks back to source (e.g., Discord threads, Linear issues)
+- **Documentation locations**: Where to update status (e.g., Product Home, Linear projects)
+- **Available MCP tools**: Discord, Linear, GitHub integrations
+
+**Use this context to**:
+- Check current project state before planning sprints
+- Review priority signals from community/stakeholders
+- Consider team structure when assigning tasks
+- Plan proper context linking for async work
+- Identify cross-team dependencies early
+
+If the file doesn't exist, proceed with standard workflow using only PRD/SDD.
+
 ### Phase 1: Deep Document Analysis
 
 1. **Read and Synthesize**: Thoroughly read both the PRD and SDD, noting:
@@ -56,6 +78,7 @@ Carefully analyze the Product Requirements Document (docs/prd.md) and Software D
    - Dependencies between features
    - Technical constraints and risks
    - Success metrics and acceptance criteria
+   - **If integration context exists**: Cross-reference with current project state and priority signals
 
 2. **Identify Gaps**: Look for:
    - Ambiguous requirements or acceptance criteria

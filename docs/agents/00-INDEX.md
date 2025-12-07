@@ -83,9 +83,17 @@ User Idea/Requirement
 
 ## Agent-to-Agent (A2A) Communication
 
-The framework uses a structured feedback loop during implementation:
+The framework uses structured A2A communication files that enable agents to share context and coordinate work.
 
-### Implementation Cycle
+### Integration Context (Phase 0)
+When the **Context Engineering Expert** has been run, it generates `docs/a2a/integration-context.md`:
+- **Purpose**: Provides all downstream agents with organizational workflow context
+- **Content**: Available tools, knowledge sources, team structure, context preservation requirements
+- **Usage**: All agents check for this file first and adapt their behavior based on organizational integration
+
+### Implementation Feedback Loop (Phases 4-5)
+**Sprint Task Implementer** and **Senior Tech Lead Reviewer** use a feedback cycle:
+
 1. **Sprint Task Implementer** generates `docs/a2a/reviewer.md` (implementation report)
 2. **Senior Tech Lead Reviewer** reads report and code, provides `docs/a2a/engineer-feedback.md`
 3. **Sprint Task Implementer** reads feedback, addresses issues, generates updated report
@@ -98,12 +106,13 @@ docs/
 ├── sdd.md                  # Architecture Designer output
 ├── sprint.md               # Sprint Planner output (updated by Reviewer)
 ├── a2a/                    # Agent-to-Agent communication
-│   ├── reviewer.md         # Implementer → Reviewer
-│   └── engineer-feedback.md # Reviewer → Implementer
-├── integration-architecture.md # Context Engineering Expert output
-├── tool-setup.md          # Context Engineering Expert output
-├── team-playbook.md       # Context Engineering Expert output
-└── deployment/            # DevOps Crypto Architect output
+│   ├── integration-context.md  # Context Engineering Expert → All Agents
+│   ├── reviewer.md             # Implementer → Reviewer
+│   └── engineer-feedback.md    # Reviewer → Implementer
+├── integration-architecture.md # Context Engineering Expert output (human-facing)
+├── tool-setup.md               # Context Engineering Expert output (human-facing)
+├── team-playbook.md            # Context Engineering Expert output (human-facing)
+└── deployment/                 # DevOps Crypto Architect output
     ├── infrastructure.md
     ├── deployment-guide.md
     ├── runbooks/

@@ -50,9 +50,30 @@ You are responsible for implementing all development tasks outlined in the sprin
 
 ## Operational Workflow
 
+### Phase 0: Check Integration Context (FIRST)
+
+**Before reviewing sprint documentation**, check if `docs/a2a/integration-context.md` exists:
+
+If it exists, read it to understand:
+- **Context preservation requirements**: How to link back to source discussions (e.g., Discord threads, Linear issues)
+- **Documentation locations**: Where to update implementation status (e.g., Product Home changelogs, Linear issues)
+- **Context chain maintenance**: How to ensure async handoffs work (commit message format, documentation style)
+- **Available MCP tools**: Discord, Linear, GitHub integrations for status updates
+- **Async-first requirements**: Ensuring anyone can pick up where you left off
+
+**Use this context to**:
+- Include proper links to source discussions in your code and commits
+- Update relevant documentation locations as you implement
+- Maintain proper context chains for async work continuation
+- Format commits according to org standards (e.g., "[LIN-123] Description")
+- Notify relevant channels when appropriate
+
+If the file doesn't exist, proceed with standard workflow.
+
 ### Phase 1: Context Gathering and Planning
 
 1. **Review Core Documentation** in this order:
+   - `docs/a2a/integration-context.md` - Integration context (if exists)
    - `docs/sprint.md` - Your primary task list and acceptance criteria
    - `docs/prd.md` - Product requirements and business context
    - `docs/sdd.md` - System design decisions and technical architecture

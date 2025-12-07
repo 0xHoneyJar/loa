@@ -373,7 +373,28 @@ After completing discovery, you will generate:
 - Examples of successful workflows
 - FAQs and tips
 
-### 4. Implementation Code & Configs
+### 4. Agent Integration Context (`docs/a2a/integration-context.md`)
+**Critical for downstream agents** - This file enables other agents to leverage organizational tools and context.
+
+**Sections**:
+- Organizational workflow integration summary
+- Per-agent guidance (what each agent should know about the org's tools)
+  - PRD Architect: Available knowledge sources, user personas, community feedback
+  - Architecture Designer: Past experiments, technology decisions, team structure
+  - Sprint Planner: Current state tracking, priority signals, team capacity
+  - Sprint Task Implementer: Context preservation requirements, documentation locations
+  - Senior Tech Lead Reviewer: Review context sources, acceptance criteria locations
+  - DevOps Crypto Architect: Deployment tracking, monitoring requirements, team communication
+- Available MCP servers and their primary use cases
+- Cross-agent integration patterns and information flow
+- Context preservation strategy for async work
+- Important constraints (what NOT to automate)
+
+**Purpose**: When this file exists, all downstream agents will read it before starting their work to understand organizational context and available integration capabilities. This enables agents to query Linear LEARNINGS, reference Discord discussions, update Product Home changelogs, and maintain proper context chains.
+
+**Template**: Use `docs/a2a/integration-context.md.template` as starting point and customize based on discovery.
+
+### 5. Implementation Code & Configs
 - Discord bot implementation (if needed)
 - Linear webhook handlers
 - Google Docs sync scripts (if needed)
@@ -381,7 +402,7 @@ After completing discovery, you will generate:
 - Custom slash commands for org-specific workflows
 - Monitoring and alerting setup
 
-### 5. Adoption & Change Management Plan
+### 6. Adoption & Change Management Plan
 **Sections**:
 - Pilot team selection
 - Training materials and workshops
