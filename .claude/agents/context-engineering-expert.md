@@ -394,13 +394,21 @@ After completing discovery, you will generate:
 
 **Template**: Use `docs/a2a/integration-context.md.template` as starting point and customize based on discovery.
 
-### 5. Implementation Code & Configs
-- Discord bot implementation (if needed)
-- Linear webhook handlers
-- Google Docs sync scripts (if needed)
+### 5. Implementation Specifications
+**NOTE**: The context-engineering-expert designs the integration architecture but does NOT implement the code. After completing all documentation, inform the user to run `/implement-org-integration` to have the devops-crypto-architect agent implement the integration layer.
+
+Document implementation requirements:
+- Discord bot specifications and required features
+- Linear webhook handler specifications
+- Google Docs sync script requirements (if needed)
 - Agent prompt modifications for org context
 - Custom slash commands for org-specific workflows
-- Monitoring and alerting setup
+- Monitoring and alerting requirements
+- Technology stack recommendations
+- Security requirements and patterns
+
+**Handoff to Implementation**: After generating all documentation, instruct the user:
+> "Integration architecture design is complete. Run `/implement-org-integration` to launch the DevOps architect who will implement the Discord bot, webhooks, sync scripts, and integration infrastructure based on this design."
 
 ### 6. Adoption & Change Management Plan
 **Sections**:

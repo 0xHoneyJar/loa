@@ -18,15 +18,16 @@ This document outlines the comprehensive agent-driven development workflow. Our 
 
 ## Overview
 
-Our development process follows a structured, seven-phase approach:
+Our development process follows a structured, eight-phase approach:
 
-1. **Organizational Integration** → Integration Architecture and Tool Setup (optional, for teams)
-2. **Planning** → Product Requirements Document (PRD)
-3. **Architecture** → Software Design Document (SDD)
-4. **Sprint Planning** → Sprint Plan
-5. **Implementation** → Production Code with Feedback Loop
-6. **Review** → Quality Validation and Sprint Approval
-7. **Deployment** → Production Infrastructure and Handover
+1. **Phase 0: Organizational Integration Design** → Integration Architecture and Tool Setup (optional, for teams)
+2. **Phase 0.5: Integration Implementation** → Discord Bot, Webhooks, Sync Scripts (optional, requires Phase 0)
+3. **Phase 1: Planning** → Product Requirements Document (PRD)
+4. **Phase 2: Architecture** → Software Design Document (SDD)
+5. **Phase 3: Sprint Planning** → Sprint Plan
+6. **Phase 4: Implementation** → Production Code with Feedback Loop
+7. **Phase 5: Review** → Quality Validation and Sprint Approval
+8. **Phase 6: Deployment** → Production Infrastructure and Handover
 
 Each phase is handled by a specialized agent with deep domain expertise, ensuring thorough discovery, clear documentation, high-quality implementation, rigorous quality control, and enterprise-grade production deployment.
 
@@ -42,9 +43,10 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
   - Design integration architecture between agentic-base and org tools
   - Create context flow patterns across Discord, Google Docs, Linear, etc.
   - Adapt framework for multi-developer concurrent collaboration
-  - Generate implementation code and configuration for tool integrations
+  - Document integration specifications and requirements
   - Design adoption and change management strategy
-- **Output**: `docs/integration-architecture.md`, `docs/tool-setup.md`, `docs/team-playbook.md`, integration code
+- **Output**: `docs/integration-architecture.md`, `docs/tool-setup.md`, `docs/team-playbook.md`, `docs/a2a/integration-context.md`
+- **Note**: This agent designs but does NOT implement. Use `/implement-org-integration` after this phase to build the integration layer.
 
 ### 2. **prd-architect** (Product Manager)
 - **Role**: Senior Product Manager with 15 years of experience
@@ -98,16 +100,30 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 - **Output**: `docs/a2a/engineer-feedback.md`, updated `docs/sprint.md`
 
 ### 6. **devops-crypto-architect** (DevOps Architect)
-- **Role**: Battle-tested DevOps Architect with 15 years crypto experience
-- **Expertise**: Infrastructure, blockchain operations, security (cypherpunk mindset)
-- **Responsibilities**:
-  - Design and implement infrastructure (cloud, Kubernetes, IaC)
-  - Set up blockchain node operations (Ethereum, Solana, Cosmos, etc.)
-  - Implement security hardening and key management (HSMs, MPC)
-  - Create CI/CD pipelines and GitOps workflows
-  - Set up monitoring, observability, and alerting
-  - Optimize performance and cost
-- **Output**: Infrastructure code, deployment configs, runbooks
+- **Role**: Battle-tested DevOps Architect with 15 years of crypto/blockchain infrastructure experience
+- **Expertise**: Infrastructure as code, CI/CD, security, monitoring, blockchain operations, cypherpunk security
+- **Modes**:
+  - **Integration Implementation Mode** (Phase 0.5): Implements Discord bots, webhooks, sync scripts based on integration architecture
+  - **Production Deployment Mode** (Phase 6): Implements production infrastructure, CI/CD pipelines, monitoring
+- **Integration Responsibilities** (Phase 0.5):
+  - Review integration architecture and specifications
+  - Implement Discord bot with command handlers and event listeners
+  - Implement webhook handlers (Linear, GitHub, Vercel)
+  - Implement cron jobs and scheduled tasks
+  - Create deployment configs (Docker, systemd, PM2)
+  - Set up monitoring and logging for integration layer
+  - Create operational runbooks for integration maintenance
+- **Deployment Responsibilities** (Phase 6):
+  - Review project documentation (PRD, SDD, sprint plans)
+  - Design production infrastructure (cloud, Kubernetes, blockchain nodes)
+  - Implement infrastructure as code
+  - Create CI/CD pipelines
+  - Set up monitoring, alerting, and observability
+  - Implement security hardening and secrets management
+  - Generate handover documentation and runbooks
+- **Output**:
+  - Phase 0.5: `integration/` directory with complete integration infrastructure
+  - Phase 6: `docs/deployment/` with infrastructure code and operational docs
 
 ### 7. **paranoid-auditor** (Security Auditor)
 - **Role**: Paranoid Cypherpunk Security Auditor with 30+ years of experience
@@ -154,7 +170,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 2. Agent designs integration architecture
 3. Agent proposes adaptation strategies for multi-developer teams
 4. Generates comprehensive integration documentation
-5. Provides implementation code and configurations
+5. Documents implementation specifications (does NOT implement code)
 
 **Command**:
 ```bash
@@ -165,8 +181,11 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 - `docs/integration-architecture.md` - Architecture and data flow diagrams
 - `docs/tool-setup.md` - Configuration guide for APIs, webhooks, bots
 - `docs/team-playbook.md` - How teams use the integrated system
-- Implementation code (Discord bots, Linear webhooks, sync scripts)
+- `docs/a2a/integration-context.md` - Context for downstream agents
+- Implementation specifications and technology recommendations
 - Adoption and change management plan
+
+**Next Step**: After Phase 0 completes, run `/implement-org-integration` (Phase 0.5) to build the integration layer.
 
 **Integration Architecture Includes**:
 - Current vs. proposed workflow diagrams
@@ -188,6 +207,70 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 2. **Google Docs → Linear → Implementation**: Collaborative requirements doc → Linear project → agent implementation
 3. **Multi-Team Orchestration**: Leadership initiative → multiple sub-projects → coordinated implementation
 4. **Discord-Native**: Agents as bot team members, all workflow in Discord
+
+---
+
+### Phase 0.5: Integration Implementation (`/implement-org-integration`)
+
+**Agent**: `devops-crypto-architect` (Integration Implementation Mode)
+
+**Goal**: Implement the Discord bot, webhooks, sync scripts, and integration infrastructure designed in Phase 0
+
+**When to Use**: After completing Phase 0 (`/integrate-org-workflow`) and having integration architecture documentation
+
+**Prerequisites**:
+- `docs/integration-architecture.md` exists (integration design)
+- `docs/tool-setup.md` exists (tool configuration documented)
+- `docs/team-playbook.md` exists (team workflows documented)
+- `docs/a2a/integration-context.md` exists (agent integration context)
+
+**Process**:
+1. Agent reviews all integration architecture documents
+2. Plans implementation based on specifications
+3. Implements Discord bot with command handlers
+4. Implements webhook handlers (Linear, GitHub, Vercel)
+5. Implements cron jobs and scheduled tasks
+6. Creates deployment configs (Docker, docker-compose, systemd, PM2)
+7. Sets up monitoring, logging, and health checks
+8. Creates tests for integration components
+9. Deploys to development/staging for validation
+10. Generates operational runbooks and documentation
+
+**Command**:
+```bash
+/implement-org-integration
+```
+
+**Outputs**:
+- `integration/src/` - Complete bot and webhook implementation
+- `integration/config/` - Configuration files (committed to git)
+- `integration/secrets/.env.local.example` - Secrets template
+- `integration/Dockerfile`, `docker-compose.yml` - Deployment configs
+- `integration/README.md` - Integration guide and quick start
+- `integration/DEPLOYMENT.md` - Deployment instructions
+- `docs/deployment/runbooks/integration-operations.md` - Operational runbook
+- `docs/deployment/integration-layer-handover.md` - Handover document
+
+**Implementation Includes**:
+- Discord bot with event listeners and command handlers
+- Linear webhook handler with signature verification
+- GitHub/Vercel webhook handlers (if needed)
+- Daily digest cron job
+- Feedback capture (emoji reactions → Linear issues)
+- Structured logging with health check endpoints
+- Rate limiting and error handling
+- Unit and integration tests
+- Deployment-ready infrastructure
+
+**Testing Checklist**:
+- Bot connects to Discord successfully
+- Commands work in Discord (e.g., `/show-sprint`)
+- Emoji reactions create Linear draft issues
+- Webhooks trigger correctly with signature verification
+- Cron jobs execute on schedule
+- Logs are written properly
+- Health check endpoint responds
+- Error handling prevents crashes
 
 ---
 

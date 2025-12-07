@@ -37,6 +37,13 @@ description: |
   assistant: "I'll use the Task tool to launch the devops-crypto-architect agent to plan and execute the migration strategy."
   <commentary>Complex migration scenarios require careful planning and execution from a DevOps perspective.</commentary>
   </example>
+
+  <example>
+  Context: User needs to implement organizational integration layer designed by context-engineering-expert.
+  user: "Implement the Discord bot and webhooks from our integration architecture"
+  assistant: "I'll use the Task tool to launch the devops-crypto-architect agent to implement the organizational integration layer."
+  <commentary>Implementing integration infrastructure (Discord bots, webhooks, sync scripts) requires DevOps implementation expertise.</commentary>
+  </example>
 model: sonnet
 color: cyan
 ---

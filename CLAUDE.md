@@ -47,11 +47,17 @@ The implementation phase uses a feedback loop:
 
 ## Development Workflow Commands
 
-### Phase 0: Organizational Integration (Optional)
+### Phase 0: Organizational Integration Design (Optional)
 ```bash
 /integrate-org-workflow
 ```
-Launches `context-engineering-expert` agent to integrate agentic-base with your organization's existing tools and workflows (Discord, Google Docs, Linear, etc.). Especially valuable for multi-team initiatives and multi-developer concurrent collaboration. Agent asks targeted questions about current workflows, pain points, integration requirements, team structure, and generates comprehensive integration architecture, tool setup guides, team playbooks, and implementation code. Outputs `docs/integration-architecture.md`, `docs/tool-setup.md`, `docs/team-playbook.md`, and integration code.
+Launches `context-engineering-expert` agent to design integration architecture for connecting agentic-base with your organization's existing tools and workflows (Discord, Google Docs, Linear, etc.). Especially valuable for multi-team initiatives and multi-developer concurrent collaboration. Agent asks targeted questions about current workflows, pain points, integration requirements, team structure, and generates comprehensive integration architecture, tool setup guides, team playbooks, and implementation specifications. Outputs `docs/integration-architecture.md`, `docs/tool-setup.md`, `docs/team-playbook.md`, and `docs/a2a/integration-context.md`.
+
+### Phase 0.5: Integration Implementation (Optional)
+```bash
+/implement-org-integration
+```
+Launches `devops-crypto-architect` agent to implement the organizational integration layer designed in Phase 0. Reviews integration architecture documents and implements Discord bot, Linear webhooks, GitHub webhooks, sync scripts, cron jobs, and monitoring. Creates complete integration infrastructure in `integration/` directory with deployment configs, operational runbooks, and testing procedures. **Prerequisites**: Must run `/integrate-org-workflow` first to generate integration design documents.
 
 ### Phase 1: Requirements
 ```bash
@@ -133,6 +139,8 @@ Each agent invocation is stateless. Context is maintained through:
 ### Proactive Agent Invocation
 
 Claude Code will automatically suggest relevant agents when:
+- User wants to integrate with org tools → `context-engineering-expert`
+- User needs to implement integration layer → `devops-crypto-architect` (integration mode)
 - User describes a product idea → `prd-architect`
 - User mentions architecture decisions → `architecture-designer`
 - User wants to break down work → `sprint-planner`
@@ -183,14 +191,16 @@ Command definitions in `.claude/commands/` contain the slash command expansion t
 
 ### When to Use Each Agent
 
-- **context-engineering-expert**: Integrating with org tools (Discord, Linear, Google Docs), adapting framework for multi-developer teams, designing context flow across platforms
-- **prd-architect**: Starting new features, unclear requirements
-- **architecture-designer**: Technical design decisions, choosing tech stack
-- **sprint-planner**: Breaking down work, planning implementation
-- **sprint-task-implementer**: Writing production code
-- **senior-tech-lead-reviewer**: Validating implementation quality
-- **devops-crypto-architect**: Infrastructure, deployment, CI/CD, monitoring
-- **paranoid-auditor**: Security audits, vulnerability assessment, pre-production validation, compliance review
+- **context-engineering-expert**: Designing integration with org tools (Discord, Linear, Google Docs), mapping workflows, adapting framework for multi-developer teams, designing context flow across platforms (Phase 0)
+- **devops-crypto-architect**:
+  - **Integration mode**: Implementing Discord bots, webhooks, sync scripts from integration architecture (Phase 0.5)
+  - **Deployment mode**: Production infrastructure, CI/CD pipelines, blockchain nodes, monitoring (Phase 6)
+- **prd-architect**: Starting new features, unclear requirements (Phase 1)
+- **architecture-designer**: Technical design decisions, choosing tech stack (Phase 2)
+- **sprint-planner**: Breaking down work, planning implementation (Phase 3)
+- **sprint-task-implementer**: Writing production code (Phase 4)
+- **senior-tech-lead-reviewer**: Validating implementation quality (Phase 5)
+- **paranoid-auditor**: Security audits, vulnerability assessment, pre-production validation, compliance review (Ad-hoc)
 
 ### Agent Communication Style
 
