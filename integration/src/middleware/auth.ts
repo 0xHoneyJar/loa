@@ -1,14 +1,18 @@
 import { User, Guild, GuildMember, Client } from 'discord.js';
 import { logger } from '../utils/logger';
+import userMappingService from '../services/user-mapping-service';
+import roleVerifier from '../services/role-verifier';
 
 /**
  * Role-Based Access Control (RBAC)
  *
  * SECURITY FIXES:
  * - CRITICAL #4: Comprehensive RBAC implementation
+ * - HIGH-005: Database-backed immutable user-role mappings
  * - Enforces permissions for all commands and actions
  * - Audits all privileged operations
  * - Prevents privilege escalation
+ * - MFA verification for sensitive operations
  * - LOW-002: Extracted magic numbers to named constants
  */
 
@@ -105,12 +109,39 @@ function getDefaultRoleConfig(): Record<UserRole, RoleConfig> {
 }
 
 /**
- * Get user roles from Discord guild member
+ * Get user roles from Discord guild member (DATABASE-FIRST with Discord fallback)
+ *
+ * HIGH-005 IMPLEMENTATION:
+ * 1. Try to get roles from database (immutable audit trail)
+ * 2. If user not in database, fetch from Discord and create user record
+ * 3. Return roles as UserRole enum for backward compatibility
  */
 export async function getUserRoles(user: User, guild: Guild): Promise<UserRole[]> {
   try {
+    // Try database first
+    const dbRoles = await userMappingService.getUserRoles(user.id);
+
+    // If user has database roles (other than just guest), use them
+    if (dbRoles.length > 1 || !dbRoles.includes('guest')) {
+      return dbRoles.map(role => role as UserRole);
+    }
+
+    // User not in database or only has guest role - check Discord and create user
     const member = await guild.members.fetch(user.id);
-    return getUserRolesFromMember(member);
+    const discordRoles = getUserRolesFromMember(member);
+
+    // Create user in database (auto-grants guest role)
+    await userMappingService.getOrCreateUser(user.id, user.tag);
+
+    logger.info('User auto-created from Discord interaction', {
+      userId: user.id,
+      username: user.tag,
+      discordRoles
+    });
+
+    // Return Discord roles for this session
+    // User must request role grants through approval workflow for database roles
+    return discordRoles;
   } catch (error) {
     logger.error(`Error fetching roles for user ${user.id}:`, error);
     return [UserRole.GUEST]; // Default to guest on error
@@ -238,41 +269,55 @@ export interface PermissionAudit {
 }
 
 /**
- * Check permission with audit logging
+ * Check permission with audit logging (DATABASE-FIRST with MFA awareness)
+ *
+ * HIGH-005 IMPLEMENTATION:
+ * Uses roleVerifier service for database-backed permission checks
+ * with complete audit logging and MFA requirement detection
  */
 export async function checkPermissionWithAudit(
   user: User,
   guild: Guild,
   permission: Permission
-): Promise<{ granted: boolean; audit: PermissionAudit }> {
+): Promise<{ granted: boolean; audit: PermissionAudit; mfaRequired: boolean }> {
+  // Use roleVerifier service for database-backed permission check
+  const result = await roleVerifier.hasPermission(user.id, permission, {
+    command: permission,
+    guildId: guild.id,
+  });
+
+  // Get user roles for audit record (for backward compatibility)
   const userRoles = await getUserRoles(user, guild);
-  const granted = hasPermissionForRoles(userRoles, permission);
 
   const audit: PermissionAudit = {
     userId: user.id,
     username: user.tag,
     permission,
-    granted,
+    granted: result.granted,
     roles: userRoles,
     timestamp: new Date(),
     guildId: guild.id,
   };
 
-  // Log permission check
-  if (!granted) {
+  // Additional logging (roleVerifier already logs to database)
+  if (!result.granted) {
     logger.warn('Permission denied', {
       userId: user.id,
       username: user.tag,
       permission,
       roles: userRoles,
+      denialReason: result.denialReason,
     });
   }
 
-  return { granted, audit };
+  return { granted: result.granted, audit, mfaRequired: result.mfaRequired };
 }
 
 /**
- * Require permission (throws if denied)
+ * Require permission (throws if denied or MFA needed)
+ *
+ * HIGH-005 IMPLEMENTATION:
+ * Throws MfaRequiredError if operation requires MFA verification
  */
 export async function requirePermission(
   user: User,
@@ -283,11 +328,18 @@ export async function requirePermission(
     throw new PermissionError('Commands must be used in a server channel', permission);
   }
 
-  const { granted } = await checkPermissionWithAudit(user, guild, permission);
+  const { granted, mfaRequired } = await checkPermissionWithAudit(user, guild, permission);
 
   if (!granted) {
     throw new PermissionError(
       `You don't have permission to use this feature. Required: ${permission}`,
+      permission
+    );
+  }
+
+  if (mfaRequired) {
+    throw new MfaRequiredError(
+      `This operation requires MFA verification. Please verify with /mfa-verify <code>`,
       permission
     );
   }
@@ -300,6 +352,16 @@ export class PermissionError extends Error {
   constructor(message: string, public permission: Permission) {
     super(message);
     this.name = 'PermissionError';
+  }
+}
+
+/**
+ * MFA Required error (HIGH-005)
+ */
+export class MfaRequiredError extends Error {
+  constructor(message: string, public permission: Permission) {
+    super(message);
+    this.name = 'MfaRequiredError';
   }
 }
 

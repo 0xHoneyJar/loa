@@ -20,6 +20,7 @@ import { handleFeedbackCapture } from './handlers/feedbackCapture';
 import { handleCommand } from './handlers/commands';
 import { startDailyDigest } from './cron/dailyDigest';
 import { SecretsManager } from './utils/secrets';
+import { authDb } from './database/db';
 
 // Setup global error handlers
 setupGlobalErrorHandlers();
@@ -47,6 +48,17 @@ client.once(Events.ClientReady, async (readyClient) => {
   logStartup();
   logger.info(`Discord bot logged in as ${readyClient.user.tag}`);
   logger.info(`Connected to ${readyClient.guilds.cache.size} guilds`);
+
+  try {
+    // SECURITY FIX (HIGH-005): Initialize authentication database
+    logger.info('Initializing authentication database...');
+    await authDb.initialize();
+    logger.info('✅ Authentication database initialized');
+  } catch (error) {
+    logger.error('❌ Database initialization failed, shutting down bot:', error);
+    logger.error('Please ensure data directory has correct permissions');
+    process.exit(1);
+  }
 
   try {
     // SECURITY FIX (HIGH-004): Validate role configuration and fail if missing
