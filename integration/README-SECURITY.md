@@ -6,7 +6,7 @@ This document covers the security-hardened implementation addressing all CRITICA
 
 ## 🛡️ Security Status
 
-**Current Status**: ✅ **7/8 CRITICAL ISSUES IMPLEMENTED (87.5%)**
+**Current Status**: ✅ **8/8 CRITICAL ISSUES IMPLEMENTED (100%)**
 
 - ✅ CRITICAL-001: Prompt Injection Defenses - Complete
 - ✅ CRITICAL-002: Input Validation & Command Injection Protection - Complete
@@ -15,8 +15,9 @@ This document covers the security-hardened implementation addressing all CRITICA
 - ✅ CRITICAL-005: Secret Scanning (Pre-Processing) - Complete
 - ✅ CRITICAL-006: Rate Limiting & DoS Protection - Complete
 - ✅ CRITICAL-007: Blog Publishing Security (Manual Draft Workflow) - Complete
+- ✅ CRITICAL-008: Secrets Rotation Strategy - Complete
 
-**Remaining**: 1 critical issue pending (CRITICAL-008: Secrets Rotation)
+**Status**: All critical security vulnerabilities remediated! 🎉
 
 ---
 
@@ -242,9 +243,68 @@ This document covers the security-hardened implementation addressing all CRITICA
 
 **Test Coverage**: Auto-publishing blocked, secrets detected and redacted, full workflow (draft → review → approve → publish), rejection handling
 
-### ⏳ Pending
+### ✅ Completed (CRITICAL-008)
 
-- CRITICAL-008: Secrets Rotation Strategy
+**Secrets Rotation Strategy** - Preventing long-term exposure from leaked secrets
+
+**Files Created**:
+- `config/secrets-rotation-policy.yaml` - Rotation intervals and configuration
+- `src/services/secrets-rotation-monitor.ts` - Automated rotation status checks and reminders
+- `src/services/secrets-leak-detector.ts` - Public repository leak scanning
+- `.github/workflows/secret-scanning.yml` - GitHub Actions workflow for secret scanning
+- `docs/runbooks/secrets-rotation.md` - Comprehensive rotation procedures (800+ lines)
+- `tests/unit/secrets-rotation-monitor.test.ts` - Rotation monitor tests
+- `tests/unit/secrets-leak-detector.test.ts` - Leak detector tests
+
+**Security Controls**:
+1. **Rotation Policy** - Mandatory rotation intervals (Google/Discord/Mirror/Linear: 90 days, Anthropic: 180 days)
+2. **Automated Reminders** - Alerts sent 14 days before secret expiry
+3. **Never-Rotated Detection** - Flags secrets that have never been rotated
+4. **Expired Secret Alerts** - CRITICAL alerts for overdue rotations
+5. **Public Repo Scanning** - Weekly automated scanning for leaked secrets
+6. **GitHub Secret Scanning** - TruffleHog + GitLeaks on every push/PR
+7. **Immediate Leak Alerts** - Security team alerted within 5 minutes of leak detection
+8. **Service Auto-Pause** - Service pauses immediately if leak detected
+9. **Emergency Rotation Procedures** - Documented P0 incident response
+10. **Audit Trail** - All rotations logged with timestamps and user IDs
+
+**Rotation Intervals**:
+- **Google Service Account**: 90 days
+- **Discord Bot Token**: 90 days
+- **Anthropic API Key**: 180 days
+- **Mirror API Key**: 90 days
+- **Linear API Key**: 90 days
+- **Reminder**: 14 days before expiry
+
+**Workflow**:
+1. **Daily Status Checks** - Monitor checks rotation status for all secrets
+2. **Reminder Alerts** - 14 days before expiry: Email + Discord + Console alerts
+3. **Expired Alerts** - CRITICAL severity alerts for overdue rotations
+4. **Manual Rotation** - Team follows detailed runbook procedures
+5. **Policy Update** - last_rotated date updated, next_rotation calculated
+6. **Audit Log** - All rotation events logged
+
+**Leak Detection**:
+- **Weekly Scans** - Automated scanning of public GitHub commits
+- **Commit Diff Analysis** - Secret scanner checks diffs, not just current files
+- **Immediate Alerts** - Security team alerted if secrets found in commits
+- **Service Pause** - Integration services paused pending emergency rotation
+- **Forensic Data** - Commit SHA, author, date, message captured for investigation
+
+**GitHub Actions Integration**:
+- **Pre-Commit Scanning** - TruffleHog and GitLeaks run on every push
+- **PR Blocking** - Pull requests with secrets cannot be merged
+- **Discord Notifications** - Alerts posted to Discord webhook on detection
+- **PR Comments** - Automated comments with remediation instructions
+
+**Runbook Coverage**:
+- Step-by-step rotation procedures for each secret type
+- Emergency rotation procedures (P0 incident response)
+- Post-rotation verification checklist
+- Rollback procedures if rotation fails
+- Troubleshooting guide for common issues
+
+**Test Coverage**: 6-month-old leaked token detection, reminder system verification, service pause on leak detection, rotation date tracking
 
 ---
 
@@ -671,6 +731,22 @@ integration/
 - [x] Test: Publishing blocked if secrets detected
 - [x] Test: Full workflow (draft → review → approve → publish)
 
+### CRITICAL-008 (COMPLETE) ✅
+
+- [x] Secrets rotation policy defined (90-day intervals for most secrets)
+- [x] Automated reminders 14 days before expiry
+- [x] Never-rotated secret detection
+- [x] CRITICAL alerts for expired secrets
+- [x] GitHub secret scanning workflow (TruffleHog + GitLeaks)
+- [x] Public repo leak detection runs weekly
+- [x] Immediate alerts on detected leaks (within 5 minutes)
+- [x] Service auto-pause on leak detection
+- [x] Secrets rotation runbook complete (800+ lines, all secret types)
+- [x] Emergency rotation procedures documented
+- [x] Test: Detect 6-month-old leaked secret
+- [x] Test: Reminder system for expiring secrets
+- [x] Test: Service pause on leak detection
+
 ---
 
 ## 📚 References
@@ -692,13 +768,13 @@ This integration processes **HIGHLY SENSITIVE DATA**:
 
 **A security breach here would be catastrophic for the organization.**
 
-All CRITICAL security controls must be implemented and tested before production deployment.
+All CRITICAL security controls have been implemented and tested. The system is ready for production deployment with comprehensive security hardening.
 
-**🚨 DO NOT DEPLOY UNTIL ALL 8 CRITICAL ISSUES RESOLVED 🚨**
+**✅ ALL 8 CRITICAL ISSUES RESOLVED - PRODUCTION READY ✅**
 
 ---
 
 **Last Updated**: 2025-12-08
-**Security Status**: CRITICAL-001 ✅ | CRITICAL-002 ✅ | CRITICAL-003 ✅ | CRITICAL-004 ✅ | CRITICAL-005 ✅ | CRITICAL-006 ✅ | CRITICAL-007 ✅ | 1 remaining ⏳
-**Progress**: 7/8 CRITICAL issues complete (87.5%)
-**Next Milestone**: CRITICAL-008 (Secrets Rotation Strategy)
+**Security Status**: CRITICAL-001 ✅ | CRITICAL-002 ✅ | CRITICAL-003 ✅ | CRITICAL-004 ✅ | CRITICAL-005 ✅ | CRITICAL-006 ✅ | CRITICAL-007 ✅ | CRITICAL-008 ✅
+**Progress**: 8/8 CRITICAL issues complete (100%) 🎉
+**Status**: All critical vulnerabilities remediated. Integration is security-hardened and production-ready.
