@@ -7,15 +7,15 @@
 
 | Status | Count | Percentage |
 |--------|-------|------------|
-| ✅ **Completed** | 4 | 36.4% |
+| ✅ **Completed** | 5 | 45.5% |
 | 🚧 **In Progress** | 0 | 0% |
-| ⏳ **Pending** | 7 | 63.6% |
+| ⏳ **Pending** | 6 | 54.5% |
 | **Total** | **11** | **100%** |
 
 **Combined Progress (CRITICAL + HIGH)**:
 - CRITICAL: 8/8 complete (100%) ✅
-- HIGH: 4/11 complete (36.4%) 🚧
-- **Total Critical+High**: 12/19 complete (63.2%)
+- HIGH: 5/11 complete (45.5%) 🚧
+- **Total Critical+High**: 13/19 complete (68.4%)
 
 ---
 
@@ -178,35 +178,103 @@
 
 ---
 
+### 5. HIGH-005: Department Detection Security Hardening (CWE-285)
+
+**Severity**: HIGH
+**Status**: ✅ COMPLETE
+**Implementation Date**: 2025-12-08
+**Branch Commits**: `b62e35c`, `b6684d8`, `70da87f`, `7bee6ae`
+
+**Implementation**:
+- Database-backed immutable user-role mappings (6-table SQLite schema)
+- Role verification before command execution with roleVerifier service
+- MFA (TOTP) support for sensitive operations (manage-roles, config, manage-users)
+- Admin approval workflow for all role grants
+- Complete authorization audit trail to database
+- MFA Discord commands (/mfa-enroll, /mfa-verify, /mfa-status, /mfa-disable, /mfa-backup)
+- User migration script for backfilling existing Discord users
+- Database-first with Discord fallback architecture
+
+**Files Created**:
+- `integration/docs/DATABASE-SCHEMA.md` (800 lines) - Complete schema documentation
+- `integration/src/database/schema.sql` (190 lines) - SQLite schema definition
+- `integration/src/database/db.ts` (144 lines) - Database connection wrapper
+- `integration/src/services/user-mapping-service.ts` (668 lines) - User and role management
+- `integration/src/services/role-verifier.ts` (448 lines) - Permission checks with audit
+- `integration/src/services/mfa-verifier.ts` (715 lines) - TOTP MFA implementation
+- `integration/src/services/__tests__/user-mapping-service.test.ts` (385 lines) - Test suite
+- `integration/src/handlers/mfa-commands.ts` (342 lines) - Discord MFA commands
+- `integration/src/scripts/migrate-users-to-db.ts` (188 lines) - Migration script
+- `integration/docs/HIGH-005-IMPLEMENTATION.md` (900+ lines) - Complete implementation guide
+- `integration/docs/HIGH-005-IMPLEMENTATION-STATUS.md` (300+ lines) - Detailed status report
+
+**Files Modified**:
+- `integration/src/middleware/auth.ts` - Database-first role lookup with MFA awareness
+- `integration/src/bot.ts` - Database initialization on startup
+- `integration/src/handlers/commands.ts` - MFA command routing
+- `integration/package.json` - Added migrate-users script
+- `integration/.gitignore` - Added data/auth.db
+
+**Dependencies Added**:
+- `sqlite3`, `sqlite` - Database engine
+- `speakeasy`, `qrcode`, `bcryptjs` - MFA implementation
+
+**Test Coverage**: ✅ 10/10 tests passing (100%)
+
+**Database Schema**:
+- `users` - User identity registry
+- `user_roles` - Immutable role audit trail (append-only, never update/delete)
+- `role_approvals` - Admin approval workflow
+- `mfa_enrollments` - MFA enrollment status and secrets
+- `mfa_challenges` - MFA verification log
+- `auth_audit_log` - Complete authorization audit trail
+
+**Security Impact**:
+- **Before**: Discord-only role checks, no audit trail, no MFA, role manipulation risk HIGH
+- **After**: Database-backed immutable authorization, complete audit trail, MFA for sensitive ops, role manipulation risk LOW
+
+**Attack Scenarios Prevented**:
+1. Discord admin grants themselves elevated role → Role change logged to immutable database audit trail
+2. Compromised admin account performs sensitive operation → MFA verification required (TOTP code)
+3. Attacker manipulates Discord audit log → Database audit trail is separate and immutable
+4. Unauthorized role grant → Admin approval workflow blocks direct grants
+
+**Authorization Flow**:
+1. Check database for user roles (immutable audit trail)
+2. If user not in DB, fetch from Discord and create user record
+3. Use roleVerifier service for permission checks
+4. Complete audit logging to database
+5. Detect MFA requirements for sensitive operations
+
+**MFA Features**:
+- TOTP-based (Google Authenticator, Authy, etc.)
+- QR code generation for easy enrollment
+- 10 backup codes (one-time use, bcrypt hashed)
+- Rate limiting: 5 attempts per 15 minutes
+- Complete challenge logging to database
+
+**Discord Commands**:
+- `/mfa-enroll` - Start MFA enrollment (QR code + backup codes via DM)
+- `/mfa-verify <code>` - Verify TOTP code to activate MFA
+- `/mfa-status` - Check MFA enrollment status
+- `/mfa-disable <code>` - Disable MFA (requires verification)
+- `/mfa-backup <code>` - Verify with backup code
+
+**Migration Script**:
+- `npm run migrate-users` - Backfill existing Discord users into database
+- Auto-creates users with guest role
+- Detects Discord roles requiring approval
+- Idempotent (safe to run multiple times)
+
+---
+
 ## Pending Issues ⏳
 
 ### Phase 2: Access Control Hardening
 
 ---
 
-#### 5. HIGH-005: Department Detection Security Hardening
-**Estimated Effort**: 10-14 hours
-**Priority**: 🟡
-
-**Requirements**:
-- Immutable user mapping in database (not YAML files)
-- Role verification before command execution
-- Multi-Factor Authorization for sensitive operations
-- Admin approval workflow for role grants
-
-**Files to Create**:
-- `integration/src/services/user-mapping-service.ts` (~300 lines)
-- `integration/src/services/role-verifier.ts` (~200 lines)
-- `integration/src/services/mfa-verifier.ts` (~250 lines)
-- `integration/tests/unit/user-mapping-service.test.ts` (~200 lines)
-
-**Files to Modify**:
-- Remove department detection logic from `integration/config/config.yaml`
-- Update command handlers to use database-backed mappings
-
----
-
-#### 6. HIGH-001: Discord Channel Access Controls Documentation
+#### 1. HIGH-001: Discord Channel Access Controls Documentation
 **Estimated Effort**: 4-6 hours
 **Priority**: 🟡
 
@@ -316,21 +384,11 @@
 
 ### Short Term (This Week)
 
-**Priority 2**: HIGH-005 - Department Detection Security Hardening
-- Prevents information leakage
-- Medium effort (8-12 hours)
-
-**Priority 3**: HIGH-005 - Department Detection Security Hardening
-- Prevents role spoofing
-- Medium effort (10-14 hours)
-
-### Medium Term (Next Week)
-
-**Priority 4**: HIGH-001 - Discord Security Documentation
+**Priority 2**: HIGH-001 - Discord Security Documentation
 - Low effort (4-6 hours)
 - Immediate operational value
 
-**Priority 5**: HIGH-009 - Disaster Recovery Plan
+**Priority 3**: HIGH-009 - Disaster Recovery Plan
 - Medium effort (8-12 hours)
 - Critical for production readiness
 
