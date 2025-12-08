@@ -30,15 +30,16 @@ linearRateLimiter.on('failed', async (error: any) => {
 });
 
 // CIRCUIT BREAKER
+// LOW-006: Adjusted thresholds to be less aggressive for flaky networks
 const linearCircuitBreaker = new CircuitBreaker(
   async (apiCall: () => Promise<any>) => apiCall(),
   {
     timeout: 10000, // 10s timeout
-    errorThresholdPercentage: 50, // Open after 50% errors
+    errorThresholdPercentage: 70, // Open after 70% errors (was 50%)
     resetTimeout: 30000, // Try again after 30s
     rollingCountTimeout: 60000, // 1 minute window
     rollingCountBuckets: 10,
-    volumeThreshold: 10, // Min 10 requests before opening
+    volumeThreshold: 20, // Min 20 requests before opening (was 10)
   }
 );
 

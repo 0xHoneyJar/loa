@@ -9,7 +9,20 @@ import { logger } from '../utils/logger';
  * - Enforces permissions for all commands and actions
  * - Audits all privileged operations
  * - Prevents privilege escalation
+ * - LOW-002: Extracted magic numbers to named constants
  */
+
+/**
+ * Rate limiting configuration constants
+ * LOW-002: Extracted from inline magic numbers for better maintainability
+ */
+export const RATE_LIMITS = {
+  COMMAND: { maxRequests: 5, windowMs: 60000 },
+  FEEDBACK_CAPTURE: { maxRequests: 3, windowMs: 60000 },
+  DOC_REQUEST: { maxRequests: 10, windowMs: 60000 },
+  MY_TASKS: { maxRequests: 10, windowMs: 60000 },
+  IMPLEMENT_STATUS: { maxRequests: 10, windowMs: 60000 },
+} as const;
 
 export enum UserRole {
   RESEARCHER = 'researcher',
@@ -394,7 +407,7 @@ const rateLimitCache = new Map<string, { count: number; resetAt: number }>();
 export function checkRateLimit(
   userId: string,
   action: string,
-  config: RateLimitConfig = { maxRequests: 5, windowMs: 60000 }
+  config: RateLimitConfig = RATE_LIMITS.COMMAND
 ): { allowed: boolean; remaining: number; resetAt: number } {
   const key = `${action}:${userId}`;
   const now = Date.now();

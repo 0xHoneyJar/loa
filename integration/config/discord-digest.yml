@@ -53,5 +53,29 @@ notifications:
   ping_on_overdue_tasks: false
 
 # Timezone for schedule (default: UTC)
-# Examples: "America/Los_Angeles", "Europe/London", "Asia/Tokyo"
+# LOW-007: Timezone configuration is fully documented and configurable
+#
+# The cron schedule above runs in the timezone specified here.
+# This allows teams to schedule digests in their local time.
+#
+# Common timezones:
+#   - "UTC" (Coordinated Universal Time, default)
+#   - "America/New_York" (Eastern Time)
+#   - "America/Los_Angeles" (Pacific Time)
+#   - "America/Chicago" (Central Time)
+#   - "America/Denver" (Mountain Time)
+#   - "Europe/London" (UK)
+#   - "Europe/Paris" (Central European)
+#   - "Asia/Tokyo" (Japan)
+#   - "Asia/Shanghai" (China)
+#   - "Australia/Sydney" (Australia)
+#
+# Full list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+#
+# Example: If you want daily digest at 9am Pacific Time:
+#   schedule: "0 9 * * 1-5"
+#   timezone: "America/Los_Angeles"
+#
+# Note: The bot will automatically handle Daylight Saving Time changes
+# based on the timezone you specify.
 timezone: "UTC"
