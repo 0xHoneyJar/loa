@@ -14,6 +14,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "migrate-users": "ts-node src/scripts/migrate-users-to-db.ts",
     "verify-secrets": "ts-node scripts/verify-secrets.ts",
     "security:audit": "npm audit --audit-level=moderate",
     "security:audit:fix": "npm audit fix",

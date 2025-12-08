@@ -20,6 +20,7 @@ import { getCurrentSprint, getTeamIssues } from '../services/linearService';
 import { checkRateLimit } from '../middleware/auth';
 import { handleTranslate, handleTranslateHelp } from './translation-commands';
 import { validateCommandInput, validateParameterLength, INPUT_LIMITS } from '../validators/document-size-validator';
+import { handleMfaCommand } from './mfa-commands';
 
 /**
  * Main command router
@@ -91,6 +92,14 @@ export async function handleCommand(message: Message): Promise<void> {
 
       case 'translate-help':
         await handleTranslateHelp(message);
+        break;
+
+      case 'mfa-enroll':
+      case 'mfa-verify':
+      case 'mfa-status':
+      case 'mfa-disable':
+      case 'mfa-backup':
+        await handleMfaCommand(message);
         break;
 
       case 'help':
@@ -404,6 +413,13 @@ async function handleHelp(message: Message): Promise<void> {
 **DevRel Commands:**
   • \`/translate <docs> [format] [audience]\` - Generate stakeholder translation
   • \`/translate-help\` - Detailed help for translation feature
+
+**Security / MFA Commands:**
+  • \`/mfa-enroll\` - Enable multi-factor authentication
+  • \`/mfa-verify <code>\` - Verify TOTP code
+  • \`/mfa-status\` - Check MFA enrollment status
+  • \`/mfa-disable <code>\` - Disable MFA (requires verification)
+  • \`/mfa-backup <code>\` - Verify with backup code
 
 **Feedback Capture:**
   • React with 📌 to any message to capture it as Linear feedback
