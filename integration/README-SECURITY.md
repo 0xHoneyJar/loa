@@ -6,9 +6,12 @@ This document covers the security-hardened implementation addressing all CRITICA
 
 ## 🛡️ Security Status
 
-**Current Status**: ✅ **CRITICAL-001 IMPLEMENTED** - Prompt Injection Defenses Complete
+**Current Status**: ✅ **CRITICAL-001 & CRITICAL-002 IMPLEMENTED**
 
-**Remaining**: 7 critical issues in progress
+- ✅ CRITICAL-001: Prompt Injection Defenses - Complete
+- ✅ CRITICAL-002: Input Validation & Command Injection Protection - Complete
+
+**Remaining**: 6 critical issues pending
 
 ---
 
@@ -34,18 +37,26 @@ This document covers the security-hardened implementation addressing all CRITICA
 
 **Test Coverage**: 20+ prompt injection attack scenarios validated
 
-### 🚧 In Progress (CRITICAL-002)
+### ✅ Completed (CRITICAL-002)
 
 **Input Validation for Discord Bot** - Preventing command injection
 
-**Completed**:
-- ✅ Created `src/validators/input-validator.ts` - Blocks path traversal, command injection, validates extensions
-- ✅ Created `src/services/document-resolver.ts` - Safe path resolution with directory containment
-- ✅ Created comprehensive test suite - 75+ attack scenario tests
+**Files Created**:
+- `src/validators/input-validator.ts` - Comprehensive input validation
+- `src/services/document-resolver.ts` - Safe document path resolution
+- `src/handlers/translation-commands.ts` - Secure translation command handler
+- `tests/unit/input-validator.test.ts` - 75+ attack scenario tests
 
-**Remaining**:
-- Update Discord bot command handlers to use validators
-- Integration testing with actual Discord commands
+**Security Controls**:
+1. **Path Traversal Protection**: Blocks ../, URL-encoded variants, absolute paths
+2. **Command Injection Prevention**: Blocks shell metacharacters (;|&$(){}<>)
+3. **Extension Whitelist**: Only .md and .gdoc files allowed
+4. **Document Limits**: Max 10 documents per request
+5. **Directory Containment**: Resolved paths must stay within allowed directories
+6. **Argument Validation**: Command names, audience, format validated
+7. **Input Sanitization**: XSS prevention for display output
+
+**Test Coverage**: 75+ attack scenarios validated (exceeds 50+ requirement)
 
 ### ⏳ Pending
 

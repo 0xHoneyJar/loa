@@ -7,6 +7,7 @@
  * - /my-tasks - Show user's assigned Linear tasks
  * - /preview <issue-id> - Get Vercel preview URL
  * - /my-notifications - User notification preferences
+ * - /translate - Generate DevRel translation (CRITICAL-001, CRITICAL-002 security)
  */
 
 import { Message } from 'discord.js';
@@ -17,6 +18,7 @@ import { requirePermission } from '../middleware/auth';
 import { handleError } from '../utils/errors';
 import { getCurrentSprint, getTeamIssues } from '../services/linearService';
 import { checkRateLimit } from '../middleware/auth';
+import { handleTranslate, handleTranslateHelp } from './translation-commands';
 
 /**
  * Main command router
@@ -60,6 +62,14 @@ export async function handleCommand(message: Message): Promise<void> {
 
       case 'my-notifications':
         await handleMyNotifications(message);
+        break;
+
+      case 'translate':
+        await handleTranslate(message, args);
+        break;
+
+      case 'translate-help':
+        await handleTranslateHelp(message);
         break;
 
       case 'help':
@@ -369,6 +379,10 @@ async function handleHelp(message: Message): Promise<void> {
   • \`/my-tasks\` - Show your assigned Linear tasks
   • \`/preview <issue-id>\` - Get Vercel preview URL for issue
   • \`/my-notifications\` - View/update notification preferences
+
+**DevRel Commands:**
+  • \`/translate <docs> [format] [audience]\` - Generate stakeholder translation
+  • \`/translate-help\` - Detailed help for translation feature
 
 **Feedback Capture:**
   • React with 📌 to any message to capture it as Linear feedback
