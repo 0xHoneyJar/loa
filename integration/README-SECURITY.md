@@ -38,11 +38,14 @@ This document covers the security-hardened implementation addressing all CRITICA
 
 **Input Validation for Discord Bot** - Preventing command injection
 
-**Next Steps**:
-- Create `src/validators/input-validator.ts`
-- Create `src/services/document-resolver.ts`
-- Update Discord bot command handlers
-- Add 50+ command injection test cases
+**Completed**:
+- ✅ Created `src/validators/input-validator.ts` - Blocks path traversal, command injection, validates extensions
+- ✅ Created `src/services/document-resolver.ts` - Safe path resolution with directory containment
+- ✅ Created comprehensive test suite - 75+ attack scenario tests
+
+**Remaining**:
+- Update Discord bot command handlers to use validators
+- Integration testing with actual Discord commands
 
 ### ⏳ Pending
 
