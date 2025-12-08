@@ -69,6 +69,41 @@ const mfaRateLimits = new Map<string, RateLimitEntry>();
 const MAX_ATTEMPTS = 5;
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
+/**
+ * Mapping functions to convert snake_case database columns to camelCase TypeScript
+ */
+
+function mapMfaEnrollment(row: any): MfaEnrollment {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    mfaType: row.mfa_type,
+    totpSecret: row.totp_secret,
+    backupCodes: row.backup_codes,
+    status: row.status,
+    verifiedAt: row.verified_at,
+    lastUsedAt: row.last_used_at,
+    enrolledAt: row.enrolled_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapMfaChallenge(row: any): MfaChallenge {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    challengeType: row.challenge_type,
+    operation: row.operation,
+    operationContext: row.operation_context,
+    success: row.success === 1,
+    failureReason: row.failure_reason,
+    ipAddress: row.ip_address,
+    userAgent: row.user_agent,
+    challengedAt: row.challenged_at,
+  };
+}
+
 export class MfaVerifier {
   /**
    * Enroll user in MFA (generates TOTP secret and backup codes)
@@ -84,13 +119,16 @@ export class MfaVerifier {
     }
 
     // Check if already enrolled
-    const existingEnrollment = await db.get<MfaEnrollment>(
+    const existingRow = await db.get(
       'SELECT * FROM mfa_enrollments WHERE user_id = ?',
       user.id
     );
 
-    if (existingEnrollment && existingEnrollment.status === 'active') {
-      throw new Error('User already enrolled in MFA');
+    if (existingRow) {
+      const existingEnrollment = mapMfaEnrollment(existingRow);
+      if (existingEnrollment.status === 'active') {
+        throw new Error('User already enrolled in MFA');
+      }
     }
 
     // Generate TOTP secret
@@ -110,7 +148,7 @@ export class MfaVerifier {
     const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url!);
 
     // Store enrollment (pending until verified)
-    if (existingEnrollment) {
+    if (existingRow) {
       // Update existing pending enrollment
       await db.run(
         `UPDATE mfa_enrollments
@@ -166,15 +204,17 @@ export class MfaVerifier {
     }
 
     // Get pending enrollment
-    const enrollment = await db.get<MfaEnrollment>(
+    const enrollmentRow = await db.get(
       'SELECT * FROM mfa_enrollments WHERE user_id = ? AND status = ?',
       user.id,
       'pending'
     );
 
-    if (!enrollment) {
+    if (!enrollmentRow) {
       throw new Error('No pending MFA enrollment found');
     }
+
+    const enrollment = mapMfaEnrollment(enrollmentRow);
 
     // Verify TOTP code
     const verified = speakeasy.totp.verify({
@@ -257,13 +297,13 @@ export class MfaVerifier {
     }
 
     // Get active MFA enrollment
-    const enrollment = await db.get<MfaEnrollment>(
+    const enrollmentRow = await db.get(
       'SELECT * FROM mfa_enrollments WHERE user_id = ? AND status = ?',
       user.id,
       'active'
     );
 
-    if (!enrollment) {
+    if (!enrollmentRow) {
       return this.logFailedChallenge(
         user.id,
         'totp',
@@ -271,6 +311,8 @@ export class MfaVerifier {
         'MFA not enrolled or not active'
       );
     }
+
+    const enrollment = mapMfaEnrollment(enrollmentRow);
 
     // Verify TOTP code
     const verified = speakeasy.totp.verify({
@@ -359,13 +401,24 @@ export class MfaVerifier {
     }
 
     // Get active MFA enrollment
-    const enrollment = await db.get<MfaEnrollment>(
+    const enrollmentRow = await db.get(
       'SELECT * FROM mfa_enrollments WHERE user_id = ? AND status = ?',
       user.id,
       'active'
     );
 
-    if (!enrollment || !enrollment.backupCodes) {
+    if (!enrollmentRow) {
+      return this.logFailedChallenge(
+        user.id,
+        'backup_code',
+        operation,
+        'MFA not enrolled or backup codes not available'
+      );
+    }
+
+    const enrollment = mapMfaEnrollment(enrollmentRow);
+
+    if (!enrollment.backupCodes) {
       return this.logFailedChallenge(
         user.id,
         'backup_code',
@@ -450,13 +503,13 @@ export class MfaVerifier {
       return false;
     }
 
-    const enrollment = await db.get<MfaEnrollment>(
+    const enrollmentRow = await db.get(
       'SELECT * FROM mfa_enrollments WHERE user_id = ? AND status = ?',
       user.id,
       'active'
     );
 
-    return !!enrollment;
+    return !!enrollmentRow;
   }
 
   /**
@@ -645,7 +698,7 @@ export class MfaVerifier {
       return [];
     }
 
-    const challenges = await db.all<MfaChallenge[]>(
+    const rows = await db.all(
       `SELECT * FROM mfa_challenges
        WHERE user_id = ?
        ORDER BY challenged_at DESC
@@ -654,7 +707,7 @@ export class MfaVerifier {
       limit
     );
 
-    return challenges;
+    return rows.map(mapMfaChallenge);
   }
 }
 

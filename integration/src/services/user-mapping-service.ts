@@ -61,6 +61,63 @@ export interface RoleApproval {
   expiresAt: string;
 }
 
+/**
+ * Mapping functions to convert snake_case database columns to camelCase TypeScript
+ */
+
+function mapUser(row: any): User {
+  return {
+    id: row.id,
+    discordUserId: row.discord_user_id,
+    discordUsername: row.discord_username,
+    discordDiscriminator: row.discord_discriminator,
+    linearUserId: row.linear_user_id,
+    linearEmail: row.linear_email,
+    department: row.department,
+    team: row.team,
+    status: row.status,
+    firstSeenAt: row.first_seen_at,
+    lastSeenAt: row.last_seen_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapUserRole(row: any): UserRole {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    role: row.role,
+    action: row.action,
+    grantedByUserId: row.granted_by_user_id,
+    grantedByDiscordId: row.granted_by_discord_id,
+    approvalId: row.approval_id,
+    reason: row.reason,
+    metadata: row.metadata,
+    effectiveAt: row.effective_at,
+    expiresAt: row.expires_at,
+    createdAt: row.created_at,
+  };
+}
+
+function mapRoleApproval(row: any): RoleApproval {
+  return {
+    id: row.id,
+    requestedUserId: row.requested_user_id,
+    requestedRole: row.requested_role,
+    requestedDepartment: row.requested_department,
+    requesterDiscordId: row.requester_discord_id,
+    requesterUsername: row.requester_username,
+    status: row.status,
+    approverUserId: row.approver_user_id,
+    approverDiscordId: row.approver_discord_id,
+    approvalReason: row.approval_reason,
+    requestedAt: row.requested_at,
+    reviewedAt: row.reviewed_at,
+    expiresAt: row.expires_at,
+  };
+}
+
 export class UserMappingService {
   /**
    * Get or create user by Discord ID
@@ -70,20 +127,20 @@ export class UserMappingService {
     const now = new Date().toISOString();
 
     // Check if user exists
-    let user = await db.get<User>(
+    let row = await db.get(
       'SELECT * FROM users WHERE discord_user_id = ?',
       discordUserId
     );
 
-    if (user) {
+    if (row) {
       // Update last seen timestamp
       await db.run(
         'UPDATE users SET last_seen_at = ?, updated_at = ? WHERE id = ?',
-        now, now, user.id
+        now, now, row.id
       );
-      user.lastSeenAt = now;
-      user.updatedAt = now;
-      return user;
+      row.last_seen_at = now;
+      row.updated_at = now;
+      return mapUser(row);
     }
 
     // Create new user
@@ -95,14 +152,16 @@ export class UserMappingService {
       discordUserId, discordUsername, 'active', now, now, now, now
     );
 
-    user = await db.get<User>(
+    row = await db.get(
       'SELECT * FROM users WHERE id = ?',
       result.lastID
     );
 
-    if (!user) {
+    if (!row) {
       throw new Error('Failed to create user');
     }
+
+    const user = mapUser(row);
 
     logger.info('New user created', {
       userId: user.id,
@@ -127,11 +186,11 @@ export class UserMappingService {
    */
   async getUserByDiscordId(discordUserId: string): Promise<User | null> {
     const db = authDb.getConnection();
-    const user = await db.get<User>(
+    const row = await db.get(
       'SELECT * FROM users WHERE discord_user_id = ?',
       discordUserId
     );
-    return user || null;
+    return row ? mapUser(row) : null;
   }
 
   /**
@@ -139,11 +198,11 @@ export class UserMappingService {
    */
   async getUserById(userId: number): Promise<User | null> {
     const db = authDb.getConnection();
-    const user = await db.get<User>(
+    const row = await db.get(
       'SELECT * FROM users WHERE id = ?',
       userId
     );
-    return user || null;
+    return row ? mapUser(row) : null;
   }
 
   /**
@@ -261,7 +320,7 @@ export class UserMappingService {
     }
 
     // Check for pending approval
-    const pendingApproval = await db.get<RoleApproval>(
+    const pendingRow = await db.get(
       `SELECT * FROM role_approvals
        WHERE requested_user_id = ?
          AND requested_role = ?
@@ -270,7 +329,8 @@ export class UserMappingService {
       user.id, request.role, now
     );
 
-    if (pendingApproval) {
+    if (pendingRow) {
+      const pendingApproval = mapRoleApproval(pendingRow);
       return { approvalId: pendingApproval.id, status: 'pending' };
     }
 
@@ -319,14 +379,16 @@ export class UserMappingService {
     const now = new Date().toISOString();
 
     // Get approval
-    const approval = await db.get<RoleApproval>(
+    const approvalRow = await db.get(
       'SELECT * FROM role_approvals WHERE id = ?',
       approvalId
     );
 
-    if (!approval) {
+    if (!approvalRow) {
       throw new Error('Approval not found');
     }
+
+    const approval = mapRoleApproval(approvalRow);
 
     if (approval.status !== 'pending') {
       throw new Error(`Approval already ${approval.status}`);
@@ -404,14 +466,16 @@ export class UserMappingService {
     const now = new Date().toISOString();
 
     // Get approval
-    const approval = await db.get<RoleApproval>(
+    const approvalRow = await db.get(
       'SELECT * FROM role_approvals WHERE id = ?',
       approvalId
     );
 
-    if (!approval) {
+    if (!approvalRow) {
       throw new Error('Approval not found');
     }
+
+    const approval = mapRoleApproval(approvalRow);
 
     if (approval.status !== 'pending') {
       throw new Error(`Approval already ${approval.status}`);
@@ -555,14 +619,14 @@ export class UserMappingService {
     const db = authDb.getConnection();
     const now = new Date().toISOString();
 
-    const approvals = await db.all<RoleApproval[]>(
+    const rows = await db.all(
       `SELECT * FROM role_approvals
        WHERE status = 'pending' AND expires_at > ?
        ORDER BY requested_at ASC`,
       now
     );
 
-    return approvals;
+    return rows.map(mapRoleApproval);
   }
 
   /**
@@ -576,14 +640,14 @@ export class UserMappingService {
       return [];
     }
 
-    const history = await db.all<UserRole[]>(
+    const rows = await db.all(
       `SELECT * FROM user_roles
        WHERE user_id = ?
        ORDER BY effective_at DESC`,
       user.id
     );
 
-    return history;
+    return rows.map(mapUserRole);
   }
 
   /**
