@@ -16,6 +16,7 @@ import documentResolver from '../services/document-resolver';
 import secureTranslationInvoker from '../services/translation-invoker-secure';
 import { SecurityException } from '../services/review-queue';
 import { validateParameterLength, validateDocumentNames, INPUT_LIMITS } from '../validators/document-size-validator';
+import { CircuitBreakerOpenError } from '../services/circuit-breaker';
 
 /**
  * /translate - Generate secure translation from documents
@@ -223,12 +224,39 @@ export async function handleTranslate(message: Message, args: string[]): Promise
         return;
       }
 
+      // HIGH-004: Handle circuit breaker errors
+      if (error instanceof CircuitBreakerOpenError) {
+        logger.warn('Translation blocked by circuit breaker', {
+          user: message.author.id,
+          error: error.message
+        });
+        await message.reply(
+          '⚠️ **Translation Service Temporarily Unavailable**\n\n' +
+          'The Anthropic API is experiencing issues and the circuit breaker has been triggered to prevent cascading failures.\n\n' +
+          '**What this means:**\n' +
+          '  • Multiple translation requests have failed recently\n' +
+          '  • The system is protecting itself from overload\n' +
+          '  • Service will auto-recover once API is stable\n\n' +
+          '**What to do:**\n' +
+          '  • Wait 1-2 minutes and try again\n' +
+          '  • Check Anthropic status page if issue persists\n' +
+          '  • Contact support if urgent\n\n' +
+          '*This is a HIGH-004 security feature to prevent service degradation.*'
+        );
+        return;
+      }
+
       // Other errors
       logger.error('Translation generation failed', {
         user: message.author.id,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       });
-      await message.reply(`❌ **Translation generation failed:** ${error.message}`);
+
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await message.reply(
+        `❌ **Translation generation failed**\n\n${errorMessage}\n\n` +
+        '*If this persists, please contact support with the error details.*'
+      );
       return;
     }
 

@@ -14,6 +14,8 @@ import contentSanitizer from './content-sanitizer';
 import outputValidator from './output-validator';
 import reviewQueue, { SecurityException } from './review-queue';
 import logger from './logger';
+import { RetryHandler } from './retry-handler';
+import { circuitBreakerRegistry } from './circuit-breaker';
 
 export interface SecureTranslationInput {
   documents: Array<{
@@ -40,6 +42,21 @@ export interface SecureTranslationResult {
 }
 
 export class SecureTranslationInvoker {
+  // HIGH-004: Retry handler with exponential backoff
+  private readonly retryHandler = new RetryHandler({
+    maxRetries: 3,
+    initialDelayMs: 1000, // 1s, 2s, 4s backoff
+    backoffMultiplier: 2,
+    timeoutMs: 30000, // 30s per attempt
+  });
+
+  // HIGH-004: Circuit breaker for Anthropic API
+  private readonly anthropicCircuitBreaker = circuitBreakerRegistry.getOrCreate('anthropic-api', {
+    failureThreshold: 5,
+    successThreshold: 2,
+    resetTimeoutMs: 60000, // 1 minute
+  });
+
   private readonly SYSTEM_PROMPT = `You are a technical documentation translator. Your ONLY job is to translate technical documents into stakeholder-friendly summaries.
 
 CRITICAL SECURITY RULES (NEVER VIOLATE):
@@ -90,13 +107,53 @@ DO NOT include any secrets, credentials, or sensitive technical details that cou
     // STEP 2: Prepare secure prompt
     const prompt = this.prepareSecurePrompt(sanitizedDocuments, input.format, input.audience);
 
-    // STEP 3: Invoke AI agent with hardened system prompt
+    // STEP 3: Invoke AI agent with hardened system prompt + retry logic + circuit breaker (HIGH-004)
     let output: string;
     try {
-      output = await this.invokeAIAgent(prompt);
+      // Use circuit breaker to prevent cascading failures
+      output = await this.anthropicCircuitBreaker.execute(async () => {
+        // Use retry handler with exponential backoff for transient failures
+        return await this.retryHandler.execute(
+          () => this.invokeAIAgent(prompt),
+          'translation-generation'
+        ).then(result => {
+          if (!result.success) {
+            throw result.error || new Error('Translation generation failed');
+          }
+          return result.result!;
+        });
+      });
+
+      logger.info('Translation generated successfully', {
+        format: input.format,
+        attempts: 'completed'
+      });
     } catch (error) {
-      logger.error('AI agent invocation failed', { error: error.message });
-      throw new Error(`Translation generation failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      logger.error('AI agent invocation failed after all retries', {
+        error: errorMessage,
+        circuitState: this.anthropicCircuitBreaker.getState()
+      });
+
+      // Provide user-friendly error message based on error type
+      if (errorMessage.includes('Circuit breaker is OPEN')) {
+        throw new Error(
+          `Translation service is temporarily unavailable due to Anthropic API issues. ` +
+          `Please try again in a few minutes.`
+        );
+      } else if (errorMessage.includes('timeout')) {
+        throw new Error(
+          `Translation generation timed out. The documents may be too large or complex. ` +
+          `Please try with fewer or shorter documents.`
+        );
+      } else if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+        throw new Error(
+          `Translation rate limit exceeded. Please wait a moment and try again.`
+        );
+      } else {
+        throw new Error(`Translation generation failed: ${errorMessage}`);
+      }
     }
 
     // STEP 4: Validate output
