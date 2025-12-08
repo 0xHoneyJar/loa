@@ -1,18 +1,19 @@
 import express, { Request, Response } from 'express';
 import crypto from 'crypto';
+import { LRUCache } from 'lru-cache';
 import { logger, audit } from '../utils/logger';
-import { handleError } from '../utils/errors';
-
-// In-memory store for processed webhook IDs (use Redis in production)
-const processedWebhooks = new Set<string>();
-const WEBHOOK_TTL = 3600000; // 1 hour in milliseconds
 
 /**
- * Clean up old webhook IDs periodically
+ * SECURITY FIX (HIGH-003): Use LRU cache with size limit to prevent memory exhaustion
+ * - Bounded to max 10k webhooks
+ * - Automatic expiry after 1 hour TTL
+ * - LRU eviction if limit reached
  */
-setInterval(() => {
-  processedWebhooks.clear();
-}, WEBHOOK_TTL);
+const processedWebhooks = new LRUCache<string, boolean>({
+  max: 10000, // Max 10k webhooks tracked
+  ttl: 60 * 60 * 1000, // 1 hour TTL (automatic expiry)
+  updateAgeOnGet: false, // Don't reset TTL on duplicate check
+});
 
 /**
  * Verify Linear webhook signature
@@ -66,54 +67,57 @@ function verifyVercelSignature(
 
 /**
  * Handle Linear webhook events
+ *
+ * SECURITY FIX (HIGH-002): All error responses use generic messages
+ * to prevent timing attacks and information leakage
  */
 export async function handleLinearWebhook(req: Request, res: Response): Promise<void> {
   try {
-    // MEDIUM #11: Enforce HTTPS
+    // SECURITY: Enforce HTTPS in production
     if (process.env['NODE_ENV'] === 'production' && req.protocol !== 'https') {
       logger.warn('Linear webhook received over HTTP in production');
-      res.status(400).send('HTTPS required');
+      res.status(400).send('Bad Request'); // Generic
       return;
     }
 
     const signature = req.headers['x-linear-signature'] as string;
     const payload = req.body;
 
-    // 1. VERIFY SIGNATURE
+    // 1. VERIFY SIGNATURE FIRST (before parsing)
     if (!signature) {
       logger.warn('Linear webhook missing signature header');
-      res.status(401).send('Missing signature');
+      res.status(400).send('Bad Request'); // Generic
       return;
     }
 
     const webhookSecret = process.env['LINEAR_WEBHOOK_SECRET'];
     if (!webhookSecret) {
       logger.error('LINEAR_WEBHOOK_SECRET not configured');
-      res.status(500).send('Server misconfiguration');
+      res.status(500).send('Server Error'); // Generic
       return;
     }
 
     const isValid = verifyLinearSignature(payload, signature, webhookSecret);
     if (!isValid) {
-      logger.warn('Linear webhook signature verification failed');
+      logger.warn('Linear webhook signature verification failed', { ip: req.ip });
       audit({
         action: 'webhook.signature_failed',
         resource: 'linear',
         userId: 'system',
         timestamp: new Date().toISOString(),
-        details: { headers: req.headers, ip: req.ip },
+        details: { ip: req.ip },
       });
-      res.status(401).send('Invalid signature');
+      res.status(401).send('Unauthorized'); // Generic, same timing
       return;
     }
 
-    // 2. PARSE PAYLOAD
+    // 2. NOW PARSE PAYLOAD (signature is valid)
     let data;
     try {
-      data = JSON.parse(payload.toString());
+      data = JSON.parse(payload.toString('utf-8'));
     } catch (error) {
-      logger.error('Invalid Linear webhook payload:', error);
-      res.status(400).send('Invalid JSON');
+      logger.error('Invalid webhook payload (valid signature)', { error, ip: req.ip });
+      res.status(400).send('Bad Request'); // Same generic error
       return;
     }
 
@@ -121,16 +125,16 @@ export async function handleLinearWebhook(req: Request, res: Response): Promise<
     const timestamp = data.createdAt;
     if (!timestamp) {
       logger.warn('Linear webhook missing timestamp');
-      res.status(400).send('Missing timestamp');
+      res.status(400).send('Bad Request'); // Generic
       return;
     }
 
     const webhookAge = Date.now() - new Date(timestamp).getTime();
     const MAX_AGE = 5 * 60 * 1000; // 5 minutes
 
-    if (webhookAge > MAX_AGE) {
-      logger.warn(`Linear webhook too old: ${webhookAge}ms`);
-      res.status(400).send('Webhook expired');
+    if (webhookAge > MAX_AGE || webhookAge < 0) {
+      logger.warn(`Linear webhook timestamp invalid: ${webhookAge}ms`);
+      res.status(400).send('Bad Request'); // Generic
       return;
     }
 
@@ -138,18 +142,18 @@ export async function handleLinearWebhook(req: Request, res: Response): Promise<
     const webhookId = data.webhookId || data.id;
     if (!webhookId) {
       logger.warn('Linear webhook missing ID');
-      res.status(400).send('Missing webhook ID');
+      res.status(400).send('Bad Request'); // Generic
       return;
     }
 
     if (processedWebhooks.has(webhookId)) {
       logger.info(`Duplicate Linear webhook ignored: ${webhookId}`);
-      res.status(200).send('Already processed');
+      res.status(200).send('OK');
       return;
     }
 
     // Mark as processed
-    processedWebhooks.add(webhookId);
+    processedWebhooks.set(webhookId, true);
 
     // 5. AUDIT LOG
     audit({
@@ -171,61 +175,63 @@ export async function handleLinearWebhook(req: Request, res: Response): Promise<
     res.status(200).send('OK');
   } catch (error) {
     logger.error('Error handling Linear webhook:', error);
-    const errorMessage = handleError(error, 'system');
-    res.status(500).send(errorMessage);
+    res.status(500).send('Server Error'); // Always generic
   }
 }
 
 /**
  * Handle Vercel webhook events
+ *
+ * SECURITY FIX (HIGH-002): All error responses use generic messages
+ * to prevent timing attacks and information leakage
  */
 export async function handleVercelWebhook(req: Request, res: Response): Promise<void> {
   try {
-    // MEDIUM #11: Enforce HTTPS
+    // SECURITY: Enforce HTTPS in production
     if (process.env['NODE_ENV'] === 'production' && req.protocol !== 'https') {
       logger.warn('Vercel webhook received over HTTP in production');
-      res.status(400).send('HTTPS required');
+      res.status(400).send('Bad Request'); // Generic
       return;
     }
 
     const signature = req.headers['x-vercel-signature'] as string;
     const payload = req.body.toString();
 
-    // 1. VERIFY SIGNATURE
+    // 1. VERIFY SIGNATURE FIRST (before parsing)
     if (!signature) {
       logger.warn('Vercel webhook missing signature header');
-      res.status(401).send('Missing signature');
+      res.status(400).send('Bad Request'); // Generic
       return;
     }
 
     const webhookSecret = process.env['VERCEL_WEBHOOK_SECRET'];
     if (!webhookSecret) {
       logger.error('VERCEL_WEBHOOK_SECRET not configured');
-      res.status(500).send('Server misconfiguration');
+      res.status(500).send('Server Error'); // Generic
       return;
     }
 
     const isValid = verifyVercelSignature(payload, signature, webhookSecret);
     if (!isValid) {
-      logger.warn('Vercel webhook signature verification failed');
+      logger.warn('Vercel webhook signature verification failed', { ip: req.ip });
       audit({
         action: 'webhook.signature_failed',
         resource: 'vercel',
         userId: 'system',
         timestamp: new Date().toISOString(),
-        details: { headers: req.headers, ip: req.ip },
+        details: { ip: req.ip },
       });
-      res.status(401).send('Invalid signature');
+      res.status(401).send('Unauthorized'); // Generic, same timing
       return;
     }
 
-    // 2. PARSE PAYLOAD
+    // 2. NOW PARSE PAYLOAD (signature is valid)
     let data;
     try {
       data = JSON.parse(payload);
     } catch (error) {
-      logger.error('Invalid Vercel webhook payload:', error);
-      res.status(400).send('Invalid JSON');
+      logger.error('Invalid webhook payload (valid signature)', { error, ip: req.ip });
+      res.status(400).send('Bad Request'); // Same generic error
       return;
     }
 
@@ -233,12 +239,12 @@ export async function handleVercelWebhook(req: Request, res: Response): Promise<
     const webhookId = data.id || `${data.deployment?.url}-${Date.now()}`;
     if (processedWebhooks.has(webhookId)) {
       logger.info(`Duplicate Vercel webhook ignored: ${webhookId}`);
-      res.status(200).send('Already processed');
+      res.status(200).send('OK');
       return;
     }
 
     // Mark as processed
-    processedWebhooks.add(webhookId);
+    processedWebhooks.set(webhookId, true);
 
     // 4. AUDIT LOG
     audit({
@@ -260,8 +266,7 @@ export async function handleVercelWebhook(req: Request, res: Response): Promise<
     res.status(200).send('OK');
   } catch (error) {
     logger.error('Error handling Vercel webhook:', error);
-    const errorMessage = handleError(error, 'system');
-    res.status(500).send(errorMessage);
+    res.status(500).send('Server Error'); // Always generic
   }
 }
 

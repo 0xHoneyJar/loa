@@ -1,4 +1,4 @@
-import { User, Guild, GuildMember } from 'discord.js';
+import { User, Guild, GuildMember, Client } from 'discord.js';
 import { logger } from '../utils/logger';
 
 /**
@@ -292,30 +292,62 @@ export class PermissionError extends Error {
 
 /**
  * Setup roles check (validates configuration)
+ *
+ * SECURITY FIX (HIGH-004): Validate actual Discord roles and fail startup if missing
  */
-export function validateRoleConfiguration(): { valid: boolean; errors: string[] } {
+export async function validateRoleConfiguration(client: Client): Promise<void> {
   const roleConfig = getDefaultRoleConfig();
   const errors: string[] = [];
 
-  // Check that essential roles are configured
+  // Get guild
+  const guildId = process.env['DISCORD_GUILD_ID'];
+  if (!guildId) {
+    throw new Error('DISCORD_GUILD_ID not configured');
+  }
+
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) {
+    throw new Error(`Guild ${guildId} not found in bot cache`);
+  }
+
+  // Check that essential roles exist in Discord
   const essentialRoles = [UserRole.DEVELOPER, UserRole.ADMIN];
 
   for (const role of essentialRoles) {
     const config = roleConfig[role];
+
+    // Check if env var is set
     if (!config.discordRoleId || config.discordRoleId === '') {
       errors.push(`${role} role ID not configured (set ${role.toUpperCase()}_ROLE_ID env var)`);
+      continue;
+    }
+
+    // Check if role exists in guild
+    const discordRole = guild.roles.cache.get(config.discordRoleId);
+    if (!discordRole) {
+      errors.push(`${role} role with ID '${config.discordRoleId}' not found in guild ${guild.name}`);
     }
   }
 
   // Warn about optional roles
   if (!roleConfig[UserRole.RESEARCHER].discordRoleId) {
     logger.warn('Researcher role not configured - all users will need developer role');
+  } else {
+    // Check if optional researcher role exists
+    const researcherRole = guild.roles.cache.get(roleConfig[UserRole.RESEARCHER].discordRoleId);
+    if (!researcherRole) {
+      logger.warn(`Researcher role with ID '${roleConfig[UserRole.RESEARCHER].discordRoleId}' not found in guild`);
+    }
   }
 
-  return {
-    valid: errors.length === 0,
-    errors,
-  };
+  // CRITICAL: Throw on any errors (fail startup)
+  if (errors.length > 0) {
+    logger.error('❌ Role configuration validation failed:');
+    errors.forEach(err => logger.error(`  - ${err}`));
+    throw new Error(`Role validation failed: ${errors.length} error(s). Bot cannot start without required roles.`);
+  }
+
+  logger.info('✅ Role configuration validated successfully');
 }
 
 /**

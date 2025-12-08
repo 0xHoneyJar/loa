@@ -10,6 +10,7 @@ import { logger, auditLog } from '../utils/logger';
 import { createDraftIssue } from '../services/linearService';
 import { hasPermissionForMember } from '../middleware/auth';
 import { handleError } from '../utils/errors';
+import { detectPII } from '../utils/validation';
 
 /**
  * Handle feedback capture (📌 reaction)
@@ -55,6 +56,28 @@ export async function handleFeedbackCapture(
     const messageLink = `https://discord.com/channels/${fullMessage.guild.id}/${fullMessage.channel.id}/${fullMessage.id}`;
     const timestamp = fullMessage.createdAt.toISOString();
 
+    // SECURITY FIX: Detect PII before sending to Linear
+    const piiCheck = detectPII(messageContent);
+
+    if (piiCheck.hasPII) {
+      logger.warn('PII detected in feedback capture', {
+        userId: user.id,
+        messageId: fullMessage.id,
+        piiTypes: piiCheck.types,
+      });
+
+      // Block feedback capture with PII
+      await fullMessage.reply(
+        `⚠️ **Cannot capture feedback: Sensitive information detected**\n\n` +
+        `This message appears to contain: **${piiCheck.types.join(', ')}**\n\n` +
+        `Please edit the message to remove sensitive information (emails, phone numbers, SSNs, etc.), then try again with 📌\n\n` +
+        `*This protection prevents accidental exposure of private information to Linear.*`
+      );
+
+      auditLog.permissionDenied(user.id, user.tag, 'pii_in_feedback');
+      return;
+    }
+
     // Get attachments
     const attachments = fullMessage.attachments.map(att => ({
       name: att.name,
@@ -69,6 +92,10 @@ export async function handleFeedbackCapture(
       threadInfo = `**Thread:** ${thread.name}\n`;
     }
 
+    // Sanitize author info (don't expose full Discord IDs)
+    const authorDisplay = messageAuthor.tag.replace(/#\d{4}$/, '#****');
+    const authorIdPartial = messageAuthor.id.slice(0, 8) + '...';
+
     // Format Linear issue description
     const issueTitle = `Feedback: ${messageContent.slice(0, 80)}${messageContent.length > 80 ? '...' : ''}`;
     const issueDescription = `
@@ -79,7 +106,7 @@ ${messageContent}
 ---
 
 **Context:**
-${threadInfo}- **Author:** ${messageAuthor.tag} (${messageAuthor.id})
+${threadInfo}- **Author:** ${authorDisplay} (ID: ${authorIdPartial})
 - **Posted:** ${timestamp}
 - **Discord:** [Link to message](${messageLink})
 ${attachments.length > 0 ? `- **Attachments:** ${attachments.length} file(s)\n` : ''}
@@ -88,6 +115,7 @@ ${attachments.map(att => `  - [${att.name}](${att.url})`).join('\n')}
 ---
 
 *Captured via 📌 reaction by ${user.tag}*
+*Note: PII automatically checked and blocked*
     `.trim();
 
     // Create draft Linear issue

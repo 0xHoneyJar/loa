@@ -9,7 +9,6 @@
  */
 
 import { Client, GatewayIntentBits, Events, Message, MessageReaction, User, PartialUser, PartialMessageReaction } from 'discord.js';
-import { config } from 'dotenv';
 import express from 'express';
 import { logger, logStartup } from './utils/logger';
 import { setupGlobalErrorHandlers } from './utils/errors';
@@ -19,12 +18,13 @@ import { createMonitoringRouter, startHealthMonitoring } from './utils/monitorin
 import { handleFeedbackCapture } from './handlers/feedbackCapture';
 import { handleCommand } from './handlers/commands';
 import { startDailyDigest } from './cron/dailyDigest';
-
-// Load environment variables
-config({ path: './secrets/.env.local' });
+import { SecretsManager } from './utils/secrets';
 
 // Setup global error handlers
 setupGlobalErrorHandlers();
+
+// Global secrets manager instance
+let secretsManager: SecretsManager;
 
 /**
  * Initialize Discord client
@@ -47,14 +47,17 @@ client.once(Events.ClientReady, async (readyClient) => {
   logger.info(`Discord bot logged in as ${readyClient.user.tag}`);
   logger.info(`Connected to ${readyClient.guilds.cache.size} guilds`);
 
-  // Validate role configuration
-  const roleValidation = validateRoleConfiguration();
-  if (!roleValidation.valid) {
-    logger.error('Role configuration validation failed:');
-    roleValidation.errors.forEach(error => logger.error(`  - ${error}`));
-    logger.warn('Bot will continue but some features may not work correctly');
-  } else {
-    logger.info('Role configuration validated successfully');
+  try {
+    // SECURITY FIX (HIGH-004): Validate role configuration and fail if missing
+    await validateRoleConfiguration(readyClient);
+  } catch (error) {
+    logger.error('❌ Role validation failed, shutting down bot:', error);
+    logger.error('Please configure required Discord roles:');
+    logger.error('1. Set DISCORD_GUILD_ID environment variable');
+    logger.error('2. Set DEVELOPER_ROLE_ID with valid Discord role ID');
+    logger.error('3. Set ADMIN_ROLE_ID with valid Discord role ID');
+    logger.error('4. Ensure roles exist in the Discord server');
+    process.exit(1);
   }
 
   // Start daily digest cron job
@@ -197,18 +200,38 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
 /**
- * Start Discord bot
+ * Start Discord bot with secrets validation
  */
-const token = process.env['DISCORD_BOT_TOKEN'];
+async function startBot() {
+  try {
+    logger.info('🔐 Initializing and validating secrets...');
 
-if (!token) {
-  logger.error('DISCORD_BOT_TOKEN not found in environment variables');
-  logger.error('Please create secrets/.env.local file with your Discord bot token');
-  process.exit(1);
+    // Initialize secrets manager with comprehensive validation
+    secretsManager = new SecretsManager();
+    await secretsManager.load();
+
+    logger.info('✅ Secrets validated successfully');
+
+    // Get validated Discord token
+    const token = secretsManager.get('DISCORD_BOT_TOKEN');
+
+    if (!token) {
+      throw new Error('DISCORD_BOT_TOKEN not found after secrets validation');
+    }
+
+    logger.info('🤖 Connecting to Discord...');
+    await client.login(token);
+
+  } catch (error) {
+    logger.error('❌ Failed to start bot:', error);
+    logger.error('Please check:');
+    logger.error('1. secrets/.env.local exists');
+    logger.error('2. File permissions are 600 (chmod 600 secrets/.env.local)');
+    logger.error('3. All required secrets are configured');
+    logger.error('4. Tokens have valid format');
+    process.exit(1);
+  }
 }
 
-logger.info('Connecting to Discord...');
-client.login(token).catch((error) => {
-  logger.error('Failed to login to Discord:', error);
-  process.exit(1);
-});
+// Start the bot
+startBot();

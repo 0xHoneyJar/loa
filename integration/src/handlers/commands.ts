@@ -186,14 +186,36 @@ async function handleDoc(message: Message, args: string[]): Promise<void> {
       return;
     }
 
-    // Map doc type to file path
-    const docPaths: Record<string, string> = {
-      'prd': '../../../docs/prd.md',
-      'sdd': '../../../docs/sdd.md',
-      'sprint': '../../../docs/sprint.md',
+    // SECURITY FIX: Use absolute path for docs root and validate
+    const DOC_ROOT = path.resolve(__dirname, '../../../docs');
+
+    // Map doc type to filename (not path)
+    const docFiles: Record<string, string> = {
+      'prd': 'prd.md',
+      'sdd': 'sdd.md',
+      'sprint': 'sprint.md',
     };
 
-    const docPath = path.join(__dirname, docPaths[docType] || '');
+    const requestedFile = docFiles[docType];
+    if (!requestedFile) {
+      await message.reply('Invalid document type');
+      return;
+    }
+
+    // Construct and validate path
+    const docPath = path.resolve(DOC_ROOT, requestedFile);
+
+    // CRITICAL: Verify the resolved path is within DOC_ROOT (prevent path traversal)
+    if (!docPath.startsWith(DOC_ROOT)) {
+      logger.error('Path traversal attempt detected', {
+        user: message.author.id,
+        docType,
+        resolvedPath: docPath,
+      });
+      auditLog.permissionDenied(message.author.id, message.author.tag, 'path_traversal_attempt');
+      await message.reply('Invalid document path');
+      return;
+    }
 
     // Check if file exists
     if (!fs.existsSync(docPath)) {
@@ -201,8 +223,21 @@ async function handleDoc(message: Message, args: string[]): Promise<void> {
       return;
     }
 
-    // Read file
-    const content = fs.readFileSync(docPath, 'utf-8');
+    // Additional security: verify no symlink shenanigans
+    const realPath = fs.realpathSync(docPath);
+    if (!realPath.startsWith(DOC_ROOT)) {
+      logger.error('Symlink traversal attempt detected', {
+        user: message.author.id,
+        docPath,
+        realPath,
+      });
+      auditLog.permissionDenied(message.author.id, message.author.tag, 'symlink_traversal_attempt');
+      await message.reply('Invalid document path');
+      return;
+    }
+
+    // Read file (now safely validated)
+    const content = fs.readFileSync(realPath, 'utf-8');
 
     // Split into chunks (Discord message limit is 2000 chars)
     const maxLength = 1900; // Leave room for formatting
