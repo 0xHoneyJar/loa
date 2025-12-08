@@ -15,7 +15,7 @@ module.exports = {
     '!src/**/*.test.ts',
     '!src/**/*.spec.ts'
   ],
-  coverageThresholds: {
+  coverageThreshold: {
     global: {
       branches: 70,
       functions: 70,
