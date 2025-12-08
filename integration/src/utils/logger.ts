@@ -236,6 +236,20 @@ export const auditLog = {
       result: 'success',
     });
   },
+
+  contextAssembly(userId: string, primaryDoc: string, details: Record<string, any>) {
+    audit({
+      action: 'context_assembled',
+      userId,
+      resource: primaryDoc,
+      timestamp: new Date().toISOString(),
+      details: {
+        primaryDoc,
+        ...details,
+      },
+      result: 'success',
+    });
+  },
 };
 
 /**

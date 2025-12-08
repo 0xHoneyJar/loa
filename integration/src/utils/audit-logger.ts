@@ -46,6 +46,7 @@ export enum SecurityEventType {
   TRANSLATION_REJECTED = 'TRANSLATION_REJECTED',
   DOCUMENT_ACCESSED = 'DOCUMENT_ACCESSED',
   DOCUMENT_REJECTED_SIZE = 'DOCUMENT_REJECTED_SIZE',
+  CONTEXT_ASSEMBLED = 'CONTEXT_ASSEMBLED',
 
   // Secret Detection & Security
   SECRET_DETECTED = 'SECRET_DETECTED',
@@ -494,6 +495,23 @@ export class AuditLogger {
       action: 'System shutdown',
       outcome: 'SUCCESS',
       details: {},
+    });
+  }
+
+  // Context assembly events (HIGH-011)
+  contextAssembly(userId: string, primaryDoc: string, details: Record<string, any>): void {
+    this.logEvent({
+      timestamp: new Date().toISOString(),
+      eventType: SecurityEventType.CONTEXT_ASSEMBLED,
+      severity: Severity.INFO,
+      userId,
+      resource: primaryDoc,
+      action: 'Context assembled for document',
+      outcome: 'SUCCESS',
+      details: {
+        primaryDoc,
+        ...details,
+      },
     });
   }
 

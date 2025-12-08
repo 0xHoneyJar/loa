@@ -96,7 +96,7 @@ export class DocumentResolver {
         type: 'filesystem',
         originalPath: relativePath,
         exists: false,
-        error: `Resolution failed: ${error.message}`
+        error: `Resolution failed: ${error instanceof Error ? error.message : String(error)}`
       };
     }
   }
@@ -193,7 +193,7 @@ export class DocumentResolver {
       try {
         return fs.readFileSync(resolved.resolvedPath, 'utf8');
       } catch (error) {
-        throw new Error(`Failed to read file: ${error.message}`);
+        throw new Error(`Failed to read file: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
 
@@ -224,7 +224,7 @@ export class DocumentResolver {
           content
         });
       } catch (error) {
-        throw new Error(`Failed to read ${doc.originalPath}: ${error.message}`);
+        throw new Error(`Failed to read ${doc.originalPath}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
 
