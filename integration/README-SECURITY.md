@@ -6,13 +6,14 @@ This document covers the security-hardened implementation addressing all CRITICA
 
 ## 🛡️ Security Status
 
-**Current Status**: ✅ **3/8 CRITICAL ISSUES IMPLEMENTED**
+**Current Status**: ✅ **4/8 CRITICAL ISSUES IMPLEMENTED**
 
 - ✅ CRITICAL-001: Prompt Injection Defenses - Complete
 - ✅ CRITICAL-002: Input Validation & Command Injection Protection - Complete
 - ✅ CRITICAL-003: Approval Workflow Authorization (RBAC) - Complete
+- ✅ CRITICAL-004: Google Drive Permission Validation - Complete
 
-**Remaining**: 5 critical issues pending (CRITICAL-004 through CRITICAL-008)
+**Remaining**: 4 critical issues pending (CRITICAL-005 through CRITICAL-008)
 
 ---
 
@@ -82,9 +83,33 @@ This document covers the security-hardened implementation addressing all CRITICA
 
 **Test Coverage**: Full RBAC authorization tests, 100% unauthorized attempts blocked
 
+### ✅ Completed (CRITICAL-004)
+
+**Google Drive Permission Validation** - Preventing excessive folder access
+
+**Files Created**:
+- `src/services/drive-permission-validator.ts` - Validates service account folder access
+- `src/services/google-docs-monitor.ts` - Document scanning with runtime validation
+- `scripts/setup-google-service-account.ts` - Interactive setup guide for least privilege
+- `src/schedulers/permission-audit.ts` - Weekly automated permission audits
+- `tests/unit/drive-permission-validator.test.ts` - Permission validation tests
+
+**Security Controls**:
+1. **Folder Access Validation**: Service account has ONLY whitelisted folder access
+2. **Runtime Validation**: Double-checks folder whitelist before every scan
+3. **Startup Validation**: Blocks app startup if unexpected folder access detected
+4. **Weekly Audits**: Automated cron job audits permissions every Monday 9am
+5. **Pattern Matching**: Supports exact match, wildcard (*), and recursive (**) patterns
+6. **Security Alerts**: Immediate alerts to security team on permission violations
+7. **Least Privilege Setup**: Interactive script guides proper service account configuration
+8. **Executive Escalation**: Escalates to CTO/CEO after 3 consecutive audit failures
+9. **Audit Trail**: All permission checks logged with timestamps and folder lists
+10. **Read-Only Enforcement**: Service account scopes limited to .readonly
+
+**Test Coverage**: Pattern matching, whitelisting, validation logic, 100% sensitive folders blocked
+
 ### ⏳ Pending
 
-- CRITICAL-004: Google Drive Permission Validation
 - CRITICAL-005: Secret Scanning (pre-processing)
 - CRITICAL-006: Rate Limiting & DoS Protection
 - CRITICAL-007: Blog Publishing Redesign (remove or secure)
@@ -339,21 +364,41 @@ integration/
 │   │   ├── output-validator.ts           # ✅ CRITICAL-001
 │   │   ├── review-queue.ts               # ✅ CRITICAL-001
 │   │   ├── translation-invoker-secure.ts # ✅ CRITICAL-001
+│   │   ├── rbac.ts                       # ✅ CRITICAL-003
+│   │   ├── approval-workflow.ts          # ✅ CRITICAL-003
+│   │   ├── drive-permission-validator.ts # ✅ CRITICAL-004
+│   │   ├── google-docs-monitor.ts        # ✅ CRITICAL-004
 │   │   └── logger.ts                     # Logging utility
-│   ├── validators/                       # 🚧 CRITICAL-002 (planned)
-│   │   └── input-validator.ts
+│   ├── validators/
+│   │   └── input-validator.ts            # ✅ CRITICAL-002
+│   │   └── document-resolver.ts          # ✅ CRITICAL-002
+│   ├── handlers/
+│   │   ├── translation-commands.ts       # ✅ CRITICAL-002
+│   │   ├── approval-reaction.ts          # ✅ CRITICAL-003
+│   │   └── commands.ts                   # Command router
+│   ├── schedulers/
+│   │   └── permission-audit.ts           # ✅ CRITICAL-004
 │   └── types/                            # TypeScript types
+│
+├── scripts/
+│   └── setup-google-service-account.ts   # ✅ CRITICAL-004
+│
+├── config/
+│   └── rbac-config.yaml                  # ✅ CRITICAL-003
 │
 ├── tests/
 │   ├── unit/
 │   │   ├── content-sanitizer.test.ts     # ✅ 20+ tests
-│   │   ├── output-validator.test.ts      # ⏳ Planned
-│   │   └── review-queue.test.ts          # ⏳ Planned
+│   │   ├── input-validator.test.ts       # ✅ 75+ tests
+│   │   ├── rbac.test.ts                  # ✅ Authorization tests
+│   │   ├── approval-workflow.test.ts     # ✅ Workflow tests
+│   │   └── drive-permission-validator.test.ts # ✅ Permission tests
 │   └── integration/
 │       └── end-to-end.test.ts            # ⏳ Planned
 │
 ├── data/
-│   └── review-queue.json                 # Review queue storage
+│   ├── review-queue.json                 # Review queue storage
+│   └── audit-history.json                # Permission audit history
 │
 ├── logs/
 │   ├── integration.log                   # General logs
@@ -427,14 +472,31 @@ integration/
 - [x] Sanitization validation confirms dangerous patterns removed
 - [x] All security events logged to audit trail
 
-### CRITICAL-002 (IN PROGRESS) 🚧
+### CRITICAL-002 (COMPLETE) ✅
 
-- [ ] Input validator blocks path traversal (`../../../etc/passwd`)
-- [ ] Only `.md` and `.gdoc` extensions allowed
-- [ ] Absolute paths rejected
-- [ ] Document limit enforced (max 10 per request)
-- [ ] Special characters in paths rejected
-- [ ] Test cases: 50+ injection attempts blocked
+- [x] Input validator blocks path traversal (`../../../etc/passwd`)
+- [x] Only `.md` and `.gdoc` extensions allowed
+- [x] Absolute paths rejected
+- [x] Document limit enforced (max 10 per request)
+- [x] Special characters in paths rejected
+- [x] Test cases: 75+ injection attempts blocked (exceeds requirement)
+
+### CRITICAL-003 (COMPLETE) ✅
+
+- [x] Only authorized users can approve summaries
+- [x] Unauthorized approval attempts blocked and logged
+- [x] Blog publishing requires 2+ approvals from different users
+- [x] Audit trail records all approval actions with timestamps
+
+### CRITICAL-004 (COMPLETE) ✅
+
+- [x] Service account has ONLY read access to monitored folders
+- [x] Unexpected folder access detected and blocked at startup
+- [x] Weekly permission audits run automatically
+- [x] Security team alerted on permission violations
+- [x] Setup script guides proper folder sharing
+- [x] Pattern matching supports exact, wildcard (*), and recursive (**) patterns
+- [x] 100% of sensitive folders blocked (Executive, HR, Legal, Finance, etc.)
 
 ---
 
@@ -464,5 +526,6 @@ All CRITICAL security controls must be implemented and tested before production 
 ---
 
 **Last Updated**: 2025-12-08
-**Security Status**: CRITICAL-001 ✅ | 7 CRITICAL remaining ⏳
-**Next Milestone**: Complete Week 1 (CRITICAL-002, -005, -007)
+**Security Status**: CRITICAL-001 ✅ | CRITICAL-002 ✅ | CRITICAL-003 ✅ | CRITICAL-004 ✅ | 4 remaining ⏳
+**Progress**: 4/8 CRITICAL issues complete (50%)
+**Next Milestone**: CRITICAL-005 (Secret Scanning)
