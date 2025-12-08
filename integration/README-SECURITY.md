@@ -6,15 +6,16 @@ This document covers the security-hardened implementation addressing all CRITICA
 
 ## 🛡️ Security Status
 
-**Current Status**: ✅ **5/8 CRITICAL ISSUES IMPLEMENTED (62.5%)**
+**Current Status**: ✅ **6/8 CRITICAL ISSUES IMPLEMENTED (75%)**
 
 - ✅ CRITICAL-001: Prompt Injection Defenses - Complete
 - ✅ CRITICAL-002: Input Validation & Command Injection Protection - Complete
 - ✅ CRITICAL-003: Approval Workflow Authorization (RBAC) - Complete
 - ✅ CRITICAL-004: Google Drive Permission Validation - Complete
 - ✅ CRITICAL-005: Secret Scanning (Pre-Processing) - Complete
+- ✅ CRITICAL-006: Rate Limiting & DoS Protection - Complete
 
-**Remaining**: 3 critical issues pending (CRITICAL-006 through CRITICAL-008)
+**Remaining**: 2 critical issues pending (CRITICAL-007 through CRITICAL-008)
 
 ---
 
@@ -144,9 +145,47 @@ This document covers the security-hardened implementation addressing all CRITICA
 
 **Test Coverage**: 50+ secret patterns validated, redaction logic tested, attack scenario prevention verified
 
+### ✅ Completed (CRITICAL-006)
+
+**Rate Limiting & DoS Protection** - Preventing resource exhaustion and cost explosions
+
+**Files Created**:
+- `src/services/rate-limiter.ts` - Per-user rate limiting with sliding window algorithm
+- `src/services/api-rate-limiter.ts` - API call throttling with exponential backoff
+- `src/services/cost-monitor.ts` - Budget tracking and enforcement
+- `docs/RATE-LIMITING-GUIDE.md` - Integration guide with examples
+- `tests/unit/rate-limiter.test.ts` - Rate limiter tests
+- `tests/unit/api-rate-limiter.test.ts` - API throttling tests
+- `tests/unit/cost-monitor.test.ts` - Cost monitoring tests
+
+**Security Controls**:
+1. **Per-User Rate Limiting**: 5 requests/minute for Discord commands, prevents single user spam
+2. **API Call Throttling**: Google Drive (100/min), Anthropic (20/min), Discord (10/min)
+3. **Exponential Backoff**: Automatic retry with increasing delays on rate limit errors
+4. **Concurrent Request Limiting**: Max 1 pending request per user per action
+5. **Cost Tracking**: Real-time monitoring of Anthropic API token usage and costs
+6. **Budget Enforcement**: $100/day default limit with auto-pause on exceed
+7. **Budget Alerts**: Alerts at 75%, 90%, 100% thresholds
+8. **Service Auto-Pause**: Prevents runaway costs by pausing service when budget exceeded
+9. **Cost Breakdown**: Per-API cost tracking for analysis and optimization
+10. **Rate Limit Status**: Real-time visibility into request counts and limits
+
+**Rate Limit Configuration**:
+- `generate-summary`: 5 requests/minute (prevents command spam)
+- `google-docs-fetch`: 100 requests/minute (prevents quota exhaustion)
+- `anthropic-api-call`: 20 requests/minute (prevents cost explosion)
+- `discord-post`: 10 requests/minute (prevents bot rate limiting)
+
+**Budget Configuration**:
+- Daily Budget: $100/day (prevents daily cost explosions)
+- Monthly Budget: $3000/month (prevents monthly overspending)
+- Alert Threshold: 75% (early warning before limit)
+- Auto-Pause: Enabled (stops service when budget exceeded)
+
+**Test Coverage**: 1000+ rapid request scenarios, API quota exhaustion prevention, $5000 cost explosion prevention
+
 ### ⏳ Pending
 
-- CRITICAL-006: Rate Limiting & DoS Protection
 - CRITICAL-007: Blog Publishing Redesign (remove or secure)
 - CRITICAL-008: Secrets Rotation Strategy
 
@@ -545,6 +584,20 @@ integration/
 - [x] Severity classification (CRITICAL, HIGH, MEDIUM) implemented
 - [x] False positive filtering reduces noise
 
+### CRITICAL-006 (COMPLETE) ✅
+
+- [x] Per-user rate limiting: 5 requests/minute for Discord commands
+- [x] API rate limiting: Google Drive (100/min), Anthropic (20/min), Discord (10/min)
+- [x] Exponential backoff on API rate limit errors
+- [x] Concurrent request limit: 1 pending request per user
+- [x] Cost monitoring with $100/day budget enforcement
+- [x] Service auto-pauses if budget exceeded
+- [x] Test: 1000 rapid requests blocked after 5th request
+- [x] Test: API quota exhaustion prevention verified
+- [x] Test: $5000 cost explosion prevented (service pauses at $100)
+- [x] Budget alerts at 75%, 90%, 100% thresholds
+- [x] Per-API cost breakdown for analysis
+
 ---
 
 ## 📚 References
@@ -573,6 +626,6 @@ All CRITICAL security controls must be implemented and tested before production 
 ---
 
 **Last Updated**: 2025-12-08
-**Security Status**: CRITICAL-001 ✅ | CRITICAL-002 ✅ | CRITICAL-003 ✅ | CRITICAL-004 ✅ | CRITICAL-005 ✅ | 3 remaining ⏳
-**Progress**: 5/8 CRITICAL issues complete (62.5%)
-**Next Milestone**: CRITICAL-006 (Rate Limiting & DoS Protection)
+**Security Status**: CRITICAL-001 ✅ | CRITICAL-002 ✅ | CRITICAL-003 ✅ | CRITICAL-004 ✅ | CRITICAL-005 ✅ | CRITICAL-006 ✅ | 2 remaining ⏳
+**Progress**: 6/8 CRITICAL issues complete (75%)
+**Next Milestone**: CRITICAL-007 (Blog Publishing Redesign)
