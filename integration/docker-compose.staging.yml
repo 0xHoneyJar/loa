@@ -1,0 +1,82 @@
+# ============================================================================
+# Docker Compose - Staging Environment
+# ============================================================================
+# Purpose: Pre-production testing with production-like settings
+# Usage: docker-compose -f docker-compose.staging.yml up -d
+# ============================================================================
+
+version: '3.8'
+
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: agentic-base-integration:staging
+    container_name: agentic-base-bot-staging
+    restart: unless-stopped  # Auto-restart on failure (but not on manual stop)
+
+    # Load secrets from staging environment file
+    env_file:
+      - ./secrets/.env.staging
+
+    # Staging environment variables
+    environment:
+      - NODE_ENV=staging
+      - LOG_LEVEL=info  # Standard logging level
+      - TZ=UTC
+
+    # Mount volumes for staging
+    volumes:
+      # Logs directory (persistent, for monitoring)
+      - ./logs:/app/logs
+
+      # Config directory (read-only)
+      - ./config:/app/config:ro
+
+      # User preferences and database (persistent)
+      - ./data:/app/data
+
+    # Port mapping
+    ports:
+      - "3000:3000"  # HTTP server (webhooks, health checks)
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => {process.exit(1)});"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Logging configuration (production-like)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Resource limits (match production)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+    # Network configuration
+    networks:
+      - agentic-base-network
+
+# Network definition
+networks:
+  agentic-base-network:
+    driver: bridge
+
+# Named volumes for better management
+volumes:
+  logs:
+  data:
