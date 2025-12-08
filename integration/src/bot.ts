@@ -10,6 +10,7 @@
 
 import { Client, GatewayIntentBits, Events, Message, MessageReaction, User, PartialUser, PartialMessageReaction } from 'discord.js';
 import express from 'express';
+import helmet from 'helmet';
 import { logger, logStartup } from './utils/logger';
 import { setupGlobalErrorHandlers } from './utils/errors';
 import { validateRoleConfiguration } from './middleware/auth';
@@ -154,9 +155,31 @@ client.on('rateLimit' as any, (rateLimitData: any) => {
 
 /**
  * Setup Express server for webhooks and health checks
+ *
+ * SECURITY FIX (MEDIUM-011): HTTPS enforcement and security headers
  */
 const app = express();
 const port = process.env['PORT'] || 3000;
+
+// SECURITY: Add helmet for security headers (MEDIUM #11)
+app.use(helmet({
+  hsts: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true,
+  },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+    },
+  },
+  frameguard: { action: 'deny' },
+  noSniff: true,
+  xssFilter: true,
+}));
 
 // Body parser middleware
 app.use(express.json());

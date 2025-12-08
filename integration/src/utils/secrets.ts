@@ -94,18 +94,27 @@ export class SecretsManager {
     }
 
     // 3. Verify not tracked by git
+    // SECURITY FIX (MEDIUM-014): Use execFile instead of execSync to avoid shell injection
     try {
-      const { execSync } = require('child_process');
-      const result = execSync(
-        `git ls-files --error-unmatch "${this.ENV_FILE}" 2>/dev/null || echo "not-tracked"`,
-        { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
-      );
-
-      if (!result.includes('not-tracked')) {
+      const { execFileSync } = require('child_process');
+      try {
+        // Use execFile (no shell) - safer than exec/execSync
+        execFileSync('git', ['ls-files', '--error-unmatch', this.ENV_FILE], {
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        // If we get here, file IS tracked by git (error-unmatch succeeded)
         throw new Error(
           `SECURITY: ${this.ENV_FILE} is tracked by git!\n` +
           `Run: git rm --cached ${this.ENV_FILE}`
         );
+      } catch (gitError: any) {
+        // ls-files --error-unmatch exits with non-zero if file NOT tracked
+        // This is expected behavior - file should NOT be tracked
+        if (gitError.status !== 0 && gitError.status !== 1) {
+          throw gitError; // Real error
+        }
+        // Status 1 = file not tracked = good
       }
     } catch (error) {
       // Git not available or other error - log warning but continue
