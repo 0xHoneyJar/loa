@@ -19,6 +19,7 @@ import { handleError } from '../utils/errors';
 import { getCurrentSprint, getTeamIssues } from '../services/linearService';
 import { checkRateLimit } from '../middleware/auth';
 import { handleTranslate, handleTranslateHelp } from './translation-commands';
+import { validateCommandInput, validateParameterLength, INPUT_LIMITS } from '../validators/document-size-validator';
 
 /**
  * Main command router
@@ -26,6 +27,26 @@ import { handleTranslate, handleTranslateHelp } from './translation-commands';
 export async function handleCommand(message: Message): Promise<void> {
   try {
     const content = message.content.trim();
+
+    // HIGH-003: Validate command input length (DoS prevention)
+    const inputValidation = validateCommandInput(content);
+    if (!inputValidation.valid) {
+      await message.reply(
+        `❌ Command too long. Maximum ${INPUT_LIMITS.MAX_COMMAND_LENGTH} characters allowed.\n\n` +
+        `Your command: ${inputValidation.details?.currentValue} characters\n\n` +
+        `Please shorten your command and try again.`
+      );
+
+      logger.warn('Command rejected due to length limit', {
+        userId: message.author.id,
+        userTag: message.author.tag,
+        commandLength: content.length,
+        maxLength: INPUT_LIMITS.MAX_COMMAND_LENGTH
+      });
+
+      return;
+    }
+
     const [command, ...args] = content.slice(1).split(/\s+/);
 
     // Rate limiting

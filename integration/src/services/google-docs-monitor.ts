@@ -13,6 +13,7 @@ import { configLoader } from '../utils/config-loader';
 import { drivePermissionValidator } from './drive-permission-validator';
 import { SecurityException } from '../utils/errors';
 import { secretScanner, ScanResult } from './secret-scanner';
+import { validateDocumentSize, ValidationError, DOCUMENT_LIMITS } from '../validators/document-size-validator';
 
 export interface Document {
   id: string;
@@ -147,6 +148,55 @@ export class GoogleDocsMonitor {
 
       logger.info(`✅ Scan complete: ${documents.length} documents found`);
 
+      // HIGH-003: Validate digest size limits (DoS prevention)
+      const { validateDigest } = await import('../validators/document-size-validator');
+      const digestValidation = validateDigest(documents);
+
+      if (!digestValidation.valid) {
+        logger.warn(`Digest validation failed - too many documents or content too large`, {
+          error: digestValidation.error,
+          details: digestValidation.details,
+          documentCount: documents.length
+        });
+
+        // If we have too many documents, prioritize by recency
+        if (digestValidation.details?.metric === 'documents') {
+          const { prioritizeDocumentsByRecency, DIGEST_LIMITS } = await import('../validators/document-size-validator');
+          const prioritized = prioritizeDocumentsByRecency(
+            documents,
+            (doc) => doc.modifiedTime
+          );
+
+          logger.info(`Prioritized ${prioritized.length} most recent documents (limit: ${DIGEST_LIMITS.MAX_DOCUMENTS})`);
+          return prioritized;
+        }
+
+        // For total character limit, return as many as possible until we hit the limit
+        if (digestValidation.details?.metric === 'total_characters') {
+          const { DIGEST_LIMITS } = await import('../validators/document-size-validator');
+          let totalChars = 0;
+          const accepted: Document[] = [];
+
+          // Sort by recency first
+          const sorted = [...documents].sort((a, b) =>
+            b.modifiedTime.getTime() - a.modifiedTime.getTime()
+          );
+
+          for (const doc of sorted) {
+            if (totalChars + doc.content.length <= DIGEST_LIMITS.MAX_TOTAL_CHARACTERS) {
+              accepted.push(doc);
+              totalChars += doc.content.length;
+            } else {
+              logger.info(`Skipping document ${doc.name} - would exceed total character limit`);
+              break;
+            }
+          }
+
+          logger.info(`Accepted ${accepted.length}/${documents.length} documents within character limit`);
+          return accepted;
+        }
+      }
+
       return documents;
 
     } catch (error) {
@@ -210,6 +260,24 @@ export class GoogleDocsMonitor {
       for (const file of files) {
         try {
           let content = await this.fetchDocumentContent(file);
+
+          // HIGH-003: Validate document size BEFORE processing (DoS prevention)
+          const validationResult = validateDocumentSize({
+            id: file.id!,
+            name: file.name!,
+            content,
+            pageCount: undefined, // Page count not available for Google Docs
+          });
+
+          if (!validationResult.valid) {
+            logger.warn(`Document rejected due to size limits: ${file.name}`, {
+              error: validationResult.error,
+              details: validationResult.details
+            });
+
+            // Skip this document - don't process oversized documents
+            continue;
+          }
 
           // CRITICAL-005: Scan for secrets BEFORE processing
           const scanResult = secretScanner.scanForSecrets(content, {

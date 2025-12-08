@@ -15,6 +15,7 @@ import inputValidator from '../validators/input-validator';
 import documentResolver from '../services/document-resolver';
 import secureTranslationInvoker from '../services/translation-invoker-secure';
 import { SecurityException } from '../services/review-queue';
+import { validateParameterLength, validateDocumentNames, INPUT_LIMITS } from '../validators/document-size-validator';
 
 /**
  * /translate - Generate secure translation from documents
@@ -49,6 +50,45 @@ export async function handleTranslate(message: Message, args: string[]): Promise
     const format = args[1] || 'unified';
     const audience = args.slice(2).join(' ') || 'all stakeholders';
 
+    // HIGH-003: Validate parameter lengths (DoS prevention)
+    const formatValidation = validateParameterLength('format', format);
+    if (!formatValidation.valid) {
+      await message.reply(
+        `❌ Format parameter too long. Maximum ${INPUT_LIMITS.MAX_PARAMETER_LENGTH} characters allowed.\n\n` +
+        `Your format: ${formatValidation.details?.currentValue} characters`
+      );
+      return;
+    }
+
+    const audienceValidation = validateParameterLength('audience', audience);
+    if (!audienceValidation.valid) {
+      await message.reply(
+        `❌ Audience parameter too long. Maximum ${INPUT_LIMITS.MAX_PARAMETER_LENGTH} characters allowed.\n\n` +
+        `Your audience: ${audienceValidation.details?.currentValue} characters`
+      );
+      return;
+    }
+
+    // HIGH-003: Validate document names count
+    const docPaths = docPathsArg.split(',').map(p => p.trim());
+    const docNamesValidation = validateDocumentNames(docPaths);
+    if (!docNamesValidation.valid) {
+      await message.reply(
+        `❌ Too many document names specified. Maximum ${INPUT_LIMITS.MAX_DOCUMENT_NAMES} documents per command.\n\n` +
+        `You specified: ${docNamesValidation.details?.currentValue} documents\n\n` +
+        `Please specify at most ${INPUT_LIMITS.MAX_DOCUMENT_NAMES} documents.`
+      );
+
+      logger.warn('Too many documents requested', {
+        userId: message.author.id,
+        userTag: message.author.tag,
+        documentCount: docPaths.length,
+        maxAllowed: INPUT_LIMITS.MAX_DOCUMENT_NAMES
+      });
+
+      return;
+    }
+
     logger.info('Translation requested', {
       user: message.author.tag,
       userId: message.author.id,
@@ -68,8 +108,7 @@ export async function handleTranslate(message: Message, args: string[]): Promise
       return;
     }
 
-    // STEP 2: Parse and validate document paths
-    const docPaths = docPathsArg.split(',').map(p => p.trim());
+    // STEP 2: Validate document paths (already parsed above)
 
     const pathValidation = inputValidator.validateDocumentPaths(docPaths);
     if (!pathValidation.valid) {
