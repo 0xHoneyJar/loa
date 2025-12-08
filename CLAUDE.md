@@ -10,7 +10,7 @@ This is an agent-driven development framework that orchestrates a complete produ
 
 ### Agent System
 
-The framework uses eight specialized agents that work together in a structured workflow:
+The framework uses nine specialized agents that work together in a structured workflow:
 
 1. **context-engineering-expert** (AI & Context Engineering Expert) - Organizational workflow integration and multi-tool orchestration
 2. **prd-architect** (Product Manager) - Requirements discovery and PRD creation
@@ -20,6 +20,7 @@ The framework uses eight specialized agents that work together in a structured w
 6. **senior-tech-lead-reviewer** (Senior Technical Lead) - Code review and quality gates
 7. **devops-crypto-architect** (DevOps Architect) - Production deployment and infrastructure
 8. **paranoid-auditor** (Security Auditor) - Comprehensive security and quality audits (ad-hoc use)
+9. **devrel-translator** (Developer Relations) - Translates technical work into executive-ready communications (ad-hoc use)
 
 Agents are defined in `.claude/agents/` and invoked via custom slash commands in `.claude/commands/`.
 
@@ -117,6 +118,39 @@ The agent performs:
 
 Outputs `SECURITY-AUDIT-REPORT.md` with prioritized findings (CRITICAL/HIGH/MEDIUM/LOW) and actionable remediation guidance.
 
+### Ad-Hoc: Executive Translation
+```bash
+/translate @document.md for [audience]
+```
+Launches `devrel-translator` agent to translate technical documentation into executive-ready communications. Use this to:
+- Create executive summaries from technical docs (PRD, SDD, audit reports, sprint updates)
+- Prepare board presentations and investor updates
+- Brief non-technical stakeholders on technical progress
+- Explain architecture decisions to business stakeholders
+- Translate security audits into risk assessments for executives
+
+**Example invocations**:
+```bash
+/translate @SECURITY-AUDIT-REPORT.md for board of directors
+/translate @docs/sdd.md for executives
+/translate @docs/sprint.md for investors
+/translate @docs/audits/2025-12-08/FINAL-AUDIT-REMEDIATION-REPORT.md for CEO
+```
+
+The agent creates:
+- **Executive summaries** (1-2 pages, plain language, business-focused)
+- **Stakeholder briefings** (tailored by audience: execs, board, investors, product, compliance)
+- **Visual communication** (diagram suggestions, flowcharts, risk matrices)
+- **FAQs** (anticipating stakeholder questions)
+- **Risk assessments** (honest, transparent, actionable)
+
+The agent focuses on:
+- **Business value** over technical details
+- **Clear analogies** for complex concepts
+- **Specific metrics** and quantified impact
+- **Honest risk** communication
+- **Actionable next steps** with decision points
+
 ## Key Architectural Patterns
 
 ### Feedback-Driven Implementation
@@ -201,6 +235,7 @@ Command definitions in `.claude/commands/` contain the slash command expansion t
 - **sprint-task-implementer**: Writing production code (Phase 4)
 - **senior-tech-lead-reviewer**: Validating implementation quality (Phase 5)
 - **paranoid-auditor**: Security audits, vulnerability assessment, pre-production validation, compliance review (Ad-hoc)
+- **devrel-translator**: Translating technical documentation for executives, board, investors; creating executive summaries, stakeholder briefings, board presentations from PRDs, SDDs, audit reports (Ad-hoc)
 
 ### Agent Communication Style
 
