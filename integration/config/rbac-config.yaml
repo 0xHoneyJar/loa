@@ -31,11 +31,13 @@ review_workflow:
 
 distribution:
   blog:
-    # Blog publishing disabled by default (CRITICAL-007)
-    # DO NOT enable without completing CRITICAL-007 remediation
+    # Blog publishing uses manual draft workflow (CRITICAL-007 COMPLETE)
+    # System generates drafts → Team manually reviews → Team manually publishes
+    # Auto-publishing PERMANENTLY DISABLED for security
     enabled: false
 
     # NEVER set to true - auto-publishing is a security risk
+    # All blog posts must go through draft → review → publish workflow
     auto_publish: false
 
     # Explicit list of Discord user IDs authorized to publish to blog
