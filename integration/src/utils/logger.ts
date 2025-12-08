@@ -126,6 +126,11 @@ export const logger = winston.createLogger({
   ],
 });
 
+// Add security method to logger (for security-specific events)
+(logger as any).security = function(message: string, meta?: any) {
+  logger.error(`[SECURITY] ${message}`, meta);
+};
+
 /**
  * Audit logger (separate from general logs, structured JSON)
  */

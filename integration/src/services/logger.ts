@@ -79,6 +79,12 @@ export class Logger {
       this.writeLog('error', message, meta);
     }
   }
+
+  // Security logging method (special category for security events)
+  security(message: string, meta?: any): void {
+    // Security logs are always written regardless of log level
+    this.writeLog('error', `[SECURITY] ${message}`, meta);
+  }
 }
 
-export default new Logger(process.env.LOG_LEVEL as LogLevel || 'info');
+export default new Logger(process.env['LOG_LEVEL'] as LogLevel || 'info');

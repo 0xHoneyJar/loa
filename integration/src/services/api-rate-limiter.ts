@@ -59,7 +59,7 @@ export class APIRateLimiter {
       if (this.isRateLimitError(error)) {
         logger.warn(`Google Drive API rate limit hit`, {
           operationName,
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         });
 
         // Exponential backoff
@@ -98,7 +98,7 @@ export class APIRateLimiter {
       if (this.isRateLimitError(error)) {
         logger.warn(`Anthropic API rate limit hit`, {
           operationName,
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         });
 
         // Exponential backoff
@@ -137,7 +137,7 @@ export class APIRateLimiter {
       if (this.isRateLimitError(error)) {
         logger.warn(`Discord API rate limit hit`, {
           operationName,
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         });
 
         // Discord provides retry-after header

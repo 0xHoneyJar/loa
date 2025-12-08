@@ -252,7 +252,7 @@ export class MfaVerifier {
       discordUserId,
       user.discordUsername,
       'mfa_enrollment_verified',
-      {}
+      []
     );
 
     return true;
@@ -549,7 +549,7 @@ export class MfaVerifier {
       disabledBy.discordUserId,
       disabledBy.discordUsername,
       'mfa_disabled',
-      { targetUserId: discordUserId, reason: disabledBy.reason }
+      [discordUserId, disabledBy.reason || 'no reason provided']
     );
   }
 

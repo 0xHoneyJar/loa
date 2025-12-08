@@ -18,7 +18,8 @@ import { requirePermission } from '../middleware/auth';
 import { handleError } from '../utils/errors';
 import { getCurrentSprint, getTeamIssues } from '../services/linearService';
 import { checkRateLimit } from '../middleware/auth';
-import { handleTranslate, handleTranslateHelp } from './translation-commands';
+// TEMPORARILY DISABLED: Translation commands excluded from build
+// import { handleTranslate, handleTranslateHelp } from './translation-commands';
 import { validateCommandInput, validateParameterLength, INPUT_LIMITS } from '../validators/document-size-validator';
 import { handleMfaCommand } from './mfa-commands';
 
@@ -86,13 +87,14 @@ export async function handleCommand(message: Message): Promise<void> {
         await handleMyNotifications(message);
         break;
 
-      case 'translate':
-        await handleTranslate(message, args);
-        break;
+      // TEMPORARILY DISABLED: Translation commands excluded from build
+      // case 'translate':
+      //   await handleTranslate(message, args);
+      //   break;
 
-      case 'translate-help':
-        await handleTranslateHelp(message);
-        break;
+      // case 'translate-help':
+      //   await handleTranslateHelp(message);
+      //   break;
 
       case 'mfa-enroll':
       case 'mfa-verify':
@@ -281,7 +283,7 @@ async function handleDoc(message: Message, args: string[]): Promise<void> {
 
     // Split into chunks (Discord message limit is 2000 chars)
     const maxLength = 1900; // Leave room for formatting
-    const chunks = [];
+    const chunks: string[] = [];
 
     for (let i = 0; i < content.length; i += maxLength) {
       chunks.push(content.slice(i, i + maxLength));

@@ -31,6 +31,17 @@ export enum ErrorCode {
 }
 
 /**
+ * Security-specific exception class
+ */
+export class SecurityException extends Error {
+  constructor(message: string, public readonly metadata?: Record<string, any>) {
+    super(message);
+    this.name = 'SecurityException';
+    Error.captureStackTrace(this, this.constructor);
+  }
+}
+
+/**
  * Application error with safe user messaging
  */
 export class AppError extends Error {

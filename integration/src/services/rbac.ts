@@ -71,7 +71,7 @@ export class RBAC {
         this.config = this.getDefaultConfig();
       }
     } catch (error) {
-      logger.error('Failed to load RBAC config', { error: error.message });
+      logger.error('Failed to load RBAC config', { error: error instanceof Error ? error.message : String(error) });
       this.config = this.getDefaultConfig();
     }
   }
@@ -135,7 +135,7 @@ export class RBAC {
         logger.error('Failed to check Discord roles', {
           userId,
           guildId,
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         });
       }
     }
