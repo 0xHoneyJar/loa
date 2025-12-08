@@ -12,6 +12,7 @@ import { logger } from '../utils/logger';
 import { configLoader } from '../utils/config-loader';
 import { drivePermissionValidator } from './drive-permission-validator';
 import { SecurityException } from '../utils/errors';
+import { secretScanner, ScanResult } from './secret-scanner';
 
 export interface Document {
   id: string;
@@ -22,6 +23,9 @@ export interface Document {
   createdTime: Date;
   webViewLink: string;
   type: 'google-doc' | 'markdown' | 'text';
+  secretsDetected?: boolean;
+  secretsRedacted?: number;
+  scanResult?: ScanResult;
 }
 
 export interface ScanOptions {
@@ -205,7 +209,43 @@ export class GoogleDocsMonitor {
 
       for (const file of files) {
         try {
-          const content = await this.fetchDocumentContent(file);
+          let content = await this.fetchDocumentContent(file);
+
+          // CRITICAL-005: Scan for secrets BEFORE processing
+          const scanResult = secretScanner.scanForSecrets(content, {
+            skipFalsePositives: true,
+            contextLength: 100
+          });
+
+          let secretsDetected = false;
+          let secretsRedacted = 0;
+
+          if (scanResult.hasSecrets) {
+            secretsDetected = true;
+            secretsRedacted = scanResult.totalSecretsFound;
+
+            logger.error(`🚨 Secrets detected in document: ${file.name}`, {
+              docId: file.id,
+              docName: file.name,
+              secretCount: scanResult.totalSecretsFound,
+              criticalSecrets: scanResult.criticalSecretsFound,
+              secretTypes: scanResult.secrets.map(s => s.type).join(', ')
+            });
+
+            // Alert security team immediately
+            await this.alertSecurityTeamAboutSecrets({
+              documentId: file.id!,
+              documentName: file.name!,
+              webViewLink: file.webViewLink!,
+              folderPath,
+              scanResult
+            });
+
+            // Redact secrets automatically
+            content = scanResult.redactedContent;
+
+            logger.info(`✅ Secrets redacted from document: ${file.name}`);
+          }
 
           documents.push({
             id: file.id!,
@@ -215,7 +255,10 @@ export class GoogleDocsMonitor {
             modifiedTime: new Date(file.modifiedTime!),
             createdTime: new Date(file.createdTime!),
             webViewLink: file.webViewLink!,
-            type: this.getDocumentType(file.mimeType!)
+            type: this.getDocumentType(file.mimeType!),
+            secretsDetected,
+            secretsRedacted,
+            scanResult: secretsDetected ? scanResult : undefined
           });
 
         } catch (error) {
@@ -365,6 +408,75 @@ export class GoogleDocsMonitor {
     } else {
       return 'text';
     }
+  }
+
+  /**
+   * Alert security team about secrets detected in document (CRITICAL-005)
+   */
+  private async alertSecurityTeamAboutSecrets(alert: {
+    documentId: string;
+    documentName: string;
+    webViewLink: string;
+    folderPath: string;
+    scanResult: ScanResult;
+  }): Promise<void> {
+    const message = `
+🚨 SECURITY ALERT: Secrets Detected in Google Doc
+
+Document: ${alert.documentName}
+Folder: ${alert.folderPath}
+Document ID: ${alert.documentId}
+Link: ${alert.webViewLink}
+
+Secrets Found: ${alert.scanResult.totalSecretsFound}
+Critical Secrets: ${alert.scanResult.criticalSecretsFound}
+
+Secret Types:
+${alert.scanResult.secrets.map(s => `  • ${s.type} (${s.severity})`).join('\n')}
+
+ACTION TAKEN:
+✅ Secrets automatically redacted from content
+✅ Document flagged for security review
+⚠️  Original document still contains secrets!
+
+NEXT STEPS:
+1. Review the original document in Google Drive
+2. Remove secrets from the document
+3. Rotate any exposed credentials as a precaution
+4. Educate document author on secret management
+5. Review other documents in same folder
+
+Timestamp: ${new Date().toISOString()}
+    `;
+
+    // Console alert
+    console.error('\n' + '='.repeat(80));
+    console.error('🚨 SECRETS DETECTED IN DOCUMENT');
+    console.error('='.repeat(80));
+    console.error(message);
+    console.error('='.repeat(80) + '\n');
+
+    // Write to security events log
+    logger.security({
+      eventType: 'SECRET_DETECTED_IN_DOCUMENT',
+      severity: 'CRITICAL',
+      documentId: alert.documentId,
+      documentName: alert.documentName,
+      folderPath: alert.folderPath,
+      webViewLink: alert.webViewLink,
+      totalSecrets: alert.scanResult.totalSecretsFound,
+      criticalSecrets: alert.scanResult.criticalSecretsFound,
+      secretTypes: alert.scanResult.secrets.map(s => s.type),
+      details: message,
+      timestamp: new Date().toISOString()
+    });
+
+    // TODO: Integrate with alerting systems
+    // - Discord webhook to #security-alerts
+    // - Slack webhook
+    // - Email (SendGrid, AWS SES)
+    // - Linear ticket creation
+    // - PagerDuty for critical secrets
   }
 
   /**
