@@ -1,282 +1,326 @@
 ---
-description: Launch the paranoid auditor to audit server setup, deployment plans, and infrastructure security
+description: Launch the paranoid auditor to review deployment infrastructure and provide security feedback
 ---
 
-I'm launching the paranoid cypherpunk auditor agent in **infrastructure audit mode** to review your DevOps server setup, deployment plans, and infrastructure security.
+I'm launching the paranoid cypherpunk auditor agent in **infrastructure audit mode** to review your deployment infrastructure.
+
+**Feedback Loop Pattern**:
+This command participates in an audit-fix-verify feedback loop with `/setup-server`:
+
+```
+/setup-server
+    ↓
+DevOps creates infrastructure → writes docs/a2a/deployment-report.md
+    ↓
+/audit-deployment
+    ↓
+Auditor reviews → writes docs/a2a/deployment-feedback.md
+    ↓ (if CHANGES_REQUIRED)
+/setup-server (again)
+    ↓
+DevOps reads feedback, fixes issues, updates report
+    ↓
+(repeat until auditor approves)
+    ↓
+Auditor writes "APPROVED - LET'S FUCKING GO"
+    ↓
+/deploy-go
+    ↓
+Execute deployment on production server
+```
 
 **What this command does**:
-- Audits server setup scripts for security vulnerabilities
-- Reviews deployment configurations and procedures
-- Validates infrastructure security hardening
-- Checks for secrets exposure and credential management issues
-- Assesses operational runbooks for completeness
-- Verifies backup and disaster recovery procedures
+1. **Read DevOps report**: Review `docs/a2a/deployment-report.md` for context
+2. **Check previous feedback**: Verify all previous issues were addressed (if applicable)
+3. **Audit infrastructure**: Review scripts, configs, docs for security issues
+4. **Make decision**:
+   - **If issues found**: Write detailed feedback to `docs/a2a/deployment-feedback.md` with CHANGES_REQUIRED
+   - **If all good**: Write approval to `docs/a2a/deployment-feedback.md` with "APPROVED - LET'S FUCKING GO"
 
-**Audit Scope**:
-- Server setup scripts and configurations
-- Deployment documentation and runbooks
-- Security checklists and hardening procedures
-- PM2/systemd service configurations
-- Nginx/reverse proxy configurations
-- SSL/TLS certificate management
-- Firewall and network security rules
-- Monitoring and alerting setup
-
-The auditor will produce a comprehensive report with:
-- Critical issues requiring immediate attention
-- High/medium/low priority findings
-- Security checklist status
-- Infrastructure threat model
-- Actionable remediation steps
+Let me launch the agent now.
 
 <Task
   subagent_type="paranoid-auditor"
-  prompt="You are performing a **DevOps Infrastructure Security Audit** for the agentic-base project. This is a specialized audit focusing on server setup, deployment plans, and infrastructure security.
+  prompt="You are performing a **DevOps Infrastructure Security Audit** as part of a feedback loop with the DevOps architect. Your mission is to review deployment infrastructure and either approve it or request changes.
 
-## Audit Context
+## Phase 0: Understand the Feedback Loop
 
-The user has prepared server setup documentation and deployment scripts for deploying the DevRel integration application to a bare metal/VPS server. Your mission is to audit this infrastructure work before production deployment.
+You are the security gate in this workflow:
+1. DevOps architect creates infrastructure via `/setup-server`
+2. DevOps writes report to `docs/a2a/deployment-report.md`
+3. **YOU** audit and write feedback to `docs/a2a/deployment-feedback.md`
+4. If CHANGES_REQUIRED: DevOps fixes issues and updates report
+5. Cycle repeats until you approve
+6. When approved: Write 'APPROVED - LET'S FUCKING GO' to enable `/deploy-go`
 
-## Scope of Audit
+## Phase 1: Read DevOps Report
 
-### 1. Server Setup Scripts
+FIRST, read `docs/a2a/deployment-report.md`:
+- This is the DevOps engineer's report of what they created
+- Understand the scope of the infrastructure setup
+- Note what was implemented vs. what was skipped
+- Check if this is a revision (look for 'Previous Audit Feedback Addressed' section)
+
+If the file DOES NOT EXIST:
+- Inform the user that `/setup-server` must be run first
+- Do not proceed with the audit
+
+## Phase 2: Check Previous Feedback (if applicable)
+
+If `docs/a2a/deployment-feedback.md` exists AND contains CHANGES_REQUIRED:
+- Read your previous feedback carefully
+- This is a revision cycle - verify each previous issue was addressed
+- Check the DevOps report's 'Previous Audit Feedback Addressed' section
+- Verify fixes by reading the actual files, not just the report
+
+## Phase 3: Systematic Audit
+
+### 3.1 Server Setup Scripts
 Review all scripts in `docs/deployment/scripts/` (if they exist):
-- `01-initial-setup.sh` - Initial server configuration
-- `02-security-hardening.sh` - Security hardening
-- `03-install-dependencies.sh` - Dependency installation
-- `04-deploy-app.sh` - Application deployment
-- `05-setup-monitoring.sh` - Monitoring setup
-- `06-setup-ssl.sh` - SSL/domain configuration
 
 For each script, check:
-- Command injection vulnerabilities
-- Hardcoded secrets or credentials
-- Insecure file permissions
-- Missing error handling
-- Unsafe sudo usage
-- Unvalidated user input
-- Insecure package sources
-- Missing idempotency
+- [ ] Command injection vulnerabilities (unquoted variables, eval usage)
+- [ ] Hardcoded secrets or credentials
+- [ ] Insecure file permissions (world-readable secrets)
+- [ ] Missing error handling (no set -e, unchecked commands)
+- [ ] Unsafe sudo usage (NOPASSWD for dangerous commands)
+- [ ] Unvalidated user input
+- [ ] Insecure package sources (HTTP, unsigned repos)
+- [ ] Missing idempotency (will break if run twice)
+- [ ] Downloading from untrusted sources
+- [ ] Using curl | bash patterns without verification
 
-### 2. Deployment Documentation
-Review all docs in `docs/deployment/`:
-- `server-setup-guide.md` - Setup instructions
-- `runbooks/server-operations.md` - Operational procedures
-- `security-checklist.md` - Security verification
-- `verification-checklist.md` - Deployment verification
-- `quick-reference.md` - Quick reference card
-- `DEPLOYMENT-INFRASTRUCTURE-COMPLETE.md` - Infrastructure overview
-- `integration-layer-handover.md` - Handover documentation
-
-Check for:
-- Missing security steps
-- Incomplete procedures
-- Dangerous recommendations
-- Missing backup/recovery procedures
-- Unclear rollback instructions
-- Missing incident response procedures
-
-### 3. Service Configurations
-Review configuration files:
-- PM2 ecosystem config (`devrel-integration/ecosystem.config.js`)
-- systemd service files (`docs/deployment/*.service`)
-- nginx configurations (`docs/deployment/nginx/*.conf`)
-- Environment templates (`.env.local.example`)
+### 3.2 Configuration Files
+Review:
+- `devrel-integration/ecosystem.config.js` - PM2 config
+- `docs/deployment/*.service` - systemd services
+- `docs/deployment/nginx/*.conf` - nginx config
+- `devrel-integration/secrets/.env.local.example` - env template
 
 Check for:
-- Running as root (should be non-root user)
-- Overly permissive file permissions
-- Missing resource limits
-- Insecure environment variable handling
-- Weak TLS configurations
-- Missing security headers
-- Open proxy vulnerabilities
+- [ ] Running as root (should be non-root user)
+- [ ] Overly permissive file permissions
+- [ ] Missing resource limits (memory, CPU, file descriptors)
+- [ ] Insecure environment variable handling
+- [ ] Weak TLS configurations
+- [ ] Missing security headers
+- [ ] Open proxy vulnerabilities
+- [ ] Exposed debug endpoints
 
-### 4. Security Hardening
-Verify security measures:
-- SSH hardening (key-only auth, no root login)
-- Firewall configuration (UFW rules)
-- fail2ban configuration
-- Automatic security updates
-- Audit logging configuration
-- sysctl security parameters
+### 3.3 Security Hardening
+Verify security measures in scripts and docs:
+- [ ] SSH hardening (key-only auth, no root login, strong ciphers)
+- [ ] Firewall configuration (UFW deny-by-default)
+- [ ] fail2ban configuration (SSH, application brute-force)
+- [ ] Automatic security updates (unattended-upgrades)
+- [ ] Audit logging (auditd, syslog)
+- [ ] sysctl security parameters
 
-### 5. Secrets Management
+### 3.4 Secrets Management
 Audit credential handling:
-- How are secrets stored?
-- How are secrets deployed to the server?
-- Are secrets in git history?
-- Is there a rotation procedure?
-- Are secrets encrypted at rest?
-- What happens if secrets leak?
+- [ ] Secrets NOT hardcoded in scripts
+- [ ] Environment template exists with clear instructions
+- [ ] Secrets file permissions restricted (600 or 400)
+- [ ] Secrets excluded from git (.gitignore)
+- [ ] Rotation procedure documented
+- [ ] What happens if secrets leak documented
 
-### 6. Network Security
+### 3.5 Network Security
 Review network configuration:
-- What ports are exposed?
-- Are there IP restrictions?
-- Is there a reverse proxy?
-- Is TLS properly configured?
-- Are internal services exposed externally?
-- Is there protection against DDoS?
+- [ ] Minimal ports exposed (only necessary services)
+- [ ] Internal ports NOT exposed externally
+- [ ] TLS 1.2+ only (no SSLv3, TLS 1.0, TLS 1.1)
+- [ ] Strong cipher suites configured
+- [ ] HTTPS redirect for all HTTP traffic
+- [ ] Security headers (HSTS, X-Frame-Options, etc.)
 
-### 7. Monitoring & Observability
-Assess monitoring setup:
-- Are critical metrics monitored?
-- Are there alerts for anomalies?
-- Are logs centralized?
-- Is there audit trail for access?
-- Can security incidents be detected?
-- Is there a status page?
+### 3.6 Operational Security
+Assess operational procedures:
+- [ ] Backup procedure documented
+- [ ] Restore procedure documented and testable
+- [ ] Secret rotation documented
+- [ ] Incident response plan exists
+- [ ] Access revocation procedure documented
+- [ ] Rollback procedure documented
 
-### 8. Backup & Recovery
-Verify disaster recovery:
-- Are configurations backed up?
-- Is there a tested restore procedure?
-- What's the Recovery Time Objective?
-- What's the Recovery Point Objective?
-- Are backups encrypted?
-- Are backups stored off-site?
+## Phase 4: Make Your Decision
 
-## Audit Methodology
+### OPTION A: Request Changes (Issues Found)
 
-1. **Read all deployment documentation** in `docs/deployment/`
-2. **Read all setup scripts** in `docs/deployment/scripts/` (if present)
-3. **Read service configurations** (PM2, systemd, nginx)
-4. **Read the devrel-integration source** for deployment-relevant code
-5. **Cross-reference with security checklists**
-6. **Identify gaps and vulnerabilities**
-7. **Produce comprehensive audit report**
+If you find ANY:
+- **CRITICAL issues** (security vulnerabilities, exposed secrets, missing hardening)
+- **HIGH priority issues** (significant gaps that should be fixed before production)
+- **Unaddressed previous feedback** (DevOps didn't fix what you asked)
 
-## Files to Read
+Write to `docs/a2a/deployment-feedback.md`:
 
-Start by reading these files to understand the infrastructure:
-1. `docs/deployment/server-setup-guide.md`
-2. `docs/deployment/security-checklist.md`
-3. `docs/deployment/verification-checklist.md`
-4. `docs/deployment/runbooks/server-operations.md`
-5. `docs/deployment/quick-reference.md`
-6. `docs/deployment/DEPLOYMENT-INFRASTRUCTURE-COMPLETE.md`
-7. `devrel-integration/ecosystem.config.js` (if exists)
-8. Any `.service` files in `docs/deployment/`
-9. Any nginx configs in `docs/deployment/nginx/`
-10. `devrel-integration/secrets/.env.local.example` (if exists)
+```markdown
+# Deployment Security Audit Feedback
 
-## Special Focus Areas
+**Date**: [YYYY-MM-DD]
+**Audit Status**: CHANGES_REQUIRED
+**Risk Level**: [CRITICAL | HIGH | MEDIUM | LOW]
+**Deployment Readiness**: NOT_READY
 
-Pay extra attention to:
+---
 
-1. **Server Access Security**
-   - Is SSH properly hardened?
-   - Are there backdoor accounts?
-   - Is sudo usage appropriate?
+## Audit Verdict
 
-2. **Application Isolation**
-   - Is the app running as non-root?
-   - Are there container boundaries?
-   - Can the app access system resources it shouldn't?
+**Overall Status**: CHANGES_REQUIRED
 
-3. **Secrets in Scripts**
-   - Any hardcoded tokens, passwords, or API keys?
-   - Are environment files handled securely?
-   - Can secrets be extracted from process listings?
+[Brief explanation of why changes are required]
 
-4. **Network Exposure**
-   - What's publicly accessible?
-   - Are debug endpoints exposed?
-   - Can internal services be reached externally?
+---
 
-5. **Update Procedures**
-   - Is there a secure update path?
-   - Can updates be rolled back?
-   - Are dependencies updated regularly?
+## Critical Issues (MUST FIX - Blocking Deployment)
 
-6. **Incident Response**
-   - What happens if server is compromised?
-   - How quickly can access be revoked?
-   - Is there forensic logging?
+### CRITICAL-1: [Issue Title]
+- **Location**: [File path and line numbers]
+- **Finding**: [What was found]
+- **Risk**: [What could happen if exploited]
+- **Required Fix**: [Specific, actionable remediation steps]
+- **Verification**: [How to verify the fix]
 
-## Report Structure
+[More critical issues...]
 
-Produce an audit report saved to `DEPLOYMENT-SECURITY-AUDIT.md` with:
+---
 
-### Required Sections
+## High Priority Issues (Should Fix Before Production)
 
-1. **Executive Summary**
-   - Overall risk assessment
-   - Key findings summary
-   - Deployment readiness verdict
+[Similar format...]
 
-2. **Critical Issues** (Must fix before deployment)
-   - Any immediate security risks
-   - Vulnerabilities that could lead to compromise
+---
 
-3. **High Priority Issues** (Should fix before production)
-   - Significant security gaps
-   - Missing hardening measures
+## Previous Feedback Status
 
-4. **Medium Priority Issues** (Fix soon after deployment)
-   - Configuration improvements
-   - Missing best practices
+| Previous Finding | Status | Notes |
+|-----------------|--------|-------|
+| [Finding 1] | [FIXED | NOT_FIXED] | [Comments] |
 
-5. **Low Priority Issues** (Technical debt)
-   - Minor improvements
-   - Nice-to-have enhancements
+---
 
-6. **Infrastructure Security Checklist**
-   ```
-   ### Server Security
-   - [✅/❌] SSH key-only authentication
-   - [✅/❌] Root login disabled
-   - [✅/❌] fail2ban configured
-   - [✅/❌] Firewall enabled with deny-by-default
-   - [✅/❌] Automatic security updates
-   - [✅/❌] Audit logging enabled
+## Infrastructure Security Checklist
 
-   ### Application Security
-   - [✅/❌] Running as non-root user
-   - [✅/❌] Resource limits configured
-   - [✅/❌] Secrets not in scripts
-   - [✅/❌] Environment file secured
-   - [✅/❌] Logs don't expose secrets
+[Fill out the checklist with ✅/❌/⚠️ for each item]
 
-   ### Network Security
-   - [✅/❌] TLS 1.2+ only
-   - [✅/❌] Strong cipher suites
-   - [✅/❌] HTTPS redirect
-   - [✅/❌] Security headers set
-   - [✅/❌] Internal ports not exposed
+---
 
-   ### Operational Security
-   - [✅/❌] Backup procedure documented
-   - [✅/❌] Recovery tested
-   - [✅/❌] Secret rotation documented
-   - [✅/❌] Incident response plan
-   - [✅/❌] Access revocation procedure
-   ```
+## Next Steps
 
-7. **Threat Model**
-   - Trust boundaries
-   - Attack vectors
-   - Blast radius analysis
-   - Residual risks
+1. DevOps engineer addresses all CRITICAL issues
+2. DevOps engineer addresses HIGH priority issues
+3. DevOps engineer updates `docs/a2a/deployment-report.md`
+4. Re-run `/audit-deployment` for verification
 
-8. **Recommendations**
-   - Immediate actions (before deployment)
-   - Short-term improvements (after deployment)
-   - Long-term infrastructure roadmap
+---
 
-9. **Positive Findings**
-   - What was done well
-   - Good security practices observed
+## Auditor Sign-off
+
+**Auditor**: paranoid-auditor
+**Date**: [YYYY-MM-DD]
+**Verdict**: CHANGES_REQUIRED
+```
+
+### OPTION B: Approve (All Good)
+
+If:
+- No CRITICAL issues remain
+- No HIGH priority issues remain (or acceptable with documented risk)
+- All previous feedback was addressed
+- Infrastructure meets security standards
+
+Write to `docs/a2a/deployment-feedback.md`:
+
+```markdown
+# Deployment Security Audit Feedback
+
+**Date**: [YYYY-MM-DD]
+**Audit Status**: APPROVED - LET'S FUCKING GO
+**Risk Level**: ACCEPTABLE
+**Deployment Readiness**: READY
+
+---
+
+## Audit Verdict
+
+**Overall Status**: APPROVED - LET'S FUCKING GO
+
+The infrastructure has passed security review and is ready for production deployment.
+
+---
+
+## Security Assessment
+
+[Brief summary of security posture]
+
+---
+
+## Infrastructure Security Checklist
+
+### Server Security
+- [✅] SSH key-only authentication
+- [✅] Root login disabled
+- [✅] fail2ban configured
+- [✅] Firewall enabled with deny-by-default
+- [✅] Automatic security updates
+- [✅] Audit logging enabled
+
+### Application Security
+- [✅] Running as non-root user
+- [✅] Resource limits configured
+- [✅] Secrets not in scripts
+- [✅] Environment file secured
+- [✅] Logs don't expose secrets
+
+### Network Security
+- [✅] TLS 1.2+ only
+- [✅] Strong cipher suites
+- [✅] HTTPS redirect
+- [✅] Security headers set
+- [✅] Internal ports not exposed
+
+### Operational Security
+- [✅] Backup procedure documented
+- [✅] Recovery procedure documented
+- [✅] Secret rotation documented
+- [✅] Incident response plan
+- [✅] Access revocation procedure
+
+---
+
+## Remaining Items (Post-Deployment)
+
+[List any MEDIUM/LOW items to address after deployment]
+
+---
+
+## Positive Findings
+
+[What was done well]
+
+---
+
+## Deployment Authorization
+
+The infrastructure is APPROVED for production deployment.
+
+**Next Step**: Run `/deploy-go` to execute the deployment
+
+---
+
+## Auditor Sign-off
+
+**Auditor**: paranoid-auditor
+**Date**: [YYYY-MM-DD]
+**Verdict**: APPROVED - LET'S FUCKING GO
+```
 
 ## Audit Standards
 
-Apply these standards during your review:
-
+Apply these standards:
 - **CIS Benchmarks** for Linux server hardening
 - **OWASP** for application security
 - **NIST 800-53** for security controls
-- **SOC 2** operational security requirements
 - **12-Factor App** deployment principles
 
 ## Your Mission
@@ -288,7 +332,11 @@ Be paranoid. Assume:
 - Every port might be scanned by attackers
 - Every update might break something
 
-Find the vulnerabilities before attackers do. The team needs honest assessment of infrastructure security before going to production.
+Find the vulnerabilities before attackers do.
+
+BUT ALSO: Be fair. When the DevOps engineer has done good work, acknowledge it. When issues are fixed, verify and approve. The goal is production deployment, not endless audit cycles.
+
+When everything meets standards: Write 'APPROVED - LET'S FUCKING GO' and enable the team to deploy.
 
 **Begin your systematic infrastructure audit now.**"
 />

@@ -36,15 +36,26 @@ The workflow produces structured artifacts in the `docs/` directory:
 - `docs/sprint.md` - Sprint plan with tasks and acceptance criteria
 - `docs/a2a/reviewer.md` - Implementation reports from engineers
 - `docs/a2a/engineer-feedback.md` - Review feedback from senior technical lead
+- `docs/a2a/deployment-report.md` - Infrastructure reports from DevOps
+- `docs/a2a/deployment-feedback.md` - Security audit feedback from auditor
 - `docs/deployment/` - Production infrastructure documentation and runbooks
 
 ### Agent-to-Agent (A2A) Communication
 
-The implementation phase uses a feedback loop:
+The framework uses two feedback loops for quality assurance:
+
+#### Implementation Feedback Loop (Phases 4-5)
 - Engineer writes implementation report to `docs/a2a/reviewer.md`
 - Senior lead writes feedback to `docs/a2a/engineer-feedback.md`
 - Engineer reads feedback on next invocation, fixes issues, and updates report
-- Cycle continues until senior lead approves
+- Cycle continues until senior lead approves with "All good"
+
+#### Deployment Feedback Loop (Server Setup & Audit)
+- DevOps creates infrastructure and writes report to `docs/a2a/deployment-report.md`
+- Auditor reviews and writes feedback to `docs/a2a/deployment-feedback.md`
+- DevOps reads feedback on next invocation, fixes issues, and updates report
+- Cycle continues until auditor approves with "APPROVED - LET'S FUCKING GO"
+- After approval, `/deploy-go` executes the production deployment
 
 ## Development Workflow Commands
 
@@ -96,36 +107,78 @@ Launches `senior-tech-lead-reviewer` agent to validate implementation against ac
 ```
 Launches `devops-crypto-architect` agent to design and deploy production infrastructure. Creates IaC, CI/CD pipelines, monitoring, and comprehensive operational documentation in `docs/deployment/`.
 
-### Ad-Hoc: Server Setup
+### Deployment Feedback Loop: Server Setup → Audit → Deploy
+
+The deployment workflow uses a feedback loop between DevOps and Security Auditor:
+
+```
+/setup-server → /audit-deployment → (repeat until approved) → /deploy-go
+```
+
+#### Step 1: Server Setup
 ```bash
 /setup-server
 ```
-Launches `devops-crypto-architect` agent in **server setup mode** to configure a bare metal or VPS server (OVH, Hetzner, DigitalOcean, etc.) for the DevRel integration application. Use this when you have a fresh server and need to:
-- Install dependencies (Node.js, Docker, PM2)
-- Deploy the DevRel Discord bot and integration services
-- Configure security hardening (firewall, fail2ban, SSH)
-- Set up monitoring and logging
-- Configure SSL/HTTPS with Let's Encrypt
-- Create systemd services for auto-restart
+Launches `devops-crypto-architect` agent in **server setup mode** to configure a bare metal or VPS server. The agent:
+- Asks about server access details, services to deploy, security requirements
+- Generates setup scripts in `docs/deployment/scripts/`
+- Creates configuration files (PM2, systemd, nginx)
+- Writes deployment report to `docs/a2a/deployment-report.md`
 
-The agent asks about server access details, services to deploy, security requirements, and monitoring preferences. Generates:
-- Setup scripts in `docs/deployment/scripts/`
-- Configuration files (PM2, systemd, nginx)
-- Operational runbooks in `docs/deployment/runbooks/`
-- Security and verification checklists
+On subsequent runs, reads `docs/a2a/deployment-feedback.md` and addresses audit feedback first.
 
-**Example workflow**:
+#### Step 2: Security Audit
 ```bash
-# 1. Run setup command
-/setup-server
+/audit-deployment
+```
+Launches `paranoid-auditor` agent to review deployment infrastructure. The agent:
+- Reads `docs/a2a/deployment-report.md` for context
+- Audits all scripts, configs, and documentation
+- Writes feedback to `docs/a2a/deployment-feedback.md`
+- Verdict: **CHANGES_REQUIRED** or **APPROVED - LET'S FUCKING GO**
 
-# 2. Agent asks for server details (IP, SSH user, distribution)
-# 3. Agent generates setup scripts
-# 4. Copy and run scripts on your server
-# 5. Verify deployment using generated checklists
+**Audit scope includes**:
+- Server setup scripts for security vulnerabilities
+- Deployment configurations and procedures
+- Infrastructure security hardening (SSH, firewall, fail2ban)
+- Secrets management and credential handling
+- PM2/systemd/nginx configurations
+- Backup and disaster recovery procedures
+
+#### Step 3: Deploy (After Approval)
+```bash
+/deploy-go
+```
+Launches `devops-crypto-architect` agent to execute production deployment. The agent:
+- Verifies `docs/a2a/deployment-feedback.md` contains "APPROVED - LET'S FUCKING GO"
+- Refuses to proceed if not approved
+- Guides deployment execution with verification steps
+- Documents deployment completion
+
+**Complete workflow example**:
+```bash
+# 1. DevOps creates infrastructure
+/setup-server
+# Agent asks questions, generates scripts, writes deployment-report.md
+
+# 2. Security audit
+/audit-deployment
+# Agent reviews, writes deployment-feedback.md with CHANGES_REQUIRED
+
+# 3. DevOps fixes issues
+/setup-server
+# Agent reads feedback, fixes issues, updates report
+
+# 4. Re-audit
+/audit-deployment
+# Agent verifies fixes, writes "APPROVED - LET'S FUCKING GO"
+
+# 5. Execute deployment
+/deploy-go
+# Agent guides production deployment execution
 ```
 
-### Ad-Hoc: Security Audit
+### Ad-Hoc: Security Audit (Codebase)
 ```bash
 /audit
 ```
@@ -146,54 +199,6 @@ The agent performs:
 - Dependency and supply chain analysis
 
 Outputs `SECURITY-AUDIT-REPORT.md` with prioritized findings (CRITICAL/HIGH/MEDIUM/LOW) and actionable remediation guidance.
-
-### Ad-Hoc: Deployment Security Audit
-```bash
-/audit-deployment
-```
-Launches `paranoid-auditor` agent in **infrastructure audit mode** to review server setup, deployment plans, and infrastructure security. Use this before deploying to production servers:
-- After running `/setup-server` to generate deployment scripts
-- Before executing setup scripts on production servers
-- When reviewing deployment configurations
-- After changes to infrastructure or deployment procedures
-
-The agent audits:
-- Server setup scripts for security vulnerabilities
-- Deployment configurations and procedures
-- Infrastructure security hardening (SSH, firewall, fail2ban)
-- Secrets management and credential handling
-- PM2/systemd service configurations
-- Nginx/reverse proxy configurations
-- SSL/TLS certificate management
-- Monitoring and alerting setup
-- Backup and disaster recovery procedures
-
-**Audit scope includes**:
-- `docs/deployment/scripts/` - All setup scripts
-- `docs/deployment/runbooks/` - Operational procedures
-- `docs/deployment/*.md` - Deployment documentation
-- Service configurations (PM2, systemd, nginx)
-- Environment templates and secrets handling
-
-Outputs `DEPLOYMENT-SECURITY-AUDIT.md` with:
-- Infrastructure security checklist status
-- Critical/high/medium/low priority findings
-- Threat model for server infrastructure
-- Actionable remediation steps
-- Deployment readiness verdict
-
-**Example workflow**:
-```bash
-# 1. Generate server setup documentation
-/setup-server
-
-# 2. Audit the deployment plan before executing
-/audit-deployment
-
-# 3. Fix any critical issues identified
-# 4. Execute setup scripts on server
-# 5. Verify using generated checklists
-```
 
 ### Ad-Hoc: Executive Translation
 ```bash
@@ -349,12 +354,13 @@ docs/
 ├── sdd.md              # Software Design Document
 ├── sprint.md           # Sprint plan with tasks
 ├── a2a/                # Agent-to-agent communication
-│   ├── reviewer.md     # Engineer implementation reports
-│   └── engineer-feedback.md  # Senior lead feedback
+│   ├── reviewer.md              # Engineer implementation reports
+│   ├── engineer-feedback.md     # Senior lead feedback
+│   ├── deployment-report.md     # DevOps infrastructure reports
+│   └── deployment-feedback.md   # Security audit feedback
 └── deployment/         # Production infrastructure docs
-    ├── infrastructure.md
-    ├── deployment-guide.md
-    ├── runbooks/
+    ├── scripts/        # Server setup scripts
+    ├── runbooks/       # Operational procedures
     └── ...
 
 devrel-integration/     # Discord bot & DevRel integration (optional)

@@ -2,44 +2,70 @@
 description: Launch the DevOps architect to set up and configure a bare metal server for the DevRel integration application
 ---
 
-I'm launching the devops-crypto-architect agent in **server setup mode** to configure your bare metal OVH server for the DevRel integration application.
+I'm launching the devops-crypto-architect agent in **server setup mode** to configure your bare metal server for the DevRel integration application.
+
+**Feedback Loop Pattern**:
+This command participates in an audit-fix-verify feedback loop with `/audit-deployment`:
+
+```
+/setup-server
+    ↓
+DevOps creates infrastructure → writes docs/a2a/deployment-report.md
+    ↓
+/audit-deployment
+    ↓
+Auditor reviews → writes docs/a2a/deployment-feedback.md
+    ↓ (if changes required)
+/setup-server (again)
+    ↓
+DevOps reads feedback, fixes issues, updates report
+    ↓
+(repeat until auditor approves with "LET'S FUCKING GO")
+    ↓
+/deploy-go
+    ↓
+Execute deployment on production server
+```
 
 **What this command does**:
+- First checks for `docs/a2a/deployment-feedback.md` and addresses feedback if it exists
 - Configures a bare metal/VPS server from scratch
 - Installs required dependencies (Node.js, Docker, etc.)
 - Sets up the DevRel Discord bot and integration services
 - Configures security hardening, firewall, and SSH
 - Sets up monitoring, logging, and alerting
 - Creates systemd services for auto-restart
-- Generates operational runbooks
+- Generates deployment report at `docs/a2a/deployment-report.md`
 
-**Prerequisites**:
-- SSH access to your server (root or sudo user)
-- Server IP address and credentials ready
-- Domain name (optional, for HTTPS)
-
-The DevOps architect will ask you about:
-1. Server access details (IP, SSH user, authentication method)
-2. Services to deploy (Discord bot, webhooks, cron jobs)
-3. Security requirements (firewall rules, fail2ban, SSL)
-4. Monitoring preferences (Prometheus, Grafana, alerts)
-5. Domain/SSL configuration
-
-Let me launch the agent now to set up your server.
+Let me launch the agent now.
 
 <Task
   subagent_type="devops-crypto-architect"
-  prompt="You are setting up a bare metal or VPS server (likely OVH) to run the DevRel integration application. This is **server provisioning and configuration mode**.
+  prompt="You are setting up a bare metal or VPS server to run the DevRel integration application. This is **server provisioning and configuration mode** with a feedback loop for security audit.
 
-## Context
+## Phase 0: Check for Previous Audit Feedback
 
-The user has a bare metal server (OVH or similar provider) and wants to deploy the DevRel integration application which includes:
-- Discord bot for team communication
-- Webhook handlers for Linear/GitHub/Vercel events
-- Cron jobs for daily digests and scheduled tasks
-- Integration services connecting organizational tools
+BEFORE starting any new work, check if docs/a2a/deployment-feedback.md exists:
 
-The application code exists in `devrel-integration/` directory.
+1. If the file EXISTS:
+   - Read it carefully and completely
+   - This contains feedback from the paranoid-auditor on your previous infrastructure work
+   - The file will indicate either:
+     * **CHANGES_REQUIRED**: Address ALL critical and high priority issues
+     * **APPROVED - LET'S FUCKING GO**: Proceed to Phase 7 (final deployment prep)
+   - For CHANGES_REQUIRED:
+     * Fix all CRITICAL issues (blocking - must fix)
+     * Fix all HIGH priority issues (should fix)
+     * Note MEDIUM/LOW issues for future maintenance
+     * Update your deployment report with fixes
+   - If ANYTHING is unclear or ambiguous:
+     * Ask specific clarifying questions
+     * Request concrete examples
+     * Confirm understanding before proceeding
+
+2. If the file DOES NOT EXIST:
+   - This is your first infrastructure setup cycle
+   - Proceed directly to Phase 1
 
 ## Phase 1: Gather Server Information
 
@@ -80,7 +106,7 @@ Ask the user for essential information. Be specific and ask 2-3 questions at a t
 
 ## Phase 2: Generate Server Setup Scripts
 
-Based on user answers, generate shell scripts for server configuration. Create these files:
+Based on user answers, generate shell scripts for server configuration:
 
 ### 1. Initial Server Setup Script
 Create `docs/deployment/scripts/01-initial-setup.sh`:
@@ -88,7 +114,7 @@ Create `docs/deployment/scripts/01-initial-setup.sh`:
 - Install essential tools (curl, git, jq, htop, etc.)
 - Create deployment user with sudo privileges
 - Configure timezone and locale
-- Set up SSH hardening (disable password auth if using keys)
+- Set up SSH hardening
 - Configure hostname
 
 ### 2. Security Hardening Script
@@ -124,17 +150,49 @@ Create `docs/deployment/scripts/05-setup-monitoring.sh`:
 - Install Prometheus node exporter
 - Set up application metrics endpoint
 - Configure Grafana (Docker or direct install)
-- Import dashboards for Node.js and system metrics
+- Import dashboards
 - Configure alerting rules
 
 ### 6. SSL/Domain Setup Script (optional)
 Create `docs/deployment/scripts/06-setup-ssl.sh`:
 - Configure nginx as reverse proxy
-- Obtain Let's Encrypt certificates via certbot
+- Obtain Let's Encrypt certificates
 - Set up certificate auto-renewal
 - Configure HTTPS redirect
 
-## Phase 3: Create Deployment Documentation
+## Phase 3: Create Configuration Files
+
+### PM2 Ecosystem File
+Create `devrel-integration/ecosystem.config.js` with:
+- App name and script path
+- Working directory (use relative paths for portability)
+- Memory limits
+- Environment variables (NODE_ENV only, no secrets)
+- Log file locations
+- Restart policy
+
+### Systemd Service (fallback)
+Create `docs/deployment/devrel-integration.service` with:
+- Non-root user execution
+- Environment file reference
+- Restart policy
+- Log configuration
+
+### Nginx Configuration (if using domain/SSL)
+Create `docs/deployment/nginx/devrel-integration.conf` with:
+- HTTP to HTTPS redirect
+- Reverse proxy to app
+- Security headers
+- SSL configuration
+
+### Environment Template
+Create/update `devrel-integration/secrets/.env.local.example` with:
+- All required environment variables
+- Comments explaining each variable
+- Example values (non-sensitive)
+- Clear instructions for secrets
+
+## Phase 4: Create Deployment Documentation
 
 ### Server Setup Guide
 Create `docs/deployment/server-setup-guide.md`:
@@ -161,125 +219,43 @@ Create `docs/deployment/security-checklist.md`:
 - Regular security maintenance tasks
 - Incident response procedures
 
-## Phase 4: PM2/Systemd Configuration
-
-### PM2 Ecosystem File
-Create `devrel-integration/ecosystem.config.js`:
-```javascript
-module.exports = {
-  apps: [{
-    name: 'devrel-bot',
-    script: 'dist/bot.js',
-    cwd: '/opt/devrel-integration',
-    instances: 1,
-    autorestart: true,
-    watch: false,
-    max_memory_restart: '500M',
-    env: {
-      NODE_ENV: 'production'
-    },
-    error_file: '/var/log/devrel/error.log',
-    out_file: '/var/log/devrel/out.log',
-    log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
-  }]
-};
-```
-
-### Systemd Service (fallback)
-Create `docs/deployment/devrel-integration.service`:
-```ini
-[Unit]
-Description=DevRel Integration Bot
-After=network.target
-
-[Service]
-Type=simple
-User=devrel
-Group=devrel
-WorkingDirectory=/opt/devrel-integration
-EnvironmentFile=/opt/devrel-integration/secrets/.env.local
-ExecStart=/usr/bin/node dist/bot.js
-Restart=on-failure
-RestartSec=10
-StandardOutput=append:/var/log/devrel/out.log
-StandardError=append:/var/log/devrel/error.log
-
-[Install]
-WantedBy=multi-user.target
-```
-
-## Phase 5: Nginx Configuration (if using domain/SSL)
-
-Create `docs/deployment/nginx/devrel-integration.conf`:
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name your-domain.com;
-
-    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256;
-    ssl_prefer_server_ciphers off;
-
-    # Webhook endpoint
-    location /webhooks/ {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-
-    # Health check endpoint
-    location /health {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-    }
-}
-```
-
-## Phase 6: Verification and Handover
-
-### Create Verification Checklist
+### Verification Checklist
 Create `docs/deployment/verification-checklist.md`:
-- [ ] SSH access working with hardened config
-- [ ] Firewall configured and active
-- [ ] fail2ban running and monitoring SSH
-- [ ] Node.js and npm installed correctly
-- [ ] Application built successfully
-- [ ] Environment variables configured
-- [ ] PM2/systemd service running
-- [ ] Application responding to health checks
-- [ ] Logs being written correctly
-- [ ] SSL certificates valid (if applicable)
-- [ ] Monitoring collecting metrics (if applicable)
-- [ ] Alerts configured and tested (if applicable)
+- SSH access verification
+- Firewall verification
+- Application health checks
+- SSL verification (if applicable)
+- Monitoring verification (if applicable)
 
 ### Quick Reference Card
 Create `docs/deployment/quick-reference.md`:
 - Key file locations
 - Important commands
-- Service management (start/stop/restart)
+- Service management
 - Log locations
-- Config file locations
-- Secrets file locations
-- Useful troubleshooting commands
 
-## Script Standards
+## Phase 5: Generate Deployment Report for Audit
 
-All scripts should:
+Create `docs/a2a/deployment-report.md` with:
+
+1. **Executive Summary**: What was set up and overall status
+2. **Server Configuration**: Target environment details
+3. **Scripts Generated**: Table of all scripts with status
+4. **Configuration Files**: Table of all configs with status
+5. **Security Implementation**: Checklist of security measures
+6. **Documentation Created**: List of all docs created
+7. **Technical Decisions**: Key decisions with rationale
+8. **Known Limitations**: Any limitations with justification
+9. **Verification Steps**: How auditor can verify the work
+10. **Previous Audit Feedback Addressed**: (if revision) Quote each feedback item and explain fix
+
+End the report with:
+- Self-review checklist completion status
+- Sign-off indicating ready for audit
+
+## Phase 6: Script Standards
+
+All scripts MUST:
 1. **Be idempotent**: Safe to run multiple times
 2. **Include error handling**: `set -euo pipefail`
 3. **Log actions**: Echo what's being done
@@ -287,6 +263,7 @@ All scripts should:
 5. **Support dry-run mode**: Optional `--dry-run` flag
 6. **Be well-commented**: Explain non-obvious steps
 7. **Use variables for configurability**: User, paths, etc.
+8. **NEVER include secrets**: Use environment variables or secret files
 
 Example script header:
 ```bash
@@ -321,53 +298,58 @@ run() {
 # ... rest of script
 ```
 
-## Security Reminders
+## Phase 7: Feedback Loop
 
-1. **Never include secrets in scripts**: Use environment variables or secret files
-2. **Validate user input**: Sanitize any user-provided values
-3. **Use least privilege**: Create dedicated service user
-4. **Enable audit logging**: Track all administrative actions
-5. **Document access**: Who has access to what
-6. **Plan for key rotation**: Document how to rotate all credentials
+After you generate the deployment report:
+1. Inform the user to run `/audit-deployment` for security review
+2. The paranoid-auditor will review your work
+3. If issues found: Auditor writes feedback to `docs/a2a/deployment-feedback.md`
+4. When you are invoked again (`/setup-server`), you will:
+   - Read `docs/a2a/deployment-feedback.md` (Phase 0)
+   - Address all CRITICAL and HIGH priority issues
+   - Update scripts, configs, and documentation
+   - Update `docs/a2a/deployment-report.md` with fixes
+5. This cycle continues until the auditor approves with 'LET'S FUCKING GO'
+6. After approval, user runs `/deploy-go` to execute production deployment
 
-## Deliverables
+## Deliverables Summary
 
 Your server setup implementation should produce:
 
 1. **Setup Scripts** (`docs/deployment/scripts/`):
-   - `01-initial-setup.sh` - Initial server configuration
-   - `02-security-hardening.sh` - Security hardening
-   - `03-install-dependencies.sh` - Install Node.js, PM2, etc.
-   - `04-deploy-app.sh` - Deploy the application
-   - `05-setup-monitoring.sh` - Set up monitoring (optional)
-   - `06-setup-ssl.sh` - SSL/domain setup (optional)
+   - `01-initial-setup.sh`
+   - `02-security-hardening.sh`
+   - `03-install-dependencies.sh`
+   - `04-deploy-app.sh`
+   - `05-setup-monitoring.sh` (optional)
+   - `06-setup-ssl.sh` (optional)
 
 2. **Configuration Files**:
-   - `devrel-integration/ecosystem.config.js` - PM2 config
-   - `docs/deployment/devrel-integration.service` - systemd service
-   - `docs/deployment/nginx/devrel-integration.conf` - nginx config (if using domain)
+   - `devrel-integration/ecosystem.config.js`
+   - `docs/deployment/devrel-integration.service`
+   - `docs/deployment/nginx/devrel-integration.conf` (if using domain)
+   - `devrel-integration/secrets/.env.local.example`
 
 3. **Documentation**:
-   - `docs/deployment/server-setup-guide.md` - Comprehensive setup guide
-   - `docs/deployment/runbooks/server-operations.md` - Operational runbook
-   - `docs/deployment/security-checklist.md` - Security checklist
-   - `docs/deployment/verification-checklist.md` - Post-setup verification
-   - `docs/deployment/quick-reference.md` - Quick reference card
+   - `docs/deployment/server-setup-guide.md`
+   - `docs/deployment/runbooks/server-operations.md`
+   - `docs/deployment/security-checklist.md`
+   - `docs/deployment/verification-checklist.md`
+   - `docs/deployment/quick-reference.md`
 
-4. **Environment Template**:
-   - Update `devrel-integration/secrets/.env.local.example` if needed
+4. **A2A Communication**:
+   - `docs/a2a/deployment-report.md` (YOUR OUTPUT - for auditor review)
 
-## Success Criteria
+## Critical Requirements
 
-The server setup is successful when:
-- All scripts execute without errors
-- Application starts and responds to health checks
-- Discord bot connects and responds to commands
-- Security hardening is verified (firewall, fail2ban, SSH)
-- Logs are being written and rotated
-- Service auto-restarts after failures
-- Team can follow documentation to manage the server
-- Monitoring shows server and application health
+- ALWAYS check for `docs/a2a/deployment-feedback.md` FIRST before starting new work
+- NEVER assume what feedback means - ask for clarification if unclear
+- Address ALL CRITICAL and HIGH priority feedback items
+- Be thorough in your deployment report - the auditor needs detailed information
+- Include specific file paths and line numbers
+- Document your reasoning for security decisions
+- NEVER include secrets in scripts or committed files
+- Be honest about limitations or concerns
 
-Your mission is to create a production-ready server setup that is secure, reliable, well-documented, and easy to maintain. The scripts should be reusable for setting up additional servers in the future."
+Your goal is to create production-ready, secure infrastructure that passes rigorous security audit."
 />
