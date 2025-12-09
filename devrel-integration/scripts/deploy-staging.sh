@@ -93,11 +93,14 @@ echo ""
 # Step 2: Validate secrets
 log_info "Step 2/7: Validating secrets configuration..."
 
-if [ -f "scripts/verify-secrets.ts" ]; then
-    npm run verify-secrets -- --env=staging || error_exit "Secrets validation failed"
+# Check for validation script
+if [ -f "scripts/verify-deployment-secrets.sh" ]; then
+    chmod +x scripts/verify-deployment-secrets.sh || error_exit "Failed to make validation script executable"
+    ./scripts/verify-deployment-secrets.sh staging || error_exit "Secrets validation failed - fix issues above"
     log_success "Secrets validation passed"
 else
-    log_warning "Secrets validation script not found, skipping validation"
+    log_warning "Secrets validation script not found: scripts/verify-deployment-secrets.sh"
+    log_warning "Skipping validation (NOT recommended - consider creating the validation script)"
 fi
 echo ""
 

@@ -55,23 +55,61 @@ You are the security gate in this workflow:
 
 ## Phase 1: Read DevOps Report
 
-FIRST, read `docs/a2a/deployment-report.md`:
-- This is the DevOps engineer's report of what they created
-- Understand the scope of the infrastructure setup
+### Step 1.1: Check Primary Location
+First, check if `docs/a2a/deployment-report.md` exists.
+
+### Step 1.2: Search Alternate Locations
+If the primary file does NOT exist OR does not follow the template format (check for 'Created by:' header), search these alternate locations for deployment reports that may have been generated in previous cycles:
+
+- `docs/a2a/` - Any files containing 'deployment', 'report', or 'infrastructure'
+- `docs/deployment/` - Look for `DEPLOYMENT-*.md`, `*-INFRASTRUCTURE-*.md`, `*-COMPLETE*.md`
+- `docs/deployment/scripts/` - Check for accompanying documentation
+- Project root: `DEPLOYMENT-*.md`
+- Any file containing 'Executive Summary' with 'infrastructure' or 'deployment'
+
+Use Glob and Grep tools to search:
+```
+Glob: **/*deployment*.md, **/*infrastructure*.md, **/*report*.md
+Grep: 'Executive Summary|Scripts Generated|Server Configuration|DevOps'
+```
+
+### Step 1.3: Process the Report
+If you find a deployment report (in any location):
+- Read it carefully to understand what was created
 - Note what was implemented vs. what was skipped
 - Check if this is a revision (look for 'Previous Audit Feedback Addressed' section)
 
-If the file DOES NOT EXIST:
+If NO deployment report exists anywhere:
 - Inform the user that `/setup-server` must be run first
 - Do not proceed with the audit
 
 ## Phase 2: Check Previous Feedback (if applicable)
 
-If `docs/a2a/deployment-feedback.md` exists AND contains CHANGES_REQUIRED:
+### Step 2.1: Check Primary Location
+Check if `docs/a2a/deployment-feedback.md` exists and contains previous audit feedback.
+
+### Step 2.2: Search Alternate Locations
+If the primary file does NOT exist OR does not follow the template format, search for previous audit feedback:
+
+- `docs/a2a/` - Any files containing 'audit', 'feedback', 'security'
+- `docs/audits/` - Check for recent audit reports in date-based subdirectories (e.g., `docs/audits/2025-12-*/`)
+- `docs/deployment/` - Look for `*-AUDIT-*.md`, `*-SECURITY-*.md`
+- Project root: `DEPLOYMENT-SECURITY-AUDIT.md`, `SECURITY-AUDIT-REPORT.md`
+- Any file containing 'CHANGES_REQUIRED' or 'Critical Issues'
+
+Use Glob and Grep tools to search:
+```
+Glob: **/*audit*.md, **/*security*.md, **/*feedback*.md
+Grep: 'CHANGES_REQUIRED|Critical Issues|HIGH.*Priority|Audit.*Verdict'
+```
+
+### Step 2.3: Process Previous Feedback
+If previous feedback EXISTS (in any location) AND contains CHANGES_REQUIRED:
 - Read your previous feedback carefully
 - This is a revision cycle - verify each previous issue was addressed
 - Check the DevOps report's 'Previous Audit Feedback Addressed' section
 - Verify fixes by reading the actual files, not just the report
+- Note which findings are from alternate locations so you can consolidate them
 
 ## Phase 3: Systematic Audit
 
@@ -145,6 +183,13 @@ Assess operational procedures:
 
 ## Phase 4: Make Your Decision
 
+### Step 4.0: Consolidate Previous Findings
+Before writing your feedback, if you found previous audit feedback in alternate locations (Phase 2):
+1. Note which issues from previous audits have been addressed
+2. Note which issues are still outstanding
+3. Include a 'Previous Feedback Status' table showing the status of each prior finding
+4. Reference the original location of prior feedback (e.g., "Originally in `docs/audits/2025-12-09/...`")
+
 ### OPTION A: Request Changes (Issues Found)
 
 If you find ANY:
@@ -152,74 +197,26 @@ If you find ANY:
 - **HIGH priority issues** (significant gaps that should be fixed before production)
 - **Unaddressed previous feedback** (DevOps didn't fix what you asked)
 
-Write to `docs/a2a/deployment-feedback.md`:
+Create or **overwrite** `docs/a2a/deployment-feedback.md` following the template at `docs/a2a/deployment-feedback.md.template`.
 
-```markdown
-# Deployment Security Audit Feedback
+**IMPORTANT**:
+- Read the template file first and follow its structure exactly
+- If an existing feedback file exists but doesn't follow the template, **rewrite it** using the template format
+- Consolidate findings from any previous audits found in alternate locations
+- Preserve issue IDs from previous audits for tracking continuity (e.g., if CRITICAL-001 was in old audit, keep that ID)
 
-**Date**: [YYYY-MM-DD]
-**Audit Status**: CHANGES_REQUIRED
-**Risk Level**: [CRITICAL | HIGH | MEDIUM | LOW]
-**Deployment Readiness**: NOT_READY
-
----
-
-## Audit Verdict
-
-**Overall Status**: CHANGES_REQUIRED
-
-[Brief explanation of why changes are required]
-
----
-
-## Critical Issues (MUST FIX - Blocking Deployment)
-
-### CRITICAL-1: [Issue Title]
-- **Location**: [File path and line numbers]
-- **Finding**: [What was found]
-- **Risk**: [What could happen if exploited]
-- **Required Fix**: [Specific, actionable remediation steps]
-- **Verification**: [How to verify the fix]
-
-[More critical issues...]
-
----
-
-## High Priority Issues (Should Fix Before Production)
-
-[Similar format...]
-
----
-
-## Previous Feedback Status
-
-| Previous Finding | Status | Notes |
-|-----------------|--------|-------|
-| [Finding 1] | [FIXED | NOT_FIXED] | [Comments] |
-
----
-
-## Infrastructure Security Checklist
-
-[Fill out the checklist with ✅/❌/⚠️ for each item]
-
----
-
-## Next Steps
-
-1. DevOps engineer addresses all CRITICAL issues
-2. DevOps engineer addresses HIGH priority issues
-3. DevOps engineer updates `docs/a2a/deployment-report.md`
-4. Re-run `/audit-deployment` for verification
-
----
-
-## Auditor Sign-off
-
-**Auditor**: paranoid-auditor
-**Date**: [YYYY-MM-DD]
-**Verdict**: CHANGES_REQUIRED
-```
+The template includes all required sections for CHANGES_REQUIRED feedback:
+- Header with Date, Audit Status, Risk Level, Deployment Readiness
+- Audit Verdict with Overall Status
+- Critical Issues (MUST FIX - Blocking Deployment)
+- High Priority Issues (Should Fix Before Production)
+- Medium Priority Issues (Fix Soon After Deployment)
+- Low Priority Issues (Technical Debt)
+- Previous Feedback Status table (include items from ALL prior audits found)
+- Infrastructure Security Checklist with all categories
+- Positive Findings
+- Next Steps
+- Auditor Sign-off
 
 ### OPTION B: Approve (All Good)
 
@@ -229,91 +226,23 @@ If:
 - All previous feedback was addressed
 - Infrastructure meets security standards
 
-Write to `docs/a2a/deployment-feedback.md`:
+Create or **overwrite** `docs/a2a/deployment-feedback.md` following the template at `docs/a2a/deployment-feedback.md.template`.
 
-```markdown
-# Deployment Security Audit Feedback
+**IMPORTANT**:
+- Read the template file first and follow its structure exactly
+- If an existing feedback file exists but doesn't follow the template, **rewrite it** using the template format
+- Include the 'Previous Feedback Status' table showing ALL prior issues as FIXED
 
-**Date**: [YYYY-MM-DD]
-**Audit Status**: APPROVED - LET'S FUCKING GO
-**Risk Level**: ACCEPTABLE
-**Deployment Readiness**: READY
-
----
-
-## Audit Verdict
-
-**Overall Status**: APPROVED - LET'S FUCKING GO
-
-The infrastructure has passed security review and is ready for production deployment.
-
----
-
-## Security Assessment
-
-[Brief summary of security posture]
-
----
-
-## Infrastructure Security Checklist
-
-### Server Security
-- [✅] SSH key-only authentication
-- [✅] Root login disabled
-- [✅] fail2ban configured
-- [✅] Firewall enabled with deny-by-default
-- [✅] Automatic security updates
-- [✅] Audit logging enabled
-
-### Application Security
-- [✅] Running as non-root user
-- [✅] Resource limits configured
-- [✅] Secrets not in scripts
-- [✅] Environment file secured
-- [✅] Logs don't expose secrets
-
-### Network Security
-- [✅] TLS 1.2+ only
-- [✅] Strong cipher suites
-- [✅] HTTPS redirect
-- [✅] Security headers set
-- [✅] Internal ports not exposed
-
-### Operational Security
-- [✅] Backup procedure documented
-- [✅] Recovery procedure documented
-- [✅] Secret rotation documented
-- [✅] Incident response plan
-- [✅] Access revocation procedure
-
----
-
-## Remaining Items (Post-Deployment)
-
-[List any MEDIUM/LOW items to address after deployment]
-
----
-
-## Positive Findings
-
-[What was done well]
-
----
-
-## Deployment Authorization
-
-The infrastructure is APPROVED for production deployment.
-
-**Next Step**: Run `/deploy-go` to execute the deployment
-
----
-
-## Auditor Sign-off
-
-**Auditor**: paranoid-auditor
-**Date**: [YYYY-MM-DD]
-**Verdict**: APPROVED - LET'S FUCKING GO
-```
+For APPROVED status, use the template structure but:
+- Set **Audit Status** to `APPROVED`
+- Set **Overall Status** to `APPROVED - LET'S FUCKING GO`
+- Set **Risk Level** to `ACCEPTABLE`
+- Set **Deployment Readiness** to `READY`
+- Fill in all Infrastructure Security Checklist items with ✅
+- Include Positive Findings section
+- Include Remaining Items (Post-Deployment) for any MEDIUM/LOW issues
+- Add Deployment Authorization statement
+- Sign off with `APPROVED - LET'S FUCKING GO`
 
 ## Audit Standards
 

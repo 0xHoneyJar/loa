@@ -1,17 +1,17 @@
 [Unit]
-Description=Agentic-Base Integration Bot
+Description=DevRel Integration Bot
 Documentation=https://github.com/your-org/agentic-base
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=agentic-base
-Group=agentic-base
-WorkingDirectory=/opt/agentic-base/integration
+User=devrel
+Group=devrel
+WorkingDirectory=/opt/devrel-integration
 
 # Environment file with secrets
-EnvironmentFile=/opt/agentic-base/integration/secrets/.env.local
+EnvironmentFile=/opt/devrel-integration/secrets/.env.local
 
 # Additional environment variables
 Environment="NODE_ENV=production"
@@ -35,12 +35,23 @@ CPUQuota=100%
 # Security hardening
 # Run as non-root user
 NoNewPrivileges=true
-# Restrict file system access
+
+# File system access controls
 PrivateTmp=true
-ProtectSystem=strict
+ProtectSystem=full
 ProtectHome=true
-ReadWritePaths=/opt/agentic-base/integration/logs
-ReadWritePaths=/opt/agentic-base/integration/data
+
+# Allow writes to application directory, logs, and data
+ReadWritePaths=/opt/devrel-integration
+ReadWritePaths=/tmp
+
+# Additional security hardening
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
 
 # Logging
 StandardOutput=journal

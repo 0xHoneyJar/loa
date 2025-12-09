@@ -45,9 +45,34 @@ Let me launch the agent now.
 
 ## Phase 0: Check for Previous Audit Feedback
 
-BEFORE starting any new work, check if docs/a2a/deployment-feedback.md exists:
+BEFORE starting any new work, search for existing audit feedback:
 
-1. If the file EXISTS:
+### Step 0.1: Check Primary Location
+First, check if `docs/a2a/deployment-feedback.md` exists.
+
+### Step 0.2: Search Alternate Locations
+If the primary file does NOT exist OR does not follow the template format (check for 'Audit Status:' header), search these alternate locations for audit feedback that may have been generated in previous cycles:
+
+- `docs/a2a/` - Any files containing 'audit', 'feedback', 'security', or 'deployment'
+- `docs/deployment/` - Look for `DEPLOYMENT-*.md`, `*-AUDIT-*.md`, `*-SECURITY-*.md`
+- `docs/audits/` - Check for recent audit reports in date-based subdirectories
+- `DEPLOYMENT-SECURITY-AUDIT.md` or `SECURITY-AUDIT-REPORT.md` in the project root
+- Any file containing 'CHANGES_REQUIRED' or 'APPROVED - LET'S FUCKING GO'
+
+Use Glob and Grep tools to search:
+```
+Glob: **/*deployment*.md, **/*audit*.md, **/*security*.md, **/*feedback*.md
+Grep: 'CHANGES_REQUIRED|APPROVED.*GO|Critical Issues|HIGH.*Priority'
+```
+
+### Step 0.3: Consolidate Feedback
+If you find audit feedback in alternate locations:
+1. Read and understand ALL the feedback from those files
+2. Note which issues have been addressed vs. still outstanding
+3. You will consolidate this into the proper template format in Phase 5
+
+### Step 0.4: Process Feedback
+1. If feedback EXISTS (in any location):
    - Read it carefully and completely
    - This contains feedback from the paranoid-auditor on your previous infrastructure work
    - The file will indicate either:
@@ -63,7 +88,7 @@ BEFORE starting any new work, check if docs/a2a/deployment-feedback.md exists:
      * Request concrete examples
      * Confirm understanding before proceeding
 
-2. If the file DOES NOT EXIST:
+2. If NO feedback exists anywhere:
    - This is your first infrastructure setup cycle
    - Proceed directly to Phase 1
 
@@ -236,18 +261,41 @@ Create `docs/deployment/quick-reference.md`:
 
 ## Phase 5: Generate Deployment Report for Audit
 
-Create `docs/a2a/deployment-report.md` with:
+### Step 5.1: Check for Existing Reports
+Before creating the report, search for any existing deployment reports that may have been generated in alternate locations:
 
-1. **Executive Summary**: What was set up and overall status
-2. **Server Configuration**: Target environment details
-3. **Scripts Generated**: Table of all scripts with status
-4. **Configuration Files**: Table of all configs with status
-5. **Security Implementation**: Checklist of security measures
-6. **Documentation Created**: List of all docs created
-7. **Technical Decisions**: Key decisions with rationale
-8. **Known Limitations**: Any limitations with justification
-9. **Verification Steps**: How auditor can verify the work
-10. **Previous Audit Feedback Addressed**: (if revision) Quote each feedback item and explain fix
+- `docs/deployment/DEPLOYMENT-*.md`
+- `docs/deployment/*-report*.md`
+- `docs/a2a/deployment-report.md` (may exist but not follow template)
+- Project root: `DEPLOYMENT-*.md`
+
+If you find existing reports:
+1. Read them to understand what was previously documented
+2. Extract relevant information (scripts created, configs, decisions)
+3. Consolidate into the new template format
+4. Reference the old report location in the 'Previous Audit Feedback Addressed' section
+
+### Step 5.2: Create/Update the Report
+Create or **overwrite** `docs/a2a/deployment-report.md` following the template at `docs/a2a/deployment-report.md.template`.
+
+**IMPORTANT**:
+- Read the template file first and follow its structure exactly
+- If an existing report exists but doesn't follow the template, **rewrite it** using the template format
+- Preserve any relevant content from the old format while restructuring
+
+The template includes:
+
+1. **Header**: Created by, Read by, Date, Status fields
+2. **Executive Summary**: What was set up and overall status
+3. **Server Configuration**: Target environment details
+4. **Scripts Generated**: Table of all scripts with status
+5. **Configuration Files**: Table of all configs with status
+6. **Security Implementation**: Checklist of security measures
+7. **Documentation Created**: List of all docs created
+8. **Technical Decisions**: Key decisions with rationale
+9. **Known Limitations**: Any limitations with justification
+10. **Verification Steps**: How auditor can verify the work
+11. **Previous Audit Feedback Addressed**: (if revision) Quote each feedback item and explain fix
 
 End the report with:
 - Self-review checklist completion status

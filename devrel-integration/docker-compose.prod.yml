@@ -38,11 +38,11 @@ services:
       # User preferences and database (persistent, backed up)
       - ./data:/app/data
 
-    # Port mapping (consider using reverse proxy in front)
+    # Port mapping - BOUND TO LOCALHOST ONLY (security requirement)
+    # Application is accessible only through nginx reverse proxy
     ports:
-      - "3000:3000"  # HTTP server (webhooks, health checks)
-      # In production, consider binding to localhost only if behind reverse proxy:
-      # - "127.0.0.1:3000:3000"
+      - "127.0.0.1:3000:3000"  # HTTP server (webhooks, health checks) - localhost binding
+      # NEVER expose directly to internet: "3000:3000" (security vulnerability)
 
     # Health check (production-grade monitoring)
     healthcheck:
@@ -101,18 +101,18 @@ networks:
       config:
         - subnet: 172.25.0.0/16
 
-# Named volumes for production
+# Named volumes for production (updated paths)
 volumes:
   logs:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: /opt/agentic-base/logs
+      device: /opt/devrel-integration/logs
 
   data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: /opt/agentic-base/data
+      device: /opt/devrel-integration/data

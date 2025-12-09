@@ -20,8 +20,8 @@ module.exports = {
       // Script to run
       script: 'dist/bot.js',
 
-      // Working directory
-      cwd: '/opt/agentic-base/integration',
+      // Working directory (configurable via environment variable)
+      cwd: process.env.APP_DIR || '/opt/devrel-integration',
 
       // Instances (1 = single instance, 0 or 'max' = use all CPU cores)
       instances: 1,
@@ -65,14 +65,14 @@ module.exports = {
       // Merge logs from all instances
       merge_logs: true,
 
-      // Time to wait before restart on crash (milliseconds)
-      restart_delay: 5000,
+      // Time to wait before restart on crash (milliseconds) - TUNED
+      restart_delay: 10000,  // 10 seconds (increased from 5s)
 
-      // Maximum number of restart retries
-      max_restarts: 10,
+      // Maximum number of restart retries - TUNED
+      max_restarts: 5,  // Reduced from 10 to prevent crash loops
 
-      // Minimum uptime before restart is considered stable
-      min_uptime: '10s',
+      // Minimum uptime before restart is considered stable - TUNED
+      min_uptime: '30s',  // Increased from 10s to better detect stable starts
 
       // Listen timeout (milliseconds)
       listen_timeout: 10000,
@@ -95,8 +95,8 @@ module.exports = {
       // Post-update command (run after PM2 updates)
       post_update: ['npm install', 'npm run build'],
 
-      // Advanced features
-      exp_backoff_restart_delay: 100,
+      // Advanced features - Exponential backoff restart delay
+      exp_backoff_restart_delay: 100,  // 100ms base (100, 200, 400, 800, 1600ms)
 
       // Monitoring
       // Uncomment to enable PM2 monitoring

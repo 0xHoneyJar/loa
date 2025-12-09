@@ -145,11 +145,13 @@ echo ""
 # Step 3: Validate secrets
 log_info "Step 3/9: Validating production secrets..."
 
-if [ -f "scripts/verify-secrets.ts" ]; then
-    npm run verify-secrets -- --env=production || error_exit "Secrets validation failed"
+# Check for validation script (MUST exist for production deployment)
+if [ -f "scripts/verify-deployment-secrets.sh" ]; then
+    chmod +x scripts/verify-deployment-secrets.sh || error_exit "Failed to make validation script executable"
+    ./scripts/verify-deployment-secrets.sh production || error_exit "Secrets validation failed - fix issues above"
     log_success "Secrets validation passed"
 else
-    log_warning "Secrets validation script not found, skipping validation"
+    error_exit "Secrets validation script not found: scripts/verify-deployment-secrets.sh (REQUIRED for production)"
 fi
 echo ""
 
