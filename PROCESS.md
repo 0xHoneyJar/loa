@@ -141,6 +141,21 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 - **Output**: `SECURITY-AUDIT-REPORT.md` with findings and remediation steps
 - **Usage**: Ad-hoc, invoked before production, after major changes, or periodically
 
+### 8. **devrel-translator** (Developer Relations Professional)
+- **Role**: Elite Developer Relations Professional with 15 years of experience
+- **Expertise**: Technical communication, executive summaries, stakeholder management, educational content creation
+- **Background**: Founded and scaled a world-class coding bootcamp (now franchised globally), created all educational materials from scratch
+- **Responsibilities**:
+  - Translate complex technical documentation into clear, compelling narratives for executives and stakeholders
+  - Create audience-specific summaries (executives, board, investors, marketing, product, compliance)
+  - Generate executive summaries, board presentations, investor updates, marketing briefs
+  - Explain business value and strategic implications of technical decisions
+  - Acknowledge risks, tradeoffs, and limitations honestly
+  - Use analogies and plain language to make technology accessible
+  - Provide actionable next steps and decision points
+- **Output**: Executive summaries, stakeholder briefings, board presentations (1-3 pages tailored by audience)
+- **Usage**: Ad-hoc, invoked to translate PRDs, SDDs, audit reports, sprint updates for non-technical audiences
+
 ---
 
 ## Workflow
@@ -710,6 +725,100 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 
 ---
 
+### Ad-Hoc: Executive Translation (`/translate @document.md for [audience]`)
+
+**Agent**: `devrel-translator`
+
+**Goal**: Translate complex technical documentation into clear, stakeholder-appropriate communications
+
+**When to Use**:
+- Before board meetings or investor updates
+- When executives need to understand technical decisions
+- To create marketing briefs from technical features
+- For compliance or legal team briefings
+- When product managers need accessible technical summaries
+- To transform PRDs/SDDs into executive summaries
+
+**Process**:
+1. **Deep Understanding** (Agent reads thoroughly):
+   - Reviews all provided technical documentation
+   - Understands context and business implications
+   - Identifies key points relevant to target audience
+   - Spots risks, tradeoffs, and limitations
+
+2. **Audience Analysis**:
+   - Determines technical depth appropriate for audience
+   - Identifies what matters most (business value, risk, cost, timeline)
+   - Tailors message to decision context
+
+3. **Value Translation**:
+   - Leads with business outcomes, not technical details
+   - Uses analogies to relate to familiar business concepts
+   - Quantifies impact with specific metrics
+   - Shows tradeoffs and acknowledges what was sacrificed
+   - Connects to strategic business goals
+
+4. **Executive Summary Creation**:
+   - **What We Built**: 1-2 paragraphs in plain language
+   - **Why It Matters**: Business value with specific metrics
+   - **Key Achievements**: Measurable outcomes with numbers
+   - **Risks & Limitations**: Honest assessment of tradeoffs
+   - **What's Next**: Immediate actions and short-term milestones
+   - **Investment Required**: Time, budget, resources needed
+   - **Risk Assessment**: Overall risk level with justification
+
+5. **Supporting Materials** (when helpful):
+   - FAQ section anticipating stakeholder questions
+   - Visual suggestions (diagrams, flowcharts, risk matrices)
+   - Stakeholder-specific versions (exec vs. board vs. marketing)
+
+**Command**:
+```bash
+# Translate security audit for board
+/translate @SECURITY-AUDIT-REPORT.md for board of directors
+
+# Create executive summary from SDD
+/translate @docs/sdd.md for executives
+
+# Generate marketing brief from sprint update
+/translate @docs/sprint.md for marketing team
+
+# Product briefing from PRD
+/translate @docs/prd.md for product manager
+```
+
+**Output**:
+- Executive summaries (1-3 pages tailored by audience)
+- Board presentations (strategic focus, governance, risk management)
+- Investor updates (market opportunity, competitive advantage, ROI)
+- Marketing briefs (features, value props, positioning)
+- Product briefings (technical details, user impact, constraints)
+
+**Communication Principles**:
+- ✅ Lead with value ("Reduces security risk by 73%" vs. "Implemented RBAC")
+- ✅ Use analogies ("Like a security guard checking IDs" for authentication)
+- ✅ Be specific ("Saves 8 hours/week per developer" vs. "improves efficiency")
+- ✅ Show tradeoffs ("Prioritized security over speed for production readiness")
+- ✅ Acknowledge gaps ("Low priority issues deferred due to resource constraints")
+- ❌ Don't oversimplify (respect audience intelligence)
+- ❌ Don't hide risks (stakeholders need honest assessment)
+- ❌ Don't use jargon without defining it
+
+**Example Use Cases**:
+1. **Security Audit → Board Presentation**:
+   - Input: 50-page technical security audit
+   - Output: 2-page executive summary with business risk assessment, compliance implications, remediation status
+
+2. **SDD → Investor Update**:
+   - Input: Detailed system design document
+   - Output: 1-page summary covering technology choices, competitive advantage, scalability story, technical moat
+
+3. **Sprint Update → Executive Sync**:
+   - Input: Sprint progress reports and technical implementation details
+   - Output: 1-page update with what shipped (user-facing value), what's at risk, decisions needed, metrics
+
+---
+
 ## Custom Commands
 
 ### `/integrate-org-workflow`
@@ -760,6 +869,17 @@ Launch paranoid security auditor to perform comprehensive security and quality a
 - **Agent**: `paranoid-auditor`
 - **Output**: `SECURITY-AUDIT-REPORT.md`
 - **Usage**: Before production, after major changes, or periodically
+
+### `/translate @document.md for [audience]`
+Launch DevRel translator to create executive-ready communications from technical documentation (ad-hoc).
+- **Location**: `.claude/commands/translate.md`
+- **Agent**: `devrel-translator`
+- **Output**: Executive summaries, board presentations, marketing briefs (1-3 pages tailored by audience)
+- **Usage**: Anytime you need to communicate technical work to non-technical stakeholders
+- **Examples**:
+  - `/translate @SECURITY-AUDIT-REPORT.md for board of directors`
+  - `/translate @docs/sdd.md for executives`
+  - `/translate @docs/sprint.md for marketing team`
 
 ---
 

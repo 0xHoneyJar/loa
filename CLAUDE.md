@@ -58,7 +58,7 @@ Launches `context-engineering-expert` agent to design integration architecture f
 ```bash
 /implement-org-integration
 ```
-Launches `devops-crypto-architect` agent to implement the organizational integration layer designed in Phase 0. Reviews integration architecture documents and implements Discord bot, Linear webhooks, GitHub webhooks, sync scripts, cron jobs, and monitoring. Creates complete integration infrastructure in `integration/` directory with deployment configs, operational runbooks, and testing procedures. **Prerequisites**: Must run `/integrate-org-workflow` first to generate integration design documents.
+Launches `devops-crypto-architect` agent to implement the organizational integration layer designed in Phase 0. Reviews integration architecture documents and implements Discord bot, Linear webhooks, GitHub webhooks, sync scripts, cron jobs, and monitoring. Creates complete integration infrastructure in `devrel-integration/` directory with deployment configs, operational runbooks, and testing procedures. **Prerequisites**: Must run `/integrate-org-workflow` first to generate integration design documents.
 
 ### Phase 1: Requirements
 ```bash
@@ -257,8 +257,8 @@ When providing feedback in `docs/a2a/engineer-feedback.md`:
 
 ```
 .claude/
-├── agents/              # Agent definitions (7 agents)
-├── commands/           # Slash command definitions (7 commands)
+├── agents/              # Agent definitions (9 agents)
+├── commands/           # Slash command definitions
 └── settings.local.json # MCP server configuration
 
 docs/
@@ -276,6 +276,12 @@ docs/
     ├── deployment-guide.md
     ├── runbooks/
     └── ...
+
+devrel-integration/     # Discord bot & DevRel integration (optional)
+├── src/                # Bot source code (TypeScript)
+├── config/             # Configuration files
+├── docs/               # Integration documentation
+└── scripts/            # Deployment and automation scripts
 
 PROCESS.md              # Comprehensive workflow documentation
 CLAUDE.md              # This file

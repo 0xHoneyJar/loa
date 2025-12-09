@@ -4,7 +4,7 @@ An agent-driven development framework that orchestrates the complete product dev
 
 ## Overview
 
-This framework uses eight specialized AI agents working together in a structured workflow to build products systematically with high quality. While designed with crypto/blockchain projects in mind, it's applicable to any software project.
+This framework uses nine specialized AI agents working together in a structured workflow to build products systematically with high quality. While designed with crypto/blockchain projects in mind, it's applicable to any software project.
 
 ## Quick Start
 
@@ -48,10 +48,16 @@ That's it! The PRD architect agent will guide you through structured discovery.
 
 ## The Workflow
 
-### Phase 0: Organizational Integration (`/integrate-org-workflow`) [Optional]
-The **context-engineering-expert** agent integrates agentic-base with your organization's tools and processes.
+### Phase 0: Organizational Integration Design (`/integrate-org-workflow`) [Optional]
+The **context-engineering-expert** agent designs integration architecture for connecting agentic-base with your organization's tools and workflows.
 - For teams using Discord, Google Docs, Linear, and multi-developer workflows
-- Output: `docs/integration-architecture.md`, `docs/tool-setup.md`, `docs/team-playbook.md`
+- Output: `docs/integration-architecture.md`, `docs/tool-setup.md`, `docs/team-playbook.md`, `docs/a2a/integration-context.md`
+
+### Phase 0.5: Integration Implementation (`/implement-org-integration`) [Optional]
+The **devops-crypto-architect** agent implements the organizational integration layer designed in Phase 0.
+- Implements Discord bot, Linear webhooks, GitHub webhooks, sync scripts, cron jobs, monitoring
+- **Prerequisites**: Must run `/integrate-org-workflow` first to generate integration design documents
+- Output: Complete integration infrastructure in `devrel-integration/` directory with deployment configs and operational runbooks
 
 ### Phase 1: Planning (`/plan-and-analyze`)
 The **prd-architect** agent guides you through 7 discovery phases to extract complete requirements.
@@ -82,11 +88,19 @@ The **paranoid-auditor** agent performs comprehensive security audits on-demand.
 - Use before production, after major changes, or periodically
 - Output: `SECURITY-AUDIT-REPORT.md` with prioritized vulnerability findings
 
+### Ad-Hoc: Executive Translation (`/translate @document.md for [audience]`)
+The **devrel-translator** agent translates technical documentation into executive-ready communications.
+- Converts PRDs, SDDs, audit reports, and sprint updates into stakeholder-appropriate formats
+- Creates executive summaries, board presentations, investor updates, marketing briefs
+- Use anytime you need to communicate technical work to non-technical audiences
+- Output: Tailored summaries (1-3 pages) with business value, plain language, and risk assessment
+
 ## Available Commands
 
 | Command | Purpose | Output |
 |---------|---------|--------|
-| `/integrate-org-workflow` | Integrate with organizational tools (Discord, Linear, etc.) | `docs/integration-architecture.md`, configs, playbook |
+| `/integrate-org-workflow` | Design integration with organizational tools (Discord, Linear, Google Docs) | `docs/integration-architecture.md`, `docs/tool-setup.md`, `docs/team-playbook.md` |
+| `/implement-org-integration` | Implement the organizational integration layer (requires Phase 0 first) | `devrel-integration/` with Discord bot, webhooks, scripts, configs |
 | `/plan-and-analyze` | Define requirements and create PRD | `docs/prd.md` |
 | `/architect` | Design system architecture | `docs/sdd.md` |
 | `/sprint-plan` | Plan implementation sprints | `docs/sprint.md` |
@@ -94,6 +108,7 @@ The **paranoid-auditor** agent performs comprehensive security audits on-demand.
 | `/review-sprint` | Review and approve/reject implementation | `docs/a2a/engineer-feedback.md` |
 | `/deploy-production` | Deploy to production | Infrastructure + `docs/deployment/` |
 | `/audit` | Security and quality audit (ad-hoc) | `SECURITY-AUDIT-REPORT.md` |
+| `/translate @doc.md for [audience]` | Translate technical docs for executives/stakeholders (ad-hoc) | Executive summaries, board presentations, marketing briefs |
 
 ## The Agents
 
@@ -105,6 +120,7 @@ The **paranoid-auditor** agent performs comprehensive security audits on-demand.
 6. **senior-tech-lead-reviewer** - Senior Technical Lead (15+ years experience)
 7. **devops-crypto-architect** - DevOps Architect (15 years crypto experience)
 8. **paranoid-auditor** - Paranoid Cypherpunk Security Auditor (30+ years, OWASP expert)
+9. **devrel-translator** - Elite Developer Relations Professional (15 years, founded global coding bootcamp)
 
 ## Key Features
 
@@ -145,6 +161,12 @@ docs/
 ├── a2a/                # Agent-to-agent communication
 └── deployment/         # Production infrastructure docs
 
+devrel-integration/     # Discord bot & DevRel integration (optional)
+├── src/                # Bot source code (TypeScript)
+├── config/             # Configuration files
+├── docs/               # Integration documentation
+└── scripts/            # Deployment and automation scripts
+
 SECURITY-AUDIT-REPORT.md # Security audit findings (generated by /audit)
 PROCESS.md              # Detailed workflow guide
 CLAUDE.md              # Context for Claude Code
@@ -154,9 +176,15 @@ README.md              # This file
 ## Example Workflow
 
 ```bash
-# 0. (Optional) Integrate with your org's tools
+# 0. (Optional) Design organizational integration
 /integrate-org-workflow
 # Map workflows, design integrations with Discord/Linear/Google Docs
+# Output: docs/integration-architecture.md, docs/tool-setup.md, docs/team-playbook.md
+
+# 0.5. (Optional) Implement the integration
+/implement-org-integration
+# Builds Discord bot, Linear webhooks, automation scripts
+# Output: devrel-integration/ with complete bot implementation
 
 # 1. Define requirements
 /plan-and-analyze
@@ -191,6 +219,10 @@ README.md              # This file
 # 9. Deploy to production
 /deploy-production
 # Production infrastructure deployed
+
+# 10. (Optional) Translate technical work for stakeholders
+/translate @SECURITY-AUDIT-REPORT.md for board of directors
+# Creates executive summary for board presentation
 ```
 
 ## Best Practices
