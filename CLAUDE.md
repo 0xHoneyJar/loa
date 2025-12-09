@@ -96,6 +96,35 @@ Launches `senior-tech-lead-reviewer` agent to validate implementation against ac
 ```
 Launches `devops-crypto-architect` agent to design and deploy production infrastructure. Creates IaC, CI/CD pipelines, monitoring, and comprehensive operational documentation in `docs/deployment/`.
 
+### Ad-Hoc: Server Setup
+```bash
+/setup-server
+```
+Launches `devops-crypto-architect` agent in **server setup mode** to configure a bare metal or VPS server (OVH, Hetzner, DigitalOcean, etc.) for the DevRel integration application. Use this when you have a fresh server and need to:
+- Install dependencies (Node.js, Docker, PM2)
+- Deploy the DevRel Discord bot and integration services
+- Configure security hardening (firewall, fail2ban, SSH)
+- Set up monitoring and logging
+- Configure SSL/HTTPS with Let's Encrypt
+- Create systemd services for auto-restart
+
+The agent asks about server access details, services to deploy, security requirements, and monitoring preferences. Generates:
+- Setup scripts in `docs/deployment/scripts/`
+- Configuration files (PM2, systemd, nginx)
+- Operational runbooks in `docs/deployment/runbooks/`
+- Security and verification checklists
+
+**Example workflow**:
+```bash
+# 1. Run setup command
+/setup-server
+
+# 2. Agent asks for server details (IP, SSH user, distribution)
+# 3. Agent generates setup scripts
+# 4. Copy and run scripts on your server
+# 5. Verify deployment using generated checklists
+```
+
 ### Ad-Hoc: Security Audit
 ```bash
 /audit
@@ -228,6 +257,7 @@ Command definitions in `.claude/commands/` contain the slash command expansion t
 - **context-engineering-expert**: Designing integration with org tools (Discord, Linear, Google Docs), mapping workflows, adapting framework for multi-developer teams, designing context flow across platforms (Phase 0)
 - **devops-crypto-architect**:
   - **Integration mode**: Implementing Discord bots, webhooks, sync scripts from integration architecture (Phase 0.5)
+  - **Server setup mode**: Configuring bare metal/VPS servers, installing dependencies, security hardening (Ad-hoc via `/setup-server`)
   - **Deployment mode**: Production infrastructure, CI/CD pipelines, blockchain nodes, monitoring (Phase 6)
 - **prd-architect**: Starting new features, unclear requirements (Phase 1)
 - **architecture-designer**: Technical design decisions, choosing tech stack (Phase 2)
