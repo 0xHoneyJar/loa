@@ -147,6 +147,54 @@ The agent performs:
 
 Outputs `SECURITY-AUDIT-REPORT.md` with prioritized findings (CRITICAL/HIGH/MEDIUM/LOW) and actionable remediation guidance.
 
+### Ad-Hoc: Deployment Security Audit
+```bash
+/audit-deployment
+```
+Launches `paranoid-auditor` agent in **infrastructure audit mode** to review server setup, deployment plans, and infrastructure security. Use this before deploying to production servers:
+- After running `/setup-server` to generate deployment scripts
+- Before executing setup scripts on production servers
+- When reviewing deployment configurations
+- After changes to infrastructure or deployment procedures
+
+The agent audits:
+- Server setup scripts for security vulnerabilities
+- Deployment configurations and procedures
+- Infrastructure security hardening (SSH, firewall, fail2ban)
+- Secrets management and credential handling
+- PM2/systemd service configurations
+- Nginx/reverse proxy configurations
+- SSL/TLS certificate management
+- Monitoring and alerting setup
+- Backup and disaster recovery procedures
+
+**Audit scope includes**:
+- `docs/deployment/scripts/` - All setup scripts
+- `docs/deployment/runbooks/` - Operational procedures
+- `docs/deployment/*.md` - Deployment documentation
+- Service configurations (PM2, systemd, nginx)
+- Environment templates and secrets handling
+
+Outputs `DEPLOYMENT-SECURITY-AUDIT.md` with:
+- Infrastructure security checklist status
+- Critical/high/medium/low priority findings
+- Threat model for server infrastructure
+- Actionable remediation steps
+- Deployment readiness verdict
+
+**Example workflow**:
+```bash
+# 1. Generate server setup documentation
+/setup-server
+
+# 2. Audit the deployment plan before executing
+/audit-deployment
+
+# 3. Fix any critical issues identified
+# 4. Execute setup scripts on server
+# 5. Verify using generated checklists
+```
+
 ### Ad-Hoc: Executive Translation
 ```bash
 /translate @document.md for [audience]
@@ -264,7 +312,9 @@ Command definitions in `.claude/commands/` contain the slash command expansion t
 - **sprint-planner**: Breaking down work, planning implementation (Phase 3)
 - **sprint-task-implementer**: Writing production code (Phase 4)
 - **senior-tech-lead-reviewer**: Validating implementation quality (Phase 5)
-- **paranoid-auditor**: Security audits, vulnerability assessment, pre-production validation, compliance review (Ad-hoc)
+- **paranoid-auditor**:
+  - **Code audit mode**: Security audits, vulnerability assessment, OWASP Top 10 review (Ad-hoc via `/audit`)
+  - **Deployment audit mode**: Infrastructure security, server hardening, deployment script review (Ad-hoc via `/audit-deployment`)
 - **devrel-translator**: Translating technical documentation for executives, board, investors; creating executive summaries, stakeholder briefings, board presentations from PRDs, SDDs, audit reports (Ad-hoc)
 
 ### Agent Communication Style
