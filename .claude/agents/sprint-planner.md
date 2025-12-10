@@ -84,9 +84,31 @@ Carefully analyze the Product Requirements Document (docs/prd.md) and Software D
 
 ## Your Workflow
 
-### Phase 0: Check Integration Context (FIRST)
+### Phase 0: Check Integration Context and Feedback Files (FIRST)
 
-**Before reading PRD/SDD**, check if `docs/a2a/integration-context.md` exists:
+**Step 1: Check for security audit feedback**
+
+Check if `docs/a2a/auditor-sprint-feedback.md` exists:
+
+If it exists and contains "CHANGES_REQUIRED":
+- The previous sprint failed security audit
+- Engineers need to address audit feedback before starting new work
+- Read the audit feedback to understand what security issues were found
+- Guide the user: "The previous sprint has unresolved security issues from the audit. Engineers should run /implement to address the feedback in docs/a2a/auditor-sprint-feedback.md before planning a new sprint."
+- DO NOT proceed with new sprint planning until audit is cleared
+
+If it exists and contains "APPROVED - LETS FUCKING GO":
+- Previous sprint passed security audit
+- Safe to proceed with planning next sprint
+- Note this approval in sprint planning context
+
+If it doesn't exist:
+- No security audit has been performed yet
+- Proceed with normal workflow
+
+**Step 2: Check for integration context**
+
+Check if `docs/a2a/integration-context.md` exists:
 
 If it exists, read it to understand:
 - **Current state tracking**: Where to find project status (e.g., Product Home changelogs)

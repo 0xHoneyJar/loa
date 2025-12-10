@@ -18,16 +18,17 @@ This document outlines the comprehensive agent-driven development workflow. Our 
 
 ## Overview
 
-Our development process follows a structured, six-phase approach:
+Our development process follows a structured, seven-phase approach:
 
 1. **Phase 1: Planning** → Product Requirements Document (PRD)
 2. **Phase 2: Architecture** → Software Design Document (SDD)
 3. **Phase 3: Sprint Planning** → Sprint Plan
 4. **Phase 4: Implementation** → Production Code with Feedback Loop
 5. **Phase 5: Review** → Quality Validation and Sprint Approval
-6. **Phase 6: Deployment** → Production Infrastructure and Handover
+6. **Phase 5.5: Sprint Security Audit** → Security Review and Approval
+7. **Phase 6: Deployment** → Production Infrastructure and Handover
 
-Each phase is handled by a specialized agent with deep domain expertise, ensuring thorough discovery, clear documentation, high-quality implementation, rigorous quality control, and enterprise-grade production deployment.
+Each phase is handled by a specialized agent with deep domain expertise, ensuring thorough discovery, clear documentation, high-quality implementation, rigorous quality control, comprehensive security review, and enterprise-grade production deployment.
 
 > **For organizational integration and server deployment**, see [DEPLOY-ORG-PROCESS.md](DEPLOY-ORG-PROCESS.md).
 
@@ -102,13 +103,17 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 - **Role**: Paranoid Cypherpunk Security Auditor with 30+ years of experience
 - **Expertise**: OWASP Top 10, cryptographic implementation, secrets management, penetration testing
 - **Responsibilities**:
-  - Perform comprehensive security and quality audits
+  - Perform comprehensive security and quality audits (codebase or sprint-level)
   - Identify vulnerabilities across OWASP Top 10 categories
   - Review cryptographic implementations and key management
   - Audit authentication, authorization, and access controls
   - Provide prioritized remediation guidance
-- **Output**: `SECURITY-AUDIT-REPORT.md` with findings and remediation steps
-- **Usage**: Ad-hoc, invoked before production, after major changes, or periodically
+- **Output**:
+  - Sprint audit: `docs/a2a/auditor-sprint-feedback.md` (per-sprint security review)
+  - Codebase audit: `SECURITY-AUDIT-REPORT.md` (comprehensive security audit)
+- **Usage**:
+  - Sprint audit: After `/review-sprint` approval (Phase 5.5)
+  - Codebase audit: Ad-hoc, before production, after major changes, or periodically
 
 ### 8. **devrel-translator** (Developer Relations Professional)
 - **Role**: Elite Developer Relations Professional with 15 years of experience
@@ -367,6 +372,129 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 
 ---
 
+### Phase 5.5: Sprint Security Audit (`/audit-sprint`)
+
+**Agent**: `paranoid-auditor`
+
+**Goal**: Perform security review of sprint implementation after senior tech lead approval
+
+**Prerequisites**:
+- ✅ Sprint must be approved by senior tech lead ("All good" in `docs/a2a/engineer-feedback.md`)
+
+**Process**:
+
+#### **Security Audit Workflow**
+1. **Context Gathering**:
+   - Reads `docs/prd.md` for product requirements
+   - Reads `docs/sdd.md` for architecture and security requirements
+   - Reads `docs/sprint.md` for sprint tasks and scope
+   - Reads `docs/a2a/reviewer.md` for implementation details
+
+2. **Security Review**:
+   - Reads all implemented code files (not just reports)
+   - Performs systematic security checklist review:
+     - **Secrets & Credentials**: No hardcoded secrets, proper secret management
+     - **Authentication & Authorization**: Proper access controls, no privilege escalation
+     - **Input Validation**: All user input validated, no injection vulnerabilities
+     - **Data Privacy**: No PII leaks, proper encryption
+     - **API Security**: Rate limiting, proper error handling
+     - **OWASP Top 10**: Coverage of all critical vulnerabilities
+   - Identifies security issues with severity ratings (CRITICAL/HIGH/MEDIUM/LOW)
+
+3. **Previous Feedback Verification** (if applicable):
+   - Checks if `docs/a2a/auditor-sprint-feedback.md` exists from previous audit
+   - Verifies ALL previous security issues were properly fixed
+   - Confirms no regression of previously identified issues
+
+4. **Decision**:
+
+   **Option A - Approve (Security Cleared)**:
+   - No CRITICAL or HIGH security issues
+   - All previous security feedback addressed
+   - Code follows security best practices
+   - Secrets properly managed
+   - Input validation comprehensive
+
+   **Actions**:
+   - Writes "APPROVED - LETS FUCKING GO" to `docs/a2a/auditor-sprint-feedback.md`
+   - Confirms sprint is ready for next sprint or deployment
+   - User can proceed to next sprint or Phase 6 (Deployment)
+
+   **Option B - Request Security Changes**:
+   - CRITICAL or HIGH security issues found
+   - Previous security feedback not fully addressed
+   - Security best practices violated
+
+   **Actions**:
+   - Writes "CHANGES_REQUIRED" with detailed security feedback to `docs/a2a/auditor-sprint-feedback.md`
+   - Provides specific security issues with:
+     - Severity level (CRITICAL/HIGH/MEDIUM/LOW)
+     - Affected files and line numbers
+     - Vulnerability description
+     - Security impact and exploit scenario
+     - Specific remediation steps
+   - User must run `/implement sprint-X` to address security issues
+
+**Command**:
+```bash
+/audit-sprint
+```
+
+**Outputs**:
+- `docs/a2a/auditor-sprint-feedback.md` (security approval or detailed feedback)
+
+**Feedback Structure** (when security issues found):
+- Overall Security Assessment
+- Critical Security Issues (MUST FIX - with file:line, vulnerability, remediation)
+- High Priority Security Issues (SHOULD FIX)
+- Medium/Low Priority Issues (NICE TO FIX)
+- Previous Security Feedback Status (if applicable)
+- Security Checklist Status
+- Next Steps
+
+**Security Review Checklist**:
+- ✅ No hardcoded secrets or credentials
+- ✅ Proper authentication and authorization
+- ✅ Comprehensive input validation
+- ✅ No injection vulnerabilities (SQL, command, XSS)
+- ✅ Secure API implementation (rate limiting, error handling)
+- ✅ Data privacy protected (no PII leaks)
+- ✅ Dependencies secure (no known CVEs)
+- ✅ Previous security issues resolved (if applicable)
+
+#### **Sprint Security Feedback Loop**
+
+After security audit, if changes required:
+
+1. **Engineer Addresses Security Feedback**:
+   ```bash
+   /implement sprint-1
+   ```
+   - Agent reads `docs/a2a/auditor-sprint-feedback.md` FIRST (highest priority)
+   - Clarifies any unclear security issues
+   - Fixes ALL CRITICAL and HIGH security issues
+   - Updates implementation report with "Security Audit Feedback Addressed" section
+
+2. **Security Re-Audit**:
+   ```bash
+   /audit-sprint
+   ```
+   - Agent verifies all security issues fixed
+   - Either approves or provides additional feedback
+   - Cycle continues until "APPROVED - LETS FUCKING GO"
+
+3. **Proceed After Approval**:
+   - Move to next sprint (back to Phase 4)
+   - OR proceed to Phase 6 (Deployment) if all sprints complete
+
+**Priority Integration**:
+- Sprint planner checks `docs/a2a/auditor-sprint-feedback.md` FIRST
+- If "CHANGES_REQUIRED" exists, blocks new sprint planning
+- Sprint implementer addresses security feedback with HIGHEST priority
+- Security feedback takes precedence over code review feedback
+
+---
+
 ### Phase 6: Deployment (`/deploy-production`)
 
 **Agent**: `devops-crypto-architect`
@@ -509,6 +637,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 | `/sprint-plan` | Plan implementation sprints | `sprint-planner` | `docs/sprint.md` |
 | `/implement {sprint}` | Implement sprint tasks | `sprint-task-implementer` | Code + `docs/a2a/reviewer.md` |
 | `/review-sprint` | Review and approve/reject implementation | `senior-tech-lead-reviewer` | `docs/a2a/engineer-feedback.md` |
+| `/audit-sprint` | Security audit of sprint implementation | `paranoid-auditor` | `docs/a2a/auditor-sprint-feedback.md` |
 | `/deploy-production` | Deploy to production | `devops-crypto-architect` | `docs/deployment/` |
 | `/audit` | Security audit (ad-hoc) | `paranoid-auditor` | `SECURITY-AUDIT-REPORT.md` |
 | `/translate @doc for [audience]` | Executive translation (ad-hoc) | `devrel-translator` | Executive summaries |
@@ -533,7 +662,8 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 | Document | Path | Created By | Purpose |
 |----------|------|------------|---------|
 | **Implementation Report** | `docs/a2a/reviewer.md` | `sprint-task-implementer` | Report for senior lead review |
-| **Feedback** | `docs/a2a/engineer-feedback.md` | `senior-tech-lead-reviewer` | Feedback for engineer |
+| **Code Review Feedback** | `docs/a2a/engineer-feedback.md` | `senior-tech-lead-reviewer` | Code review feedback for engineer |
+| **Security Audit Feedback** | `docs/a2a/auditor-sprint-feedback.md` | `paranoid-auditor` | Security feedback for engineer |
 
 ### Deployment Documentation
 
@@ -550,7 +680,9 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 
 ## Agent-to-Agent Communication
 
-### Implementation Feedback Loop (Phases 4-5)
+The framework uses three feedback loops for quality assurance:
+
+### 1. Implementation Feedback Loop (Phases 4-5)
 
 #### **Engineer → Senior Lead** (`docs/a2a/reviewer.md`)
 
@@ -572,6 +704,26 @@ The senior technical lead reviews and provides feedback:
 - Approval status ("All good" when approved)
 
 The engineer reads this file on the next `/implement {sprint}` invocation, clarifies anything unclear, fixes all issues, and generates an updated report.
+
+### 2. Sprint Security Feedback Loop (Phase 5.5)
+
+#### **Engineer → Security Auditor** (`docs/a2a/reviewer.md` + implemented code)
+
+After senior lead approval, the security auditor reviews:
+- Implementation report context
+- Actual code files (security-focused review)
+- Security requirements from PRD/SDD
+
+#### **Security Auditor → Engineer** (`docs/a2a/auditor-sprint-feedback.md`)
+
+The security auditor provides security-focused feedback:
+- Security vulnerabilities (CRITICAL/HIGH/MEDIUM/LOW)
+- Affected files with line numbers
+- Exploit scenarios and security impact
+- Specific remediation guidance
+- Approval status ("APPROVED - LETS FUCKING GO" when secure)
+
+The engineer reads this file with HIGHEST PRIORITY on the next `/implement {sprint}` invocation, addresses ALL CRITICAL and HIGH security issues, and generates an updated report with security fixes documented.
 
 ---
 
@@ -677,18 +829,28 @@ docs/a2a/
 /review-sprint
 # → Either approves or requests changes
 
-# 6. Address feedback (if needed)
+# 6. Address code review feedback (if needed)
 /implement sprint-1
 # → Agent fixes issues
-# → Re-review
+# → Re-review until "All good"
 
-# 7. Continue sprints until complete...
+# 7. Security audit Sprint 1 (after approval)
+/audit-sprint
+# → Either "APPROVED - LETS FUCKING GO" or "CHANGES_REQUIRED"
 
-# 8. Security audit
+# 8. Address security feedback (if needed)
+/implement sprint-1
+# → Fix security issues
+# → Re-audit until approved
+
+# 9. Continue with remaining sprints...
+# → Each sprint goes through: implement → review → audit → approve
+
+# 10. Full codebase security audit (before production)
 /audit
-# → Fix critical issues
+# → Fix any critical issues
 
-# 9. Deploy to production
+# 11. Deploy to production
 /deploy-production
 # → Production infrastructure deployed
 ```

@@ -89,9 +89,53 @@ You are responsible for implementing all development tasks outlined in the sprin
 
 ## Operational Workflow
 
-### Phase 0: Check Integration Context (FIRST)
+### Phase 0: Check Feedback Files and Integration Context (FIRST)
 
-**Before reviewing sprint documentation**, check if `docs/a2a/integration-context.md` exists:
+**Step 1: Check for security audit feedback (HIGHEST PRIORITY)**
+
+Check if `docs/a2a/auditor-sprint-feedback.md` exists:
+
+If it exists and contains "CHANGES_REQUIRED":
+- The sprint implementation FAILED security audit
+- You MUST address all audit feedback before doing ANY new work
+- Read the audit feedback file completely
+- Address ALL CRITICAL and HIGH priority security issues
+- Address MEDIUM and LOW priority issues if feasible
+- Update your implementation report at `docs/a2a/reviewer.md` with:
+  - Section "Security Audit Feedback Addressed"
+  - Each audit issue quoted with your fix and verification steps
+- Inform the user: "Addressing security audit feedback from docs/a2a/auditor-sprint-feedback.md"
+
+If it exists and contains "APPROVED - LETS FUCKING GO":
+- Sprint passed security audit previously
+- Proceed with normal workflow (check for engineer feedback next)
+
+If it doesn't exist:
+- No security audit performed yet
+- Proceed with normal workflow (check for engineer feedback next)
+
+**Step 2: Check for senior lead feedback**
+
+Check if `docs/a2a/engineer-feedback.md` exists:
+
+If it exists and does NOT contain "All good":
+- The senior technical lead requested changes
+- Read the feedback file completely
+- Address all feedback items systematically
+- Update your implementation report with fixes
+- Inform the user: "Addressing senior lead feedback from docs/a2a/engineer-feedback.md"
+
+If it exists and contains "All good":
+- Sprint was approved by senior lead
+- Proceed with normal workflow (implement new tasks)
+
+If it doesn't exist:
+- First implementation of sprint
+- Proceed with normal workflow (implement sprint tasks)
+
+**Step 3: Check for integration context**
+
+Check if `docs/a2a/integration-context.md` exists:
 
 If it exists, read it to understand:
 - **Context preservation requirements**: How to link back to source discussions (e.g., Discord threads, Linear issues)
