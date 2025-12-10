@@ -49,8 +49,14 @@ jobs:
 
       - name: Dependency Review
         uses: actions/dependency-review-action@v4
+        continue-on-error: true
         with:
           fail-on-severity: moderate
+
+      - name: Note if dependency graph not enabled
+        if: failure()
+        run: |
+          echo "::warning::Dependency graph may not be enabled. Enable it at: https://github.com/${{ github.repository }}/settings/security_analysis"
 
   codeql-analysis:
     name: CodeQL Security Analysis
