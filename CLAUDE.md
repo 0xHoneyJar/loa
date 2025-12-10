@@ -36,19 +36,32 @@ The workflow produces structured artifacts in the `docs/` directory:
 - `docs/sprint.md` - Sprint plan with tasks and acceptance criteria
 - `docs/a2a/reviewer.md` - Implementation reports from engineers
 - `docs/a2a/engineer-feedback.md` - Review feedback from senior technical lead
+- `docs/a2a/auditor-sprint-feedback.md` - Security audit feedback for sprint implementation
 - `docs/a2a/deployment-report.md` - Infrastructure reports from DevOps
-- `docs/a2a/deployment-feedback.md` - Security audit feedback from auditor
+- `docs/a2a/deployment-feedback.md` - Security audit feedback for deployment infrastructure
 - `docs/deployment/` - Production infrastructure documentation and runbooks
 
 ### Agent-to-Agent (A2A) Communication
 
-The framework uses two feedback loops for quality assurance:
+The framework uses three feedback loops for quality assurance:
 
 #### Implementation Feedback Loop (Phases 4-5)
 - Engineer writes implementation report to `docs/a2a/reviewer.md`
 - Senior lead writes feedback to `docs/a2a/engineer-feedback.md`
 - Engineer reads feedback on next invocation, fixes issues, and updates report
 - Cycle continues until senior lead approves with "All good"
+
+#### Sprint Security Audit Feedback Loop (Phase 5.5)
+- After senior lead approval, security auditor reviews sprint implementation
+- Auditor writes feedback to `docs/a2a/auditor-sprint-feedback.md`
+- Verdict: "CHANGES_REQUIRED" (with security issues) or "APPROVED - LETS FUCKING GO"
+- If changes required:
+  - Engineer reads audit feedback on next `/implement` invocation (checked FIRST)
+  - Engineer addresses all CRITICAL and HIGH security issues
+  - Engineer updates report with "Security Audit Feedback Addressed" section
+  - Re-run `/audit-sprint` to verify fixes
+- Cycle continues until auditor approves
+- After approval, move to next sprint or deployment
 
 #### Deployment Feedback Loop (Server Setup & Audit)
 - DevOps creates infrastructure and writes report to `docs/a2a/deployment-report.md`
@@ -100,6 +113,40 @@ Launches `sprint-task-implementer` agent to execute sprint tasks. On first run, 
 /review-sprint
 ```
 Launches `senior-tech-lead-reviewer` agent to validate implementation against acceptance criteria. Either approves (writes "All good" to feedback file, updates sprint.md with ✅) or requests changes (writes detailed feedback to `docs/a2a/engineer-feedback.md`).
+
+### Phase 5.5: Sprint Security Audit
+```bash
+/audit-sprint
+```
+Launches `paranoid-auditor` agent to perform security and quality audit of sprint implementation. Run this AFTER `/review-sprint` approval. The agent:
+- Reviews implementation for security vulnerabilities (OWASP Top 10, injection, auth issues)
+- Audits secrets management and credential handling
+- Checks input validation and sanitization
+- Verifies error handling and information disclosure
+- Writes feedback to `docs/a2a/auditor-sprint-feedback.md`
+- Verdict: **CHANGES_REQUIRED** or **APPROVED - LETS FUCKING GO**
+
+**Feedback loop**:
+```
+/implement → /review-sprint → /audit-sprint → (if changes) → back to /implement
+                              ↓
+                        (if approved: LETS FUCKING GO)
+                              ↓
+                        Move to next sprint
+```
+
+If audit finds issues:
+1. Auditor writes "CHANGES_REQUIRED" with detailed security feedback
+2. Run `/implement` to address audit feedback
+3. Engineer fixes issues and updates report
+4. Re-run `/audit-sprint` to verify fixes
+5. Repeat until approved
+
+**Use this proactively**:
+- After every sprint review approval
+- Before moving to next sprint
+- Before production deployment
+- After implementing security-sensitive features
 
 ### Phase 6: Deployment
 ```bash
@@ -319,6 +366,7 @@ Command definitions in `.claude/commands/` contain the slash command expansion t
 - **senior-tech-lead-reviewer**: Validating implementation quality (Phase 5)
 - **paranoid-auditor**:
   - **Code audit mode**: Security audits, vulnerability assessment, OWASP Top 10 review (Ad-hoc via `/audit`)
+  - **Sprint audit mode**: Security review of sprint implementation after senior lead approval (Phase 5.5 via `/audit-sprint`)
   - **Deployment audit mode**: Infrastructure security, server hardening, deployment script review (Ad-hoc via `/audit-deployment`)
 - **devrel-translator**: Translating technical documentation for executives, board, investors; creating executive summaries, stakeholder briefings, board presentations from PRDs, SDDs, audit reports (Ad-hoc)
 
@@ -354,10 +402,11 @@ docs/
 ├── sdd.md              # Software Design Document
 ├── sprint.md           # Sprint plan with tasks
 ├── a2a/                # Agent-to-agent communication
-│   ├── reviewer.md              # Engineer implementation reports
-│   ├── engineer-feedback.md     # Senior lead feedback
-│   ├── deployment-report.md     # DevOps infrastructure reports
-│   └── deployment-feedback.md   # Security audit feedback
+│   ├── reviewer.md                # Engineer implementation reports
+│   ├── engineer-feedback.md       # Senior lead feedback (Phase 5)
+│   ├── auditor-sprint-feedback.md # Security audit feedback (Phase 5.5)
+│   ├── deployment-report.md       # DevOps infrastructure reports
+│   └── deployment-feedback.md     # Deployment security audit feedback
 └── deployment/         # Production infrastructure docs
     ├── scripts/        # Server setup scripts
     ├── runbooks/       # Operational procedures

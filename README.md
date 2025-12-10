@@ -68,6 +68,12 @@ The **sprint-task-implementer** agent writes production code with tests.
 The **senior-tech-lead-reviewer** agent validates implementation quality.
 - Output: `docs/a2a/engineer-feedback.md` (approval or feedback)
 
+### Phase 5.5: Sprint Security Audit (`/audit-sprint`)
+The **paranoid-auditor** agent performs security review of sprint implementation (after senior lead approval).
+- Output: `docs/a2a/auditor-sprint-feedback.md` (security approval or feedback)
+- Approval message: "APPROVED - LETS FUCKING GO"
+- If issues found: "CHANGES_REQUIRED" with detailed security feedback
+
 ### Phase 6: Deployment (`/deploy-production`)
 The **devops-crypto-architect** agent deploys to production with full infrastructure.
 - Output: IaC configs, CI/CD pipelines, `docs/deployment/`
@@ -91,6 +97,7 @@ The **devrel-translator** agent translates technical documentation into executiv
 | `/sprint-plan` | Plan implementation sprints | `docs/sprint.md` |
 | `/implement sprint-X` | Implement sprint tasks | Code + `docs/a2a/reviewer.md` |
 | `/review-sprint` | Review and approve/reject implementation | `docs/a2a/engineer-feedback.md` |
+| `/audit-sprint` | Security audit of sprint implementation | `docs/a2a/auditor-sprint-feedback.md` |
 | `/deploy-production` | Deploy to production | Infrastructure + `docs/deployment/` |
 | `/audit` | Security and quality audit (ad-hoc) | `SECURITY-AUDIT-REPORT.md` |
 | `/translate @doc.md for [audience]` | Translate technical docs for stakeholders (ad-hoc) | Executive summaries |
@@ -103,19 +110,24 @@ The **devrel-translator** agent translates technical documentation into executiv
 4. **sprint-task-implementer** - Elite Software Engineer (15 years experience)
 5. **senior-tech-lead-reviewer** - Senior Technical Lead (15+ years experience)
 6. **devops-crypto-architect** - DevOps Architect (15 years crypto experience)
-7. **paranoid-auditor** - Paranoid Cypherpunk Security Auditor (30+ years, OWASP expert)
+7. **paranoid-auditor** - Paranoid Cypherpunk Security Auditor (30+ years, OWASP expert, sprint & codebase audits)
 8. **devrel-translator** - Elite Developer Relations Professional (15 years)
 
 ## Key Features
 
 ### Feedback-Driven Implementation
-Implementation uses an iterative cycle where the senior tech lead reviews code and provides feedback until approval. This ensures quality without blocking progress.
+Implementation uses iterative cycles with two quality gates:
+1. **Code Review**: Senior tech lead reviews implementation and provides feedback until approval
+2. **Security Audit**: Security auditor reviews approved sprint for vulnerabilities
+
+This dual-gate approach ensures quality and security without blocking progress.
 
 ### Agent-to-Agent Communication
 Agents communicate through structured documents in `docs/a2a/`:
-- Engineers write implementation reports
-- Senior leads provide feedback
-- Engineers address feedback and iterate
+- Engineers write implementation reports (`reviewer.md`)
+- Senior leads provide code review feedback (`engineer-feedback.md`)
+- Security auditor provides security feedback (`auditor-sprint-feedback.md`)
+- Engineers address feedback and iterate until both gates approve
 
 ### MCP Server Integrations
 Pre-configured integrations with:
@@ -159,6 +171,9 @@ docs/
 ├── sdd.md              # Software Design Document
 ├── sprint.md           # Sprint plan
 ├── a2a/                # Agent-to-agent communication
+│   ├── reviewer.md              # Engineer implementation reports
+│   ├── engineer-feedback.md     # Senior lead code review feedback
+│   └── auditor-sprint-feedback.md  # Security audit feedback
 └── deployment/         # Production infrastructure docs
 
 PROCESS.md              # Core workflow guide
@@ -195,13 +210,21 @@ README.md               # This file
 /implement sprint-1
 # Repeat until approved
 
-# 7. Continue with remaining sprints...
+# 7. Security audit of Sprint 1 (after approval)
+/audit-sprint
+# Either "APPROVED - LETS FUCKING GO" or "CHANGES_REQUIRED"
 
-# 8. Security audit (before production)
+# 8. Address security feedback (if needed)
+/implement sprint-1
+# Fix security issues, re-audit until approved
+
+# 9. Continue with remaining sprints...
+
+# 10. Full codebase security audit (before production)
 /audit
 # Review SECURITY-AUDIT-REPORT.md, fix critical issues
 
-# 9. Deploy to production
+# 11. Deploy to production
 /deploy-production
 # Production infrastructure deployed
 ```
