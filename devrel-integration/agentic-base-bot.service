@@ -1,0 +1,67 @@
+[Unit]
+Description=DevRel Integration Bot
+Documentation=https://github.com/your-org/agentic-base
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=devrel
+Group=devrel
+WorkingDirectory=/opt/devrel-integration
+
+# Environment file with secrets
+EnvironmentFile=/opt/devrel-integration/secrets/.env.local
+
+# Additional environment variables
+Environment="NODE_ENV=production"
+Environment="TZ=UTC"
+
+# Main process
+ExecStart=/usr/bin/node dist/bot.js
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=200
+StartLimitBurst=5
+
+# Resource limits
+# Limit memory usage to 512MB
+MemoryMax=512M
+# Limit CPU usage to 100%
+CPUQuota=100%
+
+# Security hardening
+# Run as non-root user
+NoNewPrivileges=true
+
+# File system access controls
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+# Allow writes to application directory, logs, and data
+ReadWritePaths=/opt/devrel-integration
+ReadWritePaths=/tmp
+
+# Additional security hardening
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=agentic-base-bot
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

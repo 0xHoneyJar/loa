@@ -1,0 +1,189 @@
+# Discord Bot Command Configuration
+# This defines which commands are available and who can use them
+
+commands:
+  # Show current sprint status
+  show-sprint:
+    enabled: true
+    description: "Show current sprint status from Linear"
+    usage: "/show-sprint"
+    permissions:
+      # Who can use this command (role names or IDs, or ["@everyone"])
+      allowed_roles:
+        - "@everyone"
+      # Channels where this command works (empty = all channels)
+      allowed_channels: []
+    # Rate limiting per user
+    rate_limit:
+      max_uses: 10
+      per_minutes: 5
+
+  # Fetch project documentation
+  doc:
+    enabled: true
+    description: "Fetch project documentation (prd, sdd, sprint)"
+    usage: "/doc <type>"
+    examples:
+      - "/doc prd"
+      - "/doc sdd"
+      - "/doc sprint"
+    permissions:
+      allowed_roles:
+        - "developers"
+        - "product"
+        - "@everyone"
+      allowed_channels: []
+    rate_limit:
+      max_uses: 10
+      per_minutes: 5
+
+  # Show user's assigned tasks
+  my-tasks:
+    enabled: true
+    description: "Show your assigned tasks from Linear"
+    usage: "/my-tasks"
+    permissions:
+      allowed_roles:
+        - "developers"
+        - "product"
+      allowed_channels: []
+    rate_limit:
+      max_uses: 10
+      per_minutes: 5
+
+  # Get Vercel preview URL for an issue
+  preview:
+    enabled: true
+    description: "Get Vercel preview URL for a Linear issue"
+    usage: "/preview <issue-id>"
+    examples:
+      - "/preview ENG-123"
+    permissions:
+      allowed_roles:
+        - "developers"
+        - "qa"
+      allowed_channels: []
+    rate_limit:
+      max_uses: 20
+      per_minutes: 5
+
+  # Manage user notification preferences
+  my-notifications:
+    enabled: true
+    description: "Manage your notification preferences"
+    usage: "/my-notifications"
+    permissions:
+      allowed_roles:
+        - "@everyone"
+      allowed_channels: []
+    rate_limit:
+      max_uses: 5
+      per_minutes: 5
+
+  # Show available commands (help)
+  help:
+    enabled: true
+    description: "Show available bot commands"
+    usage: "/help"
+    permissions:
+      allowed_roles:
+        - "@everyone"
+      allowed_channels: []
+    rate_limit:
+      max_uses: 5
+      per_minutes: 5
+
+# Global command settings
+global:
+  # Command prefix (if not using / prefix)
+  prefix: "/"
+
+  # Whether to delete user's command message after processing
+  delete_command_message: false
+
+  # Whether to show typing indicator while processing
+  show_typing: true
+
+  # Default error message when command fails
+  error_message: "Sorry, something went wrong processing that command. Please try again."
+
+  # Whether to send error details in DM to user (for debugging)
+  dm_errors: false
+
+  # Log all command usage
+  log_commands: true
+
+# Permission system
+permissions:
+  # How to resolve permissions
+  # - "roles": Check Discord roles
+  # - "config": Use this config file only
+  # - "both": Check both (more permissive)
+  mode: "roles"
+
+  # Admin override - these roles can use all commands
+  admin_roles:
+    - "admin"
+    - "moderator"
+
+  # Enable permission caching
+  cache_permissions:
+    enabled: true
+    ttl_seconds: 300
+
+# Rate limiting
+rate_limiting:
+  # Global rate limit (applies to all commands)
+  global:
+    enabled: true
+    max_commands: 50
+    per_minutes: 5
+
+  # Per-user rate limit
+  per_user:
+    enabled: true
+    max_commands: 20
+    per_minutes: 5
+
+  # What to do when rate limit is hit
+  on_limit_exceeded:
+    # Send message to user
+    notify_user: true
+    message: "You're using commands too quickly. Please wait a moment."
+    # Log the event
+    log: true
+
+# Command aliases (alternative names for commands)
+aliases:
+  sprint: "show-sprint"
+  status: "show-sprint"
+  tasks: "my-tasks"
+  mytasks: "my-tasks"
+  documentation: "doc"
+  docs: "doc"
+  prefs: "my-notifications"
+  preferences: "my-notifications"
+
+# Command categories (for help command)
+categories:
+  sprint_management:
+    name: "Sprint Management"
+    commands:
+      - "show-sprint"
+      - "my-tasks"
+  documentation:
+    name: "Documentation"
+    commands:
+      - "doc"
+  deployment:
+    name: "Deployment"
+    commands:
+      - "preview"
+  user_settings:
+    name: "User Settings"
+    commands:
+      - "my-notifications"
+  general:
+    name: "General"
+    commands:
+      - "help"

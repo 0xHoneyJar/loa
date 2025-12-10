@@ -2,9 +2,9 @@
 
 ## Overview
 
-The agentic-base framework includes 8 specialized AI agents that work together to orchestrate the complete product development lifecycle—from requirements gathering through production deployment, with security auditing available on-demand.
+The agentic-base framework includes 9 specialized AI agents that work together to orchestrate the complete product development lifecycle—from requirements gathering through production deployment, with security auditing and executive communication available on-demand.
 
-## The Eight Agents
+## The Nine Agents
 
 ### Phase 0: Integration (Optional)
 1. **[Context Engineering Expert](./01-context-engineering-expert.md)** - Organizational workflow integration
@@ -61,6 +61,13 @@ The agentic-base framework includes 8 specialized AI agents that work together t
    - **Command**: `/audit`
    - **Purpose**: Comprehensive security and quality audit with prioritized findings
    - **When to Use**: Before production, after major changes, periodically, for compliance
+
+### Ad-Hoc: Executive Communication
+9. **[DevRel Translator](./09-devrel-translator.md)** - Executive communications and stakeholder briefings
+   - **Role**: Developer Relations & Communications Specialist (15 years)
+   - **Command**: `/translate @document.md for [audience]`
+   - **Purpose**: Translate complex technical work into executive-ready communications
+   - **When to Use**: Executive summaries, board presentations, investor updates, stakeholder briefings
 
 ## Agent Interaction Flow
 
@@ -175,6 +182,7 @@ Every phase produces durable artifacts:
 | Code ready for review | Senior Tech Lead Reviewer | `/review-sprint` |
 | Need security audit | Paranoid Auditor | `/audit` |
 | Need infrastructure/deployment | DevOps Crypto Architect | `/deploy-production` |
+| Need exec summary/stakeholder brief | DevRel Translator | `/translate @doc.md for [audience]` |
 
 ## Agent Communication Style
 
@@ -194,6 +202,7 @@ Every phase produces durable artifacts:
 - **Senior Tech Lead Reviewer**: Critical, constructive, educational
 - **DevOps Crypto Architect**: Security-first, pragmatic, transparent
 - **Paranoid Auditor**: Brutally honest, security-paranoid, detailed
+- **DevRel Translator**: Empathetic, clear, business-focused, accessible
 
 ## Multi-Developer Usage
 

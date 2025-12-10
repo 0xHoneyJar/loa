@@ -1,0 +1,23 @@
+# GitLeaks Ignore File
+# Exclude false positives from secret scanning
+
+# Example/template files
+devrel-integration/secrets/.env.local.example
+*.example
+*.template
+
+# Documentation with example API key formats
+docs/deployment/SECRETS-SETUP-GUIDE.md
+docs/deployment/DEVOPS-INTEGRATION-PLAN.md
+docs/deployment/DEPLOYMENT-INFRASTRUCTURE-COMPLETE.md
+docs/deployment/runbooks/secrets-rotation.md
+docs/audits/**/*.md
+devrel-integration/docs/ANTHROPIC-API-SECURITY.md
+
+# Security audit reports (contain example patterns for testing)
+docs/audits/2025-12-07/SECURITY-AUDIT-REPORT.md
+docs/audits/2025-12-07/SECURITY-FIXES.md
+docs/audits/2025-12-08_1/REMEDIATION-PLAN.md
+
+# Configuration files with example patterns
+.claude/commands/*.md

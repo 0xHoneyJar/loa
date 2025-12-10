@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agentic-base-bot
+    restart: unless-stopped
+
+    # Environment variables from .env file
+    env_file:
+      - ./secrets/.env.local
+
+    # Additional environment variables
+    environment:
+      - NODE_ENV=production
+      - TZ=UTC
+
+    # Mount volumes
+    volumes:
+      # Logs directory (persistent)
+      - ./logs:/app/logs
+      # Config directory (read-only)
+      - ./config:/app/config:ro
+      # User preferences (persistent)
+      - ./data:/app/data
+
+    # Port mapping for health checks and webhooks
+    ports:
+      - "3000:3000"
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+    # Network configuration
+    networks:
+      - agentic-base-network
+
+networks:
+  agentic-base-network:
+    driver: bridge
+
+# Optional: Add a volume for persistent data
+volumes:
+  logs:
+  data:

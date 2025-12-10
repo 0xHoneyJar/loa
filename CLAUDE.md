@@ -10,7 +10,7 @@ This is an agent-driven development framework that orchestrates a complete produ
 
 ### Agent System
 
-The framework uses eight specialized agents that work together in a structured workflow:
+The framework uses nine specialized agents that work together in a structured workflow:
 
 1. **context-engineering-expert** (AI & Context Engineering Expert) - Organizational workflow integration and multi-tool orchestration
 2. **prd-architect** (Product Manager) - Requirements discovery and PRD creation
@@ -20,6 +20,7 @@ The framework uses eight specialized agents that work together in a structured w
 6. **senior-tech-lead-reviewer** (Senior Technical Lead) - Code review and quality gates
 7. **devops-crypto-architect** (DevOps Architect) - Production deployment and infrastructure
 8. **paranoid-auditor** (Security Auditor) - Comprehensive security and quality audits (ad-hoc use)
+9. **devrel-translator** (Developer Relations) - Translates technical work into executive-ready communications (ad-hoc use)
 
 Agents are defined in `.claude/agents/` and invoked via custom slash commands in `.claude/commands/`.
 
@@ -35,15 +36,26 @@ The workflow produces structured artifacts in the `docs/` directory:
 - `docs/sprint.md` - Sprint plan with tasks and acceptance criteria
 - `docs/a2a/reviewer.md` - Implementation reports from engineers
 - `docs/a2a/engineer-feedback.md` - Review feedback from senior technical lead
+- `docs/a2a/deployment-report.md` - Infrastructure reports from DevOps
+- `docs/a2a/deployment-feedback.md` - Security audit feedback from auditor
 - `docs/deployment/` - Production infrastructure documentation and runbooks
 
 ### Agent-to-Agent (A2A) Communication
 
-The implementation phase uses a feedback loop:
+The framework uses two feedback loops for quality assurance:
+
+#### Implementation Feedback Loop (Phases 4-5)
 - Engineer writes implementation report to `docs/a2a/reviewer.md`
 - Senior lead writes feedback to `docs/a2a/engineer-feedback.md`
 - Engineer reads feedback on next invocation, fixes issues, and updates report
-- Cycle continues until senior lead approves
+- Cycle continues until senior lead approves with "All good"
+
+#### Deployment Feedback Loop (Server Setup & Audit)
+- DevOps creates infrastructure and writes report to `docs/a2a/deployment-report.md`
+- Auditor reviews and writes feedback to `docs/a2a/deployment-feedback.md`
+- DevOps reads feedback on next invocation, fixes issues, and updates report
+- Cycle continues until auditor approves with "APPROVED - LET'S FUCKING GO"
+- After approval, `/deploy-go` executes the production deployment
 
 ## Development Workflow Commands
 
@@ -57,7 +69,7 @@ Launches `context-engineering-expert` agent to design integration architecture f
 ```bash
 /implement-org-integration
 ```
-Launches `devops-crypto-architect` agent to implement the organizational integration layer designed in Phase 0. Reviews integration architecture documents and implements Discord bot, Linear webhooks, GitHub webhooks, sync scripts, cron jobs, and monitoring. Creates complete integration infrastructure in `integration/` directory with deployment configs, operational runbooks, and testing procedures. **Prerequisites**: Must run `/integrate-org-workflow` first to generate integration design documents.
+Launches `devops-crypto-architect` agent to implement the organizational integration layer designed in Phase 0. Reviews integration architecture documents and implements Discord bot, Linear webhooks, GitHub webhooks, sync scripts, cron jobs, and monitoring. Creates complete integration infrastructure in `devrel-integration/` directory with deployment configs, operational runbooks, and testing procedures. **Prerequisites**: Must run `/integrate-org-workflow` first to generate integration design documents.
 
 ### Phase 1: Requirements
 ```bash
@@ -95,7 +107,78 @@ Launches `senior-tech-lead-reviewer` agent to validate implementation against ac
 ```
 Launches `devops-crypto-architect` agent to design and deploy production infrastructure. Creates IaC, CI/CD pipelines, monitoring, and comprehensive operational documentation in `docs/deployment/`.
 
-### Ad-Hoc: Security Audit
+### Deployment Feedback Loop: Server Setup → Audit → Deploy
+
+The deployment workflow uses a feedback loop between DevOps and Security Auditor:
+
+```
+/setup-server → /audit-deployment → (repeat until approved) → /deploy-go
+```
+
+#### Step 1: Server Setup
+```bash
+/setup-server
+```
+Launches `devops-crypto-architect` agent in **server setup mode** to configure a bare metal or VPS server. The agent:
+- Asks about server access details, services to deploy, security requirements
+- Generates setup scripts in `docs/deployment/scripts/`
+- Creates configuration files (PM2, systemd, nginx)
+- Writes deployment report to `docs/a2a/deployment-report.md`
+
+On subsequent runs, reads `docs/a2a/deployment-feedback.md` and addresses audit feedback first.
+
+#### Step 2: Security Audit
+```bash
+/audit-deployment
+```
+Launches `paranoid-auditor` agent to review deployment infrastructure. The agent:
+- Reads `docs/a2a/deployment-report.md` for context
+- Audits all scripts, configs, and documentation
+- Writes feedback to `docs/a2a/deployment-feedback.md`
+- Verdict: **CHANGES_REQUIRED** or **APPROVED - LET'S FUCKING GO**
+
+**Audit scope includes**:
+- Server setup scripts for security vulnerabilities
+- Deployment configurations and procedures
+- Infrastructure security hardening (SSH, firewall, fail2ban)
+- Secrets management and credential handling
+- PM2/systemd/nginx configurations
+- Backup and disaster recovery procedures
+
+#### Step 3: Deploy (After Approval)
+```bash
+/deploy-go
+```
+Launches `devops-crypto-architect` agent to execute production deployment. The agent:
+- Verifies `docs/a2a/deployment-feedback.md` contains "APPROVED - LET'S FUCKING GO"
+- Refuses to proceed if not approved
+- Guides deployment execution with verification steps
+- Documents deployment completion
+
+**Complete workflow example**:
+```bash
+# 1. DevOps creates infrastructure
+/setup-server
+# Agent asks questions, generates scripts, writes deployment-report.md
+
+# 2. Security audit
+/audit-deployment
+# Agent reviews, writes deployment-feedback.md with CHANGES_REQUIRED
+
+# 3. DevOps fixes issues
+/setup-server
+# Agent reads feedback, fixes issues, updates report
+
+# 4. Re-audit
+/audit-deployment
+# Agent verifies fixes, writes "APPROVED - LET'S FUCKING GO"
+
+# 5. Execute deployment
+/deploy-go
+# Agent guides production deployment execution
+```
+
+### Ad-Hoc: Security Audit (Codebase)
 ```bash
 /audit
 ```
@@ -116,6 +199,39 @@ The agent performs:
 - Dependency and supply chain analysis
 
 Outputs `SECURITY-AUDIT-REPORT.md` with prioritized findings (CRITICAL/HIGH/MEDIUM/LOW) and actionable remediation guidance.
+
+### Ad-Hoc: Executive Translation
+```bash
+/translate @document.md for [audience]
+```
+Launches `devrel-translator` agent to translate technical documentation into executive-ready communications. Use this to:
+- Create executive summaries from technical docs (PRD, SDD, audit reports, sprint updates)
+- Prepare board presentations and investor updates
+- Brief non-technical stakeholders on technical progress
+- Explain architecture decisions to business stakeholders
+- Translate security audits into risk assessments for executives
+
+**Example invocations**:
+```bash
+/translate @SECURITY-AUDIT-REPORT.md for board of directors
+/translate @docs/sdd.md for executives
+/translate @docs/sprint.md for investors
+/translate @docs/audits/2025-12-08/FINAL-AUDIT-REMEDIATION-REPORT.md for CEO
+```
+
+The agent creates:
+- **Executive summaries** (1-2 pages, plain language, business-focused)
+- **Stakeholder briefings** (tailored by audience: execs, board, investors, product, compliance)
+- **Visual communication** (diagram suggestions, flowcharts, risk matrices)
+- **FAQs** (anticipating stakeholder questions)
+- **Risk assessments** (honest, transparent, actionable)
+
+The agent focuses on:
+- **Business value** over technical details
+- **Clear analogies** for complex concepts
+- **Specific metrics** and quantified impact
+- **Honest risk** communication
+- **Actionable next steps** with decision points
 
 ## Key Architectural Patterns
 
@@ -194,13 +310,17 @@ Command definitions in `.claude/commands/` contain the slash command expansion t
 - **context-engineering-expert**: Designing integration with org tools (Discord, Linear, Google Docs), mapping workflows, adapting framework for multi-developer teams, designing context flow across platforms (Phase 0)
 - **devops-crypto-architect**:
   - **Integration mode**: Implementing Discord bots, webhooks, sync scripts from integration architecture (Phase 0.5)
+  - **Server setup mode**: Configuring bare metal/VPS servers, installing dependencies, security hardening (Ad-hoc via `/setup-server`)
   - **Deployment mode**: Production infrastructure, CI/CD pipelines, blockchain nodes, monitoring (Phase 6)
 - **prd-architect**: Starting new features, unclear requirements (Phase 1)
 - **architecture-designer**: Technical design decisions, choosing tech stack (Phase 2)
 - **sprint-planner**: Breaking down work, planning implementation (Phase 3)
 - **sprint-task-implementer**: Writing production code (Phase 4)
 - **senior-tech-lead-reviewer**: Validating implementation quality (Phase 5)
-- **paranoid-auditor**: Security audits, vulnerability assessment, pre-production validation, compliance review (Ad-hoc)
+- **paranoid-auditor**:
+  - **Code audit mode**: Security audits, vulnerability assessment, OWASP Top 10 review (Ad-hoc via `/audit`)
+  - **Deployment audit mode**: Infrastructure security, server hardening, deployment script review (Ad-hoc via `/audit-deployment`)
+- **devrel-translator**: Translating technical documentation for executives, board, investors; creating executive summaries, stakeholder briefings, board presentations from PRDs, SDDs, audit reports (Ad-hoc)
 
 ### Agent Communication Style
 
@@ -222,8 +342,8 @@ When providing feedback in `docs/a2a/engineer-feedback.md`:
 
 ```
 .claude/
-├── agents/              # Agent definitions (7 agents)
-├── commands/           # Slash command definitions (7 commands)
+├── agents/              # Agent definitions (9 agents)
+├── commands/           # Slash command definitions
 └── settings.local.json # MCP server configuration
 
 docs/
@@ -234,13 +354,20 @@ docs/
 ├── sdd.md              # Software Design Document
 ├── sprint.md           # Sprint plan with tasks
 ├── a2a/                # Agent-to-agent communication
-│   ├── reviewer.md     # Engineer implementation reports
-│   └── engineer-feedback.md  # Senior lead feedback
+│   ├── reviewer.md              # Engineer implementation reports
+│   ├── engineer-feedback.md     # Senior lead feedback
+│   ├── deployment-report.md     # DevOps infrastructure reports
+│   └── deployment-feedback.md   # Security audit feedback
 └── deployment/         # Production infrastructure docs
-    ├── infrastructure.md
-    ├── deployment-guide.md
-    ├── runbooks/
+    ├── scripts/        # Server setup scripts
+    ├── runbooks/       # Operational procedures
     └── ...
+
+devrel-integration/     # Discord bot & DevRel integration (optional)
+├── src/                # Bot source code (TypeScript)
+├── config/             # Configuration files
+├── docs/               # Integration documentation
+└── scripts/            # Deployment and automation scripts
 
 PROCESS.md              # Comprehensive workflow documentation
 CLAUDE.md              # This file

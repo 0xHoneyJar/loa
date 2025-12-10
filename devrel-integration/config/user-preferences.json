@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "User notification preferences for Discord integration",
+  "users": {
+    "example-user-id-12345": {
+      "discord_user_id": "example-user-id-12345",
+      "linear_user_email": "user@example.com",
+      "notifications": {
+        "issue_assigned": true,
+        "issue_mentioned": true,
+        "issue_completed": false,
+        "comment_added": true,
+        "sprint_started": true,
+        "sprint_completed": true,
+        "daily_digest": true
+      },
+      "notification_methods": {
+        "discord_dm": false,
+        "discord_mention": true
+      },
+      "quiet_hours": {
+        "enabled": false,
+        "start_hour": 22,
+        "end_hour": 8,
+        "timezone": "UTC"
+      },
+      "updated_at": "2025-12-08T00:00:00Z"
+    }
+  },
+  "defaults": {
+    "notifications": {
+      "issue_assigned": true,
+      "issue_mentioned": true,
+      "issue_completed": false,
+      "comment_added": false,
+      "sprint_started": true,
+      "sprint_completed": true,
+      "daily_digest": true
+    },
+    "notification_methods": {
+      "discord_dm": false,
+      "discord_mention": true
+    },
+    "quiet_hours": {
+      "enabled": false,
+      "start_hour": 22,
+      "end_hour": 8,
+      "timezone": "UTC"
+    }
+  }
+}

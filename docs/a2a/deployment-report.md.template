@@ -1,0 +1,133 @@
+# Deployment Infrastructure Report
+
+**Created by**: `devops-crypto-architect` agent (via `/setup-server`)
+**Read by**: `paranoid-auditor` agent (via `/audit-deployment`)
+**Date**: [YYYY-MM-DD]
+**Status**: [PENDING_AUDIT | AUDIT_IN_PROGRESS | CHANGES_REQUESTED | APPROVED]
+
+---
+
+## Executive Summary
+
+[Brief overview of what infrastructure was set up and the overall status]
+
+## Server Configuration
+
+### Target Environment
+- **Server Provider**: [OVH, Hetzner, DigitalOcean, etc.]
+- **Server IP**: [XXX.XXX.XXX.XXX]
+- **Operating System**: [Debian 12, Ubuntu 22.04, etc.]
+- **Environment Type**: [Production | Staging | Development]
+
+### Services Deployed
+- [ ] Discord Bot
+- [ ] Webhook Server
+- [ ] Cron Jobs
+- [ ] Monitoring Stack
+
+## Scripts Generated
+
+### Setup Scripts (`docs/deployment/scripts/`)
+
+| Script | Status | Description |
+|--------|--------|-------------|
+| `01-initial-setup.sh` | [Created/Modified/N/A] | Initial server configuration |
+| `02-security-hardening.sh` | [Created/Modified/N/A] | Security hardening |
+| `03-install-dependencies.sh` | [Created/Modified/N/A] | Dependencies installation |
+| `04-deploy-app.sh` | [Created/Modified/N/A] | Application deployment |
+| `05-setup-monitoring.sh` | [Created/Modified/N/A] | Monitoring setup |
+| `06-setup-ssl.sh` | [Created/Modified/N/A] | SSL/domain configuration |
+
+### Configuration Files
+
+| File | Status | Description |
+|------|--------|-------------|
+| `devrel-integration/ecosystem.config.js` | [Created/Modified] | PM2 configuration |
+| `docs/deployment/devrel-integration.service` | [Created/Modified] | systemd service |
+| `docs/deployment/nginx/devrel-integration.conf` | [Created/Modified/N/A] | nginx reverse proxy |
+| `devrel-integration/secrets/.env.local.example` | [Created/Modified] | Environment template |
+
+## Security Implementation
+
+### Server Security
+- [ ] SSH key-only authentication configured
+- [ ] Root login disabled
+- [ ] fail2ban installed and configured
+- [ ] UFW firewall configured with deny-by-default
+- [ ] Automatic security updates enabled
+- [ ] Audit logging configured
+
+### Application Security
+- [ ] Non-root deployment user created
+- [ ] Resource limits configured in PM2/systemd
+- [ ] No secrets in scripts
+- [ ] Environment file permissions restricted (600)
+- [ ] Log rotation configured
+
+### Network Security
+- [ ] TLS 1.2+ only (if SSL configured)
+- [ ] Strong cipher suites (if SSL configured)
+- [ ] HTTPS redirect (if SSL configured)
+- [ ] Security headers in nginx (if applicable)
+- [ ] Internal ports not exposed externally
+
+## Documentation Created
+
+- [ ] `docs/deployment/server-setup-guide.md` - Setup instructions
+- [ ] `docs/deployment/runbooks/server-operations.md` - Operational runbook
+- [ ] `docs/deployment/security-checklist.md` - Security checklist
+- [ ] `docs/deployment/verification-checklist.md` - Post-deployment verification
+- [ ] `docs/deployment/quick-reference.md` - Quick reference card
+
+## Technical Decisions
+
+### Decision 1: [Title]
+- **Context**: [Why this decision was needed]
+- **Options Considered**: [What options were evaluated]
+- **Decision**: [What was chosen]
+- **Rationale**: [Why this was chosen]
+
+### Decision 2: [Title]
+[Same format...]
+
+## Known Limitations
+
+1. [Limitation 1 - with justification and mitigation plan]
+2. [Limitation 2 - with justification and mitigation plan]
+
+## Verification Steps
+
+### Pre-Audit Verification (DevOps completed)
+```bash
+# Commands to verify setup locally before audit
+[verification commands]
+```
+
+### For Auditor Review
+1. [Step 1 - what to check]
+2. [Step 2 - what to check]
+3. [Step 3 - what to check]
+
+## Previous Audit Feedback Addressed
+
+*(If this is a revision after audit feedback)*
+
+### Feedback Item 1
+- **Original Feedback**: [Quote from auditor]
+- **Resolution**: [What was done to fix it]
+- **Verification**: [How auditor can verify the fix]
+
+### Feedback Item 2
+[Same format...]
+
+---
+
+## Ready for Audit
+
+- [ ] All scripts created and tested locally
+- [ ] All documentation complete
+- [ ] Security checklist self-reviewed
+- [ ] No secrets in any committed files
+- [ ] Previous audit feedback addressed (if applicable)
+
+**DevOps Engineer Sign-off**: Ready for security audit review.

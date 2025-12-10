@@ -1,0 +1,82 @@
+# ============================================================================
+# Docker Compose - Development Environment
+# ============================================================================
+# Purpose: Local development with hot-reload, debug logging, and easy iteration
+# Usage: docker-compose -f docker-compose.dev.yml up
+# ============================================================================
+
+version: '3.8'
+
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: agentic-base-bot-dev
+    restart: "no"  # Don't auto-restart in dev (easier debugging)
+
+    # Load secrets from development environment file
+    env_file:
+      - ./secrets/.env.local
+
+    # Override environment variables for development
+    environment:
+      - NODE_ENV=development
+      - LOG_LEVEL=debug  # Verbose logging for development
+      - TZ=UTC
+
+    # Mount volumes for development
+    volumes:
+      # Logs directory (persistent, easy access for debugging)
+      - ./logs:/app/logs
+
+      # Config directory (read-only, hot-reload on changes)
+      - ./config:/app/config:ro
+
+      # User preferences and database (persistent)
+      - ./data:/app/data
+
+      # Source code (optional: enable for hot-reload with nodemon)
+      # - ./src:/app/src:ro
+      # - ./dist:/app/dist
+
+    # Port mapping for webhooks and health checks
+    ports:
+      - "3000:3000"  # HTTP server (webhooks, health checks)
+
+    # Health check (same as Dockerfile, but with dev-friendly settings)
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => {process.exit(1)});"]
+      interval: 60s  # Longer interval in dev (less noisy logs)
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Logging configuration (verbose for development)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"  # Larger log files in dev
+        max-file: "5"    # Keep more history in dev
+
+    # No resource limits in development (easier debugging)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1.0'
+    #       memory: 512M
+
+    # Network configuration
+    networks:
+      - agentic-base-network
+
+# Network definition
+networks:
+  agentic-base-network:
+    driver: bridge
+
+# Named volumes (optional, for better Docker volume management)
+volumes:
+  logs:
+  data:

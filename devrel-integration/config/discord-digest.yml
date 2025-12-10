@@ -1,0 +1,81 @@
+# Discord Daily Digest Configuration
+# This controls the automated sprint status digest posted to Discord
+
+# Cron schedule (format: "minute hour day month weekday")
+# Examples:
+#   "0 9 * * 1-5"  - Monday-Friday at 9am
+#   "0 9 * * *"    - Daily at 9am
+#   "0 9,17 * * *" - Daily at 9am and 5pm
+schedule: "0 9 * * 1-5"
+
+# Discord channel ID where digest will be posted
+# Find this by right-clicking a channel in Discord (with Developer Mode enabled)
+channel_id: "DISCORD_CHANNEL_ID"
+
+# Enable/disable the digest (useful for temporary disabling without removing config)
+enabled: true
+
+# Detail level for the digest
+# - minimal: Just sprint progress percentage and counts
+# - summary: Progress + task status breakdown
+# - full: Everything + individual task details
+detail_level: "summary"
+
+# Include task details in digest (only applies when detail_level is "full")
+include_task_details:
+  # Show individual task titles
+  show_titles: true
+  # Show task assignees
+  show_assignees: true
+  # Show task priority
+  show_priority: false
+  # Show task due dates
+  show_due_dates: false
+
+# Formatting options
+formatting:
+  # Use emoji indicators for status
+  use_emojis: true
+  # Group tasks by status
+  group_by_status: true
+  # Show blocked tasks separately
+  highlight_blocked: true
+  # Show overdue tasks
+  highlight_overdue: true
+
+# Notification settings
+notifications:
+  # Ping role when posting digest (optional, leave empty for no ping)
+  # Example: "@developers" or role ID
+  ping_role: ""
+  # Ping on specific conditions
+  ping_on_blocked_tasks: false
+  ping_on_overdue_tasks: false
+
+# Timezone for schedule (default: UTC)
+# LOW-007: Timezone configuration is fully documented and configurable
+#
+# The cron schedule above runs in the timezone specified here.
+# This allows teams to schedule digests in their local time.
+#
+# Common timezones:
+#   - "UTC" (Coordinated Universal Time, default)
+#   - "America/New_York" (Eastern Time)
+#   - "America/Los_Angeles" (Pacific Time)
+#   - "America/Chicago" (Central Time)
+#   - "America/Denver" (Mountain Time)
+#   - "Europe/London" (UK)
+#   - "Europe/Paris" (Central European)
+#   - "Asia/Tokyo" (Japan)
+#   - "Asia/Shanghai" (China)
+#   - "Australia/Sydney" (Australia)
+#
+# Full list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+#
+# Example: If you want daily digest at 9am Pacific Time:
+#   schedule: "0 9 * * 1-5"
+#   timezone: "America/Los_Angeles"
+#
+# Note: The bot will automatically handle Daylight Saving Time changes
+# based on the timezone you specify.
+timezone: "UTC"

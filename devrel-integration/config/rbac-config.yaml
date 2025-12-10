@@ -1,0 +1,98 @@
+# RBAC Configuration for DevRel Integration
+# Implements CRITICAL-003: Approval Workflow Authorization
+
+review_workflow:
+  # Require approval before distributing summaries
+  require_approval: true
+
+  # Explicit list of Discord user IDs authorized to approve summaries
+  # To get your Discord user ID: Enable Developer Mode in Discord,
+  # right-click your username, and select "Copy ID"
+  reviewers:
+    # - "123456789012345678"  # Example: Product Manager
+    # - "987654321098765432"  # Example: Tech Lead
+    # Add Discord user IDs here
+
+  # Discord roles that grant approval permission
+  # Role names are normalized (lowercase, spaces replaced with underscores)
+  # Example: "Product Manager" role becomes "product_manager"
+  approval_roles:
+    - "product_manager"
+    - "tech_lead"
+    - "cto"
+    - "head_of_engineering"
+
+  # Actions requiring multiple approvals
+  require_multi_approval_for:
+    - "blog_publishing"   # Public blog requires 2+ approvals
+
+  # Minimum number of approvals required for multi-approval actions
+  minimum_approvals: 2
+
+distribution:
+  blog:
+    # Blog publishing uses manual draft workflow (CRITICAL-007 COMPLETE)
+    # System generates drafts → Team manually reviews → Team manually publishes
+    # Auto-publishing PERMANENTLY DISABLED for security
+    enabled: false
+
+    # NEVER set to true - auto-publishing is a security risk
+    # All blog posts must go through draft → review → publish workflow
+    auto_publish: false
+
+    # Explicit list of Discord user IDs authorized to publish to blog
+    # This should be a very restricted list (CTO, Head of Marketing only)
+    authorized_publishers:
+      # - "123456789012345678"  # Example: CTO
+      # Add Discord user IDs here
+
+    # Require security review before blog publishing
+    require_security_review: true
+
+    # Require legal review before blog publishing
+    require_legal_review: true
+
+# SETUP INSTRUCTIONS
+# ==================
+#
+# 1. Get Discord User IDs:
+#    - Enable Developer Mode: Settings → Advanced → Developer Mode
+#    - Right-click user → Copy ID
+#    - Add to 'reviewers' or 'authorized_publishers' lists above
+#
+# 2. Configure Discord Roles:
+#    - Create roles in your Discord server: Product Manager, Tech Lead, CTO
+#    - Assign roles to appropriate team members
+#    - Role names are automatically normalized (lowercase, underscores)
+#
+# 3. Test Authorization:
+#    - Try reacting with ✅ to a translation as non-reviewer
+#    - Should be rejected with permission denied message
+#    - Try as reviewer - should be accepted
+#
+# 4. Multi-Approval Workflow:
+#    - At least 2 different users must approve for blog publishing
+#    - Same user cannot approve twice
+#    - All approvals logged to audit trail
+#
+# SECURITY NOTES
+# ==============
+#
+# - Blog publishing is DISABLED by default (CRITICAL-007)
+# - Do not enable blog publishing until CRITICAL-007 is fully remediated
+# - auto_publish should NEVER be set to true
+# - Keep authorized_publishers list very restricted (1-2 people max)
+# - Review approval logs regularly for unauthorized attempts
+# - Rotate reviewer lists quarterly as team composition changes
+#
+# TROUBLESHOOTING
+# ===============
+#
+# Issue: "No reviewers configured" error
+# Fix: Add at least one Discord user ID to 'reviewers' OR create Discord roles
+#
+# Issue: User has role but can't approve
+# Fix: Check role name normalization (lowercase, underscores instead of spaces)
+#
+# Issue: Blog publishing not working
+# Fix: Intentionally disabled by default. Complete CRITICAL-007 remediation first.

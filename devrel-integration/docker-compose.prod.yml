@@ -1,0 +1,118 @@
+# ============================================================================
+# Docker Compose - Production Environment
+# ============================================================================
+# Purpose: Production deployment with strict security and resource management
+# Usage: docker-compose -f docker-compose.prod.yml up -d
+# ============================================================================
+
+version: '3.8'
+
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: agentic-base-integration:latest
+    container_name: agentic-base-bot-prod
+    restart: always  # Always restart on failure (high availability)
+
+    # Load secrets from production environment file
+    env_file:
+      - ./secrets/.env.production
+
+    # Production environment variables
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=info  # Standard logging (not debug)
+      - TZ=UTC
+
+    # Mount volumes for production
+    volumes:
+      # Logs directory (persistent, with backup strategy)
+      - ./logs:/app/logs
+
+      # Config directory (read-only, immutable)
+      - ./config:/app/config:ro
+
+      # User preferences and database (persistent, backed up)
+      - ./data:/app/data
+
+    # Port mapping - BOUND TO LOCALHOST ONLY (security requirement)
+    # Application is accessible only through nginx reverse proxy
+    ports:
+      - "127.0.0.1:3000:3000"  # HTTP server (webhooks, health checks) - localhost binding
+      # NEVER expose directly to internet: "3000:3000" (security vulnerability)
+
+    # Health check (production-grade monitoring)
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => {process.exit(1)});"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Logging configuration (production limits)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        compress: "true"  # Compress rotated logs
+
+    # Resource limits (strict production limits)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'      # Maximum 1 CPU core
+          memory: 512M     # Maximum 512MB RAM
+        reservations:
+          cpus: '0.5'      # Reserved 0.5 CPU cores
+          memory: 256M     # Reserved 256MB RAM
+
+      # Restart policy
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+    # Security options (additional hardening)
+    security_opt:
+      - no-new-privileges:true  # Prevent privilege escalation
+
+    # Read-only root filesystem (optional, uncomment if application supports it)
+    # read_only: true
+    # tmpfs:
+    #   - /tmp:size=10M,mode=1777
+
+    # Network configuration
+    networks:
+      - agentic-base-network
+
+# Network definition
+networks:
+  agentic-base-network:
+    driver: bridge
+    # Production network with custom settings
+    driver_opts:
+      com.docker.network.bridge.name: agentic-base-br0
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+
+# Named volumes for production (updated paths)
+volumes:
+  logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/devrel-integration/logs
+
+  data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/devrel-integration/data
