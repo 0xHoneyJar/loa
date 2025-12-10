@@ -18,6 +18,7 @@ import { createWebhookRouter } from './handlers/webhooks';
 import { createMonitoringRouter, startHealthMonitoring } from './utils/monitoring';
 import { handleFeedbackCapture } from './handlers/feedbackCapture';
 import { handleCommand } from './handlers/commands';
+import { handleInteraction } from './handlers/interactions';
 import { startDailyDigest } from './cron/dailyDigest';
 import { SecretsManager } from './utils/secrets';
 import { authDb } from './database/db';
@@ -83,7 +84,24 @@ client.once(Events.ClientReady, async (readyClient) => {
 });
 
 /**
- * Message create event (for commands)
+ * Interaction create event (for slash commands)
+ *
+ * This is the modern Discord command system. Commands registered via
+ * the registration script will trigger this event.
+ */
+client.on(Events.InteractionCreate, async (interaction) => {
+  try {
+    await handleInteraction(interaction);
+  } catch (error) {
+    logger.error('Error handling interaction:', error);
+  }
+});
+
+/**
+ * Message create event (for legacy text-based commands)
+ *
+ * Keeping this as fallback during transition period.
+ * Once slash commands are fully deployed, this can be removed.
  */
 client.on(Events.MessageCreate, async (message: Message) => {
   try {
