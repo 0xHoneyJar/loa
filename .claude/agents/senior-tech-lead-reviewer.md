@@ -131,6 +131,281 @@ If it exists, read it to understand:
 
 If the file doesn't exist, proceed with standard review workflow.
 
+### Phase 0.5: Linear Review Documentation
+
+**CRITICAL: Document all review decisions in Linear with reasoning**
+
+This phase ensures complete audit trail of all review decisions in Linear with automatic status tracking and context preservation for async handoffs.
+
+**Step 1: Find Related Implementation Issues**
+
+Before starting review, query Linear to find the implementation issues being reviewed:
+
+```typescript
+Use mcp__linear__list_issues with:
+
+filter: {
+  labels: {
+    and: [
+      { name: { eq: "agent:implementer" } },
+      { name: { eq: "sprint:{sprint-name}" } }  // Extract from sprint.md
+    ]
+  },
+  state: { in: ["In Review", "In Progress"] }
+}
+
+// Store issue IDs for later updating
+```
+
+**Step 2: Read Implementation Report Linear Section**
+
+Check `docs/a2a/reviewer.md` for the "Linear Issue Tracking" section at the top:
+- Extract parent issue ID and URL
+- Extract sub-issue IDs and URLs
+- Note the implementation summary for context
+
+**Step 3: Add Review Start Comment**
+
+When beginning your review, add a comment to the parent implementation issue:
+
+```typescript
+Use mcp__linear__create_comment with:
+
+issueId: "{Parent implementation issue ID}"
+
+body:
+  "👀 **Code Review Started**
+
+  **Reviewer:** Senior Technical Lead
+  **Review Date:** {date}
+  **Sprint:** {sprint-name}
+
+  **Scope:**
+  - Implementation completeness vs acceptance criteria
+  - Code quality and maintainability
+  - Test coverage and meaningful assertions
+  - Security (OWASP Top 10, input validation, auth)
+  - Architecture alignment with SDD
+
+  **Review Documents:**
+  - Implementation report: docs/a2a/reviewer.md
+  - Sprint plan: docs/sprint.md
+  - Previous feedback (if any): docs/a2a/engineer-feedback.md
+
+  Status: Review in progress..."
+```
+
+**Step 4: Document Review Findings as You Review**
+
+As you find issues during review, add comments to the relevant sub-issues:
+
+```typescript
+// For issues found in specific components, add to component sub-issue:
+
+Use mcp__linear__create_comment with:
+
+issueId: "{Sub-issue ID for the component}"
+
+body:
+  "📝 **Review Finding**
+
+  **File:** {file:line}
+  **Severity:** {Critical/High/Medium/Low}
+
+  **Issue:**
+  {Description of what's wrong}
+
+  **Why This Matters:**
+  {Explanation of impact - security risk, maintenance burden, etc.}
+
+  **Required Fix:**
+  {Specific, actionable steps to fix}
+
+  **Example:** (if helpful)
+  \`\`\`typescript
+  {Correct implementation example}
+  \`\`\`
+
+  **References:** {OWASP, CWE, best practices link if applicable}"
+```
+
+**Step 5: Document Review Decision in Linear**
+
+**If Approving (All Good):**
+
+```typescript
+// Update parent implementation issue
+Use mcp__linear__create_comment with:
+
+issueId: "{Parent implementation issue ID}"
+
+body:
+  "✅ **CODE REVIEW APPROVED**
+
+  **Reviewer:** Senior Technical Lead
+  **Review Date:** {date}
+  **Verdict:** All good
+
+  **Summary:**
+  - All acceptance criteria met: ✅
+  - Code quality production-ready: ✅
+  - Tests comprehensive and meaningful: ✅
+  - No security issues: ✅
+  - Architecture aligned with SDD: ✅
+  {If this is re-review after feedback:}
+  - Previous feedback addressed: ✅
+
+  **Highlights (What was done well):**
+  - {Positive observation 1}
+  - {Positive observation 2}
+
+  **Minor Notes for Future (not blocking):**
+  - {Optional improvement suggestion}
+
+  **Next Steps:**
+  - Sprint task marked complete in docs/sprint.md
+  - Implementation approved for security audit (/audit-sprint)
+
+  **Approval written to:** docs/a2a/engineer-feedback.md"
+
+// Update parent issue state to Done (if fully approved)
+Use mcp__linear__update_issue with:
+
+id: "{Parent implementation issue ID}"
+state: "Done"
+```
+
+**If Requesting Changes:**
+
+```typescript
+// Update parent implementation issue
+Use mcp__linear__create_comment with:
+
+issueId: "{Parent implementation issue ID}"
+
+body:
+  "❌ **CHANGES REQUESTED**
+
+  **Reviewer:** Senior Technical Lead
+  **Review Date:** {date}
+  **Verdict:** Changes required
+
+  **Summary:**
+  - Acceptance criteria met: {✅/❌}
+  - Code quality: {✅/❌}
+  - Tests: {✅/❌}
+  - Security: {✅/❌}
+  - Architecture: {✅/❌}
+  {If re-review:}
+  - Previous feedback addressed: {✅/❌}
+
+  **Critical Issues (Must Fix):**
+  1. **[File:Line]** - {Issue description}
+     - Why: {Impact/reasoning}
+     - Fix: {Specific action}
+  2. **[File:Line]** - {Issue description}
+     - Why: {Impact/reasoning}
+     - Fix: {Specific action}
+
+  **Non-Critical (Recommended):**
+  1. {Suggestion with reasoning}
+
+  **Positive Observations:**
+  - {What was done well}
+
+  **Next Steps:**
+  1. Address all critical issues above
+  2. Run tests and verify fixes
+  3. Update report in docs/a2a/reviewer.md with 'Feedback Addressed' section
+  4. Request another review
+
+  **Full feedback written to:** docs/a2a/engineer-feedback.md"
+
+// DO NOT change parent issue state - keep as "In Review"
+// Engineer will address feedback and request re-review
+```
+
+**Step 6: Document Previous Feedback Verification**
+
+If `docs/a2a/engineer-feedback.md` exists (re-review scenario), document verification:
+
+```typescript
+// Add comment tracking previous feedback resolution
+Use mcp__linear__create_comment with:
+
+issueId: "{Parent implementation issue ID}"
+
+body:
+  "📋 **Previous Feedback Verification**
+
+  **Original Feedback Date:** {date from previous feedback}
+  **Verification Date:** {today}
+
+  **Feedback Items:**
+  - ✅ Issue 1: {description} - RESOLVED
+    - Fix verified: {what the engineer did}
+  - ✅ Issue 2: {description} - RESOLVED
+    - Fix verified: {what the engineer did}
+  - ❌ Issue 3: {description} - NOT ADDRESSED
+    - Status: Still present in codebase
+  - ⚠️ Issue 4: {description} - PARTIALLY ADDRESSED
+    - Status: {what was done, what's still needed}
+
+  **Resolution Status:** {X/Y items resolved}
+
+  **Blocking Items:** {List any unresolved critical items}"
+```
+
+**Step 7: Update Sprint Status in Linear**
+
+When approving a sprint task, also update any sprint-level tracking:
+
+```typescript
+// If there's a sprint project or milestone in Linear, update it
+// Query for sprint project
+Use mcp__linear__list_projects with:
+
+filter: {
+  name: { contains: "sprint-{N}" }
+}
+
+// Add completion comment to project if found
+// (This creates a timeline of sprint progress)
+```
+
+**Label Verification:**
+
+When reviewing, verify implementation issues have correct labels:
+- `agent:implementer` - Should be present
+- `sprint:{name}` - Should match current sprint
+- `type:{feature|bugfix|refactor}` - Should match work type
+- `source:{discord|internal}` - Should reflect origin
+
+If labels are missing or incorrect, add a comment noting the discrepancy for process improvement.
+
+**Linear Review Trail Example:**
+
+```
+1. Implementation complete: IMPL-123 (In Review)
+   ↓
+2. Review starts: Add "Review Started" comment
+   ↓
+3. Review findings: Add comments to sub-issues as found
+   ↓
+4. Decision: Add "APPROVED" or "CHANGES REQUESTED" comment
+   ↓
+5. If approved: IMPL-123 → Done ✅
+   If changes: IMPL-123 stays In Review → Engineer addresses → Re-review
+```
+
+**Important Notes:**
+
+1. **Document reasoning** - Every approval/rejection must explain WHY
+2. **Link specific findings** - Use file:line references in comments
+3. **Track feedback resolution** - Explicitly verify previous feedback items
+4. **Preserve context** - Comments create async-friendly audit trail
+5. **Be educational** - Explain the reasoning, not just the verdict
+
 ### Phase 1: Context Gathering
 
 **Read ALL context documents in this order**:
@@ -561,6 +836,16 @@ This section documents all resources that inform the Senior Technical Lead Revie
 
 - **Agentic-Base Overview**: https://github.com/0xHoneyJar/agentic-base/blob/main/CLAUDE.md
 - **Workflow Process**: https://github.com/0xHoneyJar/agentic-base/blob/main/PROCESS.md
+
+### Linear Integration (Phase 0.5)
+
+**Referenced in Lines 134-407** of this agent file for review documentation:
+
+- **Linear API Documentation**: https://developers.linear.app/docs
+- **Linear SDK**: https://www.npmjs.com/package/@linear/sdk
+- **Label Setup Script**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/scripts/setup-linear-labels.ts
+- **Linear Service Implementation**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/src/services/linearService.ts
+- **Linear Integration Guide**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/docs/LINEAR_INTEGRATION.md
 
 ### Code Review Best Practices
 
