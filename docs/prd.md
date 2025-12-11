@@ -3,11 +3,12 @@
 
 **Project Name:** Onomancer Bot (DevRel Integration)
 **Product Manager:** PRD Architect Agent
-**Date:** 2025-12-10
-**Version:** 1.1
-**Status:** Approved - Ready for Architecture Phase
+**Date:** 2025-12-11
+**Version:** 1.2
+**Status:** Approved - Ready for Architecture Phase (v1.2 updates pending review)
 
 **Changelog:**
+- **v1.2** (2025-12-11): Added stakeholder feedback integration from Linear (7 PRD-labeled issues), added build status and process reporting requirements (FR-7.x), added Linear integration capabilities for real-time visibility (FR-8.x), added comprehensive knowledge base requirements (FR-9.x), incorporated team workflow improvements
 - **v1.1** (2025-12-10): Added project name requirement to `/translate` command, expanded scope to include ALL agentic-base documents (PRD, SDD, sprint.md, A2A docs), added automated triggers for PRD/SDD/sprint plan generation (FR-3.5, FR-3.6, FR-3.7), added FR-4.9 for complete workflow document access
 - **v1.0** (2025-12-10): Initial PRD with core requirements for Google Workspace setup, transformation pipeline, automated triggers, Discord commands
 
@@ -25,17 +26,136 @@
 
 ## Table of Contents
 
-1. [Problem Statement](#problem-statement)
-2. [Vision & Goals](#vision--goals)
-3. [User Personas & Stakeholders](#user-personas--stakeholders)
-4. [Functional Requirements](#functional-requirements)
-5. [Technical Requirements](#technical-requirements)
-6. [Non-Functional Requirements](#non-functional-requirements)
-7. [Scope & Prioritization](#scope--prioritization)
-8. [Success Metrics](#success-metrics)
-9. [Risks & Dependencies](#risks--dependencies)
-10. [Open Questions](#open-questions)
-11. [Appendix](#appendix)
+1. [Stakeholder Insights](#stakeholder-insights)
+2. [Problem Statement](#problem-statement)
+3. [Vision & Goals](#vision--goals)
+4. [User Personas & Stakeholders](#user-personas--stakeholders)
+5. [Functional Requirements](#functional-requirements)
+6. [Technical Requirements](#technical-requirements)
+7. [Non-Functional Requirements](#non-functional-requirements)
+8. [Scope & Prioritization](#scope--prioritization)
+9. [Success Metrics](#success-metrics)
+10. [Risks & Dependencies](#risks--dependencies)
+11. [Open Questions](#open-questions)
+12. [Appendix](#appendix)
+
+---
+
+## Stakeholder Insights
+
+**Source:** 7 Linear issues with PRD label, captured from Discord team feedback sessions (2025-12-10 to 2025-12-11)
+
+### Key Themes from Stakeholder Feedback
+
+#### 1. Continuous Build Visibility (LAB-513, LAB-508)
+**Problem:** Stakeholders need **continuous updates during the build process**, not just notifications when work is complete. Current workflow only provides visibility at milestone completion (sprint approval, audit completion).
+
+**Quotes:**
+- "Continuous updates during the build process" - Marketing team
+- "Directional update as opposed to being created on the fly" - Team member
+- "If had known what was going to happen rather than just a cubquest update would prepare" - Team member
+
+**Requirements:**
+- Real-time Linear issue updates visible to stakeholders
+- Build status dashboard showing in-progress work
+- Proactive notifications when agents start/complete tasks
+- Transparency into what's being built before it's done
+
+#### 2. Comprehensive Knowledge Base (LAB-513, LAB-509, LAB-508)
+**Problem:** Teams need a **constantly updated, reliable knowledge base** that includes ALL decisions, discussions, specs, and changes - not just final documents. Current documentation is sparse and doesn't capture the "why" behind decisions.
+
+**Quotes:**
+- "A constantly updated, reliable product overview doc/knowledge base. Including all the small things we discuss in chats, decisions, changes, explanations, everything" - Marketing
+- "Wish we had more detailed documentation even including every discord discussion topics" - Marketing
+- "Clear questions on SC before work starts" - Team member
+- "We should be shipping a full product not what we want to ship. If you think about a physical product it comes with instructions, manual, hazards, expiration dates" - Team member
+
+**Requirements:**
+- Complete documentation that includes decisions, rationale, and context
+- Product specs with timelines and change history
+- Best practices documentation (file formats, dimensions, naming conventions)
+- Pre-work clarification documents (requirements, constraints, technical details)
+- "Instructions manual" for every product feature
+
+#### 3. Marketing and Communications Support (LAB-513, LAB-509)
+**Problem:** Marketing team needs **custom data, technical accuracy validation, and structured content** that current system doesn't provide.
+
+**Quotes:**
+- "Some custom data for marketing stuff" - Marketing
+- "When I need to double check if my mkt material is technically correct" - Marketing
+- "General clarification about best sizes, formats, dimensions, etc" - Design/Marketing
+- "Have needed explanations for how files should be named, where certain things will be displayed" - Design/Marketing
+
+**Requirements:**
+- Custom data extraction for marketing materials
+- Technical accuracy validation service
+- Asset specifications (sizes, formats, dimensions, naming)
+- Marketing-ready feature descriptions with customer benefits
+- A/B testing data to support design decisions
+
+#### 4. Project Management and Planning (LAB-513, LAB-508)
+**Problem:** Teams need **RACI matrices, Gantt charts, and structured project plans** with notifications, not just technical implementation details.
+
+**Quotes:**
+- "Marketing action plan include RACI + gantt, plus auto dm/notification" - Marketing
+- "Consistency (work ethic) and better product design before creating" - Team member
+- "Push notifications when important change made or decision need to discuss" - Marketing
+
+**Requirements:**
+- RACI (Responsible, Accountable, Consulted, Informed) matrices
+- Gantt charts showing timeline and dependencies
+- Automated notifications for important decisions
+- Pre-planning phase with clear requirements before implementation
+
+#### 5. Developer Workflow Improvements (LAB-512)
+**Problem:** Teams need better **collaboration tools and workflow automation** specific to crypto/DAO operations.
+
+**Quotes:**
+- "Something wrt to easing multisig friction. I think there's things in place on safe regarding whitelisted functions that a single wallet can control" - Team member
+- "Typically have found my dev relationship to just be bumping product advancements instigated by member questions" - Team member
+
+**Requirements:**
+- Multisig workflow automation for common operations
+- Proactive collaboration tools (not reactive question-answering)
+- Delegation dashboard updates
+- Treasury dashboard automation
+
+#### 6. Product Quality Standards (LAB-508, LAB-515)
+**Problem:** Teams need **better product design and complete feature delivery**, not rushed or incomplete releases.
+
+**Quotes:**
+- "We should be shipping a full product not what we want to ship" - Team member
+- "Hair on fire, core product doesn't work" - Team member about urgency prioritization
+
+**Requirements:**
+- Complete product checklist (not just MVP)
+- Pre-launch quality gates
+- Feature completeness validation
+- Documentation requirements enforced before release
+
+#### 7. Self-Service Information Access (LAB-513)
+**Problem:** Stakeholders spend too much time researching answers that should be easily accessible. Current AI/research takes longer than asking developers, which defeats the purpose.
+
+**Quotes:**
+- "Most questions can solve by asking AI + doing my own research and reading, but it does take longer tho" - Marketing
+- "When something is super new or super niche that doesn't exist in public knowledge base yet, so even AI has no clue can only scoop from human brain" - Marketing
+
+**Requirements:**
+- Faster than "ask AI + do research" - should be instant query
+- Accessible knowledge base that AI can reference
+- Expert knowledge capture (things not in public knowledge bases)
+
+### Stakeholder Request Priority Matrix
+
+| Priority | Requirement | Impact | Effort | MVP Status |
+|----------|------------|---------|--------|------------|
+| **CRITICAL** | Continuous build visibility | High | Medium | **v1.2** |
+| **CRITICAL** | Comprehensive knowledge base | High | High | **v1.2** |
+| **HIGH** | Marketing support (data, validation) | High | Low | **v1.2** |
+| **HIGH** | RACI + Gantt + Notifications | Medium | Medium | **v1.2** |
+| **MEDIUM** | Multisig workflow automation | Medium | High | Phase 2 |
+| **MEDIUM** | A/B testing data | Low | Low | Phase 2 |
+| **LOW** | Auto-generated tutorials | Low | Medium | Phase 2 |
 
 ---
 
@@ -736,6 +856,303 @@ The Onomancer Bot transforms the agentic-base development workflow into a progra
 
 ---
 
+### 7. Build Status & Process Reporting (CRITICAL - v1.2)
+
+**User Story:** As a stakeholder, I need real-time visibility into what's being built while it's being built so that I can prepare marketing materials, provide feedback early, and stay aligned with the team without constantly asking developers for updates.
+
+**Context:** Stakeholder feedback (LAB-513, LAB-508) revealed that current visibility is limited to milestone completions. Teams need **continuous updates during the build process**, not just notifications when sprints complete.
+
+**Requirements:**
+
+- **FR-7.1**: **Real-Time Linear Integration Dashboard**
+  - Embed Linear issue tracking into Discord via commands
+  - Show in-progress tasks with real-time status updates
+  - Display task assignments, priorities, and blockers
+  - Commands:
+    - `/show-issue <issue-id>` - Display issue details with status, assignee, labels, description
+    - `/list-issues [filter]` - List issues grouped by status (Todo, In Progress, In Review, Done)
+    - `/tag-issue <issue-id> <project> [priority]` - Human team members can tag issues with project labels
+
+- **FR-7.2**: **Proactive Build Notifications**
+  - Notify stakeholders when agents **START** work (not just when they finish)
+  - Notification format: "🔨 Sprint-task-implementer started working on Issue THJ-123: Implement user authentication"
+  - Notification triggers:
+    - Agent creates Linear parent issue → "📋 New task created: [Issue Title]"
+    - Agent updates issue to "In Progress" → "🔨 Work started on: [Issue Title]"
+    - Agent completes component (sub-issue) → "✅ Component completed: [Component Name]"
+    - Agent updates issue to "In Review" → "👁️ Ready for review: [Issue Title]"
+    - Agent completes work (issue Done) → "🎉 Completed: [Issue Title]"
+  - Configurable per-user notification preferences (via `/my-notifications`)
+
+- **FR-7.3**: **Build Progress Dashboard**
+  - Generate dynamic progress report on-demand
+  - Command: `/build-status [project|sprint]`
+  - Shows:
+    - Overall sprint progress (% complete)
+    - Tasks in progress (who's working on what)
+    - Completed tasks (what's done)
+    - Blocked tasks (what needs attention)
+    - Estimated completion timeline (based on task velocity)
+  - Visual progress indicators (progress bars in Discord embeds)
+
+- **FR-7.4**: **Linear Webhook Integration**
+  - Listen to Linear webhooks for issue updates
+  - Trigger notifications in Discord when:
+    - Issue created by agent
+    - Issue status changed (Todo → In Progress → In Review → Done)
+    - Issue assigned/reassigned
+    - Issue priority changed
+    - Comment added by agent (implementation notes)
+  - Webhook endpoint: `/webhooks/linear`
+  - Security: Verify webhook signature
+
+- **FR-7.5**: **Sprint Timeline Visualization**
+  - Generate Gantt-chart-style timeline for sprint tasks
+  - Command: `/sprint-timeline [sprint-id]`
+  - Shows:
+    - Task dependencies (what blocks what)
+    - Start/end dates for each task
+    - Critical path highlighted
+    - Resource allocation (who's assigned to what)
+  - Export as image (PNG) or Google Doc
+  - Update automatically as Linear issues change
+
+**Acceptance Criteria:**
+- [ ] Discord commands for Linear integration functional (`/show-issue`, `/list-issues`, `/tag-issue`)
+- [ ] Linear webhook endpoint receives and processes issue updates
+- [ ] Proactive notifications sent when agents start/complete work
+- [ ] Build status dashboard shows real-time progress
+- [ ] Sprint timeline visualization generates accurate Gantt charts
+- [ ] Notifications configurable per-user via `/my-notifications`
+
+**Priority:** CRITICAL (addresses top stakeholder feedback - continuous build visibility)
+
+---
+
+### 8. Comprehensive Knowledge Base (CRITICAL - v1.2)
+
+**User Story:** As a stakeholder, I need a constantly updated knowledge base that includes ALL decisions, discussions, product specs, technical details, and rationale so that I can understand not just WHAT was built, but WHY it was built that way.
+
+**Context:** Stakeholder feedback (LAB-513, LAB-509, LAB-508) revealed that current documentation is incomplete. Teams need "a full product" including "instructions, manual, hazards, expiration dates" - not just code.
+
+**Requirements:**
+
+- **FR-8.1**: **Product Specification Repository**
+  - For each product, maintain comprehensive specification documents:
+    - **Product Overview** (`/Products/{Product}/Overview.md`)
+      - What the product is and does
+      - Target users and use cases
+      - Key features and capabilities
+      - Product evolution history (changelog)
+    - **Technical Specifications** (`/Products/{Product}/Technical-Specs.md`)
+      - Architecture overview and diagrams
+      - Tech stack and dependencies
+      - API endpoints and data models
+      - Integration points and external services
+    - **Design Specifications** (`/Products/{Product}/Design-Specs.md`)
+      - Asset requirements (sizes, formats, dimensions)
+      - File naming conventions
+      - Color palettes and brand guidelines
+      - UI/UX patterns and components
+    - **Operational Manual** (`/Products/{Product}/Operations.md`)
+      - Deployment procedures
+      - Monitoring and alerts
+      - Troubleshooting guides
+      - Incident response playbooks
+    - **User Documentation** (`/Products/{Product}/User-Guide.md`)
+      - How to use the product (instructions manual)
+      - Common tasks and workflows
+      - FAQs and troubleshooting
+      - Known limitations and workarounds
+  - Auto-generated from sprint reports, PRD, SDD, A2A docs
+  - Continuously updated as work progresses
+  - Version-controlled with change history
+
+- **FR-8.2**: **Decision Log**
+  - Capture ALL technical and product decisions with rationale
+  - Format: `ADR-{Number}: {Decision Title}`
+  - Structure:
+    ```markdown
+    # ADR-001: Use OAuth 2.0 for Authentication
+
+    ## Status
+    Accepted (2025-12-10)
+
+    ## Context
+    Users need secure login without managing passwords...
+
+    ## Decision
+    We will implement OAuth 2.0 using Passport.js...
+
+    ## Consequences
+    **Positive:**
+    - Industry-standard security
+    - No password management overhead
+
+    **Negative:**
+    - Dependency on third-party OAuth providers
+    - Additional complexity for self-hosted deployments
+
+    ## Alternatives Considered
+    1. Username/password auth (rejected - security burden)
+    2. Magic links (rejected - poor UX for frequent use)
+    ```
+  - Auto-generated from SDD technical decisions
+  - Linked from related documents (PRD, sprint reports)
+  - Searchable via Discord: `/decision-search <keyword>`
+
+- **FR-8.3**: **Change History Tracking**
+  - Track WHAT changed, WHEN, WHY for every product update
+  - Format: Structured changelog in `/Products/{Product}/Changelog.md`
+  - Structure:
+    ```markdown
+    # MiBera Changelog
+
+    ## [v1.2.0] - 2025-12-11
+
+    ### Added
+    - OAuth 2.0 authentication flow (#THJ-123)
+    - JWT token validation middleware (#THJ-124)
+
+    ### Changed
+    - Updated session TTL from 7 days to 30 days (#THJ-125)
+    - Reason: User feedback requested longer sessions
+
+    ### Technical Details
+    - Using Passport.js for OAuth integration
+    - JWT tokens signed with RS256 algorithm
+    - Redis for session storage
+
+    ### Migration Notes
+    - Users need to re-authenticate after upgrade
+    - Old session tokens invalidated
+    ```
+  - Auto-generated from Linear issues and sprint reports
+  - Includes both user-facing changes and technical details
+  - Links to related Linear issues, PRs, commits
+
+- **FR-8.4**: **Discord Discussion Archive**
+  - Capture important Discord discussions and decisions
+  - When feedback is captured (📌 reaction), also capture thread context
+  - Store in `/Shared/Discussions/{Date}/{Topic}.md`
+  - Include:
+    - Original message and thread
+    - Participants and timestamps
+    - Resolution or decision made
+    - Link to Linear issue created (if any)
+  - Searchable via `/discussion-search <keyword>`
+
+- **FR-8.5**: **Pre-Work Clarification Documents**
+  - Before agents start implementation, generate clarification documents
+  - Triggered when sprint planning completes
+  - For each task, create `/Products/{Product}/Sprints/Sprint-{N}/Clarifications/{Task}.md`
+  - Include:
+    - Acceptance criteria detailed explanation
+    - Technical constraints and requirements
+    - Design specifications (if applicable)
+    - Integration points and dependencies
+    - Success criteria and testing approach
+  - Reviewed by stakeholders before work begins
+  - Discord command: `/clarify <task-id>` to request clarification document
+
+- **FR-8.6**: **Marketing Asset Specifications**
+  - Maintain comprehensive asset spec repository
+  - `/Shared/Asset-Specs/`
+    - Image specs (sizes, formats, dimensions)
+    - Video specs (resolution, codecs, aspect ratios)
+    - Copy specs (character limits, tone guidelines)
+    - File naming conventions
+  - Command: `/asset-spec <type>` to query specs
+  - Example: `/asset-spec twitter-image` → "1200x675px, PNG or JPG, <5MB, file naming: {project}-{purpose}-{date}.{ext}"
+
+**Acceptance Criteria:**
+- [ ] Product specification repository auto-generated for each product
+- [ ] Decision log captures all ADRs with rationale and alternatives
+- [ ] Change history tracking includes both user-facing and technical changes
+- [ ] Discord discussion archive captures important conversations
+- [ ] Pre-work clarification documents generated before implementation
+- [ ] Marketing asset specifications accessible via Discord command
+- [ ] All documents continuously updated as work progresses
+- [ ] Documents cross-referenced and searchable
+
+**Priority:** CRITICAL (addresses top stakeholder feedback - comprehensive knowledge base)
+
+---
+
+### 9. Marketing & Communications Support (HIGH - v1.2)
+
+**User Story:** As a marketing team member, I need custom data extraction, technical accuracy validation, and structured content so that I can create marketing materials confidently without constantly consulting developers.
+
+**Context:** Stakeholder feedback (LAB-513, LAB-509) revealed marketing needs that current system doesn't address: custom data, technical validation, asset specs.
+
+**Requirements:**
+
+- **FR-9.1**: **Custom Data Extraction Service**
+  - Extract specific data from codebase, Linear, or on-chain sources for marketing materials
+  - Command: `/extract-data <data-type> <parameters>`
+  - Examples:
+    - `/extract-data user-stats MiBera last-30-days` → Total users, active users, new signups
+    - `/extract-data feature-usage voting last-quarter` → Voting participation metrics
+    - `/extract-data on-chain-metrics token-holders` → Token holder count, distribution
+  - Supports common marketing data needs:
+    - User metrics (signups, active users, retention)
+    - Feature usage (most popular features, adoption rates)
+    - Performance metrics (response times, uptime)
+    - On-chain metrics (token holders, transaction volume, TVL)
+  - Returns formatted data ready for marketing copy
+  - Includes data source and timestamp for attribution
+
+- **FR-9.2**: **Technical Accuracy Validation Service**
+  - Validate marketing materials for technical correctness before publishing
+  - Command: `/validate-content <google-docs-link>` or paste content in Discord
+  - Bot analyzes content and flags:
+    - Incorrect technical claims
+    - Outdated information (feature removed, metrics stale)
+    - Missing disclaimers (risks, limitations)
+    - Misleading language (overpromising)
+  - Returns validation report:
+    - ✅ Technically accurate
+    - ⚠️ Minor issues found (suggestions)
+    - ❌ Major issues found (must fix)
+  - Suggests corrections with citations
+
+- **FR-9.3**: **RACI Matrix Generation**
+  - Generate RACI (Responsible, Accountable, Consulted, Informed) matrices for product launches
+  - Command: `/generate-raci <product> <initiative>`
+  - Analyzes sprint plan and team structure to propose RACI
+  - Format: Table showing tasks × team members with RACI assignments
+  - Editable in Google Docs, shareable with team
+  - Example output:
+    ```
+    | Task                | Marketing | DevRel | Engineering | Leadership |
+    |---------------------|-----------|--------|-------------|------------|
+    | Write blog post     | R         | C      | I           | I          |
+    | Technical review    | I         | R      | A           | I          |
+    | Publish             | A         | I      | I           | I          |
+    ```
+
+- **FR-9.4**: **A/B Testing Data Dashboard** (MEDIUM priority - Phase 2)
+  - Collect and present A/B testing data for design decisions
+  - Command: `/ab-test-data <test-name>`
+  - Shows:
+    - Test variants and metrics
+    - Statistical significance
+    - Winning variant recommendation
+  - Integrated with existing product analytics (if available)
+  - Deferred to Phase 2 (requires analytics infrastructure)
+
+**Acceptance Criteria:**
+- [ ] Custom data extraction service supports common marketing data needs
+- [ ] Technical accuracy validation identifies incorrect claims and outdated info
+- [ ] RACI matrix generation creates sensible assignments based on team structure
+- [ ] All services accessible via Discord commands
+- [ ] Data sources cited for transparency
+- [ ] Validation reports actionable with specific corrections
+
+**Priority:** HIGH (high impact, low effort)
+
+---
+
 ## Technical Requirements
 
 ### Architecture Components
@@ -959,9 +1376,9 @@ The Onomancer Bot transforms the agentic-base development workflow into a progra
 
 ## Scope & Prioritization
 
-### In Scope (MVP - Phase 1)
+### In Scope (MVP - Phase 1 + v1.2 Enhancements)
 
-**CRITICAL (Must Have for MVP):**
+**CRITICAL (Must Have for MVP v1.2):**
 1. ✅ Google Workspace organization creation
 2. ✅ Terraform IaC for folder structure and permissions (includes PRD, SDD, Sprints, Audits folders)
 3. ✅ Document transformation pipeline (4 persona summaries)
@@ -969,20 +1386,25 @@ The Onomancer Bot transforms the agentic-base development workflow into a progra
 5. ✅ Discord slash commands: `/exec-summary`, `/audit-summary`, `/translate <project> <@document> for <audience>`
 6. ✅ Security controls: Secret scanning, content sanitization, output validation
 7. ✅ Audit logging
+8. 🆕 **Real-time build visibility** (FR-7.1-7.5): Linear integration dashboard, proactive notifications, build status reporting, webhooks, Gantt chart timelines
+9. 🆕 **Comprehensive knowledge base** (FR-8.1-8.6): Product specs, decision logs, change history, Discord archive, pre-work clarifications, asset specs
 
-**HIGH (Should Have for MVP):**
-8. ✅ Weekly digest generation (cron job)
-9. ✅ Context aggregation from Linear, GitHub, Discord
-10. ✅ **ALL agentic-base documents accessible**: `/translate` works for PRD, SDD, sprint.md, A2A docs (FR-4.9)
-11. ✅ Document shorthand support: `@prd`, `@sdd`, `@sprint`, `@reviewer`, `@audit`
-12. ✅ Blog draft generation: `/blog-draft <sprint-id>`
-13. ✅ Discord command: `/show-sprint`
+**HIGH (Should Have for MVP v1.2):**
+10. ✅ Weekly digest generation (cron job)
+11. ✅ Context aggregation from Linear, GitHub, Discord
+12. ✅ **ALL agentic-base documents accessible**: `/translate` works for PRD, SDD, sprint.md, A2A docs (FR-4.9)
+13. ✅ Document shorthand support: `@prd`, `@sdd`, `@sprint`, `@reviewer`, `@audit`
+14. ✅ Blog draft generation: `/blog-draft <sprint-id>`
+15. ✅ Discord command: `/show-sprint`
+16. 🆕 **Marketing & communications support** (FR-9.1-9.3): Custom data extraction, technical validation, RACI generation
+17. 🆕 **Linear Discord commands**: `/show-issue`, `/list-issues`, `/tag-issue`
+18. 🆕 **Notification preferences**: `/my-notifications` (configurable build notifications)
 
 **MEDIUM (Nice to Have for MVP):**
-14. ⚠️ Hivemind LEARNINGS library integration
-15. ⚠️ User Truth Canvas context extraction
-16. ⚠️ Product Home changelog referencing
-17. ⚠️ Notification preferences: `/my-notifications`
+19. ⚠️ Hivemind LEARNINGS library integration
+20. ⚠️ User Truth Canvas context extraction
+21. ⚠️ Product Home changelog referencing
+22. ⚠️ A/B testing data dashboard (FR-9.4)
 
 ### Out of Scope (Phase 2)
 
@@ -1432,10 +1854,10 @@ Source: docs/sprint.md | Generated: 2025-12-10 | Product: MiBera
 
 ## Approval
 
-**PRD Status**: ✅ **APPROVED v1.1 - Ready for Architecture Phase**
+**PRD Status**: ✅ **APPROVED v1.2 - Ready for Architecture Phase (v1.2 updates pending stakeholder review)**
 
 **Approvers**:
-- Product Manager: PRD Architect Agent (2025-12-10 - v1.0, updated to v1.1 same day)
+- Product Manager: PRD Architect Agent (2025-12-10 - v1.0, updated to v1.1 same day, updated to v1.2 on 2025-12-11)
 - Technical Lead: TBD (will review in Architecture phase)
 - Stakeholders: TBD (will review after Architecture phase)
 
@@ -1447,19 +1869,34 @@ Source: docs/sprint.md | Generated: 2025-12-10 | Product: MiBera
 - ✅ Expanded Google Docs folder structure to include PRD/SDD folders
 - ✅ Added FR-4.9 for complete workflow document access
 
-**Next Steps**:
-1. ✅ PRD complete and saved to `docs/prd.md`
-2. ⏭️ Proceed to Phase 2: Architecture (`/architect`)
-3. ⏭️ Software architect reviews PRD and designs system architecture
-4. ⏭️ Generate Software Design Document (SDD) at `docs/sdd.md`
+**v1.2 Updates (Pending Review):**
+- 🆕 **Stakeholder feedback integrated** from 7 Linear issues (LAB-507 through LAB-515)
+- 🆕 **Build status & process reporting** (FR-7.x): Real-time Linear integration, proactive notifications, build dashboards, webhooks, Gantt charts
+- 🆕 **Comprehensive knowledge base** (FR-8.x): Product specs, decision logs, change history, Discord archive, pre-work clarifications, asset specs
+- 🆕 **Marketing & communications support** (FR-9.x): Custom data extraction, technical validation, RACI generation
+- 🆕 **New Discord commands**: `/show-issue`, `/list-issues`, `/tag-issue`, `/build-status`, `/sprint-timeline`, `/extract-data`, `/validate-content`, `/generate-raci`, `/decision-search`, `/discussion-search`, `/clarify`, `/asset-spec`
+- 🆕 **Enhanced notification system**: Configurable per-user preferences, proactive agent activity alerts
 
-**Estimated Timeline**:
-- **Phase 2 (Architecture)**: 1-2 days
-- **Phase 3 (Sprint Planning)**: 1 day
-- **Phase 4-6 (Implementation + Review + Deployment)**: 2-4 weeks
+**Key Value Adds in v1.2:**
+1. **Addresses top stakeholder pain point**: Continuous build visibility (not just milestone notifications)
+2. **Solves documentation completeness issue**: Full product knowledge base with "instructions, manual, hazards"
+3. **Empowers marketing team**: Self-service data extraction and technical validation
+4. **Enables project planning**: RACI matrices and Gantt chart timeline generation
+
+**Next Steps**:
+1. ✅ PRD v1.2 complete and saved to `docs/prd.md`
+2. 📋 Stakeholders review v1.2 updates and provide feedback (Linear issues LAB-507-515)
+3. ⏭️ Proceed to Phase 2: Architecture (`/architect`) - architect will review v1.2 requirements
+4. ⏭️ Software architect designs system architecture for v1.2 features
+5. ⏭️ Generate Software Design Document (SDD) at `docs/sdd.md`
+
+**Estimated Timeline (Updated for v1.2):**
+- **Phase 2 (Architecture)**: 2-3 days (increased scope)
+- **Phase 3 (Sprint Planning)**: 1-2 days
+- **Phase 4-6 (Implementation + Review + Deployment)**: 3-5 weeks (increased scope for Linear integration, knowledge base, marketing tools)
 
 ---
 
 *Generated by: PRD Architect Agent (agentic-base)*
-*Date: 2025-12-10 (v1.0), Updated: 2025-12-10 (v1.1)*
-*Version: 1.1*
+*Date: 2025-12-10 (v1.0), Updated: 2025-12-10 (v1.1), Updated: 2025-12-11 (v1.2)*
+*Version: 1.2*
