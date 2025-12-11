@@ -3,7 +3,8 @@
  *
  * Main Discord bot that coordinates:
  * - Feedback capture (📌 emoji reactions)
- * - Discord command handlers
+ * - Priority reactions (🔴🟠🟡🟢) for Linear issue prioritization
+ * - Discord command handlers (/tag-issue, /show-issue, /list-issues)
  * - Daily digest cron job
  * - Health monitoring
  */
@@ -16,7 +17,7 @@ import { setupGlobalErrorHandlers } from './utils/errors';
 import { validateRoleConfiguration } from './middleware/auth';
 import { createWebhookRouter } from './handlers/webhooks';
 import { createMonitoringRouter, startHealthMonitoring } from './utils/monitoring';
-import { handleFeedbackCapture } from './handlers/feedbackCapture';
+import { handleFeedbackCapture, handlePriorityReaction } from './handlers/feedbackCapture';
 import { handleCommand } from './handlers/commands';
 import { handleInteraction } from './handlers/interactions';
 import { startDailyDigest } from './cron/dailyDigest';
@@ -118,7 +119,7 @@ client.on(Events.MessageCreate, async (message: Message) => {
 });
 
 /**
- * Message reaction add event (for feedback capture)
+ * Message reaction add event (for feedback capture and priority updates)
  */
 client.on(Events.MessageReactionAdd, async (
   reaction: MessageReaction | PartialMessageReaction,
@@ -138,9 +139,15 @@ client.on(Events.MessageReactionAdd, async (
       }
     }
 
+    const emoji = reaction.emoji.name;
+
     // Handle feedback capture (📌 emoji)
-    if (reaction.emoji.name === '📌') {
+    if (emoji === '📌') {
       await handleFeedbackCapture(reaction as MessageReaction, user as User);
+    }
+    // Handle priority reactions (🔴🟠🟡🟢)
+    else if (emoji === '🔴' || emoji === '🟠' || emoji === '🟡' || emoji === '🟢') {
+      await handlePriorityReaction(reaction as MessageReaction, user as User);
     }
   } catch (error) {
     logger.error('Error handling reaction:', error);
