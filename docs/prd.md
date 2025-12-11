@@ -1891,11 +1891,13 @@ The Onomancer Bot transforms the agentic-base development workflow into a progra
 
 ### A. Related Documents
 
-- **Hivemind Laboratory Methodology**: `/home/merlin/Documents/thj/code/agentic-base/docs/hivemind/HIVEMIND-LABORATORY-METHODOLOGY.md`
-- **Integration Architecture**: `/home/merlin/Documents/thj/code/agentic-base/docs/integration-architecture.md`
-- **Onomancer Bot README**: `/home/merlin/Documents/thj/code/agentic-base/devrel-integration/README.md`
-- **Agentic-Base CLAUDE.md**: `/home/merlin/Documents/thj/code/agentic-base/CLAUDE.md`
-- **Document Frontmatter Schema**: `/home/merlin/Documents/thj/code/agentic-base/devrel-integration/docs/DOCUMENT-FRONTMATTER.md` (if exists)
+- **Hivemind Laboratory Methodology**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/hivemind/HIVEMIND-LABORATORY-METHODOLOGY.md
+- **Integration Architecture**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/integration-architecture.md
+- **Linear Integration PRD Alignment Analysis**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/LINEAR_INTEGRATION_PRD_ALIGNMENT.md
+- **Onomancer Bot README**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/README.md
+- **Linear Integration Documentation**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/docs/LINEAR_INTEGRATION.md
+- **Agentic-Base CLAUDE.md**: https://github.com/0xHoneyJar/agentic-base/blob/main/CLAUDE.md
+- **Agentic-Base PROCESS.md**: https://github.com/0xHoneyJar/agentic-base/blob/main/PROCESS.md
 
 ### B. Personas Reference (from Hivemind)
 
@@ -2039,6 +2041,128 @@ Source: docs/sprint.md | Generated: 2025-12-10 | Product: MiBera
 **Terraform**: Infrastructure-as-code tool for managing Google Workspace resources programmatically.
 
 **User Truth Canvas**: Linear issue template defining user jobs, pains, gains, and development boundaries (from Hivemind).
+
+---
+
+### E. Bibliography & References
+
+This section provides absolute URLs to all resources referenced throughout this PRD, organized by category for easy navigation.
+
+#### Stakeholder Feedback Sources (Linear Issues)
+
+**Note:** The following Linear issues informed v1.2 stakeholder requirements (FR-7, FR-8, FR-9). Linear URLs require authentication to access.
+
+- **LAB-507**: Team feedback on build process visibility - https://linear.app/honeyjarlabs/issue/LAB-507
+- **LAB-508**: Comprehensive documentation requirements - https://linear.app/honeyjarlabs/issue/LAB-508
+- **LAB-509**: Marketing support needs - https://linear.app/honeyjarlabs/issue/LAB-509
+- **LAB-512**: Developer workflow improvements - https://linear.app/honeyjarlabs/issue/LAB-512
+- **LAB-513**: Continuous build visibility and knowledge base - https://linear.app/honeyjarlabs/issue/LAB-513
+- **LAB-515**: Product quality standards - https://linear.app/honeyjarlabs/issue/LAB-515
+
+#### Agent Definitions (GitHub)
+
+These agents implement the Linear integration documented in FR-6.5:
+
+- **sprint-task-implementer**: https://github.com/0xHoneyJar/agentic-base/blob/main/.claude/agents/sprint-task-implementer.md
+  - Linear integration: Lines 156-573 (Phase 0.5: Linear Issue Creation and Tracking)
+- **devops-crypto-architect**: https://github.com/0xHoneyJar/agentic-base/blob/main/.claude/agents/devops-crypto-architect.md
+  - Linear integration: Lines 441-907 (Phase 0.5: Infrastructure Work Tracking)
+- **paranoid-auditor**: https://github.com/0xHoneyJar/agentic-base/blob/main/.claude/agents/paranoid-auditor.md
+  - Linear integration: Lines 291-737 (Phase 0.5: Security Audit Finding Tracking)
+- **prd-architect**: https://github.com/0xHoneyJar/agentic-base/blob/main/.claude/agents/prd-architect.md
+- **architecture-designer**: https://github.com/0xHoneyJar/agentic-base/blob/main/.claude/agents/architecture-designer.md
+- **sprint-planner**: https://github.com/0xHoneyJar/agentic-base/blob/main/.claude/agents/sprint-planner.md
+- **senior-tech-lead-reviewer**: https://github.com/0xHoneyJar/agentic-base/blob/main/.claude/agents/senior-tech-lead-reviewer.md
+- **context-engineering-expert**: https://github.com/0xHoneyJar/agentic-base/blob/main/.claude/agents/context-engineering-expert.md
+
+#### Implementation Files (GitHub)
+
+Code implementations referenced in FR-6.5:
+
+- **feedbackCapture.ts** (Discord 📌 reaction → Linear draft issues): https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/src/handlers/feedbackCapture.ts
+- **commands.ts** (Linear Discord commands): https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/src/handlers/commands.ts
+  - `/show-issue`, `/list-issues`, `/tag-issue` handlers: Lines 447-691
+- **linearService.ts** (Linear API wrapper): https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/src/services/linearService.ts
+- **bot.ts** (Discord bot entry point): https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/src/bot.ts
+
+#### Scripts (GitHub)
+
+- **setup-linear-labels.ts** (Label taxonomy setup, FR-6.5.1): https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/scripts/setup-linear-labels.ts
+
+#### Documentation (GitHub)
+
+- **LINEAR_INTEGRATION.md** (500+ line comprehensive guide): https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/docs/LINEAR_INTEGRATION.md
+- **LINEAR_INTEGRATION_PRD_ALIGNMENT.md** (Gap analysis that identified FR-6.5): https://github.com/0xHoneyJar/agentic-base/blob/main/docs/LINEAR_INTEGRATION_PRD_ALIGNMENT.md
+- **Integration Architecture**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/integration-architecture.md
+- **Onomancer Bot README**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/README.md
+- **Hivemind Laboratory Methodology**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/hivemind/HIVEMIND-LABORATORY-METHODOLOGY.md
+- **CLAUDE.md** (Project overview for Claude Code): https://github.com/0xHoneyJar/agentic-base/blob/main/CLAUDE.md
+- **PROCESS.md** (Workflow documentation): https://github.com/0xHoneyJar/agentic-base/blob/main/PROCESS.md
+
+#### Configuration Files (GitHub)
+
+- **discord-digest.yml**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/config/discord-digest.yml
+- **linear-sync.yml**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/config/linear-sync.yml
+- **review-workflow.yml**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/config/review-workflow.yml
+- **bot-commands.yml**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/config/bot-commands.yml
+- **.claude/settings.local.json** (MCP server configuration): https://github.com/0xHoneyJar/agentic-base/blob/main/.claude/settings.local.json
+
+#### External Resources
+
+- **Linear API Documentation**: https://developers.linear.app/docs
+- **Linear SDK (@linear/sdk)**: https://www.npmjs.com/package/@linear/sdk
+- **Discord.js Documentation**: https://discord.js.org/docs
+- **Google Workspace Admin API**: https://developers.google.com/admin-sdk
+- **Google Docs API**: https://developers.google.com/docs/api
+- **Terraform Documentation**: https://developer.hashicorp.com/terraform/docs
+- **GitHub REST API**: https://docs.github.com/en/rest
+- **MCP (Model Context Protocol)**: https://modelcontextprotocol.io/introduction
+
+#### Discord Server
+
+**The Honey Jar Discord** (referenced for community feedback capture):
+- Server ID: Configured in `DISCORD_GUILD_ID` environment variable
+- Feedback capture channels: Various project-specific channels (e.g., #mibera-feedback)
+- Bot integration: Onomancer Bot with 📌 emoji reaction capture
+
+#### Package Dependencies
+
+Key npm packages used in implementation:
+
+- **@linear/sdk** (v21.0.0+): https://www.npmjs.com/package/@linear/sdk
+- **discord.js** (v14+): https://www.npmjs.com/package/discord.js
+- **express** (latest): https://www.npmjs.com/package/express
+- **googleapis**: https://www.npmjs.com/package/googleapis
+- **winston** (logging): https://www.npmjs.com/package/winston
+- **node-cron** (scheduling): https://www.npmjs.com/package/node-cron
+- **ioredis** (Redis client): https://www.npmjs.com/package/ioredis
+- **helmet** (security headers): https://www.npmjs.com/package/helmet
+
+#### Repository Information
+
+- **GitHub Repository**: https://github.com/0xHoneyJar/agentic-base
+- **Branch for Linear Integration**: `trrfrm-ggl`
+- **Main Branch**: `main`
+- **License**: Same as parent agentic-base project
+- **Contributors**: The Honey Jar team + Claude (AI assistant)
+
+#### Change History
+
+PRD version history with commit references:
+
+- **v1.0** (2025-12-10): Initial PRD - Commit hash: TBD
+- **v1.1** (2025-12-10): Document accessibility updates - Commit hash: TBD
+- **v1.2** (2025-12-11): Stakeholder feedback integration - Commit hash: TBD
+- **v1.3** (2025-12-11): FR-6.5 alignment fix - Commit: `4c83f27`
+  - Commit URL: https://github.com/0xHoneyJar/agentic-base/commit/4c83f27
+
+#### Related PRDs and Design Documents
+
+- **Software Design Document (SDD)**: `docs/sdd.md` (to be generated in Phase 2)
+- **Sprint Plan**: `docs/sprint.md` (to be generated in Phase 3)
+- **Implementation Reports**: `docs/a2a/reviewer.md` (Phase 4)
+- **Review Feedback**: `docs/a2a/engineer-feedback.md` (Phase 5)
+- **Deployment Documentation**: `docs/deployment/` (Phase 6)
 
 ---
 

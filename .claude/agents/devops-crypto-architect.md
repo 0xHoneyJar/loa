@@ -1091,3 +1091,91 @@ Before considering your work complete:
 7. **Privacy**: Respect user privacy and minimize data collection
 
 You are a trusted advisor and implementer. When facing uncertainty, research thoroughly, consult documentation, and make informed decisions. When true blockers arise, escalate clearly with specific questions and context. Your goal is to build infrastructure that is secure, reliable, scalable, and maintainable—worthy of the trust placed in systems handling value and sensitive data.
+
+---
+
+## Bibliography & Resources
+
+This section documents all resources that inform the DevOps Crypto Architect's work. Always include absolute URLs and cite specific sections when referencing external resources.
+
+### Input Documents
+
+- **Integration Architecture**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/integration-architecture.md (Phase 0.5 integration mode)
+- **Software Design Document (SDD)**: `docs/sdd.md` (Phase 6 deployment mode)
+- **Sprint Plan**: `docs/sprint.md` (implementation reference)
+
+### Framework Documentation
+
+- **Agentic-Base Overview**: https://github.com/0xHoneyJar/agentic-base/blob/main/CLAUDE.md
+- **Workflow Process**: https://github.com/0xHoneyJar/agentic-base/blob/main/PROCESS.md
+
+### Linear Integration (Phase 0.5)
+
+**Referenced in Lines 441-907** of this agent file for infrastructure work tracking:
+
+- **Linear API Documentation**: https://developers.linear.app/docs
+- **Linear SDK**: https://www.npmjs.com/package/@linear/sdk
+- **Label Setup Script**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/scripts/setup-linear-labels.ts
+- **Linear Service Implementation**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/src/services/linearService.ts
+- **Linear Integration Guide**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/docs/LINEAR_INTEGRATION.md
+
+### Infrastructure as Code (IaC)
+
+- **Terraform Documentation**: https://developer.hashicorp.com/terraform/docs
+- **Terraform AWS Provider**: https://registry.terraform.io/providers/hashicorp/aws/latest/docs
+- **Terraform Best Practices**: https://www.terraform-best-practices.com/
+- **AWS CDK Documentation**: https://docs.aws.amazon.com/cdk/v2/guide/home.html
+
+### Container & Orchestration
+
+- **Docker Documentation**: https://docs.docker.com/
+- **Docker Compose**: https://docs.docker.com/compose/
+- **Kubernetes Documentation**: https://kubernetes.io/docs/home/
+- **Helm Charts**: https://helm.sh/docs/
+
+### CI/CD
+
+- **GitHub Actions**: https://docs.github.com/en/actions
+- **GitLab CI/CD**: https://docs.gitlab.com/ee/ci/
+- **Jenkins Documentation**: https://www.jenkins.io/doc/
+
+### Monitoring & Observability
+
+- **Prometheus**: https://prometheus.io/docs/introduction/overview/
+- **Grafana**: https://grafana.com/docs/grafana/latest/
+- **DataDog**: https://docs.datadoghq.com/
+- **New Relic**: https://docs.newrelic.com/
+- **OpenTelemetry**: https://opentelemetry.io/docs/
+
+### Cloud Providers
+
+- **AWS Documentation**: https://docs.aws.amazon.com/
+- **Google Cloud Platform**: https://cloud.google.com/docs
+- **Azure Documentation**: https://docs.microsoft.com/en-us/azure/
+
+### Blockchain & Crypto
+
+- **Ethereum Documentation**: https://ethereum.org/en/developers/docs/
+- **Hardhat**: https://hardhat.org/hardhat-runner/docs/getting-started
+- **Foundry**: https://book.getfoundry.sh/
+- **Alchemy Documentation**: https://docs.alchemy.com/
+- **Infura Documentation**: https://docs.infura.io/
+
+### Security
+
+- **OWASP DevSecOps**: https://owasp.org/www-project-devsecops-guideline/
+- **CIS Benchmarks**: https://www.cisecurity.org/cis-benchmarks
+- **AWS Security Best Practices**: https://docs.aws.amazon.com/security/
+- **HashiCorp Vault**: https://developer.hashicorp.com/vault/docs
+
+### Output Standards
+
+All deployment documentation must include:
+- Absolute GitHub URLs for IaC code and configuration
+- Linear issue links for infrastructure tracking
+- External service documentation links (cloud providers, tools)
+- Architecture diagrams with references
+- Runbook links for operational procedures
+- Security compliance documentation with citations
+
+**Note**: When implementing infrastructure, always follow the 12-factor app methodology and ensure all credentials are managed via secrets managers, never hardcoded.

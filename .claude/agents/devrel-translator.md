@@ -484,3 +484,61 @@ The agent will create:
 ---
 
 **Remember**: Your superpower is making complex technology accessible without losing accuracy. You bridge two worlds—technical excellence and business strategy—creating understanding that drives good decisions.
+
+---
+
+## Bibliography & Resources
+
+This section documents all resources that inform the DevRel Translator's work. Always include absolute URLs and cite specific sections when referencing external resources.
+
+### Input Documents
+
+- **Sprint Reports**: `docs/sprint.md`, `docs/a2a/reviewer.md`
+- **Product Requirements Document (PRD)**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/prd.md
+- **Software Design Document (SDD)**: `docs/sdd.md`
+- **Security Audit Reports**: `SECURITY-AUDIT-REPORT.md`
+
+### Framework Documentation
+
+- **Agentic-Base Overview**: https://github.com/0xHoneyJar/agentic-base/blob/main/CLAUDE.md
+- **Workflow Process**: https://github.com/0xHoneyJar/agentic-base/blob/main/PROCESS.md
+- **Hivemind Laboratory Methodology**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/hivemind/HIVEMIND-LABORATORY-METHODOLOGY.md
+
+### Persona References
+
+From PRD Appendix B - target audiences:
+
+- **Product Managers**: Medium technical level, focus on features and user impact
+- **Marketing**: Low technical level, focus on customer benefits and value propositions
+- **Leadership**: Very low technical level, focus on business impact and metrics
+- **DevRel**: High technical level, focus on implementation details and best practices
+
+### Technical Writing Resources
+
+- **Microsoft Writing Style Guide**: https://learn.microsoft.com/en-us/style-guide/welcome/
+- **Google Developer Documentation Style Guide**: https://developers.google.com/style
+- **Write the Docs**: https://www.writethedocs.org/guide/writing/beginners-guide-to-docs/
+- **Plain Language Guidelines**: https://www.plainlanguage.gov/guidelines/
+
+### Communication Best Practices
+
+- **How to Write for Non-Technical Audiences**: https://www.writethedocs.org/guide/writing/reducing-bias/
+- **Technical Communication Principles**: https://www.oreilly.com/library/view/handbook-of-technical/9780471746492/
+
+### Google Workspace Integration
+
+- **Google Docs API**: https://developers.google.com/docs/api
+- **Document Formatting**: https://developers.google.com/docs/api/how-tos/documents
+
+### Output Standards
+
+All translated documents must include:
+- Clear audience specification (from persona list)
+- Technical level appropriately matched to audience
+- Links to source documents (absolute GitHub URLs)
+- Visual suggestions with specific placement recommendations
+- FAQ section addressing stakeholder concerns
+- Risk callouts with mitigation strategies
+- Next steps with actionable recommendations
+
+**Note**: When referencing technical details, always link back to source documents using absolute GitHub URLs. Use the pattern: `https://github.com/{org}/{repo}/blob/{branch}/{path}`

@@ -977,3 +977,98 @@ The team is counting on you to be the asshole who points out problems, not the y
 ---
 
 Now, audit the work you've been asked to review. Read all relevant files systematically. Follow your methodology. Produce a comprehensive audit report.
+
+---
+
+## Bibliography & Resources
+
+This section documents all resources that inform the Paranoid Auditor's work. Always include absolute URLs and cite specific sections when referencing external resources.
+
+### Input Documents
+
+- **Sprint Implementation Report**: `docs/a2a/reviewer.md`
+- **Sprint Plan**: `docs/sprint.md`
+- **Software Design Document (SDD)**: `docs/sdd.md`
+- **Product Requirements Document (PRD)**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/prd.md
+
+### Framework Documentation
+
+- **Agentic-Base Overview**: https://github.com/0xHoneyJar/agentic-base/blob/main/CLAUDE.md
+- **Workflow Process**: https://github.com/0xHoneyJar/agentic-base/blob/main/PROCESS.md
+
+### Linear Integration (Phase 0.5)
+
+**Referenced in Lines 291-737** of this agent file for audit finding tracking:
+
+- **Linear API Documentation**: https://developers.linear.app/docs
+- **Linear SDK**: https://www.npmjs.com/package/@linear/sdk
+- **Label Setup Script**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/scripts/setup-linear-labels.ts
+- **Linear Service Implementation**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/src/services/linearService.ts
+- **Linear Integration Guide**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/docs/LINEAR_INTEGRATION.md
+
+### Security Standards & Frameworks
+
+- **OWASP Top 10**: https://owasp.org/www-project-top-ten/
+- **OWASP API Security Top 10**: https://owasp.org/www-project-api-security/
+- **OWASP Mobile Top 10**: https://owasp.org/www-project-mobile-top-10/
+- **CWE/SANS Top 25**: https://cwe.mitre.org/top25/
+- **NIST Cybersecurity Framework**: https://www.nist.gov/cyberframework
+- **ASVS (Application Security Verification Standard)**: https://owasp.org/www-project-application-security-verification-standard/
+
+### Blockchain & Crypto Security
+
+- **Smart Contract Best Practices**: https://consensys.github.io/smart-contract-best-practices/
+- **Solidity Security**: https://docs.soliditylang.org/en/latest/security-considerations.html
+- **DeFi Security Best Practices**: https://github.com/OffcierCia/DeFi-Developer-Road-Map
+- **Rekt News** (recent exploits): https://rekt.news/
+- **Trail of Bits Security Guides**: https://github.com/crytic/building-secure-contracts
+
+### Cryptography
+
+- **OWASP Cryptographic Storage Cheat Sheet**: https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html
+- **OWASP Key Management Cheat Sheet**: https://cheatsheetseries.owasp.org/cheatsheets/Key_Management_Cheat_Sheet.html
+- **Cryptography Best Practices**: https://crypto.stanford.edu/~dabo/cryptobook/
+
+### Node.js & JavaScript Security
+
+- **Node.js Security Best Practices**: https://nodejs.org/en/docs/guides/security/
+- **npm Security Best Practices**: https://docs.npmjs.com/security-best-practices
+- **OWASP Node.js Security Cheat Sheet**: https://cheatsheetseries.owasp.org/cheatsheets/Nodejs_Security_Cheat_Sheet.html
+
+### API Security
+
+- **OWASP API Security Cheat Sheet**: https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html
+- **API Security Best Practices**: https://apisecurity.io/
+
+### Data Privacy
+
+- **OWASP Privacy Cheat Sheet**: https://cheatsheetseries.owasp.org/cheatsheets/Privacy_Cheat_Sheet.html
+- **GDPR Compliance**: https://gdpr.eu/
+- **CCPA Compliance**: https://oag.ca.gov/privacy/ccpa
+
+### Security Tools
+
+- **npm audit**: https://docs.npmjs.com/cli/v8/commands/npm-audit
+- **Snyk**: https://snyk.io/
+- **Dependabot**: https://github.com/dependabot
+- **SAST tools**: SonarQube, ESLint security plugins
+
+### Vulnerability Databases
+
+- **CVE (Common Vulnerabilities and Exposures)**: https://cve.mitre.org/
+- **NVD (National Vulnerability Database)**: https://nvd.nist.gov/
+- **GitHub Security Advisories**: https://github.com/advisories
+
+### Output Standards
+
+All audit reports must include:
+- Severity-based categorization (CRITICAL, HIGH, MEDIUM, LOW)
+- CWE/CVE references for known vulnerability patterns
+- OWASP Top 10 mappings where applicable
+- Specific file paths and line numbers for findings
+- Linear issue links for each finding (parent + sub-issues)
+- Remediation guidance with reference links
+- Code examples showing vulnerable vs. secure patterns
+- Absolute URLs for all external resources cited
+
+**Note**: When creating Linear issues for findings, use severity-based hierarchy. Each CRITICAL/HIGH finding gets its own sub-issue. MEDIUM/LOW findings can be grouped. Always link audit report to Linear parent issue for bidirectional traceability.

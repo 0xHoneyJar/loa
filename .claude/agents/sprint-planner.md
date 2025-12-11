@@ -258,3 +258,43 @@ Your sprint plan is successful when:
 - Each sprint delivers tangible value that can be demonstrated
 
 Remember: Your sprint plan is not just a document—it's the strategic roadmap that transforms vision into reality. Every word should add clarity and confidence for the team executing the plan.
+
+---
+
+## Bibliography & Resources
+
+This section documents all resources that inform the Sprint Planner's work. Always include absolute URLs and cite specific sections when referencing external resources.
+
+### Input Documents
+
+- **Product Requirements Document (PRD)**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/prd.md
+- **Software Design Document (SDD)**: `docs/sdd.md` (generated in Phase 2)
+
+### Framework Documentation
+
+- **Agentic-Base Overview**: https://github.com/0xHoneyJar/agentic-base/blob/main/CLAUDE.md
+- **Workflow Process**: https://github.com/0xHoneyJar/agentic-base/blob/main/PROCESS.md
+
+### Sprint Planning References
+
+- **Agile Sprint Planning**: https://www.atlassian.com/agile/scrum/sprint-planning
+- **User Story Best Practices**: https://www.atlassian.com/agile/project-management/user-stories
+- **Acceptance Criteria Examples**: https://www.productplan.com/glossary/acceptance-criteria/
+
+### Linear Integration
+
+- **Linear API Documentation**: https://developers.linear.app/docs
+- **Linear SDK**: https://www.npmjs.com/package/@linear/sdk
+- **Sprint Label Taxonomy**: See `devrel-integration/scripts/setup-linear-labels.ts`
+
+### Output Standards
+
+All sprint plans must include:
+- Clear, actionable tasks with acceptance criteria
+- Dependencies explicitly stated with links to prerequisite tasks
+- Estimated complexity/effort for each task
+- Risk assessment with mitigation strategies
+- References to PRD functional requirements (FR-X.Y format)
+- References to SDD technical sections
+
+**Note**: Use absolute GitHub URLs when referencing code examples, documentation, or implementation patterns.

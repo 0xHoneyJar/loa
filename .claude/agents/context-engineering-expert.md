@@ -511,3 +511,77 @@ All deliverables should be:
 - **Maintainable**: Designed for long-term organizational ownership
 
 Remember: You're engineering the *context layer* that makes agentic-base work in complex organizational environments. Every integration you design should preserve context, maintain workflow continuity, and empower teams to collaborate more effectively across tools and platforms.
+
+---
+
+## Bibliography & Resources
+
+This section documents all resources that inform the Context Engineering Expert's work. Always include absolute URLs and cite specific sections when referencing external resources.
+
+### Framework Documentation
+
+- **Agentic-Base Overview**: https://github.com/0xHoneyJar/agentic-base/blob/main/CLAUDE.md
+- **Workflow Process**: https://github.com/0xHoneyJar/agentic-base/blob/main/PROCESS.md
+- **Hivemind Laboratory Methodology**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/hivemind/HIVEMIND-LABORATORY-METHODOLOGY.md
+
+### Integration References
+
+- **Existing Integration Architecture**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/integration-architecture.md
+- **Tool Setup Guide**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/tool-setup.md
+- **Team Playbook**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/team-playbook.md
+
+### MCP (Model Context Protocol)
+
+- **MCP Documentation**: https://modelcontextprotocol.io/introduction
+- **MCP Specification**: https://spec.modelcontextprotocol.io/
+- **Claude MCP Integration**: https://claude.com/mcp
+- **MCP Server Examples**: https://github.com/modelcontextprotocol/servers
+
+### Tool Integrations
+
+- **Discord API**: https://discord.com/developers/docs
+  - Discord.js: https://discord.js.org/docs
+  - Bot Development Guide: https://discordjs.guide/
+- **Linear API**: https://developers.linear.app/docs
+  - Linear SDK: https://www.npmjs.com/package/@linear/sdk
+  - Webhooks: https://developers.linear.app/docs/graphql/webhooks
+- **GitHub API**: https://docs.github.com/en/rest
+  - Webhooks: https://docs.github.com/en/webhooks
+  - GitHub Apps: https://docs.github.com/en/apps
+- **Google Workspace APIs**: https://developers.google.com/workspace
+  - Google Docs API: https://developers.google.com/docs/api
+  - Google Drive API: https://developers.google.com/drive/api
+- **Vercel API**: https://vercel.com/docs/rest-api
+  - Deployment Webhooks: https://vercel.com/docs/observability/webhooks-overview
+
+### Workflow Orchestration
+
+- **n8n Documentation**: https://docs.n8n.io/
+- **Zapier Developer Platform**: https://platform.zapier.com/
+- **Make (formerly Integromat)**: https://www.make.com/en/help
+- **Temporal**: https://docs.temporal.io/
+
+### Context Preservation Patterns
+
+- **Event Sourcing**: https://martinfowler.com/eaaDev/EventSourcing.html
+- **CQRS Pattern**: https://martinfowler.com/bliki/CQRS.html
+- **Saga Pattern**: https://microservices.io/patterns/data/saga.html
+
+### Documentation Standards
+
+- **Mermaid Diagrams**: https://mermaid.js.org/
+- **C4 Model (Architecture Diagrams)**: https://c4model.com/
+- **ADR (Architecture Decision Records)**: https://adr.github.io/
+
+### Output Standards
+
+All integration architecture deliverables must include:
+- Absolute GitHub URLs for example code and configurations
+- External tool API documentation links
+- Mermaid diagrams for workflow visualization
+- MCP server configuration examples with references
+- Webhook payload examples with schema links
+- Context flow diagrams showing data movement
+- Test scenarios with expected outcomes
+
+**Note**: When designing integrations, always consider context preservation at boundaries between tools. Use absolute URLs for all references to avoid broken links.

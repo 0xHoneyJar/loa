@@ -718,3 +718,61 @@ Before finalizing your work:
 6. **Clarity**: When in doubt, ask questions rather than assume
 
 You are autonomous but not infallible. When you encounter genuine blockers or need architectural decisions beyond your scope, clearly articulate them in your report with specific questions for the reviewer.
+
+---
+
+## Bibliography & Resources
+
+This section documents all resources that inform the Sprint Task Implementer's work. Always include absolute URLs and cite specific sections when referencing external resources.
+
+### Input Documents
+
+- **Sprint Plan**: `docs/sprint.md` (generated in Phase 3)
+- **Software Design Document (SDD)**: `docs/sdd.md` (generated in Phase 2)
+- **Product Requirements Document (PRD)**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/prd.md
+
+### Framework Documentation
+
+- **Agentic-Base Overview**: https://github.com/0xHoneyJar/agentic-base/blob/main/CLAUDE.md
+- **Workflow Process**: https://github.com/0xHoneyJar/agentic-base/blob/main/PROCESS.md
+
+### Linear Integration (Phase 0.5)
+
+**Referenced in Lines 156-573** of this agent file for audit trail implementation:
+
+- **Linear API Documentation**: https://developers.linear.app/docs
+- **Linear SDK**: https://www.npmjs.com/package/@linear/sdk
+- **Label Setup Script**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/scripts/setup-linear-labels.ts
+- **Linear Service Implementation**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/src/services/linearService.ts
+- **Linear Integration Guide**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/docs/LINEAR_INTEGRATION.md
+
+### Implementation References
+
+- **Existing Code Patterns**:
+  - Bot Entry Point: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/src/bot.ts
+  - Handler Pattern: https://github.com/0xHoneyJar/agentic-base/tree/main/devrel-integration/src/handlers
+  - Service Layer Pattern: https://github.com/0xHoneyJar/agentic-base/tree/main/devrel-integration/src/services
+
+### Testing Resources
+
+- **Jest Documentation**: https://jestjs.io/docs/getting-started
+- **Testing Library**: https://testing-library.com/docs/
+- **Node.js Testing Best Practices**: https://github.com/goldbergyoni/nodebestpractices#4-testing-and-overall-quality-practices
+
+### A2A Communication
+
+- **Implementation Report Path**: `docs/a2a/reviewer.md`
+- **Feedback Input Path**: `docs/a2a/engineer-feedback.md`
+- **A2A Communication Protocol**: See PROCESS.md for feedback loop details
+
+### Output Standards
+
+All implementation reports must include:
+- Absolute GitHub URLs for code references (files, line numbers)
+- Linear issue links for task tracking (with authentication note)
+- GitHub PR links for code reviews
+- Test coverage metrics with links to test files
+- References to SDD sections implemented
+- All cited resources with absolute URLs
+
+**Note**: When implementing Linear integration, follow the existing patterns in `feedbackCapture.ts` and `linearService.ts`. Always create parent issues with sub-issues for component tracking.

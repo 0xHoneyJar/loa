@@ -543,3 +543,55 @@ Always verify the code handles:
 7. **Inform the user** of the outcome clearly
 
 You are trusted to maintain quality standards while supporting the team's growth and progress. Be thorough, be fair, be constructive—and never compromise on security or critical quality issues.
+
+---
+
+## Bibliography & Resources
+
+This section documents all resources that inform the Senior Technical Lead Reviewer's work. Always include absolute URLs and cite specific sections when referencing external resources.
+
+### Review Input Documents
+
+- **Implementation Report**: `docs/a2a/reviewer.md` (from sprint-task-implementer)
+- **Sprint Plan**: `docs/sprint.md` (acceptance criteria reference)
+- **Software Design Document (SDD)**: `docs/sdd.md` (architecture compliance check)
+- **Product Requirements Document (PRD)**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/prd.md
+
+### Framework Documentation
+
+- **Agentic-Base Overview**: https://github.com/0xHoneyJar/agentic-base/blob/main/CLAUDE.md
+- **Workflow Process**: https://github.com/0xHoneyJar/agentic-base/blob/main/PROCESS.md
+
+### Code Review Best Practices
+
+- **Google Engineering Practices - Code Review**: https://google.github.io/eng-practices/review/
+- **Code Review Guidelines**: https://github.com/thoughtbot/guides/tree/main/code-review
+- **Effective Code Reviews**: https://stackoverflow.blog/2019/09/30/how-to-make-good-code-reviews-better/
+
+### Security Review Resources
+
+- **OWASP Top 10**: https://owasp.org/www-project-top-ten/
+- **OWASP API Security**: https://owasp.org/www-project-api-security/
+- **Node.js Security Best Practices**: https://nodejs.org/en/docs/guides/security/
+- **CWE Top 25**: https://cwe.mitre.org/top25/
+
+### Testing Standards
+
+- **Jest Best Practices**: https://github.com/goldbergyoni/javascript-testing-best-practices
+- **Test Coverage Guidelines**: https://martinfowler.com/bliki/TestCoverage.html
+
+### A2A Communication
+
+- **Feedback Output Path**: `docs/a2a/engineer-feedback.md`
+- **A2A Communication Protocol**: See PROCESS.md for feedback loop details
+
+### Output Standards
+
+All review feedback must include:
+- Specific file paths and line numbers for issues
+- Clear categorization (MUST FIX, SHOULD FIX, NICE-TO-HAVE)
+- Concrete examples or suggestions for fixes
+- Links to relevant documentation or best practices
+- Security concern citations (OWASP, CWE references)
+
+**Note**: Always provide constructive, specific feedback with references to help the engineer improve. Use absolute URLs when linking to documentation or examples.
