@@ -1,0 +1,53 @@
+{
+  "version": "1.0.0",
+  "environment": "dev",
+  "organization": "The Honey Jar",
+  "root_folder_name": "The Honey Jar",
+  "products": [
+    "MiBera",
+    "FatBera",
+    "Interpol",
+    "Set & Forgetti"
+  ],
+  "document_types": [
+    "PRD",
+    "SDD",
+    "Sprints",
+    "Audits"
+  ],
+  "personas": [
+    "Leadership",
+    "Product",
+    "Marketing",
+    "DevRel"
+  ],
+  "structure": {
+    "root": {
+      "name": "The Honey Jar",
+      "path": "/",
+      "children": ["Products", "Shared"]
+    },
+    "products": {
+      "name": "Products",
+      "path": "/Products",
+      "children": ["MiBera", "FatBera", "Interpol", "Set & Forgetti"]
+    },
+    "shared": {
+      "name": "Shared",
+      "path": "/Shared",
+      "children": ["Weekly Digests", "Templates"]
+    }
+  },
+  "path_templates": {
+    "product_root": "/Products/{product}",
+    "document_type": "/Products/{product}/{documentType}",
+    "exec_summaries": "/Products/{product}/{documentType}/Executive Summaries",
+    "persona": "/Products/{product}/{documentType}/Executive Summaries/{persona}",
+    "weekly_digest": "/Shared/Weekly Digests/{date}",
+    "sprint": "/Products/{product}/Sprints/{sprintId}",
+    "sprint_persona": "/Products/{product}/Sprints/{sprintId}/Executive Summaries/{persona}",
+    "audit": "/Products/{product}/Audits/{auditId}",
+    "audit_persona": "/Products/{product}/Audits/{auditId}/Executive Summaries/{persona}"
+  },
+  "_comment": "This is the expected folder structure. Actual folder IDs are set by running 'npm run setup:drive-folders' after Terraform apply."
+}
