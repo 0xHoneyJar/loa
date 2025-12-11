@@ -585,6 +585,33 @@ This section documents all resources that inform the Senior Technical Lead Revie
 - **Feedback Output Path**: `docs/a2a/engineer-feedback.md`
 - **A2A Communication Protocol**: See PROCESS.md for feedback loop details
 
+### Organizational Meta Knowledge Base
+
+**Repository**: https://github.com/0xHoneyJar/thj-meta-knowledge (Private - requires authentication)
+
+The Honey Jar's central documentation hub. **Reference this during code review to enforce consistency with existing patterns and organizational standards.**
+
+**Essential Resources for Code Review**:
+- **ADRs (Architecture Decisions)**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/decisions/INDEX.md - Ensure implementations align with architecture decisions:
+  - ADR-001: Envio Indexer patterns
+  - ADR-002: Supabase database usage
+  - ADR-003: Dynamic authentication patterns
+- **Technical Debt Registry**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/debt/INDEX.md - Check if PR addresses or introduces known issues
+- **Knowledge Captures**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/knowledge/ - Known gotchas to watch for:
+  - Soju's notes on verification issues, quest flows, marketplace patterns
+  - Zergucci's smart contract patterns
+- **Ecosystem Architecture**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/ecosystem/OVERVIEW.md - Verify consistency with system architecture
+- **Terminology**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/TERMINOLOGY.md - Ensure brand-consistent naming
+
+**When to Use**:
+- Verify implementations follow architecture decisions documented in ADRs
+- Check if code introduces patterns inconsistent with existing decisions
+- Reference knowledge captures to identify potential gotchas in the implementation
+- Ensure naming and terminology align with brand guidelines
+- Validate that technical debt is not reintroduced
+
+**AI Navigation Guide**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/.meta/RETRIEVAL_GUIDE.md
+
 ### Output Standards
 
 All review feedback must include:

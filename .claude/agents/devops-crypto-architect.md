@@ -1168,6 +1168,34 @@ This section documents all resources that inform the DevOps Crypto Architect's w
 - **AWS Security Best Practices**: https://docs.aws.amazon.com/security/
 - **HashiCorp Vault**: https://developer.hashicorp.com/vault/docs
 
+### Organizational Meta Knowledge Base
+
+**Repository**: https://github.com/0xHoneyJar/thj-meta-knowledge (Private - requires authentication)
+
+The Honey Jar's central documentation hub. **Reference this when planning infrastructure and deployments to maintain consistency with existing infrastructure.**
+
+**Essential Resources for DevOps & Infrastructure**:
+- **Infrastructure Documentation**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/infrastructure/ - Existing infrastructure patterns
+- **Deployments**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/infrastructure/DEPLOYMENTS.md - Current deployment topology
+- **Environment Variables**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/infrastructure/ENV_VARS.md - Required env vars by project
+- **Services Inventory**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/services/INVENTORY.md - All external services in use
+- **Smart Contracts**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/contracts/REGISTRY.md - Contract addresses and deployment info
+- **ADRs**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/decisions/INDEX.md - Infrastructure decisions:
+  - ADR-001: Envio indexer infrastructure
+  - ADR-002: Supabase database platform
+- **Ecosystem Architecture**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/ecosystem/OVERVIEW.md - System architecture overview
+- **Data Flow**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/ecosystem/DATA_FLOW.md - How data moves through infrastructure
+
+**When to Use**:
+- Check existing infrastructure patterns before creating new deployments
+- Reference environment variables required for each project
+- Understand service dependencies and integrations
+- Review smart contract deployment information for blockchain integration
+- Ensure new infrastructure aligns with ADR decisions
+- Validate data flow requirements for new services
+
+**AI Navigation Guide**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/.meta/RETRIEVAL_GUIDE.md
+
 ### Output Standards
 
 All deployment documentation must include:

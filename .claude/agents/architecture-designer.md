@@ -274,6 +274,31 @@ Key packages to consider in architecture:
 - **helmet** (security): https://www.npmjs.com/package/helmet
 - **winston** (logging): https://www.npmjs.com/package/winston
 
+### Organizational Meta Knowledge Base
+
+**Repository**: https://github.com/0xHoneyJar/thj-meta-knowledge (Private - requires authentication)
+
+The Honey Jar's central documentation hub. **Review this when designing architecture for THJ products to understand existing patterns and constraints.**
+
+**Essential Resources for Architecture Design**:
+- **Ecosystem Architecture**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/ecosystem/OVERVIEW.md - Understand existing system architecture
+- **Data Flow Patterns**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/ecosystem/DATA_FLOW.md - How data moves through the system
+- **ADRs (Architecture Decisions)**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/decisions/INDEX.md - Learn from past decisions:
+  - ADR-001: Envio Indexer Consolidation
+  - ADR-002: Supabase Database Platform
+  - ADR-003: Dynamic Authentication Provider
+- **Infrastructure**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/infrastructure/ - Existing infrastructure patterns
+- **Services Inventory**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/services/INVENTORY.md - All external services in use
+- **Smart Contracts**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/contracts/REGISTRY.md - Contract addresses and ABIs
+
+**When to Use**:
+- Review existing architecture decisions (ADRs) before proposing new patterns
+- Understand technology stack already in use (avoid introducing incompatible tech)
+- Reference existing infrastructure for consistency
+- Check smart contract integration patterns
+
+**AI Navigation Guide**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/.meta/RETRIEVAL_GUIDE.md
+
 ### Output Standards
 
 All SDDs must include:

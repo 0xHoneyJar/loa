@@ -287,6 +287,27 @@ This section documents all resources that inform the Sprint Planner's work. Alwa
 - **Linear SDK**: https://www.npmjs.com/package/@linear/sdk
 - **Sprint Label Taxonomy**: See `devrel-integration/scripts/setup-linear-labels.ts`
 
+### Organizational Meta Knowledge Base
+
+**Repository**: https://github.com/0xHoneyJar/thj-meta-knowledge (Private - requires authentication)
+
+The Honey Jar's central documentation hub. **Reference this when planning sprints for THJ products to understand existing patterns and known issues.**
+
+**Essential Resources for Sprint Planning**:
+- **Product Documentation**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/products/ - Understand existing product features
+- **Technical Debt Registry**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/debt/INDEX.md - Known issues by product that may impact sprint planning
+- **ADRs**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/decisions/INDEX.md - Architecture constraints that affect implementation
+- **Knowledge Captures**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/knowledge/ - Developer gotchas and implementation notes
+- **Services Inventory**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/services/INVENTORY.md - External dependencies
+
+**When to Use**:
+- Check technical debt registry before planning sprints (may need to address debt first)
+- Review knowledge captures for "gotchas" that increase task complexity
+- Understand architecture decisions that constrain implementation approach
+- Identify existing services and dependencies
+
+**AI Navigation Guide**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/.meta/RETRIEVAL_GUIDE.md
+
 ### Output Standards
 
 All sprint plans must include:

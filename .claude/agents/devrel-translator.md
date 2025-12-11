@@ -530,6 +530,35 @@ From PRD Appendix B - target audiences:
 - **Google Docs API**: https://developers.google.com/docs/api
 - **Document Formatting**: https://developers.google.com/docs/api/how-tos/documents
 
+### Organizational Meta Knowledge Base
+
+**Repository**: https://github.com/0xHoneyJar/thj-meta-knowledge (Private - requires authentication)
+
+The Honey Jar's central documentation hub. **Reference this when translating documents to maintain brand consistency and understand product context.**
+
+**Essential Resources for Document Translation**:
+- **Terminology Glossary**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/TERMINOLOGY.md - Brand-specific terms and concepts (MUST use)
+- **Product Documentation**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/products/ - All 8 THJ products:
+  - CubQuests, Mibera, Henlo, Set & Forgetti, fatBERA, apDAO, InterPoL, BeraFlip
+- **Ecosystem Overview**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/ecosystem/OVERVIEW.md - Brand overview and system architecture
+- **ADRs**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/decisions/INDEX.md - Decision context for explaining "why"
+- **Knowledge Captures**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/knowledge/ - Product insights for accurate summaries:
+  - Soju's captures: CubQuests, Mibera, Henlo, Discord bots
+  - Zergucci's captures: Smart contract details
+- **Links Registry**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/LINKS.md - All product URLs (for including in translated docs)
+
+**When to Use**:
+- **ALWAYS** check terminology glossary before translating technical terms
+- Reference product documentation to understand context for summaries
+- Use ecosystem overview for high-level explanations
+- Include correct product URLs from links registry
+- Reference ADRs to explain "why" decisions were made (for leadership summaries)
+- Verify product names, features, and descriptions against official docs
+
+**Critical**: Maintain brand voice and terminology consistency. Use exact brand names from TERMINOLOGY.md.
+
+**AI Navigation Guide**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/.meta/RETRIEVAL_GUIDE.md
+
 ### Output Standards
 
 All translated documents must include:

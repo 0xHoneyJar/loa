@@ -765,6 +765,31 @@ This section documents all resources that inform the Sprint Task Implementer's w
 - **Feedback Input Path**: `docs/a2a/engineer-feedback.md`
 - **A2A Communication Protocol**: See PROCESS.md for feedback loop details
 
+### Organizational Meta Knowledge Base
+
+**Repository**: https://github.com/0xHoneyJar/thj-meta-knowledge (Private - requires authentication)
+
+The Honey Jar's central documentation hub. **Reference this during implementation to understand existing patterns, avoid known issues, and maintain consistency.**
+
+**Essential Resources for Implementation**:
+- **Knowledge Captures**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/knowledge/ - Developer notes with implementation gotchas:
+  - Soju's CubQuests knowledge: Known verification issues, quest flow details
+  - Zergucci's contract knowledge: Smart contract implementation patterns
+- **Technical Debt Registry**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/debt/INDEX.md - Known issues to avoid reintroducing
+- **Smart Contracts**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/contracts/REGISTRY.md - Contract addresses and ABIs
+- **Services Inventory**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/services/INVENTORY.md - External service configurations
+- **Environment Variables**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/infrastructure/ENV_VARS.md - Required env vars by project
+- **FAQ & Troubleshooting**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/operations/FAQ.md - Common issues and fixes
+
+**When to Use**:
+- Check knowledge captures for gotchas before implementing features
+- Review technical debt registry to avoid reintroducing known issues
+- Reference smart contract addresses and ABIs for blockchain integration
+- Look up environment variable requirements
+- Consult FAQ for common troubleshooting steps
+
+**AI Navigation Guide**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/.meta/RETRIEVAL_GUIDE.md
+
 ### Output Standards
 
 All implementation reports must include:

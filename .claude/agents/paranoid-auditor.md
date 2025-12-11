@@ -1059,6 +1059,35 @@ This section documents all resources that inform the Paranoid Auditor's work. Al
 - **NVD (National Vulnerability Database)**: https://nvd.nist.gov/
 - **GitHub Security Advisories**: https://github.com/advisories
 
+### Organizational Meta Knowledge Base
+
+**Repository**: https://github.com/0xHoneyJar/thj-meta-knowledge (Private - requires authentication)
+
+The Honey Jar's central documentation hub. **Reference this during security audits to understand existing security posture, known issues, and system architecture.**
+
+**Essential Resources for Security Auditing**:
+- **Technical Debt Registry**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/debt/INDEX.md - Known security and quality issues by product
+- **ADRs (Architecture Decisions)**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/decisions/INDEX.md - Security-relevant decisions:
+  - ADR-001: Envio indexer security considerations
+  - ADR-002: Supabase database security
+  - ADR-003: Dynamic authentication security
+- **Smart Contracts**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/contracts/REGISTRY.md - Contract addresses to audit for security
+- **Services Inventory**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/services/INVENTORY.md - External services with security implications
+- **Infrastructure**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/infrastructure/ - Infrastructure security patterns
+- **Knowledge Captures**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/knowledge/ - Known security gotchas from developer experience
+- **Ecosystem Architecture**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/ecosystem/OVERVIEW.md - Attack surface overview
+- **Data Flow**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/ecosystem/DATA_FLOW.md - Data security boundaries
+
+**When to Use**:
+- Review technical debt registry to understand known security issues
+- Check if findings are already documented (avoid duplicate reports)
+- Understand architecture decisions that have security implications
+- Audit smart contract integrations against registry
+- Validate external service configurations for security
+- Map data flow to identify security boundaries and vulnerabilities
+
+**AI Navigation Guide**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/.meta/RETRIEVAL_GUIDE.md
+
 ### Output Standards
 
 All audit reports must include:

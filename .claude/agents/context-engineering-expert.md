@@ -573,6 +573,35 @@ This section documents all resources that inform the Context Engineering Expert'
 - **C4 Model (Architecture Diagrams)**: https://c4model.com/
 - **ADR (Architecture Decision Records)**: https://adr.github.io/
 
+### Organizational Meta Knowledge Base
+
+**Repository**: https://github.com/0xHoneyJar/thj-meta-knowledge (Private - requires authentication)
+
+The Honey Jar's central documentation hub. **Reference this when designing organizational integrations to understand existing workflows, documentation patterns, and knowledge management.**
+
+**Essential Resources for Context Engineering**:
+- **AI Navigation Guide**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/.meta/RETRIEVAL_GUIDE.md - **START HERE** - Learn the meta knowledge structure
+- **Repository Overview**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/README.md - Vision: "Neuralink for aligned knowledge"
+- **ADRs (Architecture Decisions)**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/decisions/INDEX.md - Existing decision documentation patterns
+- **Knowledge Captures**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/knowledge/ - Tacit knowledge from developer interviews
+- **Interview Prompts**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/prompts/ - Templates for knowledge capture:
+  - KNOWLEDGE_CAPTURE.md - Developer interview prompts
+  - ADR_CAPTURE.md - Decision documentation prompts
+  - AUDIT_CAPTURE.md - Documentation validation prompts
+- **Ecosystem Documentation**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/ecosystem/ - Existing documentation architecture
+- **Data Flow**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/ecosystem/DATA_FLOW.md - How information flows through the organization
+
+**When to Use**:
+- Study existing knowledge management patterns before designing integrations
+- Reference ADR and knowledge capture prompts for documentation standards
+- Understand existing data flows to design complementary integrations
+- Learn from existing interview processes for context gathering
+- Model integration architecture on proven patterns (living documentation, AI-friendly structure)
+
+**Key Insight**: THJ meta knowledge base is itself a reference implementation of context engineering - study its structure, YAML frontmatter, cross-referencing patterns, and AI navigation design.
+
+**AI Navigation Guide**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/.meta/RETRIEVAL_GUIDE.md
+
 ### Output Standards
 
 All integration architecture deliverables must include:

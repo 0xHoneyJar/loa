@@ -246,6 +246,27 @@ When generating PRDs, use these as examples:
 - **Discord API**: https://discord.com/developers/docs
   - Used for accessing community feedback history
 
+### Organizational Meta Knowledge Base
+
+**Repository**: https://github.com/0xHoneyJar/thj-meta-knowledge (Private - requires authentication)
+
+The Honey Jar's central documentation hub - single source of truth for architecture, contracts, services, and organizational knowledge. **Always reference this when creating PRDs for THJ products.**
+
+**Essential Resources for PRD Creation**:
+- **Ecosystem Architecture**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/ecosystem/OVERVIEW.md - System map and brand overview
+- **Product Documentation**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/products/ - All 8 THJ products documented
+- **ADR Index**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/decisions/INDEX.md - Architecture decisions and rationale
+- **Terminology**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/TERMINOLOGY.md - Brand-specific terms
+- **Knowledge Captures**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/knowledge/ - Tacit knowledge from developer interviews
+
+**When to Use**:
+- Research existing products before creating PRDs for new features
+- Understand architecture decisions (ADRs) that constrain new features
+- Learn brand terminology to maintain consistency
+- Reference stakeholder insights from knowledge captures
+
+**AI Navigation Guide**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/.meta/RETRIEVAL_GUIDE.md - How to efficiently navigate the meta knowledge base
+
 ### Output Standards
 
 All PRDs must include:

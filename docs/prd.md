@@ -2118,6 +2118,71 @@ Code implementations referenced in FR-6.5:
 - **GitHub REST API**: https://docs.github.com/en/rest
 - **MCP (Model Context Protocol)**: https://modelcontextprotocol.io/introduction
 
+#### Organizational Meta Knowledge Base (THJ)
+
+**Repository**: https://github.com/0xHoneyJar/thj-meta-knowledge (Private - requires authentication)
+**Local Path**: `/home/merlin/Documents/thj/code/thj-meta-knowledge/`
+
+Central documentation hub for The Honey Jar ecosystem. Single source of truth for architecture, contracts, services, infrastructure, and organizational knowledge. Designed for both human and AI consumption.
+
+**Core Documentation**:
+- **Repository Overview & Navigation**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/README.md
+- **Ecosystem Architecture**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/ecosystem/OVERVIEW.md
+- **Data Flow Patterns**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/ecosystem/DATA_FLOW.md
+- **Terminology Glossary**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/TERMINOLOGY.md
+- **Links Registry** (all product URLs): https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/LINKS.md
+- **Contract Registry** (smart contract addresses): https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/contracts/REGISTRY.md
+- **AI Navigation Guide**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/.meta/RETRIEVAL_GUIDE.md
+
+**Architecture Decision Records (ADRs)**:
+- **ADR Index**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/decisions/INDEX.md
+- **ADR Template**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/decisions/TEMPLATE.md
+- **ADR-001**: Envio Indexer Consolidation - https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/decisions/ADR-001-envio-indexer-consolidation.md
+- **ADR-002**: Supabase Database Platform - https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/decisions/ADR-002-database-platform-supabase-over-convex.md
+- **ADR-003**: Dynamic Authentication Provider - https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/decisions/ADR-003-authentication-provider-dynamic-over-alternatives.md
+- **ADR-004**: Internal-First CubQuests Strategy - https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/decisions/ADR-004-internal-first-cubquests.md
+- **ADR-005**: Resource System as Core Mechanic - https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/decisions/ADR-005-resource-system-core-mechanic.md
+
+**Products** (8 documented products):
+- **CubQuests** (Quest platform): https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/products/cubquests/README.md
+- **Mibera** (NFT marketplace): https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/products/mibera/README.md
+- **Henlo** (Memecoin arcade): https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/products/henlo/README.md
+- **Set & Forgetti** (DeFi vaults): https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/products/set-and-forgetti/README.md
+- **fatBERA** (Liquid staking): https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/products/fatbera/README.md
+- **apDAO** (Governance): https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/products/apdao/README.md
+- **InterPoL** (LP locker): https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/products/interpol/README.md
+- **BeraFlip**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/products/beraflip/README.md
+
+**Knowledge Captures** (tacit knowledge from developer interviews):
+- **Soju's Captures** (primary domain expert):
+  - CubQuests: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/knowledge/soju/cubquests.md
+  - Mibera: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/knowledge/soju/mibera.md
+  - Henlo: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/knowledge/soju/henlo.md
+  - Discord Bots: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/knowledge/soju/discord-bots.md
+- **Zergucci's Captures** (smart contracts):
+  - Set & Forgetti Contracts: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/knowledge/ZERGUCCI/sf-contracts.md
+  - fatBERA Contracts: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/knowledge/ZERGUCCI/fatbera-contracts.md
+- **Merlin's Captures**:
+  - Agentic Base: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/knowledge/merlin/agentic-base.md
+  - Score Words: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/knowledge/merlin/score-words.md
+
+**Operational Documentation**:
+- **Technical Debt Registry**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/debt/INDEX.md
+- **Services Inventory**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/services/INVENTORY.md
+- **Infrastructure Documentation**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/infrastructure/
+- **Environment Variables**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/infrastructure/ENV_VARS.md
+- **Deployments**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/infrastructure/DEPLOYMENTS.md
+- **FAQ & Troubleshooting**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/operations/FAQ.md
+
+**Interview Prompts** (for knowledge capture):
+- **Knowledge Capture Prompt**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/prompts/KNOWLEDGE_CAPTURE.md
+- **ADR Capture Prompt**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/prompts/ADR_CAPTURE.md
+- **Service Deep Dive Prompt**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/prompts/SERVICE_DEEP_DIVE.md
+- **Runbook Capture Prompt**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/prompts/RUNBOOK_CAPTURE.md
+- **Audit Capture Prompt**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/prompts/AUDIT_CAPTURE.md
+
+**Note**: This is a living documentation repository, continuously updated through developer interviews and audits. All documents include YAML frontmatter with metadata for AI-friendly navigation. See `.meta/RETRIEVAL_GUIDE.md` for navigation strategies.
+
 #### Discord Server
 
 **The Honey Jar Discord** (referenced for community feedback capture):
