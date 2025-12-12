@@ -518,6 +518,92 @@ PROCESS.md              # Comprehensive workflow documentation
 CLAUDE.md              # This file
 ```
 
+## Parallel Execution Guidelines
+
+Agents are designed to handle large contexts by splitting work into parallel sub-tasks. This prevents context overflow and improves performance.
+
+### Context Assessment (Phase -1)
+
+All agents begin with a context assessment phase:
+
+```bash
+# Quick size check
+wc -l docs/prd.md docs/sdd.md docs/sprint.md docs/a2a/*.md 2>/dev/null
+```
+
+**Thresholds vary by agent type:**
+
+| Agent | SMALL | MEDIUM | LARGE |
+|-------|-------|--------|-------|
+| senior-tech-lead-reviewer | <3,000 | 3,000-6,000 | >6,000 |
+| paranoid-auditor | <2,000 | 2,000-5,000 | >5,000 |
+| sprint-task-implementer | <3,000 | 3,000-8,000 | >8,000 |
+| devops-crypto-architect | <2,000 | 2,000-5,000 | >5,000 |
+
+### Splitting Strategies by Agent
+
+**senior-tech-lead-reviewer**: Split by sprint task
+- Each task gets its own parallel Explore agent
+- Results consolidated into single verdict
+
+**paranoid-auditor**: Split by audit category
+- 5 parallel agents: Security, Architecture, Code Quality, DevOps, Blockchain/Crypto
+- Results consolidated with combined findings
+
+**sprint-task-implementer**: Split by task or feedback source
+- Option A: Parallel feedback checking (audit + senior lead)
+- Option B: Parallel task implementation (independent tasks)
+
+**devops-crypto-architect**: Split by infrastructure component
+- Group components by dependency level
+- Batch 1: Network + Security (no dependencies)
+- Batch 2: Compute + Database + Storage (depend on network)
+- Batch 3: Monitoring + CI/CD (depend on compute)
+
+### Parallel Execution Pattern
+
+Agents use the Task tool with `subagent_type="Explore"` for parallel work:
+
+```
+Spawn N parallel Explore agents, one per {task/category/component}:
+
+Agent 1: "{Specific instructions for task 1}
+- Reference specific files and requirements
+- Define exact deliverables
+- Return: structured summary for consolidation"
+
+Agent 2: "{Specific instructions for task 2}
+- Reference specific files and requirements
+- Define exact deliverables
+- Return: structured summary for consolidation"
+
+... (similar for remaining tasks)
+```
+
+### Consolidation Requirements
+
+After parallel execution, agents must:
+1. Collect results from all sub-agents
+2. Check for conflicts or inconsistencies
+3. Generate unified output (report, verdict, implementation)
+4. Ensure no gaps in coverage
+
+### When NOT to Split
+
+- **SMALL contexts**: Always proceed sequentially
+- **Highly interdependent tasks**: Dependencies require sequential execution
+- **Single-focus work**: One task with no natural divisions
+- **User explicitly requests sequential**: Honor user preference
+
+### Decision Matrix
+
+| Context | Independence | Strategy |
+|---------|--------------|----------|
+| SMALL | Any | Sequential |
+| MEDIUM | Low | Sequential with ordering |
+| MEDIUM | High | Parallel by task/component |
+| LARGE | Any | MUST split into parallel |
+
 ## Notes for Claude Code
 
 - Always read `docs/prd.md`, `docs/sdd.md`, and `docs/sprint.md` for context when working on implementation tasks
@@ -526,3 +612,4 @@ CLAUDE.md              # This file
 - Never skip phases—each builds on the previous
 - The process is designed for thorough discovery and iterative refinement, not speed
 - Security is paramount, especially for crypto/blockchain projects
+- **Parallel execution**: Agents should assess context size first and split into parallel sub-tasks when context exceeds thresholds

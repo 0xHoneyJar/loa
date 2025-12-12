@@ -89,6 +89,99 @@ You are responsible for implementing all development tasks outlined in the sprin
 
 ## Operational Workflow
 
+### Phase -1: Context Assessment & Parallel Task Splitting (CRITICAL - DO THIS FIRST)
+
+**Before starting any implementation work, assess context size to determine if parallel splitting is needed.**
+
+**Step 1: Estimate Context Size**
+
+```bash
+# Quick size check (run via Bash or estimate from file reads)
+wc -l docs/prd.md docs/sdd.md docs/sprint.md docs/a2a/*.md 2>/dev/null
+
+# Count lines in existing codebase (if implementing into existing project)
+find src -name "*.ts" -o -name "*.tsx" -o -name "*.js" | xargs wc -l 2>/dev/null | tail -1
+```
+
+**Context Size Thresholds:**
+- **SMALL** (<3,000 total lines docs + code): Proceed with standard sequential implementation
+- **MEDIUM** (3,000-8,000 lines): Consider task-level parallel implementation if >3 tasks
+- **LARGE** (>8,000 lines): MUST split into parallel sub-implementations
+
+**If MEDIUM/LARGE context:**
+
+**Option A: Parallel Feedback Checking (Phase 0)**
+
+When multiple feedback sources exist, check them in parallel:
+
+```
+Spawn 2 parallel Explore agents:
+
+Agent 1: "Read docs/a2a/auditor-sprint-feedback.md and summarize:
+1. Does file exist?
+2. If yes, what is the verdict (CHANGES_REQUIRED or APPROVED)?
+3. If CHANGES_REQUIRED, list all CRITICAL and HIGH priority issues with file paths and descriptions
+4. Return structured summary for implementation agent"
+
+Agent 2: "Read docs/a2a/engineer-feedback.md and summarize:
+1. Does file exist?
+2. If yes, what is the verdict (All good or changes requested)?
+3. If changes requested, list all feedback items with file paths and descriptions
+4. Return structured summary for implementation agent"
+```
+
+**Option B: Parallel Task Implementation (Phase 2)**
+
+When sprint has multiple independent tasks:
+
+```
+1. Read docs/sprint.md and identify all tasks
+2. Analyze task dependencies (which tasks depend on others)
+3. Group tasks into parallel batches:
+   - Batch 1: All tasks with no dependencies (can run in parallel)
+   - Batch 2: Tasks depending on Batch 1 (run after Batch 1)
+   - etc.
+
+For each batch, spawn parallel Explore agents:
+
+Example with 4 independent tasks:
+Agent 1: "Implement Task 1.2 (Terraform Bootstrap):
+- Read acceptance criteria from sprint.md
+- Review existing patterns in codebase
+- Implement the task following PRD/SDD specs
+- Write tests
+- Return: files created/modified, implementation summary, test results"
+
+Agent 2: "Implement Task 1.3 (Service Account):
+- Read acceptance criteria from sprint.md
+- Review existing patterns in codebase
+- Implement the task following PRD/SDD specs
+- Write tests
+- Return: files created/modified, implementation summary, test results"
+
+(Similar for Tasks 1.4, 1.5...)
+```
+
+**Consolidation after parallel implementation:**
+1. Collect results from all parallel agents
+2. Verify no conflicts between implementations
+3. Run integration tests across all changes
+4. Generate unified implementation report at docs/a2a/reviewer.md
+
+**Decision Matrix:**
+
+| Context Size | Tasks | Strategy |
+|-------------|-------|----------|
+| SMALL | Any | Sequential implementation |
+| MEDIUM | 1-2 | Sequential implementation |
+| MEDIUM | 3+ independent | Parallel task implementation |
+| MEDIUM | 3+ with dependencies | Sequential with dependency ordering |
+| LARGE | Any | MUST split - parallel feedback + parallel tasks |
+
+**If SMALL context:** Proceed directly to Phase 0 below.
+
+---
+
 ### Phase 0: Check Feedback Files and Integration Context (FIRST)
 
 **Step 1: Check for security audit feedback (HIGHEST PRIORITY)**

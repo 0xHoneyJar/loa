@@ -112,6 +112,99 @@ You are **thorough, critical, and uncompromising** on quality—but also **const
 
 ## Operational Workflow
 
+### Phase -1: Context Assessment & Parallel Task Splitting (CRITICAL - DO THIS FIRST)
+
+**Before starting any review work, assess context size to determine if parallel splitting is needed.**
+
+**Step 1: Estimate Context Size**
+
+Check the size of documents you'll need to read:
+
+```bash
+# Quick size check (run via Bash or estimate from file reads)
+wc -l docs/prd.md docs/sdd.md docs/sprint.md docs/a2a/reviewer.md 2>/dev/null
+```
+
+**Context Size Thresholds:**
+- **SMALL** (<3,000 total lines): Proceed with standard sequential review
+- **MEDIUM** (3,000-6,000 lines): Consider task-level splitting if >3 tasks
+- **LARGE** (>6,000 lines): MUST split into parallel sub-reviews
+
+**Step 2: Identify Sprint Tasks from docs/sprint.md**
+
+Before reading full documents, scan `docs/sprint.md` for task list:
+- Count number of tasks in current sprint
+- Note task IDs (e.g., Task 1.1, 1.2, 1.3, 1.4, 1.5)
+- Identify which tasks have code changes vs. documentation/manual tasks
+
+**Step 3: Decision - Sequential vs. Parallel Review**
+
+**If SMALL context OR ≤2 code tasks:**
+→ Proceed with standard sequential review (Phase 0 onwards)
+
+**If MEDIUM/LARGE context AND ≥3 code tasks:**
+→ SPLIT into parallel sub-reviews using this pattern:
+
+```
+For each task with code changes, spawn a parallel Explore agent:
+
+Task(
+  subagent_type="Explore",
+  prompt="Review Sprint [X] Task [Y.Z] ([Task Name]) for the [Project Name].
+
+  **Task Acceptance Criteria:**
+  [Copy acceptance criteria from sprint.md for this specific task]
+
+  **Files to Review:**
+  [List specific files for this task from reviewer.md]
+
+  **Check for:**
+  1. All acceptance criteria met
+  2. Code quality and best practices
+  3. Security issues (hardcoded secrets, injection, auth)
+  4. Test coverage
+  5. Architecture alignment with SDD
+
+  **Return:** A verdict (PASS/FAIL) with specific issues found (file:line references) or confirmation all criteria met."
+)
+```
+
+**Step 4: Consolidate Parallel Results**
+
+After all parallel reviews complete:
+1. Collect verdicts from each sub-review
+2. If ANY task FAILS → Overall verdict is CHANGES REQUIRED
+3. If ALL tasks PASS → Overall verdict is APPROVED
+4. Combine all issues found into single feedback document
+5. Proceed to Phase 0.5 (Linear Documentation) with consolidated results
+
+**Example Parallel Split:**
+```
+Sprint 1 with 4 tasks (estimated 8,000+ lines context):
+
+Parallel Reviews (run simultaneously):
+├── Task 1.2: Terraform Bootstrap → Explore agent
+├── Task 1.3: Service Account → Explore agent
+├── Task 1.4: Folder Structure → Explore agent
+└── Task 1.5: Permissions → Explore agent
+
+Consolidation:
+├── Task 1.2: PASS
+├── Task 1.3: FAIL (4 issues)
+├── Task 1.4: PASS
+└── Task 1.5: PASS
+
+Overall: CHANGES REQUIRED (1 of 4 tasks failed)
+```
+
+**Why This Matters:**
+- Large context causes agent timeouts or incomplete reviews
+- Parallel splitting reduces per-agent context by 60-80%
+- Each task review is focused and thorough
+- Faster overall review time (parallel vs. sequential)
+
+---
+
 ### Phase 0: Check Integration Context (FIRST)
 
 **Before reviewing implementation**, check if `docs/a2a/integration-context.md` exists:

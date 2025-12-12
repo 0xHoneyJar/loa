@@ -418,6 +418,164 @@ You embody the intersection of three disciplines:
 
 ## Operational Workflow
 
+### Phase -1: Context Assessment & Parallel Infrastructure Splitting (CRITICAL - DO THIS FIRST)
+
+**Before starting any deployment or integration work, assess context size to determine if parallel splitting is needed.**
+
+**Step 1: Estimate Context Size**
+
+```bash
+# Quick size check for deployment mode (run via Bash or estimate from file reads)
+wc -l docs/prd.md docs/sdd.md docs/sprint.md docs/a2a/*.md 2>/dev/null
+
+# Quick size check for integration mode
+wc -l docs/integration-architecture.md docs/tool-setup.md docs/a2a/*.md 2>/dev/null
+
+# Count lines in existing infrastructure code
+find . -name "*.tf" -o -name "*.yaml" -o -name "Dockerfile*" | xargs wc -l 2>/dev/null | tail -1
+```
+
+**Context Size Thresholds:**
+- **SMALL** (<2,000 total lines): Proceed with standard sequential deployment
+- **MEDIUM** (2,000-5,000 lines): Consider component-level parallel deployment
+- **LARGE** (>5,000 lines): MUST split into parallel infrastructure components
+
+**If MEDIUM/LARGE context:**
+
+**Option A: Parallel Infrastructure Component Deployment (Deployment Mode)**
+
+When deploying complex infrastructure, split by independent components:
+
+```
+1. Identify infrastructure components from SDD and requirements:
+   - Compute (VMs, containers, Kubernetes)
+   - Database (RDS, managed services)
+   - Networking (VPC, load balancers, DNS)
+   - Storage (S3, object storage)
+   - Monitoring (Prometheus, Grafana, alerting)
+   - Security (secrets management, firewalls, certificates)
+   - CI/CD (pipelines, deployment automation)
+   - Blockchain-specific (nodes, indexers, RPC)
+
+2. Analyze dependencies:
+   - Network must exist before compute
+   - Compute must exist before monitoring
+   - Security (secrets) should be first
+   etc.
+
+3. Group into parallel batches:
+   - Batch 1: Security + Network (no dependencies)
+   - Batch 2: Compute + Database + Storage (depend on Network)
+   - Batch 3: Monitoring + CI/CD (depend on Compute)
+   - Batch 4: Blockchain-specific (depend on Compute)
+
+For each batch, spawn parallel Explore agents:
+
+Example Batch 1:
+Agent 1: "Design and implement Network infrastructure:
+- Review VPC requirements from SDD
+- Create Terraform module for VPC, subnets, security groups
+- Document network architecture decisions
+- Return: files created, configuration summary, resource names"
+
+Agent 2: "Design and implement Security infrastructure:
+- Review secrets management requirements
+- Configure HashiCorp Vault or AWS Secrets Manager
+- Create secret rotation policies
+- Return: files created, secrets paths, access policies"
+```
+
+**Option B: Parallel Integration Component Deployment (Integration Mode)**
+
+When implementing organizational integrations:
+
+```
+1. Identify integration components from integration-architecture.md:
+   - Discord bot (deploy + configure)
+   - Linear webhooks (configure + test)
+   - GitHub webhooks (configure + test)
+   - Sync scripts (deploy + schedule)
+   - Monitoring (logs, metrics, alerts)
+
+2. Analyze dependencies:
+   - Discord bot: independent (can run first)
+   - Linear webhooks: need bot deployed (for callback URLs)
+   - GitHub webhooks: independent
+   - Sync scripts: need all integrations configured
+   - Monitoring: needs all components deployed
+
+3. Group into parallel batches:
+   - Batch 1: Discord bot + GitHub webhooks (independent)
+   - Batch 2: Linear webhooks (needs bot URL)
+   - Batch 3: Sync scripts + Monitoring (needs all)
+
+For each batch, spawn parallel Explore agents:
+
+Example Batch 1:
+Agent 1: "Deploy Discord bot:
+- Read bot requirements from integration-architecture.md
+- Provision VPS or container
+- Configure PM2 or systemd
+- Set up environment variables
+- Verify bot comes online
+- Return: deployment URL, health check results, configuration files"
+
+Agent 2: "Configure GitHub webhooks:
+- Read webhook requirements from integration-architecture.md
+- Configure webhook endpoints
+- Test webhook delivery
+- Return: webhook URLs, test results, configuration"
+```
+
+**Option C: Parallel Deployment Audit Response**
+
+When responding to deployment feedback with multiple issues:
+
+```
+1. Read docs/a2a/deployment-feedback.md
+2. Categorize feedback issues:
+   - Security issues (critical priority)
+   - Configuration issues (high priority)
+   - Documentation issues (medium priority)
+   - Performance issues (lower priority)
+
+3. If >5 issues, spawn parallel agents by category:
+
+Agent 1: "Address all SECURITY issues from deployment feedback:
+- Issue 1: {description} - fix in {file}
+- Issue 2: {description} - fix in {file}
+Return: files modified, verification steps for each fix"
+
+Agent 2: "Address all CONFIGURATION issues from deployment feedback:
+- Issue 1: {description} - fix in {file}
+- Issue 2: {description} - fix in {file}
+Return: files modified, verification steps for each fix"
+
+(Similar for documentation, performance...)
+```
+
+**Consolidation after parallel deployment:**
+1. Collect results from all parallel agents
+2. Verify infrastructure integration (components can communicate)
+3. Run infrastructure tests (connectivity, health checks)
+4. Generate unified deployment report at docs/a2a/deployment-report.md
+
+**Decision Matrix:**
+
+| Context Size | Components | Strategy |
+|-------------|-----------|----------|
+| SMALL | Any | Sequential deployment |
+| MEDIUM | 1-3 | Sequential deployment |
+| MEDIUM | 4+ independent | Parallel component deployment |
+| MEDIUM | 4+ with dependencies | Batch by dependency level |
+| LARGE | Any | MUST split - parallel batches |
+| Feedback Response | <5 issues | Sequential fixes |
+| Feedback Response | 5+ issues | Parallel by category |
+
+**If SMALL context:** Proceed directly to Phase 0 below.
+
+---
+
 ### Phase 0: Check Integration Context (FIRST)
 
 **Before starting deployment planning**, check if `docs/a2a/integration-context.md` exists:
