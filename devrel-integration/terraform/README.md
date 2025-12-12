@@ -298,6 +298,80 @@ Run the folder setup script after `terraform apply`:
 npx ts-node scripts/setup-drive-folders.ts
 ```
 
+## Domain-Wide Delegation
+
+For the service account to access Google Drive folders owned by the organization (not just files it creates), domain-wide delegation may be required.
+
+### When Domain-Wide Delegation is Needed
+
+- Accessing shared drives owned by the organization
+- Managing folders created by other users
+- Reading/writing documents across the organization
+
+### When Domain-Wide Delegation is NOT Needed
+
+- Bot only manages files/folders it creates itself
+- All operations are within a shared drive where the service account is a member
+- Using personal Google account (not Workspace)
+
+### Enabling Domain-Wide Delegation
+
+If you determine domain-wide delegation is required:
+
+1. **Go to Google Admin Console:**
+   - Navigate to: Security > API Controls > Domain-wide Delegation
+   - URL: `https://admin.google.com/ac/owl/domainwidedelegation`
+
+2. **Add Service Account:**
+   - Click "Add new"
+   - Enter the service account Client ID (found in GCP Console under Service Accounts)
+   - Add the following OAuth scopes:
+     ```
+     https://www.googleapis.com/auth/drive
+     https://www.googleapis.com/auth/documents
+     ```
+
+3. **Impersonation:**
+   - When using the service account with domain-wide delegation, you must impersonate a user in the domain
+   - Add `GOOGLE_IMPERSONATE_USER=user@yourdomain.com` to your `.env.local`
+
+### Current Implementation
+
+This Terraform configuration grants the service account `roles/drive.admin` and `roles/docs.editor` at the project level. For most use cases with shared drives, this is sufficient without domain-wide delegation, provided the service account is added as a member to the relevant shared drives.
+
+## Credential Storage
+
+Terraform generates two credential files in `secrets/`:
+
+| File | Purpose |
+|------|---------|
+| `google-service-account-key.json` | Raw JSON credential file |
+| `.env.local` | Environment variables for bot integration |
+
+The `.env.local` file contains:
+```bash
+GOOGLE_SERVICE_ACCOUNT_EMAIL="onomancer-bot@project-id.iam.gserviceaccount.com"
+GOOGLE_SERVICE_ACCOUNT_KEY_PATH="/absolute/path/to/google-service-account-key.json"
+```
+
+## Credential Rotation
+
+To rotate the service account key:
+
+1. **Taint the key resource:**
+   ```bash
+   terraform taint google_service_account_key.onomancer_bot_key
+   ```
+
+2. **Apply to generate new key:**
+   ```bash
+   terraform apply
+   ```
+
+3. **Update any systems using the old key:**
+   - Restart Discord bot: `pm2 restart agentic-base-bot`
+   - Old key is automatically invalidated
+
 ## Security Considerations
 
 1. **Service Account Key:** The key is stored in `secrets/google-service-account-key.json`. Ensure:
