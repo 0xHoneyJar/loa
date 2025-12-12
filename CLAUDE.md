@@ -34,9 +34,12 @@ The workflow produces structured artifacts in the `docs/` directory:
 - `docs/prd.md` - Product Requirements Document
 - `docs/sdd.md` - Software Design Document
 - `docs/sprint.md` - Sprint plan with tasks and acceptance criteria
-- `docs/a2a/reviewer.md` - Implementation reports from engineers
-- `docs/a2a/engineer-feedback.md` - Review feedback from senior technical lead
-- `docs/a2a/auditor-sprint-feedback.md` - Security audit feedback for sprint implementation
+- `docs/a2a/index.md` - Sprint audit trail index (auto-maintained)
+- `docs/a2a/sprint-N/` - Sprint-specific A2A communication (preserves audit trail)
+  - `reviewer.md` - Implementation report from engineer
+  - `engineer-feedback.md` - Review feedback from senior technical lead
+  - `auditor-sprint-feedback.md` - Security audit feedback
+  - `COMPLETED` - Completion marker (created by audit-sprint on approval)
 - `docs/a2a/deployment-report.md` - Infrastructure reports from DevOps
 - `docs/a2a/deployment-feedback.md` - Security audit feedback for deployment infrastructure
 - `docs/deployment/` - Production infrastructure documentation and runbooks
@@ -46,21 +49,22 @@ The workflow produces structured artifacts in the `docs/` directory:
 The framework uses three feedback loops for quality assurance:
 
 #### Implementation Feedback Loop (Phases 4-5)
-- Engineer writes implementation report to `docs/a2a/reviewer.md`
-- Senior lead writes feedback to `docs/a2a/engineer-feedback.md`
+- Engineer writes implementation report to `docs/a2a/sprint-N/reviewer.md`
+- Senior lead writes feedback to `docs/a2a/sprint-N/engineer-feedback.md`
 - Engineer reads feedback on next invocation, fixes issues, and updates report
 - Cycle continues until senior lead approves with "All good"
 
 #### Sprint Security Audit Feedback Loop (Phase 5.5)
 - After senior lead approval, security auditor reviews sprint implementation
-- Auditor writes feedback to `docs/a2a/auditor-sprint-feedback.md`
+- Auditor writes feedback to `docs/a2a/sprint-N/auditor-sprint-feedback.md`
 - Verdict: "CHANGES_REQUIRED" (with security issues) or "APPROVED - LETS FUCKING GO"
 - If changes required:
-  - Engineer reads audit feedback on next `/implement` invocation (checked FIRST)
+  - Engineer reads audit feedback on next `/implement sprint-N` invocation (checked FIRST)
   - Engineer addresses all CRITICAL and HIGH security issues
   - Engineer updates report with "Security Audit Feedback Addressed" section
-  - Re-run `/audit-sprint` to verify fixes
+  - Re-run `/audit-sprint sprint-N` to verify fixes
 - Cycle continues until auditor approves
+- On approval: Creates `docs/a2a/sprint-N/COMPLETED` marker file
 - After approval, move to next sprint or deployment
 
 #### Deployment Feedback Loop (Server Setup & Audit)
@@ -122,40 +126,56 @@ Launches `sprint-planner` agent to break down work into actionable sprint tasks 
 ```bash
 /implement sprint-1
 ```
-Launches `sprint-task-implementer` agent to execute sprint tasks. On first run, implements tasks. On subsequent runs, reads `docs/a2a/engineer-feedback.md`, addresses feedback, and regenerates report at `docs/a2a/reviewer.md`.
+Launches `sprint-task-implementer` agent to execute sprint tasks. The agent:
+- Creates `docs/a2a/sprint-1/` directory if it doesn't exist
+- Checks for existing feedback files (audit feedback checked FIRST, then engineer feedback)
+- Implements tasks and generates report at `docs/a2a/sprint-1/reviewer.md`
+- Updates `docs/a2a/index.md` with sprint status
+
+On subsequent runs, reads `docs/a2a/sprint-1/engineer-feedback.md`, addresses feedback, and regenerates report.
 
 ### Phase 5: Review
 ```bash
-/review-sprint
+/review-sprint sprint-1
 ```
-Launches `senior-tech-lead-reviewer` agent to validate implementation against acceptance criteria. Either approves (writes "All good" to feedback file, updates sprint.md with ✅) or requests changes (writes detailed feedback to `docs/a2a/engineer-feedback.md`).
+Launches `senior-tech-lead-reviewer` agent to validate implementation against acceptance criteria. The agent:
+- Validates sprint directory exists and contains `reviewer.md`
+- Reviews actual code, not just the report
+- Either approves (writes "All good" to `docs/a2a/sprint-1/engineer-feedback.md`, updates sprint.md with ✅)
+- Or requests changes (writes detailed feedback to `docs/a2a/sprint-1/engineer-feedback.md`)
+- Updates `docs/a2a/index.md` with review status
 
 ### Phase 5.5: Sprint Security Audit
 ```bash
-/audit-sprint
+/audit-sprint sprint-1
 ```
 Launches `paranoid-auditor` agent to perform security and quality audit of sprint implementation. Run this AFTER `/review-sprint` approval. The agent:
+- Validates sprint directory and senior lead approval ("All good" in engineer-feedback.md)
 - Reviews implementation for security vulnerabilities (OWASP Top 10, injection, auth issues)
 - Audits secrets management and credential handling
 - Checks input validation and sanitization
 - Verifies error handling and information disclosure
-- Writes feedback to `docs/a2a/auditor-sprint-feedback.md`
+- Writes feedback to `docs/a2a/sprint-1/auditor-sprint-feedback.md`
 - Verdict: **CHANGES_REQUIRED** or **APPROVED - LETS FUCKING GO**
+- On approval: Creates `docs/a2a/sprint-1/COMPLETED` marker file
+- Updates `docs/a2a/index.md` with audit status
 
 **Feedback loop**:
 ```
-/implement → /review-sprint → /audit-sprint → (if changes) → back to /implement
-                              ↓
-                        (if approved: LETS FUCKING GO)
-                              ↓
-                        Move to next sprint
+/implement sprint-1 → /review-sprint sprint-1 → /audit-sprint sprint-1 → (if changes) → back to /implement sprint-1
+                                                        ↓
+                                               (if approved: LETS FUCKING GO)
+                                                        ↓
+                                               Creates COMPLETED marker
+                                                        ↓
+                                               Move to sprint-2
 ```
 
 If audit finds issues:
 1. Auditor writes "CHANGES_REQUIRED" with detailed security feedback
-2. Run `/implement` to address audit feedback
+2. Run `/implement sprint-1` to address audit feedback
 3. Engineer fixes issues and updates report
-4. Re-run `/audit-sprint` to verify fixes
+4. Re-run `/audit-sprint sprint-1` to verify fixes
 5. Repeat until approved
 
 **Use this proactively**:
@@ -492,7 +512,7 @@ Agents are instructed to:
 
 ### Feedback Guidelines
 
-When providing feedback in `docs/a2a/engineer-feedback.md`:
+When providing feedback in `docs/a2a/sprint-N/engineer-feedback.md`:
 - Be specific with file paths and line numbers
 - Explain the reasoning, not just what to fix
 - Distinguish critical issues from nice-to-haves
@@ -513,10 +533,15 @@ docs/
 ├── prd.md              # Product Requirements Document
 ├── sdd.md              # Software Design Document
 ├── sprint.md           # Sprint plan with tasks
-├── a2a/                # Agent-to-agent communication
-│   ├── reviewer.md                # Engineer implementation reports
-│   ├── engineer-feedback.md       # Senior lead feedback (Phase 5)
-│   ├── auditor-sprint-feedback.md # Security audit feedback (Phase 5.5)
+├── a2a/                # Agent-to-agent communication (preserves audit trail)
+│   ├── index.md                   # Sprint audit trail index (auto-maintained)
+│   ├── sprint-1/                  # Sprint 1 A2A files
+│   │   ├── reviewer.md            # Engineer implementation report
+│   │   ├── engineer-feedback.md   # Senior lead feedback
+│   │   ├── auditor-sprint-feedback.md # Security audit feedback
+│   │   └── COMPLETED              # Completion marker (created by audit-sprint)
+│   ├── sprint-2/                  # Sprint 2 A2A files (same structure)
+│   │   └── ...
 │   ├── deployment-report.md       # DevOps infrastructure reports
 │   └── deployment-feedback.md     # Deployment security audit feedback
 └── deployment/         # Production infrastructure docs
@@ -623,7 +648,20 @@ After parallel execution, agents must:
 ## Notes for Claude Code
 
 - Always read `docs/prd.md`, `docs/sdd.md`, and `docs/sprint.md` for context when working on implementation tasks
-- When `/implement` is invoked, check for `docs/a2a/engineer-feedback.md` first—if it exists, address the feedback before proceeding
+- When `/implement sprint-N` is invoked:
+  - Validate sprint name format (must be `sprint-N` where N is positive integer)
+  - Create `docs/a2a/sprint-N/` directory if it doesn't exist
+  - Check for audit feedback first (`docs/a2a/sprint-N/auditor-sprint-feedback.md`)
+  - Then check for engineer feedback (`docs/a2a/sprint-N/engineer-feedback.md`)
+  - Address all feedback before proceeding with new work
+- When `/review-sprint sprint-N` is invoked:
+  - Validate sprint directory and `reviewer.md` exist
+  - Check for `COMPLETED` marker (skip if already completed)
+- When `/audit-sprint sprint-N` is invoked:
+  - Validate senior lead approval exists ("All good" in engineer-feedback.md)
+  - Create `COMPLETED` marker on approval
+- All sprint A2A files are preserved in `docs/a2a/sprint-N/` for audit trail
+- The `docs/a2a/index.md` provides organizational memory across sprints
 - The senior tech lead role is played by the human user during review phases
 - Never skip phases—each builds on the previous
 - The process is designed for thorough discovery and iterative refinement, not speed

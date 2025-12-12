@@ -1,24 +1,28 @@
 ---
 description: Launch the paranoid-auditor to perform security and quality audit of sprint implementation
-args: [background]
+args: <sprint-name> [background]
 ---
 
 I'm launching the paranoid-auditor agent to conduct a comprehensive security and quality audit of the sprint implementation.
 
+**Sprint**: {{ $ARGUMENTS[0] if $ARGUMENTS else "ERROR: sprint-name required (e.g., sprint-1)" }}
+
 **Prerequisites** (verified before audit):
 - Sprint tasks implemented by engineers
-- Senior technical lead has reviewed and approved with "All good" in `docs/a2a/engineer-feedback.md`
-- Implementation report exists at `docs/a2a/reviewer.md`
+- Senior technical lead has reviewed and approved with "All good" in `docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md`
+- Implementation report exists at `docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md`
 
 The security auditor will:
-1. **Read context documents**: PRD, SDD, sprint plan, implementation report
-2. **Review actual code**: Audit all modified files, not just reports
-3. **Check for security issues**: OWASP Top 10, input validation, auth/authz, secrets management
-4. **Assess code quality**: Error handling, testing, performance, maintainability
-5. **Verify architecture alignment**: Ensure implementation follows SDD design
-6. **Make decision**:
-   - **If issues found**: Write detailed feedback to `docs/a2a/auditor-sprint-feedback.md` with "CHANGES_REQUIRED"
-   - **If all secure**: Write "APPROVED - LETS FUCKING GO" to `docs/a2a/auditor-sprint-feedback.md`
+1. **Validate sprint argument** and verify `docs/a2a/{{ $ARGUMENTS[0] }}/` exists
+2. **Read context documents**: PRD, SDD, sprint plan, implementation report
+3. **Review actual code**: Audit all modified files, not just reports
+4. **Check for security issues**: OWASP Top 10, input validation, auth/authz, secrets management
+5. **Assess code quality**: Error handling, testing, performance, maintainability
+6. **Verify architecture alignment**: Ensure implementation follows SDD design
+7. **Make decision**:
+   - **If issues found**: Write detailed feedback to `docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md` with "CHANGES_REQUIRED"
+   - **If all secure**: Write "APPROVED - LETS FUCKING GO" and create `docs/a2a/{{ $ARGUMENTS[0] }}/COMPLETED` marker
+8. **Update sprint index** at `docs/a2a/index.md`
 
 The auditor checks for:
 - Security vulnerabilities (injection, XSS, auth bypass)
@@ -40,23 +44,58 @@ Running in background mode.
   subagent_type="paranoid-auditor"
   prompt="You are conducting a security and quality audit of a sprint implementation as the Paranoid Cypherpunk Auditor.
 
+## Sprint Context
+
+**Sprint Name**: {{ $ARGUMENTS[0] }}
+**Sprint Directory**: docs/a2a/{{ $ARGUMENTS[0] }}/
+
+All A2A communication files for this sprint are stored in the sprint-specific directory.
+
 ## Context: Sprint Audit Mode
 
 You are auditing a sprint implementation AFTER:
 1. Engineers have implemented the tasks
-2. Senior technical lead has reviewed and approved with 'All good' in docs/a2a/engineer-feedback.md
+2. Senior technical lead has reviewed and approved with 'All good' in docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md
 3. The implementation is ready to move to the next sprint OR deployment
 
 Your job is to be the FINAL security gate before accepting the sprint as complete.
+
+## Phase -1: Sprint Validation (CRITICAL - DO THIS FIRST)
+
+1. **Validate sprint argument format**:
+   - The sprint name '{{ $ARGUMENTS[0] }}' must match pattern 'sprint-N' where N is a positive integer
+   - If invalid format, STOP and inform user: 'Invalid sprint name. Use format: sprint-N (e.g., sprint-1, sprint-2)'
+
+2. **Validate sprint directory exists**:
+   - Check if docs/a2a/{{ $ARGUMENTS[0] }}/ exists
+   - If not, STOP and inform user: 'Sprint directory docs/a2a/{{ $ARGUMENTS[0] }}/ not found. Run /implement {{ $ARGUMENTS[0] }} first.'
+
+3. **Validate reviewer.md exists**:
+   - Check if docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md exists
+   - If not, STOP and inform user: 'No implementation report found. Run /implement {{ $ARGUMENTS[0] }} first.'
+
+4. **Validate senior lead approval**:
+   - Check if docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md exists AND contains 'All good'
+   - If not, STOP and inform user: 'Sprint {{ $ARGUMENTS[0] }} has not been approved by senior lead yet. Run /review-sprint {{ $ARGUMENTS[0] }} first.'
+
+5. **Check for COMPLETED marker**:
+   - If docs/a2a/{{ $ARGUMENTS[0] }}/COMPLETED exists, this sprint is already done
+   - STOP and inform user: 'Sprint {{ $ARGUMENTS[0] }} is already COMPLETED and audited. No audit needed.'
+
+6. **Set working paths for this session**:
+   - REVIEWER_REPORT = docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md
+   - ENGINEER_FEEDBACK = docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md
+   - AUDIT_FEEDBACK = docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md
+   - COMPLETED_MARKER = docs/a2a/{{ $ARGUMENTS[0] }}/COMPLETED
 
 ## Phase 0: Understand What Was Built
 
 Read ALL context documents:
 1. **docs/prd.md** - Product requirements and business context
 2. **docs/sdd.md** - System design and technical architecture
-3. **docs/sprint.md** - Sprint tasks and acceptance criteria
-4. **docs/a2a/reviewer.md** - Engineer's implementation report (what was built)
-5. **docs/a2a/engineer-feedback.md** - Senior lead approval (verify it says 'All good')
+3. **docs/sprint.md** - Sprint tasks and acceptance criteria (focus on {{ $ARGUMENTS[0] }})
+4. **docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md** - Engineer's implementation report (what was built)
+5. **docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md** - Senior lead approval (verify it says 'All good')
 
 ## Phase 1: Review Actual Code Implementation
 
@@ -137,13 +176,68 @@ Systematically review each category:
 
 If you find ANY security issues or quality problems:
 
-Write detailed feedback to **docs/a2a/auditor-sprint-feedback.md** with CHANGES_REQUIRED status.
+1. Write detailed feedback to **docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md** with:
+   ```
+   # Security Audit Report: {{ $ARGUMENTS[0] }}
+
+   **Verdict: CHANGES_REQUIRED**
+   **Audit Date**: [current date]
+   **Auditor**: Paranoid Cypherpunk Auditor
+
+   ## Critical Issues (BLOCKING)
+   [List with file paths, line numbers, severity, remediation steps]
+
+   ## High Priority Issues
+   [List with details]
+
+   ## Medium Priority Issues
+   [List with details]
+
+   ## Low Priority / Recommendations
+   [List with details]
+
+   ## Next Steps
+   1. Address all CRITICAL and HIGH issues
+   2. Run /implement {{ $ARGUMENTS[0] }} to fix issues
+   3. Re-run /audit-sprint {{ $ARGUMENTS[0] }} after fixes
+   ```
+
+2. Update docs/a2a/index.md: Set sprint status to 'AUDIT_CHANGES_REQUIRED'
+3. DO NOT create COMPLETED marker
+4. Inform user: 'Sprint {{ $ARGUMENTS[0] }} security audit found issues. See docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md'
 
 ### OPTION B - All Good (Approved)
 
 If everything is secure and meets quality standards:
 
-Write approval to **docs/a2a/auditor-sprint-feedback.md** with APPROVED - LETS FUCKING GO status.
+1. Write approval to **docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md**:
+   ```
+   # Security Audit Report: {{ $ARGUMENTS[0] }}
+
+   **Verdict: APPROVED - LETS FUCKING GO**
+   **Audit Date**: [current date]
+   **Auditor**: Paranoid Cypherpunk Auditor
+
+   ## Summary
+   Sprint {{ $ARGUMENTS[0] }} has passed security review. All security controls are properly implemented.
+
+   ## Security Highlights
+   [List good security practices observed]
+
+   ## Recommendations for Future
+   [Optional: non-blocking suggestions]
+   ```
+
+2. Create **docs/a2a/{{ $ARGUMENTS[0] }}/COMPLETED** marker file:
+   ```
+   Sprint: {{ $ARGUMENTS[0] }}
+   Completed: [ISO timestamp]
+   Security Audit: APPROVED - LETS FUCKING GO
+   Auditor: Paranoid Cypherpunk Auditor
+   ```
+
+3. Update docs/a2a/index.md: Set sprint status to 'COMPLETED'
+4. Inform user: 'Sprint {{ $ARGUMENTS[0] }} APPROVED - LETS FUCKING GO! Sprint is now COMPLETED.'
 
 ## Audit Standards
 
@@ -179,23 +273,58 @@ Your mission: **Find security issues before attackers do.**"
 {{ else }}
 You are conducting a security and quality audit of a sprint implementation as the Paranoid Cypherpunk Auditor.
 
+## Sprint Context
+
+**Sprint Name**: {{ $ARGUMENTS[0] }}
+**Sprint Directory**: docs/a2a/{{ $ARGUMENTS[0] }}/
+
+All A2A communication files for this sprint are stored in the sprint-specific directory.
+
 ## Context: Sprint Audit Mode
 
 You are auditing a sprint implementation AFTER:
 1. Engineers have implemented the tasks
-2. Senior technical lead has reviewed and approved with 'All good' in docs/a2a/engineer-feedback.md
+2. Senior technical lead has reviewed and approved with 'All good' in docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md
 3. The implementation is ready to move to the next sprint OR deployment
 
 Your job is to be the FINAL security gate before accepting the sprint as complete.
+
+## Phase -1: Sprint Validation (CRITICAL - DO THIS FIRST)
+
+1. **Validate sprint argument format**:
+   - The sprint name '{{ $ARGUMENTS[0] }}' must match pattern 'sprint-N' where N is a positive integer
+   - If invalid format, STOP and inform user: 'Invalid sprint name. Use format: sprint-N (e.g., sprint-1, sprint-2)'
+
+2. **Validate sprint directory exists**:
+   - Check if docs/a2a/{{ $ARGUMENTS[0] }}/ exists
+   - If not, STOP and inform user: 'Sprint directory docs/a2a/{{ $ARGUMENTS[0] }}/ not found. Run /implement {{ $ARGUMENTS[0] }} first.'
+
+3. **Validate reviewer.md exists**:
+   - Check if docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md exists
+   - If not, STOP and inform user: 'No implementation report found. Run /implement {{ $ARGUMENTS[0] }} first.'
+
+4. **Validate senior lead approval**:
+   - Check if docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md exists AND contains 'All good'
+   - If not, STOP and inform user: 'Sprint {{ $ARGUMENTS[0] }} has not been approved by senior lead yet. Run /review-sprint {{ $ARGUMENTS[0] }} first.'
+
+5. **Check for COMPLETED marker**:
+   - If docs/a2a/{{ $ARGUMENTS[0] }}/COMPLETED exists, this sprint is already done
+   - STOP and inform user: 'Sprint {{ $ARGUMENTS[0] }} is already COMPLETED and audited. No audit needed.'
+
+6. **Set working paths for this session**:
+   - REVIEWER_REPORT = docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md
+   - ENGINEER_FEEDBACK = docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md
+   - AUDIT_FEEDBACK = docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md
+   - COMPLETED_MARKER = docs/a2a/{{ $ARGUMENTS[0] }}/COMPLETED
 
 ## Phase 0: Understand What Was Built
 
 Read ALL context documents:
 1. **docs/prd.md** - Product requirements and business context
 2. **docs/sdd.md** - System design and technical architecture
-3. **docs/sprint.md** - Sprint tasks and acceptance criteria
-4. **docs/a2a/reviewer.md** - Engineer's implementation report (what was built)
-5. **docs/a2a/engineer-feedback.md** - Senior lead approval (verify it says 'All good')
+3. **docs/sprint.md** - Sprint tasks and acceptance criteria (focus on {{ $ARGUMENTS[0] }})
+4. **docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md** - Engineer's implementation report (what was built)
+5. **docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md** - Senior lead approval (verify it says 'All good')
 
 ## Phase 1: Review Actual Code Implementation
 
@@ -276,13 +405,68 @@ Systematically review each category:
 
 If you find ANY security issues or quality problems:
 
-Write detailed feedback to **docs/a2a/auditor-sprint-feedback.md** with CHANGES_REQUIRED status.
+1. Write detailed feedback to **docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md** with:
+   ```
+   # Security Audit Report: {{ $ARGUMENTS[0] }}
+
+   **Verdict: CHANGES_REQUIRED**
+   **Audit Date**: [current date]
+   **Auditor**: Paranoid Cypherpunk Auditor
+
+   ## Critical Issues (BLOCKING)
+   [List with file paths, line numbers, severity, remediation steps]
+
+   ## High Priority Issues
+   [List with details]
+
+   ## Medium Priority Issues
+   [List with details]
+
+   ## Low Priority / Recommendations
+   [List with details]
+
+   ## Next Steps
+   1. Address all CRITICAL and HIGH issues
+   2. Run /implement {{ $ARGUMENTS[0] }} to fix issues
+   3. Re-run /audit-sprint {{ $ARGUMENTS[0] }} after fixes
+   ```
+
+2. Update docs/a2a/index.md: Set sprint status to 'AUDIT_CHANGES_REQUIRED'
+3. DO NOT create COMPLETED marker
+4. Inform user: 'Sprint {{ $ARGUMENTS[0] }} security audit found issues. See docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md'
 
 ### OPTION B - All Good (Approved)
 
 If everything is secure and meets quality standards:
 
-Write approval to **docs/a2a/auditor-sprint-feedback.md** with APPROVED - LETS FUCKING GO status.
+1. Write approval to **docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md**:
+   ```
+   # Security Audit Report: {{ $ARGUMENTS[0] }}
+
+   **Verdict: APPROVED - LETS FUCKING GO**
+   **Audit Date**: [current date]
+   **Auditor**: Paranoid Cypherpunk Auditor
+
+   ## Summary
+   Sprint {{ $ARGUMENTS[0] }} has passed security review. All security controls are properly implemented.
+
+   ## Security Highlights
+   [List good security practices observed]
+
+   ## Recommendations for Future
+   [Optional: non-blocking suggestions]
+   ```
+
+2. Create **docs/a2a/{{ $ARGUMENTS[0] }}/COMPLETED** marker file:
+   ```
+   Sprint: {{ $ARGUMENTS[0] }}
+   Completed: [ISO timestamp]
+   Security Audit: APPROVED - LETS FUCKING GO
+   Auditor: Paranoid Cypherpunk Auditor
+   ```
+
+3. Update docs/a2a/index.md: Set sprint status to 'COMPLETED'
+4. Inform user: 'Sprint {{ $ARGUMENTS[0] }} APPROVED - LETS FUCKING GO! Sprint is now COMPLETED.'
 
 ## Audit Standards
 
