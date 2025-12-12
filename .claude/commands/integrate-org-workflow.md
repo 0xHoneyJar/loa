@@ -1,8 +1,11 @@
 ---
 description: Launch the context engineering expert to integrate agentic-base with your organization's tools and workflows (Discord, Google Docs, Linear, etc.)
+args: [background]
 ---
 
 I'm launching the context-engineering-expert agent to help you integrate the agentic-base framework with your organization's existing development processes and tools.
+
+**Execution Mode**: {{ "background - use /tasks to monitor" if "background" in $ARGUMENTS else "foreground (default)" }}
 
 The agent will guide you through a structured discovery process to:
 1. **Map your current workflow** - Understand how your teams work across Discord, Google Docs, Linear, and other platforms
@@ -33,9 +36,15 @@ This is especially valuable if you have:
 - Project tracking in Linear/Jira
 - Multiple developers working concurrently
 
-Let me launch the agent now to begin understanding your organizational workflow.
+{{ if "background" in $ARGUMENTS }}
+Running in background mode. Use `/tasks` to monitor progress.
 
 <Task
   subagent_type="context-engineering-expert"
   prompt="Help the user integrate the agentic-base framework with their organization's existing tools and workflows. Conduct thorough discovery to understand their current process (Discord discussions, Google Docs collaboration, Linear project management, etc.). Ask targeted questions about workflow, pain points, integration requirements, team structure, data needs, and success criteria. Design a comprehensive integration architecture that preserves their existing workflows while enabling seamless agent collaboration. Generate all required deliverables: integration architecture document, tool configuration guide, team playbook, implementation code/configs, and adoption plan. For multi-developer teams, propose specific strategies to adapt the single-threaded agentic-base framework for concurrent team collaboration. Focus on practical, maintainable solutions that respect organizational constraints and culture."
 />
+{{ else }}
+Let me begin understanding your organizational workflow.
+
+Help the user integrate the agentic-base framework with their organization's existing tools and workflows. Conduct thorough discovery to understand their current process (Discord discussions, Google Docs collaboration, Linear project management, etc.). Ask targeted questions about workflow, pain points, integration requirements, team structure, data needs, and success criteria. Design a comprehensive integration architecture that preserves their existing workflows while enabling seamless agent collaboration. Generate all required deliverables: integration architecture document, tool configuration guide, team playbook, implementation code/configs, and adoption plan. For multi-developer teams, propose specific strategies to adapt the single-threaded agentic-base framework for concurrent team collaboration. Focus on practical, maintainable solutions that respect organizational constraints and culture.
+{{ endif }}

@@ -72,6 +72,22 @@ The framework uses three feedback loops for quality assurance:
 
 ## Development Workflow Commands
 
+### Execution Modes
+
+All slash commands run in **foreground mode by default**, allowing direct interaction with the agent. To run in background mode (for parallel execution), append `background` to the command:
+
+```bash
+# Foreground (default) - interactive, agent responds directly
+/implement sprint-1
+
+# Background - agent runs as subagent, use /tasks to monitor
+/implement sprint-1 background
+```
+
+**When to use each mode:**
+- **Foreground (default)**: Interactive sessions, when you want to guide the agent, single-task workflows
+- **Background**: Running multiple agents in parallel, long-running tasks, automated pipelines
+
 ### Phase 0: Organizational Integration Design (Optional)
 ```bash
 /integrate-org-workflow

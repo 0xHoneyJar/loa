@@ -88,6 +88,22 @@ The **devrel-translator** agent translates technical documentation into executiv
 - Converts PRDs, SDDs, audit reports, and sprint updates into stakeholder-appropriate formats
 - Output: Tailored summaries (1-3 pages) with business value, plain language, and risk assessment
 
+## Execution Modes
+
+All slash commands run in **foreground mode by default**, allowing direct interaction with the agent. To run in background mode (for parallel execution), append `background` to the command:
+
+```bash
+# Foreground (default) - interactive, agent responds directly
+/implement sprint-1
+
+# Background - agent runs as subagent, use /tasks to monitor
+/implement sprint-1 background
+```
+
+**When to use each mode:**
+- **Foreground (default)**: Interactive sessions, when you want to guide the agent, single-task workflows
+- **Background**: Running multiple agents in parallel, long-running tasks, automated pipelines
+
 ## Core Commands
 
 | Command | Purpose | Output |
@@ -101,6 +117,8 @@ The **devrel-translator** agent translates technical documentation into executiv
 | `/deploy-production` | Deploy to production | Infrastructure + `docs/deployment/` |
 | `/audit` | Security and quality audit (ad-hoc) | `SECURITY-AUDIT-REPORT.md` |
 | `/translate @doc.md for [audience]` | Translate technical docs for stakeholders (ad-hoc) | Executive summaries |
+
+All commands support `background` argument for parallel execution (e.g., `/audit background`).
 
 ## The Agents
 
