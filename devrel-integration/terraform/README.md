@@ -374,20 +374,65 @@ To rotate the service account key:
 
 ## Security Considerations
 
-1. **Service Account Key:** The key is stored in `secrets/google-service-account-key.json`. Ensure:
-   - File permissions are 600 (owner read/write only)
-   - File is not committed to git (.gitignore includes it)
-   - Key is rotated periodically
+### 1. Service Account Key
 
-2. **Terraform State:** Contains sensitive data. Ensure:
-   - GCS bucket has restricted access
-   - Bucket versioning is enabled
-   - Consider using Terraform Cloud for enhanced security
+The key is stored in `secrets/google-service-account-key.json`. Ensure:
+- File permissions are 600 (owner read/write only)
+- File is not committed to git (.gitignore includes it)
+- Key is rotated periodically (see [Credential Rotation](#credential-rotation))
 
-3. **Google Groups:** Managed manually. Ensure:
-   - Regular membership audits
-   - Principle of least privilege
-   - External sharing is disabled
+**Known Risk:** The service account private key is stored in Terraform state. For development, this is acceptable with the following mitigations:
+- Remote state bucket (GCS) has restricted access
+- State bucket uses default GCS encryption
+- Local key file has 0600 permissions
+- Key file is gitignored
+
+**Production Recommendation:** Migrate to Google Secret Manager or Workload Identity Federation for production deployments to avoid storing keys in state.
+
+### 2. IAM Role: `roles/drive.admin`
+
+The service account is granted `roles/drive.admin` at the project level. This is a broad permission but **required** due to Google Drive API limitations.
+
+**Why `roles/drive.admin` is necessary:**
+- The bot needs to create folders in shared drives
+- The bot needs to manage permissions on folders it creates (add stakeholder group access)
+- `roles/drive.file` only allows managing files the service account itself creates
+- Creating folders in existing shared drives requires admin-level access
+- Setting permissions on folders requires `drive.permissions.create` and `drive.permissions.update`
+
+**What this grants:**
+- Full access to Google Drive files and folders in the organization
+- Ability to create, delete, and modify any Drive content
+- Ability to manage sharing permissions on any Drive content
+
+**Risk mitigation:**
+- Service account key is protected with 0600 permissions
+- Key file is never committed to version control
+- Service account has no other IAM roles beyond Drive and Docs access
+- All Drive API calls are logged (enable Cloud Audit Logs for production)
+- Key rotation is documented and should be performed periodically
+
+**Future improvement:** Investigate creating a custom IAM role with minimal permissions:
+- `drive.files.create`
+- `drive.files.delete` (on own files only)
+- `drive.permissions.create`
+- `drive.permissions.update`
+
+### 3. Terraform State Security
+
+Contains sensitive data including service account private key. Ensure:
+- GCS bucket has restricted access (only CI/CD and authorized operators)
+- Bucket versioning is enabled for state recovery
+- Consider using Terraform Cloud for enhanced security and state encryption
+- Enable Object Versioning to recover from accidental state corruption
+
+### 4. Google Groups
+
+Managed manually in Google Admin Console. Ensure:
+- Regular membership audits (quarterly recommended)
+- Principle of least privilege (users only in groups they need)
+- External sharing is disabled at organization level
+- Group membership changes are logged and reviewed
 
 ## Support
 

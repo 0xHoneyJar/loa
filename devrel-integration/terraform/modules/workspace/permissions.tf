@@ -135,6 +135,19 @@ const roleMapping: Record<string, string> = {
   'owner': 'owner'
 };
 
+// Valid role values for validation
+const validRoles = Object.keys(roleMapping);
+
+// Validate role value and throw if invalid
+function validateRole(role: string): void {
+  if (!roleMapping[role]) {
+    throw new Error(
+      \`Invalid role: "\$${role}". Valid roles are: \$${validRoles.join(', ')}. ` +
+      \`Check your permission configuration for typos.\`
+    );
+  }
+}
+
 // Service account authentication
 async function authenticate() {
   const keyPath = path.join(__dirname, '../secrets/google-service-account-key.json');
@@ -172,24 +185,30 @@ async function setPermission(
   email: string,
   role: string,
   type: string = 'group'
-): Promise<void> {
+): Promise<boolean> {
+  // Validate role before making API call - fail fast on typos
+  validateRole(role);
+
   try {
     await drive.permissions.create({
       fileId: folderId,
       requestBody: {
         type: type,
-        role: roleMapping[role] || 'reader',
+        role: roleMapping[role],
         emailAddress: email
       },
       sendNotificationEmail: false,
       fields: 'id'
     });
-    console.log(\`  Set \$${role} permission for \$${email}\`);
+    console.log(\`  ✓ Set \$${role} permission for \$${email}\`);
+    return true;
   } catch (error: any) {
     if (error.code === 400 && error.message.includes('already has access')) {
-      console.log(\`  Permission already exists for \$${email}\`);
+      console.log(\`  ○ Permission already exists for \$${email}\`);
+      return true;
     } else {
-      console.error(\`  Failed to set permission for \$${email}: \$${error.message}\`);
+      console.error(\`  ✗ Failed to set permission for \$${email}: \$${error.message}\`);
+      return false;
     }
   }
 }
@@ -204,21 +223,40 @@ async function setupPermissions() {
   const drive = google.drive({ version: 'v3', auth });
   const folderIds = loadFolderIds();
 
+  // Track permission results for summary
+  let permissionsSet = 0;
+  let permissionsFailed = 0;
+  let foldersProcessed = 0;
+
   // First, ensure service account has owner access to all folders
   console.log('Setting service account owner permissions...');
   for (const [key, folderId] of Object.entries(folderIds)) {
     console.log(\`Folder: \$${key}\`);
-    await setPermission(
+    foldersProcessed++;
+    const success = await setPermission(
       drive,
       folderId,
       config.serviceAccountEmail,
       'owner',
       'user'
     );
+    if (success) permissionsSet++; else permissionsFailed++;
   }
 
   console.log('');
   console.log('Setting stakeholder group permissions...');
+
+  // Helper to track permission results
+  async function trackPermission(
+    drive: any,
+    folderId: string,
+    email: string,
+    role: string,
+    type: string = 'group'
+  ): Promise<void> {
+    const success = await setPermission(drive, folderId, email, role, type);
+    if (success) permissionsSet++; else permissionsFailed++;
+  }
 
   // Set permissions based on folder naming patterns
   for (const [key, folderId] of Object.entries(folderIds)) {
@@ -226,7 +264,7 @@ async function setupPermissions() {
 
     // Developers group gets access to all folders
     if (config.stakeholderGroups.developers) {
-      await setPermission(
+      await trackPermission(
         drive,
         folderId,
         config.stakeholderGroups.developers,
@@ -238,7 +276,7 @@ async function setupPermissions() {
     // Apply persona-specific permissions based on folder key patterns
     if (key.includes('_leadership')) {
       if (config.stakeholderGroups.leadership) {
-        await setPermission(
+        await trackPermission(
           drive,
           folderId,
           config.stakeholderGroups.leadership,
@@ -249,7 +287,7 @@ async function setupPermissions() {
     }
     if (key.includes('_product')) {
       if (config.stakeholderGroups.product) {
-        await setPermission(
+        await trackPermission(
           drive,
           folderId,
           config.stakeholderGroups.product,
@@ -260,7 +298,7 @@ async function setupPermissions() {
     }
     if (key.includes('_marketing')) {
       if (config.stakeholderGroups.marketing) {
-        await setPermission(
+        await trackPermission(
           drive,
           folderId,
           config.stakeholderGroups.marketing,
@@ -271,7 +309,7 @@ async function setupPermissions() {
     }
     if (key.includes('_devrel')) {
       if (config.stakeholderGroups.devrel) {
-        await setPermission(
+        await trackPermission(
           drive,
           folderId,
           config.stakeholderGroups.devrel,
@@ -284,20 +322,20 @@ async function setupPermissions() {
     // PRD folders - Leadership and Product
     if (key.includes('_prd') && !key.includes('_exec')) {
       if (config.stakeholderGroups.leadership) {
-        await setPermission(drive, folderId, config.stakeholderGroups.leadership, 'reader', 'group');
+        await trackPermission(drive, folderId, config.stakeholderGroups.leadership, 'reader', 'group');
       }
       if (config.stakeholderGroups.product) {
-        await setPermission(drive, folderId, config.stakeholderGroups.product, 'reader', 'group');
+        await trackPermission(drive, folderId, config.stakeholderGroups.product, 'reader', 'group');
       }
     }
 
     // SDD folders - Product and DevRel
     if (key.includes('_sdd') && !key.includes('_exec')) {
       if (config.stakeholderGroups.product) {
-        await setPermission(drive, folderId, config.stakeholderGroups.product, 'reader', 'group');
+        await trackPermission(drive, folderId, config.stakeholderGroups.product, 'reader', 'group');
       }
       if (config.stakeholderGroups.devrel) {
-        await setPermission(drive, folderId, config.stakeholderGroups.devrel, 'reader', 'group');
+        await trackPermission(drive, folderId, config.stakeholderGroups.devrel, 'reader', 'group');
       }
     }
 
@@ -305,7 +343,7 @@ async function setupPermissions() {
     if (key.includes('_sprints') && !key.includes('_exec')) {
       for (const [groupKey, email] of Object.entries(config.stakeholderGroups)) {
         if (groupKey !== 'developers') {
-          await setPermission(drive, folderId, email, 'reader', 'group');
+          await trackPermission(drive, folderId, email, 'reader', 'group');
         }
       }
     }
@@ -313,10 +351,10 @@ async function setupPermissions() {
     // Audit folders - Leadership and DevRel
     if (key.includes('_audits') && !key.includes('_exec')) {
       if (config.stakeholderGroups.leadership) {
-        await setPermission(drive, folderId, config.stakeholderGroups.leadership, 'reader', 'group');
+        await trackPermission(drive, folderId, config.stakeholderGroups.leadership, 'reader', 'group');
       }
       if (config.stakeholderGroups.devrel) {
-        await setPermission(drive, folderId, config.stakeholderGroups.devrel, 'reader', 'group');
+        await trackPermission(drive, folderId, config.stakeholderGroups.devrel, 'reader', 'group');
       }
     }
 
@@ -324,7 +362,7 @@ async function setupPermissions() {
     if (key === 'weekly_digests') {
       for (const [groupKey, email] of Object.entries(config.stakeholderGroups)) {
         if (groupKey !== 'developers') {
-          await setPermission(drive, folderId, email, 'reader', 'group');
+          await trackPermission(drive, folderId, email, 'reader', 'group');
         }
       }
     }
@@ -342,22 +380,46 @@ async function setupPermissions() {
     console.warn('Could not configure sharing settings. Configure manually in Admin Console.');
   }
 
+  // Print summary with success/failure counts
   console.log('');
-  console.log('=== Permissions Setup Complete ===');
-  console.log('Folders configured:', Object.keys(folderIds).length);
+  console.log('=== Permissions Setup Summary ===');
+  console.log(\`Folders processed: \$${foldersProcessed}\`);
+  console.log(\`Permissions set successfully: \$${permissionsSet}\`);
+  console.log(\`Permissions failed: \$${permissionsFailed}\`);
+
+  if (permissionsFailed > 0) {
+    console.log('');
+    console.log('⚠️  WARNING: Some permissions failed to set.');
+    console.log('   Review the errors above and ensure:');
+    console.log('   - Google Groups exist in Admin Console');
+    console.log('   - Service account has sufficient permissions');
+    console.log('   - Group email addresses are correct');
+  } else {
+    console.log('');
+    console.log('✓ All permissions set successfully!');
+  }
+
   console.log('');
   console.log('IMPORTANT: Verify the following in Google Admin Console:');
   console.log('1. Google Groups exist for all stakeholder groups');
   console.log('2. External sharing is disabled for the organization');
   console.log('3. Link sharing requires organization membership');
+
+  // Return exit code based on failures
+  return permissionsFailed === 0;
 }
 
 // Run setup
 setupPermissions()
-  .then(() => {
+  .then((success) => {
     console.log('');
-    console.log('Permissions setup complete!');
-    process.exit(0);
+    if (success) {
+      console.log('Permissions setup complete!');
+      process.exit(0);
+    } else {
+      console.log('Permissions setup completed with errors. See above for details.');
+      process.exit(1);
+    }
   })
   .catch((error) => {
     console.error('Permissions setup failed:', error);

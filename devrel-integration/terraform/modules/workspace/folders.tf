@@ -217,13 +217,20 @@ async function createFolder(
   return { id: response.data.id, name: response.data.name };
 }
 
+// Escape special characters in folder names for Drive API queries
+function escapeFolderName(name: string): string {
+  // Escape single quotes and backslashes for Drive API query syntax
+  return name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
 // Check if folder exists
 async function findFolder(
   drive: any,
   name: string,
   parentId?: string
 ): Promise<string | null> {
-  let query = `name='$${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  const escapedName = escapeFolderName(name);
+  let query = `name='$${escapedName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
   if (parentId) {
     query += ` and '$${parentId}' in parents`;
   }

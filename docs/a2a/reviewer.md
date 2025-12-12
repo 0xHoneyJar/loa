@@ -502,4 +502,136 @@ EOT
 
 ---
 
-**Ready for Senior Technical Lead Review**
+## Security Audit Feedback Addressed (Revision 2)
+
+This section documents fixes for the 2 required items identified in `docs/a2a/auditor-sprint-feedback.md` dated 2025-12-12.
+
+**Audit Verdict:** CHANGES_REQUIRED → Addressing feedback
+
+---
+
+### Required Fix 1: Document IAM Decision in README
+
+**Audit Finding:** [CRITICAL-002] IAM Role `roles/drive.admin` is overly permissive but necessary. Required documentation of decision rationale.
+
+**Fix Applied:**
+- **File:** `devrel-integration/terraform/README.md:375-435`
+- **Change:** Expanded Security Considerations section with comprehensive IAM documentation
+
+**Documentation Added:**
+1. **Why `roles/drive.admin` is necessary:**
+   - Bot needs to create folders in shared drives
+   - Bot needs to manage permissions on folders it creates
+   - `roles/drive.file` only allows managing files the service account itself creates
+   - Creating folders in existing shared drives requires admin-level access
+   - Setting permissions requires `drive.permissions.create` and `drive.permissions.update`
+
+2. **What this grants:** Full access to Google Drive files/folders in the organization
+
+3. **Risk mitigation:**
+   - Service account key protected with 0600 permissions
+   - Key file never committed to version control
+   - No other IAM roles beyond Drive and Docs access
+   - Cloud Audit Logs recommended for production
+   - Key rotation documented
+
+4. **Known risk documentation:** Service account key in Terraform state with mitigations listed
+
+5. **Future improvement:** Custom IAM role investigation documented for later optimization
+
+**Verification:** Read `devrel-integration/terraform/README.md` section "Security Considerations" - comprehensive IAM documentation now present.
+
+---
+
+### Required Fix 2: Add Input Validation to Generated Scripts
+
+**Audit Finding:** [HIGH-001] Generated scripts missing input validation for special characters in folder names and role values.
+
+**Fix Applied:**
+
+#### 2a. Folder Name Escaping (Query String Injection)
+
+- **File:** `devrel-integration/terraform/modules/workspace/folders.tf:220-224`
+- **Change:** Added `escapeFolderName()` function to escape single quotes and backslashes
+
+```typescript
+// Escape special characters in folder names for Drive API queries
+function escapeFolderName(name: string): string {
+  // Escape single quotes and backslashes for Drive API query syntax
+  return name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+```
+
+- **Usage:** `findFolder()` function now escapes folder names before building query:
+```typescript
+const escapedName = escapeFolderName(name);
+let query = `name='${escapedName}' and ...`;
+```
+
+#### 2b. Role Validation (Silent Role Degradation)
+
+- **File:** `devrel-integration/terraform/modules/workspace/permissions.tf:138-149`
+- **Change:** Added `validateRole()` function that throws on invalid role values
+
+```typescript
+// Validate role value and throw if invalid
+function validateRole(role: string): void {
+  if (!roleMapping[role]) {
+    throw new Error(
+      `Invalid role: "${role}". Valid roles are: ${validRoles.join(', ')}. ` +
+      `Check your permission configuration for typos.`
+    );
+  }
+}
+```
+
+- **Usage:** `setPermission()` now calls `validateRole(role)` before API call - fails fast on typos
+
+#### 2c. Permission Summary Output (Error Handling)
+
+- **File:** `devrel-integration/terraform/modules/workspace/permissions.tf:226-409`
+- **Change:** Added permission tracking and summary output
+
+**Tracking Variables:**
+```typescript
+let permissionsSet = 0;
+let permissionsFailed = 0;
+let foldersProcessed = 0;
+```
+
+**Summary Output:**
+```
+=== Permissions Setup Summary ===
+Folders processed: 84
+Permissions set successfully: 420
+Permissions failed: 0
+
+✓ All permissions set successfully!
+```
+
+**Error Handling:**
+- Script exits with code 1 if any permissions failed
+- Warning message displayed with troubleshooting guidance
+
+**Verification:**
+1. Regenerate scripts with `terraform apply`
+2. Review generated `scripts/setup-drive-folders.ts` - should contain `escapeFolderName()` function
+3. Review generated `scripts/setup-drive-permissions.ts` - should contain:
+   - `validateRole()` function
+   - Permission tracking variables
+   - Summary output at end
+
+---
+
+## Summary of Security Audit Fixes
+
+| Finding | Severity | Status | Fix Applied |
+|---------|----------|--------|-------------|
+| [CRITICAL-002] IAM Role Documentation | HIGH | ✅ FIXED | Comprehensive README documentation |
+| [HIGH-001] Input Validation | HIGH | ✅ FIXED | escapeFolderName(), validateRole(), summary output |
+
+**Both required items from the security audit have been addressed. Ready for re-audit.**
+
+---
+
+**Ready for Security Re-Audit (/audit-sprint)**
