@@ -94,8 +94,37 @@ Read ALL context documents:
 1. **docs/prd.md** - Product requirements and business context
 2. **docs/sdd.md** - System design and technical architecture
 3. **docs/sprint.md** - Sprint tasks and acceptance criteria (focus on {{ $ARGUMENTS[0] }})
-4. **docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md** - Engineer's implementation report (what was built)
-5. **docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md** - Senior lead approval (verify it says 'All good')
+4. **docs/a2a/integration-context.md** - Linear team/project IDs and label configuration
+5. **docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md** - Engineer's implementation report (what was built)
+6. **docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md** - Senior lead approval (verify it says 'All good')
+
+## Phase 0.5: Linear Issue Tracking (REQUIRED for Audit Trail)
+
+Before auditing code, create/update Linear issues for security findings:
+
+1. **Read integration context**:
+   - Read `docs/a2a/integration-context.md` for Linear team/project IDs
+   - If file doesn't exist, use `mcp__linear__list_teams` to find team, then `mcp__linear__list_projects` for project
+
+2. **Find implementation issues**:
+   - Search for existing issues: `mcp__linear__list_issues` with project and sprint label filter
+   - Look for issues created by implementer (label: `agent:implementer`, `sprint:{{ $ARGUMENTS[0] }}`)
+
+3. **Create security finding issues** (for CRITICAL/HIGH findings):
+   - Use `mcp__linear__create_issue` with:
+     - Title: `[SECURITY] [Severity] Brief description`
+     - Labels: `agent:auditor`, `type:audit-finding`, `type:security`, `sprint:{{ $ARGUMENTS[0] }}`, `priority:critical` or `priority:high`
+     - Description: Finding details, file:line references, remediation steps, OWASP/CWE references
+     - Link to parent implementation issue
+
+4. **Add audit comments to implementation issues**:
+   - Use `mcp__linear__create_comment` to add audit findings to implementation issues
+   - Include: audit verdict, security findings summary, recommendations
+
+5. **Document in audit feedback file**:
+   - Add "Linear Issue References" section to auditor-sprint-feedback.md with:
+     - Implementation issues reviewed
+     - Security finding issues created (if any)
 
 ## Phase 1: Review Actual Code Implementation
 
@@ -263,6 +292,11 @@ Be **fair and constructive**:
 - Distinguish security issues from style preferences
 - Provide actionable remediation guidance
 - Recognize when engineers did things right
+
+**Linear Documentation** (REQUIRED):
+- ALWAYS create Linear issues for CRITICAL/HIGH security findings (Phase 0.5)
+- Add audit comments to implementation issues
+- Include Linear issue URLs in auditor-sprint-feedback.md
 
 ## Remember
 
@@ -323,8 +357,37 @@ Read ALL context documents:
 1. **docs/prd.md** - Product requirements and business context
 2. **docs/sdd.md** - System design and technical architecture
 3. **docs/sprint.md** - Sprint tasks and acceptance criteria (focus on {{ $ARGUMENTS[0] }})
-4. **docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md** - Engineer's implementation report (what was built)
-5. **docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md** - Senior lead approval (verify it says 'All good')
+4. **docs/a2a/integration-context.md** - Linear team/project IDs and label configuration
+5. **docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md** - Engineer's implementation report (what was built)
+6. **docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md** - Senior lead approval (verify it says 'All good')
+
+## Phase 0.5: Linear Issue Tracking (REQUIRED for Audit Trail)
+
+Before auditing code, create/update Linear issues for security findings:
+
+1. **Read integration context**:
+   - Read `docs/a2a/integration-context.md` for Linear team/project IDs
+   - If file doesn't exist, use `mcp__linear__list_teams` to find team, then `mcp__linear__list_projects` for project
+
+2. **Find implementation issues**:
+   - Search for existing issues: `mcp__linear__list_issues` with project and sprint label filter
+   - Look for issues created by implementer (label: `agent:implementer`, `sprint:{{ $ARGUMENTS[0] }}`)
+
+3. **Create security finding issues** (for CRITICAL/HIGH findings):
+   - Use `mcp__linear__create_issue` with:
+     - Title: `[SECURITY] [Severity] Brief description`
+     - Labels: `agent:auditor`, `type:audit-finding`, `type:security`, `sprint:{{ $ARGUMENTS[0] }}`, `priority:critical` or `priority:high`
+     - Description: Finding details, file:line references, remediation steps, OWASP/CWE references
+     - Link to parent implementation issue
+
+4. **Add audit comments to implementation issues**:
+   - Use `mcp__linear__create_comment` to add audit findings to implementation issues
+   - Include: audit verdict, security findings summary, recommendations
+
+5. **Document in audit feedback file**:
+   - Add "Linear Issue References" section to auditor-sprint-feedback.md with:
+     - Implementation issues reviewed
+     - Security finding issues created (if any)
 
 ## Phase 1: Review Actual Code Implementation
 
@@ -492,6 +555,11 @@ Be **fair and constructive**:
 - Distinguish security issues from style preferences
 - Provide actionable remediation guidance
 - Recognize when engineers did things right
+
+**Linear Documentation** (REQUIRED):
+- ALWAYS create Linear issues for CRITICAL/HIGH security findings (Phase 0.5)
+- Add audit comments to implementation issues
+- Include Linear issue URLs in auditor-sprint-feedback.md
 
 ## Remember
 
