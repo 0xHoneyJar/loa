@@ -13,6 +13,7 @@
 |--------|--------|----------------|--------|----------------|-----------|
 | [sprint-1](sprint-1/) | COMPLETED | [reviewer.md](sprint-1/reviewer.md) | [feedback](sprint-1/engineer-feedback.md) | [audit](sprint-1/auditor-sprint-feedback.md) | [COMPLETED](sprint-1/COMPLETED) |
 | [sprint-2](sprint-2/) | COMPLETED | [reviewer.md](sprint-2/reviewer.md) | [feedback](sprint-2/engineer-feedback.md) | [audit](sprint-2/auditor-sprint-feedback.md) | [COMPLETED](sprint-2/COMPLETED) |
+| [sprint-3](sprint-3/) | REVIEW_PENDING | [reviewer.md](sprint-3/reviewer.md) | - | - | - |
 
 ---
 
@@ -83,6 +84,35 @@
 - Implementation Report: [sprint-2/reviewer.md](sprint-2/reviewer.md)
 - Review Feedback: [sprint-2/engineer-feedback.md](sprint-2/engineer-feedback.md)
 - Security Audit: [sprint-2/auditor-sprint-feedback.md](sprint-2/auditor-sprint-feedback.md)
+
+---
+
+### sprint-3: Discord Commands Integration
+
+**Status**: REVIEW_PENDING
+
+| Milestone | Date | Notes |
+|-----------|------|-------|
+| Implementation Started | 2025-12-13 | Initial implementation |
+
+**Deliverables**:
+- `/translate` command handler with document shorthand resolution
+- `/exec-summary` command for executive summaries
+- `/audit-summary` command for security audit summaries
+- `/show-sprint` updates with progress visualization
+- Role-based access control (RoleMapper service)
+- Updated interactions handler with command routing
+
+**New Files**:
+- `src/handlers/translate-slash-command.ts` (495 lines)
+- `src/handlers/summary-commands.ts` (400+ lines)
+- `src/services/role-mapper.ts` (150+ lines)
+- Test files for all new components
+
+**Files**:
+- Implementation Report: [sprint-3/reviewer.md](sprint-3/reviewer.md)
+- Review Feedback: *(pending)*
+- Security Audit: *(pending)*
 
 ---
 
