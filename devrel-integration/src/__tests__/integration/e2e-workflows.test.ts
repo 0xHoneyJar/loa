@@ -209,7 +209,7 @@ LOW: 8
         const baseDelay = 1000;
         const maxRetries = 3;
 
-        const delays = [];
+        const delays: number[] = [];
         for (let attempt = 0; attempt < maxRetries; attempt++) {
           delays.push(baseDelay * Math.pow(2, attempt));
         }
