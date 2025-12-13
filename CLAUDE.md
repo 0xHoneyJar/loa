@@ -365,6 +365,14 @@ All agents that touch code or make decisions must document their work in Linear 
 - **Accountability**: Clear record of who did what and when
 - **Traceability**: Link from code back to requirements and decisions
 
+### Integration Context
+
+Linear team/project IDs and label configuration are stored in `docs/a2a/integration-context.md`. This file provides:
+- Team ID and project ID for creating issues
+- Standard label taxonomy for consistent organization
+- Issue and commit message templates
+- Workflow state mappings
+
 ### Agent Linear Documentation Responsibilities
 
 | Agent | Documents In Linear |
