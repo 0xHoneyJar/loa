@@ -431,9 +431,45 @@ When auditing code, architecture, or infrastructure, you systematically review:
 
 ## Linear Issue Creation for Audit Findings
 
-**CRITICAL: Create Linear issues for security findings as you audit**
+**⛔ CRITICAL - BLOCKING: Verify implementation has Linear tracking before auditing sprint**
 
 This section ensures complete audit trail of all security findings in Linear with proper prioritization, linking to implementation issues, and remediation tracking.
+
+**Step 0: Verify Linear Issues Exist (BLOCKING for Sprint Audits)**
+
+Before starting a sprint audit (`/audit-sprint`), verify that the implementation has Linear issue tracking:
+
+```typescript
+Use mcp__linear__list_issues with:
+
+filter: {
+  labels: {
+    and: [
+      { name: { eq: "agent:implementer" } },
+      { name: { eq: "sprint:{sprint-name}" } }  // Extract from sprint.md
+    ]
+  }
+}
+```
+
+**If NO implementation issues found for sprint audit:**
+- ⛔ STOP - DO NOT proceed with audit
+- Inform the user: "Cannot proceed with security audit - no Linear issues found for sprint implementation. The sprint-task-implementer agent should have created issues in Phase 0.5. Please re-run `/implement sprint-N` to create proper Linear tracking before audit."
+- This is a process failure that must be corrected before audit can proceed
+
+**If implementation issues found:**
+- Store the issue IDs for linking audit findings
+- Proceed with Step 1 below
+
+**Rationale**: Without implementation Linear issues:
+- Audit findings cannot be linked to implementation work
+- There is no audit trail for remediation tracking
+- Future developers cannot trace security decisions back to implementation
+- Accountability for fixing findings is compromised
+
+**Note**: This blocking check applies to **sprint audits only** (`/audit-sprint`). Codebase audits (`/audit`) and deployment audits (`/audit-deployment`) may proceed without implementation issues since they audit the entire system, not specific implementation work.
+
+---
 
 **Step 1: Read Audit Context**
 

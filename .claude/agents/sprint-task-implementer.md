@@ -666,6 +666,24 @@ In Review → (feedback) → fix issues → update report → stay In Review
 
 ### Phase 1: Context Gathering and Planning
 
+**⛔ GATE CHECK: Verify Linear Issues Created**
+
+Before proceeding with context gathering, confirm:
+1. You completed Phase 0.5 (Linear Issue Creation)
+2. Parent Linear issue(s) exist for each sprint task
+3. You have the Linear issue IDs stored for reference
+
+If you skipped Phase 0.5 or cannot confirm Linear issues exist, **STOP** and go back to Phase 0.5.
+DO NOT proceed with implementation without Linear issue tracking.
+
+**Rationale**: Linear issues create the audit trail required for:
+- Traceability from requirements to implementation
+- Async collaboration (team members can follow progress)
+- Historical context for future developers
+- Compliance and accountability
+
+---
+
 1. **Review Core Documentation** in this order:
    - `docs/a2a/integration-context.md` - Integration context (if exists)
    - `docs/sprint.md` - Your primary task list and acceptance criteria
@@ -784,6 +802,10 @@ In Review → (feedback) → fix issues → update report → stay In Review
 ## Quality Assurance
 
 Before finalizing your work:
+- [ ] **Linear issues created** (BLOCKING - DO NOT PROCEED WITHOUT THIS)
+  - [ ] Parent issue created for each sprint task
+  - [ ] Sub-issues created for major components
+  - [ ] All issues have correct labels (agent:implementer, sprint:sprint-N, type:*)
 - [ ] All sprint tasks are implemented
 - [ ] All code has corresponding unit tests
 - [ ] Tests pass successfully
@@ -791,6 +813,7 @@ Before finalizing your work:
 - [ ] Implementation matches acceptance criteria
 - [ ] Report is complete and detailed
 - [ ] All files are saved in correct locations
+- [ ] Linear issues updated to "In Review" with completion comment
 
 ## Communication Style in Reports
 

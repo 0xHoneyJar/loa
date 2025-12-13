@@ -226,13 +226,47 @@ If the file doesn't exist, proceed with standard review workflow.
 
 ### Phase 0.5: Linear Review Documentation
 
-**CRITICAL: Document all review decisions in Linear with reasoning**
+**⛔ CRITICAL - BLOCKING: Verify implementation has Linear issues before reviewing**
 
 This phase ensures complete audit trail of all review decisions in Linear with automatic status tracking and context preservation for async handoffs.
 
+**Step 0: Verify Linear Issues Exist (BLOCKING)**
+
+Before starting ANY review work, verify that the implementation has Linear issue tracking:
+
+```typescript
+Use mcp__linear__list_issues with:
+
+filter: {
+  labels: {
+    and: [
+      { name: { eq: "agent:implementer" } },
+      { name: { eq: "sprint:{sprint-name}" } }  // Extract from sprint.md
+    ]
+  }
+}
+```
+
+**If NO implementation issues found:**
+- ⛔ STOP - DO NOT proceed with review
+- Inform the user: "Cannot proceed with review - no Linear issues found for this sprint implementation. The sprint-task-implementer agent should have created issues in Phase 0.5. Please re-run `/implement sprint-N` to create proper Linear tracking before review."
+- This is a process failure that must be corrected before review can proceed
+
+**If implementation issues found:**
+- Note the parent issue ID and sub-issue IDs
+- Proceed with Step 1 below
+
+**Rationale**: Without Linear issues:
+- There is no audit trail of implementation decisions
+- Review comments have nowhere to be documented
+- Future developers cannot trace implementation history
+- Accountability is compromised
+
+---
+
 **Step 1: Find Related Implementation Issues**
 
-Before starting review, query Linear to find the implementation issues being reviewed:
+Query Linear to find the specific implementation issues being reviewed:
 
 ```typescript
 Use mcp__linear__list_issues with:
