@@ -469,8 +469,8 @@ async function handleTagIssue(message: Message, args: string[]): Promise<void> {
     const [issueIdArg, projectName, priorityArg] = args;
 
     // Validate inputs
-    const issueIdValidation = validateParameterLength(issueIdArg, 'issue ID', 50);
-    const projectValidation = validateParameterLength(projectName, 'project name', 100);
+    const issueIdValidation = validateParameterLength('issue ID', issueIdArg);
+    const projectValidation = validateParameterLength('project name', projectName);
 
     if (!issueIdValidation.valid) {
       await message.reply(`❌ ${issueIdValidation.error}`);
@@ -544,7 +544,7 @@ async function handleShowIssue(message: Message, args: string[]): Promise<void> 
     const issueId = args[0];
 
     // Validate input
-    const validation = validateParameterLength(issueId, 'issue ID', 50);
+    const validation = validateParameterLength('issue ID', issueId);
     if (!validation.valid) {
       await message.reply(`❌ ${validation.error}`);
       return;

@@ -1,5 +1,53 @@
 # Transformation Pipeline Documentation
 
+## Prerequisites
+
+### System Requirements
+- Node.js >= 18.0.0
+- npm >= 9.0.0
+
+### Sprint 1 Infrastructure Dependencies
+
+The transformation pipeline requires Google Workspace infrastructure from Sprint 1:
+
+1. **Service Account Credentials**
+   - File: `secrets/google-service-account-key.json`
+   - Source: Google Cloud Console → IAM → Service Accounts
+   - Required scopes: Google Docs API, Google Drive API
+
+   Example template available at `secrets/google-service-account-key.json.example`
+
+2. **Folder IDs Configuration**
+   - File: `config/folder-ids.json`
+   - Source: Terraform outputs or manual Google Drive folder creation
+   - Required folders: leadership, product, marketing, devrel, originals
+
+   Example template available at `config/folder-ids.json.example`
+
+### Installation
+
+```bash
+cd devrel-integration
+npm install
+npm run build
+```
+
+### Verification
+
+Verify dependencies are installed:
+```bash
+ls node_modules | grep -E "(googleapis|google-auth)"
+# Should output: google-auth-library, googleapis
+```
+
+Verify TypeScript compilation:
+```bash
+npm run build
+# Should complete without errors
+```
+
+---
+
 ## Overview
 
 The Transformation Pipeline is a secure, multi-stage document processing system that transforms technical documents into persona-specific summaries and stores them in Google Docs. It integrates with the existing security infrastructure (content sanitization, secret scanning, output validation) and supports aggregating context from multiple sources (filesystem, Linear, GitHub, Discord).

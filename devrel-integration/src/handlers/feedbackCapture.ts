@@ -132,7 +132,7 @@ export async function handleFeedbackCapture(
 
     // Detect project from channel name
     const channelName = fullMessage.channel.isTextBased() && 'name' in fullMessage.channel
-      ? fullMessage.channel.name
+      ? (fullMessage.channel.name ?? '')
       : '';
     const projectLabel = detectProjectFromChannel(channelName);
 

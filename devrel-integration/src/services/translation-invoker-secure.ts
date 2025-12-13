@@ -337,7 +337,8 @@ ${doc.content}
       logger.warn('Anthropic SDK integration not yet implemented - using mock response');
       return this.getMockResponse();
     } catch (error) {
-      logger.error('Failed to invoke AI agent', { error: error.message });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Failed to invoke AI agent', { error: errorMessage });
       throw error;
     }
   }
