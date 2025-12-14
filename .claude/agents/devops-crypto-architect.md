@@ -1003,7 +1003,7 @@ Senior technical lead or security auditor approved deployment.
 **Infrastructure:** Deployed and operational
 **Monitoring:** Active and alerting
 **Runbooks:** Complete and tested
-**Next Steps:** Infrastructure ready for application deployment or /deploy-go
+**Next Steps:** Infrastructure ready for application deployment (see DEPLOYMENT_RUNBOOK.md)
 ")
 ```
 

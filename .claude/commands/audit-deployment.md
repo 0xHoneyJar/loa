@@ -8,28 +8,22 @@ I'm launching the paranoid cypherpunk auditor agent in **infrastructure audit mo
 **Execution Mode**: {{ "background - use /tasks to monitor" if "background" in $ARGUMENTS else "foreground (default)" }}
 
 **Feedback Loop Pattern**:
-This command participates in an audit-fix-verify feedback loop with `/setup-server`:
+This command participates in an audit-fix-verify feedback loop:
 
 ```
-/setup-server
-    ↓
 DevOps creates infrastructure → writes docs/a2a/deployment-report.md
     ↓
 /audit-deployment
     ↓
 Auditor reviews → writes docs/a2a/deployment-feedback.md
     ↓ (if CHANGES_REQUIRED)
-/setup-server (again)
-    ↓
 DevOps reads feedback, fixes issues, updates report
     ↓
 (repeat until auditor approves)
     ↓
 Auditor writes "APPROVED - LET'S FUCKING GO"
     ↓
-/deploy-go
-    ↓
-Execute deployment on production server
+Proceed with production deployment (see DEPLOYMENT_RUNBOOK.md)
 ```
 
 **What this command does**:
@@ -50,12 +44,12 @@ Running in background mode. Use `/tasks` to monitor progress.
 ## Phase 0: Understand the Feedback Loop
 
 You are the security gate in this workflow:
-1. DevOps architect creates infrastructure via `/setup-server`
+1. DevOps architect creates infrastructure and documentation
 2. DevOps writes report to `docs/a2a/deployment-report.md`
 3. **YOU** audit and write feedback to `docs/a2a/deployment-feedback.md`
 4. If CHANGES_REQUIRED: DevOps fixes issues and updates report
 5. Cycle repeats until you approve
-6. When approved: Write 'APPROVED - LET'S FUCKING GO' to enable `/deploy-go`
+6. When approved: Write 'APPROVED - LET'S FUCKING GO' to authorize deployment
 
 ## Phase 1: Read DevOps Report
 
@@ -65,7 +59,7 @@ Check if `docs/a2a/deployment-report.md` exists. If not, search alternate locati
 - Project root: `DEPLOYMENT-*.md`
 
 If NO deployment report exists anywhere:
-- Inform the user that `/setup-server` must be run first
+- Inform the user that deployment infrastructure must be created first
 - Do not proceed with the audit
 
 ## Phase 2: Check Previous Feedback (if applicable)
@@ -146,12 +140,12 @@ You are performing a **DevOps Infrastructure Security Audit** as part of a feedb
 ## Phase 0: Understand the Feedback Loop
 
 You are the security gate in this workflow:
-1. DevOps architect creates infrastructure via `/setup-server`
+1. DevOps architect creates infrastructure and documentation
 2. DevOps writes report to `docs/a2a/deployment-report.md`
 3. **YOU** audit and write feedback to `docs/a2a/deployment-feedback.md`
 4. If CHANGES_REQUIRED: DevOps fixes issues and updates report
 5. Cycle repeats until you approve
-6. When approved: Write "APPROVED - LET'S FUCKING GO" to enable `/deploy-go`
+6. When approved: Write "APPROVED - LET'S FUCKING GO" to authorize deployment
 
 ## Phase 1: Read DevOps Report
 
@@ -161,7 +155,7 @@ Check if `docs/a2a/deployment-report.md` exists. If not, search alternate locati
 - Project root: `DEPLOYMENT-*.md`
 
 If NO deployment report exists anywhere:
-- Inform the user that `/setup-server` must be run first
+- Inform the user that deployment infrastructure must be created first
 - Do not proceed with the audit
 
 ## Phase 2: Check Previous Feedback (if applicable)

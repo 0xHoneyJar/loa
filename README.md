@@ -155,26 +155,21 @@ Pre-configured integrations with:
 - **Discord** - Community communication
 - **Web3-stats** - Blockchain data (Dune, Blockscout)
 
-## Organizational Deployment (Optional)
+## Deployment Infrastructure Audit
 
-For teams needing multi-tool integration and server deployment:
+For teams deploying to production servers, use `/audit-deployment` to have the **paranoid-auditor** review deployment scripts, server configurations, and infrastructure security.
 
-| Command | Purpose |
-|---------|---------|
-| `/integrate-org-workflow` | Design integration with Discord, Linear, Google Docs |
-| `/implement-org-integration` | Build Discord bot, webhooks, sync scripts |
-| `/setup-server` | Configure production server |
-| `/audit-deployment` | Security audit of deployment infrastructure |
-| `/deploy-go` | Execute production deployment (requires audit approval) |
+| Command | Purpose | Output |
+|---------|---------|--------|
+| `/audit-deployment` | Security audit of deployment infrastructure | `docs/a2a/deployment-feedback.md` |
 
-See **[DEPLOY-ORG-README.md](DEPLOY-ORG-README.md)** for the complete organizational deployment workflow.
+See **[DEPLOYMENT_RUNBOOK.md](devrel-integration/docs/DEPLOYMENT_RUNBOOK.md)** for the complete deployment workflow.
 
 ## Documentation
 
 - **[PROCESS.md](PROCESS.md)** - Comprehensive workflow documentation
-- **[DEPLOY-ORG-README.md](DEPLOY-ORG-README.md)** - Organizational integration & server deployment guide
-- **[DEPLOY-ORG-PROCESS.md](DEPLOY-ORG-PROCESS.md)** - Detailed organizational deployment workflow
 - **[CLAUDE.md](CLAUDE.md)** - Guidance for Claude Code instances
+- **[DEPLOYMENT_RUNBOOK.md](devrel-integration/docs/DEPLOYMENT_RUNBOOK.md)** - Production deployment guide
 
 ## Repository Structure
 
@@ -195,10 +190,14 @@ docs/
 └── deployment/         # Production infrastructure docs
 
 PROCESS.md              # Core workflow guide
-DEPLOY-ORG-README.md    # Org integration & deployment guide
-DEPLOY-ORG-PROCESS.md   # Detailed org deployment workflow
 CLAUDE.md               # Context for Claude Code
 README.md               # This file
+
+devrel-integration/
+├── docs/
+│   ├── DEPLOYMENT_RUNBOOK.md    # Production deployment guide (canonical)
+│   └── CREDENTIALS_SETUP_GUIDE.md  # Prerequisites setup guide
+└── src/                          # Discord bot implementation
 ```
 
 ## Example Workflow

@@ -14,7 +14,9 @@
 7. [Monitoring & Alerting](#monitoring--alerting)
 8. [Common Operations](#common-operations)
 9. [Troubleshooting](#troubleshooting)
-10. [Lessons Learned](#lessons-learned) *(NEW)*
+10. [Lessons Learned](#lessons-learned)
+11. [Appendix C: Script Development Standards](#appendix-c-script-development-standards)
+12. [Appendix D: Security Audit Reference Checklist](#appendix-d-security-audit-reference-checklist)
 
 ---
 
@@ -921,5 +923,132 @@ Use this checklist when auditing an existing server:
 
 ---
 
-*Last Updated: December 2025*
-*Version: 1.1.0*
+## Appendix C: Script Development Standards
+
+When creating or modifying deployment scripts, follow these standards:
+
+### Requirements
+
+All deployment scripts must:
+
+1. **Be idempotent** - Safe to run multiple times without side effects
+2. **Include error handling** - Use `set -euo pipefail` at the top
+3. **Log actions** - Echo what's being done at each step
+4. **Check prerequisites** - Verify required tools exist before using them
+5. **Support dry-run mode** - Accept `--dry-run` flag for testing
+6. **Be well-commented** - Explain non-obvious commands
+7. **Use variables** - Make scripts configurable via variables at top
+8. **NEVER include secrets** - Use environment variables or `.env` files
+
+### Script Template
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# Script: XX-description.sh
+# Purpose: Brief description
+# Prerequisites: List required tools/state
+# Usage: ./XX-description.sh [--dry-run]
+
+DRY_RUN=false
+[[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
+
+log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
+run() {
+  log "Running: $*"
+  $DRY_RUN || "$@"
+}
+
+# Check prerequisites
+command -v required_tool >/dev/null || { log "ERROR: required_tool not found"; exit 1; }
+
+# Main script logic
+log "Starting script..."
+run some_command --with-args
+
+log "Script completed successfully"
+```
+
+---
+
+## Appendix D: Security Audit Reference Checklist
+
+Reference checklist for `/audit-deployment` security reviews. Use when auditing deployment infrastructure.
+
+### Server Setup Scripts
+
+For each script, verify:
+
+- [ ] No command injection vulnerabilities
+- [ ] No hardcoded secrets or credentials
+- [ ] Secure file permissions (secrets: 600, scripts: 755)
+- [ ] Proper error handling (`set -euo pipefail`)
+- [ ] Safe sudo usage (specific commands, not broad)
+- [ ] No unvalidated user input
+- [ ] Trusted package sources only (official repos)
+- [ ] Idempotent operations
+- [ ] No `curl | bash` without checksum verification
+
+### Configuration Files
+
+For PM2, systemd, nginx configs:
+
+- [ ] Not running as root (use dedicated user)
+- [ ] Restrictive file permissions
+- [ ] Resource limits configured (memory, CPU)
+- [ ] Environment variables not logged
+- [ ] TLS 1.2+ only (no SSLv3, TLS 1.0/1.1)
+- [ ] Security headers present (nginx)
+- [ ] No open proxy vulnerabilities
+- [ ] Debug endpoints disabled in production
+
+### Security Hardening
+
+Verify implementation of:
+
+- [ ] SSH key-only auth (PasswordAuthentication no)
+- [ ] Root login disabled (PermitRootLogin no)
+- [ ] Strong SSH ciphers configured
+- [ ] UFW firewall enabled (default deny incoming)
+- [ ] fail2ban active and configured
+- [ ] Automatic security updates enabled
+- [ ] Audit logging configured (auditd)
+- [ ] sysctl security parameters set
+
+### Secrets Management
+
+Confirm:
+
+- [ ] No secrets in scripts or committed code
+- [ ] `.env.local.example` template exists
+- [ ] Actual secrets file permissions: 600
+- [ ] Secrets directory in `.gitignore`
+- [ ] Rotation procedure documented
+- [ ] Secrets transferred securely (not via git)
+
+### Network Security
+
+Review:
+
+- [ ] Minimal ports exposed (only required)
+- [ ] Internal ports not externally accessible
+- [ ] HTTPS redirect configured
+- [ ] Valid SSL certificate
+- [ ] Security headers (HSTS, X-Frame-Options, etc.)
+
+### Operational Security
+
+Assess documentation of:
+
+- [ ] Backup procedure
+- [ ] Restore/recovery procedure
+- [ ] Secret rotation procedure
+- [ ] Incident response plan
+- [ ] Access revocation procedure
+- [ ] Rollback procedure
+
+---
+
+*Last Updated: December 2024*
+*Version: 1.2.0*
