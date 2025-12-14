@@ -41,6 +41,9 @@ tmp/
 temp/
 *.tmp
 
+# Server audit reports (contain sensitive deployment info)
+docs/deployment/SERVER-REALITY-AUDIT.md
+
 # Project-specific generated artifacts
 # IMPORTANT: Uncomment these lines when using this as a base for your project
 # to avoid committing generated documentation to your repository
