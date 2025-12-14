@@ -96,24 +96,29 @@ ufw default deny incoming
 ufw default allow outgoing
 ufw allow ssh
 ufw allow 443/tcp   # HTTPS (if using nginx)
-ufw allow 3000/tcp  # App port (remove if behind nginx)
+# WARNING: Only allow 3000 for initial testing. Remove after nginx is configured!
+# In production, app should only be accessible via nginx reverse proxy (localhost:3000)
+ufw allow 3000/tcp  # App port - REMOVE THIS after nginx setup
 ufw --force enable
 
 # Enable fail2ban for SSH protection
 systemctl enable fail2ban
 systemctl start fail2ban
 
-# Optional: Disable root login and password auth
+# RECOMMENDED: Disable root login and password auth (do this AFTER confirming SSH key access works)
 # Edit /etc/ssh/sshd_config:
 #   PermitRootLogin no
 #   PasswordAuthentication no
 # Then: systemctl restart sshd
+# WARNING: Ensure you have SSH key access configured before disabling password auth!
 ```
 
 ### Step 4: Install Node.js and PM2
 
 ```bash
 # Install Node.js 20 LTS (as root)
+# Note: NodeSource is an official trusted source. For higher security environments,
+# consider downloading and verifying checksums manually from https://nodejs.org
 curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
 apt install -y nodejs
 
@@ -1051,4 +1056,4 @@ Assess documentation of:
 ---
 
 *Last Updated: December 2024*
-*Version: 1.2.0*
+*Version: 1.2.1*
