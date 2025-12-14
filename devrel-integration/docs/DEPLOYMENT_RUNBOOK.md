@@ -4,6 +4,7 @@
 
 ## Table of Contents
 
+0. [Credentials Setup Guide](./CREDENTIALS_SETUP_GUIDE.md) *(Prerequisite - create tokens first)*
 1. [Prerequisites](#prerequisites)
 2. [Fresh Server Setup](#fresh-server-setup) *(NEW)*
 3. [Pre-Deployment Checklist](#pre-deployment-checklist)
@@ -19,6 +20,8 @@
 
 ## Prerequisites
 
+> **First-time setup?** See the [Credentials Setup Guide](./CREDENTIALS_SETUP_GUIDE.md) for step-by-step instructions to create all required tokens and credentials from scratch (Discord, Google Cloud, Linear, Anthropic).
+
 ### Server Requirements
 
 - **OS**: Ubuntu 22.04 LTS or Debian 12
@@ -28,6 +31,8 @@
 - **Network**: Outbound access to Discord, Google APIs, Anthropic API
 
 ### Required Accounts & Access
+
+> **Need to create these from scratch?** Follow the [Credentials Setup Guide](./CREDENTIALS_SETUP_GUIDE.md)
 
 - [ ] Discord Bot Token (from Discord Developer Portal)
 - [ ] Google Cloud Service Account with Drive API access
