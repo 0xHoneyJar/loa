@@ -12,23 +12,17 @@ export async function GET(req: NextRequest) {
     Expires: "0",
   };
 
-  // Query to fetch data from both HoneyComb and HoneyCombBerachain contracts
-  // Including contractBalances to get the actual wallet addresses
+  // Query unique Honeycomb holders from envio indexer
+  // UserBalance with generation=0 represents Honeycomb holders
+  // balanceTotal > 0 ensures we only count current holders
   const query = gql`
-    query CombinedHoldersQuery {
-      honeycombSnapshots: snapshots(
-        limit: 1
-        orderBy: blockNumber_DESC
-        where: { contractType_eq: "HoneyComb" }
+    query GetUniqueHoneycombHolders {
+      UserBalance_aggregate(
+        where: { generation: { _eq: 0 }, balanceTotal: { _gt: 0 } }
       ) {
-        contractBalances
-      }
-      berachainSnapshots: snapshots(
-        limit: 1
-        orderBy: blockNumber_DESC
-        where: { contractType_eq: "HoneyCombBerachain" }
-      ) {
-        contractBalances
+        aggregate {
+          count
+        }
       }
     }
   `;
@@ -44,57 +38,11 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Sets to store addresses for intersection calculation
-    const ethAddresses = new Set<string>();
-    const beraAddresses = new Set<string>();
-
-    try {
-      const balancesHoneycomb =
-        typeof data.honeycombSnapshots[0].contractBalances === "string"
-          ? JSON.parse(data.honeycombSnapshots[0].contractBalances)
-          : data.honeycombSnapshots[0].contractBalances;
-
-      if (balancesHoneycomb && typeof balancesHoneycomb === "object") {
-        const addresses = Object.keys(balancesHoneycomb).map((addr) =>
-          addr.toLowerCase(),
-        );
-
-        addresses.forEach((address: string) => {
-          ethAddresses.add(address);
-        });
-      }
-    } catch (e) {
-      console.error(`Error parsing ETH contractBalances`, e);
-    }
-
-    try {
-      const balancesBeraHoneycomb =
-        typeof data.berachainSnapshots[0].contractBalances === "string"
-          ? JSON.parse(data.berachainSnapshots[0].contractBalances)
-          : data.berachainSnapshots[0].contractBalances;
-
-      if (balancesBeraHoneycomb && typeof balancesBeraHoneycomb === "object") {
-        const addresses = Object.keys(balancesBeraHoneycomb).map((addr) =>
-          addr.toLowerCase(),
-        );
-
-        addresses.forEach((address: string) => {
-          beraAddresses.add(address);
-        });
-      }
-    } catch (e) {
-      console.error(`Error parsing Bera contractBalances`, e);
-    }
-
-    // Combine all addresses into one set to count unique holders
-    const allUniqueAddresses = new Set([
-      ...Array.from(ethAddresses),
-      ...Array.from(beraAddresses),
-    ]);
+    const uniqueHolders = data.UserBalance_aggregate?.aggregate?.count ?? 0;
 
     return NextResponse.json(
       {
-        uniqueHolders: allUniqueAddresses.size,
+        uniqueHolders,
       },
       { headers },
     );
