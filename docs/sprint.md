@@ -1632,7 +1632,7 @@ Implement FR-7 requirements for real-time build status visibility. Enable stakeh
 
 ### Technical Tasks
 
-#### Task 4.0: Tenant Context Foundation (Soju, 1 day)
+#### Task 4.0: Tenant Context Foundation (Soju, 1 day) ✅
 
 **Description:** Implement foundational tenant context pattern to prepare for future multi-tenancy and SaaS capabilities. This adds minimal overhead now but enables easy extensibility later. **Moved from Sprint 3** (sprint was already completed when this scaling task was added).
 
@@ -1875,7 +1875,7 @@ Implement FR-7 requirements for real-time build status visibility. Enable stakeh
 
 ---
 
-#### Task 4.6: Content-Addressable Cache (Soju, 1.5 days)
+#### Task 4.6: Content-Addressable Cache (Soju, 1.5 days) ✅
 
 **Description:** Implement content-addressable caching for transformation results. Same document content returns cached result regardless of filename or path, dramatically improving cache hit rates.
 
