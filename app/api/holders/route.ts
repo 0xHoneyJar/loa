@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { gql } from "@apollo/client";
-import { createApolloClientHC } from "@/lib/apollo";
-
-const client = createApolloClientHC();
+import { GRAPHQL_HC_ENDPOINT } from "@/constants/api";
 
 export async function GET(req: NextRequest) {
   // Add cache-control headers
@@ -12,37 +9,49 @@ export async function GET(req: NextRequest) {
     Expires: "0",
   };
 
-  // Query unique Honeycomb holders from envio indexer
-  // UserBalance with generation=0 represents Honeycomb holders
-  // balanceTotal > 0 ensures we only count current holders
-  const query = gql`
-    query GetUniqueHoneycombHolders {
-      UserBalance_aggregate(
-        where: { generation: { _eq: 0 }, balanceTotal: { _gt: 0 } }
-      ) {
-        aggregate {
-          count
-        }
+  try {
+    // Paginate through all UserBalance records with generation=0 (Honeycomb)
+    // and balanceTotal > 0 to count unique holders
+    let allIds: string[] = [];
+    let offset = 0;
+    const limit = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await fetch(GRAPHQL_HC_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: `
+            query GetHoneycombHolders($limit: Int!, $offset: Int!) {
+              UserBalance(
+                where: { generation: { _eq: 0 }, balanceTotal: { _gt: 0 } }
+                limit: $limit
+                offset: $offset
+              ) {
+                id
+              }
+            }
+          `,
+          variables: { limit, offset },
+        }),
+      });
+
+      const result = await response.json();
+      const batch = result.data?.UserBalance ?? [];
+
+      allIds = allIds.concat(batch.map((u: { id: string }) => u.id));
+
+      if (batch.length < limit) {
+        hasMore = false;
+      } else {
+        offset += limit;
       }
     }
-  `;
-
-  try {
-    const { data } = await client.query({
-      query,
-      fetchPolicy: "network-only",
-      context: {
-        fetchOptions: {
-          next: { revalidate: 0 },
-        },
-      },
-    });
-
-    const uniqueHolders = data.UserBalance_aggregate?.aggregate?.count ?? 0;
 
     return NextResponse.json(
       {
-        uniqueHolders,
+        uniqueHolders: allIds.length,
       },
       { headers },
     );
