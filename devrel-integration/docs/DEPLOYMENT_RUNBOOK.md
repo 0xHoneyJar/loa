@@ -297,11 +297,17 @@ Successfully registered X application commands.
 
 ### Step 10: Start Application with PM2
 
+**CRITICAL**: PM2's `env_file` directive does NOT reliably load environment variables. You MUST source the env file before starting PM2.
+
 ```bash
 # As devrel user with PM2_HOME set
 export PM2_HOME=/opt/devrel-integration/.pm2
 
-# Start the bot
+# CRITICAL: Source environment variables BEFORE starting PM2
+# set -a exports all variables, set +a stops exporting
+set -a && source secrets/.env.local && set +a
+
+# Start the bot (env vars are now in the shell environment)
 pm2 start ecosystem.config.js --env production
 
 # Save PM2 process list for auto-restart on reboot
@@ -310,6 +316,16 @@ pm2 save
 # Verify
 pm2 status
 pm2 logs agentic-base-bot --lines 20
+```
+
+**If you see "No accessToken provided to LinearClient" error:**
+```bash
+# Stop the bot
+pm2 stop agentic-base-bot
+
+# Re-source environment and restart
+set -a && source secrets/.env.local && set +a
+pm2 start ecosystem.config.js --env production
 ```
 
 ### Step 11: Verify Installation
@@ -482,15 +498,23 @@ chmod 755 logs
 
 ### 7. Start/Restart Application
 
+**CRITICAL**: Always source environment variables before PM2 commands.
+
 **First Deployment:**
 ```bash
+# Source env vars first
+set -a && source secrets/.env.local && set +a
+
 pm2 start ecosystem.config.js --env production
 pm2 save
 ```
 
 **Subsequent Deployments:**
 ```bash
-pm2 reload agentic-base-bot --update-env
+# Source env vars first
+set -a && source secrets/.env.local && set +a
+
+pm2 restart agentic-base-bot
 ```
 
 ### 8. Verify Deployment
@@ -594,7 +618,8 @@ git checkout <previous-commit-hash>
 npm ci --production=false
 npm run build
 
-# Restart
+# Source env vars and restart
+set -a && source secrets/.env.local && set +a
 pm2 start ecosystem.config.js --env production
 ```
 
@@ -1022,6 +1047,33 @@ Consider adding a post-build script to `package.json` for automation:
 ```json
 "postbuild": "cp src/database/schema.sql dist/database/"
 ```
+
+### 9. PM2 env_file Directive Does NOT Load Environment Variables
+
+**Problem**: Bot crashes with "No accessToken provided to LinearClient" even though `.env.local` exists.
+
+**Symptoms**:
+- Bot starts but immediately crashes
+- Error logs show missing API keys/tokens
+- `secrets/.env.local` file exists with correct values
+- PM2 ecosystem.config.js has `env_file` pointing to correct path
+
+**Root Cause**: PM2's `env_file` directive is unreliable and does NOT actually load environment variables into the process environment.
+
+**Solution**: ALWAYS source the env file manually before starting PM2:
+```bash
+# Stop the bot first if running
+pm2 stop agentic-base-bot
+
+# Source environment variables into current shell
+# set -a exports all vars, set +a stops exporting
+set -a && source secrets/.env.local && set +a
+
+# Now start PM2 - it inherits env vars from shell
+pm2 start ecosystem.config.js --env production
+```
+
+**Important**: This must be done every time you start or restart the bot from a fresh shell session.
 
 ---
 
