@@ -402,4 +402,64 @@ describe('TenantContextProvider', () => {
       expect(tenant.tenantId).toBe(DEFAULT_TENANT_ID);
     });
   });
+
+  describe('tenantId validation (path traversal prevention)', () => {
+    it('should accept valid tenant IDs', async () => {
+      const validIds = ['thj', 'tenant-1', 'my-tenant-123', 'a', 'ab', 'a1b2c3'];
+
+      for (const id of validIds) {
+        const mockConfig = {
+          tenantId: id,
+          name: 'Test',
+          config: DEFAULT_TENANT_CONFIG,
+        };
+        mockFs.existsSync.mockReturnValue(true);
+        mockFs.readFileSync.mockReturnValue(JSON.stringify(mockConfig));
+
+        await provider.initialize();
+        const tenant = await provider.getTenant(id);
+        expect(tenant.tenantId).toBe(id);
+
+        provider.clearCache();
+      }
+    });
+
+    it('should reject path traversal attempts', async () => {
+      mockFs.existsSync.mockReturnValue(true);
+      await provider.initialize();
+
+      await expect(provider.getTenant('../etc/passwd')).rejects.toThrow('Invalid tenant ID');
+      await expect(provider.getTenant('../../secrets')).rejects.toThrow('Invalid tenant ID');
+      await expect(provider.getTenant('tenant/../admin')).rejects.toThrow('Invalid tenant ID');
+    });
+
+    it('should reject tenant IDs with invalid characters', async () => {
+      mockFs.existsSync.mockReturnValue(true);
+      await provider.initialize();
+
+      await expect(provider.getTenant('tenant/id')).rejects.toThrow('Invalid tenant ID');
+      await expect(provider.getTenant('tenant\\id')).rejects.toThrow('Invalid tenant ID');
+      await expect(provider.getTenant('tenant.id')).rejects.toThrow('Invalid tenant ID');
+      await expect(provider.getTenant('tenant:id')).rejects.toThrow('Invalid tenant ID');
+      await expect(provider.getTenant('tenant id')).rejects.toThrow('Invalid tenant ID');
+    });
+
+    it('should reject tenant IDs starting or ending with hyphen', async () => {
+      mockFs.existsSync.mockReturnValue(true);
+      await provider.initialize();
+
+      await expect(provider.getTenant('-tenant')).rejects.toThrow('Invalid tenant ID');
+      await expect(provider.getTenant('tenant-')).rejects.toThrow('Invalid tenant ID');
+      await expect(provider.getTenant('-')).rejects.toThrow('Invalid tenant ID');
+    });
+
+    it('should reject empty or null tenant IDs', async () => {
+      mockFs.existsSync.mockReturnValue(true);
+      await provider.initialize();
+
+      await expect(provider.getTenant('')).rejects.toThrow('Tenant ID is required');
+      await expect(provider.getTenant(null as unknown as string)).rejects.toThrow('Tenant ID is required');
+      await expect(provider.getTenant(undefined as unknown as string)).rejects.toThrow('Tenant ID is required');
+    });
+  });
 });

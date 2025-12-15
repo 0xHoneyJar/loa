@@ -45,6 +45,31 @@ export interface TenantConfigFile {
 }
 
 // =============================================================================
+// Validation
+// =============================================================================
+
+/**
+ * Valid tenant ID pattern: alphanumeric with hyphens, 1-64 chars
+ * Prevents path traversal attacks (e.g., "../etc/passwd")
+ */
+const TENANT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^[a-z0-9]$/i;
+
+/**
+ * Validate tenant ID to prevent path traversal
+ * @throws Error if tenantId is invalid
+ */
+function validateTenantId(tenantId: string): void {
+  if (!tenantId || typeof tenantId !== 'string') {
+    throw new Error('Tenant ID is required');
+  }
+  if (!TENANT_ID_PATTERN.test(tenantId)) {
+    throw new Error(
+      `Invalid tenant ID: "${tenantId}". Must be 1-64 alphanumeric characters with optional hyphens (not at start/end).`
+    );
+  }
+}
+
+// =============================================================================
 // Tenant Context Provider
 // =============================================================================
 
@@ -257,6 +282,7 @@ export class TenantContextProvider {
    * Load tenant from configuration file
    */
   private async loadTenant(tenantId: string): Promise<TenantContext> {
+    validateTenantId(tenantId);
     const configPath = path.join(this.configDir, `${tenantId}.json`);
 
     if (!fs.existsSync(configPath)) {
@@ -306,6 +332,7 @@ export class TenantContextProvider {
    * Save tenant configuration to file
    */
   private async saveTenantConfig(tenant: TenantContext): Promise<void> {
+    validateTenantId(tenant.tenantId);
     const configPath = path.join(this.configDir, `${tenant.tenantId}.json`);
 
     const configData: TenantConfigFile = {
