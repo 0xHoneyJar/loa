@@ -292,7 +292,8 @@ async function handleDocSlash(interaction: ChatInputCommandInteraction): Promise
     await interaction.deferReply();
 
     // SECURITY FIX: Use absolute path for docs root and validate
-    const DOC_ROOT = path.resolve(__dirname, '../../../docs');
+    // From dist/handlers/ -> ../../docs resolves to project_root/docs
+    const DOC_ROOT = path.resolve(__dirname, '../../docs');
 
     // Map doc type to filename (not path)
     const docFiles: Record<string, string> = {
