@@ -2460,6 +2460,294 @@ app.get('/metrics', async (req, res) => {
 - Alertmanager for threshold-based alerts
 - Discord channel for critical alerts
 
+### 9.5 Multi-Tenancy Preparation (SaaS Extensibility)
+
+**Purpose**: Build patterns now that enable future SaaS deployment without major refactoring.
+
+**Current State (MVP)**: Single tenant ("thj"), hardcoded configuration.
+
+**Target State (Future SaaS)**: Multi-tenant with per-tenant isolation, billing, and configuration.
+
+**Tenant Context Pattern**:
+
+```typescript
+// src/types/tenant.ts
+interface TenantContext {
+  tenantId: string;           // Unique tenant identifier
+  name: string;               // Display name
+  config: TenantConfig;       // Tenant-specific settings
+  quotas: TenantQuotas;       // Rate limits and usage limits
+  credentials: TenantCreds;   // Google Workspace, API keys (encrypted)
+}
+
+interface TenantConfig {
+  googleWorkspaceId?: string;       // Optional: tenant's own Workspace
+  discordServerId: string;          // Required: Discord server
+  defaultPersonas: string[];        // Which personas to generate
+  customPrompts?: PersonaPrompts;   // Optional: custom transformation prompts
+}
+
+interface TenantQuotas {
+  transformationsPerDay: number;    // e.g., 50
+  transformationsPerMonth: number;  // e.g., 1000
+  storageGB: number;                // e.g., 10
+  usersMax: number;                 // e.g., 20
+}
+```
+
+**Implementation Guidelines**:
+
+1. **Pass tenant context through all service calls**:
+```typescript
+// Current (MVP) - hardcoded
+const result = await transformationService.transform(document, persona);
+
+// Future-ready - tenant-aware
+const result = await transformationService.transform(tenantCtx, document, persona);
+```
+
+2. **Namespace all storage keys**:
+```typescript
+// Cache keys
+const cacheKey = `${tenantId}:transform:${contentHash}:${persona}`;
+const folderKey = `${tenantId}:folder:${folderId}`;
+
+// Google Drive folders
+const basePath = `/tenants/${tenantId}/Products/${product}/`;
+```
+
+3. **Track usage per tenant** (for future billing):
+```typescript
+interface UsageRecord {
+  tenantId: string;
+  timestamp: Date;
+  operation: 'transform' | 'query' | 'storage';
+  inputTokens?: number;
+  outputTokens?: number;
+  storageBytes?: number;
+}
+```
+
+4. **Externalize all configuration**:
+```typescript
+// config/tenants/thj.json (MVP - single file)
+{
+  "tenantId": "thj",
+  "googleWorkspaceId": "C0xxxxxx",
+  "discordServerId": "123456789",
+  "folderIds": {
+    "root": "1abc...",
+    "products": "2def..."
+  }
+}
+```
+
+**MVP Implementation**: Add `tenantId` parameter to key services, default to `"thj"`. Full multi-tenancy deferred to Phase 2.
+
+### 9.6 Advanced Caching Patterns
+
+**9.6.1 Content-Addressable Cache (Recommended)**
+
+**Problem**: Cache invalidation when files are renamed, moved, or have minor metadata changes.
+
+**Solution**: Hash document content to generate cache keys. Same content = same cache hit.
+
+```typescript
+// src/services/content-cache.ts
+import { createHash } from 'crypto';
+
+class ContentAddressableCache {
+  private redis: Redis;
+
+  async getOrTransform(
+    tenantId: string,
+    document: Document,
+    persona: string,
+    transformFn: () => Promise<TransformResult>
+  ): Promise<TransformResult> {
+    // Generate content hash (ignores filename, path, metadata)
+    const contentHash = this.hashContent(document.content);
+    const cacheKey = `${tenantId}:transform:${contentHash}:${persona}`;
+
+    // Check cache
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
+    // Transform and cache
+    const result = await transformFn();
+    await this.redis.setex(cacheKey, 86400, JSON.stringify(result)); // 24h TTL
+
+    return result;
+  }
+
+  private hashContent(content: string): string {
+    // Normalize whitespace for more cache hits
+    const normalized = content.trim().replace(/\s+/g, ' ');
+    return createHash('sha256').update(normalized).digest('hex').slice(0, 16);
+  }
+}
+```
+
+**Benefits**:
+- Renamed file → still hits cache
+- Minor whitespace changes → normalized, still hits cache
+- Cross-user benefit: If user A transforms same doc as user B, cache hit
+
+**9.6.2 Tiered Cache with Stale-While-Revalidate**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Cache Hierarchy                              │
+├─────────────────────────────────────────────────────────────────┤
+│  L1: In-Memory (lru-cache)                                       │
+│  ├── TTL: 1-5 minutes                                           │
+│  ├── Size: 100 entries                                          │
+│  └── Use: Hot data, same-user repeated queries                  │
+├─────────────────────────────────────────────────────────────────┤
+│  L2: Redis                                                       │
+│  ├── TTL: 15-60 minutes                                         │
+│  ├── Size: Unlimited (within memory)                            │
+│  └── Use: Team-wide shared cache, cross-request persistence     │
+├─────────────────────────────────────────────────────────────────┤
+│  L3: Google Docs (Permanent Storage)                             │
+│  ├── TTL: Permanent (with version history)                      │
+│  ├── Size: Unlimited                                            │
+│  └── Use: Audit trail, historical access, disaster recovery     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Implementation**:
+```typescript
+class TieredCache {
+  private l1: LRUCache<string, CacheEntry>;
+  private l2: Redis;
+  private l3: GoogleDocsStorage;
+
+  async get(key: string): Promise<TransformResult | null> {
+    // L1 check
+    const l1Entry = this.l1.get(key);
+    if (l1Entry && !this.isStale(l1Entry)) {
+      return l1Entry.value;
+    }
+
+    // L2 check
+    const l2Entry = await this.l2.get(key);
+    if (l2Entry) {
+      const parsed = JSON.parse(l2Entry);
+      this.l1.set(key, { value: parsed, timestamp: Date.now() }); // Promote to L1
+      return parsed;
+    }
+
+    // L3 check (permanent storage)
+    const l3Entry = await this.l3.findByContentHash(key);
+    if (l3Entry) {
+      // Promote to L1 + L2
+      await this.l2.setex(key, 3600, JSON.stringify(l3Entry));
+      this.l1.set(key, { value: l3Entry, timestamp: Date.now() });
+      return l3Entry;
+    }
+
+    return null;
+  }
+
+  async set(key: string, value: TransformResult): Promise<void> {
+    // Write to all tiers
+    this.l1.set(key, { value, timestamp: Date.now() });
+    await this.l2.setex(key, 3600, JSON.stringify(value));
+    // L3 write happens separately via GoogleDocsStorageService
+  }
+}
+```
+
+**Stale-While-Revalidate Pattern**:
+```typescript
+async getWithRevalidation(key: string, revalidateFn: () => Promise<TransformResult>): Promise<TransformResult> {
+  const cached = await this.get(key);
+
+  if (cached) {
+    // Return stale immediately
+    if (this.isStale(cached)) {
+      // Trigger background refresh (don't await)
+      this.backgroundRefresh(key, revalidateFn);
+    }
+    return cached.value;
+  }
+
+  // Cache miss - must wait for fresh data
+  const fresh = await revalidateFn();
+  await this.set(key, fresh);
+  return fresh;
+}
+
+private async backgroundRefresh(key: string, revalidateFn: () => Promise<TransformResult>): Promise<void> {
+  try {
+    const fresh = await revalidateFn();
+    await this.set(key, fresh);
+  } catch (error) {
+    // Log but don't fail - stale data still served
+    logger.warn('Background refresh failed', { key, error });
+  }
+}
+```
+
+### 9.7 Unit Economics
+
+**Purpose**: Understand cost structure for internal planning and future SaaS pricing.
+
+**9.7.1 Claude API Costs**
+
+| Operation | Input Tokens | Output Tokens | Cost/Operation |
+|-----------|-------------|---------------|----------------|
+| Transform PRD (1 persona) | ~12,000 | ~2,000 | ~$0.07 |
+| Transform PRD (4 personas) | ~48,000 | ~8,000 | ~$0.28 |
+| Weekly digest | ~20,000 | ~4,000 | ~$0.12 |
+| Content validation | ~5,000 | ~1,000 | ~$0.04 |
+| Decision search | ~2,000 | ~500 | ~$0.02 |
+
+**Pricing basis**: Claude Sonnet 3.5 ($3/M input, $15/M output tokens)
+
+**Monthly Projections (10 users, 5-10 projects)**:
+- 50 full transformations × $0.28 = $14
+- 20 weekly digests × $0.12 = $2.40
+- 100 content validations × $0.04 = $4
+- **Claude Total: ~$20-40/month**
+
+**9.7.2 Google Workspace Costs**
+
+| Resource | Free Tier | Expected Usage | Monthly Cost |
+|----------|-----------|----------------|--------------|
+| Drive API calls | 1B/day | ~1,000/day | $0 |
+| Docs API calls | 300/min/user | ~100/min peak | $0 |
+| Storage | 15GB | ~1GB | $0 |
+| Workspace Business | - | 10 users | $60-120 |
+
+**Key insight**: Google Workspace per-user cost dominates. For SaaS, tenants bringing own Workspace reduces platform costs.
+
+**9.7.3 Infrastructure Costs**
+
+| Resource | MVP (Minimal) | Production | SaaS (Per Tenant) |
+|----------|---------------|------------|-------------------|
+| Compute | $0 (existing) | $20/month | Shared |
+| Redis | $0 (Upstash free) | $15/month | Shared |
+| Monitoring | $0 (basic logs) | $20/month | Shared |
+| **Total** | **$0** | **$55/month** | **~$5-10/tenant** |
+
+**9.7.4 Unit Cost Summary**
+
+| Metric | MVP | Production | SaaS Target |
+|--------|-----|------------|-------------|
+| Monthly total | ~$80-160 | ~$135-215 | ~$50-100/tenant |
+| Cost per user | $8-16 | $13-21 | $5-10 |
+| Cost per transformation | ~$0.30 | ~$0.35 | ~$0.30 |
+
+**Cost Optimization Levers**:
+1. **Caching**: 90%+ cache hit rate reduces Claude API calls by ~80%
+2. **Batching**: Transform 4 personas in single context reduces token overhead
+3. **Model selection**: Use Haiku for validation, Sonnet for transformations
+4. **Tenant-owned Workspace**: Eliminate $60-120/month Workspace cost in SaaS
+
 ---
 
 ## 10. Deployment Architecture

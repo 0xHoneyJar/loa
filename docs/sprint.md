@@ -1,11 +1,11 @@
-# Sprint Plan: Onomancer Bot Phase 1 MVP
+# Sprint Plan: Onomancer Bot Full MVP v1.3
 # DevRel Documentation Automation System
 
 **Project:** Onomancer Bot (DevRel Integration)
 **Sprint Planner:** Sprint Planner Agent
-**Date:** 2025-12-11
-**Version:** 1.0
-**Status:** Ready for Implementation
+**Date:** 2025-12-15 (Updated)
+**Version:** 2.0
+**Status:** In Progress - Sprints 1-3 Complete, Sprints 4-7 Planned
 
 ---
 
@@ -14,14 +14,17 @@
 1. [Sprint Overview](#sprint-overview)
 2. [MVP Definition](#mvp-definition)
 3. [Team Composition](#team-composition)
-4. [Sprint 1: Google Workspace Foundation](#sprint-1-google-workspace-foundation)
-5. [Sprint 2: Transformation Pipeline Core](#sprint-2-transformation-pipeline-core)
-6. [Sprint 3: Discord Commands Integration](#sprint-3-discord-commands-integration)
-7. [Sprint 4: Security Controls & Testing](#sprint-4-security-controls--testing)
-8. [Required API Keys & Credentials](#required-api-keys--credentials)
-9. [Dependencies & Blockers](#dependencies--blockers)
-10. [Success Metrics](#success-metrics)
-11. [Risk Register](#risk-register)
+4. [Sprint 1: Google Workspace Foundation](#sprint-1-google-workspace-foundation) ✅ COMPLETED
+5. [Sprint 2: Transformation Pipeline Core](#sprint-2-transformation-pipeline-core) ✅ COMPLETED
+6. [Sprint 3: Discord Commands & Automated Triggers](#sprint-3-discord-commands--automated-triggers) ✅ COMPLETED
+7. [Sprint 4: Build Status & Real-Time Notifications (FR-7)](#sprint-4-build-status--real-time-notifications-fr-7)
+8. [Sprint 5: Comprehensive Knowledge Base (FR-8)](#sprint-5-comprehensive-knowledge-base-fr-8)
+9. [Sprint 6: Marketing Support (FR-9) & Integration](#sprint-6-marketing-support-fr-9--integration)
+10. [Sprint 7: Final Testing & Production Deployment](#sprint-7-final-testing--production-deployment)
+11. [Required API Keys & Credentials](#required-api-keys--credentials)
+12. [Dependencies & Blockers](#dependencies--blockers)
+13. [Success Metrics](#success-metrics)
+14. [Risk Register](#risk-register)
 
 ---
 
@@ -29,59 +32,66 @@
 
 ### Project Context
 
-The Onomancer Bot transforms agentic-base's technical documentation into stakeholder-appropriate summaries stored in Google Workspace. This Phase 1 MVP (Option C - Bare Minimum) implements ONLY the core infrastructure and manual triggers, deferring automated triggers and advanced features to Phase 2.
+The Onomancer Bot transforms agentic-base's technical documentation into stakeholder-appropriate summaries stored in Google Workspace. This **Full MVP v1.3** implements ALL CRITICAL features including automated triggers, build visibility, knowledge base, and marketing support.
 
 **Why This Matters:** Technical work is trapped in developer-centric formats. Marketing, product managers, and leadership depend on developers to manually translate work. This creates a bottleneck that slows releases and prevents parallel workflows.
 
 **Solution:** Discord bot + devrel-translator agent + Google Workspace = Self-service documentation access for all stakeholders.
 
-### Current State Analysis
+### Current State Analysis (Updated 2025-12-15)
 
-**Existing Implementation** (`/home/merlin/Documents/thj/code/agentic-base/devrel-integration/`):
+**Completed Implementation:**
+- ✅ Sprint 1: Google Workspace Foundation (Terraform, folder structure, permissions)
+- ✅ Sprint 2: Transformation Pipeline Core (Google Docs API, persona prompts, context aggregation)
 - ✅ Discord bot infrastructure (bot.ts, commands, handlers)
 - ✅ Linear integration with feedback capture and issue management
 - ✅ Security controls (SecureTranslationInvoker, ContentSanitizer, SecretScanner, OutputValidator, ReviewQueue)
 - ✅ `/translate` command with document resolution and validation
 - ✅ Comprehensive logging and error handling
-- ⚠️ **NOT IMPLEMENTED:** Google Workspace integration, Terraform IaC, automated transformation triggers
+- ✅ Google API quota optimization (Drive Export API, document caching, rate limiters)
 
-**Gap Analysis:**
-- Google Workspace organization does NOT exist yet (needs creation)
-- Google Docs API integration is NOT implemented (only stubbed references)
-- Terraform infrastructure is NOT created (no `/terraform` directory)
-- Automated file system watchers are NOT implemented
-- Weekly digest cron job exists but NOT integrated with Google Docs
-- `/exec-summary`, `/audit-summary`, `/blog-draft` commands NOT implemented
+**Remaining Implementation (Sprints 3-7):**
+- ⚠️ Discord slash commands (`/exec-summary`, `/audit-summary`, `/show-sprint`, `/digest`)
+- ⚠️ Automated file system watchers (PRD/SDD/sprint triggers)
+- ⚠️ Weekly digest cron job integrated with Google Docs
+- ⚠️ Build status & process reporting (FR-7)
+- ⚠️ Comprehensive knowledge base (FR-8)
+- ⚠️ Marketing & communications support (FR-9)
 
-### Sprint Strategy
+### Sprint Strategy (Updated)
 
-**Total Sprints:** 4 sprints × 10 days = 40 calendar days
-**Sprint Duration:** 10 days (2 weeks) per sprint
-**Team Size:** 4 developers (Jani, Soju, Zergucci, Zerker)
-**Approach:** Infrastructure-first → Integration → Commands → Validation
+**Total Sprints:** 7 sprints × 5 days = 35 calendar days
+**Sprint Duration:** 5 days (1 week) per sprint
+**Team Size:** 2+ developers
+**Approach:** Infrastructure-first → Integration → Commands → Features → Validation
 
-**Sprint Sequence Rationale:**
-1. **Sprint 1**: Foundation - Must create Google Workspace and Terraform before anything else
-2. **Sprint 2**: Core Pipeline - Transform technical docs to personas, store in Google Docs
-3. **Sprint 3**: User Interface - Discord commands for stakeholder self-service
-4. **Sprint 4**: Security & Quality - Testing, validation, production readiness
+**Sprint Sequence:**
+1. **Sprint 1**: ✅ Foundation - Google Workspace and Terraform
+2. **Sprint 2**: ✅ Core Pipeline - Document transformation and Google Docs integration
+3. **Sprint 3**: Discord Commands & Automated Triggers - User interface and file watchers
+4. **Sprint 4**: Build Status (FR-7) - Real-time notifications, Linear webhooks
+5. **Sprint 5**: Knowledge Base (FR-8) - Product specs, decision logs, changelogs
+6. **Sprint 6**: Marketing Support (FR-9) - Data extraction, validation, RACI
+7. **Sprint 7**: Final Testing & Deployment - E2E tests, documentation, production
 
-### MVP Definition (Phase 1 - Option C)
+### MVP Definition (Full MVP v1.3)
 
-**IN SCOPE:**
-- ✅ Google Workspace organization creation (FR-1)
-- ✅ Terraform IaC for folder structure and permissions (FR-1.2-1.7)
-- ✅ Document transformation pipeline with 4 personas (FR-2)
-- ✅ Discord slash commands: `/exec-summary`, `/audit-summary`, `/translate`, `/show-sprint` (FR-4.1, FR-4.2, FR-4.4, FR-4.7)
-- ✅ Security controls (FR-6.1-6.6) - **Already implemented**, integrate with Google Docs
-- ✅ Manual triggers ONLY (user invokes `/translate`)
+**IN SCOPE (ALL CRITICAL Features):**
+- ✅ Google Workspace organization creation (FR-1) - COMPLETED
+- ✅ Terraform IaC for folder structure and permissions (FR-1.2-1.7) - COMPLETED
+- ✅ Document transformation pipeline with 4 personas (FR-2) - COMPLETED
+- 🔄 Automated triggers (FR-3): PRD/SDD/sprint file watchers, weekly digest
+- 🔄 Discord slash commands (FR-4): `/exec-summary`, `/audit-summary`, `/translate`, `/show-sprint`, `/digest`
+- ✅ Security controls (FR-6.1-6.6) - COMPLETED
+- 🔄 Build status & process reporting (FR-7): Linear webhooks, notifications, dashboard
+- 🔄 Comprehensive knowledge base (FR-8): Product specs, decision logs, Discord archive
+- 🔄 Marketing & communications support (FR-9): Data extraction, validation, RACI
 
-**OUT OF SCOPE (Deferred to Phase 2):**
-- ❌ Automated triggers (FR-3.4-3.7): PRD/SDD/sprint plan file watchers, `/review-sprint` listener, weekly digest automation
-- ❌ Build visibility (FR-7): Linear webhooks, real-time notifications
-- ❌ Knowledge base (FR-8): Discord archive, decision logs
-- ❌ Marketing support (FR-9): Custom data extraction, RACI generation
+**OUT OF SCOPE (Phase 2):**
 - ❌ Hivemind integration (FR-5): LEARNINGS library, User Truth Canvas
+- ❌ A/B testing dashboard
+- ❌ Multi-language support
+- ❌ Twitter/Telegram integration
 
 ---
 
@@ -954,35 +964,49 @@ Build the core transformation pipeline using the devrel-translator agent and exi
 
 ---
 
-## Sprint 3: Discord Commands Integration
-**Duration:** 10 days (2 weeks)
-**Dates:** Sprint 3 Start Date → +10 days
+## Sprint 3: Discord Commands & Automated Triggers ✅ COMPLETED
+**Duration:** 5 days (1 week)
+**Dates:** Sprint 3 Start Date → +5 days
 **Lead:** Zergucci (Backend/Frontend + Discord bot)
-**Goal:** Implement Discord slash commands for stakeholder self-service document access, enabling manual transformation triggers and summary queries
+**Goal:** Complete remaining Discord slash commands and implement automated file watchers for PRD/SDD/sprint document triggers
+
+**Status:** ✅ COMPLETED - Approved by Senior Technical Lead (2025-12-13), Security Audit APPROVED
 
 ### Sprint Goal
 
-Build Discord slash commands that expose transformation pipeline to stakeholders. Implement `/translate`, `/exec-summary`, `/audit-summary`, and `/show-sprint` commands with role-based access control, error handling, and helpful UX.
+Complete remaining Discord slash commands (`/exec-summary`, `/audit-summary`, `/show-sprint`, `/digest`) and implement automated file watchers (FR-3.4-3.7) that trigger transformation when PRD/SDD/sprint documents change. Implement weekly digest cron job for stakeholder reporting.
 
 ### Why This Sprint Comes Third
 
-**Dependency:** Requires transformation pipeline (Sprint 2) to generate summaries. This sprint is the "user interface" layer that makes the system accessible to non-technical stakeholders.
+**Dependency:** Requires transformation pipeline (Sprint 2) to generate summaries. Builds on existing `/translate` command (partially implemented).
 
-**Value:** Enables stakeholders to self-serve documentation needs without asking developers. Demonstrates MVP value immediately.
+**Value:** Enables stakeholders to self-serve documentation needs without asking developers. Automated triggers reduce manual work for developers.
 
 ### Deliverables
 
-- [ ] `/translate <project> <@document> for <audience>` command implemented
+**Discord Commands (Remaining):**
 - [ ] `/exec-summary <sprint-id>` command implemented
 - [ ] `/audit-summary <sprint-id>` command implemented
 - [ ] `/show-sprint [sprint-id]` command implemented
-- [ ] Role-based access control (Discord roles → persona mapping)
-- [ ] Document shorthand resolution (@prd → docs/prd.md, etc.)
-- [ ] Error handling and user-friendly error messages
-- [ ] Command help and usage examples
-- [ ] Discord command registration and deployment
-- [ ] Testing with real Discord server and users
+- [ ] `/digest [days]` command implemented (manual trigger for weekly digest)
+- [ ] Discord command registration and deployment (register all commands with Discord API)
+- [ ] Commands visible in Discord UI with autocomplete
 - [ ] User documentation for commands
+
+**Automated Triggers (FR-3.4-3.7):**
+- [ ] File system watcher for `docs/prd.md` changes → auto-trigger transformation
+- [ ] File system watcher for `docs/sdd.md` changes → auto-trigger transformation
+- [ ] File system watcher for `docs/sprint.md` changes → auto-trigger transformation
+- [ ] File change detection using chokidar or similar library
+- [ ] Debouncing for rapid changes (wait 5s after last change before triggering)
+- [ ] Discord notification when auto-transformation completes
+
+**Weekly Digest Cron Job:**
+- [ ] Cron job service implemented (runs every Monday 9:00 AM)
+- [ ] Aggregates previous week's changes from Linear, GitHub, Discord
+- [ ] Generates digest for each persona (Leadership, Product, Marketing, DevRel)
+- [ ] Stores digests in Google Docs `/Shared/Weekly Digests/`
+- [ ] Posts digest link to Discord announcement channel
 
 ### Technical Tasks
 
@@ -1557,317 +1581,240 @@ Bot: 📊 **Sprint 1 Status** (MiBera)
 
 ---
 
-## Sprint 4: Security Controls & Testing
-**Duration:** 10 days (2 weeks)
-**Dates:** Sprint 4 Start Date → +10 days
-**Lead:** Zerker (Frontend + Backend, Testing focus)
-**Goal:** Comprehensive testing, security validation, production deployment preparation, and MVP launch
+## Sprint 4: Build Status & Real-Time Notifications (FR-7)
+**Duration:** 5 days (1 week)
+**Dates:** Sprint 4 Start Date → +5 days
+**Lead:** Soju (Backend Architecture)
+**Goal:** Implement real-time build visibility with Linear integration dashboard, proactive notifications, and Linear webhooks
+
+**Status:** ⏳ PLANNED
 
 ### Sprint Goal
 
-Validate entire system end-to-end with security focus, comprehensive testing, performance optimization, and production deployment. Ensure MVP is production-ready, secure, and delivers on success criteria.
+Implement FR-7 requirements for real-time build status visibility. Enable stakeholders to see what agents are working on via Discord commands, receive proactive notifications when builds start/complete, and view sprint progress dashboards.
 
 ### Why This Sprint Comes Fourth
 
-**Quality Gate:** Cannot deploy to production without thorough testing and security validation. This sprint ensures the system is reliable, secure, and meets stakeholder needs.
+**Dependency:** Requires Discord commands infrastructure (Sprint 3) and working Linear integration (FR-6.5 already implemented). This sprint adds real-time visibility layer on top of existing agent activity.
 
-**Risk Mitigation:** Discover and fix issues before stakeholders use the system. Production deployment requires confidence in stability and security.
+**Value:** Stakeholders can see what's happening without asking developers. Proactive notifications reduce "check-in" interruptions.
 
 ### Deliverables
 
-- [ ] Comprehensive security audit of complete system
-- [ ] Integration testing of end-to-end workflows
-- [ ] Performance testing and optimization
-- [ ] Production deployment scripts and runbooks
-- [ ] Monitoring and alerting configured
-- [ ] User documentation and training materials
-- [ ] Production deployment completed
-- [ ] MVP success criteria validation
-- [ ] Retrospective and Phase 2 planning
+**FR-7.1 - Real-Time Linear Integration Dashboard:**
+- [ ] `/show-issue <issue-id>` command enhanced with full details (status, assignee, labels, description)
+- [ ] `/list-issues [filter]` command with grouping by status (Todo, In Progress, In Review, Done)
+- [ ] `/tag-issue <issue-id> <project> [priority]` command for human team members
+
+**FR-7.2 - Proactive Build Notifications:**
+- [ ] Notification service implemented for agent activity
+- [ ] Notification triggers: Issue created, work started, component completed, review ready, work done
+- [ ] Configurable per-user notification preferences via `/my-notifications` command
+- [ ] Discord notification channel for build activity
+
+**FR-7.3 - Build Progress Dashboard:**
+- [ ] `/build-status [project|sprint]` command implemented
+- [ ] Shows: Overall progress %, tasks in progress, completed tasks, blocked tasks
+- [ ] Visual progress indicators using Discord embeds
+- [ ] Estimated completion timeline (optional based on velocity)
+
+**FR-7.4 - Linear Webhook Integration:**
+- [ ] Webhook endpoint `/webhooks/linear` implemented
+- [ ] Webhook signature verification for security
+- [ ] Event handlers for: Issue created, status changed, assigned, priority changed, comment added
+- [ ] Webhook events trigger Discord notifications
+
+**FR-7.5 - Sprint Timeline Visualization (Stretch Goal):**
+- [ ] `/sprint-timeline [sprint-id]` command implemented
+- [ ] Gantt-chart-style task dependency visualization
+- [ ] Export as image (PNG) to Discord
+- [ ] Auto-update as Linear issues change
 
 ### Technical Tasks
 
-#### Task 4.1: Security Audit & Validation (Zerker + Zergucci, 3 days)
+#### Task 4.0: Tenant Context Foundation (Soju, 1 day)
 
-**Description:** Comprehensive security audit of complete Onomancer Bot system focusing on secrets management, API security, permission controls, and data privacy.
+**Description:** Implement foundational tenant context pattern to prepare for future multi-tenancy and SaaS capabilities. This adds minimal overhead now but enables easy extensibility later. **Moved from Sprint 3** (sprint was already completed when this scaling task was added).
 
 **Acceptance Criteria:**
-- [ ] Security checklist completed:
-  - **Secrets Management:**
-    - [ ] All secrets stored in `/secrets/.env.local` with 600 permissions
-    - [ ] No secrets committed to git (verify .gitignore)
-    - [ ] Service account key securely stored
-    - [ ] Google Workspace credentials properly secured
-    - [ ] Anthropic API key not exposed in logs
-  - **API Security:**
-    - [ ] Google Docs API calls use service account authentication
-    - [ ] Rate limiting implemented for all external APIs
-    - [ ] API error handling prevents information disclosure
-    - [ ] Retry logic with exponential backoff
-  - **Access Control:**
-    - [ ] Discord role-based access control functional
-    - [ ] Google Docs permissions enforced (stakeholder groups)
-    - [ ] Service account has minimum necessary permissions
-    - [ ] No over-permissioned roles
-  - **Input Validation:**
-    - [ ] All Discord command inputs validated
-    - [ ] Document paths validated (no path traversal)
-    - [ ] Project names validated against whitelist
-    - [ ] Audience parameter validated
-  - **Content Security:**
-    - [ ] Secret scanner blocks secrets before storing in Google Docs
-    - [ ] Content sanitizer prevents prompt injection
-    - [ ] Output validator checks for PII leakage
-    - [ ] Manual review queue functional for flagged content
-  - **Audit Logging:**
-    - [ ] All transformations logged with timestamp and user
-    - [ ] All security scan results logged
-    - [ ] All API errors logged
-    - [ ] Logs stored securely with limited access
-- [ ] Security scan using existing audit tools:
-  - Run `/audit` command on devrel-integration codebase
-  - Address CRITICAL and HIGH findings
-  - Document MEDIUM and LOW findings as technical debt
-- [ ] Penetration testing:
-  - Test prompt injection attacks
-  - Test path traversal attempts
-  - Test permission bypass attempts
-  - Test secret leakage scenarios
-- [ ] Security documentation updated:
-  - Document threat model
-  - Document security controls
-  - Document incident response procedures
+- [ ] `TenantContext` interface defined in `/src/types/tenant.ts`:
+  ```typescript
+  interface TenantContext {
+    tenantId: string;      // Currently "thj" (The Honey Jar)
+    name: string;          // Display name
+    config: TenantConfig;  // Feature flags, limits
+  }
 
-**Estimated Effort:** 3 days
+  interface TenantConfig {
+    enabledFeatures: string[];      // ["transformations", "notifications"]
+    maxTransformationsPerDay: number;
+    maxConcurrentTransforms: number;
+    allowedPersonas: string[];
+  }
+  ```
+- [ ] `TenantContextProvider` service implemented:
+  - `getCurrentTenant(): TenantContext` - Returns current tenant (hardcoded "thj" for MVP)
+  - `withTenantContext(fn)` - Wraps operations with tenant context
+  - Thread-safe context propagation
+- [ ] Update key services to accept `tenantId` parameter:
+  - `TransformationPipeline.transform(tenantId, document, persona)`
+  - `GoogleDocsService.createDocument(tenantId, folder, content)`
+  - `CacheService.get(tenantId, key)` / `set(tenantId, key, value)`
+- [ ] Default tenant configuration in `/config/tenants/thj.json`
+- [ ] Unit tests for TenantContextProvider
 
-**Assigned To:** Zerker (lead security testing), Zergucci (code review and remediation)
+**Estimated Effort:** 1 day
+
+**Assigned To:** Soju
 
 **Dependencies:**
-- All features implemented (Sprints 1-3)
+- Transformation pipeline (Sprint 2)
+
+**Why Now (Scaling Preparation):**
+- Adding tenantId parameter now is cheap (1 day)
+- Retrofitting later is expensive (5-10 days across all services)
+- Enables future SaaS transformation without major refactoring
+- Pattern documented in `docs/SCALING-ARCHITECTURE.md`
 
 **Testing Requirements:**
-- Run automated security scans (npm audit, eslint-plugin-security)
-- Manual penetration testing with attack scenarios
-- Review all CRITICAL and HIGH security findings from `/audit` command
-- Verify all security controls functional
-
-**Documentation:**
-- Document security audit results
-- Document remediation actions taken
-- Document residual risks accepted
-- Document security monitoring procedures
+- Verify tenant context propagates through service calls
+- Test default tenant loads correctly
+- Verify backward compatibility (services work without explicit tenant)
 
 ---
 
-#### Task 4.2: Integration & End-to-End Testing (Zerker + Soju, 2 days)
+#### Task 4.1: Linear Webhook Endpoint (Soju, 2 days)
 
-**Description:** Comprehensive integration testing of complete workflows from Discord command to Google Docs summary, including error paths and edge cases.
+**Description:** Implement webhook endpoint to receive Linear events and trigger Discord notifications for real-time build visibility.
 
 **Acceptance Criteria:**
-- [ ] End-to-end test scenarios implemented:
-  - **Happy Path 1:** User runs `/translate mibera @prd for leadership`
-    - Verify document resolved correctly
-    - Verify transformation generates leadership summary
-    - Verify summary stored in correct Google Docs folder
-    - Verify user can access Google Docs link
-    - Verify permissions correct (leadership@ group has access)
-  - **Happy Path 2:** User runs `/exec-summary sprint-1`
-    - Verify sprint ID parsed correctly
-    - Verify user role detected (e.g., Leadership)
-    - Verify correct persona summary returned
-    - Verify Google Docs link accessible
-  - **Happy Path 3:** User runs `/audit-summary sprint-1`
-    - Verify audit summary found
-    - Verify severity breakdown displayed
-    - Verify Google Docs link accessible
-  - **Error Path 1:** User runs `/translate` with invalid project name
-    - Verify helpful error message
-    - Verify suggestions for valid project names
-  - **Error Path 2:** User runs `/translate` with non-existent document
-    - Verify helpful error message
-    - Verify suggestions for valid document references
-  - **Error Path 3:** Transformation fails (API error)
-    - Verify graceful error handling
-    - Verify retry logic triggered
-    - Verify user notified with clear message
-  - **Error Path 4:** Secret scanner detects secrets in document
-    - Verify transformation blocked
-    - Verify user notified about security issue
-    - Verify flagged for manual review
-  - **Edge Case 1:** User runs `/translate` during high load
-    - Verify rate limiting functional
-    - Verify queuing or backoff
-  - **Edge Case 2:** Multiple users run commands concurrently
-    - Verify no race conditions
-    - Verify all transformations complete correctly
-- [ ] Automated integration test suite:
-  - Tests run via `npm run test:integration`
-  - All scenarios covered with assertions
-  - Test coverage report generated
-- [ ] Manual testing with real users:
-  - Invite team members to test in development Discord server
-  - Collect feedback on UX, error messages, performance
-  - Document bugs and issues found
+- [ ] Webhook endpoint `/webhooks/linear` implemented in Express server
+- [ ] Webhook signature verification using `LINEAR_WEBHOOK_SECRET`
+- [ ] Event handlers for:
+  - `Issue.created` → "📋 New task created: [Title]"
+  - `Issue.updated` (status change) → "🔨 Status changed: [Title] → [New Status]"
+  - `Issue.updated` (assignment) → "👤 Assigned: [Title] → [Assignee]"
+  - `Comment.created` → "💬 Comment on: [Issue Title]"
+- [ ] Events routed to Discord notification channel
+- [ ] Error handling for invalid/malformed webhooks
+- [ ] Logging for all webhook events (for debugging)
+- [ ] Environment variable `LINEAR_WEBHOOK_SECRET` documented
 
 **Estimated Effort:** 2 days
 
-**Assigned To:** Zerker (lead testing), Soju (test automation support)
+**Assigned To:** Soju
 
 **Dependencies:**
-- All features implemented (Sprints 1-3)
+- Discord bot running (Sprint 3)
+- Linear workspace configured
 
 **Testing Requirements:**
-- Run automated integration tests: `npm run test:integration`
-- Run manual testing checklist with team
-- Collect feedback from 5+ team members
-- Document all bugs and prioritize fixes
-
-**Documentation:**
-- Document integration testing approach
-- Document test scenarios and expected results
-- Document bugs found and fixes applied
+- Test with Linear webhook tester
+- Verify signature validation rejects invalid signatures
+- Verify all event types trigger correct notifications
+- Test concurrent webhook events
 
 ---
 
-#### Task 4.3: Performance Testing & Optimization (Soju + Zerker, 2 days)
+#### Task 4.2: Build Notification Service (Soju + Zergucci, 1.5 days)
 
-**Description:** Performance testing of transformation pipeline, API calls, and Discord commands under realistic load. Optimize bottlenecks.
+**Description:** Implement notification service that formats and sends Discord notifications for agent activity.
 
 **Acceptance Criteria:**
-- [ ] Performance benchmarks measured:
-  - **Transformation Duration:**
-    - Target: <60 seconds per document transformation
-    - Measure: Median, p95, p99 latency
-    - Test: Transform 20 documents and measure duration
-  - **API Response Time:**
-    - Target: Google Docs API calls <5 seconds p95
-    - Target: Anthropic API calls <30 seconds p95
-    - Measure: API call latency for each service
-  - **Discord Command Response Time:**
-    - Target: <15 seconds initial response (with "loading" message)
-    - Target: <60 seconds final response (with Google Docs link)
-    - Measure: Time from command invocation to response
-  - **Concurrent Load:**
-    - Test: 10 concurrent transformations
-    - Target: All complete successfully without errors
-    - Measure: Success rate, error rate, latency
-  - **Memory Usage:**
-    - Target: Bot process <512MB memory under normal load
-    - Target: No memory leaks (stable memory over 1 hour)
-    - Measure: Memory usage over time
-- [ ] Performance optimization:
-  - Identify bottlenecks (slowest operations)
-  - Optimize slow API calls (caching, batching)
-  - Optimize context aggregation (parallel API calls)
-  - Optimize Google Docs API calls (batch operations)
-  - Implement caching where appropriate (5 minute TTL)
-- [ ] Load testing:
-  - Use k6, Artillery, or similar tool
-  - Simulate 10 concurrent users running commands
-  - Measure throughput, latency, error rate
-  - Verify system stable under load
-- [ ] Performance documentation:
-  - Document performance benchmarks
-  - Document optimization strategies applied
-  - Document performance monitoring recommendations
+- [ ] `BuildNotificationService` class implemented in `/src/services/build-notifications.ts`:
+  ```typescript
+  interface BuildNotificationService {
+    notifyIssueCreated(issue: LinearIssue): Promise<void>;
+    notifyWorkStarted(issue: LinearIssue): Promise<void>;
+    notifyComponentCompleted(subIssue: LinearIssue, parent: LinearIssue): Promise<void>;
+    notifyReadyForReview(issue: LinearIssue): Promise<void>;
+    notifyWorkCompleted(issue: LinearIssue): Promise<void>;
+  }
+  ```
+- [ ] Discord embed formatting for notifications:
+  - 📋 Issue created: Title, description preview, link, assignee
+  - 🔨 Work started: Title, link, time estimate
+  - ✅ Component completed: Component name, parent task, progress %
+  - 👁️ Ready for review: Title, link, reviewer assigned
+  - 🎉 Completed: Title, summary, link to deliverables
+- [ ] Notification preferences stored per-user (Discord user ID → preferences)
+- [ ] `/my-notifications` command to configure preferences:
+  - Toggle on/off for each notification type
+  - Filter by project or label
+  - Choose DM vs. channel notifications
 
-**Estimated Effort:** 2 days
+**Estimated Effort:** 1.5 days
 
-**Assigned To:** Soju (lead optimization), Zerker (load testing)
+**Assigned To:** Soju (service implementation), Zergucci (Discord command)
 
 **Dependencies:**
-- All features implemented (Sprints 1-3)
-
-**Testing Requirements:**
-- Run performance benchmarks: `npm run test:performance`
-- Run load tests with k6 or Artillery
-- Monitor API rate limits during testing
-- Verify memory usage stable over 1 hour
-
-**Documentation:**
-- Document performance benchmarks
-- Document optimization strategies
-- Document performance monitoring procedures
+- Linear webhook endpoint (Task 4.1)
 
 ---
 
-#### Task 4.4: Production Deployment & Monitoring (Jani + Zerker, 2 days)
+#### Task 4.3: Build Status Dashboard Command (Zergucci, 1 day)
 
-**Description:** Deploy Onomancer Bot to production environment with monitoring, alerting, and operational runbooks.
+**Description:** Implement `/build-status [project|sprint]` command to show real-time sprint progress.
 
 **Acceptance Criteria:**
-- [ ] Production environment configured:
-  - Production Discord server (or use existing)
-  - Production Google Workspace (from Sprint 1)
-  - Production secrets configured in `/secrets/.env.local`
-  - Production Terraform state (separate from dev)
-  - Production environment variables set
-- [ ] Deployment method selected and documented:
-  - Option A: PM2 (recommended for simple deployment)
-  - Option B: Docker + Docker Compose
-  - Option C: Kubernetes (if existing K8s cluster available)
-- [ ] Deployment scripts created:
-  - Build script: `npm run build`
-  - Start script: `npm start` (or PM2 ecosystem.config.js)
-  - Stop script: Graceful shutdown
-  - Health check script: Verify bot running
-- [ ] Monitoring configured:
-  - Log aggregation (Winston to file or external service)
-  - Health check endpoint: `GET /health` (already exists)
-  - Metrics endpoint: `GET /metrics` (already exists)
-  - Alerting for critical errors (email or Slack integration)
-  - Uptime monitoring (UptimeRobot, Pingdom, or similar)
-- [ ] Operational runbooks created:
-  - How to deploy new version
-  - How to rollback deployment
-  - How to restart bot
-  - How to check logs
-  - How to respond to alerts
-  - How to add new commands
-  - How to rotate secrets
-- [ ] Production deployment executed:
-  - Deploy bot to production server/environment
-  - Verify bot connects to Discord
-  - Verify bot can access Google Docs
-  - Verify slash commands registered
-  - Verify commands functional
-  - Verify monitoring operational
-- [ ] Backup and disaster recovery:
-  - Document backup procedures for Google Workspace
-  - Document backup procedures for Terraform state
-  - Document disaster recovery procedures
+- [ ] `/build-status` command registered with Discord:
+  ```typescript
+  new SlashCommandBuilder()
+    .setName('build-status')
+    .setDescription('Show sprint progress and current build status')
+    .addStringOption(option =>
+      option.setName('filter')
+        .setDescription('Project or sprint to filter by')
+        .setRequired(false)
+    )
+  ```
+- [ ] Command queries Linear for issues:
+  - Filter by sprint label (e.g., `sprint:sprint-3`)
+  - Group by status (Todo, In Progress, In Review, Done)
+  - Calculate completion percentage
+- [ ] Discord embed response:
+  - Progress bar visualization (e.g., `[████████░░] 80%`)
+  - Tasks in progress with assignees
+  - Completed tasks count
+  - Blocked tasks highlighted
+  - Estimated completion (optional - based on velocity)
+- [ ] Error handling for invalid filters
 
-**Estimated Effort:** 2 days
+**Estimated Effort:** 1 day
 
-**Assigned To:** Jani (lead deployment), Zerker (monitoring setup and testing)
+**Assigned To:** Zergucci
 
 **Dependencies:**
-- All features tested and approved (Tasks 4.1-4.3)
-- Production environment provisioned
+- Linear service (already exists)
+- Discord bot infrastructure (Sprint 3)
 
-**Testing Requirements:**
-- Test deployment to staging environment first
-- Test rollback procedure
-- Test health check and monitoring
-- Test alerting (trigger test alert)
-- Verify logs accessible and readable
+---
 
-**Deployment Checklist:**
-- [ ] Production secrets configured
-- [ ] Terraform applied to production
-- [ ] Bot deployed and running
-- [ ] Discord commands registered
-- [ ] Health check passing
-- [ ] Monitoring configured
-- [ ] Alerting tested
-- [ ] Runbooks documented
-- [ ] Team trained on operations
+#### Task 4.4: Enhanced Linear Commands (Zergucci, 0.5 days)
 
-**Documentation:**
-- Document production deployment process
-- Document monitoring and alerting setup
-- Document operational runbooks
-- Document backup and disaster recovery procedures
+**Description:** Enhance existing `/show-issue` and `/list-issues` commands with full details.
+
+**Acceptance Criteria:**
+- [ ] `/show-issue <issue-id>` enhanced:
+  - Full issue description (truncated if >1024 chars)
+  - All labels displayed
+  - Assignee with avatar
+  - Status with emoji indicator
+  - Priority with color coding
+  - Created/updated timestamps
+  - Link to Linear and related PRs
+- [ ] `/list-issues [filter]` enhanced:
+  - Grouping by status (Todo, In Progress, In Review, Done)
+  - Filter options: by project, by assignee, by label
+  - Pagination for large results (>10 issues)
+  - Count summary per status
+
+**Estimated Effort:** 0.5 days
+
+**Assigned To:** Zergucci
+
+**Dependencies:**
+- Existing `/show-issue`, `/list-issues` commands (already implemented)
 
 ---
 
@@ -1928,54 +1875,891 @@ Validate entire system end-to-end with security focus, comprehensive testing, pe
 
 ---
 
+#### Task 4.6: Content-Addressable Cache (Soju, 1.5 days)
+
+**Description:** Implement content-addressable caching for transformation results. Same document content returns cached result regardless of filename or path, dramatically improving cache hit rates.
+
+**Acceptance Criteria:**
+- [ ] `ContentAddressableCache` class implemented in `/src/services/content-cache.ts`:
+  ```typescript
+  class ContentAddressableCache {
+    async getOrTransform(
+      tenantId: string,
+      document: Document,
+      persona: string,
+      transformFn: () => Promise<TransformResult>
+    ): Promise<TransformResult>;
+
+    private hashContent(content: string): string;  // SHA-256 of normalized content
+    private normalizeContent(content: string): string;  // Trim, collapse whitespace
+  }
+  ```
+- [ ] Cache key format: `{tenantId}:transform:{contentHash}:{persona}`
+- [ ] Content normalization:
+  - Trim leading/trailing whitespace
+  - Collapse multiple whitespace to single space
+  - Remove invisible characters
+- [ ] Redis integration for cache storage
+- [ ] TTL configuration: 15 minutes default (configurable per tenant)
+- [ ] Cache metrics:
+  - `cache_hits_total` counter
+  - `cache_misses_total` counter
+  - `cache_hit_rate` gauge
+- [ ] Integrate with `TransformationPipeline`:
+  - Check cache before calling Claude API
+  - Store result in cache after successful transformation
+- [ ] Unit tests for cache key generation and normalization
+- [ ] Integration tests for cache hit/miss scenarios
+
+**Estimated Effort:** 1.5 days
+
+**Assigned To:** Soju
+
+**Dependencies:**
+- Tenant Context Foundation (Task 4.0)
+- Redis infrastructure (already configured)
+- Transformation pipeline (Sprint 2)
+
+**Why Now (Scaling Preparation):**
+- Reduces Claude API costs by ~40-60% in steady state
+- Same PRD reviewed by 10 users = 1 API call instead of 10
+- Foundation for tiered caching in Sprint 5
+- Pattern documented in `docs/SCALING-ARCHITECTURE.md`
+
+**Testing Requirements:**
+- Verify identical content produces identical cache key
+- Verify different content produces different cache key
+- Test TTL expiration works correctly
+- Load test: 100 requests for same content = 1 API call
+- Verify cache metrics accurate
+
+---
+
 ### Sprint 4 Dependencies
 
 **External Dependencies:**
-- Production server/environment access
-- Production Google Workspace operational
-- Team availability for training session
+- Linear webhook URL configured in Linear workspace settings
+- Discord notification channel created
 
 **Internal Dependencies:**
-- All features from Sprints 1-3 implemented and tested
-- Security controls functional
-- Performance optimization complete
+- Discord bot running (Sprint 3)
+- Linear integration functional (FR-6.5 - already implemented)
+- All Discord commands from Sprint 3 working
 
 ### Sprint 4 Risks & Mitigation
 
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|------------|
-| Security vulnerabilities discovered late | Blocks production deployment (2-3 days delay) | Medium | Run security audit early in sprint. Prioritize CRITICAL and HIGH findings. Accept MEDIUM/LOW as technical debt. |
-| Performance issues under load | Poor user experience or outages (high impact) | Medium | Load test early. Optimize bottlenecks proactively. Have rollback plan. |
-| Production deployment issues (environment, permissions) | Delays MVP launch (1-2 days) | Low | Deploy to staging first. Test thoroughly. Have rollback procedure. |
-| User training insufficient | Low adoption or misuse | Medium | Create comprehensive documentation. Hold live training. Monitor feedback channel. |
-| Monitoring/alerting gaps | Outages not detected promptly | Low | Test monitoring thoroughly. Trigger test alerts. Document monitoring procedures. |
+| Linear webhook delivery delays | Notifications arrive late (low impact) | Low | Monitor webhook delivery in Linear admin. Implement retry logic. |
+| Too many notifications overwhelm users | Users disable notifications (medium impact) | Medium | Default to channel notifications. Provide granular preferences. Test with team before rollout. |
+| Webhook signature verification fails | Missed events (medium impact) | Low | Test thoroughly with Linear webhook tester. Log all verification attempts. |
+| Rate limits on Linear API for dashboard queries | Dashboard slow/unavailable (low impact) | Low | Implement caching (5 min TTL). Use pagination. Monitor API usage. |
 
 ### Sprint 4 Success Metrics
 
 **Primary Metrics:**
-- [ ] All CRITICAL and HIGH security findings remediated
-- [ ] All integration tests passing (100% pass rate)
-- [ ] Performance benchmarks met (transformation <60s, commands <15s initial response)
-- [ ] Production deployment successful (bot running, commands functional)
-- [ ] Team trained and documentation published
+- [ ] Linear webhooks receiving and processing events correctly
+- [ ] Discord notifications delivered <5 seconds after Linear event
+- [ ] `/build-status` command shows accurate sprint progress
+- [ ] Notification preferences configurable per-user
+
+**Secondary Metrics:**
+- [ ] Team finds notifications useful (positive feedback)
+- [ ] Reduced "what's happening?" questions in Discord
+- [ ] Dashboard used regularly by stakeholders
+
+**Technical Debt:**
+- Gantt chart visualization deferred to Phase 2 if not completed
+- Advanced filtering options for notifications
+
+---
+
+## Sprint 5: Comprehensive Knowledge Base (FR-8)
+**Duration:** 5 days (1 week)
+**Dates:** Sprint 5 Start Date → +5 days
+**Lead:** Soju (Backend Architecture)
+**Goal:** Implement comprehensive knowledge base with product specifications, decision logs, change history tracking, and Discord discussion archive
+
+**Status:** ⏳ PLANNED
+
+### Sprint Goal
+
+Implement FR-8 requirements for a comprehensive knowledge base that captures product specifications, technical decisions, change history, and important Discord discussions. This creates organizational memory that persists beyond individual developer knowledge.
+
+### Why This Sprint Comes Fifth
+
+**Dependency:** Requires transformation pipeline (Sprint 2), Discord integration (Sprint 3), and Linear integration (Sprint 4). Knowledge base builds on top of existing document management.
+
+**Value:** Reduces "tribal knowledge" dependency. New team members can self-serve context. Marketing and product teams have reliable reference documentation.
+
+### Deliverables
+
+**FR-8.1 - Product Specification Repository:**
+- [ ] Auto-generate Product Overview documents from PRD transformations
+- [ ] Auto-generate Technical Specifications from SDD transformations
+- [ ] Store in `/Products/{Product}/Overview.md` and `/Products/{Product}/Technical-Specs.md`
+- [ ] Update automatically when source documents change (via file watchers from Sprint 3)
+
+**FR-8.2 - Decision Log (ADRs):**
+- [ ] `/log-decision` command to capture technical decisions
+- [ ] ADR template: Status, Context, Decision, Rationale, Alternatives, Consequences
+- [ ] Store in `/Products/{Product}/ADRs/ADR-{Number}.md`
+- [ ] `/decision-search <keyword>` command to search decision logs
+- [ ] Index maintained for quick lookup
+
+**FR-8.3 - Change History Tracking:**
+- [ ] Auto-generate changelogs from Linear issue completions
+- [ ] Format: Semantic versioning with Added/Changed/Fixed/Removed sections
+- [ ] Store in `/Products/{Product}/Changelog.md`
+- [ ] Link to Linear issues for each change
+- [ ] `/changelog <product> [version]` command to query changelogs
+
+**FR-8.4 - Discord Discussion Archive:**
+- [ ] Capture important discussions when 📌 reaction added
+- [ ] Store full thread context in `/Shared/Discussions/{Date}/{Topic}.md`
+- [ ] Include participants, timestamps, resolution/decision
+- [ ] Link to Linear issue if created from discussion
+- [ ] `/discussion-search <keyword>` command to search archive
+
+**FR-8.5 - Pre-Work Clarification Documents (Stretch Goal):**
+- [ ] Auto-generate clarification docs when sprint planning completes
+- [ ] Store in `/Products/{Product}/Sprints/Sprint-{N}/Clarifications/`
+- [ ] Include acceptance criteria details, constraints, design specs
+
+### Technical Tasks
+
+#### Task 5.1: ADR Management Service (Soju, 2 days)
+
+**Description:** Implement Architecture Decision Record (ADR) management with Discord command and Google Docs storage.
+
+**Acceptance Criteria:**
+- [ ] `ADRService` class implemented in `/src/services/adr-service.ts`:
+  ```typescript
+  interface ADRService {
+    createADR(params: {
+      product: string;
+      title: string;
+      context: string;
+      decision: string;
+      rationale: string;
+      alternatives?: string[];
+      consequences?: string;
+    }): Promise<{ adrNumber: number; documentUrl: string }>;
+
+    searchADRs(query: string): Promise<ADR[]>;
+    getADR(product: string, number: number): Promise<ADR>;
+    listADRs(product: string): Promise<ADR[]>;
+  }
+  ```
+- [ ] `/log-decision` Discord command:
+  - Modal dialog for ADR input (title, context, decision, rationale)
+  - Auto-assigns ADR number (incrementing)
+  - Creates Google Doc with ADR template
+  - Returns link to created ADR
+- [ ] `/decision-search <keyword>` command:
+  - Full-text search across all ADRs
+  - Returns matching ADRs with excerpts
+  - Pagination for large results
+- [ ] ADR template in Google Docs format with proper headings
+
+**Estimated Effort:** 2 days
+
+**Assigned To:** Soju
+
+**Dependencies:**
+- Google Docs storage service (Sprint 2)
+
+---
+
+#### Task 5.2: Changelog Generation Service (Soju, 1.5 days)
+
+**Description:** Auto-generate product changelogs from Linear issue completions.
+
+**Acceptance Criteria:**
+- [ ] `ChangelogService` class implemented:
+  - Query Linear for completed issues in a version/sprint
+  - Group by type (feature, bugfix, refactor)
+  - Format as semantic changelog (Added, Changed, Fixed, Removed)
+  - Store in Google Docs with links to Linear issues
+- [ ] Trigger: When issues marked "Done" in Linear
+- [ ] `/changelog <product> [version]` command:
+  - Display changelog for product
+  - Filter by version or date range
+  - Link to full Google Doc
+
+**Estimated Effort:** 1.5 days
+
+**Assigned To:** Soju
+
+**Dependencies:**
+- Linear webhook integration (Sprint 4)
+
+---
+
+#### Task 5.3: Discussion Archive Service (Zergucci, 1.5 days)
+
+**Description:** Capture and archive important Discord discussions when 📌 reaction added.
+
+**Acceptance Criteria:**
+- [ ] Enhance existing 📌 reaction handler:
+  - Capture full thread context (all messages in thread)
+  - Extract participants and timestamps
+  - Identify resolution/decision (if any)
+  - Link to Linear issue if created
+- [ ] Store in Google Docs `/Shared/Discussions/{Date}/{Topic}.md`
+- [ ] `/discussion-search <keyword>` command:
+  - Full-text search across archived discussions
+  - Return matching discussions with excerpts
+  - Link to original Discord message (if available)
+
+**Estimated Effort:** 1.5 days
+
+**Assigned To:** Zergucci
+
+**Dependencies:**
+- Existing 📌 feedback capture (already implemented)
+- Google Docs storage service (Sprint 2)
+
+---
+
+#### Task 5.4: Tiered Cache Implementation (Soju, 1 day)
+
+**Description:** Enhance caching with multi-tier hierarchy (L1 in-memory, L2 Redis) and stale-while-revalidate pattern for optimal performance and freshness balance.
+
+**Acceptance Criteria:**
+- [ ] `TieredCache` class implemented in `/src/services/tiered-cache.ts`:
+  ```typescript
+  class TieredCache {
+    private l1Cache: LRUCache;  // In-memory, fast
+    private l2Cache: RedisCache;  // Shared across instances
+
+    async get<T>(tenantId: string, key: string): Promise<T | null>;
+    async set<T>(tenantId: string, key: string, value: T, ttl: number): Promise<void>;
+    async getOrFetch<T>(
+      tenantId: string,
+      key: string,
+      fetchFn: () => Promise<T>,
+      options: CacheOptions
+    ): Promise<T>;
+  }
+  ```
+- [ ] L1 Cache (In-Memory):
+  - LRU eviction with 100 entry limit
+  - TTL: 1-5 minutes (configurable)
+  - Use: Repeated queries within same session
+- [ ] L2 Cache (Redis):
+  - TTL: 15-60 minutes (configurable)
+  - Shared across all bot instances
+  - Use: Cross-request, team-wide sharing
+- [ ] Cache promotion flow:
+  - L1 miss → Check L2 → If hit, promote to L1
+  - L2 miss → Fetch from source → Write to both L1 and L2
+- [ ] Stale-While-Revalidate pattern:
+  ```typescript
+  interface CacheOptions {
+    staleWhileRevalidate?: boolean;  // Return stale, refresh background
+    maxStaleAge?: number;  // Max acceptable stale time (ms)
+  }
+  ```
+  - If stale data exists and `staleWhileRevalidate=true`:
+    - Return stale data immediately
+    - Trigger background refresh
+    - Next request gets fresh data
+- [ ] Cache tier metrics:
+  - `cache_l1_hits_total`, `cache_l1_misses_total`
+  - `cache_l2_hits_total`, `cache_l2_misses_total`
+  - `cache_stale_serves_total`
+  - `cache_background_refreshes_total`
+- [ ] Integrate with ContentAddressableCache (Task 4.6)
+- [ ] Configuration per cache type:
+  - `documentContent`: 15 min L2, 5 min L1
+  - `folderIds`: 60 min L2, 10 min L1
+  - `transformResults`: 30 min L2, 5 min L1
+
+**Estimated Effort:** 1 day
+
+**Assigned To:** Soju
+
+**Dependencies:**
+- Content-Addressable Cache (Task 4.6)
+- Redis infrastructure (already configured)
+
+**Why Now (Scaling Preparation):**
+- Expected cache hit rate: L1 50%, L2 40%, API calls <10%
+- Critical for handling 10-20 concurrent users efficiently
+- Stale-while-revalidate improves perceived performance significantly
+- Pattern documented in `docs/SCALING-ARCHITECTURE.md`
+
+**Testing Requirements:**
+- Verify L1 → L2 → Source fetch flow
+- Verify L2 hit promotes to L1
+- Test stale-while-revalidate returns immediately
+- Verify background refresh occurs asynchronously
+- Load test: Measure cache tier hit rates under concurrent load
+
+---
+
+### Sprint 5 Dependencies
+
+**External Dependencies:**
+- None (all external integrations set up in previous sprints)
+
+**Internal Dependencies:**
+- Google Docs storage service (Sprint 2)
+- File watchers for auto-updates (Sprint 3)
+- Linear webhook integration (Sprint 4)
+- Existing 📌 feedback capture
+
+### Sprint 5 Risks & Mitigation
+
+| Risk | Impact | Probability | Mitigation |
+|------|--------|-------------|------------|
+| Full-text search performance | Slow search results (low impact) | Medium | Implement indexing. Use Google Docs search API. Cache recent searches. |
+| Too many discussions archived | Noise in knowledge base (medium impact) | Low | Require multiple 📌 reactions or moderator approval. Add categories. |
+| ADR adoption low | Team doesn't use decision logging (medium impact) | Medium | Train team on value of ADRs. Make creation easy. Integrate into workflow. |
+
+### Sprint 5 Success Metrics
+
+**Primary Metrics:**
+- [ ] ADR creation working via `/log-decision` command
+- [ ] Decision search returning relevant results
+- [ ] Changelogs auto-generating from Linear completions
+- [ ] Discussion archive capturing important threads
+
+**Secondary Metrics:**
+- [ ] Team creates 5+ ADRs in first week
+- [ ] Knowledge base accessible to all stakeholders
+- [ ] Reduced repeated questions about past decisions
+
+**Technical Debt:**
+- Pre-work clarification documents deferred if not completed
+- Advanced search indexing for large knowledge bases
+
+---
+
+## Sprint 6: Marketing Support (FR-9) & Integration Testing
+**Duration:** 5 days (1 week)
+**Dates:** Sprint 6 Start Date → +5 days
+**Lead:** Zergucci (Backend/Frontend)
+**Goal:** Implement marketing support features (data extraction, content validation, RACI generation) and comprehensive integration testing
+
+**Status:** ⏳ PLANNED
+
+### Sprint Goal
+
+Implement FR-9 requirements for marketing and communications support. Enable marketing team to extract data, validate technical accuracy of content, and generate RACI matrices. Also conduct comprehensive integration testing across all features.
+
+### Why This Sprint Comes Sixth
+
+**Dependency:** Requires all previous features (transformation, commands, notifications, knowledge base). Marketing features integrate across the entire system.
+
+**Value:** Marketing team can work independently without developer involvement. Technical accuracy validation prevents embarrassing errors in public communications.
+
+### Deliverables
+
+**FR-9.1 - Custom Data Extraction Service:**
+- [ ] `/extract-data <data-type> <parameters>` command implemented
+- [ ] Data types supported:
+  - `user-stats <product> <period>` - User metrics from Linear/analytics
+  - `feature-usage <feature> <period>` - Feature adoption metrics
+  - `sprint-metrics <sprint-id>` - Sprint completion, velocity
+- [ ] Output formatted for marketing use (charts, tables)
+- [ ] Export to Google Sheets (optional)
+
+**FR-9.2 - Technical Accuracy Validation Service:**
+- [ ] `/validate-content <google-docs-link>` command implemented
+- [ ] Content analysis using Claude:
+  - Check technical claims against documentation
+  - Flag outdated information
+  - Identify missing disclaimers
+  - Highlight misleading language
+- [ ] Validation report: ✅ Accurate, ⚠️ Minor issues, ❌ Major issues
+- [ ] Suggestions for fixes
+
+**FR-9.3 - RACI Matrix Generation:**
+- [ ] `/generate-raci <product> <initiative>` command implemented
+- [ ] Analyze sprint plan and team structure
+- [ ] Generate RACI table (Responsible, Accountable, Consulted, Informed)
+- [ ] Store in Google Docs, editable by team
+- [ ] Template based on product launch playbook
+
+**Integration Testing:**
+- [ ] End-to-end test suite covering all features
+- [ ] Performance testing under load
+- [ ] Security validation
+
+### Technical Tasks
+
+#### Task 6.1: Data Extraction Service (Zergucci, 2 days)
+
+**Description:** Implement service to extract and format data for marketing use.
+
+**Acceptance Criteria:**
+- [ ] `DataExtractionService` class implemented:
+  ```typescript
+  interface DataExtractionService {
+    extractUserStats(product: string, period: string): Promise<UserStats>;
+    extractFeatureUsage(feature: string, period: string): Promise<FeatureUsage>;
+    extractSprintMetrics(sprintId: string): Promise<SprintMetrics>;
+  }
+  ```
+- [ ] `/extract-data` command with subcommands:
+  - `/extract-data user-stats MiBera last-30-days`
+  - `/extract-data sprint-metrics sprint-3`
+- [ ] Data sources:
+  - Linear API for sprint/issue metrics
+  - GitHub API for code metrics (commits, PRs)
+  - (Future: Analytics API for user metrics)
+- [ ] Output as Discord embed with tables/charts
+- [ ] Optional export to Google Sheets
+
+**Estimated Effort:** 2 days
+
+**Assigned To:** Zergucci
+
+**Dependencies:**
+- Linear service (already exists)
+- GitHub service (already exists)
+
+---
+
+#### Task 6.2: Content Validation Service (Soju, 1.5 days)
+
+**Description:** Implement AI-powered technical accuracy validation for marketing content.
+
+**Acceptance Criteria:**
+- [ ] `ContentValidationService` class implemented:
+  ```typescript
+  interface ContentValidationService {
+    validateContent(content: string, product: string): Promise<ValidationReport>;
+  }
+
+  interface ValidationReport {
+    verdict: 'accurate' | 'minor_issues' | 'major_issues';
+    findings: ValidationFinding[];
+    suggestions: string[];
+  }
+  ```
+- [ ] `/validate-content` command:
+  - Accept Google Docs link or pasted text
+  - Fetch content from Google Docs if link provided
+  - Run validation using Claude
+  - Return formatted report
+- [ ] Validation checks:
+  - Technical claims match documentation (PRD, SDD)
+  - Dates and versions are current
+  - No misleading language
+  - Required disclaimers present
+- [ ] Confidence scoring for each finding
+
+**Estimated Effort:** 1.5 days
+
+**Assigned To:** Soju
+
+**Dependencies:**
+- Google Docs service (Sprint 2)
+- Claude API (SecureTranslationInvoker)
+
+---
+
+#### Task 6.3: RACI Generation Service (Zergucci, 1 day)
+
+**Description:** Auto-generate RACI matrices for product launches.
+
+**Acceptance Criteria:**
+- [ ] `RACIService` class implemented:
+  - Analyze sprint plan for tasks
+  - Analyze team structure from Linear
+  - Generate RACI assignments based on task types
+- [ ] `/generate-raci <product> <initiative>` command:
+  - Example: `/generate-raci MiBera token-launch`
+  - Returns RACI matrix in Discord embed
+  - Creates Google Doc with full matrix
+- [ ] RACI template:
+  - Rows: Tasks from sprint plan
+  - Columns: Team members/roles
+  - Cells: R, A, C, I assignments
+
+**Estimated Effort:** 1 day
+
+**Assigned To:** Zergucci
+
+**Dependencies:**
+- Sprint plan data (docs/sprint.md)
+- Linear team/member data
+
+---
+
+#### Task 6.4: Integration Testing Suite (Zerker, 0.5 days)
+
+**Description:** Comprehensive integration tests covering all features from Sprints 1-6.
+
+**Acceptance Criteria:**
+- [ ] Test suite in `/tests/integration/`:
+  - Transformation pipeline end-to-end
+  - All Discord commands functional
+  - Webhook events processed correctly
+  - Knowledge base operations
+  - Marketing features
+- [ ] Test coverage report generated
+- [ ] CI integration (tests run on PR)
+
+**Estimated Effort:** 0.5 days
+
+**Assigned To:** Zerker
+
+---
+
+#### Task 6.5: Usage Tracking & Unit Economics (Soju, 0.5 days)
+
+**Description:** Implement per-tenant usage tracking to monitor costs, API calls, and transformation volumes for unit economics visibility.
+
+**Acceptance Criteria:**
+- [ ] `UsageTracker` service implemented in `/src/services/usage-tracker.ts`:
+  ```typescript
+  interface UsageMetrics {
+    tenantId: string;
+    period: string;  // "2025-12" (monthly)
+    transformations: {
+      total: number;
+      byPersona: Record<string, number>;
+      cachedHits: number;
+      apiCalls: number;
+    };
+    apiCalls: {
+      claude: { count: number; tokensIn: number; tokensOut: number; estimatedCost: number };
+      googleDrive: { count: number };
+      googleDocs: { count: number };
+    };
+    storage: {
+      documentsCreated: number;
+      totalSizeBytes: number;
+    };
+  }
+
+  class UsageTracker {
+    async trackTransformation(tenantId: string, persona: string, cached: boolean): Promise<void>;
+    async trackApiCall(tenantId: string, api: string, details: ApiCallDetails): Promise<void>;
+    async getUsageReport(tenantId: string, period: string): Promise<UsageMetrics>;
+  }
+  ```
+- [ ] Redis-based counters for real-time tracking:
+  - `{tenantId}:usage:{period}:transformations:total`
+  - `{tenantId}:usage:{period}:transformations:{persona}`
+  - `{tenantId}:usage:{period}:api:{service}:count`
+  - `{tenantId}:usage:{period}:api:claude:tokens_in`
+  - `{tenantId}:usage:{period}:api:claude:tokens_out`
+- [ ] Cost estimation based on current pricing:
+  - Claude API: $15/MTok input, $75/MTok output (Sonnet)
+  - Google Workspace: ~$6-12/user/month
+  - Infrastructure: Fixed ~$20-50/month for MVP
+- [ ] `/usage-report [period]` command (admin only):
+  - Shows usage metrics for current tenant
+  - Cost breakdown by category
+  - Comparison to previous period
+- [ ] Unit economics calculations:
+  - Cost per transformation
+  - Cost per user (if user tracking implemented)
+  - Efficiency ratio (cache hits / total requests)
+
+**Estimated Effort:** 0.5 days
+
+**Assigned To:** Soju
+
+**Dependencies:**
+- Tenant Context Foundation (Task 4.0)
+- Content-Addressable Cache (Task 4.6)
+- Tiered Cache (Task 5.4)
+
+**Why Now (Scaling Preparation):**
+- Essential for understanding true cost per transformation
+- Required data for SaaS pricing decisions
+- Identifies optimization opportunities (high API usage areas)
+- Pattern documented in `docs/SCALING-ARCHITECTURE.md`
+
+**Testing Requirements:**
+- Verify counters increment correctly
+- Test period rollover (month boundary)
+- Verify cost calculations match expected values
+- Test `/usage-report` command returns accurate data
+
+---
+
+### Sprint 6 Dependencies
+
+**External Dependencies:**
+- None
+
+**Internal Dependencies:**
+- All features from Sprints 1-5
+
+### Sprint 6 Risks & Mitigation
+
+| Risk | Impact | Probability | Mitigation |
+|------|--------|-------------|------------|
+| Data extraction limited by available data sources | Incomplete metrics (medium impact) | Medium | Document available vs. unavailable metrics. Plan future integrations. |
+| Content validation false positives | Marketing team loses trust (medium impact) | Medium | Tune validation prompts. Allow override/ignore. Human review for borderline cases. |
+| RACI assignments inaccurate | Team confusion (low impact) | Low | Generate as suggestions, not final. Team reviews and adjusts. |
+
+### Sprint 6 Success Metrics
+
+**Primary Metrics:**
+- [ ] Data extraction returning accurate metrics
+- [ ] Content validation identifying real issues
+- [ ] RACI matrices generated correctly
+- [ ] Integration tests passing (100%)
+
+**Secondary Metrics:**
+- [ ] Marketing team uses features independently
+- [ ] Reduced back-and-forth for technical accuracy
+- [ ] RACI matrices used for product launches
+
+**Technical Debt:**
+- A/B testing dashboard (FR-9.4) deferred to Phase 2
+- Advanced analytics integration
+
+---
+
+## Sprint 7: Final Testing & Production Deployment
+**Duration:** 5 days (1 week)
+**Dates:** Sprint 7 Start Date → +5 days
+**Lead:** Jani (DevOps) + Zerker (QA)
+**Goal:** Comprehensive security audit, performance testing, production deployment, and team training
+
+**Status:** ⏳ PLANNED
+
+### Sprint Goal
+
+Final validation of entire system before production launch. Run security audit, performance tests, deploy to production, create operational runbooks, and train team on usage.
+
+### Why This Sprint Comes Last
+
+**Quality Gate:** Cannot deploy without thorough testing. This sprint ensures production readiness.
+
+**Value:** Stakeholders get a reliable, secure, well-documented system.
+
+### Deliverables
+
+**Security Audit:**
+- [ ] Run `/audit` on complete codebase
+- [ ] Address all CRITICAL and HIGH findings
+- [ ] Document MEDIUM/LOW as technical debt
+- [ ] Penetration testing for key attack vectors
+
+**Performance Testing:**
+- [ ] Load test with 10 concurrent users
+- [ ] Verify transformation <60s latency
+- [ ] Verify commands <15s initial response
+- [ ] Memory usage stable over 1 hour
+
+**Production Deployment:**
+- [ ] Production environment configured
+- [ ] PM2 deployment with ecosystem.config.js
+- [ ] Health monitoring and alerting
+- [ ] Operational runbooks
+
+**Team Training:**
+- [ ] User guide documentation
+- [ ] Quick reference card
+- [ ] 30-minute training session
+- [ ] Feedback mechanism
+
+### Technical Tasks
+
+#### Task 7.1: Security Audit (Zerker + Zergucci, 2 days)
+
+**Description:** Comprehensive security audit of complete system.
+
+**Acceptance Criteria:**
+- [ ] Run `/audit` command on devrel-integration
+- [ ] Review all CRITICAL and HIGH findings
+- [ ] Remediate security issues:
+  - Secrets management validated
+  - Input validation complete
+  - Access controls verified
+  - API security reviewed
+- [ ] Penetration testing:
+  - Prompt injection attempts
+  - Path traversal attempts
+  - Permission bypass attempts
+- [ ] Security documentation updated
+
+**Estimated Effort:** 2 days
+
+**Assigned To:** Zerker (lead), Zergucci (remediation)
+
+---
+
+#### Task 7.2: Performance Testing (Soju, 1 day)
+
+**Description:** Validate system performance under realistic load.
+
+**Acceptance Criteria:**
+- [ ] Performance benchmarks measured:
+  - Transformation latency: <60s p95
+  - Command response: <15s initial, <60s final
+  - API calls: <5s p95
+  - Memory: <512MB stable
+- [ ] Load testing with k6 or Artillery
+- [ ] 10 concurrent users, no errors
+- [ ] Optimize identified bottlenecks
+
+**Estimated Effort:** 1 day
+
+**Assigned To:** Soju
+
+---
+
+#### Task 7.3: Production Deployment (Jani, 1.5 days)
+
+**Description:** Deploy to production with monitoring and runbooks.
+
+**Acceptance Criteria:**
+- [ ] Production environment configured:
+  - Production Discord server
+  - Production Google Workspace (from Sprint 1)
+  - Production secrets secured
+- [ ] PM2 ecosystem.config.js created
+- [ ] Deployment scripts:
+  - `npm run build && npm start`
+  - Graceful shutdown
+  - Health check
+- [ ] Monitoring configured:
+  - Log aggregation
+  - Health endpoint
+  - Alerting (email/Slack)
+  - Uptime monitoring
+- [ ] Operational runbooks:
+  - Deploy new version
+  - Rollback procedure
+  - Restart bot
+  - Check logs
+  - Rotate secrets
+
+**Estimated Effort:** 1.5 days
+
+**Assigned To:** Jani
+
+---
+
+#### Task 7.4: User Documentation & Training (Zerker, 0.5 days)
+
+**Description:** Create user documentation and conduct team training.
+
+**Acceptance Criteria:**
+- [ ] User guide in `/docs/USER_GUIDE.md`:
+  - All commands documented with examples
+  - Troubleshooting section
+  - FAQ
+- [ ] Quick reference card (1-page cheat sheet)
+- [ ] 30-minute training session with team
+- [ ] Feedback channel created in Discord
+
+**Estimated Effort:** 0.5 days
+
+**Assigned To:** Zerker
+
+---
+
+#### Task 7.5: Cost Monitoring Dashboard (Soju, 0.5 days)
+
+**Description:** Create a simple cost monitoring dashboard command to visualize usage metrics and unit economics in Discord.
+
+**Acceptance Criteria:**
+- [ ] `/cost-dashboard` command implemented (admin only):
+  ```
+  📊 Onomancer Bot Cost Dashboard
+  ═══════════════════════════════
+
+  📅 Period: December 2025
+
+  💰 Costs This Month
+  ├─ Claude API:      $12.45 (4,150 transformations)
+  ├─ Google Workspace: $60.00 (10 users)
+  ├─ Infrastructure:   $25.00 (VPS, Redis)
+  └─ Total:           $97.45
+
+  📈 Efficiency Metrics
+  ├─ Cache Hit Rate:   87% (L1: 52%, L2: 35%)
+  ├─ Cost/Transform:   $0.003
+  └─ API Calls Saved:  3,610 (87% cached)
+
+  📊 Comparison to Last Month
+  ├─ Transformations:  +15%
+  ├─ Total Cost:       +8%
+  └─ Efficiency:       +5%
+
+  ⚠️ Alerts
+  └─ Cache hit rate below target (90%)
+  ```
+- [ ] Integrate with UsageTracker (Task 6.5) for metrics
+- [ ] Cost thresholds for alerts:
+  - Warning: >$100/month
+  - Critical: >$150/month
+  - Cache hit rate: <80% warning, <60% critical
+- [ ] Export to Google Sheets option (`/cost-dashboard export`)
+- [ ] Historical trend visualization (last 3 months)
+
+**Estimated Effort:** 0.5 days
+
+**Assigned To:** Soju
+
+**Dependencies:**
+- Usage Tracking (Task 6.5)
+- All caching tasks (Tasks 4.6, 5.4)
+
+**Why Now (Scaling Preparation):**
+- Provides visibility into unit economics before SaaS launch
+- Enables data-driven pricing decisions
+- Identifies cost optimization opportunities
+- Pattern documented in `docs/SCALING-ARCHITECTURE.md`
+
+**Testing Requirements:**
+- Verify dashboard renders correctly in Discord
+- Test export to Google Sheets
+- Verify alerts trigger at correct thresholds
+- Test with mock data for different scenarios
+
+---
+
+### Sprint 7 Dependencies
+
+**External Dependencies:**
+- Production server access
+- Team availability for training
+
+**Internal Dependencies:**
+- All features from Sprints 1-6 complete and tested
+
+### Sprint 7 Risks & Mitigation
+
+| Risk | Impact | Probability | Mitigation |
+|------|--------|-------------|------------|
+| Critical security finding late in sprint | Delays launch (2-3 days) | Medium | Run security audit first. Prioritize CRITICAL fixes. Accept MEDIUM/LOW as debt. |
+| Performance issues under load | Poor user experience | Medium | Load test early. Have optimization plan ready. Scale infrastructure if needed. |
+| Production deployment issues | Delays launch (1-2 days) | Low | Deploy to staging first. Test thoroughly. Have rollback plan. |
+
+### Sprint 7 Success Metrics
+
+**Primary Metrics:**
+- [ ] All CRITICAL security findings remediated
+- [ ] Performance benchmarks met
+- [ ] Production deployment successful
+- [ ] Team trained and using system
 
 **Secondary Metrics:**
 - [ ] Zero production incidents in first 48 hours
-- [ ] Positive feedback from team training session
-- [ ] User documentation complete and reviewed
-- [ ] Monitoring and alerting operational
+- [ ] Positive feedback from training session
+- [ ] Stakeholders actively using bot
 
 **MVP Success Validation:**
-- [ ] Stakeholders can self-serve documentation via Discord commands
-- [ ] Transformation pipeline generates 4 persona summaries correctly
+- [ ] Stakeholders self-serve documentation via Discord
+- [ ] Transformation pipeline generates persona summaries
 - [ ] Google Docs links accessible with correct permissions
 - [ ] Security controls prevent secrets/PII leakage
-- [ ] System deployed and operational for team use
-
-**Technical Debt:**
-- Document all MEDIUM and LOW security findings for Phase 2
-- Document performance optimization opportunities for Phase 2
-- Document UX improvements suggested by team
+- [ ] Build notifications keeping team informed
+- [ ] Knowledge base capturing organizational memory
+- [ ] Marketing team extracting data and validating content
 
 ---
 
@@ -2096,19 +2880,23 @@ Validate entire system end-to-end with security focus, comprehensive testing, pe
 ### Critical Path
 
 **Critical path (longest dependency chain):**
-1. Sprint 1: Google Workspace setup (10 days)
-2. Sprint 2: Transformation pipeline (10 days)
-3. Sprint 3: Discord commands (10 days)
-4. Sprint 4: Testing & deployment (10 days)
-**Total: 40 days**
+1. Sprint 1: Google Workspace setup (5 days) ✅ COMPLETED
+2. Sprint 2: Transformation pipeline (5 days) ✅ COMPLETED
+3. Sprint 3: Discord commands & automated triggers (5 days)
+4. Sprint 4: Build status & notifications - FR-7 (5 days)
+5. Sprint 5: Knowledge base - FR-8 (5 days)
+6. Sprint 6: Marketing support - FR-9 (5 days)
+7. Sprint 7: Testing & deployment (5 days)
+**Total: 35 days (7 sprints × 5 days)**
+
+**Remaining Timeline (Sprints 3-7): 25 days**
 
 **Parallel work opportunities:**
-- Sprint 1: Terraform IaC (Jani) can happen in parallel with service account setup (Soju assisting)
-- Sprint 2: Persona prompts (Soju) can be developed in parallel with Google Docs API client (Soju, sequential)
-- Sprint 3: Command definitions (Zergucci) can happen in parallel with role mapping (Zergucci, sequential)
-- Sprint 4: Documentation (Zerker) can happen in parallel with performance testing (Soju)
-
-**No opportunities to shorten overall timeline without adding developers or reducing scope.**
+- Sprint 3: Automated triggers (Soju) can be developed in parallel with command updates (Zergucci)
+- Sprint 4: Webhook endpoint (Soju) can happen in parallel with notification preferences command (Zergucci)
+- Sprint 5: ADR service (Soju) can happen in parallel with discussion archive (Zergucci)
+- Sprint 6: Content validation (Soju) can happen in parallel with data extraction (Zergucci)
+- Sprint 7: Security audit (Zerker) can happen in parallel with deployment prep (Jani)
 
 ---
 
@@ -2248,27 +3036,31 @@ Validate entire system end-to-end with security focus, comprehensive testing, pe
 
 ## Notes & Considerations
 
-### Phase 1 Scope Decisions
+### Full MVP v1.3 Scope
 
-**Why Option C (Bare Minimum)?**
-- **Focus on core value:** Manual transformation pipeline proves MVP value before investing in automation
-- **Faster to market:** Can deliver working system in 40 days vs. 60-80 days for full Phase 1
-- **Validate assumptions:** Stakeholders may prefer different workflow than automated triggers
-- **Risk mitigation:** Automated triggers add complexity; manual triggers reduce risk of bugs and failures
-- **Technical debt acceptable:** Phase 2 can add automated triggers once manual workflow proven
+**Why Full MVP (Not Bare Minimum)?**
+- **Complete stakeholder value:** Deliver all CRITICAL features for maximum impact
+- **Reduced follow-up work:** No need for Phase 2 for core features
+- **Team efficiency:** 2+ developers for 5-day sprints enables faster delivery
+- **Already built foundation:** Sprints 1-2 complete, providing solid base for remaining work
 
-**What's Deferred to Phase 2:**
-- Automated triggers (FR-3.4-3.7): File system watchers, webhook listeners, weekly digest cron
-- Real-time build visibility (FR-7): Linear webhooks, proactive notifications, build status reporting
-- Comprehensive knowledge base (FR-8): Discord archive, decision logs, change history
-- Marketing support (FR-9): Custom data extraction, RACI generation, A/B testing data
+**Included in Full MVP v1.3:**
+- ✅ Automated triggers (FR-3.4-3.7): File system watchers, weekly digest cron
+- ✅ Real-time build visibility (FR-7): Linear webhooks, proactive notifications, build status reporting
+- ✅ Comprehensive knowledge base (FR-8): Discord archive, decision logs, change history
+- ✅ Marketing support (FR-9): Custom data extraction, content validation, RACI generation
+
+**Deferred to Phase 2:**
 - Hivemind integration (FR-5): LEARNINGS library, User Truth Canvas context
+- A/B testing dashboard (FR-9.4)
+- Sprint timeline Gantt charts (FR-7.5) - stretch goal in Sprint 4
+- Multi-language support
+- Twitter/Telegram integration
 
 **Why These Features Deferred:**
-- **Complexity:** Automated triggers require file system watchers, webhook infrastructure, error handling for async failures
-- **Dependencies:** Build visibility requires Linear webhook setup and Discord notification infrastructure
-- **Uncertain value:** Knowledge base and marketing features may not be needed immediately; validate with stakeholders first
 - **Hivemind scope:** Integrating LEARNINGS and User Truth Canvas adds significant context aggregation complexity
+- **A/B testing:** Requires analytics infrastructure not yet in place
+- **Advanced visualizations:** Gantt charts nice-to-have, not critical for MVP
 
 ### Team Assignments Rationale
 
@@ -2400,42 +3192,145 @@ Use this checklist to validate each sprint is complete before moving to the next
 - [ ] Code review completed by Zergucci
 - [ ] Sprint 2 retrospective conducted
 
-### Sprint 3 Completion Checklist
+### Sprint 3 Completion Checklist (Discord Commands & Automated Triggers)
 
+**Discord Commands (Partially Complete):**
 - [x] Slash command definitions created (`/translate`, `/exec-summary`, `/audit-summary`, `/show-sprint`) ✅
 - [x] `/translate` command handler implemented and tested ✅
-- [x] `/exec-summary` command handler implemented and tested ✅
-- [x] `/audit-summary` command handler implemented and tested ✅
+- [ ] `/exec-summary` command handler implemented and tested
+- [ ] `/audit-summary` command handler implemented and tested
 - [x] `/show-sprint` command updated and tested ✅
+- [ ] `/digest` command implemented
 - [x] Role-based access control implemented (Discord roles → personas) ✅
 - [x] Document shorthand resolution working (@prd → docs/prd.md, etc.) ✅
 - [ ] Commands registered with Discord API
 - [ ] Commands visible in Discord UI with autocomplete
 - [x] Error handling and user-friendly error messages implemented ✅
 - [x] Unit tests written for all command handlers ✅
-- [ ] Integration tests passing (commands invoked in Discord)
-- [ ] Manual testing completed (team tested all commands)
 - [ ] User documentation created (command usage, examples, troubleshooting)
 - [x] Code review completed by Soju ✅
+
+**Automated Triggers:**
+- [ ] File system watcher for `docs/prd.md` changes
+- [ ] File system watcher for `docs/sdd.md` changes
+- [ ] File system watcher for `docs/sprint.md` changes
+- [ ] Debouncing for rapid changes (5s delay)
+- [ ] Discord notification when auto-transformation completes
+
+**Weekly Digest Cron Job:**
+- [ ] Cron job service implemented (runs every Monday 9:00 AM)
+- [ ] Aggregates previous week's changes
+- [ ] Generates digest for each persona
+- [ ] Stores digests in Google Docs
+- [ ] Posts digest link to Discord
+
 - [ ] Sprint 3 retrospective conducted
 
-### Sprint 4 Completion Checklist
+### Sprint 4 Completion Checklist (Build Status & Notifications - FR-7)
 
-- [ ] Security audit completed (CRITICAL and HIGH findings remediated)
-- [ ] Integration testing completed (all end-to-end workflows tested)
-- [ ] Performance testing completed (benchmarks met)
-- [ ] Load testing completed (10 concurrent users, no errors)
-- [ ] Production deployment scripts created
-- [ ] Monitoring and alerting configured (logs, health checks, uptime monitoring)
-- [ ] Operational runbooks documented (deployment, rollback, restart, troubleshooting)
-- [ ] Production deployment executed successfully
-- [ ] Bot running and commands functional in production
-- [ ] User documentation published (user guide, quick reference, FAQ)
-- [ ] Team training session conducted
-- [ ] Positive feedback from training session (8/10 satisfaction)
-- [ ] MVP success criteria validated (all checkboxes marked)
+**Linear Webhook Integration:**
+- [ ] Webhook endpoint `/webhooks/linear` implemented
+- [ ] Webhook signature verification working
+- [ ] Event handlers for issue created, status changed, assigned, comment added
+- [ ] Events routed to Discord notification channel
+
+**Build Notification Service:**
+- [ ] `BuildNotificationService` implemented
+- [ ] Discord embed formatting for all notification types
+- [ ] Notification preferences stored per-user
+- [ ] `/my-notifications` command working
+
+**Build Status Dashboard:**
+- [ ] `/build-status` command implemented
+- [ ] Query Linear for issues by sprint
+- [ ] Progress bar visualization
+- [ ] Task grouping by status
+
+**Enhanced Linear Commands:**
+- [ ] `/show-issue` enhanced with full details
+- [ ] `/list-issues` enhanced with status grouping
+
 - [ ] Sprint 4 retrospective conducted
-- [ ] Phase 2 planning initiated
+
+### Sprint 5 Completion Checklist (Knowledge Base - FR-8)
+
+**ADR Management:**
+- [ ] `ADRService` implemented
+- [ ] `/log-decision` Discord command working
+- [ ] `/decision-search` command working
+- [ ] ADR template in Google Docs format
+
+**Changelog Generation:**
+- [ ] `ChangelogService` implemented
+- [ ] Auto-generate from Linear completions
+- [ ] `/changelog` command working
+
+**Discussion Archive:**
+- [ ] Enhanced 📌 reaction handler with thread capture
+- [ ] Discussion storage in Google Docs
+- [ ] `/discussion-search` command working
+
+- [ ] Sprint 5 retrospective conducted
+
+### Sprint 6 Completion Checklist (Marketing Support - FR-9)
+
+**Data Extraction:**
+- [ ] `DataExtractionService` implemented
+- [ ] `/extract-data` command with subcommands
+- [ ] User stats, feature usage, sprint metrics
+
+**Content Validation:**
+- [ ] `ContentValidationService` implemented
+- [ ] `/validate-content` command working
+- [ ] AI-powered accuracy checking
+
+**RACI Generation:**
+- [ ] `RACIService` implemented
+- [ ] `/generate-raci` command working
+- [ ] RACI matrix stored in Google Docs
+
+**Integration Testing:**
+- [ ] End-to-end test suite covering all features
+- [ ] Test coverage report generated
+
+- [ ] Sprint 6 retrospective conducted
+
+### Sprint 7 Completion Checklist (Final Testing & Deployment)
+
+**Security Audit:**
+- [ ] `/audit` command run on complete codebase
+- [ ] CRITICAL and HIGH findings remediated
+- [ ] MEDIUM/LOW documented as technical debt
+- [ ] Penetration testing completed
+
+**Performance Testing:**
+- [ ] Load test with 10 concurrent users
+- [ ] Transformation latency <60s p95
+- [ ] Command response <15s initial
+- [ ] Memory stable over 1 hour
+
+**Production Deployment:**
+- [ ] Production environment configured
+- [ ] PM2 ecosystem.config.js created
+- [ ] Health monitoring and alerting operational
+- [ ] Operational runbooks documented
+
+**User Documentation & Training:**
+- [ ] User guide published
+- [ ] Quick reference card created
+- [ ] 30-minute training session conducted
+- [ ] Feedback channel created
+
+**MVP Success Validation:**
+- [ ] Stakeholders self-serve documentation via Discord
+- [ ] Transformation pipeline generates persona summaries
+- [ ] Build notifications keeping team informed
+- [ ] Knowledge base capturing organizational memory
+- [ ] Marketing team extracting data and validating content
+- [ ] Zero CRITICAL security vulnerabilities in production
+
+- [ ] Sprint 7 retrospective conducted
+- [ ] Full MVP launch complete
 
 ---
 
@@ -2495,18 +3390,27 @@ Use this checklist to validate each sprint is complete before moving to the next
 
 **Document Metadata:**
 - **Created:** 2025-12-11
-- **Last Updated:** 2025-12-11
-- **Version:** 1.0
-- **Status:** Ready for Implementation
+- **Last Updated:** 2025-12-15
+- **Version:** 2.0
+- **Status:** In Progress - Sprints 1-3 Complete, Sprints 4-7 Planned
 - **Authors:** Sprint Planner Agent
 - **Reviewers:** Jani (DevOps), Soju (CTO), Zergucci (Backend), Zerker (Frontend), Jnova (COO)
-- **Approval:** Pending team review
+- **Approval:** Approved for implementation
+
+**Sprint Status Summary:**
+- ✅ Sprint 1: Google Workspace Foundation - COMPLETED
+- ✅ Sprint 2: Transformation Pipeline Core - COMPLETED
+- ✅ Sprint 3: Discord Commands & Automated Triggers - COMPLETED
+- ⏳ Sprint 4: Build Status & Notifications (FR-7) - PLANNED
+- ⏳ Sprint 5: Knowledge Base (FR-8) - PLANNED
+- ⏳ Sprint 6: Marketing Support (FR-9) - PLANNED
+- ⏳ Sprint 7: Final Testing & Deployment - PLANNED
 
 **Next Steps:**
-1. Team review of sprint plan (1-2 days)
-2. Budget approval confirmation from Jnova
-3. Kick off Sprint 1 (Google Workspace Foundation)
-4. Schedule Sprint 1 kickoff meeting with Jani and team
+1. ~~Complete Sprint 3 (Discord commands, automated triggers, weekly digest)~~ ✅ DONE
+2. Execute Sprint 4 (Linear webhooks, build notifications, tenant context, caching)
+3. Execute Sprints 5-6 (Knowledge base, marketing support)
+4. Sprint 7: Final testing and production deployment
 
 ---
 
