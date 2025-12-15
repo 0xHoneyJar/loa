@@ -31,8 +31,9 @@ export class DocumentResolver {
   private readonly PROJECT_ROOT: string;
 
   constructor() {
-    // Resolve project root (2 levels up from this file)
-    this.PROJECT_ROOT = path.resolve(__dirname, '../../..');
+    // Resolve project root (1 level up from dist/services/)
+    // From dist/services/ -> ../.. resolves to project_root
+    this.PROJECT_ROOT = path.resolve(__dirname, '../..');
   }
 
   /**
