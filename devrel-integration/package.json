@@ -5,6 +5,7 @@
   "main": "dist/bot.js",
   "scripts": {
     "build": "tsc",
+    "postbuild": "cp src/database/schema.sql dist/database/",
     "start": "node dist/bot.js",
     "dev": "ts-node src/bot.ts",
     "register-commands": "npm run build && node dist/commands/register.js",
