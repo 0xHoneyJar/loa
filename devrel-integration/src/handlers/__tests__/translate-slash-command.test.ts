@@ -19,7 +19,7 @@ describe('Translate Slash Command', () => {
     it('should resolve @prd shorthand', () => {
       const result = resolveDocumentReference('@prd');
       expect(result).not.toBeNull();
-      expect(result?.path).toBe('docs/prd.md');
+      expect(result?.path).toBe('prd.md');
       expect(result?.documentType).toBe('prd');
       expect(result?.isShorthand).toBe(true);
     });
@@ -27,21 +27,21 @@ describe('Translate Slash Command', () => {
     it('should resolve @sdd shorthand', () => {
       const result = resolveDocumentReference('@sdd');
       expect(result).not.toBeNull();
-      expect(result?.path).toBe('docs/sdd.md');
+      expect(result?.path).toBe('sdd.md');
       expect(result?.documentType).toBe('sdd');
     });
 
     it('should resolve @sprint shorthand', () => {
       const result = resolveDocumentReference('@sprint');
       expect(result).not.toBeNull();
-      expect(result?.path).toBe('docs/sprint.md');
+      expect(result?.path).toBe('sprint.md');
       expect(result?.documentType).toBe('sprint');
     });
 
     it('should resolve @reviewer shorthand', () => {
       const result = resolveDocumentReference('@reviewer');
       expect(result).not.toBeNull();
-      expect(result?.path).toBe('docs/a2a/reviewer.md');
+      expect(result?.path).toBe('a2a/reviewer.md');
       expect(result?.documentType).toBe('reviewer');
     });
 
@@ -55,7 +55,7 @@ describe('Translate Slash Command', () => {
     it('should handle case-insensitive shorthands', () => {
       const result = resolveDocumentReference('@PRD');
       expect(result).not.toBeNull();
-      expect(result?.path).toBe('docs/prd.md');
+      expect(result?.path).toBe('prd.md');
     });
 
     it('should resolve full path with @ prefix', () => {
@@ -155,10 +155,11 @@ describe('Translate Slash Command', () => {
 
   describe('DOCUMENT_SHORTHANDS constant', () => {
     it('should have expected shorthands', () => {
-      expect(DOCUMENT_SHORTHANDS['@prd']).toBe('docs/prd.md');
-      expect(DOCUMENT_SHORTHANDS['@sdd']).toBe('docs/sdd.md');
-      expect(DOCUMENT_SHORTHANDS['@sprint']).toBe('docs/sprint.md');
-      expect(DOCUMENT_SHORTHANDS['@reviewer']).toBe('docs/a2a/reviewer.md');
+      // Paths are relative to docs/ directory (DocumentResolver base)
+      expect(DOCUMENT_SHORTHANDS['@prd']).toBe('prd.md');
+      expect(DOCUMENT_SHORTHANDS['@sdd']).toBe('sdd.md');
+      expect(DOCUMENT_SHORTHANDS['@sprint']).toBe('sprint.md');
+      expect(DOCUMENT_SHORTHANDS['@reviewer']).toBe('a2a/reviewer.md');
       expect(DOCUMENT_SHORTHANDS['@audit']).toBe('SECURITY-AUDIT-REPORT.md');
     });
   });

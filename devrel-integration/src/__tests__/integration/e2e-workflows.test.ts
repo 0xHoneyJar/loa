@@ -50,15 +50,15 @@ describe('E2E Integration Tests', () => {
       });
 
       it('should resolve document reference @prd', async () => {
-        // Document shorthand mapping
+        // Document shorthand mapping (paths relative to docs/ base directory)
         const documentShorthands: Record<string, string> = {
-          '@prd': 'docs/prd.md',
-          '@sdd': 'docs/sdd.md',
-          '@sprint': 'docs/sprint.md',
+          '@prd': 'prd.md',
+          '@sdd': 'sdd.md',
+          '@sprint': 'sprint.md',
         };
 
         const resolvedPath = documentShorthands['@prd'];
-        expect(resolvedPath).toBe('docs/prd.md');
+        expect(resolvedPath).toBe('prd.md');
       });
 
       it('should sanitize document content before transformation', () => {

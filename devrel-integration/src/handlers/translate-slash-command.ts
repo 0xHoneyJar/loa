@@ -76,14 +76,16 @@ const KNOWN_PROJECTS = [
 
 /**
  * Document shorthand mappings
+ * NOTE: Paths are relative to the 'docs' directory (not project root)
+ * because DocumentResolver looks inside docs/ as an allowed base directory
  */
 const DOCUMENT_SHORTHANDS: Record<string, string> = {
-  '@prd': 'docs/prd.md',
-  '@sdd': 'docs/sdd.md',
-  '@sprint': 'docs/sprint.md',
-  '@reviewer': 'docs/a2a/reviewer.md',
+  '@prd': 'prd.md',
+  '@sdd': 'sdd.md',
+  '@sprint': 'sprint.md',
+  '@reviewer': 'a2a/reviewer.md',
   '@audit': 'SECURITY-AUDIT-REPORT.md',
-  '@deployment': 'docs/a2a/deployment-report.md',
+  '@deployment': 'a2a/deployment-report.md',
 };
 
 /**
