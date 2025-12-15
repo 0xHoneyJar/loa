@@ -329,7 +329,52 @@ pm2 logs agentic-base-bot --lines 50 | grep -i "discord\|ready\|logged"
 # Test a command in Discord
 # Type: /show-sprint
 # Should return sprint status
+
+# Test /doc command (critical - verifies path resolution)
+# Type: /doc prd
+# Should return PRD document content
 ```
+
+### Expected Server Directory Structure
+
+After successful deployment, the server should have:
+
+```
+/opt/devrel-integration/
+├── config/
+│   ├── folder-ids.json          # Created from example (Step 7b)
+│   ├── folder-ids.json.example
+│   └── role-mapping.yml
+├── data/
+│   └── auth.db                  # Created at runtime
+├── dist/                        # TypeScript compiled output
+│   ├── bot.js                   # Entry point
+│   ├── database/
+│   │   └── schema.sql           # Copied by postbuild script
+│   └── handlers/
+│       ├── commands.js          # Text commands (uses ../../docs)
+│       └── interactions.js      # Slash commands (uses ../../docs)
+├── docs/                        # Documentation (served by /doc command)
+│   ├── prd.md
+│   ├── sdd.md
+│   ├── sprint.md
+│   └── a2a/                     # Agent-to-agent communication
+├── logs/
+│   └── *.log
+├── secrets/
+│   ├── .env.local               # chmod 600
+│   └── gcp-service-account.json # chmod 600
+├── src/                         # TypeScript source
+├── .pm2/                        # PM2 home directory
+├── ecosystem.config.js
+├── package.json
+└── tsconfig.json
+```
+
+**Critical Path Resolution**:
+- `/doc` command code runs from `dist/handlers/`
+- DOC_ROOT resolves: `dist/handlers/` + `../../docs` = `/opt/devrel-integration/docs/`
+- If docs are in wrong location, `/doc` commands will fail
 
 ### Quick Reference: PM2 Commands for Custom Home
 
@@ -501,7 +546,23 @@ curl -s http://localhost:3000/health
    ```
    - Should return current sprint status
 
-3. **Permission Check**
+3. **Test Document Commands** (CRITICAL)
+   ```
+   /doc prd
+   /doc sdd
+   /doc sprint
+   ```
+   - Should return document content or "Document not found" (NOT "Invalid document path")
+   - If you get path errors, verify docs exist at `/opt/devrel-integration/docs/`
+
+4. **Verify DOC_ROOT Path Resolution**
+   ```bash
+   # On server, verify path resolves correctly
+   node -e "const path = require('path'); console.log(path.resolve('/opt/devrel-integration/dist/handlers', '../../docs'))"
+   # Should output: /opt/devrel-integration/docs
+   ```
+
+5. **Permission Check**
    ```
    /translate mibera @prd for leadership
    ```

@@ -244,7 +244,8 @@ async function handleDoc(message: Message, args: string[]): Promise<void> {
     }
 
     // SECURITY FIX: Use absolute path for docs root and validate
-    const DOC_ROOT = path.resolve(__dirname, '../../../docs');
+    // From dist/handlers/ -> ../../docs resolves to project_root/docs
+    const DOC_ROOT = path.resolve(__dirname, '../../docs');
 
     // Map doc type to filename (not path)
     const docFiles: Record<string, string> = {
