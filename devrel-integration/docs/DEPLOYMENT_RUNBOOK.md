@@ -172,8 +172,12 @@ npm ci
 # Build TypeScript
 npm run build
 
+# Copy non-TypeScript assets to dist (not handled by tsc)
+cp src/database/schema.sql dist/database/
+
 # Verify build succeeded
 ls -la dist/bot.js
+ls -la dist/database/schema.sql
 ```
 
 ### Step 7: Configure Secrets
@@ -374,6 +378,9 @@ npm ci --production=false
 
 ```bash
 npm run build
+
+# Copy non-TypeScript assets to dist (not handled by tsc)
+cp src/database/schema.sql dist/database/
 ```
 
 ### 5. Verify Secrets
@@ -909,6 +916,26 @@ npm run register-commands
 **Solution**: Standardize on `LINEAR_API_TOKEN` everywhere. Check for inconsistencies:
 ```bash
 grep -r "LINEAR_API" src/
+```
+
+### 8. Missing Non-TypeScript Assets in dist
+
+**Problem**: Bot fails to start with "Schema file not found" error.
+
+**Symptoms**:
+- Bot connects to Discord but crashes during database initialization
+- Error: `Schema file not found: /opt/devrel-integration/dist/database/schema.sql`
+
+**Root Cause**: TypeScript compiler (`tsc`) only compiles `.ts` files. Non-TypeScript assets like `.sql` files are not copied to `dist/`.
+
+**Solution**: After `npm run build`, manually copy required assets:
+```bash
+cp src/database/schema.sql dist/database/
+```
+
+Consider adding a post-build script to `package.json` for automation:
+```json
+"postbuild": "cp src/database/schema.sql dist/database/"
 ```
 
 ---
