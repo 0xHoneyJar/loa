@@ -241,6 +241,30 @@ TZ=UTC
 VALIDATE_WEBHOOK_SIGNATURES=true
 ```
 
+### Step 7b: Configure Google Drive Folder IDs
+
+The bot also requires a `config/folder-ids.json` file for Google Drive integration:
+
+```bash
+# Copy example and edit
+cp config/folder-ids.json.example config/folder-ids.json
+nano config/folder-ids.json
+```
+
+Update with your Google Drive folder IDs (same values as env vars):
+
+```json
+{
+  "leadership": "your_leadership_folder_id",
+  "product": "your_product_folder_id",
+  "marketing": "your_marketing_folder_id",
+  "devrel": "your_devrel_folder_id",
+  "originals": "your_originals_folder_id"
+}
+```
+
+**Note**: Get folder IDs from Google Drive URLs: `https://drive.google.com/drive/folders/{FOLDER_ID}`
+
 ### Step 8: Set Up Google Cloud Service Account
 
 ```bash
