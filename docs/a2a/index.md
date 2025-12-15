@@ -15,6 +15,7 @@
 | [sprint-2](sprint-2/) | COMPLETED | [reviewer.md](sprint-2/reviewer.md) | [feedback](sprint-2/engineer-feedback.md) | [audit](sprint-2/auditor-sprint-feedback.md) | [COMPLETED](sprint-2/COMPLETED) |
 | [sprint-3](sprint-3/) | COMPLETED | [reviewer.md](sprint-3/reviewer.md) | [feedback](sprint-3/engineer-feedback.md) | [audit](sprint-3/auditor-sprint-feedback.md) | [COMPLETED](sprint-3/COMPLETED) |
 | [sprint-4](sprint-4/) | COMPLETED | [reviewer.md](sprint-4/reviewer.md) | [feedback](sprint-4/engineer-feedback.md) | [audit](sprint-4/auditor-sprint-feedback.md) | [COMPLETED](sprint-4/COMPLETED) |
+| [sprint-5](sprint-5/) | IN_PROGRESS | [reviewer.md](sprint-5/reviewer.md) | - | - | - |
 
 ---
 
@@ -171,6 +172,39 @@ New Sprint 4 restructured with scaling tasks from Sprint 3.
 - Review Feedback: [sprint-4/engineer-feedback.md](sprint-4/engineer-feedback.md)
 - Security Audit: [sprint-4/auditor-sprint-feedback.md](sprint-4/auditor-sprint-feedback.md)
 - Archive: [sprint-4/archive/](sprint-4/archive/) (previous sprint-4 files)
+
+---
+
+### sprint-5: Comprehensive Knowledge Base (FR-8)
+
+**Status**: IN_PROGRESS
+
+| Milestone | Date | Notes |
+|-----------|------|-------|
+| Implementation Started | 2025-12-16 | Knowledge base tasks |
+| Implementation Complete | 2025-12-16 | All 4 tasks complete, 180 tests passing |
+
+**Deliverables**:
+- TieredCache service with L1/L2 hierarchy and stale-while-revalidate
+- ADRService for Architecture Decision Records management
+- ChangelogService for semantic changelog generation
+- DiscussionArchiveService for Discord discussion capture
+
+**Technical Highlights**:
+- L1 (in-memory LRU) + L2 (Redis) caching hierarchy
+- Full-text search across ADRs, changelogs, discussions
+- Linear issue integration for changelogs
+- Tenant isolation in all services
+- 180 new unit tests
+
+**New Files**:
+- `src/services/tiered-cache.ts` (573 lines, 55 tests)
+- `src/services/adr-service.ts` (502 lines, 36 tests)
+- `src/services/changelog-service.ts` (496 lines, 47 tests)
+- `src/services/discussion-archive-service.ts` (532 lines, 42 tests)
+
+**Files**:
+- Implementation Report: [sprint-5/reviewer.md](sprint-5/reviewer.md)
 
 ---
 
