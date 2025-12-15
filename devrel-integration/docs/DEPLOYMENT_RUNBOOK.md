@@ -243,7 +243,9 @@ VALIDATE_WEBHOOK_SIGNATURES=true
 
 ### Step 7b: Configure Google Drive Folder IDs
 
-The bot also requires a `config/folder-ids.json` file for Google Drive integration:
+**CRITICAL**: The `/translate` command will fail with "Google Drive folder configuration is missing" if this file is not configured.
+
+The bot requires a `config/folder-ids.json` file for Google Drive integration:
 
 ```bash
 # Copy example and edit
@@ -251,7 +253,7 @@ cp config/folder-ids.json.example config/folder-ids.json
 nano config/folder-ids.json
 ```
 
-Update with your Google Drive folder IDs (same values as env vars):
+Update with your Google Drive folder IDs:
 
 ```json
 {
@@ -263,7 +265,15 @@ Update with your Google Drive folder IDs (same values as env vars):
 }
 ```
 
-**Note**: Get folder IDs from Google Drive URLs: `https://drive.google.com/drive/folders/{FOLDER_ID}`
+**How to get folder IDs**:
+1. Open the folder in Google Drive
+2. Copy the ID from the URL: `https://drive.google.com/drive/folders/{FOLDER_ID}`
+
+**Verify the file is valid JSON:**
+```bash
+cat config/folder-ids.json | python3 -m json.tool
+# Should print formatted JSON without errors
+```
 
 ### Step 8: Set Up Google Cloud Service Account
 
@@ -1074,6 +1084,35 @@ pm2 start ecosystem.config.js --env production
 ```
 
 **Important**: This must be done every time you start or restart the bot from a fresh shell session.
+
+### 10. Missing config/folder-ids.json for Google Drive
+
+**Problem**: `/translate` command fails with "Google Drive folder configuration is missing".
+
+**Symptoms**:
+- Bot starts successfully
+- `/show-sprint` and `/doc` commands work
+- `/translate` fails with configuration error
+- No errors in startup logs
+
+**Root Cause**: The `config/folder-ids.json` file doesn't exist or is empty. This file is NOT included in the repo (only the `.example` file is).
+
+**Solution**: Create the config file with your Google Drive folder IDs:
+```bash
+# Check if file exists
+ls -la config/folder-ids.json
+
+# If missing, create from example
+cp config/folder-ids.json.example config/folder-ids.json
+
+# Edit with actual folder IDs
+nano config/folder-ids.json
+
+# Verify valid JSON
+cat config/folder-ids.json | python3 -m json.tool
+```
+
+**Important**: The folder IDs must match the folders shared with your Google Cloud service account.
 
 ---
 
