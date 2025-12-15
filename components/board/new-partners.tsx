@@ -15,13 +15,12 @@ import PartnerImage from "../partner-image";
 const FEATURED_PARTNERS = [
   "berapaw",
   "booga bears",
-  "haiku trade",
   "beraborrow",
   "infrared finance",
-  "smilee finance",
+  "dolomite",
   "kodiak",
   "dirac finance",
-  "henlo",
+  "haiku trade",
 ];
 
 const NewPartners = ({ partners }: { partners?: any }) => {
