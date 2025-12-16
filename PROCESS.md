@@ -30,7 +30,7 @@ Our development process follows a structured, seven-phase approach:
 
 Each phase is handled by a specialized agent with deep domain expertise, ensuring thorough discovery, clear documentation, high-quality implementation, rigorous quality control, comprehensive security review, and enterprise-grade production deployment.
 
-> **For organizational integration and server deployment**, see [DEPLOY-ORG-PROCESS.md](DEPLOY-ORG-PROCESS.md).
+> **For production deployment**, see [DEPLOYMENT_RUNBOOK.md](devrel-integration/docs/DEPLOYMENT_RUNBOOK.md).
 
 ---
 
@@ -640,9 +640,10 @@ After security audit, if changes required:
 | `/audit-sprint` | Security audit of sprint implementation | `paranoid-auditor` | `docs/a2a/auditor-sprint-feedback.md` |
 | `/deploy-production` | Deploy to production | `devops-crypto-architect` | `docs/deployment/` |
 | `/audit` | Security audit (ad-hoc) | `paranoid-auditor` | `SECURITY-AUDIT-REPORT.md` |
+| `/audit-deployment` | Deployment infrastructure audit (ad-hoc) | `paranoid-auditor` | `docs/a2a/deployment-feedback.md` |
 | `/translate @doc for [audience]` | Executive translation (ad-hoc) | `devrel-translator` | Executive summaries |
 
-> **For organizational integration commands** (`/integrate-org-workflow`, `/implement-org-integration`, `/setup-server`, `/audit-deployment`, `/deploy-go`), see [DEPLOY-ORG-PROCESS.md](DEPLOY-ORG-PROCESS.md).
+> **For deployment procedures**, see [DEPLOYMENT_RUNBOOK.md](devrel-integration/docs/DEPLOYMENT_RUNBOOK.md).
 
 ---
 
@@ -860,9 +861,8 @@ docs/a2a/
 ## Related Documentation
 
 - **[README.md](README.md)** - Quick start guide
-- **[DEPLOY-ORG-README.md](DEPLOY-ORG-README.md)** - Organizational integration quick start
-- **[DEPLOY-ORG-PROCESS.md](DEPLOY-ORG-PROCESS.md)** - Detailed organizational deployment workflow
 - **[CLAUDE.md](CLAUDE.md)** - Guidance for Claude Code instances
+- **[DEPLOYMENT_RUNBOOK.md](devrel-integration/docs/DEPLOYMENT_RUNBOOK.md)** - Production deployment guide
 
 ---
 

@@ -88,6 +88,22 @@ The **devrel-translator** agent translates technical documentation into executiv
 - Converts PRDs, SDDs, audit reports, and sprint updates into stakeholder-appropriate formats
 - Output: Tailored summaries (1-3 pages) with business value, plain language, and risk assessment
 
+## Execution Modes
+
+All slash commands run in **foreground mode by default**, allowing direct interaction with the agent. To run in background mode (for parallel execution), append `background` to the command:
+
+```bash
+# Foreground (default) - interactive, agent responds directly
+/implement sprint-1
+
+# Background - agent runs as subagent, use /tasks to monitor
+/implement sprint-1 background
+```
+
+**When to use each mode:**
+- **Foreground (default)**: Interactive sessions, when you want to guide the agent, single-task workflows
+- **Background**: Running multiple agents in parallel, long-running tasks, automated pipelines
+
 ## Core Commands
 
 | Command | Purpose | Output |
@@ -101,6 +117,8 @@ The **devrel-translator** agent translates technical documentation into executiv
 | `/deploy-production` | Deploy to production | Infrastructure + `docs/deployment/` |
 | `/audit` | Security and quality audit (ad-hoc) | `SECURITY-AUDIT-REPORT.md` |
 | `/translate @doc.md for [audience]` | Translate technical docs for stakeholders (ad-hoc) | Executive summaries |
+
+All commands support `background` argument for parallel execution (e.g., `/audit background`).
 
 ## The Agents
 
@@ -137,26 +155,21 @@ Pre-configured integrations with:
 - **Discord** - Community communication
 - **Web3-stats** - Blockchain data (Dune, Blockscout)
 
-## Organizational Deployment (Optional)
+## Deployment Infrastructure Audit
 
-For teams needing multi-tool integration and server deployment:
+For teams deploying to production servers, use `/audit-deployment` to have the **paranoid-auditor** review deployment scripts, server configurations, and infrastructure security.
 
-| Command | Purpose |
-|---------|---------|
-| `/integrate-org-workflow` | Design integration with Discord, Linear, Google Docs |
-| `/implement-org-integration` | Build Discord bot, webhooks, sync scripts |
-| `/setup-server` | Configure production server |
-| `/audit-deployment` | Security audit of deployment infrastructure |
-| `/deploy-go` | Execute production deployment (requires audit approval) |
+| Command | Purpose | Output |
+|---------|---------|--------|
+| `/audit-deployment` | Security audit of deployment infrastructure | `docs/a2a/deployment-feedback.md` |
 
-See **[DEPLOY-ORG-README.md](DEPLOY-ORG-README.md)** for the complete organizational deployment workflow.
+See **[DEPLOYMENT_RUNBOOK.md](devrel-integration/docs/DEPLOYMENT_RUNBOOK.md)** for the complete deployment workflow.
 
 ## Documentation
 
 - **[PROCESS.md](PROCESS.md)** - Comprehensive workflow documentation
-- **[DEPLOY-ORG-README.md](DEPLOY-ORG-README.md)** - Organizational integration & server deployment guide
-- **[DEPLOY-ORG-PROCESS.md](DEPLOY-ORG-PROCESS.md)** - Detailed organizational deployment workflow
 - **[CLAUDE.md](CLAUDE.md)** - Guidance for Claude Code instances
+- **[DEPLOYMENT_RUNBOOK.md](devrel-integration/docs/DEPLOYMENT_RUNBOOK.md)** - Production deployment guide
 
 ## Repository Structure
 
@@ -177,10 +190,14 @@ docs/
 └── deployment/         # Production infrastructure docs
 
 PROCESS.md              # Core workflow guide
-DEPLOY-ORG-README.md    # Org integration & deployment guide
-DEPLOY-ORG-PROCESS.md   # Detailed org deployment workflow
 CLAUDE.md               # Context for Claude Code
 README.md               # This file
+
+devrel-integration/
+├── docs/
+│   ├── DEPLOYMENT_RUNBOOK.md    # Production deployment guide (canonical)
+│   └── CREDENTIALS_SETUP_GUIDE.md  # Prerequisites setup guide
+└── src/                          # Discord bot implementation
 ```
 
 ## Example Workflow

@@ -227,7 +227,7 @@ describe('InputValidator', () => {
         const result = validator.validateDocumentPath('');
 
         expect(result.valid).toBe(false);
-        expect(result.errors[0]).toContain('cannot be empty');
+        expect(result.errors[0]).toContain('required');
       });
 
       it('should reject whitespace-only path', () => {
@@ -380,7 +380,7 @@ describe('InputValidator', () => {
       const result = validator.validateAudience('');
 
       expect(result.valid).toBe(false);
-      expect(result.errors[0]).toContain('cannot be empty');
+      expect(result.errors[0]).toContain('required');
     });
 
     it('should reject audience with special characters', () => {

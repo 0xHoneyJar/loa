@@ -52,6 +52,11 @@ const PERMISSION_ROLE_MAP: Record<Permission, string[]> = {
   'feedback': ['researcher', 'developer', 'admin'],
   'feedback-capture': ['researcher', 'developer', 'admin'],
 
+  // Linear issue commands
+  'tag-issue': ['developer', 'admin'],
+  'show-issue': ['guest', 'researcher', 'developer', 'admin'],
+  'list-issues': ['guest', 'researcher', 'developer', 'admin'],
+
   // Admin commands
   'config': ['admin'],
   'manage-users': ['admin'],

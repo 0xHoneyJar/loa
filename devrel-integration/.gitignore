@@ -10,6 +10,7 @@ build/
 
 # Secrets (CRITICAL - NEVER COMMIT)
 secrets/
+!secrets/*.example
 .env
 .env.local
 .env.*.local
@@ -40,3 +41,20 @@ tmp/
 temp/
 *.tmp
 data/auth.db
+
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfplan
+terraform/tfplan
+terraform/.terraform.lock.hcl
+
+# Generated config files with sensitive data
+config/folder-ids.json
+!config/folder-ids.json.example
+config/google-groups.json
+
+# Service account keys
+*service-account*.json
+*credentials*.json

@@ -128,6 +128,173 @@ If it exists, read it to understand:
 
 If the file doesn't exist, proceed with standard workflow using only PRD/SDD.
 
+### Phase 0.5: Linear Sprint Project Creation (Optional)
+
+**Create Linear project for sprint tracking if integration context requires**
+
+This phase ensures sprint planning decisions are documented in Linear for complete audit trail and cross-team visibility.
+
+**Step 1: Check if Linear Sprint Tracking is Required**
+
+Read `docs/a2a/integration-context.md` to determine:
+- Is Linear integration configured?
+- Does the team use Linear for sprint tracking?
+- What team ID should be used?
+
+If Linear tracking is not required or context file doesn't exist, skip to Phase 1.
+
+**Step 2: Create Sprint Project in Linear**
+
+For major sprint planning sessions, create a project to track the sprint:
+
+```typescript
+Use mcp__linear__create_project with:
+
+name: "Sprint {N}: {Sprint Theme}"
+// Example: "Sprint 1: Foundation & Core Infrastructure"
+
+description:
+  "**Sprint Planning Document**
+
+  **Duration:** 2.5 days
+  **Planned Dates:** {Start Date} - {End Date}
+
+  **Sprint Goal:**
+  {Clear, concise statement of what this sprint achieves}
+
+  **Scope:**
+  - {Deliverable 1}
+  - {Deliverable 2}
+  - {Deliverable 3}
+
+  **Planning Decisions:**
+  {Document key decisions made during planning}
+
+  **Rationale:**
+  {Why these tasks were prioritized for this sprint}
+
+  **Dependencies:**
+  {Cross-team or external dependencies}
+
+  **Risks:**
+  - {Risk 1}: {Mitigation}
+  - {Risk 2}: {Mitigation}
+
+  **Success Metrics:**
+  {How we measure sprint success}
+
+  **Source Documents:**
+  - PRD: docs/prd.md
+  - SDD: docs/sdd.md
+  - Sprint Plan: docs/sprint.md"
+
+team: "{team-id from integration-context.md}"
+state: "planned"  // or appropriate project state
+```
+
+**Step 3: Document Planning Decisions**
+
+After sprint planning is complete, add a comment to the sprint project with planning rationale:
+
+```typescript
+Use mcp__linear__create_comment with:
+
+// Note: Comments are for issues, not projects
+// Instead, document decisions in project description or create a planning issue
+
+// Create a planning documentation issue under the project:
+Use mcp__linear__create_issue with:
+
+title: "[Planning] Sprint {N} Planning Decisions"
+
+description:
+  "**Sprint Planning Session**
+
+  **Date:** {date}
+  **Planner:** Sprint Planner Agent
+
+  **Key Planning Decisions:**
+
+  1. **Task Prioritization:**
+     {Why tasks were ordered this way}
+     - {Task A} before {Task B} because {reason}
+     - {Task C} in sprint {N} not {N+1} because {reason}
+
+  2. **Scope Decisions:**
+     {What was included/excluded and why}
+     - Included: {feature} because {reason}
+     - Deferred: {feature} because {reason}
+
+  3. **Technical Approach:**
+     {Key technical decisions from SDD that influence sprint}
+     - Using {technology} because {SDD rationale}
+     - {Architecture decision} impacts sprint by {impact}
+
+  4. **Risk Assessment:**
+     {Identified risks and mitigation strategies}
+     - High risk: {risk} - Mitigated by {approach}
+     - Medium risk: {risk} - Monitored via {approach}
+
+  5. **Dependencies:**
+     {External or cross-team dependencies}
+     - Depends on: {dependency} - Status: {status}
+     - Blocked by: {blocker} - Mitigation: {approach}
+
+  **Questions Raised:**
+  {Questions asked during planning and answers received}
+  - Q: {question}
+    A: {answer}
+
+  **Assumptions Made:**
+  {Assumptions that could affect sprint success}
+  - {Assumption 1}
+  - {Assumption 2}
+
+  **Sprint Plan:** docs/sprint.md"
+
+labels: ["agent:planner", "type:planning", "sprint:sprint-{N}"]
+state: "Done"  // Planning documentation is complete
+team: "{team-id}"
+```
+
+**Step 4: Reference Linear in Sprint Plan**
+
+When writing `docs/sprint.md`, include a Linear reference section at the top:
+
+```markdown
+# Sprint Plan
+
+## Linear Tracking
+
+**Sprint Project:** [{Project Name}]({Linear project URL})
+**Planning Issue:** [{PLAN-ID}]({Planning issue URL})
+
+**Labels for this sprint:** `sprint:sprint-{N}`
+
+**Query sprint issues:**
+```
+mcp__linear__list_issues({
+  filter: { labels: { some: { name: { eq: "sprint:sprint-{N}" } } } }
+})
+```
+
+---
+
+{Rest of sprint plan content}
+```
+
+**Label Selection Rules:**
+- `agent:planner` - For planning documentation issues
+- `type:planning` - For planning-related documentation
+- `sprint:sprint-{N}` - Sprint identifier (e.g., sprint:sprint-1)
+
+**Important Notes:**
+
+1. **Document reasoning** - Every prioritization decision should have documented rationale
+2. **Link to source** - Reference PRD/SDD sections that drove decisions
+3. **Track assumptions** - Document assumptions that could affect success
+4. **Enable async** - Future team members should understand why decisions were made
+
 ### Phase 1: Deep Document Analysis
 
 1. **Read and Synthesize**: Thoroughly read both the PRD and SDD, noting:
@@ -258,3 +425,68 @@ Your sprint plan is successful when:
 - Each sprint delivers tangible value that can be demonstrated
 
 Remember: Your sprint plan is not just a document—it's the strategic roadmap that transforms vision into reality. Every word should add clarity and confidence for the team executing the plan.
+
+---
+
+## Bibliography & Resources
+
+This section documents all resources that inform the Sprint Planner's work. Always include absolute URLs and cite specific sections when referencing external resources.
+
+### Input Documents
+
+- **Product Requirements Document (PRD)**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/prd.md
+- **Software Design Document (SDD)**: `docs/sdd.md` (generated in Phase 2)
+
+### Framework Documentation
+
+- **Agentic-Base Overview**: https://github.com/0xHoneyJar/agentic-base/blob/main/CLAUDE.md
+- **Workflow Process**: https://github.com/0xHoneyJar/agentic-base/blob/main/PROCESS.md
+
+### Sprint Planning References
+
+- **Agile Sprint Planning**: https://www.atlassian.com/agile/scrum/sprint-planning
+- **User Story Best Practices**: https://www.atlassian.com/agile/project-management/user-stories
+- **Acceptance Criteria Examples**: https://www.productplan.com/glossary/acceptance-criteria/
+
+### Linear Integration (Phase 0.5)
+
+**Referenced in Lines 131-296** of this agent file for sprint tracking:
+
+- **Linear API Documentation**: https://developers.linear.app/docs
+- **Linear SDK**: https://www.npmjs.com/package/@linear/sdk
+- **Label Setup Script**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/scripts/setup-linear-labels.ts
+- **Linear Service Implementation**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/src/services/linearService.ts
+- **Linear Integration Guide**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/docs/LINEAR_INTEGRATION.md
+
+### Organizational Meta Knowledge Base
+
+**Repository**: https://github.com/0xHoneyJar/thj-meta-knowledge (Private - requires authentication)
+
+The Honey Jar's central documentation hub. **Reference this when planning sprints for THJ products to understand existing patterns and known issues.**
+
+**Essential Resources for Sprint Planning**:
+- **Product Documentation**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/products/ - Understand existing product features
+- **Technical Debt Registry**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/debt/INDEX.md - Known issues by product that may impact sprint planning
+- **ADRs**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/decisions/INDEX.md - Architecture constraints that affect implementation
+- **Knowledge Captures**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/knowledge/ - Developer gotchas and implementation notes
+- **Services Inventory**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/services/INVENTORY.md - External dependencies
+
+**When to Use**:
+- Check technical debt registry before planning sprints (may need to address debt first)
+- Review knowledge captures for "gotchas" that increase task complexity
+- Understand architecture decisions that constrain implementation approach
+- Identify existing services and dependencies
+
+**AI Navigation Guide**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/.meta/RETRIEVAL_GUIDE.md
+
+### Output Standards
+
+All sprint plans must include:
+- Clear, actionable tasks with acceptance criteria
+- Dependencies explicitly stated with links to prerequisite tasks
+- Estimated complexity/effort for each task
+- Risk assessment with mitigation strategies
+- References to PRD functional requirements (FR-X.Y format)
+- References to SDD technical sections
+
+**Note**: Use absolute GitHub URLs when referencing code examples, documentation, or implementation patterns.

@@ -213,3 +213,99 @@ When making architectural choices:
 - Provide concrete examples and sample code where helpful
 
 Your SDD will be the foundation for all implementation work. Engineers and product managers will refer to it repeatedly during sprint planning and development. Make it comprehensive, clear, and actionable.
+
+---
+
+## Bibliography & Resources
+
+This section documents all resources that inform the Software Architect's work. Always include absolute URLs and cite specific sections when referencing external resources.
+
+### Input Documents
+
+- **Product Requirements Document (PRD)**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/prd.md
+  - Primary input for architecture design
+  - Contains functional and non-functional requirements
+  - References stakeholder feedback and constraints
+
+### Framework Documentation
+
+- **Agentic-Base Overview**: https://github.com/0xHoneyJar/agentic-base/blob/main/CLAUDE.md
+- **Workflow Process**: https://github.com/0xHoneyJar/agentic-base/blob/main/PROCESS.md
+- **Integration Architecture**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/integration-architecture.md
+
+### Architecture References
+
+- **Existing Implementations**:
+  - DevRel Integration Bot: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/src/bot.ts
+  - Linear Service Layer: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/src/services/linearService.ts
+  - Handler Architecture: https://github.com/0xHoneyJar/agentic-base/tree/main/devrel-integration/src/handlers
+
+### Technology Stack Resources
+
+- **Node.js Documentation**: https://nodejs.org/docs/latest/api/
+- **TypeScript Handbook**: https://www.typescriptlang.org/docs/handbook/
+- **Discord.js Guide**: https://discordjs.guide/
+- **Express.js Documentation**: https://expressjs.com/
+- **Linear API**: https://developers.linear.app/docs
+- **GitHub REST API**: https://docs.github.com/en/rest
+- **Google Workspace APIs**: https://developers.google.com/workspace
+- **Terraform Documentation**: https://developer.hashicorp.com/terraform/docs
+
+### Security Best Practices
+
+- **OWASP Top 10**: https://owasp.org/www-project-top-ten/
+- **OWASP API Security**: https://owasp.org/www-project-api-security/
+- **Node.js Security Checklist**: https://nodejs.org/en/docs/guides/security/
+
+### Architecture Patterns
+
+- **Microservices Architecture**: https://microservices.io/
+- **12-Factor App Methodology**: https://12factor.net/
+- **Domain-Driven Design**: https://martinfowler.com/bliki/DomainDrivenDesign.html
+- **Clean Architecture**: https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html
+
+### Package Dependencies
+
+Key packages to consider in architecture:
+- **@linear/sdk**: https://www.npmjs.com/package/@linear/sdk
+- **discord.js**: https://www.npmjs.com/package/discord.js
+- **express**: https://www.npmjs.com/package/express
+- **googleapis**: https://www.npmjs.com/package/googleapis
+- **helmet** (security): https://www.npmjs.com/package/helmet
+- **winston** (logging): https://www.npmjs.com/package/winston
+
+### Organizational Meta Knowledge Base
+
+**Repository**: https://github.com/0xHoneyJar/thj-meta-knowledge (Private - requires authentication)
+
+The Honey Jar's central documentation hub. **Review this when designing architecture for THJ products to understand existing patterns and constraints.**
+
+**Essential Resources for Architecture Design**:
+- **Ecosystem Architecture**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/ecosystem/OVERVIEW.md - Understand existing system architecture
+- **Data Flow Patterns**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/ecosystem/DATA_FLOW.md - How data moves through the system
+- **ADRs (Architecture Decisions)**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/decisions/INDEX.md - Learn from past decisions:
+  - ADR-001: Envio Indexer Consolidation
+  - ADR-002: Supabase Database Platform
+  - ADR-003: Dynamic Authentication Provider
+- **Infrastructure**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/infrastructure/ - Existing infrastructure patterns
+- **Services Inventory**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/services/INVENTORY.md - All external services in use
+- **Smart Contracts**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/contracts/REGISTRY.md - Contract addresses and ABIs
+
+**When to Use**:
+- Review existing architecture decisions (ADRs) before proposing new patterns
+- Understand technology stack already in use (avoid introducing incompatible tech)
+- Reference existing infrastructure for consistency
+- Check smart contract integration patterns
+
+**AI Navigation Guide**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/.meta/RETRIEVAL_GUIDE.md
+
+### Output Standards
+
+All SDDs must include:
+- Absolute GitHub URLs for code examples and references
+- External API documentation links
+- Architectural decision records (ADRs) with rationale
+- Technology choice justifications with reference links
+- Security consideration citations (OWASP, best practices)
+
+**Note**: When citing code examples or existing implementations, use absolute URLs to specific files and line numbers where possible.

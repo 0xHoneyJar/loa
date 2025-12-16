@@ -34,11 +34,14 @@ export class SecretsManager {
 
   private readonly SECRET_PATTERNS: Record<string, SecretValidation> = {
     DISCORD_BOT_TOKEN: {
-      pattern: /^[MN][A-Za-z\d]{23}\.[\w-]{6}\.[\w-]{27}$/,
+      // Relaxed pattern to accommodate varying Discord token lengths
+      // Format: base64(user_id).base64(timestamp).hmac
+      pattern: /^[MN][A-Za-z\d]{20,30}\.[\w-]{5,10}\.[\w-]{25,40}$/,
       description: 'Discord bot token format',
     },
     LINEAR_API_TOKEN: {
-      pattern: /^lin_api_[a-f0-9]{40}$/,
+      // Relaxed pattern to accommodate varying Linear token lengths
+      pattern: /^lin_api_[A-Za-z0-9]{30,50}$/,
       description: 'Linear API token format',
     },
     DISCORD_DIGEST_CHANNEL_ID: {

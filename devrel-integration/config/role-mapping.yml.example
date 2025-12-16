@@ -1,0 +1,35 @@
+# Role Mapping Configuration
+# Maps Discord role IDs to persona types for automatic audience detection
+#
+# To use:
+# 1. Copy this file to role-mapping.yml
+# 2. Replace YOUR_*_ROLE_ID with actual Discord role IDs
+# 3. The bot will automatically reload on restart
+
+role_mappings:
+  # Discord Role ID -> Persona Type
+  # Get role IDs from Discord Developer Mode: Right-click role -> Copy ID
+
+  # Leadership roles get executive summaries
+  "YOUR_LEADERSHIP_ROLE_ID": "leadership"
+
+  # Product roles get product-focused summaries
+  "YOUR_PRODUCT_ROLE_ID": "product"
+
+  # Marketing roles get marketing-friendly content
+  "YOUR_MARKETING_ROLE_ID": "marketing"
+
+  # Developer/DevRel roles get technical deep-dives
+  "YOUR_DEVREL_ROLE_ID": "devrel"
+  "YOUR_DEVELOPER_ROLE_ID": "devrel"
+
+# Default persona for users without a mapped role
+default_persona: "product"
+
+# Priority order (first = highest priority)
+# When a user has multiple roles, they get the highest priority persona
+priority_order:
+  - "leadership"
+  - "product"
+  - "marketing"
+  - "devrel"

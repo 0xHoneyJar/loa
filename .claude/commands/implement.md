@@ -1,15 +1,20 @@
 ---
 description: Launch the sprint implementation engineer to execute sprint tasks with feedback loop support
+args: <sprint-name> [background]
 ---
 
 I'm launching the sprint-task-implementer agent to implement the tasks from your sprint plan.
 
+**Sprint**: {{ $ARGUMENTS[0] if $ARGUMENTS else "ERROR: sprint-name required (e.g., sprint-1)" }}
+
 The agent will:
-1. **Check for previous feedback** at `docs/a2a/engineer-feedback.md` and address it first if it exists
-2. **Review all documentation** in `docs/*` for context (PRD, SDD, sprint plan)
-3. **Implement sprint tasks** with production-quality code, tests, and documentation
-4. **Generate detailed report** at `docs/a2a/reviewer.md` for senior technical lead review
-5. **Iterate on feedback** by reading `docs/a2a/engineer-feedback.md`, clarifying uncertainties, fixing issues, and generating updated reports
+1. **Validate sprint argument** and create `docs/a2a/{{ $ARGUMENTS[0] }}/` directory if needed
+2. **Check for security audit feedback** at `docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md` FIRST
+3. **Check for review feedback** at `docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md`
+4. **Review all documentation** in `docs/*` for context (PRD, SDD, sprint plan)
+5. **Implement sprint tasks** with production-quality code, tests, and documentation
+6. **Generate detailed report** at `docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md`
+7. **Update sprint index** at `docs/a2a/index.md`
 
 The implementation engineer will:
 - Write clean, maintainable, production-ready code
@@ -19,15 +24,91 @@ The implementation engineer will:
 - Document technical decisions and tradeoffs
 - Address all acceptance criteria for each task
 
-Let me launch the agent now to begin implementation.
+**Execution Mode**: {{ "background - use /tasks to monitor" if "background" in $ARGUMENTS else "foreground (default)" }}
+
+{{ if "background" in $ARGUMENTS }}
+Running in background mode.
 
 <Task
   subagent_type="sprint-task-implementer"
-  prompt="You are tasked with implementing the sprint tasks defined in docs/sprint.md. You will follow a feedback-driven development cycle with a senior technical product lead.
+  prompt="You are tasked with implementing sprint tasks. You will follow a feedback-driven development cycle with a senior technical product lead.
+
+## Sprint Context
+
+**Sprint Name**: {{ $ARGUMENTS[0] }}
+**Sprint Directory**: docs/a2a/{{ $ARGUMENTS[0] }}/
+
+All A2A communication files for this sprint will be stored in the sprint-specific directory to preserve audit trail.
+
+## Phase -1: Sprint Setup (CRITICAL - DO THIS FIRST)
+
+1. **Validate sprint argument format**:
+   - The sprint name '{{ $ARGUMENTS[0] }}' must match pattern 'sprint-N' where N is a positive integer
+   - Valid examples: sprint-1, sprint-2, sprint-10
+   - If invalid format, STOP and inform user: 'Invalid sprint name. Use format: sprint-N (e.g., sprint-1, sprint-2)'
+
+2. **Validate sprint exists in docs/sprint.md**:
+   - Read docs/sprint.md
+   - Confirm there is a section for '{{ $ARGUMENTS[0] }}' or 'Sprint N' (extract N from argument)
+   - If sprint not found, STOP and inform user: 'Sprint {{ $ARGUMENTS[0] }} not found in docs/sprint.md'
+
+3. **Create sprint directory if needed**:
+   - Check if docs/a2a/{{ $ARGUMENTS[0] }}/ exists
+   - If not, create the directory: mkdir -p docs/a2a/{{ $ARGUMENTS[0] }}/
+   - This preserves all feedback files for organizational memory
+
+4. **Check for COMPLETED marker**:
+   - If docs/a2a/{{ $ARGUMENTS[0] }}/COMPLETED exists, this sprint is already done
+   - STOP and inform user: 'Sprint {{ $ARGUMENTS[0] }} is already COMPLETED. Check docs/a2a/{{ $ARGUMENTS[0] }}/COMPLETED for details.'
+
+5. **Set working paths for this session**:
+   - AUDIT_FEEDBACK = docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md
+   - ENGINEER_FEEDBACK = docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md
+   - REVIEWER_REPORT = docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md
+
+## Phase 0: Check for Security Audit Feedback (CRITICAL - CHECK FIRST)
+
+BEFORE anything else, check if docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md exists:
+
+1. If the file EXISTS and contains 'CHANGES_REQUIRED':
+   - Read it carefully and completely
+   - This contains security audit feedback that MUST be addressed
+   - Address ALL CRITICAL and HIGH priority security issues
+   - Update docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md with 'Security Audit Feedback Addressed' section
+   - Then proceed to Phase 1
+
+2. If the file EXISTS and contains 'APPROVED':
+   - Security audit passed, proceed to Phase 1
+
+3. If the file DOES NOT EXIST:
+   - No security audit yet, proceed to Phase 0.5
+
+## Phase 0.5: Linear Issue Creation (REQUIRED for Audit Trail)
+
+Before writing any code, create Linear issues to establish audit trail:
+
+1. **Read integration context**:
+   - Read `docs/a2a/integration-context.md` for Linear team/project IDs
+   - If file doesn't exist, use `mcp__linear__list_teams` to find team, then `mcp__linear__list_projects` for project
+
+2. **Create parent issue for sprint task** (if not already exists):
+   - Search for existing issue: `mcp__linear__list_issues` with project filter
+   - If no existing issue, create one with:
+     - Title: Task title from docs/sprint.md
+     - Project: From integration-context.md
+     - Labels: `agent:implementer`, `type:feature` (or appropriate type), `sprint:{{ $ARGUMENTS[0] }}`
+     - Description: Task description + acceptance criteria from sprint.md
+
+3. **Track issue ID**:
+   - Store the Linear issue ID (e.g., LAB-XXX) for commit messages
+   - Include in reviewer.md report
+
+4. **Document in report**:
+   - Add "Linear Issue Tracking" section to reviewer.md with issue URLs
 
 ## Phase 1: Check for Previous Feedback
 
-BEFORE starting any new work, check if docs/a2a/engineer-feedback.md exists:
+BEFORE starting any new work, check if docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md exists:
 
 1. If the file EXISTS:
    - Read it carefully and completely
@@ -49,7 +130,7 @@ BEFORE starting any new work, check if docs/a2a/engineer-feedback.md exists:
 Review ALL documentation in docs/* for context:
 - docs/prd.md - Product requirements and business context
 - docs/sdd.md - System design and technical architecture
-- docs/sprint.md - Sprint plan with tasks and acceptance criteria
+- docs/sprint.md - Sprint plan with tasks and acceptance criteria (focus on {{ $ARGUMENTS[0] }})
 - Any other relevant documentation
 
 Understand:
@@ -60,7 +141,7 @@ Understand:
 
 ## Phase 3: Implementation
 
-For each task in the sprint:
+For each task in {{ $ARGUMENTS[0] }}:
 1. Implement the feature/fix according to specifications
 2. Write comprehensive unit tests (happy paths, error cases, edge cases)
 3. Follow established project patterns and conventions
@@ -78,10 +159,11 @@ Quality standards:
 
 ## Phase 4: Generate Report for Review
 
-Create a comprehensive report at docs/a2a/reviewer.md with:
+Create a comprehensive report at docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md with:
 
 ### Executive Summary
 - High-level overview of what was accomplished
+- Sprint: {{ $ARGUMENTS[0] }}
 - Sprint completion status
 
 ### Tasks Completed
@@ -104,6 +186,12 @@ For each task:
 - Coverage metrics
 - How to run tests
 
+### Linear Issue Tracking
+- Parent issue URL: [LAB-XXX](https://linear.app/honeyjar/issue/LAB-XXX)
+- Sub-issues (if created):
+  - [LAB-YYY](url) - Component name
+- Commits linked to issues
+
 ### Known Limitations or Future Considerations
 - Any technical debt introduced (with justification)
 - Potential improvements for future sprints
@@ -120,27 +208,273 @@ If this is a revision after feedback:
 - Explain your fix/response for each
 - Provide verification steps for each fix
 
-## Phase 5: Feedback Loop
+### Security Audit Feedback Addressed (if applicable)
+If addressing security audit findings:
+- Quote each security finding
+- Explain your fix for each
+- Provide verification steps
+
+## Phase 5: Update Sprint Index
+
+After generating/updating the report, update docs/a2a/index.md:
+
+1. If docs/a2a/index.md does not exist, create it with the template structure
+2. Add or update the entry for {{ $ARGUMENTS[0] }} with:
+   - Status: IN_PROGRESS
+   - Link to reviewer.md
+   - Last updated timestamp
+
+## Phase 6: Feedback Loop
 
 After you generate the report:
-1. The senior technical product lead will review docs/a2a/reviewer.md
-2. If they find issues, they will create docs/a2a/engineer-feedback.md with their feedback
-3. When you are invoked again, you will:
-   - Read docs/a2a/engineer-feedback.md (Phase 1)
+1. The senior technical product lead will review docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md
+2. If they find issues, they will create docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md with their feedback
+3. When you are invoked again with '/implement {{ $ARGUMENTS[0] }}', you will:
+   - Read docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md (Phase 1)
    - Clarify anything unclear
    - Fix all issues
-   - Generate an updated report at docs/a2a/reviewer.md
+   - Generate an updated report at docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md
 4. This cycle continues until the sprint is approved
 
 ## Critical Requirements
 
-- ALWAYS check for docs/a2a/engineer-feedback.md FIRST before starting new work
+- ALWAYS validate sprint format and existence FIRST (Phase -1)
+- ALWAYS check for COMPLETED marker before starting
+- ALWAYS check for docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md FIRST (security feedback)
+- ALWAYS create Linear issues BEFORE writing code (Phase 0.5)
+- ALWAYS check for docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md before starting new work
 - NEVER assume what feedback means - ask for clarification if unclear
 - Address ALL feedback items before generating a new report
 - Be thorough in your report - the reviewer needs detailed information
 - Include specific file paths and line numbers
+- Include Linear issue URLs in report (Linear Issue Tracking section)
 - Document your reasoning for technical decisions
 - Be honest about limitations or concerns
+- ALWAYS update docs/a2a/index.md after generating report
 
 Your goal is to deliver production-ready, well-tested code that meets all acceptance criteria and addresses all reviewer feedback completely."
 />
+{{ else }}
+You are tasked with implementing sprint tasks. You will follow a feedback-driven development cycle with a senior technical product lead.
+
+## Sprint Context
+
+**Sprint Name**: {{ $ARGUMENTS[0] }}
+**Sprint Directory**: docs/a2a/{{ $ARGUMENTS[0] }}/
+
+All A2A communication files for this sprint will be stored in the sprint-specific directory to preserve audit trail.
+
+## Phase -1: Sprint Setup (CRITICAL - DO THIS FIRST)
+
+1. **Validate sprint argument format**:
+   - The sprint name '{{ $ARGUMENTS[0] }}' must match pattern 'sprint-N' where N is a positive integer
+   - Valid examples: sprint-1, sprint-2, sprint-10
+   - If invalid format, STOP and inform user: 'Invalid sprint name. Use format: sprint-N (e.g., sprint-1, sprint-2)'
+
+2. **Validate sprint exists in docs/sprint.md**:
+   - Read docs/sprint.md
+   - Confirm there is a section for '{{ $ARGUMENTS[0] }}' or 'Sprint N' (extract N from argument)
+   - If sprint not found, STOP and inform user: 'Sprint {{ $ARGUMENTS[0] }} not found in docs/sprint.md'
+
+3. **Create sprint directory if needed**:
+   - Check if docs/a2a/{{ $ARGUMENTS[0] }}/ exists
+   - If not, create the directory: mkdir -p docs/a2a/{{ $ARGUMENTS[0] }}/
+   - This preserves all feedback files for organizational memory
+
+4. **Check for COMPLETED marker**:
+   - If docs/a2a/{{ $ARGUMENTS[0] }}/COMPLETED exists, this sprint is already done
+   - STOP and inform user: 'Sprint {{ $ARGUMENTS[0] }} is already COMPLETED. Check docs/a2a/{{ $ARGUMENTS[0] }}/COMPLETED for details.'
+
+5. **Set working paths for this session**:
+   - AUDIT_FEEDBACK = docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md
+   - ENGINEER_FEEDBACK = docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md
+   - REVIEWER_REPORT = docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md
+
+## Phase 0: Check for Security Audit Feedback (CRITICAL - CHECK FIRST)
+
+BEFORE anything else, check if docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md exists:
+
+1. If the file EXISTS and contains 'CHANGES_REQUIRED':
+   - Read it carefully and completely
+   - This contains security audit feedback that MUST be addressed
+   - Address ALL CRITICAL and HIGH priority security issues
+   - Update docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md with 'Security Audit Feedback Addressed' section
+   - Then proceed to Phase 1
+
+2. If the file EXISTS and contains 'APPROVED':
+   - Security audit passed, proceed to Phase 1
+
+3. If the file DOES NOT EXIST:
+   - No security audit yet, proceed to Phase 0.5
+
+## Phase 0.5: Linear Issue Creation (REQUIRED for Audit Trail)
+
+Before writing any code, create Linear issues to establish audit trail:
+
+1. **Read integration context**:
+   - Read `docs/a2a/integration-context.md` for Linear team/project IDs
+   - If file doesn't exist, use `mcp__linear__list_teams` to find team, then `mcp__linear__list_projects` for project
+
+2. **Create parent issue for sprint task** (if not already exists):
+   - Search for existing issue: `mcp__linear__list_issues` with project filter
+   - If no existing issue, create one with:
+     - Title: Task title from docs/sprint.md
+     - Project: From integration-context.md
+     - Labels: `agent:implementer`, `type:feature` (or appropriate type), `sprint:{{ $ARGUMENTS[0] }}`
+     - Description: Task description + acceptance criteria from sprint.md
+
+3. **Track issue ID**:
+   - Store the Linear issue ID (e.g., LAB-XXX) for commit messages
+   - Include in reviewer.md report
+
+4. **Document in report**:
+   - Add "Linear Issue Tracking" section to reviewer.md with issue URLs
+
+## Phase 1: Check for Previous Feedback
+
+BEFORE starting any new work, check if docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md exists:
+
+1. If the file EXISTS:
+   - Read it carefully and completely
+   - This contains feedback from the senior technical lead on your previous implementation
+   - If ANYTHING is unclear or ambiguous:
+     * Ask specific clarifying questions
+     * Request concrete examples
+     * Confirm your understanding before proceeding
+   - Address ALL feedback items systematically
+   - Fix issues, update tests, ensure no regressions
+   - Then proceed to Phase 2 to generate an updated report
+
+2. If the file DOES NOT EXIST:
+   - This is your first implementation cycle
+   - Proceed directly to Phase 2
+
+## Phase 2: Review Documentation for Context
+
+Review ALL documentation in docs/* for context:
+- docs/prd.md - Product requirements and business context
+- docs/sdd.md - System design and technical architecture
+- docs/sprint.md - Sprint plan with tasks and acceptance criteria (focus on {{ $ARGUMENTS[0] }})
+- Any other relevant documentation
+
+Understand:
+- Product requirements and user needs
+- Technical architecture and design decisions
+- Existing codebase patterns and conventions
+- Sprint tasks, priorities, and dependencies
+
+## Phase 3: Implementation
+
+For each task in {{ $ARGUMENTS[0] }}:
+1. Implement the feature/fix according to specifications
+2. Write comprehensive unit tests (happy paths, error cases, edge cases)
+3. Follow established project patterns and conventions
+4. Consider performance, security, and scalability
+5. Handle edge cases and error conditions gracefully
+6. Ensure code is clean, maintainable, and well-documented
+
+Quality standards:
+- Production-ready code quality
+- Meaningful test coverage (not just metrics)
+- Self-documenting code with clear naming
+- Comments for complex logic
+- Follow DRY principles
+- Consistent formatting and style
+
+## Phase 4: Generate Report for Review
+
+Create a comprehensive report at docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md with:
+
+### Executive Summary
+- High-level overview of what was accomplished
+- Sprint: {{ $ARGUMENTS[0] }}
+- Sprint completion status
+
+### Tasks Completed
+For each task:
+- Task description and acceptance criteria
+- Implementation approach and key decisions
+- Files created/modified (with line references)
+- Test coverage details
+- Any deviations from plan with justification
+
+### Technical Highlights
+- Notable architectural decisions
+- Performance considerations
+- Security implementations
+- Integration points with existing systems
+
+### Testing Summary
+- Test files created
+- Test scenarios covered
+- Coverage metrics
+- How to run tests
+
+### Linear Issue Tracking
+- Parent issue URL: [LAB-XXX](https://linear.app/honeyjar/issue/LAB-XXX)
+- Sub-issues (if created):
+  - [LAB-YYY](url) - Component name
+- Commits linked to issues
+
+### Known Limitations or Future Considerations
+- Any technical debt introduced (with justification)
+- Potential improvements for future sprints
+- Areas requiring further discussion
+
+### Verification Steps
+- Clear instructions for reviewer to verify your work
+- Commands to run tests
+- How to test functionality
+
+### Feedback Addressed (if applicable)
+If this is a revision after feedback:
+- Quote each feedback item
+- Explain your fix/response for each
+- Provide verification steps for each fix
+
+### Security Audit Feedback Addressed (if applicable)
+If addressing security audit findings:
+- Quote each security finding
+- Explain your fix for each
+- Provide verification steps
+
+## Phase 5: Update Sprint Index
+
+After generating/updating the report, update docs/a2a/index.md:
+
+1. If docs/a2a/index.md does not exist, create it with the template structure
+2. Add or update the entry for {{ $ARGUMENTS[0] }} with:
+   - Status: IN_PROGRESS
+   - Link to reviewer.md
+   - Last updated timestamp
+
+## Phase 6: Feedback Loop
+
+After you generate the report:
+1. The senior technical product lead will review docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md
+2. If they find issues, they will create docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md with their feedback
+3. When you are invoked again with '/implement {{ $ARGUMENTS[0] }}', you will:
+   - Read docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md (Phase 1)
+   - Clarify anything unclear
+   - Fix all issues
+   - Generate an updated report at docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md
+4. This cycle continues until the sprint is approved
+
+## Critical Requirements
+
+- ALWAYS validate sprint format and existence FIRST (Phase -1)
+- ALWAYS check for COMPLETED marker before starting
+- ALWAYS check for docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md FIRST (security feedback)
+- ALWAYS create Linear issues BEFORE writing code (Phase 0.5)
+- ALWAYS check for docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md before starting new work
+- NEVER assume what feedback means - ask for clarification if unclear
+- Address ALL feedback items before generating a new report
+- Be thorough in your report - the reviewer needs detailed information
+- Include specific file paths and line numbers
+- Include Linear issue URLs in report (Linear Issue Tracking section)
+- Document your reasoning for technical decisions
+- Be honest about limitations or concerns
+- ALWAYS update docs/a2a/index.md after generating report
+
+Your goal is to deliver production-ready, well-tested code that meets all acceptance criteria and addresses all reviewer feedback completely.
+{{ endif }}

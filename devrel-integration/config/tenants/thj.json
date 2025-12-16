@@ -1,0 +1,44 @@
+{
+  "tenantId": "thj",
+  "name": "The Honey Jar",
+  "config": {
+    "enabledFeatures": [
+      "transformations",
+      "notifications",
+      "webhooks",
+      "knowledge-base",
+      "marketing-support",
+      "cost-dashboard",
+      "advanced-caching"
+    ],
+    "maxTransformationsPerDay": 1000,
+    "maxConcurrentTransforms": 10,
+    "allowedPersonas": ["leadership", "product", "marketing", "devrel"],
+    "cacheTTL": {
+      "documentContent": 900,
+      "transformResults": 1800,
+      "folderIds": 3600
+    },
+    "rateLimits": {
+      "transformationsPerMinute": 20,
+      "apiCallsPerMinute": 200
+    }
+  },
+  "credentials": {
+    "googleWorkspace": {
+      "serviceAccountKeyPath": "${GOOGLE_SERVICE_ACCOUNT_KEY_PATH}",
+      "folderId": "${GOOGLE_DRIVE_ROOT_FOLDER_ID}"
+    },
+    "discord": {
+      "guildId": "${DISCORD_GUILD_ID}",
+      "notificationChannelId": "${DISCORD_NOTIFICATION_CHANNEL_ID}"
+    },
+    "linear": {
+      "teamId": "466d92ac-5b8d-447d-9d2b-cc320ee23b31",
+      "projectId": "e72f3606-6f8c-4a19-8d19-4d717c7da992"
+    }
+  },
+  "metadata": {
+    "status": "active"
+  }
+}

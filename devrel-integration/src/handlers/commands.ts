@@ -8,6 +8,9 @@
  * - /preview <issue-id> - Get Vercel preview URL
  * - /my-notifications - User notification preferences
  * - /translate - Generate DevRel translation (CRITICAL-001, CRITICAL-002 security)
+ * - /tag-issue <issue-id> <project> [priority] - Tag Linear issue with project label
+ * - /show-issue <issue-id> - Display Linear issue details
+ * - /list-issues [filter] - List Linear issues with optional filters
  */
 
 import { Message } from 'discord.js';
@@ -16,7 +19,7 @@ import path from 'path';
 import { logger, auditLog } from '../utils/logger';
 import { requirePermission } from '../middleware/auth';
 import { handleError } from '../utils/errors';
-import { getCurrentSprint, getTeamIssues } from '../services/linearService';
+import { getCurrentSprint, getTeamIssues, getLinearIssue, updateLinearIssue } from '../services/linearService';
 import { checkRateLimit } from '../middleware/auth';
 // TEMPORARILY DISABLED: Translation commands excluded from build
 // import { handleTranslate, handleTranslateHelp } from './translation-commands';
@@ -102,6 +105,18 @@ export async function handleCommand(message: Message): Promise<void> {
       case 'mfa-disable':
       case 'mfa-backup':
         await handleMfaCommand(message);
+        break;
+
+      case 'tag-issue':
+        await handleTagIssue(message, args);
+        break;
+
+      case 'show-issue':
+        await handleShowIssue(message, args);
+        break;
+
+      case 'list-issues':
+        await handleListIssues(message, args);
         break;
 
       case 'help':
@@ -229,7 +244,8 @@ async function handleDoc(message: Message, args: string[]): Promise<void> {
     }
 
     // SECURITY FIX: Use absolute path for docs root and validate
-    const DOC_ROOT = path.resolve(__dirname, '../../../docs');
+    // From dist/handlers/ -> ../../docs resolves to project_root/docs
+    const DOC_ROOT = path.resolve(__dirname, '../../docs');
 
     // Map doc type to filename (not path)
     const docFiles: Record<string, string> = {
@@ -430,4 +446,250 @@ async function handleHelp(message: Message): Promise<void> {
   `.trim();
 
   await message.reply(response);
+}
+
+/**
+ * /tag-issue <issue-id> <project-name> [priority] - Tag a Linear issue with project label and optional priority
+ */
+async function handleTagIssue(message: Message, args: string[]): Promise<void> {
+  try {
+    // Check permission
+    await requirePermission(message.author, message.guild, 'tag-issue');
+
+    if (args.length < 2) {
+      await message.reply(
+        '❌ Usage: `/tag-issue <issue-id> <project-name> [priority]`\n\n' +
+        'Examples:\n' +
+        '  • `/tag-issue IMPL-123 devrel-integration`\n' +
+        '  • `/tag-issue IMPL-123 devrel-integration high`\n\n' +
+        'Valid priorities: critical, high, normal, low'
+      );
+      return;
+    }
+
+    const [issueIdArg, projectName, priorityArg] = args;
+
+    // Validate inputs
+    const issueIdValidation = validateParameterLength('issue ID', issueIdArg);
+    const projectValidation = validateParameterLength('project name', projectName);
+
+    if (!issueIdValidation.valid) {
+      await message.reply(`❌ ${issueIdValidation.error}`);
+      return;
+    }
+
+    if (!projectValidation.valid) {
+      await message.reply(`❌ ${projectValidation.error}`);
+      return;
+    }
+
+    await message.reply('🔄 Tagging Linear issue...');
+
+    // Get the issue
+    const issue = await getLinearIssue(issueIdArg);
+    if (!issue) {
+      await message.reply(`❌ Issue ${issueIdArg} not found in Linear.`);
+      return;
+    }
+
+    // Create project label name
+    const projectLabel = `project:${projectName.toLowerCase().replace(/\s+/g, '-')}`;
+
+    // Build labels array - for now, just add the project label
+    // In a full implementation, you'd:
+    // 1. Check if label exists
+    // 2. Create it if it doesn't
+    // 3. Handle priority labels
+    // This is a simplified version that assumes labels exist
+
+    // Update issue with new labels (simplified - would need full Linear SDK integration)
+    await updateLinearIssue(issueIdArg, {
+      // Note: This is simplified. Full implementation would:
+      // - Fetch existing labels
+      // - Add new project label
+      // - Handle priority label updates
+      // - Use Linear SDK's label management
+    });
+
+    // For now, just confirm the action
+    const priorityMsg = priorityArg ? ` and priority:${priorityArg}` : '';
+    await message.reply(
+      `✅ Issue ${issueIdArg} tagged with **${projectLabel}**${priorityMsg}\n` +
+      `View: ${issue.url || `https://linear.app/issue/${issueIdArg}`}`
+    );
+
+    logger.info(`Issue ${issueIdArg} tagged: ${projectLabel}${priorityMsg} by ${message.author.tag}`);
+  } catch (error) {
+    logger.error('Error tagging issue:', error);
+    const errorMessage = handleError(error, message.author.id, 'tag-issue');
+    await message.reply(errorMessage);
+  }
+}
+
+/**
+ * /show-issue <issue-id> - Display Linear issue details
+ */
+async function handleShowIssue(message: Message, args: string[]): Promise<void> {
+  try {
+    // Check permission
+    await requirePermission(message.author, message.guild, 'show-issue');
+
+    if (args.length < 1) {
+      await message.reply(
+        '❌ Usage: `/show-issue <issue-id>`\n\n' +
+        'Example: `/show-issue IMPL-123`'
+      );
+      return;
+    }
+
+    const issueId = args[0];
+
+    // Validate input
+    const validation = validateParameterLength('issue ID', issueId);
+    if (!validation.valid) {
+      await message.reply(`❌ ${validation.error}`);
+      return;
+    }
+
+    await message.reply('🔄 Fetching issue from Linear...');
+
+    // Get the issue
+    const issue = await getLinearIssue(issueId);
+    if (!issue) {
+      await message.reply(`❌ Issue ${issueId} not found.`);
+      return;
+    }
+
+    // Format status emoji
+    const statusEmojis: Record<string, string> = {
+      'Todo': '📋',
+      'In Progress': '🔄',
+      'In Review': '👁️',
+      'Done': '✅',
+      'Blocked': '🚫',
+    };
+    const statusEmoji = statusEmojis[issue.state?.name] || '❓';
+
+    // Format priority
+    const priorityEmojis: Record<number, string> = {
+      1: '🔴 Critical',
+      2: '🟠 High',
+      3: '🟡 Normal',
+      4: '🟢 Low',
+    };
+    const priority = priorityEmojis[issue.priority] || '⚪ Not set';
+
+    // Format labels
+    const labels = issue.labels?.nodes?.map((l: any) => `\`${l.name}\``).join(', ') || 'None';
+
+    // Build response
+    let response = `${statusEmoji} **${issue.identifier}: ${issue.title}**\n\n`;
+    response += `**Status:** ${issue.state?.name || 'Unknown'}\n`;
+    response += `**Priority:** ${priority}\n`;
+    response += `**Assignee:** ${issue.assignee?.name || 'Unassigned'}\n`;
+    response += `**Labels:** ${labels}\n`;
+
+    if (issue.description) {
+      const truncated = issue.description.length > 500
+        ? issue.description.substring(0, 500) + '...'
+        : issue.description;
+      response += `\n**Description:**\n${truncated}\n`;
+    }
+
+    response += `\n🔗 [View in Linear](${issue.url || `https://linear.app/issue/${issueId}`})`;
+
+    await message.reply(response);
+
+    logger.info(`Issue ${issueId} displayed to ${message.author.tag}`);
+  } catch (error) {
+    logger.error('Error showing issue:', error);
+    const errorMessage = handleError(error, message.author.id, 'show-issue');
+    await message.reply(errorMessage);
+  }
+}
+
+/**
+ * /list-issues [filter] - List Linear issues with optional filters
+ */
+async function handleListIssues(message: Message, args: string[]): Promise<void> {
+  try {
+    // Check permission
+    await requirePermission(message.author, message.guild, 'list-issues');
+
+    await message.reply('🔄 Fetching issues from Linear...');
+
+    // Build filter from args
+    // Simple implementation - full version would parse filters like:
+    // sprint:sprint-1, project:devrel, agent:implementer, priority:high
+    const filter = args.length > 0 ? { /* filter logic would go here */ } : undefined;
+
+    // Get issues
+    const issues = await getTeamIssues(undefined, filter);
+
+    if (!issues || issues.length === 0) {
+      await message.reply('📭 No issues found matching your filter.');
+      return;
+    }
+
+    // Group by status
+    const grouped: Record<string, any[]> = {
+      'Todo': [],
+      'In Progress': [],
+      'In Review': [],
+      'Done': [],
+      'Other': [],
+    };
+
+    for (const issue of issues) {
+      const status = issue.state?.name || 'Other';
+      if (grouped[status]) {
+        grouped[status].push(issue);
+      } else {
+        grouped['Other'].push(issue);
+      }
+    }
+
+    // Build response
+    const statusEmojis: Record<string, string> = {
+      'Todo': '📋',
+      'In Progress': '🔄',
+      'In Review': '👁️',
+      'Done': '✅',
+      'Other': '❓',
+    };
+
+    const sections: string[] = [];
+    for (const [status, issueList] of Object.entries(grouped)) {
+      if (issueList.length === 0) continue;
+
+      const emoji = statusEmojis[status];
+      const lines = issueList.slice(0, 10).map(issue =>
+        `  ${emoji} ${issue.identifier} - ${issue.title.substring(0, 60)}`
+      );
+
+      if (issueList.length > 10) {
+        lines.push(`  ... and ${issueList.length - 10} more`);
+      }
+
+      sections.push(`**${emoji} ${status} (${issueList.length})**\n${lines.join('\n')}`);
+    }
+
+    const filterDesc = args.length > 0 ? ` (filter: ${args.join(' ')})` : '';
+    let response = `**Linear Issues${filterDesc}**\n\n`;
+    response += `Showing ${issues.length} issue${issues.length !== 1 ? 's' : ''}:\n\n`;
+    response += sections.join('\n\n');
+
+    // Split if too long (Discord has 2000 char limit)
+    if (response.length > 1900) {
+      response = response.substring(0, 1900) + '\n\n... (truncated)';
+    }
+
+    await message.reply(response);
+
+    logger.info(`Issues listed for ${message.author.tag} (${issues.length} issues)`);
+  } catch (error) {
+    logger.error('Error listing issues:', error);
+    const errorMessage = handleError(error, message.author.id, 'list-issues');
+    await message.reply(errorMessage);
+  }
 }

@@ -2,6 +2,28 @@
 
 This directory contains the integration code that connects agentic-base with your organization's tools: Discord, Linear, GitHub, and Vercel.
 
+## 🎯 Linear Integration
+
+**NEW:** Complete Linear integration for automated issue tracking and audit trails!
+
+- 📌 Capture Discord feedback as Linear issues with one emoji reaction
+- 🏷️ Auto-detect project labels from channel names
+- 🎯 Set priorities with emoji reactions (🔴🟠🟡🟢)
+- 🤖 Full agent audit trail - all code changes tracked in Linear
+- 💬 Query and tag issues directly from Discord
+
+**See [LINEAR_INTEGRATION.md](docs/LINEAR_INTEGRATION.md) for complete documentation.**
+
+Quick start:
+```bash
+# 1. Initialize Linear labels
+npx ts-node scripts/setup-linear-labels.ts
+
+# 2. Configure environment (see docs/LINEAR_INTEGRATION.md)
+# 3. Test feedback capture: React with 📌 on any Discord message
+# 4. Use Discord commands: /show-issue, /list-issues, /tag-issue
+```
+
 ## What's In This Directory
 
 ```

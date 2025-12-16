@@ -194,3 +194,85 @@ When generating the PRD, create a comprehensive document with these sections:
 - Structured yet flexible—adapt to the user's communication style
 
 Remember: Your value lies not in rushing to a document, but in asking the questions that uncover what truly matters. A well-researched PRD based on thorough discovery prevents costly mistakes and misalignment later. Take the time to get it right.
+
+---
+
+## Bibliography & Resources
+
+This section documents all resources that inform the PRD Architect's work. Always include absolute URLs and cite specific sections when referencing external resources.
+
+### Framework Documentation
+
+- **Agentic-Base Overview**: https://github.com/0xHoneyJar/agentic-base/blob/main/CLAUDE.md
+- **Workflow Process**: https://github.com/0xHoneyJar/agentic-base/blob/main/PROCESS.md
+- **Hivemind Laboratory Methodology**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/hivemind/HIVEMIND-LABORATORY-METHODOLOGY.md
+
+### Integration Resources
+
+- **Integration Architecture**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/integration-architecture.md
+- **Tool Setup Guide**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/tool-setup.md
+- **Team Playbook**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/team-playbook.md
+
+### Stakeholder Feedback Sources
+
+- **Linear Issues**: Queries via Linear MCP integration (requires authentication)
+  - Issues with `PRD` label contain stakeholder requirements
+  - Example: https://linear.app/honeyjarlabs/issue/LAB-XXX
+- **Discord Conversations**: Community feedback captured via 📌 emoji reactions
+- **GitHub Issues**: Feature requests and bug reports
+
+### Reference PRDs
+
+When generating PRDs, use these as examples:
+
+- **Onomancer Bot PRD** (v1.3): https://github.com/0xHoneyJar/agentic-base/blob/main/docs/prd.md
+  - Comprehensive stakeholder analysis (Appendix: Stakeholder Insights)
+  - Functional requirements structure (FR-1 through FR-9)
+  - Bibliography section template (Appendix E)
+
+### Best Practices
+
+- **Product Management Resources**:
+  - Atlassian Product Requirements Guide: https://www.atlassian.com/agile/product-management/requirements
+  - Aha! PRD Template: https://www.aha.io/roadmapping/guide/requirements-management/what-is-a-good-product-requirements-document-template
+
+### Tools & APIs
+
+- **Linear API**: https://developers.linear.app/docs
+  - Used for querying stakeholder feedback issues
+  - @linear/sdk: https://www.npmjs.com/package/@linear/sdk
+- **GitHub API**: https://docs.github.com/en/rest
+  - Used for querying repository issues and discussions
+- **Discord API**: https://discord.com/developers/docs
+  - Used for accessing community feedback history
+
+### Organizational Meta Knowledge Base
+
+**Repository**: https://github.com/0xHoneyJar/thj-meta-knowledge (Private - requires authentication)
+
+The Honey Jar's central documentation hub - single source of truth for architecture, contracts, services, and organizational knowledge. **Always reference this when creating PRDs for THJ products.**
+
+**Essential Resources for PRD Creation**:
+- **Ecosystem Architecture**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/ecosystem/OVERVIEW.md - System map and brand overview
+- **Product Documentation**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/products/ - All 8 THJ products documented
+- **ADR Index**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/decisions/INDEX.md - Architecture decisions and rationale
+- **Terminology**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/TERMINOLOGY.md - Brand-specific terms
+- **Knowledge Captures**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/knowledge/ - Tacit knowledge from developer interviews
+
+**When to Use**:
+- Research existing products before creating PRDs for new features
+- Understand architecture decisions (ADRs) that constrain new features
+- Learn brand terminology to maintain consistency
+- Reference stakeholder insights from knowledge captures
+
+**AI Navigation Guide**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/.meta/RETRIEVAL_GUIDE.md - How to efficiently navigate the meta knowledge base
+
+### Output Standards
+
+All PRDs must include:
+- Absolute GitHub URLs in bibliography sections (not relative paths)
+- Linear issue links for stakeholder feedback (with authentication note)
+- External API documentation links
+- Package/dependency links to npm or official sources
+
+**Note**: When citing resources in the PRD, always use absolute URLs to avoid broken links if files move. Use the pattern: `https://github.com/{org}/{repo}/blob/{branch}/{path}`

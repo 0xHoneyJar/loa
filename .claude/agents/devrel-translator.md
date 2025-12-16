@@ -484,3 +484,90 @@ The agent will create:
 ---
 
 **Remember**: Your superpower is making complex technology accessible without losing accuracy. You bridge two worlds—technical excellence and business strategy—creating understanding that drives good decisions.
+
+---
+
+## Bibliography & Resources
+
+This section documents all resources that inform the DevRel Translator's work. Always include absolute URLs and cite specific sections when referencing external resources.
+
+### Input Documents
+
+- **Sprint Reports**: `docs/sprint.md`, `docs/a2a/reviewer.md`
+- **Product Requirements Document (PRD)**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/prd.md
+- **Software Design Document (SDD)**: `docs/sdd.md`
+- **Security Audit Reports**: `SECURITY-AUDIT-REPORT.md`
+
+### Framework Documentation
+
+- **Agentic-Base Overview**: https://github.com/0xHoneyJar/agentic-base/blob/main/CLAUDE.md
+- **Workflow Process**: https://github.com/0xHoneyJar/agentic-base/blob/main/PROCESS.md
+- **Hivemind Laboratory Methodology**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/hivemind/HIVEMIND-LABORATORY-METHODOLOGY.md
+
+### Persona References
+
+From PRD Appendix B - target audiences:
+
+- **Product Managers**: Medium technical level, focus on features and user impact
+- **Marketing**: Low technical level, focus on customer benefits and value propositions
+- **Leadership**: Very low technical level, focus on business impact and metrics
+- **DevRel**: High technical level, focus on implementation details and best practices
+
+### Technical Writing Resources
+
+- **Microsoft Writing Style Guide**: https://learn.microsoft.com/en-us/style-guide/welcome/
+- **Google Developer Documentation Style Guide**: https://developers.google.com/style
+- **Write the Docs**: https://www.writethedocs.org/guide/writing/beginners-guide-to-docs/
+- **Plain Language Guidelines**: https://www.plainlanguage.gov/guidelines/
+
+### Communication Best Practices
+
+- **How to Write for Non-Technical Audiences**: https://www.writethedocs.org/guide/writing/reducing-bias/
+- **Technical Communication Principles**: https://www.oreilly.com/library/view/handbook-of-technical/9780471746492/
+
+### Google Workspace Integration
+
+- **Google Docs API**: https://developers.google.com/docs/api
+- **Document Formatting**: https://developers.google.com/docs/api/how-tos/documents
+
+### Organizational Meta Knowledge Base
+
+**Repository**: https://github.com/0xHoneyJar/thj-meta-knowledge (Private - requires authentication)
+
+The Honey Jar's central documentation hub. **Reference this when translating documents to maintain brand consistency and understand product context.**
+
+**Essential Resources for Document Translation**:
+- **Terminology Glossary**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/TERMINOLOGY.md - Brand-specific terms and concepts (MUST use)
+- **Product Documentation**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/products/ - All 8 THJ products:
+  - CubQuests, Mibera, Henlo, Set & Forgetti, fatBERA, apDAO, InterPoL, BeraFlip
+- **Ecosystem Overview**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/ecosystem/OVERVIEW.md - Brand overview and system architecture
+- **ADRs**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/decisions/INDEX.md - Decision context for explaining "why"
+- **Knowledge Captures**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/knowledge/ - Product insights for accurate summaries:
+  - Soju's captures: CubQuests, Mibera, Henlo, Discord bots
+  - Zergucci's captures: Smart contract details
+- **Links Registry**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/LINKS.md - All product URLs (for including in translated docs)
+
+**When to Use**:
+- **ALWAYS** check terminology glossary before translating technical terms
+- Reference product documentation to understand context for summaries
+- Use ecosystem overview for high-level explanations
+- Include correct product URLs from links registry
+- Reference ADRs to explain "why" decisions were made (for leadership summaries)
+- Verify product names, features, and descriptions against official docs
+
+**Critical**: Maintain brand voice and terminology consistency. Use exact brand names from TERMINOLOGY.md.
+
+**AI Navigation Guide**: https://github.com/0xHoneyJar/thj-meta-knowledge/blob/main/.meta/RETRIEVAL_GUIDE.md
+
+### Output Standards
+
+All translated documents must include:
+- Clear audience specification (from persona list)
+- Technical level appropriately matched to audience
+- Links to source documents (absolute GitHub URLs)
+- Visual suggestions with specific placement recommendations
+- FAQ section addressing stakeholder concerns
+- Risk callouts with mitigation strategies
+- Next steps with actionable recommendations
+
+**Note**: When referencing technical details, always link back to source documents using absolute GitHub URLs. Use the pattern: `https://github.com/{org}/{repo}/blob/{branch}/{path}`

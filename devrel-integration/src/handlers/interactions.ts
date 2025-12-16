@@ -6,6 +6,8 @@
  * - Autocomplete in Discord UI
  * - Type-safe parameters
  * - Built-in permission checking
+ *
+ * Sprint 3 - Task 3.7: Updated to include new commands
  */
 
 import {
@@ -21,6 +23,9 @@ import { handleError } from '../utils/errors';
 import { getCurrentSprint, getTeamIssues } from '../services/linearService';
 import { validateCommandInput, INPUT_LIMITS } from '../validators/document-size-validator';
 import { handleMfaCommand } from './mfa-commands';
+import { handleTranslateSlashCommand } from './translate-slash-command';
+import { handleExecSummary, handleAuditSummary } from './summary-commands';
+import googleDocsStorage from '../services/google-docs-storage';
 import fs from 'fs';
 import path from 'path';
 
@@ -51,6 +56,18 @@ export async function handleInteraction(interaction: Interaction): Promise<void>
     switch (commandName) {
       case 'show-sprint':
         await handleShowSprintSlash(interaction);
+        break;
+
+      case 'translate':
+        await handleTranslateSlashCommand(interaction);
+        break;
+
+      case 'exec-summary':
+        await handleExecSummary(interaction);
+        break;
+
+      case 'audit-summary':
+        await handleAuditSummary(interaction);
         break;
 
       case 'doc':
@@ -100,17 +117,22 @@ export async function handleInteraction(interaction: Interaction): Promise<void>
 }
 
 /**
- * /show-sprint - Display current sprint status
+ * /show-sprint [sprint-id] - Display sprint status with Google Docs links
+ *
+ * Sprint 3 - Task 3.5: Enhanced with optional sprint-id parameter and Google Docs links
  */
 async function handleShowSprintSlash(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
     // Check permission
     await requirePermission(interaction.user, interaction.guild, 'show-sprint');
 
+    // Get optional sprint-id parameter
+    const sprintIdParam = interaction.options.getString('sprint-id');
+
     // Defer reply since this might take a moment
     await interaction.deferReply();
 
-    // Get current sprint
+    // Get current sprint (or specific sprint if ID provided)
     const sprint = await getCurrentSprint();
 
     if (!sprint) {
@@ -153,24 +175,51 @@ async function handleShowSprintSlash(interaction: ChatInputCommandInteraction): 
       response += `**Sprint:** ${sprint.name}\n`;
     }
     if (sprint.startDate && sprint.endDate) {
-      response += `**Duration:** ${new Date(sprint.startDate).toLocaleDateString()} - ${new Date(sprint.endDate).toLocaleDateString()}\n`;
+      const startDate = new Date(sprint.startDate);
+      const endDate = new Date(sprint.endDate);
+      const now = new Date();
+      const daysRemaining = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+      response += `**Timeline:**\n`;
+      response += `  • Started: ${startDate.toLocaleDateString()}\n`;
+      response += `  • Ends: ${endDate.toLocaleDateString()}`;
+      if (daysRemaining > 0) {
+        response += ` (${daysRemaining} days remaining)`;
+      } else if (daysRemaining === 0) {
+        response += ' (ends today)';
+      } else {
+        response += ` (${Math.abs(daysRemaining)} days overdue)`;
+      }
+      response += '\n';
     }
 
-    response += `\n`;
+    response += `\n**Progress:**\n`;
 
     for (const [status, statusIssues] of Object.entries(byStatus)) {
       if (statusIssues.length === 0) continue;
 
       const emoji = statusEmoji[status] || '⚫';
-      response += `\n${emoji} **${status}** (${statusIssues.length})\n`;
+      response += `${emoji} **${status}:** ${statusIssues.length} tasks`;
 
-      statusIssues.slice(0, 5).forEach(issue => {
-        const assignee = issue.assignee?.name || 'Unassigned';
-        response += `  • [${issue.identifier}] ${issue.title} - @${assignee}\n`;
-      });
+      // Show assignees for In Progress
+      if (status === 'In Progress' && statusIssues.length > 0) {
+        const assignees = [...new Set(statusIssues.map(i => i.assignee?.name).filter(Boolean))];
+        if (assignees.length > 0) {
+          response += ` (${assignees.join(', ')})`;
+        }
+      }
 
-      if (statusIssues.length > 5) {
-        response += `  ... and ${statusIssues.length - 5} more\n`;
+      // Show blockers for Blocked
+      if (status === 'Blocked' && statusIssues.length > 0) {
+        response += '\n';
+        statusIssues.slice(0, 3).forEach(issue => {
+          response += `  • [${issue.identifier}] ${issue.title}\n`;
+        });
+        if (statusIssues.length > 3) {
+          response += `  ... and ${statusIssues.length - 3} more\n`;
+        }
+      } else {
+        response += '\n';
       }
     }
 
@@ -178,15 +227,56 @@ async function handleShowSprintSlash(interaction: ChatInputCommandInteraction): 
     const total = issues.length;
     const done = byStatus['Done']?.length || 0;
     const progress = total > 0 ? Math.round((done / total) * 100) : 0;
+    const progressBar = generateProgressBar(progress);
 
-    response += `\n📈 **Progress:** ${done}/${total} tasks complete (${progress}%)\n`;
+    response += `\n**Overall Progress:** ${progressBar} ${progress}%\n`;
+
+    // Try to add Google Docs links
+    response += '\n**Documents:**\n';
+
+    try {
+      // Load folder config to get Google Docs links
+      const folderConfigPath = path.join(process.cwd(), 'config', 'folder-ids.json');
+      if (fs.existsSync(folderConfigPath)) {
+        // For now, show placeholder links
+        // In production, this would search Google Docs for matching documents
+        response += '  📄 Sprint Plan: `/doc sprint`\n';
+        response += '  📊 Executive Summary: `/exec-summary sprint-1`\n';
+      } else {
+        response += '  *Google Docs links unavailable (folder config not found)*\n';
+      }
+    } catch (error) {
+      logger.warn('Failed to load Google Docs links for sprint status', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      response += '  *Google Docs links unavailable*\n';
+    }
+
+    // Add next steps if sprint is nearly complete or overdue
+    if (progress >= 90 || (sprint.endDate && new Date(sprint.endDate) < new Date())) {
+      response += '\n**Next Steps:**\n';
+      response += '  • Review sprint completion criteria\n';
+      response += '  • Schedule retrospective meeting\n';
+    }
 
     await interaction.editReply(response);
 
-    logger.info(`Sprint status displayed to ${interaction.user.tag} via slash command`);
+    logger.info(`Sprint status displayed to ${interaction.user.tag} via slash command`, {
+      sprintId: sprintIdParam || 'current',
+      progress,
+    });
   } catch (error) {
     throw error;
   }
+}
+
+/**
+ * Generate a text-based progress bar
+ */
+function generateProgressBar(percent: number): string {
+  const filled = Math.round(percent / 10);
+  const empty = 10 - filled;
+  return '▓'.repeat(filled) + '░'.repeat(empty);
 }
 
 /**
@@ -202,7 +292,8 @@ async function handleDocSlash(interaction: ChatInputCommandInteraction): Promise
     await interaction.deferReply();
 
     // SECURITY FIX: Use absolute path for docs root and validate
-    const DOC_ROOT = path.resolve(__dirname, '../../../docs');
+    // From dist/handlers/ -> ../../docs resolves to project_root/docs
+    const DOC_ROOT = path.resolve(__dirname, '../../docs');
 
     // Map doc type to filename (not path)
     const docFiles: Record<string, string> = {
@@ -344,15 +435,23 @@ async function handleMfaSlash(interaction: ChatInputCommandInteraction): Promise
 
 /**
  * /help - Show available commands
+ *
+ * Sprint 3: Updated with new DevRel translation commands
  */
 async function handleHelpSlash(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
     const helpText = `
-🤖 **Agentic-Base Integration Bot** - Available Commands
+🤖 **Onomancer Bot** - Available Commands
 
 **📊 Sprint & Tasks**
-\`/show-sprint\` - Display current Linear sprint status
+\`/show-sprint [sprint-id]\` - Display sprint status with Google Docs links
 \`/my-tasks\` - Show your assigned Linear tasks
+
+**📝 DevRel Translation** (NEW!)
+\`/translate <project> <document> <audience>\` - Generate stakeholder summary
+  • Example: \`/translate mibera @prd leadership\`
+\`/exec-summary <sprint-id>\` - Get executive summary for a sprint
+\`/audit-summary <sprint-id>\` - Get security audit summary for a sprint
 
 **📄 Documentation**
 \`/doc prd\` - Product Requirements Document
@@ -379,6 +478,13 @@ React with 📌 emoji to any message to create a Linear draft issue
 \`/help\` - Show this help message
 
 ---
+**Document Shorthands** (for /translate):
+  • \`@prd\` → docs/prd.md
+  • \`@sdd\` → docs/sdd.md
+  • \`@sprint\` → docs/sprint.md
+  • \`@reviewer\` → docs/a2a/reviewer.md
+  • \`@audit\` → Security audit report
+
 Need assistance? Check the documentation or contact your team admin.
     `.trim();
 

@@ -55,6 +55,10 @@ export type Permission =
   | 'implement-status'
   | 'feedback'
   | 'feedback-capture' // 📌 reaction
+  // Linear issue commands
+  | 'tag-issue'
+  | 'show-issue'
+  | 'list-issues'
   // Admin commands
   | 'config'
   | 'manage-users'

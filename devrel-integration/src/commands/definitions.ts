@@ -3,6 +3,8 @@
  *
  * Defines all application commands that will be registered with Discord.
  * These will appear in Discord's UI with autocomplete.
+ *
+ * Sprint 3 - Task 3.1: Updated command definitions for MVP commands
  */
 
 import { SlashCommandBuilder } from 'discord.js';
@@ -11,10 +13,70 @@ import { SlashCommandBuilder } from 'discord.js';
  * All command definitions for the bot
  */
 export const commands = [
-  // /show-sprint - Display current sprint status
+  // /show-sprint - Display current sprint status (enhanced with Google Docs links)
   new SlashCommandBuilder()
     .setName('show-sprint')
-    .setDescription('Display current sprint status from Linear')
+    .setDescription('Display sprint status with links to reports and summaries')
+    .addStringOption(option =>
+      option
+        .setName('sprint-id')
+        .setDescription('Sprint identifier (e.g., sprint-1). Defaults to current sprint.')
+        .setRequired(false)
+    )
+    .toJSON(),
+
+  // /translate - Generate stakeholder summary from technical document
+  new SlashCommandBuilder()
+    .setName('translate')
+    .setDescription('Generate stakeholder summary from technical document')
+    .addStringOption(option =>
+      option
+        .setName('project')
+        .setDescription('Project name (e.g., mibera, fatbera)')
+        .setRequired(true)
+    )
+    .addStringOption(option =>
+      option
+        .setName('document')
+        .setDescription('Document reference (e.g., @prd, @sdd, docs/sprint.md)')
+        .setRequired(true)
+    )
+    .addStringOption(option =>
+      option
+        .setName('audience')
+        .setDescription('Target audience')
+        .setRequired(true)
+        .addChoices(
+          { name: 'Leadership', value: 'leadership' },
+          { name: 'Product', value: 'product' },
+          { name: 'Marketing', value: 'marketing' },
+          { name: 'DevRel', value: 'devrel' }
+        )
+    )
+    .toJSON(),
+
+  // /exec-summary - Get executive summary for a sprint
+  new SlashCommandBuilder()
+    .setName('exec-summary')
+    .setDescription('Get executive summary for a sprint')
+    .addStringOption(option =>
+      option
+        .setName('sprint-id')
+        .setDescription('Sprint identifier (e.g., sprint-1, mibera-sprint-1)')
+        .setRequired(true)
+    )
+    .toJSON(),
+
+  // /audit-summary - Get security audit summary for a sprint
+  new SlashCommandBuilder()
+    .setName('audit-summary')
+    .setDescription('Get security audit summary for a sprint')
+    .addStringOption(option =>
+      option
+        .setName('sprint-id')
+        .setDescription('Sprint identifier (e.g., sprint-1, sprint-1-remediation)')
+        .setRequired(true)
+    )
     .toJSON(),
 
   // /doc - Fetch project documentation

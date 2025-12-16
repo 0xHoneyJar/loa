@@ -255,6 +255,19 @@ export const auditLog = {
       result: 'success',
     });
   },
+
+  documentOperation(userId: string, operation: string, details: Record<string, any>) {
+    audit({
+      action: 'document_operation',
+      userId,
+      timestamp: new Date().toISOString(),
+      details: {
+        operation,
+        ...details,
+      },
+      result: 'success',
+    });
+  },
 };
 
 /**
