@@ -3,13 +3,44 @@
 **Date**: December 16, 2025
 **DevOps Architect**: DevOps Crypto Architect Agent
 **Target Environment**: OVH Bare Metal VPS (Single Server MVP)
-**Status**: INFRASTRUCTURE READY
+**Status**: INFRASTRUCTURE READY - AUDIT FIXES APPLIED
 
 ---
 
 ## Executive Summary
 
 This report documents the comprehensive production deployment infrastructure created for the Onomancer Bot. The infrastructure builds upon the December 15, 2024 prototype deployment experience and lessons learned, providing a complete set of scripts, configurations, and runbooks for reliable production operation.
+
+---
+
+## Security Audit Fixes (December 16, 2025)
+
+The following issues identified by the paranoid-auditor security audit have been addressed:
+
+| Finding | Severity | Fix Applied |
+|---------|----------|-------------|
+| HIGH-001: Missing SSH hardening | HIGH | ✅ Added STEP 5.5 to server-setup.sh with password auth disable, root login disable, key-based auth enforcement |
+| HIGH-002: Directory path inconsistency | HIGH | ✅ Separated BASE_DIR and APP_DIR in all scripts (deploy.sh, rollback.sh) with clear comments |
+| MEDIUM-003: PM2 env_file unreliable | MEDIUM | ✅ Removed env_file from generated ecosystem.config.js, added comment documenting Dec 15 known issue |
+
+**SSH Hardening Details** (server-setup.sh STEP 5.5):
+- Creates `.ssh` directory for devrel user with proper permissions (700)
+- Safety check: Only hardens if SSH keys exist (prevents lockout)
+- Disables: PasswordAuthentication, ChallengeResponseAuthentication, UsePAM
+- Enables: PubkeyAuthentication
+- Disables: PermitRootLogin
+- Provides manual hardening instructions if keys not yet configured
+- Uses Ubuntu-correct `ssh` service name (not `sshd`)
+
+**Directory Structure Clarification**:
+```
+BASE_DIR="/opt/devrel-integration"          # Root installation directory
+APP_DIR="$BASE_DIR/devrel-integration"      # Cloned repo (app code)
+SECRETS_DIR="$BASE_DIR/secrets"             # Credentials (chmod 700)
+DATA_DIR="$BASE_DIR/data"                   # SQLite database
+BACKUP_DIR="$BASE_DIR/backups"              # Database backups
+PM2_HOME="$BASE_DIR/.pm2"                   # PM2 process manager home
+```
 
 ---
 
@@ -98,11 +129,11 @@ The following fixes from the prototype deployment have been incorporated:
 | Layer | Implementation |
 |-------|---------------|
 | 1. Network | UFW Firewall (22, 80, 443 only) |
-| 2. SSH | fail2ban with 3 retry limit |
+| 2. SSH | fail2ban (3 retry limit) + key-only auth + root login disabled |
 | 3. Transport | TLS 1.3 via Let's Encrypt |
 | 4. Rate Limiting | Nginx (10 req/s API, 30 req/s webhooks) |
 | 5. Application | Helmet, input validation, CORS |
-| 6. Secrets | chmod 600, non-root user |
+| 6. Secrets | chmod 600/700, non-root user |
 
 ### Security Headers (Nginx)
 

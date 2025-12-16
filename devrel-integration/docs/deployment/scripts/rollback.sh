@@ -25,10 +25,13 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-APP_DIR="/opt/devrel-integration"
-BACKUP_DIR="$APP_DIR/backups"
-DATA_DIR="$APP_DIR/data"
-PM2_HOME="$APP_DIR/.pm2"
+# BASE_DIR: Root installation directory (contains repo clone and data directories)
+# APP_DIR: Application code directory (the cloned devrel-integration repo)
+BASE_DIR="/opt/devrel-integration"
+APP_DIR="$BASE_DIR/devrel-integration"
+BACKUP_DIR="$BASE_DIR/backups"
+DATA_DIR="$BASE_DIR/data"
+PM2_HOME="$BASE_DIR/.pm2"
 
 LIST_ONLY=false
 DB_ONLY=false
@@ -80,9 +83,9 @@ list_rollback_points() {
     echo ""
 
     # Git versions (if git repo)
-    if [[ -d "$APP_DIR/.git" ]]; then
+    if [[ -d "$BASE_DIR/.git" ]]; then
         echo "Git Tags:"
-        cd "$APP_DIR"
+        cd "$BASE_DIR"
         git tag -l --sort=-v:refname | head -10 | while read -r tag; do
             echo "  $tag"
         done
@@ -130,11 +133,11 @@ rollback_database() {
 rollback_code() {
     local version="$1"
 
-    if [[ ! -d "$APP_DIR/.git" ]]; then
+    if [[ ! -d "$BASE_DIR/.git" ]]; then
         log_error "Not a git repository. Cannot rollback code."
     fi
 
-    cd "$APP_DIR"
+    cd "$BASE_DIR"
 
     log_info "Rolling back code to: $version"
 
@@ -251,7 +254,7 @@ done
 
 # Main logic
 main() {
-    cd "$APP_DIR"
+    cd "$BASE_DIR"
 
     if [[ "$LIST_ONLY" = true ]]; then
         list_rollback_points

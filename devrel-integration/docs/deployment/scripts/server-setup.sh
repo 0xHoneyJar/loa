@@ -208,6 +208,42 @@ systemctl restart fail2ban
 log_success "Fail2ban configured and started"
 
 # ============================================
+# STEP 5.5: SSH Hardening
+# ============================================
+log_info "Step 5.5: Hardening SSH configuration..."
+
+# Create .ssh directory for devrel user if needed
+mkdir -p "/home/$APP_USER/.ssh"
+chown "$APP_USER:$APP_USER" "/home/$APP_USER/.ssh"
+chmod 700 "/home/$APP_USER/.ssh"
+
+# Check if SSH key exists for devrel user OR if we're still in initial setup
+if [[ -f "/home/$APP_USER/.ssh/authorized_keys" ]] && [[ -s "/home/$APP_USER/.ssh/authorized_keys" ]]; then
+    # Backup original sshd_config
+    cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup.$(date +%Y%m%d_%H%M%S)
+
+    # Disable password authentication
+    sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+    sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+    sed -i 's/^#*PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+    sed -i 's/^#*ChallengeResponseAuthentication.*/ChallengeResponseAuthentication no/' /etc/ssh/sshd_config
+    sed -i 's/^#*UsePAM.*/UsePAM no/' /etc/ssh/sshd_config
+
+    # Restart SSH service (Ubuntu uses 'ssh' not 'sshd')
+    systemctl restart ssh
+
+    log_success "SSH hardened: password auth disabled, root login disabled"
+else
+    log_warn "SSH keys not found for $APP_USER - SSH hardening deferred"
+    log_warn "IMPORTANT: Add SSH keys to /home/$APP_USER/.ssh/authorized_keys"
+    log_warn "Then run: sudo ./server-setup.sh --harden-ssh-only"
+    log_warn "Or manually run:"
+    log_warn "  sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config"
+    log_warn "  sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config"
+    log_warn "  systemctl restart ssh"
+fi
+
+# ============================================
 # STEP 6: Install Node.js
 # ============================================
 log_info "Step 6/8: Installing Node.js 20 LTS..."

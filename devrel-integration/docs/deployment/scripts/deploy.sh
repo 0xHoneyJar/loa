@@ -26,12 +26,15 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Default configuration
-APP_DIR="/opt/devrel-integration"
-SECRETS_DIR="$APP_DIR/secrets"
-DATA_DIR="$APP_DIR/data"
-BACKUP_DIR="$APP_DIR/backups"
+# BASE_DIR: Root installation directory (contains repo clone and data directories)
+# APP_DIR: Application code directory (the cloned devrel-integration repo)
+BASE_DIR="/opt/devrel-integration"
+APP_DIR="$BASE_DIR/devrel-integration"
+SECRETS_DIR="$BASE_DIR/secrets"
+DATA_DIR="$BASE_DIR/data"
+BACKUP_DIR="$BASE_DIR/backups"
 LOG_DIR="/var/log/devrel"
-PM2_HOME="$APP_DIR/.pm2"
+PM2_HOME="$BASE_DIR/.pm2"
 
 BUILD_ONLY=false
 NO_BACKUP=false
@@ -225,6 +228,8 @@ run_tests() {
 create_pm2_config() {
     log_step "Creating PM2 configuration..."
 
+    # Note: We don't use env_file as PM2's env_file loading is unreliable
+    # Instead, deploy.sh sources .env.local and passes vars via environment
     cat > "$APP_DIR/ecosystem.config.js" << EOF
 module.exports = {
   apps: [{
@@ -235,12 +240,14 @@ module.exports = {
     autorestart: true,
     watch: false,
     max_memory_restart: '1G',
-    env_file: '$SECRETS_DIR/.env.local',
+    // Environment variables are sourced by deploy.sh before starting PM2
+    // Do NOT use env_file - it's unreliable (known issue from Dec 15 deployment)
     env: {
       NODE_ENV: 'production',
       LOG_LEVEL: 'info',
       LOG_DIR: '$LOG_DIR',
-      DATA_DIR: '$DATA_DIR'
+      DATA_DIR: '$DATA_DIR',
+      SECRETS_DIR: '$SECRETS_DIR'
     },
     error_file: '$LOG_DIR/onomancer-error.log',
     out_file: '$LOG_DIR/onomancer-out.log',
