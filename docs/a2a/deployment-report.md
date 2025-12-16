@@ -1,241 +1,287 @@
-# Deployment Report: Bare Metal Server Deployment
+# Deployment Report: Onomancer Bot Production Infrastructure
 
-**Date**: December 15, 2024
-**Server**: ns5036138 (Ubuntu, 125GB RAM)
-**Branch**: trrfrm-ggl
-**Status**: SUCCESS
-
----
-
-## Summary
-
-Successfully deployed Onomancer Bot to bare metal server. Several code and configuration fixes were required during deployment that should be incorporated into the main codebase to prevent drift.
+**Date**: December 16, 2025
+**DevOps Architect**: DevOps Crypto Architect Agent
+**Target Environment**: OVH Bare Metal VPS (Single Server MVP)
+**Status**: INFRASTRUCTURE READY
 
 ---
 
-## Fixes Applied During Deployment
+## Executive Summary
 
-### 1. Token Validation Regex Too Strict
+This report documents the comprehensive production deployment infrastructure created for the Onomancer Bot. The infrastructure builds upon the December 15, 2024 prototype deployment experience and lessons learned, providing a complete set of scripts, configurations, and runbooks for reliable production operation.
 
-**File**: `src/utils/secrets.ts`
-**Commit**: `3d31d7e`
+---
 
-**Problem**: Discord and Linear token validation regex patterns were too strict, rejecting valid production tokens.
+## Previous Deployment Lessons (December 15, 2024)
 
-**Fix**: Relaxed regex patterns to accommodate varying token lengths:
+The following fixes from the prototype deployment have been incorporated:
 
-```typescript
-// Before
-DISCORD_BOT_TOKEN: {
-  pattern: /^[MN][A-Za-z\d]{23}\.[\w-]{6}\.[\w-]{27}$/,
-},
-LINEAR_API_TOKEN: {
-  pattern: /^lin_api_[a-f0-9]{40}$/,
-},
+| Issue | Root Cause | Status |
+|-------|------------|--------|
+| Token validation too strict | Regex patterns | ✅ Fixed in codebase |
+| Missing schema.sql in dist | TypeScript doesn't copy SQL | ✅ postbuild script added |
+| DOC_ROOT path incorrect | Path resolution | ✅ Fixed in codebase |
+| folder-ids.json missing | Template not in repo | ✅ Documented in guide |
+| PM2 env loading | env_file unreliable | ✅ Deploy script handles |
+| SSH service name | Ubuntu uses `ssh` not `sshd` | ✅ Documented |
 
-// After
-DISCORD_BOT_TOKEN: {
-  pattern: /^[MN][A-Za-z\d]{20,30}\.[\w-]{5,10}\.[\w-]{25,40}$/,
-},
-LINEAR_API_TOKEN: {
-  pattern: /^lin_api_[A-Za-z0-9]{30,50}$/,
-},
+---
+
+## Infrastructure Deliverables
+
+### Scripts Created
+
+| Script | Purpose | Location |
+|--------|---------|----------|
+| `server-setup.sh` | Initial server configuration | `devrel-integration/docs/deployment/scripts/` |
+| `deploy.sh` | Application deployment | `devrel-integration/docs/deployment/scripts/` |
+| `rollback.sh` | Version rollback | `devrel-integration/docs/deployment/scripts/` |
+| `nginx-onomancer.conf` | Nginx configuration | `devrel-integration/docs/deployment/scripts/` |
+
+### Documentation Created
+
+| Document | Purpose | Location |
+|----------|---------|----------|
+| `infrastructure.md` | Architecture overview | `devrel-integration/docs/deployment/` |
+| `deployment-guide.md` | Step-by-step deployment | `devrel-integration/docs/deployment/` |
+| `monitoring.md` | Monitoring setup | `devrel-integration/docs/deployment/` |
+| `deployment-runbook.md` | Deployment procedures | `devrel-integration/docs/deployment/runbooks/` |
+| `incident-response.md` | Incident handling | `devrel-integration/docs/deployment/runbooks/` |
+| `backup-restore.md` | Backup & restore | `devrel-integration/docs/deployment/runbooks/` |
+
+### Configuration Updated
+
+| File | Changes | Location |
+|------|---------|----------|
+| `ecosystem.config.js` | Production-ready PM2 config | `devrel-integration/` |
+
+---
+
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     OVH VPS Server                           │
+│                   (Ubuntu 22.04 LTS)                         │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │                   Nginx                              │   │
+│  │         (Reverse Proxy + TLS Termination)            │   │
+│  │               SSL via Let's Encrypt                  │   │
+│  └────────────────────────┬────────────────────────────┘   │
+│                           │ :3000                           │
+│  ┌────────────────────────▼────────────────────────────┐   │
+│  │                   PM2 Process Manager                │   │
+│  │  ┌──────────────────────────────────────────────┐   │   │
+│  │  │            Onomancer Bot (Node.js)            │   │   │
+│  │  └──────────────────────────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │                    Data Layer                         │   │
+│  │  ┌─────────────────┐    ┌─────────────────────────┐ │   │
+│  │  │  SQLite DB      │    │  Redis (Optional)       │ │   │
+│  │  └─────────────────┘    └─────────────────────────┘ │   │
+│  └─────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │                   System Services                     │   │
+│  │  • fail2ban • UFW Firewall • logrotate • certbot    │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### 2. Missing Non-TypeScript Assets in dist
+## Security Implementation
 
-**File**: `src/database/schema.sql`
-**Commit**: `327beae` (runbook update)
+### Defense in Depth
 
-**Problem**: TypeScript compiler doesn't copy `.sql` files to `dist/`. Bot fails with "Schema file not found" error.
+| Layer | Implementation |
+|-------|---------------|
+| 1. Network | UFW Firewall (22, 80, 443 only) |
+| 2. SSH | fail2ban with 3 retry limit |
+| 3. Transport | TLS 1.3 via Let's Encrypt |
+| 4. Rate Limiting | Nginx (10 req/s API, 30 req/s webhooks) |
+| 5. Application | Helmet, input validation, CORS |
+| 6. Secrets | chmod 600, non-root user |
 
-**Fix**: Manual copy after build:
+### Security Headers (Nginx)
+
+- `Strict-Transport-Security` (HSTS)
+- `X-Frame-Options: SAMEORIGIN`
+- `X-Content-Type-Options: nosniff`
+- `X-XSS-Protection: 1; mode=block`
+- `Content-Security-Policy`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+
+---
+
+## Deployment Process
+
+### First-Time Deployment
+
 ```bash
-cp src/database/schema.sql dist/database/
+# 1. Server Setup (as root)
+./server-setup.sh --domain onomancer.example.com --email admin@example.com
+
+# 2. Deploy Application (as devrel user)
+su - devrel
+cd /opt/devrel-integration/devrel-integration
+./docs/deployment/scripts/deploy.sh
+
+# 3. Register Discord Commands
+npm run register-commands
+
+# 4. Verify
+pm2 status
+pm2 logs onomancer-bot --lines 20
 ```
 
-**Recommended Permanent Fix**: Add postbuild script to `package.json`:
-```json
-{
-  "scripts": {
-    "postbuild": "cp src/database/schema.sql dist/database/"
-  }
-}
-```
+### Update Deployment
 
----
-
-### 3. DOC_ROOT Path Resolution Incorrect
-
-**File**: `src/handlers/interactions.ts:295`
-**Commit**: `19bc98a`
-
-**Problem**: Path `../../../docs` from `dist/handlers/` resolved to `/opt/docs` instead of `/opt/devrel-integration/docs`.
-
-**Fix**: Changed to `../../docs`:
-
-```typescript
-// Before
-const DOC_ROOT = path.resolve(__dirname, '../../../docs');
-
-// After
-const DOC_ROOT = path.resolve(__dirname, '../../docs');
-```
-
----
-
-### 4. Missing Configuration File
-
-**File**: `config/folder-ids.json`
-**Commit**: `9dfa563` (runbook update)
-
-**Problem**: Bot requires `config/folder-ids.json` for Google Drive integration, but only example file exists in repo.
-
-**Fix**: Create from example with actual folder IDs:
 ```bash
-cp config/folder-ids.json.example config/folder-ids.json
-# Edit with actual Google Drive folder IDs
-```
-
-**Structure**:
-```json
-{
-  "leadership": "folder_id",
-  "product": "folder_id",
-  "marketing": "folder_id",
-  "devrel": "folder_id",
-  "originals": "folder_id"
-}
+cd /opt/devrel-integration
+git pull
+cd devrel-integration
+./docs/deployment/scripts/deploy.sh
 ```
 
 ---
 
-### 5. PM2 Environment Variables Not Loading
+## Monitoring Setup
 
-**Problem**: PM2's `env_file` directive doesn't reliably load environment variables.
+### Key Metrics
 
-**Fix**: Source env file before starting PM2:
+| Metric | Warning | Critical |
+|--------|---------|----------|
+| Memory | >70% | >85% |
+| Disk | >80% | >90% |
+| Restarts | >3/hr | >10/hr |
+| Error Rate | >5% | >20% |
+
+### Commands
+
 ```bash
-set -a && source secrets/.env.local && set +a
-pm2 start ecosystem.config.js --env production
-```
-
-**Note**: This is documented in the runbook but should be emphasized more prominently.
-
----
-
-### 6. SSH Service Name on Ubuntu
-
-**Problem**: Runbook references `sshd.service` which doesn't exist on Ubuntu/Debian.
-
-**Fix**: Use `ssh.service` instead:
-```bash
-# Ubuntu/Debian
-sudo systemctl restart ssh
-
-# RHEL/CentOS
-sudo systemctl restart sshd
+pm2 status          # Process status
+pm2 monit           # Real-time dashboard
+pm2 logs            # Application logs
 ```
 
 ---
 
-## Server Directory Structure After Deployment
+## Backup Strategy
+
+| Data | Frequency | Retention |
+|------|-----------|-----------|
+| SQLite DB | Daily | 7 days |
+| Secrets | Manual | Permanent |
+| Logs | Rotated | 14 days |
+
+---
+
+## Recovery Objectives
+
+| Scenario | RTO | RPO |
+|----------|-----|-----|
+| Application crash | 5 min | 0 |
+| Database corruption | 30 min | 24 hr |
+| Server failure | 2 hr | 24 hr |
+
+---
+
+## Prerequisites Checklist
+
+Before deployment:
+
+- [ ] OVH VPS provisioned (Ubuntu 22.04, 2GB RAM, 20GB disk)
+- [ ] Domain name configured (DNS A record)
+- [ ] Discord Bot Token ready
+- [ ] Google Service Account JSON ready
+- [ ] Anthropic API Key ready
+- [ ] Linear API Token ready (optional)
+- [ ] SSH access confirmed
+
+---
+
+## File Structure After Deployment
 
 ```
 /opt/devrel-integration/
-├── config/
-│   ├── folder-ids.json          # Created from example
-│   ├── folder-ids.json.example
-│   └── ...
-├── data/
-│   └── auth.db                  # Created at runtime
-├── dist/
-│   ├── bot.js
-│   ├── database/
-│   │   └── schema.sql           # Manually copied
-│   └── ...
-├── docs/
-│   ├── prd.md
-│   ├── sdd.md
-│   ├── sprint.md
-│   └── a2a/
-├── logs/
-│   ├── pm2-combined.log
-│   ├── pm2-error.log
-│   └── pm2-out.log
-├── secrets/
-│   ├── .env.local               # chmod 600
-│   └── gcp-service-account.json # chmod 600
-├── src/
-└── ...
+├── devrel-integration/
+│   ├── dist/                # Compiled application
+│   ├── secrets/             # Credentials (chmod 700)
+│   │   ├── .env.local       # Environment variables
+│   │   └── service-account.json
+│   ├── data/                # Runtime data
+│   │   └── onomancer.db     # SQLite database
+│   ├── backups/             # Database backups
+│   ├── logs/                # Symlink to /var/log/devrel
+│   ├── docs/
+│   │   └── deployment/      # Deployment infrastructure
+│   └── ecosystem.config.js  # PM2 configuration
+└── .git/
 ```
 
 ---
 
-## Recommended Codebase Changes
+## Known Limitations
 
-### High Priority (Prevent Deployment Failures)
+1. **Single Server**: No redundancy (acceptable for MVP)
+2. **SQLite**: Limited concurrent writes (sufficient for MVP scale)
+3. **Discord Bot**: Single instance only (WebSocket limitation)
 
-1. **Add postbuild script** to copy non-TypeScript assets:
-   ```json
-   "postbuild": "cp src/database/schema.sql dist/database/"
-   ```
+### Scaling Path
 
-2. **Verify DOC_ROOT fix** is in main branch (commit `19bc98a`)
-
-3. **Verify token regex fix** is in main branch (commit `3d31d7e`)
-
-### Medium Priority (Improve Developer Experience)
-
-4. **Create `config/folder-ids.json` template** with placeholder values in repo
-
-5. **Update ecosystem.config.js** to better handle env file loading or document the source workaround
-
-6. **Add pre-deploy validation script** that checks:
-   - All required config files exist
-   - All required env vars are set
-   - Build artifacts are complete
-
-### Low Priority (Documentation)
-
-7. **Update runbook** with Ubuntu-specific SSH service name note
+If scaling needed:
+1. Add load balancer + second server
+2. Migrate SQLite → PostgreSQL
+3. External Redis cluster
+4. Container orchestration (K8s)
 
 ---
 
 ## Verification Commands
 
-After deployment, verify with:
-
 ```bash
-# Process running
+# Process status
 pm2 status
 
-# No errors
-pm2 logs agentic-base-bot --err --lines 20
+# Check for errors
+pm2 logs onomancer-bot --err --lines 20
 
-# Health check
-curl -s http://localhost:3000/health | jq .status
+# Health check (if nginx configured)
+curl -s https://your-domain.com/health | jq .
 
-# Discord connection
-pm2 logs agentic-base-bot --lines 50 | grep "logged in as"
-
-# Test commands in Discord
-/help
-/doc prd
-/show-sprint
+# Test Discord command
+# In Discord: /show-sprint
 ```
 
 ---
 
 ## Next Steps
 
-1. Merge fixes from `trrfrm-ggl` branch to main
-2. Add `postbuild` script to package.json
-3. Test deployment on fresh server using updated runbook
-4. Consider containerization (Docker) for more reproducible deployments
+1. **Provision Server**: Order OVH VPS with Ubuntu 22.04
+2. **Run Setup**: Execute `server-setup.sh` with domain
+3. **Configure Secrets**: Add all credentials to `.env.local`
+4. **Deploy**: Run `deploy.sh`
+5. **Verify**: Test Discord commands
+6. **Monitor**: Set up alerts as needed
 
 ---
 
-*Report generated during deployment session, December 15, 2024*
+## Support Resources
+
+| Resource | Location |
+|----------|----------|
+| Deployment Guide | `devrel-integration/docs/deployment/deployment-guide.md` |
+| Architecture | `devrel-integration/docs/deployment/infrastructure.md` |
+| Monitoring | `devrel-integration/docs/deployment/monitoring.md` |
+| Incident Response | `devrel-integration/docs/deployment/runbooks/incident-response.md` |
+| Original Runbook | `devrel-integration/docs/DEPLOYMENT_RUNBOOK.md` |
+| Credentials Guide | `devrel-integration/docs/CREDENTIALS_SETUP_GUIDE.md` |
+
+---
+
+**Infrastructure Status: READY FOR PRODUCTION DEPLOYMENT**
+
+*Report generated by DevOps Crypto Architect Agent*
+*Date: 2025-12-16*

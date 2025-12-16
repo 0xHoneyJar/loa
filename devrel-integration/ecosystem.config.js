@@ -1,136 +1,176 @@
 /**
- * PM2 Ecosystem Configuration
+ * PM2 Ecosystem Configuration for Onomancer Bot
  *
- * This configuration file defines how PM2 should manage the agentic-base integration bot.
+ * This configuration file defines how PM2 should manage the Onomancer Bot.
  *
  * Usage:
- *   Start: pm2 start ecosystem.config.js
- *   Stop: pm2 stop agentic-base-bot
- *   Restart: pm2 restart agentic-base-bot
- *   Logs: pm2 logs agentic-base-bot
- *   Monitor: pm2 monit
+ *   Start:    pm2 start ecosystem.config.js --env production
+ *   Stop:     pm2 stop onomancer-bot
+ *   Restart:  pm2 restart onomancer-bot
+ *   Reload:   pm2 reload onomancer-bot (zero-downtime)
+ *   Logs:     pm2 logs onomancer-bot
+ *   Monitor:  pm2 monit
+ *   Status:   pm2 status
+ *
+ * Environment Variables:
+ *   APP_DIR     - Application directory (default: /opt/devrel-integration)
+ *   LOG_DIR     - Log directory (default: /var/log/devrel)
+ *   SECRETS_DIR - Secrets directory (default: $APP_DIR/secrets)
+ *   DATA_DIR    - Data directory (default: $APP_DIR/data)
  */
+
+const path = require('path');
+
+// Environment detection
+const isProd = process.env.NODE_ENV === 'production';
+
+// Directory configuration
+const APP_DIR = process.env.APP_DIR || (isProd ? '/opt/devrel-integration' : __dirname);
+const LOG_DIR = process.env.LOG_DIR || (isProd ? '/var/log/devrel' : path.join(__dirname, 'logs'));
+const SECRETS_DIR = process.env.SECRETS_DIR || path.join(APP_DIR, 'secrets');
+const DATA_DIR = process.env.DATA_DIR || path.join(APP_DIR, 'data');
 
 module.exports = {
   apps: [
     {
-      // Application name
-      name: 'agentic-base-bot',
-
-      // Script to run
+      // Application identity
+      name: 'onomancer-bot',
       script: 'dist/bot.js',
+      cwd: APP_DIR,
 
-      // Working directory (configurable via environment variable)
-      cwd: process.env.APP_DIR || '/opt/devrel-integration',
-
-      // Instances (1 = single instance, 0 or 'max' = use all CPU cores)
+      // Instance configuration
+      // Discord bots must run single instance (WebSocket doesn't support multiple)
       instances: 1,
-
-      // Execution mode ('fork' or 'cluster')
       exec_mode: 'fork',
 
-      // Auto-restart on crash
+      // Restart behavior
       autorestart: true,
-
-      // Watch for file changes (disable in production)
       watch: false,
+      max_memory_restart: '1G',
 
-      // Maximum memory before restart (500MB)
-      max_memory_restart: '500M',
+      // Environment variables file
+      env_file: path.join(SECRETS_DIR, '.env.local'),
 
-      // Environment variables
+      // Development environment
       env: {
         NODE_ENV: 'development',
+        LOG_LEVEL: 'debug',
+        LOG_DIR: path.join(__dirname, 'logs'),
+        DATA_DIR: path.join(__dirname, 'data'),
+        SECRETS_DIR: path.join(__dirname, 'secrets'),
       },
 
+      // Production environment
       env_production: {
         NODE_ENV: 'production',
+        LOG_LEVEL: 'info',
+        LOG_DIR: LOG_DIR,
+        DATA_DIR: DATA_DIR,
+        SECRETS_DIR: SECRETS_DIR,
+        NODE_OPTIONS: '--max-old-space-size=1024 --enable-source-maps',
       },
 
-      // Load environment variables from file
-      env_file: './secrets/.env.local',
-
-      // Error log file
-      error_file: './logs/pm2-error.log',
-
-      // Output log file
-      out_file: './logs/pm2-out.log',
-
-      // Combined log file
-      log_file: './logs/pm2-combined.log',
-
-      // Log date format
-      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-
-      // Merge logs from all instances
+      // Log configuration
+      error_file: path.join(LOG_DIR, 'onomancer-error.log'),
+      out_file: path.join(LOG_DIR, 'onomancer-out.log'),
+      log_file: path.join(LOG_DIR, 'onomancer-combined.log'),
+      log_date_format: 'YYYY-MM-DD HH:mm:ss.SSS Z',
       merge_logs: true,
+      time: true,
 
-      // Time to wait before restart on crash (milliseconds) - TUNED
-      restart_delay: 10000,  // 10 seconds (increased from 5s)
+      // Graceful shutdown
+      kill_timeout: 10000,          // 10 seconds to shutdown gracefully
+      wait_ready: true,             // Wait for process.send('ready')
+      listen_timeout: 15000,        // 15 seconds to start
 
-      // Maximum number of restart retries - TUNED
-      max_restarts: 5,  // Reduced from 10 to prevent crash loops
+      // Restart strategy with exponential backoff
+      restart_delay: 5000,          // Initial delay: 5 seconds
+      exp_backoff_restart_delay: 1000,  // Exponential backoff base: 1s
+      max_restarts: 10,             // Max restarts in min_uptime window
+      min_uptime: '30s',            // Stable if running > 30s
 
-      // Minimum uptime before restart is considered stable - TUNED
-      min_uptime: '30s',  // Increased from 10s to better detect stable starts
-
-      // Listen timeout (milliseconds)
-      listen_timeout: 10000,
-
-      // Kill timeout (milliseconds)
-      kill_timeout: 5000,
-
-      // Shutdown with SIGINT instead of SIGKILL
-      shutdown_with_message: true,
-
-      // Instance variables
-      instance_var: 'INSTANCE_ID',
-
-      // Source map support
+      // Advanced options
       source_map_support: true,
+      shutdown_with_message: true,
+      instance_var: 'INSTANCE_ID',
+      treekill: true,
 
-      // Disable automatic ID increment
-      increment_var: 'PORT',
+      // Post-update commands (for pm2 deploy)
+      post_update: ['npm ci', 'npm run build'],
 
-      // Post-update command (run after PM2 updates)
-      post_update: ['npm install', 'npm run build'],
+      // Node.js arguments
+      node_args: ['--enable-source-maps'],
 
-      // Advanced features - Exponential backoff restart delay
-      exp_backoff_restart_delay: 100,  // 100ms base (100, 200, 400, 800, 1600ms)
-
-      // Monitoring
-      // Uncomment to enable PM2 monitoring
-      // pmx: true,
+      // Interpreter
+      interpreter: 'node',
     },
   ],
 
   /**
-   * Deployment configuration
+   * Deployment configuration for PM2 deploy
    *
-   * Uncomment and configure for PM2 deploy functionality
+   * Usage:
+   *   Setup:  pm2 deploy production setup
+   *   Deploy: pm2 deploy production
+   *   Update: pm2 deploy production update
    */
-  /*
   deploy: {
     production: {
-      user: 'deploy',
-      host: 'your-server.com',
+      // SSH configuration
+      user: 'devrel',
+      host: ['your-server-ip'],  // Replace with actual server IP
       ref: 'origin/main',
-      repo: 'git@github.com:your-org/agentic-base.git',
-      path: '/opt/agentic-base',
-      'pre-deploy-local': '',
-      'post-deploy': 'cd integration && npm install && npm run build && pm2 reload ecosystem.config.js --env production',
-      'pre-setup': '',
-      'ssh_options': 'ForwardAgent=yes'
+      repo: 'git@github.com:your-org/agentic-base.git',  // Replace with actual repo
+      path: '/opt/devrel-integration',
+
+      // Pre-setup commands (run once during setup)
+      'pre-setup': [
+        'mkdir -p /opt/devrel-integration/secrets',
+        'mkdir -p /opt/devrel-integration/data',
+        'mkdir -p /var/log/devrel',
+      ].join(' && '),
+
+      // Post-setup commands
+      'post-setup': 'cd devrel-integration && npm ci --production=false',
+
+      // Pre-deploy commands (on local machine)
+      'pre-deploy-local': 'echo "Deploying Onomancer Bot to production..."',
+
+      // Post-deploy commands (on server)
+      'post-deploy': [
+        'cd devrel-integration',
+        'npm ci --production=false',
+        'npm run build',
+        'PM2_HOME=/opt/devrel-integration/.pm2 pm2 reload ecosystem.config.js --env production',
+        'PM2_HOME=/opt/devrel-integration/.pm2 pm2 save',
+      ].join(' && '),
+
+      // SSH options
+      ssh_options: 'ForwardAgent=yes',
+
+      // Environment variables
+      env: {
+        NODE_ENV: 'production',
+      },
     },
+
     staging: {
-      user: 'deploy',
-      host: 'staging-server.com',
+      user: 'devrel',
+      host: ['staging-server-ip'],  // Replace with staging server IP
       ref: 'origin/develop',
       repo: 'git@github.com:your-org/agentic-base.git',
-      path: '/opt/agentic-base-staging',
-      'post-deploy': 'cd integration && npm install && npm run build && pm2 reload ecosystem.config.js --env staging',
-      'ssh_options': 'ForwardAgent=yes'
-    }
-  }
-  */
+      path: '/opt/devrel-integration-staging',
+
+      'post-deploy': [
+        'cd devrel-integration',
+        'npm ci --production=false',
+        'npm run build',
+        'pm2 reload ecosystem.config.js --env staging',
+      ].join(' && '),
+
+      env: {
+        NODE_ENV: 'staging',
+      },
+    },
+  },
 };
