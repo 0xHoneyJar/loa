@@ -31,24 +31,12 @@ This framework uses specialized AI agents working together in a structured workf
    cd loa
    ```
 
-2. **Configure .gitignore for your project**
-
-   Uncomment the generated artifacts section in `.gitignore` to avoid committing generated documentation:
-   ```bash
-   # Uncomment these lines in .gitignore:
-   # docs/a2a/
-   # docs/prd.md
-   # docs/sdd.md
-   # docs/sprint.md
-   # docs/deployment/
-   ```
-
-3. **Start Claude Code**
+2. **Start Claude Code**
    ```bash
    claude
    ```
 
-4. **Begin the workflow**
+3. **Begin the workflow**
    ```bash
    /plan-and-analyze
    ```
