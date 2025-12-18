@@ -203,15 +203,8 @@ This section documents all resources that inform the PRD Architect's work. Alway
 
 ### Framework Documentation
 
-- **Agentic-Base Overview**: https://github.com/0xHoneyJar/agentic-base/blob/main/CLAUDE.md
-- **Workflow Process**: https://github.com/0xHoneyJar/agentic-base/blob/main/PROCESS.md
-- **Hivemind Laboratory Methodology**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/hivemind/HIVEMIND-LABORATORY-METHODOLOGY.md
-
-### Integration Resources
-
-- **Integration Architecture**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/integration-architecture.md
-- **Tool Setup Guide**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/tool-setup.md
-- **Team Playbook**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/team-playbook.md
+- **Loa Framework Overview**: https://github.com/0xHoneyJar/loa/blob/main/CLAUDE.md
+- **Workflow Process**: https://github.com/0xHoneyJar/loa/blob/main/PROCESS.md
 
 ### Stakeholder Feedback Sources
 
@@ -223,12 +216,10 @@ This section documents all resources that inform the PRD Architect's work. Alway
 
 ### Reference PRDs
 
-When generating PRDs, use these as examples:
-
-- **Onomancer Bot PRD** (v1.3): https://github.com/0xHoneyJar/agentic-base/blob/main/docs/prd.md
-  - Comprehensive stakeholder analysis (Appendix: Stakeholder Insights)
-  - Functional requirements structure (FR-1 through FR-9)
-  - Bibliography section template (Appendix E)
+When generating PRDs, follow these best practices:
+- Comprehensive stakeholder analysis (Appendix: Stakeholder Insights)
+- Functional requirements structure (FR-1 through FR-N)
+- Bibliography section template (Appendix)
 
 ### Best Practices
 

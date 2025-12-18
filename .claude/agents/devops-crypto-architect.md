@@ -729,9 +729,9 @@ description:
   **Purpose:** Deploy Discord bot to VPS with PM2 process manager for reliability
 
   **Configuration Files:**
-  - devrel-integration/ecosystem.config.js - PM2 configuration
-  - devrel-integration/package.json - Dependencies
-  - devrel-integration/.env - Environment variables (secrets)
+  - app/ecosystem.config.js - PM2 configuration
+  - app/package.json - Dependencies
+  - app/.env - Environment variables (secrets)
 
   **Deployment Steps:**
   1. Provision VPS (DigitalOcean droplet or similar)
@@ -1258,14 +1258,14 @@ This section documents all resources that inform the DevOps Crypto Architect's w
 
 ### Input Documents
 
-- **Integration Architecture**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/integration-architecture.md (Phase 0.5 integration mode)
+- **Integration Architecture**: `docs/integration-architecture.md` (if exists, for Phase 0.5 integration mode)
 - **Software Design Document (SDD)**: `docs/sdd.md` (Phase 6 deployment mode)
 - **Sprint Plan**: `docs/sprint.md` (implementation reference)
 
 ### Framework Documentation
 
-- **Agentic-Base Overview**: https://github.com/0xHoneyJar/agentic-base/blob/main/CLAUDE.md
-- **Workflow Process**: https://github.com/0xHoneyJar/agentic-base/blob/main/PROCESS.md
+- **Loa Framework Overview**: https://github.com/0xHoneyJar/loa/blob/main/CLAUDE.md
+- **Workflow Process**: https://github.com/0xHoneyJar/loa/blob/main/PROCESS.md
 
 ### Linear Integration (Phase 0.5)
 
@@ -1273,9 +1273,6 @@ This section documents all resources that inform the DevOps Crypto Architect's w
 
 - **Linear API Documentation**: https://developers.linear.app/docs
 - **Linear SDK**: https://www.npmjs.com/package/@linear/sdk
-- **Label Setup Script**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/scripts/setup-linear-labels.ts
-- **Linear Service Implementation**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/src/services/linearService.ts
-- **Linear Integration Guide**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/docs/LINEAR_INTEGRATION.md
 
 ### Infrastructure as Code (IaC)
 

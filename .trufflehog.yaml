@@ -6,15 +6,12 @@ exclude_paths:
   - "*.example"
   - "*.template"
   - "*.md.template"
-  - "devrel-integration/secrets/.env.local.example"
+  - "app/secrets/.env.local.example"
   - "docs/deployment/SECRETS-SETUP-GUIDE.md"
-  - "docs/deployment/DEVOPS-INTEGRATION-PLAN.md"
-  - "docs/deployment/DEPLOYMENT-INFRASTRUCTURE-COMPLETE.md"
   - "docs/deployment/runbooks/secrets-rotation.md"
   - "docs/audits/**/SECURITY-AUDIT-REPORT.md"
   - "docs/audits/**/SECURITY-FIXES.md"
   - "docs/audits/**/REMEDIATION-PLAN.md"
-  - "devrel-integration/docs/ANTHROPIC-API-SECURITY.md"
   - ".claude/commands/*.md"
 
 # Only report verified secrets (not just patterns)

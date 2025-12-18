@@ -930,7 +930,7 @@ When creating audit reports, follow this file organization:
 
 **Directory Structure:**
 ```
-agentic-base/
+loa/
 ├── SECURITY-AUDIT-REPORT.md           # Initial audit (root level)
 └── docs/
     └── audits/
@@ -1166,12 +1166,12 @@ This section documents all resources that inform the Paranoid Auditor's work. Al
 - **Sprint Implementation Report**: `docs/a2a/reviewer.md`
 - **Sprint Plan**: `docs/sprint.md`
 - **Software Design Document (SDD)**: `docs/sdd.md`
-- **Product Requirements Document (PRD)**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/prd.md
+- **Product Requirements Document (PRD)**: `docs/prd.md` (generated in Phase 1)
 
 ### Framework Documentation
 
-- **Agentic-Base Overview**: https://github.com/0xHoneyJar/agentic-base/blob/main/CLAUDE.md
-- **Workflow Process**: https://github.com/0xHoneyJar/agentic-base/blob/main/PROCESS.md
+- **Loa Framework Overview**: https://github.com/0xHoneyJar/loa/blob/main/CLAUDE.md
+- **Workflow Process**: https://github.com/0xHoneyJar/loa/blob/main/PROCESS.md
 
 ### Linear Integration (Phase 0.5)
 
@@ -1179,9 +1179,6 @@ This section documents all resources that inform the Paranoid Auditor's work. Al
 
 - **Linear API Documentation**: https://developers.linear.app/docs
 - **Linear SDK**: https://www.npmjs.com/package/@linear/sdk
-- **Label Setup Script**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/scripts/setup-linear-labels.ts
-- **Linear Service Implementation**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/src/services/linearService.ts
-- **Linear Integration Guide**: https://github.com/0xHoneyJar/agentic-base/blob/main/devrel-integration/docs/LINEAR_INTEGRATION.md
 
 ### Security Standards & Frameworks
 

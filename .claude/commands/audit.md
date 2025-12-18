@@ -12,31 +12,27 @@ Running in background mode. Use `/tasks` to monitor progress.
 
 <Task
   subagent_type="paranoid-auditor"
-  prompt="Perform a comprehensive security and quality audit of the agentic-base organizational integration that was just completed. The integration connects agentic-base with Discord, Linear, GitHub, and Vercel.
+  prompt="Perform a comprehensive security and quality audit of the application codebase.
 
 ## Scope of Audit
 
-Review the following deliverables systematically:
+Review the following systematically:
 
 ### Documentation
-1. `docs/integration-architecture.md` - System architecture and design
-2. `docs/tool-setup.md` - Setup and configuration guide
-3. `docs/team-playbook.md` - Team usage guide
-4. `docs/adoption-plan.md` - Rollout strategy
+1. `docs/prd.md` - Product requirements
+2. `docs/sdd.md` - System architecture and design
+3. `docs/sprint.md` - Sprint plan and implementation status
 
 ### Implementation Code
-1. `integration/src/bot.ts` - Main Discord bot
-2. `integration/src/handlers/feedbackCapture.ts` - Feedback capture handler
-3. `integration/src/handlers/commands.ts` - Command handlers
-4. `integration/src/services/linearService.ts` - Linear API integration
-5. `integration/src/cron/dailyDigest.ts` - Daily digest cron job
-6. `integration/src/utils/logger.ts` - Logging utility
+1. `app/src/` - Application source code
+2. `app/tests/` - Test files
+3. Configuration files and environment handling
 
 ### Configuration
-1. Configuration templates in `integration/config/`
+1. Configuration files in `app/config/` (if exists)
 2. `.gitignore` patterns for secrets
 3. Environment variable handling
-4. Deployment procedures
+4. Deployment procedures in `docs/deployment/`
 
 ## Focus Areas
 
@@ -70,16 +66,6 @@ Apply your systematic methodology covering:
    - Monitoring & observability
    - Backup & recovery
    - Access control
-
-## Special Considerations
-
-This integration handles:
-- Discord bot with message access (potential PII exposure)
-- Linear API tokens (secret management critical)
-- User-generated content from Discord (injection risk)
-- Webhook integrations (signature verification needed)
-- Multi-user notification preferences (authorization concerns)
-- Cron jobs with API access (credential scope)
 
 ## Deliverable
 
@@ -101,31 +87,27 @@ Be brutally honest. The team needs to know what's wrong before deploying to prod
 {{ else }}
 ## Your Mission
 
-Perform a comprehensive security and quality audit of the agentic-base organizational integration that was just completed. The integration connects agentic-base with Discord, Linear, GitHub, and Vercel.
+Perform a comprehensive security and quality audit of the application codebase.
 
 ## Scope of Audit
 
-Review the following deliverables systematically:
+Review the following systematically:
 
 ### Documentation
-1. `docs/integration-architecture.md` - System architecture and design
-2. `docs/tool-setup.md` - Setup and configuration guide
-3. `docs/team-playbook.md` - Team usage guide
-4. `docs/adoption-plan.md` - Rollout strategy
+1. `docs/prd.md` - Product requirements
+2. `docs/sdd.md` - System architecture and design
+3. `docs/sprint.md` - Sprint plan and implementation status
 
 ### Implementation Code
-1. `integration/src/bot.ts` - Main Discord bot
-2. `integration/src/handlers/feedbackCapture.ts` - Feedback capture handler
-3. `integration/src/handlers/commands.ts` - Command handlers
-4. `integration/src/services/linearService.ts` - Linear API integration
-5. `integration/src/cron/dailyDigest.ts` - Daily digest cron job
-6. `integration/src/utils/logger.ts` - Logging utility
+1. `app/src/` - Application source code
+2. `app/tests/` - Test files
+3. Configuration files and environment handling
 
 ### Configuration
-1. Configuration templates in `integration/config/`
+1. Configuration files in `app/config/` (if exists)
 2. `.gitignore` patterns for secrets
 3. Environment variable handling
-4. Deployment procedures
+4. Deployment procedures in `docs/deployment/`
 
 ## Focus Areas
 
@@ -159,16 +141,6 @@ Apply your systematic methodology covering:
    - Monitoring & observability
    - Backup & recovery
    - Access control
-
-## Special Considerations
-
-This integration handles:
-- Discord bot with message access (potential PII exposure)
-- Linear API tokens (secret management critical)
-- User-generated content from Discord (injection risk)
-- Webhook integrations (signature verification needed)
-- Multi-user notification preferences (authorization concerns)
-- Cron jobs with API access (credential scope)
 
 ## Deliverable
 

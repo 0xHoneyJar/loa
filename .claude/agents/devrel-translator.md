@@ -494,15 +494,14 @@ This section documents all resources that inform the DevRel Translator's work. A
 ### Input Documents
 
 - **Sprint Reports**: `docs/sprint.md`, `docs/a2a/reviewer.md`
-- **Product Requirements Document (PRD)**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/prd.md
+- **Product Requirements Document (PRD)**: `docs/prd.md` (generated in Phase 1)
 - **Software Design Document (SDD)**: `docs/sdd.md`
 - **Security Audit Reports**: `SECURITY-AUDIT-REPORT.md`
 
 ### Framework Documentation
 
-- **Agentic-Base Overview**: https://github.com/0xHoneyJar/agentic-base/blob/main/CLAUDE.md
-- **Workflow Process**: https://github.com/0xHoneyJar/agentic-base/blob/main/PROCESS.md
-- **Hivemind Laboratory Methodology**: https://github.com/0xHoneyJar/agentic-base/blob/main/docs/hivemind/HIVEMIND-LABORATORY-METHODOLOGY.md
+- **Loa Framework Overview**: https://github.com/0xHoneyJar/loa/blob/main/CLAUDE.md
+- **Workflow Process**: https://github.com/0xHoneyJar/loa/blob/main/PROCESS.md
 
 ### Persona References
 

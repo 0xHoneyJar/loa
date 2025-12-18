@@ -25,16 +25,16 @@ jobs:
           node-version: '18'
 
       - name: Install dependencies
-        working-directory: ./devrel-integration
+        working-directory: ./app
         run: npm install
 
       - name: Run npm audit
-        working-directory: ./devrel-integration
+        working-directory: ./app
         run: npm audit --audit-level=moderate
         continue-on-error: true
 
       - name: Run security check
-        working-directory: ./devrel-integration
+        working-directory: ./app
         run: npm run security:check
         continue-on-error: true
 
