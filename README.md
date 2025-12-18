@@ -1,6 +1,16 @@
-# Agentic Base
+# Loa
+
+> *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
 
 An agent-driven development framework that orchestrates the complete product development lifecycle—from requirements gathering through production deployment—using specialized AI agents.
+
+## Why "Loa"?
+
+In William Gibson's Sprawl trilogy, the Loa are AI entities that take on the personas of Haitian Vodou spirits. They "ride" humans through neural interfaces, guiding them through cyberspace. This framework embodies that concept: **AI agents that ride alongside you**, guiding your project from idea to production.
+
+The name draws from Gibson's synthesis of technology and mysticism—where the line between AI constructs and guiding spirits becomes meaningfully blurred. These agents don't replace you; they **ride with you**, channeling expertise through the interface.
+
+See [docs/naming-universe-loa-research.md](docs/naming-universe-loa-research.md) for the full etymology.
 
 ## Overview
 
@@ -17,8 +27,8 @@ This framework uses specialized AI agents working together in a structured workf
 
 1. **Clone this repository**
    ```bash
-   git clone https://github.com/0xHoneyJar/agentic-base.git
-   cd agentic-base
+   git clone https://github.com/0xHoneyJar/loa.git
+   cd loa
    ```
 
 2. **Configure .gitignore for your project**
@@ -26,8 +36,7 @@ This framework uses specialized AI agents working together in a structured workf
    Uncomment the generated artifacts section in `.gitignore` to avoid committing generated documentation:
    ```bash
    # Uncomment these lines in .gitignore:
-   # docs/a2a/reviewer.md
-   # docs/a2a/engineer-feedback.md
+   # docs/a2a/
    # docs/prd.md
    # docs/sdd.md
    # docs/sprint.md
@@ -36,7 +45,7 @@ This framework uses specialized AI agents working together in a structured workf
 
 3. **Start Claude Code**
    ```bash
-   claude-code
+   claude
    ```
 
 4. **Begin the workflow**
@@ -62,15 +71,15 @@ The **sprint-planner** agent breaks down work into actionable sprint tasks.
 
 ### Phase 4: Implementation (`/implement sprint-1`)
 The **sprint-task-implementer** agent writes production code with tests.
-- Output: Production code + `docs/a2a/reviewer.md`
+- Output: Production code + `docs/a2a/sprint-N/reviewer.md`
 
-### Phase 5: Review (`/review-sprint`)
+### Phase 5: Review (`/review-sprint sprint-1`)
 The **senior-tech-lead-reviewer** agent validates implementation quality.
-- Output: `docs/a2a/engineer-feedback.md` (approval or feedback)
+- Output: `docs/a2a/sprint-N/engineer-feedback.md` (approval or feedback)
 
-### Phase 5.5: Sprint Security Audit (`/audit-sprint`)
+### Phase 5.5: Sprint Security Audit (`/audit-sprint sprint-1`)
 The **paranoid-auditor** agent performs security review of sprint implementation (after senior lead approval).
-- Output: `docs/a2a/auditor-sprint-feedback.md` (security approval or feedback)
+- Output: `docs/a2a/sprint-N/auditor-sprint-feedback.md` (security approval or feedback)
 - Approval message: "APPROVED - LETS FUCKING GO"
 - If issues found: "CHANGES_REQUIRED" with detailed security feedback
 
@@ -111,16 +120,19 @@ All slash commands run in **foreground mode by default**, allowing direct intera
 | `/plan-and-analyze` | Define requirements and create PRD | `docs/prd.md` |
 | `/architect` | Design system architecture | `docs/sdd.md` |
 | `/sprint-plan` | Plan implementation sprints | `docs/sprint.md` |
-| `/implement sprint-X` | Implement sprint tasks | Code + `docs/a2a/reviewer.md` |
-| `/review-sprint` | Review and approve/reject implementation | `docs/a2a/engineer-feedback.md` |
-| `/audit-sprint` | Security audit of sprint implementation | `docs/a2a/auditor-sprint-feedback.md` |
+| `/implement sprint-N` | Implement sprint tasks | Code + `docs/a2a/sprint-N/reviewer.md` |
+| `/review-sprint sprint-N` | Review and approve/reject implementation | `docs/a2a/sprint-N/engineer-feedback.md` |
+| `/audit-sprint sprint-N` | Security audit of sprint implementation | `docs/a2a/sprint-N/auditor-sprint-feedback.md` |
 | `/deploy-production` | Deploy to production | Infrastructure + `docs/deployment/` |
 | `/audit` | Security and quality audit (ad-hoc) | `SECURITY-AUDIT-REPORT.md` |
-| `/translate @doc.md for [audience]` | Translate technical docs for stakeholders (ad-hoc) | Executive summaries |
+| `/audit-deployment` | Security audit of deployment infrastructure | `docs/a2a/deployment-feedback.md` |
+| `/translate @doc.md for [audience]` | Translate technical docs for stakeholders | Executive summaries |
 
 All commands support `background` argument for parallel execution (e.g., `/audit background`).
 
-## The Agents
+## The Agents (The Loa)
+
+Eight specialized agents that ride alongside you:
 
 1. **prd-architect** - Senior Product Manager (15 years experience)
 2. **architecture-designer** - Senior Software Architect
@@ -128,7 +140,7 @@ All commands support `background` argument for parallel execution (e.g., `/audit
 4. **sprint-task-implementer** - Elite Software Engineer (15 years experience)
 5. **senior-tech-lead-reviewer** - Senior Technical Lead (15+ years experience)
 6. **devops-crypto-architect** - DevOps Architect (15 years crypto experience)
-7. **paranoid-auditor** - Paranoid Cypherpunk Security Auditor (30+ years, OWASP expert, sprint & codebase audits)
+7. **paranoid-auditor** - Paranoid Cypherpunk Security Auditor (30+ years, OWASP expert)
 8. **devrel-translator** - Elite Developer Relations Professional (15 years)
 
 ## Key Features
@@ -142,9 +154,9 @@ This dual-gate approach ensures quality and security without blocking progress.
 
 ### Agent-to-Agent Communication
 Agents communicate through structured documents in `docs/a2a/`:
-- Engineers write implementation reports (`reviewer.md`)
-- Senior leads provide code review feedback (`engineer-feedback.md`)
-- Security auditor provides security feedback (`auditor-sprint-feedback.md`)
+- Engineers write implementation reports (`sprint-N/reviewer.md`)
+- Senior leads provide code review feedback (`sprint-N/engineer-feedback.md`)
+- Security auditor provides security feedback (`sprint-N/auditor-sprint-feedback.md`)
 - Engineers address feedback and iterate until both gates approve
 
 ### MCP Server Integrations
@@ -155,49 +167,33 @@ Pre-configured integrations with:
 - **Discord** - Community communication
 - **Web3-stats** - Blockchain data (Dune, Blockscout)
 
-## Deployment Infrastructure Audit
-
-For teams deploying to production servers, use `/audit-deployment` to have the **paranoid-auditor** review deployment scripts, server configurations, and infrastructure security.
-
-| Command | Purpose | Output |
-|---------|---------|--------|
-| `/audit-deployment` | Security audit of deployment infrastructure | `docs/a2a/deployment-feedback.md` |
-
-See **[DEPLOYMENT_RUNBOOK.md](devrel-integration/docs/DEPLOYMENT_RUNBOOK.md)** for the complete deployment workflow.
-
-## Documentation
-
-- **[PROCESS.md](PROCESS.md)** - Comprehensive workflow documentation
-- **[CLAUDE.md](CLAUDE.md)** - Guidance for Claude Code instances
-- **[DEPLOYMENT_RUNBOOK.md](devrel-integration/docs/DEPLOYMENT_RUNBOOK.md)** - Production deployment guide
-
 ## Repository Structure
 
 ```
 .claude/
-├── agents/              # Agent definitions
-├── commands/           # Slash command definitions
-└── settings.local.json # MCP server configuration
+├── agents/              # Agent definitions (the Loa)
+├── commands/            # Slash command definitions
+└── settings.local.json  # MCP server configuration
 
 docs/
-├── prd.md              # Product Requirements Document
-├── sdd.md              # Software Design Document
-├── sprint.md           # Sprint plan
-├── a2a/                # Agent-to-agent communication
-│   ├── reviewer.md              # Engineer implementation reports
-│   ├── engineer-feedback.md     # Senior lead code review feedback
-│   └── auditor-sprint-feedback.md  # Security audit feedback
-└── deployment/         # Production infrastructure docs
+├── prd.md               # Product Requirements Document (generated)
+├── sdd.md               # Software Design Document (generated)
+├── sprint.md            # Sprint plan (generated)
+├── a2a/                 # Agent-to-agent communication
+│   ├── index.md                    # Sprint audit trail index
+│   ├── sprint-N/                   # Per-sprint communication
+│   │   ├── reviewer.md             # Engineer implementation report
+│   │   ├── engineer-feedback.md    # Senior lead feedback
+│   │   ├── auditor-sprint-feedback.md  # Security audit feedback
+│   │   └── COMPLETED               # Completion marker
+│   ├── deployment-report.md        # DevOps infrastructure report
+│   └── deployment-feedback.md      # Deployment audit feedback
+└── deployment/          # Production infrastructure docs (generated)
 
-PROCESS.md              # Core workflow guide
-CLAUDE.md               # Context for Claude Code
-README.md               # This file
-
-devrel-integration/
-├── docs/
-│   ├── DEPLOYMENT_RUNBOOK.md    # Production deployment guide (canonical)
-│   └── CREDENTIALS_SETUP_GUIDE.md  # Prerequisites setup guide
-└── src/                          # Discord bot implementation
+PROCESS.md               # Core workflow guide
+CLAUDE.md                # Context for Claude Code
+LICENSE.md               # AGPL-3.0 License
+README.md                # This file
 ```
 
 ## Example Workflow
@@ -217,10 +213,10 @@ devrel-integration/
 
 # 4. Implement Sprint 1
 /implement sprint-1
-# Review docs/a2a/reviewer.md
+# Review docs/a2a/sprint-1/reviewer.md
 
 # 5. Review Sprint 1
-/review-sprint
+/review-sprint sprint-1
 # Either approved or feedback provided
 
 # 6. Address feedback (if needed)
@@ -228,7 +224,7 @@ devrel-integration/
 # Repeat until approved
 
 # 7. Security audit of Sprint 1 (after approval)
-/audit-sprint
+/audit-sprint sprint-1
 # Either "APPROVED - LETS FUCKING GO" or "CHANGES_REQUIRED"
 
 # 8. Address security feedback (if needed)
@@ -248,7 +244,7 @@ devrel-integration/
 
 ## Multi-Developer Usage Warning
 
-⚠️ **IMPORTANT**: This framework is designed for **single-threaded development workflows**. If multiple developers use this framework simultaneously on the same project, you will encounter conflicts.
+**IMPORTANT**: This framework is designed for **single-threaded development workflows**. If multiple developers use this framework simultaneously on the same project, you will encounter conflicts.
 
 ### Solutions for Team Collaboration
 
@@ -267,7 +263,7 @@ See [PROCESS.md](PROCESS.md) for detailed multi-developer guidance.
 4. **Use feedback loops** - Iterative refinement ensures quality
 5. **Security first** - Never compromise on security fundamentals
 
-## Why Use This Framework?
+## Why Use Loa?
 
 - **Systematic discovery** prevents costly mistakes later
 - **Structured workflow** ensures nothing is forgotten
@@ -286,9 +282,16 @@ This is a base framework designed to be forked and customized for your projects.
 
 ## License
 
-MIT
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+
+This means:
+- You can use, modify, and distribute this software
+- If you modify and deploy it (including as a network service), you must release your source code
+- Derivative works must also be licensed under AGPL-3.0
+
+See [LICENSE.md](LICENSE.md) for the full license text.
 
 ## Links
 
-- [Claude Code Documentation](https://docs.claude.ai/claude-code)
-- [Repository](https://github.com/0xHoneyJar/agentic-base)
+- [Claude Code Documentation](https://docs.anthropic.com/en/docs/claude-code)
+- [Repository](https://github.com/0xHoneyJar/loa)
