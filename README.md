@@ -242,19 +242,6 @@ README.md                # This file
 # Production infrastructure deployed
 ```
 
-## Multi-Developer Usage Warning
-
-**IMPORTANT**: This framework is designed for **single-threaded development workflows**. If multiple developers use this framework simultaneously on the same project, you will encounter conflicts.
-
-### Solutions for Team Collaboration
-
-1. **Developer-Scoped A2A**: Separate directories per developer
-2. **Task-Scoped Reports**: Per-task implementation reports
-3. **External System Integration**: Use Linear/GitHub for task assignment
-4. **Feature Branches**: Branch-specific documentation
-
-See [PROCESS.md](PROCESS.md) for detailed multi-developer guidance.
-
 ## Best Practices
 
 1. **Trust the process** - Each phase builds on the previous

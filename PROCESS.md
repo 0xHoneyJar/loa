@@ -30,7 +30,7 @@ Our development process follows a structured, seven-phase approach:
 
 Each phase is handled by a specialized agent with deep domain expertise, ensuring thorough discovery, clear documentation, high-quality implementation, rigorous quality control, comprehensive security review, and enterprise-grade production deployment.
 
-> **For production deployment**, see [DEPLOYMENT_RUNBOOK.md](devrel-integration/docs/DEPLOYMENT_RUNBOOK.md).
+> **For production deployment**, use the `/deploy-production` command which generates deployment documentation in `docs/deployment/`.
 
 ---
 
@@ -643,7 +643,7 @@ After security audit, if changes required:
 | `/audit-deployment` | Deployment infrastructure audit (ad-hoc) | `paranoid-auditor` | `docs/a2a/deployment-feedback.md` |
 | `/translate @doc for [audience]` | Executive translation (ad-hoc) | `devrel-translator` | Executive summaries |
 
-> **For deployment procedures**, see [DEPLOYMENT_RUNBOOK.md](devrel-integration/docs/DEPLOYMENT_RUNBOOK.md).
+> **For deployment procedures**, use `/deploy-production` which generates comprehensive runbooks in `docs/deployment/runbooks/`.
 
 ---
 
@@ -725,55 +725,6 @@ The security auditor provides security-focused feedback:
 - Approval status ("APPROVED - LETS FUCKING GO" when secure)
 
 The engineer reads this file with HIGHEST PRIORITY on the next `/implement {sprint}` invocation, addresses ALL CRITICAL and HIGH security issues, and generates an updated report with security fixes documented.
-
----
-
-## Multi-Developer Usage Warning
-
-⚠️ **CRITICAL**: This framework is architected for **single-threaded workflows**. The agent system assumes one active development stream at a time.
-
-### Why Multi-Developer Concurrent Usage Breaks
-
-If multiple developers use `/implement` simultaneously:
-
-1. **A2A File Collisions**: Reports overwritten before review
-2. **Sprint Status Conflicts**: Merge conflicts on task completion
-3. **Context Confusion**: Mixed implementation context
-4. **Broken Feedback Loops**: Feedback intended for wrong engineer
-
-### Solutions for Team Collaboration
-
-#### Option 1: Developer-Scoped A2A
-```
-docs/a2a/
-├── alice/
-│   ├── reviewer.md
-│   └── engineer-feedback.md
-├── bob/
-│   ├── reviewer.md
-│   └── engineer-feedback.md
-```
-
-#### Option 2: Task-Scoped Reports
-```
-docs/a2a/
-├── sprint-1-task-1/
-│   ├── implementation-report.md
-│   └── review-feedback.md
-├── sprint-1-task-2/
-│   ├── implementation-report.md
-│   └── review-feedback.md
-```
-
-#### Option 3: External System Integration
-- Use Linear/GitHub Issues for task assignment
-- Conduct A2A communication in issue comments
-- Coordinate sprint.md updates through PR reviews
-
-#### Option 4: Feature Branches
-- Each developer works on feature branch with own docs snapshot
-- A2A communication in branch-specific files
-- Consolidate on merge
 
 ---
 
@@ -862,7 +813,6 @@ docs/a2a/
 
 - **[README.md](README.md)** - Quick start guide
 - **[CLAUDE.md](CLAUDE.md)** - Guidance for Claude Code instances
-- **[DEPLOYMENT_RUNBOOK.md](devrel-integration/docs/DEPLOYMENT_RUNBOOK.md)** - Production deployment guide
 
 ---
 
