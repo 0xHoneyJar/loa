@@ -166,6 +166,9 @@ Pre-configured integrations with:
 ├── commands/            # Slash command definitions
 └── settings.local.json  # MCP server configuration
 
+app/
+└── README.md            # Notice (generated)
+
 loa-grimoire/
 ├── prd.md               # Product Requirements Document (generated)
 ├── sdd.md               # Software Design Document (generated)
