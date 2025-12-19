@@ -41,6 +41,9 @@ tmp/
 temp/
 *.tmp
 
+# Loa setup marker (indicates first-launch setup completed)
+.loa-setup-complete
+
 # Server audit reports (contain sensitive deployment info)
 loa-grimoire/deployment/SERVER-REALITY-AUDIT.md
 

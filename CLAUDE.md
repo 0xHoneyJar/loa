@@ -391,6 +391,155 @@ mcp__linear__list_issues({
 
 ## Important Conventions
 
+### Analytics Helper Functions
+
+The analytics system uses bash commands for environment detection and data collection. These commands are designed to work across platforms and fail gracefully.
+
+#### Environment Detection Commands
+
+```bash
+# Get framework version from package.json or CHANGELOG.md
+get_framework_version() {
+    if [ -f "package.json" ]; then
+        grep -o '"version": *"[^"]*"' package.json | head -1 | cut -d'"' -f4
+    elif [ -f "CHANGELOG.md" ]; then
+        grep -o '\[[0-9]\+\.[0-9]\+\.[0-9]\+\]' CHANGELOG.md | head -1 | tr -d '[]'
+    else
+        echo "0.0.0"
+    fi
+}
+
+# Get git user identity
+get_git_user() {
+    local name=$(git config user.name 2>/dev/null || echo "Unknown")
+    local email=$(git config user.email 2>/dev/null || echo "unknown@unknown")
+    echo "${name}|${email}"
+}
+
+# Get project name from git remote or directory
+get_project_name() {
+    local remote=$(git remote get-url origin 2>/dev/null)
+    if [ -n "$remote" ]; then
+        basename -s .git "$remote"
+    else
+        basename "$(pwd)"
+    fi
+}
+
+# Get current timestamp in ISO-8601 format
+get_timestamp() {
+    date -u +"%Y-%m-%dT%H:%M:%SZ"
+}
+```
+
+#### MCP Server Detection
+
+```bash
+# Check which MCP servers are configured
+get_configured_mcp_servers() {
+    local settings=".claude/settings.local.json"
+    if [ -f "$settings" ]; then
+        # Extract server names from enabledMcpjsonServers array
+        grep -o '"[^"]*"' "$settings" | grep -v "enabledMcpjsonServers" | tr -d '"' | tr '\n' ','
+    else
+        echo "none"
+    fi
+}
+
+# Validate MCP server connectivity (returns 0 if responsive)
+test_mcp_server() {
+    local server="$1"
+    case "$server" in
+        linear)
+            # Test Linear by listing teams
+            mcp__linear__list_teams 2>/dev/null && return 0
+            ;;
+        github)
+            # Test GitHub by searching for a known repo
+            mcp__github__search_repositories query="test" 2>/dev/null && return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+    return 1
+}
+```
+
+#### Analytics File Operations
+
+```bash
+# Initialize analytics file if missing
+init_analytics() {
+    local analytics_file="loa-grimoire/analytics/usage.json"
+    local analytics_dir="loa-grimoire/analytics"
+
+    mkdir -p "$analytics_dir"
+
+    if [ ! -f "$analytics_file" ]; then
+        cat > "$analytics_file" << 'EOF'
+{
+  "schema_version": "1.0.0",
+  "framework_version": null,
+  "project_name": null,
+  "developer": {"git_user_name": null, "git_user_email": null},
+  "setup": {"completed_at": null, "mcp_servers_configured": []},
+  "phases": {},
+  "sprints": [],
+  "reviews": [],
+  "audits": [],
+  "deployments": [],
+  "totals": {"commands_executed": 0, "phases_completed": 0}
+}
+EOF
+    fi
+}
+
+# Update a field in the analytics JSON (requires jq)
+update_analytics_field() {
+    local field="$1"
+    local value="$2"
+    local file="loa-grimoire/analytics/usage.json"
+
+    if command -v jq &>/dev/null; then
+        local tmp=$(mktemp)
+        jq "$field = $value" "$file" > "$tmp" && mv "$tmp" "$file"
+    fi
+}
+```
+
+### Setup Marker File Convention
+
+The framework uses a marker file `.loa-setup-complete` to detect first-launch vs returning users:
+
+**File Location**: Repository root (`.loa-setup-complete`)
+
+**Detection Logic**:
+```bash
+# Check if setup has been completed
+if [ -f ".loa-setup-complete" ]; then
+    echo "Setup complete - returning user"
+else
+    echo "First launch - needs setup"
+fi
+```
+
+**File Contents** (JSON):
+```json
+{
+  "completed_at": "2025-01-15T10:30:00Z",
+  "framework_version": "0.1.0",
+  "mcp_servers": ["linear", "github"],
+  "git_user": "developer@example.com"
+}
+```
+
+**Behavior**:
+- `/plan-and-analyze` checks for this file and prompts `/setup` if missing
+- `/setup` creates this file upon successful completion
+- File is gitignored (each developer runs setup independently)
+- Contains minimal metadata for analytics correlation
+
 ### Document Structure
 
 All planning documents live in `loa-grimoire/`:
