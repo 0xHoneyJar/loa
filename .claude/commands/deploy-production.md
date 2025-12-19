@@ -7,6 +7,28 @@ I'm launching the devops-crypto-architect agent to handle production deployment 
 
 **Execution Mode**: {{ "background - use /tasks to monitor" if "background" in $ARGUMENTS else "foreground (default)" }}
 
+## Pre-flight Check: Setup Verification
+
+Before proceeding, verify that Loa setup is complete:
+
+1. Check if `.loa-setup-complete` marker file exists in the project root
+2. If the marker file **does NOT exist**:
+   - Display this message:
+     ```
+     Loa setup has not been completed for this project.
+
+     Please run `/setup` first to:
+     - Configure MCP integrations
+     - Initialize project analytics
+     - Set up Linear project tracking
+
+     After setup is complete, run `/deploy-production` again.
+     ```
+   - **STOP** - Do not proceed with deployment
+3. If the marker file **exists**, proceed with the deployment process
+
+---
+
 **Prerequisites** (verified before deployment):
 - ✅ All sprints completed and approved by senior technical lead
 - ✅ All acceptance criteria met
@@ -124,7 +146,58 @@ Provide handover:
 - ✅ Cost-Optimized (within budget)
 - ✅ Recoverable (backups tested, DR in place)
 
-Save all documentation to `loa-grimoire/deployment/`."
+Save all documentation to `loa-grimoire/deployment/`.
+
+## Phase 7: Analytics Update (NON-BLOCKING)
+
+After deployment is complete, update analytics:
+
+1. Read and validate loa-grimoire/analytics/usage.json
+2. Add deployment entry to `deployments` array with:
+   - `completed_at`: current ISO timestamp
+   - `success`: true
+3. Increment `totals.commands_executed`
+4. Regenerate loa-grimoire/analytics/summary.md
+
+Use safe jq patterns with --arg for variable injection:
+```bash
+TIMESTAMP=$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")
+
+jq --arg ts \"$TIMESTAMP\" '
+  .deployments += [{
+    \"completed_at\": $ts,
+    \"success\": true
+  }] |
+  .totals.commands_executed += 1
+' loa-grimoire/analytics/usage.json > loa-grimoire/analytics/usage.json.tmp && \
+mv loa-grimoire/analytics/usage.json.tmp loa-grimoire/analytics/usage.json
+```
+
+Analytics updates are NON-BLOCKING - if they fail, log a warning but complete the deployment process.
+
+## Phase 8: Feedback Suggestion
+
+After successful deployment, display this message:
+
+```
+---
+
+## Help Improve Loa!
+
+Your feedback helps improve Loa for everyone. Now that you've completed your project,
+we'd love to hear about your experience.
+
+Run `/feedback` to:
+- Rate your experience with Loa agents
+- Share what worked well
+- Suggest improvements
+- Help us prioritize features
+
+Your feedback is submitted to the Loa Feedback project in Linear and helps us
+make the framework better for all developers.
+
+---
+```"
 />
 {{ else }}
 Let me begin the production deployment process.
@@ -212,4 +285,57 @@ Provide handover:
 - ✅ Recoverable (backups tested, DR in place)
 
 Save all documentation to `loa-grimoire/deployment/`.
+
+## Phase 7: Analytics Update (NON-BLOCKING)
+
+After deployment is complete, update analytics:
+
+1. Read and validate loa-grimoire/analytics/usage.json
+2. Add deployment entry to `deployments` array with:
+   - `completed_at`: current ISO timestamp
+   - `success`: true
+3. Increment `totals.commands_executed`
+4. Regenerate loa-grimoire/analytics/summary.md
+
+Use safe jq patterns with --arg for variable injection:
+```bash
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+jq --arg ts "$TIMESTAMP" '
+  .deployments += [{
+    "completed_at": $ts,
+    "success": true
+  }] |
+  .totals.commands_executed += 1
+' loa-grimoire/analytics/usage.json > loa-grimoire/analytics/usage.json.tmp && \
+mv loa-grimoire/analytics/usage.json.tmp loa-grimoire/analytics/usage.json
+```
+
+Then regenerate summary.md with updated values.
+
+Analytics updates are NON-BLOCKING - if they fail, log a warning but complete the deployment process.
+
+## Phase 8: Feedback Suggestion
+
+After successful deployment, display this message:
+
+```
+---
+
+## Help Improve Loa!
+
+Your feedback helps improve Loa for everyone. Now that you've completed your project,
+we'd love to hear about your experience.
+
+Run `/feedback` to:
+- Rate your experience with Loa agents
+- Share what worked well
+- Suggest improvements
+- Help us prioritize features
+
+Your feedback is submitted to the Loa Feedback project in Linear and helps us
+make the framework better for all developers.
+
+---
+```
 {{ endif }}

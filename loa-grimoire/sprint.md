@@ -322,16 +322,16 @@ Extend Loa with three new capabilities:
 
 ### Tasks
 
-#### S3-T1: Create Analytics Update Helper Logic
+#### ✅ S3-T1: Create Analytics Update Helper Logic
 
 **Description**: Create reusable logic pattern for updating analytics that all commands will use.
 
 **Acceptance Criteria**:
-- [ ] Pattern for reading usage.json safely (handle missing/corrupt)
-- [ ] Pattern for incrementing counters
-- [ ] Pattern for marking phases complete
-- [ ] Pattern for regenerating summary.md
-- [ ] All operations are non-blocking (failures logged, not fatal)
+- [x] Pattern for reading usage.json safely (handle missing/corrupt)
+- [x] Pattern for incrementing counters
+- [x] Pattern for marking phases complete
+- [x] Pattern for regenerating summary.md
+- [x] All operations are non-blocking (failures logged, not fatal)
 
 **Implementation Notes**:
 - Read-modify-write pattern for usage.json
@@ -346,16 +346,16 @@ Extend Loa with three new capabilities:
 
 ---
 
-#### S3-T2: Modify `/plan-and-analyze` Command
+#### ✅ S3-T2: Modify `/plan-and-analyze` Command
 
 **Description**: Add setup check and analytics tracking to plan-and-analyze.
 
 **Acceptance Criteria**:
-- [ ] Checks for `.loa-setup-complete` marker at start
-- [ ] If missing, displays message and suggests `/setup`
-- [ ] If missing, stops and does not proceed with PRD
-- [ ] On completion, updates `phases.prd` in analytics
-- [ ] Regenerates summary.md
+- [x] Checks for `.loa-setup-complete` marker at start
+- [x] If missing, displays message and suggests `/setup`
+- [x] If missing, stops and does not proceed with PRD
+- [x] On completion, updates `phases.prd` in analytics
+- [x] Regenerates summary.md
 
 **Implementation Notes**:
 - Add setup check at very beginning of command
@@ -369,17 +369,17 @@ Extend Loa with three new capabilities:
 
 ---
 
-#### S3-T3: Modify Remaining Phase Commands
+#### ✅ S3-T3: Modify Remaining Phase Commands
 
 **Description**: Add analytics tracking to `/architect`, `/sprint-plan`, `/implement`, `/review-sprint`, `/audit-sprint`.
 
 **Acceptance Criteria**:
-- [ ] `/architect` updates `phases.sdd` on completion
-- [ ] `/sprint-plan` updates `phases.sprint_plan` on completion
-- [ ] `/implement` tracks sprint iterations in `phases.sprints`
-- [ ] `/review-sprint` tracks review iterations
-- [ ] `/audit-sprint` tracks audit iterations
-- [ ] All regenerate summary.md after update
+- [x] `/architect` updates `phases.sdd` on completion
+- [x] `/sprint-plan` updates `phases.sprint_plan` on completion
+- [x] `/implement` tracks sprint iterations in `phases.sprints`
+- [x] `/review-sprint` tracks review iterations
+- [x] `/audit-sprint` tracks audit iterations
+- [x] All regenerate summary.md after update
 
 **Implementation Notes**:
 - Each command adds analytics update at completion point
@@ -393,15 +393,15 @@ Extend Loa with three new capabilities:
 
 ---
 
-#### S3-T4: Modify `/deploy-production` Command
+#### ✅ S3-T4: Modify `/deploy-production` Command
 
 **Description**: Add analytics completion and feedback suggestion to deploy-production.
 
 **Acceptance Criteria**:
-- [ ] Updates `phases.deployment.completed = true` with timestamp
-- [ ] Regenerates summary.md
-- [ ] Displays suggestion to run `/feedback`
-- [ ] Suggestion includes brief explanation of why feedback helps
+- [x] Updates `phases.deployment.completed = true` with timestamp
+- [x] Regenerates summary.md
+- [x] Displays suggestion to run `/feedback`
+- [x] Suggestion includes brief explanation of why feedback helps
 
 **Implementation Notes**:
 - Update analytics before displaying success message
@@ -414,16 +414,16 @@ Extend Loa with three new capabilities:
 
 ---
 
-#### S3-T5: Summary Generation Function
+#### ✅ S3-T5: Summary Generation Function
 
 **Description**: Implement robust summary.md generation from usage.json.
 
 **Acceptance Criteria**:
-- [ ] Generates all sections from SDD Section 4.2.4
-- [ ] Handles missing/partial data gracefully
-- [ ] Uses markdown tables for readability
-- [ ] Includes "estimated" note for token counts
-- [ ] Shows sprint details with iteration counts
+- [x] Generates all sections from SDD Section 4.2.4
+- [x] Handles missing/partial data gracefully
+- [x] Uses markdown tables for readability
+- [x] Includes "estimated" note for token counts
+- [x] Shows sprint details with iteration counts
 
 **Implementation Notes**:
 - Follow exact format from SDD
@@ -829,7 +829,7 @@ Sprint 1 ──────► Sprint 2 ──────► Sprint 3 ───
 |--------|--------|----------------|-------|
 | Sprint 1 | COMPLETED | 4/4 | Security audit approved |
 | Sprint 2 | COMPLETED | 5/5 | Security audit approved |
-| Sprint 3 | Not Started | 0/5 | Ready to start |
+| Sprint 3 | REVIEW_APPROVED | 5/5 | Ready for security audit |
 | Sprint 4 | Not Started | 0/5 | |
 | Sprint 5 | Not Started | 0/6 | |
 

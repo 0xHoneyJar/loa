@@ -48,6 +48,20 @@ All A2A communication files for this sprint are stored in the sprint-specific di
 
 ## Phase -1: Sprint Validation (CRITICAL - DO THIS FIRST)
 
+0. **Setup Verification**:
+   - Check if `.loa-setup-complete` marker file exists in the project root
+   - If the marker file **does NOT exist**, display this message and STOP:
+     ```
+     Loa setup has not been completed for this project.
+
+     Please run `/setup` first to:
+     - Configure MCP integrations
+     - Initialize project analytics
+     - Set up Linear project tracking
+
+     After setup is complete, run `/review-sprint {{ $ARGUMENTS[0] }}` again.
+     ```
+
 1. **Validate sprint argument format**:
    - The sprint name '{{ $ARGUMENTS[0] }}' must match pattern 'sprint-N' where N is a positive integer
    - If invalid format, STOP and inform user: 'Invalid sprint name. Use format: sprint-N (e.g., sprint-1, sprint-2)'
@@ -145,6 +159,32 @@ If any issues, incomplete tasks, or unaddressed previous feedback:
 - Only approve production-ready work
 - ALWAYS update Linear issues with review comments (Phase 0.5)
 - Include Linear issue URLs in engineer-feedback.md
+
+## Phase 4: Analytics Update (NON-BLOCKING)
+
+After making your decision (approve or request changes), update analytics:
+
+1. Read and validate loa-grimoire/analytics/usage.json
+2. Find the sprint entry and increment `review_iterations` counter
+3. Increment `totals.reviews_completed` if this is an approval
+4. Increment `totals.commands_executed`
+5. Regenerate loa-grimoire/analytics/summary.md
+
+Use safe jq patterns with --arg for variable injection:
+```bash
+SPRINT_NAME=\"{{ $ARGUMENTS[0] }}\"
+TIMESTAMP=$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")
+IS_APPROVED=\"true\" # or \"false\" if requesting changes
+
+jq --arg name \"$SPRINT_NAME\" --arg ts \"$TIMESTAMP\" --argjson approved $IS_APPROVED '
+  .sprints |= map(if .name == $name then .review_iterations += 1 | .last_updated = $ts else . end) |
+  .totals.commands_executed += 1 |
+  if $approved then .totals.reviews_completed += 1 else . end
+' loa-grimoire/analytics/usage.json > loa-grimoire/analytics/usage.json.tmp && \
+mv loa-grimoire/analytics/usage.json.tmp loa-grimoire/analytics/usage.json
+```
+
+Analytics updates are NON-BLOCKING - if they fail, log a warning but complete the review process.
 
 Remember: You are the quality gate. If it's not production-ready, don't approve it."
 />
@@ -160,6 +200,20 @@ All A2A communication files for this sprint are stored in the sprint-specific di
 
 ## Phase -1: Sprint Validation (CRITICAL - DO THIS FIRST)
 
+0. **Setup Verification**:
+   - Check if `.loa-setup-complete` marker file exists in the project root
+   - If the marker file **does NOT exist**, display this message and STOP:
+     ```
+     Loa setup has not been completed for this project.
+
+     Please run `/setup` first to:
+     - Configure MCP integrations
+     - Initialize project analytics
+     - Set up Linear project tracking
+
+     After setup is complete, run `/review-sprint {{ $ARGUMENTS[0] }}` again.
+     ```
+
 1. **Validate sprint argument format**:
    - The sprint name '{{ $ARGUMENTS[0] }}' must match pattern 'sprint-N' where N is a positive integer
    - If invalid format, STOP and inform user: 'Invalid sprint name. Use format: sprint-N (e.g., sprint-1, sprint-2)'
@@ -257,6 +311,34 @@ If any issues, incomplete tasks, or unaddressed previous feedback:
 - Only approve production-ready work
 - ALWAYS update Linear issues with review comments (Phase 0.5)
 - Include Linear issue URLs in engineer-feedback.md
+
+## Phase 4: Analytics Update (NON-BLOCKING)
+
+After making your decision (approve or request changes), update analytics:
+
+1. Read and validate loa-grimoire/analytics/usage.json
+2. Find the sprint entry and increment `review_iterations` counter
+3. Increment `totals.reviews_completed` if this is an approval
+4. Increment `totals.commands_executed`
+5. Regenerate loa-grimoire/analytics/summary.md
+
+Use safe jq patterns with --arg for variable injection:
+```bash
+SPRINT_NAME="{{ $ARGUMENTS[0] }}"
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+IS_APPROVED="true" # or "false" if requesting changes
+
+jq --arg name "$SPRINT_NAME" --arg ts "$TIMESTAMP" --argjson approved $IS_APPROVED '
+  .sprints |= map(if .name == $name then .review_iterations += 1 | .last_updated = $ts else . end) |
+  .totals.commands_executed += 1 |
+  if $approved then .totals.reviews_completed += 1 else . end
+' loa-grimoire/analytics/usage.json > loa-grimoire/analytics/usage.json.tmp && \
+mv loa-grimoire/analytics/usage.json.tmp loa-grimoire/analytics/usage.json
+```
+
+Then regenerate summary.md with updated values.
+
+Analytics updates are NON-BLOCKING - if they fail, log a warning but complete the review process.
 
 Remember: You are the quality gate. If it's not production-ready, don't approve it.
 {{ endif }}

@@ -42,6 +42,20 @@ All A2A communication files for this sprint will be stored in the sprint-specifi
 
 ## Phase -1: Sprint Setup (CRITICAL - DO THIS FIRST)
 
+0. **Setup Verification**:
+   - Check if `.loa-setup-complete` marker file exists in the project root
+   - If the marker file **does NOT exist**, display this message and STOP:
+     ```
+     Loa setup has not been completed for this project.
+
+     Please run `/setup` first to:
+     - Configure MCP integrations
+     - Initialize project analytics
+     - Set up Linear project tracking
+
+     After setup is complete, run `/implement {{ $ARGUMENTS[0] }}` again.
+     ```
+
 1. **Clean up app/ directory placeholder**:
    - If `app/README.md` exists and contains "Files are added automatically during the `/implement` phase", delete it
    - This placeholder README is only meant to explain the empty directory before first implementation
@@ -239,6 +253,45 @@ After you generate the report:
    - Fix all issues
    - Generate an updated report at loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/reviewer.md
 4. This cycle continues until the sprint is approved
+
+## Phase 7: Analytics Update (NON-BLOCKING)
+
+After generating/updating the report, update analytics to track implementation iterations:
+
+1. Read and validate loa-grimoire/analytics/usage.json
+2. Find or create entry for this sprint in the `sprints` array
+3. Increment `implementation_iterations` counter for this sprint
+4. Increment `totals.commands_executed`
+5. Regenerate loa-grimoire/analytics/summary.md
+
+Use safe jq patterns with --arg for variable injection:
+```bash
+SPRINT_NAME="{{ $ARGUMENTS[0] }}"
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+jq --arg name "$SPRINT_NAME" --arg ts "$TIMESTAMP" '
+  if (.sprints | map(.name) | index($name)) then
+    .sprints |= map(if .name == $name then .implementation_iterations += 1 | .last_updated = $ts else . end)
+  else
+    .sprints += [{
+      "name": $name,
+      "implementation_iterations": 1,
+      "review_iterations": 0,
+      "audit_iterations": 0,
+      "completed": false,
+      "started_at": $ts,
+      "completed_at": null,
+      "last_updated": $ts
+    }]
+  end |
+  .totals.commands_executed += 1
+' loa-grimoire/analytics/usage.json > loa-grimoire/analytics/usage.json.tmp && \
+mv loa-grimoire/analytics/usage.json.tmp loa-grimoire/analytics/usage.json
+```
+
+Then regenerate summary.md with updated values.
+
+Analytics updates are NON-BLOCKING - if they fail, log a warning but complete the implementation process successfully.
 
 ## Critical Requirements
 
@@ -270,6 +323,20 @@ All A2A communication files for this sprint will be stored in the sprint-specifi
 
 ## Phase -1: Sprint Setup (CRITICAL - DO THIS FIRST)
 
+0. **Setup Verification**:
+   - Check if `.loa-setup-complete` marker file exists in the project root
+   - If the marker file **does NOT exist**, display this message and STOP:
+     ```
+     Loa setup has not been completed for this project.
+
+     Please run `/setup` first to:
+     - Configure MCP integrations
+     - Initialize project analytics
+     - Set up Linear project tracking
+
+     After setup is complete, run `/implement {{ $ARGUMENTS[0] }}` again.
+     ```
+
 1. **Clean up app/ directory placeholder**:
    - If `app/README.md` exists and contains "Files are added automatically during the `/implement` phase", delete it
    - This placeholder README is only meant to explain the empty directory before first implementation
@@ -467,6 +534,45 @@ After you generate the report:
    - Fix all issues
    - Generate an updated report at loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/reviewer.md
 4. This cycle continues until the sprint is approved
+
+## Phase 7: Analytics Update (NON-BLOCKING)
+
+After generating/updating the report, update analytics to track implementation iterations:
+
+1. Read and validate loa-grimoire/analytics/usage.json
+2. Find or create entry for this sprint in the `sprints` array
+3. Increment `implementation_iterations` counter for this sprint
+4. Increment `totals.commands_executed`
+5. Regenerate loa-grimoire/analytics/summary.md
+
+Use safe jq patterns with --arg for variable injection:
+```bash
+SPRINT_NAME="{{ $ARGUMENTS[0] }}"
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+jq --arg name "$SPRINT_NAME" --arg ts "$TIMESTAMP" '
+  if (.sprints | map(.name) | index($name)) then
+    .sprints |= map(if .name == $name then .implementation_iterations += 1 | .last_updated = $ts else . end)
+  else
+    .sprints += [{
+      "name": $name,
+      "implementation_iterations": 1,
+      "review_iterations": 0,
+      "audit_iterations": 0,
+      "completed": false,
+      "started_at": $ts,
+      "completed_at": null,
+      "last_updated": $ts
+    }]
+  end |
+  .totals.commands_executed += 1
+' loa-grimoire/analytics/usage.json > loa-grimoire/analytics/usage.json.tmp && \
+mv loa-grimoire/analytics/usage.json.tmp loa-grimoire/analytics/usage.json
+```
+
+Then regenerate summary.md with updated values.
+
+Analytics updates are NON-BLOCKING - if they fail, log a warning but complete the implementation process successfully.
 
 ## Critical Requirements
 

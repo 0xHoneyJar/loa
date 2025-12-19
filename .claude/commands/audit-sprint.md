@@ -62,6 +62,20 @@ Your job is to be the FINAL security gate before accepting the sprint as complet
 
 ## Phase -1: Sprint Validation (CRITICAL - DO THIS FIRST)
 
+0. **Setup Verification**:
+   - Check if `.loa-setup-complete` marker file exists in the project root
+   - If the marker file **does NOT exist**, display this message and STOP:
+     ```
+     Loa setup has not been completed for this project.
+
+     Please run `/setup` first to:
+     - Configure MCP integrations
+     - Initialize project analytics
+     - Set up Linear project tracking
+
+     After setup is complete, run `/audit-sprint {{ $ARGUMENTS[0] }}` again.
+     ```
+
 1. **Validate sprint argument format**:
    - The sprint name '{{ $ARGUMENTS[0] }}' must match pattern 'sprint-N' where N is a positive integer
    - If invalid format, STOP and inform user: 'Invalid sprint name. Use format: sprint-N (e.g., sprint-1, sprint-2)'
@@ -297,6 +311,41 @@ Be **fair and constructive**:
 - ALWAYS create Linear issues for CRITICAL/HIGH security findings (Phase 0.5)
 - Add audit comments to implementation issues
 - Include Linear issue URLs in auditor-sprint-feedback.md
+
+## Phase 4: Analytics Update (NON-BLOCKING)
+
+After making your decision (approve or request changes), update analytics:
+
+1. Read and validate loa-grimoire/analytics/usage.json
+2. Find the sprint entry and increment `audit_iterations` counter
+3. If APPROVED, also:
+   - Set sprint `completed` to true and `completed_at` to current timestamp
+   - Increment `totals.audits_completed`
+   - Increment `totals.sprints_completed`
+4. Increment `totals.commands_executed`
+5. Regenerate loa-grimoire/analytics/summary.md
+
+Use safe jq patterns with --arg for variable injection:
+```bash
+SPRINT_NAME=\"{{ $ARGUMENTS[0] }}\"
+TIMESTAMP=$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")
+IS_APPROVED=\"true\" # or \"false\" if changes required
+
+jq --arg name \"$SPRINT_NAME\" --arg ts \"$TIMESTAMP\" --argjson approved $IS_APPROVED '
+  .sprints |= map(
+    if .name == $name then
+      .audit_iterations += 1 |
+      .last_updated = $ts |
+      if $approved then .completed = true | .completed_at = $ts else . end
+    else . end
+  ) |
+  .totals.commands_executed += 1 |
+  if $approved then .totals.audits_completed += 1 | .totals.sprints_completed += 1 else . end
+' loa-grimoire/analytics/usage.json > loa-grimoire/analytics/usage.json.tmp && \
+mv loa-grimoire/analytics/usage.json.tmp loa-grimoire/analytics/usage.json
+```
+
+Analytics updates are NON-BLOCKING - if they fail, log a warning but complete the audit process.
 
 ## Remember
 
@@ -325,6 +374,20 @@ Your job is to be the FINAL security gate before accepting the sprint as complet
 
 ## Phase -1: Sprint Validation (CRITICAL - DO THIS FIRST)
 
+0. **Setup Verification**:
+   - Check if `.loa-setup-complete` marker file exists in the project root
+   - If the marker file **does NOT exist**, display this message and STOP:
+     ```
+     Loa setup has not been completed for this project.
+
+     Please run `/setup` first to:
+     - Configure MCP integrations
+     - Initialize project analytics
+     - Set up Linear project tracking
+
+     After setup is complete, run `/audit-sprint {{ $ARGUMENTS[0] }}` again.
+     ```
+
 1. **Validate sprint argument format**:
    - The sprint name '{{ $ARGUMENTS[0] }}' must match pattern 'sprint-N' where N is a positive integer
    - If invalid format, STOP and inform user: 'Invalid sprint name. Use format: sprint-N (e.g., sprint-1, sprint-2)'
@@ -560,6 +623,43 @@ Be **fair and constructive**:
 - ALWAYS create Linear issues for CRITICAL/HIGH security findings (Phase 0.5)
 - Add audit comments to implementation issues
 - Include Linear issue URLs in auditor-sprint-feedback.md
+
+## Phase 4: Analytics Update (NON-BLOCKING)
+
+After making your decision (approve or request changes), update analytics:
+
+1. Read and validate loa-grimoire/analytics/usage.json
+2. Find the sprint entry and increment `audit_iterations` counter
+3. If APPROVED, also:
+   - Set sprint `completed` to true and `completed_at` to current timestamp
+   - Increment `totals.audits_completed`
+   - Increment `totals.sprints_completed`
+4. Increment `totals.commands_executed`
+5. Regenerate loa-grimoire/analytics/summary.md
+
+Use safe jq patterns with --arg for variable injection:
+```bash
+SPRINT_NAME="{{ $ARGUMENTS[0] }}"
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+IS_APPROVED="true" # or "false" if changes required
+
+jq --arg name "$SPRINT_NAME" --arg ts "$TIMESTAMP" --argjson approved $IS_APPROVED '
+  .sprints |= map(
+    if .name == $name then
+      .audit_iterations += 1 |
+      .last_updated = $ts |
+      if $approved then .completed = true | .completed_at = $ts else . end
+    else . end
+  ) |
+  .totals.commands_executed += 1 |
+  if $approved then .totals.audits_completed += 1 | .totals.sprints_completed += 1 else . end
+' loa-grimoire/analytics/usage.json > loa-grimoire/analytics/usage.json.tmp && \
+mv loa-grimoire/analytics/usage.json.tmp loa-grimoire/analytics/usage.json
+```
+
+Then regenerate summary.md with updated values.
+
+Analytics updates are NON-BLOCKING - if they fail, log a warning but complete the audit process.
 
 ## Remember
 
