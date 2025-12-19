@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Opt-in sharing: only sent via `/feedback` command
 
 ### Changed
+- **Fresh template**: Removed all generated loa-grimoire content (PRD, SDD, sprint plans, A2A files) so new projects start clean
 - All phase commands now update analytics on completion
 - `/plan-and-analyze` blocks if setup marker is missing
 - `/deploy-production` suggests running `/feedback` after deployment
