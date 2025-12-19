@@ -1,0 +1,191 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    name: Validate Framework Files
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate JSON files
+        run: |
+          echo "Validating JSON files..."
+          for file in $(find . -name "*.json" -not -path "./node_modules/*" -not -path "./.git/*"); do
+            echo "Checking $file"
+            python3 -m json.tool "$file" > /dev/null || { echo "Invalid JSON: $file"; exit 1; }
+          done
+          echo "All JSON files are valid"
+
+      - name: Check agent definitions exist
+        run: |
+          echo "Checking required agent definitions..."
+          AGENTS=(
+            ".claude/agents/prd-architect.md"
+            ".claude/agents/architecture-designer.md"
+            ".claude/agents/sprint-planner.md"
+            ".claude/agents/sprint-task-implementer.md"
+            ".claude/agents/senior-tech-lead-reviewer.md"
+            ".claude/agents/devops-crypto-architect.md"
+            ".claude/agents/paranoid-auditor.md"
+            ".claude/agents/devrel-translator.md"
+          )
+          for agent in "${AGENTS[@]}"; do
+            if [ ! -f "$agent" ]; then
+              echo "Missing required agent: $agent"
+              exit 1
+            fi
+          done
+          echo "All required agents present"
+
+      - name: Check command definitions exist
+        run: |
+          echo "Checking required command definitions..."
+          COMMANDS=(
+            ".claude/commands/plan-and-analyze.md"
+            ".claude/commands/architect.md"
+            ".claude/commands/sprint-plan.md"
+            ".claude/commands/implement.md"
+            ".claude/commands/review-sprint.md"
+            ".claude/commands/audit-sprint.md"
+            ".claude/commands/deploy-production.md"
+            ".claude/commands/audit.md"
+            ".claude/commands/setup.md"
+            ".claude/commands/feedback.md"
+            ".claude/commands/update.md"
+          )
+          for cmd in "${COMMANDS[@]}"; do
+            if [ ! -f "$cmd" ]; then
+              echo "Missing required command: $cmd"
+              exit 1
+            fi
+          done
+          echo "All required commands present"
+
+      - name: Check documentation exists
+        run: |
+          echo "Checking required documentation..."
+          DOCS=(
+            "README.md"
+            "CLAUDE.md"
+            "PROCESS.md"
+            "CONTRIBUTING.md"
+            "SECURITY.md"
+            "CHANGELOG.md"
+            "LICENSE.md"
+          )
+          for doc in "${DOCS[@]}"; do
+            if [ ! -f "$doc" ]; then
+              echo "Missing required documentation: $doc"
+              exit 1
+            fi
+          done
+          echo "All required documentation present"
+
+      - name: Validate version consistency
+        run: |
+          echo "Checking version consistency..."
+
+          # Get version from CHANGELOG
+          CHANGELOG_VERSION=$(grep -oP '## \[\K[0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | head -1)
+          echo "CHANGELOG version: $CHANGELOG_VERSION"
+
+          # Get version from README badge
+          README_VERSION=$(grep -oP 'version-\K[0-9]+\.[0-9]+\.[0-9]+' README.md | head -1)
+          echo "README version: $README_VERSION"
+
+          if [ "$CHANGELOG_VERSION" != "$README_VERSION" ]; then
+            echo "Version mismatch: CHANGELOG=$CHANGELOG_VERSION, README=$README_VERSION"
+            exit 1
+          fi
+
+          echo "Versions are consistent: $CHANGELOG_VERSION"
+
+      - name: Check for broken internal links
+        run: |
+          echo "Checking for broken internal links in documentation..."
+
+          # Check that referenced files exist
+          LINKS_OK=true
+
+          for mdfile in README.md CLAUDE.md PROCESS.md CONTRIBUTING.md; do
+            # Extract markdown links like [text](file.md) or [text](./path/file.md)
+            grep -oP '\[.*?\]\(\K[^)]+(?=\))' "$mdfile" 2>/dev/null | while read link; do
+              # Skip external URLs
+              if [[ "$link" == http* ]] || [[ "$link" == "#"* ]]; then
+                continue
+              fi
+
+              # Check if file exists
+              if [ ! -f "$link" ] && [ ! -d "$link" ]; then
+                echo "Broken link in $mdfile: $link"
+                LINKS_OK=false
+              fi
+            done
+          done
+
+          if [ "$LINKS_OK" = false ]; then
+            exit 1
+          fi
+
+          echo "All internal links are valid"
+
+  markdown-lint:
+    name: Lint Markdown
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install markdownlint-cli
+        run: npm install -g markdownlint-cli
+
+      - name: Create markdownlint config
+        run: |
+          cat > .markdownlint.json << 'EOF'
+          {
+            "default": true,
+            "MD013": false,
+            "MD033": false,
+            "MD041": false,
+            "MD024": { "siblings_only": true }
+          }
+          EOF
+
+      - name: Lint Markdown files
+        run: markdownlint '**/*.md' --ignore node_modules --ignore loa-grimoire || true
+        # Note: Using || true to not fail on lint warnings for now
+        # Remove || true once all markdown is cleaned up
+
+  yaml-lint:
+    name: Lint YAML
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Lint YAML files
+        run: yamllint .github/ || true
+        # Note: Using || true to not fail on lint warnings for now
