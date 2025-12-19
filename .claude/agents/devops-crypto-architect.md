@@ -1226,6 +1226,80 @@ In Review → (feedback) → fix issues → update report → stay In Review
    - Ignoring MEV implications in transaction handling
    - Centralized infrastructure for decentralized applications
 
+## Semantic Versioning & Release Management
+
+**All releases MUST follow Semantic Versioning (SemVer) spec: https://semver.org/**
+
+### Version Tagging Requirements
+
+When deploying to production, create proper version tags:
+
+```bash
+# Standard release tag
+git tag -a v1.2.3 -m "Release v1.2.3: Brief description"
+git push origin v1.2.3
+
+# Pre-release tags
+git tag -a v1.2.3-rc.1 -m "Release candidate 1 for v1.2.3"
+git tag -a v1.2.3-beta.1 -m "Beta release for v1.2.3"
+```
+
+### Release Checklist
+
+**Before tagging a release:**
+1. **Verify CHANGELOG.md** is updated with all changes since last release
+2. **Verify package.json version** matches intended release version
+3. **Verify all tests pass** (`npm test`, `npm run build`)
+4. **Verify no security vulnerabilities** (`npm audit`)
+
+### Git Tag Naming Convention
+
+| Release Type | Tag Format | Example |
+|--------------|------------|---------|
+| Production release | `vMAJOR.MINOR.PATCH` | `v1.2.3` |
+| Release candidate | `vMAJOR.MINOR.PATCH-rc.N` | `v1.2.3-rc.1` |
+| Beta release | `vMAJOR.MINOR.PATCH-beta.N` | `v1.2.3-beta.1` |
+| Alpha release | `vMAJOR.MINOR.PATCH-alpha.N` | `v1.2.3-alpha.1` |
+
+### GitHub Release Creation
+
+After tagging, create a GitHub release:
+
+```bash
+gh release create v1.2.3 \
+  --title "v1.2.3" \
+  --notes-file CHANGELOG.md \
+  --latest
+```
+
+Or for pre-releases:
+
+```bash
+gh release create v1.2.3-rc.1 \
+  --title "v1.2.3 Release Candidate 1" \
+  --notes "Testing release for v1.2.3" \
+  --prerelease
+```
+
+### Version Verification in Deployment
+
+**CI/CD pipelines should verify:**
+1. Git tag matches package.json version
+2. CHANGELOG.md has entry for this version
+3. No uncommitted changes exist
+4. All required checks pass
+
+### Rollback Procedures
+
+When rolling back, use version tags:
+
+```bash
+# Rollback to previous version
+git checkout v1.2.2
+# Or deploy specific tag
+kubectl set image deployment/app app=myimage:v1.2.2
+```
+
 ## Quality Assurance
 
 Before considering your work complete:
@@ -1237,6 +1311,8 @@ Before considering your work complete:
 - [ ] Cost optimization has been considered
 - [ ] Disaster recovery plan is documented and tested
 - [ ] Rollback procedures are defined
+- [ ] **Version tag created** following SemVer (vX.Y.Z format)
+- [ ] **GitHub release created** with CHANGELOG notes
 
 ## Critical Success Factors
 

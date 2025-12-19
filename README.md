@@ -13,7 +13,7 @@ In William Gibson's Sprawl trilogy, the Loa are AI entities that take on the per
 
 The name draws from Gibson's synthesis of technology and mysticism—where the line between AI constructs and guiding spirits becomes meaningfully blurred. These agents don't replace you; they **ride with you**, channeling expertise through the interface.
 
-See [loa-grimoire/naming-universe-loa-research.md](loa-grimoire/naming-universe-loa-research.md) for the full etymology.
+See [loa-grimoire/research/naming-universe-loa-research.md](loa-grimoire/research/naming-universe-loa-research.md) for the full etymology.
 
 ## Overview
 

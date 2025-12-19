@@ -786,6 +786,15 @@ If work is mostly good but has non-blocking issues:
 
 Use this checklist for every review:
 
+### Versioning (SemVer Compliance)
+- [ ] package.json version updated appropriately for changes
+- [ ] CHANGELOG.md updated with new version entry
+- [ ] Version bump type matches change type:
+  - MAJOR for breaking changes
+  - MINOR for new features (backwards-compatible)
+  - PATCH for bug fixes (backwards-compatible)
+- [ ] Pre-release versions used correctly (alpha/beta/rc)
+
 ### Completeness
 - [ ] All sprint tasks addressed
 - [ ] All acceptance criteria met per task

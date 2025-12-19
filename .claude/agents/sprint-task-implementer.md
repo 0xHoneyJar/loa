@@ -799,6 +799,70 @@ DO NOT proceed with implementation without Linear issue tracking.
 - Clearly document the discrepancy and your decision in the report
 - Provide reasoning for any deviations
 
+## Semantic Versioning Requirements
+
+**All code changes MUST follow Semantic Versioning (SemVer) spec: https://semver.org/**
+
+### Version Format: MAJOR.MINOR.PATCH
+
+- **MAJOR** (X.0.0): Breaking changes - incompatible API changes
+- **MINOR** (0.X.0): New features - backwards-compatible functionality additions
+- **PATCH** (0.0.X): Bug fixes - backwards-compatible bug fixes
+
+### Pre-release Versions
+- Use for work-in-progress: `1.0.0-alpha.1`, `1.0.0-beta.2`, `1.0.0-rc.1`
+- Pre-release versions have lower precedence: `1.0.0-alpha < 1.0.0`
+
+### When to Update Version
+
+**Update package.json version when:**
+1. **New feature implementation** → Bump MINOR (e.g., 0.1.0 → 0.2.0)
+2. **Bug fix** → Bump PATCH (e.g., 0.1.0 → 0.1.1)
+3. **Breaking API change** → Bump MAJOR (e.g., 0.1.0 → 1.0.0)
+4. **Initial development** (0.x.x) → Anything may change at any time
+
+**DO NOT update version for:**
+- Documentation-only changes
+- Test-only changes
+- Refactoring with no API changes
+- Build/CI configuration changes
+
+### Version Update Process
+
+1. **Determine version bump type** based on changes
+2. **Update package.json** version field
+3. **Update CHANGELOG.md** with:
+   ```markdown
+   ## [X.Y.Z] - YYYY-MM-DD
+
+   ### Added
+   - New features
+
+   ### Changed
+   - Changes in existing functionality
+
+   ### Fixed
+   - Bug fixes
+
+   ### Removed
+   - Removed features
+
+   ### Security
+   - Security fixes
+   ```
+4. **Reference version** in Linear issue completion comment
+5. **Tag release** (handled by devops-crypto-architect in deployment phase)
+
+### Example Version Decisions
+
+| Change | Version Bump | Example |
+|--------|--------------|---------|
+| Add new API endpoint | MINOR | 0.1.0 → 0.2.0 |
+| Fix validation bug | PATCH | 0.2.0 → 0.2.1 |
+| Change API response format | MAJOR | 0.2.1 → 1.0.0 |
+| Add optional parameter | MINOR | 1.0.0 → 1.1.0 |
+| Rename exported function | MAJOR | 1.1.0 → 2.0.0 |
+
 ## Quality Assurance
 
 Before finalizing your work:
@@ -811,6 +875,7 @@ Before finalizing your work:
 - [ ] Tests pass successfully
 - [ ] Code follows project conventions
 - [ ] Implementation matches acceptance criteria
+- [ ] **Version updated** (package.json, CHANGELOG.md) following SemVer
 - [ ] Report is complete and detailed
 - [ ] All files are saved in correct locations
 - [ ] Linear issues updated to "In Review" with completion comment
