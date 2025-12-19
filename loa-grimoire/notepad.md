@@ -222,4 +222,239 @@ How does this differ from typical leaderboard mechanics?
 
 ---
 
+## ADR Flow Review Needed (Sprint 3)
+
+### Context (From Eileen Conversation - 2025-12-19)
+Need to revisit where ADR candidates go in the Hivemind structure:
+
+**Current Implementation**:
+- ADR candidates surfaced during `/architect` phase
+- Submitted to Linear for team review
+- Intended to flow back to Hivemind Library after review
+
+**Questions to Address**:
+1. Should ADR candidates go to **Library** or **Laboratory**?
+   - Library = organizational memory (past decisions)
+   - Laboratory = experiments in progress
+   - Eileen suggests Laboratory might make more sense during active work
+
+2. Are we reading from the right place?
+   - Currently querying `.hivemind/library/decisions/` for existing ADRs
+   - Is this correct, or should we also check laboratory?
+
+3. Parallel Changes in Hivemind OS
+   - Hivemind OS repo is being updated in parallel
+   - May cause breaking changes to symlink paths or skill locations
+   - Continue as planned but note potential conflicts
+
+**Action Items**:
+- [ ] Review ADR flow diagram in SDD
+- [ ] Verify symlink paths still work after Hivemind OS updates
+- [ ] Discuss with team: ADR candidates → Library or Laboratory?
+- [ ] Update implementation if needed in next iteration
+
+**Temporary Decision**: Continue with current flow (ADRs to Linear, team reviews biweekly). Revisit in next iteration after Hivemind OS changes stabilize.
+
+---
+
+## Sprint 4: Pilot Run Guide (S4-T5)
+
+### Prerequisites for Pilot
+
+Before running the pilot with CubQuests + Set & Forgetti:
+
+1. **Hivemind OS Available**: Ensure `../hivemind-library` exists with skills
+2. **Linear Configured**: MCP server configured with API access
+3. **Experiment Created**: Linear issue with hypothesis for CubQuests + S&F integration
+
+### Pilot Execution Steps
+
+#### Step 1: Run `/setup` with Full Configuration
+```
+/setup
+
+Configure:
+- [x] Connect to Hivemind OS → ../hivemind-library
+- [x] Project Type: game-design (or cross-domain for multi-domain)
+- [x] Link Product Home → CubQuests project
+- [x] Link Experiment → LAB-XXX (CubQuests + S&F integration)
+```
+
+Verify:
+- `.hivemind/` symlink created
+- `.claude/skills/` populated with game design skills
+- `.claude/.mode` shows `creative` mode
+- `integration-context.md` has Product Home and Experiment sections
+
+#### Step 2: Run `/plan-and-analyze`
+```
+/plan-and-analyze
+
+Expected:
+- Agent queries Hivemind for ADRs, experiments, Learning Memos
+- Context from linked experiment injected into PRD discovery
+- PRD generated with references to organizational context
+```
+
+Verify:
+- `loa-grimoire/prd.md` references experiment hypothesis
+- ADRs from Hivemind cited in requirements
+
+#### Step 3: Run `/architect`
+```
+/architect
+
+Expected:
+- SDD generated based on PRD
+- ADR candidates detected from architecture decisions
+- Batch review prompt appears at phase end
+```
+
+Verify:
+- `loa-grimoire/sdd.md` generated
+- ADR candidate surfacing prompt appears
+- If submitted: Linear issues created with `[ADR-Candidate]` prefix
+
+#### Step 4: Run `/sprint-plan`
+```
+/sprint-plan
+
+Expected:
+- Sprint breakdown based on SDD
+- Tasks with acceptance criteria
+- Dependencies mapped
+```
+
+Verify:
+- `loa-grimoire/sprint.md` generated
+- Clear task breakdown with estimates
+
+#### Step 5: Run Sprint Cycle (at least 1)
+```
+/implement sprint-1
+/review-sprint sprint-1
+/audit-sprint sprint-1
+```
+
+Verify:
+- Implementation report generated
+- Learning candidates surfaced after implementation
+- Security audit passes
+
+### Pilot Success Criteria
+
+| Metric | Target | Verification |
+|--------|--------|--------------|
+| Hivemind context injected | ADRs referenced in PRD | Check prd.md citations |
+| Mode switching works | Confirmation on mismatch | Switch Creative → Secure |
+| ADR candidates surfaced | 2+ from architecture | Linear issues exist |
+| Learning candidates surfaced | 1+ from implementation | Linear issues exist |
+| Pilot completes | Full cycle executed | Sprint reports in a2a/ |
+| No blocking failures | Graceful degradation | Disconnect Hivemind, verify continues |
+
+---
+
+## Sprint 4: Retrospective (S4-T6)
+
+### What Worked Well
+
+1. **Non-Blocking Design Pattern**
+   - Context injection, candidate surfacing, and analytics all gracefully degrade
+   - Phase execution never blocked by external system failures
+   - This pattern should be applied to all future integrations
+
+2. **Symlink-Based Skill Loading**
+   - Clean separation between Hivemind skills and Loa execution
+   - Easy to add/remove skills without modifying Loa core
+   - Validation + repair flow handles broken symlinks gracefully
+
+3. **Mode Confirmation Gates**
+   - Clear UX for mode mismatches
+   - User always in control of mode switches
+   - Analytics tracking for observability
+
+4. **Batch Review for Candidates**
+   - Not spamming Linear with every potential candidate
+   - User reviews and approves before submission
+   - Skip option respects developer flow state
+
+5. **Progressive Setup UX**
+   - Phase-based setup with clear progress indicators
+   - Optional sections don't block core setup
+   - Summary at end shows complete configuration
+
+### What Needs Improvement
+
+1. **ADR Flow Clarity**
+   - Library vs Laboratory destination still unclear
+   - Need team discussion on biweekly review process
+   - May need to update flow after Hivemind OS changes
+
+2. **Experiment Context Extraction**
+   - Parsing hypothesis from Linear issue body is fragile
+   - Could use structured fields or templates
+   - Consider adding validation for experiment format
+
+3. **Skill Discovery**
+   - Currently hard-coded skill mappings per project type
+   - Could detect available skills dynamically from Hivemind
+   - Allow custom skill selection in setup
+
+4. **Mode Detection**
+   - Only phase-based rules in v1
+   - Could add file pattern detection (*.sol → secure)
+   - Could add keyword detection in prompts
+
+### Gap Candidates Discovered
+
+1. **Education/Gamification Skill**
+   - Not currently in Hivemind skill library
+   - Needed for CubQuests quest design patterns
+   - Could capture Octalysis framework concepts
+
+2. **Brand Versioning Pattern**
+   - How to handle brand bible updates mid-project
+   - Linear versioning vs snapshots
+   - Cross-project brand consistency
+
+3. **Multi-Product Experiments**
+   - CubQuests + S&F spans multiple repos
+   - Label structure for cross-product work
+   - Shared context between product teams
+
+### Learning Candidates for Future
+
+1. **Pattern: Non-Blocking External Calls**
+   ```
+   Context: When calling external systems (Linear, Hivemind)
+   Pattern: Always wrap in try-catch with graceful fallback
+   Evidence: Sprint 1-3 context injection implementations
+   Application: Any future external integration
+   ```
+
+2. **Pattern: AskUserQuestion for Progressive Disclosure**
+   ```
+   Context: Complex setup with many optional features
+   Pattern: Use structured questions with clear options
+   Evidence: Setup phases 2.5-3.8
+   Application: Any multi-step wizard workflow
+   ```
+
+3. **Pattern: Symlink Validation with Repair**
+   ```
+   Context: External dependencies via symlinks
+   Pattern: Validate on startup, attempt repair, graceful degradation
+   Evidence: .claude/lib/hivemind-connection.md
+   Application: Any symlink-based integration
+   ```
+
+### Next Iteration Priorities
+
+1. **Complete Pilot Run**: Execute full cycle with real CubQuests project
+2. **Resolve ADR Flow**: Team discussion on Library vs Laboratory
+3. **Dynamic Skill Loading**: Detect available skills from Hivemind
+4. **File-Based Mode Detection**: Add *.sol → secure mode trigger
+
+---
+
 *Last updated: 2025-12-19*

@@ -242,6 +242,17 @@ After generating/updating the report, update loa-grimoire/a2a/index.md:
    - Link to reviewer.md
    - Last updated timestamp
 
+## Phase 5.5: Learning Candidate Surfacing (NON-BLOCKING)
+
+After the implementation report is written, scan for Learning candidates:
+1. Scan reviewer.md for learning patterns (see .claude/lib/candidate-surfacer.md)
+2. Extract candidates with: pattern, context, evidence, recommended application
+3. Apply confidence filter (score >= 2)
+4. If candidates found, prompt user: [Submit all] [Review first] [Skip]
+5. If submit: Create Linear issues using integration-context.md team ID
+6. If Linear fails: Save to loa-grimoire/pending-candidates.json
+7. Continue to feedback loop (non-blocking)
+
 ## Phase 6: Feedback Loop
 
 After you generate the report:
@@ -522,6 +533,74 @@ After generating/updating the report, update loa-grimoire/a2a/index.md:
    - Status: IN_PROGRESS
    - Link to reviewer.md
    - Last updated timestamp
+
+## Phase 5.5: Learning Candidate Surfacing (NON-BLOCKING)
+
+After the implementation report is written, scan for Learning candidates.
+
+### Step 1: Scan Report for Learning Patterns
+
+Read the reviewer.md content and look for patterns:
+
+**Learning Patterns** (triggers):
+- "We discovered that X works better"
+- "This approach proved more effective"
+- "Lesson learned: X"
+- "Key insight: X"
+- "Found that X solves Y"
+- "This pattern emerged"
+- "What worked well: X"
+
+### Step 2: Extract Learning Candidates
+
+For each detected pattern, extract:
+- **Pattern**: What was learned
+- **Context**: When/where this applies
+- **Evidence**: File references, test results
+- **Recommended Application**: When others should use this pattern
+
+### Step 3: Apply Confidence Filter
+
+Score each candidate:
+- +2 if explicit "learned/discovered" language
+- +2 if evidence with file references
+- +1 if measurable outcomes
+- +1 if cross-project applicability
+- -1 if single instance only
+- -2 if no concrete evidence
+
+Keep candidates with score >= 2.
+
+### Step 4: Show Batch Review (if candidates found)
+
+If Learning candidates were detected, use AskUserQuestion:
+
+```
+question: "{N} Learning candidates detected. What would you like to do?"
+header: "Candidates"
+options:
+  - "Submit all to Linear" - "Create Linear issues for team review (Recommended)"
+  - "Review each first" - "Review each candidate before submitting"
+  - "Skip for now" - "Discard candidates and continue"
+```
+
+### Step 5: Handle User Response
+
+**If "Submit all to Linear"**:
+1. Read `loa-grimoire/a2a/integration-context.md` for team ID
+2. For each candidate, create Linear issue:
+   - Title: `[Learning-Candidate] {pattern summary}`
+   - Labels: `learning-candidate`, `agent:implementer`, `sprint:{{ $ARGUMENTS[0] }}`
+   - Body: Learning candidate template (see `.claude/lib/candidate-surfacer.md`)
+3. If Linear fails, save to `loa-grimoire/pending-candidates.json`
+4. Show confirmation with created issue IDs
+
+**If "Skip for now"**:
+- Discard candidates and continue to feedback loop
+
+See `.claude/lib/candidate-surfacer.md` for detailed patterns and templates.
+
+---
 
 ## Phase 6: Feedback Loop
 

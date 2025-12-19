@@ -46,6 +46,15 @@ Running in background mode.
 
 All A2A communication files for this sprint are stored in the sprint-specific directory.
 
+## Phase -0.5: Mode Confirmation Gate
+
+Code review requires Secure mode for rigorous validation:
+1. Read `.claude/.mode` for current mode
+2. If current_mode != 'secure', prompt user to switch
+3. If confirmed, update mode file; if declined, proceed with warning
+
+See `.claude/lib/mode-manager.md` for mode patterns.
+
 ## Phase -1: Sprint Validation (CRITICAL - DO THIS FIRST)
 
 0. **Setup Verification**:
@@ -197,6 +206,35 @@ You are conducting a sprint implementation review as the Senior Technical Lead.
 **Sprint Directory**: loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/
 
 All A2A communication files for this sprint are stored in the sprint-specific directory.
+
+## Phase -0.5: Mode Confirmation Gate
+
+Code review **requires Secure mode** for rigorous validation.
+
+1. **Read current mode** from `.claude/.mode`:
+   - If file exists, parse `current_mode` field
+   - If file doesn't exist, treat as "unknown"
+
+2. **Check mode**:
+   - If `current_mode` is already "secure", proceed to Phase -1
+   - If `current_mode` is "creative" or "unknown", show confirmation
+
+3. **Show Mode Confirmation** (using AskUserQuestion):
+   - Question: "Code review requires Secure mode for rigorous validation. Switch from Creative to Secure?"
+   - Header: "Mode"
+   - Options:
+     * "Yes, switch to Secure" - "Enable HITL gates and stricter validation (Recommended)"
+     * "Stay in Creative" - "Proceed without mode switch (not recommended for review)"
+
+4. **Handle response**:
+   - If "Yes, switch": Update `.claude/.mode` to set `current_mode` to "secure", add entry to `mode_switches` array with reason "Entering code review phase"
+   - If "Stay in Creative": Show warning and proceed:
+     ```
+     **Warning**: Proceeding with code review in Creative mode.
+     This may result in less rigorous validation.
+     ```
+
+See `.claude/lib/mode-manager.md` for mode management patterns.
 
 ## Phase -1: Sprint Validation (CRITICAL - DO THIS FIRST)
 

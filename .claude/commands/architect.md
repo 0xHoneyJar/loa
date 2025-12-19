@@ -106,6 +106,17 @@ The SDD should include:
 - Technical Risks & Mitigation Strategies
 - Future Considerations & Technical Debt Management
 
+## Phase Post-SDD: ADR Candidate Surfacing
+
+After the SDD is written, run ADR candidate detection:
+1. Scan SDD for decision patterns (see .claude/lib/candidate-surfacer.md)
+2. Extract candidates with: decision, context, alternatives, rationale, trade-offs
+3. Apply confidence filter (score >= 2)
+4. If candidates found, prompt user: [Submit all] [Review first] [Skip]
+5. If submit: Create Linear issues using integration-context.md team ID
+6. If Linear fails: Save to loa-grimoire/pending-candidates.json
+7. Continue to sprint planning (non-blocking)
+
 ## Analytics Update (Phase Final)
 
 After successfully saving the SDD to loa-grimoire/sdd.md, update analytics:
@@ -188,6 +199,92 @@ The SDD should include:
 - Development Workflow (Git strategy, testing approach, code review process)
 - Technical Risks & Mitigation Strategies
 - Future Considerations & Technical Debt Management
+
+---
+
+## Phase Post-SDD: ADR Candidate Surfacing
+
+After the SDD is written and saved to `loa-grimoire/sdd.md`, run ADR candidate detection.
+
+### Step 1: Scan SDD for Decision Patterns
+
+Read the SDD content and look for ADR candidate patterns:
+
+**Decision Patterns** (triggers):
+- "We decided to use X instead of Y"
+- "Choosing X over Y because Z"
+- "After evaluating, we selected X"
+- "The decision is to X"
+- "Going with X rather than Y"
+- "Trade-off... X vs Y"
+- "Considered alternatives:"
+
+### Step 2: Extract ADR Candidates
+
+For each detected pattern, extract:
+- **Decision**: What was decided
+- **Context**: Why this decision was needed
+- **Alternatives**: Other options considered and why rejected
+- **Rationale**: Why this approach was chosen
+- **Trade-offs**: Pros and cons
+
+### Step 3: Apply Confidence Filter
+
+Score each candidate:
+- +2 if explicit "decided" language
+- +2 if alternatives discussed
+- +1 if trade-offs documented
+- +1 if cross-component impact
+- -1 if minor/localized
+- -2 if no rationale
+
+Keep candidates with score >= 2.
+
+### Step 4: Show Batch Review (if candidates found)
+
+If ADR candidates were detected, use AskUserQuestion:
+
+```
+question: "{N} ADR candidates detected in architecture. What would you like to do?"
+header: "Candidates"
+options:
+  - "Submit all to Linear" - "Create Linear issues for team review (Recommended)"
+  - "Review each first" - "Review each candidate before submitting"
+  - "Skip for now" - "Discard candidates and continue"
+```
+
+### Step 5: Handle User Response
+
+**If "Submit all to Linear"**:
+1. Read `loa-grimoire/a2a/integration-context.md` for team ID
+2. For each candidate, create Linear issue:
+   - Title: `[ADR-Candidate] {decision summary}`
+   - Labels: `adr-candidate`, `agent:architect`
+   - Body: ADR candidate template (see `.claude/lib/candidate-surfacer.md`)
+3. If Linear fails, save to `loa-grimoire/pending-candidates.json`
+4. Show confirmation with created issue IDs
+
+**If "Review each first"**:
+For each candidate, ask:
+```
+question: "ADR Candidate: '{decision}'. Include?"
+header: "Review"
+options:
+  - "Include" - "Add to submission batch"
+  - "Exclude" - "Skip this candidate"
+```
+Then submit included candidates.
+
+**If "Skip for now"**:
+- Discard candidates
+- Show: "Candidates discarded. You can manually create ADR issues later."
+- Continue to next phase
+
+### Step 6: Continue to Sprint Planning
+
+After surfacing (or skip), the phase is complete. User can run `/sprint-plan` next.
+
+See `.claude/lib/candidate-surfacer.md` for detailed patterns and templates.
 
 ---
 

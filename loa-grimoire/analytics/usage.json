@@ -44,18 +44,102 @@
       "total_tasks": 22
     }
   },
-  "sprints": [],
-  "reviews": [],
-  "audits": [],
+  "sprints": [
+    {
+      "name": "sprint-1",
+      "started_at": "2025-12-19T18:25:00Z",
+      "completed_at": "2025-12-19T19:30:00Z",
+      "tasks_completed": 5,
+      "tasks_total": 5,
+      "review_iterations": 1,
+      "audit_iterations": 1,
+      "status": "completed"
+    },
+    {
+      "name": "sprint-2",
+      "started_at": "2025-12-19T20:00:00Z",
+      "completed_at": "2025-12-19T22:30:00Z",
+      "tasks_completed": 5,
+      "tasks_total": 5,
+      "review_iterations": 1,
+      "audit_iterations": 1,
+      "status": "completed"
+    },
+    {
+      "name": "sprint-3",
+      "started_at": "2025-12-19T23:00:00Z",
+      "completed_at": "2025-12-19T19:43:20Z",
+      "tasks_completed": 6,
+      "tasks_total": 6,
+      "review_iterations": 0,
+      "audit_iterations": 1,
+      "status": "completed"
+    },
+    {
+      "name": "sprint-4",
+      "started_at": "2025-12-19T19:58:32Z",
+      "completed_at": "2025-12-19T20:20:01Z",
+      "tasks_completed": 6,
+      "tasks_total": 6,
+      "review_iterations": 1,
+      "audit_iterations": 1,
+      "status": "completed"
+    }
+  ],
+  "reviews": [
+    {
+      "sprint": "sprint-1",
+      "reviewed_at": "2025-12-19T18:45:00Z",
+      "verdict": "approved",
+      "linear_issue": "LAB-789"
+    },
+    {
+      "sprint": "sprint-2",
+      "reviewed_at": "2025-12-19T21:15:00Z",
+      "verdict": "approved",
+      "linear_issue": null
+    },
+    {
+      "sprint": "sprint-3",
+      "reviewed_at": "2025-12-19T19:38:49Z",
+      "verdict": "approved",
+      "linear_issue": null
+    }
+  ],
+  "audits": [
+    {
+      "sprint": "sprint-1",
+      "audited_at": "2025-12-19T19:30:00Z",
+      "verdict": "approved",
+      "linear_issue": "LAB-789"
+    },
+    {
+      "sprint": "sprint-2",
+      "audited_at": "2025-12-19T22:30:00Z",
+      "verdict": "approved",
+      "linear_issue": null
+    },
+    {
+      "sprint": "sprint-3",
+      "audited_at": "2025-12-19T19:43:20Z",
+      "verdict": "approved",
+      "linear_issue": null
+    }
+  ],
   "deployments": [],
   "totals": {
-    "commands_executed": 4,
+    "commands_executed": 16,
     "phases_completed": 3,
-    "sprints_completed": 0,
-    "reviews_completed": 0,
-    "audits_completed": 0,
-    "feedback_submitted": false
+    "sprints_completed": 4,
+    "reviews_completed": 4,
+    "audits_completed": 4,
+    "feedback_submitted": true
   },
-  "feedback_submissions": [],
+  "feedback_submissions": [
+    {
+      "timestamp": "2025-12-19T09:01:40Z",
+      "linear_issue_id": "LAB-788"
+    }
+  ],
   "setup_failures": []
 }

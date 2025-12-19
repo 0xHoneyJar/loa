@@ -57,13 +57,13 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 **Description**: Modify the existing `/setup` command to include an optional Hivemind connection phase. Detect if `../hivemind-library` exists, create `.hivemind/` symlink, and update `integration-context.md`.
 
 **Acceptance Criteria**:
-- [ ] `/setup` displays "Connect to Hivemind OS" checkbox option
-- [ ] If checked, detects `../hivemind-library` or prompts for custom path
-- [ ] Creates `.hivemind/` symlink pointing to Hivemind library
-- [ ] Validates symlink by checking `.hivemind/library/` exists
-- [ ] Updates `loa-grimoire/a2a/integration-context.md` with Hivemind section
-- [ ] Gracefully continues without Hivemind if user skips or path invalid
-- [ ] Adds `.hivemind/` to `.gitignore`
+- [x] `/setup` displays "Connect to Hivemind OS" checkbox option
+- [x] If checked, detects `../hivemind-library` or prompts for custom path
+- [x] Creates `.hivemind/` symlink pointing to Hivemind library
+- [x] Validates symlink by checking `.hivemind/library/` exists
+- [x] Updates `loa-grimoire/a2a/integration-context.md` with Hivemind section
+- [x] Gracefully continues without Hivemind if user skips or path invalid
+- [x] Adds `.hivemind/` to `.gitignore`
 
 **Effort**: Medium (4-6 hours)
 
@@ -80,10 +80,10 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 **Description**: Add project type selection to `/setup` with checkbox-style UX. Options: `frontend`, `contracts`, `indexer`, `backend`, `game-design`, `cross-domain`.
 
 **Acceptance Criteria**:
-- [ ] `/setup` displays project type selection after Hivemind connection
-- [ ] Single selection from 6 options presented
-- [ ] Selected project type stored in `integration-context.md`
-- [ ] Project type used to determine initial mode and skills
+- [x] `/setup` displays project type selection after Hivemind connection
+- [x] Single selection from 6 options presented
+- [x] Selected project type stored in `integration-context.md`
+- [x] Project type used to determine initial mode and skills
 
 **Effort**: Small (2-3 hours)
 
@@ -100,12 +100,12 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 **Description**: Implement `.claude/.mode` JSON file for tracking current mode, project type, and mode switch history.
 
 **Acceptance Criteria**:
-- [ ] Create `.claude/.mode` file with schema: `{current_mode, set_at, project_type, mode_switches[]}`
-- [ ] Mode initialized based on project type mapping:
+- [x] Create `.claude/.mode` file with schema: `{current_mode, set_at, project_type, mode_switches[]}`
+- [x] Mode initialized based on project type mapping:
   - `frontend`, `game-design`, `backend`, `cross-domain` → `creative`
   - `contracts`, `indexer` → `secure`
-- [ ] Mode file created during `/setup` completion
-- [ ] Add `.claude/.mode` to `.gitignore`
+- [x] Mode file created during `/setup` completion
+- [x] Add `.claude/.mode` to `.gitignore`
 
 **Effort**: Small (2-3 hours)
 
@@ -122,17 +122,17 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 **Description**: During `/setup`, symlink relevant skills from `.hivemind/.claude/skills/` to `.claude/skills/` based on project type.
 
 **Acceptance Criteria**:
-- [ ] Create `.claude/skills/` directory if not exists
-- [ ] Symlink skills based on project type mapping from SDD section 3.1.3:
+- [x] Create `.claude/skills/` directory if not exists
+- [x] Symlink skills based on project type mapping from SDD section 3.1.3:
   - `frontend`: `lab-frontend-design-systems`, `lab-creative-mode-operations`, brand skills
   - `contracts`: `lab-contract-lifecycle-management`, `lab-security-mode-operations`, `lib-hitl-gate-patterns`
   - `indexer`: `lab-envio-indexer-patterns`, `lab-thj-ecosystem-overview`
   - `game-design`: `lab-cubquests-game-design`, `lab-cubquests-visual-identity`, brand skills
   - `backend`: `lab-thj-ecosystem-overview`, `lib-orchestration-patterns`
   - `cross-domain`: All above + `lib-feedback-loop-design`
-- [ ] Log each symlink created
-- [ ] Handle missing source skills gracefully (warn, continue)
-- [ ] Record loaded skills in `integration-context.md`
+- [x] Log each symlink created
+- [x] Handle missing source skills gracefully (warn, continue)
+- [x] Record loaded skills in `integration-context.md`
 
 **Effort**: Medium (4-5 hours)
 
@@ -149,11 +149,11 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 **Description**: Create shared utility logic that validates skill symlinks at the start of each Loa phase command, with automatic repair attempt for broken symlinks.
 
 **Acceptance Criteria**:
-- [ ] Create `.claude/lib/hivemind-connection.md` with validation instructions
-- [ ] Validation checks each symlink in `.claude/skills/`
-- [ ] Broken symlinks logged with warning
-- [ ] Automatic repair attempted (re-symlink from `.hivemind/.claude/skills/`)
-- [ ] If repair fails, log error but don't block phase execution
+- [x] Create `.claude/lib/hivemind-connection.md` with validation instructions
+- [x] Validation checks each symlink in `.claude/skills/`
+- [x] Broken symlinks logged with warning
+- [x] Automatic repair attempted (re-symlink from `.hivemind/.claude/skills/`)
+- [x] If repair fails, log error but don't block phase execution
 
 **Effort**: Small (2-3 hours)
 
@@ -185,18 +185,18 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 
 ### Tasks
 
-#### S2-T1: Create Context Injector Library
+#### S2-T1: Create Context Injector Library ✅
 
 **Description**: Create `.claude/lib/context-injector.md` documenting the pattern for spawning parallel research agents to query Hivemind content.
 
 **Acceptance Criteria**:
-- [ ] Document describes parallel agent spawning pattern (from Hivemind `/ask`)
-- [ ] Defines 3 core research agents:
+- [x] Document describes parallel agent spawning pattern (from Hivemind `/ask`)
+- [x] Defines 3 core research agents:
   - `@decision-archaeologist`: Search ADRs
   - `@timeline-navigator`: Search ERRs, experiments
   - `@technical-reference-finder`: Search ecosystem docs, Learning Memos
-- [ ] Each agent has: purpose, search paths, return format
-- [ ] Synthesis pattern: deduplicate, rank, format for injection
+- [x] Each agent has: purpose, search paths, return format
+- [x] Synthesis pattern: deduplicate, rank, format for injection
 
 **Effort**: Medium (3-4 hours)
 
@@ -208,16 +208,16 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 
 ---
 
-#### S2-T2: Implement Keyword Extraction
+#### S2-T2: Implement Keyword Extraction ✅
 
 **Description**: Add logic to extract keywords from problem statements, project type, and experiment context for targeted Hivemind queries.
 
 **Acceptance Criteria**:
-- [ ] Extract keywords from PRD problem statement (if exists)
-- [ ] Include project type as keyword
-- [ ] Include experiment hypothesis keywords (if linked)
-- [ ] Filter common words, keep domain-specific terms
-- [ ] Return keyword list for agent queries
+- [x] Extract keywords from PRD problem statement (if exists)
+- [x] Include project type as keyword
+- [x] Include experiment hypothesis keywords (if linked)
+- [x] Filter common words, keep domain-specific terms
+- [x] Return keyword list for agent queries
 
 **Effort**: Small (2-3 hours)
 
@@ -229,23 +229,23 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 
 ---
 
-#### S2-T3: Extend `/plan-and-analyze` with Context Injection
+#### S2-T3: Extend `/plan-and-analyze` with Context Injection ✅
 
 **Description**: Modify the PRD architect command to spawn parallel research agents before discovery, injecting Hivemind context into the agent prompt.
 
 **Acceptance Criteria**:
-- [ ] On `/plan-and-analyze` start, check if Hivemind connected
-- [ ] If connected, extract keywords from any existing context
-- [ ] Spawn parallel research agents using Task tool
-- [ ] Collect results: relevant ADRs, past experiments, Learning Memos
-- [ ] Inject summary into PRD architect prompt:
+- [x] On `/plan-and-analyze` start, check if Hivemind connected
+- [x] If connected, extract keywords from any existing context
+- [x] Spawn parallel research agents using Task tool
+- [x] Collect results: relevant ADRs, past experiments, Learning Memos
+- [x] Inject summary into PRD architect prompt:
   ```
   Based on organizational context:
   - ADR-XXX establishes...
   - Previous experiment ERR-XXX showed...
   - Learning Memo suggests...
   ```
-- [ ] If Hivemind not connected, proceed without injection (log notice)
+- [x] If Hivemind not connected, proceed without injection (log notice)
 
 **Effort**: Large (6-8 hours)
 
@@ -257,16 +257,16 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 
 ---
 
-#### S2-T4: Implement Graceful Fallback for Disconnected State
+#### S2-T4: Implement Graceful Fallback for Disconnected State ✅
 
 **Description**: Ensure all context injection gracefully handles Hivemind being unavailable or symlink broken.
 
 **Acceptance Criteria**:
-- [ ] Check `.hivemind/` symlink exists and is valid before queries
-- [ ] If broken/missing, show warning: "Hivemind disconnected, proceeding without org context"
-- [ ] Context injection returns empty results (not error)
-- [ ] Phase continues normally without blocking
-- [ ] Suggest running `/setup` to reconnect
+- [x] Check `.hivemind/` symlink exists and is valid before queries
+- [x] If broken/missing, show warning: "Hivemind disconnected, proceeding without org context"
+- [x] Context injection returns empty results (not error)
+- [x] Phase continues normally without blocking
+- [x] Suggest running `/setup` to reconnect
 
 **Effort**: Small (2-3 hours)
 
@@ -278,23 +278,23 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 
 ---
 
-#### S2-T5: Add Mode Confirmation Gate
+#### S2-T5: Add Mode Confirmation Gate ✅
 
 **Description**: Implement mode mismatch detection and confirmation prompt when phase requires different mode than current.
 
 **Acceptance Criteria**:
-- [ ] On phase start, read `.claude/.mode` for current mode
-- [ ] Determine required mode based on phase (per SDD section 3.2.2):
+- [x] On phase start, read `.claude/.mode` for current mode
+- [x] Determine required mode based on phase (per SDD section 3.2.2):
   - PRD, Architecture, Sprint, Implement: Use project type setting
   - Review, Audit, Deploy: Always Secure
-- [ ] If mismatch detected, prompt user:
+- [x] If mismatch detected, prompt user:
   ```
   Mode mismatch detected.
   Current: Creative | Phase requires: Secure
   Switch to Secure mode? [Yes] [Stay in Creative]
   ```
-- [ ] If confirmed, update `.claude/.mode` with switch record
-- [ ] If declined, proceed with warning
+- [x] If confirmed, update `.claude/.mode` with switch record
+- [x] If declined, proceed with warning
 
 **Effort**: Medium (4-5 hours)
 
@@ -330,16 +330,16 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 **Description**: Create `.claude/lib/candidate-surfacer.md` documenting patterns for detecting ADR and Learning candidates from agent output.
 
 **Acceptance Criteria**:
-- [ ] Document ADR candidate patterns:
+- [x] Document ADR candidate patterns:
   - "We decided to use X instead of Y"
   - "Choosing X over Y because Z"
   - Trade-off discussions in architecture
-- [ ] Document Learning candidate patterns:
+- [x] Document Learning candidate patterns:
   - "We discovered that X works better"
   - "This pattern proved more effective"
   - Implementation insights in reviews
-- [ ] Define extraction format: decision, alternatives, rationale, trade-offs
-- [ ] Define batch collection approach (accumulate during phase)
+- [x] Define extraction format: decision, alternatives, rationale, trade-offs
+- [x] Define batch collection approach (accumulate during phase)
 
 **Effort**: Small (2-3 hours)
 
@@ -356,11 +356,11 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 **Description**: Add logic to detect architectural decisions during `/architect` phase and collect them for surfacing.
 
 **Acceptance Criteria**:
-- [ ] Scan SDD output for decision patterns
-- [ ] Extract: decision statement, alternatives, rationale, trade-offs
-- [ ] Store candidates in memory during phase
-- [ ] Handle multiple candidates per phase
-- [ ] Ignore false positives (minor choices, obvious defaults)
+- [x] Scan SDD output for decision patterns
+- [x] Extract: decision statement, alternatives, rationale, trade-offs
+- [x] Store candidates in memory during phase
+- [x] Handle multiple candidates per phase
+- [x] Ignore false positives (minor choices, obvious defaults)
 
 **Effort**: Medium (4-5 hours)
 
@@ -377,10 +377,10 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 **Description**: Add logic to detect proven patterns during `/implement` and `/review-sprint` phases.
 
 **Acceptance Criteria**:
-- [ ] Scan implementation reports and review feedback for patterns
-- [ ] Extract: pattern description, context, evidence (file refs)
-- [ ] Store candidates in memory during phase
-- [ ] Link to relevant code/tests when possible
+- [x] Scan implementation reports and review feedback for patterns
+- [x] Extract: pattern description, context, evidence (file refs)
+- [x] Store candidates in memory during phase
+- [x] Link to relevant code/tests when possible
 
 **Effort**: Medium (4-5 hours)
 
@@ -397,7 +397,7 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 **Description**: At end of phase, show summary of detected candidates and prompt user for submission decision.
 
 **Acceptance Criteria**:
-- [ ] After phase completion, display candidate summary:
+- [x] After phase completion, display candidate summary:
   ```
   Candidates Detected:
   - 2 ADR candidates
@@ -405,9 +405,9 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 
   Submit to Linear? [Submit all] [Review first] [Skip]
   ```
-- [ ] If "Review first", show each candidate with option to include/exclude
-- [ ] If "Skip", candidates discarded (not persisted)
-- [ ] Non-blocking: phase is already complete before this prompt
+- [x] If "Review first", show each candidate with option to include/exclude
+- [x] If "Skip", candidates discarded (not persisted)
+- [x] Non-blocking: phase is already complete before this prompt
 
 **Effort**: Medium (3-4 hours)
 
@@ -424,17 +424,17 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 **Description**: Create Linear issues for approved candidates using MCP, with proper templates and labels.
 
 **Acceptance Criteria**:
-- [ ] Use Linear MCP to create issues
-- [ ] ADR Candidate template (from SDD section 3.4.3):
+- [x] Use Linear MCP to create issues
+- [x] ADR Candidate template (from SDD section 3.4.3):
   - Title: `[ADR-Candidate] {decision summary}`
   - Labels: `adr-candidate`, `sprint:{current}`
   - Body: Decision, Context, Alternatives, Rationale, Trade-offs, References
-- [ ] Learning Candidate template:
+- [x] Learning Candidate template:
   - Title: `[Learning-Candidate] {pattern summary}`
   - Labels: `learning-candidate`, `sprint:{current}`
   - Body: Pattern, Context, Evidence, Recommended Application
-- [ ] Use Product Home project ID from `integration-context.md` (if set)
-- [ ] Handle Linear unavailable: save to `loa-grimoire/pending-candidates.json`
+- [x] Use Product Home project ID from `integration-context.md` (if set)
+- [x] Handle Linear unavailable: save to `loa-grimoire/pending-candidates.json`
 
 **Effort**: Medium (4-5 hours)
 
@@ -451,11 +451,11 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 **Description**: Integrate candidate detection and surfacing into the architecture phase completion flow.
 
 **Acceptance Criteria**:
-- [ ] After SDD written, run ADR candidate detection
-- [ ] Show batch review prompt
-- [ ] If approved, create Linear issues
-- [ ] Log surfacing results to analytics
-- [ ] Continue to next phase (non-blocking)
+- [x] After SDD written, run ADR candidate detection
+- [x] Show batch review prompt
+- [x] If approved, create Linear issues
+- [x] Log surfacing results to analytics
+- [x] Continue to next phase (non-blocking)
 
 **Effort**: Small (2-3 hours)
 
@@ -492,12 +492,12 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 **Description**: Extend `/setup` to optionally link or create a Linear Product Home project.
 
 **Acceptance Criteria**:
-- [ ] Add "Link Product Home" checkbox to setup
-- [ ] Options: "Create new" | "Link existing" | "Skip"
-- [ ] If create: Use Product Home template (if available) or create blank project
-- [ ] If link: Prompt for project ID or issue URL, extract project ID
-- [ ] Store Product Home project ID in `integration-context.md`
-- [ ] Candidates use this project ID for issue creation
+- [x] Add "Link Product Home" checkbox to setup
+- [x] Options: "Create new" | "Link existing" | "Skip"
+- [x] If create: Use Product Home template (if available) or create blank project
+- [x] If link: Prompt for project ID or issue URL, extract project ID
+- [x] Store Product Home project ID in `integration-context.md`
+- [x] Candidates use this project ID for issue creation
 
 **Effort**: Medium (4-5 hours)
 
@@ -514,11 +514,11 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 **Description**: Extend `/setup` to optionally link a Hivemind experiment from Linear.
 
 **Acceptance Criteria**:
-- [ ] Add "Link Experiment" checkbox to setup
-- [ ] Prompt for Linear issue URL
-- [ ] Fetch experiment details via Linear MCP: hypothesis, success criteria
-- [ ] Store experiment ID and details in `integration-context.md`
-- [ ] Experiment context injected during PRD phase
+- [x] Add "Link Experiment" checkbox to setup
+- [x] Prompt for Linear issue URL
+- [x] Fetch experiment details via Linear MCP: hypothesis, success criteria
+- [x] Store experiment ID and details in `integration-context.md`
+- [x] Experiment context injected during PRD phase
 
 **Effort**: Medium (4-5 hours)
 
@@ -535,10 +535,10 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 **Description**: Log mode switches to `loa-grimoire/analytics/usage.json` for tracking.
 
 **Acceptance Criteria**:
-- [ ] On mode switch, record to analytics:
+- [x] On mode switch, record to analytics:
   - `mode_switches[]`: from, to, reason, phase, timestamp
-- [ ] Update summary.md to show mode switch count
-- [ ] Non-blocking: analytics failures don't affect mode switching
+- [x] Update summary.md to show mode switch count
+- [x] Non-blocking: analytics failures don't affect mode switching
 
 **Effort**: Small (2-3 hours)
 
@@ -555,10 +555,10 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 **Description**: Improve the setup experience with better messaging, progress indicators, and summary.
 
 **Acceptance Criteria**:
-- [ ] Clear section headers for each setup phase
-- [ ] Helpful descriptions for each option explaining benefits
-- [ ] Progress indication (Phase 1/6, 2/6, etc.)
-- [ ] Final summary showing all configured settings:
+- [x] Clear section headers for each setup phase
+- [x] Helpful descriptions for each option explaining benefits
+- [x] Progress indication (Phase 1/6, 2/6, etc.)
+- [x] Final summary showing all configured settings:
   ```
   Setup Complete!
 
@@ -587,24 +587,24 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 **Description**: Execute full Loa cycle for the pilot experiment: CubQuests quest design integrating Set & Forgetti v2.
 
 **Acceptance Criteria**:
-- [ ] Run `/setup` with:
+- [x] Run `/setup` with:
   - Hivemind connected
   - Project type: `game-design` (or `cross-domain`)
   - Product Home linked
   - Experiment linked (if exists in Linear)
-- [ ] Run `/plan-and-analyze`:
+- [x] Run `/plan-and-analyze`:
   - Verify Hivemind context injected (ADRs referenced)
   - Complete PRD for quest integration
-- [ ] Run `/architect`:
+- [x] Run `/architect`:
   - Design quest flow architecture
   - Verify ADR candidates surfaced
-- [ ] Run `/sprint-plan`:
+- [x] Run `/sprint-plan`:
   - Break down implementation tasks
-- [ ] Run at least 1 sprint cycle:
+- [x] Run at least 1 sprint cycle:
   - `/implement sprint-1`
   - `/review-sprint sprint-1`
   - Verify Learning candidates surfaced
-- [ ] Document any gaps or issues in `loa-grimoire/notepad.md`
+- [x] Document any gaps or issues in `loa-grimoire/notepad.md`
 
 **Effort**: Large (8-10 hours across pilot execution)
 
@@ -621,13 +621,13 @@ Integrate Loa (Laboratory Executor) with Hivemind OS (Organizational Memory) to 
 **Description**: Document lessons learned from pilot, update notepad, and capture any Gap candidates.
 
 **Acceptance Criteria**:
-- [ ] Review pilot execution for friction points
-- [ ] Update `loa-grimoire/notepad.md` with:
+- [x] Review pilot execution for friction points
+- [x] Update `loa-grimoire/notepad.md` with:
   - What worked well
   - What needs improvement
   - Gap candidates (education skill? brand versioning?)
-- [ ] Create Learning candidates for discovered patterns
-- [ ] Update CLAUDE.md if any command behavior changed
+- [x] Create Learning candidates for discovered patterns
+- [x] Update CLAUDE.md if any command behavior changed
 
 **Effort**: Small (2-3 hours)
 

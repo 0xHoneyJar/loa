@@ -72,7 +72,27 @@ Please run `/setup` first to:
 After setup is complete, run `/plan-and-analyze` again.
 ```
 
-If the file EXISTS, proceed with the PRD process.
+If the file EXISTS, proceed with Phase 0.5 (Hivemind Context Injection).
+
+## Phase 0.5: Hivemind Context Injection
+
+Before beginning discovery, check if Hivemind is connected:
+
+1. Check `.hivemind` symlink: `[ -L '.hivemind' ] && [ -d '.hivemind/library' ]`
+2. If connected:
+   - Read project type from `loa-grimoire/a2a/integration-context.md`
+   - Extract keywords from user description and project context
+   - Spawn 3 parallel Explore agents to search Hivemind:
+     * Decision Archaeologist: Search `.hivemind/library/decisions/` for relevant ADRs
+     * Timeline Navigator: Search `.hivemind/library/timeline/` for past experiments
+     * Technical Reference Finder: Search `.hivemind/library/knowledge/` for Learning Memos
+   - Synthesize results into organizational context block
+   - Inject context into your working memory
+3. If not connected:
+   - Show notice: 'Hivemind not connected, proceeding without org context'
+   - Continue normally
+
+See `.claude/lib/context-injector.md` for detailed patterns.
 
 ## Analytics Update (Phase Final)
 
@@ -119,7 +139,124 @@ Please run `/setup` first to:
 After setup is complete, run `/plan-and-analyze` again.
 ```
 
-If the file EXISTS, proceed with Phase 0.
+If the file EXISTS, proceed with Phase 0.5.
+
+---
+
+## Phase 0.5: Hivemind Context Injection
+
+Before beginning discovery, check if Hivemind is connected and inject organizational context.
+
+### Step 1: Check Hivemind Connection
+
+```bash
+# Check if .hivemind symlink exists and is valid
+if [ -L ".hivemind" ] && [ -d ".hivemind/library" ]; then
+    echo "HIVEMIND_STATUS:connected"
+else
+    echo "HIVEMIND_STATUS:not_connected"
+fi
+```
+
+### Step 2: Handle Connection Status
+
+**If Hivemind is NOT connected**:
+```markdown
+**Notice**: Hivemind OS is not connected. Proceeding without organizational context.
+
+To enable context injection from organizational memory:
+1. Run `/setup`
+2. Select "Connect to Hivemind OS"
+
+Continuing with PRD discovery...
+```
+Skip to Phase 0 and proceed normally.
+
+**If Hivemind IS connected**:
+Continue with context injection below.
+
+### Step 3: Read Integration Context
+
+Read project configuration from `loa-grimoire/a2a/integration-context.md`:
+- Project type (for domain keywords)
+- Linked experiment (if any, for hypothesis keywords)
+- Product Home (for context about the product)
+
+### Step 4: Extract Keywords
+
+From the user's problem description (if provided) and project context, extract keywords:
+
+**Keyword Sources**:
+1. User's initial description (noun phrases, technical terms, brand names)
+2. Project type keywords (see `.claude/lib/context-injector.md`)
+3. Linked experiment hypothesis keywords (if available)
+
+**Keyword Categories**:
+- High priority: Brand names (CubQuests, Set & Forgetti, Henlo, Mibera), domain terms
+- Medium priority: Technical terms, action verbs
+- Low priority: Generic technology terms
+
+### Step 5: Spawn Parallel Research Agents
+
+Using the Task tool, spawn 3 parallel Explore agents to gather organizational context:
+
+```markdown
+## Context Injection - Parallel Research
+
+Spawn these agents in parallel to search Hivemind:
+
+### Agent 1: Decision Archaeologist
+Search `.hivemind/library/decisions/` for ADRs matching keywords: {extracted_keywords}
+Return: List of relevant ADRs with:
+- ADR number and title
+- Brief summary
+- Why it's relevant to this project
+
+### Agent 2: Timeline Navigator
+Search `.hivemind/library/timeline/` and `.hivemind/laboratory/experiments/` for past experiments matching: {domain_keywords}
+Return: List of related experiments/ERRs with:
+- Experiment name and outcome
+- Key learnings
+- How it applies to current work
+
+### Agent 3: Technical Reference Finder
+Search `.hivemind/library/ecosystem/` and `.hivemind/library/knowledge/` for docs matching: {technical_keywords}
+Return: List of Learning Memos and ecosystem docs with:
+- Document title
+- Key insights
+- Relevant patterns
+```
+
+### Step 6: Synthesize and Inject Context
+
+After agents return, synthesize results into a context block:
+
+```markdown
+## Organizational Context (Injected from Hivemind)
+
+Based on organizational memory, here is relevant context for this PRD:
+
+### Relevant Decisions
+{List ADRs that inform this project}
+
+### Past Experiments
+{List experiments with relevant learnings}
+
+### Proven Patterns
+{List Learning Memos with applicable patterns}
+
+### Technical Context
+{List ecosystem docs that provide foundation}
+
+---
+*Context injected from Hivemind OS at {timestamp}*
+```
+
+Inject this context block into the PRD architect's working memory before beginning discovery.
+
+### Step 7: Proceed to Discovery
+
+With organizational context injected (or notice shown if disconnected), proceed to Phase 0.
 
 ---
 
