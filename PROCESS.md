@@ -2,7 +2,7 @@
 
 This document outlines the comprehensive agent-driven development workflow. Our process leverages specialized AI agents to guide you from initial concept to production-ready implementation.
 
-> **Note**: This is a base framework repository. When using as a template for a new project, uncomment the generated artifacts section in `.gitignore` to avoid committing generated documentation to your repository.
+> **Note**: This is a base framework repository that THJ uses for development of our products. If you are not a part of THJ, when using as a template for a new project, uncomment the generated artifacts section in `.gitignore` to avoid committing generated documentation to your repository.
 
 ## Table of Contents
 

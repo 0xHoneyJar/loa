@@ -1,5 +1,8 @@
 # Loa
 
+[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](CHANGELOG.md)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
+
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
 
 An agent-driven development framework that orchestrates the complete product development lifecycle—from requirements gathering through production deployment—using specialized AI agents.
@@ -268,5 +271,6 @@ See [LICENSE.md](LICENSE.md) for the full license text.
 
 ## Links
 
-- [Claude Code Documentation](https://docs.anthropic.com/en/loa-grimoire/claude-code)
+- [Claude Code Documentation](https://docs.anthropic.com/en/docs/claude-code)
 - [Repository](https://github.com/0xHoneyJar/loa)
+- [Changelog](CHANGELOG.md)
