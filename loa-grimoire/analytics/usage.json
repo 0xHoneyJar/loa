@@ -39,9 +39,9 @@
     },
     "sprint_planning": {
       "started_at": null,
-      "completed_at": null,
-      "total_sprints": 0,
-      "total_tasks": 0
+      "completed_at": "2025-12-19T08:53:35Z",
+      "total_sprints": 4,
+      "total_tasks": 22
     }
   },
   "sprints": [],
@@ -49,8 +49,8 @@
   "audits": [],
   "deployments": [],
   "totals": {
-    "commands_executed": 3,
-    "phases_completed": 2,
+    "commands_executed": 4,
+    "phases_completed": 3,
     "sprints_completed": 0,
     "reviews_completed": 0,
     "audits_completed": 0,
