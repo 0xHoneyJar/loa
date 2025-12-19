@@ -56,12 +56,12 @@ This agent follows the KERNEL prompt engineering framework for optimal results:
 
 **Task (N - Narrow Scope):** Two modes:
 1. **Integration Mode:** Implement organizational integration layer (Discord bots, webhooks, sync scripts) designed by context-engineering-expert. Deliverable: Working integration infrastructure in `integration/` directory.
-2. **Deployment Mode:** Design and deploy production infrastructure for crypto/blockchain projects. Deliverables: IaC code, CI/CD pipelines, monitoring, operational docs in `docs/deployment/`.
+2. **Deployment Mode:** Design and deploy production infrastructure for crypto/blockchain projects. Deliverables: IaC code, CI/CD pipelines, monitoring, operational docs in `loa-grimoire/deployment/`.
 
 **Context (L - Logical Structure):**
-- **Integration Mode Input:** `docs/integration-architecture.md`, `docs/tool-setup.md`, `docs/a2a/integration-context.md`
-- **Deployment Mode Input:** `docs/prd.md`, `docs/sdd.md`, `docs/sprint.md` (completed sprints)
-- Integration context (if exists): `docs/a2a/integration-context.md` for deployment tracking, monitoring requirements, team communication channels
+- **Integration Mode Input:** `loa-grimoire/integration-architecture.md`, `loa-grimoire/tool-setup.md`, `loa-grimoire/a2a/integration-context.md`
+- **Deployment Mode Input:** `loa-grimoire/prd.md`, `loa-grimoire/sdd.md`, `loa-grimoire/sprint.md` (completed sprints)
+- Integration context (if exists): `loa-grimoire/a2a/integration-context.md` for deployment tracking, monitoring requirements, team communication channels
 - Current state: Either integration design OR application code ready for production
 - Desired state: Either working integration infrastructure OR production-ready deployment
 
@@ -81,13 +81,13 @@ This agent follows the KERNEL prompt engineering framework for optimal results:
 - All integration components working (Discord bot responds, webhooks trigger, sync scripts run)
 - Test procedures documented and passing
 - Deployment configs in `integration/` directory
-- Operational runbooks in `docs/deployment/integration-runbook.md`
+- Operational runbooks in `loa-grimoire/deployment/integration-runbook.md`
 
 **Deployment Mode Success:**
 - Infrastructure deployed and accessible
 - Monitoring dashboards showing metrics
 - All secrets managed externally (Vault, AWS Secrets Manager, etc.)
-- Complete documentation in `docs/deployment/` (infrastructure.md, deployment-guide.md, runbooks/)
+- Complete documentation in `loa-grimoire/deployment/` (infrastructure.md, deployment-guide.md, runbooks/)
 - Disaster recovery tested
 
 **Reproducibility (R - Reproducible Results):**
@@ -426,10 +426,10 @@ You embody the intersection of three disciplines:
 
 ```bash
 # Quick size check for deployment mode (run via Bash or estimate from file reads)
-wc -l docs/prd.md docs/sdd.md docs/sprint.md docs/a2a/*.md 2>/dev/null
+wc -l loa-grimoire/prd.md loa-grimoire/sdd.md loa-grimoire/sprint.md loa-grimoire/a2a/*.md 2>/dev/null
 
 # Quick size check for integration mode
-wc -l docs/integration-architecture.md docs/tool-setup.md docs/a2a/*.md 2>/dev/null
+wc -l loa-grimoire/integration-architecture.md loa-grimoire/tool-setup.md loa-grimoire/a2a/*.md 2>/dev/null
 
 # Count lines in existing infrastructure code
 find . -name "*.tf" -o -name "*.yaml" -o -name "Dockerfile*" | xargs wc -l 2>/dev/null | tail -1
@@ -532,7 +532,7 @@ Agent 2: "Configure GitHub webhooks:
 When responding to deployment feedback with multiple issues:
 
 ```
-1. Read docs/a2a/deployment-feedback.md
+1. Read loa-grimoire/a2a/deployment-feedback.md
 2. Categorize feedback issues:
    - Security issues (critical priority)
    - Configuration issues (high priority)
@@ -558,7 +558,7 @@ Return: files modified, verification steps for each fix"
 1. Collect results from all parallel agents
 2. Verify infrastructure integration (components can communicate)
 3. Run infrastructure tests (connectivity, health checks)
-4. Generate unified deployment report at docs/a2a/deployment-report.md
+4. Generate unified deployment report at loa-grimoire/a2a/deployment-report.md
 
 **Decision Matrix:**
 
@@ -578,7 +578,7 @@ Return: files modified, verification steps for each fix"
 
 ### Phase 0: Check Integration Context (FIRST)
 
-**Before starting deployment planning**, check if `docs/a2a/integration-context.md` exists:
+**Before starting deployment planning**, check if `loa-grimoire/a2a/integration-context.md` exists:
 
 If it exists, read it to understand:
 - **Deployment tracking**: Where to document deployment status (e.g., Linear deployment issues, GitHub releases)
@@ -613,7 +613,7 @@ Identify which mode you're operating in:
 **Integration Mode Parent Issue:**
 
 ```typescript
-// When implementing integration layer from docs/integration-architecture.md
+// When implementing integration layer from loa-grimoire/integration-architecture.md
 
 Use mcp__linear__create_issue with:
 
@@ -625,9 +625,9 @@ description:
   Implementing organizational integration layer designed by context-engineering-expert.
 
   **Reference Documents:**
-  - docs/integration-architecture.md - Integration design
-  - docs/tool-setup.md - Tool configuration requirements
-  - docs/a2a/integration-context.md - Implementation specifications
+  - loa-grimoire/integration-architecture.md - Integration design
+  - loa-grimoire/tool-setup.md - Tool configuration requirements
+  - loa-grimoire/a2a/integration-context.md - Implementation specifications
 
   **Scope:**
   - Discord bot deployment
@@ -636,7 +636,7 @@ description:
   - Monitoring and alerting setup
   - Operational runbooks
 
-  **Implementation Tracking:** docs/a2a/deployment-report.md"
+  **Implementation Tracking:** loa-grimoire/a2a/deployment-report.md"
 
 labels: ["agent:devops", "type:infrastructure", "source:internal"]
 assignee: "me"
@@ -659,9 +659,9 @@ description:
   Deploying {project-name} to production with complete infrastructure, monitoring, and security hardening.
 
   **Reference Documents:**
-  - docs/prd.md - Product requirements
-  - docs/sdd.md - System design
-  - docs/sprint.md - Completed sprint: {sprint-name}
+  - loa-grimoire/prd.md - Product requirements
+  - loa-grimoire/sdd.md - System design
+  - loa-grimoire/sprint.md - Completed sprint: {sprint-name}
 
   **Scope:**
   - Infrastructure as Code (Terraform/Pulumi/CDK)
@@ -671,7 +671,7 @@ description:
   - Backup and disaster recovery
   - Operational runbooks
 
-  **Implementation Tracking:** docs/a2a/deployment-report.md"
+  **Implementation Tracking:** loa-grimoire/a2a/deployment-report.md"
 
 labels: ["agent:devops", "type:infrastructure", "sprint:{sprint-name if applicable}"]
 assignee: "me"
@@ -682,7 +682,7 @@ team: "{team-id from integration-context.md or use default team}"
 **Label Selection Rules:**
 - `agent:devops` - Always include for all infrastructure work
 - `type:infrastructure` - Always include for deployment/integration work
-- `sprint:{name}` - Include if deployment relates to a specific sprint (extract from docs/sprint.md)
+- `sprint:{name}` - Include if deployment relates to a specific sprint (extract from loa-grimoire/sprint.md)
 - `source:internal` - For integration mode (agent-generated work)
 
 **Store the Issue Details:**
@@ -888,7 +888,7 @@ mcp__linear__update_issue(subIssueId, { state: "Done" })
 
 **Step 7: Generate Deployment Report with Linear Section**
 
-In `docs/a2a/deployment-report.md`, add this section **at the very top** of the file:
+In `loa-grimoire/a2a/deployment-report.md`, add this section **at the very top** of the file:
 
 ```markdown
 ## Linear Issue Tracking
@@ -903,7 +903,7 @@ In `docs/a2a/deployment-report.md`, add this section **at the very top** of the 
 - [{SUB-3}]({URL}) - Monitoring (✅ Done)
 - [{SUB-4}]({URL}) - Security Hardening (✅ Done)
 
-**Deployment Documentation:** docs/deployment/
+**Deployment Documentation:** loa-grimoire/deployment/
 **Infrastructure Code:** {terraform/, docker/, etc.}
 
 **Query all infrastructure work:**
@@ -930,7 +930,7 @@ mcp__linear__update_issue(parentIssueId, { state: "In Review" })
 mcp__linear__create_comment(parentIssueId, "
 ✅ **Infrastructure Deployment Complete - Ready for Review**
 
-**Deployment Report:** docs/a2a/deployment-report.md
+**Deployment Report:** loa-grimoire/a2a/deployment-report.md
 
 **Summary:**
 - Sub-issues: 4/4 completed (100%)
@@ -961,14 +961,14 @@ curl https://grafana.example.com/api/health
 
 **Step 9: Handle Review Feedback**
 
-**When `docs/a2a/deployment-feedback.md` contains "CHANGES_REQUIRED":**
+**When `loa-grimoire/a2a/deployment-feedback.md` contains "CHANGES_REQUIRED":**
 
 ```typescript
 // Add comment to parent issue acknowledging feedback
 mcp__linear__create_comment(parentIssueId, "
 📝 **Addressing Deployment Feedback**
 
-Senior technical lead or security auditor feedback received in docs/a2a/deployment-feedback.md
+Senior technical lead or security auditor feedback received in loa-grimoire/a2a/deployment-feedback.md
 
 **Issues to address:**
 {Brief bullet-point summary of feedback items}
@@ -1058,7 +1058,7 @@ In Review → (feedback) → fix issues → update report → stay In Review
 
 **Troubleshooting:**
 
-- **"Cannot find team ID"**: Check `docs/a2a/integration-context.md` or use `mcp__linear__list_teams`
+- **"Cannot find team ID"**: Check `loa-grimoire/a2a/integration-context.md` or use `mcp__linear__list_teams`
 - **"Label not found"**: Ensure setup-linear-labels.ts script was run
 - **"How to link deployment to sprint?"**: Include sprint label if deployment relates to specific sprint work
 - **"Multiple deployments?"**: Create separate parent issues for different environments (staging, prod)
@@ -1078,9 +1078,9 @@ In Review → (feedback) → fix issues → update report → stay In Review
    - Review monitoring and alerting setup
 
 3. **Gather Context**:
-   - Check `docs/a2a/integration-context.md` (if exists) for organizational context
-   - Check `docs/prd.md` for product requirements
-   - Check `docs/sdd.md` for system design decisions
+   - Check `loa-grimoire/a2a/integration-context.md` (if exists) for organizational context
+   - Check `loa-grimoire/prd.md` for product requirements
+   - Check `loa-grimoire/sdd.md` for system design decisions
    - Review any existing infrastructure code
    - Understand the blockchain/crypto specific requirements
 
@@ -1258,9 +1258,9 @@ This section documents all resources that inform the DevOps Crypto Architect's w
 
 ### Input Documents
 
-- **Integration Architecture**: `docs/integration-architecture.md` (if exists, for Phase 0.5 integration mode)
-- **Software Design Document (SDD)**: `docs/sdd.md` (Phase 6 deployment mode)
-- **Sprint Plan**: `docs/sprint.md` (implementation reference)
+- **Integration Architecture**: `loa-grimoire/integration-architecture.md` (if exists, for Phase 0.5 integration mode)
+- **Software Design Document (SDD)**: `loa-grimoire/sdd.md` (Phase 6 deployment mode)
+- **Sprint Plan**: `loa-grimoire/sprint.md` (implementation reference)
 
 ### Framework Documentation
 
@@ -1285,8 +1285,8 @@ This section documents all resources that inform the DevOps Crypto Architect's w
 
 - **Docker Documentation**: https://docs.docker.com/
 - **Docker Compose**: https://docs.docker.com/compose/
-- **Kubernetes Documentation**: https://kubernetes.io/docs/home/
-- **Helm Charts**: https://helm.sh/docs/
+- **Kubernetes Documentation**: https://kubernetes.io/loa-grimoire/home/
+- **Helm Charts**: https://helm.sh/loa-grimoire/
 
 ### CI/CD
 
@@ -1296,11 +1296,11 @@ This section documents all resources that inform the DevOps Crypto Architect's w
 
 ### Monitoring & Observability
 
-- **Prometheus**: https://prometheus.io/docs/introduction/overview/
-- **Grafana**: https://grafana.com/docs/grafana/latest/
+- **Prometheus**: https://prometheus.io/loa-grimoire/introduction/overview/
+- **Grafana**: https://grafana.com/loa-grimoire/grafana/latest/
 - **DataDog**: https://docs.datadoghq.com/
 - **New Relic**: https://docs.newrelic.com/
-- **OpenTelemetry**: https://opentelemetry.io/docs/
+- **OpenTelemetry**: https://opentelemetry.io/loa-grimoire/
 
 ### Cloud Providers
 
@@ -1310,8 +1310,8 @@ This section documents all resources that inform the DevOps Crypto Architect's w
 
 ### Blockchain & Crypto
 
-- **Ethereum Documentation**: https://ethereum.org/en/developers/docs/
-- **Hardhat**: https://hardhat.org/hardhat-runner/docs/getting-started
+- **Ethereum Documentation**: https://ethereum.org/en/developers/loa-grimoire/
+- **Hardhat**: https://hardhat.org/hardhat-runner/loa-grimoire/getting-started
 - **Foundry**: https://book.getfoundry.sh/
 - **Alchemy Documentation**: https://docs.alchemy.com/
 - **Infura Documentation**: https://docs.infura.io/

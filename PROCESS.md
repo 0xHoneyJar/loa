@@ -30,7 +30,7 @@ Our development process follows a structured, seven-phase approach:
 
 Each phase is handled by a specialized agent with deep domain expertise, ensuring thorough discovery, clear documentation, high-quality implementation, rigorous quality control, comprehensive security review, and enterprise-grade production deployment.
 
-> **For production deployment**, use the `/deploy-production` command which generates deployment documentation in `docs/deployment/`.
+> **For production deployment**, use the `/deploy-production` command which generates deployment documentation in `loa-grimoire/deployment/`.
 
 ---
 
@@ -43,7 +43,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
   - Guide structured discovery across 7 phases
   - Extract complete, unambiguous requirements
   - Create comprehensive Product Requirements Documents
-- **Output**: `docs/prd.md`
+- **Output**: `loa-grimoire/prd.md`
 
 ### 2. **architecture-designer** (Software Architect)
 - **Role**: Senior Software Architect with deep technical expertise
@@ -53,7 +53,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
   - Define component structure and technical stack
   - Clarify uncertainties with concrete proposals
   - Make informed architectural decisions
-- **Output**: `docs/sdd.md`
+- **Output**: `loa-grimoire/sdd.md`
 
 ### 3. **sprint-planner** (Technical Product Manager)
 - **Role**: Technical PM with engineering and product expertise
@@ -63,7 +63,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
   - Break down work into actionable sprint tasks
   - Define acceptance criteria and priorities
   - Sequence tasks based on dependencies
-- **Output**: `docs/sprint.md`
+- **Output**: `loa-grimoire/sprint.md`
 
 ### 4. **sprint-task-implementer** (Senior Engineer)
 - **Role**: Elite Software Engineer with 15 years of experience
@@ -73,7 +73,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
   - Address feedback from senior technical lead
   - Iterate until sprint is approved
   - Generate detailed implementation reports
-- **Output**: Production code + `docs/a2a/reviewer.md`
+- **Output**: Production code + `loa-grimoire/a2a/reviewer.md`
 
 ### 5. **senior-tech-lead-reviewer** (Senior Technical Lead)
 - **Role**: Senior Technical Lead with 15+ years of experience
@@ -85,7 +85,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
   - Verify previous feedback was addressed
   - Provide detailed, actionable feedback to engineers
   - Update sprint progress and approve completed sprints
-- **Output**: `docs/a2a/engineer-feedback.md`, updated `docs/sprint.md`
+- **Output**: `loa-grimoire/a2a/engineer-feedback.md`, updated `loa-grimoire/sprint.md`
 
 ### 6. **devops-crypto-architect** (DevOps Architect)
 - **Role**: Battle-tested DevOps Architect with 15 years of crypto/blockchain infrastructure experience
@@ -97,7 +97,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
   - Set up monitoring, alerting, and observability
   - Implement security hardening and secrets management
   - Generate handover documentation and runbooks
-- **Output**: `docs/deployment/` with infrastructure code and operational docs
+- **Output**: `loa-grimoire/deployment/` with infrastructure code and operational docs
 
 ### 7. **paranoid-auditor** (Security Auditor)
 - **Role**: Paranoid Cypherpunk Security Auditor with 30+ years of experience
@@ -109,7 +109,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
   - Audit authentication, authorization, and access controls
   - Provide prioritized remediation guidance
 - **Output**:
-  - Sprint audit: `docs/a2a/auditor-sprint-feedback.md` (per-sprint security review)
+  - Sprint audit: `loa-grimoire/a2a/auditor-sprint-feedback.md` (per-sprint security review)
   - Codebase audit: `SECURITY-AUDIT-REPORT.md` (comprehensive security audit)
 - **Usage**:
   - Sprint audit: After `/review-sprint` approval (Phase 5.5)
@@ -148,14 +148,14 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 2. Agent asks 2-3 questions at a time (never overwhelming)
 3. Agent probes for specifics and challenges assumptions
 4. Only generates PRD when all questions are answered
-5. Saves comprehensive PRD to `docs/prd.md`
+5. Saves comprehensive PRD to `loa-grimoire/prd.md`
 
 **Command**:
 ```bash
 /plan-and-analyze
 ```
 
-**Output**: `docs/prd.md`
+**Output**: `loa-grimoire/prd.md`
 
 ---
 
@@ -166,7 +166,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 **Goal**: Design system architecture and create SDD
 
 **Process**:
-1. Carefully reviews `docs/prd.md` in its entirety
+1. Carefully reviews `loa-grimoire/prd.md` in its entirety
 2. Designs system architecture, components, data models, APIs
 3. For any uncertainties or ambiguous decisions:
    - Asks specific clarifying questions
@@ -175,14 +175,14 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
    - Waits for your decision
 4. Validates all assumptions
 5. Only generates SDD when completely confident (no doubts)
-6. Saves comprehensive SDD to `docs/sdd.md`
+6. Saves comprehensive SDD to `loa-grimoire/sdd.md`
 
 **Command**:
 ```bash
 /architect
 ```
 
-**Output**: `docs/sdd.md`
+**Output**: `loa-grimoire/sdd.md`
 
 **SDD Sections**:
 - Executive Summary
@@ -208,7 +208,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 **Goal**: Break down work into actionable sprint tasks
 
 **Process**:
-1. Reviews both `docs/prd.md` and `docs/sdd.md` thoroughly
+1. Reviews both `loa-grimoire/prd.md` and `loa-grimoire/sdd.md` thoroughly
 2. Analyzes requirements and architecture
 3. Plans sprint breakdown and task sequencing
 4. For any uncertainties:
@@ -217,14 +217,14 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
    - Clarifies MVP scope and dependencies
    - Waits for your decisions
 5. Only generates sprint plan when confident
-6. Saves comprehensive sprint plan to `docs/sprint.md`
+6. Saves comprehensive sprint plan to `loa-grimoire/sprint.md`
 
 **Command**:
 ```bash
 /sprint-plan
 ```
 
-**Output**: `docs/sprint.md`
+**Output**: `loa-grimoire/sprint.md`
 
 **Sprint Plan Includes**:
 - Sprint Overview (goals, duration, team structure)
@@ -251,20 +251,20 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 **Process**:
 
 #### **Cycle 1: Initial Implementation**
-1. **Check for Feedback**: Looks for `docs/a2a/engineer-feedback.md` (won't exist on first run)
-2. **Review Documentation**: Reads all `docs/*` for context (PRD, SDD, sprint plan)
+1. **Check for Feedback**: Looks for `loa-grimoire/a2a/engineer-feedback.md` (won't exist on first run)
+2. **Review Documentation**: Reads all `loa-grimoire/*` for context (PRD, SDD, sprint plan)
 3. **Implement Tasks**:
    - Production-quality code
    - Comprehensive unit tests
    - Follow project conventions
    - Handle edge cases and errors
-4. **Generate Report**: Saves detailed report to `docs/a2a/reviewer.md`
+4. **Generate Report**: Saves detailed report to `loa-grimoire/a2a/reviewer.md`
 
 #### **Cycle 2+: Feedback Iteration**
-1. **Read Feedback**: Senior technical lead creates `docs/a2a/engineer-feedback.md`
+1. **Read Feedback**: Senior technical lead creates `loa-grimoire/a2a/engineer-feedback.md`
 2. **Clarify if Needed**: Agent asks questions if feedback is unclear
 3. **Fix Issues**: Address all feedback items systematically
-4. **Update Report**: Generate new report at `docs/a2a/reviewer.md`
+4. **Update Report**: Generate new report at `loa-grimoire/a2a/reviewer.md`
 5. **Repeat**: Cycle continues until approved
 
 **Command**:
@@ -278,7 +278,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 
 **Outputs**:
 - Production code with tests
-- `docs/a2a/reviewer.md` (implementation report)
+- `loa-grimoire/a2a/reviewer.md` (implementation report)
 
 **Implementation Report Includes**:
 - Executive Summary
@@ -301,11 +301,11 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 
 #### **Review Workflow**
 1. **Context Gathering**:
-   - Reads `docs/prd.md` for product requirements
-   - Reads `docs/sdd.md` for architecture and design
-   - Reads `docs/sprint.md` for tasks and acceptance criteria
-   - Reads `docs/a2a/reviewer.md` for engineer's implementation report
-   - Reads `docs/a2a/engineer-feedback.md` for previous feedback (if exists)
+   - Reads `loa-grimoire/prd.md` for product requirements
+   - Reads `loa-grimoire/sdd.md` for architecture and design
+   - Reads `loa-grimoire/sprint.md` for tasks and acceptance criteria
+   - Reads `loa-grimoire/a2a/reviewer.md` for engineer's implementation report
+   - Reads `loa-grimoire/a2a/engineer-feedback.md` for previous feedback (if exists)
 
 2. **Code Review**:
    - Reads all modified files (actual code, not just report)
@@ -328,8 +328,8 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
    - All previous feedback addressed
 
    **Actions**:
-   - Writes "All good" to `docs/a2a/engineer-feedback.md`
-   - Updates `docs/sprint.md` with ✅ for completed tasks
+   - Writes "All good" to `loa-grimoire/a2a/engineer-feedback.md`
+   - Updates `loa-grimoire/sprint.md` with ✅ for completed tasks
    - Marks sprint as "COMPLETED"
    - Informs you to move to next sprint
 
@@ -338,7 +338,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
    - Previous feedback not addressed
 
    **Actions**:
-   - Writes detailed feedback to `docs/a2a/engineer-feedback.md`
+   - Writes detailed feedback to `loa-grimoire/a2a/engineer-feedback.md`
    - Does NOT update sprint completion status
    - Provides specific, actionable feedback with file paths and line numbers
    - Informs you that changes are required
@@ -349,8 +349,8 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 ```
 
 **Outputs**:
-- `docs/a2a/engineer-feedback.md` (approval or feedback)
-- Updated `docs/sprint.md` (if approved)
+- `loa-grimoire/a2a/engineer-feedback.md` (approval or feedback)
+- Updated `loa-grimoire/sprint.md` (if approved)
 
 **Feedback Structure** (when issues found):
 - Overall Assessment
@@ -379,16 +379,16 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 **Goal**: Perform security review of sprint implementation after senior tech lead approval
 
 **Prerequisites**:
-- ✅ Sprint must be approved by senior tech lead ("All good" in `docs/a2a/engineer-feedback.md`)
+- ✅ Sprint must be approved by senior tech lead ("All good" in `loa-grimoire/a2a/engineer-feedback.md`)
 
 **Process**:
 
 #### **Security Audit Workflow**
 1. **Context Gathering**:
-   - Reads `docs/prd.md` for product requirements
-   - Reads `docs/sdd.md` for architecture and security requirements
-   - Reads `docs/sprint.md` for sprint tasks and scope
-   - Reads `docs/a2a/reviewer.md` for implementation details
+   - Reads `loa-grimoire/prd.md` for product requirements
+   - Reads `loa-grimoire/sdd.md` for architecture and security requirements
+   - Reads `loa-grimoire/sprint.md` for sprint tasks and scope
+   - Reads `loa-grimoire/a2a/reviewer.md` for implementation details
 
 2. **Security Review**:
    - Reads all implemented code files (not just reports)
@@ -402,7 +402,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
    - Identifies security issues with severity ratings (CRITICAL/HIGH/MEDIUM/LOW)
 
 3. **Previous Feedback Verification** (if applicable):
-   - Checks if `docs/a2a/auditor-sprint-feedback.md` exists from previous audit
+   - Checks if `loa-grimoire/a2a/auditor-sprint-feedback.md` exists from previous audit
    - Verifies ALL previous security issues were properly fixed
    - Confirms no regression of previously identified issues
 
@@ -416,7 +416,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
    - Input validation comprehensive
 
    **Actions**:
-   - Writes "APPROVED - LETS FUCKING GO" to `docs/a2a/auditor-sprint-feedback.md`
+   - Writes "APPROVED - LETS FUCKING GO" to `loa-grimoire/a2a/auditor-sprint-feedback.md`
    - Confirms sprint is ready for next sprint or deployment
    - User can proceed to next sprint or Phase 6 (Deployment)
 
@@ -426,7 +426,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
    - Security best practices violated
 
    **Actions**:
-   - Writes "CHANGES_REQUIRED" with detailed security feedback to `docs/a2a/auditor-sprint-feedback.md`
+   - Writes "CHANGES_REQUIRED" with detailed security feedback to `loa-grimoire/a2a/auditor-sprint-feedback.md`
    - Provides specific security issues with:
      - Severity level (CRITICAL/HIGH/MEDIUM/LOW)
      - Affected files and line numbers
@@ -441,7 +441,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 ```
 
 **Outputs**:
-- `docs/a2a/auditor-sprint-feedback.md` (security approval or detailed feedback)
+- `loa-grimoire/a2a/auditor-sprint-feedback.md` (security approval or detailed feedback)
 
 **Feedback Structure** (when security issues found):
 - Overall Security Assessment
@@ -470,7 +470,7 @@ After security audit, if changes required:
    ```bash
    /implement sprint-1
    ```
-   - Agent reads `docs/a2a/auditor-sprint-feedback.md` FIRST (highest priority)
+   - Agent reads `loa-grimoire/a2a/auditor-sprint-feedback.md` FIRST (highest priority)
    - Clarifies any unclear security issues
    - Fixes ALL CRITICAL and HIGH security issues
    - Updates implementation report with "Security Audit Feedback Addressed" section
@@ -488,7 +488,7 @@ After security audit, if changes required:
    - OR proceed to Phase 6 (Deployment) if all sprints complete
 
 **Priority Integration**:
-- Sprint planner checks `docs/a2a/auditor-sprint-feedback.md` FIRST
+- Sprint planner checks `loa-grimoire/a2a/auditor-sprint-feedback.md` FIRST
 - If "CHANGES_REQUIRED" exists, blocks new sprint planning
 - Sprint implementer addresses security feedback with HIGHEST priority
 - Security feedback takes precedence over code review feedback
@@ -545,7 +545,7 @@ After security audit, if changes required:
    - Testing and validation
 
 5. **Documentation and Handover**:
-   Creates comprehensive docs in `docs/deployment/`:
+   Creates comprehensive docs in `loa-grimoire/deployment/`:
    - **infrastructure.md**: Architecture overview, resources, cost breakdown
    - **deployment-guide.md**: How to deploy, rollback, migrations
    - **runbooks/**: Operational procedures for common tasks
@@ -564,7 +564,7 @@ After security audit, if changes required:
 - IaC repository (Terraform/Pulumi configs)
 - CI/CD pipelines (GitHub Actions/GitLab CI)
 - Monitoring configuration (Prometheus, Grafana)
-- Comprehensive documentation (`docs/deployment/`)
+- Comprehensive documentation (`loa-grimoire/deployment/`)
 
 ---
 
@@ -620,8 +620,8 @@ After security audit, if changes required:
 **Command**:
 ```bash
 /translate @SECURITY-AUDIT-REPORT.md for board of directors
-/translate @docs/sdd.md for executives
-/translate @docs/sprint.md for marketing team
+/translate @loa-grimoire/sdd.md for executives
+/translate @loa-grimoire/sprint.md for marketing team
 ```
 
 **Output**: Executive summaries, stakeholder briefings (1-3 pages tailored by audience)
@@ -632,18 +632,18 @@ After security audit, if changes required:
 
 | Command | Purpose | Agent | Output |
 |---------|---------|-------|--------|
-| `/plan-and-analyze` | Define requirements and create PRD | `prd-architect` | `docs/prd.md` |
-| `/architect` | Design system architecture | `architecture-designer` | `docs/sdd.md` |
-| `/sprint-plan` | Plan implementation sprints | `sprint-planner` | `docs/sprint.md` |
-| `/implement {sprint}` | Implement sprint tasks | `sprint-task-implementer` | Code + `docs/a2a/reviewer.md` |
-| `/review-sprint` | Review and approve/reject implementation | `senior-tech-lead-reviewer` | `docs/a2a/engineer-feedback.md` |
-| `/audit-sprint` | Security audit of sprint implementation | `paranoid-auditor` | `docs/a2a/auditor-sprint-feedback.md` |
-| `/deploy-production` | Deploy to production | `devops-crypto-architect` | `docs/deployment/` |
+| `/plan-and-analyze` | Define requirements and create PRD | `prd-architect` | `loa-grimoire/prd.md` |
+| `/architect` | Design system architecture | `architecture-designer` | `loa-grimoire/sdd.md` |
+| `/sprint-plan` | Plan implementation sprints | `sprint-planner` | `loa-grimoire/sprint.md` |
+| `/implement {sprint}` | Implement sprint tasks | `sprint-task-implementer` | Code + `loa-grimoire/a2a/reviewer.md` |
+| `/review-sprint` | Review and approve/reject implementation | `senior-tech-lead-reviewer` | `loa-grimoire/a2a/engineer-feedback.md` |
+| `/audit-sprint` | Security audit of sprint implementation | `paranoid-auditor` | `loa-grimoire/a2a/auditor-sprint-feedback.md` |
+| `/deploy-production` | Deploy to production | `devops-crypto-architect` | `loa-grimoire/deployment/` |
 | `/audit` | Security audit (ad-hoc) | `paranoid-auditor` | `SECURITY-AUDIT-REPORT.md` |
-| `/audit-deployment` | Deployment infrastructure audit (ad-hoc) | `paranoid-auditor` | `docs/a2a/deployment-feedback.md` |
+| `/audit-deployment` | Deployment infrastructure audit (ad-hoc) | `paranoid-auditor` | `loa-grimoire/a2a/deployment-feedback.md` |
 | `/translate @doc for [audience]` | Executive translation (ad-hoc) | `devrel-translator` | Executive summaries |
 
-> **For deployment procedures**, use `/deploy-production` which generates comprehensive runbooks in `docs/deployment/runbooks/`.
+> **For deployment procedures**, use `/deploy-production` which generates comprehensive runbooks in `loa-grimoire/deployment/runbooks/`.
 
 ---
 
@@ -653,29 +653,29 @@ After security audit, if changes required:
 
 | Document | Path | Created By | Purpose |
 |----------|------|------------|---------|
-| **PRD** | `docs/prd.md` | `prd-architect` | Product requirements and business context |
-| **SDD** | `docs/sdd.md` | `architecture-designer` | System design and technical architecture |
-| **Sprint Plan** | `docs/sprint.md` | `sprint-planner` | Sprint tasks with acceptance criteria |
+| **PRD** | `loa-grimoire/prd.md` | `prd-architect` | Product requirements and business context |
+| **SDD** | `loa-grimoire/sdd.md` | `architecture-designer` | System design and technical architecture |
+| **Sprint Plan** | `loa-grimoire/sprint.md` | `sprint-planner` | Sprint tasks with acceptance criteria |
 | **Security Audit** | `SECURITY-AUDIT-REPORT.md` | `paranoid-auditor` | Security vulnerabilities and remediation |
 
 ### Agent-to-Agent (A2A) Communication
 
 | Document | Path | Created By | Purpose |
 |----------|------|------------|---------|
-| **Implementation Report** | `docs/a2a/reviewer.md` | `sprint-task-implementer` | Report for senior lead review |
-| **Code Review Feedback** | `docs/a2a/engineer-feedback.md` | `senior-tech-lead-reviewer` | Code review feedback for engineer |
-| **Security Audit Feedback** | `docs/a2a/auditor-sprint-feedback.md` | `paranoid-auditor` | Security feedback for engineer |
+| **Implementation Report** | `loa-grimoire/a2a/reviewer.md` | `sprint-task-implementer` | Report for senior lead review |
+| **Code Review Feedback** | `loa-grimoire/a2a/engineer-feedback.md` | `senior-tech-lead-reviewer` | Code review feedback for engineer |
+| **Security Audit Feedback** | `loa-grimoire/a2a/auditor-sprint-feedback.md` | `paranoid-auditor` | Security feedback for engineer |
 
 ### Deployment Documentation
 
 | Document | Path | Created By | Purpose |
 |----------|------|------------|---------|
-| **Infrastructure Overview** | `docs/deployment/infrastructure.md` | `devops-crypto-architect` | Architecture, resources, costs |
-| **Deployment Guide** | `docs/deployment/deployment-guide.md` | `devops-crypto-architect` | Deploy, rollback, migrations |
-| **Monitoring Guide** | `docs/deployment/monitoring.md` | `devops-crypto-architect` | Dashboards, metrics, alerts |
-| **Security Guide** | `docs/deployment/security.md` | `devops-crypto-architect` | Access, secrets, compliance |
-| **Disaster Recovery** | `docs/deployment/disaster-recovery.md` | `devops-crypto-architect` | Backup, restore, failover |
-| **Runbooks** | `docs/deployment/runbooks/*.md` | `devops-crypto-architect` | Operational procedures |
+| **Infrastructure Overview** | `loa-grimoire/deployment/infrastructure.md` | `devops-crypto-architect` | Architecture, resources, costs |
+| **Deployment Guide** | `loa-grimoire/deployment/deployment-guide.md` | `devops-crypto-architect` | Deploy, rollback, migrations |
+| **Monitoring Guide** | `loa-grimoire/deployment/monitoring.md` | `devops-crypto-architect` | Dashboards, metrics, alerts |
+| **Security Guide** | `loa-grimoire/deployment/security.md` | `devops-crypto-architect` | Access, secrets, compliance |
+| **Disaster Recovery** | `loa-grimoire/deployment/disaster-recovery.md` | `devops-crypto-architect` | Backup, restore, failover |
+| **Runbooks** | `loa-grimoire/deployment/runbooks/*.md` | `devops-crypto-architect` | Operational procedures |
 
 ---
 
@@ -685,7 +685,7 @@ The framework uses three feedback loops for quality assurance:
 
 ### 1. Implementation Feedback Loop (Phases 4-5)
 
-#### **Engineer → Senior Lead** (`docs/a2a/reviewer.md`)
+#### **Engineer → Senior Lead** (`loa-grimoire/a2a/reviewer.md`)
 
 The engineer generates a comprehensive report after implementation:
 - What was accomplished
@@ -695,7 +695,7 @@ The engineer generates a comprehensive report after implementation:
 - Verification steps
 - Feedback addressed (if revision)
 
-#### **Senior Lead → Engineer** (`docs/a2a/engineer-feedback.md`)
+#### **Senior Lead → Engineer** (`loa-grimoire/a2a/engineer-feedback.md`)
 
 The senior technical lead reviews and provides feedback:
 - Issues found
@@ -708,14 +708,14 @@ The engineer reads this file on the next `/implement {sprint}` invocation, clari
 
 ### 2. Sprint Security Feedback Loop (Phase 5.5)
 
-#### **Engineer → Security Auditor** (`docs/a2a/reviewer.md` + implemented code)
+#### **Engineer → Security Auditor** (`loa-grimoire/a2a/reviewer.md` + implemented code)
 
 After senior lead approval, the security auditor reviews:
 - Implementation report context
 - Actual code files (security-focused review)
 - Security requirements from PRD/SDD
 
-#### **Security Auditor → Engineer** (`docs/a2a/auditor-sprint-feedback.md`)
+#### **Security Auditor → Engineer** (`loa-grimoire/a2a/auditor-sprint-feedback.md`)
 
 The security auditor provides security-focused feedback:
 - Security vulnerabilities (CRITICAL/HIGH/MEDIUM/LOW)
@@ -760,22 +760,22 @@ The engineer reads this file with HIGHEST PRIORITY on the next `/implement {spri
 # 1. Define product requirements
 /plan-and-analyze
 # → Answer discovery questions
-# → Review docs/prd.md
+# → Review loa-grimoire/prd.md
 
 # 2. Design architecture
 /architect
 # → Answer technical questions
-# → Review docs/sdd.md
+# → Review loa-grimoire/sdd.md
 
 # 3. Plan sprints
 /sprint-plan
 # → Clarify capacity and priorities
-# → Review docs/sprint.md
+# → Review loa-grimoire/sprint.md
 
 # 4. Implement Sprint 1
 /implement sprint-1
 # → Agent implements tasks
-# → Review docs/a2a/reviewer.md
+# → Review loa-grimoire/a2a/reviewer.md
 
 # 5. Review Sprint 1
 /review-sprint

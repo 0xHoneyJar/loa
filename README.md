@@ -10,7 +10,7 @@ In William Gibson's Sprawl trilogy, the Loa are AI entities that take on the per
 
 The name draws from Gibson's synthesis of technology and mysticism—where the line between AI constructs and guiding spirits becomes meaningfully blurred. These agents don't replace you; they **ride with you**, channeling expertise through the interface.
 
-See [docs/naming-universe-loa-research.md](docs/naming-universe-loa-research.md) for the full etymology.
+See [loa-grimoire/naming-universe-loa-research.md](loa-grimoire/naming-universe-loa-research.md) for the full etymology.
 
 ## Overview
 
@@ -47,33 +47,33 @@ That's it! The PRD architect agent will guide you through structured discovery.
 
 ### Phase 1: Planning (`/plan-and-analyze`)
 The **prd-architect** agent guides you through 7 discovery phases to extract complete requirements.
-- Output: `docs/prd.md`
+- Output: `loa-grimoire/prd.md`
 
 ### Phase 2: Architecture (`/architect`)
 The **architecture-designer** agent reviews the PRD and designs system architecture.
-- Output: `docs/sdd.md`
+- Output: `loa-grimoire/sdd.md`
 
 ### Phase 3: Sprint Planning (`/sprint-plan`)
 The **sprint-planner** agent breaks down work into actionable sprint tasks.
-- Output: `docs/sprint.md`
+- Output: `loa-grimoire/sprint.md`
 
 ### Phase 4: Implementation (`/implement sprint-1`)
 The **sprint-task-implementer** agent writes production code with tests.
-- Output: Production code + `docs/a2a/sprint-N/reviewer.md`
+- Output: Production code + `loa-grimoire/a2a/sprint-N/reviewer.md`
 
 ### Phase 5: Review (`/review-sprint sprint-1`)
 The **senior-tech-lead-reviewer** agent validates implementation quality.
-- Output: `docs/a2a/sprint-N/engineer-feedback.md` (approval or feedback)
+- Output: `loa-grimoire/a2a/sprint-N/engineer-feedback.md` (approval or feedback)
 
 ### Phase 5.5: Sprint Security Audit (`/audit-sprint sprint-1`)
 The **paranoid-auditor** agent performs security review of sprint implementation (after senior lead approval).
-- Output: `docs/a2a/sprint-N/auditor-sprint-feedback.md` (security approval or feedback)
+- Output: `loa-grimoire/a2a/sprint-N/auditor-sprint-feedback.md` (security approval or feedback)
 - Approval message: "APPROVED - LETS FUCKING GO"
 - If issues found: "CHANGES_REQUIRED" with detailed security feedback
 
 ### Phase 6: Deployment (`/deploy-production`)
 The **devops-crypto-architect** agent deploys to production with full infrastructure.
-- Output: IaC configs, CI/CD pipelines, `docs/deployment/`
+- Output: IaC configs, CI/CD pipelines, `loa-grimoire/deployment/`
 
 ### Ad-Hoc: Security Audit (`/audit`)
 The **paranoid-auditor** agent performs comprehensive security audits on-demand.
@@ -105,15 +105,15 @@ All slash commands run in **foreground mode by default**, allowing direct intera
 
 | Command | Purpose | Output |
 |---------|---------|--------|
-| `/plan-and-analyze` | Define requirements and create PRD | `docs/prd.md` |
-| `/architect` | Design system architecture | `docs/sdd.md` |
-| `/sprint-plan` | Plan implementation sprints | `docs/sprint.md` |
-| `/implement sprint-N` | Implement sprint tasks | Code + `docs/a2a/sprint-N/reviewer.md` |
-| `/review-sprint sprint-N` | Review and approve/reject implementation | `docs/a2a/sprint-N/engineer-feedback.md` |
-| `/audit-sprint sprint-N` | Security audit of sprint implementation | `docs/a2a/sprint-N/auditor-sprint-feedback.md` |
-| `/deploy-production` | Deploy to production | Infrastructure + `docs/deployment/` |
+| `/plan-and-analyze` | Define requirements and create PRD | `loa-grimoire/prd.md` |
+| `/architect` | Design system architecture | `loa-grimoire/sdd.md` |
+| `/sprint-plan` | Plan implementation sprints | `loa-grimoire/sprint.md` |
+| `/implement sprint-N` | Implement sprint tasks | Code + `loa-grimoire/a2a/sprint-N/reviewer.md` |
+| `/review-sprint sprint-N` | Review and approve/reject implementation | `loa-grimoire/a2a/sprint-N/engineer-feedback.md` |
+| `/audit-sprint sprint-N` | Security audit of sprint implementation | `loa-grimoire/a2a/sprint-N/auditor-sprint-feedback.md` |
+| `/deploy-production` | Deploy to production | Infrastructure + `loa-grimoire/deployment/` |
 | `/audit` | Security and quality audit (ad-hoc) | `SECURITY-AUDIT-REPORT.md` |
-| `/audit-deployment` | Security audit of deployment infrastructure | `docs/a2a/deployment-feedback.md` |
+| `/audit-deployment` | Security audit of deployment infrastructure | `loa-grimoire/a2a/deployment-feedback.md` |
 | `/translate @doc.md for [audience]` | Translate technical docs for stakeholders | Executive summaries |
 
 All commands support `background` argument for parallel execution (e.g., `/audit background`).
@@ -141,7 +141,7 @@ Implementation uses iterative cycles with two quality gates:
 This dual-gate approach ensures quality and security without blocking progress.
 
 ### Agent-to-Agent Communication
-Agents communicate through structured documents in `docs/a2a/`:
+Agents communicate through structured documents in `loa-grimoire/a2a/`:
 - Engineers write implementation reports (`sprint-N/reviewer.md`)
 - Senior leads provide code review feedback (`sprint-N/engineer-feedback.md`)
 - Security auditor provides security feedback (`sprint-N/auditor-sprint-feedback.md`)
@@ -163,7 +163,7 @@ Pre-configured integrations with:
 ├── commands/            # Slash command definitions
 └── settings.local.json  # MCP server configuration
 
-docs/
+loa-grimoire/
 ├── prd.md               # Product Requirements Document (generated)
 ├── sdd.md               # Software Design Document (generated)
 ├── sprint.md            # Sprint plan (generated)
@@ -189,19 +189,19 @@ README.md                # This file
 ```bash
 # 1. Define requirements
 /plan-and-analyze
-# Answer discovery questions, review docs/prd.md
+# Answer discovery questions, review loa-grimoire/prd.md
 
 # 2. Design architecture
 /architect
-# Make technical decisions, review docs/sdd.md
+# Make technical decisions, review loa-grimoire/sdd.md
 
 # 3. Plan sprints
 /sprint-plan
-# Clarify priorities, review docs/sprint.md
+# Clarify priorities, review loa-grimoire/sprint.md
 
 # 4. Implement Sprint 1
 /implement sprint-1
-# Review docs/a2a/sprint-1/reviewer.md
+# Review loa-grimoire/a2a/sprint-1/reviewer.md
 
 # 5. Review Sprint 1
 /review-sprint sprint-1
@@ -268,5 +268,5 @@ See [LICENSE.md](LICENSE.md) for the full license text.
 
 ## Links
 
-- [Claude Code Documentation](https://docs.anthropic.com/en/docs/claude-code)
+- [Claude Code Documentation](https://docs.anthropic.com/en/loa-grimoire/claude-code)
 - [Repository](https://github.com/0xHoneyJar/loa)

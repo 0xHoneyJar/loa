@@ -25,34 +25,34 @@ Agents are defined in `.claude/agents/` and invoked via custom slash commands in
 
 ### Document Flow
 
-The workflow produces structured artifacts in the `docs/` directory:
+The workflow produces structured artifacts in the `loa-grimoire/` directory:
 
-- `docs/prd.md` - Product Requirements Document
-- `docs/sdd.md` - Software Design Document
-- `docs/sprint.md` - Sprint plan with tasks and acceptance criteria
-- `docs/a2a/index.md` - Sprint audit trail index (auto-maintained)
-- `docs/a2a/sprint-N/` - Sprint-specific A2A communication (preserves audit trail)
+- `loa-grimoire/prd.md` - Product Requirements Document
+- `loa-grimoire/sdd.md` - Software Design Document
+- `loa-grimoire/sprint.md` - Sprint plan with tasks and acceptance criteria
+- `loa-grimoire/a2a/index.md` - Sprint audit trail index (auto-maintained)
+- `loa-grimoire/a2a/sprint-N/` - Sprint-specific A2A communication (preserves audit trail)
   - `reviewer.md` - Implementation report from engineer
   - `engineer-feedback.md` - Review feedback from senior technical lead
   - `auditor-sprint-feedback.md` - Security audit feedback
   - `COMPLETED` - Completion marker (created by audit-sprint on approval)
-- `docs/a2a/deployment-report.md` - Infrastructure reports from DevOps
-- `docs/a2a/deployment-feedback.md` - Security audit feedback for deployment infrastructure
-- `docs/deployment/` - Production infrastructure documentation and runbooks
+- `loa-grimoire/a2a/deployment-report.md` - Infrastructure reports from DevOps
+- `loa-grimoire/a2a/deployment-feedback.md` - Security audit feedback for deployment infrastructure
+- `loa-grimoire/deployment/` - Production infrastructure documentation and runbooks
 
 ### Agent-to-Agent (A2A) Communication
 
 The framework uses three feedback loops for quality assurance:
 
 #### Implementation Feedback Loop (Phases 4-5)
-- Engineer writes implementation report to `docs/a2a/sprint-N/reviewer.md`
-- Senior lead writes feedback to `docs/a2a/sprint-N/engineer-feedback.md`
+- Engineer writes implementation report to `loa-grimoire/a2a/sprint-N/reviewer.md`
+- Senior lead writes feedback to `loa-grimoire/a2a/sprint-N/engineer-feedback.md`
 - Engineer reads feedback on next invocation, fixes issues, and updates report
 - Cycle continues until senior lead approves with "All good"
 
 #### Sprint Security Audit Feedback Loop (Phase 5.5)
 - After senior lead approval, security auditor reviews sprint implementation
-- Auditor writes feedback to `docs/a2a/sprint-N/auditor-sprint-feedback.md`
+- Auditor writes feedback to `loa-grimoire/a2a/sprint-N/auditor-sprint-feedback.md`
 - Verdict: "CHANGES_REQUIRED" (with security issues) or "APPROVED - LETS FUCKING GO"
 - If changes required:
   - Engineer reads audit feedback on next `/implement sprint-N` invocation (checked FIRST)
@@ -60,12 +60,12 @@ The framework uses three feedback loops for quality assurance:
   - Engineer updates report with "Security Audit Feedback Addressed" section
   - Re-run `/audit-sprint sprint-N` to verify fixes
 - Cycle continues until auditor approves
-- On approval: Creates `docs/a2a/sprint-N/COMPLETED` marker file
+- On approval: Creates `loa-grimoire/a2a/sprint-N/COMPLETED` marker file
 - After approval, move to next sprint or deployment
 
 #### Deployment Feedback Loop
-- DevOps creates infrastructure and writes report to `docs/a2a/deployment-report.md`
-- Auditor reviews via `/audit-deployment` and writes feedback to `docs/a2a/deployment-feedback.md`
+- DevOps creates infrastructure and writes report to `loa-grimoire/a2a/deployment-report.md`
+- Auditor reviews via `/audit-deployment` and writes feedback to `loa-grimoire/a2a/deployment-feedback.md`
 - DevOps addresses feedback, updates infrastructure, and regenerates report
 - Cycle continues until auditor approves with "APPROVED - LET'S FUCKING GO"
 
@@ -91,31 +91,31 @@ All slash commands run in **foreground mode by default**, allowing direct intera
 ```bash
 /plan-and-analyze
 ```
-Launches `prd-architect` agent for structured discovery across 7 phases. Agent asks 2-3 questions at a time to extract complete requirements. Outputs `docs/prd.md`.
+Launches `prd-architect` agent for structured discovery across 7 phases. Agent asks 2-3 questions at a time to extract complete requirements. Outputs `loa-grimoire/prd.md`.
 
 ### Phase 2: Architecture
 ```bash
 /architect
 ```
-Launches `architecture-designer` agent to review PRD and design system architecture. Agent presents proposals for uncertain decisions with pros/cons. Outputs `docs/sdd.md`.
+Launches `architecture-designer` agent to review PRD and design system architecture. Agent presents proposals for uncertain decisions with pros/cons. Outputs `loa-grimoire/sdd.md`.
 
 ### Phase 3: Sprint Planning
 ```bash
 /sprint-plan
 ```
-Launches `sprint-planner` agent to break down work into actionable sprint tasks with acceptance criteria, dependencies, and assignments. Outputs `docs/sprint.md`.
+Launches `sprint-planner` agent to break down work into actionable sprint tasks with acceptance criteria, dependencies, and assignments. Outputs `loa-grimoire/sprint.md`.
 
 ### Phase 4: Implementation
 ```bash
 /implement sprint-1
 ```
 Launches `sprint-task-implementer` agent to execute sprint tasks. The agent:
-- Creates `docs/a2a/sprint-1/` directory if it doesn't exist
+- Creates `loa-grimoire/a2a/sprint-1/` directory if it doesn't exist
 - Checks for existing feedback files (audit feedback checked FIRST, then engineer feedback)
-- Implements tasks and generates report at `docs/a2a/sprint-1/reviewer.md`
-- Updates `docs/a2a/index.md` with sprint status
+- Implements tasks and generates report at `loa-grimoire/a2a/sprint-1/reviewer.md`
+- Updates `loa-grimoire/a2a/index.md` with sprint status
 
-On subsequent runs, reads `docs/a2a/sprint-1/engineer-feedback.md`, addresses feedback, and regenerates report.
+On subsequent runs, reads `loa-grimoire/a2a/sprint-1/engineer-feedback.md`, addresses feedback, and regenerates report.
 
 ### Phase 5: Review
 ```bash
@@ -124,9 +124,9 @@ On subsequent runs, reads `docs/a2a/sprint-1/engineer-feedback.md`, addresses fe
 Launches `senior-tech-lead-reviewer` agent to validate implementation against acceptance criteria. The agent:
 - Validates sprint directory exists and contains `reviewer.md`
 - Reviews actual code, not just the report
-- Either approves (writes "All good" to `docs/a2a/sprint-1/engineer-feedback.md`, updates sprint.md with ✅)
-- Or requests changes (writes detailed feedback to `docs/a2a/sprint-1/engineer-feedback.md`)
-- Updates `docs/a2a/index.md` with review status
+- Either approves (writes "All good" to `loa-grimoire/a2a/sprint-1/engineer-feedback.md`, updates sprint.md with ✅)
+- Or requests changes (writes detailed feedback to `loa-grimoire/a2a/sprint-1/engineer-feedback.md`)
+- Updates `loa-grimoire/a2a/index.md` with review status
 
 ### Phase 5.5: Sprint Security Audit
 ```bash
@@ -138,10 +138,10 @@ Launches `paranoid-auditor` agent to perform security and quality audit of sprin
 - Audits secrets management and credential handling
 - Checks input validation and sanitization
 - Verifies error handling and information disclosure
-- Writes feedback to `docs/a2a/sprint-1/auditor-sprint-feedback.md`
+- Writes feedback to `loa-grimoire/a2a/sprint-1/auditor-sprint-feedback.md`
 - Verdict: **CHANGES_REQUIRED** or **APPROVED - LETS FUCKING GO**
-- On approval: Creates `docs/a2a/sprint-1/COMPLETED` marker file
-- Updates `docs/a2a/index.md` with audit status
+- On approval: Creates `loa-grimoire/a2a/sprint-1/COMPLETED` marker file
+- Updates `loa-grimoire/a2a/index.md` with audit status
 
 **Feedback loop**:
 ```
@@ -171,7 +171,7 @@ If audit finds issues:
 ```bash
 /deploy-production
 ```
-Launches `devops-crypto-architect` agent to design and deploy production infrastructure. Creates IaC, CI/CD pipelines, monitoring, and comprehensive operational documentation in `docs/deployment/`.
+Launches `devops-crypto-architect` agent to design and deploy production infrastructure. Creates IaC, CI/CD pipelines, monitoring, and comprehensive operational documentation in `loa-grimoire/deployment/`.
 
 ### Ad-Hoc: Deployment Infrastructure Audit
 ```bash
@@ -186,9 +186,9 @@ Launches `paranoid-auditor` agent to review deployment infrastructure. Use this 
 - Backup and disaster recovery procedures
 
 The agent:
-- Reads `docs/a2a/deployment-report.md` for context (if exists)
-- Audits all scripts, configs, and documentation in `docs/deployment/`
-- Writes feedback to `docs/a2a/deployment-feedback.md`
+- Reads `loa-grimoire/a2a/deployment-report.md` for context (if exists)
+- Audits all scripts, configs, and documentation in `loa-grimoire/deployment/`
+- Writes feedback to `loa-grimoire/a2a/deployment-feedback.md`
 - Verdict: **CHANGES_REQUIRED** or **APPROVED - LET'S FUCKING GO**
 
 ### Ad-Hoc: Security Audit (Codebase)
@@ -227,9 +227,9 @@ Launches `devrel-translator` agent to translate technical documentation into exe
 **Example invocations**:
 ```bash
 /translate @SECURITY-AUDIT-REPORT.md for board of directors
-/translate @docs/sdd.md for executives
-/translate @docs/sprint.md for investors
-/translate @docs/audits/2025-12-08/FINAL-AUDIT-REMEDIATION-REPORT.md for CEO
+/translate @loa-grimoire/sdd.md for executives
+/translate @loa-grimoire/sprint.md for investors
+/translate @loa-grimoire/audits/2025-12-08/FINAL-AUDIT-REMEDIATION-REPORT.md for CEO
 ```
 
 The agent creates:
@@ -261,8 +261,8 @@ This ensures quality without blocking progress.
 ### Stateless Agent Invocations
 
 Each agent invocation is stateless. Context is maintained through:
-- Document artifacts in `docs/`
-- A2A communication files in `docs/a2a/`
+- Document artifacts in `loa-grimoire/`
+- A2A communication files in `loa-grimoire/a2a/`
 - Explicit reading of previous outputs
 
 ### Proactive Agent Invocation
@@ -295,7 +295,7 @@ All agents that touch code or make decisions must document their work in Linear 
 
 ### Integration Context
 
-Linear team/project IDs and label configuration are stored in `docs/a2a/integration-context.md`. This file provides:
+Linear team/project IDs and label configuration are stored in `loa-grimoire/a2a/integration-context.md`. This file provides:
 - Team ID and project ID for creating issues
 - Standard label taxonomy for consistent organization
 - Issue and commit message templates
@@ -393,16 +393,16 @@ mcp__linear__list_issues({
 
 ### Document Structure
 
-All planning documents live in `docs/`:
+All planning documents live in `loa-grimoire/`:
 - Primary docs: `prd.md`, `sdd.md`, `sprint.md`
-- A2A communication: `docs/a2a/`
-- Deployment docs: `docs/deployment/`
+- A2A communication: `loa-grimoire/a2a/`
+- Deployment docs: `loa-grimoire/deployment/`
 
 **Note**: This is a base framework repository. When using as a template for a new project, uncomment the generated artifacts section in `.gitignore` to avoid committing generated documentation (prd.md, sdd.md, sprint.md, a2a/, deployment/).
 
 ### Sprint Status Tracking
 
-In `docs/sprint.md`, sprint tasks are marked with:
+In `loa-grimoire/sprint.md`, sprint tasks are marked with:
 - No emoji = Not started
 - ✅ = Completed and approved
 
@@ -444,7 +444,7 @@ Agents are instructed to:
 
 ### Feedback Guidelines
 
-When providing feedback in `docs/a2a/sprint-N/engineer-feedback.md`:
+When providing feedback in `loa-grimoire/a2a/sprint-N/engineer-feedback.md`:
 - Be specific with file paths and line numbers
 - Explain the reasoning, not just what to fix
 - Distinguish critical issues from nice-to-haves
@@ -458,7 +458,7 @@ When providing feedback in `docs/a2a/sprint-N/engineer-feedback.md`:
 ├── commands/           # Slash command definitions (10 commands)
 └── settings.local.json # MCP server configuration
 
-docs/
+loa-grimoire/
 ├── prd.md              # Product Requirements Document
 ├── sdd.md              # Software Design Document
 ├── sprint.md           # Sprint plan with tasks
@@ -497,7 +497,7 @@ All agents begin with a context assessment phase:
 
 ```bash
 # Quick size check
-wc -l docs/prd.md docs/sdd.md docs/sprint.md docs/a2a/*.md 2>/dev/null
+wc -l loa-grimoire/prd.md loa-grimoire/sdd.md loa-grimoire/sprint.md loa-grimoire/a2a/*.md 2>/dev/null
 ```
 
 **Thresholds vary by agent type:**
@@ -575,12 +575,12 @@ After parallel execution, agents must:
 
 ## Notes for Claude Code
 
-- Always read `docs/prd.md`, `docs/sdd.md`, and `docs/sprint.md` for context when working on implementation tasks
+- Always read `loa-grimoire/prd.md`, `loa-grimoire/sdd.md`, and `loa-grimoire/sprint.md` for context when working on implementation tasks
 - When `/implement sprint-N` is invoked:
   - Validate sprint name format (must be `sprint-N` where N is positive integer)
-  - Create `docs/a2a/sprint-N/` directory if it doesn't exist
-  - Check for audit feedback first (`docs/a2a/sprint-N/auditor-sprint-feedback.md`)
-  - Then check for engineer feedback (`docs/a2a/sprint-N/engineer-feedback.md`)
+  - Create `loa-grimoire/a2a/sprint-N/` directory if it doesn't exist
+  - Check for audit feedback first (`loa-grimoire/a2a/sprint-N/auditor-sprint-feedback.md`)
+  - Then check for engineer feedback (`loa-grimoire/a2a/sprint-N/engineer-feedback.md`)
   - Address all feedback before proceeding with new work
 - When `/review-sprint sprint-N` is invoked:
   - Validate sprint directory and `reviewer.md` exist
@@ -588,8 +588,8 @@ After parallel execution, agents must:
 - When `/audit-sprint sprint-N` is invoked:
   - Validate senior lead approval exists ("All good" in engineer-feedback.md)
   - Create `COMPLETED` marker on approval
-- All sprint A2A files are preserved in `docs/a2a/sprint-N/` for audit trail
-- The `docs/a2a/index.md` provides organizational memory across sprints
+- All sprint A2A files are preserved in `loa-grimoire/a2a/sprint-N/` for audit trail
+- The `loa-grimoire/a2a/index.md` provides organizational memory across sprints
 - The senior tech lead role is played by the human user during review phases
 - Never skip phases—each builds on the previous
 - The process is designed for thorough discovery and iterative refinement, not speed

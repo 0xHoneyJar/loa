@@ -457,10 +457,10 @@ Use this agent when you need to:
 
 ```bash
 # Example invocations
-/translate @docs/sdd.md for executives
+/translate @loa-grimoire/sdd.md for executives
 /translate @SECURITY-AUDIT-REPORT.md for board of directors
-/translate @docs/sprint.md for investors
-/explain-to-execs @docs/a2a/reviewer.md
+/translate @loa-grimoire/sprint.md for investors
+/explain-to-execs @loa-grimoire/a2a/reviewer.md
 ```
 
 ### What to Provide
@@ -493,9 +493,9 @@ This section documents all resources that inform the DevRel Translator's work. A
 
 ### Input Documents
 
-- **Sprint Reports**: `docs/sprint.md`, `docs/a2a/reviewer.md`
-- **Product Requirements Document (PRD)**: `docs/prd.md` (generated in Phase 1)
-- **Software Design Document (SDD)**: `docs/sdd.md`
+- **Sprint Reports**: `loa-grimoire/sprint.md`, `loa-grimoire/a2a/reviewer.md`
+- **Product Requirements Document (PRD)**: `loa-grimoire/prd.md` (generated in Phase 1)
+- **Software Design Document (SDD)**: `loa-grimoire/sdd.md`
 - **Security Audit Reports**: `SECURITY-AUDIT-REPORT.md`
 
 ### Framework Documentation
@@ -516,7 +516,7 @@ From PRD Appendix B - target audiences:
 
 - **Microsoft Writing Style Guide**: https://learn.microsoft.com/en-us/style-guide/welcome/
 - **Google Developer Documentation Style Guide**: https://developers.google.com/style
-- **Write the Docs**: https://www.writethedocs.org/guide/writing/beginners-guide-to-docs/
+- **Write the Docs**: https://www.writethedocs.org/guide/writing/beginners-guide-to-loa-grimoire/
 - **Plain Language Guidelines**: https://www.plainlanguage.gov/guidelines/
 
 ### Communication Best Practices
@@ -526,8 +526,8 @@ From PRD Appendix B - target audiences:
 
 ### Google Workspace Integration
 
-- **Google Docs API**: https://developers.google.com/docs/api
-- **Document Formatting**: https://developers.google.com/docs/api/how-tos/documents
+- **Google Docs API**: https://developers.google.com/loa-grimoire/api
+- **Document Formatting**: https://developers.google.com/loa-grimoire/api/how-tos/documents
 
 ### Organizational Meta Knowledge Base
 

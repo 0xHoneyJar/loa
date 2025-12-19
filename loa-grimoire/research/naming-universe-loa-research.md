@@ -211,6 +211,65 @@ Onomancer + Loa         → "The caller and the rider"
 
 ---
 
+## Directory Naming: Agent Artifact Repository
+
+The `loa-grimoire/` directory contains Loa agent process documents, A2A communication, and deployment artifacts. To avoid collision with application documentation in `./app/docs`, we need a thematically appropriate name.
+
+### Naming Candidates
+
+| Name | Tradition | Meaning | Rationale |
+|------|-----------|---------|-----------|
+| **loa-grimoire** | European occult | Textbook of magic | A grimoire contains spells, rituals, and instructions - perfect for agent definitions and process docs |
+| **loa-rites** | Vodou/General | Sacred ceremonies | Agents perform "rites" that produce artifacts; clean and evocative |
+| **loa-veve** | Vodou | Sacred invocation symbols | Vèvè must be drawn precisely to invoke Loa - like agent prompts |
+| **loa-spells** | General mystical | Codified magic | Spells as reusable, documented magical procedures |
+| **loa-sanctum** | Latin/mystical | Inner sacred space | Where the sacred work of the Loa occurs |
+| **loa-oracle** | Greek | Place of prophecy | Where oracular pronouncements (PRD, SDD) are recorded |
+| **loa-mysteries** | Greek/Mystagogue | Hidden knowledge | The sacred mysteries revealed through process |
+| **loa-peristyle** | Vodou | Ceremonial space | The covered area where Vodou ceremonies are performed |
+| **loa-hounfour** | Vodou | Temple/sanctuary | The temple where Loa are served (also: hounfort, houmfor) |
+| **loa-codex** | Latin | Bound manuscript | A codex of sacred knowledge and procedures |
+
+### Top Recommendations
+
+1. **loa-grimoire** ⭐
+   - Literal meaning: "textbook of magic"
+   - Contains instructions, rituals, invocations
+   - Maps perfectly to: agent definitions, process docs, A2A communication
+   - Phonetically strong, immediately evocative
+
+2. **loa-rites**
+   - Clean, simple, authentic
+   - Agents perform "rites" → artifacts are produced
+   - Plural suggests multiple ceremonies/processes
+
+3. **loa-veve** (vèvè)
+   - Deeply authentic to Vodou
+   - Vèvè are precise symbols that invoke specific Loa
+   - Mirrors how precise prompts invoke specific agent behaviors
+   - Note: May require explaining pronunciation (vay-VAY)
+
+### Thematic Mapping
+
+```
+loa-grimoire/
+├── prd.md              → The Prophecy (what shall be built)
+├── sdd.md              → The Blueprint (how it shall manifest)
+├── sprint.md           → The Rites (ceremonies to perform)
+├── a2a/                → The Correspondence (messages between Loa)
+│   ├── sprint-N/       → Rite records
+│   └── deployment-*    → Manifestation records
+└── deployment/         → The Manifestation (bringing to material realm)
+```
+
+### Decision
+
+**Selected**: `loa-grimoire`
+
+Rationale: A grimoire is historically a book containing magical knowledge, spells, and instructions for invoking spirits. This perfectly describes a directory containing agent invocation patterns (slash commands), process documentation (rituals), and inter-agent communication (spirit correspondence).
+
+---
+
 ## Further Research Directions
 
 1. **Maya Deren's methodology** - How she documented Vodou from within

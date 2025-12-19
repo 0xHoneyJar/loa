@@ -42,15 +42,27 @@ temp/
 *.tmp
 
 # Server audit reports (contain sensitive deployment info)
-docs/deployment/SERVER-REALITY-AUDIT.md
+loa-grimoire/deployment/SERVER-REALITY-AUDIT.md
 
 # Project-specific generated artifacts
 # IMPORTANT: Uncomment these lines when using this as a base for your project
-# to avoid committing generated documentation to your repository
+# if you are not in THJ to avoid committing generated documentation to your repository.
+# Within THJ as we work within private repos we commit these files to help with internal
+# knowledge systems. 
 #
-# docs/a2a/reviewer.md
-# docs/a2a/engineer-feedback.md
-# docs/prd.md
-# docs/sdd.md
-# docs/sprint.md
-# docs/deployment/
+# Loa process artifacts (loa-grimoire/)
+# loa-grimoire/prd.md
+# loa-grimoire/sdd.md
+# loa-grimoire/sprint.md
+# loa-grimoire/a2a/
+# loa-grimoire/deployment/
+# loa-grimoire/analytics/
+#
+# Application artifacts (app/)
+# app/src/
+# app/tests/
+# app/config/
+# app/package.json
+# app/package-lock.json
+# app/tsconfig.json
+# app/ecosystem.config.js

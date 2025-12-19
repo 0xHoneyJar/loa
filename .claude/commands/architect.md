@@ -8,12 +8,12 @@ I'm launching the architecture-designer agent to create a comprehensive Software
 **Execution Mode**: {{ "background - use /tasks to monitor" if "background" in $ARGUMENTS else "foreground (default)" }}
 
 The agent will:
-1. **Carefully review** `docs/prd.md` to understand all requirements
+1. **Carefully review** `loa-grimoire/prd.md` to understand all requirements
 2. **Analyze and design** the system architecture, components, and technical decisions
 3. **Clarify uncertainties** by asking you questions with specific proposals when anything is ambiguous
 4. **Validate assumptions** to ensure the design aligns with your vision
 5. **Generate SDD** only when fully satisfied with all answers and has no remaining doubts
-6. **Save output** to `docs/sdd.md`
+6. **Save output** to `loa-grimoire/sdd.md`
 
 The architecture designer will cover:
 - System architecture and component design
@@ -30,10 +30,10 @@ Running in background mode. Use `/tasks` to monitor progress.
 
 <Task
   subagent_type="architecture-designer"
-  prompt="You are tasked with creating a comprehensive Software Design Document (SDD) based on the Product Requirements Document at docs/prd.md.
+  prompt="You are tasked with creating a comprehensive Software Design Document (SDD) based on the Product Requirements Document at loa-grimoire/prd.md.
 
 Your process:
-1. Carefully read and analyze docs/prd.md in its entirety
+1. Carefully read and analyze loa-grimoire/prd.md in its entirety
 2. Design the system architecture, components, data models, APIs, and technical stack
 3. For ANY uncertainties, ambiguities, or areas where multiple approaches are valid:
    - Ask the user specific questions
@@ -43,7 +43,7 @@ Your process:
 4. Validate all assumptions with the user
 5. Only when you are completely satisfied with all answers and have NO remaining doubts or uncertainties, proceed to write the SDD
 6. Generate a detailed, comprehensive Software Design Document
-7. Save the final SDD to docs/sdd.md
+7. Save the final SDD to loa-grimoire/sdd.md
 
 The SDD should include:
 - Executive Summary
@@ -65,10 +65,10 @@ Remember: Ask questions and seek clarity BEFORE writing. Only generate the SDD w
 {{ else }}
 Let me begin the architectural design process.
 
-You are tasked with creating a comprehensive Software Design Document (SDD) based on the Product Requirements Document at docs/prd.md.
+You are tasked with creating a comprehensive Software Design Document (SDD) based on the Product Requirements Document at loa-grimoire/prd.md.
 
 Your process:
-1. Carefully read and analyze docs/prd.md in its entirety
+1. Carefully read and analyze loa-grimoire/prd.md in its entirety
 2. Design the system architecture, components, data models, APIs, and technical stack
 3. For ANY uncertainties, ambiguities, or areas where multiple approaches are valid:
    - Ask the user specific questions
@@ -78,7 +78,7 @@ Your process:
 4. Validate all assumptions with the user
 5. Only when you are completely satisfied with all answers and have NO remaining doubts or uncertainties, proceed to write the SDD
 6. Generate a detailed, comprehensive Software Design Document
-7. Save the final SDD to docs/sdd.md
+7. Save the final SDD to loa-grimoire/sdd.md
 
 The SDD should include:
 - Executive Summary

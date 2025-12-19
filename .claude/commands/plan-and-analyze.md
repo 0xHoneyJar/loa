@@ -12,7 +12,7 @@ The agent will guide you through a structured discovery process to:
 2. **Define requirements** - Identify functional and non-functional requirements
 3. **Identify scope** - Determine what's in scope, out of scope, and prioritize features
 4. **Research and refine** - Gather context, ask clarifying questions, and validate assumptions
-5. **Generate PRD** - Create a comprehensive document at `docs/prd.md`
+5. **Generate PRD** - Create a comprehensive document at `loa-grimoire/prd.md`
 
 The PRD architect will ask targeted questions across these phases:
 - Problem & Vision
@@ -28,10 +28,10 @@ Running in background mode. Use `/tasks` to monitor progress.
 
 <Task
   subagent_type="prd-architect"
-  prompt="Help the user create a comprehensive Product Requirements Document (PRD). Guide them through structured discovery to define goals, requirements, and scope. Ask targeted questions across all phases: Problem & Vision, Goals & Success Metrics, User & Stakeholder Context, Functional Requirements, Technical & Non-Functional Requirements, Scope & Prioritization, and Risks & Dependencies. Once you have complete information, generate a detailed PRD and save it to docs/prd.md."
+  prompt="Help the user create a comprehensive Product Requirements Document (PRD). Guide them through structured discovery to define goals, requirements, and scope. Ask targeted questions across all phases: Problem & Vision, Goals & Success Metrics, User & Stakeholder Context, Functional Requirements, Technical & Non-Functional Requirements, Scope & Prioritization, and Risks & Dependencies. Once you have complete information, generate a detailed PRD and save it to loa-grimoire/prd.md."
 />
 {{ else }}
 Let me begin the discovery process.
 
-Help the user create a comprehensive Product Requirements Document (PRD). Guide them through structured discovery to define goals, requirements, and scope. Ask targeted questions across all phases: Problem & Vision, Goals & Success Metrics, User & Stakeholder Context, Functional Requirements, Technical & Non-Functional Requirements, Scope & Prioritization, and Risks & Dependencies. Once you have complete information, generate a detailed PRD and save it to docs/prd.md.
+Help the user create a comprehensive Product Requirements Document (PRD). Guide them through structured discovery to define goals, requirements, and scope. Ask targeted questions across all phases: Problem & Vision, Goals & Success Metrics, User & Stakeholder Context, Functional Requirements, Technical & Non-Functional Requirements, Scope & Prioritization, and Risks & Dependencies. Once you have complete information, generate a detailed PRD and save it to loa-grimoire/prd.md.
 {{ endif }}

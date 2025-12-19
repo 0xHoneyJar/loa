@@ -47,10 +47,10 @@ Running in background mode. Use `/tasks` to monitor progress.
 ## Phase 1: Project Review
 
 Read ALL project documentation:
-1. `docs/prd.md` - Product requirements
-2. `docs/sdd.md` - System design
-3. `docs/sprint.md` - Completed sprints
-4. `docs/a2a/reviewer.md` - Implementation reports
+1. `loa-grimoire/prd.md` - Product requirements
+2. `loa-grimoire/sdd.md` - System design
+3. `loa-grimoire/sprint.md` - Completed sprints
+4. `loa-grimoire/a2a/reviewer.md` - Implementation reports
 5. Codebase review - Identify config needs, dependencies, existing deployment configs
 
 ## Phase 2: Requirements Clarification
@@ -93,7 +93,7 @@ Implement systematically:
 
 ## Phase 5: Documentation
 
-Create comprehensive docs at `docs/deployment/`:
+Create comprehensive docs at `loa-grimoire/deployment/`:
 1. `infrastructure.md` - Architecture overview
 2. `deployment-guide.md` - How to deploy
 3. `runbooks/` - Deployment, rollback, scaling, incidents, backups, monitoring, security
@@ -124,7 +124,7 @@ Provide handover:
 - ✅ Cost-Optimized (within budget)
 - ✅ Recoverable (backups tested, DR in place)
 
-Save all documentation to `docs/deployment/`."
+Save all documentation to `loa-grimoire/deployment/`."
 />
 {{ else }}
 Let me begin the production deployment process.
@@ -134,10 +134,10 @@ You are conducting a production deployment and infrastructure handover. The deve
 ## Phase 1: Project Review
 
 Read ALL project documentation:
-1. `docs/prd.md` - Product requirements
-2. `docs/sdd.md` - System design
-3. `docs/sprint.md` - Completed sprints
-4. `docs/a2a/reviewer.md` - Implementation reports
+1. `loa-grimoire/prd.md` - Product requirements
+2. `loa-grimoire/sdd.md` - System design
+3. `loa-grimoire/sprint.md` - Completed sprints
+4. `loa-grimoire/a2a/reviewer.md` - Implementation reports
 5. Codebase review - Identify config needs, dependencies, existing deployment configs
 
 ## Phase 2: Requirements Clarification
@@ -180,7 +180,7 @@ Implement systematically:
 
 ## Phase 5: Documentation
 
-Create comprehensive docs at `docs/deployment/`:
+Create comprehensive docs at `loa-grimoire/deployment/`:
 1. `infrastructure.md` - Architecture overview
 2. `deployment-guide.md` - How to deploy
 3. `runbooks/` - Deployment, rollback, scaling, incidents, backups, monitoring, security
@@ -211,5 +211,5 @@ Provide handover:
 - ✅ Cost-Optimized (within budget)
 - ✅ Recoverable (backups tested, DR in place)
 
-Save all documentation to `docs/deployment/`.
+Save all documentation to `loa-grimoire/deployment/`.
 {{ endif }}

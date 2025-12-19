@@ -9,20 +9,20 @@ I'm launching the paranoid-auditor agent to conduct a comprehensive security and
 
 **Prerequisites** (verified before audit):
 - Sprint tasks implemented by engineers
-- Senior technical lead has reviewed and approved with "All good" in `docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md`
-- Implementation report exists at `docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md`
+- Senior technical lead has reviewed and approved with "All good" in `loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md`
+- Implementation report exists at `loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/reviewer.md`
 
 The security auditor will:
-1. **Validate sprint argument** and verify `docs/a2a/{{ $ARGUMENTS[0] }}/` exists
+1. **Validate sprint argument** and verify `loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/` exists
 2. **Read context documents**: PRD, SDD, sprint plan, implementation report
 3. **Review actual code**: Audit all modified files, not just reports
 4. **Check for security issues**: OWASP Top 10, input validation, auth/authz, secrets management
 5. **Assess code quality**: Error handling, testing, performance, maintainability
 6. **Verify architecture alignment**: Ensure implementation follows SDD design
 7. **Make decision**:
-   - **If issues found**: Write detailed feedback to `docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md` with "CHANGES_REQUIRED"
-   - **If all secure**: Write "APPROVED - LETS FUCKING GO" and create `docs/a2a/{{ $ARGUMENTS[0] }}/COMPLETED` marker
-8. **Update sprint index** at `docs/a2a/index.md`
+   - **If issues found**: Write detailed feedback to `loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md` with "CHANGES_REQUIRED"
+   - **If all secure**: Write "APPROVED - LETS FUCKING GO" and create `loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/COMPLETED` marker
+8. **Update sprint index** at `loa-grimoire/a2a/index.md`
 
 The auditor checks for:
 - Security vulnerabilities (injection, XSS, auth bypass)
@@ -47,7 +47,7 @@ Running in background mode.
 ## Sprint Context
 
 **Sprint Name**: {{ $ARGUMENTS[0] }}
-**Sprint Directory**: docs/a2a/{{ $ARGUMENTS[0] }}/
+**Sprint Directory**: loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/
 
 All A2A communication files for this sprint are stored in the sprint-specific directory.
 
@@ -55,7 +55,7 @@ All A2A communication files for this sprint are stored in the sprint-specific di
 
 You are auditing a sprint implementation AFTER:
 1. Engineers have implemented the tasks
-2. Senior technical lead has reviewed and approved with 'All good' in docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md
+2. Senior technical lead has reviewed and approved with 'All good' in loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md
 3. The implementation is ready to move to the next sprint OR deployment
 
 Your job is to be the FINAL security gate before accepting the sprint as complete.
@@ -67,43 +67,43 @@ Your job is to be the FINAL security gate before accepting the sprint as complet
    - If invalid format, STOP and inform user: 'Invalid sprint name. Use format: sprint-N (e.g., sprint-1, sprint-2)'
 
 2. **Validate sprint directory exists**:
-   - Check if docs/a2a/{{ $ARGUMENTS[0] }}/ exists
-   - If not, STOP and inform user: 'Sprint directory docs/a2a/{{ $ARGUMENTS[0] }}/ not found. Run /implement {{ $ARGUMENTS[0] }} first.'
+   - Check if loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/ exists
+   - If not, STOP and inform user: 'Sprint directory loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/ not found. Run /implement {{ $ARGUMENTS[0] }} first.'
 
 3. **Validate reviewer.md exists**:
-   - Check if docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md exists
+   - Check if loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/reviewer.md exists
    - If not, STOP and inform user: 'No implementation report found. Run /implement {{ $ARGUMENTS[0] }} first.'
 
 4. **Validate senior lead approval**:
-   - Check if docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md exists AND contains 'All good'
+   - Check if loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md exists AND contains 'All good'
    - If not, STOP and inform user: 'Sprint {{ $ARGUMENTS[0] }} has not been approved by senior lead yet. Run /review-sprint {{ $ARGUMENTS[0] }} first.'
 
 5. **Check for COMPLETED marker**:
-   - If docs/a2a/{{ $ARGUMENTS[0] }}/COMPLETED exists, this sprint is already done
+   - If loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/COMPLETED exists, this sprint is already done
    - STOP and inform user: 'Sprint {{ $ARGUMENTS[0] }} is already COMPLETED and audited. No audit needed.'
 
 6. **Set working paths for this session**:
-   - REVIEWER_REPORT = docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md
-   - ENGINEER_FEEDBACK = docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md
-   - AUDIT_FEEDBACK = docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md
-   - COMPLETED_MARKER = docs/a2a/{{ $ARGUMENTS[0] }}/COMPLETED
+   - REVIEWER_REPORT = loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/reviewer.md
+   - ENGINEER_FEEDBACK = loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md
+   - AUDIT_FEEDBACK = loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md
+   - COMPLETED_MARKER = loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/COMPLETED
 
 ## Phase 0: Understand What Was Built
 
 Read ALL context documents:
-1. **docs/prd.md** - Product requirements and business context
-2. **docs/sdd.md** - System design and technical architecture
-3. **docs/sprint.md** - Sprint tasks and acceptance criteria (focus on {{ $ARGUMENTS[0] }})
-4. **docs/a2a/integration-context.md** - Linear team/project IDs and label configuration
-5. **docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md** - Engineer's implementation report (what was built)
-6. **docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md** - Senior lead approval (verify it says 'All good')
+1. **loa-grimoire/prd.md** - Product requirements and business context
+2. **loa-grimoire/sdd.md** - System design and technical architecture
+3. **loa-grimoire/sprint.md** - Sprint tasks and acceptance criteria (focus on {{ $ARGUMENTS[0] }})
+4. **loa-grimoire/a2a/integration-context.md** - Linear team/project IDs and label configuration
+5. **loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/reviewer.md** - Engineer's implementation report (what was built)
+6. **loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md** - Senior lead approval (verify it says 'All good')
 
 ## Phase 0.5: Linear Issue Tracking (REQUIRED for Audit Trail)
 
 Before auditing code, create/update Linear issues for security findings:
 
 1. **Read integration context**:
-   - Read `docs/a2a/integration-context.md` for Linear team/project IDs
+   - Read `loa-grimoire/a2a/integration-context.md` for Linear team/project IDs
    - If file doesn't exist, use `mcp__linear__list_teams` to find team, then `mcp__linear__list_projects` for project
 
 2. **Find implementation issues**:
@@ -205,7 +205,7 @@ Systematically review each category:
 
 If you find ANY security issues or quality problems:
 
-1. Write detailed feedback to **docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md** with:
+1. Write detailed feedback to **loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md** with:
    ```
    # Security Audit Report: {{ $ARGUMENTS[0] }}
 
@@ -231,15 +231,15 @@ If you find ANY security issues or quality problems:
    3. Re-run /audit-sprint {{ $ARGUMENTS[0] }} after fixes
    ```
 
-2. Update docs/a2a/index.md: Set sprint status to 'AUDIT_CHANGES_REQUIRED'
+2. Update loa-grimoire/a2a/index.md: Set sprint status to 'AUDIT_CHANGES_REQUIRED'
 3. DO NOT create COMPLETED marker
-4. Inform user: 'Sprint {{ $ARGUMENTS[0] }} security audit found issues. See docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md'
+4. Inform user: 'Sprint {{ $ARGUMENTS[0] }} security audit found issues. See loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md'
 
 ### OPTION B - All Good (Approved)
 
 If everything is secure and meets quality standards:
 
-1. Write approval to **docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md**:
+1. Write approval to **loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md**:
    ```
    # Security Audit Report: {{ $ARGUMENTS[0] }}
 
@@ -257,7 +257,7 @@ If everything is secure and meets quality standards:
    [Optional: non-blocking suggestions]
    ```
 
-2. Create **docs/a2a/{{ $ARGUMENTS[0] }}/COMPLETED** marker file:
+2. Create **loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/COMPLETED** marker file:
    ```
    Sprint: {{ $ARGUMENTS[0] }}
    Completed: [ISO timestamp]
@@ -265,7 +265,7 @@ If everything is secure and meets quality standards:
    Auditor: Paranoid Cypherpunk Auditor
    ```
 
-3. Update docs/a2a/index.md: Set sprint status to 'COMPLETED'
+3. Update loa-grimoire/a2a/index.md: Set sprint status to 'COMPLETED'
 4. Inform user: 'Sprint {{ $ARGUMENTS[0] }} APPROVED - LETS FUCKING GO! Sprint is now COMPLETED.'
 
 ## Audit Standards
@@ -310,7 +310,7 @@ You are conducting a security and quality audit of a sprint implementation as th
 ## Sprint Context
 
 **Sprint Name**: {{ $ARGUMENTS[0] }}
-**Sprint Directory**: docs/a2a/{{ $ARGUMENTS[0] }}/
+**Sprint Directory**: loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/
 
 All A2A communication files for this sprint are stored in the sprint-specific directory.
 
@@ -318,7 +318,7 @@ All A2A communication files for this sprint are stored in the sprint-specific di
 
 You are auditing a sprint implementation AFTER:
 1. Engineers have implemented the tasks
-2. Senior technical lead has reviewed and approved with 'All good' in docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md
+2. Senior technical lead has reviewed and approved with 'All good' in loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md
 3. The implementation is ready to move to the next sprint OR deployment
 
 Your job is to be the FINAL security gate before accepting the sprint as complete.
@@ -330,43 +330,43 @@ Your job is to be the FINAL security gate before accepting the sprint as complet
    - If invalid format, STOP and inform user: 'Invalid sprint name. Use format: sprint-N (e.g., sprint-1, sprint-2)'
 
 2. **Validate sprint directory exists**:
-   - Check if docs/a2a/{{ $ARGUMENTS[0] }}/ exists
-   - If not, STOP and inform user: 'Sprint directory docs/a2a/{{ $ARGUMENTS[0] }}/ not found. Run /implement {{ $ARGUMENTS[0] }} first.'
+   - Check if loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/ exists
+   - If not, STOP and inform user: 'Sprint directory loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/ not found. Run /implement {{ $ARGUMENTS[0] }} first.'
 
 3. **Validate reviewer.md exists**:
-   - Check if docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md exists
+   - Check if loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/reviewer.md exists
    - If not, STOP and inform user: 'No implementation report found. Run /implement {{ $ARGUMENTS[0] }} first.'
 
 4. **Validate senior lead approval**:
-   - Check if docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md exists AND contains 'All good'
+   - Check if loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md exists AND contains 'All good'
    - If not, STOP and inform user: 'Sprint {{ $ARGUMENTS[0] }} has not been approved by senior lead yet. Run /review-sprint {{ $ARGUMENTS[0] }} first.'
 
 5. **Check for COMPLETED marker**:
-   - If docs/a2a/{{ $ARGUMENTS[0] }}/COMPLETED exists, this sprint is already done
+   - If loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/COMPLETED exists, this sprint is already done
    - STOP and inform user: 'Sprint {{ $ARGUMENTS[0] }} is already COMPLETED and audited. No audit needed.'
 
 6. **Set working paths for this session**:
-   - REVIEWER_REPORT = docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md
-   - ENGINEER_FEEDBACK = docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md
-   - AUDIT_FEEDBACK = docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md
-   - COMPLETED_MARKER = docs/a2a/{{ $ARGUMENTS[0] }}/COMPLETED
+   - REVIEWER_REPORT = loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/reviewer.md
+   - ENGINEER_FEEDBACK = loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md
+   - AUDIT_FEEDBACK = loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md
+   - COMPLETED_MARKER = loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/COMPLETED
 
 ## Phase 0: Understand What Was Built
 
 Read ALL context documents:
-1. **docs/prd.md** - Product requirements and business context
-2. **docs/sdd.md** - System design and technical architecture
-3. **docs/sprint.md** - Sprint tasks and acceptance criteria (focus on {{ $ARGUMENTS[0] }})
-4. **docs/a2a/integration-context.md** - Linear team/project IDs and label configuration
-5. **docs/a2a/{{ $ARGUMENTS[0] }}/reviewer.md** - Engineer's implementation report (what was built)
-6. **docs/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md** - Senior lead approval (verify it says 'All good')
+1. **loa-grimoire/prd.md** - Product requirements and business context
+2. **loa-grimoire/sdd.md** - System design and technical architecture
+3. **loa-grimoire/sprint.md** - Sprint tasks and acceptance criteria (focus on {{ $ARGUMENTS[0] }})
+4. **loa-grimoire/a2a/integration-context.md** - Linear team/project IDs and label configuration
+5. **loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/reviewer.md** - Engineer's implementation report (what was built)
+6. **loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md** - Senior lead approval (verify it says 'All good')
 
 ## Phase 0.5: Linear Issue Tracking (REQUIRED for Audit Trail)
 
 Before auditing code, create/update Linear issues for security findings:
 
 1. **Read integration context**:
-   - Read `docs/a2a/integration-context.md` for Linear team/project IDs
+   - Read `loa-grimoire/a2a/integration-context.md` for Linear team/project IDs
    - If file doesn't exist, use `mcp__linear__list_teams` to find team, then `mcp__linear__list_projects` for project
 
 2. **Find implementation issues**:
@@ -468,7 +468,7 @@ Systematically review each category:
 
 If you find ANY security issues or quality problems:
 
-1. Write detailed feedback to **docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md** with:
+1. Write detailed feedback to **loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md** with:
    ```
    # Security Audit Report: {{ $ARGUMENTS[0] }}
 
@@ -494,15 +494,15 @@ If you find ANY security issues or quality problems:
    3. Re-run /audit-sprint {{ $ARGUMENTS[0] }} after fixes
    ```
 
-2. Update docs/a2a/index.md: Set sprint status to 'AUDIT_CHANGES_REQUIRED'
+2. Update loa-grimoire/a2a/index.md: Set sprint status to 'AUDIT_CHANGES_REQUIRED'
 3. DO NOT create COMPLETED marker
-4. Inform user: 'Sprint {{ $ARGUMENTS[0] }} security audit found issues. See docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md'
+4. Inform user: 'Sprint {{ $ARGUMENTS[0] }} security audit found issues. See loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md'
 
 ### OPTION B - All Good (Approved)
 
 If everything is secure and meets quality standards:
 
-1. Write approval to **docs/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md**:
+1. Write approval to **loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md**:
    ```
    # Security Audit Report: {{ $ARGUMENTS[0] }}
 
@@ -520,7 +520,7 @@ If everything is secure and meets quality standards:
    [Optional: non-blocking suggestions]
    ```
 
-2. Create **docs/a2a/{{ $ARGUMENTS[0] }}/COMPLETED** marker file:
+2. Create **loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/COMPLETED** marker file:
    ```
    Sprint: {{ $ARGUMENTS[0] }}
    Completed: [ISO timestamp]
@@ -528,7 +528,7 @@ If everything is secure and meets quality standards:
    Auditor: Paranoid Cypherpunk Auditor
    ```
 
-3. Update docs/a2a/index.md: Set sprint status to 'COMPLETED'
+3. Update loa-grimoire/a2a/index.md: Set sprint status to 'COMPLETED'
 4. Inform user: 'Sprint {{ $ARGUMENTS[0] }} APPROVED - LETS FUCKING GO! Sprint is now COMPLETED.'
 
 ## Audit Standards

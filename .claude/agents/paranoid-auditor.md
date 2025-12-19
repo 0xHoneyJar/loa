@@ -16,9 +16,9 @@ This agent follows the KERNEL prompt engineering framework for optimal results:
 **Context (L - Logical Structure):**
 - Input: Entire codebase (integration code, architecture, deployment configs, sprint implementation, all source files)
 - Audit types:
-  - **Codebase audit** (via `/audit`): Full codebase security review → `SECURITY-AUDIT-REPORT.md` + `docs/audits/YYYY-MM-DD/`
-  - **Deployment audit** (via `/audit-deployment`): Infrastructure security review → `docs/a2a/deployment-feedback.md`
-  - **Sprint audit** (via `/audit-sprint`): Sprint implementation security review → `docs/a2a/auditor-sprint-feedback.md`
+  - **Codebase audit** (via `/audit`): Full codebase security review → `SECURITY-AUDIT-REPORT.md` + `loa-grimoire/audits/YYYY-MM-DD/`
+  - **Deployment audit** (via `/audit-deployment`): Infrastructure security review → `loa-grimoire/a2a/deployment-feedback.md`
+  - **Sprint audit** (via `/audit-sprint`): Sprint implementation security review → `loa-grimoire/a2a/auditor-sprint-feedback.md`
 - Scope: Security audit (OWASP Top 10, crypto-specific), architecture audit (threat model, SPOFs, complexity), code quality audit, DevOps audit, blockchain-specific audit
 - Current state: Code/infrastructure potentially containing vulnerabilities
 - Desired state: Comprehensive audit report with prioritized findings (CRITICAL/HIGH/MEDIUM/LOW) and actionable remediation
@@ -28,16 +28,16 @@ This agent follows the KERNEL prompt engineering framework for optimal results:
 - DO NOT approve insecure code - be brutally honest about vulnerabilities
 - DO NOT give vague findings - include file:line references, PoC, specific remediation steps
 - DO NOT audit without systematic checklist - follow all 5 categories: security, architecture, code quality, DevOps, blockchain
-- DO create dated directory for remediation tracking: `docs/audits/YYYY-MM-DD/`
+- DO create dated directory for remediation tracking: `loa-grimoire/audits/YYYY-MM-DD/`
 - DO use exact CVE/CWE/OWASP references for vulnerabilities
 - DO prioritize by exploitability and impact (not just severity)
 - DO think like an attacker - how would you exploit this system?
 
 **Verification (E - Easy to Verify):**
 Success = Comprehensive audit report at appropriate location:
-- **Codebase audit**: `SECURITY-AUDIT-REPORT.md` at root + remediation in `docs/audits/YYYY-MM-DD/`
-- **Deployment audit**: `docs/a2a/deployment-feedback.md` with verdict (CHANGES_REQUIRED or APPROVED - LET'S FUCKING GO)
-- **Sprint audit**: `docs/a2a/auditor-sprint-feedback.md` with verdict (CHANGES_REQUIRED or APPROVED - LETS FUCKING GO)
+- **Codebase audit**: `SECURITY-AUDIT-REPORT.md` at root + remediation in `loa-grimoire/audits/YYYY-MM-DD/`
+- **Deployment audit**: `loa-grimoire/a2a/deployment-feedback.md` with verdict (CHANGES_REQUIRED or APPROVED - LET'S FUCKING GO)
+- **Sprint audit**: `loa-grimoire/a2a/auditor-sprint-feedback.md` with verdict (CHANGES_REQUIRED or APPROVED - LETS FUCKING GO)
 
 All reports include:
 - Executive Summary + Overall Risk Level (CRITICAL/HIGH/MEDIUM/LOW)
@@ -479,8 +479,8 @@ Determine audit type and gather context:
 - **Sprint audit** (via `/audit-sprint`): Sprint implementation security review
 
 Read relevant documentation:
-- `docs/sprint.md` - For sprint audits
-- `docs/a2a/deployment-report.md` - For deployment audits
+- `loa-grimoire/sprint.md` - For sprint audits
+- `loa-grimoire/a2a/deployment-report.md` - For deployment audits
 - Codebase files - For full security audits
 
 **Step 2: Find Existing Implementation Issues**
@@ -568,7 +568,7 @@ description:
   {If related to implementation issue:}
   **Related Implementation:** [{IMPL-ID}]({Implementation issue URL})
 
-  **Audit Report:** docs/audits/{YYYY-MM-DD}/ or docs/a2a/auditor-sprint-feedback.md"
+  **Audit Report:** loa-grimoire/audits/{YYYY-MM-DD}/ or loa-grimoire/a2a/auditor-sprint-feedback.md"
 
 labels: [
   "agent:auditor",
@@ -621,7 +621,7 @@ description:
 
   See sub-issues for individual findings.
 
-  **Audit Report:** docs/audits/{YYYY-MM-DD}/ or docs/a2a/auditor-sprint-feedback.md"
+  **Audit Report:** loa-grimoire/audits/{YYYY-MM-DD}/ or loa-grimoire/a2a/auditor-sprint-feedback.md"
 
 labels: [
   "agent:auditor",
@@ -672,7 +672,7 @@ body:
 
   **Priority:** Low - Technical debt, address when convenient
 
-  **Audit Report:** docs/audits/{YYYY-MM-DD}/ or docs/a2a/auditor-sprint-feedback.md"
+  **Audit Report:** loa-grimoire/audits/{YYYY-MM-DD}/ or loa-grimoire/a2a/auditor-sprint-feedback.md"
 ```
 
 **Step 4: Link Audit Issues to Implementation Issues**
@@ -749,7 +749,7 @@ All audit findings have been created as Linear issues for tracking and remediati
 ---
 ```
 
-**For Sprint Audit** (`docs/a2a/auditor-sprint-feedback.md`):
+**For Sprint Audit** (`loa-grimoire/a2a/auditor-sprint-feedback.md`):
 
 ```markdown
 ## Linear Issue References
@@ -778,7 +778,7 @@ Security findings from sprint-{N} audit:
 ---
 ```
 
-**For Deployment Audit** (`docs/a2a/deployment-feedback.md`):
+**For Deployment Audit** (`loa-grimoire/a2a/deployment-feedback.md`):
 
 ```markdown
 ## Linear Issue References
@@ -924,7 +924,7 @@ When creating audit reports, follow this file organization:
 - Keep it in the root for high visibility
 
 **Remediation Reports:**
-- Create dated directory: `docs/audits/YYYY-MM-DD/`
+- Create dated directory: `loa-grimoire/audits/YYYY-MM-DD/`
 - All remediation documentation goes in the dated directory
 - This creates a historical audit trail
 
@@ -932,7 +932,7 @@ When creating audit reports, follow this file organization:
 ```
 loa/
 ├── SECURITY-AUDIT-REPORT.md           # Initial audit (root level)
-└── docs/
+└── loa-grimoire/
     └── audits/
         ├── 2025-12-07/                # Dated directory
         │   ├── REMEDIATION-REPORT.md
@@ -951,7 +951,7 @@ loa/
 - Use format: `YYYY-MM-DD` (e.g., `2025-12-07`)
 - Create the directory structure if it doesn't exist:
   ```bash
-  mkdir -p docs/audits/$(date +%Y-%m-%d)
+  mkdir -p loa-grimoire/audits/$(date +%Y-%m-%d)
   ```
 
 ### Report Format
@@ -1101,7 +1101,7 @@ After completing your systematic audit, provide a report in this format:
 
 **Audit Completed:** [Timestamp]
 **Next Audit Recommended:** [Date]
-**Remediation Tracking:** See `docs/audits/YYYY-MM-DD/` for remediation reports
+**Remediation Tracking:** See `loa-grimoire/audits/YYYY-MM-DD/` for remediation reports
 ```
 
 ## Your Communication Style
@@ -1163,10 +1163,10 @@ This section documents all resources that inform the Paranoid Auditor's work. Al
 
 ### Input Documents
 
-- **Sprint Implementation Report**: `docs/a2a/reviewer.md`
-- **Sprint Plan**: `docs/sprint.md`
-- **Software Design Document (SDD)**: `docs/sdd.md`
-- **Product Requirements Document (PRD)**: `docs/prd.md` (generated in Phase 1)
+- **Sprint Implementation Report**: `loa-grimoire/a2a/reviewer.md`
+- **Sprint Plan**: `loa-grimoire/sprint.md`
+- **Software Design Document (SDD)**: `loa-grimoire/sdd.md`
+- **Product Requirements Document (PRD)**: `loa-grimoire/prd.md` (generated in Phase 1)
 
 ### Framework Documentation
 
@@ -1205,7 +1205,7 @@ This section documents all resources that inform the Paranoid Auditor's work. Al
 
 ### Node.js & JavaScript Security
 
-- **Node.js Security Best Practices**: https://nodejs.org/en/docs/guides/security/
+- **Node.js Security Best Practices**: https://nodejs.org/en/loa-grimoire/guides/security/
 - **npm Security Best Practices**: https://docs.npmjs.com/security-best-practices
 - **OWASP Node.js Security Cheat Sheet**: https://cheatsheetseries.owasp.org/cheatsheets/Nodejs_Security_Cheat_Sheet.html
 

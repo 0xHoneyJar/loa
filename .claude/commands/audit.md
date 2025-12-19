@@ -19,9 +19,9 @@ Running in background mode. Use `/tasks` to monitor progress.
 Review the following systematically:
 
 ### Documentation
-1. `docs/prd.md` - Product requirements
-2. `docs/sdd.md` - System architecture and design
-3. `docs/sprint.md` - Sprint plan and implementation status
+1. `loa-grimoire/prd.md` - Product requirements
+2. `loa-grimoire/sdd.md` - System architecture and design
+3. `loa-grimoire/sprint.md` - Sprint plan and implementation status
 
 ### Implementation Code
 1. `app/src/` - Application source code
@@ -32,7 +32,7 @@ Review the following systematically:
 1. Configuration files in `app/config/` (if exists)
 2. `.gitignore` patterns for secrets
 3. Environment variable handling
-4. Deployment procedures in `docs/deployment/`
+4. Deployment procedures in `loa-grimoire/deployment/`
 
 ## Focus Areas
 
@@ -94,9 +94,9 @@ Perform a comprehensive security and quality audit of the application codebase.
 Review the following systematically:
 
 ### Documentation
-1. `docs/prd.md` - Product requirements
-2. `docs/sdd.md` - System architecture and design
-3. `docs/sprint.md` - Sprint plan and implementation status
+1. `loa-grimoire/prd.md` - Product requirements
+2. `loa-grimoire/sdd.md` - System architecture and design
+3. `loa-grimoire/sprint.md` - Sprint plan and implementation status
 
 ### Implementation Code
 1. `app/src/` - Application source code
@@ -107,7 +107,7 @@ Review the following systematically:
 1. Configuration files in `app/config/` (if exists)
 2. `.gitignore` patterns for secrets
 3. Environment variable handling
-4. Deployment procedures in `docs/deployment/`
+4. Deployment procedures in `loa-grimoire/deployment/`
 
 ## Focus Areas
 

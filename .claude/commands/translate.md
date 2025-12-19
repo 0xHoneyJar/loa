@@ -22,7 +22,7 @@ Running in background mode. Use `/tasks` to monitor progress.
 ## What You're Translating
 
 The user will provide:
-- **Technical documents** to translate (e.g., `@SECURITY-AUDIT-REPORT.md`, `@docs/sdd.md`, `@docs/sprint.md`)
+- **Technical documents** to translate (e.g., `@SECURITY-AUDIT-REPORT.md`, `@loa-grimoire/sdd.md`, `@loa-grimoire/sprint.md`)
 - **Target audience** (executives, board, investors, product team, compliance, etc.)
 - **Business context** (board meeting, investor update, demo prep, etc.)
 - **Specific questions** stakeholders have asked (if any)
@@ -102,7 +102,7 @@ Transform technical documentation (PRDs, SDDs, audit reports, implementation upd
 ## What You're Translating
 
 The user will provide:
-- **Technical documents** to translate (e.g., `@SECURITY-AUDIT-REPORT.md`, `@docs/sdd.md`, `@docs/sprint.md`)
+- **Technical documents** to translate (e.g., `@SECURITY-AUDIT-REPORT.md`, `@loa-grimoire/sdd.md`, `@loa-grimoire/sprint.md`)
 - **Target audience** (executives, board, investors, product team, compliance, etc.)
 - **Business context** (board meeting, investor update, demo prep, etc.)
 - **Specific questions** stakeholders have asked (if any)

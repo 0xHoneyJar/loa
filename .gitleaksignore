@@ -1,18 +1,23 @@
 # GitLeaks Ignore File
 # Exclude false positives from secret scanning
 
-# Example/template files
-app/secrets/.env.local.example
+# Generic patterns
 *.example
 *.template
 
-# Documentation with example API key formats
-docs/deployment/SECRETS-SETUP-GUIDE.md
-docs/deployment/runbooks/secrets-rotation.md
-docs/audits/**/*.md
+# Application artifacts (app/)
+app/secrets/.env.local.example
+app/config/*.example
+app/.env.example
+app/.env.*.example
+
+# Loa process artifacts (loa-grimoire/)
+loa-grimoire/deployment/SECRETS-SETUP-GUIDE.md
+loa-grimoire/deployment/runbooks/secrets-rotation.md
+loa-grimoire/audits/**/*.md
 
 # Security audit reports (contain example patterns for testing)
 SECURITY-AUDIT-REPORT.md
 
-# Configuration files with example patterns
+# Agent command documentation
 .claude/commands/*.md

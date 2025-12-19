@@ -8,12 +8,12 @@ I'm launching the sprint-planner agent to create a detailed sprint plan based on
 **Execution Mode**: {{ "background - use /tasks to monitor" if "background" in $ARGUMENTS else "foreground (default)" }}
 
 The agent will:
-1. **Carefully review** both `docs/prd.md` and `docs/sdd.md` to understand requirements and architecture
+1. **Carefully review** both `loa-grimoire/prd.md` and `loa-grimoire/sdd.md` to understand requirements and architecture
 2. **Analyze and plan** sprint breakdown, task prioritization, and implementation sequencing
 3. **Clarify uncertainties** by asking you questions with specific proposals when anything is ambiguous
 4. **Validate assumptions** about team capacity, sprint duration, priorities, and dependencies
 5. **Generate sprint plan** only when fully satisfied with all answers and has no remaining doubts
-6. **Save output** to `docs/sprint.md`
+6. **Save output** to `loa-grimoire/sprint.md`
 
 The sprint planner will cover:
 - Sprint structure and duration (2.5-day sprints or customized)
@@ -30,10 +30,10 @@ Running in background mode. Use `/tasks` to monitor progress.
 
 <Task
   subagent_type="sprint-planner"
-  prompt="You are tasked with creating a comprehensive sprint plan based on the Product Requirements Document at docs/prd.md and the Software Design Document at docs/sdd.md.
+  prompt="You are tasked with creating a comprehensive sprint plan based on the Product Requirements Document at loa-grimoire/prd.md and the Software Design Document at loa-grimoire/sdd.md.
 
 Your process:
-1. Carefully read and analyze both docs/prd.md and docs/sdd.md in their entirety
+1. Carefully read and analyze both loa-grimoire/prd.md and loa-grimoire/sdd.md in their entirety
 2. Understand the product requirements, technical architecture, and implementation approach
 3. Break down the work into sprints with specific, actionable tasks
 4. For ANY uncertainties, ambiguities, or areas where clarification is needed:
@@ -49,7 +49,7 @@ Your process:
    - Testing and QA requirements
 6. Only when you are completely satisfied with all answers and have NO remaining doubts or uncertainties, proceed to write the sprint plan
 7. Generate a detailed, comprehensive sprint plan
-8. Save the final sprint plan to docs/sprint.md
+8. Save the final sprint plan to loa-grimoire/sprint.md
 
 The sprint plan should include:
 - Sprint Overview (goals, duration, team structure)
@@ -81,10 +81,10 @@ Remember: Ask questions and seek clarity BEFORE writing. Only generate the sprin
 {{ else }}
 Let me begin the sprint planning process.
 
-You are tasked with creating a comprehensive sprint plan based on the Product Requirements Document at docs/prd.md and the Software Design Document at docs/sdd.md.
+You are tasked with creating a comprehensive sprint plan based on the Product Requirements Document at loa-grimoire/prd.md and the Software Design Document at loa-grimoire/sdd.md.
 
 Your process:
-1. Carefully read and analyze both docs/prd.md and docs/sdd.md in their entirety
+1. Carefully read and analyze both loa-grimoire/prd.md and loa-grimoire/sdd.md in their entirety
 2. Understand the product requirements, technical architecture, and implementation approach
 3. Break down the work into sprints with specific, actionable tasks
 4. For ANY uncertainties, ambiguities, or areas where clarification is needed:
@@ -100,7 +100,7 @@ Your process:
    - Testing and QA requirements
 6. Only when you are completely satisfied with all answers and have NO remaining doubts or uncertainties, proceed to write the sprint plan
 7. Generate a detailed, comprehensive sprint plan
-8. Save the final sprint plan to docs/sprint.md
+8. Save the final sprint plan to loa-grimoire/sprint.md
 
 The sprint plan should include:
 - Sprint Overview (goals, duration, team structure)

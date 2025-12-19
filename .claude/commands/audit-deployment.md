@@ -11,11 +11,11 @@ I'm launching the paranoid cypherpunk auditor agent in **infrastructure audit mo
 This command participates in an audit-fix-verify feedback loop:
 
 ```
-DevOps creates infrastructure → writes docs/a2a/deployment-report.md
+DevOps creates infrastructure → writes loa-grimoire/a2a/deployment-report.md
     ↓
 /audit-deployment
     ↓
-Auditor reviews → writes docs/a2a/deployment-feedback.md
+Auditor reviews → writes loa-grimoire/a2a/deployment-feedback.md
     ↓ (if CHANGES_REQUIRED)
 DevOps reads feedback, fixes issues, updates report
     ↓
@@ -27,12 +27,12 @@ Proceed with production deployment (see DEPLOYMENT_RUNBOOK.md)
 ```
 
 **What this command does**:
-1. **Read DevOps report**: Review `docs/a2a/deployment-report.md` for context
+1. **Read DevOps report**: Review `loa-grimoire/a2a/deployment-report.md` for context
 2. **Check previous feedback**: Verify all previous issues were addressed (if applicable)
 3. **Audit infrastructure**: Review scripts, configs, docs for security issues
 4. **Make decision**:
-   - **If issues found**: Write detailed feedback to `docs/a2a/deployment-feedback.md` with CHANGES_REQUIRED
-   - **If all good**: Write approval to `docs/a2a/deployment-feedback.md` with "APPROVED - LET'S FUCKING GO"
+   - **If issues found**: Write detailed feedback to `loa-grimoire/a2a/deployment-feedback.md` with CHANGES_REQUIRED
+   - **If all good**: Write approval to `loa-grimoire/a2a/deployment-feedback.md` with "APPROVED - LET'S FUCKING GO"
 
 {{ if "background" in $ARGUMENTS }}
 Running in background mode. Use `/tasks` to monitor progress.
@@ -45,17 +45,17 @@ Running in background mode. Use `/tasks` to monitor progress.
 
 You are the security gate in this workflow:
 1. DevOps architect creates infrastructure and documentation
-2. DevOps writes report to `docs/a2a/deployment-report.md`
-3. **YOU** audit and write feedback to `docs/a2a/deployment-feedback.md`
+2. DevOps writes report to `loa-grimoire/a2a/deployment-report.md`
+3. **YOU** audit and write feedback to `loa-grimoire/a2a/deployment-feedback.md`
 4. If CHANGES_REQUIRED: DevOps fixes issues and updates report
 5. Cycle repeats until you approve
 6. When approved: Write 'APPROVED - LET'S FUCKING GO' to authorize deployment
 
 ## Phase 1: Read DevOps Report
 
-Check if `docs/a2a/deployment-report.md` exists. If not, search alternate locations:
-- `docs/a2a/` - Any deployment/report files
-- `docs/deployment/` - Look for `DEPLOYMENT-*.md`
+Check if `loa-grimoire/a2a/deployment-report.md` exists. If not, search alternate locations:
+- `loa-grimoire/a2a/` - Any deployment/report files
+- `loa-grimoire/deployment/` - Look for `DEPLOYMENT-*.md`
 - Project root: `DEPLOYMENT-*.md`
 
 If NO deployment report exists anywhere:
@@ -64,7 +64,7 @@ If NO deployment report exists anywhere:
 
 ## Phase 2: Check Previous Feedback (if applicable)
 
-Check if `docs/a2a/deployment-feedback.md` exists. If previous feedback EXISTS and contains CHANGES_REQUIRED:
+Check if `loa-grimoire/a2a/deployment-feedback.md` exists. If previous feedback EXISTS and contains CHANGES_REQUIRED:
 - This is a revision cycle - verify each previous issue was addressed
 - Check the DevOps report's 'Previous Audit Feedback Addressed' section
 - Verify fixes by reading the actual files, not just the report
@@ -72,7 +72,7 @@ Check if `docs/a2a/deployment-feedback.md` exists. If previous feedback EXISTS a
 ## Phase 3: Systematic Audit
 
 ### 3.1 Server Setup Scripts
-Review all scripts in `docs/deployment/scripts/` for:
+Review all scripts in `loa-grimoire/deployment/scripts/` for:
 - Command injection vulnerabilities
 - Hardcoded secrets
 - Insecure file permissions
@@ -116,10 +116,10 @@ Verify:
 ## Phase 4: Make Your Decision
 
 ### OPTION A: Request Changes (Issues Found)
-If you find CRITICAL or HIGH priority issues, create/overwrite `docs/a2a/deployment-feedback.md` with CHANGES_REQUIRED status.
+If you find CRITICAL or HIGH priority issues, create/overwrite `loa-grimoire/a2a/deployment-feedback.md` with CHANGES_REQUIRED status.
 
 ### OPTION B: Approve (All Good)
-If no CRITICAL/HIGH issues remain and all previous feedback was addressed, create/overwrite `docs/a2a/deployment-feedback.md` with:
+If no CRITICAL/HIGH issues remain and all previous feedback was addressed, create/overwrite `loa-grimoire/a2a/deployment-feedback.md` with:
 - **Audit Status**: APPROVED
 - **Overall Status**: APPROVED - LET'S FUCKING GO
 - **Risk Level**: ACCEPTABLE
@@ -141,17 +141,17 @@ You are performing a **DevOps Infrastructure Security Audit** as part of a feedb
 
 You are the security gate in this workflow:
 1. DevOps architect creates infrastructure and documentation
-2. DevOps writes report to `docs/a2a/deployment-report.md`
-3. **YOU** audit and write feedback to `docs/a2a/deployment-feedback.md`
+2. DevOps writes report to `loa-grimoire/a2a/deployment-report.md`
+3. **YOU** audit and write feedback to `loa-grimoire/a2a/deployment-feedback.md`
 4. If CHANGES_REQUIRED: DevOps fixes issues and updates report
 5. Cycle repeats until you approve
 6. When approved: Write "APPROVED - LET'S FUCKING GO" to authorize deployment
 
 ## Phase 1: Read DevOps Report
 
-Check if `docs/a2a/deployment-report.md` exists. If not, search alternate locations:
-- `docs/a2a/` - Any deployment/report files
-- `docs/deployment/` - Look for `DEPLOYMENT-*.md`
+Check if `loa-grimoire/a2a/deployment-report.md` exists. If not, search alternate locations:
+- `loa-grimoire/a2a/` - Any deployment/report files
+- `loa-grimoire/deployment/` - Look for `DEPLOYMENT-*.md`
 - Project root: `DEPLOYMENT-*.md`
 
 If NO deployment report exists anywhere:
@@ -160,7 +160,7 @@ If NO deployment report exists anywhere:
 
 ## Phase 2: Check Previous Feedback (if applicable)
 
-Check if `docs/a2a/deployment-feedback.md` exists. If previous feedback EXISTS and contains CHANGES_REQUIRED:
+Check if `loa-grimoire/a2a/deployment-feedback.md` exists. If previous feedback EXISTS and contains CHANGES_REQUIRED:
 - This is a revision cycle - verify each previous issue was addressed
 - Check the DevOps report's "Previous Audit Feedback Addressed" section
 - Verify fixes by reading the actual files, not just the report
@@ -168,7 +168,7 @@ Check if `docs/a2a/deployment-feedback.md` exists. If previous feedback EXISTS a
 ## Phase 3: Systematic Audit
 
 ### 3.1 Server Setup Scripts
-Review all scripts in `docs/deployment/scripts/` for:
+Review all scripts in `loa-grimoire/deployment/scripts/` for:
 - Command injection vulnerabilities
 - Hardcoded secrets
 - Insecure file permissions
@@ -212,10 +212,10 @@ Verify:
 ## Phase 4: Make Your Decision
 
 ### OPTION A: Request Changes (Issues Found)
-If you find CRITICAL or HIGH priority issues, create/overwrite `docs/a2a/deployment-feedback.md` with CHANGES_REQUIRED status.
+If you find CRITICAL or HIGH priority issues, create/overwrite `loa-grimoire/a2a/deployment-feedback.md` with CHANGES_REQUIRED status.
 
 ### OPTION B: Approve (All Good)
-If no CRITICAL/HIGH issues remain and all previous feedback was addressed, create/overwrite `docs/a2a/deployment-feedback.md` with:
+If no CRITICAL/HIGH issues remain and all previous feedback was addressed, create/overwrite `loa-grimoire/a2a/deployment-feedback.md` with:
 - **Audit Status**: APPROVED
 - **Overall Status**: APPROVED - LET'S FUCKING GO
 - **Risk Level**: ACCEPTABLE
