@@ -5,6 +5,53 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-12-19
+
+### Added
+- **`/setup` command**: First-time onboarding workflow
+  - Guided MCP server configuration (GitHub, Linear, Vercel, Discord, web3-stats)
+  - Project initialization (git user info, project name detection)
+  - Creates `.loa-setup-complete` marker file
+  - Setup enforcement: `/plan-and-analyze` now requires setup completion
+- **`/feedback` command**: Developer experience survey
+  - 4-question survey with progress indicators
+  - Linear integration: posts to "Loa Feedback" project
+  - Analytics attachment: includes usage.json in feedback
+  - Pending feedback safety net: saves locally before submission
+- **`/update` command**: Framework update mechanism
+  - Pre-flight checks (clean working tree, remote verification)
+  - Fetch, preview, and confirm workflow
+  - Merge conflict guidance per file type
+  - CHANGELOG excerpt display after update
+- **Analytics system**: Usage tracking for feedback context
+  - `loa-grimoire/analytics/usage.json` for raw metrics
+  - `loa-grimoire/analytics/summary.md` for human-readable summary
+  - Tracks: phases, sprints, reviews, audits, deployments
+  - Non-blocking: failures logged but don't interrupt workflows
+  - Opt-in sharing: only sent via `/feedback` command
+
+### Changed
+- All phase commands now update analytics on completion
+- `/plan-and-analyze` blocks if setup marker is missing
+- `/deploy-production` suggests running `/feedback` after deployment
+- Documentation updated: CLAUDE.md, PROCESS.md, README.md
+- Repository structure now includes `loa-grimoire/analytics/` directory
+- `.gitignore` updated with setup marker and pending feedback entries
+
+### Directory Structure
+```
+loa-grimoire/
+├── analytics/           # NEW: Usage tracking
+│   ├── usage.json       # Raw usage metrics
+│   ├── summary.md       # Human-readable summary
+│   └── pending-feedback.json # Pending submissions (gitignored)
+└── ...
+
+.loa-setup-complete      # NEW: Setup marker (gitignored)
+```
+
+---
+
 ## [0.1.0] - 2025-12-19
 
 ### Added
@@ -50,4 +97,5 @@ loa-grimoire/           # Loa process artifacts
 └── deployment/         # Production infrastructure docs
 ```
 
+[0.2.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.2.0
 [0.1.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.1.0

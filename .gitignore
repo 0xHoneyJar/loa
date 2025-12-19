@@ -41,8 +41,14 @@ tmp/
 temp/
 *.tmp
 
-# Loa setup marker (indicates first-launch setup completed)
+# Loa setup marker
+# Created by /setup command when first-time configuration completes
+# Each developer runs setup independently, so this should not be shared
 .loa-setup-complete
+
+# Pending feedback (temporary file for failed Linear submissions)
+# Kept in case /feedback fails to submit to Linear - automatically retried
+loa-grimoire/analytics/pending-feedback.json
 
 # Server audit reports (contain sensitive deployment info)
 loa-grimoire/deployment/SERVER-REALITY-AUDIT.md
@@ -51,7 +57,7 @@ loa-grimoire/deployment/SERVER-REALITY-AUDIT.md
 # IMPORTANT: Uncomment these lines when using this as a base for your project
 # if you are not in THJ to avoid committing generated documentation to your repository.
 # Within THJ as we work within private repos we commit these files to help with internal
-# knowledge systems. 
+# knowledge systems.
 #
 # Loa process artifacts (loa-grimoire/)
 # loa-grimoire/prd.md
@@ -59,6 +65,10 @@ loa-grimoire/deployment/SERVER-REALITY-AUDIT.md
 # loa-grimoire/sprint.md
 # loa-grimoire/a2a/
 # loa-grimoire/deployment/
+#
+# Analytics (usage tracking)
+# By default, analytics are tracked but may contain developer-specific info
+# Uncomment to exclude from version control:
 # loa-grimoire/analytics/
 #
 # Application artifacts (app/)

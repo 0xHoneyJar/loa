@@ -18,8 +18,9 @@ This document outlines the comprehensive agent-driven development workflow. Our 
 
 ## Overview
 
-Our development process follows a structured, seven-phase approach:
+Our development process follows a structured, eight-phase approach:
 
+0. **Phase 0: Setup** → Initial configuration and analytics initialization
 1. **Phase 1: Planning** → Product Requirements Document (PRD)
 2. **Phase 2: Architecture** → Software Design Document (SDD)
 3. **Phase 3: Sprint Planning** → Sprint Plan
@@ -27,6 +28,7 @@ Our development process follows a structured, seven-phase approach:
 5. **Phase 5: Review** → Quality Validation and Sprint Approval
 6. **Phase 5.5: Sprint Security Audit** → Security Review and Approval
 7. **Phase 6: Deployment** → Production Infrastructure and Handover
+8. **Post-Deployment: Feedback** → Developer experience survey
 
 Each phase is handled by a specialized agent with deep domain expertise, ensuring thorough discovery, clear documentation, high-quality implementation, rigorous quality control, comprehensive security review, and enterprise-grade production deployment.
 
@@ -129,6 +131,52 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 ---
 
 ## Workflow
+
+### Phase 0: Setup (`/setup`)
+
+**Goal**: Configure Loa for first-time use and initialize analytics
+
+**Process**:
+1. **Welcome & Analytics Notice**:
+   - Displays Loa's purpose and workflow overview
+   - Explains what analytics are collected and where they're stored
+   - Confirms local-only storage with opt-in sharing via feedback
+
+2. **MCP Server Detection**:
+   - Reads `.claude/settings.local.json` for configured servers
+   - Lists detected MCPs (github, linear, vercel, discord, web3-stats)
+   - For each missing MCP, offers:
+     - **Guided setup**: Step-by-step configuration instructions
+     - **Documentation link**: External setup guide
+     - **Skip**: Mark as optional and continue
+
+3. **Project Initialization**:
+   - Extracts project name from `git remote get-url origin`
+   - Gets developer info from `git config user.name/email`
+   - Creates `loa-grimoire/analytics/usage.json` with initial data
+   - Creates `.loa-setup-complete` marker file
+
+4. **Configuration Summary**:
+   - Lists all MCPs and their status
+   - Shows initialized analytics location
+   - Provides next steps (run `/plan-and-analyze`)
+
+**Command**:
+```bash
+/setup
+```
+
+**Outputs**:
+- `.loa-setup-complete` marker file
+- `loa-grimoire/analytics/usage.json`
+- `loa-grimoire/analytics/summary.md`
+
+**Setup Enforcement**:
+- `/plan-and-analyze` checks for `.loa-setup-complete`
+- If missing, prompts user to run `/setup` first
+- Ensures consistent onboarding experience
+
+---
 
 ### Phase 1: Planning (`/plan-and-analyze`)
 
@@ -568,6 +616,112 @@ After security audit, if changes required:
 
 ---
 
+### Post-Deployment: Developer Feedback (`/feedback`)
+
+**Goal**: Collect developer experience feedback and submit to Linear
+
+**When to Use**:
+- After completing a deployment
+- After significant time using Loa
+- When suggested by `/deploy-production`
+
+**Process**:
+
+1. **Check for Pending Feedback**:
+   - Looks for `loa-grimoire/analytics/pending-feedback.json`
+   - If found, offers to submit pending feedback first
+
+2. **Survey (4 Questions)**:
+   - **Q1** (1/4): "What's one thing you would change about Loa?" (free text)
+   - **Q2** (2/4): "What's one thing you loved about using Loa?" (free text)
+   - **Q3** (3/4): "How would you rate this experience vs other approaches?" (1-5 scale)
+   - **Q4** (4/4): "How comfortable are you with the agent-driven process?" (A-E choice)
+
+3. **Prepare Submission**:
+   - Loads analytics from `loa-grimoire/analytics/usage.json`
+   - Saves pending feedback locally (safety net before submission)
+   - Formats feedback with analytics summary
+
+4. **Submit to Linear**:
+   - Searches for existing issue in "Loa Feedback" project
+   - If found: Adds comment with new feedback
+   - If not found: Creates new issue
+   - Includes full analytics JSON in collapsible details block
+
+5. **Record Submission**:
+   - Updates `feedback_submissions` array in analytics
+   - Deletes pending feedback file on success
+
+**Command**:
+```bash
+/feedback
+```
+
+**Output**: Linear issue/comment in "Loa Feedback" project
+
+**Error Handling**:
+- If Linear submission fails, feedback is saved to `pending-feedback.json`
+- On next `/feedback` run, offers to submit pending feedback
+- No feedback is ever lost due to network/auth issues
+
+---
+
+### Maintenance: Framework Updates (`/update`)
+
+**Goal**: Pull latest Loa framework updates from upstream
+
+**When to Use**:
+- Periodically to get new features and bug fixes
+- When notified of important updates
+- Before starting a new project phase
+
+**Process**:
+
+1. **Pre-flight Checks**:
+   - Verifies working tree is clean (`git status --porcelain`)
+   - If dirty: Lists files, suggests commit/stash, STOPS
+   - Checks for `loa` or `upstream` remote
+   - If missing: Shows `git remote add` command, STOPS
+
+2. **Fetch Updates**:
+   - Runs `git fetch loa main`
+   - Handles network errors gracefully
+
+3. **Show Changes**:
+   - Lists new commits (`git log HEAD..loa/main --oneline`)
+   - Shows files that will change (`git diff --stat HEAD..loa/main`)
+   - If no new commits: "Already up to date", STOPS
+
+4. **Confirm Update**:
+   - Asks for explicit confirmation before merging
+   - Notes which files will be updated vs preserved
+
+5. **Merge Updates**:
+   - Runs `git merge loa/main` with descriptive message
+   - If conflicts occur, provides resolution guidance:
+     - `.claude/` files: Recommend accepting upstream
+     - Other files: Manual resolution steps
+
+6. **Post-Merge**:
+   - Shows CHANGELOG.md excerpt for new version
+   - Suggests reviewing new features in CLAUDE.md
+
+**Command**:
+```bash
+/update
+```
+
+**Merge Strategy**:
+| File Location | Behavior |
+|---------------|----------|
+| `.claude/agents/` | Updated to latest Loa versions |
+| `.claude/commands/` | Updated to latest Loa versions |
+| `app/` | Preserved (your code) |
+| `loa-grimoire/prd.md` | Preserved (your docs) |
+| `loa-grimoire/analytics/` | Preserved (your data) |
+
+---
+
 ### Ad-Hoc: Security Audit (`/audit`)
 
 **Agent**: `paranoid-auditor`
@@ -632,6 +786,7 @@ After security audit, if changes required:
 
 | Command | Purpose | Agent | Output |
 |---------|---------|-------|--------|
+| `/setup` | First-time configuration | - | `.loa-setup-complete`, analytics |
 | `/plan-and-analyze` | Define requirements and create PRD | `prd-architect` | `loa-grimoire/prd.md` |
 | `/architect` | Design system architecture | `architecture-designer` | `loa-grimoire/sdd.md` |
 | `/sprint-plan` | Plan implementation sprints | `sprint-planner` | `loa-grimoire/sprint.md` |
@@ -639,6 +794,8 @@ After security audit, if changes required:
 | `/review-sprint` | Review and approve/reject implementation | `senior-tech-lead-reviewer` | `loa-grimoire/a2a/engineer-feedback.md` |
 | `/audit-sprint` | Security audit of sprint implementation | `paranoid-auditor` | `loa-grimoire/a2a/auditor-sprint-feedback.md` |
 | `/deploy-production` | Deploy to production | `devops-crypto-architect` | `loa-grimoire/deployment/` |
+| `/feedback` | Submit developer experience feedback | - | Linear issue in "Loa Feedback" |
+| `/update` | Pull framework updates from upstream | - | Merged updates |
 | `/audit` | Security audit (ad-hoc) | `paranoid-auditor` | `SECURITY-AUDIT-REPORT.md` |
 | `/audit-deployment` | Deployment infrastructure audit (ad-hoc) | `paranoid-auditor` | `loa-grimoire/a2a/deployment-feedback.md` |
 | `/translate @doc for [audience]` | Executive translation (ad-hoc) | `devrel-translator` | Executive summaries |
@@ -757,6 +914,12 @@ The engineer reads this file with HIGHEST PRIORITY on the next `/implement {spri
 ## Example Workflow
 
 ```bash
+# 0. First-time setup (once per project)
+/setup
+# → Configure MCP servers
+# → Initialize analytics
+# → Creates .loa-setup-complete marker
+
 # 1. Define product requirements
 /plan-and-analyze
 # → Answer discovery questions
@@ -805,6 +968,16 @@ The engineer reads this file with HIGHEST PRIORITY on the next `/implement {spri
 # 11. Deploy to production
 /deploy-production
 # → Production infrastructure deployed
+
+# 12. Submit feedback (optional but encouraged)
+/feedback
+# → Answer 4 survey questions
+# → Feedback + analytics posted to Linear
+
+# 13. Get framework updates (periodically)
+/update
+# → Pull latest Loa improvements
+# → Review CHANGELOG.md for new features
 ```
 
 ---

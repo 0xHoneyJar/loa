@@ -87,6 +87,22 @@ All slash commands run in **foreground mode by default**, allowing direct intera
 - **Foreground (default)**: Interactive sessions, when you want to guide the agent, single-task workflows
 - **Background**: Running multiple agents in parallel, long-running tasks, automated pipelines
 
+### Phase 0: Setup (First-Time Only)
+```bash
+/setup
+```
+Guides new developers through initial Loa configuration. The command:
+- Displays welcome message explaining Loa's purpose and workflow
+- Shows analytics notice (what's collected, where it's stored)
+- Detects configured MCP servers from `.claude/settings.local.json`
+- For each missing MCP, offers: Guided setup, Documentation link, or Skip
+- Initializes project (git user info, project name from remote)
+- Creates `loa-grimoire/analytics/usage.json` with initial data
+- Creates `.loa-setup-complete` marker file
+- Displays configuration summary and next steps
+
+**Setup is required before `/plan-and-analyze`**. If the marker file is missing, you'll be prompted to run `/setup` first.
+
 ### Phase 1: Requirements
 ```bash
 /plan-and-analyze
@@ -172,6 +188,48 @@ If audit finds issues:
 /deploy-production
 ```
 Launches `devops-crypto-architect` agent to design and deploy production infrastructure. Creates IaC, CI/CD pipelines, monitoring, and comprehensive operational documentation in `loa-grimoire/deployment/`.
+
+### Post-Deployment: Developer Feedback
+```bash
+/feedback
+```
+Collects developer feedback on the Loa experience and posts to Linear. The command:
+- Checks for pending feedback from previous failed submissions
+- Runs a 4-question survey with progress indicators:
+  1. What would you change about Loa? (free text)
+  2. What did you love about using Loa? (free text)
+  3. Rate this build vs other approaches (1-5 scale)
+  4. How comfortable are you with the process? (A-E multiple choice)
+- Loads analytics from `loa-grimoire/analytics/usage.json`
+- Searches for existing feedback issue in "Loa Feedback" Linear project
+- Creates new issue or adds comment to existing one
+- Includes full analytics in collapsible details block
+- Records submission in analytics `feedback_submissions` array
+
+**Error handling**: If Linear submission fails, feedback is saved to `loa-grimoire/analytics/pending-feedback.json` and can be retried on next `/feedback` run.
+
+### Maintenance: Framework Updates
+```bash
+/update
+```
+Pulls the latest Loa framework updates from the upstream repository. The command:
+- **Pre-flight checks**:
+  - Verifies working tree is clean (no uncommitted changes)
+  - Checks for `loa` or `upstream` remote
+- **Fetch and preview**:
+  - Fetches from `loa main`
+  - Shows list of new commits and files that will change
+- **Confirmation**:
+  - Asks for confirmation before merging
+  - Notes which files will be updated vs preserved
+- **Merge with guidance**:
+  - Performs standard `git merge loa/main`
+  - If conflicts occur, provides resolution guidance:
+    - `.claude/` files: recommend accepting upstream
+    - Other files: manual resolution steps
+- **Post-merge**:
+  - Shows CHANGELOG.md excerpt
+  - Suggests reviewing new features
 
 ### Ad-Hoc: Deployment Infrastructure Audit
 ```bash
@@ -540,14 +598,50 @@ fi
 - File is gitignored (each developer runs setup independently)
 - Contains minimal metadata for analytics correlation
 
+### Analytics System
+
+The framework automatically tracks usage metrics to help improve Loa and provide context for feedback submissions.
+
+#### What's Tracked
+
+| Category | Metrics |
+|----------|---------|
+| **Environment** | Framework version, project name, developer (git user) |
+| **Setup** | Completion timestamp, configured MCP servers |
+| **Phases** | Start/completion timestamps for PRD, SDD, sprint planning, deployment |
+| **Sprints** | Sprint number, start/end times, review iterations, audit iterations |
+| **Feedback** | Submission timestamps, Linear issue IDs |
+
+#### Files
+
+- `loa-grimoire/analytics/usage.json` - Raw usage data (JSON)
+- `loa-grimoire/analytics/summary.md` - Human-readable summary (regenerated after updates)
+- `loa-grimoire/analytics/pending-feedback.json` - Pending feedback (only if submission failed)
+
+#### How It Works
+
+1. **Initialization**: `/setup` creates `usage.json` with environment info
+2. **Phase tracking**: Each phase command updates analytics on completion
+3. **Non-blocking**: Analytics failures are logged but don't stop workflows
+4. **Opt-in sharing**: Analytics stay local; only shared via `/feedback` if you choose
+
+#### Updating Analytics
+
+Each phase command follows this pattern:
+1. Check if `usage.json` exists (create if missing)
+2. Update relevant phase/sprint data
+3. Regenerate `summary.md`
+4. Continue with main workflow
+
 ### Document Structure
 
 All planning documents live in `loa-grimoire/`:
 - Primary docs: `prd.md`, `sdd.md`, `sprint.md`
 - A2A communication: `loa-grimoire/a2a/`
 - Deployment docs: `loa-grimoire/deployment/`
+- Analytics: `loa-grimoire/analytics/`
 
-**Note**: This is a base framework repository. When using as a template for a new project, uncomment the generated artifacts section in `.gitignore` to avoid committing generated documentation (prd.md, sdd.md, sprint.md, a2a/, deployment/).
+**Note**: This is a base framework repository. When using as a template for a new project, uncomment the generated artifacts section in `.gitignore` to avoid committing generated documentation (prd.md, sdd.md, sprint.md, a2a/, deployment/, analytics/).
 
 ### Sprint Status Tracking
 
@@ -604,36 +698,41 @@ When providing feedback in `loa-grimoire/a2a/sprint-N/engineer-feedback.md`:
 ```
 .claude/
 ├── agents/              # Agent definitions (8 agents)
-├── commands/           # Slash command definitions (10 commands)
-└── settings.local.json # MCP server configuration
+├── commands/            # Slash command definitions (13 commands)
+└── settings.local.json  # MCP server configuration
 
 loa-grimoire/
-├── prd.md              # Product Requirements Document
-├── sdd.md              # Software Design Document
-├── sprint.md           # Sprint plan with tasks
-├── a2a/                # Agent-to-agent communication (preserves audit trail)
-│   ├── index.md                   # Sprint audit trail index (auto-maintained)
-│   ├── sprint-1/                  # Sprint 1 A2A files
-│   │   ├── reviewer.md            # Engineer implementation report
-│   │   ├── engineer-feedback.md   # Senior lead feedback
+├── prd.md               # Product Requirements Document
+├── sdd.md               # Software Design Document
+├── sprint.md            # Sprint plan with tasks
+├── a2a/                 # Agent-to-agent communication (preserves audit trail)
+│   ├── index.md                    # Sprint audit trail index (auto-maintained)
+│   ├── integration-context.md      # Linear team/project IDs, labels
+│   ├── sprint-1/                   # Sprint 1 A2A files
+│   │   ├── reviewer.md             # Engineer implementation report
+│   │   ├── engineer-feedback.md    # Senior lead feedback
 │   │   ├── auditor-sprint-feedback.md # Security audit feedback
-│   │   └── COMPLETED              # Completion marker (created by audit-sprint)
-│   ├── sprint-2/                  # Sprint 2 A2A files (same structure)
-│   │   └── ...
-│   ├── deployment-report.md       # DevOps infrastructure reports
-│   └── deployment-feedback.md     # Deployment security audit feedback
-└── deployment/         # Production infrastructure docs
-    ├── scripts/        # Server setup scripts
-    ├── runbooks/       # Operational procedures
+│   │   └── COMPLETED               # Completion marker (created by audit-sprint)
+│   ├── sprint-N/                   # Additional sprints (same structure)
+│   ├── deployment-report.md        # DevOps infrastructure reports
+│   └── deployment-feedback.md      # Deployment security audit feedback
+├── analytics/           # Usage tracking (local, opt-in sharing)
+│   ├── usage.json       # Raw usage metrics
+│   ├── summary.md       # Human-readable summary
+│   └── pending-feedback.json # Pending feedback (if submission failed)
+└── deployment/          # Production infrastructure docs
+    ├── scripts/         # Server setup scripts
+    ├── runbooks/        # Operational procedures
     └── ...
 
-app/                    # Application source code (generated by sprints)
-├── src/                # Source code
-├── tests/              # Test files
-└── ...                 # Project-specific structure
+app/                     # Application source code (generated by sprints)
+├── src/                 # Source code
+├── tests/               # Test files
+└── ...                  # Project-specific structure
 
-PROCESS.md              # Comprehensive workflow documentation
-CLAUDE.md               # This file
+.loa-setup-complete      # Setup marker file (gitignored)
+PROCESS.md               # Comprehensive workflow documentation
+CLAUDE.md                # This file
 ```
 
 ## Parallel Execution Guidelines

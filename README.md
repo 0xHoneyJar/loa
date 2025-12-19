@@ -1,6 +1,6 @@
 # Loa
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
@@ -39,7 +39,13 @@ This framework uses specialized AI agents working together in a structured workf
    claude
    ```
 
-3. **Begin the workflow**
+3. **Run first-time setup**
+   ```bash
+   /setup
+   ```
+   This configures MCP servers, initializes analytics, and creates your setup marker.
+
+4. **Begin the workflow**
    ```bash
    /plan-and-analyze
    ```
@@ -47,6 +53,10 @@ This framework uses specialized AI agents working together in a structured workf
 That's it! The PRD architect agent will guide you through structured discovery.
 
 ## The Workflow
+
+### Phase 0: Setup (`/setup`)
+Guides you through initial configuration: MCP servers, analytics, and project initialization.
+- Output: `.loa-setup-complete` marker, `loa-grimoire/analytics/`
 
 ### Phase 1: Planning (`/plan-and-analyze`)
 The **prd-architect** agent guides you through 7 discovery phases to extract complete requirements.
@@ -78,6 +88,15 @@ The **paranoid-auditor** agent performs security review of sprint implementation
 The **devops-crypto-architect** agent deploys to production with full infrastructure.
 - Output: IaC configs, CI/CD pipelines, `loa-grimoire/deployment/`
 
+### Post-Deployment: Feedback (`/feedback`)
+Collects developer experience feedback via a 4-question survey and posts to Linear.
+- Output: Linear issue in "Loa Feedback" project with analytics attached
+
+### Maintenance: Updates (`/update`)
+Pulls the latest Loa framework updates from upstream repository.
+- Pre-flight checks for clean working tree and remote configuration
+- Shows changes and asks for confirmation before merging
+
 ### Ad-Hoc: Security Audit (`/audit`)
 The **paranoid-auditor** agent performs comprehensive security audits on-demand.
 - Use before production, after major changes, or periodically
@@ -108,6 +127,7 @@ All slash commands run in **foreground mode by default**, allowing direct intera
 
 | Command | Purpose | Output |
 |---------|---------|--------|
+| `/setup` | First-time configuration | `.loa-setup-complete`, analytics |
 | `/plan-and-analyze` | Define requirements and create PRD | `loa-grimoire/prd.md` |
 | `/architect` | Design system architecture | `loa-grimoire/sdd.md` |
 | `/sprint-plan` | Plan implementation sprints | `loa-grimoire/sprint.md` |
@@ -115,6 +135,8 @@ All slash commands run in **foreground mode by default**, allowing direct intera
 | `/review-sprint sprint-N` | Review and approve/reject implementation | `loa-grimoire/a2a/sprint-N/engineer-feedback.md` |
 | `/audit-sprint sprint-N` | Security audit of sprint implementation | `loa-grimoire/a2a/sprint-N/auditor-sprint-feedback.md` |
 | `/deploy-production` | Deploy to production | Infrastructure + `loa-grimoire/deployment/` |
+| `/feedback` | Submit developer feedback | Linear issue in "Loa Feedback" |
+| `/update` | Pull framework updates | Merged upstream changes |
 | `/audit` | Security and quality audit (ad-hoc) | `SECURITY-AUDIT-REPORT.md` |
 | `/audit-deployment` | Security audit of deployment infrastructure | `loa-grimoire/a2a/deployment-feedback.md` |
 | `/translate @doc.md for [audience]` | Translate technical docs for stakeholders | Executive summaries |
@@ -150,6 +172,13 @@ Agents communicate through structured documents in `loa-grimoire/a2a/`:
 - Security auditor provides security feedback (`sprint-N/auditor-sprint-feedback.md`)
 - Engineers address feedback and iterate until both gates approve
 
+### Analytics System
+Loa tracks usage metrics locally to provide context for feedback:
+- **What's tracked**: Framework version, phase completion, sprint iterations, timestamps
+- **Where it's stored**: `loa-grimoire/analytics/usage.json` (local only)
+- **Opt-in sharing**: Analytics are only shared when you run `/feedback`
+- **Non-blocking**: Analytics failures never interrupt your workflow
+
 ### MCP Server Integrations
 Pre-configured integrations with:
 - **Linear** - Issue and project management
@@ -175,6 +204,7 @@ loa-grimoire/
 ├── sprint.md            # Sprint plan (generated)
 ├── a2a/                 # Agent-to-agent communication
 │   ├── index.md                    # Sprint audit trail index
+│   ├── integration-context.md      # Linear team/project IDs
 │   ├── sprint-N/                   # Per-sprint communication
 │   │   ├── reviewer.md             # Engineer implementation report
 │   │   ├── engineer-feedback.md    # Senior lead feedback
@@ -182,8 +212,12 @@ loa-grimoire/
 │   │   └── COMPLETED               # Completion marker
 │   ├── deployment-report.md        # DevOps infrastructure report
 │   └── deployment-feedback.md      # Deployment audit feedback
+├── analytics/           # Usage tracking (local, opt-in sharing)
+│   ├── usage.json       # Raw usage metrics
+│   └── summary.md       # Human-readable summary
 └── deployment/          # Production infrastructure docs (generated)
 
+.loa-setup-complete      # Setup marker (gitignored)
 PROCESS.md               # Core workflow guide
 CLAUDE.md                # Context for Claude Code
 LICENSE.md               # AGPL-3.0 License
@@ -193,6 +227,10 @@ README.md                # This file
 ## Example Workflow
 
 ```bash
+# 0. First-time setup
+/setup
+# Configure MCP servers, initialize analytics
+
 # 1. Define requirements
 /plan-and-analyze
 # Answer discovery questions, review loa-grimoire/prd.md
@@ -234,6 +272,14 @@ README.md                # This file
 # 11. Deploy to production
 /deploy-production
 # Production infrastructure deployed
+
+# 12. Submit feedback (optional)
+/feedback
+# Share your experience and analytics
+
+# 13. Get updates (periodically)
+/update
+# Pull latest Loa improvements
 ```
 
 ## Best Practices
