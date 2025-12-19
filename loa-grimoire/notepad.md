@@ -184,4 +184,42 @@ How does this differ from typical leaderboard mechanics?
 
 ---
 
+## Architecture Decisions (SDD Phase)
+
+### Decision 1: Implementation Strategy
+**Chosen**: Modified `/setup` with modular checkbox UX
+- `/setup` offers optional Hivemind connection
+- Checkbox-based questions for engagement
+- Clear benefits messaging for Hivemind connection
+- Modular helper functions in `.claude/lib/` if needed
+
+### Decision 2: Context Query Mechanism
+**Chosen**: Use Hivemind's existing agents (symlinked)
+- Reference Hivemind's `/ask` command pattern
+- Spawn parallel research agents: @decision-archaeologist, @timeline-navigator, etc.
+- Thorough, intentional approach to querying organizational memory
+- Enables multiple perspectives on Hivemind content
+
+### Decision 3: Mode Detection Triggers
+**Chosen**: Phase-based rules (v1), hybrid in future iterations
+- PRD/Architecture/Sprint → per-project type setting
+- Audit/Deploy → always Secure mode
+- Implementation → depends on project type
+- **Future iteration**: Add keyword and file-pattern detection
+
+### Decision 4: Candidate Surfacing Trigger
+**Chosen**: Batch at end of phase, non-blocking
+- ADR candidates surfaced at end of Architecture phase
+- Learning candidates surfaced at end of Implementation phase
+- User reviews summary before Linear submission
+- Non-blocking to maintain flow state
+
+### Decision 5: Skill Symlink Strategy
+**Chosen**: Symlink folders with validation
+- Symlink skill folders from `.hivemind/.claude/skills/` to `.claude/skills/`
+- Startup validation checks symlinks are valid
+- Graceful fallback if symlinks break
+
+---
+
 *Last updated: 2025-12-19*

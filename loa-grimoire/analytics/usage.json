@@ -32,9 +32,9 @@
       "revisions": 0
     },
     "sdd": {
-      "started_at": null,
-      "completed_at": null,
-      "questions_asked": 0,
+      "started_at": "2025-12-19T08:05:00Z",
+      "completed_at": "2025-12-19T09:30:00Z",
+      "questions_asked": 5,
       "revisions": 0
     },
     "sprint_planning": {
@@ -49,8 +49,8 @@
   "audits": [],
   "deployments": [],
   "totals": {
-    "commands_executed": 2,
-    "phases_completed": 1,
+    "commands_executed": 3,
+    "phases_completed": 2,
     "sprints_completed": 0,
     "reviews_completed": 0,
     "audits_completed": 0,
