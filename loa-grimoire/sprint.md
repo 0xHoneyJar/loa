@@ -463,18 +463,18 @@ Extend Loa with three new capabilities:
 
 ### Tasks
 
-#### S4-T1: Create `/feedback` Command - Survey
+#### ✅ S4-T1: Create `/feedback` Command - Survey
 
 **Description**: Implement the 4-question survey with progress indicators.
 
 **Acceptance Criteria**:
-- [ ] File `.claude/commands/feedback.md` created
-- [ ] Shows progress (1/4, 2/4, etc.) for each question
-- [ ] Q1: Free text - "What would you change?"
-- [ ] Q2: Free text - "What did you love?"
-- [ ] Q3: 1-5 scale - "Rate vs other builds"
-- [ ] Q4: Multiple choice - "Process comfort level"
-- [ ] Collects all responses before proceeding
+- [x] File `.claude/commands/feedback.md` created
+- [x] Shows progress (1/4, 2/4, etc.) for each question
+- [x] Q1: Free text - "What would you change?"
+- [x] Q2: Free text - "What did you love?"
+- [x] Q3: 1-5 scale - "Rate vs other builds"
+- [x] Q4: Multiple choice - "Process comfort level"
+- [x] Collects all responses before proceeding
 
 **Implementation Notes**:
 - Use SDD Section 4.3.2 for exact question wording
@@ -487,19 +487,19 @@ Extend Loa with three new capabilities:
 
 ---
 
-#### S4-T2: Implement Feedback Linear Integration
+#### ✅ S4-T2: Implement Feedback Linear Integration
 
 **Description**: Post feedback to Linear with analytics attached.
 
 **Acceptance Criteria**:
-- [ ] Loads analytics from `usage.json`
-- [ ] Searches for existing issue in "Loa Feedback" project
-- [ ] If found: Adds comment with new feedback
-- [ ] If not found: Creates new issue
-- [ ] Issue/comment includes all survey responses
-- [ ] Issue/comment includes analytics summary
-- [ ] Issue/comment includes full JSON in collapsible details
-- [ ] Records submission in `feedback_submissions` array
+- [x] Loads analytics from `usage.json`
+- [x] Searches for existing issue in "Loa Feedback" project
+- [x] If found: Adds comment with new feedback
+- [x] If not found: Creates new issue
+- [x] Issue/comment includes all survey responses
+- [x] Issue/comment includes analytics summary
+- [x] Issue/comment includes full JSON in collapsible details
+- [x] Records submission in `feedback_submissions` array
 
 **Implementation Notes**:
 - Use `mcp__linear__list_issues` to search for existing
@@ -514,17 +514,17 @@ Extend Loa with three new capabilities:
 
 ---
 
-#### S4-T3: Create `/update` Command - Pre-flight
+#### ✅ S4-T3: Create `/update` Command - Pre-flight
 
 **Description**: Implement update command with working tree and remote checks.
 
 **Acceptance Criteria**:
-- [ ] File `.claude/commands/update.md` created
-- [ ] Checks `git status --porcelain` for uncommitted changes
-- [ ] If changes exist: Displays list and stops
-- [ ] Checks for `loa` remote (or `upstream`)
-- [ ] If no remote: Shows how to add it and stops
-- [ ] Clear error messages for each failure case
+- [x] File `.claude/commands/update.md` created
+- [x] Checks `git status --porcelain` for uncommitted changes
+- [x] If changes exist: Displays list and stops
+- [x] Checks for `loa` remote (or `upstream`)
+- [x] If no remote: Shows how to add it and stops
+- [x] Clear error messages for each failure case
 
 **Implementation Notes**:
 - Use SDD Section 4.4.2 for command structure
@@ -538,18 +538,18 @@ Extend Loa with three new capabilities:
 
 ---
 
-#### S4-T4: Implement Update Fetch and Merge
+#### ✅ S4-T4: Implement Update Fetch and Merge
 
 **Description**: Fetch updates and merge with appropriate strategy.
 
 **Acceptance Criteria**:
-- [ ] Fetches from `loa main`
-- [ ] Shows list of new commits if any
-- [ ] Shows files that will change
-- [ ] Asks for confirmation before merging
-- [ ] Merges with standard strategy
-- [ ] Provides conflict resolution guidance if conflicts occur
-- [ ] Shows success message with CHANGELOG.md suggestion
+- [x] Fetches from `loa main`
+- [x] Shows list of new commits if any
+- [x] Shows files that will change
+- [x] Asks for confirmation before merging
+- [x] Merges with standard strategy
+- [x] Provides conflict resolution guidance if conflicts occur
+- [x] Shows success message with CHANGELOG.md suggestion
 
 **Implementation Notes**:
 - Use `git log HEAD..loa/main --oneline` to show changes
@@ -564,15 +564,15 @@ Extend Loa with three new capabilities:
 
 ---
 
-#### S4-T5: Feedback Error Handling
+#### ✅ S4-T5: Feedback Error Handling
 
 **Description**: Ensure feedback responses are never lost on submission failure.
 
 **Acceptance Criteria**:
-- [ ] If Linear submission fails, save responses locally
-- [ ] Local save location: `loa-grimoire/analytics/pending-feedback.json`
-- [ ] Display clear error with instructions to retry
-- [ ] On next `/feedback`, offer to submit pending feedback first
+- [x] If Linear submission fails, save responses locally
+- [x] Local save location: `loa-grimoire/analytics/pending-feedback.json`
+- [x] Display clear error with instructions to retry
+- [x] On next `/feedback`, offer to submit pending feedback first
 
 **Implementation Notes**:
 - Save before attempting Linear submission
@@ -829,8 +829,8 @@ Sprint 1 ──────► Sprint 2 ──────► Sprint 3 ───
 |--------|--------|----------------|-------|
 | Sprint 1 | COMPLETED | 4/4 | Security audit approved |
 | Sprint 2 | COMPLETED | 5/5 | Security audit approved |
-| Sprint 3 | REVIEW_APPROVED | 5/5 | Ready for security audit |
-| Sprint 4 | Not Started | 0/5 | |
+| Sprint 3 | COMPLETED | 5/5 | Security audit approved |
+| Sprint 4 | REVIEW_APPROVED | 5/5 | Ready for security audit |
 | Sprint 5 | Not Started | 0/6 | |
 
 ### Task Status Legend
