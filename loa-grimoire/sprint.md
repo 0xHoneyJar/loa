@@ -182,16 +182,16 @@ Extend Loa with three new capabilities:
 
 ### Tasks
 
-#### S2-T1: Create `/setup` Command - Welcome Phase
+#### ✅ S2-T1: Create `/setup` Command - Welcome Phase
 
 **Description**: Create the setup.md command file with welcome message and analytics notice.
 
 **Acceptance Criteria**:
-- [ ] File `.claude/commands/setup.md` created
-- [ ] Command has proper frontmatter (description)
-- [ ] Welcome message explains Loa's purpose
-- [ ] Analytics notice clearly states what's collected
-- [ ] Overview of setup phases displayed
+- [x] File `.claude/commands/setup.md` created
+- [x] Command has proper frontmatter (description)
+- [x] Welcome message explains Loa's purpose
+- [x] Analytics notice clearly states what's collected
+- [x] Overview of setup phases displayed
 
 **Implementation Notes**:
 - Use SDD Section 4.1.2 as template
@@ -204,16 +204,16 @@ Extend Loa with three new capabilities:
 
 ---
 
-#### S2-T2: Implement MCP Detection Logic
+#### ✅ S2-T2: Implement MCP Detection Logic
 
 **Description**: Add logic to detect configured MCP servers from settings.local.json.
 
 **Acceptance Criteria**:
-- [ ] Reads `.claude/settings.local.json`
-- [ ] Identifies which MCPs are in `enabledMcpjsonServers` array
-- [ ] Lists configured MCPs (github, linear, vercel, discord, web3-stats)
-- [ ] Lists missing MCPs
-- [ ] Handles missing settings file gracefully
+- [x] Reads `.claude/settings.local.json`
+- [x] Identifies which MCPs are in `enabledMcpjsonServers` array
+- [x] Lists configured MCPs (github, linear, vercel, discord, web3-stats)
+- [x] Lists missing MCPs
+- [x] Handles missing settings file gracefully
 
 **Implementation Notes**:
 - Use Read tool to get settings.local.json
@@ -226,16 +226,16 @@ Extend Loa with three new capabilities:
 
 ---
 
-#### S2-T3: Implement MCP Configuration Wizard
+#### ✅ S2-T3: Implement MCP Configuration Wizard
 
 **Description**: For each missing MCP, offer guided setup, documentation link, or skip option.
 
 **Acceptance Criteria**:
-- [ ] For each missing MCP, presents 3 options: Guided/Docs/Skip
-- [ ] Guided setup provides step-by-step instructions
-- [ ] Documentation links are accurate and working
-- [ ] Skip option clearly notes MCP is optional
-- [ ] Progress saved if one MCP fails (others still work)
+- [x] For each missing MCP, presents 3 options: Guided/Docs/Skip
+- [x] Guided setup provides step-by-step instructions
+- [x] Documentation links are accurate and working
+- [x] Skip option clearly notes MCP is optional
+- [x] Progress saved if one MCP fails (others still work)
 
 **Implementation Notes**:
 - Use SDD Section 4.1.2 guided setup instructions per MCP
@@ -252,18 +252,18 @@ Extend Loa with three new capabilities:
 
 ---
 
-#### S2-T4: Implement Project Initialization
+#### ✅ S2-T4: Implement Project Initialization
 
 **Description**: Create Linear project and initialize analytics when setup completes.
 
 **Acceptance Criteria**:
-- [ ] Gets project name from `git remote get-url origin`
-- [ ] Gets developer info from `git config user.name/email`
-- [ ] Creates Linear project if Linear MCP configured
-- [ ] Initializes `usage.json` with full schema
-- [ ] Generates initial `summary.md`
-- [ ] Creates `.loa-setup-complete` marker file
-- [ ] Logs any failures to `setup_failures` array
+- [x] Gets project name from `git remote get-url origin`
+- [x] Gets developer info from `git config user.name/email`
+- [x] Creates Linear project if Linear MCP configured
+- [x] Initializes `usage.json` with full schema
+- [x] Generates initial `summary.md`
+- [x] Creates `.loa-setup-complete` marker file
+- [x] Logs any failures to `setup_failures` array
 
 **Implementation Notes**:
 - Extract repo name from git remote URL (handle various formats)
@@ -278,16 +278,16 @@ Extend Loa with three new capabilities:
 
 ---
 
-#### S2-T5: Setup Completion Summary
+#### ✅ S2-T5: Setup Completion Summary
 
 **Description**: Display summary of what was configured and next steps.
 
 **Acceptance Criteria**:
-- [ ] Lists all MCPs and their status (configured/skipped)
-- [ ] Shows Linear project name or "skipped"
-- [ ] Shows analytics initialization status
-- [ ] Provides clear next steps (run `/plan-and-analyze`)
-- [ ] Confirms setup is complete
+- [x] Lists all MCPs and their status (configured/skipped)
+- [x] Shows Linear project name or "skipped"
+- [x] Shows analytics initialization status
+- [x] Provides clear next steps (run `/plan-and-analyze`)
+- [x] Confirms setup is complete
 
 **Implementation Notes**:
 - Summary should be clear and scannable
@@ -827,9 +827,9 @@ Sprint 1 ──────► Sprint 2 ──────► Sprint 3 ───
 
 | Sprint | Status | Tasks Complete | Notes |
 |--------|--------|----------------|-------|
-| Sprint 1 | Review Approved | 4/4 | Ready for security audit |
-| Sprint 2 | Not Started | 0/5 | |
-| Sprint 3 | Not Started | 0/5 | |
+| Sprint 1 | COMPLETED | 4/4 | Security audit approved |
+| Sprint 2 | COMPLETED | 5/5 | Security audit approved |
+| Sprint 3 | Not Started | 0/5 | Ready to start |
 | Sprint 4 | Not Started | 0/5 | |
 | Sprint 5 | Not Started | 0/6 | |
 
