@@ -1,19 +1,33 @@
 {
   "schema_version": "1.0.0",
-  "framework_version": "0.1.0",
-  "project_name": null,
+  "framework_version": "0.2.0",
+  "project_name": "loa",
   "developer": {
-    "git_user_name": null,
-    "git_user_email": null
+    "git_user_name": "soju",
+    "git_user_email": "underrated@gmail.com"
+  },
+  "environment": {
+    "os": "Darwin",
+    "os_version": "24.1.0",
+    "shell": "/bin/zsh",
+    "architecture": "arm64"
   },
   "setup": {
-    "completed_at": null,
-    "mcp_servers_configured": []
+    "completed_at": "2025-12-18T00:00:00Z",
+    "mcp_servers_configured": [
+      "linear"
+    ],
+    "mcp_servers_skipped": [
+      "github",
+      "vercel",
+      "discord",
+      "web3-stats"
+    ]
   },
   "phases": {
     "prd": {
       "started_at": null,
-      "completed_at": null,
+      "completed_at": "2025-12-19T08:04:54Z",
       "questions_asked": 0,
       "revisions": 0
     },
@@ -35,11 +49,13 @@
   "audits": [],
   "deployments": [],
   "totals": {
-    "commands_executed": 0,
-    "phases_completed": 0,
+    "commands_executed": 2,
+    "phases_completed": 1,
     "sprints_completed": 0,
     "reviews_completed": 0,
     "audits_completed": 0,
     "feedback_submitted": false
-  }
+  },
+  "feedback_submissions": [],
+  "setup_failures": []
 }

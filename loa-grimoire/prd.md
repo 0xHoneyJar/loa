@@ -1,9 +1,10 @@
-# Product Requirements Document: Loa Setup, Analytics & Feedback System
+# Product Requirements Document: Loa + Hivemind OS Integration
 
-**Version**: 1.0
+**Version**: 2.0
 **Date**: 2025-12-19
 **Author**: PRD Architect Agent
 **Status**: Draft
+**Experiment**: CubQuests + Set & Forgetti Integration (Pilot)
 
 ---
 
@@ -11,27 +12,37 @@
 
 ### 1.1 Problem Statement
 
-The Honey Jar (0xHoneyJar) has 6 developers using AI-assisted development, but each works solo with their own conventions. This creates:
+The Honey Jar operates as a global async organization with knowledge distributed across multiple systems:
 
-- **Knowledge silos** - No shared patterns or workflows
-- **Cognitive overhead** - High context-switching when reviewing others' work
-- **Handoff friction** - Marketing, ops, and devrel teams struggle to access materials they need
-- **Non-deterministic outcomes** - AI usage varies wildly, producing inconsistent artifacts
+- **Hivemind OS** (Library + Laboratory): Organizational memory, decisions (ADRs), events (ERRs), experiments, User Truth Canvases
+- **Loa Framework**: Agent-driven product development (PRD → SDD → Sprint → Deploy)
+- **Linear**: Collaborative multiplayer space for design/engineering work, Product Homes, cycles
 
-### 1.2 Solution
+Currently these systems are disconnected:
+- Loa agents lack organizational context when making design decisions
+- Architectural decisions made during Loa execution don't flow back to Hivemind Library
+- Context-switching between domains (frontend, contracts, indexer) lacks structural support
+- No integration between Hivemind experiments and Loa project execution
 
-Extend Loa with three new capabilities:
+### 1.2 Vision
 
-1. **Onboarding flow** (`/setup`) - Guided MCP configuration, project initialization, welcome experience
-2. **Analytics capture** - Automatic tracking of usage metrics throughout the build lifecycle
-3. **Feedback flow** (`/feedback`) - Lightweight dev survey with auto-attached analytics, posted to Linear
+**Loa becomes the Laboratory Executor for Hivemind OS** - taking clustered User Truth Canvases from the seed cycle and executing them as structured experiments through the full product development lifecycle.
+
+The loop completes when:
+1. Hivemind Library surfaces evidence and patterns → User Truth Canvases
+2. Team decides on experiment (biweekly cycle)
+3. Loa executes experiment (PRD → Audit → Deploy)
+4. Learning Memos + ADR Candidates flow back to Hivemind
+5. Organization learns → Library grows
 
 ### 1.3 Success Criteria
 
-- 100% of developers using Loa within 2 months
-- Downstream teams (marketing, ops, devrel) can access raw materials with minimal dev input
-- Reduced drift in conventions across projects
-- Continuous improvement of Loa via feedback data
+| Metric | Target |
+|--------|--------|
+| Hivemind context availability | 100% of Loa phases can query relevant ADRs, ERRs, Learning Memos |
+| ADR/Learning candidate capture | 80%+ of significant decisions surfaced automatically |
+| Context-switching friction | Mode confirmation prevents wrong-mode execution |
+| First experiment completion | CubQuests + Set & Forgetti integration ships with full loop |
 
 ---
 
@@ -39,19 +50,19 @@ Extend Loa with three new capabilities:
 
 ### 2.1 Primary Goals
 
-| Goal | Metric | Target |
-|------|--------|--------|
-| Universal adoption | % of active devs using Loa | 100% within 2 months |
-| Reduced handoff friction | Time for downstream teams to find materials | Minimal dev involvement required |
-| Convention consistency | Documentation quality variance | Standardized across all projects |
-| Framework improvement | Feedback submissions analyzed | 100% reviewed by stakeholder |
+| Goal | Description | Measure |
+|------|-------------|---------|
+| **Organizational Memory Integration** | Loa agents consult Hivemind before major decisions | Context injection at PRD, Architecture, Sprint phases |
+| **Feedback Loop Completion** | Learnings flow back to Hivemind Library | ADR/Learning candidates auto-surfaced to Linear |
+| **Mode-Aware Execution** | Creative vs Secure mode supported | Confirmation gates when context-switching |
+| **Linear-Centric Coordination** | Product Home as source of truth | Setup creates/links Product Home, cycles map to sprints |
 
 ### 2.2 Secondary Goals
 
-- Faster onboarding for new team members
-- Fewer questions during project handoffs
-- Data-driven decisions for Loa improvements
-- Identification of training needs across the team
+- Faster onboarding via organizational context access
+- Reduced re-invention through past experiment awareness
+- Design-engineering iteration support (Claude Chrome integration future)
+- Progressive self-maintenance as system learns patterns
 
 ---
 
@@ -59,564 +70,758 @@ Extend Loa with three new capabilities:
 
 ### 3.1 Primary Users
 
-**Developers (6 total)**
-- Already using Claude Code CLI
-- Most have MCP servers configured
-- Currently using vanilla Claude Code without custom agents/commands
-- Need guided setup and consistent workflows
+#### Design Engineer (Context-Switcher)
+**Example**: Soju
+- Works across multiple domains: frontend, backend, contracts, game design
+- Needs mode confirmation when switching contexts
+- Benefits from brand context loading (design) and technical docs (engineering)
+- Pilot user for CubQuests + Set & Forgetti experiment
+
+#### Focused Frontend Developer
+**Example**: Zerker
+- Stays in design-engineer mode
+- Iterates on frontend before backend integration
+- Benefits from brand guidelines, component patterns, visual identity skills
+- Mode detected at setup, stays consistent
+
+#### Focused Smart Contract Developer
+**Example**: Zergucci
+- Stays in secure mode for contracts
+- Needs intentional friction (HITL gates) to prevent hallucinations
+- Benefits from contract lifecycle skills, security patterns
+- Mode detected at setup, stays consistent
 
 ### 3.2 Secondary Stakeholders
 
-**Marketing, Ops, DevRel Teams**
-- Need access to: READMEs, architecture docs, changelogs, deployment info
-- Current pain: High barrier to entry, lots of prep work before shipping
-- Success: Self-service access to best-in-class GTM materials
+#### Team Reviewers
+- Review ADR/Learning candidates in biweekly Hivemind cycle
+- Sign off on proposals through Linear
+- Human-in-the-loop at key decision points
 
-**Framework Owner (Reviewer)**
-- Reviews all feedback submissions
-- Uses data to improve Loa
-- Identifies training needs and productivity patterns
+#### Organization (Future)
+- Benefits from accumulated organizational memory
+- Progressive self-maintenance reduces manual overhead
 
-### 3.3 Environment
+### 3.3 Environment Context
 
-- All devs on Claude Code CLI
-- Linear workspace: THJ (The Honey Jar)
-- MCP integrations: GitHub, Linear, Vercel, Discord, web3-stats
+| System | Role | Integration |
+|--------|------|-------------|
+| **Hivemind OS** | Organizational memory (Library) + Experiments (Lab) | `.hivemind/` symlink, skills auto-load |
+| **Linear** | Collaborative space, Product Homes, cycles | MCP integration, cycle ↔ sprint mapping |
+| **Loa** | Laboratory Executor | This integration |
+| **Claude Chrome** | Design iteration (future) | P2, not in v1 scope |
 
 ---
 
 ## 4. Functional Requirements
 
-### 4.1 Onboarding Flow (`/setup`)
+### 4.1 Setup & Hivemind Connection (`/setup` Extension)
 
-#### 4.1.1 Trigger Conditions
-
-| ID | Requirement | Priority |
-|----|-------------|----------|
-| ONB-001 | `/setup` command available as explicit invocation | P0 |
-| ONB-002 | First-time `claude` launch in new environment suggests running `/setup` | P0 |
-| ONB-003 | Setup must complete before `/plan-and-analyze` is allowed | P0 |
-
-#### 4.1.2 Welcome Experience
+#### 4.1.1 Hivemind Connection
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| ONB-010 | Display welcome message explaining Loa's purpose and workflow | P0 |
-| ONB-011 | Show overview of what setup will configure | P0 |
-| ONB-012 | Mention analytics collection with opt-out option | P0 |
+| HMC-001 | Detect if `../hivemind-library` (or configurable path) exists | P0 |
+| HMC-002 | Create `.hivemind/` symlink to hivemind-os root | P0 |
+| HMC-003 | Symlink relevant skills from `.hivemind/.claude/skills/` to `.claude/skills/` | P0 |
+| HMC-004 | Skills auto-load based on keywords (existing Hivemind pattern) | P0 |
+| HMC-005 | Display confirmation of Hivemind connection status | P0 |
 
-#### 4.1.3 MCP Configuration Wizard
-
-| ID | Requirement | Priority |
-|----|-------------|----------|
-| ONB-020 | Detect which MCP servers are already configured | P0 |
-| ONB-021 | For each missing MCP (GitHub, Linear, Vercel, Discord, web3-stats): offer guided setup or documentation link | P0 |
-| ONB-022 | Allow dev to choose: guided walkthrough OR self-service with docs | P0 |
-| ONB-023 | All MCP servers are optional (dev can skip any) | P1 |
-| ONB-024 | Save progress if setup fails partway; allow resume | P1 |
-| ONB-025 | Log any setup failures to analytics | P0 |
-
-#### 4.1.4 Project Initialization
+#### 4.1.2 Project Type Detection
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| ONB-030 | Create Linear project for this build (if Linear MCP configured) | P0 |
-| ONB-031 | Ensure main branch is protected (if GitHub MCP configured) | P0 |
-| ONB-032 | Apply other sane best-practice defaults (labels, branch naming) | P1 |
-| ONB-033 | Initialize analytics tracking file (`loa-grimoire/analytics/usage.json`) | P0 |
+| PTD-001 | Prompt user to select project type: `frontend`, `contracts`, `indexer`, `backend`, `game-design`, `cross-domain` | P0 |
+| PTD-002 | Auto-load skills relevant to project type | P0 |
+| PTD-003 | Set initial mode based on project type (Creative for frontend/design, Secure for contracts) | P0 |
+| PTD-004 | Store project type in `integration-context.md` | P0 |
 
-#### 4.1.5 Setup Completion
-
-| ID | Requirement | Priority |
-|----|-------------|----------|
-| ONB-040 | Display summary of what was configured | P0 |
-| ONB-041 | Mark setup as complete (persist state to allow `/plan-and-analyze`) | P0 |
-| ONB-042 | Provide next steps guidance | P0 |
-
----
-
-### 4.2 Analytics Capture System
-
-#### 4.2.1 Data Collection
+#### 4.1.3 Linear Product Home Integration
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| ANA-001 | Capture token usage (input/output tokens) | P0 |
-| ANA-002 | Capture time taken (wall clock per session, total project duration) | P0 |
-| ANA-003 | Capture number of commits | P0 |
-| ANA-004 | Capture local dev environment (OS, shell) | P0 |
-| ANA-005 | Capture hardware info (CPU, RAM, architecture) | P0 |
-| ANA-006 | Capture software versions (Claude Code version, Node, etc.) | P0 |
-| ANA-007 | Capture phases completed (PRD, SDD, sprints, deployment) | P0 |
-| ANA-008 | Capture feedback loop iterations (review cycles, audit cycles) | P0 |
+| LPH-001 | Prompt: Create new Product Home OR link existing project | P1 |
+| LPH-002 | If creating: Use Product Home Linear template | P1 |
+| LPH-003 | If linking: Fetch project ID from user or experiment issue URL | P1 |
+| LPH-004 | Store Product Home project ID in `integration-context.md` | P1 |
+| LPH-005 | Load brand context from Product Home documents (brand bible, technical changelog) | P1 |
 
-#### 4.2.2 Storage
+#### 4.1.4 Experiment Linking
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| ANA-010 | Store raw data in `loa-grimoire/analytics/usage.json` | P0 |
-| ANA-011 | Auto-generate human-readable summary in `loa-grimoire/analytics/summary.md` | P0 |
-| ANA-012 | Aggregate metrics at project level (not per-session) | P0 |
-| ANA-013 | Update analytics incrementally as work progresses | P0 |
+| EXP-001 | Prompt: Link to existing Hivemind experiment (Linear issue URL) | P1 |
+| EXP-002 | Fetch experiment details (hypothesis, success criteria, User Truth Canvas) | P1 |
+| EXP-003 | Store experiment ID in `integration-context.md` | P1 |
+| EXP-004 | Reference experiment context during PRD phase | P1 |
 
-#### 4.2.3 Privacy & Opt-Out
+### 4.2 Mode Management
 
-| ID | Requirement | Priority |
-|----|-------------|----------|
-| ANA-020 | Mention analytics collection during `/setup` | P0 |
-| ANA-021 | Document analytics in README | P0 |
-| ANA-022 | Provide argument to disable analytics (not default) | P1 |
-| ANA-023 | If disabled, Loa still functions normally | P1 |
-
----
-
-### 4.3 Feedback Flow (`/feedback`)
-
-#### 4.3.1 Trigger Conditions
+#### 4.2.1 Mode Detection & Confirmation
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| FBK-001 | `/feedback` command available for manual invocation anytime | P0 |
-| FBK-002 | Suggest `/feedback` automatically after `/deploy-production` completes | P0 |
+| MOD-001 | Track current mode in `.claude/.mode` file | P0 |
+| MOD-002 | On phase start, check if current work matches stored mode | P0 |
+| MOD-003 | If mode mismatch detected, prompt: "Switching from {X} to {Y}. Confirm?" | P0 |
+| MOD-004 | Allow user to confirm switch or stay in current mode | P0 |
+| MOD-005 | Log mode switches in analytics | P1 |
 
-#### 4.3.2 Survey Questions
+#### 4.2.2 Mode-Specific Behavior
 
-| ID | Requirement | Priority |
-|----|-------------|----------|
-| FBK-010 | Show progress indicator (n/m or progress bar) throughout survey | P0 |
-| FBK-011 | Q1: "What's one thing you would change?" (free text) | P0 |
-| FBK-012 | Q2: "What's one thing you loved?" (free text) | P0 |
-| FBK-013 | Q3: "Rate your experience compared to other Loa builds" (scale) | P0 |
-| FBK-014 | Q4: "How comfortable and intuitive was the process?" (multiple choice) | P0 |
+| Mode | Characteristics | Loaded Skills |
+|------|----------------|---------------|
+| **Creative** | Exploration, options, brand alignment, design iteration | `lab-creative-mode-operations`, `lab-*-brand-identity`, `lab-frontend-design-systems` |
+| **Secure** | Strictness, gates, approvals, intentional friction | `lab-security-mode-operations`, `lib-hitl-gate-patterns`, `lab-contract-lifecycle-management` |
 
-#### 4.3.3 Submission
+### 4.3 Context Injection
 
-| ID | Requirement | Priority |
-|----|-------------|----------|
-| FBK-020 | Auto-attach analytics from `loa-grimoire/analytics/` | P0 |
-| FBK-021 | Create/update issue in "Loa Feedback" Linear project | P0 |
-| FBK-022 | One issue per project (repo) - multiple feedback submissions append to same issue | P0 |
-| FBK-023 | Include: project name, dev identifier, rating, responses, full analytics | P0 |
-| FBK-024 | Link to project's Linear project if one was created during setup | P1 |
-
----
-
-### 4.4 CI Distribution & Updates
-
-#### 4.4.1 Git Remote Strategy
+#### 4.3.1 PRD Phase Context
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| UPD-001 | Loa repository serves as upstream remote | P0 |
-| UPD-002 | Devs can `git pull` updates from Loa remote | P0 |
-| UPD-003 | Document merge strategy for pulling updates | P0 |
+| CTX-001 | Query Hivemind for related ADRs (by keywords from problem statement) | P0 |
+| CTX-002 | Query Hivemind for past experiments (similar User Truth Canvases) | P0 |
+| CTX-003 | Query Hivemind for relevant Learning Memos | P0 |
+| CTX-004 | Surface GAP_TRACKER items related to this domain | P1 |
+| CTX-005 | Load experiment context if linked during setup | P1 |
 
-#### 4.4.2 Update Command
+#### 4.3.2 Architecture Phase Context
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| UPD-010 | `/update` command fetches latest from Loa upstream | P0 |
-| UPD-011 | Show changelog/diff summary of what changed | P1 |
-| UPD-012 | Handle merge conflicts gracefully with guidance | P1 |
+| CTX-010 | Query ecosystem overview from Hivemind (`library/ecosystem/`) | P0 |
+| CTX-011 | Query contract registry if contracts involved | P0 |
+| CTX-012 | Query services inventory for integration patterns | P1 |
+| CTX-013 | Query technical debt registry | P1 |
+
+#### 4.3.3 Sprint Planning Phase Context
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| CTX-020 | Map sprints to Linear cycles | P1 |
+| CTX-021 | Query related Linear issues for sub-issue breakdown | P1 |
+| CTX-022 | Surface Knowledge Experts for task assignment suggestions | P1 |
+
+#### 4.3.4 Implementation Phase Context
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| CTX-030 | Auto-load domain skills (game-design, indexer, frontend, contracts) | P0 |
+| CTX-031 | Load brand context if in Creative mode | P1 |
+| CTX-032 | Load security patterns if in Secure mode | P0 |
+
+#### 4.3.5 Review/Audit Phase Context
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| CTX-040 | Query past audit findings for similar code patterns | P1 |
+| CTX-041 | Reference security Learning Memos | P1 |
+
+### 4.4 Automatic Candidate Surfacing
+
+#### 4.4.1 ADR Candidate Detection
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| ADR-001 | During Architecture phase, detect architectural decisions being made | P0 |
+| ADR-002 | Pattern: "We decided to use X instead of Y because Z" | P0 |
+| ADR-003 | Create Linear issue tagged `[ADR-Candidate]` in Product Home project | P0 |
+| ADR-004 | Include: Decision, Alternatives Considered, Rationale, Trade-offs | P0 |
+| ADR-005 | Link to Loa artifact (sdd.md) where decision documented | P1 |
+
+#### 4.4.2 Learning Candidate Detection
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| LRN-001 | During Implementation/Review, detect proven patterns | P0 |
+| LRN-002 | Pattern: "We discovered that X works better than Y for Z" | P0 |
+| LRN-003 | Create Linear issue tagged `[Learning-Candidate]` in Product Home project | P0 |
+| LRN-004 | Include: Pattern discovered, Context, Evidence, Recommended application | P0 |
+| LRN-005 | Link to implementation code/tests demonstrating pattern | P1 |
+
+#### 4.4.3 Gap Candidate Detection (P2)
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| GAP-001 | Detect "We don't know how to do X" moments | P2 |
+| GAP-002 | Create Linear issue tagged `[Gap-Candidate]` | P2 |
+| GAP-003 | Requires Hivemind improvements to maintain GAP_TRACKER via Linear | P2 |
+
+### 4.5 Skill Integration
+
+#### 4.5.1 Skill Symlink Setup
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| SKL-001 | During `/setup`, symlink relevant skills based on project type | P0 |
+| SKL-002 | Update Loa agent frontmatter with `skills:` field referencing symlinked skills | P0 |
+| SKL-003 | Skills auto-activate based on keywords (existing Hivemind pattern) | P0 |
+
+#### 4.5.2 Skill Categories by Project Type
+
+| Project Type | Skills to Symlink |
+|--------------|-------------------|
+| `frontend` | `lab-frontend-design-systems`, `lab-creative-mode-operations`, brand identity skills |
+| `contracts` | `lab-contract-lifecycle-management`, `lab-security-mode-operations`, `lib-hitl-gate-patterns` |
+| `indexer` | `lab-envio-indexer-patterns`, `lab-thj-ecosystem-overview` |
+| `game-design` | `lab-cubquests-game-design`, `lab-cubquests-visual-identity`, `lab-*-brand-identity` |
+| `cross-domain` | All above + `lib-orchestration-patterns`, `lib-feedback-loop-design` |
 
 ---
 
 ## 5. Non-Functional Requirements
 
-### 5.1 Usability
+### 5.1 Performance
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| NFR-001 | Setup wizard should complete in under 10 minutes (excluding MCP auth) | P1 |
-| NFR-002 | Feedback survey should complete in under 2 minutes | P0 |
-| NFR-003 | All prompts should be clear and jargon-free | P0 |
-| NFR-004 | Progress indicators for multi-step flows | P0 |
+| NFR-001 | Context queries should complete in <5 seconds | P0 |
+| NFR-002 | Skill loading should not add noticeable latency | P0 |
+| NFR-003 | Symlink operations should be instant | P0 |
 
 ### 5.2 Reliability
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| NFR-010 | Setup failures logged and resumable | P0 |
-| NFR-011 | Analytics capture should not block main workflow | P0 |
-| NFR-012 | Feedback submission failure should not lose survey responses | P1 |
+| NFR-010 | Hivemind unavailable should not block Loa execution | P0 |
+| NFR-011 | Candidate surfacing failures should be logged, not blocking | P0 |
+| NFR-012 | Mode state persists across sessions | P0 |
 
-### 5.3 Compatibility
+### 5.3 Usability
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| NFR-020 | Support macOS and Linux development environments | P0 |
-| NFR-021 | Work with Claude Code CLI current stable version | P0 |
+| NFR-020 | Mode confirmation should be single yes/no | P0 |
+| NFR-021 | Context injection should be invisible (no extra prompts) | P0 |
+| NFR-022 | Candidate surfacing should be automatic (no manual tagging) | P0 |
+
+### 5.4 Security
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| NFR-030 | `.hivemind/` symlink should be gitignored | P0 |
+| NFR-031 | Hivemind content never committed to project repo | P0 |
+| NFR-032 | Linear API keys handled via existing MCP patterns | P0 |
 
 ---
 
 ## 6. Scope
 
-### 6.1 In Scope (MVP)
+### 6.1 In Scope (v1 MVP)
 
-- `/setup` command with full MCP wizard
-- First-launch detection and setup suggestion
-- Setup enforcement before `/plan-and-analyze`
-- Analytics capture (all specified metrics)
-- Dual storage (JSON + Markdown summary)
-- `/feedback` command with survey
-- Linear integration for feedback (Loa Feedback project)
-- `/update` command for pulling Loa updates
-- Git remote distribution strategy
-- README documentation updates
+**Must Have (P0)**:
+- `/setup` Hivemind connection (`.hivemind/` symlink)
+- Project type detection and skill loading
+- Mode tracking and confirmation gates
+- Context injection at PRD phase (ADRs, experiments, Learning Memos)
+- Automatic ADR/Learning candidate surfacing
+- Skills symlinked from hivemind-os
 
-### 6.2 Out of Scope (Deferred)
+**Should Have (P1)**:
+- Linear Product Home integration
+- Experiment linking
+- Brand context loading from Linear docs
+- Context injection at all phases
+- Cycle ↔ sprint mapping
 
-- Advanced analytics dashboards
-- Automated Loa update checks (proactive notifications)
-- Integration with tools beyond the five MCP servers (GitHub, Linear, Vercel, Discord, web3-stats)
-- Analytics opt-out UI (argument-only for now)
+### 6.2 Out of Scope (v1)
 
-### 6.3 Unchanged
+**Deferred (P2)**:
+- Full Hivemind `/ask` command in Loa (just context injection for now)
+- GAP candidate maintenance (needs Hivemind improvements)
+- Agent migration from Hivemind to Loa
+- Claude Chrome design iteration integration
+- Separate Hivemind machine/deployment for agent isolation
 
-The existing Loa workflow remains intact:
-- `/plan-and-analyze` (PRD creation)
-- `/architect` (SDD creation)
-- `/sprint-plan` (Sprint planning)
-- `/implement` (Sprint implementation)
-- `/review-sprint` (Code review)
-- `/audit-sprint` (Security audit)
-- `/deploy-production` (Production deployment)
-- `/audit` (Ad-hoc security audit)
-- `/audit-deployment` (Deployment audit)
-- `/translate` (Executive translation)
+### 6.3 Dependencies
+
+| Dependency | Status | Notes |
+|------------|--------|-------|
+| Hivemind MCP (Product Home queries) | Exists | Can query project by ID |
+| Linear MCP | Exists | Issue creation, project queries |
+| Product Home Linear template | Exists | Can create from template |
+| Hivemind skills stability | Stable | 28 skills mature/complete |
+| Multi-project labels in Linear | Works | Jani configured this |
 
 ---
 
 ## 7. User Flows
 
-### 7.1 New Project Setup Flow
+### 7.1 First-Time Setup with Hivemind
 
 ```
-Developer clones Loa template
-         │
-         ▼
-    Runs `claude`
+Developer runs `/setup`
          │
          ▼
 ┌────────────────────────┐
-│ First launch detected? │
+│ Detect Hivemind        │
+│ ../hivemind-library?   │
 └────────────────────────┘
-         │ Yes
-         ▼
-  Suggest `/setup`
-         │
+         │ Found
          ▼
 ┌────────────────────────┐
-│   Welcome Message      │
-│   - Loa overview       │
-│   - Analytics notice   │
+│ Create .hivemind/      │
+│ symlink                │
 └────────────────────────┘
          │
          ▼
 ┌────────────────────────┐
-│   MCP Detection        │
-│   - Check configured   │
-│   - List missing       │
-└────────────────────────┘
-         │
-         ▼
-  For each missing MCP:
-┌────────────────────────┐
-│  Guide or Docs?        │
-│  [Guided] [Self-serve] │
+│ Select Project Type    │
+│ [frontend] [contracts] │
+│ [indexer] [game-design]│
+│ [cross-domain]         │
 └────────────────────────┘
          │
          ▼
 ┌────────────────────────┐
-│  Project Init          │
-│  - Linear project      │
-│  - Branch protection   │
-│  - Analytics file      │
+│ Link Product Home?     │
+│ [Create new] [Link]    │
+│ [Skip for now]         │
 └────────────────────────┘
          │
          ▼
 ┌────────────────────────┐
-│  Setup Complete        │
-│  - Summary             │
-│  - Next steps          │
+│ Link Experiment?       │
+│ [Paste Linear URL]     │
+│ [Skip for now]         │
 └────────────────────────┘
          │
          ▼
-  `/plan-and-analyze` unlocked
+┌────────────────────────┐
+│ Symlink Skills         │
+│ Based on project type  │
+└────────────────────────┘
+         │
+         ▼
+┌────────────────────────┐
+│ Set Initial Mode       │
+│ Creative / Secure      │
+└────────────────────────┘
+         │
+         ▼
+  Setup Complete
+  → /plan-and-analyze unlocked
 ```
 
-### 7.2 Analytics Capture Flow
+### 7.2 PRD with Hivemind Context
 
 ```
-Throughout build lifecycle:
+Developer runs `/plan-and-analyze`
          │
          ▼
 ┌────────────────────────┐
-│  On each claude session│
-│  - Increment tokens    │
-│  - Track time          │
-│  - Log environment     │
+│ Load Experiment Context│
+│ (if linked)            │
 └────────────────────────┘
          │
          ▼
 ┌────────────────────────┐
-│  On phase completion   │
-│  - Mark phase done     │
-│  - Record iterations   │
+│ Query Hivemind         │
+│ - Related ADRs         │
+│ - Past experiments     │
+│ - Learning Memos       │
 └────────────────────────┘
          │
          ▼
 ┌────────────────────────┐
-│  On commit             │
-│  - Increment counter   │
+│ PRD Architect Agent    │
+│ (with Hivemind context)│
+│ "Based on ADR-042, we  │
+│  should consider..."   │
 └────────────────────────┘
          │
          ▼
-  Update loa-grimoire/analytics/usage.json
-  Regenerate loa-grimoire/analytics/summary.md
+  PRD Generated
+  (with ADR/experiment refs)
 ```
 
-### 7.3 Feedback Submission Flow
+### 7.3 Mode Confirmation Flow
 
 ```
-After `/deploy-production` OR manual `/feedback`:
+Developer in Creative mode
          │
          ▼
 ┌────────────────────────┐
-│  Progress: 1/4         │
-│  "What's one thing     │
-│   you would change?"   │
+│ Starts work on         │
+│ contract deployment    │
 └────────────────────────┘
          │
          ▼
 ┌────────────────────────┐
-│  Progress: 2/4         │
-│  "What's one thing     │
-│   you loved?"          │
+│ Mode Mismatch Detected │
+│ Current: Creative      │
+│ Work implies: Secure   │
 └────────────────────────┘
          │
          ▼
 ┌────────────────────────┐
-│  Progress: 3/4         │
-│  "Rate vs other Loa    │
-│   builds" [1-5 scale]  │
+│ "Switching from        │
+│  Creative → Secure.    │
+│  Confirm?"             │
+│ [Yes, switch] [Stay]   │
+└────────────────────────┘
+         │
+         ▼ (if confirmed)
+┌────────────────────────┐
+│ Load Secure mode skills│
+│ Add HITL gates         │
+└────────────────────────┘
+         │
+         ▼
+  Proceed with work
+```
+
+### 7.4 ADR Candidate Surfacing
+
+```
+During Architecture phase
+         │
+         ▼
+┌────────────────────────┐
+│ Agent makes decision:  │
+│ "Using Supabase over   │
+│  Convex because..."    │
 └────────────────────────┘
          │
          ▼
 ┌────────────────────────┐
-│  Progress: 4/4         │
-│  "How comfortable was  │
-│   the process?"        │
-│  [ ] Very intuitive    │
-│  [ ] Somewhat intuitive│
-│  [ ] Neutral           │
-│  [ ] Somewhat confusing│
-│  [ ] Very confusing    │
+│ Pattern detected:      │
+│ "X instead of Y        │
+│  because Z"            │
 └────────────────────────┘
          │
          ▼
-┌────────────────────────┐
-│  Load analytics from   │
-│  loa-grimoire/analytics/       │
-└────────────────────────┘
+┌────────────────────────────────────┐
+│ Create Linear Issue                │
+│ Project: [Product Home]            │
+│ Title: [ADR-Candidate] Supabase... │
+│ Labels: adr-candidate, sprint:...  │
+│ Body: Decision, Alternatives,      │
+│       Rationale, Trade-offs        │
+└────────────────────────────────────┘
          │
          ▼
-┌────────────────────────┐
-│  Submit to Linear      │
-│  - Find/create issue   │
-│  - Append feedback     │
-│  - Attach analytics    │
-└────────────────────────┘
+  Continue Architecture phase
+  (non-blocking)
+```
+
+### 7.5 Complete Experiment Loop
+
+```
+HIVEMIND SEED CYCLE
+         │
+         ▼ User Truth Canvases clustered
+TEAM DECIDES (biweekly)
+         │ "Let's experiment with X"
+         ▼
+LOA /setup (links experiment)
          │
          ▼
-  Confirmation message
+LOA /plan-and-analyze
+         │ Context: experiment hypothesis,
+         │ related ADRs, past experiments
+         ▼
+LOA /architect
+         │ ADR-Candidates surfaced
+         ▼
+LOA /sprint-plan
+         │ Cycles created in Linear
+         ▼
+LOA /implement → /review → /audit
+         │ Learning-Candidates surfaced
+         ▼
+LOA /deploy-production
+         │
+         ▼
+FEEDBACK LOOP STARTS
+         │ Ship → Measure → Learn
+         ▼
+HIVEMIND CAPTURES (biweekly)
+         │ Team reviews ADR/Learning candidates
+         │ Graduates proven patterns to Library
+         ▼
+LIBRARY GROWS
+         │ New ADRs, Learning Memos, ERRs
+         ▼
+ORGANIZATION LEARNS
 ```
 
 ---
 
 ## 8. Data Models
 
-### 8.1 Analytics Schema (`loa-grimoire/analytics/usage.json`)
+### 8.1 Extended `integration-context.md`
+
+```markdown
+## Hivemind Integration
+
+### Connection Status
+- **Hivemind Path**: .hivemind → ../hivemind-library
+- **Connection Date**: 2025-12-19T10:30:00Z
+- **Project Type**: cross-domain
+- **Current Mode**: creative
+
+### Product Home
+- **Project ID**: {uuid}
+- **Project Name**: CubQuests + Set & Forgetti
+- **Product Label**: Product → CubQuests, Product → Set & Forgetti
+
+### Linked Experiment
+- **Experiment ID**: LAB-XXX
+- **Hypothesis**: {from Linear issue}
+- **Success Criteria**: {from Linear issue}
+- **User Truth Canvas**: {link}
+
+### Loaded Skills
+- lab-cubquests-game-design
+- lab-frontend-design-systems
+- lab-creative-mode-operations
+- lib-orchestration-patterns
+```
+
+### 8.2 Mode State File (`.claude/.mode`)
 
 ```json
 {
-  "project": {
-    "name": "string",
-    "repo": "string",
-    "created_at": "ISO8601",
-    "setup_completed_at": "ISO8601"
-  },
-  "environment": {
-    "os": "string",
-    "os_version": "string",
-    "shell": "string",
-    "cpu": "string",
-    "cpu_cores": "number",
-    "ram_gb": "number",
-    "architecture": "string",
-    "claude_code_version": "string",
-    "node_version": "string"
-  },
-  "mcp_configured": {
-    "github": "boolean",
-    "linear": "boolean",
-    "vercel": "boolean",
-    "discord": "boolean",
-    "web3_stats": "boolean"
-  },
-  "usage": {
-    "total_sessions": "number",
-    "total_tokens_input": "number",
-    "total_tokens_output": "number",
-    "total_time_minutes": "number",
-    "total_commits": "number"
-  },
-  "phases": {
-    "setup": { "completed": "boolean", "timestamp": "ISO8601" },
-    "prd": { "completed": "boolean", "timestamp": "ISO8601" },
-    "sdd": { "completed": "boolean", "timestamp": "ISO8601" },
-    "sprint_plan": { "completed": "boolean", "timestamp": "ISO8601" },
-    "sprints": [
-      {
-        "name": "sprint-1",
-        "implementation_iterations": "number",
-        "review_iterations": "number",
-        "audit_iterations": "number",
-        "completed": "boolean",
-        "timestamp": "ISO8601"
-      }
-    ],
-    "deployment": { "completed": "boolean", "timestamp": "ISO8601" }
-  },
-  "setup_failures": [
+  "current_mode": "creative",
+  "set_at": "2025-12-19T10:30:00Z",
+  "project_type": "cross-domain",
+  "mode_switches": [
     {
-      "step": "string",
-      "error": "string",
-      "timestamp": "ISO8601"
-    }
-  ],
-  "feedback_submissions": [
-    {
-      "timestamp": "ISO8601",
-      "linear_issue_id": "string"
+      "from": "creative",
+      "to": "secure",
+      "reason": "contract work detected",
+      "timestamp": "2025-12-19T14:00:00Z",
+      "confirmed": true
     }
   ]
 }
 ```
 
-### 8.2 Linear Feedback Issue Structure
+### 8.3 ADR Candidate Issue Template
 
-**Project**: Loa Feedback
-**Issue Title**: `[Project Name] - Feedback`
-
-**Issue Body** (appended on each submission):
 ```markdown
+## [ADR-Candidate] {Decision Title}
+
+**Source**: Loa Architecture Phase
+**Sprint**: {sprint-name}
+**Date**: {timestamp}
+
+### Decision
+{What was decided}
+
+### Context
+{Why this decision was needed}
+
+### Alternatives Considered
+1. {Alternative 1} - {Why rejected}
+2. {Alternative 2} - {Why rejected}
+
+### Rationale
+{Why this approach was chosen}
+
+### Trade-offs
+- **Pros**: {list}
+- **Cons**: {list}
+
+### References
+- Loa SDD: `loa-grimoire/sdd.md#section`
+- Related ADRs: {links to existing ADRs}
+
 ---
-## Feedback Submission - {timestamp}
+*Auto-surfaced by Loa. Review in biweekly Hivemind cycle.*
+```
 
-**Developer**: {dev_identifier}
+### 8.4 Learning Candidate Issue Template
 
-### Survey Responses
-1. **What would you change?**: {response}
-2. **What did you love?**: {response}
-3. **Rating vs other builds**: {1-5}
-4. **Process comfort level**: {choice}
+```markdown
+## [Learning-Candidate] {Pattern Title}
 
-### Analytics Summary
-- **Total Time**: {hours}h {minutes}m
-- **Total Tokens**: {input} in / {output} out
-- **Commits**: {count}
-- **Phases Completed**: {list}
-- **Review Iterations**: {count}
-- **Audit Iterations**: {count}
+**Source**: Loa Implementation Phase
+**Sprint**: {sprint-name}
+**Date**: {timestamp}
 
-<details>
-<summary>Full Analytics JSON</summary>
+### Pattern Discovered
+{What was learned}
 
-{full_json}
+### Context
+{When/where this applies}
 
-</details>
+### Evidence
+- Implementation: `{file}:{lines}`
+- Tests: `{test file}`
+- Results: {metrics, outcomes}
+
+### Recommended Application
+{When others should use this pattern}
+
+### References
+- Loa Sprint Report: `loa-grimoire/a2a/sprint-N/reviewer.md`
+- Related Learning Memos: {links}
+
 ---
+*Auto-surfaced by Loa. Review in biweekly Hivemind cycle.*
 ```
 
 ---
 
-## 9. Risks & Mitigations
+## 9. Technical Architecture
+
+### 9.1 Symlink Structure
+
+```
+project-root/
+├── .hivemind/                    # Symlink → ../hivemind-library
+│   ├── library/                  # Read-only access
+│   │   ├── decisions/           # ADRs
+│   │   ├── timeline/            # ERRs, GAP_TRACKER
+│   │   ├── knowledge/           # Learning Memos
+│   │   └── ecosystem/           # Architecture docs
+│   ├── laboratory/              # Experiments, audits
+│   └── .claude/
+│       └── skills/              # Symlink source
+│
+├── .claude/
+│   ├── agents/                  # Loa agents
+│   ├── commands/                # Loa commands
+│   ├── skills/                  # Symlinked from .hivemind
+│   │   ├── lab-cubquests-game-design -> .hivemind/.claude/skills/...
+│   │   ├── lab-frontend-design-systems -> ...
+│   │   └── ...
+│   └── .mode                    # Mode state file
+│
+├── loa-grimoire/               # Loa artifacts
+└── .gitignore                  # Includes .hivemind/, .claude/.mode
+```
+
+### 9.2 Context Query Flow
+
+```
+Loa Agent (PRD Architect)
+         │
+         ▼
+Read .hivemind/library/decisions/INDEX.md
+         │ Search for keywords from problem statement
+         ▼
+Found: ADR-042 (Library vs Laboratory boundary)
+       ADR-005 (Resource System)
+         │
+         ▼
+Read .hivemind/laboratory/audits/logs/
+         │ Search for similar experiments
+         ▼
+Found: ERR-2024-XXX (Previous quest integration)
+         │
+         ▼
+Inject context into agent prompt:
+
+"Based on organizational context:
+- ADR-042 establishes Library/Laboratory boundary
+- ADR-005 defines Resource System as core mechanic
+- Previous experiment ERR-2024-XXX showed..."
+```
+
+---
+
+## 10. Risks & Mitigations
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| Dev skips setup, can't use Loa | Low | Medium | Enforce setup before `/plan-and-analyze` with clear messaging |
-| MCP auth failures frustrate devs | Medium | Medium | Save progress, allow resume, provide clear error messages |
-| Analytics capture impacts performance | Low | High | Async writes, non-blocking design |
-| Feedback gets skipped | Medium | Low | Auto-suggest after deploy, keep survey short (4 questions) |
-| Merge conflicts when pulling Loa updates | Medium | Medium | Document merge strategy, `/update` command handles gracefully |
+| Hivemind not available locally | Low | High | Graceful fallback, Loa works without Hivemind |
+| Context overload (too much injected) | Medium | Medium | Smart filtering by keywords, relevance scoring |
+| Mode confirmation fatigue | Medium | Low | Only prompt on actual mismatch, remember confirmations |
+| Symlink breaks on Hivemind update | Low | Medium | Relative paths, validation on startup |
+| Candidate surfacing noise | Medium | Low | Keywords + patterns filter, team reviews in biweekly |
+| Skills not auto-loading | Low | High | Frontmatter validation, startup checks |
 
 ---
 
-## 10. Dependencies
+## 11. Pilot Experiment: CubQuests + Set & Forgetti Integration
 
-| Dependency | Owner | Status |
-|------------|-------|--------|
-| Linear workspace (THJ) | The Honey Jar | Exists |
-| "Loa Feedback" Linear project | To be created | Pending |
-| Claude Code CLI | Anthropic | Available |
-| MCP servers (5) | Various | Available |
-| Git hosting (GitHub) | The Honey Jar | Exists |
+### 11.1 Experiment Details
 
----
+**Objective**: Design and implement quest flow integrating CubQuests with Set & Forgetti v2
 
-## 11. Timeline & Milestones
+**Domains Covered**:
+- Game design (quest creation, educational flow)
+- Frontend (UI components, brand alignment)
+- Backend (verification, rewards)
+- Possibly: Education skill discovery (gap candidate)
 
-| Milestone | Description |
-|-----------|-------------|
-| M1: Architecture | SDD complete with technical design |
-| M2: Sprint Plan | Implementation broken into sprints |
-| M3: MVP Complete | All three flows functional |
-| M4: Team Rollout | 100% dev adoption |
+**Pilot User**: Soju (context-switcher persona)
 
-**Target**: 100% adoption within 2 months of MVP completion.
+### 11.2 Success Criteria
+
+| Criteria | Measure |
+|----------|---------|
+| Hivemind context surfaced in PRD | ADRs referenced, past experiments cited |
+| Mode switching works | Confirmation prompts when switching design ↔ code |
+| ADR candidates surfaced | At least 2 architectural decisions captured |
+| Learning candidates surfaced | At least 1 pattern documented |
+| Gap identified | Education skill need flagged for future |
+| Quest ships | Integration live with feedback loop |
+
+### 11.3 Feedback Collection
+
+- After each phase: Quick survey on context usefulness
+- After completion: Full feedback via `/feedback`
+- Team review: Biweekly Hivemind cycle reviews candidates
 
 ---
 
 ## 12. Open Questions
 
-1. **Dev identifier for feedback**: Use GitHub username, Linear user, or something else?
-2. **Analytics granularity**: Should we track per-agent token usage or just totals?
-3. **Update command behavior**: Auto-stash changes before pull, or require clean working tree?
+1. **Agent Isolation**: Should Hivemind agents run on separate machine, or can symlinked agents work in Loa context? (Needs technical spike)
+
+2. **Brand Document Versioning**: How to handle brand bible updates mid-project? (Linear versioning vs snapshots)
+
+3. **Education Skill**: If pilot surfaces need for education/gamification skill, when to create it? (During pilot or after?)
+
+4. **Cross-Project Labels**: How to handle experiments spanning multiple products (CubQuests + Set & Forgetti)? (Jani's multi-label approach)
 
 ---
 
 ## 13. Appendix
 
-### A. MCP Servers Reference
+### A. Hivemind Skills Reference
 
-| Server | Purpose | Auth Method |
-|--------|---------|-------------|
-| GitHub | Repository operations, PRs, issues | OAuth / PAT |
-| Linear | Issue and project management | API key |
-| Vercel | Deployment and hosting | OAuth |
-| Discord | Community/team communication | Bot token |
-| web3-stats | Blockchain data (Dune, Blockscout) | API keys |
+| Skill | Category | Auto-Loads When |
+|-------|----------|-----------------|
+| `lib-source-fidelity-application` | governance | "verify", "attribution" |
+| `lib-orchestration-patterns` | governance | "context", "spawn agent" |
+| `lib-adr-surfacing` | governance | "ADR", "decision", "why" |
+| `lab-cubquests-game-design` | game-design | "quest", "badge", "activity" |
+| `lab-frontend-design-systems` | frontend | "component", "design system" |
+| `lab-contract-lifecycle-management` | infrastructure | "contract", "deploy" |
+| `lab-creative-mode-operations` | execution | "creative", "iterate" |
+| `lab-security-mode-operations` | execution | "secure", "approver" |
 
-### B. Existing Loa Commands
+### B. Linear Product Home Template Fields
 
-| Command | Purpose |
-|---------|---------|
-| `/plan-and-analyze` | Create PRD |
-| `/architect` | Create SDD |
-| `/sprint-plan` | Plan sprints |
-| `/implement sprint-N` | Implement sprint |
-| `/review-sprint sprint-N` | Review sprint |
-| `/audit-sprint sprint-N` | Security audit sprint |
-| `/deploy-production` | Deploy to production |
-| `/audit` | Ad-hoc security audit |
-| `/audit-deployment` | Deployment security audit |
-| `/translate` | Executive translation |
+- Brand Bible (versioned doc)
+- Technical Changelog
+- User Truth Canvases (linked)
+- Active Experiments
+- Graduated Learnings (linked)
+- Team/Contributors
 
-### C. New Commands (This PRD)
+### C. Related Hivemind Documents
 
-| Command | Purpose |
-|---------|---------|
-| `/setup` | Onboarding wizard |
-| `/feedback` | Dev feedback survey |
-| `/update` | Pull Loa framework updates |
+- `library/decisions/ADR-042-library-vs-laboratory-boundary.md`
+- `library/ecosystem/OVERVIEW.md`
+- `library/team/INDEX.md` (Knowledge Experts)
+- `.claude/skills/INDEX.md`
+- `.claude/COMMANDS.md`
+
+---
+
+## 14. Sources
+
+Research conducted during PRD discovery:
+
+- [Agent Skills - Claude Code Docs](https://code.claude.com/docs/en/skills)
+- [Claude Agent Skills: A First Principles Deep Dive](https://leehanchung.github.io/blogs/2025/10/26/claude-skills-deep-dive/)
+- [Claude Code: Best practices for agentic coding](https://www.anthropic.com/engineering/claude-code-best-practices)
+- [AGENTS.md becomes the convention](https://pnote.eu/notes/agents-md/)
+- [Tip: call the context file AGENTS.md and symlink to CLAUDE.md, GEMINI.md](https://vuink.com/post/cabgr-d-drh/notes/agents-md)
