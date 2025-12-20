@@ -334,6 +334,35 @@ The agent focuses on:
 - **Honest risk** communication
 - **Actionable next steps** with decision points
 
+### Ad-Hoc: OSS Contribution
+```bash
+/contribute
+```
+Guides intentional contributions back to the Loa framework. This command bypasses normal Git Safety warnings because it includes its own comprehensive safeguards:
+
+**Phase 1 - Pre-flight Checks**:
+- Verifies you're on a feature branch (not main/master)
+- Checks working tree is clean (no uncommitted changes)
+- Confirms upstream remote is configured (loa or upstream pointing to 0xHoneyJar/loa)
+
+**Phase 2 - Standards Checklist**:
+- Interactive confirmation of clean commit history
+- No sensitive data in commits
+- Tests passing (if applicable)
+- DCO sign-off present
+
+**Phase 3 - Automated Checks**:
+- Secrets scanning (API keys, tokens, private keys, passwords)
+- DCO sign-off verification
+- Soft blocking with user acknowledgment
+
+**Phase 4 - PR Creation**:
+- Prompts for PR title and description
+- Creates PR to `0xHoneyJar/loa:main` via GitHub MCP or `gh` CLI
+- Includes OSS checklist and Claude Code attribution
+
+**Note**: This is the only command authorized to create PRs to upstream without triggering Git Safety warnings.
+
 ## Key Architectural Patterns
 
 ### Feedback-Driven Implementation
@@ -523,7 +552,13 @@ fi
   "framework_version": "0.2.0",
   "user_type": "thj",
   "mcp_servers": ["linear", "github"],
-  "git_user": "developer@example.com"
+  "git_user": "developer@example.com",
+  "template_source": {
+    "detected": true,
+    "repo": "0xHoneyJar/loa",
+    "detection_method": "origin_url",
+    "detected_at": "2025-01-15T10:30:00Z"
+  }
 }
 ```
 
@@ -531,11 +566,20 @@ fi
 - `"thj"` - THJ team member with full analytics, MCP config, and feedback access
 - `"oss"` - Open source user with streamlined experience, no analytics
 
+**Template Source Detection**:
+- `detected` - Whether the repo is a fork/template of a known Loa source
+- `repo` - The detected upstream repository (e.g., `0xHoneyJar/loa`) or `null`
+- `detection_method` - How the template was detected: `origin_url`, `upstream_remote`, `loa_remote`, `github_api`, or `none`
+- `detected_at` - ISO-8601 timestamp of detection
+
+When `template_source.detected` is `true`, git safety features are enabled to warn before push/PR operations targeting upstream.
+
 **Behavior**:
 - `/plan-and-analyze` checks for this file and prompts `/setup` if missing
-- `/setup` creates this file upon successful completion
+- `/setup` creates this file upon successful completion with template detection results
 - `/config` and `/feedback` check `user_type` and restrict to THJ only
 - All phase commands check `user_type` to skip analytics for OSS users
+- Git Safety Protocol checks `template_source` before push/PR operations
 - File is gitignored (each developer runs setup independently)
 - Contains minimal metadata for analytics correlation
 
@@ -592,6 +636,267 @@ All planning documents live in `loa-grimoire/`:
 - Analytics: `loa-grimoire/analytics/`
 
 **Note**: This is a base framework repository. When using as a template for a new project, uncomment the generated artifacts section in `.gitignore` to avoid committing generated documentation (prd.md, sdd.md, sprint.md, a2a/, deployment/, analytics/).
+
+## Git Safety Protocol
+
+When working in repositories that may be forks or templates of the Loa framework, Claude Code follows this protocol to prevent accidental pushes to upstream. This is a **soft block** - users can always proceed after explicit confirmation.
+
+### Known Template Repositories
+
+The following are known Loa template sources:
+- `github.com/0xHoneyJar/loa`
+- `github.com/thj-dev/loa`
+
+### Warning Message Templates
+
+When a template repository is detected, display this warning with filled placeholders:
+
+```
+⚠️  UPSTREAM TEMPLATE DETECTED
+
+You appear to be pushing to the Loa template repository.
+
+┌─────────────────────────────────────────────────────────────────┐
+│  Detection Method: {DETECTION_METHOD}                           │
+│  Target Remote:    {REMOTE_NAME} → {REMOTE_URL}                 │
+│  Operation:        {OPERATION_TYPE}                             │
+└─────────────────────────────────────────────────────────────────┘
+
+⚠️  CONSEQUENCES OF PROCEEDING:
+• Your code will be pushed to the PUBLIC Loa repository
+• Your commits (including author info) will be visible publicly
+• This may expose proprietary code, API keys, or personal data
+• An unintentional PR may clutter the upstream project
+
+Choose an option:
+  1. [Proceed anyway]     - I understand the risks and want to continue
+  2. [Cancel]             - Stop this operation
+  3. [Fix my remotes]     - Show me how to fix my git configuration
+```
+
+**Placeholder Values**:
+- `{DETECTION_METHOD}`: One of "Cached from setup", "Origin URL match", "Upstream remote match", "GitHub API fork check"
+- `{REMOTE_NAME}`: The remote name (e.g., "origin", "upstream")
+- `{REMOTE_URL}`: The full URL (e.g., "git@github.com:0xHoneyJar/loa.git")
+- `{OPERATION_TYPE}`: The operation (e.g., "git push origin main", "Create PR to 0xHoneyJar/loa")
+
+### Step-by-Step Detection Procedure
+
+Before executing ANY `git push`, `gh pr create`, or GitHub MCP PR creation, follow this procedure:
+
+```
+START Detection Procedure
+│
+├─► Step 1: Identify target remote
+│   Run: git remote -v
+│   Extract the URL for the remote being pushed to
+│
+├─► Step 2: Check against known templates
+│   Does URL contain "(0xHoneyJar|thj-dev)/loa"?
+│   ├── YES → Template detected, proceed to Warning
+│   └── NO  → Safe to proceed, skip to Step 6
+│
+├─► Step 3: Display warning message (see template above)
+│   Fill all placeholders with actual values
+│   NEVER proceed without showing this warning
+│
+├─► Step 4: Wait for user response (MANDATORY)
+│   Use AskUserQuestion tool
+│   DO NOT auto-proceed under any circumstances
+│
+├─► Step 5: Handle user response
+│   ├── "Proceed anyway" → Execute operation with single confirmation
+│   ├── "Cancel"         → Stop, do nothing further
+│   └── "Fix remotes"    → Display remediation steps, then stop
+│
+└─► Step 6: Execute or stop based on user choice
+    END Detection Procedure
+```
+
+**Decision Logic**:
+- Cache-first: Check `.loa-setup-complete` before running bash commands
+- Fallback chain: If Layer N fails, try Layer N+1
+- Offline mode: Layers 1-3 work without network; Layer 4 requires `gh` CLI
+- Error handling: All commands use `2>/dev/null` for graceful failures
+
+### Template Detection Layers
+
+Detection uses a 4-layer approach with fallback behavior:
+
+**Layer 1: Cached Detection (Fastest, < 100ms)**
+```bash
+# Check .loa-setup-complete for cached template_source
+if [ -f ".loa-setup-complete" ]; then
+    CACHED=$(cat .loa-setup-complete 2>/dev/null | grep -o '"detected": *true')
+    if [ -n "$CACHED" ]; then
+        DETECTION_METHOD="Cached from setup"
+        # Use cached result - template was detected during /setup
+    fi
+fi
+```
+**When to use**: Always check first. If `template_source.detected` is `true`, use this result.
+**Fallback**: If file missing, corrupted, or no `template_source` field, proceed to Layer 2.
+
+**Layer 2: Origin URL Check (Local, Fast, < 1s)**
+```bash
+ORIGIN_URL=$(git remote get-url origin 2>/dev/null)
+if echo "$ORIGIN_URL" | grep -qE "(0xHoneyJar|thj-dev)/loa"; then
+    DETECTION_METHOD="Origin URL match"
+    IS_TEMPLATE="true"
+fi
+```
+**When to use**: When cache miss or verifying cache.
+**Fallback**: If origin doesn't match but you suspect a template, proceed to Layer 3.
+
+**Layer 3: Upstream Remote Check (Local, Fast, < 1s)**
+```bash
+if git remote -v | grep -E "^(upstream|loa)\s" | grep -qE "(0xHoneyJar|thj-dev)/loa"; then
+    DETECTION_METHOD="Upstream remote match"
+    IS_TEMPLATE="true"
+fi
+```
+**When to use**: Catches forks where origin is user's repo but upstream points to template.
+**Fallback**: If still uncertain, proceed to Layer 4 for authoritative check.
+
+**Layer 4: GitHub API Check (Network, Authoritative, < 3s)**
+```bash
+if command -v gh &>/dev/null; then
+    PARENT=$(gh repo view --json parent -q '.parent.nameWithOwner' 2>/dev/null)
+    if echo "$PARENT" | grep -qE "(0xHoneyJar|thj-dev)/loa"; then
+        DETECTION_METHOD="GitHub API fork check"
+        IS_TEMPLATE="true"
+    fi
+else
+    echo "Note: gh CLI not available, using local detection only"
+fi
+```
+**When to use**: When local detection is inconclusive, or for authoritative verification.
+**Fallback**: If `gh` unavailable or API fails, rely on Layers 1-3 results.
+
+**Timeout/Error Handling**:
+- All commands include `2>/dev/null` to suppress errors
+- Layer 4 is skipped if `gh` CLI is not installed
+- Network failures in Layer 4 fall back to local detection
+- Missing `.loa-setup-complete` does NOT disable safety checks
+
+### Remediation Steps
+
+When user selects "Fix my remotes", display these comprehensive instructions:
+
+```
+📋 GIT REMOTE CONFIGURATION GUIDE
+
+First, let's see your current setup:
+
+  $ git remote -v
+
+┌─────────────────────────────────────────────────────────────────┐
+│ COMMON MISTAKE: Origin pointing to upstream template            │
+├─────────────────────────────────────────────────────────────────┤
+│ BEFORE (problematic):                                           │
+│   origin    git@github.com:0xHoneyJar/loa.git (fetch)          │
+│   origin    git@github.com:0xHoneyJar/loa.git (push)           │
+│                                                                 │
+│ AFTER (correct):                                                │
+│   origin    git@github.com:YOUR_ORG/YOUR_PROJECT.git (fetch)   │
+│   origin    git@github.com:YOUR_ORG/YOUR_PROJECT.git (push)    │
+│   loa       git@github.com:0xHoneyJar/loa.git (fetch)          │
+└─────────────────────────────────────────────────────────────────┘
+
+OPTION A: Change origin to your repo (recommended for new projects)
+───────────────────────────────────────────────────────────────────
+  # Step 1: Rename current origin to 'loa' (keeps it for updates)
+  git remote rename origin loa
+
+  # Step 2: Add your repository as origin
+  git remote add origin git@github.com:YOUR_ORG/YOUR_PROJECT.git
+
+  # Step 3: Set your branch to track your origin
+  git branch --set-upstream-to=origin/main main
+
+  # Step 4: Push to your repo
+  git push -u origin main
+
+OPTION B: Just change the origin URL (if you have an existing repo)
+───────────────────────────────────────────────────────────────────
+  # Change origin to point to your repository
+  git remote set-url origin git@github.com:YOUR_ORG/YOUR_PROJECT.git
+
+  # Optionally add loa remote for framework updates
+  git remote add loa https://github.com/0xHoneyJar/loa.git
+
+COMMON MISTAKES TO AVOID:
+─────────────────────────
+✗ DON'T push to origin without checking where it points
+✗ DON'T assume origin is your repo just because you cloned it
+✗ DON'T delete the loa/upstream remote if you want framework updates
+
+VERIFY YOUR SETUP:
+─────────────────────────
+  $ git remote -v
+  origin    git@github.com:YOUR_ORG/YOUR_PROJECT.git (fetch)
+  origin    git@github.com:YOUR_ORG/YOUR_PROJECT.git (push)
+  loa       https://github.com/0xHoneyJar/loa.git (fetch)
+
+After fixing, you can safely run your push/PR command again.
+```
+
+### User Confirmation Flow (CRITICAL)
+
+**NEVER auto-proceed without explicit user confirmation.** This is a core safety requirement.
+
+When warning is displayed, use `AskUserQuestion` tool with these exact options:
+
+```javascript
+AskUserQuestion({
+  questions: [{
+    question: "This appears to be a push to the Loa template repository. How would you like to proceed?",
+    header: "Git Safety",
+    multiSelect: false,
+    options: [
+      {
+        label: "Proceed anyway",
+        description: "I understand the risks and want to push to the upstream template"
+      },
+      {
+        label: "Cancel",
+        description: "Stop this operation, I'll reconsider"
+      },
+      {
+        label: "Fix my remotes",
+        description: "Show me how to configure my git remotes correctly"
+      }
+    ]
+  }]
+})
+```
+
+**Response Handling**:
+
+| User Selection | Behavior |
+|----------------|----------|
+| "Proceed anyway" | Log confirmation, then execute the original operation ONCE |
+| "Cancel" | Stop immediately, inform user operation was cancelled |
+| "Fix my remotes" | Display remediation steps (above), then stop - do NOT proceed |
+
+**Edge Cases**:
+
+1. **User explicitly requests push in initial message**: Still show warning. User saying "push to origin" doesn't override safety - they may not realize origin points to upstream.
+
+2. **User says "yes" or "proceed" without seeing options**: Use AskUserQuestion anyway. Free-text confirmation is not sufficient.
+
+3. **User asks to bypass all warnings**: Explain this is a soft block that requires per-operation confirmation. There is no global disable.
+
+4. **Same session, same remote**: Show warning each time. Don't assume previous confirmation applies to new operations.
+
+5. **`/contribute` command is running**: Skip this check - `/contribute` has its own safeguards for intentional upstream PRs.
+
+### Exceptions
+
+- The `/contribute` command handles upstream PRs properly with its own safeguards
+- User explicit "proceed anyway" confirmation (via AskUserQuestion) allows the operation
+- If `.loa-setup-complete` shows `template_source.detected: false`, skip warnings (explicitly checked during setup)
+- Operations targeting remotes that don't match known templates proceed without warning
 
 ### Sprint Status Tracking
 

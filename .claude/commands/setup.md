@@ -21,8 +21,89 @@ Before we begin, I need to determine which setup pathway to use.
 - **No** - "I'm using Loa as an open-source tool"
 
 Based on the response:
-- If **Yes (THJ)**: Proceed to **Phase 1A: THJ Developer Setup**
-- If **No (OSS)**: Proceed to **Phase 1B: OSS User Setup**
+- If **Yes (THJ)**: Proceed to **Phase 0.5: Template Detection**, then **Phase 1A: THJ Developer Setup**
+- If **No (OSS)**: Proceed to **Phase 0.5: Template Detection**, then **Phase 1B: OSS User Setup**
+
+---
+
+## Phase 0.5: Template Detection
+
+This phase detects whether the current repository is a fork or template of the Loa framework. This enables git safety features that prevent accidental pushes to upstream.
+
+### Step 1: Run Detection Layers
+
+Execute the following detection layers in order. Stop at the first positive detection:
+
+**Layer 1: Check origin remote URL**
+```bash
+# Check if origin points to a known template repository
+git remote get-url origin 2>/dev/null
+```
+
+Check if the URL contains any of these known template repositories:
+- `github.com/0xHoneyJar/loa`
+- `github.com/thj-dev/loa`
+
+**Layer 2: Check for upstream/loa remote**
+```bash
+# Check if an 'upstream' or 'loa' remote exists pointing to template
+git remote get-url upstream 2>/dev/null
+git remote get-url loa 2>/dev/null
+```
+
+Check if either remote URL contains a known template repository.
+
+**Layer 3: GitHub API fork check (if gh CLI available)**
+```bash
+# Query GitHub API for fork relationship
+gh repo view --json parent --jq '.parent.nameWithOwner' 2>/dev/null
+```
+
+If this returns `0xHoneyJar/loa` or another known template, it's a fork.
+
+### Step 2: Store Detection Result
+
+Store the template detection result for use in the marker file (created in Phase 1A/1B Step 7/Step 2):
+
+```
+template_source:
+  detected: {true/false}
+  repo: "{detected_template_repo or null}"
+  detection_method: "{origin_url|upstream_remote|loa_remote|github_api|none}"
+  detected_at: "{ISO_timestamp}"
+```
+
+### Step 3: Display Template Notice (if detected)
+
+If a template source was detected, display this notice:
+
+```
+## Template Repository Detected
+
+This repository appears to be a fork/template of: {detected_repo}
+Detection method: {detection_method}
+
+### Git Safety Features Enabled
+
+Loa will warn you before any push or PR operation targeting the upstream
+template repository. This prevents accidentally leaking your project code.
+
+### Your Options
+
+- **Building your own project?**
+  Ensure your `origin` remote points to YOUR repository, not the template.
+  Check with: `git remote -v`
+
+- **Contributing to Loa?**
+  Use the `/contribute` command for a guided contribution flow with
+  proper OSS standards (DCO sign-off, secrets scanning, etc.).
+
+See CONTRIBUTING.md for more details on git remote configuration.
+```
+
+### Step 4: Continue to User-Specific Setup
+
+Proceed to Phase 1A (THJ) or Phase 1B (OSS) based on the user type detected in Phase 0.
 
 ---
 
@@ -212,7 +293,13 @@ Create `.loa-setup-complete` in the project root with:
   "framework_version": "0.2.0",
   "user_type": "thj",
   "mcp_servers": ["{list_of_configured_mcps}"],
-  "git_user": "{git_user_email}"
+  "git_user": "{git_user_email}",
+  "template_source": {
+    "detected": "{true/false from Phase 0.5}",
+    "repo": "{detected_repo or null}",
+    "detection_method": "{detection_method or none}",
+    "detected_at": "{ISO_timestamp}"
+  }
 }
 ```
 
@@ -289,7 +376,13 @@ Create `.loa-setup-complete` in the project root with:
   "framework_version": "0.2.0",
   "user_type": "oss",
   "mcp_servers": [],
-  "git_user": "{git_user_email}"
+  "git_user": "{git_user_email}",
+  "template_source": {
+    "detected": "{true/false from Phase 0.5}",
+    "repo": "{detected_repo or null}",
+    "detection_method": "{detection_method or none}",
+    "detected_at": "{ISO_timestamp}"
+  }
 }
 ```
 

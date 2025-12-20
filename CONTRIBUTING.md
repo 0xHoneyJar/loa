@@ -1,9 +1,19 @@
 # Contributing to Loa
 
+> **This is a Template Repository**
+>
+> Loa is designed to be used as a template for your own projects. If you forked or used this template to build your own product, you should be pushing to **your own repository**, not this one.
+>
+> **Building your project?** Make sure your `origin` remote points to your repo, not `0xHoneyJar/loa`.
+>
+> **Contributing to Loa itself?** Read on! Use the `/contribute` command for a guided contribution flow.
+
 Thank you for your interest in contributing to Loa! This document provides guidelines and information for contributors.
 
 ## Table of Contents
 
+- [Understanding the Difference](#understanding-the-difference)
+- [Git Safety](#git-safety)
 - [Getting Started](#getting-started)
 - [Development Workflow](#development-workflow)
 - [Submitting Changes](#submitting-changes)
@@ -11,6 +21,81 @@ Thank you for your interest in contributing to Loa! This document provides guide
 - [Testing](#testing)
 - [Documentation](#documentation)
 - [Community](#community)
+
+## Understanding the Difference
+
+There are two distinct use cases for this repository:
+
+| Use Case | What You're Doing | Where You Push |
+|----------|-------------------|----------------|
+| **Using Loa** | Building your own project with Loa as the framework | Your own repository (`myorg/myproject`) |
+| **Contributing to Loa** | Improving the Loa framework itself | This repository (`0xHoneyJar/loa`) |
+
+**Most developers are "using Loa"** - they fork or template this repo to build their own products. If that's you, your workflow should push to your own repository.
+
+**Contributing to Loa** means you want to improve the framework itself - fixing bugs, adding features, or improving documentation that benefits all Loa users.
+
+## Git Safety
+
+### Check Your Remotes
+
+Before pushing, always verify your remotes are configured correctly:
+
+```bash
+git remote -v
+```
+
+**Correct setup for building YOUR project:**
+```bash
+origin    git@github.com:YOUR_ORG/YOUR_PROJECT.git (fetch)
+origin    git@github.com:YOUR_ORG/YOUR_PROJECT.git (push)
+loa       git@github.com:0xHoneyJar/loa.git (fetch)    # Optional, for updates
+```
+
+**Setup that triggers warnings (pushing to upstream):**
+```bash
+origin    git@github.com:0xHoneyJar/loa.git (fetch)
+origin    git@github.com:0xHoneyJar/loa.git (push)
+```
+
+### Fixing Misconfigured Remotes
+
+If your `origin` points to `0xHoneyJar/loa` but you're building your own project:
+
+```bash
+# Rename current origin to 'loa' (for updates)
+git remote rename origin loa
+
+# Add your own repo as origin
+git remote add origin git@github.com:YOUR_ORG/YOUR_PROJECT.git
+
+# Set your branch to track your new origin
+git branch --set-upstream-to=origin/main main
+
+# Push to your repo
+git push -u origin main
+```
+
+**Common Mistakes to Avoid**:
+- Don't push to origin without first checking `git remote -v`
+- Don't assume origin is your repo just because you cloned from a template
+- Don't delete the loa/upstream remote if you want to receive framework updates via `/update`
+
+For comprehensive remediation steps including before/after examples, see the **Git Safety Protocol** section in [CLAUDE.md](./CLAUDE.md#remediation-steps).
+
+### Using the `/contribute` Command
+
+If you **intentionally** want to contribute to Loa, use the `/contribute` command in Claude Code. This provides a guided flow that:
+
+1. Verifies your branch and remote configuration
+2. Runs pre-contribution checks (secrets scanning, tests)
+3. Ensures your commits are properly signed off (DCO)
+4. Creates a standards-compliant PR
+
+```bash
+claude
+/contribute
+```
 
 ## Getting Started
 
@@ -105,6 +190,26 @@ git rebase upstream/main
    - At least one maintainer approval required
    - Address review feedback promptly
 
+### Developer Certificate of Origin (DCO)
+
+All contributions to Loa must include a DCO sign-off. This certifies that you wrote the code or have the right to submit it.
+
+**Add to every commit:**
+```
+Signed-off-by: Your Name <your.email@example.com>
+```
+
+**Easiest method - use the `-s` flag:**
+```bash
+git commit -s -m "feat(agents): add code-reviewer agent"
+```
+
+**Configure git to sign-off automatically:**
+```bash
+git config user.name "Your Name"
+git config user.email "your.email@example.com"
+```
+
 ### Commit Message Guidelines
 
 Follow [Conventional Commits](https://www.conventionalcommits.org/):
@@ -115,6 +220,8 @@ type(scope): short description
 Longer description if needed.
 
 Closes #123
+
+Signed-off-by: Your Name <your.email@example.com>
 ```
 
 **Types:**
