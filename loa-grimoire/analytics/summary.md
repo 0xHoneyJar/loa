@@ -1,46 +1,67 @@
-# Loa Usage Analytics Summary
+# Loa Analytics Summary
 
-> Auto-generated summary of framework usage for the current project.
+*Last updated: 2025-12-20T00:15:00Z*
 
 ## Project Overview
 
 | Field | Value |
 |-------|-------|
-| Project Name | *Not yet configured* |
-| Framework Version | 0.1.0 |
-| Developer | *Not yet configured* |
-| Setup Completed | No |
+| Project Name | loa |
+| Framework Version | 0.2.0 |
+| Developer | jani (jani@0xhoneyjar.xyz) |
+| Setup Completed | 2025-12-19T23:56:30Z |
+
+## Environment
+
+| Field | Value |
+|-------|-------|
+| OS | Linux 6.16.12+deb13-amd64 |
+| Shell | /bin/zsh |
+| Architecture | x86_64 |
+
+## MCP Servers Configured
+
+- linear
+- github
+- vercel
+- discord
+- web3-stats
+- gdrive
 
 ## Phase Progress
 
-| Phase | Status | Started | Completed | Duration |
-|-------|--------|---------|-----------|----------|
-| PRD | Not started | - | - | - |
-| SDD | Not started | - | - | - |
-| Sprint Planning | Not started | - | - | - |
+| Phase | Status | Started | Completed |
+|-------|--------|---------|-----------|
+| PRD | Completed | - | 2025-12-20 |
+| SDD | Completed | - | 2025-12-20 |
+| Sprint Planning | Completed | - | 2025-12-20 |
 
-## Sprint Summary
+## Sprint Plan Summary
 
-| Sprint | Tasks | Completed | Reviews | Audits | Status |
-|--------|-------|-----------|---------|--------|--------|
-| *No sprints recorded* | | | | | |
+| Field | Value |
+|-------|-------|
+| Total Sprints | 1 |
+| Total Tasks | 14 |
 
 ## Totals
 
-| Metric | Count |
+| Metric | Value |
 |--------|-------|
-| Commands Executed | 0 |
-| Phases Completed | 0 |
+| Commands Executed | 4 |
+| Phases Completed | 3 |
 | Sprints Completed | 0 |
 | Reviews Completed | 0 |
 | Audits Completed | 0 |
 | Feedback Submitted | No |
 
-## MCP Servers Configured
+## Sprint History
 
-*None configured yet*
+*No sprints completed yet.*
+
+## Feedback Submissions
+
+*No feedback submitted yet.*
 
 ---
 
-*Last updated: Not yet initialized*
 *Schema version: 1.0.0*

@@ -262,7 +262,6 @@ The Honey Jar's central documentation hub - single source of truth for architect
 
 All PRDs must include:
 - Absolute GitHub URLs in bibliography sections (not relative paths)
-- Linear issue links for stakeholder feedback (with authentication note)
 - External API documentation links
 - Package/dependency links to npm or official sources
 

@@ -51,7 +51,6 @@ All A2A communication files for this sprint will be stored in the sprint-specifi
      Please run `/setup` first to:
      - Configure MCP integrations
      - Initialize project analytics
-     - Set up Linear project tracking
 
      After setup is complete, run `/implement {{ $ARGUMENTS[0] }}` again.
      ```
@@ -99,30 +98,7 @@ BEFORE anything else, check if loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/auditor-spri
    - Security audit passed, proceed to Phase 1
 
 3. If the file DOES NOT EXIST:
-   - No security audit yet, proceed to Phase 0.5
-
-## Phase 0.5: Linear Issue Creation (REQUIRED for Audit Trail)
-
-Before writing any code, create Linear issues to establish audit trail:
-
-1. **Read integration context**:
-   - Read `loa-grimoire/a2a/integration-context.md` for Linear team/project IDs
-   - If file doesn't exist, use `mcp__linear__list_teams` to find team, then `mcp__linear__list_projects` for project
-
-2. **Create parent issue for sprint task** (if not already exists):
-   - Search for existing issue: `mcp__linear__list_issues` with project filter
-   - If no existing issue, create one with:
-     - Title: Task title from loa-grimoire/sprint.md
-     - Project: From integration-context.md
-     - Labels: `agent:implementer`, `type:feature` (or appropriate type), `sprint:{{ $ARGUMENTS[0] }}`
-     - Description: Task description + acceptance criteria from sprint.md
-
-3. **Track issue ID**:
-   - Store the Linear issue ID (e.g., LAB-XXX) for commit messages
-   - Include in reviewer.md report
-
-4. **Document in report**:
-   - Add "Linear Issue Tracking" section to reviewer.md with issue URLs
+   - No security audit yet, proceed to Phase 1
 
 ## Phase 1: Check for Previous Feedback
 
@@ -203,12 +179,6 @@ For each task:
 - Test scenarios covered
 - Coverage metrics
 - How to run tests
-
-### Linear Issue Tracking
-- Parent issue URL: [LAB-XXX](https://linear.app/honeyjar/issue/LAB-XXX)
-- Sub-issues (if created):
-  - [LAB-YYY](url) - Component name
-- Commits linked to issues
 
 ### Known Limitations or Future Considerations
 - Any technical debt introduced (with justification)
@@ -298,13 +268,11 @@ Analytics updates are NON-BLOCKING - if they fail, log a warning but complete th
 - ALWAYS validate sprint format and existence FIRST (Phase -1)
 - ALWAYS check for COMPLETED marker before starting
 - ALWAYS check for loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md FIRST (security feedback)
-- ALWAYS create Linear issues BEFORE writing code (Phase 0.5)
 - ALWAYS check for loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md before starting new work
 - NEVER assume what feedback means - ask for clarification if unclear
 - Address ALL feedback items before generating a new report
 - Be thorough in your report - the reviewer needs detailed information
 - Include specific file paths and line numbers
-- Include Linear issue URLs in report (Linear Issue Tracking section)
 - Document your reasoning for technical decisions
 - Be honest about limitations or concerns
 - ALWAYS update loa-grimoire/a2a/index.md after generating report
@@ -332,7 +300,6 @@ All A2A communication files for this sprint will be stored in the sprint-specifi
      Please run `/setup` first to:
      - Configure MCP integrations
      - Initialize project analytics
-     - Set up Linear project tracking
 
      After setup is complete, run `/implement {{ $ARGUMENTS[0] }}` again.
      ```
@@ -380,30 +347,7 @@ BEFORE anything else, check if loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/auditor-spri
    - Security audit passed, proceed to Phase 1
 
 3. If the file DOES NOT EXIST:
-   - No security audit yet, proceed to Phase 0.5
-
-## Phase 0.5: Linear Issue Creation (REQUIRED for Audit Trail)
-
-Before writing any code, create Linear issues to establish audit trail:
-
-1. **Read integration context**:
-   - Read `loa-grimoire/a2a/integration-context.md` for Linear team/project IDs
-   - If file doesn't exist, use `mcp__linear__list_teams` to find team, then `mcp__linear__list_projects` for project
-
-2. **Create parent issue for sprint task** (if not already exists):
-   - Search for existing issue: `mcp__linear__list_issues` with project filter
-   - If no existing issue, create one with:
-     - Title: Task title from loa-grimoire/sprint.md
-     - Project: From integration-context.md
-     - Labels: `agent:implementer`, `type:feature` (or appropriate type), `sprint:{{ $ARGUMENTS[0] }}`
-     - Description: Task description + acceptance criteria from sprint.md
-
-3. **Track issue ID**:
-   - Store the Linear issue ID (e.g., LAB-XXX) for commit messages
-   - Include in reviewer.md report
-
-4. **Document in report**:
-   - Add "Linear Issue Tracking" section to reviewer.md with issue URLs
+   - No security audit yet, proceed to Phase 1
 
 ## Phase 1: Check for Previous Feedback
 
@@ -484,12 +428,6 @@ For each task:
 - Test scenarios covered
 - Coverage metrics
 - How to run tests
-
-### Linear Issue Tracking
-- Parent issue URL: [LAB-XXX](https://linear.app/honeyjar/issue/LAB-XXX)
-- Sub-issues (if created):
-  - [LAB-YYY](url) - Component name
-- Commits linked to issues
 
 ### Known Limitations or Future Considerations
 - Any technical debt introduced (with justification)
@@ -579,13 +517,11 @@ Analytics updates are NON-BLOCKING - if they fail, log a warning but complete th
 - ALWAYS validate sprint format and existence FIRST (Phase -1)
 - ALWAYS check for COMPLETED marker before starting
 - ALWAYS check for loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/auditor-sprint-feedback.md FIRST (security feedback)
-- ALWAYS create Linear issues BEFORE writing code (Phase 0.5)
 - ALWAYS check for loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md before starting new work
 - NEVER assume what feedback means - ask for clarification if unclear
 - Address ALL feedback items before generating a new report
 - Be thorough in your report - the reviewer needs detailed information
 - Include specific file paths and line numbers
-- Include Linear issue URLs in report (Linear Issue Tracking section)
 - Document your reasoning for technical decisions
 - Be honest about limitations or concerns
 - ALWAYS update loa-grimoire/a2a/index.md after generating report

@@ -335,117 +335,13 @@ Claude Code will automatically suggest relevant agents when:
 
 The framework has pre-configured MCP servers for common tools:
 
-- **linear** - Issue and project management
+- **linear** - Issue tracking for developer feedback (`/feedback` command only)
 - **github** - Repository operations, PRs, issues
 - **vercel** - Deployment and hosting
 - **discord** - Community/team communication
 - **web3-stats** - Blockchain data (Dune API, Blockscout)
 
 These are enabled in `.claude/settings.local.json` and available for agents to use.
-
-## Linear Documentation Requirements
-
-All agents that touch code or make decisions must document their work in Linear to create a complete audit trail. This enables:
-- **Async collaboration**: Team members can understand decisions made in their absence
-- **Context preservation**: Future developers understand why code was written a certain way
-- **Accountability**: Clear record of who did what and when
-- **Traceability**: Link from code back to requirements and decisions
-
-### Integration Context
-
-Linear team/project IDs and label configuration are stored in `loa-grimoire/a2a/integration-context.md`. This file provides:
-- Team ID and project ID for creating issues
-- Standard label taxonomy for consistent organization
-- Issue and commit message templates
-- Workflow state mappings
-
-### Agent Linear Documentation Responsibilities
-
-| Agent | Documents In Linear |
-|-------|-------------------|
-| **sprint-planner** | Creates sprint project, documents planning decisions and rationale |
-| **sprint-task-implementer** | Creates parent issue per task, sub-issues per component, tracks progress with comments |
-| **senior-tech-lead-reviewer** | Adds review findings to implementation issues, documents approval/rejection with reasoning |
-| **devops-crypto-architect** | Creates infrastructure issues, documents deployment decisions and configurations |
-| **paranoid-auditor** | Creates security finding issues (CRITICAL/HIGH), adds comments for MEDIUM/LOW findings |
-
-### Standard Label Taxonomy
-
-All agents use consistent labels for organization:
-
-**Agent Labels** (who did the work):
-- `agent:implementer` - Sprint implementation work
-- `agent:reviewer` - Code review work (implicit - reviewers add comments to implementer issues)
-- `agent:devops` - Infrastructure and deployment work
-- `agent:auditor` - Security audit findings
-- `agent:planner` - Sprint planning work
-
-**Type Labels** (what kind of work):
-- `type:feature` - New functionality
-- `type:bugfix` - Bug fixes
-- `type:refactor` - Code improvements
-- `type:infrastructure` - DevOps/deployment work
-- `type:security` - Security-related work
-- `type:audit-finding` - Security audit findings
-- `type:planning` - Planning documentation
-
-**Priority Labels** (for audit findings):
-- `priority:critical` - Must fix immediately (blocking)
-- `priority:high` - Must fix before production
-
-**Sprint Labels**:
-- `sprint:sprint-1`, `sprint:sprint-2`, etc.
-
-**Source Labels** (where work originated):
-- `source:discord` - From Discord feedback
-- `source:internal` - Internal/agent-generated
-
-### Required Documentation Content
-
-**Implementation Issues** must include:
-- Task description and acceptance criteria
-- Discord source URL (if applicable)
-- Implementation approach and key decisions
-- Files modified with line ranges
-- Test coverage details
-- Verification steps
-
-**Review Comments** must include:
-- Review verdict (approved/changes requested)
-- Specific findings with file:line references
-- Reasoning for decisions
-- Previous feedback verification status
-
-**Audit Findings** must include:
-- Severity level and OWASP/CWE references
-- Proof of concept
-- Impact assessment
-- Specific remediation steps
-- Verification method
-
-### Querying Linear for Context
-
-Agents can query Linear for context before starting work:
-
-```typescript
-// Find all implementation work for current sprint
-mcp__linear__list_issues({
-  filter: { labels: { some: { name: { eq: "sprint:sprint-1" } } } }
-})
-
-// Find all unresolved security findings
-mcp__linear__list_issues({
-  filter: {
-    labels: { some: { name: { eq: "type:audit-finding" } } },
-    state: { neq: "Done" }
-  }
-})
-
-// Find all infrastructure work
-mcp__linear__list_issues({
-  filter: { labels: { some: { name: { eq: "agent:devops" } } } }
-})
-```
 
 ## Important Conventions
 
@@ -707,7 +603,7 @@ loa-grimoire/
 ├── sprint.md            # Sprint plan with tasks
 ├── a2a/                 # Agent-to-agent communication (preserves audit trail)
 │   ├── index.md                    # Sprint audit trail index (auto-maintained)
-│   ├── integration-context.md      # Linear team/project IDs, labels
+│   ├── integration-context.md      # Feedback configuration for /feedback command
 │   ├── sprint-1/                   # Sprint 1 A2A files
 │   │   ├── reviewer.md             # Engineer implementation report
 │   │   ├── engineer-feedback.md    # Senior lead feedback

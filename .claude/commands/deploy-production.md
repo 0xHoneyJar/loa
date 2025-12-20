@@ -20,7 +20,6 @@ Before proceeding, verify that Loa setup is complete:
      Please run `/setup` first to:
      - Configure MCP integrations
      - Initialize project analytics
-     - Set up Linear project tracking
 
      After setup is complete, run `/deploy-production` again.
      ```

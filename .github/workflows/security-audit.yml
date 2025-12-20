@@ -19,21 +19,35 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Check if app has dependencies
+        id: check-deps
+        run: |
+          if [ -f "app/package.json" ]; then
+            echo "has_deps=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_deps=false" >> $GITHUB_OUTPUT
+            echo "::notice::No app/package.json found - skipping NPM audit (template repo)"
+          fi
+
       - name: Setup Node.js
+        if: steps.check-deps.outputs.has_deps == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
       - name: Install dependencies
+        if: steps.check-deps.outputs.has_deps == 'true'
         working-directory: ./app
         run: npm install
 
       - name: Run npm audit
+        if: steps.check-deps.outputs.has_deps == 'true'
         working-directory: ./app
         run: npm audit --audit-level=moderate
         continue-on-error: true
 
       - name: Run security check
+        if: steps.check-deps.outputs.has_deps == 'true'
         working-directory: ./app
         run: npm run security:check
         continue-on-error: true
@@ -47,14 +61,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Check if has dependencies to review
+        id: check-deps
+        run: |
+          if [ -f "app/package.json" ] || [ -f "package.json" ]; then
+            echo "has_deps=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_deps=false" >> $GITHUB_OUTPUT
+            echo "::notice::No package.json found - skipping dependency review (template repo)"
+          fi
+
       - name: Dependency Review
+        if: steps.check-deps.outputs.has_deps == 'true'
         uses: actions/dependency-review-action@v4
         continue-on-error: true
         with:
           fail-on-severity: moderate
 
       - name: Note if dependency graph not enabled
-        if: failure()
+        if: failure() && steps.check-deps.outputs.has_deps == 'true'
         run: |
           echo "::warning::Dependency graph may not be enabled. Enable it at: https://github.com/${{ github.repository }}/settings/security_analysis"
 
@@ -70,14 +95,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Check if has code to analyze
+        id: check-code
+        run: |
+          # Check for JavaScript/TypeScript files outside of .claude/
+          if find . -name "*.js" -o -name "*.ts" -o -name "*.tsx" 2>/dev/null | grep -v ".claude" | grep -v "node_modules" | head -1 | grep -q .; then
+            echo "has_code=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_code=false" >> $GITHUB_OUTPUT
+            echo "::notice::No JS/TS source code found - skipping CodeQL analysis (template repo)"
+          fi
+
       - name: Initialize CodeQL
+        if: steps.check-code.outputs.has_code == 'true'
         uses: github/codeql-action/init@v3
         with:
           languages: typescript, javascript
           queries: security-extended
 
       - name: Autobuild
+        if: steps.check-code.outputs.has_code == 'true'
         uses: github/codeql-action/autobuild@v3
 
       - name: Perform CodeQL Analysis
+        if: steps.check-code.outputs.has_code == 'true'
         uses: github/codeql-action/analyze@v3
