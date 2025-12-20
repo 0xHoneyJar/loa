@@ -60,22 +60,22 @@ loa-grimoire/deployment/SERVER-REALITY-AUDIT.md
 # knowledge systems.
 #
 # Loa process artifacts (loa-grimoire/)
-# loa-grimoire/prd.md
-# loa-grimoire/sdd.md
-# loa-grimoire/sprint.md
-# loa-grimoire/a2a/
-# loa-grimoire/deployment/
+loa-grimoire/prd.md
+loa-grimoire/sdd.md
+loa-grimoire/sprint.md
+loa-grimoire/a2a/
+loa-grimoire/deployment/
 #
 # Analytics (usage tracking)
 # By default, analytics are tracked but may contain developer-specific info
 # Uncomment to exclude from version control:
-# loa-grimoire/analytics/
+loa-grimoire/analytics/
 #
 # Application artifacts (app/)
-# app/src/
-# app/tests/
-# app/config/
-# app/package.json
-# app/package-lock.json
-# app/tsconfig.json
-# app/ecosystem.config.js
+app/src/
+app/tests/
+app/config/
+app/package.json
+app/package-lock.json
+app/tsconfig.json
+app/ecosystem.config.js
