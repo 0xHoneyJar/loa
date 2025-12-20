@@ -43,7 +43,9 @@ This framework uses specialized AI agents working together in a structured workf
    ```bash
    /setup
    ```
-   This configures MCP servers, initializes analytics, and creates your setup marker.
+   This will ask if you're a THJ team member:
+   - **THJ developers**: Full analytics, MCP configuration, access to `/config` and `/feedback`
+   - **OSS users**: Streamlined welcome, no analytics, immediate access to core workflow
 
 4. **Begin the workflow**
    ```bash
@@ -55,8 +57,10 @@ That's it! The PRD architect agent will guide you through structured discovery.
 ## The Workflow
 
 ### Phase 0: Setup (`/setup`)
-Guides you through initial configuration: MCP servers, analytics, and project initialization.
-- Output: `.loa-setup-complete` marker, `loa-grimoire/analytics/`
+Guides you through initial configuration with two pathways:
+- **THJ developers**: MCP server configuration, analytics initialization, full feature access
+- **OSS users**: Streamlined setup with no analytics, immediate access to core workflow
+- Output: `.loa-setup-complete` marker (includes `user_type`), `loa-grimoire/analytics/` (THJ only)
 
 ### Phase 1: Planning (`/plan-and-analyze`)
 The **prd-architect** agent guides you through 7 discovery phases to extract complete requirements.
@@ -88,8 +92,9 @@ The **paranoid-auditor** agent performs security review of sprint implementation
 The **devops-crypto-architect** agent deploys to production with full infrastructure.
 - Output: IaC configs, CI/CD pipelines, `loa-grimoire/deployment/`
 
-### Post-Deployment: Feedback (`/feedback`)
+### Post-Deployment: Feedback (`/feedback`) - THJ Only
 Collects developer experience feedback via a 4-question survey and posts to Linear.
+- **Availability**: THJ developers only (OSS users: open GitHub issue instead)
 - Output: Linear issue in "Loa Feedback" project with analytics attached
 
 ### Maintenance: Updates (`/update`)
@@ -125,23 +130,26 @@ All slash commands run in **foreground mode by default**, allowing direct intera
 
 ## Core Commands
 
-| Command | Purpose | Output |
-|---------|---------|--------|
-| `/setup` | First-time configuration | `.loa-setup-complete`, analytics |
-| `/plan-and-analyze` | Define requirements and create PRD | `loa-grimoire/prd.md` |
-| `/architect` | Design system architecture | `loa-grimoire/sdd.md` |
-| `/sprint-plan` | Plan implementation sprints | `loa-grimoire/sprint.md` |
-| `/implement sprint-N` | Implement sprint tasks | Code + `loa-grimoire/a2a/sprint-N/reviewer.md` |
-| `/review-sprint sprint-N` | Review and approve/reject implementation | `loa-grimoire/a2a/sprint-N/engineer-feedback.md` |
-| `/audit-sprint sprint-N` | Security audit of sprint implementation | `loa-grimoire/a2a/sprint-N/auditor-sprint-feedback.md` |
-| `/deploy-production` | Deploy to production | Infrastructure + `loa-grimoire/deployment/` |
-| `/feedback` | Submit developer feedback | Linear issue in "Loa Feedback" |
-| `/update` | Pull framework updates | Merged upstream changes |
-| `/audit` | Security and quality audit (ad-hoc) | `SECURITY-AUDIT-REPORT.md` |
-| `/audit-deployment` | Security audit of deployment infrastructure | `loa-grimoire/a2a/deployment-feedback.md` |
-| `/translate @doc.md for [audience]` | Translate technical docs for stakeholders | Executive summaries |
+| Command | Purpose | Output | Availability |
+|---------|---------|--------|--------------|
+| `/setup` | First-time configuration | `.loa-setup-complete`, analytics | All users |
+| `/config` | Reconfigure MCP servers | Updated `.loa-setup-complete` | THJ only |
+| `/plan-and-analyze` | Define requirements and create PRD | `loa-grimoire/prd.md` | All users |
+| `/architect` | Design system architecture | `loa-grimoire/sdd.md` | All users |
+| `/sprint-plan` | Plan implementation sprints | `loa-grimoire/sprint.md` | All users |
+| `/implement sprint-N` | Implement sprint tasks | Code + `loa-grimoire/a2a/sprint-N/reviewer.md` | All users |
+| `/review-sprint sprint-N` | Review and approve/reject implementation | `loa-grimoire/a2a/sprint-N/engineer-feedback.md` | All users |
+| `/audit-sprint sprint-N` | Security audit of sprint implementation | `loa-grimoire/a2a/sprint-N/auditor-sprint-feedback.md` | All users |
+| `/deploy-production` | Deploy to production | Infrastructure + `loa-grimoire/deployment/` | All users |
+| `/feedback` | Submit developer feedback | Linear issue in "Loa Feedback" | THJ only |
+| `/update` | Pull framework updates | Merged upstream changes | All users |
+| `/audit` | Security and quality audit (ad-hoc) | `SECURITY-AUDIT-REPORT.md` | All users |
+| `/audit-deployment` | Security audit of deployment infrastructure | `loa-grimoire/a2a/deployment-feedback.md` | All users |
+| `/translate @doc.md for [audience]` | Translate technical docs for stakeholders | Executive summaries | All users |
 
-All commands support `background` argument for parallel execution (e.g., `/audit background`).
+- **THJ only**: Commands restricted to THJ team members
+- **All users**: Available to both THJ developers and OSS users
+- All commands support `background` argument for parallel execution (e.g., `/audit background`)
 
 ## The Agents (The Loa)
 
@@ -172,12 +180,13 @@ Agents communicate through structured documents in `loa-grimoire/a2a/`:
 - Security auditor provides security feedback (`sprint-N/auditor-sprint-feedback.md`)
 - Engineers address feedback and iterate until both gates approve
 
-### Analytics System
-Loa tracks usage metrics locally to provide context for feedback:
+### Analytics System (THJ Only)
+Loa tracks usage metrics locally for THJ developers to provide context for feedback:
 - **What's tracked**: Framework version, phase completion, sprint iterations, timestamps
 - **Where it's stored**: `loa-grimoire/analytics/usage.json` (local only)
 - **Opt-in sharing**: Analytics are only shared when you run `/feedback`
 - **Non-blocking**: Analytics failures never interrupt your workflow
+- **OSS users**: No analytics are collected; the analytics directory is not created
 
 ### MCP Server Integrations
 Pre-configured integrations with:
@@ -229,7 +238,9 @@ README.md                # This file
 ```bash
 # 0. First-time setup
 /setup
-# Configure MCP servers, initialize analytics
+# Asks if you're a THJ team member
+# THJ: Configure MCP servers, initialize analytics
+# OSS: Quick welcome, no analytics
 
 # 1. Define requirements
 /plan-and-analyze
@@ -273,9 +284,10 @@ README.md                # This file
 /deploy-production
 # Production infrastructure deployed
 
-# 12. Submit feedback (optional)
+# 12. Submit feedback (THJ only, optional)
 /feedback
 # Share your experience and analytics
+# OSS users: Open GitHub issue instead
 
 # 13. Get updates (periodically)
 /update

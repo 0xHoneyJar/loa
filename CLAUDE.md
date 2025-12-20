@@ -91,17 +91,42 @@ All slash commands run in **foreground mode by default**, allowing direct intera
 ```bash
 /setup
 ```
-Guides new developers through initial Loa configuration. The command:
-- Displays welcome message explaining Loa's purpose and workflow
-- Shows analytics notice (what's collected, where it's stored)
-- Detects configured MCP servers from `.claude/settings.local.json`
-- For each missing MCP, offers: Guided setup, Documentation link, or Skip
-- Initializes project (git user info, project name from remote)
+Guides new developers through initial Loa configuration with **two distinct pathways**:
+
+**THJ Developers** (internal team):
+- Full analytics tracking for framework improvement
+- MCP server configuration (Linear, GitHub, Vercel, Discord, web3-stats)
+- Access to `/config` (reconfigure MCP) and `/feedback` (submit feedback to Linear)
 - Creates `loa-grimoire/analytics/usage.json` with initial data
-- Creates `.loa-setup-complete` marker file
-- Displays configuration summary and next steps
+
+**OSS Users** (open source community):
+- Streamlined welcome experience with documentation pointers
+- No analytics tracking (privacy-first)
+- No MCP configuration prompts
+- Full access to core workflow commands
+
+The command:
+1. Asks "Are you a THJ team member?" to determine pathway
+2. Displays appropriate welcome message
+3. For THJ: Shows analytics notice, initializes analytics, offers MCP multichoice setup
+4. For OSS: Points to documentation and community resources
+5. Creates `.loa-setup-complete` marker file with `user_type` field
+6. Displays next steps
 
 **Setup is required before `/plan-and-analyze`**. If the marker file is missing, you'll be prompted to run `/setup` first.
+
+### Post-Setup: MCP Configuration (THJ Only)
+```bash
+/config
+```
+Allows THJ developers to reconfigure MCP server integrations after initial setup. The command:
+- Verifies user is THJ (checks `user_type` in `.loa-setup-complete`)
+- Shows currently configured MCP servers
+- Offers multichoice selection: Linear, GitHub, Vercel, Discord, web3-stats, All, Skip
+- Provides guided setup or documentation links for selected servers
+- Updates `.loa-setup-complete` with new MCP configuration
+
+**Note**: This command is only available to THJ developers. OSS users will see an error directing them to manual MCP configuration.
 
 ### Phase 1: Requirements
 ```bash
@@ -189,11 +214,14 @@ If audit finds issues:
 ```
 Launches `devops-crypto-architect` agent to design and deploy production infrastructure. Creates IaC, CI/CD pipelines, monitoring, and comprehensive operational documentation in `loa-grimoire/deployment/`.
 
-### Post-Deployment: Developer Feedback
+### Post-Deployment: Developer Feedback (THJ Only)
 ```bash
 /feedback
 ```
-Collects developer feedback on the Loa experience and posts to Linear. The command:
+Collects developer feedback on the Loa experience and posts to Linear. **This command is only available to THJ developers.**
+
+The command:
+- Verifies user is THJ (checks `user_type` in `.loa-setup-complete`)
 - Checks for pending feedback from previous failed submissions
 - Runs a 4-question survey with progress indicators:
   1. What would you change about Loa? (free text)
@@ -207,6 +235,8 @@ Collects developer feedback on the Loa experience and posts to Linear. The comma
 - Records submission in analytics `feedback_submissions` array
 
 **Error handling**: If Linear submission fails, feedback is saved to `loa-grimoire/analytics/pending-feedback.json` and can be retried on next `/feedback` run.
+
+**OSS users**: For issues or feature requests, please open a GitHub issue at https://github.com/0xHoneyJar/loa/issues
 
 ### Maintenance: Framework Updates
 ```bash
@@ -464,7 +494,7 @@ update_analytics_field() {
 
 ### Setup Marker File Convention
 
-The framework uses a marker file `.loa-setup-complete` to detect first-launch vs returning users:
+The framework uses a marker file `.loa-setup-complete` to detect first-launch vs returning users and determine user type:
 
 **File Location**: Repository root (`.loa-setup-complete`)
 
@@ -476,29 +506,51 @@ if [ -f ".loa-setup-complete" ]; then
 else
     echo "First launch - needs setup"
 fi
+
+# Check user type for feature gating
+USER_TYPE=$(cat .loa-setup-complete 2>/dev/null | grep -o '"user_type": *"[^"]*"' | cut -d'"' -f4)
+if [ "$USER_TYPE" = "thj" ]; then
+    echo "THJ developer - full features"
+else
+    echo "OSS user - core features only"
+fi
 ```
 
 **File Contents** (JSON):
 ```json
 {
   "completed_at": "2025-01-15T10:30:00Z",
-  "framework_version": "0.1.0",
+  "framework_version": "0.2.0",
+  "user_type": "thj",
   "mcp_servers": ["linear", "github"],
   "git_user": "developer@example.com"
 }
 ```
 
+**User Types**:
+- `"thj"` - THJ team member with full analytics, MCP config, and feedback access
+- `"oss"` - Open source user with streamlined experience, no analytics
+
 **Behavior**:
 - `/plan-and-analyze` checks for this file and prompts `/setup` if missing
 - `/setup` creates this file upon successful completion
+- `/config` and `/feedback` check `user_type` and restrict to THJ only
+- All phase commands check `user_type` to skip analytics for OSS users
 - File is gitignored (each developer runs setup independently)
 - Contains minimal metadata for analytics correlation
 
 ### Analytics System
 
-The framework automatically tracks usage metrics to help improve Loa and provide context for feedback submissions.
+The framework automatically tracks usage metrics to help improve Loa and provide context for feedback submissions. **Analytics are only enabled for THJ developers.**
 
-#### What's Tracked
+#### User Type Behavior
+
+| User Type | Analytics | `/feedback` | `/config` |
+|-----------|-----------|-------------|-----------|
+| **THJ** | Full tracking | Available | Available |
+| **OSS** | None (skipped) | Unavailable | Unavailable |
+
+#### What's Tracked (THJ Only)
 
 | Category | Metrics |
 |----------|---------|
@@ -510,24 +562,26 @@ The framework automatically tracks usage metrics to help improve Loa and provide
 
 #### Files
 
-- `loa-grimoire/analytics/usage.json` - Raw usage data (JSON)
-- `loa-grimoire/analytics/summary.md` - Human-readable summary (regenerated after updates)
-- `loa-grimoire/analytics/pending-feedback.json` - Pending feedback (only if submission failed)
+- `loa-grimoire/analytics/usage.json` - Raw usage data (JSON) - **THJ only**
+- `loa-grimoire/analytics/summary.md` - Human-readable summary (regenerated after updates) - **THJ only**
+- `loa-grimoire/analytics/pending-feedback.json` - Pending feedback (only if submission failed) - **THJ only**
 
 #### How It Works
 
-1. **Initialization**: `/setup` creates `usage.json` with environment info
-2. **Phase tracking**: Each phase command updates analytics on completion
+1. **Initialization**: `/setup` creates `usage.json` with environment info (THJ only)
+2. **Phase tracking**: Each phase command checks `user_type` first, skips analytics for OSS users
 3. **Non-blocking**: Analytics failures are logged but don't stop workflows
 4. **Opt-in sharing**: Analytics stay local; only shared via `/feedback` if you choose
 
-#### Updating Analytics
+#### Updating Analytics (THJ Only)
 
 Each phase command follows this pattern:
-1. Check if `usage.json` exists (create if missing)
-2. Update relevant phase/sprint data
-3. Regenerate `summary.md`
-4. Continue with main workflow
+1. Check `user_type` in `.loa-setup-complete`
+2. If OSS: Skip analytics entirely, continue with main workflow
+3. If THJ: Check if `usage.json` exists (create if missing)
+4. Update relevant phase/sprint data
+5. Regenerate `summary.md`
+6. Continue with main workflow
 
 ### Document Structure
 
@@ -594,7 +648,7 @@ When providing feedback in `loa-grimoire/a2a/sprint-N/engineer-feedback.md`:
 ```
 .claude/
 ├── agents/              # Agent definitions (8 agents)
-├── commands/            # Slash command definitions (13 commands)
+├── commands/            # Slash command definitions (14 commands)
 └── settings.local.json  # MCP server configuration
 
 loa-grimoire/
