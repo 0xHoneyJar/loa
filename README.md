@@ -181,7 +181,7 @@ Loa tracks usage metrics locally to provide context for feedback:
 
 ### MCP Server Integrations
 Pre-configured integrations with:
-- **Linear** - Issue and project management
+- **Linear** - Issue tracking for developer feedback (`/feedback` command)
 - **GitHub** - Repository operations
 - **Vercel** - Deployment and hosting
 - **Discord** - Community communication
@@ -204,7 +204,7 @@ loa-grimoire/
 ├── sprint.md            # Sprint plan (generated)
 ├── a2a/                 # Agent-to-agent communication
 │   ├── index.md                    # Sprint audit trail index
-│   ├── integration-context.md      # Linear team/project IDs
+│   ├── integration-context.md      # Feedback configuration
 │   ├── sprint-N/                   # Per-sprint communication
 │   │   ├── reviewer.md             # Engineer implementation report
 │   │   ├── engineer-feedback.md    # Senior lead feedback

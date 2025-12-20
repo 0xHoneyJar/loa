@@ -113,18 +113,7 @@ echo $SHELL  # Shell
 uname -m  # Architecture
 ```
 
-### 3.2 Create Linear Project (if Linear configured)
-
-If Linear MCP is configured:
-1. Check if a project with the repo name already exists using `mcp__linear__list_projects`
-2. If not, create one using `mcp__linear__create_project` with:
-   - Name: {repo_name}
-   - Team: Use the team from `loa-grimoire/a2a/integration-context.md` if it exists, otherwise list teams and let user choose
-   - Description: "Project tracking for {repo_name} built with Loa framework"
-
-If Linear is not configured, skip this step and note it in the summary.
-
-### 3.3 Initialize Analytics
+### 3.2 Initialize Analytics
 
 Create/update `loa-grimoire/analytics/usage.json` with full project data:
 
@@ -168,13 +157,13 @@ Create/update `loa-grimoire/analytics/usage.json` with full project data:
 }
 ```
 
-Log any failures (Linear project creation, etc.) to the `setup_failures` array.
+Log any failures to the `setup_failures` array.
 
-### 3.4 Generate Summary.md
+### 3.3 Generate Summary.md
 
 Update `loa-grimoire/analytics/summary.md` with the initialized data in a human-readable format.
 
-### 3.5 Create Marker File
+### 3.4 Create Marker File
 
 Create `.loa-setup-complete` in the project root with:
 
@@ -208,7 +197,6 @@ Display a clear summary of what was configured:
 ### Project Initialization
 
 - **Project Name**: {project_name}
-- **Linear Project**: {Created/Skipped/Already Exists}
 - **Analytics**: Initialized
 
 ### Next Steps

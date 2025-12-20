@@ -57,7 +57,6 @@ All A2A communication files for this sprint are stored in the sprint-specific di
      Please run `/setup` first to:
      - Configure MCP integrations
      - Initialize project analytics
-     - Set up Linear project tracking
 
      After setup is complete, run `/review-sprint {{ $ARGUMENTS[0] }}` again.
      ```
@@ -88,28 +87,8 @@ Read ALL context documents for understanding:
 - loa-grimoire/prd.md (product requirements)
 - loa-grimoire/sdd.md (system design)
 - loa-grimoire/sprint.md (sprint tasks and acceptance criteria - focus on {{ $ARGUMENTS[0] }})
-- loa-grimoire/a2a/integration-context.md (Linear team/project IDs and label configuration)
 - loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/reviewer.md (engineer's implementation report)
 - loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md (your previous feedback - VERIFY ALL ITEMS ADDRESSED)
-
-## Phase 0.5: Linear Issue Tracking (REQUIRED for Audit Trail)
-
-Before reviewing code, update Linear issues for audit trail:
-
-1. **Read integration context**:
-   - Read `loa-grimoire/a2a/integration-context.md` for Linear team/project IDs
-   - If file doesn't exist, use `mcp__linear__list_teams` to find team, then `mcp__linear__list_projects` for project
-
-2. **Find implementation issues**:
-   - Search for existing issues: `mcp__linear__list_issues` with project and sprint label filter
-   - Look for issues created by implementer (label: `agent:implementer`, `sprint:{{ $ARGUMENTS[0] }}`)
-
-3. **Add review comments to issues**:
-   - Use `mcp__linear__create_comment` to add review findings to implementation issues
-   - Include: review verdict, specific findings with file:line references, previous feedback verification status
-
-4. **Document in feedback file**:
-   - Add "Linear Issue References" section to engineer-feedback.md with issue URLs
 
 ## Phase 1: Review Actual Code Implementation
 
@@ -157,8 +136,6 @@ If any issues, incomplete tasks, or unaddressed previous feedback:
 - Be critical but constructive - explain why and how to fix
 - Be uncompromising on security and critical quality issues
 - Only approve production-ready work
-- ALWAYS update Linear issues with review comments (Phase 0.5)
-- Include Linear issue URLs in engineer-feedback.md
 
 ## Phase 4: Analytics Update (NON-BLOCKING)
 
@@ -209,7 +186,6 @@ All A2A communication files for this sprint are stored in the sprint-specific di
      Please run `/setup` first to:
      - Configure MCP integrations
      - Initialize project analytics
-     - Set up Linear project tracking
 
      After setup is complete, run `/review-sprint {{ $ARGUMENTS[0] }}` again.
      ```
@@ -240,28 +216,8 @@ Read ALL context documents for understanding:
 - loa-grimoire/prd.md (product requirements)
 - loa-grimoire/sdd.md (system design)
 - loa-grimoire/sprint.md (sprint tasks and acceptance criteria - focus on {{ $ARGUMENTS[0] }})
-- loa-grimoire/a2a/integration-context.md (Linear team/project IDs and label configuration)
 - loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/reviewer.md (engineer's implementation report)
 - loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md (your previous feedback - VERIFY ALL ITEMS ADDRESSED)
-
-## Phase 0.5: Linear Issue Tracking (REQUIRED for Audit Trail)
-
-Before reviewing code, update Linear issues for audit trail:
-
-1. **Read integration context**:
-   - Read `loa-grimoire/a2a/integration-context.md` for Linear team/project IDs
-   - If file doesn't exist, use `mcp__linear__list_teams` to find team, then `mcp__linear__list_projects` for project
-
-2. **Find implementation issues**:
-   - Search for existing issues: `mcp__linear__list_issues` with project and sprint label filter
-   - Look for issues created by implementer (label: `agent:implementer`, `sprint:{{ $ARGUMENTS[0] }}`)
-
-3. **Add review comments to issues**:
-   - Use `mcp__linear__create_comment` to add review findings to implementation issues
-   - Include: review verdict, specific findings with file:line references, previous feedback verification status
-
-4. **Document in feedback file**:
-   - Add "Linear Issue References" section to engineer-feedback.md with issue URLs
 
 ## Phase 1: Review Actual Code Implementation
 
@@ -309,8 +265,6 @@ If any issues, incomplete tasks, or unaddressed previous feedback:
 - Be critical but constructive - explain why and how to fix
 - Be uncompromising on security and critical quality issues
 - Only approve production-ready work
-- ALWAYS update Linear issues with review comments (Phase 0.5)
-- Include Linear issue URLs in engineer-feedback.md
 
 ## Phase 4: Analytics Update (NON-BLOCKING)
 
