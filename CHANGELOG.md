@@ -5,6 +5,67 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-12-20
+
+### Why This Release
+
+Claude Code has a tendency to proactively suggest git operations—committing changes, creating PRs, and pushing to remotes—which can be problematic when working in forked repositories. Developers using Loa as a template for their own projects were at risk of accidentally pushing proprietary code to the public upstream repository (`0xHoneyJar/loa`).
+
+This release introduces comprehensive safety rails to prevent these accidents while still enabling intentional contributions back to the framework.
+
+### Added
+- **Git Safety Protocol**: Multi-layer protection against accidental pushes to upstream template repository
+  - 4-layer template detection system (origin URL, upstream remote, loa remote, GitHub API)
+  - Automatic detection during `/setup` with results stored in marker file
+  - Warnings before push/PR operations targeting upstream
+  - Prevents accidentally leaking project-specific code to the public Loa repository
+
+- **`/contribute` command**: Guided OSS contribution workflow for contributing back to Loa
+  - Pre-flight checks (feature branch, clean working tree, upstream remote)
+  - Standards checklist (clean commits, no secrets, tests, DCO)
+  - Automated secrets scanning with common patterns (API keys, tokens, credentials)
+  - DCO sign-off verification with fix guidance
+  - Guided PR creation with proper formatting
+  - Handles both fork-based and direct repository contributions
+
+- **Template detection in `/setup`**: New Phase 0.5 detects fork/template relationships
+  - Runs before user-type selection
+  - Displays safety notice when template detected
+  - Stores detection metadata in `.loa-setup-complete` marker file
+
+- **`/config` command**: Post-setup MCP server reconfiguration (THJ only)
+  - Allows adding/removing MCP integrations after initial setup
+  - Shows currently configured servers
+  - Updates marker file with new configuration
+
+### Changed
+- **Setup marker file schema**: Now includes `template_source` object with detection metadata
+  ```json
+  {
+    "template_source": {
+      "detected": true,
+      "repo": "0xHoneyJar/loa",
+      "detection_method": "origin_url",
+      "detected_at": "2025-12-20T10:00:00Z"
+    }
+  }
+  ```
+- **CLAUDE.md**: Added Git Safety Protocol documentation and `/contribute` command reference
+- **CONTRIBUTING.md**: Updated with contribution workflow using `/contribute` command
+- **Documentation**: Updated setup flow diagrams and command reference tables
+
+### Security
+- **Secrets scanning**: `/contribute` scans for common secret patterns before PR creation
+  - AWS access keys (AKIA...)
+  - GitHub tokens (ghp_...)
+  - Slack tokens (xox...)
+  - Private keys (-----BEGIN PRIVATE KEY-----)
+  - Generic password/secret/api_key patterns
+- **DCO enforcement**: Contribution workflow verifies Developer Certificate of Origin sign-off
+- **Template isolation**: Prevents accidental code leakage from forked projects to upstream
+
+---
+
 ## [0.2.0] - 2025-12-19
 
 ### Added
@@ -98,5 +159,6 @@ loa-grimoire/           # Loa process artifacts
 └── deployment/         # Production infrastructure docs
 ```
 
+[0.3.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.3.0
 [0.2.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.2.0
 [0.1.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.1.0

@@ -173,7 +173,7 @@ Create `loa-grimoire/analytics/usage.json` with:
 ```json
 {
   "schema_version": "1.0.0",
-  "framework_version": "0.2.0",
+  "framework_version": "0.3.0",
   "project_name": "{extracted_project_name}",
   "developer": {
     "git_user_name": "{git_user_name}",
@@ -290,7 +290,7 @@ Create `.loa-setup-complete` in the project root with:
 ```json
 {
   "completed_at": "{ISO_timestamp}",
-  "framework_version": "0.2.0",
+  "framework_version": "0.3.0",
   "user_type": "thj",
   "mcp_servers": ["{list_of_configured_mcps}"],
   "git_user": "{git_user_email}",
@@ -373,7 +373,7 @@ Create `.loa-setup-complete` in the project root with:
 ```json
 {
   "completed_at": "{ISO_timestamp}",
-  "framework_version": "0.2.0",
+  "framework_version": "0.3.0",
   "user_type": "oss",
   "mcp_servers": [],
   "git_user": "{git_user_email}",
