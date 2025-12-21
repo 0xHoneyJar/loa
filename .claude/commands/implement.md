@@ -13,8 +13,8 @@ arguments:
     description: "Sprint to implement (e.g., sprint-1)"
     examples: ["sprint-1", "sprint-2", "sprint-10"]
 
-agent: "sprint-task-implementer"
-agent_path: "skills/sprint-task-implementer/"
+agent: "implementing-tasks"
+agent_path: "skills/implementing-tasks/"
 
 context_files:
   - path: "loa-grimoire/a2a/integration-context.md"
@@ -103,9 +103,9 @@ Execute assigned sprint tasks with production-quality code, comprehensive tests,
 
 ## Agent
 
-Launches `sprint-task-implementer` from `skills/sprint-task-implementer/`.
+Launches `implementing-tasks` from `skills/implementing-tasks/`.
 
-See: `skills/sprint-task-implementer/SKILL.md` for full workflow details.
+See: `skills/implementing-tasks/SKILL.md` for full workflow details.
 
 ## Workflow
 

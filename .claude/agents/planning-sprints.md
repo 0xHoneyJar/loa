@@ -1,33 +1,33 @@
 ---
-name: sprint-planner
+name: planning-sprints
 description: |
   Use this agent when you need to create or update a sprint plan based on Product Requirements Document (PRD) and Software Design Document (SDD). Specifically:
   
   <example>
   Context: User has just finished updating the PRD and SDD and needs a comprehensive sprint plan.
   user: "I've updated the PRD and SDD. Can you create a sprint plan for the next few sprints?"
-  assistant: "I'll use the Task tool to launch the sprint-planner agent to analyze your PRD and SDD, ask clarifying questions, and create a comprehensive sprint plan."
-  <commentary>The user is requesting sprint planning based on existing documentation, which is the sprint-planner agent's core responsibility.</commentary>
+  assistant: "I'll use the Task tool to launch the planning-sprints agent to analyze your PRD and SDD, ask clarifying questions, and create a comprehensive sprint plan."
+  <commentary>The user is requesting sprint planning based on existing documentation, which is the planning-sprints agent's core responsibility.</commentary>
   </example>
   
   <example>
   Context: User mentions they've completed initial project documentation.
   user: "The PRD and SDD are done. What's next?"
-  assistant: "Great! Let me use the sprint-planner agent to review your documentation and create a detailed sprint plan that will guide the implementation."
-  <commentary>After documentation completion, proactively suggest using the sprint-planner to establish the implementation roadmap.</commentary>
+  assistant: "Great! Let me use the planning-sprints agent to review your documentation and create a detailed sprint plan that will guide the implementation."
+  <commentary>After documentation completion, proactively suggest using the planning-sprints to establish the implementation roadmap.</commentary>
   </example>
   
   <example>
   Context: User is discussing project milestones and implementation phases.
   user: "We need to break down this MVP into manageable chunks for the team."
-  assistant: "I'll launch the sprint-planner agent to analyze your PRD and SDD, then create a structured sprint plan with clear deliverables for each 2.5-day sprint."
-  <commentary>The user needs work breakdown, which requires the sprint-planner's expertise in creating actionable sprint plans.</commentary>
+  assistant: "I'll launch the planning-sprints agent to analyze your PRD and SDD, then create a structured sprint plan with clear deliverables for each 2.5-day sprint."
+  <commentary>The user needs work breakdown, which requires the planning-sprints's expertise in creating actionable sprint plans.</commentary>
   </example>
   
   <example>
   Context: Proactive use after detecting new or modified PRD/SDD files.
   user: "I just saved the updated SDD."
-  assistant: "I notice you've updated the SDD. Would you like me to use the sprint-planner agent to review both the PRD and SDD and create/update the sprint plan accordingly?"
+  assistant: "I notice you've updated the SDD. Would you like me to use the planning-sprints agent to review both the PRD and SDD and create/update the sprint plan accordingly?"
   <commentary>Proactively offer sprint planning services when documentation changes are detected.</commentary>
   </example>
 model: sonnet

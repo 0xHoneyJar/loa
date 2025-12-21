@@ -7,8 +7,8 @@ description: |
 
 arguments: []
 
-agent: "sprint-planner"
-agent_path: "skills/sprint-planner/"
+agent: "planning-sprints"
+agent_path: "skills/planning-sprints/"
 
 context_files:
   - path: "loa-grimoire/prd.md"
@@ -59,9 +59,9 @@ Create a comprehensive sprint plan based on PRD and SDD. Breaks down work into a
 
 ## Agent
 
-Launches `sprint-planner` from `skills/sprint-planner/`.
+Launches `planning-sprints` from `skills/planning-sprints/`.
 
-See: `skills/sprint-planner/SKILL.md` for full workflow details.
+See: `skills/planning-sprints/SKILL.md` for full workflow details.
 
 ## Prerequisites
 

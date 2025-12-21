@@ -28,13 +28,13 @@ claude
 | Phase | Command | Agent | Output |
 |-------|---------|-------|--------|
 | 0 | `/setup` | - | `.loa-setup-complete` |
-| 1 | `/plan-and-analyze` | prd-architect | `loa-grimoire/prd.md` |
-| 2 | `/architect` | architecture-designer | `loa-grimoire/sdd.md` |
-| 3 | `/sprint-plan` | sprint-planner | `loa-grimoire/sprint.md` |
-| 4 | `/implement sprint-N` | sprint-task-implementer | Code + report |
-| 5 | `/review-sprint sprint-N` | senior-tech-lead-reviewer | Approval/feedback |
-| 5.5 | `/audit-sprint sprint-N` | paranoid-auditor | Security approval |
-| 6 | `/deploy-production` | devops-crypto-architect | Infrastructure |
+| 1 | `/plan-and-analyze` | discovering-requirements | `loa-grimoire/prd.md` |
+| 2 | `/architect` | designing-architecture | `loa-grimoire/sdd.md` |
+| 3 | `/sprint-plan` | planning-sprints | `loa-grimoire/sprint.md` |
+| 4 | `/implement sprint-N` | implementing-tasks | Code + report |
+| 5 | `/review-sprint sprint-N` | reviewing-code | Approval/feedback |
+| 5.5 | `/audit-sprint sprint-N` | auditing-security | Security approval |
+| 6 | `/deploy-production` | deploying-infrastructure | Infrastructure |
 
 ### Ad-Hoc Commands
 
@@ -52,14 +52,14 @@ claude
 
 Eight specialized agents that ride alongside you:
 
-1. **prd-architect** - Senior Product Manager
-2. **architecture-designer** - Software Architect
-3. **sprint-planner** - Technical PM
-4. **sprint-task-implementer** - Senior Engineer
-5. **senior-tech-lead-reviewer** - Tech Lead
-6. **devops-crypto-architect** - DevOps Architect
-7. **paranoid-auditor** - Security Auditor
-8. **devrel-translator** - Developer Relations
+1. **discovering-requirements** - Senior Product Manager
+2. **designing-architecture** - Software Architect
+3. **planning-sprints** - Technical PM
+4. **implementing-tasks** - Senior Engineer
+5. **reviewing-code** - Tech Lead
+6. **deploying-infrastructure** - DevOps Architect
+7. **auditing-security** - Security Auditor
+8. **translating-for-executives** - Developer Relations
 
 Each skill in `.claude/skills/{agent}/` with 3-level architecture:
 - `index.yaml` - Metadata

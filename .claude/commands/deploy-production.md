@@ -7,8 +7,8 @@ description: |
 
 arguments: []
 
-agent: "devops-crypto-architect"
-agent_path: "skills/devops-crypto-architect/"
+agent: "deploying-infrastructure"
+agent_path: "skills/deploying-infrastructure/"
 
 context_files:
   - path: "loa-grimoire/prd.md"
@@ -69,9 +69,9 @@ Design and deploy production infrastructure with security-first approach. Create
 
 ## Agent
 
-Launches `devops-crypto-architect` from `skills/devops-crypto-architect/`.
+Launches `deploying-infrastructure` from `skills/deploying-infrastructure/`.
 
-See: `skills/devops-crypto-architect/SKILL.md` for full workflow details.
+See: `skills/deploying-infrastructure/SKILL.md` for full workflow details.
 
 ## Prerequisites
 

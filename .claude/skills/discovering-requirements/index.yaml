@@ -1,4 +1,4 @@
-name: "prd-architect"
+name: "discovering-requirements"
 version: "1.0.0"
 model: "sonnet"
 color: "red"
@@ -22,13 +22,13 @@ triggers:
 examples:
   - context: "User wants to create a PRD for a new feature"
     user_says: "I want to build a user authentication system for my app"
-    agent_action: "Launch prd-architect to systematically gather requirements and create a comprehensive PRD"
+    agent_action: "Launch discovering-requirements to systematically gather requirements and create a comprehensive PRD"
   - context: "User mentions planning or requirements gathering"
     user_says: "I need to plan out a new dashboard feature but I'm not sure where to start"
-    agent_action: "Launch prd-architect to guide user through defining goals, requirements, and scope step-by-step"
+    agent_action: "Launch discovering-requirements to guide user through defining goals, requirements, and scope step-by-step"
   - context: "User wants to refine an existing idea"
     user_says: "I have a rough idea for a notification system but need to flesh it out"
-    agent_action: "Launch prd-architect to refine the idea through systematic questioning and create a detailed PRD"
+    agent_action: "Launch discovering-requirements to refine the idea through systematic questioning and create a detailed PRD"
 
 dependencies: []
 

@@ -7,8 +7,8 @@ description: |
 
 arguments: []
 
-agent: "paranoid-auditor"
-agent_path: "skills/paranoid-auditor/"
+agent: "auditing-security"
+agent_path: "skills/auditing-security/"
 
 context_files:
   - path: "loa-grimoire/prd.md"
@@ -54,9 +54,9 @@ Comprehensive security and quality audit of the application codebase by the Para
 
 ## Agent
 
-Launches `paranoid-auditor` from `skills/paranoid-auditor/`.
+Launches `auditing-security` from `skills/auditing-security/`.
 
-See: `skills/paranoid-auditor/SKILL.md` for full workflow details.
+See: `skills/auditing-security/SKILL.md` for full workflow details.
 
 ## When to Use
 

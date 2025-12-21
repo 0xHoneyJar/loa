@@ -7,8 +7,8 @@ description: |
 
 arguments: []
 
-agent: "prd-architect"
-agent_path: "skills/prd-architect/"
+agent: "discovering-requirements"
+agent_path: "skills/discovering-requirements/"
 
 context_files:
   - path: "loa-grimoire/a2a/integration-context.md"
@@ -45,9 +45,9 @@ Create a comprehensive Product Requirements Document (PRD) through structured 7-
 
 ## Agent
 
-Launches `prd-architect` from `skills/prd-architect/`.
+Launches `discovering-requirements` from `skills/discovering-requirements/`.
 
-See: `skills/prd-architect/SKILL.md` for full workflow details.
+See: `skills/discovering-requirements/SKILL.md` for full workflow details.
 
 ## Prerequisites
 

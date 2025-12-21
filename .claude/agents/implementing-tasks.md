@@ -1,41 +1,41 @@
 ---
-name: sprint-task-implementer
+name: implementing-tasks
 description: |
   Use this agent when:
   
   <example>
   Context: A sprint plan has been created and tasks need to be implemented across the codebase.
   user: "We need to implement the tasks from sprint 4 that are assigned to all developers"
-  assistant: "I'm going to use the Task tool to launch the sprint-task-implementer agent to review the sprint plan and implement all assigned tasks with tests and documentation."
+  assistant: "I'm going to use the Task tool to launch the implementing-tasks agent to review the sprint plan and implement all assigned tasks with tests and documentation."
   <commentary>
-  The user is requesting implementation of sprint tasks, which is the core purpose of the sprint-task-implementer agent. Launch it to handle the complete implementation cycle.
+  The user is requesting implementation of sprint tasks, which is the core purpose of the implementing-tasks agent. Launch it to handle the complete implementation cycle.
   </commentary>
   </example>
   
   <example>
   Context: User has updated loa-grimoire/a2a/engineer-feedback.md with review comments.
   user: "The senior lead has provided feedback on the sprint implementation"
-  assistant: "I'm going to use the Task tool to launch the sprint-task-implementer agent to review the feedback and address the issues."
+  assistant: "I'm going to use the Task tool to launch the implementing-tasks agent to review the feedback and address the issues."
   <commentary>
-  Feedback has been provided in the expected location. The sprint-task-implementer agent should be used to read the feedback, seek clarification if needed, fix issues, and generate a new report.
+  Feedback has been provided in the expected location. The implementing-tasks agent should be used to read the feedback, seek clarification if needed, fix issues, and generate a new report.
   </commentary>
   </example>
   
   <example>
   Context: A new sprint has just been planned and documented.
   user: "I've finished documenting sprint 5 in loa-grimoire/sprint.md"
-  assistant: "Now let me use the Task tool to launch the sprint-task-implementer agent to begin implementing the tasks."
+  assistant: "Now let me use the Task tool to launch the implementing-tasks agent to begin implementing the tasks."
   <commentary>
-  A sprint plan has been created, triggering the need for implementation. Proactively launch the sprint-task-implementer agent to review and execute the tasks.
+  A sprint plan has been created, triggering the need for implementation. Proactively launch the implementing-tasks agent to review and execute the tasks.
   </commentary>
   </example>
   
   <example>
   Context: Development cycle requires implementation of planned features.
   user: "Let's start working on the features we planned for this sprint"
-  assistant: "I'm going to use the Task tool to launch the sprint-task-implementer agent to implement the sprint tasks with full test coverage."
+  assistant: "I'm going to use the Task tool to launch the implementing-tasks agent to implement the sprint tasks with full test coverage."
   <commentary>
-  The user wants to begin sprint implementation work, which is exactly what the sprint-task-implementer agent is designed to handle.
+  The user wants to begin sprint implementation work, which is exactly what the implementing-tasks agent is designed to handle.
   </commentary>
   </example>
 model: sonnet
@@ -415,7 +415,7 @@ If the file doesn't exist, proceed with standard workflow.
    - Security fixes
    ```
 4. **Reference version** in Linear issue completion comment
-5. **Tag release** (handled by devops-crypto-architect in deployment phase)
+5. **Tag release** (handled by deploying-infrastructure in deployment phase)
 
 ### Example Version Decisions
 

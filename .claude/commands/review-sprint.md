@@ -13,8 +13,8 @@ arguments:
     description: "Sprint to review (e.g., sprint-1)"
     examples: ["sprint-1", "sprint-2", "sprint-10"]
 
-agent: "senior-tech-lead-reviewer"
-agent_path: "skills/senior-tech-lead-reviewer/"
+agent: "reviewing-code"
+agent_path: "skills/reviewing-code/"
 
 context_files:
   - path: "loa-grimoire/prd.md"
@@ -86,9 +86,9 @@ Validate sprint implementation against acceptance criteria as the Senior Technic
 
 ## Agent
 
-Launches `senior-tech-lead-reviewer` from `skills/senior-tech-lead-reviewer/`.
+Launches `reviewing-code` from `skills/reviewing-code/`.
 
-See: `skills/senior-tech-lead-reviewer/SKILL.md` for full workflow details.
+See: `skills/reviewing-code/SKILL.md` for full workflow details.
 
 ## Workflow
 

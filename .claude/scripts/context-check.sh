@@ -62,16 +62,16 @@ get_agent_thresholds() {
     local agent="$1"
 
     case "$agent" in
-        "senior-tech-lead-reviewer")
+        "reviewing-code")
             echo "3000 6000"
             ;;
-        "paranoid-auditor")
+        "auditing-security")
             echo "2000 5000"
             ;;
-        "sprint-task-implementer")
+        "implementing-tasks")
             echo "3000 8000"
             ;;
-        "devops-crypto-architect")
+        "deploying-infrastructure")
             echo "2000 5000"
             ;;
         *)

@@ -35,13 +35,13 @@ What actually happened.
 Which agent or command triggered the bug?
 
 - [ ] `/setup`
-- [ ] `/plan-and-analyze` (prd-architect)
-- [ ] `/architect` (architecture-designer)
-- [ ] `/sprint-plan` (sprint-planner)
-- [ ] `/implement` (sprint-task-implementer)
-- [ ] `/review-sprint` (senior-tech-lead-reviewer)
-- [ ] `/audit-sprint` (paranoid-auditor)
-- [ ] `/deploy-production` (devops-crypto-architect)
+- [ ] `/plan-and-analyze` (discovering-requirements)
+- [ ] `/architect` (designing-architecture)
+- [ ] `/sprint-plan` (planning-sprints)
+- [ ] `/implement` (implementing-tasks)
+- [ ] `/review-sprint` (reviewing-code)
+- [ ] `/audit-sprint` (auditing-security)
+- [ ] `/deploy-production` (deploying-infrastructure)
 - [ ] `/feedback`
 - [ ] `/update`
 - [ ] Other: ___

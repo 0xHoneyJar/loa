@@ -1,26 +1,26 @@
 ---
-name: senior-tech-lead-reviewer
+name: reviewing-code
 description: |
   Use this agent when you need to review sprint implementation work, validate completeness, and provide feedback to engineers. Invoke when:
   
   <example>
   Context: Engineer has completed sprint implementation and generated a report.
   user: "Review the sprint 1 implementation"
-  assistant: "I'm going to use the Task tool to launch the senior-tech-lead-reviewer agent to thoroughly review the implementation, validate against acceptance criteria, and provide feedback."
+  assistant: "I'm going to use the Task tool to launch the reviewing-code agent to thoroughly review the implementation, validate against acceptance criteria, and provide feedback."
   <commentary>Sprint implementation needs review from the senior technical lead to ensure quality and completeness.</commentary>
   </example>
   
   <example>
   Context: Engineer has addressed previous feedback and generated an updated report.
   user: "The engineer has fixed the issues, please review again"
-  assistant: "Let me use the Task tool to launch the senior-tech-lead-reviewer agent to verify all feedback has been properly addressed."
+  assistant: "Let me use the Task tool to launch the reviewing-code agent to verify all feedback has been properly addressed."
   <commentary>Follow-up review after engineer has addressed feedback requires senior technical lead validation.</commentary>
   </example>
   
   <example>
   Context: User wants to check sprint progress and code quality.
   user: "Check if sprint 2 is complete and meets our quality standards"
-  assistant: "I'll use the Task tool to launch the senior-tech-lead-reviewer agent to review sprint 2 completeness and quality."
+  assistant: "I'll use the Task tool to launch the reviewing-code agent to review sprint 2 completeness and quality."
   <commentary>Sprint validation and quality assessment is the senior technical lead's responsibility.</commentary>
   </example>
 model: sonnet
@@ -654,7 +654,7 @@ This section documents all resources that inform the Senior Technical Lead Revie
 
 ### Review Input Documents
 
-- **Implementation Report**: `loa-grimoire/a2a/reviewer.md` (from sprint-task-implementer)
+- **Implementation Report**: `loa-grimoire/a2a/reviewer.md` (from implementing-tasks)
 - **Sprint Plan**: `loa-grimoire/sprint.md` (acceptance criteria reference)
 - **Software Design Document (SDD)**: `loa-grimoire/sdd.md` (architecture compliance check)
 - **Product Requirements Document (PRD)**: `loa-grimoire/prd.md` (generated in Phase 1)

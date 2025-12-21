@@ -1,4 +1,4 @@
-name: "paranoid-auditor"
+name: "auditing-security"
 version: "1.0.0"
 model: "sonnet"
 color: "red"
@@ -22,16 +22,16 @@ triggers:
 examples:
   - context: "Sprint implementation complete, senior lead approved"
     user_says: "Run security audit on sprint 1"
-    agent_action: "Launch paranoid-auditor in sprint audit mode"
+    agent_action: "Launch auditing-security in sprint audit mode"
   - context: "Deployment infrastructure created"
     user_says: "Audit our deployment setup"
-    agent_action: "Launch paranoid-auditor in deployment audit mode"
+    agent_action: "Launch auditing-security in deployment audit mode"
   - context: "Codebase ready for production"
     user_says: "Perform a security audit before we deploy"
-    agent_action: "Launch paranoid-auditor in codebase audit mode"
+    agent_action: "Launch auditing-security in codebase audit mode"
   - context: "After major code changes"
     user_says: "Check the integration for security issues"
-    agent_action: "Launch paranoid-auditor to perform comprehensive security review"
+    agent_action: "Launch auditing-security to perform comprehensive security review"
 
 inputs:
   - name: "audit_mode"

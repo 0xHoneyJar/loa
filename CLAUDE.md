@@ -14,14 +14,14 @@ Agent-driven development framework that orchestrates the complete product lifecy
 
 | Skill | Role | Output |
 |-------|------|--------|
-| `prd-architect` | Product Manager | `loa-grimoire/prd.md` |
-| `architecture-designer` | Software Architect | `loa-grimoire/sdd.md` |
-| `sprint-planner` | Technical PM | `loa-grimoire/sprint.md` |
-| `sprint-task-implementer` | Senior Engineer | Code + `a2a/sprint-N/reviewer.md` |
-| `senior-tech-lead-reviewer` | Tech Lead | `a2a/sprint-N/engineer-feedback.md` |
-| `paranoid-auditor` | Security Auditor | `SECURITY-AUDIT-REPORT.md` or `a2a/sprint-N/auditor-sprint-feedback.md` |
-| `devops-crypto-architect` | DevOps Architect | `loa-grimoire/deployment/` |
-| `devrel-translator` | Developer Relations | Executive summaries |
+| `discovering-requirements` | Product Manager | `loa-grimoire/prd.md` |
+| `designing-architecture` | Software Architect | `loa-grimoire/sdd.md` |
+| `planning-sprints` | Technical PM | `loa-grimoire/sprint.md` |
+| `implementing-tasks` | Senior Engineer | Code + `a2a/sprint-N/reviewer.md` |
+| `reviewing-code` | Tech Lead | `a2a/sprint-N/engineer-feedback.md` |
+| `auditing-security` | Security Auditor | `SECURITY-AUDIT-REPORT.md` or `a2a/sprint-N/auditor-sprint-feedback.md` |
+| `deploying-infrastructure` | DevOps Architect | `loa-grimoire/deployment/` |
+| `translating-for-executives` | Developer Relations | Executive summaries |
 
 ### 3-Level Skill Structure
 
@@ -46,13 +46,13 @@ Commands in `.claude/commands/` use thin routing layer with YAML frontmatter:
 | Phase | Command | Agent | Output |
 |-------|---------|-------|--------|
 | 0 | `/setup` | wizard | `.loa-setup-complete` |
-| 1 | `/plan-and-analyze` | prd-architect | `prd.md` |
-| 2 | `/architect` | architecture-designer | `sdd.md` |
-| 3 | `/sprint-plan` | sprint-planner | `sprint.md` |
-| 4 | `/implement sprint-N` | sprint-task-implementer | Code + report |
-| 5 | `/review-sprint sprint-N` | senior-tech-lead-reviewer | Feedback |
-| 5.5 | `/audit-sprint sprint-N` | paranoid-auditor | Security feedback |
-| 6 | `/deploy-production` | devops-crypto-architect | Infrastructure |
+| 1 | `/plan-and-analyze` | discovering-requirements | `prd.md` |
+| 2 | `/architect` | designing-architecture | `sdd.md` |
+| 3 | `/sprint-plan` | planning-sprints | `sprint.md` |
+| 4 | `/implement sprint-N` | implementing-tasks | Code + report |
+| 5 | `/review-sprint sprint-N` | reviewing-code | Feedback |
+| 5.5 | `/audit-sprint sprint-N` | auditing-security | Security feedback |
+| 6 | `/deploy-production` | deploying-infrastructure | Infrastructure |
 
 **Ad-hoc**: `/audit`, `/audit-deployment`, `/translate @doc for audience`, `/contribute`, `/update`, `/feedback` (THJ only), `/config` (THJ only)
 
@@ -137,10 +137,10 @@ Skills assess context size and split into parallel sub-tasks when needed.
 
 | Skill | SMALL | MEDIUM | LARGE |
 |-------|-------|--------|-------|
-| senior-tech-lead-reviewer | <3,000 | 3,000-6,000 | >6,000 |
-| paranoid-auditor | <2,000 | 2,000-5,000 | >5,000 |
-| sprint-task-implementer | <3,000 | 3,000-8,000 | >8,000 |
-| devops-crypto-architect | <2,000 | 2,000-5,000 | >5,000 |
+| reviewing-code | <3,000 | 3,000-6,000 | >6,000 |
+| auditing-security | <2,000 | 2,000-5,000 | >5,000 |
+| implementing-tasks | <3,000 | 3,000-8,000 | >8,000 |
+| deploying-infrastructure | <2,000 | 2,000-5,000 | >5,000 |
 
 Use `.claude/scripts/context-check.sh` for assessment.
 

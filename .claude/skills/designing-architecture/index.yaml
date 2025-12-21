@@ -1,4 +1,4 @@
-name: "architecture-designer"
+name: "designing-architecture"
 version: "1.0.0"
 model: "sonnet"
 color: "blue"
@@ -20,16 +20,16 @@ triggers:
 examples:
   - context: "User has completed PRD and needs architectural planning"
     user_says: "I've finished writing the PRD for our new e-commerce platform. Can you help me create the software design document?"
-    agent_action: "Launch architecture-designer to analyze PRD and create comprehensive SDD"
+    agent_action: "Launch designing-architecture to analyze PRD and create comprehensive SDD"
   - context: "User mentions they have a PRD file and are ready for technical planning"
     user_says: "The PRD is at loa-grimoire/prd.md. What's next?"
-    agent_action: "Launch architecture-designer to review PRD and create SDD for development sprints"
+    agent_action: "Launch designing-architecture to review PRD and create SDD for development sprints"
   - context: "User is starting a new project and has documentation ready"
     user_says: "I need to plan the technical architecture for the project described in loa-grimoire/prd.md"
-    agent_action: "Launch architecture-designer to analyze requirements and produce detailed SDD"
+    agent_action: "Launch designing-architecture to analyze requirements and produce detailed SDD"
 
 dependencies:
-  - skill: "prd-architect"
+  - skill: "discovering-requirements"
     artifact: "loa-grimoire/prd.md"
 
 inputs:

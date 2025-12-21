@@ -18,8 +18,8 @@ arguments:
     description: "Target audience for the translation"
     examples: ["executives", "board of directors", "investors", "product team", "compliance"]
 
-agent: "devrel-translator"
-agent_path: "skills/devrel-translator/"
+agent: "translating-for-executives"
+agent_path: "skills/translating-for-executives/"
 
 context_files:
   - path: "$ARGUMENTS.document"
@@ -56,9 +56,9 @@ Transform technical documentation (PRDs, SDDs, audit reports, sprint updates) in
 
 ## Agent
 
-Launches `devrel-translator` from `skills/devrel-translator/`.
+Launches `translating-for-executives` from `skills/translating-for-executives/`.
 
-See: `skills/devrel-translator/SKILL.md` for full workflow details.
+See: `skills/translating-for-executives/SKILL.md` for full workflow details.
 
 ## Workflow
 

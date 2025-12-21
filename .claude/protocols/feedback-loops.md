@@ -22,8 +22,8 @@ Engineer → Senior Lead → Engineer → ... → Approval
 
 | File | Created By | Purpose |
 |------|------------|---------|
-| `loa-grimoire/a2a/sprint-N/reviewer.md` | `sprint-task-implementer` | Implementation report |
-| `loa-grimoire/a2a/sprint-N/engineer-feedback.md` | `senior-tech-lead-reviewer` | Code review feedback |
+| `loa-grimoire/a2a/sprint-N/reviewer.md` | `implementing-tasks` | Implementation report |
+| `loa-grimoire/a2a/sprint-N/engineer-feedback.md` | `reviewing-code` | Code review feedback |
 
 ### Process
 
@@ -52,9 +52,9 @@ Engineer → Security Auditor → Engineer → ... → Security Approval
 
 | File | Created By | Purpose |
 |------|------------|---------|
-| `loa-grimoire/a2a/sprint-N/reviewer.md` | `sprint-task-implementer` | Implementation context |
-| `loa-grimoire/a2a/sprint-N/auditor-sprint-feedback.md` | `paranoid-auditor` | Security feedback |
-| `loa-grimoire/a2a/sprint-N/COMPLETED` | `paranoid-auditor` | Completion marker |
+| `loa-grimoire/a2a/sprint-N/reviewer.md` | `implementing-tasks` | Implementation context |
+| `loa-grimoire/a2a/sprint-N/auditor-sprint-feedback.md` | `auditing-security` | Security feedback |
+| `loa-grimoire/a2a/sprint-N/COMPLETED` | `auditing-security` | Completion marker |
 
 ### Process
 
@@ -93,8 +93,8 @@ DevOps → Security Auditor → DevOps → ... → Deployment Approval
 
 | File | Created By | Purpose |
 |------|------------|---------|
-| `loa-grimoire/a2a/deployment-report.md` | `devops-crypto-architect` | Infrastructure report |
-| `loa-grimoire/a2a/deployment-feedback.md` | `paranoid-auditor` | Deployment audit feedback |
+| `loa-grimoire/a2a/deployment-report.md` | `deploying-infrastructure` | Infrastructure report |
+| `loa-grimoire/a2a/deployment-feedback.md` | `auditing-security` | Deployment audit feedback |
 
 ### Process
 

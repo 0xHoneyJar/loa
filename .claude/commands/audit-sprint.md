@@ -13,8 +13,8 @@ arguments:
     description: "Sprint to audit (e.g., sprint-1)"
     examples: ["sprint-1", "sprint-2", "sprint-10"]
 
-agent: "paranoid-auditor"
-agent_path: "skills/paranoid-auditor/"
+agent: "auditing-security"
+agent_path: "skills/auditing-security/"
 
 context_files:
   - path: "loa-grimoire/prd.md"
@@ -95,9 +95,9 @@ Security and quality audit of sprint implementation as the Paranoid Cypherpunk A
 
 ## Agent
 
-Launches `paranoid-auditor` from `skills/paranoid-auditor/`.
+Launches `auditing-security` from `skills/auditing-security/`.
 
-See: `skills/paranoid-auditor/SKILL.md` for full workflow details.
+See: `skills/auditing-security/SKILL.md` for full workflow details.
 
 ## Prerequisites
 

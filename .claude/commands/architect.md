@@ -7,8 +7,8 @@ description: |
 
 arguments: []
 
-agent: "architecture-designer"
-agent_path: "skills/architecture-designer/"
+agent: "designing-architecture"
+agent_path: "skills/designing-architecture/"
 
 context_files:
   - path: "loa-grimoire/prd.md"
@@ -52,9 +52,9 @@ Create a comprehensive Software Design Document (SDD) based on the Product Requi
 
 ## Agent
 
-Launches `architecture-designer` from `skills/architecture-designer/`.
+Launches `designing-architecture` from `skills/designing-architecture/`.
 
-See: `skills/architecture-designer/SKILL.md` for full workflow details.
+See: `skills/designing-architecture/SKILL.md` for full workflow details.
 
 ## Prerequisites
 

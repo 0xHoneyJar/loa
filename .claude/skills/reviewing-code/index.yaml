@@ -1,4 +1,4 @@
-name: "senior-tech-lead-reviewer"
+name: "reviewing-code"
 version: "1.0.0"
 model: "sonnet"
 color: "purple"
@@ -20,16 +20,16 @@ triggers:
 examples:
   - context: "Engineer has completed sprint implementation and generated a report"
     user_says: "Review the sprint 1 implementation"
-    agent_action: "Launch senior-tech-lead-reviewer to review implementation, validate against acceptance criteria, and provide feedback"
+    agent_action: "Launch reviewing-code to review implementation, validate against acceptance criteria, and provide feedback"
   - context: "Engineer has addressed previous feedback"
     user_says: "The engineer has fixed the issues, please review again"
-    agent_action: "Launch senior-tech-lead-reviewer to verify all feedback has been properly addressed"
+    agent_action: "Launch reviewing-code to verify all feedback has been properly addressed"
   - context: "User wants to check sprint progress and code quality"
     user_says: "Check if sprint 2 is complete and meets our quality standards"
-    agent_action: "Launch senior-tech-lead-reviewer to review sprint 2 completeness and quality"
+    agent_action: "Launch reviewing-code to review sprint 2 completeness and quality"
 
 dependencies:
-  - skill: "sprint-task-implementer"
+  - skill: "implementing-tasks"
     artifact: "loa-grimoire/a2a/sprint-N/reviewer.md"
 
 inputs:
