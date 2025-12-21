@@ -263,6 +263,91 @@ Key sections:
 - Prioritize by exploitability and impact
 </communication_style>
 
+<established_audit_criteria>
+## Established Codebase Audit
+
+For `repo_mode: established` codebases, apply additional security scrutiny:
+
+### Legacy-Specific Security Checks
+
+| Check | Command | Severity |
+|-------|---------|----------|
+| Hardcoded secrets | `grep -rn "password=\|secret=\|apikey=\|api_key=" --include="*.ts" --include="*.js" --include="*.py"` | CRITICAL |
+| Outdated dependencies | `npm audit` or `pip-audit` | HIGH |
+| Deprecated API usage | Check for `@deprecated` in imports | MEDIUM |
+| SQL injection risk | `grep -rn "query.*\\$\|execute.*\\$\|raw.*\\$" --include="*.ts" --include="*.js"` | CRITICAL |
+| Unvalidated input | Review all route handlers | HIGH |
+| Auth bypass vectors | Review middleware chain | CRITICAL |
+| Exposed debug endpoints | `grep -rn "debug\|/dev/\|/test/" --include="*.ts"` | HIGH |
+
+### Refactoring Audit Checklist
+
+When auditing refactored code:
+
+- [ ] Behavior preserved (same inputs → same outputs)
+- [ ] Error handling unchanged or improved
+- [ ] All callers still work correctly
+- [ ] No removed exports or public API changes
+- [ ] Tests exist for changed code paths
+- [ ] No skipped tests for critical security paths
+- [ ] Change plan reviewed and reasonable
+- [ ] Freedom level appropriate for change scope
+
+### Tech Debt Security Assessment
+
+During audit, create Beads issues for security-relevant findings:
+
+```bash
+# Critical vulnerabilities
+bd create "Security: [finding] - CRITICAL" -t bug -p 0 -l security,audit,critical --json
+
+# High priority security issues
+bd create "Security: [finding]" -t bug -p 1 -l security,audit --json
+
+# Missing tests for critical paths
+bd create "Security: Missing tests for [path]" -t task -p 2 -l security,testing --json
+
+# Deprecated dependencies
+bd create "Security: Update deprecated [dep]" -t task -p 2 -l security,dependencies --json
+```
+
+### Legacy Code Red Flags
+
+In addition to standard red flags, flag these for established codebases:
+
+| Red Flag | Reason | Action |
+|----------|--------|--------|
+| `// OLD CODE` comments | May have hidden dependencies | Investigate before changing |
+| Multiple auth implementations | Inconsistent security | Document and consolidate |
+| Custom crypto | Likely vulnerable | Replace with standard library |
+| Hand-rolled session management | Common vulnerability source | Review thoroughly |
+| Raw database queries | SQL injection risk | Parameterize immediately |
+| Disabled security checks | `// HACK: disabled for now` | Enable or document risk |
+
+### Audit Report Additions for Established Repos
+
+Include these sections in audit reports:
+
+```markdown
+## Legacy Code Assessment
+
+### Code Age Analysis
+- Files >2 years without modification: [count]
+- Files with no test coverage: [count]
+- Files with known vulnerabilities: [list]
+
+### Technical Debt Security Impact
+| Debt Item | Security Risk | Priority |
+|-----------|---------------|----------|
+| [item] | [risk level] | [P0-P4] |
+
+### Recommended Security Hardening
+1. [Immediate action]
+2. [Short-term improvement]
+3. [Long-term initiative]
+```
+</established_audit_criteria>
+
 <checklists>
 See `resources/REFERENCE.md` for complete 150+ item checklists across 5 categories:
 - Security (50+ items)
@@ -277,4 +362,7 @@ See `resources/REFERENCE.md` for complete 150+ item checklists across 5 categori
 - User input to eval()
 - Empty catch blocks on security code
 - Hardcoded secrets
+- Refactoring without change plan (established repos)
+- Disabled security checks with HACK comments
+- Custom cryptographic implementations
 </checklists>

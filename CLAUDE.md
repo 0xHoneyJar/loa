@@ -4,13 +4,13 @@ Guidance for Claude Code when working in this repository.
 
 ## Project Overview
 
-Agent-driven development framework that orchestrates the complete product lifecycle using 8 specialized AI agents (skills). Designed for crypto/blockchain but applicable to any software project.
+Agent-driven development framework that orchestrates the complete product lifecycle using 10 specialized AI agents (skills). Designed for crypto/blockchain but applicable to any software project. Supports both greenfield projects and established codebase adoption.
 
 ## Architecture
 
 ### Skills System
 
-8 agent skills in `.claude/skills/` using 3-level architecture:
+10 agent skills in `.claude/skills/` using 3-level architecture:
 
 | Skill | Role | Output |
 |-------|------|--------|
@@ -22,6 +22,8 @@ Agent-driven development framework that orchestrates the complete product lifecy
 | `auditing-security` | Security Auditor | `SECURITY-AUDIT-REPORT.md` or `a2a/sprint-N/auditor-sprint-feedback.md` |
 | `deploying-infrastructure` | DevOps Architect | `loa-grimoire/deployment/` |
 | `translating-for-executives` | Developer Relations | Executive summaries |
+| `adopting-codebase` | Code Archaeologist | `loa-grimoire/reality/`, `drift-report.md` |
+| `refactoring-legacy` | Safe Refactoring | `loa-grimoire/plans/change-*.json` |
 
 ### 3-Level Skill Structure
 
@@ -53,6 +55,8 @@ Commands in `.claude/commands/` use thin routing layer with YAML frontmatter:
 | 5 | `/review-sprint sprint-N` | reviewing-code | Feedback |
 | 5.5 | `/audit-sprint sprint-N` | auditing-security | Security feedback |
 | 6 | `/deploy-production` | deploying-infrastructure | Infrastructure |
+
+**Established Codebase**: `/adopt` (Code Archaeologist) - extracts documentation from existing code
 
 **Ad-hoc**: `/audit`, `/audit-deployment`, `/translate @doc for audience`, `/contribute`, `/update`, `/feedback` (THJ only), `/config` (THJ only)
 
@@ -87,6 +91,25 @@ Tracks usage for THJ developers - see `.claude/protocols/analytics.md`:
 - Stored in `loa-grimoire/analytics/usage.json`
 - OSS users have no analytics tracking
 - Opt-in sharing via `/feedback`
+
+### Established Codebase Support
+
+For adopting existing codebases - see `.claude/protocols/change-validation.md`:
+
+- **Repository modes**: `greenfield` (new projects) or `established` (existing code)
+- **Freedom levels**: High → Medium → Low → Very Low → Minimal (based on change risk)
+- **Change validation**: Pre/post test comparison, rollback plans
+- **Drift detection**: `.claude/scripts/detect-drift.sh` monitors code/doc alignment
+
+**Adoption workflow** (`/adopt`):
+1. Code Reality Extraction → `loa-grimoire/reality/`
+2. Legacy Doc Inventory → `loa-grimoire/legacy/`
+3. Drift Analysis → `loa-grimoire/drift-report.md`
+4. Loa Artifact Generation → `prd.md`, `sdd.md` (code-grounded)
+5. Legacy Deprecation → Notices in old docs
+6. Maintenance Handoff → Drift monitoring setup
+
+**Key principle**: `CODE is truth → Loa documents CODE → Legacy docs are deprecated`
 
 ### Beads Integration
 
@@ -181,6 +204,8 @@ Use `.claude/scripts/context-check.sh` for assessment.
 ├── validate-sprint-id.sh     # Sprint ID validation
 ├── mcp-registry.sh           # MCP registry queries
 ├── validate-mcp.sh           # MCP configuration validation
+├── detect-drift.sh           # Documentation drift detection (established repos)
+├── validate-change-plan.sh   # Change plan validation (established repos)
 └── beads/                    # Beads helper scripts
     ├── check-beads.sh        # Verify Beads installation
     ├── create-sprint-epic.sh # Create new sprint epic
@@ -216,4 +241,7 @@ Skills declare MCP dependencies in their `index.yaml` files.
 - `.claude/protocols/` - Detailed protocol specifications
   - `beads-workflow.md` - Beads integration guide
   - `session-end.md` - Session handoff checklist
+  - `change-validation.md` - Established codebase change protocol
+- `.claude/skills/adopting-codebase/` - Codebase adoption skill
+- `.claude/skills/refactoring-legacy/` - Safe refactoring skill
 - `.claude/scripts/` - Helper bash scripts

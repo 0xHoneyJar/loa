@@ -1,0 +1,49 @@
+name: "refactoring-legacy"
+version: "1.0.0"
+model: "sonnet"
+color: "orange"
+
+description: |
+  Use this skill IF user needs to refactor established/legacy code safely,
+  OR needs to modify code with chain-of-thought verification,
+  OR needs to apply changes with test validation before and after.
+  Enforces evidence-based changes and test validation. Safety over speed.
+
+triggers:
+  - "refactor legacy"
+  - "modify legacy code"
+  - "safe refactoring"
+  - "change established code"
+  - "update old code"
+
+examples:
+  - context: "Need to modify code in established codebase"
+    user_says: "I need to refactor the authentication module"
+    agent_action: "Launch refactoring-legacy with full verification protocol"
+  - context: "Fixing tech debt in legacy code"
+    user_says: "Let's fix this tech debt item from the import"
+    agent_action: "Launch refactoring-legacy with change plan and test validation"
+  - context: "Updating code that has many dependents"
+    user_says: "This utility is used everywhere, need to update it carefully"
+    agent_action: "Launch refactoring-legacy with caller analysis and rollback plan"
+  - context: "Modernizing old patterns"
+    user_says: "We need to update this to use the new API pattern"
+    agent_action: "Launch refactoring-legacy with freedom level assessment"
+
+dependencies:
+  - skill: "adopting-codebase"
+    artifact: "loa-grimoire/reality/"
+
+inputs:
+  - name: "task_id"
+    type: "string"
+    required: false
+    description: "Beads task ID for tracking"
+  - name: "file_path"
+    type: "string"
+    required: false
+    description: "Specific file to refactor"
+
+outputs:
+  - path: "loa-grimoire/plans/change-{task-id}.json"
+    description: "Change plan with rollback instructions"

@@ -1,0 +1,62 @@
+name: "adopting-codebase"
+version: "1.0.0"
+model: "sonnet"
+color: "purple"
+
+description: |
+  Use this skill IF user needs to adopt an existing codebase into Loa's documentation
+  system, OR needs to extract documentation from actual code behavior, OR needs to
+  analyze drift between code and existing documentation. Extracts code reality,
+  compares against legacy docs, generates Loa-standard artifacts grounded in evidence.
+
+triggers:
+  - "/adopt"
+  - "adopt codebase"
+  - "import existing project"
+  - "extract documentation from code"
+  - "analyze documentation drift"
+  - "migrate to loa"
+
+examples:
+  - context: "Existing project with outdated documentation"
+    user_says: "I have an existing codebase that I want to document with Loa"
+    agent_action: "Launch adopting-codebase to extract code reality and generate Loa artifacts"
+  - context: "Project with docs that may not match code"
+    user_says: "Our docs are out of sync with the code - can you analyze the drift?"
+    agent_action: "Launch adopting-codebase with --phase drift to analyze documentation drift"
+  - context: "Team wants Loa as source of truth"
+    user_says: "We want to establish Loa docs as the single source of truth"
+    agent_action: "Launch adopting-codebase to execute full adoption workflow"
+  - context: "Need to import tech debt"
+    user_says: "Import all our TODOs and FIXMEs into the issue tracker"
+    agent_action: "Launch adopting-codebase to extract tech debt and import to Beads"
+
+dependencies:
+  - skill: null
+    artifact: ".loa-setup-complete"
+
+inputs:
+  - name: "phase"
+    type: "string"
+    required: false
+    description: "Specific phase to run (reality, inventory, drift, generate, deprecate, handoff)"
+  - name: "dry_run"
+    type: "boolean"
+    required: false
+    description: "Preview changes without writing files"
+  - name: "skip_deprecation"
+    type: "boolean"
+    required: false
+    description: "Skip adding deprecation notices to legacy docs"
+
+outputs:
+  - path: "loa-grimoire/reality/"
+    description: "Code reality extraction results"
+  - path: "loa-grimoire/legacy/"
+    description: "Legacy documentation inventory"
+  - path: "loa-grimoire/drift-report.md"
+    description: "Documentation drift analysis report"
+  - path: "loa-grimoire/prd.md"
+    description: "Product Requirements Document (code-grounded)"
+  - path: "loa-grimoire/sdd.md"
+    description: "System Design Document (code-grounded)"

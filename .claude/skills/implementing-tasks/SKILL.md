@@ -371,6 +371,122 @@ Key sections:
 4. Reference version in completion comments
 </semver_requirements>
 
+<legacy_modification_protocol>
+## Legacy Code Modification Protocol
+
+When `repo_mode: established` or modifying existing code, follow this protocol:
+
+### Before Changing ANY Existing Code
+
+#### 1. Understand First
+
+```bash
+# Who calls this function?
+grep -rn "functionName" src/ --include="*.ts" --include="*.js"
+
+# What's the git history?
+git log --oneline -5 -- path/to/file.ts
+
+# Are there tests?
+find . -name "*.test.ts" -exec grep -l "functionName" {} \;
+```
+
+Document in Beads:
+```bash
+bd update <task-id> --notes "ANALYSIS:
+## Current Behavior
+[Description]
+
+## Evidence
+\`\`\`typescript
+// path/to/file.ts:45
+[actual code]
+\`\`\`
+
+## Callers
+- file1.ts:23
+- file2.ts:67
+
+## Confidence: High/Medium/Low
+" --json
+```
+
+#### 2. Create Change Plan
+
+```xml
+<modification_plan>
+  <file>path/to/file.ts</file>
+  <lines>45-67</lines>
+  <current_behavior>...</current_behavior>
+  <proposed_change>...</proposed_change>
+  <reasoning>...</reasoning>
+  <risks>...</risks>
+  <rollback>git checkout HEAD -- path/to/file.ts</rollback>
+</modification_plan>
+```
+
+Save to `loa-grimoire/plans/change-<task-id>.json`
+
+#### 3. Pre-Flight Check
+
+```bash
+# Validate plan
+.claude/scripts/validate-change-plan.sh loa-grimoire/plans/change-<task-id>.json
+
+# Capture test baseline
+npm test > /tmp/before.txt 2>&1
+echo "Baseline: $(grep -c 'passing' /tmp/before.txt) tests passing"
+```
+
+#### 4. Apply Change
+
+Minimal change. One logical change per commit.
+
+#### 5. Post-Flight Verify
+
+```bash
+npm test > /tmp/after.txt 2>&1
+diff /tmp/before.txt /tmp/after.txt
+# If different: STOP, investigate, possibly rollback
+```
+
+#### 6. Record Results
+
+```bash
+bd update <task-id> --notes "COMPLETED:
+Tests: [X] passing
+Commit: [sha]
+" --json
+```
+
+### Red Flags - Stop and Ask
+
+| Flag | Reason |
+|------|--------|
+| No tests + many callers | Can't verify behavior |
+| `// HACK` or `// DO NOT MODIFY` | Hidden requirements |
+| Last modified >2 years ago | Lost context |
+| Contains transactions or external calls | Data integrity risk |
+| You're uncertain | Trust your instincts |
+
+```bash
+bd update <task-id> --notes "RED FLAG: [description]" --json
+# Ask human before proceeding
+```
+
+### Discovered Issues
+
+```bash
+NEW=$(bd create "Discovered: [issue]" -t bug -p 2 -l discovered --json | jq -r '.id')
+bd dep add $NEW <current-task> --type discovered-from
+```
+
+### Reference
+
+See `.claude/protocols/change-validation.md` for complete protocol details.
+See `.claude/skills/refactoring-legacy/SKILL.md` for specialized refactoring guidance.
+</legacy_modification_protocol>
+
 <checklists>
 See `resources/REFERENCE.md` for complete checklists:
 - Pre-Implementation Checklist
@@ -384,4 +500,5 @@ See `resources/REFERENCE.md` for complete checklists:
 - Hardcoded secrets
 - Skipped error handling
 - Ignored existing patterns
+- Modifying legacy code without change plan (established repos)
 </checklists>

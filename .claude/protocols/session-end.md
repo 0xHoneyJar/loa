@@ -93,6 +93,50 @@ bd compact --apply --id <id> --summary <summary-file>
 
 This preserves essential information while reducing context size.
 
+## Drift Detection (Established Repos)
+
+For `repo_mode: established` repositories, run drift detection before ending session:
+
+```bash
+# Run drift check
+.claude/scripts/detect-drift.sh
+
+# Or with verbose output
+.claude/scripts/detect-drift.sh --verbose
+
+# Auto-create Beads issues for drift
+.claude/scripts/detect-drift.sh --create-issues
+```
+
+Review any drift issues and note them in the session summary.
+
+## Compaction Check (Weekly Maintenance)
+
+For repos with substantial Beads history, check if compaction is needed:
+
+```bash
+# Check closed issue count
+CLOSED_COUNT=$(bd list --status closed --json 2>/dev/null | jq 'length')
+
+if [ "$CLOSED_COUNT" -gt 50 ]; then
+  echo "Consider compaction: $CLOSED_COUNT closed issues"
+  echo "Run: bd compact --analyze --json"
+fi
+```
+
+Compaction summarizes old closed issues to save context window tokens while preserving essential information.
+
+## Established Repo Session Checklist
+
+For `repo_mode: established`, verify before ending:
+
+- [ ] All modified files have test coverage
+- [ ] Change plans documented in `loa-grimoire/plans/`
+- [ ] No red flags left unaddressed
+- [ ] Drift detection run
+- [ ] Discovered issues filed with `discovered-from` links
+- [ ] Tests pass (same count as session start)
+
 ## Quick Reference
 
 | Action | Command |
@@ -103,3 +147,5 @@ This preserves essential information while reducing context size.
 | Create discovered issue | `bd create "Discovered: ..." -t bug --json` |
 | Sync to git | `.claude/scripts/beads/sync-to-git.sh` |
 | See next work | `bd ready --json` |
+| Check drift | `.claude/scripts/detect-drift.sh` |
+| Validate change plan | `.claude/scripts/validate-change-plan.sh <plan.json>` |

@@ -288,6 +288,84 @@ Use detailed feedback template with:
 - **Time-bound**: Review completes within session
 </success_criteria>
 
+<refactoring_review_criteria>
+## Refactoring Review Criteria
+
+For established codebase changes (`repo_mode: established`):
+
+### Mandatory Checks (Block if Failed)
+
+| Check | Command | Required Result |
+|-------|---------|-----------------|
+| Tests pass | `npm test` | All green (same count as before) |
+| Types valid | `npm run typecheck` | No errors |
+| No removed exports | Compare public API | Unchanged |
+| Build succeeds | `npm run build` | No errors |
+| Change plan exists | Check `loa-grimoire/plans/` | File present |
+
+### Measured Metrics (Report)
+
+| Metric | Threshold | How to Check |
+|--------|-----------|--------------|
+| Bundle size | <5% increase | Compare build output |
+| Test coverage | No decrease | Coverage report |
+| Complexity | No increase | Lint/SonarQube |
+| Performance | No regression | Benchmarks if applicable |
+
+### Evidence Required
+
+Every refactoring change must include:
+
+```markdown
+## Refactoring Evidence
+
+### Change Plan
+- Location: `loa-grimoire/plans/change-<id>.json`
+- Freedom Level: [high/medium/low/very_low/minimal]
+
+### Files Changed
+- `path/file.ts` (lines X-Y)
+
+### Before/After
+[Code comparison or summary]
+
+### Verification
+- [ ] Tests before: X passing
+- [ ] Tests after: X passing
+- [ ] Type check:
+- [ ] Manual test: [description]
+
+### Rollback
+`git revert <sha>`
+```
+
+### Approval Criteria
+
+**Approve** if:
+- All mandatory checks pass
+- Evidence is complete
+- Change plan exists in `loa-grimoire/plans/`
+- No red flags unaddressed
+- Behavior preserved (same tests pass)
+
+**Request changes** if:
+- Tests fail or count decreases
+- Missing evidence
+- No change plan for low+ freedom changes
+- Unaddressed red flags
+- API surface changed without justification
+
+### Beads Integration for Refactoring Reviews
+
+```bash
+# If approved
+bd update <task-id> --notes "REVIEW: Approved - behavior preserved, tests pass" --json
+
+# If changes required
+bd update <task-id> --status open --notes "REVIEW: Changes required - see engineer-feedback.md" --json
+```
+</refactoring_review_criteria>
+
 <checklists>
 See `resources/REFERENCE.md` for complete checklists:
 - Versioning (SemVer Compliance) - 4 items
@@ -307,4 +385,6 @@ See `resources/REFERENCE.md` for complete checklists:
 - Empty catch blocks
 - No tests for critical functionality
 - N+1 query problems
+- Legacy code changed without change plan (established repos)
+- Test count decreased after refactoring
 </checklists>
