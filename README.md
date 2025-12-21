@@ -68,6 +68,14 @@ Each skill in `.claude/skills/{agent}/` with 3-level architecture:
 
 ## Key Features
 
+### Beads Integration
+
+Git-backed graph memory for sprint task tracking:
+- **Task Discovery**: `bd ready --json` finds next actionable work
+- **Dependencies**: Model blocking relationships between tasks
+- **Status Updates**: Track in-progress, completed, blocked states
+- **Session Handoff**: Clean state persistence between sessions
+
 ### Two Quality Gates
 
 1. **Code Review**: Tech lead reviews until "All good"
@@ -90,9 +98,13 @@ Each skill in `.claude/skills/{agent}/` with 3-level architecture:
 .claude/
 ├── skills/           # Agent skills (3-level architecture)
 ├── commands/         # Slash commands (v4 thin routing)
-├── protocols/        # Git safety, analytics, feedback loops
+├── protocols/        # Git safety, analytics, feedback loops, beads
 ├── scripts/          # Helper bash scripts
+│   └── beads/        # Beads helper scripts
 └── settings.local.json
+
+.beads/
+└── beads.jsonl       # Git-backed task graph (source of truth)
 
 loa-grimoire/
 ├── context/                      # Pre-discovery docs (optional)

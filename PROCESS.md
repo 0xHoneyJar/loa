@@ -11,6 +11,8 @@ Detailed specifications are maintained in separate protocol files:
 - **Git Safety**: `.claude/protocols/git-safety.md` - Template detection, warning flow, remediation
 - **Analytics**: `.claude/protocols/analytics.md` - THJ-only usage tracking, schema, helper functions
 - **Feedback Loops**: `.claude/protocols/feedback-loops.md` - A2A communication, approval markers
+- **Beads Workflow**: `.claude/protocols/beads-workflow.md` - Git-backed graph memory for sprint task tracking
+- **Session End**: `.claude/protocols/session-end.md` - Clean session handoff checklist
 
 ## Table of Contents
 
@@ -81,14 +83,17 @@ Each agent is implemented as a modular **skill** in `.claude/skills/{agent-name}
   - Break down work into actionable sprint tasks
   - Define acceptance criteria and priorities
   - Sequence tasks based on dependencies
-- **Output**: `loa-grimoire/sprint.md`
+  - Create Beads graph with sprint epic and tasks
+- **Output**: Beads epic + tasks, `loa-grimoire/sprint.md` (archive)
 
 ### 4. **implementing-tasks** (Senior Engineer)
 - **Role**: Elite Software Engineer with 15 years of experience
 - **Expertise**: Production-grade code, testing, documentation
 - **Skill**: `.claude/skills/implementing-tasks/`
 - **Responsibilities**:
+  - Query Beads for ready tasks (`bd ready`)
   - Implement sprint tasks with tests and documentation
+  - Update Beads task status during implementation
   - Address feedback from senior technical lead
   - Iterate until sprint is approved
   - Generate detailed implementation reports
@@ -329,7 +334,7 @@ Streamlined experience without analytics:
 
 **Agent**: `planning-sprints`
 
-**Goal**: Break down work into actionable sprint tasks
+**Goal**: Break down work into actionable sprint tasks with Beads graph
 
 **Process**:
 1. Reviews both `loa-grimoire/prd.md` and `loa-grimoire/sdd.md` thoroughly
@@ -340,15 +345,26 @@ Streamlined experience without analytics:
    - Presents proposals for sprint structure
    - Clarifies MVP scope and dependencies
    - Waits for your decisions
-5. Only generates sprint plan when confident
-6. Saves comprehensive sprint plan to `loa-grimoire/sprint.md`
+5. Creates Beads graph:
+   - Sprint epic: `bd create "Sprint N: Theme" -t epic -p 1 --json`
+   - Tasks: `bd create "Task" -t task -p <priority> --json`
+   - Dependencies: `bd dep add <dependent> <blocker> --type blocks`
+6. Archives human-readable plan to `loa-grimoire/sprint.md`
 
 **Command**:
 ```bash
 /sprint-plan
 ```
 
-**Output**: `loa-grimoire/sprint.md`
+**Output**:
+- Beads graph (`.beads/beads.jsonl`) with sprint epic and tasks
+- `loa-grimoire/sprint.md` (human-readable archive)
+
+**Verify with**:
+```bash
+bd dep tree <sprint-epic-id>  # Visualize sprint structure
+bd ready --json               # See first actionable tasks
+```
 
 **Sprint Plan Includes**:
 - Sprint Overview (goals, duration, team structure)
@@ -357,7 +373,7 @@ Streamlined experience without analytics:
   - Tasks with acceptance criteria
   - Effort estimates
   - Developer assignments
-  - Dependencies
+  - Dependencies (modeled in Beads graph)
   - Testing requirements
 - MVP Definition
 - Feature Prioritization
@@ -370,26 +386,40 @@ Streamlined experience without analytics:
 
 **Agent**: `implementing-tasks`
 
-**Goal**: Implement sprint tasks with feedback-driven iteration
+**Goal**: Implement sprint tasks with feedback-driven iteration using Beads for task discovery
 
 **Process**:
 
 #### **Cycle 1: Initial Implementation**
 1. **Check for Feedback**: Looks for `loa-grimoire/a2a/engineer-feedback.md` (won't exist on first run)
-2. **Review Documentation**: Reads all `loa-grimoire/*` for context (PRD, SDD, sprint plan)
-3. **Implement Tasks**:
+2. **Query Beads for Ready Tasks**:
+   ```bash
+   bd ready --sort priority --json  # Find next actionable work
+   ```
+   If empty, check blockers: `bd blocked --json`
+3. **Start Task**: Mark task in progress:
+   ```bash
+   bd update <task-id> --status in_progress
+   ```
+4. **Implement Tasks**:
    - Production-quality code
    - Comprehensive unit tests
    - Follow project conventions
    - Handle edge cases and errors
-4. **Generate Report**: Saves detailed report to `loa-grimoire/a2a/reviewer.md`
+   - Log discovered issues: `bd create "Discovered: [issue]" -t bug --json`
+5. **Complete Task**:
+   ```bash
+   bd close <task-id> --reason "Implemented in commit <sha>"
+   ```
+6. **Generate Report**: Saves detailed report to `loa-grimoire/a2a/reviewer.md`
 
 #### **Cycle 2+: Feedback Iteration**
 1. **Read Feedback**: Senior technical lead creates `loa-grimoire/a2a/engineer-feedback.md`
 2. **Clarify if Needed**: Agent asks questions if feedback is unclear
 3. **Fix Issues**: Address all feedback items systematically
-4. **Update Report**: Generate new report at `loa-grimoire/a2a/reviewer.md`
-5. **Repeat**: Cycle continues until approved
+4. **Update Beads**: Reopen/close tasks as needed
+5. **Update Report**: Generate new report at `loa-grimoire/a2a/reviewer.md`
+6. **Repeat**: Cycle continues until approved
 
 **Command**:
 ```bash
@@ -1132,6 +1162,12 @@ Bash utilities for deterministic operations:
 - `.claude/scripts/git-safety.sh` - Template detection functions
 - `.claude/scripts/context-check.sh` - Context size assessment for parallel execution
 - `.claude/scripts/preflight.sh` - Pre-flight validation functions
+- `.claude/scripts/beads/` - Beads helper scripts:
+  - `check-beads.sh` - Verify Beads installation
+  - `create-sprint-epic.sh` - Create new sprint epic
+  - `get-sprint-tasks.sh` - List tasks under an epic
+  - `get-ready-by-priority.sh` - Ready work sorted by priority
+  - `sync-to-git.sh` - Commit Beads state to git
 
 ---
 
