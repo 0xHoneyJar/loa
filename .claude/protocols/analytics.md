@@ -32,7 +32,7 @@ The `.loa-setup-complete` file determines user type and stores configuration:
 ```json
 {
   "completed_at": "2025-01-15T10:30:00Z",
-  "framework_version": "0.3.0",
+  "framework_version": "0.4.0",
   "user_type": "thj",
   "mcp_servers": ["linear", "github"],
   "git_user": "developer@example.com",
@@ -54,7 +54,7 @@ The `.loa-setup-complete` file determines user type and stores configuration:
 ```json
 {
   "schema_version": "1.0.0",
-  "framework_version": "0.3.0",
+  "framework_version": "0.4.0",
   "project_name": "my-project",
   "developer": {
     "git_user_name": "Developer Name",

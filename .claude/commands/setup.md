@@ -109,7 +109,7 @@ Available for THJ developers:
 ```json
 {
   "completed_at": "ISO-8601 timestamp",
-  "framework_version": "0.3.0",
+  "framework_version": "0.4.0",
   "user_type": "thj|oss",
   "mcp_servers": ["list", "of", "configured"],
   "git_user": "developer@example.com",
