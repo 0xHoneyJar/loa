@@ -3,7 +3,7 @@ name: "audit-sprint"
 version: "1.0.0"
 description: |
   Security and quality audit of sprint implementation.
-  Final gate before sprint completion. Creates COMPLETED marker on approval.
+  Final gate before sprint completion. Closes Beads epic on approval.
 
 arguments:
   - name: "sprint_id"
@@ -71,6 +71,9 @@ outputs:
   - path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/COMPLETED"
     type: "file"
     description: "Completion marker (created on approval)"
+  - path: ".beads/beads.jsonl"
+    type: "file"
+    description: "Beads database (epic closed on approval)"
   - path: "loa-grimoire/a2a/index.md"
     type: "file"
     description: "Sprint index (status updated)"
@@ -129,7 +132,27 @@ See: `skills/auditing-security/SKILL.md` for full workflow details.
 |------|-------------|
 | `loa-grimoire/a2a/{sprint_id}/auditor-sprint-feedback.md` | Audit results |
 | `loa-grimoire/a2a/{sprint_id}/COMPLETED` | Completion marker |
+| `.beads/beads.jsonl` | Sprint epic closed on approval |
 | `loa-grimoire/a2a/index.md` | Updated sprint status |
+
+## Beads Integration
+
+### Getting Sprint Tasks
+```bash
+.claude/scripts/beads/get-sprint-tasks.sh <sprint-epic-id>
+```
+
+### On Approval
+```bash
+# Close the sprint epic
+bd close <sprint-epic-id> --reason "Security audit passed - APPROVED"
+```
+
+### On Changes Required
+```bash
+# Reopen tasks with security issues
+bd update <task-id> --status open --notes "SECURITY: [issue]"
+```
 
 ## Decision Outcomes
 
@@ -138,6 +161,7 @@ See: `skills/auditing-security/SKILL.md` for full workflow details.
 When security audit passes:
 - Writes approval to `auditor-sprint-feedback.md`
 - Creates `COMPLETED` marker file
+- Closes Beads sprint epic: `bd close <epic-id> --reason "Audit passed"`
 - Sets sprint status to `COMPLETED`
 - Next step: Move to next sprint or deployment
 
@@ -145,7 +169,7 @@ When security audit passes:
 
 When security issues found:
 - Writes detailed findings to `auditor-sprint-feedback.md`
-- Includes severity (CRITICAL/HIGH/MEDIUM/LOW)
+- Reopens affected Beads tasks: `bd update <id> --status open`
 - Sets sprint status to `AUDIT_CHANGES_REQUIRED`
 - Next step: `/implement sprint-N` (to fix issues)
 

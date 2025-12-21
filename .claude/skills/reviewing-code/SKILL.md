@@ -6,12 +6,12 @@ timeout_minutes: 60
 # Senior Tech Lead Reviewer
 
 <objective>
-Review sprint implementation for completeness, quality, security, and architecture alignment. Either approve (write "All good" + update sprint.md with checkmarks) OR provide detailed feedback at `loa-grimoire/a2a/sprint-N/engineer-feedback.md`.
+Review sprint implementation for completeness, quality, security, and architecture alignment. Either approve (write "All good" + update Beads task status) OR provide detailed feedback at `loa-grimoire/a2a/sprint-N/engineer-feedback.md`.
 </objective>
 
 <kernel_framework>
 ## Task (N - Narrow Scope)
-Review sprint implementation for completeness, quality, security. Either approve (write "All good" + update sprint.md) OR provide detailed feedback (write to `loa-grimoire/a2a/sprint-N/engineer-feedback.md`).
+Review sprint implementation for completeness, quality, security. Either approve (write "All good" + update Beads) OR provide detailed feedback (write to `loa-grimoire/a2a/sprint-N/engineer-feedback.md`).
 
 ## Context (L - Logical Structure)
 - **Input**: `loa-grimoire/a2a/sprint-N/reviewer.md` (engineer's report), implementation code, test files
@@ -40,8 +40,8 @@ Review sprint implementation for completeness, quality, security. Either approve
 - Architecture aligns with SDD
 - ALL previous feedback addressed (if applicable)
 
-**If approved:** Write "All good" to `engineer-feedback.md` + update `sprint.md` with checkmarks
-**If not approved:** Write detailed feedback to `engineer-feedback.md` with file:line references
+**If approved:** Write "All good" to `engineer-feedback.md` + add review notes to Beads tasks
+**If not approved:** Write detailed feedback to `engineer-feedback.md` with file:line references + reopen Beads tasks
 
 ## Reproducibility (R - Reproducible Results)
 - Include exact file paths and line numbers: NOT "fix auth bug" → "src/auth/middleware.ts:42 - missing null check"
@@ -75,6 +75,46 @@ Before reviewing:
 - Reference SDD sections for architecture concerns
 - Quote previous feedback when verifying it was addressed
 </citation_requirements>
+
+<beads_workflow>
+## Review Workflow with Beads
+
+Reference: `.claude/protocols/beads-workflow.md`
+
+### Finding Tasks for Review
+```bash
+# Get sprint tasks by epic ID
+.claude/scripts/beads/get-sprint-tasks.sh <sprint-epic-id>
+
+# Or find tasks with needs-review label
+bd list --status in_progress --json | jq '[.[] | select(.labels | contains(["needs-review"]))]'
+```
+
+### Recording Review Notes
+```bash
+# Add review notes to task
+bd update <task-id> --notes "REVIEW: [feedback details]"
+```
+
+### Approval Flow
+**If Approved:**
+```bash
+# Mark task as reviewed/approved
+bd update <task-id> --notes "REVIEW: Approved - All acceptance criteria met"
+```
+
+**If Changes Required:**
+```bash
+# Reopen task for fixes
+bd update <task-id> --status open --notes "REVIEW: Changes required - see engineer-feedback.md"
+```
+
+### Uncertainty Protocol
+If task IDs in report don't match Beads:
+1. State: "Cannot find task `<id>` in Beads graph"
+2. Run `bd list --json` to verify available tasks
+3. Ask for clarification before proceeding
+</beads_workflow>
 
 <workflow>
 ## Phase -1: Context Assessment & Parallel Task Splitting (CRITICAL—DO THIS FIRST)
@@ -145,7 +185,7 @@ Read ALL context documents in order:
 - All criteria met, production-ready
 - Actions:
   1. Write "All good" to `engineer-feedback.md`
-  2. Update `sprint.md` with checkmarks on completed tasks
+  2. Add review approval notes to Beads tasks: `bd update <id> --notes "REVIEW: Approved"`
   3. Inform user: "Sprint approved"
 
 **Outcome 2: Request Changes**
@@ -153,7 +193,7 @@ Read ALL context documents in order:
 - Actions:
   1. Generate detailed feedback (see template)
   2. Write to `engineer-feedback.md`
-  3. DO NOT update `sprint.md`
+  3. Reopen Beads tasks needing changes: `bd update <id> --status open`
   4. Inform user: "Changes required"
 
 **Outcome 3: Partial Approval**

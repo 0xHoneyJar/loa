@@ -59,6 +59,22 @@ Detect if this repository is a fork/template of Loa:
 
 Store detection result for Git Safety features.
 
+### Phase 0.6: Beads Installation
+
+Initialize Beads for sprint task tracking:
+
+```bash
+# Check if bd is installed, install if missing
+command -v bd >/dev/null 2>&1 || {
+  curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash
+}
+
+# Initialize beads database if not present
+[ -d ".beads" ] || bd init --quiet
+```
+
+Beads provides git-backed graph memory for sprint lifecycle management.
+
 ### Phase 1A: THJ Developer Setup
 
 1. Display welcome message with command overview
@@ -132,6 +148,11 @@ Use helper scripts to query the registry:
     "repo": "0xHoneyJar/loa",
     "detection_method": "origin_url",
     "detected_at": "ISO-8601 timestamp"
+  },
+  "beads": {
+    "installed": true,
+    "version": "1.0.0",
+    "initialized_at": "ISO-8601 timestamp"
   }
 }
 ```

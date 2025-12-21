@@ -3,7 +3,7 @@ name: "review-sprint"
 version: "1.0.0"
 description: |
   Validate sprint implementation against acceptance criteria.
-  Reviews actual code, not just reports. Quality gate before security audit.
+  Reviews actual code, updates Beads task status. Quality gate before security audit.
 
 arguments:
   - name: "sprint_id"
@@ -59,9 +59,9 @@ outputs:
   - path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/engineer-feedback.md"
     type: "file"
     description: "Review feedback or approval ('All good')"
-  - path: "loa-grimoire/sprint.md"
+  - path: ".beads/beads.jsonl"
     type: "file"
-    description: "Sprint plan (checkmarks added on approval)"
+    description: "Beads database (tasks updated with review notes)"
   - path: "loa-grimoire/a2a/index.md"
     type: "file"
     description: "Sprint index (status updated)"
@@ -112,8 +112,21 @@ See: `skills/reviewing-code/SKILL.md` for full workflow details.
 | Path | Description |
 |------|-------------|
 | `loa-grimoire/a2a/{sprint_id}/engineer-feedback.md` | Feedback or "All good" |
-| `loa-grimoire/sprint.md` | Updated with checkmarks on approval |
+| `.beads/beads.jsonl` | Tasks updated with review notes |
 | `loa-grimoire/a2a/index.md` | Updated sprint status |
+
+## Beads Integration
+
+### Getting Tasks for Review
+```bash
+# Get sprint tasks
+.claude/scripts/beads/get-sprint-tasks.sh <sprint-epic-id>
+```
+
+### Recording Review Notes
+```bash
+bd update <task-id> --notes "REVIEW: [feedback]"
+```
 
 ## Decision Outcomes
 
@@ -121,7 +134,7 @@ See: `skills/reviewing-code/SKILL.md` for full workflow details.
 
 When implementation meets all standards:
 - Writes "All good" to `engineer-feedback.md`
-- Updates `sprint.md` with checkmarks
+- Adds review approval notes to Beads: `bd update <id> --notes "REVIEW: Approved"`
 - Sets sprint status to `REVIEW_APPROVED`
 - Next step: `/audit-sprint sprint-N`
 
@@ -129,7 +142,7 @@ When implementation meets all standards:
 
 When issues are found:
 - Writes detailed feedback to `engineer-feedback.md`
-- Includes file paths, line numbers, fixes
+- Reopens Beads tasks needing changes: `bd update <id> --status open`
 - Sprint status remains `IN_PROGRESS`
 - Next step: `/implement sprint-N` (to address feedback)
 

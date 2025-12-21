@@ -2,7 +2,7 @@
 name: "implement"
 version: "1.0.0"
 description: |
-  Execute sprint tasks with production-quality code and tests.
+  Execute sprint tasks using Beads for task discovery (`bd ready`).
   Automatically checks for and addresses audit/review feedback before new work.
 
 arguments:
@@ -112,11 +112,16 @@ See: `skills/implementing-tasks/SKILL.md` for full workflow details.
 1. **Pre-flight**: Validate sprint ID, check setup, verify prerequisites
 2. **Directory Setup**: Create `loa-grimoire/a2a/{sprint_id}/` if needed
 3. **Feedback Check**: Audit feedback (priority 1) → Engineer feedback (priority 2)
-4. **Context Loading**: Read PRD, SDD, sprint plan for requirements
-5. **Implementation**: Execute tasks with production-quality code and tests
-6. **Report Generation**: Create `reviewer.md` with full implementation details
-7. **Index Update**: Update `loa-grimoire/a2a/index.md` with sprint status
-8. **Analytics**: Update usage metrics (THJ users only)
+4. **Task Discovery**: Query Beads for ready tasks
+   - `bd ready --sort priority --json` to find next work
+   - If empty, `bd blocked --json` to identify blockers
+5. **Context Loading**: Read PRD, SDD, sprint plan for requirements
+6. **Task Start**: Mark task in progress: `bd update <id> --status in_progress`
+7. **Implementation**: Execute tasks with production-quality code and tests
+8. **Task Completion**: Close completed tasks: `bd close <id> --reason "..."`
+9. **Report Generation**: Create `reviewer.md` with full implementation details
+10. **Index Update**: Update `loa-grimoire/a2a/index.md` with sprint status
+11. **Analytics**: Update usage metrics (THJ users only)
 
 ## Arguments
 
@@ -145,17 +150,43 @@ See: `skills/implementing-tasks/SKILL.md` for full workflow details.
 | "Sprint not found in sprint.md" | Sprint doesn't exist | Verify sprint number |
 | "Sprint is already COMPLETED" | COMPLETED marker exists | Move to next sprint |
 
+## Beads Integration
+
+### Task Discovery
+```bash
+# Find next ready task
+bd ready --limit 5 --sort priority --json
+
+# If empty, check what's blocking
+bd blocked --json
+```
+
+### During Implementation
+```bash
+# Mark task in progress
+bd update <task-id> --status in_progress
+
+# Log discovered issues
+bd create "Discovered: [issue]" -t bug -p 2 --json
+```
+
+### After Implementation
+```bash
+# Close completed task
+bd close <task-id> --reason "Implemented in commit <sha>"
+```
+
 ## Feedback Loop
 
 ```
 /implement sprint-N
       ↓
-[reviewer.md created]
+[Tasks updated in Beads + reviewer.md created]
       ↓
 /review-sprint sprint-N
       ↓
 [feedback or approval]
       ↓
-If feedback: /implement sprint-N (addresses feedback)
+If feedback: /implement sprint-N (addresses feedback, tasks reopened)
 If approved: /audit-sprint sprint-N
 ```

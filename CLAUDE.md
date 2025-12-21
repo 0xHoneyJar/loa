@@ -16,7 +16,7 @@ Agent-driven development framework that orchestrates the complete product lifecy
 |-------|------|--------|
 | `discovering-requirements` | Product Manager | `loa-grimoire/prd.md` |
 | `designing-architecture` | Software Architect | `loa-grimoire/sdd.md` |
-| `planning-sprints` | Technical PM | `loa-grimoire/sprint.md` |
+| `planning-sprints` | Technical PM | Beads epic + `loa-grimoire/sprint.md` |
 | `implementing-tasks` | Senior Engineer | Code + `a2a/sprint-N/reviewer.md` |
 | `reviewing-code` | Tech Lead | `a2a/sprint-N/engineer-feedback.md` |
 | `auditing-security` | Security Auditor | `SECURITY-AUDIT-REPORT.md` or `a2a/sprint-N/auditor-sprint-feedback.md` |
@@ -88,6 +88,24 @@ Tracks usage for THJ developers - see `.claude/protocols/analytics.md`:
 - OSS users have no analytics tracking
 - Opt-in sharing via `/feedback`
 
+### Beads Integration
+
+Git-backed graph memory for sprint lifecycle - see `.claude/protocols/beads-workflow.md`:
+
+- **Task Discovery**: `bd ready --json` finds next actionable work
+- **Status Updates**: `bd update <id> --status in_progress`
+- **Completion**: `bd close <id> --reason "..."`
+- **Dependencies**: `bd dep add` for blocking relationships
+- **Session End**: `.claude/protocols/session-end.md` for clean handoff
+
+**Key Commands**:
+```bash
+bd ready --sort priority --json  # Find next work
+bd blocked --json                 # Identify bottlenecks
+bd dep tree <epic-id>            # Visualize sprint structure
+.claude/scripts/beads/sync-to-git.sh  # Commit beads state
+```
+
 ## Document Flow
 
 ```
@@ -116,19 +134,22 @@ loa-grimoire/
 2. Create `loa-grimoire/a2a/sprint-N/` if missing
 3. Check audit feedback FIRST (`auditor-sprint-feedback.md`)
 4. Then check engineer feedback (`engineer-feedback.md`)
-5. Address all feedback before new work
+5. Query Beads for ready tasks: `bd ready --sort priority --json`
+6. Mark task in progress: `bd update <id> --status in_progress`
+7. Implement and close: `bd close <id> --reason "..."`
 
 ### When `/review-sprint sprint-N` is invoked:
 1. Validate sprint directory and `reviewer.md` exist
 2. Skip if `COMPLETED` marker exists
 3. Review actual code, not just report
-4. Write "All good" or detailed feedback
+4. Update Beads: `bd update <id> --notes "REVIEW: ..."`
+5. Write "All good" or detailed feedback
 
 ### When `/audit-sprint sprint-N` is invoked:
 1. Validate senior lead approval ("All good" in engineer-feedback.md)
 2. Review for security vulnerabilities
 3. Write verdict to `auditor-sprint-feedback.md`
-4. Create `COMPLETED` marker on approval
+4. On approval: close Beads epic + create `COMPLETED` marker
 
 ## Parallel Execution
 
@@ -159,7 +180,13 @@ Use `.claude/scripts/context-check.sh` for assessment.
 ├── check-prerequisites.sh    # Phase prerequisites
 ├── validate-sprint-id.sh     # Sprint ID validation
 ├── mcp-registry.sh           # MCP registry queries
-└── validate-mcp.sh           # MCP configuration validation
+├── validate-mcp.sh           # MCP configuration validation
+└── beads/                    # Beads helper scripts
+    ├── check-beads.sh        # Verify Beads installation
+    ├── create-sprint-epic.sh # Create new sprint epic
+    ├── get-sprint-tasks.sh   # List tasks under epic
+    ├── get-ready-by-priority.sh  # Ready work sorted by priority
+    └── sync-to-git.sh        # Commit beads state to git
 ```
 
 ## MCP Integrations
@@ -187,4 +214,6 @@ Skills declare MCP dependencies in their `index.yaml` files.
 - `README.md` - Quick start guide
 - `PROCESS.md` - Detailed workflow documentation
 - `.claude/protocols/` - Detailed protocol specifications
+  - `beads-workflow.md` - Beads integration guide
+  - `session-end.md` - Session handoff checklist
 - `.claude/scripts/` - Helper bash scripts

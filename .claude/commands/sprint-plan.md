@@ -3,7 +3,7 @@ name: "sprint-plan"
 version: "1.0.0"
 description: |
   Create comprehensive sprint plan based on PRD and SDD.
-  Task breakdown, prioritization, acceptance criteria, assignments.
+  Creates Beads epic/tasks for tracking, archives to sprint.md.
 
 arguments: []
 
@@ -35,9 +35,12 @@ pre_flight:
     error: "SDD not found. Run /architect first."
 
 outputs:
+  - path: ".beads/beads.jsonl"
+    type: "file"
+    description: "Beads database with sprint epic and tasks"
   - path: "loa-grimoire/sprint.md"
     type: "file"
-    description: "Sprint plan with tasks and acceptance criteria"
+    description: "Sprint plan archive (human-readable)"
 
 mode:
   default: "foreground"
@@ -76,8 +79,12 @@ See: `skills/planning-sprints/SKILL.md` for full workflow details.
 3. **Breakdown**: Create sprint structure with actionable tasks
 4. **Clarification**: Ask about team size, sprint duration, priorities
 5. **Validation**: Confirm assumptions about capacity and scope
-6. **Generation**: Create sprint plan at `loa-grimoire/sprint.md`
-7. **Analytics**: Update usage metrics (THJ users only)
+6. **Beads Creation**: Create sprint epic and tasks in Beads graph
+   - `bd create "Sprint N: Theme" -t epic -p 1 --json`
+   - `bd create "Task" -t task -p <priority> --json` for each task
+   - `bd dep add` for blocking dependencies
+7. **Archive**: Save human-readable plan to `loa-grimoire/sprint.md`
+8. **Analytics**: Update usage metrics (THJ users only)
 
 ## Arguments
 
@@ -89,7 +96,16 @@ See: `skills/planning-sprints/SKILL.md` for full workflow details.
 
 | Path | Description |
 |------|-------------|
-| `loa-grimoire/sprint.md` | Sprint plan with tasks |
+| `.beads/beads.jsonl` | Beads database with sprint epic and tasks |
+| `loa-grimoire/sprint.md` | Sprint plan archive (human-readable) |
+
+## Beads Integration
+
+After planning, verify the sprint structure:
+```bash
+bd dep tree <sprint-epic-id>
+bd ready --json  # Shows first actionable tasks
+```
 
 ## Sprint Plan Sections
 

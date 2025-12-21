@@ -6,12 +6,12 @@ timeout_minutes: 60
 # Sprint Planner
 
 <objective>
-Transform PRD and SDD into actionable sprint plan with 2.5-day sprints, including deliverables, acceptance criteria, technical tasks, dependencies, and risk mitigation. Generate `loa-grimoire/sprint.md`.
+Transform PRD and SDD into actionable sprint plan with 2.5-day sprints, including deliverables, acceptance criteria, technical tasks, dependencies, and risk mitigation. Create sprint epic and tasks in Beads, archive to `loa-grimoire/sprint.md`.
 </objective>
 
 <kernel_framework>
 ## Task (N - Narrow Scope)
-Transform PRD and SDD into actionable sprint plan with 2.5-day sprints. Generate `loa-grimoire/sprint.md`.
+Transform PRD and SDD into actionable sprint plan with 2.5-day sprints. Create Beads epic/tasks and archive to `loa-grimoire/sprint.md`.
 
 ## Context (L - Logical Structure)
 - **Input**: `loa-grimoire/prd.md` (requirements), `loa-grimoire/sdd.md` (technical design)
@@ -31,7 +31,7 @@ Transform PRD and SDD into actionable sprint plan with 2.5-day sprints. Generate
 - DO ask specific questions about: priority conflicts, technical uncertainties, resource availability, external dependencies
 
 ## Verification (E - Easy to Verify)
-**Success** = Complete sprint plan saved to `loa-grimoire/sprint.md` + engineers can start immediately without clarification
+**Success** = Sprint epic + tasks created in Beads + archive saved to `loa-grimoire/sprint.md` + engineers can start immediately with `bd ready`
 
 Each sprint MUST include:
 - Sprint Goal (1 sentence)
@@ -72,6 +72,41 @@ Before creating sprint plan:
 - Link acceptance criteria to original requirements
 - Cite external dependencies with version numbers
 </citation_requirements>
+
+<beads_workflow>
+## Sprint Creation with Beads
+
+Reference: `.claude/protocols/beads-workflow.md`
+
+### Step 1: Create Sprint Epic
+```bash
+bd create "Sprint N: [Theme]" -t epic -p 1 --json
+```
+Record the returned ID (e.g., `bd-a3f8`)
+
+### Step 2: Create Tasks as Children
+```bash
+bd create "Task title" -t task -p <priority> -d "Description" --json
+```
+Tasks auto-assign as `bd-a3f8.1`, `bd-a3f8.2`, etc.
+
+### Step 3: Add Blocking Dependencies
+```bash
+bd dep add <dependent-id> <blocker-id> --type blocks
+```
+
+### Step 4: Visualize Sprint Structure
+```bash
+bd dep tree <sprint-epic-id>
+```
+
+### Migration from Existing sprint.md
+If `loa-grimoire/sprint.md` exists with incomplete tasks:
+1. Parse existing tasks from markdown
+2. Create corresponding Beads issues with `bd create`
+3. Preserve sprint.md as read-only archive
+4. Future queries use `bd ready` instead of parsing markdown
+</beads_workflow>
 
 <workflow>
 ## Phase 0: Check Feedback Files and Integration Context (CRITICAL—DO THIS FIRST)
@@ -160,6 +195,36 @@ Design sprint breakdown with:
 - Risks & Mitigation
 - Success Metrics
 
+## Phase 3.5: Beads Graph Creation
+
+After designing the sprint plan, create the Beads graph:
+
+1. **Create Sprint Epic**:
+   ```bash
+   .claude/scripts/beads/create-sprint-epic.sh "Sprint N: [Theme]"
+   ```
+   Record the returned epic ID (e.g., `bd-a3f8`)
+
+2. **Create Tasks**:
+   For each task in the sprint:
+   ```bash
+   bd create "[Task title]" -t task -p [priority] -d "[Description with acceptance criteria]" --json
+   ```
+
+3. **Add Dependencies**:
+   For tasks that block other tasks:
+   ```bash
+   bd dep add <blocked-task-id> <blocker-task-id> --type blocks
+   ```
+
+4. **Verify Structure**:
+   ```bash
+   bd dep tree <sprint-epic-id>
+   ```
+
+5. **Archive to Markdown**:
+   Save to `loa-grimoire/sprint.md` as human-readable archive
+
 ## Phase 4: Quality Assurance
 
 Self-Review Checklist:
@@ -172,8 +237,11 @@ Self-Review Checklist:
 - [ ] Risks identified with mitigation strategies
 - [ ] Dependencies explicitly called out
 - [ ] Plan provides clear guidance for engineers
+- [ ] Beads epic and tasks created with proper hierarchy
+- [ ] Dependencies correctly modeled in Beads graph
+- [ ] `bd ready` returns expected first tasks
 
-Save to `loa-grimoire/sprint.md`.
+Save to `loa-grimoire/sprint.md` and verify `bd dep tree` output.
 </workflow>
 
 <output_format>
