@@ -8,9 +8,9 @@ This is an agent-driven development framework that orchestrates a complete produ
 
 ## Architecture
 
-### Agent System
+### Agent Skills System
 
-The framework uses eight specialized agents that work together in a structured workflow:
+The framework uses eight specialized agent skills that work together in a structured workflow:
 
 1. **prd-architect** (Product Manager) - Requirements discovery and PRD creation
 2. **architecture-designer** (Software Architect) - System design and SDD creation
@@ -21,7 +21,178 @@ The framework uses eight specialized agents that work together in a structured w
 7. **paranoid-auditor** (Security Auditor) - Comprehensive security and quality audits
 8. **devrel-translator** (Developer Relations) - Translates technical work into executive-ready communications
 
-Agents are defined in `.claude/agents/` and invoked via custom slash commands in `.claude/commands/`.
+Skills are defined in `.claude/skills/` using a 3-level architecture and invoked via custom slash commands in `.claude/commands/`.
+
+### 3-Level Skills Architecture
+
+The framework uses a modular skills architecture designed to optimize for accuracy, efficiency, and modularity:
+
+```
+.claude/skills/{skill-name}/
+├── index.yaml              # Level 1: Lightweight metadata (~100-150 tokens)
+├── SKILL.md                # Level 2: Procedural instructions (MD + XML hybrid)
+└── resources/              # Level 3: Externalized reference materials
+    ├── BIBLIOGRAPHY.md     # External URLs and documentation links
+    ├── REFERENCE.md        # Checklists, quick reference, lookup tables
+    ├── templates/          # Output document scaffolds
+    │   └── *.md
+    └── scripts/            # Bash helper scripts for deterministic logic
+        └── *.sh
+```
+
+#### Level 1: index.yaml (Always Loaded)
+
+Lightweight metadata file containing:
+- **Triggers**: Keywords that indicate when to use this skill
+- **Examples**: Few-shot examples of when to invoke
+- **Dependencies**: Required inputs from other skills
+- **Inputs/Outputs**: Expected file paths
+- **Parallel execution config**: Thresholds and strategies
+
+```yaml
+name: skill-name
+version: 1.0.0
+description: Brief description
+model: sonnet
+triggers:
+  - keyword1
+  - keyword2
+parallel_execution:
+  enabled: true
+  threshold: 2000
+```
+
+#### Level 2: SKILL.md (Loaded on Invocation)
+
+Procedural instructions using MD + XML hybrid format:
+
+```markdown
+# Skill Name
+
+Role and expertise description.
+
+<kernel_framework>
+## Task Definition
+## Context
+## Constraints
+## Verification
+## Reproducibility
+</kernel_framework>
+
+<workflow>
+## Operational Workflow
+### Phase 0: ...
+### Phase 1: ...
+</workflow>
+
+<parallel_execution>
+## Parallel Execution Patterns
+</parallel_execution>
+
+<output_format>
+## Output Requirements
+</output_format>
+
+<success_criteria>
+## S.M.A.R.T. Success Criteria
+
+- **Specific**: [Exact observable outcome, not vague]
+- **Measurable**: [Quantifiable metric or binary check]
+- **Achievable**: [Within skill's capabilities and context limits]
+- **Relevant**: [Aligned with skill's core mission]
+- **Time-bound**: [Duration limit or iteration cap]
+
+## Definition of Done
+- [ ] [Checklist items]
+</success_criteria>
+
+<checklists>
+## Quick Reference Checklists
+Load full checklists from: `resources/REFERENCE.md`
+</checklists>
+
+<uncertainty_protocol>
+## When Facing Uncertainty
+- If requirements are ambiguous, ASK for clarification before proceeding
+- Say "I don't know" when lacking sufficient information
+- State assumptions explicitly when proceeding with incomplete information
+- Flag areas needing product/architecture input rather than guessing
+</uncertainty_protocol>
+
+<grounding_requirements>
+## Grounding & Citations
+Before generating output:
+1. Read and extract direct quotes from source documents
+2. Cite file paths and line numbers: `> From sprint.md:47: "..."`
+3. Validate referenced files exist before proceeding
+4. Cross-reference claims against source material
+</grounding_requirements>
+
+<citation_requirements>
+## Bibliography Usage
+Load external references from: `resources/BIBLIOGRAPHY.md`
+
+- All findings include file paths and line numbers
+- Quote source text before analysis
+- Reference CVE/CWE/OWASP for security issues
+- Use absolute URLs for external documentation
+</citation_requirements>
+```
+
+#### Level 3: resources/ (Loaded On-Demand)
+
+Externalized reference materials loaded only when needed:
+
+- **BIBLIOGRAPHY.md**: All external URLs organized by category
+- **REFERENCE.md**: Checklists with 20+ items, lookup tables, quick reference
+- **templates/*.md**: Output document scaffolds with placeholders
+- **scripts/*.sh**: Bash helpers for deterministic operations (context assessment, prerequisite checking)
+
+#### KERNEL Framework
+
+All skills follow the KERNEL prompt engineering framework:
+
+| Letter | Meaning | Purpose |
+|--------|---------|---------|
+| **K** | Keep it narrow | Single, well-defined task |
+| **E** | Explicit constraints | Clear boundaries and rules |
+| **R** | Reproducible | Exact versions, specific values |
+| **N** | No ambiguity | Precise instructions |
+| **E** | Easy to verify | Clear success criteria |
+| **L** | Logical structure | Organized workflow |
+
+#### Quality Guardrails (v4)
+
+Every skill includes these required XML sections for accuracy and reproducibility:
+
+| Section | Purpose |
+|---------|---------|
+| `<objective>` | Single-sentence purpose and primary deliverable |
+| `<kernel_framework>` | Task, Context, Constraints, Verification, Reproducibility |
+| `<uncertainty_protocol>` | Permission to say "I don't know", ask clarification |
+| `<grounding_requirements>` | Source document citation rules (file:line format) |
+| `<citation_requirements>` | External reference standards (CVE, OWASP, URLs) |
+| `<workflow>` | Phase-by-phase execution with decision points |
+| `<output_format>` | Exact deliverable structure |
+| `<success_criteria>` | S.M.A.R.T. format (Specific, Measurable, Achievable, Relevant, Time-bound) |
+
+**Framework Relationship**:
+- **KERNEL** defines skill behavior (how it operates)
+- **S.M.A.R.T.** defines output quality (how to measure success)
+- Both are required; they complement each other
+
+#### Context Thresholds
+
+Skills assess context size before execution and split into parallel sub-tasks when needed:
+
+| Skill | SMALL | MEDIUM | LARGE |
+|-------|-------|--------|-------|
+| senior-tech-lead-reviewer | <3,000 | 3,000-6,000 | >6,000 |
+| paranoid-auditor | <2,000 | 2,000-5,000 | >5,000 |
+| sprint-task-implementer | <3,000 | 3,000-8,000 | >8,000 |
+| devops-crypto-architect | <2,000 | 2,000-5,000 | >5,000 |
+
+Legacy agent definitions remain in `.claude/agents/` for backwards compatibility.
 
 ### Document Flow
 
@@ -906,15 +1077,160 @@ In `loa-grimoire/sprint.md`, sprint tasks are marked with:
 
 The senior tech lead updates these after approval.
 
-### Agent Prompts
+### Command Architecture (v4)
 
-Agent definitions in `.claude/agents/` include:
-- `name` - Agent identifier
-- `description` - When to invoke the agent
-- `model` - AI model to use
+Commands in `.claude/commands/` use a "thin routing layer" architecture with enhanced YAML frontmatter that routes to agent skills:
+
+#### Agent-Invoking Commands
+
+Commands that launch agents use the `agent` and `agent_path` fields:
+
+```yaml
+---
+name: "implement"
+version: "1.0.0"
+description: |
+  Execute sprint tasks with production-quality code and tests.
+
+arguments:
+  - name: "sprint_id"
+    type: "string"
+    pattern: "^sprint-[0-9]+$"
+    required: true
+    description: "Sprint to implement (e.g., sprint-1)"
+
+agent: "sprint-task-implementer"
+agent_path: "skills/sprint-task-implementer/"
+
+context_files:
+  - path: "loa-grimoire/prd.md"
+    required: true
+    purpose: "Product requirements for grounding"
+  - path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/auditor-sprint-feedback.md"
+    required: false
+    priority: 1
+    purpose: "Security audit feedback (checked FIRST)"
+
+pre_flight:
+  - check: "file_exists"
+    path: ".loa-setup-complete"
+    error: "Loa setup has not been completed. Run /setup first."
+  - check: "pattern_match"
+    value: "$ARGUMENTS.sprint_id"
+    pattern: "^sprint-[0-9]+$"
+    error: "Invalid sprint ID. Expected format: sprint-N"
+
+outputs:
+  - path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/reviewer.md"
+    type: "file"
+    description: "Implementation report"
+
+mode:
+  default: "foreground"
+  allow_background: true
+---
+```
+
+#### Special Commands (Wizards, Surveys, Git)
+
+Non-agent commands use the `command_type` field instead of `agent`:
+
+```yaml
+---
+name: "setup"
+command_type: "wizard"  # or "survey", "git"
+
+pre_flight:
+  - check: "file_not_exists"
+    path: ".loa-setup-complete"
+    error: "Setup already completed. Run /config to modify MCP settings."
+
+outputs:
+  - path: ".loa-setup-complete"
+    type: "file"
+    description: "Setup marker with user type and configuration"
+---
+```
+
+#### Command Types Summary
+
+| Type | Field | Purpose |
+|------|-------|---------|
+| Agent-invoking | `agent:`, `agent_path:` | Routes to skill for execution |
+| Wizard | `command_type: "wizard"` | Interactive multi-step setup |
+| Survey | `command_type: "survey"` | Questionnaire with analytics |
+| Git | `command_type: "git"` | Git operations with safeguards |
+
+#### Pre-flight Check Types
+
+| Check Type | Parameters | Purpose |
+|------------|------------|---------|
+| `file_exists` | `path` | Verify file exists before proceeding |
+| `file_not_exists` | `path` | Verify file doesn't exist |
+| `directory_exists` | `path` | Verify directory exists |
+| `content_contains` | `path`, `pattern` | Verify file contains specific content |
+| `pattern_match` | `value`, `pattern` | Validate argument format |
+| `command_succeeds` | `command` | Run shell command and check exit code |
+
+#### Context File Priority
+
+The `priority` field in `context_files` determines read order (lower = higher priority):
+- Security audit feedback: `priority: 1` (read FIRST)
+- Engineer feedback: `priority: 2` (read SECOND)
+- Files without priority are read in list order
+
+#### Variable Substitution
+
+Commands support argument interpolation using `$ARGUMENTS.{arg_name}`:
+- `$ARGUMENTS.sprint_id` → "sprint-1"
+- Works in `path`, `value`, `pattern`, and `error` fields
+
+#### Command-to-Skill Mapping
+
+| Command | Skill | Description |
+|---------|-------|-------------|
+| `/plan-and-analyze` | prd-architect | PRD creation |
+| `/architect` | architecture-designer | SDD creation |
+| `/sprint-plan` | sprint-planner | Sprint planning |
+| `/implement sprint-N` | sprint-task-implementer | Implementation |
+| `/review-sprint sprint-N` | senior-tech-lead-reviewer | Code review |
+| `/audit-sprint sprint-N` | paranoid-auditor | Sprint security audit |
+| `/audit` | paranoid-auditor | Codebase audit |
+| `/audit-deployment` | paranoid-auditor | Infrastructure audit |
+| `/deploy-production` | devops-crypto-architect | Deployment |
+| `/translate @doc for audience` | devrel-translator | Executive translation |
+
+### Agent Skills Structure
+
+Skills are defined in `.claude/skills/{skill-name}/` with three levels:
+
+**Level 1 - index.yaml** (always loaded):
+- `name` - Skill identifier
+- `version` - SemVer version
+- `description` - Brief description
+- `model` - AI model to use (sonnet, opus, haiku)
 - `color` - UI color coding
+- `triggers` - Keywords for skill detection
+- `examples` - Few-shot invocation examples
+- `dependencies` - Required inputs from other skills
+- `inputs/outputs` - Expected file paths
+- `parallel_execution` - Threshold and strategy config
 
-Command definitions in `.claude/commands/` contain the slash command expansion text.
+**Level 2 - SKILL.md** (loaded on invocation):
+- Role description and expertise
+- KERNEL framework compliance (Task, Context, Constraints, Verification, Reproducibility)
+- Workflow phases
+- Parallel execution patterns
+- Output format requirements
+- Success criteria
+- Uncertainty protocol
+- Grounding and citation requirements
+
+**Level 3 - resources/** (loaded on-demand):
+- `BIBLIOGRAPHY.md` - External URLs
+- `REFERENCE.md` - Checklists and quick reference
+- `templates/*.md` - Output scaffolds
+- `scripts/*.sh` - Bash helpers
 
 ## Working with Agents
 
@@ -952,7 +1268,23 @@ When providing feedback in `loa-grimoire/a2a/sprint-N/engineer-feedback.md`:
 
 ```
 .claude/
-├── agents/              # Agent definitions (8 agents)
+├── skills/              # Agent skills (3-level architecture)
+│   ├── prd-architect/
+│   │   ├── index.yaml           # Level 1: Metadata
+│   │   ├── SKILL.md             # Level 2: Procedural instructions
+│   │   └── resources/           # Level 3: Reference materials
+│   │       ├── BIBLIOGRAPHY.md
+│   │       ├── REFERENCE.md
+│   │       ├── templates/
+│   │       └── scripts/
+│   ├── architecture-designer/
+│   ├── sprint-planner/
+│   ├── sprint-task-implementer/
+│   ├── senior-tech-lead-reviewer/
+│   ├── paranoid-auditor/
+│   ├── devops-crypto-architect/
+│   └── devrel-translator/
+├── agents/              # Legacy agent definitions (8 agents)
 ├── commands/            # Slash command definitions (14 commands)
 └── settings.local.json  # MCP server configuration
 

@@ -153,7 +153,7 @@ All slash commands run in **foreground mode by default**, allowing direct intera
 
 ## The Agents (The Loa)
 
-Eight specialized agents that ride alongside you:
+Eight specialized agents that ride alongside you, each implemented as a modular **skill** with a 3-level architecture:
 
 1. **prd-architect** - Senior Product Manager (15 years experience)
 2. **architecture-designer** - Senior Software Architect
@@ -163,6 +163,17 @@ Eight specialized agents that ride alongside you:
 6. **devops-crypto-architect** - DevOps Architect (15 years crypto experience)
 7. **paranoid-auditor** - Paranoid Cypherpunk Security Auditor (30+ years, OWASP expert)
 8. **devrel-translator** - Elite Developer Relations Professional (15 years)
+
+Each agent skill is organized in `.claude/skills/{agent-name}/` with:
+- `index.yaml` - Lightweight metadata (~100 tokens)
+- `SKILL.md` - Procedural instructions using KERNEL framework
+- `resources/` - Bibliography, reference checklists, templates, scripts
+
+Commands use a v4 "thin routing layer" architecture in `.claude/commands/` with enhanced YAML frontmatter:
+- Agent-invoking commands: `agent:` and `agent_path:` fields route to skills
+- Special commands: `command_type:` field (wizard, survey, git) for non-agent operations
+- Pre-flight checks: Validation before execution (file_exists, pattern_match, etc.)
+- Context files: Prioritized file loading with variable substitution
 
 ## Key Features
 
@@ -200,7 +211,11 @@ Pre-configured integrations with:
 
 ```
 .claude/
-├── agents/              # Agent definitions (the Loa)
+├── skills/              # Agent skills (the Loa) - 3-level modular architecture
+│   └── {agent-name}/
+│       ├── index.yaml   # Level 1: Metadata, triggers, dependencies (~100 tokens)
+│       ├── SKILL.md     # Level 2: KERNEL instructions, workflows (~2000 tokens)
+│       └── resources/   # Level 3: External references, templates, scripts
 ├── commands/            # Slash command definitions
 └── settings.local.json  # MCP server configuration
 
@@ -314,7 +329,7 @@ README.md                # This file
 ## Contributing
 
 This is a base framework designed to be forked and customized for your projects. Feel free to:
-- Modify agent prompts in `.claude/agents/`
+- Modify agent skills in `.claude/skills/` (index.yaml, SKILL.md, resources/)
 - Adjust command workflows in `.claude/commands/`
 - Add or remove MCP servers in `.claude/settings.local.json`
 - Customize the process in `PROCESS.md`

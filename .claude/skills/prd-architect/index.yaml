@@ -1,0 +1,43 @@
+name: "prd-architect"
+version: "1.0.0"
+model: "sonnet"
+color: "red"
+
+description: |
+  Use this skill IF user needs to create a Product Requirements Document (PRD) OR
+  mentions planning a new feature, product, or project. Invoke proactively when
+  user describes a product idea, feature request, or mentions needing to define
+  requirements. Produces comprehensive PRD at loa-grimoire/prd.md.
+
+triggers:
+  - "/plan-and-analyze"
+  - "create a PRD"
+  - "define requirements"
+  - "plan a new feature"
+  - "build a new product"
+  - "I want to build"
+  - "I need to plan"
+  - "flesh out this idea"
+
+examples:
+  - context: "User wants to create a PRD for a new feature"
+    user_says: "I want to build a user authentication system for my app"
+    agent_action: "Launch prd-architect to systematically gather requirements and create a comprehensive PRD"
+  - context: "User mentions planning or requirements gathering"
+    user_says: "I need to plan out a new dashboard feature but I'm not sure where to start"
+    agent_action: "Launch prd-architect to guide user through defining goals, requirements, and scope step-by-step"
+  - context: "User wants to refine an existing idea"
+    user_says: "I have a rough idea for a notification system but need to flesh it out"
+    agent_action: "Launch prd-architect to refine the idea through systematic questioning and create a detailed PRD"
+
+dependencies: []
+
+inputs:
+  - name: "product_idea"
+    type: "string"
+    required: false
+    description: "Initial product idea or feature request from user"
+
+outputs:
+  - path: "loa-grimoire/prd.md"
+    description: "Product Requirements Document"

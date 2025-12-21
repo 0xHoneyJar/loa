@@ -38,9 +38,15 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 
 ## Agents
 
+Each agent is implemented as a modular **skill** in `.claude/skills/{agent-name}/` using a 3-level architecture:
+- **Level 1** (`index.yaml`): Lightweight metadata, triggers, dependencies (~100 tokens)
+- **Level 2** (`SKILL.md`): KERNEL framework instructions, workflows (~2000 tokens)
+- **Level 3** (`resources/`): External references, templates, checklists, scripts
+
 ### 1. **prd-architect** (Product Manager)
 - **Role**: Senior Product Manager with 15 years of experience
 - **Expertise**: Requirements gathering, product strategy, user research
+- **Skill**: `.claude/skills/prd-architect/`
 - **Responsibilities**:
   - Guide structured discovery across 7 phases
   - Extract complete, unambiguous requirements
@@ -50,6 +56,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 ### 2. **architecture-designer** (Software Architect)
 - **Role**: Senior Software Architect with deep technical expertise
 - **Expertise**: System design, technology selection, scalability, security
+- **Skill**: `.claude/skills/architecture-designer/`
 - **Responsibilities**:
   - Review PRD and design system architecture
   - Define component structure and technical stack
@@ -60,6 +67,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 ### 3. **sprint-planner** (Technical Product Manager)
 - **Role**: Technical PM with engineering and product expertise
 - **Expertise**: Sprint planning, task breakdown, team coordination
+- **Skill**: `.claude/skills/sprint-planner/`
 - **Responsibilities**:
   - Review PRD and SDD for comprehensive context
   - Break down work into actionable sprint tasks
@@ -70,6 +78,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 ### 4. **sprint-task-implementer** (Senior Engineer)
 - **Role**: Elite Software Engineer with 15 years of experience
 - **Expertise**: Production-grade code, testing, documentation
+- **Skill**: `.claude/skills/sprint-task-implementer/`
 - **Responsibilities**:
   - Implement sprint tasks with tests and documentation
   - Address feedback from senior technical lead
@@ -80,6 +89,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 ### 5. **senior-tech-lead-reviewer** (Senior Technical Lead)
 - **Role**: Senior Technical Lead with 15+ years of experience
 - **Expertise**: Code review, quality assurance, security auditing, technical leadership
+- **Skill**: `.claude/skills/senior-tech-lead-reviewer/`
 - **Responsibilities**:
   - Review sprint implementation for completeness and quality
   - Validate all acceptance criteria are met
@@ -92,6 +102,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 ### 6. **devops-crypto-architect** (DevOps Architect)
 - **Role**: Battle-tested DevOps Architect with 15 years of crypto/blockchain infrastructure experience
 - **Expertise**: Infrastructure as code, CI/CD, security, monitoring, blockchain operations
+- **Skill**: `.claude/skills/devops-crypto-architect/`
 - **Responsibilities**:
   - Design production infrastructure (cloud, Kubernetes, blockchain nodes)
   - Implement infrastructure as code
@@ -104,6 +115,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 ### 7. **paranoid-auditor** (Security Auditor)
 - **Role**: Paranoid Cypherpunk Security Auditor with 30+ years of experience
 - **Expertise**: OWASP Top 10, cryptographic implementation, secrets management, penetration testing
+- **Skill**: `.claude/skills/paranoid-auditor/`
 - **Responsibilities**:
   - Perform comprehensive security and quality audits (codebase or sprint-level)
   - Identify vulnerabilities across OWASP Top 10 categories
@@ -120,6 +132,7 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 ### 8. **devrel-translator** (Developer Relations Professional)
 - **Role**: Elite Developer Relations Professional with 15 years of experience
 - **Expertise**: Technical communication, executive summaries, stakeholder management
+- **Skill**: `.claude/skills/devrel-translator/`
 - **Responsibilities**:
   - Translate complex technical documentation into clear narratives for executives
   - Create audience-specific summaries (executives, board, investors, marketing)
@@ -772,7 +785,7 @@ After security audit, if changes required:
 **Merge Strategy**:
 | File Location | Behavior |
 |---------------|----------|
-| `.claude/agents/` | Updated to latest Loa versions |
+| `.claude/skills/` | Updated to latest Loa versions |
 | `.claude/commands/` | Updated to latest Loa versions |
 | `app/` | Preserved (your code) |
 | `loa-grimoire/prd.md` | Preserved (your docs) |
@@ -842,19 +855,45 @@ After security audit, if changes required:
 
 ## Custom Commands
 
-| Command | Purpose | Agent | Output | Availability |
-|---------|---------|-------|--------|--------------|
-| `/setup` | First-time configuration | - | `.loa-setup-complete`, analytics | All users |
-| `/config` | Reconfigure MCP servers | - | Updated `.loa-setup-complete` | THJ only |
+### Command Architecture (v4)
+
+Commands in `.claude/commands/` use a "thin routing layer" architecture with enhanced YAML frontmatter:
+
+**Agent-invoking commands** use `agent:` and `agent_path:` fields to route to skills:
+```yaml
+agent: "sprint-task-implementer"
+agent_path: "skills/sprint-task-implementer/"
+```
+
+**Special commands** use `command_type:` for non-agent operations:
+```yaml
+command_type: "wizard"  # or "survey", "git"
+```
+
+**Pre-flight checks** validate prerequisites before execution:
+- `file_exists`, `file_not_exists`, `directory_exists`
+- `content_contains` - Verify file contains specific pattern
+- `pattern_match` - Validate argument format (e.g., `sprint-N`)
+- `command_succeeds` - Run shell command and check exit code
+
+**Context files** define prioritized file loading with variable substitution (`$ARGUMENTS.sprint_id`).
+
+### Command Reference
+
+| Command | Purpose | Agent/Type | Output | Availability |
+|---------|---------|------------|--------|--------------|
+| `/setup` | First-time configuration | wizard | `.loa-setup-complete`, analytics | All users |
+| `/config` | Reconfigure MCP servers | wizard | Updated `.loa-setup-complete` | THJ only |
 | `/plan-and-analyze` | Define requirements and create PRD | `prd-architect` | `loa-grimoire/prd.md` | All users |
 | `/architect` | Design system architecture | `architecture-designer` | `loa-grimoire/sdd.md` | All users |
 | `/sprint-plan` | Plan implementation sprints | `sprint-planner` | `loa-grimoire/sprint.md` | All users |
 | `/implement {sprint}` | Implement sprint tasks | `sprint-task-implementer` | Code + `loa-grimoire/a2a/reviewer.md` | All users |
-| `/review-sprint` | Review and approve/reject implementation | `senior-tech-lead-reviewer` | `loa-grimoire/a2a/engineer-feedback.md` | All users |
-| `/audit-sprint` | Security audit of sprint implementation | `paranoid-auditor` | `loa-grimoire/a2a/auditor-sprint-feedback.md` | All users |
+| `/review-sprint {sprint}` | Review and approve/reject implementation | `senior-tech-lead-reviewer` | `loa-grimoire/a2a/engineer-feedback.md` | All users |
+| `/audit-sprint {sprint}` | Security audit of sprint implementation | `paranoid-auditor` | `loa-grimoire/a2a/auditor-sprint-feedback.md` | All users |
 | `/deploy-production` | Deploy to production | `devops-crypto-architect` | `loa-grimoire/deployment/` | All users |
-| `/feedback` | Submit developer experience feedback | - | Linear issue in "Loa Feedback" | THJ only |
-| `/update` | Pull framework updates from upstream | - | Merged updates | All users |
+| `/feedback` | Submit developer experience feedback | survey | Linear issue in "Loa Feedback" | THJ only |
+| `/update` | Pull framework updates from upstream | git | Merged updates | All users |
+| `/contribute` | Create OSS contribution PR | git | GitHub PR | All users |
 | `/audit` | Security audit (ad-hoc) | `paranoid-auditor` | `SECURITY-AUDIT-REPORT.md` | All users |
 | `/audit-deployment` | Deployment infrastructure audit (ad-hoc) | `paranoid-auditor` | `loa-grimoire/a2a/deployment-feedback.md` | All users |
 | `/translate @doc for [audience]` | Executive translation (ad-hoc) | `devrel-translator` | Executive summaries | All users |
