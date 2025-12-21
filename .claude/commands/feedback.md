@@ -10,6 +10,38 @@ Your responses will be posted to Linear with your project analytics attached.
 
 ---
 
+## Phase -1: User Type Check
+
+Read and parse the setup marker file:
+
+```bash
+cat .loa-setup-complete 2>/dev/null
+```
+
+Extract the `user_type` field from the JSON response.
+
+**If the file doesn't exist:**
+Display this error and STOP:
+```
+Loa setup has not been completed for this project.
+
+Please run `/setup` first to initialize Loa.
+```
+
+**If user_type is "oss":**
+Display this error and STOP:
+```
+The /feedback command is only available for THJ team members.
+
+For issues or feature requests, please open a GitHub issue at:
+https://github.com/0xHoneyJar/loa/issues
+```
+
+**If user_type is "thj":**
+Proceed to Phase 0.
+
+---
+
 ## Phase 0: Check for Pending Feedback
 
 Before starting the survey, check if there's pending feedback from a previous failed submission:

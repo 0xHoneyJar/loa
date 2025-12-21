@@ -134,32 +134,51 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 
 ### Phase 0: Setup (`/setup`)
 
-**Goal**: Configure Loa for first-time use and initialize analytics
+**Goal**: Configure Loa for first-time use with user-appropriate experience
 
-**Process**:
+**User Type Detection**:
+The setup command asks "Are you a THJ team member?" to determine the appropriate pathway:
+
+#### **THJ Developers** (Internal Team)
+Full-featured experience with analytics and MCP integrations:
+
 1. **Welcome & Analytics Notice**:
    - Displays Loa's purpose and workflow overview
    - Explains what analytics are collected and where they're stored
-   - Confirms local-only storage with opt-in sharing via feedback
+   - Confirms local-only storage with opt-in sharing via `/feedback`
 
-2. **MCP Server Detection**:
-   - Reads `.claude/settings.local.json` for configured servers
-   - Lists detected MCPs (github, linear, vercel, discord, web3-stats)
-   - For each missing MCP, offers:
+2. **MCP Server Configuration** (Multichoice):
+   - Offers selection of MCP servers: Linear, GitHub, Vercel, Discord, web3-stats, All, Skip
+   - For each selected MCP, provides:
      - **Guided setup**: Step-by-step configuration instructions
      - **Documentation link**: External setup guide
-     - **Skip**: Mark as optional and continue
 
 3. **Project Initialization**:
    - Extracts project name from `git remote get-url origin`
    - Gets developer info from `git config user.name/email`
    - Creates `loa-grimoire/analytics/usage.json` with initial data
-   - Creates `.loa-setup-complete` marker file
+   - Creates `.loa-setup-complete` marker file with `user_type: "thj"`
 
 4. **Configuration Summary**:
    - Lists all MCPs and their status
    - Shows initialized analytics location
    - Provides next steps (run `/plan-and-analyze`)
+
+#### **OSS Users** (Open Source Community)
+Streamlined experience without analytics:
+
+1. **Welcome**:
+   - Displays Loa's purpose and workflow overview
+   - Points to documentation and community resources
+
+2. **Marker File Creation**:
+   - Creates `.loa-setup-complete` with `user_type: "oss"`
+   - No analytics initialization
+   - No MCP configuration prompts
+
+3. **Next Steps**:
+   - Provides quick start guide
+   - Points to GitHub issues for support
 
 **Command**:
 ```bash
@@ -167,14 +186,45 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 ```
 
 **Outputs**:
-- `.loa-setup-complete` marker file
-- `loa-grimoire/analytics/usage.json`
-- `loa-grimoire/analytics/summary.md`
+- `.loa-setup-complete` marker file (includes `user_type` field)
+- `loa-grimoire/analytics/usage.json` (THJ only)
+- `loa-grimoire/analytics/summary.md` (THJ only)
 
 **Setup Enforcement**:
 - `/plan-and-analyze` checks for `.loa-setup-complete`
 - If missing, prompts user to run `/setup` first
 - Ensures consistent onboarding experience
+
+---
+
+### Post-Setup: MCP Configuration (`/config`) - THJ Only
+
+**Goal**: Reconfigure MCP server integrations after initial setup
+
+**Availability**: THJ developers only (checks `user_type` in `.loa-setup-complete`)
+
+**Process**:
+1. **User Type Verification**:
+   - Reads `.loa-setup-complete` and checks `user_type`
+   - If OSS user: Displays error and stops
+
+2. **Current Configuration Display**:
+   - Shows currently configured MCP servers
+   - Indicates which servers are active
+
+3. **MCP Multichoice Selection**:
+   - Linear, GitHub, Vercel, Discord, web3-stats, All, Skip
+   - Provides guided setup or documentation for selected servers
+
+4. **Update Marker File**:
+   - Updates `.loa-setup-complete` with new MCP configuration
+
+**Command**:
+```bash
+/config
+```
+
+**Output**: Updated `.loa-setup-complete` with new MCP configuration
 
 ---
 
@@ -616,9 +666,11 @@ After security audit, if changes required:
 
 ---
 
-### Post-Deployment: Developer Feedback (`/feedback`)
+### Post-Deployment: Developer Feedback (`/feedback`) - THJ Only
 
 **Goal**: Collect developer experience feedback and submit to Linear
+
+**Availability**: THJ developers only (checks `user_type` in `.loa-setup-complete`)
 
 **When to Use**:
 - After completing a deployment
@@ -627,28 +679,32 @@ After security audit, if changes required:
 
 **Process**:
 
-1. **Check for Pending Feedback**:
+1. **User Type Verification**:
+   - Reads `.loa-setup-complete` and checks `user_type`
+   - If OSS user: Displays error with GitHub issues link and stops
+
+2. **Check for Pending Feedback**:
    - Looks for `loa-grimoire/analytics/pending-feedback.json`
    - If found, offers to submit pending feedback first
 
-2. **Survey (4 Questions)**:
+3. **Survey (4 Questions)**:
    - **Q1** (1/4): "What's one thing you would change about Loa?" (free text)
    - **Q2** (2/4): "What's one thing you loved about using Loa?" (free text)
    - **Q3** (3/4): "How would you rate this experience vs other approaches?" (1-5 scale)
    - **Q4** (4/4): "How comfortable are you with the agent-driven process?" (A-E choice)
 
-3. **Prepare Submission**:
+4. **Prepare Submission**:
    - Loads analytics from `loa-grimoire/analytics/usage.json`
    - Saves pending feedback locally (safety net before submission)
    - Formats feedback with analytics summary
 
-4. **Submit to Linear**:
+5. **Submit to Linear**:
    - Searches for existing issue in "Loa Feedback" project
    - If found: Adds comment with new feedback
    - If not found: Creates new issue
    - Includes full analytics JSON in collapsible details block
 
-5. **Record Submission**:
+6. **Record Submission**:
    - Updates `feedback_submissions` array in analytics
    - Deletes pending feedback file on success
 
@@ -663,6 +719,8 @@ After security audit, if changes required:
 - If Linear submission fails, feedback is saved to `pending-feedback.json`
 - On next `/feedback` run, offers to submit pending feedback
 - No feedback is ever lost due to network/auth issues
+
+**OSS Users**: For issues or feature requests, please open a GitHub issue at https://github.com/0xHoneyJar/loa/issues
 
 ---
 
@@ -784,21 +842,27 @@ After security audit, if changes required:
 
 ## Custom Commands
 
-| Command | Purpose | Agent | Output |
-|---------|---------|-------|--------|
-| `/setup` | First-time configuration | - | `.loa-setup-complete`, analytics |
-| `/plan-and-analyze` | Define requirements and create PRD | `prd-architect` | `loa-grimoire/prd.md` |
-| `/architect` | Design system architecture | `architecture-designer` | `loa-grimoire/sdd.md` |
-| `/sprint-plan` | Plan implementation sprints | `sprint-planner` | `loa-grimoire/sprint.md` |
-| `/implement {sprint}` | Implement sprint tasks | `sprint-task-implementer` | Code + `loa-grimoire/a2a/reviewer.md` |
-| `/review-sprint` | Review and approve/reject implementation | `senior-tech-lead-reviewer` | `loa-grimoire/a2a/engineer-feedback.md` |
-| `/audit-sprint` | Security audit of sprint implementation | `paranoid-auditor` | `loa-grimoire/a2a/auditor-sprint-feedback.md` |
-| `/deploy-production` | Deploy to production | `devops-crypto-architect` | `loa-grimoire/deployment/` |
-| `/feedback` | Submit developer experience feedback | - | Linear issue in "Loa Feedback" |
-| `/update` | Pull framework updates from upstream | - | Merged updates |
-| `/audit` | Security audit (ad-hoc) | `paranoid-auditor` | `SECURITY-AUDIT-REPORT.md` |
-| `/audit-deployment` | Deployment infrastructure audit (ad-hoc) | `paranoid-auditor` | `loa-grimoire/a2a/deployment-feedback.md` |
-| `/translate @doc for [audience]` | Executive translation (ad-hoc) | `devrel-translator` | Executive summaries |
+| Command | Purpose | Agent | Output | Availability |
+|---------|---------|-------|--------|--------------|
+| `/setup` | First-time configuration | - | `.loa-setup-complete`, analytics | All users |
+| `/config` | Reconfigure MCP servers | - | Updated `.loa-setup-complete` | THJ only |
+| `/plan-and-analyze` | Define requirements and create PRD | `prd-architect` | `loa-grimoire/prd.md` | All users |
+| `/architect` | Design system architecture | `architecture-designer` | `loa-grimoire/sdd.md` | All users |
+| `/sprint-plan` | Plan implementation sprints | `sprint-planner` | `loa-grimoire/sprint.md` | All users |
+| `/implement {sprint}` | Implement sprint tasks | `sprint-task-implementer` | Code + `loa-grimoire/a2a/reviewer.md` | All users |
+| `/review-sprint` | Review and approve/reject implementation | `senior-tech-lead-reviewer` | `loa-grimoire/a2a/engineer-feedback.md` | All users |
+| `/audit-sprint` | Security audit of sprint implementation | `paranoid-auditor` | `loa-grimoire/a2a/auditor-sprint-feedback.md` | All users |
+| `/deploy-production` | Deploy to production | `devops-crypto-architect` | `loa-grimoire/deployment/` | All users |
+| `/feedback` | Submit developer experience feedback | - | Linear issue in "Loa Feedback" | THJ only |
+| `/update` | Pull framework updates from upstream | - | Merged updates | All users |
+| `/audit` | Security audit (ad-hoc) | `paranoid-auditor` | `SECURITY-AUDIT-REPORT.md` | All users |
+| `/audit-deployment` | Deployment infrastructure audit (ad-hoc) | `paranoid-auditor` | `loa-grimoire/a2a/deployment-feedback.md` | All users |
+| `/translate @doc for [audience]` | Executive translation (ad-hoc) | `devrel-translator` | Executive summaries | All users |
+
+**User Type Notes**:
+- **THJ only**: Commands restricted to THJ team members (requires `user_type: "thj"` in `.loa-setup-complete`)
+- **All users**: Available to both THJ developers and OSS users
+- Analytics updates in phase commands are automatically skipped for OSS users
 
 > **For deployment procedures**, use `/deploy-production` which generates comprehensive runbooks in `loa-grimoire/deployment/runbooks/`.
 
@@ -916,9 +980,15 @@ The engineer reads this file with HIGHEST PRIORITY on the next `/implement {spri
 ```bash
 # 0. First-time setup (once per project)
 /setup
-# → Configure MCP servers
-# → Initialize analytics
-# → Creates .loa-setup-complete marker
+# → Asks if you're a THJ team member
+# → THJ: Configure MCP servers, initialize analytics
+# → OSS: Quick welcome, documentation pointers
+# → Creates .loa-setup-complete marker with user_type
+
+# 0.5. Reconfigure MCP servers (THJ only, optional)
+/config
+# → Shows current MCP configuration
+# → Offers multichoice selection for new MCPs
 
 # 1. Define product requirements
 /plan-and-analyze
@@ -969,10 +1039,11 @@ The engineer reads this file with HIGHEST PRIORITY on the next `/implement {spri
 /deploy-production
 # → Production infrastructure deployed
 
-# 12. Submit feedback (optional but encouraged)
+# 12. Submit feedback (THJ only, optional but encouraged)
 /feedback
 # → Answer 4 survey questions
 # → Feedback + analytics posted to Linear
+# → OSS users: Open GitHub issue instead
 
 # 13. Get framework updates (periodically)
 /update

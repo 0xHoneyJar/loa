@@ -226,7 +226,16 @@ After you generate the report:
 
 ## Phase 7: Analytics Update (NON-BLOCKING)
 
-After generating/updating the report, update analytics to track implementation iterations:
+After generating/updating the report, update analytics to track implementation iterations.
+
+**First, check user type**:
+```bash
+cat .loa-setup-complete 2>/dev/null | grep -o '"user_type": *"[^"]*"' | cut -d'"' -f4
+```
+
+**If user_type is "oss"**: Skip analytics update entirely and complete the implementation process.
+
+**If user_type is "thj"**: Proceed with analytics update:
 
 1. Read and validate loa-grimoire/analytics/usage.json
 2. Find or create entry for this sprint in the `sprints` array
@@ -475,7 +484,16 @@ After you generate the report:
 
 ## Phase 7: Analytics Update (NON-BLOCKING)
 
-After generating/updating the report, update analytics to track implementation iterations:
+After generating/updating the report, update analytics to track implementation iterations.
+
+**First, check user type**:
+```bash
+cat .loa-setup-complete 2>/dev/null | grep -o '"user_type": *"[^"]*"' | cut -d'"' -f4
+```
+
+**If user_type is "oss"**: Skip analytics update entirely and complete the implementation process.
+
+**If user_type is "thj"**: Proceed with analytics update:
 
 1. Read and validate loa-grimoire/analytics/usage.json
 2. Find or create entry for this sprint in the `sprints` array

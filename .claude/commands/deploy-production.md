@@ -149,7 +149,16 @@ Save all documentation to `loa-grimoire/deployment/`.
 
 ## Phase 7: Analytics Update (NON-BLOCKING)
 
-After deployment is complete, update analytics:
+After deployment is complete, update analytics.
+
+**First, check user type**:
+```bash
+USER_TYPE=$(cat .loa-setup-complete 2>/dev/null | grep -o '\"user_type\": *\"[^\"]*\"' | cut -d'\"' -f4)
+```
+
+**If USER_TYPE is \"oss\"**: Skip analytics update entirely and complete the deployment process.
+
+**If USER_TYPE is \"thj\"**: Proceed with analytics update:
 
 1. Read and validate loa-grimoire/analytics/usage.json
 2. Add deployment entry to `deployments` array with:
@@ -287,7 +296,16 @@ Save all documentation to `loa-grimoire/deployment/`.
 
 ## Phase 7: Analytics Update (NON-BLOCKING)
 
-After deployment is complete, update analytics:
+After deployment is complete, update analytics.
+
+**First, check user type**:
+```bash
+cat .loa-setup-complete 2>/dev/null | grep -o '"user_type": *"[^"]*"' | cut -d'"' -f4
+```
+
+**If user_type is "oss"**: Skip analytics update entirely and complete the deployment process.
+
+**If user_type is "thj"**: Proceed with analytics update:
 
 1. Read and validate loa-grimoire/analytics/usage.json
 2. Add deployment entry to `deployments` array with:

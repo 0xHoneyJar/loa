@@ -139,7 +139,16 @@ If any issues, incomplete tasks, or unaddressed previous feedback:
 
 ## Phase 4: Analytics Update (NON-BLOCKING)
 
-After making your decision (approve or request changes), update analytics:
+After making your decision (approve or request changes), update analytics.
+
+**First, check user type**:
+```bash
+USER_TYPE=$(cat .loa-setup-complete 2>/dev/null | grep -o '\"user_type\": *\"[^\"]*\"' | cut -d'\"' -f4)
+```
+
+**If USER_TYPE is \"oss\"**: Skip analytics update entirely and complete the review process.
+
+**If USER_TYPE is \"thj\"**: Proceed with analytics update:
 
 1. Read and validate loa-grimoire/analytics/usage.json
 2. Find the sprint entry and increment `review_iterations` counter
@@ -268,7 +277,16 @@ If any issues, incomplete tasks, or unaddressed previous feedback:
 
 ## Phase 4: Analytics Update (NON-BLOCKING)
 
-After making your decision (approve or request changes), update analytics:
+After making your decision (approve or request changes), update analytics.
+
+**First, check user type**:
+```bash
+cat .loa-setup-complete 2>/dev/null | grep -o '"user_type": *"[^"]*"' | cut -d'"' -f4
+```
+
+**If user_type is "oss"**: Skip analytics update entirely and complete the review process.
+
+**If user_type is "thj"**: Proceed with analytics update:
 
 1. Read and validate loa-grimoire/analytics/usage.json
 2. Find the sprint entry and increment `review_iterations` counter
