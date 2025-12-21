@@ -90,23 +90,29 @@ Reference: `.claude/protocols/beads-workflow.md`
 bd list --status in_progress --json | jq '[.[] | select(.labels | contains(["needs-review"]))]'
 ```
 
+### Getting Task Context
+```bash
+# Fetch full task details before reviewing
+bd show <task-id> --json
+```
+
 ### Recording Review Notes
 ```bash
 # Add review notes to task
-bd update <task-id> --notes "REVIEW: [feedback details]"
+bd update <task-id> --notes "REVIEW: [feedback details]" --json
 ```
 
 ### Approval Flow
 **If Approved:**
 ```bash
 # Mark task as reviewed/approved
-bd update <task-id> --notes "REVIEW: Approved - All acceptance criteria met"
+bd update <task-id> --notes "REVIEW: Approved - All acceptance criteria met" --json
 ```
 
 **If Changes Required:**
 ```bash
 # Reopen task for fixes
-bd update <task-id> --status open --notes "REVIEW: Changes required - see engineer-feedback.md"
+bd update <task-id> --status open --notes "REVIEW: Changes required - see engineer-feedback.md" --json
 ```
 
 ### Uncertainty Protocol
@@ -185,7 +191,7 @@ Read ALL context documents in order:
 - All criteria met, production-ready
 - Actions:
   1. Write "All good" to `engineer-feedback.md`
-  2. Add review approval notes to Beads tasks: `bd update <id> --notes "REVIEW: Approved"`
+  2. Add review approval notes to Beads tasks: `bd update <id> --notes "REVIEW: Approved" --json`
   3. Inform user: "Sprint approved"
 
 **Outcome 2: Request Changes**
@@ -193,7 +199,7 @@ Read ALL context documents in order:
 - Actions:
   1. Generate detailed feedback (see template)
   2. Write to `engineer-feedback.md`
-  3. Reopen Beads tasks needing changes: `bd update <id> --status open`
+  3. Reopen Beads tasks needing changes: `bd update <id> --status open --json`
   4. Inform user: "Changes required"
 
 **Outcome 3: Partial Approval**

@@ -213,7 +213,7 @@ Check `loa-grimoire/a2a/integration-context.md`:
 
 4. **Select and start task**:
    ```bash
-   bd update <ready-task-id> --status in_progress
+   bd update <ready-task-id> --status in_progress --json
    ```
 
 ## Phase 2: Implementation
