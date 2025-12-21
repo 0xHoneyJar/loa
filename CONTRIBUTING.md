@@ -245,23 +245,105 @@ docs(readme): add troubleshooting section for MCP setup
 
 ## Style Guidelines
 
-### Agent Prompts
+### Skills (Agents)
 
-When modifying agent prompts in `.claude/agents/`:
+Skills live in `.claude/skills/` using a 3-level architecture:
 
+```
+.claude/skills/{skill-name}/
+├── index.yaml          # Level 1: Metadata (~100 tokens)
+├── SKILL.md            # Level 2: KERNEL instructions (~2000 tokens)
+└── resources/          # Level 3: References, templates, scripts
+```
+
+**Naming convention**: Use gerund form (action-ing) for skill directories:
+- `discovering-requirements` (not `prd-architect`)
+- `implementing-tasks` (not `sprint-task-implementer`)
+- `reviewing-implementations` (not `senior-tech-lead-reviewer`)
+
+When modifying skills:
+
+- **index.yaml**: Keep metadata lean (~100 tokens), include triggers, examples, mcp_dependencies
+- **SKILL.md**: Core instructions only (~2000 tokens), reference resources for details
+- **resources/**: Templates, examples, and detailed reference materials
 - Maintain consistent persona and expertise level
 - Include clear phase transitions
 - Provide structured output formats
-- Document expected inputs and outputs
 
 ### Command Definitions
 
-When creating or modifying commands in `.claude/commands/`:
+Commands in `.claude/commands/` use thin routing layer with YAML frontmatter:
+
+```yaml
+---
+name: "command-name"
+version: "1.0.0"
+description: "What this command does"
+agent: "skill-name"              # For agent commands
+agent_path: ".claude/skills/"    # Skill directory
+mcp_source: ".claude/mcp-registry.yaml"  # Reference MCP registry
+mcp_requirements:                # Required MCPs
+  - server: "linear"
+    required: true
+pre_flight:                      # Validation checks
+  - check: "file_exists"
+    path: "some-file.md"
+---
+```
+
+When creating or modifying commands:
 
 - Use clear, descriptive command names
-- Include help text and examples
+- Add pre-flight checks for prerequisites
+- Reference MCP registry for integrations
 - Handle error cases gracefully
 - Update CLAUDE.md with new commands
+
+### MCP Registry
+
+MCP server configurations are centralized in `.claude/mcp-registry.yaml`:
+
+```yaml
+servers:
+  linear:
+    name: "Linear"
+    description: "Issue tracking"
+    scopes: [issues, projects]
+    required_by:
+      - command: "/feedback"
+        reason: "Posts feedback to Linear"
+    setup:
+      steps: [...]
+groups:
+  essential:
+    servers: [linear, github]
+```
+
+Helper scripts for MCP operations:
+
+```bash
+.claude/scripts/mcp-registry.sh list      # List all servers
+.claude/scripts/mcp-registry.sh info <server>  # Server details
+.claude/scripts/mcp-registry.sh setup <server> # Setup instructions
+.claude/scripts/validate-mcp.sh <servers>      # Validate configuration
+```
+
+When adding MCP integrations:
+
+- Add server definition to `.claude/mcp-registry.yaml`
+- Include setup instructions with required env vars
+- Add to appropriate server groups
+- Update skills/commands that depend on it
+
+### Helper Scripts
+
+Scripts in `.claude/scripts/` follow these conventions:
+
+- **Fail fast**: `set -euo pipefail` in all scripts
+- **Parseable output**: Structured return values (e.g., `KEY|value`)
+- **Exit codes**: 0=success, 1=error, 2=invalid input
+- **No side effects**: Scripts read state, don't modify it
+- **POSIX-compatible**: Where possible for cross-platform support
 
 ### Documentation
 
@@ -339,15 +421,17 @@ Contributors are recognized in:
 
 - Bug fixes and issue reports
 - Documentation improvements
-- New agent definitions
+- New skill definitions (3-level architecture)
 - Command enhancements
+- MCP registry additions
+- Helper script improvements
 - Security improvements
 - Performance optimizations
 - Test coverage improvements
 
 ### Before Starting Large Changes
 
-For significant changes (new agents, workflow modifications, architecture changes):
+For significant changes (new skills, workflow modifications, architecture changes):
 
 1. **Open an issue first** to discuss the proposal
 2. **Get maintainer feedback** before implementing
