@@ -13,6 +13,9 @@ Bash utilities for deterministic operations in the Loa framework.
 | `check-feedback-status.sh` | Check sprint feedback state | 0=success, 1=error, 2=invalid |
 | `validate-sprint-id.sh` | Validate sprint ID format | 0=valid, 1=invalid |
 | `check-prerequisites.sh` | Check phase prerequisites | 0=OK, 1=missing |
+| `mcp-registry.sh` | Query MCP server registry | 0=success, 1=error |
+| `validate-mcp.sh` | Validate MCP server configuration | 0=OK, 1=missing |
+| `assess-discovery-context.sh` | PRD context ingestion assessment | 0=success |
 
 ## Usage Examples
 
@@ -54,6 +57,33 @@ detect_template
 source ./.claude/scripts/analytics.sh
 get_user_type
 # Returns: thj | oss | unknown
+```
+
+### Query MCP Registry
+```bash
+./.claude/scripts/mcp-registry.sh list
+# Lists all available MCP servers
+
+./.claude/scripts/mcp-registry.sh info linear
+# Shows details about a specific server
+
+./.claude/scripts/mcp-registry.sh setup github
+# Shows setup instructions
+
+./.claude/scripts/mcp-registry.sh groups
+# Lists available server groups
+
+./.claude/scripts/mcp-registry.sh group essential
+# Shows servers in a group
+```
+
+### Validate MCP Configuration
+```bash
+./.claude/scripts/validate-mcp.sh linear
+# Returns: OK | MISSING:linear
+
+./.claude/scripts/validate-mcp.sh github vercel
+# Returns: OK | MISSING:github,vercel
 ```
 
 ## Design Principles

@@ -1,6 +1,6 @@
 ---
 name: "feedback"
-version: "1.0.0"
+version: "1.1.0"
 description: |
   Submit developer feedback about Loa experience with auto-attached analytics.
   Posts to Linear with project metrics. THJ developers only.
@@ -8,6 +8,12 @@ description: |
 command_type: "survey"
 
 arguments: []
+
+mcp_requirements:
+  - server: "linear"
+    scopes: [issues, projects]
+    required: true
+    error: "Linear MCP required for /feedback. Run /config to set up, or open a GitHub issue instead."
 
 pre_flight:
   - check: "file_exists"
@@ -22,6 +28,17 @@ pre_flight:
 
       For issues or feature requests, please open a GitHub issue at:
       https://github.com/0xHoneyJar/loa/issues
+
+  - check: "script"
+    script: ".claude/scripts/validate-mcp.sh linear"
+    error: |
+      Linear MCP is not configured. The /feedback command requires Linear to submit feedback.
+
+      To configure Linear:
+        .claude/scripts/mcp-registry.sh setup linear
+
+      Or open a GitHub issue instead:
+        https://github.com/0xHoneyJar/loa/issues
 
 outputs:
   - path: "Linear issue/comment"

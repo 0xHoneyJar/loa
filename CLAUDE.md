@@ -150,24 +150,30 @@ Use `.claude/scripts/context-check.sh` for assessment.
 
 ```
 .claude/scripts/
-├── analytics.sh              # Analytics functions
+├── analytics.sh              # Analytics functions (THJ only)
 ├── git-safety.sh             # Template detection
 ├── context-check.sh          # Parallel execution assessment
 ├── preflight.sh              # Pre-flight validation
 ├── assess-discovery-context.sh  # PRD context ingestion
 ├── check-feedback-status.sh  # Sprint feedback state
 ├── check-prerequisites.sh    # Phase prerequisites
-└── validate-sprint-id.sh     # Sprint ID validation
+├── validate-sprint-id.sh     # Sprint ID validation
+├── mcp-registry.sh           # MCP registry queries
+└── validate-mcp.sh           # MCP configuration validation
 ```
 
 ## MCP Integrations
 
-Pre-configured servers in `.claude/settings.local.json`:
-- **linear** - Feedback tracking
-- **github** - Repository operations
-- **vercel** - Deployment
-- **discord** - Communication
-- **web3-stats** - Blockchain data
+Registry: `.claude/mcp-registry.yaml` (single source of truth)
+
+```bash
+.claude/scripts/mcp-registry.sh list      # List servers
+.claude/scripts/mcp-registry.sh info <s>  # Server details
+.claude/scripts/mcp-registry.sh setup <s> # Setup instructions
+.claude/scripts/validate-mcp.sh <s>       # Check if configured
+```
+
+Skills declare MCP dependencies in their `index.yaml` files.
 
 ## Key Conventions
 

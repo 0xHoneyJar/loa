@@ -80,6 +80,22 @@ outputs:
     - loa-grimoire/deployment/scripts/
     - loa-grimoire/a2a/deployment-report.md
 
+mcp_dependencies:
+  required: []
+  optional:
+    - server: "github"
+      scopes: [repos, actions]
+      reason: "GitHub Actions CI/CD setup"
+      fallback: "Manual CI/CD configuration required"
+    - server: "vercel"
+      scopes: [deployments, projects]
+      reason: "Vercel deployment automation"
+      fallback: "Manual deployment documentation provided"
+    - server: "web3-stats"
+      scopes: [queries, blockchain]
+      reason: "Blockchain monitoring dashboards"
+      fallback: "Manual monitoring setup required"
+
 parallel_execution:
   enabled: true
   threshold: 2000

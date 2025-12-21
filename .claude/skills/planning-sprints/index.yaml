@@ -51,3 +51,11 @@ inputs:
 outputs:
   - path: "loa-grimoire/sprint.md"
     description: "Sprint plan with task breakdown"
+
+mcp_dependencies:
+  required: []
+  optional:
+    - server: "linear"
+      scopes: [issues, projects]
+      reason: "Sync sprint tasks to Linear"
+      fallback: "Tasks remain in sprint.md only"

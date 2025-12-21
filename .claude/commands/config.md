@@ -1,13 +1,15 @@
 ---
 name: "config"
-version: "1.0.0"
+version: "1.1.0"
 description: |
   Configure MCP integrations for THJ team members post-setup.
-  Add or modify Linear, GitHub, Vercel, Discord, web3-stats connections.
+  Reads available servers from the MCP registry.
 
 command_type: "wizard"
 
 arguments: []
+
+mcp_source: ".claude/mcp-registry.yaml"
 
 pre_flight:
   - check: "file_exists"
@@ -70,14 +72,13 @@ If all MCPs are already configured, display message and stop.
 
 ### Phase 3: MCP Selection
 
-Offer multiSelect choice of unconfigured MCPs:
-- Linear - Issue tracking for developer feedback
-- GitHub - Repository operations, PRs, issues
-- Vercel - Deployment and hosting
-- Discord - Community/team communication
-- web3-stats - Blockchain data (Dune API, Blockscout)
-- All remaining - Configure all unconfigured integrations
+Read available servers from `.claude/mcp-registry.yaml` and offer multiSelect:
+- Show unconfigured servers with descriptions from registry
+- Group options: essential, deployment, crypto, all
+- Individual server selection
 - Skip - Exit without configuring
+
+Use `.claude/scripts/mcp-registry.sh list` to get available servers.
 
 ### Phase 4: MCP Configuration
 
@@ -110,32 +111,18 @@ Display newly configured and total configured servers.
 
 ## MCP Setup Instructions
 
-### GitHub MCP
-1. Create a Personal Access Token at https://github.com/settings/tokens
-2. Token scopes needed: repo, read:org, read:user
-3. Add "github" to enabledMcpjsonServers in .claude/settings.local.json
-4. Restart Claude Code to apply changes
+Setup instructions are maintained in `.claude/mcp-registry.yaml`.
 
-### Linear MCP
-1. Get your API key from Linear: Settings > API > Personal API keys
-2. Add "linear" to enabledMcpjsonServers in .claude/settings.local.json
-3. Restart Claude Code to apply changes
+To get setup instructions for any server:
+```bash
+.claude/scripts/mcp-registry.sh setup <server-name>
+```
 
-### Vercel MCP
-1. Connect via Vercel OAuth at https://vercel.com/integrations
-2. Add "vercel" to enabledMcpjsonServers in .claude/settings.local.json
-3. Restart Claude Code to apply changes
-
-### Discord MCP
-1. Create a Discord bot at https://discord.com/developers/applications
-2. Get the bot token from Bot > Token
-3. Add "discord" to enabledMcpjsonServers in .claude/settings.local.json
-4. Restart Claude Code to apply changes
-
-### web3-stats MCP
-1. Get a Dune API key at https://dune.com/settings/api
-2. Add "web3-stats" to enabledMcpjsonServers in .claude/settings.local.json
-3. Restart Claude Code to apply changes
+Example:
+```bash
+.claude/scripts/mcp-registry.sh setup github
+.claude/scripts/mcp-registry.sh setup linear
+```
 
 ## Error Handling
 

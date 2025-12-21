@@ -1,6 +1,6 @@
 ---
 name: "setup"
-version: "1.0.0"
+version: "1.1.0"
 description: |
   First-time Loa setup wizard for onboarding and project initialization.
   Detects user type, configures MCP integrations, initializes analytics.
@@ -13,6 +13,8 @@ pre_flight:
   - check: "file_not_exists"
     path: ".loa-setup-complete"
     error: "Setup already completed. Run /config to modify MCP settings."
+
+mcp_source: ".claude/mcp-registry.yaml"
 
 outputs:
   - path: ".loa-setup-complete"
@@ -97,12 +99,24 @@ Store detection result for Git Safety features.
 
 ## MCP Integrations
 
-Available for THJ developers:
-- **Linear** - Issue tracking for developer feedback
-- **GitHub** - Repository operations, PRs, issues
-- **Vercel** - Deployment and hosting
-- **Discord** - Community/team communication
-- **web3-stats** - Blockchain data (Dune API, Blockscout)
+Available servers are defined in `.claude/mcp-registry.yaml`.
+
+Use helper scripts to query the registry:
+```bash
+.claude/scripts/mcp-registry.sh list      # List all servers
+.claude/scripts/mcp-registry.sh groups    # List server groups
+.claude/scripts/mcp-registry.sh info <server>  # Get setup instructions
+```
+
+### Server Groups (THJ developers)
+
+| Group | Description | Servers |
+|-------|-------------|---------|
+| essential | Recommended for all | linear, github |
+| deployment | Production workflows | github, vercel |
+| crypto | Blockchain projects | web3-stats, github |
+| communication | Team communication | discord |
+| productivity | Document tools | gdrive |
 
 ## Marker File Format
 
