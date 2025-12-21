@@ -81,6 +81,121 @@ Assess codebase size to determine parallel splitting:
 | MEDIUM | 5,000-15,000 | Consider phase splitting |
 | LARGE | >15,000 | MUST split extraction by directory |
 
+## Phase 0: Context Ingestion (Preflight)
+
+Before analyzing code, check for user-provided context that can guide adoption.
+
+> **⚠️ CARDINAL RULE: CODE IS TRUTH**
+> ```
+> 1. CODE               ← Absolute source of truth
+> 2. Loa Artifacts      ← Derived FROM code evidence
+> 3. Legacy Docs        ← Claims to verify against code
+> 4. User Context       ← Hypotheses to test against code
+> ```
+> User context GUIDES investigation. It NEVER determines output.
+
+### 0.1 Check for Existing Context
+
+```bash
+mkdir -p loa-grimoire/context
+
+if [ -d "loa-grimoire/context" ] && [ "$(ls -A loa-grimoire/context 2>/dev/null)" ]; then
+  echo "📚 Found user-provided context:"
+  find loa-grimoire/context -type f \( -name "*.md" -o -name "*.txt" \) | while read f; do
+    echo "  - $f ($(wc -l < "$f") lines)"
+  done
+  CONTEXT_EXISTS=true
+else
+  echo "ℹ️  No user context found in loa-grimoire/context/"
+  echo "💡 Tip: Add context files before re-running /adopt for enhanced analysis"
+  echo "   See: .claude/skills/adopting-codebase/resources/context-templates.md"
+  CONTEXT_EXISTS=false
+fi
+```
+
+### 0.2 Context File Types
+
+The following context types are recognized:
+
+| File Pattern | Purpose | How It's Used |
+|--------------|---------|---------------|
+| `architecture*.md` | Architecture decisions, diagrams | Guides module boundary detection |
+| `stakeholder*.md` | Business requirements, priorities | Informs PRD generation |
+| `tribal*.md` | Undocumented knowledge, gotchas | Adds to uncertainty/risk sections |
+| `roadmap*.md` | Planned features, deprecations | Identifies ghost features vs planned |
+| `interview*.md` | Team interviews, domain knowledge | Enriches feature understanding |
+| `constraints*.md` | Technical/business constraints | Adds to SDD constraints section |
+| `glossary*.md` | Domain terminology | Ensures consistent naming in artifacts |
+| `*.md` / `*.txt` | Any other context | General enrichment |
+
+### 0.3 Ingest Context
+
+For each context file found, extract key information:
+
+```bash
+mkdir -p loa-grimoire/reality
+
+for f in loa-grimoire/context/*.md loa-grimoire/context/*.txt; do
+  [ -f "$f" ] || continue
+
+  FILENAME=$(basename "$f")
+  echo "=== Ingesting: $FILENAME ===" >> loa-grimoire/reality/context-summary.md
+
+  # Extract headers as key topics
+  grep "^#" "$f" >> loa-grimoire/reality/context-summary.md 2>/dev/null
+  echo "" >> loa-grimoire/reality/context-summary.md
+done
+```
+
+### 0.4 Create Context-Guided Analysis Plan
+
+If context exists, generate `loa-grimoire/reality/claims-to-verify.md`:
+
+```markdown
+# Claims to Verify Against Code
+
+> Generated from: loa-grimoire/context/
+> These are HYPOTHESES, not facts. Code determines truth.
+
+## Priority Areas (from user context)
+
+### Architecture Focus
+[From architecture*.md - which modules to analyze carefully]
+
+### Business-Critical Features
+[From stakeholder*.md - features that must be accurately documented]
+
+### Known Gotchas
+[From tribal*.md - areas where code may be misleading]
+
+### Planned Changes
+[From roadmap*.md - features that may appear incomplete intentionally]
+
+## Claims Checklist
+
+Based on context, verify these claims against actual code:
+
+- [ ] [Claim from context] → Check: [how to verify in code]
+- [ ] [Claim from context] → Check: [how to verify in code]
+```
+
+### 0.5 Context vs Reality Reconciliation
+
+During Phase 3 (Drift Analysis), context claims are **validated against code**:
+
+| Context Claims | Code Shows | Result |
+|----------------|------------|--------|
+| X | X | ✅ Context confirmed, include in Loa artifacts |
+| X | Y | ❌ Context wrong, Loa artifacts say Y (**code wins**) |
+| X | Nothing | ❌ Context unverified, excluded from Loa artifacts |
+
+**Code ALWAYS wins. Context NEVER overrides code.**
+
+When context is wrong:
+1. Loa artifact reflects CODE truth
+2. Drift report notes the context mismatch
+3. User is informed their belief was incorrect
+
 ## Phase 1: Code Reality Extraction
 
 ### 1.1 Setup
@@ -284,7 +399,39 @@ Formula: (ghosts + shadows) / (total documented items) * 100
 3. **Long-term**: [Nice-to-have updates]
 ```
 
-### 3.3 Create Beads Issues for Drift
+### 3.3 Three-Way Drift Analysis (with User Context)
+
+If user context was provided in Phase 0, include context validation:
+
+```markdown
+## User Context vs Code Reality
+
+| User Claim | Source File | Code Evidence | Status |
+|------------|-------------|---------------|--------|
+| "Auth uses JWT" | tribal-knowledge.md | `src/auth/jwt.ts` exists | ✅ Confirmed |
+| "Payments are Stripe-only" | architecture-notes.md | Found Stripe + PayPal in `src/payments/` | ⚠️ Context outdated |
+| "Redis for sessions" | architecture-notes.md | No Redis imports found | ❌ Context incorrect |
+
+## Context-Docs Agreement (High Confidence Drift)
+
+When both user context AND legacy docs claim something that code contradicts, this is high-confidence drift:
+
+| Claim | Context | Legacy Docs | Code Reality | Confidence |
+|-------|---------|-------------|--------------|------------|
+| "Feature X exists" | ✅ | ✅ | ❌ Not found | High - likely removed |
+| "Uses PostgreSQL" | ✅ | ✅ | MySQL in DATABASE_URL | High - belief mismatch |
+
+## Context Validation Summary
+
+- **Confirmed claims**: [count] (proceed with confidence)
+- **Outdated context**: [count] (inform user, update understanding)
+- **Incorrect context**: [count] (Loa artifacts reflect code truth)
+
+> **Remember**: Context validated claims go into Loa artifacts.
+> Context-contradicted claims are EXCLUDED (code wins).
+```
+
+### 3.4 Create Beads Issues for Drift
 
 ```bash
 # Create drift resolution epic

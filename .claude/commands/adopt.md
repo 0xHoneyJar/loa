@@ -69,12 +69,34 @@ Migrates an existing codebase to Loa-maintained documentation. Analyzes actual c
 
 | Phase | Name | Output |
 |-------|------|--------|
+| **0** | **Context Ingestion** | `loa-grimoire/context/` analysis |
 | 1 | Code Reality Extraction | `loa-grimoire/reality/` |
 | 2 | Legacy Doc Inventory | `loa-grimoire/legacy/` |
 | 3 | Drift Analysis | `loa-grimoire/drift-report.md` |
 | 4 | Loa Artifact Generation | `prd.md`, `sdd.md`, Beads backlog |
 | 5 | Legacy Deprecation | Deprecation notices in old docs |
 | 6 | Maintenance Handoff | Drift detection, protocol updates |
+
+## Preflight: Context Check
+
+Before beginning adoption, check for user-provided context:
+
+```bash
+if [ -d "loa-grimoire/context" ] && [ "$(ls -A loa-grimoire/context 2>/dev/null)" ]; then
+  echo "📚 Found user-provided context in loa-grimoire/context/"
+  ls -la loa-grimoire/context/
+  echo ""
+  echo "This context will GUIDE code analysis (but CODE is always truth)."
+else
+  echo "💡 Tip: Add context documents to loa-grimoire/context/ before running /adopt"
+  echo "   Examples: architecture notes, stakeholder interviews, tribal knowledge"
+  echo "   See: .claude/skills/adopting-codebase/resources/context-templates.md"
+fi
+```
+
+> **⚠️ CARDINAL RULE: CODE IS TRUTH**
+> User context GUIDES where to look and provides HYPOTHESES to verify.
+> Context NEVER overrides code evidence. Code wins every conflict.
 
 ## Execution
 
@@ -109,6 +131,11 @@ Plus imports all TODO/FIXME comments as tech debt issues.
 
 ```
                     /adopt
+                       │
+                       ▼
+                  [Phase 0]
+                   Context
+                  Ingestion
                        │
      ┌─────────────────┼─────────────────┐
      ▼                 ▼                 ▼
