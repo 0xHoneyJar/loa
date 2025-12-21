@@ -257,8 +257,12 @@ Streamlined experience without analytics:
 
 **Goal**: Define goals, requirements, scope, and create PRD
 
+**Context-First Discovery**: If `loa-grimoire/context/` contains documentation, the agent reads it first, presents understanding with citations, and only asks questions about gaps. More context = fewer questions.
+
 **Process**:
-1. Agent asks targeted questions across 7 discovery phases:
+1. Agent scans `loa-grimoire/context/` for existing documentation
+2. Synthesizes found content and presents understanding with citations
+3. Conducts targeted interviews for gaps across 7 phases:
    - Problem & Vision
    - Goals & Success Metrics
    - User & Stakeholder Context
@@ -266,10 +270,9 @@ Streamlined experience without analytics:
    - Technical & Non-Functional Requirements
    - Scope & Prioritization
    - Risks & Dependencies
-2. Agent asks 2-3 questions at a time (never overwhelming)
-3. Agent probes for specifics and challenges assumptions
-4. Only generates PRD when all questions are answered
-5. Saves comprehensive PRD to `loa-grimoire/prd.md`
+4. Agent asks 2-3 questions at a time (never overwhelming)
+5. Only generates PRD when all phases have sufficient coverage
+6. Saves PRD with source tracing to `loa-grimoire/prd.md`
 
 **Command**:
 ```bash

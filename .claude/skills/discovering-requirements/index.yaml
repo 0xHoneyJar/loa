@@ -1,18 +1,22 @@
 name: "discovering-requirements"
-version: "1.0.0"
+version: "2.0.0"
 model: "sonnet"
-color: "red"
+color: "purple"
 
 description: |
-  Use this skill IF user needs to create a Product Requirements Document (PRD) OR
-  mentions planning a new feature, product, or project. Invoke proactively when
-  user describes a product idea, feature request, or mentions needing to define
-  requirements. Produces comprehensive PRD at loa-grimoire/prd.md.
+  Use this skill IF user invokes `/plan-and-analyze` OR needs to create a PRD.
+
+  CONTEXT-FIRST: Automatically ingests existing documentation from
+  `loa-grimoire/context/` before interviewing. Only asks questions for
+  gaps, ambiguities, and strategic decisions.
+
+  Produces comprehensive PRD at `loa-grimoire/prd.md` with full source tracing.
 
 triggers:
   - "/plan-and-analyze"
-  - "create a PRD"
+  - "create prd"
   - "define requirements"
+  - "product discovery"
   - "plan a new feature"
   - "build a new product"
   - "I want to build"
@@ -20,24 +24,43 @@ triggers:
   - "flesh out this idea"
 
 examples:
+  - context: "Developer has existing documentation"
+    user_says: "/plan-and-analyze"
+    agent_action: |
+      1. Run context assessment script
+      2. Ingest all files from loa-grimoire/context/
+      3. Present understanding with citations
+      4. Ask only gap-filling questions
+      5. Generate PRD with source tracing
+
+  - context: "No existing documentation"
+    user_says: "/plan-and-analyze"
+    agent_action: |
+      1. Note empty context directory
+      2. Offer to create context/README.md
+      3. Proceed with full 7-phase discovery
+      4. Generate PRD
+
   - context: "User wants to create a PRD for a new feature"
     user_says: "I want to build a user authentication system for my app"
-    agent_action: "Launch discovering-requirements to systematically gather requirements and create a comprehensive PRD"
-  - context: "User mentions planning or requirements gathering"
-    user_says: "I need to plan out a new dashboard feature but I'm not sure where to start"
-    agent_action: "Launch discovering-requirements to guide user through defining goals, requirements, and scope step-by-step"
-  - context: "User wants to refine an existing idea"
-    user_says: "I have a rough idea for a notification system but need to flesh it out"
-    agent_action: "Launch discovering-requirements to refine the idea through systematic questioning and create a detailed PRD"
-
-dependencies: []
+    agent_action: |
+      1. Check for existing context in loa-grimoire/context/
+      2. Launch discovering-requirements to gather requirements
+      3. Create comprehensive PRD with any available context
 
 inputs:
-  - name: "product_idea"
-    type: "string"
+  - name: "context_dir"
+    type: "directory"
+    path: "loa-grimoire/context/"
     required: false
-    description: "Initial product idea or feature request from user"
 
 outputs:
   - path: "loa-grimoire/prd.md"
-    description: "Product Requirements Document"
+    description: "Product Requirements Document with source tracing"
+
+dependencies: []
+
+parallel_execution:
+  enabled: true
+  threshold: 2000  # Lines before spawning parallel ingestors
+  strategy: "by_category"  # vision, users, requirements, technical

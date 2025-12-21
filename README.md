@@ -95,6 +95,7 @@ Each skill in `.claude/skills/{agent}/` with 3-level architecture:
 └── settings.local.json
 
 loa-grimoire/
+├── context/                      # Pre-discovery docs (optional)
 ├── prd.md, sdd.md, sprint.md    # Planning docs
 ├── a2a/                          # Agent communication
 │   └── sprint-N/                 # Per-sprint feedback

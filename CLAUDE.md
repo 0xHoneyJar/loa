@@ -92,6 +92,7 @@ Tracks usage for THJ developers - see `.claude/protocols/analytics.md`:
 
 ```
 loa-grimoire/
+├── context/            # Pre-discovery documentation (optional)
 ├── prd.md              # Product Requirements
 ├── sdd.md              # Software Design
 ├── sprint.md           # Sprint Plan
@@ -137,6 +138,7 @@ Skills assess context size and split into parallel sub-tasks when needed.
 
 | Skill | SMALL | MEDIUM | LARGE |
 |-------|-------|--------|-------|
+| discovering-requirements | <500 | 500-2,000 | >2,000 |
 | reviewing-code | <3,000 | 3,000-6,000 | >6,000 |
 | auditing-security | <2,000 | 2,000-5,000 | >5,000 |
 | implementing-tasks | <3,000 | 3,000-8,000 | >8,000 |
@@ -148,10 +150,14 @@ Use `.claude/scripts/context-check.sh` for assessment.
 
 ```
 .claude/scripts/
-├── analytics.sh      # Analytics functions
-├── git-safety.sh     # Template detection
-├── context-check.sh  # Parallel execution assessment
-└── preflight.sh      # Pre-flight validation
+├── analytics.sh              # Analytics functions
+├── git-safety.sh             # Template detection
+├── context-check.sh          # Parallel execution assessment
+├── preflight.sh              # Pre-flight validation
+├── assess-discovery-context.sh  # PRD context ingestion
+├── check-feedback-status.sh  # Sprint feedback state
+├── check-prerequisites.sh    # Phase prerequisites
+└── validate-sprint-id.sh     # Sprint ID validation
 ```
 
 ## MCP Integrations
