@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Why This Release
 
-This release introduces **Beads Integration** - a git-backed graph memory system for sprint lifecycle management. Combined with a new centralized MCP registry, this provides persistent, merge-friendly task state tracking across sessions and improved tooling discoverability.
+This release introduces **Beads Integration** - a git-backed graph memory system for sprint lifecycle management - and **Established Codebase Adoption** support. Combined with a new centralized MCP registry, this provides persistent, merge-friendly task state tracking across sessions, improved tooling discoverability, and the ability to adopt existing codebases into Loa-maintained documentation.
 
 ### Added
 
@@ -47,11 +47,49 @@ This release introduces **Beads Integration** - a git-backed graph memory system
   - In-progress task status updates
   - Beads state sync to git
 
+- **2 New Skills** for established codebase support:
+  | Skill | Role | Output |
+  |-------|------|--------|
+  | `adopting-codebase` | Code Archaeologist | `loa-grimoire/reality/`, `drift-report.md` |
+  | `refactoring-legacy` | Safe Refactoring | `loa-grimoire/plans/change-*.json` |
+
+- **`/adopt` Command**: 7-phase workflow for codebase migration
+  0. **Context Ingestion** - User-provided tribal knowledge from `loa-grimoire/context/`
+  1. **Code Reality Extraction** - Extract actual behavior from code
+  2. **Legacy Doc Inventory** - Catalog existing documentation
+  3. **Drift Analysis** - Three-way comparison (code vs docs vs user context)
+  4. **Loa Artifact Generation** - Create code-grounded `prd.md`, `sdd.md`
+  5. **Legacy Deprecation** - Add deprecation notices to old docs
+  6. **Maintenance Handoff** - Set up drift monitoring
+
+- **User Context Support** (`loa-grimoire/context/`):
+  - `architecture*.md` - System design beliefs
+  - `stakeholder*.md` - Business priorities
+  - `tribal*.md` - Undocumented knowledge, gotchas
+  - `roadmap*.md` - Planned features, deprecations
+  - `constraints*.md` - Technical/business constraints
+  - `glossary*.md` - Domain terminology
+  - Templates: `.claude/skills/adopting-codebase/resources/context-templates.md`
+
+- **New Helper Scripts**:
+  | Script | Purpose |
+  |--------|---------|
+  | `detect-drift.sh` | Documentation drift detection |
+  | `validate-change-plan.sh` | Change plan validation for safe refactoring |
+
+- **Change Validation Protocol** (`.claude/protocols/change-validation.md`):
+  - Freedom levels: High → Medium → Low → Very Low → Minimal
+  - Pre/post test comparison for safe refactoring
+  - Rollback plans for risky changes
+
 ### Changed
 
 - **Skills declare MCP dependencies**: Each skill's `index.yaml` can specify required MCP servers
 - **CI Workflow**: Updated to validate skills instead of legacy agents directory
 - **Documentation**: Updated PROCESS.md, README.md, and CONTRIBUTING.md for Beads integration
+- **Agent Count**: Increased from 8 to 10 specialized skills
+- **Repository Modes**: `/setup` now detects `greenfield` vs `established` mode
+- **Skills Updated**: `implementing-tasks`, `reviewing-code`, `auditing-security` now support established codebase protocols
 
 ### Removed
 
@@ -62,6 +100,14 @@ This release introduces **Beads Integration** - a git-backed graph memory system
 - Beads database stored in `.beads/beads.jsonl`
 - Git-backed: State persists across sessions via commits
 - JSON output: All `bd` commands support `--json` for programmatic access
+
+### Key Principle (Established Codebases)
+
+```
+CODE is truth → Loa documents CODE → Legacy docs are deprecated
+```
+
+User context provides **hypotheses to verify**—code evidence always wins conflicts. This ensures Loa artifacts reflect actual system behavior, not outdated documentation or incorrect beliefs.
 
 ---
 
