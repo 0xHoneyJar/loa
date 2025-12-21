@@ -5,7 +5,7 @@
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
 
-Agent-driven development framework using 8 specialized AI agents to orchestrate the complete product lifecycle—from requirements through production deployment.
+Agent-driven development framework using 10 specialized AI agents to orchestrate the complete product lifecycle—from requirements through production deployment. Supports both greenfield projects and existing codebase adoption.
 
 ## Quick Start
 
@@ -36,6 +36,12 @@ claude
 | 5.5 | `/audit-sprint sprint-N` | auditing-security | Security approval |
 | 6 | `/deploy-production` | deploying-infrastructure | Infrastructure |
 
+### Established Codebase Adoption
+
+| Command | Purpose |
+|---------|---------|
+| `/adopt` | Migrate existing codebase to Loa docs |
+
 ### Ad-Hoc Commands
 
 | Command | Purpose |
@@ -50,7 +56,7 @@ claude
 
 ## The Agents (The Loa)
 
-Eight specialized agents that ride alongside you:
+Ten specialized agents that ride alongside you:
 
 1. **discovering-requirements** - Senior Product Manager
 2. **designing-architecture** - Software Architect
@@ -60,6 +66,8 @@ Eight specialized agents that ride alongside you:
 6. **deploying-infrastructure** - DevOps Architect
 7. **auditing-security** - Security Auditor
 8. **translating-for-executives** - Developer Relations
+9. **adopting-codebase** - Code Archaeologist (established repos)
+10. **refactoring-legacy** - Safe Refactoring Specialist
 
 Each skill in `.claude/skills/{agent}/` with 3-level architecture:
 - `index.yaml` - Metadata

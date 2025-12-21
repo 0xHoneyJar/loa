@@ -40,7 +40,7 @@ Our development process follows a structured, eight-phase approach:
 7. **Phase 6: Deployment** → Production Infrastructure and Handover
 8. **Post-Deployment: Feedback** → Developer experience survey
 
-Each phase is handled by a specialized agent with deep domain expertise, ensuring thorough discovery, clear documentation, high-quality implementation, rigorous quality control, comprehensive security review, and enterprise-grade production deployment.
+Each phase is handled by one of 10 specialized agents with deep domain expertise, ensuring thorough discovery, clear documentation, high-quality implementation, rigorous quality control, comprehensive security review, and enterprise-grade production deployment. Two additional agents support established codebase adoption.
 
 > **For production deployment**, use the `/deploy-production` command which generates deployment documentation in `loa-grimoire/deployment/`.
 
@@ -153,6 +153,29 @@ Each agent is implemented as a modular **skill** in `.claude/skills/{agent-name}
   - Acknowledge risks, tradeoffs, and limitations honestly
 - **Output**: Executive summaries, stakeholder briefings (1-3 pages tailored by audience)
 - **Usage**: Ad-hoc, invoked to translate technical docs for non-technical audiences
+
+### 9. **adopting-codebase** (Code Archaeologist)
+- **Role**: Code Archaeologist specializing in established codebase migration
+- **Expertise**: Code analysis, documentation extraction, drift detection
+- **Skill**: `.claude/skills/adopting-codebase/`
+- **Responsibilities**:
+  - Extract actual behavior from existing code
+  - Compare code reality against legacy documentation
+  - Generate Loa artifacts grounded in code evidence
+  - Establish Loa as single source of truth
+- **Output**: `loa-grimoire/reality/`, `loa-grimoire/drift-report.md`, code-grounded `prd.md` and `sdd.md`
+- **Usage**: `/adopt` command for established codebase migration
+
+### 10. **refactoring-legacy** (Safe Refactoring Specialist)
+- **Role**: Safe Refactoring Specialist for established codebases
+- **Expertise**: Change validation, rollback planning, test comparison
+- **Skill**: `.claude/skills/refactoring-legacy/`
+- **Responsibilities**:
+  - Plan safe refactoring with freedom levels
+  - Validate changes don't break existing functionality
+  - Generate rollback plans for risky changes
+- **Output**: `loa-grimoire/plans/change-*.json`
+- **Usage**: Post-adoption refactoring in established repositories
 
 ---
 
@@ -840,6 +863,56 @@ After security audit, if changes required:
 
 ---
 
+### Established Codebase: Adoption (`/adopt`)
+
+**Agent**: `adopting-codebase`
+
+**Goal**: Migrate an existing codebase to Loa-maintained documentation
+
+**When to Use**:
+- Adopting an established codebase into Loa's documentation system
+- Repository mode must be `established` (set during `/setup`)
+
+**Process** (7 phases):
+0. **Context Ingestion** - Ingest user-provided context from `loa-grimoire/context/`
+1. **Code Reality Extraction** - Extract actual behavior from code
+2. **Legacy Doc Inventory** - Catalog existing documentation
+3. **Drift Analysis** - Three-way comparison (code vs docs vs context)
+4. **Loa Artifact Generation** - Create `prd.md`, `sdd.md` grounded in code evidence
+5. **Legacy Deprecation** - Add deprecation notices to old docs
+6. **Maintenance Handoff** - Set up drift monitoring
+
+**User Context** (optional but recommended):
+Place context files in `loa-grimoire/context/` before running `/adopt`:
+- `architecture*.md` - System design beliefs
+- `stakeholder*.md` - Business priorities
+- `tribal*.md` - Undocumented knowledge
+- `roadmap*.md` - Planned features/deprecations
+- `constraints*.md` - Technical/business constraints
+- `glossary*.md` - Domain terminology
+
+See `.claude/skills/adopting-codebase/resources/context-templates.md` for templates.
+
+**Key Principle**: `CODE is truth → Loa documents CODE → Legacy docs are deprecated`
+
+Context provides HYPOTHESES to verify against code. Code evidence always wins conflicts.
+
+**Command**:
+```bash
+/adopt
+```
+
+**Outputs**:
+- `loa-grimoire/reality/` - Code reality extraction
+- `loa-grimoire/legacy/` - Legacy doc inventory
+- `loa-grimoire/drift-report.md` - Drift analysis
+- `loa-grimoire/prd.md` - Product Requirements (code-grounded)
+- `loa-grimoire/sdd.md` - System Design (code-grounded)
+
+**Full Documentation**: `.claude/skills/adopting-codebase/SKILL.md`
+
+---
+
 ### Ad-Hoc: Security Audit (`/audit`)
 
 **Agent**: `auditing-security`
@@ -941,6 +1014,7 @@ command_type: "wizard"  # or "survey", "git"
 | `/feedback` | Submit developer experience feedback | survey | Linear issue in "Loa Feedback" | THJ only |
 | `/update` | Pull framework updates from upstream | git | Merged updates | All users |
 | `/contribute` | Create OSS contribution PR | git | GitHub PR | All users |
+| `/adopt` | Migrate established codebase to Loa | `adopting-codebase` | `loa-grimoire/reality/`, `drift-report.md` | All users |
 | `/audit` | Security audit (ad-hoc) | `auditing-security` | `SECURITY-AUDIT-REPORT.md` | All users |
 | `/audit-deployment` | Deployment infrastructure audit (ad-hoc) | `auditing-security` | `loa-grimoire/a2a/deployment-feedback.md` | All users |
 | `/translate @doc for [audience]` | Executive translation (ad-hoc) | `translating-for-executives` | Executive summaries | All users |

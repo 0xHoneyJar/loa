@@ -102,14 +102,20 @@ For adopting existing codebases - see `.claude/protocols/change-validation.md`:
 - **Drift detection**: `.claude/scripts/detect-drift.sh` monitors code/doc alignment
 
 **Adoption workflow** (`/adopt`):
+0. Context Ingestion → `loa-grimoire/context/` (user-provided hypotheses)
 1. Code Reality Extraction → `loa-grimoire/reality/`
 2. Legacy Doc Inventory → `loa-grimoire/legacy/`
-3. Drift Analysis → `loa-grimoire/drift-report.md`
+3. Drift Analysis → `loa-grimoire/drift-report.md` (three-way: code vs docs vs context)
 4. Loa Artifact Generation → `prd.md`, `sdd.md` (code-grounded)
 5. Legacy Deprecation → Notices in old docs
 6. Maintenance Handoff → Drift monitoring setup
 
+**User context** (`loa-grimoire/context/`): Optional pre-adoption context files guide analysis:
+- `architecture*.md`, `stakeholder*.md`, `tribal*.md`, `roadmap*.md`, `constraints*.md`, `glossary*.md`
+- Templates: `.claude/skills/adopting-codebase/resources/context-templates.md`
+
 **Key principle**: `CODE is truth → Loa documents CODE → Legacy docs are deprecated`
+Context provides HYPOTHESES to verify—code evidence always wins conflicts.
 
 ### Beads Integration
 
