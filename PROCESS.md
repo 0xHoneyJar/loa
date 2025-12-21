@@ -4,6 +4,14 @@ This document outlines the comprehensive agent-driven development workflow. Our 
 
 > **Note**: This is a base framework repository that THJ uses for development of our products. If you are not a part of THJ, when using as a template for a new project, uncomment the generated artifacts section in `.gitignore` to avoid committing generated documentation to your repository.
 
+## Protocol References
+
+Detailed specifications are maintained in separate protocol files:
+
+- **Git Safety**: `.claude/protocols/git-safety.md` - Template detection, warning flow, remediation
+- **Analytics**: `.claude/protocols/analytics.md` - THJ-only usage tracking, schema, helper functions
+- **Feedback Loops**: `.claude/protocols/feedback-loops.md` - A2A communication, approval markers
+
 ## Table of Contents
 
 - [Overview](#overview)
@@ -146,6 +154,8 @@ Each agent is implemented as a modular **skill** in `.claude/skills/{agent-name}
 ## Workflow
 
 ### Phase 0: Setup (`/setup`)
+
+<!-- CANONICAL_LOCATION: protocols/analytics.md -->
 
 **Goal**: Configure Loa for first-time use with user-appropriate experience
 
@@ -485,6 +495,8 @@ Streamlined experience without analytics:
 
 ### Phase 5.5: Sprint Security Audit (`/audit-sprint`)
 
+<!-- CANONICAL_LOCATION: protocols/feedback-loops.md -->
+
 **Agent**: `paranoid-auditor`
 
 **Goal**: Perform security review of sprint implementation after senior tech lead approval
@@ -739,6 +751,8 @@ After security audit, if changes required:
 
 ### Maintenance: Framework Updates (`/update`)
 
+<!-- CANONICAL_LOCATION: protocols/git-safety.md -->
+
 **Goal**: Pull latest Loa framework updates from upstream
 
 **When to Use**:
@@ -941,6 +955,8 @@ command_type: "wizard"  # or "survey", "git"
 
 ## Agent-to-Agent Communication
 
+<!-- CANONICAL_LOCATION: protocols/feedback-loops.md -->
+
 The framework uses three feedback loops for quality assurance:
 
 ### 1. Implementation Feedback Loop (Phases 4-5)
@@ -1096,6 +1112,23 @@ The engineer reads this file with HIGHEST PRIORITY on the next `/implement {spri
 
 - **[README.md](README.md)** - Quick start guide
 - **[CLAUDE.md](CLAUDE.md)** - Guidance for Claude Code instances
+
+### Protocol Files
+
+Detailed specifications for complex behaviors:
+
+- `.claude/protocols/git-safety.md` - Template detection, warning flow, remediation steps
+- `.claude/protocols/analytics.md` - THJ-only usage tracking, schema definitions
+- `.claude/protocols/feedback-loops.md` - A2A communication, approval markers, flow diagrams
+
+### Helper Scripts
+
+Bash utilities for deterministic operations:
+
+- `.claude/scripts/analytics.sh` - Analytics helper functions
+- `.claude/scripts/git-safety.sh` - Template detection functions
+- `.claude/scripts/context-check.sh` - Context size assessment for parallel execution
+- `.claude/scripts/preflight.sh` - Pre-flight validation functions
 
 ---
 
