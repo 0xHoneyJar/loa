@@ -29,26 +29,34 @@ jobs:
           done
           echo "All JSON files are valid"
 
-      - name: Check agent definitions exist
+      - name: Check skill definitions exist
         run: |
-          echo "Checking required agent definitions..."
-          AGENTS=(
-            ".claude/agents/discovering-requirements.md"
-            ".claude/agents/designing-architecture.md"
-            ".claude/agents/planning-sprints.md"
-            ".claude/agents/implementing-tasks.md"
-            ".claude/agents/reviewing-code.md"
-            ".claude/agents/deploying-infrastructure.md"
-            ".claude/agents/auditing-security.md"
-            ".claude/agents/translating-for-executives.md"
+          echo "Checking required skill definitions..."
+          SKILLS=(
+            ".claude/skills/discovering-requirements"
+            ".claude/skills/designing-architecture"
+            ".claude/skills/planning-sprints"
+            ".claude/skills/implementing-tasks"
+            ".claude/skills/reviewing-code"
+            ".claude/skills/deploying-infrastructure"
+            ".claude/skills/auditing-security"
+            ".claude/skills/translating-for-executives"
           )
-          for agent in "${AGENTS[@]}"; do
-            if [ ! -f "$agent" ]; then
-              echo "Missing required agent: $agent"
+          for skill in "${SKILLS[@]}"; do
+            if [ ! -d "$skill" ]; then
+              echo "Missing required skill directory: $skill"
+              exit 1
+            fi
+            if [ ! -f "$skill/index.yaml" ]; then
+              echo "Missing index.yaml in: $skill"
+              exit 1
+            fi
+            if [ ! -f "$skill/SKILL.md" ]; then
+              echo "Missing SKILL.md in: $skill"
               exit 1
             fi
           done
-          echo "All required agents present"
+          echo "All required skills present with 3-level architecture"
 
       - name: Check command definitions exist
         run: |
