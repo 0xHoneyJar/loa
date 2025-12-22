@@ -22,6 +22,9 @@ out/
 # IDE and Editor
 .vscode/
 .idea/
+
+# Claude Code config (local workspace settings, prompts, scratchpad)
+.claude/config/
 *.swp
 *.swo
 *~
