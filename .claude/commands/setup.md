@@ -1,416 +1,148 @@
 ---
-description: Launch the Loa setup wizard for onboarding, MCP configuration, and project initialization
+name: "setup"
+version: "1.1.0"
+description: |
+  First-time Loa setup wizard for onboarding and project initialization.
+  Detects user type, configures MCP integrations, initializes analytics.
+
+command_type: "wizard"
+
+arguments: []
+
+pre_flight:
+  - check: "file_not_exists"
+    path: ".loa-setup-complete"
+    error: "Setup already completed. Run /config to modify MCP settings."
+
+integrations_source: ".claude/mcp-registry.yaml"
+
+outputs:
+  - path: ".loa-setup-complete"
+    type: "file"
+    description: "Setup marker with user type and configuration"
+  - path: "loa-grimoire/analytics/usage.json"
+    type: "file"
+    description: "Analytics file (THJ users only)"
+
+mode:
+  default: "foreground"
+  allow_background: false
 ---
 
-# Loa Setup Wizard
+# Setup
 
-Welcome to **Loa** - an agent-driven development framework that guides you from requirements through production deployment using specialized AI agents.
+## Purpose
 
----
+First-time setup wizard that initializes Loa for a new project. Determines user type (THJ vs OSS), configures MCP integrations, and initializes analytics tracking.
 
-## Phase 0: User Type Detection
+## Invocation
 
-Before we begin, I need to determine which setup pathway to use.
+```
+/setup
+```
 
-**Use the `AskUserQuestion` tool** to ask:
+## Workflow
 
-**Question**: "Are you a THJ team member?"
+### Phase 0: User Type Detection
 
-**Options**:
-- **Yes** - "I'm a THJ team member"
-- **No** - "I'm using Loa as an open-source tool"
+Ask the user to identify their pathway:
+- **THJ Developer**: Full analytics, MCP configuration, `/feedback` and `/config` access
+- **OSS User**: Streamlined setup, no analytics, documentation pointers
 
-Based on the response:
-- If **Yes (THJ)**: Proceed to **Phase 0.5: Template Detection**, then **Phase 1A: THJ Developer Setup**
-- If **No (OSS)**: Proceed to **Phase 0.5: Template Detection**, then **Phase 1B: OSS User Setup**
+### Phase 0.5: Template Detection
 
----
+Detect if this repository is a fork/template of Loa:
 
-## Phase 0.5: Template Detection
+1. Check origin remote URL for known templates
+2. Check upstream/loa remote for template references
+3. Query GitHub API for fork relationship (if `gh` CLI available)
 
-This phase detects whether the current repository is a fork or template of the Loa framework. This enables git safety features that prevent accidental pushes to upstream.
+Store detection result for Git Safety features.
 
-### Step 1: Run Detection Layers
+### Phase 1A: THJ Developer Setup
 
-Execute the following detection layers in order. Stop at the first positive detection:
+1. Display welcome message with command overview
+2. Show analytics notice (cannot be disabled)
+3. Initialize `loa-grimoire/analytics/usage.json`
+4. Offer MCP integration selection (multiSelect)
+5. Provide setup instructions for selected MCPs
+6. Create `.loa-setup-complete` marker
 
-**Layer 1: Check origin remote URL**
+### Phase 1B: OSS User Setup
+
+1. Display welcome message with documentation pointers
+2. Create `.loa-setup-complete` marker (no analytics)
+3. Point to GitHub issues for support
+
+## Arguments
+
+| Argument | Description | Required |
+|----------|-------------|----------|
+| None | | |
+
+## Outputs
+
+| Path | Description |
+|------|-------------|
+| `.loa-setup-complete` | Marker file with user type and config |
+| `loa-grimoire/analytics/usage.json` | Usage metrics (THJ only) |
+| `loa-grimoire/analytics/summary.md` | Human-readable summary (THJ only) |
+
+## User Type Differences
+
+| Feature | THJ Developer | OSS User |
+|---------|---------------|----------|
+| Analytics | Full tracking | None |
+| `/feedback` | Available | Unavailable |
+| `/config` | Available | Unavailable |
+| MCP Setup | Guided wizard | Manual |
+
+## MCP Integrations
+
+Available servers are defined in `.claude/mcp-registry.yaml`.
+
+Use helper scripts to query the registry:
 ```bash
-# Check if origin points to a known template repository
-git remote get-url origin 2>/dev/null
+.claude/scripts/mcp-registry.sh list      # List all servers
+.claude/scripts/mcp-registry.sh groups    # List server groups
+.claude/scripts/mcp-registry.sh info <server>  # Get setup instructions
 ```
 
-Check if the URL contains any of these known template repositories:
-- `github.com/0xHoneyJar/loa`
-- `github.com/thj-dev/loa`
+### Server Groups (THJ developers)
 
-**Layer 2: Check for upstream/loa remote**
-```bash
-# Check if an 'upstream' or 'loa' remote exists pointing to template
-git remote get-url upstream 2>/dev/null
-git remote get-url loa 2>/dev/null
-```
+| Group | Description | Servers |
+|-------|-------------|---------|
+| essential | Recommended for all | linear, github |
+| deployment | Production workflows | github, vercel |
+| crypto | Blockchain projects | web3-stats, github |
+| communication | Team communication | discord |
+| productivity | Document tools | gdrive |
 
-Check if either remote URL contains a known template repository.
-
-**Layer 3: GitHub API fork check (if gh CLI available)**
-```bash
-# Query GitHub API for fork relationship
-gh repo view --json parent --jq '.parent.nameWithOwner' 2>/dev/null
-```
-
-If this returns `0xHoneyJar/loa` or another known template, it's a fork.
-
-### Step 2: Store Detection Result
-
-Store the template detection result for use in the marker file (created in Phase 1A/1B Step 7/Step 2):
-
-```
-template_source:
-  detected: {true/false}
-  repo: "{detected_template_repo or null}"
-  detection_method: "{origin_url|upstream_remote|loa_remote|github_api|none}"
-  detected_at: "{ISO_timestamp}"
-```
-
-### Step 3: Display Template Notice (if detected)
-
-If a template source was detected, display this notice:
-
-```
-## Template Repository Detected
-
-This repository appears to be a fork/template of: {detected_repo}
-Detection method: {detection_method}
-
-### Git Safety Features Enabled
-
-Loa will warn you before any push or PR operation targeting the upstream
-template repository. This prevents accidentally leaking your project code.
-
-### Your Options
-
-- **Building your own project?**
-  Ensure your `origin` remote points to YOUR repository, not the template.
-  Check with: `git remote -v`
-
-- **Contributing to Loa?**
-  Use the `/contribute` command for a guided contribution flow with
-  proper OSS standards (DCO sign-off, secrets scanning, etc.).
-
-See CONTRIBUTING.md for more details on git remote configuration.
-```
-
-### Step 4: Continue to User-Specific Setup
-
-Proceed to Phase 1A (THJ) or Phase 1B (OSS) based on the user type detected in Phase 0.
-
----
-
-## Phase 1A: THJ Developer Setup
-
-### Step 1: Welcome & Documentation
-
-Display this welcome message:
-
-```
-Welcome, THJ Developer!
-
-Loa will guide you through the complete product development lifecycle using specialized AI agents:
-
-1. /plan-and-analyze - Define requirements with the PRD architect
-2. /architect - Design system architecture
-3. /sprint-plan - Break down work into sprints
-4. /implement - Execute sprint tasks
-5. /review-sprint - Code review and approval
-6. /audit-sprint - Security audit
-7. /deploy-production - Production deployment
-
-For detailed workflow documentation, see: PROCESS.md
-```
-
-### Step 2: Analytics Notice
-
-Display this notice (analytics cannot be disabled for THJ developers):
-
-```
-## Analytics Notice
-
-Loa collects usage analytics to improve the framework:
-- Session timing and phase completion
-- Sprint metrics and feedback iterations
-- Environment info (OS, shell, versions)
-
-**Privacy**: Analytics are stored locally in `loa-grimoire/analytics/`.
-Data is only shared if you choose to run `/feedback` after deployment.
-
-Analytics tracking is enabled for THJ team members.
-```
-
-### Step 3: Initialize Analytics
-
-Create the `loa-grimoire/analytics/` directory if it doesn't exist.
-
-Run these commands to gather project information:
-
-```bash
-# Get project name from git remote
-git remote get-url origin 2>/dev/null | sed 's/.*\///' | sed 's/\.git$//' || basename "$(pwd)"
-
-# Get developer info
-git config user.name
-git config user.email
-
-# Get environment info
-uname -s  # OS
-uname -r  # OS version
-echo $SHELL  # Shell
-uname -m  # Architecture
-```
-
-Create `loa-grimoire/analytics/usage.json` with:
+## Marker File Format
 
 ```json
 {
-  "schema_version": "1.0.0",
-  "framework_version": "0.3.0",
-  "project_name": "{extracted_project_name}",
-  "developer": {
-    "git_user_name": "{git_user_name}",
-    "git_user_email": "{git_user_email}"
-  },
-  "environment": {
-    "os": "{uname_s}",
-    "os_version": "{uname_r}",
-    "shell": "{shell}",
-    "architecture": "{uname_m}"
-  },
-  "setup": {
-    "completed_at": "{ISO_timestamp}",
-    "mcp_servers_configured": []
-  },
-  "phases": {
-    "prd": {"started_at": null, "completed_at": null, "questions_asked": 0, "revisions": 0},
-    "sdd": {"started_at": null, "completed_at": null, "questions_asked": 0, "revisions": 0},
-    "sprint_planning": {"started_at": null, "completed_at": null, "total_sprints": 0, "total_tasks": 0}
-  },
-  "sprints": [],
-  "reviews": [],
-  "audits": [],
-  "deployments": [],
-  "totals": {
-    "commands_executed": 1,
-    "phases_completed": 0,
-    "sprints_completed": 0,
-    "reviews_completed": 0,
-    "audits_completed": 0,
-    "feedback_submitted": false
-  },
-  "feedback_submissions": [],
-  "setup_failures": []
-}
-```
-
-Generate `loa-grimoire/analytics/summary.md` with the initialized data in human-readable format.
-
-### Step 4: MCP Integration Selection
-
-**Use the `AskUserQuestion` tool** with multiSelect enabled to ask:
-
-**Question**: "Which MCP integrations would you like to configure?"
-
-**Options** (multiSelect: true):
-- **Linear** - "Issue tracking for developer feedback"
-- **GitHub** - "Repository operations, PRs, issues"
-- **Vercel** - "Deployment and hosting"
-- **Discord** - "Community/team communication"
-- **web3-stats** - "Blockchain data (Dune API, Blockscout)"
-- **All** - "Configure all integrations"
-- **Skip** - "Skip for now (configure later with /config)"
-
-If user selects "All", treat it as selecting all 5 MCPs.
-If user selects "Skip", proceed to Step 6 with empty MCP list.
-
-### Step 5: MCP Configuration
-
-For each selected MCP, provide guided setup:
-
-**GitHub MCP**:
-```
-GitHub MCP Setup:
-1. Create a Personal Access Token at https://github.com/settings/tokens
-2. Token scopes needed: repo, read:org, read:user
-3. Add "github" to enabledMcpjsonServers in .claude/settings.local.json
-4. Restart Claude Code to apply changes
-```
-
-**Linear MCP**:
-```
-Linear MCP Setup:
-1. Get your API key from Linear: Settings > API > Personal API keys
-2. Add "linear" to enabledMcpjsonServers in .claude/settings.local.json
-3. Restart Claude Code to apply changes
-```
-
-**Vercel MCP**:
-```
-Vercel MCP Setup:
-1. Connect via Vercel OAuth at https://vercel.com/integrations
-2. Add "vercel" to enabledMcpjsonServers in .claude/settings.local.json
-3. Restart Claude Code to apply changes
-```
-
-**Discord MCP**:
-```
-Discord MCP Setup:
-1. Create a Discord bot at https://discord.com/developers/applications
-2. Get the bot token from Bot > Token
-3. Add "discord" to enabledMcpjsonServers in .claude/settings.local.json
-4. Restart Claude Code to apply changes
-```
-
-**web3-stats MCP**:
-```
-web3-stats MCP Setup:
-1. Get a Dune API key at https://dune.com/settings/api
-2. Add "web3-stats" to enabledMcpjsonServers in .claude/settings.local.json
-3. Restart Claude Code to apply changes
-```
-
-Track which MCPs were configured.
-
-### Step 6: Update Analytics with MCP Info
-
-Update `loa-grimoire/analytics/usage.json` to include the configured MCPs in `setup.mcp_servers_configured`.
-
-### Step 7: Create Marker File
-
-Create `.loa-setup-complete` in the project root with:
-
-```json
-{
-  "completed_at": "{ISO_timestamp}",
-  "framework_version": "0.3.0",
-  "user_type": "thj",
-  "mcp_servers": ["{list_of_configured_mcps}"],
-  "git_user": "{git_user_email}",
+  "completed_at": "ISO-8601 timestamp",
+  "framework_version": "0.4.0",
+  "user_type": "thj|oss",
+  "mcp_servers": ["list", "of", "configured"],
+  "git_user": "developer@example.com",
   "template_source": {
-    "detected": "{true/false from Phase 0.5}",
-    "repo": "{detected_repo or null}",
-    "detection_method": "{detection_method or none}",
-    "detected_at": "{ISO_timestamp}"
+    "detected": true,
+    "repo": "0xHoneyJar/loa",
+    "detection_method": "origin_url",
+    "detected_at": "ISO-8601 timestamp"
   }
 }
 ```
 
-### Step 8: Completion Summary (THJ)
+## Error Handling
 
-Display:
+| Error | Cause | Resolution |
+|-------|-------|------------|
+| "Setup already completed" | `.loa-setup-complete` exists | Run `/config` to modify MCP settings |
+| "Cannot determine user type" | User didn't respond | Re-run `/setup` and select an option |
 
-```
-## Setup Complete!
+## Next Step
 
-### User Type
-THJ Developer (analytics enabled)
-
-### MCP Servers Configured
-{list configured MCPs or "None - run /config to add later"}
-
-### Project Initialization
-- **Project Name**: {project_name}
-- **Analytics**: Initialized at loa-grimoire/analytics/
-
-### Next Steps
-
-1. Run `/plan-and-analyze` to create your Product Requirements Document
-2. Follow the Loa workflow: `/architect` > `/sprint-plan` > `/implement`
-3. Need to add MCP integrations later? Run `/config`
-4. After deployment, run `/feedback` to share your experience
-
-**Tip**: Check `loa-grimoire/analytics/summary.md` for your usage statistics at any time.
-```
-
-**Proceed to END** - Setup complete.
-
----
-
-## Phase 1B: OSS User Setup
-
-### Step 1: Welcome & Documentation
-
-Display this welcome message:
-
-```
-Welcome to Loa!
-
-Loa is an agent-driven development framework that guides you through the complete
-product development lifecycle using specialized AI agents:
-
-1. /plan-and-analyze - Define requirements with the PRD architect
-2. /architect - Design system architecture
-3. /sprint-plan - Break down work into sprints
-4. /implement - Execute sprint tasks
-5. /review-sprint - Code review and approval
-6. /audit-sprint - Security audit
-7. /deploy-production - Production deployment
-
-For detailed workflow documentation, see: PROCESS.md
-```
-
-### Step 2: Create Marker File (OSS)
-
-**Do NOT initialize analytics** - skip the `loa-grimoire/analytics/` directory entirely.
-
-Run these commands to get basic project info:
-
-```bash
-# Get developer email for marker file
-git config user.email
-```
-
-Create `.loa-setup-complete` in the project root with:
-
-```json
-{
-  "completed_at": "{ISO_timestamp}",
-  "framework_version": "0.3.0",
-  "user_type": "oss",
-  "mcp_servers": [],
-  "git_user": "{git_user_email}",
-  "template_source": {
-    "detected": "{true/false from Phase 0.5}",
-    "repo": "{detected_repo or null}",
-    "detection_method": "{detection_method or none}",
-    "detected_at": "{ISO_timestamp}"
-  }
-}
-```
-
-### Step 3: Completion Summary (OSS)
-
-Display:
-
-```
-## Setup Complete!
-
-### User Type
-Open Source User
-
-### Next Steps
-
-1. Run `/plan-and-analyze` to create your Product Requirements Document
-2. Follow the Loa workflow: `/architect` > `/sprint-plan` > `/implement`
-3. Review PROCESS.md for detailed workflow documentation
-
-**Note**: MCP integrations and analytics are not enabled for open-source users.
-For issues or feature requests, please open a GitHub issue at:
-https://github.com/0xHoneyJar/loa/issues
-```
-
-**Proceed to END** - Setup complete.
-
----
-
-## END
-
-Setup is complete. The user can now proceed with `/plan-and-analyze` to begin their project.
+After setup: `/plan-and-analyze` to create Product Requirements Document

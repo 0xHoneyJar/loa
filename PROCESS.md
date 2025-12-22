@@ -4,6 +4,14 @@ This document outlines the comprehensive agent-driven development workflow. Our 
 
 > **Note**: This is a base framework repository that THJ uses for development of our products. If you are not a part of THJ, when using as a template for a new project, uncomment the generated artifacts section in `.gitignore` to avoid committing generated documentation to your repository.
 
+## Protocol References
+
+Detailed specifications are maintained in separate protocol files:
+
+- **Git Safety**: `.claude/protocols/git-safety.md` - Template detection, warning flow, remediation
+- **Analytics**: `.claude/protocols/analytics.md` - THJ-only usage tracking, schema, helper functions
+- **Feedback Loops**: `.claude/protocols/feedback-loops.md` - A2A communication, approval markers
+
 ## Table of Contents
 
 - [Overview](#overview)
@@ -38,18 +46,25 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 
 ## Agents
 
-### 1. **prd-architect** (Product Manager)
+Each agent is implemented as a modular **skill** in `.claude/skills/{agent-name}/` using a 3-level architecture:
+- **Level 1** (`index.yaml`): Lightweight metadata, triggers, dependencies (~100 tokens)
+- **Level 2** (`SKILL.md`): KERNEL framework instructions, workflows (~2000 tokens)
+- **Level 3** (`resources/`): External references, templates, checklists, scripts
+
+### 1. **discovering-requirements** (Product Manager)
 - **Role**: Senior Product Manager with 15 years of experience
 - **Expertise**: Requirements gathering, product strategy, user research
+- **Skill**: `.claude/skills/discovering-requirements/`
 - **Responsibilities**:
   - Guide structured discovery across 7 phases
   - Extract complete, unambiguous requirements
   - Create comprehensive Product Requirements Documents
 - **Output**: `loa-grimoire/prd.md`
 
-### 2. **architecture-designer** (Software Architect)
+### 2. **designing-architecture** (Software Architect)
 - **Role**: Senior Software Architect with deep technical expertise
 - **Expertise**: System design, technology selection, scalability, security
+- **Skill**: `.claude/skills/designing-architecture/`
 - **Responsibilities**:
   - Review PRD and design system architecture
   - Define component structure and technical stack
@@ -57,9 +72,10 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
   - Make informed architectural decisions
 - **Output**: `loa-grimoire/sdd.md`
 
-### 3. **sprint-planner** (Technical Product Manager)
+### 3. **planning-sprints** (Technical Product Manager)
 - **Role**: Technical PM with engineering and product expertise
 - **Expertise**: Sprint planning, task breakdown, team coordination
+- **Skill**: `.claude/skills/planning-sprints/`
 - **Responsibilities**:
   - Review PRD and SDD for comprehensive context
   - Break down work into actionable sprint tasks
@@ -67,9 +83,10 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
   - Sequence tasks based on dependencies
 - **Output**: `loa-grimoire/sprint.md`
 
-### 4. **sprint-task-implementer** (Senior Engineer)
+### 4. **implementing-tasks** (Senior Engineer)
 - **Role**: Elite Software Engineer with 15 years of experience
 - **Expertise**: Production-grade code, testing, documentation
+- **Skill**: `.claude/skills/implementing-tasks/`
 - **Responsibilities**:
   - Implement sprint tasks with tests and documentation
   - Address feedback from senior technical lead
@@ -77,9 +94,10 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
   - Generate detailed implementation reports
 - **Output**: Production code + `loa-grimoire/a2a/reviewer.md`
 
-### 5. **senior-tech-lead-reviewer** (Senior Technical Lead)
+### 5. **reviewing-code** (Senior Technical Lead)
 - **Role**: Senior Technical Lead with 15+ years of experience
 - **Expertise**: Code review, quality assurance, security auditing, technical leadership
+- **Skill**: `.claude/skills/reviewing-code/`
 - **Responsibilities**:
   - Review sprint implementation for completeness and quality
   - Validate all acceptance criteria are met
@@ -89,9 +107,10 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
   - Update sprint progress and approve completed sprints
 - **Output**: `loa-grimoire/a2a/engineer-feedback.md`, updated `loa-grimoire/sprint.md`
 
-### 6. **devops-crypto-architect** (DevOps Architect)
+### 6. **deploying-infrastructure** (DevOps Architect)
 - **Role**: Battle-tested DevOps Architect with 15 years of crypto/blockchain infrastructure experience
 - **Expertise**: Infrastructure as code, CI/CD, security, monitoring, blockchain operations
+- **Skill**: `.claude/skills/deploying-infrastructure/`
 - **Responsibilities**:
   - Design production infrastructure (cloud, Kubernetes, blockchain nodes)
   - Implement infrastructure as code
@@ -101,9 +120,10 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
   - Generate handover documentation and runbooks
 - **Output**: `loa-grimoire/deployment/` with infrastructure code and operational docs
 
-### 7. **paranoid-auditor** (Security Auditor)
+### 7. **auditing-security** (Security Auditor)
 - **Role**: Paranoid Cypherpunk Security Auditor with 30+ years of experience
 - **Expertise**: OWASP Top 10, cryptographic implementation, secrets management, penetration testing
+- **Skill**: `.claude/skills/auditing-security/`
 - **Responsibilities**:
   - Perform comprehensive security and quality audits (codebase or sprint-level)
   - Identify vulnerabilities across OWASP Top 10 categories
@@ -117,9 +137,10 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
   - Sprint audit: After `/review-sprint` approval (Phase 5.5)
   - Codebase audit: Ad-hoc, before production, after major changes, or periodically
 
-### 8. **devrel-translator** (Developer Relations Professional)
+### 8. **translating-for-executives** (Developer Relations Professional)
 - **Role**: Elite Developer Relations Professional with 15 years of experience
 - **Expertise**: Technical communication, executive summaries, stakeholder management
+- **Skill**: `.claude/skills/translating-for-executives/`
 - **Responsibilities**:
   - Translate complex technical documentation into clear narratives for executives
   - Create audience-specific summaries (executives, board, investors, marketing)
@@ -133,6 +154,8 @@ Each phase is handled by a specialized agent with deep domain expertise, ensurin
 ## Workflow
 
 ### Phase 0: Setup (`/setup`)
+
+<!-- CANONICAL_LOCATION: protocols/analytics.md -->
 
 **Goal**: Configure Loa for first-time use with user-appropriate experience
 
@@ -230,12 +253,16 @@ Streamlined experience without analytics:
 
 ### Phase 1: Planning (`/plan-and-analyze`)
 
-**Agent**: `prd-architect`
+**Agent**: `discovering-requirements`
 
 **Goal**: Define goals, requirements, scope, and create PRD
 
+**Context-First Discovery**: If `loa-grimoire/context/` contains documentation, the agent reads it first, presents understanding with citations, and only asks questions about gaps. More context = fewer questions.
+
 **Process**:
-1. Agent asks targeted questions across 7 discovery phases:
+1. Agent scans `loa-grimoire/context/` for existing documentation
+2. Synthesizes found content and presents understanding with citations
+3. Conducts targeted interviews for gaps across 7 phases:
    - Problem & Vision
    - Goals & Success Metrics
    - User & Stakeholder Context
@@ -243,10 +270,9 @@ Streamlined experience without analytics:
    - Technical & Non-Functional Requirements
    - Scope & Prioritization
    - Risks & Dependencies
-2. Agent asks 2-3 questions at a time (never overwhelming)
-3. Agent probes for specifics and challenges assumptions
-4. Only generates PRD when all questions are answered
-5. Saves comprehensive PRD to `loa-grimoire/prd.md`
+4. Agent asks 2-3 questions at a time (never overwhelming)
+5. Only generates PRD when all phases have sufficient coverage
+6. Saves PRD with source tracing to `loa-grimoire/prd.md`
 
 **Command**:
 ```bash
@@ -259,7 +285,7 @@ Streamlined experience without analytics:
 
 ### Phase 2: Architecture (`/architect`)
 
-**Agent**: `architecture-designer`
+**Agent**: `designing-architecture`
 
 **Goal**: Design system architecture and create SDD
 
@@ -301,7 +327,7 @@ Streamlined experience without analytics:
 
 ### Phase 3: Sprint Planning (`/sprint-plan`)
 
-**Agent**: `sprint-planner`
+**Agent**: `planning-sprints`
 
 **Goal**: Break down work into actionable sprint tasks
 
@@ -342,7 +368,7 @@ Streamlined experience without analytics:
 
 ### Phase 4: Implementation (`/implement {sprint}`)
 
-**Agent**: `sprint-task-implementer`
+**Agent**: `implementing-tasks`
 
 **Goal**: Implement sprint tasks with feedback-driven iteration
 
@@ -391,7 +417,7 @@ Streamlined experience without analytics:
 
 ### Phase 5: Review (`/review-sprint`)
 
-**Agent**: `senior-tech-lead-reviewer`
+**Agent**: `reviewing-code`
 
 **Goal**: Validate sprint completeness, code quality, and approve or request changes
 
@@ -472,7 +498,9 @@ Streamlined experience without analytics:
 
 ### Phase 5.5: Sprint Security Audit (`/audit-sprint`)
 
-**Agent**: `paranoid-auditor`
+<!-- CANONICAL_LOCATION: protocols/feedback-loops.md -->
+
+**Agent**: `auditing-security`
 
 **Goal**: Perform security review of sprint implementation after senior tech lead approval
 
@@ -595,7 +623,7 @@ After security audit, if changes required:
 
 ### Phase 6: Deployment (`/deploy-production`)
 
-**Agent**: `devops-crypto-architect`
+**Agent**: `deploying-infrastructure`
 
 **Goal**: Deploy application to production with enterprise-grade infrastructure
 
@@ -726,6 +754,8 @@ After security audit, if changes required:
 
 ### Maintenance: Framework Updates (`/update`)
 
+<!-- CANONICAL_LOCATION: protocols/git-safety.md -->
+
 **Goal**: Pull latest Loa framework updates from upstream
 
 **When to Use**:
@@ -772,7 +802,7 @@ After security audit, if changes required:
 **Merge Strategy**:
 | File Location | Behavior |
 |---------------|----------|
-| `.claude/agents/` | Updated to latest Loa versions |
+| `.claude/skills/` | Updated to latest Loa versions |
 | `.claude/commands/` | Updated to latest Loa versions |
 | `app/` | Preserved (your code) |
 | `loa-grimoire/prd.md` | Preserved (your docs) |
@@ -782,7 +812,7 @@ After security audit, if changes required:
 
 ### Ad-Hoc: Security Audit (`/audit`)
 
-**Agent**: `paranoid-auditor`
+**Agent**: `auditing-security`
 
 **Goal**: Perform comprehensive security and quality audit of the codebase
 
@@ -819,7 +849,7 @@ After security audit, if changes required:
 
 ### Ad-Hoc: Executive Translation (`/translate @document.md for [audience]`)
 
-**Agent**: `devrel-translator`
+**Agent**: `translating-for-executives`
 
 **Goal**: Translate complex technical documentation into stakeholder-appropriate communications
 
@@ -842,22 +872,48 @@ After security audit, if changes required:
 
 ## Custom Commands
 
-| Command | Purpose | Agent | Output | Availability |
-|---------|---------|-------|--------|--------------|
-| `/setup` | First-time configuration | - | `.loa-setup-complete`, analytics | All users |
-| `/config` | Reconfigure MCP servers | - | Updated `.loa-setup-complete` | THJ only |
-| `/plan-and-analyze` | Define requirements and create PRD | `prd-architect` | `loa-grimoire/prd.md` | All users |
-| `/architect` | Design system architecture | `architecture-designer` | `loa-grimoire/sdd.md` | All users |
-| `/sprint-plan` | Plan implementation sprints | `sprint-planner` | `loa-grimoire/sprint.md` | All users |
-| `/implement {sprint}` | Implement sprint tasks | `sprint-task-implementer` | Code + `loa-grimoire/a2a/reviewer.md` | All users |
-| `/review-sprint` | Review and approve/reject implementation | `senior-tech-lead-reviewer` | `loa-grimoire/a2a/engineer-feedback.md` | All users |
-| `/audit-sprint` | Security audit of sprint implementation | `paranoid-auditor` | `loa-grimoire/a2a/auditor-sprint-feedback.md` | All users |
-| `/deploy-production` | Deploy to production | `devops-crypto-architect` | `loa-grimoire/deployment/` | All users |
-| `/feedback` | Submit developer experience feedback | - | Linear issue in "Loa Feedback" | THJ only |
-| `/update` | Pull framework updates from upstream | - | Merged updates | All users |
-| `/audit` | Security audit (ad-hoc) | `paranoid-auditor` | `SECURITY-AUDIT-REPORT.md` | All users |
-| `/audit-deployment` | Deployment infrastructure audit (ad-hoc) | `paranoid-auditor` | `loa-grimoire/a2a/deployment-feedback.md` | All users |
-| `/translate @doc for [audience]` | Executive translation (ad-hoc) | `devrel-translator` | Executive summaries | All users |
+### Command Architecture (v4)
+
+Commands in `.claude/commands/` use a "thin routing layer" architecture with enhanced YAML frontmatter:
+
+**Agent-invoking commands** use `agent:` and `agent_path:` fields to route to skills:
+```yaml
+agent: "implementing-tasks"
+agent_path: "skills/implementing-tasks/"
+```
+
+**Special commands** use `command_type:` for non-agent operations:
+```yaml
+command_type: "wizard"  # or "survey", "git"
+```
+
+**Pre-flight checks** validate prerequisites before execution:
+- `file_exists`, `file_not_exists`, `directory_exists`
+- `content_contains` - Verify file contains specific pattern
+- `pattern_match` - Validate argument format (e.g., `sprint-N`)
+- `command_succeeds` - Run shell command and check exit code
+
+**Context files** define prioritized file loading with variable substitution (`$ARGUMENTS.sprint_id`).
+
+### Command Reference
+
+| Command | Purpose | Agent/Type | Output | Availability |
+|---------|---------|------------|--------|--------------|
+| `/setup` | First-time configuration | wizard | `.loa-setup-complete`, analytics | All users |
+| `/config` | Reconfigure MCP servers | wizard | Updated `.loa-setup-complete` | THJ only |
+| `/plan-and-analyze` | Define requirements and create PRD | `discovering-requirements` | `loa-grimoire/prd.md` | All users |
+| `/architect` | Design system architecture | `designing-architecture` | `loa-grimoire/sdd.md` | All users |
+| `/sprint-plan` | Plan implementation sprints | `planning-sprints` | `loa-grimoire/sprint.md` | All users |
+| `/implement {sprint}` | Implement sprint tasks | `implementing-tasks` | Code + `loa-grimoire/a2a/reviewer.md` | All users |
+| `/review-sprint {sprint}` | Review and approve/reject implementation | `reviewing-code` | `loa-grimoire/a2a/engineer-feedback.md` | All users |
+| `/audit-sprint {sprint}` | Security audit of sprint implementation | `auditing-security` | `loa-grimoire/a2a/auditor-sprint-feedback.md` | All users |
+| `/deploy-production` | Deploy to production | `deploying-infrastructure` | `loa-grimoire/deployment/` | All users |
+| `/feedback` | Submit developer experience feedback | survey | Linear issue in "Loa Feedback" | THJ only |
+| `/update` | Pull framework updates from upstream | git | Merged updates | All users |
+| `/contribute` | Create OSS contribution PR | git | GitHub PR | All users |
+| `/audit` | Security audit (ad-hoc) | `auditing-security` | `SECURITY-AUDIT-REPORT.md` | All users |
+| `/audit-deployment` | Deployment infrastructure audit (ad-hoc) | `auditing-security` | `loa-grimoire/a2a/deployment-feedback.md` | All users |
+| `/translate @doc for [audience]` | Executive translation (ad-hoc) | `translating-for-executives` | Executive summaries | All users |
 
 **User Type Notes**:
 - **THJ only**: Commands restricted to THJ team members (requires `user_type: "thj"` in `.loa-setup-complete`)
@@ -874,33 +930,35 @@ After security audit, if changes required:
 
 | Document | Path | Created By | Purpose |
 |----------|------|------------|---------|
-| **PRD** | `loa-grimoire/prd.md` | `prd-architect` | Product requirements and business context |
-| **SDD** | `loa-grimoire/sdd.md` | `architecture-designer` | System design and technical architecture |
-| **Sprint Plan** | `loa-grimoire/sprint.md` | `sprint-planner` | Sprint tasks with acceptance criteria |
-| **Security Audit** | `SECURITY-AUDIT-REPORT.md` | `paranoid-auditor` | Security vulnerabilities and remediation |
+| **PRD** | `loa-grimoire/prd.md` | `discovering-requirements` | Product requirements and business context |
+| **SDD** | `loa-grimoire/sdd.md` | `designing-architecture` | System design and technical architecture |
+| **Sprint Plan** | `loa-grimoire/sprint.md` | `planning-sprints` | Sprint tasks with acceptance criteria |
+| **Security Audit** | `SECURITY-AUDIT-REPORT.md` | `auditing-security` | Security vulnerabilities and remediation |
 
 ### Agent-to-Agent (A2A) Communication
 
 | Document | Path | Created By | Purpose |
 |----------|------|------------|---------|
-| **Implementation Report** | `loa-grimoire/a2a/reviewer.md` | `sprint-task-implementer` | Report for senior lead review |
-| **Code Review Feedback** | `loa-grimoire/a2a/engineer-feedback.md` | `senior-tech-lead-reviewer` | Code review feedback for engineer |
-| **Security Audit Feedback** | `loa-grimoire/a2a/auditor-sprint-feedback.md` | `paranoid-auditor` | Security feedback for engineer |
+| **Implementation Report** | `loa-grimoire/a2a/reviewer.md` | `implementing-tasks` | Report for senior lead review |
+| **Code Review Feedback** | `loa-grimoire/a2a/engineer-feedback.md` | `reviewing-code` | Code review feedback for engineer |
+| **Security Audit Feedback** | `loa-grimoire/a2a/auditor-sprint-feedback.md` | `auditing-security` | Security feedback for engineer |
 
 ### Deployment Documentation
 
 | Document | Path | Created By | Purpose |
 |----------|------|------------|---------|
-| **Infrastructure Overview** | `loa-grimoire/deployment/infrastructure.md` | `devops-crypto-architect` | Architecture, resources, costs |
-| **Deployment Guide** | `loa-grimoire/deployment/deployment-guide.md` | `devops-crypto-architect` | Deploy, rollback, migrations |
-| **Monitoring Guide** | `loa-grimoire/deployment/monitoring.md` | `devops-crypto-architect` | Dashboards, metrics, alerts |
-| **Security Guide** | `loa-grimoire/deployment/security.md` | `devops-crypto-architect` | Access, secrets, compliance |
-| **Disaster Recovery** | `loa-grimoire/deployment/disaster-recovery.md` | `devops-crypto-architect` | Backup, restore, failover |
-| **Runbooks** | `loa-grimoire/deployment/runbooks/*.md` | `devops-crypto-architect` | Operational procedures |
+| **Infrastructure Overview** | `loa-grimoire/deployment/infrastructure.md` | `deploying-infrastructure` | Architecture, resources, costs |
+| **Deployment Guide** | `loa-grimoire/deployment/deployment-guide.md` | `deploying-infrastructure` | Deploy, rollback, migrations |
+| **Monitoring Guide** | `loa-grimoire/deployment/monitoring.md` | `deploying-infrastructure` | Dashboards, metrics, alerts |
+| **Security Guide** | `loa-grimoire/deployment/security.md` | `deploying-infrastructure` | Access, secrets, compliance |
+| **Disaster Recovery** | `loa-grimoire/deployment/disaster-recovery.md` | `deploying-infrastructure` | Backup, restore, failover |
+| **Runbooks** | `loa-grimoire/deployment/runbooks/*.md` | `deploying-infrastructure` | Operational procedures |
 
 ---
 
 ## Agent-to-Agent Communication
+
+<!-- CANONICAL_LOCATION: protocols/feedback-loops.md -->
 
 The framework uses three feedback loops for quality assurance:
 
@@ -1057,6 +1115,23 @@ The engineer reads this file with HIGHEST PRIORITY on the next `/implement {spri
 
 - **[README.md](README.md)** - Quick start guide
 - **[CLAUDE.md](CLAUDE.md)** - Guidance for Claude Code instances
+
+### Protocol Files
+
+Detailed specifications for complex behaviors:
+
+- `.claude/protocols/git-safety.md` - Template detection, warning flow, remediation steps
+- `.claude/protocols/analytics.md` - THJ-only usage tracking, schema definitions
+- `.claude/protocols/feedback-loops.md` - A2A communication, approval markers, flow diagrams
+
+### Helper Scripts
+
+Bash utilities for deterministic operations:
+
+- `.claude/scripts/analytics.sh` - Analytics helper functions
+- `.claude/scripts/git-safety.sh` - Template detection functions
+- `.claude/scripts/context-check.sh` - Context size assessment for parallel execution
+- `.claude/scripts/preflight.sh` - Pre-flight validation functions
 
 ---
 

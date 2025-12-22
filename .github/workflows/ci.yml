@@ -33,14 +33,14 @@ jobs:
         run: |
           echo "Checking required agent definitions..."
           AGENTS=(
-            ".claude/agents/prd-architect.md"
-            ".claude/agents/architecture-designer.md"
-            ".claude/agents/sprint-planner.md"
-            ".claude/agents/sprint-task-implementer.md"
-            ".claude/agents/senior-tech-lead-reviewer.md"
-            ".claude/agents/devops-crypto-architect.md"
-            ".claude/agents/paranoid-auditor.md"
-            ".claude/agents/devrel-translator.md"
+            ".claude/agents/discovering-requirements.md"
+            ".claude/agents/designing-architecture.md"
+            ".claude/agents/planning-sprints.md"
+            ".claude/agents/implementing-tasks.md"
+            ".claude/agents/reviewing-code.md"
+            ".claude/agents/deploying-infrastructure.md"
+            ".claude/agents/auditing-security.md"
+            ".claude/agents/translating-for-executives.md"
           )
           for agent in "${AGENTS[@]}"; do
             if [ ! -f "$agent" ]; then

@@ -1,0 +1,57 @@
+name: "auditing-security"
+version: "1.0.0"
+model: "sonnet"
+color: "red"
+
+description: |
+  Use this skill IF user needs security/quality audit of code, infrastructure,
+  or sprint implementation. Invoke proactively after significant work completion.
+  Three modes: codebase audit (/audit) → SECURITY-AUDIT-REPORT.md, deployment
+  audit (/audit-deployment) → deployment-feedback.md, sprint audit (/audit-sprint)
+  → auditor-sprint-feedback.md.
+
+triggers:
+  - "/audit"
+  - "/audit-deployment"
+  - "/audit-sprint"
+  - "security audit"
+  - "review for vulnerabilities"
+  - "check for security issues"
+  - "audit the code"
+
+examples:
+  - context: "Sprint implementation complete, senior lead approved"
+    user_says: "Run security audit on sprint 1"
+    agent_action: "Launch auditing-security in sprint audit mode"
+  - context: "Deployment infrastructure created"
+    user_says: "Audit our deployment setup"
+    agent_action: "Launch auditing-security in deployment audit mode"
+  - context: "Codebase ready for production"
+    user_says: "Perform a security audit before we deploy"
+    agent_action: "Launch auditing-security in codebase audit mode"
+  - context: "After major code changes"
+    user_says: "Check the integration for security issues"
+    agent_action: "Launch auditing-security to perform comprehensive security review"
+
+inputs:
+  - name: "audit_mode"
+    type: "enum"
+    values: ["codebase", "deployment", "sprint"]
+    required: true
+    description: "Type of audit to perform"
+  - name: "sprint_id"
+    type: "string"
+    pattern: "^sprint-[0-9]+$"
+    required: false
+    description: "Sprint identifier (required for sprint mode)"
+
+outputs:
+  - path: "SECURITY-AUDIT-REPORT.md"
+    condition: "audit_mode == codebase"
+    description: "Comprehensive codebase security audit"
+  - path: "loa-grimoire/a2a/deployment-feedback.md"
+    condition: "audit_mode == deployment"
+    description: "Deployment infrastructure audit feedback"
+  - path: "loa-grimoire/a2a/sprint-{id}/auditor-sprint-feedback.md"
+    condition: "audit_mode == sprint"
+    description: "Sprint implementation security audit feedback"

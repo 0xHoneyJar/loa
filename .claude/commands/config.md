@@ -1,208 +1,137 @@
 ---
-description: Configure MCP integrations for THJ team members (post-setup)
+name: "config"
+version: "1.1.0"
+description: |
+  Configure MCP integrations for THJ team members post-setup.
+  Reads available servers from the MCP registry.
+
+command_type: "wizard"
+
+arguments: []
+
+integrations_source: ".claude/mcp-registry.yaml"
+
+pre_flight:
+  - check: "file_exists"
+    path: ".loa-setup-complete"
+    error: "Loa setup has not been completed. Run /setup first."
+
+  - check: "content_contains"
+    path: ".loa-setup-complete"
+    pattern: '"user_type":\\s*"thj"'
+    error: |
+      MCP configuration is only available for THJ team members.
+
+      If you are a THJ team member and need to reconfigure, please delete
+      the .loa-setup-complete file and run /setup again.
+
+      For issues or feature requests, please open a GitHub issue at:
+      https://github.com/0xHoneyJar/loa/issues
+
+outputs:
+  - path: ".loa-setup-complete"
+    type: "file"
+    description: "Updated marker with new MCP configuration"
+  - path: "loa-grimoire/analytics/usage.json"
+    type: "file"
+    description: "Updated analytics with MCP info"
+
+mode:
+  default: "foreground"
+  allow_background: false
 ---
 
-# MCP Configuration
+# Config
 
-This command allows THJ developers to configure MCP integrations after the initial setup.
+## Purpose
 
----
+Configure MCP integrations for THJ team members after initial setup. Add connections to Linear, GitHub, Vercel, Discord, or web3-stats services.
 
-## Phase 0: User Type Check
+## Invocation
 
-Read and parse the setup marker file:
+```
+/config
+```
 
+## Prerequisites
+
+- Setup completed (`.loa-setup-complete` exists)
+- User type is `thj` (THJ team member)
+
+## Workflow
+
+### Phase 1: Current Configuration Status
+
+Read `.loa-setup-complete` and display:
+- Currently configured MCP servers
+- Available (unconfigured) MCP servers
+
+### Phase 2: Check for Unconfigured MCPs
+
+If all MCPs are already configured, display message and stop.
+
+### Phase 3: MCP Selection
+
+Read available servers from `.claude/mcp-registry.yaml` and offer multiSelect:
+- Show unconfigured servers with descriptions from registry
+- Group options: essential, deployment, crypto, all
+- Individual server selection
+- Skip - Exit without configuring
+
+Use `.claude/scripts/mcp-registry.sh list` to get available servers.
+
+### Phase 4: MCP Configuration
+
+Provide guided setup instructions for each selected MCP.
+
+### Phase 5: Update Marker File
+
+Update `.loa-setup-complete` with newly configured MCPs.
+
+### Phase 6: Update Analytics
+
+Update `loa-grimoire/analytics/usage.json` with MCP configuration.
+
+### Phase 7: Completion Summary
+
+Display newly configured and total configured servers.
+
+## Arguments
+
+| Argument | Description | Required |
+|----------|-------------|----------|
+| None | | |
+
+## Outputs
+
+| Path | Description |
+|------|-------------|
+| `.loa-setup-complete` | Updated marker file |
+| `loa-grimoire/analytics/usage.json` | Updated analytics |
+
+## MCP Setup Instructions
+
+Setup instructions are maintained in `.claude/mcp-registry.yaml`.
+
+To get setup instructions for any server:
 ```bash
-cat .loa-setup-complete 2>/dev/null
+.claude/scripts/mcp-registry.sh setup <server-name>
 ```
 
-Extract the `user_type` field from the JSON response.
-
-**If the file doesn't exist:**
-Display this error and STOP:
-```
-Loa setup has not been completed for this project.
-
-Please run `/setup` first to initialize Loa.
-```
-
-**If user_type is "oss":**
-Display this error and STOP:
-```
-MCP configuration is only available for THJ team members.
-
-If you are a THJ team member and need to reconfigure, please delete
-the .loa-setup-complete file and run /setup again.
-
-For issues or feature requests, please open a GitHub issue at:
-https://github.com/0xHoneyJar/loa/issues
-```
-
-**If user_type is "thj":**
-Proceed to Phase 1.
-
----
-
-## Phase 1: Current Configuration Status
-
-Read the `.loa-setup-complete` file and extract the `mcp_servers` array.
-
-Display the current configuration status:
-
-```
-## Current MCP Configuration
-
-### Configured Servers
-{list each configured MCP server, or "None configured yet"}
-
-### Available Servers
-{list MCPs that are NOT in the configured list}
-```
-
-**Available MCP servers**:
-- linear - Issue tracking for developer feedback
-- github - Repository operations, PRs, issues
-- vercel - Deployment and hosting
-- discord - Community/team communication
-- web3-stats - Blockchain data (Dune API, Blockscout)
-
----
-
-## Phase 2: Check for Unconfigured MCPs
-
-Compare the `mcp_servers` array against the full list of available MCPs.
-
-**If ALL MCPs are already configured:**
-Display:
-```
-All MCP integrations are already configured!
-
-Configured servers:
-- linear
-- github
-- vercel
-- discord
-- web3-stats
-
-No additional configuration needed.
-```
-**STOP** - Nothing more to configure.
-
-**If some MCPs are NOT configured:**
-Proceed to Phase 3.
-
----
-
-## Phase 3: MCP Selection
-
-**Use the `AskUserQuestion` tool** with multiSelect enabled to ask:
-
-**Question**: "Which additional MCP integrations would you like to configure?"
-
-**Options** (multiSelect: true) - Only include MCPs that are NOT already configured:
-- **Linear** (if not configured) - "Issue tracking for developer feedback"
-- **GitHub** (if not configured) - "Repository operations, PRs, issues"
-- **Vercel** (if not configured) - "Deployment and hosting"
-- **Discord** (if not configured) - "Community/team communication"
-- **web3-stats** (if not configured) - "Blockchain data (Dune API, Blockscout)"
-- **All remaining** - "Configure all unconfigured integrations"
-- **Skip** - "Exit without configuring"
-
-If user selects "Skip", display "No changes made." and **STOP**.
-If user selects "All remaining", treat it as selecting all unconfigured MCPs.
-
----
-
-## Phase 4: MCP Configuration
-
-For each selected MCP, provide guided setup:
-
-**GitHub MCP** (if selected):
-```
-GitHub MCP Setup:
-1. Create a Personal Access Token at https://github.com/settings/tokens
-2. Token scopes needed: repo, read:org, read:user
-3. Add "github" to enabledMcpjsonServers in .claude/settings.local.json
-4. Restart Claude Code to apply changes
-```
-
-**Linear MCP** (if selected):
-```
-Linear MCP Setup:
-1. Get your API key from Linear: Settings > API > Personal API keys
-2. Add "linear" to enabledMcpjsonServers in .claude/settings.local.json
-3. Restart Claude Code to apply changes
-```
-
-**Vercel MCP** (if selected):
-```
-Vercel MCP Setup:
-1. Connect via Vercel OAuth at https://vercel.com/integrations
-2. Add "vercel" to enabledMcpjsonServers in .claude/settings.local.json
-3. Restart Claude Code to apply changes
-```
-
-**Discord MCP** (if selected):
-```
-Discord MCP Setup:
-1. Create a Discord bot at https://discord.com/developers/applications
-2. Get the bot token from Bot > Token
-3. Add "discord" to enabledMcpjsonServers in .claude/settings.local.json
-4. Restart Claude Code to apply changes
-```
-
-**web3-stats MCP** (if selected):
-```
-web3-stats MCP Setup:
-1. Get a Dune API key at https://dune.com/settings/api
-2. Add "web3-stats" to enabledMcpjsonServers in .claude/settings.local.json
-3. Restart Claude Code to apply changes
-```
-
----
-
-## Phase 5: Update Marker File
-
-Read the current `.loa-setup-complete` file and update the `mcp_servers` array to include the newly configured MCPs.
-
-Use jq or manual JSON update:
-
+Example:
 ```bash
-# Example: Add new MCPs to existing list
-CURRENT_MCPS=$(cat .loa-setup-complete | jq -r '.mcp_servers | join(",")')
-# Append new MCPs and update file
+.claude/scripts/mcp-registry.sh setup github
+.claude/scripts/mcp-registry.sh setup linear
 ```
 
-Write the updated JSON back to `.loa-setup-complete`.
+## Error Handling
 
----
+| Error | Cause | Resolution |
+|-------|-------|------------|
+| "Setup not completed" | Missing `.loa-setup-complete` | Run `/setup` first |
+| "Only available for THJ" | User type is `oss` | Delete marker and re-run `/setup` |
+| "All MCPs configured" | Nothing more to configure | No action needed |
 
-## Phase 6: Update Analytics
+## OSS Users
 
-If `loa-grimoire/analytics/usage.json` exists, update `setup.mcp_servers_configured` to include the newly configured MCPs.
-
----
-
-## Phase 7: Completion Summary
-
-Display:
-
-```
-## Configuration Complete!
-
-### Newly Configured
-{list of MCPs just configured}
-
-### All Configured Servers
-{complete list of all configured MCPs}
-
-### Next Steps
-- Restart Claude Code to apply MCP changes
-- Run `/plan-and-analyze` to continue your project workflow
-```
-
----
-
-## END
-
-Configuration is complete.
+MCP configuration is not available for OSS users. For manual MCP setup, refer to the Claude Code documentation.

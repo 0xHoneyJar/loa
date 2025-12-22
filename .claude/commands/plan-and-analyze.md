@@ -1,172 +1,188 @@
 ---
-description: Launch the PRD architect agent to define goals, requirements, scope, and generate a Product Requirements Document (PRD)
-args: [background]
+name: "plan-and-analyze"
+version: "2.0.0"
+description: |
+  Launch PRD discovery with automatic context ingestion.
+  Reads existing documentation from loa-grimoire/context/ before interviewing.
+
+arguments: []
+
+agent: "discovering-requirements"
+agent_path: "skills/discovering-requirements/"
+
+context_files:
+  # Core context (always attempt to read)
+  - path: "loa-grimoire/context/*.md"
+    required: false
+    recursive: true
+    purpose: "Pre-existing project documentation for synthesis"
+
+  # Nested context
+  - path: "loa-grimoire/context/**/*.md"
+    required: false
+    purpose: "Meeting notes, references, nested docs"
+
+  # Integration context (if exists)
+  - path: "loa-grimoire/a2a/integration-context.md"
+    required: false
+    purpose: "Organizational context and conventions"
+
+pre_flight:
+  - check: "file_exists"
+    path: ".loa-setup-complete"
+    error: "Loa setup has not been completed. Run /setup first."
+
+  - check: "file_not_exists"
+    path: "loa-grimoire/prd.md"
+    error: "PRD already exists. Delete or rename loa-grimoire/prd.md to restart discovery."
+    soft: true  # Warn but allow override
+
+  - check: "script"
+    script: ".claude/scripts/assess-discovery-context.sh"
+    store_result: "context_assessment"
+    purpose: "Assess available context for synthesis strategy"
+
+outputs:
+  - path: "loa-grimoire/prd.md"
+    type: "file"
+    description: "Product Requirements Document"
+
+mode:
+  default: "foreground"
+  allow_background: false  # Interactive by nature
 ---
 
-I'm launching the prd-architect agent to help you create a comprehensive Product Requirements Document.
+# Plan and Analyze
 
-**Execution Mode**: {{ "background - use /tasks to monitor" if "background" in $ARGUMENTS else "foreground (default)" }}
+## Purpose
 
-## Pre-flight Check: Setup Verification
+Launch structured PRD discovery with automatic context ingestion. Transforms ambiguous product ideas into comprehensive, actionable requirements.
 
-Before proceeding, verify that Loa setup is complete:
+## Context-First Behavior
 
-1. Check if `.loa-setup-complete` marker file exists in the project root
-2. If the marker file **does NOT exist**:
-   - Display this message:
-     ```
-     Loa setup has not been completed for this project.
+1. Scans `loa-grimoire/context/` for existing documentation
+2. Synthesizes found documents into understanding
+3. Maps to 7 discovery phases
+4. Only asks questions for gaps and strategic decisions
 
-     Please run `/setup` first to:
-     - Configure MCP integrations
-     - Initialize project analytics
-
-     After setup is complete, run `/plan-and-analyze` again.
-     ```
-   - **STOP** - Do not proceed with PRD creation
-3. If the marker file **exists**, proceed with the PRD process
-
----
-
-The agent will guide you through a structured discovery process to:
-1. **Define goals** - Clarify what you want to achieve and why
-2. **Define requirements** - Identify functional and non-functional requirements
-3. **Identify scope** - Determine what's in scope, out of scope, and prioritize features
-4. **Research and refine** - Gather context, ask clarifying questions, and validate assumptions
-5. **Generate PRD** - Create a comprehensive document at `loa-grimoire/prd.md`
-
-The PRD architect will ask targeted questions across these phases:
-- Problem & Vision
-- Goals & Success Metrics
-- User & Stakeholder Context
-- Functional Requirements
-- Technical & Non-Functional Requirements
-- Scope & Prioritization
-- Risks & Dependencies
-
-{{ if "background" in $ARGUMENTS }}
-Running in background mode. Use `/tasks` to monitor progress.
-
-<Task
-  subagent_type="prd-architect"
-  prompt="Help the user create a comprehensive Product Requirements Document (PRD). Guide them through structured discovery to define goals, requirements, and scope. Ask targeted questions across all phases: Problem & Vision, Goals & Success Metrics, User & Stakeholder Context, Functional Requirements, Technical & Non-Functional Requirements, Scope & Prioritization, and Risks & Dependencies. Once you have complete information, generate a detailed PRD and save it to loa-grimoire/prd.md.
-
-## CRITICAL: Setup Check (Phase -1)
-
-BEFORE doing anything else, check if `.loa-setup-complete` marker file exists:
+## Invocation
 
 ```bash
-ls -la .loa-setup-complete 2>/dev/null
+/plan-and-analyze
 ```
 
-If the file does NOT exist, display this message and STOP:
-```
-Loa setup has not been completed for this project.
-
-Please run `/setup` first to:
-- Configure MCP integrations
-- Initialize project analytics
-
-After setup is complete, run `/plan-and-analyze` again.
-```
-
-If the file EXISTS, proceed with the PRD process.
-
-## Analytics Update (Phase Final)
-
-After successfully saving the PRD to loa-grimoire/prd.md, update analytics.
-
-**First, check user type**:
-```bash
-USER_TYPE=$(cat .loa-setup-complete 2>/dev/null | grep -o '\"user_type\": *\"[^\"]*\"' | cut -d'\"' -f4)
-```
-
-**If USER_TYPE is \"oss\"**: Skip analytics update entirely and complete the PRD process.
-
-**If USER_TYPE is \"thj\"**: Proceed with analytics update:
-
-1. Read and validate loa-grimoire/analytics/usage.json
-2. Update the following fields:
-   - Set `phases.prd.completed_at` to current ISO timestamp
-   - Increment `totals.phases_completed` by 1
-   - Increment `totals.commands_executed` by 1
-3. Regenerate loa-grimoire/analytics/summary.md with updated data
-
-Use safe jq patterns with --arg for variable injection:
-```bash
-TIMESTAMP=$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")
-jq --arg ts \"$TIMESTAMP\" '
-  .phases.prd.completed_at = $ts |
-  .totals.phases_completed += 1 |
-  .totals.commands_executed += 1
-' loa-grimoire/analytics/usage.json > loa-grimoire/analytics/usage.json.tmp && \
-mv loa-grimoire/analytics/usage.json.tmp loa-grimoire/analytics/usage.json
-```
-
-Analytics updates are NON-BLOCKING - if they fail, log a warning but complete the PRD process successfully."
-/>
-{{ else }}
-## Phase -1: Setup Verification
-
-First, check if `.loa-setup-complete` marker file exists:
+## Pre-Discovery Setup (Optional)
 
 ```bash
-ls -la .loa-setup-complete 2>/dev/null
+# Create context directory
+mkdir -p loa-grimoire/context
+
+# Add any existing docs
+cp ~/project-docs/vision.md loa-grimoire/context/
+cp ~/project-docs/user-research.md loa-grimoire/context/users.md
+
+# Then run discovery
+/plan-and-analyze
 ```
 
-If the file does NOT exist, display this message and STOP:
+## Context Directory Structure
+
 ```
-Loa setup has not been completed for this project.
-
-Please run `/setup` first to:
-- Configure MCP integrations
-- Initialize project analytics
-
-After setup is complete, run `/plan-and-analyze` again.
-```
-
-If the file EXISTS, proceed with Phase 0.
-
----
-
-## Phase 0: Begin Discovery
-
-Help the user create a comprehensive Product Requirements Document (PRD). Guide them through structured discovery to define goals, requirements, and scope. Ask targeted questions across all phases: Problem & Vision, Goals & Success Metrics, User & Stakeholder Context, Functional Requirements, Technical & Non-Functional Requirements, Scope & Prioritization, and Risks & Dependencies. Once you have complete information, generate a detailed PRD and save it to loa-grimoire/prd.md.
-
----
-
-## Phase Final: Analytics Update
-
-After successfully saving the PRD to loa-grimoire/prd.md, update analytics.
-
-**First, check user type**:
-```bash
-cat .loa-setup-complete 2>/dev/null | grep -o '"user_type": *"[^"]*"' | cut -d'"' -f4
+loa-grimoire/context/
+├── README.md           # Instructions for developers
+├── vision.md           # Product vision, mission, goals
+├── users.md            # User personas, research, interviews
+├── requirements.md     # Existing requirements, feature lists
+├── technical.md        # Technical constraints, stack preferences
+├── competitors.md      # Competitive analysis, market research
+├── meetings/           # Meeting notes, stakeholder interviews
+│   └── *.md
+└── references/         # External docs, specs, designs
+    └── *.*
 ```
 
-**If user_type is "oss"**: Skip analytics update entirely and complete the PRD process.
+All files are optional. The more context provided, the fewer questions asked.
 
-**If user_type is "thj"**: Proceed with analytics update:
+## Discovery Phases
 
-1. Read and validate loa-grimoire/analytics/usage.json
-2. Update the following fields:
-   - Set `phases.prd.completed_at` to current ISO timestamp
-   - Increment `totals.phases_completed` by 1
-   - Increment `totals.commands_executed` by 1
-3. Regenerate loa-grimoire/analytics/summary.md with updated data
+### Phase 0: Context Synthesis (NEW)
+- Reads all files from `loa-grimoire/context/`
+- Maps discovered information to 7 phases
+- Presents understanding with citations
+- Identifies gaps requiring clarification
 
-Use safe jq patterns with --arg for variable injection:
-```bash
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-jq --arg ts "$TIMESTAMP" '
-  .phases.prd.completed_at = $ts |
-  .totals.phases_completed += 1 |
-  .totals.commands_executed += 1
-' loa-grimoire/analytics/usage.json > loa-grimoire/analytics/usage.json.tmp && \
-mv loa-grimoire/analytics/usage.json.tmp loa-grimoire/analytics/usage.json
+### Phase 1: Problem & Vision
+- Core problem being solved
+- Product vision and mission
+- Why now? Why you?
+
+### Phase 2: Goals & Success Metrics
+- Business objectives
+- Quantifiable success criteria
+- Timeline and milestones
+
+### Phase 3: User & Stakeholder Context
+- Primary and secondary personas
+- User journey and pain points
+- Stakeholder requirements
+
+### Phase 4: Functional Requirements
+- Core features and capabilities
+- User stories with acceptance criteria
+- Feature prioritization
+
+### Phase 5: Technical & Non-Functional
+- Performance requirements
+- Security and compliance
+- Integration requirements
+
+### Phase 6: Scope & Prioritization
+- MVP definition
+- Phase 1 vs future scope
+- Out of scope (explicit)
+
+### Phase 7: Risks & Dependencies
+- Technical risks
+- Business risks
+- External dependencies
+
+## Context Size Handling
+
+| Size | Lines | Strategy |
+|------|-------|----------|
+| SMALL | <500 | Sequential ingestion, targeted interview |
+| MEDIUM | 500-2000 | Sequential ingestion, targeted interview |
+| LARGE | >2000 | Parallel subagent ingestion |
+
+## Prerequisites
+
+- Setup completed (`.loa-setup-complete` exists)
+- Run `/setup` first if not configured
+
+## Outputs
+
+| Path | Description |
+|------|-------------|
+| `loa-grimoire/prd.md` | Product Requirements Document with source tracing |
+
+## PRD Source Tracing
+
+Generated PRD includes citations:
+```markdown
+## 1. Problem Statement
+
+[Content derived from vision.md:12-30 and Phase 1 interview]
+
+> Sources: vision.md:12-15, confirmed in Phase 1 Q2
 ```
 
-Then regenerate the summary by reading usage.json and updating summary.md with current values.
+## Error Handling
 
-Analytics updates are NON-BLOCKING - if they fail, log a warning but complete the PRD process successfully.
-{{ endif }}
+| Error | Cause | Resolution |
+|-------|-------|------------|
+| "Loa setup has not been completed" | Missing `.loa-setup-complete` | Run `/setup` first |
+| "PRD already exists" | `loa-grimoire/prd.md` exists | Delete/rename existing PRD |
+
+## Next Step
+
+After PRD is complete: `/architect` to create Software Design Document

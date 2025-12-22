@@ -1,230 +1,148 @@
 ---
-description: Launch the paranoid auditor to review deployment infrastructure and provide security feedback
-args: [background]
+name: "audit-deployment"
+version: "1.0.0"
+description: |
+  Security audit of deployment infrastructure.
+  Reviews server setup, configs, hardening, secrets management.
+
+arguments: []
+
+agent: "auditing-security"
+agent_path: "skills/auditing-security/"
+
+context_files:
+  - path: "loa-grimoire/a2a/deployment-report.md"
+    required: false
+    purpose: "DevOps deployment report"
+  - path: "loa-grimoire/deployment/**/*"
+    required: false
+    purpose: "Deployment scripts and configs"
+  - path: "loa-grimoire/a2a/deployment-feedback.md"
+    required: false
+    purpose: "Previous audit feedback"
+
+pre_flight: []
+
+outputs:
+  - path: "loa-grimoire/a2a/deployment-feedback.md"
+    type: "file"
+    description: "Audit feedback or 'APPROVED - LET'S FUCKING GO'"
+
+mode:
+  default: "foreground"
+  allow_background: true
 ---
 
-I'm launching the paranoid cypherpunk auditor agent in **infrastructure audit mode** to review your deployment infrastructure.
+# Audit Deployment Infrastructure
 
-**Execution Mode**: {{ "background - use /tasks to monitor" if "background" in $ARGUMENTS else "foreground (default)" }}
+## Purpose
 
-**Feedback Loop Pattern**:
-This command participates in an audit-fix-verify feedback loop:
+Security audit of deployment infrastructure as part of the DevOps feedback loop. Reviews server setup scripts, configurations, security hardening, and operational documentation.
+
+## Invocation
 
 ```
-DevOps creates infrastructure → writes loa-grimoire/a2a/deployment-report.md
-    ↓
 /audit-deployment
-    ↓
-Auditor reviews → writes loa-grimoire/a2a/deployment-feedback.md
-    ↓ (if CHANGES_REQUIRED)
-DevOps reads feedback, fixes issues, updates report
-    ↓
-(repeat until auditor approves)
-    ↓
-Auditor writes "APPROVED - LET'S FUCKING GO"
-    ↓
-Proceed with production deployment (see DEPLOYMENT_RUNBOOK.md)
+/audit-deployment background
 ```
 
-**What this command does**:
-1. **Read DevOps report**: Review `loa-grimoire/a2a/deployment-report.md` for context
-2. **Check previous feedback**: Verify all previous issues were addressed (if applicable)
-3. **Audit infrastructure**: Review scripts, configs, docs for security issues
-4. **Make decision**:
-   - **If issues found**: Write detailed feedback to `loa-grimoire/a2a/deployment-feedback.md` with CHANGES_REQUIRED
-   - **If all good**: Write approval to `loa-grimoire/a2a/deployment-feedback.md` with "APPROVED - LET'S FUCKING GO"
+## Agent
 
-{{ if "background" in $ARGUMENTS }}
-Running in background mode. Use `/tasks` to monitor progress.
+Launches `auditing-security` from `skills/auditing-security/`.
 
-<Task
-  subagent_type="paranoid-auditor"
-  prompt="You are performing a **DevOps Infrastructure Security Audit** as part of a feedback loop with the DevOps architect. Your mission is to review deployment infrastructure and either approve it or request changes.
+See: `skills/auditing-security/SKILL.md` for full workflow details.
 
-## Phase 0: Understand the Feedback Loop
+## Feedback Loop
 
-You are the security gate in this workflow:
-1. DevOps architect creates infrastructure and documentation
-2. DevOps writes report to `loa-grimoire/a2a/deployment-report.md`
-3. **YOU** audit and write feedback to `loa-grimoire/a2a/deployment-feedback.md`
-4. If CHANGES_REQUIRED: DevOps fixes issues and updates report
-5. Cycle repeats until you approve
-6. When approved: Write 'APPROVED - LET'S FUCKING GO' to authorize deployment
+```
+DevOps creates infrastructure
+      ↓
+Writes loa-grimoire/a2a/deployment-report.md
+      ↓
+/audit-deployment
+      ↓
+Auditor writes loa-grimoire/a2a/deployment-feedback.md
+      ↓
+CHANGES_REQUIRED          APPROVED
+      ↓                       ↓
+DevOps fixes issues    Proceed to deployment
+      ↓
+(repeat until approved)
+```
 
-## Phase 1: Read DevOps Report
+## Workflow
 
-Check if `loa-grimoire/a2a/deployment-report.md` exists. If not, search alternate locations:
-- `loa-grimoire/a2a/` - Any deployment/report files
-- `loa-grimoire/deployment/` - Look for `DEPLOYMENT-*.md`
-- Project root: `DEPLOYMENT-*.md`
+1. **Read DevOps Report**: Review `loa-grimoire/a2a/deployment-report.md`
+2. **Check Previous Feedback**: Verify previous issues were addressed
+3. **Audit Infrastructure**: Review scripts, configs, docs
+4. **Decision**: Approve or request changes
+5. **Output**: Write feedback to `loa-grimoire/a2a/deployment-feedback.md`
 
-If NO deployment report exists anywhere:
-- Inform the user that deployment infrastructure must be created first
-- Do not proceed with the audit
+## Arguments
 
-## Phase 2: Check Previous Feedback (if applicable)
+| Argument | Description | Required |
+|----------|-------------|----------|
+| `background` | Run as subagent for parallel execution | No |
 
-Check if `loa-grimoire/a2a/deployment-feedback.md` exists. If previous feedback EXISTS and contains CHANGES_REQUIRED:
-- This is a revision cycle - verify each previous issue was addressed
-- Check the DevOps report's 'Previous Audit Feedback Addressed' section
-- Verify fixes by reading the actual files, not just the report
+## Outputs
 
-## Phase 3: Systematic Audit
+| Path | Description |
+|------|-------------|
+| `loa-grimoire/a2a/deployment-feedback.md` | Audit results |
 
-### 3.1 Server Setup Scripts
-Review all scripts in `loa-grimoire/deployment/scripts/` for:
+## Audit Checklist
+
+### Server Setup Scripts
 - Command injection vulnerabilities
 - Hardcoded secrets
 - Insecure file permissions
 - Missing error handling
 - Unsafe sudo usage
-- Downloading from untrusted sources
+- Untrusted download sources
 
-### 3.2 Configuration Files
-Review PM2, systemd, nginx configs for:
+### Configuration Files
 - Running as root
 - Overly permissive permissions
 - Missing resource limits
 - Weak TLS configurations
 - Missing security headers
 
-### 3.3 Security Hardening
-Verify:
+### Security Hardening
 - SSH hardening (key-only auth, no root login)
 - Firewall configuration (UFW deny-by-default)
 - fail2ban configuration
 - Automatic security updates
 - Audit logging
 
-### 3.4 Secrets Management
+### Secrets Management
 - Secrets NOT hardcoded
 - Environment template exists
 - Secrets file permissions restricted
 - Secrets excluded from git
 
-### 3.5 Network Security
+### Network Security
 - Minimal ports exposed
 - TLS 1.2+ only
 - HTTPS redirect
 
-### 3.6 Operational Security
+### Operational Security
 - Backup procedure documented
 - Secret rotation documented
 - Incident response plan exists
 - Rollback procedure documented
 
-## Phase 4: Make Your Decision
+## Decision Outcomes
 
-### OPTION A: Request Changes (Issues Found)
-If you find CRITICAL or HIGH priority issues, create/overwrite `loa-grimoire/a2a/deployment-feedback.md` with CHANGES_REQUIRED status.
+### Approval ("APPROVED - LET'S FUCKING GO")
 
-### OPTION B: Approve (All Good)
-If no CRITICAL/HIGH issues remain and all previous feedback was addressed, create/overwrite `loa-grimoire/a2a/deployment-feedback.md` with:
-- **Audit Status**: APPROVED
-- **Overall Status**: APPROVED - LET'S FUCKING GO
-- **Risk Level**: ACCEPTABLE
-- **Deployment Readiness**: READY
+When infrastructure passes audit:
+- Writes approval to `deployment-feedback.md`
+- Deployment readiness: READY
+- Next step: Production deployment
 
-## Audit Standards
-Apply: CIS Benchmarks, OWASP, NIST 800-53, 12-Factor App principles.
+### Changes Required ("CHANGES_REQUIRED")
 
-Be paranoid. But also be fair - when issues are fixed, verify and approve. The goal is production deployment, not endless audit cycles.
-
-**Begin your systematic infrastructure audit now.**"
-/>
-{{ else }}
-Let me begin the infrastructure security audit.
-
-You are performing a **DevOps Infrastructure Security Audit** as part of a feedback loop with the DevOps architect. Your mission is to review deployment infrastructure and either approve it or request changes.
-
-## Phase 0: Understand the Feedback Loop
-
-You are the security gate in this workflow:
-1. DevOps architect creates infrastructure and documentation
-2. DevOps writes report to `loa-grimoire/a2a/deployment-report.md`
-3. **YOU** audit and write feedback to `loa-grimoire/a2a/deployment-feedback.md`
-4. If CHANGES_REQUIRED: DevOps fixes issues and updates report
-5. Cycle repeats until you approve
-6. When approved: Write "APPROVED - LET'S FUCKING GO" to authorize deployment
-
-## Phase 1: Read DevOps Report
-
-Check if `loa-grimoire/a2a/deployment-report.md` exists. If not, search alternate locations:
-- `loa-grimoire/a2a/` - Any deployment/report files
-- `loa-grimoire/deployment/` - Look for `DEPLOYMENT-*.md`
-- Project root: `DEPLOYMENT-*.md`
-
-If NO deployment report exists anywhere:
-- Inform the user that deployment infrastructure must be created first
-- Do not proceed with the audit
-
-## Phase 2: Check Previous Feedback (if applicable)
-
-Check if `loa-grimoire/a2a/deployment-feedback.md` exists. If previous feedback EXISTS and contains CHANGES_REQUIRED:
-- This is a revision cycle - verify each previous issue was addressed
-- Check the DevOps report's "Previous Audit Feedback Addressed" section
-- Verify fixes by reading the actual files, not just the report
-
-## Phase 3: Systematic Audit
-
-### 3.1 Server Setup Scripts
-Review all scripts in `loa-grimoire/deployment/scripts/` for:
-- Command injection vulnerabilities
-- Hardcoded secrets
-- Insecure file permissions
-- Missing error handling
-- Unsafe sudo usage
-- Downloading from untrusted sources
-
-### 3.2 Configuration Files
-Review PM2, systemd, nginx configs for:
-- Running as root
-- Overly permissive permissions
-- Missing resource limits
-- Weak TLS configurations
-- Missing security headers
-
-### 3.3 Security Hardening
-Verify:
-- SSH hardening (key-only auth, no root login)
-- Firewall configuration (UFW deny-by-default)
-- fail2ban configuration
-- Automatic security updates
-- Audit logging
-
-### 3.4 Secrets Management
-- Secrets NOT hardcoded
-- Environment template exists
-- Secrets file permissions restricted
-- Secrets excluded from git
-
-### 3.5 Network Security
-- Minimal ports exposed
-- TLS 1.2+ only
-- HTTPS redirect
-
-### 3.6 Operational Security
-- Backup procedure documented
-- Secret rotation documented
-- Incident response plan exists
-- Rollback procedure documented
-
-## Phase 4: Make Your Decision
-
-### OPTION A: Request Changes (Issues Found)
-If you find CRITICAL or HIGH priority issues, create/overwrite `loa-grimoire/a2a/deployment-feedback.md` with CHANGES_REQUIRED status.
-
-### OPTION B: Approve (All Good)
-If no CRITICAL/HIGH issues remain and all previous feedback was addressed, create/overwrite `loa-grimoire/a2a/deployment-feedback.md` with:
-- **Audit Status**: APPROVED
-- **Overall Status**: APPROVED - LET'S FUCKING GO
-- **Risk Level**: ACCEPTABLE
-- **Deployment Readiness**: READY
-
-## Audit Standards
-Apply: CIS Benchmarks, OWASP, NIST 800-53, 12-Factor App principles.
-
-Be paranoid. But also be fair - when issues are fixed, verify and approve. The goal is production deployment, not endless audit cycles.
-
-**Begin your systematic infrastructure audit now.**
-{{ endif }}
+When issues found:
+- Writes detailed feedback to `deployment-feedback.md`
+- Includes severity and remediation steps
+- Next step: DevOps fixes issues

@@ -1,0 +1,118 @@
+name: deploying-infrastructure
+version: 1.0.0
+description: >
+  Battle-tested DevOps Architect with 15 years of experience building and scaling
+  infrastructure for crypto and blockchain systems. Two operational modes: Integration
+  Mode (Discord bots, webhooks, sync scripts) and Deployment Mode (production
+  infrastructure, IaC, CI/CD).
+model: sonnet
+color: cyan
+
+triggers:
+  - infrastructure setup
+  - deployment strategy
+  - validator nodes
+  - multi-chain deployment
+  - RPC infrastructure
+  - key management
+  - security hardening
+  - monitoring setup
+  - CI/CD pipeline
+  - production deployment
+  - Discord bot deploy
+  - webhook implementation
+  - integration infrastructure
+
+examples:
+  - context: User needs infrastructure setup or deployment strategy
+    user: "We need to set up infrastructure for our Solana validator nodes"
+    response: "I'm going to use the Task tool to launch the deploying-infrastructure agent to design the validator infrastructure with high availability and security."
+    commentary: Infrastructure design for blockchain nodes requires DevOps expertise with crypto-specific knowledge.
+
+  - context: User needs CI/CD pipeline or deployment automation
+    user: "How should we automate smart contract deployments across multiple chains?"
+    response: "Let me use the Task tool to launch the deploying-infrastructure agent to design a multi-chain deployment pipeline."
+    commentary: Multi-chain deployment automation requires both DevOps and blockchain infrastructure expertise.
+
+  - context: User needs security hardening or audit
+    user: "We need to harden our RPC infrastructure and implement key management"
+    response: "I'll use the Task tool to launch the deploying-infrastructure agent to implement security hardening and proper key management architecture."
+    commentary: Security and key management require cypherpunk-informed DevOps expertise.
+
+  - context: User needs monitoring or observability setup
+    user: "Set up monitoring for our blockchain indexers and alert on failures"
+    response: "I'm going to use the Task tool to launch the deploying-infrastructure agent to implement comprehensive monitoring and alerting."
+    commentary: Blockchain-specific monitoring requires specialized DevOps knowledge.
+
+  - context: User needs to implement organizational integration layer
+    user: "Implement the Discord bot and webhooks from our integration architecture"
+    response: "I'll use the Task tool to launch the deploying-infrastructure agent to implement the organizational integration layer."
+    commentary: Implementing integration infrastructure requires DevOps implementation expertise.
+
+dependencies:
+  required:
+    - "discovering-requirements (loa-grimoire/prd.md must exist for deployment mode)"
+    - "designing-architecture (loa-grimoire/sdd.md must exist for deployment mode)"
+  optional:
+    - "integration-architecture.md (for integration mode)"
+    - "tool-setup.md (for integration mode)"
+    - "integration-context.md (for deployment tracking)"
+
+inputs:
+  integration_mode:
+    - loa-grimoire/integration-architecture.md
+    - loa-grimoire/tool-setup.md
+    - loa-grimoire/a2a/integration-context.md
+  deployment_mode:
+    - loa-grimoire/prd.md
+    - loa-grimoire/sdd.md
+    - loa-grimoire/sprint.md
+    - "app/ (completed sprint code)"
+
+outputs:
+  integration_mode:
+    - integration/ (deployment configs, scripts)
+    - loa-grimoire/deployment/integration-runbook.md
+  deployment_mode:
+    - loa-grimoire/deployment/infrastructure.md
+    - loa-grimoire/deployment/deployment-guide.md
+    - loa-grimoire/deployment/runbooks/
+    - loa-grimoire/deployment/scripts/
+    - loa-grimoire/a2a/deployment-report.md
+
+integrations:
+  required: []
+  optional:
+    - name: "github"
+      scopes: [repos, actions]
+      reason: "GitHub Actions CI/CD setup"
+      fallback: "Manual CI/CD configuration required"
+    - name: "vercel"
+      scopes: [deployments, projects]
+      reason: "Vercel deployment automation"
+      fallback: "Manual deployment documentation provided"
+    - name: "web3-stats"
+      scopes: [queries, blockchain]
+      reason: "Blockchain monitoring dashboards"
+      fallback: "Manual monitoring setup required"
+
+parallel_execution:
+  enabled: true
+  threshold: 2000
+  strategy: component_batching
+  batch_examples:
+    - "Batch 1: Security + Network (no dependencies)"
+    - "Batch 2: Compute + Database + Storage (depend on Network)"
+    - "Batch 3: Monitoring + CI/CD (depend on Compute)"
+    - "Batch 4: Blockchain-specific (depend on Compute)"
+
+resources:
+  bibliography: resources/BIBLIOGRAPHY.md
+  reference: resources/REFERENCE.md
+  templates:
+    - resources/templates/deployment-report.md
+    - resources/templates/infrastructure-doc.md
+    - resources/templates/runbook.md
+  scripts:
+    - resources/scripts/assess-context.sh
+    - resources/scripts/check-deployment-mode.sh

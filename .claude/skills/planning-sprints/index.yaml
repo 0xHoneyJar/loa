@@ -1,0 +1,61 @@
+name: "planning-sprints"
+version: "1.0.0"
+model: "sonnet"
+color: "green"
+
+description: |
+  Use this skill IF user has completed PRD and SDD and needs an implementation
+  roadmap, OR mentions sprint planning, work breakdown, or task decomposition.
+  Transforms PRD/SDD into actionable 2.5-day sprints with deliverables, acceptance
+  criteria, and technical tasks. Produces sprint plan at loa-grimoire/sprint.md.
+
+triggers:
+  - "/sprint-plan"
+  - "create sprint plan"
+  - "break down into sprints"
+  - "plan the implementation"
+  - "what's next after SDD"
+  - "break down into tasks"
+  - "create implementation roadmap"
+
+examples:
+  - context: "User has just finished PRD and SDD"
+    user_says: "I've updated the PRD and SDD. Can you create a sprint plan for the next few sprints?"
+    agent_action: "Launch planning-sprints to analyze PRD and SDD, ask clarifying questions, and create comprehensive sprint plan"
+  - context: "User mentions they've completed initial project documentation"
+    user_says: "The PRD and SDD are done. What's next?"
+    agent_action: "Launch planning-sprints to review documentation and create detailed sprint plan for implementation"
+  - context: "User is discussing project milestones and implementation phases"
+    user_says: "We need to break down this MVP into manageable chunks for the team."
+    agent_action: "Launch planning-sprints to create structured sprint plan with 2.5-day sprints and clear deliverables"
+  - context: "Proactive use after detecting new or modified PRD/SDD files"
+    user_says: "I just saved the updated SDD."
+    agent_action: "Offer to launch planning-sprints to review both PRD and SDD and create/update sprint plan"
+
+dependencies:
+  - skill: "discovering-requirements"
+    artifact: "loa-grimoire/prd.md"
+  - skill: "designing-architecture"
+    artifact: "loa-grimoire/sdd.md"
+
+inputs:
+  - name: "prd_path"
+    type: "string"
+    default: "loa-grimoire/prd.md"
+    required: false
+  - name: "sdd_path"
+    type: "string"
+    default: "loa-grimoire/sdd.md"
+    required: false
+
+outputs:
+  - path: "loa-grimoire/sprint.md"
+    description: "Sprint plan with task breakdown"
+
+integrations:
+  required: []
+  optional:
+    - name: "linear"
+      scopes: [issues, projects]
+      reason: "Sync sprint tasks to Linear"
+      fallback: "Tasks remain in sprint.md only"

@@ -1,0 +1,44 @@
+name: "reviewing-code"
+version: "1.0.0"
+model: "sonnet"
+color: "purple"
+
+description: |
+  Use this skill IF sprint implementation needs review, validation, and quality
+  gate approval. Reviews code quality, security, testing, and architecture alignment.
+  Either approves (writes "All good") OR provides detailed feedback. Produces
+  feedback at loa-grimoire/a2a/sprint-N/engineer-feedback.md.
+
+triggers:
+  - "/review-sprint"
+  - "review sprint implementation"
+  - "validate sprint"
+  - "check sprint quality"
+  - "review the implementation"
+  - "is sprint complete"
+
+examples:
+  - context: "Engineer has completed sprint implementation and generated a report"
+    user_says: "Review the sprint 1 implementation"
+    agent_action: "Launch reviewing-code to review implementation, validate against acceptance criteria, and provide feedback"
+  - context: "Engineer has addressed previous feedback"
+    user_says: "The engineer has fixed the issues, please review again"
+    agent_action: "Launch reviewing-code to verify all feedback has been properly addressed"
+  - context: "User wants to check sprint progress and code quality"
+    user_says: "Check if sprint 2 is complete and meets our quality standards"
+    agent_action: "Launch reviewing-code to review sprint 2 completeness and quality"
+
+dependencies:
+  - skill: "implementing-tasks"
+    artifact: "loa-grimoire/a2a/sprint-N/reviewer.md"
+
+inputs:
+  - name: "sprint_id"
+    type: "string"
+    pattern: "^sprint-[0-9]+$"
+    required: true
+    description: "Sprint identifier (e.g., sprint-1)"
+
+outputs:
+  - path: "loa-grimoire/a2a/sprint-{id}/engineer-feedback.md"
+    description: "Review feedback for engineer (or 'All good' if approved)"

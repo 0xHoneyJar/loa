@@ -5,6 +5,126 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-12-21
+
+### Why This Release
+
+This release delivers a major architectural refactor based on Anthropic's recommendations for Claude Code skills development. The focus is on action-oriented naming, modular architecture, and extracting deterministic logic to reusable scripts—making skills more maintainable and reducing context overhead.
+
+### Added
+
+- **v4 Command Architecture**: Thin routing layer with YAML frontmatter
+  - `agent:` and `agent_path:` fields for skill routing
+  - `command_type:` for special commands (wizard, survey, git)
+  - `pre_flight:` validation checks before execution
+  - `context_files:` with prioritized loading and variable substitution
+
+- **3-Level Skills Architecture**: Modular structure for all 8 agents
+  - Level 1: `index.yaml` - Metadata and triggers (~100 tokens)
+  - Level 2: `SKILL.md` - KERNEL instructions (<500 lines)
+  - Level 3: `resources/` - Templates, scripts, references (loaded on-demand)
+
+- **Context-First Discovery**: `/plan-and-analyze` now ingests existing documentation
+  - Auto-scans `loa-grimoire/context/` for `.md` files before interviewing
+  - Presents understanding with source citations before asking questions
+  - Only asks about gaps, ambiguities, and strategic decisions
+  - Parallel ingestion for large context (>2000 lines)
+  - New script: `.claude/scripts/assess-discovery-context.sh`
+
+- **8 New Helper Scripts** (`.claude/scripts/`)
+  | Script | Purpose |
+  |--------|---------|
+  | `check-feedback-status.sh` | Sprint feedback state detection |
+  | `validate-sprint-id.sh` | Sprint ID format validation |
+  | `check-prerequisites.sh` | Phase prerequisite checking |
+  | `assess-discovery-context.sh` | Context size assessment |
+  | `context-check.sh` | Parallel execution thresholds |
+  | `preflight.sh` | Pre-flight validation functions |
+  | `analytics.sh` | Analytics helpers (THJ only) |
+  | `git-safety.sh` | Template detection utilities |
+
+- **Protocol Documentation** (`.claude/protocols/`)
+  - `git-safety.md` - Template detection, warning flow, remediation
+  - `analytics.md` - THJ-only tracking, schema definitions
+  - `feedback-loops.md` - A2A communication, approval markers
+
+- **Context Directory** (`loa-grimoire/context/`)
+  - New location for pre-discovery documentation
+  - Template README with suggested file structure
+  - Supports nested directories and any `.md` files
+
+### Changed
+
+- **Skill Naming Convention**: All 8 skills renamed from role-based to action-based (gerund form)
+  | Old Name | New Name |
+  |----------|----------|
+  | `prd-architect` | `discovering-requirements` |
+  | `architecture-designer` | `designing-architecture` |
+  | `sprint-planner` | `planning-sprints` |
+  | `sprint-task-implementer` | `implementing-tasks` |
+  | `senior-tech-lead-reviewer` | `reviewing-code` |
+  | `paranoid-auditor` | `auditing-security` |
+  | `devops-crypto-architect` | `deploying-infrastructure` |
+  | `devrel-translator` | `translating-for-executives` |
+
+- **Documentation Streamlining**: Reduced CLAUDE.md from ~1700 to ~200 lines
+  - Detailed specifications moved to `.claude/protocols/`
+  - Single source of truth principle enforced
+  - Command tables reference skill files for details
+
+- **discovering-requirements Skill**: Complete rewrite for context-first workflow
+  - Phase -1: Context Assessment (runs script)
+  - Phase 0: Context Synthesis with XML context map
+  - Phase 0.5: Targeted Interview for gaps only
+  - Phases 1-7: Conditional based on context coverage
+  - Full source tracing in PRD output
+
+- **Parallel Execution Thresholds**: Standardized across skills
+  | Skill | SMALL | MEDIUM | LARGE |
+  |-------|-------|--------|-------|
+  | discovering-requirements | <500 | 500-2000 | >2000 |
+  | reviewing-code | <3,000 | 3,000-6,000 | >6,000 |
+  | auditing-security | <2,000 | 2,000-5,000 | >5,000 |
+  | implementing-tasks | <3,000 | 3,000-8,000 | >8,000 |
+  | deploying-infrastructure | <2,000 | 2,000-5,000 | >5,000 |
+
+### Breaking Changes
+
+- **Skill Names Renamed**: All 8 skills have new names (see Changed section)
+  - Custom commands referencing old names will need updates
+  - Automation scripts using skill names must be migrated
+  - Migration script available: `.claude/scripts/migrate-skill-names.sh`
+
+### Migration Guide
+
+If you have custom commands or scripts referencing old skill names:
+
+```bash
+# Run the migration script on your custom files
+./.claude/scripts/migrate-skill-names.sh --check  # Preview changes
+./.claude/scripts/migrate-skill-names.sh          # Apply changes
+```
+
+Or manually update references using this mapping:
+- `prd-architect` → `discovering-requirements`
+- `architecture-designer` → `designing-architecture`
+- `sprint-planner` → `planning-sprints`
+- `sprint-task-implementer` → `implementing-tasks`
+- `senior-tech-lead-reviewer` → `reviewing-code`
+- `paranoid-auditor` → `auditing-security`
+- `devops-crypto-architect` → `deploying-infrastructure`
+- `devrel-translator` → `translating-for-executives`
+
+### Technical Details
+
+- **Command Files Updated**: 10 commands with new skill references
+- **Agent Files Renamed**: 8 agent files to match new naming
+- **Index Files Updated**: 8 index.yaml files with gerund names
+- **GitHub Templates Updated**: Issue templates reference new names
+- All references to old skill names migrated throughout codebase
+
+---
+
 ## [0.3.0] - 2025-12-20
 
 ### Why This Release
@@ -159,6 +279,7 @@ loa-grimoire/           # Loa process artifacts
 └── deployment/         # Production infrastructure docs
 ```
 
+[0.4.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.4.0
 [0.3.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.3.0
 [0.2.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.2.0
 [0.1.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.1.0

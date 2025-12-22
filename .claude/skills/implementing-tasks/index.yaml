@@ -1,0 +1,51 @@
+name: "implementing-tasks"
+version: "1.0.0"
+model: "sonnet"
+color: "yellow"
+
+description: |
+  Use this skill IF user needs to implement sprint tasks from loa-grimoire/sprint.md,
+  OR feedback has been received in engineer-feedback.md that needs addressing.
+  Implements production-grade code with comprehensive tests, follows existing patterns,
+  and generates detailed reports. Produces report at loa-grimoire/a2a/sprint-N/reviewer.md.
+
+triggers:
+  - "/implement"
+  - "implement sprint"
+  - "execute sprint tasks"
+  - "start implementation"
+  - "address feedback"
+  - "feedback received"
+
+examples:
+  - context: "Sprint plan has been created and tasks need implementation"
+    user_says: "We need to implement the tasks from sprint 4"
+    agent_action: "Launch implementing-tasks to review sprint plan and implement all tasks with tests and documentation"
+  - context: "Senior lead has provided feedback"
+    user_says: "The senior lead has provided feedback on the sprint implementation"
+    agent_action: "Launch implementing-tasks to review feedback, address issues, and generate updated report"
+  - context: "New sprint has just been planned"
+    user_says: "I've finished documenting sprint 5 in loa-grimoire/sprint.md"
+    agent_action: "Launch implementing-tasks to begin implementing the sprint tasks"
+  - context: "Development cycle requires implementation"
+    user_says: "Let's start working on the features we planned for this sprint"
+    agent_action: "Launch implementing-tasks to implement sprint tasks with full test coverage"
+
+dependencies:
+  - skill: "planning-sprints"
+    artifact: "loa-grimoire/sprint.md"
+  - skill: "designing-architecture"
+    artifact: "loa-grimoire/sdd.md"
+  - skill: "discovering-requirements"
+    artifact: "loa-grimoire/prd.md"
+
+inputs:
+  - name: "sprint_id"
+    type: "string"
+    pattern: "^sprint-[0-9]+$"
+    required: true
+    description: "Sprint identifier (e.g., sprint-1)"
+
+outputs:
+  - path: "loa-grimoire/a2a/sprint-{id}/reviewer.md"
+    description: "Implementation report for senior lead review"

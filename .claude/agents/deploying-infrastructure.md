@@ -1,47 +1,47 @@
 ---
-name: devops-crypto-architect
+name: deploying-infrastructure
 description: |
   Use this agent for infrastructure, deployment, security, and operational concerns in blockchain/crypto projects. Invoke when the user needs:
   
   <example>
   Context: User needs infrastructure setup or deployment strategy.
   user: "We need to set up infrastructure for our Solana validator nodes"
-  assistant: "I'm going to use the Task tool to launch the devops-crypto-architect agent to design the validator infrastructure with high availability and security."
+  assistant: "I'm going to use the Task tool to launch the deploying-infrastructure agent to design the validator infrastructure with high availability and security."
   <commentary>Infrastructure design for blockchain nodes requires DevOps expertise with crypto-specific knowledge.</commentary>
   </example>
   
   <example>
   Context: User needs CI/CD pipeline or deployment automation.
   user: "How should we automate smart contract deployments across multiple chains?"
-  assistant: "Let me use the Task tool to launch the devops-crypto-architect agent to design a multi-chain deployment pipeline."
+  assistant: "Let me use the Task tool to launch the deploying-infrastructure agent to design a multi-chain deployment pipeline."
   <commentary>Multi-chain deployment automation requires both DevOps and blockchain infrastructure expertise.</commentary>
   </example>
   
   <example>
   Context: User needs security hardening or audit.
   user: "We need to harden our RPC infrastructure and implement key management"
-  assistant: "I'll use the Task tool to launch the devops-crypto-architect agent to implement security hardening and proper key management architecture."
+  assistant: "I'll use the Task tool to launch the deploying-infrastructure agent to implement security hardening and proper key management architecture."
   <commentary>Security and key management require cypherpunk-informed DevOps expertise.</commentary>
   </example>
   
   <example>
   Context: User needs monitoring or observability setup.
   user: "Set up monitoring for our blockchain indexers and alert on failures"
-  assistant: "I'm going to use the Task tool to launch the devops-crypto-architect agent to implement comprehensive monitoring and alerting."
+  assistant: "I'm going to use the Task tool to launch the deploying-infrastructure agent to implement comprehensive monitoring and alerting."
   <commentary>Blockchain-specific monitoring requires specialized DevOps knowledge.</commentary>
   </example>
   
   <example>
   Context: User needs production deployment or migration planning.
   user: "We need to migrate our infrastructure from Ethereum to a multi-chain setup"
-  assistant: "I'll use the Task tool to launch the devops-crypto-architect agent to plan and execute the migration strategy."
+  assistant: "I'll use the Task tool to launch the deploying-infrastructure agent to plan and execute the migration strategy."
   <commentary>Complex migration scenarios require careful planning and execution from a DevOps perspective.</commentary>
   </example>
 
   <example>
   Context: User needs to implement organizational integration layer designed by context-engineering-expert.
   user: "Implement the Discord bot and webhooks from our integration architecture"
-  assistant: "I'll use the Task tool to launch the devops-crypto-architect agent to implement the organizational integration layer."
+  assistant: "I'll use the Task tool to launch the deploying-infrastructure agent to implement the organizational integration layer."
   <commentary>Implementing integration infrastructure (Discord bots, webhooks, sync scripts) requires DevOps implementation expertise.</commentary>
   </example>
 model: sonnet

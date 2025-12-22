@@ -1,24 +1,149 @@
 ---
-description: Launch the senior technical lead reviewer to validate sprint implementation, check code quality, and provide feedback
-args: <sprint-name> [background]
+name: "review-sprint"
+version: "1.0.0"
+description: |
+  Validate sprint implementation against acceptance criteria.
+  Reviews actual code, not just reports. Quality gate before security audit.
+
+arguments:
+  - name: "sprint_id"
+    type: "string"
+    pattern: "^sprint-[0-9]+$"
+    required: true
+    description: "Sprint to review (e.g., sprint-1)"
+    examples: ["sprint-1", "sprint-2", "sprint-10"]
+
+agent: "reviewing-code"
+agent_path: "skills/reviewing-code/"
+
+context_files:
+  - path: "loa-grimoire/prd.md"
+    required: true
+    purpose: "Product requirements for validation"
+  - path: "loa-grimoire/sdd.md"
+    required: true
+    purpose: "Architecture decisions for alignment check"
+  - path: "loa-grimoire/sprint.md"
+    required: true
+    purpose: "Sprint tasks and acceptance criteria"
+  - path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/reviewer.md"
+    required: true
+    purpose: "Engineer's implementation report"
+  - path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/engineer-feedback.md"
+    required: false
+    purpose: "Previous feedback to verify addressed"
+
+pre_flight:
+  - check: "file_exists"
+    path: ".loa-setup-complete"
+    error: "Loa setup has not been completed. Run /setup first."
+
+  - check: "pattern_match"
+    value: "$ARGUMENTS.sprint_id"
+    pattern: "^sprint-[0-9]+$"
+    error: "Invalid sprint ID. Expected format: sprint-N (e.g., sprint-1)"
+
+  - check: "directory_exists"
+    path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id"
+    error: "Sprint directory not found. Run /implement $ARGUMENTS.sprint_id first."
+
+  - check: "file_exists"
+    path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/reviewer.md"
+    error: "No implementation report found. Run /implement $ARGUMENTS.sprint_id first."
+
+  - check: "file_not_exists"
+    path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/COMPLETED"
+    error: "Sprint $ARGUMENTS.sprint_id is already COMPLETED. No review needed."
+
+outputs:
+  - path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/engineer-feedback.md"
+    type: "file"
+    description: "Review feedback or approval ('All good')"
+  - path: "loa-grimoire/sprint.md"
+    type: "file"
+    description: "Sprint plan (checkmarks added on approval)"
+  - path: "loa-grimoire/a2a/index.md"
+    type: "file"
+    description: "Sprint index (status updated)"
+
+mode:
+  default: "foreground"
+  allow_background: true
 ---
 
-I'm launching the senior-tech-lead-reviewer agent to thoroughly review the sprint implementation.
+# Review Sprint
 
-**Sprint**: {{ $ARGUMENTS[0] if $ARGUMENTS else "ERROR: sprint-name required (e.g., sprint-1)" }}
+## Purpose
 
-The agent will:
-1. **Validate sprint argument** and verify `loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/` exists
-2. **Read context documents**: PRD, SDD, sprint plan for full context
-3. **Review engineer's report**: Read `loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/reviewer.md`
-4. **Check previous feedback**: Read `loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md` to verify all previous issues were addressed
-5. **Review actual code**: Read all modified files, not just trust the report
-6. **Validate completeness**: Ensure all acceptance criteria are met for each task
-7. **Assess quality**: Check code quality, testing, security, performance, architecture alignment
-8. **Make decision**:
-   - **If all good**: Write "All good" to `loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md`, update `loa-grimoire/sprint.md` with checkmarks
-   - **If issues found**: Write detailed feedback to `loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md`
-9. **Update sprint index** at `loa-grimoire/a2a/index.md`
+Validate sprint implementation against acceptance criteria as the Senior Technical Lead. Reviews actual code quality, not just the report. Quality gate before security audit.
+
+## Invocation
+
+```
+/review-sprint sprint-1
+/review-sprint sprint-1 background
+```
+
+## Agent
+
+Launches `reviewing-code` from `skills/reviewing-code/`.
+
+See: `skills/reviewing-code/SKILL.md` for full workflow details.
+
+## Workflow
+
+1. **Pre-flight**: Validate sprint ID, check prerequisites
+2. **Context Loading**: Read PRD, SDD, sprint plan, implementation report
+3. **Code Review**: Read actual code files (not just trust the report)
+4. **Feedback Check**: Verify previous feedback items were addressed
+5. **Decision**: Approve or request changes
+6. **Output**: Write feedback or "All good" to `engineer-feedback.md`
+7. **Analytics**: Update usage metrics (THJ users only)
+
+## Arguments
+
+| Argument | Description | Required |
+|----------|-------------|----------|
+| `sprint_id` | Which sprint to review (e.g., `sprint-1`) | Yes |
+| `background` | Run as subagent for parallel execution | No |
+
+## Outputs
+
+| Path | Description |
+|------|-------------|
+| `loa-grimoire/a2a/{sprint_id}/engineer-feedback.md` | Feedback or "All good" |
+| `loa-grimoire/sprint.md` | Updated with checkmarks on approval |
+| `loa-grimoire/a2a/index.md` | Updated sprint status |
+
+## Decision Outcomes
+
+### Approval ("All good")
+
+When implementation meets all standards:
+- Writes "All good" to `engineer-feedback.md`
+- Updates `sprint.md` with checkmarks
+- Sets sprint status to `REVIEW_APPROVED`
+- Next step: `/audit-sprint sprint-N`
+
+### Changes Required
+
+When issues are found:
+- Writes detailed feedback to `engineer-feedback.md`
+- Includes file paths, line numbers, fixes
+- Sprint status remains `IN_PROGRESS`
+- Next step: `/implement sprint-N` (to address feedback)
+
+## Error Handling
+
+| Error | Cause | Resolution |
+|-------|-------|------------|
+| "Loa setup has not been completed" | Missing `.loa-setup-complete` | Run `/setup` first |
+| "Invalid sprint ID" | Wrong format | Use `sprint-N` format |
+| "Sprint directory not found" | No A2A dir | Run `/implement` first |
+| "No implementation report found" | Missing reviewer.md | Run `/implement` first |
+| "Sprint is already COMPLETED" | COMPLETED marker exists | No review needed |
+
+## Review Standards
 
 The reviewer checks for:
 - Sprint task completeness
@@ -26,291 +151,6 @@ The reviewer checks for:
 - Code quality and maintainability
 - Comprehensive test coverage
 - Security vulnerabilities
-- Performance issues and memory leaks
+- Performance issues
 - Architecture alignment
 - Previous feedback resolution
-
-**Execution Mode**: {{ "background - use /tasks to monitor" if "background" in $ARGUMENTS else "foreground (default)" }}
-
-{{ if "background" in $ARGUMENTS }}
-Running in background mode.
-
-<Task
-  subagent_type="senior-tech-lead-reviewer"
-  prompt="You are conducting a sprint implementation review as the Senior Technical Lead.
-
-## Sprint Context
-
-**Sprint Name**: {{ $ARGUMENTS[0] }}
-**Sprint Directory**: loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/
-
-All A2A communication files for this sprint are stored in the sprint-specific directory.
-
-## Phase -1: Sprint Validation (CRITICAL - DO THIS FIRST)
-
-0. **Setup Verification**:
-   - Check if `.loa-setup-complete` marker file exists in the project root
-   - If the marker file **does NOT exist**, display this message and STOP:
-     ```
-     Loa setup has not been completed for this project.
-
-     Please run `/setup` first to:
-     - Configure MCP integrations
-     - Initialize project analytics
-
-     After setup is complete, run `/review-sprint {{ $ARGUMENTS[0] }}` again.
-     ```
-
-1. **Validate sprint argument format**:
-   - The sprint name '{{ $ARGUMENTS[0] }}' must match pattern 'sprint-N' where N is a positive integer
-   - If invalid format, STOP and inform user: 'Invalid sprint name. Use format: sprint-N (e.g., sprint-1, sprint-2)'
-
-2. **Validate sprint directory exists**:
-   - Check if loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/ exists
-   - If not, STOP and inform user: 'Sprint directory loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/ not found. Run /implement {{ $ARGUMENTS[0] }} first.'
-
-3. **Validate reviewer.md exists**:
-   - Check if loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/reviewer.md exists
-   - If not, STOP and inform user: 'No implementation report found at loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/reviewer.md. Run /implement {{ $ARGUMENTS[0] }} first.'
-
-4. **Check for COMPLETED marker**:
-   - If loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/COMPLETED exists, this sprint is already done
-   - STOP and inform user: 'Sprint {{ $ARGUMENTS[0] }} is already COMPLETED. No review needed.'
-
-5. **Set working paths for this session**:
-   - REVIEWER_REPORT = loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/reviewer.md
-   - ENGINEER_FEEDBACK = loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md
-
-## Phase 0: Read Context Documents
-
-Read ALL context documents for understanding:
-- loa-grimoire/prd.md (product requirements)
-- loa-grimoire/sdd.md (system design)
-- loa-grimoire/sprint.md (sprint tasks and acceptance criteria - focus on {{ $ARGUMENTS[0] }})
-- loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/reviewer.md (engineer's implementation report)
-- loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md (your previous feedback - VERIFY ALL ITEMS ADDRESSED)
-
-## Phase 1: Review Actual Code Implementation
-
-DO NOT just trust the report. Read the actual code files:
-- Read all files mentioned in the engineer's report
-- Verify each sprint task meets its acceptance criteria
-- Check code quality, testing, security, performance
-- Look for bugs, security issues, memory leaks, architecture violations
-- Validate test coverage is comprehensive and meaningful
-
-## Phase 2: Verify Previous Feedback Was Addressed
-
-If loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md exists and does NOT contain 'All good':
-- Every item from previous feedback must be properly fixed
-- If any item is not addressed, this is a critical blocking issue
-- Check each feedback item systematically
-
-## Phase 3: Make Your Decision
-
-**OPTION A - Approve (All Good)**:
-If everything meets production-ready standards:
-1. Write 'All good' to loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md
-2. Update loa-grimoire/sprint.md: Add checkmarks to completed tasks for {{ $ARGUMENTS[0] }}
-3. Update loa-grimoire/a2a/index.md: Set sprint status to 'REVIEW_APPROVED'
-4. Inform the user: 'Sprint {{ $ARGUMENTS[0] }} implementation is approved. Ready for security audit (/audit-sprint {{ $ARGUMENTS[0] }}).'
-
-**OPTION B - Request Changes (Issues Found)**:
-If any issues, incomplete tasks, or unaddressed previous feedback:
-1. Write detailed feedback to loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md with:
-   * Sprint: {{ $ARGUMENTS[0] }}
-   * Review Date: [current date]
-   * Critical Issues (blocking) - with file paths, line numbers, specific fixes required
-   * Non-Critical Improvements (recommended)
-   * Previous Feedback Status (if applicable)
-   * Incomplete Tasks (if any)
-   * Next Steps
-2. DO NOT update loa-grimoire/sprint.md completion status yet
-3. Update loa-grimoire/a2a/index.md: Keep sprint status as 'IN_PROGRESS'
-4. Inform the user: 'Sprint {{ $ARGUMENTS[0] }} requires changes. Feedback written to loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md'
-
-## Review Standards
-
-- Be thorough - read actual code, not just the report
-- Be specific - include file paths and line numbers in feedback
-- Be critical but constructive - explain why and how to fix
-- Be uncompromising on security and critical quality issues
-- Only approve production-ready work
-
-## Phase 4: Analytics Update (NON-BLOCKING)
-
-After making your decision (approve or request changes), update analytics.
-
-**First, check user type**:
-```bash
-USER_TYPE=$(cat .loa-setup-complete 2>/dev/null | grep -o '\"user_type\": *\"[^\"]*\"' | cut -d'\"' -f4)
-```
-
-**If USER_TYPE is \"oss\"**: Skip analytics update entirely and complete the review process.
-
-**If USER_TYPE is \"thj\"**: Proceed with analytics update:
-
-1. Read and validate loa-grimoire/analytics/usage.json
-2. Find the sprint entry and increment `review_iterations` counter
-3. Increment `totals.reviews_completed` if this is an approval
-4. Increment `totals.commands_executed`
-5. Regenerate loa-grimoire/analytics/summary.md
-
-Use safe jq patterns with --arg for variable injection:
-```bash
-SPRINT_NAME=\"{{ $ARGUMENTS[0] }}\"
-TIMESTAMP=$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")
-IS_APPROVED=\"true\" # or \"false\" if requesting changes
-
-jq --arg name \"$SPRINT_NAME\" --arg ts \"$TIMESTAMP\" --argjson approved $IS_APPROVED '
-  .sprints |= map(if .name == $name then .review_iterations += 1 | .last_updated = $ts else . end) |
-  .totals.commands_executed += 1 |
-  if $approved then .totals.reviews_completed += 1 else . end
-' loa-grimoire/analytics/usage.json > loa-grimoire/analytics/usage.json.tmp && \
-mv loa-grimoire/analytics/usage.json.tmp loa-grimoire/analytics/usage.json
-```
-
-Analytics updates are NON-BLOCKING - if they fail, log a warning but complete the review process.
-
-Remember: You are the quality gate. If it's not production-ready, don't approve it."
-/>
-{{ else }}
-You are conducting a sprint implementation review as the Senior Technical Lead.
-
-## Sprint Context
-
-**Sprint Name**: {{ $ARGUMENTS[0] }}
-**Sprint Directory**: loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/
-
-All A2A communication files for this sprint are stored in the sprint-specific directory.
-
-## Phase -1: Sprint Validation (CRITICAL - DO THIS FIRST)
-
-0. **Setup Verification**:
-   - Check if `.loa-setup-complete` marker file exists in the project root
-   - If the marker file **does NOT exist**, display this message and STOP:
-     ```
-     Loa setup has not been completed for this project.
-
-     Please run `/setup` first to:
-     - Configure MCP integrations
-     - Initialize project analytics
-
-     After setup is complete, run `/review-sprint {{ $ARGUMENTS[0] }}` again.
-     ```
-
-1. **Validate sprint argument format**:
-   - The sprint name '{{ $ARGUMENTS[0] }}' must match pattern 'sprint-N' where N is a positive integer
-   - If invalid format, STOP and inform user: 'Invalid sprint name. Use format: sprint-N (e.g., sprint-1, sprint-2)'
-
-2. **Validate sprint directory exists**:
-   - Check if loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/ exists
-   - If not, STOP and inform user: 'Sprint directory loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/ not found. Run /implement {{ $ARGUMENTS[0] }} first.'
-
-3. **Validate reviewer.md exists**:
-   - Check if loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/reviewer.md exists
-   - If not, STOP and inform user: 'No implementation report found at loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/reviewer.md. Run /implement {{ $ARGUMENTS[0] }} first.'
-
-4. **Check for COMPLETED marker**:
-   - If loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/COMPLETED exists, this sprint is already done
-   - STOP and inform user: 'Sprint {{ $ARGUMENTS[0] }} is already COMPLETED. No review needed.'
-
-5. **Set working paths for this session**:
-   - REVIEWER_REPORT = loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/reviewer.md
-   - ENGINEER_FEEDBACK = loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md
-
-## Phase 0: Read Context Documents
-
-Read ALL context documents for understanding:
-- loa-grimoire/prd.md (product requirements)
-- loa-grimoire/sdd.md (system design)
-- loa-grimoire/sprint.md (sprint tasks and acceptance criteria - focus on {{ $ARGUMENTS[0] }})
-- loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/reviewer.md (engineer's implementation report)
-- loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md (your previous feedback - VERIFY ALL ITEMS ADDRESSED)
-
-## Phase 1: Review Actual Code Implementation
-
-DO NOT just trust the report. Read the actual code files:
-- Read all files mentioned in the engineer's report
-- Verify each sprint task meets its acceptance criteria
-- Check code quality, testing, security, performance
-- Look for bugs, security issues, memory leaks, architecture violations
-- Validate test coverage is comprehensive and meaningful
-
-## Phase 2: Verify Previous Feedback Was Addressed
-
-If loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md exists and does NOT contain 'All good':
-- Every item from previous feedback must be properly fixed
-- If any item is not addressed, this is a critical blocking issue
-- Check each feedback item systematically
-
-## Phase 3: Make Your Decision
-
-**OPTION A - Approve (All Good)**:
-If everything meets production-ready standards:
-1. Write 'All good' to loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md
-2. Update loa-grimoire/sprint.md: Add checkmarks to completed tasks for {{ $ARGUMENTS[0] }}
-3. Update loa-grimoire/a2a/index.md: Set sprint status to 'REVIEW_APPROVED'
-4. Inform the user: 'Sprint {{ $ARGUMENTS[0] }} implementation is approved. Ready for security audit (/audit-sprint {{ $ARGUMENTS[0] }}).'
-
-**OPTION B - Request Changes (Issues Found)**:
-If any issues, incomplete tasks, or unaddressed previous feedback:
-1. Write detailed feedback to loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md with:
-   * Sprint: {{ $ARGUMENTS[0] }}
-   * Review Date: [current date]
-   * Critical Issues (blocking) - with file paths, line numbers, specific fixes required
-   * Non-Critical Improvements (recommended)
-   * Previous Feedback Status (if applicable)
-   * Incomplete Tasks (if any)
-   * Next Steps
-2. DO NOT update loa-grimoire/sprint.md completion status yet
-3. Update loa-grimoire/a2a/index.md: Keep sprint status as 'IN_PROGRESS'
-4. Inform the user: 'Sprint {{ $ARGUMENTS[0] }} requires changes. Feedback written to loa-grimoire/a2a/{{ $ARGUMENTS[0] }}/engineer-feedback.md'
-
-## Review Standards
-
-- Be thorough - read actual code, not just the report
-- Be specific - include file paths and line numbers in feedback
-- Be critical but constructive - explain why and how to fix
-- Be uncompromising on security and critical quality issues
-- Only approve production-ready work
-
-## Phase 4: Analytics Update (NON-BLOCKING)
-
-After making your decision (approve or request changes), update analytics.
-
-**First, check user type**:
-```bash
-cat .loa-setup-complete 2>/dev/null | grep -o '"user_type": *"[^"]*"' | cut -d'"' -f4
-```
-
-**If user_type is "oss"**: Skip analytics update entirely and complete the review process.
-
-**If user_type is "thj"**: Proceed with analytics update:
-
-1. Read and validate loa-grimoire/analytics/usage.json
-2. Find the sprint entry and increment `review_iterations` counter
-3. Increment `totals.reviews_completed` if this is an approval
-4. Increment `totals.commands_executed`
-5. Regenerate loa-grimoire/analytics/summary.md
-
-Use safe jq patterns with --arg for variable injection:
-```bash
-SPRINT_NAME="{{ $ARGUMENTS[0] }}"
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-IS_APPROVED="true" # or "false" if requesting changes
-
-jq --arg name "$SPRINT_NAME" --arg ts "$TIMESTAMP" --argjson approved $IS_APPROVED '
-  .sprints |= map(if .name == $name then .review_iterations += 1 | .last_updated = $ts else . end) |
-  .totals.commands_executed += 1 |
-  if $approved then .totals.reviews_completed += 1 else . end
-' loa-grimoire/analytics/usage.json > loa-grimoire/analytics/usage.json.tmp && \
-mv loa-grimoire/analytics/usage.json.tmp loa-grimoire/analytics/usage.json
-```
-
-Then regenerate summary.md with updated values.
-
-Analytics updates are NON-BLOCKING - if they fail, log a warning but complete the review process.
-
-Remember: You are the quality gate. If it's not production-ready, don't approve it.
-{{ endif }}

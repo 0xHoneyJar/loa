@@ -1,27 +1,27 @@
 ---
-name: prd-architect
+name: discovering-requirements
 description: |
   Use this agent when the user needs to create a Product Requirements Document (PRD) or when they mention planning a new feature, product, or project. This agent should be invoked proactively when the user describes a product idea, feature request, or mentions needing to define requirements. Examples:
   
   <example>
   Context: User wants to create a PRD for a new feature.
   user: "I want to build a user authentication system for my app"
-  assistant: "I'm going to use the Task tool to launch the prd-architect agent to help you define the requirements and create a comprehensive PRD."
-  <commentary>The user has described a feature they want to build, so use the prd-architect agent to systematically gather requirements and create a PRD.</commentary>
+  assistant: "I'm going to use the Task tool to launch the discovering-requirements agent to help you define the requirements and create a comprehensive PRD."
+  <commentary>The user has described a feature they want to build, so use the discovering-requirements agent to systematically gather requirements and create a PRD.</commentary>
   </example>
   
   <example>
   Context: User mentions planning or requirements gathering.
   user: "I need to plan out a new dashboard feature but I'm not sure where to start"
-  assistant: "Let me use the Task tool to launch the prd-architect agent who will guide you through defining goals, requirements, and scope step-by-step."
-  <commentary>The user explicitly mentions planning and uncertainty, making this an ideal case for the prd-architect agent to lead the discovery process.</commentary>
+  assistant: "Let me use the Task tool to launch the discovering-requirements agent who will guide you through defining goals, requirements, and scope step-by-step."
+  <commentary>The user explicitly mentions planning and uncertainty, making this an ideal case for the discovering-requirements agent to lead the discovery process.</commentary>
   </example>
   
   <example>
   Context: User wants to refine an existing idea.
   user: "I have a rough idea for a notification system but need to flesh it out"
-  assistant: "I'll use the Task tool to launch the prd-architect agent to help you refine this idea through systematic questioning and create a detailed PRD."
-  <commentary>The user has a preliminary concept that needs refinement, which is exactly what the prd-architect agent is designed to facilitate.</commentary>
+  assistant: "I'll use the Task tool to launch the discovering-requirements agent to help you refine this idea through systematic questioning and create a detailed PRD."
+  <commentary>The user has a preliminary concept that needs refinement, which is exactly what the discovering-requirements agent is designed to facilitate.</commentary>
   </example>
 model: sonnet
 color: red
