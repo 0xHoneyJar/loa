@@ -5,66 +5,6 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.5.0] - 2025-12-21
-
-### Why This Release
-
-This release introduces **Beads Integration** - a git-backed graph memory system for sprint lifecycle management. Combined with a new centralized MCP registry, this provides persistent, merge-friendly task state tracking across sessions and improved tooling discoverability.
-
-### Added
-
-- **Beads Integration**: Git-backed graph memory for sprint lifecycle state management
-  - Hash-based issue IDs (`bd-xxxx`) that are collision-resistant and merge-friendly
-  - Hierarchical structure: Epics → Tasks → Subtasks
-  - Dependency types: `blocks`, `parent-child`, `discovered-from`, `related`
-  - Ready detection: `bd ready` finds tasks with no open blockers
-  - Full protocol documentation: `.claude/protocols/beads-workflow.md`
-
-- **Beads Helper Scripts** (`.claude/scripts/beads/`)
-  | Script | Purpose |
-  |--------|---------|
-  | `check-beads.sh` | Verify Beads installation status |
-  | `install-beads.sh` | Guided Beads installation |
-  | `create-sprint-epic.sh` | Create new sprint epic |
-  | `get-sprint-tasks.sh` | List tasks under a sprint epic |
-  | `get-ready-by-priority.sh` | Get ready work sorted by priority |
-  | `sync-to-git.sh` | Commit Beads state to git |
-
-- **Centralized MCP Registry** (`.claude/mcp-registry.yaml`)
-  - Single source of truth for all MCP server configurations
-  - Server metadata: scopes, documentation links, setup instructions
-  - Server groups: `essential`, `deployment`, `crypto`, `communication`, `productivity`
-  - Query script: `.claude/scripts/mcp-registry.sh`
-  - Validation script: `.claude/scripts/validate-mcp.sh`
-
-- **Enhanced Setup Wizard**: Beads onboarding with guided installation
-  - Detects Beads installation status during `/setup`
-  - Offers guided installation if not present
-  - Initializes Beads database for new projects
-
-- **Session End Protocol** (`.claude/protocols/session-end.md`)
-  - Checklist for clean session handoff
-  - In-progress task status updates
-  - Beads state sync to git
-
-### Changed
-
-- **Skills declare MCP dependencies**: Each skill's `index.yaml` can specify required MCP servers
-- **CI Workflow**: Updated to validate skills instead of legacy agents directory
-- **Documentation**: Updated PROCESS.md, README.md, and CONTRIBUTING.md for Beads integration
-
-### Removed
-
-- **Legacy agents directory**: Removed deprecated `.claude/agents/` in favor of `.claude/skills/`
-
-### Technical Details
-
-- Beads database stored in `.beads/beads.jsonl`
-- Git-backed: State persists across sessions via commits
-- JSON output: All `bd` commands support `--json` for programmatic access
-
----
-
 ## [0.4.0] - 2025-12-21
 
 ### Why This Release
@@ -339,7 +279,6 @@ loa-grimoire/           # Loa process artifacts
 └── deployment/         # Production infrastructure docs
 ```
 
-[0.5.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.5.0
 [0.4.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.4.0
 [0.3.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.3.0
 [0.2.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.2.0

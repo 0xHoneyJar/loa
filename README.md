@@ -1,6 +1,6 @@
 # Loa
 
-[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
@@ -68,14 +68,6 @@ Each skill in `.claude/skills/{agent}/` with 3-level architecture:
 
 ## Key Features
 
-### Beads Integration
-
-Git-backed graph memory for sprint task tracking:
-- **Task Discovery**: `bd ready --json` finds next actionable work
-- **Dependencies**: Model blocking relationships between tasks
-- **Status Updates**: Track in-progress, completed, blocked states
-- **Session Handoff**: Clean state persistence between sessions
-
 ### Two Quality Gates
 
 1. **Code Review**: Tech lead reviews until "All good"
@@ -98,13 +90,9 @@ Git-backed graph memory for sprint task tracking:
 .claude/
 ├── skills/           # Agent skills (3-level architecture)
 ├── commands/         # Slash commands (v4 thin routing)
-├── protocols/        # Git safety, analytics, feedback loops, beads
+├── protocols/        # Git safety, analytics, feedback loops
 ├── scripts/          # Helper bash scripts
-│   └── beads/        # Beads helper scripts
 └── settings.local.json
-
-.beads/
-└── beads.jsonl       # Git-backed task graph (source of truth)
 
 loa-grimoire/
 ├── context/                      # Pre-discovery docs (optional)

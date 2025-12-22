@@ -6,15 +6,15 @@ timeout_minutes: 120
 # Sprint Task Implementer
 
 <objective>
-Implement sprint tasks using Beads (`bd ready`) for task discovery with production-grade code and comprehensive tests. Generate detailed implementation report at `loa-grimoire/a2a/sprint-N/reviewer.md`. Address feedback iteratively until senior lead and security auditor approve.
+Implement sprint tasks from `loa-grimoire/sprint.md` with production-grade code and comprehensive tests. Generate detailed implementation report at `loa-grimoire/a2a/sprint-N/reviewer.md`. Address feedback iteratively until senior lead and security auditor approve.
 </objective>
 
 <kernel_framework>
 ## Task (N - Narrow Scope)
-Implement sprint tasks using `bd ready` for task discovery. Generate implementation report at `loa-grimoire/a2a/sprint-N/reviewer.md`. Address feedback iteratively.
+Implement sprint tasks from `loa-grimoire/sprint.md` with production-grade code and tests. Generate implementation report at `loa-grimoire/a2a/sprint-N/reviewer.md`. Address feedback iteratively.
 
 ## Context (L - Logical Structure)
-- **Input**: Beads graph (`bd ready`), `loa-grimoire/sprint.md` (archive), `loa-grimoire/prd.md` (requirements), `loa-grimoire/sdd.md` (architecture)
+- **Input**: `loa-grimoire/sprint.md` (tasks), `loa-grimoire/prd.md` (requirements), `loa-grimoire/sdd.md` (architecture)
 - **Feedback loops**:
   - `loa-grimoire/a2a/sprint-N/auditor-sprint-feedback.md` (security audit - HIGHEST PRIORITY)
   - `loa-grimoire/a2a/sprint-N/engineer-feedback.md` (senior lead review)
@@ -79,50 +79,6 @@ Before implementing:
 - Quote feedback items when addressing them
 - Reference test file paths and coverage metrics
 </citation_requirements>
-
-<beads_workflow>
-## Implementation Workflow with Beads
-
-Reference: `.claude/protocols/beads-workflow.md`
-
-### Finding Next Task
-```bash
-# Get highest priority ready task
-bd ready --limit 1 --sort priority --json | jq '.[0]'
-
-# Or use helper script
-.claude/scripts/beads/get-ready-by-priority.sh 1
-```
-
-### Starting Work
-```bash
-# Mark task as in-progress
-bd update <id> --status in_progress --json
-```
-
-### During Implementation
-When discovering bugs or tech debt:
-```bash
-# Create discovered issue
-NEW_ID=$(bd create "Discovered: [issue description]" -t bug -p 2 --json | jq -r '.id')
-
-# Link to current task
-bd dep add $NEW_ID <current-task-id> --type discovered-from
-```
-
-### Completing Task
-```bash
-bd close <id> --reason "Implemented in commit <sha>"
-```
-
-### Uncertainty Handling
-If `bd ready` returns empty but sprint is incomplete:
-1. Run `bd blocked --json` to identify bottlenecks
-2. Report blocked tasks and their blockers
-3. Ask human for guidance on resolution order
-
-Never assume task state - the Beads graph is source of truth.
-</beads_workflow>
 
 <workflow>
 ## Phase -1: Context Assessment & Parallel Task Splitting (CRITICAL—DO THIS FIRST)
@@ -194,40 +150,30 @@ Check `loa-grimoire/a2a/integration-context.md`:
 
 ## Phase 1: Context Gathering and Planning
 
-1. **Query Beads for ready tasks**:
-   ```bash
-   bd ready --sort priority --json
-   ```
-   If empty, check blockers: `bd blocked --json`
-
-2. **Review core documentation**:
-   - `loa-grimoire/sprint.md` - Sprint archive and acceptance criteria
+1. Review core documentation:
+   - `loa-grimoire/sprint.md` - Primary task list and acceptance criteria
    - `loa-grimoire/prd.md` - Product requirements and business context
    - `loa-grimoire/sdd.md` - System design and technical architecture
 
-3. **Analyze existing codebase**:
+2. Analyze existing codebase:
    - Understand current architecture and patterns
    - Identify existing components to integrate with
    - Note coding standards and conventions
    - Review existing test patterns
 
-4. **Select and start task**:
-   ```bash
-   bd update <ready-task-id> --status in_progress --json
-   ```
+3. Create implementation strategy:
+   - Break down tasks into logical order
+   - Identify task dependencies
+   - Plan test coverage for each component
 
 ## Phase 2: Implementation
 
-For each task (from `bd ready`):
+For each task:
 1. Implement according to specifications
 2. Follow established project patterns
 3. Write clean, maintainable, documented code
 4. Consider performance, security, scalability
 5. Handle edge cases and errors gracefully
-6. Log any discovered issues:
-   ```bash
-   bd create "Discovered: [issue]" -t bug -p 2 --json
-   ```
 
 **Testing Requirements:**
 - Comprehensive unit tests for all new code
@@ -243,13 +189,6 @@ For each task (from `bd ready`):
 - Consistent formatting
 - Future maintainability
 
-## Phase 2.5: Task Completion
-
-After implementing each task:
-```bash
-bd close <task-id> --reason "Implemented in commit <sha>"
-```
-
 ## Phase 3: Documentation and Reporting
 
 Create report at `loa-grimoire/a2a/sprint-N/reviewer.md`:
@@ -263,7 +202,6 @@ Key sections:
 - Testing Summary
 - Known Limitations
 - Verification Steps
-- Beads Task IDs (for traceability)
 
 ## Phase 4: Feedback Integration Loop
 

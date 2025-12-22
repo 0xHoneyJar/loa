@@ -2,6 +2,12 @@
 
 Bash utilities for deterministic operations in the Loa framework.
 
+## Dependencies
+
+| Tool | Required By | Install |
+|------|-------------|---------|
+| `yq` | `mcp-registry.sh` | `brew install yq` / `apt install yq` |
+
 ## Script Inventory
 
 | Script | Purpose | Exit Codes |
@@ -13,7 +19,7 @@ Bash utilities for deterministic operations in the Loa framework.
 | `check-feedback-status.sh` | Check sprint feedback state | 0=success, 1=error, 2=invalid |
 | `validate-sprint-id.sh` | Validate sprint ID format | 0=valid, 1=invalid |
 | `check-prerequisites.sh` | Check phase prerequisites | 0=OK, 1=missing |
-| `mcp-registry.sh` | Query MCP server registry | 0=success, 1=error |
+| `mcp-registry.sh` | Query MCP server registry (requires yq) | 0=success, 1=error |
 | `validate-mcp.sh` | Validate MCP server configuration | 0=OK, 1=missing |
 | `assess-discovery-context.sh` | PRD context ingestion assessment | 0=success |
 

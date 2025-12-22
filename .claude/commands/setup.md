@@ -14,7 +14,7 @@ pre_flight:
     path: ".loa-setup-complete"
     error: "Setup already completed. Run /config to modify MCP settings."
 
-mcp_source: ".claude/mcp-registry.yaml"
+integrations_source: ".claude/mcp-registry.yaml"
 
 outputs:
   - path: ".loa-setup-complete"
@@ -58,91 +58,6 @@ Detect if this repository is a fork/template of Loa:
 3. Query GitHub API for fork relationship (if `gh` CLI available)
 
 Store detection result for Git Safety features.
-
-### Phase 0.6: Beads Installation
-
-Beads (`bd`) is a git-backed issue tracker that Loa uses for sprint task management. It enables dependency tracking, ready detection, and clean session handoffs.
-
-#### Step 1: Check Current Status
-
-```bash
-.claude/scripts/beads/check-beads.sh
-```
-
-**Possible outcomes:**
-- `READY` → Skip to Phase 1
-- `NOT_INSTALLED` → Proceed to Step 2
-- `NOT_INITIALIZED` → Skip to Step 3
-
-#### Step 2: Install Beads (if needed)
-
-**Explain to user:**
-> Loa uses Beads for sprint task tracking. This provides:
-> - **Dependency modeling**: Track which tasks block others
-> - **Ready detection**: `bd ready` finds your next actionable work
-> - **Session handoff**: Clean state persistence between sessions
->
-> Beads is a lightweight CLI tool (~2MB) that stores data in `.beads/` within your project.
-
-**Ask for confirmation using AskUserQuestion:**
-- "Install Beads now? (Recommended)"
-- "Skip for now (some features will be limited)"
-- "I'll install manually later"
-
-**If user confirms installation:**
-
-```bash
-.claude/scripts/beads/install-beads.sh
-```
-
-**If installation fails**, provide manual instructions:
-> Installation failed. You can install manually:
-> ```bash
-> # Option 1: Install script
-> curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash
->
-> # Option 2: Go install (if you have Go)
-> go install github.com/steveyegge/beads/cmd/bd@latest
->
-> # Option 3: Build from source
-> git clone https://github.com/steveyegge/beads.git
-> cd beads && go build -o bd ./cmd/bd && sudo mv bd /usr/local/bin/
-> ```
-> After installing, run `/setup` again.
-
-**If user skips:**
-> Note: Sprint task tracking will use markdown-only mode.
-> You can install Beads later and run `/setup` again to enable full features.
-
-#### Step 3: Initialize Beads Database (if needed)
-
-```bash
-[ -d ".beads" ] || bd init --quiet
-```
-
-#### Step 4: Verify Installation
-
-```bash
-.claude/scripts/beads/check-beads.sh
-```
-
-**If READY:**
-> ✓ Beads installed and initialized successfully
-> - Database: `.beads/beads.jsonl`
-> - Run `bd --help` to explore commands
-
-**Record in marker file:**
-```json
-"beads": {
-  "installed": true,
-  "version": "<output of bd --version>",
-  "initialized_at": "ISO-8601 timestamp"
-}
-```
-
-**If still not working:**
-> ⚠ Beads setup incomplete. Sprint tracking will use fallback mode.
-> Run `bd --version` to diagnose, or see: https://github.com/steveyegge/beads
 
 ### Phase 1A: THJ Developer Setup
 
@@ -217,11 +132,6 @@ Use helper scripts to query the registry:
     "repo": "0xHoneyJar/loa",
     "detection_method": "origin_url",
     "detected_at": "ISO-8601 timestamp"
-  },
-  "beads": {
-    "installed": true,
-    "version": "1.0.0",
-    "initialized_at": "ISO-8601 timestamp"
   }
 }
 ```
