@@ -162,9 +162,13 @@ Use `.claude/scripts/context-check.sh` for assessment.
 └── validate-mcp.sh           # MCP configuration validation
 ```
 
-## MCP Integrations
+## Integrations
 
-Registry: `.claude/mcp-registry.yaml` (single source of truth)
+External service integrations (MCP servers) use lazy-loading - see `.claude/protocols/integrations.md`.
+
+**Registry**: `.claude/mcp-registry.yaml` (loaded only when needed)
+
+**Requires**: `yq` for YAML parsing (`brew install yq` / `apt install yq`)
 
 ```bash
 .claude/scripts/mcp-registry.sh list      # List servers
@@ -173,7 +177,15 @@ Registry: `.claude/mcp-registry.yaml` (single source of truth)
 .claude/scripts/validate-mcp.sh <s>       # Check if configured
 ```
 
-Skills declare MCP dependencies in their `index.yaml` files.
+Skills declare integrations in their `index.yaml`:
+```yaml
+integrations:
+  required: []
+  optional:
+    - name: "linear"
+      reason: "Sync tasks to Linear"
+      fallback: "Tasks remain local"
+```
 
 ## Key Conventions
 

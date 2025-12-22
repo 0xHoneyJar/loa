@@ -9,11 +9,11 @@ command_type: "survey"
 
 arguments: []
 
-mcp_requirements:
-  - server: "linear"
-    scopes: [issues, projects]
-    required: true
-    error: "Linear MCP required for /feedback. Run /config to set up, or open a GitHub issue instead."
+integrations:
+  required:
+    - name: "linear"
+      scopes: [issues, projects]
+      error: "Linear integration required for /feedback. Run /config to set up, or open a GitHub issue instead."
 
 pre_flight:
   - check: "file_exists"

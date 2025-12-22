@@ -9,7 +9,7 @@ command_type: "wizard"
 
 arguments: []
 
-mcp_source: ".claude/mcp-registry.yaml"
+integrations_source: ".claude/mcp-registry.yaml"
 
 pre_flight:
   - check: "file_exists"

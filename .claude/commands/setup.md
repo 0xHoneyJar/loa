@@ -14,7 +14,7 @@ pre_flight:
     path: ".loa-setup-complete"
     error: "Setup already completed. Run /config to modify MCP settings."
 
-mcp_source: ".claude/mcp-registry.yaml"
+integrations_source: ".claude/mcp-registry.yaml"
 
 outputs:
   - path: ".loa-setup-complete"
