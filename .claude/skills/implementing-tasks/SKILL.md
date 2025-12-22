@@ -81,6 +81,29 @@ Before implementing:
 </citation_requirements>
 
 <workflow>
+## Phase -2: Beads Integration Check
+
+Check if Beads is available for task lifecycle management:
+
+```bash
+.claude/scripts/check-beads.sh --quiet
+```
+
+**If INSTALLED**, use Beads for task lifecycle:
+- `bd ready` - Get next actionable task (JIT retrieval)
+- `bd update <task-id> --status in_progress` - Mark task started (done automatically)
+- `bd close <task-id>` - Mark task completed (done automatically)
+- Task state persists across context windows
+
+**If NOT_INSTALLED**, use markdown-based tracking from sprint.md.
+
+**IMPORTANT**: Users should NOT run bd commands manually. This agent handles the entire Beads lifecycle internally:
+
+1. On start: Run `bd ready` to find first unblocked task
+2. Before implementing: Auto-run `bd update <task-id> --status in_progress`
+3. After completing: Auto-run `bd close <task-id>`
+4. Repeat until sprint complete
+
 ## Phase -1: Context Assessment & Parallel Task Splitting (CRITICAL—DO THIS FIRST)
 
 Assess context size to determine if parallel splitting is needed:
@@ -168,7 +191,27 @@ Check `loa-grimoire/a2a/integration-context.md`:
 
 ## Phase 2: Implementation
 
-For each task:
+### Beads Task Loop (if Beads installed)
+
+```bash
+# 1. Get next actionable task
+TASK=$(bd ready --format json | head -1)
+TASK_ID=$(echo $TASK | jq -r '.id')
+
+# 2. Mark in progress (automatic - user never sees this)
+bd update $TASK_ID --status in_progress
+
+# 3. Implement the task...
+
+# 4. Mark complete (automatic - user never sees this)
+bd close $TASK_ID
+
+# 5. Repeat for next task
+```
+
+The user only runs `/implement sprint-1`. All bd commands are invisible.
+
+### For each task:
 1. Implement according to specifications
 2. Follow established project patterns
 3. Write clean, maintainable, documented code

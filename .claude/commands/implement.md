@@ -1,9 +1,10 @@
 ---
 name: "implement"
-version: "1.0.0"
+version: "1.1.0"
 description: |
   Execute sprint tasks with production-quality code and tests.
   Automatically checks for and addresses audit/review feedback before new work.
+  If Beads is installed, handles task lifecycle automatically (no manual bd commands).
 
 arguments:
   - name: "sprint_id"
