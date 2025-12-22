@@ -4,6 +4,44 @@ This document outlines the comprehensive agent-driven development workflow. Our 
 
 > **Note**: This is a base framework repository that THJ uses for development of our products. If you are not a part of THJ, when using as a template for a new project, uncomment the generated artifacts section in `.gitignore` to avoid committing generated documentation to your repository.
 
+## Managed Scaffolding Architecture
+
+Loa v0.6.0 uses **enterprise-grade managed scaffolding** inspired by AWS Projen, Copier, and Google's ADK:
+
+### Three-Zone Model
+
+| Zone | Path | Owner | Permission |
+|------|------|-------|------------|
+| **System** | `.claude/` | Framework | NEVER edit directly |
+| **State** | `loa-grimoire/`, `.beads/` | Project | Read/Write |
+| **App** | `src/`, `lib/`, `app/` | Developer | Read (write requires confirmation) |
+
+**Critical**: System Zone is synthesized. Never suggest edits to `.claude/` - direct users to `.claude/overrides/` or `.loa.config.yaml`.
+
+### Integrity Enforcement
+
+The framework uses **Projen-level synthesis protection**:
+
+- **Checksums**: `.claude/checksums.json` contains SHA-256 hashes of all System Zone files
+- **Enforcement Levels** (configured in `.loa.config.yaml`):
+  - `strict`: Blocks execution if System Zone modified (CI/CD mandatory)
+  - `warn`: Warns but allows execution
+  - `disabled`: No checks (not recommended)
+- **Recovery**: Use `.claude/scripts/update.sh --force-restore` to reset System Zone
+
+### Customization
+
+Place all customizations in `.claude/overrides/` - they survive framework updates:
+
+```
+.claude/overrides/
+├── skills/
+│   └── implementing-tasks/
+│       └── SKILL.md          # Custom skill instructions
+└── commands/
+    └── my-command.md         # Custom command
+```
+
 ## Protocol References
 
 Detailed specifications are maintained in separate protocol files:
@@ -11,15 +49,20 @@ Detailed specifications are maintained in separate protocol files:
 - **Git Safety**: `.claude/protocols/git-safety.md` - Template detection, warning flow, remediation
 - **Analytics**: `.claude/protocols/analytics.md` - THJ-only usage tracking, schema, helper functions
 - **Feedback Loops**: `.claude/protocols/feedback-loops.md` - A2A communication, approval markers
+- **Structured Memory**: `.claude/protocols/structured-memory.md` - NOTES.md protocol, tool result clearing
+- **Trajectory Evaluation**: `.claude/protocols/trajectory-evaluation.md` - ADK-style reasoning logs, EDD
 
 ## Table of Contents
 
+- [Managed Scaffolding Architecture](#managed-scaffolding-architecture)
 - [Overview](#overview)
 - [Agents](#agents)
 - [Workflow](#workflow)
 - [Custom Commands](#custom-commands)
 - [Document Artifacts](#document-artifacts)
 - [Agent-to-Agent Communication](#agent-to-agent-communication)
+- [Structured Agentic Memory](#structured-agentic-memory)
+- [Trajectory Evaluation](#trajectory-evaluation-adk-level)
 - [Best Practices](#best-practices)
 
 ---
@@ -1007,6 +1050,68 @@ The engineer reads this file with HIGHEST PRIORITY on the next `/implement {spri
 
 ---
 
+## Structured Agentic Memory
+
+Agents maintain persistent working memory in `loa-grimoire/NOTES.md`:
+
+### Memory Structure
+
+```markdown
+## Active Sub-Goals
+<!-- Current objectives being pursued -->
+
+## Discovered Technical Debt
+<!-- Issues found during implementation that need future attention -->
+
+## Blockers & Dependencies
+<!-- External factors affecting progress -->
+
+## Session Continuity
+<!-- Key context to restore on next session -->
+| Timestamp | Agent | Summary |
+
+## Decision Log
+<!-- Major decisions with rationale -->
+```
+
+### Agent Protocol
+
+1. **Session Start**: Read NOTES.md to restore context
+2. **During Execution**: Log significant decisions with rationale
+3. **Before Compaction/End**: Summarize session insights
+4. **Tool Result Clearing**: Apply semantic memory decay after heavy operations
+
+See `.claude/protocols/structured-memory.md` for detailed protocol.
+
+---
+
+## Trajectory Evaluation (ADK-Level)
+
+Agents log reasoning to `loa-grimoire/a2a/trajectory/{agent}-{date}.jsonl`:
+
+### Log Format
+
+```json
+{"timestamp": "...", "agent": "...", "action": "...", "reasoning": "...", "grounding": {...}}
+```
+
+### Grounding Types
+
+- `citation`: Direct quote from docs
+- `code_reference`: Reference to existing code
+- `assumption`: Ungrounded claim (must flag)
+- `user_input`: Based on user request
+
+### Evaluation-Driven Development (EDD)
+
+- **Minimum 3 test scenarios** before marking a task complete
+- **Factual grounding**: All claims must cite sources or be flagged as `[ASSUMPTION]`
+- **Trajectory audit**: Reasoning logs are auditable for hallucination detection
+
+See `.claude/protocols/trajectory-evaluation.md` for detailed protocol.
+
+---
+
 ## Best Practices
 
 ### For All Phases
@@ -1114,6 +1219,7 @@ The engineer reads this file with HIGHEST PRIORITY on the next `/implement {spri
 ## Related Documentation
 
 - **[README.md](README.md)** - Quick start guide
+- **[INSTALLATION.md](INSTALLATION.md)** - Detailed installation and update guide
 - **[CLAUDE.md](CLAUDE.md)** - Guidance for Claude Code instances
 
 ### Protocol Files
@@ -1128,6 +1234,9 @@ Detailed specifications for complex behaviors:
 
 Bash utilities for deterministic operations:
 
+- `.claude/scripts/mount-loa.sh` - One-command install onto existing repo
+- `.claude/scripts/update.sh` - Framework updates with migration gates
+- `.claude/scripts/check-loa.sh` - CI validation script (integrity, schema, zones)
 - `.claude/scripts/analytics.sh` - Analytics helper functions
 - `.claude/scripts/git-safety.sh` - Template detection functions
 - `.claude/scripts/context-check.sh` - Context size assessment for parallel execution

@@ -5,6 +5,96 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2025-12-22
+
+### Why This Release
+
+This release transforms Loa from a "fork-and-modify template" into an **enterprise-grade managed scaffolding framework** inspired by AWS Projen, Copier, and Google's ADK. The goal is to eliminate merge hell, enable painless updates, and provide ADK-level agent observability.
+
+### Added
+
+- **Three-Zone Model**: Clear ownership boundaries for files
+  | Zone | Path | Owner | Permission |
+  |------|------|-------|------------|
+  | System | `.claude/` | Framework | Immutable, checksum-protected |
+  | State | `loa-grimoire/`, `.beads/` | Project | Read/Write |
+  | App | `src/`, `lib/`, `app/` | Developer | Read (write requires confirmation) |
+
+- **Projen-Level Synthesis Protection**: System Zone integrity enforcement
+  - SHA-256 checksums for all System Zone files (`.claude/checksums.json`)
+  - Three enforcement levels: `strict`, `warn`, `disabled`
+  - CI validation script: `.claude/scripts/check-loa.sh`
+
+- **Copier-Level Migration Gates**: Safe framework updates
+  - Fetch → Validate → Migrate → Swap pattern
+  - Atomic swap with automatic rollback on failure
+  - User overrides preserved in `.claude/overrides/`
+  - New script: `.claude/scripts/update.sh`
+
+- **ADK-Level Trajectory Evaluation**: Agent reasoning audit
+  - JSONL trajectory logs in `loa-grimoire/a2a/trajectory/`
+  - Grounding types: `citation`, `code_reference`, `assumption`, `user_input`
+  - Evaluation-Driven Development (EDD): 3 test scenarios before task completion
+  - New protocol: `.claude/protocols/trajectory-evaluation.md`
+
+- **Structured Agentic Memory**: Persistent context across sessions
+  - `loa-grimoire/NOTES.md` with standardized sections
+  - Tool Result Clearing for attention budget management
+  - New protocol: `.claude/protocols/structured-memory.md`
+
+- **One-Command Installation**: Mount Loa onto existing repositories
+  - `curl -fsSL .../mount-loa.sh | bash`
+  - Handles remote setup, zone syncing, checksum generation
+  - New script: `.claude/scripts/mount-loa.sh`
+
+- **Version Manifest**: Schema tracking and migration support
+  - `.loa-version.json` with framework version, schema version, zone definitions
+  - Migration tracking for breaking changes
+  - Integrity verification timestamps
+
+- **User Configuration File**: Framework-safe customization
+  - `.loa.config.yaml` (never modified by updates)
+  - Persistence mode: `standard` or `stealth`
+  - Integrity enforcement level
+  - Memory and EDD settings
+
+- **New Documentation**
+  - `INSTALLATION.md`: Detailed installation, customization, troubleshooting guide
+
+### Changed
+
+- **All 8 SKILL.md Files Updated** with managed scaffolding integration:
+  - Zone frontmatter for boundary enforcement
+  - Integrity pre-check before execution
+  - Factual grounding requirements (cite sources or flag as `[ASSUMPTION]`)
+  - Structured memory protocol (read NOTES.md on start, log decisions)
+  - Tool Result Clearing for attention budget management
+  - Trajectory logging for audit
+
+- **README.md**: Rewritten for v0.6.0
+  - Three-zone model documentation
+  - Managed scaffolding features
+  - Updated quick start with mount-loa.sh
+
+- **CLAUDE.md**: Added managed scaffolding architecture
+  - Zone permissions table
+  - Protocol references
+  - Customization via overrides
+
+- **PROCESS.md**: Added new protocol sections
+  - Structured Agentic Memory section
+  - Trajectory Evaluation section
+  - Updated helper scripts list
+
+### Technical Details
+
+- **yq Compatibility**: Scripts support both mikefarah/yq (Go) and kislyuk/yq (Python)
+- **Checksum Algorithm**: SHA-256 for integrity verification
+- **Migration Pattern**: Blocking migrations with rollback support
+- **Backup Retention**: 3 most recent `.claude.backup.*` directories kept
+
+---
+
 ## [0.5.0] - 2025-12-22
 
 ### Why This Release
@@ -377,6 +467,7 @@ loa-grimoire/           # Loa process artifacts
 └── deployment/         # Production infrastructure docs
 ```
 
+[0.6.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.6.0
 [0.5.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.5.0
 [0.4.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.4.0
 [0.3.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.3.0

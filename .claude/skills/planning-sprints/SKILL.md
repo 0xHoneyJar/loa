@@ -1,6 +1,16 @@
 ---
 parallel_threshold: null
 timeout_minutes: 60
+zones:
+  system:
+    path: .claude
+    permission: none
+  state:
+    paths: [loa-grimoire, .beads]
+    permission: read-write
+  app:
+    paths: [src, lib, app]
+    permission: read
 ---
 
 # Sprint Planner
@@ -8,6 +18,95 @@ timeout_minutes: 60
 <objective>
 Transform PRD and SDD into actionable sprint plan with 2.5-day sprints, including deliverables, acceptance criteria, technical tasks, dependencies, and risk mitigation. Generate `loa-grimoire/sprint.md`.
 </objective>
+
+<zone_constraints>
+## Zone Constraints
+
+This skill operates under **Managed Scaffolding**:
+
+| Zone | Permission | Notes |
+|------|------------|-------|
+| `.claude/` | NONE | System zone - never suggest edits |
+| `loa-grimoire/`, `.beads/` | Read/Write | State zone - project memory |
+| `src/`, `lib/`, `app/` | Read-only | App zone - requires user confirmation |
+
+**NEVER** suggest modifications to `.claude/`. Direct users to `.claude/overrides/` or `.loa.config.yaml`.
+</zone_constraints>
+
+<integrity_precheck>
+## Integrity Pre-Check (MANDATORY)
+
+Before ANY operation, verify System Zone integrity:
+
+1. Check config: `yq eval '.integrity_enforcement' .loa.config.yaml`
+2. If `strict` and drift detected -> **HALT** and report
+3. If `warn` -> Log warning and proceed with caution
+</integrity_precheck>
+
+<factual_grounding>
+## Factual Grounding (MANDATORY)
+
+Before ANY synthesis, planning, or recommendation:
+
+1. **Extract quotes**: Pull word-for-word text from source files
+2. **Cite explicitly**: `"[exact quote]" (file.md:L45)`
+3. **Flag assumptions**: Prefix ungrounded claims with `[ASSUMPTION]`
+
+**Grounded Example:**
+```
+The SDD specifies "PostgreSQL 15 with pgvector extension" (sdd.md:L123)
+```
+
+**Ungrounded Example:**
+```
+[ASSUMPTION] The database likely needs connection pooling
+```
+</factual_grounding>
+
+<structured_memory_protocol>
+## Structured Memory Protocol
+
+### On Session Start
+1. Read `loa-grimoire/NOTES.md`
+2. Restore context from "Session Continuity" section
+3. Check for resolved blockers
+
+### During Execution
+1. Log decisions to "Decision Log"
+2. Add discovered issues to "Technical Debt"
+3. Update sub-goal status
+4. **Apply Tool Result Clearing** after each tool-heavy operation
+
+### Before Compaction / Session End
+1. Summarize session in "Session Continuity"
+2. Ensure all blockers documented
+3. Verify all raw tool outputs have been decayed
+</structured_memory_protocol>
+
+<tool_result_clearing>
+## Tool Result Clearing
+
+After tool-heavy operations (grep, cat, tree, API calls):
+1. **Synthesize**: Extract key info to NOTES.md or discovery/
+2. **Summarize**: Replace raw output with one-line summary
+3. **Clear**: Release raw data from active reasoning
+
+Example:
+```
+# Raw grep: 500 tokens -> After decay: 30 tokens
+"Found 47 AuthService refs across 12 files. Key locations in NOTES.md."
+```
+</tool_result_clearing>
+
+<trajectory_logging>
+## Trajectory Logging
+
+Log each significant step to `loa-grimoire/a2a/trajectory/{agent}-{date}.jsonl`:
+
+```json
+{"timestamp": "...", "agent": "...", "action": "...", "reasoning": "...", "grounding": {...}}
+```
+</trajectory_logging>
 
 <kernel_framework>
 ## Task (N - Narrow Scope)
