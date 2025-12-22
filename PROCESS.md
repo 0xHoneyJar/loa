@@ -6,7 +6,7 @@ This document outlines the comprehensive agent-driven development workflow. Our 
 
 ## Managed Scaffolding Architecture
 
-Loa v0.6.0 uses **enterprise-grade managed scaffolding** inspired by AWS Projen, Copier, and Google's ADK:
+Loa v0.7.0 uses **enterprise-grade managed scaffolding** inspired by AWS Projen, Copier, and Google's ADK:
 
 ### Three-Zone Model
 
@@ -58,6 +58,7 @@ Detailed specifications are maintained in separate protocol files:
 - [Overview](#overview)
 - [Agents](#agents)
 - [Workflow](#workflow)
+- [Mount & Ride (Existing Codebases)](#mount--ride-existing-codebases)
 - [Custom Commands](#custom-commands)
 - [Document Artifacts](#document-artifacts)
 - [Agent-to-Agent Communication](#agent-to-agent-communication)
@@ -853,6 +854,88 @@ After security audit, if changes required:
 
 ---
 
+## Mount & Ride (Existing Codebases)
+
+For existing codebases that need Loa analysis without going through the full discovery workflow.
+
+### Mount (`/mount`)
+
+**Goal**: Install Loa framework onto an existing repository
+
+**When to Use**:
+- Setting up Loa on an existing codebase
+- After cloning a repository you want to analyze
+- As an alternative to the curl one-liner
+
+**Process**:
+1. Verifies git repository and dependencies
+2. Configures upstream remote for updates
+3. Installs System Zone (`.claude/`)
+4. Initializes State Zone (`loa-grimoire/`)
+5. Generates checksums for integrity verification
+6. Creates user config if not present
+7. Optionally initializes Beads
+
+**Command**:
+```bash
+/mount
+/mount --stealth          # Don't commit framework files
+/mount --skip-beads       # Skip Beads initialization
+```
+
+**Output**: Framework installed with zone structure ready
+
+See `.claude/commands/mount.md` for full details.
+
+---
+
+### Ride (`/ride`)
+
+**Goal**: Analyze existing codebase and generate evidence-grounded documentation
+
+**When to Use**:
+- After mounting Loa on an existing repo
+- To generate PRD/SDD from actual code (not interviews)
+- To detect drift between code and documentation
+- Before major refactoring efforts
+- When onboarding to an unfamiliar codebase
+
+**Cardinal Rule**: **CODE IS TRUTH** - Nothing overrides code. Not context. Not docs. Not claims.
+
+**Process** (10 phases):
+1. **Preflight** - Mount verification, integrity check
+2. **Context Discovery** - Gather user context, generate claims to verify
+3. **Code Extraction** - Directory structure, routes, models, dependencies
+4. **Hygiene Audit** - Temporary files, commented code, conflicts
+5. **Legacy Inventory** - Find and categorize existing documentation
+6. **Drift Analysis** - Three-way compare: Code vs Docs vs Context
+7. **Consistency Analysis** - Naming patterns, organization, conventions
+8. **Artifact Generation** - Evidence-grounded PRD and SDD
+9. **Governance Audit** - CHANGELOG, CONTRIBUTING, SECURITY, CODEOWNERS
+10. **Self-Audit** - Flag ungrounded claims, generate trajectory audit
+
+**Command**:
+```bash
+/ride
+/ride --interactive           # Force context interview
+/ride --phase extraction      # Run single phase
+/ride --reconstruct-changelog # Generate CHANGELOG from git
+/ride --dry-run               # Preview without writing
+```
+
+**Outputs**:
+- `loa-grimoire/reality/` - Code extraction results
+- `loa-grimoire/legacy/` - Legacy doc inventory
+- `loa-grimoire/drift-report.md` - Three-way drift analysis
+- `loa-grimoire/prd.md` - Evidence-grounded PRD
+- `loa-grimoire/sdd.md` - Evidence-grounded SDD
+- `loa-grimoire/governance-report.md` - Governance artifacts audit
+- `loa-grimoire/trajectory-audit.md` - Self-audit of reasoning
+
+See `.claude/commands/ride.md` for full details.
+
+---
+
 ### Ad-Hoc: Security Audit (`/audit`)
 
 **Agent**: `auditing-security`
@@ -944,6 +1027,8 @@ command_type: "wizard"  # or "survey", "git"
 |---------|---------|------------|--------|--------------|
 | `/setup` | First-time configuration | wizard | `.loa-setup-complete`, analytics | All users |
 | `/config` | Reconfigure MCP servers | wizard | Updated `.loa-setup-complete` | THJ only |
+| `/mount` | Install Loa onto existing repo | wizard | Zone structure + checksums | All users |
+| `/ride` | Analyze codebase, generate docs | `riding-codebase` | `loa-grimoire/` artifacts | All users |
 | `/plan-and-analyze` | Define requirements and create PRD | `discovering-requirements` | `loa-grimoire/prd.md` | All users |
 | `/architect` | Design system architecture | `designing-architecture` | `loa-grimoire/sdd.md` | All users |
 | `/sprint-plan` | Plan implementation sprints | `planning-sprints` | `loa-grimoire/sprint.md` | All users |
@@ -1229,6 +1314,7 @@ Detailed specifications for complex behaviors:
 - `.claude/protocols/git-safety.md` - Template detection, warning flow, remediation steps
 - `.claude/protocols/analytics.md` - THJ-only usage tracking, schema definitions
 - `.claude/protocols/feedback-loops.md` - A2A communication, approval markers, flow diagrams
+- `.claude/protocols/change-validation.md` - Pre-implementation validation protocol
 
 ### Helper Scripts
 
@@ -1237,6 +1323,8 @@ Bash utilities for deterministic operations:
 - `.claude/scripts/mount-loa.sh` - One-command install onto existing repo
 - `.claude/scripts/update.sh` - Framework updates with migration gates
 - `.claude/scripts/check-loa.sh` - CI validation script (integrity, schema, zones)
+- `.claude/scripts/detect-drift.sh` - Code vs documentation drift detection
+- `.claude/scripts/validate-change-plan.sh` - Pre-implementation change validation
 - `.claude/scripts/analytics.sh` - Analytics helper functions
 - `.claude/scripts/git-safety.sh` - Template detection functions
 - `.claude/scripts/context-check.sh` - Context size assessment for parallel execution

@@ -100,6 +100,8 @@ Overrides survive framework updates.
 | 5.5 | `/audit-sprint sprint-N` | auditing-security | Security feedback |
 | 6 | `/deploy-production` | deploying-infrastructure | Infrastructure |
 
+**Mount & Ride** (existing codebases): `/mount`, `/ride`
+
 **Ad-hoc**: `/audit`, `/audit-deployment`, `/translate @doc for audience`, `/contribute`, `/update`, `/feedback` (THJ only), `/config` (THJ only)
 
 **Execution modes**: Foreground (default) or background (`/implement sprint-1 background`)
@@ -174,10 +176,13 @@ Tracks usage for THJ developers - see `.claude/protocols/analytics.md`:
 ```
 loa-grimoire/
 ├── NOTES.md            # Structured agentic memory
-├── context/            # Pre-discovery documentation (optional)
+├── context/            # User-provided context (pre-discovery)
+├── reality/            # Code extraction (/ride output)
+├── legacy/             # Legacy doc inventory (/ride output)
 ├── prd.md              # Product Requirements
 ├── sdd.md              # Software Design
 ├── sprint.md           # Sprint Plan
+├── drift-report.md     # Code vs docs drift (/ride output)
 ├── a2a/                # Agent-to-Agent communication
 │   ├── index.md        # Audit trail index
 │   ├── trajectory/     # Agent reasoning logs
@@ -236,6 +241,8 @@ Use `.claude/scripts/context-check.sh` for assessment.
 ├── mount-loa.sh              # One-command install onto existing repo
 ├── update.sh                 # Framework updates with migration gates
 ├── check-loa.sh              # CI validation script
+├── detect-drift.sh           # Code vs docs drift detection
+├── validate-change-plan.sh   # Pre-implementation validation
 ├── analytics.sh              # Analytics functions (THJ only)
 ├── check-beads.sh            # Beads (bd CLI) availability check
 ├── git-safety.sh             # Template detection
@@ -292,4 +299,5 @@ integrations:
   - `trajectory-evaluation.md` - ADK-style evaluation
   - `feedback-loops.md` - Quality gates
   - `git-safety.md` - Template protection
+  - `change-validation.md` - Pre-implementation validation
 - `.claude/scripts/` - Helper bash scripts

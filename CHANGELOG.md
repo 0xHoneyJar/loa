@@ -5,6 +5,50 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2025-12-22
+
+### Why This Release
+
+This release introduces the **Mount & Ride** workflow for existing codebases. Instead of requiring a full discovery interview, developers can now mount Loa onto any repository and "ride" through the code to generate evidence-grounded documentation automatically.
+
+### Added
+
+- **`/mount` Command**: Install Loa framework onto existing repositories
+  - Configures upstream remote for updates
+  - Installs System Zone with integrity checksums
+  - Initializes State Zone structure
+  - Optional stealth mode (no commits)
+  - Optional Beads initialization skip
+
+- **`/ride` Command**: Analyze codebase and generate evidence-grounded docs
+  - 10-phase analysis workflow
+  - Code extraction: routes, models, dependencies, tech debt
+  - Three-way drift analysis: Code vs Docs vs Context
+  - Evidence-grounded PRD/SDD generation
+  - Legacy documentation inventory and deprecation
+  - Governance audit (CHANGELOG, CONTRIBUTING, SECURITY)
+  - Trajectory self-audit for hallucination detection
+
+- **Change Validation Protocol** (`.claude/protocols/change-validation.md`)
+  - Pre-implementation validation checklist
+  - File reference validation
+  - Function/method existence verification
+  - Dependency validation
+  - Breaking change detection
+  - Three validation levels (quick, standard, deep)
+
+- **New Scripts**
+  - `.claude/scripts/detect-drift.sh` - Quick/full drift detection between code and docs
+  - `.claude/scripts/validate-change-plan.sh` - Validate sprint plans against codebase reality
+
+### Changed
+
+- Documentation updated to reference Mount & Ride workflow
+- Command reference tables include `/mount` and `/ride`
+- Helper scripts list expanded with new utilities
+
+---
+
 ## [0.6.0] - 2025-12-22
 
 ### Why This Release
@@ -386,6 +430,7 @@ loa-grimoire/           # Loa process artifacts
 └── deployment/         # Production infrastructure docs
 ```
 
+[0.7.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.7.0
 [0.6.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.6.0
 [0.5.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.5.0
 [0.4.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.4.0

@@ -395,8 +395,8 @@ EOF
   echo ""
   info "Next steps:"
   info "  1. Run 'claude' to start Claude Code"
-  info "  2. Issue '/setup' for guided project configuration"
-  info "  3. Issue '/plan-and-analyze' to begin requirements discovery"
+  info "  2. Issue '/ride' to analyze this codebase"
+  info "  3. Or '/setup' for guided project configuration"
   echo ""
   info "Zone structure:"
   info "  .claude/          -> System Zone (framework-managed, immutable)"
@@ -407,6 +407,8 @@ EOF
   echo ""
   warn "STRICT ENFORCEMENT: Direct edits to .claude/ will block agent execution."
   warn "Use .claude/overrides/ for customizations."
+  echo ""
+  info "The Loa has mounted. Issue '/ride' when ready."
   echo ""
 }
 
