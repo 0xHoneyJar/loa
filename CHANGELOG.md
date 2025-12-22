@@ -5,6 +5,50 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2025-12-22
+
+### Why This Release
+
+This release introduces the **Mount & Ride** workflow for existing codebases. Instead of requiring a full discovery interview, developers can now mount Loa onto any repository and "ride" through the code to generate evidence-grounded documentation automatically.
+
+### Added
+
+- **`/mount` Command**: Install Loa framework onto existing repositories
+  - Configures upstream remote for updates
+  - Installs System Zone with integrity checksums
+  - Initializes State Zone structure
+  - Optional stealth mode (no commits)
+  - Optional Beads initialization skip
+
+- **`/ride` Command**: Analyze codebase and generate evidence-grounded docs
+  - 10-phase analysis workflow
+  - Code extraction: routes, models, dependencies, tech debt
+  - Three-way drift analysis: Code vs Docs vs Context
+  - Evidence-grounded PRD/SDD generation
+  - Legacy documentation inventory and deprecation
+  - Governance audit (CHANGELOG, CONTRIBUTING, SECURITY)
+  - Trajectory self-audit for hallucination detection
+
+- **Change Validation Protocol** (`.claude/protocols/change-validation.md`)
+  - Pre-implementation validation checklist
+  - File reference validation
+  - Function/method existence verification
+  - Dependency validation
+  - Breaking change detection
+  - Three validation levels (quick, standard, deep)
+
+- **New Scripts**
+  - `.claude/scripts/detect-drift.sh` - Quick/full drift detection between code and docs
+  - `.claude/scripts/validate-change-plan.sh` - Validate sprint plans against codebase reality
+
+### Changed
+
+- Documentation updated to reference Mount & Ride workflow
+- Command reference tables include `/mount` and `/ride`
+- Helper scripts list expanded with new utilities
+
+---
+
 ## [0.6.0] - 2025-12-22
 
 ### Why This Release
@@ -95,101 +139,20 @@ This release transforms Loa from a "fork-and-modify template" into an **enterpri
 
 ---
 
-## [0.5.0] - 2025-12-22
-
-### Why This Release
-
-Manual markdown parsing for sprint task management is fragile and error-prone. This release integrates [Beads](https://github.com/steveyegge/beads), a git-backed graph memory system, to provide deterministic task state management with dependency modeling, ready detection, and clean session handoffs. Additionally, we've centralized MCP server configuration into a single registry for easier maintenance.
+## [0.5.0] - 2025-12-21
 
 ### Added
 
-- **Beads Integration**: Git-backed graph memory for sprint lifecycle management
-  - Hash-based IDs (`bd-a1b2`) for collision-resistant task tracking
-  - Dependency types: `blocks`, `related`, `parent-child`, `discovered-from`
-  - Ready detection via `bd ready` - returns tasks with no open blockers
-  - Session persistence across context windows via `.beads/beads.jsonl`
-
-- **Beads Helper Scripts** (`.claude/scripts/beads/`)
-  | Script | Purpose |
-  |--------|---------|
-  | `check-beads.sh` | Verify installation status (supports `--verbose`) |
-  | `install-beads.sh` | Multi-method installation with fallbacks |
-  | `create-sprint-epic.sh` | Create new sprint epic |
-  | `get-sprint-tasks.sh` | List all tasks under a sprint epic |
-  | `get-ready-by-priority.sh` | Get ready work sorted by priority |
-  | `sync-to-git.sh` | Commit beads state to git |
-
-- **Beads Protocols** (`.claude/protocols/`)
-  - `beads-workflow.md` - Comprehensive Beads workflow guide
-  - `session-end.md` - Clean session handoff checklist
-
-- **Centralized MCP Registry**: Single source of truth for MCP server configuration
-  - `.claude/mcp-registry.yaml` - Registry with 6 servers (linear, github, vercel, discord, web3-stats, gdrive)
-  - `.claude/scripts/mcp-registry.sh` - Query registry (list, info, setup, groups, check, required-by)
-  - `.claude/scripts/validate-mcp.sh` - Validate MCP configuration
-  - Skills now declare `integrations:` in index.yaml with required/optional servers
-  - Commands use `integrations_source:` to reference registry
-
-- **Enhanced Setup Wizard**: Guided Beads onboarding in Phase 0.6
-  - User-friendly explanation of what Beads provides
-  - AskUserQuestion prompts for installation confirmation
-  - Multiple installation methods (official script, Go install, binary detection)
-  - Verification step with success/failure feedback
-  - Graceful degradation (markdown-only mode if skipped)
-
-- **HITL Pre-flight Gate**: `/sprint-plan` checks for Beads before planning
-  - Presents install options (brew/npm) via AskUserQuestion
-  - User can continue without Beads for markdown-only workflow
-
-- **Invisible Beads Lifecycle**: `/implement` handles `bd` commands internally
-  - Users run `/implement sprint-1` - no manual bd commands needed
-  - Task state persists across context windows when Beads available
-
-- **Integrations Protocol** (`.claude/protocols/integrations.md`)
-  - Documents lazy-loading pattern for MCP servers
-  - Requires `yq` for YAML parsing
+- **Beads Integration**: Sprint lifecycle state management via `bd` CLI
+  - Sprint state tracking in `.beads/` directory
+  - Automatic bead creation on sprint start
+  - State transitions: `pending` → `active` → `review` → `audit` → `done`
+  - New script: `.claude/scripts/check-beads.sh`
 
 ### Changed
 
-- **Commands Updated for Beads**
-  | Command | Changes |
-  |---------|---------|
-  | `/setup` | Phase 0.6 for Beads installation |
-  | `/sprint-plan` | Creates Beads epic + tasks, archives to sprint.md |
-  | `/implement` | Uses `bd ready` for task discovery, `bd update` for status |
-  | `/review-sprint` | Records review notes via `bd update --notes` |
-  | `/audit-sprint` | Closes sprint epic on approval |
-  | `/update` | Merge strategy references skills/, protocols/, scripts/ |
-
-- **Skills Updated for Beads**
-  | Skill | Changes |
-  |-------|---------|
-  | `planning-sprints` | Added `<beads_workflow>` section, Phase 3.5 for graph creation |
-  | `implementing-tasks` | Added `<beads_workflow>` section, Phase -2 Beads integration |
-  | `reviewing-code` | Added `<beads_workflow>` section, `bd show --json` guidance |
-
-- **MCP Configuration Unified**: `mcp_dependencies`/`mcp_requirements` renamed to `integrations`
-  - Skills use `integrations.required` and `integrations.optional`
-  - Commands use `integrations_source` pointing to registry
-
-### Removed
-
-- **Legacy agents directory**: `.claude/agents/` removed entirely
-  - All 8 agent definitions migrated to `.claude/skills/` with 3-level architecture
-  - Migration completed in v0.4.0, directory now deleted
-
-### Fixed
-
-- CI workflow now validates skills instead of legacy agents directory
-- Added missing `--json` flags to `bd update` commands in skills for deterministic parsing
-
-### Design Principles
-
-1. **Determinism over parsing**: Always use `bd` commands with `--json` flag
-2. **Progressive disclosure**: Skills reference `beads-workflow.md` protocol
-3. **Graceful coexistence**: Keep `sprint.md` as optional human-readable archive
-4. **Explicit uncertainty**: Agents must say "I don't know" when graph state is ambiguous
-5. **Atomic updates**: One `bd` command per state change
+- Sprint commands now create/update beads for state tracking
+- `/implement`, `/review-sprint`, `/audit-sprint` update bead status
 
 ---
 
@@ -467,6 +430,7 @@ loa-grimoire/           # Loa process artifacts
 └── deployment/         # Production infrastructure docs
 ```
 
+[0.7.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.7.0
 [0.6.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.6.0
 [0.5.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.5.0
 [0.4.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.4.0

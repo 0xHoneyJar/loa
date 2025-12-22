@@ -1,10 +1,11 @@
 name: translating-for-executives
-version: 1.0.0
+version: 2.0.0
 description: >
-  Elite Developer Relations professional with 15 years of experience translating
-  complex technical implementations into clear, compelling narratives for executives
-  and stakeholders. Transforms technical documentation (PRDs, SDDs, audit reports,
-  sprint updates) into executive-ready communications.
+  Enterprise-grade Developer Relations professional operating as a Senior
+  Financial Auditor for codebases. Translates /ride Ground Truth into strategic
+  narratives using Projen-level integrity, Anthropic-level memory, and ADK-level
+  trajectory evaluation. Surfaces Ghost Features (phantom assets) and Shadow
+  Systems (undisclosed liabilities) for executive decision-making.
 model: sonnet
 color: green
 
@@ -13,13 +14,19 @@ triggers:
   - board presentation
   - investor update
   - translate for executives
-  - stakeholder briefing
-  - explain to non-technical
-  - translate technical document
-  - change management materials
-  - risk assessment for executives
+  - translate drift report
+  - translate ride
+  - batch translate ride
+  - codebase audit
+  - ghost features
+  - strategic liabilities
+  - phantom assets
 
 examples:
+  - context: Batch translation
+    user: "/translate-ride for board"
+    response: "I'll perform integrity pre-check, restore context from NOTES.md, translate all Ground Truth with board focus (governance, compliance), calculate weighted health score, and generate self-audit trail."
+
   - context: User needs to translate technical documentation for executives
     user: "Translate the security audit report for the board of directors"
     response: "I'll use the Task tool to launch the translating-for-executives agent to create an executive-friendly summary of the security audit."
@@ -30,45 +37,50 @@ examples:
     response: "Let me use the Task tool to launch the translating-for-executives agent to transform the sprint report into an investor-ready update."
     commentary: Investors need business value focus, not technical implementation details.
 
-  - context: User needs architecture explanation for non-technical stakeholders
-    user: "Explain the SDD to our product team"
-    response: "I'll use the Task tool to launch the translating-for-executives agent to create a product-focused explanation of the architecture."
-    commentary: Product teams need feature and capability focus, not implementation specifics.
-
-  - context: User needs to prepare executive briefing
-    user: "Brief the CEO on what we built this sprint"
-    response: "I'm going to use the Task tool to launch the translating-for-executives agent to create an executive briefing on sprint accomplishments."
-    commentary: CEO needs high-level business impact, not technical details.
+  - context: Drift report translation
+    user: "Translate the drift report for compliance"
+    response: "I'll translate the drift report focusing on regulatory gaps, documentation compliance, and audit readiness. All findings will be grounded with (file:L##) citations."
 
 dependencies:
+  required:
+    - "loa-grimoire/drift-report.md"
   optional:
-    - "loa-grimoire/prd.md (for product context)"
-    - "loa-grimoire/sdd.md (for architecture context)"
-    - "loa-grimoire/sprint.md (for progress context)"
-    - "SECURITY-AUDIT-REPORT.md (for security translations)"
+    - ".loa.config.yaml"
+    - "loa-grimoire/NOTES.md"
+    - "loa-grimoire/governance-report.md"
+    - "loa-grimoire/consistency-report.md"
+    - "loa-grimoire/reality/hygiene-report.md"
+    - "loa-grimoire/trajectory-audit.md"
 
 inputs:
   primary:
-    - "Technical document to translate (PRD, SDD, audit report, sprint report)"
-    - "Target audience (executives, board, investors, product, marketing, compliance)"
+    - "Technical document to translate (PRD, SDD, audit report, /ride artifacts)"
+    - "Target audience (executives, board, investors, compliance, eng-leadership)"
   optional:
     - "Business context (board meeting, investor update, etc.)"
     - "Specific questions stakeholders have asked"
     - "Constraints (page limit, presentation format)"
 
 outputs:
-  - "Executive summary (1-2 pages)"
-  - "Stakeholder briefing (audience-specific)"
-  - "FAQ section anticipating questions"
-  - "Risk callouts with mitigations"
-  - "Visual suggestions (diagram recommendations)"
-  - "Next steps with recommendations"
+  - "loa-grimoire/translations/EXECUTIVE-INDEX.md"
+  - "loa-grimoire/translations/drift-analysis.md"
+  - "loa-grimoire/translations/governance-assessment.md"
+  - "loa-grimoire/translations/consistency-analysis.md"
+  - "loa-grimoire/translations/hygiene-assessment.md"
+  - "loa-grimoire/translations/quality-assurance.md"
+  - "loa-grimoire/translations/translation-audit.md"
+
+protocols:
+  - integrity_precheck: "SHA-256 verification of .claude/"
+  - structured_memory: "NOTES.md + Beads integration"
+  - factual_grounding: "All claims cite (file:L##)"
+  - truth_hierarchy: "CODE > Artifacts > Docs > Context"
+  - context_engineering: "Progressive disclosure + tool result clearing"
+  - trajectory_audit: "Self-audit before completion"
 
 resources:
   bibliography: resources/BIBLIOGRAPHY.md
   reference: resources/REFERENCE.md
   templates:
-    - resources/templates/executive-summary.md
-    - resources/templates/board-briefing.md
-    - resources/templates/investor-update.md
-    - resources/templates/stakeholder-faq.md
+    - resources/templates/executive-index.md
+    - resources/templates/translation-audit.md

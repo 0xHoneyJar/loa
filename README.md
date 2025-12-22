@@ -1,6 +1,6 @@
 # Loa
 
-[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
@@ -61,6 +61,13 @@ Loa uses a **managed scaffolding** architecture inspired by AWS Projen, Copier, 
 | 5.5 | `/audit-sprint sprint-N` | auditing-security | Security approval |
 | 6 | `/deploy-production` | deploying-infrastructure | Infrastructure |
 
+### Mounting & Riding (Existing Codebases)
+
+| Command | Purpose |
+|---------|---------|
+| `/mount` | Install Loa onto existing repo |
+| `/ride` | Analyze codebase, generate evidence-grounded docs |
+
 ### Ad-Hoc Commands
 
 | Command | Purpose |
@@ -120,16 +127,23 @@ persistence_mode: stealth
 ├── commands/                   # Slash commands
 ├── protocols/                  # Framework protocols
 │   ├── structured-memory.md    # NOTES.md protocol
-│   └── trajectory-evaluation.md # ADK-style evaluation
+│   ├── trajectory-evaluation.md # ADK-style evaluation
+│   └── change-validation.md    # Pre-implementation validation
 ├── scripts/                    # Helper scripts
 │   ├── mount-loa.sh           # One-command install
 │   ├── update.sh              # Framework updates
-│   └── check-loa.sh           # CI validation
+│   ├── check-loa.sh           # CI validation
+│   ├── detect-drift.sh        # Code/docs drift detection
+│   └── validate-change-plan.sh # Pre-implementation validation
 └── overrides/                  # Your customizations
 
 loa-grimoire/                   # State Zone (project memory)
 ├── NOTES.md                    # Structured agentic memory
+├── context/                    # User-provided context
+├── reality/                    # Code extraction results (/ride)
+├── legacy/                     # Legacy doc inventory (/ride)
 ├── prd.md, sdd.md, sprint.md  # Planning docs
+├── drift-report.md            # Three-way drift analysis
 ├── a2a/                        # Agent communication
 │   ├── trajectory/            # Agent reasoning logs
 │   └── sprint-N/              # Per-sprint feedback

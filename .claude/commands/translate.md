@@ -10,7 +10,15 @@ arguments:
     type: "file_reference"
     required: true
     description: "Technical document to translate (use @ prefix)"
-    examples: ["@SECURITY-AUDIT-REPORT.md", "@loa-grimoire/sdd.md", "@loa-grimoire/sprint.md"]
+    examples:
+      - "@SECURITY-AUDIT-REPORT.md"
+      - "@loa-grimoire/sdd.md"
+      - "@loa-grimoire/sprint.md"
+      - "@loa-grimoire/drift-report.md"
+      - "@loa-grimoire/governance-report.md"
+      - "@loa-grimoire/consistency-report.md"
+      - "@loa-grimoire/reality/hygiene-report.md"
+      - "@loa-grimoire/trajectory-audit.md"
 
   - name: "audience"
     type: "string"

@@ -3,14 +3,6 @@
 # The Loa mounts your repository and rides alongside your project
 set -euo pipefail
 
-# === Configuration ===
-LOA_REMOTE_URL="${LOA_UPSTREAM:-https://github.com/0xHoneyJar/loa.git}"
-LOA_REMOTE_NAME="loa-upstream"
-LOA_BRANCH="${LOA_BRANCH:-main}"
-VERSION_FILE=".loa-version.json"
-CONFIG_FILE=".loa.config.yaml"
-CHECKSUMS_FILE=".claude/checksums.json"
-
 # === Colors ===
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -24,6 +16,48 @@ warn() { echo -e "${YELLOW}[loa]${NC} $*"; }
 err() { echo -e "${RED}[loa]${NC} ERROR: $*" >&2; exit 1; }
 info() { echo -e "${CYAN}[loa]${NC} $*"; }
 step() { echo -e "${BLUE}[loa]${NC} -> $*"; }
+
+# === Configuration ===
+LOA_REMOTE_URL="${LOA_UPSTREAM:-https://github.com/0xHoneyJar/loa.git}"
+LOA_REMOTE_NAME="loa-upstream"
+LOA_BRANCH="${LOA_BRANCH:-main}"
+VERSION_FILE=".loa-version.json"
+CONFIG_FILE=".loa.config.yaml"
+CHECKSUMS_FILE=".claude/checksums.json"
+SKIP_BEADS=false
+STEALTH_MODE=false
+
+# === Argument Parsing ===
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --branch)
+      LOA_BRANCH="$2"
+      shift 2
+      ;;
+    --stealth)
+      STEALTH_MODE=true
+      shift
+      ;;
+    --skip-beads)
+      SKIP_BEADS=true
+      shift
+      ;;
+    -h|--help)
+      echo "Usage: mount-loa.sh [OPTIONS]"
+      echo ""
+      echo "Options:"
+      echo "  --branch <name>   Loa branch to use (default: main)"
+      echo "  --stealth         Add state files to .gitignore"
+      echo "  --skip-beads      Don't install/initialize Beads CLI"
+      echo "  -h, --help        Show this help message"
+      exit 0
+      ;;
+    *)
+      warn "Unknown option: $1"
+      shift
+      ;;
+  esac
+done
 
 # yq compatibility (handles both mikefarah/yq and kislyuk/yq)
 yq_read() {
@@ -72,6 +106,11 @@ preflight() {
 
 # === Install Beads CLI ===
 install_beads() {
+  if [[ "$SKIP_BEADS" == "true" ]]; then
+    log "Skipping Beads installation (--skip-beads)"
+    return 0
+  fi
+
   if command -v bd &> /dev/null; then
     local version=$(bd --version 2>/dev/null || echo "unknown")
     log "Beads CLI already installed: $version"
@@ -316,9 +355,14 @@ generate_config_snapshot() {
 
 # === Apply Stealth Mode ===
 apply_stealth() {
-  if [[ ! -f "$CONFIG_FILE" ]]; then return 0; fi
+  local mode="standard"
 
-  local mode=$(yq_read "$CONFIG_FILE" '.persistence_mode' "standard")
+  # Check CLI flag first, then config file
+  if [[ "$STEALTH_MODE" == "true" ]]; then
+    mode="stealth"
+  elif [[ -f "$CONFIG_FILE" ]]; then
+    mode=$(yq_read "$CONFIG_FILE" '.persistence_mode' "standard")
+  fi
 
   if [[ "$mode" == "stealth" ]]; then
     step "Applying stealth mode..."
@@ -337,6 +381,11 @@ apply_stealth() {
 
 # === Initialize Beads ===
 init_beads() {
+  if [[ "$SKIP_BEADS" == "true" ]]; then
+    log "Skipping Beads initialization (--skip-beads)"
+    return 0
+  fi
+
   if ! command -v bd &> /dev/null; then
     warn "Beads CLI not installed, skipping initialization"
     return 0
@@ -365,9 +414,10 @@ init_beads() {
 main() {
   echo ""
   log "======================================================================="
-  log "  Loa Framework Mount v0.6.0"
+  log "  Loa Framework Mount v0.7.0"
   log "  Enterprise-Grade Managed Scaffolding"
   log "======================================================================="
+  log "  Branch: $LOA_BRANCH"
   echo ""
 
   preflight
@@ -395,8 +445,8 @@ EOF
   echo ""
   info "Next steps:"
   info "  1. Run 'claude' to start Claude Code"
-  info "  2. Issue '/setup' for guided project configuration"
-  info "  3. Issue '/plan-and-analyze' to begin requirements discovery"
+  info "  2. Issue '/ride' to analyze this codebase"
+  info "  3. Or '/setup' for guided project configuration"
   echo ""
   info "Zone structure:"
   info "  .claude/          -> System Zone (framework-managed, immutable)"
@@ -407,6 +457,8 @@ EOF
   echo ""
   warn "STRICT ENFORCEMENT: Direct edits to .claude/ will block agent execution."
   warn "Use .claude/overrides/ for customizations."
+  echo ""
+  info "The Loa has mounted. Issue '/ride' when ready."
   echo ""
 }
 
