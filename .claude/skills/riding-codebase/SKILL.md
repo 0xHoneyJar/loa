@@ -252,30 +252,50 @@ Use `AskUserQuestion` tool for each topic, focusing on gaps. Skip questions alre
    - How old is this codebase?
    - Has the architecture changed significantly over time?
 
-### 1.5 Generate Claims to Verify
+### 1.5 Generate Claims to Verify (MANDATORY OUTPUT)
 
-Create `loa-grimoire/context/claims-to-verify.md`:
+**YOU MUST CREATE THIS FILE** - `loa-grimoire/context/claims-to-verify.md`:
+
+```bash
+mkdir -p loa-grimoire/context
+```
 
 ```markdown
 # Claims to Verify Against Code
 
-> Generated from context discovery interview
+> Generated from context discovery interview on [DATE]
 > These are HYPOTHESES, not facts. Code is truth.
 
 ## Architecture Claims
+
 | Claim | Source | Verification Strategy |
 |-------|--------|----------------------|
-| "Uses PostgreSQL" | Interview Q2 | Check DATABASE_URL, imports |
+| "[Claim from interview]" | Interview | [How to verify] |
 
 ## Domain Claims
+
 | Claim | Source | Verification Strategy |
 |-------|--------|----------------------|
-| "HenloProfile is main entity" | Interview Q5 | Grep for entity definitions |
+| "[Entity/feature claim]" | Interview | Grep for entity definitions |
 
 ## Tribal Knowledge (Handle Carefully)
+
 | Claim | Source | Verification Strategy |
 |-------|--------|----------------------|
-| "Don't modify badge handler" | Interview Q10 | Check for warnings in code |
+| "[Gotcha or unwritten rule]" | Interview | Check for warnings in code |
+
+## WIP Status
+
+| Area | Status | Verification Strategy |
+|------|--------|----------------------|
+| "[Area mentioned as WIP]" | Unknown | Check for TODO/incomplete code |
+```
+
+**IMPORTANT**: Even if the interview is skipped or minimal, you MUST still create this file with whatever claims were gathered. If no interview occurred, note "No interview conducted - claims extracted from existing context files only."
+
+Log to trajectory:
+```json
+{"timestamp": "...", "agent": "riding-codebase", "phase": 1, "action": "claims_generated", "output": "loa-grimoire/context/claims-to-verify.md", "claim_count": N}
 ```
 
 ### 1.6 Tool Result Clearing Checkpoint
@@ -482,18 +502,56 @@ Create `loa-grimoire/legacy/INVENTORY.md` listing all docs with type and key cla
 
 ---
 
-## Phase 4: Three-Way Drift Analysis
+## Phase 4: Three-Way Drift Analysis (ENHANCED)
 
 ### 4.1 Drift Categories
 
-| Category | Definition |
-|----------|------------|
-| **Ghost** | Documented/claimed but doesn't exist in code |
-| **Shadow** | Exists in code but not documented |
-| **Aligned** | Documentation matches code |
-| **Conflict** | Context AND docs claim X, code shows Y |
+| Category | Definition | Impact |
+|----------|------------|--------|
+| **Missing** | Code exists, no documentation | Shadow feature risk |
+| **Stale** | Docs exist, code changed significantly | Misleading information |
+| **Hallucinated** | Docs claim things code doesn't support | False promises |
+| **Ghost** | Documented feature not in code at all | Phantom asset |
+| **Shadow** | Exists in code, completely undocumented | Hidden liability |
+| **Aligned** | Documentation accurately reflects code | Healthy state |
 
-### 4.2 Generate Drift Report
+### 4.2 Legacy Documentation Claim Verification (MANDATORY)
+
+**YOU MUST VERIFY** each claim found in legacy documentation against code:
+
+```bash
+# Extract claims from legacy docs
+echo "Extracting claims from legacy documentation..."
+
+for doc in $(cat loa-grimoire/legacy/doc-files.txt); do
+  echo "## Claims from: $doc" >> loa-grimoire/legacy/extracted-claims.md
+
+  # Extract feature/entity names mentioned
+  grep -oE "[A-Z][a-zA-Z]+(?:Service|Manager|Handler|Controller|Module|Feature)" "$doc" 2>/dev/null | sort -u >> loa-grimoire/legacy/extracted-claims.md
+
+  # Extract API endpoint claims
+  grep -oE "(GET|POST|PUT|DELETE|PATCH)\s+/[a-zA-Z0-9/_-]+" "$doc" 2>/dev/null >> loa-grimoire/legacy/extracted-claims.md
+
+  # Extract entity/model names
+  grep -oE "model [A-Z][a-zA-Z]+|entity [A-Z][a-zA-Z]+|table [a-z_]+" "$doc" 2>/dev/null >> loa-grimoire/legacy/extracted-claims.md
+done
+```
+
+### 4.3 Cross-Reference Claims Against Code
+
+For EACH extracted claim, verify against code reality:
+
+```markdown
+## Claim Verification Process
+
+For each claim in legacy docs:
+1. Search for exact match in code
+2. Search for similar/renamed versions
+3. Check if behavior exists under different name
+4. Determine claim status: VERIFIED | STALE | HALLUCINATED | MISSING
+```
+
+### 4.4 Generate Enhanced Drift Report
 
 Create `loa-grimoire/drift-report.md`:
 
@@ -519,7 +577,45 @@ CODE wins every conflict. Always.
 
 ## Drift Score: X% (lower is better)
 
+## Drift Breakdown by Type
+
+| Type | Count | Impact Level |
+|------|-------|--------------|
+| Missing (code exists, no docs) | N | Medium |
+| Stale (docs outdated) | N | High |
+| Hallucinated (docs claim non-existent) | N | Critical |
+| Ghost (feature never existed) | N | Critical |
+| Shadow (undocumented code) | N | Medium |
+
 ## Critical Drift Items
+
+### 🔴 Hallucinated Documentation (CRITICAL)
+
+**These claims in legacy docs are NOT supported by code:**
+
+| Claim | Source Doc | Verification Attempt | Verdict |
+|-------|------------|---------------------|---------|
+| "OAuth2 authentication" | legacy/auth.md:L15 | `grep -r "oauth\|OAuth" --include="*.ts"` = 0 results | ❌ HALLUCINATED |
+| "Batch rebate processing" | legacy/rebates.md:L23 | Code shows individual processing only | ❌ HALLUCINATED |
+| "CubQuest badge tiers" | legacy/rebates.md:L45 | Badge logic differs from documentation | ❌ STALE (partially wrong) |
+
+### 🟠 Stale Documentation (HIGH)
+
+**These docs exist but code has changed:**
+
+| Doc Claim | Source | Code Reality | Drift Type |
+|-----------|--------|--------------|------------|
+| "Uses Redis for caching" | legacy/arch.md:L30 | Now uses in-memory Map | STALE |
+| "Rate limit: 100 req/min" | legacy/api.md:L12 | Rate limit is 60 req/min | STALE |
+
+### 🟡 Missing Documentation (MEDIUM)
+
+**Code features without documentation:**
+
+| Feature | Location | Needs Docs |
+|---------|----------|------------|
+| RateLimiter middleware | src/middleware/rate.ts:45 | Yes - critical |
+| BatchProcessor | src/services/batch.ts:1-200 | Yes - core business logic |
 
 ### Ghosts (Documented/Claimed but Missing in Code)
 | Item | Claimed By | Evidence Searched | Verdict |
@@ -535,41 +631,123 @@ CODE wins every conflict. Always.
 | Claim | Sources | Code Reality | Confidence |
 |-------|---------|--------------|------------|
 | "Uses PostgreSQL" | context + legacy | MySQL in DATABASE_URL | HIGH |
+
+## Verification Evidence
+
+### Search Commands Executed
+
+| Claim Searched | Command | Result |
+|----------------|---------|--------|
+| OAuth | `grep -ri "oauth" --include="*.ts" --include="*.js"` | 0 matches |
+| BadgeTier | `grep -ri "badgetier\|badge.*tier" --include="*.sol"` | 3 matches (different implementation) |
+
+## Recommendations
+
+### Immediate Actions (Hallucinated/Stale)
+1. **Remove** hallucinated claims from legacy docs
+2. **Update** stale documentation OR deprecate entirely
+3. **Flag** for product team: Features promised but not delivered
+
+### Documentation Actions (Missing/Shadow)
+1. Document critical middleware: RateLimiter
+2. Add architecture docs for undocumented services
+```
+
+Log to trajectory:
+```json
+{"timestamp": "...", "agent": "riding-codebase", "phase": 4, "action": "drift_analysis", "details": {"drift_score": X, "missing": N, "stale": N, "hallucinated": N, "ghosts": N, "shadows": N}}
 ```
 
 ---
 
-## Phase 5: Consistency Analysis
+## Phase 5: Consistency Analysis (MANDATORY OUTPUT)
 
-Generate `loa-grimoire/consistency-report.md`:
+**YOU MUST CREATE THIS FILE** - `loa-grimoire/consistency-report.md`:
+
+### 5.1 Analyze Naming Patterns
+
+```bash
+# Extract all exported names, class names, function names
+grep -rh "export \(const\|function\|class\|interface\|type\)" --include="*.ts" --include="*.js" 2>/dev/null | head -100
+
+# For Solidity
+grep -rh "contract \|interface \|struct \|event \|function " --include="*.sol" 2>/dev/null | head -100
+```
+
+### 5.2 Generate Consistency Report
 
 ```markdown
 # Consistency Analysis
 
+> Generated: [DATE]
+> Target: [repo]
+
 ## Naming Patterns Detected
 
-### Entity Naming
+### Entity/Contract Naming
+| Pattern | Count | Examples | Consistency |
+|---------|-------|----------|-------------|
+| `{Domain}{Type}` | N | `SFPosition`, `SFVaultStats` | Consistent |
+| `{Type}` only | N | `Transfer`, `Mint` | Mixed |
+| `I{Name}` interfaces | N | `IVault`, `IStrategy` | Consistent |
+
+### Function Naming
 | Pattern | Count | Examples |
 |---------|-------|----------|
-| `{Domain}{Type}` | 15 | `SFPosition`, `SFVaultStats` |
-| `{Type}` only | 8 | `Transfer`, `Mint` |
+| `camelCase` | N | `getBalance`, `setOwner` |
+| `snake_case` | N | `get_balance` |
+
+### File Naming
+| Pattern | Count | Examples |
+|---------|-------|----------|
+| `PascalCase.sol` | N | `SFVault.sol` |
+| `kebab-case.ts` | N | `vault-manager.ts` |
 
 ## Consistency Score: X/10
+
+**Scoring Criteria:**
+- 10: Single consistent pattern throughout
+- 7-9: Minor deviations, clear dominant pattern
+- 4-6: Mixed patterns, no clear standard
+- 1-3: Inconsistent, multiple competing patterns
+
+## Pattern Conflicts Detected
+
+| Conflict | Examples | Impact |
+|----------|----------|--------|
+| Mixed naming | `UserProfile` vs `user_data` | Cognitive overhead |
 
 ## Improvement Opportunities (Non-Breaking)
 | Change | Type | Impact |
 |--------|------|--------|
-| Add `Event` suffix to event entities | ✅ Additive | GraphQL schema addition |
+| [Specific suggestion] | Additive | [Impact description] |
 
-## Breaking Changes (Flag Only)
+## Breaking Changes (Flag Only - DO NOT IMPLEMENT)
 | Change | Why Breaking | Impact |
 |--------|--------------|--------|
-| Rename `Mint` → `MintEvent` | GraphQL queries break | Downstream consumers |
+| [Specific change] | [Reason] | [Downstream impact] |
+```
+
+**IMPORTANT**: You MUST create this file even if the codebase is small. If patterns are unclear, document that finding.
+
+Log to trajectory:
+```json
+{"timestamp": "...", "agent": "riding-codebase", "phase": 5, "action": "consistency_analysis", "output": "loa-grimoire/consistency-report.md", "score": N}
 ```
 
 ---
 
-## Phase 6: Loa Artifact Generation
+## Phase 6: Loa Artifact Generation (WITH GROUNDING MARKERS)
+
+**MANDATORY**: Every claim in PRD and SDD MUST use grounding markers.
+
+### 6.0 Grounding Marker Reference
+
+| Marker | When to Use | Example |
+|--------|-------------|---------|
+| `[GROUNDED]` | Direct code evidence | `[GROUNDED] Uses PostgreSQL (prisma/schema.prisma:L3)` |
+| `[INFERRED]` | Logical deduction from multiple sources | `[INFERRED] Likely handles bulk operations based on batch naming` |
+| `[ASSUMPTION]` | No direct evidence - needs validation | `[ASSUMPTION] OAuth was planned but descoped - verify with team` |
 
 ### 6.1 Generate PRD
 
@@ -580,7 +758,7 @@ Create `loa-grimoire/prd.md` with evidence-grounded content:
 
 > ⚠️ **Source of Truth Notice**
 > Generated from code analysis on [date].
-> All claims cite `file:line` evidence.
+> All claims use grounding markers: [GROUNDED], [INFERRED], [ASSUMPTION]
 
 ## Document Metadata
 | Field | Value |
@@ -588,20 +766,25 @@ Create `loa-grimoire/prd.md` with evidence-grounded content:
 | Generated | [timestamp] |
 | Source | Code reality extraction |
 | Drift Score | X% |
+| Grounding | X% GROUNDED, Y% INFERRED, Z% ASSUMPTION |
 
 ## User Types
 [From actual role/permission code with evidence]
 
 ### User Type: [Name]
-- **Evidence**: `src/auth/roles.ts:23`
-- **Permissions**: [list from code]
+- **[GROUNDED]** Role exists in `src/auth/roles.ts:23`
+- **[GROUNDED]** Permissions: [list from code with citations]
 
 ## Features (Code-Verified)
 
 ### Feature: [Name]
-- **Status**: Active in code
-- **Evidence**: `src/features/x/index.ts:1-50`
-- **Endpoints**: [from api-routes.txt]
+- **[GROUNDED]** Status: Active in code (`src/features/x/index.ts:1-50`)
+- **[GROUNDED]** Endpoints: [from api-routes.txt with file:line]
+- **[INFERRED]** Purpose: [deduced from function names and structure]
+
+### Feature: [Documented but Uncertain]
+- **[ASSUMPTION]** This feature was mentioned in docs but implementation unclear
+- **Requires validation by**: Engineering Lead
 ```
 
 ### 6.2 Generate SDD
@@ -613,25 +796,67 @@ Create `loa-grimoire/sdd.md` with architecture evidence:
 
 > ⚠️ **Source of Truth Notice**
 > Generated from code analysis on [date].
+> All claims use grounding markers: [GROUNDED], [INFERRED], [ASSUMPTION]
 
 ## Architecture (As-Built)
 
 ### Tech Stack (Verified)
-| Component | Technology | Evidence |
-|-----------|------------|----------|
-| Runtime | Node.js | `package.json:engines` |
-| Database | [from env vars] | `DATABASE_URL` pattern |
+| Component | Technology | Grounding | Evidence |
+|-----------|------------|-----------|----------|
+| Runtime | Node.js | [GROUNDED] | `package.json:engines` |
+| Database | PostgreSQL | [GROUNDED] | `DATABASE_URL` pattern in `.env.example:L5` |
+| Cache | Redis | [INFERRED] | Redis imports found, config unclear |
 
 ### Module Structure
 [From directory analysis with actual paths]
+- **[GROUNDED]** `src/api/` - API handlers (47 files)
+- **[GROUNDED]** `src/services/` - Business logic (23 files)
+- **[INFERRED]** `src/utils/` - Shared utilities (likely internal)
 
 ### Data Model
 [From data-models.txt with schema quotes]
 
+#### Entity: [Name]
+- **[GROUNDED]** Schema definition: `prisma/schema.prisma:L45-60`
+- **[GROUNDED]** Fields: [list with evidence]
+- **[ASSUMPTION]** Relationship to [OtherEntity] - schema suggests but unclear
+
 ### API Surface
-| Method | Endpoint | Handler | Evidence |
-|--------|----------|---------|----------|
-| GET | /api/x | Controller.method | file:line |
+| Method | Endpoint | Handler | Grounding |
+|--------|----------|---------|-----------|
+| GET | /api/users | UserController.list | [GROUNDED] `src/controllers/user.ts:L23` |
+| POST | /api/auth | AuthController.login | [GROUNDED] `src/controllers/auth.ts:L45` |
+```
+
+### 6.3 Grounding Summary Block
+
+At the end of BOTH PRD and SDD, include:
+
+```markdown
+---
+
+## Grounding Summary
+
+| Category | Count | Percentage |
+|----------|-------|------------|
+| [GROUNDED] (direct evidence) | N | X% |
+| [INFERRED] (logical deduction) | N | Y% |
+| [ASSUMPTION] (needs validation) | N | Z% |
+| **Total Claims** | N | 100% |
+
+### Assumptions Requiring Validation
+
+| # | Claim | Location | Validator Needed |
+|---|-------|----------|------------------|
+| 1 | [Assumption text] | prd.md:L[N] | [Role] |
+| 2 | [Assumption text] | sdd.md:L[N] | [Role] |
+
+> **Quality Target**: >80% GROUNDED, <10% ASSUMPTION
+```
+
+Log to trajectory:
+```json
+{"timestamp": "...", "agent": "riding-codebase", "phase": 6, "action": "artifact_generation", "details": {"prd_claims": N, "sdd_claims": N, "grounded_pct": X, "inferred_pct": Y, "assumption_pct": Z}}
 ```
 
 ---
@@ -676,21 +901,109 @@ For each file in legacy/doc-files.txt, prepend deprecation notice:
 
 ---
 
-## Phase 9: Trajectory Self-Audit
+## Phase 9: Trajectory Self-Audit (MANDATORY OUTPUT)
 
-Generate `loa-grimoire/trajectory-audit.md`:
+**YOU MUST CREATE THIS FILE** - `loa-grimoire/trajectory-audit.md`:
+
+### 9.1 Review Generated Artifacts
+
+Before creating the audit, review all generated artifacts for grounding:
+
+```bash
+# Count grounding markers in PRD
+grep -c "(.*:L[0-9]" loa-grimoire/prd.md 2>/dev/null || echo 0
+grep -c "\[ASSUMPTION\]" loa-grimoire/prd.md 2>/dev/null || echo 0
+grep -c "\[INFERRED\]" loa-grimoire/prd.md 2>/dev/null || echo 0
+
+# Count grounding markers in SDD
+grep -c "(.*:L[0-9]" loa-grimoire/sdd.md 2>/dev/null || echo 0
+```
+
+### 9.2 Generate Trajectory Audit
 
 ```markdown
-## Trajectory Audit Summary
+# Trajectory Self-Audit
 
-| Metric | Count | Status |
-|--------|-------|--------|
-| Total steps logged | X | ✓ |
-| Grounded claims | Y | ✓ |
-| Inferred claims | Z | ⚠️ Review recommended |
-| Ungrounded claims | W | ❌ Must be flagged as [ASSUMPTION] |
+> Generated: [DATE]
+> Agent: riding-codebase
+> Target: [repo]
 
-### Reasoning Quality Score: X/10
+## Execution Summary
+
+| Phase | Status | Output File | Key Findings |
+|-------|--------|-------------|--------------|
+| 0 - Preflight | Complete | - | Loa v[X] mounted |
+| 1 - Context Discovery | Complete | claims-to-verify.md | [N] claims captured |
+| 2 - Code Extraction | Complete | reality/*.txt | [N] routes, [N] entities |
+| 2b - Hygiene Audit | Complete | reality/hygiene-report.md | [N] items flagged |
+| 3 - Legacy Inventory | Complete | legacy/INVENTORY.md | [N] docs found |
+| 4 - Drift Analysis | Complete | drift-report.md | [X]% drift |
+| 5 - Consistency | Complete | consistency-report.md | Score: [N]/10 |
+| 6 - PRD/SDD Generation | Complete | prd.md, sdd.md | Evidence-grounded |
+| 7 - Governance Audit | Complete | governance-report.md | [N] gaps |
+| 8 - Legacy Deprecation | Complete | [N] files marked | - |
+| 9 - Self-Audit | Complete | trajectory-audit.md | This file |
+
+## Grounding Analysis
+
+### PRD Grounding
+| Metric | Count | Percentage |
+|--------|-------|------------|
+| **[GROUNDED]** claims (file:line citations) | N | X% |
+| **[INFERRED]** claims (logical deduction) | N | X% |
+| **[ASSUMPTION]** claims (needs validation) | N | X% |
+| Total claims | N | 100% |
+
+### SDD Grounding
+| Metric | Count | Percentage |
+|--------|-------|------------|
+| **[GROUNDED]** claims (file:line citations) | N | X% |
+| **[INFERRED]** claims (logical deduction) | N | X% |
+| **[ASSUMPTION]** claims (needs validation) | N | X% |
+| Total claims | N | 100% |
+
+## Claims Requiring Validation
+
+| # | Claim | Location | Type | Validator Needed |
+|---|-------|----------|------|------------------|
+| 1 | [Claim text] | prd.md:L[N] | ASSUMPTION | [Role] |
+| 2 | [Claim text] | sdd.md:L[N] | INFERRED | [Role] |
+
+## Potential Hallucination Check
+
+Review these areas for accuracy:
+- [ ] Entity names match actual code (grep verified)
+- [ ] Feature descriptions match implementations
+- [ ] API endpoints exist as documented
+- [ ] Dependencies listed are actually imported
+
+## Reasoning Quality Score: X/10
+
+**Scoring Criteria:**
+- 10: 100% grounded, zero assumptions
+- 8-9: >90% grounded, assumptions flagged
+- 6-7: >75% grounded, some gaps
+- 4-5: >50% grounded, significant gaps
+- 1-3: <50% grounded, needs re-ride
+
+## Trajectory Log Reference
+
+Full trajectory logged to: `loa-grimoire/a2a/trajectory/riding-[DATE].jsonl`
+
+## Self-Certification
+
+- [ ] All phases completed and outputs generated
+- [ ] All claims in PRD/SDD have grounding markers
+- [ ] Assumptions explicitly flagged with [ASSUMPTION]
+- [ ] Drift report reflects actual code state
+- [ ] No hallucinated features or entities
+```
+
+**IMPORTANT**: You MUST create this file as the final phase. It serves as a quality gate for the entire /ride workflow.
+
+Log to trajectory:
+```json
+{"timestamp": "...", "agent": "riding-codebase", "phase": 9, "action": "self_audit", "output": "loa-grimoire/trajectory-audit.md", "quality_score": N}
 ```
 
 ### Grounding Categories
@@ -761,10 +1074,50 @@ If code behavior is ambiguous:
 
 ---
 
-## Trajectory Logging
+## Trajectory Logging (MANDATORY)
 
-Log each phase to `loa-grimoire/a2a/trajectory/riding-{date}.jsonl`:
+**YOU MUST LOG EACH PHASE** to `loa-grimoire/a2a/trajectory/riding-{date}.jsonl`:
+
+### Setup Trajectory File
+
+```bash
+TRAJECTORY_DATE=$(date +%Y%m%d)
+TRAJECTORY_FILE="loa-grimoire/a2a/trajectory/riding-${TRAJECTORY_DATE}.jsonl"
+mkdir -p loa-grimoire/a2a/trajectory
+```
+
+### Log Format
+
+Each phase MUST append a JSON line:
 
 ```json
-{"timestamp": "...", "agent": "riding-codebase", "phase": 2, "action": "code_extraction", "output_summary": "Found 47 routes, 60 entities", "next_action": "Phase 2b hygiene audit"}
+{"timestamp": "2024-01-15T10:30:00Z", "agent": "riding-codebase", "phase": 0, "action": "preflight", "status": "complete", "details": {"loa_version": "0.7.0"}}
+{"timestamp": "2024-01-15T10:31:00Z", "agent": "riding-codebase", "phase": 1, "action": "context_discovery", "status": "complete", "details": {"claims_count": 12, "output": "claims-to-verify.md"}}
+{"timestamp": "2024-01-15T10:35:00Z", "agent": "riding-codebase", "phase": 2, "action": "code_extraction", "status": "complete", "details": {"routes": 47, "entities": 60, "env_vars": 15}}
+{"timestamp": "2024-01-15T10:36:00Z", "agent": "riding-codebase", "phase": "2b", "action": "hygiene_audit", "status": "complete", "details": {"items_flagged": 8}}
+{"timestamp": "2024-01-15T10:40:00Z", "agent": "riding-codebase", "phase": 3, "action": "legacy_inventory", "status": "complete", "details": {"docs_found": 5}}
+{"timestamp": "2024-01-15T10:45:00Z", "agent": "riding-codebase", "phase": 4, "action": "drift_analysis", "status": "complete", "details": {"drift_score": 34, "ghosts": 3, "shadows": 5, "stale": 2}}
+{"timestamp": "2024-01-15T10:50:00Z", "agent": "riding-codebase", "phase": 5, "action": "consistency_analysis", "status": "complete", "details": {"score": 7, "output": "consistency-report.md"}}
+{"timestamp": "2024-01-15T10:55:00Z", "agent": "riding-codebase", "phase": 6, "action": "artifact_generation", "status": "complete", "details": {"prd_claims": 25, "sdd_claims": 30, "grounded_pct": 85}}
+{"timestamp": "2024-01-15T11:00:00Z", "agent": "riding-codebase", "phase": 7, "action": "governance_audit", "status": "complete", "details": {"gaps": 4}}
+{"timestamp": "2024-01-15T11:05:00Z", "agent": "riding-codebase", "phase": 8, "action": "legacy_deprecation", "status": "complete", "details": {"files_marked": 3}}
+{"timestamp": "2024-01-15T11:10:00Z", "agent": "riding-codebase", "phase": 9, "action": "self_audit", "status": "complete", "details": {"quality_score": 8, "assumptions": 3, "output": "trajectory-audit.md"}}
+{"timestamp": "2024-01-15T11:15:00Z", "agent": "riding-codebase", "phase": 10, "action": "handoff", "status": "complete", "details": {"total_duration_minutes": 45}}
 ```
+
+### Logging Implementation
+
+After EACH phase completes, append to the trajectory file:
+
+```bash
+echo '{"timestamp":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","agent":"riding-codebase","phase":'$PHASE',"action":"'$ACTION'","status":"complete","details":'$DETAILS'}' >> "$TRAJECTORY_FILE"
+```
+
+### Why This Matters
+
+1. **Audit Trail**: Proves what the agent actually did
+2. **Debugging**: Identify where issues occurred
+3. **Quality Gate**: Phase 9 uses this to verify all phases ran
+4. **Reproducibility**: Can re-run specific phases if needed
+
+**IMPORTANT**: If the trajectory file is empty at Phase 9, the self-audit MUST flag this as a failure.
