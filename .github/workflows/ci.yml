@@ -29,26 +29,26 @@ jobs:
           done
           echo "All JSON files are valid"
 
-      - name: Check agent definitions exist
+      - name: Check skill definitions exist
         run: |
-          echo "Checking required agent definitions..."
-          AGENTS=(
-            ".claude/agents/discovering-requirements.md"
-            ".claude/agents/designing-architecture.md"
-            ".claude/agents/planning-sprints.md"
-            ".claude/agents/implementing-tasks.md"
-            ".claude/agents/reviewing-code.md"
-            ".claude/agents/deploying-infrastructure.md"
-            ".claude/agents/auditing-security.md"
-            ".claude/agents/translating-for-executives.md"
+          echo "Checking required skill definitions..."
+          SKILLS=(
+            ".claude/skills/discovering-requirements/SKILL.md"
+            ".claude/skills/designing-architecture/SKILL.md"
+            ".claude/skills/planning-sprints/SKILL.md"
+            ".claude/skills/implementing-tasks/SKILL.md"
+            ".claude/skills/reviewing-code/SKILL.md"
+            ".claude/skills/deploying-infrastructure/SKILL.md"
+            ".claude/skills/auditing-security/SKILL.md"
+            ".claude/skills/translating-for-executives/SKILL.md"
           )
-          for agent in "${AGENTS[@]}"; do
-            if [ ! -f "$agent" ]; then
-              echo "Missing required agent: $agent"
+          for skill in "${SKILLS[@]}"; do
+            if [ ! -f "$skill" ]; then
+              echo "Missing required skill: $skill"
               exit 1
             fi
           done
-          echo "All required agents present"
+          echo "All required skills present"
 
       - name: Check command definitions exist
         run: |

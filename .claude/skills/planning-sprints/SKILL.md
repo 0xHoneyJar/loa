@@ -74,6 +74,44 @@ Before creating sprint plan:
 </citation_requirements>
 
 <workflow>
+## Phase -1: Optional Dependency Check (HITL Gate)
+
+Before starting sprint planning, check for optional dependencies that enhance the workflow:
+
+### Beads Check
+
+```bash
+.claude/scripts/check-beads.sh --quiet
+```
+
+**If NOT_INSTALLED**, present HITL gate using AskUserQuestion:
+
+```
+Pre-flight check...
+⚠️  Optional dependency not installed: Beads (bd CLI)
+
+Beads provides:
+- Git-backed task graph (replaces markdown parsing)
+- Dependency tracking (blocks, related, discovered-from)
+- Session persistence across context windows
+- JIT task retrieval with `bd ready`
+
+Options:
+1. Install now (recommended)
+   └─ brew install steveyegge/beads/bd
+   └─ npm install -g @beads/bd
+
+2. Continue without Beads
+   └─ Sprint plan will use markdown-based tracking
+```
+
+Use AskUserQuestion with options:
+- "Install Beads" → Show install commands and wait for confirmation
+- "Continue without" → Proceed with markdown-only workflow
+- "Show more info" → Explain Beads benefits in detail
+
+**If INSTALLED**, proceed silently to Phase 0.
+
 ## Phase 0: Check Feedback Files and Integration Context (CRITICAL—DO THIS FIRST)
 
 ### Step 1: Check for Security Audit Feedback

@@ -1,9 +1,10 @@
 ---
 name: "sprint-plan"
-version: "1.0.0"
+version: "1.1.0"
 description: |
   Create comprehensive sprint plan based on PRD and SDD.
   Task breakdown, prioritization, acceptance criteria, assignments.
+  Optionally integrates with Beads for task graph management.
 
 arguments: []
 
@@ -33,6 +34,21 @@ pre_flight:
   - check: "file_exists"
     path: "loa-grimoire/sdd.md"
     error: "SDD not found. Run /architect first."
+
+# Optional dependency check with HITL gate
+optional_dependencies:
+  - name: "beads"
+    check_script: ".claude/scripts/check-beads.sh --quiet"
+    description: "Beads (bd CLI) - Git-backed task graph management"
+    benefits:
+      - "Git-backed task graph (replaces markdown parsing)"
+      - "Dependency tracking (blocks, related, discovered-from)"
+      - "Session persistence across context windows"
+      - "JIT task retrieval with bd ready"
+    install_options:
+      - "brew install steveyegge/beads/bd"
+      - "npm install -g @beads/bd"
+    fallback: "Sprint plan will use markdown-based tracking only"
 
 outputs:
   - path: "loa-grimoire/sprint.md"
@@ -139,4 +155,13 @@ The planner will:
 
 ## Next Step
 
-After sprint plan is complete: `/implement sprint-1` to start implementation
+After sprint plan is complete:
+```
+/implement sprint-1
+```
+
+That's it. The implement command handles everything:
+- If Beads is installed: Automatically manages task lifecycle (bd ready, update, close)
+- If Beads is not installed: Uses markdown-based tracking from sprint.md
+
+**No manual `bd` commands required.** The agent handles task state internally.

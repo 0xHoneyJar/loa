@@ -108,8 +108,10 @@ git merge loa/main -m "chore: update Loa framework"
 
 | File Location | Merge Behavior |
 |---------------|----------------|
-| `.claude/agents/` | Updated to latest Loa versions |
+| `.claude/skills/` | Updated to latest Loa versions |
 | `.claude/commands/` | Updated to latest Loa versions |
+| `.claude/protocols/` | Updated to latest Loa versions |
+| `.claude/scripts/` | Updated to latest Loa versions |
 | `CLAUDE.md` | Standard merge (may conflict) |
 | `PROCESS.md` | Standard merge (may conflict) |
 | `app/` | Preserved (your code) |

@@ -59,6 +59,11 @@ loa-grimoire/deployment/SERVER-REALITY-AUDIT.md
 # Within THJ as we work within private repos we commit these files to help with internal
 # knowledge systems.
 #
+# Beads graph memory (sprint task tracking)
+# By default, .beads/ is tracked for team collaboration on sprint state.
+# Uncomment to keep local-only:
+# .beads/
+#
 # Loa process artifacts (loa-grimoire/)
 loa-grimoire/prd.md
 loa-grimoire/sdd.md

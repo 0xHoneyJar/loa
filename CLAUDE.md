@@ -151,6 +151,7 @@ Use `.claude/scripts/context-check.sh` for assessment.
 ```
 .claude/scripts/
 ├── analytics.sh              # Analytics functions (THJ only)
+├── check-beads.sh            # Beads (bd CLI) availability check
 ├── git-safety.sh             # Template detection
 ├── context-check.sh          # Parallel execution assessment
 ├── preflight.sh              # Pre-flight validation
