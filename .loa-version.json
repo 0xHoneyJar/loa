@@ -1,0 +1,15 @@
+{
+  "framework_version": "0.6.0",
+  "schema_version": 2,
+  "last_sync": null,
+  "zones": {
+    "system": ".claude",
+    "state": ["loa-grimoire", ".beads"],
+    "app": ["src", "lib", "app"]
+  },
+  "migrations_applied": [],
+  "integrity": {
+    "enforcement": "strict",
+    "last_verified": null
+  }
+}

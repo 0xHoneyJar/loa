@@ -4,9 +4,21 @@ Guidance for Claude Code when working in this repository.
 
 ## Project Overview
 
-Agent-driven development framework that orchestrates the complete product lifecycle using 8 specialized AI agents (skills). Designed for crypto/blockchain but applicable to any software project.
+Agent-driven development framework that orchestrates the complete product lifecycle using 8 specialized AI agents (skills). Built with enterprise-grade managed scaffolding inspired by AWS Projen, Copier, and Google's ADK.
 
 ## Architecture
+
+### Three-Zone Model
+
+Loa uses a managed scaffolding architecture:
+
+| Zone | Path | Owner | Permission |
+|------|------|-------|------------|
+| **System** | `.claude/` | Framework | NEVER edit directly |
+| **State** | `loa-grimoire/`, `.beads/` | Project | Read/Write |
+| **App** | `src/`, `lib/`, `app/` | Developer | Read (write requires confirmation) |
+
+**Critical**: System Zone is synthesized. Never suggest edits to `.claude/` - direct users to `.claude/overrides/` or `.loa.config.yaml`.
 
 ### Skills System
 
@@ -41,6 +53,40 @@ Commands in `.claude/commands/` use thin routing layer with YAML frontmatter:
 - **Pre-flight checks**: Validation before execution
 - **Context files**: Prioritized loading with variable substitution
 
+## Managed Scaffolding
+
+### Configuration Files
+
+| File | Purpose | Editable |
+|------|---------|----------|
+| `.loa-version.json` | Version manifest, schema tracking | Auto-managed |
+| `.loa.config.yaml` | User configuration | Yes - user-owned |
+| `.claude/checksums.json` | Integrity verification | Auto-generated |
+
+### Integrity Enforcement
+
+```yaml
+# .loa.config.yaml
+integrity_enforcement: strict  # strict | warn | disabled
+```
+
+- **strict**: Blocks execution if System Zone modified (CI/CD mandatory)
+- **warn**: Warns but allows execution
+- **disabled**: No checks (not recommended)
+
+### Customization via Overrides
+
+```
+.claude/overrides/
+├── skills/
+│   └── implementing-tasks/
+│       └── SKILL.md          # Custom skill instructions
+└── commands/
+    └── my-command.md         # Custom command
+```
+
+Overrides survive framework updates.
+
 ## Workflow Commands
 
 | Phase | Command | Agent | Output |
@@ -60,13 +106,48 @@ Commands in `.claude/commands/` use thin routing layer with YAML frontmatter:
 
 ## Key Protocols
 
+### Structured Agentic Memory
+
+Agents maintain persistent working memory in `loa-grimoire/NOTES.md`:
+
+```markdown
+## Active Sub-Goals
+## Discovered Technical Debt
+## Blockers & Dependencies
+## Session Continuity
+## Decision Log
+```
+
+**Protocol**: See `.claude/protocols/structured-memory.md`
+
+- Read NOTES.md on session start
+- Log decisions during execution
+- Summarize before compaction/session end
+- Apply Tool Result Clearing after heavy operations
+
+### Trajectory Evaluation (ADK-Level)
+
+Agents log reasoning to `loa-grimoire/a2a/trajectory/{agent}-{date}.jsonl`:
+
+```json
+{"timestamp": "...", "agent": "...", "action": "...", "reasoning": "...", "grounding": {...}}
+```
+
+**Grounding types**:
+- `citation`: Direct quote from docs
+- `code_reference`: Reference to existing code
+- `assumption`: Ungrounded claim (must flag)
+- `user_input`: Based on user request
+
+**Protocol**: See `.claude/protocols/trajectory-evaluation.md`
+
 ### Feedback Loops
 
-Three quality gates - see `.claude/protocols/feedback-loops.md` for details:
+Three quality gates - see `.claude/protocols/feedback-loops.md`:
 
-1. **Implementation Loop** (Phase 4-5): Engineer ↔ Senior Lead until "All good"
-2. **Security Audit Loop** (Phase 5.5): After approval → Auditor review → "APPROVED - LETS FUCKING GO" or "CHANGES_REQUIRED"
-3. **Deployment Loop**: DevOps ↔ Auditor until infrastructure approved
+1. **Implementation Loop** (Phase 4-5): Engineer <-> Senior Lead until "All good"
+2. **Security Audit Loop** (Phase 5.5): After approval -> Auditor review -> "APPROVED - LETS FUCKING GO" or "CHANGES_REQUIRED"
+3. **Deployment Loop**: DevOps <-> Auditor until infrastructure approved
 
 **Priority**: Audit feedback checked FIRST on `/implement`, then engineer feedback.
 
@@ -76,7 +157,7 @@ Three quality gates - see `.claude/protocols/feedback-loops.md` for details:
 
 Prevents accidental pushes to upstream template - see `.claude/protocols/git-safety.md`:
 
-- 4-layer detection (cached → origin URL → upstream remote → GitHub API)
+- 4-layer detection (cached -> origin URL -> upstream remote -> GitHub API)
 - Soft block with user confirmation via AskUserQuestion
 - `/contribute` command bypasses (has own safeguards)
 
@@ -92,12 +173,14 @@ Tracks usage for THJ developers - see `.claude/protocols/analytics.md`:
 
 ```
 loa-grimoire/
+├── NOTES.md            # Structured agentic memory
 ├── context/            # Pre-discovery documentation (optional)
 ├── prd.md              # Product Requirements
 ├── sdd.md              # Software Design
 ├── sprint.md           # Sprint Plan
 ├── a2a/                # Agent-to-Agent communication
 │   ├── index.md        # Audit trail index
+│   ├── trajectory/     # Agent reasoning logs
 │   ├── sprint-N/       # Per-sprint files
 │   │   ├── reviewer.md
 │   │   ├── engineer-feedback.md
@@ -150,6 +233,9 @@ Use `.claude/scripts/context-check.sh` for assessment.
 
 ```
 .claude/scripts/
+├── mount-loa.sh              # One-command install onto existing repo
+├── update.sh                 # Framework updates with migration gates
+├── check-loa.sh              # CI validation script
 ├── analytics.sh              # Analytics functions (THJ only)
 ├── check-beads.sh            # Beads (bd CLI) availability check
 ├── git-safety.sh             # Template detection
@@ -191,6 +277,7 @@ integrations:
 ## Key Conventions
 
 - **Never skip phases** - each builds on previous
+- **Never edit .claude/ directly** - use overrides or config
 - **Review all outputs** - you're the final decision-maker
 - **Security first** - especially for crypto projects
 - **Trust the process** - thorough discovery prevents mistakes
@@ -198,6 +285,11 @@ integrations:
 ## Related Files
 
 - `README.md` - Quick start guide
+- `INSTALLATION.md` - Detailed installation guide
 - `PROCESS.md` - Detailed workflow documentation
-- `.claude/protocols/` - Detailed protocol specifications
+- `.claude/protocols/` - Protocol specifications
+  - `structured-memory.md` - NOTES.md protocol
+  - `trajectory-evaluation.md` - ADK-style evaluation
+  - `feedback-loops.md` - Quality gates
+  - `git-safety.md` - Template protection
 - `.claude/scripts/` - Helper bash scripts

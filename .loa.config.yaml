@@ -1,0 +1,88 @@
+# Loa Framework Configuration
+# This file is yours to customize - framework updates will never modify it
+
+# =============================================================================
+# Persistence Mode
+# =============================================================================
+# - standard: Commit grimoire and beads to repo (default)
+# - stealth: Add state files to .gitignore, local-only operation
+persistence_mode: standard
+
+# =============================================================================
+# Integrity Enforcement (Projen-Level)
+# =============================================================================
+# - strict: Block agent execution on System Zone drift (recommended, mandatory for CI)
+# - warn: Warn but allow execution (development only)
+# - disabled: No integrity checks (not recommended)
+integrity_enforcement: strict
+
+# =============================================================================
+# Drift Resolution Policy
+# =============================================================================
+# - code: Update documentation to match implementation (existing codebases)
+# - docs: Create beads to fix code to match documentation (greenfield)
+# - ask: Always prompt for human decision
+drift_resolution: code
+
+# =============================================================================
+# Agent Configuration
+# =============================================================================
+disabled_agents: []
+# disabled_agents:
+#   - auditing-security
+#   - translating-for-executives
+
+# =============================================================================
+# Custom Paths
+# =============================================================================
+paths:
+  grimoire: loa-grimoire
+  beads: .beads
+
+# =============================================================================
+# Structured Agentic Memory (Anthropic-Level)
+# =============================================================================
+memory:
+  # Persistent working memory file
+  notes_file: loa-grimoire/NOTES.md
+  # Trajectory logs for ADK-style evaluation
+  trajectory_dir: loa-grimoire/a2a/trajectory
+  # Auto-compact trajectory logs older than N days
+  trajectory_retention_days: 30
+  # Restore context from NOTES.md on session start
+  auto_restore: true
+
+# =============================================================================
+# Evaluation-Driven Development (ADK-Level)
+# =============================================================================
+edd:
+  enabled: true
+  # Require N test scenarios before marking task complete
+  min_test_scenarios: 3
+  # Audit reasoning trajectory for hallucination
+  trajectory_audit: true
+  # Require explicit grounding for all claims
+  require_citations: true
+
+# =============================================================================
+# Context Hygiene
+# =============================================================================
+compaction:
+  enabled: true
+  # Trigger compaction after this many closed tasks in a sprint
+  threshold: 5
+
+# =============================================================================
+# Integrations
+# =============================================================================
+integrations:
+  - github
+  - linear
+
+# =============================================================================
+# Behavior Preferences
+# =============================================================================
+preferences:
+  auto_bead_on_review: true
+  require_security_audit: true
+  confirm_app_writes: true
