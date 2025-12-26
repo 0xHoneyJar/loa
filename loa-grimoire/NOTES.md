@@ -6,15 +6,16 @@
 ## Active Sub-Goals
 <!-- Current objectives being pursued -->
 
-**Sprint Plan Complete - ck Semantic Search Integration**
-- Comprehensive sprint plan generated (6 sprints, 4 weeks, ~172 hours estimated)
-- Solo developer workflow with 42 tasks across all sprints
-- MVP definition: 13 core features (P0), 8 high-priority enhancements (P1), 3 nice-to-haves (P2)
-- Testing strategy: Unit (bats, >80% coverage), integration (E2E workflows), performance (benchmarks), edge cases
-- Risk assessment: 7 risks identified with mitigation strategies
-- Dependencies mapped: 4 external (ck, beads, jq, yq), inter-sprint blockers documented
-- Success criteria: PRD validation checklist + sprint completion gates
-- Ready for implementation phase (/implement sprint-1)
+**v0.9.0 PRD Complete - Lossless Ledger Protocol (Clear, Don't Compact)**
+- PRD generated (550 lines) for context state management refactor
+- Paradigm shift: Context window = disposable workspace, State Zone = lossless ledgers
+- Core features: Session Continuity, Synthesis Checkpoint, Tiered Recovery, Grounding Enforcement
+- Token efficiency: 99.6% reduction via lightweight identifiers vs eager loading
+- Attention budget governance: Delta-synthesis at Yellow (5k), mandatory halt at Red (15k)
+- Configurable grounding enforcement: strict | warn | disabled in .loa.config.yaml
+- Integrates with ck Semantic Search (v0.8.0) for JIT retrieval and AST-aware snippets
+- Self-healing State Zone with Git-backed recovery priority
+- Ready for architecture phase (/architect)
 
 ## Discovered Technical Debt
 <!-- Issues found during implementation that need future attention -->
@@ -29,6 +30,7 @@
 | 2025-12-26 10:30 | discovering-requirements | ck integration PRD complete (1,780 lines). Context synthesized from LOA_CK_INTEGRATION_PROMPT.md + LOA_CK_CLI_PROMPT.md. Key insights: beads pattern, FAANG-tier standards, invisible enhancement. 5 gaps identified for clarification. |
 | 2025-12-26 11:15 | designing-architecture | SDD complete (~15,000 words, 13 sections). Architectural decisions: Direct CLI (v1.0), MCP migration (v2.0), Trajectory archival (gzip), Minimal Beads, Single repo. Includes: System architecture, component design (6 major components), data architecture (ck index, trajectory JSONL, NOTES.md), security (4-layer integrity), integration points (commands + skills), performance (caching + optimization). Next: /sprint-plan |
 | 2025-12-26 12:00 | planning-sprints | Sprint plan complete (6 sprints, 4 weeks). Breakdown: Sprint 1 (Foundation, 6 tasks, 15.5h), Sprint 2 (Core Search, 6 tasks, 40h), Sprint 3 (Context Mgmt, 8 tasks, 37h), Sprint 4 (Skills, 6 tasks, 27h), Sprint 5 (Quality, 8 tasks, 31h), Sprint 6 (Validation, 8 tasks, 21h). Total: 42 tasks, 171.5h estimated. Testing strategy: unit (bats, >80%), integration (E2E), performance (benchmarks), edge cases. MVP defined: 13 P0 features, 8 P1 enhancements. Risk mitigation: 7 risks addressed. Dependencies: 4 external, inter-sprint blockers mapped. Success criteria: PRD checklist + sprint gates. Next: /implement sprint-1 |
+| 2025-12-27 09:15 | discovering-requirements | v0.9.0 Lossless Ledger Protocol PRD complete (550 lines). Context synthesized from LOA_LOSSLESS_LEDGER_PROMPT.md (1,284 lines) + LOA_LOSSLESS_LEDGER_CLI_PROMPT.md (415 lines). Paradigm: "Clear, Don't Compact" - treat context as disposable workspace, State Zone as lossless ledgers. Key features: Session Continuity Protocol, Synthesis Checkpoint (blocking), Tiered Ledger Recovery (3 levels), Attention Budget (Green/Yellow/Orange/Red), JIT Retrieval (97% token reduction), Grounding Ratio Enforcement (>=0.95), Negative Grounding for Ghost Features. User decisions: Integrate with ck (v0.8.0), target v0.9.0, configurable grounding enforcement. Next: /architect |
 
 ## Decision Log
 <!-- Major decisions with rationale -->
