@@ -44,11 +44,11 @@ This sprint plan implements the Lossless Ledger Protocol as defined in:
 **File**: `.claude/protocols/session-continuity.md`
 
 **Acceptance Criteria**:
-- [ ] Session lifecycle documented (start, during, before /clear)
-- [ ] Tiered ledger recovery levels defined (L1: ~100 tokens, L2: ~500 tokens, L3: full)
-- [ ] Truth hierarchy documented (CODE > BEADS > NOTES > TRAJECTORY > PRD/SDD > LEGACY > CONTEXT)
-- [ ] Recovery flow with `bd ready` -> `bd show` documented
-- [ ] Anti-patterns section included
+- [x] Session lifecycle documented (start, during, before /clear)
+- [x] Tiered ledger recovery levels defined (L1: ~100 tokens, L2: ~500 tokens, L3: full)
+- [x] Truth hierarchy documented (CODE > BEADS > NOTES > TRAJECTORY > PRD/SDD > LEGACY > CONTEXT)
+- [x] Recovery flow with `bd ready` -> `bd show` documented
+- [x] Anti-patterns section included
 
 **Test Scenarios**:
 1. Agent reads protocol and correctly performs Level 1 recovery
@@ -69,11 +69,11 @@ This sprint plan implements the Lossless Ledger Protocol as defined in:
 **File**: `.claude/protocols/structured-memory.md` (update)
 
 **Acceptance Criteria**:
-- [ ] Session Continuity section template added
-- [ ] Active Context format (Current Bead, Last Checkpoint, Reasoning State)
-- [ ] Lightweight Identifiers table format (Identifier, Purpose, Last Verified)
-- [ ] Decision Log format (timestamp, decision, rationale, evidence, test scenarios)
-- [ ] All paths use `${PROJECT_ROOT}` prefix requirement documented
+- [x] Session Continuity section template added
+- [x] Active Context format (Current Bead, Last Checkpoint, Reasoning State)
+- [x] Lightweight Identifiers table format (Identifier, Purpose, Last Verified)
+- [x] Decision Log format (timestamp, decision, rationale, evidence, test scenarios)
+- [x] All paths use `${PROJECT_ROOT}` prefix requirement documented
 
 **Test Scenarios**:
 1. New project creates NOTES.md with Session Continuity section
@@ -93,11 +93,11 @@ This sprint plan implements the Lossless Ledger Protocol as defined in:
 **File**: `.claude/protocols/jit-retrieval.md`
 
 **Acceptance Criteria**:
-- [ ] Lightweight identifier format documented (`${PROJECT_ROOT}/path:line`)
-- [ ] Token comparison documented (eager ~500 vs JIT ~15 = 97% reduction)
-- [ ] ck retrieval methods documented (`ck --hybrid`, `ck --full-section`)
-- [ ] Fallback methods documented (`sed -n`, `grep -n`)
-- [ ] Path requirements enforced (absolute paths only)
+- [x] Lightweight identifier format documented (`${PROJECT_ROOT}/path:line`)
+- [x] Token comparison documented (eager ~500 vs JIT ~15 = 97% reduction)
+- [x] ck retrieval methods documented (`ck --hybrid`, `ck --full-section`)
+- [x] Fallback methods documented (`sed -n`, `grep -n`)
+- [x] Path requirements enforced (absolute paths only)
 
 **Test Scenarios**:
 1. Agent uses lightweight identifiers instead of full code blocks
@@ -117,11 +117,11 @@ This sprint plan implements the Lossless Ledger Protocol as defined in:
 **File**: `.claude/protocols/attention-budget.md`
 
 **Acceptance Criteria**:
-- [ ] Threshold levels documented (Green: 0-5k, Yellow: 5-10k, Orange: 10-15k, Red: 15k+)
-- [ ] Delta-Synthesis protocol at Yellow threshold documented
-- [ ] Advisory nature emphasized (not blocking)
-- [ ] Trajectory log format for delta_sync phase documented
-- [ ] Recommendations for each threshold level
+- [x] Threshold levels documented (Green: 0-5k, Yellow: 5-10k, Orange: 10-15k, Red: 15k+)
+- [x] Delta-Synthesis protocol at Yellow threshold documented
+- [x] Advisory nature emphasized (not blocking)
+- [x] Trajectory log format for delta_sync phase documented
+- [x] Recommendations for each threshold level
 
 **Test Scenarios**:
 1. Delta-synthesis triggers at Yellow threshold
@@ -141,11 +141,11 @@ This sprint plan implements the Lossless Ledger Protocol as defined in:
 **File**: `.claude/protocols/trajectory-evaluation.md` (update)
 
 **Acceptance Criteria**:
-- [ ] session_handoff phase documented with all required fields
-- [ ] delta_sync phase documented with all required fields
-- [ ] grounding_check phase documented
-- [ ] root_span_id for lineage tracking documented
-- [ ] notes_refs format for specific line references documented
+- [x] session_handoff phase documented with all required fields
+- [x] delta_sync phase documented with all required fields
+- [x] grounding_check phase documented
+- [x] root_span_id for lineage tracking documented
+- [x] notes_refs format for specific line references documented
 
 **Test Scenarios**:
 1. Session handoff log contains all required fields
@@ -165,11 +165,11 @@ This sprint plan implements the Lossless Ledger Protocol as defined in:
 **File**: `.claude/protocols/session-continuity.md` (section)
 
 **Acceptance Criteria**:
-- [ ] decisions[] array format documented
-- [ ] handoffs[] array format documented
-- [ ] test_scenarios[] array format documented
-- [ ] Backwards compatibility notes included
-- [ ] Fork detection concept documented
+- [x] decisions[] array format documented
+- [x] handoffs[] array format documented
+- [x] test_scenarios[] array format documented
+- [x] Backwards compatibility notes included
+- [x] Fork detection concept documented
 
 **Test Scenarios**:
 1. Existing Beads continue to work (no breaking changes)

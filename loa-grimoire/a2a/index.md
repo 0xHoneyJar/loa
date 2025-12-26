@@ -12,25 +12,26 @@ This index tracks all agent communications, sprint status, and audit trails.
 ## v0.9.0 - Lossless Ledger Protocol ("Clear, Don't Compact")
 
 ### Sprint 1: Foundation & Core Protocols
-**Status**: Ready for Review
+**Status**: REVIEW_APPROVED - Awaiting Security Audit
 **Date Implemented**: 2025-12-27
-**Agent Flow**: implementing-tasks → (awaiting reviewing-code)
+**Date Reviewed**: 2025-12-27
+**Agent Flow**: implementing-tasks → reviewing-code → (awaiting auditing-security)
 
 **Files**:
 - `sprint-1/reviewer.md` - Implementation report (created 2025-12-27)
-- `sprint-1/engineer-feedback.md` - Pending review
-- `sprint-1/auditor-sprint-feedback.md` - Pending (after code review)
-- `sprint-1/COMPLETED` - Pending (requires review + audit approval)
+- `sprint-1/engineer-feedback.md` - ✅ Code review: "All good" (2025-12-27)
+- `sprint-1/auditor-sprint-feedback.md` - ⏳ Pending security audit
+- `sprint-1/COMPLETED` - ⏳ Not created (requires audit approval)
 
 **Summary**:
-- Task 1.1: Session Continuity Protocol (.claude/protocols/session-continuity.md) - ~350 lines
-- Task 1.2: NOTES.md Session Continuity Section (structured-memory.md update) - +80 lines
-- Task 1.3: JIT Retrieval Protocol (.claude/protocols/jit-retrieval.md) - ~300 lines
-- Task 1.4: Attention Budget Protocol (.claude/protocols/attention-budget.md) - ~280 lines
-- Task 1.5: Trajectory Schema Extensions (trajectory-evaluation.md update) - +120 lines
-- Task 1.6: Bead Schema Extensions Documentation (session-continuity.md section) - +150 lines
+- Task 1.1: Session Continuity Protocol (.claude/protocols/session-continuity.md) - ~424 lines ✅
+- Task 1.2: NOTES.md Session Continuity Section (structured-memory.md update) - ~269 lines ✅
+- Task 1.3: JIT Retrieval Protocol (.claude/protocols/jit-retrieval.md) - ~317 lines ✅
+- Task 1.4: Attention Budget Protocol (.claude/protocols/attention-budget.md) - ~330 lines ✅
+- Task 1.5: Trajectory Schema Extensions (trajectory-evaluation.md update) - ~628 lines ✅
+- Task 1.6: Bead Schema Extensions Documentation (session-continuity.md section) - Integrated ✅
 - Completion: 100% (6/6 tasks complete)
-- Total Lines: ~1,280 lines (protocols + schema documentation)
+- Total Lines: ~1,968 lines (protocols + schema documentation)
 - All P0 tasks complete
 
 **Key Achievements**:
@@ -41,7 +42,7 @@ This index tracks all agent communications, sprint status, and audit trails.
 - Session handoff, delta sync, grounding check trajectory phases
 - Bead schema extensions (decisions[], test_scenarios[], handoffs[])
 
-**Next Step**: `/review-sprint sprint-1`
+**Next Step**: `/audit-sprint sprint-1`
 
 ---
 
