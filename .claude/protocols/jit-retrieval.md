@@ -209,6 +209,67 @@ Before using ck commands, verify availability:
 #   CK_STATUS=unavailable  # ck not found, use fallbacks
 ```
 
+### Integration with check-ck.sh
+
+The `check-ck.sh` script provides a standardized way to detect ck availability:
+
+```bash
+# In your workflow script
+source .claude/scripts/check-ck.sh 2>/dev/null || CK_STATUS="unavailable"
+
+if [[ "$CK_STATUS" == "available" ]]; then
+    # Use ck for semantic search
+    ck --hybrid "$query" "$path" --top-k 5 --jsonl
+else
+    # Fallback to grep
+    grep -rn "$pattern" "$path"
+fi
+```
+
+### ck Command Reference
+
+| Command | Purpose | Output |
+|---------|---------|--------|
+| `ck --hybrid "query" path` | Semantic + keyword search | Ranked results |
+| `ck --hybrid "query" path --jsonl` | Machine-parseable output | JSONL format |
+| `ck --full-section "name" file` | AST-aware function extraction | Complete function |
+| `ck --threshold 0.4` | Set similarity threshold | Filter low-confidence |
+| `ck --top-k N` | Limit results | Top N matches |
+
+### Example: Semantic Search with Fallback
+
+```bash
+#!/usr/bin/env bash
+# search-with-fallback.sh
+
+query="$1"
+path="${2:-.}"
+
+# Check ck availability
+if command -v ck &>/dev/null; then
+    # Semantic search (preferred)
+    ck --hybrid "$query" "$path" --top-k 5 --jsonl
+else
+    # Grep fallback (degraded but functional)
+    echo "# Warning: Using grep fallback (no semantic search)"
+    grep -rn "$query" "$path" --include="*.ts" --include="*.js" | head -10
+fi
+```
+
+### Example: AST-Aware Section Extraction
+
+```bash
+# With ck (AST-aware, extracts complete function)
+ck --full-section "validateToken" src/auth/jwt.ts
+# Returns the entire function definition, properly bounded
+
+# Without ck (line-based, may be incomplete)
+grep -n "validateToken" src/auth/jwt.ts  # Find line number
+sed -n '45,80p' src/auth/jwt.ts          # Extract range (manual boundary detection)
+```
+
+**Note**: The grep/sed fallback requires manual boundary detection and may include incomplete or excessive content.
+
 ## Fallback Behavior
 
 When ck is unavailable, all features have fallbacks:

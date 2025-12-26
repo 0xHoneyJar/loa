@@ -332,6 +332,98 @@ Extended Bead CLI operations for v0.9.0:
 
 **Note**: CLI extensions are optional enhancements. NOTES.md provides fallback.
 
+### Beads CLI Integration Examples
+
+#### Display Decisions History
+
+```bash
+# Show bead with full decision history
+bd show bd-x7y8
+
+# Output includes:
+#   id: bd-x7y8
+#   title: "Implement token refresh"
+#   status: in_progress
+#   decisions:
+#     - [2024-01-15T10:30:00Z] Use rotating refresh tokens
+#     - [2024-01-15T14:30:00Z] Add 15-minute grace period
+#   handoffs:
+#     - [sess-001] 2024-01-15T12:00:00Z (ratio: 0.97)
+```
+
+#### Append Decision to Bead
+
+```bash
+# Add a new decision with evidence
+bd update bd-x7y8 --decision "Use RSA256 for JWT signing" \
+    --rationale "Industry standard, key rotation support" \
+    --evidence "${PROJECT_ROOT}/src/auth/jwt.ts:23"
+
+# Decision is appended to decisions[] array, not replaced
+```
+
+#### Log Session Handoff
+
+```bash
+# Record session handoff when session ends
+bd update bd-x7y8 --handoff \
+    --session-id "sess-003" \
+    --notes-ref "loa-grimoire/NOTES.md:93-120" \
+    --trajectory-ref "trajectory/impl-2024-01-15.jsonl:span-ghi" \
+    --grounding-ratio 0.96
+```
+
+#### Check for Fork Detection
+
+```bash
+# Compare current context state with bead state
+bd diff bd-x7y8
+
+# Output if fork detected:
+#   FORK DETECTED:
+#   Context: "Use stateless tokens"
+#   Bead: "Use rotating refresh tokens"
+#   Resolution: Bead wins (external ledger is authoritative)
+```
+
+### Fallback When Beads Unavailable
+
+If Beads CLI (`bd`) is not installed, all decision tracking falls back to NOTES.md:
+
+```bash
+# Check if bd is available
+if command -v bd &>/dev/null; then
+    # Use Beads for decision tracking
+    bd update "$BEAD_ID" --decision "$decision"
+else
+    # Fallback: Append to NOTES.md Decision Log
+    echo "#### $(date -u +%Y-%m-%dT%H:%M:%SZ) - $title" >> loa-grimoire/NOTES.md
+    echo "**Decision**: $decision" >> loa-grimoire/NOTES.md
+    echo "**Rationale**: $rationale" >> loa-grimoire/NOTES.md
+fi
+```
+
+**Fallback Locations**:
+
+| Bead Feature | Fallback Location |
+|--------------|-------------------|
+| decisions[] | NOTES.md ## Decision Log |
+| handoffs[] | NOTES.md ## Session Continuity |
+| test_scenarios[] | NOTES.md ## Test Scenarios |
+| next_steps[] | NOTES.md ## Active Sub-Goals |
+
+### bd sync for Session End
+
+Always run `bd sync` at session end to commit Bead changes:
+
+```bash
+# Session end protocol
+bd sync              # Commit bead changes to .beads/
+git add .beads/      # Stage for git
+git commit -m "..."  # Commit with code changes
+git push             # Push to remote
+```
+
 ## Anti-Patterns
 
 | Anti-Pattern | Correct Approach |
