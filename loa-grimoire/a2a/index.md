@@ -1,10 +1,83 @@
 # Agent-to-Agent Communication Index
 
-This index tracks all agent communications, sprint status, and audit trails for the ck semantic search integration project.
+This index tracks all agent communications, sprint status, and audit trails.
 
-**Project**: Loa Framework - ck Semantic Search Integration
-**Version**: v0.7.0
-**Last Updated**: 2025-12-26
+**Project**: Loa Framework - Lossless Ledger Protocol
+**Version**: v0.9.0
+**Last Updated**: 2025-12-27
+**Previous Version**: v0.8.0 (ck Semantic Search Integration) - archived to v0.8.0-archive/
+
+---
+
+## v0.9.0 - Lossless Ledger Protocol ("Clear, Don't Compact")
+
+### Sprint 1: Foundation & Core Protocols
+**Status**: Ready for Review
+**Date Implemented**: 2025-12-27
+**Agent Flow**: implementing-tasks → (awaiting reviewing-code)
+
+**Files**:
+- `sprint-1/reviewer.md` - Implementation report (created 2025-12-27)
+- `sprint-1/engineer-feedback.md` - Pending review
+- `sprint-1/auditor-sprint-feedback.md` - Pending (after code review)
+- `sprint-1/COMPLETED` - Pending (requires review + audit approval)
+
+**Summary**:
+- Task 1.1: Session Continuity Protocol (.claude/protocols/session-continuity.md) - ~350 lines
+- Task 1.2: NOTES.md Session Continuity Section (structured-memory.md update) - +80 lines
+- Task 1.3: JIT Retrieval Protocol (.claude/protocols/jit-retrieval.md) - ~300 lines
+- Task 1.4: Attention Budget Protocol (.claude/protocols/attention-budget.md) - ~280 lines
+- Task 1.5: Trajectory Schema Extensions (trajectory-evaluation.md update) - +120 lines
+- Task 1.6: Bead Schema Extensions Documentation (session-continuity.md section) - +150 lines
+- Completion: 100% (6/6 tasks complete)
+- Total Lines: ~1,280 lines (protocols + schema documentation)
+- All P0 tasks complete
+
+**Key Achievements**:
+- Truth hierarchy documented (CODE > BEADS > NOTES > TRAJECTORY)
+- Tiered ledger recovery (L1: ~100 tokens, L2: ~500 tokens, L3: full)
+- JIT retrieval protocol (97% token reduction)
+- Attention budget thresholds (advisory, not blocking)
+- Session handoff, delta sync, grounding check trajectory phases
+- Bead schema extensions (decisions[], test_scenarios[], handoffs[])
+
+**Next Step**: `/review-sprint sprint-1`
+
+---
+
+### Sprint 2: Enforcement Layer (Pending)
+**Status**: Not Started
+**Depends On**: Sprint 1 Approval
+
+**Planned Tasks**:
+- Task 2.1: Grounding Enforcement Protocol
+- Task 2.2: Grounding Check Script
+- Task 2.3: Negative Grounding Protocol
+- Task 2.4: Synthesis Checkpoint Protocol
+- Task 2.5: Synthesis Checkpoint Script
+- Task 2.6: Self-Healing State Zone Script
+
+---
+
+### Sprint 3: Integration (Pending)
+**Status**: Not Started
+**Depends On**: Sprint 2 Approval
+
+---
+
+### Sprint 4: Quality & Polish (Pending)
+**Status**: Not Started
+**Depends On**: Sprint 3 Approval
+
+---
+
+## v0.8.0 Archive
+
+Previous version (ck Semantic Search Integration) archived to `v0.8.0-archive/`.
+
+---
+
+## v0.8.0 Sprint Status (Archived)
 
 ---
 
