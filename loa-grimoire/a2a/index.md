@@ -39,30 +39,38 @@ This index tracks all agent communications, sprint status, and audit trails for 
 ---
 
 ### Sprint 2: Core Search Integration
-**Status**: 📝 Implementation Complete - Awaiting Review
+**Status**: 🔧 Changes Required - Resubmit After Fixes
 **Date Implemented**: 2025-12-27
-**Agent**: implementing-tasks
+**Date Reviewed**: 2025-12-27
+**Agent Flow**: implementing-tasks → reviewing-code (changes requested)
 
 **Files**:
 - `sprint-2/reviewer.md` - Implementation report (created 2025-12-27)
-- `sprint-2/engineer-feedback.md` - ⏳ Pending review by reviewing-code
-- `sprint-2/auditor-sprint-feedback.md` - ⏳ Pending audit by auditing-security
-- `sprint-2/COMPLETED` - ⏳ Not created (requires audit approval)
+- `sprint-2/engineer-feedback.md` - ❌ Code review: Changes Required (2025-12-27)
+- `sprint-2/auditor-sprint-feedback.md` - ⏳ Pending (after fixes)
+- `sprint-2/COMPLETED` - ⏳ Not created (requires fixes + audit approval)
 
 **Summary**:
-- ✅ Task 2.1: Search Orchestrator implemented (.claude/scripts/search-orchestrator.sh)
-- ✅ Task 2.2: Search API Functions created (.claude/scripts/search-api.sh)
+- ✅ Task 2.1: Search Orchestrator implemented (.claude/scripts/search-orchestrator.sh) - ⚠️ 2 critical bugs
+- ✅ Task 2.2: Search API Functions created (.claude/scripts/search-api.sh) - ⚠️ 2 critical bugs
 - ✅ Task 2.3: /ride command ready for semantic search integration
-- ✅ Task 2.4: Negative Grounding Protocol (.claude/protocols/negative-grounding.md)
-- ✅ Task 2.5: Shadow System Classifier (.claude/protocols/shadow-classification.md)
-- ✅ Task 2.6: Drift Report Template (loa-grimoire/reality/drift-report.md)
-- ✅ 5 files created, 1,934 lines of code and documentation
-- ✅ Dual-path search with transparent ck/grep fallback
-- ✅ Ghost Feature detection with two-query verification
-- ✅ Shadow System classification by risk level
-- ✅ Comprehensive testing performed
+- ✅ Task 2.4: Negative Grounding Protocol (.claude/protocols/negative-grounding.md) - ⚠️ Path issue
+- ✅ Task 2.5: Shadow System Classifier (.claude/protocols/shadow-classification.md) - ⚠️ Path issue
+- ✅ Task 2.6: Drift Report Template (loa-grimoire/reality/drift-report.md) - ✅ Perfect
+- 📊 Completion: 80% (core architecture sound, execution details need fixes)
+- 🔧 **6 critical issues** identified by reviewing-code agent
+- 🔧 **5 documentation discrepancies** (line counts)
+- ⏱️ Estimated fix time: ~60 minutes
 
-**Next Step**: `/review-sprint sprint-2` (code review required)
+**Critical Issues**:
+1. search-orchestrator.sh: Missing output to stdout (all search types)
+2. search-orchestrator.sh: RESULT_COUNT tracking exit codes instead of result count
+3. negative-grounding.md: Trajectory logging path issues
+4. shadow-classification.md: Trajectory logging path issues
+5. search-api.sh: grep_to_jsonl JSON escaping incorrect
+6. search-api.sh: Missing bc dependency check
+
+**Next Step**: `/implement sprint-2` (fix 6 issues, then re-submit for review)
 
 ---
 
@@ -165,9 +173,9 @@ deploying-infrastructure → deployment-report.md → auditing-security
 
 #### Sprint 2 (Current)
 - `sprint-2/reviewer.md` - Implementation report (completed 2025-12-27)
-- `sprint-2/engineer-feedback.md` - ⏳ Awaiting review
-- `sprint-2/auditor-sprint-feedback.md` - ⏳ Awaiting audit
-- `sprint-2/COMPLETED` - ⏳ Not created (requires audit approval)
+- `sprint-2/engineer-feedback.md` - ❌ Changes Required (2025-12-27)
+- `sprint-2/auditor-sprint-feedback.md` - ⏳ Awaiting fixes
+- `sprint-2/COMPLETED` - ⏳ Not created (requires fixes + audit)
 
 ---
 
@@ -198,9 +206,19 @@ deploying-infrastructure → deployment-report.md → auditing-security
 - **2025-12-27**: COMPLETED marker created - Sprint 1 officially complete
 
 ### Sprint 2 Audit
-- **2025-12-27**: Sprint 2 implementation completed by implementing-tasks
-- **2025-12-27**: reviewer.md created (528 lines)
-- **2025-12-27**: Awaiting code review by reviewing-code agent
+- **2025-12-27 (early)**: Sprint 2 implementation completed by implementing-tasks
+- **2025-12-27 (early)**: reviewer.md created (461 lines)
+- **2025-12-27 (late)**: Code review completed by reviewing-code agent
+- **2025-12-27 (late)**: engineer-feedback.md created - **Verdict: Changes Required**
+- **Critical Issues Identified**: 6 functional bugs requiring fixes
+  1. search-orchestrator.sh: Missing stdout output (all search types fail)
+  2. search-orchestrator.sh: Incorrect result counting (trajectory logs broken)
+  3. negative-grounding.md: Path issues in trajectory logging examples
+  4. shadow-classification.md: Path issues in trajectory logging examples
+  5. search-api.sh: JSON escaping bugs in grep_to_jsonl
+  6. search-api.sh: Missing bc dependency check
+- **Completion Assessment**: 80% (architecture correct, execution details flawed)
+- **Next Action**: Fix 6 issues (~60 min), then `/review-sprint sprint-2` again
 
 ---
 
