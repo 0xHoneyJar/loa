@@ -1029,9 +1029,270 @@ grep -rn "import.*<module>\|from.*<module>\|require.*<module>" src/
 
 ---
 
-### FR-8: Graceful Fallback Protocol
+### FR-8: Agent Chaining (Next Step Automation)
 
-**FR-8.1**: Create search fallback protocol
+**FR-8.1**: Automatic next-agent suggestion after command completion
+**Priority**: P1 (High)
+**Source**: GitHub Issue #9 (CubQuests Sprint 1 Complete)
+
+**User Story**:
+```
+As a Loa user completing a phase
+I want the agent to suggest (and optionally launch) the next logical step
+So that I can maintain workflow momentum without manual command lookup
+```
+
+**Acceptance Criteria**:
+- [ ] Each agent knows its position in the workflow chain
+- [ ] On successful completion, agent suggests next command with clear call-to-action
+- [ ] User can accept (launch next agent) or decline (end session)
+- [ ] Workflow chain defined:
+  1. `/plan-and-analyze` → suggests `/architect`
+  2. `/architect` → suggests `/sprint-plan`
+  3. `/sprint-plan` → suggests `/implement sprint-1`
+  4. `/implement sprint-N` → suggests `/review-sprint sprint-N`
+  5. `/review-sprint sprint-N` → suggests `/audit-sprint sprint-N` OR `/implement sprint-N` (if feedback)
+  6. `/audit-sprint sprint-N` → suggests `/implement sprint-N+1` (if approved) OR `/implement sprint-N` (if changes required)
+- [ ] Suggestion format:
+  ```markdown
+  ## Next Step
+
+  Ready for architectural design.
+
+  **Recommended**: `/architect`
+
+  Would you like to proceed?
+  ```
+
+**Technical Specification**:
+```yaml
+# .claude/workflow-chain.yaml
+workflow:
+  plan-and-analyze:
+    next: architect
+    condition: "prd.md exists"
+  architect:
+    next: sprint-plan
+    condition: "sdd.md exists"
+  sprint-plan:
+    next: "implement sprint-1"
+    condition: "sprint.md exists"
+  implement:
+    next: "review-sprint {sprint}"
+    condition: "reviewer.md exists"
+  review-sprint:
+    next_on_approval: "audit-sprint {sprint}"
+    next_on_feedback: "implement {sprint}"
+    condition: "engineer-feedback.md content"
+  audit-sprint:
+    next_on_approval: "implement sprint-{N+1}"
+    next_on_changes: "implement {sprint}"
+    condition: "auditor-sprint-feedback.md content"
+```
+
+---
+
+### FR-9: Context Pollution Prevention
+
+**FR-9.1**: Configurable watch paths for drift detection
+**Priority**: P1 (High)
+**Source**: GitHub Issue #10 (Drift detection blind spots)
+
+**Problem Statement**: `/ride` focuses on standard directories (`.claude/`, `library/`) but misses custom workflow directories like `.meta/` that users may have.
+
+**User Story**:
+```
+As a Loa user with custom directory structures
+I want to configure which directories are watched for drift
+So that all my important files are included in drift detection
+```
+
+**Acceptance Criteria**:
+- [ ] `.loa.config.yaml` supports `watch_paths` configuration
+- [ ] Default paths include standard Loa directories
+- [ ] User can add custom paths without editing framework files
+- [ ] `/ride` uses configured watch paths for drift detection
+- [ ] Git status changes in watched paths are flagged in drift report
+
+**Configuration Example**:
+```yaml
+# .loa.config.yaml
+drift_detection:
+  watch_paths:
+    - ".claude/"
+    - "loa-grimoire/"
+    - ".meta/"           # Custom user directory
+    - "docs/architecture/"
+  exclude_patterns:
+    - "**/node_modules/**"
+    - "**/*.log"
+```
+
+---
+
+**FR-9.2**: Session artifact filtering (signal markers)
+**Priority**: P1 (High)
+**Source**: GitHub Issue #10 (Context pollution from session artifacts)
+
+**Problem Statement**: Repos accumulate low-signal documents (brainstorm notes, old session artifacts, meeting transcripts) that pollute grep results and consume context window.
+
+**User Story**:
+```
+As a Loa agent
+I want to filter out low-signal documents from search results
+So that I maintain focus on high-signal architectural content
+```
+
+**Acceptance Criteria**:
+- [ ] Support frontmatter signal markers: `signal: high|medium|low`
+- [ ] Default exclude patterns for session artifacts configured in `.loa.config.yaml`
+- [ ] Archive zone: `loa-grimoire/archive/` explicitly excluded from search
+- [ ] Search commands respect signal filtering
+- [ ] Agent can override filtering when explicitly needed
+
+**Implementation Options** (all to be supported):
+
+| Approach | Implementation |
+|----------|----------------|
+| **Signal markers** | Frontmatter `signal: high/medium/low` to filter grep/ck results |
+| **Archive zone** | `loa-grimoire/archive/` excluded from all searches |
+| **Grep excludes** | Default exclude patterns for session artifacts |
+| **TTL on drafts** | Auto-archive marker for drafts older than configurable days |
+
+**Frontmatter Example**:
+```markdown
+---
+signal: low
+type: brainstorm
+date: 2024-01-15
+---
+
+# Brainstorm Session Notes
+...
+```
+
+**Configuration Example**:
+```yaml
+# .loa.config.yaml
+context_filtering:
+  archive_zone: "loa-grimoire/archive/"
+  default_excludes:
+    - "**/brainstorm-*.md"
+    - "**/session-notes-*.md"
+    - "**/meeting-*.md"
+    - "**/draft-*.md"
+  signal_threshold: "medium"  # Exclude 'low' signal by default
+  draft_ttl_days: 30          # Auto-suggest archival after 30 days
+```
+
+**Search Integration**:
+```bash
+# With ck (respects excludes)
+ck --hybrid "authentication" \
+    --path "${PROJECT_ROOT}/src/" \
+    --exclude "loa-grimoire/archive/" \
+    --exclude "**/brainstorm-*.md" \
+    --jsonl
+
+# Fallback grep (respects excludes)
+grep -rn "authentication" \
+    --exclude-dir="archive" \
+    --exclude="brainstorm-*.md" \
+    "${PROJECT_ROOT}/src/"
+```
+
+---
+
+### FR-10: Command Namespace Protection
+
+**FR-10.1**: Protect Claude Code built-in commands from conflicts
+**Priority**: P0 (Blocker)
+**Source**: GitHub Issue #11 (Slash command /config conflicts with Claude Code built-in)
+
+**Problem Statement**: The custom `/config` slash command in Loa conflicts with Claude Code's built-in `/config` command. When users try to access Claude Code's native config functionality, the Loa command intercepts it instead.
+
+**User Story**:
+```
+As a Loa user
+I want Loa commands to never conflict with Claude Code built-ins
+So that I can access both Claude Code features and Loa commands
+```
+
+**Acceptance Criteria**:
+- [ ] Maintain list of Claude Code reserved commands (enshrined/protected)
+- [ ] Pre-flight check during `/setup` validates no conflicts
+- [ ] Conflicting commands auto-renamed with `-loa` suffix
+- [ ] Documentation clearly lists reserved command names
+- [ ] CI validation script checks for conflicts
+
+**Reserved Command List** (Claude Code built-ins):
+```yaml
+# .claude/reserved-commands.yaml
+reserved:
+  - config      # Claude Code settings
+  - help        # Claude Code help
+  - clear       # Clear conversation
+  - compact     # Compact context
+  - cost        # Show cost
+  - doctor      # Diagnostics
+  - init        # Initialize project
+  - login       # Authentication
+  - logout      # Sign out
+  - memory      # Memory management
+  - model       # Model selection
+  - pr-comments # PR review
+  - review      # Code review
+  - terminal-setup # Terminal config
+  - vim         # Vim mode
+  # Add new Claude Code commands as they're released
+```
+
+**Conflict Resolution Strategy**:
+```
+IF command_name IN reserved_commands:
+    renamed_command = f"{command_name}-loa"
+    WARN user: "Command /{command_name} conflicts with Claude Code built-in"
+    WARN user: "Renamed to /{renamed_command}"
+    CREATE .claude/commands/{renamed_command}.md
+    DELETE .claude/commands/{command_name}.md (if exists)
+```
+
+**Current Conflicts to Resolve**:
+| Loa Command | Conflict | Resolution |
+|-------------|----------|------------|
+| `/config` | Claude Code `/config` | Rename to `/config-loa` or `/mcp-config` |
+
+**Validation Script**:
+```bash
+# .claude/scripts/validate-commands.sh
+#!/bin/bash
+
+RESERVED=(config help clear compact cost doctor init login logout memory model pr-comments review terminal-setup vim)
+
+for cmd_file in .claude/commands/*.md; do
+    cmd_name=$(basename "$cmd_file" .md)
+    for reserved in "${RESERVED[@]}"; do
+        if [[ "$cmd_name" == "$reserved" ]]; then
+            echo "ERROR: /$cmd_name conflicts with Claude Code built-in"
+            echo "ACTION: Rename to /${cmd_name}-loa"
+            exit 1
+        fi
+    done
+done
+echo "✓ No command conflicts detected"
+```
+
+**Pre-flight Integration**:
+- [ ] Add to `.claude/scripts/preflight.sh`
+- [ ] Run during `/setup` and `/update`
+- [ ] Block synthesis if conflicts detected
+- [ ] Suggest resolution commands
+
+---
+
+### FR-11: Graceful Fallback Protocol
+
+**FR-11.1**: Create search fallback protocol
 **Priority**: P0 (Blocker)
 **Source**: LOA_CK_CLI_PROMPT.md:83-91, LOA_CK_INTEGRATION_PROMPT.md:1052-1111
 
@@ -1064,7 +1325,7 @@ So that users experience no functionality loss
 
 ---
 
-**FR-8.2**: No User-Facing /ck Command
+**FR-11.2**: No User-Facing /ck Command
 **Priority**: P0 (Blocker)
 **Source**: LOA_CK_CLI_PROMPT.md:189-200, LOA_CK_INTEGRATION_PROMPT.md:1112-1124
 
@@ -1395,6 +1656,7 @@ bd create "SHADOW (orphaned): <module>" --type debt --priority 1
 
 | Feature | Impact | Effort | Priority |
 |---------|--------|--------|----------|
+| Command namespace protection | High | Low | P0 |
 | Pre-flight integrity checks | High | Medium | P0 |
 | /ride dual-path integration | High | High | P0 |
 | Tool Result Clearing | High | Medium | P0 |
@@ -1404,6 +1666,10 @@ bd create "SHADOW (orphaned): <module>" --type debt --priority 1
 | JSONL failure-aware parsing | High | Low | P0 |
 | Ghost Feature detection | Medium | Medium | P0 |
 | Shadow System detection | Medium | Medium | P0 |
+| Agent chaining (next step) | High | Medium | P1 |
+| Context pollution prevention | High | Medium | P1 |
+| Configurable watch paths | Medium | Low | P1 |
+| Signal markers filtering | Medium | Medium | P1 |
 | Binary integrity verification | Medium | Low | P1 |
 | Semantic Decay protocol | Medium | Medium | P1 |
 | Skill integration | Medium | High | P1 |
@@ -1451,18 +1717,39 @@ bd create "SHADOW (orphaned): <module>" --type debt --priority 1
 - **Mitigation**: Document benefits of ck, make installation easy, accept trade-off
 - **Source**: LOA_CK_INTEGRATION_PROMPT.md:1052-1111
 
+**R-6: Command Namespace Collision**
+- **Risk**: Loa commands conflict with Claude Code built-ins (e.g., /config)
+- **Likelihood**: High (already occurring with /config)
+- **Impact**: High (blocks access to Claude Code features)
+- **Mitigation**: Reserved command list, pre-flight validation, auto-rename with `-loa` suffix
+- **Source**: GitHub Issue #11
+
+**R-7: Context Pollution from Session Artifacts**
+- **Risk**: Low-signal documents pollute search results and consume context window
+- **Likelihood**: High (repos accumulate brainstorm notes, meeting transcripts)
+- **Impact**: Medium (degraded agent focus, wasted tokens)
+- **Mitigation**: Signal markers, archive zone, default exclude patterns, configurable filtering
+- **Source**: GitHub Issue #10
+
+**R-8: Drift Detection Blind Spots**
+- **Risk**: Custom directories not included in drift detection
+- **Likelihood**: Medium (users may have .meta/, docs/architecture/, etc.)
+- **Impact**: Medium (missed drift in important files)
+- **Mitigation**: Configurable watch_paths in .loa.config.yaml
+- **Source**: GitHub Issue #10
+
 ---
 
 ### Business Risks
 
-**R-6: Increased Complexity**
+**R-9: Increased Complexity**
 - **Risk**: Adding ck integration increases framework complexity
 - **Likelihood**: High
 - **Impact**: Medium (harder maintenance, steeper learning curve)
 - **Mitigation**: Comprehensive documentation, clear protocols, synthesis protection
 - **Source**: LOA_CK_INTEGRATION_PROMPT.md:98-126 (Three-Zone Model)
 
-**R-7: User Confusion**
+**R-10: User Confusion**
 - **Risk**: Users don't understand when to install ck
 - **Likelihood**: Medium
 - **Impact**: Low (sub-optimal experience)
@@ -1757,19 +2044,31 @@ bd create "SHADOW (orphaned): <module>" --type debt --priority 1
 This PRD comprehensively documents the requirements for integrating ck semantic search into the Loa framework as an invisible, optional enhancement following FAANG-tier engineering standards. All context files have been synthesized, mapped to discovery phases, and traced to source documentation.
 
 **Key Achievements**:
-- ✅ 100% context file coverage (2 files, 95,450 bytes)
+- ✅ 100% context file coverage (2 files, 95,450 bytes + 3 GitHub issues)
 - ✅ All 7 discovery phases addressed
-- ✅ 60+ functional requirements with citations
+- ✅ 70+ functional requirements with citations (FR-1 through FR-11)
 - ✅ 20+ non-functional requirements
 - ✅ Complete traceability matrix (AWS Projen + Anthropic + Google ADK)
 - ✅ Anti-pattern prevention guidelines
 - ✅ 5 gaps identified for stakeholder clarification
+- ✅ GitHub Issue #9: Agent chaining (FR-8)
+- ✅ GitHub Issue #10: Context pollution prevention (FR-9)
+- ✅ GitHub Issue #11: Command namespace protection (FR-10) - **P0 Blocker**
+
+**New Requirements Added (from GitHub Issues)**:
+| Issue | Requirement | Priority | Status |
+|-------|-------------|----------|--------|
+| #9 | Agent chaining - auto-suggest next command | P1 | Added as FR-8 |
+| #10 | Configurable watch paths for drift detection | P1 | Added as FR-9.1 |
+| #10 | Signal markers for context filtering | P1 | Added as FR-9.2 |
+| #11 | Command namespace protection (reserved list) | P0 | Added as FR-10 |
 
 **Next Steps**:
 1. Review PRD with THJ team
-2. Clarify 5 identified gaps (Appendix D)
-3. Proceed to `/architect` for Software Design Document
-4. Begin implementation in `/sprint-plan`
+2. **Immediate**: Rename `/config` to `/config-loa` or `/mcp-config` (Issue #11)
+3. Clarify 5 identified gaps (Appendix D)
+4. Proceed to `/architect` for Software Design Document
+5. Begin implementation in `/sprint-plan`
 
 **Document Status**: Ready for architectural design phase.
 
