@@ -344,10 +344,10 @@ This sprint plan implements the Lossless Ledger Protocol as defined in:
 **File**: `.claude/commands/ride.md` (update)
 
 **Acceptance Criteria**:
-- [ ] Session start actions added (bd ready, bd show, tiered recovery)
-- [ ] During session actions documented (continuous synthesis, delta sync)
-- [ ] On complete actions documented (synthesis checkpoint, trajectory handoff)
-- [ ] Session continuity protocol referenced
+- [x] Session start actions added (bd ready, bd show, tiered recovery)
+- [x] During session actions documented (continuous synthesis, delta sync)
+- [x] On complete actions documented (synthesis checkpoint, trajectory handoff)
+- [x] Session continuity protocol referenced
 
 **Test Scenarios**:
 1. /ride starts with session recovery
@@ -367,11 +367,11 @@ This sprint plan implements the Lossless Ledger Protocol as defined in:
 **File**: `.loa.config.yaml` (update) and documentation
 
 **Acceptance Criteria**:
-- [ ] grounding_enforcement option added (strict | warn | disabled)
-- [ ] attention_budget thresholds added
-- [ ] session_continuity settings added
-- [ ] edd settings added
-- [ ] Default values set appropriately
+- [x] grounding_enforcement option added (strict | warn | disabled)
+- [x] attention_budget thresholds added
+- [x] session_continuity settings added
+- [x] edd settings added
+- [x] Default values set appropriately
 
 **Test Scenarios**:
 1. Configuration loads correctly
@@ -391,10 +391,10 @@ This sprint plan implements the Lossless Ledger Protocol as defined in:
 **Files**: `.claude/skills/*/index.yaml` (update)
 
 **Acceptance Criteria**:
-- [ ] implementing-tasks references all new protocols
-- [ ] reviewing-code references grounding-enforcement
-- [ ] All skills reference session-continuity
-- [ ] Protocol loading documented
+- [x] implementing-tasks references all new protocols
+- [x] reviewing-code references grounding-enforcement
+- [x] All skills reference session-continuity
+- [x] Protocol loading documented
 
 **Test Scenarios**:
 1. implementing-tasks agent follows session continuity protocol
@@ -413,10 +413,10 @@ This sprint plan implements the Lossless Ledger Protocol as defined in:
 **File**: `.claude/protocols/jit-retrieval.md` (section)
 
 **Acceptance Criteria**:
-- [ ] ck --hybrid usage documented with examples
-- [ ] ck --full-section usage documented with examples
-- [ ] Fallback to grep/sed documented with examples
-- [ ] check-ck.sh usage for availability detection documented
+- [x] ck --hybrid usage documented with examples
+- [x] ck --full-section usage documented with examples
+- [x] Fallback to grep/sed documented with examples
+- [x] check-ck.sh usage for availability detection documented
 
 **Test Scenarios**:
 1. JIT retrieval works with ck installed
@@ -436,10 +436,10 @@ This sprint plan implements the Lossless Ledger Protocol as defined in:
 **File**: `.claude/protocols/session-continuity.md` (section)
 
 **Acceptance Criteria**:
-- [ ] bd show display of decisions[] and handoffs[] documented
-- [ ] bd update for appending decisions documented
-- [ ] Fork detection concept documented
-- [ ] Fallback to NOTES.md when Beads unavailable documented
+- [x] bd show display of decisions[] and handoffs[] documented
+- [x] bd update for appending decisions documented
+- [x] Fork detection concept documented
+- [x] Fallback to NOTES.md when Beads unavailable documented
 
 **Test Scenarios**:
 1. bd show displays decision history
@@ -459,11 +459,11 @@ This sprint plan implements the Lossless Ledger Protocol as defined in:
 **File**: `CLAUDE.md` (update)
 
 **Acceptance Criteria**:
-- [ ] Lossless Ledger Protocol section added
-- [ ] Truth hierarchy documented
-- [ ] New protocols listed
-- [ ] New scripts documented
-- [ ] Configuration options documented
+- [x] Lossless Ledger Protocol section added
+- [x] Truth hierarchy documented
+- [x] New protocols listed
+- [x] New scripts documented
+- [x] Configuration options documented
 
 **Test Scenarios**:
 1. Developers can understand protocol from CLAUDE.md

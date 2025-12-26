@@ -84,16 +84,17 @@ This index tracks all agent communications, sprint status, and audit trails.
 ---
 
 ### Sprint 3: Integration Layer
-**Status**: ✅ IMPLEMENTATION COMPLETE - Ready for Review
+**Status**: ✅ ✅ REVIEW APPROVED - Ready for Security Audit
 **Date Implemented**: 2025-12-27
+**Date Reviewed**: 2025-12-27
 **Depends On**: Sprint 2 Approval ✅
-**Agent Flow**: implementing-tasks → (awaiting reviewing-code)
+**Agent Flow**: implementing-tasks → reviewing-code → (awaiting auditing-security)
 
 **Files**:
 - `sprint-3/reviewer-v090.md` - Implementation report (created 2025-12-27)
-- `sprint-3/engineer-feedback-v090.md` - ⏳ Pending review
-- `sprint-3/auditor-sprint-feedback-v090.md` - ⏳ Pending (after code review)
-- `sprint-3/COMPLETED-v090` - ⏳ Not created (requires review + audit approval)
+- `sprint-3/engineer-feedback-v090.md` - ✅ Code review: "All good" (2025-12-27)
+- `sprint-3/auditor-sprint-feedback-v090.md` - ⏳ Pending security audit
+- `sprint-3/COMPLETED-v090` - ⏳ Not created (requires audit approval)
 
 **Summary**:
 - Task 3.1: /ride Command Session Awareness (.claude/commands/ride.md) - ~65 lines ✅
@@ -114,7 +115,7 @@ This index tracks all agent communications, sprint status, and audit trails.
 - Session continuity integrates with Beads CLI (bd show, bd update --decision)
 - CLAUDE.md updated with Truth Hierarchy and protocol references
 
-**Next Step**: `/review-sprint sprint-3` (v0.9.0 scope)
+**Next Step**: `/audit-sprint sprint-3` (v0.9.0 scope)
 
 ---
 
