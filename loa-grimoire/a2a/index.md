@@ -48,16 +48,17 @@ This index tracks all agent communications, sprint status, and audit trails.
 ---
 
 ### Sprint 2: Enforcement Layer
-**Status**: IMPLEMENTED - Awaiting Review
+**Status**: REVIEWED - Awaiting Security Audit
 **Date Implemented**: 2025-12-27
+**Date Reviewed**: 2025-12-27
 **Depends On**: Sprint 1 Approval ✅
-**Agent Flow**: implementing-tasks → (awaiting reviewing-code)
+**Agent Flow**: implementing-tasks → reviewing-code → (awaiting auditing-security)
 
 **Files**:
 - `sprint-2/reviewer-v090.md` - Implementation report (created 2025-12-27)
-- `sprint-2/engineer-feedback.md` - ⏳ Pending review
+- `sprint-2/engineer-feedback-v090.md` - ✅ Code review: "All good" (2025-12-27)
 - `sprint-2/auditor-sprint-feedback.md` - ⏳ Pending (after review)
-- `sprint-2/COMPLETED` - ⏳ Not created (requires review + audit)
+- `sprint-2/COMPLETED` - ⏳ Not created (requires audit approval)
 
 **Summary**:
 - Task 2.1: Grounding Enforcement Protocol (.claude/protocols/grounding-enforcement.md) - 464 lines ✅
@@ -77,7 +78,7 @@ This index tracks all agent communications, sprint status, and audit trails.
 - Self-healing State Zone with git-backed recovery
 - Configuration support via .loa.config.yaml
 
-**Next Step**: `/review-sprint sprint-2`
+**Next Step**: `/audit-sprint sprint-2`
 
 ---
 
