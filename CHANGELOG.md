@@ -112,6 +112,7 @@ This release introduces the **Lossless Ledger Protocol** - a paradigm shift from
 
 ---
 
+
 ## [0.8.0] - 2025-12-27
 
 ### Why This Release
