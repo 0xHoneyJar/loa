@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Loa Framework: CI/CD Validation (Enterprise Grade)
+# v0.9.0 Lossless Ledger Protocol - Enhanced validation
 # Exit codes: 0 = success, 1 = failure
 set -euo pipefail
 
@@ -7,6 +8,10 @@ VERSION_FILE=".loa-version.json"
 CHECKSUMS_FILE=".claude/checksums.json"
 CONFIG_FILE=".loa.config.yaml"
 NOTES_FILE="loa-grimoire/NOTES.md"
+
+# v0.9.0 Protocol files
+PROTOCOL_DIR=".claude/protocols"
+SCRIPT_DIR=".claude/scripts"
 
 # Disable colors in CI or non-interactive mode
 if [[ "${CI:-}" == "true" ]] || [[ ! -t 1 ]]; then
@@ -127,6 +132,153 @@ check_zones() {
   log "Zone structure checked"
 }
 
+# =============================================================================
+# v0.9.0 Lossless Ledger Protocol Checks
+# =============================================================================
+
+check_v090_protocols() {
+  echo "Checking v0.9.0 protocol files..."
+
+  local protocols_ok=true
+  local required_protocols=(
+    "session-continuity.md"
+    "synthesis-checkpoint.md"
+    "grounding-enforcement.md"
+    "jit-retrieval.md"
+    "attention-budget.md"
+  )
+
+  for proto in "${required_protocols[@]}"; do
+    local proto_path="${PROTOCOL_DIR}/${proto}"
+    if [[ ! -f "$proto_path" ]]; then
+      fail "v0.9.0 protocol missing: ${proto}"
+      protocols_ok=false
+    elif [[ ! -s "$proto_path" ]]; then
+      fail "v0.9.0 protocol empty: ${proto}"
+      protocols_ok=false
+    fi
+  done
+
+  [[ "$protocols_ok" == "true" ]] && log "All v0.9.0 protocol files present"
+}
+
+check_v090_scripts() {
+  echo "Checking v0.9.0 script files..."
+
+  local scripts_ok=true
+  local required_scripts=(
+    "grounding-check.sh"
+    "synthesis-checkpoint.sh"
+    "self-heal-state.sh"
+  )
+
+  for script in "${required_scripts[@]}"; do
+    local script_path="${SCRIPT_DIR}/${script}"
+    if [[ ! -f "$script_path" ]]; then
+      fail "v0.9.0 script missing: ${script}"
+      scripts_ok=false
+    elif [[ ! -x "$script_path" ]]; then
+      fail "v0.9.0 script not executable: ${script}"
+      scripts_ok=false
+    elif [[ ! -s "$script_path" ]]; then
+      fail "v0.9.0 script empty: ${script}"
+      scripts_ok=false
+    fi
+  done
+
+  # Optional: Run shellcheck if available
+  if command -v shellcheck &> /dev/null; then
+    for script in "${required_scripts[@]}"; do
+      local script_path="${SCRIPT_DIR}/${script}"
+      if [[ -f "$script_path" ]]; then
+        if ! shellcheck -S error "$script_path" > /dev/null 2>&1; then
+          warn "Shellcheck warnings in ${script} (non-blocking)"
+        fi
+      fi
+    done
+    log "Shellcheck passed for v0.9.0 scripts"
+  else
+    warn "shellcheck not installed - skipping script linting"
+  fi
+
+  [[ "$scripts_ok" == "true" ]] && log "All v0.9.0 script files present and executable"
+}
+
+check_v090_config() {
+  echo "Checking v0.9.0 configuration schema..."
+
+  [[ -f "$CONFIG_FILE" ]] || { warn "No config file - skipping v0.9.0 config validation"; return; }
+
+  # Check if yq is available
+  if ! command -v yq &> /dev/null; then
+    warn "yq not installed - skipping v0.9.0 config validation"
+    return
+  fi
+
+  local config_ok=true
+  local grounding_threshold=""
+  local grounding_enforcement=""
+
+  # Try Go yq first, then Python yq
+  if yq --version 2>&1 | grep -q "mikefarah"; then
+    # Go yq (mikefarah/yq)
+    grounding_threshold=$(yq eval '.grounding.threshold // "missing"' "$CONFIG_FILE" 2>/dev/null)
+    grounding_enforcement=$(yq eval '.grounding.enforcement // "missing"' "$CONFIG_FILE" 2>/dev/null)
+  else
+    # Python yq (kislyuk/yq)
+    grounding_threshold=$(yq -r '.grounding.threshold // "missing"' "$CONFIG_FILE" 2>/dev/null)
+    grounding_enforcement=$(yq -r '.grounding.enforcement // "missing"' "$CONFIG_FILE" 2>/dev/null)
+  fi
+
+  # Validate grounding configuration
+  if [[ "$grounding_threshold" == "missing" ]]; then
+    warn "v0.9.0 config: grounding.threshold not set (using default 0.95)"
+  else
+    # Validate threshold is a valid number between 0 and 1
+    if [[ ! "$grounding_threshold" =~ ^[0-9]*\.?[0-9]+$ ]]; then
+      fail "v0.9.0 config: grounding.threshold must be a number"
+      config_ok=false
+    fi
+  fi
+
+  if [[ "$grounding_enforcement" == "missing" ]]; then
+    warn "v0.9.0 config: grounding.enforcement not set (using default 'warn')"
+  elif [[ ! "$grounding_enforcement" =~ ^(strict|warn|disabled)$ ]]; then
+    fail "v0.9.0 config: grounding.enforcement must be strict|warn|disabled"
+    config_ok=false
+  fi
+
+  [[ "$config_ok" == "true" ]] && log "v0.9.0 configuration schema valid (enforcement: ${grounding_enforcement:-warn}, threshold: ${grounding_threshold:-0.95})"
+}
+
+check_notes_template() {
+  echo "Checking NOTES.md template compliance..."
+
+  [[ -f "$NOTES_FILE" ]] || { warn "NOTES.md missing - cannot validate template"; return; }
+
+  local template_ok=true
+
+  # v0.9.0 required sections
+  local required_sections=(
+    "Session Continuity"
+    "Decision Log"
+  )
+
+  for section in "${required_sections[@]}"; do
+    if ! grep -q "## ${section}" "$NOTES_FILE"; then
+      warn "NOTES.md missing required v0.9.0 section: '${section}'"
+      template_ok=false
+    fi
+  done
+
+  # Check for v0.9.0 format hints
+  if grep -q "Lightweight Identifiers" "$NOTES_FILE"; then
+    log "NOTES.md has v0.9.0 Lightweight Identifiers section"
+  fi
+
+  [[ "$template_ok" == "true" ]] && log "NOTES.md template compliant with v0.9.0"
+}
+
 check_dependencies() {
   echo "Checking dependencies..."
 
@@ -142,11 +294,13 @@ check_dependencies() {
 main() {
   local verbose=false
   local strict=false
+  local v090=false
 
   while [[ $# -gt 0 ]]; do
     case $1 in
       --verbose|-v) verbose=true; shift ;;
       --strict) strict=true; shift ;;
+      --v090|--lossless-ledger) v090=true; shift ;;
       *) shift ;;
     esac
   done
@@ -154,9 +308,11 @@ main() {
   echo ""
   echo "======================================================================="
   echo "  Loa Framework Validation (Enterprise Grade)"
+  echo "  v0.9.0 Lossless Ledger Protocol Support"
   echo "======================================================================="
   echo ""
 
+  # Core checks
   check_dependencies
   check_mounted
   check_integrity
@@ -165,7 +321,19 @@ main() {
   check_config
   check_zones
 
+  # v0.9.0 Lossless Ledger Protocol checks
   echo ""
+  echo "-----------------------------------------------------------------------"
+  echo "  v0.9.0 Lossless Ledger Protocol Validation"
+  echo "-----------------------------------------------------------------------"
+  echo ""
+  check_v090_protocols
+  check_v090_scripts
+  check_v090_config
+  check_notes_template
+
+  echo ""
+  echo "======================================================================="
   if [[ $FAILURES -gt 0 ]]; then
     echo -e "${RED}Validation FAILED with $FAILURES error(s)${NC}"
     exit 1

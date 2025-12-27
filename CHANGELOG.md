@@ -5,6 +5,114 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2025-12-27
+
+### Why This Release
+
+This release introduces the **Lossless Ledger Protocol** - a paradigm shift from "compact to survive" to "clear, don't compact." Instead of letting Claude's context compaction smudge your reasoning state, agents now proactively checkpoint their work to persistent ledgers before clearing context, enabling instant lossless recovery.
+
+### Added
+
+- **Lossless Ledger Protocol**: "Clear, Don't Compact" context management
+  - Proactive `/clear` before compaction instead of reactive summarization
+  - Tiered state recovery: Level 1 (~100 tokens), Level 2 (~500 tokens), Level 3 (full)
+  - Session continuity across context clears with zero information loss
+  - Grounding ratio enforcement (≥0.95 required before `/clear`)
+
+- **Session Continuity Protocol** (`.claude/protocols/session-continuity.md`)
+  - 7-level immutable truth hierarchy (Code → Beads → NOTES → Trajectory → Docs)
+  - 3-phase session lifecycle: Start → During → Before Clear
+  - Self-healing State Zone with git-based recovery
+  - Lightweight identifier format for 97% token reduction
+
+- **Grounding Enforcement Protocol** (`.claude/protocols/grounding-enforcement.md`)
+  - 4 grounding types: `citation`, `code_reference`, `user_input`, `assumption`
+  - Configurable enforcement levels: `strict` (blocking), `warn` (advisory), `disabled`
+  - Script: `.claude/scripts/grounding-check.sh` - Calculates grounding ratio
+  - Default threshold: 0.95 (95% of claims must be grounded)
+
+- **Synthesis Checkpoint Protocol** (`.claude/protocols/synthesis-checkpoint.md`)
+  - 7-step checkpoint before `/clear`: 2 blocking, 5 non-blocking
+  - Step 1: Grounding verification (blocking if strict)
+  - Step 2: Negative grounding ghost detection (blocking)
+  - Steps 3-7: Decision sync, Bead update, handoff log, decay advisory, EDD verify
+  - Script: `.claude/scripts/synthesis-checkpoint.sh`
+
+- **Attention Budget Protocol** (`.claude/protocols/attention-budget.md`)
+  - Traffic light system: Green (0-5k), Yellow (5-15k), Red (>15k tokens)
+  - Delta-synthesis at Yellow threshold
+  - Advisory-only (doesn't block)
+
+- **JIT Retrieval Protocol** (`.claude/protocols/jit-retrieval.md`)
+  - Lightweight identifiers: `${PROJECT_ROOT}/path:lines | purpose | timestamp`
+  - 97% token reduction vs embedding full code blocks
+  - `ck` semantic search integration with grep fallback
+
+- **Self-Healing State Zone**
+  - Script: `.claude/scripts/self-heal-state.sh`
+  - Recovery priority: git history → git checkout → template
+  - Automatic recovery of NOTES.md, trajectory/, .beads/
+
+- **Comprehensive Test Suite** (127 tests)
+  - 65+ unit tests for grounding-check, synthesis-checkpoint, self-heal-state
+  - 22 integration tests for session lifecycle
+  - 30+ edge case tests (zero-claim, corrupted data, missing files)
+  - 10 performance benchmarks with PRD KPI validation
+
+- **UAT Validation Script** (`.claude/scripts/validate-prd-requirements.sh`)
+  - Validates all 11 Functional Requirements (FR-1 through FR-11)
+  - Validates 2 Integration Requirements (IR-1, IR-2)
+  - 45 automated checks with pass/fail/warning output
+
+- **CI/CD Validation** (`.claude/scripts/check-loa.sh` enhanced)
+  - `check_v090_protocols()` - Validates 5 protocol files
+  - `check_v090_scripts()` - Validates 3 scripts (executable, shellcheck)
+  - `check_v090_config()` - Validates grounding configuration
+  - `check_notes_template()` - Validates NOTES.md sections
+
+### Changed
+
+- **NOTES.md Schema Extended**: New required sections
+  - `## Session Continuity` - Critical context (~100 tokens)
+  - `## Lightweight Identifiers` - Code references table
+  - `## Decision Log` - Timestamped decisions with grounding
+
+- **Trajectory Logging Enhanced**: New entry types
+  - `session_handoff` - Context passed to next session
+  - `negative_grounding` - Ghost feature detection
+  - `test_scenario` - EDD verification entries
+
+- **Configuration**: New `.loa.config.yaml` options
+  ```yaml
+  grounding:
+    enforcement: warn    # strict | warn | disabled
+    threshold: 0.95      # 0.00-1.00
+  ```
+
+### Technical Details
+
+- **Performance Targets Met**
+  | Metric | Target | Achieved |
+  |--------|--------|----------|
+  | Session recovery | <30s | ✅ |
+  | Level 1 recovery | ~100 tokens | ✅ |
+  | Grounding ratio | ≥0.95 | ✅ |
+  | Token reduction (JIT) | 97% | ✅ |
+  | Test coverage | >80% | ✅ 127 tests |
+
+- **Sprints Completed**: 4 sprints, all approved
+  - Sprint 1: Foundation & Core Protocols
+  - Sprint 2: Enforcement Layer
+  - Sprint 3: Integration Layer
+  - Sprint 4: Quality & Polish
+
+### Breaking Changes
+
+**None** - This release is fully backward compatible. New protocols are additive.
+
+---
+
+
 ## [0.8.0] - 2025-12-27
 
 ### Why This Release
@@ -530,6 +638,7 @@ loa-grimoire/           # Loa process artifacts
 └── deployment/         # Production infrastructure docs
 ```
 
+[0.9.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.9.0
 [0.8.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.8.0
 [0.7.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.7.0
 [0.6.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.6.0

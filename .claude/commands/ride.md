@@ -282,6 +282,66 @@ After `/ride` completes:
 - When drift detection flags issues
 - After onboarding new team members (to regenerate context)
 
+## Session Continuity Integration (v0.9.0)
+
+The `/ride` command is session-aware and integrates with the Lossless Ledger Protocol.
+
+### Session Start Actions
+
+When `/ride` initializes:
+
+```
+SESSION START SEQUENCE:
+1. bd ready                     # Identify if there's an active riding task
+2. bd show <active_id>          # Load prior decisions[], handoffs[] if resuming
+3. Tiered Ledger Recovery       # Load NOTES.md Session Continuity section
+4. Verify lightweight identifiers # Don't load full content yet
+5. Resume from "Reasoning State" # Continue where left off if applicable
+```
+
+**Protocol**: See `.claude/protocols/session-continuity.md`
+
+### During Session Actions
+
+Throughout the `/ride` execution:
+
+```
+CONTINUOUS SYNTHESIS:
+1. Write discoveries to NOTES.md immediately
+2. Log drift findings to trajectory as discovered
+3. Store code identifiers (paths + lines only)
+4. Monitor attention budget (advisory, not blocking)
+5. Trigger Delta-Synthesis at Yellow threshold (5k tokens)
+```
+
+**Delta-Synthesis** persists work-in-progress to ledgers, ensuring survival across unexpected termination.
+
+### On Complete Actions
+
+When `/ride` completes:
+
+```
+SYNTHESIS CHECKPOINT:
+1. Run grounding verification (>= 0.95 ratio)
+2. Verify negative grounding (Ghost Features)
+3. Update Decision Log with evidence citations
+4. Log session handoff to trajectory
+5. Decay code blocks to lightweight identifiers
+6. Verify EDD (3 test scenarios documented per major finding)
+```
+
+**Protocol**: See `.claude/protocols/synthesis-checkpoint.md`
+
+### Session Recovery
+
+If `/ride` was interrupted:
+
+1. New session starts with Level 1 recovery (~100 tokens)
+2. `bd ready` shows in-progress riding tasks
+3. Session Continuity section has last checkpoint
+4. Resume from last known state
+5. Some extraction work may need re-execution
+
 ## Next Step
 
 After riding: Review `drift-report.md` and address critical issues, then `/sprint-plan` to plan implementation work

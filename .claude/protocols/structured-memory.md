@@ -23,6 +23,43 @@ loa-grimoire/NOTES.md
 ```markdown
 # Agent Working Memory (NOTES.md)
 
+> This file persists agent context across sessions and compaction cycles.
+> Updated automatically by agents. Manual edits are preserved.
+
+## Session Continuity
+<!-- CRITICAL: Load this section FIRST after /clear (~100 tokens) -->
+<!-- See: .claude/protocols/session-continuity.md -->
+
+### Active Context
+- **Current Bead**: bd-x7y8 (task description)
+- **Last Checkpoint**: 2024-01-15T14:30:00Z
+- **Reasoning State**: Where we left off, what's next
+
+### Lightweight Identifiers
+<!-- Absolute paths only - retrieve full content on-demand via JIT -->
+| Identifier | Purpose | Last Verified |
+|------------|---------|---------------|
+| ${PROJECT_ROOT}/src/auth/jwt.ts:45-67 | Token validation logic | 14:25:00Z |
+| ${PROJECT_ROOT}/src/auth/refresh.ts:12-34 | Refresh flow | 14:28:00Z |
+
+### Decision Log
+<!-- Decisions survive context wipes - permanent record -->
+<!-- Format: timestamp, decision, rationale, evidence (word-for-word quote), test scenarios -->
+
+#### 2024-01-15T14:30:00Z - Token Expiry Handling
+**Decision**: Use sliding window expiration with 15-minute grace period
+**Rationale**: Balances security (short expiry) with UX (no mid-session logouts)
+**Evidence**:
+- `export function isTokenExpired(token: Token, graceMs = 900000)` [${PROJECT_ROOT}/src/auth/jwt.ts:52]
+**Test Scenarios**:
+1. Token expires exactly at boundary -> grace period applies
+2. Token expires beyond grace -> forced refresh
+3. Refresh token also expired -> full re-authentication
+
+### Pending Questions
+<!-- Carry forward across sessions -->
+- [ ] Should grace period be configurable per-client?
+
 ## Active Sub-Goals
 <!-- Current objectives being pursued across sessions -->
 - [ ] Implement authentication flow (blocking: waiting on OAuth provider setup)
@@ -40,20 +77,63 @@ loa-grimoire/NOTES.md
 - Waiting: OAuth provider credentials (ETA: 2024-01-15)
 - Blocked: Cannot proceed with payments until legal review complete
 
-## Session Continuity
-<!-- Key context to restore on next session -->
+## Session Continuity Log
+<!-- Historical handoff records - append only -->
 | Timestamp | Agent | Summary |
 |-----------|-------|---------|
 | 2024-01-10T14:30Z | implementing-tasks | Completed user auth, starting OAuth integration |
 | 2024-01-10T16:45Z | reviewing-code | Flagged 3 issues in PR #42, awaiting fixes |
 
-## Decision Log
+## Decision Archive
 <!-- Major decisions with rationale for future reference -->
 | Date | Decision | Rationale | Decided By |
 |------|----------|-----------|------------|
 | 2024-01-08 | Use PostgreSQL over MySQL | pgvector support for embeddings | designing-architecture |
 | 2024-01-09 | JWT over sessions | Stateless scaling requirement | designing-architecture |
 ```
+
+## Session Continuity Section (v0.9.0)
+
+> **Protocol**: See `.claude/protocols/session-continuity.md`
+> **Paradigm**: Clear, Don't Compact
+
+The Session Continuity section is loaded **FIRST** after `/clear` (~100 tokens for Level 1 recovery).
+
+### Required Components
+
+| Component | Purpose | Token Budget |
+|-----------|---------|--------------|
+| Active Context | Current task, checkpoint, reasoning state | ~30 tokens |
+| Lightweight Identifiers | Path references (JIT retrieval) | ~15 tokens each |
+| Decision Log (last 3) | Recent decisions with evidence | ~50 tokens |
+| Pending Questions | Carry-forward items | ~10 tokens |
+
+### Path Requirements
+
+**REQUIRED**: All paths must use `${PROJECT_ROOT}` prefix for session-survival.
+
+```
+VALID:   ${PROJECT_ROOT}/src/auth/jwt.ts:45
+INVALID: src/auth/jwt.ts:45 (relative)
+INVALID: ./src/auth/jwt.ts:45 (relative)
+```
+
+### Decision Log Entry Format
+
+Each decision entry MUST include:
+1. **Timestamp** - ISO 8601 format
+2. **Decision** - What was decided
+3. **Rationale** - Why it was decided
+4. **Evidence** - Word-for-word code quote with absolute path
+5. **Test Scenarios** - 3 scenarios (happy path, edge case, error handling)
+
+### Tiered Recovery Levels
+
+| Level | Tokens | When Used | What's Loaded |
+|-------|--------|-----------|---------------|
+| 1 | ~100 | Default (all /clear) | Session Continuity section + last 3 decisions |
+| 2 | ~500 | Task needs history | ck --hybrid for specific decisions |
+| 3 | Full | User explicit request | Entire NOTES.md |
 
 ## Agent Responsibilities
 

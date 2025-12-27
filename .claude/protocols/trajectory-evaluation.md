@@ -505,14 +505,123 @@ This catches "lucky guesses" and ensures reproducible quality.
 
 ---
 
+## Session Handoff Phase (v0.9.0)
+
+> **Protocol**: See `.claude/protocols/session-continuity.md`
+> **Paradigm**: Clear, Don't Compact
+
+The `session_handoff` phase is logged when context is cleared via `/clear`.
+
+### Session Handoff Log Format
+
+```jsonl
+{"ts":"2024-01-15T14:30:00Z","agent":"implementing-tasks","phase":"session_handoff","session_id":"sess-002","root_span_id":"span-def","bead_id":"bd-x7y8","notes_refs":["loa-grimoire/NOTES.md:68-92"],"edd_verified":true,"grounding_ratio":0.97,"test_scenarios":3,"next_session_ready":true}
+```
+
+### Required Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `phase` | string | Always `"session_handoff"` |
+| `session_id` | string | Unique session identifier |
+| `root_span_id` | string | Root span for lineage tracking |
+| `bead_id` | string | Active Bead being worked on |
+| `notes_refs` | array | Line references to NOTES.md sections |
+| `edd_verified` | boolean | EDD test scenarios documented |
+| `grounding_ratio` | number | Ratio at handoff (>= 0.95 required) |
+| `test_scenarios` | number | Count of test scenarios documented |
+| `next_session_ready` | boolean | State Zone ready for recovery |
+
+### Lineage Tracking
+
+The `root_span_id` enables tracking work across session boundaries:
+
+```
+Session 1: span-abc (initial work)
+    └── Session 2: span-def (continues from span-abc)
+        └── Session 3: span-ghi (continues from span-def)
+```
+
+Query lineage:
+```bash
+grep '"root_span_id":"span-abc"' loa-grimoire/a2a/trajectory/*.jsonl
+```
+
+---
+
+## Delta Sync Phase (v0.9.0)
+
+> **Protocol**: See `.claude/protocols/attention-budget.md`
+
+The `delta_sync` phase is logged at Yellow threshold (5,000 tokens) for partial persistence.
+
+### Delta Sync Log Format
+
+```jsonl
+{"ts":"2024-01-15T12:00:00Z","agent":"implementing-tasks","phase":"delta_sync","tokens":5000,"decisions_persisted":3,"bead_updated":true,"notes_updated":true}
+```
+
+### Required Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `phase` | string | Always `"delta_sync"` |
+| `tokens` | number | Approximate token count at sync |
+| `decisions_persisted` | number | Number of decisions written to NOTES.md |
+| `bead_updated` | boolean | Whether active Bead was updated |
+| `notes_updated` | boolean | Whether NOTES.md was updated |
+
+### Purpose
+
+Delta sync provides crash recovery:
+- Work persisted before session terminates unexpectedly
+- Partial progress saved even without explicit `/clear`
+- Recovery can resume from delta-synced state
+
+---
+
+## Grounding Check Phase (v0.9.0)
+
+> **Protocol**: See `.claude/protocols/grounding-enforcement.md`
+
+The `grounding_check` phase is logged during synthesis checkpoint.
+
+### Grounding Check Log Format
+
+```jsonl
+{"ts":"2024-01-15T14:29:00Z","agent":"implementing-tasks","phase":"grounding_check","total_claims":20,"grounded_claims":19,"assumptions":1,"grounding_ratio":0.95,"threshold":0.95,"status":"pass"}
+```
+
+### Required Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `phase` | string | Always `"grounding_check"` |
+| `total_claims` | number | Total decisions/claims in session |
+| `grounded_claims` | number | Claims with code citations |
+| `assumptions` | number | Claims marked as [ASSUMPTION] |
+| `grounding_ratio` | number | grounded_claims / total_claims |
+| `threshold` | number | Required minimum (default 0.95) |
+| `status` | string | `"pass"` or `"fail"` |
+
+### Enforcement
+
+- **strict mode**: `/clear` blocked if status = "fail"
+- **warn mode**: Warning shown but `/clear` permitted
+- **disabled**: No enforcement
+
+---
+
 ## Version History
 
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2024-01-10 | Initial protocol creation |
 | 2.0 | 2025-12-27 | Enhanced for Sprint 3: Intent-First Search, Anti-Fishing Rules, Outcome Validation |
+| 2.1 | 2025-12-27 | v0.9.0 Lossless Ledger: session_handoff, delta_sync, grounding_check phases |
 
 ---
 
 **Status**: ✅ Protocol Enhanced
+**Paradigm**: Clear, Don't Compact
 **Next**: Integrate into search orchestrator (Sprint 4)
