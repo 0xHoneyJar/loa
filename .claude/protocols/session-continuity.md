@@ -12,7 +12,7 @@ Ensure zero information loss across context wipes (`/clear`) and session boundar
 ```
 IMMUTABLE TRUTH HIERARCHY:
 
-1. CODE (src/)           ← Absolute truth, verified by ck
+1. CODE (src/)           ← ABSOLUTE truth, verified by ck
 2. BEADS (.beads/)       ← Lossless task graph, rationale, state
 3. NOTES.md              ← Decision log, session continuity
 4. TRAJECTORY            ← Audit trail, handoff records
@@ -20,6 +20,7 @@ IMMUTABLE TRUTH HIERARCHY:
 6. LEGACY DOCS           ← Historical, often stale
 7. CONTEXT WINDOW        ← TRANSIENT, disposable, never authoritative
 
+CODE is the ABSOLUTE source of truth. All claims must be grounded in code.
 CRITICAL: Nothing in transient context overrides external ledgers.
 ```
 
@@ -50,7 +51,7 @@ SESSION RECOVERY SEQUENCE:
 |-------|--------|---------|--------|
 | **1** | ~100 | Default (all recoveries) | Session Continuity section + last 3 decisions |
 | **2** | ~200-500 | Task needs historical context | `ck --hybrid` for specific decisions |
-| **3** | Full scan | User explicit request | Full NOTES.md read |
+| **3** | Full | User explicit request | Full NOTES.md read |
 
 **Level 1 Recovery** (default):
 ```bash
@@ -438,6 +439,58 @@ git push             # Push to remote
 | Load full Decision Log | Level 1 recovery: **last 3 decisions only** |
 
 ## Integration Points
+
+### Protocol Dependency Diagram
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│              v0.9.0 LOSSLESS LEDGER PROTOCOL DEPENDENCIES                   │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                            │
+│  SESSION-CONTINUITY (Core Protocol)                                        │
+│       │                                                                    │
+│       ├──▶ SYNTHESIS-CHECKPOINT (Pre-clear validation)                    │
+│       │         │                                                          │
+│       │         ├──▶ GROUNDING-ENFORCEMENT (Citation verification)        │
+│       │         │         │                                                │
+│       │         │         └──▶ TRAJECTORY-EVALUATION (Claim logging)      │
+│       │         │                                                          │
+│       │         └──▶ NEGATIVE-GROUNDING (Ghost feature verification)      │
+│       │                                                                    │
+│       ├──▶ ATTENTION-BUDGET (Token monitoring - ADVISORY)                 │
+│       │         │                                                          │
+│       │         └──▶ Delta-Synthesis trigger at Yellow threshold           │
+│       │                                                                    │
+│       ├──▶ JIT-RETRIEVAL (Token-efficient evidence)                       │
+│       │         │                                                          │
+│       │         └──▶ ck integration / grep fallback                       │
+│       │                                                                    │
+│       └──▶ STRUCTURED-MEMORY (NOTES.md protocol)                          │
+│                 │                                                          │
+│                 └──▶ Decision Log, Session Continuity section             │
+│                                                                            │
+│  SCRIPTS                                                                   │
+│  ├── synthesis-checkpoint.sh ─── calls ──▶ grounding-check.sh             │
+│  ├── grounding-check.sh ──────── reads ──▶ trajectory/*.jsonl             │
+│  └── self-heal-state.sh ──────── recovers ▶ State Zone files              │
+│                                                                            │
+│  FLOW:                                                                     │
+│  Session Start ──▶ self-heal-state.sh (if needed)                         │
+│       │                                                                    │
+│       ▼                                                                    │
+│  Work (with JIT retrieval, trajectory logging)                             │
+│       │                                                                    │
+│       ▼ (Yellow threshold)                                                 │
+│  Delta-Synthesis (partial persist)                                         │
+│       │                                                                    │
+│       ▼ (User: /clear)                                                     │
+│  synthesis-checkpoint.sh ──▶ grounding-check.sh                           │
+│       │                                                                    │
+│       ▼ (PASS)                                                             │
+│  Context cleared, Level 1 Recovery (~100 tokens)                           │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+```
 
 ### Related Protocols
 
