@@ -269,7 +269,7 @@ main() {
   done
 
   log "======================================================================="
-  log "  Loa Framework Update v0.6.0"
+  log "  Loa Framework Update v0.9.0"
   log "  Fetch -> Validate -> Migrate -> Swap"
   log "======================================================================="
 

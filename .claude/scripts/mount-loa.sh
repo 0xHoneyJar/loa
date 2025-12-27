@@ -414,7 +414,7 @@ init_beads() {
 main() {
   echo ""
   log "======================================================================="
-  log "  Loa Framework Mount v0.7.0"
+  log "  Loa Framework Mount v0.9.0"
   log "  Enterprise-Grade Managed Scaffolding"
   log "======================================================================="
   log "  Branch: $LOA_BRANCH"
