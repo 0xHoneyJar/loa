@@ -6,7 +6,7 @@ This document outlines the comprehensive agent-driven development workflow. Our 
 
 ## Managed Scaffolding Architecture
 
-Loa v0.7.0 uses **enterprise-grade managed scaffolding** inspired by AWS Projen, Copier, and Google's ADK:
+Loa v0.9.0 uses **enterprise-grade managed scaffolding** inspired by AWS Projen, Copier, and Google's ADK:
 
 ### Three-Zone Model
 
@@ -44,13 +44,21 @@ Place all customizations in `.claude/overrides/` - they survive framework update
 
 ## Protocol References
 
-Detailed specifications are maintained in separate protocol files:
+Detailed specifications are maintained in separate protocol files (single source of truth):
 
+### Core Protocols
 - **Git Safety**: `.claude/protocols/git-safety.md` - Template detection, warning flow, remediation
 - **Analytics**: `.claude/protocols/analytics.md` - THJ-only usage tracking, schema, helper functions
 - **Feedback Loops**: `.claude/protocols/feedback-loops.md` - A2A communication, approval markers
 - **Structured Memory**: `.claude/protocols/structured-memory.md` - NOTES.md protocol, tool result clearing
 - **Trajectory Evaluation**: `.claude/protocols/trajectory-evaluation.md` - ADK-style reasoning logs, EDD
+
+### Lossless Ledger Protocol (v0.9.0)
+- **Session Continuity**: `.claude/protocols/session-continuity.md` - Tiered recovery (L1/L2/L3), truth hierarchy
+- **Grounding Enforcement**: `.claude/protocols/grounding-enforcement.md` - Citation requirements (≥0.95 ratio)
+- **Synthesis Checkpoint**: `.claude/protocols/synthesis-checkpoint.md` - Pre-`/clear` validation (7 steps)
+- **Attention Budget**: `.claude/protocols/attention-budget.md` - Token thresholds (Green/Yellow/Red)
+- **JIT Retrieval**: `.claude/protocols/jit-retrieval.md` - Lightweight identifiers (97% token reduction)
 
 ## Table of Contents
 
@@ -1311,15 +1319,26 @@ See `.claude/protocols/trajectory-evaluation.md` for detailed protocol.
 
 Detailed specifications for complex behaviors:
 
+**Core Protocols**:
 - `.claude/protocols/git-safety.md` - Template detection, warning flow, remediation steps
 - `.claude/protocols/analytics.md` - THJ-only usage tracking, schema definitions
 - `.claude/protocols/feedback-loops.md` - A2A communication, approval markers, flow diagrams
 - `.claude/protocols/change-validation.md` - Pre-implementation validation protocol
+- `.claude/protocols/structured-memory.md` - NOTES.md protocol, tool result clearing
+- `.claude/protocols/trajectory-evaluation.md` - ADK-style evaluation, EDD
+
+**v0.9.0 Lossless Ledger Protocols**:
+- `.claude/protocols/session-continuity.md` - Session lifecycle, tiered recovery
+- `.claude/protocols/grounding-enforcement.md` - Citation requirements (≥0.95 ratio)
+- `.claude/protocols/synthesis-checkpoint.md` - Pre-`/clear` validation (7 steps)
+- `.claude/protocols/attention-budget.md` - Token thresholds (Green/Yellow/Red)
+- `.claude/protocols/jit-retrieval.md` - Lightweight identifiers (97% token reduction)
 
 ### Helper Scripts
 
 Bash utilities for deterministic operations:
 
+**Core Scripts**:
 - `.claude/scripts/mount-loa.sh` - One-command install onto existing repo
 - `.claude/scripts/update.sh` - Framework updates with migration gates
 - `.claude/scripts/check-loa.sh` - CI validation script (integrity, schema, zones)
@@ -1329,6 +1348,12 @@ Bash utilities for deterministic operations:
 - `.claude/scripts/git-safety.sh` - Template detection functions
 - `.claude/scripts/context-check.sh` - Context size assessment for parallel execution
 - `.claude/scripts/preflight.sh` - Pre-flight validation functions
+
+**v0.9.0 Lossless Ledger Scripts**:
+- `.claude/scripts/grounding-check.sh` - Calculate grounding ratio for citations
+- `.claude/scripts/synthesis-checkpoint.sh` - Run pre-`/clear` validation (7 steps)
+- `.claude/scripts/self-heal-state.sh` - State Zone recovery from git history
+- `.claude/scripts/validate-prd-requirements.sh` - UAT validation against PRD
 
 ---
 
