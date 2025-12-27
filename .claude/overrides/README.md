@@ -1,35 +1,53 @@
-# User Overrides
+# Loa Framework Overrides
 
-Files here are preserved across framework updates.
+This directory allows you to customize Loa behavior **without editing System Zone files**. Your overrides survive framework updates (`/update`).
 
-## How to Use
+## Purpose
 
-Mirror the `.claude/` structure for any customizations. For example:
+The `.claude/` directory (System Zone) is managed by the framework and regenerated during updates. Direct edits will be lost. Use `.claude/overrides/` instead to preserve your customizations.
+
+## Usage
+
+### Custom ck Configuration
+
+Create `.claude/overrides/ck-config.yaml` to customize ck semantic search settings:
+
+```yaml
+# .claude/overrides/ck-config.yaml
+ck:
+  model: "jina-code"  # Override default nomic-v1.5
+  thresholds:
+    semantic: 0.5      # Stricter than default 0.4
+    hybrid: 0.6
+    regex: 0.7
+```
+
+See `ck-config.yaml.example` for full configuration options.
+
+### Custom Skill Instructions
+
+Override any skill's behavior by creating a matching directory structure:
 
 ```
 .claude/overrides/
-├── skills/
-│   └── implementing-tasks/
-│       └── SKILL.md          # Your customized skill
-└── commands/
-    └── my-custom-command.md  # Your custom command
+└── skills/
+    └── implementing-tasks/
+        └── SKILL.md          # Your customized skill instructions
 ```
 
-## What Can Be Overridden
+## Configuration Precedence
 
-- Skill instructions (SKILL.md files)
-- Command definitions
-- Templates
-- Protocol extensions
+1. **`.claude/overrides/*`** (highest priority - your customizations)
+2. **`.loa.config.yaml`** (project settings)
+3. **`.claude/*`** (framework defaults - fallback)
 
-## Important Notes
+## Important
 
-- Overrides take precedence over system files
-- Framework updates will never touch this directory
-- Keep your customizations minimal to reduce drift
+- ✅ **DO**: Place customizations in `.claude/overrides/`
+- ❌ **DON'T**: Edit `.claude/` files directly (will be overwritten)
+- ✅ **DO**: Version control your overrides
+- ❌ **DON'T**: Version control `.claude/` (framework-managed)
 
-## Best Practices
+## Version
 
-1. **Don't copy entire files** - only override what you need
-2. **Document your changes** - add comments explaining why
-3. **Test after updates** - verify overrides still work with new version
+Introduced in Loa v0.7.0 as part of the managed scaffolding architecture.

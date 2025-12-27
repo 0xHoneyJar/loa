@@ -17,6 +17,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+LOA_CONFIG="${PROJECT_ROOT}/.loa.config.yaml"
 
 # Colors
 RED='\033[0;31m'
@@ -38,6 +39,66 @@ if [[ ! -d "$PROJECT_ROOT/loa-grimoire" ]]; then
   echo -e "${YELLOW}⚠️ No loa-grimoire found. Run /mount first.${NC}"
   exit 0
 fi
+
+# Sprint 4 Enhancement: Load configurable watch paths (FR-9.1, GitHub Issue #10)
+# Default watch paths if config not available
+DEFAULT_WATCH_PATHS=(".claude/" "loa-grimoire/")
+WATCH_PATHS=()
+
+if command -v yq >/dev/null 2>&1 && [[ -f "${LOA_CONFIG}" ]]; then
+    # Load watch paths from configuration
+    while IFS= read -r path; do
+        if [[ -n "${path}" ]] && [[ "${path}" != "null" ]]; then
+            WATCH_PATHS+=("${path}")
+        fi
+    done < <(yq eval '.drift_detection.watch_paths[]' "${LOA_CONFIG}" 2>/dev/null || echo "")
+
+    # Fall back to defaults if no paths configured
+    if [[ ${#WATCH_PATHS[@]} -eq 0 ]]; then
+        WATCH_PATHS=("${DEFAULT_WATCH_PATHS[@]}")
+    fi
+else
+    # No yq or config, use defaults
+    WATCH_PATHS=("${DEFAULT_WATCH_PATHS[@]}")
+fi
+
+# Function: Check git status for watched paths
+check_watched_paths_drift() {
+    echo "📂 Checking watched directories for uncommitted changes..."
+    echo ""
+
+    local has_drift=false
+
+    for watch_path in "${WATCH_PATHS[@]}"; do
+        local full_path="${PROJECT_ROOT}/${watch_path}"
+
+        if [[ ! -d "${full_path}" ]]; then
+            # Directory doesn't exist, skip
+            continue
+        fi
+
+        # Check git status for this path
+        local changes=$(cd "${PROJECT_ROOT}" && git status --porcelain "${watch_path}" 2>/dev/null || echo "")
+
+        if [[ -n "${changes}" ]]; then
+            echo -e "${YELLOW}⚠️ Drift detected in ${watch_path}:${NC}"
+            echo "${changes}" | head -10
+            if [[ $(echo "${changes}" | wc -l) -gt 10 ]]; then
+                echo "   ... and $(($(echo "${changes}" | wc -l) - 10)) more files"
+            fi
+            echo ""
+            has_drift=true
+            DRIFT_COUNT=$((DRIFT_COUNT + 1))
+        else
+            echo -e "${GREEN}✓ ${watch_path} - clean${NC}"
+        fi
+    done
+
+    if [[ "${has_drift}" == false ]]; then
+        echo -e "${GREEN}✓ All watched directories are clean${NC}"
+    fi
+    echo ""
+}
 
 # Function to count routes in code
 count_code_routes() {
@@ -77,6 +138,9 @@ count_doc_entities() {
 if [[ "$MODE" == "--quick" || "$MODE" == "quick" ]]; then
   echo "📊 Quick Drift Check"
   echo ""
+
+  # Sprint 4: Check watched paths for uncommitted changes
+  check_watched_paths_drift
 
   # Route drift
   CODE_ROUTES=$(count_code_routes)

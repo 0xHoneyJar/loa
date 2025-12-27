@@ -80,6 +80,123 @@ integrations:
   - linear
 
 # =============================================================================
+# Drift Detection (Sprint 4 - FR-9.1, GitHub Issue #10)
+# =============================================================================
+drift_detection:
+  # Directories to watch for changes
+  watch_paths:
+    - ".claude/"
+    - "loa-grimoire/"
+    # Add custom directories as needed:
+    # - ".meta/"
+    # - "docs/architecture/"
+
+  # Patterns to exclude from drift detection
+  exclude_patterns:
+    - "**/node_modules/**"
+    - "**/*.log"
+    - "**/.DS_Store"
+    - "**/dist/**"
+    - "**/build/**"
+    - "**/__pycache__/**"
+
+# =============================================================================
+# Context Filtering (Sprint 4 - FR-9.2, GitHub Issue #10)
+# =============================================================================
+context_filtering:
+  # Master toggle: set to false to disable all filtering
+  enable_filtering: true
+
+  # Archive zone - automatically excluded from all searches
+  archive_zone: "loa-grimoire/archive/"
+
+  # Signal threshold: exclude documents below this level
+  # Options: low, medium, high
+  # - high: Only include high-signal documents
+  # - medium: Include medium and high (default)
+  # - low: Include all (effectively no filtering)
+  signal_threshold: "medium"
+
+  # Patterns for low-signal documents to exclude
+  default_excludes:
+    - "**/brainstorm-*.md"
+    - "**/session-notes-*.md"
+    - "**/meeting-*.md"
+    - "**/draft-*.md"
+    - "**/scratch-*.md"
+    - "**/temp-*.md"
+
+  # Auto-archive drafts older than N days (0 = disabled)
+  draft_ttl_days: 30
+
+  # Frontmatter signal marker support
+  respect_frontmatter_signals: true
+
+# =============================================================================
+# Lossless Ledger Protocol (v0.9.0)
+# =============================================================================
+# Paradigm: "Clear, Don't Compact" - Synthesize to ledgers before clearing
+
+# Grounding Enforcement - requires citations for claims
+grounding:
+  # Minimum ratio of grounded claims (citations + code_references) to total claims
+  threshold: 0.95
+  # Enforcement level: strict (block /clear), warn (warn only), disabled
+  enforcement: warn
+  # Negative grounding for Ghost Features
+  negative:
+    enabled: true
+    # Similarity threshold for semantic search (below = "not found")
+    similarity_threshold: 0.4
+    # Require 2 diverse queries for verification
+    require_diverse_queries: true
+
+# Attention Budget - advisory thresholds for context management
+attention_budget:
+  # Green zone: under this, no action needed
+  green_threshold: 2000
+  # Yellow zone: trigger delta-synthesis
+  yellow_threshold: 5000
+  # Orange zone: recommend /clear
+  orange_threshold: 7500
+  # Red zone: strong recommendation for /clear
+  red_threshold: 10000
+  # Advisory only (never blocks, just warns)
+  advisory_only: true
+
+# Session Continuity - recovery after /clear or new session
+session_continuity:
+  # Enable tiered recovery (Level 1/2/3)
+  tiered_recovery: true
+  # Level 1 recovery token budget (~100 tokens)
+  level1_tokens: 100
+  # Level 2 recovery token budget (~500 tokens)
+  level2_tokens: 500
+  # Auto-load Session Continuity section on session start
+  auto_restore: true
+
+# Synthesis Checkpoint - pre-clear validation
+synthesis_checkpoint:
+  # Enable blocking validation before /clear
+  enabled: true
+  # Grounding threshold for checkpoint (defaults to grounding.threshold)
+  grounding_threshold: 0.95
+  # EDD minimum test scenarios per decision
+  edd:
+    enabled: true
+    min_test_scenarios: 3
+    warn_only: true
+
+# JIT Retrieval - lightweight identifiers instead of eager loading
+jit_retrieval:
+  # Prefer ck for semantic search when available
+  prefer_ck: true
+  # Enable fallback to grep/sed when ck unavailable
+  fallback_enabled: true
+  # Maximum lines to retrieve at once
+  max_line_range: 100
+
+# =============================================================================
 # Behavior Preferences
 # =============================================================================
 preferences:

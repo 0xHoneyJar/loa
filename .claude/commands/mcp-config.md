@@ -1,9 +1,11 @@
 ---
-name: "config"
-version: "1.1.0"
+name: "mcp-config"
+version: "1.2.0"
 description: |
   Configure MCP integrations for THJ team members post-setup.
   Reads available servers from the MCP registry.
+
+  NOTE: Renamed from /config to /mcp-config to avoid conflict with Claude Code's built-in /config command.
 
 command_type: "wizard"
 
@@ -41,16 +43,18 @@ mode:
   allow_background: false
 ---
 
-# Config
+# MCP Config
 
 ## Purpose
 
 Configure MCP integrations for THJ team members after initial setup. Add connections to Linear, GitHub, Vercel, Discord, or web3-stats services.
 
+**Note**: This command was renamed from `/config` to `/mcp-config` to avoid conflicts with Claude Code's built-in `/config` command.
+
 ## Invocation
 
 ```
-/config
+/mcp-config
 ```
 
 ## Prerequisites

@@ -59,6 +59,39 @@ Detect if this repository is a fork/template of Loa:
 
 Store detection result for Git Safety features.
 
+### Phase 0.6: Optional Enhancement Detection
+
+Check for optional enhancement tools and display status:
+
+**ck (Semantic Code Search)**:
+```bash
+if command -v ck >/dev/null 2>&1; then
+    CK_VERSION=$(ck --version 2>/dev/null | grep -oP '\d+\.\d+\.\d+' || echo "unknown")
+    echo "✓ ck installed: ${CK_VERSION}"
+    HAS_CK=true
+else
+    echo "○ ck not installed (optional)"
+    echo "  For semantic search: cargo install ck-search"
+    echo "  See INSTALLATION.md for details"
+    HAS_CK=false
+fi
+```
+
+**bd (Beads Task Tracker)**:
+```bash
+if command -v bd >/dev/null 2>&1; then
+    BD_VERSION=$(bd version 2>/dev/null || echo "unknown")
+    echo "✓ bd installed: ${BD_VERSION}"
+    HAS_BD=true
+else
+    echo "○ bd not installed (optional)"
+    echo "  For task tracking: See https://github.com/steveyegge/beads"
+    HAS_BD=false
+fi
+```
+
+Store enhancement status in marker file for future reference.
+
 ### Phase 1A: THJ Developer Setup
 
 1. Display welcome message with command overview
@@ -66,13 +99,21 @@ Store detection result for Git Safety features.
 3. Initialize `loa-grimoire/analytics/usage.json`
 4. Offer MCP integration selection (multiSelect)
 5. Provide setup instructions for selected MCPs
-6. Create `.loa-setup-complete` marker
+6. Display optional enhancement status (ck and bd)
+7. Create `.loa-setup-complete` marker with enhancement info
+8. Display completion message based on installed tools:
+   - Both ck + bd: "Setup complete with full enhancement suite"
+   - Only ck: "Setup complete with semantic search"
+   - Only bd: "Setup complete with task tracking"
+   - Neither: "Setup complete. For enhanced capabilities, see INSTALLATION.md"
 
 ### Phase 1B: OSS User Setup
 
 1. Display welcome message with documentation pointers
-2. Create `.loa-setup-complete` marker (no analytics)
-3. Point to GitHub issues for support
+2. Display optional enhancement status (ck and bd)
+3. Create `.loa-setup-complete` marker (no analytics) with enhancement info
+4. Display completion message based on installed tools
+5. Point to GitHub issues for support
 
 ## Arguments
 
@@ -123,7 +164,7 @@ Use helper scripts to query the registry:
 ```json
 {
   "completed_at": "ISO-8601 timestamp",
-  "framework_version": "0.4.0",
+  "framework_version": "0.7.0",
   "user_type": "thj|oss",
   "mcp_servers": ["list", "of", "configured"],
   "git_user": "developer@example.com",
@@ -132,6 +173,18 @@ Use helper scripts to query the registry:
     "repo": "0xHoneyJar/loa",
     "detection_method": "origin_url",
     "detected_at": "ISO-8601 timestamp"
+  },
+  "enhancements": {
+    "ck": {
+      "installed": true,
+      "version": "0.7.0",
+      "checked_at": "ISO-8601 timestamp"
+    },
+    "bd": {
+      "installed": false,
+      "version": null,
+      "checked_at": "ISO-8601 timestamp"
+    }
   }
 }
 ```

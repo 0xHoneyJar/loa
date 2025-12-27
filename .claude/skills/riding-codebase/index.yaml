@@ -103,3 +103,34 @@ integrations:
     - name: "github"
       reason: "Access repository metadata and release history"
       fallback: "Use local git history"
+
+# v0.9.0 Lossless Ledger Protocol Integration
+protocols:
+  required:
+    - name: "session-continuity"
+      path: ".claude/protocols/session-continuity.md"
+      purpose: "Session lifecycle, tiered recovery, delta-synthesis"
+    - name: "grounding-enforcement"
+      path: ".claude/protocols/grounding-enforcement.md"
+      purpose: "All extraction claims must be grounded in code evidence"
+    - name: "synthesis-checkpoint"
+      path: ".claude/protocols/synthesis-checkpoint.md"
+      purpose: "Pre-completion validation, trajectory handoff"
+  recommended:
+    - name: "jit-retrieval"
+      path: ".claude/protocols/jit-retrieval.md"
+      purpose: "Lightweight identifiers for code references"
+    - name: "attention-budget"
+      path: ".claude/protocols/attention-budget.md"
+      purpose: "Monitor token usage during extensive extraction"
+
+# Protocol loading for /ride workflow
+protocol_loading:
+  on_session_start:
+    - "session-continuity"  # Recover from prior riding session if applicable
+  during_extraction:
+    - "grounding-enforcement"  # All claims must cite code
+    - "jit-retrieval"  # Store identifiers, not full content
+    - "attention-budget"  # Large codebases require monitoring
+  on_complete:
+    - "synthesis-checkpoint"  # Validate before finalizing artifacts

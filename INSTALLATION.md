@@ -4,6 +4,7 @@ Loa can be installed in two ways: **mounting onto an existing repository** (reco
 
 ## Prerequisites
 
+### Required
 - **Git** (required)
 - **jq** (required) - JSON processor
 - **yq** (required) - YAML processor
@@ -21,6 +22,47 @@ pip install yq  # or snap install yq
 jq --version
 yq --version
 ```
+
+### Optional Enhancements
+
+#### ck (Semantic Code Search)
+
+**What it does**: Enables semantic code search using embeddings, dramatically improving agent precision and context loading speed.
+
+**Benefits**:
+- **Semantic understanding**: Find code by meaning, not just keywords
+- **80-90% faster**: Delta-indexed embeddings with high cache hit rate
+- **Ghost Feature detection**: Automatically detect documented features missing from code
+- **Shadow System detection**: Identify undocumented code requiring documentation
+
+**Without ck**: All commands work normally using grep fallbacks. The integration is completely invisible to users.
+
+**Installation**:
+
+```bash
+# Install ck via cargo (requires Rust toolchain)
+cargo install ck-search
+
+# Verify installation
+ck --version
+
+# Expected: ck 0.7.0 or higher
+```
+
+If you don't have Rust/cargo installed:
+
+```bash
+# macOS
+brew install rust
+cargo install ck-search
+
+# Ubuntu/Debian
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+cargo install ck-search
+```
+
+**Note**: ck is optional. Loa works perfectly without it, using grep-based fallbacks.
 
 ## Method 1: Mount onto Existing Repository (Recommended)
 

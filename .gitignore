@@ -44,10 +44,18 @@ tmp/
 temp/
 *.tmp
 
-# Loa setup marker
+# Loa Framework State
 # Created by /setup command when first-time configuration completes
 # Each developer runs setup independently, so this should not be shared
 .loa-setup-complete
+
+# ck semantic search state (embeddings cache, indexes)
+# Large machine-specific files that rebuild automatically
+.ck/
+
+# Agent trajectory logs (reasoning audit trails)
+# JSONL format logs for development/debugging, not needed in version control
+loa-grimoire/a2a/trajectory/*.jsonl
 
 # Pending feedback (temporary file for failed Linear submissions)
 # Kept in case /feedback fails to submit to Linear - automatically retried
@@ -68,11 +76,12 @@ loa-grimoire/deployment/SERVER-REALITY-AUDIT.md
 # .beads/
 #
 # Loa process artifacts (loa-grimoire/)
-loa-grimoire/prd.md
-loa-grimoire/sdd.md
-loa-grimoire/sprint.md
-loa-grimoire/a2a/
-loa-grimoire/deployment/
+# Uncomment to exclude from version control:
+# loa-grimoire/prd.md
+# loa-grimoire/sdd.md
+# loa-grimoire/sprint.md
+# loa-grimoire/a2a/
+# loa-grimoire/deployment/
 #
 # Analytics (usage tracking)
 # By default, analytics are tracked but may contain developer-specific info

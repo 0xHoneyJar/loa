@@ -1,0 +1,42 @@
+# Example ck Configuration Override
+# Copy this file to ck-config.yaml and customize as needed
+#
+# This file demonstrates how to override default ck settings
+# for semantic code search.
+
+ck:
+  # Embedding model selection
+  # Options: "nomic-v1.5" (default), "jina-code", "bge-small"
+  model: "nomic-v1.5"
+
+  # Search thresholds (0.0 - 1.0)
+  # Lower = more results, higher = fewer but more precise
+  thresholds:
+    semantic: 0.4    # Semantic search threshold
+    hybrid: 0.5      # Combined semantic + keyword
+    regex: 0.7       # Regex pattern matching
+
+  # Indexing configuration
+  indexing:
+    auto_reindex: true        # Trigger reindex on code changes
+    delta_threshold: 100      # Files before full reindex (vs delta)
+    background: true          # Non-blocking reindex
+    quiet: true               # Suppress reindex output
+
+  # Performance tuning
+  performance:
+    cache_embeddings: true    # Cache computed embeddings
+    max_file_size_kb: 1024    # Skip files larger than 1MB
+    concurrent_jobs: 4        # Parallel indexing jobs
+
+  # Output formatting
+  output:
+    format: "jsonl"           # Always use JSONL for agent parsing
+    include_snippets: true    # Include code snippets in results
+    snippet_lines: 3          # Lines of context around match
+
+# Usage Notes:
+# 1. Copy to .claude/overrides/ck-config.yaml
+# 2. Uncomment and modify settings you want to override
+# 3. Run /update to apply changes
+# 4. Test with: .claude/scripts/preflight.sh --integrity

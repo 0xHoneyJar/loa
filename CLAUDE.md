@@ -127,6 +127,41 @@ Agents maintain persistent working memory in `loa-grimoire/NOTES.md`:
 - Summarize before compaction/session end
 - Apply Tool Result Clearing after heavy operations
 
+### Lossless Ledger Protocol (v0.9.0)
+
+The "Clear, Don't Compact" paradigm for context management:
+
+**Truth Hierarchy**:
+1. CODE (src/) - Absolute truth
+2. BEADS (.beads/) - Lossless task graph
+3. NOTES.md - Decision log, session continuity
+4. TRAJECTORY - Audit trail, handoffs
+5. PRD/SDD - Design intent
+6. CONTEXT WINDOW - Transient, never authoritative
+
+**Key Protocols**:
+- `session-continuity.md` - Tiered recovery, fork detection
+- `grounding-enforcement.md` - Citation requirements (>=0.95 ratio)
+- `synthesis-checkpoint.md` - Pre-clear validation (7 steps)
+- `jit-retrieval.md` - Lightweight identifiers (97% token reduction)
+- `attention-budget.md` - Advisory thresholds
+
+**Key Scripts**:
+- `grounding-check.sh` - Calculate grounding ratio
+- `synthesis-checkpoint.sh` - Run pre-clear validation
+- `self-heal-state.sh` - State Zone recovery
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+grounding:
+  threshold: 0.95
+  enforcement: warn  # strict | warn | disabled
+attention_budget:
+  yellow_threshold: 5000  # Trigger delta-synthesis
+session_continuity:
+  tiered_recovery: true
+```
+
 ### Trajectory Evaluation (ADK-Level)
 
 Agents log reasoning to `loa-grimoire/a2a/trajectory/{agent}-{date}.jsonl`:
@@ -300,4 +335,14 @@ integrations:
   - `feedback-loops.md` - Quality gates
   - `git-safety.md` - Template protection
   - `change-validation.md` - Pre-implementation validation
+  - **v0.9.0 Lossless Ledger Protocol**:
+  - `session-continuity.md` - Session lifecycle and recovery
+  - `grounding-enforcement.md` - Citation requirements
+  - `synthesis-checkpoint.md` - Pre-clear validation
+  - `jit-retrieval.md` - Lightweight identifiers
+  - `attention-budget.md` - Token thresholds
 - `.claude/scripts/` - Helper bash scripts
+  - **v0.9.0 Scripts**:
+  - `grounding-check.sh` - Grounding ratio calculation
+  - `synthesis-checkpoint.sh` - Pre-clear validation
+  - `self-heal-state.sh` - State Zone recovery

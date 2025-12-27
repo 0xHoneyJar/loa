@@ -1,6 +1,6 @@
 # Loa
 
-[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
@@ -106,6 +106,15 @@ Agents maintain persistent working memory in `loa-grimoire/NOTES.md`:
 - Tracks technical debt, blockers, decisions
 - Enables continuity across sessions
 
+### Lossless Ledger Protocol (v0.9.0)
+
+**"Clear, Don't Compact"** - Agents proactively checkpoint work before clearing context:
+
+- **Grounding Enforcement**: 95% of claims must cite sources before `/clear`
+- **Session Continuity**: Instant recovery from persistent ledgers (~100 tokens)
+- **Self-Healing**: Automatic State Zone recovery from git history
+- **Audit Trail**: Complete trajectory logging with timestamped handoffs
+
 ### Two Quality Gates
 
 1. **Code Review**: Tech lead reviews until "All good"
@@ -126,6 +135,11 @@ persistence_mode: stealth
 ├── skills/                     # 8 agent skills
 ├── commands/                   # Slash commands
 ├── protocols/                  # Framework protocols
+│   ├── session-continuity.md   # Lossless Ledger Protocol
+│   ├── grounding-enforcement.md # Grounding ratio enforcement
+│   ├── synthesis-checkpoint.md # Pre-/clear checkpoint
+│   ├── attention-budget.md     # Token budget management
+│   ├── jit-retrieval.md        # Just-in-time code retrieval
 │   ├── structured-memory.md    # NOTES.md protocol
 │   ├── trajectory-evaluation.md # ADK-style evaluation
 │   └── change-validation.md    # Pre-implementation validation
@@ -133,6 +147,10 @@ persistence_mode: stealth
 │   ├── mount-loa.sh           # One-command install
 │   ├── update.sh              # Framework updates
 │   ├── check-loa.sh           # CI validation
+│   ├── grounding-check.sh     # Grounding ratio calculation
+│   ├── synthesis-checkpoint.sh # Pre-/clear checkpoint
+│   ├── self-heal-state.sh     # State Zone recovery
+│   ├── validate-prd-requirements.sh # UAT validation
 │   ├── detect-drift.sh        # Code/docs drift detection
 │   └── validate-change-plan.sh # Pre-implementation validation
 └── overrides/                  # Your customizations
@@ -162,6 +180,10 @@ loa-grimoire/                   # State Zone (project memory)
 persistence_mode: standard      # or "stealth"
 integrity_enforcement: strict   # or "warn", "disabled"
 drift_resolution: code          # or "docs", "ask"
+
+grounding:
+  enforcement: warn             # strict | warn | disabled
+  threshold: 0.95               # 0.00-1.00
 
 memory:
   notes_file: loa-grimoire/NOTES.md

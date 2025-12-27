@@ -55,3 +55,14 @@ outputs:
   - path: "loa-grimoire/a2a/sprint-{id}/auditor-sprint-feedback.md"
     condition: "audit_mode == sprint"
     description: "Sprint implementation security audit feedback"
+
+# v0.9.0 Lossless Ledger Protocol Integration
+protocols:
+  required:
+    - name: "session-continuity"
+      path: ".claude/protocols/session-continuity.md"
+      purpose: "Session lifecycle, tiered recovery"
+  recommended:
+    - name: "grounding-enforcement"
+      path: ".claude/protocols/grounding-enforcement.md"
+      purpose: "Verify security claims are grounded in evidence"
