@@ -64,6 +64,15 @@ cargo install ck-search
 
 **Note**: ck is optional. Loa works perfectly without it, using grep-based fallbacks.
 
+**Updating existing repos**: If you're updating Loa to v0.8.0+ in an existing repository, you'll need to manually initialize the ck index:
+
+```bash
+# From your project root
+ck index .
+```
+
+This creates the `.ckignore` file and builds the initial semantic index. New installations via `/setup` handle this automatically.
+
 ## Method 1: Mount onto Existing Repository (Recommended)
 
 Mount Loa onto any existing git repository. This is the **sidecar pattern** - Loa rides alongside your project.
