@@ -168,6 +168,7 @@ loa-grimoire/                   # State Zone (project memory)
 └── deployment/                 # Infrastructure docs
 
 .beads/                        # Task graph (optional)
+.ckignore                      # ck semantic search exclusions (optional)
 .loa-version.json              # Version manifest
 .loa.config.yaml               # Your configuration
 ```
