@@ -1,0 +1,36 @@
+# Loa Capturing Taste Skill
+# v5.0.0 - Migrated from HivemindOS with optional vocabulary and proto-bead generation
+
+name: loa-capturing-taste
+version: "5.0.0"
+description: |
+  Interview developers to extract component taste.
+  JSDoc is truth. Grep is discovery.
+  v5: Optional vocabulary, proto-bead generation, HivemindOS bridge.
+
+entry_point: false
+invoked_by: "/taste command"
+
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - Grep
+  - Glob
+  - Bash
+  - AskUserQuestion
+
+# Configuration keys read from .loa.config.yaml
+config_keys:
+  - taste.vocabulary_path
+  - taste.auto_proto_bead
+  - proto_beads.local_path
+  - hivemind.connected
+  - hivemind.vocabulary_path
+
+# Resources loaded on demand
+resources:
+  - path: "resources/vocabulary-fallback.md"
+    purpose: "Default JTBD labels when no vocabulary"
+  - path: "resources/physics-defaults.md"
+    purpose: "Default physics by feel"

@@ -23,6 +23,7 @@ Bash utilities for deterministic operations in the Loa framework.
 | `mcp-registry.sh` | Query MCP server registry (requires yq) | 0=success, 1=error |
 | `validate-mcp.sh` | Validate MCP server configuration | 0=OK, 1=missing |
 | `assess-discovery-context.sh` | PRD context ingestion assessment | 0=success |
+| `proto-bead-gen.sh` | Generate proto-bead YAML from JSDoc | 0=success, 1=error, 2=invalid |
 
 ## Usage Examples
 
@@ -100,6 +101,22 @@ get_user_type
 
 ./.claude/scripts/check-beads.sh --quiet
 # Returns: INSTALLED | NOT_INSTALLED (no install instructions)
+```
+
+### Generate Proto-Bead
+```bash
+./.claude/scripts/proto-bead-gen.sh JoyfulLoader
+# Returns: SUCCESS|loa-grimoire/proto-beads/JoyfulLoader.yaml
+
+./.claude/scripts/proto-bead-gen.sh ClaimButton --component-file src/components/ClaimButton.tsx
+# Returns: SUCCESS|loa-grimoire/proto-beads/ClaimButton.yaml
+
+# Error cases
+./.claude/scripts/proto-bead-gen.sh UnknownComponent
+# Returns: ERROR|Component file not found for UnknownComponent
+
+./.claude/scripts/proto-bead-gen.sh SilverComponent
+# Returns: ERROR|Component is not Gold tier (found: silver)
 ```
 
 ## Design Principles

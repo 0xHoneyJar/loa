@@ -203,3 +203,62 @@ preferences:
   auto_bead_on_review: true
   require_security_audit: true
   confirm_app_writes: true
+
+# =============================================================================
+# Frame System (Loa v5.0.0)
+# =============================================================================
+# Cognitive modes with invisible context-switching
+frames:
+  # Enable frame detection
+  enabled: true
+  # Infer frame from context (commands, file patterns, actions)
+  auto_detect: true
+  # Default frame when no signal detected
+  default: search
+  # Show status line: {symbol} {FRAME} · {context} · {status}
+  status_line: true
+
+# =============================================================================
+# Taste Capture (Loa v5.0.0)
+# =============================================================================
+# Component taste extraction and governance
+taste:
+  # Enable /taste command
+  enabled: true
+  # Path to vocabulary file (null = freeform @intent)
+  # Set by HivemindOS when connected, or use local vocabulary
+  vocabulary_path: null
+  # Require Gold graduation for key components
+  require_graduation: false
+  # Auto-generate proto-bead on Gold signature
+  auto_proto_bead: true
+
+# =============================================================================
+# Proto-Beads (Loa v5.0.0)
+# =============================================================================
+# Local decision capture for components
+proto_beads:
+  # Enable proto-bead generation
+  enabled: true
+  # Local storage path
+  local_path: "loa-grimoire/proto-beads/"
+
+# =============================================================================
+# HivemindOS Integration (Loa v5.0.0)
+# =============================================================================
+# Bridge to organizational context layer (optional, paid)
+hivemind:
+  # Connection status (set to true when HivemindOS is configured)
+  connected: false
+  # HivemindOS API endpoint (null when not connected)
+  endpoint: null
+  # Organization vocabulary for @intent validation
+  vocabulary_path: "hivemind/vocabulary.md"
+  # North Star for alignment checking
+  north_star_path: "hivemind/north-star.md"
+  # Sync behavior
+  sync:
+    # Auto-sync proto-beads on Gold signature
+    auto: true
+    # Prompt for "why" enrichment during sync
+    prompt_why: true
