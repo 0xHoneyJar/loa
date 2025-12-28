@@ -286,6 +286,84 @@ git checkout --theirs .claude/
 git checkout --ours loa-grimoire/
 ```
 
+## HivemindOS Integration (THJ Users)
+
+For THJ organization members with access to HivemindOS, Loa can integrate with organizational memory.
+
+### Prerequisites
+
+- HivemindOS repository cloned locally
+- `HIVEMIND_PATH` environment variable set (optional but recommended)
+
+### Setting Up Integration
+
+```bash
+# Option 1: Set environment variable (recommended)
+export HIVEMIND_PATH="/path/to/hivemind-os"
+
+# Add to your shell profile (~/.zshrc or ~/.bashrc):
+echo 'export HIVEMIND_PATH="/path/to/hivemind-os"' >> ~/.zshrc
+```
+
+### During Setup
+
+When you run `/setup`, Loa will detect HivemindOS availability:
+
+```
+✓ HivemindOS available (organizational memory)
+  → Would you like to enable HivemindOS integration? [y/N]
+```
+
+If you accept, Loa will:
+1. Merge hooks (HivemindOS hooks run first, then Loa hooks)
+2. Use merged status line showing both contexts
+3. Enable HivemindOS skills and database access
+
+### Merged Status Line
+
+When integrated, the status line shows both systems:
+
+```
+⬢ HIVEMINDOS 🔬LAB · ◆ BUILD · context · Opus
+     │          │       │         │        │
+     │          │       │         │        └── Model
+     │          │       │         └── Loa context
+     │          │       └── Loa frame (BUILD)
+     │          └── HivemindOS database (Laboratory)
+     └── HivemindOS branding
+```
+
+### Configuration
+
+Integration state is stored in `.loa.config.yaml`:
+
+```yaml
+hivemind_integration: true
+hivemind_path: "/path/to/hivemind-os"
+integration:
+  status_line_mode: merged  # merged | loa-only | hivemind-only
+```
+
+### Session State Coexistence
+
+Two session files work together:
+- `.claude/.session` - HivemindOS database state (Library, Laboratory, etc.)
+- `.loa/.session` - Loa frame state (SEARCH, BUILD, TUNE)
+
+### Installing Hooks to Target Project
+
+When mounting Loa onto a target project with HivemindOS integration:
+
+```bash
+# From Loa directory
+.claude/scripts/install-hooks.sh /path/to/target --integrated
+```
+
+This will:
+- Copy hooks from both systems
+- Use merged status line from HivemindOS
+- Preserve existing hooks in target
+
 ## Next Steps
 
 After installation:

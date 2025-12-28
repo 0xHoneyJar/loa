@@ -106,6 +106,104 @@ Overrides survive framework updates.
 
 **Execution modes**: Foreground (default) or background (`/implement sprint-1 background`)
 
+## HivemindOS Integration
+
+Loa can integrate with HivemindOS for organizational memory access.
+
+### Detection
+
+Integration is detected via:
+1. `HIVEMIND_PATH` environment variable pointing to valid HivemindOS installation
+2. Running within HivemindOS repository (presence of `library/` and `laboratory/` directories)
+
+### Mode Detection Script
+
+```bash
+.claude/scripts/detect-mode.sh
+# Returns: "standalone" or "integrated"
+```
+
+### Session State Coexistence
+
+When integrated, two session files work together:
+- `.claude/.session` - HivemindOS database state (WHAT you're working on)
+- `.loa/.session` - Loa frame state (HOW you're working)
+
+### Merged Status Line
+
+Integrated mode shows both contexts:
+```
+⬢ HIVEMINDOS 🔬LAB · ◆ BUILD · context · Opus
+```
+
+### Configuration
+
+Integration state stored in `.loa.config.yaml`:
+```yaml
+hivemind_integration: true
+hivemind_path: "/path/to/hivemind-os"
+```
+
+### Setup Enhancement
+
+During `/setup`, if HivemindOS is available:
+1. User is prompted to enable integration
+2. Hooks are merged (HivemindOS first, then Loa)
+3. Merged status line is installed
+4. Configuration is recorded
+
+**Protocol**: See `.claude/protocols/integration-config.md`
+
+## Frame System (v5.0.0)
+
+Loa uses invisible context-switching through frames. The agent adapts to what you're doing without explicit mode selection.
+
+### Frames
+
+| Frame | Symbol | When Active | Status Line |
+|-------|--------|-------------|-------------|
+| **SEARCH** | ◇ | Exploring, planning, analyzing | `◇ SEARCH · context · status` |
+| **BUILD** | ◆ | Implementing, coding, fixing | `◆ BUILD · context · status` |
+| **TUNE** | ◈ | Refining, adjusting, taste-checking | `◈ TUNE · context · status` |
+
+### Frame Detection
+
+Frames are inferred from:
+1. **Commands**: `/plan-and-analyze` → SEARCH, `/implement` → BUILD, `/taste` → TUNE
+2. **Action phrases**: "explore" → SEARCH, "build" → BUILD, "adjust" → TUNE
+3. **Default**: SEARCH
+
+### Micro-Transitions
+
+Brief contextual shifts within a frame:
+```
+User (in BUILD): "that feels too fast"
+Agent: [◈ micro-tune] Adjusting tension to 120...
+       [◆ BUILD] Continuing implementation...
+```
+
+### Security Constraints
+
+When touching `*.sol`, `*.move`, `/contracts/`, `/treasury/`:
+- Status line shows 🔒 indicator
+- Agent applies elevated caution
+- Extra validation prompts
+
+### Session State
+
+Runtime state stored in `.loa/.session`:
+```yaml
+frame: build
+context: "JoyfulLoader"
+status: implementing
+constraints:
+  security: true
+```
+
+**Protocols**: See `.claude/protocols/frames.md`, `session-state.md`, `micro-transitions.md`, `security-constraints.md`
+
+---
+
 ## Key Protocols
 
 ### Structured Agentic Memory
@@ -288,7 +386,10 @@ Use `.claude/scripts/context-check.sh` for assessment.
 ├── check-prerequisites.sh    # Phase prerequisites
 ├── validate-sprint-id.sh     # Sprint ID validation
 ├── mcp-registry.sh           # MCP registry queries
-└── validate-mcp.sh           # MCP configuration validation
+├── validate-mcp.sh           # MCP configuration validation
+├── detect-mode.sh            # HivemindOS integration detection
+├── merge-hooks.sh            # Merge Loa hooks into existing settings
+└── install-hooks.sh          # Install Loa hooks to target project
 ```
 
 ## Integrations
@@ -346,3 +447,8 @@ integrations:
   - `grounding-check.sh` - Grounding ratio calculation
   - `synthesis-checkpoint.sh` - Pre-clear validation
   - `self-heal-state.sh` - State Zone recovery
+  - **v5.0.0 HivemindOS Integration**:
+  - `detect-mode.sh` - Integration detection
+  - `merge-hooks.sh` - Hook merging
+  - `install-hooks.sh` - Hook installation
+- `.claude/protocols/integration-config.md` - HivemindOS integration configuration

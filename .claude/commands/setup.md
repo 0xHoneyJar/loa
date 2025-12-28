@@ -92,6 +92,59 @@ fi
 
 Store enhancement status in marker file for future reference.
 
+### Phase 0.7: HivemindOS Integration Detection
+
+Check for HivemindOS availability and offer integration:
+
+**Detection Logic**:
+```bash
+# Check HIVEMIND_PATH environment variable
+if [[ -n "${HIVEMIND_PATH:-}" ]] && [[ -d "$HIVEMIND_PATH/library" ]]; then
+    HIVEMIND_AVAILABLE=true
+    HIVEMIND_VERSION=$(cat "$HIVEMIND_PATH/.claude/VERSION" 2>/dev/null || echo "unknown")
+else
+    HIVEMIND_AVAILABLE=false
+fi
+
+# Also check if we're inside the HivemindOS repo
+if [[ -d "$CLAUDE_PROJECT_DIR/library" ]] && [[ -d "$CLAUDE_PROJECT_DIR/laboratory" ]]; then
+    HIVEMIND_AVAILABLE=true
+    IN_HIVEMIND_REPO=true
+fi
+```
+
+**Integration Prompt** (only if HIVEMIND_AVAILABLE=true):
+```
+✓ HivemindOS available (organizational memory)
+  → Would you like to enable HivemindOS integration? [y/N]
+```
+
+Use AskUserQuestion tool to prompt the user with:
+- Question: "Would you like to enable HivemindOS integration? This provides organizational memory, database context, and additional skills."
+- Options: "Yes, enable integration" / "No, standalone mode"
+- Default: "No, standalone mode" (standalone is the default)
+
+**If user accepts integration**:
+1. Run `.claude/scripts/merge-hooks.sh` to merge HivemindOS hooks
+2. Copy merged status line from HivemindOS
+3. Record in `.loa.config.yaml`:
+   ```yaml
+   hivemind_integration: true
+   hivemind_path: "/path/to/hivemind-os"
+   ```
+4. Display confirmation:
+   ```
+   ✓ HivemindOS integration enabled
+   ✓ Merged status line active
+   ✓ HivemindOS skills available
+   ```
+
+**If user declines or HIVEMIND_PATH not set**:
+- Continue with standalone Loa mode
+- No mention of HivemindOS (for OSS users without access)
+
+Store integration status in marker file and `.loa.config.yaml`.
+
 ### Phase 1A: THJ Developer Setup
 
 1. Display welcome message with command overview
@@ -185,6 +238,12 @@ Use helper scripts to query the registry:
       "version": null,
       "checked_at": "ISO-8601 timestamp"
     }
+  },
+  "hivemind_integration": {
+    "enabled": true,
+    "path": "/path/to/hivemind-os",
+    "version": "3.1.0",
+    "enabled_at": "ISO-8601 timestamp"
   }
 }
 ```
