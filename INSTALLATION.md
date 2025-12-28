@@ -68,7 +68,7 @@ cargo install ck-search
 
 ```bash
 # From your project root
-ck index .
+ck --index .
 ```
 
 This creates the `.ckignore` file and builds the initial semantic index. New installations via `/setup` handle this automatically.
