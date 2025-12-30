@@ -119,6 +119,8 @@ git merge loa/main -m "chore: update Loa framework"
 | `loa-grimoire/sdd.md` | Preserved (your docs) |
 | `loa-grimoire/analytics/` | Preserved (your data) |
 | `.loa-setup-complete` | Preserved (your setup state) |
+| `CHANGELOG.md` | Preserved (your project changelog) |
+| `README.md` | Preserved (your project readme) |
 
 ## Conflict Resolution
 
@@ -128,6 +130,15 @@ Recommend accepting upstream version:
 ```bash
 git checkout --theirs {filename}
 ```
+
+### Project Identity Files (`CHANGELOG.md`, `README.md`)
+
+These files define YOUR project, not the Loa framework. ALWAYS keep your version:
+```bash
+git checkout --ours CHANGELOG.md README.md
+```
+
+Never accept upstream versions of these files - they contain Loa's template content, not your project's history and documentation.
 
 ### Project Files
 
@@ -155,6 +166,6 @@ git commit -m "chore: update Loa framework (conflicts resolved)"
 
 ## Next Steps After Update
 
-- Review `CHANGELOG.md` for new features and changes
+- Review [Loa releases](https://github.com/0xHoneyJar/loa/releases) for new features and changes
 - Check `CLAUDE.md` for new commands or workflow updates
 - Run `/setup` if prompted by new setup requirements
