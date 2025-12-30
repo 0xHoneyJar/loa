@@ -7,8 +7,90 @@ on:
     branches: [main]
 
 jobs:
+  # =============================================================================
+  # TEMPLATE PROTECTION - Blocks forbidden files from being committed
+  # =============================================================================
+  template-guard:
+    name: Template Protection
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Block forbidden template files
+        id: check-forbidden
+        run: |
+          echo "Checking for forbidden template files..."
+
+          # Define forbidden patterns for the loa template repository
+          # These files should NEVER be committed to the main loa template
+          FORBIDDEN_FILES=(
+            "loa-grimoire/prd.md"
+            "loa-grimoire/sdd.md"
+            "loa-grimoire/sprint.md"
+            "loa-grimoire/NOTES.md"
+          )
+
+          FORBIDDEN_DIRS=(
+            "loa-grimoire/a2a/sprint-"
+            "loa-grimoire/a2a/index.md"
+            "loa-grimoire/a2a/deployment-feedback.md"
+            "loa-grimoire/a2a/trajectory/"
+            "loa-grimoire/deployment/"
+            "loa-grimoire/reality/"
+            "loa-grimoire/analytics/"
+            "loa-grimoire/research/"
+          )
+
+          VIOLATIONS=()
+
+          # Check for forbidden files
+          for pattern in "${FORBIDDEN_FILES[@]}"; do
+            if [ -f "$pattern" ]; then
+              VIOLATIONS+=("$pattern")
+            fi
+          done
+
+          # Check for forbidden directories/patterns
+          for pattern in "${FORBIDDEN_DIRS[@]}"; do
+            # Find any files matching the pattern (excluding README.md)
+            while IFS= read -r file; do
+              if [[ "$file" != *"/README.md" ]]; then
+                VIOLATIONS+=("$file")
+              fi
+            done < <(find . -path "./$pattern*" -type f 2>/dev/null | head -50)
+          done
+
+          if [ ${#VIOLATIONS[@]} -gt 0 ]; then
+            echo ""
+            echo "============================================================"
+            echo "ERROR: Forbidden files detected in template repository!"
+            echo "============================================================"
+            echo ""
+            echo "The following files must NOT be committed to the loa template:"
+            echo ""
+            for file in "${VIOLATIONS[@]}"; do
+              echo "  - $file"
+            done
+            echo ""
+            echo "These files are project-specific and should be gitignored."
+            echo "If this is intentional, add [skip-template-guard] to commit message."
+            echo "============================================================"
+            exit 1
+          fi
+
+          echo "Template protection check passed - no forbidden files found"
+
+      - name: Check for skip override
+        if: failure() && contains(github.event.head_commit.message, '[skip-template-guard]')
+        run: |
+          echo "WARNING: Template guard bypassed via [skip-template-guard] in commit message"
+          echo "This should only be used for exceptional circumstances!"
+
   validate:
     name: Validate Framework Files
+    needs: template-guard
     runs-on: ubuntu-latest
 
     steps:
@@ -144,6 +226,7 @@ jobs:
 
   markdown-lint:
     name: Lint Markdown
+    needs: template-guard
     runs-on: ubuntu-latest
 
     steps:
@@ -177,6 +260,7 @@ jobs:
 
   yaml-lint:
     name: Lint YAML
+    needs: template-guard
     runs-on: ubuntu-latest
 
     steps:

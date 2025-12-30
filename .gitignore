@@ -70,30 +70,50 @@ loa-grimoire/analytics/pending-feedback.json
 # Server audit reports (contain sensitive deployment info)
 loa-grimoire/deployment/SERVER-REALITY-AUDIT.md
 
-# Project-specific generated artifacts
-# IMPORTANT: Uncomment these lines when using this as a base for your project
-# if you are not in THJ to avoid committing generated documentation to your repository.
-# Within THJ as we work within private repos we commit these files to help with internal
-# knowledge systems.
-#
+# =============================================================================
+# LOA TEMPLATE EXCLUSIONS
+# =============================================================================
+# These files are ALWAYS excluded from the template repository.
+# They are generated per-project and must never be committed to the main loa repo.
+
+# Generated documentation artifacts
+loa-grimoire/prd.md
+loa-grimoire/sdd.md
+loa-grimoire/sprint.md
+loa-grimoire/NOTES.md
+
+# Agent-to-Agent communication (sprint-specific, generated)
+# README.md files are kept to explain the directory purpose
+loa-grimoire/a2a/*
+!loa-grimoire/a2a/README.md
+!loa-grimoire/a2a/trajectory/
+loa-grimoire/a2a/trajectory/*
+!loa-grimoire/a2a/trajectory/README.md
+
+# Deployment artifacts (project-specific)
+loa-grimoire/deployment/*
+!loa-grimoire/deployment/README.md
+
+# Reality extraction (codebase-specific)
+loa-grimoire/reality/*
+!loa-grimoire/reality/README.md
+
+# Analytics (usage tracking, developer-specific)
+loa-grimoire/analytics/*
+!loa-grimoire/analytics/README.md
+
+# Research files (project-specific discoveries)
+loa-grimoire/research/*
+!loa-grimoire/research/README.md
+
+# =============================================================================
+# PROJECT-SPECIFIC EXCLUSIONS (for repos that use loa as a base)
+# =============================================================================
 # Beads graph memory (sprint task tracking)
 # By default, .beads/ is tracked for team collaboration on sprint state.
 # Uncomment to keep local-only:
 # .beads/
-#
-# Loa process artifacts (loa-grimoire/)
-# Uncomment to exclude from version control:
-# loa-grimoire/prd.md
-# loa-grimoire/sdd.md
-# loa-grimoire/sprint.md
-# loa-grimoire/a2a/
-# loa-grimoire/deployment/
-#
-# Analytics (usage tracking)
-# By default, analytics are tracked but may contain developer-specific info
-# Uncomment to exclude from version control:
-loa-grimoire/analytics/
-#
+
 # Application artifacts (app/)
 app/src/
 app/tests/
