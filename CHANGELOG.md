@@ -5,6 +5,32 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.2] - 2025-12-31
+
+### Why This Release
+
+The `/update` command was overwriting project-specific `CHANGELOG.md` and `README.md` files with Loa framework template versions. These files define the project, not the framework, and should always be preserved during updates.
+
+### Fixed
+
+- **`/update` Command**: Now preserves project identity files during framework updates
+  - Added `CHANGELOG.md` and `README.md` to the Merge Strategy table as preserved files
+  - Added "Project Identity Files" section in Conflict Resolution guidance
+  - These files are now automatically resolved with `--ours` (keep project version)
+  - Updated Next Steps to link to upstream releases instead of local CHANGELOG
+
+### Upgrade Instructions
+
+No action required. The fix is in the `/update` command documentation itself, so future updates will properly preserve your project files.
+
+If you previously lost your `CHANGELOG.md` or `README.md` during an update:
+```bash
+git checkout <commit-before-update> -- CHANGELOG.md README.md
+git commit -m "fix: restore project CHANGELOG and README"
+```
+
+---
+
 ## [0.9.1] - 2025-12-30
 
 ### Why This Release
@@ -691,6 +717,7 @@ loa-grimoire/           # Loa process artifacts
 └── deployment/         # Production infrastructure docs
 ```
 
+[0.9.2]: https://github.com/0xHoneyJar/loa/releases/tag/v0.9.2
 [0.9.1]: https://github.com/0xHoneyJar/loa/releases/tag/v0.9.1
 [0.9.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.9.0
 [0.8.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.8.0
