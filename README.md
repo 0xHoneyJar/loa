@@ -35,6 +35,7 @@ claude
 ```
 
 See **[INSTALLATION.md](INSTALLATION.md)** for detailed installation options.
+Codex users: see **[docs/CODEX.md](docs/CODEX.md)** for setup and `/prompts:<command>` usage.
 
 ## Architecture: Three-Zone Model
 

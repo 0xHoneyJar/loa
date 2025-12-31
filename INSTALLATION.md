@@ -10,6 +10,10 @@ Loa can be installed in two ways: **mounting onto an existing repository** (reco
 - **yq** (required) - YAML processor
 - **Claude Code** - Claude's official CLI
 
+### Codex CLI (Optional)
+
+Loa ships Codex-compatible prompts and skills. See **[docs/CODEX.md](docs/CODEX.md)** for setup and `/prompts:<command>` usage.
+
 ```bash
 # macOS
 brew install jq yq
