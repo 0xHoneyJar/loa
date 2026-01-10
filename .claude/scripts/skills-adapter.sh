@@ -169,8 +169,18 @@ generate_frontmatter() {
     echo "---"
     echo ""
 
-    # Append original SKILL.md content
-    cat "$skill_md"
+    # Append SKILL.md content, stripping any existing YAML frontmatter
+    # SKILL.md files may have their own frontmatter (parallel_threshold, etc.)
+    # We strip it to avoid double frontmatter in output
+    if head -1 "$skill_md" | grep -q '^---$'; then
+        # Has frontmatter - skip lines until second ---
+        awk 'BEGIN{in_fm=0; count=0}
+             /^---$/{count++; if(count==2){in_fm=0; next} else {in_fm=1; next}}
+             !in_fm{print}' "$skill_md"
+    else
+        # No frontmatter - output as-is
+        cat "$skill_md"
+    fi
 }
 
 # List all skills with status
