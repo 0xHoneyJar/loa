@@ -129,7 +129,7 @@ Find docs that reference changed code:
 # Find documentation mentions
 hybrid_search(
   query: "<module_name> <function_name>",
-  path: "docs/|*.md|loa-grimoire/",
+  path: "docs/|*.md|grimoires/loa/",
   top_k: 10
 )
 ```
@@ -226,7 +226,7 @@ grep -rn "import.*<module>" src/ | head -20
 find tests/ -name "*<module>*test*" -o -name "*<module>*spec*"
 
 # Find documentation mentions
-grep -rn "<module_name>" docs/ loa-grimoire/*.md
+grep -rn "<module_name>" docs/ grimoires/loa/*.md
 ```
 
 **Limitations**:
@@ -366,8 +366,8 @@ semantic_search("token validation authentication", "src/auth/", 10, 0.6)
 ### Phase 5: Documentation Check
 ```bash
 # Find auth documentation
-hybrid_search("OAuth authentication", "docs/|loa-grimoire/*.md", 10)
-# Results: loa-grimoire/prd.md §3.2 - mentions OAuth as Ghost Feature!
+hybrid_search("OAuth authentication", "docs/|grimoires/loa/*.md", 10)
+# Results: grimoires/loa/prd.md §3.2 - mentions OAuth as Ghost Feature!
 ```
 
 **Documentation Drift**: PRD lists OAuth as Ghost, needs update to "Implemented"

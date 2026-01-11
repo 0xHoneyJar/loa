@@ -2,11 +2,11 @@
 
 ## Review Input Documents
 
-- **Implementation Report**: `loa-grimoire/a2a/sprint-N/reviewer.md`
-- **Sprint Plan**: `loa-grimoire/sprint.md`
-- **Software Design Document (SDD)**: `loa-grimoire/sdd.md`
-- **Product Requirements Document (PRD)**: `loa-grimoire/prd.md`
-- **Previous Feedback**: `loa-grimoire/a2a/sprint-N/engineer-feedback.md`
+- **Implementation Report**: `grimoires/loa/a2a/sprint-N/reviewer.md`
+- **Sprint Plan**: `grimoires/loa/sprint.md`
+- **Software Design Document (SDD)**: `grimoires/loa/sdd.md`
+- **Product Requirements Document (PRD)**: `grimoires/loa/prd.md`
+- **Previous Feedback**: `grimoires/loa/a2a/sprint-N/engineer-feedback.md`
 
 ## Framework Documentation
 
@@ -38,7 +38,7 @@
 
 ## A2A Communication
 
-- **Feedback Output Path**: `loa-grimoire/a2a/sprint-N/engineer-feedback.md`
+- **Feedback Output Path**: `grimoires/loa/a2a/sprint-N/engineer-feedback.md`
 
 ## Organizational Meta Knowledge Base
 

@@ -43,14 +43,14 @@ examples:
 
 dependencies:
   required:
-    - "loa-grimoire/drift-report.md"
+    - "grimoires/loa/drift-report.md"
   optional:
     - ".loa.config.yaml"
-    - "loa-grimoire/NOTES.md"
-    - "loa-grimoire/governance-report.md"
-    - "loa-grimoire/consistency-report.md"
-    - "loa-grimoire/reality/hygiene-report.md"
-    - "loa-grimoire/trajectory-audit.md"
+    - "grimoires/loa/NOTES.md"
+    - "grimoires/loa/governance-report.md"
+    - "grimoires/loa/consistency-report.md"
+    - "grimoires/loa/reality/hygiene-report.md"
+    - "grimoires/loa/trajectory-audit.md"
 
 inputs:
   primary:
@@ -62,13 +62,13 @@ inputs:
     - "Constraints (page limit, presentation format)"
 
 outputs:
-  - "loa-grimoire/translations/EXECUTIVE-INDEX.md"
-  - "loa-grimoire/translations/drift-analysis.md"
-  - "loa-grimoire/translations/governance-assessment.md"
-  - "loa-grimoire/translations/consistency-analysis.md"
-  - "loa-grimoire/translations/hygiene-assessment.md"
-  - "loa-grimoire/translations/quality-assurance.md"
-  - "loa-grimoire/translations/translation-audit.md"
+  - "grimoires/loa/translations/EXECUTIVE-INDEX.md"
+  - "grimoires/loa/translations/drift-analysis.md"
+  - "grimoires/loa/translations/governance-assessment.md"
+  - "grimoires/loa/translations/consistency-analysis.md"
+  - "grimoires/loa/translations/hygiene-assessment.md"
+  - "grimoires/loa/translations/quality-assurance.md"
+  - "grimoires/loa/translations/translation-audit.md"
 
 protocols:
   - integrity_precheck: "SHA-256 verification of .claude/"

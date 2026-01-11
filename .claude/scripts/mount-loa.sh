@@ -152,12 +152,12 @@ sync_zones() {
     err "Failed to checkout .claude/ from upstream"
   }
 
-  if [[ ! -d "loa-grimoire" ]]; then
-    log "Pulling State Zone template (loa-grimoire/)..."
-    git checkout "$LOA_REMOTE_NAME/$LOA_BRANCH" -- loa-grimoire 2>/dev/null || {
-      warn "No loa-grimoire/ in upstream, creating empty structure..."
-      mkdir -p loa-grimoire/{context,discovery,a2a/trajectory}
-      touch loa-grimoire/.gitkeep
+  if [[ ! -d "grimoires/loa" ]]; then
+    log "Pulling State Zone template (grimoires/loa/)..."
+    git checkout "$LOA_REMOTE_NAME/$LOA_BRANCH" -- grimoires/loa 2>/dev/null || {
+      warn "No grimoires/loa/ in upstream, creating empty structure..."
+      mkdir -p grimoires/loa/{context,discovery,a2a/trajectory}
+      touch grimoires/loa/.gitkeep
     }
   else
     log "State Zone already exists, preserving..."
@@ -173,7 +173,7 @@ sync_zones() {
 init_structured_memory() {
   step "Initializing structured agentic memory..."
 
-  local notes_file="loa-grimoire/NOTES.md"
+  local notes_file="grimoires/loa/NOTES.md"
   if [[ ! -f "$notes_file" ]]; then
     cat > "$notes_file" << 'EOF'
 # Agent Working Memory (NOTES.md)
@@ -204,7 +204,7 @@ EOF
   fi
 
   # Create trajectory directory for ADK-style evaluation
-  mkdir -p loa-grimoire/a2a/trajectory
+  mkdir -p grimoires/loa/a2a/trajectory
 }
 
 # === Create Version Manifest ===
@@ -223,7 +223,7 @@ create_manifest() {
   "last_sync": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "zones": {
     "system": ".claude",
-    "state": ["loa-grimoire", ".beads"],
+    "state": ["grimoires/loa", ".beads"],
     "app": ["src", "lib", "app"]
   },
   "migrations_applied": ["001_init_zones"],
@@ -313,8 +313,8 @@ disabled_agents: []
 # Structured Memory
 # =============================================================================
 memory:
-  notes_file: loa-grimoire/NOTES.md
-  trajectory_dir: loa-grimoire/a2a/trajectory
+  notes_file: grimoires/loa/NOTES.md
+  trajectory_dir: grimoires/loa/a2a/trajectory
   # Auto-compact trajectory logs older than N days
   trajectory_retention_days: 30
 
@@ -347,9 +347,9 @@ EOF
 }
 
 generate_config_snapshot() {
-  mkdir -p loa-grimoire/context
+  mkdir -p grimoires/loa/context
   if command -v yq &> /dev/null && [[ -f "$CONFIG_FILE" ]]; then
-    yq_to_json "$CONFIG_FILE" > loa-grimoire/context/config_snapshot.json 2>/dev/null || true
+    yq_to_json "$CONFIG_FILE" > grimoires/loa/context/config_snapshot.json 2>/dev/null || true
   fi
 }
 
@@ -370,7 +370,7 @@ apply_stealth() {
     local gitignore=".gitignore"
     touch "$gitignore"
 
-    local entries=("loa-grimoire/" ".beads/" ".loa-version.json" ".loa.config.yaml")
+    local entries=("grimoires/loa/" ".beads/" ".loa-version.json" ".loa.config.yaml")
     for entry in "${entries[@]}"; do
       grep -qxF "$entry" "$gitignore" 2>/dev/null || echo "$entry" >> "$gitignore"
     done
@@ -451,8 +451,8 @@ EOF
   info "Zone structure:"
   info "  .claude/          -> System Zone (framework-managed, immutable)"
   info "  .claude/overrides -> Your customizations (preserved)"
-  info "  loa-grimoire/     -> State Zone (project memory)"
-  info "  loa-grimoire/NOTES.md -> Structured agentic memory"
+  info "  grimoires/loa/     -> State Zone (project memory)"
+  info "  grimoires/loa/NOTES.md -> Structured agentic memory"
   info "  .beads/           -> Task graph (Beads)"
   echo ""
   warn "STRICT ENFORCEMENT: Direct edits to .claude/ will block agent execution."

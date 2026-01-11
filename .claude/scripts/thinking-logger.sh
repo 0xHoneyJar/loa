@@ -5,7 +5,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCHEMA_PATH="$(dirname "$SCRIPT_DIR")/schemas/trajectory-entry.schema.json"
-DEFAULT_TRAJECTORY_DIR="loa-grimoire/a2a/trajectory"
+DEFAULT_TRAJECTORY_DIR="grimoires/loa/a2a/trajectory"
 
 # Colors for output
 RED='\033[0;31m'
@@ -64,7 +64,7 @@ Examples:
     --grounding code_reference --ref "src/db.ts:45-50" --confidence 0.95
 
   # Read trajectory
-  $(basename "$0") read loa-grimoire/a2a/trajectory/implementing-tasks-2025-01-11.jsonl --last 5
+  $(basename "$0") read grimoires/loa/a2a/trajectory/implementing-tasks-2025-01-11.jsonl --last 5
 EOF
 }
 

@@ -6,7 +6,7 @@ zones:
     path: .claude
     permission: none
   state:
-    paths: [loa-grimoire, .beads]
+    paths: [grimoires/loa, .beads]
     permission: read-write
   app:
     paths: [src, lib, app]
@@ -16,7 +16,7 @@ zones:
 # Sprint Task Implementer
 
 <objective>
-Implement sprint tasks from `loa-grimoire/sprint.md` with production-grade code and comprehensive tests. Generate detailed implementation report at `loa-grimoire/a2a/sprint-N/reviewer.md`. Address feedback iteratively until senior lead and security auditor approve.
+Implement sprint tasks from `grimoires/loa/sprint.md` with production-grade code and comprehensive tests. Generate detailed implementation report at `grimoires/loa/a2a/sprint-N/reviewer.md`. Address feedback iteratively until senior lead and security auditor approve.
 </objective>
 
 <zone_constraints>
@@ -27,7 +27,7 @@ This skill operates under **Managed Scaffolding**:
 | Zone | Permission | Notes |
 |------|------------|-------|
 | `.claude/` | NONE | System zone - never suggest edits |
-| `loa-grimoire/`, `.beads/` | Read/Write | State zone - project memory |
+| `grimoires/loa/`, `.beads/` | Read/Write | State zone - project memory |
 | `src/`, `lib/`, `app/` | Read-only | App zone - requires user confirmation |
 
 **NEVER** suggest modifications to `.claude/`. Direct users to `.claude/overrides/` or `.loa.config.yaml`.
@@ -67,7 +67,7 @@ The SDD specifies "PostgreSQL 15 with pgvector extension" (sdd.md:L123)
 ## Structured Memory Protocol
 
 ### On Session Start
-1. Read `loa-grimoire/NOTES.md`
+1. Read `grimoires/loa/NOTES.md`
 2. Restore context from "Session Continuity" section
 3. Check for resolved blockers
 
@@ -101,7 +101,7 @@ Example:
 <trajectory_logging>
 ## Trajectory Logging
 
-Log each significant step to `loa-grimoire/a2a/trajectory/{agent}-{date}.jsonl`:
+Log each significant step to `grimoires/loa/a2a/trajectory/{agent}-{date}.jsonl`:
 
 ```json
 {"timestamp": "...", "agent": "...", "action": "...", "reasoning": "...", "grounding": {...}}
@@ -110,14 +110,14 @@ Log each significant step to `loa-grimoire/a2a/trajectory/{agent}-{date}.jsonl`:
 
 <kernel_framework>
 ## Task (N - Narrow Scope)
-Implement sprint tasks from `loa-grimoire/sprint.md` with production-grade code and tests. Generate implementation report at `loa-grimoire/a2a/sprint-N/reviewer.md`. Address feedback iteratively.
+Implement sprint tasks from `grimoires/loa/sprint.md` with production-grade code and tests. Generate implementation report at `grimoires/loa/a2a/sprint-N/reviewer.md`. Address feedback iteratively.
 
 ## Context (L - Logical Structure)
-- **Input**: `loa-grimoire/sprint.md` (tasks), `loa-grimoire/prd.md` (requirements), `loa-grimoire/sdd.md` (architecture)
+- **Input**: `grimoires/loa/sprint.md` (tasks), `grimoires/loa/prd.md` (requirements), `grimoires/loa/sdd.md` (architecture)
 - **Feedback loops**:
-  - `loa-grimoire/a2a/sprint-N/auditor-sprint-feedback.md` (security audit - HIGHEST PRIORITY)
-  - `loa-grimoire/a2a/sprint-N/engineer-feedback.md` (senior lead review)
-- **Integration context**: `loa-grimoire/a2a/integration-context.md` (if exists) for context preservation, documentation locations, commit formats
+  - `grimoires/loa/a2a/sprint-N/auditor-sprint-feedback.md` (security audit - HIGHEST PRIORITY)
+  - `grimoires/loa/a2a/sprint-N/engineer-feedback.md` (senior lead review)
+- **Integration context**: `grimoires/loa/a2a/integration-context.md` (if exists) for context preservation, documentation locations, commit formats
 - **Current state**: Sprint plan with acceptance criteria
 - **Desired state**: Working, tested implementation + comprehensive report
 
@@ -162,12 +162,12 @@ Report MUST include:
 
 <grounding_requirements>
 Before implementing:
-1. Check `loa-grimoire/a2a/sprint-N/auditor-sprint-feedback.md` FIRST (security audit)
-2. Check `loa-grimoire/a2a/sprint-N/engineer-feedback.md` SECOND (senior lead)
-3. Check `loa-grimoire/a2a/integration-context.md` for organizational context
-4. Read `loa-grimoire/sprint.md` for acceptance criteria
-5. Read `loa-grimoire/sdd.md` for technical architecture
-6. Read `loa-grimoire/prd.md` for business requirements
+1. Check `grimoires/loa/a2a/sprint-N/auditor-sprint-feedback.md` FIRST (security audit)
+2. Check `grimoires/loa/a2a/sprint-N/engineer-feedback.md` SECOND (senior lead)
+3. Check `grimoires/loa/a2a/integration-context.md` for organizational context
+4. Read `grimoires/loa/sprint.md` for acceptance criteria
+5. Read `grimoires/loa/sdd.md` for technical architecture
+6. Read `grimoires/loa/prd.md` for business requirements
 7. Quote requirements when implementing: `> From sprint.md: Task 1.2 requires...`
 </grounding_requirements>
 
@@ -208,7 +208,7 @@ Check if Beads is available for task lifecycle management:
 Assess context size to determine if parallel splitting is needed:
 
 ```bash
-wc -l loa-grimoire/prd.md loa-grimoire/sdd.md loa-grimoire/sprint.md loa-grimoire/a2a/*.md 2>/dev/null
+wc -l grimoires/loa/prd.md grimoires/loa/sdd.md grimoires/loa/sprint.md grimoires/loa/a2a/*.md 2>/dev/null
 ```
 
 **Thresholds:**
@@ -226,7 +226,7 @@ wc -l loa-grimoire/prd.md loa-grimoire/sdd.md loa-grimoire/sprint.md loa-grimoir
 
 ### Step 1: Security Audit Feedback (HIGHEST PRIORITY)
 
-Check `loa-grimoire/a2a/sprint-N/auditor-sprint-feedback.md`:
+Check `grimoires/loa/a2a/sprint-N/auditor-sprint-feedback.md`:
 
 **If exists + "CHANGES_REQUIRED":**
 - Sprint FAILED security audit
@@ -245,7 +245,7 @@ Check `loa-grimoire/a2a/sprint-N/auditor-sprint-feedback.md`:
 
 ### Step 2: Senior Lead Feedback
 
-Check `loa-grimoire/a2a/sprint-N/engineer-feedback.md`:
+Check `grimoires/loa/a2a/sprint-N/engineer-feedback.md`:
 
 **If exists + NOT "All good":**
 - Senior lead requested changes
@@ -262,7 +262,7 @@ Check `loa-grimoire/a2a/sprint-N/engineer-feedback.md`:
 
 ### Step 3: Integration Context
 
-Check `loa-grimoire/a2a/integration-context.md`:
+Check `grimoires/loa/a2a/integration-context.md`:
 
 **If exists**, read for:
 - Context preservation requirements (link to source discussions)
@@ -273,9 +273,9 @@ Check `loa-grimoire/a2a/integration-context.md`:
 ## Phase 1: Context Gathering and Planning
 
 1. Review core documentation:
-   - `loa-grimoire/sprint.md` - Primary task list and acceptance criteria
-   - `loa-grimoire/prd.md` - Product requirements and business context
-   - `loa-grimoire/sdd.md` - System design and technical architecture
+   - `grimoires/loa/sprint.md` - Primary task list and acceptance criteria
+   - `grimoires/loa/prd.md` - Product requirements and business context
+   - `grimoires/loa/sdd.md` - System design and technical architecture
 
 2. Analyze existing codebase:
    - Understand current architecture and patterns
@@ -333,7 +333,7 @@ The user only runs `/implement sprint-1`. All bd commands are invisible.
 
 ## Phase 3: Documentation and Reporting
 
-Create report at `loa-grimoire/a2a/sprint-N/reviewer.md`:
+Create report at `grimoires/loa/a2a/sprint-N/reviewer.md`:
 
 Use template from `resources/templates/implementation-report.md`.
 
@@ -370,13 +370,13 @@ When multiple feedback sources exist:
 ```
 Spawn 2 parallel Explore agents:
 
-Agent 1: "Read loa-grimoire/a2a/sprint-N/auditor-sprint-feedback.md:
+Agent 1: "Read grimoires/loa/a2a/sprint-N/auditor-sprint-feedback.md:
 1. Does file exist?
 2. If yes, verdict (CHANGES_REQUIRED or APPROVED)?
 3. If CHANGES_REQUIRED, list all CRITICAL/HIGH issues with file paths
 Return: structured summary"
 
-Agent 2: "Read loa-grimoire/a2a/sprint-N/engineer-feedback.md:
+Agent 2: "Read grimoires/loa/a2a/sprint-N/engineer-feedback.md:
 1. Does file exist?
 2. If yes, verdict (All good or changes requested)?
 3. If changes, list all feedback items with file paths

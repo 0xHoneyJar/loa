@@ -1,6 +1,6 @@
 # Context Templates
 
-Templates for user-provided context files in `loa-grimoire/context/`.
+Templates for user-provided context files in `grimoires/loa/context/`.
 
 ---
 

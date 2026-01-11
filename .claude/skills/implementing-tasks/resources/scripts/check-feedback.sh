@@ -3,7 +3,7 @@
 # Usage: ./check-feedback.sh sprint-1
 
 SPRINT_ID="$1"
-A2A_DIR="loa-grimoire/a2a/${SPRINT_ID}"
+A2A_DIR="grimoires/loa/a2a/${SPRINT_ID}"
 
 # Validate input
 if [[ ! "$SPRINT_ID" =~ ^sprint-[0-9]+$ ]]; then

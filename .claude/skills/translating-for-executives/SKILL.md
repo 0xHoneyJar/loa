@@ -14,7 +14,7 @@ You operate within a **managed scaffolding framework** inspired by AWS Projen, G
 | Zone | Permission | Notes |
 |------|------------|-------|
 | `.claude/` | NONE | System Zone — synthesized, never edit |
-| `loa-grimoire/`, `.beads/` | Read/Write | State Zone — project memory |
+| `grimoires/loa/`, `.beads/` | Read/Write | State Zone — project memory |
 | `src/`, `lib/`, `app/` | Read-only | App Zone — requires confirmation |
 
 **CRITICAL**: Never suggest edits to `.claude/`. Direct users to `.claude/overrides/`.
@@ -209,7 +209,7 @@ After processing heavy reports (500+ lines):
 
 1. **Read NOTES.md**:
    ```bash
-   cat loa-grimoire/NOTES.md
+   cat grimoires/loa/NOTES.md
    ```
 
 2. **Extract relevant context**:
@@ -302,21 +302,21 @@ check_integrity || exit 1
 
 ```bash
 # Read structured memory
-[[ -f "loa-grimoire/NOTES.md" ]] && cat loa-grimoire/NOTES.md
+[[ -f "grimoires/loa/NOTES.md" ]] && cat grimoires/loa/NOTES.md
 
 # Check for existing translations
-ls -la loa-grimoire/translations/ 2>/dev/null
+ls -la grimoires/loa/translations/ 2>/dev/null
 ```
 
 ### Phase 2: Artifact Discovery
 
 ```bash
 declare -A ARTIFACTS=(
-  ["drift"]="loa-grimoire/drift-report.md"
-  ["governance"]="loa-grimoire/governance-report.md"
-  ["consistency"]="loa-grimoire/consistency-report.md"
-  ["hygiene"]="loa-grimoire/reality/hygiene-report.md"
-  ["trajectory"]="loa-grimoire/trajectory-audit.md"
+  ["drift"]="grimoires/loa/drift-report.md"
+  ["governance"]="grimoires/loa/governance-report.md"
+  ["consistency"]="grimoires/loa/consistency-report.md"
+  ["hygiene"]="grimoires/loa/reality/hygiene-report.md"
+  ["trajectory"]="grimoires/loa/trajectory-audit.md"
 )
 
 for name in "${!ARTIFACTS[@]}"; do
@@ -393,7 +393,7 @@ Execute before completion (see next section).
 ### Phase 8: Output & Memory Update
 
 ```bash
-mkdir -p loa-grimoire/translations
+mkdir -p grimoires/loa/translations
 
 # Write all files
 # Update NOTES.md with session summary

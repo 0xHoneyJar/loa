@@ -12,13 +12,13 @@ agent: "planning-sprints"
 agent_path: "skills/planning-sprints/"
 
 context_files:
-  - path: "loa-grimoire/prd.md"
+  - path: "grimoires/loa/prd.md"
     required: true
     purpose: "Product requirements for scope"
-  - path: "loa-grimoire/sdd.md"
+  - path: "grimoires/loa/sdd.md"
     required: true
     purpose: "Architecture for technical breakdown"
-  - path: "loa-grimoire/a2a/integration-context.md"
+  - path: "grimoires/loa/a2a/integration-context.md"
     required: false
     purpose: "Organizational context and knowledge sources"
 
@@ -28,11 +28,11 @@ pre_flight:
     error: "Loa setup has not been completed. Run /setup first."
 
   - check: "file_exists"
-    path: "loa-grimoire/prd.md"
+    path: "grimoires/loa/prd.md"
     error: "PRD not found. Run /plan-and-analyze first."
 
   - check: "file_exists"
-    path: "loa-grimoire/sdd.md"
+    path: "grimoires/loa/sdd.md"
     error: "SDD not found. Run /architect first."
 
 # Optional dependency check with HITL gate
@@ -51,7 +51,7 @@ optional_dependencies:
     fallback: "Sprint plan will use markdown-based tracking only"
 
 outputs:
-  - path: "loa-grimoire/sprint.md"
+  - path: "grimoires/loa/sprint.md"
     type: "file"
     description: "Sprint plan with tasks and acceptance criteria"
 
@@ -82,8 +82,8 @@ See: `skills/planning-sprints/SKILL.md` for full workflow details.
 ## Prerequisites
 
 - Setup completed (`.loa-setup-complete` exists)
-- PRD created (`loa-grimoire/prd.md` exists)
-- SDD created (`loa-grimoire/sdd.md` exists)
+- PRD created (`grimoires/loa/prd.md` exists)
+- SDD created (`grimoires/loa/sdd.md` exists)
 
 ## Workflow
 
@@ -92,7 +92,7 @@ See: `skills/planning-sprints/SKILL.md` for full workflow details.
 3. **Breakdown**: Create sprint structure with actionable tasks
 4. **Clarification**: Ask about team size, sprint duration, priorities
 5. **Validation**: Confirm assumptions about capacity and scope
-6. **Generation**: Create sprint plan at `loa-grimoire/sprint.md`
+6. **Generation**: Create sprint plan at `grimoires/loa/sprint.md`
 7. **Analytics**: Update usage metrics (THJ users only)
 
 ## Arguments
@@ -105,7 +105,7 @@ See: `skills/planning-sprints/SKILL.md` for full workflow details.
 
 | Path | Description |
 |------|-------------|
-| `loa-grimoire/sprint.md` | Sprint plan with tasks |
+| `grimoires/loa/sprint.md` | Sprint plan with tasks |
 
 ## Sprint Plan Sections
 

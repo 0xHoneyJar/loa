@@ -33,7 +33,7 @@ Apply change validation:
 
 ```bash
 # Extract and validate file references
-.claude/scripts/validate-change-plan.sh loa-grimoire/sprint.md
+.claude/scripts/validate-change-plan.sh grimoires/loa/sprint.md
 ```
 
 **Check that:**
@@ -114,7 +114,7 @@ Commands like `/implement` should include validation:
 pre_flight:
   - check: "script_passes"
     script: ".claude/scripts/validate-change-plan.sh"
-    args: ["loa-grimoire/sprint.md"]
+    args: ["grimoires/loa/sprint.md"]
     error: "Change plan validation failed. Review warnings."
 ```
 
@@ -205,8 +205,8 @@ Add to `.git/hooks/pre-commit`:
 
 ```bash
 #!/bin/bash
-if [[ -f "loa-grimoire/sprint.md" ]]; then
-  .claude/scripts/validate-change-plan.sh loa-grimoire/sprint.md
+if [[ -f "grimoires/loa/sprint.md" ]]; then
+  .claude/scripts/validate-change-plan.sh grimoires/loa/sprint.md
   if [[ $? -eq 2 ]]; then
     echo "❌ Blocking validation errors. Fix before committing."
     exit 1
@@ -225,8 +225,8 @@ validate:
     - uses: actions/checkout@v4
     - name: Validate change plan
       run: |
-        if [[ -f "loa-grimoire/sprint.md" ]]; then
-          .claude/scripts/validate-change-plan.sh loa-grimoire/sprint.md
+        if [[ -f "grimoires/loa/sprint.md" ]]; then
+          .claude/scripts/validate-change-plan.sh grimoires/loa/sprint.md
         fi
 ```
 

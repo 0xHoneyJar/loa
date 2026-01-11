@@ -2,10 +2,10 @@
 
 ## Input Documents
 
-- **Integration Architecture**: `loa-grimoire/integration-architecture.md` (integration mode)
-- **Software Design Document (SDD)**: `loa-grimoire/sdd.md` (deployment mode)
-- **Sprint Plan**: `loa-grimoire/sprint.md` (implementation reference)
-- **Product Requirements**: `loa-grimoire/prd.md` (context)
+- **Integration Architecture**: `grimoires/loa/integration-architecture.md` (integration mode)
+- **Software Design Document (SDD)**: `grimoires/loa/sdd.md` (deployment mode)
+- **Sprint Plan**: `grimoires/loa/sprint.md` (implementation reference)
+- **Product Requirements**: `grimoires/loa/prd.md` (context)
 
 ## Framework Documentation
 

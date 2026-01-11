@@ -7,14 +7,14 @@ get_context_size() {
     local total=0
 
     # Core planning documents
-    for file in loa-grimoire/prd.md loa-grimoire/sdd.md loa-grimoire/sprint.md; do
+    for file in grimoires/loa/prd.md grimoires/loa/sdd.md grimoires/loa/sprint.md; do
         if [ -f "$file" ]; then
             total=$((total + $(wc -l < "$file")))
         fi
     done
 
     # A2A communication files
-    for file in loa-grimoire/a2a/*.md; do
+    for file in grimoires/loa/a2a/*.md; do
         if [ -f "$file" ]; then
             total=$((total + $(wc -l < "$file")))
         fi
@@ -27,7 +27,7 @@ get_context_size() {
 get_sprint_context_size() {
     local sprint_id="$1"
     local total=0
-    local sprint_dir="loa-grimoire/a2a/${sprint_id}"
+    local sprint_dir="grimoires/loa/a2a/${sprint_id}"
 
     if [ -d "$sprint_dir" ]; then
         for file in "$sprint_dir"/*.md; do

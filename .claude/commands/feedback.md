@@ -44,7 +44,7 @@ outputs:
   - path: "Linear issue/comment"
     type: "external"
     description: "Feedback posted to Linear"
-  - path: "loa-grimoire/analytics/pending-feedback.json"
+  - path: "grimoires/loa/analytics/pending-feedback.json"
     type: "file"
     description: "Safety backup if submission fails"
 
@@ -87,7 +87,7 @@ Collect responses to 4 questions with progress indicators:
 
 ### Phase 2: Prepare Submission
 
-- Load analytics from `loa-grimoire/analytics/usage.json`
+- Load analytics from `grimoires/loa/analytics/usage.json`
 - Gather project context (name, developer info)
 - Save pending feedback as safety backup
 
@@ -114,7 +114,7 @@ Collect responses to 4 questions with progress indicators:
 | Path | Description |
 |------|-------------|
 | Linear issue | Feedback posted to "Loa Feedback" project |
-| `loa-grimoire/analytics/pending-feedback.json` | Backup if submission fails |
+| `grimoires/loa/analytics/pending-feedback.json` | Backup if submission fails |
 
 ## Survey Questions
 

@@ -21,9 +21,9 @@ This protocol defines how Loa tracks usage metrics for THJ developers. **Analyti
 
 ## Files
 
-- `loa-grimoire/analytics/usage.json` - Raw usage data (JSON)
-- `loa-grimoire/analytics/summary.md` - Human-readable summary
-- `loa-grimoire/analytics/pending-feedback.json` - Pending feedback (if submission failed)
+- `grimoires/loa/analytics/usage.json` - Raw usage data (JSON)
+- `grimoires/loa/analytics/summary.md` - Human-readable summary
+- `grimoires/loa/analytics/pending-feedback.json` - Pending feedback (if submission failed)
 
 ## Setup Marker File
 

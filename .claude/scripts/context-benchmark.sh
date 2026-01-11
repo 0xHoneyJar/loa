@@ -7,8 +7,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Allow environment variable overrides for testing
 CONFIG_FILE="${CONFIG_FILE:-${SCRIPT_DIR}/../../.loa.config.yaml}"
-NOTES_FILE="${NOTES_FILE:-${SCRIPT_DIR}/../../loa-grimoire/NOTES.md}"
-GRIMOIRE_DIR="${GRIMOIRE_DIR:-${SCRIPT_DIR}/../../loa-grimoire}"
+NOTES_FILE="${NOTES_FILE:-${SCRIPT_DIR}/../../grimoires/loa/NOTES.md}"
+GRIMOIRE_DIR="${GRIMOIRE_DIR:-${SCRIPT_DIR}/../../grimoires/loa}"
 TRAJECTORY_DIR="${TRAJECTORY_DIR:-${GRIMOIRE_DIR}/a2a/trajectory}"
 ANALYTICS_DIR="${ANALYTICS_DIR:-${GRIMOIRE_DIR}/analytics}"
 BASELINE_FILE="${BASELINE_FILE:-${ANALYTICS_DIR}/context-benchmark-baseline.json}"
@@ -49,8 +49,8 @@ Metrics Measured:
   - Recovery time estimation
 
 Configuration:
-  Results saved to: loa-grimoire/analytics/context-benchmark.json
-  Baseline file: loa-grimoire/analytics/context-benchmark-baseline.json
+  Results saved to: grimoires/loa/analytics/context-benchmark.json
+  Baseline file: grimoires/loa/analytics/context-benchmark-baseline.json
 
 Examples:
   context-benchmark.sh run

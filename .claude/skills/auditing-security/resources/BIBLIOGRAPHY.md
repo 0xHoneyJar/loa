@@ -2,11 +2,11 @@
 
 ## Input Documents
 
-- **Sprint Implementation Report**: `loa-grimoire/a2a/sprint-N/reviewer.md`
-- **Sprint Plan**: `loa-grimoire/sprint.md`
-- **Software Design Document (SDD)**: `loa-grimoire/sdd.md`
-- **Product Requirements Document (PRD)**: `loa-grimoire/prd.md`
-- **Deployment Report**: `loa-grimoire/a2a/deployment-report.md`
+- **Sprint Implementation Report**: `grimoires/loa/a2a/sprint-N/reviewer.md`
+- **Sprint Plan**: `grimoires/loa/sprint.md`
+- **Software Design Document (SDD)**: `grimoires/loa/sdd.md`
+- **Product Requirements Document (PRD)**: `grimoires/loa/prd.md`
+- **Deployment Report**: `grimoires/loa/a2a/deployment-report.md`
 
 ## Framework Documentation
 

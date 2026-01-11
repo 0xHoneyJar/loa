@@ -97,7 +97,7 @@ git fetch loa-upstream main
 git checkout loa-upstream/main -- .claude
 
 # 4. Create State Zone (if not exists)
-mkdir -p loa-grimoire/{context,discovery,a2a/trajectory} .beads
+mkdir -p grimoires/loa/{context,discovery,a2a/trajectory} .beads
 
 # 5. Initialize config
 cp .claude/templates/.loa.config.yaml .loa.config.yaml  # or create manually
@@ -116,7 +116,7 @@ your-project/
 │   ├── protocols/              # Framework protocols
 │   ├── scripts/                # Helper scripts
 │   └── overrides/              # Your customizations (preserved on updates)
-├── loa-grimoire/               # State Zone (project memory)
+├── grimoires/loa/               # State Zone (project memory)
 │   ├── NOTES.md                # Structured agentic memory
 │   ├── a2a/trajectory/         # Agent trajectory logs
 │   └── ...                     # Your project docs
@@ -162,8 +162,8 @@ drift_resolution: code  # or "docs", "ask"
 
 # Structured memory
 memory:
-  notes_file: loa-grimoire/NOTES.md
-  trajectory_dir: loa-grimoire/a2a/trajectory
+  notes_file: grimoires/loa/NOTES.md
+  trajectory_dir: grimoires/loa/a2a/trajectory
   trajectory_retention_days: 30
 
 # Evaluation-driven development
@@ -181,7 +181,7 @@ Run Loa without committing state files to your repo:
 persistence_mode: stealth
 ```
 
-This adds `loa-grimoire/`, `.beads/`, `.loa-version.json`, and `.loa.config.yaml` to `.gitignore`.
+This adds `grimoires/loa/`, `.beads/`, `.loa-version.json`, and `.loa.config.yaml` to `.gitignore`.
 
 ## Updates
 
@@ -291,8 +291,8 @@ If you see "SYSTEM ZONE INTEGRITY VIOLATION":
 # Accept upstream for .claude/ files (recommended)
 git checkout --theirs .claude/
 
-# Keep your changes for loa-grimoire/
-git checkout --ours loa-grimoire/
+# Keep your changes for grimoires/loa/
+git checkout --ours grimoires/loa/
 ```
 
 ## Loa Constructs (Commercial Skills)
@@ -375,7 +375,7 @@ registry:
   check_updates_on_setup: true
 ```
 
-See [CLI-INSTALLATION.md](loa-grimoire/context/CLI-INSTALLATION.md) for the full setup guide.
+See [CLI-INSTALLATION.md](grimoires/loa/context/CLI-INSTALLATION.md) for the full setup guide.
 
 ## Next Steps
 

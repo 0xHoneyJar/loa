@@ -39,7 +39,7 @@ zones:
     path: ".claude"
     permission: "none"  # Cannot write to System Zone
   state:
-    paths: ["loa-grimoire", ".beads"]
+    paths: ["grimoires/loa", ".beads"]
     permission: "read-write"
   app:
     paths: ["src", "lib", "app", "handlers", "test", "tests"]
@@ -78,23 +78,23 @@ inputs:
     description: "Reset System Zone if integrity fails"
 
 outputs:
-  - path: "loa-grimoire/context/claims-to-verify.md"
+  - path: "grimoires/loa/context/claims-to-verify.md"
     description: "User claims to verify against code"
-  - path: "loa-grimoire/reality/"
+  - path: "grimoires/loa/reality/"
     description: "Code extraction results"
-  - path: "loa-grimoire/legacy/"
+  - path: "grimoires/loa/legacy/"
     description: "Legacy documentation inventory"
-  - path: "loa-grimoire/drift-report.md"
+  - path: "grimoires/loa/drift-report.md"
     description: "Three-way drift analysis"
-  - path: "loa-grimoire/consistency-report.md"
+  - path: "grimoires/loa/consistency-report.md"
     description: "Pattern consistency analysis"
-  - path: "loa-grimoire/prd.md"
+  - path: "grimoires/loa/prd.md"
     description: "Evidence-grounded PRD"
-  - path: "loa-grimoire/sdd.md"
+  - path: "grimoires/loa/sdd.md"
     description: "Evidence-grounded SDD"
-  - path: "loa-grimoire/governance-report.md"
+  - path: "grimoires/loa/governance-report.md"
     description: "Governance artifacts audit"
-  - path: "loa-grimoire/trajectory-audit.md"
+  - path: "grimoires/loa/trajectory-audit.md"
     description: "Reasoning quality self-audit"
 
 integrations:

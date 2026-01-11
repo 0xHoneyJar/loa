@@ -115,9 +115,9 @@ git merge loa/main -m "chore: update Loa framework"
 | `CLAUDE.md` | Standard merge (may conflict) |
 | `PROCESS.md` | Standard merge (may conflict) |
 | `app/` | Preserved (your code) |
-| `loa-grimoire/prd.md` | Preserved (your docs) |
-| `loa-grimoire/sdd.md` | Preserved (your docs) |
-| `loa-grimoire/analytics/` | Preserved (your data) |
+| `grimoires/loa/prd.md` | Preserved (your docs) |
+| `grimoires/loa/sdd.md` | Preserved (your docs) |
+| `grimoires/loa/analytics/` | Preserved (your data) |
 | `.loa-setup-complete` | Preserved (your setup state) |
 | `CHANGELOG.md` | Preserved (your project changelog) |
 | `README.md` | Preserved (your project readme) |

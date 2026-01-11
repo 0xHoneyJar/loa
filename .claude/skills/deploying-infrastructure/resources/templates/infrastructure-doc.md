@@ -274,7 +274,7 @@ Example:
 
 - **IaC Repository:** `{path/to/terraform}`
 - **Application Repository:** `{path/to/app}`
-- **Runbooks:** `loa-grimoire/deployment/runbooks/`
+- **Runbooks:** `grimoires/loa/deployment/runbooks/`
 - **ADRs:** `{path/to/adrs}`
 
 ---

@@ -43,7 +43,7 @@ Loa uses a **managed scaffolding** architecture inspired by AWS Projen, Copier, 
 | Zone | Path | Owner | Description |
 |------|------|-------|-------------|
 | **System** | `.claude/` | Framework | Immutable - overwritten on updates |
-| **State** | `loa-grimoire/`, `.beads/` | Project | Your project memory - never touched |
+| **State** | `grimoires/`, `.beads/` | Project | Your project memory - never touched |
 | **App** | `src/`, `lib/`, `app/` | Developer | Your code - ignored entirely |
 
 **Key principle**: Never edit `.claude/` directly. Use `.claude/overrides/` for customizations.
@@ -53,9 +53,9 @@ Loa uses a **managed scaffolding** architecture inspired by AWS Projen, Copier, 
 | Phase | Command | Agent | Output |
 |-------|---------|-------|--------|
 | 0 | `/setup` | - | `.loa-setup-complete` |
-| 1 | `/plan-and-analyze` | discovering-requirements | `loa-grimoire/prd.md` |
-| 2 | `/architect` | designing-architecture | `loa-grimoire/sdd.md` |
-| 3 | `/sprint-plan` | planning-sprints | `loa-grimoire/sprint.md` |
+| 1 | `/plan-and-analyze` | discovering-requirements | `grimoires/loa/prd.md` |
+| 2 | `/architect` | designing-architecture | `grimoires/loa/sdd.md` |
+| 3 | `/sprint-plan` | planning-sprints | `grimoires/loa/sprint.md` |
 | 4 | `/implement sprint-N` | implementing-tasks | Code + report |
 | 5 | `/review-sprint sprint-N` | reviewing-code | Approval/feedback |
 | 5.5 | `/audit-sprint sprint-N` | auditing-security | Security approval |
@@ -111,7 +111,7 @@ See **[INSTALLATION.md](INSTALLATION.md#loa-constructs-commercial-skills)** for 
 
 ### Structured Agentic Memory
 
-Agents maintain persistent working memory in `loa-grimoire/NOTES.md`:
+Agents maintain persistent working memory in `grimoires/loa/NOTES.md`:
 - Survives context window resets
 - Tracks technical debt, blockers, decisions
 - Enables continuity across sessions
@@ -165,17 +165,20 @@ persistence_mode: stealth
 │   └── validate-change-plan.sh # Pre-implementation validation
 └── overrides/                  # Your customizations
 
-loa-grimoire/                   # State Zone (project memory)
-├── NOTES.md                    # Structured agentic memory
-├── context/                    # User-provided context
-├── reality/                    # Code extraction results (/ride)
-├── legacy/                     # Legacy doc inventory (/ride)
-├── prd.md, sdd.md, sprint.md  # Planning docs
-├── drift-report.md            # Three-way drift analysis
-├── a2a/                        # Agent communication
-│   ├── trajectory/            # Agent reasoning logs
-│   └── sprint-N/              # Per-sprint feedback
-└── deployment/                 # Infrastructure docs
+grimoires/                      # State Zone (project memory)
+├── loa/                        # Private project state (gitignored)
+│   ├── NOTES.md                # Structured agentic memory
+│   ├── context/                # User-provided context
+│   ├── reality/                # Code extraction results (/ride)
+│   ├── prd.md, sdd.md, sprint.md  # Planning docs
+│   ├── a2a/                    # Agent communication
+│   │   ├── trajectory/         # Agent reasoning logs
+│   │   └── sprint-N/           # Per-sprint feedback
+│   └── deployment/             # Infrastructure docs
+└── pub/                        # Public documents (git-tracked)
+    ├── research/               # Research and analysis
+    ├── docs/                   # Shareable documentation
+    └── artifacts/              # Public build artifacts
 
 .beads/                        # Task graph (optional)
 .ckignore                      # ck semantic search exclusions (optional)
@@ -197,7 +200,7 @@ grounding:
   threshold: 0.95               # 0.00-1.00
 
 memory:
-  notes_file: loa-grimoire/NOTES.md
+  notes_file: grimoires/loa/NOTES.md
   trajectory_retention_days: 30
 
 edd:

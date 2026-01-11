@@ -148,7 +148,7 @@ If self-audit FAILS:
 # Load agent's trajectory log
 AGENT="implementing-tasks"
 DATE=$(date +%Y-%m-%d)
-TRAJECTORY="loa-grimoire/a2a/trajectory/${AGENT}-${DATE}.jsonl"
+TRAJECTORY="grimoires/loa/a2a/trajectory/${AGENT}-${DATE}.jsonl"
 
 # Verify evidence chains
 grep '"phase":"intent"' "$TRAJECTORY" | wc -l  # Searches initiated

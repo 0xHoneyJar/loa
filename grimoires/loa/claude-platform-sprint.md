@@ -11,8 +11,8 @@
 
 | Field | Value |
 |-------|-------|
-| PRD Reference | `loa-grimoire/claude-platform-integration-prd.md` |
-| SDD Reference | `loa-grimoire/claude-platform-integration-sdd.md` |
+| PRD Reference | `grimoires/loa/claude-platform-integration-prd.md` |
+| SDD Reference | `grimoires/loa/claude-platform-integration-sdd.md` |
 | Total Sprints | 4 |
 | Team Size | Solo developer |
 | Strategy | 1 phase per sprint |
@@ -357,7 +357,7 @@
 - [ ] Script exists at `.claude/scripts/thinking-logger.sh`
 - [ ] Implements `log <agent> <action> <trace>` command
 - [ ] Implements `query --agent <agent> --since <timestamp>`
-- [ ] Writes to `loa-grimoire/a2a/trajectory/<agent>-<date>.jsonl`
+- [ ] Writes to `grimoires/loa/a2a/trajectory/<agent>-<date>.jsonl`
 - [ ] Entry format matches trajectory-entry schema
 - [ ] Handles multi-step thinking traces
 - [ ] Validates against schema before writing
@@ -790,7 +790,7 @@
 - [ ] Reports comparison to baseline
 - [ ] Supports `--baseline` to set baseline
 - [ ] Supports `--compare` to compare against baseline
-- [ ] Results logged to `loa-grimoire/analytics/` (if THJ)
+- [ ] Results logged to `grimoires/loa/analytics/` (if THJ)
 
 **Dependencies:** TASK-4.1
 

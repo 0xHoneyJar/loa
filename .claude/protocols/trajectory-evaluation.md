@@ -69,14 +69,14 @@ Agents must structure their search reasoning in this format:
 ## Trajectory Log Location
 
 ```
-loa-grimoire/a2a/trajectory/
+grimoires/loa/a2a/trajectory/
   {agent}-{date}.jsonl
 ```
 
 **Examples**:
-- `loa-grimoire/a2a/trajectory/implementing-tasks-2025-12-27.jsonl`
-- `loa-grimoire/a2a/trajectory/reviewing-code-2025-12-27.jsonl`
-- `loa-grimoire/a2a/trajectory/discovering-requirements-2025-12-27.jsonl`
+- `grimoires/loa/a2a/trajectory/implementing-tasks-2025-12-27.jsonl`
+- `grimoires/loa/a2a/trajectory/reviewing-code-2025-12-27.jsonl`
+- `grimoires/loa/a2a/trajectory/discovering-requirements-2025-12-27.jsonl`
 
 ## JSONL Log Format
 
@@ -346,12 +346,12 @@ Agents can query their own trajectory logs:
 
 **Find all assumptions**:
 ```bash
-grep '"grounding":"assumption"' loa-grimoire/a2a/trajectory/implementing-tasks-2025-12-27.jsonl
+grep '"grounding":"assumption"' grimoires/loa/a2a/trajectory/implementing-tasks-2025-12-27.jsonl
 ```
 
 **Find all pivots**:
 ```bash
-grep '"phase":"pivot"' loa-grimoire/a2a/trajectory/implementing-tasks-2025-12-27.jsonl
+grep '"phase":"pivot"' grimoires/loa/a2a/trajectory/implementing-tasks-2025-12-27.jsonl
 ```
 
 **Calculate grounding ratio**:
@@ -387,7 +387,7 @@ trajectory:
 
 ## Retention
 
-Trajectory logs stored in `loa-grimoire/a2a/trajectory/` with retention:
+Trajectory logs stored in `grimoires/loa/a2a/trajectory/` with retention:
 
 | Age | Status | Action |
 |-----|--------|--------|
@@ -399,9 +399,9 @@ Trajectory logs stored in `loa-grimoire/a2a/trajectory/` with retention:
 
 To preserve a trajectory permanently:
 ```bash
-mkdir -p loa-grimoire/a2a/trajectory/archive/
-mv loa-grimoire/a2a/trajectory/implementing-2024-01-10.jsonl \
-   loa-grimoire/a2a/trajectory/archive/
+mkdir -p grimoires/loa/a2a/trajectory/archive/
+mv grimoires/loa/a2a/trajectory/implementing-2024-01-10.jsonl \
+   grimoires/loa/a2a/trajectory/archive/
 ```
 
 ## Communication Guidelines
@@ -515,7 +515,7 @@ The `session_handoff` phase is logged when context is cleared via `/clear`.
 ### Session Handoff Log Format
 
 ```jsonl
-{"ts":"2024-01-15T14:30:00Z","agent":"implementing-tasks","phase":"session_handoff","session_id":"sess-002","root_span_id":"span-def","bead_id":"bd-x7y8","notes_refs":["loa-grimoire/NOTES.md:68-92"],"edd_verified":true,"grounding_ratio":0.97,"test_scenarios":3,"next_session_ready":true}
+{"ts":"2024-01-15T14:30:00Z","agent":"implementing-tasks","phase":"session_handoff","session_id":"sess-002","root_span_id":"span-def","bead_id":"bd-x7y8","notes_refs":["grimoires/loa/NOTES.md:68-92"],"edd_verified":true,"grounding_ratio":0.97,"test_scenarios":3,"next_session_ready":true}
 ```
 
 ### Required Fields
@@ -544,7 +544,7 @@ Session 1: span-abc (initial work)
 
 Query lineage:
 ```bash
-grep '"root_span_id":"span-abc"' loa-grimoire/a2a/trajectory/*.jsonl
+grep '"root_span_id":"span-abc"' grimoires/loa/a2a/trajectory/*.jsonl
 ```
 
 ---

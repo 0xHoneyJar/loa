@@ -2,7 +2,7 @@
 # Check for integration context file
 # Usage: ./check-integration-context.sh
 
-CONTEXT_FILE="loa-grimoire/a2a/integration-context.md"
+CONTEXT_FILE="grimoires/loa/a2a/integration-context.md"
 
 if [ -f "$CONTEXT_FILE" ]; then
     echo "EXISTS"

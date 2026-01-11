@@ -15,7 +15,7 @@ Loa uses a managed scaffolding architecture:
 | Zone | Path | Owner | Permission |
 |------|------|-------|------------|
 | **System** | `.claude/` | Framework | NEVER edit directly |
-| **State** | `loa-grimoire/`, `.beads/` | Project | Read/Write |
+| **State** | `grimoires/`, `.beads/` | Project | Read/Write |
 | **App** | `src/`, `lib/`, `app/` | Developer | Read (write requires confirmation) |
 
 **Critical**: System Zone is synthesized. Never suggest edits to `.claude/` - direct users to `.claude/overrides/` or `.loa.config.yaml`.
@@ -26,13 +26,13 @@ Loa uses a managed scaffolding architecture:
 
 | Skill | Role | Output |
 |-------|------|--------|
-| `discovering-requirements` | Product Manager | `loa-grimoire/prd.md` |
-| `designing-architecture` | Software Architect | `loa-grimoire/sdd.md` |
-| `planning-sprints` | Technical PM | `loa-grimoire/sprint.md` |
+| `discovering-requirements` | Product Manager | `grimoires/loa/prd.md` |
+| `designing-architecture` | Software Architect | `grimoires/loa/sdd.md` |
+| `planning-sprints` | Technical PM | `grimoires/loa/sprint.md` |
 | `implementing-tasks` | Senior Engineer | Code + `a2a/sprint-N/reviewer.md` |
 | `reviewing-code` | Tech Lead | `a2a/sprint-N/engineer-feedback.md` |
 | `auditing-security` | Security Auditor | `SECURITY-AUDIT-REPORT.md` or `a2a/sprint-N/auditor-sprint-feedback.md` |
-| `deploying-infrastructure` | DevOps Architect | `loa-grimoire/deployment/` |
+| `deploying-infrastructure` | DevOps Architect | `grimoires/loa/deployment/` |
 | `translating-for-executives` | Developer Relations | Executive summaries |
 
 ### 3-Level Skill Structure
@@ -141,7 +141,7 @@ Overrides survive framework updates.
 
 ### Structured Agentic Memory
 
-Agents maintain persistent working memory in `loa-grimoire/NOTES.md`:
+Agents maintain persistent working memory in `grimoires/loa/NOTES.md`:
 
 ```markdown
 ## Active Sub-Goals
@@ -195,7 +195,7 @@ session_continuity:
 
 ### Trajectory Evaluation (ADK-Level)
 
-Agents log reasoning to `loa-grimoire/a2a/trajectory/{agent}-{date}.jsonl`:
+Agents log reasoning to `grimoires/loa/a2a/trajectory/{agent}-{date}.jsonl`:
 
 ```json
 {"timestamp": "...", "agent": "...", "action": "...", "reasoning": "...", "grounding": {...}}
@@ -219,7 +219,7 @@ Three quality gates - see `.claude/protocols/feedback-loops.md`:
 
 **Priority**: Audit feedback checked FIRST on `/implement`, then engineer feedback.
 
-**Sprint completion marker**: `loa-grimoire/a2a/sprint-N/COMPLETED` created on security approval.
+**Sprint completion marker**: `grimoires/loa/a2a/sprint-N/COMPLETED` created on security approval.
 
 ### Git Safety
 
@@ -233,41 +233,46 @@ Prevents accidental pushes to upstream template - see `.claude/protocols/git-saf
 
 Tracks usage for THJ developers - see `.claude/protocols/analytics.md`:
 
-- Stored in `loa-grimoire/analytics/usage.json`
+- Stored in `grimoires/loa/analytics/usage.json`
 - OSS users have no analytics tracking
 - Opt-in sharing via `/feedback`
 
 ## Document Flow
 
 ```
-loa-grimoire/
-├── NOTES.md            # Structured agentic memory
-├── context/            # User-provided context (pre-discovery)
-├── reality/            # Code extraction (/ride output)
-├── legacy/             # Legacy doc inventory (/ride output)
-├── prd.md              # Product Requirements
-├── sdd.md              # Software Design
-├── sprint.md           # Sprint Plan
-├── drift-report.md     # Code vs docs drift (/ride output)
-├── a2a/                # Agent-to-Agent communication
-│   ├── index.md        # Audit trail index
-│   ├── trajectory/     # Agent reasoning logs
-│   ├── sprint-N/       # Per-sprint files
-│   │   ├── reviewer.md
-│   │   ├── engineer-feedback.md
-│   │   ├── auditor-sprint-feedback.md
-│   │   └── COMPLETED
-│   ├── deployment-report.md
-│   └── deployment-feedback.md
-├── analytics/          # THJ only
-└── deployment/         # Production docs
+grimoires/
+├── loa/                    # Private project state (gitignored)
+│   ├── NOTES.md            # Structured agentic memory
+│   ├── context/            # User-provided context (pre-discovery)
+│   ├── reality/            # Code extraction (/ride output)
+│   ├── legacy/             # Legacy doc inventory (/ride output)
+│   ├── prd.md              # Product Requirements
+│   ├── sdd.md              # Software Design
+│   ├── sprint.md           # Sprint Plan
+│   ├── drift-report.md     # Code vs docs drift (/ride output)
+│   ├── a2a/                # Agent-to-Agent communication
+│   │   ├── index.md        # Audit trail index
+│   │   ├── trajectory/     # Agent reasoning logs
+│   │   ├── sprint-N/       # Per-sprint files
+│   │   │   ├── reviewer.md
+│   │   │   ├── engineer-feedback.md
+│   │   │   ├── auditor-sprint-feedback.md
+│   │   │   └── COMPLETED
+│   │   ├── deployment-report.md
+│   │   └── deployment-feedback.md
+│   ├── analytics/          # THJ only
+│   └── deployment/         # Production docs
+└── pub/                    # Public documents (git-tracked)
+    ├── research/           # Research and analysis
+    ├── docs/               # Shareable documentation
+    └── artifacts/          # Public build artifacts
 ```
 
 ## Implementation Notes
 
 ### When `/implement sprint-N` is invoked:
 1. Validate sprint format (`sprint-N` where N is positive integer)
-2. Create `loa-grimoire/a2a/sprint-N/` if missing
+2. Create `grimoires/loa/a2a/sprint-N/` if missing
 3. Check audit feedback FIRST (`auditor-sprint-feedback.md`)
 4. Then check engineer feedback (`engineer-feedback.md`)
 5. Address all feedback before new work
@@ -408,7 +413,7 @@ Validates agent outputs against JSON schemas:
 
 ```bash
 # Validate a file (auto-detects schema based on path)
-.claude/scripts/schema-validator.sh validate loa-grimoire/prd.md
+.claude/scripts/schema-validator.sh validate grimoires/loa/prd.md
 
 # List available schemas
 .claude/scripts/schema-validator.sh list
@@ -462,7 +467,7 @@ Logs agent reasoning with extended thinking support:
   --confidence 0.95
 
 # Read trajectory entries
-.claude/scripts/thinking-logger.sh read loa-grimoire/a2a/trajectory/implementing-tasks-2025-01-11.jsonl --last 5
+.claude/scripts/thinking-logger.sh read grimoires/loa/a2a/trajectory/implementing-tasks-2025-01-11.jsonl --last 5
 
 # Initialize trajectory directory
 .claude/scripts/thinking-logger.sh init
@@ -528,7 +533,7 @@ export LOA_CONSTRUCTS_API_KEY="sk_your_api_key_here"
 /skill-login
 ```
 
-See `loa-grimoire/context/CLI-INSTALLATION.md` for full setup guide.
+See `grimoires/loa/context/CLI-INSTALLATION.md` for full setup guide.
 
 ### Directory Structure
 

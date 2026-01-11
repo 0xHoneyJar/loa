@@ -18,23 +18,23 @@ agent: "implementing-tasks"
 agent_path: "skills/implementing-tasks/"
 
 context_files:
-  - path: "loa-grimoire/a2a/integration-context.md"
+  - path: "grimoires/loa/a2a/integration-context.md"
     required: false
     purpose: "Organizational context and MCP tools"
-  - path: "loa-grimoire/prd.md"
+  - path: "grimoires/loa/prd.md"
     required: true
     purpose: "Product requirements for grounding"
-  - path: "loa-grimoire/sdd.md"
+  - path: "grimoires/loa/sdd.md"
     required: true
     purpose: "Architecture decisions"
-  - path: "loa-grimoire/sprint.md"
+  - path: "grimoires/loa/sprint.md"
     required: true
     purpose: "Sprint tasks and acceptance criteria"
-  - path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/auditor-sprint-feedback.md"
+  - path: "grimoires/loa/a2a/$ARGUMENTS.sprint_id/auditor-sprint-feedback.md"
     required: false
     priority: 1
     purpose: "Security audit feedback (checked FIRST)"
-  - path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/engineer-feedback.md"
+  - path: "grimoires/loa/a2a/$ARGUMENTS.sprint_id/engineer-feedback.md"
     required: false
     priority: 2
     purpose: "Senior lead feedback"
@@ -50,34 +50,34 @@ pre_flight:
     error: "Invalid sprint ID. Expected format: sprint-N (e.g., sprint-1)"
 
   - check: "file_exists"
-    path: "loa-grimoire/prd.md"
+    path: "grimoires/loa/prd.md"
     error: "PRD not found. Run /plan-and-analyze first."
 
   - check: "file_exists"
-    path: "loa-grimoire/sdd.md"
+    path: "grimoires/loa/sdd.md"
     error: "SDD not found. Run /architect first."
 
   - check: "file_exists"
-    path: "loa-grimoire/sprint.md"
+    path: "grimoires/loa/sprint.md"
     error: "Sprint plan not found. Run /sprint-plan first."
 
   - check: "content_contains"
-    path: "loa-grimoire/sprint.md"
+    path: "grimoires/loa/sprint.md"
     pattern: "$ARGUMENTS.sprint_id"
     error: "Sprint $ARGUMENTS.sprint_id not found in sprint.md"
 
   - check: "file_not_exists"
-    path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/COMPLETED"
+    path: "grimoires/loa/a2a/$ARGUMENTS.sprint_id/COMPLETED"
     error: "Sprint $ARGUMENTS.sprint_id is already COMPLETED."
 
 outputs:
-  - path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/"
+  - path: "grimoires/loa/a2a/$ARGUMENTS.sprint_id/"
     type: "directory"
     description: "Sprint A2A directory (created if needed)"
-  - path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/reviewer.md"
+  - path: "grimoires/loa/a2a/$ARGUMENTS.sprint_id/reviewer.md"
     type: "file"
     description: "Implementation report for senior review"
-  - path: "loa-grimoire/a2a/index.md"
+  - path: "grimoires/loa/a2a/index.md"
     type: "file"
     description: "Sprint index (updated)"
   - path: "app/src/**/*"
@@ -111,12 +111,12 @@ See: `skills/implementing-tasks/SKILL.md` for full workflow details.
 ## Workflow
 
 1. **Pre-flight**: Validate sprint ID, check setup, verify prerequisites
-2. **Directory Setup**: Create `loa-grimoire/a2a/{sprint_id}/` if needed
+2. **Directory Setup**: Create `grimoires/loa/a2a/{sprint_id}/` if needed
 3. **Feedback Check**: Audit feedback (priority 1) → Engineer feedback (priority 2)
 4. **Context Loading**: Read PRD, SDD, sprint plan for requirements
 5. **Implementation**: Execute tasks with production-quality code and tests
 6. **Report Generation**: Create `reviewer.md` with full implementation details
-7. **Index Update**: Update `loa-grimoire/a2a/index.md` with sprint status
+7. **Index Update**: Update `grimoires/loa/a2a/index.md` with sprint status
 8. **Analytics**: Update usage metrics (THJ users only)
 
 ## Arguments
@@ -130,8 +130,8 @@ See: `skills/implementing-tasks/SKILL.md` for full workflow details.
 
 | Path | Description |
 |------|-------------|
-| `loa-grimoire/a2a/{sprint_id}/reviewer.md` | Implementation report |
-| `loa-grimoire/a2a/index.md` | Updated sprint index |
+| `grimoires/loa/a2a/{sprint_id}/reviewer.md` | Implementation report |
+| `grimoires/loa/a2a/index.md` | Updated sprint index |
 | `app/src/**/*` | Implementation code and tests |
 
 ## Error Handling

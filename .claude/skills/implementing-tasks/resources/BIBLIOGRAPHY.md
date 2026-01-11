@@ -2,9 +2,9 @@
 
 ## Input Documents
 
-- **Sprint Plan**: `loa-grimoire/sprint.md`
-- **Software Design Document (SDD)**: `loa-grimoire/sdd.md`
-- **Product Requirements Document (PRD)**: `loa-grimoire/prd.md`
+- **Sprint Plan**: `grimoires/loa/sprint.md`
+- **Software Design Document (SDD)**: `grimoires/loa/sdd.md`
+- **Product Requirements Document (PRD)**: `grimoires/loa/prd.md`
 
 ## Framework Documentation
 
@@ -13,9 +13,9 @@
 
 ## A2A Communication
 
-- **Implementation Report Path**: `loa-grimoire/a2a/sprint-N/reviewer.md`
-- **Engineer Feedback Path**: `loa-grimoire/a2a/sprint-N/engineer-feedback.md`
-- **Security Audit Feedback Path**: `loa-grimoire/a2a/sprint-N/auditor-sprint-feedback.md`
+- **Implementation Report Path**: `grimoires/loa/a2a/sprint-N/reviewer.md`
+- **Engineer Feedback Path**: `grimoires/loa/a2a/sprint-N/engineer-feedback.md`
+- **Security Audit Feedback Path**: `grimoires/loa/a2a/sprint-N/auditor-sprint-feedback.md`
 
 ## Testing Resources
 

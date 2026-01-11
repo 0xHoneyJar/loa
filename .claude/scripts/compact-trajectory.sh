@@ -14,7 +14,7 @@
 set -euo pipefail
 
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-TRAJECTORY_DIR="${PROJECT_ROOT}/loa-grimoire/a2a/trajectory"
+TRAJECTORY_DIR="${PROJECT_ROOT}/grimoires/loa/a2a/trajectory"
 ARCHIVE_DIR="${TRAJECTORY_DIR}/archive"
 
 # Default retention policy (days)

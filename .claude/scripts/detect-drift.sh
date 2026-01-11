@@ -10,7 +10,7 @@
 #   --full     Full drift analysis (slower, more thorough)
 #
 # Output:
-#   Prints drift status and optionally updates loa-grimoire/drift-report.md
+#   Prints drift status and optionally updates grimoires/loa/drift-report.md
 #
 
 set -euo pipefail
@@ -35,14 +35,14 @@ echo "================================"
 echo ""
 
 # Check if grimoire exists
-if [[ ! -d "$PROJECT_ROOT/loa-grimoire" ]]; then
-  echo -e "${YELLOW}⚠️ No loa-grimoire found. Run /mount first.${NC}"
+if [[ ! -d "$PROJECT_ROOT/grimoires/loa" ]]; then
+  echo -e "${YELLOW}⚠️ No grimoires/loa found. Run /mount first.${NC}"
   exit 0
 fi
 
 # Sprint 4 Enhancement: Load configurable watch paths (FR-9.1, GitHub Issue #10)
 # Default watch paths if config not available
-DEFAULT_WATCH_PATHS=(".claude/" "loa-grimoire/")
+DEFAULT_WATCH_PATHS=(".claude/" "grimoires/loa/")
 WATCH_PATHS=()
 
 if command -v yq >/dev/null 2>&1 && [[ -f "${LOA_CONFIG}" ]]; then
@@ -110,8 +110,8 @@ count_code_routes() {
 
 # Function to count routes in docs
 count_doc_routes() {
-  if [[ -f "$PROJECT_ROOT/loa-grimoire/sdd.md" ]]; then
-    grep -c "| GET\|| POST\|| PUT\|| DELETE\|| PATCH" "$PROJECT_ROOT/loa-grimoire/sdd.md" 2>/dev/null || echo 0
+  if [[ -f "$PROJECT_ROOT/grimoires/loa/sdd.md" ]]; then
+    grep -c "| GET\|| POST\|| PUT\|| DELETE\|| PATCH" "$PROJECT_ROOT/grimoires/loa/sdd.md" 2>/dev/null || echo 0
   else
     echo 0
   fi
@@ -127,8 +127,8 @@ count_code_entities() {
 
 # Function to count entities in docs
 count_doc_entities() {
-  if [[ -f "$PROJECT_ROOT/loa-grimoire/sdd.md" ]]; then
-    grep -c "### Entity:\|### Model:\|## Data Model" "$PROJECT_ROOT/loa-grimoire/sdd.md" 2>/dev/null || echo 0
+  if [[ -f "$PROJECT_ROOT/grimoires/loa/sdd.md" ]]; then
+    grep -c "### Entity:\|### Model:\|## Data Model" "$PROJECT_ROOT/grimoires/loa/sdd.md" 2>/dev/null || echo 0
   else
     echo 0
   fi
@@ -173,14 +173,14 @@ if [[ "$MODE" == "--quick" || "$MODE" == "quick" ]]; then
   fi
 
   # Check if PRD/SDD exist
-  if [[ ! -f "$PROJECT_ROOT/loa-grimoire/prd.md" ]]; then
+  if [[ ! -f "$PROJECT_ROOT/grimoires/loa/prd.md" ]]; then
     echo -e "${RED}❌ PRD missing - run /ride to generate${NC}"
     DRIFT_COUNT=$((DRIFT_COUNT + 1))
   else
     echo -e "${GREEN}✓ PRD exists${NC}"
   fi
 
-  if [[ ! -f "$PROJECT_ROOT/loa-grimoire/sdd.md" ]]; then
+  if [[ ! -f "$PROJECT_ROOT/grimoires/loa/sdd.md" ]]; then
     echo -e "${RED}❌ SDD missing - run /ride to generate${NC}"
     DRIFT_COUNT=$((DRIFT_COUNT + 1))
   else
@@ -188,8 +188,8 @@ if [[ "$MODE" == "--quick" || "$MODE" == "quick" ]]; then
   fi
 
   # Check last ride date
-  if [[ -f "$PROJECT_ROOT/loa-grimoire/drift-report.md" ]]; then
-    LAST_RIDE=$(grep "Generated:" "$PROJECT_ROOT/loa-grimoire/drift-report.md" 2>/dev/null | head -1 | cut -d: -f2- | xargs)
+  if [[ -f "$PROJECT_ROOT/grimoires/loa/drift-report.md" ]]; then
+    LAST_RIDE=$(grep "Generated:" "$PROJECT_ROOT/grimoires/loa/drift-report.md" 2>/dev/null | head -1 | cut -d: -f2- | xargs)
     if [[ -n "$LAST_RIDE" ]]; then
       echo ""
       echo "📅 Last ride: $LAST_RIDE"
@@ -207,8 +207,8 @@ if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
   TEMP_FILE=$(mktemp)
 
   # Check for new files since last ride
-  if [[ -f "$PROJECT_ROOT/loa-grimoire/drift-report.md" ]]; then
-    LAST_RIDE_EPOCH=$(stat -c %Y "$PROJECT_ROOT/loa-grimoire/drift-report.md" 2>/dev/null || stat -f %m "$PROJECT_ROOT/loa-grimoire/drift-report.md" 2>/dev/null || echo 0)
+  if [[ -f "$PROJECT_ROOT/grimoires/loa/drift-report.md" ]]; then
+    LAST_RIDE_EPOCH=$(stat -c %Y "$PROJECT_ROOT/grimoires/loa/drift-report.md" 2>/dev/null || stat -f %m "$PROJECT_ROOT/grimoires/loa/drift-report.md" 2>/dev/null || echo 0)
 
     echo "Files modified since last ride:"
     find "$PROJECT_ROOT" \
@@ -216,7 +216,7 @@ if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
       -not -path "*/node_modules/*" \
       -not -path "*/.git/*" \
       -not -path "*/dist/*" \
-      -newer "$PROJECT_ROOT/loa-grimoire/drift-report.md" 2>/dev/null | head -20 | while read f; do
+      -newer "$PROJECT_ROOT/grimoires/loa/drift-report.md" 2>/dev/null | head -20 | while read f; do
       echo "  📝 $f"
       DRIFT_COUNT=$((DRIFT_COUNT + 1))
     done
@@ -235,13 +235,13 @@ if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
 
   # Check for orphaned documentation
   echo "Checking for ghost documentation..."
-  if [[ -f "$PROJECT_ROOT/loa-grimoire/legacy/doc-files.txt" ]]; then
+  if [[ -f "$PROJECT_ROOT/grimoires/loa/legacy/doc-files.txt" ]]; then
     while read doc; do
       if [[ ! -f "$PROJECT_ROOT/$doc" ]]; then
         echo -e "  ${RED}👻 Missing: $doc${NC}"
         GHOST_COUNT=$((GHOST_COUNT + 1))
       fi
-    done < "$PROJECT_ROOT/loa-grimoire/legacy/doc-files.txt"
+    done < "$PROJECT_ROOT/grimoires/loa/legacy/doc-files.txt"
   fi
 
   rm -f "$TEMP_FILE"

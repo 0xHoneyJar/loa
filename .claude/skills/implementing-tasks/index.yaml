@@ -4,10 +4,10 @@ model: "sonnet"
 color: "yellow"
 
 description: |
-  Use this skill IF user needs to implement sprint tasks from loa-grimoire/sprint.md,
+  Use this skill IF user needs to implement sprint tasks from grimoires/loa/sprint.md,
   OR feedback has been received in engineer-feedback.md that needs addressing.
   Implements production-grade code with comprehensive tests, follows existing patterns,
-  and generates detailed reports. Produces report at loa-grimoire/a2a/sprint-N/reviewer.md.
+  and generates detailed reports. Produces report at grimoires/loa/a2a/sprint-N/reviewer.md.
 
 triggers:
   - "/implement"
@@ -25,7 +25,7 @@ examples:
     user_says: "The senior lead has provided feedback on the sprint implementation"
     agent_action: "Launch implementing-tasks to review feedback, address issues, and generate updated report"
   - context: "New sprint has just been planned"
-    user_says: "I've finished documenting sprint 5 in loa-grimoire/sprint.md"
+    user_says: "I've finished documenting sprint 5 in grimoires/loa/sprint.md"
     agent_action: "Launch implementing-tasks to begin implementing the sprint tasks"
   - context: "Development cycle requires implementation"
     user_says: "Let's start working on the features we planned for this sprint"
@@ -33,11 +33,11 @@ examples:
 
 dependencies:
   - skill: "planning-sprints"
-    artifact: "loa-grimoire/sprint.md"
+    artifact: "grimoires/loa/sprint.md"
   - skill: "designing-architecture"
-    artifact: "loa-grimoire/sdd.md"
+    artifact: "grimoires/loa/sdd.md"
   - skill: "discovering-requirements"
-    artifact: "loa-grimoire/prd.md"
+    artifact: "grimoires/loa/prd.md"
 
 inputs:
   - name: "sprint_id"
@@ -47,7 +47,7 @@ inputs:
     description: "Sprint identifier (e.g., sprint-1)"
 
 outputs:
-  - path: "loa-grimoire/a2a/sprint-{id}/reviewer.md"
+  - path: "grimoires/loa/a2a/sprint-{id}/reviewer.md"
     description: "Implementation report for senior lead review"
 
 # v0.9.0 Lossless Ledger Protocol Integration

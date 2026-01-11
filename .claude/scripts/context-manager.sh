@@ -7,8 +7,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Allow environment variable overrides for testing
 CONFIG_FILE="${CONFIG_FILE:-${SCRIPT_DIR}/../../.loa.config.yaml}"
-NOTES_FILE="${NOTES_FILE:-${SCRIPT_DIR}/../../loa-grimoire/NOTES.md}"
-GRIMOIRE_DIR="${GRIMOIRE_DIR:-${SCRIPT_DIR}/../../loa-grimoire}"
+NOTES_FILE="${NOTES_FILE:-${SCRIPT_DIR}/../../grimoires/loa/NOTES.md}"
+GRIMOIRE_DIR="${GRIMOIRE_DIR:-${SCRIPT_DIR}/../../grimoires/loa}"
 TRAJECTORY_DIR="${TRAJECTORY_DIR:-${GRIMOIRE_DIR}/a2a/trajectory}"
 PROTOCOLS_DIR="${PROTOCOLS_DIR:-${SCRIPT_DIR}/../protocols}"
 

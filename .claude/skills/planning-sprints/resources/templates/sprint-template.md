@@ -3,8 +3,8 @@
 **Version:** 1.0
 **Date:** {DATE}
 **Author:** Sprint Planner Agent
-**PRD Reference:** loa-grimoire/prd.md
-**SDD Reference:** loa-grimoire/sdd.md
+**PRD Reference:** grimoires/loa/prd.md
+**SDD Reference:** grimoires/loa/sdd.md
 
 ---
 

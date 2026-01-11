@@ -44,10 +44,10 @@ outputs:
   - path: ".claude/"
     type: "directory"
     description: "System Zone (framework-managed)"
-  - path: "loa-grimoire/"
+  - path: "grimoires/loa/"
     type: "directory"
     description: "State Zone (project memory)"
-  - path: "loa-grimoire/NOTES.md"
+  - path: "grimoires/loa/NOTES.md"
     type: "file"
     description: "Structured agentic memory"
   - path: ".beads/"
@@ -78,7 +78,7 @@ Install the Loa framework onto an existing repository, setting up the three-zone
 ## What It Does
 
 1. **Installs System Zone** (`.claude/`) - Framework skills, commands, protocols
-2. **Initializes State Zone** (`loa-grimoire/`) - Project memory structure
+2. **Initializes State Zone** (`grimoires/loa/`) - Project memory structure
 3. **Configures Beads** (`.beads/`) - Task graph (if available)
 4. **Generates checksums** - Anti-tamper protection
 5. **Creates config** (`.loa.config.yaml`) - User preferences
@@ -96,7 +96,7 @@ Install the Loa framework onto an existing repository, setting up the three-zone
 │   └── overrides/        ← User customizations (preserved)
 ├── .loa-version.json     ← Version manifest
 ├── .loa.config.yaml      ← User config (never overwritten)
-├── loa-grimoire/         ← State Zone (project memory)
+├── grimoires/loa/         ← State Zone (project memory)
 │   ├── NOTES.md          ← Structured agentic memory
 │   ├── context/          ← User-provided context
 │   └── a2a/trajectory/   ← Agent trajectory logs
@@ -140,12 +140,12 @@ git checkout "$LOA_REMOTE_NAME/$LOA_BRANCH" -- .claude
 ### Phase 4: Initialize State Zone
 
 Create directory structure:
-- `loa-grimoire/context/` - User-provided context
-- `loa-grimoire/reality/` - Code extraction results
-- `loa-grimoire/legacy/` - Legacy doc inventory
-- `loa-grimoire/a2a/trajectory/` - Agent reasoning logs
+- `grimoires/loa/context/` - User-provided context
+- `grimoires/loa/reality/` - Code extraction results
+- `grimoires/loa/legacy/` - Legacy doc inventory
+- `grimoires/loa/a2a/trajectory/` - Agent reasoning logs
 
-Initialize `loa-grimoire/NOTES.md` with structured memory template.
+Initialize `grimoires/loa/NOTES.md` with structured memory template.
 
 ### Phase 5: Generate Checksums
 
@@ -167,7 +167,7 @@ bd init --quiet
 If `--stealth` flag is provided:
 
 ```bash
-for entry in "loa-grimoire/" ".beads/" ".loa-version.json" ".loa.config.yaml"; do
+for entry in "grimoires/loa/" ".beads/" ".loa-version.json" ".loa.config.yaml"; do
   grep -qxF "$entry" .gitignore 2>/dev/null || echo "$entry" >> .gitignore
 done
 ```
@@ -182,8 +182,8 @@ done
 Zone structure:
   📁 .claude/          → System Zone (framework-managed)
   📁 .claude/overrides → Your customizations (preserved)
-  📁 loa-grimoire/     → State Zone (project memory)
-  📄 loa-grimoire/NOTES.md → Structured agentic memory
+  📁 grimoires/loa/     → State Zone (project memory)
+  📄 grimoires/loa/NOTES.md → Structured agentic memory
   📁 .beads/           → Task graph
 
 Next steps:

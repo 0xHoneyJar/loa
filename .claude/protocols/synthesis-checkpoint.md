@@ -159,7 +159,7 @@ Persist decisions to NOTES.md:
 
 ```bash
 # Append decisions to NOTES.md Decision Log
-cat >> "${PROJECT_ROOT}/loa-grimoire/NOTES.md" << EOF
+cat >> "${PROJECT_ROOT}/grimoires/loa/NOTES.md" << EOF
 
 ### Session ${SESSION_ID} Decisions (${TIMESTAMP})
 $(extract_session_decisions "$TRAJECTORY")
@@ -208,7 +208,7 @@ Create trajectory entry for session handoff:
   "grounding_ratio": 0.97,
   "decisions_count": 5,
   "notes_refs": [
-    "${PROJECT_ROOT}/loa-grimoire/NOTES.md:45-67"
+    "${PROJECT_ROOT}/grimoires/loa/NOTES.md:45-67"
   ],
   "next_session_hints": [
     "Continue with token revocation",

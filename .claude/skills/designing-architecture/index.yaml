@@ -7,7 +7,7 @@ description: |
   Use this skill IF user has completed a PRD and needs architectural planning
   before development begins, OR mentions needing a Software Design Document (SDD).
   Transforms PRD into comprehensive technical blueprint for engineering teams.
-  Produces SDD at loa-grimoire/sdd.md.
+  Produces SDD at grimoires/loa/sdd.md.
 
 triggers:
   - "/architect"
@@ -22,23 +22,23 @@ examples:
     user_says: "I've finished writing the PRD for our new e-commerce platform. Can you help me create the software design document?"
     agent_action: "Launch designing-architecture to analyze PRD and create comprehensive SDD"
   - context: "User mentions they have a PRD file and are ready for technical planning"
-    user_says: "The PRD is at loa-grimoire/prd.md. What's next?"
+    user_says: "The PRD is at grimoires/loa/prd.md. What's next?"
     agent_action: "Launch designing-architecture to review PRD and create SDD for development sprints"
   - context: "User is starting a new project and has documentation ready"
-    user_says: "I need to plan the technical architecture for the project described in loa-grimoire/prd.md"
+    user_says: "I need to plan the technical architecture for the project described in grimoires/loa/prd.md"
     agent_action: "Launch designing-architecture to analyze requirements and produce detailed SDD"
 
 dependencies:
   - skill: "discovering-requirements"
-    artifact: "loa-grimoire/prd.md"
+    artifact: "grimoires/loa/prd.md"
 
 inputs:
   - name: "prd_path"
     type: "string"
-    default: "loa-grimoire/prd.md"
+    default: "grimoires/loa/prd.md"
     required: false
     description: "Path to the PRD file"
 
 outputs:
-  - path: "loa-grimoire/sdd.md"
+  - path: "grimoires/loa/sdd.md"
     description: "Software Design Document"

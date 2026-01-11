@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-CONTEXT_DIR="${1:-loa-grimoire/context}"
+CONTEXT_DIR="${1:-grimoires/loa/context}"
 
 # Check if directory exists
 if [ ! -d "$CONTEXT_DIR" ]; then

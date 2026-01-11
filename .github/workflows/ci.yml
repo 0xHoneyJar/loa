@@ -26,21 +26,22 @@ jobs:
           # Define forbidden patterns for the loa template repository
           # These files should NEVER be committed to the main loa template
           FORBIDDEN_FILES=(
-            "loa-grimoire/prd.md"
-            "loa-grimoire/sdd.md"
-            "loa-grimoire/sprint.md"
-            "loa-grimoire/NOTES.md"
+            "grimoires/loa/prd.md"
+            "grimoires/loa/sdd.md"
+            "grimoires/loa/sprint.md"
+            "grimoires/loa/NOTES.md"
           )
 
           FORBIDDEN_DIRS=(
-            "loa-grimoire/a2a/sprint-"
-            "loa-grimoire/a2a/index.md"
-            "loa-grimoire/a2a/deployment-feedback.md"
-            "loa-grimoire/a2a/trajectory/"
-            "loa-grimoire/deployment/"
-            "loa-grimoire/reality/"
-            "loa-grimoire/analytics/"
-            "loa-grimoire/research/"
+            "grimoires/loa/a2a/sprint-"
+            "grimoires/loa/a2a/index.md"
+            "grimoires/loa/a2a/deployment-feedback.md"
+            "grimoires/loa/a2a/trajectory/"
+            "grimoires/loa/deployment/"
+            "grimoires/loa/reality/"
+            "grimoires/loa/analytics/"
+            "grimoires/loa/research/"
+            "grimoires/pub/"
             ".claude/constructs/"
           )
 
@@ -256,7 +257,7 @@ jobs:
           EOF
 
       - name: Lint Markdown files
-        run: markdownlint '**/*.md' --ignore node_modules --ignore loa-grimoire || true
+        run: markdownlint '**/*.md' --ignore node_modules --ignore grimoires/loa || true
         # Note: Using || true to not fail on lint warnings for now
         # Remove || true once all markdown is cleaned up
 

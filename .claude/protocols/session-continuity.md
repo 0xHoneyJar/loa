@@ -102,19 +102,19 @@ SESSION RECOVERY SEQUENCE:
 **Level 1 Recovery** (default):
 ```bash
 # Load only Session Continuity section (~100 tokens)
-head -50 "${PROJECT_ROOT}/loa-grimoire/NOTES.md" | grep -A 20 "## Session Continuity"
+head -50 "${PROJECT_ROOT}/grimoires/loa/NOTES.md" | grep -A 20 "## Session Continuity"
 ```
 
 **Level 2 Recovery** (on-demand):
 ```bash
 # Semantic search for specific context
-ck --hybrid "authentication decision" "${PROJECT_ROOT}/loa-grimoire/" --top-k 3 --jsonl
+ck --hybrid "authentication decision" "${PROJECT_ROOT}/grimoires/loa/" --top-k 3 --jsonl
 ```
 
 **Level 3 Recovery** (explicit):
 ```bash
 # Full read for architectural review
-cat "${PROJECT_ROOT}/loa-grimoire/NOTES.md"
+cat "${PROJECT_ROOT}/grimoires/loa/NOTES.md"
 ```
 
 ### Phase 2: During Session
@@ -274,13 +274,13 @@ test_scenarios:
 handoffs:
   - session_id: "sess-001"
     ended: 2024-01-15T12:00:00Z
-    notes_ref: "loa-grimoire/NOTES.md:45-67"
+    notes_ref: "grimoires/loa/NOTES.md:45-67"
     trajectory_ref: "trajectory/impl-2024-01-15.jsonl:span-abc"
     grounding_ratio: 0.97
 
   - session_id: "sess-002"
     ended: 2024-01-15T14:30:00Z
-    notes_ref: "loa-grimoire/NOTES.md:68-92"
+    notes_ref: "grimoires/loa/NOTES.md:68-92"
     trajectory_ref: "trajectory/impl-2024-01-15.jsonl:span-def"
     grounding_ratio: 0.95
 
@@ -415,7 +415,7 @@ bd update bd-x7y8 --decision "Use RSA256 for JWT signing" \
 # Record session handoff when session ends
 bd update bd-x7y8 --handoff \
     --session-id "sess-003" \
-    --notes-ref "loa-grimoire/NOTES.md:93-120" \
+    --notes-ref "grimoires/loa/NOTES.md:93-120" \
     --trajectory-ref "trajectory/impl-2024-01-15.jsonl:span-ghi" \
     --grounding-ratio 0.96
 ```
@@ -444,9 +444,9 @@ if command -v bd &>/dev/null; then
     bd update "$BEAD_ID" --decision "$decision"
 else
     # Fallback: Append to NOTES.md Decision Log
-    echo "#### $(date -u +%Y-%m-%dT%H:%M:%SZ) - $title" >> loa-grimoire/NOTES.md
-    echo "**Decision**: $decision" >> loa-grimoire/NOTES.md
-    echo "**Rationale**: $rationale" >> loa-grimoire/NOTES.md
+    echo "#### $(date -u +%Y-%m-%dT%H:%M:%SZ) - $title" >> grimoires/loa/NOTES.md
+    echo "**Decision**: $decision" >> grimoires/loa/NOTES.md
+    echo "**Rationale**: $rationale" >> grimoires/loa/NOTES.md
 fi
 ```
 
@@ -602,7 +602,7 @@ git push             # Push to remote
 ```
 1. Session starts
 2. NOTES.md missing
-3. Self-healing: git show HEAD:loa-grimoire/NOTES.md
+3. Self-healing: git show HEAD:grimoires/loa/NOTES.md
 4. If git fails: Create from template
 5. Log recovery to trajectory
 6. Continue operation (never halt)

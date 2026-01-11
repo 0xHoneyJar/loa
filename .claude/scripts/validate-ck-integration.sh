@@ -148,7 +148,7 @@ fi
 log_section "Trajectory Logging"
 
 log_check "Trajectory directory structure"
-if [ -d "${PROJECT_ROOT}/loa-grimoire/a2a/trajectory" ]; then
+if [ -d "${PROJECT_ROOT}/grimoires/loa/a2a/trajectory" ]; then
     pass
 else
     warn "Trajectory directory missing (will be created on first use)"
@@ -156,7 +156,7 @@ fi
 
 log_check ".gitignore excludes trajectory logs"
 if [ -f "${PROJECT_ROOT}/.gitignore" ]; then
-    if grep -q "loa-grimoire/a2a/trajectory/" "${PROJECT_ROOT}/.gitignore"; then
+    if grep -q "grimoires/loa/a2a/trajectory/" "${PROJECT_ROOT}/.gitignore"; then
         pass
     else
         fail "Trajectory logs not in .gitignore"
@@ -195,7 +195,7 @@ log_section ".gitignore Configuration"
 gitignore_entries=(
     ".beads/"
     ".ck/"
-    "loa-grimoire/a2a/trajectory/"
+    "grimoires/loa/a2a/trajectory/"
 )
 
 for entry in "${gitignore_entries[@]}"; do

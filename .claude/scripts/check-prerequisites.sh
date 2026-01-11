@@ -62,15 +62,15 @@ main() {
             ;;
         "architect"|"sdd")
             # PRD must exist
-            check_files_exist ".loa-setup-complete" "loa-grimoire/prd.md"
+            check_files_exist ".loa-setup-complete" "grimoires/loa/prd.md"
             ;;
         "sprint-plan")
             # PRD and SDD must exist
-            check_files_exist ".loa-setup-complete" "loa-grimoire/prd.md" "loa-grimoire/sdd.md"
+            check_files_exist ".loa-setup-complete" "grimoires/loa/prd.md" "grimoires/loa/sdd.md"
             ;;
         "implement")
             # PRD, SDD, and sprint.md must exist
-            check_files_exist ".loa-setup-complete" "loa-grimoire/prd.md" "loa-grimoire/sdd.md" "loa-grimoire/sprint.md"
+            check_files_exist ".loa-setup-complete" "grimoires/loa/prd.md" "grimoires/loa/sdd.md" "grimoires/loa/sprint.md"
             ;;
         "review")
             # Reviewer.md must exist for the sprint
@@ -78,7 +78,7 @@ main() {
                 echo "ERROR|--sprint required for review phase" >&2
                 exit 2
             fi
-            check_files_exist "loa-grimoire/a2a/${sprint_id}/reviewer.md"
+            check_files_exist "grimoires/loa/a2a/${sprint_id}/reviewer.md"
             ;;
         "audit-sprint")
             # Engineer feedback must show approval
@@ -86,7 +86,7 @@ main() {
                 echo "ERROR|--sprint required for audit-sprint phase" >&2
                 exit 2
             fi
-            local feedback="loa-grimoire/a2a/${sprint_id}/engineer-feedback.md"
+            local feedback="grimoires/loa/a2a/${sprint_id}/engineer-feedback.md"
             if [ ! -f "$feedback" ]; then
                 echo "MISSING|${feedback}"
                 exit 1
@@ -99,7 +99,7 @@ main() {
             ;;
         "deploy")
             # Basic requirements
-            check_files_exist ".loa-setup-complete" "loa-grimoire/prd.md" "loa-grimoire/sdd.md"
+            check_files_exist ".loa-setup-complete" "grimoires/loa/prd.md" "grimoires/loa/sdd.md"
             ;;
         *)
             echo "ERROR|Unknown phase: $phase" >&2

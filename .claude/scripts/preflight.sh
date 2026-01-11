@@ -68,19 +68,19 @@ check_sprint_id_format() {
 # Check sprint directory exists
 check_sprint_directory() {
     local sprint_id="$1"
-    check_directory_exists "loa-grimoire/a2a/${sprint_id}"
+    check_directory_exists "grimoires/loa/a2a/${sprint_id}"
 }
 
 # Check reviewer.md exists for sprint
 check_reviewer_exists() {
     local sprint_id="$1"
-    check_file_exists "loa-grimoire/a2a/${sprint_id}/reviewer.md"
+    check_file_exists "grimoires/loa/a2a/${sprint_id}/reviewer.md"
 }
 
 # Check sprint is approved by senior lead
 check_sprint_approved() {
     local sprint_id="$1"
-    local feedback_file="loa-grimoire/a2a/${sprint_id}/engineer-feedback.md"
+    local feedback_file="grimoires/loa/a2a/${sprint_id}/engineer-feedback.md"
     if check_file_exists "$feedback_file"; then
         check_content_contains "$feedback_file" "All good"
     else
@@ -91,7 +91,7 @@ check_sprint_approved() {
 # Check sprint is completed (has COMPLETED marker)
 check_sprint_completed() {
     local sprint_id="$1"
-    check_file_exists "loa-grimoire/a2a/${sprint_id}/COMPLETED"
+    check_file_exists "grimoires/loa/a2a/${sprint_id}/COMPLETED"
 }
 
 # Check git working tree is clean

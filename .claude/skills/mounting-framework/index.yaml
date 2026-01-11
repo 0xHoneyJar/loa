@@ -32,7 +32,7 @@ zones:
     path: ".claude"
     permission: "write"  # Special: mount CAN write System Zone
   state:
-    paths: ["loa-grimoire", ".beads"]
+    paths: ["grimoires/loa", ".beads"]
     permission: "read-write"
   app:
     paths: ["src", "lib", "app"]
@@ -62,7 +62,7 @@ outputs:
     description: "User configuration"
   - path: ".claude/"
     description: "System Zone"
-  - path: "loa-grimoire/"
+  - path: "grimoires/loa/"
     description: "State Zone"
-  - path: "loa-grimoire/NOTES.md"
+  - path: "grimoires/loa/NOTES.md"
     description: "Structured agentic memory"

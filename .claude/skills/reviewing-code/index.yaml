@@ -7,7 +7,7 @@ description: |
   Use this skill IF sprint implementation needs review, validation, and quality
   gate approval. Reviews code quality, security, testing, and architecture alignment.
   Either approves (writes "All good") OR provides detailed feedback. Produces
-  feedback at loa-grimoire/a2a/sprint-N/engineer-feedback.md.
+  feedback at grimoires/loa/a2a/sprint-N/engineer-feedback.md.
 
 triggers:
   - "/review-sprint"
@@ -30,7 +30,7 @@ examples:
 
 dependencies:
   - skill: "implementing-tasks"
-    artifact: "loa-grimoire/a2a/sprint-N/reviewer.md"
+    artifact: "grimoires/loa/a2a/sprint-N/reviewer.md"
 
 inputs:
   - name: "sprint_id"
@@ -40,7 +40,7 @@ inputs:
     description: "Sprint identifier (e.g., sprint-1)"
 
 outputs:
-  - path: "loa-grimoire/a2a/sprint-{id}/engineer-feedback.md"
+  - path: "grimoires/loa/a2a/sprint-{id}/engineer-feedback.md"
     description: "Review feedback for engineer (or 'All good' if approved)"
 
 # v0.9.0 Lossless Ledger Protocol Integration

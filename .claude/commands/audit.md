@@ -11,13 +11,13 @@ agent: "auditing-security"
 agent_path: "skills/auditing-security/"
 
 context_files:
-  - path: "loa-grimoire/prd.md"
+  - path: "grimoires/loa/prd.md"
     required: false
     purpose: "Product requirements for context"
-  - path: "loa-grimoire/sdd.md"
+  - path: "grimoires/loa/sdd.md"
     required: false
     purpose: "Architecture decisions for context"
-  - path: "loa-grimoire/sprint.md"
+  - path: "grimoires/loa/sprint.md"
     required: false
     purpose: "Sprint plan and implementation status"
   - path: "app/src/**/*"

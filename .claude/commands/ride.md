@@ -41,10 +41,10 @@ agent: "riding-codebase"
 agent_path: "skills/riding-codebase/"
 
 context_files:
-  - path: "loa-grimoire/NOTES.md"
+  - path: "grimoires/loa/NOTES.md"
     required: false
     purpose: "Structured agentic memory"
-  - path: "loa-grimoire/context/"
+  - path: "grimoires/loa/context/"
     required: false
     purpose: "User-provided context files"
 
@@ -58,38 +58,38 @@ pre_flight:
     error: "System Zone missing. Run /mount to install framework."
 
   - check: "directory_exists"
-    path: "loa-grimoire"
+    path: "grimoires/loa"
     error: "State Zone missing. Run /mount to initialize."
 
 outputs:
-  - path: "loa-grimoire/context/claims-to-verify.md"
+  - path: "grimoires/loa/context/claims-to-verify.md"
     type: "file"
     description: "User context claims to verify against code"
-  - path: "loa-grimoire/reality/"
+  - path: "grimoires/loa/reality/"
     type: "directory"
     description: "Code extraction results"
-  - path: "loa-grimoire/reality/hygiene-report.md"
+  - path: "grimoires/loa/reality/hygiene-report.md"
     type: "file"
     description: "Code hygiene audit"
-  - path: "loa-grimoire/legacy/"
+  - path: "grimoires/loa/legacy/"
     type: "directory"
     description: "Legacy documentation inventory"
-  - path: "loa-grimoire/drift-report.md"
+  - path: "grimoires/loa/drift-report.md"
     type: "file"
     description: "Three-way drift analysis"
-  - path: "loa-grimoire/consistency-report.md"
+  - path: "grimoires/loa/consistency-report.md"
     type: "file"
     description: "Pattern consistency analysis"
-  - path: "loa-grimoire/prd.md"
+  - path: "grimoires/loa/prd.md"
     type: "file"
     description: "Evidence-grounded Product Requirements"
-  - path: "loa-grimoire/sdd.md"
+  - path: "grimoires/loa/sdd.md"
     type: "file"
     description: "Evidence-grounded System Design"
-  - path: "loa-grimoire/governance-report.md"
+  - path: "grimoires/loa/governance-report.md"
     type: "file"
     description: "Governance artifacts audit"
-  - path: "loa-grimoire/trajectory-audit.md"
+  - path: "grimoires/loa/trajectory-audit.md"
     type: "file"
     description: "Self-audit of reasoning quality"
 
@@ -172,7 +172,7 @@ All outputs go to **State Zone** in the **target repo**:
 
 ```
 {target-repo}/
-  └── loa-grimoire/           ← All /ride outputs here
+  └── grimoires/loa/           ← All /ride outputs here
       ├── context/            ← User-provided context
       ├── reality/            ← Code extraction results
       ├── legacy/             ← Legacy doc inventory
@@ -194,7 +194,7 @@ All outputs go to **State Zone** in the **target repo**:
 
 ### Phase 1: Context Discovery
 - Prompt user for context file upload
-- Analyze existing `loa-grimoire/context/` files
+- Analyze existing `grimoires/loa/context/` files
 - Conduct gap-focused interview via `AskUserQuestion`
 - Generate `claims-to-verify.md`
 

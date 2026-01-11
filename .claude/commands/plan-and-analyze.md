@@ -3,7 +3,7 @@ name: "plan-and-analyze"
 version: "2.0.0"
 description: |
   Launch PRD discovery with automatic context ingestion.
-  Reads existing documentation from loa-grimoire/context/ before interviewing.
+  Reads existing documentation from grimoires/loa/context/ before interviewing.
 
 arguments: []
 
@@ -12,18 +12,18 @@ agent_path: "skills/discovering-requirements/"
 
 context_files:
   # Core context (always attempt to read)
-  - path: "loa-grimoire/context/*.md"
+  - path: "grimoires/loa/context/*.md"
     required: false
     recursive: true
     purpose: "Pre-existing project documentation for synthesis"
 
   # Nested context
-  - path: "loa-grimoire/context/**/*.md"
+  - path: "grimoires/loa/context/**/*.md"
     required: false
     purpose: "Meeting notes, references, nested docs"
 
   # Integration context (if exists)
-  - path: "loa-grimoire/a2a/integration-context.md"
+  - path: "grimoires/loa/a2a/integration-context.md"
     required: false
     purpose: "Organizational context and conventions"
 
@@ -33,8 +33,8 @@ pre_flight:
     error: "Loa setup has not been completed. Run /setup first."
 
   - check: "file_not_exists"
-    path: "loa-grimoire/prd.md"
-    error: "PRD already exists. Delete or rename loa-grimoire/prd.md to restart discovery."
+    path: "grimoires/loa/prd.md"
+    error: "PRD already exists. Delete or rename grimoires/loa/prd.md to restart discovery."
     soft: true  # Warn but allow override
 
   - check: "script"
@@ -43,7 +43,7 @@ pre_flight:
     purpose: "Assess available context for synthesis strategy"
 
 outputs:
-  - path: "loa-grimoire/prd.md"
+  - path: "grimoires/loa/prd.md"
     type: "file"
     description: "Product Requirements Document"
 
@@ -60,7 +60,7 @@ Launch structured PRD discovery with automatic context ingestion. Transforms amb
 
 ## Context-First Behavior
 
-1. Scans `loa-grimoire/context/` for existing documentation
+1. Scans `grimoires/loa/context/` for existing documentation
 2. Synthesizes found documents into understanding
 3. Maps to 7 discovery phases
 4. Only asks questions for gaps and strategic decisions
@@ -75,11 +75,11 @@ Launch structured PRD discovery with automatic context ingestion. Transforms amb
 
 ```bash
 # Create context directory
-mkdir -p loa-grimoire/context
+mkdir -p grimoires/loa/context
 
 # Add any existing docs
-cp ~/project-docs/vision.md loa-grimoire/context/
-cp ~/project-docs/user-research.md loa-grimoire/context/users.md
+cp ~/project-docs/vision.md grimoires/loa/context/
+cp ~/project-docs/user-research.md grimoires/loa/context/users.md
 
 # Then run discovery
 /plan-and-analyze
@@ -88,7 +88,7 @@ cp ~/project-docs/user-research.md loa-grimoire/context/users.md
 ## Context Directory Structure
 
 ```
-loa-grimoire/context/
+grimoires/loa/context/
 ├── README.md           # Instructions for developers
 ├── vision.md           # Product vision, mission, goals
 ├── users.md            # User personas, research, interviews
@@ -106,7 +106,7 @@ All files are optional. The more context provided, the fewer questions asked.
 ## Discovery Phases
 
 ### Phase 0: Context Synthesis (NEW)
-- Reads all files from `loa-grimoire/context/`
+- Reads all files from `grimoires/loa/context/`
 - Maps discovered information to 7 phases
 - Presents understanding with citations
 - Identifies gaps requiring clarification
@@ -163,7 +163,7 @@ All files are optional. The more context provided, the fewer questions asked.
 
 | Path | Description |
 |------|-------------|
-| `loa-grimoire/prd.md` | Product Requirements Document with source tracing |
+| `grimoires/loa/prd.md` | Product Requirements Document with source tracing |
 
 ## PRD Source Tracing
 
@@ -181,7 +181,7 @@ Generated PRD includes citations:
 | Error | Cause | Resolution |
 |-------|-------|------------|
 | "Loa setup has not been completed" | Missing `.loa-setup-complete` | Run `/setup` first |
-| "PRD already exists" | `loa-grimoire/prd.md` exists | Delete/rename existing PRD |
+| "PRD already exists" | `grimoires/loa/prd.md` exists | Delete/rename existing PRD |
 
 ## Next Step
 

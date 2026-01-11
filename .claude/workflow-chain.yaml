@@ -13,10 +13,10 @@ workflow:
   plan-and-analyze:
     agent: "discovering-requirements"
     next: "architect"
-    output_file: "loa-grimoire/prd.md"
+    output_file: "grimoires/loa/prd.md"
     validation:
       type: "file_exists"
-      path: "loa-grimoire/prd.md"
+      path: "grimoires/loa/prd.md"
     message: |
       Ready for architectural design.
 
@@ -28,10 +28,10 @@ workflow:
   architect:
     agent: "designing-architecture"
     next: "sprint-plan"
-    output_file: "loa-grimoire/sdd.md"
+    output_file: "grimoires/loa/sdd.md"
     validation:
       type: "file_exists"
-      path: "loa-grimoire/sdd.md"
+      path: "grimoires/loa/sdd.md"
     message: |
       Architecture complete.
 
@@ -43,10 +43,10 @@ workflow:
   sprint-plan:
     agent: "planning-sprints"
     next: "implement sprint-1"
-    output_file: "loa-grimoire/sprint.md"
+    output_file: "grimoires/loa/sprint.md"
     validation:
       type: "file_exists"
-      path: "loa-grimoire/sprint.md"
+      path: "grimoires/loa/sprint.md"
     message: |
       Sprint plan complete.
 
@@ -58,10 +58,10 @@ workflow:
   implement:
     agent: "implementing-tasks"
     next: "review-sprint {sprint}"
-    output_file: "loa-grimoire/a2a/{sprint}/reviewer.md"
+    output_file: "grimoires/loa/a2a/{sprint}/reviewer.md"
     validation:
       type: "file_exists"
-      path: "loa-grimoire/a2a/{sprint}/reviewer.md"
+      path: "grimoires/loa/a2a/{sprint}/reviewer.md"
     message: |
       Sprint {sprint} implementation complete.
 
@@ -72,10 +72,10 @@ workflow:
   # Phase 5: Review
   review-sprint:
     agent: "reviewing-code"
-    output_file: "loa-grimoire/a2a/{sprint}/engineer-feedback.md"
+    output_file: "grimoires/loa/a2a/{sprint}/engineer-feedback.md"
     validation:
       type: "file_content_match"
-      path: "loa-grimoire/a2a/{sprint}/engineer-feedback.md"
+      path: "grimoires/loa/a2a/{sprint}/engineer-feedback.md"
       pattern: "All good"
     next_on_approval: "audit-sprint {sprint}"
     next_on_feedback: "implement {sprint}"
@@ -90,15 +90,15 @@ workflow:
 
       **Recommended**: `/implement {sprint}`
 
-      Review the feedback in `loa-grimoire/a2a/{sprint}/engineer-feedback.md` and address the issues.
+      Review the feedback in `grimoires/loa/a2a/{sprint}/engineer-feedback.md` and address the issues.
 
   # Phase 5.5: Security Audit
   audit-sprint:
     agent: "auditing-security"
-    output_file: "loa-grimoire/a2a/{sprint}/auditor-sprint-feedback.md"
+    output_file: "grimoires/loa/a2a/{sprint}/auditor-sprint-feedback.md"
     validation:
       type: "file_content_match"
-      path: "loa-grimoire/a2a/{sprint}/auditor-sprint-feedback.md"
+      path: "grimoires/loa/a2a/{sprint}/auditor-sprint-feedback.md"
       pattern: "APPROVED - LET'S FUCKING GO"
     next_on_approval: "implement sprint-{N+1}"
     next_on_changes: "implement {sprint}"
@@ -107,18 +107,18 @@ workflow:
 
       **Recommended**: `/implement sprint-{N+1}`
 
-      Ready to start the next sprint. Check `loa-grimoire/sprint.md` for sprint {N+1} tasks.
+      Ready to start the next sprint. Check `grimoires/loa/sprint.md` for sprint {N+1} tasks.
     message_on_changes: |
       Security audit requires changes.
 
       **Recommended**: `/implement {sprint}`
 
-      Review the security feedback in `loa-grimoire/a2a/{sprint}/auditor-sprint-feedback.md` and address the vulnerabilities.
+      Review the security feedback in `grimoires/loa/a2a/{sprint}/auditor-sprint-feedback.md` and address the vulnerabilities.
 
   # Phase 6: Deployment
   deploy-production:
     agent: "deploying-infrastructure"
-    output_file: "loa-grimoire/deployment/deployment-report.md"
+    output_file: "grimoires/loa/deployment/deployment-report.md"
     next: null  # End of workflow
     message: |
       Deployment plan created.
@@ -143,18 +143,18 @@ auxiliary_commands:
   ride:
     agent: "custom-agent"
     output_files:
-      - "loa-grimoire/reality/prd.md"
-      - "loa-grimoire/reality/sdd.md"
-      - "loa-grimoire/reality/sprint.md"
-      - "loa-grimoire/drift-report.md"
+      - "grimoires/loa/reality/prd.md"
+      - "grimoires/loa/reality/sdd.md"
+      - "grimoires/loa/reality/sprint.md"
+      - "grimoires/loa/drift-report.md"
     next: null  # End - user decides next action
     message: |
       Code reality extraction complete.
 
       Review the generated docs:
-      - `loa-grimoire/reality/prd.md` - Inferred requirements
-      - `loa-grimoire/reality/sdd.md` - Discovered architecture
-      - `loa-grimoire/drift-report.md` - Ghost Features and Shadow Systems
+      - `grimoires/loa/reality/prd.md` - Inferred requirements
+      - `grimoires/loa/reality/sdd.md` - Discovered architecture
+      - `grimoires/loa/drift-report.md` - Ghost Features and Shadow Systems
 
       **Next steps (your choice)**:
       - Continue with existing sprint plan: `/implement sprint-N`
@@ -217,7 +217,7 @@ validation_types:
 
   marker_exists:
     description: "Check for COMPLETED marker"
-    implementation: "test -f loa-grimoire/a2a/{sprint}/COMPLETED"
+    implementation: "test -f grimoires/loa/a2a/{sprint}/COMPLETED"
 
 # Conditional routing rules
 routing:

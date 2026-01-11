@@ -49,10 +49,10 @@ outputs:
   - path: "SECURITY-AUDIT-REPORT.md"
     condition: "audit_mode == codebase"
     description: "Comprehensive codebase security audit"
-  - path: "loa-grimoire/a2a/deployment-feedback.md"
+  - path: "grimoires/loa/a2a/deployment-feedback.md"
     condition: "audit_mode == deployment"
     description: "Deployment infrastructure audit feedback"
-  - path: "loa-grimoire/a2a/sprint-{id}/auditor-sprint-feedback.md"
+  - path: "grimoires/loa/a2a/sprint-{id}/auditor-sprint-feedback.md"
     condition: "audit_mode == sprint"
     description: "Sprint implementation security audit feedback"
 

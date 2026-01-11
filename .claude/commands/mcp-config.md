@@ -34,7 +34,7 @@ outputs:
   - path: ".loa-setup-complete"
     type: "file"
     description: "Updated marker with new MCP configuration"
-  - path: "loa-grimoire/analytics/usage.json"
+  - path: "grimoires/loa/analytics/usage.json"
     type: "file"
     description: "Updated analytics with MCP info"
 
@@ -94,7 +94,7 @@ Update `.loa-setup-complete` with newly configured MCPs.
 
 ### Phase 6: Update Analytics
 
-Update `loa-grimoire/analytics/usage.json` with MCP configuration.
+Update `grimoires/loa/analytics/usage.json` with MCP configuration.
 
 ### Phase 7: Completion Summary
 
@@ -111,7 +111,7 @@ Display newly configured and total configured servers.
 | Path | Description |
 |------|-------------|
 | `.loa-setup-complete` | Updated marker file |
-| `loa-grimoire/analytics/usage.json` | Updated analytics |
+| `grimoires/loa/analytics/usage.json` | Updated analytics |
 
 ## MCP Setup Instructions
 

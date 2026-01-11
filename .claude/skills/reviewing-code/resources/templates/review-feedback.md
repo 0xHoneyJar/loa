@@ -2,8 +2,8 @@
 
 **Reviewer:** Senior Tech Lead Reviewer Agent
 **Date:** {DATE}
-**Sprint Reference:** loa-grimoire/sprint.md
-**Implementation Report:** loa-grimoire/a2a/sprint-{N}/reviewer.md
+**Sprint Reference:** grimoires/loa/sprint.md
+**Implementation Report:** grimoires/loa/a2a/sprint-{N}/reviewer.md
 
 ---
 
@@ -51,7 +51,7 @@
 
 ## Previous Feedback Status
 
-{Include this section only if loa-grimoire/a2a/sprint-N/engineer-feedback.md existed}
+{Include this section only if grimoires/loa/a2a/sprint-N/engineer-feedback.md existed}
 
 | Issue | Status | Notes |
 |-------|--------|-------|
@@ -109,7 +109,7 @@
 
 1. Address all critical issues above
 2. Run tests and verify fixes
-3. Update the report in `loa-grimoire/a2a/sprint-{N}/reviewer.md`
+3. Update the report in `grimoires/loa/a2a/sprint-{N}/reviewer.md`
 4. Request another review via `/review-sprint sprint-{N}`
 
 ---

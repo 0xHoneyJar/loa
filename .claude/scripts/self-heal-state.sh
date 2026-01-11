@@ -30,11 +30,11 @@ VERBOSE="${VERBOSE:-false}"
 TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # State Zone paths
-NOTES_FILE="${PROJECT_ROOT}/loa-grimoire/NOTES.md"
+NOTES_FILE="${PROJECT_ROOT}/grimoires/loa/NOTES.md"
 BEADS_DIR="${PROJECT_ROOT}/.beads"
 CK_DIR="${PROJECT_ROOT}/.ck"
-TRAJECTORY_DIR="${PROJECT_ROOT}/loa-grimoire/a2a/trajectory"
-GRIMOIRE_DIR="${PROJECT_ROOT}/loa-grimoire"
+TRAJECTORY_DIR="${PROJECT_ROOT}/grimoires/loa/a2a/trajectory"
+GRIMOIRE_DIR="${PROJECT_ROOT}/grimoires/loa"
 
 # Templates
 NOTES_TEMPLATE='# Agent Working Memory (NOTES.md)
@@ -313,26 +313,26 @@ heal_trajectory() {
     return 0
 }
 
-# Check and heal loa-grimoire directory
+# Check and heal grimoires/loa directory
 heal_grimoire() {
-    log "Checking: loa-grimoire/"
+    log "Checking: grimoires/loa/"
 
     if [[ -d "$GRIMOIRE_DIR" ]]; then
-        log_verbose "  loa-grimoire/ exists"
+        log_verbose "  grimoires/loa/ exists"
         return 0
     else
-        log "  loa-grimoire/ is missing"
+        log "  grimoires/loa/ is missing"
     fi
 
     # Try recovery from git
-    if git ls-files --error-unmatch "loa-grimoire/" &>/dev/null 2>&1; then
+    if git ls-files --error-unmatch "grimoires/loa/" &>/dev/null 2>&1; then
         if [[ "$CHECK_ONLY" == "true" ]]; then
-            log "  Can recover loa-grimoire/ from git"
+            log "  Can recover grimoires/loa/ from git"
             return 0
         fi
 
-        git checkout HEAD -- "loa-grimoire/" 2>/dev/null || true
-        log "  Recovered loa-grimoire/ from git"
+        git checkout HEAD -- "grimoires/loa/" 2>/dev/null || true
+        log "  Recovered grimoires/loa/ from git"
         return 0
     fi
 
@@ -341,9 +341,9 @@ heal_grimoire() {
         mkdir -p "$GRIMOIRE_DIR"
         mkdir -p "${GRIMOIRE_DIR}/a2a"
         mkdir -p "${GRIMOIRE_DIR}/a2a/trajectory"
-        log "  Created loa-grimoire/ directory structure"
+        log "  Created grimoires/loa/ directory structure"
     else
-        log "  Will create loa-grimoire/ directory structure"
+        log "  Will create grimoires/loa/ directory structure"
     fi
 
     return 0

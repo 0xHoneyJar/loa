@@ -145,9 +145,9 @@
 ## Documentation Links
 
 - **Infrastructure Code:** `{path/to/terraform}`
-- **Runbooks:** `loa-grimoire/deployment/runbooks/`
+- **Runbooks:** `grimoires/loa/deployment/runbooks/`
 - **Architecture Decision Records:** `{path/to/adrs}`
-- **Disaster Recovery:** `loa-grimoire/deployment/disaster-recovery.md`
+- **Disaster Recovery:** `grimoires/loa/deployment/disaster-recovery.md`
 
 ---
 

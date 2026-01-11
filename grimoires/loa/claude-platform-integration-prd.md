@@ -18,7 +18,7 @@
 
 > **Sources**: CLAUDE_SKILLS_INTEGRATION_REPORT.md:1-426, Discovery interview responses
 
-**Related PRD**: `loa-grimoire/prd.md` (Loa Registry Integration) - complementary scope
+**Related PRD**: `grimoires/loa/prd.md` (Loa Registry Integration) - complementary scope
 
 ---
 
@@ -113,7 +113,7 @@ Anthropic has released significant Claude platform updates (October-November 202
 | Constructs Upload | Registry skills can be uploaded to Claude API workspace |
 | License Validation | Unchanged - applies before skill loading |
 
-> **Sources**: Coordination with loa-grimoire/prd.md
+> **Sources**: Coordination with grimoires/loa/prd.md
 
 ---
 

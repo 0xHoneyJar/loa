@@ -4,7 +4,7 @@
   "last_sync": null,
   "zones": {
     "system": ".claude",
-    "state": ["loa-grimoire", ".beads", ".ck"],
+    "state": ["grimoires", ".beads", ".ck"],
     "app": ["src", "lib", "app"]
   },
   "migrations_applied": [],

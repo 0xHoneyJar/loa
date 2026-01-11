@@ -9,10 +9,10 @@ THRESHOLD=${2:-2000}
 
 case "$MODE" in
     "deployment")
-        TOTAL=$(cat loa-grimoire/prd.md loa-grimoire/sdd.md loa-grimoire/sprint.md loa-grimoire/a2a/*.md 2>/dev/null | wc -l)
+        TOTAL=$(cat grimoires/loa/prd.md grimoires/loa/sdd.md grimoires/loa/sprint.md grimoires/loa/a2a/*.md 2>/dev/null | wc -l)
         ;;
     "integration")
-        TOTAL=$(cat loa-grimoire/integration-architecture.md loa-grimoire/tool-setup.md loa-grimoire/a2a/*.md 2>/dev/null | wc -l)
+        TOTAL=$(cat grimoires/loa/integration-architecture.md grimoires/loa/tool-setup.md grimoires/loa/a2a/*.md 2>/dev/null | wc -l)
         ;;
     *)
         echo "ERROR: Unknown mode. Use: deployment, integration"

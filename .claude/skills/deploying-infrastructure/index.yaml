@@ -51,8 +51,8 @@ examples:
 
 dependencies:
   required:
-    - "discovering-requirements (loa-grimoire/prd.md must exist for deployment mode)"
-    - "designing-architecture (loa-grimoire/sdd.md must exist for deployment mode)"
+    - "discovering-requirements (grimoires/loa/prd.md must exist for deployment mode)"
+    - "designing-architecture (grimoires/loa/sdd.md must exist for deployment mode)"
   optional:
     - "integration-architecture.md (for integration mode)"
     - "tool-setup.md (for integration mode)"
@@ -60,25 +60,25 @@ dependencies:
 
 inputs:
   integration_mode:
-    - loa-grimoire/integration-architecture.md
-    - loa-grimoire/tool-setup.md
-    - loa-grimoire/a2a/integration-context.md
+    - grimoires/loa/integration-architecture.md
+    - grimoires/loa/tool-setup.md
+    - grimoires/loa/a2a/integration-context.md
   deployment_mode:
-    - loa-grimoire/prd.md
-    - loa-grimoire/sdd.md
-    - loa-grimoire/sprint.md
+    - grimoires/loa/prd.md
+    - grimoires/loa/sdd.md
+    - grimoires/loa/sprint.md
     - "app/ (completed sprint code)"
 
 outputs:
   integration_mode:
     - integration/ (deployment configs, scripts)
-    - loa-grimoire/deployment/integration-runbook.md
+    - grimoires/loa/deployment/integration-runbook.md
   deployment_mode:
-    - loa-grimoire/deployment/infrastructure.md
-    - loa-grimoire/deployment/deployment-guide.md
-    - loa-grimoire/deployment/runbooks/
-    - loa-grimoire/deployment/scripts/
-    - loa-grimoire/a2a/deployment-report.md
+    - grimoires/loa/deployment/infrastructure.md
+    - grimoires/loa/deployment/deployment-guide.md
+    - grimoires/loa/deployment/runbooks/
+    - grimoires/loa/deployment/scripts/
+    - grimoires/loa/a2a/deployment-report.md
 
 integrations:
   required: []

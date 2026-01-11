@@ -7,7 +7,7 @@ description: |
   Use this skill IF user has completed PRD and SDD and needs an implementation
   roadmap, OR mentions sprint planning, work breakdown, or task decomposition.
   Transforms PRD/SDD into actionable 2.5-day sprints with deliverables, acceptance
-  criteria, and technical tasks. Produces sprint plan at loa-grimoire/sprint.md.
+  criteria, and technical tasks. Produces sprint plan at grimoires/loa/sprint.md.
 
 triggers:
   - "/sprint-plan"
@@ -34,22 +34,22 @@ examples:
 
 dependencies:
   - skill: "discovering-requirements"
-    artifact: "loa-grimoire/prd.md"
+    artifact: "grimoires/loa/prd.md"
   - skill: "designing-architecture"
-    artifact: "loa-grimoire/sdd.md"
+    artifact: "grimoires/loa/sdd.md"
 
 inputs:
   - name: "prd_path"
     type: "string"
-    default: "loa-grimoire/prd.md"
+    default: "grimoires/loa/prd.md"
     required: false
   - name: "sdd_path"
     type: "string"
-    default: "loa-grimoire/sdd.md"
+    default: "grimoires/loa/sdd.md"
     required: false
 
 outputs:
-  - path: "loa-grimoire/sprint.md"
+  - path: "grimoires/loa/sprint.md"
     description: "Sprint plan with task breakdown"
 
 integrations:

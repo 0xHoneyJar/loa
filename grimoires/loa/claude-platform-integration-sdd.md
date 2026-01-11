@@ -11,7 +11,7 @@
 
 | Field | Value |
 |-------|-------|
-| PRD Reference | `loa-grimoire/claude-platform-integration-prd.md` v1.0.0 |
+| PRD Reference | `grimoires/loa/claude-platform-integration-prd.md` v1.0.0 |
 | Architecture Pattern | Adapter Pattern with Runtime Generation |
 | Primary Language | Bash (POSIX-compatible), JSON Schema |
 | Target Platforms | Linux (GNU), macOS (BSD), Claude Code, claude.ai, Claude API |
@@ -55,7 +55,7 @@ This document describes the technical architecture for integrating Loa with Clau
 │            │                │                │                │              │
 │            ▼                ▼                ▼                ▼              │
 │  ┌─────────────────┐ ┌─────────────┐ ┌─────────────────┐ ┌─────────────┐    │
-│  │ .claude/skills/ │ │ .claude/    │ │ loa-grimoire/   │ │ .claude/    │    │
+│  │ .claude/skills/ │ │ .claude/    │ │ grimoires/loa/   │ │ .claude/    │    │
 │  │ (index.yaml +   │ │ schemas/    │ │ a2a/trajectory/ │ │ mcp-registry│    │
 │  │  SKILL.md)      │ │ (JSON)      │ │ (JSONL)         │ │ .yaml       │    │
 │  └─────────────────┘ └─────────────┘ └─────────────────┘ └─────────────┘    │

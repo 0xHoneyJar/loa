@@ -2,8 +2,8 @@
 
 **Auditor:** Paranoid Cypherpunk Auditor
 **Date:** {DATE}
-**Sprint Reference:** loa-grimoire/sprint.md
-**Implementation Report:** loa-grimoire/a2a/sprint-{N}/reviewer.md
+**Sprint Reference:** grimoires/loa/sprint.md
+**Implementation Report:** grimoires/loa/a2a/sprint-{N}/reviewer.md
 
 ---
 

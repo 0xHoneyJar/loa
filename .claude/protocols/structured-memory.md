@@ -15,7 +15,7 @@ The **NOTES.md** file provides persistent working memory that survives these eve
 ## Location
 
 ```
-loa-grimoire/NOTES.md
+grimoires/loa/NOTES.md
 ```
 
 ## Structure
@@ -203,7 +203,7 @@ Once a tool result has been **synthesized** into permanent storage, the raw outp
 #### Step 1: Synthesize
 Extract the meaningful information and write it to a permanent location:
 - Key findings -> `NOTES.md` (Technical Debt, Decision Log)
-- Structural info -> `loa-grimoire/discovery/`
+- Structural info -> `grimoires/loa/discovery/`
 - Action items -> Beads
 
 #### Step 2: Summarize

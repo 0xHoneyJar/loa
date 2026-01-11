@@ -27,7 +27,7 @@ AGENT="${1:-implementing-tasks}"
 THRESHOLD="${2:-0.95}"
 DATE="${3:-$(date +%Y-%m-%d)}"
 
-TRAJECTORY_DIR="${PROJECT_ROOT}/loa-grimoire/a2a/trajectory"
+TRAJECTORY_DIR="${PROJECT_ROOT}/grimoires/loa/a2a/trajectory"
 TRAJECTORY="${TRAJECTORY_DIR}/${AGENT}-${DATE}.jsonl"
 
 # Validate threshold is a valid number

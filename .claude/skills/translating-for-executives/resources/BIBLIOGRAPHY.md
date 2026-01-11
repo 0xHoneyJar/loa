@@ -3,12 +3,12 @@
 ## Input Documents
 
 ### Loa Framework Documents
-- **Product Requirements Document (PRD)**: `loa-grimoire/prd.md`
-- **Software Design Document (SDD)**: `loa-grimoire/sdd.md`
-- **Sprint Plan**: `loa-grimoire/sprint.md`
-- **Sprint Reports**: `loa-grimoire/a2a/sprint-N/reviewer.md`
+- **Product Requirements Document (PRD)**: `grimoires/loa/prd.md`
+- **Software Design Document (SDD)**: `grimoires/loa/sdd.md`
+- **Sprint Plan**: `grimoires/loa/sprint.md`
+- **Sprint Reports**: `grimoires/loa/a2a/sprint-N/reviewer.md`
 - **Security Audit Reports**: `SECURITY-AUDIT-REPORT.md`
-- **Deployment Reports**: `loa-grimoire/a2a/deployment-report.md`
+- **Deployment Reports**: `grimoires/loa/a2a/deployment-report.md`
 
 ### Framework Documentation
 - **Loa Framework Overview**: https://github.com/0xHoneyJar/loa/blob/main/CLAUDE.md
@@ -142,27 +142,27 @@ Example:
 
 | Document | Path | Purpose |
 |----------|------|---------|
-| **Drift Report** | `loa-grimoire/drift-report.md` | Ghost Features, Shadow Systems, drift percentage |
-| **Governance Report** | `loa-grimoire/governance-report.md` | Process maturity assessment |
-| **Consistency Report** | `loa-grimoire/consistency-report.md` | Code pattern analysis |
-| **Hygiene Report** | `loa-grimoire/reality/hygiene-report.md` | Technical debt inventory |
-| **Trajectory Audit** | `loa-grimoire/trajectory-audit.md` | Analysis confidence level |
+| **Drift Report** | `grimoires/loa/drift-report.md` | Ghost Features, Shadow Systems, drift percentage |
+| **Governance Report** | `grimoires/loa/governance-report.md` | Process maturity assessment |
+| **Consistency Report** | `grimoires/loa/consistency-report.md` | Code pattern analysis |
+| **Hygiene Report** | `grimoires/loa/reality/hygiene-report.md` | Technical debt inventory |
+| **Trajectory Audit** | `grimoires/loa/trajectory-audit.md` | Analysis confidence level |
 
 ### Code Reality Artifacts
 
 | Document | Path | Purpose |
 |----------|------|---------|
-| **Structure** | `loa-grimoire/reality/structure.md` | Directory layout, tech stack |
-| **Data Models** | `loa-grimoire/reality/data-models.md` | Types, interfaces, schemas |
-| **Interfaces** | `loa-grimoire/reality/interfaces.md` | API contracts, exports |
-| **Dependencies** | `loa-grimoire/reality/dependencies.md` | External dependencies |
+| **Structure** | `grimoires/loa/reality/structure.md` | Directory layout, tech stack |
+| **Data Models** | `grimoires/loa/reality/data-models.md` | Types, interfaces, schemas |
+| **Interfaces** | `grimoires/loa/reality/interfaces.md` | API contracts, exports |
+| **Dependencies** | `grimoires/loa/reality/dependencies.md` | External dependencies |
 
 ### Legacy Documentation Inventory
 
 | Document | Path | Purpose |
 |----------|------|---------|
-| **Index** | `loa-grimoire/legacy/index.md` | Discovered documentation catalog |
-| **{doc}.md** | `loa-grimoire/legacy/{doc}.md` | Individual document snapshots |
+| **Index** | `grimoires/loa/legacy/index.md` | Discovered documentation catalog |
+| **{doc}.md** | `grimoires/loa/legacy/{doc}.md` | Individual document snapshots |
 
 ## Enterprise Standards References
 

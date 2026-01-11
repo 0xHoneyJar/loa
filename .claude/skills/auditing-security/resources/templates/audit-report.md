@@ -186,7 +186,7 @@
 
 **Audit Completed:** {Timestamp}
 **Next Audit Recommended:** {Date}
-**Remediation Tracking:** `loa-grimoire/audits/{DATE}/`
+**Remediation Tracking:** `grimoires/loa/audits/{DATE}/`
 
 ---
 

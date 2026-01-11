@@ -52,8 +52,8 @@ temp/
 # User context files (discovery inputs, uploaded docs, extracted content)
 # These are user-specific inputs that should never be committed
 # The README.md is tracked to explain the directory's purpose
-loa-grimoire/context/*
-!loa-grimoire/context/README.md
+grimoires/loa/context/*
+!grimoires/loa/context/README.md
 
 # ck semantic search state (embeddings cache, indexes)
 # Large machine-specific files that rebuild automatically
@@ -61,14 +61,14 @@ loa-grimoire/context/*
 
 # Agent trajectory logs (reasoning audit trails)
 # JSONL format logs for development/debugging, not needed in version control
-loa-grimoire/a2a/trajectory/*.jsonl
+grimoires/loa/a2a/trajectory/*.jsonl
 
 # Pending feedback (temporary file for failed Linear submissions)
 # Kept in case /feedback fails to submit to Linear - automatically retried
-loa-grimoire/analytics/pending-feedback.json
+grimoires/loa/analytics/pending-feedback.json
 
 # Server audit reports (contain sensitive deployment info)
-loa-grimoire/deployment/SERVER-REALITY-AUDIT.md
+grimoires/loa/deployment/SERVER-REALITY-AUDIT.md
 
 # =============================================================================
 # LOA TEMPLATE EXCLUSIONS
@@ -77,34 +77,35 @@ loa-grimoire/deployment/SERVER-REALITY-AUDIT.md
 # They are generated per-project and must never be committed to the main loa repo.
 
 # Generated documentation artifacts
-loa-grimoire/prd.md
-loa-grimoire/sdd.md
-loa-grimoire/sprint.md
-loa-grimoire/NOTES.md
+grimoires/loa/prd.md
+grimoires/loa/sdd.md
+grimoires/loa/sprint.md
+grimoires/loa/NOTES.md
 
 # Agent-to-Agent communication (sprint-specific, generated)
 # README.md files are kept to explain the directory purpose
-loa-grimoire/a2a/*
-!loa-grimoire/a2a/README.md
-!loa-grimoire/a2a/trajectory/
-loa-grimoire/a2a/trajectory/*
-!loa-grimoire/a2a/trajectory/README.md
+grimoires/loa/a2a/*
+!grimoires/loa/a2a/README.md
+!grimoires/loa/a2a/trajectory/
+grimoires/loa/a2a/trajectory/*
+!grimoires/loa/a2a/trajectory/README.md
 
 # Deployment artifacts (project-specific)
-loa-grimoire/deployment/*
-!loa-grimoire/deployment/README.md
+grimoires/loa/deployment/*
+!grimoires/loa/deployment/README.md
 
 # Reality extraction (codebase-specific)
-loa-grimoire/reality/*
-!loa-grimoire/reality/README.md
+grimoires/loa/reality/*
+!grimoires/loa/reality/README.md
 
 # Analytics (usage tracking, developer-specific)
-loa-grimoire/analytics/*
-!loa-grimoire/analytics/README.md
+grimoires/loa/analytics/*
+!grimoires/loa/analytics/README.md
 
 # Research files (project-specific discoveries)
-loa-grimoire/research/*
-!loa-grimoire/research/README.md
+# NOTE: Public research should go to grimoires/pub/research/ (git-tracked)
+grimoires/loa/research/*
+!grimoires/loa/research/README.md
 
 # =============================================================================
 # LOA CONSTRUCTS (licensed skills, user-specific)

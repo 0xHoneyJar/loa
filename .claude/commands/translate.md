@@ -12,13 +12,13 @@ arguments:
     description: "Technical document to translate (use @ prefix)"
     examples:
       - "@SECURITY-AUDIT-REPORT.md"
-      - "@loa-grimoire/sdd.md"
-      - "@loa-grimoire/sprint.md"
-      - "@loa-grimoire/drift-report.md"
-      - "@loa-grimoire/governance-report.md"
-      - "@loa-grimoire/consistency-report.md"
-      - "@loa-grimoire/reality/hygiene-report.md"
-      - "@loa-grimoire/trajectory-audit.md"
+      - "@grimoires/loa/sdd.md"
+      - "@grimoires/loa/sprint.md"
+      - "@grimoires/loa/drift-report.md"
+      - "@grimoires/loa/governance-report.md"
+      - "@grimoires/loa/consistency-report.md"
+      - "@grimoires/loa/reality/hygiene-report.md"
+      - "@grimoires/loa/trajectory-audit.md"
 
   - name: "audience"
     type: "string"
@@ -58,8 +58,8 @@ Transform technical documentation (PRDs, SDDs, audit reports, sprint updates) in
 ```
 /translate @document.md for [audience]
 /translate @SECURITY-AUDIT-REPORT.md for board of directors
-/translate @loa-grimoire/sdd.md for executives
-/translate @loa-grimoire/sprint.md for investors background
+/translate @grimoires/loa/sdd.md for executives
+/translate @grimoires/loa/sprint.md for investors background
 ```
 
 ## Agent

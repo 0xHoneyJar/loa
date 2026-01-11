@@ -9,9 +9,9 @@
 - [ ] If CHANGES_REQUIRED, address ALL issues before new work
 
 ### Context Gathering
-- [ ] Read `loa-grimoire/sprint.md` for tasks and acceptance criteria
-- [ ] Read `loa-grimoire/sdd.md` for technical architecture
-- [ ] Read `loa-grimoire/prd.md` for business requirements
+- [ ] Read `grimoires/loa/sprint.md` for tasks and acceptance criteria
+- [ ] Read `grimoires/loa/sdd.md` for technical architecture
+- [ ] Read `grimoires/loa/prd.md` for business requirements
 - [ ] Review existing codebase patterns and conventions
 - [ ] Identify dependencies between tasks
 

@@ -17,19 +17,19 @@ agent: "auditing-security"
 agent_path: "skills/auditing-security/"
 
 context_files:
-  - path: "loa-grimoire/prd.md"
+  - path: "grimoires/loa/prd.md"
     required: true
     purpose: "Product requirements for context"
-  - path: "loa-grimoire/sdd.md"
+  - path: "grimoires/loa/sdd.md"
     required: true
     purpose: "Architecture decisions for alignment"
-  - path: "loa-grimoire/sprint.md"
+  - path: "grimoires/loa/sprint.md"
     required: true
     purpose: "Sprint tasks and acceptance criteria"
-  - path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/reviewer.md"
+  - path: "grimoires/loa/a2a/$ARGUMENTS.sprint_id/reviewer.md"
     required: true
     purpose: "Engineer's implementation report"
-  - path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/engineer-feedback.md"
+  - path: "grimoires/loa/a2a/$ARGUMENTS.sprint_id/engineer-feedback.md"
     required: true
     purpose: "Senior lead approval verification"
 
@@ -44,34 +44,34 @@ pre_flight:
     error: "Invalid sprint ID. Expected format: sprint-N (e.g., sprint-1)"
 
   - check: "directory_exists"
-    path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id"
+    path: "grimoires/loa/a2a/$ARGUMENTS.sprint_id"
     error: "Sprint directory not found. Run /implement $ARGUMENTS.sprint_id first."
 
   - check: "file_exists"
-    path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/reviewer.md"
+    path: "grimoires/loa/a2a/$ARGUMENTS.sprint_id/reviewer.md"
     error: "No implementation report found. Run /implement $ARGUMENTS.sprint_id first."
 
   - check: "file_exists"
-    path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/engineer-feedback.md"
+    path: "grimoires/loa/a2a/$ARGUMENTS.sprint_id/engineer-feedback.md"
     error: "Sprint has not been reviewed. Run /review-sprint $ARGUMENTS.sprint_id first."
 
   - check: "content_contains"
-    path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/engineer-feedback.md"
+    path: "grimoires/loa/a2a/$ARGUMENTS.sprint_id/engineer-feedback.md"
     pattern: "All good"
     error: "Sprint has not been approved by senior lead. Run /review-sprint $ARGUMENTS.sprint_id first."
 
   - check: "file_not_exists"
-    path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/COMPLETED"
+    path: "grimoires/loa/a2a/$ARGUMENTS.sprint_id/COMPLETED"
     error: "Sprint $ARGUMENTS.sprint_id is already COMPLETED. No audit needed."
 
 outputs:
-  - path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/auditor-sprint-feedback.md"
+  - path: "grimoires/loa/a2a/$ARGUMENTS.sprint_id/auditor-sprint-feedback.md"
     type: "file"
     description: "Audit feedback or 'APPROVED - LETS FUCKING GO'"
-  - path: "loa-grimoire/a2a/$ARGUMENTS.sprint_id/COMPLETED"
+  - path: "grimoires/loa/a2a/$ARGUMENTS.sprint_id/COMPLETED"
     type: "file"
     description: "Completion marker (created on approval)"
-  - path: "loa-grimoire/a2a/index.md"
+  - path: "grimoires/loa/a2a/index.md"
     type: "file"
     description: "Sprint index (status updated)"
 
@@ -127,9 +127,9 @@ See: `skills/auditing-security/SKILL.md` for full workflow details.
 
 | Path | Description |
 |------|-------------|
-| `loa-grimoire/a2a/{sprint_id}/auditor-sprint-feedback.md` | Audit results |
-| `loa-grimoire/a2a/{sprint_id}/COMPLETED` | Completion marker |
-| `loa-grimoire/a2a/index.md` | Updated sprint status |
+| `grimoires/loa/a2a/{sprint_id}/auditor-sprint-feedback.md` | Audit results |
+| `grimoires/loa/a2a/{sprint_id}/COMPLETED` | Completion marker |
+| `grimoires/loa/a2a/index.md` | Updated sprint status |
 
 ## Decision Outcomes
 

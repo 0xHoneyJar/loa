@@ -2,7 +2,7 @@
 
 **Date:** {DATE}
 **Engineer:** Sprint Task Implementer Agent
-**Sprint Reference:** loa-grimoire/sprint.md
+**Sprint Reference:** grimoires/loa/sprint.md
 **Version:** {X.Y.Z}
 
 ---

@@ -20,7 +20,7 @@ main() {
         exit 2
     fi
 
-    local sprint_dir="loa-grimoire/a2a/${sprint_id}"
+    local sprint_dir="grimoires/loa/a2a/${sprint_id}"
     local audit_file="${sprint_dir}/auditor-sprint-feedback.md"
     local engineer_file="${sprint_dir}/engineer-feedback.md"
 

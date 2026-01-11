@@ -6,7 +6,7 @@ zones:
     path: .claude
     permission: none
   state:
-    paths: [loa-grimoire, .beads]
+    paths: [grimoires/loa, .beads]
     permission: read-write
   app:
     paths: [src, lib, app]
@@ -16,7 +16,7 @@ zones:
 # Architecture Designer
 
 <objective>
-Transform Product Requirements Documents (PRDs) into comprehensive, actionable Software Design Documents (SDDs) that serve as the definitive technical blueprint for engineering teams during sprint planning and implementation. Generate `loa-grimoire/sdd.md`.
+Transform Product Requirements Documents (PRDs) into comprehensive, actionable Software Design Documents (SDDs) that serve as the definitive technical blueprint for engineering teams during sprint planning and implementation. Generate `grimoires/loa/sdd.md`.
 </objective>
 
 <zone_constraints>
@@ -27,7 +27,7 @@ This skill operates under **Managed Scaffolding**:
 | Zone | Permission | Notes |
 |------|------------|-------|
 | `.claude/` | NONE | System zone - never suggest edits |
-| `loa-grimoire/`, `.beads/` | Read/Write | State zone - project memory |
+| `grimoires/loa/`, `.beads/` | Read/Write | State zone - project memory |
 | `src/`, `lib/`, `app/` | Read-only | App zone - requires user confirmation |
 
 **NEVER** suggest modifications to `.claude/`. Direct users to `.claude/overrides/` or `.loa.config.yaml`.
@@ -67,7 +67,7 @@ The SDD specifies "PostgreSQL 15 with pgvector extension" (sdd.md:L123)
 ## Structured Memory Protocol
 
 ### On Session Start
-1. Read `loa-grimoire/NOTES.md`
+1. Read `grimoires/loa/NOTES.md`
 2. Restore context from "Session Continuity" section
 3. Check for resolved blockers
 
@@ -101,7 +101,7 @@ Example:
 <trajectory_logging>
 ## Trajectory Logging
 
-Log each significant step to `loa-grimoire/a2a/trajectory/{agent}-{date}.jsonl`:
+Log each significant step to `grimoires/loa/a2a/trajectory/{agent}-{date}.jsonl`:
 
 ```json
 {"timestamp": "...", "agent": "...", "action": "...", "reasoning": "...", "grounding": {...}}
@@ -110,16 +110,16 @@ Log each significant step to `loa-grimoire/a2a/trajectory/{agent}-{date}.jsonl`:
 
 <kernel_framework>
 ## Task (N - Narrow Scope)
-Transform PRD into comprehensive Software Design Document (SDD). Generate `loa-grimoire/sdd.md`.
+Transform PRD into comprehensive Software Design Document (SDD). Generate `grimoires/loa/sdd.md`.
 
 ## Context (L - Logical Structure)
-- **Input**: `loa-grimoire/prd.md` (product requirements)
-- **Integration context**: `loa-grimoire/a2a/integration-context.md` (if exists) for past experiments, tech decisions, team structure
+- **Input**: `grimoires/loa/prd.md` (product requirements)
+- **Integration context**: `grimoires/loa/a2a/integration-context.md` (if exists) for past experiments, tech decisions, team structure
 - **Current state**: PRD with functional/non-functional requirements
 - **Desired state**: Complete technical blueprint for engineering teams
 
 ## Constraints (E - Explicit)
-- DO NOT start design until you've read `loa-grimoire/a2a/integration-context.md` (if exists) and `loa-grimoire/prd.md`
+- DO NOT start design until you've read `grimoires/loa/a2a/integration-context.md` (if exists) and `grimoires/loa/prd.md`
 - DO NOT make technology choices without justification
 - DO NOT skip clarification questions if requirements are ambiguous
 - DO NOT design without considering: scale, budget, timeline, team expertise, existing systems
@@ -128,7 +128,7 @@ Transform PRD into comprehensive Software Design Document (SDD). Generate `loa-g
 - DO document all assumptions if information isn't provided
 
 ## Verification (E - Easy to Verify)
-**Success** = Complete SDD saved to `loa-grimoire/sdd.md` with all required sections + sprint-ready for engineers
+**Success** = Complete SDD saved to `grimoires/loa/sdd.md` with all required sections + sprint-ready for engineers
 
 Required sections:
 - System Architecture (with component diagram)
@@ -158,8 +158,8 @@ Required sections:
 
 <grounding_requirements>
 Before designing architecture:
-1. Read `loa-grimoire/a2a/integration-context.md` (if exists) for organizational context
-2. Read `loa-grimoire/prd.md` completely—extract all requirements
+1. Read `grimoires/loa/a2a/integration-context.md` (if exists) for organizational context
+2. Read `grimoires/loa/prd.md` completely—extract all requirements
 3. Quote specific requirements when justifying design decisions: `> From prd.md: "..."`
 4. Cross-reference past experiments and learnings before proposing solutions
 5. Validate scale requirements explicitly match PRD non-functional requirements
@@ -175,10 +175,10 @@ Before designing architecture:
 <workflow>
 ## Phase 0: Integration Context Check (CRITICAL—DO THIS FIRST)
 
-Check if `loa-grimoire/a2a/integration-context.md` exists:
+Check if `grimoires/loa/a2a/integration-context.md` exists:
 
 ```bash
-[ -f "loa-grimoire/a2a/integration-context.md" ] && echo "EXISTS" || echo "MISSING"
+[ -f "grimoires/loa/a2a/integration-context.md" ] && echo "EXISTS" || echo "MISSING"
 ```
 
 **If EXISTS**, read it to understand:
@@ -192,7 +192,7 @@ Check if `loa-grimoire/a2a/integration-context.md` exists:
 
 ## Phase 1: PRD Analysis
 
-1. Read `loa-grimoire/prd.md` thoroughly
+1. Read `grimoires/loa/prd.md` thoroughly
 2. Extract:
    - Functional requirements
    - Non-functional requirements (performance, scale, security)
@@ -242,7 +242,7 @@ Required sections:
 9. Known Risks and Mitigation
 10. Open Questions
 
-Save to `loa-grimoire/sdd.md`.
+Save to `grimoires/loa/sdd.md`.
 </workflow>
 
 <output_format>

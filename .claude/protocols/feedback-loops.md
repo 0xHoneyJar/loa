@@ -22,8 +22,8 @@ Engineer → Senior Lead → Engineer → ... → Approval
 
 | File | Created By | Purpose |
 |------|------------|---------|
-| `loa-grimoire/a2a/sprint-N/reviewer.md` | `implementing-tasks` | Implementation report |
-| `loa-grimoire/a2a/sprint-N/engineer-feedback.md` | `reviewing-code` | Code review feedback |
+| `grimoires/loa/a2a/sprint-N/reviewer.md` | `implementing-tasks` | Implementation report |
+| `grimoires/loa/a2a/sprint-N/engineer-feedback.md` | `reviewing-code` | Code review feedback |
 
 ### Process
 
@@ -52,9 +52,9 @@ Engineer → Security Auditor → Engineer → ... → Security Approval
 
 | File | Created By | Purpose |
 |------|------------|---------|
-| `loa-grimoire/a2a/sprint-N/reviewer.md` | `implementing-tasks` | Implementation context |
-| `loa-grimoire/a2a/sprint-N/auditor-sprint-feedback.md` | `auditing-security` | Security feedback |
-| `loa-grimoire/a2a/sprint-N/COMPLETED` | `auditing-security` | Completion marker |
+| `grimoires/loa/a2a/sprint-N/reviewer.md` | `implementing-tasks` | Implementation context |
+| `grimoires/loa/a2a/sprint-N/auditor-sprint-feedback.md` | `auditing-security` | Security feedback |
+| `grimoires/loa/a2a/sprint-N/COMPLETED` | `auditing-security` | Completion marker |
 
 ### Process
 
@@ -93,8 +93,8 @@ DevOps → Security Auditor → DevOps → ... → Deployment Approval
 
 | File | Created By | Purpose |
 |------|------------|---------|
-| `loa-grimoire/a2a/deployment-report.md` | `deploying-infrastructure` | Infrastructure report |
-| `loa-grimoire/a2a/deployment-feedback.md` | `auditing-security` | Deployment audit feedback |
+| `grimoires/loa/a2a/deployment-report.md` | `deploying-infrastructure` | Infrastructure report |
+| `grimoires/loa/a2a/deployment-feedback.md` | `auditing-security` | Deployment audit feedback |
 
 ### Process
 
@@ -109,7 +109,7 @@ DevOps → Security Auditor → DevOps → ... → Deployment Approval
 ## A2A Directory Structure
 
 ```
-loa-grimoire/a2a/
+grimoires/loa/a2a/
 ├── index.md                         # Sprint audit trail index (auto-maintained)
 ├── integration-context.md           # Feedback configuration
 ├── sprint-1/

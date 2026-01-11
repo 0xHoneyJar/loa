@@ -6,7 +6,7 @@ zones:
     path: .claude
     permission: none
   state:
-    paths: [loa-grimoire, .beads]
+    paths: [grimoires/loa, .beads]
     permission: read-write
   app:
     paths: [src, lib, app]
@@ -17,7 +17,7 @@ zones:
 
 <objective>
 Synthesize existing project documentation and conduct targeted discovery
-interviews to produce a comprehensive PRD at `loa-grimoire/prd.md`.
+interviews to produce a comprehensive PRD at `grimoires/loa/prd.md`.
 </objective>
 
 <persona>
@@ -33,7 +33,7 @@ This skill operates under **Managed Scaffolding**:
 | Zone | Permission | Notes |
 |------|------------|-------|
 | `.claude/` | NONE | System zone - never suggest edits |
-| `loa-grimoire/`, `.beads/` | Read/Write | State zone - project memory |
+| `grimoires/loa/`, `.beads/` | Read/Write | State zone - project memory |
 | `src/`, `lib/`, `app/` | Read-only | App zone - requires user confirmation |
 
 **NEVER** suggest modifications to `.claude/`. Direct users to `.claude/overrides/` or `.loa.config.yaml`.
@@ -73,7 +73,7 @@ The SDD specifies "PostgreSQL 15 with pgvector extension" (sdd.md:L123)
 ## Structured Memory Protocol
 
 ### On Session Start
-1. Read `loa-grimoire/NOTES.md`
+1. Read `grimoires/loa/NOTES.md`
 2. Restore context from "Session Continuity" section
 3. Check for resolved blockers
 
@@ -107,7 +107,7 @@ Example:
 <trajectory_logging>
 ## Trajectory Logging
 
-Log each significant step to `loa-grimoire/a2a/trajectory/{agent}-{date}.jsonl`:
+Log each significant step to `grimoires/loa/a2a/trajectory/{agent}-{date}.jsonl`:
 
 ```json
 {"timestamp": "...", "agent": "...", "action": "...", "reasoning": "...", "grounding": {...}}
@@ -117,15 +117,15 @@ Log each significant step to `loa-grimoire/a2a/trajectory/{agent}-{date}.jsonl`:
 <kernel_framework>
 ## Task
 Produce comprehensive PRD by:
-1. Ingesting all context from `loa-grimoire/context/`
+1. Ingesting all context from `grimoires/loa/context/`
 2. Mapping existing information to 7 discovery phases
 3. Conducting targeted interviews for gaps only
 4. Generating PRD with full traceability to sources
 
 ## Context
-- **Input**: `loa-grimoire/context/*.md` (optional), developer interview
-- **Output**: `loa-grimoire/prd.md`
-- **Integration**: `loa-grimoire/a2a/integration-context.md` (if exists)
+- **Input**: `grimoires/loa/context/*.md` (optional), developer interview
+- **Output**: `grimoires/loa/prd.md`
+- **Integration**: `grimoires/loa/a2a/integration-context.md` (if exists)
 
 ## Constraints
 - DO NOT ask questions answerable from provided context
@@ -161,7 +161,7 @@ Run context assessment:
 **If context files exist:**
 
 ### Step 1: Ingest All Context
-Read every `.md` file in `loa-grimoire/context/` (and subdirectories).
+Read every `.md` file in `grimoires/loa/context/` (and subdirectories).
 
 ### Step 2: Create Context Map
 Internally categorize discovered information:

@@ -81,10 +81,10 @@ fi
 
 ```bash
 # Read structured memory
-[[ -f "loa-grimoire/NOTES.md" ]] && cat loa-grimoire/NOTES.md
+[[ -f "grimoires/loa/NOTES.md" ]] && cat grimoires/loa/NOTES.md
 
 # Check for existing translations
-ls -la loa-grimoire/translations/ 2>/dev/null
+ls -la grimoires/loa/translations/ 2>/dev/null
 
 # Check Beads for related issues
 bd list --label translation --label drift 2>/dev/null
@@ -94,11 +94,11 @@ bd list --label translation --label drift 2>/dev/null
 
 | Artifact | Path | Focus |
 |----------|------|-------|
-| drift | `loa-grimoire/drift-report.md` | Ghost Features, Shadow Systems |
-| governance | `loa-grimoire/governance-report.md` | Process maturity |
-| consistency | `loa-grimoire/consistency-report.md` | Code patterns |
-| hygiene | `loa-grimoire/reality/hygiene-report.md` | Technical debt |
-| trajectory | `loa-grimoire/trajectory-audit.md` | Confidence |
+| drift | `grimoires/loa/drift-report.md` | Ghost Features, Shadow Systems |
+| governance | `grimoires/loa/governance-report.md` | Process maturity |
+| consistency | `grimoires/loa/consistency-report.md` | Code patterns |
+| hygiene | `grimoires/loa/reality/hygiene-report.md` | Technical debt |
+| trajectory | `grimoires/loa/trajectory-audit.md` | Confidence |
 
 ### Phase 3: Just-in-Time Translation
 
@@ -168,7 +168,7 @@ Generate `translation-audit.md` with results.
 ### Phase 8: Output & Memory Update
 
 ```bash
-mkdir -p loa-grimoire/translations
+mkdir -p grimoires/loa/translations
 
 # Write all translation files
 # Generate translation-audit.md
@@ -188,7 +188,7 @@ mkdir -p loa-grimoire/translations
 ## Output Structure
 
 ```
-loa-grimoire/translations/
+grimoires/loa/translations/
 +-- EXECUTIVE-INDEX.md       <- Start here (Balance Sheet of Reality)
 +-- drift-analysis.md        <- Ghost Features (Phantom Assets)
 +-- governance-assessment.md <- Compliance Gaps

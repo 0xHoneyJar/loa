@@ -10,10 +10,10 @@ These schemas provide structured output validation for Loa's agent system, ensur
 
 | Schema | Purpose | Target Files |
 |--------|---------|--------------|
-| `prd.schema.json` | Product Requirements Document | `loa-grimoire/prd.md` (YAML frontmatter) |
-| `sdd.schema.json` | Software Design Document | `loa-grimoire/sdd.md` (YAML frontmatter) |
-| `sprint.schema.json` | Sprint Plan | `loa-grimoire/sprint.md` (YAML frontmatter) |
-| `trajectory-entry.schema.json` | Agent reasoning trace | `loa-grimoire/a2a/trajectory/*.jsonl` |
+| `prd.schema.json` | Product Requirements Document | `grimoires/loa/prd.md` (YAML frontmatter) |
+| `sdd.schema.json` | Software Design Document | `grimoires/loa/sdd.md` (YAML frontmatter) |
+| `sprint.schema.json` | Sprint Plan | `grimoires/loa/sprint.md` (YAML frontmatter) |
+| `trajectory-entry.schema.json` | Agent reasoning trace | `grimoires/loa/a2a/trajectory/*.jsonl` |
 
 ## Usage
 
@@ -21,7 +21,7 @@ These schemas provide structured output validation for Loa's agent system, ensur
 
 ```bash
 # Auto-detect schema based on file path
-.claude/scripts/schema-validator.sh validate loa-grimoire/prd.md
+.claude/scripts/schema-validator.sh validate grimoires/loa/prd.md
 
 # Specify schema explicitly
 .claude/scripts/schema-validator.sh validate output.json --schema prd

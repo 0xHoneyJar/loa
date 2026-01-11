@@ -4,7 +4,7 @@
 **Date:** {DATE}
 **Author:** Architecture Designer Agent
 **Status:** Draft | In Review | Approved
-**PRD Reference:** loa-grimoire/prd.md
+**PRD Reference:** grimoires/loa/prd.md
 
 ---
 

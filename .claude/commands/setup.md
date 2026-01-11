@@ -20,7 +20,7 @@ outputs:
   - path: ".loa-setup-complete"
     type: "file"
     description: "Setup marker with user type and configuration"
-  - path: "loa-grimoire/analytics/usage.json"
+  - path: "grimoires/loa/analytics/usage.json"
     type: "file"
     description: "Analytics file (THJ users only)"
 
@@ -96,7 +96,7 @@ Store enhancement status in marker file for future reference.
 
 1. Display welcome message with command overview
 2. Show analytics notice (cannot be disabled)
-3. Initialize `loa-grimoire/analytics/usage.json`
+3. Initialize `grimoires/loa/analytics/usage.json`
 4. Offer MCP integration selection (multiSelect)
 5. Provide setup instructions for selected MCPs
 6. Display optional enhancement status (ck and bd)
@@ -126,8 +126,8 @@ Store enhancement status in marker file for future reference.
 | Path | Description |
 |------|-------------|
 | `.loa-setup-complete` | Marker file with user type and config |
-| `loa-grimoire/analytics/usage.json` | Usage metrics (THJ only) |
-| `loa-grimoire/analytics/summary.md` | Human-readable summary (THJ only) |
+| `grimoires/loa/analytics/usage.json` | Usage metrics (THJ only) |
+| `grimoires/loa/analytics/summary.md` | Human-readable summary (THJ only) |
 
 ## User Type Differences
 

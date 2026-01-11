@@ -2,7 +2,7 @@
 
 ## Input Documents
 
-- **Product Requirements Document (PRD)**: `loa-grimoire/prd.md`
+- **Product Requirements Document (PRD)**: `grimoires/loa/prd.md`
   - Primary input for architecture design
   - Contains functional and non-functional requirements
 

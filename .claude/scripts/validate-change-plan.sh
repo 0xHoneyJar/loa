@@ -33,7 +33,7 @@ if [[ -z "$PLAN_FILE" ]]; then
   echo "Usage: validate-change-plan.sh <plan-file>"
   echo ""
   echo "Example:"
-  echo "  .claude/scripts/validate-change-plan.sh loa-grimoire/sprint.md"
+  echo "  .claude/scripts/validate-change-plan.sh grimoires/loa/sprint.md"
   exit 1
 fi
 

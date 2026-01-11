@@ -6,7 +6,7 @@ zones:
     path: .claude
     permission: none
   state:
-    paths: [loa-grimoire, .beads]
+    paths: [grimoires/loa, .beads]
     permission: read-write
   app:
     paths: [src, lib, app]
@@ -16,7 +16,7 @@ zones:
 # Sprint Planner
 
 <objective>
-Transform PRD and SDD into actionable sprint plan with 2.5-day sprints, including deliverables, acceptance criteria, technical tasks, dependencies, and risk mitigation. Generate `loa-grimoire/sprint.md`.
+Transform PRD and SDD into actionable sprint plan with 2.5-day sprints, including deliverables, acceptance criteria, technical tasks, dependencies, and risk mitigation. Generate `grimoires/loa/sprint.md`.
 </objective>
 
 <zone_constraints>
@@ -27,7 +27,7 @@ This skill operates under **Managed Scaffolding**:
 | Zone | Permission | Notes |
 |------|------------|-------|
 | `.claude/` | NONE | System zone - never suggest edits |
-| `loa-grimoire/`, `.beads/` | Read/Write | State zone - project memory |
+| `grimoires/loa/`, `.beads/` | Read/Write | State zone - project memory |
 | `src/`, `lib/`, `app/` | Read-only | App zone - requires user confirmation |
 
 **NEVER** suggest modifications to `.claude/`. Direct users to `.claude/overrides/` or `.loa.config.yaml`.
@@ -67,7 +67,7 @@ The SDD specifies "PostgreSQL 15 with pgvector extension" (sdd.md:L123)
 ## Structured Memory Protocol
 
 ### On Session Start
-1. Read `loa-grimoire/NOTES.md`
+1. Read `grimoires/loa/NOTES.md`
 2. Restore context from "Session Continuity" section
 3. Check for resolved blockers
 
@@ -101,7 +101,7 @@ Example:
 <trajectory_logging>
 ## Trajectory Logging
 
-Log each significant step to `loa-grimoire/a2a/trajectory/{agent}-{date}.jsonl`:
+Log each significant step to `grimoires/loa/a2a/trajectory/{agent}-{date}.jsonl`:
 
 ```json
 {"timestamp": "...", "agent": "...", "action": "...", "reasoning": "...", "grounding": {...}}
@@ -110,19 +110,19 @@ Log each significant step to `loa-grimoire/a2a/trajectory/{agent}-{date}.jsonl`:
 
 <kernel_framework>
 ## Task (N - Narrow Scope)
-Transform PRD and SDD into actionable sprint plan with 2.5-day sprints. Generate `loa-grimoire/sprint.md`.
+Transform PRD and SDD into actionable sprint plan with 2.5-day sprints. Generate `grimoires/loa/sprint.md`.
 
 ## Context (L - Logical Structure)
-- **Input**: `loa-grimoire/prd.md` (requirements), `loa-grimoire/sdd.md` (technical design)
-- **Integration context**: `loa-grimoire/a2a/integration-context.md` (if exists) for current state, priority signals, team capacity, dependencies
+- **Input**: `grimoires/loa/prd.md` (requirements), `grimoires/loa/sdd.md` (technical design)
+- **Integration context**: `grimoires/loa/a2a/integration-context.md` (if exists) for current state, priority signals, team capacity, dependencies
 - **Current state**: Architecture and requirements defined, but no implementation roadmap
 - **Desired state**: Sprint-by-sprint breakdown with deliverables, acceptance criteria, tasks, dependencies
 
 ## Constraints (E - Explicit)
-- DO NOT proceed until you've read both `loa-grimoire/prd.md` AND `loa-grimoire/sdd.md` completely
+- DO NOT proceed until you've read both `grimoires/loa/prd.md` AND `grimoires/loa/sdd.md` completely
 - DO NOT create sprints until clarifying questions are answered
 - DO NOT plan more than 2.5 days of work per sprint
-- DO NOT skip checking `loa-grimoire/a2a/integration-context.md` for project state and priorities
+- DO NOT skip checking `grimoires/loa/a2a/integration-context.md` for project state and priorities
 - DO check current project status (Product Home) before planning if integration context exists
 - DO review priority signals (CX Triage, community feedback volume) if available
 - DO consider team structure and cross-team dependencies from integration context
@@ -130,7 +130,7 @@ Transform PRD and SDD into actionable sprint plan with 2.5-day sprints. Generate
 - DO ask specific questions about: priority conflicts, technical uncertainties, resource availability, external dependencies
 
 ## Verification (E - Easy to Verify)
-**Success** = Complete sprint plan saved to `loa-grimoire/sprint.md` + engineers can start immediately without clarification
+**Success** = Complete sprint plan saved to `grimoires/loa/sprint.md` + engineers can start immediately without clarification
 
 Each sprint MUST include:
 - Sprint Goal (1 sentence)
@@ -158,9 +158,9 @@ Each sprint MUST include:
 
 <grounding_requirements>
 Before creating sprint plan:
-1. Read `loa-grimoire/a2a/integration-context.md` (if exists) for organizational context
-2. Read `loa-grimoire/prd.md` completely—extract all MVP features
-3. Read `loa-grimoire/sdd.md` completely—understand technical architecture
+1. Read `grimoires/loa/a2a/integration-context.md` (if exists) for organizational context
+2. Read `grimoires/loa/prd.md` completely—extract all MVP features
+3. Read `grimoires/loa/sdd.md` completely—understand technical architecture
 4. Quote specific requirements when creating tasks: `> From prd.md: FR-1.2: "..."`
 5. Reference SDD sections for technical tasks: `> From sdd.md: §3.2 Database Design`
 </grounding_requirements>
@@ -215,12 +215,12 @@ Use AskUserQuestion with options:
 
 ### Step 1: Check for Security Audit Feedback
 
-Check if `loa-grimoire/a2a/auditor-sprint-feedback.md` exists:
+Check if `grimoires/loa/a2a/auditor-sprint-feedback.md` exists:
 
 **If exists + "CHANGES_REQUIRED":**
 - Previous sprint failed security audit
 - Engineers must address feedback before new work
-- STOP: "The previous sprint has unresolved security issues. Engineers should run /implement to address loa-grimoire/a2a/auditor-sprint-feedback.md before planning new sprints."
+- STOP: "The previous sprint has unresolved security issues. Engineers should run /implement to address grimoires/loa/a2a/auditor-sprint-feedback.md before planning new sprints."
 
 **If exists + "APPROVED - LETS FUCKING GO":**
 - Previous sprint passed security audit
@@ -232,10 +232,10 @@ Check if `loa-grimoire/a2a/auditor-sprint-feedback.md` exists:
 
 ### Step 2: Check for Integration Context
 
-Check if `loa-grimoire/a2a/integration-context.md` exists:
+Check if `grimoires/loa/a2a/integration-context.md` exists:
 
 ```bash
-[ -f "loa-grimoire/a2a/integration-context.md" ] && echo "EXISTS" || echo "MISSING"
+[ -f "grimoires/loa/a2a/integration-context.md" ] && echo "EXISTS" || echo "MISSING"
 ```
 
 **If EXISTS**, read it to understand:
@@ -310,7 +310,7 @@ Self-Review Checklist:
 - [ ] Dependencies explicitly called out
 - [ ] Plan provides clear guidance for engineers
 
-Save to `loa-grimoire/sprint.md`.
+Save to `grimoires/loa/sprint.md`.
 </workflow>
 
 <output_format>

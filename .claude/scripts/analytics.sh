@@ -47,8 +47,8 @@ get_configured_mcp_servers() {
 
 # Initialize analytics file if missing
 init_analytics() {
-    local analytics_file="loa-grimoire/analytics/usage.json"
-    local analytics_dir="loa-grimoire/analytics"
+    local analytics_file="grimoires/loa/analytics/usage.json"
+    local analytics_dir="grimoires/loa/analytics"
 
     mkdir -p "$analytics_dir"
 
@@ -76,7 +76,7 @@ EOF
 update_analytics_field() {
     local field="$1"
     local value="$2"
-    local file="loa-grimoire/analytics/usage.json"
+    local file="grimoires/loa/analytics/usage.json"
 
     if command -v jq &>/dev/null; then
         local tmp=$(mktemp)

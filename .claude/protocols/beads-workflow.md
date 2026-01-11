@@ -184,7 +184,7 @@ bd compact --apply --id <id> --summary <summary-file>
 
 ## Coexistence with sprint.md
 
-During transition, `loa-grimoire/sprint.md` remains as human-readable archive:
+During transition, `grimoires/loa/sprint.md` remains as human-readable archive:
 - Beads is source of truth for task state
 - sprint.md provides overview and context
 - Both are kept in sync by agents

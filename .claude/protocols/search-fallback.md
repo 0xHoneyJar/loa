@@ -145,7 +145,7 @@ RESULT_COUNT=$(grep -ri \
 if [[ "${RESULT_COUNT}" -eq 0 ]]; then
     # Likely Ghost, but lower confidence
     # Check documentation for mentions
-    DOC_COUNT=$(grep -ri "oauth\|sso" loa-grimoire/*.md docs/*.md 2>/dev/null | wc -l)
+    DOC_COUNT=$(grep -ri "oauth\|sso" grimoires/loa/*.md docs/*.md 2>/dev/null | wc -l)
 
     if [[ "${DOC_COUNT}" -gt 3 ]]; then
         echo "GHOST (Low Confidence): OAuth documented but not found in code"

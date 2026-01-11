@@ -78,7 +78,7 @@ From raw search results, extract:
 
 #### Step 2: Synthesize to NOTES.md
 
-Write findings to `loa-grimoire/NOTES.md` under appropriate section:
+Write findings to `grimoires/loa/NOTES.md` under appropriate section:
 
 ```markdown
 ## Context Load: 2025-12-27 10:30:00
@@ -243,7 +243,7 @@ Total: 750 tokens in working memory
 **During /ride execution**:
 1. Search for entry points, abstractions, Ghost Features, Shadow Systems
 2. Apply Tool Result Clearing after EACH search phase
-3. Synthesize findings to `loa-grimoire/reality/` files
+3. Synthesize findings to `grimoires/loa/reality/` files
 4. Clear raw results between phases
 5. Keep only high-level progress in working memory
 

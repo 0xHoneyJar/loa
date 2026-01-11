@@ -11,20 +11,20 @@ agent: "auditing-security"
 agent_path: "skills/auditing-security/"
 
 context_files:
-  - path: "loa-grimoire/a2a/deployment-report.md"
+  - path: "grimoires/loa/a2a/deployment-report.md"
     required: false
     purpose: "DevOps deployment report"
-  - path: "loa-grimoire/deployment/**/*"
+  - path: "grimoires/loa/deployment/**/*"
     required: false
     purpose: "Deployment scripts and configs"
-  - path: "loa-grimoire/a2a/deployment-feedback.md"
+  - path: "grimoires/loa/a2a/deployment-feedback.md"
     required: false
     purpose: "Previous audit feedback"
 
 pre_flight: []
 
 outputs:
-  - path: "loa-grimoire/a2a/deployment-feedback.md"
+  - path: "grimoires/loa/a2a/deployment-feedback.md"
     type: "file"
     description: "Audit feedback or 'APPROVED - LET'S FUCKING GO'"
 
@@ -57,11 +57,11 @@ See: `skills/auditing-security/SKILL.md` for full workflow details.
 ```
 DevOps creates infrastructure
       ↓
-Writes loa-grimoire/a2a/deployment-report.md
+Writes grimoires/loa/a2a/deployment-report.md
       ↓
 /audit-deployment
       ↓
-Auditor writes loa-grimoire/a2a/deployment-feedback.md
+Auditor writes grimoires/loa/a2a/deployment-feedback.md
       ↓
 CHANGES_REQUIRED          APPROVED
       ↓                       ↓
@@ -72,11 +72,11 @@ DevOps fixes issues    Proceed to deployment
 
 ## Workflow
 
-1. **Read DevOps Report**: Review `loa-grimoire/a2a/deployment-report.md`
+1. **Read DevOps Report**: Review `grimoires/loa/a2a/deployment-report.md`
 2. **Check Previous Feedback**: Verify previous issues were addressed
 3. **Audit Infrastructure**: Review scripts, configs, docs
 4. **Decision**: Approve or request changes
-5. **Output**: Write feedback to `loa-grimoire/a2a/deployment-feedback.md`
+5. **Output**: Write feedback to `grimoires/loa/a2a/deployment-feedback.md`
 
 ## Arguments
 
@@ -88,7 +88,7 @@ DevOps fixes issues    Proceed to deployment
 
 | Path | Description |
 |------|-------------|
-| `loa-grimoire/a2a/deployment-feedback.md` | Audit results |
+| `grimoires/loa/a2a/deployment-feedback.md` | Audit results |
 
 ## Audit Checklist
 

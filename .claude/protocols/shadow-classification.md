@@ -45,7 +45,7 @@ done <<< "${exports}"
 # For each discovered module, check if documented
 for module in $(list_discovered_modules); do
     # Search all documentation
-    doc_matches=$(semantic_search "${module}" "loa-grimoire/ docs/ README.md" 5 0.3)
+    doc_matches=$(semantic_search "${module}" "grimoires/loa/ docs/ README.md" 5 0.3)
 
     if [[ $(count_search_results <<< "${doc_matches}") -eq 0 ]]; then
         # Undocumented - classify as Shadow System
@@ -77,7 +77,7 @@ functional_description=$(infer_module_purpose "${code_content}")
 ```bash
 # Search documentation for semantic match
 query="${module_name} ${functional_description}"
-doc_matches=$(semantic_search "${query}" "loa-grimoire/ docs/ README.md" 5 0.3)
+doc_matches=$(semantic_search "${query}" "grimoires/loa/ docs/ README.md" 5 0.3)
 
 # Extract max similarity score
 if [[ $(count_search_results <<< "${doc_matches}") -gt 0 ]]; then
@@ -147,7 +147,7 @@ fi
 
 # Log to trajectory
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-TRAJECTORY_DIR="${PROJECT_ROOT}/loa-grimoire/a2a/trajectory"
+TRAJECTORY_DIR="${PROJECT_ROOT}/grimoires/loa/a2a/trajectory"
 TRAJECTORY_FILE="${TRAJECTORY_DIR}/$(date +%Y-%m-%d).jsonl"
 mkdir -p "${TRAJECTORY_DIR}"
 
@@ -166,7 +166,7 @@ jq -n \
 
 # Write to drift report
 echo "| ${module_name} | ${file} | Orphaned | HIGH | ${dependent_count} files | bd-124 | **Urgent: Document or remove** |" \
-    >> loa-grimoire/drift-report.md
+    >> grimoires/loa/drift-report.md
 ```
 
 #### If DRIFTED (Medium Risk):
@@ -174,7 +174,7 @@ echo "| ${module_name} | ${file} | Orphaned | HIGH | ${dependent_count} files | 
 ```bash
 # Log to trajectory
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-TRAJECTORY_DIR="${PROJECT_ROOT}/loa-grimoire/a2a/trajectory"
+TRAJECTORY_DIR="${PROJECT_ROOT}/grimoires/loa/a2a/trajectory"
 TRAJECTORY_FILE="${TRAJECTORY_DIR}/$(date +%Y-%m-%d).jsonl"
 mkdir -p "${TRAJECTORY_DIR}"
 
@@ -193,7 +193,7 @@ jq -n \
 
 # Write to drift report
 echo "| ${module_name} | ${file} | Drifted | MEDIUM | N/A | - | Update ${best_doc_match} |" \
-    >> loa-grimoire/drift-report.md
+    >> grimoires/loa/drift-report.md
 ```
 
 #### If PARTIAL (Low Risk):
@@ -201,7 +201,7 @@ echo "| ${module_name} | ${file} | Drifted | MEDIUM | N/A | - | Update ${best_do
 ```bash
 # Log to trajectory
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-TRAJECTORY_DIR="${PROJECT_ROOT}/loa-grimoire/a2a/trajectory"
+TRAJECTORY_DIR="${PROJECT_ROOT}/grimoires/loa/a2a/trajectory"
 TRAJECTORY_FILE="${TRAJECTORY_DIR}/$(date +%Y-%m-%d).jsonl"
 mkdir -p "${TRAJECTORY_DIR}"
 
@@ -219,7 +219,7 @@ jq -n \
 
 # Write to drift report
 echo "| ${module_name} | ${file} | Partial | LOW | N/A | - | Complete documentation |" \
-    >> loa-grimoire/drift-report.md
+    >> grimoires/loa/drift-report.md
 ```
 
 ## Classification Details
@@ -301,16 +301,16 @@ The `/ride` command Phase D (Shadow Systems) should:
    - If not, classify via similarity
    - Generate dependency trace for orphaned
    - Track in Beads if high/medium risk
-3. Write all findings to `loa-grimoire/drift-report.md`
+3. Write all findings to `grimoires/loa/drift-report.md`
 
 ## Search Strategy
 
 ### Documentation Sources
 
 Search these locations in order:
-1. `loa-grimoire/prd.md` - Functional requirements
-2. `loa-grimoire/sdd.md` - Technical design
-3. `loa-grimoire/legacy/INVENTORY.md` - Legacy docs inventory
+1. `grimoires/loa/prd.md` - Functional requirements
+2. `grimoires/loa/sdd.md` - Technical design
+3. `grimoires/loa/legacy/INVENTORY.md` - Legacy docs inventory
 4. `README.md` - High-level overview
 5. `docs/` - Additional documentation
 
@@ -378,7 +378,7 @@ query="${module_name} ${functional_description}"
 ❌ **Keyword-Only Matching**
 ```bash
 # BAD: Using grep instead of semantic search
-if ! grep -q "${module_name}" loa-grimoire/*.md; then
+if ! grep -q "${module_name}" grimoires/loa/*.md; then
     echo "Shadow System"
 fi
 ```
@@ -386,7 +386,7 @@ fi
 ✅ **Semantic Similarity**
 ```bash
 # GOOD: Semantic search with threshold
-doc_matches=$(semantic_search "${module_name} ${description}" "loa-grimoire/" 5 0.3)
+doc_matches=$(semantic_search "${module_name} ${description}" "grimoires/loa/" 5 0.3)
 max_similarity=$(echo "${doc_matches}" | jq -r '.score' | sort -rn | head -1)
 ```
 

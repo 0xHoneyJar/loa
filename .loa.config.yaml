@@ -36,7 +36,7 @@ disabled_agents: []
 # Custom Paths
 # =============================================================================
 paths:
-  grimoire: loa-grimoire
+  grimoire: grimoires/loa
   beads: .beads
 
 # =============================================================================
@@ -44,9 +44,9 @@ paths:
 # =============================================================================
 memory:
   # Persistent working memory file
-  notes_file: loa-grimoire/NOTES.md
+  notes_file: grimoires/loa/NOTES.md
   # Trajectory logs for ADK-style evaluation
-  trajectory_dir: loa-grimoire/a2a/trajectory
+  trajectory_dir: grimoires/loa/a2a/trajectory
   # Auto-compact trajectory logs older than N days
   trajectory_retention_days: 30
   # Restore context from NOTES.md on session start
@@ -86,7 +86,7 @@ drift_detection:
   # Directories to watch for changes
   watch_paths:
     - ".claude/"
-    - "loa-grimoire/"
+    - "grimoires/loa/"
     # Add custom directories as needed:
     # - ".meta/"
     # - "docs/architecture/"
@@ -108,7 +108,7 @@ context_filtering:
   enable_filtering: true
 
   # Archive zone - automatically excluded from all searches
-  archive_zone: "loa-grimoire/archive/"
+  archive_zone: "grimoires/loa/archive/"
 
   # Signal threshold: exclude documents below this level
   # Options: low, medium, high
@@ -288,7 +288,7 @@ trajectory:
   # Enable trajectory logging
   enabled: true
   # Output directory for trajectory files
-  output_dir: "loa-grimoire/a2a/trajectory"
+  output_dir: "grimoires/loa/a2a/trajectory"
   # File naming pattern: {agent}-{date}.jsonl
   file_pattern: "{agent}-{date}.jsonl"
   # Include extended thinking traces

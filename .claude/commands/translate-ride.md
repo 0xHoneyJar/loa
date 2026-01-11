@@ -22,45 +22,45 @@ context_files:
     required: false
     priority: 0
     purpose: "Integrity enforcement configuration"
-  - path: "loa-grimoire/NOTES.md"
+  - path: "grimoires/loa/NOTES.md"
     required: false
     priority: 1
     purpose: "Structured memory restoration"
-  - path: "loa-grimoire/drift-report.md"
+  - path: "grimoires/loa/drift-report.md"
     required: false
     priority: 2
     purpose: "Ground Truth: Documentation vs Code"
-  - path: "loa-grimoire/governance-report.md"
+  - path: "grimoires/loa/governance-report.md"
     required: false
     priority: 3
     purpose: "Ground Truth: Process maturity"
-  - path: "loa-grimoire/consistency-report.md"
+  - path: "grimoires/loa/consistency-report.md"
     required: false
     priority: 4
     purpose: "Ground Truth: Code patterns"
-  - path: "loa-grimoire/reality/hygiene-report.md"
+  - path: "grimoires/loa/reality/hygiene-report.md"
     required: false
     priority: 5
     purpose: "Ground Truth: Technical debt"
-  - path: "loa-grimoire/trajectory-audit.md"
+  - path: "grimoires/loa/trajectory-audit.md"
     required: false
     priority: 6
     purpose: "Ground Truth: Analysis confidence"
 
 pre_flight:
   - check: "directory_exists"
-    path: "loa-grimoire"
-    error: "No loa-grimoire found. Run /ride first."
+    path: "grimoires/loa"
+    error: "No grimoires/loa found. Run /ride first."
   - check: "file_exists"
-    path: "loa-grimoire/drift-report.md"
+    path: "grimoires/loa/drift-report.md"
     error: "No drift-report.md found. Run /ride to completion."
 
 outputs:
-  - path: "loa-grimoire/translations/"
+  - path: "grimoires/loa/translations/"
     type: "directory"
-  - path: "loa-grimoire/translations/EXECUTIVE-INDEX.md"
+  - path: "grimoires/loa/translations/EXECUTIVE-INDEX.md"
     type: "markdown"
-  - path: "loa-grimoire/translations/translation-audit.md"
+  - path: "grimoires/loa/translations/translation-audit.md"
     type: "markdown"
 
 mode:
@@ -114,7 +114,7 @@ See: `skills/translating-for-executives/SKILL.md` for full workflow details.
 ## Output
 
 ```
-loa-grimoire/translations/
+grimoires/loa/translations/
 +-- EXECUTIVE-INDEX.md       <- Start here
 +-- drift-analysis.md        <- Ghost features, shadow systems
 +-- governance-assessment.md <- Compliance gaps
@@ -140,6 +140,6 @@ HEALTH = (100 - drift%) x 0.50 + (consistency x 10) x 0.30 + (100 - hygiene x 5)
 
 | Error | Cause | Resolution |
 |-------|-------|------------|
-| "No loa-grimoire found" | Haven't run /ride | Run `/ride` first |
+| "No grimoires/loa found" | Haven't run /ride | Run `/ride` first |
 | "No drift-report.md found" | /ride incomplete | Complete `/ride` workflow |
 | "System Zone integrity violation" | .claude/ modified | Run `/update --force-restore` |

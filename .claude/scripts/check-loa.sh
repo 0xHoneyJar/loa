@@ -7,7 +7,7 @@ set -euo pipefail
 VERSION_FILE=".loa-version.json"
 CHECKSUMS_FILE=".claude/checksums.json"
 CONFIG_FILE=".loa.config.yaml"
-NOTES_FILE="loa-grimoire/NOTES.md"
+NOTES_FILE="grimoires/loa/NOTES.md"
 
 # v0.9.0 Protocol files
 PROTOCOL_DIR=".claude/protocols"
@@ -114,9 +114,9 @@ check_zones() {
   echo "Checking zone structure..."
 
   # State zone
-  [[ -d "loa-grimoire" ]] || { warn "State zone missing (loa-grimoire/)"; }
-  [[ -d "loa-grimoire/a2a" ]] || { warn "A2A directory missing"; }
-  [[ -d "loa-grimoire/a2a/trajectory" ]] || { warn "Trajectory directory missing"; }
+  [[ -d "grimoires/loa" ]] || { warn "State zone missing (grimoires/loa/)"; }
+  [[ -d "grimoires/loa/a2a" ]] || { warn "A2A directory missing"; }
+  [[ -d "grimoires/loa/a2a/trajectory" ]] || { warn "Trajectory directory missing"; }
 
   # Beads zone
   [[ -d ".beads" ]] || { warn "Beads directory missing (.beads/)"; }

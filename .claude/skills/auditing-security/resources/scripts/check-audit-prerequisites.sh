@@ -12,7 +12,7 @@ case "$AUDIT_TYPE" in
             exit 1
         fi
 
-        FEEDBACK_FILE="loa-grimoire/a2a/${SPRINT_ID}/engineer-feedback.md"
+        FEEDBACK_FILE="grimoires/loa/a2a/${SPRINT_ID}/engineer-feedback.md"
         if [ ! -f "$FEEDBACK_FILE" ]; then
             echo "ERROR: No engineer feedback file - sprint must be reviewed first"
             exit 1
@@ -27,7 +27,7 @@ case "$AUDIT_TYPE" in
         ;;
 
     "deployment")
-        if [ ! -d "loa-grimoire/deployment" ]; then
+        if [ ! -d "grimoires/loa/deployment" ]; then
             echo "ERROR: No deployment directory found"
             exit 1
         fi

@@ -7,7 +7,7 @@ zones:
     path: .claude
     permission: none
   state:
-    paths: [loa-grimoire, .beads]
+    paths: [grimoires/loa, .beads]
     permission: read-write
   app:
     paths: [src, lib, app]
@@ -28,7 +28,7 @@ This skill operates under **Managed Scaffolding**:
 | Zone | Permission | Notes |
 |------|------------|-------|
 | `.claude/` | NONE | System zone - never suggest edits |
-| `loa-grimoire/`, `.beads/` | Read/Write | State zone - project memory |
+| `grimoires/loa/`, `.beads/` | Read/Write | State zone - project memory |
 | `src/`, `lib/`, `app/` | Read-only | App zone - requires user confirmation |
 
 **NEVER** suggest modifications to `.claude/`. Direct users to `.claude/overrides/` or `.loa.config.yaml`.
@@ -68,7 +68,7 @@ The SDD specifies "PostgreSQL 15 with pgvector extension" (sdd.md:L123)
 ## Structured Memory Protocol
 
 ### On Session Start
-1. Read `loa-grimoire/NOTES.md`
+1. Read `grimoires/loa/NOTES.md`
 2. Restore context from "Session Continuity" section
 3. Check for resolved blockers
 
@@ -102,7 +102,7 @@ Example:
 <trajectory_logging>
 ## Trajectory Logging
 
-Log each significant step to `loa-grimoire/a2a/trajectory/{agent}-{date}.jsonl`:
+Log each significant step to `grimoires/loa/a2a/trajectory/{agent}-{date}.jsonl`:
 
 ```json
 {"timestamp": "...", "agent": "...", "action": "...", "reasoning": "...", "grounding": {...}}
@@ -112,9 +112,9 @@ Log each significant step to `loa-grimoire/a2a/trajectory/{agent}-{date}.jsonl`:
 <kernel_framework>
 ## Task (N - Narrow Scope)
 Perform comprehensive security and quality audit. Generate reports at:
-- **Codebase audit**: `SECURITY-AUDIT-REPORT.md` + `loa-grimoire/audits/YYYY-MM-DD/`
-- **Deployment audit**: `loa-grimoire/a2a/deployment-feedback.md`
-- **Sprint audit**: `loa-grimoire/a2a/sprint-N/auditor-sprint-feedback.md`
+- **Codebase audit**: `SECURITY-AUDIT-REPORT.md` + `grimoires/loa/audits/YYYY-MM-DD/`
+- **Deployment audit**: `grimoires/loa/a2a/deployment-feedback.md`
+- **Sprint audit**: `grimoires/loa/a2a/sprint-N/auditor-sprint-feedback.md`
 
 ## Context (L - Logical Structure)
 - **Input**: Entire codebase, configs, infrastructure code
@@ -128,7 +128,7 @@ Perform comprehensive security and quality audit. Generate reports at:
 - DO NOT approve insecure code—be brutally honest
 - DO NOT give vague findings—include file:line, PoC, specific remediation steps
 - DO NOT audit without systematic checklist—follow all 5 categories
-- DO create dated directory for remediation: `loa-grimoire/audits/YYYY-MM-DD/`
+- DO create dated directory for remediation: `grimoires/loa/audits/YYYY-MM-DD/`
 - DO use exact CVE/CWE/OWASP references for vulnerabilities
 - DO prioritize by exploitability and impact (not just severity)
 - DO think like an attacker—how would you exploit this system?
@@ -198,12 +198,12 @@ find . -name "*.ts" -o -name "*.js" -o -name "*.tf" -o -name "*.py" | xargs wc -
 ## Phase 0: Prerequisites Check
 
 **For Sprint Audit:**
-1. Verify sprint directory exists: `loa-grimoire/a2a/sprint-N/`
+1. Verify sprint directory exists: `grimoires/loa/a2a/sprint-N/`
 2. Verify "All good" in `engineer-feedback.md` (senior lead approval required)
 3. If not approved, STOP: "Sprint must be approved by senior lead before security audit"
 
 **For Deployment Audit:**
-1. Verify `loa-grimoire/deployment/` exists
+1. Verify `grimoires/loa/deployment/` exists
 2. Read `deployment-report.md` for context if exists
 
 **For Codebase Audit:**
@@ -253,7 +253,7 @@ Use template from `resources/templates/audit-report.md`.
 
 **File Organization:**
 - Initial audit: `SECURITY-AUDIT-REPORT.md` at root
-- Remediation reports: `loa-grimoire/audits/YYYY-MM-DD/`
+- Remediation reports: `grimoires/loa/audits/YYYY-MM-DD/`
 
 ## Phase 3: Verdict
 

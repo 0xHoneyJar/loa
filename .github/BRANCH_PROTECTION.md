@@ -85,7 +85,7 @@ rules:
 After configuring protection:
 
 1. Create a test branch
-2. Add a forbidden file (e.g., `loa-grimoire/prd.md`)
+2. Add a forbidden file (e.g., `grimoires/loa/prd.md`)
 3. Open a PR to `main`
 4. Verify the `Template Protection` check fails
 5. Delete the test branch
@@ -95,19 +95,19 @@ After configuring protection:
 The following patterns are blocked by the `Template Protection` check:
 
 ### Individual Files
-- `loa-grimoire/prd.md`
-- `loa-grimoire/sdd.md`
-- `loa-grimoire/sprint.md`
-- `loa-grimoire/NOTES.md`
+- `grimoires/loa/prd.md`
+- `grimoires/loa/sdd.md`
+- `grimoires/loa/sprint.md`
+- `grimoires/loa/NOTES.md`
 
 ### Directory Patterns
-- `loa-grimoire/a2a/sprint-*/**`
-- `loa-grimoire/a2a/index.md`
-- `loa-grimoire/a2a/deployment-feedback.md`
-- `loa-grimoire/a2a/trajectory/**`
-- `loa-grimoire/deployment/**` (except README.md)
-- `loa-grimoire/reality/**` (except README.md)
-- `loa-grimoire/analytics/**` (except README.md)
-- `loa-grimoire/research/**` (except README.md)
+- `grimoires/loa/a2a/sprint-*/**`
+- `grimoires/loa/a2a/index.md`
+- `grimoires/loa/a2a/deployment-feedback.md`
+- `grimoires/loa/a2a/trajectory/**`
+- `grimoires/loa/deployment/**` (except README.md)
+- `grimoires/loa/reality/**` (except README.md)
+- `grimoires/loa/analytics/**` (except README.md)
+- `grimoires/loa/research/**` (except README.md)
 
 README.md files in each directory are explicitly allowed to document the directory's purpose.

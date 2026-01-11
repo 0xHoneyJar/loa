@@ -82,12 +82,12 @@ echo "✓ System Zone installed"
 echo "Initializing State Zone..."
 
 # Create structure (preserve if exists)
-mkdir -p loa-grimoire/{context,reality,legacy,discovery,a2a/trajectory}
+mkdir -p grimoires/loa/{context,reality,legacy,discovery,a2a/trajectory}
 mkdir -p .beads
 
 # Initialize structured memory
-if [[ ! -f "loa-grimoire/NOTES.md" ]]; then
-  cat > loa-grimoire/NOTES.md << 'EOF'
+if [[ ! -f "grimoires/loa/NOTES.md" ]]; then
+  cat > grimoires/loa/NOTES.md << 'EOF'
 # Agent Working Memory (NOTES.md)
 
 > This file persists agent context across sessions and compaction cycles.
@@ -122,7 +122,7 @@ cat > .loa-version.json << EOF
   "last_sync": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "zones": {
     "system": ".claude",
-    "state": ["loa-grimoire", ".beads"],
+    "state": ["grimoires/loa", ".beads"],
     "app": ["src", "lib", "app"]
   },
   "migrations_applied": ["001_init_zones"],
@@ -171,8 +171,8 @@ drift_resolution: code  # code | docs | ask
 disabled_agents: []
 
 memory:
-  notes_file: loa-grimoire/NOTES.md
-  trajectory_dir: loa-grimoire/a2a/trajectory
+  notes_file: grimoires/loa/NOTES.md
+  trajectory_dir: grimoires/loa/a2a/trajectory
   trajectory_retention_days: 30
   auto_restore: true
 
@@ -235,8 +235,8 @@ Display completion message:
 Zone structure:
   📁 .claude/          → System Zone (framework-managed)
   📁 .claude/overrides → Your customizations (preserved)
-  📁 loa-grimoire/     → State Zone (project memory)
-  📄 loa-grimoire/NOTES.md → Structured agentic memory
+  📁 grimoires/loa/     → State Zone (project memory)
+  📄 grimoires/loa/NOTES.md → Structured agentic memory
   📁 .beads/           → Task graph
 
 Next steps:
@@ -260,7 +260,7 @@ If `--stealth` flag or `persistence_mode: stealth` in config:
 echo "Applying stealth mode..."
 touch .gitignore
 
-for entry in "loa-grimoire/" ".beads/" ".loa-version.json" ".loa.config.yaml"; do
+for entry in "grimoires/loa/" ".beads/" ".loa-version.json" ".loa.config.yaml"; do
   grep -qxF "$entry" .gitignore 2>/dev/null || echo "$entry" >> .gitignore
 done
 
@@ -286,7 +286,7 @@ Log mount action to trajectory:
 
 ```bash
 MOUNT_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-TRAJECTORY_FILE="loa-grimoire/a2a/trajectory/mounting-$(date +%Y%m%d).jsonl"
+TRAJECTORY_FILE="grimoires/loa/a2a/trajectory/mounting-$(date +%Y%m%d).jsonl"
 
 echo '{"timestamp":"'$MOUNT_DATE'","agent":"mounting-framework","action":"mount","status":"complete","version":"0.6.0"}' >> "$TRAJECTORY_FILE"
 ```

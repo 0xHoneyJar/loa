@@ -50,7 +50,7 @@ if [[ -z "${LOA_SEARCH_MODE:-}" ]]; then
 fi
 
 # Trajectory log entry (intent phase)
-TRAJECTORY_DIR="${PROJECT_ROOT}/loa-grimoire/a2a/trajectory"
+TRAJECTORY_DIR="${PROJECT_ROOT}/grimoires/loa/a2a/trajectory"
 TRAJECTORY_FILE="${TRAJECTORY_DIR}/$(date +%Y-%m-%d).jsonl"
 mkdir -p "${TRAJECTORY_DIR}"
 

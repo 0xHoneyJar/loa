@@ -3,16 +3,16 @@
 # Usage: ./check-deployment-mode.sh
 
 # Check for integration mode files
-INTEGRATION_ARCH="loa-grimoire/integration-architecture.md"
-TOOL_SETUP="loa-grimoire/tool-setup.md"
+INTEGRATION_ARCH="grimoires/loa/integration-architecture.md"
+TOOL_SETUP="grimoires/loa/tool-setup.md"
 
 # Check for deployment mode files
-PRD="loa-grimoire/prd.md"
-SDD="loa-grimoire/sdd.md"
-SPRINT="loa-grimoire/sprint.md"
+PRD="grimoires/loa/prd.md"
+SDD="grimoires/loa/sdd.md"
+SPRINT="grimoires/loa/sprint.md"
 
 # Check integration context (applies to both modes)
-INTEGRATION_CONTEXT="loa-grimoire/a2a/integration-context.md"
+INTEGRATION_CONTEXT="grimoires/loa/a2a/integration-context.md"
 
 if [ -f "$INTEGRATION_ARCH" ] && [ -f "$TOOL_SETUP" ]; then
     echo "INTEGRATION"

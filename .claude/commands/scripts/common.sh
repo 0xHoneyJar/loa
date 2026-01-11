@@ -76,7 +76,7 @@ is_thj_user() {
 # Check if sprint exists in sprint.md
 check_sprint_in_plan() {
     local sprint_id="$1"
-    local sprint_file="loa-grimoire/sprint.md"
+    local sprint_file="grimoires/loa/sprint.md"
 
     check_file_exists "$sprint_file" "Sprint plan not found. Run /sprint-plan first."
 
@@ -92,7 +92,7 @@ check_sprint_in_plan() {
 # Check if sprint is already completed
 check_sprint_not_completed() {
     local sprint_id="$1"
-    local completed_marker="loa-grimoire/a2a/$sprint_id/COMPLETED"
+    local completed_marker="grimoires/loa/a2a/$sprint_id/COMPLETED"
 
     if [ -f "$completed_marker" ]; then
         error "Sprint $sprint_id is already COMPLETED. See $completed_marker for details."
@@ -102,7 +102,7 @@ check_sprint_not_completed() {
 # Check if senior lead has approved the sprint
 check_senior_approval() {
     local sprint_id="$1"
-    local feedback_file="loa-grimoire/a2a/$sprint_id/engineer-feedback.md"
+    local feedback_file="grimoires/loa/a2a/$sprint_id/engineer-feedback.md"
 
     if [ ! -f "$feedback_file" ]; then
         error "Sprint $sprint_id has not been reviewed yet. Run /review-sprint $sprint_id first."
@@ -116,7 +116,7 @@ check_senior_approval() {
 # Check if reviewer.md exists for a sprint
 check_reviewer_report() {
     local sprint_id="$1"
-    local report_file="loa-grimoire/a2a/$sprint_id/reviewer.md"
+    local report_file="grimoires/loa/a2a/$sprint_id/reviewer.md"
 
     check_file_exists "$report_file" "No implementation report found at $report_file. Run /implement $sprint_id first."
 }
@@ -124,16 +124,16 @@ check_reviewer_report() {
 # Check if sprint directory exists
 check_sprint_dir() {
     local sprint_id="$1"
-    local sprint_dir="loa-grimoire/a2a/$sprint_id"
+    local sprint_dir="grimoires/loa/a2a/$sprint_id"
 
     check_dir_exists "$sprint_dir" "Sprint directory $sprint_dir not found. Run /implement $sprint_id first."
 }
 
 # Check prerequisites for implementation phase
 check_implement_prerequisites() {
-    check_file_exists "loa-grimoire/prd.md" "PRD not found. Run /plan-and-analyze first."
-    check_file_exists "loa-grimoire/sdd.md" "SDD not found. Run /architect first."
-    check_file_exists "loa-grimoire/sprint.md" "Sprint plan not found. Run /sprint-plan first."
+    check_file_exists "grimoires/loa/prd.md" "PRD not found. Run /plan-and-analyze first."
+    check_file_exists "grimoires/loa/sdd.md" "SDD not found. Run /architect first."
+    check_file_exists "grimoires/loa/sprint.md" "Sprint plan not found. Run /sprint-plan first."
 }
 
 # Check prerequisites for review phase

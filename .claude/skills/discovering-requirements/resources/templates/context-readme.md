@@ -17,7 +17,7 @@ The PRD architect will read these files and only ask questions about gaps.
 ## Directory Structure
 
 ```
-loa-grimoire/context/
+grimoires/loa/context/
 ├── README.md           # This file
 ├── vision.md           # Product vision, mission, goals
 ├── users.md            # User personas, research, interviews

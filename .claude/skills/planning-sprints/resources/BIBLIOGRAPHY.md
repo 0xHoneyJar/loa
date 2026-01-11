@@ -2,8 +2,8 @@
 
 ## Input Documents
 
-- **Product Requirements Document (PRD)**: `loa-grimoire/prd.md`
-- **Software Design Document (SDD)**: `loa-grimoire/sdd.md`
+- **Product Requirements Document (PRD)**: `grimoires/loa/prd.md`
+- **Software Design Document (SDD)**: `grimoires/loa/sdd.md`
 
 ## Framework Documentation
 

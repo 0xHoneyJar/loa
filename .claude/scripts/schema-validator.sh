@@ -35,13 +35,13 @@ Options:
 
 Auto-Detection:
   Files are matched to schemas based on path patterns:
-    - loa-grimoire/prd.md           -> prd.schema.json
-    - loa-grimoire/sdd.md           -> sdd.schema.json
-    - loa-grimoire/sprint.md        -> sprint.schema.json
+    - grimoires/loa/prd.md           -> prd.schema.json
+    - grimoires/loa/sdd.md           -> sdd.schema.json
+    - grimoires/loa/sprint.md        -> sprint.schema.json
     - **/trajectory/*.jsonl         -> trajectory-entry.schema.json
 
 Examples:
-  $(basename "$0") validate loa-grimoire/prd.md
+  $(basename "$0") validate grimoires/loa/prd.md
   $(basename "$0") validate output.json --schema prd
   $(basename "$0") validate file.md --mode strict
   $(basename "$0") list
@@ -144,13 +144,13 @@ detect_schema() {
     esac
 
     # Check path patterns
-    if [[ "$file_path" == *"loa-grimoire/prd"* ]]; then
+    if [[ "$file_path" == *"grimoires/loa/prd"* ]]; then
         echo "prd"
         return 0
-    elif [[ "$file_path" == *"loa-grimoire/sdd"* ]]; then
+    elif [[ "$file_path" == *"grimoires/loa/sdd"* ]]; then
         echo "sdd"
         return 0
-    elif [[ "$file_path" == *"loa-grimoire/sprint"* ]]; then
+    elif [[ "$file_path" == *"grimoires/loa/sprint"* ]]; then
         echo "sprint"
         return 0
     fi

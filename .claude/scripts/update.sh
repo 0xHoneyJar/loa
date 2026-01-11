@@ -246,7 +246,7 @@ apply_stealth_mode() {
     local gitignore=".gitignore"
     touch "$gitignore"
 
-    grep -qxF 'loa-grimoire/' "$gitignore" 2>/dev/null || echo 'loa-grimoire/' >> "$gitignore"
+    grep -qxF 'grimoires/loa/' "$gitignore" 2>/dev/null || echo 'grimoires/loa/' >> "$gitignore"
     grep -qxF '.beads/' "$gitignore" 2>/dev/null || echo '.beads/' >> "$gitignore"
     grep -qxF '.loa-version.json' "$gitignore" 2>/dev/null || echo '.loa-version.json' >> "$gitignore"
     grep -qxF '.loa.config.yaml' "$gitignore" 2>/dev/null || echo '.loa.config.yaml' >> "$gitignore"
@@ -281,7 +281,7 @@ main() {
   "framework_version": "0.0.0",
   "schema_version": 1,
   "last_sync": null,
-  "zones": {"system": ".claude", "state": ["loa-grimoire", ".beads"], "app": ["src", "lib", "app"]},
+  "zones": {"system": ".claude", "state": ["grimoires/loa", ".beads"], "app": ["src", "lib", "app"]},
   "migrations_applied": [],
   "integrity": {"enforcement": "strict", "last_verified": null}
 }
@@ -367,8 +367,8 @@ EOF
 
   # === STAGE 10: Regenerate Config Snapshot ===
   if [[ -f "$CONFIG_FILE" ]]; then
-    mkdir -p loa-grimoire/context
-    yq_to_json "$CONFIG_FILE" > loa-grimoire/context/config_snapshot.json 2>/dev/null || true
+    mkdir -p grimoires/loa/context
+    yq_to_json "$CONFIG_FILE" > grimoires/loa/context/config_snapshot.json 2>/dev/null || true
   fi
 
   # Cleanup old backups (keep 3)

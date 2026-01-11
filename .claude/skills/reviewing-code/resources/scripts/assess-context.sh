@@ -5,8 +5,8 @@
 SPRINT_ID="$1"
 THRESHOLD=${2:-3000}
 
-TOTAL=$(wc -l loa-grimoire/prd.md loa-grimoire/sdd.md \
-        loa-grimoire/sprint.md "loa-grimoire/a2a/${SPRINT_ID}/reviewer.md" 2>/dev/null | \
+TOTAL=$(wc -l grimoires/loa/prd.md grimoires/loa/sdd.md \
+        grimoires/loa/sprint.md "grimoires/loa/a2a/${SPRINT_ID}/reviewer.md" 2>/dev/null | \
         tail -1 | awk '{print $1}')
 
 if [ -z "$TOTAL" ] || [ "$TOTAL" -eq 0 ]; then

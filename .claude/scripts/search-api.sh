@@ -178,7 +178,7 @@ parse_jsonl_search_results() {
     local line_num=0
     local parse_errors=0
     local dropped_lines=()
-    local trajectory_log="${PROJECT_ROOT}/loa-grimoire/a2a/trajectory/${LOA_AGENT_NAME:-unknown}-$(date +%Y-%m-%d).jsonl"
+    local trajectory_log="${PROJECT_ROOT}/grimoires/loa/a2a/trajectory/${LOA_AGENT_NAME:-unknown}-$(date +%Y-%m-%d).jsonl"
 
     while IFS= read -r line; do
         ((line_num++))

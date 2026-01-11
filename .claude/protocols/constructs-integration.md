@@ -399,7 +399,7 @@ git commit -m "fix: remove licensed constructs from tracking"
 
 ## Related Documents
 
-- **PRD**: `loa-grimoire/prd.md` (FR-SCR-01, FR-SCR-02, FR-LIC-01)
-- **SDD**: `loa-grimoire/sdd.md` (§5 Implementation, §9 Error Handling)
+- **PRD**: `grimoires/loa/prd.md` (FR-SCR-01, FR-SCR-02, FR-LIC-01)
+- **SDD**: `grimoires/loa/sdd.md` (§5 Implementation, §9 Error Handling)
 - **Scripts**: `.claude/scripts/constructs-*.sh`, `.claude/scripts/license-validator.sh`
 - **Tests**: `tests/unit/test_*.bats`, `tests/integration/test_*.bats`
