@@ -165,7 +165,7 @@ persistence_mode: stealth
 │   └── validate-change-plan.sh # Pre-implementation validation
 └── overrides/                  # Your customizations
 
-loa-grimoire/                   # State Zone (project memory)
+loa-grimoire/                   # State Zone (project memory, gitignored)
 ├── NOTES.md                    # Structured agentic memory
 ├── context/                    # User-provided context
 ├── reality/                    # Code extraction results (/ride)
@@ -176,6 +176,11 @@ loa-grimoire/                   # State Zone (project memory)
 │   ├── trajectory/            # Agent reasoning logs
 │   └── sprint-N/              # Per-sprint feedback
 └── deployment/                 # Infrastructure docs
+
+pub-grimoire/                   # Public documents (git-tracked)
+├── research/                   # Research and analysis
+├── docs/                       # Shareable documentation
+└── artifacts/                  # Public build artifacts
 
 .beads/                        # Task graph (optional)
 .ckignore                      # ck semantic search exclusions (optional)

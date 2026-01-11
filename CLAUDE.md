@@ -15,10 +15,24 @@ Loa uses a managed scaffolding architecture:
 | Zone | Path | Owner | Permission |
 |------|------|-------|------------|
 | **System** | `.claude/` | Framework | NEVER edit directly |
-| **State** | `loa-grimoire/`, `.beads/` | Project | Read/Write |
+| **State** | `loa-grimoire/`, `.beads/` | Project | Read/Write (gitignored) |
+| **Public** | `pub-grimoire/` | Project | Read/Write (git-tracked) |
 | **App** | `src/`, `lib/`, `app/` | Developer | Read (write requires confirmation) |
 
 **Critical**: System Zone is synthesized. Never suggest edits to `.claude/` - direct users to `.claude/overrides/` or `.loa.config.yaml`.
+
+### Grimoire Pattern
+
+| Directory | Git Status | Purpose |
+|-----------|------------|---------|
+| `loa-grimoire/` | Ignored | Project-specific state (PRD, SDD, notes, trajectories) |
+| `pub-grimoire/` | Tracked | Public documents (research, shareable artifacts) |
+
+**Rule**: When creating documents, choose based on visibility:
+- **Private/project-specific** → `loa-grimoire/`
+- **Public/shareable** → `pub-grimoire/`
+
+This pattern keeps gitignore rules simple (no exceptions within grimoire folders).
 
 ### Skills System
 
@@ -240,7 +254,7 @@ Tracks usage for THJ developers - see `.claude/protocols/analytics.md`:
 ## Document Flow
 
 ```
-loa-grimoire/
+loa-grimoire/               # Private state (gitignored)
 ├── NOTES.md            # Structured agentic memory
 ├── context/            # User-provided context (pre-discovery)
 ├── reality/            # Code extraction (/ride output)
@@ -261,6 +275,11 @@ loa-grimoire/
 │   └── deployment-feedback.md
 ├── analytics/          # THJ only
 └── deployment/         # Production docs
+
+pub-grimoire/               # Public documents (git-tracked)
+├── research/           # Research and analysis
+├── docs/               # Shareable documentation
+└── artifacts/          # Public build artifacts
 ```
 
 ## Implementation Notes

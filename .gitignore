@@ -103,8 +103,8 @@ loa-grimoire/analytics/*
 !loa-grimoire/analytics/README.md
 
 # Research files (project-specific discoveries)
-loa-grimoire/research/*
-!loa-grimoire/research/README.md
+# NOTE: Public research should go to pub-grimoire/research/ (git-tracked)
+loa-grimoire/research/
 
 # =============================================================================
 # LOA CONSTRUCTS (licensed skills, user-specific)
