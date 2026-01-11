@@ -374,6 +374,25 @@ EOF
   # Cleanup old backups (keep 3)
   ls -dt .claude.backup.* 2>/dev/null | tail -n +4 | xargs rm -rf 2>/dev/null || true
 
+  # === STAGE 11: Check for Grimoire Migration ===
+  local migrate_script="$SYSTEM_DIR/scripts/migrate-grimoires.sh"
+  if [[ -x "$migrate_script" ]]; then
+    if "$migrate_script" check --json 2>/dev/null | grep -q '"needs_migration": true'; then
+      log ""
+      log "======================================================================="
+      log "  MIGRATION AVAILABLE: Grimoires Restructure"
+      log "======================================================================="
+      log ""
+      log "Your project uses the legacy 'loa-grimoire/' path."
+      log "The new structure uses 'grimoires/loa/' (private) and 'grimoires/pub/' (public)."
+      log ""
+      log "Run the migration:"
+      log "  .claude/scripts/migrate-grimoires.sh plan    # Preview changes"
+      log "  .claude/scripts/migrate-grimoires.sh run     # Execute migration"
+      log ""
+    fi
+  fi
+
   log ""
   log "======================================================================="
   log "  Update complete: $current -> $new_version"
