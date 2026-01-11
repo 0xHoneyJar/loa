@@ -41,6 +41,7 @@ jobs:
             "loa-grimoire/reality/"
             "loa-grimoire/analytics/"
             "loa-grimoire/research/"
+            "pub-grimoire/"
             ".claude/constructs/"
           )
 

@@ -27,3 +27,9 @@ When creating documents that should be:
 - **Public/shareable**: Use `pub-grimoire/`
 
 This pattern keeps the gitignore rules simple (no exceptions within grimoire folders) while providing a clear location for tracked documents.
+
+## Template Protection
+
+The main Loa template repository blocks non-README content in `pub-grimoire/` via CI checks. This ensures the template stays clean.
+
+When working on project-specific branches, you can freely add content to `pub-grimoire/`. The protection only applies to PRs targeting `main`.
