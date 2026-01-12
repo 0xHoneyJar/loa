@@ -103,9 +103,13 @@ grimoires/loa/analytics/*
 !grimoires/loa/analytics/README.md
 
 # Research files (project-specific discoveries)
-# NOTE: Public research should go to grimoires/pub/research/ (git-tracked)
 grimoires/loa/research/*
 !grimoires/loa/research/README.md
+
+# Public grimoires (project-specific outputs, not template content)
+# Only README.md files are tracked to preserve directory structure
+grimoires/pub/**/*
+!grimoires/pub/**/README.md
 
 # =============================================================================
 # LOA CONSTRUCTS (licensed skills, user-specific)
