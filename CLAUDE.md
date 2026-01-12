@@ -333,8 +333,29 @@ Use `.claude/scripts/context-check.sh` for assessment.
 ├── thinking-logger.sh        # Extended thinking trajectory logger (v0.11.0)
 ├── tool-search-adapter.sh    # MCP tool search and discovery (v0.11.0)
 ├── context-manager.sh        # Context compaction and preservation (v0.11.0)
-└── context-benchmark.sh      # Context performance benchmarks (v0.11.0)
+├── context-benchmark.sh      # Context performance benchmarks (v0.11.0)
+└── anthropic-oracle.sh       # Anthropic updates monitoring (v0.13.0)
 ```
+
+### Anthropic Oracle (v0.13.0)
+
+Monitors Anthropic official sources for updates relevant to Loa:
+
+```bash
+.claude/scripts/anthropic-oracle.sh check     # Fetch latest sources
+.claude/scripts/anthropic-oracle.sh sources   # List monitored URLs
+.claude/scripts/anthropic-oracle.sh history   # View check history
+```
+
+**Workflow**:
+1. Run `anthropic-oracle.sh check` to fetch sources
+2. Run `/oracle-analyze` to analyze with Claude
+3. Generate research document at `grimoires/pub/research/`
+
+**Automated**: Weekly GitHub Actions workflow creates issues for review.
+
+See: `.claude/protocols/recommended-hooks.md` for hook patterns.
+See: `.claude/protocols/risk-analysis.md` for pre-mortem analysis framework.
 
 ### Context Manager (v0.11.0)
 

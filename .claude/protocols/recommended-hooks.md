@@ -27,6 +27,9 @@ Claude Code hooks are event-driven automations configured in `.claude/settings.j
 
 Auto-checkpoint NOTES.md when session ends.
 
+> **Note**: The script below is an **example only** and does not exist in the
+> Loa repository. Create it yourself or adapt the pattern for your project.
+
 ```json
 {
   "hooks": {
@@ -138,6 +141,9 @@ Sync Beads when sprint is marked complete.
 ### 5. Test Auto-Run Hook (PostToolUse)
 
 Run tests after code modifications (optional - can be noisy).
+
+> **Note**: The script below is an **example only** and does not exist in the
+> Loa repository. Create it yourself or adapt the pattern for your project.
 
 ```json
 {
@@ -263,6 +269,9 @@ Kiro triggers hooks on file save/create/delete. Claude Code can approximate this
 ### Continuous-Claude-Style Transcript Parsing
 
 Parse session transcript for automatic state extraction:
+
+> **Note**: The script below is an **example only** and does not exist in the
+> Loa repository. Create it yourself or adapt the pattern for your project.
 
 ```json
 {

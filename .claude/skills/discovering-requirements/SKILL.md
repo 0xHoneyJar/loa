@@ -284,6 +284,19 @@ ELSE IF phase not covered:
 - User stories with acceptance criteria
 - Feature prioritization
 
+#### EARS Notation (Optional)
+
+For high-precision requirements, use EARS notation from
+`resources/templates/ears-requirements.md`:
+
+| Pattern | Format | Use When |
+|---------|--------|----------|
+| Ubiquitous | `The system shall [action]` | Always-true requirements |
+| Event-Driven | `When [trigger], the system shall [action]` | Trigger-based behavior |
+| Conditional | `If [condition], the system shall [action]` | Precondition-based |
+
+**When to use EARS**: Security-critical features, regulatory compliance, complex triggers.
+
 ### Phase 5: Technical & Non-Functional
 - Performance requirements
 - Security and compliance

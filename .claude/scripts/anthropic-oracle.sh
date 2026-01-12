@@ -34,6 +34,47 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 BOLD='\033[1m'
 
+# Check bash version (associative arrays require bash 4+)
+check_bash_version() {
+    if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+        echo -e "${RED}ERROR: bash 4.0+ required (found ${BASH_VERSION})${NC}" >&2
+        echo "" >&2
+        echo "Upgrade bash:" >&2
+        echo "  macOS:  brew install bash" >&2
+        echo "          Then add /opt/homebrew/bin/bash to /etc/shells" >&2
+        echo "          And run: chsh -s /opt/homebrew/bin/bash" >&2
+        exit 1
+    fi
+}
+
+# Check dependencies
+check_dependencies() {
+    local missing=()
+
+    # jq is required for JSON processing
+    if ! command -v jq &> /dev/null; then
+        missing+=("jq")
+    fi
+
+    # curl is required for HTTP fetches
+    if ! command -v curl &> /dev/null; then
+        missing+=("curl")
+    fi
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        echo -e "${RED}ERROR: Missing dependencies: ${missing[*]}${NC}" >&2
+        echo "" >&2
+        echo "Install missing dependencies:" >&2
+        echo "  macOS:  brew install ${missing[*]}" >&2
+        echo "  Ubuntu: sudo apt install ${missing[*]}" >&2
+        exit 1
+    fi
+}
+
+# Run checks before anything else
+check_bash_version
+check_dependencies
+
 # Anthropic sources to monitor
 declare -A SOURCES=(
     ["docs"]="https://docs.anthropic.com/en/docs/claude-code"
