@@ -323,3 +323,191 @@ EOF
         [ "$status" -eq 0 ]
     done
 }
+
+# =============================================================================
+# Assertion Command Tests (v0.14.0 - Sprint 3)
+# =============================================================================
+
+@test "schema-validator assert: shows help with --help" {
+    run "$SCRIPT" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"assert"* ]]
+    [[ "$output" == *"Assertions"* ]]
+}
+
+@test "schema-validator assert: requires file argument" {
+    run "$SCRIPT" assert
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"No file specified"* ]]
+}
+
+@test "schema-validator assert: reports missing file" {
+    run "$SCRIPT" assert "$TEST_DIR/nonexistent.json"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"not found"* ]] || [[ "$output" == *"File not found"* ]]
+}
+
+# =============================================================================
+# assert_field_exists Tests
+# =============================================================================
+
+@test "assert_field_exists: passes for existing field" {
+    cat > "$TEST_DIR/assert-test.json" << 'EOF'
+{"version": "1.0.0", "title": "Test", "status": "draft", "stakeholders": ["dev"]}
+EOF
+    run "$SCRIPT" assert "$TEST_DIR/assert-test.json" --schema prd
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"passed"* ]] || [[ "$output" == *"All assertions passed"* ]]
+}
+
+@test "assert_field_exists: fails for missing field" {
+    cat > "$TEST_DIR/assert-missing.json" << 'EOF'
+{"version": "1.0.0", "status": "draft", "stakeholders": ["dev"]}
+EOF
+    run "$SCRIPT" assert "$TEST_DIR/assert-missing.json" --schema prd
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"title"* ]]
+    [[ "$output" == *"does not exist"* ]]
+}
+
+# =============================================================================
+# assert_field_matches Tests
+# =============================================================================
+
+@test "assert_field_matches: passes for valid version" {
+    cat > "$TEST_DIR/assert-version.json" << 'EOF'
+{"version": "1.2.3", "title": "Test", "status": "draft", "stakeholders": ["dev"]}
+EOF
+    run "$SCRIPT" assert "$TEST_DIR/assert-version.json" --schema prd
+    [ "$status" -eq 0 ]
+}
+
+@test "assert_field_matches: fails for invalid status" {
+    cat > "$TEST_DIR/assert-status.json" << 'EOF'
+{"version": "1.0.0", "title": "Test", "status": "invalid_status", "stakeholders": ["dev"]}
+EOF
+    run "$SCRIPT" assert "$TEST_DIR/assert-status.json" --schema prd
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"status"* ]]
+    [[ "$output" == *"does not match pattern"* ]]
+}
+
+@test "assert_field_matches: fails for invalid semver" {
+    cat > "$TEST_DIR/assert-semver.json" << 'EOF'
+{"version": "invalid", "title": "Test", "status": "draft", "stakeholders": ["dev"]}
+EOF
+    run "$SCRIPT" assert "$TEST_DIR/assert-semver.json" --schema prd
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"version"* ]]
+    [[ "$output" == *"does not match pattern"* ]]
+}
+
+# =============================================================================
+# assert_array_not_empty Tests
+# =============================================================================
+
+@test "assert_array_not_empty: passes for populated array" {
+    cat > "$TEST_DIR/assert-array.json" << 'EOF'
+{"version": "1.0.0", "title": "Test", "status": "draft", "stakeholders": ["dev", "qa"]}
+EOF
+    run "$SCRIPT" assert "$TEST_DIR/assert-array.json" --schema prd
+    [ "$status" -eq 0 ]
+}
+
+@test "assert_array_not_empty: fails for empty array" {
+    cat > "$TEST_DIR/assert-empty-array.json" << 'EOF'
+{"version": "1.0.0", "title": "Test", "status": "draft", "stakeholders": []}
+EOF
+    run "$SCRIPT" assert "$TEST_DIR/assert-empty-array.json" --schema prd
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"stakeholders"* ]]
+    [[ "$output" == *"is empty"* ]]
+}
+
+# =============================================================================
+# validate_with_assertions Tests
+# =============================================================================
+
+@test "validate_with_assertions: passes for valid PRD" {
+    cat > "$TEST_DIR/valid-prd.json" << 'EOF'
+{"version": "1.0.0", "title": "Test PRD", "status": "draft", "stakeholders": ["developer"]}
+EOF
+    run "$SCRIPT" assert "$TEST_DIR/valid-prd.json" --schema prd
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"passed"* ]] || [[ "$output" == *"All assertions passed"* ]]
+}
+
+@test "validate_with_assertions: fails for invalid SDD" {
+    cat > "$TEST_DIR/invalid-sdd.json" << 'EOF'
+{"version": "bad", "components": []}
+EOF
+    run "$SCRIPT" assert "$TEST_DIR/invalid-sdd.json" --schema sdd
+    [ "$status" -eq 1 ]
+}
+
+@test "validate_with_assertions: validates sprint schema" {
+    cat > "$TEST_DIR/valid-sprint.json" << 'EOF'
+{"version": "1.0.0", "status": "in_progress", "sprints": [{"id": 1}]}
+EOF
+    run "$SCRIPT" assert "$TEST_DIR/valid-sprint.json" --schema sprint
+    [ "$status" -eq 0 ]
+}
+
+@test "validate_with_assertions: validates trajectory-entry schema" {
+    cat > "$TEST_DIR/valid-trajectory.json" << 'EOF'
+{"timestamp": "2026-01-17T10:00:00Z", "agent": "test-agent", "action": "test"}
+EOF
+    run "$SCRIPT" assert "$TEST_DIR/valid-trajectory.json" --schema trajectory-entry
+    [ "$status" -eq 0 ]
+}
+
+# =============================================================================
+# Assert Command CLI Tests
+# =============================================================================
+
+@test "assert command: validates PRD file" {
+    cat > "$TEST_DIR/cli-prd.json" << 'EOF'
+{"version": "1.0.0", "title": "CLI Test", "status": "approved", "stakeholders": ["user"]}
+EOF
+    run "$SCRIPT" assert "$TEST_DIR/cli-prd.json" --schema prd
+    [ "$status" -eq 0 ]
+}
+
+@test "assert command: outputs JSON with --json" {
+    cat > "$TEST_DIR/json-output.json" << 'EOF'
+{"version": "1.0.0", "title": "JSON Test", "status": "draft", "stakeholders": ["dev"]}
+EOF
+    run "$SCRIPT" assert "$TEST_DIR/json-output.json" --schema prd --json
+    [ "$status" -eq 0 ]
+    echo "$output" | jq empty
+    [[ "$output" == *"\"status\":"* ]]
+    [[ "$output" == *"\"passed\""* ]]
+}
+
+@test "assert command: JSON output includes failures" {
+    cat > "$TEST_DIR/json-failures.json" << 'EOF'
+{"version": "1.0.0", "title": "Test", "status": "bad_status", "stakeholders": ["dev"]}
+EOF
+    run "$SCRIPT" assert "$TEST_DIR/json-failures.json" --schema prd --json
+    [ "$status" -eq 1 ]
+    echo "$output" | jq empty
+    [[ "$output" == *"\"failed\""* ]]
+    [[ "$output" == *"\"assertions\""* ]]
+}
+
+@test "assert command: --schema overrides auto-detection" {
+    cat > "$TEST_DIR/override-test.json" << 'EOF'
+{"version": "1.0.0", "title": "Override", "components": ["a", "b"]}
+EOF
+    run "$SCRIPT" assert "$TEST_DIR/override-test.json" --schema sdd
+    # Should attempt SDD assertions
+    [[ "$output" == *"sdd"* ]]
+}
+
+@test "assert command: returns non-zero on failure" {
+    cat > "$TEST_DIR/failing-test.json" << 'EOF'
+{"version": "not-semver", "title": "Fail"}
+EOF
+    run "$SCRIPT" assert "$TEST_DIR/failing-test.json" --schema prd
+    [ "$status" -eq 1 ]
+}
