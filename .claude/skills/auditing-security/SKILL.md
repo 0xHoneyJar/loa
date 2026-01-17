@@ -112,9 +112,11 @@ Log each significant step to `grimoires/loa/a2a/trajectory/{agent}-{date}.jsonl`
 <kernel_framework>
 ## Task (N - Narrow Scope)
 Perform comprehensive security and quality audit. Generate reports at:
-- **Codebase audit**: `SECURITY-AUDIT-REPORT.md` + `grimoires/loa/audits/YYYY-MM-DD/`
+- **Codebase audit**: `grimoires/loa/a2a/audits/YYYY-MM-DD/SECURITY-AUDIT-REPORT.md`
 - **Deployment audit**: `grimoires/loa/a2a/deployment-feedback.md`
 - **Sprint audit**: `grimoires/loa/a2a/sprint-N/auditor-sprint-feedback.md`
+
+All audit outputs go to the State Zone (`grimoires/loa/a2a/`) for proper tracking.
 
 ## Context (L - Logical Structure)
 - **Input**: Entire codebase, configs, infrastructure code
@@ -251,9 +253,22 @@ Execute audit by category (sequential or parallel per Phase -1):
 
 Use template from `resources/templates/audit-report.md`.
 
-**File Organization:**
-- Initial audit: `SECURITY-AUDIT-REPORT.md` at root
-- Remediation reports: `grimoires/loa/audits/YYYY-MM-DD/`
+**File Organization (all in State Zone):**
+```
+grimoires/loa/a2a/
+├── audits/                           # Codebase audits
+│   └── YYYY-MM-DD/
+│       ├── SECURITY-AUDIT-REPORT.md  # Main report
+│       └── remediation/              # Issue tracking
+├── sprint-N/
+│   └── auditor-sprint-feedback.md    # Sprint audits
+└── deployment-feedback.md            # Deployment audits
+```
+
+**Creating dated directory:**
+```bash
+mkdir -p "grimoires/loa/a2a/audits/$(date +%Y-%m-%d)/remediation"
+```
 
 ## Phase 3: Verdict
 

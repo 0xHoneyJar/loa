@@ -108,9 +108,15 @@ grimoires/loa/research/*
 !grimoires/loa/research/README.md
 
 # Public grimoires (project-specific outputs, not template content)
-# Only README.md files are tracked to preserve directory structure
+# Only README.md files and research documents are tracked
+# Research documents contain reusable framework insights
 grimoires/pub/**/*
 !grimoires/pub/**/README.md
+# Re-include research markdown files (framework improvement research)
+!grimoires/pub/research/
+grimoires/pub/research/*
+!grimoires/pub/research/README.md
+!grimoires/pub/research/*.md
 
 # =============================================================================
 # LOA CONSTRUCTS (licensed skills, user-specific)

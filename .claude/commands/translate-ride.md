@@ -142,4 +142,4 @@ HEALTH = (100 - drift%) x 0.50 + (consistency x 10) x 0.30 + (100 - hygiene x 5)
 |-------|-------|------------|
 | "No grimoires/loa found" | Haven't run /ride | Run `/ride` first |
 | "No drift-report.md found" | /ride incomplete | Complete `/ride` workflow |
-| "System Zone integrity violation" | .claude/ modified | Run `/update --force-restore` |
+| "System Zone integrity violation" | .claude/ modified | Run `/update-loa --force-restore` |

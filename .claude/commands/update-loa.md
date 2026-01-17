@@ -1,6 +1,6 @@
 ---
-name: "update"
-version: "1.0.0"
+name: "update-loa"
+version: "1.1.0"
 description: |
   Pull latest Loa framework updates from upstream repository.
   Fetches, previews, confirms, and merges with conflict guidance.
@@ -19,7 +19,7 @@ pre_flight:
       - Commit: git add . && git commit -m "WIP: save before update"
       - Stash: git stash push -m "before loa update"
 
-      After handling your changes, run /update again.
+      After handling your changes, run /update-loa again.
 
   - check: "command_succeeds"
     command: "git remote -v | grep -qE '^(loa|upstream)'"
@@ -29,7 +29,7 @@ pre_flight:
       To add it, run:
         git remote add loa https://github.com/0xHoneyJar/loa.git
 
-      After adding the remote, run /update again.
+      After adding the remote, run /update-loa again.
 
 outputs:
   - path: "git merge commit"
@@ -41,7 +41,7 @@ mode:
   allow_background: false
 ---
 
-# Update
+# Update Loa
 
 ## Purpose
 
@@ -50,7 +50,7 @@ Pull the latest Loa framework updates from the upstream repository. Safely fetch
 ## Invocation
 
 ```
-/update
+/update-loa
 ```
 
 ## Prerequisites
@@ -118,7 +118,6 @@ git merge loa/main -m "chore: update Loa framework"
 | `grimoires/loa/prd.md` | Preserved (your docs) |
 | `grimoires/loa/sdd.md` | Preserved (your docs) |
 | `grimoires/loa/analytics/` | Preserved (your data) |
-| `.loa-setup-complete` | Preserved (legacy, no longer created in v0.15.0+) |
 | `CHANGELOG.md` | Preserved (your project changelog) |
 | `README.md` | Preserved (your project readme) |
 
@@ -168,4 +167,3 @@ git commit -m "chore: update Loa framework (conflicts resolved)"
 
 - Review [Loa releases](https://github.com/0xHoneyJar/loa/releases) for new features and changes
 - Check `CLAUDE.md` for new commands or workflow updates
-- Run `/setup` if prompted by new setup requirements

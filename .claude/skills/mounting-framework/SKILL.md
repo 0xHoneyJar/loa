@@ -32,7 +32,7 @@ echo "✓ Git repository detected"
 if [[ -f ".loa-version.json" ]]; then
   VERSION=$(jq -r '.framework_version' .loa-version.json 2>/dev/null)
   echo "⚠️ Loa already mounted (v$VERSION)"
-  echo "Use '/update' to sync framework, or continue to remount"
+  echo "Use '/update-loa' to sync framework, or continue to remount"
   # Use AskUserQuestion to confirm remount
 fi
 ```
@@ -242,7 +242,7 @@ Zone structure:
 Next steps:
   1. Run 'claude' to start Claude Code
   2. Issue '/ride' to analyze this codebase
-  3. Or '/setup' for guided configuration
+  3. Or '/plan-and-analyze' for greenfield development
 
 ⚠️ STRICT ENFORCEMENT: Direct edits to .claude/ will block execution.
    Use .claude/overrides/ for customizations.
@@ -276,7 +276,7 @@ echo "✓ State files added to .gitignore"
 | "Not a git repository" | No `.git` directory | Run `git init` first |
 | "jq required" | Missing jq | Install jq (`brew install jq` / `apt install jq`) |
 | "Failed to checkout .claude/" | Network/auth issue | Check remote URL and credentials |
-| "Loa already mounted" | `.loa-version.json` exists | Use `/update` or confirm remount |
+| "Loa already mounted" | `.loa-version.json` exists | Use `/update-loa` or confirm remount |
 
 ---
 

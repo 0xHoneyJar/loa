@@ -253,7 +253,7 @@ EOF
     # Banner should contain key elements
     [[ "$output" == *"Loa"* ]]
     [[ "$output" == *"0.99.0"* ]] || [[ "$output" == *"v0.99.0"* ]]
-    [[ "$output" == *"/update"* ]]
+    [[ "$output" == *"/update-loa"* ]]
 }
 
 @test "integration: major version shows warning" {

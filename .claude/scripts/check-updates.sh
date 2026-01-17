@@ -395,7 +395,7 @@ show_banner_notification() {
         printf "  ${GREEN}Loa v%s available${NC} (current: v%s)\n" "$remote_version" "$local_version"
     fi
 
-    printf "     Run ${CYAN}/update${NC} to upgrade\n"
+    printf "     Run ${CYAN}/update-loa${NC} to upgrade\n"
     printf "     %s\n" "$remote_url"
     printf "%s\n" "$(printf '%.0s─' $(seq 1 $width))"
     echo ""
@@ -405,7 +405,7 @@ show_line_notification() {
     local local_version="$1"
     local remote_version="$2"
 
-    echo -e "${GREEN}Loa update:${NC} v$remote_version available (run '/update' to upgrade)"
+    echo -e "${GREEN}Loa update:${NC} v$remote_version available (run '/update-loa' to upgrade)"
 }
 
 # =============================================================================

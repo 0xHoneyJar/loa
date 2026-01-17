@@ -7,7 +7,7 @@ External service integrations (MCP servers) in Loa follow a lazy-loading pattern
 ### 1. Lazy Loading
 The integration registry (`mcp-registry.yaml`) is only loaded when:
 - A command with `integrations.required` is invoked (e.g., `/feedback`)
-- A user runs `/setup` or `/config` to configure integrations
+- A user manually configures integrations via `.claude/scripts/mcp-registry.sh`
 - A skill explicitly needs to use an integration
 
 **Never load the registry into skill context preemptively.**
@@ -131,9 +131,9 @@ integrations:
       error: "Linear integration required for /feedback."
 ```
 
-### Command (integration source for wizard)
+### Integration Registry Location
 ```yaml
-# .claude/commands/setup.md
+# MCP registry location
 integrations_source: ".claude/mcp-registry.yaml"
 ```
 

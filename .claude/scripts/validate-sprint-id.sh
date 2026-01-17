@@ -1,13 +1,31 @@
 #!/bin/bash
-# Validate sprint ID format
-# Usage: ./validate-sprint-id.sh sprint-N
-# Returns: VALID | INVALID|reason
+# Validate sprint ID format with optional ledger resolution
+# Usage: ./validate-sprint-id.sh sprint-N [--resolve]
+# Returns:
+#   VALID                           (legacy mode, no ledger)
+#   VALID|global_id=N               (ledger mode, existing sprint)
+#   VALID|global_id=NEW             (ledger mode, new sprint)
+#   INVALID|reason                  (validation failed)
 # Exit codes: 0=valid, 1=invalid
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source ledger-lib if available
+source_ledger_lib() {
+    local lib_path="$SCRIPT_DIR/ledger-lib.sh"
+    if [[ -f "$lib_path" ]]; then
+        # shellcheck source=./ledger-lib.sh
+        source "$lib_path"
+        return 0
+    fi
+    return 1
+}
+
 main() {
     local sprint_id="${1:-}"
+    local resolve_mode="${2:-}"
 
     # Check if provided
     if [ -z "$sprint_id" ]; then
@@ -28,6 +46,22 @@ main() {
         exit 1
     fi
 
+    # Try ledger resolution if available
+    if source_ledger_lib 2>/dev/null && ledger_exists; then
+        local resolved
+        resolved=$(resolve_sprint "$sprint_id" 2>/dev/null) || resolved="UNRESOLVED"
+
+        if [[ "$resolved" == "UNRESOLVED" ]]; then
+            # Sprint not in ledger - it's a new sprint
+            echo "VALID|global_id=NEW|local_label=$sprint_id"
+        else
+            # Sprint exists in ledger
+            echo "VALID|global_id=$resolved|local_label=$sprint_id"
+        fi
+        exit 0
+    fi
+
+    # Legacy mode - no ledger
     echo "VALID"
     exit 0
 }

@@ -13,7 +13,7 @@ integrations:
   required:
     - name: "linear"
       scopes: [issues, projects]
-      error: "Linear integration required for /feedback. Run /config to set up, or open a GitHub issue instead."
+      error: "Linear integration required for /feedback. See .claude/scripts/mcp-registry.sh for setup, or open a GitHub issue instead."
 
 pre_flight:
   - check: "script"

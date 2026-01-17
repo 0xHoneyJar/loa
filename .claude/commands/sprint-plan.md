@@ -1,9 +1,10 @@
 ---
 name: "sprint-plan"
-version: "1.1.0"
+version: "1.2.0"
 description: |
   Create comprehensive sprint plan based on PRD and SDD.
   Task breakdown, prioritization, acceptance criteria, assignments.
+  Registers sprints in the Sprint Ledger for global numbering.
   Optionally integrates with Beads for task graph management.
 
 arguments: []
@@ -21,6 +22,9 @@ context_files:
   - path: "grimoires/loa/a2a/integration-context.md"
     required: false
     purpose: "Organizational context and knowledge sources"
+  - path: "grimoires/loa/ledger.json"
+    required: false
+    purpose: "Sprint Ledger for global sprint numbering"
 
 pre_flight:
   - check: "file_exists"
@@ -50,6 +54,9 @@ outputs:
   - path: "grimoires/loa/sprint.md"
     type: "file"
     description: "Sprint plan with tasks and acceptance criteria"
+  - path: "grimoires/loa/ledger.json"
+    type: "file"
+    description: "Updated Sprint Ledger with registered sprints"
 
 mode:
   default: "foreground"
@@ -147,6 +154,29 @@ The planner will:
 - Present options for sequencing and dependencies
 - Only generate plan when confident in breakdown
 
+## Sprint Ledger Integration
+
+When a Sprint Ledger exists (`grimoires/loa/ledger.json`):
+
+1. **Registers Sprints**: Each sprint in the plan is registered with `add_sprint()`
+2. **Global Numbering**: Sprints receive globally unique IDs across cycles
+3. **Logging**: Shows "Registered sprint-1 as global sprint-N" for each sprint
+4. **SDD Reference**: Updates the cycle's `sdd` field with `grimoires/loa/sdd.md`
+
+### Example Output
+
+```
+Creating sprint plan...
+Registered sprint-1 as global sprint-4
+Registered sprint-2 as global sprint-5
+Registered sprint-3 as global sprint-6
+Sprint plan created with 3 sprints (global IDs: 4-6)
+```
+
+### Legacy Mode
+
+Without a ledger, sprint-plan works exactly as before using local sprint numbers.
+
 ## Next Step
 
 After sprint plan is complete:
@@ -155,7 +185,8 @@ After sprint plan is complete:
 ```
 
 That's it. The implement command handles everything:
-- If Beads is installed: Automatically manages task lifecycle (bd ready, update, close)
-- If Beads is not installed: Uses markdown-based tracking from sprint.md
+- **With Ledger**: Resolves sprint-1 to global ID, uses correct a2a directory
+- **With Beads**: Automatically manages task lifecycle (bd ready, update, close)
+- **Without either**: Uses markdown-based tracking from sprint.md
 
 **No manual `bd` commands required.** The agent handles task state internally.

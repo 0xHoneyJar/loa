@@ -132,7 +132,7 @@ Overrides survive framework updates.
 
 **Mount & Ride** (existing codebases): `/mount`, `/ride`
 
-**Ad-hoc**: `/audit`, `/audit-deployment`, `/translate @doc for audience`, `/contribute`, `/update`, `/feedback` (THJ only)
+**Ad-hoc**: `/audit`, `/audit-deployment`, `/translate @doc for audience`, `/contribute`, `/update-loa`, `/feedback` (THJ only)
 
 **THJ Detection** (v0.15.0+): THJ membership is detected via `LOA_CONSTRUCTS_API_KEY` environment variable. No setup required - start with `/plan-and-analyze` immediately after cloning.
 
@@ -238,15 +238,77 @@ Tracks usage for THJ developers - see `.claude/protocols/analytics.md`:
 - OSS users have no analytics tracking
 - Opt-in sharing via `/feedback`
 
+### Sprint Ledger (v0.13.0)
+
+Provides global sprint numbering across multiple development cycles:
+
+**Location**: `grimoires/loa/ledger.json` (State Zone)
+
+**Purpose**: Prevents sprint directory collisions when starting new `/plan-and-analyze` cycles. Sprint-1 in cycle-2 becomes global sprint-4, maintaining unique `a2a/sprint-N/` directories.
+
+**Schema**:
+```json
+{
+  "version": "1.0.0",
+  "next_sprint_number": 7,
+  "active_cycle": "cycle-002",
+  "cycles": [{
+    "id": "cycle-001",
+    "label": "MVP Development",
+    "status": "archived",
+    "sprints": [
+      {"global_id": 1, "local_label": "sprint-1", "status": "completed"},
+      {"global_id": 2, "local_label": "sprint-2", "status": "completed"}
+    ]
+  }]
+}
+```
+
+**Commands**:
+| Command | Purpose |
+|---------|---------|
+| `/ledger` | Show current ledger status |
+| `/ledger init` | Initialize ledger for existing project |
+| `/ledger history` | Show all cycles and sprints |
+| `/archive-cycle "label"` | Archive current cycle |
+
+**Sprint Resolution**:
+- `/implement sprint-1` resolves local label to global ID
+- Commands use `$RESOLVED_SPRINT_ID` for a2a directory paths
+- Backward compatible: works without ledger (legacy mode)
+
+**Workflow**:
+```bash
+/plan-and-analyze     # Creates ledger + cycle-001
+/sprint-plan          # Registers sprint-1,2,3 as global 1,2,3
+/implement sprint-1   # Uses a2a/sprint-1/
+# ... complete cycle ...
+/archive-cycle "MVP"  # Archives to grimoires/loa/archive/YYYY-MM-DD-mvp/
+/plan-and-analyze     # Creates cycle-002
+/sprint-plan          # sprint-1 now maps to global 4
+/implement sprint-1   # Uses a2a/sprint-4/
+```
+
+**Key Scripts**:
+- `ledger-lib.sh` - Core ledger functions
+- `validate-sprint-id.sh` - Resolves local to global IDs
+
 ## Document Flow
 
 ```
 grimoires/
 ├── loa/                    # Private project state (gitignored)
 │   ├── NOTES.md            # Structured agentic memory
+│   ├── ledger.json         # Sprint Ledger (global sprint numbering)
 │   ├── context/            # User-provided context (pre-discovery)
 │   ├── reality/            # Code extraction (/ride output)
 │   ├── legacy/             # Legacy doc inventory (/ride output)
+│   ├── archive/            # Archived development cycles
+│   │   └── YYYY-MM-DD-slug/  # Dated cycle archives
+│   │       ├── prd.md
+│   │       ├── sdd.md
+│   │       ├── sprint.md
+│   │       └── a2a/
 │   ├── prd.md              # Product Requirements
 │   ├── sdd.md              # Software Design
 │   ├── sprint.md           # Sprint Plan
@@ -254,6 +316,10 @@ grimoires/
 │   ├── a2a/                # Agent-to-Agent communication
 │   │   ├── index.md        # Audit trail index
 │   │   ├── trajectory/     # Agent reasoning logs
+│   │   ├── audits/         # Codebase audits (/audit)
+│   │   │   └── YYYY-MM-DD/ # Dated audit directories
+│   │   │       ├── SECURITY-AUDIT-REPORT.md
+│   │   │       └── remediation/
 │   │   ├── sprint-N/       # Per-sprint files
 │   │   │   ├── reviewer.md
 │   │   │   ├── engineer-feedback.md

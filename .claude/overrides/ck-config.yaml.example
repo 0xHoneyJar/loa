@@ -38,5 +38,5 @@ ck:
 # Usage Notes:
 # 1. Copy to .claude/overrides/ck-config.yaml
 # 2. Uncomment and modify settings you want to override
-# 3. Run /update to apply changes
+# 3. Run /update-loa to apply changes
 # 4. Test with: .claude/scripts/preflight.sh --integrity

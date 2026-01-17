@@ -79,7 +79,7 @@ git push -u origin main
 **Common Mistakes to Avoid**:
 - Don't push to origin without first checking `git remote -v`
 - Don't assume origin is your repo just because you cloned from a template
-- Don't delete the loa/upstream remote if you want to receive framework updates via `/update`
+- Don't delete the loa/upstream remote if you want to receive framework updates via `/update-loa`
 
 For comprehensive remediation steps including before/after examples, see the **Git Safety Protocol** section in [CLAUDE.md](./CLAUDE.md#remediation-steps).
 

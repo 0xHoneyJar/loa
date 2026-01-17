@@ -71,7 +71,7 @@ cargo install ck-search
 ck --index .
 ```
 
-This creates the `.ckignore` file and builds the initial semantic index. New installations via `/setup` handle this automatically.
+This creates the `.ckignore` file and builds the initial semantic index.
 
 ## Method 1: Mount onto Existing Repository (Recommended)
 
@@ -193,7 +193,7 @@ This adds `grimoires/loa/`, `.beads/`, `.loa-version.json`, and `.loa.config.yam
 
 Or use the slash command:
 ```
-/update
+/update-loa
 ```
 
 ### What Happens During Updates
@@ -385,10 +385,7 @@ After installation:
 # 1. Start Claude Code
 claude
 
-# 2. Run setup wizard
-/setup
-
-# 3. Begin workflow
+# 2. Begin workflow (no setup required!)
 /plan-and-analyze
 ```
 
