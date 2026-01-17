@@ -138,6 +138,7 @@ jobs:
       - name: Check command definitions exist
         run: |
           echo "Checking required command definitions..."
+          # Note: setup.md removed in v0.15.0 - no longer required
           COMMANDS=(
             ".claude/commands/plan-and-analyze.md"
             ".claude/commands/architect.md"
@@ -147,7 +148,6 @@ jobs:
             ".claude/commands/audit-sprint.md"
             ".claude/commands/deploy-production.md"
             ".claude/commands/audit.md"
-            ".claude/commands/setup.md"
             ".claude/commands/feedback.md"
             ".claude/commands/update.md"
           )
