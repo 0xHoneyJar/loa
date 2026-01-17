@@ -60,6 +60,11 @@ Detailed specifications are maintained in separate protocol files (single source
 - **Attention Budget**: `.claude/protocols/attention-budget.md` - Token thresholds (Green/Yellow/Red)
 - **JIT Retrieval**: `.claude/protocols/jit-retrieval.md` - Lightweight identifiers (97% token reduction)
 
+### Sprint Ledger (v0.13.0)
+- **Ledger Location**: `grimoires/loa/ledger.json` - Global sprint numbering across development cycles
+- **Commands**: `/ledger` (view/manage), `/archive-cycle` (archive completed cycles)
+- **Documentation**: See CLAUDE.md "Sprint Ledger" section for full schema and workflow
+
 ## Table of Contents
 
 - [Managed Scaffolding Architecture](#managed-scaffolding-architecture)
@@ -332,6 +337,8 @@ Streamlined experience without analytics:
 
 **Output**: `grimoires/loa/prd.md`
 
+**Sprint Ledger Integration**: Automatically initializes `grimoires/loa/ledger.json` and creates the first development cycle. Subsequent runs create new cycles if the previous cycle was archived.
+
 ---
 
 ### Phase 2: Architecture (`/architect`)
@@ -401,6 +408,8 @@ Streamlined experience without analytics:
 
 **Output**: `grimoires/loa/sprint.md`
 
+**Sprint Ledger Integration**: Registers each sprint with a unique global ID in the ledger. Users refer to sprints by local labels (`sprint-1`), but the system tracks them with global IDs that persist across cycles.
+
 **Sprint Plan Includes**:
 - Sprint Overview (goals, duration, team structure)
 - Sprint Breakdown:
@@ -451,9 +460,11 @@ Streamlined experience without analytics:
 /implement sprint-1
 ```
 
+**Sprint Ledger Integration**: Resolves local sprint labels (`sprint-1`) to the correct global directory. In cycle 2, `sprint-1` might resolve to `a2a/sprint-4/` if the previous cycle had 3 sprints.
+
 **Outputs**:
 - Production code with tests
-- `grimoires/loa/a2a/reviewer.md` (implementation report)
+- `grimoires/loa/a2a/sprint-N/reviewer.md` (implementation report, where N is global ID)
 
 **Implementation Report Includes**:
 - Executive Summary
@@ -520,11 +531,13 @@ Streamlined experience without analytics:
 
 **Command**:
 ```bash
-/review-sprint
+/review-sprint sprint-1
 ```
 
+**Sprint Ledger Integration**: Resolves local sprint label to global directory for review.
+
 **Outputs**:
-- `grimoires/loa/a2a/engineer-feedback.md` (approval or feedback)
+- `grimoires/loa/a2a/sprint-N/engineer-feedback.md` (approval or feedback, where N is global ID)
 - Updated `grimoires/loa/sprint.md` (if approved)
 
 **Feedback Structure** (when issues found):
@@ -614,11 +627,14 @@ Streamlined experience without analytics:
 
 **Command**:
 ```bash
-/audit-sprint
+/audit-sprint sprint-1
 ```
 
+**Sprint Ledger Integration**: Resolves local sprint label to global directory. Updates sprint status to "completed" in ledger upon approval. Creates `COMPLETED` marker in sprint directory.
+
 **Outputs**:
-- `grimoires/loa/a2a/auditor-sprint-feedback.md` (security approval or detailed feedback)
+- `grimoires/loa/a2a/sprint-N/auditor-sprint-feedback.md` (security approval or detailed feedback, where N is global ID)
+- `grimoires/loa/a2a/sprint-N/COMPLETED` marker (on approval)
 
 **Feedback Structure** (when security issues found):
 - Overall Security Assessment
@@ -861,6 +877,82 @@ After security audit, if changes required:
 
 ---
 
+### Maintenance: Cycle Management (`/ledger`, `/archive-cycle`)
+
+**Goal**: Manage development cycles and global sprint numbering
+
+**When to Use**:
+- `/ledger` - View current ledger status, sprint history
+- `/ledger init` - Initialize ledger for existing projects (usually automatic)
+- `/ledger history` - View all cycles and their sprints
+- `/archive-cycle "label"` - Archive completed cycle before starting new work
+
+**The Problem Sprint Ledger Solves**:
+
+When running `/plan-and-analyze` multiple times (e.g., after completing an MVP and starting new features), sprint directories would collide:
+
+```
+Cycle 1: a2a/sprint-1/, a2a/sprint-2/, a2a/sprint-3/
+Cycle 2: a2a/sprint-1/ ← COLLISION!
+```
+
+**The Solution**:
+
+Sprint Ledger maintains a global counter. Each sprint gets a unique global ID:
+
+```
+Cycle 1: sprint-1 → global 1, sprint-2 → global 2, sprint-3 → global 3
+Cycle 2: sprint-1 → global 4, sprint-2 → global 5, sprint-3 → global 6
+                    ↑ No collision! Directory is a2a/sprint-4/
+```
+
+**Archive Workflow**:
+
+After completing all sprints in a development cycle:
+
+```bash
+# 1. Archive the completed cycle
+/archive-cycle "MVP Complete"
+# → Creates grimoires/loa/archive/2026-01-17-mvp-complete/
+# → Copies prd.md, sdd.md, sprint.md, and all a2a/sprint-N/ directories
+# → Marks cycle as archived in ledger
+
+# 2. Start fresh with new requirements
+/plan-and-analyze
+# → Creates new cycle in ledger
+# → Sprint numbering continues from where it left off
+# → New sprint-1 becomes global sprint-4 (or whatever's next)
+```
+
+**Archive Structure**:
+
+```
+grimoires/loa/archive/2026-01-17-mvp-complete/
+├── prd.md              # Snapshot of Product Requirements
+├── sdd.md              # Snapshot of Software Design
+├── sprint.md           # Snapshot of Sprint Plan
+└── a2a/
+    ├── sprint-1/       # All sprint artifacts preserved
+    ├── sprint-2/
+    └── sprint-3/
+```
+
+**Backward Compatibility**:
+
+Projects without `ledger.json` work exactly as before (legacy mode). The ledger is opt-in and created automatically on first `/plan-and-analyze` run.
+
+**Commands**:
+```bash
+/ledger                    # Show current ledger status
+/ledger init               # Initialize ledger for existing project
+/ledger history            # Show all cycles and sprints
+/archive-cycle "label"     # Archive current cycle
+```
+
+**Output**: `grimoires/loa/ledger.json`, `grimoires/loa/archive/` (on archive)
+
+---
+
 ## Mount & Ride (Existing Codebases)
 
 For existing codebases that need Loa analysis without going through the full discovery workflow.
@@ -1049,6 +1141,8 @@ command_type: "wizard"  # or "survey", "git"
 | `/audit` | Security audit (ad-hoc) | `auditing-security` | `SECURITY-AUDIT-REPORT.md` | All users |
 | `/audit-deployment` | Deployment infrastructure audit (ad-hoc) | `auditing-security` | `grimoires/loa/a2a/deployment-feedback.md` | All users |
 | `/translate @doc for [audience]` | Executive translation (ad-hoc) | `translating-for-executives` | Executive summaries | All users |
+| `/ledger` | View/manage sprint ledger | wizard | Ledger status | All users |
+| `/archive-cycle "label"` | Archive current development cycle | wizard | Archived cycle in `grimoires/loa/archive/` | All users |
 
 **User Type Notes**:
 - **THJ only**: Commands restricted to THJ team members (requires `user_type: "thj"` in `.loa-setup-complete`)
@@ -1249,6 +1343,7 @@ See `.claude/protocols/trajectory-evaluation.md` for detailed protocol.
 /plan-and-analyze
 # → Answer discovery questions
 # → Review grimoires/loa/prd.md
+# → Creates ledger.json with first cycle (Sprint Ledger)
 
 # 2. Design architecture
 /architect
@@ -1259,14 +1354,15 @@ See `.claude/protocols/trajectory-evaluation.md` for detailed protocol.
 /sprint-plan
 # → Clarify capacity and priorities
 # → Review grimoires/loa/sprint.md
+# → Registers sprints in ledger with global IDs
 
 # 4. Implement Sprint 1
 /implement sprint-1
 # → Agent implements tasks
-# → Review grimoires/loa/a2a/reviewer.md
+# → Review grimoires/loa/a2a/sprint-1/reviewer.md
 
 # 5. Review Sprint 1
-/review-sprint
+/review-sprint sprint-1
 # → Either approves or requests changes
 
 # 6. Address code review feedback (if needed)
@@ -1275,7 +1371,7 @@ See `.claude/protocols/trajectory-evaluation.md` for detailed protocol.
 # → Re-review until "All good"
 
 # 7. Security audit Sprint 1 (after approval)
-/audit-sprint
+/audit-sprint sprint-1
 # → Either "APPROVED - LETS FUCKING GO" or "CHANGES_REQUIRED"
 
 # 8. Address security feedback (if needed)
@@ -1304,6 +1400,22 @@ See `.claude/protocols/trajectory-evaluation.md` for detailed protocol.
 /update
 # → Pull latest Loa improvements
 # → Review CHANGELOG.md for new features
+
+# ─────────────────────────────────────────────────────────
+# STARTING A NEW DEVELOPMENT CYCLE (after MVP complete)
+# ─────────────────────────────────────────────────────────
+
+# 14. Archive completed cycle
+/archive-cycle "MVP Complete"
+# → Creates snapshot in grimoires/loa/archive/
+# → Preserves all sprint artifacts
+# → Clears active cycle in ledger
+
+# 15. Start fresh with new requirements
+/plan-and-analyze
+# → Creates new cycle in ledger
+# → Sprint numbering continues (sprint-1 → global sprint-4, etc.)
+# → Repeat workflow from step 2...
 ```
 
 ---
