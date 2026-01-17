@@ -1,9 +1,10 @@
 ---
 name: "implement"
-version: "1.1.0"
+version: "1.2.0"
 description: |
   Execute sprint tasks with production-quality code and tests.
   Automatically checks for and addresses audit/review feedback before new work.
+  Resolves local sprint IDs to global IDs via Sprint Ledger.
   If Beads is installed, handles task lifecycle automatically (no manual bd commands).
 
 arguments:
@@ -30,6 +31,9 @@ context_files:
   - path: "grimoires/loa/sprint.md"
     required: true
     purpose: "Sprint tasks and acceptance criteria"
+  - path: "grimoires/loa/ledger.json"
+    required: false
+    purpose: "Sprint Ledger for ID resolution"
   - path: "grimoires/loa/a2a/$ARGUMENTS.sprint_id/auditor-sprint-feedback.md"
     required: false
     priority: 1
@@ -62,20 +66,25 @@ pre_flight:
     pattern: "$ARGUMENTS.sprint_id"
     error: "Sprint $ARGUMENTS.sprint_id not found in sprint.md"
 
-  - check: "file_not_exists"
-    path: "grimoires/loa/a2a/$ARGUMENTS.sprint_id/COMPLETED"
-    error: "Sprint $ARGUMENTS.sprint_id is already COMPLETED."
+  - check: "script"
+    script: ".claude/scripts/validate-sprint-id.sh"
+    args: ["$ARGUMENTS.sprint_id"]
+    store_result: "sprint_resolution"
+    purpose: "Resolve local sprint ID to global ID via ledger"
 
 outputs:
-  - path: "grimoires/loa/a2a/$ARGUMENTS.sprint_id/"
+  - path: "grimoires/loa/a2a/$RESOLVED_SPRINT_ID/"
     type: "directory"
-    description: "Sprint A2A directory (created if needed)"
-  - path: "grimoires/loa/a2a/$ARGUMENTS.sprint_id/reviewer.md"
+    description: "Sprint A2A directory (uses global ID)"
+  - path: "grimoires/loa/a2a/$RESOLVED_SPRINT_ID/reviewer.md"
     type: "file"
     description: "Implementation report for senior review"
   - path: "grimoires/loa/a2a/index.md"
     type: "file"
     description: "Sprint index (updated)"
+  - path: "grimoires/loa/ledger.json"
+    type: "file"
+    description: "Sprint Ledger (status updated)"
   - path: "app/src/**/*"
     type: "glob"
     description: "Implementation code and tests"
@@ -140,6 +149,29 @@ See: `skills/implementing-tasks/SKILL.md` for full workflow details.
 | "Sprint plan not found" | Missing sprint.md | Run `/sprint-plan` first |
 | "Sprint not found in sprint.md" | Sprint doesn't exist | Verify sprint number |
 | "Sprint is already COMPLETED" | COMPLETED marker exists | Move to next sprint |
+
+## Sprint Ledger Integration
+
+When a Sprint Ledger exists (`grimoires/loa/ledger.json`):
+
+1. **ID Resolution**: Resolves `sprint-1` (local) to global ID (e.g., `3`)
+2. **Directory Mapping**: Uses `a2a/sprint-3/` instead of `a2a/sprint-1/`
+3. **Status Update**: Sets sprint status to `in_progress` in ledger
+4. **Completion**: On approval, status updated to `completed`
+
+### Example Resolution
+
+```bash
+# In cycle-002, sprint-1 maps to global sprint-3
+/implement sprint-1
+# → Resolving sprint-1 to global sprint-3
+# → Using directory: grimoires/loa/a2a/sprint-3/
+# → Setting status: in_progress
+```
+
+### Legacy Mode
+
+Without a ledger, sprint IDs are used directly (sprint-1 → a2a/sprint-1/).
 
 ## Feedback Loop
 

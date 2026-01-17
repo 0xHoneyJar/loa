@@ -1,9 +1,10 @@
 ---
 name: "plan-and-analyze"
-version: "2.0.0"
+version: "2.1.0"
 description: |
   Launch PRD discovery with automatic context ingestion.
   Reads existing documentation from grimoires/loa/context/ before interviewing.
+  Initializes Sprint Ledger and creates development cycle automatically.
 
 arguments: []
 
@@ -27,6 +28,11 @@ context_files:
     required: false
     purpose: "Organizational context and conventions"
 
+  # Ledger (for cycle awareness)
+  - path: "grimoires/loa/ledger.json"
+    required: false
+    purpose: "Sprint Ledger for cycle management"
+
 pre_flight:
   - check: "file_not_exists"
     path: "grimoires/loa/prd.md"
@@ -42,6 +48,9 @@ outputs:
   - path: "grimoires/loa/prd.md"
     type: "file"
     description: "Product Requirements Document"
+  - path: "grimoires/loa/ledger.json"
+    type: "file"
+    description: "Sprint Ledger (created if needed)"
 
 mode:
   default: "foreground"
@@ -177,6 +186,37 @@ Generated PRD includes citations:
 | Error | Cause | Resolution |
 |-------|-------|------------|
 | "PRD already exists" | `grimoires/loa/prd.md` exists | Delete/rename existing PRD |
+
+## Sprint Ledger Integration
+
+This command automatically manages the Sprint Ledger:
+
+1. **First Run**: Initializes `grimoires/loa/ledger.json` if not exists
+2. **Creates Cycle**: Registers a new development cycle with PRD title as label
+3. **Active Cycle Check**: If a cycle is already active, prompts to archive or continue
+
+### Ledger Behavior
+
+```bash
+# First run on new project
+/plan-and-analyze
+# → Creates ledger.json
+# → Creates cycle-001 with PRD title
+
+# Second run (new cycle)
+/plan-and-analyze
+# → Prompts: "Active cycle exists. Archive 'MVP Development' or continue?"
+# → If archive: Archives cycle, creates cycle-002
+# → If continue: Continues with existing cycle
+```
+
+### Commands for Ledger Management
+
+| Command | Purpose |
+|---------|---------|
+| `/ledger` | View current ledger status |
+| `/ledger history` | View all cycles |
+| `/archive-cycle "label"` | Archive current cycle manually |
 
 ## Next Step
 
