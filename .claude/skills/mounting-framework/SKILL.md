@@ -242,7 +242,7 @@ Zone structure:
 Next steps:
   1. Run 'claude' to start Claude Code
   2. Issue '/ride' to analyze this codebase
-  3. Or '/setup' for guided configuration
+  3. Or '/plan-and-analyze' for greenfield development
 
 ⚠️ STRICT ENFORCEMENT: Direct edits to .claude/ will block execution.
    Use .claude/overrides/ for customizations.

@@ -2,19 +2,20 @@
 
 This protocol defines how Loa tracks usage metrics for THJ developers. **Analytics are only enabled for THJ developers** - OSS users have no analytics tracking.
 
-## User Type Behavior
+## User Type Detection
 
-| User Type | Analytics | `/feedback` | `/config` |
-|-----------|-----------|-------------|-----------|
-| **THJ** | Full tracking | Available | Available |
-| **OSS** | None (skipped) | Unavailable | Unavailable |
+THJ membership is detected via the `LOA_CONSTRUCTS_API_KEY` environment variable:
+
+| Detection | User Type | Analytics | `/feedback` |
+|-----------|-----------|-----------|-------------|
+| Valid API key | **THJ** | Full tracking | Available |
+| No API key | **OSS** | None (skipped) | Unavailable |
 
 ## What's Tracked (THJ Only)
 
 | Category | Metrics |
 |----------|---------|
 | **Environment** | Framework version, project name, developer (git user) |
-| **Setup** | Completion timestamp, configured MCP servers |
 | **Phases** | Start/completion timestamps for PRD, SDD, sprint planning, deployment |
 | **Sprints** | Sprint number, start/end times, review iterations, audit iterations |
 | **Feedback** | Submission timestamps, Linear issue IDs |
@@ -25,45 +26,18 @@ This protocol defines how Loa tracks usage metrics for THJ developers. **Analyti
 - `grimoires/loa/analytics/summary.md` - Human-readable summary
 - `grimoires/loa/analytics/pending-feedback.json` - Pending feedback (if submission failed)
 
-## Setup Marker File
-
-The `.loa-setup-complete` file determines user type and stores configuration:
-
-```json
-{
-  "completed_at": "2025-01-15T10:30:00Z",
-  "framework_version": "0.4.0",
-  "user_type": "thj",
-  "mcp_servers": ["linear", "github"],
-  "git_user": "developer@example.com",
-  "template_source": {
-    "detected": true,
-    "repo": "0xHoneyJar/loa",
-    "detection_method": "origin_url",
-    "detected_at": "2025-01-15T10:30:00Z"
-  }
-}
-```
-
-**User Types**:
-- `"thj"` - THJ team member with full analytics, MCP config, and feedback access
-- `"oss"` - Open source user with streamlined experience, no analytics
-
 ## Analytics JSON Schema
 
 ```json
 {
   "schema_version": "1.0.0",
-  "framework_version": "0.4.0",
+  "framework_version": "0.15.0",
   "project_name": "my-project",
   "developer": {
     "git_user_name": "Developer Name",
     "git_user_email": "dev@example.com"
   },
-  "setup": {
-    "completed_at": "2025-01-15T10:30:00Z",
-    "mcp_servers_configured": ["linear", "github"]
-  },
+  "initialized_at": "2025-01-15T10:30:00Z",
   "phases": {
     "prd": { "started_at": null, "completed_at": null },
     "sdd": { "started_at": null, "completed_at": null },
@@ -86,17 +60,17 @@ The `.loa-setup-complete` file determines user type and stores configuration:
 
 Each phase command follows this pattern:
 
-1. Check `user_type` in `.loa-setup-complete`
-2. If OSS: Skip analytics entirely, continue with main workflow
-3. If THJ: Check if `usage.json` exists (create if missing)
+1. Check for `LOA_CONSTRUCTS_API_KEY` environment variable
+2. If not set: Skip analytics entirely, continue with main workflow
+3. If set: Check if `usage.json` exists (create if missing)
 4. Update relevant phase/sprint data
 5. Regenerate `summary.md`
 6. Continue with main workflow
 
 ## How It Works
 
-1. **Initialization**: `/setup` creates `usage.json` with environment info (THJ only)
-2. **Phase tracking**: Each phase command checks `user_type` first, skips for OSS users
+1. **Initialization**: First phase command creates `usage.json` with environment info (THJ only)
+2. **Phase tracking**: Each phase command checks for API key first, skips analytics for OSS users
 3. **Non-blocking**: Analytics failures are logged but don't stop workflows
 4. **Opt-in sharing**: Analytics stay local; only shared via `/feedback` if you choose
 

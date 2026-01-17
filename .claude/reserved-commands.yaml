@@ -104,6 +104,6 @@ conflict_resolution:
 
 # Maintenance
 maintenance:
-  check_frequency: "On every /setup and /update"
+  check_frequency: "On every /update"
   validation_script: ".claude/scripts/validate-commands.sh"
   update_process: "Monitor Claude Code release notes for new built-in commands"

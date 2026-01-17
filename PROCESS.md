@@ -209,104 +209,6 @@ Each agent is implemented as a modular **skill** in `.claude/skills/{agent-name}
 
 ## Workflow
 
-### Phase 0: Setup (`/setup`)
-
-<!-- CANONICAL_LOCATION: protocols/analytics.md -->
-
-**Goal**: Configure Loa for first-time use with user-appropriate experience
-
-**User Type Detection**:
-The setup command asks "Are you a THJ team member?" to determine the appropriate pathway:
-
-#### **THJ Developers** (Internal Team)
-Full-featured experience with analytics and MCP integrations:
-
-1. **Welcome & Analytics Notice**:
-   - Displays Loa's purpose and workflow overview
-   - Explains what analytics are collected and where they're stored
-   - Confirms local-only storage with opt-in sharing via `/feedback`
-
-2. **MCP Server Configuration** (Multichoice):
-   - Offers selection of MCP servers: Linear, GitHub, Vercel, Discord, web3-stats, All, Skip
-   - For each selected MCP, provides:
-     - **Guided setup**: Step-by-step configuration instructions
-     - **Documentation link**: External setup guide
-
-3. **Project Initialization**:
-   - Extracts project name from `git remote get-url origin`
-   - Gets developer info from `git config user.name/email`
-   - Creates `grimoires/loa/analytics/usage.json` with initial data
-   - Creates `.loa-setup-complete` marker file with `user_type: "thj"`
-
-4. **Configuration Summary**:
-   - Lists all MCPs and their status
-   - Shows initialized analytics location
-   - Provides next steps (run `/plan-and-analyze`)
-
-#### **OSS Users** (Open Source Community)
-Streamlined experience without analytics:
-
-1. **Welcome**:
-   - Displays Loa's purpose and workflow overview
-   - Points to documentation and community resources
-
-2. **Marker File Creation**:
-   - Creates `.loa-setup-complete` with `user_type: "oss"`
-   - No analytics initialization
-   - No MCP configuration prompts
-
-3. **Next Steps**:
-   - Provides quick start guide
-   - Points to GitHub issues for support
-
-**Command**:
-```bash
-/setup
-```
-
-**Outputs**:
-- `.loa-setup-complete` marker file (includes `user_type` field)
-- `grimoires/loa/analytics/usage.json` (THJ only)
-- `grimoires/loa/analytics/summary.md` (THJ only)
-
-**Setup Enforcement**:
-- `/plan-and-analyze` checks for `.loa-setup-complete`
-- If missing, prompts user to run `/setup` first
-- Ensures consistent onboarding experience
-
----
-
-### Post-Setup: MCP Configuration (`/config`) - THJ Only
-
-**Goal**: Reconfigure MCP server integrations after initial setup
-
-**Availability**: THJ developers only (checks `user_type` in `.loa-setup-complete`)
-
-**Process**:
-1. **User Type Verification**:
-   - Reads `.loa-setup-complete` and checks `user_type`
-   - If OSS user: Displays error and stops
-
-2. **Current Configuration Display**:
-   - Shows currently configured MCP servers
-   - Indicates which servers are active
-
-3. **MCP Multichoice Selection**:
-   - Linear, GitHub, Vercel, Discord, web3-stats, All, Skip
-   - Provides guided setup or documentation for selected servers
-
-4. **Update Marker File**:
-   - Updates `.loa-setup-complete` with new MCP configuration
-
-**Command**:
-```bash
-/config
-```
-
-**Output**: Updated `.loa-setup-complete` with new MCP configuration
-
----
-
 ### Phase 1: Planning (`/plan-and-analyze`)
 
 **Agent**: `discovering-requirements`
@@ -765,7 +667,7 @@ After security audit, if changes required:
 
 **Goal**: Collect developer experience feedback and submit to Linear
 
-**Availability**: THJ developers only (checks `user_type` in `.loa-setup-complete`)
+**Availability**: THJ developers only (detected via `LOA_CONSTRUCTS_API_KEY` environment variable)
 
 **When to Use**:
 - After completing a deployment
@@ -774,9 +676,9 @@ After security audit, if changes required:
 
 **Process**:
 
-1. **User Type Verification**:
-   - Reads `.loa-setup-complete` and checks `user_type`
-   - If OSS user: Displays error with GitHub issues link and stops
+1. **THJ Detection**:
+   - Checks for valid `LOA_CONSTRUCTS_API_KEY` environment variable
+   - If not set or invalid: Displays error with GitHub issues link and stops
 
 2. **Check for Pending Feedback**:
    - Looks for `grimoires/loa/analytics/pending-feedback.json`
@@ -1124,8 +1026,6 @@ command_type: "wizard"  # or "survey", "git"
 
 | Command | Purpose | Agent/Type | Output | Availability |
 |---------|---------|------------|--------|--------------|
-| `/setup` | First-time configuration | wizard | `.loa-setup-complete`, analytics | All users |
-| `/config` | Reconfigure MCP servers | wizard | Updated `.loa-setup-complete` | THJ only |
 | `/mount` | Install Loa onto existing repo | wizard | Zone structure + checksums | All users |
 | `/ride` | Analyze codebase, generate docs | `riding-codebase` | `grimoires/loa/` artifacts | All users |
 | `/plan-and-analyze` | Define requirements and create PRD | `discovering-requirements` | `grimoires/loa/prd.md` | All users |
@@ -1145,7 +1045,7 @@ command_type: "wizard"  # or "survey", "git"
 | `/archive-cycle "label"` | Archive current development cycle | wizard | Archived cycle in `grimoires/loa/archive/` | All users |
 
 **User Type Notes**:
-- **THJ only**: Commands restricted to THJ team members (requires `user_type: "thj"` in `.loa-setup-complete`)
+- **THJ only**: Commands restricted to THJ team members (detected via `LOA_CONSTRUCTS_API_KEY` environment variable)
 - **All users**: Available to both THJ developers and OSS users
 - Analytics updates in phase commands are automatically skipped for OSS users
 
@@ -1327,19 +1227,7 @@ See `.claude/protocols/trajectory-evaluation.md` for detailed protocol.
 ## Example Workflow
 
 ```bash
-# 0. First-time setup (once per project)
-/setup
-# → Asks if you're a THJ team member
-# → THJ: Configure MCP servers, initialize analytics
-# → OSS: Quick welcome, documentation pointers
-# → Creates .loa-setup-complete marker with user_type
-
-# 0.5. Reconfigure MCP servers (THJ only, optional)
-/config
-# → Shows current MCP configuration
-# → Offers multichoice selection for new MCPs
-
-# 1. Define product requirements
+# 1. Define product requirements (no setup required!)
 /plan-and-analyze
 # → Answer discovery questions
 # → Review grimoires/loa/prd.md

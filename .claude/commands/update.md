@@ -118,7 +118,6 @@ git merge loa/main -m "chore: update Loa framework"
 | `grimoires/loa/prd.md` | Preserved (your docs) |
 | `grimoires/loa/sdd.md` | Preserved (your docs) |
 | `grimoires/loa/analytics/` | Preserved (your data) |
-| `.loa-setup-complete` | Preserved (legacy, no longer created in v0.15.0+) |
 | `CHANGELOG.md` | Preserved (your project changelog) |
 | `README.md` | Preserved (your project readme) |
 
@@ -168,4 +167,3 @@ git commit -m "chore: update Loa framework (conflicts resolved)"
 
 - Review [Loa releases](https://github.com/0xHoneyJar/loa/releases) for new features and changes
 - Check `CLAUDE.md` for new commands or workflow updates
-- Run `/setup` if prompted by new setup requirements
