@@ -1,23 +1,19 @@
 #!/bin/bash
 # Git safety detection functions for Loa framework
 # Prevents accidental pushes to upstream template repository
+#
+# Detection layers (v0.15.0+):
+#   1. Origin URL check
+#   2. Upstream/loa remote check
+#   3. GitHub API fork check
+#
+# Note: Cached detection via .loa-setup-complete removed in v0.15.0
+# THJ membership is now detected via LOA_CONSTRUCTS_API_KEY
 
 # Known Loa template repositories
 KNOWN_TEMPLATES="(0xHoneyJar|thj-dev)/loa"
 
-# Layer 1: Check cached detection from setup marker
-check_cached_detection() {
-    if [ -f ".loa-setup-complete" ]; then
-        local cached=$(grep -o '"detected": *true' .loa-setup-complete 2>/dev/null)
-        if [ -n "$cached" ]; then
-            echo "Cached from setup"
-            return 0
-        fi
-    fi
-    return 1
-}
-
-# Layer 2: Check origin URL
+# Layer 1: Check origin URL
 check_origin_url() {
     local origin_url=$(git remote get-url origin 2>/dev/null)
     if echo "$origin_url" | grep -qE "$KNOWN_TEMPLATES"; then
@@ -52,8 +48,7 @@ check_github_api() {
 detect_template() {
     local method
 
-    # Try each layer in order
-    method=$(check_cached_detection) && { echo "$method"; return 0; }
+    # Try each layer in order (v0.15.0: removed cached detection layer)
     method=$(check_origin_url) && { echo "$method"; return 0; }
     method=$(check_upstream_remote) && { echo "$method"; return 0; }
     method=$(check_github_api) && { echo "$method"; return 0; }
@@ -72,13 +67,4 @@ is_template_remote() {
 get_remote_url() {
     local remote_name="$1"
     git remote get-url "$remote_name" 2>/dev/null
-}
-
-# Check if template detection is explicitly disabled
-is_detection_disabled() {
-    if [ -f ".loa-setup-complete" ]; then
-        grep -q '"detected": *false' .loa-setup-complete 2>/dev/null
-        return $?
-    fi
-    return 1
 }

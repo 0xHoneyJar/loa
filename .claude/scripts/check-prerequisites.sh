@@ -51,26 +51,24 @@ main() {
         exit 2
     fi
 
+    # Note: .loa-setup-complete is no longer required (v0.15.0)
+    # THJ detection now uses LOA_CONSTRUCTS_API_KEY environment variable
     case "$phase" in
-        "setup")
-            # No prerequisites for setup
-            echo "OK"
-            ;;
         "plan"|"prd")
-            # Setup must be complete
-            check_files_exist ".loa-setup-complete"
+            # No prerequisites - this is the entry point
+            echo "OK"
             ;;
         "architect"|"sdd")
             # PRD must exist
-            check_files_exist ".loa-setup-complete" "grimoires/loa/prd.md"
+            check_files_exist "grimoires/loa/prd.md"
             ;;
         "sprint-plan")
             # PRD and SDD must exist
-            check_files_exist ".loa-setup-complete" "grimoires/loa/prd.md" "grimoires/loa/sdd.md"
+            check_files_exist "grimoires/loa/prd.md" "grimoires/loa/sdd.md"
             ;;
         "implement")
             # PRD, SDD, and sprint.md must exist
-            check_files_exist ".loa-setup-complete" "grimoires/loa/prd.md" "grimoires/loa/sdd.md" "grimoires/loa/sprint.md"
+            check_files_exist "grimoires/loa/prd.md" "grimoires/loa/sdd.md" "grimoires/loa/sprint.md"
             ;;
         "review")
             # Reviewer.md must exist for the sprint
@@ -99,7 +97,7 @@ main() {
             ;;
         "deploy")
             # Basic requirements
-            check_files_exist ".loa-setup-complete" "grimoires/loa/prd.md" "grimoires/loa/sdd.md"
+            check_files_exist "grimoires/loa/prd.md" "grimoires/loa/sdd.md"
             ;;
         *)
             echo "ERROR|Unknown phase: $phase" >&2

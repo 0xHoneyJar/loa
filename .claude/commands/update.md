@@ -118,7 +118,7 @@ git merge loa/main -m "chore: update Loa framework"
 | `grimoires/loa/prd.md` | Preserved (your docs) |
 | `grimoires/loa/sdd.md` | Preserved (your docs) |
 | `grimoires/loa/analytics/` | Preserved (your data) |
-| `.loa-setup-complete` | Preserved (your setup state) |
+| `.loa-setup-complete` | Preserved (legacy, no longer created in v0.15.0+) |
 | `CHANGELOG.md` | Preserved (your project changelog) |
 | `README.md` | Preserved (your project readme) |
 

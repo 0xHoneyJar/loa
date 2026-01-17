@@ -24,10 +24,6 @@ context_files:
 
 pre_flight:
   - check: "file_exists"
-    path: ".loa-setup-complete"
-    error: "Loa setup has not been completed. Run /setup first."
-
-  - check: "file_exists"
     path: "grimoires/loa/prd.md"
     error: "PRD not found. Run /plan-and-analyze first."
 
@@ -81,7 +77,6 @@ See: `skills/planning-sprints/SKILL.md` for full workflow details.
 
 ## Prerequisites
 
-- Setup completed (`.loa-setup-complete` exists)
 - PRD created (`grimoires/loa/prd.md` exists)
 - SDD created (`grimoires/loa/sdd.md` exists)
 
@@ -141,7 +136,6 @@ Each task includes:
 
 | Error | Cause | Resolution |
 |-------|-------|------------|
-| "Loa setup has not been completed" | Missing `.loa-setup-complete` | Run `/setup` first |
 | "PRD not found" | Missing prd.md | Run `/plan-and-analyze` first |
 | "SDD not found" | Missing sdd.md | Run `/architect` first |
 

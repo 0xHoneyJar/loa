@@ -81,6 +81,22 @@ get_registry_url() {
 }
 
 # =============================================================================
+# THJ Membership Detection
+# =============================================================================
+# Replaces marker-file-based detection (.loa-setup-complete) with API key
+# presence check. Zero network dependency - checks environment variable only.
+#
+# This is the canonical source for THJ membership detection across Loa.
+# Other scripts should source this file and use is_thj_member().
+# =============================================================================
+
+# Check if user is a THJ member (has constructs API key)
+# Returns: 0 if THJ member (API key present and non-empty), 1 otherwise
+is_thj_member() {
+    [[ -n "${LOA_CONSTRUCTS_API_KEY:-}" ]]
+}
+
+# =============================================================================
 # Directory Functions
 # =============================================================================
 

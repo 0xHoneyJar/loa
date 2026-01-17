@@ -122,7 +122,6 @@ Overrides survive framework updates.
 
 | Phase | Command | Agent | Output |
 |-------|---------|-------|--------|
-| 0 | `/setup` | wizard | `.loa-setup-complete` |
 | 1 | `/plan-and-analyze` | discovering-requirements | `prd.md` |
 | 2 | `/architect` | designing-architecture | `sdd.md` |
 | 3 | `/sprint-plan` | planning-sprints | `sprint.md` |
@@ -133,7 +132,9 @@ Overrides survive framework updates.
 
 **Mount & Ride** (existing codebases): `/mount`, `/ride`
 
-**Ad-hoc**: `/audit`, `/audit-deployment`, `/translate @doc for audience`, `/contribute`, `/update`, `/feedback` (THJ only), `/config` (THJ only)
+**Ad-hoc**: `/audit`, `/audit-deployment`, `/translate @doc for audience`, `/contribute`, `/update`, `/feedback` (THJ only)
+
+**THJ Detection** (v0.15.0+): THJ membership is detected via `LOA_CONSTRUCTS_API_KEY` environment variable. No setup required - start with `/plan-and-analyze` immediately after cloning.
 
 **Execution modes**: Foreground (default) or background (`/implement sprint-1 background`)
 

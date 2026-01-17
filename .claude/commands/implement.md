@@ -40,10 +40,6 @@ context_files:
     purpose: "Senior lead feedback"
 
 pre_flight:
-  - check: "file_exists"
-    path: ".loa-setup-complete"
-    error: "Loa setup has not been completed. Run /setup first."
-
   - check: "pattern_match"
     value: "$ARGUMENTS.sprint_id"
     pattern: "^sprint-[0-9]+$"
@@ -138,7 +134,6 @@ See: `skills/implementing-tasks/SKILL.md` for full workflow details.
 
 | Error | Cause | Resolution |
 |-------|-------|------------|
-| "Loa setup has not been completed" | Missing `.loa-setup-complete` | Run `/setup` first |
 | "Invalid sprint ID" | Wrong format | Use `sprint-N` format |
 | "PRD not found" | Missing prd.md | Run `/plan-and-analyze` first |
 | "SDD not found" | Missing sdd.md | Run `/architect` first |

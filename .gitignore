@@ -44,9 +44,10 @@ tmp/
 temp/
 *.tmp
 
-# Loa Framework State
-# Created by /setup command when first-time configuration completes
-# Each developer runs setup independently, so this should not be shared
+# Loa Framework State (Legacy - v0.14.0 and earlier)
+# The .loa-setup-complete file is no longer created as of v0.15.0.
+# THJ membership is now detected via LOA_CONSTRUCTS_API_KEY environment variable.
+# This entry remains for backward compatibility with projects using older versions.
 .loa-setup-complete
 
 # User context files (discovery inputs, uploaded docs, extracted content)

@@ -28,10 +28,6 @@ context_files:
     purpose: "Organizational context and conventions"
 
 pre_flight:
-  - check: "file_exists"
-    path: ".loa-setup-complete"
-    error: "Loa setup has not been completed. Run /setup first."
-
   - check: "file_not_exists"
     path: "grimoires/loa/prd.md"
     error: "PRD already exists. Delete or rename grimoires/loa/prd.md to restart discovery."
@@ -156,8 +152,8 @@ All files are optional. The more context provided, the fewer questions asked.
 
 ## Prerequisites
 
-- Setup completed (`.loa-setup-complete` exists)
-- Run `/setup` first if not configured
+- No prerequisites - this is the entry point for new projects
+- Alternatively, use `/mount` then `/ride` for existing codebases
 
 ## Outputs
 
@@ -180,7 +176,6 @@ Generated PRD includes citations:
 
 | Error | Cause | Resolution |
 |-------|-------|------------|
-| "Loa setup has not been completed" | Missing `.loa-setup-complete` | Run `/setup` first |
 | "PRD already exists" | `grimoires/loa/prd.md` exists | Delete/rename existing PRD |
 
 ## Next Step

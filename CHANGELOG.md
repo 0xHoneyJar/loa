@@ -5,6 +5,93 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-01-17
+
+### Why This Release
+
+This release removes the `/setup` phase entirely, allowing users to start with `/plan-and-analyze` immediately after cloning. THJ membership is now detected via the `LOA_CONSTRUCTS_API_KEY` environment variable instead of a marker file.
+
+### ⚠️ Breaking Changes
+
+- **`/setup` command removed**: No longer needed. Start directly with `/plan-and-analyze`
+- **`/mcp-config` command removed**: MCP configuration is now documentation-only
+- **`.loa-setup-complete` no longer created**: THJ detection uses API key presence
+- **Phase 0 removed from workflow**: Workflow now starts at Phase 1
+
+### Added
+
+- **`is_thj_member()` function** (`.claude/scripts/constructs-lib.sh`)
+  - Canonical source for THJ membership detection
+  - Returns 0 when `LOA_CONSTRUCTS_API_KEY` is set and non-empty
+  - Zero network dependency - environment variable check only
+
+- **`check-thj-member.sh` script** (`.claude/scripts/check-thj-member.sh`)
+  - Pre-flight check script for THJ-only commands
+  - Used by `/feedback` to gate access
+
+### Removed
+
+- **`/setup` command** (`.claude/commands/setup.md`)
+- **`/mcp-config` command** (`.claude/commands/mcp-config.md`)
+- **`check_setup_complete()` function** (from `preflight.sh`)
+- **`check_cached_detection()` function** (from `git-safety.sh`)
+- **`is_detection_disabled()` function** (from `git-safety.sh`)
+
+### Changed
+
+- **All phase commands**: Removed `.loa-setup-complete` pre-flight check
+  - `/plan-and-analyze` - No prerequisites, this is now the entry point
+  - `/architect` - Only requires PRD
+  - `/sprint-plan` - Only requires PRD and SDD
+  - `/implement` - Only requires PRD, SDD, and sprint.md
+  - `/review-sprint` - Unchanged (requires reviewer.md)
+  - `/audit-sprint` - Unchanged (requires "All good" approval)
+  - `/deploy-production` - Only requires PRD and SDD
+
+- **`/feedback` command**: Uses script-based THJ detection
+  - Now uses `check-thj-member.sh` pre-flight script
+  - Error message directs OSS users to GitHub Issues
+  - THJ members need `LOA_CONSTRUCTS_API_KEY` set
+
+- **`analytics.sh`**: Updated to use `is_thj_member()` from constructs-lib.sh
+  - `get_user_type()` returns "thj" or "oss" based on API key presence
+  - `should_track_analytics()` delegates to `is_thj_member()`
+
+- **`preflight.sh`**: Updated THJ detection
+  - `check_user_is_thj()` now uses `is_thj_member()`
+  - Sources `constructs-lib.sh` for canonical detection function
+
+- **`git-safety.sh`**: Removed marker file detection layer
+  - Template detection now uses origin URL, upstream remote, and GitHub API only
+  - Removed cached detection that read from marker file
+
+- **`check-prerequisites.sh`**: Removed marker file checks
+  - All phases work without `.loa-setup-complete`
+  - `setup` case removed entirely
+  - `plan|prd` case now has no prerequisites
+
+- **`.gitignore`**: Updated comment for `.loa-setup-complete`
+  - Marked as legacy (v0.14.0 and earlier)
+  - Entry remains for backward compatibility
+
+### Documentation
+
+- **README.md**: Updated Quick Start to remove `/setup` step
+- **CLAUDE.md**: Removed Phase 0 from workflow table, added THJ detection note
+- **PROCESS.md**: Updated overview to reflect seven-phase workflow
+
+### Migration Guide
+
+**For existing projects:**
+- The `.loa-setup-complete` file is no longer needed
+- THJ members should set `LOA_CONSTRUCTS_API_KEY` environment variable
+- Existing marker files are safely ignored (not deleted)
+
+**For new projects:**
+- Clone and immediately run `/plan-and-analyze`
+- THJ members: Set `LOA_CONSTRUCTS_API_KEY` for constructs access and `/feedback`
+- OSS users: Full workflow access, submit feedback via GitHub Issues
+
 ## [0.14.0] - 2026-01-17
 
 ### Why This Release

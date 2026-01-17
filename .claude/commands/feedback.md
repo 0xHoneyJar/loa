@@ -16,18 +16,15 @@ integrations:
       error: "Linear integration required for /feedback. Run /config to set up, or open a GitHub issue instead."
 
 pre_flight:
-  - check: "file_exists"
-    path: ".loa-setup-complete"
-    error: "Loa setup has not been completed. Run /setup first."
-
-  - check: "content_contains"
-    path: ".loa-setup-complete"
-    pattern: '"user_type":\\s*"thj"'
+  - check: "script"
+    script: ".claude/scripts/check-thj-member.sh"
     error: |
       The /feedback command is only available for THJ team members.
 
-      For issues or feature requests, please open a GitHub issue at:
+      For OSS users, please submit feedback via:
       https://github.com/0xHoneyJar/loa/issues
+
+      THJ members: Set LOA_CONSTRUCTS_API_KEY environment variable to enable this command.
 
   - check: "script"
     script: ".claude/scripts/validate-mcp.sh linear"
@@ -67,8 +64,8 @@ Collect developer feedback on the Loa experience and post to Linear with attache
 
 ## Prerequisites
 
-- Setup completed (`.loa-setup-complete` exists)
-- User type is `thj` (THJ team member)
+- THJ team member (LOA_CONSTRUCTS_API_KEY environment variable is set)
+- Linear MCP configured (for feedback submission)
 
 ## Workflow
 
@@ -156,8 +153,7 @@ Collect responses to 4 questions with progress indicators:
 
 | Error | Cause | Resolution |
 |-------|-------|------------|
-| "Setup not completed" | Missing `.loa-setup-complete` | Run `/setup` first |
-| "Only available for THJ" | User type is `oss` | Open GitHub issue instead |
+| "Only available for THJ" | API key not set | Set `LOA_CONSTRUCTS_API_KEY` or open GitHub issue |
 | "Linear submission failed" | MCP error | Feedback saved to pending file |
 
 ## OSS Users

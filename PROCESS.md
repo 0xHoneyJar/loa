@@ -78,9 +78,8 @@ Detailed specifications are maintained in separate protocol files (single source
 
 ## Overview
 
-Our development process follows a structured, eight-phase approach:
+Our development process follows a structured, seven-phase approach:
 
-0. **Phase 0: Setup** → Initial configuration and analytics initialization
 1. **Phase 1: Planning** → Product Requirements Document (PRD)
 2. **Phase 2: Architecture** → Software Design Document (SDD)
 3. **Phase 3: Sprint Planning** → Sprint Plan
@@ -88,7 +87,7 @@ Our development process follows a structured, eight-phase approach:
 5. **Phase 5: Review** → Quality Validation and Sprint Approval
 6. **Phase 5.5: Sprint Security Audit** → Security Review and Approval
 7. **Phase 6: Deployment** → Production Infrastructure and Handover
-8. **Post-Deployment: Feedback** → Developer experience survey
+8. **Post-Deployment: Feedback** → Developer experience survey (THJ members only)
 
 Each phase is handled by a specialized agent with deep domain expertise, ensuring thorough discovery, clear documentation, high-quality implementation, rigorous quality control, comprehensive security review, and enterprise-grade production deployment.
 

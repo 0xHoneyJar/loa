@@ -1,11 +1,31 @@
 # Loa
 
-[![Version](https://img.shields.io/badge/version-0.14.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.15.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
 
 Agent-driven development framework using 8 specialized AI agents to orchestrate the complete product lifecycle—from requirements through production deployment. Built with enterprise-grade managed scaffolding.
+
+## Prerequisites
+
+Before using Loa, ensure you have:
+
+| Tool | Required | Purpose | Install |
+|------|----------|---------|---------|
+| [Claude Code](https://claude.ai/code) | **Yes** | AI agent runtime | `npm install -g @anthropic-ai/claude-code` |
+| [bats-core](https://github.com/bats-core/bats-core) | No | Test runner for shell scripts | `brew install bats-core` / `apt install bats` |
+| [Beads](https://github.com/0xHoneyJar/beads) | Recommended | Persistent task graph across sessions | See [Beads installation](https://github.com/0xHoneyJar/beads#installation) |
+| [ck](https://github.com/0xHoneyJar/ck) | Recommended | Semantic code search | `cargo install ck-search` |
+| [yq](https://github.com/mikefarah/yq) | Recommended | YAML processing | `brew install yq` / `apt install yq` |
+| [jq](https://stedolan.github.io/jq/) | Recommended | JSON processing | `brew install jq` / `apt install jq` |
+
+### Optional Integrations
+
+For THJ team members with `LOA_CONSTRUCTS_API_KEY`:
+- **Analytics tracking** - Usage metrics for THJ developers
+- **`/feedback` command** - Submit feedback to Linear
+- **Loa Constructs** - Commercial skill packs from registry
 
 ## Quick Start
 
@@ -18,10 +38,7 @@ curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts
 # Start Claude Code
 claude
 
-# Run setup
-/setup
-
-# Begin workflow
+# Begin workflow (no setup required!)
 /plan-and-analyze
 ```
 
@@ -30,8 +47,7 @@ claude
 ```bash
 git clone https://github.com/0xHoneyJar/loa.git my-project && cd my-project
 claude
-/setup
-/plan-and-analyze
+/plan-and-analyze  # Start immediately!
 ```
 
 See **[INSTALLATION.md](INSTALLATION.md)** for detailed installation options.
@@ -52,7 +68,6 @@ Loa uses a **managed scaffolding** architecture inspired by AWS Projen, Copier, 
 
 | Phase | Command | Agent | Output |
 |-------|---------|-------|--------|
-| 0 | `/setup` | - | `.loa-setup-complete` |
 | 1 | `/plan-and-analyze` | discovering-requirements | `grimoires/loa/prd.md` |
 | 2 | `/architect` | designing-architecture | `grimoires/loa/sdd.md` |
 | 3 | `/sprint-plan` | planning-sprints | `grimoires/loa/sprint.md` |
@@ -115,6 +130,48 @@ Agents maintain persistent working memory in `grimoires/loa/NOTES.md`:
 - Survives context window resets
 - Tracks technical debt, blockers, decisions
 - Enables continuity across sessions
+
+### Beads: Persistent Task Graph
+
+[Beads](https://github.com/0xHoneyJar/beads) provides a persistent task graph that survives context compaction:
+
+```bash
+# Install Beads CLI
+# See: https://github.com/0xHoneyJar/beads#installation
+
+# Initialize in your project
+bd init
+
+# Common commands
+bd ready                    # Show tasks ready to work (no blockers)
+bd create --title="..." --type=task --priority=2
+bd update <id> --status=in_progress
+bd close <id>
+bd sync --from-main         # Sync beads from main branch
+```
+
+When Beads is installed, Loa automatically:
+- Tracks strategic work across sessions
+- Manages task dependencies and blockers
+- Syncs task state via git hooks
+
+### ck: Semantic Code Search
+
+[ck](https://github.com/0xHoneyJar/ck) enables fast semantic search across your codebase:
+
+```bash
+# Install ck
+cargo install ck-search
+
+# Search usage
+ck search "authentication flow"
+ck search "error handling"
+```
+
+When ck is installed, Loa uses it for:
+- Intelligent code exploration during `/ride`
+- Context-aware code retrieval during implementation
+- Faster codebase analysis
 
 ### Lossless Ledger Protocol (v0.9.0)
 
