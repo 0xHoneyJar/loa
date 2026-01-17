@@ -52,12 +52,12 @@
         {
           "global_id": 7,
           "local_label": "sprint-1",
-          "status": "in_progress"
+          "status": "completed"
         },
         {
           "global_id": 8,
           "local_label": "sprint-2",
-          "status": "pending"
+          "status": "in_progress"
         },
         {
           "global_id": 9,

@@ -150,6 +150,168 @@ echo '{"timestamp":"'$RIDE_DATE'","agent":"riding-codebase","phase":0,"action":"
 
 ---
 
+## Phase 0.5: Codebase Probing (RLM Pattern)
+
+Before loading any files, probe the codebase to determine optimal loading strategy.
+This reduces token usage by avoiding eager loading of large, low-relevance files.
+
+### 0.5.1 Run Codebase Probe
+
+```bash
+# Probe the target repository
+PROBE_RESULT=$(.claude/scripts/context-manager.sh probe "$TARGET_REPO" --json 2>/dev/null)
+
+if [[ -z "$PROBE_RESULT" ]] || ! echo "$PROBE_RESULT" | jq -e '.' >/dev/null 2>&1; then
+  echo "⚠️ Probe unavailable - falling back to eager loading"
+  LOADING_STRATEGY="eager"
+  TOTAL_LINES=0
+  TOTAL_FILES=0
+  ESTIMATED_TOKENS=0
+else
+  TOTAL_LINES=$(echo "$PROBE_RESULT" | jq -r '.total_lines // 0')
+  TOTAL_FILES=$(echo "$PROBE_RESULT" | jq -r '.total_files // 0')
+  ESTIMATED_TOKENS=$(echo "$PROBE_RESULT" | jq -r '.estimated_tokens // 0')
+  CODEBASE_SIZE=$(echo "$PROBE_RESULT" | jq -r '.codebase_size // "unknown"')
+
+  echo "📊 Codebase Probe Results:"
+  echo "   Files: $TOTAL_FILES"
+  echo "   Lines: $TOTAL_LINES"
+  echo "   Estimated tokens: $ESTIMATED_TOKENS"
+  echo "   Size category: $CODEBASE_SIZE"
+fi
+```
+
+### 0.5.2 Determine Loading Strategy
+
+```bash
+# Loading strategy based on codebase size (from .loa.config.yaml token_budget)
+# Small (<10K lines): Load all files - fits comfortably in context
+# Medium (10K-50K): Prioritized loading - load high-relevance first
+# Large (>50K): Probe + excerpts only - too large for full loading
+
+if [[ "$TOTAL_LINES" -lt 10000 ]]; then
+  LOADING_STRATEGY="full"
+  echo "📁 Strategy: FULL LOAD (small codebase)"
+elif [[ "$TOTAL_LINES" -lt 50000 ]]; then
+  LOADING_STRATEGY="prioritized"
+  echo "📁 Strategy: PRIORITIZED LOAD (medium codebase)"
+else
+  LOADING_STRATEGY="excerpts"
+  echo "📁 Strategy: EXCERPTS ONLY (large codebase)"
+fi
+```
+
+### 0.5.3 Generate Loading Plan
+
+Based on probe results, categorize files for Phase 2:
+
+```bash
+LOADING_PLAN_FILE="grimoires/loa/reality/loading-plan.md"
+mkdir -p grimoires/loa/reality
+
+cat > "$LOADING_PLAN_FILE" << EOF
+# Loading Plan
+
+Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+Strategy: $LOADING_STRATEGY
+Codebase: $TOTAL_FILES files, $TOTAL_LINES lines (~$ESTIMATED_TOKENS tokens)
+
+## File Categories
+
+EOF
+
+if [[ "$LOADING_STRATEGY" == "full" ]]; then
+  echo "All files will be loaded (small codebase)." >> "$LOADING_PLAN_FILE"
+elif [[ "$LOADING_STRATEGY" == "prioritized" || "$LOADING_STRATEGY" == "excerpts" ]]; then
+  # Categorize files by should-load decision with relevance-based prioritization
+  # High relevance (7+): Load first
+  # Medium relevance (4-6): Load if budget allows
+  # Low relevance (0-3): Skip or excerpt
+
+  echo "### Priority Loading Order (by relevance)" >> "$LOADING_PLAN_FILE"
+  echo "" >> "$LOADING_PLAN_FILE"
+  echo "Files are sorted by relevance score (highest first) within each category." >> "$LOADING_PLAN_FILE"
+  echo "" >> "$LOADING_PLAN_FILE"
+
+  # Temporary files for sorting
+  LOAD_TMP=$(mktemp)
+  EXCERPT_TMP=$(mktemp)
+  SKIP_TMP=$(mktemp)
+
+  # Get file list from probe result
+  FILES=$(echo "$PROBE_RESULT" | jq -r '.files[]?.file // empty' 2>/dev/null)
+
+  if [[ -n "$FILES" ]]; then
+    while IFS= read -r file; do
+      [[ -z "$file" ]] && continue
+      DECISION_JSON=$(.claude/scripts/context-manager.sh should-load "$file" --json 2>/dev/null) || continue
+      DECISION=$(echo "$DECISION_JSON" | jq -r '.decision // "skip"')
+      RELEVANCE=$(echo "$DECISION_JSON" | jq -r '.relevance // 0')
+
+      # Store as "score|file" for sorting
+      case "$DECISION" in
+        load)
+          echo "$RELEVANCE|$file" >> "$LOAD_TMP"
+          ;;
+        excerpt)
+          echo "$RELEVANCE|$file" >> "$EXCERPT_TMP"
+          ;;
+        *)
+          echo "$RELEVANCE|$file" >> "$SKIP_TMP"
+          ;;
+      esac
+    done <<< "$FILES"
+  fi
+
+  # Write sorted categories (highest relevance first)
+  echo "### Will Load Fully (sorted by relevance)" >> "$LOADING_PLAN_FILE"
+  echo "" >> "$LOADING_PLAN_FILE"
+  if [[ -s "$LOAD_TMP" ]]; then
+    sort -t'|' -k1 -rn "$LOAD_TMP" | while IFS='|' read -r score file; do
+      echo "- $file (relevance: $score)" >> "$LOADING_PLAN_FILE"
+    done
+  else
+    echo "_No files in this category_" >> "$LOADING_PLAN_FILE"
+  fi
+
+  echo "" >> "$LOADING_PLAN_FILE"
+  echo "### Will Use Excerpts (sorted by relevance)" >> "$LOADING_PLAN_FILE"
+  echo "" >> "$LOADING_PLAN_FILE"
+  if [[ -s "$EXCERPT_TMP" ]]; then
+    sort -t'|' -k1 -rn "$EXCERPT_TMP" | while IFS='|' read -r score file; do
+      echo "- $file (relevance: $score)" >> "$LOADING_PLAN_FILE"
+    done
+  else
+    echo "_No files in this category_" >> "$LOADING_PLAN_FILE"
+  fi
+
+  echo "" >> "$LOADING_PLAN_FILE"
+  echo "### Will Skip (sorted by relevance)" >> "$LOADING_PLAN_FILE"
+  echo "" >> "$LOADING_PLAN_FILE"
+  if [[ -s "$SKIP_TMP" ]]; then
+    sort -t'|' -k1 -rn "$SKIP_TMP" | while IFS='|' read -r score file; do
+      echo "- $file (relevance: $score)" >> "$LOADING_PLAN_FILE"
+    done
+  else
+    echo "_No files in this category_" >> "$LOADING_PLAN_FILE"
+  fi
+
+  # Cleanup temp files
+  rm -f "$LOAD_TMP" "$EXCERPT_TMP" "$SKIP_TMP"
+fi
+
+echo ""
+echo "✓ Loading plan generated: $LOADING_PLAN_FILE"
+```
+
+### 0.5.4 Log Probe to Trajectory
+
+```bash
+echo '{"timestamp":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","agent":"riding-codebase","phase":"0.5","action":"codebase_probe","strategy":"'$LOADING_STRATEGY'","total_files":'$TOTAL_FILES',"total_lines":'$TOTAL_LINES',"estimated_tokens":'$ESTIMATED_TOKENS'}' >> "$TRAJECTORY_FILE"
+```
+
+---
+
 ## Phase 1: Interactive Context Discovery
 
 ### 1.1 Check for Existing Context
@@ -326,6 +488,63 @@ mkdir -p grimoires/loa/reality
 cd "$TARGET_REPO"
 ```
 
+### 2.1.5 Apply Loading Strategy (from Phase 0.5)
+
+The loading strategy from Phase 0.5 controls file processing:
+
+```bash
+# Track token savings for reporting
+TOKENS_SAVED=0
+FILES_SKIPPED=0
+FILES_EXCERPTED=0
+FILES_LOADED=0
+
+# Helper function: Check if file should be fully loaded
+should_load_file() {
+  local file="$1"
+
+  # Always load in "full" strategy (small codebase)
+  if [[ "$LOADING_STRATEGY" == "full" || "$LOADING_STRATEGY" == "eager" ]]; then
+    return 0
+  fi
+
+  # Check loading plan or run should-load
+  local decision
+  decision=$(.claude/scripts/context-manager.sh should-load "$file" --json 2>/dev/null | jq -r '.decision // "load"')
+
+  case "$decision" in
+    load) return 0 ;;
+    excerpt)
+      ((FILES_EXCERPTED++))
+      return 1
+      ;;
+    skip)
+      local tokens
+      tokens=$(.claude/scripts/context-manager.sh probe "$file" --json 2>/dev/null | jq -r '.estimated_tokens // 0')
+      ((TOKENS_SAVED += tokens))
+      ((FILES_SKIPPED++))
+      return 2
+      ;;
+  esac
+}
+
+# Helper function: Get excerpt of file (high-relevance sections only)
+get_file_excerpt() {
+  local file="$1"
+  local keywords=("export" "class" "interface" "function" "async" "api" "route" "handler")
+
+  echo "# Excerpt: $file"
+  echo ""
+
+  # Extract lines containing keywords with 2 lines context
+  for kw in "${keywords[@]}"; do
+    grep -n -B1 -A2 "$kw" "$file" 2>/dev/null | head -20
+  done | sort -t: -k1 -n -u | head -50
+}
+
+echo "📁 Loading strategy: $LOADING_STRATEGY"
+```
+
 ### 2.2 Directory Structure Analysis
 
 ```bash
@@ -402,6 +621,16 @@ Reality extraction complete. Results synthesized to grimoires/loa/reality/:
 - Env vars: [N] dependencies → reality/env-vars.txt
 - Tech debt: [N] markers → reality/tech-debt.txt
 - Tests: [N] files → reality/test-files.txt
+
+### Loading Strategy Results (RLM Pattern)
+
+| Metric | Value |
+|--------|-------|
+| Strategy | $LOADING_STRATEGY |
+| Files loaded | $FILES_LOADED |
+| Files excerpted | $FILES_EXCERPTED |
+| Files skipped | $FILES_SKIPPED |
+| Tokens saved | ~$TOKENS_SAVED |
 
 ⚠️ RAW TOOL OUTPUTS CLEARED FROM CONTEXT
 Refer to reality/ files for specific file:line details.
