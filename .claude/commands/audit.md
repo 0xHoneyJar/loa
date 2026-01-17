@@ -30,9 +30,12 @@ context_files:
 pre_flight: []
 
 outputs:
-  - path: "SECURITY-AUDIT-REPORT.md"
+  - path: "grimoires/loa/a2a/audits/$DATE/SECURITY-AUDIT-REPORT.md"
     type: "file"
     description: "Comprehensive security audit report"
+  - path: "grimoires/loa/a2a/audits/$DATE/remediation/"
+    type: "directory"
+    description: "Remediation tracking for findings"
 
 mode:
   default: "foreground"
@@ -72,7 +75,20 @@ See: `skills/auditing-security/SKILL.md` for full workflow details.
 2. **Code Audit**: Review `app/src/` for security vulnerabilities
 3. **Test Review**: Check `app/tests/` for coverage and quality
 4. **Config Audit**: Review configuration and environment handling
-5. **Report**: Generate `SECURITY-AUDIT-REPORT.md`
+5. **Report**: Generate audit report at `grimoires/loa/a2a/audits/YYYY-MM-DD/`
+
+## Output Location
+
+Reports are stored in the State Zone under `grimoires/loa/a2a/audits/`:
+
+```
+grimoires/loa/a2a/audits/
+└── 2026-01-17/
+    ├── SECURITY-AUDIT-REPORT.md   # Main audit report
+    └── remediation/               # Remediation tracking
+        ├── critical-001.md
+        └── high-001.md
+```
 
 ## Arguments
 
@@ -84,7 +100,8 @@ See: `skills/auditing-security/SKILL.md` for full workflow details.
 
 | Path | Description |
 |------|-------------|
-| `SECURITY-AUDIT-REPORT.md` | Comprehensive audit report |
+| `grimoires/loa/a2a/audits/YYYY-MM-DD/SECURITY-AUDIT-REPORT.md` | Comprehensive audit report |
+| `grimoires/loa/a2a/audits/YYYY-MM-DD/remediation/` | Remediation tracking |
 
 ## Focus Areas
 

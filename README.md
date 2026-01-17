@@ -230,6 +230,8 @@ grimoires/                      # State Zone (project memory)
 │   ├── prd.md, sdd.md, sprint.md  # Planning docs
 │   ├── a2a/                    # Agent communication
 │   │   ├── trajectory/         # Agent reasoning logs
+│   │   ├── audits/             # Codebase audit reports (/audit)
+│   │   │   └── YYYY-MM-DD/     # Dated audit directories
 │   │   └── sprint-N/           # Per-sprint feedback
 │   └── deployment/             # Infrastructure docs
 └── pub/                        # Public documents (git-tracked)

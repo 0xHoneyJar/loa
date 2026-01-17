@@ -254,6 +254,10 @@ grimoires/
 │   ├── a2a/                # Agent-to-Agent communication
 │   │   ├── index.md        # Audit trail index
 │   │   ├── trajectory/     # Agent reasoning logs
+│   │   ├── audits/         # Codebase audits (/audit)
+│   │   │   └── YYYY-MM-DD/ # Dated audit directories
+│   │   │       ├── SECURITY-AUDIT-REPORT.md
+│   │   │       └── remediation/
 │   │   ├── sprint-N/       # Per-sprint files
 │   │   │   ├── reviewer.md
 │   │   │   ├── engineer-feedback.md
