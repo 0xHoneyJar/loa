@@ -57,7 +57,7 @@ fi
 |                                                                   |
 |  Resolution:                                                      |
 |    1. Move customizations to .claude/overrides/                   |
-|    2. Run: /update --force-restore                                |
+|    2. Run: /update-loa --force-restore                                |
 |    3. Or set: integrity_enforcement: warn                         |
 +===================================================================+
 ```

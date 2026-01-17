@@ -132,7 +132,7 @@ Overrides survive framework updates.
 
 **Mount & Ride** (existing codebases): `/mount`, `/ride`
 
-**Ad-hoc**: `/audit`, `/audit-deployment`, `/translate @doc for audience`, `/contribute`, `/update`, `/feedback` (THJ only)
+**Ad-hoc**: `/audit`, `/audit-deployment`, `/translate @doc for audience`, `/contribute`, `/update-loa`, `/feedback` (THJ only)
 
 **THJ Detection** (v0.15.0+): THJ membership is detected via `LOA_CONSTRUCTS_API_KEY` environment variable. No setup required - start with `/plan-and-analyze` immediately after cloning.
 

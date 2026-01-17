@@ -149,7 +149,7 @@ jobs:
             ".claude/commands/deploy-production.md"
             ".claude/commands/audit.md"
             ".claude/commands/feedback.md"
-            ".claude/commands/update.md"
+            ".claude/commands/update-loa.md"
           )
           for cmd in "${COMMANDS[@]}"; do
             if [ ! -f "$cmd" ]; then

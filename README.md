@@ -90,7 +90,7 @@ Loa uses a **managed scaffolding** architecture inspired by AWS Projen, Copier, 
 | `/audit` | Full codebase security audit |
 | `/audit-deployment` | Infrastructure security review |
 | `/translate @doc for audience` | Executive summaries |
-| `/update` | Pull framework updates |
+| `/update-loa` | Pull framework updates |
 | `/contribute` | Create upstream PR |
 
 ## The Agents (The Loa)

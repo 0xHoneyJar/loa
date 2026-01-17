@@ -193,7 +193,7 @@ This adds `grimoires/loa/`, `.beads/`, `.loa-version.json`, and `.loa.config.yam
 
 Or use the slash command:
 ```
-/update
+/update-loa
 ```
 
 ### What Happens During Updates

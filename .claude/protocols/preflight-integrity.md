@@ -71,7 +71,7 @@ integrity_enforcement: strict  # or "warn", "disabled"
 
 **When to Run**:
 - Before ANY ck search operation
-- During `/setup` and `/update` commands
+- During `/setup` and `/update-loa` commands
 - At the start of agent skills that use search
 
 **When NOT to Run**:
@@ -84,7 +84,7 @@ integrity_enforcement: strict  # or "warn", "disabled"
 | Code | Meaning | Agent Action |
 |------|---------|--------------|
 | 0 | Checks passed | Proceed with operation |
-| 1 | Checks failed (strict mode) | HALT, display error, suggest `/update` |
+| 1 | Checks failed (strict mode) | HALT, display error, suggest `/update-loa` |
 
 ### Error Messages
 
@@ -231,7 +231,7 @@ mv /usr/local/bin/ck.bak /usr/local/bin/ck
 
 ### Updating Checksums
 
-After legitimate System Zone updates via `/update`:
+After legitimate System Zone updates via `/update-loa`:
 
 ```bash
 .claude/scripts/update.sh  # Automatically regenerates checksums.json

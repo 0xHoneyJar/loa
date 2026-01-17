@@ -1,6 +1,6 @@
 # Loa Framework Overrides
 
-This directory allows you to customize Loa behavior **without editing System Zone files**. Your overrides survive framework updates (`/update`).
+This directory allows you to customize Loa behavior **without editing System Zone files**. Your overrides survive framework updates (`/update-loa`).
 
 ## Purpose
 

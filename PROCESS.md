@@ -721,7 +721,7 @@ After security audit, if changes required:
 
 ---
 
-### Maintenance: Framework Updates (`/update`)
+### Maintenance: Framework Updates (`/update-loa`)
 
 <!-- CANONICAL_LOCATION: protocols/git-safety.md -->
 
@@ -765,7 +765,7 @@ After security audit, if changes required:
 
 **Command**:
 ```bash
-/update
+/update-loa
 ```
 
 **Merge Strategy**:
@@ -1036,7 +1036,7 @@ command_type: "wizard"  # or "survey", "git"
 | `/audit-sprint {sprint}` | Security audit of sprint implementation | `auditing-security` | `grimoires/loa/a2a/auditor-sprint-feedback.md` | All users |
 | `/deploy-production` | Deploy to production | `deploying-infrastructure` | `grimoires/loa/deployment/` | All users |
 | `/feedback` | Submit developer experience feedback | survey | Linear issue in "Loa Feedback" | THJ only |
-| `/update` | Pull framework updates from upstream | git | Merged updates | All users |
+| `/update-loa` | Pull framework updates from upstream | git | Merged updates | All users |
 | `/contribute` | Create OSS contribution PR | git | GitHub PR | All users |
 | `/audit` | Security audit (ad-hoc) | `auditing-security` | `SECURITY-AUDIT-REPORT.md` | All users |
 | `/audit-deployment` | Deployment infrastructure audit (ad-hoc) | `auditing-security` | `grimoires/loa/a2a/deployment-feedback.md` | All users |
@@ -1285,7 +1285,7 @@ See `.claude/protocols/trajectory-evaluation.md` for detailed protocol.
 # → OSS users: Open GitHub issue instead
 
 # 13. Get framework updates (periodically)
-/update
+/update-loa
 # → Pull latest Loa improvements
 # → Review CHANGELOG.md for new features
 

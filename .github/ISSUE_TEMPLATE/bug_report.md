@@ -43,7 +43,7 @@ Which agent or command triggered the bug?
 - [ ] `/audit-sprint` (auditing-security)
 - [ ] `/deploy-production` (deploying-infrastructure)
 - [ ] `/feedback`
-- [ ] `/update`
+- [ ] `/update-loa`
 - [ ] Other: ___
 
 ## Logs/Screenshots

@@ -83,7 +83,7 @@ else
     echo "Options:"
     echo "  1. Move customizations to .claude/overrides/ (recommended)"
     echo "  2. Run '/ride --force-restore' to reset System Zone"
-    echo "  3. Run '/update --force-restore' to sync from upstream"
+    echo "  3. Run '/update-loa --force-restore' to sync from upstream"
     echo ""
 
     if [[ "$FORCE_RESTORE" == "--force-restore" ]]; then
