@@ -469,3 +469,199 @@ source_lib() {
     [[ "$status" -eq 0 ]]
     [[ "$output" == "1" ]]
 }
+
+# =============================================================================
+# Archive Functionality Tests (Sprint 6)
+# =============================================================================
+
+@test "archive creates correct directory structure" {
+    skip_if_deps_missing
+    source_lib
+
+    # Setup: ledger with cycle and sprints
+    init_ledger
+    create_cycle "Test Cycle"
+    add_sprint "sprint-1"
+    add_sprint "sprint-2"
+
+    # Create planning docs
+    echo "# Test PRD" > grimoires/loa/prd.md
+    echo "# Test SDD" > grimoires/loa/sdd.md
+    echo "# Test Sprint" > grimoires/loa/sprint.md
+
+    # Create sprint directories with content
+    mkdir -p grimoires/loa/a2a/sprint-1
+    mkdir -p grimoires/loa/a2a/sprint-2
+    echo "Sprint 1 reviewer" > grimoires/loa/a2a/sprint-1/reviewer.md
+    echo "Sprint 2 reviewer" > grimoires/loa/a2a/sprint-2/reviewer.md
+
+    # Archive
+    local archive_path
+    archive_path=$(archive_cycle "test-archive")
+
+    # Verify directory structure
+    [[ -d "$archive_path" ]]
+    [[ -d "$archive_path/a2a" ]]
+    [[ -d "$archive_path/a2a/sprint-1" ]]
+    [[ -d "$archive_path/a2a/sprint-2" ]]
+}
+
+@test "archive copies all artifacts" {
+    skip_if_deps_missing
+    source_lib
+
+    # Setup
+    init_ledger
+    create_cycle "Artifact Test"
+    add_sprint "sprint-1"
+
+    # Create all artifacts
+    echo "PRD content" > grimoires/loa/prd.md
+    echo "SDD content" > grimoires/loa/sdd.md
+    echo "Sprint content" > grimoires/loa/sprint.md
+
+    mkdir -p grimoires/loa/a2a/sprint-1
+    echo "reviewer content" > grimoires/loa/a2a/sprint-1/reviewer.md
+    echo "feedback content" > grimoires/loa/a2a/sprint-1/engineer-feedback.md
+    touch grimoires/loa/a2a/sprint-1/COMPLETED
+
+    # Archive
+    local archive_path
+    archive_path=$(archive_cycle "artifact-test")
+
+    # Verify all files copied
+    [[ -f "$archive_path/prd.md" ]]
+    [[ -f "$archive_path/sdd.md" ]]
+    [[ -f "$archive_path/sprint.md" ]]
+    [[ -f "$archive_path/a2a/sprint-1/reviewer.md" ]]
+    [[ -f "$archive_path/a2a/sprint-1/engineer-feedback.md" ]]
+    [[ -f "$archive_path/a2a/sprint-1/COMPLETED" ]]
+
+    # Verify content preserved
+    [[ "$(cat "$archive_path/prd.md")" == "PRD content" ]]
+    [[ "$(cat "$archive_path/a2a/sprint-1/reviewer.md")" == "reviewer content" ]]
+}
+
+@test "archive updates ledger with archived status" {
+    skip_if_deps_missing
+    source_lib
+
+    # Setup
+    init_ledger
+    create_cycle "Status Test"
+    add_sprint "sprint-1"
+
+    # Create minimal artifacts
+    echo "# PRD" > grimoires/loa/prd.md
+
+    # Archive
+    local archive_path
+    archive_path=$(archive_cycle "status-test")
+
+    # Verify ledger updates
+    local status archived_ts archive_path_in_ledger active_cycle
+
+    status=$(jq -r '.cycles[0].status' grimoires/loa/ledger.json)
+    [[ "$status" == "archived" ]]
+
+    archived_ts=$(jq -r '.cycles[0].archived' grimoires/loa/ledger.json)
+    [[ "$archived_ts" != "null" ]]
+
+    archive_path_in_ledger=$(jq -r '.cycles[0].archive_path' grimoires/loa/ledger.json)
+    [[ "$archive_path_in_ledger" == "$archive_path" ]]
+
+    active_cycle=$(jq -r '.active_cycle' grimoires/loa/ledger.json)
+    [[ "$active_cycle" == "null" ]]
+}
+
+@test "archive preserves original a2a directories" {
+    skip_if_deps_missing
+    source_lib
+
+    # Setup
+    init_ledger
+    create_cycle "Preserve Test"
+    add_sprint "sprint-1"
+
+    # Create sprint directory
+    mkdir -p grimoires/loa/a2a/sprint-1
+    echo "original content" > grimoires/loa/a2a/sprint-1/reviewer.md
+
+    # Archive
+    archive_cycle "preserve-test"
+
+    # Original directory should still exist
+    [[ -d "grimoires/loa/a2a/sprint-1" ]]
+    [[ -f "grimoires/loa/a2a/sprint-1/reviewer.md" ]]
+    [[ "$(cat grimoires/loa/a2a/sprint-1/reviewer.md)" == "original content" ]]
+}
+
+@test "can start new cycle after archive" {
+    skip_if_deps_missing
+    source_lib
+
+    # Setup: complete first cycle
+    init_ledger
+    create_cycle "Cycle 1"
+    add_sprint "sprint-1"
+    add_sprint "sprint-2"
+
+    # Archive
+    archive_cycle "cycle-1-done"
+
+    # Verify no active cycle
+    local active
+    active=$(jq -r '.active_cycle' grimoires/loa/ledger.json)
+    [[ "$active" == "null" ]]
+
+    # Create new cycle
+    local new_cycle_id
+    new_cycle_id=$(create_cycle "Cycle 2")
+    [[ "$new_cycle_id" == "cycle-002" ]]
+
+    # Verify active cycle set
+    active=$(jq -r '.active_cycle' grimoires/loa/ledger.json)
+    [[ "$active" == "cycle-002" ]]
+
+    # Add sprint - should continue from 3
+    local sprint_id
+    sprint_id=$(add_sprint "sprint-1")
+    [[ "$sprint_id" == "3" ]]
+}
+
+@test "get_cycle_history returns archived and active cycles" {
+    skip_if_deps_missing
+    source_lib
+
+    # Setup: two cycles, one archived
+    init_ledger
+    create_cycle "First Cycle"
+    add_sprint "sprint-1"
+    archive_cycle "first"
+
+    create_cycle "Second Cycle"
+    add_sprint "sprint-1"
+
+    # Get history
+    local history
+    history=$(get_cycle_history)
+
+    # Verify both cycles present
+    local count
+    count=$(echo "$history" | jq 'length')
+    [[ "$count" == "2" ]]
+
+    # Verify statuses
+    local first_status second_status
+    first_status=$(echo "$history" | jq -r '.[0].status')
+    second_status=$(echo "$history" | jq -r '.[1].status')
+    [[ "$first_status" == "archived" ]]
+    [[ "$second_status" == "active" ]]
+
+    # Verify sprint counts
+    local first_sprints second_sprints
+    first_sprints=$(echo "$history" | jq -r '.[0].sprint_count')
+    second_sprints=$(echo "$history" | jq -r '.[1].sprint_count')
+    [[ "$first_sprints" == "1" ]]
+    [[ "$second_sprints" == "1" ]]
+}

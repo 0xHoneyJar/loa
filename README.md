@@ -182,6 +182,23 @@ When ck is installed, Loa uses it for:
 - **Self-Healing**: Automatic State Zone recovery from git history
 - **Audit Trail**: Complete trajectory logging with timestamped handoffs
 
+### Sprint Ledger (v0.13.0)
+
+Global sprint numbering across multiple development cycles:
+
+```bash
+/plan-and-analyze     # Creates ledger + cycle-001
+# ... complete sprints ...
+/archive-cycle "MVP"  # Archive completed cycle
+/plan-and-analyze     # Start cycle-002, sprint-1 → global sprint-4
+```
+
+- **Global IDs**: Sprint-1 in cycle-2 uses `a2a/sprint-4/` (no collisions)
+- **Backward Compatible**: Works without ledger (legacy mode)
+- **Audit Trail**: Complete history via `/ledger history`
+
+See **[CLAUDE.md](CLAUDE.md#sprint-ledger-v0130)** for full documentation.
+
 ### Two Quality Gates
 
 1. **Code Review**: Tech lead reviews until "All good"
@@ -225,8 +242,11 @@ persistence_mode: stealth
 grimoires/                      # State Zone (project memory)
 ├── loa/                        # Private project state (gitignored)
 │   ├── NOTES.md                # Structured agentic memory
+│   ├── ledger.json             # Sprint Ledger (global numbering)
 │   ├── context/                # User-provided context
 │   ├── reality/                # Code extraction results (/ride)
+│   ├── archive/                # Archived development cycles
+│   │   └── YYYY-MM-DD-slug/    # Dated cycle archives
 │   ├── prd.md, sdd.md, sprint.md  # Planning docs
 │   ├── a2a/                    # Agent communication
 │   │   ├── trajectory/         # Agent reasoning logs
