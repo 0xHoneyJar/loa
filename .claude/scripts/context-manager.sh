@@ -12,6 +12,12 @@ GRIMOIRE_DIR="${GRIMOIRE_DIR:-${SCRIPT_DIR}/../../grimoires/loa}"
 TRAJECTORY_DIR="${TRAJECTORY_DIR:-${GRIMOIRE_DIR}/a2a/trajectory}"
 PROTOCOLS_DIR="${PROTOCOLS_DIR:-${SCRIPT_DIR}/../protocols}"
 
+# Default configuration values for probe-before-load
+DEFAULT_MAX_EAGER_LOAD_LINES=500
+DEFAULT_REQUIRE_RELEVANCE_CHECK="true"
+DEFAULT_RELEVANCE_KEYWORDS='["export","class","interface","function","async","api","route","handler"]'
+DEFAULT_EXCLUDE_PATTERNS='["*.test.ts","*.spec.ts","node_modules/**","dist/**","build/**",".git/**"]'
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -36,6 +42,11 @@ Commands:
   compact             Run compaction pre-check (what would be compacted)
   checkpoint          Run simplified checkpoint (3 manual steps)
   recover [level]     Recover context (level 1/2/3)
+
+  Probe Commands (RLM Pattern):
+  probe <path>        Probe file or directory metadata without loading content
+  should-load <file>  Determine if file should be fully loaded based on probe
+  relevance <file>    Get relevance score (0-10) for a file
 
 Options:
   --help, -h          Show this help message
@@ -66,6 +77,13 @@ Examples:
   context-manager.sh checkpoint
   context-manager.sh recover 2
   context-manager.sh compact --dry-run
+
+  Probe Examples (RLM Pattern):
+  context-manager.sh probe src/                    # Probe directory
+  context-manager.sh probe src/index.ts            # Probe single file
+  context-manager.sh probe . --json                # JSON output
+  context-manager.sh should-load src/large.ts      # Check if should load
+  context-manager.sh relevance src/api.ts          # Get relevance score
 USAGE
 }
 
@@ -218,6 +236,278 @@ is_compactable() {
     rules=$(get_preservation_rules)
 
     echo "$rules" | jq -e --arg item "$item" '.compactable | contains([$item])' >/dev/null 2>&1
+}
+
+#######################################
+# PROBE-BEFORE-LOAD FUNCTIONS (RLM Pattern)
+#######################################
+
+#######################################
+# Probe file metadata without loading content
+# Arguments:
+#   $1 - file path
+# Outputs:
+#   JSON object with file metadata
+#######################################
+context_probe_file() {
+    local file="$1"
+
+    if [[ ! -f "$file" ]]; then
+        jq -n --arg file "$file" '{"error": "file_not_found", "file": $file}'
+        return 1
+    fi
+
+    local lines size type_info extension estimated_tokens
+
+    # Get line count (handle empty files)
+    lines=$(wc -l < "$file" 2>/dev/null | tr -d ' ' || echo "0")
+    [[ -z "$lines" ]] && lines=0
+
+    # Get file size (handle both macOS and Linux stat)
+    if [[ "$(uname)" == "Darwin" ]]; then
+        size=$(stat -f%z "$file" 2>/dev/null || echo "0")
+    else
+        size=$(stat -c%s "$file" 2>/dev/null || echo "0")
+    fi
+    [[ -z "$size" ]] && size=0
+
+    # Get file type (truncate long descriptions)
+    type_info=$(file -b "$file" 2>/dev/null | head -c 100 || echo "unknown")
+
+    # Extract extension
+    extension="${file##*.}"
+    [[ "$extension" == "$file" ]] && extension=""
+
+    # Estimate tokens (~4 chars per token for code)
+    estimated_tokens=$((size / 4))
+
+    jq -n \
+        --arg file "$file" \
+        --argjson lines "$lines" \
+        --argjson size "$size" \
+        --arg type "$type_info" \
+        --arg ext "$extension" \
+        --argjson tokens "$estimated_tokens" \
+        '{file: $file, lines: $lines, size_bytes: $size, type: $type, extension: $ext, estimated_tokens: $tokens}'
+}
+
+#######################################
+# Probe directory for file inventory
+# Arguments:
+#   $1 - directory path
+#   $2 - max depth (default: 3)
+#   $3 - extensions filter (default: ts,js,py,go,rs,sol,sh,md)
+# Outputs:
+#   JSON object with directory summary and files array
+#######################################
+context_probe_dir() {
+    local dir="$1"
+    local max_depth="${2:-3}"
+    local extensions="${3:-ts,js,py,go,rs,sol,sh,md}"
+
+    if [[ ! -d "$dir" ]]; then
+        jq -n --arg dir "$dir" '{"error": "directory_not_found", "directory": $dir}'
+        return 1
+    fi
+
+    # Build find command for extensions
+    local find_args=()
+    local first=true
+    IFS=',' read -ra EXTS <<< "$extensions"
+    for ext in "${EXTS[@]}"; do
+        if [[ "$first" == "true" ]]; then
+            find_args+=("-name" "*.$ext")
+            first=false
+        else
+            find_args+=("-o" "-name" "*.$ext")
+        fi
+    done
+
+    local total_lines=0
+    local total_files=0
+    local total_tokens=0
+    local files_json="[]"
+
+    # Find files, excluding common non-source directories
+    while IFS= read -r file; do
+        [[ -z "$file" ]] && continue
+
+        # Skip if in excluded directories
+        case "$file" in
+            */node_modules/*|*/.git/*|*/dist/*|*/build/*|*/__pycache__/*|*/vendor/*|*/.next/*)
+                continue
+                ;;
+        esac
+
+        local probe
+        probe=$(context_probe_file "$file")
+
+        # Check for probe error
+        if echo "$probe" | jq -e '.error' &>/dev/null; then
+            continue
+        fi
+
+        files_json=$(echo "$files_json" | jq --argjson p "$probe" '. + [$p]')
+        total_files=$((total_files + 1))
+
+        local file_lines file_tokens
+        file_lines=$(echo "$probe" | jq -r '.lines')
+        file_tokens=$(echo "$probe" | jq -r '.estimated_tokens')
+        total_lines=$((total_lines + file_lines))
+        total_tokens=$((total_tokens + file_tokens))
+
+        # Cap at 100 files to prevent runaway probing
+        if [[ "$total_files" -ge 100 ]]; then
+            break
+        fi
+    done < <(find "$dir" -maxdepth "$max_depth" -type f \( "${find_args[@]}" \) 2>/dev/null | head -100)
+
+    jq -n \
+        --arg dir "$dir" \
+        --argjson total_files "$total_files" \
+        --argjson total_lines "$total_lines" \
+        --argjson total_tokens "$total_tokens" \
+        --argjson files "$files_json" \
+        '{directory: $dir, total_files: $total_files, total_lines: $total_lines, estimated_tokens: $total_tokens, files: $files}'
+}
+
+#######################################
+# Check file relevance using keyword patterns
+# Arguments:
+#   $1 - file path
+# Outputs:
+#   Relevance score 0-10
+#######################################
+context_check_relevance() {
+    local file="$1"
+    local score=0
+
+    if [[ ! -f "$file" ]]; then
+        echo "0"
+        return 1
+    fi
+
+    # Get relevance keywords from config or use defaults
+    local keywords
+    keywords=$(get_config "context_management.relevance_keywords" "$DEFAULT_RELEVANCE_KEYWORDS")
+
+    # Ensure we have valid JSON array
+    if ! echo "$keywords" | jq -e '.' &>/dev/null; then
+        keywords="$DEFAULT_RELEVANCE_KEYWORDS"
+    fi
+
+    # Count keyword occurrences (capped contribution per keyword)
+    while IFS= read -r keyword; do
+        [[ -z "$keyword" ]] && continue
+        local count
+        count=$(grep -c "$keyword" "$file" 2>/dev/null | tr -d '[:space:]' || echo "0")
+        [[ -z "$count" || ! "$count" =~ ^[0-9]+$ ]] && count=0
+        if [[ "$count" -gt 0 ]]; then
+            # Cap at 2 points per keyword to prevent single-keyword dominance
+            local points=$((count > 5 ? 2 : 1))
+            score=$((score + points))
+        fi
+    done < <(echo "$keywords" | jq -r '.[]' 2>/dev/null)
+
+    # Cap at 10
+    [[ "$score" -gt 10 ]] && score=10
+
+    echo "$score"
+}
+
+#######################################
+# Determine if file should be fully loaded
+# Arguments:
+#   $1 - file path
+#   $2 - probe result (optional, will probe if not provided)
+# Returns:
+#   0 if should load, 1 if should skip
+# Outputs:
+#   Decision JSON with reasoning
+#######################################
+context_should_load() {
+    local file="$1"
+    local probe="${2:-}"
+
+    # Get probe if not provided
+    if [[ -z "$probe" ]]; then
+        probe=$(context_probe_file "$file")
+    fi
+
+    # Check for probe error
+    if echo "$probe" | jq -e '.error' &>/dev/null; then
+        jq -n \
+            --arg file "$file" \
+            --arg decision "skip" \
+            --arg reason "File not found or unreadable" \
+            --argjson probe "$probe" \
+            '{file: $file, decision: $decision, reason: $reason, probe: $probe}'
+        return 1
+    fi
+
+    # Get configuration thresholds
+    local max_lines relevance_required
+    max_lines=$(get_config "context_management.max_eager_load_lines" "$DEFAULT_MAX_EAGER_LOAD_LINES")
+    relevance_required=$(get_config "context_management.require_relevance_check" "$DEFAULT_REQUIRE_RELEVANCE_CHECK")
+
+    local lines
+    lines=$(echo "$probe" | jq -r '.lines')
+
+    # Decision logic
+    local decision="load"
+    local reason=""
+    local relevance_score=""
+
+    # Check 1: File size threshold
+    if [[ "$lines" -gt "$max_lines" ]]; then
+        if [[ "$relevance_required" == "true" ]]; then
+            # Need relevance check for large files
+            local relevance
+            relevance=$(context_check_relevance "$file")
+            relevance_score="$relevance"
+            if [[ "$relevance" -lt 3 ]]; then
+                decision="skip"
+                reason="Large file ($lines lines) with low relevance score ($relevance/10)"
+            elif [[ "$relevance" -lt 6 ]]; then
+                decision="excerpt"
+                reason="Large file ($lines lines) with medium relevance ($relevance/10) - use excerpts"
+            else
+                decision="load"
+                reason="Large file but high relevance ($relevance/10)"
+            fi
+        else
+            decision="excerpt"
+            reason="File exceeds threshold ($lines > $max_lines lines)"
+        fi
+    else
+        decision="load"
+        reason="File within threshold ($lines <= $max_lines lines)"
+    fi
+
+    if [[ -n "$relevance_score" ]]; then
+        jq -n \
+            --arg file "$file" \
+            --arg decision "$decision" \
+            --arg reason "$reason" \
+            --argjson relevance "$relevance_score" \
+            --argjson probe "$probe" \
+            '{file: $file, decision: $decision, reason: $reason, relevance_score: $relevance, probe: $probe}'
+    else
+        jq -n \
+            --arg file "$file" \
+            --arg decision "$decision" \
+            --arg reason "$reason" \
+            --argjson probe "$probe" \
+            '{file: $file, decision: $decision, reason: $reason, probe: $probe}'
+    fi
+
+    # Return exit code based on decision (0 for load, 1 for skip/excerpt)
+    # Use explicit return to avoid set -e issues in command substitution
+    if [[ "$decision" == "load" ]]; then
+        return 0
+    else
+        return 1
+    fi
 }
 
 #######################################
@@ -755,6 +1045,209 @@ cmd_recover() {
 }
 
 #######################################
+# Probe command - probe file or directory
+#######################################
+cmd_probe() {
+    local target="${1:-.}"
+    local json_output="false"
+
+    shift || true
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --json) json_output="true"; shift ;;
+            *)
+                print_error "Unknown option: $1"
+                echo "Usage: context-manager.sh probe <path> [--json]"
+                return 1
+                ;;
+        esac
+    done
+
+    if [[ -f "$target" ]]; then
+        local result
+        result=$(context_probe_file "$target")
+        if [[ "$json_output" == "true" ]]; then
+            echo "$result" | jq .
+        else
+            echo ""
+            echo -e "${CYAN}File Probe Results${NC}"
+            echo "==================="
+            echo ""
+            echo "  File:      $(echo "$result" | jq -r '.file')"
+            echo "  Lines:     $(echo "$result" | jq -r '.lines')"
+            echo "  Size:      $(echo "$result" | jq -r '.size_bytes') bytes"
+            echo "  Type:      $(echo "$result" | jq -r '.type')"
+            echo "  Extension: $(echo "$result" | jq -r '.extension')"
+            echo "  Est. Tokens: $(echo "$result" | jq -r '.estimated_tokens')"
+            echo ""
+        fi
+    elif [[ -d "$target" ]]; then
+        local result
+        result=$(context_probe_dir "$target")
+        if [[ "$json_output" == "true" ]]; then
+            echo "$result" | jq .
+        else
+            echo ""
+            echo -e "${CYAN}Directory Probe Results${NC}"
+            echo "========================"
+            echo ""
+            echo "  Directory:    $(echo "$result" | jq -r '.directory')"
+            echo "  Total Files:  $(echo "$result" | jq -r '.total_files')"
+            echo "  Total Lines:  $(echo "$result" | jq -r '.total_lines')"
+            echo "  Est. Tokens:  $(echo "$result" | jq -r '.estimated_tokens')"
+            echo ""
+
+            # Show size category
+            local total_lines
+            total_lines=$(echo "$result" | jq -r '.total_lines')
+            local category
+            if [[ "$total_lines" -lt 10000 ]]; then
+                category="Small (<10K lines) - Load all files"
+            elif [[ "$total_lines" -lt 50000 ]]; then
+                category="Medium (10K-50K lines) - Prioritized loading"
+            else
+                category="Large (>50K lines) - Probe + excerpts only"
+            fi
+            echo -e "  ${CYAN}Loading Strategy:${NC} $category"
+            echo ""
+
+            echo -e "${CYAN}Files Found (up to 10):${NC}"
+            echo "$result" | jq -r '.files[:10][] | "  \(.lines) lines - \(.file)"' 2>/dev/null || echo "  (no files)"
+            local file_count
+            file_count=$(echo "$result" | jq -r '.total_files')
+            if [[ "$file_count" -gt 10 ]]; then
+                echo "  ... and $((file_count - 10)) more files"
+            fi
+            echo ""
+        fi
+    else
+        print_error "Target not found: $target"
+        return 1
+    fi
+}
+
+#######################################
+# Should-load command
+#######################################
+cmd_should_load() {
+    local file="${1:-}"
+    local json_output="false"
+
+    if [[ -z "$file" ]]; then
+        print_error "File path required"
+        echo "Usage: context-manager.sh should-load <file> [--json]"
+        return 1
+    fi
+
+    shift || true
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --json) json_output="true"; shift ;;
+            *)
+                print_error "Unknown option: $1"
+                return 1
+                ;;
+        esac
+    done
+
+    local result exit_code=0
+    result=$(context_should_load "$file") || exit_code=$?
+
+    if [[ "$json_output" == "true" ]]; then
+        echo "$result" | jq .
+    else
+        local decision reason
+        decision=$(echo "$result" | jq -r '.decision')
+        reason=$(echo "$result" | jq -r '.reason')
+
+        echo ""
+        echo -e "${CYAN}Should Load Decision${NC}"
+        echo "====================="
+        echo ""
+        echo "  File:     $file"
+
+        case "$decision" in
+            load)
+                echo -e "  Decision: ${GREEN}LOAD${NC} (fully read)"
+                ;;
+            excerpt)
+                echo -e "  Decision: ${YELLOW}EXCERPT${NC} (use grep excerpts)"
+                ;;
+            skip)
+                echo -e "  Decision: ${RED}SKIP${NC} (don't load)"
+                ;;
+        esac
+        echo "  Reason:   $reason"
+
+        # Show relevance if available
+        local relevance
+        relevance=$(echo "$result" | jq -r '.relevance_score // empty')
+        if [[ -n "$relevance" ]]; then
+            echo "  Relevance: $relevance/10"
+        fi
+        echo ""
+    fi
+
+    return $exit_code
+}
+
+#######################################
+# Relevance command
+#######################################
+cmd_relevance() {
+    local file="${1:-}"
+    local json_output="false"
+
+    if [[ -z "$file" ]]; then
+        print_error "File path required"
+        echo "Usage: context-manager.sh relevance <file> [--json]"
+        return 1
+    fi
+
+    shift || true
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --json) json_output="true"; shift ;;
+            *)
+                print_error "Unknown option: $1"
+                return 1
+                ;;
+        esac
+    done
+
+    if [[ ! -f "$file" ]]; then
+        print_error "File not found: $file"
+        return 1
+    fi
+
+    local score
+    score=$(context_check_relevance "$file")
+
+    if [[ "$json_output" == "true" ]]; then
+        jq -n --arg file "$file" --argjson score "$score" '{file: $file, relevance_score: $score, max_score: 10}'
+    else
+        echo ""
+        echo -e "${CYAN}Relevance Score${NC}"
+        echo "================"
+        echo ""
+        echo "  File:  $file"
+        echo "  Score: $score/10"
+
+        # Interpretation
+        local interpretation
+        if [[ "$score" -lt 3 ]]; then
+            interpretation="Low relevance - likely skip or excerpt"
+        elif [[ "$score" -lt 6 ]]; then
+            interpretation="Medium relevance - consider excerpts for large files"
+        else
+            interpretation="High relevance - load fully"
+        fi
+        echo "  Level: $interpretation"
+        echo ""
+    fi
+}
+
+#######################################
 # Main entry point
 #######################################
 main() {
@@ -792,6 +1285,18 @@ main() {
         recover)
             check_dependencies || exit 1
             cmd_recover "$@"
+            ;;
+        probe)
+            check_dependencies || exit 1
+            cmd_probe "$@"
+            ;;
+        should-load)
+            check_dependencies || exit 1
+            cmd_should_load "$@"
+            ;;
+        relevance)
+            check_dependencies || exit 1
+            cmd_relevance "$@"
             ;;
         --help|-h)
             usage

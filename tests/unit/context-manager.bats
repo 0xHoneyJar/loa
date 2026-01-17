@@ -405,3 +405,197 @@ EOF
     [ "$status" -eq 0 ]
     [[ "$output" == *"Trajectory entries (today): 0"* ]]
 }
+
+# =============================================================================
+# Probe Command Tests (RLM Pattern - Sprint 7)
+# =============================================================================
+
+@test "context-manager probe: probes single file" {
+    # Create a test file with trailing newline to ensure consistent line count
+    printf "export function hello() {\n    return \"world\";\n}\n" > "$TEST_DIR/test-file.ts"
+
+    run "$SCRIPT" probe "$TEST_DIR/test-file.ts" --json
+    [ "$status" -eq 0 ]
+    # Validate JSON structure
+    echo "$output" | jq . >/dev/null 2>&1
+    [ $? -eq 0 ]
+    # Check expected keys
+    [[ $(echo "$output" | jq -r '.file') == "$TEST_DIR/test-file.ts" ]]
+    local lines=$(echo "$output" | jq -r '.lines')
+    [[ "$lines" -ge 2 && "$lines" -le 4 ]]  # wc -l counts newlines, so range is valid
+    [[ $(echo "$output" | jq -r '.extension') == "ts" ]]
+}
+
+@test "context-manager probe: handles missing file" {
+    run "$SCRIPT" probe "$TEST_DIR/nonexistent.ts"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"not found"* ]]
+}
+
+@test "context-manager probe: probes directory" {
+    # Create test directory with files (with trailing newlines for consistent line counts)
+    mkdir -p "$TEST_DIR/test-dir"
+    printf "export const a = 1;\n" > "$TEST_DIR/test-dir/a.ts"
+    printf "export const b = 2;\nexport const c = 3;\n" > "$TEST_DIR/test-dir/b.ts"
+
+    run "$SCRIPT" probe "$TEST_DIR/test-dir" --json
+    [ "$status" -eq 0 ]
+    # Validate JSON structure
+    echo "$output" | jq . >/dev/null 2>&1
+    [ $? -eq 0 ]
+    # Check expected keys
+    [[ $(echo "$output" | jq -r '.total_files') == "2" ]]
+    local total_lines=$(echo "$output" | jq -r '.total_lines')
+    [[ "$total_lines" -ge 2 && "$total_lines" -le 4 ]]  # Allow some variance
+}
+
+@test "context-manager probe: handles missing directory" {
+    run "$SCRIPT" probe "$TEST_DIR/nonexistent-dir" --json
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"not found"* ]]
+}
+
+@test "context-manager probe: estimates tokens correctly" {
+    # Create a file with known size
+    echo "1234567890123456" > "$TEST_DIR/token-test.ts"  # 17 bytes (16 chars + newline)
+
+    run "$SCRIPT" probe "$TEST_DIR/token-test.ts" --json
+    [ "$status" -eq 0 ]
+    # At ~4 chars per token, 17 bytes = ~4 tokens
+    local tokens=$(echo "$output" | jq -r '.estimated_tokens')
+    [[ "$tokens" -ge 3 && "$tokens" -le 5 ]]
+}
+
+@test "context-manager probe: shows human-readable output" {
+    cat > "$TEST_DIR/test.sh" << 'EOF'
+#!/bin/bash
+echo "hello"
+EOF
+
+    run "$SCRIPT" probe "$TEST_DIR/test.sh"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"File Probe Results"* ]]
+    [[ "$output" == *"Lines:"* ]]
+    [[ "$output" == *"Size:"* ]]
+    [[ "$output" == *"Extension:"* ]]
+}
+
+# =============================================================================
+# Should-Load Command Tests (RLM Pattern - Sprint 7)
+# =============================================================================
+
+@test "context-manager should-load: returns load for small files" {
+    # Create small file (under 500 lines)
+    for i in {1..10}; do echo "line $i"; done > "$TEST_DIR/small.ts"
+
+    run "$SCRIPT" should-load "$TEST_DIR/small.ts" --json
+    [ "$status" -eq 0 ]
+    [[ $(echo "$output" | jq -r '.decision') == "load" ]]
+    [[ "$output" == *"within threshold"* ]]
+}
+
+@test "context-manager should-load: handles large low-relevance files" {
+    # Create large file (over 500 lines) with low relevance (no code keywords)
+    for i in {1..600}; do printf "plain text line %d without any code keywords\n" "$i"; done > "$TEST_DIR/large-low.txt"
+
+    run "$SCRIPT" should-load "$TEST_DIR/large-low.txt" --json
+    # Should return non-zero for skip or excerpt
+    local decision=$(echo "$output" | jq -r '.decision')
+    [[ "$decision" == "skip" || "$decision" == "excerpt" ]]
+}
+
+@test "context-manager should-load: loads large high-relevance files" {
+    # Create large file (over 500 lines) with high relevance
+    for i in {1..600}; do printf "export function handler%d() { async function api(); }\n" "$i"; done > "$TEST_DIR/large-high.ts"
+
+    run "$SCRIPT" should-load "$TEST_DIR/large-high.ts" --json
+    [ "$status" -eq 0 ]  # Should return 0 for load
+    [[ $(echo "$output" | jq -r '.decision') == "load" ]]
+    [[ "$output" == *"high relevance"* ]]
+}
+
+@test "context-manager should-load: handles missing file" {
+    run "$SCRIPT" should-load "$TEST_DIR/nonexistent.ts" --json
+    [ "$status" -eq 1 ]
+    # Should have skip decision or error in output
+    [[ "$output" == *"skip"* ]]
+}
+
+@test "context-manager should-load: requires file argument" {
+    run "$SCRIPT" should-load
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"File path required"* ]]
+}
+
+@test "context-manager should-load: shows human-readable output" {
+    for i in {1..10}; do echo "export function f$i();"; done > "$TEST_DIR/human.ts"
+
+    run "$SCRIPT" should-load "$TEST_DIR/human.ts"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Should Load Decision"* ]]
+    [[ "$output" == *"Decision:"* ]]
+    [[ "$output" == *"Reason:"* ]]
+}
+
+# =============================================================================
+# Relevance Command Tests (RLM Pattern - Sprint 7)
+# =============================================================================
+
+@test "context-manager relevance: returns high score for export-heavy files" {
+    printf "export const a = 1;\n" > "$TEST_DIR/exports.ts"
+    printf "export function foo() {}\n" >> "$TEST_DIR/exports.ts"
+    printf "export class Bar {}\n" >> "$TEST_DIR/exports.ts"
+    printf "export interface Baz {}\n" >> "$TEST_DIR/exports.ts"
+    printf "export async function handler() {}\n" >> "$TEST_DIR/exports.ts"
+    printf "export const api = \"api\";\n" >> "$TEST_DIR/exports.ts"
+
+    run "$SCRIPT" relevance "$TEST_DIR/exports.ts" --json
+    [ "$status" -eq 0 ]
+    local score=$(echo "$output" | jq -r '.relevance_score')
+    [[ "$score" -ge 6 ]]  # Should be high relevance
+}
+
+@test "context-manager relevance: returns low score for plain text" {
+    cat > "$TEST_DIR/plain.txt" << 'EOF'
+This is just some plain text.
+No code keywords here at all.
+Just regular sentences.
+EOF
+
+    run "$SCRIPT" relevance "$TEST_DIR/plain.txt" --json
+    [ "$status" -eq 0 ]
+    local score=$(echo "$output" | jq -r '.relevance_score')
+    [[ "$score" -lt 3 ]]  # Should be low relevance
+}
+
+@test "context-manager relevance: handles missing file" {
+    run "$SCRIPT" relevance "$TEST_DIR/nonexistent.ts"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"File not found"* ]]
+}
+
+@test "context-manager relevance: requires file argument" {
+    run "$SCRIPT" relevance
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"File path required"* ]]
+}
+
+@test "context-manager relevance: caps score at 10" {
+    # Create file with many keyword occurrences
+    for i in {1..100}; do printf "export function handler%d() { async function api(); class Foo implements Bar {} }\n" "$i"; done > "$TEST_DIR/many-keywords.ts"
+
+    run "$SCRIPT" relevance "$TEST_DIR/many-keywords.ts" --json
+    [ "$status" -eq 0 ]
+    local score=$(echo "$output" | jq -r '.relevance_score')
+    [[ "$score" -eq 10 ]]  # Should cap at 10
+}
+
+@test "context-manager relevance: shows human-readable output" {
+    echo "export function test();" > "$TEST_DIR/human-rel.ts"
+
+    run "$SCRIPT" relevance "$TEST_DIR/human-rel.ts"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Relevance Score"* ]]
+    [[ "$output" == *"Score:"* ]]
+    [[ "$output" == *"Level:"* ]]
+}

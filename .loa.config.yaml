@@ -365,6 +365,42 @@ context_management:
       - redundant_file_reads
       - intermediate_outputs
 
+  # -------------------------------------------------------------------------
+  # Probe-Before-Load (RLM Pattern) - v0.14.0
+  # -------------------------------------------------------------------------
+  # Enable probe-before-load pattern (check file metadata before full read)
+  probe_before_load: true
+  # Files under this line count are loaded immediately without probe
+  max_eager_load_lines: 500
+  # Require relevance check for files exceeding threshold
+  require_relevance_check: true
+  # Keywords that increase relevance score (used for large file decisions)
+  relevance_keywords:
+    - export
+    - class
+    - interface
+    - function
+    - async
+    - api
+    - route
+    - handler
+  # Patterns to exclude from probing (always skipped)
+  exclude_patterns:
+    - "*.test.ts"
+    - "*.spec.ts"
+    - "node_modules/**"
+    - "dist/**"
+    - "build/**"
+    - ".git/**"
+  # Token budgets for loading strategy decisions
+  token_budget:
+    # Codebases under this are "small" - load all files
+    small_codebase: 30000
+    # Codebases under this are "medium" - prioritized loading
+    medium_codebase: 150000
+    # Codebases over medium are "large" - probe + excerpts only
+    large_codebase: 500000
+
 # =============================================================================
 # Update Check (v0.14.0)
 # =============================================================================
