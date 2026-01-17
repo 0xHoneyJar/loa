@@ -77,12 +77,14 @@ check_dependencies
 
 # Anthropic sources to monitor
 declare -A SOURCES=(
-    ["docs"]="https://docs.anthropic.com/en/docs/claude-code"
-    ["changelog"]="https://docs.anthropic.com/en/release-notes/claude-code"
+    ["docs"]="https://code.claude.com/docs/en/overview"
+    ["changelog"]="https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md"
     ["api_reference"]="https://docs.anthropic.com/en/api"
     ["blog"]="https://www.anthropic.com/news"
     ["github_claude_code"]="https://github.com/anthropics/claude-code"
     ["github_sdk"]="https://github.com/anthropics/anthropic-sdk-python"
+    ["agent_sdk"]="https://github.com/anthropics/claude-agent-sdk"
+    ["plugins_docs"]="https://code.claude.com/docs/en/plugins"
 )
 
 # Interest areas for Loa
@@ -104,6 +106,11 @@ INTEREST_AREAS=(
     "batch"
     "vision"
     "files"
+    "plugins"
+    "background"
+    "subagents"
+    "permissions"
+    "frontmatter"
 )
 
 # Initialize cache directory

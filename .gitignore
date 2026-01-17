@@ -107,8 +107,12 @@ grimoires/loa/research/*
 !grimoires/loa/research/README.md
 
 # Public grimoires (project-specific outputs, not template content)
-# Only README.md files are tracked to preserve directory structure
-grimoires/pub/**/*
+# Research documents ARE tracked (shareable analysis and reports)
+# Other pub content is project-specific and excluded
+grimoires/pub/*
+!grimoires/pub/research/
+grimoires/pub/research/*
+!grimoires/pub/research/*.md
 !grimoires/pub/**/README.md
 
 # =============================================================================
