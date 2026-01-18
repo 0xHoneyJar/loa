@@ -5,11 +5,105 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.15.0] - 2026-01-17
+## [0.15.0] - 2026-01-18
 
 ### Why This Release
 
-This release removes the `/setup` phase entirely, allowing users to start with `/plan-and-analyze` immediately after cloning. THJ membership is now detected via the `LOA_CONSTRUCTS_API_KEY` environment variable instead of a marker file.
+This release delivers two major feature cycles:
+
+1. **Sprint Ledger** (Cycle 1): Global sprint numbering across multiple development cycles, preventing directory collisions when running `/plan-and-analyze` multiple times.
+
+2. **RLM Context Improvements** (Cycle 2): Probe-before-load pattern achieving 29.3% token reduction, based on MIT CSAIL research on Recursive Language Models.
+
+Additionally, this release removes the `/setup` phase, allowing users to start immediately with `/plan-and-analyze`.
+
+### Added
+
+#### Sprint Ledger (v0.13.0 features)
+
+- **`/ledger` command**: View current ledger status and sprint history
+- **`/archive-cycle "label"` command**: Archive completed cycles with full artifact preservation
+- **`ledger-lib.sh` script**: Core ledger functions (init, create_cycle, add_sprint, resolve_sprint)
+- **`validate-sprint-id.sh` script**: Resolves local sprint IDs (sprint-1) to global IDs (sprint-7)
+- **Cycle archiving**: Preserves PRD, SDD, sprint.md and all a2a artifacts to `grimoires/loa/archive/`
+- **Backward compatibility**: Projects without ledger work exactly as before (legacy mode)
+
+#### RLM Context Improvements (v0.15.0 features)
+
+- **Probe-Before-Load Pattern** (`context-manager.sh`)
+  - `probe <file|dir> --json`: Lightweight metadata extraction without loading content
+  - `should-load <file> --json`: Decision engine for selective loading
+  - Achieves **29.3% token reduction** with only **0.6% overhead**
+
+- **Schema Validator Assertions** (`schema-validator.sh`)
+  - `assert <file> --schema prd --json`: Programmatic validation mode
+  - Field existence, enum validation, semver format, array checks
+  - Replaces re-prompting with code-based verification
+
+- **RLM Benchmark Framework** (`rlm-benchmark.sh`)
+  - `run --target <dir> --json`: Compare current vs RLM loading patterns
+  - `baseline`: Capture metrics for future comparison
+  - `compare`: Delta analysis against baseline
+  - `report`: Generate markdown report with methodology and results
+
+- **Trajectory logging**: All new operations logged to `grimoires/loa/a2a/trajectory/`
+
+### Changed
+
+- **`/plan-and-analyze`**: Creates ledger and cycle automatically on first run
+- **`/sprint-plan`**: Registers sprints in ledger with global IDs
+- **`/implement sprint-N`**: Resolves local ID to global directory
+- **`/review-sprint sprint-N`**: Resolves local ID to global directory
+- **`/audit-sprint sprint-N`**: Resolves ID and updates completion status in ledger
+- **`/update` renamed to `/update-loa`**: Avoids conflict with Claude Code built-in command
+
+### Configuration
+
+New options in `.loa.config.yaml`:
+
+```yaml
+context_management:
+  probe_before_load: true
+  max_eager_load_lines: 500
+  relevance_keywords: ["export", "class", "interface", "function"]
+  exclude_patterns: ["*.test.ts", "*.spec.ts", "node_modules/**"]
+```
+
+### Test Coverage
+
+| Category | Count |
+|----------|-------|
+| Unit Tests | 652 |
+| Integration Tests | 149 |
+| Edge Case Tests | 86 |
+| **Total** | **887** |
+
+New tests added:
+- 100+ Sprint Ledger tests (Cycle 1)
+- 120+ RLM Context tests (Cycle 2)
+
+### Security
+
+All 12 sprints across both cycles passed security audit:
+- No hardcoded credentials
+- Shell safety (`set -euo pipefail`)
+- Input validation
+- No command injection
+- Test isolation
+- Path traversal prevention
+
+### Documentation
+
+- `CLAUDE.md`: Sprint Ledger and RLM Benchmark sections
+- `grimoires/pub/research/rlm-release-notes.md`: Release notes
+- `grimoires/pub/research/benchmarks/final-report.md`: Benchmark results
+- `grimoires/pub/research/rlm-recursive-language-models.md`: Research analysis
+
+---
+
+### Previous 0.15.0 Changes (Setup Removal)
+
+This release also removes the `/setup` phase entirely, allowing users to start with `/plan-and-analyze` immediately after cloning. THJ membership is now detected via the `LOA_CONSTRUCTS_API_KEY` environment variable instead of a marker file.
 
 ### ⚠️ Breaking Changes
 
