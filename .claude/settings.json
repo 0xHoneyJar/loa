@@ -1,7 +1,15 @@
 {
   "hooks": {
     "SessionStart": [
-      ".claude/scripts/check-updates.sh --notify"
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/check-updates.sh --notify"
+          }
+        ]
+      }
     ]
   }
 }
