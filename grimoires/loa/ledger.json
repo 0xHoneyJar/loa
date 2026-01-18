@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "next_sprint_number": 18,
-  "active_cycle": "cycle-003",
+  "next_sprint_number": 22,
+  "active_cycle": "cycle-004",
   "cycles": [
     {
       "id": "cycle-001",
@@ -124,7 +124,38 @@
       "label": "Continuous Learning Skill",
       "status": "active",
       "created_at": "2026-01-18T00:00:00Z",
-      "sprints": []
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "global_id": 18,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-01-18T10:56:47Z",
+          "completed": "2026-01-18T22:15:00Z"
+        },
+        {
+          "global_id": 19,
+          "local_label": "sprint-2",
+          "status": "completed",
+          "created": "2026-01-18T10:58:20Z",
+          "completed": "2026-01-18T22:30:00Z"
+        },
+        {
+          "global_id": 20,
+          "local_label": "sprint-3",
+          "status": "completed",
+          "created": "2026-01-18T10:58:20Z",
+          "completed": "2026-01-19T10:00:00Z"
+        },
+        {
+          "global_id": 21,
+          "local_label": "sprint-4",
+          "status": "planned",
+          "created": "2026-01-18T10:58:21Z",
+          "completed": null
+        }
+      ]
     }
-  ]
+  ],
+  "last_updated": "2026-01-19T10:00:00Z"
 }
