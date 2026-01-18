@@ -1,6 +1,6 @@
 # Loa
 
-[![Version](https://img.shields.io/badge/version-0.15.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.16.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
@@ -41,6 +41,8 @@ claude
 # Begin workflow (no setup required!)
 /plan-and-analyze
 ```
+
+**Frictionless Permissions** (v0.16.0): Pre-approved permissions for 150+ standard development commands (npm, git, docker, etc.) mean zero permission prompts during normal development.
 
 ### Clone Template
 
@@ -218,13 +220,23 @@ persistence_mode: stealth
 .claude/                        # System Zone (framework-managed)
 ├── skills/                     # 8 agent skills
 ├── commands/                   # Slash commands
+├── subagents/                  # Intelligent validation subagents (v0.16.0)
+│   ├── architecture-validator.md # SDD compliance checking
+│   ├── security-scanner.md    # OWASP Top 10 detection
+│   └── test-adequacy-reviewer.md # Test quality assessment
+├── mcp-examples/               # MCP configuration examples (v0.16.0)
+│   ├── README.md              # Security warnings and setup
+│   ├── slack.json, github.json, sentry.json, postgres.json
+├── templates/                  # Initializable templates (v0.16.0)
+│   └── NOTES.md.template      # Structured agentic memory
 ├── protocols/                  # Framework protocols
 │   ├── session-continuity.md   # Lossless Ledger Protocol
 │   ├── grounding-enforcement.md # Grounding ratio enforcement
 │   ├── synthesis-checkpoint.md # Pre-/clear checkpoint
 │   ├── attention-budget.md     # Token budget management
 │   ├── jit-retrieval.md        # Just-in-time code retrieval
-│   ├── structured-memory.md    # NOTES.md protocol
+│   ├── structured-memory.md    # NOTES.md protocol (v0.16.0)
+│   ├── subagent-invocation.md  # Subagent invocation protocol (v0.16.0)
 │   ├── trajectory-evaluation.md # ADK-style evaluation
 │   └── change-validation.md    # Pre-implementation validation
 ├── scripts/                    # Helper scripts
@@ -252,6 +264,7 @@ grimoires/                      # State Zone (project memory)
 │   │   ├── trajectory/         # Agent reasoning logs
 │   │   ├── audits/             # Codebase audit reports (/audit)
 │   │   │   └── YYYY-MM-DD/     # Dated audit directories
+│   │   ├── subagent-reports/   # /validate output (v0.16.0)
 │   │   └── sprint-N/           # Per-sprint feedback
 │   └── deployment/             # Infrastructure docs
 └── pub/                        # Public documents (git-tracked)

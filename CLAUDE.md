@@ -132,32 +132,75 @@ Overrides survive framework updates.
 
 **Mount & Ride** (existing codebases): `/mount`, `/ride`
 
-**Ad-hoc**: `/audit`, `/audit-deployment`, `/translate @doc for audience`, `/contribute`, `/update-loa`, `/feedback` (THJ only)
+**Ad-hoc**: `/audit`, `/audit-deployment`, `/translate @doc for audience`, `/contribute`, `/update-loa`, `/validate`, `/feedback` (THJ only)
 
 **THJ Detection** (v0.15.0+): THJ membership is detected via `LOA_CONSTRUCTS_API_KEY` environment variable. No setup required - start with `/plan-and-analyze` immediately after cloning.
 
 **Execution modes**: Foreground (default) or background (`/implement sprint-1 background`)
 
+## Intelligent Subagents (v0.16.0)
+
+Specialized validation subagents that can be invoked independently or integrated into the review workflow.
+
+### Available Subagents
+
+| Subagent | Purpose | Triggers | Verdict Levels |
+|----------|---------|----------|----------------|
+| `architecture-validator` | SDD compliance checking | After implementation | COMPLIANT, DRIFT_DETECTED, CRITICAL_VIOLATION |
+| `security-scanner` | OWASP Top 10 vulnerability detection | After auth/input/API changes | CRITICAL, HIGH, MEDIUM, LOW |
+| `test-adequacy-reviewer` | Test quality assessment | After test implementation | STRONG, ADEQUATE, WEAK, INSUFFICIENT |
+
+### /validate Command
+
+```bash
+/validate                    # Run all subagents
+/validate architecture       # Architecture compliance only
+/validate security           # Security scan only
+/validate tests              # Test adequacy only
+/validate security src/auth  # Scoped to specific directory
+```
+
+**Output**: Reports written to `grimoires/loa/a2a/subagent-reports/`
+
+**Integration**: `/review-sprint` checks subagent reports and blocks approval on:
+- `CRITICAL_VIOLATION` (architecture)
+- `CRITICAL` or `HIGH` (security)
+- `INSUFFICIENT` (tests)
+
+**Subagent definitions**: `.claude/subagents/`
+
+**Protocol**: See `.claude/protocols/subagent-invocation.md`
+
 ## Key Protocols
 
-### Structured Agentic Memory
+### Structured Agentic Memory (v0.16.0)
 
 Agents maintain persistent working memory in `grimoires/loa/NOTES.md`:
 
+**Required Sections**:
 ```markdown
-## Active Sub-Goals
-## Discovered Technical Debt
-## Blockers & Dependencies
-## Session Continuity
-## Decision Log
+## Current Focus      # Active task, status, blocked by, next action
+## Session Log        # Append-only event history table
+## Decisions          # Architecture/implementation decisions table
+## Blockers           # Checkbox list with [RESOLVED] marking
+## Technical Debt     # Issues for future attention (ID, severity, sprint)
+## Learnings          # Project-specific knowledge bullet list
+## Session Continuity # Recovery anchor (v0.9.0)
 ```
+
+**Template**: `.claude/templates/NOTES.md.template`
 
 **Protocol**: See `.claude/protocols/structured-memory.md`
 
-- Read NOTES.md on session start
-- Log decisions during execution
-- Summarize before compaction/session end
-- Apply Tool Result Clearing after heavy operations
+**Agent Discipline** (when to update NOTES.md):
+
+| Event | Sections to Update |
+|-------|-------------------|
+| Session start | Session Log |
+| Decision made | Decisions, Session Log |
+| Blocker hit/resolved | Blockers, Current Focus |
+| Session end | Session Log, Current Focus |
+| Mistake discovered | Learnings, Technical Debt |
 
 ### Lossless Ledger Protocol (v0.9.0)
 
@@ -693,6 +736,31 @@ integrations:
       reason: "Sync tasks to Linear"
       fallback: "Tasks remain local"
 ```
+
+### MCP Configuration Examples (v0.16.0)
+
+Pre-built MCP server configurations for power users in `.claude/mcp-examples/`:
+
+| Example | Service | Risk Level | Access |
+|---------|---------|------------|--------|
+| `slack.json` | Slack | HIGH | Read + Write |
+| `github.json` | GitHub | MEDIUM | Read + Write |
+| `sentry.json` | Sentry | LOW | Read only |
+| `postgres.json` | PostgreSQL | CRITICAL | Configurable |
+
+**Security**: All examples include security notes, required scopes, and setup steps. Use read-only tokens where possible.
+
+**Installation**:
+```bash
+# Review security notes first
+cat .claude/mcp-examples/github.json
+
+# Copy config to Claude Code settings
+# Set required environment variables
+export GITHUB_PERSONAL_ACCESS_TOKEN="ghp_..."
+```
+
+See `.claude/mcp-examples/README.md` for full documentation.
 
 ## Registry Integration
 

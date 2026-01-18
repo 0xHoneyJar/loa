@@ -377,6 +377,117 @@ registry:
 
 See [CLI-INSTALLATION.md](grimoires/loa/context/CLI-INSTALLATION.md) for the full setup guide.
 
+## Frictionless Permissions
+
+Loa includes a comprehensive `.claude/settings.json` that pre-approves 300+ common development commands, eliminating permission prompts for standard workflows.
+
+### What's Pre-Approved
+
+| Category | Examples | Count |
+|----------|----------|-------|
+| Package Managers | `npm`, `pnpm`, `yarn`, `bun`, `cargo`, `pip`, `poetry`, `gem`, `go` | ~85 |
+| Git Operations | `git add`, `commit`, `push`, `pull`, `branch`, `merge`, `rebase`, `stash` | ~35 |
+| File System | `mkdir`, `cp`, `mv`, `touch`, `chmod`, `cat`, `ls`, `tar`, `zip` | ~25 |
+| Runtimes | `node`, `python`, `python3`, `ruby`, `java`, `rustc`, `deno` | ~15 |
+| Containers | `docker`, `docker-compose`, `kubectl`, `helm` | ~25 |
+| Databases | `psql`, `mysql`, `redis-cli`, `mongosh`, `prisma` | ~15 |
+| Testing | `jest`, `vitest`, `pytest`, `mocha`, `bats`, `playwright`, `cypress` | ~15 |
+| Build Tools | `webpack`, `vite`, `esbuild`, `tsc`, `swc`, `turbo`, `nx` | ~20 |
+| Deploy CLIs | `vercel`, `fly`, `railway`, `aws`, `gcloud`, `az`, `terraform`, `pulumi` | ~30 |
+| Linters | `eslint`, `prettier`, `black`, `ruff`, `rubocop`, `shellcheck` | ~15 |
+| Utilities | `curl`, `wget`, `jq`, `yq`, `grep`, `find`, `sed`, `awk` | ~40 |
+
+### Security Deny List
+
+Dangerous commands are explicitly blocked to prevent accidental damage:
+
+| Category | Examples |
+|----------|----------|
+| Privilege Escalation | `sudo`, `su`, `doas` |
+| Destructive Operations | `rm -rf /`, `rm -rf ~`, `rm -rf /home` |
+| Fork Bombs | `:(){ :|:& };:` |
+| Remote Code Execution | `curl ... | bash`, `wget ... | sh`, `eval "$(curl ..."` |
+| Device Attacks | `dd if=/dev/zero of=/dev/sda`, `mkfs`, `fdisk` |
+| Permission Attacks | `chmod -R 777 /` |
+| System Control | `reboot`, `shutdown`, `poweroff`, `iptables -F` |
+| User Management | `passwd`, `useradd`, `userdel`, `visudo` |
+
+**Deny takes precedence over allow** - if a command matches both lists, it's blocked.
+
+### Customizing Permissions
+
+You can extend permissions in your personal Claude Code settings or project `.claude/settings.json`:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(my-custom-tool:*)"
+    ],
+    "deny": [
+      "Bash(some-dangerous-command:*)"
+    ]
+  }
+}
+```
+
+**Note**: The deny list is security-critical. Add to it carefully and never remove framework deny patterns.
+
+## Recommended Git Hooks
+
+Loa recommends (but doesn't require) git hooks for team workflows. These handle mechanical tasks like linting and formatting—leaving Loa's agents to focus on higher-level work.
+
+### Husky Setup
+
+```bash
+# Initialize Husky
+npx husky install
+
+# Add pre-commit hook for linting
+npx husky add .husky/pre-commit "npm run lint-staged"
+
+# Add pre-push hook for tests
+npx husky add .husky/pre-push "npm test"
+```
+
+### lint-staged Configuration
+
+Add to `package.json`:
+
+```json
+{
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": ["eslint --fix", "prettier --write"],
+    "*.{md,json,yaml,yml}": ["prettier --write"],
+    "*.sh": ["shellcheck"]
+  }
+}
+```
+
+### Commitlint (Optional)
+
+Enforce conventional commits:
+
+```bash
+# Install
+npm install -D @commitlint/cli @commitlint/config-conventional
+
+# Configure
+echo "module.exports = {extends: ['@commitlint/config-conventional']}" > commitlint.config.js
+
+# Add hook
+npx husky add .husky/commit-msg "npx commitlint --edit $1"
+```
+
+### Why Git Hooks Instead of AI?
+
+- **Git hooks are deterministic** - same input always produces same output
+- **No API costs** - runs locally with zero latency
+- **Team standardization** - everyone runs the same checks
+- **Separation of concerns** - mechanical tasks vs. intelligent decisions
+
+Loa's agents focus on design, implementation, and review—not formatting code.
+
 ## Next Steps
 
 After installation:

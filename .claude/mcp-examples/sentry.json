@@ -1,0 +1,55 @@
+{
+  "name": "sentry",
+  "description": "Sentry error tracking integration for reading errors, issues, and project information",
+  "security_notes": [
+    "READ-ONLY: This integration only reads error data",
+    "Error messages may contain sensitive user data or stack traces",
+    "Use organization-level tokens, not user tokens",
+    "Scope to specific projects when possible",
+    "Be aware that error context may include environment variables"
+  ],
+  "required_scopes": [
+    "event:read",
+    "project:read",
+    "org:read"
+  ],
+  "config": {
+    "mcpServers": {
+      "sentry": {
+        "command": "npx",
+        "args": ["-y", "@anthropic/mcp-server-sentry"],
+        "env": {
+          "SENTRY_AUTH_TOKEN": "${SENTRY_AUTH_TOKEN}",
+          "SENTRY_ORG": "${SENTRY_ORG}"
+        }
+      }
+    }
+  },
+  "required_env": [
+    "SENTRY_AUTH_TOKEN",
+    "SENTRY_ORG"
+  ],
+  "setup_steps": [
+    "1. Go to Sentry Settings > Auth Tokens",
+    "2. Create a new internal integration or auth token",
+    "3. Select scopes: event:read, project:read, org:read",
+    "4. Copy the auth token",
+    "5. Find your organization slug from the URL (e.g., sentry.io/organizations/YOUR-ORG/)",
+    "6. Set environment variables:",
+    "   export SENTRY_AUTH_TOKEN=sntrys_...",
+    "   export SENTRY_ORG=your-org-slug",
+    "7. Copy the config section to your Claude Code settings"
+  ],
+  "risk_level": "LOW",
+  "recommended_for": [
+    "Investigating production errors",
+    "Understanding error patterns",
+    "Reading stack traces for debugging",
+    "Correlating errors with deployments"
+  ],
+  "not_recommended_for": [
+    "Environments where error messages contain PII",
+    "Projects with sensitive business logic in stack traces",
+    "When error context includes credentials (fix your app!)"
+  ]
+}

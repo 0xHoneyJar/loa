@@ -1,0 +1,53 @@
+{
+  "name": "github",
+  "description": "GitHub integration for repository management, issues, and pull requests",
+  "security_notes": [
+    "WRITE ACCESS: Can create issues, PRs, comments, and modify repository content",
+    "Use fine-grained Personal Access Tokens (PATs) scoped to specific repos",
+    "Never use classic PATs with broad access",
+    "Enable branch protection rules on important branches",
+    "Review all automated commits before merging"
+  ],
+  "required_scopes": [
+    "repo (or fine-grained: contents:read, issues:write, pull_requests:write)",
+    "read:org (for organization repositories)",
+    "read:project (for project boards)"
+  ],
+  "config": {
+    "mcpServers": {
+      "github": {
+        "command": "npx",
+        "args": ["-y", "@anthropic/mcp-server-github"],
+        "env": {
+          "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+        }
+      }
+    }
+  },
+  "required_env": [
+    "GITHUB_PERSONAL_ACCESS_TOKEN"
+  ],
+  "setup_steps": [
+    "1. Go to GitHub Settings > Developer settings > Personal access tokens",
+    "2. Choose 'Fine-grained tokens' (recommended) or 'Tokens (classic)'",
+    "3. For fine-grained: Select specific repositories and permissions",
+    "4. Minimum permissions: Contents (read), Issues (read/write), Pull requests (read/write)",
+    "5. Set expiration (90 days recommended)",
+    "6. Generate and copy the token",
+    "7. Set environment variable: export GITHUB_PERSONAL_ACCESS_TOKEN=ghp_...",
+    "8. Copy the config section to your Claude Code settings"
+  ],
+  "risk_level": "MEDIUM",
+  "recommended_for": [
+    "Creating and managing issues",
+    "Reviewing pull requests",
+    "Reading repository content for context",
+    "Creating branches and commits"
+  ],
+  "not_recommended_for": [
+    "Direct pushes to main/master branches",
+    "Deleting repositories or branches",
+    "Managing organization settings",
+    "Accessing private repos without need-to-know"
+  ]
+}

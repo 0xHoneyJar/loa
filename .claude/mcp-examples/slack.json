@@ -1,0 +1,54 @@
+{
+  "name": "slack",
+  "description": "Slack workspace integration for reading channels, messages, and sending notifications",
+  "security_notes": [
+    "WRITE ACCESS: This integration can send messages to channels",
+    "Create a dedicated bot user, not a personal token",
+    "Limit bot to specific channels, not workspace-wide access",
+    "Enable audit logging in Slack admin settings",
+    "Review message content before allowing automated sends"
+  ],
+  "required_scopes": [
+    "channels:read",
+    "channels:history",
+    "chat:write",
+    "users:read"
+  ],
+  "config": {
+    "mcpServers": {
+      "slack": {
+        "command": "npx",
+        "args": ["-y", "@anthropic/mcp-server-slack"],
+        "env": {
+          "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}",
+          "SLACK_TEAM_ID": "${SLACK_TEAM_ID}"
+        }
+      }
+    }
+  },
+  "required_env": [
+    "SLACK_BOT_TOKEN",
+    "SLACK_TEAM_ID"
+  ],
+  "setup_steps": [
+    "1. Go to https://api.slack.com/apps and create a new app",
+    "2. Navigate to 'OAuth & Permissions' and add required scopes",
+    "3. Install the app to your workspace",
+    "4. Copy the 'Bot User OAuth Token' (starts with xoxb-)",
+    "5. Find your Team ID in workspace settings or URL",
+    "6. Set environment variables: export SLACK_BOT_TOKEN=xoxb-...",
+    "7. Add the bot to channels you want it to access",
+    "8. Copy the config section to your Claude Code settings"
+  ],
+  "risk_level": "HIGH",
+  "recommended_for": [
+    "Reading channel discussions for context",
+    "Posting status updates to dedicated channels",
+    "Searching for relevant conversations"
+  ],
+  "not_recommended_for": [
+    "Automated message sending without human review",
+    "Accessing private/sensitive channels",
+    "Production environments without security review"
+  ]
+}

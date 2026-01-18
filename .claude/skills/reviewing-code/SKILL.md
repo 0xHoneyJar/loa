@@ -341,6 +341,67 @@ Use detailed feedback template with:
 - **Time-bound**: Review completes within session
 </success_criteria>
 
+<subagent_report_check>
+## Subagent Report Check (v0.16.0)
+
+Before approving any sprint, check for validation reports in `grimoires/loa/a2a/subagent-reports/`:
+
+### Reports to Check
+
+| Report | Path Pattern | Blocking Verdicts |
+|--------|--------------|-------------------|
+| Architecture | `architecture-validation-*.md` | CRITICAL_VIOLATION |
+| Security | `security-scan-*.md` | CRITICAL, HIGH |
+| Test Adequacy | `test-adequacy-*.md` | INSUFFICIENT |
+
+### Workflow
+
+1. **List reports**: `ls grimoires/loa/a2a/subagent-reports/`
+2. **Read each report** from the current sprint date
+3. **Extract verdict** from the report header
+4. **Block if blocking verdict** exists
+
+### Blocking Behavior
+
+**DO NOT APPROVE** if any of these verdicts exist:
+
+| Subagent | Verdict | Action Required |
+|----------|---------|-----------------|
+| architecture-validator | CRITICAL_VIOLATION | Fix architecture issues first |
+| security-scanner | CRITICAL | Fix security vulnerability immediately |
+| security-scanner | HIGH | Fix security issue before merge |
+| test-adequacy-reviewer | INSUFFICIENT | Add missing tests |
+
+### Non-Blocking Verdicts
+
+These verdicts are informational—use reviewer discretion:
+
+| Subagent | Verdict | Recommendation |
+|----------|---------|----------------|
+| architecture-validator | DRIFT_DETECTED | Note in feedback, may proceed |
+| security-scanner | MEDIUM | Recommend fix, may proceed |
+| security-scanner | LOW | Optional fix |
+| test-adequacy-reviewer | WEAK | Note gaps, may proceed |
+
+### No Reports Found
+
+If no subagent reports exist:
+- `/validate` was not run (optional step)
+- Proceed with manual review
+- Consider recommending `/validate` in feedback
+
+### Example Check
+
+```bash
+# Check for blocking issues
+grep -l "Verdict.*CRITICAL" grimoires/loa/a2a/subagent-reports/*.md 2>/dev/null
+grep -l "Verdict.*HIGH" grimoires/loa/a2a/subagent-reports/*.md 2>/dev/null
+grep -l "Verdict.*INSUFFICIENT" grimoires/loa/a2a/subagent-reports/*.md 2>/dev/null
+```
+
+If any match found, **block approval** until issues are resolved.
+</subagent_report_check>
+
 <checklists>
 See `resources/REFERENCE.md` for complete checklists:
 - Versioning (SemVer Compliance) - 4 items

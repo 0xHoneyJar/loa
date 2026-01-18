@@ -5,6 +5,109 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2026-01-18
+
+### Why This Release
+
+The **Loa Orchestration** release delivers three key developer experience improvements:
+
+1. **Frictionless Permissions**: 150+ pre-approved commands eliminate permission prompts for standard development operations (npm, git, docker, etc.)
+
+2. **Intelligent Subagents**: Three validation subagents (architecture-validator, security-scanner, test-adequacy-reviewer) provide automated quality gates
+
+3. **Enhanced Agent Memory**: Structured NOTES.md protocol with 6 required sections ensures consistent context preservation across sessions
+
+### Added
+
+#### Frictionless Permissions (Sprint 1)
+
+- **150+ pre-allowed patterns** in `.claude/settings.json`
+  - Package managers: npm, pnpm, yarn, bun, cargo, pip, poetry, gem, go
+  - Git operations: add, commit, push, pull, branch, merge, rebase, stash
+  - Containers: docker, docker-compose, kubectl, helm
+  - Runtimes: node, python, ruby, java, go, rustc
+  - Testing: jest, vitest, pytest, mocha, bats
+  - Build tools: webpack, vite, esbuild, tsc, swc
+  - Deploy CLIs: vercel, fly, railway, aws, gcloud
+
+- **Security deny list**
+  - Privilege escalation blocked: sudo, su, doas
+  - Destructive operations: rm -rf /, fork bombs
+  - Remote code execution: curl|bash, wget|sh
+  - Device attacks: /dev/sda, dd, mkfs
+
+- **Documentation**: New "Frictionless Permissions" section in INSTALLATION.md
+
+#### Intelligent Subagents (Sprints 2-3)
+
+- **`.claude/subagents/` directory** with three validation agents:
+  - `architecture-validator.md`: SDD compliance, structural and naming checks
+  - `security-scanner.md`: OWASP Top 10, input validation, auth/authz
+  - `test-adequacy-reviewer.md`: Coverage quality, test smells, missing tests
+
+- **`/validate` command**
+  - `/validate` - Run all subagents
+  - `/validate architecture|security|tests` - Run specific subagent
+  - `/validate security src/auth` - Scoped validation
+
+- **Subagent Invocation Protocol** (`.claude/protocols/subagent-invocation.md`)
+  - Scope determination: explicit > sprint context > git diff
+  - Output location: `grimoires/loa/a2a/subagent-reports/`
+  - Quality gate integration with blocking verdicts
+
+- **`reviewing-code` skill updated**: Checks subagent reports, blocks on CRITICAL/HIGH
+
+#### Enhanced NOTES.md Protocol (Sprint 4)
+
+- **Required sections defined** (`.claude/protocols/structured-memory.md`):
+  - Current Focus: Active task, status, blocked by, next action
+  - Session Log: Append-only event history table
+  - Decisions: Architecture/implementation decisions with rationale
+  - Blockers: Checkbox list with [RESOLVED] marking
+  - Technical Debt: ID, description, severity, found by, sprint
+  - Learnings: Project-specific knowledge
+  - Session Continuity: Recovery anchor (v0.9.0)
+
+- **Agent Discipline events**: Session start, decision made, blocker hit/resolved, session end, mistake discovered
+
+- **NOTES.md template** (`.claude/templates/NOTES.md.template`)
+
+#### MCP Configuration Examples (Sprint 5)
+
+- **`.claude/mcp-examples/` directory** for power users:
+  - `slack.json` - HIGH risk (read + write)
+  - `github.json` - MEDIUM risk (read + write)
+  - `sentry.json` - LOW risk (read only)
+  - `postgres.json` - CRITICAL risk (configurable)
+
+- **Security documentation**: Required scopes, setup steps, risk levels, recommendations
+
+### Changed
+
+- **`reviewing-code` skill**: Now checks `a2a/subagent-reports/` for blocking verdicts
+- **`structured-memory.md` protocol**: Enhanced with v0.16.0 required sections and agent discipline
+- **CLAUDE.md**: New sections for Intelligent Subagents and MCP examples
+- **README.md**: Updated repository structure, frictionless permissions note
+
+### Test Coverage
+
+New tests added:
+- `tests/unit/settings-permissions.bats`: Permission patterns validation
+- `tests/unit/subagent-loader.bats`: Subagent loading and YAML validation
+- `tests/unit/subagent-reports.bats`: Security scanner and test adequacy
+- `tests/unit/notes-template.bats`: NOTES.md template sections
+- `tests/integration/validate-flow.bats`: End-to-end /validate command
+
+### Security
+
+All 5 sprints passed security audit:
+- No hardcoded credentials in any file
+- All scripts use `set -euo pipefail`
+- Deny list prevents dangerous commands
+- MCP examples use environment variable placeholders only
+
+---
+
 ## [0.15.0] - 2026-01-18
 
 ### Why This Release
