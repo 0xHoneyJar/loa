@@ -89,6 +89,29 @@ print_error() {
 }
 
 #######################################
+# Log to trajectory (optional - only if thinking-logger available)
+# Runs silently to avoid corrupting JSON output
+#######################################
+log_trajectory() {
+    local action="$1"
+    local details="${2:-}"
+    local status="${3:-success}"
+
+    local thinking_logger="${SCRIPT_DIR}/thinking-logger.sh"
+
+    # Only log if thinking-logger is available
+    # Redirect stdout to /dev/null to avoid corrupting JSON output
+    if [[ -x "$thinking_logger" ]]; then
+        "$thinking_logger" log \
+            --agent "rlm-benchmark" \
+            --action "$action" \
+            --phase "benchmark" \
+            --status "$status" \
+            --result "$details" >/dev/null 2>&1 || true
+    fi
+}
+
+#######################################
 # Check dependencies
 #######################################
 check_dependencies() {
@@ -468,6 +491,11 @@ cmd_run() {
         echo ""
     fi
 
+    # Log benchmark run to trajectory
+    local log_savings
+    log_savings=$(echo "$rlm_results" | jq -r '.savings_pct')
+    log_trajectory "Benchmark run completed" "target=$target_dir savings=${log_savings}% iterations=$iterations"
+
     return 0
 }
 
@@ -535,6 +563,9 @@ cmd_baseline() {
     echo "  Current pattern: $(echo "$current_results" | jq '.tokens') tokens"
     echo "  RLM pattern: $(echo "$rlm_results" | jq '.tokens') tokens"
     echo "  Savings: $(echo "$rlm_results" | jq '.savings_pct')%"
+
+    # Log baseline creation to trajectory
+    log_trajectory "Baseline created" "target=$target_dir tokens=$(echo "$rlm_results" | jq '.tokens')"
 }
 
 #######################################
@@ -639,6 +670,9 @@ cmd_compare() {
         fi
         echo ""
     fi
+
+    # Log comparison to trajectory
+    log_trajectory "Baseline comparison" "delta_tokens=$delta_tokens delta_pct=${delta_pct}%"
 }
 
 #######################################

@@ -67,12 +67,12 @@
         {
           "global_id": 10,
           "local_label": "sprint-4",
-          "status": "in_progress"
+          "status": "completed"
         },
         {
           "global_id": 11,
           "local_label": "sprint-5",
-          "status": "pending"
+          "status": "in_progress"
         },
         {
           "global_id": 12,

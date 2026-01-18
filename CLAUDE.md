@@ -401,6 +401,7 @@ Use `.claude/scripts/context-check.sh` for assessment.
 ├── tool-search-adapter.sh    # MCP tool search and discovery (v0.11.0)
 ├── context-manager.sh        # Context compaction and preservation (v0.11.0)
 ├── context-benchmark.sh      # Context performance benchmarks (v0.11.0)
+├── rlm-benchmark.sh          # RLM pattern benchmark and validation (v0.15.0)
 ├── anthropic-oracle.sh       # Anthropic updates monitoring (v0.13.0)
 └── check-updates.sh          # Automatic version checking (v0.14.0)
 ```
@@ -466,7 +467,7 @@ See: `.claude/protocols/risk-analysis.md` for pre-mortem analysis framework.
 
 ### Context Manager (v0.11.0)
 
-Manages context compaction with preservation rules:
+Manages context compaction with preservation rules and RLM probe-before-load pattern:
 
 ```bash
 # Check context status
@@ -488,7 +489,21 @@ Manages context compaction with preservation rules:
 .claude/scripts/context-manager.sh recover 1  # Minimal (~100 tokens)
 .claude/scripts/context-manager.sh recover 2  # Standard (~500 tokens)
 .claude/scripts/context-manager.sh recover 3  # Full (~2000 tokens)
+
+# RLM Pattern: Probe before loading
+.claude/scripts/context-manager.sh probe src/           # Probe directory
+.claude/scripts/context-manager.sh probe file.ts --json # Probe file with JSON output
+.claude/scripts/context-manager.sh should-load file.ts  # Get load/skip decision
 ```
+
+**Probe Output Fields**:
+| Field | Description |
+|-------|-------------|
+| `file` / `files` | File path(s) probed |
+| `lines` | Line count |
+| `estimated_tokens` | Token estimate for context budget |
+| `extension` | File extension |
+| `total_files` | File count (directory probe) |
 
 **Preservation Rules** (configurable in `.loa.config.yaml`):
 
@@ -535,6 +550,38 @@ Measure context management performance:
 - Checkpoint steps: 3 (was 7)
 - Recovery success: 100%
 
+### RLM Benchmark (v0.15.0)
+
+Benchmarks RLM (Relevance-based Loading Method) pattern effectiveness:
+
+```bash
+# Run benchmark on target codebase
+.claude/scripts/rlm-benchmark.sh run --target ./src --json
+
+# Create baseline for comparison
+.claude/scripts/rlm-benchmark.sh baseline --target ./src
+
+# Compare against baseline
+.claude/scripts/rlm-benchmark.sh compare --target ./src --json
+
+# Generate detailed report
+.claude/scripts/rlm-benchmark.sh report --target ./src
+
+# Multiple iterations for stability
+.claude/scripts/rlm-benchmark.sh run --target ./src --iterations 3 --json
+```
+
+**Output Metrics**:
+| Metric | Description |
+|--------|-------------|
+| `current_pattern.tokens` | Full-load token count |
+| `current_pattern.files` | Total files analyzed |
+| `rlm_pattern.tokens` | RLM-optimized token count |
+| `rlm_pattern.savings_pct` | Token reduction percentage |
+| `deltas.rlm_tokens` | Change from baseline |
+
+**PRD Success Criteria**: ≥15% token reduction on realistic codebases.
+
 ### Schema Validator (v0.11.0)
 
 Validates agent outputs against JSON schemas:
@@ -556,7 +603,16 @@ Validates agent outputs against JSON schemas:
 
 # JSON output for automation
 .claude/scripts/schema-validator.sh validate file.md --json
+
+# Programmatic assertions (for testing/automation)
+.claude/scripts/schema-validator.sh assert file.json --schema prd --json
+# Returns: {"status": "passed", "assertions": [...]} or {"status": "failed", "errors": [...]}
 ```
+
+**Assert Command**: Programmatic validation for CI/CD and testing:
+- Exit code 0 = passed, non-zero = failed
+- JSON output includes `status`, `assertions`, `errors` fields
+- Validates required fields, semver format, status enums
 
 **Auto-Detection Rules**:
 | Pattern | Schema |
