@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "next_sprint_number": 22,
+  "next_sprint_number": 26,
   "active_cycle": "cycle-005",
   "cycles": [
     {
@@ -164,8 +164,33 @@
       "status": "active",
       "created_at": "2026-01-19T01:47:16Z",
       "sdd": "grimoires/loa/sdd.md",
-      "sprints": []
+      "sprints": [
+        {
+          "global_id": 22,
+          "local_label": "sprint-1",
+          "status": "pending",
+          "created": "2026-01-19T02:12:37Z"
+        },
+        {
+          "global_id": 23,
+          "local_label": "sprint-2",
+          "status": "pending",
+          "created": "2026-01-19T02:12:37Z"
+        },
+        {
+          "global_id": 24,
+          "local_label": "sprint-3",
+          "status": "pending",
+          "created": "2026-01-19T02:12:37Z"
+        },
+        {
+          "global_id": 25,
+          "local_label": "sprint-4",
+          "status": "pending",
+          "created": "2026-01-19T02:12:37Z"
+        }
+      ]
     }
   ],
-  "last_updated": "2026-01-19T01:47:16Z"
+  "last_updated": "2026-01-19T02:12:37Z"
 }
