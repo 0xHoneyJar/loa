@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "next_sprint_number": 26,
-  "active_cycle": "cycle-005",
+  "active_cycle": null,
   "cycles": [
     {
       "id": "cycle-001",
@@ -161,8 +161,10 @@
     {
       "id": "cycle-005",
       "label": "Run Mode - Autonomous Implementation",
-      "status": "active",
+      "status": "archived",
       "created_at": "2026-01-19T01:47:16Z",
+      "archived_at": "2026-01-19T15:27:00Z",
+      "archive_path": "grimoires/loa/archive/2026-01-19-run-mode-v0.18.0",
       "sdd": "grimoires/loa/sdd.md",
       "sprints": [
         {
@@ -198,7 +200,16 @@
           "completed": "2026-01-19T06:30:00Z"
         }
       ]
+    },
+    {
+      "id": "cycle-006",
+      "label": "Documentation Coherence",
+      "status": "active",
+      "created_at": "2026-01-19T15:30:00Z",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": []
     }
   ],
-  "last_updated": "2026-01-19T02:16:31Z"
+  "active_cycle": "cycle-006",
+  "last_updated": "2026-01-19T15:30:00Z"
 }
