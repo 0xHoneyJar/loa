@@ -479,3 +479,86 @@ See `resources/REFERENCE.md` for complete checklists:
 - No tests for critical functionality
 - N+1 query problems
 </checklists>
+
+<complexity_review>
+## Complexity Review (Required) (v0.19.0)
+
+Check code for excessive complexity during every review. These are **blocking issues**.
+
+### Function Complexity
+
+| Check | Threshold | Finding |
+|-------|-----------|---------|
+| Function length | >50 lines | "Function too long: {file}:{line} ({X} lines). Split into smaller functions." |
+| Parameter count | >5 params | "Too many parameters: {func}() has {X} params. Use options object." |
+| Nesting depth | >3 levels | "Deep nesting: {file}:{line}. Refactor with early returns or extract." |
+| Cyclomatic complexity | >10 | "High complexity: {func}(). Simplify conditional logic." |
+
+### Code Duplication
+
+| Check | Threshold | Finding |
+|-------|-----------|---------|
+| Repeated patterns | >3 occurrences | "Duplicate code found in {file1}, {file2}, {file3}. Extract to shared function." |
+| Copy-paste code | >10 similar lines | "Near-duplicate blocks at {file}:{line1} and {file}:{line2}. DRY violation." |
+
+### Dependencies
+
+| Check | Issue | Finding |
+|-------|-------|---------|
+| Circular imports | Any | "Circular dependency: {A} → {B} → {A}. Restructure modules." |
+| Unnecessary deps | Unused | "Unused import: {file}:{line} imports {module} but never uses it." |
+| Heavy deps | For simple task | "Consider lighter alternative to {dep} for this use case." |
+
+### Naming Quality
+
+| Check | Issue | Finding |
+|-------|-------|---------|
+| Unclear names | Ambiguous | "Unclear name: {name} at {file}:{line}. Use descriptive name." |
+| Abbreviations | Non-standard | "Avoid abbreviation: '{abbr}' → '{full}' at {file}:{line}." |
+| Inconsistent | Style varies | "Inconsistent naming: {fileA} uses camelCase, {fileB} uses snake_case." |
+
+### Dead Code
+
+| Check | Issue | Finding |
+|-------|-------|---------|
+| Unused functions | Never called | "Dead code: {func}() at {file}:{line} is never called. Remove." |
+| Commented code | Large blocks | "Remove commented code at {file}:{lines}. Use version control." |
+| Unreachable code | After return | "Unreachable code after return at {file}:{line}." |
+
+### Review Integration
+
+During Phase 2 (Code Review), add complexity checks:
+
+```markdown
+## Complexity Analysis
+
+### Functions Reviewed
+- `{func1}()`: OK (25 lines, 3 params, nesting 2)
+- `{func2}()`: **ISSUE** (67 lines - too long)
+
+### Duplication Found
+- None detected / {description of duplicates}
+
+### Dependency Issues
+- None detected / {description of issues}
+
+### Naming Issues
+- None detected / {list of naming concerns}
+
+### Dead Code
+- None detected / {list of dead code}
+```
+
+### Complexity Verdict
+
+**BLOCK approval if:**
+- Any function >50 lines without justification
+- Nesting depth >3 without early returns
+- >3 duplicate code blocks
+- Circular dependencies
+
+**Note in feedback but allow:**
+- Functions 40-50 lines (borderline)
+- 2-3 duplicate patterns
+- Minor naming inconsistencies
+</complexity_review>

@@ -437,6 +437,155 @@ For significant changes (new skills, workflow modifications, architecture change
 2. **Get maintainer feedback** before implementing
 3. **Consider breaking into smaller PRs** for easier review
 
+## Command Optimization (v0.19.0)
+
+When writing or modifying commands, follow these patterns to maximize efficiency.
+
+### Parallel Call Patterns
+
+Use parallel tool calls when operations are independent:
+
+**Good - Independent operations in parallel:**
+```javascript
+// Check multiple files simultaneously
+await Promise.all([
+  read('grimoires/loa/prd.md'),
+  read('grimoires/loa/sdd.md'),
+  read('grimoires/loa/sprint.md')
+]);
+```
+
+**Bad - Sequential when parallel is possible:**
+```javascript
+// Unnecessarily slow
+await read('grimoires/loa/prd.md');
+await read('grimoires/loa/sdd.md');
+await read('grimoires/loa/sprint.md');
+```
+
+### Sequential When Dependencies Exist
+
+Use sequential calls when operations depend on each other:
+
+**Good - Sequential for dependencies:**
+```javascript
+// Must be sequential - commit depends on add
+await bash('git add .');
+await bash('git commit -m "message"');
+```
+
+**Bad - Parallel with dependencies:**
+```javascript
+// Will fail - commit runs before add completes
+await Promise.all([
+  bash('git add .'),
+  bash('git commit -m "message"')  // Error: nothing to commit
+]);
+```
+
+### Command Invocation Examples
+
+**Good command invocations:**
+
+```bash
+# Explicit, single purpose
+/implement sprint-1
+
+# Clear target with options
+/review-sprint sprint-1
+
+# Specific file reference
+/translate @grimoires/loa/sdd.md for executives
+```
+
+**Bad command invocations:**
+
+```bash
+# Vague, no target
+/implement
+
+# Multiple sprints at once (not supported)
+/implement sprint-1 sprint-2
+
+# Missing required context
+/review-sprint  # No sprint specified
+```
+
+### Pre-flight Check Patterns
+
+Commands should validate prerequisites before execution:
+
+**Good - Validate then execute:**
+```yaml
+pre_flight:
+  - check: "file_exists"
+    path: "grimoires/loa/prd.md"
+    message: "PRD not found. Run /plan-and-analyze first."
+  - check: "pattern_match"
+    value: "$ARGUMENTS.sprint_id"
+    pattern: "^sprint-[0-9]+$"
+    message: "Sprint ID must be in format: sprint-N"
+```
+
+**Bad - Execute without validation:**
+```yaml
+# Missing pre-flight checks - will fail confusingly
+pre_flight: []
+```
+
+### Context Loading Optimization
+
+Load context efficiently based on command needs:
+
+**Good - Load only what's needed:**
+```yaml
+context_files:
+  priority_1:  # Always load
+    - "grimoires/loa/sprint.md"
+  priority_2:  # Load if exists
+    - "grimoires/loa/a2a/sprint-$SPRINT_ID/reviewer.md"
+  optional:    # Load on demand
+    - "grimoires/loa/prd.md"
+    - "grimoires/loa/sdd.md"
+```
+
+**Bad - Load everything always:**
+```yaml
+context_files:
+  priority_1:
+    - "grimoires/loa/**/*.md"  # Loads entire state zone
+```
+
+### Error Message Quality
+
+Provide actionable error messages:
+
+**Good - Actionable error:**
+```
+Error: Sprint-1 not found in ledger.
+
+To fix:
+1. Run '/sprint-plan' to register sprints
+2. Or run '/ledger init' if this is an existing project
+```
+
+**Bad - Cryptic error:**
+```
+Error: Not found
+```
+
+### Command Documentation
+
+Every command should document:
+
+1. **Purpose**: What the command does
+2. **Prerequisites**: What must exist before running
+3. **Arguments**: Required and optional parameters
+4. **Outputs**: Files created or modified
+5. **Examples**: At least 2-3 usage examples
+
+See `.claude/commands/implement.md` for a well-documented command example.
+
 ## License
 
 By contributing to Loa, you agree that your contributions will be licensed under the [AGPL-3.0 License](LICENSE.md).

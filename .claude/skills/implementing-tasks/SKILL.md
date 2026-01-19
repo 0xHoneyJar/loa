@@ -451,6 +451,72 @@ Key sections:
 4. Reference version in completion comments
 </semver_requirements>
 
+<task_planning>
+## Task Planning (Required for Complex Tasks) (v0.19.0)
+
+### What is a Complex Task?
+
+A task is complex if ANY of these apply:
+- Touches 3+ files/modules
+- Involves architectural decisions
+- Implementation path is unclear
+- Estimated at >2 hours
+- Has multiple acceptance criteria
+- Involves security-sensitive code
+
+### Planning Requirement
+
+For complex tasks, create a plan BEFORE writing code:
+
+```markdown
+## Task Plan: [Task Name]
+
+### Objective
+[What this task accomplishes]
+
+### Approach
+1. [Step 1]
+2. [Step 2]
+3. [Step 3]
+
+### Files to Modify
+- `path/to/file.ts` - [what changes]
+- `path/to/other.ts` - [what changes]
+
+### Dependencies
+- [What must exist before this task]
+- [External services needed]
+
+### Risks
+- [What could go wrong]
+- [Mitigation approach]
+
+### Verification
+- [How we'll know it works]
+- [Specific tests to write]
+
+### Acceptance Criteria
+- [ ] [Criterion 1]
+- [ ] [Criterion 2]
+```
+
+### Plan Review
+
+Before implementing:
+1. Review plan for completeness
+2. Identify any blockers
+3. Confirm approach aligns with SDD
+4. Get human approval if high-risk
+
+### Simple Tasks
+
+For simple tasks (documentation updates, config changes, small fixes), planning is optional. Use judgment.
+
+### Plan as Artifact
+
+Task plans are stored in `grimoires/loa/a2a/sprint-N/task-{N}-plan.md` and become part of the review artifact.
+</task_planning>
+
 <checklists>
 See `resources/REFERENCE.md` for complete checklists:
 - Pre-Implementation Checklist

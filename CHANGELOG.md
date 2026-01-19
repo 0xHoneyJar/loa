@@ -73,6 +73,59 @@ The **Documentation Coherence** release enforces atomic per-task documentation v
   - Supports `--dry-run`, `--verbose`, and `--no-archive` options
   - Preserves valuable discovery context while ensuring fresh start
 
+#### v0.8.0 Spec Compliance (Skills Housekeeping)
+
+- **`.claude/protocols/verification-loops.md`** - New protocol (P1.1)
+  - 7-level verification hierarchy (tests → type check → lint → build → integration → E2E → manual)
+  - Agent responsibilities for implementing-tasks, reviewing-code, deploying-infrastructure
+  - Minimum viable verification requirements
+  - Integration with quality gates workflow
+
+- **implementing-tasks skill**: Task-Level Planning section (P1.2)
+  - Complex task criteria (3+ files, architectural decisions, >2 hours)
+  - Task plan template with Objective, Approach, Files, Dependencies, Risks, Verification
+  - Plan review requirements before implementing
+  - Plans stored at `grimoires/loa/a2a/sprint-N/task-{N}-plan.md`
+
+- **reviewing-code skill**: Complexity Review section (P1.3)
+  - Function complexity checks (>50 lines, >5 params, nesting >3)
+  - Code duplication detection (>3 occurrences)
+  - Dependency analysis (circular imports, unused)
+  - Naming quality assessment
+  - Dead code detection
+  - Blocking vs non-blocking complexity verdicts
+
+- **deploying-infrastructure skill**: E2E Verification section (P1.4)
+  - Pre-deployment verification matrix (tests, build, type check, security scan)
+  - Infrastructure verification checklist
+  - Staging environment test requirements
+  - E2E test categories (happy path, error handling, auth, data integrity)
+  - Verification report template for deployment reports
+  - Blocking conditions for deployment
+
+- **PROCESS.md**: Context Hygiene section (P2.1)
+  - Loading priority table (NOTES.md → sprint files → PRD/SDD → source → tests)
+  - Grep vs skim decision guidance
+  - When to request file tree
+  - Context budget awareness (Green/Yellow/Red zones)
+  - Tool result clearing examples
+
+- **PROCESS.md**: Long-Running Task Guidance (P2.3)
+  - Session handoff protocol with NOTES.md updates
+  - Checkpoint creation examples
+  - Multi-file refactoring tracking patterns
+  - Avoiding context exhaustion (>2 hour tasks)
+  - Recovery after interruption steps
+
+- **CONTRIBUTING.md**: Command Optimization section (P3.1)
+  - Parallel call patterns with good/bad examples
+  - Sequential patterns for dependencies
+  - Command invocation examples
+  - Pre-flight check patterns
+  - Context loading optimization
+  - Error message quality guidelines
+  - Command documentation requirements
+
 ### Changed
 
 - **CLAUDE.md**: Added documentation-coherence to subagents table

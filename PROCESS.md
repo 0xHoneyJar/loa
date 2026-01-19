@@ -1222,6 +1222,148 @@ See `.claude/protocols/trajectory-evaluation.md` for detailed protocol.
 - Monitor before deploying—can't fix what you can't see
 - Document runbooks and incident response procedures
 
+### Context Hygiene (v0.19.0)
+
+Efficient context loading prevents token waste and maintains focus:
+
+#### Loading Priority
+
+| Priority | File/Type | When to Load | How |
+|----------|-----------|--------------|-----|
+| 1 | NOTES.md | Always at session start | Full read |
+| 2 | Current sprint files | When implementing/reviewing | Full read |
+| 3 | PRD/SDD | When needing requirements/architecture | Targeted search |
+| 4 | Source code | When implementing specific feature | JIT retrieval |
+| 5 | Test files | When writing/reviewing tests | JIT retrieval |
+
+#### What to Grep vs What to Skim
+
+**Use Grep For:**
+- Finding specific function/class definitions
+- Locating error messages or constants
+- Finding all usages of a symbol
+- Checking for patterns across files
+
+**Use Skim (Read) For:**
+- Understanding file structure and flow
+- Reviewing code architecture
+- Getting context around a function
+- Initial codebase orientation
+
+#### When to Request File Tree
+
+**Do Request Tree:**
+- First time exploring a directory
+- When looking for test file locations
+- When understanding module organization
+- Before major refactoring
+
+**Don't Request Tree:**
+- When you already know the file path
+- For small directories you've seen before
+- When a single grep would suffice
+
+#### Context Budget Awareness
+
+Monitor context usage to maintain efficiency:
+
+| Zone | Status | Action |
+|------|--------|--------|
+| Green (<5000 tokens active) | Healthy | Continue normally |
+| Yellow (5000-10000 tokens) | Warning | Consider summarizing, clear tool results |
+| Red (>10000 tokens) | Critical | Run checkpoint, archive to NOTES.md |
+
+#### Tool Result Clearing
+
+After heavy operations (large grep, API calls, file reads):
+
+1. **Extract**: Pull key information into structured notes
+2. **Summarize**: Replace raw output with one-line summary
+3. **Clear**: Let raw data decay from active context
+
+Example:
+```
+# Before: 500 tokens of grep output
+# After: 30 tokens
+"Found 47 AuthService refs across 12 files. Key locations: src/auth/service.ts:45, src/api/routes.ts:123"
+```
+
+### Long-Running Task Guidance (v0.19.0)
+
+For tasks that span multiple sessions or involve many files:
+
+#### Session Handoff Protocol
+
+Before ending a session with incomplete work:
+
+1. **Update NOTES.md**:
+   - Current Focus section with exact state
+   - List of completed vs remaining items
+   - Any blockers or decisions needed
+
+2. **Create Checkpoint**:
+   ```markdown
+   ## Session Continuity
+
+   ### Last Working State
+   - Task: Implementing auth middleware
+   - Progress: 3/5 subtasks complete
+   - Current file: src/auth/middleware.ts:67
+   - Next action: Add rate limiting logic
+
+   ### Blocked By
+   - [ ] Need decision on rate limit values
+
+   ### Files Modified This Session
+   - src/auth/middleware.ts (new)
+   - src/auth/index.ts (updated exports)
+   - tests/auth/middleware.test.ts (partial)
+   ```
+
+3. **Commit Partial Work**:
+   - Commit with `WIP:` prefix
+   - Or stash with descriptive message
+
+#### Multi-File Refactoring
+
+When touching many files:
+
+1. **Plan First**: List all files that will change
+2. **Group Changes**: Batch related changes together
+3. **Test Incrementally**: Run tests after each batch
+4. **Track Progress**: Check off files in NOTES.md
+
+Example tracking:
+```markdown
+## Refactor: AuthService → AuthModule
+
+- [x] src/auth/service.ts → src/auth/module/index.ts
+- [x] src/auth/types.ts → src/auth/module/types.ts
+- [ ] src/api/routes.ts (update imports)
+- [ ] src/middleware/auth.ts (update imports)
+- [ ] tests/auth/*.test.ts (update imports)
+```
+
+#### Avoiding Context Exhaustion
+
+For tasks >2 hours estimated:
+
+1. **Break into subtasks** with clear boundaries
+2. **Complete subtask fully** before starting next
+3. **Run tests after each subtask** (verification loop)
+4. **Update NOTES.md after each subtask**
+5. **Consider parallel agents** for independent subtasks
+
+#### Recovery After Interruption
+
+When resuming interrupted work:
+
+1. Read NOTES.md Session Continuity section
+2. Check git status for uncommitted changes
+3. Run `bd ready` if using Beads
+4. Verify last test run status
+5. Resume from documented checkpoint
+
 ---
 
 ## Example Workflow

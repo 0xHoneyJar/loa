@@ -648,3 +648,164 @@ Example:
 [Terraform AWS VPC Module](https://registry.terraform.io/modules/terraform-aws-modules/vpc/aws) - Usage section
 ```
 </citation_requirements>
+
+<e2e_verification>
+## E2E Verification (Required Before Deployment) (v0.19.0)
+
+**MANDATORY**: Run comprehensive end-to-end verification before any production deployment.
+
+### Pre-Deployment Verification Matrix
+
+| Check | Command | Pass Criteria | Blocking? |
+|-------|---------|---------------|-----------|
+| Full test suite | `npm test` / `pytest` / equivalent | All tests pass | **YES** |
+| Build succeeds | `npm run build` / `make build` | Exit code 0, no errors | **YES** |
+| Type check | `npm run typecheck` / `mypy` | No type errors | **YES** |
+| Lint | `npm run lint` / `flake8` | No errors (warnings OK) | No |
+| Security scan | `npm audit` / `safety check` | No critical/high vulns | **YES** |
+| E2E tests | `npm run test:e2e` / `pytest e2e/` | All scenarios pass | **YES** |
+| Staging deploy | Deploy to staging | Successful deployment | **YES** |
+| Smoke tests | Hit key endpoints | 200 responses | **YES** |
+
+### Infrastructure Verification
+
+| Check | Method | Pass Criteria |
+|-------|--------|---------------|
+| IaC validation | `terraform validate` | No errors |
+| Plan preview | `terraform plan` | No unexpected changes |
+| Security groups | Review inbound rules | Minimum necessary ports |
+| Secrets | `grep -r "password\|secret\|key"` | No hardcoded secrets |
+| Resource limits | Review container specs | Memory/CPU limits set |
+| Health checks | Review k8s/ECS configs | Liveness/readiness defined |
+
+### Staging Environment Tests
+
+Before production deployment, complete these in staging:
+
+```markdown
+## Staging Verification Checklist
+
+### Application Health
+- [ ] App starts without errors
+- [ ] Health endpoint returns 200
+- [ ] Database connection works
+- [ ] Cache connection works
+- [ ] External API connections work
+
+### Core Flows
+- [ ] User registration/login works
+- [ ] Primary feature X works end-to-end
+- [ ] Payment flow works (if applicable)
+- [ ] Error pages render correctly
+
+### Performance
+- [ ] Response time <500ms for key endpoints
+- [ ] No memory leaks observed over 10 minutes
+- [ ] Database queries <100ms
+
+### Security
+- [ ] HTTPS enforced
+- [ ] CORS configured correctly
+- [ ] Auth tokens validated
+- [ ] Rate limiting active
+```
+
+### E2E Test Categories
+
+| Category | What to Test | Example |
+|----------|--------------|---------|
+| Happy Path | Core user journey works | User signup → login → feature use |
+| Error Handling | Graceful degradation | Invalid input → proper error message |
+| Auth Boundaries | Protected routes secure | Unauthenticated → 401 response |
+| Data Integrity | CRUD operations complete | Create → Read → Update → Delete |
+| Integration Points | External services work | API call → response processed |
+
+### Verification Report
+
+Include in deployment report:
+
+```markdown
+## E2E Verification Results
+
+### Test Suite
+- **Total tests:** 156
+- **Passed:** 156
+- **Failed:** 0
+- **Skipped:** 2 (flaky, tracked in JIRA-123)
+
+### E2E Scenarios
+| Scenario | Status | Duration |
+|----------|--------|----------|
+| User Registration | PASS | 2.3s |
+| User Login | PASS | 1.1s |
+| Feature X Flow | PASS | 4.5s |
+| Payment Flow | PASS | 3.2s |
+
+### Staging Smoke Tests
+- Health endpoint: ✓ 200 OK (45ms)
+- Login endpoint: ✓ 200 OK (123ms)
+- Feature API: ✓ 200 OK (89ms)
+
+### Infrastructure Validation
+- terraform validate: ✓ Success
+- terraform plan: ✓ No unexpected changes
+- Security scan: ✓ No critical issues
+```
+
+### Blocking Conditions
+
+**DO NOT DEPLOY if:**
+- Any test fails (fix or document known issue with ticket)
+- Security scan shows CRITICAL or HIGH vulnerabilities
+- Staging smoke tests fail
+- Infrastructure validation errors
+- Type check fails
+- Build fails
+
+**May proceed with caution if:**
+- Only LOW security warnings
+- Skipped tests have documented reasons + tracking tickets
+- Lint warnings (not errors)
+
+### Manual Verification
+
+For features not covered by automated tests:
+
+```markdown
+## Manual Verification Steps
+
+1. **Visual Regression**
+   - [ ] Homepage renders correctly
+   - [ ] Mobile responsive layout works
+   - [ ] Dark mode (if applicable) works
+
+2. **Edge Cases**
+   - [ ] Empty state displays properly
+   - [ ] Large dataset pagination works
+   - [ ] Concurrent user handling OK
+
+3. **Integration Verification**
+   - [ ] Webhooks trigger correctly
+   - [ ] Email notifications send
+   - [ ] Push notifications work
+```
+
+### Verification Summary
+
+Add to deployment report before requesting approval:
+
+```markdown
+## Pre-Deployment Verification Summary
+
+| Category | Status | Notes |
+|----------|--------|-------|
+| Unit Tests | ✓ PASS | 156/156 |
+| Integration Tests | ✓ PASS | 42/42 |
+| E2E Tests | ✓ PASS | 15/15 |
+| Security Scan | ✓ PASS | No critical/high |
+| Staging Deploy | ✓ PASS | All endpoints healthy |
+| Manual Checks | ✓ PASS | See checklist above |
+
+**VERDICT:** Ready for production deployment
+```
+</e2e_verification>
