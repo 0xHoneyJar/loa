@@ -28,12 +28,24 @@ Here is what you found in your previous review:
 
 For each previous issue:
 - Was it fixed? (Yes/Partially/No)
-- If partially, is it acceptable now?
+- Was it rejected with explanation? (If so, evaluate the explanation)
 - Did the fix introduce new problems?
 
-For each previous recommendation:
-- Was it addressed? (Yes/Reasonably/No)
-- Claude has discretion on HOW - don't reject just because they did it differently
+**IMPORTANT: Claude has more context than you.**
+
+Claude may reject your suggestions with an explanation like:
+```
+GPT suggested X, but this is incorrect because [reason].
+The current approach is correct because [explanation].
+```
+
+**If Claude's explanation is reasonable, accept it.** You have less context about:
+- The full project requirements
+- Conversations with the user
+- Domain-specific constraints
+- Why certain decisions were made
+
+Don't insist on changes if Claude provides a sound reason for the current approach.
 
 ## RESPONSE FORMAT
 
@@ -44,15 +56,8 @@ For each previous recommendation:
   "previous_issues_status": [
     {
       "original_issue": "Brief description of what you found",
-      "status": "fixed" | "partially_fixed" | "not_fixed",
-      "notes": "If not fully fixed, what's still wrong"
-    }
-  ],
-  "previous_recommendations_status": [
-    {
-      "original_recommendation": "Brief description",
-      "status": "addressed" | "reasonably_addressed" | "not_addressed",
-      "notes": "Optional notes on how it was addressed"
+      "status": "fixed" | "rejected_with_valid_reason" | "not_fixed",
+      "notes": "If rejected, summarize Claude's reasoning and whether you accept it"
     }
   ],
   "new_blocking_concerns": [

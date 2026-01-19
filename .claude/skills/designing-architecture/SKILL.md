@@ -362,8 +362,24 @@ iteration=1
 - Include GPT review metadata in document
 
 **If CHANGES_REQUIRED:**
-1. Read the bugs from the response
-2. Fix ONLY the bugs identified (not style, not formatting)
+
+**IMPORTANT: You are the authority. GPT has less context.**
+
+GPT is a useful second opinion, but it can be wrong. For each issue GPT raises:
+
+1. **Evaluate critically** - Does this make sense given the full context you have?
+2. **If valid** - Fix the issue
+3. **If invalid** - You can reject it with explanation. Add to your response:
+   ```
+   GPT suggested X, but this is incorrect because [reason].
+   The current approach is correct because [explanation].
+   ```
+
+GPT will see your explanation on re-review and should accept it if your reasoning is sound.
+
+**Process:**
+1. Read the issues from the response
+2. For each issue: fix it OR explain why GPT is wrong
 3. Re-save draft to `/tmp/sdd-draft.md`
 4. Increment iteration: `iteration=$((iteration + 1))`
 5. Call GPT review WITH previous context:
