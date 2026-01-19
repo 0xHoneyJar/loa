@@ -150,22 +150,23 @@ call_api() {
   local api_url
   local payload
 
-  # Codex models use /v1/completions endpoint (not chat)
+  # Codex models use Responses API at /v1/responses
+  # See: https://platform.openai.com/docs/guides/code-generation
   if [[ "$model" == *"codex"* ]]; then
-    api_url="https://api.openai.com/v1/completions"
+    api_url="https://api.openai.com/v1/responses"
 
-    # For codex: combine prompt and content, use completions format
-    local combined_prompt
-    combined_prompt=$(printf '%s\n\n---\n\n## CONTENT TO REVIEW:\n\n%s\n\n---\n\nRespond with valid JSON only:' "$system_prompt" "$content")
-    local escaped_prompt
-    escaped_prompt=$(printf '%s' "$combined_prompt" | jq -Rs .)
+    # For codex: use Responses API format with 'input' field
+    # Combine system prompt and content into single input
+    local combined_input
+    combined_input=$(printf '%s\n\n---\n\n## CONTENT TO REVIEW:\n\n%s\n\n---\n\nRespond with valid JSON only.' "$system_prompt" "$content")
+    local escaped_input
+    escaped_input=$(printf '%s' "$combined_input" | jq -Rs .)
 
     payload=$(cat <<EOF
 {
   "model": "${model}",
-  "prompt": ${escaped_prompt},
-  "temperature": 0.3,
-  "max_tokens": 4096
+  "input": ${escaped_input},
+  "reasoning": {"effort": "medium"}
 }
 EOF
 )
@@ -266,10 +267,11 @@ EOF
     esac
   done
 
-  # Extract content from response (chat vs completions format)
+  # Extract content from response
+  # - Chat Completions: .choices[0].message.content
+  # - Responses API: .output_text
   local content_response
-  # Try chat format first, then completions format
-  content_response=$(echo "$response" | jq -r '.choices[0].message.content // .choices[0].text // empty')
+  content_response=$(echo "$response" | jq -r '.choices[0].message.content // .output_text // empty')
 
   if [[ -z "$content_response" ]]; then
     error "No content in API response"
@@ -277,7 +279,7 @@ EOF
     exit 5
   fi
 
-  # Completions API may return text with leading/trailing whitespace
+  # Trim leading/trailing whitespace
   content_response=$(echo "$content_response" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 
   # Validate JSON response

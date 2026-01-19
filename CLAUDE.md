@@ -642,7 +642,9 @@ Loa uses GPT 5.2 for cross-model code and document review. If you encounter API 
 | Model | Purpose | API Endpoint |
 |-------|---------|--------------|
 | `gpt-5.2` | Document review (PRD, SDD, Sprint) | `/v1/chat/completions` (system + user messages) |
-| `gpt-5.2-codex` | Code review | `/v1/completions` (prompt field, no messages) |
+| `gpt-5.2-codex` | Code review | `/v1/responses` (Responses API with `input` field) |
+
+See [OpenAI Code Generation docs](https://platform.openai.com/docs/guides/code-generation) for Codex API details.
 
 ### On API Errors
 
