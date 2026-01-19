@@ -92,6 +92,11 @@ grimoires/loa/sdd.md
 grimoires/loa/sprint.md
 grimoires/loa/NOTES.md
 
+# Sprint Ledger (project-specific cycle/sprint history)
+# Created by /plan-and-analyze, tracks development cycles per-project
+grimoires/loa/ledger.json
+grimoires/loa/ledger.json.bak
+
 # Agent-to-Agent communication (sprint-specific, generated)
 # README.md files are kept to explain the directory purpose
 grimoires/loa/a2a/*
