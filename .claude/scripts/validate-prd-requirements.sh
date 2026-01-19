@@ -402,18 +402,18 @@ validate_ir2_beads_integration() {
     echo "IR-2: Beads CLI Integration"
     echo "---------------------------"
 
-    # Check bd commands documented
+    # Check br commands documented
     if grep -q "bd " .claude/protocols/session-continuity.md 2>/dev/null; then
         log_pass "Beads CLI commands documented"
     else
         log_fail "Beads CLI commands not documented"
     fi
 
-    # Check bd sync
-    if grep -q "bd sync" .claude/protocols/session-continuity.md 2>/dev/null; then
-        log_pass "bd sync workflow documented"
+    # Check br sync
+    if grep -q "br sync" .claude/protocols/session-continuity.md 2>/dev/null; then
+        log_pass "br sync workflow documented"
     else
-        log_warn "bd sync workflow may not be documented"
+        log_warn "br sync workflow may not be documented"
     fi
 
     # Check fallback to NOTES.md

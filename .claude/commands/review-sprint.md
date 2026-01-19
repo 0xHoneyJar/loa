@@ -181,3 +181,14 @@ When a Sprint Ledger exists (`grimoires/loa/ledger.json`):
 ### Legacy Mode
 
 Without a ledger, sprint IDs are used directly (sprint-1 → a2a/sprint-1/).
+
+## beads_rust Integration
+
+When beads_rust is installed, the agent records review feedback:
+
+1. **Session Start**: `br sync --import-only` to import latest state
+2. **Record Feedback**: `br comments add <task-id> "REVIEW: [summary]"`
+3. **Mark Status**: `br label add <task-id> review-approved` or `needs-revision`
+4. **Session End**: `br sync --flush-only` before commit
+
+**Protocol Reference**: See `.claude/protocols/beads-integration.md`

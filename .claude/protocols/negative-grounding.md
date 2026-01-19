@@ -78,8 +78,8 @@ This indicates either:
 
 ```bash
 # Track in Beads (if available)
-if command -v bd >/dev/null 2>&1; then
-    bd create "GHOST: OAuth2 SSO" \
+if command -v br >/dev/null 2>&1; then
+    br create "GHOST: OAuth2 SSO" \
         --type liability \
         --priority 2 \
         --metadata "query1=${query1},query2=${query2},doc_refs=${doc_mentions}"

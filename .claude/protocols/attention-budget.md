@@ -148,8 +148,8 @@ If session terminates after Delta-Synthesis:
 
 ```
 1. New session starts
-2. bd ready -> identify in-progress task
-3. bd show <id> -> load decisions[] (includes delta-synced)
+2. br ready -> identify in-progress task
+3. br show <id> -> load decisions[] (includes delta-synced)
 4. NOTES.md -> includes delta-synced decisions
 5. Some work lost (since last delta-sync)
 6. Most work preserved via partial persist

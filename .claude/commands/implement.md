@@ -5,7 +5,7 @@ description: |
   Execute sprint tasks with production-quality code and tests.
   Automatically checks for and addresses audit/review feedback before new work.
   Resolves local sprint IDs to global IDs via Sprint Ledger.
-  If Beads is installed, handles task lifecycle automatically (no manual bd commands).
+  If beads_rust is installed, handles task lifecycle automatically (no manual br commands).
 
 arguments:
   - name: "sprint_id"
@@ -187,3 +187,18 @@ Without a ledger, sprint IDs are used directly (sprint-1 → a2a/sprint-1/).
 If feedback: /implement sprint-N (addresses feedback)
 If approved: /audit-sprint sprint-N
 ```
+
+## beads_rust Integration
+
+When beads_rust is installed, the agent handles task lifecycle:
+
+1. **Session Start**: `br sync --import-only` to import latest state
+2. **Get Work**: `br ready` to find unblocked tasks
+3. **Claim Task**: `br update <id> --status in_progress`
+4. **Log Discoveries**: `.claude/scripts/beads/log-discovered-issue.sh` for found bugs
+5. **Complete Task**: `br close <id> --reason "..."`
+6. **Session End**: `br sync --flush-only` before commit
+
+**No manual `br` commands required.** The agent handles everything internally.
+
+**Protocol Reference**: See `.claude/protocols/beads-integration.md`

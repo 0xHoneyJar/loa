@@ -155,11 +155,11 @@ Create `.claude/checksums.json` with SHA256 hashes of all System Zone files.
 
 Create `.loa.config.yaml` if not exists (preserve if present).
 
-### Phase 7: Initialize Beads (Optional)
+### Phase 7: Initialize beads_rust (Optional)
 
-If `bd` CLI available and not `--skip-beads`:
+If `br` CLI available and not `--skip-beads`:
 ```bash
-bd init --quiet
+br init --quiet
 ```
 
 ## Stealth Mode

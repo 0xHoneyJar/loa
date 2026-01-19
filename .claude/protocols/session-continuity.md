@@ -84,8 +84,8 @@ If context window state conflicts with ledger state:
 ```
 SESSION RECOVERY SEQUENCE:
 
-1. bd ready                          # Identify available tasks
-2. bd show <active_id>               # Load task context (decisions[], handoffs[])
+1. br ready                          # Identify available tasks
+2. br show <active_id>               # Load task context (decisions[], handoffs[])
 3. Tiered Ledger Recovery            # Load NOTES.md (Level 1 default)
 4. Verify lightweight identifiers    # Don't load content yet
 5. Resume from "Reasoning State"     # Continue where left off
@@ -366,65 +366,66 @@ FORK DETECTION PROTOCOL:
 {"ts":"2024-01-15T15:00:00Z","agent":"implementing-tasks","phase":"fork_detected","bead_id":"bd-x7y8","context_decision":"Use stateless tokens","bead_decision":"Use rotating refresh tokens","resolution":"bead_wins"}
 ```
 
-### CLI Extensions (bd commands)
+### CLI Extensions (br commands)
 
-Extended Bead CLI operations for v0.9.0:
+Extended beads_rust CLI operations for v0.19.0:
 
 | Operation | Command | Purpose |
 |-----------|---------|---------|
-| View with decisions | `bd show <id>` | Displays decisions[], handoffs[] |
-| Append decision | `bd update <id> --decision "..."` | Adds to decisions[] array |
-| Log handoff | `bd update <id> --handoff "..."` | Adds to handoffs[] array |
-| Check fork | `bd diff <id>` | Compare context vs Bead state |
+| View with decisions | `br show <id>` | Displays decisions[], handoffs[] |
+| Append decision | `br comments add <id> "DECISION: ..."` | Adds to comment history |
+| Log handoff | `br comments add <id> "HANDOFF: ..."` | Records session handoff |
+| Check fork | `br diff <id>` | Compare context vs Bead state |
 
 **Note**: CLI extensions are optional enhancements. NOTES.md provides fallback.
 
-### Beads CLI Integration Examples
+### beads_rust CLI Integration Examples
 
 #### Display Decisions History
 
 ```bash
 # Show bead with full decision history
-bd show bd-x7y8
+br show br-x7y8
 
 # Output includes:
-#   id: bd-x7y8
+#   id: br-x7y8
 #   title: "Implement token refresh"
 #   status: in_progress
-#   decisions:
-#     - [2024-01-15T10:30:00Z] Use rotating refresh tokens
-#     - [2024-01-15T14:30:00Z] Add 15-minute grace period
-#   handoffs:
-#     - [sess-001] 2024-01-15T12:00:00Z (ratio: 0.97)
+#   comments:
+#     - [2024-01-15T10:30:00Z] DECISION: Use rotating refresh tokens
+#     - [2024-01-15T14:30:00Z] DECISION: Add 15-minute grace period
+#   labels:
+#     - sprint:3
+#     - security-approved
 ```
 
 #### Append Decision to Bead
 
 ```bash
 # Add a new decision with evidence
-bd update bd-x7y8 --decision "Use RSA256 for JWT signing" \
-    --rationale "Industry standard, key rotation support" \
-    --evidence "${PROJECT_ROOT}/src/auth/jwt.ts:23"
+br comments add br-x7y8 "DECISION: Use RSA256 for JWT signing
+Rationale: Industry standard, key rotation support
+Evidence: ${PROJECT_ROOT}/src/auth/jwt.ts:23"
 
-# Decision is appended to decisions[] array, not replaced
+# Decision is appended to comments, not replaced
 ```
 
 #### Log Session Handoff
 
 ```bash
 # Record session handoff when session ends
-bd update bd-x7y8 --handoff \
-    --session-id "sess-003" \
-    --notes-ref "grimoires/loa/NOTES.md:93-120" \
-    --trajectory-ref "trajectory/impl-2024-01-15.jsonl:span-ghi" \
-    --grounding-ratio 0.96
+br comments add br-x7y8 "HANDOFF:
+Session: sess-003
+NOTES ref: grimoires/loa/NOTES.md:93-120
+Trajectory: trajectory/impl-2024-01-15.jsonl:span-ghi
+Grounding ratio: 0.96"
 ```
 
 #### Check for Fork Detection
 
 ```bash
 # Compare current context state with bead state
-bd diff bd-x7y8
+br diff br-x7y8
 
 # Output if fork detected:
 #   FORK DETECTED:
@@ -433,15 +434,15 @@ bd diff bd-x7y8
 #   Resolution: Bead wins (external ledger is authoritative)
 ```
 
-### Fallback When Beads Unavailable
+### Fallback When beads_rust Unavailable
 
-If Beads CLI (`bd`) is not installed, all decision tracking falls back to NOTES.md:
+If beads_rust CLI (`br`) is not installed, all decision tracking falls back to NOTES.md:
 
 ```bash
-# Check if bd is available
-if command -v bd &>/dev/null; then
-    # Use Beads for decision tracking
-    bd update "$BEAD_ID" --decision "$decision"
+# Check if br is available
+if command -v br &>/dev/null; then
+    # Use beads_rust for decision tracking
+    br comments add "$BEAD_ID" "DECISION: $decision"
 else
     # Fallback: Append to NOTES.md Decision Log
     echo "#### $(date -u +%Y-%m-%dT%H:%M:%SZ) - $title" >> grimoires/loa/NOTES.md
@@ -459,16 +460,16 @@ fi
 | test_scenarios[] | NOTES.md ## Test Scenarios |
 | next_steps[] | NOTES.md ## Active Sub-Goals |
 
-### bd sync for Session End
+### br sync for Session End
 
-Always run `bd sync` at session end to commit Bead changes:
+Always run `br sync --flush-only` at session end to export Bead changes:
 
 ```bash
 # Session end protocol
-bd sync              # Commit bead changes to .beads/
-git add .beads/      # Stage for git
-git commit -m "..."  # Commit with code changes
-git push             # Push to remote
+br sync --flush-only  # Export bead changes to JSONL
+git add .beads/       # Stage for git
+git commit -m "..."   # Commit with code changes
+git push              # Push to remote
 ```
 
 ## Anti-Patterns
@@ -479,7 +480,7 @@ git push             # Push to remote
 | Trust compacted context | Trust only **ledgers** |
 | Relative paths | ALWAYS `${PROJECT_ROOT}` absolute paths |
 | Defer synthesis | Synthesize **continuously** |
-| Reason without Bead | ALWAYS `bd show` first |
+| Reason without Bead | ALWAYS `br show` first |
 | Eager load files | Store **identifiers**, JIT retrieve |
 | `/clear` without checkpoint | Execute **synthesis checkpoint** first |
 | Load full Decision Log | Level 1 recovery: **last 3 decisions only** |
@@ -560,7 +561,7 @@ git push             # Push to remote
 
 ### Commands
 
-- **/ride**: Session-aware initialization (`bd ready` -> `bd show`)
+- **/ride**: Session-aware initialization (`br ready` -> `br show`)
 - **/clear**: Triggers synthesis checkpoint
 
 ### Scripts
@@ -590,8 +591,8 @@ git push             # Push to remote
 1. Session terminates unexpectedly
 2. Delta-synthesis may have run (Yellow threshold)
 3. New session starts
-4. bd ready -> identify in-progress task
-5. bd show <id> -> load decisions[], handoffs[]
+4. br ready -> identify in-progress task
+5. br show <id> -> load decisions[], handoffs[]
 6. NOTES.md Session Continuity -> last checkpoint
 7. Resume from last known state
 8. Some work may be lost (since last delta-sync)

@@ -619,9 +619,9 @@ count_today_trajectory_entries() {
 # Get active beads count
 #######################################
 get_active_beads_count() {
-    if command -v bd &>/dev/null; then
+    if command -v br &>/dev/null; then
         local count
-        count=$(bd list --status=in_progress 2>/dev/null | wc -l || echo "0")
+        count=$(br list --status=in_progress 2>/dev/null | wc -l || echo "0")
         echo "$count"
     else
         echo "0"
@@ -945,9 +945,9 @@ cmd_checkpoint() {
     fi
 
     # 4. Beads synced (if available)
-    if command -v bd &>/dev/null; then
+    if command -v br &>/dev/null; then
         local sync_status
-        sync_status=$(bd sync --status 2>/dev/null || echo "unknown")
+        sync_status=$(br sync --status 2>/dev/null || echo "unknown")
         if [[ "$sync_status" != *"behind"* ]]; then
             print_success "[AUTO] Beads synchronized"
             auto_pass=$((auto_pass + 1))
@@ -970,9 +970,9 @@ cmd_checkpoint() {
     echo "     - Each decision should have rationale and grounding"
     echo ""
     echo -e "  2. ${YELLOW}Verify Bead updated${NC}"
-    echo "     - Run: bd list --status=in_progress"
+    echo "     - Run: br list --status=in_progress"
     echo "     - Ensure current task is tracked"
-    echo "     - Close completed beads: bd close <id>"
+    echo "     - Close completed beads: br close <id>"
     echo ""
     echo -e "  3. ${YELLOW}Verify EDD test scenarios${NC}"
     echo "     - At least 3 test scenarios per decision"
@@ -1021,9 +1021,9 @@ cmd_recover() {
             echo "  2. NOTES.md Decision Log (recent)"
             echo "  3. Active beads"
             echo ""
-            if command -v bd &>/dev/null; then
+            if command -v br &>/dev/null; then
                 echo -e "${CYAN}Active Beads:${NC}"
-                bd list --status=in_progress 2>/dev/null || echo "  (none)"
+                br list --status=in_progress 2>/dev/null || echo "  (none)"
             fi
             ;;
         3)

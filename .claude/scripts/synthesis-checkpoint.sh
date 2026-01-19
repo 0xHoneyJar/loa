@@ -203,14 +203,14 @@ update_bead() {
     echo "Step 4: Update Bead"
     echo "----------------------------------------------"
 
-    if ! command -v bd &>/dev/null; then
+    if ! command -v br &>/dev/null; then
         echo "  Status: SKIPPED (beads not available)"
         return 0
     fi
 
     # Check for active bead
     local active_bead
-    active_bead=$(bd list --status=in_progress --json 2>/dev/null | jq -r '.[0].id // empty' 2>/dev/null || echo "")
+    active_bead=$(br list --status=in_progress --json 2>/dev/null | jq -r '.[0].id // empty' 2>/dev/null || echo "")
 
     if [[ -z "$active_bead" ]]; then
         echo "  Status: SKIPPED (no active bead)"

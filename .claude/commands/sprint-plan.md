@@ -37,17 +37,17 @@ pre_flight:
 
 # Optional dependency check with HITL gate
 optional_dependencies:
-  - name: "beads"
-    check_script: ".claude/scripts/check-beads.sh --quiet"
-    description: "Beads (bd CLI) - Git-backed task graph management"
+  - name: "beads_rust"
+    check_script: ".claude/scripts/beads/check-beads.sh --quiet"
+    description: "beads_rust (br CLI) - Non-invasive task graph management"
     benefits:
       - "Git-backed task graph (replaces markdown parsing)"
-      - "Dependency tracking (blocks, related, discovered-from)"
+      - "Dependency tracking (blocks) with semantic labels"
       - "Session persistence across context windows"
-      - "JIT task retrieval with bd ready"
+      - "JIT task retrieval with br ready"
     install_options:
-      - "brew install steveyegge/beads/bd"
-      - "npm install -g @beads/bd"
+      - ".claude/scripts/beads/install-br.sh"
+      - "curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/beads_rust/main/install.sh | bash"
     fallback: "Sprint plan will use markdown-based tracking only"
 
 outputs:
@@ -186,7 +186,16 @@ After sprint plan is complete:
 
 That's it. The implement command handles everything:
 - **With Ledger**: Resolves sprint-1 to global ID, uses correct a2a directory
-- **With Beads**: Automatically manages task lifecycle (bd ready, update, close)
+- **With beads_rust**: Automatically manages task lifecycle (br ready, update, close)
 - **Without either**: Uses markdown-based tracking from sprint.md
 
-**No manual `bd` commands required.** The agent handles task state internally.
+**No manual `br` commands required.** The agent handles task state internally.
+
+## beads_rust Integration
+
+When beads_rust is installed, the agent will:
+1. **Session Start**: `br sync --import-only` to import latest state
+2. **Create Structure**: Use helper scripts for epic/task creation
+3. **Session End**: `br sync --flush-only` before commit
+
+**Protocol Reference**: See `.claude/protocols/beads-integration.md`

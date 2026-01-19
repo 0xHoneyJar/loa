@@ -254,7 +254,7 @@ When technical debt is discovered:
 1. Log to NOTES.md immediately
 2. Create a corresponding Bead if actionable:
    ```bash
-   bd add --priority medium --title "Fix N+1 query in user list" --ref "TD-001"
+   br create --priority medium --title "Fix N+1 query in user list" --ref "TD-001"
    ```
 
 ## Why This Matters

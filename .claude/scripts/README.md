@@ -13,7 +13,7 @@ Bash utilities for deterministic operations in the Loa framework.
 | Script | Purpose | Exit Codes |
 |--------|---------|------------|
 | `analytics.sh` | Analytics helper functions (THJ only) | 0=success |
-| `check-beads.sh` | Check if Beads (bd CLI) is installed | 0=installed, 1=not installed |
+| `check-beads.sh` | Check if beads_rust (br CLI) is installed | 0=installed, 1=not installed |
 | `context-check.sh` | Context size assessment for parallel execution | 0=success |
 | `git-safety.sh` | Template repository detection | 0=template, 1=not template |
 | `preflight.sh` | Pre-flight validation functions | 0=pass, 1=fail |

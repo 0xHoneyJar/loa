@@ -292,8 +292,8 @@ When `/ride` initializes:
 
 ```
 SESSION START SEQUENCE:
-1. bd ready                     # Identify if there's an active riding task
-2. bd show <active_id>          # Load prior decisions[], handoffs[] if resuming
+1. br ready                     # Identify if there's an active riding task
+2. br show <active_id>          # Load prior decisions[], handoffs[] if resuming
 3. Tiered Ledger Recovery       # Load NOTES.md Session Continuity section
 4. Verify lightweight identifiers # Don't load full content yet
 5. Resume from "Reasoning State" # Continue where left off if applicable
@@ -337,7 +337,7 @@ SYNTHESIS CHECKPOINT:
 If `/ride` was interrupted:
 
 1. New session starts with Level 1 recovery (~100 tokens)
-2. `bd ready` shows in-progress riding tasks
+2. `br ready` shows in-progress riding tasks
 3. Session Continuity section has last checkpoint
 4. Resume from last known state
 5. Some extraction work may need re-execution

@@ -111,8 +111,8 @@ install_beads() {
     return 0
   fi
 
-  if command -v bd &> /dev/null; then
-    local version=$(bd --version 2>/dev/null || echo "unknown")
+  if command -v br &> /dev/null; then
+    local version=$(br --version 2>/dev/null || echo "unknown")
     log "Beads CLI already installed: $version"
     return 0
   fi
@@ -386,7 +386,7 @@ init_beads() {
     return 0
   fi
 
-  if ! command -v bd &> /dev/null; then
+  if ! command -v br &> /dev/null; then
     warn "Beads CLI not installed, skipping initialization"
     return 0
   fi
@@ -400,8 +400,8 @@ init_beads() {
   fi
 
   if [[ ! -f ".beads/graph.jsonl" ]]; then
-    bd init $stealth_flag 2>/dev/null || {
-      warn "Beads init failed - run 'bd init' manually"
+    br init $stealth_flag 2>/dev/null || {
+      warn "Beads init failed - run 'br init' manually"
       return 0
     }
     log "Beads initialized"

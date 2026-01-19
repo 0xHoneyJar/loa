@@ -143,8 +143,8 @@ count_trajectory_entries() {
 # Count active beads
 #######################################
 count_active_beads() {
-    if command -v bd &>/dev/null; then
-        bd list --status=in_progress 2>/dev/null | wc -l || echo "0"
+    if command -v br &>/dev/null; then
+        br list --status=in_progress 2>/dev/null | wc -l || echo "0"
     else
         echo "0"
     fi
@@ -154,8 +154,8 @@ count_active_beads() {
 # Count closed beads
 #######################################
 count_closed_beads() {
-    if command -v bd &>/dev/null; then
-        bd list --status=closed 2>/dev/null | wc -l || echo "0"
+    if command -v br &>/dev/null; then
+        br list --status=closed 2>/dev/null | wc -l || echo "0"
     else
         echo "0"
     fi

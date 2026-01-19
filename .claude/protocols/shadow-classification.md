@@ -138,8 +138,8 @@ dependent_files=$(echo "${dependents}" | jq -r '.file' | sort -u)
 
 ```bash
 # Track in Beads with high priority
-if command -v bd >/dev/null 2>&1; then
-    bd create "SHADOW (orphaned): ${module_name}" \
+if command -v br >/dev/null 2>&1; then
+    br create "SHADOW (orphaned): ${module_name}" \
         --type debt \
         --priority 1 \
         --metadata "file=${file},similarity=${max_similarity},dependents=${dependent_count}"
