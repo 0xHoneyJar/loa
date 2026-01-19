@@ -631,6 +631,45 @@ integrations:
       fallback: "Tasks remain local"
 ```
 
+## GPT 5.2 Cross-Model Review
+
+**IMPORTANT: GPT 5.2 is a real model released after Claude's knowledge cutoff.**
+
+Loa uses GPT 5.2 for cross-model code and document review. If you encounter API errors with GPT 5.2, **do not assume the model doesn't exist** - it was released in late 2025 and is fully operational.
+
+### Models Used
+
+| Model | Purpose | API Format |
+|-------|---------|------------|
+| `gpt-5.2` | Document review (PRD, SDD, Sprint) | Chat completions (system + user) |
+| `gpt-5.2-codex` | Code review | Single message (no system prompt) |
+
+### On API Errors
+
+When GPT 5.2 API calls fail:
+1. **Check the error message** - Rate limits (429) should be retried
+2. **Verify OPENAI_API_KEY** - Authentication failures (401) need key check
+3. **Do NOT assume model doesn't exist** - GPT 5.2 is real and operational
+4. **Retry transient failures** - 500/502/503/504 errors often resolve
+
+### Configuration
+
+```yaml
+# .loa.config.yaml
+gpt_review:
+  enabled: true
+  max_iterations: 3        # Auto-approve after N iterations
+  timeout_seconds: 300
+  models:
+    documents: "gpt-5.2"   # For PRD, SDD, Sprint reviews
+    code: "gpt-5.2-codex"  # For code reviews
+  phases:
+    prd: true
+    sdd: true
+    sprint: true
+    code: true             # Per-task code review
+```
+
 ## Registry Integration
 
 Commercial skills from the Loa Constructs Registry (`loa-constructs-api.fly.dev`).

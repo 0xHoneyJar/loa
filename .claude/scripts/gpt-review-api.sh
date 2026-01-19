@@ -155,7 +155,29 @@ call_api() {
   escaped_content=$(printf '%s' "$content" | jq -Rs .)
 
   local payload
-  payload=$(cat <<EOF
+
+  # Codex models use single-message format (no system prompt)
+  if [[ "$model" == *"codex"* ]]; then
+    # For codex: combine system prompt and content into single user message
+    local combined_content
+    combined_content=$(printf '%s\n\n---\n\n## CONTENT TO REVIEW:\n\n%s' "$system_prompt" "$content")
+    local escaped_combined
+    escaped_combined=$(printf '%s' "$combined_content" | jq -Rs .)
+
+    payload=$(cat <<EOF
+{
+  "model": "${model}",
+  "messages": [
+    {"role": "user", "content": ${escaped_combined}}
+  ],
+  "temperature": 0.3,
+  "response_format": {"type": "json_object"}
+}
+EOF
+)
+  else
+    # Standard chat models: use system + user messages
+    payload=$(cat <<EOF
 {
   "model": "${model}",
   "messages": [
@@ -167,6 +189,7 @@ call_api() {
 }
 EOF
 )
+  fi
 
   local attempt=1
   local response http_code
