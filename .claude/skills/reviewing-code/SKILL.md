@@ -341,6 +341,63 @@ Use detailed feedback template with:
 - **Time-bound**: Review completes within session
 </success_criteria>
 
+<documentation_verification>
+## Documentation Verification (Required) (v0.19.0)
+
+**MANDATORY**: Before approving any sprint, verify documentation coherence.
+
+### Pre-Review Check
+
+1. Check for documentation-coherence report:
+   ```bash
+   ls grimoires/loa/a2a/subagent-reports/documentation-coherence-*.md 2>/dev/null
+   ```
+
+2. If report exists, verify status is not `ACTION_REQUIRED`
+
+3. If no report exists, run `/validate docs` or manually verify documentation
+
+### Documentation Checklist
+
+| Item | Blocking? | How to Check |
+|------|-----------|--------------|
+| CHANGELOG entry for each task | **YES** | Search CHANGELOG.md for task keywords |
+| CLAUDE.md for new commands/skills | **YES** | Grep CLAUDE.md for command name |
+| Security code has comments | **YES** | Review auth/validation code |
+| README for user-facing features | No | Check README mentions |
+| Code comments for complex logic | No | Review complex functions |
+| SDD for architecture changes | No | Compare with SDD structure |
+
+### Cannot Approve If
+
+- Documentation-coherence report shows `ACTION_REQUIRED` status
+- CHANGELOG entry missing for any task
+- New command added without CLAUDE.md entry
+- Security code missing explanatory comments
+- Major architecture change without SDD update
+
+### Approval Language
+
+**If documentation is complete:**
+```
+All good
+
+Documentation verification: PASS
+- CHANGELOG: All tasks documented
+- CLAUDE.md: [Updated/N/A]
+- Code comments: Adequate
+```
+
+**If documentation needs work:**
+```
+Changes required
+
+Documentation verification: FAIL
+- Missing CHANGELOG entry for Task X.Y
+- [specific file]: needs comment explaining [logic]
+```
+</documentation_verification>
+
 <subagent_report_check>
 ## Subagent Report Check (v0.16.0)
 

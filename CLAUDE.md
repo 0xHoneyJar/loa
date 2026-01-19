@@ -154,6 +154,7 @@ Specialized validation subagents that can be invoked independently or integrated
 | `architecture-validator` | SDD compliance checking | After implementation | COMPLIANT, DRIFT_DETECTED, CRITICAL_VIOLATION |
 | `security-scanner` | OWASP Top 10 vulnerability detection | After auth/input/API changes | CRITICAL, HIGH, MEDIUM, LOW |
 | `test-adequacy-reviewer` | Test quality assessment | After test implementation | STRONG, ADEQUATE, WEAK, INSUFFICIENT |
+| `documentation-coherence` | Per-task documentation validation | During review/audit/deploy | COHERENT, NEEDS_UPDATE, ACTION_REQUIRED |
 
 ### /validate Command
 
@@ -162,6 +163,7 @@ Specialized validation subagents that can be invoked independently or integrated
 /validate architecture       # Architecture compliance only
 /validate security           # Security scan only
 /validate tests              # Test adequacy only
+/validate docs               # Documentation coherence only
 /validate security src/auth  # Scoped to specific directory
 ```
 
@@ -171,6 +173,7 @@ Specialized validation subagents that can be invoked independently or integrated
 - `CRITICAL_VIOLATION` (architecture)
 - `CRITICAL` or `HIGH` (security)
 - `INSUFFICIENT` (tests)
+- `ACTION_REQUIRED` (documentation)
 
 **Subagent definitions**: `.claude/subagents/`
 

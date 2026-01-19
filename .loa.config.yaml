@@ -460,7 +460,7 @@ continuous_learning:
 run_mode:
   # Master toggle - set to false to disable Run Mode
   # IMPORTANT: Run Mode requires explicit opt-in for safety
-  enabled: false
+  enabled: true
   # Default options for /run command
   defaults:
     # Maximum cycles before circuit breaker trips

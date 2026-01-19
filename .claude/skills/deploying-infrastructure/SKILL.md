@@ -486,6 +486,95 @@ Load full checklists from: `resources/REFERENCE.md`
 - [ ] Team notified
 </checklists>
 
+<release_documentation_verification>
+## Release Documentation Verification (Required) (v0.19.0)
+
+**MANDATORY**: Before any production deployment, verify release documentation is complete.
+
+### Pre-Deployment Documentation Checklist
+
+| Document | Verification | Blocking? |
+|----------|--------------|-----------|
+| CHANGELOG.md | Version set (not [Unreleased]) | **YES** |
+| CHANGELOG.md | All sprint tasks documented | **YES** |
+| CHANGELOG.md | Breaking changes section if applicable | **YES** |
+| README.md | Features match release | **YES** |
+| README.md | Quick start still valid | No |
+| README.md | All links working | No |
+| INSTALLATION.md | Dependencies current | **YES** |
+| INSTALLATION.md | Setup instructions valid | No |
+
+### CHANGELOG Verification
+
+```bash
+# Check version is set
+head -20 CHANGELOG.md | grep -E "^\[?[0-9]+\.[0-9]+\.[0-9]+\]?"
+
+# Verify not still [Unreleased]
+! grep -q "^\## \[Unreleased\]$" CHANGELOG.md || echo "WARNING: Version not finalized"
+```
+
+**Required CHANGELOG sections:**
+- Version number with date
+- Added (new features)
+- Changed (modifications)
+- Fixed (bug fixes)
+- Security (if applicable)
+- Breaking Changes (if applicable)
+
+### README Verification
+
+```bash
+# Check features mentioned match implementation
+grep -c "## Features\|### Features" README.md
+```
+
+**Verify:**
+- [ ] New features listed in Features section
+- [ ] Quick start examples still work
+- [ ] Links to documentation are valid
+- [ ] Version badges updated (if applicable)
+
+### Deployment Documentation
+
+| Document | Location | Purpose |
+|----------|----------|---------|
+| Environment vars | `grimoires/loa/deployment/` | Required env vars listed |
+| Rollback procedure | `grimoires/loa/deployment/runbooks/` | Step-by-step rollback |
+| Health checks | `grimoires/loa/deployment/` | Endpoints to verify |
+| Breaking changes | CHANGELOG.md | Migration steps if needed |
+
+### Operational Readiness
+
+| Check | Location | Blocking? |
+|-------|----------|-----------|
+| Runbook exists | `grimoires/loa/deployment/runbooks/` | No |
+| Monitoring configured | Deployment docs | No |
+| On-call documented | Deployment docs | No |
+| Alerts configured | Monitoring setup | No |
+
+### Cannot Deploy If
+
+- CHANGELOG version still shows [Unreleased]
+- CHANGELOG missing entries for sprint tasks
+- Breaking changes not documented with migration path
+- README features don't match actual release
+- INSTALLATION.md has outdated dependencies
+- Required environment variables not documented
+
+### Release Checklist Addition
+
+Add to your deployment checklist:
+- [ ] CHANGELOG version finalized with date
+- [ ] All features documented in CHANGELOG
+- [ ] README features section updated
+- [ ] README quick start tested
+- [ ] INSTALLATION.md dependencies current
+- [ ] Breaking changes have migration guide
+- [ ] Rollback procedure documented
+- [ ] Environment variables documented
+</release_documentation_verification>
+
 <uncertainty_protocol>
 ## When Facing Uncertainty
 

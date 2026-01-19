@@ -5,6 +5,78 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0] - 2026-01-19
+
+### Why This Release
+
+The **Documentation Coherence** release enforces atomic per-task documentation validation:
+
+1. **Atomic Enforcement**: Every task ships with its documentation - no batching at sprint end
+2. **Integrated Workflow**: documentation-coherence subagent runs during review, audit, and deploy phases
+3. **Clear Blocking Rules**: CHANGELOG missing = blocked; new command without CLAUDE.md = blocked
+
+### Added
+
+#### documentation-coherence Subagent (Sprint 1)
+
+- **`.claude/subagents/documentation-coherence.md`** - Per-task documentation validation
+  - Task type detection: new feature, bug fix, new command, API change, refactor, security fix, config change
+  - Per-task documentation requirements matrix
+  - Severity levels: COHERENT, NEEDS_UPDATE, ACTION_REQUIRED
+  - Escalation rules (missing CHANGELOG → ACTION_REQUIRED)
+  - Task-level and sprint-level report formats
+  - Blocking behavior per trigger documented
+
+#### /validate docs Command (Sprint 1)
+
+- **`/validate docs`** - Run documentation-coherence on demand
+  - `/validate docs --sprint` - Sprint-level verification
+  - `/validate docs --task N` - Specific task verification
+  - Advisory (non-blocking) when run manually
+  - Produces reports at `grimoires/loa/a2a/subagent-reports/`
+
+#### Skill Integrations (Sprint 2)
+
+- **reviewing-code skill**: New "Documentation Verification (Required)" section
+  - Pre-review check for documentation-coherence report
+  - Documentation checklist with blocking criteria
+  - "Cannot Approve If" conditions
+  - Approval/rejection language templates
+
+- **auditing-security skill**: New "Documentation Audit (Required)" section
+  - Sprint documentation coverage verification
+  - Security-specific documentation checks (SECURITY.md, auth docs, API docs)
+  - Red flags for secrets/internal info in docs
+  - Audit checklist additions
+
+- **deploying-infrastructure skill**: New "Release Documentation Verification (Required)" section
+  - Pre-deployment documentation checklist
+  - CHANGELOG verification (version set, all tasks, breaking changes)
+  - README verification (features, quick start, links)
+  - Deployment and operational documentation requirements
+  - "Cannot Deploy If" conditions
+
+#### Tests (Sprint 1-2)
+
+- `tests/unit/documentation-coherence.bats` - 54 unit tests
+  - Task type detection, CHANGELOG verification, severity levels
+  - Report format generation, escalation rules
+- `tests/integration/documentation-coherence.bats` - 31 integration tests
+  - Skill integrations, cross-references, blocking behavior
+
+### Changed
+
+- **CLAUDE.md**: Added documentation-coherence to subagents table
+- **CLAUDE.md**: Added `/validate docs` to commands table
+- **/validate command**: Now includes docs subcommand with options
+
+### PRD/SDD References
+
+- PRD: `grimoires/loa/prd.md` (cycle-006)
+- SDD: `grimoires/loa/sdd.md` (cycle-006)
+
+---
+
 ## [0.18.0] - 2026-01-19
 
 ### Why This Release

@@ -11,6 +11,9 @@ Run intelligent validation subagents to check implementation quality before revi
 /validate architecture          # Run architecture-validator only
 /validate security              # Run security-scanner only
 /validate tests                 # Run test-adequacy-reviewer only
+/validate docs                  # Run documentation-coherence only
+/validate docs --sprint         # Sprint-level documentation verification
+/validate docs --task 2         # Specific task documentation check
 /validate architecture src/api/ # Run on specific scope
 ```
 
@@ -28,6 +31,7 @@ Run intelligent validation subagents to check implementation quality before revi
 | `architecture` | architecture-validator | Verify implementation matches SDD |
 | `security` | security-scanner | Detect security vulnerabilities |
 | `tests` | test-adequacy-reviewer | Assess test quality and coverage |
+| `docs` | documentation-coherence | Validate documentation updated with task |
 | `all` | All of the above | Complete validation suite |
 
 ## Process
@@ -59,6 +63,7 @@ These verdicts stop the workflow and require fixes:
 | architecture-validator | CRITICAL_VIOLATION |
 | security-scanner | CRITICAL, HIGH |
 | test-adequacy-reviewer | INSUFFICIENT |
+| documentation-coherence | ACTION_REQUIRED |
 
 ### Non-Blocking Verdicts
 
@@ -69,6 +74,7 @@ These verdicts are informational:
 | architecture-validator | DRIFT_DETECTED |
 | security-scanner | MEDIUM, LOW |
 | test-adequacy-reviewer | WEAK |
+| documentation-coherence | NEEDS_UPDATE, COHERENT |
 
 ## Examples
 

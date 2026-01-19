@@ -377,6 +377,64 @@ Key sections:
 - Prioritize by exploitability and impact
 </communication_style>
 
+<documentation_audit>
+## Documentation Audit (Required) (v0.19.0)
+
+**MANDATORY**: For sprint audits, verify documentation coverage for all tasks.
+
+### Sprint Documentation Verification
+
+1. **Check task coverage**:
+   ```bash
+   # List all documentation-coherence reports for this sprint
+   ls grimoires/loa/a2a/subagent-reports/documentation-coherence-task-*.md 2>/dev/null
+   ```
+
+2. **Verify each task has documentation report** or manual verification
+
+3. **Check sprint-level report** if available:
+   ```bash
+   cat grimoires/loa/a2a/subagent-reports/documentation-coherence-sprint-*.md 2>/dev/null
+   ```
+
+### Security-Specific Documentation Checks
+
+| Check | What to Verify | Severity |
+|-------|----------------|----------|
+| SECURITY.md | Security considerations documented | HIGH if auth changes |
+| Auth documentation | Login flows, token handling explained | HIGH |
+| API documentation | Endpoints, auth requirements listed | MEDIUM |
+| Crypto operations | Key handling, signing documented | CRITICAL |
+| Secrets handling | No secrets in docs, refs to vault/env | CRITICAL |
+
+### Red Flags for Documentation
+
+| Red Flag | Severity | Action |
+|----------|----------|--------|
+| Internal URLs in docs | HIGH | Remove before public release |
+| Hardcoded credentials in examples | CRITICAL | Replace with placeholders |
+| Detailed internal architecture | MEDIUM | Review for info leakage |
+| Unredacted logs/traces | HIGH | Scrub sensitive data |
+| API keys in code samples | CRITICAL | Use `YOUR_API_KEY` placeholder |
+
+### Cannot Approve If
+
+- Any task missing documentation report (unless manually verified)
+- Security-critical code without explanatory comments
+- Secrets or internal URLs found in documentation
+- Auth/crypto changes without security documentation
+- API changes without endpoint documentation
+
+### Audit Checklist Addition
+
+Add to your audit checklist:
+- [ ] All tasks have documentation-coherence reports
+- [ ] CHANGELOG includes security-related changes
+- [ ] No secrets in documentation or code comments
+- [ ] Security-specific docs updated (SECURITY.md, auth flows)
+- [ ] API documentation matches implementation
+</documentation_audit>
+
 <checklists>
 See `resources/REFERENCE.md` for complete 150+ item checklists across 5 categories:
 - Security (50+ items)
