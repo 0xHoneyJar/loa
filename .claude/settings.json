@@ -441,6 +441,17 @@
           }
         ]
       }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/permission-audit.sh log"
+          }
+        ]
+      }
     ]
   }
 }

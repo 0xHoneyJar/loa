@@ -101,6 +101,19 @@ The **Run Mode** release enables autonomous sprint execution with human-in-the-l
 - `tests/unit/circuit-breaker.bats`: Circuit breaker trigger tests
 - `tests/integration/run-mode.bats`: End-to-end Run Mode tests
 
+#### Permission Audit
+
+- **`.claude/scripts/permission-audit.sh`** - HITL permission request logging
+  - Logs all commands that required human approval
+  - `view`: Display permission request log
+  - `analyze`: Show patterns and frequency
+  - `suggest`: Recommend permissions to add to settings.json
+  - `clear`: Clear the log
+
+- **`/permission-audit`** command for easy access
+
+- **`PermissionRequest` hook** in settings.json enables automatic logging
+
 ### Changed
 
 - **CLAUDE.md**:
@@ -110,6 +123,9 @@ The **Run Mode** release enables autonomous sprint execution with human-in-the-l
   - Added Run Mode commands to workflow commands list
 
 - **`.gitignore`**: Added `.run/` directory (Run Mode state)
+- **`.gitignore`**: Added `permission-requests.jsonl` (user-specific audit log)
+- **`.claude/settings.json`**: Updated to new Claude Code v2.1.12+ hooks format
+- **`.claude/settings.json`**: Added `PermissionRequest` hook for audit logging
 
 ### Security
 

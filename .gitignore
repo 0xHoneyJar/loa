@@ -73,6 +73,10 @@ grimoires/loa/a2a/trajectory/*.jsonl
 # Kept in case /feedback fails to submit to Linear - automatically retried
 grimoires/loa/analytics/pending-feedback.json
 
+# Permission audit log (user-specific HITL approval history)
+# Used by /permission-audit to suggest settings.json additions
+grimoires/loa/analytics/permission-requests.jsonl
+
 # Server audit reports (contain sensitive deployment info)
 grimoires/loa/deployment/SERVER-REALITY-AUDIT.md
 

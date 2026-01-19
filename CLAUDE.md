@@ -605,7 +605,38 @@ ICE **always blocks**:
 ├── context-benchmark.sh      # Context performance benchmarks (v0.11.0)
 ├── rlm-benchmark.sh          # RLM pattern benchmark and validation (v0.15.0)
 ├── anthropic-oracle.sh       # Anthropic updates monitoring (v0.13.0)
-└── check-updates.sh          # Automatic version checking (v0.14.0)
+├── check-updates.sh          # Automatic version checking (v0.14.0)
+└── permission-audit.sh       # Permission request logging and analysis (v0.18.0)
+```
+
+### Permission Audit (v0.18.0)
+
+Logs and analyzes permission requests that required HITL (human-in-the-loop) approval:
+
+```bash
+.claude/scripts/permission-audit.sh view       # View permission request log
+.claude/scripts/permission-audit.sh analyze    # Analyze patterns and frequency
+.claude/scripts/permission-audit.sh suggest    # Get suggestions for settings.json
+.claude/scripts/permission-audit.sh clear      # Clear the log
+```
+
+**Slash Command**: `/permission-audit` for easy access
+
+**How It Works**:
+1. A `PermissionRequest` hook logs every command that requires approval
+2. Log stored at `grimoires/loa/analytics/permission-requests.jsonl`
+3. `suggest` command recommends permissions to add based on frequency
+
+**Example Workflow**:
+```bash
+# After a session with many permission prompts
+/permission-audit suggest
+
+# Output shows frequently requested commands:
+# [suggest] "Bash(flyctl:*)" (12 times)
+# [suggest] "Bash(pm2:*)" (8 times)
+
+# Add suggested permissions to settings.json
 ```
 
 ### Update Check (v0.14.0)
