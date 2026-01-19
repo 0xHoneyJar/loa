@@ -168,8 +168,9 @@
         {
           "global_id": 22,
           "local_label": "sprint-1",
-          "status": "pending",
-          "created": "2026-01-19T02:12:37Z"
+          "status": "in_progress",
+          "created": "2026-01-19T02:12:37Z",
+          "started": "2026-01-19T02:16:31Z"
         },
         {
           "global_id": 23,
@@ -192,5 +193,5 @@
       ]
     }
   ],
-  "last_updated": "2026-01-19T02:12:37Z"
+  "last_updated": "2026-01-19T02:16:31Z"
 }
