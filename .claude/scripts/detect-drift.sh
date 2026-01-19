@@ -19,6 +19,42 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LOA_CONFIG="${PROJECT_ROOT}/.loa.config.yaml"
 
+# =============================================================================
+# SECURITY: Path Validation (HIGH-001 fix)
+# =============================================================================
+# Validates paths to prevent directory traversal attacks.
+
+# Validate path is safe and within project root
+# Args:
+#   $1 - Path to validate (relative to project root)
+# Returns: 0 if safe, 1 if unsafe
+# Outputs: Validated absolute path on stdout
+validate_path_safe() {
+    local base_dir="$1"
+    local path="$2"
+    local resolved
+
+    # Reject obviously malicious patterns
+    if [[ "$path" == *".."* ]] || [[ "$path" == "/"* ]]; then
+        echo "ERROR: Path contains traversal sequence or is absolute: $path" >&2
+        return 1
+    fi
+
+    # Resolve path (don't follow symlinks with -m to avoid TOCTOU)
+    resolved=$(realpath -m "${base_dir}/${path}" 2>/dev/null) || {
+        echo "ERROR: Invalid path: $path" >&2
+        return 1
+    }
+
+    # Ensure within base directory
+    if [[ ! "$resolved" =~ ^"$base_dir" ]]; then
+        echo "ERROR: Path traversal detected: $path resolves to $resolved" >&2
+        return 1
+    fi
+
+    echo "$resolved"
+}
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -70,14 +106,19 @@ check_watched_paths_drift() {
     local has_drift=false
 
     for watch_path in "${WATCH_PATHS[@]}"; do
-        local full_path="${PROJECT_ROOT}/${watch_path}"
+        # SECURITY: Validate path before use (HIGH-001 fix)
+        local full_path
+        full_path=$(validate_path_safe "${PROJECT_ROOT}" "${watch_path}") || {
+            echo -e "${RED}⚠️ Skipping invalid watch path: ${watch_path}${NC}"
+            continue
+        }
 
         if [[ ! -d "${full_path}" ]]; then
             # Directory doesn't exist, skip
             continue
         fi
 
-        # Check git status for this path
+        # Check git status for this path (use validated path)
         local changes=$(cd "${PROJECT_ROOT}" && git status --porcelain "${watch_path}" 2>/dev/null || echo "")
 
         if [[ -n "${changes}" ]]; then

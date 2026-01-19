@@ -24,6 +24,30 @@ SETTINGS_FILE="$PROJECT_ROOT/.claude/settings.json"
 # Ensure log directory exists
 mkdir -p "$LOG_DIR"
 
+# =============================================================================
+# SECURITY: Sensitive Data Sanitization (CRITICAL-003 fix)
+# =============================================================================
+# Redacts credentials and API keys before logging to prevent exposure.
+# Patterns based on common credential formats.
+
+sanitize_sensitive_data() {
+    local input="$1"
+    echo "$input" | sed \
+        -e 's/sk_[a-zA-Z0-9_-]\{20,\}/sk_REDACTED/g' \
+        -e 's/ghp_[a-zA-Z0-9_-]\{36,\}/ghp_REDACTED/g' \
+        -e 's/gho_[a-zA-Z0-9_-]\{36,\}/gho_REDACTED/g' \
+        -e 's/ghs_[a-zA-Z0-9_-]\{36,\}/ghs_REDACTED/g' \
+        -e 's/github_pat_[a-zA-Z0-9_-]\{20,\}/github_pat_REDACTED/g' \
+        -e 's/Bearer [a-zA-Z0-9._-]\{20,\}/Bearer REDACTED/g' \
+        -e 's/Authorization: [^"'\'']*[a-zA-Z0-9._-]\{20,\}/Authorization: REDACTED/gi' \
+        -e 's/api[_-]\?key["'\''[:space:]:=]*[a-zA-Z0-9_-]\{16,\}/api_key: REDACTED/gi' \
+        -e 's/password["'\''[:space:]:=]*[^"'\''[:space:]}\]]\{8,\}/password: REDACTED/gi' \
+        -e 's/secret["'\''[:space:]:=]*[a-zA-Z0-9_-]\{16,\}/secret: REDACTED/gi' \
+        -e 's/token["'\''[:space:]:=]*[a-zA-Z0-9._-]\{20,\}/token: REDACTED/gi' \
+        -e 's/aws_[a-zA-Z_]*_key[_id]*["'\''[:space:]:=]*[A-Z0-9]\{16,\}/aws_key: REDACTED/gi' \
+        -e 's/AKIA[A-Z0-9]\{16\}/AKIA_REDACTED/g'
+}
+
 # Colors (if terminal supports them)
 if [[ -t 1 ]]; then
   RED='\033[0;31m'
@@ -55,13 +79,18 @@ log_permission() {
     command=$(echo "$tool_input" | jq -r '.file_path // ""' 2>/dev/null || echo "")
   fi
 
-  # Create log entry
+  # SECURITY: Sanitize sensitive data before logging (CRITICAL-003 fix)
+  local sanitized_input sanitized_command
+  sanitized_input=$(sanitize_sensitive_data "$tool_input")
+  sanitized_command=$(sanitize_sensitive_data "$command")
+
+  # Create log entry with sanitized data
   local log_entry
   log_entry=$(jq -nc \
     --arg ts "$timestamp" \
     --arg tool "$tool_name" \
-    --arg cmd "$command" \
-    --argjson input "$tool_input" \
+    --arg cmd "$sanitized_command" \
+    --arg input "$sanitized_input" \
     '{timestamp: $ts, tool: $tool, command: $cmd, input: $input}')
 
   # Append to log

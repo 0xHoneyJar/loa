@@ -38,6 +38,23 @@ if [ ! -f "$REGISTRY" ]; then
     exit 1
 fi
 
+# =============================================================================
+# SECURITY: Input Validation (HIGH-002 fix)
+# =============================================================================
+# Validate server/group names to prevent yq injection
+
+# Validate identifier (alphanumeric, dash, underscore only)
+# Args: $1 - identifier to validate
+# Returns: 0 if valid, 1 if invalid
+validate_identifier() {
+    local id="$1"
+    if [[ ! "$id" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo "ERROR: Invalid identifier '$id' - must be alphanumeric with dashes/underscores only" >&2
+        return 1
+    fi
+    return 0
+}
+
 # List all server names with descriptions
 list_servers() {
     echo "Available MCP Servers:"
@@ -49,24 +66,28 @@ list_servers() {
 get_server_info() {
     local server="$1"
 
-    if ! yq -e ".servers.${server}" "$REGISTRY" &>/dev/null; then
+    # SECURITY: Validate server name before use in yq (HIGH-002)
+    validate_identifier "$server" || exit 1
+
+    # Use bracket notation with quoted string for safety
+    if ! yq -e ".servers.[\"${server}\"]" "$REGISTRY" &>/dev/null; then
         echo "ERROR: Server '$server' not found in registry" >&2
         exit 1
     fi
 
     echo "=== $server ==="
     echo ""
-    yq -r ".servers.${server} | \"Name: \(.name)\nDescription: \(.description)\nURL: \(.url)\nDocs: \(.docs)\"" "$REGISTRY"
+    yq -r ".servers.[\"${server}\"] | \"Name: \(.name)\nDescription: \(.description)\nURL: \(.url)\nDocs: \(.docs)\"" "$REGISTRY"
     echo ""
 
     echo "Scopes:"
-    yq -r ".servers.${server}.scopes[] | \"  - \" + ." "$REGISTRY"
+    yq -r ".servers.[\"${server}\"].scopes[] | \"  - \" + ." "$REGISTRY"
     echo ""
 
     # Check if configured
     echo -n "Status: "
     if [ -f "$SETTINGS" ]; then
-        if grep -q "\"${server}\"" "$SETTINGS" 2>/dev/null; then
+        if grep -qF "\"${server}\"" "$SETTINGS" 2>/dev/null; then
             echo "CONFIGURED"
         else
             echo "NOT CONFIGURED"
@@ -80,7 +101,10 @@ get_server_info() {
 get_setup_instructions() {
     local server="$1"
 
-    if ! yq -e ".servers.${server}" "$REGISTRY" &>/dev/null; then
+    # SECURITY: Validate server name before use in yq (HIGH-002)
+    validate_identifier "$server" || exit 1
+
+    if ! yq -e ".servers.[\"${server}\"]" "$REGISTRY" &>/dev/null; then
         echo "ERROR: Server '$server' not found in registry" >&2
         exit 1
     fi
@@ -89,27 +113,30 @@ get_setup_instructions() {
     echo ""
 
     echo "Steps:"
-    yq -r ".servers.${server}.setup.steps[] | \"  - \" + ." "$REGISTRY"
+    yq -r ".servers.[\"${server}\"].setup.steps[] | \"  - \" + ." "$REGISTRY"
     echo ""
 
     echo "Environment Variables:"
-    yq -r ".servers.${server}.setup.env_vars[] | \"  - \" + ." "$REGISTRY"
+    yq -r ".servers.[\"${server}\"].setup.env_vars[] | \"  - \" + ." "$REGISTRY"
     echo ""
 
     echo "Example Configuration:"
-    yq -r ".servers.${server}.setup.config_example" "$REGISTRY"
+    yq -r ".servers.[\"${server}\"].setup.config_example" "$REGISTRY"
 }
 
 # Check if server is configured
 check_server() {
     local server="$1"
 
+    # SECURITY: Validate server name (HIGH-002)
+    validate_identifier "$server" || exit 1
+
     if [ ! -f "$SETTINGS" ]; then
         echo "NO_SETTINGS_FILE"
         exit 1
     fi
 
-    if grep -q "\"${server}\"" "$SETTINGS" 2>/dev/null; then
+    if grep -qF "\"${server}\"" "$SETTINGS" 2>/dev/null; then
         echo "CONFIGURED"
         exit 0
     else
@@ -122,16 +149,19 @@ check_server() {
 list_group() {
     local group="$1"
 
-    if ! yq -e ".groups.${group}" "$REGISTRY" &>/dev/null; then
+    # SECURITY: Validate group name before use in yq (HIGH-002)
+    validate_identifier "$group" || exit 1
+
+    if ! yq -e ".groups.[\"${group}\"]" "$REGISTRY" &>/dev/null; then
         echo "ERROR: Group '$group' not found in registry" >&2
         exit 1
     fi
 
     echo "Group: $group"
-    yq -r ".groups.${group}.description | \"Description: \" + ." "$REGISTRY"
+    yq -r ".groups.[\"${group}\"].description | \"Description: \" + ." "$REGISTRY"
     echo ""
     echo "Servers:"
-    yq -r ".groups.${group}.servers[] | \"  - \" + ." "$REGISTRY"
+    yq -r ".groups.[\"${group}\"].servers[] | \"  - \" + ." "$REGISTRY"
 }
 
 # List all groups
