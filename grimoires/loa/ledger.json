@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "next_sprint_number": 22,
-  "active_cycle": "cycle-004",
+  "active_cycle": "cycle-005",
   "cycles": [
     {
       "id": "cycle-001",
@@ -122,7 +122,7 @@
     {
       "id": "cycle-004",
       "label": "Continuous Learning Skill",
-      "status": "active",
+      "status": "archived",
       "created_at": "2026-01-18T00:00:00Z",
       "sdd": "grimoires/loa/sdd.md",
       "sprints": [
@@ -154,8 +154,18 @@
           "created": "2026-01-18T10:58:21Z",
           "completed": "2026-01-19T12:00:00Z"
         }
-      ]
+      ],
+      "archived_at": "2026-01-19T01:47:16Z",
+      "archive_path": "grimoires/loa/archive/2026-01-18-continuous-learning-skill"
+    },
+    {
+      "id": "cycle-005",
+      "label": "Run Mode - Autonomous Implementation",
+      "status": "active",
+      "created_at": "2026-01-19T01:47:16Z",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": []
     }
   ],
-  "last_updated": "2026-01-19T12:00:00Z"
+  "last_updated": "2026-01-19T01:47:16Z"
 }
