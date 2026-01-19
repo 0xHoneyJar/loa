@@ -418,6 +418,42 @@ update_check:
   upstream_repo: "0xHoneyJar/loa"
 
 # =============================================================================
+# Continuous Learning (v0.17.0)
+# =============================================================================
+# Autonomous skill extraction from debugging discoveries
+continuous_learning:
+  # Master toggle - set to false to disable all continuous learning
+  enabled: true
+  # Auto-extract skills during implementation phases (false = /retrospective only)
+  auto_extract: true
+  # Require manual approval before skills become active
+  require_approval: true
+  # Directories for skill lifecycle management (all in State Zone)
+  skills_dir: grimoires/loa/skills
+  pending_dir: grimoires/loa/skills-pending
+  archive_dir: grimoires/loa/skills-archived
+  # Quality gate thresholds
+  quality_gates:
+    # Minimum discovery depth: 1=any, 2=moderate, 3=significant
+    min_discovery_depth: 2
+    # Require solution verification before extraction
+    require_verification: true
+  # NOTES.md integration
+  notes_integration:
+    # Check NOTES.md for duplicate knowledge before extraction
+    check_notes_md: true
+    # Deduplicate against existing skills
+    deduplicate: true
+  # Pruning settings for /skill-audit --prune
+  pruning:
+    # Archive skills with no matches after N days
+    prune_after_days: 90
+    # Minimum match count to retain skill
+    prune_min_matches: 2
+    # Require confirmation before pruning
+    auto_prune: false
+
+# =============================================================================
 # Behavior Preferences
 # =============================================================================
 preferences:

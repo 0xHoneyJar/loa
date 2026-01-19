@@ -134,6 +134,8 @@ Overrides survive framework updates.
 
 **Ad-hoc**: `/audit`, `/audit-deployment`, `/translate @doc for audience`, `/contribute`, `/update-loa`, `/validate`, `/feedback` (THJ only)
 
+**Continuous Learning** (v0.17.0): `/retrospective`, `/skill-audit`
+
 **THJ Detection** (v0.15.0+): THJ membership is detected via `LOA_CONSTRUCTS_API_KEY` environment variable. No setup required - start with `/plan-and-analyze` immediately after cloning.
 
 **Execution modes**: Foreground (default) or background (`/implement sprint-1 background`)
@@ -170,6 +172,79 @@ Specialized validation subagents that can be invoked independently or integrated
 **Subagent definitions**: `.claude/subagents/`
 
 **Protocol**: See `.claude/protocols/subagent-invocation.md`
+
+## Continuous Learning Skill (v0.17.0)
+
+Autonomous skill extraction that detects non-obvious discoveries during implementation and extracts them into reusable skills.
+
+### Skill Lifecycle
+
+```
+Discovery → Quality Gates → NOTES.md Check → Extract → skills-pending/
+                                                            ↓
+                                               /skill-audit --approve
+                                                            ↓
+                                                        skills/
+```
+
+### Commands
+
+| Command | Purpose | Output |
+|---------|---------|--------|
+| `/retrospective` | Manual skill extraction from session | Pending skills |
+| `/skill-audit --pending` | List skills awaiting approval | Status table |
+| `/skill-audit --approve <name>` | Move skill to active | Confirmation |
+| `/skill-audit --reject <name>` | Archive skill with reason | Confirmation |
+| `/skill-audit --prune` | Review unused skills | Pruning report |
+| `/skill-audit --stats` | Show skill statistics | Usage metrics |
+
+### Quality Gates
+
+All four gates must pass for extraction:
+
+| Gate | Question | Pass Criteria |
+|------|----------|---------------|
+| Discovery Depth | Was this non-obvious? | Multiple investigation steps |
+| Reusability | Will this help future sessions? | Generalizable pattern |
+| Trigger Clarity | Can triggers be precisely described? | Clear error messages |
+| Verification | Was solution tested? | Confirmed working |
+
+### Phase Activation
+
+| Phase | Active | Rationale |
+|-------|--------|-----------|
+| `/implement`, `/review-sprint`, `/audit-sprint` | YES | Primary discovery context |
+| `/deploy-production`, `/ride` | YES | Infrastructure/codebase discoveries |
+| `/plan-and-analyze`, `/architect`, `/sprint-plan` | NO | Planning, not implementation |
+
+### Directory Structure
+
+```
+grimoires/loa/
+├── skills/                # Active extracted skills
+├── skills-pending/        # Awaiting approval
+└── skills-archived/       # Rejected or pruned
+```
+
+### Configuration
+
+```yaml
+# .loa.config.yaml
+continuous_learning:
+  enabled: true
+  auto_extract: true       # false = /retrospective only
+  require_approval: true   # false = skip pending
+  quality_gates:
+    min_discovery_depth: 2 # 1-3 scale
+    require_verification: true
+  pruning:
+    prune_after_days: 90
+    prune_min_matches: 2
+```
+
+**Skill definition**: `.claude/skills/continuous-learning/`
+
+**Protocol**: See `.claude/protocols/continuous-learning.md`
 
 ## Key Protocols
 

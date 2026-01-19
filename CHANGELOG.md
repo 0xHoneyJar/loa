@@ -5,6 +5,89 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-01-19
+
+### Why This Release
+
+The **Continuous Learning Skill** release enables Loa agents to build compound knowledge over time:
+
+1. **Skill Extraction**: Agents detect non-obvious discoveries during implementation and extract them into reusable skills
+2. **Quality Gates**: Four gates (Discovery Depth, Reusability, Trigger Clarity, Verification) prevent low-value extraction
+3. **Lifecycle Management**: `/retrospective` and `/skill-audit` commands for approval, rejection, and pruning workflows
+
+**Research Foundation**: Based on Voyager (Wang et al., 2023), CASCADE (2024), Reflexion (Shinn et al., 2023), and SEAgent (2025).
+
+### Added
+
+#### Continuous Learning Skill (Sprint 1-2)
+
+- **`.claude/skills/continuous-learning/`** - Core skill definition
+  - `index.yaml`: Skill metadata with triggers and phase activation
+  - `SKILL.md`: KERNEL instructions for discovery detection and extraction
+  - `resources/skill-template.md`: Template for extracted skills
+  - `resources/examples/nats-jetstream-consumer-durable.md`: Example skill
+
+- **`.claude/protocols/continuous-learning.md`** - Evaluation protocol
+  - Four quality gates with pass/fail criteria
+  - Phase gating table (enabled during implement/review/audit/deploy)
+  - Zone compliance rules (State Zone only for extracted skills)
+  - Trajectory logging format
+
+- **State Zone directories** for skill lifecycle:
+  - `grimoires/loa/skills/`: Active extracted skills
+  - `grimoires/loa/skills-pending/`: Skills awaiting approval
+  - `grimoires/loa/skills-archived/`: Rejected or pruned skills
+
+#### Commands (Sprint 3)
+
+- **`/retrospective`** - Manual skill extraction
+  - Five-step workflow: Session Analysis → Quality Gates → Cross-Reference → Extract → Summary
+  - `--scope <agent>`: Limit extraction to specific agent context
+  - `--force`: Skip quality gate prompts
+  - Example conversation flow with output formats
+
+- **`/skill-audit`** - Lifecycle management
+  - `--pending`: List skills awaiting approval
+  - `--approve <name>`: Move skill to active
+  - `--reject <name>`: Archive skill with reason
+  - `--prune`: Review for low-value skills (>90 days, <2 matches)
+  - `--stats`: Show skill usage statistics
+
+#### Configuration & Documentation (Sprint 4)
+
+- **`.loa.config.yaml`**: `continuous_learning` section
+  - `enabled`: Master toggle
+  - `auto_extract`: Enable/disable automatic extraction
+  - `require_approval`: Skip or require pending workflow
+  - `quality_gates.min_discovery_depth`: 1-3 threshold
+  - `pruning.prune_after_days`: Age-based archive threshold
+  - `pruning.prune_min_matches`: Usage-based retention threshold
+
+- **CLAUDE.md**: New "Continuous Learning Skill (v0.17.0)" section
+  - Command reference table
+  - Quality gates documentation
+  - Phase activation table
+  - Configuration examples
+
+#### Tests (Sprint 4)
+
+- `tests/unit/quality-gates.bats`: Quality gate logic validation
+- `tests/unit/zone-compliance.bats`: State Zone write enforcement
+- `tests/integration/retrospective.bats`: End-to-end extraction flow
+- `tests/integration/skill-audit.bats`: Lifecycle management flows
+
+### Changed
+
+- **CLAUDE.md**: Added `/retrospective` and `/skill-audit` to ad-hoc commands
+- **Document flow diagram**: Now includes extracted skills in `grimoires/loa/`
+
+### PRD/SDD References
+
+- PRD: `grimoires/loa/prd.md` (cycle-004)
+- SDD: `grimoires/loa/sdd.md` (cycle-004)
+
+---
+
 ## [0.16.0] - 2026-01-18
 
 ### Why This Release

@@ -150,12 +150,12 @@
         {
           "global_id": 21,
           "local_label": "sprint-4",
-          "status": "planned",
+          "status": "completed",
           "created": "2026-01-18T10:58:21Z",
-          "completed": null
+          "completed": "2026-01-19T12:00:00Z"
         }
       ]
     }
   ],
-  "last_updated": "2026-01-19T10:00:00Z"
+  "last_updated": "2026-01-19T12:00:00Z"
 }
