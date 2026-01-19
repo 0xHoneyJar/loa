@@ -2,6 +2,8 @@
 # Analytics helper functions for Loa framework
 # These functions are designed to work cross-platform and fail gracefully
 
+set -euo pipefail
+
 # Get framework version from package.json or CHANGELOG.md
 get_framework_version() {
     if [ -f "package.json" ]; then
@@ -79,14 +81,17 @@ update_analytics_field() {
     local file="grimoires/loa/analytics/usage.json"
 
     if command -v jq &>/dev/null; then
-        local tmp=$(mktemp)
+        local tmp
+        tmp=$(mktemp)
+        trap "rm -f '$tmp'" EXIT
         jq "$field = $value" "$file" > "$tmp" && mv "$tmp" "$file"
+        trap - EXIT  # Clear trap after successful move
     fi
 }
 
 # Source constructs-lib for is_thj_member() function
 # This is the canonical source for THJ membership detection
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 if [[ -f "${SCRIPT_DIR}/constructs-lib.sh" ]]; then
     source "${SCRIPT_DIR}/constructs-lib.sh"
 fi

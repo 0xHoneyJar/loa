@@ -116,6 +116,42 @@ get_commands_dir() {
 }
 
 # =============================================================================
+# Symlink Validation (Security: M-003)
+# =============================================================================
+
+# Validate that a symlink target resolves within expected directory
+# Args:
+#   $1 - Target path (the path the symlink will point to)
+#   $2 - Expected base directory
+# Returns: 0 if valid, 1 if outside expected directory
+validate_symlink_target() {
+    local target="$1"
+    local expected_base="$2"
+
+    # Get the directory containing the target to resolve relative paths
+    local target_dir
+    target_dir=$(dirname "$target")
+
+    # If the target is relative, it's relative to where the symlink lives
+    # For our use case, constructs symlinks are always relative paths
+    # starting with ../ from .claude/commands or .claude/constructs/skills
+
+    # Check for path traversal attempts beyond constructs
+    if [[ "$target" == *"../.."* ]] && [[ "$target" != *"constructs"* ]]; then
+        print_warning "Symlink target may escape constructs directory: $target"
+        return 1
+    fi
+
+    # Verify target contains expected base path component
+    if [[ "$target" != *"$expected_base"* ]]; then
+        print_warning "Symlink target outside expected directory: $target (expected: $expected_base)"
+        return 1
+    fi
+
+    return 0
+}
+
+# =============================================================================
 # Command Symlinking (Fixes GitHub Issue #21)
 # =============================================================================
 
@@ -168,6 +204,12 @@ symlink_pack_commands() {
                 print_warning "  Skipping $filename: user file exists (not overwriting)"
                 continue
             fi
+        fi
+
+        # Validate symlink target (M-003)
+        if ! validate_symlink_target "$relative_path" "constructs/packs"; then
+            print_warning "  Skipping $filename: symlink validation failed"
+            continue
         fi
 
         # Create symlink
@@ -255,6 +297,12 @@ symlink_pack_skills() {
             rm -f "$target_link"
         elif [[ -d "$target_link" ]]; then
             print_warning "  Skipping skill $skill_name: directory exists"
+            continue
+        fi
+
+        # Validate symlink target (M-003)
+        if ! validate_symlink_target "$relative_path" "packs/$pack_slug/skills"; then
+            print_warning "  Skipping skill $skill_name: symlink validation failed"
             continue
         fi
 

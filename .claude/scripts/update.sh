@@ -48,6 +48,29 @@ yq_to_json() {
   fi
 }
 
+# Validate config file exists and contains valid YAML (L-003)
+validate_config() {
+  local config="$1"
+
+  if [[ ! -f "$config" ]]; then
+    warn "Config file not found: $config (using defaults)"
+    return 1
+  fi
+
+  # Check for valid YAML using yq
+  if yq --version 2>&1 | grep -q "mikefarah"; then
+    if ! yq eval '.' "$config" > /dev/null 2>&1; then
+      err "Invalid YAML in config: $config"
+    fi
+  else
+    if ! yq . "$config" > /dev/null 2>&1; then
+      err "Invalid YAML in config: $config"
+    fi
+  fi
+
+  return 0
+}
+
 check_deps() {
   command -v jq >/dev/null || err "jq is required"
   command -v yq >/dev/null || err "yq is required"
@@ -60,12 +83,16 @@ get_version() {
 }
 
 set_version() {
-  local tmp=$(mktemp)
+  local tmp
+  tmp=$(mktemp)
+  trap "rm -f '$tmp'" RETURN
   jq --arg k "$1" --arg v "$2" '.[$k] = $v' "$VERSION_FILE" > "$tmp" && mv "$tmp" "$VERSION_FILE"
 }
 
 set_version_int() {
-  local tmp=$(mktemp)
+  local tmp
+  tmp=$(mktemp)
+  trap "rm -f '$tmp'" RETURN
   jq --arg k "$1" --argjson v "$2" '.[$k] = $v' "$VERSION_FILE" > "$tmp" && mv "$tmp" "$VERSION_FILE"
 }
 
@@ -220,7 +247,9 @@ run_migrations() {
 
         log "Running migration: $mid (BLOCKING)"
         if bash "$migration"; then
-          local tmp=$(mktemp)
+          local tmp
+          tmp=$(mktemp)
+          trap "rm -f '$tmp'" RETURN
           jq --arg m "$mid" '.migrations_applied += [$m]' "$VERSION_FILE" > "$tmp" && mv "$tmp" "$VERSION_FILE"
           log "Migration $mid completed"
         else
@@ -237,7 +266,7 @@ run_migrations() {
 }
 
 apply_stealth_mode() {
-  if [[ ! -f "$CONFIG_FILE" ]]; then return 0; fi
+  if ! validate_config "$CONFIG_FILE" 2>/dev/null; then return 0; fi
 
   local mode=$(yq_read "$CONFIG_FILE" '.persistence_mode' "standard")
 
@@ -321,7 +350,7 @@ EOF
 
   # Get enforcement level from config
   local enforcement="strict"
-  if [[ -f "$CONFIG_FILE" ]]; then
+  if validate_config "$CONFIG_FILE" 2>/dev/null; then
     enforcement=$(yq_read "$CONFIG_FILE" '.integrity_enforcement' "strict")
   fi
 
@@ -384,7 +413,9 @@ EOF
   set_version "last_sync" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
   # Update integrity verification timestamp
-  local tmp=$(mktemp)
+  local tmp
+  tmp=$(mktemp)
+  trap "rm -f '$tmp'" RETURN
   jq '.integrity.last_verified = "'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"' "$VERSION_FILE" > "$tmp" && mv "$tmp" "$VERSION_FILE"
 
   # === STAGE 8: Generate New Checksums ===
@@ -394,7 +425,7 @@ EOF
   apply_stealth_mode
 
   # === STAGE 10: Regenerate Config Snapshot ===
-  if [[ -f "$CONFIG_FILE" ]]; then
+  if validate_config "$CONFIG_FILE" 2>/dev/null; then
     mkdir -p grimoires/loa/context
     yq_to_json "$CONFIG_FILE" > grimoires/loa/context/config_snapshot.json 2>/dev/null || true
   fi

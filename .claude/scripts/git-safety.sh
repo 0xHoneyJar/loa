@@ -10,6 +10,8 @@
 # Note: Cached detection via .loa-setup-complete removed in v0.15.0
 # THJ membership is now detected via LOA_CONSTRUCTS_API_KEY
 
+set -euo pipefail
+
 # Known Loa template repositories
 KNOWN_TEMPLATES="(0xHoneyJar|thj-dev)/loa"
 
