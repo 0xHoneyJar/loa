@@ -64,6 +64,14 @@ The **Documentation Coherence** release enforces atomic per-task documentation v
 - `tests/integration/documentation-coherence.bats` - 31 integration tests
   - Skill integrations, cross-references, blocking behavior
 
+#### Context Cleanup Script
+
+- **`.claude/scripts/cleanup-context.sh`** - Discovery context cleanup
+  - Automatically called by `/run sprint-plan` on completion
+  - Removes all files from `grimoires/loa/context/` except README.md
+  - Supports `--dry-run` and `--verbose` options
+  - Ensures next development cycle starts with clean context
+
 ### Changed
 
 - **CLAUDE.md**: Added documentation-coherence to subagents table

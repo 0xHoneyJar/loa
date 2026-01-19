@@ -297,6 +297,9 @@ $(generate_deleted_tree)
 
 ```bash
 create_plan_pr() {
+  # 1. Clean context directory for next cycle
+  cleanup_context_directory
+
   local body="## Run Mode Sprint Plan - COMPLETE
 
 ### Summary
@@ -313,6 +316,9 @@ $(generate_deleted_tree)
 ### Test Results
 All tests passing (verified by /audit-sprint for each sprint).
 
+### Context Cleanup
+Discovery context cleaned and ready for next cycle.
+
 ---
 :robot: Generated autonomously with Run Mode
 "
@@ -322,6 +328,34 @@ All tests passing (verified by /audit-sprint for each sprint).
     "$body" \
     --draft
 }
+```
+
+### Context Cleanup
+
+After all sprints complete, the discovery context is cleaned to prepare for the next development cycle:
+
+```bash
+cleanup_context_directory() {
+  # Use the cleanup-context.sh script
+  .claude/scripts/cleanup-context.sh --verbose
+}
+```
+
+**Script**: `.claude/scripts/cleanup-context.sh`
+
+The cleanup script:
+- Removes all files from `grimoires/loa/context/` except `README.md`
+- Removes all subdirectories (e.g., uploaded folders)
+- Can be run manually with `--dry-run` to preview changes
+- Preserves the README.md that explains the directory purpose
+
+**Manual Usage**:
+```bash
+# Preview what would be cleaned
+.claude/scripts/cleanup-context.sh --dry-run --verbose
+
+# Clean context directory
+.claude/scripts/cleanup-context.sh
 ```
 
 ## Output

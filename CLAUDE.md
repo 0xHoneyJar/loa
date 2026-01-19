@@ -609,7 +609,8 @@ ICE **always blocks**:
 ├── rlm-benchmark.sh          # RLM pattern benchmark and validation (v0.15.0)
 ├── anthropic-oracle.sh       # Anthropic updates monitoring (v0.13.0)
 ├── check-updates.sh          # Automatic version checking (v0.14.0)
-└── permission-audit.sh       # Permission request logging and analysis (v0.18.0)
+├── permission-audit.sh       # Permission request logging and analysis (v0.18.0)
+└── cleanup-context.sh        # Discovery context cleanup for cycle completion (v0.19.0)
 ```
 
 ### Permission Audit (v0.18.0)
@@ -641,6 +642,27 @@ Logs and analyzes permission requests that required HITL (human-in-the-loop) app
 
 # Add suggested permissions to settings.json
 ```
+
+### Context Cleanup (v0.19.0)
+
+Cleans discovery context directory after sprint plan completion:
+
+```bash
+.claude/scripts/cleanup-context.sh              # Clean context directory
+.claude/scripts/cleanup-context.sh --dry-run    # Preview what would be deleted
+.claude/scripts/cleanup-context.sh --verbose    # Show detailed output
+```
+
+**Automatic**: Called by `/run sprint-plan` on successful completion.
+
+**Manual**: Can be run before starting a new `/plan-and-analyze` cycle.
+
+**Behavior**:
+- Removes all files from `grimoires/loa/context/` except `README.md`
+- Removes all subdirectories (uploaded folders, etc.)
+- Preserves `README.md` that explains the directory purpose
+
+**Why**: After completing a sprint plan, the discovery context (requirements docs, research files) is stale. Cleaning it ensures the next `/plan-and-analyze` cycle starts fresh without polluted context.
 
 ### Update Check (v0.14.0)
 
