@@ -4,7 +4,7 @@ Guidance for Claude Code when working in this repository.
 
 ## Project Overview
 
-Agent-driven development framework that orchestrates the complete product lifecycle using 8 specialized AI agents (skills). Built with enterprise-grade managed scaffolding inspired by AWS Projen, Copier, and Google's ADK.
+Agent-driven development framework that orchestrates the complete product lifecycle using 9 specialized AI agents (skills). Built with enterprise-grade managed scaffolding inspired by AWS Projen, Copier, and Google's ADK.
 
 ## Architecture
 
@@ -22,7 +22,7 @@ Loa uses a managed scaffolding architecture:
 
 ### Skills System
 
-8 agent skills in `.claude/skills/` using 3-level architecture:
+9 agent skills in `.claude/skills/` using 3-level architecture:
 
 | Skill | Role | Output |
 |-------|------|--------|
@@ -34,6 +34,7 @@ Loa uses a managed scaffolding architecture:
 | `auditing-security` | Security Auditor | `SECURITY-AUDIT-REPORT.md` or `a2a/sprint-N/auditor-sprint-feedback.md` |
 | `deploying-infrastructure` | DevOps Architect | `grimoires/loa/deployment/` |
 | `translating-for-executives` | Developer Relations | Executive summaries |
+| `run-mode` | Autonomous Executor | Draft PR + `.run/` state |
 
 ### 3-Level Skill Structure
 
@@ -135,6 +136,8 @@ Overrides survive framework updates.
 **Ad-hoc**: `/audit`, `/audit-deployment`, `/translate @doc for audience`, `/contribute`, `/update-loa`, `/validate`, `/feedback` (THJ only)
 
 **Continuous Learning** (v0.17.0): `/retrospective`, `/skill-audit`
+
+**Run Mode** (v0.18.0): `/run sprint-N`, `/run sprint-plan`, `/run-status`, `/run-halt`, `/run-resume`
 
 **THJ Detection** (v0.15.0+): THJ membership is detected via `LOA_CONSTRUCTS_API_KEY` environment variable. No setup required - start with `/plan-and-analyze` immediately after cloning.
 
@@ -489,6 +492,87 @@ Skills assess context size and split into parallel sub-tasks when needed.
 | deploying-infrastructure | <2,000 | 2,000-5,000 | >5,000 |
 
 Use `.claude/scripts/context-check.sh` for assessment.
+
+## Run Mode (v0.18.0)
+
+Autonomous sprint execution with human-in-the-loop shifted to PR review.
+
+### Commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/run sprint-N` | Execute single sprint autonomously | `/run sprint-1 --max-cycles 10` |
+| `/run sprint-plan` | Execute all sprints sequentially | `/run sprint-plan --from 2 --to 4` |
+| `/run-status` | Display current run progress | `/run-status --json` |
+| `/run-halt` | Gracefully stop execution | `/run-halt --reason "Need review"` |
+| `/run-resume` | Continue from checkpoint | `/run-resume --reset-ice` |
+
+### Safety Model (4-Level Defense)
+
+1. **ICE Layer**: All git operations wrapped with safety checks via `run-mode-ice.sh`
+2. **Circuit Breaker**: Automatic halt on repeated failures or lack of progress
+3. **Opt-In**: Requires explicit `run_mode.enabled: true` in config
+4. **Visibility**: Draft PRs only, deleted files prominently displayed
+
+### State Machine
+
+```
+READY → JACK_IN → RUNNING → COMPLETE/HALTED → JACKED_OUT
+```
+
+### Circuit Breaker Triggers
+
+| Trigger | Default | Description |
+|---------|---------|-------------|
+| Same Issue | 3 | Same finding hash repeated N times |
+| No Progress | 5 | Cycles without file changes |
+| Cycle Limit | 20 | Maximum total cycles |
+| Timeout | 8h | Maximum runtime |
+
+### State Files
+
+All state stored in `.run/` directory (gitignored):
+
+| File | Purpose |
+|------|---------|
+| `state.json` | Run progress, metrics, options |
+| `circuit-breaker.json` | Trigger counts, trip history |
+| `deleted-files.log` | Deletions for PR body |
+| `rate-limit.json` | API call tracking |
+
+### Configuration
+
+```yaml
+# .loa.config.yaml
+run_mode:
+  enabled: false  # IMPORTANT: Explicit opt-in required
+  defaults:
+    max_cycles: 20
+    timeout_hours: 8
+  rate_limiting:
+    calls_per_hour: 100
+  circuit_breaker:
+    same_issue_threshold: 3
+    no_progress_threshold: 5
+  git:
+    branch_prefix: "feature/"
+    create_draft_pr: true
+```
+
+### Protected Operations
+
+ICE **always blocks**:
+- Push to protected branches (main, master, staging, production, etc.)
+- All merge operations
+- Branch deletion
+- PR merge
+
+### Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `run-mode-ice.sh` | Git operation safety wrapper |
+| `check-permissions.sh` | Pre-flight permission validation |
 
 ## Helper Scripts
 

@@ -5,6 +5,128 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] - 2026-01-19
+
+### Why This Release
+
+The **Run Mode** release enables autonomous sprint execution with human-in-the-loop shifted to PR review:
+
+1. **Autonomous Execution**: `/run sprint-N` executes implement → review → audit cycles until all pass
+2. **Safety Controls**: 4-level defense (ICE, Circuit Breaker, Opt-In, Visibility) prevents runaway execution
+3. **Multi-Sprint Support**: `/run sprint-plan` executes entire sprint plans with single PR
+4. **Resumable State**: Checkpoint-based execution allows halt and resume from any point
+
+### Added
+
+#### Run Mode Commands (Sprint 2-3)
+
+- **`/run sprint-N`** - Autonomous single sprint execution
+  - Cycles through implement → review → audit until all pass
+  - Options: `--max-cycles`, `--timeout`, `--branch`, `--dry-run`
+  - Creates draft PR on completion
+  - Never merges or pushes to protected branches
+
+- **`/run sprint-plan`** - Multi-sprint execution
+  - Three-tier sprint discovery (sprint.md → ledger.json → directories)
+  - Options: `--from N`, `--to N` for partial execution
+  - Single PR for entire plan
+  - Graceful failure handling with incomplete PR
+
+- **`/run-status`** - Progress display
+  - Box-formatted run info, metrics, circuit breaker status
+  - Options: `--json`, `--verbose`
+  - Sprint plan progress tree for multi-sprint runs
+
+- **`/run-halt`** - Graceful stop
+  - Completes current phase before stopping
+  - Creates draft PR marked `[INCOMPLETE]`
+  - Options: `--force`, `--reason "..."`
+
+- **`/run-resume`** - Continue from checkpoint
+  - Branch divergence detection
+  - Circuit breaker state check
+  - Options: `--reset-ice`, `--force`
+
+#### Safety Infrastructure (Sprint 1)
+
+- **`.claude/scripts/run-mode-ice.sh`** - Git operation safety wrapper
+  - Blocks push to protected branches (main, master, staging, etc.)
+  - Blocks all merge operations
+  - Blocks branch deletion
+  - Enforces draft-only PR creation
+
+- **`.claude/scripts/check-permissions.sh`** - Permission validation
+  - Verifies required Claude Code permissions
+  - Clear error messages for missing permissions
+
+- **`.claude/protocols/run-mode.md`** - Safety protocol
+  - 4-level defense in depth documentation
+  - State machine transitions
+  - Circuit breaker triggers and thresholds
+
+#### Circuit Breaker (Sprint 2)
+
+- **Same Issue Detection**: Hash-based comparison, halts after 3 repetitions
+- **No Progress Detection**: Halts after 5 cycles without file changes
+- **Cycle Limit**: Halts after configurable max cycles (default 20)
+- **Timeout**: Halts after configurable runtime (default 8 hours)
+- **State**: CLOSED (normal) → OPEN (halted), reset with `--reset-ice`
+
+#### State Management (Sprint 2)
+
+- **`.run/state.json`** - Run progress, metrics, cycle history
+- **`.run/circuit-breaker.json`** - Trigger counts, trip history
+- **`.run/deleted-files.log`** - Tracked deletions for PR body
+- **`.run/rate-limit.json`** - Hour boundary API call tracking
+
+#### Skill & Configuration (Sprint 4)
+
+- **`.claude/skills/run-mode/`** - Run Mode skill definition
+  - `index.yaml`: Triggers, inputs, outputs, safety requirements
+  - `SKILL.md`: KERNEL instructions for autonomous execution
+
+- **`.loa.config.yaml`**: `run_mode` section
+  - `enabled`: Master toggle (defaults to `false` for safety)
+  - `defaults.max_cycles`: Maximum cycles before halt
+  - `defaults.timeout_hours`: Maximum runtime
+  - `rate_limiting.calls_per_hour`: API exhaustion prevention
+  - `circuit_breaker.same_issue_threshold`: Repetition tolerance
+  - `circuit_breaker.no_progress_threshold`: Empty cycle tolerance
+  - `git.branch_prefix`: Auto-created branch prefix
+  - `git.create_draft_pr`: Always true (enforced)
+
+#### Tests (Sprint 1-2)
+
+- `tests/unit/run-mode-ice.bats`: ICE wrapper safety tests
+- `tests/unit/circuit-breaker.bats`: Circuit breaker trigger tests
+- `tests/integration/run-mode.bats`: End-to-end Run Mode tests
+
+### Changed
+
+- **CLAUDE.md**:
+  - Updated skill count from 8 to 9
+  - Added Run Mode section with commands, safety model, configuration
+  - Added `run-mode` to skills table
+  - Added Run Mode commands to workflow commands list
+
+- **`.gitignore`**: Added `.run/` directory (Run Mode state)
+
+### Security
+
+- **Explicit Opt-In**: Run Mode disabled by default
+- **ICE Layer**: All git operations wrapped with safety checks
+- **Draft PRs Only**: Never creates ready-for-review PRs
+- **Protected Branches**: Push to main/master/staging always blocked
+- **Merge Block**: Merge operations completely disabled
+- **Deleted File Tracking**: All deletions prominently displayed in PR
+
+### PRD/SDD References
+
+- PRD: `grimoires/loa/prd.md` (cycle-005)
+- SDD: `grimoires/loa/sdd.md` (cycle-005)
+
+---
+
 ## [0.17.0] - 2026-01-19
 
 ### Why This Release

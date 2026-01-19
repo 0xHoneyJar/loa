@@ -50,6 +50,11 @@ temp/
 # This entry remains for backward compatibility with projects using older versions.
 .loa-setup-complete
 
+# Run Mode state (v0.18.0)
+# Contains execution state, circuit breaker, and tracking files
+# Must be preserved locally for resume capability but not committed
+.run/
+
 # User context files (discovery inputs, uploaded docs, extracted content)
 # These are user-specific inputs that should never be committed
 # The README.md is tracked to explain the directory's purpose
