@@ -130,6 +130,7 @@
       "Bash(gh run:*)",
       "Bash(gh api:*)",
       "Bash(mkdir:*)",
+      "Bash(rm:*)",
       "Bash(cp:*)",
       "Bash(mv:*)",
       "Bash(touch:*)",
