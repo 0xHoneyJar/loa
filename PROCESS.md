@@ -6,7 +6,7 @@ This document outlines the comprehensive agent-driven development workflow. Our 
 
 ## Managed Scaffolding Architecture
 
-Loa v1.0.0 uses **enterprise-grade managed scaffolding** inspired by AWS Projen, Copier, and Google's ADK:
+Loa v1.1.0 uses **enterprise-grade managed scaffolding** inspired by AWS Projen, Copier, and Google's ADK:
 
 ### Three-Zone Model
 
@@ -875,13 +875,13 @@ For existing codebases that need Loa analysis without going through the full dis
 4. Initializes State Zone (`grimoires/loa/`)
 5. Generates checksums for integrity verification
 6. Creates user config if not present
-7. Optionally initializes Beads
+7. Optionally initializes beads_rust
 
 **Command**:
 ```bash
 /mount
 /mount --stealth          # Don't commit framework files
-/mount --skip-beads       # Skip Beads initialization
+/mount --skip-beads       # Skip beads_rust initialization
 ```
 
 **Output**: Framework installed with zone structure ready
@@ -1360,7 +1360,7 @@ When resuming interrupted work:
 
 1. Read NOTES.md Session Continuity section
 2. Check git status for uncommitted changes
-3. Run `bd ready` if using Beads
+3. Run `br ready` if using beads_rust
 4. Verify last test run status
 5. Resume from documented checkpoint
 

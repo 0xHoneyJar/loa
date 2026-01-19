@@ -195,17 +195,17 @@ else
 fi
 ```
 
-### Step 7: Initialize Beads (Optional)
+### Step 7: Initialize beads_rust (Optional)
 
 ```bash
-if command -v bd &> /dev/null; then
-  if [[ ! -f ".beads/graph.jsonl" ]]; then
-    bd init --quiet 2>/dev/null && echo "✓ Beads initialized"
+if command -v br &> /dev/null; then
+  if [[ ! -f ".beads/beads.db" ]]; then
+    br init --quiet 2>/dev/null && echo "✓ beads_rust initialized"
   else
-    echo "✓ Beads already initialized"
+    echo "✓ beads_rust already initialized"
   fi
 else
-  echo "⚠️ Beads CLI not found - skipping (install: https://github.com/steveyegge/beads)"
+  echo "⚠️ beads_rust (br) not found - skipping (install: .claude/scripts/beads/install-br.sh)"
 fi
 ```
 

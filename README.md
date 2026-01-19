@@ -1,8 +1,8 @@
 # Loa
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.1-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
-[![Release](https://img.shields.io/badge/release-Run%20Mode%20AI-purple.svg)](CHANGELOG.md#100---2026-01-19--run-mode-ai-autonomous-initiation)
+[![Release](https://img.shields.io/badge/release-beads__rust%20Migration-purple.svg)](CHANGELOG.md#110---2026-01-20--beads_rust-migration)
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
 
@@ -16,7 +16,7 @@ Before using Loa, ensure you have:
 |------|----------|---------|---------|
 | [Claude Code](https://claude.ai/code) | **Yes** | AI agent runtime | `npm install -g @anthropic-ai/claude-code` |
 | [bats-core](https://github.com/bats-core/bats-core) | No | Test runner for shell scripts | `brew install bats-core` / `apt install bats` |
-| [Beads](https://github.com/0xHoneyJar/beads) | Recommended | Persistent task graph across sessions | See [Beads installation](https://github.com/0xHoneyJar/beads#installation) |
+| [beads_rust](https://github.com/Dicklesworthstone/beads_rust) | Recommended | Persistent task graph across sessions | `.claude/scripts/beads/install-br.sh` |
 | [ck](https://github.com/0xHoneyJar/ck) | Recommended | Semantic code search | `cargo install ck-search` |
 | [yq](https://github.com/mikefarah/yq) | Recommended | YAML processing | `brew install yq` / `apt install yq` |
 | [jq](https://stedolan.github.io/jq/) | Recommended | JSON processing | `brew install jq` / `apt install jq` |
@@ -171,29 +171,30 @@ Agents maintain persistent working memory in `grimoires/loa/NOTES.md`:
 - Tracks technical debt, blockers, decisions
 - Enables continuity across sessions
 
-### Beads: Persistent Task Graph
+### beads_rust: Persistent Task Graph
 
-[Beads](https://github.com/0xHoneyJar/beads) provides a persistent task graph that survives context compaction:
+[beads_rust](https://github.com/Dicklesworthstone/beads_rust) provides a persistent task graph that survives context compaction:
 
 ```bash
-# Install Beads CLI
-# See: https://github.com/0xHoneyJar/beads#installation
+# Install beads_rust (br CLI)
+.claude/scripts/beads/install-br.sh
 
 # Initialize in your project
-bd init
+br init
 
 # Common commands
-bd ready                    # Show tasks ready to work (no blockers)
-bd create --title="..." --type=task --priority=2
-bd update <id> --status=in_progress
-bd close <id>
-bd sync --from-main         # Sync beads from main branch
+br ready                    # Show tasks ready to work (no blockers)
+br create "..." --type task --priority 2
+br update <id> --status in_progress
+br close <id>
+br sync --import-only       # Import from JSONL (session start)
+br sync --flush-only        # Export to JSONL (session end)
 ```
 
-When Beads is installed, Loa automatically:
+When beads_rust is installed, Loa automatically:
 - Tracks strategic work across sessions
-- Manages task dependencies and blockers
-- Syncs task state via git hooks
+- Uses semantic labels for task relationships
+- Provides explicit sync control (no auto-commit)
 
 ### ck: Semantic Code Search
 

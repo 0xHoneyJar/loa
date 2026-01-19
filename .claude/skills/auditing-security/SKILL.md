@@ -450,3 +450,45 @@ See `resources/REFERENCE.md` for complete 150+ item checklists across 5 categori
 - Empty catch blocks on security code
 - Hardcoded secrets
 </checklists>
+
+<beads_workflow>
+## Beads Workflow (beads_rust)
+
+When beads_rust (`br`) is installed, use it to record security audit results:
+
+### Session Start
+```bash
+br sync --import-only  # Import latest state from JSONL
+```
+
+### Recording Audit Results
+```bash
+# Add security audit comment to task/sprint epic
+br comments add <task-id> "SECURITY AUDIT: [verdict] - [summary]"
+
+# Mark security status
+br label add <task-id> security                # Has security concerns
+br label add <task-id> security-approved       # Passed audit
+```
+
+### Using Labels for Security Status
+| Label | Meaning | When to Apply |
+|-------|---------|---------------|
+| `security` | Has security-sensitive code | During review |
+| `security-approved` | Passed security audit | After "APPROVED - LETS FUCKING GO" |
+| `security-blocked` | Critical security issue | After "CHANGES_REQUIRED" |
+
+### Logging Discovered Vulnerabilities
+```bash
+# Create security issue discovered during audit
+.claude/scripts/beads/log-discovered-issue.sh "<sprint-epic-id>" "Security: [vulnerability description]" bug 0
+br label add <new-issue-id> security
+```
+
+### Session End
+```bash
+br sync --flush-only  # Export SQLite → JSONL before commit
+```
+
+**Protocol Reference**: See `.claude/protocols/beads-integration.md`
+</beads_workflow>

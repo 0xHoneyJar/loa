@@ -599,6 +599,236 @@ is_constructs_gitignored() {
 }
 
 # =============================================================================
+# SECURITY: Input Validation (MEDIUM-002, MEDIUM-004 fixes)
+# =============================================================================
+# Reusable validation functions for common input types.
+
+# Validate API key format
+# Args:
+#   $1 - API key to validate
+# Returns: 0 if valid, 1 if invalid
+validate_api_key() {
+    local key="$1"
+
+    # Empty check
+    if [[ -z "$key" ]]; then
+        print_error "API key is empty"
+        return 1
+    fi
+
+    # Loa API keys: sk_ prefix followed by 32 alphanumeric characters
+    if [[ ! "$key" =~ ^sk_[a-zA-Z0-9]{32}$ ]]; then
+        print_error "Invalid API key format (expected sk_ followed by 32 alphanumeric chars)"
+        return 1
+    fi
+
+    return 0
+}
+
+# Validate URL format
+# Args:
+#   $1 - URL to validate
+# Returns: 0 if valid, 1 if invalid
+validate_url() {
+    local url="$1"
+
+    # Basic URL validation (must start with http:// or https://)
+    if [[ ! "$url" =~ ^https?:// ]]; then
+        print_error "Invalid URL format: must start with http:// or https://"
+        return 1
+    fi
+
+    # Reject URLs with shell metacharacters
+    if [[ "$url" =~ [\;\|\&\$\`\\] ]]; then
+        print_error "Invalid URL: contains shell metacharacters"
+        return 1
+    fi
+
+    return 0
+}
+
+# Validate identifier (safe for filesystem and shell use)
+# Args:
+#   $1 - Identifier to validate
+# Returns: 0 if valid, 1 if invalid
+validate_safe_identifier() {
+    local id="$1"
+
+    # Must be non-empty
+    if [[ -z "$id" ]]; then
+        print_error "Identifier cannot be empty"
+        return 1
+    fi
+
+    # Must be alphanumeric with dashes and underscores only
+    # Also allow forward slash for vendor/skill patterns
+    if [[ ! "$id" =~ ^[a-zA-Z0-9/_-]+$ ]]; then
+        print_error "Invalid identifier: must be alphanumeric with dashes/underscores only"
+        return 1
+    fi
+
+    # Cannot start or end with slash
+    if [[ "$id" =~ ^/ ]] || [[ "$id" =~ /$ ]]; then
+        print_error "Invalid identifier: cannot start or end with /"
+        return 1
+    fi
+
+    # Cannot contain ..
+    if [[ "$id" == *".."* ]]; then
+        print_error "Invalid identifier: cannot contain .."
+        return 1
+    fi
+
+    return 0
+}
+
+# Sanitize string for jq use (escape special characters)
+# Args:
+#   $1 - String to sanitize
+# Returns: Sanitized string on stdout
+sanitize_for_jq() {
+    local input="$1"
+    # Use jq's built-in escaping
+    printf '%s' "$input" | jq -Rs '.'
+}
+
+# =============================================================================
+# SECURITY: Content Verification (HIGH-004 fix)
+# =============================================================================
+# SHA256 verification for downloaded content.
+
+# Verify file content hash
+# Args:
+#   $1 - File path to verify
+#   $2 - Expected SHA256 hash (optional - warns if not provided)
+# Returns: 0 if valid/skipped, 1 if mismatch
+verify_content_hash() {
+    local file="$1"
+    local expected_hash="${2:-}"
+
+    # If no hash provided, warn but allow (graceful degradation)
+    if [[ -z "$expected_hash" ]]; then
+        print_warning "  No content hash provided, skipping verification"
+        return 0
+    fi
+
+    # Verify file exists
+    if [[ ! -f "$file" ]]; then
+        print_error "  Cannot verify hash: file not found: $file"
+        return 1
+    fi
+
+    # Calculate SHA256 (portable: works on Linux and macOS)
+    local actual_hash
+    if command -v sha256sum &>/dev/null; then
+        # Linux
+        actual_hash=$(sha256sum "$file" | cut -d' ' -f1)
+    elif command -v shasum &>/dev/null; then
+        # macOS
+        actual_hash=$(shasum -a 256 "$file" | cut -d' ' -f1)
+    else
+        print_warning "  No SHA256 tool available, skipping verification"
+        return 0
+    fi
+
+    # Compare hashes (case-insensitive)
+    if [[ "${actual_hash,,}" != "${expected_hash,,}" ]]; then
+        print_error "  Content hash mismatch!"
+        print_error "    Expected: $expected_hash"
+        print_error "    Got:      $actual_hash"
+        return 1
+    fi
+
+    return 0
+}
+
+# Calculate SHA256 hash of a file
+# Args:
+#   $1 - File path
+# Returns: SHA256 hash on stdout
+calculate_file_hash() {
+    local file="$1"
+
+    if [[ ! -f "$file" ]]; then
+        echo ""
+        return 1
+    fi
+
+    if command -v sha256sum &>/dev/null; then
+        sha256sum "$file" | cut -d' ' -f1
+    elif command -v shasum &>/dev/null; then
+        shasum -a 256 "$file" | cut -d' ' -f1
+    else
+        echo ""
+        return 1
+    fi
+}
+
+# =============================================================================
+# Rate Limiting (LOW-003 fix)
+# =============================================================================
+# Basic rate limiting for API calls.
+
+# Rate limit cache directory
+RATE_LIMIT_DIR="${HOME}/.loa/cache/rate-limit"
+
+# Check rate limit before making API call
+# Args:
+#   $1 - Operation name (e.g., "pack-download")
+#   $2 - Max calls per hour (default: 100)
+# Returns: 0 if allowed, 1 if rate limited
+check_rate_limit() {
+    local operation="${1:-default}"
+    local max_per_hour="${2:-100}"
+    local now
+    local rate_file
+
+    now=$(date +%s)
+    mkdir -p "$RATE_LIMIT_DIR"
+    rate_file="$RATE_LIMIT_DIR/${operation}.count"
+
+    # If no rate file, allow
+    if [[ ! -f "$rate_file" ]]; then
+        echo "$now:1" > "$rate_file"
+        return 0
+    fi
+
+    # Read last check time and count
+    local last_time last_count
+    IFS=':' read -r last_time last_count < "$rate_file"
+
+    # If more than an hour passed, reset
+    local elapsed=$((now - last_time))
+    if [[ $elapsed -gt 3600 ]]; then
+        echo "$now:1" > "$rate_file"
+        return 0
+    fi
+
+    # Increment count
+    last_count=$((last_count + 1))
+
+    # Check if over limit
+    if [[ $last_count -gt $max_per_hour ]]; then
+        local remaining=$((3600 - elapsed))
+        print_warning "Rate limit exceeded for $operation. Try again in $(humanize_duration $remaining)."
+        return 1
+    fi
+
+    # Update count
+    echo "$last_time:$last_count" > "$rate_file"
+    return 0
+}
+
+# Reset rate limit for an operation
+# Args:
+#   $1 - Operation name
+reset_rate_limit() {
+    local operation="${1:-default}"
+    local rate_file="$RATE_LIMIT_DIR/${operation}.count"
+    rm -f "$rate_file"
+}
+
+# =============================================================================
 # Version Comparison (Sprint 5)
 # =============================================================================
 

@@ -180,34 +180,34 @@ Before starting sprint planning, check for optional dependencies that enhance th
 ### Beads Check
 
 ```bash
-.claude/scripts/check-beads.sh --quiet
+.claude/scripts/beads/check-beads.sh --quiet
 ```
 
 **If NOT_INSTALLED**, present HITL gate using AskUserQuestion:
 
 ```
 Pre-flight check...
-⚠️  Optional dependency not installed: Beads (bd CLI)
+⚠️  Optional dependency not installed: beads_rust (br CLI)
 
-Beads provides:
+beads_rust provides:
 - Git-backed task graph (replaces markdown parsing)
-- Dependency tracking (blocks, related, discovered-from)
+- Dependency tracking (blocks) with semantic labels
 - Session persistence across context windows
-- JIT task retrieval with `bd ready`
+- JIT task retrieval with `br ready`
 
 Options:
 1. Install now (recommended)
-   └─ brew install steveyegge/beads/bd
-   └─ npm install -g @beads/bd
+   └─ .claude/scripts/beads/install-br.sh
+   └─ Or: curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/beads_rust/main/install.sh | bash
 
-2. Continue without Beads
+2. Continue without beads_rust
    └─ Sprint plan will use markdown-based tracking
 ```
 
 Use AskUserQuestion with options:
-- "Install Beads" → Show install commands and wait for confirmation
+- "Install beads_rust" → Run install script and wait for confirmation
 - "Continue without" → Proceed with markdown-only workflow
-- "Show more info" → Explain Beads benefits in detail
+- "Show more info" → Explain beads_rust benefits in detail
 
 **If INSTALLED**, proceed silently to Phase 0.
 
@@ -344,3 +344,44 @@ Each sprint includes:
 - **Maintain Flexibility**: Build buffer for unknowns in later sprints
 - **Focus on MVP**: Ruthlessly prioritize essential features
 </planning_principles>
+
+<beads_workflow>
+## Beads Workflow (beads_rust)
+
+When beads_rust (`br`) is installed, use it to track sprint structure:
+
+### Session Start
+```bash
+br sync --import-only  # Import latest state from JSONL
+```
+
+### Creating Sprint Structure
+Use helper scripts for epic and task creation:
+
+```bash
+# Create sprint epic
+EPIC_ID=$(.claude/scripts/beads/create-sprint-epic.sh "Sprint N: Theme" 1)
+
+# Create tasks under epic
+.claude/scripts/beads/create-sprint-task.sh "$EPIC_ID" "Task description" 2 task
+
+# Add blocking dependencies between tasks
+br dep add <blocked-task-id> <blocker-task-id>
+```
+
+### Semantic Labels for Relationships
+Use labels instead of dependency types:
+
+| Relationship | Label | Example |
+|--------------|-------|---------|
+| Sprint membership | `sprint:<n>` | `br label add bd-xxx sprint:1` |
+| Epic association | `epic:<epic-id>` | Auto-added by create-sprint-task.sh |
+| Review status | `needs-review` | `br label add bd-xxx needs-review` |
+
+### Session End
+```bash
+br sync --flush-only  # Export SQLite → JSONL before commit
+```
+
+**Protocol Reference**: See `.claude/protocols/beads-integration.md`
+</beads_workflow>

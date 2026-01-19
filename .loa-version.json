@@ -1,5 +1,5 @@
 {
-  "framework_version": "1.0.0",
+  "framework_version": "1.1.1",
   "schema_version": 2,
   "last_sync": null,
   "zones": {
@@ -7,7 +7,7 @@
     "state": ["grimoires", ".beads", ".ck"],
     "app": ["src", "lib", "app"]
   },
-  "migrations_applied": [],
+  "migrations_applied": ["1.1.0-beads-rust"],
   "integrity": {
     "enforcement": "strict",
     "last_verified": null
@@ -19,11 +19,11 @@
       "install": "cargo install ck-search",
       "purpose": "Semantic code search for enhanced agent precision"
     },
-    "bd": {
+    "br": {
       "version": "any",
       "optional": true,
-      "install": "See https://github.com/steveyegge/beads",
-      "purpose": "Task graph tracking for sprint management"
+      "install": "cargo install beads_rust",
+      "purpose": "Task graph tracking for sprint management (Rust implementation)"
     }
   },
   "binary_fingerprints": {

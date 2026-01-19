@@ -30,6 +30,8 @@ jobs:
             "grimoires/loa/sdd.md"
             "grimoires/loa/sprint.md"
             "grimoires/loa/NOTES.md"
+            "grimoires/loa/ledger.json"
+            "grimoires/loa/ledger.json.bak"
           )
 
           FORBIDDEN_DIRS=(

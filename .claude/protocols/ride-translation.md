@@ -87,7 +87,7 @@ fi
 ls -la grimoires/loa/translations/ 2>/dev/null
 
 # Check Beads for related issues
-bd list --label translation --label drift 2>/dev/null
+br list --label translation --label drift 2>/dev/null
 ```
 
 ### Phase 2: Artifact Discovery
@@ -145,7 +145,7 @@ Create `EXECUTIVE-INDEX.md` with:
 For Strategic Liabilities:
 
 ```bash
-bd create "Strategic Liability: {Issue}" \
+br create "Strategic Liability: {Issue}" \
   -p 1 \
   -l strategic-liability,from-ride,requires-decision \
   -d "Source: hygiene-report.md:L{N}"

@@ -1,16 +1,17 @@
 #!/bin/bash
 # check-beads.sh
-# Purpose: Check if Beads (bd CLI) is installed and offer installation options
+# Purpose: Check if beads_rust (br CLI) is installed and offer installation options
 # Enhanced in Sprint 4 for Ghost/Shadow tracking integration
+# Updated in v0.19.0 for beads_rust migration
 # Usage: ./check-beads.sh [--quiet|--track-ghost|--track-shadow]
 #
 # Exit codes:
-#   0 - Beads is installed (or tracking succeeded)
-#   1 - Beads is not installed (returns install instructions)
+#   0 - beads_rust is installed (or tracking succeeded)
+#   1 - beads_rust is not installed (returns install instructions)
 #   2 - Tracking failed (silent - never blocks workflow)
 #
 # Output (when not installed):
-#   NOT_INSTALLED|brew install steveyegge/beads/bd|npm install -g @beads/bd
+#   NOT_INSTALLED|.claude/scripts/beads/install-br.sh
 
 set -euo pipefail
 
@@ -29,19 +30,21 @@ case "${ACTION}" in
         ;;
 esac
 
-# Check if bd CLI is available
-if command -v bd &> /dev/null; then
+# Check if br CLI is available
+if command -v br &> /dev/null; then
     export LOA_BEADS_AVAILABLE=1
 
-    # If tracking Ghost/Shadow, create Beads task
+    # If tracking Ghost/Shadow, create beads_rust task
     if [[ "${ACTION}" == "--track-ghost" ]] && [[ -n "${FEATURE_NAME}" ]]; then
         # Create Ghost Feature task
-        BEADS_ID=$(bd create "GHOST: ${FEATURE_NAME}" \
+        BEADS_ID=$(br create "GHOST: ${FEATURE_NAME}" \
             --type liability \
             --priority 2 \
             --json 2>/dev/null | jq -r '.id' || echo "")
 
         if [[ -n "${BEADS_ID}" ]]; then
+            # Add ghost label
+            br label add "${BEADS_ID}" ghost 2>/dev/null || true
             echo "${BEADS_ID}"
             exit 0
         else
@@ -59,12 +62,14 @@ if command -v bd &> /dev/null; then
             PRIORITY=3
         fi
 
-        BEADS_ID=$(bd create "SHADOW (${FEATURE_TYPE}): ${FEATURE_NAME}" \
+        BEADS_ID=$(br create "SHADOW (${FEATURE_TYPE}): ${FEATURE_NAME}" \
             --type debt \
             --priority "${PRIORITY}" \
             --json 2>/dev/null | jq -r '.id' || echo "")
 
         if [[ -n "${BEADS_ID}" ]]; then
+            # Add shadow label with type
+            br label add "${BEADS_ID}" "shadow:${FEATURE_TYPE}" 2>/dev/null || true
             echo "${BEADS_ID}"
             exit 0
         else
@@ -88,11 +93,11 @@ else
         exit 2
     fi
 
-    # Beads not installed - return installation options
+    # beads_rust not installed - return installation options
     if [[ "${QUIET}" == true ]]; then
         echo "NOT_INSTALLED"
     else
-        echo "NOT_INSTALLED|brew install steveyegge/beads/bd|npm install -g @beads/bd"
+        echo "NOT_INSTALLED|.claude/scripts/beads/install-br.sh"
     fi
     exit 1
 fi

@@ -1,32 +1,62 @@
 #!/bin/bash
-# Get all tasks under a sprint epic
-# Usage: get-sprint-tasks.sh <sprint-epic-id>
+# Get all tasks associated with a sprint epic
+# Usage: get-sprint-tasks.sh <epic-id> [--status <status>]
 #
-# Returns JSON array of tasks that belong to the specified sprint epic.
-# Tasks are identified by IDs starting with "<epic-id>."
+# Examples:
+#   get-sprint-tasks.sh bd-a1b2              # All tasks in epic
+#   get-sprint-tasks.sh bd-a1b2 --status open  # Only open tasks
+#   get-sprint-tasks.sh bd-a1b2 --ready      # Only ready (unblocked) tasks
+#
+# Part of Loa beads_rust integration
 
 set -euo pipefail
 
 EPIC_ID="${1:-}"
+shift || true
 
-if [[ -z "$EPIC_ID" ]]; then
-    echo "Usage: $0 <sprint-epic-id>" >&2
-    echo "Example: $0 bd-a3f8" >&2
-    exit 1
+# Parse flags
+STATUS=""
+READY_ONLY=false
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --status)
+      STATUS="${2:-}"
+      shift 2 || true
+      ;;
+    --ready)
+      READY_ONLY=true
+      shift
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+if [ -z "$EPIC_ID" ]; then
+  echo "Usage: get-sprint-tasks.sh <epic-id> [--status <status>] [--ready]" >&2
+  echo "" >&2
+  echo "Options:" >&2
+  echo "  --status <status>  Filter by status (open, in_progress, closed)" >&2
+  echo "  --ready            Show only unblocked tasks" >&2
+  exit 1
 fi
 
-# Check if bd is installed
-if ! command -v bd &> /dev/null; then
-    echo "Error: bd (beads) is not installed" >&2
-    echo "Install with: curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash" >&2
-    exit 1
-fi
+# Navigate to project root
+cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
-# Check if jq is installed
-if ! command -v jq &> /dev/null; then
-    echo "Error: jq is not installed" >&2
-    exit 1
-fi
+if [ "$READY_ONLY" = true ]; then
+  # Get ready work filtered by epic
+  br ready --json | jq --arg epic "$EPIC_ID" '[.[] | select(.labels[]? | contains("epic:" + $epic))]'
+else
+  # Build jq filter
+  FILTER="[.[] | select(.labels[]? | contains(\"epic:$EPIC_ID\"))"
 
-# Get tasks under the epic
-bd list --json | jq --arg epic "$EPIC_ID" '[.[] | select(.id | startswith($epic + "."))]'
+  if [ -n "$STATUS" ]; then
+    FILTER="$FILTER | select(.status == \"$STATUS\")"
+  fi
+
+  FILTER="$FILTER]"
+
+  br list --json | jq "$FILTER"
+fi

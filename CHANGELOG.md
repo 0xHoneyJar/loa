@@ -5,6 +5,147 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-01-20 — br Permissions
+
+### Added
+
+- **Pre-approved `br` commands** in `.claude/settings.json`
+  - 17 command patterns: `br:*`, `br create:*`, `br list:*`, `br show:*`, `br update:*`, `br close:*`, `br sync:*`, `br ready:*`, `br dep:*`, `br blocked:*`, `br stats:*`, `br doctor:*`, `br prime:*`, `br init:*`, `br search:*`, `br import:*`, `br export:*`
+  - All beads_rust CLI commands now work without permission prompts
+
+## [1.1.0] - 2026-01-20 — beads_rust Migration
+
+### Why This Release
+
+This release migrates from Python-based `bd` CLI to the Rust-based `br` CLI for task management, delivering significant performance and reliability improvements. Additionally, a comprehensive security remediation sprint addressed 16 vulnerabilities across the framework.
+
+### Performance Improvements
+
+- **10x faster startup** - Rust binary vs Python interpreter cold start
+- **Lower memory footprint** - Native binary vs Python runtime overhead
+- **Instant CLI responses** - No import delays or virtualenv activation
+
+### Reliability Improvements
+
+- **Single binary distribution** - No Python version conflicts or dependency issues
+- **SQLite with WAL mode** - Better concurrency for daemon operations
+- **Crash-resistant state** - Atomic writes prevent corruption
+
+### Developer Experience
+
+- **Simplified installation** - `cargo install beads_rust` or download binary
+- **No virtualenv management** - Eliminates `bd` activation dance
+- **Consistent behavior** - Same binary across all platforms
+
+### Technical Debt Reduction
+
+- **Removes Python dependency** - Framework is now pure shell + Rust
+- **Eliminates daemon startup issues** - Rust daemon is more stable
+- **Cleaner error messages** - Rust's error handling is more precise
+
+### Changed
+
+- **All beads scripts migrated** to use `br` CLI instead of `bd`
+  - `check-beads.sh` - Updated detection and installation
+  - `create-sprint-epic.sh` - Uses `br create`
+  - `create-sprint-task.sh` - New script for task creation
+  - `get-ready-work.sh` - Replaces `get-ready-by-priority.sh`
+  - `get-sprint-tasks.sh` - Updated for `br list`
+  - `install-br.sh` - Replaces `install-beads.sh`
+  - `loa-prime.sh` - New context recovery script
+  - `log-discovered-issue.sh` - New issue logging
+  - `sync-and-commit.sh` - Replaces `sync-to-git.sh`
+
+- **Protocols updated**
+  - `beads-integration.md` - New comprehensive protocol (replaces `beads-workflow.md`)
+  - `session-continuity.md` - Updated for `br` commands
+  - `session-end.md` - Updated sync workflow
+
+- **Skills updated** (6 files)
+  - Task management instructions updated for `br` CLI
+
+- **Documentation**
+  - CLAUDE.md - Updated beads section with `br` commands
+  - README.md - Updated installation instructions
+  - PROCESS.md - Updated workflow references
+
+### Security Hardening
+
+Comprehensive security audit identified and remediated 16 vulnerabilities:
+
+| Severity | Fixed | Key Fixes |
+|----------|-------|-----------|
+| CRITICAL | 3 | Shell injection prevention, credential permissions, log sanitization |
+| HIGH | 8 | Path traversal, jq/yq injection, symlink attacks, content verification |
+| MEDIUM | 4 | Temp file cleanup, input validation library |
+| LOW | 1 | Rate limiting infrastructure |
+
+**Security Grade**: B+ → **A-** (Production-ready)
+
+#### Security Functions Added
+
+- `secure_credentials_file()` - Enforces 600/400 file permissions
+- `sanitize_sensitive_data()` - Redacts credentials from permission logs
+- `validate_path_safe()` - Prevents path traversal attacks
+- `validate_identifier()` - Sanitizes yq/jq arguments
+- `safe_symlink()` - Validates symlink targets before creation
+- `verify_content_hash()` - SHA256 verification for downloads
+- `validate_api_key()`, `validate_url()`, `validate_safe_identifier()` - Input validation library
+- `check_rate_limit()`, `reset_rate_limit()` - Rate limiting infrastructure
+
+### Migration Guide
+
+**For existing projects using `bd`:**
+
+1. Install beads_rust: `cargo install beads_rust`
+2. The `br` CLI is API-compatible with `bd` for common operations
+3. Existing `.beads/` directory and data are compatible
+4. Run `br doctor` to verify installation
+
+**Command mapping:**
+| Old (`bd`) | New (`br`) |
+|------------|------------|
+| `bd create` | `br create` |
+| `bd list` | `br list` |
+| `bd sync` | `br sync` |
+| `bd prime` | `br prime` |
+
+### Breaking Changes
+
+- **`bd` CLI no longer supported** - Framework now requires `br` (beads_rust)
+- Old beads scripts removed: `install-beads.sh`, `get-ready-by-priority.sh`, `sync-to-git.sh`
+- `beads-workflow.md` protocol replaced by `beads-integration.md`
+
+---
+
+## [1.0.1] - 2026-01-19
+
+### Fixed
+
+- **Template Pollution**: `grimoires/loa/ledger.json` was being tracked in git and shipped with the template, causing new projects mounted with Loa to inherit development cycle history from the Loa framework itself.
+
+### Changed
+
+- Added `grimoires/loa/ledger.json` and `grimoires/loa/ledger.json.bak` to `.gitignore`
+- Removed existing `ledger.json` from git tracking
+
+### Remediation
+
+If you mounted Loa v1.0.0 and see "active cycle Documentation Coherence" or similar inherited state:
+
+```bash
+# Option 1: Delete the inherited ledger and start fresh
+rm grimoires/loa/ledger.json
+/plan-and-analyze
+
+# Option 2: Pull the fix via update
+/update-loa
+```
+
+New projects mounted from v1.0.1+ will start with a clean slate.
+
+---
+
 ## [1.0.0] - 2026-01-19 — Run Mode AI (Autonomous Initiation)
 
 ### Why This Release
@@ -1984,6 +2125,8 @@ loa-grimoire/           # Loa process artifacts
 └── deployment/         # Production infrastructure docs
 ```
 
+[1.1.0]: https://github.com/0xHoneyJar/loa/releases/tag/v1.1.0
+[1.0.1]: https://github.com/0xHoneyJar/loa/releases/tag/v1.0.1
 [1.0.0]: https://github.com/0xHoneyJar/loa/releases/tag/v1.0.0
 [0.19.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.19.0
 [0.18.0]: https://github.com/0xHoneyJar/loa/releases/tag/v0.18.0

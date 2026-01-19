@@ -1,26 +1,46 @@
 #!/bin/bash
-# Create a new sprint epic
-# Usage: create-sprint-epic.sh "Sprint N: Description"
+# Create a sprint epic and return its ID
+# Usage: create-sprint-epic.sh "Sprint N: Theme" [priority]
 #
-# Creates a new epic-type issue with priority 1 (Urgent).
-# Returns the created issue as JSON.
+# Examples:
+#   create-sprint-epic.sh "Sprint 1: Foundation"
+#   create-sprint-epic.sh "Sprint 2: Auth System" 0  # P0 priority
+#
+# Part of Loa beads_rust integration
 
 set -euo pipefail
 
 TITLE="${1:-}"
+PRIORITY="${2:-1}"
 
-if [[ -z "$TITLE" ]]; then
-    echo "Usage: $0 \"Sprint N: Description\"" >&2
-    echo "Example: $0 \"Sprint 1: Core Authentication\"" >&2
-    exit 1
+if [ -z "$TITLE" ]; then
+  echo "Usage: create-sprint-epic.sh \"Sprint N: Theme\" [priority]" >&2
+  echo "" >&2
+  echo "Examples:" >&2
+  echo "  create-sprint-epic.sh \"Sprint 1: Foundation\"" >&2
+  echo "  create-sprint-epic.sh \"Sprint 2: Auth\" 0" >&2
+  exit 1
 fi
 
-# Check if bd is installed
-if ! command -v bd &> /dev/null; then
-    echo "Error: bd (beads) is not installed" >&2
-    echo "Install with: curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash" >&2
-    exit 1
+# Navigate to project root
+cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+
+# Create the epic
+RESULT=$(br create "$TITLE" --type epic --priority "$PRIORITY" --json)
+EPIC_ID=$(echo "$RESULT" | jq -r '.id')
+
+if [ -z "$EPIC_ID" ] || [ "$EPIC_ID" = "null" ]; then
+  echo "ERROR: Failed to create epic" >&2
+  echo "$RESULT" >&2
+  exit 1
 fi
 
-# Create epic with priority 1 (urgent for sprint epics)
-bd create "$TITLE" -t epic -p 1 --json
+# Add sprint label for easier querying
+# Extract sprint number from title if present
+SPRINT_NUM=$(echo "$TITLE" | grep -oE 'Sprint [0-9]+' | grep -oE '[0-9]+' || echo "")
+if [ -n "$SPRINT_NUM" ]; then
+  br label add "$EPIC_ID" "sprint:$SPRINT_NUM" 2>/dev/null || true
+fi
+
+echo "Created epic: $EPIC_ID - $TITLE" >&2
+echo "$EPIC_ID"

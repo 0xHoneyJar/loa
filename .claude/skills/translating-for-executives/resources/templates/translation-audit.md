@@ -68,10 +68,14 @@ For each assumption:
 |-------|----------|--------|--------|
 | Strategic Liability: {issue} | P1 | strategic-liability,from-ride | hygiene-report.md:L{N} |
 
-### Bead Creation Commands
+### beads_rust Issue Creation Commands
 
 ```bash
-bd create "{Issue Title}" -p {priority} -l strategic-liability,from-ride,requires-decision -d "Source: {file}:L{N}"
+ISSUE_ID=$(br create "{Issue Title}" --priority {priority} --json | jq -r '.id')
+br label add "$ISSUE_ID" strategic-liability
+br label add "$ISSUE_ID" from-ride
+br label add "$ISSUE_ID" requires-decision
+br comments add "$ISSUE_ID" "Source: {file}:L{N}"
 ```
 
 ---

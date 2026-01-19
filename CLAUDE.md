@@ -362,6 +362,36 @@ Tracks usage for THJ developers - see `.claude/protocols/analytics.md`:
 - OSS users have no analytics tracking
 - Opt-in sharing via `/feedback`
 
+### beads_rust Integration (v0.19.0)
+
+Optional task graph management using beads_rust (`br` CLI). Non-invasive by design:
+
+**Key Properties**:
+- Never touches git (no daemon, no auto-commit)
+- Explicit sync protocol (you control when state is committed)
+- SQLite for fast queries, JSONL for git-friendly diffs
+- Semantic labels for relationships (not rigid dependency types)
+
+**Sync Protocol**:
+```bash
+br sync --import-only    # Session start - import from JSONL
+br sync --flush-only     # Session end - export to JSONL before commit
+```
+
+**Semantic Labels**:
+| Label Pattern | Meaning |
+|--------------|---------|
+| `epic:<id>` | Belongs to epic (replaces parent) |
+| `sprint:<n>` | Belongs to sprint N |
+| `discovered-during:<id>` | Found while working on task |
+| `needs-review` | Awaiting code review |
+| `review-approved` | Passed code review |
+| `security-approved` | Passed security audit |
+
+**Installation**: `.claude/scripts/beads/install-br.sh`
+
+**Protocol Reference**: See `.claude/protocols/beads-integration.md`
+
 ### Sprint Ledger (v0.13.0)
 
 Provides global sprint numbering across multiple development cycles:
@@ -587,7 +617,16 @@ ICE **always blocks**:
 ├── detect-drift.sh           # Code vs docs drift detection
 ├── validate-change-plan.sh   # Pre-implementation validation
 ├── analytics.sh              # Analytics functions (THJ only)
-├── check-beads.sh            # Beads (bd CLI) availability check
+├── beads/                    # beads_rust helper scripts directory
+│   ├── check-beads.sh        # beads_rust (br CLI) availability check
+│   ├── install-br.sh         # Install beads_rust if not present
+│   ├── loa-prime.sh          # Session priming (ready, blocked, recent)
+│   ├── sync-and-commit.sh    # Flush SQLite + optional commit
+│   ├── get-ready-work.sh     # Query ready tasks by priority
+│   ├── create-sprint-epic.sh # Create sprint epic with labels
+│   ├── create-sprint-task.sh # Create task under sprint epic
+│   ├── log-discovered-issue.sh # Log discovered issues with traceability
+│   └── get-sprint-tasks.sh   # Get tasks for a sprint epic
 ├── git-safety.sh             # Template detection
 ├── context-check.sh          # Parallel execution assessment
 ├── preflight.sh              # Pre-flight validation
