@@ -332,11 +332,11 @@ Discovery context cleaned and ready for next cycle.
 
 ### Context Cleanup
 
-After all sprints complete, the discovery context is cleaned to prepare for the next development cycle:
+After all sprints complete, the discovery context is archived and cleaned to prepare for the next development cycle:
 
 ```bash
 cleanup_context_directory() {
-  # Use the cleanup-context.sh script
+  # Use the cleanup-context.sh script (archives before cleaning)
   .claude/scripts/cleanup-context.sh --verbose
 }
 ```
@@ -344,18 +344,26 @@ cleanup_context_directory() {
 **Script**: `.claude/scripts/cleanup-context.sh`
 
 The cleanup script:
-- Removes all files from `grimoires/loa/context/` except `README.md`
-- Removes all subdirectories (e.g., uploaded folders)
-- Can be run manually with `--dry-run` to preview changes
-- Preserves the README.md that explains the directory purpose
+1. **Archives** context files to `{archive-path}/context/`
+2. **Removes** all files from `grimoires/loa/context/` except `README.md`
+3. **Preserves** `README.md` that explains the directory purpose
+
+**Archive Location Priority**:
+1. Active cycle's archive_path from ledger.json
+2. Most recent archived cycle's path
+3. Most recent `grimoires/loa/archive/20*` directory
+4. Fallback dated directory
 
 **Manual Usage**:
 ```bash
-# Preview what would be cleaned
+# Preview what would be archived and cleaned
 .claude/scripts/cleanup-context.sh --dry-run --verbose
 
-# Clean context directory
+# Archive and clean context directory
 .claude/scripts/cleanup-context.sh
+
+# Just delete without archiving (not recommended)
+.claude/scripts/cleanup-context.sh --no-archive
 ```
 
 ## Output

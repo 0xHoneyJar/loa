@@ -645,12 +645,13 @@ Logs and analyzes permission requests that required HITL (human-in-the-loop) app
 
 ### Context Cleanup (v0.19.0)
 
-Cleans discovery context directory after sprint plan completion:
+Archives and cleans discovery context directory after sprint plan completion:
 
 ```bash
-.claude/scripts/cleanup-context.sh              # Clean context directory
-.claude/scripts/cleanup-context.sh --dry-run    # Preview what would be deleted
+.claude/scripts/cleanup-context.sh              # Archive then clean
+.claude/scripts/cleanup-context.sh --dry-run    # Preview without changes
 .claude/scripts/cleanup-context.sh --verbose    # Show detailed output
+.claude/scripts/cleanup-context.sh --no-archive # Just delete (not recommended)
 ```
 
 **Automatic**: Called by `/run sprint-plan` on successful completion.
@@ -658,11 +659,17 @@ Cleans discovery context directory after sprint plan completion:
 **Manual**: Can be run before starting a new `/plan-and-analyze` cycle.
 
 **Behavior**:
-- Removes all files from `grimoires/loa/context/` except `README.md`
-- Removes all subdirectories (uploaded folders, etc.)
-- Preserves `README.md` that explains the directory purpose
+1. **Archive**: Copies all context files to `{archive-path}/context/`
+2. **Clean**: Removes all files from `grimoires/loa/context/` except `README.md`
+3. **Preserve**: `README.md` explaining the directory is always kept
 
-**Why**: After completing a sprint plan, the discovery context (requirements docs, research files) is stale. Cleaning it ensures the next `/plan-and-analyze` cycle starts fresh without polluted context.
+**Archive Location Priority**:
+1. Active cycle's archive_path from ledger.json
+2. Most recent archived cycle's path from ledger.json
+3. Most recent `grimoires/loa/archive/20*` directory
+4. Fallback: `grimoires/loa/archive/{date}-context-archive/`
+
+**Why**: Discovery context is valuable for reference but stale for new work. Archiving preserves it while ensuring fresh context for the next cycle.
 
 ### Update Check (v0.14.0)
 

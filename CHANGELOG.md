@@ -66,11 +66,12 @@ The **Documentation Coherence** release enforces atomic per-task documentation v
 
 #### Context Cleanup Script
 
-- **`.claude/scripts/cleanup-context.sh`** - Discovery context cleanup
+- **`.claude/scripts/cleanup-context.sh`** - Discovery context archive and cleanup
+  - **Archives first**: Copies context to `{archive-path}/context/` before cleaning
   - Automatically called by `/run sprint-plan` on completion
-  - Removes all files from `grimoires/loa/context/` except README.md
-  - Supports `--dry-run` and `--verbose` options
-  - Ensures next development cycle starts with clean context
+  - Smart archive location: uses ledger.json or finds most recent archive
+  - Supports `--dry-run`, `--verbose`, and `--no-archive` options
+  - Preserves valuable discovery context while ensuring fresh start
 
 ### Changed
 
