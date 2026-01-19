@@ -168,21 +168,25 @@
         {
           "global_id": 22,
           "local_label": "sprint-1",
-          "status": "in_progress",
+          "status": "completed",
           "created": "2026-01-19T02:12:37Z",
-          "started": "2026-01-19T02:16:31Z"
+          "started": "2026-01-19T02:16:31Z",
+          "completed": "2026-01-19T03:00:00Z"
         },
         {
           "global_id": 23,
           "local_label": "sprint-2",
-          "status": "pending",
-          "created": "2026-01-19T02:12:37Z"
+          "status": "completed",
+          "created": "2026-01-19T02:12:37Z",
+          "started": "2026-01-19T03:10:00Z",
+          "completed": "2026-01-19T04:00:00Z"
         },
         {
           "global_id": 24,
           "local_label": "sprint-3",
-          "status": "pending",
-          "created": "2026-01-19T02:12:37Z"
+          "status": "in_progress",
+          "created": "2026-01-19T02:12:37Z",
+          "started": "2026-01-19T04:10:00Z"
         },
         {
           "global_id": 25,
