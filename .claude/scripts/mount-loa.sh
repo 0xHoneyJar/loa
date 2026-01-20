@@ -26,6 +26,7 @@ CONFIG_FILE=".loa.config.yaml"
 CHECKSUMS_FILE=".claude/checksums.json"
 SKIP_BEADS=false
 STEALTH_MODE=false
+FORCE_MODE=false
 
 # === Argument Parsing ===
 while [[ $# -gt 0 ]]; do
@@ -42,14 +43,22 @@ while [[ $# -gt 0 ]]; do
       SKIP_BEADS=true
       shift
       ;;
+    --force|-f)
+      FORCE_MODE=true
+      shift
+      ;;
     -h|--help)
       echo "Usage: mount-loa.sh [OPTIONS]"
       echo ""
       echo "Options:"
       echo "  --branch <name>   Loa branch to use (default: main)"
+      echo "  --force, -f       Force remount without prompting (use for curl | bash)"
       echo "  --stealth         Add state files to .gitignore"
       echo "  --skip-beads      Don't install/initialize Beads CLI"
       echo "  -h, --help        Show this help message"
+      echo ""
+      echo "Recovery install (when /update is broken):"
+      echo "  curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash -s -- --force"
       exit 0
       ;;
     *)
@@ -92,9 +101,18 @@ preflight() {
   if [[ -f "$VERSION_FILE" ]]; then
     local existing=$(jq -r '.framework_version // "unknown"' "$VERSION_FILE" 2>/dev/null)
     warn "Loa is already mounted (version: $existing)"
-    read -p "Remount/upgrade? This will reset the System Zone. (y/N) " -n 1 -r
-    echo ""
-    [[ $REPLY =~ ^[Yy]$ ]] || { log "Aborted."; exit 0; }
+    if [[ "$FORCE_MODE" == "true" ]]; then
+      log "Force mode enabled, proceeding with remount..."
+    else
+      # Check if stdin is a terminal (interactive mode)
+      if [[ -t 0 ]]; then
+        read -p "Remount/upgrade? This will reset the System Zone. (y/N) " -n 1 -r
+        echo ""
+        [[ $REPLY =~ ^[Yy]$ ]] || { log "Aborted."; exit 0; }
+      else
+        err "Loa already installed. Use --force flag to remount: curl ... | bash -s -- --force"
+      fi
+    fi
   fi
 
   command -v git >/dev/null || err "git is required"
@@ -418,6 +436,7 @@ main() {
   log "  Enterprise-Grade Managed Scaffolding"
   log "======================================================================="
   log "  Branch: $LOA_BRANCH"
+  [[ "$FORCE_MODE" == "true" ]] && log "  Mode: Force remount"
   echo ""
 
   preflight
