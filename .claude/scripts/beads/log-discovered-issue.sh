@@ -6,9 +6,9 @@
 # "discovered-during:<parent-id>" to maintain traceability.
 #
 # Examples:
-#   log-discovered-issue.sh bd-a1b2 "Found: NPE in auth handler"
-#   log-discovered-issue.sh bd-a1b2 "Tech debt: refactor user service" task 3
-#   log-discovered-issue.sh bd-a1b2 "Security: SQL injection risk" bug 0
+#   log-discovered-issue.sh beads-a1b2 "Found: NPE in auth handler"
+#   log-discovered-issue.sh beads-a1b2 "Tech debt: refactor user service" task 3
+#   log-discovered-issue.sh beads-a1b2 "Security: SQL injection risk" bug 0
 #
 # Part of Loa beads_rust integration
 
@@ -61,7 +61,7 @@ if [ -n "$SPRINT_LABEL" ]; then
 fi
 
 # Optionally copy epic label
-EPIC_LABEL=$(echo "$PARENT_LABELS" | grep -oE 'epic:bd-[a-z0-9]+' | head -1 || echo "")
+EPIC_LABEL=$(echo "$PARENT_LABELS" | grep -oE 'epic:beads-[a-z0-9]+' | head -1 || echo "")
 if [ -n "$EPIC_LABEL" ]; then
   br label add "$NEW_ID" "$EPIC_LABEL" 2>/dev/null || true
 fi

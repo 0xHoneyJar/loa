@@ -3,9 +3,9 @@
 # Usage: get-sprint-tasks.sh <epic-id> [--status <status>]
 #
 # Examples:
-#   get-sprint-tasks.sh bd-a1b2              # All tasks in epic
-#   get-sprint-tasks.sh bd-a1b2 --status open  # Only open tasks
-#   get-sprint-tasks.sh bd-a1b2 --ready      # Only ready (unblocked) tasks
+#   get-sprint-tasks.sh beads-a1b2              # All tasks in epic
+#   get-sprint-tasks.sh beads-a1b2 --status open  # Only open tasks
+#   get-sprint-tasks.sh beads-a1b2 --ready      # Only ready (unblocked) tasks
 #
 # Part of Loa beads_rust integration
 

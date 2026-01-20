@@ -125,10 +125,10 @@ br list --json | jq 'sort_by(.updated_at) | reverse | limit(10; .[])'
 beads_rust supports only **blocking** dependencies: Issue A cannot be closed until Issue B is closed.
 
 ```bash
-# Task bd-xyz is blocked by bd-abc
-br dep add bd-xyz bd-abc
+# Task beads-xyz is blocked by beads-abc
+br dep add beads-xyz beads-abc
 
-# Now bd-xyz won't appear in `br ready` until bd-abc is closed
+# Now beads-xyz won't appear in `br ready` until beads-abc is closed
 ```
 
 ---
@@ -139,9 +139,9 @@ Since beads_rust only supports blocking dependencies, use **labels** for semanti
 
 | Relationship | Label Convention | Example |
 |--------------|------------------|---------|
-| Discovered during work | `discovered-during:<parent-id>` | `discovered-during:bd-a1b2` |
-| Related issue | `related-to:<id>` | `related-to:bd-c3d4` |
-| Part of epic | `epic:<epic-id>` | `epic:bd-sprint3` |
+| Discovered during work | `discovered-during:<parent-id>` | `discovered-during:beads-a1b2` |
+| Related issue | `related-to:<id>` | `related-to:beads-c3d4` |
+| Part of epic | `epic:<epic-id>` | `epic:beads-sprint3` |
 | Sprint membership | `sprint:<n>` | `sprint:3` |
 | Needs review | `needs-review` | - |
 | Review approved | `review-approved` | - |
@@ -248,9 +248,9 @@ br sync --import-only
 ### Project Config (`.beads/config.yaml`)
 
 ```yaml
-# Issue ID prefix (default: "bd")
+# Issue ID prefix (default: "beads")
 id:
-  prefix: "bd"
+  prefix: "beads"
 
 # Default values for new issues
 defaults:
@@ -419,17 +419,17 @@ br sync --import-only
 br ready --json | jq '.[0]'
 
 # Claim task
-br update bd-xxx --status in_progress
+br update beads-xxx --status in_progress
 
 # Log progress
-br comments add bd-xxx "Progress update"
+br comments add beads-xxx "Progress update"
 
 # Discover issue
 br create "Found: bug" --type bug -p 2 --json
-br label add bd-new discovered-during:bd-xxx
+br label add beads-new discovered-during:beads-xxx
 
 # Complete task
-br close bd-xxx --reason "Done: summary"
+br close beads-xxx --reason "Done: summary"
 
 # Session end
 br sync --flush-only

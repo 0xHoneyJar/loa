@@ -127,7 +127,7 @@ Sync Beads when sprint is marked complete.
         "hooks": [
           {
             "type": "command",
-            "command": "bd sync 2>/dev/null || true"
+            "command": "br sync 2>/dev/null || true"
           }
         ]
       }
@@ -233,7 +233,7 @@ Add to `.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "bd sync 2>/dev/null || true"
+            "command": "br sync 2>/dev/null || true"
           }
         ]
       }

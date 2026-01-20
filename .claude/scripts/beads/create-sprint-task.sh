@@ -3,9 +3,9 @@
 # Usage: create-sprint-task.sh <epic-id> "Task title" [priority] [type]
 #
 # Examples:
-#   create-sprint-task.sh bd-a1b2 "Implement auth API" 1
-#   create-sprint-task.sh bd-a1b2 "Fix login bug" 0 bug
-#   create-sprint-task.sh bd-a1b2 "Add OAuth support" 2 feature
+#   create-sprint-task.sh beads-a1b2 "Implement auth API" 1
+#   create-sprint-task.sh beads-a1b2 "Fix login bug" 0 bug
+#   create-sprint-task.sh beads-a1b2 "Add OAuth support" 2 feature
 #
 # Part of Loa beads_rust integration
 
@@ -20,14 +20,14 @@ if [ -z "$EPIC_ID" ] || [ -z "$TITLE" ]; then
   echo "Usage: create-sprint-task.sh <epic-id> \"Task title\" [priority] [type]" >&2
   echo "" >&2
   echo "Arguments:" >&2
-  echo "  epic-id   - Parent epic ID (e.g., bd-a1b2)" >&2
+  echo "  epic-id   - Parent epic ID (e.g., beads-a1b2)" >&2
   echo "  title     - Task title" >&2
   echo "  priority  - 0-4, default: 2" >&2
   echo "  type      - task|bug|feature, default: task" >&2
   echo "" >&2
   echo "Examples:" >&2
-  echo "  create-sprint-task.sh bd-a1b2 \"Implement auth\" 1 task" >&2
-  echo "  create-sprint-task.sh bd-a1b2 \"Fix login bug\" 0 bug" >&2
+  echo "  create-sprint-task.sh beads-a1b2 \"Implement auth\" 1 task" >&2
+  echo "  create-sprint-task.sh beads-a1b2 \"Fix login bug\" 0 bug" >&2
   exit 1
 fi
 

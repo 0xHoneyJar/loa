@@ -168,7 +168,7 @@ Agents MUST update NOTES.md at these points:
 <!-- See: .claude/protocols/session-continuity.md -->
 
 ### Active Context
-- **Current Bead**: bd-x7y8 (Sprint-3 Implementation)
+- **Current Bead**: beads-x7y8 (Sprint-3 Implementation)
 - **Last Checkpoint**: 2024-01-15T14:30:00Z
 - **Reasoning State**: Completed Task 3.1, starting Task 3.2
 
