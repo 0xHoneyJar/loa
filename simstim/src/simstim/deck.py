@@ -18,9 +18,11 @@ from simstim.bridge.permission_queue import (
     PermissionResponse,
 )
 from simstim.bridge.stdout_parser import StdoutParser
+from simstim.config import redact_token_from_string
 from simstim.policies.engine import PolicyEngine
 from simstim.policies.models import PolicyDecision
 from simstim.telegram.bot import SimstimBot
+from simstim.validation import validate_phase_command, sanitize_for_display
 
 if TYPE_CHECKING:
     from simstim.config import SimstimConfig
@@ -334,13 +336,32 @@ class Deck:
     async def _handle_start_phase(self, phase_command: str) -> bool:
         """Handle start phase command from Telegram.
 
+        Security Note: Command validation is performed in bot.py before reaching here,
+        but we perform defense-in-depth validation again (SIMSTIM-002 fix).
+
         Args:
-            phase_command: Loa command to start (e.g., "/implement sprint-1")
+            phase_command: Validated Loa command to start (e.g., "/implement sprint-1")
 
         Returns:
             True if command was sent successfully
         """
-        logger.info("Start phase requested", extra={"command": phase_command})
+        # Defense-in-depth: validate again even though bot.py already validated
+        validation = validate_phase_command(phase_command)
+        if not validation.valid:
+            safe_error = sanitize_for_display(validation.error or "Unknown error")
+            logger.warning(
+                f"Rejected invalid phase command in Deck: {sanitize_for_display(phase_command, 50)}"
+            )
+            await self.bot.send_message(
+                f"⚠️ <b>Invalid Command</b>\n\n"
+                f"Error: {safe_error}"
+            )
+            return False
+
+        # Use the sanitized command
+        safe_command = validation.sanitized or ""
+
+        logger.info("Start phase requested", extra={"command": safe_command})
 
         if not self.monitor or not self.monitor.is_running:
             await self.bot.send_message(
@@ -349,13 +370,13 @@ class Deck:
             )
             return False
 
-        # Inject the command to Loa
-        success = await self.monitor.inject(f"{phase_command}\n")
+        # Inject the validated command to Loa
+        success = await self.monitor.inject(f"{safe_command}\n")
 
         if success:
             await self.bot.send_message(
                 f"🚀 <b>Phase Command Sent</b>\n\n"
-                f"<code>{phase_command}</code>"
+                f"<code>{sanitize_for_display(safe_command)}</code>"
             )
         else:
             await self.bot.send_message(

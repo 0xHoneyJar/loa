@@ -17,7 +17,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from simstim import __version__
-from simstim.config import SimstimConfig, create_default_config, get_default_config_path
+from simstim.config import SimstimConfig, create_default_config, get_default_config_path, redact_token_from_string
 
 app = typer.Typer(
     name="simstim",
@@ -95,7 +95,9 @@ def start(
     try:
         simstim_config = SimstimConfig.from_toml(config_path)
     except Exception as e:
-        typer.echo(f"Configuration error: {e}", err=True)
+        # Redact any tokens from error messages
+        safe_error = redact_token_from_string(str(e))
+        typer.echo(f"Configuration error: {safe_error}", err=True)
         raise typer.Exit(1)
 
     typer.echo(f"Starting Simstim with config: {config_path}")
@@ -214,7 +216,9 @@ def config_cmd(
             SimstimConfig.from_toml(config_path)
             typer.echo(f"Configuration valid: {config_path}")
         except Exception as e:
-            typer.echo(f"Configuration invalid: {e}", err=True)
+            # Redact any tokens from error messages
+            safe_error = redact_token_from_string(str(e))
+            typer.echo(f"Configuration invalid: {safe_error}", err=True)
             raise typer.Exit(1)
         return
 

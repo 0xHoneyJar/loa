@@ -55,6 +55,10 @@ class RateLimiter:
     async def check_rate_limit(self, user_id: int) -> tuple[bool, float | None]:
         """Check if user is within rate limits.
 
+        Security Note (SIMSTIM-006): This method performs constant-time evaluation
+        to prevent timing attacks. Both denial backoff and rate limit are always
+        checked to avoid leaking information about the user's state.
+
         Args:
             user_id: Telegram user ID
 
@@ -67,24 +71,35 @@ class RateLimiter:
             state = self._user_states[user_id]
             now = datetime.now(timezone.utc)
 
-            # Check denial backoff first
-            if state.backoff_until and state.backoff_until > now:
-                wait = (state.backoff_until - now).total_seconds()
-                return False, wait
+            # SECURITY (SIMSTIM-006): Always perform both checks to avoid timing leak
 
-            # Prune old request times
+            # Check denial backoff
+            denial_blocked = bool(state.backoff_until and state.backoff_until > now)
+            denial_wait = (
+                (state.backoff_until - now).total_seconds()
+                if denial_blocked
+                else 0.0
+            )
+
+            # Always prune and check rate limit (constant-time path)
             cutoff = now.timestamp() - 60  # 1 minute window
             state.request_times = [
                 t for t in state.request_times
                 if t.timestamp() > cutoff
             ]
 
-            # Check rate limit
-            if len(state.request_times) >= self._requests_per_minute:
+            rate_limited = len(state.request_times) >= self._requests_per_minute
+            if rate_limited and state.request_times:
                 oldest = state.request_times[0]
-                wait = 60 - (now.timestamp() - oldest.timestamp())
-                return False, max(0.1, wait)
+                rate_wait = 60 - (now.timestamp() - oldest.timestamp())
+            else:
+                rate_wait = 0.0
 
+            # Return based on priority: denial backoff > rate limit
+            if denial_blocked:
+                return False, max(0.1, denial_wait)
+            if rate_limited:
+                return False, max(0.1, rate_wait)
             return True, None
 
     async def record_request(self, user_id: int) -> None:

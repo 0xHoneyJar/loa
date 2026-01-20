@@ -41,60 +41,65 @@ class RiskLevel(Enum):
     CRITICAL = "critical"
 
 
+# Maximum input length to prevent ReDoS (SIMSTIM-004)
+MAX_PATTERN_INPUT_LENGTH = 2000
+
 # Permission prompt patterns (order matters - more specific first)
-# Patterns handle various quote styles and Claude Code output variations
+# Security Note (SIMSTIM-004): Patterns use [^`'\"?]+ instead of .+? to avoid
+# catastrophic backtracking. Each pattern captures characters that are NOT
+# quote marks or question marks, ensuring O(n) matching.
 PERMISSION_PATTERNS: list[tuple[re.Pattern[str], ActionType]] = [
-    # File creation patterns
+    # File creation patterns - use character class for O(n) matching
     (
-        re.compile(r"Create (?:new )?file[s]? (?:in |at )?[`'\""]?(.+?)[`'\""]?\s*\?", re.I),
+        re.compile(r"Create (?:new )?files? (?:in |at )?[`'\"]?([^`'\"?\n]+)[`'\"]?\s*\?", re.I),
         ActionType.FILE_CREATE,
     ),
     (
-        re.compile(r"Write (?:new )?file[s]? (?:to )?[`'\""]?(.+?)[`'\""]?\s*\?", re.I),
+        re.compile(r"Write (?:new )?files? (?:to )?[`'\"]?([^`'\"?\n]+)[`'\"]?\s*\?", re.I),
         ActionType.FILE_CREATE,
     ),
     # File edit patterns
     (
-        re.compile(r"Edit (?:(?:the )?file[s]? )?[`'\""]?(.+?)[`'\""]?\s*\?", re.I),
+        re.compile(r"Edit (?:the )?(?:files? )?[`'\"]?([^`'\"?\n]+)[`'\"]?\s*\?", re.I),
         ActionType.FILE_EDIT,
     ),
     (
-        re.compile(r"Modify (?:(?:the )?file[s]? )?[`'\""]?(.+?)[`'\""]?\s*\?", re.I),
+        re.compile(r"Modify (?:the )?(?:files? )?[`'\"]?([^`'\"?\n]+)[`'\"]?\s*\?", re.I),
         ActionType.FILE_EDIT,
     ),
     (
-        re.compile(r"Update (?:(?:the )?file[s]? )?[`'\""]?(.+?)[`'\""]?\s*\?", re.I),
+        re.compile(r"Update (?:the )?(?:files? )?[`'\"]?([^`'\"?\n]+)[`'\"]?\s*\?", re.I),
         ActionType.FILE_EDIT,
     ),
-    # File delete patterns
+    # File delete patterns - handle "files in" syntax for directories
     (
-        re.compile(r"Delete (?:(?:the )?file[s]? )?[`'\""]?(.+?)[`'\""]?\s*\?", re.I),
+        re.compile(r"Delete (?:the )?(?:files? )?(?:in )?[`'\"]?([^`'\"?\n]+)[`'\"]?\s*\?", re.I),
         ActionType.FILE_DELETE,
     ),
     (
-        re.compile(r"Remove (?:(?:the )?file[s]? )?[`'\""]?(.+?)[`'\""]?\s*\?", re.I),
+        re.compile(r"Remove (?:the )?(?:files? )?(?:in )?[`'\"]?([^`'\"?\n]+)[`'\"]?\s*\?", re.I),
         ActionType.FILE_DELETE,
     ),
     # Bash execute patterns
     (
-        re.compile(r"Run [`'\""]?(.+?)[`'\""]?\s*\?", re.I),
+        re.compile(r"Run [`'\"]?([^`'\"?\n]+)[`'\"]?\s*\?", re.I),
         ActionType.BASH_EXECUTE,
     ),
     (
-        re.compile(r"Execute [`'\""]?(.+?)[`'\""]?\s*\?", re.I),
+        re.compile(r"Execute [`'\"]?([^`'\"?\n]+)[`'\"]?\s*\?", re.I),
         ActionType.BASH_EXECUTE,
     ),
     (
-        re.compile(r"Run (?:command |bash )?[`'\""]?(.+?)[`'\""]?\s*\?", re.I),
+        re.compile(r"Run (?:command |bash )?[`'\"]?([^`'\"?\n]+)[`'\"]?\s*\?", re.I),
         ActionType.BASH_EXECUTE,
     ),
     # MCP tool patterns
     (
-        re.compile(r"Use (?:(?:the )?MCP )?tool [`'\""]?(.+?)[`'\""]?", re.I),
+        re.compile(r"Use (?:the )?(?:MCP )?tool [`'\"]?([^`'\"?\n]+)[`'\"]?", re.I),
         ActionType.MCP_TOOL,
     ),
     (
-        re.compile(r"Call (?:(?:the )?MCP )?tool [`'\""]?(.+?)[`'\""]?", re.I),
+        re.compile(r"Call (?:the )?(?:MCP )?tool [`'\"]?([^`'\"?\n]+)[`'\"]?", re.I),
         ActionType.MCP_TOOL,
     ),
 ]
@@ -185,18 +190,25 @@ class StdoutParser:
     def parse_permission(self, line: str) -> ParsedPermission | None:
         """Parse line for permission prompt.
 
+        Security Note (SIMSTIM-004): Input length is limited to prevent
+        potential ReDoS attacks.
+
         Args:
             line: Line from stdout to parse
 
         Returns:
             ParsedPermission if a permission prompt is detected, None otherwise
         """
+        # SECURITY: Limit input length to prevent ReDoS
+        if len(line) > MAX_PATTERN_INPUT_LENGTH:
+            line = line[:MAX_PATTERN_INPUT_LENGTH]
+
         for pattern, action_type in PERMISSION_PATTERNS:
             match = pattern.search(line)
             if match:
                 return ParsedPermission(
                     action=action_type,
-                    target=match.group(1),
+                    target=match.group(1).strip(),
                     raw_text=line,
                     context_lines=self._context_buffer.copy(),
                 )
@@ -205,12 +217,19 @@ class StdoutParser:
     def parse_phase(self, line: str) -> ParsedPhase | None:
         """Parse line for phase transition.
 
+        Security Note (SIMSTIM-004): Input length is limited to prevent
+        potential ReDoS attacks.
+
         Args:
             line: Line from stdout to parse
 
         Returns:
             ParsedPhase if a phase transition is detected, None otherwise
         """
+        # SECURITY: Limit input length to prevent ReDoS
+        if len(line) > MAX_PATTERN_INPUT_LENGTH:
+            line = line[:MAX_PATTERN_INPUT_LENGTH]
+
         for pattern, phase_type, meta_key in PHASE_PATTERNS:
             match = pattern.search(line)
             if match:

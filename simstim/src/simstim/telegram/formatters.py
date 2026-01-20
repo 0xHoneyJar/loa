@@ -34,14 +34,22 @@ PHASE_EMOJI: dict[str, str] = {
 }
 
 # Default redaction patterns
+# Security Note (SIMSTIM-007): Extended list to cover common credential formats
 DEFAULT_REDACT_PATTERNS = [
-    "password",
-    "secret",
-    "token",
-    "api_key",
-    "private_key",
-    "credential",
-    "auth",
+    # Generic secrets
+    "password", "passwd", "pwd", "secret", "token", "api_key",
+    "apikey", "private_key", "privatekey", "credential", "auth",
+    "bearer", "access_token", "refresh_token",
+    # Cloud providers
+    "aws_access_key", "aws_secret", "azure_key", "gcp_key",
+    "do_token", "digitalocean_token",
+    # Services
+    "github_token", "gitlab_token", "stripe_key", "twilio_key",
+    "sendgrid_key", "mailgun_key", "slack_token", "discord_token",
+    "openai_key", "anthropic_key",
+    # Databases
+    "database_url", "db_password", "mysql_password", "postgres_password",
+    "redis_password", "mongo_password",
 ]
 
 
@@ -67,6 +75,10 @@ def redact_sensitive(
 ) -> str:
     """Redact sensitive information from text.
 
+    Security Note (SIMSTIM-007): Enhanced redaction includes pattern-based
+    detection for structured credentials like JWTs, connection strings,
+    and base64-encoded secrets.
+
     Args:
         text: Text to redact
         patterns: Patterns to redact (uses defaults if None)
@@ -77,6 +89,7 @@ def redact_sensitive(
     patterns = patterns or DEFAULT_REDACT_PATTERNS
     result = text
 
+    # Pattern-based redaction for known keywords
     for pattern in patterns:
         # Match pattern followed by = or : and a value
         result = re.sub(
@@ -92,6 +105,43 @@ def redact_sensitive(
             result,
             flags=re.IGNORECASE,
         )
+
+    # SECURITY (SIMSTIM-007): Structured credential patterns
+
+    # JWT tokens (eyJ... format with three base64 parts)
+    result = re.sub(
+        r'eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+',
+        '***JWT_REDACTED***',
+        result
+    )
+
+    # Connection strings with embedded passwords (scheme://user:pass@host)
+    result = re.sub(
+        r'(\w+://[^:]+:)([^@]+)(@)',
+        r'\1***REDACTED***\3',
+        result
+    )
+
+    # AWS access keys (AKIA followed by 16 alphanumeric chars)
+    result = re.sub(
+        r'AKIA[A-Z0-9]{16}',
+        '***AWS_KEY_REDACTED***',
+        result
+    )
+
+    # Generic API keys (32+ hex characters that look like secrets)
+    result = re.sub(
+        r'(?<![a-zA-Z0-9])[a-fA-F0-9]{32,64}(?![a-zA-Z0-9])',
+        '***HEX_KEY_REDACTED***',
+        result
+    )
+
+    # SSH/RSA private key headers
+    result = re.sub(
+        r'-----BEGIN [A-Z ]+ PRIVATE KEY-----[\s\S]*?-----END [A-Z ]+ PRIVATE KEY-----',
+        '***PRIVATE_KEY_REDACTED***',
+        result
+    )
 
     return result
 

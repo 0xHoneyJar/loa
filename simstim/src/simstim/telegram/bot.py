@@ -2,6 +2,9 @@
 
 Provides the main bot interface for receiving commands and handling
 permission request callbacks.
+
+Security Note: This module handles sensitive bot tokens. All exceptions
+are filtered through redact_token_from_string() before logging.
 """
 
 from __future__ import annotations
@@ -17,6 +20,8 @@ from telegram.ext import (
     ContextTypes,
 )
 
+from simstim.config import redact_token_from_string
+from simstim.validation import validate_phase_command, sanitize_for_display
 from simstim.telegram.formatters import (
     format_permission_request,
     format_phase_notification,
@@ -36,6 +41,32 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
+
+
+class SafeLogger:
+    """Logger wrapper that redacts sensitive tokens from all messages."""
+
+    def __init__(self, logger: logging.Logger):
+        self._logger = logger
+
+    def info(self, msg: str, *args, **kwargs) -> None:
+        self._logger.info(redact_token_from_string(str(msg)), *args, **kwargs)
+
+    def debug(self, msg: str, *args, **kwargs) -> None:
+        self._logger.debug(redact_token_from_string(str(msg)), *args, **kwargs)
+
+    def warning(self, msg: str, *args, **kwargs) -> None:
+        self._logger.warning(redact_token_from_string(str(msg)), *args, **kwargs)
+
+    def error(self, msg: str, *args, **kwargs) -> None:
+        self._logger.error(redact_token_from_string(str(msg)), *args, **kwargs)
+
+    def exception(self, msg: str, *args, **kwargs) -> None:
+        # Redact from exception info as well
+        self._logger.exception(redact_token_from_string(str(msg)), *args, **kwargs)
+
+
+safe_logger = SafeLogger(logger)
 
 
 class SimstimBot:
@@ -76,12 +107,21 @@ class SimstimBot:
         self._denied = 0
 
     async def start(self) -> None:
-        """Initialize and start the bot."""
-        self._app = (
-            Application.builder()
-            .token(self.config.bot_token.get_secret_value())
-            .build()
-        )
+        """Initialize and start the bot.
+
+        Security Note: Token is obtained via get_token_safe() and never logged.
+        """
+        try:
+            self._app = (
+                Application.builder()
+                .token(self.config.get_token_safe())
+                .build()
+            )
+        except Exception as e:
+            # Redact any token from exception before re-raising
+            safe_msg = redact_token_from_string(str(e))
+            safe_logger.error(f"Failed to initialize bot: {safe_msg}")
+            raise RuntimeError(f"Bot initialization failed: {safe_msg}") from None
 
         # Register command handlers
         self._app.add_handler(CommandHandler("start", self._cmd_start))
@@ -100,7 +140,7 @@ class SimstimBot:
         if self._app.updater:
             await self._app.updater.start_polling()
 
-        logger.info("Simstim bot started")
+        safe_logger.info("Simstim bot started")
 
     async def stop(self) -> None:
         """Stop the bot."""
@@ -109,7 +149,7 @@ class SimstimBot:
                 await self._app.updater.stop()
             await self._app.stop()
             await self._app.shutdown()
-            logger.info("Simstim bot stopped")
+            safe_logger.info("Simstim bot stopped")
 
     def set_loa_running(self, running: bool) -> None:
         """Update Loa running status.
@@ -155,16 +195,17 @@ class SimstimBot:
     def _is_authorized(self, user_id: int) -> bool:
         """Check if user is authorized.
 
+        Security Note (SIMSTIM-003): Uses fail-closed authorization.
+        Empty authorized_users list denies all unless allow_anonymous is True.
+
         Args:
             user_id: Telegram user ID
 
         Returns:
             True if user is authorized
         """
-        # If no authorized users configured, allow all
-        if not self.security.authorized_users:
-            return True
-        return user_id in self.security.authorized_users
+        # SECURITY: Delegate to SecurityConfig.is_authorized() which is fail-closed
+        return self.security.is_authorized(user_id)
 
     async def _log_unauthorized(self, user_id: int, action: str) -> None:
         """Log unauthorized access attempt.
@@ -299,7 +340,11 @@ class SimstimBot:
         update: Update,
         context: ContextTypes.DEFAULT_TYPE,
     ) -> None:
-        """Handle /start_phase command."""
+        """Handle /start_phase command.
+
+        Security Note: This command validates all input against an allowlist
+        to prevent command injection (CWE-78 / SIMSTIM-002).
+        """
         if not update.effective_user or not update.message:
             return
 
@@ -328,7 +373,26 @@ class SimstimBot:
             )
             return
 
-        phase_command = " ".join(context.args)
+        raw_command = " ".join(context.args)
+
+        # SECURITY: Validate command against allowlist (SIMSTIM-002 fix)
+        validation = validate_phase_command(raw_command)
+        if not validation.valid:
+            safe_error = sanitize_for_display(validation.error or "Unknown error")
+            safe_logger.warning(
+                f"Rejected invalid phase command from user {update.effective_user.id}: "
+                f"{sanitize_for_display(raw_command, 50)}"
+            )
+            await update.message.reply_text(
+                f"⚠️ <b>Invalid Command</b>\n\n"
+                f"Error: {safe_error}\n\n"
+                f"Only allowlisted Loa commands are accepted.",
+                parse_mode="HTML",
+            )
+            return
+
+        # Use the sanitized command
+        safe_command = validation.sanitized
 
         if not self._on_start_phase:
             await update.message.reply_text(
@@ -336,14 +400,14 @@ class SimstimBot:
             )
             return
 
-        # Send the command
+        # Send the validated command
         await update.message.reply_text(
             f"🚀 <b>Starting Phase</b>\n\n"
-            f"Sending: <code>{phase_command}</code>",
+            f"Sending: <code>{sanitize_for_display(safe_command or '')}</code>",
             parse_mode="HTML",
         )
 
-        await self._on_start_phase(phase_command)
+        await self._on_start_phase(safe_command or "")
 
     async def _cmd_policies(
         self,
@@ -401,7 +465,7 @@ class SimstimBot:
         try:
             callback_data = parse_callback_data(query.data)
         except ValueError as e:
-            logger.warning(f"Invalid callback data: {e}")
+            safe_logger.warning(f"Invalid callback data: {e}")
             return
 
         if callback_data.action in (CallbackAction.APPROVE, CallbackAction.DENY):
@@ -492,7 +556,7 @@ class SimstimBot:
             parse_mode="HTML",
         )
 
-        logger.info(
+        safe_logger.info(
             "Sent permission request",
             extra={
                 "request_id": request.id,
@@ -520,7 +584,7 @@ class SimstimBot:
             parse_mode="HTML",
         )
 
-        logger.info(
+        safe_logger.info(
             "Sent phase notification",
             extra={"phase": phase.phase.value},
         )
