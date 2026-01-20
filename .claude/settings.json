@@ -404,7 +404,6 @@
       "Bash(rm -rf /bin:*)",
       "Bash(rm -rf /sbin:*)",
       "Bash(rm -rf /boot:*)",
-      "Bash(:(){ :|:& };::*)",
       "Bash(fork bomb:*)",
       "Bash(curl*|*bash:*)",
       "Bash(curl*|*sh:*)",
@@ -421,8 +420,8 @@
       "Bash(parted:*)",
       "Bash(chmod -R 777 /:*)",
       "Bash(chmod -R 777 /*:*)",
-      "Bash(chown -R:*:/)",
-      "Bash(chown -R:*:/*)",
+      "Bash(chown -R * /)",
+      "Bash(chown -R * /*)",
       "Bash(passwd:*)",
       "Bash(useradd:*)",
       "Bash(userdel:*)",
@@ -441,10 +440,8 @@
       "Bash(iptables -F:*)",
       "Bash(iptables -X:*)",
       "Bash(ufw disable:*)",
-      "Bash(eval \"$(curl:*)",
-      "Bash(eval \"$(wget:*)",
-      "Bash(eval $(curl:*)",
-      "Bash(eval $(wget:*)"
+      "Bash(eval *curl*)",
+      "Bash(eval *wget*)"
     ]
   },
   "hooks": {
