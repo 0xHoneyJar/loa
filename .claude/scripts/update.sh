@@ -14,6 +14,37 @@ UPSTREAM_REPO="${LOA_UPSTREAM:-https://github.com/0xHoneyJar/loa.git}"
 UPSTREAM_BRANCH="${LOA_BRANCH:-main}"
 LOA_REMOTE_NAME="loa-upstream"
 
+# === Global Cleanup (HIGH-004: Comprehensive trap handlers) ===
+# Track temp files for cleanup on interrupt
+declare -a _TEMP_FILES=()
+declare -a _TEMP_DIRS=()
+
+_cleanup_on_exit() {
+    local exit_code=$?
+    # Clean up temp files
+    for f in "${_TEMP_FILES[@]:-}"; do
+        [[ -n "$f" ]] && rm -f "$f" 2>/dev/null || true
+    done
+    # Clean up temp directories
+    for d in "${_TEMP_DIRS[@]:-}"; do
+        [[ -n "$d" ]] && rm -rf "$d" 2>/dev/null || true
+    done
+    exit $exit_code
+}
+
+# Register cleanup for all exit signals
+trap _cleanup_on_exit EXIT INT TERM
+
+# Helper to register a temp file for cleanup
+_register_temp_file() {
+    _TEMP_FILES+=("$1")
+}
+
+# Helper to register a temp dir for cleanup
+_register_temp_dir() {
+    _TEMP_DIRS+=("$1")
+}
+
 # === Colors ===
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -85,14 +116,14 @@ get_version() {
 set_version() {
   local tmp
   tmp=$(mktemp)
-  trap "rm -f '$tmp'" RETURN
+  _register_temp_file "$tmp"
   jq --arg k "$1" --arg v "$2" '.[$k] = $v' "$VERSION_FILE" > "$tmp" && mv "$tmp" "$VERSION_FILE"
 }
 
 set_version_int() {
   local tmp
   tmp=$(mktemp)
-  trap "rm -f '$tmp'" RETURN
+  _register_temp_file "$tmp"
   jq --arg k "$1" --argjson v "$2" '.[$k] = $v' "$VERSION_FILE" > "$tmp" && mv "$tmp" "$VERSION_FILE"
 }
 
