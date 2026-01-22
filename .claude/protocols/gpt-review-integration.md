@@ -84,17 +84,51 @@ gpt_review:
 ## Review Loop
 
 ```
-Iteration 1: First review
+Iteration 1: gpt-review-api.sh <type> <file>
+    → Save response to /tmp/gpt-review-findings-1.json
     ↓
 CHANGES_REQUIRED? → Fix issues
     ↓
-Iteration 2: Re-review with previous findings
+Iteration 2: gpt-review-api.sh <type> <file> --iteration 2 --previous /tmp/gpt-review-findings-1.json
+    → Save response to /tmp/gpt-review-findings-2.json
     ↓
 CHANGES_REQUIRED? → Fix issues
     ↓
-Iteration 3: Re-review
+Iteration 3: gpt-review-api.sh <type> <file> --iteration 3 --previous /tmp/gpt-review-findings-2.json
     ↓
 APPROVED (or auto-approve at max_iterations)
+```
+
+### Iteration Parameters (CRITICAL)
+
+**For re-reviews (iteration 2+), ALWAYS pass these parameters:**
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| `--iteration N` | Tells GPT which iteration this is | `--iteration 2` |
+| `--previous <file>` | Previous findings for context | `--previous /tmp/gpt-review-findings-1.json` |
+
+**Why this matters:**
+- `{{ITERATION}}` is substituted into the re-review prompt
+- `{{PREVIOUS_FINDINGS}}` gives GPT the full context of what it found before
+- Without these, GPT re-reviews from scratch and may find the same issues again
+
+### Tracking Iterations
+
+Skills must track iteration number and save findings between reviews:
+
+```bash
+# First review
+response=$(.claude/scripts/gpt-review-api.sh "$type" "$file")
+echo "$response" > /tmp/gpt-review-findings-1.json
+iteration=1
+
+# After fixing, re-review
+iteration=$((iteration + 1))
+response=$(.claude/scripts/gpt-review-api.sh "$type" "$file" \
+  --iteration "$iteration" \
+  --previous "/tmp/gpt-review-findings-$((iteration - 1)).json")
+echo "$response" > "/tmp/gpt-review-findings-${iteration}.json"
 ```
 
 The re-review prompt focuses on:
@@ -117,7 +151,7 @@ The re-review prompt focuses on:
 
 ## Skill Integration
 
-Each skill adds a minimal section (~10 lines):
+Each skill includes a `<gpt_review>` section with iteration tracking:
 
 ```markdown
 <gpt_review>
@@ -126,10 +160,29 @@ Each skill adds a minimal section (~10 lines):
 After [completing work], run GPT cross-model review:
 
 \`\`\`bash
-/gpt-review <type>
+# First review (iteration 1)
+response=$(.claude/scripts/gpt-review-api.sh <type> <file>)
+echo "$response" > /tmp/gpt-review-findings-1.json
+verdict=$(echo "$response" | jq -r '.verdict')
+iteration=1
 \`\`\`
 
-The command handles everything.
+**Handle the verdict:**
+- \`SKIPPED\` → Continue (review is disabled)
+- \`APPROVED\` → Continue with next step
+- \`CHANGES_REQUIRED\` → Fix issues, then re-run with iteration tracking
+
+**CRITICAL - Iteration Tracking for Re-Reviews:**
+
+\`\`\`bash
+# After fixing issues, run iteration 2+
+iteration=$((iteration + 1))
+response=$(.claude/scripts/gpt-review-api.sh <type> <file> \\
+  --iteration "$iteration" \\
+  --previous "/tmp/gpt-review-findings-$((iteration - 1)).json")
+echo "$response" > "/tmp/gpt-review-findings-\${iteration}.json"
+verdict=$(echo "$response" | jq -r '.verdict')
+\`\`\`
 </gpt_review>
 ```
 
@@ -138,6 +191,11 @@ Skills don't need to know about:
 - API calls (script handles it)
 - Retry logic (script handles it)
 - Prompt loading (script handles it)
+
+**But skills MUST track:**
+- Iteration number
+- Previous findings location
+- Passing both `--iteration` and `--previous` on re-reviews
 
 ## API Details
 

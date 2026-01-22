@@ -413,7 +413,11 @@ Every claim about existing context must include citation:
 Before writing the final PRD, run GPT cross-model review:
 
 ```bash
-/gpt-review prd
+# First review (iteration 1)
+response=$(.claude/scripts/gpt-review-api.sh prd grimoires/loa/prd.md)
+echo "$response" > /tmp/gpt-review-findings-1.json
+verdict=$(echo "$response" | jq -r '.verdict')
+iteration=1
 ```
 
 The command handles everything:
@@ -424,6 +428,22 @@ The command handles everything:
 **Handle the verdict:**
 - `SKIPPED` → Continue (review is disabled)
 - `APPROVED` → Write final prd.md
-- `CHANGES_REQUIRED` → Fix issues and re-run `/gpt-review prd`
+- `CHANGES_REQUIRED` → Fix issues, then re-run with iteration tracking (see below)
 - `DECISION_NEEDED` → Ask user the question, incorporate answer, re-run
+
+**CRITICAL - Iteration Tracking for Re-Reviews:**
+
+When verdict is `CHANGES_REQUIRED` or after handling `DECISION_NEEDED`, you MUST track iterations:
+
+```bash
+# After fixing issues, run iteration 2+
+iteration=$((iteration + 1))
+response=$(.claude/scripts/gpt-review-api.sh prd grimoires/loa/prd.md \
+  --iteration "$iteration" \
+  --previous "/tmp/gpt-review-findings-$((iteration - 1)).json")
+echo "$response" > "/tmp/gpt-review-findings-${iteration}.json"
+verdict=$(echo "$response" | jq -r '.verdict')
+```
+
+**Why this matters**: The `--previous` parameter gives GPT context about what it found before, so it can verify fixes were made correctly rather than re-reviewing from scratch.
 </gpt_review>

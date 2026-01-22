@@ -557,7 +557,11 @@ See `resources/REFERENCE.md` for complete checklists:
 After completing code changes, run GPT cross-model review:
 
 ```bash
-/gpt-review code
+# First review (iteration 1)
+response=$(.claude/scripts/gpt-review-api.sh code "$content_file")
+echo "$response" > /tmp/gpt-review-findings-1.json
+verdict=$(echo "$response" | jq -r '.verdict')
+iteration=1
 ```
 
 The command handles everything:
@@ -568,7 +572,23 @@ The command handles everything:
 **Handle the verdict:**
 - `SKIPPED` → Continue (review is disabled)
 - `APPROVED` → Continue (code is good)
-- `CHANGES_REQUIRED` → Fix issues and re-run `/gpt-review code`
+- `CHANGES_REQUIRED` → Fix issues, then re-run with iteration tracking (see below)
+
+**CRITICAL - Iteration Tracking for Re-Reviews:**
+
+When verdict is `CHANGES_REQUIRED`, you MUST track iterations:
+
+```bash
+# After fixing issues, run iteration 2+
+iteration=$((iteration + 1))
+response=$(.claude/scripts/gpt-review-api.sh code "$content_file" \
+  --iteration "$iteration" \
+  --previous "/tmp/gpt-review-findings-$((iteration - 1)).json")
+echo "$response" > "/tmp/gpt-review-findings-${iteration}.json"
+verdict=$(echo "$response" | jq -r '.verdict')
+```
+
+**Why this matters**: The `--previous` parameter gives GPT context about what it found before, so it can verify fixes were made correctly rather than re-reviewing from scratch.
 
 No DECISION_NEEDED for code reviews - Claude and GPT work together automatically.
 </gpt_review>

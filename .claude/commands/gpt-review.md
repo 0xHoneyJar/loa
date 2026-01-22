@@ -58,11 +58,16 @@ case "$type" in
 esac
 ```
 
-### Step 2: Run Review Script
+### Step 2: Run Review Script (First Iteration)
 
 ```bash
+# First review - no iteration params needed (defaults to iteration 1)
 response=$(.claude/scripts/gpt-review-api.sh "$type" "$content_file")
 verdict=$(echo "$response" | jq -r '.verdict')
+
+# IMPORTANT: Save findings for potential re-review
+echo "$response" > /tmp/gpt-review-findings-1.json
+iteration=1
 ```
 
 ### Step 3: Handle Verdict
@@ -80,9 +85,7 @@ case "$verdict" in
     ;;
 
   CHANGES_REQUIRED)
-    # For code: Claude fixes issues automatically
-    # For docs: Claude revises document automatically
-    # Then re-run review with --iteration 2
+    # Fix the issues, then go to Step 4 (Re-Review Loop)
     ;;
 
   DECISION_NEEDED)
@@ -94,22 +97,90 @@ case "$verdict" in
 esac
 ```
 
-## Review Loop
+### Step 4: Re-Review Loop (CRITICAL for CHANGES_REQUIRED)
 
-For CHANGES_REQUIRED, the loop continues until APPROVED or max iterations:
+When GPT returns `CHANGES_REQUIRED`, you MUST:
+
+1. Fix the issues GPT identified
+2. Run a re-review with **iteration number** and **previous findings**
+
+```bash
+# After fixing issues from iteration N, run iteration N+1:
+iteration=$((iteration + 1))
+previous_findings="/tmp/gpt-review-findings-$((iteration - 1)).json"
+
+response=$(.claude/scripts/gpt-review-api.sh "$type" "$content_file" \
+  --iteration "$iteration" \
+  --previous "$previous_findings")
+
+verdict=$(echo "$response" | jq -r '.verdict')
+
+# Save this iteration's findings for potential next iteration
+echo "$response" > "/tmp/gpt-review-findings-${iteration}.json"
+
+# Loop until APPROVED or max iterations reached
+```
+
+**MANDATORY**: Always pass both `--iteration` and `--previous` on iterations 2+. The re-review prompt uses these to:
+- Show GPT what iteration this is (`{{ITERATION}}`)
+- Include previous findings so GPT can verify fixes (`{{PREVIOUS_FINDINGS}}`)
+
+## Review Loop Diagram
 
 ```
-Iteration 1: First review
+Iteration 1: .claude/scripts/gpt-review-api.sh code file.ts
+  → Save response to /tmp/gpt-review-findings-1.json
   ↓ CHANGES_REQUIRED
-Fix issues
+Fix issues identified in response
   ↓
-Iteration 2: Re-review with --previous findings.json
+Iteration 2: .claude/scripts/gpt-review-api.sh code file.ts \
+               --iteration 2 --previous /tmp/gpt-review-findings-1.json
+  → Save response to /tmp/gpt-review-findings-2.json
   ↓ CHANGES_REQUIRED
 Fix remaining issues
   ↓
-Iteration 3: Re-review
+Iteration 3: .claude/scripts/gpt-review-api.sh code file.ts \
+               --iteration 3 --previous /tmp/gpt-review-findings-2.json
+  → Save response to /tmp/gpt-review-findings-3.json
   ↓ APPROVED (or auto-approve at max_iterations)
 Done
+```
+
+## Complete Example
+
+```bash
+# === ITERATION 1 ===
+content_file="src/auth.ts"
+response=$(.claude/scripts/gpt-review-api.sh code "$content_file")
+echo "$response" > /tmp/gpt-review-findings-1.json
+verdict=$(echo "$response" | jq -r '.verdict')
+iteration=1
+
+# If CHANGES_REQUIRED, fix issues then continue...
+
+# === ITERATION 2 ===
+if [[ "$verdict" == "CHANGES_REQUIRED" ]]; then
+  # ... fix the issues ...
+  iteration=2
+  response=$(.claude/scripts/gpt-review-api.sh code "$content_file" \
+    --iteration 2 \
+    --previous /tmp/gpt-review-findings-1.json)
+  echo "$response" > /tmp/gpt-review-findings-2.json
+  verdict=$(echo "$response" | jq -r '.verdict')
+fi
+
+# === ITERATION 3 ===
+if [[ "$verdict" == "CHANGES_REQUIRED" ]]; then
+  # ... fix remaining issues ...
+  iteration=3
+  response=$(.claude/scripts/gpt-review-api.sh code "$content_file" \
+    --iteration 3 \
+    --previous /tmp/gpt-review-findings-2.json)
+  echo "$response" > /tmp/gpt-review-findings-3.json
+  verdict=$(echo "$response" | jq -r '.verdict')
+fi
+
+# After max_iterations, script auto-approves
 ```
 
 ## Configuration
