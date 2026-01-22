@@ -561,6 +561,21 @@ recursive_jit:
     update_bead: true
 
 # =============================================================================
+# Plan and Analyze Configuration (v1.6.0)
+# =============================================================================
+# Codebase grounding integration with /ride for brownfield projects
+plan_and_analyze:
+  codebase_grounding:
+    # Master toggle - set to false to disable codebase grounding entirely
+    enabled: true
+    # Days before reality files are considered stale (prompt user to re-run)
+    reality_staleness_days: 7
+    # Timeout in minutes for /ride execution
+    ride_timeout_minutes: 20
+    # Auto-skip to Phase -1 if /ride fails (not recommended)
+    skip_on_ride_error: false
+
+# =============================================================================
 # Behavior Preferences
 # =============================================================================
 preferences:

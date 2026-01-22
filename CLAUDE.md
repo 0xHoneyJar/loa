@@ -78,7 +78,34 @@ Commands in `.claude/commands/` use thin routing layer with YAML frontmatter:
 | 5.5 | `/audit-sprint sprint-N` | auditing-security | Security feedback |
 | 6 | `/deploy-production` | deploying-infrastructure | Infrastructure |
 
-**Mount & Ride** (existing codebases): `/mount`, `/ride`
+### Automatic Codebase Grounding (v1.6.0)
+
+`/plan-and-analyze` now automatically detects brownfield projects and runs `/ride` before PRD creation:
+
+- **Brownfield detection**: >10 source files OR >500 lines of code
+- **Auto-runs /ride**: Extracts requirements from existing code
+- **Reality caching**: Uses cached analysis if <7 days old
+- **--fresh flag**: Forces re-run of /ride even with recent cache
+
+```bash
+# Standard invocation (auto-detects and grounds)
+/plan-and-analyze
+
+# Force fresh codebase analysis
+/plan-and-analyze --fresh
+```
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+plan_and_analyze:
+  codebase_grounding:
+    enabled: true
+    reality_staleness_days: 7
+    ride_timeout_minutes: 20
+    skip_on_ride_error: false
+```
+
+**Mount & Ride** (manual control): `/mount`, `/ride`
 
 **Ad-hoc**: `/audit`, `/audit-deployment`, `/translate`, `/contribute`, `/update-loa`, `/validate`
 

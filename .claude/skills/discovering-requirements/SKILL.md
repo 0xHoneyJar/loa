@@ -140,6 +140,167 @@ PRD traces every requirement to either:
 - Interview response (phase:question reference)
 </kernel_framework>
 
+<codebase_grounding>
+## Phase -0.5: Codebase Grounding (Brownfield Only)
+
+**Purpose**: Ground PRD creation in codebase reality to prevent hallucinated requirements.
+
+### Configuration
+
+Read configuration from `.loa.config.yaml` (with defaults):
+
+```bash
+# Check if codebase grounding is enabled (default: true)
+enabled=$(yq eval '.plan_and_analyze.codebase_grounding.enabled // true' .loa.config.yaml 2>/dev/null || echo "true")
+
+# Get staleness threshold in days (default: 7)
+staleness_days=$(yq eval '.plan_and_analyze.codebase_grounding.reality_staleness_days // 7' .loa.config.yaml 2>/dev/null || echo "7")
+
+# Get /ride timeout in minutes (default: 20)
+timeout_minutes=$(yq eval '.plan_and_analyze.codebase_grounding.ride_timeout_minutes // 20' .loa.config.yaml 2>/dev/null || echo "20")
+
+# Get skip-on-error behavior (default: false)
+skip_on_error=$(yq eval '.plan_and_analyze.codebase_grounding.skip_on_ride_error // false' .loa.config.yaml 2>/dev/null || echo "false")
+```
+
+If `enabled: false`, skip Phase -0.5 entirely (equivalent to GREENFIELD behavior).
+
+### Decision Tree
+
+When `/plan-and-analyze` runs, check the `codebase_detection` pre-flight result:
+
+```
+IF config.enabled == false:
+    → Skip to Phase -1 (feature disabled)
+    → Do NOT mention codebase grounding to user
+
+ELSE IF codebase_detection.type == "GREENFIELD":
+    → Skip to Phase -1 (no codebase to analyze)
+    → Do NOT mention codebase grounding to user
+
+ELSE IF codebase_detection.type == "BROWNFIELD":
+    IF codebase_detection.reality_exists == true:
+        IF codebase_detection.reality_age_days < config.staleness_days:
+            → Use cached reality (no /ride needed)
+            → Show: "Using recent codebase analysis (N days old)"
+        ELSE IF --fresh flag provided:
+            → Run /ride regardless of cache
+        ELSE:
+            → Prompt user with AskUserQuestion:
+              - "Re-run /ride for fresh analysis (recommended)"
+              - "Proceed with existing analysis (faster)"
+    ELSE:
+        → Run /ride (Phase -0.5)
+        → Show progress: "Analyzing codebase structure..."
+```
+
+### Running /ride
+
+Invoke the ride skill (NOT the command) for codebase analysis:
+
+```markdown
+CODEBASE GROUNDING PHASE
+
+Analyzing your existing codebase to ground PRD requirements in reality.
+This typically takes 5-15 minutes depending on codebase size.
+
+Progress:
+- [ ] Extracting component inventory
+- [ ] Analyzing architecture patterns
+- [ ] Identifying existing requirements
+- [ ] Building consistency report
+```
+
+### /ride Execution
+
+Use the Skill tool to invoke ride:
+```
+Skill: ride
+```
+
+This will produce:
+- `grimoires/loa/reality/extracted-prd.md`
+- `grimoires/loa/reality/extracted-sdd.md`
+- `grimoires/loa/reality/component-inventory.md`
+- `grimoires/loa/consistency-report.md`
+
+### Error Recovery
+
+If /ride fails or times out:
+
+1. **Capture error** in NOTES.md Decision Log:
+   ```markdown
+   | Date | Decision | Rationale | Source |
+   |------|----------|-----------|--------|
+   | YYYY-MM-DD | /ride failed during codebase grounding | [error message] | Phase -0.5 |
+   ```
+
+2. **Check config for auto-skip**:
+   ```bash
+   skip_on_error=$(yq eval '.plan_and_analyze.codebase_grounding.skip_on_ride_error // false' .loa.config.yaml)
+   ```
+   If `skip_on_error: true`, automatically skip to Phase -1 with warning.
+
+3. **Otherwise prompt user** with AskUserQuestion:
+   ```yaml
+   questions:
+     - question: "/ride analysis failed. How would you like to proceed?"
+       header: "Recovery"
+       options:
+         - label: "Retry /ride analysis"
+           description: "Re-run codebase analysis (recommended)"
+         - label: "Skip codebase grounding"
+           description: "Proceed without code-based requirements (not recommended)"
+         - label: "Abort"
+           description: "Cancel /plan-and-analyze entirely"
+       multiSelect: false
+   ```
+
+4. **Handle user response**:
+
+   **If "Retry"**:
+   - Re-run /ride with fresh attempt
+   - If fails again, return to step 3 (max 2 retries)
+
+   **If "Skip"**:
+   - Log warning to NOTES.md blockers:
+     ```markdown
+     - [ ] [BLOCKER] PRD created without codebase grounding - /ride failed: [error]
+     ```
+   - Proceed to Phase -1 without reality context
+   - Add warning banner to generated PRD:
+     ```markdown
+     > ⚠️ **WARNING**: This PRD was created without codebase grounding.
+     > Run `/ride` and `/plan-and-analyze --fresh` for accurate requirements.
+     ```
+
+   **If "Abort"**:
+   - Log abort decision to trajectory
+   - Exit cleanly with message: "Aborting /plan-and-analyze. Run /ride manually and retry."
+
+5. **Preserve partial results** if available:
+   - If /ride produced any output files before failing, keep them
+   - Use whatever reality context exists for Phase 0
+
+### Timeout Handling
+
+Default timeout: 20 minutes (configurable in `.loa.config.yaml`)
+
+```yaml
+plan_and_analyze:
+  codebase_grounding:
+    ride_timeout_minutes: 20
+```
+
+### Greenfield Fast Path
+
+For GREENFIELD projects:
+- No progress message about codebase
+- No delay
+- Proceed directly to Phase -1
+- Log detection result to trajectory only (not shown to user)
+</codebase_grounding>
+
 <workflow>
 ## Phase -1: Context Assessment
 
@@ -158,10 +319,54 @@ Run context assessment:
 
 ## Phase 0: Context Synthesis
 
-**If context files exist:**
+### Context Priority Order
+
+Load and synthesize context in priority order:
+
+| Priority | Source | Citation Format | Trust Level |
+|----------|--------|-----------------|-------------|
+| 1 | `grimoires/loa/reality/` | `[CODE:file:line]` | Highest (code is truth) |
+| 2 | `grimoires/loa/context/` | `> From file.md:line` | High (user-provided) |
+| 3 | Interview responses | `(Phase N QN)` | Standard |
+
+**Conflict Resolution**: When reality contradicts context:
+- Reality wins (code is authoritative)
+- Flag the conflict for user: "Note: [context claim] differs from codebase reality [CODE:file:line]"
+
+### Step 0: Present Codebase Understanding (Brownfield Only)
+
+**If reality files exist** (from /ride or cached):
+
+```markdown
+## What I've Learned From Your Codebase
+
+Based on analysis of your existing code:
+
+### Architecture
+[CODE:src/index.ts:1-50] Your application uses [pattern] architecture with:
+- [list key components with code references]
+
+### Existing Features
+From component inventory:
+- Feature A [CODE:src/features/a.ts:10-45]
+- Feature B [CODE:src/services/b.ts:1-100]
+
+### Current State
+From consistency report:
+- [summary of code consistency findings]
+
+### Proposed Additions
+Based on codebase analysis, the following would integrate well:
+- [suggested additions grounded in existing patterns]
+
+---
+```
 
 ### Step 1: Ingest All Context
-Read every `.md` file in `grimoires/loa/context/` (and subdirectories).
+
+Read in priority order:
+1. `grimoires/loa/reality/*.md` (if exists)
+2. `grimoires/loa/context/*.md` (and subdirectories)
 
 ### Step 2: Create Context Map
 Internally categorize discovered information:
@@ -169,6 +374,9 @@ Internally categorize discovered information:
 ```xml
 <context_map>
   <phase name="problem_vision">
+    <reality source="extracted-prd.md:10-30">
+      Implicit problem statement from codebase
+    </reality>
     <found source="vision.md:1-45">
       Product vision, mission statement, core problem
     </found>
@@ -190,14 +398,41 @@ Internally categorize discovered information:
     <ambiguity>Persona priorities unclear - which is primary?</ambiguity>
   </phase>
 
+  <phase name="functional_requirements">
+    <reality source="component-inventory.md:1-200">
+      Existing features extracted from code
+    </reality>
+    <found source="requirements.md:1-100">
+      User-documented requirements
+    </found>
+    <conflict>User docs mention feature X, but not found in codebase</conflict>
+  </phase>
+
   <!-- Continue for all 7 phases -->
 </context_map>
 ```
 
 ### Step 3: Present Understanding
-Before asking ANY questions, present a synthesis:
+
+**For brownfield projects**, present codebase understanding FIRST:
 
 ```markdown
+## What I've Learned From Your Codebase
+
+I've analyzed your existing codebase (N files, X lines).
+
+### Existing Architecture
+[CODE:src/index.ts:1-50] Your application uses [pattern] with:
+- Component A [CODE:src/components/a.tsx:10]
+- Service B [CODE:src/services/b.ts:1]
+
+### Implemented Features
+Based on code analysis:
+- User authentication [CODE:src/auth/index.ts:1-100]
+- Data persistence [CODE:src/db/client.ts:1-50]
+
+---
+
 ## What I've Learned From Your Documentation
 
 I've reviewed N files (X lines) from your context directory.
@@ -211,6 +446,9 @@ I understand the core problem is [summary]. The vision is [summary].
 > From users.md:23-45: "description of personas..."
 
 You've defined N personas: [list with 1-line each].
+
+### Conflicts Noted
+- [if any conflicts between reality and context]
 
 ### What I Still Need to Understand
 1. **Success Metrics**: What quantifiable outcomes define success?
@@ -372,11 +610,13 @@ Each section must include:
 </output_format>
 
 <success_criteria>
-- **Specific**: Every PRD requirement traced to source (file:line or phase:question)
+- **Specific**: Every PRD requirement traced to source (file:line, [CODE:file:line], or phase:question)
 - **Measurable**: Questions reduced by 50%+ when context provided
 - **Achievable**: Synthesis completes before any interview questions
 - **Relevant**: Developer confirms understanding before proceeding
 - **Time-bound**: Context synthesis <5 min for SMALL/MEDIUM
+- **Grounded**: Brownfield PRDs cite existing code with [CODE:file:line] format
+- **Zero Latency**: Greenfield projects experience no codebase detection delay
 </success_criteria>
 
 <uncertainty_protocol>
@@ -405,4 +645,9 @@ Every claim about existing context must include citation:
 | Non-markdown files | Note existence, explain can't parse |
 | Partial coverage | Conduct mini-interviews for gaps only |
 | Developer disagrees with synthesis | Allow corrections, update understanding |
+| Reality conflicts with context | Reality wins, flag conflict for user review |
+| Stale reality (>7 days) | Prompt user to refresh or proceed with cached |
+| /ride failed | Log blocker, proceed without grounding (with warning) |
+| Brownfield detected but no reality | Run /ride before Phase -1 |
+| Greenfield project | Skip codebase grounding entirely, no message |
 </edge_cases>

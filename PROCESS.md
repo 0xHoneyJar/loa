@@ -215,9 +215,12 @@ Each agent is implemented as a modular **skill** in `.claude/skills/{agent-name}
 
 **Goal**: Define goals, requirements, scope, and create PRD
 
+**Automatic Codebase Grounding (v1.6.0)**: For brownfield projects (>10 source files OR >500 lines), the agent automatically runs `/ride` to extract requirements from existing code before PRD creation. This ensures PRDs are grounded in codebase reality.
+
 **Context-First Discovery**: If `grimoires/loa/context/` contains documentation, the agent reads it first, presents understanding with citations, and only asks questions about gaps. More context = fewer questions.
 
 **Process**:
+0. (Brownfield only) Auto-run `/ride` if existing codebase detected
 1. Agent scans `grimoires/loa/context/` for existing documentation
 2. Synthesizes found content and presents understanding with citations
 3. Conducts targeted interviews for gaps across 7 phases:
@@ -234,10 +237,16 @@ Each agent is implemented as a modular **skill** in `.claude/skills/{agent-name}
 
 **Command**:
 ```bash
+# Standard invocation (auto-detects brownfield and grounds in codebase)
 /plan-and-analyze
+
+# Force fresh codebase analysis even if recent reality exists
+/plan-and-analyze --fresh
 ```
 
 **Output**: `grimoires/loa/prd.md`
+
+**Codebase Grounding**: For brownfield projects, reality files are generated at `grimoires/loa/reality/` and loaded as highest-priority context. Uses cached analysis if <7 days old.
 
 **Sprint Ledger Integration**: Automatically initializes `grimoires/loa/ledger.json` and creates the first development cycle. Subsequent runs create new cycles if the previous cycle was archived.
 
@@ -858,6 +867,8 @@ Projects without `ledger.json` work exactly as before (legacy mode). The ledger 
 ## Mount & Ride (Existing Codebases)
 
 For existing codebases that need Loa analysis without going through the full discovery workflow.
+
+> **Note (v1.6.0)**: `/plan-and-analyze` now automatically runs `/ride` for brownfield projects. Manual `/mount` and `/ride` are only needed if you want explicit control over the analysis process.
 
 ### Mount (`/mount`)
 
