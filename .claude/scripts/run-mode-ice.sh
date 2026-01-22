@@ -77,10 +77,11 @@ log_ice_block() {
 
 # Check if a branch name matches protected list
 # Returns: 0 if protected, 1 if not protected
+# SECURITY (HIGH-006): Use glob matching instead of regex to prevent metacharacter bypass
 is_protected_branch() {
   local branch="$1"
 
-  # Check exact matches
+  # Check exact matches first (safest)
   for protected in "${PROTECTED_BRANCHES[@]}"; do
     if [[ "$branch" == "$protected" ]]; then
       echo "true"
@@ -88,16 +89,18 @@ is_protected_branch() {
     fi
   done
 
-  # Check pattern matches
+  # Check pattern matches using bash glob-style matching
+  # This is safer than regex because we control the patterns
   for pattern in "${PROTECTED_PATTERNS[@]}"; do
-    # Convert glob pattern to regex for bash matching
-    # release/* -> release/.*
-    # release-* -> release-.*
-    local regex="${pattern//\*/.*}"
-    if [[ "$branch" =~ ^${regex}$ ]]; then
-      echo "true"
-      return 0
-    fi
+    # Use bash extended globbing for safe pattern matching
+    # The pattern from PROTECTED_PATTERNS is trusted (hard-coded)
+    # We use [[ with == to do glob matching (not regex)
+    case "$branch" in
+      $pattern)
+        echo "true"
+        return 0
+        ;;
+    esac
   done
 
   echo "false"

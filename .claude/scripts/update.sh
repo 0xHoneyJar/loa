@@ -577,7 +577,29 @@ EOF
   fi
 
   # Cleanup old backups (keep 3)
-  ls -dt .claude.backup.* 2>/dev/null | tail -n +4 | xargs rm -rf 2>/dev/null || true
+  # SECURITY (HIGH-007): Use atomic backup cleanup to prevent race conditions
+  _cleanup_old_backups() {
+    local lock_file=".claude.backup.lock"
+    exec 8>"$lock_file"
+    if ! flock -w 5 8; then
+      warn "Could not acquire backup cleanup lock, skipping"
+      exec 8>&-
+      return 0
+    fi
+    # Read all backups into array to avoid race condition between ls and rm
+    local -a backups
+    mapfile -t backups < <(ls -dt .claude.backup.* 2>/dev/null)
+    local count=${#backups[@]}
+    if [[ $count -gt 3 ]]; then
+      for ((i=3; i<count; i++)); do
+        rm -rf "${backups[$i]}" 2>/dev/null || true
+      done
+    fi
+    flock -u 8
+    exec 8>&-
+    rm -f "$lock_file"
+  }
+  _cleanup_old_backups
 
   # === STAGE 11: Create Atomic Commit ===
   create_upgrade_commit "$current" "$new_version" "$no_commit" "$force"
