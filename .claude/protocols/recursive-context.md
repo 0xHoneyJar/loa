@@ -313,6 +313,24 @@ cache-manager.sh set --key "$key" --condensed '{"verdict":"PASS"}'
 2. **Automatic**: No agent discipline required - synthesis happens at natural checkpoints
 3. **Atomic**: Cache write + ledger write happen together
 4. **Traceable**: Every cached result has a corresponding Decision Log entry
+5. **Bead Integration**: When `update_bead: true`, decisions are also added as comments to the active bead (requires `br` CLI)
+
+### beads_rust Integration
+
+When beads_rust (`br`) is available and `update_bead: true`:
+
+1. **Active bead detection**: Reads `Last task: beads-XXXX` from NOTES.md Session Continuity
+2. **Comment injection**: Adds `[Synthesis] <message>` comment to the active bead
+3. **Decision persistence**: Bead comments survive context loss and sync to JSONL
+
+```bash
+# Example: cache set triggers bead update
+cache-manager.sh set --key "$key" --condensed '{"verdict":"PASS"}'
+# → Writes to NOTES.md Decision Log
+# → Adds comment to active bead: "[Synthesis] Cache: PASS [key: abc12...]"
+```
+
+This ensures that even if NOTES.md is not read in a recovered session, the bead itself contains the decision history.
 
 ## Performance Targets
 

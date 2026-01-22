@@ -51,7 +51,7 @@ Configuration (.loa.config.yaml):
       on_condense: true
       on_early_exit: true
       target: notes_decision_log
-      update_bead: true
+      update_bead: true        # Also add comment to active bead (requires br)
 
 Examples:
   # Write decision from cache operation
@@ -103,6 +103,78 @@ is_synthesis_enabled() {
         # Fallback: assume enabled if config exists
         return 0
     fi
+}
+
+#######################################
+# Check if bead update is enabled
+#######################################
+is_bead_update_enabled() {
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        return 1
+    fi
+
+    # Check if br is available
+    if ! command -v br &>/dev/null; then
+        return 1
+    fi
+
+    # Check if .beads directory exists
+    if [[ ! -d "${PROJECT_ROOT}/.beads" ]]; then
+        return 1
+    fi
+
+    if command -v yq &>/dev/null; then
+        local enabled
+        enabled=$(yq '.recursive_jit.continuous_synthesis.update_bead // false' "$CONFIG_FILE" 2>/dev/null)
+        [[ "$enabled" == "true" ]]
+    else
+        return 1
+    fi
+}
+
+#######################################
+# Get active bead ID from NOTES.md
+#######################################
+get_active_bead_id() {
+    if [[ ! -f "$NOTES_FILE" ]]; then
+        return 1
+    fi
+
+    # Look for "Last task: beads-XXXX" or similar patterns in Session Continuity
+    local bead_id
+    bead_id=$(grep -oE 'beads-[a-z0-9]+' "$NOTES_FILE" | head -1)
+
+    if [[ -n "$bead_id" ]]; then
+        echo "$bead_id"
+        return 0
+    fi
+
+    return 1
+}
+
+#######################################
+# Update active bead with decision
+#######################################
+update_active_bead() {
+    local message="$1"
+
+    if ! is_bead_update_enabled; then
+        return 0
+    fi
+
+    local bead_id
+    if ! bead_id=$(get_active_bead_id); then
+        return 0  # No active bead, skip silently
+    fi
+
+    # Verify bead exists
+    if ! br show "$bead_id" --json &>/dev/null; then
+        return 0  # Bead not found, skip silently
+    fi
+
+    # Add comment to bead with the decision
+    br comments add "$bead_id" "[Synthesis] $message" 2>/dev/null || true
+    print_success "Bead updated: $bead_id"
 }
 
 #######################################
@@ -191,6 +263,9 @@ write_decision() {
         local new_row="| $date | $escaped_message | Source: $source |"
         sed -i "${table_header_line}a\\${new_row}" "$NOTES_FILE"
         print_success "Decision logged to NOTES.md"
+
+        # Also update active bead if enabled
+        update_active_bead "$message"
     else
         print_warning "Could not find Decision Log table header"
     fi
