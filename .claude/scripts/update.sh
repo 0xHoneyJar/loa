@@ -585,10 +585,17 @@ EOF
     }
   fi
 
-  log ""
-  log "======================================================================="
-  log "  Update complete: $current -> $new_version"
-  log "======================================================================="
+  # === STAGE 14: Show Completion Banner ===
+  local banner_script="$SYSTEM_DIR/scripts/upgrade-banner.sh"
+  if [[ -x "$banner_script" ]]; then
+    "$banner_script" "$current" "$new_version"
+  else
+    # Fallback: simple completion message
+    log ""
+    log "======================================================================="
+    log "  Update complete: $current -> $new_version"
+    log "======================================================================="
+  fi
 }
 
 main "$@"

@@ -606,27 +606,26 @@ Files here are preserved across framework updates.
 Mirror the .claude/ structure for any customizations.
 EOF
 
-  echo ""
-  log "======================================================================="
-  log "  Loa Successfully Mounted!"
-  log "======================================================================="
-  echo ""
-  info "Next steps:"
-  info "  1. Run 'claude' to start Claude Code"
-  info "  2. Issue '/ride' to analyze this codebase"
-  info "  3. Or '/setup' for guided project configuration"
-  echo ""
-  info "Zone structure:"
-  info "  .claude/          -> System Zone (framework-managed, immutable)"
-  info "  .claude/overrides -> Your customizations (preserved)"
-  info "  grimoires/loa/     -> State Zone (project memory)"
-  info "  grimoires/loa/NOTES.md -> Structured agentic memory"
-  info "  .beads/           -> Task graph (Beads)"
-  echo ""
+  # === Show Completion Banner ===
+  local banner_script=".claude/scripts/upgrade-banner.sh"
+  if [[ -x "$banner_script" ]]; then
+    "$banner_script" "none" "$new_version" --mount
+  else
+    # Fallback: simple completion message
+    echo ""
+    log "======================================================================="
+    log "  Loa Successfully Mounted!"
+    log "======================================================================="
+    echo ""
+    info "Next steps:"
+    info "  1. Run 'claude' to start Claude Code"
+    info "  2. Issue '/ride' to analyze this codebase"
+    info "  3. Or '/setup' for guided project configuration"
+    echo ""
+  fi
+
   warn "STRICT ENFORCEMENT: Direct edits to .claude/ will block agent execution."
   warn "Use .claude/overrides/ for customizations."
-  echo ""
-  info "The Loa has mounted. Issue '/ride' when ready."
   echo ""
 }
 
