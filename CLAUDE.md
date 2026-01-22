@@ -127,7 +127,33 @@ The "Clear, Don't Compact" paradigm for context management:
 - `session-continuity.md` - Tiered recovery, fork detection
 - `grounding-enforcement.md` - Citation requirements (>=0.95 ratio)
 - `synthesis-checkpoint.md` - Pre-clear validation
-- `jit-retrieval.md` - Lightweight identifiers
+- `jit-retrieval.md` - Lightweight identifiers + cache integration
+
+### Recursive JIT Context (v0.20.0)
+
+Context optimization for multi-subagent workflows, leveraging RLM research patterns:
+
+| Component | Script | Purpose |
+|-----------|--------|---------|
+| Semantic Cache | `cache-manager.sh` | Cross-session result caching |
+| Condensation | `condense.sh` | Result compression (~20-50 tokens) |
+| Early-Exit | `early-exit.sh` | Parallel subagent coordination |
+| Semantic Recovery | `context-manager.sh --query` | Query-based section selection |
+
+**Usage**:
+```bash
+# Cache audit results
+key=$(cache-manager.sh generate-key --paths "src/auth.ts" --query "audit")
+cache-manager.sh set --key "$key" --condensed '{"verdict":"PASS"}'
+
+# Condense large results
+condense.sh condense --strategy structured_verdict --input result.json
+
+# Coordinate parallel subagents
+early-exit.sh signal session-123 agent-1
+```
+
+**Protocol**: See `.claude/protocols/recursive-context.md`, `.claude/protocols/semantic-cache.md`
 
 ### Feedback Loops
 
@@ -252,7 +278,10 @@ Core scripts in `.claude/scripts/`. See `.claude/protocols/helper-scripts.md` fo
 | `mount-loa.sh` | Install Loa onto existing repo |
 | `update.sh` | Framework updates with atomic commits |
 | `check-loa.sh` | CI validation |
-| `context-manager.sh` | Context compaction management |
+| `context-manager.sh` | Context compaction + semantic recovery |
+| `cache-manager.sh` | Semantic result caching |
+| `condense.sh` | Result condensation engine |
+| `early-exit.sh` | Parallel subagent coordination |
 | `schema-validator.sh` | Output validation |
 | `permission-audit.sh` | Permission request analysis |
 
@@ -319,3 +348,7 @@ export LOA_CONSTRUCTS_API_KEY="sk_your_api_key_here"
   - `upgrade-process.md` - Framework upgrade workflow
   - `context-compaction.md` - Compaction preservation rules
   - `run-mode.md` - Run Mode protocol
+  - `recursive-context.md` - Recursive JIT Context system
+  - `semantic-cache.md` - Cache operations and invalidation
+  - `jit-retrieval.md` - JIT retrieval with cache integration
+  - `continuous-learning.md` - Skill extraction quality gates
