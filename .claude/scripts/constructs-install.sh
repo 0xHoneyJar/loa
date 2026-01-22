@@ -57,6 +57,25 @@ EXIT_ERROR=6
 # Authentication
 # =============================================================================
 
+# Check if file permissions are secure (MED-001)
+# Args: $1 - file path
+# Returns: 0 if secure, 1 if too permissive
+check_file_permissions() {
+    local file="$1"
+    local perms
+    perms=$(stat -c "%a" "$file" 2>/dev/null || stat -f "%Lp" "$file" 2>/dev/null)
+
+    # Check if permissions are 600 (owner read/write only) or more restrictive
+    case "$perms" in
+        600|400) return 0 ;;  # Secure permissions
+        *)
+            print_warning "SECURITY: Credentials file has insecure permissions ($perms): $file"
+            print_warning "  Recommended: chmod 600 $file"
+            return 1
+            ;;
+    esac
+}
+
 # Get API key from environment or credentials file
 # Returns: API key or empty string
 get_api_key() {
@@ -69,6 +88,9 @@ get_api_key() {
     # Check credentials file
     local creds_file="${HOME}/.loa/credentials.json"
     if [[ -f "$creds_file" ]]; then
+        # SECURITY (MED-001): Warn if file permissions are too open
+        check_file_permissions "$creds_file" || true
+
         local key
         key=$(jq -r '.api_key // empty' "$creds_file" 2>/dev/null)
         if [[ -n "$key" ]]; then
@@ -80,6 +102,9 @@ get_api_key() {
     # Alternative credentials location
     local alt_creds="${HOME}/.loa-constructs/credentials.json"
     if [[ -f "$alt_creds" ]]; then
+        # SECURITY (MED-001): Warn if file permissions are too open
+        check_file_permissions "$alt_creds" || true
+
         local key
         key=$(jq -r '.api_key // .apiKey // empty' "$alt_creds" 2>/dev/null)
         if [[ -n "$key" ]]; then
@@ -402,13 +427,17 @@ do_install_pack() {
     echo "  Downloading from $registry_url/packs/$pack_slug/download..."
 
     # Download pack
+    # SECURITY (HIGH-002): Use process substitution for auth header to avoid shell history exposure
     local response
     local http_code
     local tmp_file
     tmp_file=$(mktemp)
 
+    # Disable command tracing during API call to prevent key leakage
+    { set +x; } 2>/dev/null || true
+
     http_code=$(curl -s -w "%{http_code}" \
-        -H "Authorization: Bearer $api_key" \
+        -H @<(echo "Authorization: Bearer $api_key") \
         -H "Accept: application/json" \
         "$registry_url/packs/$pack_slug/download" \
         -o "$tmp_file" 2>/dev/null) || {
@@ -724,12 +753,16 @@ do_install_skill() {
     echo "  Downloading from $registry_url/skills/$skill_slug/download..."
 
     # Download skill
+    # SECURITY (HIGH-002): Use process substitution for auth header
     local http_code
     local tmp_file
     tmp_file=$(mktemp)
 
+    # Disable command tracing during API call to prevent key leakage
+    { set +x; } 2>/dev/null || true
+
     http_code=$(curl -s -w "%{http_code}" \
-        -H "Authorization: Bearer $api_key" \
+        -H @<(echo "Authorization: Bearer $api_key") \
         -H "Accept: application/json" \
         "$registry_url/skills/$skill_slug/download" \
         -o "$tmp_file" 2>/dev/null) || {
