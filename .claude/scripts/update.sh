@@ -570,6 +570,21 @@ EOF
     fi
   fi
 
+  # === STAGE 13: Run Upgrade Health Check ===
+  local health_check_script="$SYSTEM_DIR/scripts/upgrade-health-check.sh"
+  if [[ -x "$health_check_script" ]]; then
+    log ""
+    log "Running post-upgrade health check..."
+    "$health_check_script" --quiet || {
+      local exit_code=$?
+      if [[ $exit_code -eq 2 ]]; then
+        warn "Health check found issues - run: .claude/scripts/upgrade-health-check.sh"
+      elif [[ $exit_code -eq 1 ]]; then
+        log "Health check has suggestions - run: .claude/scripts/upgrade-health-check.sh"
+      fi
+    }
+  fi
+
   log ""
   log "======================================================================="
   log "  Update complete: $current -> $new_version"

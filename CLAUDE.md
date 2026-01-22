@@ -277,11 +277,13 @@ Core scripts in `.claude/scripts/`. See `.claude/protocols/helper-scripts.md` fo
 |--------|---------|
 | `mount-loa.sh` | Install Loa onto existing repo |
 | `update.sh` | Framework updates with atomic commits |
+| `upgrade-health-check.sh` | Post-upgrade migration and config validation |
 | `check-loa.sh` | CI validation |
 | `context-manager.sh` | Context compaction + semantic recovery |
 | `cache-manager.sh` | Semantic result caching |
 | `condense.sh` | Result condensation engine |
 | `early-exit.sh` | Parallel subagent coordination |
+| `synthesize-to-ledger.sh` | Continuous synthesis to NOTES.md/trajectory |
 | `schema-validator.sh` | Output validation |
 | `permission-audit.sh` | Permission request analysis |
 
@@ -291,6 +293,15 @@ chore(loa): upgrade framework v1.3.0 -> v1.4.0
 ```
 
 Version tags: `loa@v{VERSION}`. Query with `git tag -l 'loa@*'`.
+
+**Post-Upgrade Health Check**: Runs automatically after `update.sh`. Manual usage:
+```bash
+.claude/scripts/upgrade-health-check.sh          # Check for issues
+.claude/scripts/upgrade-health-check.sh --fix    # Auto-fix where possible
+.claude/scripts/upgrade-health-check.sh --json   # JSON output for scripting
+```
+
+Checks: bd→br migration, deprecated settings, new config options, recommended permissions.
 
 ## Integrations
 
