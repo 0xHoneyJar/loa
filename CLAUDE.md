@@ -313,6 +313,36 @@ Core scripts in `.claude/scripts/`. See `.claude/protocols/helper-scripts.md` fo
 | `synthesize-to-ledger.sh` | Continuous synthesis to NOTES.md/trajectory |
 | `schema-validator.sh` | Output validation |
 | `permission-audit.sh` | Permission request analysis |
+| `search-orchestrator.sh` | ck-first semantic search with grep fallback |
+
+### Search Orchestration (v1.7.0)
+
+Skills use `search-orchestrator.sh` for ck-first semantic search with automatic grep fallback:
+
+```bash
+# Semantic/hybrid search (uses ck if available, falls back to grep)
+.claude/scripts/search-orchestrator.sh hybrid "auth token validate" src/ 20 0.5
+
+# Regex search (uses ck regex mode or grep)
+.claude/scripts/search-orchestrator.sh regex "TODO|FIXME" src/ 50 0.0
+```
+
+**Search Types**:
+| Type | ck Mode | grep Fallback | Use Case |
+|------|---------|---------------|----------|
+| `semantic` | `ck --sem` | keyword OR | Conceptual queries |
+| `hybrid` | `ck --hybrid` | keyword OR | Discovery + exact |
+| `regex` | `ck --regex` | `grep -E` | Exact patterns |
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+prefer_ck: true  # Use ck when available
+```
+
+**Environment Override**:
+```bash
+LOA_SEARCH_MODE=grep  # Force grep fallback
+```
 
 **Clean Upgrade** (v1.4.0+): Both `mount-loa.sh` and `update.sh` create single atomic git commits:
 ```

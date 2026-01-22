@@ -145,28 +145,28 @@ If ANY checkbox fails → DO NOT proceed with implementation
 
 ---
 
-## Fallback Strategy (No ck)
+## Search Strategy
 
-When ck not available, use grep with keyword extraction:
+Use search-orchestrator.sh for ck-first search with automatic grep fallback:
 
 ```bash
 # Task: "Add JWT authentication"
-# Extract keywords: jwt, auth, token, validate
+# Use hybrid search for semantic understanding of auth patterns
 
+.claude/scripts/search-orchestrator.sh hybrid \
+  "jwt token authentication validate handler auth" \
+  src/ 20 0.5
+```
+
+### Manual Fallback (if search-orchestrator unavailable)
+
+```bash
 grep -rn "jwt\|token.*valid\|auth.*handler" \
   --include="*.ts" --include="*.js" \
   src/ | head -20
 ```
 
-**Limitations**:
-- Higher false-positive rate
-- May need multiple grep passes
-- Manual filtering required
-
-**Mitigation**:
-- Use multiple keyword variations
-- Review more results manually
-- Rely more on existing docs
+**Note**: search-orchestrator.sh automatically falls back to grep when ck is unavailable, so manual fallback is rarely needed.
 
 ---
 

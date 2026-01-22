@@ -70,31 +70,35 @@ jq -n \
 
 # Execute search based on mode
 if [[ "${LOA_SEARCH_MODE}" == "ck" ]]; then
-    # Semantic search using ck
+    # Semantic search using ck (v0.7.0+ syntax)
+    # Note: ck uses positional path argument, --limit (not --top-k), --threshold
     case "${SEARCH_TYPE}" in
         semantic)
-            SEARCH_RESULTS=$(ck --semantic "${QUERY}" \
-                --path "${SEARCH_PATH}" \
-                --top-k "${TOP_K}" \
+            SEARCH_RESULTS=$(ck --sem "${QUERY}" \
+                --limit "${TOP_K}" \
                 --threshold "${THRESHOLD}" \
-                --jsonl 2>/dev/null || echo "")
-            RESULT_COUNT=$(echo "${SEARCH_RESULTS}" | grep -c '^{' || echo 0)
+                --jsonl \
+                "${SEARCH_PATH}" 2>/dev/null || echo "")
+            RESULT_COUNT=$(echo "${SEARCH_RESULTS}" | grep -c '^{' 2>/dev/null || echo 0)
+            RESULT_COUNT="${RESULT_COUNT:-0}"
             echo "${SEARCH_RESULTS}"
             ;;
         hybrid)
             SEARCH_RESULTS=$(ck --hybrid "${QUERY}" \
-                --path "${SEARCH_PATH}" \
-                --top-k "${TOP_K}" \
+                --limit "${TOP_K}" \
                 --threshold "${THRESHOLD}" \
-                --jsonl 2>/dev/null || echo "")
-            RESULT_COUNT=$(echo "${SEARCH_RESULTS}" | grep -c '^{' || echo 0)
+                --jsonl \
+                "${SEARCH_PATH}" 2>/dev/null || echo "")
+            RESULT_COUNT=$(echo "${SEARCH_RESULTS}" | grep -c '^{' 2>/dev/null || echo 0)
+            RESULT_COUNT="${RESULT_COUNT:-0}"
             echo "${SEARCH_RESULTS}"
             ;;
         regex)
             SEARCH_RESULTS=$(ck --regex "${QUERY}" \
-                --path "${SEARCH_PATH}" \
-                --jsonl 2>/dev/null || echo "")
-            RESULT_COUNT=$(echo "${SEARCH_RESULTS}" | grep -c '^{' || echo 0)
+                --jsonl \
+                "${SEARCH_PATH}" 2>/dev/null || echo "")
+            RESULT_COUNT=$(echo "${SEARCH_RESULTS}" | grep -c '^{' 2>/dev/null || echo 0)
+            RESULT_COUNT="${RESULT_COUNT:-0}"
             echo "${SEARCH_RESULTS}"
             ;;
         *)

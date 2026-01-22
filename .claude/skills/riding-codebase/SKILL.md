@@ -563,8 +563,12 @@ echo '```' >> grimoires/loa/reality/structure.md
 ### 2.3 Entry Points & Routes
 
 ```bash
+.claude/scripts/search-orchestrator.sh hybrid \
+  "@Get @Post @Put @Delete @Patch router app.get app.post app.put app.delete app.patch @route @api route handler endpoint" \
+  "${TARGET_REPO}/src" 50 0.4 \
+  > grimoires/loa/reality/api-routes.txt 2>/dev/null || \
 grep -rn "@Get\|@Post\|@Put\|@Delete\|@Patch\|router\.\|app\.\(get\|post\|put\|delete\|patch\)\|@route\|@api" \
-  --include="*.ts" --include="*.js" --include="*.py" --include="*.go" 2>/dev/null \
+  --include="*.ts" --include="*.js" --include="*.py" --include="*.go" "${TARGET_REPO}" 2>/dev/null \
   > grimoires/loa/reality/api-routes.txt
 
 ROUTE_COUNT=$(wc -l < grimoires/loa/reality/api-routes.txt 2>/dev/null || echo 0)
@@ -574,24 +578,35 @@ echo "Found $ROUTE_COUNT route definitions"
 ### 2.4 Data Models & Entities
 
 ```bash
+.claude/scripts/search-orchestrator.sh hybrid \
+  "model @Entity class Entity CREATE TABLE type struct interface schema definition" \
+  "${TARGET_REPO}/src" 50 0.4 \
+  > grimoires/loa/reality/data-models.txt 2>/dev/null || \
 grep -rn "model \|@Entity\|class.*Entity\|CREATE TABLE\|type.*struct\|interface.*{\|type.*=" \
-  --include="*.prisma" --include="*.ts" --include="*.sql" --include="*.go" --include="*.graphql" 2>/dev/null \
+  --include="*.prisma" --include="*.ts" --include="*.sql" --include="*.go" --include="*.graphql" "${TARGET_REPO}" 2>/dev/null \
   > grimoires/loa/reality/data-models.txt
 ```
 
 ### 2.5 Environment Dependencies
 
 ```bash
+.claude/scripts/search-orchestrator.sh regex \
+  "process\\.env\\.[A-Z_]+|os\\.environ\\[|os\\.Getenv\\(|env\\.[A-Z_]+|import\\.meta\\.env\\." \
+  "${TARGET_REPO}/src" 100 0.0 2>/dev/null | sort -u > grimoires/loa/reality/env-vars.txt || \
 grep -roh 'process\.env\.\w\+\|os\.environ\[.\+\]\|os\.Getenv\(.\+\)\|env\.\w\+\|import\.meta\.env\.\w\+' \
-  --include="*.ts" --include="*.js" --include="*.py" --include="*.go" 2>/dev/null \
+  --include="*.ts" --include="*.js" --include="*.py" --include="*.go" "${TARGET_REPO}" 2>/dev/null \
   | sort -u > grimoires/loa/reality/env-vars.txt
 ```
 
 ### 2.6 Tech Debt Markers
 
 ```bash
+.claude/scripts/search-orchestrator.sh regex \
+  "TODO|FIXME|HACK|XXX|BUG|@deprecated|eslint-disable|@ts-ignore|type:\\s*any" \
+  "${TARGET_REPO}/src" 100 0.0 \
+  > grimoires/loa/reality/tech-debt.txt 2>/dev/null || \
 grep -rn "TODO\|FIXME\|HACK\|XXX\|BUG\|@deprecated\|eslint-disable\|@ts-ignore\|type: any" \
-  --include="*.ts" --include="*.js" --include="*.py" --include="*.go" 2>/dev/null \
+  --include="*.ts" --include="*.js" --include="*.py" --include="*.go" "${TARGET_REPO}" 2>/dev/null \
   > grimoires/loa/reality/tech-debt.txt
 ```
 
@@ -897,10 +912,16 @@ Log to trajectory:
 
 ```bash
 # Extract all exported names, class names, function names
-grep -rh "export \(const\|function\|class\|interface\|type\)" --include="*.ts" --include="*.js" 2>/dev/null | head -100
+.claude/scripts/search-orchestrator.sh regex \
+  "export\\s+(const|function|class|interface|type)" \
+  "${TARGET_REPO}/src" 100 0.0 2>/dev/null | head -100 || \
+grep -rh "export \(const\|function\|class\|interface\|type\)" --include="*.ts" --include="*.js" "${TARGET_REPO}" 2>/dev/null | head -100
 
 # For Solidity
-grep -rh "contract \|interface \|struct \|event \|function " --include="*.sol" 2>/dev/null | head -100
+.claude/scripts/search-orchestrator.sh regex \
+  "contract |interface |struct |event |function " \
+  "${TARGET_REPO}" 100 0.0 2>/dev/null | head -100 || \
+grep -rh "contract \|interface \|struct \|event \|function " --include="*.sol" "${TARGET_REPO}" 2>/dev/null | head -100
 ```
 
 ### 5.2 Generate Consistency Report
