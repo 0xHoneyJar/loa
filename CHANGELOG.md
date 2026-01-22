@@ -5,6 +5,54 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-01-22 — Clean Upgrade & CLAUDE.md Diet
+
+### Why This Release
+
+Eliminates git history pollution during framework upgrades and dramatically reduces CLAUDE.md size for better Claude Code context efficiency.
+
+### Added
+
+- **Clean Upgrade Commits**: Framework upgrades now create single atomic commits
+  - `mount-loa.sh` and `update.sh` create conventional commits: `chore(loa): upgrade framework v{OLD} -> v{NEW}`
+  - Version tags: `loa@v{VERSION}` for easy upgrade history tracking
+  - Query history with `git tag -l 'loa@*'`
+  - Rollback with `git revert HEAD` or `git checkout loa@v{VERSION} -- .claude`
+
+- **Upgrade Configuration**: New `.loa.config.yaml` section
+  ```yaml
+  upgrade:
+    auto_commit: true   # Create git commit after upgrade
+    auto_tag: true      # Create version tag
+    commit_prefix: "chore"  # Conventional commit prefix
+  ```
+
+- **`--no-commit` Flag**: Skip automatic commit creation
+  - `mount-loa.sh --no-commit`
+  - `update.sh --no-commit`
+
+- **Protocol Documentation**
+  - `.claude/protocols/helper-scripts.md` - Comprehensive script documentation
+  - `.claude/protocols/upgrade-process.md` - 12-stage upgrade workflow documentation
+
+### Changed
+
+- **CLAUDE.md**: Reduced from 1,157 lines to 321 lines (72% reduction)
+  - Core instructions remain in CLAUDE.md
+  - Detailed documentation moved to protocol files
+  - References added for JIT loading when needed
+
+### Technical Details
+
+- **Stealth Mode**: No commits created in stealth persistence mode
+- **Tag Handling**: Existing tags are not overwritten
+- **Dirty Tree**: Warnings shown but upgrades continue
+- **Config Priority**: CLI flags > config file > defaults
+
+### Migration Notes
+
+No migration required. Existing installations will gain clean upgrade behavior automatically on next update.
+
 ## [1.3.1] - 2026-01-20 — Gitignore Hardening
 
 ### Why This Release
