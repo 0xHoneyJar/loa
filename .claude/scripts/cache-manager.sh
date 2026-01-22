@@ -591,7 +591,7 @@ is_auto_synthesize_enabled() {
 
     if command -v yq &>/dev/null; then
         local enabled
-        enabled=$(yq '.recursive_jit.continuous_synthesis.on_cache_set // false' "$CONFIG_FILE" 2>/dev/null)
+        enabled=$(yq '.recursive_jit.continuous_synthesis.on_cache_set // true' "$CONFIG_FILE" 2>/dev/null)
         [[ "$enabled" == "true" ]]
     else
         return 1

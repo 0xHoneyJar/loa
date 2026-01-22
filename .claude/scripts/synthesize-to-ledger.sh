@@ -97,7 +97,7 @@ is_synthesis_enabled() {
     # Check if yq is available
     if command -v yq &>/dev/null; then
         local enabled
-        enabled=$(yq '.recursive_jit.continuous_synthesis.enabled // false' "$CONFIG_FILE" 2>/dev/null)
+        enabled=$(yq '.recursive_jit.continuous_synthesis.enabled // true' "$CONFIG_FILE" 2>/dev/null)
         [[ "$enabled" == "true" ]]
     else
         # Fallback: assume enabled if config exists
@@ -125,7 +125,7 @@ is_bead_update_enabled() {
 
     if command -v yq &>/dev/null; then
         local enabled
-        enabled=$(yq '.recursive_jit.continuous_synthesis.update_bead // false' "$CONFIG_FILE" 2>/dev/null)
+        enabled=$(yq '.recursive_jit.continuous_synthesis.update_bead // true' "$CONFIG_FILE" 2>/dev/null)
         [[ "$enabled" == "true" ]]
     else
         return 1
