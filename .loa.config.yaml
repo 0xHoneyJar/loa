@@ -489,6 +489,57 @@ run_mode:
     default_branch_name: "release"
 
 # =============================================================================
+# Recursive JIT Context System (v0.20.0)
+# =============================================================================
+# Semantic result caching and condensation for recursive subagent patterns
+recursive_jit:
+  # -------------------------------------------------------------------------
+  # Semantic Result Cache
+  # -------------------------------------------------------------------------
+  cache:
+    # Master toggle for semantic cache
+    enabled: true
+    # Maximum cache size in MB (LRU eviction when exceeded)
+    max_size_mb: 100
+    # Time-to-live in days (entries expire after this period)
+    ttl_days: 30
+
+  # -------------------------------------------------------------------------
+  # Condensation Engine
+  # -------------------------------------------------------------------------
+  condensation:
+    # Default strategy for result condensation
+    # Options: structured_verdict, identifiers_only, summary
+    default_strategy: structured_verdict
+    # Maximum tokens for condensed results
+    max_condensed_tokens: 50
+    # Preserve these fields in structured_verdict strategy
+    preserve_fields:
+      - verdict
+      - severity_counts
+      - top_findings
+
+  # -------------------------------------------------------------------------
+  # Semantic Recovery Enhancement
+  # -------------------------------------------------------------------------
+  recovery:
+    # Enable semantic (query-based) recovery
+    semantic_enabled: true
+    # Fall back to positional recovery if semantic search fails
+    fallback_to_positional: true
+    # Prefer ck for semantic search when available
+    prefer_ck: true
+
+  # -------------------------------------------------------------------------
+  # Early-Exit Coordination
+  # -------------------------------------------------------------------------
+  early_exit:
+    # Enable early-exit protocol for parallel subagents
+    enabled: true
+    # Grace period in seconds before cleanup
+    grace_period_seconds: 5
+
+# =============================================================================
 # Behavior Preferences
 # =============================================================================
 preferences:
