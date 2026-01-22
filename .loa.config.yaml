@@ -539,6 +539,27 @@ recursive_jit:
     # Grace period in seconds before cleanup
     grace_period_seconds: 5
 
+  # -------------------------------------------------------------------------
+  # Continuous Synthesis (Anti-Platform-Summarization)
+  # -------------------------------------------------------------------------
+  # Automatically externalize data to ledgers when RLM operations occur.
+  # This ensures critical information survives Claude Code's automatic
+  # context summarization by writing to NOTES.md/trajectory at every
+  # natural checkpoint (cache writes, condensation, early-exit signals).
+  continuous_synthesis:
+    # Master toggle for auto-synthesis
+    enabled: true
+    # Write to NOTES.md Decision Log on cache set operations
+    on_cache_set: true
+    # Log condensation decisions to trajectory
+    on_condense: true
+    # Log milestone completions on early-exit signals
+    on_early_exit: true
+    # Target for synthesis writes
+    target: notes_decision_log
+    # Also update active bead (if beads_rust available)
+    update_bead: true
+
 # =============================================================================
 # Behavior Preferences
 # =============================================================================

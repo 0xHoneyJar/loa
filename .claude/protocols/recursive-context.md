@@ -248,7 +248,71 @@ recursive_jit:
   early_exit:
     enabled: true
     grace_period_seconds: 5
+  continuous_synthesis:
+    enabled: true
+    on_cache_set: true
+    on_condense: true
+    on_early_exit: true
 ```
+
+## Continuous Synthesis (Anti-Summarization)
+
+### The Problem
+
+Claude Code performs automatic context summarization when conversations grow long. This is a **platform-level feature** outside Loa's control. If agents don't externalize data to ledgers before summarization occurs, information is lost.
+
+### The Solution
+
+RLM operations serve as **natural synthesis triggers**. Every time we cache, condense, or signal early-exit, that's precisely when critical data should be externalized to NOTES.md and trajectory.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    RLM-Triggered Synthesis Flow                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  Agent Work                                                              │
+│      │                                                                   │
+│      ▼                                                                   │
+│  ┌──────────────────┐    ┌──────────────────────────────────────────┐   │
+│  │ condense.sh      │───▶│ TRIGGER: Result being compressed         │   │
+│  │ --externalize    │    │ ACTION: Log to trajectory + NOTES.md     │   │
+│  └──────────────────┘    └──────────────────────────────────────────┘   │
+│      │                                                                   │
+│      ▼                                                                   │
+│  ┌──────────────────┐    ┌──────────────────────────────────────────┐   │
+│  │ cache-manager.sh │───▶│ TRIGGER: Result being cached             │   │
+│  │ set --synthesize │    │ ACTION: Append to NOTES.md Decision Log  │   │
+│  └──────────────────┘    └──────────────────────────────────────────┘   │
+│      │                                                                   │
+│      ▼                                                                   │
+│  ┌──────────────────┐    ┌──────────────────────────────────────────┐   │
+│  │ early-exit.sh    │───▶│ TRIGGER: Subagent completed/won          │   │
+│  │ signal/write     │    │ ACTION: Log milestone to trajectory      │   │
+│  └──────────────────┘    └──────────────────────────────────────────┘   │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Usage
+
+When `continuous_synthesis.enabled: true`, RLM scripts automatically externalize:
+
+```bash
+# Auto-synthesizes to NOTES.md when caching
+cache-manager.sh set --key "$key" --condensed '{"verdict":"PASS"}' \
+  --synthesize "Security audit of auth.ts: PASS"
+
+# Or with auto-synthesis enabled in config, just:
+cache-manager.sh set --key "$key" --condensed '{"verdict":"PASS"}'
+# → Automatically appends to Decision Log
+```
+
+### Benefits
+
+1. **Lossless**: Data is externalized before platform summarization can lose it
+2. **Automatic**: No agent discipline required - synthesis happens at natural checkpoints
+3. **Atomic**: Cache write + ledger write happen together
+4. **Traceable**: Every cached result has a corresponding Decision Log entry
 
 ## Performance Targets
 

@@ -49,7 +49,7 @@ Cache Manager - Semantic result cache for recursive JIT context system
 
 Commands:
   get --key <key>                   Get cached result by key
-  set --key <key> --condensed <json> [--full <file>]  Store result
+  set --key <key> --condensed <json> [--full <file>] [--synthesize <msg>]  Store result
   delete --key <key>                Delete cached entry
   generate-key --paths <paths> --query <query> --operation <op>  Generate cache key
   invalidate --paths <glob>         Invalidate entries by path pattern
@@ -67,6 +67,8 @@ Configuration (.loa.config.yaml):
       enabled: true                 # Enable/disable cache
       max_size_mb: 100              # Max cache size in MB
       ttl_days: 30                  # Time-to-live in days
+    continuous_synthesis:
+      on_cache_set: true            # Auto-write to NOTES.md on cache set
 
 Environment Variable Overrides:
   LOA_CACHE_ENABLED=false           # Disable cache
@@ -76,6 +78,7 @@ Environment Variable Overrides:
 Examples:
   cache-manager.sh generate-key --paths "src/auth.ts,src/user.ts" --query "security audit" --operation "audit"
   cache-manager.sh set --key abc123 --condensed '{"verdict":"PASS"}'
+  cache-manager.sh set --key abc123 --condensed '{"verdict":"PASS"}' --synthesize "Auth audit: PASS"
   cache-manager.sh get --key abc123
   cache-manager.sh stats --json
   cache-manager.sh cleanup --max-size-mb 50
@@ -465,6 +468,7 @@ cmd_set() {
     local condensed=""
     local full_path=""
     local source_paths=""
+    local synthesize_msg=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -472,6 +476,7 @@ cmd_set() {
             --condensed) condensed="$2"; shift 2 ;;
             --full) full_path="$2"; shift 2 ;;
             --sources) source_paths="$2"; shift 2 ;;
+            --synthesize) synthesize_msg="$2"; shift 2 ;;
             *)
                 print_error "Unknown option: $1"
                 return 1
@@ -554,6 +559,43 @@ cmd_set() {
     ' "$CACHE_INDEX" > "${CACHE_INDEX}.tmp" && mv "${CACHE_INDEX}.tmp" "$CACHE_INDEX"
 
     print_success "Cached result for key: $key"
+
+    # Continuous synthesis: write to ledger if enabled
+    if [[ -n "$synthesize_msg" ]]; then
+        local synthesize_script="${SCRIPT_DIR}/synthesize-to-ledger.sh"
+        if [[ -x "$synthesize_script" ]]; then
+            "$synthesize_script" decision --message "$synthesize_msg" --source cache --quiet
+        fi
+    elif is_auto_synthesize_enabled; then
+        # Auto-synthesize: extract verdict from condensed JSON if available
+        local auto_msg=""
+        if echo "$condensed" | jq -e '.verdict' &>/dev/null; then
+            auto_msg="Cache: $(echo "$condensed" | jq -r '.verdict // "stored"') [key: ${key:0:8}...]"
+        else
+            auto_msg="Cache: result stored [key: ${key:0:8}...]"
+        fi
+        local synthesize_script="${SCRIPT_DIR}/synthesize-to-ledger.sh"
+        if [[ -x "$synthesize_script" ]]; then
+            "$synthesize_script" decision --message "$auto_msg" --source cache --quiet
+        fi
+    fi
+}
+
+#######################################
+# Check if auto-synthesize is enabled
+#######################################
+is_auto_synthesize_enabled() {
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        return 1
+    fi
+
+    if command -v yq &>/dev/null; then
+        local enabled
+        enabled=$(yq '.recursive_jit.continuous_synthesis.on_cache_set // false' "$CONFIG_FILE" 2>/dev/null)
+        [[ "$enabled" == "true" ]]
+    else
+        return 1
+    fi
 }
 
 #######################################
