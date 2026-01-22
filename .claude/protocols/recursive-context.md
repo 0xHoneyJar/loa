@@ -343,11 +343,12 @@ This ensures that even if NOTES.md is not read in a recovered session, the bead 
 
 ## Backward Compatibility
 
-All new features are additive and opt-in:
+All new features are **enabled by default** (opt-out model):
 - Existing JIT retrieval works unchanged
-- Cache disabled by default in new projects
+- Cache, condensation, and continuous synthesis are enabled out of the box
 - Recovery without `--query` uses positional mode
-- Early-exit only active when explicitly initialized
+- Early-exit coordination requires explicit session initialization
+- Disable features via `.loa.config.yaml` if needed
 
 ## Related Documentation
 
