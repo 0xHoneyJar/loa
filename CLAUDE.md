@@ -2,6 +2,13 @@
 
 Guidance for Claude Code when working in this repository.
 
+## GPT Review Reminder (MANDATORY)
+
+If you see `>> GPT Review:` after editing code, you MUST run it before moving on. This is not optional.
+- Run GPT review after completing each coding task (not every single edit, but after each logical group of changes)
+- Use iteration flags for re-reviews: `--iteration N --previous /tmp/gpt-review-findings-{N-1}.json`
+- Do not skip or ignore the reminder
+
 ## Project Overview
 
 Agent-driven development framework that orchestrates the complete product lifecycle using 9 specialized AI agents (skills). Built with enterprise-grade managed scaffolding inspired by AWS Projen, Copier, and Google's ADK.
