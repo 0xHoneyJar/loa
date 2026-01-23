@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Check phase prerequisites
 # Usage: ./check-prerequisites.sh --phase PHASE_NAME [--sprint SPRINT_ID]
 # Returns: OK | MISSING|file1,file2,...

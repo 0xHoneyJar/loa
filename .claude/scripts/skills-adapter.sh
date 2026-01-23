@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # skills-adapter.sh
 # Purpose: Transform Loa skills to Claude Agent Skills format at runtime
 # Usage: ./skills-adapter.sh <command> [args]

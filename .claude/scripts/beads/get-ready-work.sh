@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Get highest priority ready work
 # Usage: get-ready-work.sh [limit] [--ids-only]
 #

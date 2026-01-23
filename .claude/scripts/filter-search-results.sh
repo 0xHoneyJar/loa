@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # filter-search-results.sh
 # Purpose: Build exclude arguments for ck/grep based on context filtering configuration
 # Sprint: 4 (Context Filtering - FR-9.2, GitHub Issue #10)

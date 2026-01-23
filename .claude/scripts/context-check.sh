@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Context size assessment for parallel execution decisions
 # Used by agents to determine if work should be split
 

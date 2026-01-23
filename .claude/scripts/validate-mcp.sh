@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # validate-mcp.sh
 # Purpose: Validate that required MCP servers are configured
 # Usage: ./validate-mcp.sh server1 [server2 ...]

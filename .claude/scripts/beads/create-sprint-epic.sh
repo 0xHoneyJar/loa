@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Create a sprint epic and return its ID
 # Usage: create-sprint-epic.sh "Sprint N: Theme" [priority]
 #

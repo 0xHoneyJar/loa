@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Validate sprint ID format with optional ledger resolution
 # Usage: ./validate-sprint-id.sh sprint-N [--resolve]
 # Returns:
@@ -39,8 +39,15 @@ main() {
         exit 1
     fi
 
-    # Extract number and check it's positive
+    # Extract number and validate it's numeric (LOW-004)
     local num="${sprint_id#sprint-}"
+
+    # SECURITY (LOW-004): Explicitly validate numeric before arithmetic
+    if ! [[ "$num" =~ ^[0-9]+$ ]]; then
+        echo "INVALID|Sprint number must be numeric"
+        exit 1
+    fi
+
     if [ "$num" -eq 0 ]; then
         echo "INVALID|Sprint number must be positive (sprint-1 or higher)"
         exit 1

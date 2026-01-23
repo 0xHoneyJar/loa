@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Create a task under a sprint epic
 # Usage: create-sprint-task.sh <epic-id> "Task title" [priority] [type]
 #

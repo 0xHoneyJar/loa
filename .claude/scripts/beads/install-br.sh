@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Install beads_rust (br) CLI tool
 # Usage: install-br.sh [--check-only]
 #
