@@ -613,7 +613,7 @@ Cross-model review using GPT 5.2 to catch issues Claude might miss.
 
 ### Overview
 
-GPT review is a **standalone command** that skills can invoke. The script checks configuration and returns `SKIPPED` if disabled - skills don't need to check.
+When enabled, GPT review runs via PostToolUse hook after code changes. The hook outputs a reminder, and the script checks configuration - returning `SKIPPED` if disabled.
 
 ### Command
 

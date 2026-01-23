@@ -452,6 +452,21 @@
           {
             "type": "command",
             "command": ".claude/scripts/check-updates.sh --notify"
+          },
+          {
+            "type": "command",
+            "command": ".claude/scripts/toggle-gpt-review-context.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "(Edit|Write).*\\.(ts|tsx|js|jsx|py|go|rs|java|c|cpp|rb|php|swift|kt|sh)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/auto-gpt-review-hook.sh"
           }
         ]
       }

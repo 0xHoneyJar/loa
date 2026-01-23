@@ -1,0 +1,45 @@
+# GPT Review Protocol (Active)
+
+GPT cross-model review is **enabled**. A PostToolUse hook will remind you after code changes.
+
+## Running GPT Review
+
+**For code changes:**
+```bash
+.claude/scripts/gpt-review-api.sh code <changed-file>
+```
+
+**For documents (during workflows):**
+| Document | Command |
+|----------|---------|
+| PRD | `.claude/scripts/gpt-review-api.sh prd grimoires/loa/prd.md` |
+| SDD | `.claude/scripts/gpt-review-api.sh sdd grimoires/loa/sdd.md` |
+| Sprint | `.claude/scripts/gpt-review-api.sh sprint grimoires/loa/sprint.md` |
+
+## Handling Verdicts
+
+```bash
+response=$(.claude/scripts/gpt-review-api.sh <type> <file>)
+verdict=$(echo "$response" | jq -r '.verdict')
+```
+
+| Verdict | Action |
+|---------|--------|
+| `SKIPPED` | Continue (review disabled at phase level) |
+| `APPROVED` | Continue (no issues) |
+| `CHANGES_REQUIRED` | Fix issues in response, then re-run |
+| `DECISION_NEEDED` | Ask user the question, incorporate answer, re-run (documents only) |
+
+## Re-Reviews (Iteration Tracking)
+
+After fixing issues, pass iteration context so GPT verifies fixes rather than re-reviewing from scratch:
+
+```bash
+# Save first response
+echo "$response" > /tmp/gpt-review-findings-1.json
+
+# After fixing, run iteration 2
+response=$(.claude/scripts/gpt-review-api.sh <type> <file> \
+  --iteration 2 \
+  --previous /tmp/gpt-review-findings-1.json)
+```

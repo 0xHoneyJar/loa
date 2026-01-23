@@ -13,6 +13,9 @@ agent: "planning-sprints"
 agent_path: "skills/planning-sprints/"
 
 context_files:
+  - path: ".claude/context/gpt-review-active.md"
+    required: false
+    purpose: "GPT cross-model review instructions (if enabled)"
   - path: "grimoires/loa/prd.md"
     required: true
     purpose: "Product requirements for scope"

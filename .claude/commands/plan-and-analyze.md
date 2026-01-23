@@ -12,6 +12,11 @@ agent: "discovering-requirements"
 agent_path: "skills/discovering-requirements/"
 
 context_files:
+  # GPT review instructions (conditional - only exists if enabled)
+  - path: ".claude/context/gpt-review-active.md"
+    required: false
+    purpose: "GPT cross-model review instructions (if enabled)"
+
   # Core context (always attempt to read)
   - path: "grimoires/loa/context/*.md"
     required: false

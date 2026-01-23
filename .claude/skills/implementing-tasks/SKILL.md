@@ -551,47 +551,6 @@ See `resources/REFERENCE.md` for complete checklists:
 - Ignored existing patterns
 </checklists>
 
-<gpt_review>
-## GPT Review Step
-
-After completing code changes, run GPT cross-model review:
-
-```bash
-# First review (iteration 1)
-response=$(.claude/scripts/gpt-review-api.sh code "$content_file")
-echo "$response" > /tmp/gpt-review-findings-1.json
-verdict=$(echo "$response" | jq -r '.verdict')
-iteration=1
-```
-
-The command handles everything:
-- Checks if GPT review is enabled in config
-- If disabled: returns SKIPPED, continue normally
-- If enabled: sends code to GPT 5.2 for review
-
-**Handle the verdict:**
-- `SKIPPED` → Continue (review is disabled)
-- `APPROVED` → Continue (code is good)
-- `CHANGES_REQUIRED` → Fix issues, then re-run with iteration tracking (see below)
-
-**CRITICAL - Iteration Tracking for Re-Reviews:**
-
-When verdict is `CHANGES_REQUIRED`, you MUST track iterations:
-
-```bash
-# After fixing issues, run iteration 2+
-iteration=$((iteration + 1))
-response=$(.claude/scripts/gpt-review-api.sh code "$content_file" \
-  --iteration "$iteration" \
-  --previous "/tmp/gpt-review-findings-$((iteration - 1)).json")
-echo "$response" > "/tmp/gpt-review-findings-${iteration}.json"
-verdict=$(echo "$response" | jq -r '.verdict')
-```
-
-**Why this matters**: The `--previous` parameter gives GPT context about what it found before, so it can verify fixes were made correctly rather than re-reviewing from scratch.
-
-No DECISION_NEEDED for code reviews - Claude and GPT work together automatically.
-</gpt_review>
 
 <beads_workflow>
 ## Beads Workflow (beads_rust)

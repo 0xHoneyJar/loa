@@ -11,6 +11,9 @@ agent: "designing-architecture"
 agent_path: "skills/designing-architecture/"
 
 context_files:
+  - path: ".claude/context/gpt-review-active.md"
+    required: false
+    purpose: "GPT cross-model review instructions (if enabled)"
   - path: "grimoires/loa/prd.md"
     required: true
     purpose: "Product requirements for design basis"

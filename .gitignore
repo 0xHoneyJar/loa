@@ -25,6 +25,9 @@ out/
 
 # Claude Code config (local workspace settings, prompts, scratchpad)
 .claude/config/
+
+# GPT review context (dynamically generated based on config)
+.claude/context/gpt-review-active.md
 *.swp
 *.swo
 *~
