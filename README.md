@@ -1,8 +1,8 @@
 # Loa
 
-[![Version](https://img.shields.io/badge/version-1.3.1-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
-[![Release](https://img.shields.io/badge/release-Gitignore%20Hardening-purple.svg)](CHANGELOG.md#131---2026-01-20--gitignore-hardening)
+[![Release](https://img.shields.io/badge/release-Codebase%20Grounding%20%26%20Security%20Hardening-purple.svg)](CHANGELOG.md#160---2026-01-23--codebase-grounding--security-hardening)
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
 

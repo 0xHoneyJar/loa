@@ -5,6 +5,100 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-01-23 — Codebase Grounding & Security Hardening
+
+### Why This Release
+
+This release combines **Cycle-008** (ck-First Semantic Search Migration) and **Cycle-009** (Security Remediation v2). The `/plan-and-analyze` command now automatically grounds itself in codebase reality for brownfield projects, and all 30 security findings from the comprehensive audit have been addressed.
+
+*"CODE IS TRUTH. PRDs are now grounded in what actually exists, not what we think exists."*
+
+### Added
+
+- **Automatic Codebase Grounding** (`/plan-and-analyze`)
+  - Phase -0.5 automatically runs `/ride` for brownfield projects
+  - Greenfield projects skip to Phase -1 with zero latency
+  - Uses cached reality if <7 days old (configurable)
+  - `--fresh` flag forces re-analysis
+  - Configuration in `.loa.config.yaml`:
+    ```yaml
+    plan_and_analyze:
+      codebase_grounding:
+        enabled: true
+        reality_staleness_days: 7
+        ride_timeout_minutes: 20
+        skip_on_ride_error: false
+    ```
+
+- **Brownfield Detection** (`detect-codebase.sh`)
+  - Detects >10 source files OR >500 lines of code
+  - Identifies primary language and source paths
+  - 41 comprehensive BATS unit tests
+  - JSON output for programmatic consumption
+
+- **ck-First Semantic Search** (`search-orchestrator.sh`)
+  - `ck` as primary search with automatic grep fallback
+  - Updated for ck v0.7.0+ CLI syntax (`--sem`, `--limit`, positional path)
+  - Three search modes: `semantic`, `hybrid`, `regex`
+  - Input validation: regex syntax, numeric params, path traversal protection
+
+- **Skills Updated for ck Search**
+  - `riding-codebase`: Route, model, env var, tech debt extraction
+  - `reviewing-code`: Impact analysis with hybrid search
+  - `implementing-tasks`: Context retrieval with hybrid search
+  - `deploying-infrastructure`: Secrets scanning with regex search
+  - `translating-for-executives`: Ghost feature examples
+
+### Security
+
+- **CRITICAL Fixes (2)**
+  - CRIT-001: Fixed Python code injection in `constructs-install.sh` heredoc
+    - Uses quoted `'PYEOF'` delimiter + environment variables
+  - CRIT-002: Added path traversal protection in pack extraction
+    - New `safe_path_join()` with realpath + component validation
+
+- **HIGH Fixes (8)**
+  - HIGH-001: Atomic ledger writes with flock (5s timeout)
+  - HIGH-002: Process substitution for Authorization header (no ps exposure)
+  - HIGH-003: Improved symlink validation with readlink -f
+  - HIGH-004: Global trap handlers (EXIT/INT/TERM) in update.sh
+  - HIGH-005: Replaced `eval` with `bash -c` in preflight.sh
+  - HIGH-006: Fixed branch regex bypass with glob matching
+  - HIGH-007: Atomic backup cleanup with flock
+  - HIGH-008: Atomic write pattern (temp + mv) across state files
+
+- **MEDIUM Fixes (12)**
+  - MED-001: Credential file permission checking (600/400 only)
+  - MED-004: Reduced JWT key cache TTL from 24h to 4h
+  - MED-005: New `secure_write_file()` and `secure_write_json()` utilities
+  - MED-006: Fixed license validation error propagation
+  - MED-007: Backup preservation in jq operations
+  - MED-008: Backup validation before restore
+  - MED-010: flock-based sync locking for beads operations
+
+- **LOW Fixes (5)**
+  - LOW-004: Explicit numeric validation before arithmetic
+  - LOW-005: Standardized shebang (`#!/usr/bin/env bash`) in 24 scripts
+
+### Changed
+
+- **ck v0.7.0+ Syntax** across all protocols and scripts
+  - `--sem` instead of `--semantic`
+  - `--limit` instead of `--top-k`
+  - Path as final positional argument instead of `--path`
+
+- **search-orchestrator.sh** hardening
+  - Added regex syntax validation (prevents ReDoS)
+  - Added numeric parameter validation
+  - Added path traversal protection with realpath
+
+### Fixed
+
+- Fixed unsafe xargs usage in detect-codebase.sh (filenames with spaces)
+- Fixed all ck calls to use v0.7.0+ syntax
+
+---
+
 ## [1.5.0] - 2026-01-23 — Recursive JIT Context System
 
 ### Why This Release
