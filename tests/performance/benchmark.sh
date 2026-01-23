@@ -123,7 +123,7 @@ for query in "${queries[@]}"; do
 
     durations=()
     for run in $(seq 1 $RUNS_PER_TEST); do
-        duration=$(measure_time ck --semantic "$query" --path "$TEST_CORPUS" --jsonl)
+        duration=$(measure_time ck --sem "$query" --jsonl "$TEST_CORPUS")
         durations+=("$duration")
     done
 
@@ -145,11 +145,11 @@ for query in "${queries[@]}"; do
     log "Query: '$query'"
 
     # Run twice (first warms cache, second measures)
-    ck --semantic "$query" --path "$TEST_CORPUS" --jsonl >/dev/null 2>&1 || true
+    ck --sem "$query" --jsonl "$TEST_CORPUS" >/dev/null 2>&1 || true
 
     durations=()
     for run in $(seq 1 $RUNS_PER_TEST); do
-        duration=$(measure_time ck --semantic "$query" --path "$TEST_CORPUS" --jsonl)
+        duration=$(measure_time ck --sem "$query" --jsonl "$TEST_CORPUS")
         durations+=("$duration")
     done
 
@@ -215,8 +215,8 @@ result_thresholds=(0.8 0.6 0.4 0.2)
 for threshold in "${result_thresholds[@]}"; do
     log "Threshold: $threshold"
 
-    duration=$(measure_time ck --semantic "function" --path "$TEST_CORPUS" --threshold "$threshold" --top-k 100 --jsonl)
-    result_count=$(ck --semantic "function" --path "$TEST_CORPUS" --threshold "$threshold" --top-k 100 --jsonl 2>/dev/null | wc -l || echo 0)
+    duration=$(measure_time ck --sem "function" --limit 100 --threshold "$threshold" --jsonl "$TEST_CORPUS")
+    result_count=$(ck --sem "function" --limit 100 --threshold "$threshold" --jsonl "$TEST_CORPUS" 2>/dev/null | wc -l || echo 0)
 
     log "  Duration: ${duration}ms, Results: $result_count"
 done

@@ -69,13 +69,13 @@ For each search operation, choose appropriate fallback:
 
 ### Pattern 1: Entry Point Discovery
 
-**With ck**:
+**With ck** (v0.7.0+ syntax):
 ```bash
+# ck v0.7.0+: --sem (not --semantic), --limit (not --top-k), path is positional (not --path)
 ck --hybrid "main entry point bootstrap initialize startup" \
-    --path "${PROJECT_ROOT}/src/" \
-    --top-k 10 \
+    --limit 10 \
     --threshold 0.5 \
-    --jsonl | jq -r '.path + ":" + (.line|tostring)'
+    --jsonl "${PROJECT_ROOT}/src/" | jq -r '.path + ":" + (.line|tostring)'
 ```
 
 **Grep Fallback**:
@@ -92,13 +92,12 @@ grep -rn \
 
 ### Pattern 2: Abstraction Discovery
 
-**With ck**:
+**With ck** (v0.7.0+ syntax):
 ```bash
-ck --semantic "abstract base class interface trait protocol" \
-    --path "${PROJECT_ROOT}/src/" \
-    --top-k 20 \
+ck --sem "abstract base class interface trait protocol" \
+    --limit 20 \
     --threshold 0.6 \
-    --jsonl
+    --jsonl "${PROJECT_ROOT}/src/"
 ```
 
 **Grep Fallback**:
@@ -113,22 +112,20 @@ grep -rn \
 
 ### Pattern 3: Ghost Feature Detection (High Quality Loss)
 
-**With ck (Negative Grounding Protocol)**:
+**With ck (Negative Grounding Protocol)** (v0.7.0+ syntax):
 ```bash
 # Query 1: Functional description
-ck --semantic "OAuth2 SSO login authentication provider" \
-    --path "${PROJECT_ROOT}/src/" \
-    --top-k 5 \
+ck --sem "OAuth2 SSO login authentication provider" \
+    --limit 5 \
     --threshold 0.4 \
-    --jsonl | wc -l
+    --jsonl "${PROJECT_ROOT}/src/" | wc -l
 # Expected: 0 for confirmed Ghost
 
 # Query 2: Architectural synonym
-ck --semantic "single sign-on identity provider federated auth" \
-    --path "${PROJECT_ROOT}/src/" \
-    --top-k 5 \
+ck --sem "single sign-on identity provider federated auth" \
+    --limit 5 \
     --threshold 0.4 \
-    --jsonl | wc -l
+    --jsonl "${PROJECT_ROOT}/src/" | wc -l
 # Expected: 0 for confirmed Ghost
 
 # GHOST confirmed if BOTH queries return 0
@@ -160,11 +157,10 @@ fi
 
 ### Pattern 4: Shadow System Detection (Minimal Quality Loss)
 
-**With ck**:
+**With ck** (v0.7.0+ syntax):
 ```bash
 ck --regex "^export |module\.exports|pub fn |pub struct " \
-    --path "${PROJECT_ROOT}/src/" \
-    --jsonl
+    --jsonl "${PROJECT_ROOT}/src/"
 ```
 
 **Grep Fallback**:
@@ -181,11 +177,10 @@ grep -rn \
 
 ### Pattern 5: Dependency Discovery
 
-**With ck**:
+**With ck** (v0.7.0+ syntax):
 ```bash
 ck --regex "import.*${MODULE_NAME}|from.*${MODULE_NAME}|require\(.*${MODULE_NAME}" \
-    --path "${PROJECT_ROOT}/src/" \
-    --jsonl
+    --jsonl "${PROJECT_ROOT}/src/"
 ```
 
 **Grep Fallback**:
@@ -343,7 +338,7 @@ The search orchestrator (`search-orchestrator.sh`) MUST:
 5. Return identical format regardless of mode
 
 ```bash
-# .claude/scripts/search-orchestrator.sh
+# .claude/scripts/search-orchestrator.sh (v0.7.0+ ck syntax)
 function search_semantic() {
     local query="$1"
     local path="$2"
@@ -351,11 +346,11 @@ function search_semantic() {
     local threshold="${4:-0.5}"
 
     if [[ "${LOA_SEARCH_MODE}" == "ck" ]]; then
-        ck --semantic "${query}" \
-            --path "${path}" \
-            --top-k "${top_k}" \
+        # ck v0.7.0+: --sem (not --semantic), --limit (not --top-k), path is positional
+        ck --sem "${query}" \
+            --limit "${top_k}" \
             --threshold "${threshold}" \
-            --jsonl | jq -r '.path + ":" + (.line|tostring)'
+            --jsonl "${path}" | jq -r '.path + ":" + (.line|tostring)'
     else
         # Fallback: Extract keywords, use grep
         local keywords=$(echo "${query}" | tr ' ' '|')

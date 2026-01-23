@@ -407,9 +407,9 @@ hooks:
 
 ### Unverified Ghost Features
 
-1. **Run second query**:
+1. **Run second query** (ck v0.7.0+ syntax):
    ```bash
-   ck --semantic "alternative terminology for feature" "${PROJECT_ROOT}/src/"
+   ck --sem "alternative terminology for feature" --jsonl "${PROJECT_ROOT}/src/"
    ```
 
 2. **Document verification**:

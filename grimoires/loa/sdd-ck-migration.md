@@ -56,12 +56,14 @@ search-orchestrator.sh exists but unused by skills
 search-orchestrator.sh <search_type> <query> [path] [top_k] [threshold]
 ```
 
-**Search Types**:
+**Search Types** (ck v0.7.0+ syntax):
 | Type | ck Command | grep Fallback | Use Case |
 |------|------------|---------------|----------|
-| `semantic` | `ck --semantic` | keyword OR | Conceptual queries |
+| `semantic` | `ck --sem` | keyword OR | Conceptual queries |
 | `hybrid` | `ck --hybrid` | keyword OR | Discovery + exact |
 | `regex` | `ck --regex` | `grep -E` | Exact patterns |
+
+**Note**: ck v0.7.0+ uses `--sem` (not `--semantic`), `--limit` (not `--top-k`), and path as positional argument (not `--path`).
 
 **No changes needed** - existing implementation handles routing.
 
