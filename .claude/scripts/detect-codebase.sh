@@ -64,7 +64,8 @@ count_lines() {
             grep -Ev "/($EXCLUDES)/" 2>/dev/null) || files=""
 
         if [[ -n "$files" ]]; then
-            lines=$(echo "$files" | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}')
+            # SECURITY: Use -0 with xargs to handle filenames with spaces safely
+            lines=$(echo "$files" | tr '\n' '\0' | xargs -0 wc -l 2>/dev/null | tail -1 | awk '{print $1}')
         fi
     fi
 
