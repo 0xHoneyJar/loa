@@ -374,9 +374,9 @@ Use labels instead of dependency types:
 
 | Relationship | Label | Example |
 |--------------|-------|---------|
-| Sprint membership | `sprint:<n>` | `br label add bd-xxx sprint:1` |
+| Sprint membership | `sprint:<n>` | `br label add beads-xxx sprint:1` |
 | Epic association | `epic:<epic-id>` | Auto-added by create-sprint-task.sh |
-| Review status | `needs-review` | `br label add bd-xxx needs-review` |
+| Review status | `needs-review` | `br label add beads-xxx needs-review` |
 
 ### Session End
 ```bash

@@ -41,7 +41,7 @@ Commands:
   preserve [section]  Check if critical sections exist (default: all critical)
   compact             Run compaction pre-check (what would be compacted)
   checkpoint          Run simplified checkpoint (3 manual steps)
-  recover [level]     Recover context (level 1/2/3)
+  recover [level] [--query <query>]  Recover context (level 1/2/3) with optional semantic search
 
   Probe Commands (RLM Pattern):
   probe <path>        Probe file or directory metadata without loading content
@@ -52,6 +52,7 @@ Options:
   --help, -h          Show this help message
   --json              Output as JSON (for status command)
   --dry-run           Show what would happen without making changes
+  --query <query>     Semantic query for recovery (selects relevant sections)
 
 Preservation Rules:
   ALWAYS preserved:
@@ -76,6 +77,7 @@ Examples:
   context-manager.sh status --json
   context-manager.sh checkpoint
   context-manager.sh recover 2
+  context-manager.sh recover 2 --query "authentication flow"
   context-manager.sh compact --dry-run
 
   Probe Examples (RLM Pattern):
@@ -989,59 +991,224 @@ cmd_checkpoint() {
 }
 
 #######################################
+# Check if semantic recovery is enabled
+#######################################
+is_semantic_recovery_enabled() {
+    local enabled
+    enabled=$(get_config "recursive_jit.recovery.semantic_enabled" "true")
+    [[ "$enabled" == "true" ]]
+}
+
+#######################################
+# Check if ck is preferred and available
+#######################################
+should_use_ck() {
+    local prefer_ck
+    prefer_ck=$(get_config "recursive_jit.recovery.prefer_ck" "true")
+    [[ "$prefer_ck" == "true" ]] && command -v ck &>/dev/null
+}
+
+#######################################
+# Semantic search using ck
+#######################################
+semantic_search_ck() {
+    local query="$1"
+    local file="$2"
+    local max_results="${3:-5}"
+
+    if ! command -v ck &>/dev/null; then
+        return 1
+    fi
+
+    # Use ck hybrid search on the file
+    ck --hybrid "$query" "$file" --limit "$max_results" 2>/dev/null || return 1
+}
+
+#######################################
+# Keyword search using grep (fallback)
+#######################################
+keyword_search_grep() {
+    local query="$1"
+    local file="$2"
+    local context_lines="${3:-5}"
+
+    if [[ ! -f "$file" ]]; then
+        return 1
+    fi
+
+    # Split query into keywords and search for each
+    local keywords
+    keywords=$(echo "$query" | tr '[:upper:]' '[:lower:]' | tr -s ' ' '\n' | grep -v '^$')
+
+    # Build grep pattern from keywords (OR logic)
+    local pattern=""
+    while IFS= read -r word; do
+        [[ -z "$word" ]] && continue
+        if [[ -z "$pattern" ]]; then
+            pattern="$word"
+        else
+            pattern="$pattern\\|$word"
+        fi
+    done <<< "$keywords"
+
+    if [[ -z "$pattern" ]]; then
+        return 1
+    fi
+
+    # Search with context
+    grep -i -C "$context_lines" "$pattern" "$file" 2>/dev/null | head -50
+}
+
+#######################################
+# Extract sections matching query from NOTES.md
+#######################################
+extract_relevant_sections() {
+    local query="$1"
+    local token_budget="$2"
+
+    if [[ ! -f "$NOTES_FILE" ]]; then
+        return 1
+    fi
+
+    local result=""
+    local current_tokens=0
+
+    # Get all section headers
+    local sections
+    sections=$(grep -n "^## " "$NOTES_FILE" 2>/dev/null | cut -d: -f1)
+
+    # If ck available, use semantic search
+    if should_use_ck; then
+        print_info "Using ck for semantic section selection"
+        local ck_results
+        ck_results=$(semantic_search_ck "$query" "$NOTES_FILE" 10 2>/dev/null)
+        if [[ -n "$ck_results" ]]; then
+            result="$ck_results"
+        fi
+    fi
+
+    # Fallback to keyword grep if no ck results
+    if [[ -z "$result" ]]; then
+        local fallback_to_positional
+        fallback_to_positional=$(get_config "recursive_jit.recovery.fallback_to_positional" "true")
+
+        if [[ "$fallback_to_positional" == "true" ]]; then
+            print_info "Using keyword search fallback"
+            result=$(keyword_search_grep "$query" "$NOTES_FILE" 3)
+        fi
+    fi
+
+    # Trim to token budget (rough estimate: 4 chars = 1 token)
+    local max_chars=$((token_budget * 4))
+    echo "$result" | head -c "$max_chars"
+}
+
+#######################################
 # Recover command
 #######################################
 cmd_recover() {
     local level="${1:-1}"
+    local query=""
+
+    # Parse remaining arguments
+    shift || true
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --query) query="$2"; shift 2 ;;
+            *)
+                # Check if it looks like a level number that was passed after flags
+                if [[ "$1" =~ ^[1-3]$ ]]; then
+                    level="$1"
+                    shift
+                else
+                    print_error "Unknown option: $1"
+                    return 1
+                fi
+                ;;
+        esac
+    done
 
     echo ""
     echo -e "${CYAN}Context Recovery - Level $level${NC}"
+    if [[ -n "$query" ]]; then
+        echo -e "Query: ${YELLOW}$query${NC}"
+    fi
     echo "================================"
     echo ""
 
+    # Token budgets by level
+    local token_budget
     case "$level" in
-        1)
-            echo -e "${CYAN}Level 1: Minimal Recovery (~100 tokens)${NC}"
-            echo ""
-            echo "Read only:"
-            echo "  1. NOTES.md Session Continuity section"
-            echo ""
-            if [[ -f "$NOTES_FILE" ]]; then
-                echo -e "${CYAN}Session Continuity content:${NC}"
-                sed -n '/## Session Continuity/,/^## /p' "$NOTES_FILE" 2>/dev/null | head -20
-            else
-                print_warning "NOTES.md not found"
-            fi
-            ;;
-        2)
-            echo -e "${CYAN}Level 2: Standard Recovery (~500 tokens)${NC}"
-            echo ""
-            echo "Read:"
-            echo "  1. NOTES.md Session Continuity"
-            echo "  2. NOTES.md Decision Log (recent)"
-            echo "  3. Active beads"
-            echo ""
-            if command -v br &>/dev/null; then
-                echo -e "${CYAN}Active Beads:${NC}"
-                br list --status=in_progress 2>/dev/null || echo "  (none)"
-            fi
-            ;;
-        3)
-            echo -e "${CYAN}Level 3: Full Recovery (~2000 tokens)${NC}"
-            echo ""
-            echo "Read:"
-            echo "  1. Full NOTES.md"
-            echo "  2. All active beads"
-            echo "  3. Today's trajectory entries"
-            echo "  4. sprint.md current sprint"
-            echo ""
-            echo "Trajectory entries today: $(count_today_trajectory_entries)"
-            ;;
+        1) token_budget=100 ;;
+        2) token_budget=500 ;;
+        3) token_budget=2000 ;;
         *)
             print_error "Invalid level: $level (use 1, 2, or 3)"
             return 1
             ;;
     esac
+
+    # If query provided and semantic recovery enabled, use semantic selection
+    if [[ -n "$query" ]] && is_semantic_recovery_enabled; then
+        echo -e "${CYAN}Semantic Recovery (~$token_budget tokens)${NC}"
+        echo ""
+
+        local semantic_result
+        semantic_result=$(extract_relevant_sections "$query" "$token_budget")
+
+        if [[ -n "$semantic_result" ]]; then
+            echo -e "${CYAN}Relevant sections for query:${NC}"
+            echo ""
+            echo "$semantic_result"
+            echo ""
+        else
+            print_warning "No semantic matches found, falling back to positional recovery"
+            query=""  # Fall through to positional
+        fi
+    fi
+
+    # Positional recovery (default or fallback)
+    if [[ -z "$query" ]]; then
+        case "$level" in
+            1)
+                echo -e "${CYAN}Level 1: Minimal Recovery (~100 tokens)${NC}"
+                echo ""
+                echo "Read only:"
+                echo "  1. NOTES.md Session Continuity section"
+                echo ""
+                if [[ -f "$NOTES_FILE" ]]; then
+                    echo -e "${CYAN}Session Continuity content:${NC}"
+                    sed -n '/## Session Continuity/,/^## /p' "$NOTES_FILE" 2>/dev/null | head -20
+                else
+                    print_warning "NOTES.md not found"
+                fi
+                ;;
+            2)
+                echo -e "${CYAN}Level 2: Standard Recovery (~500 tokens)${NC}"
+                echo ""
+                echo "Read:"
+                echo "  1. NOTES.md Session Continuity"
+                echo "  2. NOTES.md Decision Log (recent)"
+                echo "  3. Active beads"
+                echo ""
+                if command -v br &>/dev/null; then
+                    echo -e "${CYAN}Active Beads:${NC}"
+                    br list --status=in_progress 2>/dev/null || echo "  (none)"
+                fi
+                ;;
+            3)
+                echo -e "${CYAN}Level 3: Full Recovery (~2000 tokens)${NC}"
+                echo ""
+                echo "Read:"
+                echo "  1. Full NOTES.md"
+                echo "  2. All active beads"
+                echo "  3. Today's trajectory entries"
+                echo "  4. sprint.md current sprint"
+                echo ""
+                echo "Trajectory entries today: $(count_today_trajectory_entries)"
+                ;;
+        esac
+    fi
 }
 
 #######################################

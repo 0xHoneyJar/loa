@@ -180,7 +180,7 @@ The Session Continuity section in NOTES.md is the primary recovery artifact.
 <!-- CRITICAL: Load this section FIRST after /clear (~100 tokens) -->
 
 ### Active Context
-- **Current Bead**: bd-x7y8 (task description)
+- **Current Bead**: beads-x7y8 (task description)
 - **Last Checkpoint**: 2024-01-15T14:30:00Z
 - **Reasoning State**: Where we left off, what's next
 
@@ -228,7 +228,7 @@ Extended Bead fields for session continuity (v0.9.0 Lossless Ledger Protocol).
 
 ```yaml
 # .beads/<id>.yaml - Extended schema
-id: bd-x7y8
+id: beads-x7y8
 title: "Task description"
 status: in_progress
 priority: 2
@@ -363,7 +363,7 @@ FORK DETECTION PROTOCOL:
 
 **Trajectory log for fork**:
 ```jsonl
-{"ts":"2024-01-15T15:00:00Z","agent":"implementing-tasks","phase":"fork_detected","bead_id":"bd-x7y8","context_decision":"Use stateless tokens","bead_decision":"Use rotating refresh tokens","resolution":"bead_wins"}
+{"ts":"2024-01-15T15:00:00Z","agent":"implementing-tasks","phase":"fork_detected","bead_id":"beads-x7y8","context_decision":"Use stateless tokens","bead_decision":"Use rotating refresh tokens","resolution":"bead_wins"}
 ```
 
 ### CLI Extensions (br commands)

@@ -1,11 +1,79 @@
 # JIT Retrieval Protocol
 
-> **Version**: 1.0 (v0.9.0 Lossless Ledger Protocol)
+> **Version**: 2.0 (v0.20.0 Recursive JIT Context System)
 > **Paradigm**: Clear, Don't Compact
 
 ## Purpose
 
 Replace eager loading of code blocks with lightweight identifiers, achieving 97% token reduction while maintaining full access to evidence on-demand.
+
+## Recursive JIT Integration (v0.20.0)
+
+The JIT Retrieval Protocol now integrates with the Recursive JIT Context System for enhanced caching and parallel subagent coordination. See `recursive-context.md` for full details.
+
+### Cache Integration
+
+Before performing expensive retrieval operations, check the semantic cache:
+
+```bash
+# Generate cache key from query parameters
+cache_key=$(.claude/scripts/cache-manager.sh generate-key \
+  --paths "$target_files" \
+  --query "$query" \
+  --operation "jit-retrieve")
+
+# Check cache first
+if cached=$(.claude/scripts/cache-manager.sh get --key "$cache_key"); then
+  # Cache hit - use cached identifiers
+  echo "$cached"
+else
+  # Cache miss - perform retrieval
+  result=$(ck --hybrid "$query" "$path" --top-k 5 --jsonl)
+
+  # Condense and cache for future use
+  condensed=$(.claude/scripts/condense.sh condense \
+    --strategy identifiers_only \
+    --input <(echo "$result"))
+
+  .claude/scripts/cache-manager.sh set \
+    --key "$cache_key" \
+    --condensed "$condensed" \
+    --sources "$target_files"
+
+  echo "$condensed"
+fi
+```
+
+### Updated Decision Tree
+
+```
+RETRIEVAL DECISION (with Cache):
+┌───────────────────────────────────────────────────────────────┐
+│ Need code evidence?                                            │
+│   │                                                            │
+│   ├── YES: Check semantic cache first                         │
+│   │   │                                                        │
+│   │   ├── CACHE HIT: Use cached identifiers                   │
+│   │   │                                                        │
+│   │   └── CACHE MISS: Is ck available?                        │
+│   │       ├── YES: ck --hybrid → cache result                 │
+│   │       └── NO: grep fallback → cache result                │
+│   │                                                            │
+│   └── NO: Use identifier only (no retrieval needed)           │
+└───────────────────────────────────────────────────────────────┘
+```
+
+### Semantic Recovery
+
+When recovering context after `/clear`, use query-based semantic selection:
+
+```bash
+# Semantic recovery with query (new in v0.20.0)
+.claude/scripts/context-manager.sh recover 2 --query "authentication"
+
+# This selects NOTES.md sections most relevant to the query,
+# rather than loading fixed sections positionally.
+```
 
 ## The Problem
 
@@ -370,8 +438,15 @@ jit_retrieval:
   max_line_range: 100      # Max lines to retrieve at once
 ```
 
+## Related Documentation
+
+- `recursive-context.md` - Full Recursive JIT Context Protocol
+- `semantic-cache.md` - Semantic cache operations
+- `session-continuity.md` - Session lifecycle
+- `context-compaction.md` - Compaction rules
+
 ---
 
-**Document Version**: 1.0
-**Protocol Version**: v2.2 (Production-Hardened)
+**Document Version**: 2.0
+**Protocol Version**: v2.3 (Recursive JIT Integration)
 **Paradigm**: Clear, Don't Compact

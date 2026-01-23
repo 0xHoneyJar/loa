@@ -403,7 +403,7 @@ validate_ir2_beads_integration() {
     echo "---------------------------"
 
     # Check br commands documented
-    if grep -q "bd " .claude/protocols/session-continuity.md 2>/dev/null; then
+    if grep -q "br " .claude/protocols/session-continuity.md 2>/dev/null; then
         log_pass "Beads CLI commands documented"
     else
         log_fail "Beads CLI commands not documented"

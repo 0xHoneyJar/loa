@@ -100,6 +100,9 @@ grimoires/loa/NOTES.md
 grimoires/loa/ledger.json
 grimoires/loa/ledger.json.bak
 
+# Archived development cycles (project-specific history)
+grimoires/loa/archive/
+
 # Agent-to-Agent communication (sprint-specific, generated)
 # README.md files are kept to explain the directory purpose
 grimoires/loa/a2a/*
@@ -152,6 +155,16 @@ grimoires/pub/research/*
 # By default, .beads/ is tracked for team collaboration on sprint state.
 # Uncomment to keep local-only:
 # .beads/
+
+# Beads runtime files (never commit)
+.beads/daemon.lock
+.beads/.local_version
+.beads/beads.db
+.beads/*.meta.json
+
+# Beads task graph (template repo - exclude all)
+# For project repos, remove this line to track sprint tasks
+.beads/*.jsonl
 
 # Application artifacts (app/)
 app/src/

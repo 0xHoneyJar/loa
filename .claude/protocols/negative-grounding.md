@@ -106,7 +106,7 @@ jq -n \
     >> "${TRAJECTORY_FILE}"
 
 # Write to drift report
-echo "| OAuth2 SSO | PRD §3.2 | Q1: 0, Q2: 0 | Low | bd-123 | Remove from docs |" \
+echo "| OAuth2 SSO | PRD §3.2 | Q1: 0, Q2: 0 | Low | beads-123 | Remove from docs |" \
     >> grimoires/loa/drift-report.md
 ```
 
@@ -257,8 +257,8 @@ fi
 
 | Feature | Doc Source | Search Evidence | Ambiguity | Beads ID | Action |
 |---------|-----------|-----------------|-----------|----------|--------|
-| OAuth2 SSO | PRD §3.2 | Q1: 0, Q2: 0 | Low | bd-123 | Remove from docs |
-| Email Notifications | PRD §5.1 | Q1: 0, Q2: 0 | Low | bd-124 | Implement or remove |
+| OAuth2 SSO | PRD §3.2 | Q1: 0, Q2: 0 | Low | beads-123 | Remove from docs |
+| Email Notifications | PRD §5.1 | Q1: 0, Q2: 0 | Low | beads-124 | Implement or remove |
 ```
 
 ### Drift Report Entry (High Ambiguity)

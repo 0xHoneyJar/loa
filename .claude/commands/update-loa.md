@@ -31,6 +31,11 @@ pre_flight:
 
       After adding the remote, run /update-loa again.
 
+  - check: "command_succeeds"
+    command: "git config merge.ours.driver >/dev/null 2>&1 || git config merge.ours.driver true"
+    error: |
+      Failed to configure merge driver for project files.
+
 outputs:
   - path: "git merge commit"
     type: "git"
@@ -57,6 +62,7 @@ Pull the latest Loa framework updates from the upstream repository. Safely fetch
 
 - Working tree must be clean (no uncommitted changes)
 - `loa` or `upstream` remote must be configured
+- Merge driver configured (one-time): `git config merge.ours.driver true`
 
 ## Workflow
 
@@ -118,8 +124,10 @@ git merge loa/main -m "chore: update Loa framework"
 | `grimoires/loa/prd.md` | Preserved (your docs) |
 | `grimoires/loa/sdd.md` | Preserved (your docs) |
 | `grimoires/loa/analytics/` | Preserved (your data) |
-| `CHANGELOG.md` | Preserved (your project changelog) |
-| `README.md` | Preserved (your project readme) |
+| `CHANGELOG.md` | **Auto-preserved** via `.gitattributes` (merge=ours) |
+| `README.md` | **Auto-preserved** via `.gitattributes` (merge=ours) |
+
+> **Note**: README.md and CHANGELOG.md are automatically preserved during merges thanks to `.gitattributes`. The pre-flight check ensures the `merge.ours.driver` is configured.
 
 ## Conflict Resolution
 

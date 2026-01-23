@@ -1,8 +1,8 @@
 # Loa
 
-[![Version](https://img.shields.io/badge/version-1.1.1-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.3.1-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
-[![Release](https://img.shields.io/badge/release-beads__rust%20Migration-purple.svg)](CHANGELOG.md#110---2026-01-20--beads_rust-migration)
+[![Release](https://img.shields.io/badge/release-Gitignore%20Hardening-purple.svg)](CHANGELOG.md#131---2026-01-20--gitignore-hardening)
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
 
@@ -137,6 +137,38 @@ Autonomous sprint execution with human-in-the-loop shifted to PR review:
 4. **Visibility** — Draft PRs only, deleted files prominently displayed
 
 See **[CLAUDE.md](CLAUDE.md#run-mode-v0180)** for full documentation.
+
+### Simstim: Telegram Bridge (v1.3.0)
+
+Remote monitoring and control of Loa sessions via Telegram. Ported from [takopi.dev](https://takopi.dev/) and adapted for Loa workflows:
+
+```bash
+# Install Simstim (from Loa repo)
+cd simstim && uv sync
+
+# Configure
+export SIMSTIM_BOT_TOKEN="your-bot-token"
+uv run simstim config --init
+
+# Start Loa with Simstim bridge
+uv run simstim start -- /implement sprint-1
+```
+
+**Features**:
+- **Permission Relay** — Receive prompts on Telegram, approve/deny with one tap
+- **Auto-Approve Policies** — Configure patterns to auto-approve safe operations
+- **Phase Monitoring** — Get notified when Loa transitions between workflow phases
+- **Quality Gates** — Receive notifications for review/audit feedback
+- **Rate Limiting** — Per-user rate limiting with denial backoff
+- **Offline Support** — Queue events during disconnection, auto-reconnect
+
+**Security Hardened** with 9 vulnerability remediations:
+- Constant-time rate limiting (timing attack prevention)
+- HMAC-SHA256 audit log integrity (tamper detection)
+- Environment variable whitelisting (exfiltration prevention)
+- Extended credential redaction (30+ patterns)
+
+See **[simstim/README.md](simstim/README.md)** for full documentation.
 
 ### Continuous Learning (v0.17.0)
 

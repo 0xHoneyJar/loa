@@ -515,7 +515,7 @@ The `session_handoff` phase is logged when context is cleared via `/clear`.
 ### Session Handoff Log Format
 
 ```jsonl
-{"ts":"2024-01-15T14:30:00Z","agent":"implementing-tasks","phase":"session_handoff","session_id":"sess-002","root_span_id":"span-def","bead_id":"bd-x7y8","notes_refs":["grimoires/loa/NOTES.md:68-92"],"edd_verified":true,"grounding_ratio":0.97,"test_scenarios":3,"next_session_ready":true}
+{"ts":"2024-01-15T14:30:00Z","agent":"implementing-tasks","phase":"session_handoff","session_id":"sess-002","root_span_id":"span-def","bead_id":"beads-x7y8","notes_refs":["grimoires/loa/NOTES.md:68-92"],"edd_verified":true,"grounding_ratio":0.97,"test_scenarios":3,"next_session_ready":true}
 ```
 
 ### Required Fields

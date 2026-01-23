@@ -165,7 +165,7 @@ jq -n \
     >> "${TRAJECTORY_FILE}"
 
 # Write to drift report
-echo "| ${module_name} | ${file} | Orphaned | HIGH | ${dependent_count} files | bd-124 | **Urgent: Document or remove** |" \
+echo "| ${module_name} | ${file} | Orphaned | HIGH | ${dependent_count} files | beads-124 | **Urgent: Document or remove** |" \
     >> grimoires/loa/drift-report.md
 ```
 
@@ -351,7 +351,7 @@ query="${module_name} ${functional_description}"
 
 | Module | Location | Classification | Risk | Dependents | Beads ID | Action |
 |--------|----------|----------------|------|------------|----------|--------|
-| legacyHasher | src/auth/legacy.ts | Orphaned | HIGH | 3 files | bd-124 | **Urgent: Document or remove** |
+| legacyHasher | src/auth/legacy.ts | Orphaned | HIGH | 3 files | beads-124 | **Urgent: Document or remove** |
 | cacheUtils | src/utils/cache.ts | Drifted | MEDIUM | 12 files | - | Update PRD §4.3 |
 | debugHelpers | src/dev/debug.ts | Partial | LOW | 1 file | - | Add to SDD §6.2 |
 ```

@@ -5,6 +5,251 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-01-23 — Recursive JIT Context System
+
+### Why This Release
+
+Introduces the **Recursive JIT Context System** — a comprehensive solution for context management in long-running agent sessions. This release addresses the fundamental challenge of Claude Code's automatic context summarization by providing semantic caching, intelligent condensation, and continuous synthesis to persistent ledgers.
+
+*"The code remembers what the context forgets."*
+
+### Added
+
+- **Recursive JIT Context System** (`.claude/scripts/`)
+  - `cache-manager.sh` — Semantic result caching with mtime-based invalidation
+    - LRU eviction, TTL expiration (30 days default)
+    - Secret pattern detection on write
+    - Integrity verification with SHA256 hashes
+  - `condense.sh` — Result condensation engine
+    - Strategies: `structured_verdict` (~50 tokens), `identifiers_only` (~20), `summary` (~100)
+    - Full result externalization to `.claude/cache/full/`
+  - `early-exit.sh` — Parallel subagent coordination
+    - File-based "first-to-finish wins" protocol
+    - Session management, agent registration, result passing
+  - `synthesize-to-ledger.sh` — Continuous synthesis trigger
+    - Writes decisions to NOTES.md and trajectory at RLM trigger points
+    - Survives Claude Code's automatic context summarization
+
+- **Continuous Synthesis** — Anti-platform-summarization defense
+  - RLM operations (cache set, condense, early-exit) trigger automatic ledger writes
+  - Decisions externalized to NOTES.md Decision Log
+  - Trajectory entries for audit trail
+  - Optional bead comment injection (when `br` available)
+  - Configuration in `.loa.config.yaml`:
+    ```yaml
+    recursive_jit:
+      continuous_synthesis:
+        enabled: true
+        on_cache_set: true
+        on_condense: true
+        on_early_exit: true
+        update_bead: true
+    ```
+
+- **Post-Upgrade Health Check** (`upgrade-health-check.sh`)
+  - Detects bd → br migration status
+  - Finds deprecated references in settings.local.json
+  - Identifies new config sections available
+  - Suggests recommended permissions for new features
+  - Auto-fix mode: `--fix` flag applies safe corrections
+  - Runs automatically after `update.sh`
+
+- **Upgrade Completion Banner** (`upgrade-banner.sh`)
+  - Cyberpunk-themed ASCII art completion message
+  - Rotating quotes from Neuromancer, Blade Runner, The Matrix, Ghost in the Shell
+  - Original Loa-themed quotes about synthesis and context management
+  - CHANGELOG highlights parsing (when available)
+  - Mount mode vs upgrade mode with appropriate next steps
+  - JSON output for scripting: `--json`
+
+- **beads_rust Integration** with Continuous Synthesis
+  - Active bead detection from NOTES.md Session Continuity
+  - Automatic `[Synthesis] <message>` comment injection
+  - Redundant persistence: NOTES.md + trajectory + bead comments
+
+- **Protocol Documentation**
+  - `.claude/protocols/recursive-context.md` — Full RLM system documentation
+  - Architecture diagrams, integration patterns, configuration reference
+
+### Changed
+
+- **Opt-Out Defaults** — All RLM features now enabled by default
+  - Scripts use `// true` fallbacks instead of `// false`
+  - Users can disable features in config rather than needing to enable them
+  - Ships with sane defaults for immediate benefit
+
+- **CLAUDE.md** — Updated with Recursive JIT Context section
+  - New scripts documented in Helper Scripts table
+  - Protocol references added
+
+### Technical Details
+
+- **Two-Level Context Management**
+  - Platform level: Claude Code's automatic summarization (outside Loa's control)
+  - Framework level: Loa's protocols for proactive externalization (full control)
+  - Solution: Write to ledgers BEFORE platform summarization occurs
+
+- **Performance Targets**
+  - Cache hit rate: >30% over 30 days
+  - Context reduction: 30-40% via condensation
+  - Cache lookup: <100ms
+  - Condensation: <50ms
+
+### Migration Notes
+
+No migration required. All features are enabled by default and backward compatible.
+
+Run `upgrade-health-check.sh` after upgrading to check for:
+- Legacy `bd` references that should be `br`
+- Missing config sections
+- Recommended permission additions
+
+## [1.4.0] - 2026-01-22 — Clean Upgrade & CLAUDE.md Diet
+
+### Why This Release
+
+Eliminates git history pollution during framework upgrades and dramatically reduces CLAUDE.md size for better Claude Code context efficiency.
+
+### Added
+
+- **Clean Upgrade Commits**: Framework upgrades now create single atomic commits
+  - `mount-loa.sh` and `update.sh` create conventional commits: `chore(loa): upgrade framework v{OLD} -> v{NEW}`
+  - Version tags: `loa@v{VERSION}` for easy upgrade history tracking
+  - Query history with `git tag -l 'loa@*'`
+  - Rollback with `git revert HEAD` or `git checkout loa@v{VERSION} -- .claude`
+
+- **Upgrade Configuration**: New `.loa.config.yaml` section
+  ```yaml
+  upgrade:
+    auto_commit: true   # Create git commit after upgrade
+    auto_tag: true      # Create version tag
+    commit_prefix: "chore"  # Conventional commit prefix
+  ```
+
+- **`--no-commit` Flag**: Skip automatic commit creation
+  - `mount-loa.sh --no-commit`
+  - `update.sh --no-commit`
+
+- **Protocol Documentation**
+  - `.claude/protocols/helper-scripts.md` - Comprehensive script documentation
+  - `.claude/protocols/upgrade-process.md` - 12-stage upgrade workflow documentation
+
+### Changed
+
+- **CLAUDE.md**: Reduced from 1,157 lines to 321 lines (72% reduction)
+  - Core instructions remain in CLAUDE.md
+  - Detailed documentation moved to protocol files
+  - References added for JIT loading when needed
+
+### Technical Details
+
+- **Stealth Mode**: No commits created in stealth persistence mode
+- **Tag Handling**: Existing tags are not overwritten
+- **Dirty Tree**: Warnings shown but upgrades continue
+- **Config Priority**: CLI flags > config file > defaults
+
+### Migration Notes
+
+No migration required. Existing installations will gain clean upgrade behavior automatically on next update.
+
+## [1.3.1] - 2026-01-20 — Gitignore Hardening
+
+### Why This Release
+
+Security and hygiene improvements to ensure sensitive files and project-specific state are never accidentally committed.
+
+### Added
+
+- **Simstim `.gitignore`** — Protects user-specific configuration
+  - `simstim.toml` (contains Telegram chat IDs)
+  - Audit logs and Python artifacts
+
+- **Enhanced Beads exclusions** — Runtime files now properly ignored
+  - `daemon.lock` (process lock)
+  - `.local_version` (local br version)
+  - `beads.db` (SQLite database)
+  - `*.meta.json` (sync metadata)
+  - `*.jsonl` (task graph - template repo only)
+
+- **Archive exclusion** — `grimoires/loa/archive/` now ignored
+  - Project-specific development cycle history
+  - Prevents template pollution
+
+### Security
+
+All user-specific and runtime files are now protected from accidental commits.
+
+## [1.3.0] - 2026-01-20 — Simstim Telegram Bridge
+
+### Why This Release
+
+This release introduces **Simstim**, a Telegram bridge for remote monitoring and control of Loa (Claude Code) sessions. **Ported from [takopi.dev](https://takopi.dev/)** and adapted for Loa workflows. Named after the neural interface technology in William Gibson's Sprawl trilogy, Simstim lets you experience your AI agent workflows from anywhere—approve permissions, monitor phases, and control execution from your phone.
+
+### Added
+
+- **Simstim Package** (`simstim/`)
+  - Full Python package with CLI interface
+  - Telegram bot integration for permission relay
+  - Auto-approve policy engine with pattern matching
+  - Phase transition and quality gate notifications
+  - Offline queue with automatic reconnection
+  - Comprehensive JSONL audit logging
+
+- **Permission Features**
+  - One-tap approve/deny from Telegram
+  - Configurable timeout with default action
+  - Rate limiting per user
+  - Denial backoff for abuse prevention
+
+- **Policy Engine**
+  - TOML-based policy configuration
+  - Pattern matching for file paths and commands
+  - Allowlist/blocklist support
+  - Fail-closed defaults for security
+
+- **Monitoring Capabilities**
+  - Phase transition notifications
+  - Quality gate alerts (review/audit)
+  - NOTES.md update detection
+  - Sprint progress tracking
+
+### Security Hardening
+
+Comprehensive security audit identified and remediated 9 vulnerabilities:
+
+| Finding | Severity | CWE | Fix |
+|---------|----------|-----|-----|
+| SIMSTIM-001 | CRITICAL | CWE-522 | SafeSecretStr for token protection |
+| SIMSTIM-002 | CRITICAL | CWE-78 | Command allowlist, shell=False enforcement |
+| SIMSTIM-003 | HIGH | CWE-285 | Fail-closed authorization by default |
+| SIMSTIM-004 | HIGH | CWE-312 | Credential redaction in notifications |
+| SIMSTIM-005 | HIGH | CWE-943 | Literal-only policy value comparisons |
+| SIMSTIM-006 | MEDIUM | CWE-208 | Constant-time rate limit evaluation |
+| SIMSTIM-007 | MEDIUM | CWE-200 | Extended redaction (30+ patterns, JWT, AWS keys) |
+| SIMSTIM-008 | MEDIUM | CWE-778 | HMAC-SHA256 audit log hash chain |
+| SIMSTIM-009 | MEDIUM | CWE-74 | Environment variable whitelist |
+
+**Security Grade: A** (Production-ready)
+
+**221 Security Tests** covering all vulnerability remediations.
+
+### Technical Details
+
+- **Architecture**: Bridge pattern with event queue
+- **Dependencies**: Python 3.11+, python-telegram-bot, pydantic
+- **Configuration**: TOML-based with environment variable expansion
+- **Logging**: Structured JSONL with tamper-evident hash chains
+
+### Installation
+
+```bash
+pip install simstim
+simstim config --init
+simstim start -- /implement sprint-1
+```
+
+See `simstim/README.md` for full documentation.
+
 ## [1.2.0] - 2026-01-20 — Beads Migration & Security Hardening
 
 ### Why This Release

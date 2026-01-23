@@ -204,7 +204,7 @@ Create trajectory entry for session handoff:
   "phase": "session_handoff",
   "session_id": "abc123",
   "root_span_id": "span-456",
-  "bead_id": "bd-x7y8",
+  "bead_id": "beads-x7y8",
   "grounding_ratio": 0.97,
   "decisions_count": 5,
   "notes_refs": [
@@ -276,7 +276,7 @@ User: /clear
 │  └── NOTES.md appended                  │
 │                                          │
 │  Step 4: Bead Updated                   │
-│  └── bd-x7y8 decisions[] appended       │
+│  └── beads-x7y8 decisions[] appended    │
 │                                          │
 │  Step 5: Session Handoff Logged         │
 │  └── Trajectory entry created           │
