@@ -107,6 +107,8 @@ plan_and_analyze:
 
 **Mount & Ride** (manual control): `/mount`, `/ride`
 
+**Guided Workflow** (v0.21.0): `/loa` - Shows current state and suggests next command
+
 **Ad-hoc**: `/audit`, `/audit-deployment`, `/translate`, `/contribute`, `/update-loa`, `/validate`
 
 **Run Mode**: `/run sprint-N`, `/run sprint-plan`, `/run-status`, `/run-halt`, `/run-resume`
@@ -121,8 +123,40 @@ plan_and_analyze:
 | `security-scanner` | OWASP Top 10 vulnerability detection | CRITICAL, HIGH, MEDIUM, LOW |
 | `test-adequacy-reviewer` | Test quality assessment | STRONG, ADEQUATE, WEAK, INSUFFICIENT |
 | `documentation-coherence` | Per-task documentation validation | COHERENT, NEEDS_UPDATE, ACTION_REQUIRED |
+| `goal-validator` | PRD goal achievement verification | GOAL_ACHIEVED, GOAL_AT_RISK, GOAL_BLOCKED |
 
-**Usage**: `/validate`, `/validate architecture`, `/validate security`
+**Usage**: `/validate`, `/validate architecture`, `/validate security`, `/validate goals`
+
+### Goal Traceability (v0.21.0)
+
+Prevents silent goal failures by mapping PRD goals through sprint tasks to validation:
+
+**Components**:
+- **Goal IDs**: PRD goals identified as G-1, G-2, etc.
+- **Appendix C**: Sprint plan section mapping goals to contributing tasks
+- **E2E Validation Task**: Auto-generated in final sprint
+- **Goal Validator**: Subagent verifying goals are achieved
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+goal_traceability:
+  enabled: true              # Enable goal ID system
+  require_goal_ids: false    # Require G-N IDs in PRD (backward compat)
+  auto_assign_ids: true      # Auto-assign if missing
+  generate_appendix_c: true  # Generate goal mapping in sprint
+  generate_e2e_task: true    # Auto-generate E2E validation task
+
+goal_validation:
+  enabled: true              # Enable goal validation
+  block_on_at_risk: false    # Block review on AT_RISK (default: warn)
+  block_on_blocked: true     # Block review on BLOCKED
+  require_e2e_task: true     # Require E2E task in final sprint
+```
+
+**Workflow Integration**:
+- `/sprint-plan`: Generates Appendix C + E2E task
+- `/review-sprint`: Invokes goal-validator on final sprint
+- `/validate goals`: Manual goal validation
 
 ## Key Protocols
 
@@ -134,6 +168,7 @@ Agents maintain persistent working memory in `grimoires/loa/NOTES.md`:
 - **Decisions**: Architecture/implementation decisions table
 - **Blockers**: Checkbox list with [RESOLVED] marking
 - **Technical Debt**: Issues for future attention
+- **Goal Status**: PRD goal achievement tracking (v0.21.0)
 - **Learnings**: Project-specific knowledge
 - **Session Continuity**: Recovery anchor
 

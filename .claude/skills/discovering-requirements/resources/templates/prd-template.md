@@ -52,17 +52,20 @@
 ## Goals & Success Metrics
 
 ### Primary Goals
-1. {Goal 1 - specific and measurable}
-2. {Goal 2 - specific and measurable}
-3. {Goal 3 - specific and measurable}
+
+| ID | Goal | Measurement | Validation Method |
+|----|------|-------------|-------------------|
+| G-1 | {Goal 1 - specific and measurable} | {How to measure} | {How to validate achievement} |
+| G-2 | {Goal 2 - specific and measurable} | {How to measure} | {How to validate achievement} |
+| G-3 | {Goal 3 - specific and measurable} | {How to measure} | {How to validate achievement} |
 
 ### Key Performance Indicators (KPIs)
 
-| Metric | Current Baseline | Target | Timeline |
-|--------|------------------|--------|----------|
-| {Metric 1} | {value} | {target} | {date} |
-| {Metric 2} | {value} | {target} | {date} |
-| {Metric 3} | {value} | {target} | {date} |
+| Metric | Current Baseline | Target | Timeline | Goal ID |
+|--------|------------------|--------|----------|---------|
+| {Metric 1} | {value} | {target} | {date} | G-1 |
+| {Metric 2} | {value} | {target} | {date} | G-2 |
+| {Metric 3} | {value} | {target} | {date} | G-3 |
 
 ### Constraints
 - {Constraint 1}

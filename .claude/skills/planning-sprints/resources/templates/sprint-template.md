@@ -47,9 +47,12 @@
 - [ ] {Additional criteria...}
 
 ### Technical Tasks
-- [ ] {Specific technical task 1}
-- [ ] {Specific technical task 2}
-- [ ] {Additional tasks...}
+
+<!-- Annotate each task with contributing goal(s): → **[G-1]** or → **[G-1, G-2]** -->
+
+- [ ] Task 1.1: {Specific technical task 1} → **[G-1]**
+- [ ] Task 1.2: {Specific technical task 2} → **[G-1, G-2]**
+- [ ] {Additional tasks...} → **[G-N]**
 
 ### Dependencies
 - {Any dependencies on previous sprints or external factors}
@@ -63,6 +66,39 @@
 ### Success Metrics
 - {Quantifiable metric 1}
 - {Quantifiable metric 2}
+
+---
+
+## Sprint N (Final): {Descriptive Sprint Theme}
+
+<!-- Final sprint should include E2E Goal Validation task -->
+
+**Duration:** 2.5 days
+**Dates:** {Start Date} - {End Date}
+
+### Sprint Goal
+Complete implementation and validate all PRD goals are achieved end-to-end.
+
+### Task N.E2E: End-to-End Goal Validation
+
+**Priority:** P0 (Must Complete)
+**Goal Contribution:** All goals (G-1, G-2, G-3, ...)
+
+**Description:**
+Validate that all PRD goals are achieved through the complete implementation.
+
+**Validation Steps:**
+
+| Goal ID | Goal | Validation Action | Expected Result |
+|---------|------|-------------------|-----------------|
+| G-1 | {From PRD} | {Specific test/check} | {Pass criteria} |
+| G-2 | {From PRD} | {Specific test/check} | {Pass criteria} |
+| G-3 | {From PRD} | {Specific test/check} | {Pass criteria} |
+
+**Acceptance Criteria:**
+- [ ] Each goal validated with documented evidence
+- [ ] Integration points verified (data flows end-to-end)
+- [ ] No goal marked as "not achieved" without explicit justification
 
 ---
 
@@ -143,6 +179,25 @@ Sprint 1 ──────────────▶ Sprint 2 ─────�
 |---------------|--------|--------|
 | Database Schema | Sprint 1 | Planned |
 | API Layer | Sprint 2 | Planned |
+
+### C. PRD Goal Mapping
+
+| Goal ID | Goal Description | Contributing Tasks | Validation Task |
+|---------|------------------|-------------------|-----------------|
+| G-1 | {From PRD Goals section} | Sprint 1: Task 1.1, Task 1.2 | Sprint N: Task N.E2E |
+| G-2 | {From PRD Goals section} | Sprint 2: Task 2.1 | Sprint N: Task N.E2E |
+| G-3 | {From PRD Goals section} | Sprint 1: Task 1.3, Sprint 2: Task 2.2 | Sprint N: Task N.E2E |
+
+**Goal Coverage Check:**
+- [ ] All PRD goals have at least one contributing task
+- [ ] All goals have a validation task in final sprint
+- [ ] No orphan tasks (tasks not contributing to any goal)
+
+**Per-Sprint Goal Contribution:**
+
+Sprint 1: G-1 (partial: foundation), G-3 (partial: setup)
+Sprint 2: G-1 (complete: integration), G-2 (complete), G-3 (complete: validation)
+Sprint N: E2E validation of all goals
 
 ---
 

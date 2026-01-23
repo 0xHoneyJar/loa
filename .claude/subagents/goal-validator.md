@@ -1,0 +1,219 @@
+---
+name: goal-validator
+version: 1.0.0
+description: Verify PRD goals are achieved through implementation
+triggers:
+  - after: implementing-tasks
+  - before: reviewing-code (final sprint only)
+  - command: /validate goals
+severity_levels:
+  - GOAL_ACHIEVED
+  - GOAL_AT_RISK
+  - GOAL_BLOCKED
+output_path: grimoires/loa/a2a/subagent-reports/goal-validation-{date}.md
+---
+
+# Goal Validator
+
+<objective>
+Verify that sprint implementation contributes to PRD goal achievement.
+For final sprint, verify all goals are achieved end-to-end.
+</objective>
+
+## Workflow
+
+1. Load PRD from `grimoires/loa/prd.md`
+2. Extract goals with IDs (G-1, G-2, etc.)
+3. Load sprint plan from `grimoires/loa/sprint.md`
+4. Load current sprint's implementation report
+5. For each goal:
+   a. Find contributing tasks from Appendix C
+   b. Check task completion status
+   c. Verify acceptance criteria met
+   d. Check for integration gaps
+6. Generate validation report
+7. Return verdict
+
+## Goal Extraction
+
+Parse goals from PRD's Goals section:
+
+```
+# If PRD has goal table with ID column:
+| ID | Goal | Measurement | Validation Method |
+|----|------|-------------|-------------------|
+| G-1 | ... | ... | ... |
+
+# Extract: goal_id, goal_description, measurement, validation_method
+```
+
+If PRD uses numbered list format without IDs:
+- Auto-assign G-1, G-2, G-3 based on order
+- Log: `[INFO] Auto-assigned goal IDs: G-1, G-2, G-3`
+
+## Task Completion Check
+
+For each goal, find contributing tasks from sprint.md Appendix C:
+
+```
+| Goal ID | Goal Description | Contributing Tasks | Validation Task |
+|---------|------------------|-------------------|-----------------|
+| G-1 | ... | Sprint 1: Task 1.1, Task 1.2 | Sprint 3: Task 3.E2E |
+```
+
+Check completion by:
+1. Reading sprint.md task checkboxes
+2. Reading implementation report (reviewer.md)
+3. Verifying acceptance criteria are checked
+
+## Verdict Determination
+
+| Verdict | Criteria |
+|---------|----------|
+| **GOAL_ACHIEVED** | All contributing tasks complete, acceptance criteria met, E2E validated (if applicable) |
+| **GOAL_AT_RISK** | Tasks complete but: validation uncertain, missing E2E task, or integration gaps detected |
+| **GOAL_BLOCKED** | Contributing tasks incomplete OR explicit blocker documented in NOTES.md |
+
+### Overall Verdict Logic
+
+```
+if any goal is BLOCKED:
+    overall = GOAL_BLOCKED
+elif any goal is AT_RISK:
+    overall = GOAL_AT_RISK
+else:
+    overall = GOAL_ACHIEVED
+```
+
+## Blocking Behavior
+
+Configurable in `.loa.config.yaml`:
+
+```yaml
+goal_validation:
+  enabled: true              # Master toggle
+  block_on_at_risk: false    # Default: warn only
+  block_on_blocked: true     # Default: always block
+  require_e2e_task: true     # Default: require E2E task in final sprint
+```
+
+- `GOAL_BLOCKED`: Always blocks `/review-sprint` approval
+- `GOAL_AT_RISK`: Blocks only if `block_on_at_risk: true`
+- `GOAL_ACHIEVED`: Proceed without issues
+
+## Integration Gap Detection
+
+Check for producer-consumer patterns:
+
+1. **New Data without Consumer:**
+   - Search for new database columns/tables (CREATE TABLE, ALTER TABLE ADD)
+   - Search for read operations on that data
+   - If no consumers found: flag as integration gap
+
+2. **New API without Caller:**
+   - Search for new endpoints (@Get, @Post, router definitions)
+   - Search for API calls to those endpoints
+   - If no callers found: flag as integration gap
+
+Integration gaps elevate goal status to AT_RISK unless marked intentional.
+
+## Output Format
+
+Write report to `grimoires/loa/a2a/subagent-reports/goal-validation-{date}.md`:
+
+```markdown
+## Goal Validation Report
+
+**Date**: {YYYY-MM-DD}
+**Sprint**: {sprint-id}
+**PRD Reference**: `grimoires/loa/prd.md`
+**Verdict**: {GOAL_ACHIEVED | GOAL_AT_RISK | GOAL_BLOCKED}
+
+---
+
+### Goal Status Summary
+
+| Goal ID | Goal | Status | Evidence |
+|---------|------|--------|----------|
+| G-1 | {description} | ✅ ACHIEVED | Task 1.1, 1.2 complete; E2E validated |
+| G-2 | {description} | ⚠️ AT_RISK | Tasks complete; no E2E validation |
+| G-3 | {description} | ❌ BLOCKED | Task 2.3 incomplete |
+
+---
+
+### Detailed Findings
+
+#### G-1: {Goal Description}
+
+**Status:** ACHIEVED
+**Contributing Tasks:**
+- [x] Sprint 1 Task 1.1 - Complete
+- [x] Sprint 1 Task 1.2 - Complete
+- [x] Sprint 2 Task 2.1 - Complete
+
+**E2E Validation:**
+- Verified via acceptance criteria check
+- Integration confirmed: data flows from storage to API
+
+---
+
+#### G-2: {Goal Description}
+
+**Status:** AT_RISK
+**Contributing Tasks:**
+- [x] Sprint 2 Task 2.3 - Complete
+
+**Concern:**
+- No E2E validation task exists
+- [RECOMMENDATION] Add validation step to verify API returns expected data
+
+---
+
+### Integration Gap Analysis
+
+| Pattern | Found | Consumer | Status |
+|---------|-------|----------|--------|
+| timing_columns table | ✅ | calculate_score() | ✅ Connected |
+| /api/timing endpoint | ✅ | None found | ⚠️ GAP |
+
+---
+
+### Recommendations
+
+1. {Specific recommendation for addressing AT_RISK goals}
+2. {Specific recommendation for integration gaps}
+
+---
+
+*Generated by goal-validator v1.0.0*
+```
+
+## Example Invocations
+
+```bash
+# Manual invocation via /validate command
+/validate goals
+
+# Automatic invocation during review (final sprint)
+# Triggered by reviewing-code skill before approval
+
+# Scoped to specific sprint
+/validate goals sprint-3
+```
+
+## Integration with Review Workflow
+
+The reviewing-code skill should:
+
+1. Check if this is the final sprint (all sprints complete after this)
+2. If final sprint, invoke goal-validator before approval
+3. Check verdict:
+   - GOAL_BLOCKED: Write feedback requiring goal fixes
+   - GOAL_AT_RISK: Warn in feedback (or block if configured)
+   - GOAL_ACHIEVED: Proceed with standard review
+
+## Backward Compatibility
+
+- If PRD has no goal IDs: auto-assign and continue
+- If sprint has no Appendix C: warn but don't block
+- If goal_validation disabled in config: skip entirely

@@ -52,6 +52,22 @@
 |----|-------------|----------|----------|--------|
 | TD-001 | [Placeholder debt item] | MEDIUM | [agent-name] | S01 |
 
+## Goal Status
+
+<!-- Track PRD goal achievement progress -->
+<!-- Update at: task completion, sprint review, E2E validation -->
+
+| Goal ID | Description | Status | Evidence |
+|---------|-------------|--------|----------|
+| G-1 | [From PRD] | NOT_STARTED | - |
+
+**Status Legend:**
+- `NOT_STARTED` - No contributing tasks completed
+- `IN_PROGRESS` - Some contributing tasks completed
+- `AT_RISK` - Tasks done but validation uncertain
+- `ACHIEVED` - Validated via E2E task
+- `BLOCKED` - Explicit blocker documented
+
 ## Learnings
 
 <!-- Project-specific knowledge discovered during implementation -->
@@ -115,6 +131,13 @@
        - Severity: CRITICAL | HIGH | MEDIUM | LOW
        - Found By: Agent name that discovered it
        - Sprint: SNN format
+
+     Goal Status:
+       - Goal ID: G-N from PRD
+       - Description: Brief goal description
+       - Status: NOT_STARTED | IN_PROGRESS | AT_RISK | ACHIEVED | BLOCKED
+       - Evidence: Links to code, tests, or validation reports
+       - Update when: task completed, sprint reviewed, E2E validated
 
      Learnings:
        - Bullet list of project-specific knowledge

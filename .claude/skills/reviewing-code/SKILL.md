@@ -410,6 +410,7 @@ Before approving any sprint, check for validation reports in `grimoires/loa/a2a/
 | Architecture | `architecture-validation-*.md` | CRITICAL_VIOLATION |
 | Security | `security-scan-*.md` | CRITICAL, HIGH |
 | Test Adequacy | `test-adequacy-*.md` | INSUFFICIENT |
+| Goal Validation | `goal-validation-*.md` | GOAL_BLOCKED |
 
 ### Workflow
 

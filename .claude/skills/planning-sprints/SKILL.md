@@ -292,10 +292,31 @@ Design sprint breakdown with:
 - Duration: 2.5 days with specific dates
 - Deliverables with checkboxes
 - Acceptance Criteria (testable)
-- Technical Tasks (specific)
+- Technical Tasks (specific) - annotate with goal contributions: `→ **[G-1]**`
 - Dependencies
 - Risks & Mitigation
 - Success Metrics
+
+### Goal Traceability (Appendix C)
+
+**Extract Goals from PRD:**
+1. Check PRD for goal table with ID column: `| ID | Goal | Measurement | Validation Method |`
+2. If IDs present (G-1, G-2, etc.), use them directly
+3. If IDs missing, auto-assign G-1, G-2, G-3 to numbered goals in "Primary Goals" section
+4. Log auto-assigned IDs to trajectory
+
+**Create Goal Mapping:**
+1. For each task, identify which goal(s) it contributes to
+2. Annotate tasks with `→ **[G-N]**` format
+3. Populate Appendix C with goal-to-task mappings
+4. Generate warnings for:
+   - Goals without any contributing tasks: `⚠️ WARNING: Goal G-N has no contributing tasks`
+   - Final sprint missing E2E validation task: `⚠️ WARNING: No E2E validation task found`
+
+**E2E Validation Task:**
+1. In the final sprint, include Task N.E2E: End-to-End Goal Validation
+2. List all PRD goals with validation steps
+3. This task is P0 priority (Must Complete)
 
 ## Phase 4: Quality Assurance
 
@@ -309,6 +330,9 @@ Self-Review Checklist:
 - [ ] Risks identified with mitigation strategies
 - [ ] Dependencies explicitly called out
 - [ ] Plan provides clear guidance for engineers
+- [ ] All PRD goals mapped to tasks (Appendix C)
+- [ ] All tasks annotated with goal contributions
+- [ ] E2E validation task included in final sprint
 
 Save to `grimoires/loa/sprint.md`.
 </workflow>

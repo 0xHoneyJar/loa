@@ -251,6 +251,21 @@ special_cases:
     action: "Skip to next phase"
     message: "Output file already exists. Proceeding to next phase."
 
+# Guided workflow command
+guided_workflow:
+  # /loa command integration
+  loa:
+    description: "Guided workflow navigator showing current state and next steps"
+    script: ".claude/scripts/workflow-state.sh"
+    output_format: "json"
+    prompt_options:
+      - label: "Yes, run it"
+        action: "execute_suggested"
+      - label: "Show alternatives"
+        action: "show_alternatives"
+      - label: "Exit"
+        action: "exit"
+
 # Integration notes
 notes:
   - "This workflow chain is read by `.claude/scripts/suggest-next-step.sh`"
@@ -259,3 +274,4 @@ notes:
   - "Variable substitution supports {sprint}, {N+1} patterns"
   - "Conditional routing based on file content (approval vs feedback)"
   - "Custom messages per transition for clear user guidance"
+  - "/loa command uses workflow-state.sh for state detection (v0.21.0)"
