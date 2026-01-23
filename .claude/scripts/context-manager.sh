@@ -1021,7 +1021,8 @@ semantic_search_ck() {
     fi
 
     # Use ck hybrid search on the file
-    ck --hybrid "$query" "$file" --limit "$max_results" 2>/dev/null || return 1
+    # ck v0.7.0+ syntax: ck --hybrid "query" --limit N --threshold T --jsonl "path"
+    ck --hybrid "$query" --limit "$max_results" --threshold 0.5 --jsonl "$file" 2>/dev/null || return 1
 }
 
 #######################################
