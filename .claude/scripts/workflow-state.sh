@@ -2,7 +2,12 @@
 # workflow-state.sh
 # Purpose: Detect current Loa workflow state and progress
 # Sprint: Goal Traceability v0.21.0 (FR-6, GitHub Issue #45)
-# Usage: workflow-state.sh [--json]
+# Usage: workflow-state.sh [--json] [--cache] [--no-cache]
+#
+# Follows RLM patterns:
+# - Semantic cache integration for expensive state detection
+# - Condensed output for token efficiency
+# - mtime-based invalidation
 #
 # Exit codes:
 #   0 - State detected successfully
@@ -12,12 +17,18 @@ set -euo pipefail
 
 # Establish project root
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+CACHE_MANAGER="${PROJECT_ROOT}/.claude/scripts/cache-manager.sh"
 
 # Arguments
 JSON_OUTPUT=false
-if [[ "${1:-}" == "--json" ]]; then
-    JSON_OUTPUT=true
-fi
+USE_CACHE=true
+for arg in "$@"; do
+    case "$arg" in
+        --json) JSON_OUTPUT=true ;;
+        --cache) USE_CACHE=true ;;
+        --no-cache) USE_CACHE=false ;;
+    esac
+done
 
 # State constants
 STATE_INITIAL="initial"
@@ -276,6 +287,50 @@ get_state_description() {
     esac
 }
 
+# Function: Generate cache key for workflow state
+generate_cache_key() {
+    if [[ -x "${CACHE_MANAGER}" ]]; then
+        local paths=""
+        [[ -f "${PRD_FILE}" ]] && paths="${PRD_FILE}"
+        [[ -f "${SDD_FILE}" ]] && paths="${paths:+${paths},}${SDD_FILE}"
+        [[ -f "${SPRINT_FILE}" ]] && paths="${paths:+${paths},}${SPRINT_FILE}"
+        [[ -f "${LEDGER_FILE}" ]] && paths="${paths:+${paths},}${LEDGER_FILE}"
+
+        if [[ -n "${paths}" ]]; then
+            "${CACHE_MANAGER}" generate-key \
+                --paths "${paths}" \
+                --query "workflow-state" \
+                --operation "workflow-state" 2>/dev/null || echo ""
+        fi
+    fi
+    echo ""
+}
+
+# Function: Check cache for workflow state
+check_cache() {
+    local cache_key="$1"
+    if [[ -n "${cache_key}" ]] && [[ -x "${CACHE_MANAGER}" ]]; then
+        "${CACHE_MANAGER}" get --key "${cache_key}" 2>/dev/null
+    fi
+}
+
+# Function: Store result in cache
+store_cache() {
+    local cache_key="$1"
+    local result="$2"
+    if [[ -n "${cache_key}" ]] && [[ -x "${CACHE_MANAGER}" ]]; then
+        local paths=""
+        [[ -f "${PRD_FILE}" ]] && paths="${PRD_FILE}"
+        [[ -f "${SDD_FILE}" ]] && paths="${paths:+${paths},}${SDD_FILE}"
+        [[ -f "${SPRINT_FILE}" ]] && paths="${paths:+${paths},}${SPRINT_FILE}"
+
+        "${CACHE_MANAGER}" set \
+            --key "${cache_key}" \
+            --condensed "${result}" \
+            --sources "${paths}" 2>/dev/null || true
+    fi
+}
+
 # Main logic
 main() {
     local state
@@ -283,6 +338,26 @@ main() {
     local completed_sprints
     local current_sprint=""
 
+    # Check semantic cache first (RLM pattern)
+    local cache_key=""
+    if [[ "${USE_CACHE}" == "true" ]]; then
+        cache_key=$(generate_cache_key)
+        if [[ -n "${cache_key}" ]]; then
+            local cached_result
+            if cached_result=$(check_cache "${cache_key}") && [[ -n "${cached_result}" ]]; then
+                # Cache hit - return cached result
+                if [[ "${JSON_OUTPUT}" == "true" ]]; then
+                    echo "${cached_result}"
+                else
+                    # Parse cached JSON for display
+                    echo "${cached_result}" | jq -r '"═══════════════════════════════════════════════════\n Loa Workflow Status (cached)\n═══════════════════════════════════════════════════\n\n State: \(.state)\n \(.description)\n\n Progress: \(.progress_percent)%\n Sprints: \(.completed_sprints)/\(.total_sprints) complete\n\n───────────────────────────────────────────────────\n Suggested: \(.suggested_command)\n═══════════════════════════════════════════════════"' 2>/dev/null || echo "${cached_result}"
+                fi
+                return 0
+            fi
+        fi
+    fi
+
+    # Cache miss - compute state
     state=$(determine_state)
     total_sprints=$(get_total_sprints)
     completed_sprints=$(get_completed_sprints)
@@ -311,8 +386,9 @@ main() {
     progress=$(get_progress_percentage "${state}" "${total_sprints}" "${completed_sprints}")
     description=$(get_state_description "${state}" "${current_sprint}")
 
-    if [[ "${JSON_OUTPUT}" == "true" ]]; then
-        cat <<EOF
+    # Build JSON result (used for both output and caching)
+    local json_result
+    json_result=$(cat <<EOF
 {
   "state": "${state}",
   "description": "${description}",
@@ -328,6 +404,15 @@ main() {
   }
 }
 EOF
+)
+
+    # Store in cache for future use (RLM pattern)
+    if [[ -n "${cache_key}" ]]; then
+        store_cache "${cache_key}" "${json_result}"
+    fi
+
+    if [[ "${JSON_OUTPUT}" == "true" ]]; then
+        echo "${json_result}"
     else
         echo "═══════════════════════════════════════════════════"
         echo " Loa Workflow Status"

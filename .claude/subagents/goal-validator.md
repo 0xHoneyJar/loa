@@ -217,3 +217,145 @@ The reviewing-code skill should:
 - If PRD has no goal IDs: auto-assign and continue
 - If sprint has no Appendix C: warn but don't block
 - If goal_validation disabled in config: skip entirely
+
+## JIT Retrieval Pattern
+
+Follow the JIT retrieval protocol to avoid eager loading of full files:
+
+### Lightweight Identifiers
+
+Store references, not content:
+
+```
+# Instead of loading full files:
+| Identifier | Purpose | Last Verified |
+|------------|---------|---------------|
+| ${PROJECT_ROOT}/grimoires/loa/prd.md:L90-110 | Goal definitions | HH:MM:SSZ |
+| ${PROJECT_ROOT}/grimoires/loa/sprint.md:L300-350 | Appendix C | HH:MM:SSZ |
+```
+
+### On-Demand Retrieval
+
+Load content only when needed for verification:
+
+```bash
+# Use ck for semantic search if available
+if command -v ck &>/dev/null; then
+  ck --hybrid "G-1 contributing tasks" grimoires/loa/sprint.md --top-k 5
+else
+  grep -n "G-1" grimoires/loa/sprint.md
+fi
+```
+
+## Semantic Cache Integration
+
+Cache goal validation results to avoid redundant computation across sessions:
+
+### Cache Key Generation
+
+```bash
+# Generate cache key from validation parameters
+cache_key=$(.claude/scripts/cache-manager.sh generate-key \
+  --paths "grimoires/loa/prd.md,grimoires/loa/sprint.md" \
+  --query "goal-validation" \
+  --operation "goal-validator")
+```
+
+### Cache Check Before Validation
+
+```bash
+# Check cache first (mtime-based invalidation handles freshness)
+if cached=$(.claude/scripts/cache-manager.sh get --key "$cache_key"); then
+  # Cache hit - use cached verdict if files unchanged
+  echo "Using cached goal validation: $cached"
+else
+  # Cache miss - perform full validation
+  # ... run validation workflow ...
+
+  # Condense and cache result
+  condensed=$(.claude/scripts/condense.sh condense \
+    --strategy structured_verdict \
+    --input <(echo "$validation_result"))
+
+  .claude/scripts/cache-manager.sh set \
+    --key "$cache_key" \
+    --condensed "$condensed" \
+    --sources "grimoires/loa/prd.md,grimoires/loa/sprint.md"
+fi
+```
+
+### Condensed Verdict Format
+
+```json
+{
+  "verdict": "GOAL_AT_RISK",
+  "goals": {
+    "G-1": "ACHIEVED",
+    "G-2": "AT_RISK",
+    "G-3": "ACHIEVED"
+  },
+  "concerns": ["G-2: No E2E validation task"],
+  "report_path": "grimoires/loa/a2a/subagent-reports/goal-validation-2026-01-23.md"
+}
+```
+
+## Beads Workflow (beads_rust)
+
+When beads_rust (`br`) is installed, use it to track goal validation:
+
+### Session Start
+
+```bash
+br sync --import-only  # Import latest state from JSONL
+```
+
+### Recording Goal Validation Results
+
+```bash
+# Create validation finding as issue (if gaps found)
+if [[ "$verdict" == "GOAL_AT_RISK" ]] || [[ "$verdict" == "GOAL_BLOCKED" ]]; then
+  br create --title "Goal validation: $verdict" \
+    --type task \
+    --priority 1 \
+    --json
+fi
+
+# Add goal status labels to sprint epic
+br label add <sprint-epic-id> "goal-validation:$verdict"
+```
+
+### Using Labels for Goal Status
+
+| Label | Meaning | When to Apply |
+|-------|---------|---------------|
+| `goal-validation:achieved` | All goals met | After GOAL_ACHIEVED verdict |
+| `goal-validation:at-risk` | Needs attention | After GOAL_AT_RISK verdict |
+| `goal-validation:blocked` | Sprint blocked | After GOAL_BLOCKED verdict |
+| `needs-e2e-validation` | Missing E2E task | When E2E task not found |
+
+### Session End
+
+```bash
+br sync --flush-only  # Export SQLite → JSONL before commit
+```
+
+**Protocol Reference**: See `.claude/protocols/beads-integration.md`
+
+## Truth Hierarchy Compliance
+
+Goal validation follows the Lossless Ledger truth hierarchy:
+
+```
+1. CODE (src/)           ← Check actual implementation exists
+2. BEADS (.beads/)       ← Track validation state across sessions
+3. NOTES.md              ← Log decisions, update Goal Status section
+4. TRAJECTORY            ← Record validation reasoning
+5. PRD/SDD               ← Source of goal definitions
+```
+
+### Fork Detection
+
+If NOTES.md Goal Status conflicts with validation results:
+1. **Validation wins** - Fresh analysis is authoritative
+2. **Flag the fork** - Log discrepancy to trajectory
+3. **Update NOTES.md** - Resync Goal Status section
