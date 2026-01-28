@@ -349,7 +349,7 @@ Options:
 
 ### /run sprint-plan
 
-Execute all sprints in sequence.
+Execute all sprints in sequence with automatic continuation.
 
 ```
 /run sprint-plan [options]
@@ -357,6 +357,23 @@ Execute all sprints in sequence.
 Options:
   --from N            Start from sprint N
   --to N              End at sprint N
+```
+
+**Sprint Discovery Priority:**
+1. `grimoires/loa/sprint.md` sections (`## Sprint N:`)
+2. `grimoires/loa/ledger.json` active cycle sprints
+3. `grimoires/loa/a2a/sprint-*` directories
+
+**Auto-Continuation Behavior:**
+- After Sprint N completes, automatically advances to Sprint N+1
+- Circuit breaker state preserved across sprint transitions
+- State tracked in `.run/sprint-plan-state.json`
+- On any sprint HALTED, outer loop breaks and state preserved
+
+**Sprint Transition Logging:**
+```
+[SPRINT 1/4] sprint-1 COMPLETE (2 cycles)
+[SPRINT 2/4] Starting sprint-2...
 ```
 
 ### /run-status

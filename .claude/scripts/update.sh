@@ -472,7 +472,7 @@ main() {
   fi
 
   log "======================================================================="
-  log "  Loa Framework Update v0.9.0"
+  log "  Loa Framework Update v1.7.1"
   log "  Fetch -> Validate -> Migrate -> Swap"
   log "======================================================================="
 

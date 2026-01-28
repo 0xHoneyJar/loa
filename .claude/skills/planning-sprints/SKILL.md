@@ -211,7 +211,57 @@ Use AskUserQuestion with options:
 
 **If INSTALLED**, proceed silently to Phase 0.
 
-## Phase 0: Check Feedback Files and Integration Context (CRITICAL—DO THIS FIRST)
+## Phase 0: Check Feedback Files, Ledger, and Integration Context (CRITICAL—DO THIS FIRST)
+
+### Step 0: Check for Sprint Ledger (NEW in v1.8.0)
+
+Check if `grimoires/loa/ledger.json` exists:
+
+```bash
+[ -f "grimoires/loa/ledger.json" ] && echo "EXISTS" || echo "MISSING"
+```
+
+**If MISSING**, use AskUserQuestion to offer creation:
+
+```
+No Sprint Ledger found at grimoires/loa/ledger.json
+
+A Sprint Ledger provides:
+• Global sprint numbering across development cycles
+• Cycle tracking with PRD/SDD references
+• Sprint history and metrics for retrospectives
+
+Options:
+[1] Create ledger (recommended)
+[2] Continue without ledger
+```
+
+**If user selects "Create ledger":**
+
+Create `grimoires/loa/ledger.json` with initial schema:
+
+```json
+{
+  "version": "1.0.0",
+  "next_sprint_number": 1,
+  "active_cycle": "cycle-001",
+  "cycles": [
+    {
+      "id": "cycle-001",
+      "label": null,
+      "status": "active",
+      "created_at": "<ISO timestamp>",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": []
+    }
+  ]
+}
+```
+
+Log creation to trajectory: `{"action": "ledger_created", "path": "grimoires/loa/ledger.json"}`
+
+**If EXISTS**, proceed to Step 1.
 
 ### Step 1: Check for Security Audit Feedback
 
