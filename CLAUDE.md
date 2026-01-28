@@ -227,6 +227,25 @@ Three quality gates:
 
 **Priority**: Audit feedback checked FIRST on `/implement`, then engineer feedback.
 
+### Karpathy Principles (v1.8.0)
+
+Four behavioral principles to counter common LLM coding pitfalls:
+
+| Principle | Problem Addressed | Implementation |
+|-----------|-------------------|----------------|
+| **Think Before Coding** | Silent assumptions | Surface assumptions, ask clarifying questions |
+| **Simplicity First** | Overcomplicated code | No speculative features, minimal abstractions |
+| **Surgical Changes** | Unrelated modifications | Only touch necessary lines, preserve style |
+| **Goal-Driven** | Vague success criteria | Define testable outcomes before starting |
+
+**Pre-Implementation Check**:
+- [ ] Assumptions listed
+- [ ] Scope minimal (no extras)
+- [ ] Success criteria defined
+- [ ] Style will match existing
+
+**Protocol**: See `.claude/protocols/karpathy-principles.md`
+
 ### Git Safety
 
 Prevents accidental pushes to upstream template:

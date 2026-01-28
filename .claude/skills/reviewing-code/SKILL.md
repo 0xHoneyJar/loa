@@ -227,6 +227,23 @@ Read ALL context documents in order:
 5. Check architecture alignment with SDD
 6. Perform security audit (see `resources/REFERENCE.md` §Security)
 7. Check performance and resource management
+8. **Karpathy Principles Check** (see below)
+
+### Karpathy Principles Verification
+
+Verify implementation follows the four principles:
+
+| Principle | Check | Fail Condition |
+|-----------|-------|----------------|
+| **Think Before Coding** | Assumptions documented in reviewer.md | Silent assumptions, missing clarifications |
+| **Simplicity First** | Minimal code, no speculative features | Unused abstractions, "just in case" code |
+| **Surgical Changes** | Diff only includes requested changes | Unrelated formatting, drive-by improvements |
+| **Goal-Driven** | Clear success criteria, tests verify them | Vague tests, untestable outcomes |
+
+**Flag violations as feedback:**
+- "SIMPLICITY: Abstraction X is only used once - consider inlining"
+- "SURGICAL: Lines Y-Z were reformatted but not part of the task"
+- "GOAL-DRIVEN: Test doesn't verify the actual acceptance criteria"
 
 ## Phase 3: Previous Feedback Verification
 

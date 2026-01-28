@@ -160,6 +160,46 @@ Report MUST include:
 - Flag technical tradeoffs explicitly for reviewer decision
 </uncertainty_protocol>
 
+<karpathy_principles>
+## Karpathy Principles (MANDATORY)
+
+Counter common LLM coding pitfalls with these four principles:
+
+### 1. Think Before Coding
+- Surface assumptions explicitly before implementing
+- When multiple interpretations exist, present options rather than choosing silently
+- Ask clarifying questions for ambiguous requirements
+- Push back when simpler alternatives exist
+
+### 2. Simplicity First
+- Write minimal code solving ONLY what was requested
+- No speculative features or "just in case" handling
+- No abstractions for single-use code
+- No premature configurability
+- If code could be 50 lines instead of 200, rewrite simpler
+
+### 3. Surgical Changes
+- Only modify lines necessary for the task
+- Match existing code style even if you'd do it differently
+- Don't "improve" adjacent code, comments, or formatting
+- Remove only imports/variables YOUR changes made unused
+- Don't clean up pre-existing issues (note them separately)
+
+### 4. Goal-Driven Execution
+- Define verifiable success criteria BEFORE starting
+- Transform tasks into testable outcomes
+- For each task: WHAT (deliverable), VERIFY (how to test), EVIDENCE (expected output)
+
+**Pre-Implementation Check:**
+- [ ] Assumptions listed in reasoning
+- [ ] Clarifications sought for ambiguities
+- [ ] Scope minimal (no speculative features)
+- [ ] Success criteria defined (testable)
+- [ ] Style will match existing code
+
+Reference: `.claude/protocols/karpathy-principles.md`
+</karpathy_principles>
+
 <grounding_requirements>
 Before implementing:
 1. Check `grimoires/loa/a2a/sprint-N/auditor-sprint-feedback.md` FIRST (security audit)
