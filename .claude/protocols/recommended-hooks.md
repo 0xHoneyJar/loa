@@ -87,6 +87,32 @@ The following hooks run asynchronously by default in `.claude/settings.json`:
 - `check-updates.sh`: Network request to GitHub, non-critical notification
 - `permission-audit.sh`: Pure audit logging, shouldn't slow down permission flow
 
+### Context Cleanup Hook (PreToolUse)
+
+Archives and cleans previous cycle's context before `/plan-and-analyze`:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [{
+      "matcher": "Skill(plan-and-analyze.*)",
+      "hooks": [{
+        "type": "command",
+        "command": ".claude/scripts/cleanup-context.sh --prompt"
+      }]
+    }]
+  }
+}
+```
+
+**Behavior**:
+- Detects if `grimoires/loa/context/` has files from previous cycle
+- Prompts user: Archive and proceed / Keep context / Abort
+- Archives to cycle's archive directory before cleaning
+- Exit code 2 (abort) blocks `/plan-and-analyze` from running
+
+**NOT async**: Must complete before skill loads context files
+
 ---
 
 ## Recommended Hooks for Loa

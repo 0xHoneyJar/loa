@@ -444,6 +444,17 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "Skill(plan-and-analyze.*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/cleanup-context.sh --prompt"
+          }
+        ]
+      }
+    ],
     "PermissionRequest": [
       {
         "matcher": "",

@@ -18,6 +18,8 @@ ARCHIVE_BASE="${LOA_ARCHIVE_BASE:-grimoires/loa/archive}"
 DRY_RUN=false
 VERBOSE=false
 NO_ARCHIVE=false
+PROMPT_MODE=false
+AUTO_YES=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -34,8 +36,16 @@ while [[ $# -gt 0 ]]; do
       NO_ARCHIVE=true
       shift
       ;;
+    --prompt)
+      PROMPT_MODE=true
+      shift
+      ;;
+    --yes|-y)
+      AUTO_YES=true
+      shift
+      ;;
     --help|-h)
-      echo "Usage: cleanup-context.sh [--dry-run] [--verbose] [--no-archive]"
+      echo "Usage: cleanup-context.sh [--dry-run] [--verbose] [--no-archive] [--prompt] [--yes]"
       echo ""
       echo "Archive and clean discovery context directory for next development cycle."
       echo "Archives context files to the cycle's archive directory, then removes them."
@@ -44,11 +54,17 @@ while [[ $# -gt 0 ]]; do
       echo "  --dry-run     Show what would be archived/deleted without doing it"
       echo "  --verbose     Show detailed output"
       echo "  --no-archive  Skip archiving, just delete (not recommended)"
+      echo "  --prompt      Interactive mode: ask for confirmation before cleanup"
+      echo "  --yes, -y     Auto-confirm in prompt mode (for scripting)"
       echo "  --help        Show this help message"
       echo ""
       echo "Archive location: {archive-path}/context/"
       echo "  - Determined from ledger.json active cycle or most recent archive"
       echo "  - Falls back to dated directory if no cycle info available"
+      echo ""
+      echo "Hook usage:"
+      echo "  Used as PreToolUse hook for /plan-and-analyze to clean previous cycle context."
+      echo "  In hook mode (--prompt), blocks execution if user declines cleanup."
       exit 0
       ;;
     *)
@@ -149,6 +165,42 @@ if [[ "$DRY_RUN" == "true" ]]; then
   fi
   echo "[DRY RUN] No files archived or deleted"
   exit 0
+fi
+
+# Prompt mode: ask for confirmation before proceeding
+if [[ "$PROMPT_MODE" == "true" && "$AUTO_YES" == "false" ]]; then
+  echo "─────────────────────────────────────────"
+  echo "Previous cycle context detected."
+  echo ""
+  echo "Starting a new /plan-and-analyze will archive these files"
+  echo "and clean the context directory for your new cycle."
+  echo ""
+  echo "Options:"
+  echo "  [Y] Archive and proceed (recommended)"
+  echo "  [n] Keep context and proceed (files will be re-used)"
+  echo "  [q] Abort /plan-and-analyze"
+  echo ""
+
+  # Read from /dev/tty to get user input even when stdin is piped
+  read -r -p "Archive previous context? [Y/n/q]: " response < /dev/tty 2>/dev/null || response="Y"
+
+  case "${response,,}" in
+    n|no)
+      echo ""
+      echo "Keeping existing context files. They will be loaded into the new PRD."
+      echo "Note: This may cause confusion if context is from a different project."
+      exit 0
+      ;;
+    q|quit|abort)
+      echo ""
+      echo "Aborting /plan-and-analyze. Context unchanged." >&2
+      exit 2  # Exit code 2 blocks the hook
+      ;;
+    *)
+      echo ""
+      echo "Proceeding with archive and cleanup..."
+      ;;
+  esac
 fi
 
 # Archive context files (unless --no-archive)
