@@ -25,26 +25,6 @@ Each log file follows the pattern `{agent}-{date}.jsonl`:
 - `assumption`: Ungrounded claim (should be flagged)
 - `user_input`: Based on explicit user request
 
-## Security Notice
-
-**IMPORTANT**: Trajectory logs may contain sensitive information including:
-
-- Agent thinking/reasoning content
-- Memory search queries and results
-- File paths and code snippets
-- Session identifiers
-
-**Recommendations**:
-1. Never commit trajectory logs to version control (already in `.gitignore`)
-2. Periodically review and purge old logs
-3. Do not share trajectory files with untrusted parties
-4. Consider encrypting logs in sensitive environments
-
-Logs older than 30 days can typically be safely deleted:
-```bash
-find grimoires/loa/a2a/trajectory -name "*.jsonl" -mtime +30 -delete
-```
-
 ## Note for Template Users
 
 This directory is intentionally empty in the template. Trajectory logs are generated during agent execution and excluded from version control via `.gitignore`.
