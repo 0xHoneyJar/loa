@@ -438,7 +438,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/scripts/check-updates.sh --notify"
+            "command": ".claude/scripts/check-updates.sh --notify",
+            "async": true
           }
         ]
       }
@@ -449,7 +450,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/scripts/permission-audit.sh log"
+            "command": ".claude/scripts/permission-audit.sh log",
+            "async": true
           }
         ]
       }

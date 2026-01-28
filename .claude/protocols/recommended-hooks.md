@@ -6,7 +6,7 @@ This protocol documents recommended Claude Code hooks that enhance the Loa workf
 
 Claude Code hooks are event-driven automations configured in `.claude/settings.json`. They trigger shell commands or scripts when specific events occur.
 
-**Reference**: [Claude Code Hooks Documentation](https://docs.anthropic.com/en/docs/claude-code/hooks)
+**Reference**: [Claude Code Hooks Documentation](https://code.claude.com/docs/en/hooks)
 
 ---
 
@@ -14,10 +14,78 @@ Claude Code hooks are event-driven automations configured in `.claude/settings.j
 
 | Hook | Trigger | Use Case |
 |------|---------|----------|
-| `PreToolUse` | Before tool execution | Validation, blocking |
+| `SessionStart` | Session begins | Context loading, updates |
+| `PreToolUse` | Before tool execution | Validation, blocking, context injection |
 | `PostToolUse` | After tool execution | Logging, side effects |
+| `PermissionRequest` | Permission dialog | Audit logging, auto-approval |
 | `Notification` | On notifications | Alerts, external integrations |
 | `Stop` | When assistant stops | Cleanup, state sync |
+| `SessionEnd` | Session terminates | Final cleanup |
+
+---
+
+## Async Hooks (v2.1.0+)
+
+Claude Code 2.1.0 introduced `async: true` for hooks, allowing them to run in the background without blocking execution.
+
+### When to Use Async
+
+| Use Case | Async? | Reason |
+|----------|--------|--------|
+| **Logging/Metrics** | YES | Side-effect only, shouldn't block |
+| **Notifications** | YES | External calls, user doesn't wait |
+| **Update checks** | YES | Network requests, non-critical |
+| **Context injection** | NO | Must complete before tool runs |
+| **Permission blocking** | NO | Decision required synchronously |
+
+### Configuration
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [{
+      "matcher": "Bash",
+      "hooks": [{
+        "type": "command",
+        "command": "./my-logging-hook.sh",
+        "async": true,
+        "timeout": 30
+      }]
+    }]
+  }
+}
+```
+
+### Loa Default Async Hooks
+
+The following hooks run asynchronously by default in `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": ".claude/scripts/check-updates.sh --notify",
+        "async": true
+      }]
+    }],
+    "PermissionRequest": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": ".claude/scripts/permission-audit.sh log",
+        "async": true
+      }]
+    }]
+  }
+}
+```
+
+**Rationale**:
+- `check-updates.sh`: Network request to GitHub, non-critical notification
+- `permission-audit.sh`: Pure audit logging, shouldn't slow down permission flow
 
 ---
 
@@ -340,10 +408,12 @@ Parse session transcript for automatic state extraction:
 ## Hook Development Guidelines
 
 1. **Keep hooks fast** - Long-running hooks degrade UX
-2. **Fail silently** - Use `|| true` to prevent blocking on errors
-3. **Use matchers precisely** - Broad matchers trigger too often
-4. **Log for debugging** - Write to `grimoires/loa/a2a/trajectory/hooks.log`
-5. **Test in isolation** - Run scripts manually before adding as hooks
+2. **Use `async: true` for side-effects** - Logging, notifications, metrics
+3. **Fail silently** - Use `|| true` to prevent blocking on errors
+4. **Use matchers precisely** - Broad matchers trigger too often
+5. **Log for debugging** - Write to `grimoires/loa/a2a/trajectory/hooks.log`
+6. **Test in isolation** - Run scripts manually before adding as hooks
+7. **Never async context injection** - Hooks returning `additionalContext` must be synchronous
 
 ---
 
@@ -363,6 +433,7 @@ mv .claude/settings.json .claude/settings.json.bak
 
 ## References
 
-- [Claude Code Hooks Documentation](https://docs.anthropic.com/en/docs/claude-code/hooks)
+- [Claude Code Hooks Documentation](https://code.claude.com/docs/en/hooks)
+- [Claude Code Hooks Guide](https://code.claude.com/docs/en/hooks-guide)
 - [Kiro Agent Hooks](https://kiro.dev/docs/hooks/)
 - [Continuous-Claude-v3 Session Hooks](https://github.com/parcadei/Continuous-Claude-v3)
