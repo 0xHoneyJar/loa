@@ -55,6 +55,10 @@ temp/
 # Must be preserved locally for resume capability but not committed
 .run/
 
+# Loa Memory Stack state (v1.8.0)
+# Contains vector database, embeddings, QMD indexes - machine-specific
+.loa/
+
 # User context files (discovery inputs, uploaded docs, extracted content)
 # These are user-specific inputs that should never be committed
 # The README.md is tracked to explain the directory's purpose

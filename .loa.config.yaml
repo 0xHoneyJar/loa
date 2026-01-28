@@ -52,6 +52,65 @@ memory:
   # Restore context from NOTES.md on session start
   auto_restore: true
 
+  # -------------------------------------------------------------------------
+  # NOTES.md Learnings Sync (v1.8.0)
+  # -------------------------------------------------------------------------
+  # Auto-sync learnings from NOTES.md to vector database on session start
+  auto_sync: false
+
+  # -------------------------------------------------------------------------
+  # PreToolUse Hook - Mid-Stream Memory Injection (v1.8.0)
+  # -------------------------------------------------------------------------
+  pretooluse_hook:
+    # Master toggle for mid-stream injection
+    enabled: false
+    # Characters to extract from thinking block
+    thinking_chars: 1500
+    # Minimum similarity score for memory recall
+    similarity_threshold: 0.35
+    # Maximum memories to inject per tool use
+    max_memories: 3
+    # Hard timeout for entire hook execution (milliseconds)
+    timeout_ms: 500
+    # Tools that trigger the hook
+    tools:
+      - Read
+      - Glob
+      - Grep
+      - WebFetch
+      - WebSearch
+
+  # -------------------------------------------------------------------------
+  # Vector Database Configuration
+  # -------------------------------------------------------------------------
+  vector_db:
+    # Database file location (relative to project root)
+    path: .loa/memory.db
+    # Embedding model (sentence-transformers)
+    model: all-MiniLM-L6-v2
+    # Embedding dimension (must match model)
+    dimension: 384
+
+  # -------------------------------------------------------------------------
+  # QMD Integration - Document Search (v1.8.0)
+  # -------------------------------------------------------------------------
+  qmd:
+    # Master toggle for QMD integration
+    enabled: false
+    # QMD binary path (or just 'qmd' for PATH)
+    binary: qmd
+    # Index storage location
+    index_dir: .loa/qmd
+    # Collections to index
+    collections:
+      - path: grimoires/loa
+        name: loa-state
+        include: ["*.md"]
+        exclude: ["archive/**", "a2a/trajectory/**"]
+      - path: grimoires/loa/reality
+        name: loa-reality
+        include: ["*.md"]
+
 # =============================================================================
 # Evaluation-Driven Development (ADK-Level)
 # =============================================================================

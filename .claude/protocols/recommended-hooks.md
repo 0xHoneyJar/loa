@@ -114,7 +114,53 @@ Prevent accidental pushes to upstream template.
 
 ---
 
-### 4. Sprint Completion Hook (PostToolUse)
+### 4. Memory Injection Hook (PreToolUse) - v1.8.0
+
+Inject relevant project memories before tool execution.
+
+> **Note**: This hook is part of the Loa Memory Stack. It requires initialization
+> via `memory-admin.sh init` and enabling in `.loa.config.yaml`.
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Glob|Grep|WebFetch|WebSearch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/memory-inject.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+memory:
+  pretooluse_hook:
+    enabled: true
+    thinking_chars: 1500
+    similarity_threshold: 0.35
+    max_memories: 3
+    timeout_ms: 500
+```
+
+**Features**:
+- Extracts last 1500 chars from Claude's thinking block
+- Queries vector database for similar memories
+- Injects top 3 memories via `additionalContext`
+- Hash-based deduplication (skips if same query)
+- Strict timeout enforcement (500ms)
+- Graceful degradation (never blocks tool execution)
+
+---
+
+### 5. Sprint Completion Hook (PostToolUse)
 
 Sync Beads when sprint is marked complete.
 
