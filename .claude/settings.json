@@ -432,6 +432,17 @@
     ]
   },
   "hooks": {
+    "Setup": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/upgrade-health-check.sh"
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "matcher": "",
@@ -439,7 +450,8 @@
           {
             "type": "command",
             "command": ".claude/scripts/check-updates.sh --notify",
-            "async": true
+            "async": true,
+            "once": true
           }
         ]
       }

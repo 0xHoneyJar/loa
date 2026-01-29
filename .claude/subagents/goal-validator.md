@@ -2,6 +2,8 @@
 name: goal-validator
 version: 1.0.0
 description: Verify PRD goals are achieved through implementation
+context: fork
+agent: Explore
 triggers:
   - after: implementing-tasks
   - before: reviewing-code (final sprint only)

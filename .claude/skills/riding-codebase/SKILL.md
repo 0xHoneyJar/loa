@@ -1,3 +1,11 @@
+---
+name: ride
+description: Analyze codebase to extract reality into Loa artifacts
+context: fork
+agent: Explore
+allowed-tools: Read, Grep, Glob, Bash(git *)
+---
+
 # Riding Through the Codebase
 
 You are analyzing an existing codebase to generate evidence-grounded Loa artifacts following the v0.6.0 Enterprise-Grade Managed Scaffolding model.

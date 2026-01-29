@@ -2,6 +2,8 @@
 name: architecture-validator
 version: 1.0.0
 description: Verify implementation matches SDD specifications and detect architectural drift
+context: fork
+agent: Explore
 triggers:
   - after: implementing-tasks
   - before: reviewing-code

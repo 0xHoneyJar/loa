@@ -246,6 +246,38 @@ Four behavioral principles to counter common LLM coding pitfalls:
 
 **Protocol**: See `.claude/protocols/karpathy-principles.md`
 
+### Claude Code 2.1.x Features (v1.9.0)
+
+Alignment with Claude Code 2.1.x platform capabilities:
+
+| Feature | Description | Configuration |
+|---------|-------------|---------------|
+| **Setup Hook** | `claude --init` triggers health check | `.claude/settings.json` |
+| **Skill Forking** | Read-only skills use `context: fork` | Skill frontmatter |
+| **One-Time Hooks** | `once: true` prevents duplicate runs | `.claude/settings.json` |
+| **Session ID Tracking** | `${CLAUDE_SESSION_ID}` in trajectory | Automatic |
+
+**Setup Hook**: Runs `upgrade-health-check.sh` on `claude --init` for framework validation.
+
+**Skill Forking**: `/ride` and validators use `context: fork` with `agent: Explore` for isolated execution:
+```yaml
+---
+name: ride
+context: fork
+agent: Explore
+allowed-tools: Read, Grep, Glob, Bash(git *)
+---
+```
+
+**One-Time Hooks**: Update check only runs once per session:
+```json
+{"command": ".claude/scripts/check-updates.sh", "async": true, "once": true}
+```
+
+**Session ID**: Trajectory logs include `session_id` for cross-session correlation.
+
+**Protocols**: See `.claude/protocols/recommended-hooks.md`, `.claude/protocols/skill-forking.md`
+
 ### Git Safety
 
 Prevents accidental pushes to upstream template:

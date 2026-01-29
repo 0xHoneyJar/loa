@@ -14,6 +14,7 @@ Claude Code hooks are event-driven automations configured in `.claude/settings.j
 
 | Hook | Trigger | Use Case |
 |------|---------|----------|
+| `Setup` | `claude --init`, `--init-only`, `--maintenance` | Framework initialization, health checks |
 | `SessionStart` | Session begins | Context loading, updates |
 | `PreToolUse` | Before tool execution | Validation, blocking, context injection |
 | `PostToolUse` | After tool execution | Logging, side effects |
@@ -21,6 +22,103 @@ Claude Code hooks are event-driven automations configured in `.claude/settings.j
 | `Notification` | On notifications | Alerts, external integrations |
 | `Stop` | When assistant stops | Cleanup, state sync |
 | `SessionEnd` | Session terminates | Final cleanup |
+
+---
+
+## Setup Hook (v2.1.10+)
+
+The Setup hook triggers when users run `claude --init`, `--init-only`, or `--maintenance`. This is ideal for framework initialization and health checks.
+
+### Configuration
+
+```json
+{
+  "hooks": {
+    "Setup": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": ".claude/scripts/upgrade-health-check.sh"
+      }]
+    }]
+  }
+}
+```
+
+### Use Cases
+
+| Use Case | Description |
+|----------|-------------|
+| **Health checks** | Validate configuration after upgrades |
+| **Migrations** | Run schema migrations on init |
+| **Dependencies** | Check required tools are installed |
+| **Environment setup** | Set persistent environment variables via `CLAUDE_ENV_FILE` |
+
+### Loa Default Setup Hook
+
+Loa triggers `upgrade-health-check.sh` on `claude --init` to:
+- Check beads_rust (br) migration status
+- Detect deprecated settings
+- Suggest new configuration options
+- Recommend missing permissions
+
+**Exit Codes**:
+- `0` - All healthy, continue
+- `1` - Warnings found, continue
+- `2` - Critical issues, recommend action
+
+---
+
+## One-Time Hooks (`once: true`) (v2.1.0+)
+
+Add `once: true` to hooks that only need to run once per session, not on every resume.
+
+### Configuration
+
+```json
+{
+  "hooks": {
+    "SessionStart": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": ".claude/scripts/check-updates.sh --notify",
+        "async": true,
+        "once": true
+      }]
+    }]
+  }
+}
+```
+
+### When to Use `once: true`
+
+| Use Case | once:true? | Reason |
+|----------|------------|--------|
+| **Update checks** | YES | Only need to check once per session |
+| **Welcome messages** | YES | Don't repeat on resume |
+| **One-time initialization** | YES | Setup tasks only needed once |
+| **Context loading** | NO | May need fresh context on resume |
+| **State sync** | NO | Should run every time |
+| **Logging** | NO | Want complete audit trail |
+
+### Loa Default One-Time Hooks
+
+```json
+{
+  "SessionStart": [{
+    "matcher": "",
+    "hooks": [{
+      "type": "command",
+      "command": ".claude/scripts/check-updates.sh --notify",
+      "async": true,
+      "once": true
+    }]
+  }]
+}
+```
+
+**Rationale**: Update check only needs to run when session first starts, not when resuming from a checkpoint.
 
 ---
 

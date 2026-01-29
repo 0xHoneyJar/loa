@@ -2,6 +2,8 @@
 name: documentation-coherence
 version: 1.0.0
 description: Validate documentation is updated atomically with each task
+context: fork
+agent: Explore
 triggers:
   - after: implementing-tasks
   - before: reviewing-code
