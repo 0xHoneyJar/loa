@@ -253,3 +253,171 @@ teardown() {
 @test "PostToolUse hook for code files exists" {
     grep -q "auto-gpt-review-hook.sh" "$PROJECT_ROOT/.claude/settings.json"
 }
+
+# =============================================================================
+# End-to-end execution tests - verifies the ACTUAL commands work
+# =============================================================================
+
+# Helper to create mock curl that records calls
+setup_mock_curl() {
+    mkdir -p "$TEST_DIR/bin"
+    cat > "$TEST_DIR/bin/curl" << 'MOCK_CURL'
+#!/usr/bin/env bash
+# Mock curl that records calls and returns success response
+echo "$@" >> "${MOCK_CURL_LOG:-/tmp/curl_calls.log}"
+# Return a valid GPT review response
+cat << 'RESPONSE'
+{
+  "choices": [{
+    "message": {
+      "content": "{\"verdict\": \"APPROVED\", \"summary\": \"Test mock response\"}"
+    }
+  }]
+}
+RESPONSE
+MOCK_CURL
+    chmod +x "$TEST_DIR/bin/curl"
+    export MOCK_CURL_LOG="$TEST_DIR/curl_calls.log"
+    rm -f "$MOCK_CURL_LOG"
+}
+
+@test "extracted PRD gate command is executable and calls API" {
+    # Setup: enable GPT review and inject gates
+    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+    "$INJECT_SCRIPT"
+
+    # Setup mock curl
+    setup_mock_curl
+
+    # Create a test PRD file
+    mkdir -p "$TEST_DIR/grimoires/loa"
+    echo "# Test PRD" > "$TEST_DIR/grimoires/loa/prd.md"
+
+    # Extract the bash command from the injected gate
+    local bash_cmd
+    bash_cmd=$(grep -A2 '```bash' "$SKILLS_DIR/discovering-requirements/SKILL.md" | grep 'gpt-review-api.sh' | sed 's/^[[:space:]]*//')
+
+    # The command should exist
+    [[ -n "$bash_cmd" ]]
+
+    # Replace the file path with our test file
+    bash_cmd="${bash_cmd/grimoires\/loa\/prd.md/$TEST_DIR/grimoires/loa/prd.md}"
+
+    # Set required env vars
+    export OPENAI_API_KEY="test-key-for-mock"
+
+    # Run the command with mocked curl (prepend mock dir to PATH)
+    cd "$PROJECT_ROOT"
+    PATH="$TEST_DIR/bin:$PATH" run bash -c "$bash_cmd"
+
+    # Command should succeed
+    [[ "$status" -eq 0 ]]
+
+    # Output should contain verdict
+    echo "$output" | grep -q "verdict"
+
+    # Cleanup
+    rm -f "$PROJECT_ROOT/.loa.config.yaml"
+}
+
+@test "API script checks config before making API call" {
+    # Setup: DISABLE GPT review
+    cp "$FIXTURES_DIR/configs/disabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+
+    # Setup mock curl
+    setup_mock_curl
+
+    # Create a test PRD file
+    mkdir -p "$TEST_DIR/grimoires/loa"
+    echo "# Test PRD" > "$TEST_DIR/grimoires/loa/prd.md"
+
+    # Run API script directly with disabled config
+    cd "$PROJECT_ROOT"
+    export OPENAI_API_KEY="test-key-for-mock"
+    PATH="$TEST_DIR/bin:$PATH" run .claude/scripts/gpt-review-api.sh prd "$TEST_DIR/grimoires/loa/prd.md"
+
+    # Should succeed with SKIPPED verdict
+    [[ "$status" -eq 0 ]]
+    echo "$output" | grep -q '"verdict": "SKIPPED"'
+
+    # Mock curl should NOT have been called (no log file or empty)
+    [[ ! -s "$MOCK_CURL_LOG" ]]
+
+    # Cleanup
+    rm -f "$PROJECT_ROOT/.loa.config.yaml"
+}
+
+@test "API script fails gracefully without API key" {
+    # Setup: enable GPT review but no API key
+    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+
+    # Create a test PRD file
+    mkdir -p "$TEST_DIR/grimoires/loa"
+    echo "# Test PRD" > "$TEST_DIR/grimoires/loa/prd.md"
+
+    # Unset API key
+    unset OPENAI_API_KEY
+
+    # Remove any .env files that might have keys
+    rm -f "$PROJECT_ROOT/.env" "$PROJECT_ROOT/.env.local"
+
+    # Run API script - should fail with exit code 4 (missing API key)
+    cd "$PROJECT_ROOT"
+    run .claude/scripts/gpt-review-api.sh prd "$TEST_DIR/grimoires/loa/prd.md"
+
+    # Should fail with specific exit code for missing API key
+    [[ "$status" -eq 4 ]]
+
+    # Cleanup
+    rm -f "$PROJECT_ROOT/.loa.config.yaml"
+}
+
+@test "full chain: inject -> extract -> execute -> verify API called" {
+    # This is the critical end-to-end test that proves the system works
+
+    # Setup: enable GPT review
+    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+
+    # Step 1: Run inject script (simulates session start)
+    "$INJECT_SCRIPT"
+
+    # Step 2: Verify gate was injected
+    grep -q "GPT_REVIEW_GATE_START" "$SKILLS_DIR/discovering-requirements/SKILL.md"
+
+    # Step 3: Setup mock curl to capture calls
+    setup_mock_curl
+
+    # Step 4: Create test content
+    mkdir -p "$TEST_DIR/grimoires/loa"
+    echo "# Test PRD for full chain test" > "$TEST_DIR/grimoires/loa/prd.md"
+
+    # Step 5: Extract EXACT command from skill file (what Claude would execute)
+    local gate_section bash_cmd
+    gate_section=$(sed -n '/GPT_REVIEW_GATE_START/,/GPT_REVIEW_GATE_END/p' "$SKILLS_DIR/discovering-requirements/SKILL.md")
+    bash_cmd=$(echo "$gate_section" | grep -A1 '```bash' | grep 'gpt-review-api.sh' | sed 's/^[[:space:]]*//')
+
+    [[ -n "$bash_cmd" ]] || { echo "Failed to extract bash command from gate"; false; }
+
+    # Step 6: Modify command to use test file
+    bash_cmd="${bash_cmd/grimoires\/loa\/prd.md/$TEST_DIR/grimoires/loa/prd.md}"
+
+    # Step 7: Execute the command (with mocked curl)
+    export OPENAI_API_KEY="test-api-key"
+    cd "$PROJECT_ROOT"
+    PATH="$TEST_DIR/bin:$PATH" run bash -c "$bash_cmd"
+
+    # Step 8: Verify execution succeeded
+    [[ "$status" -eq 0 ]] || { echo "Command failed with status $status: $output"; false; }
+
+    # Step 9: Verify curl was actually called (proves the full chain works)
+    [[ -s "$MOCK_CURL_LOG" ]] || { echo "Curl was never called - API request not made"; false; }
+
+    # Step 10: Verify curl was called with OpenAI endpoint
+    grep -q "api.openai.com" "$MOCK_CURL_LOG" || { echo "Curl not called with OpenAI endpoint"; cat "$MOCK_CURL_LOG"; false; }
+
+    # Step 11: Verify response contains expected verdict
+    echo "$output" | grep -q "APPROVED" || { echo "Response missing APPROVED verdict: $output"; false; }
+
+    # Cleanup
+    rm -f "$PROJECT_ROOT/.loa.config.yaml"
+}
