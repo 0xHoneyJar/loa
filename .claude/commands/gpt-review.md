@@ -27,34 +27,20 @@ Cross-model review using GPT 5.2 to catch issues Claude might miss.
 
 ## Toggle Command
 
-The `toggle` subcommand flips the `gpt_review.enabled` setting in `.loa.config.yaml`:
+The `toggle` subcommand flips the `gpt_review.enabled` setting in `.loa.config.yaml`.
 
+**Just run the script:**
 ```bash
-/gpt-review toggle
+.claude/scripts/gpt-review-toggle.sh
 ```
 
-**What it does:**
-1. Reads current `gpt_review.enabled` value from `.loa.config.yaml`
-2. Flips it: `true` → `false` or `false` → `true`
-3. Updates the context file (creates or removes `.claude/context/gpt-review-active.md`)
-4. Reports the new state
+The script handles everything automatically:
+- Adds `gpt_review.enabled` to config if missing
+- Flips the value: `true` → `false` or `false` → `true`
+- Creates/removes the context file
+- Reports the new state
 
-**Execution:**
-```bash
-# Check current state
-current=$(yq eval '.gpt_review.enabled // false' .loa.config.yaml)
-
-# Toggle it
-if [[ "$current" == "true" ]]; then
-  yq eval -i '.gpt_review.enabled = false' .loa.config.yaml
-  rm -f .claude/context/gpt-review-active.md
-  echo "GPT Review: DISABLED"
-else
-  yq eval -i '.gpt_review.enabled = true' .loa.config.yaml
-  .claude/scripts/toggle-gpt-review-context.sh
-  echo "GPT Review: ENABLED"
-fi
-```
+**After toggling:** Restart Claude session for the context file changes to take effect.
 
 ## How It Works
 
