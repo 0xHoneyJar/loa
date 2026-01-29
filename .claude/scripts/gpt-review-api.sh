@@ -13,7 +13,7 @@
 #   --previous <file>      Previous findings JSON file (for re-review)
 #
 # Environment:
-#   OPENAI_API_KEY - Required (or loaded from .env)
+#   OPENAI_API_KEY - Required (or loaded from .env or .env.local)
 #
 # Exit codes:
 #   0 - Success (includes SKIPPED)
@@ -394,7 +394,7 @@ Options:
   --previous <file>      Previous findings JSON (required for iteration > 1)
 
 Environment:
-  OPENAI_API_KEY    Required - Your OpenAI API key (or in .env file)
+  OPENAI_API_KEY    Required - Your OpenAI API key (or in .env / .env.local)
 
 Exit Codes:
   0 - Success (includes SKIPPED when disabled)
@@ -488,13 +488,30 @@ main() {
     exit 2
   fi
 
-  # Load .env file if exists and OPENAI_API_KEY not already set
-  if [[ -z "${OPENAI_API_KEY:-}" && -f ".env" ]]; then
-    local env_key
-    env_key=$(grep -E "^OPENAI_API_KEY=" .env 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
+  # Load from .env or .env.local if OPENAI_API_KEY not already set
+  if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+    local env_key=""
+    local env_source=""
+
+    # Check .env first
+    if [[ -f ".env" ]]; then
+      env_key=$(grep -E "^OPENAI_API_KEY=" .env 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
+      [[ -n "$env_key" ]] && env_source=".env"
+    fi
+
+    # Check .env.local (overrides .env)
+    if [[ -f ".env.local" ]]; then
+      local local_key
+      local_key=$(grep -E "^OPENAI_API_KEY=" .env.local 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
+      if [[ -n "$local_key" ]]; then
+        env_key="$local_key"
+        env_source=".env.local"
+      fi
+    fi
+
     if [[ -n "$env_key" ]]; then
       export OPENAI_API_KEY="$env_key"
-      log "Loaded OPENAI_API_KEY from .env"
+      log "Loaded OPENAI_API_KEY from $env_source"
     fi
   fi
 
