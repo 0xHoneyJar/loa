@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Check if beads_rust (br) is installed and initialized
 # Usage: check-beads.sh [--verbose] [--json]
 #

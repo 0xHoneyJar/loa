@@ -1,3 +1,11 @@
+---
+name: ride
+description: Analyze codebase to extract reality into Loa artifacts
+context: fork
+agent: Explore
+allowed-tools: Read, Grep, Glob, Bash(git *)
+---
+
 # Riding Through the Codebase
 
 You are analyzing an existing codebase to generate evidence-grounded Loa artifacts following the v0.6.0 Enterprise-Grade Managed Scaffolding model.
@@ -563,8 +571,12 @@ echo '```' >> grimoires/loa/reality/structure.md
 ### 2.3 Entry Points & Routes
 
 ```bash
+.claude/scripts/search-orchestrator.sh hybrid \
+  "@Get @Post @Put @Delete @Patch router app.get app.post app.put app.delete app.patch @route @api route handler endpoint" \
+  "${TARGET_REPO}/src" 50 0.4 \
+  > grimoires/loa/reality/api-routes.txt 2>/dev/null || \
 grep -rn "@Get\|@Post\|@Put\|@Delete\|@Patch\|router\.\|app\.\(get\|post\|put\|delete\|patch\)\|@route\|@api" \
-  --include="*.ts" --include="*.js" --include="*.py" --include="*.go" 2>/dev/null \
+  --include="*.ts" --include="*.js" --include="*.py" --include="*.go" "${TARGET_REPO}" 2>/dev/null \
   > grimoires/loa/reality/api-routes.txt
 
 ROUTE_COUNT=$(wc -l < grimoires/loa/reality/api-routes.txt 2>/dev/null || echo 0)
@@ -574,24 +586,35 @@ echo "Found $ROUTE_COUNT route definitions"
 ### 2.4 Data Models & Entities
 
 ```bash
+.claude/scripts/search-orchestrator.sh hybrid \
+  "model @Entity class Entity CREATE TABLE type struct interface schema definition" \
+  "${TARGET_REPO}/src" 50 0.4 \
+  > grimoires/loa/reality/data-models.txt 2>/dev/null || \
 grep -rn "model \|@Entity\|class.*Entity\|CREATE TABLE\|type.*struct\|interface.*{\|type.*=" \
-  --include="*.prisma" --include="*.ts" --include="*.sql" --include="*.go" --include="*.graphql" 2>/dev/null \
+  --include="*.prisma" --include="*.ts" --include="*.sql" --include="*.go" --include="*.graphql" "${TARGET_REPO}" 2>/dev/null \
   > grimoires/loa/reality/data-models.txt
 ```
 
 ### 2.5 Environment Dependencies
 
 ```bash
+.claude/scripts/search-orchestrator.sh regex \
+  "process\\.env\\.[A-Z_]+|os\\.environ\\[|os\\.Getenv\\(|env\\.[A-Z_]+|import\\.meta\\.env\\." \
+  "${TARGET_REPO}/src" 100 0.0 2>/dev/null | sort -u > grimoires/loa/reality/env-vars.txt || \
 grep -roh 'process\.env\.\w\+\|os\.environ\[.\+\]\|os\.Getenv\(.\+\)\|env\.\w\+\|import\.meta\.env\.\w\+' \
-  --include="*.ts" --include="*.js" --include="*.py" --include="*.go" 2>/dev/null \
+  --include="*.ts" --include="*.js" --include="*.py" --include="*.go" "${TARGET_REPO}" 2>/dev/null \
   | sort -u > grimoires/loa/reality/env-vars.txt
 ```
 
 ### 2.6 Tech Debt Markers
 
 ```bash
+.claude/scripts/search-orchestrator.sh regex \
+  "TODO|FIXME|HACK|XXX|BUG|@deprecated|eslint-disable|@ts-ignore|type:\\s*any" \
+  "${TARGET_REPO}/src" 100 0.0 \
+  > grimoires/loa/reality/tech-debt.txt 2>/dev/null || \
 grep -rn "TODO\|FIXME\|HACK\|XXX\|BUG\|@deprecated\|eslint-disable\|@ts-ignore\|type: any" \
-  --include="*.ts" --include="*.js" --include="*.py" --include="*.go" 2>/dev/null \
+  --include="*.ts" --include="*.js" --include="*.py" --include="*.go" "${TARGET_REPO}" 2>/dev/null \
   > grimoires/loa/reality/tech-debt.txt
 ```
 
@@ -897,10 +920,16 @@ Log to trajectory:
 
 ```bash
 # Extract all exported names, class names, function names
-grep -rh "export \(const\|function\|class\|interface\|type\)" --include="*.ts" --include="*.js" 2>/dev/null | head -100
+.claude/scripts/search-orchestrator.sh regex \
+  "export\\s+(const|function|class|interface|type)" \
+  "${TARGET_REPO}/src" 100 0.0 2>/dev/null | head -100 || \
+grep -rh "export \(const\|function\|class\|interface\|type\)" --include="*.ts" --include="*.js" "${TARGET_REPO}" 2>/dev/null | head -100
 
 # For Solidity
-grep -rh "contract \|interface \|struct \|event \|function " --include="*.sol" 2>/dev/null | head -100
+.claude/scripts/search-orchestrator.sh regex \
+  "contract |interface |struct |event |function " \
+  "${TARGET_REPO}" 100 0.0 2>/dev/null | head -100 || \
+grep -rh "contract \|interface \|struct \|event \|function " --include="*.sol" "${TARGET_REPO}" 2>/dev/null | head -100
 ```
 
 ### 5.2 Generate Consistency Report
@@ -1086,6 +1115,265 @@ At the end of BOTH PRD and SDD, include:
 Log to trajectory:
 ```json
 {"timestamp": "...", "agent": "riding-codebase", "phase": 6, "action": "artifact_generation", "details": {"prd_claims": N, "sdd_claims": N, "grounded_pct": X, "inferred_pct": Y, "assumption_pct": Z}}
+```
+
+---
+
+## Phase 6.5: Reality File Generation (Token-Optimized Codebase Interface)
+
+**Purpose**: Generate token-optimized reality files for the `/reality` command, enabling efficient cross-repo agent integration without dumping entire codebases into context windows.
+
+### 6.5.0 Reality Directory Setup
+
+```bash
+mkdir -p grimoires/loa/reality
+REALITY_DIR="grimoires/loa/reality"
+TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+COMMIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+```
+
+### 6.5.1 Generate index.md (Hub File)
+
+The index.md is the routing hub - MUST be < 500 tokens.
+
+```markdown
+# Reality Index
+
+> Generated by /ride on [TIMESTAMP]
+> Source commit: [COMMIT_HASH]
+
+## Codebase Overview
+
+| Property | Value |
+|----------|-------|
+| Language | [Primary language from package.json/go.mod/etc] |
+| Framework | [Main framework if detected] |
+| Entry Point | [Main entry file path] |
+| Total Files | [Count from Phase 2] |
+| Lines of Code | [Approximate from probe] |
+
+## Navigation
+
+| I want to... | Read | Tokens |
+|--------------|------|--------|
+| See public API functions | [api-surface.md](api-surface.md) | ~[N] |
+| Understand data types | [types.md](types.md) | ~[N] |
+| Learn integration patterns | [interfaces.md](interfaces.md) | ~[N] |
+| Find entry points | [entry-points.md](entry-points.md) | ~[N] |
+| See directory structure | [structure.md](structure.md) | ~[N] |
+
+## Quick Reference
+
+**Main entry**: `[path]:1`
+**API routes**: `[routes file path]`
+**Auth handler**: `[auth file if exists]`
+```
+
+### 6.5.2 Generate api-surface.md (Public Functions)
+
+Extract public function signatures - target < 2000 tokens.
+
+```bash
+# Extract exported functions and their signatures
+echo "# API Surface" > "$REALITY_DIR/api-surface.md"
+echo "" >> "$REALITY_DIR/api-surface.md"
+echo "> Generated by /ride on $TIMESTAMP" >> "$REALITY_DIR/api-surface.md"
+echo "" >> "$REALITY_DIR/api-surface.md"
+```
+
+For each major service/module:
+
+```markdown
+## Public Functions
+
+### [ServiceName] (`[file path]`)
+
+| Function | Signature | Line |
+|----------|-----------|------|
+| [name] | `[params] => [return type]` | [line number] |
+```
+
+Also extract API endpoints:
+
+```markdown
+## API Endpoints
+
+| Method | Route | Handler | Line |
+|--------|-------|---------|------|
+| POST | /api/v1/users | UserController.create | [file:line] |
+```
+
+### 6.5.3 Generate types.md (Type Definitions)
+
+Extract type/interface definitions - target < 2000 tokens.
+
+```markdown
+# Type Definitions
+
+> Generated by /ride on [TIMESTAMP]
+
+## Core Types
+
+### [TypeName] (`[file path]:[line]`)
+
+\`\`\`typescript
+[Type definition code]
+\`\`\`
+```
+
+Group by domain (User types, Payment types, etc.) for better organization.
+
+### 6.5.4 Generate interfaces.md (Integration Patterns)
+
+Document how external systems connect - target < 1000 tokens.
+
+```markdown
+# Integration Interfaces
+
+> Generated by /ride on [TIMESTAMP]
+
+## External Integrations
+
+### [Integration Name]
+
+**Location**: `[file path]:[line]`
+
+\`\`\`typescript
+[Interface code]
+\`\`\`
+
+**Required env vars**: `[VAR1]`, `[VAR2]`
+
+## Webhooks
+
+### [Webhook Name] (`[file path]:[line]`)
+
+**Endpoint**: [METHOD] [path]
+**Payload**:
+\`\`\`typescript
+[Payload type definition]
+\`\`\`
+```
+
+### 6.5.5 Generate structure.md (Directory Tree)
+
+Already exists from Phase 2, but enhance with annotations - target < 1000 tokens.
+
+```markdown
+# Codebase Structure
+
+> Generated by /ride on [TIMESTAMP]
+
+## Directory Tree
+
+\`\`\`
+src/
+├── index.ts              # Application entry point
+├── config/
+│   ├── database.ts       # Database configuration
+│   └── env.ts            # Environment validation
+├── routes/
+│   └── ...               # HTTP routing
+├── services/
+│   └── ...               # Business logic
+└── types/
+    └── ...               # Type definitions
+\`\`\`
+
+## Module Responsibilities
+
+| Module | Purpose | Dependencies |
+|--------|---------|--------------|
+| routes/ | HTTP routing | services/, middleware/ |
+| services/ | Business logic | types/, utils/ |
+```
+
+### 6.5.6 Generate entry-points.md (Starting Points)
+
+Document main files, CLI commands, routes - target < 500 tokens.
+
+```markdown
+# Entry Points
+
+> Generated by /ride on [TIMESTAMP]
+
+## Application Entry
+
+| Type | File | Line | Command |
+|------|------|------|---------|
+| Main | [main file] | 1 | `npm start` / `go run` |
+| Dev | [same or different] | 1 | `npm run dev` |
+| Test | [test setup] | 1 | `npm test` |
+
+## API Routes
+
+| Route Prefix | File | Description |
+|--------------|------|-------------|
+| /api/v1/users | [file] | User management |
+
+## CLI Commands
+
+| Command | File | Description |
+|---------|------|-------------|
+| [command] | [file] | [purpose] |
+
+## Environment Requirements
+
+| Variable | Required | Default |
+|----------|----------|---------|
+| [VAR] | Yes/No | [value or -] |
+```
+
+### 6.5.7 Generate .reality-meta.json (Metadata)
+
+```bash
+# Count tokens (using word count as proxy)
+INDEX_TOKENS=$(wc -w < "$REALITY_DIR/index.md" 2>/dev/null || echo 0)
+API_TOKENS=$(wc -w < "$REALITY_DIR/api-surface.md" 2>/dev/null || echo 0)
+TYPES_TOKENS=$(wc -w < "$REALITY_DIR/types.md" 2>/dev/null || echo 0)
+INTERFACES_TOKENS=$(wc -w < "$REALITY_DIR/interfaces.md" 2>/dev/null || echo 0)
+STRUCTURE_TOKENS=$(wc -w < "$REALITY_DIR/structure.md" 2>/dev/null || echo 0)
+ENTRY_TOKENS=$(wc -w < "$REALITY_DIR/entry-points.md" 2>/dev/null || echo 0)
+TOTAL_TOKENS=$((INDEX_TOKENS + API_TOKENS + TYPES_TOKENS + INTERFACES_TOKENS + STRUCTURE_TOKENS + ENTRY_TOKENS))
+
+cat > "$REALITY_DIR/.reality-meta.json" << EOF
+{
+  "generated_at": "$TIMESTAMP",
+  "source_commit": "$COMMIT_HASH",
+  "generator_version": "1.0.0",
+  "token_counts": {
+    "index": $INDEX_TOKENS,
+    "api-surface": $API_TOKENS,
+    "types": $TYPES_TOKENS,
+    "interfaces": $INTERFACES_TOKENS,
+    "structure": $STRUCTURE_TOKENS,
+    "entry-points": $ENTRY_TOKENS,
+    "total": $TOTAL_TOKENS
+  },
+  "staleness_threshold_days": 7
+}
+EOF
+```
+
+### 6.5.8 Token Budget Verification
+
+```bash
+# Verify token budgets
+if [[ $INDEX_TOKENS -gt 500 ]]; then
+  echo "⚠️ WARNING: index.md exceeds 500 token budget ($INDEX_TOKENS tokens)"
+fi
+if [[ $TOTAL_TOKENS -gt 7000 ]]; then
+  echo "⚠️ WARNING: Total reality files exceed 7000 token budget ($TOTAL_TOKENS tokens)"
+fi
+
+echo "✓ Reality files generated in $REALITY_DIR"
+echo "  Total tokens: $TOTAL_TOKENS (budget: 7000)"
+```
+
+### 6.5.9 Log to Trajectory
+
+```json
+{"timestamp": "...", "agent": "riding-codebase", "phase": "6.5", "action": "reality_generation", "details": {"files": 6, "total_tokens": N, "within_budget": true}}
 ```
 
 ---

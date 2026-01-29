@@ -52,6 +52,34 @@
 |----|-------------|----------|----------|--------|
 | TD-001 | [Placeholder debt item] | MEDIUM | [agent-name] | S01 |
 
+## Goal Status
+
+<!-- Track PRD goal achievement progress -->
+<!-- Update at: task completion, sprint review, E2E validation -->
+<!-- JIT Pattern: Store identifiers, not full evidence content -->
+
+| Goal ID | Description | Status | Evidence Identifier |
+|---------|-------------|--------|---------------------|
+| G-1 | [From PRD] | NOT_STARTED | - |
+
+**Status Legend:**
+- `NOT_STARTED` - No contributing tasks completed
+- `IN_PROGRESS` - Some contributing tasks completed
+- `AT_RISK` - Tasks done but validation uncertain
+- `ACHIEVED` - Validated via E2E task
+- `BLOCKED` - Explicit blocker documented
+
+**Evidence Identifiers** (JIT retrieval - load on-demand):
+<!-- Use lightweight references, not full content -->
+```
+# Example identifiers (do not copy - replace with actual):
+${PROJECT_ROOT}/grimoires/loa/a2a/sprint-1/reviewer.md:L45-60  # G-1 task completion
+${PROJECT_ROOT}/grimoires/loa/a2a/subagent-reports/goal-validation-*.md  # Validation report
+```
+
+**Last Validation**: [YYYY-MM-DD or "Not yet validated"]
+**Validation Cache Key**: [cache key from cache-manager.sh or "N/A"]
+
 ## Learnings
 
 <!-- Project-specific knowledge discovered during implementation -->
@@ -115,6 +143,16 @@
        - Severity: CRITICAL | HIGH | MEDIUM | LOW
        - Found By: Agent name that discovered it
        - Sprint: SNN format
+
+     Goal Status:
+       - Goal ID: G-N from PRD
+       - Description: Brief goal description
+       - Status: NOT_STARTED | IN_PROGRESS | AT_RISK | ACHIEVED | BLOCKED
+       - Evidence Identifier: Lightweight path reference (JIT pattern)
+         Use ${PROJECT_ROOT}/path:lines format for session survival
+       - Update when: task completed, sprint reviewed, E2E validated
+       - Last Validation: Date of most recent /validate goals run
+       - Validation Cache Key: From cache-manager.sh (for cache invalidation)
 
      Learnings:
        - Bullet list of project-specific knowledge

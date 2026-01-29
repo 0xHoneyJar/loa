@@ -494,7 +494,7 @@ Before marking complete, execute this audit:
 ```markdown
 ## Drift Score: 34%
 ### Ghosts
-| "OAuth Integration" | legacy/api.md:L45 | grep -r "OAuth" = 0 | GHOST |
+| "OAuth Integration" | legacy/api.md:L45 | search-orchestrator.sh hybrid "OAuth" = 0 | GHOST |
 ```
 
 **Board Translation:**

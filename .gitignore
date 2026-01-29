@@ -58,6 +58,10 @@ temp/
 # Must be preserved locally for resume capability but not committed
 .run/
 
+# Loa Memory Stack state (v1.8.0)
+# Contains vector database, embeddings, QMD indexes - machine-specific
+.loa/
+
 # User context files (discovery inputs, uploaded docs, extracted content)
 # These are user-specific inputs that should never be committed
 # The README.md is tracked to explain the directory's purpose
@@ -89,10 +93,11 @@ grimoires/loa/deployment/SERVER-REALITY-AUDIT.md
 # These files are ALWAYS excluded from the template repository.
 # They are generated per-project and must never be committed to the main loa repo.
 
-# Generated documentation artifacts
-grimoires/loa/prd.md
-grimoires/loa/sdd.md
-grimoires/loa/sprint.md
+# Generated documentation artifacts (all PRD, SDD, sprint files)
+# Uses glob patterns to catch both base files (prd.md) and feature variants (prd-*.md)
+grimoires/loa/prd*.md
+grimoires/loa/sdd*.md
+grimoires/loa/sprint*.md
 grimoires/loa/NOTES.md
 
 # Sprint Ledger (project-specific cycle/sprint history)

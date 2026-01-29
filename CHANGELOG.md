@@ -5,6 +5,347 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.1] - 2026-01-29 — Memory Stack Patch
+
+### Fixed
+
+- **Venv Python Support** - Memory Stack now works with externally-managed Python environments (PEP 668)
+  - `memory-admin.sh` and `memory-setup.sh` auto-detect `.loa/venv/bin/python3`
+  - Fixes compatibility with modern Debian/Ubuntu systems that block system-wide pip installs
+
+### Documentation
+
+- Added resource requirements warning for Memory Stack (2-3 GB disk, ~500 MB RAM)
+- Added links to [sentence-transformers](https://github.com/UKPLab/sentence-transformers) repository and documentation
+
+---
+
+## [1.9.0] - 2026-01-29 — Claude Code 2.1.x Feature Adoption
+
+### Why This Release
+
+This release aligns Loa with Claude Code 2.1.x platform capabilities, adding async hooks for improved performance and context cleanup automation.
+
+*"Async where possible, blocking only when necessary."*
+
+### Added
+
+- **Async Hooks** - Non-blocking hooks for improved session performance
+  - `SessionStart` → `check-updates.sh` (async: true)
+  - `PermissionRequest` → `permission-audit.sh` (async: true)
+  - `PreToolUse` hooks remain blocking when they must complete before execution
+
+- **Context Cleanup Hook** - Auto-archive previous cycle context before `/plan-and-analyze`
+  - Detects existing PRD/SDD/sprint files from previous cycles
+  - Prompts user: Archive (Y), Keep (n), or Abort (q)
+  - Archives to cycle's archive directory with timestamp
+  - Prevents stale context from polluting new development cycles
+
+- **One-Time Hooks** - `once: true` flag prevents duplicate runs per session
+  - Update check only runs once on session start
+
+- **Session ID Tracking** - `${CLAUDE_SESSION_ID}` now logged in trajectory files
+  - Enables cross-session correlation and debugging
+
+- **Skill Forking Protocol** - Documentation for `context: fork` pattern
+  - Read-only skills like `/ride` use isolated execution context
+  - Prevents context pollution from exploration tasks
+
+### Changed
+
+- **Settings.json** - Updated with async flags and cleanup hook configuration
+- **Recommended Hooks Protocol** - Expanded documentation for async patterns
+
+---
+
+## [1.8.0] - 2026-01-28 — Memory Stack
+
+### Why This Release
+
+This release introduces the **Memory Stack** - a vector database with PreToolUse hook system for mid-stream semantic grounding during Claude Code sessions. All security vulnerabilities identified in the comprehensive audit have been remediated.
+
+*"Learnings that persist. Context that recalls itself."*
+
+### Added
+
+- **Vector Database** (`memory-admin.sh`)
+  - SQLite + sentence-transformers embeddings (all-MiniLM-L6-v2, 384 dimensions)
+  - CLI for managing memories: add, search, list, delete, prune
+  - Semantic similarity search with configurable threshold
+
+- **PreToolUse Hook** (`memory-inject.sh`)
+  - Mid-stream memory injection during Read/Glob/Grep/WebFetch/WebSearch
+  - Extracts last N characters from thinking block as query
+  - Deduplication via SHA-256 hash to prevent repeated queries
+  - Configurable timeout (default 500ms) for latency control
+
+- **NOTES.md Sync** (`memory-sync.sh`)
+  - Automatic extraction of learnings section to vector database
+  - Runs on session start if `auto_sync: true`
+  - Incremental sync - only new learnings added
+
+- **QMD Integration** (`qmd-sync.sh`)
+  - Document search with semantic or grep fallback
+  - Indexes grimoires/loa for searchable project context
+  - Collection-based organization
+
+- **Setup Wizard** (`memory-setup.sh`)
+  - First-time setup with dependency checking
+  - Interactive configuration prompts
+  - Validates Python + sentence-transformers installation
+
+### Security Remediation
+
+| Issue | Severity | Fix |
+|-------|----------|-----|
+| SQL Injection in memory queries | HIGH | Python parameterized queries |
+| Command Injection via query | HIGH | Environment variable passing instead of shell interpolation |
+| Path Traversal in file operations | HIGH | realpath validation |
+| Input Sanitization | MEDIUM | Control character + ANSI escape removal |
+| Temp File Security | MEDIUM | mktemp with random suffix |
+| Trajectory Sensitivity | MEDIUM | Documentation + .gitignore coverage |
+
+### Configuration
+
+```yaml
+# .loa.config.yaml
+memory:
+  pretooluse_hook:
+    enabled: false  # Opt-in for safety
+    thinking_chars: 1500
+    similarity_threshold: 0.35
+    max_memories: 3
+    timeout_ms: 500
+    tools:
+      - Read
+      - Glob
+      - Grep
+      - WebFetch
+      - WebSearch
+
+  vector_db:
+    path: .loa/memory.db
+    model: all-MiniLM-L6-v2
+    dimension: 384
+
+  auto_sync: false  # Sync NOTES.md learnings on session start
+```
+
+### Research References
+
+| Paper | Relevance |
+|-------|-----------|
+| [Retrieval-Augmented Generation for LLM Agents](https://arxiv.org/abs/2312.10997) | RAG patterns for agent workflows |
+| [Self-RAG: Learning to Retrieve, Generate, and Critique](https://arxiv.org/abs/2310.11511) | Self-reflective retrieval |
+| [Semantic Caching for LLM Applications](https://arxiv.org/abs/2311.04934) | Query deduplication via hashing |
+
+---
+
+## [1.7.2] - 2026-01-28 — Issues Remediation
+
+### Fixed
+
+- **Mount Script Version Detection** (#56) - Fixed hardcoded fallback version `0.6.0` → `1.7.1`
+  - Version detection now checks root `.loa-version.json` first
+  - Updated banner version from `v0.9.0` to `v1.7.1`
+
+- **Anthropic Oracle URLs** (#58) - Updated Claude Code documentation URLs
+  - Docs moved from `docs.anthropic.com` to `code.claude.com`
+  - Added new endpoints: `memory`, `skills`, `hooks`
+
+### Added
+
+- **Sprint Auto-Continuation** (#55) - `/run sprint-plan` now automatically continues to next sprint
+  - Sprint plan execution loop with automatic advancement
+  - State tracking in `sprint-plan-state.json`
+  - Sprint discovery priority: `sprint.md` → `ledger.json` → `a2a/` directories
+
+- **Sprint Ledger Auto-Creation** (#57) - `/sprint-plan` now offers to create ledger if missing
+  - Step 0 checks for ledger existence before planning
+  - User prompt via `AskUserQuestion` with option to decline
+  - Follows existing ledger.json schema
+
+---
+
+## [1.7.1] - 2026-01-24 — Template Cleanup
+
+### Fixed
+
+- **Template Pollution** - Removed 9 Loa-specific PRD/SDD/sprint documents that were accidentally committed in v1.6.0 and v1.7.0:
+  - `prd-ck-migration.md`, `sdd-ck-migration.md`, `sprint-ck-migration.md`
+  - `prd-ride-before-plan.md`, `sdd-ride-before-plan.md`, `sprint-ride-before-plan.md`
+  - `prd-goal-traceability.md`, `sdd-goal-traceability.md`, `sprint-goal-traceability.md`
+
+- **Improved .gitignore** - Updated patterns from exact filenames (`prd.md`) to globs (`prd*.md`) to prevent future pollution from feature-variant documents
+
+### Notes
+
+Fresh installs of v1.6.0 or v1.7.0 would have included these development documents in the `grimoires/loa/` directory. Users can safely delete them - they are Loa framework development artifacts, not project templates.
+
+---
+
+## [1.7.0] - 2026-01-24 — Goal Traceability & Guided Workflow
+
+### Why This Release
+
+This release introduces **Goal Traceability** - the ability to verify that PRD goals are actually achieved through sprint implementation. No more "we completed all tasks but did we hit the goals?" uncertainty.
+
+*"Goals without traceability are wishes. Goals with traceability are commitments."*
+
+### Added
+
+- **Goal Validator Subagent** (`.claude/subagents/goal-validator.md`)
+  - Verifies PRD goals are achieved through implementation
+  - Three verdict levels: `GOAL_ACHIEVED`, `GOAL_AT_RISK`, `GOAL_BLOCKED`
+  - Integration gap detection (new data without consumers, new APIs without callers)
+  - Automatic invocation during final sprint review
+  - Manual invocation via `/validate goals`
+
+- **Goal Traceability Matrix** (Sprint Plan Appendix C)
+  - Maps PRD goals to contributing tasks
+  - Identifies E2E validation tasks per goal
+  - Auto-generated by `/sprint-plan`
+
+- **Workflow State Detection** (`workflow-state.sh`)
+  - Detects current workflow state (initial → prd_created → sdd_created → sprint_planned → implementing → reviewing → auditing → complete)
+  - Suggests next command based on state
+  - Progress percentage tracking
+  - Semantic cache integration (RLM pattern)
+
+- **`/loa` Command** - Guided workflow entry point
+  - Shows current state and progress
+  - Suggests appropriate next action
+  - No more guessing "what command should I run?"
+
+- **Goal Status Section** in NOTES.md template
+  - Track goal achievement: `NOT_STARTED`, `IN_PROGRESS`, `AT_RISK`, `ACHIEVED`, `BLOCKED`
+  - Lightweight evidence identifiers (JIT pattern)
+  - Validation cache key tracking
+
+### Changed
+
+- **Workflow Chain** updated to require goal traceability steps
+- **NOTES.md Template** updated with Goal Status section using JIT retrieval pattern
+- **Goal Validator** follows Loa patterns:
+  - JIT Retrieval: Lightweight identifiers instead of eager loading
+  - Semantic Cache: Results cached via `cache-manager.sh`
+  - Beads Integration: Validation findings tracked with `br` commands
+  - Truth Hierarchy: CODE → BEADS → NOTES → TRAJECTORY → PRD
+
+### Configuration
+
+```yaml
+# .loa.config.yaml
+goal_validation:
+  enabled: true              # Master toggle (opt-in by default)
+  block_on_at_risk: false    # Default: warn only
+  block_on_blocked: true     # Default: always block
+  require_e2e_task: true     # Require E2E task in final sprint
+```
+
+### Backward Compatibility
+
+- If PRD has no goal IDs: auto-assigns G-1, G-2, G-3
+- If sprint has no Appendix C: warns but doesn't block
+- If `goal_validation.enabled: false`: skips entirely
+- Existing projects continue working unchanged
+
+---
+
+## [1.6.0] - 2026-01-23 — Codebase Grounding & Security Hardening
+
+### Why This Release
+
+This release combines **Cycle-008** (ck-First Semantic Search Migration) and **Cycle-009** (Security Remediation v2). The `/plan-and-analyze` command now automatically grounds itself in codebase reality for brownfield projects, and all 30 security findings from the comprehensive audit have been addressed.
+
+*"CODE IS TRUTH. PRDs are now grounded in what actually exists, not what we think exists."*
+
+### Added
+
+- **Automatic Codebase Grounding** (`/plan-and-analyze`)
+  - Phase -0.5 automatically runs `/ride` for brownfield projects
+  - Greenfield projects skip to Phase -1 with zero latency
+  - Uses cached reality if <7 days old (configurable)
+  - `--fresh` flag forces re-analysis
+  - Configuration in `.loa.config.yaml`:
+    ```yaml
+    plan_and_analyze:
+      codebase_grounding:
+        enabled: true
+        reality_staleness_days: 7
+        ride_timeout_minutes: 20
+        skip_on_ride_error: false
+    ```
+
+- **Brownfield Detection** (`detect-codebase.sh`)
+  - Detects >10 source files OR >500 lines of code
+  - Identifies primary language and source paths
+  - 41 comprehensive BATS unit tests
+  - JSON output for programmatic consumption
+
+- **ck-First Semantic Search** (`search-orchestrator.sh`)
+  - `ck` as primary search with automatic grep fallback
+  - Updated for ck v0.7.0+ CLI syntax (`--sem`, `--limit`, positional path)
+  - Three search modes: `semantic`, `hybrid`, `regex`
+  - Input validation: regex syntax, numeric params, path traversal protection
+
+- **Skills Updated for ck Search**
+  - `riding-codebase`: Route, model, env var, tech debt extraction
+  - `reviewing-code`: Impact analysis with hybrid search
+  - `implementing-tasks`: Context retrieval with hybrid search
+  - `deploying-infrastructure`: Secrets scanning with regex search
+  - `translating-for-executives`: Ghost feature examples
+
+### Security
+
+- **CRITICAL Fixes (2)**
+  - CRIT-001: Fixed Python code injection in `constructs-install.sh` heredoc
+    - Uses quoted `'PYEOF'` delimiter + environment variables
+  - CRIT-002: Added path traversal protection in pack extraction
+    - New `safe_path_join()` with realpath + component validation
+
+- **HIGH Fixes (8)**
+  - HIGH-001: Atomic ledger writes with flock (5s timeout)
+  - HIGH-002: Process substitution for Authorization header (no ps exposure)
+  - HIGH-003: Improved symlink validation with readlink -f
+  - HIGH-004: Global trap handlers (EXIT/INT/TERM) in update.sh
+  - HIGH-005: Replaced `eval` with `bash -c` in preflight.sh
+  - HIGH-006: Fixed branch regex bypass with glob matching
+  - HIGH-007: Atomic backup cleanup with flock
+  - HIGH-008: Atomic write pattern (temp + mv) across state files
+
+- **MEDIUM Fixes (12)**
+  - MED-001: Credential file permission checking (600/400 only)
+  - MED-004: Reduced JWT key cache TTL from 24h to 4h
+  - MED-005: New `secure_write_file()` and `secure_write_json()` utilities
+  - MED-006: Fixed license validation error propagation
+  - MED-007: Backup preservation in jq operations
+  - MED-008: Backup validation before restore
+  - MED-010: flock-based sync locking for beads operations
+
+- **LOW Fixes (5)**
+  - LOW-004: Explicit numeric validation before arithmetic
+  - LOW-005: Standardized shebang (`#!/usr/bin/env bash`) in 24 scripts
+
+### Changed
+
+- **ck v0.7.0+ Syntax** across all protocols and scripts
+  - `--sem` instead of `--semantic`
+  - `--limit` instead of `--top-k`
+  - Path as final positional argument instead of `--path`
+
+- **search-orchestrator.sh** hardening
+  - Added regex syntax validation (prevents ReDoS)
+  - Added numeric parameter validation
+  - Added path traversal protection with realpath
+
+### Fixed
+
+- Fixed unsafe xargs usage in detect-codebase.sh (filenames with spaces)
+- Fixed all ck calls to use v0.7.0+ syntax
+
+---
+
 ## [1.5.0] - 2026-01-23 — Recursive JIT Context System
 
 ### Why This Release

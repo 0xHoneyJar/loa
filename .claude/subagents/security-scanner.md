@@ -2,6 +2,8 @@
 name: security-scanner
 version: 1.0.0
 description: Detect security vulnerabilities early in implementation before review
+context: fork
+agent: Explore
 triggers:
   - after: implementing-tasks
   - before: reviewing-code

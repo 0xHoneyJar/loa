@@ -432,17 +432,41 @@
     ]
   },
   "hooks": {
+    "Setup": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/upgrade-health-check.sh"
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/scripts/check-updates.sh --notify"
+            "command": ".claude/scripts/check-updates.sh --notify",
+            "async": true,
+            "once": true
           },
           {
             "type": "command",
             "command": ".claude/scripts/toggle-gpt-review-context.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Skill(plan-and-analyze.*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/cleanup-context.sh --prompt"
           }
         ]
       }
@@ -464,7 +488,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/scripts/permission-audit.sh log"
+            "command": ".claude/scripts/permission-audit.sh log",
+            "async": true
           }
         ]
       }

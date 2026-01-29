@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Check feedback status for a sprint
 # Usage: ./check-feedback-status.sh sprint-N
 # Returns: AUDIT_REQUIRED | REVIEW_REQUIRED | CLEAR

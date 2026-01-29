@@ -424,6 +424,7 @@ get_registry_meta() {
 }
 
 # Update registry meta file
+# SECURITY (MED-007): Includes backup before jq modification
 # Args:
 #   $1 - JSON path to update
 #   $2 - New value (as JSON)
@@ -435,8 +436,20 @@ update_registry_meta() {
 
     init_registry_meta
 
-    local tmp_file="${meta_path}.tmp"
-    jq "$json_path = $value" "$meta_path" > "$tmp_file" && mv "$tmp_file" "$meta_path"
+    # Create backup before modification
+    local backup_file="${meta_path}.bak"
+    cp "$meta_path" "$backup_file" 2>/dev/null || true
+
+    local tmp_file="${meta_path}.tmp.$$"
+    if jq "$json_path = $value" "$meta_path" > "$tmp_file"; then
+        mv "$tmp_file" "$meta_path"
+    else
+        # Restore from backup on failure
+        print_warning "jq modification failed, restoring backup"
+        [[ -f "$backup_file" ]] && mv "$backup_file" "$meta_path"
+        rm -f "$tmp_file"
+        return 1
+    fi
 }
 
 # =============================================================================
@@ -902,4 +915,76 @@ is_update_available() {
     local result
     result=$(compare_versions "$1" "$2")
     [[ "$result" == "1" ]]
+}
+
+# =============================================================================
+# Secure File Operations (MED-005)
+# =============================================================================
+
+# Write file with secure permissions
+# SECURITY (MED-005): Standardizes state file permissions
+# Args:
+#   $1 - File path
+#   $2 - Content
+#   $3 - Permission mode (default: 600 for state files)
+# Returns: 0 on success, 1 on failure
+secure_write_file() {
+    local file_path="$1"
+    local content="$2"
+    local mode="${3:-600}"
+
+    # Ensure parent directory exists
+    local parent_dir
+    parent_dir=$(dirname "$file_path")
+    mkdir -p "$parent_dir"
+
+    # Write to temp file first
+    local tmp_file="${file_path}.tmp.$$"
+
+    # Set umask for secure file creation
+    local old_umask
+    old_umask=$(umask)
+    umask 077  # Only owner can read/write
+
+    if ! echo "$content" > "$tmp_file"; then
+        umask "$old_umask"
+        rm -f "$tmp_file"
+        return 1
+    fi
+
+    # Atomic move
+    if ! mv "$tmp_file" "$file_path"; then
+        umask "$old_umask"
+        rm -f "$tmp_file"
+        return 1
+    fi
+
+    # Set explicit permissions
+    chmod "$mode" "$file_path"
+
+    umask "$old_umask"
+    return 0
+}
+
+# Write JSON file with validation and secure permissions
+# Args:
+#   $1 - File path
+#   $2 - JSON content
+#   $3 - Permission mode (default: 600)
+# Returns: 0 on success, 1 on failure
+secure_write_json() {
+    local file_path="$1"
+    local content="$2"
+    local mode="${3:-600}"
+
+    # Validate JSON first
+    if ! echo "$content" | jq empty 2>/dev/null; then
+        print_error "Invalid JSON content"
+        return 1
+    fi
+
+    # Pretty-print and write
+    local formatted
+    formatted=$(echo "$content" | jq '.')
+    secure_write_file "$file_path" "$formatted" "$mode"
 }

@@ -674,7 +674,7 @@ Example:
 | IaC validation | `terraform validate` | No errors |
 | Plan preview | `terraform plan` | No unexpected changes |
 | Security groups | Review inbound rules | Minimum necessary ports |
-| Secrets | `grep -r "password\|secret\|key"` | No hardcoded secrets |
+| Secrets | `.claude/scripts/search-orchestrator.sh regex "password\|secret\|key\|token\|api_key" src/` | No hardcoded secrets |
 | Resource limits | Review container specs | Memory/CPU limits set |
 | Health checks | Review k8s/ECS configs | Liveness/readiness defined |
 

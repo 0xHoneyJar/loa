@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # check-beads.sh
 # Purpose: Check if beads_rust (br CLI) is installed and offer installation options
 # Enhanced in Sprint 4 for Ghost/Shadow tracking integration

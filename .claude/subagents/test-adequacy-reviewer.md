@@ -2,6 +2,8 @@
 name: test-adequacy-reviewer
 version: 1.0.0
 description: Assess test quality and coverage to ensure adequate testing before review
+context: fork
+agent: Explore
 triggers:
   - after: implementing-tasks
   - before: reviewing-code

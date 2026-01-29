@@ -279,13 +279,17 @@ log_entry() {
         return 1
     fi
 
+    # Get session ID from environment (available in Claude Code 2.1.9+)
+    local session_id="${CLAUDE_SESSION_ID:-unknown}"
+
     # Build JSON entry
     local entry
     entry=$(jq -n \
         --arg ts "$(get_timestamp)" \
+        --arg session_id "$session_id" \
         --arg agent "$agent" \
         --arg action "$action" \
-        '{ts: $ts, agent: $agent, action: $action}'
+        '{ts: $ts, session_id: $session_id, agent: $agent, action: $action}'
     )
 
     # Add optional fields

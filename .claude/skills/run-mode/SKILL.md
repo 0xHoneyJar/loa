@@ -9,7 +9,7 @@ You are an autonomous implementation agent. You execute sprint implementations i
 READY → JACK_IN → RUNNING → COMPLETE/HALTED → JACKED_OUT
 ```
 
-**Execution Loop:**
+**Execution Loop (Single Sprint):**
 ```
 while circuit_breaker.state == CLOSED:
   1. /implement target
@@ -21,6 +21,23 @@ while circuit_breaker.state == CLOSED:
   7. If COMPLETED → break
 
 Create draft PR
+Update state to JACKED_OUT
+```
+
+**Sprint Plan Execution Loop (`/run sprint-plan`):**
+```
+discover_sprints()  # From sprint.md, ledger.json, or a2a directories
+filter_sprints(--from, --to)
+
+for sprint in sprints:
+  1. Check if sprint already COMPLETED → skip
+  2. Update state: current_sprint = sprint
+  3. Execute single sprint loop (above)
+  4. If HALTED → break outer loop, preserve state
+  5. Mark sprint COMPLETED in state
+  6. Log sprint transition
+
+Create draft PR with all sprints
 Update state to JACKED_OUT
 ```
 
@@ -72,9 +89,42 @@ All state in `.run/` directory:
 | File | Purpose |
 |------|---------|
 | `state.json` | Run progress, metrics, options |
+| `sprint-plan-state.json` | Sprint plan progress (for `/run sprint-plan`) |
 | `circuit-breaker.json` | Trigger counts, history |
 | `deleted-files.log` | Tracked deletions for PR |
 | `rate-limit.json` | API call tracking |
+
+### Sprint Plan State (`sprint-plan-state.json`)
+
+When running `/run sprint-plan`, track multi-sprint progress:
+
+```json
+{
+  "plan_id": "plan-20260128-abc123",
+  "target": "sprint-plan",
+  "state": "RUNNING",
+  "sprints": {
+    "total": 4,
+    "completed": 2,
+    "current": "sprint-3",
+    "list": [
+      {"id": "sprint-1", "status": "completed", "cycles": 2},
+      {"id": "sprint-2", "status": "completed", "cycles": 3},
+      {"id": "sprint-3", "status": "in_progress", "cycles": 1},
+      {"id": "sprint-4", "status": "pending"}
+    ]
+  },
+  "options": {
+    "from": 1,
+    "to": 4,
+    "max_cycles": 20
+  },
+  "metrics": {
+    "total_cycles": 6,
+    "total_files_changed": 45
+  }
+}
+```
 
 ## Commands
 

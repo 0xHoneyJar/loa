@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # suggest-next-step.sh
 # Purpose: Suggest next workflow step based on workflow chain definition
 # Sprint: 4 (Agent Chaining - FR-8.1, GitHub Issue #9)

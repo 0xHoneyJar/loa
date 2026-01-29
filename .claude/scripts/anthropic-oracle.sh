@@ -76,9 +76,13 @@ check_bash_version
 check_dependencies
 
 # Anthropic sources to monitor
+# Note: Claude Code docs moved from docs.anthropic.com to code.claude.com in early 2026
 declare -A SOURCES=(
-    ["docs"]="https://docs.anthropic.com/en/docs/claude-code"
-    ["changelog"]="https://docs.anthropic.com/en/release-notes/claude-code"
+    ["docs"]="https://code.claude.com/docs/en/overview"
+    ["changelog"]="https://code.claude.com/docs/en/changelog"
+    ["memory"]="https://code.claude.com/docs/en/memory"
+    ["skills"]="https://code.claude.com/docs/en/skills"
+    ["hooks"]="https://code.claude.com/docs/en/hooks"
     ["api_reference"]="https://docs.anthropic.com/en/api"
     ["blog"]="https://www.anthropic.com/news"
     ["github_claude_code"]="https://github.com/anthropics/claude-code"

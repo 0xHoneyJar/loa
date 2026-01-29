@@ -25,7 +25,7 @@ yq --version
 
 ### Optional Enhancements
 
-#### ck (Semantic Code Search)
+#### ck (Semantic Code Search) {#ck-semantic-code-search}
 
 **What it does**: Enables semantic code search using embeddings, dramatically improving agent precision and context loading speed.
 
@@ -63,6 +63,76 @@ cargo install ck-search
 ```
 
 **Note**: ck is optional. Loa works perfectly without it, using grep-based fallbacks.
+
+#### beads_rust (Task Graph) {#beads_rust-optional}
+
+**What it does**: Persistent task graph tracking across sessions using SQLite + JSONL for git-friendly diffs.
+
+**Benefits**:
+- **Cross-session persistence**: Tasks survive context clears and session restarts
+- **Dependency tracking**: Block tasks on others, track readiness
+- **Sprint integration**: Tasks linked to sprint plans
+
+**Without beads_rust**: Sprint state is tracked in markdown files only. Works fine for most projects.
+
+**Installation**:
+
+```bash
+# Install via cargo
+cargo install beads_rust
+
+# Verify installation
+br --version
+
+# Initialize in project
+br init
+```
+
+#### Memory Stack (Vector Database) {#memory-stack-optional}
+
+**What it does**: SQLite vector database with [sentence-transformers](https://github.com/UKPLab/sentence-transformers) embeddings for mid-stream semantic memory recall during Claude Code sessions.
+
+**Benefits**:
+- **Semantic grounding**: Recall relevant learnings during tool execution
+- **NOTES.md sync**: Automatically extract learnings to searchable database
+- **QMD integration**: Document search with semantic or grep fallback
+
+**Without Memory Stack**: Loa works normally using NOTES.md for structured memory. The Memory Stack adds semantic recall.
+
+**Resource Requirements**:
+> ⚠️ **Warning**: sentence-transformers requires significant disk space and memory.
+> - **Disk**: ~2-3 GB for dependencies (PyTorch, transformers, model weights)
+> - **RAM**: ~500 MB when embedding (model loaded into memory)
+> - **First run**: Downloads ~90 MB model (`all-MiniLM-L6-v2`) to `~/.cache/sentence_transformers/`
+
+**Prerequisites**:
+- Python 3.8+ with pip
+- sentence-transformers ([GitHub](https://github.com/UKPLab/sentence-transformers) | [Docs](https://www.sbert.net/))
+
+**Installation**:
+
+```bash
+# Run setup wizard
+.claude/scripts/memory-setup.sh
+
+# Or manual setup
+pip install sentence-transformers
+mkdir -p .loa
+```
+
+**Configuration** (`.loa.config.yaml`):
+
+```yaml
+memory:
+  pretooluse_hook:
+    enabled: false  # Opt-in for safety
+    thinking_chars: 1500
+    similarity_threshold: 0.35
+    max_memories: 3
+    timeout_ms: 500
+```
+
+**Note**: Memory Stack is opt-in by default. Enable via config after setup.
 
 **Updating existing repos**: If you're updating Loa to v0.8.0+ in an existing repository, you'll need to manually initialize the ck index:
 

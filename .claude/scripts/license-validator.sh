@@ -149,9 +149,10 @@ is_key_cache_valid() {
     [[ -f "$key_file" ]] || return 1
     [[ -f "$meta_file" ]] || return 1
 
-    # Get cache hours from config (default 24)
+    # SECURITY (MED-004): Reduced default cache from 24h to 4h
+    # Shorter cache reduces window for compromised key injection
     local cache_hours
-    cache_hours=$(get_registry_config "public_key_cache_hours" "24")
+    cache_hours=$(get_registry_config "public_key_cache_hours" "4")
 
     # Parse fetched_at from metadata
     local fetched_at
@@ -444,14 +445,22 @@ do_validate() {
         return $EXIT_ERROR
     fi
 
-    # Verify signature first
-    if ! do_verify_signature "$token" 2>/dev/null; then
-        echo "ERROR: Invalid signature" >&2
+    # SECURITY (MED-006): Verify signature with proper error propagation
+    # Don't swallow signature errors - they should not be masked by expiry status
+    local sig_result=0
+    do_verify_signature "$token" 2>/dev/null || sig_result=$?
+
+    if [[ $sig_result -ne 0 ]]; then
+        echo "ERROR: Invalid signature (code: $sig_result)" >&2
         return $EXIT_INVALID_SIG
     fi
 
-    # Check expiration
-    do_check_expiry "$license_file"
+    # Check expiration (only after signature is verified)
+    # This ensures we never return "grace period" for an invalid signature
+    local expiry_result=0
+    do_check_expiry "$license_file" || expiry_result=$?
+
+    return $expiry_result
 }
 
 # Decode JWT payload and output as JSON

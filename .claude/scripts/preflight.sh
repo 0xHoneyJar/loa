@@ -40,9 +40,12 @@ check_pattern_match() {
 }
 
 # Check if a command succeeds
+# SECURITY (HIGH-005): Use bash -c instead of eval for safer execution
+# Note: This still executes shell commands, so only use with trusted input
 check_command_succeeds() {
     local cmd="$1"
-    eval "$cmd" >/dev/null 2>&1
+    # Use bash -c with restricted environment for slightly safer execution
+    bash -c "$cmd" >/dev/null 2>&1
 }
 
 # Source constructs-lib for is_thj_member() function

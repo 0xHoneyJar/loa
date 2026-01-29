@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # filter-search-results.sh
 # Purpose: Build exclude arguments for ck/grep based on context filtering configuration
 # Sprint: 4 (Context Filtering - FR-9.2, GitHub Issue #10)
@@ -208,18 +208,36 @@ get_ck_search_command() {
         readarray -t excludes < <(build_ck_excludes)
     fi
 
-    # Build command
-    local cmd="ck --${search_type} \"${query}\" --path \"${path}\" --top-k ${top_k} --jsonl"
+    # Build command - ck v0.7.0+ syntax:
+    # ck --sem|--hybrid|--regex "query" --limit N --threshold T --jsonl [excludes] "path"
+    # Note: --sem (not --semantic), --limit (not --top-k), path is positional (not --path)
+    local cmd="ck"
+
+    # Search type flag (ck uses --sem not --semantic)
+    if [[ "${search_type}" == "semantic" ]]; then
+        cmd="${cmd} --sem"
+    else
+        cmd="${cmd} --${search_type}"
+    fi
+
+    # Query
+    cmd="${cmd} \"${query}\""
+
+    # Options (before path)
+    cmd="${cmd} --limit ${top_k} --jsonl"
+
+    # Add threshold for semantic/hybrid (not regex)
+    if [[ "${search_type}" != "regex" ]]; then
+        cmd="${cmd} --threshold ${threshold}"
+    fi
 
     # Add excludes
     for arg in "${excludes[@]}"; do
         cmd="${cmd} ${arg}"
     done
 
-    # Add threshold for semantic/hybrid
-    if [[ "${search_type}" != "regex" ]]; then
-        cmd="${cmd} --threshold ${threshold}"
-    fi
+    # Path is final positional argument
+    cmd="${cmd} \"${path}\""
 
     echo "${cmd}"
 }

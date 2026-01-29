@@ -14,6 +14,37 @@ UPSTREAM_REPO="${LOA_UPSTREAM:-https://github.com/0xHoneyJar/loa.git}"
 UPSTREAM_BRANCH="${LOA_BRANCH:-main}"
 LOA_REMOTE_NAME="loa-upstream"
 
+# === Global Cleanup (HIGH-004: Comprehensive trap handlers) ===
+# Track temp files for cleanup on interrupt
+declare -a _TEMP_FILES=()
+declare -a _TEMP_DIRS=()
+
+_cleanup_on_exit() {
+    local exit_code=$?
+    # Clean up temp files
+    for f in "${_TEMP_FILES[@]:-}"; do
+        [[ -n "$f" ]] && rm -f "$f" 2>/dev/null || true
+    done
+    # Clean up temp directories
+    for d in "${_TEMP_DIRS[@]:-}"; do
+        [[ -n "$d" ]] && rm -rf "$d" 2>/dev/null || true
+    done
+    exit $exit_code
+}
+
+# Register cleanup for all exit signals
+trap _cleanup_on_exit EXIT INT TERM
+
+# Helper to register a temp file for cleanup
+_register_temp_file() {
+    _TEMP_FILES+=("$1")
+}
+
+# Helper to register a temp dir for cleanup
+_register_temp_dir() {
+    _TEMP_DIRS+=("$1")
+}
+
 # === Colors ===
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -85,14 +116,14 @@ get_version() {
 set_version() {
   local tmp
   tmp=$(mktemp)
-  trap "rm -f '$tmp'" RETURN
+  _register_temp_file "$tmp"
   jq --arg k "$1" --arg v "$2" '.[$k] = $v' "$VERSION_FILE" > "$tmp" && mv "$tmp" "$VERSION_FILE"
 }
 
 set_version_int() {
   local tmp
   tmp=$(mktemp)
-  trap "rm -f '$tmp'" RETURN
+  _register_temp_file "$tmp"
   jq --arg k "$1" --argjson v "$2" '.[$k] = $v' "$VERSION_FILE" > "$tmp" && mv "$tmp" "$VERSION_FILE"
 }
 
@@ -441,7 +472,7 @@ main() {
   fi
 
   log "======================================================================="
-  log "  Loa Framework Update v0.9.0"
+  log "  Loa Framework Update v1.7.2"
   log "  Fetch -> Validate -> Migrate -> Swap"
   log "======================================================================="
 
@@ -546,7 +577,29 @@ EOF
   fi
 
   # Cleanup old backups (keep 3)
-  ls -dt .claude.backup.* 2>/dev/null | tail -n +4 | xargs rm -rf 2>/dev/null || true
+  # SECURITY (HIGH-007): Use atomic backup cleanup to prevent race conditions
+  _cleanup_old_backups() {
+    local lock_file=".claude.backup.lock"
+    exec 8>"$lock_file"
+    if ! flock -w 5 8; then
+      warn "Could not acquire backup cleanup lock, skipping"
+      exec 8>&-
+      return 0
+    fi
+    # Read all backups into array to avoid race condition between ls and rm
+    local -a backups
+    mapfile -t backups < <(ls -dt .claude.backup.* 2>/dev/null)
+    local count=${#backups[@]}
+    if [[ $count -gt 3 ]]; then
+      for ((i=3; i<count; i++)); do
+        rm -rf "${backups[$i]}" 2>/dev/null || true
+      done
+    fi
+    flock -u 8
+    exec 8>&-
+    rm -f "$lock_file"
+  }
+  _cleanup_old_backups
 
   # === STAGE 11: Create Atomic Commit ===
   create_upgrade_commit "$current" "$new_version" "$no_commit" "$force"

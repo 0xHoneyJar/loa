@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Get all tasks associated with a sprint epic
 # Usage: get-sprint-tasks.sh <epic-id> [--status <status>]
 #

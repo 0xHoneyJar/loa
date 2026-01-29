@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # migrate-skill-names.sh
 # Renames skill directories from role-based to gerund (action-based) naming
 # Usage: ./migrate-skill-names.sh [--dry-run]

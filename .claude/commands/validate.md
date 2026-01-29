@@ -14,6 +14,8 @@ Run intelligent validation subagents to check implementation quality before revi
 /validate docs                  # Run documentation-coherence only
 /validate docs --sprint         # Sprint-level documentation verification
 /validate docs --task 2         # Specific task documentation check
+/validate goals                 # Run goal-validator only
+/validate goals sprint-3        # Run goal-validator for specific sprint
 /validate architecture src/api/ # Run on specific scope
 ```
 
@@ -21,8 +23,9 @@ Run intelligent validation subagents to check implementation quality before revi
 
 | Argument | Description | Required | Default |
 |----------|-------------|----------|---------|
-| `type` | Subagent to run: `architecture`, `security`, `tests`, `all` | No | `all` |
+| `type` | Subagent to run: `architecture`, `security`, `tests`, `goals`, `all` | No | `all` |
 | `scope` | Path or glob pattern to validate | No | Sprint context or git diff |
+| `sprint` | Sprint to validate (for `goals` type) | No | Current sprint |
 
 ## Subagents
 
@@ -32,6 +35,7 @@ Run intelligent validation subagents to check implementation quality before revi
 | `security` | security-scanner | Detect security vulnerabilities |
 | `tests` | test-adequacy-reviewer | Assess test quality and coverage |
 | `docs` | documentation-coherence | Validate documentation updated with task |
+| `goals` | goal-validator | Verify PRD goals achieved through implementation |
 | `all` | All of the above | Complete validation suite |
 
 ## Process
@@ -64,6 +68,7 @@ These verdicts stop the workflow and require fixes:
 | security-scanner | CRITICAL, HIGH |
 | test-adequacy-reviewer | INSUFFICIENT |
 | documentation-coherence | ACTION_REQUIRED |
+| goal-validator | GOAL_BLOCKED |
 
 ### Non-Blocking Verdicts
 
@@ -75,6 +80,7 @@ These verdicts are informational:
 | security-scanner | MEDIUM, LOW |
 | test-adequacy-reviewer | WEAK |
 | documentation-coherence | NEEDS_UPDATE, COHERENT |
+| goal-validator | GOAL_AT_RISK, GOAL_ACHIEVED |
 
 ## Examples
 
@@ -116,12 +122,39 @@ Reports saved to grimoires/loa/a2a/subagent-reports/
 /validate security src/auth/
 ```
 
+### Run Goal Validation
+
+```
+/validate goals
+```
+
+Output:
+```
+Running goal validation on current sprint...
+
+Goal G-1: Prevent silent goal failures
+  Status: ACHIEVED
+  Tasks: Sprint 1: 1.1, 1.2, 1.3 ✓
+  Evidence: E2E validation passed
+
+Goal G-2: Detect integration gaps
+  Status: AT_RISK
+  Tasks: Sprint 2: 2.1, 2.2 ✓
+  Concern: No E2E validation task found
+
+Overall Verdict: GOAL_AT_RISK
+
+Report saved to grimoires/loa/a2a/subagent-reports/goal-validation-2026-01-23.md
+```
+
 ## Error Messages
 
 | Error | Cause | Resolution |
 |-------|-------|------------|
-| "Subagent not found" | Invalid type argument | Use: architecture, security, tests, all |
+| "Subagent not found" | Invalid type argument | Use: architecture, security, tests, goals, all |
 | "SDD not found" | Missing sdd.md | Run `/architect` first |
+| "PRD not found" | Missing prd.md (for goals) | Run `/plan-and-analyze` first |
+| "Sprint plan not found" | Missing sprint.md (for goals) | Run `/sprint-plan` first |
 | "No files in scope" | Empty scope | Specify path or make changes first |
 
 ## Integration

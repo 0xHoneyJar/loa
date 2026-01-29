@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # mcp-registry.sh
 # Purpose: Query MCP server registry using yq
 # Usage: ./mcp-registry.sh <command> [args]

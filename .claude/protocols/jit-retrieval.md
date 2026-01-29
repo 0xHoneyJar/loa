@@ -294,15 +294,18 @@ else
 fi
 ```
 
-### ck Command Reference
+### ck Command Reference (v0.7.0+)
 
 | Command | Purpose | Output |
 |---------|---------|--------|
-| `ck --hybrid "query" path` | Semantic + keyword search | Ranked results |
-| `ck --hybrid "query" path --jsonl` | Machine-parseable output | JSONL format |
+| `ck --hybrid "query" --jsonl path` | Semantic + keyword search (JSONL) | Ranked results |
+| `ck --sem "query" --jsonl path` | Semantic-only search | Ranked by similarity |
+| `ck --regex "pattern" --jsonl path` | Regex search | Matching lines |
 | `ck --full-section "name" file` | AST-aware function extraction | Complete function |
 | `ck --threshold 0.4` | Set similarity threshold | Filter low-confidence |
-| `ck --top-k N` | Limit results | Top N matches |
+| `ck --limit N` | Limit results | Top N matches |
+
+**Note**: ck v0.7.0+ uses `--sem` (not `--semantic`), `--limit` (not `--top-k`), and path as positional argument (not `--path`).
 
 ### Example: Semantic Search with Fallback
 
@@ -315,8 +318,8 @@ path="${2:-.}"
 
 # Check ck availability
 if command -v ck &>/dev/null; then
-    # Semantic search (preferred)
-    ck --hybrid "$query" "$path" --top-k 5 --jsonl
+    # Semantic search (preferred) - ck v0.7.0+ syntax
+    ck --hybrid "$query" --limit 5 --jsonl "$path"
 else
     # Grep fallback (degraded but functional)
     echo "# Warning: Using grep fallback (no semantic search)"

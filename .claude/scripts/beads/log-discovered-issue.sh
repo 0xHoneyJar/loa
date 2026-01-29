@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Log a discovered bug/debt during task implementation
 # Usage: log-discovered-issue.sh <parent-id> "Issue title" [type] [priority]
 #

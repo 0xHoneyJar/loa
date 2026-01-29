@@ -245,13 +245,15 @@ Single queries are unreliable for proving absence:
 ### Verification Steps
 
 ```bash
+# ck v0.7.0+ syntax: --sem (not --semantic), --limit (not --top-k), path is positional
+
 # Query 1: Primary terminology
-results1=$(ck --semantic "OAuth2 authentication SSO" "${PROJECT_ROOT}/src/" --top-k 10 --threshold 0.4)
-count1=$(echo "$results1" | jq 'length')
+results1=$(ck --sem "OAuth2 authentication SSO" --limit 10 --threshold 0.4 --jsonl "${PROJECT_ROOT}/src/")
+count1=$(echo "$results1" | jq -s 'length')
 
 # Query 2: Diverse/synonymous terminology
-results2=$(ck --semantic "single sign-on identity provider" "${PROJECT_ROOT}/src/" --top-k 10 --threshold 0.4)
-count2=$(echo "$results2" | jq 'length')
+results2=$(ck --sem "single sign-on identity provider" --limit 10 --threshold 0.4 --jsonl "${PROJECT_ROOT}/src/")
+count2=$(echo "$results2" | jq -s 'length')
 
 # Both must return 0
 if [[ "$count1" -eq 0 ]] && [[ "$count2" -eq 0 ]]; then

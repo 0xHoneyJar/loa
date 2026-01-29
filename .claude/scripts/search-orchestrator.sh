@@ -35,9 +35,44 @@ if [[ -z "${QUERY}" ]]; then
     exit 1
 fi
 
+# SECURITY: Validate search type
+case "${SEARCH_TYPE}" in
+    semantic|hybrid|regex) ;;
+    *)
+        echo "Error: Invalid search type '${SEARCH_TYPE}'. Must be: semantic, hybrid, regex" >&2
+        exit 1
+        ;;
+esac
+
+# SECURITY: Validate numeric parameters
+if ! [[ "${TOP_K}" =~ ^[0-9]+$ ]]; then
+    echo "Error: top_k must be a positive integer" >&2
+    exit 1
+fi
+if ! [[ "${THRESHOLD}" =~ ^[0-9]*\.?[0-9]+$ ]]; then
+    echo "Error: threshold must be a number (e.g., 0.4)" >&2
+    exit 1
+fi
+
+# SECURITY: Validate regex syntax for regex search type (prevents ReDoS)
+if [[ "${SEARCH_TYPE}" == "regex" ]]; then
+    if ! echo "" | grep -E "${QUERY}" >/dev/null 2>&1; then
+        echo "Error: Invalid regex pattern" >&2
+        exit 1
+    fi
+fi
+
 # Normalize path to absolute
 if [[ ! "${SEARCH_PATH}" =~ ^/ ]]; then
     SEARCH_PATH="${PROJECT_ROOT}/${SEARCH_PATH}"
+fi
+
+# SECURITY: Validate path is within project root (prevent path traversal)
+REAL_SEARCH_PATH=$(realpath -m "${SEARCH_PATH}" 2>/dev/null || echo "${SEARCH_PATH}")
+REAL_PROJECT_ROOT=$(realpath -m "${PROJECT_ROOT}" 2>/dev/null || echo "${PROJECT_ROOT}")
+if [[ ! "${REAL_SEARCH_PATH}" =~ ^"${REAL_PROJECT_ROOT}" ]]; then
+    echo "Error: Search path must be within project root" >&2
+    exit 1
 fi
 
 # Detect search mode (cached in session)
@@ -70,31 +105,35 @@ jq -n \
 
 # Execute search based on mode
 if [[ "${LOA_SEARCH_MODE}" == "ck" ]]; then
-    # Semantic search using ck
+    # Semantic search using ck (v0.7.0+ syntax)
+    # Note: ck uses positional path argument, --limit (not --top-k), --threshold
     case "${SEARCH_TYPE}" in
         semantic)
-            SEARCH_RESULTS=$(ck --semantic "${QUERY}" \
-                --path "${SEARCH_PATH}" \
-                --top-k "${TOP_K}" \
+            SEARCH_RESULTS=$(ck --sem "${QUERY}" \
+                --limit "${TOP_K}" \
                 --threshold "${THRESHOLD}" \
-                --jsonl 2>/dev/null || echo "")
-            RESULT_COUNT=$(echo "${SEARCH_RESULTS}" | grep -c '^{' || echo 0)
+                --jsonl \
+                "${SEARCH_PATH}" 2>/dev/null || echo "")
+            RESULT_COUNT=$(echo "${SEARCH_RESULTS}" | grep -c '^{' 2>/dev/null || echo 0)
+            RESULT_COUNT="${RESULT_COUNT:-0}"
             echo "${SEARCH_RESULTS}"
             ;;
         hybrid)
             SEARCH_RESULTS=$(ck --hybrid "${QUERY}" \
-                --path "${SEARCH_PATH}" \
-                --top-k "${TOP_K}" \
+                --limit "${TOP_K}" \
                 --threshold "${THRESHOLD}" \
-                --jsonl 2>/dev/null || echo "")
-            RESULT_COUNT=$(echo "${SEARCH_RESULTS}" | grep -c '^{' || echo 0)
+                --jsonl \
+                "${SEARCH_PATH}" 2>/dev/null || echo "")
+            RESULT_COUNT=$(echo "${SEARCH_RESULTS}" | grep -c '^{' 2>/dev/null || echo 0)
+            RESULT_COUNT="${RESULT_COUNT:-0}"
             echo "${SEARCH_RESULTS}"
             ;;
         regex)
             SEARCH_RESULTS=$(ck --regex "${QUERY}" \
-                --path "${SEARCH_PATH}" \
-                --jsonl 2>/dev/null || echo "")
-            RESULT_COUNT=$(echo "${SEARCH_RESULTS}" | grep -c '^{' || echo 0)
+                --jsonl \
+                "${SEARCH_PATH}" 2>/dev/null || echo "")
+            RESULT_COUNT=$(echo "${SEARCH_RESULTS}" | grep -c '^{' 2>/dev/null || echo 0)
+            RESULT_COUNT="${RESULT_COUNT:-0}"
             echo "${SEARCH_RESULTS}"
             ;;
         *)

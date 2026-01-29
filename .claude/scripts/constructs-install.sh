@@ -57,6 +57,25 @@ EXIT_ERROR=6
 # Authentication
 # =============================================================================
 
+# Check if file permissions are secure (MED-001)
+# Args: $1 - file path
+# Returns: 0 if secure, 1 if too permissive
+check_file_permissions() {
+    local file="$1"
+    local perms
+    perms=$(stat -c "%a" "$file" 2>/dev/null || stat -f "%Lp" "$file" 2>/dev/null)
+
+    # Check if permissions are 600 (owner read/write only) or more restrictive
+    case "$perms" in
+        600|400) return 0 ;;  # Secure permissions
+        *)
+            print_warning "SECURITY: Credentials file has insecure permissions ($perms): $file"
+            print_warning "  Recommended: chmod 600 $file"
+            return 1
+            ;;
+    esac
+}
+
 # Get API key from environment or credentials file
 # Returns: API key or empty string
 get_api_key() {
@@ -69,6 +88,9 @@ get_api_key() {
     # Check credentials file
     local creds_file="${HOME}/.loa/credentials.json"
     if [[ -f "$creds_file" ]]; then
+        # SECURITY (MED-001): Warn if file permissions are too open
+        check_file_permissions "$creds_file" || true
+
         local key
         key=$(jq -r '.api_key // empty' "$creds_file" 2>/dev/null)
         if [[ -n "$key" ]]; then
@@ -80,6 +102,9 @@ get_api_key() {
     # Alternative credentials location
     local alt_creds="${HOME}/.loa-constructs/credentials.json"
     if [[ -f "$alt_creds" ]]; then
+        # SECURITY (MED-001): Warn if file permissions are too open
+        check_file_permissions "$alt_creds" || true
+
         local key
         key=$(jq -r '.api_key // .apiKey // empty' "$alt_creds" 2>/dev/null)
         if [[ -n "$key" ]]; then
@@ -116,36 +141,65 @@ get_commands_dir() {
 }
 
 # =============================================================================
-# Symlink Validation (Security: M-003)
+# Symlink Validation (Security: HIGH-003 - Fixed)
 # =============================================================================
 
 # Validate that a symlink target resolves within expected directory
 # Args:
 #   $1 - Target path (the path the symlink will point to)
-#   $2 - Expected base directory
+#   $2 - Expected base directory component (e.g., "constructs/packs")
+#   $3 - Link location directory (where the symlink will be created)
 # Returns: 0 if valid, 1 if outside expected directory
 validate_symlink_target() {
     local target="$1"
     local expected_base="$2"
+    local link_dir="${3:-.claude/commands}"
 
-    # Get the directory containing the target to resolve relative paths
-    local target_dir
-    target_dir=$(dirname "$target")
+    # SECURITY: Check for path traversal components explicitly
+    # This catches encoded paths and various bypass attempts
+    if [[ "$target" == *".."* ]]; then
+        # Count the depth of traversal vs path components
+        local traversal_count
+        local path_depth
+        traversal_count=$(echo "$target" | grep -o '\.\.' | wc -l)
+        path_depth=$(echo "$target" | tr '/' '\n' | grep -v '^\.\.$' | grep -v '^$' | wc -l)
 
-    # If the target is relative, it's relative to where the symlink lives
-    # For our use case, constructs symlinks are always relative paths
-    # starting with ../ from .claude/commands or .claude/constructs/skills
-
-    # Check for path traversal attempts beyond constructs
-    if [[ "$target" == *"../.."* ]] && [[ "$target" != *"constructs"* ]]; then
-        print_warning "Symlink target may escape constructs directory: $target"
-        return 1
+        # If traversing more than expected depth, block it
+        # constructs symlinks should only go up 1-2 levels max
+        if [[ $traversal_count -gt 2 ]]; then
+            print_warning "Symlink target has excessive traversal: $target"
+            return 1
+        fi
     fi
 
-    # Verify target contains expected base path component
+    # SECURITY: Verify target contains expected base path component
     if [[ "$target" != *"$expected_base"* ]]; then
         print_warning "Symlink target outside expected directory: $target (expected: $expected_base)"
         return 1
+    fi
+
+    # SECURITY: If the target already exists, verify it resolves correctly
+    # This is the definitive check using readlink -f
+    if [[ -d "$link_dir" ]]; then
+        local project_root
+        project_root=$(cd "$link_dir" && pwd)
+        local resolved_target
+
+        # Create a temporary test to verify resolution
+        # Use cd to the link directory and resolve from there
+        resolved_target=$(cd "$link_dir" && readlink -f "$target" 2>/dev/null || echo "")
+
+        if [[ -n "$resolved_target" ]]; then
+            # Get the constructs directory absolute path
+            local constructs_abs
+            constructs_abs=$(readlink -f "$(get_constructs_dir)" 2>/dev/null || echo "")
+
+            # Verify resolved path is within constructs
+            if [[ -n "$constructs_abs" ]] && [[ "$resolved_target" != "$constructs_abs"* ]]; then
+                print_warning "Symlink resolves outside constructs: $resolved_target"
+                return 1
+            fi
+        fi
     fi
 
     return 0
@@ -373,13 +427,17 @@ do_install_pack() {
     echo "  Downloading from $registry_url/packs/$pack_slug/download..."
 
     # Download pack
+    # SECURITY (HIGH-002): Use process substitution for auth header to avoid shell history exposure
     local response
     local http_code
     local tmp_file
     tmp_file=$(mktemp)
 
+    # Disable command tracing during API call to prevent key leakage
+    { set +x; } 2>/dev/null || true
+
     http_code=$(curl -s -w "%{http_code}" \
-        -H "Authorization: Bearer $api_key" \
+        -H @<(echo "Authorization: Bearer $api_key") \
         -H "Accept: application/json" \
         "$registry_url/packs/$pack_slug/download" \
         -o "$tmp_file" 2>/dev/null) || {
@@ -423,17 +481,54 @@ do_install_pack() {
     mkdir -p "$pack_dir"
 
     # Extract using Python (jq doesn't handle base64 well)
-    if ! python3 << PYEOF
+    # SECURITY: Pass variables via environment to prevent code injection (CRIT-001)
+    export LOA_TMP_FILE="$tmp_file"
+    export LOA_PACK_DIR="$pack_dir"
+    if ! python3 << 'PYEOF'
 import json
 import base64
 import os
 import sys
 
-try:
-    with open('$tmp_file', 'r') as f:
-        data = json.load(f)
+def safe_path_join(base_dir, path):
+    """
+    Safely join paths, preventing path traversal attacks (CRIT-002).
+    Returns the full path if safe, raises ValueError otherwise.
+    """
+    # Normalize the base directory
+    real_base = os.path.realpath(base_dir)
 
-    pack_dir = '$pack_dir'
+    # Join and normalize the full path
+    full_path = os.path.normpath(os.path.join(base_dir, path))
+    real_path = os.path.realpath(os.path.join(base_dir, os.path.dirname(path)))
+
+    # For new files, check that the parent directory is within base
+    # (realpath on non-existent file returns the path itself)
+    parent_dir = os.path.dirname(full_path)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
+        real_parent = os.path.realpath(parent_dir)
+        if not real_parent.startswith(real_base + os.sep) and real_parent != real_base:
+            raise ValueError(f"Path traversal attempt blocked: {path}")
+
+    # Also check for suspicious path components
+    path_parts = path.replace('\\', '/').split('/')
+    if '..' in path_parts:
+        raise ValueError(f"Path contains traversal component: {path}")
+
+    return full_path
+
+try:
+    # Get paths from environment (prevents shell injection)
+    tmp_file = os.environ.get('LOA_TMP_FILE')
+    pack_dir = os.environ.get('LOA_PACK_DIR')
+
+    if not tmp_file or not pack_dir:
+        print("ERROR: Required environment variables not set", file=sys.stderr)
+        sys.exit(1)
+
+    with open(tmp_file, 'r') as f:
+        data = json.load(f)
 
     # Handle nested response structure
     if 'data' in data:
@@ -442,21 +537,22 @@ try:
     # Get pack info
     pack_info = data.get('pack', data)
 
-    # Write manifest
+    # Write manifest (safe - fixed filename)
     manifest = pack_info.get('manifest', {})
     if manifest:
         with open(os.path.join(pack_dir, 'manifest.json'), 'w') as f:
             json.dump(manifest, f, indent=2)
 
-    # Write license
+    # Write license (safe - fixed filename)
     license_data = data.get('license', {})
     if license_data:
         with open(os.path.join(pack_dir, '.license.json'), 'w') as f:
             json.dump(license_data, f, indent=2)
 
-    # Extract files
+    # Extract files with path traversal protection
     files = pack_info.get('files', [])
     extracted = 0
+    blocked = 0
     for file_info in files:
         path = file_info.get('path', '')
         content = file_info.get('content', '')
@@ -464,9 +560,13 @@ try:
         if not path or not content:
             continue
 
-        # Create full path
-        full_path = os.path.join(pack_dir, path)
-        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        # Validate and create full path (CRIT-002: path traversal protection)
+        try:
+            full_path = safe_path_join(pack_dir, path)
+        except ValueError as e:
+            print(f"  BLOCKED: {e}", file=sys.stderr)
+            blocked += 1
+            continue
 
         # Decode and write
         try:
@@ -478,6 +578,8 @@ try:
             print(f"  Warning: Failed to extract {path}: {e}", file=sys.stderr)
 
     print(f"  Extracted {extracted} files")
+    if blocked > 0:
+        print(f"  SECURITY: Blocked {blocked} suspicious paths", file=sys.stderr)
 
 except json.JSONDecodeError as e:
     print(f"ERROR: Invalid JSON response: {e}", file=sys.stderr)
@@ -651,12 +753,16 @@ do_install_skill() {
     echo "  Downloading from $registry_url/skills/$skill_slug/download..."
 
     # Download skill
+    # SECURITY (HIGH-002): Use process substitution for auth header
     local http_code
     local tmp_file
     tmp_file=$(mktemp)
 
+    # Disable command tracing during API call to prevent key leakage
+    { set +x; } 2>/dev/null || true
+
     http_code=$(curl -s -w "%{http_code}" \
-        -H "Authorization: Bearer $api_key" \
+        -H @<(echo "Authorization: Bearer $api_key") \
         -H "Accept: application/json" \
         "$registry_url/skills/$skill_slug/download" \
         -o "$tmp_file" 2>/dev/null) || {
@@ -702,17 +808,52 @@ do_install_skill() {
     mkdir -p "$skill_dir"
 
     # Extract using Python
-    if ! python3 << PYEOF
+    # SECURITY: Pass variables via environment to prevent code injection (CRIT-001)
+    export LOA_TMP_FILE="$tmp_file"
+    export LOA_SKILL_DIR="$skill_dir"
+    if ! python3 << 'PYEOF'
 import json
 import base64
 import os
 import sys
 
-try:
-    with open('$tmp_file', 'r') as f:
-        data = json.load(f)
+def safe_path_join(base_dir, path):
+    """
+    Safely join paths, preventing path traversal attacks (CRIT-002).
+    Returns the full path if safe, raises ValueError otherwise.
+    """
+    # Normalize the base directory
+    real_base = os.path.realpath(base_dir)
 
-    skill_dir = '$skill_dir'
+    # Join and normalize the full path
+    full_path = os.path.normpath(os.path.join(base_dir, path))
+
+    # For new files, check that the parent directory is within base
+    parent_dir = os.path.dirname(full_path)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
+        real_parent = os.path.realpath(parent_dir)
+        if not real_parent.startswith(real_base + os.sep) and real_parent != real_base:
+            raise ValueError(f"Path traversal attempt blocked: {path}")
+
+    # Also check for suspicious path components
+    path_parts = path.replace('\\', '/').split('/')
+    if '..' in path_parts:
+        raise ValueError(f"Path contains traversal component: {path}")
+
+    return full_path
+
+try:
+    # Get paths from environment (prevents shell injection)
+    tmp_file = os.environ.get('LOA_TMP_FILE')
+    skill_dir = os.environ.get('LOA_SKILL_DIR')
+
+    if not tmp_file or not skill_dir:
+        print("ERROR: Required environment variables not set", file=sys.stderr)
+        sys.exit(1)
+
+    with open(tmp_file, 'r') as f:
+        data = json.load(f)
 
     # Handle nested response structure
     if 'data' in data:
@@ -721,15 +862,16 @@ try:
     # Get skill info
     skill_info = data.get('skill', data)
 
-    # Write license
+    # Write license (safe - fixed filename)
     license_data = data.get('license', {})
     if license_data:
         with open(os.path.join(skill_dir, '.license.json'), 'w') as f:
             json.dump(license_data, f, indent=2)
 
-    # Extract files
+    # Extract files with path traversal protection
     files = skill_info.get('files', [])
     extracted = 0
+    blocked = 0
     for file_info in files:
         path = file_info.get('path', '')
         content = file_info.get('content', '')
@@ -737,9 +879,13 @@ try:
         if not path or not content:
             continue
 
-        # Create full path
-        full_path = os.path.join(skill_dir, path)
-        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        # Validate and create full path (CRIT-002: path traversal protection)
+        try:
+            full_path = safe_path_join(skill_dir, path)
+        except ValueError as e:
+            print(f"  BLOCKED: {e}", file=sys.stderr)
+            blocked += 1
+            continue
 
         # Decode and write
         try:
@@ -751,6 +897,8 @@ try:
             print(f"  Warning: Failed to extract {path}: {e}", file=sys.stderr)
 
     print(f"  Extracted {extracted} files")
+    if blocked > 0:
+        print(f"  SECURITY: Blocked {blocked} suspicious paths", file=sys.stderr)
 
 except json.JSONDecodeError as e:
     print(f"ERROR: Invalid JSON response: {e}", file=sys.stderr)

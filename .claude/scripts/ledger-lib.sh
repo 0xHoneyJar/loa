@@ -96,44 +96,98 @@ ensure_ledger_backup() {
 }
 
 # Recover from backup
-# Returns: 0 on success, 1 if no backup
+# Returns: 0 on success, 1 if no backup, 2 if backup is invalid
 recover_from_backup() {
     local ledger_path
     ledger_path=$(get_ledger_path)
     local backup_path="${ledger_path}.bak"
 
-    if [[ -f "$backup_path" ]]; then
-        cp "$backup_path" "$ledger_path"
-        echo "Recovered ledger from backup"
-        return 0
+    if [[ ! -f "$backup_path" ]]; then
+        echo "No backup found" >&2
+        return 1
     fi
 
-    echo "No backup found" >&2
-    return 1
+    # SECURITY (MED-008): Validate backup is valid JSON before restore
+    if ! jq empty "$backup_path" 2>/dev/null; then
+        echo "ERROR: Backup file is not valid JSON, refusing to restore" >&2
+        return 2
+    fi
+
+    # Validate backup has required fields
+    local version
+    version=$(jq -r '.version // "missing"' "$backup_path" 2>/dev/null)
+    if [[ "$version" == "missing" ]]; then
+        echo "ERROR: Backup missing required 'version' field, refusing to restore" >&2
+        return 2
+    fi
+
+    # Use atomic write pattern for recovery too
+    local tmp_file="${ledger_path}.recover.$$"
+    cp "$backup_path" "$tmp_file"
+    mv "$tmp_file" "$ledger_path"
+
+    echo "Recovered ledger from backup"
+    return 0
 }
 
 # =============================================================================
-# Internal Write Function
+# Internal Write Function (HIGH-001: Atomic writes with flock)
 # =============================================================================
 
-# Write ledger JSON (internal use)
+# Lock file timeout in seconds
+readonly LEDGER_LOCK_TIMEOUT=5
+
+# Write ledger JSON with exclusive locking (internal use)
 # Args: $1 - JSON content
+# Returns: 0 on success, 1 on lock failure
 _write_ledger() {
     local content="$1"
     local ledger_path
     ledger_path=$(get_ledger_path)
+    local lock_file="${ledger_path}.lock"
 
     # Ensure parent directory exists
     mkdir -p "$(dirname "$ledger_path")"
 
+    # SECURITY (HIGH-001): Acquire exclusive lock with timeout
+    # This prevents race conditions in concurrent operations
+    exec 9>"$lock_file"
+    if ! flock -w "$LEDGER_LOCK_TIMEOUT" 9; then
+        echo "ERROR: Could not acquire ledger lock within ${LEDGER_LOCK_TIMEOUT}s" >&2
+        exec 9>&-
+        return 1
+    fi
+
     # Backup before write
     ensure_ledger_backup
 
-    # Update last_updated timestamp and write
+    # Update last_updated timestamp
     local updated_content
     updated_content=$(echo "$content" | jq --arg ts "$(now_iso)" '.last_updated = $ts')
 
-    echo "$updated_content" > "$ledger_path"
+    # SECURITY (HIGH-001): Atomic write via temp file + mv
+    local tmp_file="${ledger_path}.tmp.$$"
+    if ! echo "$updated_content" > "$tmp_file"; then
+        echo "ERROR: Failed to write temp file" >&2
+        rm -f "$tmp_file"
+        flock -u 9
+        exec 9>&-
+        return 1
+    fi
+
+    # Atomic move (same filesystem guarantees atomicity)
+    if ! mv "$tmp_file" "$ledger_path"; then
+        echo "ERROR: Failed to move temp file to ledger" >&2
+        rm -f "$tmp_file"
+        flock -u 9
+        exec 9>&-
+        return 1
+    fi
+
+    # Release lock
+    flock -u 9
+    exec 9>&-
+    return 0
 }
 
 # =============================================================================

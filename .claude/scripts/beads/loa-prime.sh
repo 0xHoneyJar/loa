@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Loa Session Priming Script
 # Equivalent to `br prime` from original beads
 # Outputs context-optimized summary for AI agent session injection

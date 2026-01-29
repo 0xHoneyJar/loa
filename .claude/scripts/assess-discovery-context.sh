@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # assess-discovery-context.sh
 # Purpose: Assess available context files for PRD discovery
 # Usage: ./assess-discovery-context.sh [context_dir]

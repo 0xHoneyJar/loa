@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Migrate from beads (bd) to beads_rust (br)
 # Usage: migrate-to-br.sh [--prefix PREFIX] [--dry-run] [--force]
 #

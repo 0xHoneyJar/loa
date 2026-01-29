@@ -214,18 +214,25 @@ After impact analysis, execute review with enhanced checklist:
 
 ---
 
-## Fallback Strategy (No ck)
+## Search Strategy
 
-When ck not available, use grep-based dependency analysis:
+Use search-orchestrator.sh for ck-first search with automatic grep fallback:
 
 ```bash
-# Find imports
-grep -rn "import.*<module>" src/ | head -20
+# Find imports (hybrid search for better semantic understanding)
+.claude/scripts/search-orchestrator.sh hybrid "import <module>" src/ 20 0.5
 
 # Find test files (by naming convention)
 find tests/ -name "*<module>*test*" -o -name "*<module>*spec*"
 
-# Find documentation mentions
+# Find documentation mentions (hybrid search across docs)
+.claude/scripts/search-orchestrator.sh hybrid "<module_name> documentation" docs/ 20 0.4
+```
+
+### Manual Fallback (if search-orchestrator unavailable)
+
+```bash
+grep -rn "import.*<module>" src/ | head -20
 grep -rn "<module_name>" docs/ grimoires/loa/*.md
 ```
 

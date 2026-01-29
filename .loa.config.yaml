@@ -52,6 +52,65 @@ memory:
   # Restore context from NOTES.md on session start
   auto_restore: true
 
+  # -------------------------------------------------------------------------
+  # NOTES.md Learnings Sync (v1.8.0)
+  # -------------------------------------------------------------------------
+  # Auto-sync learnings from NOTES.md to vector database on session start
+  auto_sync: false
+
+  # -------------------------------------------------------------------------
+  # PreToolUse Hook - Mid-Stream Memory Injection (v1.8.0)
+  # -------------------------------------------------------------------------
+  pretooluse_hook:
+    # Master toggle for mid-stream injection
+    enabled: false
+    # Characters to extract from thinking block
+    thinking_chars: 1500
+    # Minimum similarity score for memory recall
+    similarity_threshold: 0.35
+    # Maximum memories to inject per tool use
+    max_memories: 3
+    # Hard timeout for entire hook execution (milliseconds)
+    timeout_ms: 500
+    # Tools that trigger the hook
+    tools:
+      - Read
+      - Glob
+      - Grep
+      - WebFetch
+      - WebSearch
+
+  # -------------------------------------------------------------------------
+  # Vector Database Configuration
+  # -------------------------------------------------------------------------
+  vector_db:
+    # Database file location (relative to project root)
+    path: .loa/memory.db
+    # Embedding model (sentence-transformers)
+    model: all-MiniLM-L6-v2
+    # Embedding dimension (must match model)
+    dimension: 384
+
+  # -------------------------------------------------------------------------
+  # QMD Integration - Document Search (v1.8.0)
+  # -------------------------------------------------------------------------
+  qmd:
+    # Master toggle for QMD integration
+    enabled: false
+    # QMD binary path (or just 'qmd' for PATH)
+    binary: qmd
+    # Index storage location
+    index_dir: .loa/qmd
+    # Collections to index
+    collections:
+      - path: grimoires/loa
+        name: loa-state
+        include: ["*.md"]
+        exclude: ["archive/**", "a2a/trajectory/**"]
+      - path: grimoires/loa/reality
+        name: loa-reality
+        include: ["*.md"]
+
 # =============================================================================
 # Evaluation-Driven Development (ADK-Level)
 # =============================================================================
@@ -584,6 +643,57 @@ gpt_review:
     sdd: true
     sprint: true
     implementation: true
+
+# =============================================================================
+# Plan and Analyze Configuration (v1.6.0)
+# =============================================================================
+# Codebase grounding integration with /ride for brownfield projects
+plan_and_analyze:
+  codebase_grounding:
+    # Master toggle - set to false to disable codebase grounding entirely
+    enabled: true
+    # Days before reality files are considered stale (prompt user to re-run)
+    reality_staleness_days: 7
+    # Timeout in minutes for /ride execution
+    ride_timeout_minutes: 20
+    # Auto-skip to Phase -1 if /ride fails (not recommended)
+    skip_on_ride_error: false
+
+# =============================================================================
+# Claude Code 2.1.x Features (v1.9.0)
+# =============================================================================
+# Alignment with Claude Code 2.1.x platform capabilities
+
+# Setup Hook - triggered on `claude --init`
+setup_hook:
+  # Run upgrade-health-check.sh on initialization
+  enabled: true
+  # Run full health check (vs quick check)
+  run_health_check: true
+
+# Skill Forking - isolated execution for read-only skills
+skill_forking:
+  # Master toggle for skill forking features
+  enabled: true
+  # Fork read-only skills (ride, validators) by default
+  fork_read_only_skills: true
+
+# One-Time Hooks - prevent duplicate hook execution
+hooks:
+  # Run update check only once per session (not on resume)
+  check_updates_once: true
+
+# Trajectory Session ID - cross-session correlation
+trajectory_session_id:
+  # Include CLAUDE_SESSION_ID in trajectory entries
+  enabled: true
+
+# File Read Limits (Claude Code environment variable)
+# Set CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS to limit file read output
+# Default: 4000 tokens
+# Example: export CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS=8000
+file_read_limits:
+  max_output_tokens: 4000
 
 # =============================================================================
 # Behavior Preferences
