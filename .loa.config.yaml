@@ -63,7 +63,7 @@ memory:
   # -------------------------------------------------------------------------
   pretooluse_hook:
     # Master toggle for mid-stream injection
-    enabled: false
+    enabled: true
     # Characters to extract from thinking block
     thinking_chars: 1500
     # Minimum similarity score for memory recall
@@ -669,6 +669,31 @@ trajectory_session_id:
 # Example: export CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS=8000
 file_read_limits:
   max_output_tokens: 4000
+
+# =============================================================================
+# Visual Communication (v1.10.0)
+# =============================================================================
+# Beautiful Mermaid integration for diagram rendering
+visual_communication:
+  # Master toggle for visual output
+  enabled: true
+
+  # Rendering service URL
+  service: "https://agents.craft.do/mermaid"
+
+  # Default theme (github | dracula | nord | tokyo-night | solarized-light | solarized-dark | catppuccin)
+  theme: "github"
+
+  # Include clickable preview URLs in output
+  include_preview_urls: true
+
+  # Diagram types to support
+  diagram_types:
+    flowchart: true
+    sequence: true
+    class: true
+    state: true
+    er: true
 
 # =============================================================================
 # Behavior Preferences
