@@ -1,0 +1,7 @@
+{
+  "$schema": "learnings.schema.json",
+  "version": "1.0",
+  "last_updated": null,
+  "description": "Learning effectiveness tracking for compound learning feedback loop",
+  "learnings": []
+}

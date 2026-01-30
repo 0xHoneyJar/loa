@@ -1,0 +1,22 @@
+# Semantic result cache files
+# All cache data is local/ephemeral and should not be committed
+
+# Ignore everything
+*
+
+# Except this file and directory markers
+!.gitignore
+!.gitkeep
+
+# And keep the directory structure
+!results/
+results/*
+!results/.gitkeep
+
+!full/
+full/*
+!full/.gitkeep
+
+!early-exit/
+early-exit/*
+!early-exit/.gitkeep

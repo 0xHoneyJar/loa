@@ -1,0 +1,254 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://loa.dev/schemas/sprint.schema.json",
+  "title": "Sprint Plan",
+  "description": "JSON Schema for validating Loa Sprint Plan output structure",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the sprint plan"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["Draft", "Ready for Implementation", "In Progress", "Completed", "Archived"],
+      "description": "Current status of the sprint plan"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of last update"
+    },
+    "author": {
+      "type": "string",
+      "description": "Author or agent"
+    },
+    "prd_reference": {
+      "type": "string",
+      "description": "Path to related PRD"
+    },
+    "sdd_reference": {
+      "type": "string",
+      "description": "Path to related SDD"
+    },
+    "sprint_overview": {
+      "type": "object",
+      "properties": {
+        "total_sprints": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Total number of sprints"
+        },
+        "team_size": {
+          "type": "string",
+          "description": "Team composition"
+        },
+        "strategy": {
+          "type": "string",
+          "description": "Sprint planning strategy"
+        },
+        "target_version": {
+          "type": "string",
+          "description": "Target release version"
+        }
+      },
+      "required": ["total_sprints"],
+      "description": "Sprint plan overview"
+    },
+    "sprint_summary": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sprint": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Sprint number"
+          },
+          "phase": {
+            "type": "string",
+            "description": "Phase name"
+          },
+          "focus": {
+            "type": "string",
+            "description": "Sprint focus area"
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["P0", "P1", "P2", "P3"],
+            "description": "Priority level"
+          },
+          "key_deliverables": {
+            "type": "string",
+            "description": "Key deliverables"
+          }
+        },
+        "required": ["sprint", "focus"]
+      },
+      "description": "Summary of all sprints"
+    },
+    "sprints": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Sprint number"
+          },
+          "name": {
+            "type": "string",
+            "description": "Sprint name"
+          },
+          "goal": {
+            "type": "string",
+            "minLength": 20,
+            "description": "Sprint goal"
+          },
+          "phase": {
+            "type": "string",
+            "description": "Phase this sprint belongs to"
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["P0", "P1", "P2", "P3"],
+            "description": "Sprint priority"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["Planned", "In Progress", "Review", "Completed"],
+            "description": "Sprint status"
+          },
+          "tasks": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^TASK-\\d+\\.\\d+$",
+                  "description": "Task identifier (e.g., TASK-1.1)"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Task title"
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Task description"
+                },
+                "file": {
+                  "type": "string",
+                  "description": "Target file for this task"
+                },
+                "acceptance_criteria": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Acceptance criteria"
+                },
+                "dependencies": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^TASK-\\d+\\.\\d+$"
+                  },
+                  "description": "Task dependencies"
+                },
+                "testing": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Testing requirements"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["Pending", "In Progress", "Complete", "Blocked"],
+                  "description": "Task status"
+                }
+              },
+              "required": ["id", "title", "description"]
+            },
+            "description": "Sprint tasks"
+          },
+          "completion_criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Sprint completion criteria"
+          }
+        },
+        "required": ["number", "goal", "tasks"]
+      },
+      "description": "Detailed sprint definitions"
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Dependent task/sprint"
+          },
+          "to": {
+            "type": "string",
+            "description": "Dependency target"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["finish-to-start", "start-to-start", "finish-to-finish"],
+            "description": "Dependency type"
+          }
+        }
+      },
+      "description": "Cross-sprint dependencies"
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "risk": {
+            "type": "string"
+          },
+          "impact": {
+            "type": "string",
+            "enum": ["Low", "Medium", "High", "Critical"]
+          },
+          "mitigation": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Sprint risks"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "string"
+          },
+          "quote": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Source citations"
+    }
+  },
+  "required": ["version", "status", "sprint_overview", "sprints"],
+  "additionalProperties": true
+}

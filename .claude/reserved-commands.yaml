@@ -1,0 +1,141 @@
+# Claude Code Reserved Commands Registry
+#
+# This file lists all Claude Code built-in commands to prevent namespace conflicts
+# with Loa custom commands. Do not add Loa commands to this list.
+#
+# IMPORTANT: Loa commands MUST NOT use these names. The validation script
+# (.claude/scripts/validate-commands.sh) enforces this at CI time.
+#
+# Source: Claude Code CLI documentation
+# Last Updated: 2026-01-17
+
+version: "1.1.0"
+description: "Registry of Claude Code built-in commands that must not be overridden"
+
+reserved_commands:
+  # Core functionality
+  - name: "config"
+    description: "Claude Code settings and configuration"
+    category: "core"
+
+  - name: "help"
+    description: "Claude Code help system"
+    category: "core"
+
+  - name: "clear"
+    description: "Clear conversation history"
+    category: "core"
+
+  - name: "compact"
+    description: "Compact context window"
+    category: "core"
+
+  # Cost and analytics
+  - name: "cost"
+    description: "Show API cost information"
+    category: "analytics"
+
+  # Diagnostics and debugging
+  - name: "doctor"
+    description: "Run diagnostics on Claude Code setup"
+    category: "diagnostics"
+
+  # Project initialization
+  - name: "init"
+    description: "Initialize a new Claude Code project"
+    category: "project"
+
+  # Authentication
+  - name: "login"
+    description: "Authenticate with Claude API"
+    category: "auth"
+
+  - name: "logout"
+    description: "Sign out of Claude API"
+    category: "auth"
+
+  # Memory management
+  - name: "memory"
+    description: "Memory management and context control"
+    category: "memory"
+
+  # Model selection
+  - name: "model"
+    description: "Select or change Claude model"
+    category: "model"
+
+  # Code review
+  - name: "pr-comments"
+    description: "Review pull request comments"
+    category: "review"
+
+  - name: "review"
+    description: "Code review functionality"
+    category: "review"
+
+  # Terminal configuration
+  - name: "terminal-setup"
+    description: "Configure terminal integration"
+    category: "setup"
+
+  # Editor modes
+  - name: "vim"
+    description: "Enable vim mode"
+    category: "editor"
+
+  # Updates (potential future conflict)
+  - name: "update"
+    description: "Reserved for potential Claude Code update functionality"
+    category: "core"
+    note: "Loa uses /update-loa instead"
+
+  # Task management (potential future conflict)
+  - name: "task"
+    description: "Reserved for potential Claude Code task management"
+    category: "core"
+    note: "Loa uses /implement, /sprint-plan instead"
+
+  # Status (potential future conflict)
+  - name: "status"
+    description: "Reserved for potential Claude Code status display"
+    category: "core"
+    note: "Loa uses /ledger instead"
+
+# Naming conventions for Loa commands to avoid conflicts
+naming_guidelines:
+  description: "Guidelines for naming Loa commands to prevent future conflicts"
+  rules:
+    - "Use descriptive, domain-specific names (e.g., /sprint-plan, /architect)"
+    - "For generic functionality, add -loa suffix (e.g., /update-loa, /mcp-config)"
+    - "Prefer multi-word commands with hyphens over single words"
+    - "Never use single-character commands (reserved for Claude Code)"
+    - "Check this registry before adding new commands"
+    - "When in doubt, use a more specific name or add -loa suffix"
+
+# Conflict resolution
+conflict_resolution:
+  strategy: "auto-rename"
+  suffix: "-loa"
+  examples:
+    - conflict: "config"
+      resolution: "mcp-config"
+      reason: "More specific name better describes functionality"
+    - conflict: "review"
+      resolution: "review-sprint"
+      reason: "Loa already uses review-sprint (no conflict)"
+    - conflict: "update"
+      resolution: "update-loa"
+      reason: "Reserved for potential Claude Code update functionality"
+
+# Maintenance
+maintenance:
+  check_frequency: "On every /update-loa"
+  validation_script: ".claude/scripts/validate-commands.sh"
+  update_process: "Monitor Claude Code release notes for new built-in commands"
+
+# Enforcement
+enforcement:
+  enabled: true
+  mode: "strict"  # strict = fail CI, warn = log warning only
+  ci_integration: ".claude/scripts/validate-commands.sh"
+  pre_commit_hook: false  # Set to true to enable pre-commit validation

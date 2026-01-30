@@ -1,0 +1,249 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://loa.dev/schemas/trajectory-entry.schema.json",
+  "title": "Trajectory Entry",
+  "description": "JSON Schema for validating agent trajectory log entries with extended thinking support",
+  "type": "object",
+  "properties": {
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of the entry"
+    },
+    "session_id": {
+      "type": "string",
+      "description": "Claude session ID for cross-session correlation (from CLAUDE_SESSION_ID)"
+    },
+    "agent": {
+      "type": "string",
+      "enum": [
+        "discovering-requirements",
+        "designing-architecture",
+        "planning-sprints",
+        "implementing-tasks",
+        "reviewing-code",
+        "auditing-security",
+        "deploying-infrastructure",
+        "translating-for-executives"
+      ],
+      "description": "Agent that generated this entry"
+    },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "init",
+        "discovery",
+        "design",
+        "planning",
+        "implementation",
+        "review",
+        "audit",
+        "deployment",
+        "synthesis",
+        "complete",
+        "error"
+      ],
+      "description": "Current phase of execution"
+    },
+    "action": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Action being performed"
+    },
+    "reasoning": {
+      "type": "string",
+      "description": "Reasoning or decision explanation"
+    },
+    "thinking_trace": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether extended thinking was enabled"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "step": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Step number"
+              },
+              "thought": {
+                "type": "string",
+                "description": "Thinking step content"
+              },
+              "type": {
+                "type": "string",
+                "enum": ["analysis", "hypothesis", "evaluation", "decision", "reflection"],
+                "description": "Type of thinking step"
+              }
+            },
+            "required": ["step", "thought"]
+          },
+          "description": "Extended thinking steps"
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Duration of thinking in milliseconds"
+        },
+        "tokens_used": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Tokens used in thinking"
+        },
+        "summary": {
+          "type": "string",
+          "description": "Summary of thinking trace"
+        }
+      },
+      "description": "Extended thinking trace (for complex reasoning agents)"
+    },
+    "grounding": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["citation", "code_reference", "assumption", "user_input", "inference"],
+          "description": "Type of grounding"
+        },
+        "refs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "file": {
+                "type": "string",
+                "description": "Source file"
+              },
+              "lines": {
+                "type": "string",
+                "description": "Line range (e.g., '12-30')"
+              },
+              "quote": {
+                "type": "string",
+                "description": "Quoted text"
+              },
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "description": "URL reference"
+              }
+            }
+          },
+          "description": "Reference citations"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Confidence level (0-1)"
+        }
+      },
+      "description": "Grounding information for factual claims"
+    },
+    "context": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "string",
+          "description": "Current sprint identifier"
+        },
+        "task_id": {
+          "type": "string",
+          "description": "Current task identifier"
+        },
+        "files_read": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Files read in this action"
+        },
+        "files_modified": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Files modified in this action"
+        },
+        "tools_used": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tools invoked"
+        }
+      },
+      "description": "Execution context"
+    },
+    "outcome": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["success", "partial", "failed", "blocked", "pending"],
+          "description": "Outcome status"
+        },
+        "result": {
+          "type": "string",
+          "description": "Result description"
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Produced artifacts"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "Errors encountered"
+        }
+      },
+      "description": "Action outcome"
+    },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total duration in milliseconds"
+        },
+        "tokens_input": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Input tokens"
+        },
+        "tokens_output": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Output tokens"
+        },
+        "tool_calls": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of tool calls"
+        }
+      },
+      "description": "Performance metrics"
+    }
+  },
+  "required": ["ts", "agent", "action"],
+  "additionalProperties": true
+}

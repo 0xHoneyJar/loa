@@ -1,0 +1,96 @@
+# Run Mode Skill
+# Autonomous implementation with human-in-the-loop at PR review
+name: run-mode
+version: "1.0.0"
+description: "Autonomous sprint execution with safety controls"
+
+# Skill triggers
+triggers:
+  commands:
+    - "/run"
+    - "/run-status"
+    - "/run-halt"
+    - "/run-resume"
+  patterns:
+    - "start run"
+    - "autonomous execution"
+    - "jack in"
+    - "run sprint"
+    - "execute sprint"
+
+# Input/Output specification
+inputs:
+  - name: target
+    type: string
+    pattern: "sprint-[0-9]+"
+    description: "Sprint to implement (e.g., sprint-1)"
+    required: true
+  - name: max_cycles
+    type: integer
+    default: 20
+    description: "Maximum iteration cycles"
+  - name: timeout_hours
+    type: integer
+    default: 8
+    description: "Maximum runtime in hours"
+  - name: branch
+    type: string
+    description: "Feature branch name"
+  - name: dry_run
+    type: boolean
+    default: false
+    description: "Validate without executing"
+
+outputs:
+  - name: reviewer_md
+    path: "grimoires/loa/a2a/{target}/reviewer.md"
+    description: "Implementation report"
+  - name: state_json
+    path: ".run/state.json"
+    description: "Run state file"
+  - name: circuit_breaker_json
+    path: ".run/circuit-breaker.json"
+    description: "Circuit breaker state"
+  - name: deleted_files_log
+    path: ".run/deleted-files.log"
+    description: "Deleted files tracking"
+
+# Protocol references
+protocols:
+  - run-mode.md
+  - git-safety.md
+  - feedback-loops.md
+
+# Scripts
+scripts:
+  - run-mode-ice.sh
+  - check-permissions.sh
+
+# Configuration section in .loa.config.yaml
+config_section: run_mode
+
+# Safety requirements
+safety:
+  # Requires explicit opt-in
+  requires_opt_in: true
+  opt_in_config: "run_mode.enabled"
+  # Protected branches that can never be pushed to
+  protected_branches:
+    - main
+    - master
+    - staging
+    - develop
+    - development
+    - production
+    - prod
+  protected_patterns:
+    - "release/*"
+    - "release-*"
+    - "hotfix/*"
+    - "hotfix-*"
+  # Operations that are ALWAYS blocked
+  blocked_operations:
+    - merge
+    - force_push
+    - branch_delete
+    - pr_merge
