@@ -184,3 +184,4 @@ app/package.json
 app/package-lock.json
 app/tsconfig.json
 app/ecosystem.config.js
+.github/workflows/
