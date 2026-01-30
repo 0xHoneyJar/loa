@@ -24,6 +24,7 @@ import type {
   QueuedRequest,
 } from '../types/index.js';
 import { createSession, createDefaultMetrics } from '../types/index.js';
+import { redactSecrets } from './validation.js';
 
 /**
  * Notifier interface for chat notifications
@@ -111,6 +112,14 @@ export class SessionManager {
   /** Currently active session (if any) */
   private activeSession: Session | null = null;
 
+  /**
+   * H-002 FIX: Session operation lock
+   * Uses a simple in-memory lock for single-instance deployments.
+   * For multi-instance deployments, use storage.acquireLock() instead.
+   */
+  private sessionLock: Promise<void> = Promise.resolve();
+  private lockQueue: Array<() => void> = [];
+
   constructor(config: SessionManagerConfig) {
     this.storage = config.storage;
     this.sandboxExecutor = config.sandboxExecutor;
@@ -122,79 +131,130 @@ export class SessionManager {
   }
 
   /**
+   * H-002 FIX: Acquire lock for session operations
+   * Returns a release function that must be called when done
+   */
+  private async acquireLock(): Promise<() => void> {
+    return new Promise((resolve) => {
+      const executeWithLock = async () => {
+        // Create a new lock promise
+        let releaseLock: () => void;
+        const newLockPromise = new Promise<void>((resolveInner) => {
+          releaseLock = resolveInner;
+        });
+
+        // Replace the current lock
+        const previousLock = this.sessionLock;
+        this.sessionLock = newLockPromise;
+
+        // Wait for the previous lock to be released
+        await previousLock;
+
+        // Return the release function
+        resolve(() => {
+          releaseLock();
+        });
+      };
+
+      executeWithLock();
+    });
+  }
+
+  /**
    * Start a new session
+   *
+   * H-002 FIX: Uses locking to prevent race conditions in session management
    */
   async startSession(
     command: RunCommand,
     chatContext: ChatContext,
     triggeredBy: string
   ): Promise<Session> {
-    // 1. Validate project exists and is enabled
-    const project = await this.storage.getProject(command.project);
-    if (!project) {
-      throw new SessionError('E001');
-    }
-    if (!project.enabled) {
-      throw new SessionError('E002');
-    }
+    // H-002 FIX: Acquire lock before checking/modifying session state
+    const releaseLock = await this.acquireLock();
 
-    // 2. Check for active session
-    if (this.activeSession && !this.isTerminalState(this.activeSession.state)) {
-      // Queue the request
-      const request: QueuedRequest = {
-        id: uuidv4(),
-        project: command.project,
-        sprint: command.sprint,
-        branch: command.branch ?? project.defaultBranch,
-        chatContext,
-        triggeredBy,
-        queuedAt: new Date().toISOString(),
-      };
-
-      const position = await this.storage.enqueue(request);
-      if (position < 0) {
-        throw new SessionError('E004');
+    try {
+      // 1. Validate project exists and is enabled
+      const project = await this.storage.getProject(command.project);
+      if (!project) {
+        throw new SessionError('E001');
+      }
+      if (!project.enabled) {
+        throw new SessionError('E002');
       }
 
-      // Create a queued session record
+      // 2. Check for active session (within lock to prevent race condition)
+      // H-002 FIX: Also check storage for any active sessions (handles multi-instance case)
+      const storedSessions = await this.storage.listSessions();
+      const activeStoredSession = storedSessions.find(
+        (s) => !this.isTerminalState(s.state)
+      );
+
+      if (
+        (this.activeSession && !this.isTerminalState(this.activeSession.state)) ||
+        activeStoredSession
+      ) {
+        // Queue the request
+        const request: QueuedRequest = {
+          id: uuidv4(),
+          project: command.project,
+          sprint: command.sprint,
+          branch: command.branch ?? project.defaultBranch,
+          chatContext,
+          triggeredBy,
+          queuedAt: new Date().toISOString(),
+        };
+
+        const position = await this.storage.enqueue(request);
+        if (position < 0) {
+          throw new SessionError('E004');
+        }
+
+        // Create a queued session record
+        const session = createSession(
+          request.id,
+          command.project,
+          command.sprint,
+          request.branch,
+          chatContext,
+          triggeredBy
+        );
+
+        await this.storage.saveSession(session);
+        await this.notifier.notifyQueued(session, position);
+
+        return session;
+      }
+
+      // 3. Create session record
       const session = createSession(
-        request.id,
+        uuidv4(),
         command.project,
         command.sprint,
-        request.branch,
+        command.branch ?? project.defaultBranch,
         chatContext,
         triggeredBy
       );
 
+      // H-002 FIX: Set active session and persist BEFORE releasing lock
+      this.activeSession = session;
       await this.storage.saveSession(session);
-      await this.notifier.notifyQueued(session, position);
+
+      // 4. Notify user of start
+      await this.notifier.notifyStarted(session);
+
+      // 5. Execute asynchronously (don't await - return immediately)
+      // Note: Lock is released before execution starts
+      this.executeSession(session, project).catch((error) => {
+        // Handle async errors
+        console.error('Session execution failed:', error);
+      });
 
       return session;
+    } finally {
+      // H-002 FIX: Always release lock
+      releaseLock();
     }
-
-    // 3. Create session record
-    const session = createSession(
-      uuidv4(),
-      command.project,
-      command.sprint,
-      command.branch ?? project.defaultBranch,
-      chatContext,
-      triggeredBy
-    );
-
-    this.activeSession = session;
-    await this.storage.saveSession(session);
-
-    // 4. Notify user of start
-    await this.notifier.notifyStarted(session);
-
-    // 5. Execute asynchronously (don't await - return immediately)
-    this.executeSession(session, project).catch((error) => {
-      // Handle async errors
-      console.error('Session execution failed:', error);
-    });
-
-    return session;
   }
 
   /**
@@ -229,8 +289,9 @@ export class SessionManager {
 
       const result = await this.sandboxExecutor.execute(config);
 
-      // Store logs
-      await this.storage.appendLog(session.id, 'claude-output', result.logs);
+      // M-002 FIX: Store logs with secrets redacted
+      const sanitizedLogs = redactSecrets(result.logs);
+      await this.storage.appendLog(session.id, 'claude-output', sanitizedLogs);
 
       // Check for circuit breaker
       if (result.circuitBreaker.tripped) {
@@ -335,33 +396,54 @@ export class SessionManager {
 
   /**
    * Resume a paused session
+   *
+   * M-005 FIX: Properly save state before starting execution
+   * H-002 FIX: Uses locking to prevent concurrent resumes
    */
   async resumeSession(sessionId: string): Promise<Session> {
-    const session = await this.storage.getSession(sessionId);
-    if (!session) {
-      throw new SessionError('E001', 'Session not found');
+    // H-002 FIX: Acquire lock to prevent concurrent resume operations
+    const releaseLock = await this.acquireLock();
+
+    try {
+      const session = await this.storage.getSession(sessionId);
+      if (!session) {
+        throw new SessionError('E001', 'Session not found');
+      }
+
+      if (session.state !== 'PAUSED') {
+        throw new Error(`Cannot resume session in state ${session.state}`);
+      }
+
+      // H-002 FIX: Check if there's already an active session
+      if (this.activeSession && !this.isTerminalState(this.activeSession.state)) {
+        throw new Error('Cannot resume: another session is already active');
+      }
+
+      const project = await this.storage.getProject(session.project);
+      if (!project) {
+        throw new SessionError('E001');
+      }
+
+      // M-005 FIX: Clear pause state and save BEFORE starting execution
+      session.pausedAt = undefined;
+      session.pauseReason = undefined;
+      session.state = 'RUNNING'; // Explicitly set state before execution
+
+      // M-005 FIX: Persist updated state before execution
+      await this.storage.saveSession(session);
+
+      this.activeSession = session;
+
+      // Re-execute (will start from RUNNING state)
+      this.executeSession(session, project).catch((error) => {
+        console.error('Session resume failed:', error);
+      });
+
+      return session;
+    } finally {
+      // H-002 FIX: Always release lock
+      releaseLock();
     }
-
-    if (session.state !== 'PAUSED') {
-      throw new Error(`Cannot resume session in state ${session.state}`);
-    }
-
-    const project = await this.storage.getProject(session.project);
-    if (!project) {
-      throw new SessionError('E001');
-    }
-
-    // Clear pause state
-    session.pausedAt = undefined;
-    session.pauseReason = undefined;
-    this.activeSession = session;
-
-    // Re-execute (will start from RUNNING state)
-    this.executeSession(session, project).catch((error) => {
-      console.error('Session resume failed:', error);
-    });
-
-    return session;
   }
 
   /**

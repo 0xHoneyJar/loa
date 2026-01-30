@@ -6,6 +6,16 @@
 
 import { detectCircuitBreaker, type CircuitBreakerResult } from './circuit-breaker.js';
 import { type Storage } from './storage.js';
+import {
+  validateProjectId,
+  validateSessionId,
+  validateBranchName,
+  validateSprintNumber,
+  sanitizeForShell,
+  sanitizeEnvValue,
+  escapeShellArg,
+  redactSecrets,
+} from './validation.js';
 
 /**
  * Sandbox SDK types (from @cloudflare/sandbox-sdk)
@@ -136,6 +146,9 @@ export class SandboxExecutor {
     const startTime = Date.now();
     let sandbox: Sandbox | null = null;
 
+    // C-002 FIX: Validate all user-derived inputs before sandbox execution
+    this.validateConfig(config);
+
     try {
       // 1. Create sandbox with R2 mount
       sandbox = await this.sandboxBinding.create({
@@ -147,23 +160,30 @@ export class SandboxExecutor {
         ],
       });
 
-      // 2. Set environment variables
+      // 2. C-002 FIX: Set environment variables with sanitized user-derived values
+      // API keys are passed as-is (they come from validated env vars)
+      // User-derived values (project, session, sprint) are sanitized
       await sandbox.setEnvVars({
         ANTHROPIC_API_KEY: config.anthropicKey,
         GITHUB_TOKEN: config.githubToken,
-        PROJECT_NAME: config.project,
-        SPRINT_NUMBER: config.sprint.toString(),
-        SESSION_ID: config.sessionId,
+        // C-002 FIX: Sanitize user-derived values to prevent shell metacharacter injection
+        PROJECT_NAME: sanitizeForShell(config.project),
+        SPRINT_NUMBER: config.sprint.toString(), // Already validated as integer
+        SESSION_ID: config.sessionId, // Already validated as UUID format
         // Disable interactive prompts
         CI: 'true',
         TERM: 'dumb',
       });
 
       // 3. Clone repository with shallow clone for speed
-      const worktreePath = SANDBOX_PATHS.worktree(config.project, config.branch);
+      // C-002 FIX: Use sanitized values for path construction
+      const sanitizedProject = sanitizeForShell(config.project);
+      const sanitizedBranch = sanitizeForShell(config.branch);
+      const worktreePath = SANDBOX_PATHS.worktree(sanitizedProject, sanitizedBranch);
+
       await sandbox.gitCheckout(config.repoUrl, {
         targetDir: worktreePath,
-        branch: config.branch,
+        branch: config.branch, // Git handles branch names safely
         depth: 1,
       });
 
@@ -173,7 +193,7 @@ export class SandboxExecutor {
       // 5. Build the system prompt for Legba context
       const systemPrompt = this.buildSystemPrompt(config);
 
-      // 6. Execute Claude Code with Loa /run command
+      // 6. M-003 FIX: Execute Claude Code with properly escaped command
       const command = this.buildClaudeCommand(systemPrompt, config.sprint, worktreePath);
       const timeout = config.timeout ?? DEFAULT_TIMEOUT;
 
@@ -182,9 +202,10 @@ export class SandboxExecutor {
       // 7. Persist state after execution
       await this.persistState(sandbox, config);
 
-      // 8. Get git diff for PR
+      // 8. M-003 FIX: Use escaped path in git diff command
+      const escapedWorktreePath = escapeShellArg(worktreePath);
       const diffResult = await sandbox.exec(
-        `cd ${worktreePath} && git diff HEAD`,
+        `cd ${escapedWorktreePath} && git diff HEAD`,
         { timeout: 30000 }
       );
 
@@ -192,23 +213,56 @@ export class SandboxExecutor {
       const combinedOutput = result.stdout + result.stderr;
       const circuitBreaker = detectCircuitBreaker(combinedOutput);
 
+      // M-002 FIX: Redact secrets from logs before returning
+      const sanitizedLogs = redactSecrets(combinedOutput);
+
       return {
         success: result.exitCode === 0 && !circuitBreaker.tripped,
-        logs: combinedOutput,
+        logs: sanitizedLogs,
         diff: diffResult.stdout,
         circuitBreaker,
         exitCode: result.exitCode,
         duration: Date.now() - startTime,
       };
     } finally {
-      // Always clean up sandbox
+      // L-003 FIX: Log cleanup errors instead of silently ignoring
       if (sandbox) {
         try {
           await sandbox.destroy();
-        } catch {
-          // Ignore cleanup errors
+        } catch (cleanupError) {
+          // Log the error for monitoring but don't fail the operation
+          console.error('Sandbox cleanup failed:', cleanupError instanceof Error ? cleanupError.message : 'Unknown error');
         }
       }
+    }
+  }
+
+  /**
+   * C-002 FIX: Validate execution configuration before sandbox operations
+   */
+  private validateConfig(config: ExecutionConfig): void {
+    // Validate project ID
+    const projectValidation = validateProjectId(config.project);
+    if (!projectValidation.valid) {
+      throw new Error(`Invalid project ID: ${projectValidation.error}`);
+    }
+
+    // Validate session ID (UUID format)
+    const sessionValidation = validateSessionId(config.sessionId);
+    if (!sessionValidation.valid) {
+      throw new Error(`Invalid session ID: ${sessionValidation.error}`);
+    }
+
+    // Validate branch name
+    const branchValidation = validateBranchName(config.branch);
+    if (!branchValidation.valid) {
+      throw new Error(`Invalid branch name: ${branchValidation.error}`);
+    }
+
+    // L-002 FIX: Validate sprint number range
+    const sprintValidation = validateSprintNumber(config.sprint);
+    if (!sprintValidation.valid) {
+      throw new Error(`Invalid sprint number: ${sprintValidation.error}`);
     }
   }
 
@@ -335,13 +389,15 @@ to create a draft PR for human review.
   }
 
   /**
-   * Build the claude command for execution
+   * M-003 FIX: Build the claude command for execution with proper escaping
    */
   private buildClaudeCommand(systemPrompt: string, sprint: number, cwd: string): string {
-    // Escape the system prompt for shell
-    const escapedPrompt = systemPrompt.replace(/'/g, "'\\''");
+    // Use escapeShellArg for all dynamic values
+    const escapedCwd = escapeShellArg(cwd);
+    const escapedPrompt = escapeShellArg(systemPrompt);
+    const escapedCommand = escapeShellArg(`/run sprint-${sprint}`);
 
-    return `cd ${cwd} && claude --append-system-prompt '${escapedPrompt}' -p '/run sprint-${sprint}' --permission-mode acceptEdits`;
+    return `cd ${escapedCwd} && claude --append-system-prompt ${escapedPrompt} -p ${escapedCommand} --permission-mode acceptEdits`;
   }
 }
 

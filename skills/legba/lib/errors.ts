@@ -110,31 +110,85 @@ export function isLegbaError(error: unknown): error is LegbaError {
 }
 
 /**
+ * M-001 FIX: Patterns that may indicate sensitive information in error messages
+ */
+const SENSITIVE_PATTERNS = [
+  // File paths that might reveal system structure
+  /\/home\/[^/\s]+/gi,
+  /\/Users\/[^/\s]+/gi,
+  /C:\\Users\\[^\\]+/gi,
+  // Internal error messages
+  /at\s+\S+\s+\(\S+:\d+:\d+\)/g, // Stack trace lines
+  // SQL fragments
+  /SELECT\s+.+\s+FROM/gi,
+  /INSERT\s+INTO/gi,
+  /UPDATE\s+.+\s+SET/gi,
+  // API endpoints that might be internal
+  /https?:\/\/[^/]*internal[^/\s]*/gi,
+  /https?:\/\/localhost[:\d]*/gi,
+  // Secret-like patterns (API keys, tokens)
+  /sk-[a-zA-Z0-9_-]+/g,
+  /Bearer\s+[a-zA-Z0-9._-]+/gi,
+];
+
+/**
+ * M-001 FIX: Sanitize error message for safe user display
+ * Removes potentially sensitive information from error messages
+ */
+function sanitizeErrorMessage(message: string): string {
+  let sanitized = message;
+
+  for (const pattern of SENSITIVE_PATTERNS) {
+    sanitized = sanitized.replace(pattern, '[redacted]');
+  }
+
+  // Truncate if too long (might contain stack traces)
+  if (sanitized.length > 200) {
+    sanitized = sanitized.substring(0, 200) + '...';
+  }
+
+  return sanitized;
+}
+
+/**
  * Wrap an unknown error in a user-friendly message
+ *
+ * M-001 FIX: Sanitizes error messages to prevent information disclosure
  */
 export function wrapError(error: unknown): LegbaError {
   if (isLegbaError(error)) {
     return error;
   }
 
-  const message = error instanceof Error ? error.message : String(error);
+  const rawMessage = error instanceof Error ? error.message : String(error);
+
+  // Log the full error for debugging (server-side only)
+  console.error('Legba error:', rawMessage);
+
+  // M-001 FIX: Sanitize the message before including in user-facing error
+  const sanitizedMessage = sanitizeErrorMessage(rawMessage);
 
   // Try to map common errors to codes
-  if (message.includes('not found') || message.includes('404')) {
-    return new LegbaError('E009', message);
+  // Use original message for classification but sanitized for display
+  if (rawMessage.includes('not found') || rawMessage.includes('404')) {
+    return new LegbaError('E009'); // Don't include details for not found
   }
-  if (message.includes('timeout')) {
-    return new LegbaError('E008', message);
+  if (rawMessage.includes('timeout')) {
+    return new LegbaError('E008'); // Don't include details for timeout
   }
-  if (message.includes('GitHub') || message.includes('Octokit')) {
-    return new LegbaError('E012', message);
+  if (rawMessage.includes('GitHub') || rawMessage.includes('Octokit')) {
+    return new LegbaError('E012'); // Don't expose GitHub error details
   }
-  if (message.includes('R2') || message.includes('storage')) {
-    return new LegbaError('E011', message);
+  if (rawMessage.includes('R2') || rawMessage.includes('storage')) {
+    return new LegbaError('E011'); // Don't expose storage error details
   }
 
-  // Generic storage error for unknown errors
-  return new LegbaError('E011', message);
+  // Generic error - use sanitized message only if it doesn't look sensitive
+  if (sanitizedMessage.includes('[redacted]')) {
+    return new LegbaError('E011'); // Something looked sensitive, use generic message
+  }
+
+  return new LegbaError('E011', sanitizedMessage);
 }
 
 /**

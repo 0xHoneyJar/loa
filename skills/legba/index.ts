@@ -14,8 +14,14 @@ import {
 import { createStorage, type Storage } from './lib/storage.js';
 import { createSandboxExecutor } from './lib/sandbox-executor.js';
 import { createNotifier, type MoltbotContext } from './lib/notifier.js';
-import { createGitHubClient } from './lib/github-client.js';
+import { createGitHubClient, type GitHubClient } from './lib/github-client.js';
 import { LegbaError, wrapError, isLegbaError } from './lib/errors.js';
+import {
+  validateCredentials,
+  validateSessionId,
+  validateCommand,
+  MAX_INPUT_LENGTH,
+} from './lib/validation.js';
 import type {
   LegbaCommand,
   RunCommand,
@@ -206,25 +212,53 @@ class LegbaSkill implements Skill {
 
   private sessionManager: SessionManager | null = null;
   private storage: Storage | null = null;
+  private githubClient: GitHubClient | null = null;
   private initialized = false;
+
+  /** Validated credentials (stored after initialization) */
+  private credentials: {
+    anthropicKey: string;
+    githubToken: string;
+    githubAppId: string;
+    githubAppPrivateKey: string;
+  } | null = null;
 
   /**
    * Initialize the skill with environment configuration
+   *
+   * @throws Error if required credentials are missing
    */
   initialize(env: LegbaEnv): void {
     if (this.initialized) return;
 
+    // C-001 FIX: Validate all required credentials at initialization
+    // Fail fast if any are missing instead of using empty fallbacks
+    const credentialValidation = validateCredentials([
+      { name: 'ANTHROPIC_API_KEY', value: env.ANTHROPIC_API_KEY, required: true },
+      { name: 'GITHUB_TOKEN', value: env.GITHUB_TOKEN, required: true },
+      { name: 'GITHUB_APP_ID', value: env.GITHUB_APP_ID, required: true },
+      { name: 'GITHUB_APP_PRIVATE_KEY', value: env.GITHUB_APP_PRIVATE_KEY, required: true },
+    ]);
+
+    if (!credentialValidation.valid) {
+      throw new Error(`Legba initialization failed: ${credentialValidation.error}`);
+    }
+
+    // Store validated credentials for later use
+    this.credentials = {
+      anthropicKey: env.ANTHROPIC_API_KEY,
+      githubToken: env.GITHUB_TOKEN,
+      githubAppId: env.GITHUB_APP_ID,
+      githubAppPrivateKey: env.GITHUB_APP_PRIVATE_KEY,
+    };
+
     this.storage = createStorage(env.LEGBA_R2);
 
-    const sandboxExecutor = createSandboxExecutor();
-
-    const githubClient = createGitHubClient({
-      appId: env.GITHUB_APP_ID,
-      privateKey: env.GITHUB_APP_PRIVATE_KEY,
+    // Create GitHub client once at initialization with validated credentials
+    this.githubClient = createGitHubClient({
+      appId: this.credentials.githubAppId,
+      privateKey: this.credentials.githubAppPrivateKey,
     });
-
-    // Notifier is created per-request with the actual context
-    // For now, use a placeholder - actual notifier created in handle()
 
     this.initialized = true;
   }
@@ -235,6 +269,15 @@ class LegbaSkill implements Skill {
   async handle(message: Message, context: Context): Promise<void> {
     // Check if this is a Legba message
     if (!isLegbaMessage(message.text)) {
+      return;
+    }
+
+    // L-001 FIX: Validate input length to prevent DoS via regex backtracking
+    const commandValidation = validateCommand(message.text);
+    if (!commandValidation.valid) {
+      await context.reply(
+        `Invalid input: ${commandValidation.error}. Maximum length is ${MAX_INPUT_LENGTH} characters.`
+      );
       return;
     }
 
@@ -263,10 +306,10 @@ class LegbaSkill implements Skill {
           await this.handleStatus(command, context);
           break;
         case 'resume':
-          await this.handleResume(command, context);
+          await this.handleResume(command, message, context);
           break;
         case 'abort':
-          await this.handleAbort(command, context);
+          await this.handleAbort(command, message, context);
           break;
         case 'projects':
           await this.handleProjects(context);
@@ -275,7 +318,7 @@ class LegbaSkill implements Skill {
           await this.handleHistory(command, context);
           break;
         case 'logs':
-          await this.handleLogs(command, context);
+          await this.handleLogs(command, message, context);
           break;
         case 'help':
           await this.handleHelp(context);
@@ -300,26 +343,24 @@ class LegbaSkill implements Skill {
     context: Context,
     moltbotContext: MoltbotContext
   ): Promise<void> {
-    if (!this.storage) {
-      throw new LegbaError('E011', 'Skill not initialized');
+    // C-001 FIX: Verify initialization with validated credentials
+    if (!this.storage || !this.credentials || !this.githubClient) {
+      throw new LegbaError('E011', 'Skill not initialized. Call initialize() first.');
     }
 
     // Create session manager with the current context's notifier
+    // Using validated credentials from initialization (no empty fallbacks)
     const notifier = createNotifier(moltbotContext);
     const sandboxExecutor = createSandboxExecutor();
-    const githubClient = createGitHubClient({
-      appId: process.env.GITHUB_APP_ID || '',
-      privateKey: process.env.GITHUB_APP_PRIVATE_KEY || '',
-    });
 
     const sessionManager = createSessionManager({
       storage: this.storage,
       sandboxExecutor,
       notifier,
-      githubClient,
+      githubClient: this.githubClient,
       r2Bucket: {},
-      anthropicKey: process.env.ANTHROPIC_API_KEY || '',
-      githubToken: process.env.GITHUB_TOKEN || '',
+      anthropicKey: this.credentials.anthropicKey,
+      githubToken: this.credentials.githubToken,
     });
 
     // Create chat context
@@ -397,15 +438,33 @@ class LegbaSkill implements Skill {
    */
   private async handleResume(
     command: ResumeCommand,
+    message: Message,
     context: Context
   ): Promise<void> {
-    if (!this.storage) {
+    // C-001 FIX: Verify initialization
+    if (!this.storage || !this.credentials || !this.githubClient) {
       throw new LegbaError('E011', 'Skill not initialized');
+    }
+
+    // H-001 FIX: Validate session ID format
+    const sessionValidation = validateSessionId(command.sessionId);
+    if (!sessionValidation.valid) {
+      throw new LegbaError('E009', sessionValidation.error);
     }
 
     const session = await this.storage.getSession(command.sessionId);
     if (!session) {
       throw new LegbaError('E009');
+    }
+
+    // H-003 FIX: Authorization check - verify user owns the session or has admin privileges
+    const requestingUserId = message.from.id;
+    const requestingUsername = message.from.username || message.from.id;
+    if (!this.isAuthorizedForSession(session, requestingUserId, requestingUsername)) {
+      throw new LegbaError(
+        'E010',
+        'You are not authorized to resume this session. Only the session owner can resume it.'
+      );
     }
 
     if (session.state !== 'PAUSED') {
@@ -415,26 +474,22 @@ class LegbaSkill implements Skill {
       );
     }
 
-    // Create session manager to handle resume
+    // Create session manager to handle resume using validated credentials
     const moltbotContext: MoltbotContext = {
       reply: context.reply,
       sendTo: context.sendTo,
     };
     const notifier = createNotifier(moltbotContext);
     const sandboxExecutor = createSandboxExecutor();
-    const githubClient = createGitHubClient({
-      appId: process.env.GITHUB_APP_ID || '',
-      privateKey: process.env.GITHUB_APP_PRIVATE_KEY || '',
-    });
 
     const sessionManager = createSessionManager({
       storage: this.storage,
       sandboxExecutor,
       notifier,
-      githubClient,
+      githubClient: this.githubClient,
       r2Bucket: {},
-      anthropicKey: process.env.ANTHROPIC_API_KEY || '',
-      githubToken: process.env.GITHUB_TOKEN || '',
+      anthropicKey: this.credentials.anthropicKey,
+      githubToken: this.credentials.githubToken,
     });
 
     await sessionManager.resumeSession(command.sessionId);
@@ -450,15 +505,33 @@ class LegbaSkill implements Skill {
    */
   private async handleAbort(
     command: AbortCommand,
+    message: Message,
     context: Context
   ): Promise<void> {
-    if (!this.storage) {
+    // C-001 FIX: Verify initialization
+    if (!this.storage || !this.credentials || !this.githubClient) {
       throw new LegbaError('E011', 'Skill not initialized');
+    }
+
+    // H-001 FIX: Validate session ID format
+    const sessionValidation = validateSessionId(command.sessionId);
+    if (!sessionValidation.valid) {
+      throw new LegbaError('E009', sessionValidation.error);
     }
 
     const session = await this.storage.getSession(command.sessionId);
     if (!session) {
       throw new LegbaError('E009');
+    }
+
+    // H-003 FIX: Authorization check - verify user owns the session or has admin privileges
+    const requestingUserId = message.from.id;
+    const requestingUsername = message.from.username || message.from.id;
+    if (!this.isAuthorizedForSession(session, requestingUserId, requestingUsername)) {
+      throw new LegbaError(
+        'E010',
+        'You are not authorized to abort this session. Only the session owner can abort it.'
+      );
     }
 
     const terminalStates: SessionState[] = ['COMPLETED', 'FAILED', 'ABORTED'];
@@ -469,26 +542,22 @@ class LegbaSkill implements Skill {
       );
     }
 
-    // Create session manager to handle abort
+    // Create session manager to handle abort using validated credentials
     const moltbotContext: MoltbotContext = {
       reply: context.reply,
       sendTo: context.sendTo,
     };
     const notifier = createNotifier(moltbotContext);
     const sandboxExecutor = createSandboxExecutor();
-    const githubClient = createGitHubClient({
-      appId: process.env.GITHUB_APP_ID || '',
-      privateKey: process.env.GITHUB_APP_PRIVATE_KEY || '',
-    });
 
     const sessionManager = createSessionManager({
       storage: this.storage,
       sandboxExecutor,
       notifier,
-      githubClient,
+      githubClient: this.githubClient,
       r2Bucket: {},
-      anthropicKey: process.env.ANTHROPIC_API_KEY || '',
-      githubToken: process.env.GITHUB_TOKEN || '',
+      anthropicKey: this.credentials.anthropicKey,
+      githubToken: this.credentials.githubToken,
     });
 
     await sessionManager.abortSession(command.sessionId);
@@ -597,15 +666,33 @@ class LegbaSkill implements Skill {
    */
   private async handleLogs(
     command: LogsCommand,
+    message: Message,
     context: Context
   ): Promise<void> {
     if (!this.storage) {
       throw new LegbaError('E011', 'Skill not initialized');
     }
 
+    // H-001 FIX: Validate session ID format
+    const sessionValidation = validateSessionId(command.sessionId);
+    if (!sessionValidation.valid) {
+      throw new LegbaError('E009', sessionValidation.error);
+    }
+
     const session = await this.storage.getSession(command.sessionId);
     if (!session) {
       throw new LegbaError('E009');
+    }
+
+    // H-003/M-002 FIX: Authorization check - restrict log access to session owner
+    // Logs may contain sensitive information, so we limit access
+    const requestingUserId = message.from.id;
+    const requestingUsername = message.from.username || message.from.id;
+    if (!this.isAuthorizedForSession(session, requestingUserId, requestingUsername)) {
+      throw new LegbaError(
+        'E010',
+        'You are not authorized to view logs for this session.'
+      );
     }
 
     const logs = await this.storage.getLog(command.sessionId, 'claude-output');
@@ -640,6 +727,38 @@ class LegbaSkill implements Skill {
       stateNote +
       truncatedNote
     );
+  }
+
+  /**
+   * H-003 FIX: Check if a user is authorized to perform operations on a session
+   *
+   * Authorization rules:
+   * 1. The user who triggered the session is always authorized
+   * 2. Users with matching username (case-insensitive) are authorized
+   * 3. TODO: Add admin/role-based access in future
+   */
+  private isAuthorizedForSession(
+    session: Session,
+    requestingUserId: string,
+    requestingUsername: string
+  ): boolean {
+    // Check if the requesting user matches the session triggeredBy field
+    // The triggeredBy field contains either username or user ID
+    const sessionOwner = session.triggeredBy.toLowerCase();
+    const requestingIdLower = requestingUserId.toLowerCase();
+    const requestingUsernameLower = requestingUsername.toLowerCase();
+
+    // Match by user ID or username
+    if (sessionOwner === requestingIdLower || sessionOwner === requestingUsernameLower) {
+      return true;
+    }
+
+    // Check chat context if available
+    if (session.chatContext?.userId === requestingUserId) {
+      return true;
+    }
+
+    return false;
   }
 
   /**
