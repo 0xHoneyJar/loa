@@ -98,6 +98,11 @@ parse_args() {
         DAYS="$2"
         shift 2
         ;;
+      --sprint-plan)
+        # Called from /run sprint-plan hook - enable force mode
+        FORCE=true
+        shift
+        ;;
       --help|-h)
         usage
         ;;
