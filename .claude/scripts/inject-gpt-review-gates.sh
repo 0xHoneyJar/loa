@@ -9,68 +9,52 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="$ROOT_DIR/.loa.config.yaml"
 SKILLS_DIR="$ROOT_DIR/.claude/skills"
 
-# Gate markers - use XML-style tags, NOT HTML comments (Claude ignores HTML comments!)
-START_MARKER="<gpt_review_gate>"
-END_MARKER="</gpt_review_gate>"
-
-# Gate content for each skill - IMPERATIVE language so Claude doesn't skip
-# Injected BEFORE </workflow> tag to be part of the workflow, not an afterthought
-
-PRD_GATE="$START_MARKER
-
-### Phase 9: GPT Cross-Model Review
+# Gate content for each skill - formatted exactly like other phases, no markers
+PRD_GATE="### Phase 9: GPT Cross-Model Review
 
 Run the GPT review skill on the PRD:
 
 /gpt-review prd
 
-Handle the verdict before proceeding to the next phase.
+Handle the verdict before proceeding to the next phase."
 
-$END_MARKER"
-
-SDD_GATE="$START_MARKER
-
-### Phase 5: GPT Cross-Model Review
+SDD_GATE="### Phase 5: GPT Cross-Model Review
 
 Run the GPT review skill on the SDD:
 
 /gpt-review sdd
 
-Handle the verdict before proceeding to sprint planning.
+Handle the verdict before proceeding to sprint planning."
 
-$END_MARKER"
-
-SPRINT_GATE="$START_MARKER
-
-### Phase 5: GPT Cross-Model Review
+SPRINT_GATE="### Phase 5: GPT Cross-Model Review
 
 Run the GPT review skill on the sprint plan:
 
 /gpt-review sprint
 
-Handle the verdict before proceeding to implementation.
+Handle the verdict before proceeding to implementation."
 
-$END_MARKER"
-
-CODE_GATE="$START_MARKER
-
-### Post-Task: GPT Cross-Model Review
+CODE_GATE="### Post-Task: GPT Cross-Model Review
 
 Run the GPT review skill on modified files:
 
 /gpt-review code <modified-file>
 
-Handle the verdict before proceeding to the next task.
-
-$END_MARKER"
+Handle the verdict before proceeding to the next task."
 
 # Remove gate from a skill file
 remove_gate() {
   local file="$1"
-  if [[ -f "$file" ]] && grep -q "$START_MARKER" "$file"; then
-    # Remove everything between markers (inclusive)
-    sed -i.bak "/$START_MARKER/,/$END_MARKER/d" "$file"
-    rm -f "${file}.bak"
+  # Look for any GPT Cross-Model Review phase header
+  if [[ -f "$file" ]] && grep -q "GPT Cross-Model Review" "$file"; then
+    # Remove from the phase header to just before </workflow>
+    local temp_file="${file}.tmp"
+    awk '
+      /### Phase.*GPT Cross-Model Review|### Post-Task: GPT Cross-Model Review/ { skip=1; next }
+      /<\/workflow>/ { skip=0 }
+      !skip { print }
+    ' "$file" > "$temp_file"
+    mv "$temp_file" "$file"
   fi
 }
 
@@ -86,10 +70,9 @@ add_gate() {
     # Check if file has </workflow> tag
     if grep -q '</workflow>' "$file"; then
       # Insert gate BEFORE </workflow> so it's part of the workflow phases
-      # Write gate to temp file, then use sed to insert
       local gate_file="${file}.gate.tmp"
       local temp_file="${file}.tmp"
-      printf '%s\n' "$gate" > "$gate_file"
+      printf '\n%s\n' "$gate" > "$gate_file"
 
       # Use awk to insert gate content before </workflow>
       awk -v gatefile="$gate_file" '
