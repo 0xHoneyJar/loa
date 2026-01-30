@@ -208,6 +208,37 @@ Include Mermaid code block + preview URL for each diagram.
 </visual_communication>
 ```
 
+## Privacy & Security
+
+### Data Transmission
+
+Diagram content is encoded in the URL and sent to agents.craft.do/mermaid for rendering.
+
+**What's sent:**
+- Mermaid source code (base64 URL-encoded)
+- Theme parameter
+
+**What's NOT sent:**
+- Your project metadata
+- Git information
+- File paths
+- Credentials or secrets
+
+### Privacy Recommendation
+
+For diagrams containing proprietary architecture or security-sensitive details, use offline rendering:
+
+1. Set `include_preview_urls: false` in `.loa.config.yaml`
+2. Render locally using VS Code Mermaid extension or GitHub preview
+
+### Input Validation
+
+The `mermaid-url.sh` script validates:
+- Theme names against an allowlist (prevents injection)
+- Diagram size (rejects >1500 chars per protocol)
+- Basic Mermaid syntax (requires valid diagram type)
+- Config values (only allows safe characters)
+
 ## Related
 
 - `.claude/scripts/mermaid-url.sh` - URL generator script
