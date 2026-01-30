@@ -25,6 +25,10 @@ out/
 
 # Claude Code config (local workspace settings, prompts, scratchpad)
 .claude/config/
+
+# Local settings overrides (user-specific feedback trace configuration)
+# Contains opt-in trace collection settings - never commit to repository
+.claude/settings.local.json
 *.swp
 *.swo
 *~
@@ -73,8 +77,8 @@ grimoires/loa/context/*
 # JSONL format logs for development/debugging, not needed in version control
 grimoires/loa/a2a/trajectory/*.jsonl
 
-# Pending feedback (temporary file for failed Linear submissions)
-# Kept in case /feedback fails to submit to Linear - automatically retried
+# Pending feedback (temporary file for failed GitHub submissions)
+# Kept in case /feedback fails to submit - automatically retried on next invocation
 grimoires/loa/analytics/pending-feedback.json
 
 # Permission audit log (user-specific HITL approval history)

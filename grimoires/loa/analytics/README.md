@@ -13,7 +13,7 @@ Analytics files track:
 ## Files
 
 - `usage.json` - Aggregated usage statistics
-- `pending-feedback.json` - Feedback awaiting submission to Linear (temporary)
+- `pending-feedback.json` - Feedback awaiting submission to GitHub (temporary)
 - `HELPER-PATTERNS.md` - Documented patterns for common workflows
 
 ## Privacy

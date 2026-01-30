@@ -310,13 +310,13 @@ servers:
     description: "Issue tracking"
     scopes: [issues, projects]
     required_by:
-      - command: "/feedback"
-        reason: "Posts feedback to Linear"
+      - skill: "planning-sprints"
+        reason: "Can sync sprint tasks to Linear"
     setup:
       steps: [...]
 groups:
   essential:
-    servers: [linear, github]
+    servers: [github]
 ```
 
 Helper scripts for MCP operations:

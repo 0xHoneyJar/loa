@@ -479,6 +479,56 @@ export LOA_CONSTRUCTS_API_KEY="sk_your_api_key_here"
 
 **Protocol**: See `.claude/protocols/constructs-integration.md`
 
+## Feedback Trace Collection
+
+The `/feedback` command supports opt-in execution trace collection for regression debugging. When enabled, traces are attached to GitHub Issues to help maintainers diagnose failures.
+
+### Configuration
+
+Create `.claude/settings.local.json` (gitignored) to enable trace collection:
+
+```json
+{
+  "feedback": {
+    "collectTraces": true,
+    "traceScope": "execution",
+    "failureWindowSize": 10
+  }
+}
+```
+
+### Configuration Options
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `collectTraces` | boolean | `false` | Enable trace collection |
+| `traceScope` | enum | `"execution"` | Scope of data collected |
+| `failureWindowSize` | number | `10` | Turns before/after failure (for `failure-window` scope) |
+
+### Trace Scopes
+
+| Scope | Data Collected |
+|-------|----------------|
+| `execution` | Plan, ledger, full trajectory |
+| `full` | Everything + NOTES.md + session transcript |
+| `failure-window` | Plan, ledger, ±N turns around failure |
+
+### Privacy Model
+
+1. **Opt-in Only**: Traces are never collected unless explicitly enabled
+2. **Automatic Redaction**: API keys, tokens, and home paths are anonymized
+3. **User Review**: Full preview before submission with edit/remove options
+4. **Local Storage**: Configuration stored in gitignored file
+
+### Secret Redaction
+
+The following patterns are automatically redacted:
+- Anthropic API keys (`sk-*`)
+- GitHub tokens (`ghp_*`, `gho_*`)
+- Generic keys/tokens (`key-*`, `token-*`)
+- Environment variables with SECRET/KEY/TOKEN/PASSWORD
+- Home directory paths (`/home/*/`, `/Users/*/`)
+
 ## Key Conventions
 
 - **Never skip phases** - each builds on previous

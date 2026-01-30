@@ -23,9 +23,6 @@ servers:
       - documents   # Access Linear documents
 
     required_by:
-      - command: "/feedback"
-        reason: "Posts developer feedback to Linear"
-        required: true
       - skill: "planning-sprints"
         reason: "Can sync sprint tasks to Linear"
         required: false

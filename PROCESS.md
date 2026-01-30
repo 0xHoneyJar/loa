@@ -672,45 +672,50 @@ After security audit, if changes required:
 
 ---
 
-### Post-Deployment: Developer Feedback (`/feedback`) - THJ Only
+### Post-Deployment: Developer Feedback (`/feedback`)
 
-**Goal**: Collect developer experience feedback and submit to Linear
+**Goal**: Collect developer experience feedback and submit to GitHub Issues
 
-**Availability**: THJ developers only (detected via `LOA_CONSTRUCTS_API_KEY` environment variable)
+**Availability**: Open to all users (OSS-friendly)
 
 **When to Use**:
 - After completing a deployment
 - After significant time using Loa
+- When encountering issues or failures
 - When suggested by `/deploy-production`
 
 **Process**:
 
-1. **THJ Detection**:
-   - Checks for valid `LOA_CONSTRUCTS_API_KEY` environment variable
-   - If not set or invalid: Displays error with GitHub issues link and stops
-
-2. **Check for Pending Feedback**:
+1. **Check for Pending Feedback**:
    - Looks for `grimoires/loa/analytics/pending-feedback.json`
-   - If found, offers to submit pending feedback first
+   - If found (< 24h old), offers to submit pending feedback first
 
-3. **Survey (4 Questions)**:
+2. **Survey (4 Questions)**:
    - **Q1** (1/4): "What's one thing you would change about Loa?" (free text)
    - **Q2** (2/4): "What's one thing you loved about using Loa?" (free text)
    - **Q3** (3/4): "How would you rate this experience vs other approaches?" (1-5 scale)
    - **Q4** (4/4): "How comfortable are you with the agent-driven process?" (A-E choice)
 
-4. **Prepare Submission**:
-   - Loads analytics from `grimoires/loa/analytics/usage.json`
-   - Saves pending feedback locally (safety net before submission)
-   - Formats feedback with analytics summary
+3. **Regression Classification**:
+   - Select applicable failure categories (if any):
+     - Plan generation issue, Tool selection issue, Tool execution issue
+     - Context loss, Instruction drift, External failure, Other
 
-5. **Submit to Linear**:
-   - Searches for existing issue in "Loa Feedback" project
-   - If found: Adds comment with new feedback
-   - If not found: Creates new issue
-   - Includes full analytics JSON in collapsible details block
+4. **Trace Collection** (opt-in):
+   - If enabled in `.claude/settings.local.json`, collects execution traces
+   - Automatic secret redaction (API keys, tokens, paths)
+   - User reviews trace before inclusion
 
-6. **Record Submission**:
+5. **User Review**:
+   - Preview full issue content before submission
+   - Options: Submit as-is, Edit content, Remove traces, Cancel
+
+6. **Submit to GitHub**:
+   - Uses `gh` CLI if available and authenticated
+   - Falls back to clipboard copy with manual submission URL
+   - Creates issue in `0xHoneyJar/loa` with `feedback` and `user-report` labels
+
+7. **Record Submission**:
    - Updates `feedback_submissions` array in analytics
    - Deletes pending feedback file on success
 
@@ -719,14 +724,23 @@ After security audit, if changes required:
 /feedback
 ```
 
-**Output**: Linear issue/comment in "Loa Feedback" project
+**Output**: GitHub Issue in `0xHoneyJar/loa` repository
 
 **Error Handling**:
-- If Linear submission fails, feedback is saved to `pending-feedback.json`
+- If GitHub submission fails, feedback is saved to `pending-feedback.json`
 - On next `/feedback` run, offers to submit pending feedback
 - No feedback is ever lost due to network/auth issues
 
-**OSS Users**: For issues or feature requests, please open a GitHub issue at https://github.com/0xHoneyJar/loa/issues
+**Trace Configuration** (optional):
+```json
+// .claude/settings.local.json (gitignored)
+{
+  "feedback": {
+    "collectTraces": true,
+    "traceScope": "execution"
+  }
+}
+```
 
 ---
 
@@ -1046,7 +1060,7 @@ command_type: "wizard"  # or "survey", "git"
 | `/review-sprint {sprint}` | Review and approve/reject implementation | `reviewing-code` | `grimoires/loa/a2a/engineer-feedback.md` | All users |
 | `/audit-sprint {sprint}` | Security audit of sprint implementation | `auditing-security` | `grimoires/loa/a2a/auditor-sprint-feedback.md` | All users |
 | `/deploy-production` | Deploy to production | `deploying-infrastructure` | `grimoires/loa/deployment/` | All users |
-| `/feedback` | Submit developer experience feedback | survey | Linear issue in "Loa Feedback" | THJ only |
+| `/feedback` | Submit developer experience feedback | survey | GitHub Issue in `0xHoneyJar/loa` | All users |
 | `/update-loa` | Pull framework updates from upstream | git | Merged updates | All users |
 | `/contribute` | Create OSS contribution PR | git | GitHub PR | All users |
 | `/audit` | Security audit (ad-hoc) | `auditing-security` | `SECURITY-AUDIT-REPORT.md` | All users |
@@ -1433,9 +1447,9 @@ When resuming interrupted work:
 
 # 12. Submit feedback (THJ only, optional but encouraged)
 /feedback
-# → Answer 4 survey questions
-# → Feedback + analytics posted to Linear
-# → OSS users: Open GitHub issue instead
+# → Answer 4 survey questions + classification
+# → Optional: Include execution traces (if enabled)
+# → Feedback posted to GitHub Issues
 
 # 13. Get framework updates (periodically)
 /update-loa

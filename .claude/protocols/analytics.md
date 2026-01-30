@@ -18,7 +18,7 @@ THJ membership is detected via the `LOA_CONSTRUCTS_API_KEY` environment variable
 | **Environment** | Framework version, project name, developer (git user) |
 | **Phases** | Start/completion timestamps for PRD, SDD, sprint planning, deployment |
 | **Sprints** | Sprint number, start/end times, review iterations, audit iterations |
-| **Feedback** | Submission timestamps, Linear issue IDs |
+| **Feedback** | Submission timestamps, GitHub issue URLs |
 
 ## Files
 
