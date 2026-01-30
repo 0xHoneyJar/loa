@@ -127,36 +127,142 @@ redact_secrets() {
     local redacted="$content"
     local original_length=${#content}
 
-    # Anthropic API keys
+    # -------------------------------------------------------------------------
+    # Anthropic API keys (sk-ant-*, sk-*)
+    # -------------------------------------------------------------------------
+    if echo "$redacted" | grep -qE 'sk-ant-[a-zA-Z0-9-]{32,}'; then
+        redacted=$(echo "$redacted" | sed -E 's/sk-ant-[a-zA-Z0-9-]{32,}/[REDACTED:ANTHROPIC_KEY]/g')
+        PATTERNS_MATCHED+=("sk-ant-*")
+    fi
     if echo "$redacted" | grep -qE 'sk-[a-zA-Z0-9]{32,}'; then
         redacted=$(echo "$redacted" | sed -E 's/sk-[a-zA-Z0-9]{32,}/[REDACTED:ANTHROPIC_KEY]/g')
         PATTERNS_MATCHED+=("sk-*")
     fi
 
-    # GitHub tokens
-    if echo "$redacted" | grep -qE 'ghp_[a-zA-Z0-9]{36}'; then
-        redacted=$(echo "$redacted" | sed -E 's/ghp_[a-zA-Z0-9]{36}/[REDACTED:GITHUB_TOKEN]/g')
-        PATTERNS_MATCHED+=("ghp_*")
+    # -------------------------------------------------------------------------
+    # OpenAI API keys (sk-proj-*, sk-admin-*, legacy sk-*)
+    # -------------------------------------------------------------------------
+    if echo "$redacted" | grep -qE 'sk-proj-[a-zA-Z0-9]{48,}'; then
+        redacted=$(echo "$redacted" | sed -E 's/sk-proj-[a-zA-Z0-9]{48,}/[REDACTED:OPENAI_KEY]/g')
+        PATTERNS_MATCHED+=("sk-proj-*")
+    fi
+    if echo "$redacted" | grep -qE 'sk-admin-[a-zA-Z0-9]{48,}'; then
+        redacted=$(echo "$redacted" | sed -E 's/sk-admin-[a-zA-Z0-9]{48,}/[REDACTED:OPENAI_ADMIN_KEY]/g')
+        PATTERNS_MATCHED+=("sk-admin-*")
     fi
 
+    # -------------------------------------------------------------------------
+    # AWS keys
+    # -------------------------------------------------------------------------
+    if echo "$redacted" | grep -qE 'AKIA[0-9A-Z]{16}'; then
+        redacted=$(echo "$redacted" | sed -E 's/AKIA[0-9A-Z]{16}/[REDACTED:AWS_ACCESS_KEY]/g')
+        PATTERNS_MATCHED+=("AKIA*")
+    fi
+
+    # -------------------------------------------------------------------------
+    # GitHub tokens (ghp_*, gho_*, ghs_*, ghr_*)
+    # -------------------------------------------------------------------------
+    if echo "$redacted" | grep -qE 'ghp_[a-zA-Z0-9]{36}'; then
+        redacted=$(echo "$redacted" | sed -E 's/ghp_[a-zA-Z0-9]{36}/[REDACTED:GITHUB_PAT]/g')
+        PATTERNS_MATCHED+=("ghp_*")
+    fi
     if echo "$redacted" | grep -qE 'gho_[a-zA-Z0-9]{36}'; then
         redacted=$(echo "$redacted" | sed -E 's/gho_[a-zA-Z0-9]{36}/[REDACTED:GITHUB_OAUTH]/g')
         PATTERNS_MATCHED+=("gho_*")
     fi
+    if echo "$redacted" | grep -qE 'ghs_[a-zA-Z0-9]{36}'; then
+        redacted=$(echo "$redacted" | sed -E 's/ghs_[a-zA-Z0-9]{36}/[REDACTED:GITHUB_APP]/g')
+        PATTERNS_MATCHED+=("ghs_*")
+    fi
+    if echo "$redacted" | grep -qE 'ghr_[a-zA-Z0-9]{36}'; then
+        redacted=$(echo "$redacted" | sed -E 's/ghr_[a-zA-Z0-9]{36}/[REDACTED:GITHUB_REFRESH]/g')
+        PATTERNS_MATCHED+=("ghr_*")
+    fi
 
-    # Generic key/token patterns
-    if echo "$redacted" | grep -qiE '\b(key|token|secret|password|api_key)=[^[:space:]]+'; then
-        redacted=$(echo "$redacted" | sed -E 's/\b([Kk]ey|[Tt]oken|[Ss]ecret|[Pp]assword|[Aa]pi_key)=[^[:space:]]+/\1=[REDACTED]/gi')
+    # -------------------------------------------------------------------------
+    # Stripe keys (sk_live_*, pk_live_*, sk_test_*, pk_test_*)
+    # -------------------------------------------------------------------------
+    if echo "$redacted" | grep -qE '[sp]k_(live|test)_[a-zA-Z0-9]{24,}'; then
+        redacted=$(echo "$redacted" | sed -E 's/sk_(live|test)_[a-zA-Z0-9]{24,}/[REDACTED:STRIPE_SECRET]/g')
+        redacted=$(echo "$redacted" | sed -E 's/pk_(live|test)_[a-zA-Z0-9]{24,}/[REDACTED:STRIPE_PUBLIC]/g')
+        PATTERNS_MATCHED+=("stripe_*")
+    fi
+
+    # -------------------------------------------------------------------------
+    # Slack tokens (xox[baprs]-*)
+    # -------------------------------------------------------------------------
+    if echo "$redacted" | grep -qE 'xox[baprs]-[a-zA-Z0-9-]+'; then
+        redacted=$(echo "$redacted" | sed -E 's/xox[baprs]-[a-zA-Z0-9-]+/[REDACTED:SLACK_TOKEN]/g')
+        PATTERNS_MATCHED+=("xox*")
+    fi
+
+    # -------------------------------------------------------------------------
+    # Linear API keys (lin_api_*)
+    # -------------------------------------------------------------------------
+    if echo "$redacted" | grep -qE 'lin_api_[a-zA-Z0-9]+'; then
+        redacted=$(echo "$redacted" | sed -E 's/lin_api_[a-zA-Z0-9]+/[REDACTED:LINEAR_KEY]/g')
+        PATTERNS_MATCHED+=("lin_api_*")
+    fi
+
+    # -------------------------------------------------------------------------
+    # SendGrid keys (SG.*)
+    # -------------------------------------------------------------------------
+    if echo "$redacted" | grep -qE 'SG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43}'; then
+        redacted=$(echo "$redacted" | sed -E 's/SG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43}/[REDACTED:SENDGRID_KEY]/g')
+        PATTERNS_MATCHED+=("SG.*")
+    fi
+
+    # -------------------------------------------------------------------------
+    # JWT tokens (eyJ*.eyJ*.*)
+    # -------------------------------------------------------------------------
+    if echo "$redacted" | grep -qE 'eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*'; then
+        redacted=$(echo "$redacted" | sed -E 's/eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*/[REDACTED:JWT]/g')
+        PATTERNS_MATCHED+=("jwt")
+    fi
+
+    # -------------------------------------------------------------------------
+    # Database connection strings (postgres://, mongodb://, mysql://, redis://)
+    # -------------------------------------------------------------------------
+    if echo "$redacted" | grep -qE 'postgres(ql)?://[^:]+:[^@]+@'; then
+        redacted=$(echo "$redacted" | sed -E 's|(postgres(ql)?://)[^:]+:[^@]+@|\1[REDACTED]@|g')
+        PATTERNS_MATCHED+=("postgres_uri")
+    fi
+    if echo "$redacted" | grep -qE 'mongodb(\+srv)?://[^:]+:[^@]+@'; then
+        redacted=$(echo "$redacted" | sed -E 's|(mongodb(\+srv)?://)[^:]+:[^@]+@|\1[REDACTED]@|g')
+        PATTERNS_MATCHED+=("mongodb_uri")
+    fi
+    if echo "$redacted" | grep -qE 'mysql://[^:]+:[^@]+@'; then
+        redacted=$(echo "$redacted" | sed -E 's|(mysql://)[^:]+:[^@]+@|\1[REDACTED]@|g')
+        PATTERNS_MATCHED+=("mysql_uri")
+    fi
+    if echo "$redacted" | grep -qE 'redis://:[^@]+@'; then
+        redacted=$(echo "$redacted" | sed -E 's|(redis://):[^@]+@|\1[REDACTED]@|g')
+        PATTERNS_MATCHED+=("redis_uri")
+    fi
+
+    # -------------------------------------------------------------------------
+    # Private keys (PEM format)
+    # -------------------------------------------------------------------------
+    if echo "$redacted" | grep -qE '-----BEGIN[^-]*PRIVATE KEY-----'; then
+        redacted=$(echo "$redacted" | sed -E 's/-----BEGIN[^-]*PRIVATE KEY-----[^-]*-----END[^-]*PRIVATE KEY-----/[REDACTED:PRIVATE_KEY]/g')
+        PATTERNS_MATCHED+=("private_key")
+    fi
+
+    # -------------------------------------------------------------------------
+    # Generic key/token patterns in environment variables
+    # -------------------------------------------------------------------------
+    if echo "$redacted" | grep -qiE '\b(key|token|secret|password|api_key|apikey|auth)=[^[:space:]]+'; then
+        redacted=$(echo "$redacted" | sed -E 's/\b([Kk]ey|[Tt]oken|[Ss]ecret|[Pp]assword|[Aa]pi_?[Kk]ey|[Aa]uth)=[^[:space:]]+/\1=[REDACTED]/gi')
         PATTERNS_MATCHED+=("env_var_assignment")
     fi
 
-    # Home directories - Linux
+    # -------------------------------------------------------------------------
+    # Home directories - Linux and macOS
+    # -------------------------------------------------------------------------
     if echo "$redacted" | grep -qE '/home/[^/]+/'; then
         redacted=$(echo "$redacted" | sed -E 's|/home/[^/]+/|~/|g')
         PATTERNS_MATCHED+=("home_dir_linux")
     fi
-
-    # Home directories - macOS
     if echo "$redacted" | grep -qE '/Users/[^/]+/'; then
         redacted=$(echo "$redacted" | sed -E 's|/Users/[^/]+/|~/|g')
         PATTERNS_MATCHED+=("home_dir_macos")
@@ -194,7 +300,7 @@ collect_plan() {
 
         content=$(redact_secrets "$content")
     else
-        log_warn "Plan file not found: $plan_file"
+        log_warn "Plan file not found: grimoires/loa/plan.md"
     fi
 
     if command -v jq &>/dev/null; then
@@ -219,7 +325,7 @@ collect_ledger() {
         size=${#content}
         content=$(redact_secrets "$content")
     else
-        log_warn "Ledger file not found: $ledger_file"
+        log_warn "Ledger file not found: grimoires/loa/ledger.json"
     fi
 
     if command -v jq &>/dev/null; then
@@ -277,7 +383,7 @@ collect_trajectory() {
         # Redact secrets in entries
         entries=$(redact_secrets "$entries")
     else
-        log_warn "No trajectory files found in $trajectory_dir"
+        log_warn "No trajectory files found in grimoires/loa/a2a/trajectory/"
     fi
 
     if command -v jq &>/dev/null; then
@@ -309,7 +415,7 @@ collect_notes() {
         size=${#content}
         content=$(redact_secrets "$content")
     else
-        log_warn "NOTES.md not found: $notes_file"
+        log_warn "NOTES.md not found: grimoires/loa/NOTES.md"
     fi
 
     if command -v jq &>/dev/null; then
@@ -462,6 +568,20 @@ main() {
             ;;
     esac
 
+    # Validate window-size is a positive integer (FT-004)
+    if ! [[ "$window_size" =~ ^[0-9]+$ ]]; then
+        log_error "window-size must be a positive integer, got: $window_size"
+        exit 1
+    fi
+    if [[ "$window_size" -eq 0 ]]; then
+        log_error "window-size must be greater than 0"
+        exit 1
+    fi
+    if [[ "$window_size" -gt 1000 ]]; then
+        log_warn "window-size capped at 1000 (was: $window_size)"
+        window_size=1000
+    fi
+
     # Check if trace collection is enabled
     if ! check_trace_enabled; then
         exit 1
@@ -484,7 +604,12 @@ main() {
     local config_window
     config_window=$(get_config_value "failureWindowSize" "$DEFAULT_FAILURE_WINDOW")
     if [[ "$window_size" == "$DEFAULT_FAILURE_WINDOW" && "$config_window" != "$DEFAULT_FAILURE_WINDOW" ]]; then
-        window_size="$config_window"
+        # Validate config window size
+        if [[ "$config_window" =~ ^[0-9]+$ ]] && [[ "$config_window" -gt 0 ]]; then
+            window_size="$config_window"
+        else
+            log_warn "Invalid failureWindowSize in config, using default: $DEFAULT_FAILURE_WINDOW"
+        fi
     fi
 
     log_info "Collecting traces with scope: $scope"
