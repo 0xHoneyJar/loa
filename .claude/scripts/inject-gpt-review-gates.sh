@@ -155,6 +155,18 @@ Wait for the verdict before proceeding:
 - **CHANGES_REQUIRED**: Fix issues, re-invoke with the same file
 - **SKIPPED**: GPT review disabled, continue normally"
 
+# Run mode command gate - for /run, /run sprint-plan, /run-resume
+RUN_CMD_GATE="## GPT Cross-Model Review (MANDATORY)
+
+**IMPORTANT**: GPT review is ENABLED. After completing EACH sprint task during execution:
+
+1. Write \`/tmp/gpt-review-expertise.md\` (domain expertise from PRD)
+2. Write \`/tmp/gpt-review-context.md\` (product context + task purpose + acceptance criteria)
+3. Use Skill tool: \`Skill: gpt-review, Args: code <modified-file>\`
+4. Handle verdict (APPROVED → continue, CHANGES_REQUIRED → fix and retry)
+
+**DO NOT skip GPT review between tasks.** This applies to every implementation task in the run."
+
 # CLAUDE.md banner - injected right after "# CLAUDE.md" title
 # Comprehensive instructions for GPT cross-model review
 CLAUDE_MD_BANNER='---
@@ -441,6 +453,9 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   remove_cmd_gate "$COMMANDS_DIR/architect.md"
   remove_cmd_gate "$COMMANDS_DIR/sprint-plan.md"
   remove_cmd_gate "$COMMANDS_DIR/implement.md"
+  remove_cmd_gate "$COMMANDS_DIR/run.md"
+  remove_cmd_gate "$COMMANDS_DIR/run-sprint-plan.md"
+  remove_cmd_gate "$COMMANDS_DIR/run-resume.md"
 
   # Remove run-mode gate
   remove_run_mode_gate
@@ -471,7 +486,12 @@ if [[ "$enabled" == "true" ]]; then
   add_cmd_gate "$COMMANDS_DIR/sprint-plan.md" "$SPRINT_CMD_GATE"
   add_cmd_gate "$COMMANDS_DIR/implement.md" "$CODE_CMD_GATE"
 
-  # Add run-mode gate (for /run sprint-plan which bypasses normal skill loading)
+  # Add gates to run mode commands
+  add_cmd_gate "$COMMANDS_DIR/run.md" "$RUN_CMD_GATE"
+  add_cmd_gate "$COMMANDS_DIR/run-sprint-plan.md" "$RUN_CMD_GATE"
+  add_cmd_gate "$COMMANDS_DIR/run-resume.md" "$RUN_CMD_GATE"
+
+  # Add run-mode gate to skill (for when skill is loaded directly)
   add_run_mode_gate
 
   # Add banner to CLAUDE.md (Claude reads this automatically!)
@@ -493,6 +513,9 @@ else
   remove_cmd_gate "$COMMANDS_DIR/architect.md"
   remove_cmd_gate "$COMMANDS_DIR/sprint-plan.md"
   remove_cmd_gate "$COMMANDS_DIR/implement.md"
+  remove_cmd_gate "$COMMANDS_DIR/run.md"
+  remove_cmd_gate "$COMMANDS_DIR/run-sprint-plan.md"
+  remove_cmd_gate "$COMMANDS_DIR/run-resume.md"
 
   # Remove run-mode gate
   remove_run_mode_gate
