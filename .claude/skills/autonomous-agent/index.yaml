@@ -10,6 +10,15 @@ command: /autonomous
 context: fork
 
 config:
+  # Operator detection
+  operator:
+    type: auto                    # auto | human | ai
+    ai_config:
+      enforce_autonomous_skill: true   # Auto-wrap skills with /autonomous
+      strict_quality_gates: true       # All gates mandatory
+      require_audit_before_pr: true    # No PR without audit pass
+      require_audit_before_deploy: true
+  
   # Quality thresholds
   audit_threshold: 4          # Minimum score out of 5
   max_remediation_loops: 3    # Escalate after N failed attempts

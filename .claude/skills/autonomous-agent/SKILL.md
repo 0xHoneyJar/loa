@@ -46,12 +46,66 @@ If uncertain: STOP and ASK rather than proceed with assumptions.
 ```
 </execution_model>
 
+<operator_detection>
+## Operator Detection
+
+Loa adapts behavior based on operator type. See `resources/operator-detection.md` for full details.
+
+### Configuration
+
+```yaml
+# .loa.config.yaml
+operator:
+  type: auto | human | ai
+  ai_config:
+    enforce_autonomous_skill: true
+    strict_quality_gates: true
+    require_audit_before_pr: true
+```
+
+### Detection Heuristics (when `type: auto`)
+
+1. **Environment**: `CLAWDBOT_AGENT=true` or `LOA_OPERATOR=ai`
+2. **AGENTS.md**: Contains `operator: ai` or AI-specific markers
+3. **Heartbeat**: Presence of `HEARTBEAT.md` with cron patterns
+4. **TTY**: Non-interactive session (`!process.stdin.isTTY`)
+
+### Behavior Adaptation
+
+| Operator | Behavior |
+|----------|----------|
+| **Human** | Interactive, suggestions, flexible process |
+| **AI** | Auto-wrap with `/autonomous`, mandatory audit, strict gates |
+
+### Auto-Wrapping
+
+When AI detected and `enforce_autonomous_skill: true`:
+
+```
+Human: /implement task-1
+AI:    /implement task-1 → auto-wrapped with → /autonomous --target implement
+```
+
+All quality gates enforced. No shortcuts.
+</operator_detection>
+
 <phase_0_preflight>
 ## Phase 0: Preflight
 
-**Purpose:** Restore context, verify integrity, select work.
+**Purpose:** Restore context, verify integrity, detect operator, select work.
 
-### 0.1 Session Continuity
+### 0.1 Operator Detection
+
+```markdown
+1. Check environment variables (LOA_OPERATOR, CLAWDBOT_AGENT)
+2. Parse AGENTS.md for operator markers
+3. Check for HEARTBEAT.md patterns
+4. Detect TTY mode
+5. Set operator_type: 'human' | 'ai'
+6. Load ai_config if operator_type == 'ai'
+```
+
+### 0.2 Session Continuity
 
 ```markdown
 1. Read `grimoires/loa/NOTES.md`
@@ -60,7 +114,7 @@ If uncertain: STOP and ASK rather than proceed with assumptions.
 4. Load previous trajectory if continuing work
 ```
 
-### 0.2 System Zone Integrity
+### 0.3 System Zone Integrity
 
 ```bash
 # MANDATORY - Run before any work
