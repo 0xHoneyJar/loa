@@ -5,6 +5,9 @@
 # Sprint 16: Generate visual diagrams for compound learning outputs
 # Goal Contribution: PRD FR-10 (Visualization)
 #
+# Integrates with visual_communication protocol (see .claude/protocols/visual-communication.md)
+# Uses mermaid-url.sh for secure preview URL generation
+#
 # Usage:
 #   ./generate-visualizations.sh [type] [options]
 #
@@ -17,6 +20,7 @@
 # Options:
 #   --output DIR        Output directory (default: grimoires/loa/diagrams)
 #   --format FORMAT     Output format: mermaid|ascii
+#   --with-url          Generate Beautiful Mermaid preview URLs
 #   --help              Show this help
 # =============================================================================
 
@@ -27,9 +31,11 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 OUTPUT_DIR="${PROJECT_ROOT}/grimoires/loa/diagrams"
 PATTERNS_FILE="${PROJECT_ROOT}/grimoires/loa/a2a/compound/patterns.json"
 LEARNINGS_FILE="${PROJECT_ROOT}/grimoires/loa/a2a/compound/learnings.json"
+MERMAID_URL_SCRIPT="${SCRIPT_DIR}/mermaid-url.sh"
 
 DIAGRAM_TYPE="pattern-flowchart"
 FORMAT="mermaid"
+WITH_URL=false
 
 usage() {
   sed -n '/^# Usage:/,/^# =====/p' "$0" | grep -v "^# =====" | sed 's/^# //'
@@ -38,15 +44,32 @@ usage() {
 
 parse_args() {
   [[ $# -gt 0 && ! "$1" =~ ^-- ]] && { DIAGRAM_TYPE="$1"; shift; }
-  
+
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --output) OUTPUT_DIR="$2"; shift 2 ;;
       --format) FORMAT="$2"; shift 2 ;;
+      --with-url) WITH_URL=true; shift ;;
       --help|-h) usage ;;
       *) shift ;;
     esac
   done
+}
+
+# Generate preview URL using mermaid-url.sh (visual_communication protocol)
+generate_preview_url() {
+  local mermaid_content="$1"
+
+  if [[ ! -x "$MERMAID_URL_SCRIPT" ]]; then
+    echo "[WARN] mermaid-url.sh not found, skipping URL generation" >&2
+    return 1
+  fi
+
+  # Use our security-hardened URL generator
+  echo "$mermaid_content" | "$MERMAID_URL_SCRIPT" --stdin 2>/dev/null || {
+    echo "[WARN] URL generation failed (diagram may exceed size limit)" >&2
+    return 1
+  }
 }
 
 # Generate pattern flowchart
@@ -219,12 +242,12 @@ EOF
 
 main() {
   parse_args "$@"
-  
+
   mkdir -p "$OUTPUT_DIR"
-  
+
   local output=""
   local filename=""
-  
+
   case "$DIAGRAM_TYPE" in
     pattern-flowchart)
       output=$(generate_pattern_flowchart)
@@ -251,13 +274,22 @@ main() {
       usage
       ;;
   esac
-  
+
   if [[ "$FORMAT" == "ascii" ]]; then
     generate_ascii
   else
     echo "$output" | tee "${OUTPUT_DIR}/${filename}"
     echo ""
     echo "[INFO] Written to ${OUTPUT_DIR}/${filename}"
+
+    # Generate preview URL if requested (uses visual_communication protocol)
+    if [[ "$WITH_URL" == "true" ]]; then
+      local preview_url
+      if preview_url=$(generate_preview_url "$output"); then
+        echo ""
+        echo "**Preview**: $preview_url"
+      fi
+    fi
   fi
 }
 

@@ -647,6 +647,8 @@ compound_learning:
   # -------------------------------------------------------------------------
   # Mermaid Visualization (PRD FR-10)
   # -------------------------------------------------------------------------
+  # NOTE: Preview URLs use visual_communication protocol (see above section)
+  # This section configures compound-learning-specific diagram settings
   visualization:
     # Enable Mermaid diagram generation
     enabled: true
@@ -656,6 +658,8 @@ compound_learning:
     output_dir: grimoires/loa/diagrams/
     # Include diagrams in compound reports
     include_in_reports: true
+    # Generate Beautiful Mermaid preview URLs (uses visual_communication.service)
+    include_preview_urls: true
     # Color scheme for effectiveness levels
     color_scheme:
       high_effectiveness: "#10b981"   # green

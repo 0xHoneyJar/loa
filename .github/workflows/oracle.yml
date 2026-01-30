@@ -1,0 +1,169 @@
+name: Anthropic Oracle
+
+on:
+  schedule:
+    # Run weekly on Mondays at 9:00 UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+    inputs:
+      create_issue:
+        description: 'Create issue for manual analysis'
+        required: false
+        default: 'true'
+        type: boolean
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check-updates:
+    name: Check Anthropic Updates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup cache directory
+        run: mkdir -p ~/.loa/cache/oracle
+
+      - name: Fetch Anthropic sources
+        id: fetch
+        run: |
+          # Fetch each source and track results
+          SOURCES=(
+            "docs|https://docs.anthropic.com/en/docs/claude-code"
+            "changelog|https://docs.anthropic.com/en/release-notes/claude-code"
+            "api_reference|https://docs.anthropic.com/en/api"
+            "blog|https://www.anthropic.com/news"
+            "github_claude_code|https://github.com/anthropics/claude-code"
+            "github_sdk|https://github.com/anthropics/anthropic-sdk-python"
+          )
+
+          FETCHED=0
+          FAILED=0
+
+          for source in "${SOURCES[@]}"; do
+            IFS='|' read -r name url <<< "$source"
+            echo "Fetching $name from $url..."
+
+            if curl -sL --max-time 30 "$url" -o ~/.loa/cache/oracle/${name}.html 2>/dev/null; then
+              echo "  ✓ $name fetched"
+              ((FETCHED++))
+            else
+              echo "  ✗ $name failed"
+              ((FAILED++))
+            fi
+          done
+
+          echo "fetched=$FETCHED" >> $GITHUB_OUTPUT
+          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+          echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+
+      - name: Generate manifest
+        run: |
+          cat > ~/.loa/cache/oracle/manifest.json << EOF
+          {
+            "timestamp": "${{ steps.fetch.outputs.timestamp }}",
+            "fetched": ${{ steps.fetch.outputs.fetched }},
+            "failed": ${{ steps.fetch.outputs.failed }},
+            "sources": {
+              "docs": "https://docs.anthropic.com/en/docs/claude-code",
+              "changelog": "https://docs.anthropic.com/en/release-notes/claude-code",
+              "api_reference": "https://docs.anthropic.com/en/api",
+              "blog": "https://www.anthropic.com/news",
+              "github_claude_code": "https://github.com/anthropics/claude-code",
+              "github_sdk": "https://github.com/anthropics/anthropic-sdk-python"
+            },
+            "interest_areas": [
+              "hooks", "tools", "context", "agents", "mcp", "memory",
+              "skills", "commands", "slash commands", "settings",
+              "configuration", "api", "sdk", "streaming", "batch", "vision", "files"
+            ],
+            "instructions": "Run /oracle-analyze in Claude Code to analyze these sources"
+          }
+          EOF
+
+          cat ~/.loa/cache/oracle/manifest.json
+
+      - name: Upload cache artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: oracle-cache-${{ github.run_number }}
+          path: ~/.loa/cache/oracle/
+          retention-days: 7
+
+      - name: Check for existing open issues
+        id: check_existing
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'oracle,automated'
+            });
+
+            // If there's an open oracle issue from the last 7 days, skip
+            const recentIssue = issues.data.find(issue => {
+              const created = new Date(issue.created_at);
+              const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+              return created > weekAgo;
+            });
+
+            if (recentIssue) {
+              console.log(`Skipping issue creation - recent issue exists: #${recentIssue.number}`);
+              return { skip: true, issueNumber: recentIssue.number };
+            }
+            return { skip: false };
+          result-encoding: json
+
+      - name: Create analysis issue
+        if: ${{ github.event.inputs.create_issue != 'false' && !fromJson(steps.check_existing.outputs.result).skip }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const timestamp = '${{ steps.fetch.outputs.timestamp }}';
+            const fetched = '${{ steps.fetch.outputs.fetched }}';
+            const failed = '${{ steps.fetch.outputs.failed }}';
+
+            const body = `## Anthropic Oracle - Weekly Check
+
+            **Timestamp**: ${timestamp}
+            **Sources Fetched**: ${fetched}
+            **Sources Failed**: ${failed}
+
+            ### Next Steps
+
+            1. Download the cached sources from this workflow run's artifacts
+            2. Run \`/oracle-analyze\` in Claude Code to analyze the content
+            3. Generate a research document with findings
+            4. Create a PR if significant updates are found
+
+            ### Sources Monitored
+
+            - [Claude Code Docs](https://docs.anthropic.com/en/docs/claude-code)
+            - [Claude Code Changelog](https://docs.anthropic.com/en/release-notes/claude-code)
+            - [API Reference](https://docs.anthropic.com/en/api)
+            - [Anthropic Blog](https://www.anthropic.com/news)
+            - [GitHub - Claude Code](https://github.com/anthropics/claude-code)
+            - [GitHub - Python SDK](https://github.com/anthropics/anthropic-sdk-python)
+
+            ### Interest Areas
+
+            hooks, tools, context, agents, mcp, memory, skills, commands, slash commands, settings, configuration, api, sdk, streaming, batch, vision, files
+
+            ---
+
+            *This issue was automatically created by the Anthropic Oracle workflow.*
+            `;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[Oracle] Anthropic Updates Check - ${timestamp.split('T')[0]}`,
+              body: body,
+              labels: ['research', 'oracle', 'automated']
+            });
