@@ -165,8 +165,8 @@ generate_summary() {
   # Process events with jq
   local summary
   summary=$(cat "$events_file" | jq -s \
-    --arg start "$START_DATE" \
-    --arg end "$END_DATE" \
+    --arg startd "$START_DATE" \
+    --arg endd "$END_DATE" \
     --argjson files "$total_files" \
     --argjson sessions "$sessions" \
     '
@@ -174,8 +174,8 @@ generate_summary() {
       total_events: length,
       total_files: $files,
       date_range: { 
-        start: $start, 
-        end: $end,
+        start: $startd, 
+        end: $endd,
         first_event: (map(.timestamp) | min // null),
         last_event: (map(.timestamp) | max // null)
       },
