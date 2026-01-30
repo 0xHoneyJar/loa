@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "type": "skill",
+  "slug": "test-vendor/expired-skill",
+  "version": "1.0.0",
+  "registry": "default",
+  "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InRlc3Qta2V5LTAxIn0.eyJzdWIiOiJ1c3JfdGVzdDEyMyIsInNraWxsIjoidGVzdC12ZW5kb3IvZXhwaXJlZC1za2lsbCIsInZlcnNpb24iOiIxLjAuMCIsInRpZXIiOiJwcm8iLCJ3YXRlcm1hcmsiOiJhMWIyYzNkNGU1ZjZnN2g4aTlqMGsxbDJtM240bzVwNiIsImxpZCI6ImxpY190ZXN0Nzg5IiwiaXNzIjoiaHR0cHM6Ly9hcGkubG9hc2tpbGxzLmRldiIsImF1ZCI6ImxvYS1za2lsbHMtY2xpZW50IiwiaWF0IjoxNzY3MjkyOTI3LCJleHAiOjE3NjYzODkzMjd9.r13WfJaGtGTeI63DJ8Junl6Lhz2dTTgswBti5xDYVf37QitedxLuvoWK1QvIGRx0-1Xak9WbvZu4Wh_6J02fTtLYQWpwi1Ocd77GOJhvXLUNbn7qOjK3oozPJhRe0BQHtliShWrNDjzAsG2UVIV5f52mLwB0PjdEm8-p6RstCIXjiJTgdM4qq8BfvSFchcBXgNx848w-WcOpPwq9hyIF6Xvo2X5-hXgreMKZuxVnzH80qLXw_lBGfJgS2W7EzWc_ajQHKNlPLvExK6QkR6BUv6Oou756VhD28MZ8qAguQYuo4PrrTkhh2A40qLVLk27As7zMV2yZ-3VxQNN3pIgvaQ",
+  "tier": "pro",
+  "watermark": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
+  "issued_at": "2026-01-02T05:42:07Z",
+  "expires_at": "2025-12-22T18:42:07Z",
+  "offline_valid_until": "2025-12-23T18:42:07Z"
+}

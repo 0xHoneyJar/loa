@@ -1,0 +1,57 @@
+# Loa Framework Git Attributes
+# These settings ensure smooth updates from upstream without overwriting project files
+
+# =============================================================================
+# PROJECT IDENTITY FILES
+# =============================================================================
+# These files define YOUR project, not the Loa framework.
+# Using merge=ours ensures your versions are preserved during `git merge loa/main`
+#
+# IMPORTANT: For this to work, downstream projects must configure the merge driver:
+#   git config merge.ours.driver true
+#
+# This is a one-time setup that tells Git to always keep the local version
+# when merging these files from upstream.
+
+README.md merge=ours
+CHANGELOG.md merge=ours
+
+# =============================================================================
+# LINE ENDING NORMALIZATION
+# =============================================================================
+# Ensure consistent line endings across platforms
+
+* text=auto
+
+# Shell scripts should always have LF endings
+*.sh text eol=lf
+
+# Batch files should have CRLF on Windows
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# =============================================================================
+# BINARY FILES
+# =============================================================================
+# Treat these as binary (no diff, no merge)
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.tar.gz binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+
+# =============================================================================
+# DIFF SETTINGS
+# =============================================================================
+# Use appropriate diff drivers for better diffs
+
+*.md diff=markdown
+*.json diff=json

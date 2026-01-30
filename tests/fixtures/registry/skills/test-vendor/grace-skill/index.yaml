@@ -1,0 +1,4 @@
+name: grace-skill
+version: "1.0.0"
+description: Test skill in grace period for unit testing
+vendor: test-vendor

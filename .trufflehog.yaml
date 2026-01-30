@@ -1,0 +1,28 @@
+# TruffleHog Configuration
+# Exclude false positives from secret scanning
+
+# Paths to exclude
+exclude_paths:
+  # Generic patterns
+  - "*.example"
+  - "*.template"
+  - "*.md.template"
+
+  # Application artifacts (app/)
+  - "app/secrets/.env.local.example"
+  - "app/config/*.example"
+  - "app/.env.example"
+  - "app/.env.*.example"
+
+  # Loa process artifacts (grimoires/loa/)
+  - "grimoires/loa/deployment/SECRETS-SETUP-GUIDE.md"
+  - "grimoires/loa/deployment/runbooks/secrets-rotation.md"
+  - "grimoires/loa/audits/**/SECURITY-AUDIT-REPORT.md"
+  - "grimoires/loa/audits/**/SECURITY-FIXES.md"
+  - "grimoires/loa/audits/**/REMEDIATION-PLAN.md"
+
+  # Agent command documentation
+  - ".claude/commands/*.md"
+
+# Only report verified secrets (not just patterns)
+only_verified: true

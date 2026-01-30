@@ -1,0 +1,168 @@
+name: Melange Discord Notification
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    if: contains(github.event.issue.labels.*.name, 'melange')
+
+    steps:
+      - name: Process Melange Issue
+        uses: actions/github-script@v7
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.MELANGE_DISCORD_WEBHOOK }}
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const labels = issue.labels.map(l => l.name);
+            const body = issue.body || '';
+
+            // Construct → Discord User ID mapping
+            // To add a new construct: add entry with Discord user ID
+            // Get ID: Right-click user in Discord → Copy User ID
+            const OPERATOR_MAP = {
+              'loa': '970593060553646101',
+              'sigil': '259646475666063360',
+              'loa-constructs': '970593060553646101'
+              // Add more constructs here as needed
+            };
+
+            // Extract routing from labels or body
+            let toConstruct = 'unknown';
+            const toLabel = labels.find(l => l.startsWith('to:'));
+            if (toLabel) {
+              toConstruct = toLabel.replace('to:', '');
+            } else {
+              const toMatch = body.match(/### To \(Receiving Construct\)\s*\n\n(\w+)/i);
+              if (toMatch) toConstruct = toMatch[1].toLowerCase();
+            }
+
+            // Extract impact from labels or body
+            let impact = 'unknown';
+            const impactLabel = labels.find(l => l.startsWith('impact:'));
+            if (impactLabel) {
+              impact = impactLabel.replace('impact:', '');
+            } else {
+              const impactMatch = body.match(/### Impact\s*\n\n([\w-]+)/i);
+              if (impactMatch) impact = impactMatch[1].toLowerCase();
+            }
+
+            // Extract intent from labels or body
+            let intent = 'request';
+            const intentLabel = labels.find(l => l.startsWith('intent:'));
+            if (intentLabel) {
+              intent = intentLabel.replace('intent:', '');
+            } else {
+              const intentMatch = body.match(/### Intent\s*\n\n(\w+)/i);
+              if (intentMatch) intent = intentMatch[1].toLowerCase();
+            }
+
+            // Extract from operator
+            let fromOperator = context.repo.repo;
+            const fromMatch = body.match(/### From \(Your Construct \+ Operator\)\s*\n\n(.+)/i);
+            if (fromMatch) fromOperator = fromMatch[1].trim();
+
+            // Extract experience summary (first 200 chars, collapse newlines)
+            let experience = '—';
+            const expMatch = body.match(/### What are you experiencing\?\s*\n\n([\s\S]*?)(?=\n###|$)/i);
+            if (expMatch) {
+              experience = expMatch[1].trim().replace(/\n+/g, ' ').substring(0, 200);
+              if (expMatch[1].trim().length > 200) experience += '...';
+            }
+
+            // Extract request (collapse newlines)
+            let request = '—';
+            const reqMatch = body.match(/### What would help\?\s*\n\n([\s\S]*?)(?=\n###|$)/i);
+            if (reqMatch) {
+              request = reqMatch[1].trim().replace(/\n+/g, ' ').substring(0, 150);
+              if (reqMatch[1].trim().length > 150) request += '...';
+            }
+
+            const fromRepo = context.repo.repo;
+            const title = issue.title.replace('[Melange] ', '');
+
+            // Auto-apply routing label if missing
+            if (!labels.some(l => l.startsWith('to:'))) {
+              const validConstructs = ['sigil', 'loa', 'registry', 'loa-constructs'];
+              if (validConstructs.includes(toConstruct)) {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  labels: [`to:${toConstruct}`]
+                });
+              }
+            }
+
+            // Auto-apply impact label if missing
+            if (!labels.some(l => l.startsWith('impact:'))) {
+              const validImpacts = ['game-changing', 'important', 'nice-to-have'];
+              if (validImpacts.includes(impact)) {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  labels: [`impact:${impact}`]
+                });
+              }
+            }
+
+            // Send Discord notification
+            const webhook = process.env.DISCORD_WEBHOOK;
+            if (!webhook) {
+              console.log('No Discord webhook configured');
+              return;
+            }
+
+            // Skip nice-to-have (silent)
+            if (impact === 'nice-to-have') {
+              console.log('Skipping notification for nice-to-have impact');
+              return;
+            }
+
+            const isGameChanging = impact === 'game-changing';
+            const emoji = isGameChanging ? '🔴' : '🟡';
+            const color = isGameChanging ? 15158332 : 16776960; // Red or Yellow
+
+            const payload = {
+              embeds: [{
+                title: `${emoji} ${title}`,
+                url: issue.html_url,
+                color: color,
+                fields: [
+                  { name: "From", value: fromOperator, inline: true },
+                  { name: "To", value: toConstruct, inline: true },
+                  { name: "Intent", value: intent, inline: true },
+                  { name: "Experience", value: experience },
+                  { name: "Request", value: request }
+                ],
+                footer: { text: `Melange Protocol • ${fromRepo}#${issue.number}` },
+                timestamp: issue.created_at
+              }]
+            };
+
+            // Ping specific operator instead of @here
+            const operatorDiscordId = OPERATOR_MAP[toConstruct];
+            if (operatorDiscordId) {
+              // Targeted ping to the construct's operator
+              payload.content = `<@${operatorDiscordId}>`;
+            } else if (isGameChanging) {
+              // Fallback to @here only for game-changing if no mapping exists
+              payload.content = "@here";
+            }
+
+            const response = await fetch(webhook, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+              const text = await response.text();
+              core.setFailed(`Discord webhook failed: ${response.status} ${text}`);
+            } else {
+              console.log(`Discord notification sent for ${impact} issue`);
+            }

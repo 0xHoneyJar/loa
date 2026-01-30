@@ -1,15 +1,33 @@
 {
-  "framework_version": "1.7.2",
+  "framework_version": "1.10.0",
   "schema_version": 2,
-  "last_sync": "2026-01-30T21:58:15Z",
+  "last_sync": null,
   "zones": {
     "system": ".claude",
-    "state": ["grimoires/loa", ".beads"],
+    "state": ["grimoires", ".beads", ".ck"],
     "app": ["src", "lib", "app"]
   },
-  "migrations_applied": ["001_init_zones"],
+  "migrations_applied": ["1.1.0-beads-rust"],
   "integrity": {
     "enforcement": "strict",
-    "last_verified": "2026-01-30T21:58:15Z"
+    "last_verified": null
+  },
+  "dependencies": {
+    "ck": {
+      "version": ">=0.7.0",
+      "optional": true,
+      "install": "cargo install ck-search",
+      "purpose": "Semantic code search for enhanced agent precision"
+    },
+    "br": {
+      "version": "any",
+      "optional": true,
+      "install": "cargo install beads_rust",
+      "purpose": "Task graph tracking for sprint management (Rust implementation)"
+    }
+  },
+  "binary_fingerprints": {
+    "ck": "",
+    "comment": "SHA-256 fingerprints updated post-install for binary integrity verification"
   }
 }

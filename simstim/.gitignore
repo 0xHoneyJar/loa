@@ -1,0 +1,36 @@
+# Simstim local configuration (contains user-specific settings)
+simstim.toml
+
+# Audit logs (may contain sensitive data)
+*.audit.jsonl
+audit/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# UV
+.uv/
