@@ -3,7 +3,6 @@ import Development from "@/components/board/development";
 import Feed from "@/components/board/feed";
 import Guide from "@/components/board/guide";
 import Portfolio from "@/components/board/portfolio";
-import Mint from "@/components/board/mint";
 import NFT from "@/components/board/nft";
 import Partners from "@/components/board/partners";
 import Quotes from "@/components/board/quotes";
@@ -17,11 +16,9 @@ import Artwork from "@/components/board/artwork";
 import Data from "@/components/board/data";
 import Honeycomb from "@/components/board/honeycomb";
 import Validator from "@/components/board/validator";
-import Follow from "@/components/board/follow";
 import OogaBooga from "@/components/board/ooga-booga";
 import Raffles from "@/components/board/raffles";
 import Beardrops from "@/components/board/beardrops";
-import Ramen from "@/components/board/ramen";
 
 export const DASHBOARD = [
   {
@@ -37,27 +34,9 @@ export const DASHBOARD = [
     hidden: false,
   },
   {
-    name: "Follow Us",
-    key: "follow",
-    ui: <Follow />,
-    hidden: false,
-  },
-  {
     name: "New Partners",
     key: "newPartners",
     ui: <NewPartners />,
-    hidden: false,
-  },
-  {
-    name: "Ramen IDO",
-    key: "ramen",
-    ui: <Ramen />,
-    hidden: false,
-  },
-  {
-    name: "New Mint",
-    key: "mint",
-    ui: <Mint />,
     hidden: false,
   },
   {

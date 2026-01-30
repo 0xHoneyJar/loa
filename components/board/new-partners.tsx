@@ -92,6 +92,17 @@ const NewPartners = ({ partners }: { partners?: any }) => {
 
 export default NewPartners;
 
+type PartnerStatus = "platinum" | "gold" | "silver" | "bronze" | "backed" | "joint";
+
+const statusConversion: Record<PartnerStatus, string> = {
+  platinum: "Flagship",
+  gold: "Strategic",
+  silver: "Integration",
+  bronze: "Ecosystem",
+  backed: "Backed",
+  joint: "Joint",
+};
+
 const StatusDisplay = ({ status }: { status: string }) => {
   const statusImage =
     status === "platinum"
@@ -104,14 +115,9 @@ const StatusDisplay = ({ status }: { status: string }) => {
             ? "/partners/status/incubated.png"
             : "/partners/status/bronze.png";
 
-  const statusConversion = {
-    platinum: "Flagship",
-    gold: "Strategic",
-    silver: "Integration",
-    bronze: "Ecosystem",
-    backed: "Backed",
-    joint: "Joint",
-  };
+  const displayStatus = (status in statusConversion)
+    ? statusConversion[status as PartnerStatus]
+    : "Ecosystem";
 
   return (
     <div className="flex items-center gap-1 rounded-lg border border-[#1C1C1C] bg-gradient-to-b from-[#262626] to-[#141414] px-2 py-1">
@@ -135,8 +141,7 @@ const StatusDisplay = ({ status }: { status: string }) => {
             status === "platinum" ? "drop-shadow(#FFFFFF80 0 0 10px)" : "none",
         }}
       >
-        {/* @ts-ignore */}
-        {statusConversion?.[status]?.toUpperCase()}
+        {displayStatus.toUpperCase()}
       </p>
     </div>
   );

@@ -1,9 +1,7 @@
 import Marquee from "react-fast-marquee";
 import React from "react";
 import Updates from "@/components/board/updates";
-import Follow from "@/components/board/follow";
 import NewPartners from "@/components/board/new-partners";
-import Mint from "@/components/board/mint";
 import Article from "@/components/board/article";
 import Spotlight from "@/components/board/spotlight";
 import Development from "@/components/board/development";
@@ -23,7 +21,6 @@ import Tools from "@/components/board/tools";
 import Beardrops from "@/components/board/beardrops";
 import OogaBooga from "@/components/board/ooga-booga";
 import Quotes from "@/components/board/quotes";
-import Ramen from "@/components/board/ramen";
 
 const BoardSection = ({
   partners,
@@ -59,18 +56,9 @@ const BoardSection = ({
           <div className="row-span-1 lg:col-span-full">
             <Updates updates={community.updates} />
           </div>
-          {/* <div className="row-span-1 lg:col-span-1">
-            <Follow />
-          </div> */}
           <div className="row-span-1 lg:col-span-full">
             <NewPartners partners={partners} />
           </div>
-          {/* <div className="row-span-1 lg:col-span-full">
-            <Ramen />
-          </div>
-          <div className="row-span-2 lg:col-span-full">
-            <Mint mints={community.mints} />
-          </div> */}
           <div className="row-span-1 lg:col-span-full">
             <Article />
           </div>
