@@ -1,0 +1,52 @@
+name: autonomous-agent
+description: |
+  Meta-orchestrator for exhaustive loa process compliance.
+  Ensures autonomous work matches human-level discernment and quality.
+  Invokes all loa skills in correct sequence with mandatory quality gates.
+version: 1.0.0
+author: Legba
+command: /autonomous
+
+context: fork
+
+config:
+  # Quality thresholds
+  audit_threshold: 4          # Minimum score out of 5
+  max_remediation_loops: 3    # Escalate after N failed attempts
+  
+  # Deployment settings
+  require_human_deploy_approval: true
+  
+  # Attention budget (tokens)
+  attention_budget:
+    single_search: 2000
+    accumulated: 5000
+    session_total: 15000
+
+# Skills invoked during orchestration
+dependencies:
+  - riding-codebase
+  - discovering-requirements
+  - designing-architecture
+  - planning-sprints
+  - implementing-tasks
+  - auditing-security
+  - deploying-infrastructure
+  - continuous-learning
+  - reviewing-code
+
+# Zone permissions
+zones:
+  system:
+    path: .claude
+    permission: none
+  state:
+    paths: [grimoires/loa, grimoires/*, .beads]
+    permission: read-write
+  app:
+    paths: [src, lib, app, tests]
+    permission: read-write
+
+# Parallel execution not allowed - strictly sequential
+parallel_threshold: 0
+timeout_minutes: 180  # 3 hours max per run
