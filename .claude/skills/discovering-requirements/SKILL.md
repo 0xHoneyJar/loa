@@ -651,3 +651,42 @@ Every claim about existing context must include citation:
 | Brownfield detected but no reality | Run /ride before Phase -1 |
 | Greenfield project | Skip codebase grounding entirely, no message |
 </edge_cases>
+
+<visual_communication>
+## Visual Communication (Optional)
+
+Follow `.claude/protocols/visual-communication.md` for diagram standards.
+
+### When to Include Diagrams
+
+PRDs may benefit from visual aids for:
+- **User Journeys** (flowchart) - Show user flows through the product
+- **Process Flows** (flowchart) - Illustrate business processes
+- **Stakeholder Maps** (flowchart) - Show stakeholder relationships
+
+### Output Format
+
+If including diagrams, use Mermaid with preview URLs:
+
+```markdown
+### User Registration Journey
+
+```mermaid
+graph LR
+    A[Landing Page] --> B{Has Account?}
+    B -->|No| C[Sign Up Form]
+    B -->|Yes| D[Login]
+    C --> E[Email Verification]
+    E --> F[Onboarding]
+    F --> G[Dashboard]
+```
+
+> **Preview**: [View diagram](https://agents.craft.do/mermaid?code=...&theme=github)
+```
+
+### Theme Configuration
+
+Read theme from `.loa.config.yaml` visual_communication.theme setting.
+
+Diagram inclusion is **optional** for PRDs - use agent discretion based on complexity.
+</visual_communication>
