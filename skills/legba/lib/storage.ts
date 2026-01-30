@@ -28,7 +28,7 @@ export interface R2Object {
   size: number;
   etag: string;
   text(): Promise<string>;
-  json<T>(): Promise<T>;
+  json?<T>(): Promise<T>; // Optional - not all R2 implementations have this
 }
 
 export interface R2ListOptions {
@@ -85,7 +85,8 @@ export class Storage {
     const key = PATHS.session(id);
     const obj = await this.bucket.get(key);
     if (!obj) return null;
-    return obj.json<Session>();
+    const text = await obj.text();
+    return JSON.parse(text) as Session;
   }
 
   /**
@@ -110,9 +111,13 @@ export class Storage {
     });
 
     const sessions: Session[] = [];
-    for (const obj of result.objects) {
-      if (obj.key.endsWith('/session.json')) {
-        const session = await obj.json<Session>();
+    for (const item of result.objects) {
+      if (item.key.endsWith('/session.json')) {
+        // Fetch the actual object to get content
+        const obj = await this.bucket.get(item.key);
+        if (!obj) continue;
+        const text = await obj.text();
+        const session = JSON.parse(text) as Session;
         if (filter?.project && session.project !== filter.project) continue;
         if (filter?.state && session.state !== filter.state) continue;
         sessions.push(session);
@@ -190,7 +195,8 @@ export class Storage {
   async getRegistry(): Promise<ProjectRegistry> {
     const obj = await this.bucket.get(PATHS.registry);
     if (!obj) return createEmptyRegistry();
-    return obj.json<ProjectRegistry>();
+    const text = await obj.text();
+    return JSON.parse(text) as ProjectRegistry;
   }
 
   /**
@@ -249,7 +255,8 @@ export class Storage {
   async getQueue(): Promise<SessionQueue> {
     const obj = await this.bucket.get(PATHS.queue);
     if (!obj) return createEmptyQueue();
-    return obj.json<SessionQueue>();
+    const text = await obj.text();
+    return JSON.parse(text) as SessionQueue;
   }
 
   /**

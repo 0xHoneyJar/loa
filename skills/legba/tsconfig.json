@@ -18,6 +18,7 @@
   },
   "include": [
     "index.ts",
+    "worker.ts",
     "lib/**/*.ts",
     "types/**/*.ts"
   ],

@@ -1,0 +1,26 @@
+name = "legba"
+main = "dist/worker.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+[build]
+command = "npm run build"
+
+# R2 bucket bindings
+[[r2_buckets]]
+binding = "SESSIONS_BUCKET"
+bucket_name = "legba-sessions"
+
+[[r2_buckets]]
+binding = "STATE_BUCKET"
+bucket_name = "legba-state"
+
+[[r2_buckets]]
+binding = "REGISTRY_BUCKET"
+bucket_name = "legba-registry"
+
+# Environment variables (non-secret)
+[vars]
+ENVIRONMENT = "production"
+LOG_LEVEL = "info"

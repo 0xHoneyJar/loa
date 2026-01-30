@@ -405,8 +405,42 @@ to create a draft PR for human review.
  * Create a sandbox executor
  */
 export function createSandboxExecutor(
-  sandboxBinding: SandboxBinding,
-  storage: Storage
+  sandboxBinding?: SandboxBinding,
+  storage?: Storage
 ): SandboxExecutor {
-  return new SandboxExecutor(sandboxBinding, storage);
+  // If no sandbox binding provided, use mock mode
+  if (!sandboxBinding) {
+    return new MockSandboxExecutor();
+  }
+  return new SandboxExecutor(sandboxBinding, storage!);
+}
+
+/**
+ * Mock Sandbox Executor for testing
+ *
+ * Returns test responses without actually executing sandboxes.
+ * Used when the Cloudflare Sandbox SDK is not available.
+ */
+class MockSandboxExecutor extends SandboxExecutor {
+  constructor() {
+    // Pass dummy values - they won't be used in mock mode
+    super(null as unknown as SandboxBinding, null as unknown as Storage);
+  }
+
+  /**
+   * Mock execute - returns a test response
+   */
+  override async execute(config: ExecutionConfig): Promise<ExecutionResult> {
+    // Still validate the config
+    this['validateConfig'](config);
+
+    return {
+      success: false,
+      logs: `[MOCK MODE] Sandbox execution not available.\n\nThis is a test deployment without Cloudflare Sandbox SDK.\n\nSession would execute:\n- Project: ${config.project}\n- Sprint: ${config.sprint}\n- Branch: ${config.branch}\n\nTo enable real execution, deploy with Cloudflare Sandbox access.`,
+      diff: '',
+      circuitBreaker: { tripped: false },
+      exitCode: 1,
+      duration: 0,
+    };
+  }
 }

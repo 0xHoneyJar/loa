@@ -12,7 +12,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cloudflare/sandbox-sdk": "^1.0.0",
     "@octokit/app": "^14.0.0",
     "@octokit/rest": "^20.0.0",
     "hono": "^4.0.0",

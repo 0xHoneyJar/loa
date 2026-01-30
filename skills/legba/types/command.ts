@@ -59,6 +59,7 @@ export interface HistoryCommand {
 export interface LogsCommand {
   type: 'logs';
   sessionId: string;
+  lines?: number; // Number of lines to retrieve
 }
 
 /**

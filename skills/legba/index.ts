@@ -252,7 +252,8 @@ class LegbaSkill implements Skill {
       githubAppPrivateKey: env.GITHUB_APP_PRIVATE_KEY,
     };
 
-    this.storage = createStorage(env.LEGBA_R2);
+    // Cast to our R2Bucket type - the actual Cloudflare binding is compatible
+    this.storage = createStorage(env.LEGBA_R2 as unknown as import('./lib/storage.js').R2Bucket);
 
     // Create GitHub client once at initialization with validated credentials
     this.githubClient = createGitHubClient({
