@@ -1,0 +1,16 @@
+{
+  "version": "1.0.0",
+  "next_sprint_number": 1,
+  "active_cycle": "cycle-001",
+  "cycles": [
+    {
+      "id": "cycle-001",
+      "label": "Compound Learning System",
+      "status": "active",
+      "created_at": "2025-01-30T08:00:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": []
+    }
+  ]
+}
