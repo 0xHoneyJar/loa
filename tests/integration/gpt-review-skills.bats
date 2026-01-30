@@ -375,3 +375,112 @@ teardown() {
 @test "PostToolUse hook matches sprint.md files" {
     grep -q 'sprint.*\\.md' "$PROJECT_ROOT/.claude/settings.json"
 }
+
+# =============================================================================
+# Command file injection tests (what Claude actually reads!)
+# =============================================================================
+
+@test "inject script adds GPT review phase to command files when enabled" {
+    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+    "$INJECT_SCRIPT"
+
+    grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/plan-and-analyze.md"
+    grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/architect.md"
+    grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/sprint-plan.md"
+    grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/implement.md"
+
+    rm -f "$PROJECT_ROOT/.loa.config.yaml"
+}
+
+@test "inject script removes GPT review phase from command files when disabled" {
+    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+    "$INJECT_SCRIPT"
+    grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/plan-and-analyze.md"
+
+    cp "$FIXTURES_DIR/configs/disabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+    "$INJECT_SCRIPT"
+
+    ! grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/plan-and-analyze.md"
+    ! grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/architect.md"
+    ! grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/sprint-plan.md"
+    ! grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/implement.md"
+
+    rm -f "$PROJECT_ROOT/.loa.config.yaml"
+}
+
+@test "command files are IDENTICAL to original after phase removal" {
+    # Store original checksums
+    local orig_plan orig_arch orig_sprint orig_impl
+    orig_plan=$(md5 -q "$PROJECT_ROOT/.claude/commands/plan-and-analyze.md")
+    orig_arch=$(md5 -q "$PROJECT_ROOT/.claude/commands/architect.md")
+    orig_sprint=$(md5 -q "$PROJECT_ROOT/.claude/commands/sprint-plan.md")
+    orig_impl=$(md5 -q "$PROJECT_ROOT/.claude/commands/implement.md")
+
+    # Inject
+    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+    "$INJECT_SCRIPT"
+
+    # Remove
+    cp "$FIXTURES_DIR/configs/disabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+    "$INJECT_SCRIPT"
+
+    # Compare
+    [[ "$orig_plan" == "$(md5 -q "$PROJECT_ROOT/.claude/commands/plan-and-analyze.md")" ]]
+    [[ "$orig_arch" == "$(md5 -q "$PROJECT_ROOT/.claude/commands/architect.md")" ]]
+    [[ "$orig_sprint" == "$(md5 -q "$PROJECT_ROOT/.claude/commands/sprint-plan.md")" ]]
+    [[ "$orig_impl" == "$(md5 -q "$PROJECT_ROOT/.claude/commands/implement.md")" ]]
+
+    rm -f "$PROJECT_ROOT/.loa.config.yaml"
+}
+
+@test "GPT review phase not present in command files at rest" {
+    ! grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/plan-and-analyze.md"
+    ! grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/architect.md"
+    ! grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/sprint-plan.md"
+    ! grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/implement.md"
+}
+
+# =============================================================================
+# CLAUDE.md banner injection tests
+# =============================================================================
+
+@test "inject script adds GPT review banner to CLAUDE.md when enabled" {
+    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+    "$INJECT_SCRIPT"
+
+    grep -q "GPT REVIEW IS ENABLED" "$PROJECT_ROOT/CLAUDE.md"
+
+    rm -f "$PROJECT_ROOT/.loa.config.yaml"
+}
+
+@test "inject script removes GPT review banner from CLAUDE.md when disabled" {
+    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+    "$INJECT_SCRIPT"
+    grep -q "GPT REVIEW IS ENABLED" "$PROJECT_ROOT/CLAUDE.md"
+
+    cp "$FIXTURES_DIR/configs/disabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+    "$INJECT_SCRIPT"
+
+    ! grep -q "GPT REVIEW IS ENABLED" "$PROJECT_ROOT/CLAUDE.md"
+
+    rm -f "$PROJECT_ROOT/.loa.config.yaml"
+}
+
+@test "CLAUDE.md is IDENTICAL to original after banner removal" {
+    local orig_checksum
+    orig_checksum=$(md5 -q "$PROJECT_ROOT/CLAUDE.md")
+
+    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+    "$INJECT_SCRIPT"
+
+    cp "$FIXTURES_DIR/configs/disabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+    "$INJECT_SCRIPT"
+
+    [[ "$orig_checksum" == "$(md5 -q "$PROJECT_ROOT/CLAUDE.md")" ]]
+
+    rm -f "$PROJECT_ROOT/.loa.config.yaml"
+}
+
+@test "GPT review banner not present in CLAUDE.md at rest" {
+    ! grep -q "GPT REVIEW IS ENABLED" "$PROJECT_ROOT/CLAUDE.md"
+}
