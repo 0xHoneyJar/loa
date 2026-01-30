@@ -258,14 +258,18 @@ teardown() {
     # Setup: DISABLE GPT review
     cp "$FIXTURES_DIR/configs/disabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
 
-    # Create a test PRD file
+    # Create test files
     mkdir -p "$TEST_DIR/grimoires/loa"
     echo "# Test PRD" > "$TEST_DIR/grimoires/loa/prd.md"
+    echo "You are an expert in test domains." > "$TEST_DIR/expertise.md"
+    echo "## Product Context\nTest product." > "$TEST_DIR/context.md"
 
     # Run API script directly with disabled config
     cd "$PROJECT_ROOT"
     export OPENAI_API_KEY="test-key-for-mock"
-    run .claude/scripts/gpt-review-api.sh prd "$TEST_DIR/grimoires/loa/prd.md"
+    run .claude/scripts/gpt-review-api.sh prd "$TEST_DIR/grimoires/loa/prd.md" \
+        --expertise "$TEST_DIR/expertise.md" \
+        --context "$TEST_DIR/context.md"
 
     # Should succeed with SKIPPED verdict
     [[ "$status" -eq 0 ]]
@@ -279,9 +283,11 @@ teardown() {
     # Setup: enable GPT review but no API key
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
 
-    # Create a test PRD file
+    # Create test files
     mkdir -p "$TEST_DIR/grimoires/loa"
     echo "# Test PRD" > "$TEST_DIR/grimoires/loa/prd.md"
+    echo "You are an expert in test domains." > "$TEST_DIR/expertise.md"
+    echo "## Product Context\nTest product." > "$TEST_DIR/context.md"
 
     # Unset API key
     unset OPENAI_API_KEY
@@ -291,12 +297,56 @@ teardown() {
 
     # Run API script - should fail with exit code 4 (missing API key)
     cd "$PROJECT_ROOT"
-    run .claude/scripts/gpt-review-api.sh prd "$TEST_DIR/grimoires/loa/prd.md"
+    run .claude/scripts/gpt-review-api.sh prd "$TEST_DIR/grimoires/loa/prd.md" \
+        --expertise "$TEST_DIR/expertise.md" \
+        --context "$TEST_DIR/context.md"
 
     # Should fail with specific exit code for missing API key
     [[ "$status" -eq 4 ]]
 
     # Cleanup
+    rm -f "$PROJECT_ROOT/.loa.config.yaml"
+}
+
+@test "API script requires --expertise file" {
+    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+
+    mkdir -p "$TEST_DIR/grimoires/loa"
+    echo "# Test PRD" > "$TEST_DIR/grimoires/loa/prd.md"
+    echo "## Context" > "$TEST_DIR/context.md"
+
+    cd "$PROJECT_ROOT"
+    export OPENAI_API_KEY="test-key"
+
+    # Call without --expertise
+    run .claude/scripts/gpt-review-api.sh prd "$TEST_DIR/grimoires/loa/prd.md" \
+        --context "$TEST_DIR/context.md"
+
+    # Should fail with exit code 2 (invalid input)
+    [[ "$status" -eq 2 ]]
+    echo "$output" | grep -q "Missing --expertise file"
+
+    rm -f "$PROJECT_ROOT/.loa.config.yaml"
+}
+
+@test "API script requires --context file" {
+    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+
+    mkdir -p "$TEST_DIR/grimoires/loa"
+    echo "# Test PRD" > "$TEST_DIR/grimoires/loa/prd.md"
+    echo "You are an expert." > "$TEST_DIR/expertise.md"
+
+    cd "$PROJECT_ROOT"
+    export OPENAI_API_KEY="test-key"
+
+    # Call without --context
+    run .claude/scripts/gpt-review-api.sh prd "$TEST_DIR/grimoires/loa/prd.md" \
+        --expertise "$TEST_DIR/expertise.md"
+
+    # Should fail with exit code 2 (invalid input)
+    [[ "$status" -eq 2 ]]
+    echo "$output" | grep -q "Missing --context file"
+
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
 }
 

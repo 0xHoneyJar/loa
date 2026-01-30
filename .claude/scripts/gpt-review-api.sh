@@ -8,9 +8,14 @@
 #   content_file: File containing content to review
 #
 # Options:
-#   --augmentation <file>  Project-specific context file
+#   --expertise <file>     Domain expertise (system prompt - WHO GPT is)
+#   --context <file>       Product/feature context (user prompt - WHAT we're reviewing)
 #   --iteration <N>        Review iteration (1 = first review, 2+ = re-review)
 #   --previous <file>      Previous findings JSON file (for re-review)
+#
+# Prompt Structure:
+#   SYSTEM: [Domain Expertise] + [Review Instructions from base prompt]
+#   USER:   [Product Context] + [Feature Context] + [Content to Review]
 #
 # Environment:
 #   OPENAI_API_KEY - Required (or loaded from .env or .env.local)
@@ -158,9 +163,10 @@ load_config() {
 }
 
 # Build the system prompt for first review
+# Structure: [Domain Expertise] + [Review Instructions]
 build_first_review_prompt() {
   local review_type="$1"
-  local augmentation_file="${2:-}"
+  local expertise_file="${2:-}"
 
   local base_prompt_file="${PROMPTS_DIR}/${review_type}-review.md"
 
@@ -169,23 +175,47 @@ build_first_review_prompt() {
     exit 2
   fi
 
-  local system_prompt
-  system_prompt=$(cat "$base_prompt_file")
+  local system_prompt=""
 
-  # Append augmentation if provided
-  if [[ -n "$augmentation_file" && -f "$augmentation_file" ]]; then
-    system_prompt+=$'\n\n## Project-Specific Context (Added by Claude)\n\n'
-    system_prompt+=$(cat "$augmentation_file")
+  # Domain expertise goes FIRST (defines WHO GPT is)
+  if [[ -n "$expertise_file" && -f "$expertise_file" ]]; then
+    system_prompt+=$(cat "$expertise_file")
+    system_prompt+=$'\n\n---\n\n'
   fi
+
+  # Then review instructions (defines HOW to review)
+  system_prompt+=$(cat "$base_prompt_file")
 
   echo "$system_prompt"
 }
 
+# Build the user prompt with context and content
+# Structure: [Product Context] + [Feature Context] + [Content to Review]
+build_user_prompt() {
+  local context_file="$1"
+  local content="$2"
+
+  local user_prompt=""
+
+  # Product and feature context first
+  if [[ -n "$context_file" && -f "$context_file" ]]; then
+    user_prompt+=$(cat "$context_file")
+    user_prompt+=$'\n\n---\n\n'
+  fi
+
+  # Then the actual content to review
+  user_prompt+="## Content to Review"$'\n\n'
+  user_prompt+="$content"
+
+  echo "$user_prompt"
+}
+
 # Build the system prompt for re-review (iteration 2+)
+# Structure: [Domain Expertise] + [Re-review Instructions with Previous Findings]
 build_re_review_prompt() {
   local iteration="$1"
   local previous_findings="$2"
-  local augmentation_file="${3:-}"
+  local expertise_file="${3:-}"
 
   local re_review_file="${PROMPTS_DIR}/re-review.md"
 
@@ -194,18 +224,23 @@ build_re_review_prompt() {
     exit 2
   fi
 
-  local system_prompt
-  system_prompt=$(cat "$re_review_file")
+  local system_prompt=""
+
+  # Domain expertise goes FIRST
+  if [[ -n "$expertise_file" && -f "$expertise_file" ]]; then
+    system_prompt+=$(cat "$expertise_file")
+    system_prompt+=$'\n\n---\n\n'
+  fi
+
+  # Then re-review instructions
+  local re_review_prompt
+  re_review_prompt=$(cat "$re_review_file")
 
   # Replace placeholders
-  system_prompt="${system_prompt//\{\{ITERATION\}\}/$iteration}"
-  system_prompt="${system_prompt//\{\{PREVIOUS_FINDINGS\}\}/$previous_findings}"
+  re_review_prompt="${re_review_prompt//\{\{ITERATION\}\}/$iteration}"
+  re_review_prompt="${re_review_prompt//\{\{PREVIOUS_FINDINGS\}\}/$previous_findings}"
 
-  # Append augmentation if provided
-  if [[ -n "$augmentation_file" && -f "$augmentation_file" ]]; then
-    system_prompt+=$'\n\n## Project-Specific Context\n\n'
-    system_prompt+=$(cat "$augmentation_file")
-  fi
+  system_prompt+="$re_review_prompt"
 
   echo "$system_prompt"
 }
@@ -389,9 +424,14 @@ Arguments:
   content_file      File containing content to review
 
 Options:
-  --augmentation <file>  Project-specific context file
+  --expertise <file>     Domain expertise file (SYSTEM prompt - WHO GPT is)
+  --context <file>       Product/feature context file (USER prompt - WHAT we're reviewing)
   --iteration <N>        Review iteration (1 = first, 2+ = re-review)
   --previous <file>      Previous findings JSON (required for iteration > 1)
+
+Prompt Structure:
+  SYSTEM: [Domain Expertise from --expertise] + [Review Instructions]
+  USER:   [Product/Feature Context from --context] + [Content to Review]
 
 Environment:
   OPENAI_API_KEY    Required - Your OpenAI API key (or in .env / .env.local)
@@ -413,15 +453,20 @@ EOF
 main() {
   local review_type=""
   local content_file=""
-  local augmentation_file=""
+  local expertise_file=""
+  local context_file=""
   local iteration=1
   local previous_file=""
 
   # Parse arguments
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --augmentation)
-        augmentation_file="$2"
+      --expertise)
+        expertise_file="$2"
+        shift 2
+        ;;
+      --context)
+        context_file="$2"
         shift 2
         ;;
       --iteration)
@@ -446,9 +491,6 @@ main() {
           review_type="$1"
         elif [[ -z "$content_file" ]]; then
           content_file="$1"
-        else
-          # Legacy positional: treat third arg as augmentation
-          augmentation_file="$1"
         fi
         shift
         ;;
@@ -485,6 +527,79 @@ main() {
 
   if [[ ! -f "$content_file" ]]; then
     error "Content file not found: $content_file"
+    exit 2
+  fi
+
+  # ============================================
+  # REQUIRE EXPERTISE AND CONTEXT FILES
+  # These provide the full context GPT needs:
+  #   --expertise: Domain expertise (SYSTEM prompt) - WHO GPT is
+  #   --context:   Product/feature context (USER prompt) - WHAT we're reviewing
+  # ============================================
+  if [[ -z "$expertise_file" ]]; then
+    cat >&2 <<EOF
+ERROR: Missing --expertise file (required for system prompt)
+
+The --expertise file defines WHO GPT is - the domain expert role.
+You must create this file with domain expertise extracted from the PRD.
+
+Example: /tmp/gpt-review-expertise.md
+---
+You are an expert in [domain from PRD]. You have deep knowledge of:
+- [Key domain concept 1]
+- [Key domain concept 2]
+- [Relevant standards/protocols]
+- [Common pitfalls in this domain]
+---
+
+Then call:
+  $0 $review_type $content_file --expertise /tmp/gpt-review-expertise.md --context /tmp/gpt-review-context.md
+EOF
+    exit 2
+  fi
+
+  if [[ ! -f "$expertise_file" ]]; then
+    error "Expertise file not found: $expertise_file"
+    echo "Create the expertise file with domain knowledge from PRD before calling this script." >&2
+    exit 2
+  fi
+
+  if [[ -z "$context_file" ]]; then
+    cat >&2 <<EOF
+ERROR: Missing --context file (required for user prompt)
+
+The --context file provides WHAT GPT is reviewing - product and feature context.
+You must create this file with context extracted from PRD/SDD/sprint.md.
+
+Example: /tmp/gpt-review-context.md
+---
+## Product Context
+
+[Product name] is [what it does] for [target users].
+Critical requirements: [from PRD].
+
+## Feature Context
+
+**Task**: [What you're implementing]
+**Acceptance Criteria**:
+- [Criterion 1]
+- [Criterion 2]
+
+## What to Verify
+
+1. [Specific verification point]
+2. [Another verification point]
+---
+
+Then call:
+  $0 $review_type $content_file --expertise /tmp/gpt-review-expertise.md --context /tmp/gpt-review-context.md
+EOF
+    exit 2
+  fi
+
+  if [[ ! -f "$context_file" ]]; then
+    error "Context file not found: $context_file"
+    echo "Create the context file with product/feature context before calling this script." >&2
     exit 2
   fi
 
@@ -556,13 +671,15 @@ EOF
   log "Model: $model"
   log "Timeout: ${timeout}s"
   log "Content file: $content_file"
-  [[ -n "$augmentation_file" ]] && log "Augmentation: $augmentation_file"
+  [[ -n "$expertise_file" ]] && log "Expertise (system): $expertise_file"
+  [[ -n "$context_file" ]] && log "Context (user): $context_file"
   [[ -n "$previous_file" ]] && log "Previous findings: $previous_file"
 
-  # Build prompt based on iteration
+  # Build system prompt based on iteration
+  # System prompt = [Domain Expertise] + [Review Instructions]
   local system_prompt
   if [[ "$iteration" -eq 1 ]]; then
-    system_prompt=$(build_first_review_prompt "$review_type" "$augmentation_file")
+    system_prompt=$(build_first_review_prompt "$review_type" "$expertise_file")
   else
     # For re-review, we need previous findings
     if [[ -z "$previous_file" || ! -f "$previous_file" ]]; then
@@ -571,16 +688,21 @@ EOF
     fi
     local previous_findings
     previous_findings=$(cat "$previous_file")
-    system_prompt=$(build_re_review_prompt "$iteration" "$previous_findings" "$augmentation_file")
+    system_prompt=$(build_re_review_prompt "$iteration" "$previous_findings" "$expertise_file")
   fi
 
-  # Read content
-  local content
-  content=$(cat "$content_file")
+  # Read raw content
+  local raw_content
+  raw_content=$(cat "$content_file")
 
-  # Call API
+  # Build user prompt with context
+  # User prompt = [Product Context] + [Feature Context] + [Content to Review]
+  local user_prompt
+  user_prompt=$(build_user_prompt "$context_file" "$raw_content")
+
+  # Call API with separated prompts
   local response
-  response=$(call_api "$model" "$system_prompt" "$content" "$timeout")
+  response=$(call_api "$model" "$system_prompt" "$user_prompt" "$timeout")
 
   # Add iteration to response
   response=$(echo "$response" | jq --arg iter "$iteration" '. + {iteration: ($iter | tonumber)}')

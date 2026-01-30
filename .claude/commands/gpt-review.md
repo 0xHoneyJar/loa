@@ -26,335 +26,79 @@ Cross-model review using GPT 5.2 to catch issues Claude might miss.
 
 ## How It Works
 
-1. **Build context** from PRD/SDD (domain expertise + product context)
-2. Run the script with context: `.claude/scripts/gpt-review-api.sh <type> <file> --augmentation <context>`
-3. Script checks config - if disabled, returns `{"verdict": "SKIPPED", ...}`
-4. If enabled, script calls GPT with full context
-5. Handle the verdict
+GPT receives two prompts with full context:
+
+1. **SYSTEM PROMPT** = Domain Expertise (WHO GPT is) + Review Instructions (HOW to review)
+2. **USER PROMPT** = Product Context + Feature Context (WHAT we're reviewing) + Content (the actual code/doc)
+
+You MUST build both before calling the API.
 
 ## Execution Steps
 
-### Step 0: Build Context (MANDATORY)
+### Step 0: Build Domain Expertise (MANDATORY - SYSTEM PROMPT)
 
-**Before calling the API, you MUST build context for GPT.** This is not optional.
+**YOU MUST READ `grimoires/loa/prd.md` AND EXTRACT THE ACTUAL DOMAIN.** Do not use placeholders.
 
-#### 0.1: Extract Domain Expertise
-
-Read `grimoires/loa/prd.md` and identify the domain. Write a domain expertise statement:
+Write expertise to `/tmp/gpt-review-expertise.md`:
 
 ```markdown
-## Domain Expertise
-
-You are an expert in [domain extracted from PRD]. You have deep knowledge of:
-- [Key domain concept 1]
-- [Key domain concept 2]
-- [Relevant standards/protocols]
-- [Common pitfalls in this domain]
+You are an expert in [ACTUAL DOMAIN FROM PRD]. You have deep knowledge of:
+- [ACTUAL KEY CONCEPT 1 from PRD]
+- [ACTUAL KEY CONCEPT 2 from PRD]
+- [ACTUAL STANDARDS/PROTOCOLS for this domain]
+- [ACTUAL COMMON PITFALLS in this domain]
 ```
 
-**Examples by domain:**
+**CRITICAL**: Replace ALL bracketed placeholders with REAL values from the PRD. Examples:
 
-| PRD Domain | Domain Expertise |
-|------------|------------------|
-| Crypto wallet | "Expert in cryptocurrency wallets, HD key derivation (BIP-32/39/44), secure key storage, transaction signing" |
-| ML pipeline | "Expert in machine learning infrastructure, model training, data pipelines, GPU optimization, MLOps" |
-| Healthcare app | "Expert in healthcare software, HIPAA compliance, HL7/FHIR standards, PHI protection" |
-| Fintech | "Expert in financial software, PCI-DSS compliance, transaction processing, fraud detection" |
-| E-commerce | "Expert in e-commerce platforms, payment processing, inventory management, order fulfillment" |
+| If PRD is about... | Domain Expertise should say... |
+|-------------------|-------------------------------|
+| Crypto wallet | "You are an expert in cryptocurrency wallets. You have deep knowledge of: HD key derivation (BIP-32/39/44), secure key storage, transaction signing, common wallet vulnerabilities (key leakage, weak entropy)" |
+| ML pipeline | "You are an expert in machine learning infrastructure. You have deep knowledge of: model training pipelines, data preprocessing, GPU optimization, MLOps practices, common ML bugs (data leakage, distribution shift)" |
+| Healthcare app | "You are an expert in healthcare software. You have deep knowledge of: HIPAA compliance, HL7/FHIR standards, PHI protection, audit logging requirements, healthcare-specific security concerns" |
+| E-commerce | "You are an expert in e-commerce platforms. You have deep knowledge of: payment processing (PCI-DSS), inventory management, order fulfillment, cart abandonment patterns, checkout optimization" |
+| CLI tool | "You are an expert in command-line tool development. You have deep knowledge of: argument parsing, UNIX conventions, shell scripting integration, error handling patterns, cross-platform compatibility" |
 
-#### 0.2: Extract Product Context
+### Step 1: Build Product & Feature Context (MANDATORY - USER PROMPT)
 
-From PRD, write a 2-3 sentence product summary:
+**YOU MUST READ THE ACTUAL PROJECT FILES AND FILL IN REAL VALUES.**
+
+Write context to `/tmp/gpt-review-context.md`:
+
+#### For Code Reviews
+
+Read these files and extract ACTUAL content:
+- `grimoires/loa/prd.md` - Product summary
+- `grimoires/loa/NOTES.md` - Current task (if sprint work)
+- `grimoires/loa/sprint.md` - Acceptance criteria (if sprint work)
+- `grimoires/loa/sdd.md` - Relevant architecture
 
 ```markdown
 ## Product Context
 
-[Product name] is [what it does] for [target users].
-Key requirements: [critical requirements from PRD].
-Security/compliance: [any security or compliance requirements].
-```
+[ACTUAL PRODUCT NAME] is [ACTUAL DESCRIPTION FROM PRD] for [ACTUAL TARGET USERS].
+Critical requirements: [ACTUAL KEY REQUIREMENTS FROM PRD].
+Security/compliance: [ACTUAL SECURITY REQUIREMENTS, or "None specified"].
 
-#### 0.3: Extract Feature Context (for code reviews)
-
-For code reviews, describe what the code is supposed to do. This varies by context:
-
-**During sprint execution (formal tasks):**
-1. Check `grimoires/loa/NOTES.md` Current Focus for active task
-2. Check `grimoires/loa/sprint.md` for task description and acceptance criteria
-
-```markdown
 ## Feature Context
 
-**Task**: [Task ID and title from sprint.md]
-**Purpose**: [What this code is supposed to do]
+**Task**: [ACTUAL TASK ID AND TITLE, or describe what you're doing for ad-hoc work]
+**Purpose**: [ACTUAL PURPOSE - what this code is supposed to do]
 **Acceptance Criteria**:
-- [Criterion 1 from sprint.md]
-- [Criterion 2]
-- [Criterion 3]
-```
-
-**For ad-hoc work (quick fixes, feature upgrades, experiments):**
-When there's no formal sprint task, describe what you're trying to accomplish:
-
-```markdown
-## Feature Context
-
-**Goal**: [What you're trying to accomplish]
-**Approach**: [How this code achieves that goal]
-**Expected Behavior**:
-- [What the code should do]
-- [Edge cases it should handle]
-- [Any constraints or requirements]
-```
-
-**Examples of ad-hoc context:**
-
-| Scenario | Feature Context |
-|----------|-----------------|
-| Bug fix | "Goal: Fix race condition in auth refresh. Approach: Add mutex lock around token refresh. Expected: Only one refresh request at a time, others wait." |
-| Quick feature | "Goal: Add copy-to-clipboard for wallet address. Approach: Use Clipboard API with fallback. Expected: Works on all browsers, shows feedback toast." |
-| Refactor | "Goal: Extract validation logic into reusable module. Approach: Create validation utility with composable rules. Expected: Same behavior, better testability." |
-| Experiment | "Goal: Test new caching strategy for API calls. Approach: LRU cache with 5-min TTL. Expected: Reduce API calls by ~50%, handle cache invalidation." |
-
-#### 0.4: Extract Relevant SDD Design (for code reviews)
-
-For code reviews, extract the relevant component design from SDD:
-
-```markdown
-## Relevant Architecture
-
-From SDD [component name]:
-- [Key design decisions]
-- [Data flow]
-- [Dependencies]
-- [Security considerations for this component]
-```
-
-#### 0.5: Write Context File
-
-Combine all sections into `/tmp/gpt-review-context.md`:
-
-```markdown
-## Domain Expertise
-
-You are an expert in [domain]. You have deep knowledge of [specifics].
-
-## Product Context
-
-[Product summary from PRD]
-
-## Feature Context
-
-**Task**: [Task being implemented]
-**Acceptance Criteria**: [From sprint.md]
+- [ACTUAL CRITERION 1 from sprint.md or your goal]
+- [ACTUAL CRITERION 2]
+- [ACTUAL CRITERION 3]
 
 ## Relevant Architecture
 
-[Relevant SDD excerpt]
+From SDD [ACTUAL COMPONENT NAME]:
+- Design: [ACTUAL DESIGN DECISIONS from SDD]
+- Data flow: [ACTUAL DATA FLOW from SDD]
+- Security: [ACTUAL SECURITY REQUIREMENTS for this component]
 
 ## What to Verify
 
-Given the above context, verify that:
-1. The code/document correctly implements the requirements
-2. Domain-specific best practices are followed
-3. Security requirements are met
-4. The implementation matches the architecture
-```
-
-### Step 1: Prepare Content
-
-**For code reviews:**
-```bash
-# Get git diff or file content
-if [[ -n "$file" ]]; then
-  content_file="$file"
-else
-  git diff HEAD > /tmp/gpt-review-content.txt
-  content_file="/tmp/gpt-review-content.txt"
-fi
-```
-
-**For document reviews:**
-```bash
-# Default paths
-case "$type" in
-  prd) content_file="${file:-grimoires/loa/prd.md}" ;;
-  sdd) content_file="${file:-grimoires/loa/sdd.md}" ;;
-  sprint) content_file="${file:-grimoires/loa/sprint.md}" ;;
-esac
-```
-
-### Step 2: Run Review Script (First Iteration)
-
-**ALWAYS include --augmentation with the context file:**
-
-```bash
-# First review with context
-context_file="/tmp/gpt-review-context.md"
-response=$(.claude/scripts/gpt-review-api.sh "$type" "$content_file" \
-  --augmentation "$context_file")
-verdict=$(echo "$response" | jq -r '.verdict')
-
-# IMPORTANT: Save findings for potential re-review
-echo "$response" > /tmp/gpt-review-findings-1.json
-iteration=1
-```
-
-### Step 3: Handle Verdict
-
-```bash
-case "$verdict" in
-  SKIPPED)
-    echo "GPT review disabled - continuing"
-    # Done, no action needed
-    ;;
-
-  APPROVED)
-    echo "GPT review passed"
-    # Done, continue with next step
-    ;;
-
-  CHANGES_REQUIRED)
-    # Fix the issues, then go to Step 4 (Re-Review Loop)
-    ;;
-
-  DECISION_NEEDED)
-    # Extract question and ask user
-    question=$(echo "$response" | jq -r '.question')
-    # Use AskUserQuestion tool to get user input
-    # Continue with user's answer
-    ;;
-esac
-```
-
-### Step 4: Re-Review Loop (CRITICAL for CHANGES_REQUIRED)
-
-When GPT returns `CHANGES_REQUIRED`, you MUST:
-
-1. Fix the issues GPT identified
-2. Run a re-review with **iteration number**, **previous findings**, and **context**
-
-```bash
-# After fixing issues from iteration N, run iteration N+1:
-iteration=$((iteration + 1))
-previous_findings="/tmp/gpt-review-findings-$((iteration - 1)).json"
-context_file="/tmp/gpt-review-context.md"
-
-response=$(.claude/scripts/gpt-review-api.sh "$type" "$content_file" \
-  --augmentation "$context_file" \
-  --iteration "$iteration" \
-  --previous "$previous_findings")
-
-verdict=$(echo "$response" | jq -r '.verdict')
-
-# Save this iteration's findings for potential next iteration
-echo "$response" > "/tmp/gpt-review-findings-${iteration}.json"
-
-# Loop until APPROVED or max iterations reached
-```
-
-## Context Building by Review Type
-
-### PRD Reviews
-
-For PRD reviews, the context is lighter since the PRD itself describes the product:
-
-```markdown
-## Domain Expertise
-
-You are an expert in [domain from PRD problem statement].
-You specialize in [relevant domain knowledge].
-
-## Review Focus
-
-This is a Product Requirements Document for [product type].
-Pay special attention to:
-- [Domain-specific requirements that are often missed]
-- [Compliance requirements for this domain]
-- [Common pitfalls in this product category]
-```
-
-### SDD Reviews
-
-For SDD reviews, include PRD context:
-
-```markdown
-## Domain Expertise
-
-You are an expert in [domain] software architecture.
-
-## Product Context
-
-From PRD: [Key requirements that the SDD must satisfy]
-
-## Review Focus
-
-Verify the architecture addresses:
-- [Key PRD requirements]
-- [Domain-specific architectural concerns]
-- [Security/compliance from PRD]
-```
-
-### Sprint Reviews
-
-For sprint reviews, include both PRD and SDD context:
-
-```markdown
-## Domain Expertise
-
-You are an expert in [domain] and agile sprint planning.
-
-## Product Context
-
-[Product summary from PRD]
-
-## Architecture Context
-
-[Key architectural constraints from SDD]
-
-## Review Focus
-
-Verify the sprint plan:
-- Maps to PRD requirements (traceability)
-- Respects SDD architecture
-- Has measurable acceptance criteria
-- Correctly estimates complexity for this domain
-```
-
-### Code Reviews
-
-For code reviews, provide the fullest context:
-
-```markdown
-## Domain Expertise
-
-You are an expert in [domain]. You have deep knowledge of:
-- [Domain-specific technologies]
-- [Security requirements for this domain]
-- [Common vulnerabilities in this type of code]
-
-## Product Context
-
-[Product summary] for [target users].
-Critical requirements: [from PRD]
-
-## Feature Context
-
-**Task**: [Task ID] - [Title]
-**Purpose**: [What this code implements]
-**Acceptance Criteria**:
-- [Criterion 1]
-- [Criterion 2]
-
-## Relevant Architecture
-
-From SDD [component]:
-- Design: [Key decisions]
-- Data flow: [How data moves]
-- Security: [Security requirements for this component]
-
-## What to Verify
-
+Given the above context, verify:
 1. Code correctly implements the task
 2. Acceptance criteria can be met
 3. Follows the SDD architecture
@@ -362,28 +106,124 @@ From SDD [component]:
 5. No fabrication (hardcoded values that should be calculated)
 ```
 
-## Complete Example (Sprint Task)
+#### For Document Reviews (PRD/SDD/Sprint)
+
+```markdown
+## Product Context
+
+This is a [PRD/SDD/Sprint Plan] for [ACTUAL PRODUCT NAME].
+Domain: [ACTUAL DOMAIN from PRD].
+Target users: [ACTUAL TARGET USERS from PRD].
+
+## Review Focus
+
+Pay special attention to:
+- [ACTUAL DOMAIN-SPECIFIC CONCERNS]
+- [ACTUAL COMPLIANCE/SECURITY REQUIREMENTS]
+- [ACTUAL PITFALLS common in this domain]
+```
+
+### Step 2: Prepare Content File
+
+**For code reviews:**
+```bash
+# Specific file
+content_file="src/auth.ts"
+
+# Or git diff
+git diff HEAD > /tmp/gpt-review-content.txt
+content_file="/tmp/gpt-review-content.txt"
+```
+
+**For document reviews:**
+```bash
+case "$type" in
+  prd) content_file="${file:-grimoires/loa/prd.md}" ;;
+  sdd) content_file="${file:-grimoires/loa/sdd.md}" ;;
+  sprint) content_file="${file:-grimoires/loa/sprint.md}" ;;
+esac
+```
+
+### Step 3: Run Review Script
+
+**ALWAYS include both --expertise and --context:**
 
 ```bash
-# === STEP 0: BUILD CONTEXT ===
-# Read PRD for domain and product context
-# Read sprint.md for task and acceptance criteria
-# Read SDD for relevant component design
-# Write to /tmp/gpt-review-context.md
+expertise_file="/tmp/gpt-review-expertise.md"
+context_file="/tmp/gpt-review-context.md"
 
-cat > /tmp/gpt-review-context.md << 'EOF'
-## Domain Expertise
+response=$(.claude/scripts/gpt-review-api.sh "$type" "$content_file" \
+  --expertise "$expertise_file" \
+  --context "$context_file")
 
+verdict=$(echo "$response" | jq -r '.verdict')
+echo "$response" > /tmp/gpt-review-findings-1.json
+iteration=1
+```
+
+### Step 4: Handle Verdict
+
+```bash
+case "$verdict" in
+  SKIPPED)
+    echo "GPT review disabled - continuing"
+    ;;
+  APPROVED)
+    echo "GPT review passed"
+    ;;
+  CHANGES_REQUIRED)
+    # Fix the issues, then re-review (Step 5)
+    ;;
+  DECISION_NEEDED)
+    question=$(echo "$response" | jq -r '.question')
+    # Use AskUserQuestion tool, then continue
+    ;;
+esac
+```
+
+### Step 5: Re-Review Loop (for CHANGES_REQUIRED)
+
+After fixing issues, run another review with iteration number and previous findings:
+
+```bash
+iteration=$((iteration + 1))
+previous_findings="/tmp/gpt-review-findings-$((iteration - 1)).json"
+
+response=$(.claude/scripts/gpt-review-api.sh "$type" "$content_file" \
+  --expertise "$expertise_file" \
+  --context "$context_file" \
+  --iteration "$iteration" \
+  --previous "$previous_findings")
+
+verdict=$(echo "$response" | jq -r '.verdict')
+echo "$response" > "/tmp/gpt-review-findings-${iteration}.json"
+```
+
+## Complete Example: Sprint Task Code Review
+
+```bash
+# === STEP 0: BUILD DOMAIN EXPERTISE ===
+# Read PRD to understand the domain
+# This goes in the SYSTEM PROMPT
+
+cat > /tmp/gpt-review-expertise.md << 'EOF'
 You are an expert in cryptocurrency wallet development. You have deep knowledge of:
 - HD wallet key derivation (BIP-32, BIP-39, BIP-44)
 - Secure cryptographic implementations
 - Private key protection and memory safety
 - Common wallet vulnerabilities (key leakage, weak entropy)
+- Constant-time cryptographic operations
+EOF
 
+# === STEP 1: BUILD CONTEXT ===
+# Read PRD, sprint.md, SDD to understand what we're reviewing
+# This goes in the USER PROMPT
+
+cat > /tmp/gpt-review-context.md << 'EOF'
 ## Product Context
 
 CryptoVault is a non-custodial multi-chain wallet for retail crypto users.
-Critical requirements: Secure key derivation, support for ETH/BTC/SOL, offline signing capability.
+Critical requirements: Secure key derivation, support for ETH/BTC/SOL, offline signing.
 Security: Keys must never leave the device, all crypto ops must be constant-time.
 
 ## Feature Context
@@ -400,7 +240,7 @@ Security: Keys must never leave the device, all crypto ops must be constant-time
 
 From SDD Wallet Core Component:
 - Design: Modular crypto layer with chain-specific derivation
-- Data flow: Mnemonic → Master Key → Chain Keys → Addresses
+- Data flow: Mnemonic -> Master Key -> Chain Keys -> Addresses
 - Security: All key material in secure memory, constant-time operations
 
 ## What to Verify
@@ -412,37 +252,37 @@ From SDD Wallet Core Component:
 5. No hardcoded test keys or mnemonics
 EOF
 
-# === STEP 1: PREPARE CONTENT ===
+# === STEP 2: PREPARE CONTENT ===
 content_file="src/wallet/keyDerivation.ts"
 
-# === STEP 2: RUN REVIEW ===
+# === STEP 3: RUN REVIEW ===
 response=$(.claude/scripts/gpt-review-api.sh code "$content_file" \
-  --augmentation /tmp/gpt-review-context.md)
+  --expertise /tmp/gpt-review-expertise.md \
+  --context /tmp/gpt-review-context.md)
 echo "$response" > /tmp/gpt-review-findings-1.json
 verdict=$(echo "$response" | jq -r '.verdict')
 iteration=1
 
-# === STEP 3: HANDLE VERDICT ===
-# ... handle as described above ...
+# === STEP 4: HANDLE VERDICT ===
+# Continue based on verdict...
 ```
 
-## Complete Example (Ad-hoc Quick Fix)
+## Complete Example: Ad-hoc Quick Fix
 
-For work outside of formal sprints (bug fixes, quick features, experiments):
+For work outside formal sprints:
 
 ```bash
-# === STEP 0: BUILD CONTEXT ===
-# Even for quick fixes, provide domain expertise and explain what you're doing
-
-cat > /tmp/gpt-review-context.md << 'EOF'
-## Domain Expertise
-
+# === STEP 0: BUILD DOMAIN EXPERTISE ===
+cat > /tmp/gpt-review-expertise.md << 'EOF'
 You are an expert in React and browser APIs. You have deep knowledge of:
 - Clipboard API and browser compatibility
 - React state management and hooks
 - User feedback patterns and accessibility
 - Cross-browser testing considerations
+EOF
 
+# === STEP 1: BUILD CONTEXT ===
+cat > /tmp/gpt-review-context.md << 'EOF'
 ## Product Context
 
 CryptoVault wallet app - users need to copy wallet addresses frequently.
@@ -452,15 +292,15 @@ This is a UX improvement, not security-critical.
 
 **Goal**: Add copy-to-clipboard functionality for wallet addresses
 **Approach**:
-- Use navigator.clipboard API with execCommand fallback for older browsers
+- Use navigator.clipboard API with execCommand fallback
 - Show toast notification on success/failure
 - Add visual feedback on the copy button
 
 **Expected Behavior**:
-- Clicking copy button copies address to clipboard
-- Toast appears confirming success or explaining failure
-- Works on Chrome, Firefox, Safari (desktop and mobile)
-- Accessible via keyboard (Enter/Space on focused button)
+- Clicking copy copies address to clipboard
+- Toast confirms success or explains failure
+- Works on Chrome, Firefox, Safari (desktop/mobile)
+- Accessible via keyboard (Enter/Space)
 
 ## What to Verify
 
@@ -468,23 +308,16 @@ This is a UX improvement, not security-critical.
 2. Fallback works for browsers without clipboard API
 3. User feedback is clear and accessible
 4. No security issues with clipboard access
-5. Component handles edge cases (empty address, very long address)
+5. Handles edge cases (empty address, very long address)
 EOF
 
-# === STEP 1: PREPARE CONTENT ===
-content_file="src/components/AddressCopyButton.tsx"
-
-# === STEP 2: RUN REVIEW ===
-response=$(.claude/scripts/gpt-review-api.sh code "$content_file" \
-  --augmentation /tmp/gpt-review-context.md)
-# ... continue as normal ...
+# === STEP 2-4: Same as above ===
 ```
 
 ## Configuration
 
-The script checks `.loa.config.yaml`:
-
 ```yaml
+# .loa.config.yaml
 gpt_review:
   enabled: true              # Master toggle
   timeout_seconds: 300       # API timeout
