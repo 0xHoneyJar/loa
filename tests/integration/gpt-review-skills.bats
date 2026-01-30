@@ -3,13 +3,14 @@
 #
 # Verifies that GPT review phases are dynamically injected into skill files
 # based on config. When enabled: phases are injected. When disabled: removed.
+# The /toggle-gpt-review command controls everything (no startup hooks needed).
 
 setup() {
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     SKILLS_DIR="$PROJECT_ROOT/.claude/skills"
     INJECT_SCRIPT="$PROJECT_ROOT/.claude/scripts/inject-gpt-review-gates.sh"
-    TOGGLE_SCRIPT="$PROJECT_ROOT/.claude/scripts/toggle-gpt-review-context.sh"
+    TOGGLE_SCRIPT="$PROJECT_ROOT/.claude/scripts/gpt-review-toggle.sh"
     FIXTURES_DIR="$PROJECT_ROOT/tests/fixtures/gpt-review"
 
     # Create temp directory for test-specific files
@@ -219,15 +220,15 @@ teardown() {
 }
 
 # =============================================================================
-# SessionStart hook configuration tests
+# Toggle integration tests
 # =============================================================================
 
-@test "inject script is registered in SessionStart hook" {
-    grep -q "inject-gpt-review-gates.sh" "$PROJECT_ROOT/.claude/settings.json"
+@test "toggle script calls inject script" {
+    grep -q "inject-gpt-review-gates.sh" "$TOGGLE_SCRIPT"
 }
 
-@test "toggle script is registered in SessionStart hook" {
-    grep -q "toggle-gpt-review-context.sh" "$PROJECT_ROOT/.claude/settings.json"
+@test "toggle script is executable" {
+    [[ -x "$TOGGLE_SCRIPT" ]]
 }
 
 # =============================================================================
@@ -254,8 +255,8 @@ teardown() {
 # API script tests
 # =============================================================================
 
-@test "API script checks config before making API call" {
-    # Setup: DISABLE GPT review
+@test "API script works regardless of config (config controls auto-prompting only)" {
+    # Setup: DISABLE GPT review in config
     cp "$FIXTURES_DIR/configs/disabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
 
     # Create test files
@@ -264,16 +265,17 @@ teardown() {
     echo "You are an expert in test domains." > "$TEST_DIR/expertise.md"
     echo "## Product Context\nTest product." > "$TEST_DIR/context.md"
 
-    # Run API script directly with disabled config
+    # Run API script - should NOT skip due to config, but will fail due to fake API key
     cd "$PROJECT_ROOT"
     export OPENAI_API_KEY="test-key-for-mock"
     run .claude/scripts/gpt-review-api.sh prd "$TEST_DIR/grimoires/loa/prd.md" \
         --expertise "$TEST_DIR/expertise.md" \
         --context "$TEST_DIR/context.md"
 
-    # Should succeed with SKIPPED verdict
-    [[ "$status" -eq 0 ]]
-    echo "$output" | grep -q '"verdict": "SKIPPED"'
+    # Should fail with API error (exit 1 or 4), NOT succeed with SKIPPED
+    # The point is: config doesn't block manual invocation
+    [[ "$status" -ne 0 ]]
+    ! echo "$output" | grep -q '"verdict": "SKIPPED"'
 
     # Cleanup
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
@@ -503,7 +505,7 @@ teardown() {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
     "$INJECT_SCRIPT"
 
-    grep -q "GPT REVIEW IS ENABLED" "$PROJECT_ROOT/CLAUDE.md"
+    grep -q "GPT CROSS-MODEL REVIEW IS ENABLED" "$PROJECT_ROOT/CLAUDE.md"
 
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
 }
@@ -511,12 +513,12 @@ teardown() {
 @test "inject script removes GPT review banner from CLAUDE.md when disabled" {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
     "$INJECT_SCRIPT"
-    grep -q "GPT REVIEW IS ENABLED" "$PROJECT_ROOT/CLAUDE.md"
+    grep -q "GPT CROSS-MODEL REVIEW IS ENABLED" "$PROJECT_ROOT/CLAUDE.md"
 
     cp "$FIXTURES_DIR/configs/disabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
     "$INJECT_SCRIPT"
 
-    ! grep -q "GPT REVIEW IS ENABLED" "$PROJECT_ROOT/CLAUDE.md"
+    ! grep -q "GPT CROSS-MODEL REVIEW IS ENABLED" "$PROJECT_ROOT/CLAUDE.md"
 
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
 }
@@ -537,5 +539,5 @@ teardown() {
 }
 
 @test "GPT review banner not present in CLAUDE.md at rest" {
-    ! grep -q "GPT REVIEW IS ENABLED" "$PROJECT_ROOT/CLAUDE.md"
+    ! grep -q "GPT CROSS-MODEL REVIEW IS ENABLED" "$PROJECT_ROOT/CLAUDE.md"
 }

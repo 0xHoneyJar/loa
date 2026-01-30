@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Inject or remove GPT review gates from skill files based on config
-# Called by SessionStart hook
+# Inject or remove GPT review gates from skills, commands, and CLAUDE.md based on config
+# Called by gpt-review-toggle.sh after toggling the config setting
 
 set -euo pipefail
 
@@ -76,6 +76,21 @@ Wait for the verdict:
 # Success criteria to inject into each skill
 SUCCESS_CRITERION="- **GPT Review**: Cross-model review completed with APPROVED or SKIPPED verdict"
 
+# Run mode gate - injected at top of run-mode skill
+# Critical because /run bypasses normal skill loading
+RUN_MODE_GATE='---
+> **GPT REVIEW ENABLED - MANDATORY FOR ALL SPRINT TASKS**
+>
+> After completing EACH implementation task, you MUST run GPT review:
+>
+> 1. Write `/tmp/gpt-review-expertise.md` (domain expertise from PRD)
+> 2. Write `/tmp/gpt-review-context.md` (product context + task purpose + acceptance criteria from sprint.md)
+> 3. Use Skill tool: `Skill: gpt-review, Args: code <modified-file>`
+> 4. Handle verdict (APPROVED -> continue, CHANGES_REQUIRED -> fix and retry)
+>
+> **DO NOT proceed to the next task or commit without GPT review.**
+---'
+
 # Command file gates - inserted before "## Next Step" or file-specific markers
 # Uses explicit "Use the Skill tool" pattern - this is what Claude actually reads
 
@@ -140,9 +155,35 @@ Wait for the verdict before proceeding:
 - **CHANGES_REQUIRED**: Fix issues, re-invoke with the same file
 - **SKIPPED**: GPT review disabled, continue normally"
 
-# CLAUDE.md banner - injected right after "Dynamic instructions" line
-# Explicitly tells Claude to use the Skill tool
-CLAUDE_MD_BANNER="> ⚠️ **GPT REVIEW IS ENABLED** - After creating/modifying PRD, SDD, sprint plans, or code files, you MUST use the Skill tool to invoke \`gpt-review\` with the appropriate type (\`prd\`, \`sdd\`, \`sprint\`, \`code\`) BEFORE marking the phase complete. This is MANDATORY."
+# CLAUDE.md banner - injected right after "# CLAUDE.md" title
+# Comprehensive instructions for GPT cross-model review
+CLAUDE_MD_BANNER='---
+## ⚠️ GPT CROSS-MODEL REVIEW IS ENABLED
+
+You MUST run GPT review after significant code changes. Use your judgment:
+
+**ALWAYS review**: New files, major refactors, security-sensitive code, API changes
+**SKIP review**: Typo fixes, comment changes, trivial one-liners
+
+### How to Run GPT Review
+
+1. **Build context first** (write these files before invoking):
+   - `/tmp/gpt-review-expertise.md` - Domain expertise from PRD (e.g., "blockchain security", "React patterns")
+   - `/tmp/gpt-review-context.md` - Product context + what this code does + acceptance criteria
+
+2. **Invoke the skill**:
+   ```
+   Skill: gpt-review
+   Args: code <file-path>
+   ```
+
+3. **Handle the verdict**:
+   - `APPROVED` → Continue
+   - `CHANGES_REQUIRED` → Fix issues, re-run review
+   - `SKIPPED` → Review was disabled, continue
+
+**For documents** (PRD, SDD, sprint plans): Same process but use `prd`, `sdd`, or `sprint` as the arg.
+---'
 
 # Remove success criterion from a skill file
 remove_success_criterion() {
@@ -173,29 +214,92 @@ add_success_criterion() {
 
 # Remove GPT review banner from CLAUDE.md
 remove_claude_md_banner() {
-  if [[ -f "$CLAUDE_MD" ]] && grep -q "GPT REVIEW IS ENABLED" "$CLAUDE_MD"; then
+  if [[ -f "$CLAUDE_MD" ]] && grep -q "GPT CROSS-MODEL REVIEW IS ENABLED" "$CLAUDE_MD"; then
     local temp_file="${CLAUDE_MD}.tmp"
-    # Simply remove the banner line - nothing else
-    grep -v "GPT REVIEW IS ENABLED" "$CLAUDE_MD" > "$temp_file"
+    # Remove the entire block from first --- to closing ---
+    # Also skip the blank line that follows the closing ---
+    awk '
+      /^---$/ && !in_block { in_block=1; next }
+      /^---$/ && in_block { in_block=0; skip_blank=1; next }
+      skip_blank && /^$/ { skip_blank=0; next }
+      skip_blank { skip_blank=0 }
+      !in_block { print }
+    ' "$CLAUDE_MD" > "$temp_file"
     mv "$temp_file" "$CLAUDE_MD"
   fi
 }
 
-# Add GPT review banner to CLAUDE.md - inject after blank line following "Dynamic instructions"
+# Add GPT review banner to CLAUDE.md - inject after the title line
 add_claude_md_banner() {
   # First remove any existing banner
   remove_claude_md_banner
 
-  if [[ -f "$CLAUDE_MD" ]] && grep -q "Dynamic instructions" "$CLAUDE_MD"; then
+  if [[ -f "$CLAUDE_MD" ]]; then
     local temp_file="${CLAUDE_MD}.tmp"
-    # Insert banner after the blank line that follows "Dynamic instructions"
-    # Pattern: "Dynamic instructions" line → blank line → insert banner here
-    awk -v banner="$CLAUDE_MD_BANNER" '
-      /Dynamic instructions/ { found=1 }
-      found && /^$/ { print; print banner; found=0; next }
+    local banner_file="${CLAUDE_MD}.banner.tmp"
+
+    # Write banner to temp file
+    printf '%s\n' "$CLAUDE_MD_BANNER" > "$banner_file"
+
+    # Insert banner after "# CLAUDE.md" title and blank line
+    # The banner block ends with --- so we just need one blank line before next content
+    awk -v bannerfile="$banner_file" '
+      /^# CLAUDE\.md$/ {
+        print
+        getline
+        print
+        while ((getline line < bannerfile) > 0) print line
+        close(bannerfile)
+        next
+      }
       { print }
     ' "$CLAUDE_MD" > "$temp_file"
+
     mv "$temp_file" "$CLAUDE_MD"
+    rm -f "$banner_file"
+  fi
+}
+
+# Remove GPT review gate from run-mode skill
+remove_run_mode_gate() {
+  local file="$SKILLS_DIR/run-mode/SKILL.md"
+  if [[ -f "$file" ]] && grep -q "GPT REVIEW ENABLED - MANDATORY" "$file"; then
+    local temp_file="${file}.tmp"
+    # Remove from first --- to second --- (the gate block)
+    awk '
+      /^---$/ && !found { found=1; in_gate=1; next }
+      /^---$/ && in_gate { in_gate=0; next }
+      !in_gate { print }
+    ' "$file" > "$temp_file"
+    mv "$temp_file" "$file"
+  fi
+}
+
+# Add GPT review gate to run-mode skill - inject after title
+add_run_mode_gate() {
+  local file="$SKILLS_DIR/run-mode/SKILL.md"
+
+  # First remove any existing gate
+  remove_run_mode_gate
+
+  if [[ -f "$file" ]]; then
+    local temp_file="${file}.tmp"
+    local gate_file="${file}.gate.tmp"
+
+    # Write gate to temp file
+    printf '%s\n' "$RUN_MODE_GATE" > "$gate_file"
+
+    # Insert gate after the title line
+    {
+      head -1 "$file"
+      echo ""
+      cat "$gate_file"
+      echo ""
+      tail -n +2 "$file"
+    } > "$temp_file"
+
+    mv "$temp_file" "$file"
+    rm -f "$gate_file"
   fi
 }
 
@@ -338,6 +442,9 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   remove_cmd_gate "$COMMANDS_DIR/sprint-plan.md"
   remove_cmd_gate "$COMMANDS_DIR/implement.md"
 
+  # Remove run-mode gate
+  remove_run_mode_gate
+
   # Remove banner from CLAUDE.md
   remove_claude_md_banner
   exit 0
@@ -364,6 +471,9 @@ if [[ "$enabled" == "true" ]]; then
   add_cmd_gate "$COMMANDS_DIR/sprint-plan.md" "$SPRINT_CMD_GATE"
   add_cmd_gate "$COMMANDS_DIR/implement.md" "$CODE_CMD_GATE"
 
+  # Add run-mode gate (for /run sprint-plan which bypasses normal skill loading)
+  add_run_mode_gate
+
   # Add banner to CLAUDE.md (Claude reads this automatically!)
   add_claude_md_banner
 else
@@ -383,6 +493,9 @@ else
   remove_cmd_gate "$COMMANDS_DIR/architect.md"
   remove_cmd_gate "$COMMANDS_DIR/sprint-plan.md"
   remove_cmd_gate "$COMMANDS_DIR/implement.md"
+
+  # Remove run-mode gate
+  remove_run_mode_gate
 
   # Remove banner from CLAUDE.md
   remove_claude_md_banner

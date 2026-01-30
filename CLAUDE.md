@@ -2,8 +2,6 @@
 
 Guidance for Claude Code when working in this repository.
 
-**Dynamic instructions**: If `.claude/context/gpt-review-active.md` exists, read and follow it.
-
 ## Project Overview
 
 Agent-driven development framework that orchestrates the complete product lifecycle using 9 specialized AI agents (skills). Built with enterprise-grade managed scaffolding inspired by AWS Projen, Copier, and Google's ADK.
@@ -263,12 +261,6 @@ Alignment with Claude Code 2.1.x platform capabilities:
 
 **Skill Forking**: `/ride` and validators use `context: fork` with `agent: Explore` for isolated execution:
 ```yaml
----
-name: ride
-context: fork
-agent: Explore
-allowed-tools: Read, Grep, Glob, Bash(git *)
----
 ```
 
 **One-Time Hooks**: Update check only runs once per session:

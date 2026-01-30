@@ -452,14 +452,6 @@
             "command": ".claude/scripts/check-updates.sh --notify",
             "async": true,
             "once": true
-          },
-          {
-            "type": "command",
-            "command": ".claude/scripts/toggle-gpt-review-context.sh"
-          },
-          {
-            "type": "command",
-            "command": ".claude/scripts/inject-gpt-review-gates.sh"
           }
         ]
       }

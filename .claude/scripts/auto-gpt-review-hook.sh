@@ -28,11 +28,15 @@ fi
 
 # GPT review is enabled - output JSON that Claude will see
 # The additionalContext field is injected into Claude's conversation context
+#
+# Policy:
+# - Sprint tasks (/implement, /run): MANDATORY per task (enforced by skill gate)
+# - Ad-hoc changes: Optional for trivial changes, but encouraged for substantial ones
 cat << 'EOF'
 {
   "hookSpecificOutput": {
     "hookEventName": "PostToolUse",
-    "additionalContext": "Code file modified. If your changes were complex, consider running /gpt-review code on the modified files to catch issues."
+    "additionalContext": "Code modified. GPT review policy: If you're executing sprint tasks, GPT review is MANDATORY after each task (see skill instructions). For ad-hoc changes, use judgment - trivial changes (styling, typos) don't need review, but substantial changes should be reviewed. If you've made several code changes without GPT review, consider running one now: Skill: gpt-review, Args: code <file>"
   }
 }
 EOF

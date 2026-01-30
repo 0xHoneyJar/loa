@@ -17,11 +17,12 @@ Run the toggle script:
 ```
 
 The script handles everything:
-- Adds `gpt_review.enabled` to config if missing
-- Flips the value: `true` → `false` or `false` → `true`
-- Creates/removes the context file
+- Flips `gpt_review.enabled`: `true` → `false` or `false` → `true`
+- Injects/removes GPT review instructions from CLAUDE.md
+- Injects/removes review gates from skill files
+- Injects/removes review gates from command files
 - Reports: `GPT Review: ENABLED` or `GPT Review: DISABLED`
 
 ## After Toggling
 
-Restart your Claude session for the context file changes to take effect.
+Restart your Claude session for the injected changes to take effect.

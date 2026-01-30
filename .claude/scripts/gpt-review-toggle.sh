@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Toggle GPT review enabled/disabled in .loa.config.yaml
 # Usage: gpt-review-toggle.sh
+#
+# This script:
+# 1. Toggles gpt_review.enabled in config
+# 2. Runs inject-gpt-review-gates.sh to update all skills/commands/CLAUDE.md
 
 set -euo pipefail
 
@@ -26,14 +30,16 @@ current=$(yq eval '.gpt_review.enabled // false' "$CONFIG_FILE" 2>/dev/null || e
 # Toggle it
 if [[ "$current" == "true" ]]; then
   yq eval -i '.gpt_review.enabled = false' "$CONFIG_FILE"
-  # Remove context file
-  rm -f "$ROOT_DIR/.claude/context/gpt-review-active.md"
   echo "GPT Review: DISABLED"
 else
   yq eval -i '.gpt_review.enabled = true' "$CONFIG_FILE"
-  # Create context file
-  "$SCRIPT_DIR/toggle-gpt-review-context.sh"
   echo "GPT Review: ENABLED"
 fi
+
+# Run injection script to update all files
+"$SCRIPT_DIR/inject-gpt-review-gates.sh"
+
+echo ""
+echo "Restart your Claude session for changes to take effect."
 
 exit 0

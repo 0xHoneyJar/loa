@@ -510,13 +510,9 @@ main() {
     exit 2
   fi
 
-  # ============================================
-  # CONFIG CHECK - Return SKIPPED if disabled
-  # ============================================
-  if ! check_config_enabled "$review_type"; then
-    local phase_key="${PHASE_KEYS[$review_type]}"
-    skip_review "GPT review disabled (check gpt_review.enabled and gpt_review.phases.${phase_key} in .loa.config.yaml)"
-  fi
+  # NOTE: No config check here - the API always works if you have an API key.
+  # The config (gpt_review.enabled) controls whether Loa *automatically* prompts
+  # for GPT review, not whether manual /gpt-review invocations work.
 
   # Validate content file
   if [[ -z "$content_file" ]]; then
