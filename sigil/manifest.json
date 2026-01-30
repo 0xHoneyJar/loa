@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "name": "Sigil",
+  "slug": "sigil",
+  "version": "1.0.0",
+  "description": "Brand and UI craftsmanship skills from rune",
+  "author": "0xHoneyJar",
+  "license": "MIT",
+  "skills": [
+    {"slug": "animating-motion", "path": "skills/animating-motion"},
+    {"slug": "applying-behavior", "path": "skills/applying-behavior"},
+    {"slug": "crafting-physics", "path": "skills/crafting-physics"},
+    {"slug": "distilling-components", "path": "skills/distilling-components"},
+    {"slug": "inscribing-taste", "path": "skills/inscribing-taste"},
+    {"slug": "styling-material", "path": "skills/styling-material"},
+    {"slug": "surveying-patterns", "path": "skills/surveying-patterns"},
+    {"slug": "synthesizing-taste", "path": "skills/synthesizing-taste"},
+    {"slug": "validating-physics", "path": "skills/validating-physics"},
+    {"slug": "web3-testing", "path": "skills/web3-testing"}
+  ],
+  "contexts": {
+    "taste_dir": "contexts/taste"
+  },
+  "hooks": {
+    "post_install": "scripts/install.sh"
+  },
+  "dependencies": []
+}

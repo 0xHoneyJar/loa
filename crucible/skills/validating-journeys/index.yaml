@@ -1,0 +1,14 @@
+name: validating-journeys
+slug: validating-journeys
+version: 1.0.0
+description: Generate Playwright test scripts from state diagrams and execute them.
+entry: SKILL.md
+triggers:
+  - /validate
+allowed-tools:
+  - Read
+  - Write
+  - Glob
+  - Grep
+  - Edit
+  - Bash

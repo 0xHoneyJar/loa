@@ -1,0 +1,19 @@
+name: web3-testing
+slug: web3-testing
+version: 1.0.0
+description: Web3-specific testing utilities for dApps
+entry: SKILL.md
+triggers:
+  - /web3-test
+allowed-tools:
+  - Read
+  - 
+  - Write
+  - 
+  - Glob
+  - 
+  - Grep
+  - 
+  - Edit
+  - 
+  - Bash

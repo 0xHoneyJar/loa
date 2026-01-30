@@ -1,0 +1,13 @@
+name: importing-research
+slug: importing-research
+version: 1.0.0
+description: Bulk convert legacy user research profiles to UTC (User Truth Canvas) format.
+entry: SKILL.md
+triggers:
+  - /import-research
+allowed-tools:
+  - Read
+  - Write
+  - Glob
+  - Grep
+  - Edit

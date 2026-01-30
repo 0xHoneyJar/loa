@@ -1,0 +1,13 @@
+name: analyzing-gaps
+slug: analyzing-gaps
+version: 1.0.0
+description: Compare user expectations (UTCs) with code reality to identify gaps.
+entry: SKILL.md
+triggers:
+  - /analyze-gap
+allowed-tools:
+  - Read
+  - Write
+  - Glob
+  - Grep
+  - Edit

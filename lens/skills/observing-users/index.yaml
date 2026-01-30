@@ -1,0 +1,13 @@
+name: observing-users
+slug: observing-users
+version: 1.0.0
+description: Capture user feedback as hypothesis-first research using Level 3 diagnostic. Forms theories (not conclusions) from quotes.
+entry: SKILL.md
+triggers:
+  - /observe
+allowed-tools:
+  - Read
+  - Write
+  - Glob
+  - Grep
+  - Edit

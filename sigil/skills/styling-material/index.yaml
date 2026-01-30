@@ -1,0 +1,17 @@
+name: styling-material
+slug: styling-material
+version: 1.0.0
+description: Apply Material Design styling patterns
+entry: SKILL.md
+triggers:
+  - /style
+allowed-tools:
+  - Read
+  - 
+  - Write
+  - 
+  - Glob
+  - 
+  - Grep
+  - 
+  - Edit

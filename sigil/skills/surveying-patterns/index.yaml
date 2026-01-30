@@ -1,0 +1,17 @@
+name: surveying-patterns
+slug: surveying-patterns
+version: 1.0.0
+description: Discover and catalog UI patterns in codebase
+entry: SKILL.md
+triggers:
+  - /survey
+allowed-tools:
+  - Read
+  - 
+  - Write
+  - 
+  - Glob
+  - 
+  - Grep
+  - 
+  - Edit

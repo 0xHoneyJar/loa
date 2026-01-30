@@ -1,0 +1,13 @@
+name: filing-gaps
+slug: filing-gaps
+version: 1.0.0
+description: Create GitHub/Linear issues from gap analysis reports with proper taxonomy labels.
+entry: SKILL.md
+triggers:
+  - /file-gap
+allowed-tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
+  - Glob

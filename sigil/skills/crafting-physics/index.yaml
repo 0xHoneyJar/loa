@@ -1,0 +1,17 @@
+name: crafting-physics
+slug: crafting-physics
+version: 1.0.0
+description: Create physics-based animations with spring dynamics
+entry: SKILL.md
+triggers:
+  - /craft
+allowed-tools:
+  - Read
+  - 
+  - Write
+  - 
+  - Glob
+  - 
+  - Grep
+  - 
+  - Edit

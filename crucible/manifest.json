@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "name": "Crucible",
+  "slug": "crucible",
+  "version": "1.0.0",
+  "description": "Validation and testing skills for journey verification",
+  "author": "0xHoneyJar",
+  "license": "MIT",
+  "skills": [
+    {"slug": "validating-journeys", "path": "skills/validating-journeys"},
+    {"slug": "grounding-code", "path": "skills/grounding-code"},
+    {"slug": "iterating-feedback", "path": "skills/iterating-feedback"},
+    {"slug": "walking-through", "path": "skills/walking-through"},
+    {"slug": "diagramming-states", "path": "skills/diagramming-states"}
+  ],
+  "hooks": {
+    "post_install": "scripts/install.sh"
+  },
+  "dependencies": []
+}

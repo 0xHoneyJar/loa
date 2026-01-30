@@ -1,0 +1,17 @@
+name: level-3-diagnostic
+slug: level-3-diagnostic
+version: 1.0.0
+description: |
+  Diagnostic-first user research for support conversations and feedback analysis.
+  Reaches Level 3 (user goal) before investigating or fixing.
+entry: SKILL.md
+triggers:
+  - user feedback
+  - bug report
+  - support conversation
+allowed-tools:
+  - Read
+  - Write
+  - Glob
+  - Grep
+  - Edit

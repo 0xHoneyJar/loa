@@ -1,0 +1,17 @@
+name: distilling-components
+slug: distilling-components
+version: 1.0.0
+description: Extract and refine reusable UI components
+entry: SKILL.md
+triggers:
+  - /distill
+allowed-tools:
+  - Read
+  - 
+  - Write
+  - 
+  - Glob
+  - 
+  - Grep
+  - 
+  - Edit

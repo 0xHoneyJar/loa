@@ -1,0 +1,19 @@
+name: validating-physics
+slug: validating-physics
+version: 1.0.0
+description: Validate physics animation implementations
+entry: SKILL.md
+triggers:
+  - /validate-physics
+allowed-tools:
+  - Read
+  - 
+  - Write
+  - 
+  - Glob
+  - 
+  - Grep
+  - 
+  - Edit
+  - 
+  - Bash

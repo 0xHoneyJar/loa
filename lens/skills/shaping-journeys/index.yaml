@@ -1,0 +1,13 @@
+name: shaping-journeys
+slug: shaping-journeys
+version: 1.0.0
+description: List user canvases and shape common patterns into journey definitions.
+entry: SKILL.md
+triggers:
+  - /shape
+allowed-tools:
+  - Read
+  - Write
+  - Glob
+  - Grep
+  - Edit

@@ -1,0 +1,17 @@
+name: inscribing-taste
+slug: inscribing-taste
+version: 1.0.0
+description: Apply brand taste guidelines to designs
+entry: SKILL.md
+triggers:
+  - /inscribe
+allowed-tools:
+  - Read
+  - 
+  - Write
+  - 
+  - Glob
+  - 
+  - Grep
+  - 
+  - Edit

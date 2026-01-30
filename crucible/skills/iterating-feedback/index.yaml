@@ -1,0 +1,13 @@
+name: iterating-feedback
+slug: iterating-feedback
+version: 1.0.0
+description: Close the feedback loop by updating upstream artifacts from test results.
+entry: SKILL.md
+triggers:
+  - /iterate
+allowed-tools:
+  - Read
+  - Write
+  - Glob
+  - Grep
+  - Edit

@@ -1,0 +1,15 @@
+name: walking-through
+slug: walking-through
+version: 1.0.0
+description: Interactive dev browser walkthrough for validating user journeys.
+entry: SKILL.md
+triggers:
+  - /walkthrough
+allowed-tools:
+  - Read
+  - Write
+  - Glob
+  - Grep
+  - Edit
+  - Bash
+  - Skill

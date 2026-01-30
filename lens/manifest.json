@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "name": "Lens",
+  "slug": "lens",
+  "version": "1.0.0",
+  "description": "User truth capture skills for hypothesis-first research",
+  "author": "0xHoneyJar",
+  "license": "MIT",
+  "skills": [
+    {"slug": "observing-users", "path": "skills/observing-users"},
+    {"slug": "shaping-journeys", "path": "skills/shaping-journeys"},
+    {"slug": "level-3-diagnostic", "path": "skills/level-3-diagnostic"},
+    {"slug": "analyzing-gaps", "path": "skills/analyzing-gaps"},
+    {"slug": "filing-gaps", "path": "skills/filing-gaps"},
+    {"slug": "importing-research", "path": "skills/importing-research"}
+  ],
+  "contexts": {
+    "base": "contexts/base/crypto-base.md",
+    "overlays_dir": "contexts/overlays",
+    "composed_dir": "contexts/composed"
+  },
+  "hooks": {
+    "post_install": "scripts/install.sh"
+  },
+  "dependencies": []
+}

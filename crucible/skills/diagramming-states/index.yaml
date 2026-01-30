@@ -1,0 +1,14 @@
+name: diagramming-states
+slug: diagramming-states
+version: 1.0.0
+description: Generate Mermaid state machine diagrams from user journey definitions.
+entry: SKILL.md
+triggers:
+  - /diagram
+allowed-tools:
+  - Read
+  - Write
+  - Glob
+  - Grep
+  - Edit
+  - Skill

@@ -1,0 +1,13 @@
+name: grounding-code
+slug: grounding-code
+version: 1.0.0
+description: Extract actual code behavior into a structured reality file.
+entry: SKILL.md
+triggers:
+  - /ground
+allowed-tools:
+  - Read
+  - Write
+  - Glob
+  - Grep
+  - Edit

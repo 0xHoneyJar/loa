@@ -1,0 +1,17 @@
+name: synthesizing-taste
+slug: synthesizing-taste
+version: 1.0.0
+description: Synthesize brand taste from reference materials
+entry: SKILL.md
+triggers:
+  - /synthesize-taste
+allowed-tools:
+  - Read
+  - 
+  - Write
+  - 
+  - Glob
+  - 
+  - Grep
+  - 
+  - Edit
