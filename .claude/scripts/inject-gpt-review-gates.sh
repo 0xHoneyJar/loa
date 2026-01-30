@@ -48,11 +48,18 @@ remove_gate() {
   # Look for any GPT Cross-Model Review phase header
   if [[ -f "$file" ]] && grep -q "GPT Cross-Model Review" "$file"; then
     # Remove from the phase header to just before </workflow>
+    # Also removes the single blank line that precedes the phase header
     local temp_file="${file}.tmp"
     awk '
-      /### Phase.*GPT Cross-Model Review|### Post-Task: GPT Cross-Model Review/ { skip=1; next }
+      BEGIN { prev_blank=0; skip=0 }
+      /^$/ && !skip { prev_blank=1; prev_line=$0; next }
+      /### Phase.*GPT Cross-Model Review|### Post-Task: GPT Cross-Model Review/ { skip=1; prev_blank=0; next }
       /<\/workflow>/ { skip=0 }
-      !skip { print }
+      !skip {
+        if (prev_blank) { print prev_line; prev_blank=0 }
+        print
+      }
+      END { if (prev_blank) print prev_line }
     ' "$file" > "$temp_file"
     mv "$temp_file" "$file"
   fi

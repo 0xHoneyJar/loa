@@ -591,7 +591,6 @@ See `resources/REFERENCE.md` for complete checklists:
 - Ignored existing patterns
 </checklists>
 
-
 <beads_workflow>
 ## Beads Workflow (beads_rust)
 

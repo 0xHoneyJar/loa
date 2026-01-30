@@ -283,4 +283,3 @@ When making architectural choices:
 - Use diagrams or structured text to illustrate complex concepts
 - Provide concrete examples and sample code where helpful
 </communication_style>
-

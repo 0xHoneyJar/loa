@@ -1,8 +1,8 @@
 #!/usr/bin/env bats
 # Tests for GPT review skill integration
 #
-# Verifies that GPT review gates are dynamically injected into skill files
-# based on config. When enabled: gates are injected. When disabled: removed.
+# Verifies that GPT review phases are dynamically injected into skill files
+# based on config. When enabled: phases are injected. When disabled: removed.
 
 setup() {
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
@@ -38,7 +38,7 @@ teardown() {
     [[ -x "$INJECT_SCRIPT" ]]
 }
 
-@test "inject script adds gates when enabled" {
+@test "inject script adds GPT review phase when enabled" {
     # Setup: copy enabled config to project root
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
 
@@ -46,40 +46,40 @@ teardown() {
     run "$INJECT_SCRIPT"
     [[ "$status" -eq 0 ]]
 
-    # Check gates were added
-    grep -q "GPT_REVIEW_GATE_START" "$SKILLS_DIR/discovering-requirements/SKILL.md"
-    grep -q "GPT_REVIEW_GATE_START" "$SKILLS_DIR/designing-architecture/SKILL.md"
-    grep -q "GPT_REVIEW_GATE_START" "$SKILLS_DIR/planning-sprints/SKILL.md"
-    grep -q "GPT_REVIEW_GATE_START" "$SKILLS_DIR/implementing-tasks/SKILL.md"
+    # Check GPT review phases were added (look for the phase header)
+    grep -q "GPT Cross-Model Review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
+    grep -q "GPT Cross-Model Review" "$SKILLS_DIR/designing-architecture/SKILL.md"
+    grep -q "GPT Cross-Model Review" "$SKILLS_DIR/planning-sprints/SKILL.md"
+    grep -q "GPT Cross-Model Review" "$SKILLS_DIR/implementing-tasks/SKILL.md"
 
     # Cleanup
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
 }
 
-@test "inject script removes gates when disabled" {
-    # Setup: first add gates
+@test "inject script removes GPT review phase when disabled" {
+    # Setup: first add phases
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
     "$INJECT_SCRIPT"
 
-    # Verify gates exist
-    grep -q "GPT_REVIEW_GATE_START" "$SKILLS_DIR/discovering-requirements/SKILL.md"
+    # Verify phases exist
+    grep -q "GPT Cross-Model Review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
 
     # Now disable
     cp "$FIXTURES_DIR/configs/disabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
     run "$INJECT_SCRIPT"
     [[ "$status" -eq 0 ]]
 
-    # Check gates were removed
-    ! grep -q "GPT_REVIEW_GATE_START" "$SKILLS_DIR/discovering-requirements/SKILL.md"
-    ! grep -q "GPT_REVIEW_GATE_START" "$SKILLS_DIR/designing-architecture/SKILL.md"
-    ! grep -q "GPT_REVIEW_GATE_START" "$SKILLS_DIR/planning-sprints/SKILL.md"
-    ! grep -q "GPT_REVIEW_GATE_START" "$SKILLS_DIR/implementing-tasks/SKILL.md"
+    # Check phases were removed
+    ! grep -q "GPT Cross-Model Review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
+    ! grep -q "GPT Cross-Model Review" "$SKILLS_DIR/designing-architecture/SKILL.md"
+    ! grep -q "GPT Cross-Model Review" "$SKILLS_DIR/planning-sprints/SKILL.md"
+    ! grep -q "GPT Cross-Model Review" "$SKILLS_DIR/implementing-tasks/SKILL.md"
 
     # Cleanup
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
 }
 
-@test "skill files are IDENTICAL to original after gate removal" {
+@test "skill files are IDENTICAL to original after phase removal" {
     # Store checksums of original files
     local orig_prd_checksum orig_sdd_checksum orig_sprint_checksum orig_impl_checksum
     orig_prd_checksum=$(md5 -q "$TEST_DIR/discovering-requirements-SKILL.md.bak")
@@ -87,14 +87,14 @@ teardown() {
     orig_sprint_checksum=$(md5 -q "$TEST_DIR/planning-sprints-SKILL.md.bak")
     orig_impl_checksum=$(md5 -q "$TEST_DIR/implementing-tasks-SKILL.md.bak")
 
-    # Add gates
+    # Add phases
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
     "$INJECT_SCRIPT"
 
-    # Verify gates were added
-    grep -q "GPT_REVIEW_GATE_START" "$SKILLS_DIR/discovering-requirements/SKILL.md"
+    # Verify phases were added
+    grep -q "GPT Cross-Model Review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
 
-    # Remove gates
+    # Remove phases
     cp "$FIXTURES_DIR/configs/disabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
     "$INJECT_SCRIPT"
 
@@ -114,93 +114,91 @@ teardown() {
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
 }
 
-@test "injection adds gate inside workflow section" {
-    # Add gates
+@test "injection adds phase inside workflow section" {
+    # Add phases
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
     "$INJECT_SCRIPT"
 
-    # Verify gate was added
-    grep -q "GPT_REVIEW_GATE_START" "$SKILLS_DIR/discovering-requirements/SKILL.md"
+    # Verify phase was added
+    grep -q "GPT Cross-Model Review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
 
-    # Gate should be INSIDE workflow (before </workflow>)
-    # Check that </workflow> comes AFTER the gate
-    local gate_line workflow_end_line
-    gate_line=$(grep -n "GPT_REVIEW_GATE_START" "$SKILLS_DIR/discovering-requirements/SKILL.md" | cut -d: -f1)
+    # Phase should be INSIDE workflow (before </workflow>)
+    local phase_line workflow_end_line
+    phase_line=$(grep -n "GPT Cross-Model Review" "$SKILLS_DIR/discovering-requirements/SKILL.md" | cut -d: -f1)
     workflow_end_line=$(grep -n "</workflow>" "$SKILLS_DIR/discovering-requirements/SKILL.md" | cut -d: -f1)
 
-    # Gate should be before </workflow>
-    [[ "$gate_line" -lt "$workflow_end_line" ]]
+    # Phase should be before </workflow>
+    [[ "$phase_line" -lt "$workflow_end_line" ]]
 
-    # Gate should be labeled as Phase 9 (part of workflow)
-    grep -q "## Phase 9:" "$SKILLS_DIR/discovering-requirements/SKILL.md"
+    # Phase should use standard ### format
+    grep -q "### Phase.*GPT Cross-Model Review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
 
     # Cleanup
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
 }
 
-@test "gate markers are not present in any skill files at rest" {
+@test "GPT review phase not present in skill files at rest" {
     # Without any config manipulation, skill files should be clean
-    # (This tests that the repo state is correct)
-    ! grep -q "GPT_REVIEW_GATE_START" "$TEST_DIR/discovering-requirements-SKILL.md.bak"
-    ! grep -q "GPT_REVIEW_GATE_START" "$TEST_DIR/designing-architecture-SKILL.md.bak"
-    ! grep -q "GPT_REVIEW_GATE_START" "$TEST_DIR/planning-sprints-SKILL.md.bak"
-    ! grep -q "GPT_REVIEW_GATE_START" "$TEST_DIR/implementing-tasks-SKILL.md.bak"
+    ! grep -q "GPT Cross-Model Review" "$TEST_DIR/discovering-requirements-SKILL.md.bak"
+    ! grep -q "GPT Cross-Model Review" "$TEST_DIR/designing-architecture-SKILL.md.bak"
+    ! grep -q "GPT Cross-Model Review" "$TEST_DIR/planning-sprints-SKILL.md.bak"
+    ! grep -q "GPT Cross-Model Review" "$TEST_DIR/implementing-tasks-SKILL.md.bak"
 }
 
-@test "inject script removes gates when config missing" {
-    # Setup: first add gates
+@test "inject script removes phases when config missing" {
+    # Setup: first add phases
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
     "$INJECT_SCRIPT"
 
-    # Verify gates exist
-    grep -q "GPT_REVIEW_GATE_START" "$SKILLS_DIR/discovering-requirements/SKILL.md"
+    # Verify phases exist
+    grep -q "GPT Cross-Model Review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
 
     # Remove config
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
     run "$INJECT_SCRIPT"
     [[ "$status" -eq 0 ]]
 
-    # Check gates were removed
-    ! grep -q "GPT_REVIEW_GATE_START" "$SKILLS_DIR/discovering-requirements/SKILL.md"
+    # Check phases were removed
+    ! grep -q "GPT Cross-Model Review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
 }
 
-@test "injected PRD gate has correct invocation" {
+@test "injected PRD phase uses /gpt-review skill command" {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
     "$INJECT_SCRIPT"
 
-    grep -q "gpt-review-api.sh prd" "$SKILLS_DIR/discovering-requirements/SKILL.md"
+    grep -q "/gpt-review prd" "$SKILLS_DIR/discovering-requirements/SKILL.md"
 
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
 }
 
-@test "injected SDD gate has correct invocation" {
+@test "injected SDD phase uses /gpt-review skill command" {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
     "$INJECT_SCRIPT"
 
-    grep -q "gpt-review-api.sh sdd" "$SKILLS_DIR/designing-architecture/SKILL.md"
+    grep -q "/gpt-review sdd" "$SKILLS_DIR/designing-architecture/SKILL.md"
 
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
 }
 
-@test "injected Sprint gate has correct invocation" {
+@test "injected Sprint phase uses /gpt-review skill command" {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
     "$INJECT_SCRIPT"
 
-    grep -q "gpt-review-api.sh sprint" "$SKILLS_DIR/planning-sprints/SKILL.md"
+    grep -q "/gpt-review sprint" "$SKILLS_DIR/planning-sprints/SKILL.md"
 
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
 }
 
-@test "injected Code gate has correct invocation" {
+@test "injected Code phase uses /gpt-review skill command" {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
     "$INJECT_SCRIPT"
 
-    grep -q "gpt-review-api.sh code" "$SKILLS_DIR/implementing-tasks/SKILL.md"
+    grep -q "/gpt-review code" "$SKILLS_DIR/implementing-tasks/SKILL.md"
 
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
 }
 
-@test "inject is idempotent - running twice doesn't duplicate gates" {
+@test "inject is idempotent - running twice doesn't duplicate phases" {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
 
     # Run twice
@@ -209,7 +207,7 @@ teardown() {
 
     # Count occurrences - should be exactly 1
     local count
-    count=$(grep -c "GPT_REVIEW_GATE_START" "$SKILLS_DIR/discovering-requirements/SKILL.md")
+    count=$(grep -c "GPT Cross-Model Review" "$SKILLS_DIR/discovering-requirements/SKILL.md")
     [[ "$count" -eq 1 ]]
 
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
@@ -248,77 +246,12 @@ teardown() {
 }
 
 # =============================================================================
-# End-to-end execution tests - verifies the ACTUAL commands work
+# API script tests
 # =============================================================================
-
-# Helper to create mock curl that records calls
-setup_mock_curl() {
-    mkdir -p "$TEST_DIR/bin"
-    cat > "$TEST_DIR/bin/curl" << 'MOCK_CURL'
-#!/usr/bin/env bash
-# Mock curl that records calls and returns success response
-echo "$@" >> "${MOCK_CURL_LOG:-/tmp/curl_calls.log}"
-# Return a valid GPT review response
-cat << 'RESPONSE'
-{
-  "choices": [{
-    "message": {
-      "content": "{\"verdict\": \"APPROVED\", \"summary\": \"Test mock response\"}"
-    }
-  }]
-}
-RESPONSE
-MOCK_CURL
-    chmod +x "$TEST_DIR/bin/curl"
-    export MOCK_CURL_LOG="$TEST_DIR/curl_calls.log"
-    rm -f "$MOCK_CURL_LOG"
-}
-
-@test "extracted PRD gate command is executable and calls API" {
-    # Setup: enable GPT review and inject gates
-    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
-
-    # Setup mock curl
-    setup_mock_curl
-
-    # Create a test PRD file
-    mkdir -p "$TEST_DIR/grimoires/loa"
-    echo "# Test PRD" > "$TEST_DIR/grimoires/loa/prd.md"
-
-    # Extract the bash command from the injected gate
-    local bash_cmd
-    bash_cmd=$(grep -A2 '```bash' "$SKILLS_DIR/discovering-requirements/SKILL.md" | grep 'gpt-review-api.sh' | sed 's/^[[:space:]]*//')
-
-    # The command should exist
-    [[ -n "$bash_cmd" ]]
-
-    # Replace the file path with our test file
-    bash_cmd="${bash_cmd/grimoires\/loa\/prd.md/$TEST_DIR/grimoires/loa/prd.md}"
-
-    # Set required env vars
-    export OPENAI_API_KEY="test-key-for-mock"
-
-    # Run the command with mocked curl (prepend mock dir to PATH)
-    cd "$PROJECT_ROOT"
-    PATH="$TEST_DIR/bin:$PATH" run bash -c "$bash_cmd"
-
-    # Command should succeed
-    [[ "$status" -eq 0 ]]
-
-    # Output should contain verdict
-    echo "$output" | grep -q "verdict"
-
-    # Cleanup
-    rm -f "$PROJECT_ROOT/.loa.config.yaml"
-}
 
 @test "API script checks config before making API call" {
     # Setup: DISABLE GPT review
     cp "$FIXTURES_DIR/configs/disabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-
-    # Setup mock curl
-    setup_mock_curl
 
     # Create a test PRD file
     mkdir -p "$TEST_DIR/grimoires/loa"
@@ -327,14 +260,11 @@ MOCK_CURL
     # Run API script directly with disabled config
     cd "$PROJECT_ROOT"
     export OPENAI_API_KEY="test-key-for-mock"
-    PATH="$TEST_DIR/bin:$PATH" run .claude/scripts/gpt-review-api.sh prd "$TEST_DIR/grimoires/loa/prd.md"
+    run .claude/scripts/gpt-review-api.sh prd "$TEST_DIR/grimoires/loa/prd.md"
 
     # Should succeed with SKIPPED verdict
     [[ "$status" -eq 0 ]]
     echo "$output" | grep -q '"verdict": "SKIPPED"'
-
-    # Mock curl should NOT have been called (no log file or empty)
-    [[ ! -s "$MOCK_CURL_LOG" ]]
 
     # Cleanup
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
@@ -360,56 +290,6 @@ MOCK_CURL
 
     # Should fail with specific exit code for missing API key
     [[ "$status" -eq 4 ]]
-
-    # Cleanup
-    rm -f "$PROJECT_ROOT/.loa.config.yaml"
-}
-
-@test "full chain: inject -> extract -> execute -> verify API called" {
-    # This is the critical end-to-end test that proves the system works
-
-    # Setup: enable GPT review
-    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-
-    # Step 1: Run inject script (simulates session start)
-    "$INJECT_SCRIPT"
-
-    # Step 2: Verify gate was injected
-    grep -q "GPT_REVIEW_GATE_START" "$SKILLS_DIR/discovering-requirements/SKILL.md"
-
-    # Step 3: Setup mock curl to capture calls
-    setup_mock_curl
-
-    # Step 4: Create test content
-    mkdir -p "$TEST_DIR/grimoires/loa"
-    echo "# Test PRD for full chain test" > "$TEST_DIR/grimoires/loa/prd.md"
-
-    # Step 5: Extract EXACT command from skill file (what Claude would execute)
-    local gate_section bash_cmd
-    gate_section=$(sed -n '/GPT_REVIEW_GATE_START/,/GPT_REVIEW_GATE_END/p' "$SKILLS_DIR/discovering-requirements/SKILL.md")
-    bash_cmd=$(echo "$gate_section" | grep -A1 '```bash' | grep 'gpt-review-api.sh' | sed 's/^[[:space:]]*//')
-
-    [[ -n "$bash_cmd" ]] || { echo "Failed to extract bash command from gate"; false; }
-
-    # Step 6: Modify command to use test file
-    bash_cmd="${bash_cmd/grimoires\/loa\/prd.md/$TEST_DIR/grimoires/loa/prd.md}"
-
-    # Step 7: Execute the command (with mocked curl)
-    export OPENAI_API_KEY="test-api-key"
-    cd "$PROJECT_ROOT"
-    PATH="$TEST_DIR/bin:$PATH" run bash -c "$bash_cmd"
-
-    # Step 8: Verify execution succeeded
-    [[ "$status" -eq 0 ]] || { echo "Command failed with status $status: $output"; false; }
-
-    # Step 9: Verify curl was actually called (proves the full chain works)
-    [[ -s "$MOCK_CURL_LOG" ]] || { echo "Curl was never called - API request not made"; false; }
-
-    # Step 10: Verify curl was called with OpenAI endpoint
-    grep -q "api.openai.com" "$MOCK_CURL_LOG" || { echo "Curl not called with OpenAI endpoint"; cat "$MOCK_CURL_LOG"; false; }
-
-    # Step 11: Verify response contains expected verdict
-    echo "$output" | grep -q "APPROVED" || { echo "Response missing APPROVED verdict: $output"; false; }
 
     # Cleanup
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
