@@ -175,11 +175,46 @@ export SEMANTIC_TOOLS=$(detect_semantic_tools)
 
 ### High-Level Architecture
 
+```mermaid
+graph TD
+    subgraph "Compound Learning System"
+        subgraph "Pattern Detection"
+            TL[(Trajectory Logs<br/>JSONL)] --> PD[Pattern Detector<br/>Engine]
+            PD --> PC[(Pattern<br/>Candidates)]
+        end
+        
+        subgraph "Skill Generation"
+            PD --> SG[Skill Generator<br/>Engine]
+            SG --> LR[(Learning<br/>Registry)]
+            SG --> OUT[NOTES.md /<br/>AGENTS.md Updates]
+        end
+        
+        subgraph "Feedback Loop"
+            direction LR
+            AP[Apply<br/>Learning] --> TR[Track<br/>Usage]
+            TR --> VE[Verify<br/>Outcome]
+            VE --> RE[Reinforce /<br/>Demote]
+        end
+    end
+    
+    LR -.-> AP
+    RE -.-> LR
+    
+    style TL fill:#f4f4f5,stroke:#a1a1aa
+    style PC fill:#f4f4f5,stroke:#a1a1aa
+    style LR fill:#f4f4f5,stroke:#a1a1aa
+    style PD fill:#3b82f6,stroke:#1d4ed8,color:#fff
+    style SG fill:#3b82f6,stroke:#1d4ed8,color:#fff
+    style OUT fill:#10b981,stroke:#059669,color:#fff
+```
+
+<details>
+<summary>ASCII fallback (for terminal)</summary>
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        COMPOUND LEARNING SYSTEM                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
 │  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌───────────┐ │
 │  │  Trajectory │     │   Pattern   │     │   Skill     │     │  NOTES.md │ │
 │  │    Logs     │────▶│  Detector   │────▶│  Generator  │────▶│ /AGENTS.md│ │
@@ -190,19 +225,14 @@ export SEMANTIC_TOOLS=$(detect_semantic_tools)
 │                      ┌─────────────┐     ┌─────────────┐                   │
 │                      │  Pattern    │     │  Learning   │                   │
 │                      │  Candidates │     │  Registry   │                   │
-│                      │  (JSON)     │     │  (JSON)     │                   │
 │                      └─────────────┘     └─────────────┘                   │
 │                                                                              │
 │  ┌─────────────────────────────────────────────────────────────────────────┐│
-│  │                      FEEDBACK LOOP SUBSYSTEM                            ││
-│  │  ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐      ││
-│  │  │  Apply   │────▶│  Track   │────▶│  Verify  │────▶│ Reinforce│      ││
-│  │  │ Learning │     │ Usage    │     │ Outcome  │     │ /Demote  │      ││
-│  │  └──────────┘     └──────────┘     └──────────┘     └──────────┘      ││
+│  │  FEEDBACK LOOP: Apply → Track → Verify → Reinforce/Demote              ││
 │  └─────────────────────────────────────────────────────────────────────────┘│
-│                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+</details>
 
 ### Zone Architecture (Three-Zone Model)
 
@@ -651,6 +681,188 @@ Based on yesterday's work and this task's context, consider:
 Apply these learnings? [Y/n/select]
 ```
 
+**Visual Learning Map** (Mermaid):
+```mermaid
+graph LR
+    subgraph "Today's Focus"
+        T[Current Task]
+    end
+    subgraph "Relevant Learnings"
+        L1[NATS Durability]
+        L2[TS Strict Mode]
+        L3[Error Boundaries]
+    end
+    T -.->|applies| L1
+    T -.->|applies| L2
+    L1 -->|discovered in| S3[Sprint 3]
+    L2 -->|discovered in| S5[Sprint 5]
+    
+    style L1 fill:#fbbf24,stroke:#d97706
+    style L2 fill:#fbbf24,stroke:#d97706
+    style T fill:#3b82f6,stroke:#1d4ed8,color:#fff
+```
+
+### Component 7: Mermaid Visualization Engine
+
+**Purpose**: Generate visual diagrams for compound learning outputs, documentation, and morning context.
+
+> Reference: https://agents.craft.do/mermaid
+
+**Diagram Types**:
+
+| Diagram Type | Use Case | Output Location |
+|--------------|----------|-----------------|
+| Flowchart | Pattern detection flow, decision trees | `/compound` output, SDD |
+| Sequence | Sprint timeline, session interactions | `/retrospective --batch` |
+| Class | Skill relationships, learning hierarchy | Morning context, docs |
+| ER | Skill-pattern-session relationships | Architecture docs |
+| State | Learning lifecycle (pending→active→archived) | Process docs |
+
+**Generation Functions**:
+
+```python
+def generate_pattern_flowchart(patterns: list[Pattern]) -> str:
+    """
+    Generate Mermaid flowchart showing pattern relationships.
+    """
+    lines = ["graph TD"]
+    
+    for i, pattern in enumerate(patterns):
+        node_id = f"P{i}"
+        lines.append(f'    {node_id}["{pattern.name}"]')
+        
+        # Show source sessions
+        for session in pattern.sessions:
+            session_id = f"S{session.id}"
+            lines.append(f'    {session_id}(({session.date})) --> {node_id}')
+        
+        # Show resulting skill
+        if pattern.skill:
+            skill_id = f"SK{i}"
+            lines.append(f'    {node_id} --> {skill_id}[["{pattern.skill.name}"]]')
+    
+    return "\n".join(lines)
+
+
+def generate_learning_map(task: Task, learnings: list[Learning]) -> str:
+    """
+    Generate morning context learning map.
+    """
+    lines = [
+        "graph LR",
+        '    subgraph "Current Task"',
+        f'        T["{task.name}"]',
+        "    end",
+        '    subgraph "Relevant Learnings"'
+    ]
+    
+    for i, learning in enumerate(learnings):
+        lines.append(f'        L{i}["{learning.title}"]')
+    
+    lines.append("    end")
+    
+    for i, learning in enumerate(learnings):
+        lines.append(f'    T -.->|applies| L{i}')
+        lines.append(f'    L{i} -->|from| S{learning.sprint}[Sprint {learning.sprint}]')
+        
+        # Color by effectiveness
+        if learning.effectiveness > 70:
+            lines.append(f'    style L{i} fill:#10b981,stroke:#059669')
+        elif learning.effectiveness > 40:
+            lines.append(f'    style L{i} fill:#fbbf24,stroke:#d97706')
+        else:
+            lines.append(f'    style L{i} fill:#f4f4f5,stroke:#a1a1aa')
+    
+    lines.append('    style T fill:#3b82f6,stroke:#1d4ed8,color:#fff')
+    
+    return "\n".join(lines)
+
+
+def generate_sprint_sequence(sprint: Sprint) -> str:
+    """
+    Generate sequence diagram of sprint sessions and discoveries.
+    """
+    lines = [
+        "sequenceDiagram",
+        "    participant D as Developer",
+        "    participant A as Agent",
+        "    participant S as Skills",
+        "    participant L as Learnings"
+    ]
+    
+    for session in sprint.sessions:
+        lines.append(f'    D->>A: Session {session.id}')
+        
+        for discovery in session.discoveries:
+            lines.append(f'    A->>A: Discover: {discovery.name}')
+            if discovery.extracted:
+                lines.append(f'    A->>S: Extract skill')
+                lines.append(f'    S-->>L: Add to registry')
+        
+        lines.append(f'    A-->>D: Session complete')
+    
+    return "\n".join(lines)
+
+
+def generate_skill_er(skills: list[Skill]) -> str:
+    """
+    Generate ER diagram of skill relationships.
+    """
+    lines = [
+        "erDiagram",
+        "    SKILL {",
+        "        string id PK",
+        "        string name",
+        "        int effectiveness",
+        "        date created",
+        "    }",
+        "    PATTERN {",
+        "        string id PK",
+        "        string description",
+        "        int occurrences",
+        "    }",
+        "    SESSION {",
+        "        string id PK",
+        "        date timestamp",
+        "        string agent",
+        "    }",
+        "    SKILL ||--o{ PATTERN : extracted-from",
+        "    PATTERN }|--o{ SESSION : detected-in"
+    ]
+    
+    return "\n".join(lines)
+```
+
+**Output Integration**:
+
+| Command | Mermaid Output |
+|---------|----------------|
+| `/retrospective --batch` | Pattern flowchart + sprint sequence |
+| `/compound` | Skill ER diagram + synthesis graph |
+| Morning context | Learning map (task → learnings) |
+| `/compound --visual` | All diagrams in single report |
+
+**Configuration**:
+```yaml
+# .loa.config.yaml
+compound_learning:
+  visualization:
+    enabled: true
+    format: mermaid           # mermaid | ascii | both
+    output_dir: grimoires/loa/diagrams/
+    include_in_reports: true
+    color_scheme:
+      high_effectiveness: "#10b981"  # green
+      medium_effectiveness: "#fbbf24"  # amber
+      low_effectiveness: "#f4f4f5"   # gray
+      current_focus: "#3b82f6"       # blue
+```
+
+**Rendering**:
+- Mermaid diagrams render natively in GitHub, Craft, Notion, Obsidian
+- For terminal output: ASCII fallback using `graph-easy` or simplified text
+- Export to PNG/SVG via `mmdc` (Mermaid CLI) if available
+
 ---
 
 ## Data Architecture
@@ -678,6 +890,53 @@ grimoires/loa/
 ├── skills-pending/                   # Pending approval (existing)
 └── skills-archived/                  # Archived skills (existing)
 ```
+
+### Learning Lifecycle (State Diagram)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Discovered : Pattern detected
+    
+    Discovered --> Pending : Extract skill
+    Pending --> Active : Human approval
+    Pending --> Rejected : Human rejection
+    
+    Active --> Applied : Used in session
+    Applied --> Verified : Outcome measured
+    
+    Verified --> Reinforced : Effectiveness > 50%
+    Verified --> Demoted : Effectiveness < 20%
+    
+    Reinforced --> Active : Continue use
+    Demoted --> Archived : After 3+ failures
+    
+    Active --> Synthesized : Merged into AGENTS.md
+    Synthesized --> Archived : Original archived
+    
+    Rejected --> [*]
+    Archived --> [*]
+    
+    note right of Active : Effectiveness tracked<br/>per application
+    note right of Synthesized : Higher-order<br/>pattern extracted
+```
+
+<details>
+<summary>State transitions</summary>
+
+| From | To | Trigger |
+|------|------|---------|
+| Discovered | Pending | `/retrospective --batch` extracts pattern |
+| Pending | Active | `/skill-audit --approve` |
+| Pending | Rejected | `/skill-audit --reject` |
+| Active | Applied | Learning matched and used in session |
+| Applied | Verified | Task completed, feedback signals collected |
+| Verified | Reinforced | Effectiveness score > 50% |
+| Verified | Demoted | Effectiveness score < 20% |
+| Demoted | Archived | Failed 3+ times |
+| Active | Synthesized | Multiple related skills merged |
+| Synthesized | Archived | Original skill no longer needed |
+
+</details>
 
 ### Schema: patterns.json
 

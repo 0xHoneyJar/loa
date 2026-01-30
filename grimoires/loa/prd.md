@@ -407,6 +407,42 @@ Total: 2 hours, then done FOREVER
 
 **Dependencies:** FR-1
 
+### FR-10: Mermaid Visualization
+**Priority:** Should Have
+**Description:** Generate visual diagrams using Mermaid for compound learning outputs, documentation, and morning context.
+
+> Reference: https://agents.craft.do/mermaid
+
+**Acceptance Criteria:**
+- [ ] Generate pattern flowcharts showing relationships between discovered patterns
+- [ ] Generate sprint sequence diagrams showing session interactions and discoveries
+- [ ] Generate learning maps for morning context (task → relevant learnings)
+- [ ] Generate skill ER diagrams showing skill-pattern-session relationships
+- [ ] Replace ASCII art in SDD/PRD with Mermaid equivalents where appropriate
+- [ ] Output renders in GitHub, Craft, Notion, Obsidian
+- [ ] ASCII fallback for terminal-only environments
+- [ ] Optional PNG/SVG export via `mmdc` (Mermaid CLI)
+- [ ] Configurable color scheme for effectiveness levels
+
+**Diagram Types:**
+
+| Type | Use Case |
+|------|----------|
+| Flowchart | Pattern detection flow, decision trees |
+| Sequence | Sprint timeline, session interactions |
+| Class | Skill relationships, learning hierarchy |
+| ER | Skill-pattern-session relationships |
+| State | Learning lifecycle states |
+
+**Integration Points:**
+- `/retrospective --batch`: Pattern flowchart + sprint sequence
+- `/compound`: Skill ER diagram + synthesis graph
+- Morning context: Learning map (task → learnings)
+- `/compound --visual`: All diagrams in single report
+- Documentation: Replace ASCII diagrams with Mermaid
+
+**Dependencies:** FR-1 (patterns needed for visualization)
+
 ---
 
 ## Non-Functional Requirements
