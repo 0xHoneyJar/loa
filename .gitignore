@@ -116,6 +116,10 @@ grimoires/loa/a2a/*
 !grimoires/loa/a2a/trajectory/
 grimoires/loa/a2a/trajectory/*
 !grimoires/loa/a2a/trajectory/README.md
+# Compound learning state (tracked for cross-session learning)
+!grimoires/loa/a2a/compound/
+grimoires/loa/a2a/compound/review-markers/*
+!grimoires/loa/a2a/compound/review-markers/.gitkeep
 
 # Deployment artifacts (project-specific)
 grimoires/loa/deployment/*

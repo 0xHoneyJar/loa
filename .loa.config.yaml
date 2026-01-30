@@ -513,6 +513,168 @@ continuous_learning:
     auto_prune: false
 
 # =============================================================================
+# Compound Learning (v1.10.0) - Cross-Session Pattern Detection
+# =============================================================================
+# Batch retrospectives, pattern synthesis, and feedback loop for longitudinal learning
+# PRD: grimoires/loa/prd.md | SDD: grimoires/loa/sdd.md
+compound_learning:
+  # Master toggle - set to false to disable all compound learning
+  enabled: true
+
+  # -------------------------------------------------------------------------
+  # Similarity Strategy (Layered: Semantic → Keyword fallback)
+  # -------------------------------------------------------------------------
+  # Uses best available tool with graceful degradation
+  similarity:
+    # Prefer semantic tools (ck, Memory Stack) when available
+    prefer_semantic: true
+
+    # ck integration for code patterns
+    ck:
+      enabled: auto  # auto | true | false
+      threshold: 0.7
+
+    # Memory Stack integration for text embeddings
+    memory_stack:
+      enabled: auto  # auto | true | false
+      model: all-MiniLM-L6-v2
+      threshold: 0.35
+
+    # qmd integration for grimoire search
+    qmd:
+      enabled: auto  # auto | true | false
+      search_mode: hybrid  # hybrid | semantic | keyword
+
+    # Fallback settings (when semantic tools unavailable)
+    fallback:
+      jaccard_threshold: 0.6
+      min_keyword_overlap: 3
+
+  # -------------------------------------------------------------------------
+  # Pattern Detection Configuration
+  # -------------------------------------------------------------------------
+  pattern_detection:
+    # Minimum occurrences to consider a pattern
+    min_occurrences: 2
+    # Maximum age for patterns in days (older patterns ignored)
+    max_age_days: 90
+    # Agents to exclude from pattern analysis
+    exclude_agents: []
+    # Pattern types to detect
+    enabled_types:
+      - repeated_error
+      - convergent_solution
+      - anti_pattern
+      - project_convention
+
+  # -------------------------------------------------------------------------
+  # Quality Gates (4-Gate Filter)
+  # -------------------------------------------------------------------------
+  # Patterns must pass these gates to become skills
+  quality_gates:
+    # Discovery Depth: Is solution non-trivial?
+    discovery_depth:
+      min_score: 5
+      weight: 1.0
+    # Reusability: Is pattern generalizable?
+    reusability:
+      min_score: 5
+      weight: 1.0
+    # Trigger Clarity: Can we identify when this applies?
+    trigger_clarity:
+      min_score: 5
+      weight: 1.0
+    # Verification: Was solution verified to work?
+    verification:
+      min_score: 3  # Lower bar for verification
+      weight: 0.8
+
+  # -------------------------------------------------------------------------
+  # Effectiveness Feedback Loop (Goal G-4)
+  # -------------------------------------------------------------------------
+  effectiveness:
+    # Feedback signal weights
+    signal_weights:
+      task_completed: 3
+      no_errors: 2
+      no_revert: 2
+      faster_completion: 1
+      user_positive: 3
+      user_negative: -5
+    # Effectiveness tier thresholds
+    tiers:
+      high: 80      # Score >= 80: increase retrieval priority
+      medium: 50    # Score >= 50: normal
+      low: 20       # Score >= 20: flag for review
+      # Score < 20: ineffective, queue for pruning
+    # Pruning settings
+    pruning:
+      # Archive after N ineffective applications
+      failures_before_prune: 3
+      # Require human review before archiving
+      require_review: true
+
+  # -------------------------------------------------------------------------
+  # Learning Synthesis (Goal G-3)
+  # -------------------------------------------------------------------------
+  synthesis:
+    # Minimum cluster size for synthesis
+    min_cluster_size: 3
+    # Similarity threshold for skill clustering (lower than event matching)
+    cluster_similarity_threshold: 0.4
+    # Auto-archive source skills after merge
+    archive_on_synthesis: false
+    # Require human approval for all proposals
+    require_approval: true
+
+  # -------------------------------------------------------------------------
+  # Morning Context Loading (Goal G-2)
+  # -------------------------------------------------------------------------
+  morning_context:
+    # Enable morning context loading
+    enabled: true
+    # Maximum learnings to load at session start
+    max_learnings: 5
+    # Maximum age of learnings to consider (days)
+    max_age_days: 30
+    # Minimum effectiveness score to include
+    min_effectiveness: 50
+    # Don't show same learning if dismissed N times
+    max_dismissals: 3
+    # Performance target (must complete within)
+    timeout_ms: 5000
+
+  # -------------------------------------------------------------------------
+  # Mermaid Visualization (PRD FR-10)
+  # -------------------------------------------------------------------------
+  visualization:
+    # Enable Mermaid diagram generation
+    enabled: true
+    # Output format
+    format: mermaid  # mermaid | ascii | both
+    # Output directory for diagrams
+    output_dir: grimoires/loa/diagrams/
+    # Include diagrams in compound reports
+    include_in_reports: true
+    # Color scheme for effectiveness levels
+    color_scheme:
+      high_effectiveness: "#10b981"   # green
+      medium_effectiveness: "#fbbf24" # amber
+      low_effectiveness: "#f4f4f5"    # gray
+      current_focus: "#3b82f6"        # blue
+
+  # -------------------------------------------------------------------------
+  # Archive Management (PRD FR-9)
+  # -------------------------------------------------------------------------
+  archive:
+    # Number of cycles to retain archives
+    retention_cycles: 5
+    # Compress archived files
+    compress: false
+    # Archive directory
+    dir: grimoires/loa/archive/
+
+# =============================================================================
 # Run Mode (v0.18.0)
 # =============================================================================
 # Autonomous implementation with human-in-the-loop at PR review
@@ -546,6 +708,10 @@ run_mode:
   sprint_plan:
     # Default branch name for multi-sprint execution
     default_branch_name: "release"
+    # Compound learning hook on sprint-plan completion (Task 8.8-8.9)
+    compound_on_complete: true     # Trigger compound review after all sprints
+    compound_auto_approve: false   # Auto-approve extracted skills
+    compound_fail_action: warn     # warn | fail - what to do if compound fails
 
 # =============================================================================
 # Recursive JIT Context System (v0.20.0)
