@@ -484,6 +484,15 @@
             "command": ".claude/scripts/auto-gpt-review-hook.sh"
           }
         ]
+      },
+      {
+        "matcher": "(Edit|Write).*(prd|sdd|sprint)\\.md$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/gpt-review-doc-hook.sh"
+          }
+        ]
       }
     ],
     "PermissionRequest": [

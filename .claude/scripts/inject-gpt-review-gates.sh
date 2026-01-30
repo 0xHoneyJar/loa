@@ -42,6 +42,36 @@ Run the GPT review skill on modified files:
 
 Handle the verdict before proceeding to the next task."
 
+# Success criteria to inject into each skill
+SUCCESS_CRITERION="- **GPT Review**: Cross-model review completed with APPROVED or SKIPPED verdict"
+
+# Remove success criterion from a skill file
+remove_success_criterion() {
+  local file="$1"
+  if [[ -f "$file" ]] && grep -q "GPT Review.*Cross-model review" "$file"; then
+    local temp_file="${file}.tmp"
+    grep -v "GPT Review.*Cross-model review" "$file" > "$temp_file"
+    mv "$temp_file" "$file"
+  fi
+}
+
+# Add success criterion to a skill file - inject BEFORE </success_criteria>
+add_success_criterion() {
+  local file="$1"
+
+  # First remove any existing criterion
+  remove_success_criterion "$file"
+
+  if [[ -f "$file" ]] && grep -q '</success_criteria>' "$file"; then
+    local temp_file="${file}.tmp"
+    awk -v criterion="$SUCCESS_CRITERION" '
+      /<\/success_criteria>/ { print criterion }
+      { print }
+    ' "$file" > "$temp_file"
+    mv "$temp_file" "$file"
+  fi
+}
+
 # Remove gate from a skill file
 remove_gate() {
   local file="$1"
@@ -106,11 +136,16 @@ fi
 
 # Check if config file exists
 if [[ ! -f "$CONFIG_FILE" ]]; then
-  # No config - remove gates
+  # No config - remove gates and success criteria
   remove_gate "$SKILLS_DIR/discovering-requirements/SKILL.md"
   remove_gate "$SKILLS_DIR/designing-architecture/SKILL.md"
   remove_gate "$SKILLS_DIR/planning-sprints/SKILL.md"
   remove_gate "$SKILLS_DIR/implementing-tasks/SKILL.md"
+
+  remove_success_criterion "$SKILLS_DIR/discovering-requirements/SKILL.md"
+  remove_success_criterion "$SKILLS_DIR/designing-architecture/SKILL.md"
+  remove_success_criterion "$SKILLS_DIR/planning-sprints/SKILL.md"
+  remove_success_criterion "$SKILLS_DIR/implementing-tasks/SKILL.md"
   exit 0
 fi
 
@@ -118,17 +153,27 @@ fi
 enabled=$(yq eval '.gpt_review.enabled // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
 
 if [[ "$enabled" == "true" ]]; then
-  # Add gates to skills
+  # Add gates and success criteria to skills
   add_gate "$SKILLS_DIR/discovering-requirements/SKILL.md" "$PRD_GATE"
   add_gate "$SKILLS_DIR/designing-architecture/SKILL.md" "$SDD_GATE"
   add_gate "$SKILLS_DIR/planning-sprints/SKILL.md" "$SPRINT_GATE"
   add_gate "$SKILLS_DIR/implementing-tasks/SKILL.md" "$CODE_GATE"
+
+  add_success_criterion "$SKILLS_DIR/discovering-requirements/SKILL.md"
+  add_success_criterion "$SKILLS_DIR/designing-architecture/SKILL.md"
+  add_success_criterion "$SKILLS_DIR/planning-sprints/SKILL.md"
+  add_success_criterion "$SKILLS_DIR/implementing-tasks/SKILL.md"
 else
-  # Remove gates from skills
+  # Remove gates and success criteria from skills
   remove_gate "$SKILLS_DIR/discovering-requirements/SKILL.md"
   remove_gate "$SKILLS_DIR/designing-architecture/SKILL.md"
   remove_gate "$SKILLS_DIR/planning-sprints/SKILL.md"
   remove_gate "$SKILLS_DIR/implementing-tasks/SKILL.md"
+
+  remove_success_criterion "$SKILLS_DIR/discovering-requirements/SKILL.md"
+  remove_success_criterion "$SKILLS_DIR/designing-architecture/SKILL.md"
+  remove_success_criterion "$SKILLS_DIR/planning-sprints/SKILL.md"
+  remove_success_criterion "$SKILLS_DIR/implementing-tasks/SKILL.md"
 fi
 
 exit 0

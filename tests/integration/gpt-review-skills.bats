@@ -294,3 +294,84 @@ teardown() {
     # Cleanup
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
 }
+
+# =============================================================================
+# Success criteria injection tests
+# =============================================================================
+
+@test "inject script adds success criterion when enabled" {
+    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+    "$INJECT_SCRIPT"
+
+    # Check GPT Review success criterion was added to all skills
+    grep -q "GPT Review.*Cross-model review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
+    grep -q "GPT Review.*Cross-model review" "$SKILLS_DIR/designing-architecture/SKILL.md"
+    grep -q "GPT Review.*Cross-model review" "$SKILLS_DIR/planning-sprints/SKILL.md"
+    grep -q "GPT Review.*Cross-model review" "$SKILLS_DIR/implementing-tasks/SKILL.md"
+
+    rm -f "$PROJECT_ROOT/.loa.config.yaml"
+}
+
+@test "inject script removes success criterion when disabled" {
+    # First add
+    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+    "$INJECT_SCRIPT"
+    grep -q "GPT Review.*Cross-model review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
+
+    # Then disable
+    cp "$FIXTURES_DIR/configs/disabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+    "$INJECT_SCRIPT"
+
+    # Check criterion was removed
+    ! grep -q "GPT Review.*Cross-model review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
+    ! grep -q "GPT Review.*Cross-model review" "$SKILLS_DIR/designing-architecture/SKILL.md"
+    ! grep -q "GPT Review.*Cross-model review" "$SKILLS_DIR/planning-sprints/SKILL.md"
+    ! grep -q "GPT Review.*Cross-model review" "$SKILLS_DIR/implementing-tasks/SKILL.md"
+
+    rm -f "$PROJECT_ROOT/.loa.config.yaml"
+}
+
+@test "success criterion is inside success_criteria section" {
+    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+    "$INJECT_SCRIPT"
+
+    # Criterion should be BEFORE </success_criteria>
+    local criterion_line criteria_end_line
+    criterion_line=$(grep -n "GPT Review.*Cross-model review" "$SKILLS_DIR/discovering-requirements/SKILL.md" | cut -d: -f1)
+    criteria_end_line=$(grep -n "</success_criteria>" "$SKILLS_DIR/discovering-requirements/SKILL.md" | cut -d: -f1)
+
+    [[ "$criterion_line" -lt "$criteria_end_line" ]]
+
+    rm -f "$PROJECT_ROOT/.loa.config.yaml"
+}
+
+@test "success criterion not present in skill files at rest" {
+    ! grep -q "GPT Review.*Cross-model review" "$TEST_DIR/discovering-requirements-SKILL.md.bak"
+    ! grep -q "GPT Review.*Cross-model review" "$TEST_DIR/designing-architecture-SKILL.md.bak"
+    ! grep -q "GPT Review.*Cross-model review" "$TEST_DIR/planning-sprints-SKILL.md.bak"
+    ! grep -q "GPT Review.*Cross-model review" "$TEST_DIR/implementing-tasks-SKILL.md.bak"
+}
+
+# =============================================================================
+# Document hook tests
+# =============================================================================
+
+@test "document hook script exists and is executable" {
+    [[ -x "$PROJECT_ROOT/.claude/scripts/gpt-review-doc-hook.sh" ]]
+}
+
+@test "PostToolUse hook for document files is registered" {
+    grep -q "gpt-review-doc-hook.sh" "$PROJECT_ROOT/.claude/settings.json"
+}
+
+@test "PostToolUse hook matches prd.md files" {
+    grep -q 'prd.*\\.md' "$PROJECT_ROOT/.claude/settings.json"
+}
+
+@test "PostToolUse hook matches sdd.md files" {
+    grep -q 'sdd.*\\.md' "$PROJECT_ROOT/.claude/settings.json"
+}
+
+@test "PostToolUse hook matches sprint.md files" {
+    grep -q 'sprint.*\\.md' "$PROJECT_ROOT/.claude/settings.json"
+}
