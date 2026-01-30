@@ -663,6 +663,23 @@ Complete the `/compound` command with Sprint Ledger integration, NOTES.md update
   - Verify ledger, NOTES.md, and skills/ updates
   - **Est:** 2 hours
 
+- [ ] Task 8.8: Implement `/run sprint-plan` completion hook → **[G-1, G-3]** ⭐ NEW
+  - Add `compound_review()` function to run-sprint-plan.sh
+  - Hook after all sprints complete, before cleanup
+  - Call batch-retrospective.sh with --sprint-plan flag
+  - Extract skills (auto-approve configurable)
+  - Update sprint-plan-state.json with learnings_extracted count
+  - Include extracted skills in completion PR
+  - Add --no-compound flag to skip
+  - Non-blocking: failure logs warning, doesn't block PR
+  - **Est:** 3 hours
+
+- [ ] Task 8.9: Add compound hook configuration → **[G-1]**
+  - Add `run_mode.sprint_plan.compound_on_complete` (default: true)
+  - Add `run_mode.sprint_plan.compound_auto_approve` (default: false)
+  - Add `run_mode.sprint_plan.compound_fail_action` (warn | fail)
+  - **Est:** 1 hour
+
 ### Dependencies
 - Sprint 7: Compound command core
 
@@ -671,11 +688,14 @@ Complete the `/compound` command with Sprint Ledger integration, NOTES.md update
 |------|-------------|--------|------------|
 | NOTES.md format varies | Med | Low | Use flexible section detection |
 | Skill promotion conflicts | Low | Med | Check for existing skill before move |
+| Hook blocks run mode | Med | High | Non-blocking design, warn on failure |
 
 ### Success Metrics
 - Ledger shows compound completion
 - NOTES.md has new learnings
 - Skills moved to skills/
+- `/run sprint-plan` auto-triggers compound review
+- Completion PR includes extracted skills
 
 ---
 
@@ -1074,54 +1094,57 @@ Build the skill clustering component of the synthesis engine.
 
 ---
 
-## Sprint 14: Synthesis Engine - Proposals
+## Sprint 14: Synthesis Engine - Merged Skills
 
 **Duration:** 2.5 days
 **Dates:** Day 33 (afternoon) - Day 35
 
 ### Sprint Goal
-Generate AGENTS.md update proposals from skill clusters with human approval workflow.
+Generate merged skills from skill clusters with human approval workflow.
 
-> From PRD FR-5: "Human approval workflow (approve/modify/reject)" (prd.md)
+> From PRD FR-5: "Merge similar skills into single refined skill with combined triggers/solutions"
+> **Design Decision**: Synthesis produces **merged skills**, not AGENTS.md updates. Skills are the atomic unit of knowledge.
 
 ### Deliverables
-- [ ] Proposal text generation
-- [ ] Target section detection
+- [ ] Merged skill generation
+- [ ] Skill naming and categorization
 - [ ] Human approval workflow
-- [ ] AGENTS.md update application
+- [ ] Source skill archival
 
 ### Acceptance Criteria
-- [ ] Proposals include draft text and citations
-- [ ] Correct section of AGENTS.md targeted
-- [ ] Human can approve/modify/reject
-- [ ] Approved proposals applied atomically
+- [ ] Merged skills include combined triggers and solutions
+- [ ] Merged skill name reflects combined content
+- [ ] Human can approve/modify/reject merge
+- [ ] Approved merges: new skill created, sources archived
 
 ### Technical Tasks
 
-- [ ] Task 14.1: Generate proposal text from cluster → **[G-3]**
+- [ ] Task 14.1: Generate merged skill from cluster → **[G-3]**
   - Extract common pattern across skills
-  - Write concise guidance (2-5 sentences)
-  - Include skill references
+  - Combine triggers from all source skills
+  - Combine solutions with de-duplication
+  - Include merged_from metadata
   - **Est:** 2.5 hours
 
-- [ ] Task 14.2: Determine target AGENTS.md section → **[G-3]**
-  - Analyze skill categories
-  - Map to existing sections (or suggest new)
-  - Config: allowed sections list
-  - **Est:** 1.5 hours
+- [ ] Task 14.2: Generate merged skill name and description → **[G-3]**
+  - Analyze skill categories for naming
+  - Generate concise description
+  - Avoid overly generic names
+  - **Est:** 1 hour
 
-- [ ] Task 14.3: Create proposal presentation format → **[G-3]**
-  - Show: draft text, source skills, confidence
-  - Show: target section
+- [ ] Task 14.3: Create merge proposal presentation → **[G-3]**
+  - Show: merged skill preview, source skills, confidence
+  - Show: what will be archived
   - Buttons: [Approve] [Modify] [Reject]
   - **Est:** 1.5 hours
 
 - [ ] Task 14.4: Implement modify workflow → **[G-3]**
-  - Allow user to edit proposed text
+  - Allow user to edit merged skill content
+  - Allow changing merged skill name
   - Re-validate before applying
   - **Est:** 1.5 hours
 
-- [ ] Task 14.5: Implement AGENTS.md update → **[G-3]**
+- [ ] Task 14.5: Implement merged skill creation → **[G-3]**
   - Find target section
   - Insert/append proposal text
   - Maintain formatting
