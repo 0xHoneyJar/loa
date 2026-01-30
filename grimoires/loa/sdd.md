@@ -562,77 +562,173 @@ def calculate_effectiveness(learning_id):
 
 ### Component 5: Learning Synthesis Engine
 
-**Purpose**: Consolidate related skills into AGENTS.md guidance.
+**Purpose**: Consolidate related skills into merged, higher-quality skills.
 
-> From PRD: "Cluster related skills by semantic similarity... Human approval workflow" (prd.md:L195-197)
+> **Design Decision**: Synthesis produces **merged skills** (specific, reusable, retrievable) rather than AGENTS.md updates. Skills are the atomic unit of knowledge in loa's architecture.
+
+> From PRD FR-5: "Merge similar skills into single refined skill with combined triggers/solutions"
 
 **Architecture**:
-```
-┌────────────────────────────────────────────────────────────────────┐
-│                    SYNTHESIS ENGINE                                 │
-├────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  Input: 3+ related skills                                          │
-│  ┌─────────────────────────────────────────────────────────────┐  │
-│  │ skill-a: NATS reconnection handling                          │  │
-│  │ skill-b: NATS JetStream durability                           │  │
-│  │ skill-c: NATS consumer patterns                              │  │
-│  └─────────────────────────────────────────────────────────────┘  │
-│                            │                                       │
-│                            ▼                                       │
-│  ┌─────────────────────────────────────────────────────────────┐  │
-│  │ CLUSTERING: Jaccard(keywords) > 0.4                          │  │
-│  └─────────────────────────────────────────────────────────────┘  │
-│                            │                                       │
-│                            ▼                                       │
-│  ┌─────────────────────────────────────────────────────────────┐  │
-│  │ SYNTHESIS: Extract common pattern + specific applications    │  │
-│  └─────────────────────────────────────────────────────────────┘  │
-│                            │                                       │
-│                            ▼                                       │
-│  Output: AGENTS.md proposal                                        │
-│  ┌─────────────────────────────────────────────────────────────┐  │
-│  │ "## NATS Best Practices                                      │  │
-│  │ When using NATS in this codebase:                            │  │
-│  │ - Always use durable consumers for persistent state          │  │
-│  │ - Configure explicit reconnection handlers                   │  │
-│  │ - See skills/nats-* for implementation details"              │  │
-│  └─────────────────────────────────────────────────────────────┘  │
-│                                                                     │
-└────────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    subgraph "Input: 3+ Related Skills"
+        A[skill-a: NATS reconnection]
+        B[skill-b: NATS durability]
+        C[skill-c: NATS consumers]
+    end
+    
+    A --> CL[Clustering<br/>Jaccard > 0.4]
+    B --> CL
+    C --> CL
+    
+    CL --> SY[Synthesis<br/>Extract common pattern]
+    
+    SY --> OUT[Merged Skill:<br/>nats-best-practices]
+    
+    OUT --> SP[skills-pending/]
+    
+    A -.->|archive| AR[skills-archived/]
+    B -.->|archive| AR
+    C -.->|archive| AR
+    
+    style OUT fill:#10b981,stroke:#059669,color:#fff
+    style SP fill:#3b82f6,stroke:#1d4ed8,color:#fff
 ```
 
-**Proposal Format** (stored in `synthesis-queue.json`):
+**Merged Skill Format** (written to `skills-pending/{merged-name}/SKILL.md`):
+```yaml
+---
+name: nats-best-practices
+description: Consolidated NATS patterns from multiple discoveries
+merged_from:
+  - nats-reconnection-handling
+  - nats-jetstream-durability  
+  - nats-consumer-patterns
+confidence: 0.85
+evidence:
+  skill_count: 3
+  total_applications: 12
+  average_effectiveness: 78
+---
+
+# NATS Best Practices
+
+## Trigger Conditions
+- Working with NATS JetStream
+- Implementing message consumers
+- Handling connection lifecycle
+
+## Solution
+1. Always use durable consumers for persistent state
+2. Configure explicit reconnection handlers
+3. Use explicit acknowledgment modes
+
+## Verification
+- Consumer survives process restart
+- Messages not lost on reconnection
+```
+
+**Synthesis Queue** (`synthesis-queue.json`):
 ```json
 {
   "id": "synth-2025-01-30-001",
   "created": "2025-01-30T10:00:00Z",
   "status": "pending",
-  "source_skills": [
-    "nats-reconnection-handling",
-    "nats-jetstream-durability",
-    "nats-consumer-patterns"
-  ],
-  "proposed_text": "## NATS Best Practices\n...",
-  "target_file": "AGENTS.md",
-  "target_section": "## Technical Conventions",
+  "source_skills": ["nats-reconnection-handling", "nats-jetstream-durability", "nats-consumer-patterns"],
+  "merged_skill_name": "nats-best-practices",
   "confidence": 0.85,
-  "evidence": {
-    "skill_count": 3,
-    "total_applications": 12,
-    "average_effectiveness": 78
-  }
+  "archive_sources": true
 }
 ```
 
 **Human Approval Workflow**:
 ```
-┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐
-│ Pending │───▶│ Review  │───▶│ Approve/│───▶│ Applied/│
-│         │    │ Prompt  │    │ Modify/ │    │ Rejected│
-│         │    │         │    │ Reject  │    │         │
-└─────────┘    └─────────┘    └─────────┘    └─────────┘
+┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────────┐
+│ Pending │───▶│ Review  │───▶│ Approve/│───▶│ Merged skill│
+│         │    │ Prompt  │    │ Modify/ │    │ + archived  │
+│         │    │         │    │ Reject  │    │ sources     │
+└─────────┘    └─────────┘    └─────────┘    └─────────────┘
 ```
+
+### Component 8: Run Sprint-Plan Completion Hook
+
+**Purpose**: Automatically trigger compound learning when `/run sprint-plan` completes.
+
+> From PRD FR-11: "Hook triggers after all sprints complete, before cleanup_context_directory()"
+
+**Integration Point**:
+```mermaid
+sequenceDiagram
+    participant RSP as /run sprint-plan
+    participant CR as Compound Review
+    participant SK as Skills
+    participant PR as PR Creation
+    
+    RSP->>RSP: Execute all sprints
+    Note over RSP: All sprints COMPLETE
+    
+    RSP->>CR: compound_review()
+    CR->>CR: batch_retrospective(--sprint-plan)
+    CR->>CR: evaluate_quality_gates()
+    CR->>SK: extract_skills()
+    SK-->>CR: N skills extracted
+    CR-->>RSP: learnings_extracted: N
+    
+    RSP->>RSP: cleanup_context_directory()
+    RSP->>PR: create_plan_pr()
+    Note over PR: Includes extracted skills
+```
+
+**Hook Implementation** (in `.claude/scripts/run-sprint-plan.sh`):
+```bash
+compound_review() {
+  local sprint_plan_id="$1"
+  
+  # Check if compound learning enabled
+  if ! yq '.compound_learning.enabled // true' .loa.config.yaml | grep -q true; then
+    echo "Compound learning disabled, skipping review"
+    return 0
+  fi
+  
+  # Run batch retrospective on sprint-plan trajectory
+  echo "[COMPOUND] Running batch retrospective..."
+  .claude/scripts/batch-retrospective.sh \
+    --sprint-plan "$sprint_plan_id" \
+    --output grimoires/loa/a2a/compound/sprint-plan-review.json
+  
+  # Extract skills (auto-approve if configured)
+  local auto_approve=$(yq '.run_mode.sprint_plan.compound_auto_approve // false' .loa.config.yaml)
+  
+  if [[ "$auto_approve" == "true" ]]; then
+    .claude/scripts/extract-skills.sh --auto-approve
+  else
+    .claude/scripts/extract-skills.sh --pending
+  fi
+  
+  # Update state with extraction count
+  local count=$(ls grimoires/loa/skills-pending/ 2>/dev/null | wc -l)
+  jq --arg c "$count" '.metrics.learnings_extracted = ($c | tonumber)' \
+    .run/sprint-plan-state.json > .run/sprint-plan-state.json.tmp
+  mv .run/sprint-plan-state.json.tmp .run/sprint-plan-state.json
+  
+  echo "[COMPOUND] Extracted $count skills"
+}
+```
+
+**Configuration**:
+```yaml
+# .loa.config.yaml
+run_mode:
+  sprint_plan:
+    compound_on_complete: true    # Enable compound hook (default: true)
+    compound_auto_approve: false  # Auto-approve skills (default: false)
+    compound_fail_action: warn    # warn | fail (default: warn)
+```
+
+**Failure Handling**:
+- If compound review fails, log warning but proceed to PR creation
+- Skills extraction is non-blocking for the run mode flow
+- Failure reason captured in sprint-plan-state.json
 
 ### Component 6: Morning Context Loader
 

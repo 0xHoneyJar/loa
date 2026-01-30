@@ -336,16 +336,20 @@ Total: 2 hours, then done FOREVER
 
 ### FR-5: Learning Synthesis Engine
 **Priority:** Should Have
-**Description:** Consolidate related skills into higher-order patterns, proposing AGENTS.md updates.
+**Description:** Consolidate related skills into higher-order merged skills. Produces refined SKILL files, NOT global AGENTS.md updates.
+
+> **Design Decision**: Compound learning produces **skills** (specific, reusable, retrievable) rather than AGENTS.md updates (global, less targeted). This aligns with loa's existing continuous-learning architecture where skills are the atomic unit of knowledge.
 
 **Acceptance Criteria:**
 - [ ] Cluster related skills by semantic similarity
-- [ ] Draft consolidated guidance from skill cluster
-- [ ] Present proposal with: draft text, source citations, confidence
+- [ ] Merge similar skills into single refined skill with combined triggers/solutions
+- [ ] Present merge proposal with: merged content, source skills, confidence
 - [ ] Human approval workflow (approve/modify/reject)
-- [ ] If approved: update AGENTS.md, archive source skills (optional)
+- [ ] If approved: create merged skill in `skills-pending/`, archive source skills
 - [ ] Command: `/synthesize-learnings` for manual trigger
-- [ ] Periodic auto-trigger (configurable, default: weekly)
+- [ ] Auto-triggered by `/run sprint-plan` completion hook (see FR-11)
+
+**Output**: Merged skills in `grimoires/loa/skills-pending/{merged-skill-name}/SKILL.md`
 
 **Dependencies:** FR-2 (pattern detection), semantic similarity
 
@@ -442,6 +446,49 @@ Total: 2 hours, then done FOREVER
 - Documentation: Replace ASCII diagrams with Mermaid
 
 **Dependencies:** FR-1 (patterns needed for visualization)
+
+### FR-11: Run Sprint-Plan Completion Hook
+**Priority:** Must Have
+**Description:** Automatically trigger compound learning review when `/run sprint-plan` completes all sprints. No manual invocation required.
+
+> **Design Decision**: Compound learning is integrated into the autonomous run mode, not a separate manual command. This ensures learnings are always extracted at the end of each development cycle.
+
+**Acceptance Criteria:**
+- [ ] Hook triggers after all sprints complete, before `cleanup_context_directory()`
+- [ ] Runs batch retrospective on all trajectory from the sprint-plan execution
+- [ ] Extracts skills to `skills-pending/` (user approval deferred or automatic based on config)
+- [ ] Extracted skills included in the completion PR
+- [ ] Hook is skippable via `--no-compound` flag
+- [ ] Hook respects `compound_learning.enabled` config
+- [ ] Failure in compound review does NOT block PR creation (warning only)
+
+**Integration Point** (in `/run sprint-plan` flow):
+```
+for sprint in sprints:
+    /run $sprint
+    
+[all sprints COMPLETE]
+    ↓
+compound_review()           ← NEW HOOK
+    - batch_retrospective(--sprint-plan)
+    - extract_skills()
+    - update_sprint_plan_state(learnings_extracted: N)
+    ↓
+cleanup_context_directory()
+    ↓
+create_plan_pr()            ← include extracted skills
+```
+
+**Configuration:**
+```yaml
+# .loa.config.yaml
+run_mode:
+  sprint_plan:
+    compound_on_complete: true    # Enable compound hook
+    compound_auto_approve: false  # Require human approval for skills
+```
+
+**Dependencies:** FR-1 (batch retrospective), FR-6 (quality gates)
 
 ---
 
