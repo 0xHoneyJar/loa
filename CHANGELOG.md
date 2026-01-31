@@ -5,6 +5,141 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0] - 2026-01-30 — Compound Learning & Visual Communication
+
+### Why This Release
+
+This release adds three major capabilities: **Compound Learning** for cross-session pattern detection, **Beautiful Mermaid** for visual diagram rendering, and **Feedback Traces** for regression debugging. Together, these features enable agents to learn across sessions, communicate visually, and provide better debugging information.
+
+*"The agent gets smarter every day because it reads its own updated instructions."*
+
+### Added
+
+#### Compound Learning System (#67)
+
+Cross-session pattern detection and automated knowledge consolidation, inspired by [Ryan Carson's autonomous coding workflow](https://x.com/ryancarson).
+
+- **`/compound`** - End-of-cycle learning extraction
+  - Reviews all trajectory logs from current development cycle
+  - Detects cross-session patterns (repeated errors, convergent solutions)
+  - Extracts qualified patterns as reusable skills
+  - Archives cycles with changelog generation
+
+- **`/retrospective --batch`** - Multi-session batch analysis
+  - Analyzes trajectory files across configurable date ranges
+  - Jaccard similarity clustering for pattern detection
+  - 4-gate quality filter (Discovery Depth, Reusability, Trigger Clarity, Verification)
+  - Configurable confidence thresholds
+
+- **Effectiveness Feedback Loop** - Track, verify, reinforce/demote learnings
+  - Signal weights for task completion, user feedback
+  - Tier system (HIGH/MEDIUM/LOW/INEFFECTIVE)
+  - Automatic pruning of ineffective learnings
+
+- **Morning Context Loading** - Load relevant learnings at session start
+  - Semantic matching based on current task context
+  - Configurable max learnings and age limits
+
+- **Skill Synthesis** - Merge related skills into refined knowledge
+  - Cluster similar skills using semantic similarity
+  - Human approval for all synthesis proposals
+
+- **28 new scripts** in `.claude/scripts/` for pattern detection, clustering, and effectiveness tracking
+
+#### Beautiful Mermaid Visual Communication (#68)
+
+Integrated diagram rendering using [agents.craft.do/mermaid](https://agents.craft.do/mermaid) service.
+
+- **`mermaid-url.sh`** - Security-hardened URL generator
+  - Theme validation with allowlist (github, dracula, nord, tokyo-night, solarized-light, solarized-dark, catppuccin)
+  - Mermaid syntax validation
+  - Size limits (1500 chars max for URLs)
+  - Configurable service URL via environment variable
+
+- **Visual Communication Protocol** (`.claude/protocols/visual-communication.md`)
+  - Standards for visual output across all agents
+  - Required vs optional diagrams per agent type
+  - Hybrid output: Mermaid code blocks + preview URLs
+
+- **Agent Integration** - All skill files updated with visual communication sections:
+  - `designing-architecture`: System diagrams, sequence diagrams, ER diagrams (required)
+  - `translating-for-executives`: Executive dashboards (required)
+  - `discovering-requirements`, `planning-sprints`, `reviewing-code`: Optional diagrams
+
+- **Diagram Templates** - 5 templates in `.claude/skills/designing-architecture/resources/templates/diagrams/`:
+  - `flowchart-system.md` - System architecture
+  - `sequence-api.md` - API interactions
+  - `class-domain.md` - Domain models
+  - `er-database.md` - Database schemas
+  - `state-lifecycle.md` - State machines
+
+#### Feedback Trace Collection (#66)
+
+Opt-in execution trace collection for regression debugging, replacing Linear with GitHub Issues.
+
+- **`/feedback`** - Submit developer feedback with optional traces
+  - Creates GitHub Issues with structured format
+  - OSS-friendly (open to all users)
+  - Auto-attaches trajectory excerpts when enabled
+
+- **`collect-trace.sh`** - Trace collection script
+  - Configurable scope: `execution`, `full`, `failure-window`
+  - Privacy-first: opt-in only, user review before submit
+  - Auto-redact secrets and sensitive patterns
+
+- **Configuration** (`.claude/settings.local.json`):
+  ```json
+  {
+    "feedback": {
+      "trace_collection": {
+        "enabled": true,
+        "scope": "failure-window"
+      }
+    }
+  }
+  ```
+
+### Configuration
+
+New sections in `.loa.config.yaml`:
+
+```yaml
+# Compound Learning
+compound_learning:
+  enabled: true
+  pattern_detection:
+    min_occurrences: 2
+    max_age_days: 90
+  similarity:
+    prefer_semantic: true
+    fallback:
+      jaccard_threshold: 0.6
+  quality_gates:
+    discovery_depth: { min_score: 5 }
+    reusability: { min_score: 5 }
+    trigger_clarity: { min_score: 5 }
+    verification: { min_score: 3 }
+
+# Visual Communication
+visual_communication:
+  enabled: true
+  service: "https://agents.craft.do/mermaid"
+  theme: "github"
+  include_preview_urls: true
+```
+
+### New Commands
+
+| Command | Description |
+|---------|-------------|
+| `/compound` | End-of-cycle learning extraction |
+| `/compound status` | Show compound learning status |
+| `/compound changelog` | Generate cycle changelog |
+| `/retrospective --batch` | Multi-session pattern analysis |
+| `/feedback` | Submit feedback with optional traces |
+
+---
+
 ## [1.9.1] - 2026-01-29 — Memory Stack Patch
 
 ### Fixed

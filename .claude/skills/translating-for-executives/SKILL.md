@@ -565,3 +565,49 @@ uncertainty.
 - [ ] All assumptions flagged with [ASSUMPTION]
 - [ ] Recommendations specific, actionable, time-bound
 </success_criteria>
+
+<visual_communication>
+## Visual Communication (Required)
+
+Follow `.claude/protocols/visual-communication.md` for diagram standards.
+
+### Required Diagrams
+
+Executive translations MUST include visual aids for:
+- **Health Score Visualization** (flowchart) - Visual breakdown of codebase health
+- **Risk Assessment** (flowchart) - High-level risk landscape
+- **Priority Matrix** (flowchart) - Strategic priority visualization
+
+### Output Format
+
+All diagrams use Mermaid with preview URLs:
+
+```markdown
+### Codebase Health Overview
+
+```mermaid
+graph LR
+    subgraph "Health Score: 72%"
+        A[Documentation<br/>66%] --> D[Overall]
+        B[Consistency<br/>80%] --> D
+        C[Hygiene<br/>70%] --> D
+    end
+```
+
+> **Preview**: [View diagram](https://agents.craft.do/mermaid?code=...&theme=github)
+```
+
+### Executive Summary Diagrams
+
+| Diagram Type | Purpose | When Required |
+|--------------|---------|---------------|
+| Health Score | Visual health breakdown | Always |
+| Risk Matrix | Priority visualization | When >3 risks |
+| Timeline | Remediation roadmap | When action plan >2 phases |
+
+### Theme Configuration
+
+Read theme from `.loa.config.yaml` visual_communication.theme setting.
+
+Executive communications benefit greatly from visual aids - include diagrams for all key metrics and findings.
+</visual_communication>

@@ -436,6 +436,69 @@ gpt_review:
 
 **Protocol:** See `.claude/protocols/gpt-review-integration.md`
 
+## Compound Learning (v1.10.0)
+
+Cross-session pattern detection and automated knowledge consolidation:
+
+| Command | Description |
+|---------|-------------|
+| `/compound` | End-of-cycle learning extraction |
+| `/compound status` | Show compound learning status |
+| `/compound changelog` | Generate cycle changelog |
+| `/retrospective --batch` | Multi-session pattern analysis |
+| `/skill-audit --pending` | Review extracted skills |
+
+**Key Components**:
+- **Pattern Detection**: Jaccard similarity clustering across trajectory logs
+- **4-Gate Quality Filter**: Discovery Depth, Reusability, Trigger Clarity, Verification
+- **Effectiveness Feedback**: Track, verify, reinforce/demote learnings
+- **Morning Context**: Load relevant learnings at session start
+- **Skill Synthesis**: Merge related skills into refined knowledge
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+compound_learning:
+  enabled: true
+  pattern_detection:
+    min_occurrences: 2
+    similarity_threshold: 0.6
+  quality_gates:
+    discovery_depth: { min_score: 5 }
+    reusability: { min_score: 5 }
+```
+
+**Protocol**: See `.claude/commands/compound.md`
+
+## Visual Communication (v1.10.0)
+
+Beautiful Mermaid integration for diagram rendering:
+
+**Service**: [agents.craft.do/mermaid](https://agents.craft.do/mermaid)
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+visual_communication:
+  enabled: true
+  service: "https://agents.craft.do/mermaid"
+  theme: "github"  # github|dracula|nord|tokyo-night|solarized-light|solarized-dark|catppuccin
+  include_preview_urls: true
+```
+
+**URL Generation**:
+```bash
+# Generate preview URL from Mermaid file
+.claude/scripts/mermaid-url.sh diagram.mmd
+
+# From stdin
+echo 'graph TD; A-->B' | .claude/scripts/mermaid-url.sh --stdin --theme dracula
+```
+
+**Agent Integration**:
+- **Required**: `designing-architecture` (system diagrams), `translating-for-executives` (dashboards)
+- **Optional**: `discovering-requirements`, `planning-sprints`, `reviewing-code`
+
+**Protocol**: See `.claude/protocols/visual-communication.md`
+
 ## Helper Scripts
 
 Core scripts in `.claude/scripts/`. See `.claude/protocols/helper-scripts.md` for full documentation.
@@ -454,6 +517,9 @@ Core scripts in `.claude/scripts/`. See `.claude/protocols/helper-scripts.md` fo
 | `schema-validator.sh` | Output validation |
 | `permission-audit.sh` | Permission request analysis |
 | `search-orchestrator.sh` | ck-first semantic search with grep fallback |
+| `mermaid-url.sh` | Beautiful Mermaid preview URL generation |
+| `compound-orchestrator.sh` | `/compound` command orchestration |
+| `collect-trace.sh` | Execution trace collection for `/feedback` |
 
 ### Search Orchestration (v1.7.0)
 
@@ -532,6 +598,56 @@ export LOA_CONSTRUCTS_API_KEY="sk_your_api_key_here"
 4. Pack (`.claude/constructs/packs/.../skills/`)
 
 **Protocol**: See `.claude/protocols/constructs-integration.md`
+
+## Feedback Trace Collection
+
+The `/feedback` command supports opt-in execution trace collection for regression debugging. When enabled, traces are attached to GitHub Issues to help maintainers diagnose failures.
+
+### Configuration
+
+Create `.claude/settings.local.json` (gitignored) to enable trace collection:
+
+```json
+{
+  "feedback": {
+    "collectTraces": true,
+    "traceScope": "execution",
+    "failureWindowSize": 10
+  }
+}
+```
+
+### Configuration Options
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `collectTraces` | boolean | `false` | Enable trace collection |
+| `traceScope` | enum | `"execution"` | Scope of data collected |
+| `failureWindowSize` | number | `10` | Turns before/after failure (for `failure-window` scope) |
+
+### Trace Scopes
+
+| Scope | Data Collected |
+|-------|----------------|
+| `execution` | Plan, ledger, full trajectory |
+| `full` | Everything + NOTES.md + session transcript |
+| `failure-window` | Plan, ledger, ±N turns around failure |
+
+### Privacy Model
+
+1. **Opt-in Only**: Traces are never collected unless explicitly enabled
+2. **Automatic Redaction**: API keys, tokens, and home paths are anonymized
+3. **User Review**: Full preview before submission with edit/remove options
+4. **Local Storage**: Configuration stored in gitignored file
+
+### Secret Redaction
+
+The following patterns are automatically redacted:
+- Anthropic API keys (`sk-*`)
+- GitHub tokens (`ghp_*`, `gho_*`)
+- Generic keys/tokens (`key-*`, `token-*`)
+- Environment variables with SECRET/KEY/TOKEN/PASSWORD
+- Home directory paths (`/home/*/`, `/Users/*/`)
 
 ## Key Conventions
 

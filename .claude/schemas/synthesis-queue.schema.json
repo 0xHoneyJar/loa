@@ -1,0 +1,139 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "synthesis-queue.schema.json",
+  "title": "Learning Synthesis Queue",
+  "description": "Schema for skill clustering and merged skill proposals (Goal G-3)",
+  "type": "object",
+  "required": ["version", "proposals"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this schema file"
+    },
+    "version": {
+      "type": "string",
+      "description": "Schema version",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "last_updated": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO timestamp of last update"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of this queue"
+    },
+    "proposals": {
+      "type": "array",
+      "description": "Array of synthesis proposals awaiting review",
+      "items": {
+        "$ref": "#/definitions/proposal"
+      }
+    }
+  },
+  "definitions": {
+    "proposal": {
+      "type": "object",
+      "required": ["id", "status", "created", "source_skills", "merged_skill_name", "confidence"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique proposal identifier",
+          "pattern": "^synth-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{3}$"
+        },
+        "status": {
+          "type": "string",
+          "description": "Proposal lifecycle status",
+          "enum": ["pending", "approved", "rejected", "modified", "applied"]
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When this proposal was generated"
+        },
+        "source_skills": {
+          "type": "array",
+          "description": "Skill IDs that were clustered for this synthesis",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 2
+        },
+        "merged_skill_name": {
+          "type": "string",
+          "description": "Proposed name for the merged skill"
+        },
+        "merged_skill_content": {
+          "type": "string",
+          "description": "Proposed SKILL.md content for the merged skill"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Synthesis confidence score (0.0-1.0)"
+        },
+        "cluster_metrics": {
+          "type": "object",
+          "description": "Metrics about the source skill cluster",
+          "properties": {
+            "average_similarity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Average pairwise similarity in cluster"
+            },
+            "total_applications": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Total application count across source skills"
+            },
+            "average_effectiveness": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Average effectiveness score of source skills"
+            }
+          }
+        },
+        "archive_sources": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to archive source skills after merge"
+        },
+        "reviewed_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "When proposal was reviewed"
+        },
+        "review_decision": {
+          "type": ["string", "null"],
+          "description": "Human review decision",
+          "enum": [null, "approve", "reject", "modify"]
+        },
+        "review_notes": {
+          "type": ["string", "null"],
+          "description": "Human notes about the review decision"
+        },
+        "modifications": {
+          "type": ["string", "null"],
+          "description": "Human modifications to the proposed content"
+        },
+        "applied_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "When the merged skill was created"
+        },
+        "resulting_skill_id": {
+          "type": ["string", "null"],
+          "description": "ID of the created merged skill"
+        },
+        "trajectory_event_id": {
+          "type": ["string", "null"],
+          "description": "Reference to trajectory log event"
+        }
+      }
+    }
+  }
+}

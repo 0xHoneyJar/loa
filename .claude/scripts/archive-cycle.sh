@@ -1,0 +1,138 @@
+#!/bin/bash
+# =============================================================================
+# archive-cycle.sh - Cycle Archive Management
+# =============================================================================
+# Sprint 9, Task 9.4-9.7: Archive cycle artifacts
+#
+# Usage:
+#   ./archive-cycle.sh [options]
+#
+# Options:
+#   --cycle N          Cycle to archive (default: current)
+#   --retention N      Keep last N archives (default: 5)
+#   --dry-run          Preview without creating archive
+#   --help             Show this help
+# =============================================================================
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+ARCHIVE_DIR="${PROJECT_ROOT}/grimoires/loa/archive"
+GRIMOIRE_DIR="${PROJECT_ROOT}/grimoires/loa"
+CONFIG_FILE="${PROJECT_ROOT}/.loa.config.yaml"
+
+CYCLE_NUM=""
+RETENTION=5
+DRY_RUN=false
+
+usage() {
+  sed -n '/^# Usage:/,/^# =====/p' "$0" | grep -v "^# =====" | sed 's/^# //'
+  exit 0
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --cycle) CYCLE_NUM="$2"; shift 2 ;;
+      --retention) RETENTION="$2"; shift 2 ;;
+      --dry-run) DRY_RUN=true; shift ;;
+      --help|-h) usage ;;
+      *) shift ;;
+    esac
+  done
+}
+
+load_config() {
+  if [[ -f "$CONFIG_FILE" ]]; then
+    RETENTION=$(yq -e '.compound_learning.archive.retention_cycles // 5' "$CONFIG_FILE" 2>/dev/null || echo "5")
+  fi
+}
+
+get_current_cycle() {
+  local ledger="${GRIMOIRE_DIR}/ledger.json"
+  if [[ -f "$ledger" ]]; then
+    jq '.cycles | length' "$ledger" 2>/dev/null || echo "1"
+  else
+    echo "1"
+  fi
+}
+
+create_archive() {
+  local cycle
+  cycle=${CYCLE_NUM:-$(get_current_cycle)}
+  
+  local archive_path="${ARCHIVE_DIR}/cycle-${cycle}"
+  
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "[DRY-RUN] Would create archive at: $archive_path"
+    echo "[DRY-RUN] Would copy:"
+    [[ -f "${GRIMOIRE_DIR}/prd.md" ]] && echo "  - prd.md"
+    [[ -f "${GRIMOIRE_DIR}/sdd.md" ]] && echo "  - sdd.md"
+    [[ -f "${GRIMOIRE_DIR}/sprint.md" ]] && echo "  - sprint.md"
+    [[ -d "${GRIMOIRE_DIR}/a2a/compound" ]] && echo "  - a2a/compound/"
+    return
+  fi
+  
+  mkdir -p "$archive_path"
+  
+  # Copy artifacts
+  [[ -f "${GRIMOIRE_DIR}/prd.md" ]] && cp "${GRIMOIRE_DIR}/prd.md" "$archive_path/"
+  [[ -f "${GRIMOIRE_DIR}/sdd.md" ]] && cp "${GRIMOIRE_DIR}/sdd.md" "$archive_path/"
+  [[ -f "${GRIMOIRE_DIR}/sprint.md" ]] && cp "${GRIMOIRE_DIR}/sprint.md" "$archive_path/"
+  [[ -f "${GRIMOIRE_DIR}/ledger.json" ]] && cp "${GRIMOIRE_DIR}/ledger.json" "$archive_path/"
+  
+  # Copy compound state
+  if [[ -d "${GRIMOIRE_DIR}/a2a/compound" ]]; then
+    cp -r "${GRIMOIRE_DIR}/a2a/compound" "$archive_path/"
+  fi
+  
+  # Generate changelog
+  "$SCRIPT_DIR/generate-changelog.sh" --cycle "$cycle" --file "${archive_path}/CHANGELOG.md" 2>/dev/null || true
+  
+  # Write archive metadata
+  cat > "${archive_path}/.archive-meta.json" << EOF
+{
+  "cycle": $cycle,
+  "archived_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "version": "1.0"
+}
+EOF
+  
+  echo "[INFO] Created archive: $archive_path"
+}
+
+cleanup_old_archives() {
+  if [[ ! -d "$ARCHIVE_DIR" ]]; then
+    return
+  fi
+  
+  local archives
+  archives=$(find "$ARCHIVE_DIR" -maxdepth 1 -type d -name "cycle-*" | sort -V)
+  
+  local count
+  count=$(echo "$archives" | grep -c . || echo "0")
+  
+  if [[ "$count" -gt "$RETENTION" ]]; then
+    local to_delete=$((count - RETENTION))
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+      echo "[DRY-RUN] Would delete $to_delete old archives:"
+      echo "$archives" | head -n "$to_delete"
+    else
+      echo "$archives" | head -n "$to_delete" | while read -r dir; do
+        rm -rf "$dir"
+        echo "[INFO] Deleted old archive: $dir"
+      done
+    fi
+  fi
+}
+
+main() {
+  parse_args "$@"
+  load_config
+  create_archive
+  cleanup_old_archives
+}
+
+main "$@"

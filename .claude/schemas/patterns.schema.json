@@ -1,0 +1,141 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "patterns.schema.json",
+  "title": "Compound Learning Patterns Registry",
+  "description": "Schema for cross-session pattern detection and tracking",
+  "type": "object",
+  "required": ["version", "patterns"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this schema file"
+    },
+    "version": {
+      "type": "string",
+      "description": "Schema version",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "last_updated": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO timestamp of last update"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of this registry"
+    },
+    "patterns": {
+      "type": "array",
+      "description": "Array of detected cross-session patterns",
+      "items": {
+        "$ref": "#/definitions/pattern"
+      }
+    }
+  },
+  "definitions": {
+    "pattern": {
+      "type": "object",
+      "required": ["id", "type", "signature", "first_seen", "occurrence_count", "sessions", "confidence", "status"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique pattern identifier",
+          "pattern": "^pat-[0-9]{3,}$"
+        },
+        "type": {
+          "type": "string",
+          "description": "Pattern classification",
+          "enum": ["repeated_error", "convergent_solution", "anti_pattern", "project_convention"]
+        },
+        "signature": {
+          "type": "string",
+          "description": "Human-readable pattern signature (e.g., nats-consumer-lost-messages)"
+        },
+        "first_seen": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when pattern was first detected"
+        },
+        "last_seen": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of most recent occurrence"
+        },
+        "occurrence_count": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of times this pattern has occurred"
+        },
+        "sessions": {
+          "type": "array",
+          "description": "Session dates where this pattern appeared",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+          },
+          "minItems": 1
+        },
+        "error_keywords": {
+          "type": "array",
+          "description": "Keywords extracted from error context",
+          "items": {
+            "type": "string"
+          }
+        },
+        "solution_keywords": {
+          "type": "array",
+          "description": "Keywords extracted from solution context",
+          "items": {
+            "type": "string"
+          }
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Pattern detection confidence (0.0-1.0)"
+        },
+        "extracted_to_skill": {
+          "type": ["string", "null"],
+          "description": "Skill ID if this pattern was extracted to a skill"
+        },
+        "status": {
+          "type": "string",
+          "description": "Pattern lifecycle status",
+          "enum": ["active", "extracted", "archived", "rejected"]
+        },
+        "quality_scores": {
+          "type": "object",
+          "description": "Quality gate scores (if evaluated)",
+          "properties": {
+            "discovery_depth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10
+            },
+            "reusability": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10
+            },
+            "trigger_clarity": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10
+            },
+            "verification": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10
+            }
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Additional pattern metadata",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}

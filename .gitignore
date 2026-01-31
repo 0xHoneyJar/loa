@@ -28,6 +28,10 @@ out/
 
 # GPT review context (dynamically generated based on config)
 .claude/context/gpt-review-active.md
+
+# Local settings overrides (user-specific feedback trace configuration)
+# Contains opt-in trace collection settings - never commit to repository
+.claude/settings.local.json
 *.swp
 *.swo
 *~
@@ -76,8 +80,8 @@ grimoires/loa/context/*
 # JSONL format logs for development/debugging, not needed in version control
 grimoires/loa/a2a/trajectory/*.jsonl
 
-# Pending feedback (temporary file for failed Linear submissions)
-# Kept in case /feedback fails to submit to Linear - automatically retried
+# Pending feedback (temporary file for failed GitHub submissions)
+# Kept in case /feedback fails to submit - automatically retried on next invocation
 grimoires/loa/analytics/pending-feedback.json
 
 # Permission audit log (user-specific HITL approval history)
@@ -115,6 +119,10 @@ grimoires/loa/a2a/*
 !grimoires/loa/a2a/trajectory/
 grimoires/loa/a2a/trajectory/*
 !grimoires/loa/a2a/trajectory/README.md
+# Compound learning state (tracked for cross-session learning)
+!grimoires/loa/a2a/compound/
+grimoires/loa/a2a/compound/review-markers/*
+!grimoires/loa/a2a/compound/review-markers/.gitkeep
 
 # Deployment artifacts (project-specific)
 grimoires/loa/deployment/*

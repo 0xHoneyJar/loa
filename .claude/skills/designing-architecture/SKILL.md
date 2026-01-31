@@ -258,6 +258,60 @@ Key sections include:
 - Development phases for sprint planning
 </output_format>
 
+<visual_communication>
+## Visual Communication Protocol
+
+Follow `.claude/protocols/visual-communication.md` for diagram standards.
+
+### Mandatory Diagrams (SDD)
+
+Include Mermaid diagrams for:
+- **System Architecture** (flowchart) - Component overview and relationships
+- **Component Interactions** (sequence) - API calls, data flows
+- **Data Models** (erDiagram) - Database schemas, entity relationships
+- **State Machines** (stateDiagram-v2) - Lifecycle diagrams, status flows
+
+### Output Format
+
+For each diagram:
+1. Write Mermaid code in fenced block
+2. Generate preview URL using theme from `.loa.config.yaml`
+3. Add preview link below code block
+
+Example:
+```markdown
+### Component Architecture
+
+```mermaid
+graph TD
+    A[Client] --> B[API Gateway]
+    B --> C[Auth Service]
+    B --> D[Data Service]
+    C --> E[(User DB)]
+    D --> F[(App DB)]
+```
+
+> **Preview**: [View diagram](https://agents.craft.do/mermaid?code=...&theme=github)
+```
+
+### Theme Configuration
+
+Read theme from `.loa.config.yaml`:
+```yaml
+visual_communication:
+  theme: "github"
+```
+
+Default theme is `github`. Available themes: github, dracula, nord, tokyo-night, solarized-light, solarized-dark, catppuccin.
+
+### Large Diagram Handling
+
+If Mermaid source exceeds 1500 characters:
+1. Include the Mermaid code block (always)
+2. Omit the preview URL
+3. Add: `> *Diagram too large for preview - render locally*`
+</visual_communication>
+
 <success_criteria>
 - **Specific**: Every technology choice has version and justification
 - **Measurable**: Scale targets are quantified (users, requests/sec, data volume)

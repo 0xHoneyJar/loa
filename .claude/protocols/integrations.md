@@ -121,14 +121,11 @@ integrations:
       fallback: "Manual deployment documentation provided"
 ```
 
-### Command (required integration)
+### Command (no required integrations)
 ```yaml
 # .claude/commands/feedback.md
-integrations:
-  required:
-    - name: "linear"
-      scopes: [issues, projects]
-      error: "Linear integration required for /feedback."
+# Note: /feedback uses gh CLI with clipboard fallback - no MCP required
+integrations: []
 ```
 
 ### Integration Registry Location

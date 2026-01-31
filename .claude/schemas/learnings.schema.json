@@ -1,0 +1,185 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "learnings.schema.json",
+  "title": "Learning Effectiveness Registry",
+  "description": "Schema for tracking learning applications and effectiveness feedback loop (Goal G-4)",
+  "type": "object",
+  "required": ["version", "learnings"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this schema file"
+    },
+    "version": {
+      "type": "string",
+      "description": "Schema version",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "last_updated": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO timestamp of last update"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of this registry"
+    },
+    "learnings": {
+      "type": "array",
+      "description": "Array of tracked learnings with effectiveness data",
+      "items": {
+        "$ref": "#/definitions/learning"
+      }
+    }
+  },
+  "definitions": {
+    "learning": {
+      "type": "object",
+      "required": ["id", "source", "created", "effectiveness_score", "applications"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Learning/skill identifier (matches skill name)"
+        },
+        "source": {
+          "type": "string",
+          "description": "How this learning was created",
+          "enum": ["pattern", "inline_extraction", "manual", "synthesis"]
+        },
+        "source_pattern_id": {
+          "type": ["string", "null"],
+          "description": "Source pattern ID if created from batch retrospective"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When this learning was first extracted"
+        },
+        "effectiveness_score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Calculated effectiveness score (0-100)"
+        },
+        "effectiveness_tier": {
+          "type": "string",
+          "description": "Tier based on effectiveness score",
+          "enum": ["high", "medium", "low", "ineffective"]
+        },
+        "retrieval_priority": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2,
+          "default": 1,
+          "description": "Retrieval weight multiplier (high tier=2x, ineffective=0.5x)"
+        },
+        "applications": {
+          "type": "array",
+          "description": "Record of each time this learning was applied",
+          "items": {
+            "$ref": "#/definitions/application"
+          }
+        },
+        "retrieval_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of times this learning was retrieved"
+        },
+        "last_retrieved": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "When this learning was last retrieved"
+        },
+        "dismissal_count": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Number of times user dismissed this learning"
+        },
+        "flagged_for_review": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether this learning needs human review"
+        },
+        "pruning_candidate": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether this learning is queued for potential archival"
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Additional learning metadata",
+          "additionalProperties": true
+        }
+      }
+    },
+    "application": {
+      "type": "object",
+      "required": ["timestamp", "task_id", "type", "outcome"],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the learning was applied"
+        },
+        "task_id": {
+          "type": "string",
+          "description": "Task context where learning was applied"
+        },
+        "type": {
+          "type": "string",
+          "description": "How the learning was applied",
+          "enum": ["explicit", "implicit", "prompted"]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Application detection confidence"
+        },
+        "code_location": {
+          "type": ["string", "null"],
+          "description": "Code file and line where learning was applied"
+        },
+        "outcome": {
+          "type": "string",
+          "description": "Result of applying the learning",
+          "enum": ["success", "failure", "unknown", "pending"]
+        },
+        "feedback_signals": {
+          "$ref": "#/definitions/feedback_signals"
+        }
+      }
+    },
+    "feedback_signals": {
+      "type": "object",
+      "description": "Feedback signals for effectiveness scoring",
+      "properties": {
+        "task_completed": {
+          "type": "boolean",
+          "description": "Task was marked complete (+3)"
+        },
+        "no_errors": {
+          "type": "boolean",
+          "description": "No error events during task (+2)"
+        },
+        "no_revert": {
+          "type": "boolean",
+          "description": "No git revert within 24h (+2)"
+        },
+        "faster_completion": {
+          "type": "boolean",
+          "description": "Completed faster than median (+1)"
+        },
+        "user_positive": {
+          "type": "boolean",
+          "description": "User gave positive feedback (+3)"
+        },
+        "user_negative": {
+          "type": "boolean",
+          "description": "User gave negative feedback (-5)"
+        }
+      }
+    }
+  }
+}

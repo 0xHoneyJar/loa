@@ -1,46 +1,23 @@
 ---
 name: "feedback"
-version: "1.1.0"
+version: "2.0.0"
 description: |
-  Submit developer feedback about Loa experience with auto-attached analytics.
-  Posts to Linear with project metrics. THJ developers only.
+  Submit developer feedback about Loa experience with optional execution traces.
+  Creates GitHub Issues with structured format for debugging.
+  Open to all users (OSS-friendly).
 
 command_type: "survey"
 
 arguments: []
 
-integrations:
-  required:
-    - name: "linear"
-      scopes: [issues, projects]
-      error: "Linear integration required for /feedback. See .claude/scripts/mcp-registry.sh for setup, or open a GitHub issue instead."
+integrations: []
 
-pre_flight:
-  - check: "script"
-    script: ".claude/scripts/check-thj-member.sh"
-    error: |
-      The /feedback command is only available for THJ team members.
-
-      For OSS users, please submit feedback via:
-      https://github.com/0xHoneyJar/loa/issues
-
-      THJ members: Set LOA_CONSTRUCTS_API_KEY environment variable to enable this command.
-
-  - check: "script"
-    script: ".claude/scripts/validate-mcp.sh linear"
-    error: |
-      Linear MCP is not configured. The /feedback command requires Linear to submit feedback.
-
-      To configure Linear:
-        .claude/scripts/mcp-registry.sh setup linear
-
-      Or open a GitHub issue instead:
-        https://github.com/0xHoneyJar/loa/issues
+pre_flight: []
 
 outputs:
-  - path: "Linear issue/comment"
+  - path: "GitHub Issue"
     type: "external"
-    description: "Feedback posted to Linear"
+    description: "Feedback posted to GitHub"
   - path: "grimoires/loa/analytics/pending-feedback.json"
     type: "file"
     description: "Safety backup if submission fails"
@@ -54,7 +31,7 @@ mode:
 
 ## Purpose
 
-Collect developer feedback on the Loa experience and post to Linear with attached analytics. Helps improve the framework through structured user input.
+Collect developer feedback on the Loa experience and submit to GitHub Issues with optional execution traces for debugging. Open to all users (OSS-friendly).
 
 ## Invocation
 
@@ -64,14 +41,17 @@ Collect developer feedback on the Loa experience and post to Linear with attache
 
 ## Prerequisites
 
-- THJ team member (LOA_CONSTRUCTS_API_KEY environment variable is set)
-- Linear MCP configured (for feedback submission)
+- None (open to all users)
+- `gh` CLI recommended for direct submission (falls back to clipboard if not available)
 
 ## Workflow
 
 ### Phase 0: Check for Pending Feedback
 
-Check if there's pending feedback from a previous failed submission. Offer to submit pending feedback or start fresh.
+Check if there's pending feedback from a previous failed submission:
+- Check `grimoires/loa/analytics/pending-feedback.json`
+- If exists and < 24h old: offer "Submit now" / "Start fresh" / "Cancel"
+- If > 24h old: delete and start fresh
 
 ### Phase 1: Survey
 
@@ -82,23 +62,54 @@ Collect responses to 4 questions with progress indicators:
 3. **Rate this build vs other approaches** (1-5 scale)
 4. **How comfortable was the process?** (A-E multiple choice)
 
-### Phase 2: Prepare Submission
+### Phase 2: Regression Classification
 
-- Load analytics from `grimoires/loa/analytics/usage.json`
-- Gather project context (name, developer info)
-- Save pending feedback as safety backup
+Classify the type of issue (if applicable) using AskUserQuestion with multiSelect:
 
-### Phase 3: Linear Submission
+- [ ] Plan generation issue (bad plan from PRD/SDD)
+- [ ] Tool selection issue (wrong tool for task)
+- [ ] Tool execution issue (correct tool, wrong params)
+- [ ] Context loss (forgot earlier context)
+- [ ] Instruction drift (deviated from plan)
+- [ ] External failure (API, permissions, etc.)
+- [ ] Other
 
-- Search for existing feedback issue in "Loa Feedback" project
-- Create new issue or add comment to existing one
-- Include full analytics in collapsible details block
+### Phase 3: Trace Collection
 
-### Phase 4: Update Analytics
+If trace collection is enabled in `.claude/settings.local.json`:
 
-- Record submission in `feedback_submissions` array
-- Delete pending feedback file
-- Regenerate summary
+1. Run `.claude/scripts/collect-trace.sh` to gather execution data
+2. Display summary: source count, total size, redaction count
+3. Ask user via AskUserQuestion: "Include traces?" (Yes / No)
+
+### Phase 4: User Review
+
+Before submission:
+
+1. Display full issue preview (title + body with formatting)
+2. Offer options via AskUserQuestion:
+   - "Submit as-is"
+   - "Edit content" (allow modification)
+   - "Remove traces" (submit survey only)
+   - "Cancel"
+
+### Phase 5: GitHub Submission
+
+Submit to GitHub Issues:
+
+1. Check `gh` CLI availability and authentication
+2. If authenticated: create issue via `gh issue create --repo 0xHoneyJar/loa`
+3. Add labels: `feedback`, `user-report`
+4. If not authenticated: clipboard fallback
+   - Copy formatted body to clipboard
+   - Display manual submission URL
+   - Save to pending-feedback.json as backup
+
+### Phase 6: Update Analytics
+
+- Record submission in `grimoires/loa/analytics/usage.json`
+- Delete pending-feedback.json if exists
+- Display success message with issue URL
 
 ## Arguments
 
@@ -110,7 +121,7 @@ Collect responses to 4 questions with progress indicators:
 
 | Path | Description |
 |------|-------------|
-| Linear issue | Feedback posted to "Loa Feedback" project |
+| GitHub Issue | Feedback posted to `0xHoneyJar/loa` repository |
 | `grimoires/loa/analytics/pending-feedback.json` | Backup if submission fails |
 
 ## Survey Questions
@@ -122,41 +133,121 @@ Collect responses to 4 questions with progress indicators:
 | 3 | How does this build compare? | 1-5 rating |
 | 4 | How comfortable was the process? | A-E choice |
 
-## Linear Issue Format
+## Classification Options
+
+| Category | Description |
+|----------|-------------|
+| Plan generation | PRD/SDD produced a bad plan |
+| Tool selection | Wrong tool chosen for task |
+| Tool execution | Right tool, wrong parameters |
+| Context loss | Agent forgot earlier context |
+| Instruction drift | Deviated from original plan |
+| External failure | API errors, permissions, etc. |
+| Other | Uncategorized issue |
+
+## GitHub Issue Format
+
+**Title**: `[Feedback] {short_description} - v{framework_version}`
+
+**Body**:
 
 ```markdown
-## Feedback Submission - {timestamp}
+## Feedback Submission
 
-**Developer**: {name} ({email})
-**Project**: {project_name}
+**Framework Version**: {version}
+**Submitted**: {timestamp}
+**Platform**: {os}
+
+### Classification
+
+- [{x| }] Plan generation issue
+- [{x| }] Tool selection issue
+- [{x| }] Tool execution issue
+- [{x| }] Context loss
+- [{x| }] Instruction drift
+- [{x| }] External failure
+- [{x| }] Other
 
 ### Survey Responses
-1. **What would you change?** {response}
-2. **What did you love?** {response}
-3. **Rating vs other builds**: {rating}/5
-4. **Process comfort level**: {choice}
 
-### Analytics Summary
-| Metric | Value |
-|--------|-------|
-| Framework Version | {version} |
-| Phases Completed | {count} |
-| Sprints Completed | {count} |
+| Question | Response |
+|----------|----------|
+| What would you change? | {q1_response} |
+| What did you love? | {q2_response} |
+| Rating vs other approaches | {q3_rating}/5 |
+| Process comfort level | {q4_choice} |
+
+---
+
+## Execution Trace
+
+> Trace collection: **{enabled|disabled}** | Scope: `{scope}`
+
+### Trajectory Summary ({entry_count} entries)
+
+| # | Timestamp | Agent | Tool | Result |
+|---|-----------|-------|------|--------|
+| 1 | 10:30:00 | implementing-tasks | Read | ✓ |
+| 2 | 10:30:05 | implementing-tasks | Edit | ✗ FAILURE |
 
 <details>
-<summary>Full Analytics JSON</summary>
-{analytics_json}
-</details>
+<summary>Full Trajectory</summary>
+
+```json
+[...]
 ```
+
+</details>
+
+<details>
+<summary>Plan at Failure</summary>
+
+```markdown
+{plan_content}
+```
+
+</details>
+
+<details>
+<summary>Sprint Ledger</summary>
+
+```json
+{ledger_json}
+```
+
+</details>
+
+---
+
+Submitted via Loa `/feedback` command
+```
+
+## Trace Configuration
+
+To enable trace collection, create `.claude/settings.local.json`:
+
+```json
+{
+  "feedback": {
+    "collectTraces": true,
+    "traceScope": "execution"
+  }
+}
+```
+
+See CLAUDE.md for full configuration options.
 
 ## Error Handling
 
 | Error | Cause | Resolution |
 |-------|-------|------------|
-| "Only available for THJ" | API key not set | Set `LOA_CONSTRUCTS_API_KEY` or open GitHub issue |
-| "Linear submission failed" | MCP error | Feedback saved to pending file |
+| "gh not available" | CLI not installed | Uses clipboard fallback |
+| "gh not authenticated" | Not logged in | Uses clipboard fallback |
+| "Submission failed" | GitHub API error | Saved to pending-feedback.json |
 
-## OSS Users
+## Privacy
 
-For issues or feature requests, open a GitHub issue at:
-https://github.com/0xHoneyJar/loa/issues
+- **Opt-in only**: Traces only collected when explicitly enabled
+- **Automatic redaction**: API keys, tokens, paths anonymized
+- **User review**: Preview and confirm before submission
+- **No telemetry**: No automatic data collection

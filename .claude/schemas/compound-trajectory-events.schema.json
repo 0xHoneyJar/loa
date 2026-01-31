@@ -1,0 +1,487 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "compound-trajectory-events.schema.json",
+  "title": "Compound Learning Trajectory Event Types",
+  "description": "Schema definitions for compound learning trajectory events (extends trajectory-entry.schema.json)",
+  "definitions": {
+    "compound_review_start": {
+      "type": "object",
+      "description": "Emitted when batch retrospective begins",
+      "required": ["timestamp", "type", "agent", "review_type", "date_range"],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "type": {
+          "const": "compound_review_start"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "review_type": {
+          "type": "string",
+          "enum": ["nightly", "batch", "sprint", "manual"],
+          "description": "Type of compound review"
+        },
+        "date_range": {
+          "type": "object",
+          "properties": {
+            "start": { "type": "string", "format": "date" },
+            "end": { "type": "string", "format": "date" },
+            "days": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "cycle_id": {
+          "type": ["string", "null"],
+          "description": "Associated PRD cycle ID if applicable"
+        },
+        "sprint_id": {
+          "type": ["string", "null"],
+          "description": "Associated sprint ID if triggered by /run sprint-plan"
+        },
+        "trajectory_files": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Trajectory files being analyzed"
+        }
+      }
+    },
+
+    "compound_review_complete": {
+      "type": "object",
+      "description": "Emitted when batch retrospective completes",
+      "required": ["timestamp", "type", "agent", "patterns_detected", "learnings_extracted"],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "type": {
+          "const": "compound_review_complete"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "patterns_detected": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of patterns detected"
+        },
+        "learnings_extracted": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of skills extracted"
+        },
+        "duration_ms": {
+          "type": "integer",
+          "description": "Review duration in milliseconds"
+        },
+        "events_analyzed": {
+          "type": "integer",
+          "description": "Total trajectory events processed"
+        },
+        "quality_gate_stats": {
+          "type": "object",
+          "properties": {
+            "passed": { "type": "integer" },
+            "failed": { "type": "integer" },
+            "skipped": { "type": "integer" }
+          }
+        },
+        "marker_file": {
+          "type": "string",
+          "description": "Path to review completion marker"
+        }
+      }
+    },
+
+    "pattern_detected": {
+      "type": "object",
+      "description": "Emitted when a cross-session pattern is identified",
+      "required": ["timestamp", "type", "agent", "pattern_id", "pattern_type", "occurrence_count", "confidence"],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "type": {
+          "const": "pattern_detected"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "pattern_id": {
+          "type": "string",
+          "description": "Unique pattern identifier"
+        },
+        "pattern_type": {
+          "type": "string",
+          "enum": ["repeated_error", "convergent_solution", "anti_pattern", "project_convention"]
+        },
+        "signature": {
+          "type": "string",
+          "description": "Human-readable pattern signature"
+        },
+        "occurrence_count": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "sessions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Sessions where pattern appeared"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "similarity_method": {
+          "type": "string",
+          "enum": ["ck", "memory_stack", "jaccard"],
+          "description": "Similarity algorithm used for detection"
+        },
+        "error_keywords": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "solution_keywords": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+
+    "learning_extracted": {
+      "type": "object",
+      "description": "Emitted when a pattern passes quality gates and becomes a skill",
+      "required": ["timestamp", "type", "agent", "skill_id", "source_pattern_id", "quality_scores"],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "type": {
+          "const": "learning_extracted"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "skill_id": {
+          "type": "string",
+          "description": "Generated skill identifier"
+        },
+        "source_pattern_id": {
+          "type": "string",
+          "description": "Pattern that generated this skill"
+        },
+        "skill_path": {
+          "type": "string",
+          "description": "Path to generated SKILL.md file"
+        },
+        "extraction_type": {
+          "type": "string",
+          "enum": ["batch", "inline"],
+          "description": "How the skill was extracted"
+        },
+        "quality_scores": {
+          "type": "object",
+          "properties": {
+            "discovery_depth": { "type": "integer", "minimum": 0, "maximum": 10 },
+            "reusability": { "type": "integer", "minimum": 0, "maximum": 10 },
+            "trigger_clarity": { "type": "integer", "minimum": 0, "maximum": 10 },
+            "verification": { "type": "integer", "minimum": 0, "maximum": 10 },
+            "overall": { "type": "integer", "minimum": 0, "maximum": 40 }
+          }
+        },
+        "auto_approved": {
+          "type": "boolean",
+          "description": "Whether skill was auto-approved"
+        }
+      }
+    },
+
+    "learning_applied": {
+      "type": "object",
+      "description": "Emitted when a learning/skill is applied during implementation (Goal G-4)",
+      "required": ["timestamp", "type", "agent", "skill_id", "task_context", "application_type"],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "type": {
+          "const": "learning_applied"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "skill_id": {
+          "type": "string",
+          "description": "Applied skill identifier"
+        },
+        "task_context": {
+          "type": "string",
+          "description": "Task or sprint context (e.g., sprint-4-task-2)"
+        },
+        "application_type": {
+          "type": "string",
+          "enum": ["explicit", "implicit", "prompted"],
+          "description": "How the learning was applied"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Application detection confidence"
+        },
+        "code_location": {
+          "type": ["string", "null"],
+          "description": "File and line where applied (e.g., src/services/messaging.ts:L45)"
+        },
+        "reasoning": {
+          "type": "string",
+          "description": "Agent reasoning about why skill was applied"
+        },
+        "morning_context": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether skill was suggested by morning context"
+        }
+      }
+    },
+
+    "learning_verified": {
+      "type": "object",
+      "description": "Emitted when feedback signals collected for applied learning (Goal G-4)",
+      "required": ["timestamp", "type", "agent", "skill_id", "application_timestamp", "feedback_signals", "effectiveness_delta"],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "type": {
+          "const": "learning_verified"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "skill_id": {
+          "type": "string"
+        },
+        "application_timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the learning was applied"
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "feedback_signals": {
+          "type": "object",
+          "properties": {
+            "task_completed": { "type": "boolean" },
+            "no_errors": { "type": "boolean" },
+            "no_revert": { "type": "boolean" },
+            "faster_completion": { "type": "boolean" },
+            "user_positive": { "type": "boolean" },
+            "user_negative": { "type": "boolean" }
+          }
+        },
+        "signal_score": {
+          "type": "integer",
+          "description": "Weighted sum of feedback signals"
+        },
+        "effectiveness_delta": {
+          "type": "integer",
+          "description": "Change in effectiveness score"
+        },
+        "new_effectiveness_score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "tier_change": {
+          "type": ["string", "null"],
+          "description": "Tier change if any (e.g., 'medium -> high')"
+        }
+      }
+    },
+
+    "synthesis_proposed": {
+      "type": "object",
+      "description": "Emitted when a merged skill proposal is created (Goal G-3)",
+      "required": ["timestamp", "type", "agent", "proposal_id", "source_skills", "merged_skill_name", "confidence"],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "type": {
+          "const": "synthesis_proposed"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "proposal_id": {
+          "type": "string"
+        },
+        "source_skills": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 2
+        },
+        "merged_skill_name": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "cluster_size": {
+          "type": "integer"
+        },
+        "average_similarity": {
+          "type": "number"
+        },
+        "total_applications": {
+          "type": "integer"
+        }
+      }
+    },
+
+    "synthesis_approved": {
+      "type": "object",
+      "description": "Emitted when merged skill proposal is approved by human",
+      "required": ["timestamp", "type", "agent", "proposal_id", "resulting_skill_id"],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "type": {
+          "const": "synthesis_approved"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "proposal_id": {
+          "type": "string"
+        },
+        "resulting_skill_id": {
+          "type": "string"
+        },
+        "resulting_skill_path": {
+          "type": "string"
+        },
+        "modifications": {
+          "type": ["string", "null"],
+          "description": "Human modifications to proposed content"
+        },
+        "archived_skills": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Source skills archived after merge"
+        },
+        "review_notes": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+
+    "synthesis_rejected": {
+      "type": "object",
+      "description": "Emitted when merged skill proposal is rejected by human",
+      "required": ["timestamp", "type", "agent", "proposal_id", "reason"],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "type": {
+          "const": "synthesis_rejected"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "proposal_id": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string",
+          "enum": ["not_related", "low_quality", "duplicate", "too_generic", "user_preference", "other"]
+        },
+        "review_notes": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+
+    "learning_dismissed": {
+      "type": "object",
+      "description": "Emitted when user dismisses a morning context suggestion",
+      "required": ["timestamp", "type", "agent", "skill_id"],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "type": {
+          "const": "learning_dismissed"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "skill_id": {
+          "type": "string"
+        },
+        "context": {
+          "type": "string",
+          "description": "Where the dismissal occurred (e.g., morning_context)"
+        },
+        "dismissal_count": {
+          "type": "integer",
+          "description": "Total dismissals for this skill"
+        }
+      }
+    },
+
+    "learning_archived": {
+      "type": "object",
+      "description": "Emitted when a learning is archived due to low effectiveness",
+      "required": ["timestamp", "type", "agent", "skill_id", "reason", "final_effectiveness_score"],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "type": {
+          "const": "learning_archived"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "skill_id": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string",
+          "enum": ["ineffective", "synthesized", "stale", "user_request", "duplicate"]
+        },
+        "final_effectiveness_score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "total_applications": {
+          "type": "integer"
+        },
+        "archive_path": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

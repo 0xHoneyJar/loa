@@ -615,3 +615,41 @@ br sync --flush-only  # Export SQLite → JSONL before commit
 
 **Protocol Reference**: See `.claude/protocols/beads-integration.md`
 </beads_workflow>
+
+<visual_communication>
+## Visual Communication (Optional)
+
+Follow `.claude/protocols/visual-communication.md` for diagram standards.
+
+### When to Include Diagrams
+
+Code review feedback may benefit from visual aids for:
+- **Code Flow** (flowchart) - Illustrate data or control flow issues
+- **Architecture Concerns** (flowchart) - Show structural problems
+
+### Output Format
+
+If including diagrams in feedback, use Mermaid with preview URLs:
+
+```markdown
+### Suggested Refactoring
+
+Current flow has unnecessary complexity:
+
+```mermaid
+graph TD
+    A[Input] --> B[Validate]
+    B --> C[Process]
+    C --> D[Transform]
+    D --> E[Output]
+```
+
+> **Preview**: [View diagram](https://agents.craft.do/mermaid?code=...&theme=github)
+```
+
+### Theme Configuration
+
+Read theme from `.loa.config.yaml` visual_communication.theme setting.
+
+Diagram inclusion is **optional** for code reviews - use when visual explanation helps.
+</visual_communication>

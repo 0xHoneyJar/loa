@@ -48,7 +48,8 @@ Complete documentation for Loa framework scripts in `.claude/scripts/`.
 ├── anthropic-oracle.sh       # Anthropic updates monitoring
 ├── check-updates.sh          # Automatic version checking
 ├── permission-audit.sh       # Permission request logging and analysis
-└── cleanup-context.sh        # Discovery context cleanup for cycle completion
+├── cleanup-context.sh        # Discovery context cleanup for cycle completion
+└── mermaid-url.sh            # Beautiful Mermaid preview URL generator
 ```
 
 ---
@@ -475,6 +476,50 @@ Logs agent reasoning with extended thinking support.
 
 ---
 
+## Mermaid URL Generator (v1.10.0)
+
+Generates Beautiful Mermaid preview URLs for diagram rendering.
+
+```bash
+# From file
+.claude/scripts/mermaid-url.sh diagram.mmd
+
+# From stdin
+echo 'graph TD; A-->B' | .claude/scripts/mermaid-url.sh --stdin
+
+# With custom theme
+echo 'graph TD; A-->B' | .claude/scripts/mermaid-url.sh --stdin --theme dracula
+
+# Check configuration
+.claude/scripts/mermaid-url.sh --check
+```
+
+**Options**:
+| Option | Description |
+|--------|-------------|
+| `--stdin` | Read Mermaid source from stdin |
+| `--theme <name>` | Override theme (default: from config or github) |
+| `--check` | Display visual communication config status |
+| `--help` | Show usage information |
+
+**Available Themes**:
+- `github` (default), `dracula`, `nord`, `tokyo-night`
+- `solarized-light`, `solarized-dark`, `catppuccin`
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+visual_communication:
+  enabled: true
+  theme: "github"
+  include_preview_urls: true
+```
+
+**Output**: Full URL to agents.craft.do/mermaid with base64-encoded diagram.
+
+**Note**: If diagram source exceeds 1500 characters, a warning is displayed.
+
+---
+
 ## Related Protocols
 
 - `.claude/protocols/context-compaction.md` - Context preservation rules
@@ -482,3 +527,4 @@ Logs agent reasoning with extended thinking support.
 - `.claude/protocols/constructs-integration.md` - Registry integration
 - `.claude/protocols/recommended-hooks.md` - Hook patterns
 - `.claude/protocols/risk-analysis.md` - Pre-mortem analysis framework
+- `.claude/protocols/visual-communication.md` - Visual output standards
