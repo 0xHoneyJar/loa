@@ -473,16 +473,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/scripts/auto-gpt-review-hook.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/scripts/gpt-review-doc-hook.sh"
+            "command": ".claude/scripts/gpt-review-hook.sh"
           }
         ]
       }
