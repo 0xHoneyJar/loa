@@ -12,9 +12,12 @@ command_type: "wizard"
 
 arguments:
   - name: "action"
-    description: "Action to perform: browse, install, list, update"
+    description: "Action to perform: browse, install, list, update, auth"
     required: false
     default: "browse"
+  - name: "target"
+    description: "Pack slug for install/uninstall, or 'setup' for auth"
+    required: false
 
 integrations:
   - service: "loa-constructs-api"
@@ -172,6 +175,34 @@ Remove installed pack:
 ```bash
 .claude/scripts/constructs-install.sh uninstall pack <pack>
 ```
+
+### Action: auth
+
+Check or set up authentication for premium packs.
+
+```bash
+# Check authentication status
+.claude/scripts/constructs-auth.sh status
+
+# Set up API key
+.claude/scripts/constructs-auth.sh setup <api_key>
+
+# Validate current key
+.claude/scripts/constructs-auth.sh validate
+
+# Remove credentials
+.claude/scripts/constructs-auth.sh clear
+```
+
+**Getting an API key:**
+1. Visit https://loa-constructs.dev/account
+2. Sign in or create an account
+3. Generate an API key
+4. Run `/constructs auth setup` and paste the key
+
+**Alternative methods:**
+- Environment variable: `export LOA_CONSTRUCTS_API_KEY=sk_...`
+- Credentials file: `~/.loa/credentials.json`
 
 ## Pack Selection Guidelines
 
