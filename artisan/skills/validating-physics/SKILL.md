@@ -1,27 +1,27 @@
 ---
-name: web3-testing
-description: Web3-specific testing utilities for dApps
+name: validating-physics
+description: Validate physics animation implementations
 user-invocable: true
 allowed-tools: Read, Write, Glob, Grep, Edit, Bash
 ---
 
-# web3 testing
+# validating physics
 
-Web3-specific testing utilities for dApps
+Validate physics animation implementations
 
 ---
 
 ## Trigger
 
 ```
-/web3-test
+/validate-physics
 ```
 
 ---
 
 ## Overview
 
-This skill is part of the Sigil pack for brand and UI craftsmanship.
+This skill is part of the Artisan pack for brand and UI craftsmanship.
 
 ---
 

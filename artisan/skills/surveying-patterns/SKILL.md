@@ -21,7 +21,7 @@ Discover and catalog UI patterns in codebase
 
 ## Overview
 
-This skill is part of the Sigil pack for brand and UI craftsmanship.
+This skill is part of the Artisan pack for brand and UI craftsmanship.
 
 ---
 

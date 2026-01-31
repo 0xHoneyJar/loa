@@ -130,7 +130,7 @@ Before shipping, confirm the fix addresses the Level 3 goal:
 
 ### Phase 8: Log Insight
 
-Update `grimoires/sigil/observations/user-insights.md` with:
+Update `grimoires/artisan/observations/user-insights.md` with:
 - User type classification
 - Behavioral evidence
 - Expectation gaps discovered

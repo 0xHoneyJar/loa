@@ -1,27 +1,27 @@
 ---
-name: inscribing-taste
-description: Apply brand taste guidelines to designs
+name: styling-material
+description: Apply Material Design styling patterns
 user-invocable: true
 allowed-tools: Read, Write, Glob, Grep, Edit
 ---
 
-# inscribing taste
+# styling material
 
-Apply brand taste guidelines to designs
+Apply Material Design styling patterns
 
 ---
 
 ## Trigger
 
 ```
-/inscribe
+/style
 ```
 
 ---
 
 ## Overview
 
-This skill is part of the Sigil pack for brand and UI craftsmanship.
+This skill is part of the Artisan pack for brand and UI craftsmanship.
 
 ---
 

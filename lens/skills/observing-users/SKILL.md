@@ -230,7 +230,7 @@ For detailed framework patterns, see [conversation-frameworks.md](conversation-f
 
 Check for existing observations:
 ```bash
-grimoires/sigil/observations/{username}-*.md
+grimoires/artisan/observations/{username}-*.md
 ```
 
 If found, add to `linked_observations` in frontmatter.

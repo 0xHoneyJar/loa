@@ -27,7 +27,7 @@ cp -r /tmp/forge/lens .claude/constructs/packs/lens
 |------|-------|--------|---------|
 | **[Lens](#-sigil-of-insight-lens)** | 🔮 | 6 | User truth capture |
 | **[Crucible](#-sigil-of-the-crucible-crucible)** | ⚗️ | 5 | Validation & testing |
-| **[Sigil](#-sigil-of-the-artisan-sigil)** | 🎨 | 10 | Brand/UI craftsmanship |
+| **[Artisan](#-sigil-of-the-artisan-artisan)** | 🎨 | 10 | Brand/UI craftsmanship |
 
 **Total: 21 skills**
 
@@ -158,7 +158,7 @@ grimoires/crucible/
 
 ---
 
-## 🎨 Sigil of the Artisan (Sigil)
+## 🎨 Sigil of the Artisan (Artisan)
 
 *Brand and UI craftsmanship through physics-based motion*
 
@@ -181,7 +181,7 @@ grimoires/crucible/
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    SIGIL WORKFLOW                               │
+│                    ARTISAN WORKFLOW                             │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  DISCOVERY                                                      │
@@ -212,7 +212,7 @@ grimoires/crucible/
 ### Grimoire Structure
 
 ```
-grimoires/sigil/
+grimoires/artisan/
 ├── physics/       # Physics configurations
 ├── taste/         # Brand taste definitions
 └── observations/  # Pattern observations
@@ -236,8 +236,8 @@ The three packs form a continuous feedback loop:
 │                     FORGE: COMPLETE WORKFLOW                             │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│    🔮 LENS                    ⚗️ CRUCIBLE                 🎨 SIGIL       │
-│    ───────                    ──────────                 ─────          │
+│    🔮 LENS                    ⚗️ CRUCIBLE                 🎨 ARTISAN     │
+│    ───────                    ──────────                 ───────        │
 │                                                                          │
 │    User Feedback              Code Reality               Design System   │
 │         │                          │                          │          │
@@ -282,7 +282,7 @@ cp -r /tmp/forge/lens .claude/constructs/packs/lens
 .claude/constructs/packs/lens/scripts/install.sh .
 
 # Install all packs
-for pack in lens crucible sigil; do
+for pack in lens crucible artisan; do
   cp -r /tmp/forge/$pack .claude/constructs/packs/$pack
   .claude/constructs/packs/$pack/scripts/install.sh .
 done
@@ -294,7 +294,7 @@ done
 # Install from registry
 .claude/scripts/constructs-install.sh pack lens
 .claude/scripts/constructs-install.sh pack crucible
-.claude/scripts/constructs-install.sh pack sigil
+.claude/scripts/constructs-install.sh pack artisan
 ```
 
 ---
@@ -313,7 +313,7 @@ done
 |------|------|---------------|--------|
 | Lens | `lens` | Sigil of Insight | 🟡 Pending Review |
 | Crucible | `crucible` | Sigil of the Crucible | 🟡 Pending Review |
-| Sigil | `sigil` | Sigil of the Artisan | 📝 Draft |
+| Artisan | `artisan` | Sigil of the Artisan | 📝 Draft |
 
 ---
 
@@ -323,7 +323,7 @@ done
 - **[VERIFICATION.md](VERIFICATION.md)** - Installation verification checklist
 - **[lens/README.md](lens/README.md)** - Lens pack details
 - **[crucible/README.md](crucible/README.md)** - Crucible pack details
-- **[sigil/README.md](sigil/README.md)** - Sigil pack details
+- **[artisan/README.md](artisan/README.md)** - Artisan pack details
 
 ---
 

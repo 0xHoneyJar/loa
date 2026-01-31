@@ -1,4 +1,4 @@
-# 🎨 Sigil of the Artisan (Sigil Pack)
+# 🎨 Sigil of the Artisan (Artisan Pack)
 
 > *"Design is not how it looks, but how it moves. Physics is taste made tangible."*
 
@@ -143,8 +143,8 @@ Wallet Flows → Mocks → Test Suite
 
 ```bash
 # From your project root
-cp -r /path/to/forge/sigil .claude/constructs/packs/sigil
-.claude/constructs/packs/sigil/scripts/install.sh .
+cp -r /path/to/forge/artisan .claude/constructs/packs/artisan
+.claude/constructs/packs/artisan/scripts/install.sh .
 ```
 
 ---
@@ -154,7 +154,7 @@ cp -r /path/to/forge/sigil .claude/constructs/packs/sigil
 After installation:
 
 ```
-grimoires/sigil/
+grimoires/artisan/
 ├── physics/         # Physics configurations
 │   └── {component}.yaml
 ├── taste/           # Brand taste definitions
@@ -188,7 +188,7 @@ grimoires/sigil/
 
 ## Syncing from Rune
 
-Sigil skills are sourced from the upstream **rune** repository:
+Artisan skills are sourced from the upstream **rune** repository:
 
 ```bash
 # Pull latest skills
@@ -201,9 +201,9 @@ This updates skill definitions while preserving local grimoire data.
 
 ## Integration with Crucible
 
-Sigil validates what Crucible tests:
+Artisan validates what Crucible tests:
 
-| Crucible Command | Sigil Validation |
+| Crucible Command | Artisan Validation |
 |------------------|------------------|
 | `/walkthrough` | `/validate-physics` during walkthrough |
 | `/validate` | Test animations don't jank |

@@ -4,7 +4,7 @@
 
 - [x] Lens: discovered (6 skills)
 - [x] Crucible: discovered (5 skills)
-- [x] Sigil: discovered (10 skills)
+- [x] Artisan: discovered (10 skills)
 
 ## Skill Counts
 
@@ -12,7 +12,7 @@
 |------|----------|--------|--------|
 | Lens | 6 | 6 | ✓ |
 | Crucible | 5 | 5 | ✓ |
-| Sigil | 10 | 10 | ✓ |
+| Artisan | 10 | 10 | ✓ |
 | **Total** | **21** | **21** | ✓ |
 
 ## Installation Tests
@@ -21,7 +21,7 @@
 |------|------------|------------------|--------|
 | Lens | ✓ | grimoires/lens/ | ✓ |
 | Crucible | ✓ | grimoires/crucible/ | ✓ |
-| Sigil | ✓ | grimoires/sigil/ | ✓ |
+| Artisan | ✓ | grimoires/artisan/ | ✓ |
 
 ## Lens Grimoire Structure
 
@@ -44,10 +44,10 @@ grimoires/crucible/
 └── results/       # Test results
 ```
 
-## Sigil Grimoire Structure
+## Artisan Grimoire Structure
 
 ```
-grimoires/sigil/
+grimoires/artisan/
 ├── physics/       # Physics configurations
 ├── taste/         # Brand taste definitions
 └── observations/  # Pattern observations
@@ -64,7 +64,7 @@ grimoires/sigil/
 
 - [x] lens/manifest.json valid
 - [x] crucible/manifest.json valid
-- [x] sigil/manifest.json valid
+- [x] artisan/manifest.json valid
 
 ## Cross-References
 

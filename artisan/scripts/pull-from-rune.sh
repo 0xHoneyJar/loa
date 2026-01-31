@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# pull-from-rune.sh - Sync Sigil skills from 0xHoneyJar/rune repository
+# pull-from-rune.sh - Sync Artisan skills from 0xHoneyJar/rune repository
 #
 # Usage:
 #   ./pull-from-rune.sh
@@ -14,7 +14,7 @@ SKILLS_DIR="$PACK_DIR/skills"
 TEMP_DIR=$(mktemp -d)
 
 # Skills to pull from rune
-SIGIL_SKILLS=(
+ARTISAN_SKILLS=(
   animating-motion
   applying-behavior
   crafting-physics
@@ -28,7 +28,7 @@ SIGIL_SKILLS=(
 )
 
 echo "╭───────────────────────────────────────────────────────╮"
-echo "│  SIGIL SKILL PULLER                                   │"
+echo "│  ARTISAN SKILL PULLER                                 │"
 echo "╰───────────────────────────────────────────────────────╯"
 echo ""
 
@@ -47,10 +47,10 @@ echo ""
 COPIED=0
 MISSING=0
 
-for skill in "${SIGIL_SKILLS[@]}"; do
+for skill in "${ARTISAN_SKILLS[@]}"; do
     src="$TEMP_DIR/rune/.claude/skills/$skill"
     dst="$SKILLS_DIR/$skill"
-    
+
     if [ -d "$src" ]; then
         echo "✓ Copying: $skill"
         cp -r "$src" "$dst"

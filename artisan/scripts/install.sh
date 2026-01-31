@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# install.sh - Install Sigil pack for a project
+# install.sh - Install Artisan pack for a project
 #
 # Usage:
 #   ./install.sh [PROJECT_ROOT]
@@ -11,12 +11,12 @@ set -e
 PROJECT_ROOT="${1:-.}"
 
 echo "╭───────────────────────────────────────────────────────╮"
-echo "│  SIGIL PACK INSTALLER                                 │"
+echo "│  ARTISAN PACK INSTALLER                               │"
 echo "╰───────────────────────────────────────────────────────╯"
 echo ""
 
 # Create grimoire structure
-GRIMOIRE_DIR="$PROJECT_ROOT/grimoires/sigil"
+GRIMOIRE_DIR="$PROJECT_ROOT/grimoires/artisan"
 mkdir -p "$GRIMOIRE_DIR/physics"
 mkdir -p "$GRIMOIRE_DIR/taste"
 mkdir -p "$GRIMOIRE_DIR/observations"

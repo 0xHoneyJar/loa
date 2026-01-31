@@ -1,27 +1,27 @@
 ---
-name: animating-motion
-description: Motion design and animation patterns for UI
+name: distilling-components
+description: Extract and refine reusable UI components
 user-invocable: true
 allowed-tools: Read, Write, Glob, Grep, Edit
 ---
 
-# animating motion
+# distilling components
 
-Motion design and animation patterns for UI
+Extract and refine reusable UI components
 
 ---
 
 ## Trigger
 
 ```
-/animate
+/distill
 ```
 
 ---
 
 ## Overview
 
-This skill is part of the Sigil pack for brand and UI craftsmanship.
+This skill is part of the Artisan pack for brand and UI craftsmanship.
 
 ---
 

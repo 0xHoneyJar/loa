@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `walking-through` - Interactive dev browser walkthrough
   - `diagramming-states` - Generate Mermaid state machine diagrams
 
-- **Sigil Pack** (10 skills)
+- **Artisan Pack** (10 skills)
   - `animating-motion` - Motion design and animation
   - `applying-behavior` - Interaction behavior patterns
   - `crafting-physics` - Physics-based animations
@@ -44,4 +44,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Installation Scripts**
   - `lens/scripts/install.sh`
   - `crucible/scripts/install.sh`
-  - `sigil/scripts/install.sh`
+  - `artisan/scripts/install.sh`
