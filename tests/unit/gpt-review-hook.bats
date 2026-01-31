@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Tests for auto-gpt-review-hook.sh - PostToolUse hook
+# Tests for gpt-review-hook.sh - Unified PostToolUse hook
 #
 # Tests hook output format, config handling, and stdin consumption.
 
@@ -8,7 +8,7 @@ load '../helpers/gpt-review-setup'
 setup() {
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-    HOOK_SCRIPT="$PROJECT_ROOT/.claude/scripts/auto-gpt-review-hook.sh"
+    HOOK_SCRIPT="$PROJECT_ROOT/.claude/scripts/gpt-review-hook.sh"
     SETTINGS_FILE="$PROJECT_ROOT/.claude/settings.json"
     FIXTURES_DIR="$PROJECT_ROOT/tests/fixtures/gpt-review"
 
@@ -17,7 +17,7 @@ setup() {
 
     # Create a minimal hook test environment
     mkdir -p "$TEST_DIR/.claude/scripts"
-    cp "$HOOK_SCRIPT" "$TEST_DIR/.claude/scripts/auto-gpt-review-hook.sh"
+    cp "$HOOK_SCRIPT" "$TEST_DIR/.claude/scripts/gpt-review-hook.sh"
 }
 
 # =============================================================================
@@ -32,13 +32,11 @@ setup() {
     [[ -f "$SETTINGS_FILE" ]]
     run grep -q "PostToolUse" "$SETTINGS_FILE"
     [[ "$status" -eq 0 ]]
-    run grep -q "auto-gpt-review-hook.sh" "$SETTINGS_FILE"
+    run grep -q "gpt-review-hook.sh" "$SETTINGS_FILE"
     [[ "$status" -eq 0 ]]
 }
 
 @test "hook matcher uses Edit|Write pattern" {
-    # The hook uses a simple Edit|Write matcher and filters by extension in the script
-    # This avoids regex issues with Claude Code's matcher parsing
     run grep -E '"Edit\|Write"' "$SETTINGS_FILE"
     [[ "$status" -eq 0 ]]
 }
@@ -48,14 +46,11 @@ setup() {
 # =============================================================================
 
 @test "outputs valid JSON when enabled" {
-    # Copy enabled config
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$TEST_DIR/.loa.config.yaml"
     cd "$TEST_DIR"
 
-    # Run hook with empty stdin (simulates hook invocation)
-    run bash -c 'echo "{}" | .claude/scripts/auto-gpt-review-hook.sh'
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
     [[ "$status" -eq 0 ]]
-    # Validate JSON
     echo "$output" | jq empty
 }
 
@@ -63,7 +58,7 @@ setup() {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$TEST_DIR/.loa.config.yaml"
     cd "$TEST_DIR"
 
-    run bash -c 'echo "{}" | .claude/scripts/auto-gpt-review-hook.sh'
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
     [[ "$status" -eq 0 ]]
     echo "$output" | jq -e '.hookSpecificOutput' > /dev/null
 }
@@ -72,7 +67,7 @@ setup() {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$TEST_DIR/.loa.config.yaml"
     cd "$TEST_DIR"
 
-    run bash -c 'echo "{}" | .claude/scripts/auto-gpt-review-hook.sh'
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
     [[ "$status" -eq 0 ]]
     echo "$output" | jq -e '.hookSpecificOutput.additionalContext' > /dev/null
 }
@@ -81,23 +76,57 @@ setup() {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$TEST_DIR/.loa.config.yaml"
     cd "$TEST_DIR"
 
-    run bash -c 'echo "{}" | .claude/scripts/auto-gpt-review-hook.sh'
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
     [[ "$status" -eq 0 ]]
     local context
     context=$(echo "$output" | jq -r '.hookSpecificOutput.additionalContext')
-    [[ "$context" == *"gpt-review"* ]] || [[ "$context" == *"/gpt-review"* ]]
+    [[ "$context" == *"gpt-review"* ]] || [[ "$context" == *"GPT"* ]]
 }
 
-@test "additionalContext emphasizes one-shotting over velocity" {
+@test "additionalContext includes STOP language" {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$TEST_DIR/.loa.config.yaml"
     cd "$TEST_DIR"
 
-    run bash -c 'echo "{}" | .claude/scripts/auto-gpt-review-hook.sh'
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
     [[ "$status" -eq 0 ]]
     local context
     context=$(echo "$output" | jq -r '.hookSpecificOutput.additionalContext')
-    # New messaging emphasizes correctness over speed and the uncertainty rule
-    [[ "$context" == *"ONE-SHOTTING"* ]] || [[ "$context" == *"unsure"* ]] || [[ "$context" == *"doubt"* ]]
+    [[ "$context" == *"STOP"* ]]
+}
+
+@test "additionalContext includes file path" {
+    cp "$FIXTURES_DIR/configs/enabled.yaml" "$TEST_DIR/.loa.config.yaml"
+    cd "$TEST_DIR"
+
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"src/auth.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
+    [[ "$status" -eq 0 ]]
+    local context
+    context=$(echo "$output" | jq -r '.hookSpecificOutput.additionalContext')
+    [[ "$context" == *"src/auth.ts"* ]]
+}
+
+@test "additionalContext lists what requires review" {
+    cp "$FIXTURES_DIR/configs/enabled.yaml" "$TEST_DIR/.loa.config.yaml"
+    cd "$TEST_DIR"
+
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
+    [[ "$status" -eq 0 ]]
+    local context
+    context=$(echo "$output" | jq -r '.hookSpecificOutput.additionalContext')
+    [[ "$context" == *"prd.md"* ]]
+    [[ "$context" == *"sdd.md"* ]]
+    [[ "$context" == *"sprint.md"* ]]
+}
+
+@test "additionalContext lists what to skip" {
+    cp "$FIXTURES_DIR/configs/enabled.yaml" "$TEST_DIR/.loa.config.yaml"
+    cd "$TEST_DIR"
+
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
+    [[ "$status" -eq 0 ]]
+    local context
+    context=$(echo "$output" | jq -r '.hookSpecificOutput.additionalContext')
+    [[ "$context" == *"typo"* ]] || [[ "$context" == *"Trivial"* ]]
 }
 
 # =============================================================================
@@ -108,16 +137,15 @@ setup() {
     cp "$FIXTURES_DIR/configs/disabled.yaml" "$TEST_DIR/.loa.config.yaml"
     cd "$TEST_DIR"
 
-    run bash -c 'echo "{}" | .claude/scripts/auto-gpt-review-hook.sh'
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
     [[ "$status" -eq 0 ]]
     [[ -z "$output" ]]
 }
 
 @test "no output when config file missing" {
-    # Don't copy any config
     cd "$TEST_DIR"
 
-    run bash -c 'echo "{}" | .claude/scripts/auto-gpt-review-hook.sh'
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
     [[ "$status" -eq 0 ]]
     [[ -z "$output" ]]
 }
@@ -130,20 +158,7 @@ setup() {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$TEST_DIR/.loa.config.yaml"
     cd "$TEST_DIR"
 
-    # Create a script that runs hook without yq in PATH
-    cat > "$TEST_DIR/test-no-yq.sh" << 'SCRIPT'
-#!/bin/bash
-# Run hook with minimal PATH (no yq)
-PATH="/bin:/usr/bin"
-# Remove any yq from PATH by not including homebrew paths
-echo "{}" | ./.claude/scripts/auto-gpt-review-hook.sh
-SCRIPT
-    chmod +x "$TEST_DIR/test-no-yq.sh"
-
-    # The hook should exit 0 even without yq (graceful handling)
-    # Since the hook checks `command -v yq` first
-    run bash -c 'echo "{}" | .claude/scripts/auto-gpt-review-hook.sh'
-    # Should exit 0 in all cases
+    run bash -c 'echo "{}" | .claude/scripts/gpt-review-hook.sh'
     [[ "$status" -eq 0 ]]
 }
 
@@ -151,7 +166,16 @@ SCRIPT
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$TEST_DIR/.loa.config.yaml"
     cd "$TEST_DIR"
 
-    # Use timeout to ensure it doesn't hang
-    run timeout 5 bash -c 'echo "{}" | .claude/scripts/auto-gpt-review-hook.sh'
+    run timeout 5 bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
     [[ "$status" -eq 0 ]]
+}
+
+@test "handles empty file_path gracefully" {
+    cp "$FIXTURES_DIR/configs/enabled.yaml" "$TEST_DIR/.loa.config.yaml"
+    cd "$TEST_DIR"
+
+    run bash -c 'echo "{\"tool_input\":{}}" | .claude/scripts/gpt-review-hook.sh'
+    [[ "$status" -eq 0 ]]
+    # Should still output (with "a file" as fallback)
+    echo "$output" | jq -e '.hookSpecificOutput' > /dev/null
 }

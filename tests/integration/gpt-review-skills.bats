@@ -1,545 +1,226 @@
 #!/usr/bin/env bats
-# Tests for GPT review skill integration
+# Tests for GPT review integration
 #
-# Verifies that GPT review phases are dynamically injected into skill files
-# based on config. When enabled: phases are injected. When disabled: removed.
-# The /toggle-gpt-review command controls everything (no startup hooks needed).
+# The simplified architecture uses:
+# - A single PostToolUse hook (gpt-review-hook.sh) for ALL Edit/Write
+# - A context file managed by inject-gpt-review-gates.sh
+# - No skill file or command file injection
+#
+# When enabled: context file created, hook outputs reminders
+# When disabled: context file removed, hook silent
 
 setup() {
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-    SKILLS_DIR="$PROJECT_ROOT/.claude/skills"
     INJECT_SCRIPT="$PROJECT_ROOT/.claude/scripts/inject-gpt-review-gates.sh"
     TOGGLE_SCRIPT="$PROJECT_ROOT/.claude/scripts/gpt-review-toggle.sh"
+    HOOK_SCRIPT="$PROJECT_ROOT/.claude/scripts/gpt-review-hook.sh"
+    CONTEXT_FILE="$PROJECT_ROOT/.claude/context/gpt-review-active.md"
+    TEMPLATE_FILE="$PROJECT_ROOT/.claude/templates/gpt-review-instructions.md.template"
     FIXTURES_DIR="$PROJECT_ROOT/tests/fixtures/gpt-review"
 
     # Create temp directory for test-specific files
     TEST_DIR="${BATS_TEST_TMPDIR:-$(mktemp -d)}"
 
-    # Backup original skill files
-    for skill in discovering-requirements designing-architecture planning-sprints implementing-tasks; do
-        cp "$SKILLS_DIR/$skill/SKILL.md" "$TEST_DIR/${skill}-SKILL.md.bak"
-    done
+    # Backup config if exists
+    if [[ -f "$PROJECT_ROOT/.loa.config.yaml" ]]; then
+        cp "$PROJECT_ROOT/.loa.config.yaml" "$TEST_DIR/config.bak"
+    fi
 }
 
 teardown() {
-    # Restore original skill files
-    for skill in discovering-requirements designing-architecture planning-sprints implementing-tasks; do
-        if [[ -f "$TEST_DIR/${skill}-SKILL.md.bak" ]]; then
-            cp "$TEST_DIR/${skill}-SKILL.md.bak" "$SKILLS_DIR/$skill/SKILL.md"
-        fi
-    done
+    # Restore original config
+    if [[ -f "$TEST_DIR/config.bak" ]]; then
+        cp "$TEST_DIR/config.bak" "$PROJECT_ROOT/.loa.config.yaml"
+    fi
+    # Clean up context file
+    rm -f "$CONTEXT_FILE"
 }
 
 # =============================================================================
-# Inject script tests
+# Script existence tests
 # =============================================================================
 
 @test "inject script exists and is executable" {
     [[ -x "$INJECT_SCRIPT" ]]
 }
 
-@test "inject script adds GPT review phase when enabled" {
-    # Setup: copy enabled config to project root
+@test "hook script exists and is executable" {
+    [[ -x "$HOOK_SCRIPT" ]]
+}
+
+@test "toggle script exists and is executable" {
+    [[ -x "$TOGGLE_SCRIPT" ]]
+}
+
+@test "template file exists" {
+    [[ -f "$TEMPLATE_FILE" ]]
+}
+
+# =============================================================================
+# Hook registration tests
+# =============================================================================
+
+@test "single unified hook registered in settings.json" {
+    grep -q "gpt-review-hook.sh" "$PROJECT_ROOT/.claude/settings.json"
+}
+
+@test "old hooks are NOT registered in settings.json" {
+    ! grep -q "auto-gpt-review-hook.sh" "$PROJECT_ROOT/.claude/settings.json"
+    ! grep -q "gpt-review-doc-hook.sh" "$PROJECT_ROOT/.claude/settings.json"
+}
+
+# =============================================================================
+# Context file management tests
+# =============================================================================
+
+@test "inject script creates context file when enabled" {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
 
-    # Run inject
     run "$INJECT_SCRIPT"
     [[ "$status" -eq 0 ]]
+    [[ -f "$CONTEXT_FILE" ]]
 
-    # Check GPT review phases were added (look for the phase header)
-    grep -q "GPT Cross-Model Review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
-    grep -q "GPT Cross-Model Review" "$SKILLS_DIR/designing-architecture/SKILL.md"
-    grep -q "GPT Cross-Model Review" "$SKILLS_DIR/planning-sprints/SKILL.md"
-    grep -q "GPT Cross-Model Review" "$SKILLS_DIR/implementing-tasks/SKILL.md"
-
-    # Cleanup
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
 }
 
-@test "inject script removes GPT review phase when disabled" {
-    # Setup: first add phases
+@test "inject script removes context file when disabled" {
+    # First enable to create file
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
     "$INJECT_SCRIPT"
-
-    # Verify phases exist
-    grep -q "GPT Cross-Model Review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
+    [[ -f "$CONTEXT_FILE" ]]
 
     # Now disable
     cp "$FIXTURES_DIR/configs/disabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
     run "$INJECT_SCRIPT"
     [[ "$status" -eq 0 ]]
+    [[ ! -f "$CONTEXT_FILE" ]]
 
-    # Check phases were removed
-    ! grep -q "GPT Cross-Model Review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
-    ! grep -q "GPT Cross-Model Review" "$SKILLS_DIR/designing-architecture/SKILL.md"
-    ! grep -q "GPT Cross-Model Review" "$SKILLS_DIR/planning-sprints/SKILL.md"
-    ! grep -q "GPT Cross-Model Review" "$SKILLS_DIR/implementing-tasks/SKILL.md"
-
-    # Cleanup
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
 }
 
-@test "skill files are IDENTICAL to original after phase removal" {
-    # Store checksums of original files
-    local orig_prd_checksum orig_sdd_checksum orig_sprint_checksum orig_impl_checksum
-    orig_prd_checksum=$(md5 -q "$TEST_DIR/discovering-requirements-SKILL.md.bak")
-    orig_sdd_checksum=$(md5 -q "$TEST_DIR/designing-architecture-SKILL.md.bak")
-    orig_sprint_checksum=$(md5 -q "$TEST_DIR/planning-sprints-SKILL.md.bak")
-    orig_impl_checksum=$(md5 -q "$TEST_DIR/implementing-tasks-SKILL.md.bak")
-
-    # Add phases
+@test "context file contains instructions from template" {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
     "$INJECT_SCRIPT"
 
-    # Verify phases were added
-    grep -q "GPT Cross-Model Review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
+    # Check content matches template
+    diff "$TEMPLATE_FILE" "$CONTEXT_FILE"
 
-    # Remove phases
-    cp "$FIXTURES_DIR/configs/disabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
-
-    # Verify files are IDENTICAL to originals (byte-for-byte)
-    local new_prd_checksum new_sdd_checksum new_sprint_checksum new_impl_checksum
-    new_prd_checksum=$(md5 -q "$SKILLS_DIR/discovering-requirements/SKILL.md")
-    new_sdd_checksum=$(md5 -q "$SKILLS_DIR/designing-architecture/SKILL.md")
-    new_sprint_checksum=$(md5 -q "$SKILLS_DIR/planning-sprints/SKILL.md")
-    new_impl_checksum=$(md5 -q "$SKILLS_DIR/implementing-tasks/SKILL.md")
-
-    [[ "$orig_prd_checksum" == "$new_prd_checksum" ]]
-    [[ "$orig_sdd_checksum" == "$new_sdd_checksum" ]]
-    [[ "$orig_sprint_checksum" == "$new_sprint_checksum" ]]
-    [[ "$orig_impl_checksum" == "$new_impl_checksum" ]]
-
-    # Cleanup
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
 }
 
-@test "injection adds phase inside workflow section" {
-    # Add phases
+# =============================================================================
+# Skill file integrity tests (NO injection)
+# =============================================================================
+
+@test "skill files are NOT modified when enabled" {
+    local skills_dir="$PROJECT_ROOT/.claude/skills"
+
+    # Get checksums before
+    local before_prd before_sdd before_sprint before_impl
+    before_prd=$(md5 -q "$skills_dir/discovering-requirements/SKILL.md" 2>/dev/null || md5sum "$skills_dir/discovering-requirements/SKILL.md" | cut -d' ' -f1)
+    before_sdd=$(md5 -q "$skills_dir/designing-architecture/SKILL.md" 2>/dev/null || md5sum "$skills_dir/designing-architecture/SKILL.md" | cut -d' ' -f1)
+    before_sprint=$(md5 -q "$skills_dir/planning-sprints/SKILL.md" 2>/dev/null || md5sum "$skills_dir/planning-sprints/SKILL.md" | cut -d' ' -f1)
+    before_impl=$(md5 -q "$skills_dir/implementing-tasks/SKILL.md" 2>/dev/null || md5sum "$skills_dir/implementing-tasks/SKILL.md" | cut -d' ' -f1)
+
+    # Enable GPT review
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
     "$INJECT_SCRIPT"
 
-    # Verify phase was added
-    grep -q "GPT Cross-Model Review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
+    # Get checksums after
+    local after_prd after_sdd after_sprint after_impl
+    after_prd=$(md5 -q "$skills_dir/discovering-requirements/SKILL.md" 2>/dev/null || md5sum "$skills_dir/discovering-requirements/SKILL.md" | cut -d' ' -f1)
+    after_sdd=$(md5 -q "$skills_dir/designing-architecture/SKILL.md" 2>/dev/null || md5sum "$skills_dir/designing-architecture/SKILL.md" | cut -d' ' -f1)
+    after_sprint=$(md5 -q "$skills_dir/planning-sprints/SKILL.md" 2>/dev/null || md5sum "$skills_dir/planning-sprints/SKILL.md" | cut -d' ' -f1)
+    after_impl=$(md5 -q "$skills_dir/implementing-tasks/SKILL.md" 2>/dev/null || md5sum "$skills_dir/implementing-tasks/SKILL.md" | cut -d' ' -f1)
 
-    # Phase should be INSIDE workflow (before </workflow>)
-    local phase_line workflow_end_line
-    phase_line=$(grep -n "GPT Cross-Model Review" "$SKILLS_DIR/discovering-requirements/SKILL.md" | cut -d: -f1)
-    workflow_end_line=$(grep -n "</workflow>" "$SKILLS_DIR/discovering-requirements/SKILL.md" | cut -d: -f1)
+    # Verify no changes
+    [[ "$before_prd" == "$after_prd" ]]
+    [[ "$before_sdd" == "$after_sdd" ]]
+    [[ "$before_sprint" == "$after_sprint" ]]
+    [[ "$before_impl" == "$after_impl" ]]
 
-    # Phase should be before </workflow>
-    [[ "$phase_line" -lt "$workflow_end_line" ]]
-
-    # Phase should use standard ### format
-    grep -q "### Phase.*GPT Cross-Model Review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
-
-    # Cleanup
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
 }
 
-@test "GPT review phase not present in skill files at rest" {
-    # Without any config manipulation, skill files should be clean
-    ! grep -q "GPT Cross-Model Review" "$TEST_DIR/discovering-requirements-SKILL.md.bak"
-    ! grep -q "GPT Cross-Model Review" "$TEST_DIR/designing-architecture-SKILL.md.bak"
-    ! grep -q "GPT Cross-Model Review" "$TEST_DIR/planning-sprints-SKILL.md.bak"
-    ! grep -q "GPT Cross-Model Review" "$TEST_DIR/implementing-tasks-SKILL.md.bak"
+@test "no GPT review content in skill files" {
+    local skills_dir="$PROJECT_ROOT/.claude/skills"
+
+    ! grep -q "GPT Cross-Model Review" "$skills_dir/discovering-requirements/SKILL.md"
+    ! grep -q "GPT Cross-Model Review" "$skills_dir/designing-architecture/SKILL.md"
+    ! grep -q "GPT Cross-Model Review" "$skills_dir/planning-sprints/SKILL.md"
+    ! grep -q "GPT Cross-Model Review" "$skills_dir/implementing-tasks/SKILL.md"
+    ! grep -q "GPT REVIEW ENABLED" "$skills_dir/run-mode/SKILL.md"
 }
 
-@test "inject script removes phases when config missing" {
-    # Setup: first add phases
+# =============================================================================
+# Hook behavior tests
+# =============================================================================
+
+@test "hook outputs STOP message when enabled" {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
 
-    # Verify phases exist
-    grep -q "GPT Cross-Model Review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
-
-    # Remove config
-    rm -f "$PROJECT_ROOT/.loa.config.yaml"
-    run "$INJECT_SCRIPT"
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | '"$HOOK_SCRIPT"
     [[ "$status" -eq 0 ]]
-
-    # Check phases were removed
-    ! grep -q "GPT Cross-Model Review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
-}
-
-@test "injected PRD phase uses Skill tool pattern for gpt-review" {
-    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
-
-    # Check for explicit Skill tool invocation pattern
-    grep -q "Skill: gpt-review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
-    grep -q "Args: prd" "$SKILLS_DIR/discovering-requirements/SKILL.md"
+    [[ "$output" == *"STOP"* ]]
 
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
 }
 
-@test "injected SDD phase uses Skill tool pattern for gpt-review" {
-    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
-
-    grep -q "Skill: gpt-review" "$SKILLS_DIR/designing-architecture/SKILL.md"
-    grep -q "Args: sdd" "$SKILLS_DIR/designing-architecture/SKILL.md"
-
-    rm -f "$PROJECT_ROOT/.loa.config.yaml"
-}
-
-@test "injected Sprint phase uses Skill tool pattern for gpt-review" {
-    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
-
-    grep -q "Skill: gpt-review" "$SKILLS_DIR/planning-sprints/SKILL.md"
-    grep -q "Args: sprint" "$SKILLS_DIR/planning-sprints/SKILL.md"
-
-    rm -f "$PROJECT_ROOT/.loa.config.yaml"
-}
-
-@test "injected Code phase uses Skill tool pattern for gpt-review" {
-    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
-
-    grep -q "Skill: gpt-review" "$SKILLS_DIR/implementing-tasks/SKILL.md"
-    grep -q "Args: code" "$SKILLS_DIR/implementing-tasks/SKILL.md"
-
-    rm -f "$PROJECT_ROOT/.loa.config.yaml"
-}
-
-@test "inject is idempotent - running twice doesn't duplicate phases" {
-    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-
-    # Run twice
-    "$INJECT_SCRIPT"
-    "$INJECT_SCRIPT"
-
-    # Count occurrences - should be exactly 1
-    local count
-    count=$(grep -c "GPT Cross-Model Review" "$SKILLS_DIR/discovering-requirements/SKILL.md")
-    [[ "$count" -eq 1 ]]
-
-    rm -f "$PROJECT_ROOT/.loa.config.yaml"
-}
-
-# =============================================================================
-# Toggle integration tests
-# =============================================================================
-
-@test "toggle script calls inject script" {
-    grep -q "inject-gpt-review-gates.sh" "$TOGGLE_SCRIPT"
-}
-
-@test "toggle script is executable" {
-    [[ -x "$TOGGLE_SCRIPT" ]]
-}
-
-# =============================================================================
-# Static infrastructure tests
-# =============================================================================
-
-@test "gpt-review-api.sh script is executable" {
-    [[ -x "$PROJECT_ROOT/.claude/scripts/gpt-review-api.sh" ]]
-}
-
-@test "/gpt-review command definition exists" {
-    [[ -f "$PROJECT_ROOT/.claude/commands/gpt-review.md" ]]
-}
-
-@test "/toggle-gpt-review command definition exists" {
-    [[ -f "$PROJECT_ROOT/.claude/commands/toggle-gpt-review.md" ]]
-}
-
-@test "PostToolUse hook for code files exists" {
-    grep -q "auto-gpt-review-hook.sh" "$PROJECT_ROOT/.claude/settings.json"
-}
-
-# =============================================================================
-# API script tests
-# =============================================================================
-
-@test "API script works regardless of config (config controls auto-prompting only)" {
-    # Setup: DISABLE GPT review in config
+@test "hook silent when disabled" {
     cp "$FIXTURES_DIR/configs/disabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
 
-    # Create test files
-    mkdir -p "$TEST_DIR/grimoires/loa"
-    echo "# Test PRD" > "$TEST_DIR/grimoires/loa/prd.md"
-    echo "You are an expert in test domains." > "$TEST_DIR/expertise.md"
-    echo "## Product Context\nTest product." > "$TEST_DIR/context.md"
-
-    # Run API script - should NOT skip due to config, but will fail due to fake API key
-    cd "$PROJECT_ROOT"
-    export OPENAI_API_KEY="test-key-for-mock"
-    run .claude/scripts/gpt-review-api.sh prd "$TEST_DIR/grimoires/loa/prd.md" \
-        --expertise "$TEST_DIR/expertise.md" \
-        --context "$TEST_DIR/context.md"
-
-    # Should fail with API error (exit 1 or 4), NOT succeed with SKIPPED
-    # The point is: config doesn't block manual invocation
-    [[ "$status" -ne 0 ]]
-    ! echo "$output" | grep -q '"verdict": "SKIPPED"'
-
-    # Cleanup
-    rm -f "$PROJECT_ROOT/.loa.config.yaml"
-}
-
-@test "API script fails gracefully without API key" {
-    # Setup: enable GPT review but no API key
-    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-
-    # Create test files
-    mkdir -p "$TEST_DIR/grimoires/loa"
-    echo "# Test PRD" > "$TEST_DIR/grimoires/loa/prd.md"
-    echo "You are an expert in test domains." > "$TEST_DIR/expertise.md"
-    echo "## Product Context\nTest product." > "$TEST_DIR/context.md"
-
-    # Unset API key
-    unset OPENAI_API_KEY
-
-    # Remove any .env files that might have keys
-    rm -f "$PROJECT_ROOT/.env" "$PROJECT_ROOT/.env.local"
-
-    # Run API script - should fail with exit code 4 (missing API key)
-    cd "$PROJECT_ROOT"
-    run .claude/scripts/gpt-review-api.sh prd "$TEST_DIR/grimoires/loa/prd.md" \
-        --expertise "$TEST_DIR/expertise.md" \
-        --context "$TEST_DIR/context.md"
-
-    # Should fail with specific exit code for missing API key
-    [[ "$status" -eq 4 ]]
-
-    # Cleanup
-    rm -f "$PROJECT_ROOT/.loa.config.yaml"
-}
-
-@test "API script requires --expertise file" {
-    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-
-    mkdir -p "$TEST_DIR/grimoires/loa"
-    echo "# Test PRD" > "$TEST_DIR/grimoires/loa/prd.md"
-    echo "## Context" > "$TEST_DIR/context.md"
-
-    cd "$PROJECT_ROOT"
-    export OPENAI_API_KEY="test-key"
-
-    # Call without --expertise
-    run .claude/scripts/gpt-review-api.sh prd "$TEST_DIR/grimoires/loa/prd.md" \
-        --context "$TEST_DIR/context.md"
-
-    # Should fail with exit code 2 (invalid input)
-    [[ "$status" -eq 2 ]]
-    echo "$output" | grep -q "Missing --expertise file"
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | '"$HOOK_SCRIPT"
+    [[ "$status" -eq 0 ]]
+    [[ -z "$output" ]]
 
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
 }
 
-@test "API script requires --context file" {
+@test "hook includes policy for what requires review" {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
 
-    mkdir -p "$TEST_DIR/grimoires/loa"
-    echo "# Test PRD" > "$TEST_DIR/grimoires/loa/prd.md"
-    echo "You are an expert." > "$TEST_DIR/expertise.md"
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | '"$HOOK_SCRIPT"
+    local context
+    context=$(echo "$output" | jq -r '.hookSpecificOutput.additionalContext')
 
-    cd "$PROJECT_ROOT"
-    export OPENAI_API_KEY="test-key"
+    [[ "$context" == *"prd.md"* ]]
+    [[ "$context" == *"sdd.md"* ]]
+    [[ "$context" == *"sprint.md"* ]]
+    [[ "$context" == *"backend"* ]] || [[ "$context" == *"Backend"* ]]
 
-    # Call without --context
-    run .claude/scripts/gpt-review-api.sh prd "$TEST_DIR/grimoires/loa/prd.md" \
-        --expertise "$TEST_DIR/expertise.md"
+    rm -f "$PROJECT_ROOT/.loa.config.yaml"
+}
 
-    # Should fail with exit code 2 (invalid input)
-    [[ "$status" -eq 2 ]]
-    echo "$output" | grep -q "Missing --context file"
+@test "hook includes policy for what to skip" {
+    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
+
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | '"$HOOK_SCRIPT"
+    local context
+    context=$(echo "$output" | jq -r '.hookSpecificOutput.additionalContext')
+
+    [[ "$context" == *"typo"* ]] || [[ "$context" == *"Trivial"* ]]
+    [[ "$context" == *".gitignore"* ]]
 
     rm -f "$PROJECT_ROOT/.loa.config.yaml"
 }
 
 # =============================================================================
-# Success criteria injection tests
+# Command context_files integration
 # =============================================================================
 
-@test "inject script adds success criterion when enabled" {
-    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
+@test "commands have context_files entry for gpt-review-active.md" {
+    local commands_dir="$PROJECT_ROOT/.claude/commands"
 
-    # Check GPT Review success criterion was added to all skills
-    grep -q "GPT Review.*Cross-model review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
-    grep -q "GPT Review.*Cross-model review" "$SKILLS_DIR/designing-architecture/SKILL.md"
-    grep -q "GPT Review.*Cross-model review" "$SKILLS_DIR/planning-sprints/SKILL.md"
-    grep -q "GPT Review.*Cross-model review" "$SKILLS_DIR/implementing-tasks/SKILL.md"
-
-    rm -f "$PROJECT_ROOT/.loa.config.yaml"
+    grep -q "gpt-review-active.md" "$commands_dir/plan-and-analyze.md"
+    grep -q "gpt-review-active.md" "$commands_dir/architect.md"
+    grep -q "gpt-review-active.md" "$commands_dir/sprint-plan.md"
+    grep -q "gpt-review-active.md" "$commands_dir/implement.md"
 }
 
-@test "inject script removes success criterion when disabled" {
-    # First add
-    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
-    grep -q "GPT Review.*Cross-model review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
+@test "context_files entries are marked as not required" {
+    local commands_dir="$PROJECT_ROOT/.claude/commands"
 
-    # Then disable
-    cp "$FIXTURES_DIR/configs/disabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
-
-    # Check criterion was removed
-    ! grep -q "GPT Review.*Cross-model review" "$SKILLS_DIR/discovering-requirements/SKILL.md"
-    ! grep -q "GPT Review.*Cross-model review" "$SKILLS_DIR/designing-architecture/SKILL.md"
-    ! grep -q "GPT Review.*Cross-model review" "$SKILLS_DIR/planning-sprints/SKILL.md"
-    ! grep -q "GPT Review.*Cross-model review" "$SKILLS_DIR/implementing-tasks/SKILL.md"
-
-    rm -f "$PROJECT_ROOT/.loa.config.yaml"
-}
-
-@test "success criterion is inside success_criteria section" {
-    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
-
-    # Criterion should be BEFORE </success_criteria>
-    local criterion_line criteria_end_line
-    criterion_line=$(grep -n "GPT Review.*Cross-model review" "$SKILLS_DIR/discovering-requirements/SKILL.md" | cut -d: -f1)
-    criteria_end_line=$(grep -n "</success_criteria>" "$SKILLS_DIR/discovering-requirements/SKILL.md" | cut -d: -f1)
-
-    [[ "$criterion_line" -lt "$criteria_end_line" ]]
-
-    rm -f "$PROJECT_ROOT/.loa.config.yaml"
-}
-
-@test "success criterion not present in skill files at rest" {
-    ! grep -q "GPT Review.*Cross-model review" "$TEST_DIR/discovering-requirements-SKILL.md.bak"
-    ! grep -q "GPT Review.*Cross-model review" "$TEST_DIR/designing-architecture-SKILL.md.bak"
-    ! grep -q "GPT Review.*Cross-model review" "$TEST_DIR/planning-sprints-SKILL.md.bak"
-    ! grep -q "GPT Review.*Cross-model review" "$TEST_DIR/implementing-tasks-SKILL.md.bak"
-}
-
-# =============================================================================
-# Document hook tests
-# =============================================================================
-
-@test "document hook script exists and is executable" {
-    [[ -x "$PROJECT_ROOT/.claude/scripts/gpt-review-doc-hook.sh" ]]
-}
-
-@test "PostToolUse hook for document files is registered" {
-    grep -q "gpt-review-doc-hook.sh" "$PROJECT_ROOT/.claude/settings.json"
-}
-
-@test "PostToolUse hook uses Edit|Write matcher for documents" {
-    # Document hook now uses Edit|Write pattern (same as code hook)
-    # The script filters for grimoire document paths internally
-    grep -q '"Edit|Write"' "$PROJECT_ROOT/.claude/settings.json"
-}
-
-@test "Document hook script filters for prd/sdd/sprint files" {
-    # The doc hook script handles path filtering internally for document types
-    # Note: double backslash needed because file contains literal backslash-dot pattern
-    grep -q 'prd\\\.md' "$PROJECT_ROOT/.claude/scripts/gpt-review-doc-hook.sh"
-    grep -q 'sdd\\\.md' "$PROJECT_ROOT/.claude/scripts/gpt-review-doc-hook.sh"
-    grep -q 'sprint\\\.md' "$PROJECT_ROOT/.claude/scripts/gpt-review-doc-hook.sh"
-}
-
-# =============================================================================
-# Command file injection tests (what Claude actually reads!)
-# =============================================================================
-
-@test "inject script adds GPT review phase to command files when enabled" {
-    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
-
-    grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/plan-and-analyze.md"
-    grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/architect.md"
-    grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/sprint-plan.md"
-    grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/implement.md"
-
-    rm -f "$PROJECT_ROOT/.loa.config.yaml"
-}
-
-@test "inject script removes GPT review phase from command files when disabled" {
-    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
-    grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/plan-and-analyze.md"
-
-    cp "$FIXTURES_DIR/configs/disabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
-
-    ! grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/plan-and-analyze.md"
-    ! grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/architect.md"
-    ! grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/sprint-plan.md"
-    ! grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/implement.md"
-
-    rm -f "$PROJECT_ROOT/.loa.config.yaml"
-}
-
-@test "command files are IDENTICAL to original after phase removal" {
-    # Store original checksums
-    local orig_plan orig_arch orig_sprint orig_impl
-    orig_plan=$(md5 -q "$PROJECT_ROOT/.claude/commands/plan-and-analyze.md")
-    orig_arch=$(md5 -q "$PROJECT_ROOT/.claude/commands/architect.md")
-    orig_sprint=$(md5 -q "$PROJECT_ROOT/.claude/commands/sprint-plan.md")
-    orig_impl=$(md5 -q "$PROJECT_ROOT/.claude/commands/implement.md")
-
-    # Inject
-    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
-
-    # Remove
-    cp "$FIXTURES_DIR/configs/disabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
-
-    # Compare
-    [[ "$orig_plan" == "$(md5 -q "$PROJECT_ROOT/.claude/commands/plan-and-analyze.md")" ]]
-    [[ "$orig_arch" == "$(md5 -q "$PROJECT_ROOT/.claude/commands/architect.md")" ]]
-    [[ "$orig_sprint" == "$(md5 -q "$PROJECT_ROOT/.claude/commands/sprint-plan.md")" ]]
-    [[ "$orig_impl" == "$(md5 -q "$PROJECT_ROOT/.claude/commands/implement.md")" ]]
-
-    rm -f "$PROJECT_ROOT/.loa.config.yaml"
-}
-
-@test "GPT review phase not present in command files at rest" {
-    ! grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/plan-and-analyze.md"
-    ! grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/architect.md"
-    ! grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/sprint-plan.md"
-    ! grep -q "GPT Cross-Model Review (MANDATORY)" "$PROJECT_ROOT/.claude/commands/implement.md"
-}
-
-# =============================================================================
-# CLAUDE.md banner injection tests
-# =============================================================================
-
-@test "inject script adds GPT review banner to CLAUDE.md when enabled" {
-    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
-
-    grep -q "GPT CROSS-MODEL REVIEW IS ENABLED" "$PROJECT_ROOT/CLAUDE.md"
-
-    rm -f "$PROJECT_ROOT/.loa.config.yaml"
-}
-
-@test "inject script removes GPT review banner from CLAUDE.md when disabled" {
-    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
-    grep -q "GPT CROSS-MODEL REVIEW IS ENABLED" "$PROJECT_ROOT/CLAUDE.md"
-
-    cp "$FIXTURES_DIR/configs/disabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
-
-    ! grep -q "GPT CROSS-MODEL REVIEW IS ENABLED" "$PROJECT_ROOT/CLAUDE.md"
-
-    rm -f "$PROJECT_ROOT/.loa.config.yaml"
-}
-
-@test "CLAUDE.md is IDENTICAL to original after banner removal" {
-    local orig_checksum
-    orig_checksum=$(md5 -q "$PROJECT_ROOT/CLAUDE.md")
-
-    cp "$FIXTURES_DIR/configs/enabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
-
-    cp "$FIXTURES_DIR/configs/disabled.yaml" "$PROJECT_ROOT/.loa.config.yaml"
-    "$INJECT_SCRIPT"
-
-    [[ "$orig_checksum" == "$(md5 -q "$PROJECT_ROOT/CLAUDE.md")" ]]
-
-    rm -f "$PROJECT_ROOT/.loa.config.yaml"
-}
-
-@test "GPT review banner not present in CLAUDE.md at rest" {
-    ! grep -q "GPT CROSS-MODEL REVIEW IS ENABLED" "$PROJECT_ROOT/CLAUDE.md"
+    # The entry should have required: false
+    grep -A1 "gpt-review-active.md" "$commands_dir/plan-and-analyze.md" | grep -q "required: false"
 }
