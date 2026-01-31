@@ -7,15 +7,13 @@
 # - standard: Commit grimoire and beads to repo (default)
 # - stealth: Add state files to .gitignore, local-only operation
 persistence_mode: standard
-
 # =============================================================================
-# Integrity Enforcement (Projen-Level)
+# Integrity Enforcement
 # =============================================================================
-# - strict: Block agent execution on System Zone drift (recommended, mandatory for CI)
-# - warn: Warn but allow execution (development only)
+# - strict: Block agent execution on System Zone drift (recommended)
+# - warn: Warn but allow execution
 # - disabled: No integrity checks (not recommended)
 integrity_enforcement: strict
-
 # =============================================================================
 # Drift Resolution Policy
 # =============================================================================
@@ -23,7 +21,6 @@ integrity_enforcement: strict
 # - docs: Create beads to fix code to match documentation (greenfield)
 # - ask: Always prompt for human decision
 drift_resolution: code
-
 # =============================================================================
 # Agent Configuration
 # =============================================================================
@@ -33,86 +30,19 @@ disabled_agents: []
 #   - translating-for-executives
 
 # =============================================================================
-# Custom Paths
-# =============================================================================
-paths:
-  grimoire: grimoires/loa
-  beads: .beads
-
-# =============================================================================
-# Structured Agentic Memory (Anthropic-Level)
+# Structured Memory
 # =============================================================================
 memory:
-  # Persistent working memory file
   notes_file: grimoires/loa/NOTES.md
-  # Trajectory logs for ADK-style evaluation
   trajectory_dir: grimoires/loa/a2a/trajectory
   # Auto-compact trajectory logs older than N days
   trajectory_retention_days: 30
-  # Restore context from NOTES.md on session start
-  auto_restore: true
-
-  # -------------------------------------------------------------------------
-  # NOTES.md Learnings Sync (v1.8.0)
-  # -------------------------------------------------------------------------
-  # Auto-sync learnings from NOTES.md to vector database on session start
-  auto_sync: false
-
-  # -------------------------------------------------------------------------
-  # PreToolUse Hook - Mid-Stream Memory Injection (v1.8.0)
-  # -------------------------------------------------------------------------
   pretooluse_hook:
-    # Master toggle for mid-stream injection
     enabled: true
-    # Characters to extract from thinking block
-    thinking_chars: 1500
-    # Minimum similarity score for memory recall
-    similarity_threshold: 0.35
-    # Maximum memories to inject per tool use
-    max_memories: 3
-    # Hard timeout for entire hook execution (milliseconds)
-    timeout_ms: 500
-    # Tools that trigger the hook
-    tools:
-      - Read
-      - Glob
-      - Grep
-      - WebFetch
-      - WebSearch
-
-  # -------------------------------------------------------------------------
-  # Vector Database Configuration
-  # -------------------------------------------------------------------------
-  vector_db:
-    # Database file location (relative to project root)
-    path: .loa/memory.db
-    # Embedding model (sentence-transformers)
-    model: all-MiniLM-L6-v2
-    # Embedding dimension (must match model)
-    dimension: 384
-
-  # -------------------------------------------------------------------------
-  # QMD Integration - Document Search (v1.8.0)
-  # -------------------------------------------------------------------------
   qmd:
-    # Master toggle for QMD integration
-    enabled: false
-    # QMD binary path (or just 'qmd' for PATH)
-    binary: qmd
-    # Index storage location
-    index_dir: .loa/qmd
-    # Collections to index
-    collections:
-      - path: grimoires/loa
-        name: loa-state
-        include: ["*.md"]
-        exclude: ["archive/**", "a2a/trajectory/**"]
-      - path: grimoires/loa/reality
-        name: loa-reality
-        include: ["*.md"]
-
+    enabled: true
 # =============================================================================
-# Evaluation-Driven Development (ADK-Level)
+# Evaluation-Driven Development
 # =============================================================================
 edd:
   enabled: true
@@ -120,27 +50,21 @@ edd:
   min_test_scenarios: 3
   # Audit reasoning trajectory for hallucination
   trajectory_audit: true
-  # Require explicit grounding for all claims
-  require_citations: true
-
 # =============================================================================
 # Context Hygiene
 # =============================================================================
 compaction:
   enabled: true
-  # Trigger compaction after this many closed tasks in a sprint
   threshold: 5
-
 # =============================================================================
 # Integrations
 # =============================================================================
 integrations:
   - github
-  - linear
-
 # =============================================================================
-# Drift Detection (Sprint 4 - FR-9.1, GitHub Issue #10)
+# Framework Upgrade Behavior
 # =============================================================================
+<<<<<<< Updated upstream
 drift_detection:
   # Directories to watch for changes
   watch_paths:
@@ -988,3 +912,14 @@ preferences:
   auto_bead_on_review: true
   require_security_audit: true
   confirm_app_writes: true
+
+# =============================================================================
+# Framework Upgrade Behavior
+# =============================================================================
+upgrade:
+  # Create git commit after mount/upgrade (default: true)
+  auto_commit: true
+  # Create version tag after mount/upgrade (default: true)
+  auto_tag: true
+  # Conventional commit prefix (default: "chore")
+  commit_prefix: "chore"

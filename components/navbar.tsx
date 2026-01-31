@@ -84,12 +84,15 @@ const Navbar = () => {
                 <a
                   href={"https://hub.0xhoneyjar.xyz/"}
                   target="_blank"
-                  className="hidden h-[38px] items-center whitespace-nowrap rounded-full bg-[#F4C10B]/80 px-6 text-white hover:shadow-yellow md:flex"
+                  className="hidden h-[38px] items-center gap-2 whitespace-nowrap rounded-full bg-[#F4C10B]/80 px-6 text-white hover:shadow-yellow md:flex"
                   onClick={() => {
                     trackEvent("open_app_navbar");
                   }}
                 >
                   Open App
+                  <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-medium">
+                    Beta
+                  </span>
                 </a>
               </NavigationMenuItem>
               {/* <NavigationMenuItem>

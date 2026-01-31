@@ -195,9 +195,12 @@ const Sidebar = ({
                 onClick={() => {
                   trackEvent("open_app_navbar");
                 }}
-                className="border-b border-white/10 py-3 text-white"
+                className="flex items-center gap-2 border-b border-white/10 py-3 text-white"
               >
                 Open App
+                <span className="rounded-full bg-[#F4C10B]/80 px-2 py-0.5 text-[10px] font-medium">
+                  Beta
+                </span>
               </motion.a>
               <motion.a
                 custom={5}

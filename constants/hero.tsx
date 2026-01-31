@@ -4,7 +4,6 @@ export const Socials = [
     image: "/discord.svg",
     link: "https://discord.com/invite/thehoneyjar",
   },
-  { name: "Twitter", image: "/twitter.svg", link: "https://x.com/0xhoneyjar" },
   {
     name: "Mirror",
     image: "/mirror.svg",

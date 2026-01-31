@@ -465,6 +465,15 @@
             "command": ".claude/scripts/cleanup-context.sh --prompt"
           }
         ]
+      },
+      {
+        "matcher": "Read|Glob|Grep|WebFetch|WebSearch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/memory-inject.sh"
+          }
+        ]
       }
     ],
     "PermissionRequest": [
