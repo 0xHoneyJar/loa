@@ -413,21 +413,6 @@ Key sections:
    - Never assume about vague feedback
 3. Address feedback systematically
 4. Generate updated report
-
-### Post-Task: GPT Cross-Model Review
-
-**ACTION REQUIRED**: After completing each task, invoke the GPT review skill on modified files.
-
-Use the Skill tool now:
-```
-Skill: gpt-review
-Args: code <modified-file>
-```
-
-Wait for the verdict:
-- **APPROVED**: Continue to next task
-- **CHANGES_REQUIRED**: Fix issues, then re-invoke with the same file
-- **SKIPPED**: GPT review is disabled, continue normally
 </workflow>
 
 <parallel_execution>
@@ -500,7 +485,6 @@ Key sections:
 - **Achievable**: All sprint tasks completed
 - **Relevant**: Implementation matches PRD/SDD
 - **Time-bound**: Report generated for review
-- **GPT Review**: Cross-model review completed with APPROVED or SKIPPED verdict
 </success_criteria>
 
 <semver_requirements>

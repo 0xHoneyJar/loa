@@ -385,21 +385,6 @@ Self-Review Checklist:
 - [ ] E2E validation task included in final sprint
 
 Save to `grimoires/loa/sprint.md`.
-
-### Phase 5: GPT Cross-Model Review
-
-**ACTION REQUIRED**: Before proceeding to /implement, invoke the GPT review skill.
-
-Use the Skill tool now:
-```
-Skill: gpt-review
-Args: sprint
-```
-
-Wait for the verdict:
-- **APPROVED**: Continue to implementation
-- **CHANGES_REQUIRED**: Fix issues in sprint plan, then re-invoke `Skill: gpt-review, Args: sprint`
-- **SKIPPED**: GPT review is disabled, continue normally
 </workflow>
 
 <output_format>
@@ -423,7 +408,6 @@ Each sprint includes:
 - **Achievable**: Each sprint is feasible within 2.5 days
 - **Relevant**: All tasks trace back to PRD/SDD
 - **Time-bound**: Sprint dates are specific
-- **GPT Review**: Cross-model review completed with APPROVED or SKIPPED verdict
 </success_criteria>
 
 <planning_principles>

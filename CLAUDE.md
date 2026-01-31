@@ -1,51 +1,5 @@
 # CLAUDE.md
 
----
-## ⚠️ GPT CROSS-MODEL REVIEW IS ENABLED
-
-**Core Principle: ONE-SHOTTING > VELOCITY.** Getting code right the first time matters more than moving fast.
-
-### When to Review
-
-**ALWAYS review (no exceptions)**:
-- Backend code, API endpoints, database queries
-- Security-sensitive code (auth, crypto, input validation)
-- Business logic, state management, data transformations
-- New files, major refactors
-
-**Frontend/UI changes**:
-- You MAY batch multiple UI changes into a single review
-- You MUST run GPT review when the feature is complete
-- Do not let momentum cause you to skip the final review
-
-**OK to skip** (truly trivial):
-- Typo fixes in strings or comments
-- Log message changes
-- Import reordering
-- Version bumps
-- Adding/removing console.log for debugging
-
-**The Uncertainty Rule**: If you are debating whether to skip GPT review, that uncertainty is a signal TO USE IT. When in doubt, review.
-
-### How to Run GPT Review
-
-1. **Build context first** (write these files before invoking):
-   - `/tmp/gpt-review-expertise.md` - Domain expertise from PRD (e.g., "blockchain security", "React patterns")
-   - `/tmp/gpt-review-context.md` - Product context + what this code does + acceptance criteria
-
-2. **Invoke the skill**:
-   ```
-   Skill: gpt-review
-   Args: code <file-path>
-   ```
-
-3. **Handle the verdict**:
-   - `APPROVED` → Continue
-   - `CHANGES_REQUIRED` → Fix issues, re-run review
-   - `SKIPPED` → Review was disabled, continue
-
-**For documents** (PRD, SDD, sprint plans): Same process but use `prd`, `sdd`, or `sprint` as the arg.
----
 Guidance for Claude Code when working in this repository.
 
 ## Project Overview
@@ -307,6 +261,12 @@ Alignment with Claude Code 2.1.x platform capabilities:
 
 **Skill Forking**: `/ride` and validators use `context: fork` with `agent: Explore` for isolated execution:
 ```yaml
+---
+name: ride
+context: fork
+agent: Explore
+allowed-tools: Read, Grep, Glob, Bash(git *)
+---
 ```
 
 **One-Time Hooks**: Update check only runs once per session:

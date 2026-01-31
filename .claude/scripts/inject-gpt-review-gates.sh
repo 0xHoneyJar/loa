@@ -250,9 +250,39 @@ add_success_criterion() {
 }
 
 # Remove GPT review section from CLAUDE.md
+# Handles both old format (--- delimited banner) and new format (## section)
 remove_claude_md_section() {
-  if [[ -f "$CLAUDE_MD" ]] && grep -q "^## GPT Cross-Model Review$" "$CLAUDE_MD"; then
-    local temp_file="${CLAUDE_MD}.tmp"
+  if [[ ! -f "$CLAUDE_MD" ]]; then
+    return
+  fi
+
+  local temp_file="${CLAUDE_MD}.tmp"
+  local modified=0
+
+  # Check for old banner format (--- delimited with GPT CROSS-MODEL REVIEW)
+  if grep -q "GPT CROSS-MODEL REVIEW IS ENABLED" "$CLAUDE_MD"; then
+    # Remove the --- delimited block containing GPT review banner
+    awk '
+      /^---$/ && !in_block { in_block=1; block_content=""; next }
+      in_block && !/^---$/ { block_content = block_content $0 "\n"; next }
+      /^---$/ && in_block {
+        in_block=0
+        # Only skip blocks that contain GPT CROSS-MODEL REVIEW
+        if (block_content !~ /GPT CROSS-MODEL REVIEW IS ENABLED/) {
+          print "---"
+          printf "%s", block_content
+          print "---"
+        }
+        next
+      }
+      !in_block { print }
+    ' "$CLAUDE_MD" > "$temp_file"
+    mv "$temp_file" "$CLAUDE_MD"
+    modified=1
+  fi
+
+  # Check for new section format (## GPT Cross-Model Review)
+  if grep -q "^## GPT Cross-Model Review$" "$CLAUDE_MD"; then
     # Remove section from "## GPT Cross-Model Review" until next "## " heading
     awk '
       /^## GPT Cross-Model Review$/ { in_section=1; next }
@@ -260,6 +290,7 @@ remove_claude_md_section() {
       !in_section { print }
     ' "$CLAUDE_MD" > "$temp_file"
     mv "$temp_file" "$CLAUDE_MD"
+    modified=1
   fi
 }
 
@@ -292,13 +323,41 @@ add_claude_md_section() {
 # Remove GPT review gate from run-mode skill
 remove_run_mode_gate() {
   local file="$SKILLS_DIR/run-mode/SKILL.md"
-  if [[ -f "$file" ]] && grep -q "GPT REVIEW ENABLED - MANDATORY" "$file"; then
+  if [[ -f "$file" ]] && grep -q "GPT REVIEW ENABLED" "$file"; then
     local temp_file="${file}.tmp"
-    # Remove from first --- to second --- (the gate block)
+    # Remove ALL gate blocks (from --- to ---) that contain GPT REVIEW
+    # Handle multiple duplicates by removing all of them
     awk '
-      /^---$/ && !found { found=1; in_gate=1; next }
-      /^---$/ && in_gate { in_gate=0; next }
-      !in_gate { print }
+      BEGIN { in_gate=0; gate_content="" }
+      /^---$/ && !in_gate {
+        in_gate=1
+        gate_content=""
+        next
+      }
+      /^---$/ && in_gate {
+        in_gate=0
+        # Only keep gate blocks that do NOT contain GPT REVIEW
+        if (gate_content !~ /GPT REVIEW ENABLED/) {
+          print "---"
+          printf "%s", gate_content
+          print "---"
+        }
+        gate_content=""
+        next
+      }
+      in_gate {
+        gate_content = gate_content $0 "\n"
+        next
+      }
+      { print }
+    ' "$file" > "$temp_file"
+    mv "$temp_file" "$file"
+
+    # Clean up excess blank lines after title
+    temp_file="${file}.tmp"
+    awk '
+      NR==1 { print; getline; while (/^$/) getline; if (!/^$/) print ""; print; next }
+      { print }
     ' "$file" > "$temp_file"
     mv "$temp_file" "$file"
   fi
