@@ -376,66 +376,6 @@ Autonomous sprint execution with human-in-the-loop shifted to PR review.
 
 **Protocol**: See `.claude/protocols/run-mode.md`
 
-## GPT 5.2 Cross-Model Review (v0.20.0)
-
-Cross-model review using GPT 5.2 to catch issues Claude might miss.
-
-### Overview
-
-When enabled, GPT review instructions are loaded from `.claude/context/gpt-review-active.md` (created on session start). Follow those instructions after code changes. The script checks configuration - returning `SKIPPED` if disabled.
-
-### Command
-
-```bash
-/gpt-review <type> [file]
-```
-
-**Types:** `code`, `prd`, `sdd`, `sprint`
-
-### Configuration
-
-```yaml
-# .loa.config.yaml
-gpt_review:
-  enabled: true              # Master toggle (default: false)
-  timeout_seconds: 300
-  max_iterations: 3
-  models:
-    documents: "gpt-5.2"
-    code: "gpt-5.2-codex"
-  phases:
-    prd: true
-    sdd: true
-    sprint: true
-    implementation: true
-```
-
-**Environment:** `OPENAI_API_KEY` required (or in `.env` file)
-
-### Verdicts
-
-| Verdict | Code | Documents | Action |
-|---------|------|-----------|--------|
-| `SKIPPED` | - | - | Review disabled, continue |
-| `APPROVED` | ✓ | ✓ | No issues, continue |
-| `CHANGES_REQUIRED` | ✓ | ✓ | Fix and re-run |
-| `DECISION_NEEDED` | ✗ | ✓ | Ask user, then continue |
-
-**Code reviews** are fully automatic - Claude and GPT fix issues together.
-
-**Document reviews** can surface design choices for user input.
-
-### Files
-
-| File | Purpose |
-|------|---------|
-| `.claude/scripts/gpt-review-api.sh` | API script (checks config) |
-| `.claude/commands/gpt-review.md` | Command definition |
-| `.claude/prompts/gpt-review/base/` | Prompt templates |
-| `.claude/schemas/gpt-review-response.schema.json` | Response schema |
-
-**Protocol:** See `.claude/protocols/gpt-review-integration.md`
-
 ## Compound Learning (v1.10.0)
 
 Cross-session pattern detection and automated knowledge consolidation:

@@ -6,13 +6,54 @@ GPT cross-model review is **enabled**. **ONE-SHOTTING > VELOCITY.** Getting code
 
 **If you are debating whether to skip GPT review, that uncertainty is a signal TO USE IT.** When in doubt, review.
 
-## Code Reviews
+## How to Run GPT Review
 
-After code changes (Edit/Write on code files), run GPT review:
+### Step 1: Build Context Files
 
-```bash
-.claude/scripts/gpt-review-api.sh code <changed-file>
+Before invoking GPT review, create these files:
+
+**`/tmp/gpt-review-expertise.md`** - Domain expertise (WHO GPT should be):
+```markdown
+You are an expert in [domain from PRD - e.g., "blockchain security", "React performance", "API design"].
+Key concerns for this domain: [list 2-3 specific concerns]
 ```
+
+**`/tmp/gpt-review-context.md`** - Product context (WHAT we're reviewing):
+```markdown
+## Product Context
+[Brief description from PRD]
+
+## What This Code Does
+[Specific purpose of the file/changes being reviewed]
+
+## Acceptance Criteria
+[From sprint task or feature requirements]
+```
+
+### Step 2: Invoke the Skill
+
+Use the Skill tool:
+```
+Skill: gpt-review
+Args: code <file-path>
+```
+
+For documents:
+```
+Skill: gpt-review
+Args: prd|sdd|sprint
+```
+
+### Step 3: Handle the Verdict
+
+| Verdict | Action |
+|---------|--------|
+| `SKIPPED` | Continue (review disabled at phase level) |
+| `APPROVED` | Continue to next task |
+| `CHANGES_REQUIRED` | Fix issues, then re-invoke with same file |
+| `DECISION_NEEDED` | Ask user via AskUserQuestion, then continue (documents only) |
+
+## When to Review
 
 **ALWAYS review (no exceptions)**:
 - Backend code, API endpoints, database queries
@@ -32,50 +73,33 @@ After code changes (Edit/Write on code files), run GPT review:
 - Version bumps
 - Adding/removing console.log for debugging
 
-## Document Reviews (Workflow Phases)
+## Workflow Integration
 
-### After PRD Generation (`/plan-and-analyze`)
-```bash
-.claude/scripts/gpt-review-api.sh prd grimoires/loa/prd.md
+### After `/plan-and-analyze` (PRD)
+```
+Skill: gpt-review
+Args: prd
 ```
 
-### After SDD Generation (`/architect`)
-```bash
-.claude/scripts/gpt-review-api.sh sdd grimoires/loa/sdd.md
+### After `/architect` (SDD)
+```
+Skill: gpt-review
+Args: sdd
 ```
 
-### After Sprint Plan Generation (`/sprint-plan`)
-```bash
-.claude/scripts/gpt-review-api.sh sprint grimoires/loa/sprint.md
+### After `/sprint-plan` (Sprint)
+```
+Skill: gpt-review
+Args: sprint
 ```
 
-### After Task Implementation (`/implement`)
+### After `/implement` (Code)
 For each modified file:
-```bash
-.claude/scripts/gpt-review-api.sh code <file>
+```
+Skill: gpt-review
+Args: code <file-path>
 ```
 
-## Handling Verdicts
+## Iteration Tracking
 
-| Verdict | Action |
-|---------|--------|
-| `SKIPPED` | Continue (review disabled at phase level) |
-| `APPROVED` | Continue (no issues found) |
-| `CHANGES_REQUIRED` | Fix the issues, then re-run with iteration tracking |
-| `DECISION_NEEDED` | Ask user via AskUserQuestion, then re-run (documents only) |
-
-## Iteration Tracking (CRITICAL)
-
-When re-reviewing after fixes, pass iteration context so GPT verifies fixes:
-
-```bash
-# Save first response
-echo "$response" > /tmp/gpt-review-findings-1.json
-
-# After fixing issues, run iteration 2+
-.claude/scripts/gpt-review-api.sh <type> <file> \
-  --iteration 2 \
-  --previous /tmp/gpt-review-findings-1.json
-```
-
-Maximum 3 iterations per file. After iteration 3, auto-approve and proceed with warning.
+If `CHANGES_REQUIRED`, fix the issues and re-invoke. The skill handles iteration tracking automatically. Maximum 3 iterations per file - after that, auto-approve with warning.

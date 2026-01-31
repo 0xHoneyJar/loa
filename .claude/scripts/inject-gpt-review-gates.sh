@@ -10,6 +10,9 @@ CONFIG_FILE="$ROOT_DIR/.loa.config.yaml"
 SKILLS_DIR="$ROOT_DIR/.claude/skills"
 COMMANDS_DIR="$ROOT_DIR/.claude/commands"
 CLAUDE_MD="$ROOT_DIR/CLAUDE.md"
+CONTEXT_DIR="$ROOT_DIR/.claude/context"
+CONTEXT_FILE="$CONTEXT_DIR/gpt-review-active.md"
+TEMPLATE_FILE="$ROOT_DIR/.claude/templates/gpt-review-instructions.md.template"
 
 # Gate content for each skill - formatted exactly like other phases, no markers
 # Uses explicit "Use the Skill tool" pattern like /ride invocation
@@ -518,6 +521,12 @@ if [[ "$enabled" == "true" ]]; then
 
   # Add banner to CLAUDE.md (Claude reads this automatically!)
   add_claude_md_banner
+
+  # Create context file from template (loaded by commands via context_files)
+  mkdir -p "$CONTEXT_DIR"
+  if [[ -f "$TEMPLATE_FILE" ]]; then
+    cp "$TEMPLATE_FILE" "$CONTEXT_FILE"
+  fi
 else
   # Remove gates and success criteria from skills
   remove_gate "$SKILLS_DIR/discovering-requirements/SKILL.md"
@@ -544,6 +553,9 @@ else
 
   # Remove banner from CLAUDE.md
   remove_claude_md_banner
+
+  # Remove context file
+  rm -f "$CONTEXT_FILE"
 fi
 
 exit 0
