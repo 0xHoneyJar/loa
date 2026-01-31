@@ -280,6 +280,55 @@ index_decisions() {
     echo "$count"
 }
 
+# Index memory entries from grimoires/loa/memory/
+index_memory() {
+    local count=0
+    local output="[]"
+
+    # Check if memory source is enabled (default: true if memory_schema.enabled)
+    local memory_enabled
+    memory_enabled=$(read_config ".memory_schema.enabled" "false")
+    if [[ "$memory_enabled" != "true" ]]; then
+        echo "[]" > "$INDEX_DIR/memory.idx"
+        echo "0"
+        return
+    fi
+
+    cd "$PROJECT_ROOT" || exit 1
+
+    local memory_dir="grimoires/loa/memory"
+    if [[ ! -d "$memory_dir" ]]; then
+        echo "[]" > "$INDEX_DIR/memory.idx"
+        echo "0"
+        return
+    fi
+
+    # Index each memory YAML file
+    for file in "$memory_dir"/*.yaml; do
+        [[ -f "$file" ]] || continue
+        local basename
+        basename=$(basename "$file" .yaml)
+
+        # Parse YAML entries (simple extraction)
+        local entries
+        entries=$(yq -o=json '.' "$file" 2>/dev/null || echo "[]")
+
+        # Add source info to each entry
+        entries=$(echo "$entries" | jq --arg file "$file" --arg type "$basename" \
+            'if type == "array" then
+                [.[] | . + {"type": "memory", "category": $type, "source_file": $file}]
+            else
+                []
+            end')
+
+        output=$(echo "$output $entries" | jq -s 'add')
+        count=$((count + $(echo "$entries" | jq 'length')))
+    done
+
+    echo "$output" > "$INDEX_DIR/memory.idx"
+    echo "$count"
+}
+
 # Index compound learnings from grimoires/loa/a2a/compound/learnings.json
 index_learnings() {
     local count=0
@@ -339,6 +388,11 @@ build_index() {
     learnings_count=$(index_learnings)
     echo -e "${GREEN}$learnings_count${NC}"
 
+    echo -n "  Indexing memory... "
+    local memory_count
+    memory_count=$(index_memory)
+    echo -e "${GREEN}$memory_count${NC}"
+
     # Create metadata file
     cat > "$INDEX_META" << EOF
 {
@@ -348,9 +402,10 @@ build_index() {
         "skills": $skills_count,
         "feedback": $feedback_count,
         "decisions": $decisions_count,
-        "learnings": $learnings_count
+        "learnings": $learnings_count,
+        "memory": $memory_count
     },
-    "total": $((skills_count + feedback_count + decisions_count + learnings_count)),
+    "total": $((skills_count + feedback_count + decisions_count + learnings_count + memory_count)),
     "index_dir": "$INDEX_DIR"
 }
 EOF

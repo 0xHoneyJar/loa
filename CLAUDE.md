@@ -341,6 +341,165 @@ allowed-tools: Read, Grep, Glob, Bash(git *)
 
 **Protocols**: See `.claude/protocols/recommended-hooks.md`, `.claude/protocols/skill-forking.md`
 
+### Effort Parameter (v1.13.0)
+
+Anthropic's extended thinking with budget control. Uses `thinking.budget_tokens` (integer) for computational intensity:
+
+| Level | Budget Range | Token Reduction | Use Case |
+|-------|--------------|-----------------|----------|
+| **low** | 1K-4K | Baseline | Simple queries, translations |
+| **medium** | 8K-16K | 76% fewer tokens | Standard implementation |
+| **high** | 24K-32K | 48% fewer tokens | Complex architecture, security audit |
+
+**Per-Skill Configuration** (`.loa.config.yaml`):
+```yaml
+effort:
+  default_level: medium
+  budget_ranges:
+    low: { min: 1024, max: 4000 }
+    medium: { min: 8000, max: 16000 }
+    high: { min: 24000, max: 32000 }
+  per_skill:
+    auditing-security: high
+    designing-architecture: high
+    implementing-tasks: medium
+    translating-for-executives: low
+```
+
+**Source**: [Anthropic Claude Opus 4.5 Announcement](https://www.anthropic.com/news/claude-opus-4-5)
+
+**Configuration**: See `effort` section in `.loa.config.yaml`
+
+### Context Editing (v1.13.0)
+
+Anthropic's automatic context compaction for long-running agentic workflows. Achieves **84% token reduction** in 100-turn evaluations:
+
+**Architecture**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Loa Layer                            │
+│  Defines: WHAT to compact, WHEN to trigger, priorities      │
+├─────────────────────────────────────────────────────────────┤
+│                      Runtime Layer                          │
+│  Executes: Token counting, API calls, actual compaction     │
+│  (Claude Code, Clawdbot, or custom runtime)                 │
+├─────────────────────────────────────────────────────────────┤
+│                        API Layer                            │
+│  Anthropic: context-management-2025-06-27 beta header       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Compaction Triggers**:
+- Threshold-based: When context reaches 80% of limit
+- Phase-based: After initialization, implementation, testing phases
+- Attention budget: Per-operation and session limits
+
+**Clearing Priority** (lowest first):
+1. Stale tool results
+2. Completed phase details
+3. Superseded file reads
+4. Intermediate outputs
+5. Verbose debug logs
+
+**Always Preserved** (NEVER cleared):
+- `trajectory_events` - Audit trail for decisions
+- `quality_gate_results` - Gate pass/fail evidence
+- `decision_records` - Architecture rationale
+- `notes_session_continuity` - Recovery anchor
+- `active_beads` - Current task state
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+context_editing:
+  enabled: true
+  compact_threshold_percent: 80
+  preserve_recent_turns: 5
+  clear_targets:
+    - stale_tool_results
+    - completed_phase_details
+    - superseded_file_reads
+  preserve_artifacts:
+    - trajectory_events
+    - quality_gate_results
+    - decision_records
+```
+
+**Source**: [Anthropic Context Management Blog](https://claude.com/blog/context-management)
+
+**Protocol**: See `.claude/protocols/context-editing.md`
+
+### Memory Schema (v1.13.0)
+
+Persistent cross-session knowledge using grimoire-based storage. Inspired by Anthropic's memory tool achieving **39% performance improvement** when combined with context editing:
+
+**Memory Categories**:
+| Category | TTL | Min Confidence | Purpose |
+|----------|-----|----------------|---------|
+| `fact` | permanent | ≥0.8 | Stable project truths |
+| `decision` | permanent | ≥0.9 | Architecture decisions |
+| `learning` | 90d | ≥0.7 | Extracted patterns |
+| `error` | 30d | ≥0.6 | Error-solution pairs |
+| `preference` | permanent | ≥0.5 | User preferences |
+
+**Storage Location**:
+```
+grimoires/loa/memory/
+├── facts.yaml          # Stable project facts
+├── decisions.yaml      # Architecture decisions
+├── learnings.yaml      # Extracted patterns
+├── errors.yaml         # Error-solution pairs
+├── preferences.yaml    # User preferences
+└── archive/            # Expired/superseded memories
+```
+
+**Memory Entry Format**:
+```yaml
+- id: MEM-20260201-001
+  category: decision
+  content: |
+    Use PostgreSQL for database due to JSONB support.
+  summary: PostgreSQL selected over SQLite
+  confidence: 0.95
+  source:
+    session_id: abc123
+    agent: designing-architecture
+    timestamp: 2026-02-01T10:30:00Z
+  ttl: permanent
+  tags: [database, architecture]
+```
+
+**Effectiveness Tracking** (for learnings):
+```yaml
+effectiveness:
+  applications: 5      # Times retrieved
+  successes: 4         # Successful outcomes
+  score: 80            # Effectiveness (0-100)
+  last_applied: 2026-02-01T18:00:00Z
+```
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+memory_schema:
+  enabled: true
+  storage_dir: grimoires/loa/memory
+  auto_capture:
+    decisions: true
+    errors: true
+    learnings: true
+  retrieval:
+    max_per_query: 10
+    min_confidence: 0.6
+  lifecycle:
+    auto_archive: true
+    check_on_session_start: true
+```
+
+**Source**: [Anthropic Memory Tool Documentation](https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool)
+
+**Schema**: See `.claude/schemas/memory.schema.json`
+
+**Protocol**: See `.claude/protocols/memory.md`
+
 ### Git Safety
 
 Prevents accidental pushes to upstream template:
@@ -806,3 +965,5 @@ The following patterns are automatically redacted:
   - `semantic-cache.md` - Cache operations and invalidation
   - `jit-retrieval.md` - JIT retrieval with cache integration
   - `continuous-learning.md` - Skill extraction quality gates
+  - `context-editing.md` - Context editing policies (v1.13.0)
+  - `memory.md` - Memory schema and lifecycle (v1.13.0)
