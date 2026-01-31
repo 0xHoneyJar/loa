@@ -105,6 +105,45 @@
 
 ---
 
+## Adversarial Analysis
+
+{REQUIRED: Complete this section even if approving}
+
+### Concerns Identified (minimum 3)
+
+1. **{Concern category}** - `{file}:{line}`
+   {Description of concern and potential impact}
+
+2. **{Concern category}** - `{file}:{line}`
+   {Description of concern and potential impact}
+
+3. **{Concern category}** - `{file}:{line}`
+   {Description of concern and potential impact}
+
+{If fewer than 3 concerns found, explain why implementation is exceptionally solid}
+
+### Assumptions Challenged (minimum 1)
+
+- **Assumption**: {What the engineer assumed without explicit validation}
+- **Risk if wrong**: {What breaks if this assumption fails}
+- **Recommendation**: {Make explicit in code/docs OR validate with test OR accept risk because X}
+
+### Alternatives Not Considered (minimum 1)
+
+- **Alternative**: {Different approach that could have been taken}
+- **Tradeoff**: {Pros/cons vs current approach}
+- **Verdict**: {Current approach justified because X OR should reconsider}
+
+### Adversarial Verdict
+
+{BLOCKING / NON-BLOCKING / EXCEPTIONALLY CLEAN}
+
+{If NON-BLOCKING: Concerns are documented but don't prevent approval}
+{If BLOCKING: Must address concerns before approval}
+{If EXCEPTIONALLY CLEAN: Explain why no concerns exist - this is rare}
+
+---
+
 ## Next Steps
 
 1. Address all critical issues above
