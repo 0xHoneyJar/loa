@@ -89,10 +89,25 @@ operator:
 
 ### Detection Heuristics (when `type: auto`)
 
-1. **Environment**: `CLAWDBOT_AGENT=true` or `LOA_OPERATOR=ai`
-2. **AGENTS.md**: Contains `operator: ai` or AI-specific markers
-3. **Heartbeat**: Presence of `HEARTBEAT.md` with cron patterns
-4. **TTY**: Non-interactive session (`!process.stdin.isTTY`)
+**MANDATORY: Check in this order, first match wins:**
+
+1. **Clawdbot Runtime** (HIGHEST PRIORITY):
+   - `CLAWDBOT_GATEWAY_TOKEN` env var exists → **AI_OPERATOR**
+   - `CLAWDBOT_GATEWAY_PORT` env var exists → **AI_OPERATOR**
+   - `$HOME/.clawdbot/clawdbot.json` exists → **AI_OPERATOR**
+
+2. **Other AI Environments**:
+   - `CLAUDECODE=1` → **AI_OPERATOR**
+   - `LOA_OPERATOR=ai` → **AI_OPERATOR**
+   - `CLAWDBOT_AGENT=true` → **AI_OPERATOR**
+
+3. **Workspace Markers**:
+   - `AGENTS.md` + `SOUL.md` both exist → **AI_OPERATOR**
+   - `HEARTBEAT.md` with cron patterns → **AI_OPERATOR**
+
+4. **TTY Detection** (lowest priority):
+   - Non-interactive session → **AI_OPERATOR**
+   - Interactive TTY → **HUMAN_OPERATOR**
 
 ### Behavior Adaptation
 

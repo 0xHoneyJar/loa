@@ -15,14 +15,39 @@ Detection proceeds in priority order (first match wins):
 LOA_OPERATOR=ai          # Forces AI mode
 LOA_OPERATOR=human       # Forces human mode
 
-# Known AI agent markers
-CLAWDBOT_AGENT=true      # GitHub Clawdbot
+# Clawdbot/Moltbot signatures (ALWAYS check these first)
+CLAWDBOT_GATEWAY_TOKEN   # Present = Clawdbot runtime
+CLAWDBOT_GATEWAY_PORT    # Present = Clawdbot runtime
+CLAWDBOT_PATH_BOOTSTRAPPED=1  # Clawdbot workspace initialized
+
+# Other AI agent markers
+CLAWDBOT_AGENT=true      # Explicit Clawdbot marker
+CLAUDECODE=1             # Claude Code runtime
 CURSOR_AGENT=true        # Cursor AI
 WINDSURF_AGENT=true      # Windsurf AI
 AIDER_SESSION=true       # Aider AI
 ```
 
-**Verdict**: If any AI marker present → `AI_OPERATOR`
+**Verdict**: If ANY of these are present → `AI_OPERATOR`
+
+**Critical**: Check for `CLAWDBOT_GATEWAY_TOKEN` or `CLAWDBOT_GATEWAY_PORT` FIRST. These are definitive proof of Clawdbot/Moltbot AI operation.
+
+### 1.5. Clawdbot Workspace Detection
+
+If env vars inconclusive, check for Clawdbot workspace signatures:
+
+```bash
+# Check for Clawdbot config
+[ -f "$HOME/.clawdbot/clawdbot.json" ] && echo "AI_OPERATOR"
+
+# Check for agent workspace files (AGENTS.md + SOUL.md = Clawdbot)
+[ -f "AGENTS.md" ] && [ -f "SOUL.md" ] && echo "AI_OPERATOR"
+
+# Check for clawdbot binary
+which clawdbot &>/dev/null && echo "AI_OPERATOR"
+```
+
+**Verdict**: Any Clawdbot signature → `AI_OPERATOR`
 
 ### 2. AGENTS.md Markers
 
