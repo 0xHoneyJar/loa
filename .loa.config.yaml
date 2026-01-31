@@ -1107,6 +1107,9 @@ effort:
   default_level: medium
 
   # Budget token ranges for each effort level (runtime uses these)
+  # NOTE: Gaps between ranges (4K-8K, 16K-24K) are intentional separation zones.
+  # Skills wanting intermediate budgets should use the higher level.
+  # Example: 6K tokens → use "medium" (min 8K)
   budget_ranges:
     low:
       min: 1024

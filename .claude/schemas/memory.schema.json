@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://loa.dev/schemas/memory.schema.json",
   "title": "Loa Memory Entry",
-  "description": "Schema for memory entries in Loa's grimoire-based persistence system. Based on Anthropic's memory tool concepts but implemented via grimoire files.",
+  "description": "Schema for memory entries in Loa's grimoire-based persistence system. Based on Anthropic's memory tool concepts but implemented via grimoire files. SECURITY: Never store credentials, API keys, tokens, or other secrets in memory entries.",
   "type": "object",
   "required": ["id", "category", "content", "source"],
   "properties": {

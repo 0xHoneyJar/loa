@@ -433,8 +433,9 @@ query_with_grep() {
     # ORACLE-L-1: Pass pattern directly to jq via --arg instead of environment variable
     local SEARCH_PATTERN="$pattern"
 
-    # Search each index
-    for idx_file in "$SKILLS_INDEX" "$FEEDBACK_INDEX" "$DECISIONS_INDEX" "$LEARNINGS_INDEX"; do
+    # Search each index (including memory if enabled)
+    local MEMORY_INDEX="$INDEX_DIR/memory.idx"
+    for idx_file in "$SKILLS_INDEX" "$FEEDBACK_INDEX" "$DECISIONS_INDEX" "$LEARNINGS_INDEX" "$MEMORY_INDEX"; do
         [[ -f "$idx_file" ]] || continue
 
         # Search JSON index using environment variable

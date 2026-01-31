@@ -117,6 +117,8 @@ For runtime implementers (Claude Code, Clawdbot):
 
 ```bash
 # Enable context editing via beta header
+# NOTE: The date (2025-06-27) is the API version identifier, not a future date.
+# This is the official Anthropic beta header string.
 curl https://api.anthropic.com/v1/messages \
   -H "anthropic-beta: context-management-2025-06-27" \
   ...

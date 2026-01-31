@@ -28,6 +28,16 @@ grimoires/loa/memory/
 └── archive/            # Expired/superseded memories
 ```
 
+## Security
+
+**NEVER store in memory entries:**
+- API keys or tokens
+- Passwords or credentials
+- Private keys or secrets
+- PII (personally identifiable information)
+
+Memory files are git-tracked and should contain only project knowledge, not secrets.
+
 ## Memory Entry Format
 
 ```yaml
@@ -198,6 +208,17 @@ memory_schema:
     check_on_session_start: true
     warn_before_archive_days: 7
 ```
+
+### Lifecycle Implementation Notes
+
+**Important**: The `lifecycle` settings are configuration flags that runtime implementers should honor:
+
+- `check_on_session_start: true` - Runtime should check for expired memories at session start
+- `auto_archive: true` - Runtime should move expired memories to archive directory
+
+Loa defines WHAT should happen and WHEN (configuration). Runtime implements HOW (actual file operations). This follows Loa's three-layer architecture where Loa is the policy layer, not the execution layer.
+
+**For runtime implementers**: See `docs/integration/runtime-contract.md` for the memory schema handling contract.
 
 ## Comparison with Anthropic's Memory Tool
 
