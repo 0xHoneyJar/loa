@@ -154,7 +154,7 @@
     "effort_hint": {
       "type": "string",
       "enum": ["low", "medium", "high"],
-      "description": "Recommended effort level. Maps to budget_tokens. Vercel AI SDK / Anthropic best practice."
+      "description": "Recommended effort level. Maps to budget_tokens: low (~4K tokens), medium (~16K tokens), high (~64K tokens). Vercel AI SDK / Anthropic best practice."
     },
     "danger_level": {
       "type": "string",
@@ -182,7 +182,7 @@
     "defer_loading": {
       "type": "boolean",
       "default": false,
-      "description": "For future runtime support of deferred skill loading."
+      "description": "For future runtime support of deferred skill loading. TODO: Implement in #94 (Anthropic Context Features)."
     }
   },
   "examples": [

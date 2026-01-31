@@ -514,6 +514,27 @@ Loa skills align with Vercel AI SDK and Anthropic tool-writing best practices:
 | `outputs[].format` | Output verbosity (summary/detailed/raw) | Anthropic writing tools |
 | `defer_loading` | Future runtime deferred loading flag | Anthropic Tool Search |
 
+**Token Budget Mapping** (`effort_hint`):
+| Level | Budget Tokens | Use Case |
+|-------|---------------|----------|
+| `low` | ~4K | Simple queries, lookups, validation |
+| `medium` | ~16K | Standard implementation, reviews |
+| `high` | ~64K | Complex architecture, security audits |
+
+**Canonical Categories**:
+| Category | Skills | Purpose |
+|----------|--------|---------|
+| `planning` | discovering-requirements, planning-sprints, designing-architecture | Discovery and design phase |
+| `implementation` | implementing-tasks, deploying-infrastructure | Code and infrastructure delivery |
+| `quality` | reviewing-code, auditing-security | Review and security gates |
+| `support` | translating-for-executives, continuous-learning | Communication and learning |
+| `operations` | autonomous-agent, run-mode, riding-codebase, mounting-framework | Framework operations |
+
+**Enforcement Status**:
+- `effort_hint`: Config prep only - runtime enforcement planned for #94
+- `danger_level`: Config prep only - approval flow enforcement planned for #94
+- `defer_loading`: Config prep only - runtime loading planned for #94
+
 **Schema**: `.claude/schemas/skill-index.schema.json`
 
 **All 13 Skills Updated** (v1.14.0):
