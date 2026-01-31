@@ -1,8 +1,8 @@
 # Loa
 
-[![Version](https://img.shields.io/badge/version-1.10.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.11.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
-[![Release](https://img.shields.io/badge/release-Compound%20Learning-purple.svg)](CHANGELOG.md#1100---2026-01-30--compound-learning--visual-communication)
+[![Release](https://img.shields.io/badge/release-Smart%20Feedback%20Routing-purple.svg)](CHANGELOG.md#1110---2026-02-01--smart-feedback-routing--developer-experience)
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
 
@@ -33,7 +33,7 @@ See **[INSTALLATION.md](INSTALLATION.md)** for detailed setup options and prereq
 | 5.5 | `/audit-sprint sprint-N` | Security Approval |
 | 6 | `/deploy-production` | Infrastructure |
 
-**Ad-hoc**: `/audit`, `/translate`, `/validate`, `/compound`, `/feedback`, `/loa` (guided workflow)
+**Ad-hoc**: `/audit`, `/translate`, `/validate`, `/compound`, `/feedback`, `/update-loa`, `/loa` (guided workflow)
 
 See **[PROCESS.md](PROCESS.md)** for complete workflow documentation.
 
@@ -69,6 +69,8 @@ Loa uses a **three-zone model** inspired by AWS Projen and Google's ADK:
 
 | Feature | Description | Documentation |
 |---------|-------------|---------------|
+| **Smart Feedback Routing** | Auto-route feedback to correct ecosystem repo | [CHANGELOG.md](CHANGELOG.md#1110---2026-02-01--smart-feedback-routing--developer-experience) |
+| **WIP Branch Testing** | Test Loa feature branches before merging | [CHANGELOG.md](CHANGELOG.md#1110---2026-02-01--smart-feedback-routing--developer-experience) |
 | **Compound Learning** | Cross-session pattern detection + feedback loop | [CHANGELOG.md](CHANGELOG.md#1100---2026-01-30--compound-learning--visual-communication) |
 | **Visual Communication** | Beautiful Mermaid diagram rendering | [CLAUDE.md](CLAUDE.md#visual-communication) |
 | **Memory Stack** | Vector database + mid-stream semantic grounding | [INSTALLATION.md](INSTALLATION.md#memory-stack-optional) |

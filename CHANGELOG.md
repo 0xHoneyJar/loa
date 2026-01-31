@@ -5,6 +5,145 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - 2026-02-01 — Smart Feedback Routing & Developer Experience
+
+### Why This Release
+
+This release focuses on **developer experience improvements** with two major features: **Smart Feedback Routing** automatically routes feedback to the correct ecosystem repository, and **WIP Branch Testing** lets you safely test Loa feature branches before merging. Additionally, this release includes comprehensive **security hardening** based on a thorough code audit.
+
+*"Route feedback where it belongs. Test safely before you commit."*
+
+### Added
+
+#### Smart Feedback Routing (#81, #93)
+
+Context-aware routing for the `/feedback` command to direct issues to the correct ecosystem repository.
+
+- **`feedback-classifier.sh`** - Context classification engine
+  - Signal-based scoring with weights for different patterns
+  - Confidence calculation for routing decisions
+  - Categories: `loa_framework`, `loa_constructs`, `forge`, `project`
+
+- **Ecosystem Routing** - Routes to appropriate repo based on context:
+  | Repo | Signals |
+  |------|---------|
+  | `0xHoneyJar/loa` | `.claude/`, `grimoires/`, `skill`, `protocol`, `PRD`, `SDD` |
+  | `0xHoneyJar/loa-constructs` | `registry`, `API`, `endpoint`, `pack`, `constructs` |
+  | `0xHoneyJar/forge` | `experimental`, `sandbox`, `WIP`, `draft` |
+  | project-specific | `deployment`, `infra`, `application`, `app` |
+
+- **AskUserQuestion Integration** - Per Anthropic best practices (#90):
+  - Recommended option appears first with "(Recommended)" suffix
+  - Headers under 12 characters for chip display
+  - Descriptions explain trade-offs
+
+- **`gh-label-handler.sh`** - Graceful label handling
+  - Retries without labels if "label not found" error
+  - Prevents single missing label from blocking feedback
+
+#### WIP Branch Testing (#91, #93)
+
+Test Loa framework updates on feature branches before merging to your working branch.
+
+- **Branch Mode Selection** - When `/update-loa` detects a feature branch:
+  - Option 1: "Checkout for testing (Recommended)" - Creates `test/loa-*` branch
+  - Option 2: "Merge into current branch" - Existing behavior
+
+- **`branch-state.sh`** - State management for test branches
+  - Saves original branch for return flow
+  - Commands: `save`, `load`, `clear`, `is-testing`
+  - State file: `.loa/branch-testing.json`
+
+- **Return Helper** - When on `test/loa-*` branch:
+  - Return to original branch
+  - Stay on test branch
+  - Merge test branch into original
+
+- **Configurable Patterns** - Feature branch detection:
+  ```yaml
+  update_loa:
+    branch_testing:
+      enabled: true
+      feature_patterns: ["feature/*", "fix/*", "topic/*", "wip/*", "test/*"]
+      test_branch_prefix: "test/loa-"
+  ```
+
+#### Security Hardening (#93)
+
+Comprehensive security improvements based on code audit findings.
+
+- **`security-validators.sh`** - Reusable validation library (452 lines)
+  - `validate_safe_path()` - Path validation with symlink resolution
+  - `validate_config_path()` - Config path validation (no traversal)
+  - `validate_numeric()` / `validate_float()` - Numeric validation with bounds
+  - `validate_boolean()` - Boolean normalization
+  - `validate_repo_url()` - GitHub repo URL format validation
+  - `safe_rm_rf()` - Boundary-checked rm -rf with symlink protection
+  - `safe_config_*()` - Safe config extraction wrappers
+
+- **HIGH-001 Fix** - Regex injection prevention in `feedback-classifier.sh`
+  - Use `printf '%s'` instead of `echo` for user content
+  - Add `--` before grep patterns to prevent option injection
+
+- **MEDIUM-001 Fix** - Absolute path resolution in `branch-state.sh`
+  - `find_project_root()` resolves state directory from project root
+  - Prevents state file writes to unintended locations
+
+- **MEDIUM-003 Fix** - Safe rm -rf in `cleanup-context.sh`
+  - Replaced vulnerable `find -exec rm -rf {}` pattern
+  - Added symlink resolution with `pwd -P`
+  - Added boundary check after resolution
+
+- **MEDIUM-004 Fix** - jq/yq output sanitization
+  - `qmd-sync.sh`: Validates boolean, binary name, and path configs
+  - `compact-trajectory.sh`: Validates numeric configs with bounds
+  - Rejects traversal sequences, absolute paths, shell metacharacters
+
+### Changed
+
+- **`/feedback` command** - Now v2.1.0 with smart routing
+- **`/update-loa` command** - Now v1.2.0 with WIP branch testing
+- **CLAUDE.md** - Added Smart Feedback Routing and WIP Branch Testing sections
+
+### Configuration
+
+New sections in `.loa.config.yaml`:
+
+```yaml
+# Smart Feedback Routing
+feedback:
+  routing:
+    enabled: true
+    auto_classify: true
+    require_confirmation: true
+  repos:
+    framework: "0xHoneyJar/loa"
+    constructs: "0xHoneyJar/loa-constructs"
+    forge: "0xHoneyJar/forge"
+    project: "${GITHUB_REPOSITORY}"
+  labels:
+    graceful_missing: true
+    default: ["feedback", "user-report"]
+
+# WIP Branch Testing
+update_loa:
+  branch_testing:
+    enabled: true
+    feature_patterns: ["feature/*", "fix/*", "topic/*", "wip/*", "test/*"]
+    test_branch_prefix: "test/loa-"
+```
+
+### New Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `feedback-classifier.sh` | Context-based routing classification |
+| `gh-label-handler.sh` | Graceful GitHub label handling |
+| `branch-state.sh` | WIP branch testing state management |
+| `security-validators.sh` | Reusable security validation utilities |
+
+---
+
 ## [1.10.0] - 2026-01-30 — Compound Learning & Visual Communication
 
 ### Why This Release
