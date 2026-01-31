@@ -1,7 +1,13 @@
 name: "reviewing-code"
-version: "1.0.0"
+version: "1.1.0"
 model: "sonnet"
 color: "purple"
+
+# v1.14.0: Skill best practices (Issue #97)
+effort_hint: medium
+danger_level: moderate
+categories:
+  - quality
 
 description: |
   Use this skill IF sprint implementation needs review, validation, and quality
@@ -39,9 +45,19 @@ inputs:
     required: true
     description: "Sprint identifier (e.g., sprint-1)"
 
+# v1.14.0: Native Anthropic input examples
+inputExamples:
+  - input:
+      sprint_id: "sprint-1"
+    description: "Review first sprint after implementation"
+  - input:
+      sprint_id: "sprint-3"
+    description: "Review sprint after feedback addressed"
+
 outputs:
   - path: "grimoires/loa/a2a/sprint-{id}/engineer-feedback.md"
     description: "Review feedback for engineer (or 'All good' if approved)"
+    format: detailed
 
 # v0.9.0 Lossless Ledger Protocol Integration
 protocols:

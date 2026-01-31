@@ -1,7 +1,13 @@
 name: "implementing-tasks"
-version: "1.0.0"
+version: "1.1.0"
 model: "sonnet"
 color: "yellow"
+
+# v1.14.0: Skill best practices (Issue #97)
+effort_hint: medium
+danger_level: moderate
+categories:
+  - implementation
 
 description: |
   Use this skill IF user needs to implement sprint tasks from grimoires/loa/sprint.md,
@@ -46,9 +52,19 @@ inputs:
     required: true
     description: "Sprint identifier (e.g., sprint-1)"
 
+# v1.14.0: Native Anthropic input examples
+inputExamples:
+  - input:
+      sprint_id: "sprint-1"
+    description: "First sprint of a new project"
+  - input:
+      sprint_id: "sprint-5"
+    description: "Later sprint with accumulated context"
+
 outputs:
   - path: "grimoires/loa/a2a/sprint-{id}/reviewer.md"
     description: "Implementation report for senior lead review"
+    format: detailed
 
 # v0.9.0 Lossless Ledger Protocol Integration
 protocols:

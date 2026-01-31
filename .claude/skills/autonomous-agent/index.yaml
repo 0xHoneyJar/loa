@@ -1,13 +1,19 @@
 # Autonomous Agent Orchestrator Skill
 # Meta-orchestrator for exhaustive Loa process compliance
 name: autonomous-agent
-version: "1.0.0"
+version: "1.1.0"
 description: |
   Meta-orchestrator for exhaustive Loa process compliance.
   Ensures autonomous work matches human-level discernment and quality.
   Invokes all Loa skills in correct sequence with mandatory quality gates.
 author: Legba
 command: /autonomous
+
+# v1.14.0: Skill best practices (Issue #97)
+effort_hint: high
+danger_level: high
+categories:
+  - operations
 
 # Skill triggers
 triggers:
@@ -41,6 +47,19 @@ inputs:
     type: boolean
     default: false
     description: "Only detect operator type, don't execute"
+
+# v1.14.0: Native Anthropic input examples
+inputExamples:
+  - input:
+      target: "sprint-1"
+    description: "Execute full workflow for sprint-1"
+  - input:
+      target: "sprint-2"
+      resume_from: "design"
+    description: "Resume from design phase for sprint-2"
+  - input:
+      dry_run: true
+    description: "Validate workflow without executing"
 
 outputs:
   - name: checkpoint
