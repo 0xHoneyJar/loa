@@ -866,6 +866,122 @@ visual_communication:
     er: true
 
 # =============================================================================
+# Autonomous Agent Orchestration (v1.11.0)
+# =============================================================================
+# Meta-orchestrator for exhaustive Loa process compliance
+# PRD: grimoires/loa/prd.md | SDD: grimoires/loa/sdd.md | PR: #82
+autonomous_agent:
+  # -------------------------------------------------------------------------
+  # Operator Detection
+  # -------------------------------------------------------------------------
+  # Determines AI vs Human operator for behavior adjustment
+  operator:
+    # Detection mode: auto | human | ai
+    type: auto
+
+    # AI-specific configuration (when operator=ai detected)
+    ai_config:
+      # Auto-wrap skills with /autonomous
+      enforce_autonomous_skill: true
+      # All quality gates mandatory
+      strict_quality_gates: true
+      # Must pass audit before PR creation
+      require_audit_before_pr: true
+      # Must pass audit before deploy
+      require_audit_before_deploy: true
+
+  # -------------------------------------------------------------------------
+  # Quality Thresholds
+  # -------------------------------------------------------------------------
+  # Minimum audit score (1-5) to pass Gate 4
+  audit_threshold: 4
+  # Maximum remediation loops before escalation
+  max_remediation_loops: 3
+
+  # -------------------------------------------------------------------------
+  # Deployment Settings
+  # -------------------------------------------------------------------------
+  # Require human approval for deployment
+  require_human_deploy_approval: true
+
+  # -------------------------------------------------------------------------
+  # Attention Budget (Tokens)
+  # -------------------------------------------------------------------------
+  # Token thresholds for context management
+  attention_budget:
+    # Tokens per single search operation (TRC trigger)
+    single_search: 2000
+    # Accumulated tokens threshold for mandatory TRC
+    accumulated: 5000
+    # Session total before checkpoint & yield
+    session_total: 15000
+
+  # -------------------------------------------------------------------------
+  # Context Management
+  # -------------------------------------------------------------------------
+  context:
+    # Soft limit - trigger standard compaction
+    soft_limit_tokens: 80000
+    # Hard limit - trigger emergency compaction
+    hard_limit_tokens: 150000
+    # Write checkpoint after each phase
+    checkpoint_after_each_phase: true
+
+  # -------------------------------------------------------------------------
+  # Feedback Capture (Issue #48)
+  # -------------------------------------------------------------------------
+  feedback:
+    # Enable feedback collection
+    enabled: true
+    # Output directory
+    output_dir: grimoires/loa/feedback
+    # Auto-flush at phase end
+    auto_flush: true
+    # Minimum severity to capture
+    min_severity: low
+    # Types to collect
+    collect_types:
+      - gap
+      - friction
+      - pattern
+      - improvement
+
+  # -------------------------------------------------------------------------
+  # PRD Iteration (Issue #29)
+  # -------------------------------------------------------------------------
+  prd_iteration:
+    # Enable PRD iteration detection
+    enabled: true
+    # Output file for gaps
+    gaps_file: grimoires/loa/gaps.yaml
+    # Threshold for minor gaps to trigger review
+    minor_gap_threshold: 3
+    # Auto-recommend /refine-prd on major gaps
+    auto_recommend_refine: true
+    # Block autonomous execution on major gaps
+    block_on_major_gaps: true
+
+  # -------------------------------------------------------------------------
+  # Structured Notes (Issue #23)
+  # -------------------------------------------------------------------------
+  structured_notes:
+    # Enable structured note management
+    enabled: true
+    # Notes file location
+    notes_file: grimoires/loa/NOTES.md
+    # Expiry settings (days, null = never)
+    expiry:
+      synthesis: 7
+      observation: 14
+      decision: null
+      blocker: null
+      question: 14
+    # Auto-cleanup expired notes
+    auto_cleanup: false
+    # Archive location for cleaned notes
+    archive_dir: grimoires/loa/archive/notes/
+
+# =============================================================================
 # Behavior Preferences
 # =============================================================================
 preferences:
