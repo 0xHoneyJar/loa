@@ -101,9 +101,14 @@ operator:
    - `LOA_OPERATOR=ai` → **AI_OPERATOR**
    - `CLAWDBOT_AGENT=true` → **AI_OPERATOR**
 
-3. **Workspace Markers**:
-   - `AGENTS.md` + `SOUL.md` both exist → **AI_OPERATOR**
-   - `HEARTBEAT.md` with cron patterns → **AI_OPERATOR**
+3. **Moltbot Workspace Signatures** (any 2+ files = AI_OPERATOR):
+   - `AGENTS.md` — Agent instructions
+   - `SOUL.md` — Agent identity/personality
+   - `IDENTITY.md` — Agent metadata
+   - `HEARTBEAT.md` — Cron/heartbeat config
+   - `TOOLS.md` — Tool configuration
+   - `USER.md` — User context
+   - `WORKLEDGER.md` — Work tracking
 
 4. **TTY Detection** (lowest priority):
    - Non-interactive session → **AI_OPERATOR**

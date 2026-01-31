@@ -32,22 +32,39 @@ AIDER_SESSION=true       # Aider AI
 
 **Critical**: Check for `CLAWDBOT_GATEWAY_TOKEN` or `CLAWDBOT_GATEWAY_PORT` FIRST. These are definitive proof of Clawdbot/Moltbot AI operation.
 
-### 1.5. Clawdbot Workspace Detection
+### 1.5. Clawdbot/Moltbot Workspace Detection
 
-If env vars inconclusive, check for Clawdbot workspace signatures:
+If env vars inconclusive, check for Clawdbot/moltbot workspace signatures:
 
 ```bash
 # Check for Clawdbot config
 [ -f "$HOME/.clawdbot/clawdbot.json" ] && echo "AI_OPERATOR"
 
-# Check for agent workspace files (AGENTS.md + SOUL.md = Clawdbot)
-[ -f "AGENTS.md" ] && [ -f "SOUL.md" ] && echo "AI_OPERATOR"
-
 # Check for clawdbot binary
 which clawdbot &>/dev/null && echo "AI_OPERATOR"
+
+# Moltbot workspace signature files (any 2+ = AI_OPERATOR)
+MOLTBOT_SIGNATURES=(
+  "AGENTS.md"      # Agent instructions
+  "SOUL.md"        # Agent identity/personality
+  "IDENTITY.md"    # Agent identity metadata
+  "HEARTBEAT.md"   # Cron/heartbeat config
+  "TOOLS.md"       # Tool configuration
+  "USER.md"        # User context
+  "WORKLEDGER.md"  # Work tracking
+)
+
+count=0
+for sig in "${MOLTBOT_SIGNATURES[@]}"; do
+  [ -f "$sig" ] && ((count++))
+done
+[ $count -ge 2 ] && echo "AI_OPERATOR"
 ```
 
-**Verdict**: Any Clawdbot signature → `AI_OPERATOR`
+**Verdict**: 
+- Any Clawdbot config/binary → `AI_OPERATOR`
+- 2+ moltbot signature files → `AI_OPERATOR` (high confidence)
+- 1 signature file → weak signal, continue to next check
 
 ### 2. AGENTS.md Markers
 
