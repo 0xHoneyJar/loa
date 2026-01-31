@@ -1206,6 +1206,46 @@ context_editing:
     signal_threshold_percent: 80
 
 # =============================================================================
+# Skills Configuration (v1.14.0 - Issue #97)
+# =============================================================================
+# Skill loading and categorization settings.
+# Based on Vercel AI SDK and Anthropic tool-writing best practices.
+#
+# NOTE: defer_loading is configuration preparation only.
+# Actual deferred loading requires runtime implementation (Phase 2).
+skills:
+  # Master toggle for deferred loading (disabled by default)
+  # When true, skills with defer_loading: true are loaded on-demand
+  defer_loading: false
+
+  # Skills that are NEVER deferred (always loaded)
+  always_load:
+    - autonomous-agent
+    - run-mode
+
+  # Semantic categories for skill search
+  # Used by future skill search implementation
+  categories:
+    planning:
+      - discovering-requirements
+      - planning-sprints
+      - designing-architecture
+    implementation:
+      - implementing-tasks
+      - deploying-infrastructure
+    quality:
+      - reviewing-code
+      - auditing-security
+    support:
+      - translating-for-executives
+      - continuous-learning
+    operations:
+      - autonomous-agent
+      - run-mode
+      - riding-codebase
+      - mounting-framework
+
+# =============================================================================
 # Memory Schema (v1.13.0 - Issue #96)
 # =============================================================================
 # Formalized memory persistence with lifecycle management

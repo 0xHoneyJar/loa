@@ -1,7 +1,13 @@
 name: "riding-codebase"
-version: "1.0.0"
+version: "1.1.0"
 model: "sonnet"
 color: "green"
+
+# v1.14.0: Skill best practices (Issue #97)
+effort_hint: medium
+danger_level: moderate
+categories:
+  - operations
 
 description: |
   Use this skill to analyze an existing codebase and generate Loa grimoire artifacts.
