@@ -500,6 +500,54 @@ memory_schema:
 
 **Protocol**: See `.claude/protocols/memory.md`
 
+### Skill Best Practices (v1.14.0)
+
+Loa skills align with Vercel AI SDK and Anthropic tool-writing best practices:
+
+**New Skill Fields**:
+| Field | Purpose | Source |
+|-------|---------|--------|
+| `inputExamples` | Native Anthropic input examples | [Vercel AI SDK](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling) |
+| `effort_hint` | Recommended reasoning depth (low/medium/high) | Anthropic effort parameter |
+| `danger_level` | Risk classification (safe/moderate/high/critical) | [Vercel AI SDK needsApproval](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling) |
+| `categories` | Semantic groupings for skill search | [Anthropic Tool Search](https://anthropic.com/engineering/advanced-tool-use) |
+| `outputs[].format` | Output verbosity (summary/detailed/raw) | Anthropic writing tools |
+| `defer_loading` | Future runtime deferred loading flag | Anthropic Tool Search |
+
+**Schema**: `.claude/schemas/skill-index.schema.json`
+
+**All 13 Skills Updated** (v1.14.0):
+- **planning**: discovering-requirements, planning-sprints, designing-architecture
+- **implementation**: implementing-tasks, deploying-infrastructure
+- **quality**: reviewing-code, auditing-security
+- **support**: translating-for-executives, continuous-learning
+- **operations**: autonomous-agent, run-mode, riding-codebase, mounting-framework
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+skills:
+  defer_loading: false        # Config prep only (runtime Phase 2)
+  always_load:
+    - autonomous-agent
+    - run-mode
+  categories:
+    planning: [discovering-requirements, ...]
+    implementation: [implementing-tasks, ...]
+    quality: [reviewing-code, auditing-security]
+    support: [translating-for-executives, continuous-learning]
+    operations: [autonomous-agent, run-mode, ...]
+```
+
+**Performance Claims** (verified against primary sources):
+- Tool Search: 85% token reduction (77K → 8.7K tokens)
+- Accuracy: Opus 4: 49%→74%, Opus 4.5: 79.5%→88.1%
+- inputExamples: Native Anthropic provider support only
+
+**Sources**:
+- [Vercel AI SDK Tools](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling)
+- [Anthropic Writing Tools](https://anthropic.com/engineering/writing-tools-for-agents)
+- [Anthropic Advanced Tool Use](https://anthropic.com/engineering/advanced-tool-use)
+
 ### Git Safety
 
 Prevents accidental pushes to upstream template:
@@ -967,3 +1015,5 @@ The following patterns are automatically redacted:
   - `continuous-learning.md` - Skill extraction quality gates
   - `context-editing.md` - Context editing policies (v1.13.0)
   - `memory.md` - Memory schema and lifecycle (v1.13.0)
+- `.claude/schemas/` - JSON Schema definitions
+  - `skill-index.schema.json` - Skill index.yaml validation (v1.14.0)
