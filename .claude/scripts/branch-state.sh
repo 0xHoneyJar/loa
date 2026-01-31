@@ -9,8 +9,23 @@
 
 set -euo pipefail
 
-# State file location
-STATE_DIR=".loa"
+# SECURITY: Resolve state directory to absolute path from project root
+# Find project root by looking for .loa.config.yaml or .git
+find_project_root() {
+    local dir="$PWD"
+    while [[ "$dir" != "/" ]]; do
+        if [[ -f "$dir/.loa.config.yaml" ]] || [[ -d "$dir/.git" ]]; then
+            echo "$dir"
+            return 0
+        fi
+        dir="$(dirname "$dir")"
+    done
+    # Fallback to current directory if no markers found
+    echo "$PWD"
+}
+
+PROJECT_ROOT="$(find_project_root)"
+STATE_DIR="$PROJECT_ROOT/.loa"
 STATE_FILE="$STATE_DIR/branch-testing.json"
 
 # Colors for output

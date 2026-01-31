@@ -155,15 +155,16 @@ MATCHED_SIGNALS=()
 for pattern_spec in "${SIGNAL_PATTERNS[@]}"; do
     IFS=':' read -r category pattern weight <<< "$pattern_spec"
 
-    # Case-insensitive grep
-    if echo "$CONTEXT" | grep -qiE "$pattern"; then
+    # Case-insensitive grep (SECURITY: use printf and -- to prevent injection)
+    if printf '%s' "$CONTEXT" | grep -qiE -- "$pattern"; then
         SCORES[$category]=$((SCORES[$category] + weight))
         MATCHED_SIGNALS+=("$pattern ($category +$weight)")
     fi
 done
 
 # Check for negative signals (absence of loa-related content = project)
-if ! echo "$CONTEXT" | grep -qiE "(loa|claude|skill|grimoire)"; then
+# SECURITY: use printf and -- to prevent injection
+if ! printf '%s' "$CONTEXT" | grep -qiE -- "(loa|claude|skill|grimoire)"; then
     SCORES[project]=$((SCORES[project] + 1))
     MATCHED_SIGNALS+=("no loa keywords (project +1)")
 fi
@@ -194,6 +195,13 @@ if [[ $TOTAL_SCORE -gt 0 ]]; then
 else
     CONFIDENCE="0.50"
     HIGHEST_CATEGORY="project"
+fi
+
+# SECURITY: Validate confidence is a valid number (0.0-1.0)
+if ! [[ "$CONFIDENCE" =~ ^[0-9]*\.?[0-9]+$ ]] || \
+   (( $(echo "$CONFIDENCE > 1.0" | bc -l) )) || \
+   (( $(echo "$CONFIDENCE < 0.0" | bc -l) )); then
+    CONFIDENCE="0.50"
 fi
 
 # Map category to repo

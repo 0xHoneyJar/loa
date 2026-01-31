@@ -73,11 +73,12 @@ EOF
 }
 
 # Validate repo format
+# SECURITY: Stricter regex - repos cannot start with dots or dashes
 validate_repo() {
     local repo="$1"
-    if [[ ! "$repo" =~ ^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$ ]]; then
+    if [[ ! "$repo" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*/[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]]; then
         error "Invalid repository format: $repo"
-        error "Expected format: owner/repo"
+        error "Expected format: owner/repo (must start with alphanumeric)"
         return 1
     fi
     return 0
