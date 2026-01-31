@@ -567,6 +567,21 @@ Generate PRD with source tracing:
 
 > Sources: vision.md:12-15, confirmed in Phase 1 Q2
 ```
+
+### Phase 9: GPT Cross-Model Review
+
+**ACTION REQUIRED**: Before proceeding to /architect, invoke the GPT review skill.
+
+Use the Skill tool now:
+```
+Skill: gpt-review
+Args: prd
+```
+
+Wait for the verdict:
+- **APPROVED**: Continue to next phase
+- **CHANGES_REQUIRED**: Fix issues in PRD, then re-invoke `Skill: gpt-review, Args: prd`
+- **SKIPPED**: GPT review is disabled, continue normally
 </workflow>
 
 <parallel_execution>
@@ -617,6 +632,7 @@ Each section must include:
 - **Time-bound**: Context synthesis <5 min for SMALL/MEDIUM
 - **Grounded**: Brownfield PRDs cite existing code with [CODE:file:line] format
 - **Zero Latency**: Greenfield projects experience no codebase detection delay
+- **GPT Review**: Cross-model review completed with APPROVED or SKIPPED verdict
 </success_criteria>
 
 <uncertainty_protocol>

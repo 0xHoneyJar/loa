@@ -173,12 +173,11 @@ After completing EACH task during execution:
 
 **DO NOT skip GPT review between tasks.** If unsure whether to review, that means you SHOULD review."
 
-# CLAUDE.md banner - injected right after "# CLAUDE.md" title
-# Comprehensive instructions for GPT cross-model review
-CLAUDE_MD_BANNER='---
-## ⚠️ GPT CROSS-MODEL REVIEW IS ENABLED
+# CLAUDE.md section - injected as a feature section (like Compound Learning, Visual Communication)
+# Inserted BEFORE "## Helper Scripts" to be with other optional features
+CLAUDE_MD_SECTION='## GPT Cross-Model Review
 
-**Core Principle: ONE-SHOTTING > VELOCITY.** Getting code right the first time matters more than moving fast.
+Cross-model review using GPT to catch issues Claude might miss. **ONE-SHOTTING > VELOCITY** - getting code right matters more than speed.
 
 ### When to Review
 
@@ -220,7 +219,8 @@ CLAUDE_MD_BANNER='---
    - `SKIPPED` → Review was disabled, continue
 
 **For documents** (PRD, SDD, sprint plans): Same process but use `prd`, `sdd`, or `sprint` as the arg.
----'
+
+'
 
 # Remove success criterion from a skill file
 remove_success_criterion() {
@@ -249,51 +249,43 @@ add_success_criterion() {
   fi
 }
 
-# Remove GPT review banner from CLAUDE.md
-remove_claude_md_banner() {
-  if [[ -f "$CLAUDE_MD" ]] && grep -q "GPT CROSS-MODEL REVIEW IS ENABLED" "$CLAUDE_MD"; then
+# Remove GPT review section from CLAUDE.md
+remove_claude_md_section() {
+  if [[ -f "$CLAUDE_MD" ]] && grep -q "^## GPT Cross-Model Review$" "$CLAUDE_MD"; then
     local temp_file="${CLAUDE_MD}.tmp"
-    # Remove the entire block from first --- to closing ---
-    # Also skip the blank line that follows the closing ---
+    # Remove section from "## GPT Cross-Model Review" until next "## " heading
     awk '
-      /^---$/ && !in_block { in_block=1; next }
-      /^---$/ && in_block { in_block=0; skip_blank=1; next }
-      skip_blank && /^$/ { skip_blank=0; next }
-      skip_blank { skip_blank=0 }
-      !in_block { print }
+      /^## GPT Cross-Model Review$/ { in_section=1; next }
+      /^## / && in_section { in_section=0 }
+      !in_section { print }
     ' "$CLAUDE_MD" > "$temp_file"
     mv "$temp_file" "$CLAUDE_MD"
   fi
 }
 
-# Add GPT review banner to CLAUDE.md - inject after the title line
-add_claude_md_banner() {
-  # First remove any existing banner
-  remove_claude_md_banner
+# Add GPT review section to CLAUDE.md - inject BEFORE "## Helper Scripts"
+add_claude_md_section() {
+  # First remove any existing section
+  remove_claude_md_section
 
   if [[ -f "$CLAUDE_MD" ]]; then
     local temp_file="${CLAUDE_MD}.tmp"
-    local banner_file="${CLAUDE_MD}.banner.tmp"
+    local section_file="${CLAUDE_MD}.section.tmp"
 
-    # Write banner to temp file
-    printf '%s\n' "$CLAUDE_MD_BANNER" > "$banner_file"
+    # Write section to temp file
+    printf '%s\n' "$CLAUDE_MD_SECTION" > "$section_file"
 
-    # Insert banner after "# CLAUDE.md" title and blank line
-    # The banner block ends with --- so we just need one blank line before next content
-    awk -v bannerfile="$banner_file" '
-      /^# CLAUDE\.md$/ {
-        print
-        getline
-        print
-        while ((getline line < bannerfile) > 0) print line
-        close(bannerfile)
-        next
+    # Insert section BEFORE "## Helper Scripts" (near other optional features)
+    awk -v sectionfile="$section_file" '
+      /^## Helper Scripts$/ {
+        while ((getline line < sectionfile) > 0) print line
+        close(sectionfile)
       }
       { print }
     ' "$CLAUDE_MD" > "$temp_file"
 
     mv "$temp_file" "$CLAUDE_MD"
-    rm -f "$banner_file"
+    rm -f "$section_file"
   fi
 }
 
@@ -486,7 +478,7 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   remove_run_mode_gate
 
   # Remove banner from CLAUDE.md
-  remove_claude_md_banner
+  remove_claude_md_section
   exit 0
 fi
 
@@ -520,7 +512,7 @@ if [[ "$enabled" == "true" ]]; then
   add_run_mode_gate
 
   # Add banner to CLAUDE.md (Claude reads this automatically!)
-  add_claude_md_banner
+  add_claude_md_section
 
   # Create context file from template (loaded by commands via context_files)
   mkdir -p "$CONTEXT_DIR"
@@ -552,7 +544,7 @@ else
   remove_run_mode_gate
 
   # Remove banner from CLAUDE.md
-  remove_claude_md_banner
+  remove_claude_md_section
 
   # Remove context file
   rm -f "$CONTEXT_FILE"

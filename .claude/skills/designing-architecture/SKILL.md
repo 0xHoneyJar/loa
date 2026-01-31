@@ -243,6 +243,21 @@ Required sections:
 10. Open Questions
 
 Save to `grimoires/loa/sdd.md`.
+
+### Phase 5: GPT Cross-Model Review
+
+**ACTION REQUIRED**: Before proceeding to /sprint-plan, invoke the GPT review skill.
+
+Use the Skill tool now:
+```
+Skill: gpt-review
+Args: sdd
+```
+
+Wait for the verdict:
+- **APPROVED**: Continue to sprint planning
+- **CHANGES_REQUIRED**: Fix issues in SDD, then re-invoke `Skill: gpt-review, Args: sdd`
+- **SKIPPED**: GPT review is disabled, continue normally
 </workflow>
 
 <output_format>
@@ -318,6 +333,7 @@ If Mermaid source exceeds 1500 characters:
 - **Achievable**: Architecture matches team expertise and timeline
 - **Relevant**: All decisions trace back to PRD requirements
 - **Time-bound**: Development phases have logical sequencing for sprints
+- **GPT Review**: Cross-model review completed with APPROVED or SKIPPED verdict
 </success_criteria>
 
 <decision_framework>
