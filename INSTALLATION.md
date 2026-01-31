@@ -435,7 +435,25 @@ echo '{"api_key": "sk_your_api_key_here"}' > ~/.loa/credentials.json
 
 Contact the THJ team for API key access.
 
-### Installing Packs
+### Browse and Install with `/constructs` (Recommended)
+
+The easiest way to discover and install packs:
+
+```bash
+/constructs              # Browse available packs with multi-select UI
+/constructs install <pack>   # Install a specific pack directly
+/constructs list         # Show installed packs
+/constructs update       # Check for updates
+/constructs uninstall <pack> # Remove a pack
+/constructs auth         # Check authentication status
+/constructs auth setup   # Interactive API key setup
+```
+
+The `/constructs` command provides a guided experience with multi-select UI for choosing which packs to install.
+
+### Installing Packs via Script
+
+Alternatively, use the install script directly:
 
 ```bash
 # Install a pack (downloads and symlinks commands)

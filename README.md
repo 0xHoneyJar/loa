@@ -33,7 +33,7 @@ See **[INSTALLATION.md](INSTALLATION.md)** for detailed setup options and prereq
 | 5.5 | `/audit-sprint sprint-N` | Security Approval |
 | 6 | `/deploy-production` | Infrastructure |
 
-**Ad-hoc**: `/audit`, `/translate`, `/validate`, `/compound`, `/feedback`, `/update-loa`, `/loa` (guided workflow)
+**Ad-hoc**: `/audit`, `/translate`, `/validate`, `/compound`, `/feedback`, `/constructs`, `/update-loa`, `/loa` (guided workflow)
 
 See **[PROCESS.md](PROCESS.md)** for complete workflow documentation.
 
