@@ -781,7 +781,6 @@ do_install_skill() {
     echo "  Downloading from $registry_url/skills/$skill_slug/download..."
 
     # Download skill
-    # SECURITY (HIGH-002): Use process substitution for auth header
     local http_code
     local tmp_file
     tmp_file=$(mktemp) || { print_error "mktemp failed"; return 1; }
@@ -790,16 +789,21 @@ do_install_skill() {
     # Disable command tracing during API call to prevent key leakage
     { set +x; } 2>/dev/null || true
 
+    # Use local variable instead of process substitution for security (MED-002)
+    # Process substitution creates a temporary file descriptor readable by other processes
+    local auth_header="Authorization: Bearer $api_key"
     # HIGH-002 FIX: Enforce HTTPS and TLS 1.2+
-    http_code=$(curl -s -w "%{http_code}" --proto =https --tlsv1.2 \
-        -H @<(echo "Authorization: Bearer $api_key") \
+    http_code=$(curl -s -w "%{http_code}" --proto =https --tlsv1.2 --max-time 300 \
+        -H "$auth_header" \
         -H "Accept: application/json" \
         "$registry_url/skills/$skill_slug/download" \
         -o "$tmp_file" 2>/dev/null) || {
+        unset auth_header
         rm -f "$tmp_file"
         print_error "ERROR: Network error while downloading skill"
         return $EXIT_NETWORK_ERROR
     }
+    unset auth_header
 
     # Check HTTP status
     case "$http_code" in
