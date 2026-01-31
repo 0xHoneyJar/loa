@@ -41,6 +41,11 @@ else
     exit 5
 fi
 
+# Source safe yq library (HIGH-001 fix)
+if [[ -f "$SCRIPT_DIR/yq-safe.sh" ]]; then
+    source "$SCRIPT_DIR/yq-safe.sh"
+fi
+
 # =============================================================================
 # Constants
 # =============================================================================
@@ -125,7 +130,11 @@ get_skill_version() {
         return 0
     fi
 
-    if command -v yq &>/dev/null; then
+    # HIGH-001 fix: Use safe_yq_version if available
+    if type safe_yq_version &>/dev/null; then
+        safe_yq_version '.version' "$index_file" "unknown"
+        return 0
+    elif command -v yq &>/dev/null; then
         local version
         local yq_version_output
         yq_version_output=$(yq --version 2>&1 || echo "")
@@ -140,6 +149,13 @@ get_skill_version() {
         # Handle python yq returning quoted values
         version="${version#\"}"
         version="${version%\"}"
+
+        # HIGH-001 fix: Validate version format before returning
+        if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ && "$version" != "unknown" ]]; then
+            echo "unknown"
+            return 0
+        fi
+
         echo "$version"
     else
         # Fallback: grep for version line

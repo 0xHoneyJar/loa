@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # validate-skills.sh - Validate all skill index.yaml files against schema
 # Issue #97: Skill Best Practices Alignment
-# Version: 1.0.0
+# Issue #100: HIGH-001 - Safe yq output handling
+# Version: 1.1.0
 
 set -euo pipefail
 
@@ -9,6 +10,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SKILLS_DIR="$PROJECT_ROOT/.claude/skills"
 SCHEMA_FILE="$PROJECT_ROOT/.claude/schemas/skill-index.schema.json"
+
+# Source safe yq library
+# shellcheck source=yq-safe.sh
+source "$SCRIPT_DIR/yq-safe.sh"
 
 # Colors for output
 RED='\033[0;31m'
@@ -79,11 +84,17 @@ for skill_dir in "$SKILLS_DIR"/*/; do
     # Basic validation checks (always run)
     errors=()
 
-    # Check required fields
-    name=$(echo "$json_content" | yq -r '.name // ""')
-    version=$(echo "$json_content" | yq -r '.version // ""')
-    description=$(echo "$json_content" | yq -r '.description // ""')
-    triggers=$(echo "$json_content" | yq -r '.triggers // ""')
+    # Check required fields (using safe extraction - HIGH-001 fix)
+    # Use jq for JSON parsing (safer than piping through yq again)
+    name=$(echo "$json_content" | jq -r '.name // ""' 2>/dev/null || echo "")
+    version=$(echo "$json_content" | jq -r '.version // ""' 2>/dev/null || echo "")
+    description=$(echo "$json_content" | jq -r '.description // ""' 2>/dev/null || echo "")
+    triggers=$(echo "$json_content" | jq -r '.triggers // ""' 2>/dev/null || echo "")
+
+    # Validate extracted values against expected patterns (HIGH-001 fix)
+    if [[ -n "$name" && ! "$name" =~ ^[a-z][a-z0-9-]*$ ]]; then
+        errors+=("name contains invalid characters (must be kebab-case)")
+    fi
 
     if [[ -z "$name" ]]; then
         errors+=("missing required field: name")
@@ -103,10 +114,18 @@ for skill_dir in "$SKILLS_DIR"/*/; do
         errors+=("missing required field: triggers")
     fi
 
-    # Check new v1.14.0 fields (warnings only)
-    effort_hint=$(echo "$json_content" | yq -r '.effort_hint // ""')
-    danger_level=$(echo "$json_content" | yq -r '.danger_level // ""')
-    categories=$(echo "$json_content" | yq -r '.categories // ""')
+    # Check new v1.14.0 fields (warnings only) - using jq for safe extraction (HIGH-001 fix)
+    effort_hint=$(echo "$json_content" | jq -r '.effort_hint // ""' 2>/dev/null || echo "")
+    danger_level=$(echo "$json_content" | jq -r '.danger_level // ""' 2>/dev/null || echo "")
+    categories=$(echo "$json_content" | jq -r '.categories // ""' 2>/dev/null || echo "")
+
+    # Validate enum values (HIGH-001 fix)
+    if [[ -n "$effort_hint" && ! "$effort_hint" =~ ^(low|medium|high)$ ]]; then
+        errors+=("effort_hint must be low, medium, or high (got: $effort_hint)")
+    fi
+    if [[ -n "$danger_level" && ! "$danger_level" =~ ^(safe|moderate|high|critical)$ ]]; then
+        errors+=("danger_level must be safe, moderate, high, or critical (got: $danger_level)")
+    fi
 
     if [[ -z "$effort_hint" ]]; then
         echo -e "  ${YELLOW}WARN${NC}: $skill_name - missing effort_hint"

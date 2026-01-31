@@ -215,6 +215,13 @@ extract_frontmatter() {
         return 1
     fi
 
+    # HIGH-001 fix: Limit content size to prevent DoS
+    local max_content_size="${MAX_YAML_SIZE:-100000}"  # 100KB default
+    if [[ ${#content} -gt $max_content_size ]]; then
+        print_error "YAML content exceeds maximum size ($max_content_size bytes)"
+        return 1
+    fi
+
     # Convert YAML to JSON using yq if available, otherwise try python
     if command -v yq &>/dev/null; then
         echo "$content" | yq -o=json '.'
