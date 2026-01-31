@@ -22,10 +22,11 @@ Loa uses a managed scaffolding architecture:
 
 ### Skills System
 
-9 agent skills in `.claude/skills/` using 3-level architecture:
+10 agent skills in `.claude/skills/` using 3-level architecture:
 
 | Skill | Role | Output |
 |-------|------|--------|
+| `autonomous-agent` | Meta-Orchestrator | Checkpoints + feedback + draft PR |
 | `discovering-requirements` | Product Manager | `grimoires/loa/prd.md` |
 | `designing-architecture` | Software Architect | `grimoires/loa/sdd.md` |
 | `planning-sprints` | Technical PM | `grimoires/loa/sprint.md` |
@@ -115,6 +116,56 @@ plan_and_analyze:
 
 **Continuous Learning**: `/retrospective`, `/skill-audit`
 
+### Autonomous Agent Orchestration (v1.11.0)
+
+The `/autonomous` command provides end-to-end workflow orchestration with 8-phase execution:
+
+```
+/autonomous                    # Full workflow execution
+/autonomous --dry-run          # Validate without executing
+/autonomous --detect-only      # Only detect operator type
+/autonomous --resume-from=design  # Resume from specific phase
+```
+
+**8-Phase Execution Model**:
+1. **Preflight**: Operator detection, session continuity
+2. **Discovery**: Codebase grounding, PRD creation/validation
+3. **Design**: Architecture (SDD), sprint planning
+4. **Implementation**: Task execution with quality gates
+5. **Audit**: Security review, remediation loop
+6. **Submit**: Draft PR creation
+7. **Deploy**: Infrastructure deployment (optional)
+8. **Learning**: Feedback capture, PRD iteration check
+
+**Operator Detection**: Auto-detects AI vs Human operators:
+- AI operators: Strict quality gates, mandatory audit, auto-skill wrapping
+- Human operators: Advisory gates, flexible workflow
+
+**Quality Gates (Five Gates Model)**:
+| Gate | Check | V2 Implementation |
+|------|-------|-------------------|
+| Gate 0 | Right skill? | Human review |
+| Gate 1 | Inputs exist? | File check |
+| Gate 2 | Executed OK? | Exit code |
+| Gate 3 | Outputs exist? | File check |
+| Gate 4 | Goals achieved? | Human review |
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+autonomous_agent:
+  operator:
+    type: auto  # auto | human | ai
+  audit_threshold: 4
+  max_remediation_loops: 3
+  context:
+    soft_limit_tokens: 80000
+    hard_limit_tokens: 150000
+```
+
+**Related Documentation**:
+- [Separation of Concerns](docs/architecture/separation-of-concerns.md)
+- [Runtime Contract](docs/integration/runtime-contract.md)
+
 ## Intelligent Subagents
 
 | Subagent | Purpose | Verdict Levels |
@@ -173,6 +224,18 @@ Agents maintain persistent working memory in `grimoires/loa/NOTES.md`:
 - **Session Continuity**: Recovery anchor
 
 **Protocol**: See `.claude/protocols/structured-memory.md`
+
+### Attention Budget Enforcement (v1.11.0)
+
+High-search skills include `<attention_budget>` sections with:
+- Token thresholds (2K single, 5K accumulated, 15K session)
+- Skill-specific clearing triggers
+- Compliance checklists for audit-heavy operations
+- Semantic decay stages for long-running sessions
+
+**Skills with attention budgets**: auditing-security, implementing-tasks, discovering-requirements, riding-codebase, reviewing-code, planning-sprints, designing-architecture
+
+**Protocol**: See `.claude/protocols/tool-result-clearing.md`
 
 ### Lossless Ledger Protocol
 

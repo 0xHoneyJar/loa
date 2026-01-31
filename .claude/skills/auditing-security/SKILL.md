@@ -99,6 +99,52 @@ Example:
 ```
 </tool_result_clearing>
 
+<attention_budget>
+## Attention Budget
+
+This skill follows the **Tool Result Clearing Protocol** (`.claude/protocols/tool-result-clearing.md`).
+
+### Token Thresholds
+
+| Context Type | Limit | Action |
+|--------------|-------|--------|
+| Single search result | 2,000 tokens | Apply 4-step clearing |
+| Accumulated results | 5,000 tokens | MANDATORY clearing |
+| Full file load | 3,000 tokens | Single file, synthesize immediately |
+| Session total | 15,000 tokens | STOP, synthesize to NOTES.md |
+
+### Clearing Triggers for Auditing
+
+- [ ] `grep`/`ripgrep` returning >20 matches
+- [ ] `find` returning >30 files
+- [ ] `cat` on files >100 lines
+- [ ] Any search exceeding 2K tokens
+- [ ] Accumulated context exceeding 5K tokens
+
+### 4-Step Clearing
+
+1. **Extract**: Max 10 files, 20 words per finding, with `file:line` refs
+2. **Synthesize**: Write to `grimoires/loa/NOTES.md` under audit context
+3. **Clear**: Do NOT keep raw results in working memory
+4. **Summary**: Keep only `"Audit: N results → M high-signal → NOTES.md"`
+
+### Semantic Decay Stages
+
+| Stage | Age | Format | Cost |
+|-------|-----|--------|------|
+| Active | 0-5 min | Full synthesis + snippets | ~200 tokens |
+| Decayed | 5-30 min | Paths only | ~12 tokens/file |
+| Archived | 30+ min | Single-line in trajectory | ~20 tokens |
+
+### Compliance Checklist
+
+Before proceeding to next audit phase:
+- [ ] All search results under threshold OR cleared
+- [ ] High-signal findings in NOTES.md with `file:line` refs
+- [ ] Raw outputs removed from context
+- [ ] Trajectory entry logged if applicable
+</attention_budget>
+
 <trajectory_logging>
 ## Trajectory Logging
 
