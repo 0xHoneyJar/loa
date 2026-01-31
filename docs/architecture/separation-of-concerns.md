@@ -17,35 +17,43 @@ This separation enables:
 
 ## The Three Layers
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    AGENT INSTANCE                           │
-│              (specific agent, e.g., Legba)                  │
-│                                                             │
-│     Uses Loa methodology + Runs on specific runtime         │
-└─────────────────────────────────────────────────────────────┘
-                           │
-           ┌───────────────┴───────────────┐
-           ▼                               ▼
-┌─────────────────────┐         ┌─────────────────────┐
-│        LOA          │         │      RUNTIME        │
-│   (methodology)     │         │  (execution env)    │
-│                     │         │                     │
-│ • WHAT to do        │         │ • HOW to execute    │
-│ • In what order     │         │ • With what resources│
-│ • To what standard  │         │ • Recovering how    │
-└─────────────────────┘         └─────────────────────┘
-           │                               │
-           └───────────────┬───────────────┘
-                           ▼
-                ┌─────────────────────┐
-                │   INTEGRATION       │
-                │   (the contract)    │
-                │                     │
-                │ • Exit codes        │
-                │ • State schemas     │
-                │ • Signals           │
-                └─────────────────────┘
+```mermaid
+graph TB
+    subgraph Agent["🤖 AGENT INSTANCE"]
+        direction TB
+        A1[Specific agent e.g. Legba]
+        A2[Uses Loa methodology]
+        A3[Runs on specific runtime]
+    end
+    
+    Agent --> Loa
+    Agent --> Runtime
+    
+    subgraph Loa["📘 LOA (Methodology)"]
+        L1[WHAT to do]
+        L2[In what order]
+        L3[To what standard]
+    end
+    
+    subgraph Runtime["⚙️ RUNTIME (Execution)"]
+        R1[HOW to execute]
+        R2[With what resources]
+        R3[Recovering how]
+    end
+    
+    Loa --> Integration
+    Runtime --> Integration
+    
+    subgraph Integration["🔗 INTEGRATION (Contract)"]
+        I1[Exit codes]
+        I2[State schemas]
+        I3[Signals]
+    end
+    
+    style Agent fill:#e1f5fe
+    style Loa fill:#fff3e0
+    style Runtime fill:#f3e5f5
+    style Integration fill:#e8f5e9
 ```
 
 ---
@@ -191,36 +199,51 @@ Runtime delivers:
 
 When adding a feature, use this flow:
 
+```mermaid
+flowchart TD
+    A[🆕 New Feature / Improvement] --> B{Is it about WHAT to do?<br/>methodology, criteria, order}
+    
+    B -->|Yes| LOA[📘 LOA]
+    B -->|No| C{Is it about HOW to execute?<br/>resources, delivery, infra}
+    
+    C -->|Yes| RUNTIME[⚙️ RUNTIME]
+    C -->|No| INTEGRATION[🔗 INTEGRATION<br/>contract between layers]
+    
+    style A fill:#fff9c4
+    style LOA fill:#fff3e0
+    style RUNTIME fill:#f3e5f5
+    style INTEGRATION fill:#e8f5e9
 ```
-┌─────────────────────────────────────────────────────────┐
-│              NEW FEATURE / IMPROVEMENT                  │
-└─────────────────────────────────────────────────────────┘
-                         │
-                         ▼
-         ┌───────────────────────────────┐
-         │ Is it about WHAT to do?       │
-         │ (methodology, criteria, order)│
-         └───────────────────────────────┘
-                    │
-          ┌────────┴────────┐
-          ▼                 ▼
-         YES               NO
-          │                 │
-          ▼                 ▼
-    ┌──────────┐    ┌───────────────────────────┐
-    │   LOA    │    │ Is it about HOW to execute?│
-    │          │    │ (resources, delivery, infra)│
-    └──────────┘    └───────────────────────────┘
-                              │
-                    ┌────────┴────────┐
-                    ▼                 ▼
-                   YES               NO
-                    │                 │
-                    ▼                 ▼
-              ┌──────────┐    ┌──────────────────┐
-              │ RUNTIME  │    │ INTEGRATION      │
-              │          │    │ (contract between)│
-              └──────────┘    └──────────────────┘
+
+---
+
+## Data Flow: Skill Execution
+
+```mermaid
+sequenceDiagram
+    participant Agent
+    participant Loa
+    participant Runtime
+    participant Human
+    
+    Agent->>Loa: Execute skill
+    Loa->>Runtime: Request context signals
+    Runtime-->>Loa: tokens_available, time_remaining
+    
+    Loa->>Loa: Execute phase
+    
+    alt Success (exit 0)
+        Loa->>Runtime: Persist checkpoint
+        Runtime-->>Agent: Proceed to next phase
+    else Retriable failure (exit 1)
+        Loa->>Runtime: Log error
+        Runtime->>Loa: Retry (up to max)
+    else Blocked (exit 2)
+        Loa->>Runtime: Escalation request
+        Runtime->>Human: Deliver escalation
+        Human-->>Runtime: Response
+        Runtime-->>Loa: Human input
+    end
 ```
 
 ---
@@ -269,9 +292,19 @@ When adding a feature, use this flow:
 - Switch runtimes without rewriting methodology
 
 ### Compound Effect
-- Loa improves → all runtimes benefit
-- Runtime improves → all frameworks benefit
-- Both improve → agents get compounding gains
+
+```mermaid
+graph LR
+    subgraph Improvements
+        L[Loa improves] --> ALL_R[All runtimes benefit]
+        R[Runtime improves] --> ALL_F[All frameworks benefit]
+    end
+    
+    ALL_R --> COMPOUND[🚀 Compound gains]
+    ALL_F --> COMPOUND
+    
+    style COMPOUND fill:#c8e6c9
+```
 
 ---
 
