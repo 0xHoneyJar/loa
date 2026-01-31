@@ -421,16 +421,18 @@ teardown() {
     grep -q "gpt-review-doc-hook.sh" "$PROJECT_ROOT/.claude/settings.json"
 }
 
-@test "PostToolUse hook matches prd.md files" {
-    grep -q 'prd.*\\.md' "$PROJECT_ROOT/.claude/settings.json"
+@test "PostToolUse hook uses Edit|Write matcher for documents" {
+    # Document hook now uses Edit|Write pattern (same as code hook)
+    # The script filters for grimoire document paths internally
+    grep -q '"Edit|Write"' "$PROJECT_ROOT/.claude/settings.json"
 }
 
-@test "PostToolUse hook matches sdd.md files" {
-    grep -q 'sdd.*\\.md' "$PROJECT_ROOT/.claude/settings.json"
-}
-
-@test "PostToolUse hook matches sprint.md files" {
-    grep -q 'sprint.*\\.md' "$PROJECT_ROOT/.claude/settings.json"
+@test "Document hook script filters for prd/sdd/sprint files" {
+    # The doc hook script handles path filtering internally for document types
+    # Note: double backslash needed because file contains literal backslash-dot pattern
+    grep -q 'prd\\\.md' "$PROJECT_ROOT/.claude/scripts/gpt-review-doc-hook.sh"
+    grep -q 'sdd\\\.md' "$PROJECT_ROOT/.claude/scripts/gpt-review-doc-hook.sh"
+    grep -q 'sprint\\\.md' "$PROJECT_ROOT/.claude/scripts/gpt-review-doc-hook.sh"
 }
 
 # =============================================================================

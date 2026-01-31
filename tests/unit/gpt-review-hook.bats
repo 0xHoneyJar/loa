@@ -36,10 +36,10 @@ setup() {
     [[ "$status" -eq 0 ]]
 }
 
-@test "hook matcher covers common code extensions" {
-    # Check that the matcher includes common extensions
-    # The actual pattern uses | for OR: (Edit|Write)
-    run grep -E '\(Edit\|Write\).*ts.*js.*py' "$SETTINGS_FILE"
+@test "hook matcher uses Edit|Write pattern" {
+    # The hook uses a simple Edit|Write matcher and filters by extension in the script
+    # This avoids regex issues with Claude Code's matcher parsing
+    run grep -E '"Edit\|Write"' "$SETTINGS_FILE"
     [[ "$status" -eq 0 ]]
 }
 
