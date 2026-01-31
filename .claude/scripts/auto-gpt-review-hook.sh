@@ -41,20 +41,19 @@ if [[ "$enabled" != "true" ]]; then
 fi
 
 # GPT review is enabled - output JSON that Claude will see
-# The additionalContext field is injected into Claude's conversation context
+# Uses STOP language for non-trivial code changes
 #
-# This hook provides a comprehensive but concise reminder that includes:
-# 1. The core principle (ONE-SHOTTING > VELOCITY)
-# 2. Clear criteria for when to review vs skip
-# 3. Exact invocation syntax
-# 4. Context file preparation steps
+# Policy:
+# - Backend/API/security/business logic: ALWAYS review (hard stop)
+# - Frontend/UI: batch changes, MUST review at feature completion
+# - Truly trivial (typo, log, comment, import): OK to skip
 #
 # Fixed: 2026-01-29 - Matcher changed from regex to "Edit|Write", script filters by extension
 cat << EOF
 {
   "hookSpecificOutput": {
     "hookEventName": "PostToolUse",
-    "additionalContext": "GPT REVIEW CHECKPOINT: You modified ${FILE_PATH:-code}. Before proceeding to next task: (1) Write /tmp/gpt-review-expertise.md with domain expertise from PRD, (2) Write /tmp/gpt-review-context.md with product context + what this code does + acceptance criteria, (3) Use Skill tool: gpt-review, Args: code ${FILE_PATH:-<file>}. SKIP ONLY IF truly trivial (typo, log message, comment, import reorder). Backend/API/security/business logic = ALWAYS review. When uncertain, review."
+    "additionalContext": "STOP. You modified ${FILE_PATH:-code}. GPT cross-model review checkpoint. For backend/API/security/business logic: Do NOT proceed to next task until review complete. (1) Write /tmp/gpt-review-expertise.md with domain expertise, (2) Write /tmp/gpt-review-context.md with what this code does + acceptance criteria, (3) Invoke: Skill: gpt-review, Args: code ${FILE_PATH:-<file>}. ONLY proceed after APPROVED/SKIPPED. If CHANGES_REQUIRED, fix and re-invoke. EXCEPTION: Skip ONLY for truly trivial changes (typo fix, log message, comment edit, import reorder)."
   }
 }
 EOF

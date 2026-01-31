@@ -49,12 +49,12 @@ if [[ "$enabled" != "true" ]]; then
 fi
 
 # GPT review is enabled - output JSON that Claude will see
-# Provides complete invocation instructions for document review
+# Uses STOP language like audit-sprint to make it a hard gate
 cat << EOF
 {
   "hookSpecificOutput": {
     "hookEventName": "PostToolUse",
-    "additionalContext": "GPT REVIEW REQUIRED: You modified ${FILE_PATH:-a design document}. BEFORE declaring this phase complete: (1) Write /tmp/gpt-review-expertise.md with domain expertise (e.g., 'You are an expert in [domain from PRD]'), (2) Write /tmp/gpt-review-context.md with product context and review focus areas, (3) Use Skill tool: gpt-review, Args: ${DOC_TYPE}. Handle verdict: APPROVED=continue, CHANGES_REQUIRED=fix and re-review, SKIPPED=continue (disabled)."
+    "additionalContext": "STOP. You modified ${FILE_PATH}. GPT cross-model review is MANDATORY before proceeding. Do NOT declare this phase complete. Do NOT suggest the next command. Do NOT say 'ready for /architect' or similar. FIRST: (1) Write /tmp/gpt-review-expertise.md with domain expertise from the PRD, (2) Write /tmp/gpt-review-context.md with product context and what to verify, (3) Invoke: Skill: gpt-review, Args: ${DOC_TYPE}. ONLY after receiving APPROVED or SKIPPED verdict may you proceed. If CHANGES_REQUIRED, fix issues and re-invoke."
   }
 }
 EOF
