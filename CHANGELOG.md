@@ -5,6 +5,97 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0] - 2026-02-01 — Skill Best Practices & Security Hardening
+
+### Why This Release
+
+Loa now aligns with **Vercel AI SDK** and **Anthropic tool-writing best practices** for skill definitions. This release also adds the **Anthropic Context Features** foundation (effort parameter, context editing, memory schema) and comprehensive **security hardening** of shell scripts.
+
+*"Industry-aligned skills. Fortified shell scripts. Token-efficient futures."*
+
+### Added
+
+#### Skill Best Practices Alignment (#97, #99)
+
+All 13 skills now follow Vercel AI SDK and Anthropic best practices with new schema fields:
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `effort_hint` | `low\|medium\|high` | Recommended reasoning depth |
+| `danger_level` | `safe\|moderate\|high\|critical` | Risk classification |
+| `categories` | `string[]` | Semantic groupings for search |
+| `inputExamples` | `object[]` | Native Anthropic examples |
+| `defer_loading` | `boolean` | Future deferred loading |
+
+- **New Schema**: `.claude/schemas/skill-index.schema.json` - JSON Schema 2020-12 validation
+- **Validation Script**: `.claude/scripts/validate-skills.sh` - Automated skill validation
+- **Token Budget Mapping**: `low (~4K)`, `medium (~16K)`, `high (~64K)`
+- **Canonical Categories**: planning, implementation, quality, support, operations
+
+**Sources**: [Vercel AI SDK](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling), [Anthropic Advanced Tool Use](https://anthropic.com/engineering/advanced-tool-use)
+
+#### Anthropic Context Features (#94, #95, #96, #98)
+
+Foundation for three Anthropic platform features:
+
+- **Effort Parameter** (#94): Configurable thinking budget per skill
+  - Budget ranges: low (1K-4K), medium (8K-16K), high (24K-32K)
+  - Verified: 76% token reduction (Anthropic Opus 4.5 announcement)
+
+- **Context Editing** (#95): Three-layer architecture for intelligent compaction
+  - Layers: Preserve → Cache → Compact
+  - Threshold: 80% context usage triggers compaction
+  - Verified: 84% token reduction (Claude context management blog)
+
+- **Memory Schema** (#96): Grimoire-based persistence
+  - 5 categories: fact, decision, learning, error, preference
+  - Lifecycle: active → archived → expired
+  - Location: `grimoires/loa/memory/`
+  - Verified: 39% improvement with context editing
+
+**New Files**:
+- `.claude/schemas/memory.schema.json` - Memory entry validation
+- `.claude/protocols/context-editing.md` - Three-layer architecture
+- `.claude/protocols/memory.md` - Memory lifecycle protocol
+- `docs/integration/runtime-contract.md` - Runtime integration contract
+
+### Security
+
+#### Shell Script Hardening (#99, #100, #101)
+
+Comprehensive security audit with fixes across 20+ shell scripts:
+
+| Finding | Severity | Fix |
+|---------|----------|-----|
+| CRITICAL-001 | Unsafe temp files | `mktemp + chmod 600` in 18 scripts |
+| HIGH-001 | yq injection | New `yq-safe.sh` library |
+| HIGH-002 | HTTP downgrade | `--proto =https --tlsv1.2` |
+| HIGH-003 | Secret leak | Expanded redaction patterns |
+| HIGH-004 | JSON injection | `jq -n` for generation |
+
+- **New Library**: `.claude/scripts/yq-safe.sh` - Type-safe YAML extraction
+  - `safe_yq_identifier` - Validates kebab-case names
+  - `safe_yq_version` - Validates semver format
+  - `safe_yq_enum` - Validates against allowed values
+  - `safe_yq_path/url/bool/int` - Type-specific validation
+
+- **Secret Redaction**: Now covers OpenSSH keys, hex keys (Web3), base64 secrets, OAuth tokens
+
+### Changed
+
+- **validate-skills.sh** - Now uses jq for JSON parsing with pattern validation
+- **constructs-loader.sh** - Uses safe_yq_version with fallback validation
+- **schema-validator.sh** - Added 100KB content size limit
+
+### Documentation
+
+- **CLAUDE.md** - Added Skill Best Practices section with:
+  - Token budget mapping table
+  - Canonical categories table
+  - Enforcement status (#94 runtime prep)
+
+---
+
 ## [1.12.0] - 2026-02-01 — Oracle Compound Learnings
 
 ### Why This Release
