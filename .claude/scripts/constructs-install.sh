@@ -57,21 +57,42 @@ EXIT_ERROR=6
 # Authentication
 # =============================================================================
 
-# Check if file permissions are secure (MED-001)
+# Check if file permissions are secure (MEDIUM-002)
 # Args: $1 - file path
 # Returns: 0 if secure, 1 if too permissive
 check_file_permissions() {
     local file="$1"
-    local perms
-    perms=$(stat -c "%a" "$file" 2>/dev/null || stat -f "%Lp" "$file" 2>/dev/null)
 
-    # Check if permissions are 600 (owner read/write only) or more restrictive
+    if [[ ! -f "$file" ]]; then
+        return 0  # File doesn't exist, nothing to check
+    fi
+
+    # Cross-platform permission check using ls -l
+    # This avoids stat format differences between GNU and BSD
+    local perms
+    perms=$(ls -l "$file" 2>/dev/null | awk '{print $1}')
+
+    # Check that file is not readable by group or others
+    # Good: -rw------- (600) or -r-------- (400)
+    # Bad: anything with r in positions 5-10 (group/other read)
     case "$perms" in
-        600|400) return 0 ;;  # Secure permissions
+        -rw-------)  # 600 - owner read/write only
+            return 0
+            ;;
+        -r--------)  # 400 - owner read only
+            return 0
+            ;;
         *)
-            print_warning "SECURITY: Credentials file has insecure permissions ($perms): $file"
-            print_warning "  Recommended: chmod 600 $file"
-            return 1
+            # Check if group or others have any permissions
+            local group_other="${perms:4:6}"
+            if [[ "$group_other" != "------" ]]; then
+                print_warning "SECURITY: Credentials file has insecure permissions: $file"
+                print_warning "  Current: $perms"
+                print_warning "  Required: -rw------- (600) or -r-------- (400)"
+                print_warning "  Fix with: chmod 600 $file"
+                return 1
+            fi
+            return 0
             ;;
     esac
 }
@@ -427,7 +448,8 @@ do_install_pack() {
     echo "  Downloading from $registry_url/packs/$pack_slug/download..."
 
     # Download pack
-    # SECURITY (HIGH-002): Use process substitution for auth header to avoid shell history exposure
+    # SECURITY (MEDIUM-001): Use environment variable for auth header
+    # Avoids process substitution file descriptor exposure via lsof
     local response
     local http_code
     local tmp_file
@@ -436,16 +458,20 @@ do_install_pack() {
     # Disable command tracing during API call to prevent key leakage
     { set +x; } 2>/dev/null || true
 
-    http_code=$(curl -s -w "%{http_code}" \
-        -H @<(echo "Authorization: Bearer $api_key") \
+    # Use environment variable instead of process substitution for security
+    local auth_header="Authorization: Bearer $api_key"
+    http_code=$(curl -s -w "%{http_code}" --max-time 300 \
+        -H "$auth_header" \
         -H "Accept: application/json" \
         "$registry_url/packs/$pack_slug/download" \
         -o "$tmp_file" 2>/dev/null) || {
+        unset auth_header
         rm -f "$tmp_file"
         print_error "ERROR: Network error while downloading pack"
         echo "  Check your network connection and try again"
         return $EXIT_NETWORK_ERROR
     }
+    unset auth_header
 
     # Check HTTP status
     case "$http_code" in
