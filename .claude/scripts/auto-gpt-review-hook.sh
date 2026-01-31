@@ -44,15 +44,17 @@ fi
 # The additionalContext field is injected into Claude's conversation context
 #
 # Policy:
-# - Sprint tasks (/implement, /run): MANDATORY per task (enforced by skill gate)
-# - Ad-hoc changes: Optional for trivial changes, but encouraged for substantial ones
-# - NEVER skip reviews just to save time or maintain velocity
+# - ONE-SHOTTING > VELOCITY: Getting code right matters more than speed
+# - WHEN UNSURE, REVIEW: If you're debating whether to skip, that's a sign to review
+# - Backend/API/security/business logic: ALWAYS review
+# - Frontend/UI: Batch multiple changes, but MUST review at feature completion
+# - Truly trivial: OK to skip (typos, log messages, comments, imports)
 # Fixed: 2026-01-29 - Matcher changed from regex to "Edit|Write", script filters by extension
 cat << 'EOF'
 {
   "hookSpecificOutput": {
     "hookEventName": "PostToolUse",
-    "additionalContext": "Code modified. GPT review policy: If you're executing sprint tasks, GPT review is MANDATORY after each task - do NOT skip to save time. New files, API changes, and complex logic ALWAYS need review. Only skip for truly trivial changes (typos, import reordering). Judgment is based on CODE COMPLEXITY, not velocity. If you've made several code changes without GPT review, stop and run one now: Skill: gpt-review, Args: code <file>"
+    "additionalContext": "Code modified. GPT review reminder: ONE-SHOTTING code is more important than velocity. If unsure whether a change needs review, USE GPT REVIEW - uncertainty is a signal. Backend/API/security/business logic = ALWAYS review. Frontend/UI = batch changes, MUST review at feature completion. OK to skip: typo fixes, log message changes, comment edits, import reordering, version bumps. When in doubt, review. Run: Skill: gpt-review, Args: code <file>"
   }
 }
 EOF

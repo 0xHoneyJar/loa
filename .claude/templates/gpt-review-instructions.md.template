@@ -1,17 +1,36 @@
 # GPT Review Protocol (MANDATORY)
 
-GPT cross-model review is **enabled**. You MUST run GPT review at the appropriate workflow gates.
+GPT cross-model review is **enabled**. **ONE-SHOTTING > VELOCITY.** Getting code right matters more than speed.
 
-## Code Reviews (Ad-Hoc Changes)
+## Core Principle: The Uncertainty Rule
 
-After code changes (Edit/Write on code files), run GPT review **before moving on**:
+**If you are debating whether to skip GPT review, that uncertainty is a signal TO USE IT.** When in doubt, review.
+
+## Code Reviews
+
+After code changes (Edit/Write on code files), run GPT review:
 
 ```bash
 .claude/scripts/gpt-review-api.sh code <changed-file>
 ```
 
-- Not every single edit, but after each **logical group of changes** (completing a task, fixing a bug)
-- This is NOT optional - do not skip or ignore
+**ALWAYS review (no exceptions)**:
+- Backend code, API endpoints, database queries
+- Security-sensitive code (auth, crypto, input validation)
+- Business logic, state management, data transformations
+- New files, major refactors
+
+**Frontend/UI work**:
+- You MAY batch multiple UI changes into a single review
+- You MUST run review when the feature is complete
+- Do not let momentum cause you to skip the final review
+
+**OK to skip** (truly trivial):
+- Typo fixes in strings or comments
+- Log message changes
+- Import reordering
+- Version bumps
+- Adding/removing console.log for debugging
 
 ## Document Reviews (Workflow Phases)
 

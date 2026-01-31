@@ -88,7 +88,7 @@ setup() {
     [[ "$context" == *"gpt-review"* ]] || [[ "$context" == *"/gpt-review"* ]]
 }
 
-@test "additionalContext suggests complexity check" {
+@test "additionalContext emphasizes one-shotting over velocity" {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$TEST_DIR/.loa.config.yaml"
     cd "$TEST_DIR"
 
@@ -96,7 +96,8 @@ setup() {
     [[ "$status" -eq 0 ]]
     local context
     context=$(echo "$output" | jq -r '.hookSpecificOutput.additionalContext')
-    [[ "$context" == *"complex"* ]] || [[ "$context" == *"consider"* ]]
+    # New messaging emphasizes correctness over speed and the uncertainty rule
+    [[ "$context" == *"ONE-SHOTTING"* ]] || [[ "$context" == *"unsure"* ]] || [[ "$context" == *"doubt"* ]]
 }
 
 # =============================================================================

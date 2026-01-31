@@ -79,16 +79,17 @@ SUCCESS_CRITERION="- **GPT Review**: Cross-model review completed with APPROVED 
 # Run mode gate - injected at top of run-mode skill
 # Critical because /run bypasses normal skill loading
 RUN_MODE_GATE='---
-> **GPT REVIEW ENABLED - MANDATORY FOR ALL SPRINT TASKS**
+> **GPT REVIEW ENABLED - ONE-SHOTTING > VELOCITY**
 >
 > After completing EACH implementation task, you MUST run GPT review:
 >
 > 1. Write `/tmp/gpt-review-expertise.md` (domain expertise from PRD)
-> 2. Write `/tmp/gpt-review-context.md` (product context + task purpose + acceptance criteria from sprint.md)
+> 2. Write `/tmp/gpt-review-context.md` (product context + task purpose + acceptance criteria)
 > 3. Use Skill tool: `Skill: gpt-review, Args: code <modified-file>`
 > 4. Handle verdict (APPROVED -> continue, CHANGES_REQUIRED -> fix and retry)
 >
 > **DO NOT proceed to the next task or commit without GPT review.**
+> **If unsure whether to review, that means you SHOULD review.**
 ---'
 
 # Command file gates - inserted before "## Next Step" or file-specific markers
@@ -158,36 +159,45 @@ Wait for the verdict before proceeding:
 # Run mode command gate - for /run, /run sprint-plan, /run-resume
 RUN_CMD_GATE="## GPT Cross-Model Review (MANDATORY)
 
-**IMPORTANT**: GPT review is ENABLED. After completing EACH sprint task during execution:
+**IMPORTANT**: GPT review is ENABLED. ONE-SHOTTING > VELOCITY.
+
+After completing EACH task during execution:
 
 1. Write \`/tmp/gpt-review-expertise.md\` (domain expertise from PRD)
 2. Write \`/tmp/gpt-review-context.md\` (product context + task purpose + acceptance criteria)
 3. Use Skill tool: \`Skill: gpt-review, Args: code <modified-file>\`
 4. Handle verdict (APPROVED → continue, CHANGES_REQUIRED → fix and retry)
 
-**DO NOT skip GPT review between tasks.** This applies to every implementation task in the run."
+**DO NOT skip GPT review between tasks.** If unsure whether to review, that means you SHOULD review."
 
 # CLAUDE.md banner - injected right after "# CLAUDE.md" title
 # Comprehensive instructions for GPT cross-model review
 CLAUDE_MD_BANNER='---
 ## ⚠️ GPT CROSS-MODEL REVIEW IS ENABLED
 
-You MUST run GPT review after significant code changes. Use judgment based on **CODE COMPLEXITY**, not velocity.
+**Core Principle: ONE-SHOTTING > VELOCITY.** Getting code right the first time matters more than moving fast.
 
-**IMPORTANT**: Never skip reviews to save time or maintain momentum. The review exists to catch bugs you might miss. If you'\''ve written non-trivial code, review it - even if you'\''re mid-sprint and want to keep moving.
+### When to Review
 
-**ALWAYS review** (regardless of how long it takes):
-- New files (components, hooks, API routes, utilities)
-- Major refactors or architectural changes
-- Security-sensitive code (auth, validation, data handling)
-- API changes (request/response shapes, error handling)
-- Complex logic (state machines, algorithms, data transformations)
+**ALWAYS review (no exceptions)**:
+- Backend code, API endpoints, database queries
+- Security-sensitive code (auth, crypto, input validation)
+- Business logic, state management, data transformations
+- New files, major refactors
 
-**SKIP review** (truly trivial changes only):
-- Typo fixes in strings/comments
+**Frontend/UI changes**:
+- You MAY batch multiple UI changes into a single review
+- You MUST run GPT review when the feature is complete
+- Do not let momentum cause you to skip the final review
+
+**OK to skip** (truly trivial):
+- Typo fixes in strings or comments
+- Log message changes
 - Import reordering
-- Single-line obvious fixes (e.g., `s/fooBar/foobar/`)
-- Adding/removing console.log statements
+- Version bumps
+- Adding/removing console.log for debugging
+
+**The Uncertainty Rule**: If you are debating whether to skip GPT review, that uncertainty is a signal TO USE IT. When in doubt, review.
 
 ### How to Run GPT Review
 
