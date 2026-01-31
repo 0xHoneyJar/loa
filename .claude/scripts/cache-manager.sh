@@ -344,7 +344,8 @@ cmd_get() {
 
     if ! is_cache_enabled; then
         if [[ "$json_output" == "true" ]]; then
-            echo '{"status":"disabled","key":"'"$key"'"}'
+            # HIGH-004 FIX: Use jq for safe JSON generation
+            jq -n --arg status "disabled" --arg key "$key" '{status: $status, key: $key}'
         fi
         return 1
     fi
@@ -360,7 +361,8 @@ cmd_get() {
         jq --arg key "$key" '.stats.misses += 1' "$CACHE_INDEX" > "${CACHE_INDEX}.tmp" && mv "${CACHE_INDEX}.tmp" "$CACHE_INDEX"
 
         if [[ "$json_output" == "true" ]]; then
-            echo '{"status":"miss","key":"'"$key"'"}'
+            # HIGH-004 FIX: Use jq for safe JSON generation
+            jq -n --arg status "miss" --arg key "$key" '{status: $status, key: $key}'
         fi
         return 1
     fi
@@ -391,7 +393,9 @@ cmd_get() {
         rm -f "${RESULTS_DIR}/${key}.json" 2>/dev/null
 
         if [[ "$json_output" == "true" ]]; then
-            echo '{"status":"invalidated","key":"'"$key"'","reason":"source_modified"}'
+            # HIGH-004 FIX: Use jq for safe JSON generation
+            jq -n --arg status "invalidated" --arg key "$key" --arg reason "source_modified" \
+                '{status: $status, key: $key, reason: $reason}'
         fi
         return 1
     fi
@@ -412,7 +416,8 @@ cmd_get() {
         rm -f "${RESULTS_DIR}/${key}.json" 2>/dev/null
 
         if [[ "$json_output" == "true" ]]; then
-            echo '{"status":"expired","key":"'"$key"'"}'
+            # HIGH-004 FIX: Use jq for safe JSON generation
+            jq -n --arg status "expired" --arg key "$key" '{status: $status, key: $key}'
         fi
         return 1
     fi
@@ -424,7 +429,8 @@ cmd_get() {
         jq --arg key "$key" '.stats.misses += 1 | del(.entries[$key])' "$CACHE_INDEX" > "${CACHE_INDEX}.tmp" && mv "${CACHE_INDEX}.tmp" "$CACHE_INDEX"
 
         if [[ "$json_output" == "true" ]]; then
-            echo '{"status":"corrupt","key":"'"$key"'"}'
+            # HIGH-004 FIX: Use jq for safe JSON generation
+            jq -n --arg status "corrupt" --arg key "$key" '{status: $status, key: $key}'
         fi
         return 1
     fi
@@ -444,7 +450,9 @@ cmd_get() {
         rm -f "$result_file" 2>/dev/null
 
         if [[ "$json_output" == "true" ]]; then
-            echo '{"status":"corrupt","key":"'"$key"'","reason":"integrity_mismatch"}'
+            # HIGH-004 FIX: Use jq for safe JSON generation
+            jq -n --arg status "corrupt" --arg key "$key" --arg reason "integrity_mismatch" \
+                '{status: $status, key: $key, reason: $reason}'
         fi
         return 1
     fi

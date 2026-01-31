@@ -162,7 +162,8 @@ update_notes() {
   # Find the Learnings section and append after it
   # Create a temp file with the new content
   local temp_file
-  temp_file=$(mktemp)
+  temp_file=$(mktemp) || { echo "mktemp failed" >&2; return 1; }
+  chmod 600 "$temp_file"  # CRITICAL-001 FIX
   
   local in_learnings=false
   local added=false

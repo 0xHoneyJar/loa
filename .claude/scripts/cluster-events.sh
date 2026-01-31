@@ -197,7 +197,8 @@ cluster_events() {
   fi
   
   # Get events
-  local events_file=$(mktemp)
+  local events_file=$(mktemp) || { echo "[]"; return; }
+  chmod 600 "$events_file"  # CRITICAL-001 FIX
   "$reader" --days "$DAYS" --format jsonl 2>/dev/null > "$events_file" || true
   
   local event_count
@@ -210,7 +211,8 @@ cluster_events() {
   fi
   
   # Pre-compute keywords for all events
-  local keywords_file=$(mktemp)
+  local keywords_file=$(mktemp) || { rm -f "$events_file"; echo "[]"; return; }
+  chmod 600 "$keywords_file"  # CRITICAL-001 FIX
   local idx=0
   while IFS= read -r event; do
     [[ -z "$event" ]] && continue

@@ -249,6 +249,45 @@ redact_secrets() {
     fi
 
     # -------------------------------------------------------------------------
+    # HIGH-003 FIX: OpenSSH private keys (different format from PEM)
+    # -------------------------------------------------------------------------
+    if echo "$redacted" | grep -qE '-----BEGIN OPENSSH PRIVATE KEY-----'; then
+        redacted=$(echo "$redacted" | sed -E 's/-----BEGIN OPENSSH PRIVATE KEY-----[^-]*-----END OPENSSH PRIVATE KEY-----/[REDACTED:OPENSSH_KEY]/g')
+        PATTERNS_MATCHED+=("openssh_key")
+    fi
+
+    # -------------------------------------------------------------------------
+    # HIGH-003 FIX: Hex private keys (64-char hex strings that look like keys)
+    # Common in Ethereum/Web3 contexts: 0x followed by 64 hex chars
+    # -------------------------------------------------------------------------
+    if echo "$redacted" | grep -qE '0x[a-fA-F0-9]{64}'; then
+        redacted=$(echo "$redacted" | sed -E 's/0x[a-fA-F0-9]{64}/[REDACTED:HEX_KEY]/g')
+        PATTERNS_MATCHED+=("hex_private_key")
+    fi
+
+    # -------------------------------------------------------------------------
+    # HIGH-003 FIX: Base64-encoded secrets (high-entropy long strings)
+    # Target: 40+ chars of base64 that end with = or ==
+    # -------------------------------------------------------------------------
+    if echo "$redacted" | grep -qE '[A-Za-z0-9+/]{40,}={1,2}'; then
+        redacted=$(echo "$redacted" | sed -E 's/[A-Za-z0-9+/]{60,}={1,2}/[REDACTED:BASE64_SECRET]/g')
+        PATTERNS_MATCHED+=("base64_secret")
+    fi
+
+    # -------------------------------------------------------------------------
+    # HIGH-003 FIX: OAuth refresh tokens (long alphanumeric strings)
+    # Common pattern: 1//{long_alphanumeric} or ya29.{long_alphanumeric}
+    # -------------------------------------------------------------------------
+    if echo "$redacted" | grep -qE '1//[a-zA-Z0-9_-]{40,}'; then
+        redacted=$(echo "$redacted" | sed -E 's/1\/\/[a-zA-Z0-9_-]{40,}/[REDACTED:OAUTH_REFRESH]/g')
+        PATTERNS_MATCHED+=("oauth_refresh")
+    fi
+    if echo "$redacted" | grep -qE 'ya29\.[a-zA-Z0-9_-]{50,}'; then
+        redacted=$(echo "$redacted" | sed -E 's/ya29\.[a-zA-Z0-9_-]{50,}/[REDACTED:GOOGLE_ACCESS]/g')
+        PATTERNS_MATCHED+=("google_access_token")
+    fi
+
+    # -------------------------------------------------------------------------
     # Generic key/token patterns in environment variables
     # -------------------------------------------------------------------------
     if echo "$redacted" | grep -qiE '\b(key|token|secret|password|api_key|apikey|auth)=[^[:space:]]+'; then

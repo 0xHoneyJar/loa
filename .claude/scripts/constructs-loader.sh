@@ -1107,7 +1107,8 @@ query_skill_versions() {
 
     # Query the versions endpoint
     local url="${registry_url}/skills/${skill_slug}/versions"
-    curl -s --connect-timeout 5 --max-time 10 "$url" 2>/dev/null
+    # HIGH-002 FIX: Enforce HTTPS and TLS 1.2+
+    curl -s --proto =https --tlsv1.2 --connect-timeout 5 --max-time 10 "$url" 2>/dev/null
 }
 
 # Check for updates for all installed skills

@@ -237,7 +237,8 @@ fetch_source() {
     fi
 
     # ORACLE-L-2: Add --fail-with-body to properly handle HTTP errors
-    if curl -sL --fail-with-body --max-time 30 "$url" -o "$cache_file" 2>/dev/null; then
+    # HIGH-002 FIX: Enforce HTTPS and TLS 1.2+
+    if curl -sL --proto =https --tlsv1.2 --fail-with-body --max-time 30 "$url" -o "$cache_file" 2>/dev/null; then
         echo "$cache_file"
         return 0
     else

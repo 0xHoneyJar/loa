@@ -498,7 +498,8 @@ run_assertions() {
     # Extract JSON data
     local json_data
     local temp_json
-    temp_json=$(mktemp)
+    temp_json=$(mktemp) || { echo '{"error":"mktemp failed"}'; return 1; }
+    chmod 600 "$temp_json"  # CRITICAL-001 FIX
     trap "rm -f '$temp_json'" EXIT
 
     # Handle different file types
@@ -694,7 +695,8 @@ validate_file() {
     # Extract JSON data
     local json_data
     local temp_json
-    temp_json=$(mktemp)
+    temp_json=$(mktemp) || { echo '{"error":"mktemp failed"}'; return 1; }
+    chmod 600 "$temp_json"  # CRITICAL-001 FIX
     trap "rm -f '$temp_json'" EXIT
 
     # Handle different file types

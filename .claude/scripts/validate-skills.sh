@@ -122,7 +122,8 @@ for skill_dir in "$SKILLS_DIR"/*/; do
 
     # If ajv is available, run full schema validation
     if [[ "$has_ajv" == "true" ]]; then
-        temp_file=$(mktemp)
+        temp_file=$(mktemp) || { echo -e "${RED}FAIL${NC}: $skill_name - mktemp failed"; ((failed++)); continue; }
+        chmod 600 "$temp_file"  # CRITICAL-001 FIX
         echo "$json_content" > "$temp_file"
 
         ajv_output=$(ajv validate -s "$SCHEMA_FILE" -d "$temp_file" 2>&1) || {

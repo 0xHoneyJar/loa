@@ -144,8 +144,10 @@ build_set_b() {
 # Calculate Jaccard similarity
 # J(A,B) = |A ∩ B| / |A ∪ B|
 calculate_jaccard() {
-  local set_a_file=$(mktemp)
-  local set_b_file=$(mktemp)
+  local set_a_file=$(mktemp) || { echo "mktemp failed" >&2; return 1; }
+  chmod 600 "$set_a_file"  # CRITICAL-001 FIX
+  local set_b_file=$(mktemp) || { rm -f "$set_a_file"; echo "mktemp failed" >&2; return 1; }
+  chmod 600 "$set_b_file"  # CRITICAL-001 FIX
   
   build_set_a > "$set_a_file"
   build_set_b > "$set_b_file"
@@ -177,8 +179,10 @@ calculate_jaccard() {
   fi
   
   # Calculate intersection and union
-  local intersection_file=$(mktemp)
-  local union_file=$(mktemp)
+  local intersection_file=$(mktemp) || { rm -f "$set_a_file" "$set_b_file"; return 1; }
+  chmod 600 "$intersection_file"  # CRITICAL-001 FIX
+  local union_file=$(mktemp) || { rm -f "$set_a_file" "$set_b_file" "$intersection_file"; return 1; }
+  chmod 600 "$union_file"  # CRITICAL-001 FIX
   
   comm -12 "$set_a_file" "$set_b_file" > "$intersection_file"
   sort -u "$set_a_file" "$set_b_file" > "$union_file"

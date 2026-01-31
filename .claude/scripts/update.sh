@@ -115,14 +115,16 @@ get_version() {
 
 set_version() {
   local tmp
-  tmp=$(mktemp)
+  tmp=$(mktemp) || { err "mktemp failed"; return 1; }
+  chmod 600 "$tmp"  # CRITICAL-001 FIX: Restrict permissions
   _register_temp_file "$tmp"
   jq --arg k "$1" --arg v "$2" '.[$k] = $v' "$VERSION_FILE" > "$tmp" && mv "$tmp" "$VERSION_FILE"
 }
 
 set_version_int() {
   local tmp
-  tmp=$(mktemp)
+  tmp=$(mktemp) || { err "mktemp failed"; return 1; }
+  chmod 600 "$tmp"  # CRITICAL-001 FIX: Restrict permissions
   _register_temp_file "$tmp"
   jq --arg k "$1" --argjson v "$2" '.[$k] = $v' "$VERSION_FILE" > "$tmp" && mv "$tmp" "$VERSION_FILE"
 }
@@ -279,7 +281,8 @@ run_migrations() {
         log "Running migration: $mid (BLOCKING)"
         if bash "$migration"; then
           local tmp
-          tmp=$(mktemp)
+          tmp=$(mktemp) || { err "mktemp failed"; continue; }
+          chmod 600 "$tmp"  # CRITICAL-001 FIX: Restrict permissions
           trap "rm -f '$tmp'" RETURN
           jq --arg m "$mid" '.migrations_applied += [$m]' "$VERSION_FILE" > "$tmp" && mv "$tmp" "$VERSION_FILE"
           log "Migration $mid completed"
@@ -560,7 +563,8 @@ EOF
 
   # Update integrity verification timestamp
   local tmp
-  tmp=$(mktemp)
+  tmp=$(mktemp) || { err "mktemp failed"; return 1; }
+  chmod 600 "$tmp"  # CRITICAL-001 FIX: Restrict permissions
   trap "rm -f '$tmp'" RETURN
   jq '.integrity.last_verified = "'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"' "$VERSION_FILE" > "$tmp" && mv "$tmp" "$VERSION_FILE"
 
