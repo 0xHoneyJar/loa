@@ -422,6 +422,18 @@ git checkout --ours grimoires/loa/
 
 Loa Constructs is a registry for commercial skill packs that extend Loa with specialized capabilities (GTM strategy, security auditing, etc.).
 
+### Browse and Install with `/constructs` Command
+
+The easiest way to discover and install packs:
+
+```bash
+/constructs              # Browse available packs with multi-select UI
+/constructs install observer   # Install a specific pack
+/constructs list         # Show installed packs
+/constructs update       # Check for updates
+/constructs uninstall observer # Remove a pack
+```
+
 ### Authentication
 
 ```bash
@@ -431,11 +443,16 @@ export LOA_CONSTRUCTS_API_KEY="sk_your_api_key_here"
 # Option 2: Credentials file
 mkdir -p ~/.loa
 echo '{"api_key": "sk_your_api_key_here"}' > ~/.loa/credentials.json
+
+# Option 3: Interactive setup
+/constructs auth setup
 ```
 
 Contact the THJ team for API key access.
 
-### Installing Packs
+### Installing via Script (Alternative)
+
+For scripting or CI/CD, use the bash script directly:
 
 ```bash
 # Install a pack (downloads and symlinks commands)

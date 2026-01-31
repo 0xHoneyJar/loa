@@ -35,6 +35,8 @@ See **[INSTALLATION.md](INSTALLATION.md)** for detailed setup options and prereq
 
 **Ad-hoc**: `/audit`, `/translate`, `/validate`, `/compound`, `/feedback`, `/update-loa`, `/loa` (guided workflow)
 
+**Extensions**: `/constructs` (browse and install skill packs from registry)
+
 See **[PROCESS.md](PROCESS.md)** for complete workflow documentation.
 
 ## The Agents
