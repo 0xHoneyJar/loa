@@ -225,6 +225,18 @@ Agents maintain persistent working memory in `grimoires/loa/NOTES.md`:
 
 **Protocol**: See `.claude/protocols/structured-memory.md`
 
+### Attention Budget Enforcement (v1.11.0)
+
+High-search skills include `<attention_budget>` sections with:
+- Token thresholds (2K single, 5K accumulated, 15K session)
+- Skill-specific clearing triggers
+- Compliance checklists for audit-heavy operations
+- Semantic decay stages for long-running sessions
+
+**Skills with attention budgets**: auditing-security, implementing-tasks, discovering-requirements, riding-codebase, reviewing-code, planning-sprints, designing-architecture
+
+**Protocol**: See `.claude/protocols/tool-result-clearing.md`
+
 ### Lossless Ledger Protocol
 
 The "Clear, Don't Compact" paradigm for context management:
