@@ -110,7 +110,7 @@ plan_and_analyze:
 
 **Guided Workflow** (v0.21.0): `/loa` - Shows current state and suggests next command
 
-**Ad-hoc**: `/audit`, `/audit-deployment`, `/translate`, `/contribute`, `/update-loa`, `/validate`
+**Ad-hoc**: `/audit`, `/audit-deployment`, `/translate`, `/contribute`, `/update-loa`, `/validate`, `/feedback`
 
 **Run Mode**: `/run sprint-N`, `/run sprint-plan`, `/run-status`, `/run-halt`, `/run-resume`
 
@@ -607,6 +607,57 @@ export LOA_CONSTRUCTS_API_KEY="sk_your_api_key_here"
 4. Pack (`.claude/constructs/packs/.../skills/`)
 
 **Protocol**: See `.claude/protocols/constructs-integration.md`
+
+## Smart Feedback Routing (v1.11.0)
+
+The `/feedback` command now includes smart routing to the appropriate Loa ecosystem repository:
+
+| Repository | Signals | Purpose |
+|------------|---------|---------|
+| `0xHoneyJar/loa` | `.claude/`, skills, grimoires | Core framework issues |
+| `0xHoneyJar/loa-constructs` | registry, API, pack, install | Registry/API issues |
+| `0xHoneyJar/forge` | experimental, sandbox | Sandbox issues |
+| Current project | application, deployment | Project-specific |
+
+**Workflow**:
+1. Context is analyzed by `.claude/scripts/feedback-classifier.sh`
+2. AskUserQuestion presents options with recommended repo first
+3. User confirms target repository
+4. Issue created via `gh-label-handler.sh` with graceful label fallback
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+feedback:
+  routing:
+    enabled: true           # Enable smart routing
+    auto_classify: true     # Auto-detect target repo
+    require_confirmation: true  # Always confirm with user
+  labels:
+    graceful_missing: true  # Don't fail on missing labels
+```
+
+## WIP Branch Testing (v1.11.0)
+
+The `/update-loa` command supports checkout mode for testing WIP branches:
+
+```
+/update-loa feature/constructs-multiselect
+```
+
+When a feature branch is specified, AskUserQuestion offers:
+- **Checkout for testing (Recommended)** - Creates `test/loa-{branch}` for isolated testing
+- **Merge into current branch** - Traditional merge behavior
+
+**Return helper**: Running `/update-loa` while in a test branch offers return options.
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+update_loa:
+  branch_testing:
+    enabled: true
+    feature_patterns: ["feature/*", "fix/*", "topic/*", "wip/*", "test/*"]
+    test_branch_prefix: "test/loa-"
+```
 
 ## Feedback Trace Collection
 

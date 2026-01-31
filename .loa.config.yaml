@@ -982,6 +982,57 @@ autonomous_agent:
     archive_dir: grimoires/loa/archive/notes/
 
 # =============================================================================
+# Feedback Routing (v1.11.0 - Issue #81)
+# =============================================================================
+# Smart routing of /feedback submissions to appropriate ecosystem repos
+feedback:
+  routing:
+    # Master toggle - when false, feedback goes to default repo
+    enabled: true
+    # Automatically classify feedback based on context signals
+    auto_classify: true
+    # Always ask user to confirm before submitting
+    require_confirmation: true
+    # Create tracking issue in loa repo for non-loa feedback (future)
+    cross_reference: false
+
+  # Repository mapping
+  repos:
+    framework: "0xHoneyJar/loa"
+    constructs: "0xHoneyJar/loa-constructs"
+    forge: "0xHoneyJar/forge"
+    project: "${GITHUB_REPOSITORY}"  # Current repo
+
+  # Label configuration
+  labels:
+    # Don't fail if labels don't exist
+    graceful_missing: true
+    # Default labels to apply
+    default:
+      - "feedback"
+      - "user-report"
+
+# =============================================================================
+# Update-Loa Branch Testing (v1.11.0 - Issue #91)
+# =============================================================================
+# WIP branch checkout vs merge option for PR review workflows
+update_loa:
+  branch_testing:
+    # Enable checkout option for feature branches
+    enabled: true
+    # Branch patterns that trigger checkout option
+    feature_patterns:
+      - "feature/*"
+      - "fix/*"
+      - "topic/*"
+      - "wip/*"
+      - "test/*"
+    # Prefix for local test branches
+    test_branch_prefix: "test/loa-"
+    # State file location
+    state_file: ".loa/branch-testing.json"
+
+# =============================================================================
 # Behavior Preferences
 # =============================================================================
 preferences:
