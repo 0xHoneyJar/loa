@@ -49,12 +49,12 @@ if [[ "$enabled" != "true" ]]; then
 fi
 
 # GPT review is enabled - output JSON that Claude will see
-# Uses explicit Skill tool invocation pattern
+# Provides complete invocation instructions for document review
 cat << EOF
 {
   "hookSpecificOutput": {
     "hookEventName": "PostToolUse",
-    "additionalContext": "ACTION REQUIRED: You just created/modified a design document. GPT cross-model review is ENABLED. You MUST NOW use the Skill tool to invoke gpt-review with Args: ${DOC_TYPE:-document}. Do this BEFORE declaring this phase complete."
+    "additionalContext": "GPT REVIEW REQUIRED: You modified ${FILE_PATH:-a design document}. BEFORE declaring this phase complete: (1) Write /tmp/gpt-review-expertise.md with domain expertise (e.g., 'You are an expert in [domain from PRD]'), (2) Write /tmp/gpt-review-context.md with product context and review focus areas, (3) Use Skill tool: gpt-review, Args: ${DOC_TYPE}. Handle verdict: APPROVED=continue, CHANGES_REQUIRED=fix and re-review, SKIPPED=continue (disabled)."
   }
 }
 EOF

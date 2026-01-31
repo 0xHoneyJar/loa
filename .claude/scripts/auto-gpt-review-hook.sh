@@ -43,18 +43,18 @@ fi
 # GPT review is enabled - output JSON that Claude will see
 # The additionalContext field is injected into Claude's conversation context
 #
-# Policy:
-# - ONE-SHOTTING > VELOCITY: Getting code right matters more than speed
-# - WHEN UNSURE, REVIEW: If you're debating whether to skip, that's a sign to review
-# - Backend/API/security/business logic: ALWAYS review
-# - Frontend/UI: Batch multiple changes, but MUST review at feature completion
-# - Truly trivial: OK to skip (typos, log messages, comments, imports)
+# This hook provides a comprehensive but concise reminder that includes:
+# 1. The core principle (ONE-SHOTTING > VELOCITY)
+# 2. Clear criteria for when to review vs skip
+# 3. Exact invocation syntax
+# 4. Context file preparation steps
+#
 # Fixed: 2026-01-29 - Matcher changed from regex to "Edit|Write", script filters by extension
-cat << 'EOF'
+cat << EOF
 {
   "hookSpecificOutput": {
     "hookEventName": "PostToolUse",
-    "additionalContext": "Code modified. GPT review reminder: ONE-SHOTTING code is more important than velocity. If unsure whether a change needs review, USE GPT REVIEW - uncertainty is a signal. Backend/API/security/business logic = ALWAYS review. Frontend/UI = batch changes, MUST review at feature completion. OK to skip: typo fixes, log message changes, comment edits, import reordering, version bumps. When in doubt, review. Run: Skill: gpt-review, Args: code <file>"
+    "additionalContext": "GPT REVIEW CHECKPOINT: You modified ${FILE_PATH:-code}. Before proceeding to next task: (1) Write /tmp/gpt-review-expertise.md with domain expertise from PRD, (2) Write /tmp/gpt-review-context.md with product context + what this code does + acceptance criteria, (3) Use Skill tool: gpt-review, Args: code ${FILE_PATH:-<file>}. SKIP ONLY IF truly trivial (typo, log message, comment, import reorder). Backend/API/security/business logic = ALWAYS review. When uncertain, review."
   }
 }
 EOF
