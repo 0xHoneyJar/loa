@@ -1,10 +1,20 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "learnings.schema.json",
-  "title": "Learning Effectiveness Registry",
-  "description": "Schema for tracking learning applications and effectiveness feedback loop (Goal G-4)",
+  "title": "Loa Learnings Schema",
+  "description": "Schema for Loa compound learnings - patterns, gaps, and improvements discovered during development sessions. Supports both effectiveness tracking (JSON) and feedback capture (YAML).",
   "type": "object",
-  "required": ["version", "learnings"],
+  "required": ["learnings"],
+  "oneOf": [
+    {
+      "required": ["version"],
+      "description": "JSON format for learnings.json (effectiveness registry)"
+    },
+    {
+      "required": ["schema_version"],
+      "description": "YAML format for feedback/*.yaml files"
+    }
+  ],
   "properties": {
     "$schema": {
       "type": "string",
@@ -12,8 +22,23 @@
     },
     "version": {
       "type": "string",
-      "description": "Schema version",
+      "description": "Schema version (JSON format)",
       "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version (YAML format)"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of the feedback file (YYYY-MM-DD)"
+    },
+    "cycle": {
+      "type": "string",
+      "pattern": "^cycle-[0-9]+$",
+      "description": "Development cycle ID (e.g., cycle-001)"
     },
     "last_updated": {
       "type": ["string", "null"],
@@ -35,16 +60,88 @@
   "definitions": {
     "learning": {
       "type": "object",
-      "required": ["id", "source", "created", "effectiveness_score", "applications"],
+      "required": ["id"],
+      "description": "A learning entry - supports both effectiveness tracking (JSON) and feedback capture (YAML) formats",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Learning/skill identifier (matches skill name)"
+          "description": "Learning identifier (L-NNNN for feedback, skill name for effectiveness)"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the learning was captured (YAML format)"
+        },
+        "type": {
+          "type": "string",
+          "description": "Category of learning (YAML format)",
+          "enum": ["pattern", "gap", "friction", "improvement", "anti_pattern"]
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Brief title describing the learning"
+        },
+        "context": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "When/where this was discovered"
+        },
+        "trigger": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Conditions that indicate this learning applies"
+        },
+        "solution": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "The pattern/solution discovered"
+        },
+        "verified": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether the learning has been verified to work"
+        },
+        "quality_gates": {
+          "$ref": "#/definitions/quality_gates",
+          "description": "Quality assessment scores"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "description": "Relevant tags for categorization"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current status of the learning",
+          "enum": ["active", "deprecated", "superseded", "pending_review"]
+        },
+        "superseded_by": {
+          "type": "string",
+          "description": "ID of learning that supersedes this one"
+        },
+        "related": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "IDs of related learnings"
         },
         "source": {
-          "type": "string",
-          "description": "How this learning was created",
-          "enum": ["pattern", "inline_extraction", "manual", "synthesis"]
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "How this learning was created (JSON format)",
+              "enum": ["pattern", "inline_extraction", "manual", "synthesis"]
+            },
+            {
+              "$ref": "#/definitions/source_object",
+              "description": "Origin information (YAML format)"
+            }
+          ]
         },
         "source_pattern_id": {
           "type": ["string", "null"],
@@ -180,6 +277,96 @@
           "description": "User gave negative feedback (-5)"
         }
       }
+    },
+    "quality_gates": {
+      "type": "object",
+      "description": "Quality assessment scores (1-10 scale) for YAML feedback format",
+      "properties": {
+        "discovery_depth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "How deeply the learning was investigated"
+        },
+        "reusability": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "How applicable to other contexts"
+        },
+        "trigger_clarity": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "How clear the activation conditions are"
+        },
+        "verification": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "How well verified the solution is"
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_object": {
+      "type": "object",
+      "description": "Origin information for YAML feedback format",
+      "properties": {
+        "sprint": {
+          "type": "string",
+          "pattern": "^sprint-[0-9]+$",
+          "description": "Sprint where learning was discovered"
+        },
+        "task": {
+          "type": "string",
+          "pattern": "^T[0-9]+\\.[0-9]+$",
+          "description": "Task ID (e.g., T1.2)"
+        },
+        "agent": {
+          "type": "string",
+          "description": "Agent that discovered the learning"
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Claude Code session ID"
+        },
+        "file": {
+          "type": "string",
+          "description": "File where learning was applied"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Line number in file"
+        }
+      },
+      "additionalProperties": false
+    },
+    "effectiveness": {
+      "type": "object",
+      "description": "Tracking of learning application and success for YAML format",
+      "properties": {
+        "applied_count": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Number of times this learning has been applied"
+        },
+        "success_rate": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "default": 0.0,
+          "description": "Ratio of successful applications (0.0-1.0)"
+        },
+        "last_applied": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When this learning was last applied"
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

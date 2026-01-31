@@ -5,6 +5,479 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.0] - 2026-02-01 — Constructs Multi-Select UI
+
+### Why This Release
+
+The `/constructs` command brings a streamlined pack installation experience with multi-select UI. Browse the Loa Constructs Registry, select multiple packs, and install them in one flow.
+
+*"Point. Click. Install. The registry at your fingertips."*
+
+### Added
+
+#### `/constructs` Command (#88)
+
+New slash command for browsing and installing packs from the Loa Constructs Registry:
+
+```bash
+/constructs              # Browse with multi-select UI
+/constructs install <pack>   # Direct install
+/constructs list         # Show installed packs
+/constructs update       # Check for updates
+/constructs uninstall <pack> # Remove a pack
+/constructs auth         # Check auth status
+/constructs auth setup   # Configure API key
+```
+
+**Multi-Select UI**: Uses Claude Code's `AskUserQuestion` with `multiSelect: true` for intuitive pack selection:
+
+```
+Select packs to install:
+
+  [x] 🔮 Observer (6 skills) - User truth capture
+  [x] ⚗️ Crucible (5 skills) - Validation & testing
+  [ ] 🎨 Artisan (10 skills) - Brand/UI craftsmanship
+  [ ] 📣 GTM Collective (Pro) - Go-to-market skills 🔒
+
+  [Install Selected]  [Skip for Now]
+```
+
+**New Files**:
+- `.claude/commands/constructs.md` - Command definition with agent routing
+- `.claude/skills/browsing-constructs/` - Multi-select workflow skill
+- `.claude/scripts/constructs-browse.sh` - Registry API + caching (1hr TTL)
+- `.claude/scripts/constructs-auth.sh` - API key setup and validation
+
+**Authentication**: Premium packs require API key:
+```bash
+/constructs auth setup   # Interactive setup
+# Or set environment variable
+export LOA_CONSTRUCTS_API_KEY="sk_your_key"
+```
+
+### Documentation
+
+- **README.md** - Added `/constructs` to Ad-hoc commands
+- **INSTALLATION.md** - New "Browse and Install with `/constructs`" section
+
+---
+
+## [1.13.0] - 2026-02-01 — Skill Best Practices & Security Hardening
+
+### Why This Release
+
+Loa now aligns with **Vercel AI SDK** and **Anthropic tool-writing best practices** for skill definitions. This release also adds the **Anthropic Context Features** foundation (effort parameter, context editing, memory schema) and comprehensive **security hardening** of shell scripts.
+
+*"Industry-aligned skills. Fortified shell scripts. Token-efficient futures."*
+
+### Added
+
+#### Skill Best Practices Alignment (#97, #99)
+
+All 13 skills now follow Vercel AI SDK and Anthropic best practices with new schema fields:
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `effort_hint` | `low\|medium\|high` | Recommended reasoning depth |
+| `danger_level` | `safe\|moderate\|high\|critical` | Risk classification |
+| `categories` | `string[]` | Semantic groupings for search |
+| `inputExamples` | `object[]` | Native Anthropic examples |
+| `defer_loading` | `boolean` | Future deferred loading |
+
+- **New Schema**: `.claude/schemas/skill-index.schema.json` - JSON Schema 2020-12 validation
+- **Validation Script**: `.claude/scripts/validate-skills.sh` - Automated skill validation
+- **Token Budget Mapping**: `low (~4K)`, `medium (~16K)`, `high (~64K)`
+- **Canonical Categories**: planning, implementation, quality, support, operations
+
+**Sources**: [Vercel AI SDK](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling), [Anthropic Advanced Tool Use](https://anthropic.com/engineering/advanced-tool-use)
+
+#### Anthropic Context Features (#94, #95, #96, #98)
+
+Foundation for three Anthropic platform features:
+
+- **Effort Parameter** (#94): Configurable thinking budget per skill
+  - Budget ranges: low (1K-4K), medium (8K-16K), high (24K-32K)
+  - Verified: 76% token reduction (Anthropic Opus 4.5 announcement)
+
+- **Context Editing** (#95): Three-layer architecture for intelligent compaction
+  - Layers: Preserve → Cache → Compact
+  - Threshold: 80% context usage triggers compaction
+  - Verified: 84% token reduction (Claude context management blog)
+
+- **Memory Schema** (#96): Grimoire-based persistence
+  - 5 categories: fact, decision, learning, error, preference
+  - Lifecycle: active → archived → expired
+  - Location: `grimoires/loa/memory/`
+  - Verified: 39% improvement with context editing
+
+**New Files**:
+- `.claude/schemas/memory.schema.json` - Memory entry validation
+- `.claude/protocols/context-editing.md` - Three-layer architecture
+- `.claude/protocols/memory.md` - Memory lifecycle protocol
+- `docs/integration/runtime-contract.md` - Runtime integration contract
+
+### Security
+
+#### Shell Script Hardening (#99, #100, #101)
+
+Comprehensive security audit with fixes across 20+ shell scripts:
+
+| Finding | Severity | Fix |
+|---------|----------|-----|
+| CRITICAL-001 | Unsafe temp files | `mktemp + chmod 600` in 18 scripts |
+| HIGH-001 | yq injection | New `yq-safe.sh` library |
+| HIGH-002 | HTTP downgrade | `--proto =https --tlsv1.2` |
+| HIGH-003 | Secret leak | Expanded redaction patterns |
+| HIGH-004 | JSON injection | `jq -n` for generation |
+
+- **New Library**: `.claude/scripts/yq-safe.sh` - Type-safe YAML extraction
+  - `safe_yq_identifier` - Validates kebab-case names
+  - `safe_yq_version` - Validates semver format
+  - `safe_yq_enum` - Validates against allowed values
+  - `safe_yq_path/url/bool/int` - Type-specific validation
+
+- **Secret Redaction**: Now covers OpenSSH keys, hex keys (Web3), base64 secrets, OAuth tokens
+
+### Changed
+
+- **validate-skills.sh** - Now uses jq for JSON parsing with pattern validation
+- **constructs-loader.sh** - Uses safe_yq_version with fallback validation
+- **schema-validator.sh** - Added 100KB content size limit
+
+### Documentation
+
+- **CLAUDE.md** - Added Skill Best Practices section with:
+  - Token budget mapping table
+  - Canonical categories table
+  - Enforcement status (#94 runtime prep)
+
+---
+
+## [1.12.0] - 2026-02-01 — Oracle Compound Learnings
+
+### Why This Release
+
+Loa now **learns from itself**. The Oracle system has been extended to query Loa's own compound learnings alongside Anthropic documentation. This implements the recursive improvement loop: Executions → Feedback → Oracle → Skills → Executions.
+
+*"Loa should be its own oracle—teaching other agent systems how to improve based on what worked here."*
+
+### Added
+
+#### Oracle Compound Learnings (#89, #76)
+
+Extend the oracle system to query Loa's own accumulated knowledge with hierarchical source weighting.
+
+- **`query` Command** - New oracle action with scope parameter:
+  ```bash
+  # Query Loa learnings only
+  .claude/scripts/anthropic-oracle.sh query "auth token" --scope loa
+
+  # Query Anthropic docs only
+  .claude/scripts/anthropic-oracle.sh query "hooks" --scope anthropic
+
+  # Query all sources with weighted ranking
+  .claude/scripts/anthropic-oracle.sh query "patterns" --scope all
+  ```
+
+- **Hierarchical Source Weighting**:
+  | Source | Weight | Description |
+  |--------|--------|-------------|
+  | Loa Learnings | 1.0 | Skills, feedback, decisions from this repo |
+  | Anthropic Docs | 0.8 | Official Claude best practices |
+  | Community | 0.5 | External contributions |
+
+- **Loa Sources Indexed**:
+  - Skills: `.claude/skills/**/*.md`
+  - Feedback: `grimoires/loa/feedback/*.yaml`
+  - Decisions: `grimoires/loa/decisions.yaml`
+  - Learnings: `grimoires/loa/a2a/compound/learnings.json`
+
+- **`loa-learnings-index.sh`** - New indexing script (949 lines):
+  ```bash
+  # Build/update Loa learnings index
+  .claude/scripts/loa-learnings-index.sh index
+
+  # Query indexed learnings
+  .claude/scripts/loa-learnings-index.sh query "pattern"
+
+  # Show index status
+  .claude/scripts/loa-learnings-index.sh status
+  ```
+
+- **QMD Integration** - Semantic search with grep fallback:
+  - Uses QMD when available for semantic queries
+  - Falls back to grep-based keyword search
+  - Configurable via `.loa.config.yaml`
+
+- **Effectiveness Tracking** - Track learning application:
+  ```bash
+  # Track that a learning was applied
+  .claude/scripts/anthropic-oracle.sh query "pattern" --track
+  ```
+
+- **Configuration** (`.loa.config.yaml`):
+  ```yaml
+  oracle:
+    compound_learnings:
+      enabled: true
+      default_scope: "all"
+      source_weights:
+        loa_learnings: 1.0
+        anthropic_docs: 0.8
+        community: 0.5
+      index_paths:
+        skills: ".claude/skills/**/*.md"
+        feedback: "grimoires/loa/feedback/*.yaml"
+        decisions: "grimoires/loa/decisions.yaml"
+  ```
+
+- **Updated Files**:
+  - `.claude/commands/oracle-analyze.md` - Extended with query documentation
+  - `.claude/schemas/learnings.schema.json` - Expanded schema
+  - `grimoires/loa/feedback/README.md` - Feedback directory documentation
+
+### Documentation
+
+- **CLAUDE.md** - Added Oracle Compound Learnings section with:
+  - Query command usage
+  - Source weighting table
+  - Index management
+  - Configuration reference
+
+---
+
+## [1.11.0] - 2026-02-01 — Autonomous Agents & Developer Experience
+
+### Why This Release
+
+This is a **major release** with six significant features: the **Autonomous Agent Orchestra** (#82) for end-to-end workflow automation, **LLM-as-Judge** (#69) structured evaluation for auditors, **Adversarial Critic Protocol** (#85) for rigorous code reviews, **Decision Lineage Schema** (#86) for tracking architectural decisions, **Smart Feedback Routing** (#81) for ecosystem-aware issue routing, and **WIP Branch Testing** (#91) for safe framework updates. Plus comprehensive **security hardening** and **attention budget enforcement** (#83) across all skills.
+
+*"The orchestra plays. The agents review. The decisions persist."*
+
+### Added
+
+#### Autonomous Agent Orchestra (#82)
+
+Meta-orchestrator skill for exhaustive Loa process compliance with 8-phase execution model.
+
+- **`/autonomous` command** - End-to-end autonomous workflow
+  - Phase 1: Initialization & context loading
+  - Phase 2: PRD discovery & requirements
+  - Phase 3: Architecture design
+  - Phase 4: Sprint planning
+  - Phase 5: Implementation cycles
+  - Phase 6: Review & audit loops
+  - Phase 7: Deployment preparation
+  - Phase 8: Completion & learning extraction
+
+- **Operator Detection** - Identifies workflow context and adapts behavior
+- **Quality Gates** - Configurable checkpoints between phases
+- **Escalation Templates** - Structured handoff when human intervention needed
+
+- **New Skill**: `.claude/skills/autonomous-agent/`
+  - `index.yaml` - Skill metadata
+  - `SKILL.md` - 8-phase execution model
+  - Resources: operator-detection, phase-checklist, quality-gates
+
+#### LLM-as-Judge Auditor Enhancement (#69)
+
+Structured evaluation rubrics with machine-parseable output for the auditing-security skill.
+
+- **23 Scoring Dimensions** across 5 categories:
+  - Security (injection, auth, crypto, data protection)
+  - Architecture (coupling, scalability, resilience)
+  - Code Quality (complexity, testing, documentation)
+  - Operations (logging, monitoring, deployment)
+  - Compliance (privacy, licensing, accessibility)
+
+- **Output Schema** - JSONL format with reasoning traces
+- **New Resources**:
+  - `RUBRICS.md` - 23 evaluation dimensions
+  - `OUTPUT-SCHEMA.md` - JSONL schema specification
+
+#### Adversarial Critic Protocol (#85)
+
+Enhances code reviews with adversarial analysis that challenges assumptions and identifies edge cases.
+
+- **Structured Adversarial Sections**:
+  - Concerns identified
+  - Assumptions challenged
+  - Alternatives not considered
+  - Adversarial verdict
+
+- **Review Template** - `reviewing-code/resources/templates/review-feedback.md`
+
+#### Decision Lineage Schema (#86)
+
+Track architectural decisions with full lineage - why decisions were made, alternatives considered, and connections to requirements.
+
+- **Decision Record Structure**:
+  ```yaml
+  decisions:
+    - id: DEC-001
+      title: "Decision title"
+      context: "Why this decision was needed"
+      options: [{ name: "Option A", pros: [...], cons: [...] }]
+      chosen: "Option A"
+      rationale: "Why this option was chosen"
+      supersedes: null  # Links to previous decisions
+  ```
+
+- **New Files**:
+  - `.claude/schemas/decisions.schema.json` - JSON schema
+  - `.claude/protocols/decision-capture.md` - Capture protocol
+  - `docs/architecture/decision-lineage.md` - Documentation
+
+#### Attention Budget Enforcement (#83)
+
+Tool Result Clearing attention budgets added to all 7 search-heavy skills.
+
+- **Token Thresholds**:
+  | Context Type | Limit | Action |
+  |--------------|-------|--------|
+  | Single search result | 2,000 tokens | Apply 4-step clearing |
+  | Accumulated results | 5,000 tokens | MANDATORY clearing |
+  | Full file load | 3,000 tokens | Synthesize immediately |
+  | Session total | 15,000 tokens | STOP, synthesize to NOTES.md |
+
+- **Skills Updated**: `auditing-security`, `implementing-tasks`, `discovering-requirements`, `riding-codebase`, `reviewing-code`, `planning-sprints`, `designing-architecture`
+
+#### Smart Feedback Routing (#81, #93)
+
+Context-aware routing for the `/feedback` command to direct issues to the correct ecosystem repository.
+
+- **`feedback-classifier.sh`** - Context classification engine
+  - Signal-based scoring with weights for different patterns
+  - Confidence calculation for routing decisions
+  - Categories: `loa_framework`, `loa_constructs`, `forge`, `project`
+
+- **Ecosystem Routing** - Routes to appropriate repo based on context:
+  | Repo | Signals |
+  |------|---------|
+  | `0xHoneyJar/loa` | `.claude/`, `grimoires/`, `skill`, `protocol`, `PRD`, `SDD` |
+  | `0xHoneyJar/loa-constructs` | `registry`, `API`, `endpoint`, `pack`, `constructs` |
+  | `0xHoneyJar/forge` | `experimental`, `sandbox`, `WIP`, `draft` |
+  | project-specific | `deployment`, `infra`, `application`, `app` |
+
+- **AskUserQuestion Integration** - Per Anthropic best practices (#90):
+  - Recommended option appears first with "(Recommended)" suffix
+  - Headers under 12 characters for chip display
+  - Descriptions explain trade-offs
+
+- **`gh-label-handler.sh`** - Graceful label handling
+  - Retries without labels if "label not found" error
+  - Prevents single missing label from blocking feedback
+
+#### WIP Branch Testing (#91, #93)
+
+Test Loa framework updates on feature branches before merging to your working branch.
+
+- **Branch Mode Selection** - When `/update-loa` detects a feature branch:
+  - Option 1: "Checkout for testing (Recommended)" - Creates `test/loa-*` branch
+  - Option 2: "Merge into current branch" - Existing behavior
+
+- **`branch-state.sh`** - State management for test branches
+  - Saves original branch for return flow
+  - Commands: `save`, `load`, `clear`, `is-testing`
+  - State file: `.loa/branch-testing.json`
+
+- **Return Helper** - When on `test/loa-*` branch:
+  - Return to original branch
+  - Stay on test branch
+  - Merge test branch into original
+
+- **Configurable Patterns** - Feature branch detection:
+  ```yaml
+  update_loa:
+    branch_testing:
+      enabled: true
+      feature_patterns: ["feature/*", "fix/*", "topic/*", "wip/*", "test/*"]
+      test_branch_prefix: "test/loa-"
+  ```
+
+#### Security Hardening (#93)
+
+Comprehensive security improvements based on code audit findings.
+
+- **`security-validators.sh`** - Reusable validation library (452 lines)
+  - `validate_safe_path()` - Path validation with symlink resolution
+  - `validate_config_path()` - Config path validation (no traversal)
+  - `validate_numeric()` / `validate_float()` - Numeric validation with bounds
+  - `validate_boolean()` - Boolean normalization
+  - `validate_repo_url()` - GitHub repo URL format validation
+  - `safe_rm_rf()` - Boundary-checked rm -rf with symlink protection
+  - `safe_config_*()` - Safe config extraction wrappers
+
+- **HIGH-001 Fix** - Regex injection prevention in `feedback-classifier.sh`
+  - Use `printf '%s'` instead of `echo` for user content
+  - Add `--` before grep patterns to prevent option injection
+
+- **MEDIUM-001 Fix** - Absolute path resolution in `branch-state.sh`
+  - `find_project_root()` resolves state directory from project root
+  - Prevents state file writes to unintended locations
+
+- **MEDIUM-003 Fix** - Safe rm -rf in `cleanup-context.sh`
+  - Replaced vulnerable `find -exec rm -rf {}` pattern
+  - Added symlink resolution with `pwd -P`
+  - Added boundary check after resolution
+
+- **MEDIUM-004 Fix** - jq/yq output sanitization
+  - `qmd-sync.sh`: Validates boolean, binary name, and path configs
+  - `compact-trajectory.sh`: Validates numeric configs with bounds
+  - Rejects traversal sequences, absolute paths, shell metacharacters
+
+### Changed
+
+- **`/feedback` command** - Now v2.1.0 with smart routing
+- **`/update-loa` command** - Now v1.2.0 with WIP branch testing
+- **7 skills** - Added attention budget sections with token thresholds
+- **CLAUDE.md** - Added documentation for all new features
+
+### New Commands
+
+| Command | Description |
+|---------|-------------|
+| `/autonomous` | End-to-end autonomous workflow execution |
+
+### Configuration
+
+New sections in `.loa.config.yaml`:
+
+```yaml
+# Smart Feedback Routing
+feedback:
+  routing:
+    enabled: true
+    auto_classify: true
+    require_confirmation: true
+  repos:
+    framework: "0xHoneyJar/loa"
+    constructs: "0xHoneyJar/loa-constructs"
+    forge: "0xHoneyJar/forge"
+    project: "${GITHUB_REPOSITORY}"
+  labels:
+    graceful_missing: true
+    default: ["feedback", "user-report"]
+
+# WIP Branch Testing
+update_loa:
+  branch_testing:
+    enabled: true
+    feature_patterns: ["feature/*", "fix/*", "topic/*", "wip/*", "test/*"]
+    test_branch_prefix: "test/loa-"
+```
+
+### New Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `feedback-classifier.sh` | Context-based routing classification |
+| `gh-label-handler.sh` | Graceful GitHub label handling |
+| `branch-state.sh` | WIP branch testing state management |
+| `security-validators.sh` | Reusable security validation utilities |
+
+---
+
 ## [1.10.0] - 2026-01-30 — Compound Learning & Visual Communication
 
 ### Why This Release

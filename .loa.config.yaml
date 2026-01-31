@@ -790,6 +790,59 @@ visual_communication:
     er: true
 
 # =============================================================================
+# Oracle Configuration (v1.11.0)
+# =============================================================================
+# Extended oracle with Loa compound learnings support (Issue #76)
+oracle:
+  # -------------------------------------------------------------------------
+  # Source Weights (Hierarchical)
+  # -------------------------------------------------------------------------
+  # Results are ranked by weighted_score = match_score * source_weight
+  weights:
+    loa: 1.0         # Highest priority - Loa's own proven patterns
+    anthropic: 0.8   # Authoritative - Anthropic official documentation
+    community: 0.5   # Useful but less verified community contributions
+
+  # -------------------------------------------------------------------------
+  # Loa Source Configuration
+  # -------------------------------------------------------------------------
+  # Sources for Loa's compound learnings
+  loa_sources:
+    skills:
+      enabled: true
+      paths: [".claude/skills/**/*.md"]
+    feedback:
+      enabled: true
+      paths: ["grimoires/loa/feedback/*.yaml"]
+    decisions:
+      enabled: true
+      paths: ["grimoires/loa/decisions.yaml"]
+    learnings:
+      enabled: true
+      paths: ["grimoires/loa/a2a/compound/learnings.json"]
+
+  # -------------------------------------------------------------------------
+  # Index Settings
+  # -------------------------------------------------------------------------
+  index:
+    # Auto-refresh index after N hours (0 = manual only)
+    auto_refresh_hours: 24
+    # Cache directory for index files
+    cache_dir: "~/.loa/cache/oracle"
+
+  # -------------------------------------------------------------------------
+  # Query Settings
+  # -------------------------------------------------------------------------
+  query:
+    # Default indexer: auto (use QMD if available, fallback to grep)
+    # Options: auto | qmd | grep
+    default_indexer: auto
+    # Default result limit
+    default_limit: 10
+    # Default scope when not specified: all | loa | anthropic
+    default_scope: all
+
+# =============================================================================
 # Autonomous Agent Orchestration (v1.11.0)
 # =============================================================================
 # Meta-orchestrator for exhaustive Loa process compliance
@@ -904,6 +957,297 @@ autonomous_agent:
     auto_cleanup: false
     # Archive location for cleaned notes
     archive_dir: grimoires/loa/archive/notes/
+
+# =============================================================================
+# Feedback Routing (v1.11.0 - Issue #81)
+# =============================================================================
+# Smart routing of /feedback submissions to appropriate ecosystem repos
+feedback:
+  routing:
+    # Master toggle - when false, feedback goes to default repo
+    enabled: true
+    # Automatically classify feedback based on context signals
+    auto_classify: true
+    # Always ask user to confirm before submitting
+    require_confirmation: true
+    # Create tracking issue in loa repo for non-loa feedback (future)
+    cross_reference: false
+
+  # Repository mapping
+  repos:
+    framework: "0xHoneyJar/loa"
+    constructs: "0xHoneyJar/loa-constructs"
+    forge: "0xHoneyJar/forge"
+    project: "${GITHUB_REPOSITORY}"  # Current repo
+
+  # Label configuration
+  labels:
+    # Don't fail if labels don't exist
+    graceful_missing: true
+    # Default labels to apply
+    default:
+      - "feedback"
+      - "user-report"
+
+# =============================================================================
+# Update-Loa Branch Testing (v1.11.0 - Issue #91)
+# =============================================================================
+# WIP branch checkout vs merge option for PR review workflows
+update_loa:
+  branch_testing:
+    # Enable checkout option for feature branches
+    enabled: true
+    # Branch patterns that trigger checkout option
+    feature_patterns:
+      - "feature/*"
+      - "fix/*"
+      - "topic/*"
+      - "wip/*"
+      - "test/*"
+    # Prefix for local test branches
+    test_branch_prefix: "test/loa-"
+    # State file location
+    state_file: ".loa/branch-testing.json"
+
+# =============================================================================
+# Effort Parameter (v1.13.0 - Issue #94)
+# =============================================================================
+# Control reasoning depth vs token efficiency for extended thinking
+# Based on Anthropic's effort parameter: https://www.anthropic.com/news/claude-opus-4-5
+#
+# IMPORTANT: The actual API uses `thinking.budget_tokens` (integer), not named effort levels.
+# These conceptual levels map to budget_tokens ranges that runtimes should use.
+# Loa defines the WHAT (conceptual levels, skill hints); runtime executes the HOW (API calls).
+#
+# Performance claims (Anthropic benchmarks):
+# - Medium effort: 76% fewer output tokens with equivalent quality on SWE-bench
+# - High effort: 48% fewer tokens while exceeding Sonnet 4.5 by 4.3 percentage points
+effort:
+  # Default effort level for all skills
+  # Options: low | medium | high
+  # - low: Minimal reasoning, fastest response (~1,024-4,000 budget_tokens)
+  # - medium: Balanced quality/cost (~8,000-16,000 budget_tokens) [RECOMMENDED]
+  # - high: Maximum reasoning depth (~24,000-32,000 budget_tokens)
+  default_level: medium
+
+  # Budget token ranges for each effort level (runtime uses these)
+  # NOTE: Gaps between ranges (4K-8K, 16K-24K) are intentional separation zones.
+  # Skills wanting intermediate budgets should use the higher level.
+  # Example: 6K tokens → use "medium" (min 8K)
+  budget_ranges:
+    low:
+      min: 1024
+      max: 4000
+    medium:
+      min: 8000
+      max: 16000
+    high:
+      min: 24000
+      max: 32000
+
+  # Per-skill effort overrides
+  # Skills can declare their recommended effort in SKILL.md frontmatter
+  per_skill:
+    # Security audits need deep reasoning for vulnerability analysis
+    auditing-security: high
+    # Architecture decisions benefit from thorough analysis
+    designing-architecture: high
+    # Code review should be thorough but not exhaustive
+    reviewing-code: medium
+    # Implementation is balanced
+    implementing-tasks: medium
+    # Sprint planning needs good analysis
+    planning-sprints: medium
+    # PRD discovery benefits from depth
+    discovering-requirements: medium
+    # Executive translation is simpler summarization
+    translating-for-executives: low
+
+  # AI operator adjustment (when autonomous_agent.operator.type = ai)
+  # AI operators may use lower effort by default to conserve tokens
+  ai_operator_adjustment:
+    enabled: true
+    # Reduce effort level by this amount for AI operators
+    # 0 = no reduction, 1 = reduce by one level, 2 = always use low
+    reduction: 0
+
+# =============================================================================
+# Context Editing Protocol (v1.13.0 - Issue #95)
+# =============================================================================
+# Auto-compaction protocol for long-running agentic workflows
+# Based on Anthropic's context editing: https://claude.com/blog/context-management
+#
+# IMPORTANT: Actual context editing is a runtime/API feature (beta header: context-management-2025-06-27).
+# Loa defines WHAT to compact and WHEN (thresholds, priorities).
+# Runtime layer executes HOW (actual token counting, API calls).
+#
+# Performance claims (Anthropic benchmarks):
+# - 84% token reduction in 100-turn web search evaluation
+# - 29% improvement from context editing alone
+# - Enables workflows that would otherwise fail due to context exhaustion
+context_editing:
+  # Master toggle for context editing protocol
+  enabled: true
+
+  # Trigger compaction when context reaches this % of limit
+  # Runtime should signal CONTEXT_NEAR_LIMIT when this threshold is reached
+  compact_threshold_percent: 80
+
+  # Minimum turns to preserve (recent context stays intact)
+  preserve_recent_turns: 5
+
+  # What to clear (priority order, lowest priority cleared first)
+  clear_targets:
+    - stale_tool_results        # Old tool call results
+    - completed_phase_details   # Details from finished phases
+    - superseded_file_reads     # Files that were re-read with newer content
+    - intermediate_outputs      # Temporary/intermediate results
+    - verbose_debug             # Debug logs and verbose output
+
+  # Phase-based clearing triggers
+  # Clear after these phases complete (for autonomous agent)
+  clear_after_phases:
+    - initialization    # Phase 1: After init complete
+    - implementation    # Phase 5: After code written
+    - testing           # Phase 6: After tests pass
+
+  # Artifacts to always preserve (never clear)
+  preserve_artifacts:
+    - trajectory_events         # Audit trail
+    - quality_gate_results      # Gate decisions
+    - decision_records          # Architecture decisions
+    - notes_session_continuity  # Recovery anchor
+    - active_beads              # Current task state
+
+  # Runtime integration signals
+  # These are hints for runtime implementations
+  runtime_signals:
+    # Signal name when context approaches limit
+    context_near_limit: "CONTEXT_NEAR_LIMIT"
+    # Signal name when compaction is complete
+    compaction_complete: "COMPACTION_COMPLETE"
+    # Token threshold percentage that triggers the signal
+    signal_threshold_percent: 80
+
+# =============================================================================
+# Skills Configuration (v1.14.0 - Issue #97)
+# =============================================================================
+# Skill loading and categorization settings.
+# Based on Vercel AI SDK and Anthropic tool-writing best practices.
+#
+# NOTE: defer_loading is configuration preparation only.
+# Actual deferred loading requires runtime implementation (Phase 2).
+skills:
+  # Master toggle for deferred loading (disabled by default)
+  # When true, skills with defer_loading: true are loaded on-demand
+  defer_loading: false
+
+  # Skills that are NEVER deferred (always loaded)
+  always_load:
+    - autonomous-agent
+    - run-mode
+
+  # Semantic categories for skill search
+  # Used by future skill search implementation
+  categories:
+    planning:
+      - discovering-requirements
+      - planning-sprints
+      - designing-architecture
+    implementation:
+      - implementing-tasks
+      - deploying-infrastructure
+    quality:
+      - reviewing-code
+      - auditing-security
+    support:
+      - translating-for-executives
+      - continuous-learning
+    operations:
+      - autonomous-agent
+      - run-mode
+      - riding-codebase
+      - mounting-framework
+
+# =============================================================================
+# Memory Schema (v1.13.0 - Issue #96)
+# =============================================================================
+# Formalized memory persistence with lifecycle management
+# Based on Anthropic's memory tool concept: https://claude.com/blog/context-management
+#
+# IMPORTANT: This is Loa's grimoire-based memory system, NOT Anthropic's memory tool API.
+# Anthropic's memory tool operates via tool calls to a memory directory.
+# Loa's system uses grimoire files (decisions.yaml, learnings.json, NOTES.md).
+# Both achieve similar goals: persistent cross-session knowledge.
+#
+# Performance claims (Anthropic benchmarks):
+# - 39% performance improvement combining memory with context editing
+# - Enables building knowledge bases that persist across conversations
+memory_schema:
+  # Master toggle for formalized memory schema
+  enabled: true
+
+  # Storage directory for memory files
+  storage_dir: grimoires/loa/memory
+
+  # Memory categories with their characteristics
+  categories:
+    # Stable facts about the project (rarely change)
+    fact:
+      ttl: permanent
+      confidence_required: 0.8
+      storage_file: facts.yaml
+    # Architecture/implementation decisions (supersedable)
+    decision:
+      ttl: permanent
+      confidence_required: 0.9
+      storage_file: decisions.yaml  # Already exists, formalize it
+    # Extracted patterns from experience
+    learning:
+      ttl: 90d  # Learnings can become stale
+      confidence_required: 0.7
+      storage_file: learnings.yaml
+    # Error-solution pairs for debugging
+    error:
+      ttl: 30d  # Errors are context-specific
+      confidence_required: 0.6
+      storage_file: errors.yaml
+    # User/project preferences
+    preference:
+      ttl: permanent
+      confidence_required: 0.5
+      storage_file: preferences.yaml
+
+  # Auto-capture from existing systems
+  auto_capture:
+    # Capture from decision protocol (PR #86)
+    decisions: true
+    # Capture error-solution pairs during implementation
+    errors: true
+    # Capture from compound learning (PR #67)
+    learnings: true
+
+  # Retrieval settings
+  retrieval:
+    # Maximum memories to return per query
+    max_per_query: 10
+    # Minimum confidence score for retrieval
+    min_confidence: 0.6
+    # Prefer recent memories (recency weighting)
+    recency_weight: 0.2
+    # Integration with oracle queries
+    integrate_with_oracle: true
+
+  # Lifecycle management
+  lifecycle:
+    # Auto-archive expired memories
+    auto_archive: true
+    # Archive directory
+    archive_dir: grimoires/loa/memory/archive
+    # Check for expiry on session start
+    check_on_session_start: true
+    # Warn before archiving (days before TTL)
+    warn_before_archive_days: 7
 
 # =============================================================================
 # Behavior Preferences

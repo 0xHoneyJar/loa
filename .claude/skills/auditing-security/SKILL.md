@@ -397,6 +397,115 @@ Key sections:
 - Verdict and Next Steps
 </output_format>
 
+<rubric_scoring>
+## Rubric-Based Scoring (LLM-as-Judge Enhancement)
+
+**Reference**: `resources/RUBRICS.md`
+
+For each audit category, score each dimension 1-5 using the defined rubrics:
+
+### Security Category
+- SEC-IV: Input Validation
+- SEC-AZ: Authorization
+- SEC-CI: Confidentiality/Integrity
+- SEC-IN: Injection Prevention
+- SEC-AV: Availability/Resilience
+
+### Architecture Category
+- ARCH-MO: Modularity
+- ARCH-SC: Scalability
+- ARCH-RE: Resilience
+- ARCH-CX: Complexity
+- ARCH-ST: Standards Compliance
+
+### Code Quality Category
+- CQ-RD: Readability
+- CQ-TC: Test Coverage
+- CQ-EH: Error Handling
+- CQ-TS: Type Safety
+- CQ-DC: Documentation
+
+### DevOps Category
+- DO-AU: Automation
+- DO-OB: Observability
+- DO-RC: Recovery
+- DO-AC: Access Control
+- DO-DS: Deployment Safety
+
+### Scoring Process
+1. For each dimension, assess against rubric criteria
+2. Assign score 1-5 with explicit reasoning
+3. Record findings that justify the score
+4. Calculate category average (rounded to 1 decimal)
+5. Calculate overall weighted score:
+   - Security: 30%
+   - Architecture: 20%
+   - Code Quality: 20%
+   - DevOps: 20%
+   - Blockchain: 10% (if applicable)
+</rubric_scoring>
+
+<structured_output>
+## Structured JSONL Output
+
+**Reference**: `resources/OUTPUT-SCHEMA.md`
+
+Generate machine-parseable findings alongside markdown report:
+
+**Output File**: `grimoires/loa/a2a/audits/YYYY-MM-DD/findings.jsonl`
+
+### For Each Finding
+
+Generate a JSONL record with:
+```json
+{
+  "id": "SEC-001",
+  "category": "security",
+  "criterion": "input_validation",
+  "severity": "HIGH",
+  "score": 2,
+  "file": "src/path/to/file.ts",
+  "line": 42,
+  "reasoning_trace": "How the issue was discovered...",
+  "finding": "Description of the issue",
+  "critique": "Specific guidance for improvement",
+  "remediation": "Exact fix with code example",
+  "confidence": "high",
+  "references": ["CWE-89", "OWASP-A03"]
+}
+```
+
+### Reasoning Trace Requirements
+
+Each finding MUST include a `reasoning_trace` explaining:
+1. What code/files were analyzed
+2. What patterns triggered the finding
+3. Evidence chain from input to vulnerability
+4. Why this score was assigned
+
+**Example reasoning_trace**:
+```
+"Traced user input from req.params.userId at controllers/user.ts:23 through 
+to database query at repositories/user.ts:42. Found string interpolation 
+bypassing ORM parameterization. Confirmed exploitable via payload: ' OR 1=1--"
+```
+
+### Summary Record
+
+After all findings, append a summary:
+```json
+{
+  "type": "summary",
+  "timestamp": "ISO-8601",
+  "category_scores": {"security": 3.2, "architecture": 4.1, ...},
+  "overall_score": 3.8,
+  "risk_level": "MODERATE",
+  "total_findings": {"CRITICAL": 0, "HIGH": 2, "MEDIUM": 5, ...},
+  "verdict": "CHANGES_REQUIRED"
+}
+```
+</structured_output>
+
 <success_criteria>
 - **Specific**: Every finding has file:line reference
 - **Measurable**: Zero false positives for CRITICAL severity

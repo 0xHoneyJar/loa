@@ -322,7 +322,8 @@ fetch_latest_release() {
     local api_url="https://api.github.com/repos/$owner/$repo/releases/latest"
 
     local response
-    response=$(curl -sL \
+    # HIGH-002 FIX: Enforce HTTPS and TLS 1.2+
+    response=$(curl -sL --proto =https --tlsv1.2 \
         -H "Accept: application/vnd.github+json" \
         --max-time 5 \
         "$api_url" 2>/dev/null) || {

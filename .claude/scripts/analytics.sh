@@ -82,7 +82,8 @@ update_analytics_field() {
 
     if command -v jq &>/dev/null; then
         local tmp
-        tmp=$(mktemp)
+        tmp=$(mktemp) || { return 1; }
+        chmod 600 "$tmp"  # CRITICAL-001 FIX: Restrict permissions
         trap "rm -f '$tmp'" EXIT
         jq "$field = $value" "$file" > "$tmp" && mv "$tmp" "$file"
         trap - EXIT  # Clear trap after successful move

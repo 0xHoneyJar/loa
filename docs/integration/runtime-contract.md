@@ -360,8 +360,101 @@ cat .loa-checkpoint/context-state.yaml
 | Aider | Full | Manual | Manual | Manual |
 | Custom | Implement | Implement | Implement | Implement |
 
+## Anthropic Context Features (v1.13.0)
+
+### Effort Parameter
+
+Runtimes should read effort configuration from `.loa.config.yaml` and pass to API:
+
+```typescript
+interface EffortConfig {
+  default_level: "low" | "medium" | "high";
+  budget_ranges: {
+    low: { min: number; max: number };
+    medium: { min: number; max: number };
+    high: { min: number; max: number };
+  };
+  per_skill: Record<string, "low" | "medium" | "high">;
+}
+
+// Read config and determine effective budget
+function getEffortBudget(skillName: string, config: EffortConfig): number {
+  const level = config.per_skill[skillName] || config.default_level;
+  const range = config.budget_ranges[level];
+  return range.max; // or use midpoint: (range.min + range.max) / 2
+}
+
+// Pass to API
+const request = {
+  model: "claude-opus-4-5",
+  thinking: {
+    budget_tokens: getEffortBudget("auditing-security", config)
+  },
+  // ... other params
+};
+```
+
+### Context Editing Signals
+
+Runtime should emit signals when context thresholds are reached:
+
+```typescript
+interface ContextEditingConfig {
+  enabled: boolean;
+  compact_threshold_percent: number;
+  preserve_recent_turns: number;
+  clear_targets: string[];
+  preserve_artifacts: string[];
+}
+
+// Signal when threshold reached
+interface ContextNearLimitSignal {
+  type: "CONTEXT_NEAR_LIMIT";
+  current_tokens: number;
+  limit_tokens: number;
+  percent_used: number;
+}
+
+// Loa responds with compaction request
+interface CompactionRequest {
+  type: "COMPACTION_REQUEST";
+  clear_targets: string[];
+  preserve: string[];
+}
+
+// Runtime confirms completion
+interface CompactionCompleteSignal {
+  type: "COMPACTION_COMPLETE";
+  tokens_freed: number;
+  items_cleared: number;
+  new_percent: number;
+}
+```
+
+**API Integration**: Use beta header `context-management-2025-06-27` for context editing features.
+
+### Memory Schema
+
+Memory persistence is Loa's responsibility (grimoire files), but runtime may:
+
+1. **Read** memories from `grimoires/loa/memory/*.yaml` on session start
+2. **Validate** entries against `.claude/schemas/memory.schema.json`
+3. **Surface** relevant memories during retrieval operations
+
+Memory files follow the schema at `.claude/schemas/memory.schema.json`.
+
+### Graceful Degradation
+
+When features are disabled (default), runtimes should:
+
+- **Effort**: Use model default (no `thinking.budget_tokens`)
+- **Context Editing**: Standard context management (no compaction signals)
+- **Memory**: Ignore memory directory (file operations are optional)
+
 ## Related Documents
 
 - [Separation of Concerns](../architecture/separation-of-concerns.md) - Layer model
 - [Quality Gates](../../.claude/skills/autonomous-agent/resources/quality-gates.md) - Gate implementation
 - [Checkpoint Protocol](../../.claude/protocols/checkpoint-and-compact.md) - Checkpoint details
+- [Context Editing Protocol](../../.claude/protocols/context-editing.md) - Compaction policies
+- [Memory Protocol](../../.claude/protocols/memory.md) - Memory lifecycle

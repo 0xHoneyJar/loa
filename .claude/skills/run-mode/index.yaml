@@ -1,8 +1,28 @@
 # Run Mode Skill
 # Autonomous implementation with human-in-the-loop at PR review
 name: run-mode
-version: "1.0.0"
+version: "1.1.0"
 description: "Autonomous sprint execution with safety controls"
+
+# v1.14.0: Skill best practices (Issue #97)
+effort_hint: medium
+danger_level: high
+categories:
+  - operations
+
+# v1.14.0: Native Anthropic input examples
+inputExamples:
+  - input:
+      target: "sprint-1"
+    description: "Run single sprint autonomously"
+  - input:
+      target: "sprint-plan"
+    description: "Execute all sprints in sequence"
+  - input:
+      target: "sprint-2"
+      max_cycles: 10
+      timeout_hours: 4
+    description: "Run sprint with custom limits"
 
 # Skill triggers
 triggers:

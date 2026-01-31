@@ -453,14 +453,16 @@ do_install_pack() {
     local response
     local http_code
     local tmp_file
-    tmp_file=$(mktemp)
+    tmp_file=$(mktemp) || { print_error "mktemp failed"; return 1; }
+    chmod 600 "$tmp_file"  # CRITICAL-001 FIX
 
     # Disable command tracing during API call to prevent key leakage
     { set +x; } 2>/dev/null || true
 
     # Use environment variable instead of process substitution for security
     local auth_header="Authorization: Bearer $api_key"
-    http_code=$(curl -s -w "%{http_code}" --max-time 300 \
+    # HIGH-002 FIX: Enforce HTTPS and TLS 1.2+
+    http_code=$(curl -s -w "%{http_code}" --proto =https --tlsv1.2 --max-time 300 \
         -H "$auth_header" \
         -H "Accept: application/json" \
         "$registry_url/packs/$pack_slug/download" \
@@ -781,15 +783,17 @@ do_install_skill() {
     # Download skill
     local http_code
     local tmp_file
-    tmp_file=$(mktemp)
+    tmp_file=$(mktemp) || { print_error "mktemp failed"; return 1; }
+    chmod 600 "$tmp_file"  # CRITICAL-001 FIX
 
     # Disable command tracing during API call to prevent key leakage
     { set +x; } 2>/dev/null || true
 
-    # Use local variable instead of process substitution for security
+    # Use local variable instead of process substitution for security (MED-002)
     # Process substitution creates a temporary file descriptor readable by other processes
     local auth_header="Authorization: Bearer $api_key"
-    http_code=$(curl -s -w "%{http_code}" --max-time 300 \
+    # HIGH-002 FIX: Enforce HTTPS and TLS 1.2+
+    http_code=$(curl -s -w "%{http_code}" --proto =https --tlsv1.2 --max-time 300 \
         -H "$auth_header" \
         -H "Accept: application/json" \
         "$registry_url/skills/$skill_slug/download" \

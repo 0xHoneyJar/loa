@@ -210,7 +210,8 @@ do_get_public_key() {
     fi
 
     local response
-    response=$(curl -sf "${registry_url}/public-keys/${key_id}" 2>/dev/null) || {
+    # HIGH-002 FIX: Enforce HTTPS and TLS 1.2+
+    response=$(curl -sf --proto =https --tlsv1.2 "${registry_url}/public-keys/${key_id}" 2>/dev/null) || {
         # Network error - try to use stale cache
         if [[ -f "$key_file" ]]; then
             echo "WARNING: Using stale cached key (network error)" >&2
@@ -260,11 +261,14 @@ verify_signature_openssl() {
     signing_input=$(jwt_get_signing_input "$jwt")
 
     local signature_file
-    signature_file=$(mktemp)
+    signature_file=$(mktemp) || { echo "mktemp failed" >&2; return 1; }
+    chmod 600 "$signature_file"  # CRITICAL-001 FIX
     local input_file
-    input_file=$(mktemp)
+    input_file=$(mktemp) || { rm -f "$signature_file"; echo "mktemp failed" >&2; return 1; }
+    chmod 600 "$input_file"  # CRITICAL-001 FIX
     local key_file
-    key_file=$(mktemp)
+    key_file=$(mktemp) || { rm -f "$signature_file" "$input_file"; echo "mktemp failed" >&2; return 1; }
+    chmod 600 "$key_file"  # CRITICAL-001 FIX
 
     # Clean up on exit
     trap "rm -f '$signature_file' '$input_file' '$key_file'" EXIT

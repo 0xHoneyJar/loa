@@ -215,6 +215,13 @@ extract_frontmatter() {
         return 1
     fi
 
+    # HIGH-001 fix: Limit content size to prevent DoS
+    local max_content_size="${MAX_YAML_SIZE:-100000}"  # 100KB default
+    if [[ ${#content} -gt $max_content_size ]]; then
+        print_error "YAML content exceeds maximum size ($max_content_size bytes)"
+        return 1
+    fi
+
     # Convert YAML to JSON using yq if available, otherwise try python
     if command -v yq &>/dev/null; then
         echo "$content" | yq -o=json '.'
@@ -498,7 +505,8 @@ run_assertions() {
     # Extract JSON data
     local json_data
     local temp_json
-    temp_json=$(mktemp)
+    temp_json=$(mktemp) || { echo '{"error":"mktemp failed"}'; return 1; }
+    chmod 600 "$temp_json"  # CRITICAL-001 FIX
     trap "rm -f '$temp_json'" EXIT
 
     # Handle different file types
@@ -694,7 +702,8 @@ validate_file() {
     # Extract JSON data
     local json_data
     local temp_json
-    temp_json=$(mktemp)
+    temp_json=$(mktemp) || { echo '{"error":"mktemp failed"}'; return 1; }
+    chmod 600 "$temp_json"  # CRITICAL-001 FIX
     trap "rm -f '$temp_json'" EXIT
 
     # Handle different file types

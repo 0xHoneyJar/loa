@@ -70,16 +70,41 @@ load_config() {
 
     # Check if QMD is enabled
     QMD_ENABLED=$(yq eval '.memory.qmd.enabled // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+    # SECURITY (MEDIUM-004): Validate boolean value
+    case "${QMD_ENABLED,,}" in
+        true|yes|1) QMD_ENABLED="true" ;;
+        *) QMD_ENABLED="false" ;;
+    esac
     if [[ "$QMD_ENABLED" != "true" ]]; then
         return 1
     fi
 
     # Load binary path
     QMD_BINARY=$(yq eval '.memory.qmd.binary // "qmd"' "$CONFIG_FILE" 2>/dev/null || echo "qmd")
+    # SECURITY (MEDIUM-004): Validate binary name (alphanumeric, dash, underscore only)
+    if [[ ! "$QMD_BINARY" =~ ^[a-zA-Z0-9_.-]+$ ]]; then
+        log_error "Invalid QMD binary name in config: $QMD_BINARY"
+        QMD_BINARY="qmd"
+    fi
 
     # Load index directory
     local config_dir
     config_dir=$(yq eval '.memory.qmd.index_dir // ".loa/qmd"' "$CONFIG_FILE" 2>/dev/null || echo ".loa/qmd")
+
+    # SECURITY (MEDIUM-004): Validate config path - no traversal or absolute paths
+    if [[ "$config_dir" == *".."* ]]; then
+        log_error "SECURITY: Config index_dir contains path traversal, using default"
+        config_dir=".loa/qmd"
+    fi
+    if [[ "$config_dir" == /* ]]; then
+        log_error "SECURITY: Config index_dir should be relative, using default"
+        config_dir=".loa/qmd"
+    fi
+    if [[ "$config_dir" =~ [\$\`\|\;\&] ]]; then
+        log_error "SECURITY: Config index_dir contains shell metacharacters, using default"
+        config_dir=".loa/qmd"
+    fi
+
     QMD_DIR="${PROJECT_ROOT}/${config_dir}"
 
     return 0

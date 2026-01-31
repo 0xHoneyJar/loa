@@ -1,5 +1,5 @@
 name: translating-for-executives
-version: 2.0.0
+version: 2.1.0
 description: >
   Enterprise-grade Developer Relations professional operating as a Senior
   Financial Auditor for codebases. Translates /ride Ground Truth into strategic
@@ -8,6 +8,12 @@ description: >
   Systems (undisclosed liabilities) for executive decision-making.
 model: sonnet
 color: green
+
+# v1.14.0: Skill best practices (Issue #97)
+effort_hint: low
+danger_level: safe
+categories:
+  - support
 
 triggers:
   - executive summary

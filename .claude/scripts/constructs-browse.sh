@@ -161,7 +161,8 @@ format_packs_human() {
     echo ""
     
     # Parse and display each pack
-    echo "$packs_json" | jq -r '.packs[]? // .[]? | "\(.icon // "📦") \(.name) (\(.skills_count // .skills | length) skills) - \(.tier // "free")\n   \(.description)\n"' 2>/dev/null || {
+    # API returns { data: [...], pagination: {...} } envelope
+    echo "$packs_json" | jq -r '.data[]? | "\(.icon // "📦") \(.name) (\(.skills_count // .skills | length // 0) skills) - \(.tier_required // .tier // "free")\n   \(.description)\n"' 2>/dev/null || {
         echo "No packs available or error parsing response"
         return 1
     }
@@ -172,15 +173,16 @@ format_packs_json() {
     local packs_json="$1"
     
     # Normalize to array format expected by UI
+    # API returns { data: [...], pagination: {...} } envelope
     echo "$packs_json" | jq '[
-        (.packs[]? // .[])? | {
+        .data[]? | {
             slug: .slug,
             name: .name,
             description: .description,
-            skills_count: (.skills_count // (.skills | length) // 0),
-            tier: (.tier // "free"),
+            skills_count: (.skills_count // (.skills | length?) // 0),
+            tier: (.tier_required // .tier // "free"),
             icon: (.icon // "📦"),
-            version: (.version // "1.0.0")
+            version: (.latest_version.version // .version // "1.0.0")
         }
     ]' 2>/dev/null || echo "[]"
 }
@@ -234,18 +236,18 @@ cmd_info() {
     fi
     
     echo ""
-    echo "$pack_json" | jq -r '"╭───────────────────────────────────────────────────────────────╮
+    # API returns { data: {...} } envelope for single pack
+    echo "$pack_json" | jq -r '.data | "╭───────────────────────────────────────────────────────────────╮
 │  \(.icon // "📦") \(.name)
 ╰───────────────────────────────────────────────────────────────╯
 
 \(.description)
 
-Version: \(.version // "1.0.0")
-Tier: \(.tier // "free")
-Skills: \((.skills_count // (.skills | length) // 0))
+Version: \(.latest_version.version // .version // "1.0.0")
+Tier: \(.tier_required // .tier // "free")
+Downloads: \(.downloads // 0)
 
-Skills included:
-\((.skills // []) | map("  - " + .name) | join("\n"))"' 2>/dev/null
+\(if .latest_version.changelog then "Changelog: \(.latest_version.changelog)" else "" end)"' 2>/dev/null
 }
 
 cmd_search() {
@@ -264,12 +266,13 @@ cmd_search() {
     fi
     
     # Filter packs by query (case-insensitive)
+    # API returns { data: [...], pagination: {...} } envelope
     local query_lower
     query_lower=$(echo "$query" | tr '[:upper:]' '[:lower:]')
-    
+
     local filtered
     filtered=$(echo "$packs_json" | jq --arg q "$query_lower" '[
-        (.packs[]? // .[])? | 
+        .data[]? |
         select(
             (.name | ascii_downcase | contains($q)) or
             (.description | ascii_downcase | contains($q)) or
@@ -282,7 +285,7 @@ cmd_search() {
         return $EXIT_NOT_FOUND
     fi
     
-    format_packs_human "{\"packs\": $filtered}"
+    format_packs_human "{\"data\": $filtered}"
 }
 
 # =============================================================================

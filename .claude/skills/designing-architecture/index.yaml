@@ -1,7 +1,13 @@
 name: "designing-architecture"
-version: "1.0.0"
+version: "1.1.0"
 model: "sonnet"
 color: "blue"
+
+# v1.14.0: Skill best practices (Issue #97)
+effort_hint: high
+danger_level: moderate
+categories:
+  - planning
 
 description: |
   Use this skill IF user has completed a PRD and needs architectural planning
@@ -42,3 +48,4 @@ inputs:
 outputs:
   - path: "grimoires/loa/sdd.md"
     description: "Software Design Document"
+    format: detailed

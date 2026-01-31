@@ -1,7 +1,13 @@
 name: "discovering-requirements"
-version: "2.0.0"
+version: "2.1.0"
 model: "sonnet"
 color: "purple"
+
+# v1.14.0: Skill best practices (Issue #97)
+effort_hint: medium
+danger_level: moderate
+categories:
+  - planning
 
 description: |
   Use this skill IF user invokes `/plan-and-analyze` OR needs to create a PRD.
@@ -57,6 +63,7 @@ inputs:
 outputs:
   - path: "grimoires/loa/prd.md"
     description: "Product Requirements Document with source tracing"
+    format: detailed
 
 dependencies: []
 

@@ -227,8 +227,36 @@ echo "Cleaning context directory..."
 # Remove all files except README.md
 find "$CONTEXT_DIR" -maxdepth 1 -type f ! -name "README.md" -delete
 
-# Remove all subdirectories
-find "$CONTEXT_DIR" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} \;
+# SECURITY (MEDIUM-003): Safe directory removal with symlink protection
+# Instead of find -exec rm -rf {}, iterate safely with validation
+# Resolve CONTEXT_DIR to absolute path for comparison
+REAL_CONTEXT_DIR=$(cd "$CONTEXT_DIR" 2>/dev/null && pwd -P) || {
+    echo "ERROR: Cannot resolve context directory" >&2
+    exit 1
+}
+
+for dir in "$CONTEXT_DIR"/*/; do
+    # Skip if no directories match (glob returns literal pattern)
+    [[ -d "$dir" ]] || continue
+
+    # Get directory name without trailing slash
+    dir="${dir%/}"
+
+    # Resolve to real path (follows symlinks)
+    real_dir=$(cd "$dir" 2>/dev/null && pwd -P) || {
+        echo "WARNING: Cannot resolve path, skipping: $dir" >&2
+        continue
+    }
+
+    # Verify resolved path is still within context directory
+    if [[ "$real_dir" != "$REAL_CONTEXT_DIR"/* ]]; then
+        echo "WARNING: Path escapes context directory (possible symlink attack), skipping: $dir" >&2
+        continue
+    fi
+
+    # Safe to delete - use resolved path
+    rm -rf "$real_dir"
+done
 
 echo "✓ Context cleaned - ready for next cycle"
 echo ""

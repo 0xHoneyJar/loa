@@ -23,12 +23,37 @@
 
 ---
 
+## Category Scores (Rubric-Based Assessment)
+
+**Scoring Method:** Each dimension scored 1-5 per `resources/RUBRICS.md`
+
+| Category | Score | Dimensions |
+|----------|-------|------------|
+| Security | {X.X}/5 | IV:{N} AZ:{N} CI:{N} IN:{N} AV:{N} |
+| Architecture | {X.X}/5 | MO:{N} SC:{N} RE:{N} CX:{N} ST:{N} |
+| Code Quality | {X.X}/5 | RD:{N} TC:{N} EH:{N} TS:{N} DC:{N} |
+| DevOps | {X.X}/5 | AU:{N} OB:{N} RC:{N} AC:{N} DS:{N} |
+| Blockchain | {X.X}/5 | KM:{N} TX:{N} SC:{N} *(if applicable)* |
+| **Overall** | **{X.X}/5** | *Weighted average* |
+
+**Risk Level Mapping:**
+- 4.5-5.0: LOW | 3.5-4.4: MODERATE | 2.5-3.4: HIGH | 1.0-2.4: CRITICAL
+
+**Machine-Parseable Output:** `findings.jsonl` in this directory
+
+---
+
 ## Critical Issues (Fix Immediately)
 
 ### [CRITICAL-001] {Title}
 
-**Severity:** CRITICAL
+**Severity:** CRITICAL | **Score:** {1-5}/5 | **Confidence:** {high/medium/low}
 **Component:** `{file}:{line}`
+**Criterion:** {rubric dimension, e.g., SEC-IV: Input Validation}
+
+**Reasoning Trace:**
+> {How the issue was discovered - analysis path, code flow, evidence chain}
+
 **Description:** {Detailed description}
 **Impact:** {What could happen if exploited}
 **Proof of Concept:**
