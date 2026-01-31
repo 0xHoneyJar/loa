@@ -1,0 +1,42 @@
+name: browsing-constructs
+version: "1.0.0"
+description: |
+  Browse and install packs from the Loa Constructs Registry with multi-select UI.
+  Enables composable skill installation per-repo.
+
+model: sonnet
+color: purple
+
+triggers:
+  - pattern: "/constructs"
+    description: "Browse and install packs"
+  - pattern: "/constructs browse"
+    description: "Browse available packs"
+  - pattern: "/constructs install"
+    description: "Install specific pack"
+
+dependencies: []
+
+inputs:
+  - name: action
+    type: string
+    description: "Action to perform: browse, install, list, update, uninstall"
+    required: false
+    default: "browse"
+  - name: pack
+    type: string
+    description: "Pack slug for install/uninstall actions"
+    required: false
+
+outputs:
+  - name: installed_packs
+    type: array
+    description: "List of installed pack slugs"
+  - name: result
+    type: object
+    description: "Installation result with success/error info"
+
+zones:
+  system: read
+  state: write
+  app: none
