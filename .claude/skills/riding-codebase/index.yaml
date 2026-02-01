@@ -1,0 +1,142 @@
+name: "riding-codebase"
+version: "1.1.0"
+model: "sonnet"
+color: "green"
+
+# v1.14.0: Skill best practices (Issue #97)
+effort_hint: medium
+danger_level: moderate
+categories:
+  - operations
+
+description: |
+  Use this skill to analyze an existing codebase and generate Loa grimoire artifacts.
+  Extracts actual code behavior through evidence-grounded analysis, compares against
+  existing docs and user context for three-way drift detection, generates Loa-standard
+  artifacts, and establishes maintenance handoff. Flags issues for human decision
+  rather than assuming fixes.
+  "The Loa rides through the code, channeling truth into the grimoire."
+
+triggers:
+  - "/ride"
+  - "ride this codebase"
+  - "adopt this codebase"
+  - "migrate to loa"
+  - "import existing project"
+  - "onboard repository"
+  - "analyze codebase"
+
+examples:
+  - context: "User has mounted Loa and wants to analyze their codebase"
+    user_says: "Ride this codebase and generate documentation"
+    agent_action: "Launch riding-codebase to extract code reality and generate grimoire artifacts"
+  - context: "Existing project needs Loa documentation"
+    user_says: "Migrate this project to Loa"
+    agent_action: "Launch riding-codebase to analyze code, compare with existing docs, and generate PRD/SDD"
+  - context: "User wants to understand their codebase state"
+    user_says: "Analyze this codebase and generate a drift report"
+    agent_action: "Launch riding-codebase to perform three-way drift analysis"
+  - context: "Project has legacy documentation that may be outdated"
+    user_says: "Compare our documentation to the actual code"
+    agent_action: "Launch riding-codebase to identify drift between docs and code reality"
+
+zones:
+  system:
+    path: ".claude"
+    permission: "none"  # Cannot write to System Zone
+  state:
+    paths: ["grimoires/loa", ".beads"]
+    permission: "read-write"
+  app:
+    paths: ["src", "lib", "app", "handlers", "test", "tests"]
+    permission: "read"  # Read-only extraction
+
+dependencies: []
+
+inputs:
+  - name: "target"
+    type: "string"
+    required: false
+    description: "Target repository path (if running from framework repo)"
+  - name: "phase"
+    type: "string"
+    required: false
+    description: "Run single phase"
+  - name: "dry_run"
+    type: "flag"
+    required: false
+    description: "Preview without writing"
+  - name: "skip_deprecation"
+    type: "flag"
+    required: false
+    description: "Don't modify legacy docs"
+  - name: "reconstruct_changelog"
+    type: "flag"
+    required: false
+    description: "Generate CHANGELOG from git"
+  - name: "interactive"
+    type: "flag"
+    required: false
+    description: "Force interactive context discovery"
+  - name: "force_restore"
+    type: "flag"
+    required: false
+    description: "Reset System Zone if integrity fails"
+
+outputs:
+  - path: "grimoires/loa/context/claims-to-verify.md"
+    description: "User claims to verify against code"
+  - path: "grimoires/loa/reality/"
+    description: "Code extraction results"
+  - path: "grimoires/loa/legacy/"
+    description: "Legacy documentation inventory"
+  - path: "grimoires/loa/drift-report.md"
+    description: "Three-way drift analysis"
+  - path: "grimoires/loa/consistency-report.md"
+    description: "Pattern consistency analysis"
+  - path: "grimoires/loa/prd.md"
+    description: "Evidence-grounded PRD"
+  - path: "grimoires/loa/sdd.md"
+    description: "Evidence-grounded SDD"
+  - path: "grimoires/loa/governance-report.md"
+    description: "Governance artifacts audit"
+  - path: "grimoires/loa/trajectory-audit.md"
+    description: "Reasoning quality self-audit"
+
+integrations:
+  required: []
+  optional:
+    - name: "github"
+      reason: "Access repository metadata and release history"
+      fallback: "Use local git history"
+
+# v0.9.0 Lossless Ledger Protocol Integration
+protocols:
+  required:
+    - name: "session-continuity"
+      path: ".claude/protocols/session-continuity.md"
+      purpose: "Session lifecycle, tiered recovery, delta-synthesis"
+    - name: "grounding-enforcement"
+      path: ".claude/protocols/grounding-enforcement.md"
+      purpose: "All extraction claims must be grounded in code evidence"
+    - name: "synthesis-checkpoint"
+      path: ".claude/protocols/synthesis-checkpoint.md"
+      purpose: "Pre-completion validation, trajectory handoff"
+  recommended:
+    - name: "jit-retrieval"
+      path: ".claude/protocols/jit-retrieval.md"
+      purpose: "Lightweight identifiers for code references"
+    - name: "attention-budget"
+      path: ".claude/protocols/attention-budget.md"
+      purpose: "Monitor token usage during extensive extraction"
+
+# Protocol loading for /ride workflow
+protocol_loading:
+  on_session_start:
+    - "session-continuity"  # Recover from prior riding session if applicable
+  during_extraction:
+    - "grounding-enforcement"  # All claims must cite code
+    - "jit-retrieval"  # Store identifiers, not full content
+    - "attention-budget"  # Large codebases require monitoring
+  on_complete:
+    - "synthesis-checkpoint"  # Validate before finalizing artifacts

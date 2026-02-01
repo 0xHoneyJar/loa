@@ -1,0 +1,92 @@
+name: translating-for-executives
+version: 2.1.0
+description: >
+  Enterprise-grade Developer Relations professional operating as a Senior
+  Financial Auditor for codebases. Translates /ride Ground Truth into strategic
+  narratives using Projen-level integrity, Anthropic-level memory, and ADK-level
+  trajectory evaluation. Surfaces Ghost Features (phantom assets) and Shadow
+  Systems (undisclosed liabilities) for executive decision-making.
+model: sonnet
+color: green
+
+# v1.14.0: Skill best practices (Issue #97)
+effort_hint: low
+danger_level: safe
+categories:
+  - support
+
+triggers:
+  - executive summary
+  - board presentation
+  - investor update
+  - translate for executives
+  - translate drift report
+  - translate ride
+  - batch translate ride
+  - codebase audit
+  - ghost features
+  - strategic liabilities
+  - phantom assets
+
+examples:
+  - context: Batch translation
+    user: "/translate-ride for board"
+    response: "I'll perform integrity pre-check, restore context from NOTES.md, translate all Ground Truth with board focus (governance, compliance), calculate weighted health score, and generate self-audit trail."
+
+  - context: User needs to translate technical documentation for executives
+    user: "Translate the security audit report for the board of directors"
+    response: "I'll use the Task tool to launch the translating-for-executives agent to create an executive-friendly summary of the security audit."
+    commentary: Security audits contain technical details that need translation for board consumption.
+
+  - context: User needs investor-friendly progress update
+    user: "Create an investor update from our sprint progress"
+    response: "Let me use the Task tool to launch the translating-for-executives agent to transform the sprint report into an investor-ready update."
+    commentary: Investors need business value focus, not technical implementation details.
+
+  - context: Drift report translation
+    user: "Translate the drift report for compliance"
+    response: "I'll translate the drift report focusing on regulatory gaps, documentation compliance, and audit readiness. All findings will be grounded with (file:L##) citations."
+
+dependencies:
+  required:
+    - "grimoires/loa/drift-report.md"
+  optional:
+    - ".loa.config.yaml"
+    - "grimoires/loa/NOTES.md"
+    - "grimoires/loa/governance-report.md"
+    - "grimoires/loa/consistency-report.md"
+    - "grimoires/loa/reality/hygiene-report.md"
+    - "grimoires/loa/trajectory-audit.md"
+
+inputs:
+  primary:
+    - "Technical document to translate (PRD, SDD, audit report, /ride artifacts)"
+    - "Target audience (executives, board, investors, compliance, eng-leadership)"
+  optional:
+    - "Business context (board meeting, investor update, etc.)"
+    - "Specific questions stakeholders have asked"
+    - "Constraints (page limit, presentation format)"
+
+outputs:
+  - "grimoires/loa/translations/EXECUTIVE-INDEX.md"
+  - "grimoires/loa/translations/drift-analysis.md"
+  - "grimoires/loa/translations/governance-assessment.md"
+  - "grimoires/loa/translations/consistency-analysis.md"
+  - "grimoires/loa/translations/hygiene-assessment.md"
+  - "grimoires/loa/translations/quality-assurance.md"
+  - "grimoires/loa/translations/translation-audit.md"
+
+protocols:
+  - integrity_precheck: "SHA-256 verification of .claude/"
+  - structured_memory: "NOTES.md + Beads integration"
+  - factual_grounding: "All claims cite (file:L##)"
+  - truth_hierarchy: "CODE > Artifacts > Docs > Context"
+  - context_engineering: "Progressive disclosure + tool result clearing"
+  - trajectory_audit: "Self-audit before completion"
+
+resources:
+  bibliography: resources/BIBLIOGRAPHY.md
+  reference: resources/REFERENCE.md
+  templates:
+    - resources/templates/executive-index.md
+    - resources/templates/translation-audit.md

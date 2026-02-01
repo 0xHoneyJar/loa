@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loa.dev/schemas/skill-index.schema.json",
+  "title": "Loa Skill Index",
+  "description": "Schema for skill index.yaml files. Based on Vercel AI SDK and Anthropic tool-writing best practices.",
+  "type": "object",
+  "required": ["name", "version", "description", "triggers"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]+$",
+      "description": "Skill identifier (kebab-case)"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Semantic version"
+    },
+    "model": {
+      "type": "string",
+      "enum": ["sonnet", "opus", "haiku"],
+      "default": "sonnet",
+      "description": "Recommended model for this skill"
+    },
+    "color": {
+      "type": "string",
+      "description": "Display color for skill UI"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 50,
+      "maxLength": 500,
+      "description": "Skill description (50-500 characters)"
+    },
+    "triggers": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "Activation patterns for this skill"
+    },
+    "examples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "context": { "type": "string" },
+          "user_says": { "type": "string" },
+          "agent_action": { "type": "string" }
+        }
+      },
+      "description": "Usage examples for skill invocation"
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "skill": { "type": "string" },
+          "artifact": { "type": "string" }
+        }
+      },
+      "description": "Skill dependencies"
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string" },
+          "pattern": { "type": "string" },
+          "values": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "required": { "type": "boolean" },
+          "description": { "type": "string" }
+        },
+        "required": ["name", "type", "description"]
+      },
+      "description": "Input parameter definitions"
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" },
+          "condition": { "type": "string" },
+          "description": { "type": "string" },
+          "format": {
+            "type": "string",
+            "enum": ["summary", "detailed", "raw"],
+            "default": "detailed",
+            "description": "Output verbosity level"
+          },
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 50000,
+            "description": "Soft token limit for output"
+          }
+        },
+        "required": ["path", "description"]
+      },
+      "description": "Output artifact definitions"
+    },
+    "protocols": {
+      "type": "object",
+      "properties": {
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "path": { "type": "string" },
+              "purpose": { "type": "string" }
+            }
+          }
+        },
+        "recommended": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "path": { "type": "string" },
+              "purpose": { "type": "string" }
+            }
+          }
+        }
+      },
+      "description": "Protocol requirements"
+    },
+    "protocol_loading": {
+      "type": "object",
+      "properties": {
+        "on_session_start": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "during_execution": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "before_clear": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "description": "Protocol loading order"
+    },
+    "effort_hint": {
+      "type": "string",
+      "enum": ["low", "medium", "high"],
+      "description": "Recommended effort level. Maps to budget_tokens: low (~4K tokens), medium (~16K tokens), high (~64K tokens). Vercel AI SDK / Anthropic best practice."
+    },
+    "danger_level": {
+      "type": "string",
+      "enum": ["safe", "moderate", "high", "critical"],
+      "default": "safe",
+      "description": "Risk level affecting approval requirements. Based on Vercel AI SDK needsApproval."
+    },
+    "categories": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Semantic groupings for skill search. Based on Anthropic Tool Search patterns."
+    },
+    "inputExamples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "input": { "type": "object" },
+          "description": { "type": "string" }
+        },
+        "required": ["input"]
+      },
+      "description": "Native Anthropic input examples. Only Anthropic provider supports this natively."
+    },
+    "defer_loading": {
+      "type": "boolean",
+      "default": false,
+      "description": "For future runtime support of deferred skill loading. TODO: Implement in #94 (Anthropic Context Features)."
+    }
+  },
+  "examples": [
+    {
+      "name": "implementing-tasks",
+      "version": "1.1.0",
+      "model": "sonnet",
+      "color": "yellow",
+      "description": "Use this skill IF user needs to implement sprint tasks from grimoires/loa/sprint.md, OR feedback has been received in engineer-feedback.md that needs addressing.",
+      "triggers": ["/implement", "implement sprint"],
+      "effort_hint": "medium",
+      "danger_level": "moderate",
+      "categories": ["implementation"],
+      "inputExamples": [
+        {
+          "input": { "sprint_id": "sprint-1" },
+          "description": "First sprint of a new project"
+        }
+      ],
+      "inputs": [
+        {
+          "name": "sprint_id",
+          "type": "string",
+          "pattern": "^sprint-[0-9]+$",
+          "required": true,
+          "description": "Sprint identifier (e.g., sprint-1)"
+        }
+      ],
+      "outputs": [
+        {
+          "path": "grimoires/loa/a2a/sprint-{id}/reviewer.md",
+          "description": "Implementation report for senior lead review",
+          "format": "detailed"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,165 @@
+# Agent Working Memory (NOTES.md)
+
+> This file persists agent context across sessions and compaction cycles.
+> Updated automatically by agents. Manual edits are preserved.
+> Protocol: .claude/protocols/structured-memory.md
+
+<!-- ============================================================
+     NOTES.md TEMPLATE - Required Sections for v0.16.0
+
+     Initialize by copying this file to grimoires/loa/NOTES.md
+     and replacing placeholder content with actual project data.
+     ============================================================ -->
+
+## Current Focus
+
+<!-- Update at: session start, status change, blocker hit/resolved -->
+
+- **Active Task**: [Task ID] - [Description]
+- **Status**: Not Started
+- **Blocked By**: None
+- **Next Action**: [Specific next step to take]
+
+## Session Log
+
+<!-- Append-only - never delete entries -->
+<!-- Update at: session start, significant events, session end -->
+
+| Timestamp | Event | Outcome |
+|-----------|-------|---------|
+| YYYY-MM-DDTHH:MM:SSZ | Initialized NOTES.md | Template created |
+
+## Decisions
+
+<!-- Update at: decision made, architecture choice, implementation choice -->
+
+| Date | Decision | Rationale | Decided By |
+|------|----------|-----------|------------|
+| YYYY-MM-DD | [Placeholder decision] | [Rationale for decision] | [Agent or user] |
+
+## Blockers
+
+<!-- Use [RESOLVED] prefix when resolved -->
+<!-- Update at: blocker hit, blocker resolved -->
+
+- [ ] [Placeholder blocker] (ETA: YYYY-MM-DD)
+
+## Technical Debt
+
+<!-- Update at: technical debt discovered during implementation -->
+
+| ID | Description | Severity | Found By | Sprint |
+|----|-------------|----------|----------|--------|
+| TD-001 | [Placeholder debt item] | MEDIUM | [agent-name] | S01 |
+
+## Goal Status
+
+<!-- Track PRD goal achievement progress -->
+<!-- Update at: task completion, sprint review, E2E validation -->
+<!-- JIT Pattern: Store identifiers, not full evidence content -->
+
+| Goal ID | Description | Status | Evidence Identifier |
+|---------|-------------|--------|---------------------|
+| G-1 | [From PRD] | NOT_STARTED | - |
+
+**Status Legend:**
+- `NOT_STARTED` - No contributing tasks completed
+- `IN_PROGRESS` - Some contributing tasks completed
+- `AT_RISK` - Tasks done but validation uncertain
+- `ACHIEVED` - Validated via E2E task
+- `BLOCKED` - Explicit blocker documented
+
+**Evidence Identifiers** (JIT retrieval - load on-demand):
+<!-- Use lightweight references, not full content -->
+```
+# Example identifiers (do not copy - replace with actual):
+${PROJECT_ROOT}/grimoires/loa/a2a/sprint-1/reviewer.md:L45-60  # G-1 task completion
+${PROJECT_ROOT}/grimoires/loa/a2a/subagent-reports/goal-validation-*.md  # Validation report
+```
+
+**Last Validation**: [YYYY-MM-DD or "Not yet validated"]
+**Validation Cache Key**: [cache key from cache-manager.sh or "N/A"]
+
+## Learnings
+
+<!-- Project-specific knowledge discovered during implementation -->
+<!-- Update at: mistake discovered, new insight gained -->
+
+- [Placeholder learning - project-specific knowledge goes here]
+
+## Session Continuity
+
+<!-- CRITICAL: Load this section FIRST after /clear (~100 tokens) -->
+<!-- See: .claude/protocols/session-continuity.md -->
+
+### Active Context
+
+- **Current Bead**: [bead-id] ([task description])
+- **Last Checkpoint**: YYYY-MM-DDTHH:MM:SSZ
+- **Reasoning State**: [Where we left off, what's next]
+
+### Lightweight Identifiers
+
+<!-- Absolute paths only - retrieve full content on-demand via JIT -->
+<!-- REQUIRED: Use ${PROJECT_ROOT} prefix for session survival -->
+
+| Identifier | Purpose | Last Verified |
+|------------|---------|---------------|
+| ${PROJECT_ROOT}/[path/to/file.ext:lines] | [Purpose description] | HH:MM:SSZ |
+
+### Pending Questions
+
+<!-- Carry forward across sessions -->
+
+- [ ] [Question that needs resolution]
+
+<!-- ============================================================
+     SECTION GUIDELINES
+
+     Current Focus:
+       - Active Task: Use format "Sprint-N Task N.N - Description"
+       - Status: Not Started | In Progress | Blocked | Complete
+       - Blocked By: "None" or specific blocker description
+       - Next Action: Single, specific, actionable step
+
+     Session Log:
+       - Timestamp: ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ)
+       - Event: Brief description of what happened
+       - Outcome: Result or current state
+       - NEVER delete entries - append only
+
+     Decisions:
+       - Date: ISO 8601 date (YYYY-MM-DD)
+       - Decision: What was decided
+       - Rationale: Why it was decided
+       - Decided By: Agent name or "user"
+
+     Blockers:
+       - Format: - [ ] Description (ETA: YYYY-MM-DD)
+       - Resolved: - [x] [RESOLVED] Description - how resolved
+
+     Technical Debt:
+       - ID: TD-NNN format
+       - Severity: CRITICAL | HIGH | MEDIUM | LOW
+       - Found By: Agent name that discovered it
+       - Sprint: SNN format
+
+     Goal Status:
+       - Goal ID: G-N from PRD
+       - Description: Brief goal description
+       - Status: NOT_STARTED | IN_PROGRESS | AT_RISK | ACHIEVED | BLOCKED
+       - Evidence Identifier: Lightweight path reference (JIT pattern)
+         Use ${PROJECT_ROOT}/path:lines format for session survival
+       - Update when: task completed, sprint reviewed, E2E validated
+       - Last Validation: Date of most recent /validate goals run
+       - Validation Cache Key: From cache-manager.sh (for cache invalidation)
+
+     Learnings:
+       - Bullet list of project-specific knowledge
+       - Include context so future sessions understand
+
+     Session Continuity:
+       - Active Context: Current task, checkpoint, reasoning state
+       - Lightweight Identifiers: Absolute paths with ${PROJECT_ROOT}
+       - Pending Questions: Unanswered questions to carry forward
+     ============================================================ -->

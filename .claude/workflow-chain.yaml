@@ -1,0 +1,277 @@
+# Loa Workflow Chain Definition
+# Version: 1.0
+# Sprint: 4 (Agent Chaining - FR-8.1, GitHub Issue #9)
+# Purpose: Declarative workflow chain for automatic next-step suggestions
+
+version: "1.0"
+name: "loa-workflow-chain"
+description: "Defines logical progression between Loa workflow phases with validation conditions"
+
+# Workflow phases in order
+workflow:
+  # Phase 1: Discovery
+  plan-and-analyze:
+    agent: "discovering-requirements"
+    next: "architect"
+    output_file: "grimoires/loa/prd.md"
+    validation:
+      type: "file_exists"
+      path: "grimoires/loa/prd.md"
+    message: |
+      Ready for architectural design.
+
+      **Recommended**: `/architect`
+
+      This will analyze the codebase and create the Software Design Document based on your PRD.
+
+  # Phase 2: Architecture
+  architect:
+    agent: "designing-architecture"
+    next: "sprint-plan"
+    output_file: "grimoires/loa/sdd.md"
+    validation:
+      type: "file_exists"
+      path: "grimoires/loa/sdd.md"
+    message: |
+      Architecture complete.
+
+      **Recommended**: `/sprint-plan`
+
+      This will break down the SDD into actionable sprint tasks with time estimates.
+
+  # Phase 3: Planning
+  sprint-plan:
+    agent: "planning-sprints"
+    next: "implement sprint-1"
+    output_file: "grimoires/loa/sprint.md"
+    validation:
+      type: "file_exists"
+      path: "grimoires/loa/sprint.md"
+    message: |
+      Sprint plan complete.
+
+      **Recommended**: `/implement sprint-1`
+
+      This will start implementing the first sprint. You can also run it in background with `/implement sprint-1 background`.
+
+  # Phase 4: Implementation
+  implement:
+    agent: "implementing-tasks"
+    next: "review-sprint {sprint}"
+    output_file: "grimoires/loa/a2a/{sprint}/reviewer.md"
+    validation:
+      type: "file_exists"
+      path: "grimoires/loa/a2a/{sprint}/reviewer.md"
+    message: |
+      Sprint {sprint} implementation complete.
+
+      **Recommended**: `/review-sprint {sprint}`
+
+      This will review the implementation and provide feedback.
+
+  # Phase 5: Review
+  review-sprint:
+    agent: "reviewing-code"
+    output_file: "grimoires/loa/a2a/{sprint}/engineer-feedback.md"
+    validation:
+      type: "file_content_match"
+      path: "grimoires/loa/a2a/{sprint}/engineer-feedback.md"
+      pattern: "All good"
+    next_on_approval: "audit-sprint {sprint}"
+    next_on_feedback: "implement {sprint}"
+    message_on_approval: |
+      Senior lead approved implementation.
+
+      **Recommended**: `/audit-sprint {sprint}`
+
+      This will perform security audit of the sprint implementation.
+    message_on_feedback: |
+      Senior lead requested changes.
+
+      **Recommended**: `/implement {sprint}`
+
+      Review the feedback in `grimoires/loa/a2a/{sprint}/engineer-feedback.md` and address the issues.
+
+  # Phase 5.5: Security Audit
+  audit-sprint:
+    agent: "auditing-security"
+    output_file: "grimoires/loa/a2a/{sprint}/auditor-sprint-feedback.md"
+    validation:
+      type: "file_content_match"
+      path: "grimoires/loa/a2a/{sprint}/auditor-sprint-feedback.md"
+      pattern: "APPROVED - LET'S FUCKING GO"
+    next_on_approval: "implement sprint-{N+1}"
+    next_on_changes: "implement {sprint}"
+    message_on_approval: |
+      Security audit passed! Sprint {sprint} is COMPLETE.
+
+      **Recommended**: `/implement sprint-{N+1}`
+
+      Ready to start the next sprint. Check `grimoires/loa/sprint.md` for sprint {N+1} tasks.
+    message_on_changes: |
+      Security audit requires changes.
+
+      **Recommended**: `/implement {sprint}`
+
+      Review the security feedback in `grimoires/loa/a2a/{sprint}/auditor-sprint-feedback.md` and address the vulnerabilities.
+
+  # Phase 6: Deployment
+  deploy-production:
+    agent: "deploying-infrastructure"
+    output_file: "grimoires/loa/deployment/deployment-report.md"
+    next: null  # End of workflow
+    message: |
+      Deployment plan created.
+
+      Review the deployment report and infrastructure code before deploying to production.
+
+      **No automated next step** - deployment requires manual approval and execution.
+
+# Helper commands (not part of main workflow)
+auxiliary_commands:
+  # Mount & Ride for existing codebases
+  mount:
+    agent: "custom-wizard"
+    next: "ride"
+    message: |
+      Loa framework mounted.
+
+      **Recommended**: `/ride`
+
+      This will analyze the existing codebase and create reality docs (PRD, SDD, Sprint Plan).
+
+  ride:
+    agent: "custom-agent"
+    output_files:
+      - "grimoires/loa/reality/prd.md"
+      - "grimoires/loa/reality/sdd.md"
+      - "grimoires/loa/reality/sprint.md"
+      - "grimoires/loa/drift-report.md"
+    next: null  # End - user decides next action
+    message: |
+      Code reality extraction complete.
+
+      Review the generated docs:
+      - `grimoires/loa/reality/prd.md` - Inferred requirements
+      - `grimoires/loa/reality/sdd.md` - Discovered architecture
+      - `grimoires/loa/drift-report.md` - Ghost Features and Shadow Systems
+
+      **Next steps (your choice)**:
+      - Continue with existing sprint plan: `/implement sprint-N`
+      - Start new feature: `/plan-and-analyze`
+      - Review drift: Check drift-report.md for tech debt
+
+  # One-off commands
+  audit:
+    agent: "auditing-security"
+    output_file: "SECURITY-AUDIT-REPORT.md"
+    next: null
+    message: "Full codebase security audit complete. Review SECURITY-AUDIT-REPORT.md for findings."
+
+  translate:
+    agent: "translating-for-executives"
+    next: null
+    message: "Translation complete. Review the generated document."
+
+  contribute:
+    agent: "custom-wizard"
+    next: null
+    message: "Contribution prepared. Review changes and follow the PR creation instructions."
+
+  update:
+    agent: "custom-wizard"
+    next: null
+    message: "Loa framework updated. Review CHANGELOG.md for breaking changes."
+
+# Variable substitution rules
+substitutions:
+  # Sprint ID patterns
+  "{sprint}":
+    description: "Current sprint ID (e.g., sprint-1, sprint-2)"
+    pattern: "sprint-[0-9]+"
+    validation: "Must match format 'sprint-N' where N is positive integer"
+
+  "{N+1}":
+    description: "Next sprint number (increments from current)"
+    pattern: "sprint-[0-9]+"
+    example: "sprint-2 becomes sprint-3"
+    logic: |
+      # Extract current sprint number, increment by 1
+      CURRENT_SPRINT_NUM=$(echo "${SPRINT_ID}" | grep -oP '\d+')
+      NEXT_SPRINT_NUM=$((CURRENT_SPRINT_NUM + 1))
+      echo "sprint-${NEXT_SPRINT_NUM}"
+
+# Validation types
+validation_types:
+  file_exists:
+    description: "Check if file exists at path"
+    implementation: "test -f <path>"
+
+  file_content_match:
+    description: "Check if file contains pattern"
+    implementation: "grep -q '<pattern>' <path>"
+
+  directory_exists:
+    description: "Check if directory exists"
+    implementation: "test -d <path>"
+
+  marker_exists:
+    description: "Check for COMPLETED marker"
+    implementation: "test -f grimoires/loa/a2a/{sprint}/COMPLETED"
+
+# Conditional routing rules
+routing:
+  review-sprint:
+    approval_pattern: "All good"
+    approval_next: "audit-sprint {sprint}"
+    feedback_next: "implement {sprint}"
+
+  audit-sprint:
+    approval_pattern: "APPROVED - LET'S FUCKING GO"
+    approval_next: "implement sprint-{N+1}"
+    changes_pattern: "CHANGES_REQUIRED"
+    changes_next: "implement {sprint}"
+
+# Special cases
+special_cases:
+  # When sprint-N is the last sprint
+  last_sprint:
+    condition: "No sprint-{N+1} tasks in sprint.md"
+    next: "deploy-production"
+    message: |
+      All sprints complete!
+
+      **Recommended**: `/deploy-production`
+
+      This will create the deployment plan and infrastructure code.
+
+  # When user manually creates intermediate docs
+  skip_phase:
+    condition: "Output file already exists"
+    action: "Skip to next phase"
+    message: "Output file already exists. Proceeding to next phase."
+
+# Guided workflow command
+guided_workflow:
+  # /loa command integration
+  loa:
+    description: "Guided workflow navigator showing current state and next steps"
+    script: ".claude/scripts/workflow-state.sh"
+    output_format: "json"
+    prompt_options:
+      - label: "Yes, run it"
+        action: "execute_suggested"
+      - label: "Show alternatives"
+        action: "show_alternatives"
+      - label: "Exit"
+        action: "exit"
+
+# Integration notes
+notes:
+  - "This workflow chain is read by `.claude/scripts/suggest-next-step.sh`"
+  - "Agent skills call suggestion engine on successful completion"
+  - "Silent failure if suggestion engine unavailable (backward compatible)"
+  - "Variable substitution supports {sprint}, {N+1} patterns"
+  - "Conditional routing based on file content (approval vs feedback)"
+  - "Custom messages per transition for clear user guidance"
+  - "/loa command uses workflow-state.sh for state detection (v0.21.0)"

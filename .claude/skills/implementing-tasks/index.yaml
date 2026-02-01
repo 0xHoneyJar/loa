@@ -1,0 +1,101 @@
+name: "implementing-tasks"
+version: "1.1.0"
+model: "sonnet"
+color: "yellow"
+
+# v1.14.0: Skill best practices (Issue #97)
+effort_hint: medium
+danger_level: moderate
+categories:
+  - implementation
+
+description: |
+  Use this skill IF user needs to implement sprint tasks from grimoires/loa/sprint.md,
+  OR feedback has been received in engineer-feedback.md that needs addressing.
+  Implements production-grade code with comprehensive tests, follows existing patterns,
+  and generates detailed reports. Produces report at grimoires/loa/a2a/sprint-N/reviewer.md.
+
+triggers:
+  - "/implement"
+  - "implement sprint"
+  - "execute sprint tasks"
+  - "start implementation"
+  - "address feedback"
+  - "feedback received"
+
+examples:
+  - context: "Sprint plan has been created and tasks need implementation"
+    user_says: "We need to implement the tasks from sprint 4"
+    agent_action: "Launch implementing-tasks to review sprint plan and implement all tasks with tests and documentation"
+  - context: "Senior lead has provided feedback"
+    user_says: "The senior lead has provided feedback on the sprint implementation"
+    agent_action: "Launch implementing-tasks to review feedback, address issues, and generate updated report"
+  - context: "New sprint has just been planned"
+    user_says: "I've finished documenting sprint 5 in grimoires/loa/sprint.md"
+    agent_action: "Launch implementing-tasks to begin implementing the sprint tasks"
+  - context: "Development cycle requires implementation"
+    user_says: "Let's start working on the features we planned for this sprint"
+    agent_action: "Launch implementing-tasks to implement sprint tasks with full test coverage"
+
+dependencies:
+  - skill: "planning-sprints"
+    artifact: "grimoires/loa/sprint.md"
+  - skill: "designing-architecture"
+    artifact: "grimoires/loa/sdd.md"
+  - skill: "discovering-requirements"
+    artifact: "grimoires/loa/prd.md"
+
+inputs:
+  - name: "sprint_id"
+    type: "string"
+    pattern: "^sprint-[0-9]+$"
+    required: true
+    description: "Sprint identifier (e.g., sprint-1)"
+
+# v1.14.0: Native Anthropic input examples
+inputExamples:
+  - input:
+      sprint_id: "sprint-1"
+    description: "First sprint of a new project"
+  - input:
+      sprint_id: "sprint-5"
+    description: "Later sprint with accumulated context"
+
+outputs:
+  - path: "grimoires/loa/a2a/sprint-{id}/reviewer.md"
+    description: "Implementation report for senior lead review"
+    format: detailed
+
+# v0.9.0 Lossless Ledger Protocol Integration
+protocols:
+  required:
+    - name: "session-continuity"
+      path: ".claude/protocols/session-continuity.md"
+      purpose: "Session lifecycle, tiered recovery, fork detection"
+    - name: "grounding-enforcement"
+      path: ".claude/protocols/grounding-enforcement.md"
+      purpose: "Citation requirements, grounding ratio verification"
+    - name: "synthesis-checkpoint"
+      path: ".claude/protocols/synthesis-checkpoint.md"
+      purpose: "Pre-clear validation, 7-step checkpoint process"
+  recommended:
+    - name: "jit-retrieval"
+      path: ".claude/protocols/jit-retrieval.md"
+      purpose: "Lightweight identifiers, 97% token reduction"
+    - name: "attention-budget"
+      path: ".claude/protocols/attention-budget.md"
+      purpose: "Advisory token thresholds, delta-synthesis triggers"
+    - name: "trajectory-evaluation"
+      path: ".claude/protocols/trajectory-evaluation.md"
+      purpose: "Reasoning audit trail, grounding phase logging"
+
+# Protocol loading order
+protocol_loading:
+  on_session_start:
+    - "session-continuity"  # Tiered recovery sequence
+  during_execution:
+    - "grounding-enforcement"  # Continuous citation
+    - "jit-retrieval"  # Lightweight identifiers
+    - "attention-budget"  # Token monitoring
+  before_clear:
+    - "synthesis-checkpoint"  # Blocking validation

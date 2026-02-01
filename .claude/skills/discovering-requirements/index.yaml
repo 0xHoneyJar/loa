@@ -1,0 +1,73 @@
+name: "discovering-requirements"
+version: "2.1.0"
+model: "sonnet"
+color: "purple"
+
+# v1.14.0: Skill best practices (Issue #97)
+effort_hint: medium
+danger_level: moderate
+categories:
+  - planning
+
+description: |
+  Use this skill IF user invokes `/plan-and-analyze` OR needs to create a PRD.
+
+  CONTEXT-FIRST: Automatically ingests existing documentation from
+  `grimoires/loa/context/` before interviewing. Only asks questions for
+  gaps, ambiguities, and strategic decisions.
+
+  Produces comprehensive PRD at `grimoires/loa/prd.md` with full source tracing.
+
+triggers:
+  - "/plan-and-analyze"
+  - "create prd"
+  - "define requirements"
+  - "product discovery"
+  - "plan a new feature"
+  - "build a new product"
+  - "I want to build"
+  - "I need to plan"
+  - "flesh out this idea"
+
+examples:
+  - context: "Developer has existing documentation"
+    user_says: "/plan-and-analyze"
+    agent_action: |
+      1. Run context assessment script
+      2. Ingest all files from grimoires/loa/context/
+      3. Present understanding with citations
+      4. Ask only gap-filling questions
+      5. Generate PRD with source tracing
+
+  - context: "No existing documentation"
+    user_says: "/plan-and-analyze"
+    agent_action: |
+      1. Note empty context directory
+      2. Offer to create context/README.md
+      3. Proceed with full 7-phase discovery
+      4. Generate PRD
+
+  - context: "User wants to create a PRD for a new feature"
+    user_says: "I want to build a user authentication system for my app"
+    agent_action: |
+      1. Check for existing context in grimoires/loa/context/
+      2. Launch discovering-requirements to gather requirements
+      3. Create comprehensive PRD with any available context
+
+inputs:
+  - name: "context_dir"
+    type: "directory"
+    path: "grimoires/loa/context/"
+    required: false
+
+outputs:
+  - path: "grimoires/loa/prd.md"
+    description: "Product Requirements Document with source tracing"
+    format: detailed
+
+dependencies: []
+
+parallel_execution:
+  enabled: true
+  threshold: 2000  # Lines before spawning parallel ingestors
+  strategy: "by_category"  # vision, users, requirements, technical

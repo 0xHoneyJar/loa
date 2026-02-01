@@ -1,0 +1,63 @@
+{
+  "name": "postgres",
+  "description": "PostgreSQL database integration for querying and managing database content",
+  "security_notes": [
+    "CRITICAL RISK: Database access can expose all application data",
+    "ALWAYS use a read-only database user for this integration",
+    "Never connect to production databases without explicit approval",
+    "Use connection strings with minimal permissions",
+    "Enable query logging on the database server",
+    "Consider using a read replica instead of the primary database"
+  ],
+  "required_scopes": [
+    "SELECT on required tables (read-only, strongly recommended)",
+    "INSERT/UPDATE/DELETE only if absolutely necessary (requires security review)"
+  ],
+  "config": {
+    "mcpServers": {
+      "postgres": {
+        "command": "npx",
+        "args": ["-y", "@anthropic/mcp-server-postgres"],
+        "env": {
+          "POSTGRES_CONNECTION_STRING": "${POSTGRES_CONNECTION_STRING}"
+        }
+      }
+    }
+  },
+  "required_env": [
+    "POSTGRES_CONNECTION_STRING"
+  ],
+  "setup_steps": [
+    "1. Create a dedicated read-only database user:",
+    "   CREATE USER claude_readonly WITH PASSWORD 'secure_password';",
+    "   GRANT CONNECT ON DATABASE yourdb TO claude_readonly;",
+    "   GRANT USAGE ON SCHEMA public TO claude_readonly;",
+    "   GRANT SELECT ON ALL TABLES IN SCHEMA public TO claude_readonly;",
+    "2. Format connection string:",
+    "   postgresql://claude_readonly:password@host:5432/database",
+    "3. For SSL connections, add ?sslmode=require",
+    "4. Set environment variable:",
+    "   export POSTGRES_CONNECTION_STRING=postgresql://...",
+    "5. Test connection with psql before enabling MCP",
+    "6. Copy the config section to your Claude Code settings"
+  ],
+  "risk_level": "CRITICAL",
+  "recommended_for": [
+    "Development databases with test data",
+    "Read-only queries for understanding schema",
+    "Debugging data issues with proper authorization"
+  ],
+  "not_recommended_for": [
+    "Production databases (use read replicas)",
+    "Databases containing PII without proper controls",
+    "Any database with write permissions",
+    "Environments without query audit logging"
+  ],
+  "additional_recommendations": [
+    "Use SSL/TLS for all database connections",
+    "Set connection timeouts to prevent long-running queries",
+    "Consider row-level security if available",
+    "Monitor query patterns for anomalies",
+    "Use IP allowlisting to restrict database access"
+  ]
+}

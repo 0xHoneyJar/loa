@@ -1,0 +1,86 @@
+name: "mounting-framework"
+version: "1.1.0"
+model: "sonnet"
+color: "purple"
+
+# v1.14.0: Skill best practices (Issue #97)
+effort_hint: low
+danger_level: safe
+categories:
+  - operations
+
+# v1.14.0: Native Anthropic input examples
+inputExamples:
+  - input:
+      repo_path: "/path/to/repo"
+    description: "Mount Loa to a target repository"
+  - input:
+      stealth: true
+    description: "Mount in stealth mode (gitignored state)"
+  - input:
+      branch: "develop"
+    description: "Mount from a specific Loa branch"
+
+description: |
+  Use this skill to install the Loa framework onto a repository.
+  Mounts the System Zone, initializes State Zone structure, and prepares
+  for the Loa to ride through the codebase.
+  "The Loa mounts the repository, preparing to ride."
+
+triggers:
+  - "/mount"
+  - "mount loa"
+  - "install loa"
+  - "setup loa framework"
+  - "onboard to loa"
+
+examples:
+  - context: "User wants to add Loa to their existing project"
+    user_says: "I want to use Loa on this project"
+    agent_action: "Launch mounting-framework to install System Zone and initialize State Zone"
+  - context: "New repository needs Loa setup"
+    user_says: "Mount Loa on this repo"
+    agent_action: "Launch mounting-framework to prepare the repository for Loa workflows"
+  - context: "User is setting up a fork or clone"
+    user_says: "Install the Loa framework here"
+    agent_action: "Launch mounting-framework to set up the three-zone architecture"
+
+zones:
+  system:
+    path: ".claude"
+    permission: "write"  # Special: mount CAN write System Zone
+  state:
+    paths: ["grimoires/loa", ".beads"]
+    permission: "read-write"
+  app:
+    paths: ["src", "lib", "app"]
+    permission: "none"
+
+dependencies: []
+
+inputs:
+  - name: "stealth"
+    type: "flag"
+    required: false
+    description: "Add State Zone to .gitignore"
+  - name: "skip_beads"
+    type: "flag"
+    required: false
+    description: "Don't initialize Beads CLI"
+  - name: "branch"
+    type: "string"
+    required: false
+    default: "main"
+    description: "Loa branch to use"
+
+outputs:
+  - path: ".loa-version.json"
+    description: "Version manifest"
+  - path: ".loa.config.yaml"
+    description: "User configuration"
+  - path: ".claude/"
+    description: "System Zone"
+  - path: "grimoires/loa/"
+    description: "State Zone"
+  - path: "grimoires/loa/NOTES.md"
+    description: "Structured agentic memory"

@@ -1,0 +1,404 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://loa.dev/schemas/sdd.schema.json",
+  "title": "Software Design Document",
+  "description": "JSON Schema for validating Loa SDD output structure",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the SDD"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["Draft", "Review", "Approved", "Archived"],
+      "description": "Current status of the SDD"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of last update"
+    },
+    "author": {
+      "type": "string",
+      "description": "Author or agent"
+    },
+    "prd_reference": {
+      "type": "string",
+      "description": "Path to related PRD"
+    },
+    "system_architecture": {
+      "type": "object",
+      "properties": {
+        "overview": {
+          "type": "string",
+          "minLength": 50,
+          "description": "High-level architecture overview"
+        },
+        "architecture_pattern": {
+          "type": "string",
+          "description": "Primary architecture pattern (e.g., Microservices, Monolith, Event-Driven)"
+        },
+        "diagrams": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": ["C4-Context", "C4-Container", "C4-Component", "Sequence", "Data Flow", "Deployment"]
+              },
+              "description": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string",
+                "description": "Path to diagram file"
+              }
+            }
+          },
+          "description": "Architecture diagrams"
+        },
+        "key_decisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^ADR-\\d+$"
+              },
+              "title": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["Proposed", "Accepted", "Deprecated", "Superseded"]
+              },
+              "context": {
+                "type": "string"
+              },
+              "decision": {
+                "type": "string"
+              },
+              "consequences": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "description": "Architecture Decision Records"
+        }
+      },
+      "required": ["overview"],
+      "description": "System architecture section"
+    },
+    "component_design": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Component name"
+          },
+          "purpose": {
+            "type": "string",
+            "description": "Component purpose"
+          },
+          "responsibilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Component responsibilities"
+          },
+          "interfaces": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["REST", "GraphQL", "gRPC", "Event", "CLI", "Library"]
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Component interfaces"
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Internal dependencies"
+          },
+          "technology": {
+            "type": "string",
+            "description": "Primary technology/language"
+          }
+        },
+        "required": ["name", "purpose"]
+      },
+      "description": "Component design details"
+    },
+    "data_architecture": {
+      "type": "object",
+      "properties": {
+        "data_stores": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": ["Relational", "Document", "Key-Value", "Graph", "Time-Series", "File", "Cache"]
+              },
+              "technology": {
+                "type": "string"
+              },
+              "purpose": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "Data storage systems"
+        },
+        "data_models": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "description": "Core data models"
+        },
+        "data_flow": {
+          "type": "string",
+          "description": "Data flow description"
+        }
+      },
+      "description": "Data architecture section"
+    },
+    "security_architecture": {
+      "type": "object",
+      "properties": {
+        "authentication": {
+          "type": "object",
+          "properties": {
+            "method": {
+              "type": "string",
+              "description": "Authentication method"
+            },
+            "provider": {
+              "type": "string",
+              "description": "Auth provider"
+            }
+          },
+          "description": "Authentication approach"
+        },
+        "authorization": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "enum": ["RBAC", "ABAC", "ACL", "Custom"]
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "description": "Authorization model"
+        },
+        "encryption": {
+          "type": "object",
+          "properties": {
+            "at_rest": {
+              "type": "string"
+            },
+            "in_transit": {
+              "type": "string"
+            }
+          },
+          "description": "Encryption strategies"
+        },
+        "security_controls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "control": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "implementation": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "Security controls"
+        }
+      },
+      "description": "Security architecture section"
+    },
+    "api_design": {
+      "type": "object",
+      "properties": {
+        "style": {
+          "type": "string",
+          "enum": ["REST", "GraphQL", "gRPC", "WebSocket", "Mixed"]
+        },
+        "versioning": {
+          "type": "string",
+          "description": "API versioning strategy"
+        },
+        "endpoints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "method": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "request": {
+                "type": "object"
+              },
+              "response": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "API endpoints"
+        }
+      },
+      "description": "API design section"
+    },
+    "deployment_architecture": {
+      "type": "object",
+      "properties": {
+        "target_environment": {
+          "type": "string",
+          "description": "Target deployment environment"
+        },
+        "infrastructure": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "component": {
+                "type": "string"
+              },
+              "provider": {
+                "type": "string"
+              },
+              "configuration": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "Infrastructure components"
+        },
+        "ci_cd": {
+          "type": "object",
+          "properties": {
+            "pipeline": {
+              "type": "string"
+            },
+            "stages": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "CI/CD configuration"
+        }
+      },
+      "description": "Deployment architecture"
+    },
+    "technical_constraints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "constraint": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "impact": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Technical constraints"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "string"
+          },
+          "quote": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Source citations"
+    }
+  },
+  "required": ["version", "status", "system_architecture"],
+  "additionalProperties": true
+}

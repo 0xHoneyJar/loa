@@ -1,0 +1,62 @@
+name: "continuous-learning"
+version: "1.1.0"
+model: "sonnet"
+color: "purple"
+
+# v1.14.0: Skill best practices (Issue #97)
+effort_hint: low
+danger_level: safe
+categories:
+  - support
+
+description: |
+  Autonomous skill extraction that activates when agents discover non-obvious
+  solutions through debugging, experimentation, or investigation. Extracts
+  reusable knowledge into skills that persist across sessions.
+
+triggers:
+  - "/retrospective"
+  - "save this as a skill"
+  - "extract what we learned"
+  - "create skill from discovery"
+
+examples:
+  - context: "Agent just resolved a tricky debugging issue"
+    user_says: "That was a useful discovery, let's save it"
+    agent_action: "Evaluate against quality gates, extract to skills-pending/"
+  - context: "End of implementation session"
+    user_says: "/retrospective"
+    agent_action: "Analyze session for extractable discoveries, present candidates"
+
+outputs:
+  - path: "grimoires/loa/skills-pending/{skill-name}/SKILL.md"
+    description: "Extracted skill awaiting approval"
+  - path: "grimoires/loa/a2a/trajectory/continuous-learning-{date}.jsonl"
+    description: "Extraction audit trail"
+
+# Phase gating - per prd.md:L121-130
+phase_activation:
+  enabled:
+    - "/implement sprint-N"
+    - "/review-sprint sprint-N"
+    - "/audit-sprint sprint-N"
+    - "/deploy-production"
+    - "/ride"
+  disabled:
+    - "/plan-and-analyze"
+    - "/architect"
+    - "/sprint-plan"
+
+# Protocol dependencies
+protocols:
+  required:
+    - name: "continuous-learning"
+      path: ".claude/protocols/continuous-learning.md"
+      purpose: "Quality gates, extraction flow, zone compliance"
+    - name: "structured-memory"
+      path: ".claude/protocols/structured-memory.md"
+      purpose: "NOTES.md cross-reference, session continuity"
+  recommended:
+    - name: "trajectory-evaluation"
+      path: ".claude/protocols/trajectory-evaluation.md"
+      purpose: "Extraction logging, audit trail"

@@ -1,0 +1,268 @@
+# MCP Server Registry
+# Single source of truth for all MCP integrations in Loa
+#
+# Usage:
+#   .claude/scripts/mcp-registry.sh list          # List all servers
+#   .claude/scripts/mcp-registry.sh info linear   # Get server details
+#   .claude/scripts/mcp-registry.sh group essential  # List group members
+
+version: "1.0.0"
+
+servers:
+  linear:
+    name: "Linear"
+    description: "Issue tracking and project management"
+    url: "https://linear.app"
+    docs: "https://developers.linear.app/docs"
+
+    scopes:
+      - issues      # Create, read, update issues
+      - projects    # Manage projects
+      - teams       # Access team information
+      - comments    # Add comments to issues
+      - documents   # Access Linear documents
+
+    required_by:
+      - skill: "planning-sprints"
+        reason: "Can sync sprint tasks to Linear"
+        required: false
+
+    setup:
+      steps:
+        - "Go to Linear Settings → API → Personal API Keys"
+        - "Create a new key with read/write access"
+        - 'Add "linear" to enabledMcpjsonServers in .claude/settings.local.json'
+        - "Restart Claude Code to apply changes"
+      env_vars:
+        - LINEAR_API_KEY
+      config_example: |
+        {
+          "mcpServers": {
+            "linear": {
+              "command": "npx",
+              "args": ["-y", "@anthropic/linear-mcp"]
+            }
+          }
+        }
+
+  github:
+    name: "GitHub"
+    description: "Repository operations, PRs, issues, and CI/CD"
+    url: "https://github.com"
+    docs: "https://docs.github.com/en/rest"
+
+    scopes:
+      - repos       # Repository operations
+      - pulls       # Pull request management
+      - issues      # Issue tracking
+      - actions     # CI/CD workflows
+      - branches    # Branch management
+      - commits     # Commit operations
+
+    required_by:
+      - command: "/contribute"
+        reason: "Creates PRs to upstream repository"
+        required: true
+      - skill: "deploying-infrastructure"
+        reason: "Sets up GitHub Actions workflows"
+        required: false
+
+    setup:
+      steps:
+        - "Create a Personal Access Token at https://github.com/settings/tokens"
+        - "Required scopes: repo, read:org, read:user, workflow"
+        - 'Add "github" to enabledMcpjsonServers in .claude/settings.local.json'
+        - "Restart Claude Code to apply changes"
+      env_vars:
+        - GITHUB_TOKEN
+      config_example: |
+        {
+          "mcpServers": {
+            "github": {
+              "command": "npx",
+              "args": ["-y", "@anthropic/github-mcp"]
+            }
+          }
+        }
+
+  vercel:
+    name: "Vercel"
+    description: "Deployment, hosting, and serverless functions"
+    url: "https://vercel.com"
+    docs: "https://vercel.com/docs/rest-api"
+
+    scopes:
+      - deployments   # Deploy applications
+      - projects      # Manage projects
+      - domains       # Domain configuration
+      - env           # Environment variables
+      - logs          # Deployment logs
+
+    required_by:
+      - skill: "deploying-infrastructure"
+        reason: "Deploys to Vercel hosting"
+        required: false
+
+    setup:
+      steps:
+        - "Go to Vercel Settings → Tokens"
+        - "Create token with appropriate scope"
+        - 'Add "vercel" to enabledMcpjsonServers in .claude/settings.local.json'
+        - "Restart Claude Code to apply changes"
+      env_vars:
+        - VERCEL_TOKEN
+      config_example: |
+        {
+          "mcpServers": {
+            "vercel": {
+              "command": "npx",
+              "args": ["-y", "@anthropic/vercel-mcp"]
+            }
+          }
+        }
+
+  discord:
+    name: "Discord"
+    description: "Community and team communication"
+    url: "https://discord.com"
+    docs: "https://discord.com/developers/docs"
+
+    scopes:
+      - messages    # Send and read messages
+      - channels    # Channel access
+      - webhooks    # Webhook management
+      - members     # Member information
+      - roles       # Role management
+
+    required_by: []  # Optional integration, no commands require it
+
+    setup:
+      steps:
+        - "Create a Discord bot at https://discord.com/developers/applications"
+        - "Get the bot token from Bot → Token"
+        - "Invite bot to your server with appropriate permissions"
+        - 'Add "discord" to enabledMcpjsonServers in .claude/settings.local.json'
+        - "Restart Claude Code to apply changes"
+      env_vars:
+        - DISCORD_TOKEN
+        - DISCORD_SERVER_ID
+      config_example: |
+        {
+          "mcpServers": {
+            "discord": {
+              "command": "npx",
+              "args": ["-y", "@anthropic/discord-mcp"]
+            }
+          }
+        }
+
+  web3-stats:
+    name: "Web3 Stats"
+    description: "Blockchain data via Dune API and Blockscout"
+    url: "https://dune.com"
+    docs: "https://dune.com/docs/api"
+
+    scopes:
+      - queries       # Run Dune queries
+      - dashboards    # Access dashboards
+      - blockchain    # On-chain data
+      - tokens        # Token information
+      - wallets       # Wallet analytics
+
+    required_by:
+      - skill: "deploying-infrastructure"
+        reason: "Blockchain monitoring dashboards"
+        required: false
+
+    setup:
+      steps:
+        - "Get Dune API key at https://dune.com/settings/api"
+        - "Optional: Configure Blockscout API for on-chain data"
+        - 'Add "web3-stats" to enabledMcpjsonServers in .claude/settings.local.json'
+        - "Restart Claude Code to apply changes"
+      env_vars:
+        - DUNE_API_KEY
+        - BLOCKSCOUT_API_KEY
+      config_example: |
+        {
+          "mcpServers": {
+            "web3-stats": {
+              "command": "npx",
+              "args": ["-y", "@anthropic/web3-stats-mcp"]
+            }
+          }
+        }
+
+  gdrive:
+    name: "Google Drive"
+    description: "Google Drive file operations and document management"
+    url: "https://drive.google.com"
+    docs: "https://developers.google.com/drive/api"
+
+    scopes:
+      - files       # File operations
+      - folders     # Folder management
+      - docs        # Google Docs
+      - sheets      # Google Sheets
+      - slides      # Google Slides
+
+    required_by: []  # Optional integration
+
+    setup:
+      steps:
+        - "Set up Google Cloud project with Drive API enabled"
+        - "Create OAuth credentials or service account"
+        - 'Add "gdrive" to enabledMcpjsonServers in .claude/settings.local.json'
+        - "Restart Claude Code to apply changes"
+      env_vars:
+        - GOOGLE_CLIENT_ID
+        - GOOGLE_CLIENT_SECRET
+      config_example: |
+        {
+          "mcpServers": {
+            "gdrive": {
+              "command": "npx",
+              "args": ["-y", "@anthropic/gdrive-mcp"]
+            }
+          }
+        }
+
+# Server groups for batch configuration
+groups:
+  essential:
+    description: "Recommended for all THJ developers"
+    servers:
+      - linear
+      - github
+
+  deployment:
+    description: "For production deployment workflows"
+    servers:
+      - github
+      - vercel
+
+  crypto:
+    description: "For blockchain/crypto projects"
+    servers:
+      - web3-stats
+      - github
+
+  communication:
+    description: "Team communication integrations"
+    servers:
+      - discord
+
+  productivity:
+    description: "Document and productivity tools"
+    servers:
+      - gdrive
+
+  all:
+    description: "All available MCP servers"
+    servers:
+      - linear
+      - github
+      - vercel
+      - discord
+      - web3-stats
+      - gdrive
