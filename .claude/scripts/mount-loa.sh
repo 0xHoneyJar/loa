@@ -1011,16 +1011,16 @@ run_wizard_gum() {
   # Build status display
   local status_text=""
   if [[ "$qmd_installed" == "true" ]]; then
-    status_text+="  $(gum style --foreground 40 '✓') QMD (semantic search)\n"
+    status_text+="  $(gum style --foreground 250 '✓') QMD $(gum style --foreground 240 '· semantic search')\n"
     INSTALL_STATUS[qmd]="already"
   else
-    status_text+="  $(gum style --foreground 240 '○') QMD (semantic search)\n"
+    status_text+="  $(gum style --foreground 240 '○') QMD $(gum style --foreground 240 '· semantic search')\n"
   fi
   if [[ "$beads_installed" == "true" ]]; then
-    status_text+="  $(gum style --foreground 40 '✓') beads (task tracking)\n"
+    status_text+="  $(gum style --foreground 250 '✓') beads $(gum style --foreground 240 '· task tracking')\n"
     INSTALL_STATUS[beads]="already"
   else
-    status_text+="  $(gum style --foreground 240 '○') beads (task tracking)\n"
+    status_text+="  $(gum style --foreground 240 '○') beads $(gum style --foreground 240 '· task tracking')\n"
   fi
 
   # Show header with status
@@ -1035,12 +1035,12 @@ run_wizard_gum() {
 
   # If all installed, skip selection
   if [[ "$qmd_installed" == "true" && "$beads_installed" == "true" ]]; then
-    gum style --foreground 240 "All recommended tools already installed."
+    gum style --foreground 240 "All tools installed."
     INSTALL_STATUS[memory]="skipped"
   else
     # Build choices for tools not installed
     local choices=""
-    [[ "$qmd_installed" != "true" ]] && choices+="QMD · Semantic code search (recommended)
+    [[ "$qmd_installed" != "true" ]] && choices+="QMD · Semantic code search
 "
     [[ "$beads_installed" != "true" ]] && choices+="beads · Task tracking
 "
@@ -1085,31 +1085,31 @@ run_wizard_gum() {
   # Summary
   echo ""
   local summary=""
-  [[ -n "$version" ]] && summary+="$(gum style --foreground 40 '✓') Loa v${version} mounted\n"
+  [[ -n "$version" ]] && summary+="$(gum style --foreground 250 '✓') Loa v${version}\n"
 
   for tool in qmd beads; do
     local status="${INSTALL_STATUS[$tool]}"
     local name=""
     case "$tool" in
-      qmd) name="Semantic search (QMD)" ;;
-      beads) name="Task tracking (beads)" ;;
+      qmd) name="QMD" ;;
+      beads) name="beads" ;;
     esac
     case "$status" in
-      installed) summary+="$(gum style --foreground 40 '✓') ${name} installed\n" ;;
-      already)   summary+="$(gum style --foreground 40 '✓') ${name}\n" ;;
-      skipped)   summary+="$(gum style --foreground 240 '○') ${name} skipped\n" ;;
-      failed)    summary+="$(gum style --foreground 208 '!') ${name} failed\n" ;;
+      installed) summary+="$(gum style --foreground 250 '✓') ${name}\n" ;;
+      already)   summary+="$(gum style --foreground 250 '✓') ${name}\n" ;;
+      skipped)   summary+="$(gum style --foreground 240 '○') ${name}\n" ;;
+      failed)    summary+="$(gum style --foreground 208 '!') ${name}\n" ;;
     esac
   done
 
   gum style \
     --border normal \
     --padding "0 2" \
-    --border-foreground 40 \
-    "$(gum style --foreground 40 --bold '✓ Setup Complete')
+    --border-foreground 240 \
+    "$(gum style --foreground 255 --bold 'Setup Complete')
 
 $(printf "$summary")
-$(gum style --foreground 240 'Run') $(gum style --foreground 45 'claude') $(gum style --foreground 240 'to start')"
+$(gum style --foreground 240 'Run') $(gum style --foreground 255 'claude') $(gum style --foreground 240 'to start')"
 }
 
 # Background installation helper
