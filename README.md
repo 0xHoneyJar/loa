@@ -1,6 +1,6 @@
 # Loa
 
-[![Version](https://img.shields.io/badge/version-1.14.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.14.1-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
 [![Release](https://img.shields.io/badge/release-Oracle%20Compound%20Learnings-purple.svg)](CHANGELOG.md#1120---2026-02-01--oracle-compound-learnings)
 
