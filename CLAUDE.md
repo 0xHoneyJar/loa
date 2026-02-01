@@ -4,7 +4,7 @@ Guidance for Claude Code when working in this repository.
 
 ## Project Overview
 
-Agent-driven development framework that orchestrates the complete product lifecycle using 9 specialized AI agents (skills). Built with enterprise-grade managed scaffolding inspired by AWS Projen, Copier, and Google's ADK.
+Agent-driven development framework that orchestrates the complete product lifecycle using 11 specialized AI agents (skills). Built with enterprise-grade managed scaffolding inspired by AWS Projen, Copier, and Google's ADK.
 
 ## Architecture
 
@@ -22,7 +22,7 @@ Loa uses a managed scaffolding architecture:
 
 ### Skills System
 
-10 agent skills in `.claude/skills/` using 3-level architecture:
+11 agent skills in `.claude/skills/` using 3-level architecture:
 
 | Skill | Role | Output |
 |-------|------|--------|
@@ -36,6 +36,7 @@ Loa uses a managed scaffolding architecture:
 | `deploying-infrastructure` | DevOps Architect | `grimoires/loa/deployment/` |
 | `translating-for-executives` | Developer Relations | Executive summaries |
 | `run-mode` | Autonomous Executor | Draft PR + `.run/` state |
+| `enhancing-prompts` | Prompt Engineer | Enhanced prompts with analysis |
 
 **3-Level Skill Structure**:
 ```
@@ -112,9 +113,11 @@ plan_and_analyze:
 
 **Ad-hoc**: `/audit`, `/audit-deployment`, `/translate`, `/contribute`, `/update-loa`, `/validate`, `/feedback`
 
+**Prompt Enhancement**: `/enhance` - Analyze and enhance prompts for better outputs
+
 **Run Mode**: `/run sprint-N`, `/run sprint-plan`, `/run-status`, `/run-halt`, `/run-resume`
 
-**Continuous Learning**: `/retrospective`, `/skill-audit`
+**Continuous Learning**: `/retrospective`, `/skill-audit`, `/compound`
 
 ### Autonomous Agent Orchestration (v1.11.0)
 
@@ -672,6 +675,38 @@ Autonomous sprint execution with human-in-the-loop shifted to PR review.
 - 8h timeout
 
 **Protocol**: See `.claude/protocols/run-mode.md`
+
+## Prompt Enhancement (v1.14.0)
+
+Intelligent prompt enhancement using PTCF framework (Persona + Task + Context + Format):
+
+| Command | Description |
+|---------|-------------|
+| `/enhance <prompt>` | Analyze and enhance a prompt |
+| `/enhance --analyze-only <prompt>` | Show analysis without enhancement |
+| `/enhance --task-type <type> <prompt>` | Force specific task type |
+
+**Task Types**: debugging, code_review, refactoring, summarization, research, generation, general
+
+**Quality Scoring (0-10)**:
+- 0-1: Invalid (no task verb)
+- 2-3: Minimal (task only)
+- 4-5: Acceptable (task + context)
+- 6-7: Good (task + context + format)
+- 8-10: Excellent (all PTCF components)
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+prompt_enhancement:
+  enabled: true
+  auto_enhance_threshold: 4
+  show_analysis: true
+  max_refinement_iterations: 3
+```
+
+**Feedback Loop**: When outputs fail, the refinement loop automatically improves the prompt based on detected failure signals (runtime errors, test failures, user rejection).
+
+**Research Sources**: Issue #108 (Self-Distillation Methods), Issue #109 (Google Gemini Prompting Guide)
 
 ## Compound Learning (v1.10.0)
 

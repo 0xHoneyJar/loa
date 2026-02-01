@@ -1326,6 +1326,40 @@ memory_schema:
     warn_before_archive_days: 7
 
 # =============================================================================
+# Prompt Enhancement (v1.14.0 - Issue #108, #109)
+# =============================================================================
+# Intelligent prompt enhancement using PTCF framework (Persona + Task + Context + Format)
+# Based on Google Gemini prompting guide and self-distillation methods
+prompt_enhancement:
+  # Master toggle - set to false to disable prompt enhancement
+  enabled: true
+
+  # Quality score threshold for auto-enhancement (0-10)
+  # Prompts scoring below this are automatically enhanced
+  auto_enhance_threshold: 4
+
+  # Show quality analysis in output (before/after scores, components)
+  show_analysis: true
+
+  # Maximum refinement iterations (feedback loop)
+  max_refinement_iterations: 3
+
+  # Path to custom templates (overrides defaults)
+  # custom_templates_path: ".claude/overrides/templates/prompts/"
+
+  # Task types to enable (empty array = all enabled)
+  enabled_task_types: []
+
+  # Middleware mode: enhance before other skills
+  middleware:
+    # Enable middleware mode (enhance prompts before skill execution)
+    enabled: false
+    # Skills to exclude from middleware enhancement
+    exclude_skills:
+      - "enhancing-prompts"  # Prevent recursion
+      - "run-mode"           # Don't enhance autonomous mode
+
+# =============================================================================
 # Behavior Preferences
 # =============================================================================
 preferences:
