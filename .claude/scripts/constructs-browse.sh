@@ -22,6 +22,7 @@
 #   LOA_REGISTRY_URL        - Override API URL
 #
 # Sources: GitHub Issue #77
+# Updated: GitHub Issue #106 - API endpoint migration to /constructs
 # =============================================================================
 
 set -euo pipefail
@@ -90,60 +91,108 @@ is_cache_valid() {
 # =============================================================================
 
 # Fetch packs list from registry
+# Uses unified /constructs endpoint with type=pack filter
+# @see issue #106: API endpoint migration
 fetch_packs() {
     local registry_url
     registry_url=$(get_registry_url)
-    
+
     local api_key
     api_key=$(get_api_key 2>/dev/null || echo "")
-    
+
     local cache_file
     cache_file=$(get_cache_path "packs-list")
-    
+
     # Try cache first
     if is_cache_valid "$cache_file"; then
         cat "$cache_file"
         return 0
     fi
-    
-    # Fetch from API
+
+    # Fetch from API - use unified /constructs endpoint
     local curl_args=(-s -f)
     if [[ -n "$api_key" ]]; then
         curl_args+=(-H "Authorization: Bearer $api_key")
     fi
-    
-    local response
-    if response=$(curl "${curl_args[@]}" "${registry_url}/packs" 2>/dev/null); then
-        # Cache the response
-        ensure_cache_dir
-        echo "$response" > "$cache_file"
-        echo "$response"
-        return 0
-    else
-        # Network error - try cache even if expired
-        if [[ -f "$cache_file" ]]; then
-            cat "$cache_file"
+
+    local response http_code
+    # Capture both response and HTTP code
+    response=$(curl "${curl_args[@]}" -w "\n%{http_code}" "${registry_url}/constructs?type=pack" 2>/dev/null) || true
+    http_code=$(echo "$response" | tail -n1)
+    response=$(echo "$response" | sed '$d')
+
+    # Check for successful response
+    if [[ "$http_code" == "200" ]] && [[ -n "$response" ]]; then
+        # Verify it's valid JSON with data array
+        if echo "$response" | jq -e '.data' &>/dev/null; then
+            # Cache the response
+            ensure_cache_dir
+            echo "$response" > "$cache_file"
+            echo "$response"
             return 0
         fi
-        return $EXIT_NETWORK_ERROR
     fi
+
+    # Check for specific error codes
+    local error_code
+    error_code=$(echo "$response" | jq -r '.error.code // empty' 2>/dev/null)
+
+    if [[ "$error_code" == "INTERNAL_ERROR" ]]; then
+        echo "ERROR: Registry service temporarily unavailable" >&2
+    elif [[ "$error_code" == "NOT_FOUND" ]]; then
+        echo "ERROR: Registry endpoint not found (API may have changed)" >&2
+    elif [[ -n "$error_code" ]]; then
+        echo "ERROR: Registry returned: $error_code" >&2
+    fi
+
+    # Network or API error - try cache even if expired
+    if [[ -f "$cache_file" ]]; then
+        echo "  Using cached data..." >&2
+        cat "$cache_file"
+        return 0
+    fi
+
+    return $EXIT_NETWORK_ERROR
 }
 
 # Fetch single pack info
+# Uses unified /constructs/:slug endpoint
+# @see issue #106: API endpoint migration
 fetch_pack_info() {
     local slug="$1"
     local registry_url
     registry_url=$(get_registry_url)
-    
+
     local api_key
     api_key=$(get_api_key 2>/dev/null || echo "")
-    
+
     local curl_args=(-s -f)
     if [[ -n "$api_key" ]]; then
         curl_args+=(-H "Authorization: Bearer $api_key")
     fi
-    
-    curl "${curl_args[@]}" "${registry_url}/packs/${slug}" 2>/dev/null
+
+    local response http_code
+    response=$(curl "${curl_args[@]}" -w "\n%{http_code}" "${registry_url}/constructs/${slug}" 2>/dev/null) || true
+    http_code=$(echo "$response" | tail -n1)
+    response=$(echo "$response" | sed '$d')
+
+    if [[ "$http_code" == "200" ]] && [[ -n "$response" ]]; then
+        echo "$response"
+        return 0
+    fi
+
+    # Handle errors gracefully
+    local error_code
+    error_code=$(echo "$response" | jq -r '.error.code // empty' 2>/dev/null)
+
+    if [[ "$error_code" == "NOT_FOUND" ]]; then
+        return $EXIT_NOT_FOUND
+    elif [[ "$error_code" == "INTERNAL_ERROR" ]]; then
+        echo "ERROR: Registry service temporarily unavailable" >&2
+        return $EXIT_NETWORK_ERROR
+    fi
+
+    return $EXIT_NOT_FOUND
 }
 
 # =============================================================================
@@ -193,7 +242,7 @@ format_packs_json() {
 
 cmd_list() {
     local json_output=false
-    
+
     # Parse args
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -206,13 +255,28 @@ cmd_list() {
                 ;;
         esac
     done
-    
+
     local packs_json
-    if ! packs_json=$(fetch_packs); then
-        echo "ERROR: Could not fetch packs from registry" >&2
+    if ! packs_json=$(fetch_packs 2>&1); then
+        # fetch_packs already printed specific error messages
+        if [[ "$json_output" == true ]]; then
+            echo "[]"
+        else
+            echo ""
+            echo "╭───────────────────────────────────────────────────────────────╮"
+            echo "│  LOA CONSTRUCTS REGISTRY                                      │"
+            echo "╰───────────────────────────────────────────────────────────────╯"
+            echo ""
+            echo "  Registry unavailable. Please try again later."
+            echo ""
+            echo "  If this persists, check:"
+            echo "    - https://status.constructs.network (if available)"
+            echo "    - https://github.com/0xHoneyJar/loa-constructs/issues"
+            echo ""
+        fi
         return $EXIT_NETWORK_ERROR
     fi
-    
+
     if [[ "$json_output" == true ]]; then
         format_packs_json "$packs_json"
     else
@@ -252,19 +316,19 @@ Downloads: \(.downloads // 0)
 
 cmd_search() {
     local query="${1:-}"
-    
+
     if [[ -z "$query" ]]; then
         # No query = list all
         cmd_list
         return
     fi
-    
+
     local packs_json
-    if ! packs_json=$(fetch_packs); then
+    if ! packs_json=$(fetch_packs 2>&1); then
         echo "ERROR: Could not fetch packs from registry" >&2
         return $EXIT_NETWORK_ERROR
     fi
-    
+
     # Filter packs by query (case-insensitive)
     # API returns { data: [...], pagination: {...} } envelope
     local query_lower
@@ -279,12 +343,12 @@ cmd_search() {
             (.slug | ascii_downcase | contains($q))
         )
     ]')
-    
+
     if [[ "$(echo "$filtered" | jq 'length')" == "0" ]]; then
         echo "No packs matching '$query'" >&2
         return $EXIT_NOT_FOUND
     fi
-    
+
     format_packs_human "{\"data\": $filtered}"
 }
 

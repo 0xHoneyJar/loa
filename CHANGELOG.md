@@ -5,6 +5,18 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.1] - 2026-02-01 — Constructs Bug Fix
+
+### Fixed
+
+#### get_api_key() Missing from Shared Library (#104, #105)
+
+Fixed undefined function error in `/constructs` command. The `get_api_key()` and `check_file_permissions()` functions were only defined in `constructs-install.sh` but called by `constructs-auth.sh` and `constructs-browse.sh`.
+
+**Solution**: Moved both functions to `constructs-lib.sh` (the shared library sourced by all constructs scripts).
+
+---
+
 ## [1.14.0] - 2026-02-01 — Constructs Multi-Select UI
 
 ### Why This Release
