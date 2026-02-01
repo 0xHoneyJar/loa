@@ -1,4 +1,16 @@
 {
+  "spinnerVerbs": {
+    "mode": "append",
+    "verbs": [
+      "Channeling",
+      "Invoking",
+      "Conjuring",
+      "Manifesting",
+      "Summoning",
+      "Weaving",
+      "Binding"
+    ]
+  },
   "permissions": {
     "allow": [
       "Bash(npm:*)",
