@@ -375,7 +375,10 @@ prompt_qmd() {
   # Check if already installed
   if command -v qmd &>/dev/null; then
     INSTALL_STATUS[qmd]="already"
-    return 0  # Don't prompt, already installed
+    echo ""
+    echo -e "${BOLD}1. Semantic Search (QMD)${NC}"
+    echo -e "   ${GREEN}${SYM_CHECK}${NC} Already installed"
+    return 0
   fi
 
   show_qmd_prompt
@@ -500,7 +503,10 @@ prompt_beads() {
   # Check if already installed
   if command -v br &>/dev/null; then
     INSTALL_STATUS[beads]="already"
-    return 0  # Don't prompt, already installed
+    echo ""
+    echo -e "${BOLD}2. Task Tracking (beads)${NC}"
+    echo -e "   ${GREEN}${SYM_CHECK}${NC} Already installed"
+    return 0
   fi
 
   show_beads_prompt
