@@ -976,7 +976,10 @@ main() {
   # Header
   if [[ "$QUIET_MODE" != "true" ]]; then
     echo ""
-    echo -e "${BOLD}mount-loa${NC}"
+    echo -e "${DIM}─────────────────────────────────────────────────${NC}"
+    echo -e "  ${BOLD}Loa${NC} ${DIM}· by 0xHoneyJar${NC}"
+    echo -e "  ${DIM}https://0xhoneyjar.xyz${NC}"
+    echo -e "${DIM}─────────────────────────────────────────────────${NC}"
     echo ""
   fi
 
