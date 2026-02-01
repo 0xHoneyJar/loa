@@ -9,13 +9,102 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 BLUE='\033[0;34m'
+DIM='\033[2m'
+BOLD='\033[1m'
 NC='\033[0m'
 
-log() { echo -e "${GREEN}[loa]${NC} $*"; }
-warn() { echo -e "${YELLOW}[loa]${NC} $*"; }
-err() { echo -e "${RED}[loa]${NC} ERROR: $*" >&2; exit 1; }
-info() { echo -e "${CYAN}[loa]${NC} $*"; }
-step() { echo -e "${BLUE}[loa]${NC} -> $*"; }
+# === Output Mode Variables ===
+QUIET_MODE=false
+VERBOSE_MODE=false
+
+# === Symbols (Unicode) ===
+SYM_CHECK="✓"
+SYM_ARROW="›"
+SYM_WARN="!"
+SYM_ERR="✗"
+SYM_DOT="·"
+
+# === ANSI Escape Codes ===
+CLEAR_LINE="\033[2K"
+CURSOR_UP="\033[1A"
+HIDE_CURSOR="\033[?25l"
+SHOW_CURSOR="\033[?25h"
+
+# === Logging Functions (quiet-aware) ===
+log() { [[ "$VERBOSE_MODE" == "true" ]] && echo -e "${DIM}  $*${NC}" || true; }
+warn() {
+  # If spinner is running, stop it first
+  if [[ -n "$SPINNER_PID" ]]; then
+    kill "$SPINNER_PID" 2>/dev/null
+    wait "$SPINNER_PID" 2>/dev/null || true
+    SPINNER_PID=""
+    printf "\r${CLEAR_LINE}"
+  fi
+  echo -e "${YELLOW}${SYM_WARN}${NC} $*"
+}
+err() { echo -e "${RED}${SYM_ERR} ERROR:${NC} $*" >&2; exit 1; }
+info() { [[ "$VERBOSE_MODE" == "true" ]] && echo -e "${CYAN}$*${NC}" || true; }
+step() { [[ "$VERBOSE_MODE" == "true" ]] && echo -e "${DIM}  ${SYM_ARROW} $*${NC}" || true; }
+
+# === Spinner ===
+SPINNER_PID=""
+SPINNER_FRAMES=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
+
+spinner_start() {
+  local msg="$1"
+  [[ "$QUIET_MODE" == "true" ]] && return
+
+  printf "${HIDE_CURSOR}"
+  (
+    local i=0
+    while true; do
+      printf "\r${CYAN}${SPINNER_FRAMES[$i]}${NC} %s" "$msg"
+      i=$(( (i + 1) % ${#SPINNER_FRAMES[@]} ))
+      sleep 0.08
+    done
+  ) &
+  SPINNER_PID=$!
+}
+
+spinner_stop() {
+  local msg="$1"
+  local success="${2:-true}"
+
+  [[ "$QUIET_MODE" == "true" ]] && { echo "$msg"; return; }
+
+  if [[ -n "$SPINNER_PID" ]]; then
+    kill "$SPINNER_PID" 2>/dev/null
+    wait "$SPINNER_PID" 2>/dev/null || true
+    SPINNER_PID=""
+  fi
+
+  printf "\r${CLEAR_LINE}"
+  if [[ "$success" == "true" ]]; then
+    printf "${GREEN}${SYM_CHECK}${NC} %s\n" "$msg"
+  else
+    printf "${YELLOW}${SYM_WARN}${NC} %s\n" "$msg"
+  fi
+  printf "${SHOW_CURSOR}"
+}
+
+# Cleanup spinner on interrupt (not normal exit)
+cleanup_spinner() {
+  if [[ -n "$SPINNER_PID" ]]; then
+    kill "$SPINNER_PID" 2>/dev/null
+    wait "$SPINNER_PID" 2>/dev/null || true
+    SPINNER_PID=""
+    printf "\r${CLEAR_LINE}${YELLOW}${SYM_WARN}${NC} Interrupted\n"
+  fi
+  printf "${SHOW_CURSOR}"
+}
+trap 'cleanup_spinner' INT TERM
+trap 'printf "${SHOW_CURSOR}"' EXIT
+
+# === Spinner Verb Themes ===
+# Pipe-delimited for easy parsing with tr
+SPINNER_THEME_DUNE="Channeling spice|Riding sandworm|Consulting mentat|Folding space|Walking rhythm|Harvesting melange|Awakening sleeper|Reading prescience"
+SPINNER_THEME_GIBSON="Jacking in|Running ICE|Tracing construct|Navigating sprawl|Compiling intrusion|Parsing signal|Decrypting data|Surfing matrix"
+SPINNER_THEME_LOA="Invoking loa|Mounting grimoire|Channeling agents|Binding beads|Synthesizing context|Weaving protocols|Conjuring skills|Riding codebase"
 
 # === Configuration ===
 LOA_REMOTE_URL="${LOA_UPSTREAM:-https://github.com/0xHoneyJar/loa.git}"
@@ -28,6 +117,9 @@ SKIP_BEADS=false
 STEALTH_MODE=false
 FORCE_MODE=false
 NO_COMMIT=false
+VERSION_MODE="latest"  # latest | edge | loa@vX.Y.Z
+RESOLVED_VERSION=""    # Populated by fetch_latest_loa_release
+FALLBACK_VERSION="1.14.1"
 
 # === Argument Parsing ===
 while [[ $# -gt 0 ]]; do
@@ -35,6 +127,25 @@ while [[ $# -gt 0 ]]; do
     --branch)
       LOA_BRANCH="$2"
       shift 2
+      ;;
+    --version)
+      [[ -z "${2:-}" || "$2" == -* ]] && err "--version requires a value (e.g., --version 1.14.0)"
+      VERSION_MODE="loa@v$2"
+      shift 2
+      ;;
+    --edge)
+      VERSION_MODE="edge"
+      shift
+      ;;
+    --quiet|-q)
+      QUIET_MODE=true
+      VERBOSE_MODE=false
+      shift
+      ;;
+    --verbose|-v)
+      VERBOSE_MODE=true
+      QUIET_MODE=false
+      shift
       ;;
     --stealth)
       STEALTH_MODE=true
@@ -56,15 +167,26 @@ while [[ $# -gt 0 ]]; do
       echo "Usage: mount-loa.sh [OPTIONS]"
       echo ""
       echo "Options:"
+      echo "  --version <ver>   Install specific version (e.g., --version 1.14.0)"
+      echo "  --edge            Install from main branch (bleeding edge)"
+      echo "  --quiet, -q       Minimal output (numbered progress steps)"
+      echo "  --verbose, -v     Full output with ASCII banner"
       echo "  --branch <name>   Loa branch to use (default: main)"
-      echo "  --force, -f       Force remount without prompting (use for curl | bash)"
+      echo "  --force, -f       Force remount without prompting"
       echo "  --stealth         Add state files to .gitignore"
       echo "  --skip-beads      Don't install/initialize Beads CLI"
       echo "  --no-commit       Skip creating git commit after mount"
       echo "  -h, --help        Show this help message"
       echo ""
-      echo "Recovery install (when /update is broken):"
-      echo "  curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash -s -- --force"
+      echo "Examples:"
+      echo "  # Install latest release"
+      echo "  curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash"
+      echo ""
+      echo "  # Install specific version"
+      echo "  bash mount-loa.sh --version 1.13.0"
+      echo ""
+      echo "  # Install bleeding edge"
+      echo "  bash mount-loa.sh --edge"
       exit 0
       ;;
     *)
@@ -96,6 +218,167 @@ yq_to_json() {
   fi
 }
 
+# === Version Resolution ===
+# Fetches latest loa@v* release from GitHub API
+# Args: mode - "latest" (default), "edge", or "loa@vX.Y.Z"
+# Returns: version string to stdout, exit 1 if fallback used
+fetch_latest_loa_release() {
+  local mode="${1:-latest}"
+
+  case "$mode" in
+    edge)
+      # Edge mode: use main branch
+      echo "main"
+      return 0
+      ;;
+    latest)
+      # Fetch from GitHub API, filter loa@v* tags
+      local response
+      response=$(curl -sL --proto =https --tlsv1.2 \
+        -H "Accept: application/vnd.github+json" \
+        --max-time 5 \
+        "https://api.github.com/repos/0xHoneyJar/loa/releases" 2>/dev/null) || {
+        warn "Network error fetching releases"
+        echo "$FALLBACK_VERSION"
+        return 1
+      }
+
+      # Extract first loa@v* tag (most recent)
+      local tag
+      tag=$(echo "$response" | jq -r '[.[] | select(.tag_name | startswith("loa@v"))][0].tag_name // empty' 2>/dev/null)
+
+      if [[ -n "$tag" && "$tag" != "null" ]]; then
+        echo "${tag#loa@v}"  # Strip prefix, return "1.14.1"
+        return 0
+      fi
+
+      # No loa@v* releases found, try any release
+      tag=$(echo "$response" | jq -r '.[0].tag_name // empty' 2>/dev/null)
+      if [[ -n "$tag" && "$tag" != "null" ]]; then
+        echo "${tag#v}"  # Strip v prefix if present
+        return 0
+      fi
+
+      # Fallback
+      warn "Could not determine latest version from GitHub"
+      echo "$FALLBACK_VERSION"
+      return 1
+      ;;
+    loa@v*)
+      # Specific version requested - validate format and return
+      local ver="${mode#loa@v}"
+      if [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+        echo "$ver"
+        return 0
+      else
+        warn "Invalid version format: $ver"
+        echo "$FALLBACK_VERSION"
+        return 1
+      fi
+      ;;
+    *)
+      echo "$FALLBACK_VERSION"
+      return 1
+      ;;
+  esac
+}
+
+# === Spinner Verbs Functions ===
+# Prompts user to select a spinner theme (interactive only)
+prompt_spinner_verbs() {
+  # Skip if non-interactive, force mode, or quiet mode
+  [[ ! -t 0 ]] && return 0
+  [[ "$FORCE_MODE" == "true" ]] && return 0
+  [[ "$QUIET_MODE" == "true" ]] && return 0
+
+  echo ""
+  echo -e "${BOLD}Select spinner theme${NC}"
+  echo ""
+  echo -e "  ${BOLD}1${NC}  Dune     ${DIM}Channeling spice, Riding sandworm...${NC}"
+  echo -e "  ${BOLD}2${NC}  Gibson   ${DIM}Jacking in, Running ICE...${NC}"
+  echo -e "  ${BOLD}3${NC}  Loa      ${DIM}Invoking loa, Mounting grimoire...${NC}"
+  echo -e "  ${BOLD}n${NC}  Skip"
+  echo ""
+  read -p "Choice [1/2/3/n]: " -n 1 -r
+  echo ""
+
+  case $REPLY in
+    1) apply_spinner_verbs "dune" && echo -e "${GREEN}${SYM_CHECK}${NC} Applied Dune theme" ;;
+    2) apply_spinner_verbs "gibson" && echo -e "${GREEN}${SYM_CHECK}${NC} Applied Gibson theme" ;;
+    3) apply_spinner_verbs "loa" && echo -e "${GREEN}${SYM_CHECK}${NC} Applied Loa theme" ;;
+    *) ;;
+  esac
+}
+
+# Applies selected spinner theme to .claude/settings.json
+apply_spinner_verbs() {
+  local theme="$1"
+  local settings_file=".claude/settings.json"
+
+  [[ ! -f "$settings_file" ]] && {
+    warn "settings.json not found, skipping spinner verbs"
+    return 1
+  }
+
+  # Select theme
+  local verbs_str
+  case "$theme" in
+    dune)   verbs_str="$SPINNER_THEME_DUNE" ;;
+    gibson) verbs_str="$SPINNER_THEME_GIBSON" ;;
+    loa)    verbs_str="$SPINNER_THEME_LOA" ;;
+    *)      return 1 ;;
+  esac
+
+  # Convert pipe-delimited string to JSON array
+  local verbs_array
+  verbs_array=$(echo "$verbs_str" | tr '|' '\n' | jq -R . | jq -s .)
+
+  # Build spinnerVerbs object with mode and verbs
+  local spinner_obj
+  spinner_obj=$(jq -n --argjson verbs "$verbs_array" '{"mode": "replace", "verbs": $verbs}')
+
+  # Merge into settings.json (atomic write)
+  local tmp_file
+  tmp_file=$(mktemp)
+  chmod 600 "$tmp_file"
+
+  if jq --argjson spinnerVerbs "$spinner_obj" '.spinnerVerbs = $spinnerVerbs' "$settings_file" > "$tmp_file" 2>/dev/null; then
+    mv "$tmp_file" "$settings_file"
+    log "Applied $theme spinner theme"
+  else
+    rm -f "$tmp_file"
+    warn "Failed to update settings.json"
+    return 1
+  fi
+}
+
+# === Completion Message ===
+show_completion() {
+  local version="$1"
+
+  if [[ "$VERBOSE_MODE" == "true" ]]; then
+    # Delegate to existing upgrade-banner.sh
+    local banner_script=".claude/scripts/upgrade-banner.sh"
+    if [[ -x "$banner_script" ]]; then
+      "$banner_script" "none" "$version" --mount
+    else
+      show_minimal_completion "$version"
+    fi
+  else
+    show_minimal_completion "$version"
+  fi
+}
+
+show_minimal_completion() {
+  local version="$1"
+  echo ""
+  echo -e "${GREEN}${SYM_CHECK}${NC} ${BOLD}Loa v${version} mounted${NC}"
+  echo ""
+  echo -e "  Run ${CYAN}claude${NC} to start"
+  echo -e "  Use ${CYAN}/loa${NC} for guided workflow"
+  echo ""
+}
+
 # === Pre-flight Checks ===
 preflight() {
   log "Running pre-flight checks..."
@@ -106,10 +389,11 @@ preflight() {
 
   if [[ -f "$VERSION_FILE" ]]; then
     local existing=$(jq -r '.framework_version // "unknown"' "$VERSION_FILE" 2>/dev/null)
-    warn "Loa is already mounted (version: $existing)"
     if [[ "$FORCE_MODE" == "true" ]]; then
-      log "Force mode enabled, proceeding with remount..."
+      # Silent in force mode - user knows what they're doing
+      log "Force mode: remounting over v$existing"
     else
+      warn "Loa is already mounted (version: $existing)"
       # Check if stdin is a terminal (interactive mode)
       if [[ -t 0 ]]; then
         read -p "Remount/upgrade? This will reset the System Zone. (y/N) " -n 1 -r
@@ -382,15 +666,17 @@ EOF
 create_manifest() {
   step "Creating version manifest..."
 
-  # Version detection priority:
-  # 1. Root .loa-version.json (if exists from previous install)
-  # 2. .claude/.loa-version.json (from upstream)
-  # 3. Fallback to current framework version
-  local upstream_version="1.7.2"
-  if [[ -f ".loa-version.json" ]]; then
-    upstream_version=$(jq -r '.framework_version // "1.7.2"' .loa-version.json 2>/dev/null)
-  elif [[ -f ".claude/.loa-version.json" ]]; then
-    upstream_version=$(jq -r '.framework_version // "1.7.2"' .claude/.loa-version.json 2>/dev/null)
+  # Use RESOLVED_VERSION if set (from fetch_latest_loa_release)
+  # Otherwise fall back to detection from existing files
+  local upstream_version="${RESOLVED_VERSION:-}"
+  if [[ -z "$upstream_version" ]]; then
+    if [[ -f ".loa-version.json" ]]; then
+      upstream_version=$(jq -r '.framework_version // "'"$FALLBACK_VERSION"'"' .loa-version.json 2>/dev/null)
+    elif [[ -f ".claude/.loa-version.json" ]]; then
+      upstream_version=$(jq -r '.framework_version // "'"$FALLBACK_VERSION"'"' .claude/.loa-version.json 2>/dev/null)
+    else
+      upstream_version="$FALLBACK_VERSION"
+    fi
   fi
 
   cat > "$VERSION_FILE" << EOF
@@ -729,60 +1015,77 @@ Generated by Loa update.sh"
 
 # === Main ===
 main() {
-  echo ""
-  log "======================================================================="
-  log "  Loa Framework Mount v1.7.2"
-  log "  Enterprise-Grade Managed Scaffolding"
-  log "======================================================================="
-  log "  Branch: $LOA_BRANCH"
-  [[ "$FORCE_MODE" == "true" ]] && log "  Mode: Force remount"
-  echo ""
+  # Header
+  if [[ "$QUIET_MODE" != "true" ]]; then
+    echo ""
+    echo -e "${BOLD}mount-loa${NC}"
+    echo ""
+  fi
 
+  # === Step 1: Resolve Version ===
+  spinner_start "Fetching latest release"
+  RESOLVED_VERSION=$(fetch_latest_loa_release "$VERSION_MODE") || {
+    RESOLVED_VERSION="$FALLBACK_VERSION"
+  }
+  spinner_stop "Resolved v${RESOLVED_VERSION}"
+
+  # Show extra info in verbose mode
+  if [[ "$VERBOSE_MODE" == "true" ]]; then
+    info "  Branch: $LOA_BRANCH"
+    info "  Version Mode: $VERSION_MODE"
+    [[ "$FORCE_MODE" == "true" ]] && info "  Mode: Force remount"
+  fi
+
+  # === Step 2: Pre-flight & Remote ===
+  spinner_start "Running pre-flight checks"
   preflight
-  install_beads
   setup_remote
+  spinner_stop "Remote configured"
+
+  # === Step 3: Sync Framework ===
+  spinner_start "Syncing framework"
   sync_zones
   sync_root_files
   init_structured_memory
+  spinner_stop "Framework synced"
+
+  # === Step 4: Initialize Config ===
+  spinner_start "Initializing config"
   create_config
   create_manifest
-  generate_checksums
-  init_beads
-  apply_stealth
+  spinner_stop "Config initialized"
 
-  # === Create Atomic Commit ===
+  # === Step 5: Generate Checksums ===
+  spinner_start "Generating checksums"
+  generate_checksums
+  apply_stealth
+  spinner_stop "Checksums generated"
+
+  # === Step 6: Beads (silent) ===
+  init_beads >/dev/null 2>&1 || true
+
+  # === Step 7: Finalize ===
+  spinner_start "Finalizing"
+
+  # Create atomic commit
   local old_version="none"
   local new_version=$(jq -r '.framework_version // "unknown"' "$VERSION_FILE" 2>/dev/null)
   create_upgrade_commit "mount" "$old_version" "$new_version"
 
+  # Create overrides directory
   mkdir -p .claude/overrides
   [[ -f .claude/overrides/README.md ]] || cat > .claude/overrides/README.md << 'EOF'
 # User Overrides
 Files here are preserved across framework updates.
 Mirror the .claude/ structure for any customizations.
 EOF
+  spinner_stop "Complete"
 
-  # === Show Completion Banner ===
-  local banner_script=".claude/scripts/upgrade-banner.sh"
-  if [[ -x "$banner_script" ]]; then
-    "$banner_script" "none" "$new_version" --mount
-  else
-    # Fallback: simple completion message
-    echo ""
-    log "======================================================================="
-    log "  Loa Successfully Mounted!"
-    log "======================================================================="
-    echo ""
-    info "Next steps:"
-    info "  1. Run 'claude' to start Claude Code"
-    info "  2. Issue '/ride' to analyze this codebase"
-    info "  3. Or '/setup' for guided project configuration"
-    echo ""
-  fi
+  # === Post-Install: Spinner Verbs ===
+  prompt_spinner_verbs
 
-  warn "STRICT ENFORCEMENT: Direct edits to .claude/ will block agent execution."
-  warn "Use .claude/overrides/ for customizations."
-  echo ""
+  # === Show Completion ===
+  show_completion "$new_version"
 }
 
 main "$@"
