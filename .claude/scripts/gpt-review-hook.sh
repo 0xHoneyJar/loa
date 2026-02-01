@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # PostToolUse Hook - GPT Review checkpoint for ALL Edit/Write operations
-# Claude decides whether review is needed based on what was modified
 #
-# No file extension or path matching - just outputs the policy and lets
-# Claude evaluate whether the change requires GPT review.
+# Reads phase toggles from config and tells Claude exactly which review
+# types are enabled/disabled, so it doesn't waste tokens preparing
+# context files for disabled review types.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="$SCRIPT_DIR/../../.loa.config.yaml"
@@ -27,19 +27,63 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   exit 0
 fi
 
-# Check if GPT review is enabled
-enabled=$(yq eval '.gpt_review.enabled // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
-if [[ "$enabled" != "true" ]]; then
+# Check if GPT review is enabled (master toggle)
+master_enabled=$(yq eval '.gpt_review.enabled // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+if [[ "$master_enabled" != "true" ]]; then
   exit 0
 fi
 
-# GPT review is enabled - output checkpoint message
-# Claude evaluates whether this specific edit needs review
+# Read phase toggles
+prd_enabled=$(yq eval '.gpt_review.phases.prd // true' "$CONFIG_FILE" 2>/dev/null || echo "true")
+sdd_enabled=$(yq eval '.gpt_review.phases.sdd // true' "$CONFIG_FILE" 2>/dev/null || echo "true")
+sprint_enabled=$(yq eval '.gpt_review.phases.sprint // true' "$CONFIG_FILE" 2>/dev/null || echo "true")
+impl_enabled=$(yq eval '.gpt_review.phases.implementation // true' "$CONFIG_FILE" 2>/dev/null || echo "true")
+
+# Build enabled/disabled lists
+enabled_types=""
+disabled_types=""
+
+if [[ "$prd_enabled" == "true" ]]; then
+  enabled_types+="prd, "
+else
+  disabled_types+="prd, "
+fi
+
+if [[ "$sdd_enabled" == "true" ]]; then
+  enabled_types+="sdd, "
+else
+  disabled_types+="sdd, "
+fi
+
+if [[ "$sprint_enabled" == "true" ]]; then
+  enabled_types+="sprint, "
+else
+  disabled_types+="sprint, "
+fi
+
+if [[ "$impl_enabled" == "true" ]]; then
+  enabled_types+="code, "
+else
+  disabled_types+="code, "
+fi
+
+# Trim trailing comma and space
+enabled_types="${enabled_types%, }"
+disabled_types="${disabled_types%, }"
+
+# Build the message
+if [[ -n "$disabled_types" ]]; then
+  phase_info="ENABLED: ${enabled_types}. DISABLED: ${disabled_types}. If file relates to DISABLED type, skip review entirely (no context files needed)."
+else
+  phase_info="ALL TYPES ENABLED: ${enabled_types}."
+fi
+
+# Output checkpoint message with phase-specific guidance
 cat << EOF
 {
   "hookSpecificOutput": {
     "hookEventName": "PostToolUse",
-    "additionalContext": "STOP. GPT Review Checkpoint. You modified: ${FILE_PATH:-a file}. Evaluate: Does this change require GPT cross-model review? REQUIRES REVIEW: (1) Design docs (prd.md, sdd.md, sprint.md) - ALWAYS review before declaring phase complete, (2) Backend/API/security/business logic code - ALWAYS review, (3) New files or major refactors - ALWAYS review. SKIP REVIEW: Trivial changes (typos, comments, log messages, import reordering, .gitignore, config formatting). If review needed: Write /tmp/gpt-review-expertise.md + /tmp/gpt-review-context.md, then invoke Skill: gpt-review with appropriate Args (prd|sdd|sprint|code <file>). Do NOT proceed to next task or declare phase complete until APPROVED or SKIPPED verdict received."
+    "additionalContext": "STOP. GPT Review Checkpoint. Modified: ${FILE_PATH:-a file}. ${phase_info} REVIEW RULES: (1) Design docs (prd.md, sdd.md, sprint.md) - review if type enabled, (2) Backend/API/security/business logic - review if code enabled, (3) Trivial changes (typos, comments, logs) - always skip. TO REVIEW: Write /tmp/gpt-review-expertise.md + /tmp/gpt-review-context.md, then invoke Skill: gpt-review with Args (prd|sdd|sprint|code <file>). Do NOT proceed until APPROVED or SKIPPED verdict."
   }
 }
 EOF

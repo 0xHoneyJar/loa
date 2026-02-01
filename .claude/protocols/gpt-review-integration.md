@@ -4,26 +4,37 @@
 
 GPT 5.2 provides cross-model review to catch issues Claude might miss. The integration follows KISS/Unix principles:
 
-1. **Standalone command**: `/gpt-review` handles everything
-2. **Script-level config check**: The bash script checks if enabled and returns `SKIPPED` if disabled
-3. **Skills just call the command**: No embedded logic, just "run `/gpt-review <type>`"
+1. **PostToolUse hook**: Fires after every Edit/Write, tells Claude which phases are enabled/disabled
+2. **Standalone command**: `/gpt-review` handles the actual review
+3. **Script-level config check**: The bash script validates and returns `SKIPPED` if disabled
 
 ## Architecture
 
 ```
-Skill invokes command
+Claude edits file
+         ↓
+PostToolUse hook fires
+         ↓
+┌─────────────────────────────────────┐
+│ gpt-review-hook.sh                  │
+│ - Reads phase toggles from config   │
+│ - Outputs: "ENABLED: X. DISABLED: Y"│
+└────────────────┬────────────────────┘
+         ↓
+Claude sees phase status
+         ↓
+┌─────────────────────────────────────┐
+│ If file relates to DISABLED phase:  │
+│ → Skip (no context files needed)    │
+│                                     │
+│ If file relates to ENABLED phase:   │
+│ → Prepare context files             │
+│ → Invoke /gpt-review                │
+└────────────────┬────────────────────┘
          ↓
 /gpt-review <type>
          ↓
 gpt-review-api.sh
-         ↓
-┌─────────────────┐
-│ Config check    │ → SKIPPED (if disabled)
-└────────┬────────┘
-         ↓ (enabled)
-┌─────────────────┐
-│ Load prompt     │
-└────────┬────────┘
          ↓
 ┌─────────────────┐
 │ Call GPT 5.2    │
@@ -34,6 +45,17 @@ gpt-review-api.sh
 │ Return verdict  │
 └─────────────────┘
 ```
+
+## Hook Behavior
+
+The PostToolUse hook (`gpt-review-hook.sh`) reads all phase toggles and outputs a message like:
+
+```
+ENABLED: prd, sdd, code. DISABLED: sprint.
+If file relates to DISABLED type, skip review entirely (no context files needed).
+```
+
+This prevents Claude from wasting tokens preparing expertise/context files for disabled review types.
 
 ## Configuration
 
@@ -140,62 +162,47 @@ The re-review prompt focuses on:
 
 | File | Purpose |
 |------|---------|
+| `.claude/scripts/gpt-review-hook.sh` | PostToolUse hook - phase-aware checkpoint |
 | `.claude/scripts/gpt-review-api.sh` | API interaction, config check |
+| `.claude/scripts/gpt-review-toggle.sh` | Toggle enabled/disabled |
+| `.claude/scripts/inject-gpt-review-gates.sh` | Manage context file based on config |
 | `.claude/commands/gpt-review.md` | Command definition |
+| `.claude/commands/toggle-gpt-review.md` | Toggle command |
 | `.claude/prompts/gpt-review/base/code-review.md` | Code review prompt |
 | `.claude/prompts/gpt-review/base/prd-review.md` | PRD review prompt |
 | `.claude/prompts/gpt-review/base/sdd-review.md` | SDD review prompt |
 | `.claude/prompts/gpt-review/base/sprint-review.md` | Sprint review prompt |
 | `.claude/prompts/gpt-review/base/re-review.md` | Re-review prompt |
 | `.claude/schemas/gpt-review-response.schema.json` | Response validation |
+| `.claude/templates/gpt-review-instructions.md.template` | Context file template |
 
 ## Skill Integration
 
-Each skill includes a `<gpt_review>` section with iteration tracking:
+Skills don't need embedded GPT review logic. The PostToolUse hook provides automatic checkpoints:
 
-```markdown
-<gpt_review>
-## GPT Review Step
+1. **Hook fires** after each Edit/Write
+2. **Hook outputs** which phases are enabled/disabled
+3. **Claude decides** whether to invoke `/gpt-review` based on:
+   - File type (design doc vs code)
+   - Phase enablement (from hook output)
+   - Change significance (trivial vs substantial)
 
-After [completing work], run GPT cross-model review:
-
-\`\`\`bash
-# First review (iteration 1)
-response=$(.claude/scripts/gpt-review-api.sh <type> <file>)
-echo "$response" > /tmp/gpt-review-findings-1.json
-verdict=$(echo "$response" | jq -r '.verdict')
-iteration=1
-\`\`\`
-
-**Handle the verdict:**
-- \`SKIPPED\` → Continue (review is disabled)
-- \`APPROVED\` → Continue with next step
-- \`CHANGES_REQUIRED\` → Fix issues, then re-run with iteration tracking
-
-**CRITICAL - Iteration Tracking for Re-Reviews:**
-
-\`\`\`bash
-# After fixing issues, run iteration 2+
-iteration=$((iteration + 1))
-response=$(.claude/scripts/gpt-review-api.sh <type> <file> \\
-  --iteration "$iteration" \\
-  --previous "/tmp/gpt-review-findings-$((iteration - 1)).json")
-echo "$response" > "/tmp/gpt-review-findings-\${iteration}.json"
-verdict=$(echo "$response" | jq -r '.verdict')
-\`\`\`
-</gpt_review>
+**Commands load context file** via `context_files`:
+```yaml
+context_files:
+  - path: ".claude/context/gpt-review-active.md"
+    required: false
+    purpose: "GPT cross-model review instructions (if enabled)"
 ```
 
-Skills don't need to know about:
-- Config checking (script handles it)
+The context file (created by toggle script when enabled) provides detailed instructions for preparing expertise/context files.
+
+**Skills don't need to know about:**
+- Config checking (hook + script handle it)
 - API calls (script handles it)
 - Retry logic (script handles it)
 - Prompt loading (script handles it)
-
-**But skills MUST track:**
-- Iteration number
-- Previous findings location
-- Passing both `--iteration` and `--previous` on re-reviews
+- Phase toggles (hook tells Claude directly)
 
 ## API Details
 

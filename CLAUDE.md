@@ -227,6 +227,63 @@ Three quality gates:
 
 **Priority**: Audit feedback checked FIRST on `/implement`, then engineer feedback.
 
+### GPT Cross-Model Review (v1.11.0)
+
+Optional cross-model review using GPT 5.2 to catch issues Claude might miss. Focuses on bugs, security vulnerabilities, and "fabrication" (hardcoded values that should be calculated).
+
+**Philosophy**: ONE-SHOTTING > VELOCITY. Getting code right matters more than speed.
+
+| Command | Description |
+|---------|-------------|
+| `/gpt-review <type> [file]` | Run GPT review (types: prd, sdd, sprint, code) |
+| `/toggle-gpt-review` | Enable/disable GPT review |
+
+**How It Works**:
+1. PostToolUse hook fires after every Edit/Write
+2. Hook tells Claude which review types are enabled/disabled
+3. Claude prepares context files (expertise + product context)
+4. Claude invokes `/gpt-review` skill
+5. GPT returns verdict: APPROVED, CHANGES_REQUIRED, DECISION_NEEDED, or SKIPPED
+
+**Verdicts**:
+
+| Verdict | Code Reviews | Document Reviews |
+|---------|--------------|------------------|
+| `SKIPPED` | Review disabled | Review disabled |
+| `APPROVED` | No bugs found | No blocking issues |
+| `CHANGES_REQUIRED` | Has bugs to fix | Has failure risks |
+| `DECISION_NEEDED` | N/A | Design choice for user |
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+gpt_review:
+  enabled: false             # Master toggle (requires OPENAI_API_KEY)
+  timeout_seconds: 300       # API timeout
+  max_iterations: 3          # Auto-approve after this many rounds
+  models:
+    documents: "gpt-5.2"     # For PRD, SDD, Sprint
+    code: "gpt-5.2-codex"    # For code reviews
+  phases:
+    prd: true                # Per-phase toggles
+    sdd: true
+    sprint: true
+    implementation: true
+```
+
+**Review Rules** (enforced by hook):
+- **ALWAYS review**: Design docs, backend/API code, security code, new files
+- **OK to skip**: Typos, comments, log messages, import reordering
+
+**Files**:
+| File | Purpose |
+|------|---------|
+| `.claude/scripts/gpt-review-hook.sh` | PostToolUse hook (phase-aware) |
+| `.claude/scripts/gpt-review-api.sh` | API interaction script |
+| `.claude/commands/gpt-review.md` | Command instructions |
+| `.claude/prompts/gpt-review/base/` | Review prompts per type |
+
+**Protocol**: See `.claude/protocols/gpt-review-integration.md`
+
 ### Karpathy Principles (v1.8.0)
 
 Four behavioral principles to counter common LLM coding pitfalls:
@@ -466,6 +523,9 @@ Core scripts in `.claude/scripts/`. See `.claude/protocols/helper-scripts.md` fo
 | `mermaid-url.sh` | Beautiful Mermaid preview URL generation |
 | `compound-orchestrator.sh` | `/compound` command orchestration |
 | `collect-trace.sh` | Execution trace collection for `/feedback` |
+| `gpt-review-api.sh` | GPT 5.2 cross-model review API |
+| `gpt-review-hook.sh` | PostToolUse hook for review checkpoints |
+| `gpt-review-toggle.sh` | Toggle GPT review on/off |
 
 ### Search Orchestration (v1.7.0)
 
@@ -622,3 +682,4 @@ The following patterns are automatically redacted:
   - `semantic-cache.md` - Cache operations and invalidation
   - `jit-retrieval.md` - JIT retrieval with cache integration
   - `continuous-learning.md` - Skill extraction quality gates
+  - `gpt-review-integration.md` - GPT cross-model review protocol
