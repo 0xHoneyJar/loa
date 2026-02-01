@@ -1,0 +1,4 @@
+name: expired-skill
+version: "1.0.0"
+description: Test skill with expired license for unit testing
+vendor: test-vendor

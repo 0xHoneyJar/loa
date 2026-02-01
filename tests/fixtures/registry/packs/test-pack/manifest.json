@@ -1,0 +1,18 @@
+{
+    "schema_version": 1,
+    "name": "Test Pack",
+    "slug": "test-pack",
+    "version": "1.0.0",
+    "description": "Test pack for unit testing pack validation",
+    "skills": [
+        {
+            "slug": "skill-a",
+            "path": "skills/skill-a"
+        },
+        {
+            "slug": "skill-b",
+            "path": "skills/skill-b"
+        }
+    ],
+    "commands": []
+}

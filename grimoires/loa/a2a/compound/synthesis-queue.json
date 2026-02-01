@@ -1,0 +1,7 @@
+{
+  "$schema": "synthesis-queue.schema.json",
+  "version": "1.0",
+  "last_updated": null,
+  "description": "Queue for skill synthesis proposals (Goal G-3)",
+  "proposals": []
+}

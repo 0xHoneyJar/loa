@@ -1,0 +1,4 @@
+name: valid-skill
+version: "1.0.0"
+description: Test skill with valid license for unit testing
+vendor: test-vendor

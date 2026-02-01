@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "type": "skill",
+  "slug": "test-vendor/valid-skill",
+  "version": "1.0.0",
+  "registry": "default",
+  "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InRlc3Qta2V5LTAxIn0.eyJzdWIiOiJ1c3JfdGVzdDEyMyIsInNraWxsIjoidGVzdC12ZW5kb3IvdmFsaWQtc2tpbGwiLCJ2ZXJzaW9uIjoiMS4wLjAiLCJ0aWVyIjoicHJvIiwid2F0ZXJtYXJrIjoiYTFiMmMzZDRlNWY2ZzdoOGk5ajBrMWwybTNuNG81cDYiLCJsaWQiOiJsaWNfdGVzdDc4OSIsImlzcyI6Imh0dHBzOi8vYXBpLmxvYXNraWxscy5kZXYiLCJhdWQiOiJsb2Etc2tpbGxzLWNsaWVudCIsImlhdCI6MTc2NzI1NTE1NiwiZXhwIjoxNzY5ODA3NTU2fQ.QFjy0QVncdoNImC-AEXIhQx7tChXKJ0o_L3TFPMBLi7Tep0Gqgl9weqi61nP8nefFLkGuek_5KhMkhuxanqfarv2STkdPbkJko-ixK4VfBheJeDODZKnG62FoJUdeuvea7ba2s9kr3MosVUJkFaGRgDir347n8ZC87jGarZjojSP5Kqqj9IXU1rIyV-OerMbY_8WiTMK8pg3RrYBQC8cchQDARBy1r7ag9VIlOPQcXPZK-swEDe8hrawPNZHKGDFqjLddKJvG3SxbJC6vZJH5foG5raav0_0hqq2sNZ82xZLsjmHXzXSEDLhXEX5IgqDE1r_l6FCNdlTKqP7uoTGjg",
+  "tier": "pro",
+  "watermark": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
+  "issued_at": "2026-01-01T19:12:36Z",
+  "expires_at": "2026-01-31T08:12:36Z",
+  "offline_valid_until": "2026-02-01T08:12:36Z"
+}
