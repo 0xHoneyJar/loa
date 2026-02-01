@@ -1,0 +1,148 @@
+# Autonomous Agent Orchestrator Skill
+# Meta-orchestrator for exhaustive Loa process compliance
+name: autonomous-agent
+version: "1.1.0"
+description: |
+  Meta-orchestrator for exhaustive Loa process compliance.
+  Ensures autonomous work matches human-level discernment and quality.
+  Invokes all Loa skills in correct sequence with mandatory quality gates.
+author: Legba
+command: /autonomous
+
+# v1.14.0: Skill best practices (Issue #97)
+effort_hint: high
+danger_level: high
+categories:
+  - operations
+
+# Skill triggers
+triggers:
+  commands:
+    - "/autonomous"
+    - "/auto"
+  patterns:
+    - "autonomous execution"
+    - "run autonomously"
+    - "full workflow"
+    - "end to end"
+
+# Execution context
+context: fork  # Isolated execution for safety
+
+# Input/Output specification
+inputs:
+  - name: target
+    type: string
+    description: "Work item or sprint to execute"
+    required: false
+  - name: dry_run
+    type: boolean
+    default: false
+    description: "Validate without executing"
+  - name: resume_from
+    type: string
+    description: "Phase to resume from (e.g., 'design')"
+    required: false
+  - name: detect_only
+    type: boolean
+    default: false
+    description: "Only detect operator type, don't execute"
+
+# v1.14.0: Native Anthropic input examples
+inputExamples:
+  - input:
+      target: "sprint-1"
+    description: "Execute full workflow for sprint-1"
+  - input:
+      target: "sprint-2"
+      resume_from: "design"
+    description: "Resume from design phase for sprint-2"
+  - input:
+      dry_run: true
+    description: "Validate workflow without executing"
+
+outputs:
+  - name: checkpoint
+    path: ".loa-checkpoint/{phase}.yaml"
+    description: "Phase checkpoint files"
+  - name: feedback
+    path: "grimoires/loa/feedback/{date}.yaml"
+    description: "Upstream learnings"
+  - name: trajectory
+    path: "grimoires/loa/a2a/trajectory/{date}.jsonl"
+    description: "Execution trajectory log"
+
+# Configuration
+config:
+  # Operator detection
+  operator:
+    type: auto                        # auto | human | ai
+    ai_config:
+      enforce_autonomous_skill: true  # Auto-wrap skills with /autonomous
+      strict_quality_gates: true      # All gates mandatory
+      require_audit_before_pr: true   # No PR without audit pass
+      require_audit_before_deploy: true
+
+  # Quality thresholds
+  audit_threshold: 4                  # Minimum score out of 5
+  max_remediation_loops: 3            # Escalate after N failed attempts
+
+  # Deployment settings
+  require_human_deploy_approval: true
+
+  # Attention budget (tokens)
+  attention_budget:
+    single_search: 2000               # TRC trigger per search
+    accumulated: 5000                 # Mandatory TRC threshold
+    session_total: 15000              # Checkpoint & yield
+
+  # Context management
+  context:
+    soft_limit_tokens: 80000          # Trigger standard compaction
+    hard_limit_tokens: 150000         # Trigger emergency compaction
+    checkpoint_after_each_phase: true
+
+# Skills invoked during orchestration
+dependencies:
+  - riding-codebase
+  - discovering-requirements
+  - designing-architecture
+  - planning-sprints
+  - implementing-tasks
+  - auditing-security
+  - reviewing-code
+  - deploying-infrastructure
+  - continuous-learning
+
+# Protocol references
+protocols:
+  - run-mode.md
+  - feedback-loops.md
+  - structured-memory.md
+  - session-continuity.md
+  - grounding-enforcement.md
+
+# Zone permissions
+zones:
+  system:
+    path: .claude
+    permission: none
+  state:
+    paths: [grimoires/loa, grimoires/*, .beads, .loa-checkpoint]
+    permission: read-write
+  app:
+    paths: [src, lib, app, tests]
+    permission: read-write
+
+# Execution constraints
+parallel_threshold: 0                 # Strictly sequential
+timeout_minutes: 180                  # 3 hours max per run
+
+# Safety requirements (inherited from run-mode)
+safety:
+  requires_opt_in: false              # Available to all, but AI detection changes behavior
+  circuit_breaker:
+    same_issue_threshold: 3
+    no_progress_threshold: 5
+    max_cycles: 20
+    timeout_hours: 8

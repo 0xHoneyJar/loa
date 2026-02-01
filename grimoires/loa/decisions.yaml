@@ -1,0 +1,50 @@
+# Decision Lineage Log
+# Tracks architectural and design decisions across Loa phases
+# Schema: .claude/schemas/decisions.schema.json
+#
+# Each decision captures:
+# - What was decided and why
+# - What alternatives were considered
+# - Expected consequences (positive/negative)
+# - Source grounding (files, quotes)
+#
+# Decisions are append-only during a cycle.
+# Review and prune during /archive-cycle.
+
+schema_version: 1
+project: ""  # Set by /plan-and-analyze
+cycle: ""    # Set by ledger
+
+decisions: []
+# Example decision entry:
+#
+# - id: DEC-0001
+#   timestamp: "2026-01-31T09:00:00Z"
+#   phase: architecture
+#   agent: designing-architecture
+#   category: technology
+#   summary: "Use PostgreSQL with pgvector for semantic search"
+#   context: "PRD requires semantic search over user documents"
+#   decision: "PostgreSQL 15 with pgvector extension"
+#   rationale: "Mature, familiar to team, avoids separate vector DB"
+#   alternatives_considered:
+#     - option: "Pinecone (managed vector DB)"
+#       rejected_because: "Adds external dependency, cost scales with vectors"
+#     - option: "Elasticsearch with dense_vector"
+#       rejected_because: "Overkill for our scale, team unfamiliar"
+#   consequences:
+#     positive:
+#       - "Single database for all data"
+#       - "Familiar PostgreSQL operations"
+#     negative:
+#       - "pgvector performance ceiling at ~1M vectors"
+#       - "Must manage index tuning ourselves"
+#   grounding:
+#     sources:
+#       - file: "grimoires/loa/prd.md"
+#         line: 45
+#         quote: "semantic search over uploaded documents"
+#     external_refs:
+#       - "https://github.com/pgvector/pgvector"
+#   status: active
+#   tags: [database, search, infrastructure]

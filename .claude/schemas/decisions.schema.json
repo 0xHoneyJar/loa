@@ -1,0 +1,193 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://loa.dev/schemas/decisions.schema.json",
+  "title": "Decision Lineage Schema",
+  "description": "Tracks architectural and design decisions across Loa phases for auditability and learning",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version for migration compatibility"
+    },
+    "project": {
+      "type": "string",
+      "description": "Project identifier"
+    },
+    "cycle": {
+      "type": "string",
+      "description": "Development cycle (e.g., cycle-001)",
+      "pattern": "^cycle-\\d{3}$"
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/decision"
+      }
+    }
+  },
+  "required": ["schema_version", "decisions"],
+  "definitions": {
+    "decision": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique decision identifier",
+          "pattern": "^DEC-\\d{4}$"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the decision was made"
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "discovery",
+            "architecture",
+            "sprint-planning",
+            "implementation",
+            "review",
+            "audit",
+            "deployment"
+          ],
+          "description": "Loa phase where decision was made"
+        },
+        "agent": {
+          "type": "string",
+          "description": "Agent/skill that made the decision",
+          "examples": [
+            "discovering-requirements",
+            "designing-architecture",
+            "implementing-tasks",
+            "reviewing-code"
+          ]
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "architecture",
+            "technology",
+            "scope",
+            "tradeoff",
+            "security",
+            "performance",
+            "ux",
+            "process"
+          ],
+          "description": "Decision category for filtering"
+        },
+        "summary": {
+          "type": "string",
+          "description": "One-line summary of the decision",
+          "maxLength": 200
+        },
+        "context": {
+          "type": "string",
+          "description": "What situation prompted this decision"
+        },
+        "decision": {
+          "type": "string",
+          "description": "What was decided"
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Why this option was chosen"
+        },
+        "alternatives_considered": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "option": {
+                "type": "string",
+                "description": "Alternative that was considered"
+              },
+              "rejected_because": {
+                "type": "string",
+                "description": "Why this alternative was not chosen"
+              }
+            },
+            "required": ["option", "rejected_because"]
+          },
+          "minItems": 1,
+          "description": "At least one alternative must be documented"
+        },
+        "consequences": {
+          "type": "object",
+          "properties": {
+            "positive": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Expected benefits"
+            },
+            "negative": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Known drawbacks or risks"
+            },
+            "neutral": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Side effects that are neither good nor bad"
+            }
+          }
+        },
+        "grounding": {
+          "type": "object",
+          "properties": {
+            "sources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string" },
+                  "line": { "type": "integer" },
+                  "quote": { "type": "string" }
+                },
+                "required": ["file"]
+              },
+              "description": "Source files that informed this decision"
+            },
+            "external_refs": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "External references (URLs, papers, standards)"
+            }
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "superseded", "deprecated", "under_review"],
+          "default": "active"
+        },
+        "superseded_by": {
+          "type": "string",
+          "description": "If superseded, the ID of the replacing decision",
+          "pattern": "^DEC-\\d{4}$"
+        },
+        "review_date": {
+          "type": "string",
+          "format": "date",
+          "description": "When this decision should be reviewed"
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Searchable tags for categorization"
+        }
+      },
+      "required": [
+        "id",
+        "timestamp",
+        "phase",
+        "category",
+        "summary",
+        "decision",
+        "rationale",
+        "alternatives_considered"
+      ]
+    }
+  }
+}

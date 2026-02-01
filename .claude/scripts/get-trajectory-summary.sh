@@ -150,7 +150,8 @@ generate_summary() {
   
   # Get events from reader (handle empty case)
   local events_file
-  events_file=$(mktemp)
+  events_file=$(mktemp) || { echo '{"error":"mktemp failed"}'; return 1; }
+  chmod 600 "$events_file"  # CRITICAL-001 FIX
   "$reader" --start "$START_DATE" --end "$END_DATE" --format jsonl 2>/dev/null > "$events_file" || true
   
   local event_count

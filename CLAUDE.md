@@ -22,10 +22,11 @@ Loa uses a managed scaffolding architecture:
 
 ### Skills System
 
-9 agent skills in `.claude/skills/` using 3-level architecture:
+10 agent skills in `.claude/skills/` using 3-level architecture:
 
 | Skill | Role | Output |
 |-------|------|--------|
+| `autonomous-agent` | Meta-Orchestrator | Checkpoints + feedback + draft PR |
 | `discovering-requirements` | Product Manager | `grimoires/loa/prd.md` |
 | `designing-architecture` | Software Architect | `grimoires/loa/sdd.md` |
 | `planning-sprints` | Technical PM | `grimoires/loa/sprint.md` |
@@ -109,11 +110,61 @@ plan_and_analyze:
 
 **Guided Workflow** (v0.21.0): `/loa` - Shows current state and suggests next command
 
-**Ad-hoc**: `/audit`, `/audit-deployment`, `/translate`, `/contribute`, `/update-loa`, `/validate`
+**Ad-hoc**: `/audit`, `/audit-deployment`, `/translate`, `/contribute`, `/update-loa`, `/validate`, `/feedback`
 
 **Run Mode**: `/run sprint-N`, `/run sprint-plan`, `/run-status`, `/run-halt`, `/run-resume`
 
 **Continuous Learning**: `/retrospective`, `/skill-audit`
+
+### Autonomous Agent Orchestration (v1.11.0)
+
+The `/autonomous` command provides end-to-end workflow orchestration with 8-phase execution:
+
+```
+/autonomous                    # Full workflow execution
+/autonomous --dry-run          # Validate without executing
+/autonomous --detect-only      # Only detect operator type
+/autonomous --resume-from=design  # Resume from specific phase
+```
+
+**8-Phase Execution Model**:
+1. **Preflight**: Operator detection, session continuity
+2. **Discovery**: Codebase grounding, PRD creation/validation
+3. **Design**: Architecture (SDD), sprint planning
+4. **Implementation**: Task execution with quality gates
+5. **Audit**: Security review, remediation loop
+6. **Submit**: Draft PR creation
+7. **Deploy**: Infrastructure deployment (optional)
+8. **Learning**: Feedback capture, PRD iteration check
+
+**Operator Detection**: Auto-detects AI vs Human operators:
+- AI operators: Strict quality gates, mandatory audit, auto-skill wrapping
+- Human operators: Advisory gates, flexible workflow
+
+**Quality Gates (Five Gates Model)**:
+| Gate | Check | V2 Implementation |
+|------|-------|-------------------|
+| Gate 0 | Right skill? | Human review |
+| Gate 1 | Inputs exist? | File check |
+| Gate 2 | Executed OK? | Exit code |
+| Gate 3 | Outputs exist? | File check |
+| Gate 4 | Goals achieved? | Human review |
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+autonomous_agent:
+  operator:
+    type: auto  # auto | human | ai
+  audit_threshold: 4
+  max_remediation_loops: 3
+  context:
+    soft_limit_tokens: 80000
+    hard_limit_tokens: 150000
+```
+
+**Related Documentation**:
+- [Separation of Concerns](docs/architecture/separation-of-concerns.md)
+- [Runtime Contract](docs/integration/runtime-contract.md)
 
 ## Intelligent Subagents
 
@@ -173,6 +224,18 @@ Agents maintain persistent working memory in `grimoires/loa/NOTES.md`:
 - **Session Continuity**: Recovery anchor
 
 **Protocol**: See `.claude/protocols/structured-memory.md`
+
+### Attention Budget Enforcement (v1.11.0)
+
+High-search skills include `<attention_budget>` sections with:
+- Token thresholds (2K single, 5K accumulated, 15K session)
+- Skill-specific clearing triggers
+- Compliance checklists for audit-heavy operations
+- Semantic decay stages for long-running sessions
+
+**Skills with attention budgets**: auditing-security, implementing-tasks, discovering-requirements, riding-codebase, reviewing-code, planning-sprints, designing-architecture
+
+**Protocol**: See `.claude/protocols/tool-result-clearing.md`
 
 ### Lossless Ledger Protocol
 
@@ -334,6 +397,234 @@ allowed-tools: Read, Grep, Glob, Bash(git *)
 **Session ID**: Trajectory logs include `session_id` for cross-session correlation.
 
 **Protocols**: See `.claude/protocols/recommended-hooks.md`, `.claude/protocols/skill-forking.md`
+
+### Effort Parameter (v1.13.0)
+
+Anthropic's extended thinking with budget control. Uses `thinking.budget_tokens` (integer) for computational intensity:
+
+| Level | Budget Range | Token Reduction | Use Case |
+|-------|--------------|-----------------|----------|
+| **low** | 1K-4K | Baseline | Simple queries, translations |
+| **medium** | 8K-16K | 76% fewer tokens | Standard implementation |
+| **high** | 24K-32K | 48% fewer tokens | Complex architecture, security audit |
+
+**Per-Skill Configuration** (`.loa.config.yaml`):
+```yaml
+effort:
+  default_level: medium
+  budget_ranges:
+    low: { min: 1024, max: 4000 }
+    medium: { min: 8000, max: 16000 }
+    high: { min: 24000, max: 32000 }
+  per_skill:
+    auditing-security: high
+    designing-architecture: high
+    implementing-tasks: medium
+    translating-for-executives: low
+```
+
+**Source**: [Anthropic Claude Opus 4.5 Announcement](https://www.anthropic.com/news/claude-opus-4-5)
+
+**Configuration**: See `effort` section in `.loa.config.yaml`
+
+### Context Editing (v1.13.0)
+
+Anthropic's automatic context compaction for long-running agentic workflows. Achieves **84% token reduction** in 100-turn evaluations:
+
+**Architecture**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Loa Layer                            │
+│  Defines: WHAT to compact, WHEN to trigger, priorities      │
+├─────────────────────────────────────────────────────────────┤
+│                      Runtime Layer                          │
+│  Executes: Token counting, API calls, actual compaction     │
+│  (Claude Code, Clawdbot, or custom runtime)                 │
+├─────────────────────────────────────────────────────────────┤
+│                        API Layer                            │
+│  Anthropic: context-management-2025-06-27 beta header       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Compaction Triggers**:
+- Threshold-based: When context reaches 80% of limit
+- Phase-based: After initialization, implementation, testing phases
+- Attention budget: Per-operation and session limits
+
+**Clearing Priority** (lowest first):
+1. Stale tool results
+2. Completed phase details
+3. Superseded file reads
+4. Intermediate outputs
+5. Verbose debug logs
+
+**Always Preserved** (NEVER cleared):
+- `trajectory_events` - Audit trail for decisions
+- `quality_gate_results` - Gate pass/fail evidence
+- `decision_records` - Architecture rationale
+- `notes_session_continuity` - Recovery anchor
+- `active_beads` - Current task state
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+context_editing:
+  enabled: true
+  compact_threshold_percent: 80
+  preserve_recent_turns: 5
+  clear_targets:
+    - stale_tool_results
+    - completed_phase_details
+    - superseded_file_reads
+  preserve_artifacts:
+    - trajectory_events
+    - quality_gate_results
+    - decision_records
+```
+
+**Source**: [Anthropic Context Management Blog](https://claude.com/blog/context-management)
+
+**Protocol**: See `.claude/protocols/context-editing.md`
+
+### Memory Schema (v1.13.0)
+
+Persistent cross-session knowledge using grimoire-based storage. Inspired by Anthropic's memory tool achieving **39% performance improvement** when combined with context editing:
+
+**Memory Categories**:
+| Category | TTL | Min Confidence | Purpose |
+|----------|-----|----------------|---------|
+| `fact` | permanent | ≥0.8 | Stable project truths |
+| `decision` | permanent | ≥0.9 | Architecture decisions |
+| `learning` | 90d | ≥0.7 | Extracted patterns |
+| `error` | 30d | ≥0.6 | Error-solution pairs |
+| `preference` | permanent | ≥0.5 | User preferences |
+
+**Storage Location**:
+```
+grimoires/loa/memory/
+├── facts.yaml          # Stable project facts
+├── decisions.yaml      # Architecture decisions
+├── learnings.yaml      # Extracted patterns
+├── errors.yaml         # Error-solution pairs
+├── preferences.yaml    # User preferences
+└── archive/            # Expired/superseded memories
+```
+
+**Memory Entry Format**:
+```yaml
+- id: MEM-20260201-001
+  category: decision
+  content: |
+    Use PostgreSQL for database due to JSONB support.
+  summary: PostgreSQL selected over SQLite
+  confidence: 0.95
+  source:
+    session_id: abc123
+    agent: designing-architecture
+    timestamp: 2026-02-01T10:30:00Z
+  ttl: permanent
+  tags: [database, architecture]
+```
+
+**Effectiveness Tracking** (for learnings):
+```yaml
+effectiveness:
+  applications: 5      # Times retrieved
+  successes: 4         # Successful outcomes
+  score: 80            # Effectiveness (0-100)
+  last_applied: 2026-02-01T18:00:00Z
+```
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+memory_schema:
+  enabled: true
+  storage_dir: grimoires/loa/memory
+  auto_capture:
+    decisions: true
+    errors: true
+    learnings: true
+  retrieval:
+    max_per_query: 10
+    min_confidence: 0.6
+  lifecycle:
+    auto_archive: true
+    check_on_session_start: true
+```
+
+**Source**: [Anthropic Memory Tool Documentation](https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool)
+
+**Schema**: See `.claude/schemas/memory.schema.json`
+
+**Protocol**: See `.claude/protocols/memory.md`
+
+### Skill Best Practices (v1.14.0)
+
+Loa skills align with Vercel AI SDK and Anthropic tool-writing best practices:
+
+**New Skill Fields**:
+| Field | Purpose | Source |
+|-------|---------|--------|
+| `inputExamples` | Native Anthropic input examples | [Vercel AI SDK](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling) |
+| `effort_hint` | Recommended reasoning depth (low/medium/high) | Anthropic effort parameter |
+| `danger_level` | Risk classification (safe/moderate/high/critical) | [Vercel AI SDK needsApproval](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling) |
+| `categories` | Semantic groupings for skill search | [Anthropic Tool Search](https://anthropic.com/engineering/advanced-tool-use) |
+| `outputs[].format` | Output verbosity (summary/detailed/raw) | Anthropic writing tools |
+| `defer_loading` | Future runtime deferred loading flag | Anthropic Tool Search |
+
+**Token Budget Mapping** (`effort_hint`):
+| Level | Budget Tokens | Use Case |
+|-------|---------------|----------|
+| `low` | ~4K | Simple queries, lookups, validation |
+| `medium` | ~16K | Standard implementation, reviews |
+| `high` | ~64K | Complex architecture, security audits |
+
+**Canonical Categories**:
+| Category | Skills | Purpose |
+|----------|--------|---------|
+| `planning` | discovering-requirements, planning-sprints, designing-architecture | Discovery and design phase |
+| `implementation` | implementing-tasks, deploying-infrastructure | Code and infrastructure delivery |
+| `quality` | reviewing-code, auditing-security | Review and security gates |
+| `support` | translating-for-executives, continuous-learning | Communication and learning |
+| `operations` | autonomous-agent, run-mode, riding-codebase, mounting-framework | Framework operations |
+
+**Enforcement Status**:
+- `effort_hint`: Config prep only - runtime enforcement planned for #94
+- `danger_level`: Config prep only - approval flow enforcement planned for #94
+- `defer_loading`: Config prep only - runtime loading planned for #94
+
+**Schema**: `.claude/schemas/skill-index.schema.json`
+
+**All 13 Skills Updated** (v1.14.0):
+- **planning**: discovering-requirements, planning-sprints, designing-architecture
+- **implementation**: implementing-tasks, deploying-infrastructure
+- **quality**: reviewing-code, auditing-security
+- **support**: translating-for-executives, continuous-learning
+- **operations**: autonomous-agent, run-mode, riding-codebase, mounting-framework
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+skills:
+  defer_loading: false        # Config prep only (runtime Phase 2)
+  always_load:
+    - autonomous-agent
+    - run-mode
+  categories:
+    planning: [discovering-requirements, ...]
+    implementation: [implementing-tasks, ...]
+    quality: [reviewing-code, auditing-security]
+    support: [translating-for-executives, continuous-learning]
+    operations: [autonomous-agent, run-mode, ...]
+```
+
+**Performance Claims** (verified against primary sources):
+- Tool Search: 85% token reduction (77K → 8.7K tokens)
+- Accuracy: Opus 4: 49%→74%, Opus 4.5: 79.5%→88.1%
+- inputExamples: Native Anthropic provider support only
+
+**Sources**:
+- [Vercel AI SDK Tools](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling)
+- [Anthropic Writing Tools](https://anthropic.com/engineering/writing-tools-for-agents)
+- [Anthropic Advanced Tool Use](https://anthropic.com/engineering/advanced-tool-use)
 
 ### Git Safety
 
@@ -502,6 +793,76 @@ echo 'graph TD; A-->B' | .claude/scripts/mermaid-url.sh --stdin --theme dracula
 
 **Protocol**: See `.claude/protocols/visual-communication.md`
 
+## Oracle (v1.11.0)
+
+Extended oracle with Loa compound learnings support. Query both Anthropic official documentation and Loa's own proven patterns.
+
+**Commands**:
+| Command | Description |
+|---------|-------------|
+| `/oracle-analyze` | Analyze Anthropic updates (with optional --scope) |
+| `/oracle-analyze --scope loa` | Analyze Loa learnings only |
+| `/oracle-analyze --scope all` | Analyze both Loa and Anthropic sources |
+
+**CLI Usage**:
+```bash
+# Check for Anthropic updates
+.claude/scripts/anthropic-oracle.sh check
+
+# Query Loa learnings
+.claude/scripts/anthropic-oracle.sh query "auth token" --scope loa
+
+# Query all sources with weighted ranking
+.claude/scripts/anthropic-oracle.sh query "hooks" --scope all
+
+# Build/update Loa learnings index
+.claude/scripts/loa-learnings-index.sh index
+```
+
+**Source Weights** (hierarchical):
+| Source | Weight | Description |
+|--------|--------|-------------|
+| Loa | 1.0 | Highest priority - our proven patterns |
+| Anthropic | 0.8 | Authoritative external documentation |
+| Community | 0.5 | Useful but less verified |
+
+**Loa Sources Indexed**:
+- Skills: `.claude/skills/**/*.md`
+- Feedback: `grimoires/loa/feedback/*.yaml`
+- Decisions: `grimoires/loa/decisions.yaml`
+- Learnings: `grimoires/loa/a2a/compound/learnings.json`
+
+**Recursive Improvement Loop**:
+```
+Executions → Feedback → Index → Query → Skills → Executions
+     ↑                                              ↓
+     └────────── Compound Learning ─────────────────┘
+```
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+oracle:
+  weights:
+    loa: 1.0
+    anthropic: 0.8
+    community: 0.5
+  loa_sources:
+    skills:
+      enabled: true
+      paths: [".claude/skills/**/*.md"]
+    feedback:
+      enabled: true
+      paths: ["grimoires/loa/feedback/*.yaml"]
+  query:
+    default_indexer: auto  # auto | qmd | grep
+    default_limit: 10
+    default_scope: all
+```
+
+**Schema**: See `.claude/schemas/learnings.schema.json` for feedback file format.
+
+**Protocol**: See `.claude/commands/oracle-analyze.md`
+
 ## Helper Scripts
 
 Core scripts in `.claude/scripts/`. See `.claude/protocols/helper-scripts.md` for full documentation.
@@ -605,6 +966,57 @@ export LOA_CONSTRUCTS_API_KEY="sk_your_api_key_here"
 
 **Protocol**: See `.claude/protocols/constructs-integration.md`
 
+## Smart Feedback Routing (v1.11.0)
+
+The `/feedback` command now includes smart routing to the appropriate Loa ecosystem repository:
+
+| Repository | Signals | Purpose |
+|------------|---------|---------|
+| `0xHoneyJar/loa` | `.claude/`, skills, grimoires | Core framework issues |
+| `0xHoneyJar/loa-constructs` | registry, API, pack, install | Registry/API issues |
+| `0xHoneyJar/forge` | experimental, sandbox | Sandbox issues |
+| Current project | application, deployment | Project-specific |
+
+**Workflow**:
+1. Context is analyzed by `.claude/scripts/feedback-classifier.sh`
+2. AskUserQuestion presents options with recommended repo first
+3. User confirms target repository
+4. Issue created via `gh-label-handler.sh` with graceful label fallback
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+feedback:
+  routing:
+    enabled: true           # Enable smart routing
+    auto_classify: true     # Auto-detect target repo
+    require_confirmation: true  # Always confirm with user
+  labels:
+    graceful_missing: true  # Don't fail on missing labels
+```
+
+## WIP Branch Testing (v1.11.0)
+
+The `/update-loa` command supports checkout mode for testing WIP branches:
+
+```
+/update-loa feature/constructs-multiselect
+```
+
+When a feature branch is specified, AskUserQuestion offers:
+- **Checkout for testing (Recommended)** - Creates `test/loa-{branch}` for isolated testing
+- **Merge into current branch** - Traditional merge behavior
+
+**Return helper**: Running `/update-loa` while in a test branch offers return options.
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+update_loa:
+  branch_testing:
+    enabled: true
+    feature_patterns: ["feature/*", "fix/*", "topic/*", "wip/*", "test/*"]
+    test_branch_prefix: "test/loa-"
+```
+
 ## Feedback Trace Collection
 
 The `/feedback` command supports opt-in execution trace collection for regression debugging. When enabled, traces are attached to GitHub Issues to help maintainers diagnose failures.
@@ -683,3 +1095,7 @@ The following patterns are automatically redacted:
   - `jit-retrieval.md` - JIT retrieval with cache integration
   - `continuous-learning.md` - Skill extraction quality gates
   - `gpt-review-integration.md` - GPT cross-model review protocol
+  - `context-editing.md` - Context editing policies (v1.13.0)
+  - `memory.md` - Memory schema and lifecycle (v1.13.0)
+- `.claude/schemas/` - JSON Schema definitions
+  - `skill-index.schema.json` - Skill index.yaml validation (v1.14.0)

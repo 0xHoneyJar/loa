@@ -1,9 +1,10 @@
 ---
 name: "feedback"
-version: "2.0.0"
+version: "2.1.0"
 description: |
   Submit developer feedback about Loa experience with optional execution traces.
   Creates GitHub Issues with structured format for debugging.
+  Smart routing to appropriate ecosystem repo (loa, loa-constructs, forge, project).
   Open to all users (OSS-friendly).
 
 command_type: "survey"
@@ -53,6 +54,34 @@ Check if there's pending feedback from a previous failed submission:
 - If exists and < 24h old: offer "Submit now" / "Start fresh" / "Cancel"
 - If > 24h old: delete and start fresh
 
+### Phase 0.5: Smart Routing Classification (v2.1.0)
+
+If `feedback.routing.enabled` is true in `.loa.config.yaml`:
+
+1. Run `.claude/scripts/feedback-classifier.sh` with conversation context
+2. Get recommended repository based on signal matching
+3. Present AskUserQuestion with routing options:
+
+```yaml
+questions:
+  - question: "Where should this feedback be submitted?"
+    header: "Route to"
+    options:
+      - label: "0xHoneyJar/loa (Recommended)"
+        description: "Core framework - skills, commands, protocols"
+      - label: "0xHoneyJar/loa-constructs"
+        description: "Registry API - skill installation, licensing"
+      - label: "0xHoneyJar/forge"
+        description: "Sandbox - experimental constructs"
+      - label: "Current project"
+        description: "Project-specific issues"
+    multiSelect: false
+```
+
+**Note**: The recommended option appears first with "(Recommended)" suffix per Anthropic best practices (Issue #90).
+
+If `feedback.routing.enabled` is false, skip to Phase 1 (routes to default 0xHoneyJar/loa).
+
 ### Phase 1: Survey
 
 Collect responses to 4 questions with progress indicators:
@@ -95,14 +124,23 @@ Before submission:
 
 ### Phase 5: GitHub Submission
 
-Submit to GitHub Issues:
+Submit to GitHub Issues using graceful label handling:
 
 1. Check `gh` CLI availability and authentication
-2. If authenticated: create issue via `gh issue create --repo 0xHoneyJar/loa`
-3. Add labels: `feedback`, `user-report`
-4. If not authenticated: clipboard fallback
+2. Get target repo from Phase 0.5 routing (default: `0xHoneyJar/loa`)
+3. If authenticated: create issue via `.claude/scripts/gh-label-handler.sh`:
+   ```bash
+   gh-label-handler.sh create-issue \
+       --repo {target_repo} \
+       --title "{issue_title}" \
+       --body "{issue_body}" \
+       --labels "feedback,user-report" \
+       --graceful
+   ```
+4. The `--graceful` flag handles missing labels by retrying without them
+5. If not authenticated: clipboard fallback
    - Copy formatted body to clipboard
-   - Display manual submission URL
+   - Display manual submission URL for target repo
    - Save to pending-feedback.json as backup
 
 ### Phase 6: Update Analytics
@@ -121,8 +159,42 @@ Submit to GitHub Issues:
 
 | Path | Description |
 |------|-------------|
-| GitHub Issue | Feedback posted to `0xHoneyJar/loa` repository |
+| GitHub Issue | Feedback posted to target repository (auto-detected or user-selected) |
 | `grimoires/loa/analytics/pending-feedback.json` | Backup if submission fails |
+
+## Smart Routing (v2.1.0)
+
+Feedback is automatically classified and routed to the appropriate ecosystem repo:
+
+| Repository | Signals | When to use |
+|------------|---------|-------------|
+| `0xHoneyJar/loa` | `.claude/`, skills, commands, protocols, grimoires | Framework issues |
+| `0xHoneyJar/loa-constructs` | registry, API, install, pack, license | Registry/API issues |
+| `0xHoneyJar/forge` | experimental, sandbox, WIP | Sandbox issues |
+| Current project | application, deployment, no loa keywords | Project-specific |
+
+### Configuration
+
+```yaml
+# .loa.config.yaml
+feedback:
+  routing:
+    enabled: true           # Enable smart routing
+    auto_classify: true     # Auto-detect target repo
+    require_confirmation: true  # Always ask user to confirm
+  labels:
+    graceful_missing: true  # Don't fail on missing labels
+```
+
+### Disabling Routing
+
+To always route to the default repo (0xHoneyJar/loa), set:
+
+```yaml
+feedback:
+  routing:
+    enabled: false
+```
 
 ## Survey Questions
 

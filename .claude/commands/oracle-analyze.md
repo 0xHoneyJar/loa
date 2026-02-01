@@ -1,10 +1,32 @@
 # Anthropic Oracle Analysis
 
-Analyze recent Anthropic updates for potential Loa improvements.
+Analyze recent Anthropic updates and Loa compound learnings for potential improvements.
+
+**Note**: This command supports multiple knowledge sources via the `--scope` parameter.
+
+---
+
+## Usage
+
+```bash
+# Analyze Anthropic sources only (backward compatible - default with no scope)
+/oracle-analyze
+
+# Analyze Loa's own compound learnings
+/oracle-analyze --scope loa
+
+# Analyze Anthropic documentation
+/oracle-analyze --scope anthropic
+
+# Analyze all sources (Loa + Anthropic)
+/oracle-analyze --scope all
+```
 
 ---
 
 ## Pre-Flight
+
+### For Anthropic Analysis (`--scope anthropic` or default)
 
 1. Run the oracle check to fetch latest sources:
    ```bash
@@ -14,6 +36,18 @@ Analyze recent Anthropic updates for potential Loa improvements.
 2. Verify cache exists:
    ```bash
    ls -la ~/.loa/cache/oracle/
+   ```
+
+### For Loa Analysis (`--scope loa`)
+
+1. Build/update the Loa learnings index:
+   ```bash
+   .claude/scripts/loa-learnings-index.sh index
+   ```
+
+2. Verify index exists:
+   ```bash
+   .claude/scripts/loa-learnings-index.sh status
    ```
 
 ---
@@ -101,8 +135,69 @@ This analysis can be triggered:
 
 ---
 
+## Loa Learnings Analysis
+
+When using `--scope loa`, the oracle analyzes Loa's own compound learnings:
+
+### Sources Indexed
+
+| Source | Path | Description |
+|--------|------|-------------|
+| Skills | `.claude/skills/**/*.md` | Skill definitions and patterns |
+| Feedback | `grimoires/loa/feedback/*.yaml` | Captured learnings from sessions |
+| Decisions | `grimoires/loa/decisions.yaml` | Architecture/design decisions |
+| Learnings | `grimoires/loa/a2a/compound/learnings.json` | Effectiveness-tracked learnings |
+
+### Query Examples
+
+```bash
+# Search for authentication patterns in Loa learnings
+.claude/scripts/anthropic-oracle.sh query "auth token" --scope loa
+
+# Search for hook-related content in all sources
+.claude/scripts/anthropic-oracle.sh query "hooks" --scope all
+
+# Get JSON output for programmatic use
+.claude/scripts/anthropic-oracle.sh query "mcp agents" --scope loa --format json
+```
+
+### Source Weights
+
+Results are ranked by weighted score:
+
+| Source | Weight | Description |
+|--------|--------|-------------|
+| Loa | 1.0 | Highest priority - our proven patterns |
+| Anthropic | 0.8 | Authoritative external documentation |
+| Community | 0.5 | Useful but less verified |
+
+---
+
+## Output
+
+### Anthropic Analysis Output
+
+Generate a research document at `grimoires/pub/research/anthropic-updates-YYYY-MM-DD.md` using the template:
+
+```bash
+.claude/scripts/anthropic-oracle.sh template
+```
+
+### Loa Analysis Output
+
+Loa learnings queries return relevant patterns with:
+- Source type (skill, feedback, decision, learning)
+- Weighted relevance score
+- File location
+- Content snippet
+
+---
+
 ## References
 
 - Script: `.claude/scripts/anthropic-oracle.sh`
-- Cache: `~/.loa/cache/oracle/`
+- Loa Index Script: `.claude/scripts/loa-learnings-index.sh`
+- Anthropic Cache: `~/.loa/cache/oracle/`
+- Loa Index: `~/.loa/cache/oracle/loa/`
 - History: `~/.loa/cache/oracle/check-history.jsonl`
+- Learnings Schema: `.claude/schemas/learnings.schema.json`

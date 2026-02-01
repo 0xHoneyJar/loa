@@ -1,7 +1,25 @@
 name: "mounting-framework"
-version: "1.0.0"
+version: "1.1.0"
 model: "sonnet"
 color: "purple"
+
+# v1.14.0: Skill best practices (Issue #97)
+effort_hint: low
+danger_level: safe
+categories:
+  - operations
+
+# v1.14.0: Native Anthropic input examples
+inputExamples:
+  - input:
+      repo_path: "/path/to/repo"
+    description: "Mount Loa to a target repository"
+  - input:
+      stealth: true
+    description: "Mount in stealth mode (gitignored state)"
+  - input:
+      branch: "develop"
+    description: "Mount from a specific Loa branch"
 
 description: |
   Use this skill to install the Loa framework onto a repository.

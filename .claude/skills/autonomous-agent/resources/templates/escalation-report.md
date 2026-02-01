@@ -1,0 +1,188 @@
+# Escalation Report Template
+
+## Execution Summary
+
+| Field | Value |
+|-------|-------|
+| **Execution ID** | `{execution_id}` |
+| **Session ID** | `{session_id}` |
+| **Phase** | `{phase_name}` (Phase {phase_number}) |
+| **Escalation Reason** | `{escalation_reason}` |
+| **Timestamp** | `{timestamp}` |
+
+---
+
+## Escalation Trigger
+
+**Reason**: {escalation_reason}
+
+**Details**:
+{escalation_details}
+
+### Trigger Type
+
+- [ ] Max remediation loops exceeded ({max_loops} loops)
+- [ ] Circuit breaker tripped (same issue {same_issue_threshold}x)
+- [ ] No progress detected ({no_progress_threshold} cycles)
+- [ ] Timeout exceeded ({timeout_hours} hours)
+- [ ] Gate failure (Gate {gate_number}: {gate_name})
+- [ ] Manual escalation requested
+
+---
+
+## Current State
+
+### Phase Progress
+
+| Phase | Status | Exit Code |
+|-------|--------|-----------|
+| 0: Preflight | {phase_0_status} | {phase_0_exit} |
+| 1: Discovery | {phase_1_status} | {phase_1_exit} |
+| 2: Design | {phase_2_status} | {phase_2_exit} |
+| 3: Implementation | {phase_3_status} | {phase_3_exit} |
+| 4: Audit | {phase_4_status} | {phase_4_exit} |
+| 5: Submit | {phase_5_status} | {phase_5_exit} |
+| 6: Deploy | {phase_6_status} | {phase_6_exit} |
+| 7: Learning | {phase_7_status} | {phase_7_exit} |
+
+### Last Successful Checkpoint
+
+**Phase**: {last_checkpoint_phase}
+**File**: `.loa-checkpoint/{last_checkpoint_file}`
+**Created**: {last_checkpoint_time}
+
+---
+
+## Remediation Attempts
+
+### Attempt History
+
+| Loop | Findings Addressed | Result | Duration |
+|------|-------------------|--------|----------|
+| 1 | {loop_1_findings} | {loop_1_result} | {loop_1_duration} |
+| 2 | {loop_2_findings} | {loop_2_result} | {loop_2_duration} |
+| 3 | {loop_3_findings} | {loop_3_result} | {loop_3_duration} |
+
+### Remaining Findings
+
+**Total Remaining**: {remaining_count}
+
+| ID | Severity | Category | Description |
+|----|----------|----------|-------------|
+| {finding_id_1} | {severity_1} | {category_1} | {description_1} |
+| {finding_id_2} | {severity_2} | {category_2} | {description_2} |
+| ... | ... | ... | ... |
+
+### Findings by Severity
+
+- **CRITICAL**: {critical_count}
+- **HIGH**: {high_count}
+- **MEDIUM**: {medium_count}
+- **LOW**: {low_count}
+
+---
+
+## Context Snapshot
+
+### Last Decisions Made
+
+| ID | Decision | Phase | Outcome |
+|----|----------|-------|---------|
+| {decision_id_1} | {decision_1} | {decision_phase_1} | {decision_outcome_1} |
+| {decision_id_2} | {decision_2} | {decision_phase_2} | {decision_outcome_2} |
+
+### Active Blockers
+
+| ID | Blocker | Impact |
+|----|---------|--------|
+| {blocker_id_1} | {blocker_1} | {blocker_impact_1} |
+
+### Relevant Files Modified
+
+| File | Lines Changed | Last Modified |
+|------|---------------|---------------|
+| {file_1} | +{additions_1}/-{deletions_1} | {modified_1} |
+| {file_2} | +{additions_2}/-{deletions_2} | {modified_2} |
+
+---
+
+## Artifacts
+
+### Available Checkpoints
+
+```
+.loa-checkpoint/
+├── preflight.yaml
+├── discovery.yaml
+├── design.yaml
+├── implementation.yaml     # Last successful
+└── audit.yaml              # Failed - trigger point
+```
+
+### Trajectory Logs
+
+- **Session Log**: `grimoires/loa/a2a/trajectory/{trajectory_file}`
+- **Entries**: {trajectory_entry_count}
+- **Last Entry**: {last_trajectory_entry}
+
+### Feedback Collected
+
+- **File**: `grimoires/loa/feedback/{feedback_file}`
+- **Gap Count**: {gap_count}
+- **Friction Count**: {friction_count}
+
+---
+
+## Suggested Human Actions
+
+### Immediate Actions
+
+1. **Review remaining findings** in `grimoires/loa/a2a/sprint-{sprint}/auditor-sprint-feedback.md`
+2. **Check trajectory** for error patterns in `grimoires/loa/a2a/trajectory/`
+3. **Verify external dependencies** if escalation involves integrations
+
+### Resolution Options
+
+| Option | Description | Command |
+|--------|-------------|---------|
+| **Fix & Resume** | Address findings manually, then resume | `/run-resume` |
+| **Skip Phase** | Bypass current phase (not recommended) | Manual checkpoint edit |
+| **Reset Sprint** | Restart current sprint from scratch | Delete checkpoint, `/run sprint-{sprint}` |
+| **Abort** | Stop execution, preserve state | `/run-halt` |
+
+### Recommended Next Steps
+
+{recommended_steps}
+
+---
+
+## Recovery Instructions
+
+### To Resume After Fixing
+
+1. Address the remaining findings listed above
+2. Commit your changes: `git add -A && git commit -m "fix: address audit findings"`
+3. Resume execution: `/run-resume`
+
+### To Start Fresh
+
+1. Archive current state: `/archive-cycle "escalation-{date}"`
+2. Review PRD for scope issues
+3. Start new cycle: `/run sprint-plan`
+
+---
+
+## Telemetry
+
+| Metric | Value |
+|--------|-------|
+| Total Runtime | {total_runtime} |
+| API Calls | {api_call_count} |
+| Token Usage | ~{token_usage} |
+| Files Read | {files_read_count} |
+| Files Written | {files_written_count} |
+| Checkpoint Size | {checkpoint_size_kb} KB |
+
+---
+
+*Generated by autonomous-agent v{skill_version} at {timestamp}*

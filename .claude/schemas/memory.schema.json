@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loa.dev/schemas/memory.schema.json",
+  "title": "Loa Memory Entry",
+  "description": "Schema for memory entries in Loa's grimoire-based persistence system. Based on Anthropic's memory tool concepts but implemented via grimoire files. SECURITY: Never store credentials, API keys, tokens, or other secrets in memory entries.",
+  "type": "object",
+  "required": ["id", "category", "content", "source"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^MEM-[0-9]{8}-[0-9]{3}$",
+      "description": "Unique identifier: MEM-{YYYYMMDD}-{sequence}",
+      "examples": ["MEM-20260201-001", "MEM-20260201-042"]
+    },
+    "category": {
+      "type": "string",
+      "enum": ["fact", "decision", "learning", "error", "preference"],
+      "description": "Memory category determining storage location and TTL"
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000,
+      "description": "The memory content (concise, actionable)"
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 200,
+      "description": "One-line summary for quick retrieval"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.8,
+      "description": "Confidence score (0-1) for retrieval filtering"
+    },
+    "source": {
+      "type": "object",
+      "required": ["session_id", "timestamp"],
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "description": "Claude Code session ID (CLAUDE_SESSION_ID)"
+        },
+        "agent": {
+          "type": "string",
+          "description": "Agent that created this memory",
+          "examples": ["implementing-tasks", "auditing-security"]
+        },
+        "phase": {
+          "type": "string",
+          "description": "Workflow phase when captured",
+          "examples": ["implementation", "review", "audit"]
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp"
+        },
+        "file_path": {
+          "type": "string",
+          "description": "Related file path (if applicable)"
+        },
+        "line_range": {
+          "type": "string",
+          "pattern": "^[0-9]+-[0-9]+$",
+          "description": "Line range in source file",
+          "examples": ["42-56", "100-150"]
+        }
+      }
+    },
+    "ttl": {
+      "type": "string",
+      "pattern": "^([0-9]+d|permanent)$",
+      "default": "30d",
+      "description": "Time-to-live: Nd for N days, or 'permanent'",
+      "examples": ["7d", "30d", "90d", "permanent"]
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Computed expiration timestamp (null for permanent)"
+    },
+    "supersedes": {
+      "type": "string",
+      "pattern": "^MEM-[0-9]{8}-[0-9]{3}$",
+      "description": "ID of memory this replaces (for decisions that evolve)"
+    },
+    "superseded_by": {
+      "type": "string",
+      "pattern": "^MEM-[0-9]{8}-[0-9]{3}$",
+      "description": "ID of memory that replaced this one"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9-]+$"
+      },
+      "description": "Tags for categorization and retrieval",
+      "examples": [["auth", "security"], ["api", "design"]]
+    },
+    "related_memories": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^MEM-[0-9]{8}-[0-9]{3}$"
+      },
+      "description": "IDs of related memories"
+    },
+    "effectiveness": {
+      "type": "object",
+      "description": "Effectiveness tracking (for learnings)",
+      "properties": {
+        "applications": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Number of times this memory was applied"
+        },
+        "successes": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Successful applications"
+        },
+        "score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Effectiveness score (0-100)"
+        },
+        "last_applied": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "archived": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this memory has been archived"
+    },
+    "archived_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this memory was archived"
+    },
+    "archive_reason": {
+      "type": "string",
+      "enum": ["expired", "superseded", "manual", "ineffective"],
+      "description": "Reason for archival"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "category": { "const": "decision" } }
+      },
+      "then": {
+        "properties": {
+          "confidence": { "minimum": 0.9 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "category": { "const": "fact" } }
+      },
+      "then": {
+        "properties": {
+          "confidence": { "minimum": 0.8 }
+        }
+      }
+    }
+  ],
+  "examples": [
+    {
+      "id": "MEM-20260201-001",
+      "category": "decision",
+      "content": "Use PostgreSQL for the database layer due to JSONB support and existing team expertise. SQLite considered but rejected for multi-user concurrency requirements.",
+      "summary": "PostgreSQL selected over SQLite for database",
+      "confidence": 0.95,
+      "source": {
+        "session_id": "abc123",
+        "agent": "designing-architecture",
+        "phase": "architecture",
+        "timestamp": "2026-02-01T10:30:00Z"
+      },
+      "ttl": "permanent",
+      "tags": ["database", "architecture", "postgresql"]
+    },
+    {
+      "id": "MEM-20260201-002",
+      "category": "error",
+      "content": "TypeError: Cannot read property 'map' of undefined when API returns empty array. Solution: Add null check before mapping: `data?.items?.map() || []`",
+      "summary": "Null check required for API array responses",
+      "confidence": 0.85,
+      "source": {
+        "session_id": "abc123",
+        "agent": "implementing-tasks",
+        "phase": "implementation",
+        "timestamp": "2026-02-01T14:22:00Z",
+        "file_path": "src/components/UserList.tsx",
+        "line_range": "42-45"
+      },
+      "ttl": "30d",
+      "expires_at": "2026-03-03T14:22:00Z",
+      "tags": ["typescript", "null-safety", "api"]
+    },
+    {
+      "id": "MEM-20260201-003",
+      "category": "learning",
+      "content": "When implementing authentication flows, always validate tokens server-side even if client validation exists. Client validation is for UX; server validation is for security.",
+      "summary": "Always validate auth tokens server-side",
+      "confidence": 0.9,
+      "source": {
+        "session_id": "def456",
+        "agent": "auditing-security",
+        "phase": "audit",
+        "timestamp": "2026-02-01T16:45:00Z"
+      },
+      "ttl": "90d",
+      "expires_at": "2026-05-02T16:45:00Z",
+      "tags": ["auth", "security", "validation"],
+      "effectiveness": {
+        "applications": 3,
+        "successes": 3,
+        "score": 85,
+        "last_applied": "2026-02-01T18:00:00Z"
+      }
+    }
+  ]
+}

@@ -1,7 +1,13 @@
 name: "continuous-learning"
-version: "1.0.0"
+version: "1.1.0"
 model: "sonnet"
 color: "purple"
+
+# v1.14.0: Skill best practices (Issue #97)
+effort_hint: low
+danger_level: safe
+categories:
+  - support
 
 description: |
   Autonomous skill extraction that activates when agents discover non-obvious

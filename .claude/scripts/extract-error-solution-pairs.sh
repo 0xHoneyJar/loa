@@ -256,7 +256,8 @@ extract_pairs() {
   fi
   
   # Get all events
-  local events_file=$(mktemp)
+  local events_file=$(mktemp) || { echo "[]"; return; }
+  chmod 600 "$events_file"  # CRITICAL-001 FIX
   # shellcheck disable=SC2086
   "$reader" $reader_args --format jsonl 2>/dev/null > "$events_file" || true
   

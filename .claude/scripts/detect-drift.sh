@@ -245,7 +245,8 @@ if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
   echo ""
 
   # Create temporary file for results
-  TEMP_FILE=$(mktemp)
+  TEMP_FILE=$(mktemp) || { echo "mktemp failed" >&2; exit 1; }
+  chmod 600 "$TEMP_FILE"  # CRITICAL-001 FIX
   trap "rm -f '$TEMP_FILE'" EXIT
 
   # Check for new files since last ride

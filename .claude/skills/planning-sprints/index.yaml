@@ -1,7 +1,13 @@
 name: "planning-sprints"
-version: "1.0.0"
+version: "1.1.0"
 model: "sonnet"
 color: "green"
+
+# v1.14.0: Skill best practices (Issue #97)
+effort_hint: medium
+danger_level: moderate
+categories:
+  - planning
 
 description: |
   Use this skill IF user has completed PRD and SDD and needs an implementation
@@ -51,6 +57,7 @@ inputs:
 outputs:
   - path: "grimoires/loa/sprint.md"
     description: "Sprint plan with task breakdown"
+    format: detailed
 
 integrations:
   required: []

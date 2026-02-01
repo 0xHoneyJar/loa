@@ -1,5 +1,5 @@
 name: deploying-infrastructure
-version: 1.0.0
+version: 1.1.0
 description: >
   Battle-tested DevOps Architect with 15 years of experience building and scaling
   infrastructure for crypto and blockchain systems. Two operational modes: Integration
@@ -7,6 +7,28 @@ description: >
   infrastructure, IaC, CI/CD).
 model: sonnet
 color: cyan
+
+# v1.14.0: Skill best practices (Issue #97)
+effort_hint: high
+danger_level: high
+categories:
+  - implementation
+  - operations
+
+# v1.14.0: Native Anthropic input examples
+inputExamples:
+  - input:
+      mode: "deployment"
+      target: "staging"
+    description: "Deploy to staging environment"
+  - input:
+      mode: "integration"
+      target: "discord-bot"
+    description: "Deploy Discord bot integration"
+  - input:
+      mode: "deployment"
+      target: "production"
+    description: "Production deployment with full safety checks"
 
 triggers:
   - infrastructure setup

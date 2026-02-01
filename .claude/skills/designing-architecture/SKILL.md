@@ -98,6 +98,35 @@ Example:
 ```
 </tool_result_clearing>
 
+<attention_budget>
+## Attention Budget
+
+This skill follows the **Tool Result Clearing Protocol** (`.claude/protocols/tool-result-clearing.md`).
+
+### Token Thresholds
+
+| Context Type | Limit | Action |
+|--------------|-------|--------|
+| Single search result | 2,000 tokens | Apply 4-step clearing |
+| Accumulated results | 5,000 tokens | MANDATORY clearing |
+| Full file load | 3,000 tokens | Single file, synthesize immediately |
+| Session total | 15,000 tokens | STOP, synthesize to NOTES.md |
+
+### Clearing Triggers for Architecture Design
+
+- [ ] Codebase probing >30 files
+- [ ] Pattern search >20 matches
+- [ ] Technology research >5 sources
+- [ ] Any analysis exceeding 2K tokens
+
+### 4-Step Clearing
+
+1. **Extract**: Max 10 files, 20 words per finding
+2. **Synthesize**: Write to `grimoires/loa/NOTES.md`
+3. **Clear**: Remove raw output from context
+4. **Summary**: `"Arch: N patterns → M components → sdd.md"`
+</attention_budget>
+
 <trajectory_logging>
 ## Trajectory Logging
 

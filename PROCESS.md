@@ -1060,8 +1060,8 @@ command_type: "wizard"  # or "survey", "git"
 | `/review-sprint {sprint}` | Review and approve/reject implementation | `reviewing-code` | `grimoires/loa/a2a/engineer-feedback.md` | All users |
 | `/audit-sprint {sprint}` | Security audit of sprint implementation | `auditing-security` | `grimoires/loa/a2a/auditor-sprint-feedback.md` | All users |
 | `/deploy-production` | Deploy to production | `deploying-infrastructure` | `grimoires/loa/deployment/` | All users |
-| `/feedback` | Submit developer experience feedback | survey | GitHub Issue in `0xHoneyJar/loa` | All users |
-| `/update-loa` | Pull framework updates from upstream | git | Merged updates | All users |
+| `/feedback` | Submit feedback with smart routing to ecosystem repo | survey | GitHub Issue in appropriate repo | All users |
+| `/update-loa` | Pull framework updates with WIP branch testing | git | Merged updates or test branch | All users |
 | `/contribute` | Create OSS contribution PR | git | GitHub PR | All users |
 | `/audit` | Security audit (ad-hoc) | `auditing-security` | `SECURITY-AUDIT-REPORT.md` | All users |
 | `/audit-deployment` | Deployment infrastructure audit (ad-hoc) | `auditing-security` | `grimoires/loa/a2a/deployment-feedback.md` | All users |

@@ -1,7 +1,14 @@
 name: "auditing-security"
-version: "1.0.0"
+version: "1.1.0"
 model: "sonnet"
 color: "red"
+
+# v1.14.0: Skill best practices (Issue #97)
+effort_hint: high
+danger_level: high
+categories:
+  - quality
+  - security
 
 description: |
   Use this skill IF user needs security/quality audit of code, infrastructure,
@@ -45,16 +52,32 @@ inputs:
     required: false
     description: "Sprint identifier (required for sprint mode)"
 
+# v1.14.0: Native Anthropic input examples
+inputExamples:
+  - input:
+      audit_mode: "sprint"
+      sprint_id: "sprint-1"
+    description: "Security audit of first sprint implementation"
+  - input:
+      audit_mode: "codebase"
+    description: "Full codebase security audit before production"
+  - input:
+      audit_mode: "deployment"
+    description: "Deployment infrastructure security review"
+
 outputs:
   - path: "SECURITY-AUDIT-REPORT.md"
     condition: "audit_mode == codebase"
     description: "Comprehensive codebase security audit"
+    format: detailed
   - path: "grimoires/loa/a2a/deployment-feedback.md"
     condition: "audit_mode == deployment"
     description: "Deployment infrastructure audit feedback"
+    format: detailed
   - path: "grimoires/loa/a2a/sprint-{id}/auditor-sprint-feedback.md"
     condition: "audit_mode == sprint"
     description: "Sprint implementation security audit feedback"
+    format: detailed
 
 # v0.9.0 Lossless Ledger Protocol Integration
 protocols:

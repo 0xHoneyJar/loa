@@ -1,0 +1,216 @@
+# construct.yaml - Skill Packaging Manifest
+# Implements Issue #70 (construct.yaml manifest) and #71 (Unix philosophy)
+
+apiVersion: loa/v1
+kind: Construct
+metadata:
+  name: autonomous-agent
+  version: 1.0.0
+  description: |
+    Meta-orchestrator for exhaustive Loa process compliance.
+    Auto-detects AI operators and enforces quality gates.
+  author: Legba
+  license: MIT
+
+# Skills bundled in this construct
+skills:
+  # Phase 1: Discovery
+  - name: riding-codebase
+    version: ">=1.0.0"
+    required: true
+    phase: discovery
+
+  - name: discovering-requirements
+    version: ">=1.0.0"
+    required: true
+    phase: discovery
+
+  # Phase 2: Design
+  - name: designing-architecture
+    version: ">=1.0.0"
+    required: true
+    phase: design
+
+  - name: planning-sprints
+    version: ">=1.0.0"
+    required: true
+    phase: design
+
+  # Phase 3: Implementation
+  - name: implementing-tasks
+    version: ">=1.0.0"
+    required: true
+    phase: implementation
+
+  # Phase 4: Quality
+  - name: auditing-security
+    version: ">=1.0.0"
+    required: true
+    phase: quality
+
+  - name: reviewing-code
+    version: ">=1.0.0"
+    required: false
+    phase: quality
+
+  # Phase 6: Deployment
+  - name: deploying-infrastructure
+    version: ">=1.0.0"
+    required: false
+    phase: deployment
+
+  # Phase 7: Learning
+  - name: continuous-learning
+    version: ">=1.0.0"
+    required: false
+    phase: learning
+
+# Execution configuration
+execution:
+  type: sequential
+  phases:
+    - discovery
+    - design
+    - implementation
+    - quality
+    - deployment
+    - learning
+
+  # Gates between phases (must pass to proceed)
+  gates:
+    discovery: prd_complete
+    design: sdd_complete
+    implementation: tests_passing
+    quality: audit_pass
+    deployment: health_check_pass
+
+# Input/Output contracts per phase (Issue #71 - Unix philosophy)
+contracts:
+  discovery:
+    inputs:
+      - context/*.md
+      - WORKLEDGER.md
+    outputs:
+      - grimoires/{project}/prd.md
+      - grimoires/{project}/reality/*.md
+    exit_codes:
+      0: success
+      1: incomplete
+      2: blocked
+
+  design:
+    inputs:
+      - grimoires/{project}/prd.md
+    outputs:
+      - grimoires/{project}/sdd.md
+      - grimoires/{project}/sprint.md
+    exit_codes:
+      0: success
+      1: incomplete
+
+  implementation:
+    inputs:
+      - grimoires/{project}/sdd.md
+      - grimoires/{project}/sprint.md
+    outputs:
+      - src/**/*
+      - tests/**/*
+      - grimoires/{project}/a2a/{sprint}/reviewer.md
+    exit_codes:
+      0: success
+      1: partial
+      2: failed
+
+  quality:
+    inputs:
+      - src/**/*
+      - tests/**/*
+      - grimoires/{project}/a2a/{sprint}/reviewer.md
+    outputs:
+      - grimoires/{project}/a2a/{sprint}/engineer-feedback.md
+      - grimoires/{project}/a2a/{sprint}/auditor-sprint-feedback.md
+    exit_codes:
+      0: pass
+      1: fail_remediable
+      2: fail_escalate
+
+  deployment:
+    inputs:
+      - grimoires/{project}/a2a/{sprint}/COMPLETED
+    outputs:
+      - grimoires/{project}/deployment/
+    exit_codes:
+      0: deployed
+      1: deploy_failed
+      2: deploy_blocked
+
+  learning:
+    inputs:
+      - grimoires/{project}/trajectory/*.jsonl
+    outputs:
+      - grimoires/{project}/feedback/*.yaml
+      - grimoires/{project}/gaps.yaml
+    exit_codes:
+      0: learnings_captured
+
+# Checkpoint configuration
+checkpoints:
+  location: .loa-checkpoint/
+  format: yaml
+  write_after_each_phase: true
+  schema:
+    version: 1
+    required_fields:
+      - execution_id
+      - phase
+      - created_at
+      - exit_code
+      - summary
+    optional_fields:
+      - decisions
+      - artifacts
+      - errors
+      - metrics
+
+# Handoff validation (V2 minimal: file existence checks)
+handoffs:
+  discovery_to_design:
+    requires:
+      - grimoires/{project}/prd.md
+    on_missing: block
+
+  design_to_implementation:
+    requires:
+      - grimoires/{project}/sdd.md
+      - grimoires/{project}/sprint.md
+    on_missing: block
+
+  implementation_to_quality:
+    requires:
+      - grimoires/{project}/a2a/{sprint}/reviewer.md
+    on_missing: warn
+
+  quality_to_deployment:
+    requires:
+      - grimoires/{project}/a2a/{sprint}/COMPLETED
+    on_missing: block
+
+# Remediation configuration
+remediation:
+  max_loops: 3
+  on_max_loops: escalate
+  findings_priority:
+    - CRITICAL
+    - HIGH
+    - MEDIUM
+    - LOW
+
+# Escalation configuration
+escalation:
+  template: resources/templates/escalation-report.md
+  channels:
+    - stdout
+  include_context:
+    - last_decisions
+    - remaining_findings
+    - remediation_attempts

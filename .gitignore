@@ -91,6 +91,12 @@ grimoires/loa/analytics/permission-requests.jsonl
 # Server audit reports (contain sensitive deployment info)
 grimoires/loa/deployment/SERVER-REALITY-AUDIT.md
 
+# Memory schema files (cross-session knowledge, project-specific)
+# Contains facts, decisions, learnings, errors, preferences
+# The README.md is tracked to explain the directory's purpose
+grimoires/loa/memory/*
+!grimoires/loa/memory/README.md
+
 # =============================================================================
 # LOA TEMPLATE EXCLUSIONS
 # =============================================================================

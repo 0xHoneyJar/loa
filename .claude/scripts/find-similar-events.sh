@@ -224,7 +224,8 @@ find_similar() {
   fi
   
   # Get events from trajectory
-  local events_file=$(mktemp)
+  local events_file=$(mktemp) || { echo "[]"; return; }
+  chmod 600 "$events_file"  # CRITICAL-001 FIX
   "$reader" --days "$DAYS" --format jsonl 2>/dev/null > "$events_file" || true
   
   local event_count
