@@ -1505,9 +1505,6 @@ Mirror the .claude/ structure for any customizations.
 EOF
   spinner_stop "Complete"
 
-  # === Post-Install: Spinner Verbs ===
-  prompt_spinner_verbs
-
   # === Step 7: Setup Wizard (optional enhancements) ===
   if [[ "$QUIET_MODE" != "true" && "$FORCE_MODE" != "true" && "$SKIP_WIZARD" != "true" ]]; then
     run_wizard "$new_version"
