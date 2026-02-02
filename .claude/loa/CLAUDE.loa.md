@@ -4,54 +4,51 @@
 
 # Loa Framework Instructions
 
-> Agent-driven development framework using 11 specialized AI agents (skills) to orchestrate the complete product lifecycle.
+> Agent-driven development framework using 11 specialized AI agents (skills).
 
 ## Quick Reference
 
 | Reference | Location |
 |-----------|----------|
-| Configuration examples | `.loa.config.yaml.example` |
+| Configuration | `.loa.config.yaml.example` |
 | Context engineering | `.claude/loa/reference/context-engineering.md` |
-| Protocols summary | `.claude/loa/reference/protocols-summary.md` |
-| Scripts reference | `.claude/loa/reference/scripts-reference.md` |
+| Protocols | `.claude/loa/reference/protocols-summary.md` |
+| Scripts | `.claude/loa/reference/scripts-reference.md` |
 | Version features | `.claude/loa/reference/version-features.md` |
 
-Skills auto-load their documentation when invoked.
+Skills auto-load their SKILL.md when invoked.
 
 ## Architecture
 
 ### Three-Zone Model
 
-| Zone | Path | Owner | Permission |
-|------|------|-------|------------|
-| **System** | `.claude/` | Framework | NEVER edit directly |
-| **State** | `grimoires/`, `.beads/` | Project | Read/Write |
-| **App** | `src/`, `lib/`, `app/` | Developer | Read (write requires confirmation) |
+| Zone | Path | Permission |
+|------|------|------------|
+| **System** | `.claude/` | NEVER edit |
+| **State** | `grimoires/`, `.beads/` | Read/Write |
+| **App** | `src/`, `lib/`, `app/` | Confirm writes |
 
-**Critical**: Never suggest edits to `.claude/` - direct users to `.claude/overrides/` or `.loa.config.yaml`.
+**Critical**: Never edit `.claude/` - use `.claude/overrides/` or `.loa.config.yaml`.
 
-### Skills System
+### Skills
 
-11 agent skills in `.claude/skills/` with 3-level architecture:
-- **Level 1**: `index.yaml` - Metadata (~100 tokens)
-- **Level 2**: `SKILL.md` - KERNEL instructions (~2000 tokens)
-- **Level 3**: `resources/` - References, templates, scripts
+11 skills in `.claude/skills/` with 3-level architecture (index.yaml → SKILL.md → resources/).
 
-| Skill | Role | Output |
-|-------|------|--------|
-| `autonomous-agent` | Meta-Orchestrator | Checkpoints + draft PR |
-| `discovering-requirements` | Product Manager | `prd.md` |
-| `designing-architecture` | Software Architect | `sdd.md` |
-| `planning-sprints` | Technical PM | `sprint.md` |
-| `implementing-tasks` | Senior Engineer | Code + report |
-| `reviewing-code` | Tech Lead | Feedback |
-| `auditing-security` | Security Auditor | Audit feedback |
-| `deploying-infrastructure` | DevOps Architect | Infrastructure |
-| `translating-for-executives` | Developer Relations | Summaries |
-| `run-mode` | Autonomous Executor | Draft PR |
-| `enhancing-prompts` | Prompt Engineer | Enhanced prompts |
+| Skill | Role |
+|-------|------|
+| `autonomous-agent` | Meta-Orchestrator |
+| `discovering-requirements` | Product Manager |
+| `designing-architecture` | Software Architect |
+| `planning-sprints` | Technical PM |
+| `implementing-tasks` | Senior Engineer |
+| `reviewing-code` | Tech Lead |
+| `auditing-security` | Security Auditor |
+| `deploying-infrastructure` | DevOps Architect |
+| `translating-for-executives` | Developer Relations |
+| `run-mode` | Autonomous Executor |
+| `enhancing-prompts` | Prompt Engineer |
 
-## Workflow Commands
+## Workflow
 
 | Phase | Command | Output |
 |-------|---------|--------|
@@ -67,41 +64,12 @@ Skills auto-load their documentation when invoked.
 
 **Run Mode**: `/run sprint-N`, `/run sprint-plan`, `/run-status`, `/run-halt`, `/run-resume`
 
-## Intelligent Subagents
-
-| Subagent | Purpose |
-|----------|---------|
-| `architecture-validator` | SDD compliance |
-| `security-scanner` | OWASP Top 10 |
-| `test-adequacy-reviewer` | Test quality |
-| `goal-validator` | PRD goal verification |
-
-**Usage**: `/validate`, `/validate architecture`, `/validate security`, `/validate goals`
-
 ## Key Protocols
 
-### Structured Agentic Memory
-
-Maintain `grimoires/loa/NOTES.md` with: Current Focus, Session Log, Decisions, Blockers, Goal Status, Learnings.
-
-### Feedback Loops
-
-1. **Implementation Loop**: Engineer <-> Senior Lead until "All good"
-2. **Security Audit Loop**: After approval -> Auditor review -> "APPROVED"
-3. **Priority**: Check audit feedback FIRST, then engineer feedback
-
-### Karpathy Principles
-
-- Think Before Coding (surface assumptions)
-- Simplicity First (no speculative features)
-- Surgical Changes (only necessary lines)
-- Goal-Driven (define success criteria)
-
-### Git Safety
-
-- 4-layer upstream detection
-- Soft block with confirmation
-- `/contribute` bypasses with safeguards
+- **Memory**: Maintain `grimoires/loa/NOTES.md` (Current Focus, Session Log, Decisions, Blockers)
+- **Feedback Priority**: Check audit feedback FIRST, then engineer feedback
+- **Karpathy**: Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven
+- **Git Safety**: 4-layer upstream detection, soft block with confirmation
 
 ## Document Flow
 
@@ -109,38 +77,13 @@ Maintain `grimoires/loa/NOTES.md` with: Current Focus, Session Log, Decisions, B
 grimoires/loa/
 ├── NOTES.md      # Working memory
 ├── ledger.json   # Sprint numbering
-├── prd.md        # Requirements
-├── sdd.md        # Design
-├── sprint.md     # Plan
+├── prd.md, sdd.md, sprint.md
 └── a2a/          # Agent communication
 ```
 
-## Implementation Notes
-
-### When `/implement sprint-N` is invoked:
-1. Check audit feedback FIRST (`auditor-sprint-feedback.md`)
-2. Then check engineer feedback (`engineer-feedback.md`)
-3. Address all feedback before new work
-
-### When `/review-sprint sprint-N` is invoked:
-1. Review actual code, not just report
-2. Write "All good" or detailed feedback
-
-### When `/audit-sprint sprint-N` is invoked:
-1. Validate senior lead approval
-2. Review for security vulnerabilities
-3. Create `COMPLETED` marker on approval
-
 ## Key Conventions
 
-- Never skip phases - each builds on previous
-- Never edit `.claude/` directly - use overrides or config
-- Review all outputs - you're the final decision-maker
-- Security first - especially for crypto projects
-
-## Related Files
-
-- `README.md` - Quick start guide
-- `PROCESS.md` - Workflow documentation
-- `.claude/protocols/` - Protocol specifications
-- `.claude/schemas/` - JSON Schema definitions
+- Never skip phases
+- Never edit `.claude/` directly
+- Review all outputs
+- Security first
