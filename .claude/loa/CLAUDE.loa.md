@@ -69,6 +69,37 @@ prompt_enhancement:
 
 **View stats**: `/loa` shows enhancement metrics.
 
+## Invisible Retrospective Learning (v1.19.0)
+
+Learnings are automatically detected and captured during skill execution without user invocation.
+
+| Behavior | Description |
+|----------|-------------|
+| Automatic | Session scanned for learning signals after skill completion |
+| Silent | No output unless finding passes 3+ quality gates |
+| Quality Gates | Depth, Reusability, Trigger Clarity, Verification |
+| Logged | Activity logged to `grimoires/loa/a2a/trajectory/retrospective-*.jsonl` |
+
+**Skills with postludes**:
+- `implementing-tasks` - Bug fixes, debugging discoveries
+- `auditing-security` - Security patterns and remediations
+- `reviewing-code` - Code review insights
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+invisible_retrospective:
+  enabled: true
+  surface_threshold: 3  # Min gates to surface (out of 4)
+  skills:
+    implementing-tasks: true
+    auditing-security: true
+    reviewing-code: true
+```
+
+**Integration**: Qualified learnings are added to `grimoires/loa/NOTES.md ## Learnings` and queued for upstream detection (PR #143).
+
+**View stats**: `/loa` shows retrospective metrics.
+
 ## Conventions
 
 - Never skip phases - each builds on previous

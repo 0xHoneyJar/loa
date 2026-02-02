@@ -1,0 +1,171 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://loa.dev/schemas/retrospective-log.schema.json",
+  "title": "Invisible Retrospective Log Entry",
+  "description": "JSON Schema for validating invisible retrospective trajectory log entries. Used in grimoires/loa/a2a/trajectory/retrospective-{date}.jsonl",
+  "type": "object",
+  "properties": {
+    "type": {
+      "const": "invisible_retrospective",
+      "description": "Entry type identifier"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of the retrospective execution"
+    },
+    "session_id": {
+      "type": "string",
+      "description": "Claude session ID for cross-session correlation (from CLAUDE_SESSION_ID)"
+    },
+    "skill": {
+      "type": "string",
+      "enum": [
+        "implementing-tasks",
+        "auditing-security",
+        "reviewing-code",
+        "deploying-infrastructure",
+        "designing-architecture"
+      ],
+      "description": "Skill that triggered the retrospective postlude"
+    },
+    "action": {
+      "type": "string",
+      "enum": ["DETECTED", "EXTRACTED", "SKIPPED", "DISABLED", "ERROR"],
+      "description": "Result of the retrospective execution. DETECTED=candidates found and qualified, EXTRACTED=learnings written to NOTES.md, SKIPPED=no candidates or none qualified, DISABLED=feature disabled in config, ERROR=processing error"
+    },
+    "candidates_found": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of potential learning candidates detected in the session"
+    },
+    "candidates_qualified": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of candidates that passed quality gates (score >= surface_threshold)"
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^learning-[0-9T:.-]+-[a-f0-9]+$",
+            "description": "Unique learning identifier (learning-{timestamp}-{hash})"
+          },
+          "signal": {
+            "type": "string",
+            "enum": [
+              "error_resolution",
+              "multiple_attempts",
+              "unexpected_behavior",
+              "workaround",
+              "pattern_discovery"
+            ],
+            "description": "Type of learning signal that triggered detection"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Brief description of the discovered learning"
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4,
+            "description": "Quality gate score (0-4)"
+          },
+          "gates_passed": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["depth", "reusable", "trigger", "verified"]
+            },
+            "description": "Quality gates that passed"
+          },
+          "gates_failed": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["depth", "reusable", "trigger", "verified"]
+            },
+            "description": "Quality gates that failed"
+          },
+          "qualified": {
+            "type": "boolean",
+            "description": "Whether candidate passed the surface_threshold"
+          }
+        },
+        "required": ["id", "signal", "score", "qualified"]
+      },
+      "description": "Details of each candidate learning evaluated"
+    },
+    "extracted": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs of learnings that were extracted to NOTES.md"
+    },
+    "skipped_reasons": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Map of candidate IDs to reasons they were skipped"
+    },
+    "latency_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total execution time of the retrospective postlude in milliseconds"
+    },
+    "error": {
+      "type": "string",
+      "description": "Error message if action is ERROR"
+    },
+    "config": {
+      "type": "object",
+      "properties": {
+        "surface_threshold": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "max_candidates": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_extractions_per_session": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "Config values used for this execution (for debugging)"
+    }
+  },
+  "required": ["type", "timestamp", "skill", "action"],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "action": { "const": "ERROR" }
+        }
+      },
+      "then": {
+        "required": ["error"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": { "enum": ["DETECTED", "EXTRACTED", "SKIPPED"] }
+        }
+      },
+      "then": {
+        "required": ["candidates_found", "candidates_qualified"]
+      }
+    }
+  ],
+  "additionalProperties": false
+}

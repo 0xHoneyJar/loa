@@ -71,6 +71,13 @@ Prompt Enhancement (v1.17.0)
   Last enhanced: 2 hours ago
 
 ───────────────────────────────────────────────────────────────
+
+Invisible Retrospective (v1.19.0)
+  Today: 3 detected, 1 extracted, 2 skipped
+  Session: 1 learning captured
+  Last extraction: 2 hours ago
+
+───────────────────────────────────────────────────────────────
  Suggested: /implement sprint-2
 ═══════════════════════════════════════════════════════════════
 
@@ -153,6 +160,27 @@ Type a command or 'exit' to quit:
    ```
 
    If no trajectory data exists, show: "Prompt Enhancement: No activity today"
+
+5. **Invisible Retrospective Statistics** (v1.19.0):
+   ```bash
+   # Parse today's retrospective trajectory log for learning metrics
+   today=$(date +%Y-%m-%d)
+   retro_log="grimoires/loa/a2a/trajectory/retrospective-${today}.jsonl"
+
+   if [[ -f "$retro_log" ]]; then
+     detected=$(grep -c '"action":"DETECTED"' "$retro_log" 2>/dev/null || echo 0)
+     extracted=$(grep -c '"action":"EXTRACTED"' "$retro_log" 2>/dev/null || echo 0)
+     skipped=$(grep -c '"action":"SKIPPED"' "$retro_log" 2>/dev/null || echo 0)
+     disabled=$(grep -c '"action":"DISABLED"' "$retro_log" 2>/dev/null || echo 0)
+
+     # Get last extraction timestamp
+     last_extracted=$(grep '"action":"EXTRACTED"' "$retro_log" | tail -1 | jq -r '.timestamp' 2>/dev/null)
+   fi
+   ```
+
+   If no retrospective data exists, show: "Invisible Retrospective: No activity today"
+
+   If feature is disabled in config, show: "Invisible Retrospective: Disabled"
 
 5. **Use AskUserQuestion** for user prompt:
    ```yaml

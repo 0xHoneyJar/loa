@@ -264,3 +264,42 @@ upstream_proposals:
   anonymization:
     enabled: true
   rejection_cooldown_days: 90
+
+# -----------------------------------------------------------------------------
+# Invisible Retrospective Learning (v1.19.0)
+# -----------------------------------------------------------------------------
+# Automatic learning detection during skill execution without user invocation.
+# Uses skill postludes to silently scan for discoveries and extract learnings.
+# Mirrors the invisible prompt enhancement pattern from v1.17.0.
+invisible_retrospective:
+  # Master toggle - set to false to disable all invisible retrospective
+  enabled: true
+
+  # Always log to trajectory (even when disabled) - useful for debugging
+  log_to_trajectory: true
+
+  # Minimum quality gates passed to surface finding (out of 4)
+  # Gates: Depth, Reusability, Trigger Clarity, Verification
+  surface_threshold: 3
+
+  # Maximum candidates to evaluate per skill invocation
+  max_candidates: 5
+
+  # Maximum learnings to extract per session (prevents noise)
+  max_extractions_per_session: 3
+
+  # Per-skill enablement (only skills with postludes support this)
+  skills:
+    implementing-tasks: true     # High discovery potential (bugs, debugging)
+    auditing-security: true      # Security patterns and findings
+    reviewing-code: true         # Code review insights
+    deploying-infrastructure: false  # Lower discovery potential
+    designing-architecture: false    # Lower discovery potential
+
+  # Quality gate toggles (all default to true)
+  # Disable specific gates if they're too strict for your use case
+  quality_gates:
+    require_depth: true          # Gate 1: Discovery required multiple steps
+    require_reusability: true    # Gate 2: Generalizable beyond this instance
+    require_trigger_clarity: true # Gate 3: Clear when to apply learning
+    require_verification: true   # Gate 4: Solution confirmed working

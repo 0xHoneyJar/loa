@@ -5,6 +5,80 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.0] - 2026-02-02 — Invisible Retrospective Learning
+
+### Why This Release
+
+This release brings **Invisible Retrospective Learning**, automatically detecting and cataloging learnings during skill execution without requiring users to invoke `/retrospective` manually. Mirrors the invisible enhancement pattern from PR #145.
+
+*"Learn as you work, silently capturing discoveries for future sessions."*
+
+### Added
+
+#### Invisible Retrospective Learning
+
+Automatic learning detection using skill postludes (mirrors PR #145's prelude pattern):
+
+```yaml
+# .loa.config.yaml
+invisible_retrospective:
+  enabled: true
+  surface_threshold: 3  # Min gates to surface (out of 4)
+  skills:
+    implementing-tasks: true
+    auditing-security: true
+    reviewing-code: true
+```
+
+**Key Features**:
+- **Silent Scanning**: Session scanned for learning signals after skill completion
+- **4-Gate Quality Filter**: Depth, Reusability, Trigger Clarity, Verification
+- **Qualified Surfacing**: Only learnings passing 3+ gates are surfaced to user
+- **Trajectory Logging**: All activity logged to `grimoires/loa/a2a/trajectory/retrospective-*.jsonl`
+- **NOTES.md Integration**: Qualified learnings added to `## Learnings` section
+- **Upstream Queue**: Learnings queued for upstream detection (PR #143 integration)
+
+**Learning Signal Detection**:
+| Signal | Example Patterns |
+|--------|------------------|
+| Error Resolution | "error", "fixed", "resolved", "the issue was" |
+| Multiple Attempts | "tried", "finally", "after several" |
+| Unexpected Behavior | "surprisingly", "turns out", "discovered" |
+| Workaround Found | "instead", "alternative", "the trick is" |
+| Pattern Discovery | "pattern", "convention", "always" |
+
+**Skills with Retrospective Postlude**:
+- `implementing-tasks` - Bug fixes, debugging discoveries
+- `auditing-security` - Security patterns and remediations
+- `reviewing-code` - Code review insights
+
+**`/loa` Status Updates**:
+- Shows retrospective metrics (detected/extracted/skipped count)
+- Last extraction timestamp
+
+#### Schema & Configuration
+
+- New schema: `.claude/schemas/retrospective-log.schema.json`
+- New config section: `invisible_retrospective` in `.loa.config.yaml.example`
+- Postlude template: `.claude/skills/continuous-learning/resources/retrospective-postlude.md`
+
+### Changed
+
+- `/loa` command now displays invisible retrospective statistics
+- Updated CLAUDE.loa.md with Invisible Retrospective documentation
+
+### Technical Notes
+
+- Uses postlude-based architecture (skill SKILL.md files include `<retrospective_postlude>` at END)
+- Recursion prevention: continuous-learning skill excluded from postlude execution
+- <200ms latency target with early exit for disabled config
+- Integrates with PR #143's upstream learning flow via queued learnings
+
+### Related PRs
+
+- PR #145: Invisible Prompt Enhancement (architecture pattern)
+- PR #143: Upstream Learning Flow (integration point)
+
 ## [1.18.0] - 2026-02-02 — Visual Communication & Invisible Enhancement
 
 ### Why This Release
