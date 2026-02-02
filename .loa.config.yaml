@@ -969,6 +969,68 @@ learnings:
     cache_dir: "~/.loa/cache/oracle/loa"
 
 # =============================================================================
+# Upstream Learning Detection (v1.16.0 - Upstream Learning Flow)
+# =============================================================================
+# Silent detection of high-value learnings eligible for upstream contribution
+# PRD: grimoires/loa/prd.md (Upstream Learning Flow v1.1.0)
+upstream_detection:
+  # Master toggle - set to false to disable upstream detection entirely
+  enabled: true
+
+  # Minimum occurrences (applications) before eligible for upstream
+  # Lower values find candidates earlier, higher values require more proof
+  min_occurrences: 3
+
+  # Minimum success rate (0.0-1.0) for upstream eligibility
+  # 0.8 = 80% of applications must be successful
+  min_success_rate: 0.8
+
+  # Minimum upstream score (0-100) for eligibility
+  # Score is weighted: quality(25%) + effectiveness(30%) + novelty(25%) + generality(20%)
+  min_upstream_score: 70
+
+  # Novelty threshold (0.0-1.0) for duplicate detection via Jaccard similarity
+  # Learnings with similarity >= threshold to existing proposals are blocked
+  novelty_threshold: 0.7
+
+  # Check learnings from last N days during post-retrospective hook
+  check_days: 1
+
+  # Silent mode - only show candidates, never auto-propose
+  silent: true
+
+# =============================================================================
+# Upstream Proposals (v1.16.0 - Upstream Learning Flow)
+# =============================================================================
+# Configuration for submitting learning proposals to upstream Loa repository
+upstream_proposals:
+  # Target repository for upstream proposals
+  target_repo: "0xHoneyJar/loa"
+
+  # GitHub label for learning proposals
+  label: "learning-proposal"
+
+  # -------------------------------------------------------------------------
+  # Anonymization Settings
+  # -------------------------------------------------------------------------
+  anonymization:
+    # Enable PII anonymization before submission (strongly recommended)
+    enabled: true
+    # Validate that no PII remains after anonymization
+    validate: true
+    # Strict mode - fail if validation finds potential PII
+    strict: false
+
+  # -------------------------------------------------------------------------
+  # Rejection Handling
+  # -------------------------------------------------------------------------
+  # Days to wait before resubmitting a rejected proposal
+  rejection_cooldown_days: 90
+
+  # Auto-check proposal status on session start
+  auto_check_status: false
+
+# =============================================================================
 # Autonomous Agent Orchestration (v1.11.0)
 # =============================================================================
 # Meta-orchestrator for exhaustive Loa process compliance

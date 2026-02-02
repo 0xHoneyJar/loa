@@ -1,9 +1,4 @@
 {
-  "_loa_marker": {
-    "managed": true,
-    "version": "1.15.1",
-    "hash": "bd27c2560fb05f662fa4c04738d90b5cd5370a7ceda9573a33dfed8bda7f0da7"
-  },
   "metadata": {
     "tier": "framework",
     "version": "1.16.0",
@@ -31,13 +26,28 @@
       "file": "troubleshooting.json",
       "category": "troubleshooting",
       "description": "Common issues and solutions"
+    },
+    {
+      "file": "historical-extraction.json",
+      "category": "mixed",
+      "description": "Historical learnings extracted from cycles 002-004 (v1.16.0)"
+    },
+    {
+      "file": "additional-extraction.json",
+      "category": "mixed",
+      "description": "Additional learnings from prompt-enhancement and skill-best-practices cycles (v1.16.0)"
     }
   ],
   "counts": {
-    "patterns": 10,
-    "anti_patterns": 8,
-    "decisions": 10,
-    "troubleshooting": 12,
-    "total": 40
+    "patterns": 27,
+    "anti_patterns": 12,
+    "decisions": 15,
+    "troubleshooting": 17,
+    "total": 72
+  },
+  "_loa_marker": {
+    "managed": true,
+    "version": "1.15.1",
+    "hash": "cfe81524deabf9a6e75453b9a1100dc7526c988d1f576287125f3c26df855eee"
   }
 }

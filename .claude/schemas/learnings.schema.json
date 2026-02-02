@@ -247,12 +247,97 @@
           "default": false,
           "description": "Whether this learning is queued for potential archival"
         },
+        "upstream_score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Weighted upstream eligibility score (v1.16.0+)"
+        },
+        "proposal": {
+          "$ref": "#/definitions/proposal",
+          "description": "Upstream proposal tracking (v1.16.0+)"
+        },
         "metadata": {
           "type": "object",
           "description": "Additional learning metadata",
           "additionalProperties": true
         }
       }
+    },
+    "proposal": {
+      "type": "object",
+      "description": "Upstream proposal tracking for learnings submitted to framework (v1.16.0+)",
+      "properties": {
+        "status": {
+          "type": "string",
+          "description": "Current proposal status",
+          "enum": ["none", "draft", "submitted", "under_review", "accepted", "rejected"],
+          "default": "none"
+        },
+        "issue_ref": {
+          "type": "string",
+          "pattern": "^#[0-9]+$|^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+#[0-9]+$",
+          "description": "GitHub Issue reference (e.g., #123 or owner/repo#123)"
+        },
+        "submitted_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the proposal was submitted"
+        },
+        "reviewed_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the proposal was last reviewed"
+        },
+        "upstream_score_at_submission": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Upstream score at time of submission"
+        },
+        "anonymized": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether the proposal was anonymized before submission"
+        },
+        "rejection": {
+          "$ref": "#/definitions/rejection",
+          "description": "Rejection details if status is 'rejected'"
+        }
+      },
+      "additionalProperties": false
+    },
+    "rejection": {
+      "type": "object",
+      "description": "Details about a rejected proposal (v1.16.0+)",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "Reason for rejection from maintainer",
+          "maxLength": 1000
+        },
+        "reason_code": {
+          "type": "string",
+          "description": "Standardized rejection reason code",
+          "enum": ["duplicate", "too_specific", "insufficient_evidence", "low_quality", "out_of_scope", "other"]
+        },
+        "issue_ref": {
+          "type": "string",
+          "pattern": "^#[0-9]+$|^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+#[0-9]+$",
+          "description": "Reference to rejection Issue/comment"
+        },
+        "resubmit_blocked_until": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Cooldown period end date (90 days from rejection)"
+        },
+        "can_appeal": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether the rejection can be appealed"
+        }
+      },
+      "additionalProperties": false
     },
     "application": {
       "type": "object",
