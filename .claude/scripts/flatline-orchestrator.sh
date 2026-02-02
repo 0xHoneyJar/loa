@@ -71,6 +71,49 @@ error() {
     echo "ERROR: $*" >&2
 }
 
+# Strip markdown code blocks from JSON content (some models wrap JSON in ```json ... ```)
+strip_markdown_json() {
+    local content="$1"
+    # Handle multi-line markdown blocks:
+    # 1. Remove leading ```json or ``` (with optional newline)
+    # 2. Remove trailing ``` (with optional preceding newline)
+    echo "$content" | sed -E '
+        # Remove opening code fence with language tag
+        s/^```(json)?[[:space:]]*\n?//
+        # Remove closing code fence
+        s/\n?```[[:space:]]*$//
+    '
+}
+
+# Extract and parse JSON content from model response
+extract_json_content() {
+    local file="$1"
+    local default="$2"
+
+    if [[ ! -f "$file" ]]; then
+        echo "$default"
+        return
+    fi
+
+    local content
+    content=$(jq -r '.content // ""' "$file" 2>/dev/null)
+
+    if [[ -z "$content" || "$content" == "null" ]]; then
+        echo "$default"
+        return
+    fi
+
+    # Strip markdown code blocks if present
+    content=$(strip_markdown_json "$content")
+
+    # Validate it's proper JSON
+    if echo "$content" | jq '.' >/dev/null 2>&1; then
+        echo "$content"
+    else
+        echo "$default"
+    fi
+}
+
 # Log to trajectory
 log_trajectory() {
     local event_type="$1"
@@ -347,13 +390,14 @@ run_phase1() {
     local opus_skeptic_file="$TEMP_DIR/opus-skeptic.json"
 
     # Run 4 parallel API calls
+    # Note: stderr goes to /dev/null to avoid mixing log messages with JSON output
     local pids=()
 
     # GPT review
     {
         "$MODEL_ADAPTER" --model "$secondary_model" --mode review \
             --input "$doc" --phase "$phase" --context "$context_file" \
-            --timeout "$timeout" --json > "$gpt_review_file" 2>&1
+            --timeout "$timeout" --json > "$gpt_review_file" 2>/dev/null
     } &
     pids+=($!)
 
@@ -361,7 +405,7 @@ run_phase1() {
     {
         "$MODEL_ADAPTER" --model "$primary_model" --mode review \
             --input "$doc" --phase "$phase" --context "$context_file" \
-            --timeout "$timeout" --json > "$opus_review_file" 2>&1
+            --timeout "$timeout" --json > "$opus_review_file" 2>/dev/null
     } &
     pids+=($!)
 
@@ -369,7 +413,7 @@ run_phase1() {
     {
         "$MODEL_ADAPTER" --model "$secondary_model" --mode skeptic \
             --input "$doc" --phase "$phase" --context "$context_file" \
-            --timeout "$timeout" --json > "$gpt_skeptic_file" 2>&1
+            --timeout "$timeout" --json > "$gpt_skeptic_file" 2>/dev/null
     } &
     pids+=($!)
 
@@ -377,7 +421,7 @@ run_phase1() {
     {
         "$MODEL_ADAPTER" --model "$primary_model" --mode skeptic \
             --input "$doc" --phase "$phase" --context "$context_file" \
-            --timeout "$timeout" --json > "$opus_skeptic_file" 2>&1
+            --timeout "$timeout" --json > "$opus_skeptic_file" 2>/dev/null
     } &
     pids+=($!)
 
@@ -437,9 +481,9 @@ run_phase2() {
     local gpt_items_file="$TEMP_DIR/gpt-items.json"
     local opus_items_file="$TEMP_DIR/opus-items.json"
 
-    # Extract improvements from each review
-    jq -r '.content' "$gpt_review_file" 2>/dev/null | jq '.' > "$gpt_items_file" 2>/dev/null || echo '{"improvements":[]}' > "$gpt_items_file"
-    jq -r '.content' "$opus_review_file" 2>/dev/null | jq '.' > "$opus_items_file" 2>/dev/null || echo '{"improvements":[]}' > "$opus_items_file"
+    # Extract improvements from each review (handles markdown-wrapped JSON)
+    extract_json_content "$gpt_review_file" '{"improvements":[]}' > "$gpt_items_file"
+    extract_json_content "$opus_review_file" '{"improvements":[]}' > "$opus_items_file"
 
     # Create output files
     local gpt_scores_file="$TEMP_DIR/gpt-scores.json"
@@ -451,7 +495,7 @@ run_phase2() {
     {
         "$MODEL_ADAPTER" --model "$secondary_model" --mode score \
             --input "$opus_items_file" --phase "$phase" \
-            --timeout "$timeout" --json > "$gpt_scores_file" 2>&1
+            --timeout "$timeout" --json > "$gpt_scores_file" 2>/dev/null
     } &
     pids+=($!)
 
@@ -459,7 +503,7 @@ run_phase2() {
     {
         "$MODEL_ADAPTER" --model "$primary_model" --mode score \
             --input "$gpt_items_file" --phase "$phase" \
-            --timeout "$timeout" --json > "$opus_scores_file" 2>&1
+            --timeout "$timeout" --json > "$opus_scores_file" 2>/dev/null
     } &
     pids+=($!)
 
@@ -503,38 +547,20 @@ run_consensus() {
     set_state "CONSENSUS"
     log "Calculating consensus"
 
-    # Prepare scores files for scoring engine
+    # Prepare scores files for scoring engine (handles markdown-wrapped JSON)
     local gpt_scores_prepared="$TEMP_DIR/gpt-scores-prepared.json"
     local opus_scores_prepared="$TEMP_DIR/opus-scores-prepared.json"
 
-    # Extract and format scores
-    if [[ -f "$gpt_scores_file" ]]; then
-        jq -r '.content' "$gpt_scores_file" 2>/dev/null | jq '.' > "$gpt_scores_prepared" 2>/dev/null || echo '{"scores":[]}' > "$gpt_scores_prepared"
-    else
-        echo '{"scores":[]}' > "$gpt_scores_prepared"
-    fi
+    # Extract and format scores using extract_json_content (handles markdown wrapping)
+    extract_json_content "$gpt_scores_file" '{"scores":[]}' > "$gpt_scores_prepared"
+    extract_json_content "$opus_scores_file" '{"scores":[]}' > "$opus_scores_prepared"
 
-    if [[ -f "$opus_scores_file" ]]; then
-        jq -r '.content' "$opus_scores_file" 2>/dev/null | jq '.' > "$opus_scores_prepared" 2>/dev/null || echo '{"scores":[]}' > "$opus_scores_prepared"
-    else
-        echo '{"scores":[]}' > "$opus_scores_prepared"
-    fi
-
-    # Prepare skeptic files
+    # Prepare skeptic files (handles markdown-wrapped JSON)
     local gpt_skeptic_prepared="$TEMP_DIR/gpt-skeptic-prepared.json"
     local opus_skeptic_prepared="$TEMP_DIR/opus-skeptic-prepared.json"
 
-    if [[ -f "$gpt_skeptic_file" ]]; then
-        jq -r '.content' "$gpt_skeptic_file" 2>/dev/null | jq '.' > "$gpt_skeptic_prepared" 2>/dev/null || echo '{"concerns":[]}' > "$gpt_skeptic_prepared"
-    else
-        echo '{"concerns":[]}' > "$gpt_skeptic_prepared"
-    fi
-
-    if [[ -f "$opus_skeptic_file" ]]; then
-        jq -r '.content' "$opus_skeptic_file" 2>/dev/null | jq '.' > "$opus_skeptic_prepared" 2>/dev/null || echo '{"concerns":[]}' > "$opus_skeptic_prepared"
-    else
-        echo '{"concerns":[]}' > "$opus_skeptic_prepared"
-    fi
+    extract_json_content "$gpt_skeptic_file" '{"concerns":[]}' > "$gpt_skeptic_prepared"
+    extract_json_content "$opus_skeptic_file" '{"concerns":[]}' > "$opus_skeptic_prepared"
 
     # Run scoring engine
     "$SCORING_ENGINE" \

@@ -796,7 +796,7 @@ recursive_jit:
 gpt_review:
   # Master toggle - set to false to disable all GPT reviews
   # Note: Requires OPENAI_API_KEY environment variable (or in .env file)
-  enabled: false
+  enabled: true
   # API timeout in seconds
   timeout_seconds: 300
   # Maximum review iterations before auto-approve
@@ -1503,7 +1503,7 @@ prompt_enhancement:
 # Uses Claude Opus 4.5 + GPT-5.2 for cross-validation with consensus extraction
 flatline_protocol:
   # Master toggle - set to false to disable Flatline Protocol
-  enabled: false
+  enabled: true
 
   # Auto-trigger after planning commands (plan-and-analyze, architect, sprint-plan)
   auto_trigger: true
