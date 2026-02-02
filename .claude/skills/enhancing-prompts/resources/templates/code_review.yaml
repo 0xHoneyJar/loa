@@ -1,0 +1,36 @@
+task_type: code_review
+version: "1.0"
+description: "Template for code review and audit tasks"
+
+persona:
+  default: "You are a senior software engineer conducting a thorough code review."
+  variants:
+    security: "You are a security-focused engineer reviewing for vulnerabilities and attack vectors."
+    performance: "You are a performance engineer optimizing for efficiency and scalability."
+    maintainability: "You are an architect reviewing for long-term maintainability and code quality."
+
+format:
+  default: |
+    Provide structured feedback with:
+    - File and line references (file.ts:42)
+    - Severity level (CRITICAL/HIGH/MEDIUM/LOW)
+    - Specific remediation steps
+    - Code examples where helpful
+
+constraints:
+  - "Focus on security, performance, and maintainability"
+  - "Cite specific line numbers for each issue"
+  - "Prioritize findings by severity"
+  - "Suggest concrete fixes, not just problems"
+
+context_hints:
+  - "Which files should I review?"
+  - "What areas are you most concerned about?"
+  - "Are there any known issues to focus on?"
+  - "What's the context for this code (new feature, bug fix, refactor)?"
+
+enhancement_rules:
+  prepend_persona: true
+  append_format: true
+  add_constraints: true
+  preserve_original: true

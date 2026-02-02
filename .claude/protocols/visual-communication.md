@@ -1,12 +1,26 @@
 # Visual Communication Protocol
 
-**Version:** 1.0.0
+**Version:** 2.0.0
 **Status:** Active
-**Date:** 2026-01-30
+**Date:** 2026-02-02
 
 ## Purpose
 
-This protocol defines standards for visual output across all Loa agents using Mermaid diagrams with Beautiful Mermaid (agents.craft.do/mermaid) as the default rendering service.
+This protocol defines standards for visual output across all Loa agents using Mermaid diagrams. Version 2.0 introduces a three-mode rendering strategy with GitHub native as the default, replacing the broken external service dependency.
+
+## Rendering Modes
+
+| Mode | Output | Use Case | Dependencies |
+|------|--------|----------|--------------|
+| **GitHub Native** (default) | `\`\`\`mermaid` code block | All markdown docs | None |
+| **Local Render** | SVG/PNG files | Image exports | Node.js, mermaid-cli |
+| **URL (legacy)** | Preview URL | External sharing | External service |
+
+### Mode Selection Priority
+
+1. Explicit flag (`--github`, `--render`, `--url`)
+2. Config `visual_communication.mode`
+3. Default: `github`
 
 ## When to Include Diagrams
 
@@ -35,21 +49,11 @@ This protocol defines standards for visual output across all Loa agents using Me
 | **State** | `stateDiagram-v2` | State machines, lifecycle diagrams, status flows |
 | **ER** | `erDiagram` | Database schemas, data models, entity relationships |
 
-## Output Format
+## Output Formats
 
-Each diagram must follow this hybrid format (code + preview URL):
+### GitHub Native (Default)
 
-```markdown
-### {Diagram Title}
-
-```mermaid
-{mermaid_source}
-```
-
-> **Preview**: [View diagram]({preview_url})
-```
-
-### Example
+The default output format for all Loa documents:
 
 ```markdown
 ### Component Architecture
@@ -60,44 +64,91 @@ graph TD
     B --> C[Service Layer]
     C --> D[Database]
 ```
-
-> **Preview**: [View diagram](https://agents.craft.do/mermaid?code=Z3JhcGggVEQKICAgIEFbVXNlcl0gLS0-IEJbQVBJIEdhdGV3YXldCiAgICBCIC0tPiBDW1NlcnZpY2UgTGF5ZXJdCiAgICBDIC0tPiBEW0RhdGFiYXNlXQ&theme=github)
 ```
 
-## Preview URL Generation
+**Benefits:**
+- Zero external dependencies
+- GitHub renders automatically in markdown preview
+- Works in PRs, issues, and wiki
+- No privacy concerns (source code only)
+- No character limits
 
-### URL Format
+### Local Render (Optional)
 
+When image files are needed:
+
+```markdown
+### Component Architecture
+
+```mermaid
+graph TD
+    A[User] --> B[API Gateway]
 ```
-https://agents.craft.do/mermaid?code={base64_mermaid}&theme={theme_name}
+
+> **Rendered**: [View SVG](grimoires/loa/diagrams/diagram-abc12345.svg)
 ```
 
-### Base64 Encoding
+**Use Cases:**
+- Documentation exports (PDF generation)
+- Presentations
+- Privacy-sensitive diagrams (no external service)
+- Offline rendering
 
-1. Take raw Mermaid source code
-2. Encode as Base64
-3. Make URL-safe: replace `+` with `-`, `/` with `_`, remove `=` padding
+### Preview URL (Legacy)
 
-### Manual Generation
+For backwards compatibility when explicitly configured:
+
+```markdown
+### Component Architecture
+
+```mermaid
+graph TD
+    A[User] --> B[API Gateway]
+```
+
+> **Preview**: [View diagram](https://agents.craft.do/mermaid?code=...&theme=github)
+```
+
+**Note:** The default external service (`agents.craft.do/mermaid`) is unreliable. Use GitHub native or local render instead.
+
+## Script Usage
+
+### Generate GitHub Native (Default)
 
 ```bash
-# Using mermaid-url.sh script
+# From stdin
 echo 'graph TD; A-->B' | .claude/scripts/mermaid-url.sh --stdin
 
-# Direct encoding
-echo -n 'graph TD; A-->B' | base64 -w0 | tr '+/' '-_' | tr -d '='
+# From file
+.claude/scripts/mermaid-url.sh diagram.mmd
+```
+
+### Generate Local Render
+
+```bash
+# Default SVG output
+echo 'graph TD; A-->B' | .claude/scripts/mermaid-url.sh --stdin --render
+
+# PNG with theme
+echo 'graph TD; A-->B' | .claude/scripts/mermaid-url.sh --stdin --render --format png --theme dracula
+
+# Custom output directory
+echo 'graph TD; A-->B' | .claude/scripts/mermaid-url.sh --stdin --render --output-dir /tmp/diagrams
+```
+
+### Generate Legacy URL
+
+```bash
+echo 'graph TD; A-->B' | .claude/scripts/mermaid-url.sh --stdin --url
+```
+
+### Check Configuration
+
+```bash
+.claude/scripts/mermaid-url.sh --check
 ```
 
 ## Theme Configuration
-
-### Reading Theme
-
-Agents should read theme from `.loa.config.yaml`:
-
-```yaml
-visual_communication:
-  theme: "github"  # Default theme
-```
 
 ### Available Themes
 
@@ -111,27 +162,14 @@ visual_communication:
 | `solarized-dark` | Warm dark | Low-light environments |
 | `catppuccin` | Pastel dark | Modern aesthetic |
 
-## Fallback Behavior
+### Reading Theme
 
-### Large Diagrams
+Agents should read theme from `.loa.config.yaml`:
 
-If Mermaid source exceeds 1500 characters:
-1. Include the Mermaid code block (always)
-2. Omit the preview URL
-3. Add note: `> *Diagram too large for preview - render locally in VS Code or GitHub*`
-
-### Offline Mode
-
-If preview URLs are disabled via config (`include_preview_urls: false`):
-1. Include Mermaid code blocks only
-2. Do not generate preview URLs
-
-### Service Unavailable
-
-Mermaid code blocks work without the external service. Users can render locally using:
-- VS Code Mermaid extension
-- GitHub markdown preview
-- Any Mermaid-capable viewer
+```yaml
+visual_communication:
+  theme: "github"  # Default theme
+```
 
 ## Configuration Reference
 
@@ -139,16 +177,34 @@ Mermaid code blocks work without the external service. Users can render locally 
 # .loa.config.yaml
 visual_communication:
   enabled: true                              # Master toggle
-  service: "https://agents.craft.do/mermaid" # Rendering service
+  mode: "github"                             # Default mode: github | render | url
   theme: "github"                            # Default theme
-  include_preview_urls: true                 # Generate preview links
-  diagram_types:
-    flowchart: true
-    sequence: true
-    class: true
-    state: true
-    er: true
+
+  # Local rendering options
+  local_render:
+    output_format: "svg"                     # svg | png
+    output_dir: "grimoires/loa/diagrams/"    # Output directory
+
+  # Legacy URL options (for mode: url)
+  service: "https://agents.craft.do/mermaid" # External service URL
+  include_preview_urls: false                # Generate preview links
 ```
+
+## Local Rendering Dependencies
+
+For `--render` mode, install mermaid-cli:
+
+```bash
+# Global install
+npm install -g @mermaid-js/mermaid-cli
+
+# Or use npx (auto-installs on first use)
+npx @mermaid-js/mermaid-cli --version
+```
+
+**Requirements:**
+- Node.js >= 18
+- Chrome/Chromium (for PNG rendering)
 
 ## Mermaid Syntax Requirements
 
@@ -200,47 +256,76 @@ Skills that support visual communication should include:
 
 Follow `.claude/protocols/visual-communication.md` for diagram standards.
 
-### Required Diagrams
-- {list required diagram types}
-
 ### Output Format
-Include Mermaid code block + preview URL for each diagram.
+
+Use GitHub native Mermaid code blocks (default). Example:
+
+\`\`\`mermaid
+graph TD
+    A[Component] --> B[Other]
+\`\`\`
+
+For image exports, use `--render` mode.
 </visual_communication>
 ```
 
 ## Privacy & Security
 
-### Data Transmission
+### GitHub Native Mode
 
-Diagram content is encoded in the URL and sent to agents.craft.do/mermaid for rendering.
+- No external data transmission
+- Source code stays local
+- No privacy concerns
+
+### Local Render Mode
+
+- Full privacy (no external service)
+- Requires local Node.js + mermaid-cli
+- Suitable for sensitive architecture diagrams
+
+### URL Mode (Legacy)
+
+Diagram content is encoded in the URL and sent to external service.
 
 **What's sent:**
 - Mermaid source code (base64 URL-encoded)
 - Theme parameter
 
-**What's NOT sent:**
-- Your project metadata
-- Git information
-- File paths
-- Credentials or secrets
-
-### Privacy Recommendation
-
-For diagrams containing proprietary architecture or security-sensitive details, use offline rendering:
-
-1. Set `include_preview_urls: false` in `.loa.config.yaml`
-2. Render locally using VS Code Mermaid extension or GitHub preview
+**Privacy Recommendation:**
+For diagrams containing proprietary architecture or security-sensitive details, use `github` or `render` mode.
 
 ### Input Validation
 
 The `mermaid-url.sh` script validates:
 - Theme names against an allowlist (prevents injection)
-- Diagram size (rejects >1500 chars per protocol)
+- Output format against allowlist
 - Basic Mermaid syntax (requires valid diagram type)
 - Config values (only allows safe characters)
 
+## Migration from v1.x
+
+### Breaking Changes
+
+1. **Default mode changed**: Now outputs GitHub native code blocks, not preview URLs
+2. **Preview URLs disabled by default**: Set `include_preview_urls: true` for legacy behavior
+
+### Migration Steps
+
+1. **No action required** for most users - GitHub native works everywhere
+2. If you need preview URLs, add to config:
+   ```yaml
+   visual_communication:
+     mode: "url"
+     include_preview_urls: true
+   ```
+3. Remove broken preview URLs from existing docs:
+   ```bash
+   grep -r "agents.craft.do/mermaid" grimoires/ --include="*.md" -l | \
+     xargs sed -i 's/> \*\*Preview\*\*:.*agents\.craft\.do.*//g'
+   ```
+
 ## Related
 
-- `.claude/scripts/mermaid-url.sh` - URL generator script
+- `.claude/scripts/mermaid-url.sh` - Multi-mode rendering script
 - `.loa.config.yaml` - Configuration file
 - SDD Section 4 - Component design details

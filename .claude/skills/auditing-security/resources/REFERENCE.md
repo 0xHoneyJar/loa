@@ -225,6 +225,48 @@
 - Memory leaks
 - Infinite loops without base case
 
+## Resource Exhaustion Vulnerabilities (DoS)
+
+### Arrow Function Closure Memory Leak (HIGH)
+
+**CWE**: CWE-401 (Missing Release of Memory after Effective Lifetime)
+
+**Impact**: Memory exhaustion leading to service denial. Can accumulate 1GB+ memory in long-running processes.
+
+**Vulnerable Pattern**:
+```javascript
+// Arrow function captures entire surrounding scope
+signal.addEventListener('abort', () => controller.abort());
+const timeout = setTimeout(() => controller.abort(), ms);
+```
+
+**Attack Vector**: In long-running services or sessions, each arrow function retains references to large objects (request bodies, response data, options objects), preventing garbage collection.
+
+**Secure Pattern**:
+```javascript
+// .bind() only retains reference to the controller object
+const abort = controller.abort.bind(controller);
+signal.addEventListener('abort', abort, { once: true });
+const timeout = setTimeout(abort, ms);
+```
+
+**Detection**:
+- Flag `addEventListener` with arrow function calling `obj.method()`
+- Flag `setTimeout`/`setInterval` with arrow function calling `obj.method()`
+- Especially in request handlers, middleware, or long-lived processes
+
+**Audit Template**:
+```
+SEVERITY: HIGH
+CATEGORY: Resource Exhaustion (DoS)
+CWE: CWE-401
+LOCATION: {file}:{line}
+FINDING: Arrow function closure captures scope preventing GC
+FIX: Replace `() => obj.method()` with `obj.method.bind(obj)`
+```
+
+**Reference**: Claude Code memory optimization (2026)
+
 ## Severity Classification
 
 ### CRITICAL

@@ -28,6 +28,7 @@ SKIP_BEADS=false
 STEALTH_MODE=false
 FORCE_MODE=false
 NO_COMMIT=false
+SUBMODULE_MODE=false
 
 # === Argument Parsing ===
 while [[ $# -gt 0 ]]; do
@@ -52,16 +53,46 @@ while [[ $# -gt 0 ]]; do
       NO_COMMIT=true
       shift
       ;;
+    --submodule)
+      SUBMODULE_MODE=true
+      shift
+      ;;
+    --tag)
+      # Pass through to submodule mode
+      SUBMODULE_TAG="$2"
+      shift 2
+      ;;
+    --ref)
+      # Pass through to submodule mode
+      SUBMODULE_REF="$2"
+      shift 2
+      ;;
     -h|--help)
       echo "Usage: mount-loa.sh [OPTIONS]"
       echo ""
-      echo "Options:"
+      echo "Installation Modes:"
+      echo "  (default)         Standard mode - copies files into .claude/"
+      echo "  --submodule       Submodule mode - adds Loa as git submodule at .loa/"
+      echo ""
+      echo "Standard Mode Options:"
       echo "  --branch <name>   Loa branch to use (default: main)"
-      echo "  --force, -f       Force remount without prompting (use for curl | bash)"
+      echo "  --force, -f       Force remount without prompting"
       echo "  --stealth         Add state files to .gitignore"
       echo "  --skip-beads      Don't install/initialize Beads CLI"
       echo "  --no-commit       Skip creating git commit after mount"
-      echo "  -h, --help        Show this help message"
+      echo ""
+      echo "Submodule Mode Options:"
+      echo "  --submodule       Use submodule installation mode"
+      echo "  --branch <name>   Loa branch to track (default: main)"
+      echo "  --tag <tag>       Pin to specific Loa tag (e.g., v1.15.0)"
+      echo "  --ref <ref>       Pin to specific ref (commit, branch, or tag)"
+      echo "  --force, -f       Force remount without prompting"
+      echo "  --no-commit       Skip creating git commit after mount"
+      echo ""
+      echo "Examples:"
+      echo "  mount-loa.sh                          # Standard mode, main branch"
+      echo "  mount-loa.sh --submodule              # Submodule mode, main branch"
+      echo "  mount-loa.sh --submodule --tag v1.15.0  # Submodule pinned to tag"
       echo ""
       echo "Recovery install (when /update is broken):"
       echo "  curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash -s -- --force"
@@ -176,6 +207,12 @@ sync_zones() {
     err "Failed to checkout .claude/ from upstream"
   }
 
+  # Pull upstream .loa-version.json to get correct version (fixes #123)
+  log "Pulling version manifest from upstream..."
+  git checkout "$LOA_REMOTE_NAME/$LOA_BRANCH" -- .loa-version.json 2>/dev/null || {
+    warn "No .loa-version.json in upstream, will use fallback version detection"
+  }
+
   if [[ ! -d "grimoires/loa" ]]; then
     log "Pulling State Zone template (grimoires/loa/)..."
     git checkout "$LOA_REMOTE_NAME/$LOA_BRANCH" -- grimoires/loa 2>/dev/null || {
@@ -195,102 +232,121 @@ sync_zones() {
 
 # === Root File Sync (CLAUDE.md, PROCESS.md) ===
 
-# Pull file from upstream and wrap in markers (for fresh installs)
-pull_and_wrap_loa_file() {
-  local file="$1"
+# Sync framework instructions to .claude/loa/CLAUDE.loa.md
+sync_loa_claude_md() {
+  step "Syncing framework instructions..."
 
-  local content
-  content=$(git show "$LOA_REMOTE_NAME/$LOA_BRANCH:$file" 2>/dev/null) || {
-    warn "No $file in upstream, skipping..."
-    return 0
+  mkdir -p .claude/loa
+
+  # Pull CLAUDE.loa.md from upstream
+  git checkout "$LOA_REMOTE_NAME/$LOA_BRANCH" -- .claude/loa/CLAUDE.loa.md 2>/dev/null || {
+    warn "No .claude/loa/CLAUDE.loa.md in upstream, skipping..."
+    return 1
   }
 
-  cat > "$file" << EOF
-<!-- LOA:BEGIN - Framework instructions (auto-managed, do not edit) -->
-$content
-<!-- LOA:END -->
+  log "Framework instructions synced to .claude/loa/CLAUDE.loa.md"
+}
 
-<!-- PROJECT:BEGIN - Your customizations below (preserved across updates) -->
+# Create CLAUDE.md with @ import pattern for fresh installs
+create_claude_md_with_import() {
+  cat > CLAUDE.md << 'EOF'
+@.claude/loa/CLAUDE.loa.md
+
 # Project-Specific Instructions
 
-Add your project-specific Claude instructions here.
-This section is preserved across Loa framework updates.
-<!-- PROJECT:END -->
+> This file contains project-specific customizations that take precedence over the framework instructions.
+> The framework instructions are loaded via the `@` import above.
+
+## Project Configuration
+
+Add your project-specific Claude Code instructions here. These instructions will take precedence
+over the imported framework defaults.
+
+### Example Customizations
+
+```markdown
+## Tech Stack
+- Language: TypeScript
+- Framework: Next.js 14
+- Database: PostgreSQL
+
+## Coding Standards
+- Use functional components with hooks
+- Prefer named exports
+- Always include unit tests
+
+## Domain Context
+- This is a fintech application
+- Security is paramount
+- All API calls must be authenticated
+```
+
+## How This Works
+
+1. Claude Code loads `@.claude/loa/CLAUDE.loa.md` first (framework instructions)
+2. Then loads this file (project-specific instructions)
+3. Instructions in this file **take precedence** over imported content
+4. Framework updates modify `.claude/loa/CLAUDE.loa.md`, not this file
+
+## Related Documentation
+
+- `.claude/loa/CLAUDE.loa.md` - Framework-managed instructions (auto-updated)
+- `.loa.config.yaml` - User configuration file
+- `PROCESS.md` - Detailed workflow documentation
 EOF
 
-  log "Created $file with Loa framework instructions"
+  log "Created CLAUDE.md with @ import pattern"
 }
 
-# Merge Loa content with existing user content
-create_hybrid_file() {
-  local file="$1"
-  local backup="${file}.pre-loa.backup"
+# Handle CLAUDE.md setup with @ import pattern
+# IMPORTANT: Never auto-modify user's existing CLAUDE.md
+setup_claude_md() {
+  local file="CLAUDE.md"
 
-  # Backup original
-  cp "$file" "$backup"
-  log "Backed up original to $backup"
-
-  # Get Loa's version
-  local loa_content
-  loa_content=$(git show "$LOA_REMOTE_NAME/$LOA_BRANCH:$file" 2>/dev/null) || {
-    warn "Could not fetch $file from upstream - keeping original"
-    rm -f "$backup"
-    return 1
-  }
-
-  # Read original content
-  local original_content
-  original_content=$(cat "$file")
-
-  # Create hybrid file
-  cat > "$file" << EOF
-<!-- LOA:BEGIN - Framework instructions (auto-managed, do not edit) -->
-$loa_content
-<!-- LOA:END -->
-
-<!-- PROJECT:BEGIN - Your customizations below (preserved across updates) -->
-$original_content
-<!-- PROJECT:END -->
-EOF
-
-  log "Created hybrid $file (original content preserved in PROJECT section)"
-}
-
-# Update only the Loa section, preserving project section
-update_loa_section() {
-  local file="$1"
-
-  # Get new Loa content
-  local loa_content
-  loa_content=$(git show "$LOA_REMOTE_NAME/$LOA_BRANCH:$file" 2>/dev/null) || {
-    warn "Could not fetch $file from upstream - keeping current"
-    return 1
-  }
-
-  # Extract everything from PROJECT:BEGIN to end of file
-  local project_section
-  project_section=$(sed -n '/<!-- PROJECT:BEGIN/,$p' "$file" 2>/dev/null)
-
-  # If no project section found, preserve everything after LOA:END
-  if [[ -z "$project_section" ]]; then
-    project_section=$(sed -n '/<!-- LOA:END -->/,$p' "$file" | tail -n +2)
-    if [[ -n "$project_section" ]]; then
-      project_section="<!-- PROJECT:BEGIN - Your customizations below (preserved across updates) -->
-$project_section
-<!-- PROJECT:END -->"
+  if [[ -f "$file" ]]; then
+    # Check if it already has the @ import
+    if grep -q "@.claude/loa/CLAUDE.loa.md" "$file" 2>/dev/null; then
+      log "CLAUDE.md already has @ import, no changes needed"
+      return 0
     fi
+
+    # Check for legacy LOA:BEGIN markers
+    if grep -q "<!-- LOA:BEGIN" "$file" 2>/dev/null; then
+      warn "CLAUDE.md has legacy LOA:BEGIN markers"
+      echo ""
+      info "Please migrate to the new @ import pattern:"
+      info "  1. Replace the <!-- LOA:BEGIN --> ... <!-- LOA:END --> section with:"
+      info "     @.claude/loa/CLAUDE.loa.md"
+      info "  2. Keep your project-specific content after the import"
+      echo ""
+      return 0
+    fi
+
+    # Existing CLAUDE.md without Loa content - prompt user to add import
+    echo ""
+    warn "======================================================================="
+    warn "  EXISTING CLAUDE.md DETECTED"
+    warn "======================================================================="
+    echo ""
+    info "Your project already has a CLAUDE.md file."
+    info "To integrate Loa framework instructions, add this line at the TOP of your CLAUDE.md:"
+    echo ""
+    echo -e "  ${CYAN}@.claude/loa/CLAUDE.loa.md${NC}"
+    echo ""
+    info "This uses Claude Code's @ import pattern to load framework instructions"
+    info "while preserving your project-specific content."
+    echo ""
+    info "Your content will take PRECEDENCE over imported framework defaults."
+    echo ""
+    warn "The mount script will NOT modify your existing CLAUDE.md automatically."
+    warn "======================================================================="
+    echo ""
+    return 0
+  else
+    # No CLAUDE.md exists - create with @ import
+    log "Creating CLAUDE.md with @ import pattern..."
+    create_claude_md_with_import
   fi
-
-  # Rebuild file
-  cat > "$file" << EOF
-<!-- LOA:BEGIN - Framework instructions (auto-managed, do not edit) -->
-$loa_content
-<!-- LOA:END -->
-
-$project_section
-EOF
-
-  log "Updated Loa section in $file (project content preserved)"
 }
 
 # Pull optional files only if they don't exist
@@ -309,30 +365,15 @@ sync_optional_file() {
   }
 }
 
-# Handle CLAUDE.md with conflict detection and hybrid merge
-sync_claude_md() {
-  local file="CLAUDE.md"
-
-  if [[ -f "$file" ]]; then
-    if grep -q "<!-- LOA:BEGIN" "$file" 2>/dev/null; then
-      log "Updating Loa section in existing $file..."
-      update_loa_section "$file"
-    else
-      log "Existing $file found - creating hybrid..."
-      create_hybrid_file "$file"
-    fi
-  else
-    log "Pulling $file (Claude Code instructions)..."
-    pull_and_wrap_loa_file "$file"
-  fi
-}
-
 # Orchestrate root file synchronization
 sync_root_files() {
   step "Syncing root documentation files..."
 
-  # Required: CLAUDE.md with hybrid support
-  sync_claude_md
+  # Sync framework instructions to .claude/loa/
+  sync_loa_claude_md
+
+  # Setup CLAUDE.md with @ import pattern
+  setup_claude_md
 
   # Optional: Pull only if missing
   sync_optional_file "PROCESS.md" "Workflow documentation"
@@ -382,16 +423,29 @@ EOF
 create_manifest() {
   step "Creating version manifest..."
 
-  # Version detection priority:
-  # 1. Root .loa-version.json (if exists from previous install)
-  # 2. .claude/.loa-version.json (from upstream)
-  # 3. Fallback to current framework version
-  local upstream_version="1.7.2"
+  # Version detection priority (fixes #123):
+  # 1. Root .loa-version.json (pulled from upstream in sync_zones)
+  # 2. Fallback: query git for the latest tag
+  # 3. Final fallback: "unknown"
+  local upstream_version=""
+
+  # Try reading from upstream .loa-version.json (should exist after sync_zones)
   if [[ -f ".loa-version.json" ]]; then
-    upstream_version=$(jq -r '.framework_version // "1.7.2"' .loa-version.json 2>/dev/null)
-  elif [[ -f ".claude/.loa-version.json" ]]; then
-    upstream_version=$(jq -r '.framework_version // "1.7.2"' .claude/.loa-version.json 2>/dev/null)
+    upstream_version=$(jq -r '.framework_version // ""' .loa-version.json 2>/dev/null)
   fi
+
+  # Fallback: try to get version from latest git tag
+  if [[ -z "$upstream_version" || "$upstream_version" == "null" ]]; then
+    upstream_version=$(git tag -l 'loa@v*' --sort=-v:refname 2>/dev/null | head -1 | sed 's/loa@v//')
+  fi
+
+  # Final fallback
+  if [[ -z "$upstream_version" ]]; then
+    warn "Could not detect upstream version, using 'unknown'"
+    upstream_version="unknown"
+  fi
+
+  log "Detected upstream version: $upstream_version"
 
   cat > "$VERSION_FILE" << EOF
 {
@@ -411,7 +465,7 @@ create_manifest() {
 }
 EOF
 
-  log "Version manifest created"
+  log "Version manifest created (v$upstream_version)"
 }
 
 # === Generate Cryptographic Checksums ===
@@ -564,6 +618,44 @@ apply_stealth() {
     done
 
     log "Stealth mode applied"
+  fi
+}
+
+# === Initialize URL Registry ===
+init_url_registry() {
+  step "Initializing URL registry..."
+
+  local urls_file="grimoires/loa/urls.yaml"
+  if [[ ! -f "$urls_file" ]]; then
+    cat > "$urls_file" << 'EOF'
+# Canonical URL Registry
+# Agents MUST use these URLs instead of guessing/hallucinating
+# See: .claude/protocols/url-registry.md
+
+environments:
+  production:
+    base: ""        # e.g., https://myapp.com
+    api: ""         # e.g., https://api.myapp.com
+  staging:
+    base: ""        # e.g., https://staging.myapp.com
+  local:
+    base: http://localhost:3000
+    api: http://localhost:3000/api
+
+# Placeholders for unconfigured environments
+# Agents use these when actual URLs aren't configured
+placeholders:
+  domain: your-domain.example.com
+  api_base: "{{base}}/api"
+
+# Service-specific URLs (optional)
+# services:
+#   docs: https://docs.myapp.com
+#   dashboard: https://dashboard.myapp.com
+EOF
+    log "URL registry initialized"
+  else
+    log "URL registry already exists"
   fi
 }
 
@@ -727,23 +819,83 @@ Generated by Loa update.sh"
   create_version_tag "$new_version"
 }
 
+# === Check Installation Mode Conflicts ===
+check_mode_conflicts() {
+  # Check if already installed in a different mode
+  if [[ -f "$VERSION_FILE" ]]; then
+    local current_mode=$(jq -r '.installation_mode // "standard"' "$VERSION_FILE" 2>/dev/null)
+
+    if [[ "$SUBMODULE_MODE" == "true" ]] && [[ "$current_mode" == "standard" ]]; then
+      err "Loa is installed in standard mode. Cannot switch to submodule mode.
+To switch modes:
+  1. Run '/loa eject' to eject from current installation
+  2. Remove .claude/ and .loa-version.json
+  3. Run mount-loa.sh --submodule"
+    fi
+
+    if [[ "$SUBMODULE_MODE" == "false" ]] && [[ "$current_mode" == "submodule" ]]; then
+      err "Loa is installed in submodule mode. Cannot switch to standard mode.
+To switch modes:
+  1. Remove the submodule: git submodule deinit -f .loa && git rm -f .loa
+  2. Remove symlinks: rm -rf .claude
+  3. Remove .loa-version.json and .loa.config.yaml
+  4. Run mount-loa.sh"
+    fi
+  fi
+}
+
+# === Route to Submodule Script ===
+route_to_submodule() {
+  local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local submodule_script="${script_dir}/mount-submodule.sh"
+
+  # Build arguments to pass through
+  local args=()
+  [[ -n "${SUBMODULE_TAG:-}" ]] && args+=(--tag "$SUBMODULE_TAG")
+  [[ -n "${SUBMODULE_REF:-}" ]] && args+=(--ref "$SUBMODULE_REF")
+  [[ "$LOA_BRANCH" != "main" ]] && args+=(--branch "$LOA_BRANCH")
+  [[ "$FORCE_MODE" == "true" ]] && args+=(--force)
+  [[ "$NO_COMMIT" == "true" ]] && args+=(--no-commit)
+
+  if [[ -x "$submodule_script" ]]; then
+    exec "$submodule_script" "${args[@]}"
+  else
+    err "Submodule script not found at: $submodule_script
+Please ensure Loa framework is complete or download mount-submodule.sh manually."
+  fi
+}
+
 # === Main ===
 main() {
+  # Route to submodule mode if requested
+  if [[ "$SUBMODULE_MODE" == "true" ]]; then
+    echo ""
+    log "======================================================================="
+    log "  Loa Framework Mount (Submodule Mode)"
+    log "======================================================================="
+    echo ""
+    check_mode_conflicts
+    route_to_submodule
+    exit 0  # Should not reach here (exec above)
+  fi
+
   echo ""
   log "======================================================================="
-  log "  Loa Framework Mount v1.7.2"
+  log "  Loa Framework Mount"
   log "  Enterprise-Grade Managed Scaffolding"
   log "======================================================================="
   log "  Branch: $LOA_BRANCH"
   [[ "$FORCE_MODE" == "true" ]] && log "  Mode: Force remount"
   echo ""
 
+  check_mode_conflicts
   preflight
   install_beads
   setup_remote
   sync_zones
   sync_root_files
   init_structured_memory
+  init_url_registry
   create_config
   create_manifest
   generate_checksums
@@ -761,6 +913,18 @@ main() {
 Files here are preserved across framework updates.
 Mirror the .claude/ structure for any customizations.
 EOF
+
+  # === Enforce Feature Gates ===
+  # Move disabled skills to .skills-disabled/ based on .loa.config.yaml
+  if [[ -x ".claude/scripts/feature-gates.sh" ]]; then
+    step "Enforcing feature gates..."
+    .claude/scripts/feature-gates.sh enforce 2>/dev/null || {
+      warn "Feature gate enforcement skipped (script returned error)"
+    }
+  else
+    # Feature gates script not yet available - this is expected for older versions
+    log "Feature gates: not enforced (feature-gates.sh not available)"
+  fi
 
   # === Show Completion Banner ===
   local banner_script=".claude/scripts/upgrade-banner.sh"

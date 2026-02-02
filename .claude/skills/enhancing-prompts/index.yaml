@@ -1,0 +1,35 @@
+name: "enhancing-prompts"
+version: "1.0.0"
+model: "haiku"
+color: "purple"
+
+effort_hint: low
+danger_level: safe
+categories:
+  - support
+  - quality
+
+description: |
+  Analyzes and enhances prompts to improve output quality.
+  Detects missing components (Persona, Task, Context, Format),
+  classifies task type, and merges with optimized templates.
+  Can be used standalone (/enhance) or as middleware.
+
+triggers:
+  - "/enhance"
+  - "improve this prompt"
+  - "enhance prompt"
+  - "make this prompt better"
+
+inputExamples:
+  - input:
+      prompt: "review the auth code"
+    description: "Vague code review request"
+  - input:
+      prompt: "summarize this"
+    description: "Missing context and format"
+
+outputs:
+  - path: "stdout"
+    description: "Enhanced prompt with analysis"
+    format: detailed

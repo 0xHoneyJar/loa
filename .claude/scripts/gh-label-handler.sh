@@ -39,10 +39,16 @@ COMMANDS:
 OPTIONS:
     --repo <owner/repo>     Target repository (required)
     --title <title>         Issue title (required)
-    --body <body>           Issue body (required)
+    --body <body>           Issue body (use --body-file for untrusted content)
+    --body-file <path>      Read body from file (SECURITY: preferred for user content)
     --labels <l1,l2,...>    Comma-separated labels to apply
     --graceful              Retry without labels if they don't exist
     --help                  Show this help message
+
+SECURITY:
+    When processing user-generated content that may contain shell metacharacters,
+    use --body-file instead of --body to prevent command injection. The file
+    content is passed safely to gh CLI without shell interpretation.
 
 EXAMPLES:
     # Create issue with labels (fail if labels missing)
@@ -102,18 +108,26 @@ check_gh_auth() {
 }
 
 # Create issue with labels, handling errors gracefully
+# SECURITY: When body_file is provided, it takes precedence over body to prevent injection
 create_issue_with_labels() {
     local repo="$1"
     local title="$2"
     local body="$3"
     local labels="$4"
     local graceful="$5"
+    local body_file="${6:-}"
 
     local result
     local exit_code
 
     # Build gh command
-    local gh_args=(issue create --repo "$repo" --title "$title" --body "$body")
+    # SECURITY: Use --body-file when provided (prevents shell metacharacter injection)
+    local gh_args=(issue create --repo "$repo" --title "$title")
+    if [[ -n "$body_file" ]] && [[ -f "$body_file" ]]; then
+        gh_args+=(--body-file "$body_file")
+    else
+        gh_args+=(--body "$body")
+    fi
 
     # Add labels if specified
     if [[ -n "$labels" ]]; then
@@ -135,7 +149,13 @@ create_issue_with_labels() {
             warn "Labels '$labels' not found in $repo, submitting without labels"
 
             # Retry without labels
-            gh_args=(issue create --repo "$repo" --title "$title" --body "$body")
+            # SECURITY: Preserve body-file approach on retry
+            gh_args=(issue create --repo "$repo" --title "$title")
+            if [[ -n "$body_file" ]] && [[ -f "$body_file" ]]; then
+                gh_args+=(--body-file "$body_file")
+            else
+                gh_args+=(--body "$body")
+            fi
             result=$(gh "${gh_args[@]}" 2>&1) && exit_code=$? || exit_code=$?
 
             if [[ $exit_code -eq 0 ]]; then
@@ -167,6 +187,7 @@ main() {
             local repo=""
             local title=""
             local body=""
+            local body_file=""
             local labels=""
             local graceful="false"
 
@@ -182,6 +203,11 @@ main() {
                         ;;
                     --body)
                         body="$2"
+                        shift 2
+                        ;;
+                    --body-file)
+                        # SECURITY: Preferred method for user-generated content
+                        body_file="$2"
                         shift 2
                         ;;
                     --labels)
@@ -217,9 +243,16 @@ main() {
                 exit 1
             fi
 
-            if [[ -z "$body" ]]; then
-                error "--body is required"
+            # SECURITY: Either --body or --body-file is required (prefer --body-file for user content)
+            if [[ -z "$body" ]] && [[ -z "$body_file" ]]; then
+                error "--body or --body-file is required"
                 usage >&2
+                exit 1
+            fi
+
+            # Validate body-file exists if provided
+            if [[ -n "$body_file" ]] && [[ ! -f "$body_file" ]]; then
+                error "Body file not found: $body_file"
                 exit 1
             fi
 
@@ -230,7 +263,8 @@ main() {
             check_gh_auth || exit 1
 
             # Create the issue
-            create_issue_with_labels "$repo" "$title" "$body" "$labels" "$graceful"
+            # SECURITY: Pass body_file as 6th parameter for safe content handling
+            create_issue_with_labels "$repo" "$title" "$body" "$labels" "$graceful" "$body_file"
             ;;
         *)
             error "Unknown command: $command"

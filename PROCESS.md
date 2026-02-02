@@ -42,6 +42,31 @@ Place all customizations in `.claude/overrides/` - they survive framework update
     └── my-command.md         # Custom command
 ```
 
+### Namespace Separation (v1.15.0)
+
+Framework content uses the `loa-` prefix namespace to separate from user content:
+
+| Content Type | Framework | User |
+|-------------|-----------|------|
+| Skills | `.claude/skills/loa-*/` | `.claude/skills/my-*/` |
+| Commands | `.claude/commands/loa-*.md` | `.claude/commands/my-*.md` |
+| Instructions | `.claude/loa/CLAUDE.loa.md` | `CLAUDE.md` |
+
+**Updates only touch `loa-*` prefixed content** - your custom skills and commands are never modified.
+
+### CLAUDE.md Import Pattern (v1.15.0)
+
+Framework instructions are loaded via Claude Code's `@` import:
+
+```markdown
+@.claude/loa/CLAUDE.loa.md
+
+# Project-Specific Instructions
+Your content here takes precedence over framework defaults.
+```
+
+See [INSTALLATION.md](INSTALLATION.md) for migration guide.
+
 ## Protocol References
 
 Detailed specifications are maintained in separate protocol files (single source of truth):
@@ -204,6 +229,18 @@ Each agent is implemented as a modular **skill** in `.claude/skills/{agent-name}
   - Acknowledge risks, tradeoffs, and limitations honestly
 - **Output**: Executive summaries, stakeholder briefings (1-3 pages tailored by audience)
 - **Usage**: Ad-hoc, invoked to translate technical docs for non-technical audiences
+
+### 9. **enhancing-prompts** (Prompt Engineer)
+- **Role**: Expert Prompt Engineer with deep understanding of LLM behavior
+- **Expertise**: Prompt analysis, PTCF framework, quality scoring, iterative refinement
+- **Skill**: `.claude/skills/enhancing-prompts/`
+- **Responsibilities**:
+  - Analyze prompt quality using component detection (Persona, Task, Context, Format)
+  - Score prompts on 0-10 scale with actionable improvement suggestions
+  - Apply task-specific templates (debugging, code_review, refactoring, etc.)
+  - Refine prompts through feedback loop (up to 3 iterations)
+- **Output**: Enhanced prompt with quality score and component analysis
+- **Usage**: Ad-hoc, invoked via `/enhance` command
 
 ---
 

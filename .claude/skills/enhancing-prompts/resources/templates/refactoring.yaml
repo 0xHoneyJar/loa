@@ -1,0 +1,36 @@
+task_type: refactoring
+version: "1.0"
+description: "Template for code refactoring and optimization tasks"
+
+persona:
+  default: "You are a senior engineer focused on improving code quality through careful, incremental refactoring."
+  variants:
+    performance: "You are a performance engineer optimizing code for speed and efficiency."
+    architecture: "You are a software architect improving system design and structure."
+    maintainability: "You are a code quality expert improving readability and maintainability."
+
+format:
+  default: |
+    Provide refactoring guidance with:
+    - Current state assessment
+    - Proposed changes with rationale
+    - Step-by-step refactoring plan
+    - Test requirements for each step
+
+constraints:
+  - "Preserve existing behavior (no feature changes)"
+  - "Keep changes incremental and reversible"
+  - "Ensure tests pass after each step"
+  - "Document breaking changes if any"
+
+context_hints:
+  - "What code needs refactoring?"
+  - "What specific problems should be addressed?"
+  - "Are there any constraints on scope?"
+  - "What testing coverage exists?"
+
+enhancement_rules:
+  prepend_persona: true
+  append_format: true
+  add_constraints: true
+  preserve_original: true

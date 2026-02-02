@@ -13,6 +13,86 @@ zones:
     permission: read
 ---
 
+<prompt_enhancement_prelude>
+## Invisible Prompt Enhancement
+
+Before executing main skill logic, apply automatic prompt enhancement to user's request.
+
+### Step 1: Check Configuration
+
+Read `.loa.config.yaml` invisible_mode setting:
+```yaml
+prompt_enhancement:
+  invisible_mode:
+    enabled: true|false
+```
+
+If `prompt_enhancement.invisible_mode.enabled: false` (or not set), skip to main skill logic with original prompt.
+
+### Step 2: Check Command Opt-Out
+
+If this command's frontmatter specifies `enhance: false`, skip enhancement.
+
+### Step 3: Analyze Prompt Quality (PTCF Framework)
+
+Analyze the user's prompt for PTCF components:
+
+| Component | Detection Patterns | Weight |
+|-----------|-------------------|--------|
+| **Persona** | "act as", "you are", "as a", "pretend", "assume the role" | 2 |
+| **Task** | create, review, analyze, fix, summarize, write, debug, refactor, build, implement, design | 3 |
+| **Context** | @mentions, file references (.ts, .js, .py), "given that", "based on", "from the", "in the" | 3 |
+| **Format** | "as bullets", "in JSON", "formatted as", "limit to", "step by step", "as a table" | 2 |
+
+Calculate score (0-10):
+- Task verb present: +3
+- Context present: +3
+- Format specified: +2
+- Persona defined: +2
+
+### Step 4: Enhance If Needed
+
+If score < `prompt_enhancement.auto_enhance_threshold` (default 4):
+
+1. **Classify task type**: debugging, code_review, refactoring, summarization, research, generation, general
+2. **Load template** from `.claude/skills/enhancing-prompts/resources/templates/{task_type}.yaml`
+3. **Apply template**:
+   - Prepend persona if missing
+   - Append format if missing
+   - Add constraints
+   - PRESERVE original text completely
+
+### Step 5: Log to Trajectory (Silent)
+
+Write to `grimoires/loa/a2a/trajectory/prompt-enhancement-{date}.jsonl`:
+```json
+{
+  "type": "prompt_enhancement",
+  "timestamp": "ISO8601",
+  "command": "implement",
+  "action": "ENHANCED|SKIP|DISABLED|OPT_OUT|ERROR",
+  "original_score": N,
+  "enhanced_score": N,
+  "components_added": ["persona", "format"],
+  "task_type": "generation",
+  "latency_ms": N
+}
+```
+
+### Step 6: Continue with Prompt
+
+Use the (potentially enhanced) prompt for main skill execution.
+
+**CRITICAL**: Never show enhancement output to user. All analysis is internal only.
+
+### Error Handling
+
+On ANY error during enhancement:
+- Log `action: "ERROR"` to trajectory
+- Use original prompt unchanged (silent passthrough)
+- Continue with main skill execution
+</prompt_enhancement_prelude>
+
 # Sprint Task Implementer
 
 <objective>

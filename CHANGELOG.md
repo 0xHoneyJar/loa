@@ -5,6 +5,426 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.18.0] - 2026-02-02 — Visual Communication & Invisible Enhancement
+
+### Why This Release
+
+This release brings **Visual Communication v2.0** with GitHub-native Mermaid rendering and browser automation infrastructure, **Invisible Prompt Enhancement** that silently improves prompt quality, and a **95% context reduction** in CLAUDE.md through modular reference files.
+
+*"Better diagrams, better prompts, better context efficiency."*
+
+### Added
+
+#### Visual Communication v2.0 (#144)
+
+Complete rewrite of Mermaid diagram support with multiple rendering modes:
+
+```yaml
+# .loa.config.yaml
+visual_communication:
+  mode: "github"   # github (default) | render | url
+  theme: "github"  # github|dracula|nord|tokyo-night|solarized-light|solarized-dark|catppuccin
+```
+
+**Key Features**:
+- **GitHub Native Mode**: Direct Mermaid code blocks render in GitHub PRs/Issues
+- **Local Render Mode**: SVG/PNG output via mermaid-cli for offline use
+- **Legacy URL Mode**: External service URLs for backward compatibility
+- **7 Theme Presets**: GitHub, Dracula, Nord, Tokyo Night, Solarized (light/dark), Catppuccin
+
+**Browser Automation Infrastructure**:
+- MCP dev-browser integration for visual verification
+- Screenshot capture to `grimoires/loa/screenshots/`
+- Headless and extension modes
+- Protocol: `.claude/protocols/browser-automation.md`
+
+#### Invisible Prompt Enhancement (#145)
+
+Automatic prompt enhancement without user visibility using PTCF framework:
+
+```yaml
+# .loa.config.yaml
+prompt_enhancement:
+  invisible_mode:
+    enabled: true
+    log_to_trajectory: true
+```
+
+**Key Features**:
+- **Silent Enhancement**: Prompts scoring < 4 are enhanced invisibly
+- **PTCF Framework**: Persona + Task + Context + Format analysis
+- **Skill-Level Preludes**: Enhancement logic embedded in skill SKILL.md files
+- **Recursion Prevention**: `/enhance` command has `enhance: false` frontmatter
+- **Trajectory Logging**: Activity logged to `grimoires/loa/a2a/trajectory/prompt-enhancement-*.jsonl`
+- **Passthrough on Error**: Any failure uses original prompt unchanged
+
+**Skills with Enhancement Prelude**:
+- `discovering-requirements` (/plan-and-analyze)
+- `implementing-tasks` (/implement)
+- `translating-for-executives` (/translate)
+
+**`/loa` Status Updates**:
+- Shows enhancement metrics (enhanced/skipped/errors count)
+- Average latency tracking
+
+#### CLAUDE.md Context Optimization (#142)
+
+95% reduction in CLAUDE.md token usage through modular reference architecture:
+
+**New Reference Files** (`.claude/loa/reference/`):
+- `context-engineering.md` - Memory protocols, attention budgets
+- `protocols-summary.md` - Key protocol summaries
+- `scripts-reference.md` - Helper script documentation
+- `version-features.md` - Version-specific feature details
+
+**Token Impact**:
+- Before: ~50K tokens loaded every session
+- After: ~2.5K tokens (table of contents)
+- Reference files loaded on-demand
+
+### Changed
+
+- `/loa` command now displays prompt enhancement statistics
+- `mermaid-url.sh` enhanced with theme support and local rendering options
+- `.loa.config.yaml.example` expanded with visual communication and invisible enhancement configs
+
+### Technical Notes
+
+- Browser automation requires MCP dev-browser server (opt-in)
+- Invisible enhancement uses prelude-based architecture (hooks cannot modify prompts)
+- Reference files use lazy loading pattern for context efficiency
+
+## [1.17.0] - 2026-02-02 — Upstream Learning Flow
+
+### Why This Release
+
+This release introduces the **Upstream Learning Flow** that enables users to contribute high-value project learnings back to the Loa framework. Eligible learnings are detected silently after retrospectives, anonymized to remove PII, and proposed via GitHub Issues for maintainer review.
+
+*"Knowledge flows upstream. The framework evolves from its users."*
+
+### Added
+
+#### Upstream Learning Flow (#143)
+
+Complete implementation for contributing project learnings to the Loa framework:
+
+```bash
+# Propose a specific learning
+/propose-learning L-0001
+
+# Preview without submitting
+/propose-learning L-0001 --dry-run
+
+# Check proposal status
+.claude/scripts/check-proposal-status.sh --learning L-0001
+```
+
+**Key Features**:
+- **Silent Detection**: Post-retrospective hook identifies eligible learnings automatically
+- **User Opt-In**: Presents candidates via AskUserQuestion, never auto-proposes
+- **PII Anonymization**: Redacts API keys, paths, emails, IPs, JWT tokens, private keys before submission
+- **Weighted Scoring**: `upstream_score = quality(25%) + effectiveness(30%) + novelty(25%) + generality(20%)`
+- **Eligibility Threshold**: score ≥ 70, applications ≥ 3, success_rate ≥ 80%
+- **Duplicate Detection**: Jaccard similarity check against existing framework learnings
+- **Rejection Handling**: 90-day cooldown for rejected proposals
+
+**New Files**:
+- `.claude/scripts/upstream-score-calculator.sh` - Weighted eligibility scoring
+- `.claude/scripts/anonymize-proposal.sh` - PII redaction (API keys, JWT, private keys, DB creds)
+- `.claude/scripts/proposal-generator.sh` - GitHub Issue creation with deduplication
+- `.claude/scripts/check-proposal-status.sh` - Proposal status sync from GitHub
+- `.claude/scripts/post-retrospective-hook.sh` - Silent detection after /retrospective
+- `.claude/commands/propose-learning.md` - User-facing command
+- `docs/MAINTAINER_GUIDE.md` - Maintainer workflow for reviewing proposals
+
+**Updated Files**:
+- `.claude/schemas/learnings.schema.json` - Added `proposal` object with status, issue_ref, rejection fields
+- `.claude/scripts/gh-label-handler.sh` - Added `--body-file` for secure content handling
+- `.claude/commands/retrospective.md` - Added Step 6: Upstream Detection
+- `.claude/skills/continuous-learning/SKILL.md` - Added Upstream Flow section
+- `.loa.config.yaml` - Added `upstream_detection` and `upstream_proposals` config sections
+
+**Historical Learning Extraction**:
+- 32 learnings extracted from historical development cycles
+- Total framework learnings: 72 (exceeds 50+ PRD target)
+
+**Security Hardening**:
+- CRITICAL-001: Command injection prevention via `--body-file` parameter
+- HIGH-001: Extended PII patterns (Slack webhooks, JWT, private keys, DB credentials)
+- HIGH-002: Null-safe filename iteration with `find -print0`
+- Input validation on learning IDs (alphanumeric only)
+- Secure temp file handling with `umask 077`
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+upstream_detection:
+  enabled: true
+  min_occurrences: 3
+  min_success_rate: 0.8
+  min_upstream_score: 70
+
+upstream_proposals:
+  target_repo: "0xHoneyJar/loa"
+  label: "learning-proposal"
+  anonymization:
+    enabled: true
+  rejection_cooldown_days: 90
+```
+
+---
+
+## [1.16.0] - 2026-02-02 — Managed Scaffolding & Two-Tier Learnings
+
+### Why This Release
+
+This release introduces **Projen-Style Ownership** with managed scaffolding for framework files, and **Two-Tier Learnings Architecture** that ships 40 battle-tested patterns with every Loa installation. Framework files now have clear ownership markers, and learnings flow automatically to every project.
+
+*"Managed files stay managed. Learnings flow downstream. The framework teaches itself."*
+
+### Added
+
+#### Projen-Style Ownership with Managed Scaffolding (#134)
+
+Framework files in `.claude/` now use managed scaffolding inspired by AWS Projen:
+
+```bash
+# Check file ownership
+.claude/scripts/marker-utils.sh check-marker .claude/protocols/run-mode.md
+# → managed: true, version: 1.16.0
+
+# Eject from framework (transfer ownership)
+/loa-eject                    # Interactive eject wizard
+/loa-eject --file <path>      # Eject specific file
+/loa-eject --all              # Full framework eject
+```
+
+**Key Features**:
+- **`_loa_marker` metadata**: JSON/YAML files include `managed: true`, `version`, `hash` fields
+- **`_loa_managed` comments**: Markdown/script files use comment markers
+- **Integrity verification**: SHA-256 hash validation for tamper detection
+- **Eject command**: Transfer file ownership from framework to project
+- **Version-targeted updates**: Update only files from specific versions
+
+**New Files**:
+- `.claude/scripts/marker-utils.sh` - Marker verification utilities
+- `.claude/scripts/loa-eject.sh` - Eject command implementation
+- `.claude/commands/loa-eject.md` - Command routing
+- `.claude/skills/loa-eject/` - Eject skill with interactive wizard
+
+**Updated Files**:
+- All `.claude/protocols/*.md` - Added `_loa_managed` markers
+- All `.claude/schemas/*.json` - Added `_loa_marker` metadata
+- All `.claude/scripts/*.sh` - Added `_loa_managed` markers
+- `.claude/scripts/update.sh` - Version-targeted update support
+
+#### Two-Tier Learnings Architecture (#139)
+
+Framework learnings now ship with Loa and are available to all projects:
+
+```bash
+# Query framework learnings
+.claude/scripts/loa-learnings-index.sh query "bash" --tier framework
+
+# Query both tiers (default)
+.claude/scripts/loa-learnings-index.sh query "context management"
+
+# Check tier status
+.claude/scripts/loa-learnings-index.sh status
+# → Framework (Tier 1): 40 (weight: 1.0)
+# → Project (Tier 2): 0 (weight: 0.9)
+```
+
+**Two-Tier Model**:
+| Tier | Location | Weight | Source |
+|------|----------|--------|--------|
+| Framework | `.claude/loa/learnings/` | 1.0 | Ships with Loa |
+| Project | `grimoires/loa/a2a/compound/` | 0.9 | Project retrospectives |
+
+**40 Seeded Learnings**:
+- **10 Patterns**: Three-Zone Model, JIT Retrieval, Circuit Breaker, etc.
+- **8 Anti-Patterns**: Arrow closures, `((var++))` with set -e, etc.
+- **10 Decisions**: Why grimoires/, Why draft PRs, Why ICE layer, etc.
+- **12 Troubleshooting**: Bash 4+, macOS compatibility, yq vs jq, etc.
+
+**New Files**:
+- `.claude/loa/learnings/index.json` - Manifest with counts
+- `.claude/loa/learnings/patterns.json` - Proven architectural patterns
+- `.claude/loa/learnings/anti-patterns.json` - Common pitfalls
+- `.claude/loa/learnings/decisions.json` - Architectural decision records
+- `.claude/loa/learnings/troubleshooting.json` - Issue resolution guides
+
+**Updated Files**:
+- `.claude/schemas/learnings.schema.json` - Added `tier`, `version_added`, `source_origin`
+- `.claude/scripts/loa-learnings-index.sh` - Two-tier indexing with `--tier` flag
+- `.claude/scripts/anthropic-oracle.sh` - Weighted search across tiers
+- `.claude/scripts/update.sh` - `post_update_learnings()` for sync on update
+- `.loa.config.yaml` - `learnings` configuration section
+
+**Closes**: #76 (Extend /oracle to include Loa's own compound learnings)
+
+### Fixed
+
+#### Oracle Bash Increment Exit Code (#138)
+
+Fixed `((count++))` causing premature script termination when `set -e` is active and count starts at 0:
+
+```bash
+# Before (fails when count=0)
+((count++))
+
+# After (safe increment)
+count=$((count + 1))
+```
+
+This pattern is now documented in `.claude/loa/learnings/anti-patterns.json`.
+
+### Configuration
+
+New `.loa.config.yaml` sections:
+
+```yaml
+# Two-Tier Learnings
+learnings:
+  tiers:
+    framework:
+      enabled: true
+      weight: 1.0
+      source_dir: ".claude/loa/learnings"
+    project:
+      enabled: true
+      weight: 0.9
+  query:
+    default_tier: all
+    max_results: 10
+    deduplicate: true
+  index:
+    rebuild_on_update: true
+```
+
+---
+
+## [1.15.0] - 2026-02-02 — Prompt Enhancement & Developer Experience
+
+### Why This Release
+
+This release introduces the **Intelligent Prompt Enhancement System** with a new `/enhance` command, **consolidated sprint PRs** for cleaner Run Mode output, and several developer experience improvements including the **Canonical URL Registry** to prevent agent hallucination.
+
+*"Enhance your prompts. Consolidate your PRs. Ground your URLs."*
+
+### Added
+
+#### `/enhance` Command & Prompt Enhancement Skill (#108, #109, #120)
+
+New skill and command for improving prompt quality using the PTCF framework (Persona + Task + Context + Format):
+
+```bash
+/enhance "review the code"              # Analyze and enhance prompt
+/enhance --analyze-only "check auth"    # Analysis without enhancement
+/enhance --task-type code_review "..."  # Use specific template
+```
+
+**Features**:
+- **Quality Scoring**: 0-10 score based on component detection
+- **7 Task Templates**: debugging, code_review, refactoring, summarization, research, generation, general
+- **Feedback Loop**: Up to 3 refinement iterations based on runtime errors or test failures
+- **PTCF Analysis**: Detects missing Persona, Task, Context, and Format components
+
+**New Files**:
+- `.claude/skills/enhancing-prompts/` - 3-level skill architecture (15 files, 1282 lines)
+- `.claude/commands/enhance.md` - Command routing
+
+**Sources**: [Google Gemini Prompting Guide](https://workspace.google.com/blog/product-announcements/gemini-gems-ai-guide-prompting), SDPO feedback concepts
+
+#### Canonical URL Registry (#127, #131)
+
+Protocol and infrastructure to prevent agent URL hallucination:
+
+```yaml
+# grimoires/loa/urls.yaml (auto-created during /mount)
+project:
+  repository: "https://github.com/org/repo"
+  documentation: "https://docs.example.com"
+anthropic:
+  docs: "https://docs.anthropic.com"
+  api_reference: "https://docs.anthropic.com/en/api"
+```
+
+**Agent Protocol**: Agents must use `urls.yaml` entries or explicit user-provided URLs. Never fabricate URLs.
+
+**New Files**:
+- `.claude/protocols/url-registry.md` - Protocol specification
+- `grimoires/loa/urls.yaml` - Created during `/mount`
+
+#### Consolidated Sprint PRs (#124, #132)
+
+`/run sprint-plan` now creates a **single consolidated PR** after all sprints complete (default behavior):
+
+```bash
+/run sprint-plan                  # Consolidated PR at end (default)
+/run sprint-plan --no-consolidate # Legacy: separate PR per sprint
+```
+
+**Benefits**:
+- Single PR for easier review
+- Per-sprint breakdown table in PR description
+- Commits grouped by sprint (`feat(sprint-1): ...`)
+- Clean git history with sprint markers
+
+**Updated Files**:
+- `.claude/protocols/run-mode.md` - Consolidated PR format
+- `.claude/skills/run-mode/SKILL.md` - Updated execution loop
+- `.claude/commands/run-sprint-plan.md` - New `--no-consolidate` option
+
+### Fixed
+
+#### Mount Version Detection (#123, #133)
+
+Fixed `/mount` installing outdated version (v1.7.2) instead of latest:
+
+- `sync_zones()` now pulls upstream `.loa-version.json` during installation
+- `create_manifest()` reads from pulled file with git tag fallback
+- Removed hardcoded version from banner
+
+#### Oracle Auto-Index (#116, #128)
+
+Fixed `/oracle-analyze` returning no results when index doesn't exist:
+
+- Oracle now auto-builds index on first query
+- Clear error messages when index build fails
+
+#### Feedback Trace Enablement (#115, #125, #130)
+
+`/feedback` now prompts to enable trace collection when disabled:
+
+- AskUserQuestion offers "Enable for this submission" option
+- One-time collection without persisting settings
+- Created `feedback` label in all ecosystem repos (#126)
+
+#### Constructs API Migration (#106, #107)
+
+Fixed `/constructs` command after API endpoint changes:
+
+- Updated to unified `/v1/constructs` endpoint
+- Supports both `.data[]` and legacy `.packs[]` response formats
+
+### Documentation
+
+#### Memory Leak Pattern (#129)
+
+Added arrow function closure memory leak pattern to review and audit skills:
+
+- `.claude/skills/reviewing-code/resources/REFERENCE.md` - Detection criteria
+- `.claude/skills/auditing-security/resources/REFERENCE.md` - CWE-401 classification
+- `grimoires/loa/memory/learnings.yaml` - Learning entry L-0001
+
+**Pattern**: Use `obj.method.bind(obj)` instead of `() => obj.method()` to prevent closure memory leaks (1GB+ reduction in long sessions).
+
+#### README Version Badge (#122)
+
+Synced README version badge to current release.
+
+---
+
 ## [1.14.1] - 2026-02-01 — Constructs Bug Fix
 
 ### Fixed

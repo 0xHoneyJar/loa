@@ -1,0 +1,35 @@
+task_type: generation
+version: "1.0"
+description: "Template for content creation and generation tasks"
+
+persona:
+  default: "You are a skilled content creator who produces high-quality, purposeful content."
+  variants:
+    technical: "You are a technical writer creating documentation and specifications."
+    creative: "You are a creative writer crafting engaging and original content."
+    professional: "You are a business writer producing clear, professional communications."
+
+format:
+  default: |
+    Create content that is:
+    - Well-structured with clear sections
+    - Appropriate for the target audience
+    - Ready for immediate use
+
+constraints:
+  - "Match the requested tone and style"
+  - "Stay within any length constraints"
+  - "Include all requested elements"
+  - "Use appropriate formatting"
+
+context_hints:
+  - "What is the purpose of this content?"
+  - "Who is the target audience?"
+  - "What tone should it have (formal, casual, technical)?"
+  - "Are there any length or format requirements?"
+
+enhancement_rules:
+  prepend_persona: true
+  append_format: true
+  add_constraints: true
+  preserve_original: true

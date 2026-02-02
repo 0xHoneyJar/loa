@@ -1,0 +1,94 @@
+{
+  "$schema": "https://claude.ai/mcp-schema.json",
+  "$comment": [
+    "Dev Browser MCP Server - Browser automation for Claude Code",
+    "",
+    "Installation:",
+    "  npm install -g @anthropic/dev-browser-mcp",
+    "",
+    "Modes:",
+    "  - headless (default): Launches Chromium, isolated sessions",
+    "  - extension: Controls existing Chrome with extension",
+    "",
+    "Use Cases:",
+    "  - Screenshots for documentation",
+    "  - Authenticated context testing",
+    "  - Web automation tasks",
+    "  - Visual verification",
+    "",
+    "Reference: https://github.com/SawyerHood/dev-browser"
+  ],
+
+  "mcpServers": {
+    "dev-browser": {
+      "$comment": "Headless mode (default, recommended)",
+      "command": "npx",
+      "args": ["@anthropic/dev-browser-mcp"],
+      "env": {
+        "DEV_BROWSER_HEADLESS": "true",
+        "DEV_BROWSER_TIMEOUT": "30000"
+      }
+    }
+  },
+
+  "_alternatives": {
+    "$comment": "Alternative configurations - copy to mcpServers as needed",
+
+    "dev-browser-extension": {
+      "$comment": "Extension mode - controls existing Chrome browser",
+      "command": "npx",
+      "args": ["@anthropic/dev-browser-mcp", "--extension"],
+      "env": {
+        "DEV_BROWSER_PROFILE": "claude-code",
+        "DEV_BROWSER_TIMEOUT": "30000"
+      }
+    },
+
+    "dev-browser-visible": {
+      "$comment": "Visible mode - shows browser window for debugging",
+      "command": "npx",
+      "args": ["@anthropic/dev-browser-mcp"],
+      "env": {
+        "DEV_BROWSER_HEADLESS": "false",
+        "DEV_BROWSER_TIMEOUT": "60000"
+      }
+    }
+  },
+
+  "_configuration": {
+    "environment_variables": {
+      "DEV_BROWSER_HEADLESS": "Run browser without visible window (default: true)",
+      "DEV_BROWSER_PROFILE": "Chrome profile name for extension mode",
+      "DEV_BROWSER_TIMEOUT": "Navigation timeout in milliseconds (default: 30000)"
+    },
+    "requirements": {
+      "node": ">=18.0.0",
+      "chrome": "Required for extension mode, optional for headless",
+      "chrome_extension": "Install from dev-browser docs for extension mode"
+    },
+    "loa_config": {
+      "$comment": "Add to .loa.config.yaml",
+      "agent_browser": {
+        "enabled": false,
+        "tool": "dev-browser",
+        "mode": "headless",
+        "session_persistence": true,
+        "screenshot_dir": "grimoires/loa/screenshots/"
+      }
+    }
+  },
+
+  "_security": {
+    "headless_mode": [
+      "Isolated Chromium instance",
+      "No access to user data",
+      "Fresh profile per session"
+    ],
+    "extension_mode": [
+      "WARNING: Accesses user Chrome sessions",
+      "Can see bookmarks, history, cookies",
+      "Use separate Chrome profile for safety",
+      "Opt-in only, user confirmation required"
+    ]
+  }
+}
