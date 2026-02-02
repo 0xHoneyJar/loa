@@ -36,7 +36,7 @@ Agent-driven development framework. Skills auto-load their SKILL.md when invoked
 | 5.5 | `/audit-sprint sprint-N` | Approval |
 | 6 | `/deploy-production` | Infrastructure |
 
-**Ad-hoc**: `/audit`, `/translate`, `/validate`, `/feedback`, `/compound`, `/enhance`, `/update-loa`, `/loa`
+**Ad-hoc**: `/audit`, `/translate`, `/validate`, `/feedback`, `/compound`, `/enhance`, `/flatline-review`, `/update-loa`, `/loa`
 
 **Run Mode**: `/run sprint-N`, `/run sprint-plan`, `/run-status`, `/run-halt`, `/run-resume`
 
@@ -151,6 +151,64 @@ guardrails:
 **Protocols**: `.claude/protocols/input-guardrails.md`, `.claude/protocols/danger-level.md`
 
 **View stats**: `/loa` shows retrospective metrics.
+
+## Flatline Protocol (v1.17.0)
+
+Multi-model adversarial review using Claude Opus 4.5 + GPT-5.2 for planning document quality assurance.
+
+### How It Works
+
+| Phase | Description |
+|-------|-------------|
+| Phase 0 | Knowledge retrieval (Tier 1: local + Tier 2: NotebookLM) |
+| Phase 1 | 4 parallel calls: GPT review, Opus review, GPT skeptic, Opus skeptic |
+| Phase 2 | Cross-scoring: GPT scores Opus suggestions, Opus scores GPT suggestions |
+| Phase 3 | Consensus extraction: HIGH/DISPUTED/LOW/BLOCKER classification |
+
+### Consensus Thresholds (0-1000 scale)
+
+| Category | Criteria | Action |
+|----------|----------|--------|
+| HIGH_CONSENSUS | Both models >700 | Auto-integrate |
+| DISPUTED | Delta >300 | Present to user |
+| LOW_VALUE | Both <400 | Discard |
+| BLOCKER | Skeptic concern >700 | Must address |
+
+### Usage
+
+```bash
+# Manual invocation
+/flatline-review grimoires/loa/prd.md
+
+# CLI
+.claude/scripts/flatline-orchestrator.sh --doc grimoires/loa/prd.md --phase prd --json
+```
+
+### Configuration
+
+```yaml
+flatline_protocol:
+  enabled: true
+  models:
+    primary: opus
+    secondary: gpt-5.2
+  knowledge:
+    notebooklm:
+      enabled: false        # Optional Tier 2
+      notebook_id: ""
+```
+
+### NotebookLM (Optional Tier 2 Knowledge)
+
+NotebookLM provides curated domain expertise. Requires one-time browser auth setup:
+
+```bash
+pip install --user patchright
+patchright install chromium
+python3 .claude/skills/flatline-knowledge/resources/notebooklm-query.py --setup-auth
+```
+
+**Protocol**: `.claude/protocols/flatline-protocol.md`
 
 ## Conventions
 

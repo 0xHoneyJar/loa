@@ -33,7 +33,7 @@ See **[INSTALLATION.md](INSTALLATION.md)** for detailed setup options and prereq
 | 5.5 | `/audit-sprint sprint-N` | Security Approval |
 | 6 | `/deploy-production` | Infrastructure |
 
-**Ad-hoc**: `/audit`, `/translate`, `/validate`, `/compound`, `/feedback`, `/constructs`, `/enhance`, `/update-loa`, `/loa` (guided workflow)
+**Ad-hoc**: `/audit`, `/translate`, `/validate`, `/compound`, `/feedback`, `/constructs`, `/enhance`, `/flatline-review`, `/update-loa`, `/loa` (guided workflow)
 
 See **[PROCESS.md](PROCESS.md)** for complete workflow documentation.
 
@@ -70,6 +70,7 @@ Loa uses a **three-zone model** inspired by AWS Projen and Google's ADK:
 
 | Feature | Description | Documentation |
 |---------|-------------|---------------|
+| **Flatline Protocol** | Multi-model adversarial review (Opus + GPT-5.2) | [Protocol](.claude/protocols/flatline-protocol.md) |
 | **Prompt Enhancement** | PTCF-based prompt analysis and improvement | [CHANGELOG.md](CHANGELOG.md#1150---2026-02-02--prompt-enhancement--developer-experience) |
 | **Consolidated Sprint PRs** | Single PR for entire sprint plan execution | [CHANGELOG.md](CHANGELOG.md#1150---2026-02-02--prompt-enhancement--developer-experience) |
 | **URL Registry** | Canonical URLs to prevent agent hallucination | [CHANGELOG.md](CHANGELOG.md#1150---2026-02-02--prompt-enhancement--developer-experience) |
