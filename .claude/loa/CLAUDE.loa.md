@@ -47,6 +47,28 @@ Agent-driven development framework. Skills auto-load their SKILL.md when invoked
 - **Karpathy**: Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven
 - **Git Safety**: 4-layer upstream detection with soft block
 
+## Invisible Prompt Enhancement (v1.17.0)
+
+Prompts are automatically enhanced before skill execution using PTCF framework.
+
+| Behavior | Description |
+|----------|-------------|
+| Automatic | Prompts scoring < 4 are enhanced invisibly |
+| Silent | No enhancement UI shown to user |
+| Passthrough | Errors use original prompt unchanged |
+| Logged | Activity logged to `grimoires/loa/a2a/trajectory/prompt-enhancement-*.jsonl` |
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+prompt_enhancement:
+  invisible_mode:
+    enabled: true
+```
+
+**Disable per-command**: Add `enhance: false` to command frontmatter.
+
+**View stats**: `/loa` shows enhancement metrics.
+
 ## Conventions
 
 - Never skip phases - each builds on previous

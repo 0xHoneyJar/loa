@@ -64,6 +64,13 @@ Workflow State
   Sprints: 1/3 complete
 
 ───────────────────────────────────────────────────────────────
+
+Prompt Enhancement (v1.17.0)
+  Today: 5 enhanced, 12 skipped, 0 errors
+  Avg latency: 42ms
+  Last enhanced: 2 hours ago
+
+───────────────────────────────────────────────────────────────
  Suggested: /implement sprint-2
 ═══════════════════════════════════════════════════════════════
 
@@ -131,7 +138,23 @@ Type a command or 'exit' to quit:
 
 3. **Display formatted output** with version info and progress bar
 
-4. **Use AskUserQuestion** for user prompt:
+4. **Prompt Enhancement Statistics** (v1.17.0):
+   ```bash
+   # Parse today's trajectory log for enhancement metrics
+   today=$(date +%Y-%m-%d)
+   log_file="grimoires/loa/a2a/trajectory/prompt-enhancement-${today}.jsonl"
+
+   if [[ -f "$log_file" ]]; then
+     enhanced=$(grep -c '"action":"ENHANCED"' "$log_file" 2>/dev/null || echo 0)
+     skipped=$(grep -c '"action":"SKIP"' "$log_file" 2>/dev/null || echo 0)
+     errors=$(grep -c '"action":"ERROR"' "$log_file" 2>/dev/null || echo 0)
+     avg_latency=$(jq -s 'map(.latency_ms // 0) | add / length | floor' "$log_file" 2>/dev/null || echo "N/A")
+   fi
+   ```
+
+   If no trajectory data exists, show: "Prompt Enhancement: No activity today"
+
+5. **Use AskUserQuestion** for user prompt:
    ```yaml
    question: "Run suggested command?"
    options:

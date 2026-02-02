@@ -3,6 +3,7 @@ name: enhance
 description: Enhance a prompt for better outputs
 agent: enhancing-prompts
 agent_path: skills/enhancing-prompts
+enhance: false  # Explicitly disable invisible enhancement to prevent recursion
 ---
 
 # /enhance

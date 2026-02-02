@@ -179,13 +179,27 @@ agent_browser:
   timeout_ms: 30000           # Navigation timeout
 
 # -----------------------------------------------------------------------------
-# Prompt Enhancement (v1.14.0)
+# Prompt Enhancement (v1.14.0 + Invisible Mode v1.17.0)
 # -----------------------------------------------------------------------------
 prompt_enhancement:
   enabled: true
   auto_enhance_threshold: 4
   show_analysis: true
   max_refinement_iterations: 3
+
+  # Invisible mode: automatically enhance prompts without user visibility
+  invisible_mode:
+    enabled: true              # Enable invisible enhancement for all commands
+    log_to_trajectory: true    # Log activity to trajectory for debugging
+    timeout_ms: 500            # Maximum time for enhancement (advisory)
+
+  # Middleware configuration
+  middleware:
+    enabled: true              # Enable middleware mode (enhancement before skill)
+    exclude_skills:            # Skills excluded from enhancement
+      - "enhancing-prompts"    # Prevent recursion
+      - "run-mode"             # Don't enhance autonomous mode
+    exclude_commands: []       # Additional commands to exclude
 
 # -----------------------------------------------------------------------------
 # URL Registry (v1.15.1)
