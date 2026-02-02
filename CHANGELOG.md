@@ -5,6 +5,147 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.0] - 2026-02-03 — Flatline Protocol: Multi-Model Adversarial Review
+
+### Why This Release
+
+This release introduces the **Flatline Protocol** - a multi-model adversarial review system using Claude Opus 4.5 + GPT-5.2 for planning document quality assurance. Two frontier models review AND critique each other's suggestions, creating consensus-based quality filtering.
+
+*"When two models agree, you can trust it. When they disagree, you should look closer."*
+
+### Added
+
+#### Flatline Protocol Core (#149)
+
+Multi-model adversarial review with four-phase architecture:
+
+```yaml
+# .loa.config.yaml
+flatline_protocol:
+  enabled: true
+  models:
+    primary: opus           # Claude Opus 4.5
+    secondary: gpt-5.2      # OpenAI GPT-5.2
+  thresholds:
+    high_consensus: 700     # Both >700 = auto-integrate
+    dispute_delta: 300      # Delta >300 = disputed
+    low_value: 400          # Both <400 = discard
+    blocker: 700            # Skeptic concern >700 = blocker
+```
+
+**Protocol Phases**:
+
+| Phase | Description |
+|-------|-------------|
+| Phase 0 | Knowledge retrieval (Tier 1: local + Tier 2: NotebookLM optional) |
+| Phase 1 | 4 parallel calls: GPT review, Opus review, GPT skeptic, Opus skeptic |
+| Phase 2 | Cross-scoring: GPT scores Opus suggestions, Opus scores GPT suggestions |
+| Phase 3 | Consensus extraction: HIGH/DISPUTED/LOW/BLOCKER classification |
+
+**Consensus Thresholds** (0-1000 scale):
+
+| Category | Criteria | Action |
+|----------|----------|--------|
+| `HIGH_CONSENSUS` | Both models >700 | Auto-integrate |
+| `DISPUTED` | Score delta >300 | Present to user |
+| `LOW_VALUE` | Both models <400 | Discard |
+| `BLOCKER` | Skeptic concern >700 | Must address |
+
+#### `/flatline-review` Command
+
+Manual invocation of Flatline Protocol:
+
+```bash
+# Review a planning document
+/flatline-review grimoires/loa/prd.md
+
+# CLI invocation
+.claude/scripts/flatline-orchestrator.sh --doc grimoires/loa/prd.md --phase prd --json
+```
+
+#### Auto-Trigger Integration
+
+Planning commands can auto-trigger Flatline review:
+
+```yaml
+flatline_protocol:
+  auto_trigger:
+    enabled: true
+    phases: [prd, sdd, sprint]  # /plan-and-analyze, /architect, /sprint-plan
+```
+
+When enabled, Flatline review runs automatically after:
+- `/plan-and-analyze` → Reviews PRD
+- `/architect` → Reviews SDD
+- `/sprint-plan` → Reviews Sprint Plan
+
+#### Two-Tier Knowledge Retrieval
+
+**Tier 1 (Local)**: Automatic, always enabled
+- `.claude/loa/learnings/` - Framework learnings
+- `grimoires/loa/NOTES.md` - Project learnings
+- Prior cycle artifacts
+
+**Tier 2 (NotebookLM)**: Optional, requires setup
+- Curated domain expertise notebooks
+- Browser automation via Patchright
+- See: `.claude/skills/flatline-knowledge/resources/auth-setup.md`
+
+```yaml
+flatline_protocol:
+  knowledge:
+    local:
+      enabled: true
+    notebooklm:
+      enabled: false        # Optional
+      notebook_id: ""
+```
+
+#### Model Adapter
+
+Script: `.claude/scripts/model-adapter.sh`
+
+Unified interface for multi-model calls:
+- OpenAI GPT-5.2 via API
+- Anthropic Claude Opus via API
+- Handles retries, timeouts, error normalization
+
+#### Scoring Engine
+
+Script: `.claude/scripts/scoring-engine.sh`
+
+Cross-model scoring with jq-based aggregation:
+- Normalizes scores to 0-1000 scale
+- Calculates consensus categories
+- Handles edge cases (timeouts, API errors)
+
+### Schemas & Protocols
+
+- **New Schema**: `.claude/schemas/flatline-result.schema.json`
+- **New Protocol**: `.claude/protocols/flatline-protocol.md`
+- **New Command**: `.claude/commands/flatline-review.md`
+- **New Skill**: `.claude/skills/flatline-knowledge/`
+
+### Templates
+
+- `flatline-review.md.template` - Reviewer prompt
+- `flatline-skeptic.md.template` - Skeptic prompt
+- `flatline-score.md.template` - Cross-scoring prompt
+- `flatline-postlude.md.template` - Integration prompt
+
+### Documentation
+
+- Updated `INSTALLATION.md` with NotebookLM setup guide
+- Updated `CLAUDE.loa.md` with Flatline Protocol section
+- Comprehensive protocol documentation in `.claude/protocols/flatline-protocol.md`
+
+### Related PRs
+
+- PR #149: Flatline Protocol v1.17.0 - Multi-Model Adversarial Review
+- PR #121: GPT 5.2 cross-model review integration (foundation)
+
+---
+
 ## [1.20.0] - 2026-02-03 — Input Guardrails & Tool Risk Enforcement
 
 ### Why This Release

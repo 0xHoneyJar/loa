@@ -1,4 +1,4 @@
-<!-- @loa-managed: true | version: 1.20.0 | hash: PLACEHOLDER -->
+<!-- @loa-managed: true | version: 1.21.0 | hash: PLACEHOLDER -->
 <!-- WARNING: This file is managed by the Loa Framework. Do not edit directly. -->
 
 # Loa Framework Instructions
