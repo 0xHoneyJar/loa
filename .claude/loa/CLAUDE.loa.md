@@ -1,4 +1,4 @@
-<!-- @loa-managed: true | version: 1.18.0 | hash: PLACEHOLDER -->
+<!-- @loa-managed: true | version: 1.20.0 | hash: PLACEHOLDER -->
 <!-- WARNING: This file is managed by the Loa Framework. Do not edit directly. -->
 
 # Loa Framework Instructions
@@ -97,6 +97,58 @@ invisible_retrospective:
 ```
 
 **Integration**: Qualified learnings are added to `grimoires/loa/NOTES.md ## Learnings` and queued for upstream detection (PR #143).
+
+## Input Guardrails & Danger Level (v1.20.0)
+
+Pre-execution validation for skill invocations based on OpenAI's "A Practical Guide to Building Agents".
+
+### Guardrail Types
+
+| Type | Mode | Purpose |
+|------|------|---------|
+| `pii_filter` | blocking | Redact API keys, emails, SSN, etc. |
+| `injection_detection` | blocking | Detect prompt injection patterns |
+| `relevance_check` | advisory | Verify request matches skill |
+
+### Danger Level Enforcement
+
+| Level | Interactive | Autonomous |
+|-------|-------------|------------|
+| `safe` | Execute | Execute |
+| `moderate` | Notice | Log |
+| `high` | Confirm | BLOCK (use `--allow-high`) |
+| `critical` | Confirm+Reason | ALWAYS BLOCK |
+
+**Skills by danger level**:
+- `safe`: discovering-requirements, designing-architecture, reviewing-code, auditing-security
+- `moderate`: implementing-tasks, planning-sprints, mounting-framework
+- `high`: deploying-infrastructure, run-mode, autonomous-agent
+
+### Run Mode Integration
+
+```bash
+# Allow high-risk skills in autonomous mode
+/run sprint-1 --allow-high
+/run sprint-plan --allow-high
+```
+
+### Configuration
+
+```yaml
+guardrails:
+  input:
+    enabled: true
+    pii_filter:
+      enabled: true
+      mode: blocking
+    injection_detection:
+      enabled: true
+      threshold: 0.7
+  danger_level:
+    enforce: true
+```
+
+**Protocols**: `.claude/protocols/input-guardrails.md`, `.claude/protocols/danger-level.md`
 
 **View stats**: `/loa` shows retrospective metrics.
 

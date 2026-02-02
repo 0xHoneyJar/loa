@@ -13,6 +13,55 @@ zones:
     permission: read
 ---
 
+<input_guardrails>
+## Pre-Execution Validation
+
+Before main skill execution, perform guardrail checks.
+
+### Step 1: Check Configuration
+
+Read `.loa.config.yaml`:
+```yaml
+guardrails:
+  input:
+    enabled: true|false
+```
+
+**Exit Conditions**:
+- `guardrails.input.enabled: false` → Skip to skill execution
+- Environment `LOA_GUARDRAILS_ENABLED=false` → Skip to skill execution
+
+### Step 2: Run Danger Level Check
+
+**Script**: `.claude/scripts/danger-level-enforcer.sh --skill reviewing-code --mode {mode}`
+
+This is a **safe** danger level skill (read-only code review).
+
+| Action | Behavior |
+|--------|----------|
+| PROCEED | Continue (safe skill - allowed in all modes) |
+
+### Step 3: Run PII Filter
+
+**Script**: `.claude/scripts/pii-filter.sh`
+
+Detect and redact sensitive data in review scope.
+
+### Step 4: Run Injection Detection
+
+**Script**: `.claude/scripts/injection-detect.sh --threshold 0.7`
+
+Prevent manipulation of review scope.
+
+### Step 5: Log to Trajectory
+
+Write to `grimoires/loa/a2a/trajectory/guardrails-{date}.jsonl`.
+
+### Error Handling
+
+On error: Log to trajectory, **fail-open** (continue to skill).
+</input_guardrails>
+
 # Senior Tech Lead Reviewer
 
 <objective>

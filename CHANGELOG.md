@@ -5,6 +5,156 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.20.0] - 2026-02-03 — Input Guardrails & Tool Risk Enforcement
+
+### Why This Release
+
+This release implements **Input Guardrails & Tool Risk Enforcement** based on OpenAI's "A Practical Guide to Building Agents". Provides pre-execution validation for skill invocations with PII filtering, prompt injection detection, and danger level enforcement.
+
+*"Defense in depth for agentic workflows."*
+
+### Added
+
+#### Input Guardrails Framework
+
+Pre-execution validation layer before skill execution:
+
+```yaml
+# .loa.config.yaml
+guardrails:
+  input:
+    enabled: true
+    pii_filter:
+      enabled: true
+      mode: blocking
+    injection_detection:
+      enabled: true
+      threshold: 0.7
+  danger_level:
+    enforce: true
+```
+
+**Guardrail Types**:
+| Type | Mode | Purpose |
+|------|------|---------|
+| `pii_filter` | blocking | Redact API keys, emails, SSN, credit cards |
+| `injection_detection` | blocking | Detect prompt injection patterns |
+| `relevance_check` | advisory | Verify request matches skill purpose |
+
+**Execution Modes**:
+- `blocking` - Must pass before skill runs
+- `parallel` - Runs async, can trigger tripwire
+- `advisory` - Logs warning but continues
+
+#### Danger Level Enforcement
+
+Skills classified by risk level with mode-specific enforcement:
+
+| Level | Interactive | Autonomous |
+|-------|-------------|------------|
+| `safe` | Execute | Execute |
+| `moderate` | Notice | Log |
+| `high` | Confirm | BLOCK (use `--allow-high`) |
+| `critical` | Confirm+Reason | ALWAYS BLOCK |
+
+**Override for Run Mode**:
+```bash
+/run sprint-1 --allow-high
+/run sprint-plan --allow-high
+```
+
+#### PII Filter
+
+Script: `.claude/scripts/pii-filter.sh`
+
+Detects and redacts sensitive patterns:
+- API Keys (OpenAI, GitHub, AWS, Anthropic)
+- Email addresses, phone numbers
+- SSN, credit card numbers
+- JWT tokens, private keys
+- Home directory paths (anonymization)
+
+#### Injection Detection
+
+Script: `.claude/scripts/injection-detect.sh`
+
+Pattern categories with weighted scoring:
+- Instruction override (0.4): "ignore previous", "disregard"
+- Role confusion (0.3): "you are now", "act as"
+- Context manipulation (0.2): "system prompt", "debug mode"
+- Encoding evasion (0.1): base64, unicode tricks
+
+#### Guardrails Orchestrator
+
+Script: `.claude/scripts/guardrails-orchestrator.sh`
+
+Coordinates all checks in sequence:
+1. Danger level check
+2. PII filter (blocking)
+3. Injection detection (blocking)
+
+Returns aggregated PROCEED/WARN/BLOCK action.
+
+#### Tripwire Mechanism
+
+Script: `.claude/scripts/tripwire-handler.sh`
+
+Handles parallel guardrail failures:
+- Halt execution on failure
+- Optional rollback of uncommitted changes
+- Trajectory logging
+
+#### Handoff Logging
+
+Script: `.claude/scripts/log-handoff.sh`
+
+Explicit handoff events in trajectory:
+```json
+{
+  "type": "handoff",
+  "from_agent": "implementing-tasks",
+  "to_agent": "reviewing-code",
+  "artifacts": [{"path": "reviewer.md"}],
+  "context_preserved": ["sprint_id"]
+}
+```
+
+#### Skill Preludes
+
+Input guardrails prelude added to priority skills:
+- `implementing-tasks` (moderate danger)
+- `deploying-infrastructure` (high danger)
+- `autonomous-agent` (high danger)
+- `auditing-security` (safe)
+- `reviewing-code` (safe)
+- `run-mode` (high danger)
+
+### Schemas & Protocols
+
+- **New Schema**: `.claude/schemas/guardrail-result.schema.json`
+- **New Protocol**: `.claude/protocols/input-guardrails.md`
+- **New Protocol**: `.claude/protocols/danger-level.md`
+- **Updated**: `.claude/protocols/feedback-loops.md` (handoff logging)
+- **Updated**: `.claude/protocols/run-mode.md` (Level 5 enforcement)
+- **Updated**: `skill-index.schema.json` (input_guardrails section)
+
+### Configuration
+
+New config sections in `.loa.config.yaml.example`:
+- `guardrails.input` - PII filter, injection detection, relevance check
+- `guardrails.tripwire` - Parallel failure handling
+- `guardrails.danger_level` - Enforcement rules per mode
+- `guardrails.logging` - Trajectory logging options
+
+### Research
+
+Based on analysis of OpenAI's "A Practical Guide to Building Agents":
+- Research document: `docs/research/openai-agent-guide-research.md`
+- PRD: `grimoires/loa/prd-input-guardrails.md`
+- SDD: `grimoires/loa/sdd-input-guardrails.md`
+
+---
+
 ## [1.19.0] - 2026-02-02 — Invisible Retrospective Learning
 
 ### Why This Release

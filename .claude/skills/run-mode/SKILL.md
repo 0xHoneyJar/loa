@@ -1,3 +1,72 @@
+<input_guardrails>
+## Pre-Execution Validation
+
+Before main skill execution, perform guardrail checks.
+
+### Step 1: Check Configuration
+
+Read `.loa.config.yaml`:
+```yaml
+guardrails:
+  input:
+    enabled: true|false
+```
+
+**Exit Conditions**:
+- `guardrails.input.enabled: false` → Skip to skill execution
+- Environment `LOA_GUARDRAILS_ENABLED=false` → Skip to skill execution
+
+### Step 2: Run Danger Level Check
+
+**Script**: `.claude/scripts/danger-level-enforcer.sh --skill run-mode --mode {mode}`
+
+**CRITICAL**: This is a **high** danger level skill (autonomous execution).
+
+| Mode | Behavior |
+|------|----------|
+| Interactive | Require explicit confirmation |
+| Autonomous | Not applicable (run-mode IS autonomous mode) |
+
+### Step 3: Check Danger Levels for Invoked Skills
+
+Before each skill invocation in the run loop:
+
+```bash
+danger-level-enforcer.sh --skill $SKILL --mode autonomous
+```
+
+| Result | Behavior |
+|--------|----------|
+| PROCEED | Execute skill |
+| WARN | Execute with enhanced logging |
+| BLOCK | Skip skill, log to trajectory |
+
+**Override**: Use `--allow-high` flag to allow high-risk skills:
+```bash
+/run sprint-1 --allow-high
+```
+
+### Step 4: Run PII Filter
+
+**Script**: `.claude/scripts/pii-filter.sh`
+
+Detect and redact sensitive data in run scope.
+
+### Step 5: Run Injection Detection
+
+**Script**: `.claude/scripts/injection-detect.sh --threshold 0.7`
+
+Prevent manipulation of autonomous execution.
+
+### Step 6: Log to Trajectory
+
+Write to `grimoires/loa/a2a/trajectory/guardrails-{date}.jsonl`.
+
+### Error Handling
+
+On error: Log to trajectory, **fail-open** (continue to skill).
+</input_guardrails>
+
 # Run Mode Skill
 
 You are an autonomous implementation agent. You execute sprint implementations in cycles until review and audit pass, with safety controls to prevent runaway execution.
