@@ -13,11 +13,15 @@
 #   loa-learnings-index.sh status            Show index status
 #   loa-learnings-index.sh validate          Validate learnings against schema
 #   loa-learnings-index.sh add <file>        Add file to index incrementally
+#   loa-learnings-index.sh verify-integrity  Verify framework learnings checksums
 #
 # Query Options:
 #   --format <json|text>    Output format (default: text)
 #   --limit <N>             Max results (default: 10)
 #   --track                 Track query for effectiveness metrics
+#
+# Index Options:
+#   --skip-integrity        Skip integrity verification during index
 #
 # Environment:
 #   LOA_INDEX_DIR           Index directory (default: ~/.loa/cache/oracle/loa)
@@ -94,6 +98,10 @@ PROJECT_LEARNINGS_DIR="$PROJECT_ROOT/grimoires/loa/a2a/compound"
 FRAMEWORK_WEIGHT=$(read_config '.learnings.tiers.framework.weight' '1.0')
 PROJECT_WEIGHT=$(read_config '.learnings.tiers.project.weight' '0.9')
 
+# Integrity enforcement mode
+INTEGRITY_MODE=$(read_config '.integrity_enforcement' 'warn')
+SKIP_INTEGRITY=false
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -127,6 +135,156 @@ check_dependencies() {
 
 check_bash_version
 check_dependencies
+
+# =============================================================================
+# Integrity Verification (v1.16.0 - Upstream Learning Flow)
+# =============================================================================
+
+# Source marker-utils.sh for checksum verification
+MARKER_UTILS="$SCRIPT_DIR/marker-utils.sh"
+
+# Verify integrity of framework learnings files
+# Returns: 0 if all valid (or skip), 1 if mismatch in strict mode
+verify_framework_integrity() {
+    local skip_integrity="${1:-false}"
+
+    if [[ "$skip_integrity" == "true" || "$SKIP_INTEGRITY" == "true" ]]; then
+        echo -e "${YELLOW}Skipping integrity verification (--skip-integrity)${NC}" >&2
+        return 0
+    fi
+
+    if [[ ! -d "$FRAMEWORK_LEARNINGS_DIR" ]]; then
+        return 0  # No framework learnings to verify
+    fi
+
+    if [[ ! -f "$MARKER_UTILS" ]]; then
+        echo -e "${YELLOW}Warning: marker-utils.sh not found, skipping integrity check${NC}" >&2
+        return 0
+    fi
+
+    local valid=0
+    local invalid=0
+    local no_hash=0
+    local files_checked=0
+    local invalid_files=()
+
+    for file in "$FRAMEWORK_LEARNINGS_DIR"/*.json; do
+        [[ -f "$file" ]] || continue
+        [[ "$(basename "$file")" == "index.json" ]] && continue
+
+        files_checked=$((files_checked + 1))
+        local result
+        result=$("$MARKER_UTILS" verify-hash "$file" 2>/dev/null || echo "NO_HASH")
+
+        case "$result" in
+            VALID)
+                valid=$((valid + 1))
+                ;;
+            MISMATCH)
+                invalid=$((invalid + 1))
+                invalid_files+=("$file")
+                ;;
+            NO_HASH)
+                no_hash=$((no_hash + 1))
+                ;;
+        esac
+    done
+
+    # Report results
+    if [[ $files_checked -eq 0 ]]; then
+        return 0
+    fi
+
+    if [[ $invalid -gt 0 ]]; then
+        case "$INTEGRITY_MODE" in
+            strict)
+                echo -e "${RED}ERROR: Framework learnings integrity check FAILED${NC}" >&2
+                echo -e "${RED}Modified files:${NC}" >&2
+                for f in "${invalid_files[@]}"; do
+                    echo -e "  ${RED}✗${NC} $f" >&2
+                done
+                echo "" >&2
+                echo -e "${RED}Integrity enforcement is set to 'strict'.${NC}" >&2
+                echo -e "${RED}Framework files must not be modified. Use --skip-integrity to override.${NC}" >&2
+                return 1
+                ;;
+            warn)
+                echo -e "${YELLOW}WARNING: Framework learnings integrity check found modifications${NC}" >&2
+                echo -e "${YELLOW}Modified files:${NC}" >&2
+                for f in "${invalid_files[@]}"; do
+                    echo -e "  ${YELLOW}!${NC} $f" >&2
+                done
+                echo "" >&2
+                ;;
+            disabled|*)
+                # Silent when disabled
+                ;;
+        esac
+    fi
+
+    return 0
+}
+
+# Standalone integrity verification command
+verify_integrity_command() {
+    echo -e "${BOLD}${CYAN}Framework Learnings Integrity Check${NC}"
+    echo "─────────────────────────────────────────"
+    echo ""
+
+    if [[ ! -d "$FRAMEWORK_LEARNINGS_DIR" ]]; then
+        echo -e "${YELLOW}No framework learnings directory found.${NC}"
+        return 1
+    fi
+
+    if [[ ! -f "$MARKER_UTILS" ]]; then
+        echo -e "${RED}ERROR: marker-utils.sh not found at $MARKER_UTILS${NC}"
+        return 1
+    fi
+
+    local valid=0
+    local invalid=0
+    local no_hash=0
+
+    for file in "$FRAMEWORK_LEARNINGS_DIR"/*.json; do
+        [[ -f "$file" ]] || continue
+        [[ "$(basename "$file")" == "index.json" ]] && continue
+
+        local basename
+        basename=$(basename "$file")
+        echo -n "  Checking $basename... "
+
+        local result
+        result=$("$MARKER_UTILS" verify-hash "$file" 2>/dev/null || echo "NO_HASH")
+
+        case "$result" in
+            VALID)
+                echo -e "${GREEN}✓ VALID${NC}"
+                valid=$((valid + 1))
+                ;;
+            MISMATCH)
+                echo -e "${RED}✗ MISMATCH${NC}"
+                invalid=$((invalid + 1))
+                ;;
+            NO_HASH)
+                echo -e "${YELLOW}? NO_HASH${NC}"
+                no_hash=$((no_hash + 1))
+                ;;
+        esac
+    done
+
+    echo ""
+    echo "─────────────────────────────────────────"
+    echo -e "Valid: ${GREEN}$valid${NC}, Invalid: ${RED}$invalid${NC}, No hash: ${YELLOW}$no_hash${NC}"
+    echo -e "Enforcement mode: ${BLUE}$INTEGRITY_MODE${NC}"
+    echo ""
+
+    if [[ $invalid -gt 0 ]]; then
+        echo -e "${YELLOW}Note: Run 'marker-utils.sh add-marker <file> <version>' to add checksums${NC}"
+        return 1
+    fi
+
+    return 0
+}
 
 # Initialize index directory (ORACLE-L-3: set restrictive umask before mkdir)
 init_index() {
@@ -418,11 +576,25 @@ index_framework_learnings() {
 
 # Build complete index
 build_index() {
+    local skip_integrity="${1:-false}"
+
     init_index
 
     echo -e "${BOLD}${CYAN}Building Loa Learnings Index${NC}"
     echo "─────────────────────────────────────────"
     echo ""
+
+    # Verify framework learnings integrity before indexing
+    echo -n "  Verifying framework integrity... "
+    if verify_framework_integrity "$skip_integrity" 2>/dev/null; then
+        echo -e "${GREEN}✓${NC}"
+    else
+        echo -e "${RED}✗${NC}"
+        if [[ "$INTEGRITY_MODE" == "strict" ]]; then
+            echo -e "${RED}Aborting index build due to integrity failure.${NC}"
+            return 1
+        fi
+    fi
 
     local timestamp
     timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -1103,10 +1275,32 @@ parse_query_args() {
 # Main
 main() {
     local command="${1:-help}"
+    shift || true
+
+    # Check for --skip-integrity flag in remaining args
+    local skip_integrity=false
+    local remaining_args=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --skip-integrity)
+                skip_integrity=true
+                SKIP_INTEGRITY=true
+                shift
+                ;;
+            *)
+                remaining_args+=("$1")
+                shift
+                ;;
+        esac
+    done
+    set -- "${remaining_args[@]+"${remaining_args[@]}"}"
 
     case "$command" in
         index)
-            build_index
+            build_index "$skip_integrity"
+            ;;
+        verify-integrity)
+            verify_integrity_command
             ;;
         query)
             shift
@@ -1132,6 +1326,7 @@ Usage:
   loa-learnings-index.sh status            Show index status and statistics
   loa-learnings-index.sh validate          Validate learnings against schema
   loa-learnings-index.sh add <file>        Add/update a file in the index
+  loa-learnings-index.sh verify-integrity  Verify framework learnings checksums
 
 Query Options:
   --format <text|json>    Output format: text (Recommended), json
@@ -1140,12 +1335,24 @@ Query Options:
   --index <auto|qmd|grep> Indexer: auto (Recommended), qmd, grep
   --tier <tier>           Tier filter: all (default), framework, project
 
+Index Options:
+  --skip-integrity        Skip integrity verification during index build
+
+Integrity Verification (v1.16.0):
+  Framework learnings include SHA-256 checksums for integrity enforcement.
+  Mode is controlled by integrity_enforcement in .loa.config.yaml:
+    - strict: Block indexing if checksums mismatch
+    - warn: Warn but continue indexing
+    - disabled: No integrity checks
+
 Two-Tier Learnings Architecture (v1.15.1):
   Framework (Tier 1): .claude/loa/learnings/ - Ships with Loa, weight 1.0
   Project (Tier 2):   grimoires/loa/a2a/compound/ - Project-specific, weight 0.9
 
 Examples:
   loa-learnings-index.sh index
+  loa-learnings-index.sh index --skip-integrity
+  loa-learnings-index.sh verify-integrity
   loa-learnings-index.sh query "authentication"
   loa-learnings-index.sh query "zone model" --tier framework
   loa-learnings-index.sh query "hooks|mcp" --format json --limit 5

@@ -5,6 +5,85 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.0] - 2026-02-02 — Upstream Learning Flow
+
+### Why This Release
+
+This release introduces the **Upstream Learning Flow** that enables users to contribute high-value project learnings back to the Loa framework. Eligible learnings are detected silently after retrospectives, anonymized to remove PII, and proposed via GitHub Issues for maintainer review.
+
+*"Knowledge flows upstream. The framework evolves from its users."*
+
+### Added
+
+#### Upstream Learning Flow (#143)
+
+Complete implementation for contributing project learnings to the Loa framework:
+
+```bash
+# Propose a specific learning
+/propose-learning L-0001
+
+# Preview without submitting
+/propose-learning L-0001 --dry-run
+
+# Check proposal status
+.claude/scripts/check-proposal-status.sh --learning L-0001
+```
+
+**Key Features**:
+- **Silent Detection**: Post-retrospective hook identifies eligible learnings automatically
+- **User Opt-In**: Presents candidates via AskUserQuestion, never auto-proposes
+- **PII Anonymization**: Redacts API keys, paths, emails, IPs, JWT tokens, private keys before submission
+- **Weighted Scoring**: `upstream_score = quality(25%) + effectiveness(30%) + novelty(25%) + generality(20%)`
+- **Eligibility Threshold**: score ≥ 70, applications ≥ 3, success_rate ≥ 80%
+- **Duplicate Detection**: Jaccard similarity check against existing framework learnings
+- **Rejection Handling**: 90-day cooldown for rejected proposals
+
+**New Files**:
+- `.claude/scripts/upstream-score-calculator.sh` - Weighted eligibility scoring
+- `.claude/scripts/anonymize-proposal.sh` - PII redaction (API keys, JWT, private keys, DB creds)
+- `.claude/scripts/proposal-generator.sh` - GitHub Issue creation with deduplication
+- `.claude/scripts/check-proposal-status.sh` - Proposal status sync from GitHub
+- `.claude/scripts/post-retrospective-hook.sh` - Silent detection after /retrospective
+- `.claude/commands/propose-learning.md` - User-facing command
+- `docs/MAINTAINER_GUIDE.md` - Maintainer workflow for reviewing proposals
+
+**Updated Files**:
+- `.claude/schemas/learnings.schema.json` - Added `proposal` object with status, issue_ref, rejection fields
+- `.claude/scripts/gh-label-handler.sh` - Added `--body-file` for secure content handling
+- `.claude/commands/retrospective.md` - Added Step 6: Upstream Detection
+- `.claude/skills/continuous-learning/SKILL.md` - Added Upstream Flow section
+- `.loa.config.yaml` - Added `upstream_detection` and `upstream_proposals` config sections
+
+**Historical Learning Extraction**:
+- 32 learnings extracted from historical development cycles
+- Total framework learnings: 72 (exceeds 50+ PRD target)
+
+**Security Hardening**:
+- CRITICAL-001: Command injection prevention via `--body-file` parameter
+- HIGH-001: Extended PII patterns (Slack webhooks, JWT, private keys, DB credentials)
+- HIGH-002: Null-safe filename iteration with `find -print0`
+- Input validation on learning IDs (alphanumeric only)
+- Secure temp file handling with `umask 077`
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+upstream_detection:
+  enabled: true
+  min_occurrences: 3
+  min_success_rate: 0.8
+  min_upstream_score: 70
+
+upstream_proposals:
+  target_repo: "0xHoneyJar/loa"
+  label: "learning-proposal"
+  anonymization:
+    enabled: true
+  rejection_cooldown_days: 90
+```
+
+---
+
 ## [1.16.0] - 2026-02-02 — Managed Scaffolding & Two-Tier Learnings
 
 ### Why This Release

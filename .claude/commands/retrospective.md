@@ -55,6 +55,12 @@ The retrospective follows a five-step process:
 │  ├── List skills skipped (with reasons)                          │
 │  └── Provide next steps                                          │
 │                                                                   │
+│  Step 6: Upstream Detection (v1.16.0+)                           │
+│  ├── Run post-retrospective-hook.sh                              │
+│  ├── Evaluate recent learnings for upstream eligibility          │
+│  ├── Present candidates via AskUserQuestion                      │
+│  └── Silent if no candidates qualify                             │
+│                                                                   │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -64,6 +70,7 @@ The retrospective follows a five-step process:
 |--------|-------------|---------|
 | `--scope <agent>` | Limit extraction to specific agent context | `/retrospective --scope implementing-tasks` |
 | `--force` | Skip quality gate prompts (auto-approve) | `/retrospective --force` |
+| `--skip-upstream-check` | Skip upstream learning detection | `/retrospective --skip-upstream-check` |
 
 ### Scope Options
 
@@ -277,6 +284,68 @@ continuous_learning:
     skip_cross_reference: false  # Always check NOTES.md
 ```
 
+## Step 6: Upstream Detection (v1.16.0+)
+
+After retrospective completes, the upstream detection hook automatically runs:
+
+```bash
+.claude/scripts/post-retrospective-hook.sh --session-only --json
+```
+
+This hook:
+1. Scans recent learnings from the current session
+2. Evaluates each against upstream eligibility thresholds
+3. Presents qualifying candidates via AskUserQuestion
+4. Is completely silent if no candidates qualify
+
+### Eligibility Thresholds
+
+| Criterion | Threshold | Configurable |
+|-----------|-----------|--------------|
+| Upstream Score | ≥ 70 | `.upstream_detection.min_upstream_score` |
+| Applications | ≥ 3 | `.upstream_detection.min_occurrences` |
+| Success Rate | ≥ 80% | `.upstream_detection.min_success_rate` |
+
+### Disabling Upstream Detection
+
+Use `--skip-upstream-check` to bypass this step:
+
+```bash
+/retrospective --skip-upstream-check
+```
+
+Or disable globally in `.loa.config.yaml`:
+
+```yaml
+upstream_detection:
+  enabled: false
+```
+
+### When Candidates Are Found
+
+If learnings qualify, you'll see options like:
+
+```
+Upstream Learning Candidates Detected
+─────────────────────────────────────────
+
+The following learnings qualify for upstream proposal:
+
+  • L-0001: Three-Zone Model prevents framework pollution
+    Score: 78/100
+
+  • L-0003: JIT retrieval reduces context bloat
+    Score: 75/100
+
+─────────────────────────────────────────
+
+Would you like to propose any of these learnings?
+
+  1. Propose L-0001
+  2. Propose L-0003
+  3. Skip for now
+```
+
 ## Related Commands
 
 | Command | Purpose |
@@ -284,6 +353,8 @@ continuous_learning:
 | `/skill-audit --pending` | Review extracted skills |
 | `/skill-audit --approve` | Approve a skill |
 | `/implement` | Primary discovery context |
+| `/propose-learning` | Submit learning as upstream proposal |
+| `/compound` | Cross-session learning synthesis |
 
 ## Protocol Reference
 
@@ -291,3 +362,8 @@ See `.claude/protocols/continuous-learning.md` for:
 - Detailed quality gate criteria
 - Zone compliance rules
 - Trajectory schema
+
+See `grimoires/loa/prd.md` (Upstream Learning Flow) for:
+- Full proposal workflow
+- Anonymization requirements
+- Maintainer acceptance criteria
