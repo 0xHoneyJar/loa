@@ -1,6 +1,6 @@
 ---
 name: "feedback"
-version: "2.1.0"
+version: "2.2.0"
 description: |
   Submit developer feedback about Loa experience with optional execution traces.
   Creates GitHub Issues with structured format for debugging.
@@ -105,11 +105,33 @@ Classify the type of issue (if applicable) using AskUserQuestion with multiSelec
 
 ### Phase 3: Trace Collection
 
-If trace collection is enabled in `.claude/settings.local.json`:
+Check trace collection status in `.claude/settings.local.json`:
+
+**If trace collection is ENABLED** (`collectTraces: true`):
 
 1. Run `.claude/scripts/collect-trace.sh` to gather execution data
 2. Display summary: source count, total size, redaction count
 3. Ask user via AskUserQuestion: "Include traces?" (Yes / No)
+
+**If trace collection is DISABLED or not configured** (v2.2.0):
+
+1. Inform user: "Trace collection is not enabled."
+2. Offer AskUserQuestion:
+   ```yaml
+   questions:
+     - question: "Would you like to include execution traces with this feedback? Traces help debug issues."
+       header: "Traces"
+       options:
+         - label: "Enable for this submission (Recommended)"
+           description: "Collect traces one-time without changing settings"
+         - label: "Skip traces"
+           description: "Submit feedback without execution context"
+       multiSelect: false
+   ```
+3. If "Enable for this submission": Run `collect-trace.sh` with one-time collection
+4. If "Skip traces": Continue to Phase 4 without traces
+
+**Note**: One-time trace collection does NOT modify `.claude/settings.local.json`. To enable persistent trace collection, see the Trace Configuration section below.
 
 ### Phase 4: User Review
 
