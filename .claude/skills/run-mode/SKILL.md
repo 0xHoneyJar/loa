@@ -28,18 +28,32 @@ Update state to JACKED_OUT
 ```
 discover_sprints()  # From sprint.md, ledger.json, or a2a directories
 filter_sprints(--from, --to)
+create_feature_branch("feature/sprint-plan-{timestamp}")
 
 for sprint in sprints:
   1. Check if sprint already COMPLETED → skip
   2. Update state: current_sprint = sprint
   3. Execute single sprint loop (above)
-  4. If HALTED → break outer loop, preserve state
-  5. Mark sprint COMPLETED in state
-  6. Log sprint transition
+  4. Commit with sprint marker: "feat(sprint-N): ..."
+  5. If HALTED → break outer loop, preserve state
+  6. Mark sprint COMPLETED in state
+  7. Log sprint transition
+  8. DO NOT create PR yet (consolidate at end)
 
-Create draft PR with all sprints
+Push all commits to feature branch
+Create SINGLE consolidated draft PR with all sprints
+  - Summary table showing per-sprint breakdown
+  - Commits grouped by sprint
+  - Deleted files section
 Update state to JACKED_OUT
 ```
+
+**Consolidated PR (Default - v1.15.1):**
+- All sprints work on the same branch
+- Single PR created after ALL sprints complete
+- PR includes per-sprint breakdown table
+- Commits grouped by sprint in PR description
+- Use `--no-consolidate` for legacy per-sprint PRs
 
 ## Pre-flight Checks (Jack-In)
 
@@ -141,12 +155,15 @@ Execute single sprint autonomously.
 
 ### /run sprint-plan
 
-Execute all sprints in sequence.
+Execute all sprints in sequence with consolidated PR (default).
 
 ```
-/run sprint-plan
-/run sprint-plan --from 2 --to 4
+/run sprint-plan                      # Consolidated PR at end (recommended)
+/run sprint-plan --from 2 --to 4      # Execute sprints 2-4 only
+/run sprint-plan --no-consolidate     # Legacy: separate PR per sprint
 ```
+
+**Output**: Single draft PR containing all sprint changes with per-sprint breakdown.
 
 ### /run-status
 
