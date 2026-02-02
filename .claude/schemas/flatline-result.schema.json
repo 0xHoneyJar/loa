@@ -1,0 +1,292 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "flatline-result.schema.json",
+    "title": "Flatline Protocol Result",
+    "description": "Schema for Flatline Protocol adversarial review results",
+    "type": "object",
+    "required": ["phase", "timestamp", "consensus_summary"],
+    "properties": {
+        "phase": {
+            "type": "string",
+            "enum": ["prd", "sdd", "sprint"],
+            "description": "Planning phase reviewed"
+        },
+        "document": {
+            "type": "string",
+            "description": "Path to reviewed document"
+        },
+        "domain": {
+            "type": "string",
+            "description": "Domain keywords used for knowledge retrieval"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Review completion timestamp"
+        },
+        "knowledge_used": {
+            "type": "object",
+            "properties": {
+                "local_results": {
+                    "type": "integer",
+                    "description": "Number of local knowledge results"
+                },
+                "notebooklm_results": {
+                    "type": "integer",
+                    "description": "Number of NotebookLM results"
+                },
+                "sources": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of sources used"
+                }
+            }
+        },
+        "models": {
+            "type": "object",
+            "properties": {
+                "primary": {
+                    "type": "string",
+                    "description": "Primary model used"
+                },
+                "secondary": {
+                    "type": "string",
+                    "description": "Secondary model used"
+                }
+            }
+        },
+        "consensus_summary": {
+            "type": "object",
+            "required": ["high_consensus_count", "disputed_count", "model_agreement_percent"],
+            "properties": {
+                "high_consensus_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Number of items with high consensus (both models >700)"
+                },
+                "disputed_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Number of disputed items (score delta >300)"
+                },
+                "low_value_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Number of low-value items (both models <400)"
+                },
+                "blocker_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Number of blocker concerns from skeptic reviews"
+                },
+                "model_agreement_percent": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "description": "Percentage of items where models agreed"
+                }
+            }
+        },
+        "high_consensus": {
+            "type": "array",
+            "items": {"$ref": "#/definitions/consensus_item"},
+            "description": "Items where both models scored >700"
+        },
+        "disputed": {
+            "type": "array",
+            "items": {"$ref": "#/definitions/disputed_item"},
+            "description": "Items where models disagreed (delta >300)"
+        },
+        "low_value": {
+            "type": "array",
+            "items": {"$ref": "#/definitions/consensus_item"},
+            "description": "Items where both models scored <400"
+        },
+        "blockers": {
+            "type": "array",
+            "items": {"$ref": "#/definitions/blocker"},
+            "description": "Critical concerns from skeptic reviews"
+        },
+        "metrics": {
+            "type": "object",
+            "properties": {
+                "total_latency_ms": {
+                    "type": "integer",
+                    "description": "Total execution time in milliseconds"
+                },
+                "knowledge_latency_ms": {
+                    "type": "integer",
+                    "description": "Knowledge retrieval time in milliseconds"
+                },
+                "review_latency_ms": {
+                    "type": "integer",
+                    "description": "Phase 1 review time in milliseconds"
+                },
+                "scoring_latency_ms": {
+                    "type": "integer",
+                    "description": "Phase 2 scoring time in milliseconds"
+                },
+                "tokens_input": {
+                    "type": "integer",
+                    "description": "Total input tokens used"
+                },
+                "tokens_output": {
+                    "type": "integer",
+                    "description": "Total output tokens used"
+                },
+                "cost_cents": {
+                    "type": "integer",
+                    "description": "Total cost in cents"
+                },
+                "cost_usd": {
+                    "type": "number",
+                    "description": "Total cost in USD"
+                }
+            }
+        },
+        "raw_reviews": {
+            "type": "object",
+            "description": "Raw review outputs (when consensus skipped)",
+            "properties": {
+                "gpt": {"type": "object"},
+                "opus": {"type": "object"}
+            }
+        },
+        "note": {
+            "type": "string",
+            "description": "Additional notes about the review"
+        }
+    },
+    "definitions": {
+        "consensus_item": {
+            "type": "object",
+            "required": ["id", "gpt_score", "opus_score"],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "Unique item identifier"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Item description"
+                },
+                "rationale": {
+                    "type": "string",
+                    "description": "Rationale for the improvement"
+                },
+                "location": {
+                    "type": "string",
+                    "description": "Document section affected"
+                },
+                "priority": {
+                    "type": "string",
+                    "enum": ["HIGH", "MEDIUM", "LOW"],
+                    "description": "Priority level"
+                },
+                "gpt_score": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000,
+                    "description": "GPT's score for this item"
+                },
+                "opus_score": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000,
+                    "description": "Opus's score for this item"
+                },
+                "average_score": {
+                    "type": "number",
+                    "description": "Average of both scores"
+                },
+                "delta": {
+                    "type": "integer",
+                    "description": "Absolute difference between scores"
+                },
+                "agreement": {
+                    "type": "string",
+                    "enum": ["HIGH", "MEDIUM", "LOW"],
+                    "description": "Level of model agreement"
+                },
+                "would_integrate": {
+                    "type": "boolean",
+                    "description": "Whether to auto-integrate this item"
+                }
+            }
+        },
+        "disputed_item": {
+            "type": "object",
+            "required": ["id", "gpt_score", "opus_score", "delta"],
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "rationale": {
+                    "type": "string"
+                },
+                "location": {
+                    "type": "string"
+                },
+                "gpt_score": {
+                    "type": "integer"
+                },
+                "opus_score": {
+                    "type": "integer"
+                },
+                "delta": {
+                    "type": "integer",
+                    "description": "Score difference (must be >300 for disputed)"
+                },
+                "agreement": {
+                    "type": "string",
+                    "const": "DISPUTED"
+                }
+            }
+        },
+        "blocker": {
+            "type": "object",
+            "required": ["id", "concern", "severity"],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "Unique concern identifier"
+                },
+                "concern": {
+                    "type": "string",
+                    "description": "Description of the concern"
+                },
+                "severity": {
+                    "type": "string",
+                    "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+                    "description": "Severity level"
+                },
+                "severity_score": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000,
+                    "description": "Numeric severity score"
+                },
+                "why_matters": {
+                    "type": "string",
+                    "description": "Why this concern matters"
+                },
+                "location": {
+                    "type": "string",
+                    "description": "Document section affected"
+                },
+                "recommendation": {
+                    "type": "string",
+                    "description": "Recommended action"
+                },
+                "source": {
+                    "type": "string",
+                    "enum": ["gpt_skeptic", "opus_skeptic"],
+                    "description": "Which model raised this concern"
+                }
+            }
+        }
+    }
+}

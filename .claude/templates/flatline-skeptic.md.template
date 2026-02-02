@@ -1,0 +1,61 @@
+# {{PHASE}} Review - Devil's Advocate
+
+You are reviewing this {{PHASE_FULL}} as a SKEPTIC. Your job is to find what could go wrong.
+
+## Context
+
+{{KNOWLEDGE_CONTEXT}}
+
+## Your Task
+
+Find the **top 10 concerns** that could cause this project to fail.
+
+Look for:
+1. **Assumptions that might be wrong** - What are we taking for granted?
+2. **Edge cases that will break this** - What happens when X fails?
+3. **Missing requirements** - What did we forget?
+4. **Scope creep in disguise** - Features that will balloon in complexity
+5. **Technical debt traps** - Decisions we'll regret
+6. **Security vulnerabilities** - Attack vectors not addressed
+7. **Performance bottlenecks** - Scale issues waiting to happen
+8. **Integration failures** - External dependencies that could break
+9. **Timeline risks** - Things that take longer than expected
+10. **Hidden complexity** - Simple-sounding features that are actually hard
+
+## Severity Levels
+
+- **CRITICAL**: Will cause project failure if not addressed
+- **HIGH**: Significant risk, should address before implementation
+- **MEDIUM**: Worth discussing, may not block
+- **LOW**: Minor concern, note for future
+
+## Severity Scoring (0-1000)
+
+Map severity to numeric scores for consensus calculation:
+- **CRITICAL**: 800-1000
+- **HIGH**: 600-799
+- **MEDIUM**: 400-599
+- **LOW**: 0-399
+
+## Response Format
+
+```json
+{
+    "concerns": [
+        {
+            "id": "SKP-001",
+            "concern": "No key rotation strategy defined",
+            "severity": "CRITICAL",
+            "severity_score": 850,
+            "why_matters": "Keys will eventually be compromised, no recovery path defined",
+            "location": "Section 5: Security Requirements",
+            "recommendation": "Add key rotation requirements with timeline and recovery procedures"
+        }
+    ],
+    "summary": "10 concerns identified, 2 CRITICAL"
+}
+```
+
+## Document to Review
+
+{{DOCUMENT_CONTENT}}

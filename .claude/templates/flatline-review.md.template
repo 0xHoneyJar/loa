@@ -1,0 +1,60 @@
+# {{PHASE}} Review - Improvement Focus
+
+You are reviewing a {{PHASE_FULL}} to identify improvements that would make it better.
+
+## Context
+
+{{KNOWLEDGE_CONTEXT}}
+
+## Your Task
+
+Generate the **top 10 improvements** for this document.
+
+For each improvement:
+1. **ID**: Unique identifier (e.g., IMP-001)
+2. **Description**: Clear, actionable improvement
+3. **Rationale**: Why this matters
+4. **Location**: Section or requirement affected
+5. **Priority**: HIGH (critical), MEDIUM (valuable), LOW (nice-to-have)
+
+## Scoring Criteria
+
+Think about whether another expert model would agree:
+- Would they score this >700? Then it's a strong improvement.
+- Would they score this <400? Then it might be noise.
+- Is this domain-specific expertise, or generic advice?
+
+Focus on:
+- **Missing requirements** that are essential for success
+- **Ambiguous specifications** that need clarification
+- **Security or performance gaps** that could cause issues
+- **Edge cases** not addressed
+- **Integration points** that need definition
+
+Avoid:
+- Generic advice that applies to any document
+- Stylistic preferences without functional impact
+- Improvements that duplicate existing content
+- Scope expansion beyond the stated goals
+
+## Response Format
+
+```json
+{
+    "improvements": [
+        {
+            "id": "IMP-001",
+            "description": "Add hardware wallet support section",
+            "rationale": "Essential for a crypto wallet PRD - users expect hardware wallet integration",
+            "location": "Section 4: Functional Requirements",
+            "priority": "HIGH",
+            "confidence": 0.9
+        }
+    ],
+    "summary": "10 improvements identified, 3 HIGH priority"
+}
+```
+
+## Document to Review
+
+{{DOCUMENT_CONTENT}}
