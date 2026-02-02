@@ -108,8 +108,7 @@ calculate_consensus() {
         --argjson low "$low_threshold" \
         --argjson blocker "$blocker_threshold" \
         --slurpfile skeptic_gpt <(if [[ -n "$skeptic_gpt_file" && -f "$skeptic_gpt_file" ]]; then cat "$skeptic_gpt_file"; else echo '{"concerns":[]}'; fi) \
-        --slurpfile skeptic_opus <(if [[ -n "$skeptic_opus_file" && -f "$skeptic_opus_file" ]]; then cat "$skeptic_opus_file"; else echo '{"concerns":[]}'; fi) \
-'
+        --slurpfile skeptic_opus <(if [[ -n "$skeptic_opus_file" && -f "$skeptic_opus_file" ]]; then cat "$skeptic_opus_file"; else echo '{"concerns":[]}'; fi) '
 # Build lookup maps from scores
 def build_score_map:
     reduce .scores[] as $item ({}; . + {($item.id): $item.score});
@@ -122,7 +121,7 @@ def build_score_map:
 ([$gpt.scores[].id, $opus.scores[].id] | unique) as $all_ids |
 
 # Classify each item
-reduce $all_ids[] as $id (
+(reduce $all_ids[] as $id (
     {
         high_consensus: [],
         disputed: [],
@@ -157,7 +156,7 @@ reduce $all_ids[] as $id (
     else
         .medium_value += [$scored_item + {agreement: "MEDIUM"}]
     end
-) as $classified |
+)) as $classified |
 
 # Process skeptic concerns for blockers
 (
