@@ -50,6 +50,10 @@ PLACEHOLDER_DOMAIN="[REDACTED_DOMAIN]"
 PLACEHOLDER_USERNAME="[REDACTED_USER]"
 PLACEHOLDER_EMAIL="[REDACTED_EMAIL]"
 PLACEHOLDER_IP="[REDACTED_IP]"
+PLACEHOLDER_WEBHOOK="[REDACTED_WEBHOOK]"
+PLACEHOLDER_JWT="[REDACTED_JWT]"
+PLACEHOLDER_PRIVATE_KEY="[REDACTED_PRIVATE_KEY]"
+PLACEHOLDER_DB_CREDS="[REDACTED_CREDENTIALS]"
 
 # Colors
 RED='\033[0;31m'
@@ -154,6 +158,29 @@ redact_api_keys() {
     # AWS keys
     content=$(echo "$content" | sed -E 's/AKIA[A-Z0-9]{16}/'"$PLACEHOLDER_API_KEY"'/g')
 
+    # HIGH-001 FIX: Additional credential patterns
+
+    # Slack webhooks (https://hooks.slack.com/services/T.../B.../...)
+    content=$(echo "$content" | sed -E 's|https://hooks\.slack\.com/services/[A-Za-z0-9/]+|'"$PLACEHOLDER_WEBHOOK"'|g')
+
+    # JWT tokens (three base64-encoded sections separated by dots)
+    content=$(echo "$content" | sed -E 's/eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/'"$PLACEHOLDER_JWT"'/g')
+
+    # Bearer tokens in Authorization headers
+    content=$(echo "$content" | sed -E 's/[Bb]earer [A-Za-z0-9_.-]{20,}/Bearer '"$PLACEHOLDER_TOKEN"'/g')
+
+    # Database connection strings with credentials (postgresql://, mysql://, mongodb://, redis://)
+    content=$(echo "$content" | sed -E 's|://[^:]+:[^@]+@|://'"$PLACEHOLDER_DB_CREDS"'@|g')
+
+    # Discord webhooks
+    content=$(echo "$content" | sed -E 's|https://discord\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+|'"$PLACEHOLDER_WEBHOOK"'|g')
+
+    # Stripe keys
+    content=$(echo "$content" | sed -E 's/sk_live_[a-zA-Z0-9]{24,}/'"$PLACEHOLDER_API_KEY"'/g')
+    content=$(echo "$content" | sed -E 's/pk_live_[a-zA-Z0-9]{24,}/'"$PLACEHOLDER_API_KEY"'/g')
+    content=$(echo "$content" | sed -E 's/sk_test_[a-zA-Z0-9]{24,}/'"$PLACEHOLDER_API_KEY"'/g')
+    content=$(echo "$content" | sed -E 's/pk_test_[a-zA-Z0-9]{24,}/'"$PLACEHOLDER_API_KEY"'/g')
+
     echo "$content"
 }
 
@@ -239,6 +266,24 @@ redact_ips() {
     echo "$content"
 }
 
+# HIGH-001 FIX: Redact private key blocks
+redact_private_keys() {
+    local content="$1"
+
+    # PEM-encoded private keys (RSA, EC, DSA, OPENSSH, etc.)
+    # Match -----BEGIN ... PRIVATE KEY----- ... -----END ... PRIVATE KEY-----
+    # Using sed with multiline support via loop
+    content=$(echo "$content" | sed -E ':a;N;$!ba;s/-----BEGIN[^-]*PRIVATE KEY-----[^-]*-----END[^-]*PRIVATE KEY-----/'"$PLACEHOLDER_PRIVATE_KEY"'/g')
+
+    # SSH private key markers (OpenSSH format)
+    content=$(echo "$content" | sed -E ':a;N;$!ba;s/-----BEGIN OPENSSH PRIVATE KEY-----[^-]*-----END OPENSSH PRIVATE KEY-----/'"$PLACEHOLDER_PRIVATE_KEY"'/g')
+
+    # Certificates (may contain private data)
+    content=$(echo "$content" | sed -E ':a;N;$!ba;s/-----BEGIN CERTIFICATE-----[^-]*-----END CERTIFICATE-----/[REDACTED_CERTIFICATE]/g')
+
+    echo "$content"
+}
+
 # Run all redactions
 anonymize() {
     local content="$1"
@@ -249,6 +294,7 @@ anonymize() {
     content=$(redact_usernames "$content")
     content=$(redact_emails "$content")
     content=$(redact_ips "$content")
+    content=$(redact_private_keys "$content")
 
     echo "$content"
 }
@@ -300,6 +346,12 @@ count_redactions() {
     count=$((count + $(echo "$content" | grep -o '\[REDACTED_USER\]' | wc -l)))
     count=$((count + $(echo "$content" | grep -o '\[REDACTED_EMAIL\]' | wc -l)))
     count=$((count + $(echo "$content" | grep -o '\[REDACTED_IP\]' | wc -l)))
+    # HIGH-001 FIX: Count new redaction types
+    count=$((count + $(echo "$content" | grep -o '\[REDACTED_WEBHOOK\]' | wc -l)))
+    count=$((count + $(echo "$content" | grep -o '\[REDACTED_JWT\]' | wc -l)))
+    count=$((count + $(echo "$content" | grep -o '\[REDACTED_PRIVATE_KEY\]' | wc -l)))
+    count=$((count + $(echo "$content" | grep -o '\[REDACTED_CREDENTIALS\]' | wc -l)))
+    count=$((count + $(echo "$content" | grep -o '\[REDACTED_CERTIFICATE\]' | wc -l)))
 
     echo "$count"
 }

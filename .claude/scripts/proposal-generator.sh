@@ -127,6 +127,12 @@ parse_args() {
         echo "[ERROR] --learning ID is required" >&2
         exit 1
     fi
+
+    # MEDIUM-001 FIX: Validate learning ID format (alphanumeric, hyphens, underscores)
+    if [[ ! "$LEARNING_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo "[ERROR] Invalid learning ID format: must be alphanumeric with hyphens/underscores only" >&2
+        exit 1
+    fi
 }
 
 # Get learning from project learnings file
@@ -329,6 +335,7 @@ EOF
 }
 
 # Create GitHub Issue
+# CRITICAL-001 FIX: Use temp file for body to prevent command injection
 create_proposal_issue() {
     local learning_id="$1"
     local title="$2"
@@ -339,15 +346,23 @@ create_proposal_issue() {
         return 1
     fi
 
-    # Create issue with graceful label handling
+    # CRITICAL-001 FIX: Write body to temp file to prevent shell metacharacter injection
+    # User content in $body could contain $(cmd), `cmd`, or other shell metacharacters
+    # MEDIUM-002 FIX: Set umask before mktemp to eliminate race condition window
+    local body_file
+    body_file=$(umask 077 && mktemp)
+    printf '%s' "$body" > "$body_file"
+
+    # Use body-file approach to avoid command injection
     local issue_url
     issue_url=$("$GH_LABEL_HANDLER" create-issue \
         --repo "$TARGET_REPO" \
         --title "[Learning Proposal] $title" \
-        --body "$body" \
+        --body-file "$body_file" \
         --labels "$PROPOSAL_LABEL" \
         --graceful)
 
+    rm -f "$body_file"
     echo "$issue_url"
 }
 
@@ -372,10 +387,9 @@ update_learning_proposal_status() {
         upstream_score=$(echo "$score_result" | jq -r '.upstream_score // 0')
     fi
 
-    # Create temp file with restrictive permissions
+    # MEDIUM-002 FIX: Set umask before mktemp to eliminate race condition window
     local temp_file
-    temp_file=$(mktemp)
-    chmod 600 "$temp_file"
+    temp_file=$(umask 077 && mktemp)
 
     # Update the learning entry
     jq --arg id "$learning_id" \

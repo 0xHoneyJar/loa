@@ -111,6 +111,12 @@ parse_args() {
         echo "[ERROR] Either --learning ID or --all is required" >&2
         exit 1
     fi
+
+    # MEDIUM-001 FIX: Validate learning ID format (alphanumeric, hyphens, underscores)
+    if [[ -n "$LEARNING_ID" && ! "$LEARNING_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo "[ERROR] Invalid learning ID format: must be alphanumeric with hyphens/underscores only" >&2
+        exit 1
+    fi
 }
 
 # Check gh CLI availability and auth

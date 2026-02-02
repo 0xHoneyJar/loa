@@ -134,6 +134,12 @@ parse_args() {
         echo "[ERROR] --learning ID is required" >&2
         exit 1
     fi
+
+    # MEDIUM-001 FIX: Validate learning ID format (alphanumeric, hyphens, underscores)
+    if [[ ! "$LEARNING_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo "[ERROR] Invalid learning ID format: must be alphanumeric with hyphens/underscores only" >&2
+        exit 1
+    fi
 }
 
 # Get learning from project learnings file
@@ -264,9 +270,10 @@ calculate_novelty_score() {
     # Compare against each framework learning
     local max_similarity=0
 
+    # HIGH-002 FIX: Use null-safe iteration to handle filenames with special characters
     if [[ -d "$FRAMEWORK_LEARNINGS_DIR" ]]; then
-        for file in "$FRAMEWORK_LEARNINGS_DIR"/*.json; do
-            [[ -f "$file" ]] || continue
+        while IFS= read -r -d '' file; do
+            # Skip index.json
             [[ "$(basename "$file")" == "index.json" ]] && continue
 
             # Extract all framework learning texts
@@ -291,7 +298,7 @@ calculate_novelty_score() {
                     fi
                 fi
             done <<< "$fw_learnings"
-        done
+        done < <(find "$FRAMEWORK_LEARNINGS_DIR" -maxdepth 1 -name "*.json" -type f -print0)
     fi
 
     # Novelty = 100 - max_similarity (more similar = less novel)

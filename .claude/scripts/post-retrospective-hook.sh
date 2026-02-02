@@ -103,6 +103,11 @@ parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --days)
+                # MEDIUM-004 FIX: Validate numeric input
+                if [[ ! "$2" =~ ^[0-9]+$ ]] || [[ "$2" -lt 1 ]] || [[ "$2" -gt 365 ]]; then
+                    echo "[ERROR] --days must be a positive integer between 1 and 365" >&2
+                    exit 1
+                fi
                 CHECK_DAYS="$2"
                 shift 2
                 ;;
