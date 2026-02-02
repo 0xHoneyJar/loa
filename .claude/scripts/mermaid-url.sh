@@ -1,36 +1,54 @@
 #!/usr/bin/env bash
 # .claude/scripts/mermaid-url.sh
 #
-# Generate Beautiful Mermaid preview URL from Mermaid source
+# Visual Communication v2.0 - Multi-mode Mermaid rendering
+#
+# Modes:
+#   --github (default)  Output GitHub-native Mermaid code block
+#   --render            Generate local SVG/PNG via beautiful-mermaid
+#   --url               Generate preview URL (legacy mode)
 #
 # Usage:
-#   mermaid-url.sh <mermaid-file> [--theme <theme>]
-#   echo "graph TD; A-->B" | mermaid-url.sh --stdin [--theme <theme>]
+#   mermaid-url.sh <mermaid-file> [--github|--render|--url] [options]
+#   echo "graph TD; A-->B" | mermaid-url.sh --stdin [--github|--render|--url] [options]
 #
 # Options:
-#   --theme <name>   Theme name (default: github)
-#   --stdin          Read Mermaid from stdin
-#   --help           Show this help
+#   --theme <name>      Theme name (default: github)
+#   --stdin             Read Mermaid from stdin
+#   --format <type>     Output format for --render: svg (default) or png
+#   --output-dir <dir>  Output directory for --render (default: grimoires/loa/diagrams/)
+#   --check             Check current configuration
+#   --validate          Validate Mermaid syntax only
+#   --help              Show this help
 #
 # Examples:
-#   # From file
-#   mermaid-url.sh diagram.mmd
-#
-#   # From stdin
+#   # GitHub native (default) - outputs ```mermaid code block
 #   echo 'graph TD; A-->B' | mermaid-url.sh --stdin
 #
-#   # With custom theme
-#   echo 'graph TD; A-->B' | mermaid-url.sh --stdin --theme dracula
+#   # Local SVG render
+#   echo 'graph TD; A-->B' | mermaid-url.sh --stdin --render
+#
+#   # Local PNG render
+#   echo 'graph TD; A-->B' | mermaid-url.sh --stdin --render --format png
+#
+#   # Legacy URL mode
+#   echo 'graph TD; A-->B' | mermaid-url.sh --stdin --url
 
 set -euo pipefail
 
 # Configuration
 readonly DEFAULT_THEME="github"
 readonly DEFAULT_SERVICE_URL="https://agents.craft.do/mermaid"
+readonly DEFAULT_MODE="github"
+readonly DEFAULT_OUTPUT_FORMAT="svg"
+readonly DEFAULT_OUTPUT_DIR="grimoires/loa/diagrams"
 readonly MAX_DIAGRAM_CHARS=1500
 
 # Valid themes (allowlist for security)
 readonly VALID_THEMES="github dracula nord tokyo-night solarized-light solarized-dark catppuccin"
+
+# Valid output formats
+readonly VALID_FORMATS="svg png"
 
 # Find project root (look for .loa.config.yaml)
 find_project_root() {
@@ -51,6 +69,18 @@ validate_theme() {
     local valid_theme
     for valid_theme in $VALID_THEMES; do
         if [[ "$theme" == "$valid_theme" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Validate output format
+validate_format() {
+    local format="$1"
+    local valid_format
+    for valid_format in $VALID_FORMATS; do
+        if [[ "$format" == "$valid_format" ]]; then
             return 0
         fi
     done
@@ -104,6 +134,26 @@ read_yaml_value() {
                            sed 's/.*service: *"\{0,1\}\([^"]*\)"\{0,1\}.*/\1/' | \
                            head -1) || true
                 ;;
+            ".visual_communication.mode")
+                raw_value=$(grep -A10 "^visual_communication:" "$config" 2>/dev/null | \
+                           grep "^  mode:" | \
+                           sed 's/.*mode: *"\{0,1\}\([^"]*\)"\{0,1\}.*/\1/' | \
+                           head -1) || true
+                ;;
+            ".visual_communication.local_render.output_format")
+                raw_value=$(grep -A20 "^visual_communication:" "$config" 2>/dev/null | \
+                           grep -A5 "local_render:" | \
+                           grep "output_format:" | \
+                           sed 's/.*output_format: *"\{0,1\}\([^"]*\)"\{0,1\}.*/\1/' | \
+                           head -1) || true
+                ;;
+            ".visual_communication.local_render.output_dir")
+                raw_value=$(grep -A20 "^visual_communication:" "$config" 2>/dev/null | \
+                           grep -A5 "local_render:" | \
+                           grep "output_dir:" | \
+                           sed 's/.*output_dir: *"\{0,1\}\([^"]*\)"\{0,1\}.*/\1/' | \
+                           head -1) || true
+                ;;
             *)
                 raw_value=""
                 ;;
@@ -135,6 +185,46 @@ read_config_theme() {
         echo "Warning: Invalid theme '$theme' in config, using default" >&2
         printf '%s' "$DEFAULT_THEME"
     fi
+}
+
+# Read mode from config (v2.0)
+read_config_mode() {
+    local project_root
+    project_root=$(find_project_root)
+    local config="$project_root/.loa.config.yaml"
+
+    local mode
+    mode=$(read_yaml_value "$config" ".visual_communication.mode" "$DEFAULT_MODE")
+
+    # Validate mode
+    case "$mode" in
+        github|render|url)
+            printf '%s' "$mode"
+            ;;
+        *)
+            printf '%s' "$DEFAULT_MODE"
+            ;;
+    esac
+}
+
+# Read local render config
+read_local_render_config() {
+    local project_root
+    project_root=$(find_project_root)
+    local config="$project_root/.loa.config.yaml"
+
+    local format
+    format=$(read_yaml_value "$config" ".visual_communication.local_render.output_format" "$DEFAULT_OUTPUT_FORMAT")
+
+    local output_dir
+    output_dir=$(read_yaml_value "$config" ".visual_communication.local_render.output_dir" "$DEFAULT_OUTPUT_DIR")
+
+    # Validate format
+    if ! validate_format "$format"; then
+        format="$DEFAULT_OUTPUT_FORMAT"
+    fi
+
+    printf '%s|%s' "$format" "$output_dir"
 }
 
 # Read service URL from config (HIGH-3 fix: make configurable)
@@ -172,7 +262,7 @@ is_enabled() {
     [[ "$enabled" != "false" ]]
 }
 
-# Check if preview URLs should be included
+# Check if preview URLs should be included (legacy check)
 include_preview_urls() {
     local project_root
     project_root=$(find_project_root)
@@ -198,7 +288,75 @@ validate_mermaid() {
     return 0
 }
 
-# Generate URL from Mermaid source
+# Output GitHub native Mermaid code block (v2.0 default)
+output_github_native() {
+    local mermaid="$1"
+    printf '```mermaid\n%s\n```\n' "$mermaid"
+}
+
+# Render locally using beautiful-mermaid (v2.0)
+render_local() {
+    local mermaid="$1"
+    local format="${2:-$DEFAULT_OUTPUT_FORMAT}"
+    local output_dir="${3:-$DEFAULT_OUTPUT_DIR}"
+    local theme="${4:-$DEFAULT_THEME}"
+
+    # Check for npx
+    if ! command -v npx &>/dev/null; then
+        echo "Error: npx not found. Install Node.js 18+" >&2
+        echo "  brew install node  # macOS" >&2
+        echo "  apt install nodejs # Debian/Ubuntu" >&2
+        return 1
+    fi
+
+    # Check for mermaid-cli (more reliable than beautiful-mermaid)
+    # Try @mermaid-js/mermaid-cli first (official package)
+    local renderer=""
+    if npx @mermaid-js/mermaid-cli --version &>/dev/null 2>&1; then
+        renderer="mermaid-cli"
+    elif npx mmdc --version &>/dev/null 2>&1; then
+        renderer="mmdc"
+    else
+        echo "Error: Mermaid CLI not available" >&2
+        echo "Install: npm install -g @mermaid-js/mermaid-cli" >&2
+        echo "  or: npx @mermaid-js/mermaid-cli (auto-install on first use)" >&2
+        return 1
+    fi
+
+    # Create output directory
+    mkdir -p "$output_dir"
+
+    # Generate hash for unique filename
+    local hash
+    hash=$(printf '%s' "$mermaid" | sha256sum | cut -c1-8)
+    local outfile="${output_dir}/diagram-${hash}.${format}"
+
+    # Create temp file for input
+    local tmpfile
+    tmpfile=$(mktemp --suffix=.mmd)
+    printf '%s' "$mermaid" > "$tmpfile"
+
+    # Render using mermaid-cli
+    local render_result=0
+    if [[ "$renderer" == "mermaid-cli" ]]; then
+        npx @mermaid-js/mermaid-cli -i "$tmpfile" -o "$outfile" -t "$theme" 2>/dev/null || render_result=$?
+    else
+        npx mmdc -i "$tmpfile" -o "$outfile" -t "$theme" 2>/dev/null || render_result=$?
+    fi
+
+    # Cleanup
+    rm -f "$tmpfile"
+
+    if [[ $render_result -ne 0 ]]; then
+        echo "Error: Rendering failed" >&2
+        return 1
+    fi
+
+    # Output the path to rendered file
+    printf '%s\n' "$outfile"
+}
+
+# Generate URL from Mermaid source (legacy mode)
 generate_url() {
     local mermaid="$1"
     local theme="${2:-}"
@@ -225,7 +383,7 @@ generate_url() {
     if [[ $char_count -gt $MAX_DIAGRAM_CHARS ]]; then
         echo "Error: Diagram is $char_count chars (exceeds $MAX_DIAGRAM_CHARS limit)" >&2
         echo "Note: Per protocol, diagrams >$MAX_DIAGRAM_CHARS chars should not have preview URLs." >&2
-        echo "Render locally using VS Code Mermaid extension or GitHub markdown preview." >&2
+        echo "Use --github mode or --render for local rendering instead." >&2
         return 1
     fi
 
@@ -251,40 +409,49 @@ usage() {
     cat <<EOF
 Usage: mermaid-url.sh [OPTIONS] [FILE]
 
-Generate Beautiful Mermaid preview URL from Mermaid source.
+Visual Communication v2.0 - Multi-mode Mermaid rendering
+
+Modes:
+  --github (default)  Output GitHub-native Mermaid code block
+  --render            Generate local SVG/PNG via mermaid-cli
+  --url               Generate preview URL (legacy mode)
 
 Options:
-  --theme <name>   Theme name (default: from config or github)
-  --stdin          Read Mermaid from stdin
-  --check          Check if visual communication is enabled
-  --validate       Validate Mermaid syntax without generating URL
-  --help           Show this help
+  --theme <name>      Theme name (default: from config or github)
+  --stdin             Read Mermaid from stdin
+  --format <type>     Output format for --render: svg (default) or png
+  --output-dir <dir>  Output directory for --render
+  --check             Check current configuration
+  --validate          Validate Mermaid syntax only
+  --help              Show this help
 
-Available themes (default: github):
+Available themes:
   github, dracula, nord, tokyo-night, solarized-light, solarized-dark, catppuccin
 
 Environment Variables:
-  LOA_MERMAID_SERVICE  Override service URL (default: https://agents.craft.do/mermaid)
-
-Limits:
-  Maximum diagram size: $MAX_DIAGRAM_CHARS characters
-  Diagrams exceeding this limit will not generate preview URLs per protocol.
+  LOA_MERMAID_SERVICE  Override service URL for --url mode
 
 Examples:
-  # From file
-  mermaid-url.sh diagram.mmd
-
-  # From stdin
+  # GitHub native (default) - outputs \`\`\`mermaid code block
   echo 'graph TD; A-->B' | mermaid-url.sh --stdin
 
-  # With custom theme
-  echo 'graph TD; A-->B' | mermaid-url.sh --stdin --theme dracula
+  # Explicit GitHub mode
+  echo 'graph TD; A-->B' | mermaid-url.sh --stdin --github
+
+  # Local SVG render
+  echo 'graph TD; A-->B' | mermaid-url.sh --stdin --render
+
+  # Local PNG render with theme
+  echo 'graph TD; A-->B' | mermaid-url.sh --stdin --render --format png --theme dracula
+
+  # Legacy URL mode (requires external service)
+  echo 'graph TD; A-->B' | mermaid-url.sh --stdin --url
+
+  # From file
+  mermaid-url.sh diagram.mmd --render
 
   # Check configuration
   mermaid-url.sh --check
-
-  # Validate syntax only
-  echo 'graph TD; A-->B' | mermaid-url.sh --stdin --validate
 EOF
 }
 
@@ -295,15 +462,46 @@ main() {
     local input=""
     local check=false
     local validate_only=false
+    local mode=""
+    local format=""
+    local output_dir=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            --github)
+                mode="github"
+                shift
+                ;;
+            --render)
+                mode="render"
+                shift
+                ;;
+            --url)
+                mode="url"
+                shift
+                ;;
             --theme)
                 if [[ $# -lt 2 ]]; then
                     echo "Error: --theme requires an argument" >&2
                     exit 1
                 fi
                 theme="$2"
+                shift 2
+                ;;
+            --format)
+                if [[ $# -lt 2 ]]; then
+                    echo "Error: --format requires an argument" >&2
+                    exit 1
+                fi
+                format="$2"
+                shift 2
+                ;;
+            --output-dir)
+                if [[ $# -lt 2 ]]; then
+                    echo "Error: --output-dir requires an argument" >&2
+                    exit 1
+                fi
+                output_dir="$2"
                 shift 2
                 ;;
             --stdin)
@@ -336,12 +534,22 @@ main() {
 
     # Check mode
     if [[ "$check" == true ]]; then
+        local config_mode
+        config_mode=$(read_config_mode)
+        local local_config
+        local_config=$(read_local_render_config)
+        local local_format="${local_config%%|*}"
+        local local_dir="${local_config##*|}"
+
         if is_enabled; then
             echo "Visual communication: enabled"
+            echo "Default mode: $config_mode"
             echo "Theme: $(read_config_theme)"
-            echo "Service URL: $(read_service_url)"
+            echo "Local render format: $local_format"
+            echo "Local render directory: $local_dir"
+            echo "Service URL (legacy): $(read_service_url)"
             echo "Preview URLs: $(include_preview_urls && echo 'enabled' || echo 'disabled')"
-            echo "Max diagram size: $MAX_DIAGRAM_CHARS chars"
+            echo "Max diagram size (URL mode): $MAX_DIAGRAM_CHARS chars"
             exit 0
         else
             echo "Visual communication: disabled"
@@ -367,22 +575,66 @@ main() {
         exit 1
     fi
 
+    # Validate syntax
+    if ! validate_mermaid "$mermaid"; then
+        exit 1
+    fi
+
     # Validate only mode
     if [[ "$validate_only" == true ]]; then
-        if validate_mermaid "$mermaid"; then
-            echo "Mermaid syntax: valid"
-            echo "Diagram size: ${#mermaid} chars"
-            if [[ ${#mermaid} -gt $MAX_DIAGRAM_CHARS ]]; then
-                echo "Warning: Exceeds $MAX_DIAGRAM_CHARS char limit for preview URLs"
-            fi
-            exit 0
-        else
+        echo "Mermaid syntax: valid"
+        echo "Diagram size: ${#mermaid} chars"
+        if [[ ${#mermaid} -gt $MAX_DIAGRAM_CHARS ]]; then
+            echo "Warning: Exceeds $MAX_DIAGRAM_CHARS char limit for URL mode"
+        fi
+        exit 0
+    fi
+
+    # Resolve mode (explicit flag > config > default)
+    if [[ -z "$mode" ]]; then
+        mode=$(read_config_mode)
+    fi
+
+    # Resolve theme
+    if [[ -z "$theme" ]]; then
+        theme=$(read_config_theme)
+    else
+        if ! validate_theme "$theme"; then
+            echo "Error: Invalid theme '$theme'. Valid themes: $VALID_THEMES" >&2
             exit 1
         fi
     fi
 
-    # Generate URL
-    generate_url "$mermaid" "$theme"
+    # Execute based on mode
+    case "$mode" in
+        github)
+            output_github_native "$mermaid"
+            ;;
+        render)
+            # Resolve format and output_dir from config if not specified
+            if [[ -z "$format" ]] || [[ -z "$output_dir" ]]; then
+                local local_config
+                local_config=$(read_local_render_config)
+                [[ -z "$format" ]] && format="${local_config%%|*}"
+                [[ -z "$output_dir" ]] && output_dir="${local_config##*|}"
+            fi
+
+            # Validate format
+            if ! validate_format "$format"; then
+                echo "Error: Invalid format '$format'. Valid formats: $VALID_FORMATS" >&2
+                exit 1
+            fi
+
+            render_local "$mermaid" "$format" "$output_dir" "$theme"
+            ;;
+        url)
+            generate_url "$mermaid" "$theme"
+            ;;
+        *)
+            echo "Error: Invalid mode '$mode'" >&2
+            exit 1
+            ;;
+    esac
 }
 
 main "$@"
