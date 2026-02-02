@@ -1,11 +1,22 @@
 # Software Design Document: Two-Tier Learnings Architecture
 
-**Version**: 1.0.0
+**Version**: 1.1.0
 **Status**: Draft
 **Author**: Claude (via /architect)
 **Date**: 2026-02-02
-**PRD Reference**: `grimoires/loa/prd-learnings-architecture.md`
+**PRD Reference**: `docs/proposals/two-tier-learnings-prd.md`
 **Related Issues**: #137, #76
+**Depends On**: PR #134 (Projen-Style Ownership)
+
+---
+
+> **Dependency Note**: This design depends on PR #134 which establishes:
+> - The `.claude/loa/` directory structure
+> - Magic marker system with SHA-256 integrity verification
+> - `marker-utils.sh` for hash generation
+> - Checksum registration in `.claude/checksums.json`
+>
+> All framework learnings files must include `_loa_managed` metadata per PR #134's managed scaffolding model.
 
 ---
 
@@ -18,10 +29,11 @@ This document describes the technical architecture for implementing a Two-Tier L
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Framework learnings location | `.claude/loa/learnings/` | Aligns with Three-Zone Model (System Zone) |
-| File format | JSON | Consistent with existing `learnings.schema.json` |
+| File format | JSON with `_loa_managed` | PR #134 marker system for integrity |
 | Query strategy | Parallel search + merge | <500ms latency target |
 | Deduplication | SHA-256 content hash | Prevents duplicate results across tiers |
 | Weight system | Framework=1.0, Project=0.9 | Framework knowledge is canonical |
+| Integrity verification | PR #134 marker system | Hash verification on update |
 
 ---
 
@@ -128,8 +140,15 @@ This document describes the technical architecture for implementing a Two-Tier L
 
 #### 3.1.2 Index Manifest Schema
 
+**Note**: All framework learnings files must include `_loa_managed` metadata per PR #134's marker system.
+
 ```json
 {
+  "_loa_managed": {
+    "managed": true,
+    "version": "1.15.1",
+    "hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
   "$schema": "../schemas/learnings.schema.json",
   "version": "1.0",
   "tier": "framework",
@@ -150,6 +169,8 @@ This document describes the technical architecture for implementing a Two-Tier L
   ]
 }
 ```
+
+The `_loa_managed.hash` is computed using `marker-utils.sh compute_hash` from PR #134, excluding the `_loa_managed` block itself from the hash calculation.
 
 #### 3.1.3 Learning Entry Schema Extension
 

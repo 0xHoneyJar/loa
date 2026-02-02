@@ -1,10 +1,15 @@
 # Product Requirements Document: Two-Tier Learnings Architecture
 
-**Version**: 1.0.0
+**Version**: 1.1.0
 **Status**: Draft
 **Author**: Claude (via /plan-and-analyze)
 **Date**: 2026-02-02
 **Related Issues**: #137, #76
+**Depends On**: PR #134 (Projen-Style Ownership)
+
+---
+
+> **Dependency Note**: This feature depends on PR #134 which establishes the `.claude/loa/` directory structure and magic marker system. Framework learnings files must include `_loa_managed` metadata for integrity verification. See Section 5.4 for marker integration requirements.
 
 ---
 
@@ -247,6 +252,52 @@ Framework learnings use existing `learnings.schema.json` with additions:
 }
 ```
 
+### 5.4 Marker System Integration (PR #134 Dependency)
+
+Framework learnings files MUST integrate with PR #134's Projen-style ownership model:
+
+#### 5.4.1 Required Metadata
+
+All framework learnings JSON files must include `_loa_managed` metadata:
+
+```json
+{
+  "_loa_managed": {
+    "managed": true,
+    "version": "1.15.1",
+    "hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "learnings": [...]
+}
+```
+
+#### 5.4.2 Hash Generation
+
+Use `marker-utils.sh` from PR #134 to generate SHA-256 hashes:
+
+```bash
+source .claude/scripts/marker-utils.sh
+compute_hash .claude/loa/learnings/patterns.json
+```
+
+#### 5.4.3 Checksum Registration
+
+Framework learnings files must be registered in `.claude/checksums.json`:
+
+```json
+{
+  ".claude/loa/learnings/index.json": "sha256:...",
+  ".claude/loa/learnings/patterns.json": "sha256:...",
+  ".claude/loa/learnings/anti-patterns.json": "sha256:...",
+  ".claude/loa/learnings/decisions.json": "sha256:...",
+  ".claude/loa/learnings/troubleshooting.json": "sha256:..."
+}
+```
+
+#### 5.4.4 Update Flow Integration
+
+PR #134's `update.sh` automatically syncs `.claude/loa/` - no additional changes needed for the update mechanism.
+
 ---
 
 ## 6. Scope & Prioritization
@@ -291,9 +342,13 @@ Framework learnings use existing `learnings.schema.json` with additions:
 
 | Dependency | Status | Notes |
 |------------|--------|-------|
+| **PR #134 (Projen-Style Ownership)** | ⏳ Required | Establishes `.claude/loa/` and marker system |
+| PR #138 (Oracle bash fix) | ⏳ Recommended | Fixes exit code bug |
 | Existing Oracle infrastructure | ✅ Ready | PR #89 merged |
 | learnings.schema.json | ✅ Ready | Exists in .claude/schemas/ |
 | /update-loa mechanism | ✅ Ready | update.sh exists |
+
+**Merge Order**: PR #134 → PR #138 → This PR
 
 ---
 

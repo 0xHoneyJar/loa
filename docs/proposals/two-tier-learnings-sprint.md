@@ -1,11 +1,22 @@
 # Sprint Plan: Two-Tier Learnings Architecture
 
-**PRD**: [grimoires/loa/prd-learnings-architecture.md](prd-learnings-architecture.md) (v1.0.0)
-**SDD**: [grimoires/loa/sdd-learnings-architecture.md](sdd-learnings-architecture.md) (v1.0.0)
+**PRD**: [two-tier-learnings-prd.md](two-tier-learnings-prd.md) (v1.1.0)
+**SDD**: [two-tier-learnings-sdd.md](two-tier-learnings-sdd.md) (v1.1.0)
 **Issues**: [#137](https://github.com/0xHoneyJar/loa/issues/137), [#76](https://github.com/0xHoneyJar/loa/issues/76)
+**Depends On**: [PR #134](https://github.com/0xHoneyJar/loa/pull/134) (Projen-Style Ownership)
 **Cycle**: cycle-009
 **Date**: 2026-02-02
-**Status**: Ready for Implementation
+**Status**: Blocked - Waiting for PR #134
+
+---
+
+> **Dependency Note**: This sprint plan requires PR #134 to be merged first. PR #134 provides:
+> - `.claude/loa/` directory structure
+> - `marker-utils.sh` for hash generation
+> - Magic marker system (`_loa_managed` metadata)
+> - Checksum registration infrastructure
+>
+> **Merge Order**: PR #134 → PR #138 → This implementation
 
 ---
 
@@ -30,10 +41,11 @@
 ### Key Architectural Decisions (from SDD)
 
 1. **Framework learnings in `.claude/loa/learnings/`** - System Zone location for shipped knowledge
-2. **JSON format** - Consistent with existing `learnings.schema.json`
+2. **JSON format with `_loa_managed`** - PR #134 marker system for integrity verification
 3. **Parallel search + merge** - Query both tiers concurrently, <500ms target
 4. **SHA-256 content hash** - Deduplication across tiers
 5. **Weight system** - Framework=1.0, Project=0.9 for ranking
+6. **Checksum registration** - Files registered in `.claude/checksums.json` per PR #134
 
 ---
 
@@ -46,7 +58,7 @@
 
 ### T1.1: Create framework learnings directory structure
 
-**Description**: Create `.claude/loa/learnings/` directory with index.json manifest and empty JSON files for each category.
+**Description**: Create `.claude/loa/learnings/` directory with index.json manifest and empty JSON files for each category. All files must include `_loa_managed` metadata per PR #134's marker system.
 
 **Acceptance Criteria**:
 - [ ] `.claude/loa/learnings/` directory created
@@ -55,8 +67,23 @@
 - [ ] `anti-patterns.json` created with empty learnings array
 - [ ] `decisions.json` created with empty learnings array
 - [ ] `troubleshooting.json` created with empty learnings array
+- [ ] **All files include `_loa_managed` metadata block** (PR #134 requirement)
+- [ ] **Hash values generated using `marker-utils.sh compute_hash`** (PR #134)
+- [ ] **All files registered in `.claude/checksums.json`** (PR #134)
 - [ ] All files validate against extended learnings schema
 - [ ] Directory structure matches SDD Section 3.1
+
+**`_loa_managed` Format** (required for each file):
+```json
+{
+  "_loa_managed": {
+    "managed": true,
+    "version": "1.15.1",
+    "hash": "sha256:..."
+  },
+  "learnings": [...]
+}
+```
 
 **Files**:
 - Create: `.claude/loa/learnings/index.json`
@@ -64,16 +91,29 @@
 - Create: `.claude/loa/learnings/anti-patterns.json`
 - Create: `.claude/loa/learnings/decisions.json`
 - Create: `.claude/loa/learnings/troubleshooting.json`
+- Modify: `.claude/checksums.json` (register new files)
 
 **Testing**:
 ```bash
 # Verify directory structure
 ls -la .claude/loa/learnings/
+
 # Validate JSON files
 for f in .claude/loa/learnings/*.json; do jq '.' "$f" > /dev/null && echo "OK: $f"; done
+
+# Verify _loa_managed metadata present (PR #134)
+for f in .claude/loa/learnings/*.json; do
+  jq -e '._loa_managed.managed == true' "$f" > /dev/null && echo "OK: $f has marker"
+done
+
+# Verify hash integrity (PR #134)
+source .claude/scripts/marker-utils.sh
+for f in .claude/loa/learnings/*.json; do
+  verify_hash "$f" && echo "OK: $f hash valid"
+done
 ```
 
-**Dependencies**: None
+**Dependencies**: PR #134 (marker-utils.sh, checksums.json infrastructure)
 
 ---
 
@@ -349,8 +389,15 @@ learnings:
 ## Appendix B: Task Dependencies
 
 ```
-Sprint 1 (Core Infrastructure)
-├── T1.1 (directory structure) ────────────────────────┐
+EXTERNAL DEPENDENCIES (must be merged first)
+├── PR #134 (Projen-Style Ownership) ──────────────────┐
+│   └── Provides: marker-utils.sh, checksums.json,     │
+│       .claude/loa/ directory, _loa_managed system    │
+└── PR #138 (Oracle bash fix) ─────────────────────────┤
+    └── Provides: Fixed exit code behavior             │
+                                                       │
+Sprint 1 (Core Infrastructure)                         │
+├── T1.1 (directory structure) ◄── PR #134 ────────────┤
 ├── T1.2 (schema extension) ◄── T1.1                   │
 ├── T1.3 (seed learnings) ◄── T1.1, T1.2               │
 ├── T1.4 (loa-learnings-index.sh) ◄── T1.1, T1.3       │
