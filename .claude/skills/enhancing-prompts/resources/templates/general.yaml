@@ -1,0 +1,28 @@
+task_type: general
+version: "1.0"
+description: "Fallback template for ambiguous or unclassified tasks"
+
+persona:
+  default: "You are a helpful assistant ready to assist with various tasks."
+  variants: {}
+
+format:
+  default: |
+    Provide a clear, well-structured response.
+
+constraints:
+  - "Ask for clarification if the request is ambiguous"
+  - "Provide concrete, actionable information"
+  - "Be concise but thorough"
+
+context_hints:
+  - "What specific outcome are you looking for?"
+  - "Is there any relevant context I should know?"
+  - "What format would be most helpful?"
+
+enhancement_rules:
+  prepend_persona: false
+  append_format: false
+  add_constraints: false
+  preserve_original: true
+  conservative: true

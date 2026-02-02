@@ -144,6 +144,63 @@ All actions are visible for human review:
 3. **Full Trajectory**: Complete audit trail in `grimoires/loa/a2a/trajectory/`
 4. **State Persistence**: `.run/state.json` shows current progress
 
+### Level 5: Danger Level Enforcement (v1.20.0)
+
+Skills are classified by risk level and enforced before execution.
+
+#### Danger Levels in Autonomous Mode
+
+| Level | Behavior |
+|-------|----------|
+| **safe** | Execute immediately |
+| **moderate** | Execute with enhanced logging |
+| **high** | BLOCK unless `--allow-high` flag |
+| **critical** | ALWAYS BLOCK (no override) |
+
+#### Skill Classifications
+
+| Skill | Level | Rationale |
+|-------|-------|-----------|
+| `implementing-tasks` | moderate | Writes code files |
+| `deploying-infrastructure` | high | Creates infrastructure |
+| `run-mode` | high | Autonomous execution |
+| `autonomous-agent` | high | Full orchestration control |
+
+#### Using --allow-high
+
+```bash
+# Execute with high-risk skills allowed
+/run sprint-1 --allow-high
+/run sprint-plan --allow-high
+```
+
+**Warning**: The `--allow-high` flag allows skills that can create infrastructure
+or perform external operations. Use with caution.
+
+#### Input Guardrails
+
+Before each skill invocation in Run Mode:
+
+1. **Danger Level Check** - Verify skill allowed in autonomous mode
+2. **PII Filter** - Redact sensitive data from input
+3. **Injection Detection** - Check for prompt manipulation
+
+All guardrail events logged to `trajectory/guardrails-{date}.jsonl`.
+
+#### Configuration
+
+```yaml
+# .loa.config.yaml
+guardrails:
+  danger_level:
+    enforce: true
+    autonomous:
+      safe: execute
+      moderate: execute_with_log
+      high: block_without_flag
+      critical: always_block
+```
+
 ## Execution Flow
 
 ### State Machine
@@ -349,7 +406,7 @@ Options:
 
 ### /run sprint-plan
 
-Execute all sprints in sequence with automatic continuation.
+Execute all sprints in sequence with automatic continuation and consolidated PR.
 
 ```
 /run sprint-plan [options]
@@ -357,6 +414,7 @@ Execute all sprints in sequence with automatic continuation.
 Options:
   --from N            Start from sprint N
   --to N              End at sprint N
+  --no-consolidate    Create separate PRs per sprint (legacy behavior)
 ```
 
 **Sprint Discovery Priority:**
@@ -374,6 +432,52 @@ Options:
 ```
 [SPRINT 1/4] sprint-1 COMPLETE (2 cycles)
 [SPRINT 2/4] Starting sprint-2...
+```
+
+**Consolidated PR (v1.15.1 - Default Behavior):**
+
+By default, `/run sprint-plan` creates a **single consolidated PR** after all sprints complete:
+
+1. All sprints execute on the same feature branch
+2. Each sprint's work is committed with clear sprint markers
+3. A single draft PR is created at the end containing all changes
+4. PR summary includes per-sprint breakdown
+
+**Consolidated PR Format:**
+```markdown
+## 🚀 Run Mode: Sprint Plan Complete
+
+**Sprints Completed:** 4
+**Total Cycles:** 12
+**Files Changed:** 47
+
+### Sprint Breakdown
+
+| Sprint | Status | Cycles | Files Changed |
+|--------|--------|--------|---------------|
+| sprint-1 | ✅ Complete | 2 | 12 |
+| sprint-2 | ✅ Complete | 4 | 18 |
+| sprint-3 | ✅ Complete | 3 | 10 |
+| sprint-4 | ✅ Complete | 3 | 7 |
+
+### 🗑️ DELETED FILES - REVIEW CAREFULLY
+...
+
+### Commits by Sprint
+
+#### Sprint 1
+- abc1234 feat: implement user authentication
+- def5678 fix: address review feedback
+
+#### Sprint 2
+...
+```
+
+**Legacy Behavior:**
+
+To create separate PRs per sprint (not recommended):
+```
+/run sprint-plan --no-consolidate
 ```
 
 ### /run-status

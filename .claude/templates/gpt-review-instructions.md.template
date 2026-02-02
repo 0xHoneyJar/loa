@@ -1,0 +1,105 @@
+# GPT Review Protocol (MANDATORY)
+
+GPT cross-model review is **enabled**. **ONE-SHOTTING > VELOCITY.** Getting code right matters more than speed.
+
+## Core Principle: The Uncertainty Rule
+
+**If you are debating whether to skip GPT review, that uncertainty is a signal TO USE IT.** When in doubt, review.
+
+## How to Run GPT Review
+
+### Step 1: Build Context Files
+
+Before invoking GPT review, create these files:
+
+**`/tmp/gpt-review-expertise.md`** - Domain expertise (WHO GPT should be):
+```markdown
+You are an expert in [domain from PRD - e.g., "blockchain security", "React performance", "API design"].
+Key concerns for this domain: [list 2-3 specific concerns]
+```
+
+**`/tmp/gpt-review-context.md`** - Product context (WHAT we're reviewing):
+```markdown
+## Product Context
+[Brief description from PRD]
+
+## What This Code Does
+[Specific purpose of the file/changes being reviewed]
+
+## Acceptance Criteria
+[From sprint task or feature requirements]
+```
+
+### Step 2: Invoke the Skill
+
+Use the Skill tool:
+```
+Skill: gpt-review
+Args: code <file-path>
+```
+
+For documents:
+```
+Skill: gpt-review
+Args: prd|sdd|sprint
+```
+
+### Step 3: Handle the Verdict
+
+| Verdict | Action |
+|---------|--------|
+| `SKIPPED` | Continue (review disabled at phase level) |
+| `APPROVED` | Continue to next task |
+| `CHANGES_REQUIRED` | Fix issues, then re-invoke with same file |
+| `DECISION_NEEDED` | Ask user via AskUserQuestion, then continue (documents only) |
+
+## When to Review
+
+**ALWAYS review (no exceptions)**:
+- Backend code, API endpoints, database queries
+- Security-sensitive code (auth, crypto, input validation)
+- Business logic, state management, data transformations
+- New files, major refactors
+
+**Frontend/UI work**:
+- You MAY batch multiple UI changes into a single review
+- You MUST run review when the feature is complete
+- Do not let momentum cause you to skip the final review
+
+**OK to skip** (truly trivial):
+- Typo fixes in strings or comments
+- Log message changes
+- Import reordering
+- Version bumps
+- Adding/removing console.log for debugging
+
+## Workflow Integration
+
+### After `/plan-and-analyze` (PRD)
+```
+Skill: gpt-review
+Args: prd
+```
+
+### After `/architect` (SDD)
+```
+Skill: gpt-review
+Args: sdd
+```
+
+### After `/sprint-plan` (Sprint)
+```
+Skill: gpt-review
+Args: sprint
+```
+
+### After `/implement` (Code)
+For each modified file:
+```
+Skill: gpt-review
+Args: code <file-path>
+```
+
+## Iteration Tracking
+
+If `CHANGES_REQUIRED`, fix the issues and re-invoke. The skill handles iteration tracking automatically. Maximum 3 iterations per file - after that, auto-approve with warning.

@@ -1,0 +1,300 @@
+{
+  "_loa_marker": {
+    "managed": true,
+    "version": "1.15.1",
+    "hash": "a1110575834dc98852093dfdeb158783fc5d0e4b0e880fab088b025ebbb058de"
+  },
+  "category": "troubleshooting",
+  "tier": "framework",
+  "learnings": [
+    {
+      "id": "FT-001",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Bash 4+ Requirement for Associative Arrays",
+      "trigger": "Script fails with 'declare: -A: invalid option' or similar bash errors",
+      "solution": "Loa scripts require Bash 4.0+ for associative arrays. Check version with bash --version. On macOS, install modern bash via Homebrew: brew install bash. Update shell path or use explicit /usr/local/bin/bash shebang.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 10,
+        "trigger_clarity": 10,
+        "verification": 10
+      },
+      "tags": [
+        "bash",
+        "macos",
+        "compatibility",
+        "installation"
+      ]
+    },
+    {
+      "id": "FT-002",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "macOS Default Bash is 3.x",
+      "trigger": "Scripts work on Linux but fail on macOS",
+      "solution": "macOS ships with Bash 3.2 (from 2007) due to licensing. Install Bash 4+ via Homebrew. Either: 1) Change default shell: chsh -s /usr/local/bin/bash, or 2) Use #!/usr/bin/env bash and ensure PATH includes Homebrew.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 10,
+        "trigger_clarity": 10,
+        "verification": 10
+      },
+      "tags": [
+        "macos",
+        "bash",
+        "compatibility",
+        "homebrew"
+      ]
+    },
+    {
+      "id": "FT-003",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "yq vs jq Output Format Differences",
+      "trigger": "YAML parsing returns unexpected format or null",
+      "solution": "yq (Mike Farah's Go version) outputs 'null' as string 'null', jq outputs JSON null. Use -e flag for exit codes on missing keys. For boolean checks, use: yq -e '.key' file.yaml || echo 'missing'. Consider jq for JSON, yq only for YAML-specific needs.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 9,
+        "trigger_clarity": 9,
+        "verification": 9
+      },
+      "tags": [
+        "yaml",
+        "json",
+        "yq",
+        "jq",
+        "parsing"
+      ]
+    },
+    {
+      "id": "FT-004",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Permission Errors on Scripts",
+      "trigger": "Script execution fails with 'Permission denied'",
+      "solution": "Framework scripts need execute permission. Run: chmod +x .claude/scripts/*.sh. For fresh installs, mount-loa.sh should set permissions. If persists, check filesystem (FAT32 doesn't support execute bits) or security software blocking.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 7,
+        "reusability": 10,
+        "trigger_clarity": 10,
+        "verification": 10
+      },
+      "tags": [
+        "permissions",
+        "scripts",
+        "installation",
+        "filesystem"
+      ]
+    },
+    {
+      "id": "FT-005",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Git Remote Configuration Issues",
+      "trigger": "Push/pull fails or goes to wrong remote",
+      "solution": "Loa tracks both origin (user's fork) and upstream (template). Check with: git remote -v. Reset if needed: git remote set-url origin <url>. For upstream template pushes, git-safety.sh blocks unless using /contribute.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 7,
+        "reusability": 9,
+        "trigger_clarity": 9,
+        "verification": 9
+      },
+      "tags": [
+        "git",
+        "remote",
+        "configuration",
+        "upstream"
+      ]
+    },
+    {
+      "id": "FT-006",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Cache Staleness Symptoms",
+      "trigger": "Oracle/search returns outdated or incorrect results",
+      "solution": "Semantic cache (cache-manager.sh) may have stale entries. Check with: cache-manager.sh status. Clear specific keys or all: cache-manager.sh clear [key]. Rebuild index: loa-learnings-index.sh index. Cache TTL is configurable in .loa.config.yaml.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 9,
+        "trigger_clarity": 8,
+        "verification": 9
+      },
+      "tags": [
+        "cache",
+        "staleness",
+        "oracle",
+        "search"
+      ]
+    },
+    {
+      "id": "FT-007",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "((var++)) Exit Code 1 with set -e",
+      "trigger": "Bash script exits unexpectedly during arithmetic operations",
+      "solution": "When var=0, ((var++)) evaluates to 0 which is falsy, returning exit code 1. With set -e, this terminates the script. Solutions: 1) Use ((++var)), 2) Use ((var++)) || true, 3) Initialize var=1, 4) Use var=$((var + 1)).",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 9,
+        "reusability": 10,
+        "trigger_clarity": 10,
+        "verification": 10
+      },
+      "tags": [
+        "bash",
+        "arithmetic",
+        "set-e",
+        "debugging"
+      ]
+    },
+    {
+      "id": "FT-008",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Empty Grimoires on Fresh Install",
+      "trigger": "Commands fail saying PRD/SDD/sprint files don't exist",
+      "solution": "Fresh installs have empty grimoires/loa/. Start workflow from /plan-and-analyze to create PRD, then /architect for SDD, then /sprint-plan. Use /loa command to see current state and next recommended step.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 7,
+        "reusability": 10,
+        "trigger_clarity": 10,
+        "verification": 10
+      },
+      "tags": [
+        "installation",
+        "workflow",
+        "grimoires",
+        "getting-started"
+      ]
+    },
+    {
+      "id": "FT-009",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Oracle Returns No Results on New Project",
+      "trigger": "/oracle query returns empty despite valid query",
+      "solution": "New projects lack project learnings (Tier 2). With Two-Tier architecture, framework learnings (Tier 1) should always return results. If still empty: 1) Check .claude/loa/learnings/ exists, 2) Run loa-learnings-index.sh index, 3) Verify query syntax.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 9,
+        "trigger_clarity": 9,
+        "verification": 9
+      },
+      "tags": [
+        "oracle",
+        "learnings",
+        "search",
+        "new-project"
+      ]
+    },
+    {
+      "id": "FT-010",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Symlink Issues on Windows",
+      "trigger": "Loa features fail on Windows, especially with git or npm",
+      "solution": "Windows symlinks require Developer Mode or admin rights. Enable in Settings > Developer settings > Developer Mode. Or run Git Bash as Administrator. Consider WSL2 for full Linux compatibility. Some features may have limited Windows support.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 7,
+        "reusability": 9,
+        "trigger_clarity": 9,
+        "verification": 8
+      },
+      "tags": [
+        "windows",
+        "symlinks",
+        "compatibility",
+        "wsl"
+      ]
+    },
+    {
+      "id": "FT-011",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Checksum Verification Failures",
+      "trigger": "Framework integrity check reports hash mismatch",
+      "solution": "Hash mismatch indicates file modification. Check with marker-utils.sh verify-hash <file>. If intentional edit, file should be in .claude/overrides/. If accidental, restore from upstream: git checkout origin/main -- <file>. Re-run /update-loa to sync.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 9,
+        "trigger_clarity": 9,
+        "verification": 9
+      },
+      "tags": [
+        "integrity",
+        "checksum",
+        "hash",
+        "verification"
+      ]
+    },
+    {
+      "id": "FT-012",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Skill Not Discovered by Claude Code",
+      "trigger": "Skill exists but Claude Code doesn't list or invoke it",
+      "solution": "Check: 1) index.yaml has valid name field matching directory, 2) SKILL.md exists with proper frontmatter, 3) skill directory is in .claude/skills/. Run /validate skills to check structure. Restart Claude Code session after adding skills.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 9,
+        "trigger_clarity": 9,
+        "verification": 9
+      },
+      "tags": [
+        "skills",
+        "discovery",
+        "claude-code",
+        "debugging"
+      ]
+    }
+  ]
+}

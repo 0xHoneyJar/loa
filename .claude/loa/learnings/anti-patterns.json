@@ -1,0 +1,200 @@
+{
+  "_loa_marker": {
+    "managed": true,
+    "version": "1.15.1",
+    "hash": "2a865144ebbe0c2c9c775c374c9277ad13940e35152b07d0c567c31570f0afa6"
+  },
+  "category": "anti-pattern",
+  "tier": "framework",
+  "learnings": [
+    {
+      "id": "FA-001",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "anti_pattern",
+      "title": "Arrow Function Closures Causing Memory Leaks",
+      "trigger": "Using arrow functions in event handlers or callbacks that capture outer scope",
+      "solution": "Avoid arrow functions that close over large objects or state. Use named functions or ensure closures are properly cleaned up. In React, use useCallback with proper dependencies. In Node.js event emitters, remove listeners when done.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 9,
+        "trigger_clarity": 8,
+        "verification": 9
+      },
+      "tags": [
+        "javascript",
+        "memory",
+        "closures",
+        "performance"
+      ]
+    },
+    {
+      "id": "FA-002",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "anti_pattern",
+      "title": "Hardcoded Version Fallbacks",
+      "trigger": "Implementing version checks or fallback logic",
+      "solution": "Never hardcode version numbers as fallbacks. Read from source of truth (.loa-version.json, package.json). Fail explicitly if version unavailable rather than silently using stale default. Log warnings when falling back.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 7,
+        "reusability": 9,
+        "trigger_clarity": 9,
+        "verification": 9
+      },
+      "tags": [
+        "versioning",
+        "configuration",
+        "fallbacks"
+      ]
+    },
+    {
+      "id": "FA-003",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "anti_pattern",
+      "title": "((var++)) with set -e in Bash",
+      "trigger": "Using arithmetic increment in bash scripts with errexit enabled",
+      "solution": "The expression ((var++)) returns exit code 1 when var is 0, causing script to exit with set -e. Use ((++var)) for pre-increment, or ((var++)) || true, or declare var as non-zero initially.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 9,
+        "reusability": 10,
+        "trigger_clarity": 10,
+        "verification": 10
+      },
+      "tags": [
+        "bash",
+        "scripting",
+        "set-e",
+        "arithmetic"
+      ]
+    },
+    {
+      "id": "FA-004",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "anti_pattern",
+      "title": "Unbounded Tool Result Accumulation",
+      "trigger": "Running multiple tool calls without clearing previous results",
+      "solution": "Monitor accumulated tool result tokens. Clear stale results before attention budget thresholds. Use condensation for large results (condense.sh). Mark cleared content with lightweight summaries for recovery.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 9,
+        "trigger_clarity": 8,
+        "verification": 9
+      },
+      "tags": [
+        "context",
+        "tokens",
+        "clearing",
+        "tools"
+      ]
+    },
+    {
+      "id": "FA-005",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "anti_pattern",
+      "title": "Silent Failure Without Status Messages",
+      "trigger": "Error handling in scripts or functions",
+      "solution": "Never fail silently. Always output status messages with [prefix] format (e.g., [loa-eject] Processing...). Use exit codes correctly. Log to stderr for errors, stdout for progress. Include actionable recovery instructions.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 7,
+        "reusability": 10,
+        "trigger_clarity": 9,
+        "verification": 9
+      },
+      "tags": [
+        "error-handling",
+        "logging",
+        "debugging"
+      ]
+    },
+    {
+      "id": "FA-006",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "anti_pattern",
+      "title": "Mixing Framework and Project Files",
+      "trigger": "Adding new files or modifying existing file locations",
+      "solution": "Maintain strict zone separation. Framework files go in .claude/ (System Zone), project state in grimoires/ (State Zone), application code in src/lib/app/ (App Zone). Never put project-specific content in System Zone or framework content in State Zone.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 10,
+        "trigger_clarity": 9,
+        "verification": 10
+      },
+      "tags": [
+        "architecture",
+        "zones",
+        "organization"
+      ]
+    },
+    {
+      "id": "FA-007",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "anti_pattern",
+      "title": "Skipping Security Audit Phase",
+      "trigger": "Rushing to deploy after implementation approval",
+      "solution": "Never skip the security audit phase (Phase 5.5). Even with tech lead approval, security auditor must review for OWASP Top 10, secrets exposure, injection vulnerabilities. Use /audit-sprint before creating COMPLETED marker.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 7,
+        "reusability": 10,
+        "trigger_clarity": 10,
+        "verification": 10
+      },
+      "tags": [
+        "security",
+        "audit",
+        "workflow",
+        "quality-gates"
+      ]
+    },
+    {
+      "id": "FA-008",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "anti_pattern",
+      "title": "Improper Gitignore Patterns for Grimoires",
+      "trigger": "Configuring .gitignore for project state files",
+      "solution": "Be precise with gitignore patterns. Use grimoires/loa/ to ignore private state but keep grimoires/pub/ tracked. Don't use grimoires/* with exceptions - use explicit paths. Test patterns with git status before committing.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 7,
+        "reusability": 9,
+        "trigger_clarity": 9,
+        "verification": 9
+      },
+      "tags": [
+        "git",
+        "gitignore",
+        "state",
+        "configuration"
+      ]
+    }
+  ]
+}

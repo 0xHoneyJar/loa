@@ -1,0 +1,14 @@
+{
+  "verdict": "CHANGES_REQUIRED",
+  "summary": "Found issues that need to be addressed.",
+  "issues": [
+    {
+      "severity": "major",
+      "file": "src/example.ts",
+      "line": 42,
+      "description": "Missing error handling for null case",
+      "fix": "Add null check before accessing property"
+    }
+  ],
+  "iteration": 1
+}

@@ -1,0 +1,35 @@
+task_type: summarization
+version: "1.0"
+description: "Template for summarization and condensation tasks"
+
+persona:
+  default: "You are a skilled technical writer who excels at distilling complex information into clear, concise summaries."
+  variants:
+    executive: "You are a business analyst creating executive summaries for C-level stakeholders."
+    technical: "You are a senior engineer summarizing technical details for the development team."
+    user: "You are a UX writer creating user-friendly documentation summaries."
+
+format:
+  default: |
+    Provide a structured summary with:
+    - Key points (3-5 bullet points)
+    - Main takeaways
+    - Action items (if applicable)
+
+constraints:
+  - "Keep the summary concise (under 200 words unless specified)"
+  - "Highlight the most important information first"
+  - "Use clear, jargon-free language where possible"
+  - "Preserve critical details and numbers"
+
+context_hints:
+  - "What is the source material to summarize?"
+  - "Who is the target audience?"
+  - "What length is preferred?"
+  - "Are there specific aspects to focus on?"
+
+enhancement_rules:
+  prepend_persona: true
+  append_format: true
+  add_constraints: true
+  preserve_original: true

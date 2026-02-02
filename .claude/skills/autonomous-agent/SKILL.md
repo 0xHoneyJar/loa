@@ -1,3 +1,59 @@
+<input_guardrails>
+## Pre-Execution Validation
+
+Before main skill execution, perform guardrail checks.
+
+### Step 1: Check Configuration
+
+Read `.loa.config.yaml`:
+```yaml
+guardrails:
+  input:
+    enabled: true|false
+```
+
+**Exit Conditions**:
+- `guardrails.input.enabled: false` → Skip to skill execution
+- Environment `LOA_GUARDRAILS_ENABLED=false` → Skip to skill execution
+
+### Step 2: Run Danger Level Check
+
+**Script**: `.claude/scripts/danger-level-enforcer.sh --skill autonomous-agent --mode {mode}`
+
+**CRITICAL**: This is a **high** danger level skill (full orchestration control).
+
+| Mode | Behavior |
+|------|----------|
+| Interactive | Require explicit confirmation with reason |
+| Autonomous | BLOCK (high-risk skill requires --allow-high) |
+
+**Note**: The autonomous-agent skill is classified as `high` rather than `critical`
+because it operates through other skills that have their own guardrails.
+The orchestrator itself doesn't directly execute dangerous operations.
+
+### Step 3: Run PII Filter
+
+**Script**: `.claude/scripts/pii-filter.sh`
+
+Detect and redact sensitive data before orchestration begins.
+Important for multi-phase execution where data flows between skills.
+
+### Step 4: Run Injection Detection
+
+**Script**: `.claude/scripts/injection-detect.sh --threshold 0.65`
+
+**Lower threshold** (0.65 vs default 0.7) because autonomous orchestration
+has higher impact potential. More conservative detection.
+
+### Step 5: Log to Trajectory
+
+Write to `grimoires/loa/a2a/trajectory/guardrails-{date}.jsonl`.
+
+### Error Handling
+
+On error: Log to trajectory, **fail-open** (continue to skill).
+</input_guardrails>
+
 # Autonomous Agent Orchestrator
 
 <objective>

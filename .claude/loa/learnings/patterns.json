@@ -1,0 +1,249 @@
+{
+  "_loa_marker": {
+    "managed": true,
+    "version": "1.15.1",
+    "hash": "5e0b0fe9fa0216dc779c8cdecfa3b772968d3a2bd70be4a56180404ba9aa366f"
+  },
+  "category": "pattern",
+  "tier": "framework",
+  "learnings": [
+    {
+      "id": "FP-001",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Three-Zone Model Architecture",
+      "trigger": "Setting up file organization or deciding where to place new files",
+      "solution": "Organize files into three zones: System Zone (.claude/) for framework-managed files, State Zone (grimoires/, .beads/) for project state, and App Zone (src/, lib/, app/) for developer code. System Zone is read-only, State Zone is read/write, App Zone requires confirmation.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 9,
+        "reusability": 10,
+        "trigger_clarity": 9,
+        "verification": 10
+      },
+      "tags": [
+        "architecture",
+        "organization",
+        "zones"
+      ]
+    },
+    {
+      "id": "FP-002",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "JIT Retrieval for Context Efficiency",
+      "trigger": "Working with limited context windows or needing to load information dynamically",
+      "solution": "Use Just-In-Time retrieval: load lightweight identifiers first, then fetch full content only when needed. Combine with semantic caching to avoid redundant fetches. Target <500ms retrieval latency.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 9,
+        "trigger_clarity": 8,
+        "verification": 9
+      },
+      "tags": [
+        "context",
+        "performance",
+        "retrieval",
+        "caching"
+      ]
+    },
+    {
+      "id": "FP-003",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Circuit Breaker for Autonomous Execution",
+      "trigger": "Running autonomous tasks that could loop indefinitely or repeat errors",
+      "solution": "Implement circuit breaker pattern with these triggers: same finding 3 times, 5 cycles with no progress, 20 total cycles max, 8-hour timeout. When triggered, halt execution and create draft PR with current state.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 9,
+        "reusability": 9,
+        "trigger_clarity": 10,
+        "verification": 10
+      },
+      "tags": [
+        "safety",
+        "autonomous",
+        "run-mode",
+        "circuit-breaker"
+      ]
+    },
+    {
+      "id": "FP-004",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Managed Scaffolding (Projen-Style)",
+      "trigger": "Creating framework files that need to be updatable while preserving customizations",
+      "solution": "Use magic markers with SHA-256 hashes to track managed files. Files include _loa_marker metadata for JSON or comment markers for other formats. This enables framework updates while detecting user modifications.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 9,
+        "reusability": 8,
+        "trigger_clarity": 8,
+        "verification": 10
+      },
+      "tags": [
+        "scaffolding",
+        "markers",
+        "integrity",
+        "updates"
+      ]
+    },
+    {
+      "id": "FP-005",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Two-Phase Code Review",
+      "trigger": "Reviewing implementation before deployment",
+      "solution": "Use two-phase review: 1) Tech Lead review (reviewing-code skill) validates implementation quality and provides feedback, 2) Security Auditor review (auditing-security skill) validates security posture. Both must approve before sprint completion.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 9,
+        "trigger_clarity": 9,
+        "verification": 10
+      },
+      "tags": [
+        "review",
+        "security",
+        "quality-gates"
+      ]
+    },
+    {
+      "id": "FP-006",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Goal Traceability with G-IDs",
+      "trigger": "Ensuring PRD goals are tracked through implementation to validation",
+      "solution": "Assign unique G-IDs (G-1, G-2, etc.) to PRD goals. Sprint plans include Appendix C mapping goals to contributing tasks. Final sprint includes E2E validation task. Goal-validator subagent verifies achievement at review time.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 8,
+        "trigger_clarity": 9,
+        "verification": 9
+      },
+      "tags": [
+        "goals",
+        "traceability",
+        "validation",
+        "prd"
+      ]
+    },
+    {
+      "id": "FP-007",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Lossless Ledger Protocol",
+      "trigger": "Managing context across sessions without losing important information",
+      "solution": "Follow truth hierarchy: CODE > BEADS > NOTES.md > TRAJECTORY > PRD/SDD. Clear tool results, don't compact decision records. Synthesize to NOTES.md before context window fills. Use session continuity anchors for recovery.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 9,
+        "reusability": 8,
+        "trigger_clarity": 8,
+        "verification": 9
+      },
+      "tags": [
+        "context",
+        "memory",
+        "ledger",
+        "continuity"
+      ]
+    },
+    {
+      "id": "FP-008",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Attention Budget Enforcement",
+      "trigger": "Running high-search skills that accumulate large tool results",
+      "solution": "Define token thresholds per skill (2K single, 5K accumulated, 15K session typical). Include <attention_budget> sections in skill definitions. Trigger clearing when thresholds reached. Use semantic decay stages for long sessions.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 8,
+        "trigger_clarity": 9,
+        "verification": 8
+      },
+      "tags": [
+        "context",
+        "attention",
+        "tokens",
+        "clearing"
+      ]
+    },
+    {
+      "id": "FP-009",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Skill 3-Level Architecture",
+      "trigger": "Creating new skills that need to balance completeness with token efficiency",
+      "solution": "Structure skills in 3 levels: Level 1 (index.yaml, ~100 tokens) for metadata, Level 2 (SKILL.md, ~2000 tokens) for KERNEL instructions, Level 3 (resources/) for references, templates, and scripts. Load progressively based on need.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 9,
+        "reusability": 10,
+        "trigger_clarity": 9,
+        "verification": 10
+      },
+      "tags": [
+        "skills",
+        "architecture",
+        "tokens",
+        "structure"
+      ]
+    },
+    {
+      "id": "FP-010",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Two-Tier Learnings Architecture",
+      "trigger": "Querying learnings when project might not have accumulated any yet",
+      "solution": "Separate learnings into two tiers: Framework (Tier 1) in .claude/loa/learnings/ ships with Loa, Project (Tier 2) in grimoires/ accumulates per-project. Query both tiers in parallel, merge with weights (framework=1.0, project=0.9), deduplicate by content hash.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 9,
+        "reusability": 9,
+        "trigger_clarity": 9,
+        "verification": 8
+      },
+      "tags": [
+        "learnings",
+        "tiers",
+        "oracle",
+        "knowledge"
+      ]
+    }
+  ]
+}

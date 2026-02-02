@@ -1,0 +1,168 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "gpt-review-response.schema.json",
+  "title": "GPT Review Response",
+  "description": "Schema for GPT 5.2 cross-model review responses",
+  "type": "object",
+  "required": ["verdict"],
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": ["SKIPPED", "APPROVED", "CHANGES_REQUIRED", "DECISION_NEEDED"],
+      "description": "Review verdict"
+    },
+    "summary": {
+      "type": "string",
+      "description": "One sentence summary of the review"
+    },
+    "reason": {
+      "type": "string",
+      "description": "Reason for SKIPPED verdict (required when verdict is SKIPPED)"
+    },
+    "question": {
+      "type": "string",
+      "description": "Question for user (required when verdict is DECISION_NEEDED)"
+    },
+    "issues": {
+      "type": "array",
+      "description": "Code review issues (for code reviews)",
+      "items": {
+        "type": "object",
+        "required": ["severity", "file", "description", "fixed_code"],
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "major"]
+          },
+          "file": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          },
+          "current_code": {
+            "type": "string"
+          },
+          "fixed_code": {
+            "type": "string"
+          },
+          "explanation": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "blocking_issues": {
+      "type": "array",
+      "description": "Document review blocking issues (for PRD/SDD/Sprint reviews)",
+      "items": {
+        "type": "object",
+        "required": ["location", "issue", "fix"],
+        "properties": {
+          "location": {
+            "type": "string"
+          },
+          "issue": {
+            "type": "string"
+          },
+          "why_blocking": {
+            "type": "string"
+          },
+          "fix": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "fabrication_check": {
+      "type": "object",
+      "description": "Fabrication detection results (for code reviews)",
+      "properties": {
+        "passed": {
+          "type": "boolean"
+        },
+        "concerns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "previous_issues_status": {
+      "type": "array",
+      "description": "Status of previous issues (for re-reviews)",
+      "items": {
+        "type": "object",
+        "required": ["original_issue", "status"],
+        "properties": {
+          "original_issue": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["fixed", "rejected_with_valid_reason", "not_fixed"]
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "new_blocking_concerns": {
+      "type": "array",
+      "description": "New concerns introduced by fixes (for re-reviews)",
+      "items": {
+        "type": "object",
+        "required": ["location", "description", "fix"],
+        "properties": {
+          "location": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "why_blocking": {
+            "type": "string"
+          },
+          "fix": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "iteration": {
+      "type": "integer",
+      "description": "Review iteration number"
+    },
+    "auto_approved": {
+      "type": "boolean",
+      "description": "Whether this was auto-approved due to max iterations"
+    },
+    "note": {
+      "type": "string",
+      "description": "Additional notes"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "verdict": { "const": "SKIPPED" } }
+      },
+      "then": {
+        "required": ["reason"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "verdict": { "const": "DECISION_NEEDED" } }
+      },
+      "then": {
+        "required": ["question"]
+      }
+    }
+  ]
+}

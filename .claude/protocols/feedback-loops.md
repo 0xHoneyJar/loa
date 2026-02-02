@@ -112,6 +112,9 @@ DevOps → Security Auditor → DevOps → ... → Deployment Approval
 grimoires/loa/a2a/
 ├── index.md                         # Sprint audit trail index (auto-maintained)
 ├── integration-context.md           # Feedback configuration
+├── trajectory/                      # v1.20.0: Guardrail and handoff logs
+│   ├── guardrails-2026-02-03.jsonl  # Input guardrail events
+│   └── ...
 ├── sprint-1/
 │   ├── reviewer.md                  # Engineer implementation report
 │   ├── engineer-feedback.md         # Senior lead feedback
@@ -121,6 +124,58 @@ grimoires/loa/a2a/
 │   └── ...
 ├── deployment-report.md             # DevOps infrastructure report
 └── deployment-feedback.md           # Deployment security audit feedback
+```
+
+## Handoff Logging (v1.20.0)
+
+When agents hand off work to each other, explicit handoff events are logged to trajectory.
+
+### Logging Handoffs
+
+Use `.claude/scripts/log-handoff.sh`:
+
+```bash
+# Log handoff from implementing-tasks to reviewing-code
+log-handoff.sh --from implementing-tasks --to reviewing-code \
+  --artifact grimoires/loa/a2a/sprint-1/reviewer.md \
+  --context sprint_id --context task_list
+```
+
+### Handoff Event Format
+
+```json
+{
+  "type": "handoff",
+  "timestamp": "2026-02-03T10:35:00Z",
+  "session_id": "abc123",
+  "skill": "implementing-tasks",
+  "action": "PROCEED",
+  "from_agent": "implementing-tasks",
+  "to_agent": "reviewing-code",
+  "handoff_type": "file_based",
+  "artifacts": [
+    {"path": "grimoires/loa/a2a/sprint-1/reviewer.md", "size_bytes": 2048}
+  ],
+  "context_preserved": ["sprint_id", "task_list", "commit_hash"]
+}
+```
+
+### When to Log Handoffs
+
+| Transition | Artifacts | Context |
+|------------|-----------|---------|
+| Implement → Review | `reviewer.md` | sprint_id, task_list |
+| Review → Audit | `engineer-feedback.md` | sprint_id, approval_status |
+| Audit → Next Sprint | `COMPLETED` marker | sprint_id, audit_verdict |
+| DevOps → Audit | `deployment-report.md` | environment, infra_type |
+
+### Configuration
+
+```yaml
+# .loa.config.yaml
+guardrails:
+  logging:
+    handoffs: true  # Enable handoff logging
 ```
 
 ## Complete Sprint Workflow

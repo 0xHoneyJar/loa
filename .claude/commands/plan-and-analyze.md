@@ -19,6 +19,11 @@ agent: "discovering-requirements"
 agent_path: "skills/discovering-requirements/"
 
 context_files:
+  # GPT review instructions (conditional - only exists if enabled)
+  - path: ".claude/context/gpt-review-active.md"
+    required: false
+    purpose: "GPT cross-model review instructions (if enabled)"
+
   # Priority 1: Reality files (codebase understanding from /ride)
   - path: "grimoires/loa/reality/extracted-prd.md"
     required: false

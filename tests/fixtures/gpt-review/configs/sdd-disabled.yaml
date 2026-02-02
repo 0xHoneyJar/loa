@@ -1,0 +1,7 @@
+gpt_review:
+  enabled: true
+  phases:
+    prd: true
+    sdd: false
+    sprint: true
+    code: true

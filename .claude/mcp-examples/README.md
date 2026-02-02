@@ -26,6 +26,7 @@ MCP servers extend Claude's capabilities by connecting to external services. Thi
 | [github.json](./github.json) | GitHub | Read + Write | MEDIUM |
 | [sentry.json](./sentry.json) | Sentry | Read only | LOW |
 | [postgres.json](./postgres.json) | PostgreSQL | Read + Write | CRITICAL |
+| [dev-browser.json](./dev-browser.json) | Browser Automation | Local only | MEDIUM |
 
 ## Example Format
 

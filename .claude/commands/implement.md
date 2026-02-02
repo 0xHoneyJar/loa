@@ -19,6 +19,9 @@ agent: "implementing-tasks"
 agent_path: "skills/implementing-tasks/"
 
 context_files:
+  - path: ".claude/context/gpt-review-active.md"
+    required: false
+    purpose: "GPT cross-model review instructions (if enabled)"
   - path: "grimoires/loa/a2a/integration-context.md"
     required: false
     purpose: "Organizational context and MCP tools"

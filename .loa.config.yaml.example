@@ -1,0 +1,387 @@
+# =============================================================================
+# Loa Framework Configuration Examples
+# =============================================================================
+# This file contains comprehensive configuration examples for .loa.config.yaml
+# Copy sections you need to your .loa.config.yaml file.
+#
+# For documentation on each option, see:
+# - .claude/loa/reference/config-reference.md
+# - CHANGELOG.md for version-specific features
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Plan and Analyze (v1.6.0)
+# -----------------------------------------------------------------------------
+plan_and_analyze:
+  codebase_grounding:
+    enabled: true
+    reality_staleness_days: 7
+    ride_timeout_minutes: 20
+    skip_on_ride_error: false
+
+# -----------------------------------------------------------------------------
+# Autonomous Agent (v1.11.0)
+# -----------------------------------------------------------------------------
+autonomous_agent:
+  operator:
+    type: auto  # auto | human | ai
+  audit_threshold: 4
+  max_remediation_loops: 3
+  context:
+    soft_limit_tokens: 80000
+    hard_limit_tokens: 150000
+
+# -----------------------------------------------------------------------------
+# Goal Traceability (v0.21.0)
+# -----------------------------------------------------------------------------
+goal_traceability:
+  enabled: true              # Enable goal ID system
+  require_goal_ids: false    # Require G-N IDs in PRD (backward compat)
+  auto_assign_ids: true      # Auto-assign if missing
+  generate_appendix_c: true  # Generate goal mapping in sprint
+  generate_e2e_task: true    # Auto-generate E2E validation task
+
+goal_validation:
+  enabled: true              # Enable goal validation
+  block_on_at_risk: false    # Block review on AT_RISK (default: warn)
+  block_on_blocked: true     # Block review on BLOCKED
+  require_e2e_task: true     # Require E2E task in final sprint
+
+# -----------------------------------------------------------------------------
+# Effort Parameter (v1.13.0)
+# -----------------------------------------------------------------------------
+effort:
+  default_level: medium
+  budget_ranges:
+    low: { min: 1024, max: 4000 }
+    medium: { min: 8000, max: 16000 }
+    high: { min: 24000, max: 32000 }
+  per_skill:
+    auditing-security: high
+    designing-architecture: high
+    implementing-tasks: medium
+    translating-for-executives: low
+
+# -----------------------------------------------------------------------------
+# Context Editing (v1.13.0)
+# -----------------------------------------------------------------------------
+context_editing:
+  enabled: true
+  compact_threshold_percent: 80
+  preserve_recent_turns: 5
+  clear_targets:
+    - stale_tool_results
+    - completed_phase_details
+    - superseded_file_reads
+  preserve_artifacts:
+    - trajectory_events
+    - quality_gate_results
+    - decision_records
+
+# -----------------------------------------------------------------------------
+# Memory Schema (v1.13.0)
+# -----------------------------------------------------------------------------
+memory_schema:
+  enabled: true
+  storage_dir: grimoires/loa/memory
+  auto_capture:
+    decisions: true
+    errors: true
+    learnings: true
+  retrieval:
+    max_per_query: 10
+    min_confidence: 0.6
+  lifecycle:
+    auto_archive: true
+    check_on_session_start: true
+
+# -----------------------------------------------------------------------------
+# Skills (v1.14.0)
+# -----------------------------------------------------------------------------
+skills:
+  defer_loading: false        # Config prep only (runtime Phase 2)
+  always_load:
+    - autonomous-agent
+    - run-mode
+  categories:
+    planning: [discovering-requirements, planning-sprints, designing-architecture]
+    implementation: [implementing-tasks, deploying-infrastructure]
+    quality: [reviewing-code, auditing-security]
+    support: [translating-for-executives, continuous-learning]
+    operations: [autonomous-agent, run-mode, riding-codebase, mounting-framework]
+
+# -----------------------------------------------------------------------------
+# Learnings / Two-Tier Architecture (v1.15.1)
+# -----------------------------------------------------------------------------
+learnings:
+  tiers:
+    framework:
+      enabled: true
+      weight: 1.0
+    project:
+      enabled: true
+      weight: 0.9
+  query:
+    default_tier: all  # framework | project | all
+    max_results: 10
+
+# -----------------------------------------------------------------------------
+# Oracle (v1.11.0)
+# -----------------------------------------------------------------------------
+oracle:
+  weights:
+    loa: 1.0
+    anthropic: 0.8
+    community: 0.5
+  query:
+    default_indexer: auto  # auto | qmd | grep
+    default_limit: 10
+    default_scope: all
+
+# -----------------------------------------------------------------------------
+# Compound Learning (v1.10.0)
+# -----------------------------------------------------------------------------
+compound_learning:
+  enabled: true
+  pattern_detection:
+    min_occurrences: 2
+    similarity_threshold: 0.6
+  quality_gates:
+    discovery_depth: { min_score: 5 }
+    reusability: { min_score: 5 }
+
+# -----------------------------------------------------------------------------
+# Visual Communication (v2.0.0)
+# -----------------------------------------------------------------------------
+visual_communication:
+  enabled: true
+  mode: "github"   # github (default) | render | url
+  theme: "github"  # github|dracula|nord|tokyo-night|solarized-light|solarized-dark|catppuccin
+
+  # Local rendering options (for mode: render)
+  local_render:
+    output_format: "svg"  # svg | png
+    output_dir: "grimoires/loa/diagrams/"
+
+  # Legacy URL options (for mode: url)
+  service: "https://agents.craft.do/mermaid"  # External service URL
+  include_preview_urls: false  # Generate preview links (legacy)
+
+# -----------------------------------------------------------------------------
+# Agent Browser (v2.0.0)
+# -----------------------------------------------------------------------------
+agent_browser:
+  enabled: false              # Opt-in (default: false)
+  tool: "dev-browser"         # MCP server to use
+  mode: "headless"            # headless | extension
+  session_persistence: true   # Keep sessions between calls
+  screenshot_dir: "grimoires/loa/screenshots/"
+  timeout_ms: 30000           # Navigation timeout
+
+# -----------------------------------------------------------------------------
+# Prompt Enhancement (v1.14.0 + Invisible Mode v1.17.0)
+# -----------------------------------------------------------------------------
+prompt_enhancement:
+  enabled: true
+  auto_enhance_threshold: 4
+  show_analysis: true
+  max_refinement_iterations: 3
+
+  # Invisible mode: automatically enhance prompts without user visibility
+  invisible_mode:
+    enabled: true              # Enable invisible enhancement for all commands
+    log_to_trajectory: true    # Log activity to trajectory for debugging
+    timeout_ms: 500            # Maximum time for enhancement (advisory)
+
+  # Middleware configuration
+  middleware:
+    enabled: true              # Enable middleware mode (enhancement before skill)
+    exclude_skills:            # Skills excluded from enhancement
+      - "enhancing-prompts"    # Prevent recursion
+      - "run-mode"             # Don't enhance autonomous mode
+    exclude_commands: []       # Additional commands to exclude
+
+# -----------------------------------------------------------------------------
+# URL Registry (v1.15.1)
+# -----------------------------------------------------------------------------
+url_registry:
+  enabled: true
+  placeholder_domain: your-domain.example.com
+  warn_on_missing: true
+
+# -----------------------------------------------------------------------------
+# Feedback Routing (v1.11.0)
+# -----------------------------------------------------------------------------
+feedback:
+  routing:
+    enabled: true           # Enable smart routing
+    auto_classify: true     # Auto-detect target repo
+    require_confirmation: true  # Always confirm with user
+  labels:
+    graceful_missing: true  # Don't fail on missing labels
+
+# -----------------------------------------------------------------------------
+# Update Loa / Branch Testing (v1.11.0)
+# -----------------------------------------------------------------------------
+update_loa:
+  branch_testing:
+    enabled: true
+    feature_patterns: ["feature/*", "fix/*", "topic/*", "wip/*", "test/*"]
+    test_branch_prefix: "test/loa-"
+
+# -----------------------------------------------------------------------------
+# Run Mode
+# -----------------------------------------------------------------------------
+run_mode:
+  enabled: true
+  defaults:
+    max_cycles: 20
+    timeout_hours: 8
+  sprint_plan:
+    branch_prefix: "feature/"
+    default_branch_name: "release"
+    consolidate_pr: true
+    commit_prefix: "feat"
+    include_commits_by_sprint: true
+
+# -----------------------------------------------------------------------------
+# Search Orchestration (v1.7.0)
+# -----------------------------------------------------------------------------
+prefer_ck: true  # Use ck when available
+
+# -----------------------------------------------------------------------------
+# Upstream Learning Flow (v1.17.0)
+# -----------------------------------------------------------------------------
+upstream_detection:
+  enabled: true
+  min_occurrences: 3
+  min_success_rate: 0.8
+  min_upstream_score: 70
+
+upstream_proposals:
+  target_repo: "0xHoneyJar/loa"
+  label: "learning-proposal"
+  anonymization:
+    enabled: true
+  rejection_cooldown_days: 90
+
+# -----------------------------------------------------------------------------
+# Input Guardrails & Danger Level Enforcement (v1.20.0)
+# -----------------------------------------------------------------------------
+# Pre-execution validation for skill invocations. Provides PII filtering,
+# injection detection, and relevance checking before skills execute.
+# Based on OpenAI's "A Practical Guide to Building Agents" guardrails pattern.
+guardrails:
+  # Input guardrails (pre-execution)
+  input:
+    enabled: true
+
+    # PII Filter: Detect and redact sensitive data before processing
+    # Actions: redact (replace with placeholder), anonymize (generic value)
+    pii_filter:
+      enabled: true
+      mode: blocking              # blocking | parallel | advisory
+      patterns:
+        api_keys: true            # sk-*, ghp_*, AKIA*
+        emails: true              # user@example.com
+        phone_numbers: true       # 555-123-4567
+        ssn: true                 # 123-45-6789
+        credit_cards: true        # 4111-1111-1111-1111
+        jwt_tokens: true          # eyJ... tokens
+        private_keys: true        # -----BEGIN PRIVATE KEY-----
+        file_paths: anonymize     # anonymize | redact | ignore
+      log_redactions: true        # Log redaction count (never values)
+
+    # Injection Detection: Check for prompt injection patterns
+    # Score threshold: 0.0-1.0 (higher = more strict)
+    injection_detection:
+      enabled: true
+      mode: blocking
+      threshold: 0.7              # Range: 0.0-1.0 (default: 0.7)
+      patterns:
+        - instruction_override    # "ignore previous", "disregard"
+        - role_confusion          # "you are now", "act as"
+        - context_manipulation    # "system prompt", "debug mode"
+        - encoding_evasion        # base64, unicode tricks
+
+    # Relevance Check: Verify request matches skill purpose
+    # Note: High false positive rate - recommended mode: advisory or parallel
+    relevance_check:
+      enabled: false              # Disabled by default (high FP rate)
+      mode: advisory
+      confidence_threshold: 0.8   # Range: 0.0-1.0 (default: 0.8)
+
+  # Tripwire: Halt execution on parallel guardrail failure
+  tripwire:
+    enabled: true
+    on_failure: halt              # halt | warn | log
+    rollback_on_halt: false       # Revert uncommitted changes (experimental)
+
+  # Danger Level Enforcement: Tool risk classification
+  # Levels: safe, moderate, high, critical
+  danger_level:
+    enforce: true
+    interactive:
+      safe: execute               # Execute immediately
+      moderate: execute_with_notice  # Brief notice in output
+      high: confirm_required      # Require explicit confirmation
+      critical: confirm_with_reason  # Confirm + explain why
+    autonomous:
+      safe: execute               # Execute immediately
+      moderate: execute_with_log  # Execute with enhanced logging
+      high: block_without_flag    # BLOCK unless --allow-high
+      critical: always_block      # ALWAYS BLOCK (no override)
+
+  # Trajectory logging for guardrail events
+  logging:
+    enabled: true
+    input_guardrails: true
+    danger_level_decisions: true
+    handoffs: true
+    redaction_audit: true         # Log redaction counts for audit
+
+# -----------------------------------------------------------------------------
+# Invisible Retrospective Learning (v1.19.0)
+# -----------------------------------------------------------------------------
+# Automatic learning detection during skill execution without user invocation.
+# Uses skill postludes to silently scan for discoveries and extract learnings.
+# Mirrors the invisible prompt enhancement pattern from v1.17.0.
+invisible_retrospective:
+  # Master toggle - set to false to disable all invisible retrospective
+  enabled: true
+
+  # Always log to trajectory (even when disabled) - useful for debugging
+  log_to_trajectory: true
+
+  # Minimum quality gates passed to surface finding (out of 4)
+  # Gates: Depth, Reusability, Trigger Clarity, Verification
+  # Range: 0-4 (0 = surface everything, 4 = maximum strictness)
+  surface_threshold: 3
+
+  # Maximum candidates to evaluate per skill invocation
+  # Range: 1-20 (recommended max: 10, higher values increase processing time)
+  max_candidates: 5
+
+  # Maximum learnings to extract per session (prevents noise)
+  # Range: 1-10 (recommended max: 5, higher values may flood NOTES.md)
+  max_extractions_per_session: 3
+
+  # Sanitize descriptions before logging (redacts API keys, paths, emails, etc.)
+  # CRITICAL: Do NOT disable in production - defense in depth applies sanitization even if false
+  sanitize_descriptions: true
+
+  # Per-skill enablement (only skills with postludes support this)
+  skills:
+    implementing-tasks: true     # High discovery potential (bugs, debugging)
+    auditing-security: true      # Security patterns and findings
+    reviewing-code: true         # Code review insights
+    deploying-infrastructure: false  # Lower discovery potential
+    designing-architecture: false    # Lower discovery potential
+
+  # Quality gate toggles (all default to true)
+  # Disable specific gates if they're too strict for your use case
+  quality_gates:
+    require_depth: true          # Gate 1: Discovery required multiple steps
+    require_reusability: true    # Gate 2: Generalizable beyond this instance
+    require_trigger_clarity: true # Gate 3: Clear when to apply learning
+    require_verification: true   # Gate 4: Solution confirmed working

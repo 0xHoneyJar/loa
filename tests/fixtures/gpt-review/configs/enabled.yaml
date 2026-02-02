@@ -1,0 +1,12 @@
+gpt_review:
+  enabled: true
+  timeout_seconds: 300
+  max_iterations: 3
+  models:
+    documents: "gpt-5.2"
+    code: "gpt-5.2-codex"
+  phases:
+    prd: true
+    sdd: true
+    sprint: true
+    code: true
