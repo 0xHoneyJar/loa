@@ -144,6 +144,63 @@ All actions are visible for human review:
 3. **Full Trajectory**: Complete audit trail in `grimoires/loa/a2a/trajectory/`
 4. **State Persistence**: `.run/state.json` shows current progress
 
+### Level 5: Danger Level Enforcement (v1.20.0)
+
+Skills are classified by risk level and enforced before execution.
+
+#### Danger Levels in Autonomous Mode
+
+| Level | Behavior |
+|-------|----------|
+| **safe** | Execute immediately |
+| **moderate** | Execute with enhanced logging |
+| **high** | BLOCK unless `--allow-high` flag |
+| **critical** | ALWAYS BLOCK (no override) |
+
+#### Skill Classifications
+
+| Skill | Level | Rationale |
+|-------|-------|-----------|
+| `implementing-tasks` | moderate | Writes code files |
+| `deploying-infrastructure` | high | Creates infrastructure |
+| `run-mode` | high | Autonomous execution |
+| `autonomous-agent` | high | Full orchestration control |
+
+#### Using --allow-high
+
+```bash
+# Execute with high-risk skills allowed
+/run sprint-1 --allow-high
+/run sprint-plan --allow-high
+```
+
+**Warning**: The `--allow-high` flag allows skills that can create infrastructure
+or perform external operations. Use with caution.
+
+#### Input Guardrails
+
+Before each skill invocation in Run Mode:
+
+1. **Danger Level Check** - Verify skill allowed in autonomous mode
+2. **PII Filter** - Redact sensitive data from input
+3. **Injection Detection** - Check for prompt manipulation
+
+All guardrail events logged to `trajectory/guardrails-{date}.jsonl`.
+
+#### Configuration
+
+```yaml
+# .loa.config.yaml
+guardrails:
+  danger_level:
+    enforce: true
+    autonomous:
+      safe: execute
+      moderate: execute_with_log
+      high: block_without_flag
+      critical: always_block
+```
+
 ## Execution Flow
 
 ### State Machine
