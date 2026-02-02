@@ -1,0 +1,287 @@
+{
+  "category": "mixed",
+  "tier": "framework",
+  "learnings": [
+    {
+      "id": "AHE-001",
+      "tier": "framework",
+      "type": "pattern",
+      "version_added": "1.16.0",
+      "source_origin": "project-retrospective",
+      "title": "PTCF Framework for Prompt Enhancement",
+      "context": "Discovered during prompt-enhancement cycle (sprints 17-19)",
+      "trigger": "When creating or improving prompts for AI agents, use structured framework",
+      "solution": "Apply PTCF: Persona (role definition) + Task (clear action) + Context (constraints, examples) + Format (expected output structure). Score prompts 0-10 on component completeness.",
+      "verified": true,
+      "tags": [
+        "prompts",
+        "enhancement",
+        "framework"
+      ],
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 9,
+        "trigger_clarity": 8,
+        "verification": 9
+      }
+    },
+    {
+      "id": "AHE-002",
+      "tier": "framework",
+      "type": "pattern",
+      "version_added": "1.16.0",
+      "source_origin": "project-retrospective",
+      "title": "Skill Index Metadata for Deferred Loading",
+      "context": "Discovered during skill-best-practices cycle (sprints 13-15)",
+      "trigger": "When designing skill systems with many skills, optimize token usage",
+      "solution": "Use 3-level skill architecture: Level 1 (index.yaml ~100 tokens) for discovery, Level 2 (SKILL.md ~2000 tokens) for execution, Level 3 (resources/) for deep references. Include effort_hint, danger_level, categories in index.",
+      "verified": true,
+      "tags": [
+        "skills",
+        "performance",
+        "architecture"
+      ],
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 9,
+        "trigger_clarity": 7,
+        "verification": 8
+      }
+    },
+    {
+      "id": "AHE-003",
+      "tier": "framework",
+      "type": "pattern",
+      "version_added": "1.16.0",
+      "source_origin": "project-retrospective",
+      "title": "Effort Parameter Budget Mapping",
+      "context": "Discovered during anthropic-context-features cycle",
+      "trigger": "When implementing extended thinking with budget control",
+      "solution": "Map conceptual effort levels to budget_tokens: low (1K-4K), medium (8K-16K), high (24K-32K). Leave intentional gaps between ranges as separation zones. Skills declare effort_hint, runtime maps to actual budget.",
+      "verified": true,
+      "tags": [
+        "effort",
+        "thinking",
+        "anthropic"
+      ],
+      "quality_gates": {
+        "discovery_depth": 7,
+        "reusability": 8,
+        "trigger_clarity": 8,
+        "verification": 8
+      }
+    },
+    {
+      "id": "AHE-004",
+      "tier": "framework",
+      "type": "anti-pattern",
+      "version_added": "1.16.0",
+      "source_origin": "project-retrospective",
+      "title": "Avoid Runtime Assumptions in Configuration",
+      "context": "Discovered during skill-best-practices implementation",
+      "trigger": "When adding configuration for features that require runtime support",
+      "solution": "Never assume runtime capabilities. Mark config as 'prep only' when runtime implementation is pending. Use explicit flags like defer_loading: false with comments explaining future phases.",
+      "verified": true,
+      "tags": [
+        "configuration",
+        "runtime",
+        "planning"
+      ],
+      "quality_gates": {
+        "discovery_depth": 6,
+        "reusability": 8,
+        "trigger_clarity": 7,
+        "verification": 7
+      }
+    },
+    {
+      "id": "AHE-005",
+      "tier": "framework",
+      "type": "pattern",
+      "version_added": "1.16.0",
+      "source_origin": "project-retrospective",
+      "title": "Quality Scoring with Component Breakdown",
+      "context": "Discovered during prompt-enhancement quality analysis",
+      "trigger": "When evaluating quality of artifacts (prompts, learnings, proposals)",
+      "solution": "Use weighted component scoring with transparency: show breakdown (e.g., task=2, context=1, format=0, total=3/10). This enables targeted improvement guidance rather than opaque pass/fail.",
+      "verified": true,
+      "tags": [
+        "quality",
+        "scoring",
+        "feedback"
+      ],
+      "quality_gates": {
+        "discovery_depth": 7,
+        "reusability": 9,
+        "trigger_clarity": 8,
+        "verification": 8
+      }
+    },
+    {
+      "id": "AHE-006",
+      "tier": "framework",
+      "type": "decision",
+      "version_added": "1.16.0",
+      "source_origin": "project-retrospective",
+      "title": "Task Type Detection Before Enhancement",
+      "context": "Architecture decision during prompt-enhancement skill design",
+      "trigger": "When building prompt enhancement or similar transformation tools",
+      "solution": "Detect task type first (debugging, refactoring, generation, etc.) before applying templates. Different task types have different optimal structures. Allow override via flag when auto-detection fails.",
+      "verified": true,
+      "tags": [
+        "prompts",
+        "detection",
+        "templates"
+      ],
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 8,
+        "trigger_clarity": 8,
+        "verification": 9
+      }
+    },
+    {
+      "id": "AHE-007",
+      "tier": "framework",
+      "type": "troubleshooting",
+      "version_added": "1.16.0",
+      "source_origin": "project-retrospective",
+      "title": "JSON Schema $ref Resolution in Nested Objects",
+      "context": "Issue during learnings schema extension",
+      "trigger": "Schema validation fails on $ref references in nested definitions",
+      "solution": "Use definitions/ section at root level, reference via #/definitions/name. For JSON schema draft-07, ensure oneOf/anyOf patterns properly isolate mutually exclusive schemas. Test with ajv or similar validator before deployment.",
+      "verified": true,
+      "tags": [
+        "json-schema",
+        "validation",
+        "troubleshooting"
+      ],
+      "quality_gates": {
+        "discovery_depth": 7,
+        "reusability": 7,
+        "trigger_clarity": 8,
+        "verification": 8
+      }
+    },
+    {
+      "id": "AHE-008",
+      "tier": "framework",
+      "type": "pattern",
+      "version_added": "1.16.0",
+      "source_origin": "project-retrospective",
+      "title": "Graceful Degradation with Feature Detection",
+      "context": "Discovered across multiple cycles when handling optional dependencies",
+      "trigger": "When building features that depend on optional tools (yq, jq, ck, gh)",
+      "solution": "Always check command availability with 'command -v'. Provide meaningful fallbacks. Example: semantic search falls back to keyword search, JSON processing falls back to grep patterns. Never fail silently.",
+      "verified": true,
+      "tags": [
+        "dependencies",
+        "fallback",
+        "robustness"
+      ],
+      "quality_gates": {
+        "discovery_depth": 6,
+        "reusability": 9,
+        "trigger_clarity": 8,
+        "verification": 9
+      }
+    },
+    {
+      "id": "AHE-009",
+      "tier": "framework",
+      "type": "anti-pattern",
+      "version_added": "1.16.0",
+      "source_origin": "project-retrospective",
+      "title": "Avoid Hardcoded Thresholds Without Config",
+      "context": "Discovered during upstream detection implementation",
+      "trigger": "When implementing scoring systems or eligibility checks",
+      "solution": "Never hardcode thresholds like '70' or '0.8' directly. Always read from config with sensible defaults. Example: read_config '.upstream_detection.min_upstream_score' '70'. This enables tuning without code changes.",
+      "verified": true,
+      "tags": [
+        "configuration",
+        "thresholds",
+        "flexibility"
+      ],
+      "quality_gates": {
+        "discovery_depth": 5,
+        "reusability": 9,
+        "trigger_clarity": 8,
+        "verification": 9
+      }
+    },
+    {
+      "id": "AHE-010",
+      "tier": "framework",
+      "type": "pattern",
+      "version_added": "1.16.0",
+      "source_origin": "project-retrospective",
+      "title": "Dry Run Mode for Destructive Operations",
+      "context": "Best practice applied consistently across Loa scripts",
+      "trigger": "When implementing commands that create external resources (issues, PRs, files)",
+      "solution": "Always support --dry-run flag that shows exactly what would happen without executing. For proposal-generator: show full issue body, target repo, labels. Helps users verify before committing.",
+      "verified": true,
+      "tags": [
+        "safety",
+        "preview",
+        "ux"
+      ],
+      "quality_gates": {
+        "discovery_depth": 5,
+        "reusability": 9,
+        "trigger_clarity": 9,
+        "verification": 9
+      }
+    },
+    {
+      "id": "AHE-011",
+      "tier": "framework",
+      "type": "decision",
+      "version_added": "1.16.0",
+      "source_origin": "project-retrospective",
+      "title": "Weighted Score Composition for Multi-Factor Decisions",
+      "context": "Architecture decision during upstream score calculator design",
+      "trigger": "When combining multiple quality signals into a single score",
+      "solution": "Use explicit weighted composition with transparency: quality(25%) + effectiveness(30%) + novelty(25%) + generality(20%) = upstream_score. Always output component breakdown in JSON. Weights should sum to 100% and be configurable.",
+      "verified": true,
+      "tags": [
+        "scoring",
+        "weights",
+        "transparency"
+      ],
+      "quality_gates": {
+        "discovery_depth": 7,
+        "reusability": 8,
+        "trigger_clarity": 8,
+        "verification": 9
+      }
+    },
+    {
+      "id": "AHE-012",
+      "tier": "framework",
+      "type": "troubleshooting",
+      "version_added": "1.16.0",
+      "source_origin": "project-retrospective",
+      "title": "GitHub CLI Label Errors and Graceful Fallback",
+      "context": "Issue during proposal submission testing",
+      "trigger": "gh issue create fails with 'label not found' error",
+      "solution": "Use --graceful flag pattern: first try with labels, on label error retry without labels and warn user. Labels are nice-to-have, issue creation is essential. See gh-label-handler.sh for implementation.",
+      "verified": true,
+      "tags": [
+        "github",
+        "cli",
+        "error-handling"
+      ],
+      "quality_gates": {
+        "discovery_depth": 7,
+        "reusability": 8,
+        "trigger_clarity": 9,
+        "verification": 9
+      }
+    }
+  ],
+  "_loa_marker": {
+    "managed": true,
+    "version": "1.16.0",
+    "hash": "c798f7ffd87830f4095f4b69e1529cac43d17ec43ef39555f27ab8aec17012e5"
+  }
+}
