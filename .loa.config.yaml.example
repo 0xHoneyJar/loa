@@ -168,6 +168,17 @@ visual_communication:
   include_preview_urls: false  # Generate preview links (legacy)
 
 # -----------------------------------------------------------------------------
+# Agent Browser (v2.0.0)
+# -----------------------------------------------------------------------------
+agent_browser:
+  enabled: false              # Opt-in (default: false)
+  tool: "dev-browser"         # MCP server to use
+  mode: "headless"            # headless | extension
+  session_persistence: true   # Keep sessions between calls
+  screenshot_dir: "grimoires/loa/screenshots/"
+  timeout_ms: 30000           # Navigation timeout
+
+# -----------------------------------------------------------------------------
 # Prompt Enhancement (v1.14.0)
 # -----------------------------------------------------------------------------
 prompt_enhancement:
