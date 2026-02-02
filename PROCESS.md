@@ -230,6 +230,18 @@ Each agent is implemented as a modular **skill** in `.claude/skills/{agent-name}
 - **Output**: Executive summaries, stakeholder briefings (1-3 pages tailored by audience)
 - **Usage**: Ad-hoc, invoked to translate technical docs for non-technical audiences
 
+### 9. **enhancing-prompts** (Prompt Engineer)
+- **Role**: Expert Prompt Engineer with deep understanding of LLM behavior
+- **Expertise**: Prompt analysis, PTCF framework, quality scoring, iterative refinement
+- **Skill**: `.claude/skills/enhancing-prompts/`
+- **Responsibilities**:
+  - Analyze prompt quality using component detection (Persona, Task, Context, Format)
+  - Score prompts on 0-10 scale with actionable improvement suggestions
+  - Apply task-specific templates (debugging, code_review, refactoring, etc.)
+  - Refine prompts through feedback loop (up to 3 iterations)
+- **Output**: Enhanced prompt with quality score and component analysis
+- **Usage**: Ad-hoc, invoked via `/enhance` command
+
 ---
 
 ## Workflow

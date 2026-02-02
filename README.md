@@ -1,8 +1,8 @@
 # Loa
 
-[![Version](https://img.shields.io/badge/version-1.14.1-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.15.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
-[![Release](https://img.shields.io/badge/release-Oracle%20Compound%20Learnings-purple.svg)](CHANGELOG.md#1120---2026-02-01--oracle-compound-learnings)
+[![Release](https://img.shields.io/badge/release-Prompt%20Enhancement-purple.svg)](CHANGELOG.md#1150---2026-02-02--prompt-enhancement--developer-experience)
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
 
@@ -33,13 +33,13 @@ See **[INSTALLATION.md](INSTALLATION.md)** for detailed setup options and prereq
 | 5.5 | `/audit-sprint sprint-N` | Security Approval |
 | 6 | `/deploy-production` | Infrastructure |
 
-**Ad-hoc**: `/audit`, `/translate`, `/validate`, `/compound`, `/feedback`, `/constructs`, `/update-loa`, `/loa` (guided workflow)
+**Ad-hoc**: `/audit`, `/translate`, `/validate`, `/compound`, `/feedback`, `/constructs`, `/enhance`, `/update-loa`, `/loa` (guided workflow)
 
 See **[PROCESS.md](PROCESS.md)** for complete workflow documentation.
 
 ## The Agents
 
-Nine specialized agents that ride alongside you:
+Ten specialized agents that ride alongside you:
 
 | Agent | Role |
 |-------|------|
@@ -51,6 +51,7 @@ Nine specialized agents that ride alongside you:
 | auditing-security | Security Auditor |
 | deploying-infrastructure | DevOps Architect |
 | translating-for-executives | Developer Relations |
+| enhancing-prompts | Prompt Engineer |
 | run-mode | Autonomous Executor |
 
 ## Architecture
@@ -69,6 +70,9 @@ Loa uses a **three-zone model** inspired by AWS Projen and Google's ADK:
 
 | Feature | Description | Documentation |
 |---------|-------------|---------------|
+| **Prompt Enhancement** | PTCF-based prompt analysis and improvement | [CHANGELOG.md](CHANGELOG.md#1150---2026-02-02--prompt-enhancement--developer-experience) |
+| **Consolidated Sprint PRs** | Single PR for entire sprint plan execution | [CHANGELOG.md](CHANGELOG.md#1150---2026-02-02--prompt-enhancement--developer-experience) |
+| **URL Registry** | Canonical URLs to prevent agent hallucination | [CHANGELOG.md](CHANGELOG.md#1150---2026-02-02--prompt-enhancement--developer-experience) |
 | **Oracle Compound Learnings** | Query Loa's own knowledge with weighted sources | [CHANGELOG.md](CHANGELOG.md#1120---2026-02-01--oracle-compound-learnings) |
 | **Smart Feedback Routing** | Auto-route feedback to correct ecosystem repo | [CHANGELOG.md](CHANGELOG.md#1110---2026-02-01--autonomous-agents--developer-experience) |
 | **WIP Branch Testing** | Test Loa feature branches before merging | [CHANGELOG.md](CHANGELOG.md#1110---2026-02-01--smart-feedback-routing--developer-experience) |

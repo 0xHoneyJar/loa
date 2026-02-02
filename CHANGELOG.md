@@ -5,6 +5,128 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.0] - 2026-02-02 — Prompt Enhancement & Developer Experience
+
+### Why This Release
+
+This release introduces the **Intelligent Prompt Enhancement System** with a new `/enhance` command, **consolidated sprint PRs** for cleaner Run Mode output, and several developer experience improvements including the **Canonical URL Registry** to prevent agent hallucination.
+
+*"Enhance your prompts. Consolidate your PRs. Ground your URLs."*
+
+### Added
+
+#### `/enhance` Command & Prompt Enhancement Skill (#108, #109, #120)
+
+New skill and command for improving prompt quality using the PTCF framework (Persona + Task + Context + Format):
+
+```bash
+/enhance "review the code"              # Analyze and enhance prompt
+/enhance --analyze-only "check auth"    # Analysis without enhancement
+/enhance --task-type code_review "..."  # Use specific template
+```
+
+**Features**:
+- **Quality Scoring**: 0-10 score based on component detection
+- **7 Task Templates**: debugging, code_review, refactoring, summarization, research, generation, general
+- **Feedback Loop**: Up to 3 refinement iterations based on runtime errors or test failures
+- **PTCF Analysis**: Detects missing Persona, Task, Context, and Format components
+
+**New Files**:
+- `.claude/skills/enhancing-prompts/` - 3-level skill architecture (15 files, 1282 lines)
+- `.claude/commands/enhance.md` - Command routing
+
+**Sources**: [Google Gemini Prompting Guide](https://workspace.google.com/blog/product-announcements/gemini-gems-ai-guide-prompting), SDPO feedback concepts
+
+#### Canonical URL Registry (#127, #131)
+
+Protocol and infrastructure to prevent agent URL hallucination:
+
+```yaml
+# grimoires/loa/urls.yaml (auto-created during /mount)
+project:
+  repository: "https://github.com/org/repo"
+  documentation: "https://docs.example.com"
+anthropic:
+  docs: "https://docs.anthropic.com"
+  api_reference: "https://docs.anthropic.com/en/api"
+```
+
+**Agent Protocol**: Agents must use `urls.yaml` entries or explicit user-provided URLs. Never fabricate URLs.
+
+**New Files**:
+- `.claude/protocols/url-registry.md` - Protocol specification
+- `grimoires/loa/urls.yaml` - Created during `/mount`
+
+#### Consolidated Sprint PRs (#124, #132)
+
+`/run sprint-plan` now creates a **single consolidated PR** after all sprints complete (default behavior):
+
+```bash
+/run sprint-plan                  # Consolidated PR at end (default)
+/run sprint-plan --no-consolidate # Legacy: separate PR per sprint
+```
+
+**Benefits**:
+- Single PR for easier review
+- Per-sprint breakdown table in PR description
+- Commits grouped by sprint (`feat(sprint-1): ...`)
+- Clean git history with sprint markers
+
+**Updated Files**:
+- `.claude/protocols/run-mode.md` - Consolidated PR format
+- `.claude/skills/run-mode/SKILL.md` - Updated execution loop
+- `.claude/commands/run-sprint-plan.md` - New `--no-consolidate` option
+
+### Fixed
+
+#### Mount Version Detection (#123, #133)
+
+Fixed `/mount` installing outdated version (v1.7.2) instead of latest:
+
+- `sync_zones()` now pulls upstream `.loa-version.json` during installation
+- `create_manifest()` reads from pulled file with git tag fallback
+- Removed hardcoded version from banner
+
+#### Oracle Auto-Index (#116, #128)
+
+Fixed `/oracle-analyze` returning no results when index doesn't exist:
+
+- Oracle now auto-builds index on first query
+- Clear error messages when index build fails
+
+#### Feedback Trace Enablement (#115, #125, #130)
+
+`/feedback` now prompts to enable trace collection when disabled:
+
+- AskUserQuestion offers "Enable for this submission" option
+- One-time collection without persisting settings
+- Created `feedback` label in all ecosystem repos (#126)
+
+#### Constructs API Migration (#106, #107)
+
+Fixed `/constructs` command after API endpoint changes:
+
+- Updated to unified `/v1/constructs` endpoint
+- Supports both `.data[]` and legacy `.packs[]` response formats
+
+### Documentation
+
+#### Memory Leak Pattern (#129)
+
+Added arrow function closure memory leak pattern to review and audit skills:
+
+- `.claude/skills/reviewing-code/resources/REFERENCE.md` - Detection criteria
+- `.claude/skills/auditing-security/resources/REFERENCE.md` - CWE-401 classification
+- `grimoires/loa/memory/learnings.yaml` - Learning entry L-0001
+
+**Pattern**: Use `obj.method.bind(obj)` instead of `() => obj.method()` to prevent closure memory leaks (1GB+ reduction in long sessions).
+
+#### README Version Badge (#122)
+
+Synced README version badge to current release.
+
+---
+
 ## [1.14.1] - 2026-02-01 — Constructs Bug Fix
 
 ### Fixed
