@@ -266,6 +266,40 @@ redact_secrets() {
     fi
 
     # -------------------------------------------------------------------------
+    # HIGH-003 FIX: Azure tokens (eyJ* JWT format with Azure-specific patterns)
+    # Azure AD tokens, SAS tokens, and storage account keys
+    # -------------------------------------------------------------------------
+    # Azure Storage Account Keys (base64, 88 chars)
+    if echo "$redacted" | grep -qE '[A-Za-z0-9+/]{86}=='; then
+        redacted=$(echo "$redacted" | sed -E 's/[A-Za-z0-9+/]{86}==/[REDACTED:AZURE_STORAGE_KEY]/g')
+        PATTERNS_MATCHED+=("azure_storage_key")
+    fi
+    # Azure SAS tokens (sv=...&sig=...)
+    if echo "$redacted" | grep -qE 'sv=[0-9-]+.*sig=[A-Za-z0-9%+/=]+'; then
+        redacted=$(echo "$redacted" | sed -E 's/sig=[A-Za-z0-9%+/=]+/sig=[REDACTED]/g')
+        PATTERNS_MATCHED+=("azure_sas_token")
+    fi
+    # Azure connection strings with AccountKey
+    if echo "$redacted" | grep -qiE 'AccountKey=[A-Za-z0-9+/=]+'; then
+        redacted=$(echo "$redacted" | sed -E 's/AccountKey=[A-Za-z0-9+/=]+/AccountKey=[REDACTED]/gi')
+        PATTERNS_MATCHED+=("azure_account_key")
+    fi
+
+    # -------------------------------------------------------------------------
+    # HIGH-003 FIX: GCP tokens and service account keys
+    # -------------------------------------------------------------------------
+    # GCP Service Account private key ID (in JSON)
+    if echo "$redacted" | grep -qE '"private_key_id"[[:space:]]*:[[:space:]]*"[a-f0-9]{40}"'; then
+        redacted=$(echo "$redacted" | sed -E 's/"private_key_id"[[:space:]]*:[[:space:]]*"[a-f0-9]{40}"/"private_key_id": "[REDACTED]"/g')
+        PATTERNS_MATCHED+=("gcp_private_key_id")
+    fi
+    # GCP API keys (AIza followed by 35 chars)
+    if echo "$redacted" | grep -qE 'AIza[A-Za-z0-9_-]{35}'; then
+        redacted=$(echo "$redacted" | sed -E 's/AIza[A-Za-z0-9_-]{35}/[REDACTED:GCP_API_KEY]/g')
+        PATTERNS_MATCHED+=("gcp_api_key")
+    fi
+
+    # -------------------------------------------------------------------------
     # HIGH-003 FIX: Base64-encoded secrets (high-entropy long strings)
     # Target: 40+ chars of base64 that end with = or ==
     # -------------------------------------------------------------------------
@@ -285,6 +319,16 @@ redact_secrets() {
     if echo "$redacted" | grep -qE 'ya29\.[a-zA-Z0-9_-]{50,}'; then
         redacted=$(echo "$redacted" | sed -E 's/ya29\.[a-zA-Z0-9_-]{50,}/[REDACTED:GOOGLE_ACCESS]/g')
         PATTERNS_MATCHED+=("google_access_token")
+    fi
+
+    # -------------------------------------------------------------------------
+    # HIGH-003 FIX: Ed25519 raw private keys (64 hex chars without 0x prefix)
+    # These appear in some crypto contexts as raw hex
+    # -------------------------------------------------------------------------
+    # Look for labeled Ed25519 keys
+    if echo "$redacted" | grep -qiE 'ed25519[_-]?(private|secret|key)[[:space:]]*[=:][[:space:]]*[a-fA-F0-9]{64}'; then
+        redacted=$(echo "$redacted" | sed -E 's/(ed25519[_-]?(private|secret|key)[[:space:]]*[=:][[:space:]]*)[a-fA-F0-9]{64}/\1[REDACTED:ED25519_KEY]/gi')
+        PATTERNS_MATCHED+=("ed25519_key")
     fi
 
     # -------------------------------------------------------------------------

@@ -20,6 +20,9 @@
 #
 set -euo pipefail
 
+# MED-001 FIX: Set restrictive umask for secure temp file creation
+umask 077
+
 # === Colors ===
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -188,6 +191,68 @@ add_submodule() {
   log "Submodule added at $SUBMODULE_PATH"
 }
 
+# === MED-004 FIX: Symlink Target Validation ===
+# Validate that symlink targets don't escape repository bounds
+
+# Get the repository root directory (absolute path)
+get_repo_root() {
+  git rev-parse --show-toplevel 2>/dev/null || pwd
+}
+
+# Validate that a path is within the repository bounds
+# Args: $1 - target path to validate
+# Returns: 0 if safe, 1 if escapes bounds
+validate_symlink_target() {
+  local target="$1"
+  local repo_root
+  repo_root=$(get_repo_root)
+
+  # Resolve the target to an absolute path
+  local resolved_target
+  if [[ -e "$target" ]]; then
+    resolved_target=$(cd "$(dirname "$target")" && pwd)/$(basename "$target")
+  else
+    # For not-yet-existing paths, resolve the parent
+    local parent_dir
+    parent_dir=$(dirname "$target")
+    if [[ -d "$parent_dir" ]]; then
+      resolved_target=$(cd "$parent_dir" && pwd)/$(basename "$target")
+    else
+      # Cannot resolve, allow but warn
+      warn "Cannot resolve symlink target: $target"
+      return 0
+    fi
+  fi
+
+  # Normalize paths (remove trailing slashes, resolve ..)
+  repo_root=$(realpath "$repo_root" 2>/dev/null || echo "$repo_root")
+  resolved_target=$(realpath "$resolved_target" 2>/dev/null || echo "$resolved_target")
+
+  # Check if resolved target starts with repo root
+  if [[ "$resolved_target" != "$repo_root"* ]]; then
+    err "Security: Symlink target escapes repository bounds: $target"
+    err "  Target resolves to: $resolved_target"
+    err "  Repository root: $repo_root"
+    return 1
+  fi
+
+  return 0
+}
+
+# Create symlink with security validation
+# Args: $1 - source (symlink file), $2 - target (what symlink points to)
+safe_symlink() {
+  local source="$1"
+  local target="$2"
+
+  # Validate target is within repository
+  if ! validate_symlink_target "$target"; then
+    return 1
+  fi
+
+  ln -sf "$target" "$source"
+}
+
 # === Create Symlinks ===
 create_symlinks() {
   step "Creating symlinks from .claude/ to submodule..."
@@ -207,8 +272,8 @@ create_symlinks() {
     for skill_dir in "$SUBMODULE_PATH"/.claude/skills/*/; do
       if [[ -d "$skill_dir" ]]; then
         local skill_name=$(basename "$skill_dir")
-        # Only symlink loa-prefixed skills (or all if no prefix exists)
-        ln -sf "../../$SUBMODULE_PATH/.claude/skills/$skill_name" ".claude/skills/$skill_name"
+        # MED-004 FIX: Use safe_symlink with validation
+        safe_symlink ".claude/skills/$skill_name" "../../$SUBMODULE_PATH/.claude/skills/$skill_name"
         log "  Linked skill: $skill_name"
       fi
     done
@@ -221,8 +286,8 @@ create_symlinks() {
     for cmd_file in "$SUBMODULE_PATH"/.claude/commands/*.md; do
       if [[ -f "$cmd_file" ]]; then
         local cmd_name=$(basename "$cmd_file")
-        # Only symlink loa-prefixed commands (or all if no prefix exists)
-        ln -sf "../../$SUBMODULE_PATH/.claude/commands/$cmd_name" ".claude/commands/$cmd_name"
+        # MED-004 FIX: Use safe_symlink with validation
+        safe_symlink ".claude/commands/$cmd_name" "../../$SUBMODULE_PATH/.claude/commands/$cmd_name"
         log "  Linked command: $cmd_name"
       fi
     done
@@ -231,21 +296,24 @@ create_symlinks() {
   # === Scripts Directory Symlink ===
   step "Linking scripts directory..."
   if [[ -d "$SUBMODULE_PATH/.claude/scripts" ]]; then
-    ln -sf "../$SUBMODULE_PATH/.claude/scripts" ".claude/scripts"
+    # MED-004 FIX: Use safe_symlink with validation
+    safe_symlink ".claude/scripts" "../$SUBMODULE_PATH/.claude/scripts"
     log "  Linked: .claude/scripts/"
   fi
 
   # === Protocols Directory Symlink ===
   step "Linking protocols directory..."
   if [[ -d "$SUBMODULE_PATH/.claude/protocols" ]]; then
-    ln -sf "../$SUBMODULE_PATH/.claude/protocols" ".claude/protocols"
+    # MED-004 FIX: Use safe_symlink with validation
+    safe_symlink ".claude/protocols" "../$SUBMODULE_PATH/.claude/protocols"
     log "  Linked: .claude/protocols/"
   fi
 
   # === Schemas Directory Symlink ===
   step "Linking schemas directory..."
   if [[ -d "$SUBMODULE_PATH/.claude/schemas" ]]; then
-    ln -sf "../$SUBMODULE_PATH/.claude/schemas" ".claude/schemas"
+    # MED-004 FIX: Use safe_symlink with validation
+    safe_symlink ".claude/schemas" "../$SUBMODULE_PATH/.claude/schemas"
     log "  Linked: .claude/schemas/"
   fi
 
@@ -253,7 +321,8 @@ create_symlinks() {
   step "Linking loa directory..."
   mkdir -p .claude/loa
   if [[ -f "$SUBMODULE_PATH/.claude/loa/CLAUDE.loa.md" ]]; then
-    ln -sf "../../$SUBMODULE_PATH/.claude/loa/CLAUDE.loa.md" ".claude/loa/CLAUDE.loa.md"
+    # MED-004 FIX: Use safe_symlink with validation
+    safe_symlink ".claude/loa/CLAUDE.loa.md" "../../$SUBMODULE_PATH/.claude/loa/CLAUDE.loa.md"
     log "  Linked: .claude/loa/CLAUDE.loa.md"
   fi
 
@@ -261,7 +330,8 @@ create_symlinks() {
   step "Linking settings files..."
   for config_file in settings.json settings.local.json checksums.json; do
     if [[ -f "$SUBMODULE_PATH/.claude/$config_file" ]]; then
-      ln -sf "../$SUBMODULE_PATH/.claude/$config_file" ".claude/$config_file"
+      # MED-004 FIX: Use safe_symlink with validation
+      safe_symlink ".claude/$config_file" "../$SUBMODULE_PATH/.claude/$config_file"
       log "  Linked: .claude/$config_file"
     fi
   done

@@ -10,6 +10,10 @@
 
 set -euo pipefail
 
+# MED-001 FIX: Set restrictive umask for secure temp file creation
+# This ensures mktemp creates files with 600 permissions atomically
+umask 077
+
 # =============================================================================
 # Constants
 # =============================================================================
