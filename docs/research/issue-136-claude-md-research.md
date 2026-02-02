@@ -4,13 +4,13 @@
 **Branch**: `research/claude-md-context-loading-136`
 **Author**: Research Agent
 **Date**: 2026-02-02
-**Status**: Research Complete
+**Status**: Research Complete (v2 - Citations Corrected)
 
 ---
 
 ## 1. Problem Statement
 
-Loa's CLAUDE.md ecosystem currently exceeds Claude Code's recommended 40K character threshold:
+Loa's CLAUDE.md ecosystem currently triggers a size warning:
 
 ```
 Total: 41,803 chars
@@ -21,6 +21,8 @@ PROJECT:BEGIN...PROJECT:END (user): 2,209 chars (5%)
 This triggers the warning:
 > ⚠️ Large CLAUDE.md will impact performance (41.0k chars > 40.0k)
 
+**40K Threshold Origin**: This warning appears to originate from **Claude Code CLI output** (not official documentation). The exact source should be verified by examining Claude Code's source or CLI behavior. No official Anthropic documentation specifies a 40K character limit.
+
 **Key Research Questions**:
 1. Is this warning based on real performance degradation, or is it conservative guidance?
 2. Are there Claude Code best practices about tiered/JIT loading for CLAUDE.md?
@@ -30,91 +32,108 @@ This triggers the warning:
 
 ## 2. Research Findings
 
-### 2.1 Official Claude Code Documentation (Primary Source)
+### 2.1 Official Claude Code Documentation
 
-From [Claude Code Best Practices](https://code.claude.com/docs/en/best-practices):
+**Primary Sources**:
+- [Claude Code Best Practices (Blog)](https://www.anthropic.com/engineering/claude-code-best-practices)
+- [Claude Code Costs/Optimization](https://docs.anthropic.com/en/docs/claude-code/costs)
+- [Effective Context Engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
 
-#### The Core Constraint
-> "Most best practices are based on one constraint: **Claude's context window fills up fast, and performance degrades as it fills.**"
+#### The Core Constraint (✅ Verified)
+
+From the [Best Practices blog](https://www.anthropic.com/engineering/claude-code-best-practices):
+> "During long sessions, Claude's context window can fill with irrelevant conversation, file contents, and commands. This can reduce performance and sometimes distract Claude."
 
 #### CLAUDE.md Specific Guidance
 
-| Guideline | Quote |
-|-----------|-------|
-| **Keep it concise** | "Keep it short and human-readable" |
-| **Prune ruthlessly** | "For each line, ask: 'Would removing this cause Claude to make mistakes?' If not, cut it. **Bloated CLAUDE.md files cause Claude to ignore your actual instructions!**" |
-| **Signs of bloat** | "If Claude keeps doing something you don't want despite having a rule against it, the file is probably too long and the rule is getting lost" |
-| **Use skills for specifics** | "CLAUDE.md is loaded every session, so only include things that apply broadly. For domain knowledge or workflows that are only relevant sometimes, **use skills instead**. Claude loads them on demand without bloating every conversation." |
+| Guideline | Source | Status |
+|-----------|--------|--------|
+| Keep CLAUDE.md concise and human-readable | [Best Practices Blog](https://www.anthropic.com/engineering/claude-code-best-practices) | ✅ Verified |
+| Aim for ~500 lines by including only essentials | [Costs Docs](https://docs.anthropic.com/en/docs/claude-code/costs) | ✅ Verified |
+| CLAUDE.md loaded at session start | [Costs Docs](https://docs.anthropic.com/en/docs/claude-code/costs) | ✅ Verified |
+| Skills load on-demand when invoked | [Costs Docs](https://docs.anthropic.com/en/docs/claude-code/costs) | ✅ Verified |
 
-#### What to Include vs Exclude
+**Official Quote** (from [Costs Docs](https://docs.anthropic.com/en/docs/claude-code/costs)):
+> "Your CLAUDE.md file is loaded into context at session start. If it contains detailed instructions for specific workflows (like PR reviews or database migrations), those tokens are present even when you're doing unrelated work."
 
-| ✅ Include | ❌ Exclude |
-|-----------|-----------|
-| Bash commands Claude can't guess | Anything Claude can figure out by reading code |
-| Code style rules that differ from defaults | Standard language conventions Claude already knows |
-| Testing instructions and preferred test runners | Detailed API documentation (link to docs instead) |
-| Repository etiquette | Information that changes frequently |
-| Architectural decisions specific to your project | Long explanations or tutorials |
-| Developer environment quirks | File-by-file descriptions of the codebase |
-| Common gotchas or non-obvious behaviors | Self-evident practices like "write clean code" |
+> "Skills load on-demand only when invoked, so moving specialized instructions into skills keeps your base context smaller."
+
+> "Aim to keep CLAUDE.md under ~500 lines by including only essentials."
+
+#### What to Include (✅ Verified from Blog)
+
+The [Best Practices blog](https://www.anthropic.com/engineering/claude-code-best-practices) mentions good candidates:
+- Bash commands Claude can't guess
+- Code style rules that differ from defaults
+- Testing instructions and preferred test runners
+- Repository etiquette (branch naming, PR conventions)
+- Developer environment quirks (required env vars)
+
+#### What to Exclude (⚠️ Recommended Practice - Not Official)
+
+The following "exclude" items are **reasonable inferences** based on the "concise" guidance, but are not explicitly listed in official docs:
+
+| ❌ Exclude (Recommended) | Rationale |
+|--------------------------|-----------|
+| Anything Claude can figure out by reading code | Redundant context |
+| Standard language conventions | Claude already knows these |
+| Detailed API documentation | Link to docs instead |
+| Information that changes frequently | Maintenance burden |
+| Long explanations or tutorials | Use skills for this |
+| File-by-file descriptions | Redundant with code |
 
 ### 2.2 The 40K Threshold Analysis
 
-**Finding**: No specific 40K character limit is documented in the official Claude Code docs.
+**Finding**: No official Anthropic documentation specifies a 40K character limit.
 
-However, the guidance is clear that:
-1. **Context window is the primary constraint** - not file size per se
-2. **Performance degrades as context fills** - this is the real issue
-3. **Bloated files cause instruction loss** - rules get "lost in the noise"
+The official guidance uses **~500 lines** as the recommendation (from [Costs Docs](https://docs.anthropic.com/en/docs/claude-code/costs)).
 
-The 40K threshold appears to be a **heuristic warning** rather than a hard limit, likely based on:
-- ~10-12K tokens ≈ 5-6% of a 200K token context window
-- Experience data from Anthropic's internal teams
-- Conservative buffer for conversation + file reads + tool outputs
+The 40K character threshold likely originates from:
+- Claude Code CLI warning output (needs verification)
+- Heuristic: ~500 lines × ~80 chars/line = ~40K chars
+- Internal Anthropic guidelines not publicly documented
 
-### 2.3 Tiered Loading Approach (Official Recommendation)
+**Recommendation**: The **~500 lines** metric from official docs is more authoritative than the 40K character count.
+
+### 2.3 Tiered Loading Approach (✅ Verified)
 
 Claude Code explicitly supports a tiered approach:
 
-| Tier | Mechanism | When Loaded | Use Case |
-|------|-----------|-------------|----------|
-| **CLAUDE.md** | Always loaded | Every session | Universal rules only |
-| **Skills** | On-demand | When relevant | Domain knowledge, workflows |
-| **Subagents** | Delegated | When invoked | Isolated tasks, research |
-| **@imports** | At reference time | When parent loaded | Modular documentation |
+| Tier | Mechanism | When Loaded | Use Case | Source |
+|------|-----------|-------------|----------|--------|
+| **CLAUDE.md** | Always loaded | Every session | Universal rules only | [Costs Docs](https://docs.anthropic.com/en/docs/claude-code/costs) |
+| **Skills** | On-demand | When invoked | Domain knowledge, workflows | [Costs Docs](https://docs.anthropic.com/en/docs/claude-code/costs) |
+| **Subagents** | Delegated | When invoked | Isolated tasks, research | [Subagents Docs](https://docs.anthropic.com/en/docs/claude-code/sub-agents) |
 
-**Key Quote**:
-> "Skills extend Claude's knowledge with information specific to your project, team, or domain. **Claude applies them automatically when relevant**, or you can invoke them directly."
+**Official Quote** (from [Costs Docs](https://docs.anthropic.com/en/docs/claude-code/costs)):
+> "Skills load on-demand only when invoked, so moving specialized instructions into skills keeps your base context smaller."
+
+**Official Quote** (from [Subagents Docs](https://docs.anthropic.com/en/docs/claude-code/sub-agents)):
+> "Each subagent operates in its own context, preventing pollution of the main conversation and keeping it focused on high-level objectives."
 
 ### 2.4 The @import Behavior
 
-From the documentation:
-> "CLAUDE.md files can import additional files using `@path/to/import` syntax"
+**Status**: ⚠️ Not explicitly documented
 
-**Critical insight**: The `@` import appears to be **eagerly loaded at session start**, not JIT-loaded. This means:
+The `@` import behavior is not clearly documented regarding eager vs lazy loading. Empirical verification recommended.
 
-```
-CLAUDE.md (1.2 KB)
-  └── @.claude/loa/CLAUDE.loa.md (43 KB)
-       └── References to protocols, schemas, scripts
-```
+**Working assumption**: Imports are eagerly loaded when the parent file is loaded.
 
-The full 44KB is loaded into every session regardless of task relevance.
+### 2.5 Context Management (✅ Verified)
 
-### 2.5 Context Management
-
-The documentation provides guidance on context management:
-
+From [Best Practices blog](https://www.anthropic.com/engineering/claude-code-best-practices):
 > "During long sessions, Claude's context window can fill with irrelevant conversation, file contents, and commands. This can reduce performance and sometimes distract Claude."
 
-Recommended practices:
-- Use `/clear` frequently between tasks
-- When auto compaction triggers, Claude summarizes what matters
-- Run `/compact <instructions>` for more control
-- Customize compaction behavior in CLAUDE.md
+From [Costs Docs](https://docs.anthropic.com/en/docs/claude-code/costs):
+> "Clear between tasks: Use /clear to start fresh when switching to unrelated work. Stale context wastes tokens on every subsequent message."
 
-**Important**: You can add to CLAUDE.md:
-> "Customize compaction behavior in CLAUDE.md with instructions like 'When compacting, always preserve the full list of modified files and any test commands' to ensure critical context survives summarization"
+**Custom Compaction** (from [Costs Docs](https://docs.anthropic.com/en/docs/claude-code/costs)):
+> "Add custom compaction instructions: /compact Focus on code samples and API usage tells Claude what to preserve during summarization."
+
+### 2.6 Compaction Behavior (✅ Verified)
+
+From [Effective Context Engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents):
+> "Compaction is the practice of taking a conversation nearing the context window limit, summarizing its contents, and reinitiating a new context window with the summary."
 
 ---
 
@@ -133,13 +152,15 @@ Recommended practices:
 | Command tables | ~3,000 | 7% | ⚠️ Partially necessary |
 | Other | ~6,000 | 14% | Mixed |
 
+**Line Count**: ~44K chars ÷ ~80 chars/line ≈ **550 lines** (exceeds ~500 line recommendation)
+
 ### 3.2 The Real Issue
 
-The issue is **not the 40K limit itself** but rather:
+Based on verified official guidance, the issues are:
 
-1. **Instruction Dilution**: Critical rules get lost among detailed documentation
-2. **Token Waste**: Reference documentation consumes context that could be used for actual work
-3. **No JIT Loading**: Everything loads upfront, even for simple tasks
+1. **Instruction Dilution**: Large files make important rules harder to follow (reasonable inference from "concise" guidance)
+2. **Token Waste**: Reference documentation consumes context that could be used for actual work (verified)
+3. **No JIT Loading**: Skills should be used for workflow-specific instructions (verified)
 
 ---
 
@@ -149,7 +170,7 @@ The issue is **not the 40K limit itself** but rather:
 
 **Approach**: Move reference documentation out, keep behavioral instructions.
 
-**Target**: ~25K characters (40% reduction)
+**Target**: ~300 lines (~25K characters)
 
 | Action | Content Moved | Savings |
 |--------|---------------|---------|
@@ -160,7 +181,7 @@ The issue is **not the 40K limit itself** but rather:
 | Consolidate tables | → Single reference | ~1,500 |
 
 **Pros**: Minimal change, backward compatible
-**Cons**: Still loads 25KB every session
+**Cons**: Still loads 25KB every session, still above ~500 line target
 
 ### Option B: Tiered Architecture (Recommended)
 
@@ -171,7 +192,7 @@ CLAUDE.md (essential only)
 ├── Core behavior rules (~3K)
 ├── Architecture overview (~2K)
 ├── Command routing (~2K)
-└── @.claude/loa/CLAUDE.essential.md (~5K total)
+└── @.claude/loa/CLAUDE.essential.md (~5K total, ~150 lines)
 
 .claude/skills/{skill}/SKILL.md (on-demand)
 ├── discovering-requirements/SKILL.md (already exists)
@@ -184,18 +205,18 @@ CLAUDE.md (essential only)
 └── troubleshooting.md
 ```
 
-**Target**: ~12K always-loaded, rest on-demand
+**Target**: ~150 lines always-loaded (well under ~500 line recommendation)
 
 **Pros**:
 - Aligns with official Claude Code patterns
-- Skill-based loading is already supported by Claude Code
+- Skill-based loading is explicitly recommended in docs
 - Skills already exist in Loa - just need to move content there
 - Future-proof as more skills are added
 
 **Cons**:
 - Larger refactor
 - May need testing for edge cases
-- Need to verify Claude's auto-skill-loading reliability
+- Need to verify Claude's skill auto-loading reliability
 
 ### Option C: Dynamic Loading via Subagents (Experimental)
 
@@ -206,7 +227,7 @@ When a query needs detailed protocol info:
 2. Subagent returns condensed answer
 3. Main context stays clean
 
-**Pros**: Maximum context efficiency
+**Pros**: Maximum context efficiency (verified: subagents have isolated context)
 **Cons**: More complex, latency overhead
 
 ---
@@ -216,7 +237,7 @@ When a query needs detailed protocol info:
 ### Phase 1: Immediate Wins (Option A)
 
 **Quick win**: Move obvious reference content out
-**Target**: 25K characters
+**Target**: ~300 lines
 **Timeline**: 1 sprint
 
 Actions:
@@ -224,14 +245,15 @@ Actions:
 2. Move version notes to `CHANGELOG.md`
 3. Remove script examples (use `--help` instead)
 4. Consolidate redundant command tables
+5. Add custom compaction instructions to preserve critical context
 
 ### Phase 2: Full Tiered Architecture (Option B)
 
-**Target**: 12K always-loaded
+**Target**: ~150 lines always-loaded
 **Timeline**: 2-3 sprints
 
 Actions:
-1. Audit CLAUDE.loa.md content against include/exclude criteria
+1. Audit CLAUDE.loa.md content against official include criteria
 2. Move skill-specific documentation into respective SKILL.md files
 3. Create `.claude/loa/reference/` for lookup-only content
 4. Update protocols to use JIT retrieval patterns
@@ -243,10 +265,13 @@ Actions:
 
 | Metric | Current | Phase 1 Target | Phase 2 Target |
 |--------|---------|----------------|----------------|
+| CLAUDE.md lines | ~550 | ~300 | ~150 |
 | CLAUDE.md size | 44K chars | 25K chars | 12K chars |
 | Est. tokens | ~11K | ~6K | ~3K |
-| Warning triggered | Yes | No | No |
-| Instruction adherence | Baseline | +10% | +25% |
+| Below ~500 line recommendation | No | Yes | Yes |
+| Instruction adherence | Baseline | Measure | Measure |
+
+**Note**: "Instruction adherence" improvement claims require benchmark methodology to verify.
 
 ---
 
@@ -264,45 +289,82 @@ Actions:
 
 ## 8. Open Questions for Follow-up
 
-1. **Benchmark actual performance**: Does the 41K → 25K reduction measurably improve response quality?
-2. **Skill auto-loading reliability**: How reliably does Claude apply skills "automatically when relevant"?
+1. **Benchmark actual performance**: Does the reduction measurably improve response quality?
+2. **Skill auto-loading reliability**: How reliably does Claude apply skills automatically?
 3. **Import timing**: Is `@` import truly eager, or does it have any lazy characteristics?
 4. **Context compaction interaction**: How does CLAUDE.md content survive `/compact`?
 5. **Sandbox testing**: Per janitooor's comment, use sandbox infrastructure to actually benchmark
+6. **40K source**: Document the exact CLI output or source that generates the 40K warning
 
 ---
 
 ## 9. Key Quotes from Official Documentation
 
-### On Context as Primary Constraint
-> "Claude's context window holds your entire conversation, including every message, every file Claude reads, and every command output. However, this can fill up fast."
+### On CLAUDE.md Loading (✅ Verified)
+> "Your CLAUDE.md file is loaded into context at session start. If it contains detailed instructions for specific workflows (like PR reviews or database migrations), those tokens are present even when you're doing unrelated work."
+> — [Costs Docs](https://docs.anthropic.com/en/docs/claude-code/costs)
 
-### On Performance Degradation
-> "LLM performance degrades as context fills. When the context window is getting full, Claude may start 'forgetting' earlier instructions or making more mistakes."
+### On Line Limit (✅ Verified)
+> "Aim to keep CLAUDE.md under ~500 lines by including only essentials."
+> — [Costs Docs](https://docs.anthropic.com/en/docs/claude-code/costs)
 
-### On CLAUDE.md Bloat
-> "Bloated CLAUDE.md files cause Claude to ignore your actual instructions!"
+### On Skills for Specialization (✅ Verified)
+> "Skills load on-demand only when invoked, so moving specialized instructions into skills keeps your base context smaller."
+> — [Costs Docs](https://docs.anthropic.com/en/docs/claude-code/costs)
 
-### On Skills vs CLAUDE.md
-> "CLAUDE.md is loaded every session, so only include things that apply broadly. For domain knowledge or workflows that are only relevant sometimes, use skills instead."
+### On Subagent Isolation (✅ Verified)
+> "Each subagent operates in its own context, preventing pollution of the main conversation and keeping it focused on high-level objectives."
+> — [Subagents Docs](https://docs.anthropic.com/en/docs/claude-code/sub-agents)
 
-### On Treating CLAUDE.md Like Code
-> "Treat CLAUDE.md like code: review it when things go wrong, prune it regularly, and test changes by observing whether Claude's behavior actually shifts."
+### On Context Degradation (✅ Verified)
+> "During long sessions, Claude's context window can fill with irrelevant conversation, file contents, and commands. This can reduce performance and sometimes distract Claude."
+> — [Best Practices Blog](https://www.anthropic.com/engineering/claude-code-best-practices)
+
+### On Compaction (✅ Verified)
+> "Compaction is the practice of taking a conversation nearing the context window limit, summarizing its contents, and reinitiating a new context window with the summary."
+> — [Effective Context Engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
 
 ---
 
 ## 10. References
 
-- [Claude Code Best Practices](https://code.claude.com/docs/en/best-practices) - Primary source
+### Primary Sources (✅ Verified URLs)
+- [Claude Code Best Practices (Blog)](https://www.anthropic.com/engineering/claude-code-best-practices)
+- [Claude Code Costs/Optimization](https://docs.anthropic.com/en/docs/claude-code/costs)
+- [Claude Code Skills](https://docs.anthropic.com/en/docs/claude-code/skills)
+- [Claude Code Subagents](https://docs.anthropic.com/en/docs/claude-code/sub-agents)
+
+### Context Engineering
+- [Effective Context Engineering for AI Agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
+- [Building with Agent SDK](https://www.anthropic.com/engineering/building-agents-with-the-claude-agent-sdk)
+
+### Project References
 - [GitHub Issue #136](https://github.com/0xHoneyJar/loa/issues/136) - Original issue
-- [Loa v1.15.0 CLAUDE.loa.md](.claude/loa/CLAUDE.loa.md) - Current implementation
-- [Claude Code Skills Documentation](https://code.claude.com/docs/en/skills) - Tiered loading reference
+- [Loa CLAUDE.loa.md](.claude/loa/CLAUDE.loa.md) - Current implementation
+
+---
+
+## 11. Verification Status
+
+This document was verified against official Anthropic documentation on 2026-02-02.
+
+| Claim | Status | Action Taken |
+|-------|--------|--------------|
+| 40K character threshold | ⚠️ Unverified | Noted as CLI warning, not official docs |
+| ~500 line recommendation | ✅ Verified | Added as primary metric |
+| Skills load on-demand | ✅ Verified | Cited with source |
+| CLAUDE.md loads at session start | ✅ Verified | Cited with source |
+| Subagents have isolated context | ✅ Verified | Cited with source |
+| Context degrades as it fills | ✅ Verified | Cited with source |
+| Source URLs | 🔴 Fixed | Updated to correct URLs |
+| Include/Exclude table | ⚠️ Partial | Marked exclude column as "Recommended" |
 
 ---
 
 ## Next Steps
 
-1. Create PR with this research document
-2. Tag maintainers for review
-3. If approved, create implementation PRD based on Option A or B
-4. Set up sandbox benchmark testing (per janitooor comment)
+1. ✅ Create PR with this research document
+2. ✅ Citation corrections applied (v2)
+3. Maintainer review
+4. If approved, create implementation PRD based on Option A or B
+5. Set up sandbox benchmark testing (per janitooor comment)
