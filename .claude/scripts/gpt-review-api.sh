@@ -703,6 +703,10 @@ EOF
   # Add iteration to response
   response=$(echo "$response" | jq --arg iter "$iteration" '. + {iteration: ($iter | tonumber)}')
 
+  # Sanitize output: strip ANSI escape codes and control characters
+  # Defensive measure against malicious API responses
+  response=$(echo "$response" | tr -d '\033' | tr -d '\000-\010\013\014\016-\037')
+
   # Output response
   echo "$response"
 }

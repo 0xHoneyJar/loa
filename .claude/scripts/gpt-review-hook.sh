@@ -78,12 +78,15 @@ else
   phase_info="ALL TYPES ENABLED: ${enabled_types}."
 fi
 
+# Generate secure temp directory path using TMPDIR with session isolation
+SECURE_TMP="${TMPDIR:-/tmp}/gpt-review-$$"
+
 # Output checkpoint message with phase-specific guidance
 cat << EOF
 {
   "hookSpecificOutput": {
     "hookEventName": "PostToolUse",
-    "additionalContext": "STOP. GPT Review Checkpoint. Modified: ${FILE_PATH:-a file}. ${phase_info} REVIEW RULES: (1) Design docs (prd.md, sdd.md, sprint.md) - review if type enabled, (2) Backend/API/security/business logic - review if code enabled, (3) Trivial changes (typos, comments, logs) - always skip. TO REVIEW: Write /tmp/gpt-review-expertise.md + /tmp/gpt-review-context.md, then invoke Skill: gpt-review with Args (prd|sdd|sprint|code <file>). Do NOT proceed until APPROVED or SKIPPED verdict."
+    "additionalContext": "STOP. GPT Review Checkpoint. Modified: ${FILE_PATH:-a file}. ${phase_info} REVIEW RULES: (1) Design docs (prd.md, sdd.md, sprint.md) - review if type enabled, (2) Backend/API/security/business logic - review if code enabled, (3) Trivial changes (typos, comments, logs) - always skip. TO REVIEW: Create dir ${SECURE_TMP} (chmod 700), write expertise.md + context.md there, then invoke Skill: gpt-review with Args (prd|sdd|sprint|code <file>). Do NOT proceed until APPROVED or SKIPPED verdict."
   }
 }
 EOF
