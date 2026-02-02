@@ -195,102 +195,121 @@ sync_zones() {
 
 # === Root File Sync (CLAUDE.md, PROCESS.md) ===
 
-# Pull file from upstream and wrap in markers (for fresh installs)
-pull_and_wrap_loa_file() {
-  local file="$1"
+# Sync framework instructions to .claude/loa/CLAUDE.loa.md
+sync_loa_claude_md() {
+  step "Syncing framework instructions..."
 
-  local content
-  content=$(git show "$LOA_REMOTE_NAME/$LOA_BRANCH:$file" 2>/dev/null) || {
-    warn "No $file in upstream, skipping..."
-    return 0
+  mkdir -p .claude/loa
+
+  # Pull CLAUDE.loa.md from upstream
+  git checkout "$LOA_REMOTE_NAME/$LOA_BRANCH" -- .claude/loa/CLAUDE.loa.md 2>/dev/null || {
+    warn "No .claude/loa/CLAUDE.loa.md in upstream, skipping..."
+    return 1
   }
 
-  cat > "$file" << EOF
-<!-- LOA:BEGIN - Framework instructions (auto-managed, do not edit) -->
-$content
-<!-- LOA:END -->
+  log "Framework instructions synced to .claude/loa/CLAUDE.loa.md"
+}
 
-<!-- PROJECT:BEGIN - Your customizations below (preserved across updates) -->
+# Create CLAUDE.md with @ import pattern for fresh installs
+create_claude_md_with_import() {
+  cat > CLAUDE.md << 'EOF'
+@.claude/loa/CLAUDE.loa.md
+
 # Project-Specific Instructions
 
-Add your project-specific Claude instructions here.
-This section is preserved across Loa framework updates.
-<!-- PROJECT:END -->
+> This file contains project-specific customizations that take precedence over the framework instructions.
+> The framework instructions are loaded via the `@` import above.
+
+## Project Configuration
+
+Add your project-specific Claude Code instructions here. These instructions will take precedence
+over the imported framework defaults.
+
+### Example Customizations
+
+```markdown
+## Tech Stack
+- Language: TypeScript
+- Framework: Next.js 14
+- Database: PostgreSQL
+
+## Coding Standards
+- Use functional components with hooks
+- Prefer named exports
+- Always include unit tests
+
+## Domain Context
+- This is a fintech application
+- Security is paramount
+- All API calls must be authenticated
+```
+
+## How This Works
+
+1. Claude Code loads `@.claude/loa/CLAUDE.loa.md` first (framework instructions)
+2. Then loads this file (project-specific instructions)
+3. Instructions in this file **take precedence** over imported content
+4. Framework updates modify `.claude/loa/CLAUDE.loa.md`, not this file
+
+## Related Documentation
+
+- `.claude/loa/CLAUDE.loa.md` - Framework-managed instructions (auto-updated)
+- `.loa.config.yaml` - User configuration file
+- `PROCESS.md` - Detailed workflow documentation
 EOF
 
-  log "Created $file with Loa framework instructions"
+  log "Created CLAUDE.md with @ import pattern"
 }
 
-# Merge Loa content with existing user content
-create_hybrid_file() {
-  local file="$1"
-  local backup="${file}.pre-loa.backup"
+# Handle CLAUDE.md setup with @ import pattern
+# IMPORTANT: Never auto-modify user's existing CLAUDE.md
+setup_claude_md() {
+  local file="CLAUDE.md"
 
-  # Backup original
-  cp "$file" "$backup"
-  log "Backed up original to $backup"
-
-  # Get Loa's version
-  local loa_content
-  loa_content=$(git show "$LOA_REMOTE_NAME/$LOA_BRANCH:$file" 2>/dev/null) || {
-    warn "Could not fetch $file from upstream - keeping original"
-    rm -f "$backup"
-    return 1
-  }
-
-  # Read original content
-  local original_content
-  original_content=$(cat "$file")
-
-  # Create hybrid file
-  cat > "$file" << EOF
-<!-- LOA:BEGIN - Framework instructions (auto-managed, do not edit) -->
-$loa_content
-<!-- LOA:END -->
-
-<!-- PROJECT:BEGIN - Your customizations below (preserved across updates) -->
-$original_content
-<!-- PROJECT:END -->
-EOF
-
-  log "Created hybrid $file (original content preserved in PROJECT section)"
-}
-
-# Update only the Loa section, preserving project section
-update_loa_section() {
-  local file="$1"
-
-  # Get new Loa content
-  local loa_content
-  loa_content=$(git show "$LOA_REMOTE_NAME/$LOA_BRANCH:$file" 2>/dev/null) || {
-    warn "Could not fetch $file from upstream - keeping current"
-    return 1
-  }
-
-  # Extract everything from PROJECT:BEGIN to end of file
-  local project_section
-  project_section=$(sed -n '/<!-- PROJECT:BEGIN/,$p' "$file" 2>/dev/null)
-
-  # If no project section found, preserve everything after LOA:END
-  if [[ -z "$project_section" ]]; then
-    project_section=$(sed -n '/<!-- LOA:END -->/,$p' "$file" | tail -n +2)
-    if [[ -n "$project_section" ]]; then
-      project_section="<!-- PROJECT:BEGIN - Your customizations below (preserved across updates) -->
-$project_section
-<!-- PROJECT:END -->"
+  if [[ -f "$file" ]]; then
+    # Check if it already has the @ import
+    if grep -q "@.claude/loa/CLAUDE.loa.md" "$file" 2>/dev/null; then
+      log "CLAUDE.md already has @ import, no changes needed"
+      return 0
     fi
+
+    # Check for legacy LOA:BEGIN markers
+    if grep -q "<!-- LOA:BEGIN" "$file" 2>/dev/null; then
+      warn "CLAUDE.md has legacy LOA:BEGIN markers"
+      echo ""
+      info "Please migrate to the new @ import pattern:"
+      info "  1. Replace the <!-- LOA:BEGIN --> ... <!-- LOA:END --> section with:"
+      info "     @.claude/loa/CLAUDE.loa.md"
+      info "  2. Keep your project-specific content after the import"
+      echo ""
+      return 0
+    fi
+
+    # Existing CLAUDE.md without Loa content - prompt user to add import
+    echo ""
+    warn "======================================================================="
+    warn "  EXISTING CLAUDE.md DETECTED"
+    warn "======================================================================="
+    echo ""
+    info "Your project already has a CLAUDE.md file."
+    info "To integrate Loa framework instructions, add this line at the TOP of your CLAUDE.md:"
+    echo ""
+    echo -e "  ${CYAN}@.claude/loa/CLAUDE.loa.md${NC}"
+    echo ""
+    info "This uses Claude Code's @ import pattern to load framework instructions"
+    info "while preserving your project-specific content."
+    echo ""
+    info "Your content will take PRECEDENCE over imported framework defaults."
+    echo ""
+    warn "The mount script will NOT modify your existing CLAUDE.md automatically."
+    warn "======================================================================="
+    echo ""
+    return 0
+  else
+    # No CLAUDE.md exists - create with @ import
+    log "Creating CLAUDE.md with @ import pattern..."
+    create_claude_md_with_import
   fi
-
-  # Rebuild file
-  cat > "$file" << EOF
-<!-- LOA:BEGIN - Framework instructions (auto-managed, do not edit) -->
-$loa_content
-<!-- LOA:END -->
-
-$project_section
-EOF
-
-  log "Updated Loa section in $file (project content preserved)"
 }
 
 # Pull optional files only if they don't exist
@@ -309,30 +328,15 @@ sync_optional_file() {
   }
 }
 
-# Handle CLAUDE.md with conflict detection and hybrid merge
-sync_claude_md() {
-  local file="CLAUDE.md"
-
-  if [[ -f "$file" ]]; then
-    if grep -q "<!-- LOA:BEGIN" "$file" 2>/dev/null; then
-      log "Updating Loa section in existing $file..."
-      update_loa_section "$file"
-    else
-      log "Existing $file found - creating hybrid..."
-      create_hybrid_file "$file"
-    fi
-  else
-    log "Pulling $file (Claude Code instructions)..."
-    pull_and_wrap_loa_file "$file"
-  fi
-}
-
 # Orchestrate root file synchronization
 sync_root_files() {
   step "Syncing root documentation files..."
 
-  # Required: CLAUDE.md with hybrid support
-  sync_claude_md
+  # Sync framework instructions to .claude/loa/
+  sync_loa_claude_md
+
+  # Setup CLAUDE.md with @ import pattern
+  setup_claude_md
 
   # Optional: Pull only if missing
   sync_optional_file "PROCESS.md" "Workflow documentation"
@@ -567,6 +571,44 @@ apply_stealth() {
   fi
 }
 
+# === Initialize URL Registry ===
+init_url_registry() {
+  step "Initializing URL registry..."
+
+  local urls_file="grimoires/loa/urls.yaml"
+  if [[ ! -f "$urls_file" ]]; then
+    cat > "$urls_file" << 'EOF'
+# Canonical URL Registry
+# Agents MUST use these URLs instead of guessing/hallucinating
+# See: .claude/protocols/url-registry.md
+
+environments:
+  production:
+    base: ""        # e.g., https://myapp.com
+    api: ""         # e.g., https://api.myapp.com
+  staging:
+    base: ""        # e.g., https://staging.myapp.com
+  local:
+    base: http://localhost:3000
+    api: http://localhost:3000/api
+
+# Placeholders for unconfigured environments
+# Agents use these when actual URLs aren't configured
+placeholders:
+  domain: your-domain.example.com
+  api_base: "{{base}}/api"
+
+# Service-specific URLs (optional)
+# services:
+#   docs: https://docs.myapp.com
+#   dashboard: https://dashboard.myapp.com
+EOF
+    log "URL registry initialized"
+  else
+    log "URL registry already exists"
+  fi
+}
+
 # === Initialize Beads ===
 init_beads() {
   if [[ "$SKIP_BEADS" == "true" ]]; then
@@ -744,6 +786,7 @@ main() {
   sync_zones
   sync_root_files
   init_structured_memory
+  init_url_registry
   create_config
   create_manifest
   generate_checksums
@@ -761,6 +804,18 @@ main() {
 Files here are preserved across framework updates.
 Mirror the .claude/ structure for any customizations.
 EOF
+
+  # === Enforce Feature Gates ===
+  # Move disabled skills to .skills-disabled/ based on .loa.config.yaml
+  if [[ -x ".claude/scripts/feature-gates.sh" ]]; then
+    step "Enforcing feature gates..."
+    .claude/scripts/feature-gates.sh enforce 2>/dev/null || {
+      warn "Feature gate enforcement skipped (script returned error)"
+    }
+  else
+    # Feature gates script not yet available - this is expected for older versions
+    log "Feature gates: not enforced (feature-gates.sh not available)"
+  fi
 
   # === Show Completion Banner ===
   local banner_script=".claude/scripts/upgrade-banner.sh"
