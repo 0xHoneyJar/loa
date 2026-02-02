@@ -251,7 +251,8 @@ search_context_docs() {
             '{type: $type, title: $title, description: $desc, source: $src, weight: $weight}')")
 
         ((count++))
-    done < <(grep -ril "$domain" "$CONTEXT_DIR"/*.md 2>/dev/null || true)
+    # Security: Use grep -F (fixed strings) to prevent regex injection
+    done < <(grep -Fril "$domain" "$CONTEXT_DIR"/*.md 2>/dev/null || true)
 
     if [[ ${#results[@]} -gt 0 ]]; then
         printf '%s\n' "${results[@]}" | jq -s '.'
@@ -309,8 +310,8 @@ search_feedback() {
         [[ -f "$file" ]] || continue
         [[ $count -ge $limit ]] && break
 
-        # Search feedback content
-        if grep -qi "$domain" "$file" 2>/dev/null; then
+        # Search feedback content (use -F for fixed strings to prevent regex injection)
+        if grep -Fqi "$domain" "$file" 2>/dev/null; then
             local filename
             filename=$(basename "$file")
 

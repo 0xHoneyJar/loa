@@ -114,8 +114,10 @@ async def setup_authentication(auth_dir: Path) -> NotebookLMQueryResult:
     print(f"Session will be saved to: {auth_dir}")
     print()
 
-    # Ensure auth directory exists
-    auth_dir.mkdir(parents=True, exist_ok=True)
+    # Ensure auth directory exists with secure permissions (0700)
+    auth_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    # Enforce permissions even if directory already existed
+    os.chmod(auth_dir, 0o700)
 
     try:
         async with async_playwright() as p:

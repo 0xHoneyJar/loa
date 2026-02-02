@@ -76,10 +76,15 @@ log_trajectory() {
     local event_type="$1"
     local data="$2"
 
-    mkdir -p "$TRAJECTORY_DIR"
+    # Security: Create log directory with restrictive permissions
+    (umask 077 && mkdir -p "$TRAJECTORY_DIR")
     local date_str
     date_str=$(date +%Y-%m-%d)
     local log_file="$TRAJECTORY_DIR/flatline-$date_str.jsonl"
+
+    # Ensure log file has restrictive permissions
+    touch "$log_file"
+    chmod 600 "$log_file"
 
     local timestamp
     timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -659,6 +664,18 @@ main() {
 
     if [[ ! -f "$doc" ]]; then
         error "Document not found: $doc"
+        exit 1
+    fi
+
+    # Security: Validate document path is within project directory (prevent path traversal)
+    local realpath_doc
+    realpath_doc=$(realpath "$doc" 2>/dev/null) || {
+        error "Cannot resolve document path: $doc"
+        exit 1
+    }
+    if [[ ! "$realpath_doc" == "$PROJECT_ROOT"* ]]; then
+        error "Document must be within project directory: $doc"
+        error "Resolved to: $realpath_doc (outside $PROJECT_ROOT)"
         exit 1
     fi
 

@@ -204,12 +204,23 @@ EOF
 )
 
     local response
+
+    # Security: Use curl config file to avoid exposing API key in process list
+    local curl_config
+    curl_config=$(mktemp)
+    trap "rm -f '$curl_config'" RETURN
+    chmod 600 "$curl_config"
+    cat > "$curl_config" <<CURLCFG
+header = "Content-Type: application/json"
+header = "Authorization: Bearer ${api_key}"
+CURLCFG
+
     response=$(curl -s --max-time "$timeout" \
-        -H "Content-Type: application/json" \
-        -H "Authorization: Bearer ${api_key}" \
+        --config "$curl_config" \
         -d "$payload" \
         "$api_url")
 
+    rm -f "$curl_config"
     echo "$response"
 }
 
@@ -242,13 +253,24 @@ EOF
 )
 
     local response
+
+    # Security: Use curl config file to avoid exposing API key in process list
+    local curl_config
+    curl_config=$(mktemp)
+    trap "rm -f '$curl_config'" RETURN
+    chmod 600 "$curl_config"
+    cat > "$curl_config" <<CURLCFG
+header = "x-api-key: ${api_key}"
+header = "anthropic-version: 2023-06-01"
+header = "content-type: application/json"
+CURLCFG
+
     response=$(curl -s --max-time "$timeout" \
-        -H "x-api-key: ${api_key}" \
-        -H "anthropic-version: 2023-06-01" \
-        -H "content-type: application/json" \
+        --config "$curl_config" \
         -d "$payload" \
         "$api_url")
 
+    rm -f "$curl_config"
     echo "$response"
 }
 
