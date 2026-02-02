@@ -100,6 +100,44 @@
 - Memory leaks (unclosed connections, leaked listeners)
 - Infinite loops or recursion without base case
 
+## Memory Leak Patterns (JavaScript/TypeScript)
+
+### Arrow Function Closure in Event Listeners (CRITICAL)
+
+**Impact**: 1GB+ memory retention in long-running sessions.
+
+**Problem**: Arrow functions capture the surrounding scope (closure), including large objects like request bodies. When attached to long-lived signals/timers, these objects cannot be garbage collected.
+
+**Pattern to Flag**:
+```javascript
+// BAD - arrow function captures entire surrounding scope
+signal.addEventListener('abort', () => controller.abort());
+const timeout = setTimeout(() => controller.abort(), ms);
+```
+
+**Recommended Fix**:
+```javascript
+// GOOD - .bind() only retains reference to controller
+const abort = controller.abort.bind(controller);
+signal.addEventListener('abort', abort, { once: true });
+const timeout = setTimeout(abort, ms);
+```
+
+**When to Flag**:
+- `addEventListener` with arrow function calling `obj.method()`
+- `setTimeout`/`setInterval` with arrow function calling `obj.method()`
+- Any callback where the arrow function only calls a single method
+
+**Feedback Template**:
+```
+PERFORMANCE: Memory leak via closure capture at {file}:{line}.
+Arrow function `() => {obj}.{method}()` captures surrounding scope.
+Fix: Use `{obj}.{method}.bind({obj})` instead.
+See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/bind
+```
+
+**Source**: Claude Code codebase optimization (2026)
+
 ## Edge Cases to Verify
 
 Always verify the code handles:
