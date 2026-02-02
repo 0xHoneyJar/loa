@@ -815,9 +815,25 @@ echo 'graph TD; A-->B' | .claude/scripts/mermaid-url.sh --stdin --theme dracula
 
 **Protocol**: See `.claude/protocols/visual-communication.md`
 
-## Oracle (v1.11.0)
+## Oracle (v1.11.0) + Two-Tier Learnings (v1.15.1)
 
 Extended oracle with Loa compound learnings support. Query both Anthropic official documentation and Loa's own proven patterns.
+
+### Two-Tier Learnings Architecture (v1.15.1)
+
+Framework learnings ship with Loa, project learnings accumulate over time. This ensures oracle queries always return useful results, even on fresh installs.
+
+| Tier | Location | Weight | Contents |
+|------|----------|--------|----------|
+| **Framework (Tier 1)** | `.claude/loa/learnings/` | 1.0 | 40+ proven patterns, anti-patterns, decisions, troubleshooting |
+| **Project (Tier 2)** | `grimoires/loa/` | 0.9 | Project-specific learnings from /retrospective and /compound |
+
+**Framework Learnings Files**:
+- `patterns.json` - 10 proven architectural patterns (Three-Zone Model, JIT Retrieval, etc.)
+- `anti-patterns.json` - 8 common pitfalls to avoid
+- `decisions.json` - 10 architectural decision records (Why grimoires/, Why 3-level skills, etc.)
+- `troubleshooting.json` - 12 common issues and solutions (Bash 4+, macOS, etc.)
+- `index.json` - Manifest with metadata and counts
 
 **Commands**:
 | Command | Description |
@@ -831,59 +847,93 @@ Extended oracle with Loa compound learnings support. Query both Anthropic offici
 # Check for Anthropic updates
 .claude/scripts/anthropic-oracle.sh check
 
-# Query Loa learnings
+# Query Loa learnings (both tiers)
 .claude/scripts/anthropic-oracle.sh query "auth token" --scope loa
 
 # Query all sources with weighted ranking
 .claude/scripts/anthropic-oracle.sh query "hooks" --scope all
 
-# Build/update Loa learnings index
+# Build/update Loa learnings index (includes both tiers)
 .claude/scripts/loa-learnings-index.sh index
+
+# Query with tier filter
+.claude/scripts/loa-learnings-index.sh query "zone model" --tier framework
+.claude/scripts/loa-learnings-index.sh query "auth" --tier all
+
+# Check index status (shows tier breakdown)
+.claude/scripts/loa-learnings-index.sh status
 ```
 
 **Source Weights** (hierarchical):
 | Source | Weight | Description |
 |--------|--------|-------------|
-| Loa | 1.0 | Highest priority - our proven patterns |
+| Framework Learnings | 1.0 | Highest priority - Loa's proven patterns |
+| Project Learnings | 0.9 | Project-specific discoveries |
+| Skills | 1.0 | Skill documentation |
 | Anthropic | 0.8 | Authoritative external documentation |
 | Community | 0.5 | Useful but less verified |
 
 **Loa Sources Indexed**:
-- Skills: `.claude/skills/**/*.md`
-- Feedback: `grimoires/loa/feedback/*.yaml`
-- Decisions: `grimoires/loa/decisions.yaml`
-- Learnings: `grimoires/loa/a2a/compound/learnings.json`
+- **Framework Tier (always present)**:
+  - `.claude/loa/learnings/patterns.json`
+  - `.claude/loa/learnings/anti-patterns.json`
+  - `.claude/loa/learnings/decisions.json`
+  - `.claude/loa/learnings/troubleshooting.json`
+- **Project Tier (accumulates over time)**:
+  - `grimoires/loa/a2a/compound/learnings.json`
+  - `grimoires/loa/feedback/*.yaml`
+  - `grimoires/loa/decisions.yaml`
+- **Skills**: `.claude/skills/**/*.md`
+
+**Query Merging**:
+1. Search both tiers in parallel
+2. Apply tier weights (framework=1.0, project=0.9)
+3. Deduplicate by content hash (prefer higher score)
+4. Sort by weighted score
+5. Return limited results
 
 **Recursive Improvement Loop**:
 ```
 Executions -> Feedback -> Index -> Query -> Skills -> Executions
      ^                                              |
      |---------- Compound Learning -----------------|
+     |                                              |
+     +--- Framework Learnings (ship with Loa) ------+
 ```
 
 **Configuration** (`.loa.config.yaml`):
 ```yaml
+learnings:
+  tiers:
+    framework:
+      enabled: true
+      weight: 1.0
+    project:
+      enabled: true
+      weight: 0.9
+  query:
+    default_tier: all  # framework | project | all
+    max_results: 10
+
 oracle:
   weights:
     loa: 1.0
     anthropic: 0.8
     community: 0.5
-  loa_sources:
-    skills:
-      enabled: true
-      paths: [".claude/skills/**/*.md"]
-    feedback:
-      enabled: true
-      paths: ["grimoires/loa/feedback/*.yaml"]
   query:
     default_indexer: auto  # auto | qmd | grep
     default_limit: 10
     default_scope: all
 ```
 
-**Schema**: See `.claude/schemas/learnings.schema.json` for feedback file format.
+**Troubleshooting**:
+- **Empty oracle results**: Run `.claude/scripts/loa-learnings-index.sh index` to rebuild index
+- **Framework learnings missing**: Check `.claude/loa/learnings/` exists (should ship with Loa)
+- **Stale results**: Clear cache with `rm -rf ~/.loa/cache/oracle/loa` and rebuild index
 
-**Protocol**: See `.claude/commands/oracle-analyze.md`
+**Schema**: See `.claude/schemas/learnings.schema.json` for learnings file format.
+
+**Protocol**: See `.claude/commands/loa-oracle-analyze.md`
 
 ## Helper Scripts
 

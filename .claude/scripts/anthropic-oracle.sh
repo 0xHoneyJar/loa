@@ -131,12 +131,33 @@ declare -A SOURCE_WEIGHTS=(
     ["community"]="0.5"
 )
 
-# Loa sources for compound learnings
+# Loa sources for compound learnings (Two-Tier Architecture v1.15.1)
+# Tier 1 (Framework): Ships with Loa, weight 1.0
+# Tier 2 (Project): Project-specific, weight 0.9
 declare -A LOA_SOURCES=(
+    # Framework Tier (always present)
+    ["framework_patterns"]=".claude/loa/learnings/patterns.json"
+    ["framework_antipatterns"]=".claude/loa/learnings/anti-patterns.json"
+    ["framework_decisions"]=".claude/loa/learnings/decisions.json"
+    ["framework_troubleshooting"]=".claude/loa/learnings/troubleshooting.json"
+    # Project Tier (accumulates over time)
+    ["project_learnings"]="grimoires/loa/a2a/compound/learnings.json"
+    ["project_feedback"]="grimoires/loa/feedback/*.yaml"
+    ["project_decisions"]="grimoires/loa/decisions.yaml"
+    # Skills (always present)
     ["skills"]=".claude/skills/**/*.md"
-    ["feedback"]="grimoires/loa/feedback/*.yaml"
-    ["decisions"]="grimoires/loa/decisions.yaml"
-    ["learnings"]="grimoires/loa/a2a/compound/learnings.json"
+)
+
+# Source weights for two-tier learnings
+declare -A LOA_SOURCE_WEIGHTS=(
+    ["framework_patterns"]="1.0"
+    ["framework_antipatterns"]="1.0"
+    ["framework_decisions"]="1.0"
+    ["framework_troubleshooting"]="1.0"
+    ["project_learnings"]="0.9"
+    ["project_feedback"]="0.9"
+    ["project_decisions"]="0.9"
+    ["skills"]="1.0"
 )
 
 # Anthropic sources to monitor
@@ -399,6 +420,7 @@ query_sources() {
 }
 
 # Grep-based query for Loa sources (fallback when loa-learnings-index.sh not available)
+# Implements Two-Tier Learnings Architecture (v1.15.1)
 query_loa_with_grep() {
     local terms="$1"
     local results="[]"
@@ -409,13 +431,88 @@ query_loa_with_grep() {
 
     cd "$PROJECT_ROOT" || return
 
+    # ==========================================
+    # Framework Tier (Tier 1) - Always present
+    # ==========================================
+
+    # Search framework learnings JSON files (weight: 1.0)
+    if [[ -d ".claude/loa/learnings" ]]; then
+        for learnings_file in .claude/loa/learnings/*.json; do
+            [[ -f "$learnings_file" ]] || continue
+            [[ "$(basename "$learnings_file")" == "index.json" ]] && continue
+
+            local category
+            category=$(basename "$learnings_file" .json)
+
+            # Search within learnings array using jq
+            local matches
+            matches=$(jq --arg pattern "$pattern" '
+                [.learnings // [] | .[] | select(
+                    (.title // "" | test($pattern; "i")) or
+                    (.trigger // "" | test($pattern; "i")) or
+                    (.solution // "" | test($pattern; "i")) or
+                    (.id // "" | test($pattern; "i"))
+                ) | . + {"tier": "framework", "category": "'"$category"'"}]
+            ' "$learnings_file" 2>/dev/null || echo "[]")
+
+            # Transform to standard result format
+            matches=$(echo "$matches" | jq --arg file "$learnings_file" '
+                [.[] | {
+                    "source": "loa",
+                    "type": "framework_learning",
+                    "tier": "framework",
+                    "category": .category,
+                    "title": .title,
+                    "file": $file,
+                    "snippet": (.solution // .trigger | .[0:200]),
+                    "score": 0.9,
+                    "weight": 1.0
+                }]
+            ' 2>/dev/null || echo "[]")
+
+            results=$(echo "$results $matches" | jq -s 'add')
+        done
+    fi
+
+    # ==========================================
+    # Project Tier (Tier 2) - Accumulates over time
+    # ==========================================
+
+    # Search project learnings (weight: 0.9)
+    if [[ -f "grimoires/loa/a2a/compound/learnings.json" ]]; then
+        local matches
+        matches=$(jq --arg pattern "$pattern" '
+            [.learnings // [] | .[] | select(
+                (.title // "" | test($pattern; "i")) or
+                (.trigger // "" | test($pattern; "i")) or
+                (.solution // "" | test($pattern; "i")) or
+                (.id // "" | test($pattern; "i"))
+            )]
+        ' "grimoires/loa/a2a/compound/learnings.json" 2>/dev/null || echo "[]")
+
+        matches=$(echo "$matches" | jq '
+            [.[] | {
+                "source": "loa",
+                "type": "project_learning",
+                "tier": "project",
+                "title": .title,
+                "file": "grimoires/loa/a2a/compound/learnings.json",
+                "snippet": (.solution // .trigger | .[0:200]),
+                "score": 0.85,
+                "weight": 0.9
+            }]
+        ' 2>/dev/null || echo "[]")
+
+        results=$(echo "$results $matches" | jq -s 'add')
+    fi
+
     # Search skills (ORACLE-M-1: use find with -print0 and read -d '' to handle filenames safely)
     if [[ -d ".claude/skills" ]]; then
         while IFS= read -r -d '' match; do
             local snippet
             snippet=$(grep -i -m 1 "$pattern" "$match" 2>/dev/null | head -c 200 || true)
             results=$(echo "$results" | jq --arg file "$match" --arg snippet "$snippet" \
-                '. + [{"source": "loa", "type": "skill", "file": $file, "snippet": $snippet, "score": 0.7, "weight": 1.0}]')
+                '. + [{"source": "loa", "type": "skill", "tier": "framework", "file": $file, "snippet": $snippet, "score": 0.7, "weight": 1.0}]')
         done < <(find .claude/skills -name "*.md" -type f -exec grep -l -i "$pattern" {} + -print0 2>/dev/null || true)
     fi
 
@@ -425,7 +522,7 @@ query_loa_with_grep() {
             local snippet
             snippet=$(grep -i -m 1 "$pattern" "$match" 2>/dev/null | head -c 200 || true)
             results=$(echo "$results" | jq --arg file "$match" --arg snippet "$snippet" \
-                '. + [{"source": "loa", "type": "feedback", "file": $file, "snippet": $snippet, "score": 0.8, "weight": 1.0}]')
+                '. + [{"source": "loa", "type": "feedback", "tier": "project", "file": $file, "snippet": $snippet, "score": 0.8, "weight": 0.9}]')
         done < <(find grimoires/loa/feedback -name "*.yaml" -type f -exec grep -l -i "$pattern" {} + -print0 2>/dev/null || true)
     fi
 
@@ -435,7 +532,7 @@ query_loa_with_grep() {
             local snippet
             snippet=$(grep -i -m 1 "$pattern" grimoires/loa/decisions.yaml 2>/dev/null | head -c 200 || true)
             results=$(echo "$results" | jq --arg snippet "$snippet" \
-                '. + [{"source": "loa", "type": "decision", "file": "grimoires/loa/decisions.yaml", "snippet": $snippet, "score": 0.9, "weight": 1.0}]')
+                '. + [{"source": "loa", "type": "decision", "tier": "project", "file": "grimoires/loa/decisions.yaml", "snippet": $snippet, "score": 0.9, "weight": 0.9}]')
         fi
     fi
 
@@ -488,10 +585,14 @@ merge_and_rank() {
     merged=$(jq -n --argjson loa "$loa_results" --argjson anthropic "$anthropic_results" \
         '$loa + $anthropic')
 
-    # Calculate weighted scores and filter
+    # Calculate weighted scores and filter (handle null values)
     local ranked
     ranked=$(echo "$merged" | jq --argjson min_weight "$min_weight" '
         [.[] |
+            . + {
+                score: (.score // 0.5),
+                weight: (.weight // 1.0)
+            } |
             . + {weighted_score: (.score * .weight)} |
             select(.weight >= $min_weight)
         ] | sort_by(-.weighted_score)')

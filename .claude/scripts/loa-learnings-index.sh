@@ -83,7 +83,16 @@ SKILLS_INDEX="$INDEX_DIR/skills.idx"
 FEEDBACK_INDEX="$INDEX_DIR/feedback.idx"
 DECISIONS_INDEX="$INDEX_DIR/decisions.idx"
 LEARNINGS_INDEX="$INDEX_DIR/learnings.idx"
+FRAMEWORK_LEARNINGS_INDEX="$INDEX_DIR/framework-learnings.idx"
 INDEX_META="$INDEX_DIR/index.json"
+
+# Two-tier learnings paths
+FRAMEWORK_LEARNINGS_DIR="$PROJECT_ROOT/.claude/loa/learnings"
+PROJECT_LEARNINGS_DIR="$PROJECT_ROOT/grimoires/loa/a2a/compound"
+
+# Default weights for tier merging
+FRAMEWORK_WEIGHT=$(read_config '.learnings.tiers.framework.weight' '1.0')
+PROJECT_WEIGHT=$(read_config '.learnings.tiers.project.weight' '0.9')
 
 # Colors
 RED='\033[0;31m'
@@ -329,7 +338,7 @@ index_memory() {
     echo "$count"
 }
 
-# Index compound learnings from grimoires/loa/a2a/compound/learnings.json
+# Index compound learnings from grimoires/loa/a2a/compound/learnings.json (Project Tier)
 index_learnings() {
     local count=0
     local output="[]"
@@ -350,10 +359,60 @@ index_learnings() {
         return
     fi
 
-    output=$(jq '[.learnings // [] | .[] | . + {"type": "learning", "source_file": "grimoires/loa/a2a/compound/learnings.json"}]' "$learnings_file" 2>/dev/null || echo "[]")
+    output=$(jq '[.learnings // [] | .[] | . + {"type": "learning", "tier": "project", "source_file": "grimoires/loa/a2a/compound/learnings.json"}]' "$learnings_file" 2>/dev/null || echo "[]")
     count=$(echo "$output" | jq 'length')
 
     echo "$output" > "$LEARNINGS_INDEX"
+    echo "$count"
+}
+
+# Index framework learnings from .claude/loa/learnings/ (Framework Tier)
+index_framework_learnings() {
+    local count=0
+    local output="[]"
+
+    # Check if framework tier is enabled
+    local framework_enabled
+    framework_enabled=$(read_config '.learnings.tiers.framework.enabled' 'true')
+    if [[ "$framework_enabled" != "true" ]]; then
+        echo "[]" > "$FRAMEWORK_LEARNINGS_INDEX"
+        echo "0"
+        return
+    fi
+
+    cd "$PROJECT_ROOT" || exit 1
+
+    if [[ ! -d "$FRAMEWORK_LEARNINGS_DIR" ]]; then
+        echo "[]" > "$FRAMEWORK_LEARNINGS_INDEX"
+        echo "0"
+        return
+    fi
+
+    # Index each framework learnings file
+    for file in "$FRAMEWORK_LEARNINGS_DIR"/*.json; do
+        [[ -f "$file" ]] || continue
+        local basename
+        basename=$(basename "$file" .json)
+
+        # Skip index.json (metadata file)
+        [[ "$basename" == "index" ]] && continue
+
+        # Parse learnings array from file
+        local learnings
+        learnings=$(jq --arg file "$file" --arg cat "$basename" '[.learnings // [] | .[] | . + {
+            "type": "framework_learning",
+            "tier": "framework",
+            "category": $cat,
+            "source_file": $file
+        }]' "$file" 2>/dev/null || echo "[]")
+
+        output=$(echo "$output $learnings" | jq -s 'add')
+        local file_count
+        file_count=$(echo "$learnings" | jq 'length')
+        count=$((count + file_count))
+    done
+
+    echo "$output" > "$FRAMEWORK_LEARNINGS_INDEX"
     echo "$count"
 }
 
@@ -383,7 +442,12 @@ build_index() {
     decisions_count=$(index_decisions)
     echo -e "${GREEN}$decisions_count${NC}"
 
-    echo -n "  Indexing learnings... "
+    echo -n "  Indexing framework learnings (Tier 1)... "
+    local framework_learnings_count
+    framework_learnings_count=$(index_framework_learnings)
+    echo -e "${GREEN}$framework_learnings_count${NC}"
+
+    echo -n "  Indexing project learnings (Tier 2)... "
     local learnings_count
     learnings_count=$(index_learnings)
     echo -e "${GREEN}$learnings_count${NC}"
@@ -396,23 +460,30 @@ build_index() {
     # Create metadata file
     cat > "$INDEX_META" << EOF
 {
-    "version": 1,
+    "version": 2,
     "indexed_at": "$timestamp",
     "counts": {
         "skills": $skills_count,
         "feedback": $feedback_count,
         "decisions": $decisions_count,
-        "learnings": $learnings_count,
+        "framework_learnings": $framework_learnings_count,
+        "project_learnings": $learnings_count,
         "memory": $memory_count
     },
-    "total": $((skills_count + feedback_count + decisions_count + learnings_count + memory_count)),
+    "tiers": {
+        "framework": $framework_learnings_count,
+        "project": $learnings_count
+    },
+    "total": $((skills_count + feedback_count + decisions_count + framework_learnings_count + learnings_count + memory_count)),
     "index_dir": "$INDEX_DIR"
 }
 EOF
 
     echo ""
     echo "─────────────────────────────────────────"
-    echo -e "Total indexed: ${GREEN}$((skills_count + feedback_count + decisions_count + learnings_count))${NC}"
+    echo -e "Framework learnings (Tier 1): ${GREEN}$framework_learnings_count${NC}"
+    echo -e "Project learnings (Tier 2): ${GREEN}$learnings_count${NC}"
+    echo -e "Total indexed: ${GREEN}$((skills_count + feedback_count + decisions_count + framework_learnings_count + learnings_count + memory_count))${NC}"
     echo -e "Index location: ${CYAN}$INDEX_DIR${NC}"
     echo ""
 }
@@ -441,6 +512,7 @@ query_with_grep() {
     local format="${2:-text}"
     local limit="${3:-10}"
     local track="${4:-false}"
+    local tier_filter="${5:-all}"
 
     # Ensure index exists before querying
     if ! ensure_index_exists; then
@@ -459,9 +531,28 @@ query_with_grep() {
     # ORACLE-L-1: Pass pattern directly to jq via --arg instead of environment variable
     local SEARCH_PATTERN="$pattern"
 
-    # Search each index (including memory if enabled)
+    # Build list of indexes to search based on tier filter
+    local indexes_to_search=()
     local MEMORY_INDEX="$INDEX_DIR/memory.idx"
-    for idx_file in "$SKILLS_INDEX" "$FEEDBACK_INDEX" "$DECISIONS_INDEX" "$LEARNINGS_INDEX" "$MEMORY_INDEX"; do
+
+    # Always search non-tier indexes
+    indexes_to_search+=("$SKILLS_INDEX" "$FEEDBACK_INDEX" "$DECISIONS_INDEX" "$MEMORY_INDEX")
+
+    # Add tier-specific indexes based on filter
+    case "$tier_filter" in
+        framework)
+            indexes_to_search+=("$FRAMEWORK_LEARNINGS_INDEX")
+            ;;
+        project)
+            indexes_to_search+=("$LEARNINGS_INDEX")
+            ;;
+        all|*)
+            indexes_to_search+=("$FRAMEWORK_LEARNINGS_INDEX" "$LEARNINGS_INDEX")
+            ;;
+    esac
+
+    # Search each index
+    for idx_file in "${indexes_to_search[@]}"; do
         [[ -f "$idx_file" ]] || continue
 
         # Search JSON index using environment variable
@@ -481,10 +572,11 @@ query_with_grep() {
         results=$(echo "$results" | jq --argjson new "$matches" '. + $new')
     done
 
-    # Calculate scores based on match quality
-    results=$(echo "$results" | jq --arg pattern "$SEARCH_PATTERN" '
+    # Calculate scores based on match quality and apply tier weights
+    results=$(echo "$results" | jq --arg pattern "$SEARCH_PATTERN" \
+        --argjson fw_weight "$FRAMEWORK_WEIGHT" --argjson proj_weight "$PROJECT_WEIGHT" '
         [.[] | . + {
-            score: (
+            base_score: (
                 if (.title // "" | test($pattern; "i")) then 0.9
                 elif (.trigger // "" | test($pattern; "i")) then 0.85
                 elif (.solution // "" | test($pattern; "i")) then 0.8
@@ -492,10 +584,18 @@ query_with_grep() {
                 elif (.keywords // "" | test($pattern; "i")) then 0.6
                 else 0.5
                 end
-            ),
-            weight: 1.0,
+            )
+        } | . + {
+            tier_weight: (if .tier == "framework" then $fw_weight else $proj_weight end),
+            score: (.base_score * (if .tier == "framework" then $fw_weight else $proj_weight end)),
             source: "loa"
         }]
+    ' 2>/dev/null || echo "[]")
+
+    # Deduplicate by content hash (prefer higher score)
+    results=$(echo "$results" | jq '
+        group_by(.title // .id) |
+        map(sort_by(-.score) | .[0])
     ' 2>/dev/null || echo "[]")
 
     # ORACLE-L-4: Sort by score and limit using jq limit() for efficiency with large indexes
@@ -621,8 +721,10 @@ show_status() {
     if [[ ! -f "$INDEX_META" ]]; then
         echo -e "${YELLOW}No index found. Run 'loa-learnings-index.sh index' first.${NC}"
         echo ""
-        echo -e "${BOLD}Note:${NC} Empty learnings are expected for fresh Loa installs."
-        echo "Learnings are populated through:"
+        echo -e "${BOLD}Note:${NC} With Two-Tier Learnings (v1.15.1), framework learnings ship with Loa."
+        echo "Framework learnings in .claude/loa/learnings/ are always available."
+        echo ""
+        echo "Project learnings are populated through:"
         echo "  - /retrospective  - Extract patterns from completed work"
         echo "  - /compound       - Consolidate learnings across sessions"
         echo "  - Manual entries  - Add to grimoires/loa/feedback/*.yaml"
@@ -643,7 +745,19 @@ show_status() {
     echo -e "  Last indexed: ${BLUE}$indexed_at${NC}"
     echo -e "  Total entries: ${GREEN}$total${NC}"
     echo ""
-    echo "  Breakdown:"
+
+    # Show tier breakdown if available
+    local fw_count
+    local proj_count
+    fw_count=$(jq -r '.tiers.framework // .counts.framework_learnings // 0' "$INDEX_META")
+    proj_count=$(jq -r '.tiers.project // .counts.project_learnings // 0' "$INDEX_META")
+
+    echo "  Two-Tier Learnings:"
+    echo -e "    Framework (Tier 1): ${GREEN}$fw_count${NC} (weight: $FRAMEWORK_WEIGHT)"
+    echo -e "    Project (Tier 2):   ${GREEN}$proj_count${NC} (weight: $PROJECT_WEIGHT)"
+    echo ""
+
+    echo "  Full Breakdown:"
     jq -r '.counts | to_entries | .[] | "    \(.key): \(.value)"' "$INDEX_META"
     echo ""
     echo -e "  Index location: ${CYAN}$INDEX_DIR${NC}"
@@ -903,6 +1017,7 @@ parse_query_args() {
     local limit="10"
     local track="false"
     local indexer=""
+    local tier="all"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -920,6 +1035,10 @@ parse_query_args() {
                 ;;
             --index)
                 indexer="$2"
+                shift 2
+                ;;
+            --tier)
+                tier="$2"
                 shift 2
                 ;;
             -*)
@@ -942,6 +1061,15 @@ parse_query_args() {
         exit 1
     fi
 
+    # Validate tier option
+    case "$tier" in
+        framework|project|all) ;;
+        *)
+            echo -e "${RED}Error: Invalid tier '$tier'. Must be: framework, project, or all${NC}" >&2
+            exit 1
+            ;;
+    esac
+
     # Determine indexer to use
     if [[ -z "$indexer" ]]; then
         indexer=$(get_default_indexer)
@@ -956,13 +1084,13 @@ parse_query_args() {
             query_with_qmd "$terms" "$format" "$limit"
             ;;
         grep)
-            query_with_grep "$terms" "$format" "$limit" "$track"
+            query_with_grep "$terms" "$format" "$limit" "$track" "$tier"
             ;;
         auto)
             if qmd_available; then
                 query_with_qmd "$terms" "$format" "$limit"
             else
-                query_with_grep "$terms" "$format" "$limit" "$track"
+                query_with_grep "$terms" "$format" "$limit" "$track" "$tier"
             fi
             ;;
         *)
@@ -1010,18 +1138,25 @@ Query Options:
   --limit <N>             Maximum results (default: 10)
   --track                 Track query for effectiveness metrics
   --index <auto|qmd|grep> Indexer: auto (Recommended), qmd, grep
+  --tier <tier>           Tier filter: all (default), framework, project
+
+Two-Tier Learnings Architecture (v1.15.1):
+  Framework (Tier 1): .claude/loa/learnings/ - Ships with Loa, weight 1.0
+  Project (Tier 2):   grimoires/loa/a2a/compound/ - Project-specific, weight 0.9
 
 Examples:
   loa-learnings-index.sh index
   loa-learnings-index.sh query "authentication"
+  loa-learnings-index.sh query "zone model" --tier framework
   loa-learnings-index.sh query "hooks|mcp" --format json --limit 5
   loa-learnings-index.sh add grimoires/loa/feedback/2026-01-31.yaml
 
 Sources Indexed:
+  - Framework learnings: .claude/loa/learnings/*.json (Tier 1)
+  - Project learnings: grimoires/loa/a2a/compound/learnings.json (Tier 2)
   - Skills: .claude/skills/**/*.md
   - Feedback: grimoires/loa/feedback/*.yaml
   - Decisions: grimoires/loa/decisions.yaml
-  - Learnings: grimoires/loa/a2a/compound/learnings.json
 
 Environment Variables:
   LOA_INDEX_DIR    Index directory (default: ~/.loa/cache/oracle/loa)

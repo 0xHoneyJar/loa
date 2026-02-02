@@ -20,6 +20,35 @@
       "type": "string",
       "description": "Reference to this schema file"
     },
+    "_loa_marker": {
+      "type": "object",
+      "description": "Loa framework marker for managed files (v1.15.1+)",
+      "properties": {
+        "managed": {
+          "type": "boolean",
+          "const": true
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": ["managed", "version", "hash"]
+    },
+    "category": {
+      "type": "string",
+      "description": "Category of learnings in this file (v1.15.1+)",
+      "enum": ["pattern", "anti-pattern", "decision", "troubleshooting"]
+    },
+    "tier": {
+      "type": "string",
+      "description": "Tier of learnings in this file (v1.15.1+)",
+      "enum": ["framework", "project"]
+    },
     "version": {
       "type": "string",
       "description": "Schema version (JSON format)",
@@ -66,6 +95,21 @@
         "id": {
           "type": "string",
           "description": "Learning identifier (L-NNNN for feedback, skill name for effectiveness)"
+        },
+        "tier": {
+          "type": "string",
+          "description": "Which tier this learning belongs to (v1.15.1+)",
+          "enum": ["framework", "project"]
+        },
+        "version_added": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "description": "Loa version when this learning was added (semver, v1.15.1+)"
+        },
+        "source_origin": {
+          "type": "string",
+          "description": "Origin of this learning (v1.15.1+)",
+          "enum": ["loa-core", "community", "project-retrospective", "manual"]
         },
         "timestamp": {
           "type": "string",

@@ -1,0 +1,251 @@
+{
+  "_loa_marker": {
+    "managed": true,
+    "version": "1.15.1",
+    "hash": "b66131c44d358aa06d1939068101eeb40d44e8f6220c63dce6945eef160c5825"
+  },
+  "category": "decision",
+  "tier": "framework",
+  "learnings": [
+    {
+      "id": "FD-001",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Why grimoires/ for State Zone",
+      "trigger": "Deciding where to store project state files",
+      "solution": "grimoires/ provides clear separation from source code. The name evokes 'spell books' fitting the Loa theme. Subdirectories loa/ (private) and pub/ (public) allow selective git tracking. Keeps .claude/ clean for framework-only files.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 8,
+        "trigger_clarity": 8,
+        "verification": 10
+      },
+      "tags": [
+        "architecture",
+        "state",
+        "organization",
+        "naming"
+      ]
+    },
+    {
+      "id": "FD-002",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Why Skills Use 3-Level Architecture",
+      "trigger": "Designing skill loading strategy",
+      "solution": "Token efficiency: index.yaml (~100 tokens) enables discovery, SKILL.md (~2000 tokens) provides operational instructions, resources/ loaded on-demand. Prevents 10K+ token skills from consuming context. Matches Claude Code's progressive loading model.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 9,
+        "reusability": 9,
+        "trigger_clarity": 9,
+        "verification": 10
+      },
+      "tags": [
+        "skills",
+        "tokens",
+        "architecture",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "FD-003",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Why Draft PRs Only in Run Mode",
+      "trigger": "Designing autonomous execution safety model",
+      "solution": "Draft PRs provide visibility without merge risk. Human must explicitly approve and merge. Combined with 4-level defense (ICE layer, circuit breaker, opt-in config, draft visibility), prevents autonomous code from reaching production without review.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 8,
+        "trigger_clarity": 9,
+        "verification": 10
+      },
+      "tags": [
+        "run-mode",
+        "safety",
+        "pull-requests",
+        "autonomous"
+      ]
+    },
+    {
+      "id": "FD-004",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Why NOTES.md Over Database",
+      "trigger": "Choosing agent memory storage format",
+      "solution": "NOTES.md is human-readable, git-trackable, portable, and requires no runtime dependencies. Markdown format with structured sections enables both human and machine parsing. Survives repository clones and works offline.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 9,
+        "trigger_clarity": 8,
+        "verification": 10
+      },
+      "tags": [
+        "memory",
+        "storage",
+        "portability",
+        "notes"
+      ]
+    },
+    {
+      "id": "FD-005",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Why Sprint Ledger for Global Numbering",
+      "trigger": "Managing sprint IDs across multiple development cycles",
+      "solution": "Sprint Ledger (ledger.json) provides global sprint-N numbering that persists across archive cycles. Local sprint IDs (sprint-1 within a cycle) map to global IDs for cross-cycle traceability. Enables /ledger commands for status and history.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 8,
+        "trigger_clarity": 9,
+        "verification": 9
+      },
+      "tags": [
+        "sprints",
+        "ledger",
+        "numbering",
+        "cycles"
+      ]
+    },
+    {
+      "id": "FD-006",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Why ICE Layer for Git Safety",
+      "trigger": "Protecting against dangerous git operations",
+      "solution": "ICE (Isolation, Control, Escape) layer wraps all git operations in run-mode-ice.sh. Validates operations, blocks force pushes to main/master, prevents upstream pushes. Provides consistent safety regardless of which script calls git.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 9,
+        "trigger_clarity": 9,
+        "verification": 10
+      },
+      "tags": [
+        "git",
+        "safety",
+        "ice",
+        "protection"
+      ]
+    },
+    {
+      "id": "FD-007",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Why .claude/ Not .loa/ for System Zone",
+      "trigger": "Choosing framework directory name",
+      "solution": ".claude/ aligns with Claude Code's native directory structure. Enables seamless integration with Claude Code features (settings.json, commands/, skills/). Users expect .claude/ from Claude Code documentation. Avoids confusion with multiple config directories.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 7,
+        "reusability": 8,
+        "trigger_clarity": 9,
+        "verification": 10
+      },
+      "tags": [
+        "naming",
+        "claude-code",
+        "integration",
+        "structure"
+      ]
+    },
+    {
+      "id": "FD-008",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Why JSON for Learnings Storage",
+      "trigger": "Choosing learnings file format",
+      "solution": "JSON provides: schema validation via JSON Schema, efficient parsing with jq, consistent structure for programmatic access, _loa_marker support for integrity verification. YAML used for human-authored feedback files only.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 7,
+        "reusability": 8,
+        "trigger_clarity": 8,
+        "verification": 9
+      },
+      "tags": [
+        "format",
+        "json",
+        "storage",
+        "validation"
+      ]
+    },
+    {
+      "id": "FD-009",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Why SHA-256 for Content Hashing",
+      "trigger": "Choosing hash algorithm for integrity verification",
+      "solution": "SHA-256 provides strong collision resistance, is widely supported (sha256sum available on all platforms), produces 64-char hex output that fits in markers. Balances security with performance for file integrity checking.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 7,
+        "reusability": 9,
+        "trigger_clarity": 8,
+        "verification": 10
+      },
+      "tags": [
+        "hashing",
+        "integrity",
+        "security",
+        "sha256"
+      ]
+    },
+    {
+      "id": "FD-010",
+      "tier": "framework",
+      "version_added": "1.15.1",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Why Weight System for Multi-Tier Search",
+      "trigger": "Designing search result ranking across learnings tiers",
+      "solution": "Weights (framework=1.0, project=0.9) allow framework knowledge to rank slightly higher while still surfacing project-specific learnings. Configurable weights let users adjust priority. Content hash deduplication prevents duplicates from both tiers.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 8,
+        "trigger_clarity": 9,
+        "verification": 8
+      },
+      "tags": [
+        "search",
+        "ranking",
+        "weights",
+        "learnings"
+      ]
+    }
+  ]
+}

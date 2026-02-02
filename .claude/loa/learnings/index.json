@@ -1,0 +1,43 @@
+{
+  "_loa_marker": {
+    "managed": true,
+    "version": "1.15.1",
+    "hash": "bd27c2560fb05f662fa4c04738d90b5cd5370a7ceda9573a33dfed8bda7f0da7"
+  },
+  "metadata": {
+    "tier": "framework",
+    "version": "1.15.1",
+    "description": "Framework-level learnings that ship with Loa",
+    "created_at": "2026-02-02T00:00:00Z",
+    "updated_at": "2026-02-02T00:00:00Z"
+  },
+  "sources": [
+    {
+      "file": "patterns.json",
+      "category": "pattern",
+      "description": "Proven architectural patterns"
+    },
+    {
+      "file": "anti-patterns.json",
+      "category": "anti-pattern",
+      "description": "Common pitfalls to avoid"
+    },
+    {
+      "file": "decisions.json",
+      "category": "decision",
+      "description": "Architectural decision records"
+    },
+    {
+      "file": "troubleshooting.json",
+      "category": "troubleshooting",
+      "description": "Common issues and solutions"
+    }
+  ],
+  "counts": {
+    "patterns": 10,
+    "anti_patterns": 8,
+    "decisions": 10,
+    "troubleshooting": 12,
+    "total": 40
+  }
+}

@@ -919,6 +919,56 @@ oracle:
     default_scope: all
 
 # =============================================================================
+# Two-Tier Learnings Architecture (v1.15.1 - PR #139)
+# =============================================================================
+# Framework learnings ship with Loa, project learnings accumulate over time
+# Based on Issue #137 (oracle exit code) and Issue #76 (Loa as oracle)
+learnings:
+  # -------------------------------------------------------------------------
+  # Tier Configuration
+  # -------------------------------------------------------------------------
+  tiers:
+    # Framework Tier (Tier 1) - Ships with Loa in .claude/loa/learnings/
+    framework:
+      # Enable framework learnings
+      enabled: true
+      # Weight for ranking (higher = more prominent in results)
+      weight: 1.0
+      # Source directory (relative to project root)
+      source_dir: ".claude/loa/learnings"
+
+    # Project Tier (Tier 2) - Accumulates in grimoires/loa/
+    project:
+      # Enable project learnings
+      enabled: true
+      # Weight for ranking (slightly lower to prefer framework patterns)
+      weight: 0.9
+      # Source paths (relative to project root)
+      sources:
+        - "grimoires/loa/a2a/compound/learnings.json"
+        - "grimoires/loa/feedback/*.yaml"
+
+  # -------------------------------------------------------------------------
+  # Query Settings
+  # -------------------------------------------------------------------------
+  query:
+    # Default tier filter: all | framework | project
+    default_tier: all
+    # Maximum results per query
+    max_results: 10
+    # Deduplicate by content hash across tiers
+    deduplicate: true
+
+  # -------------------------------------------------------------------------
+  # Index Settings
+  # -------------------------------------------------------------------------
+  index:
+    # Auto-rebuild index after /update-loa
+    rebuild_on_update: true
+    # Index cache directory
+    cache_dir: "~/.loa/cache/oracle/loa"
+
+# =============================================================================
 # Autonomous Agent Orchestration (v1.11.0)
 # =============================================================================
 # Meta-orchestrator for exhaustive Loa process compliance

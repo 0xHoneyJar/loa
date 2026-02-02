@@ -1471,6 +1471,30 @@ EOF
     echo -e "  Run ${CYAN}/update-loa @latest${NC} to switch to stable"
     echo ""
   fi
+
+  # Rebuild learnings index to pick up new framework learnings (v1.15.1)
+  post_update_learnings
+}
+
+# Rebuild learnings index after update to include new framework learnings
+post_update_learnings() {
+  local learnings_index_script="$SYSTEM_DIR/scripts/loa-learnings-index.sh"
+
+  if [[ -x "$learnings_index_script" ]]; then
+    info "Rebuilding learnings index..."
+    if "$learnings_index_script" index >/dev/null 2>&1; then
+      # Count framework learnings
+      local fw_count=0
+      if [[ -d "$SYSTEM_DIR/loa/learnings" ]]; then
+        fw_count=$(find "$SYSTEM_DIR/loa/learnings" -name "*.json" ! -name "index.json" -exec jq '.learnings | length' {} + 2>/dev/null | awk '{sum+=$1} END{print sum}')
+      fi
+      if [[ -n "$fw_count" && "$fw_count" -gt 0 ]]; then
+        log "Framework learnings available: ${fw_count}"
+      fi
+    else
+      warn "Could not rebuild learnings index"
+    fi
+  fi
 }
 
 main "$@"
