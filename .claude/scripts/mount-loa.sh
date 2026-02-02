@@ -9,13 +9,125 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 BLUE='\033[0;34m'
+DIM='\033[2m'
+BOLD='\033[1m'
 NC='\033[0m'
 
-log() { echo -e "${GREEN}[loa]${NC} $*"; }
-warn() { echo -e "${YELLOW}[loa]${NC} $*"; }
-err() { echo -e "${RED}[loa]${NC} ERROR: $*" >&2; exit 1; }
-info() { echo -e "${CYAN}[loa]${NC} $*"; }
-step() { echo -e "${BLUE}[loa]${NC} -> $*"; }
+# === Output Mode Variables ===
+QUIET_MODE=false
+VERBOSE_MODE=false
+
+# === Symbols (Unicode) ===
+SYM_CHECK="✓"
+SYM_ARROW="›"
+SYM_WARN="!"
+SYM_ERR="✗"
+SYM_DOT="·"
+SYM_CIRCLE="○"
+SYM_STAR="⭐"
+
+# === Wizard State Tracking ===
+declare -A INSTALL_STATUS=(
+  [qmd]="pending"
+  [beads]="pending"
+  [memory]="pending"
+)
+declare -A INSTALL_PIDS=()
+declare -A INSTALL_LOGS=()
+
+# === ANSI Escape Codes ===
+CLEAR_LINE="\033[2K"
+CURSOR_UP="\033[1A"
+HIDE_CURSOR="\033[?25l"
+SHOW_CURSOR="\033[?25h"
+
+# === Logging Functions (quiet-aware) ===
+log() { [[ "$VERBOSE_MODE" == "true" ]] && echo -e "${DIM}  $*${NC}" || true; }
+warn() {
+  # If spinner is running, stop it first
+  if [[ -n "$SPINNER_PID" ]]; then
+    kill "$SPINNER_PID" 2>/dev/null
+    wait "$SPINNER_PID" 2>/dev/null || true
+    SPINNER_PID=""
+    printf "\r${CLEAR_LINE}"
+  fi
+  echo -e "${YELLOW}${SYM_WARN}${NC} $*"
+}
+err() { echo -e "${RED}${SYM_ERR} ERROR:${NC} $*" >&2; exit 1; }
+info() { [[ "$VERBOSE_MODE" == "true" ]] && echo -e "${CYAN}$*${NC}" || true; }
+step() { [[ "$VERBOSE_MODE" == "true" ]] && echo -e "${DIM}  ${SYM_ARROW} $*${NC}" || true; }
+
+# === Spinner ===
+SPINNER_PID=""
+SPINNER_FRAMES=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
+
+spinner_start() {
+  local msg="$1"
+  [[ "$QUIET_MODE" == "true" ]] && return
+
+  printf "${HIDE_CURSOR}"
+  (
+    local i=0
+    while true; do
+      printf "\r${CYAN}${SPINNER_FRAMES[$i]}${NC} %s" "$msg"
+      i=$(( (i + 1) % ${#SPINNER_FRAMES[@]} ))
+      sleep 0.08
+    done
+  ) &
+  SPINNER_PID=$!
+}
+
+spinner_stop() {
+  local msg="$1"
+  local success="${2:-true}"
+
+  [[ "$QUIET_MODE" == "true" ]] && { echo "$msg"; return; }
+
+  if [[ -n "$SPINNER_PID" ]]; then
+    kill "$SPINNER_PID" 2>/dev/null
+    wait "$SPINNER_PID" 2>/dev/null || true
+    SPINNER_PID=""
+  fi
+
+  printf "\r${CLEAR_LINE}"
+  if [[ "$success" == "true" ]]; then
+    printf "${GREEN}${SYM_CHECK}${NC} %s\n" "$msg"
+  else
+    printf "${YELLOW}${SYM_WARN}${NC} %s\n" "$msg"
+  fi
+  printf "${SHOW_CURSOR}"
+}
+
+# Cleanup spinner and wizard on interrupt (not normal exit)
+cleanup_handler() {
+  # Kill spinner if running
+  if [[ -n "$SPINNER_PID" ]]; then
+    kill "$SPINNER_PID" 2>/dev/null
+    wait "$SPINNER_PID" 2>/dev/null || true
+    SPINNER_PID=""
+    printf "\r${CLEAR_LINE}"
+  fi
+
+  # Kill any background installation processes
+  for name in "${!INSTALL_PIDS[@]}"; do
+    local pid="${INSTALL_PIDS[$name]}"
+    if [[ -n "$pid" ]] && ps -p "$pid" > /dev/null 2>&1; then
+      kill "$pid" 2>/dev/null
+      wait "$pid" 2>/dev/null || true
+    fi
+  done
+
+  printf "${SHOW_CURSOR}"
+  echo -e "${YELLOW}${SYM_WARN}${NC} Interrupted"
+}
+trap 'cleanup_handler' INT TERM
+trap 'printf "${SHOW_CURSOR}"' EXIT
+
+# === Spinner Verb Themes ===
+# Pipe-delimited for easy parsing with tr
+SPINNER_THEME_DUNE="Channeling spice|Riding sandworm|Consulting mentat|Folding space|Walking rhythm|Harvesting melange|Awakening sleeper|Reading prescience"
+SPINNER_THEME_GIBSON="Jacking in|Running ICE|Tracing construct|Navigating sprawl|Compiling intrusion|Parsing signal|Decrypting data|Surfing matrix"
+SPINNER_THEME_LOA="Invoking loa|Mounting grimoire|Channeling agents|Binding beads|Synthesizing context|Weaving protocols|Conjuring skills|Riding codebase"
 
 # === Configuration ===
 LOA_REMOTE_URL="${LOA_UPSTREAM:-https://github.com/0xHoneyJar/loa.git}"
@@ -24,10 +136,13 @@ LOA_BRANCH="${LOA_BRANCH:-main}"
 VERSION_FILE=".loa-version.json"
 CONFIG_FILE=".loa.config.yaml"
 CHECKSUMS_FILE=".claude/checksums.json"
-SKIP_BEADS=false
+SKIP_WIZARD=false
 STEALTH_MODE=false
 FORCE_MODE=false
 NO_COMMIT=false
+VERSION_MODE="latest"  # latest | edge | loa@vX.Y.Z
+RESOLVED_VERSION=""    # Populated by fetch_latest_loa_release
+FALLBACK_VERSION="1.14.1"
 
 # === Argument Parsing ===
 while [[ $# -gt 0 ]]; do
@@ -36,12 +151,37 @@ while [[ $# -gt 0 ]]; do
       LOA_BRANCH="$2"
       shift 2
       ;;
+    --version)
+      [[ -z "${2:-}" || "$2" == -* ]] && err "--version requires a value (e.g., --version 1.14.0)"
+      VERSION_MODE="loa@v$2"
+      shift 2
+      ;;
+    --edge)
+      VERSION_MODE="edge"
+      shift
+      ;;
+    --quiet|-q)
+      QUIET_MODE=true
+      VERBOSE_MODE=false
+      shift
+      ;;
+    --verbose|-v)
+      VERBOSE_MODE=true
+      QUIET_MODE=false
+      shift
+      ;;
     --stealth)
       STEALTH_MODE=true
       shift
       ;;
     --skip-beads)
-      SKIP_BEADS=true
+      # Deprecated: beads is now installed via setup wizard
+      warn "--skip-beads is deprecated. Use --skip-wizard instead."
+      SKIP_WIZARD=true
+      shift
+      ;;
+    --skip-wizard)
+      SKIP_WIZARD=true
       shift
       ;;
     --force|-f)
@@ -56,15 +196,26 @@ while [[ $# -gt 0 ]]; do
       echo "Usage: mount-loa.sh [OPTIONS]"
       echo ""
       echo "Options:"
+      echo "  --version <ver>   Install specific version (e.g., --version 1.14.0)"
+      echo "  --edge            Install from main branch (bleeding edge)"
+      echo "  --quiet, -q       Minimal output (numbered progress steps)"
+      echo "  --verbose, -v     Full output with ASCII banner"
       echo "  --branch <name>   Loa branch to use (default: main)"
-      echo "  --force, -f       Force remount without prompting (use for curl | bash)"
+      echo "  --force, -f       Force remount without prompting"
       echo "  --stealth         Add state files to .gitignore"
-      echo "  --skip-beads      Don't install/initialize Beads CLI"
+      echo "  --skip-wizard     Skip the setup wizard for optional tools"
       echo "  --no-commit       Skip creating git commit after mount"
       echo "  -h, --help        Show this help message"
       echo ""
-      echo "Recovery install (when /update is broken):"
-      echo "  curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash -s -- --force"
+      echo "Examples:"
+      echo "  # Install latest release"
+      echo "  curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash"
+      echo ""
+      echo "  # Install specific version"
+      echo "  bash mount-loa.sh --version 1.13.0"
+      echo ""
+      echo "  # Install bleeding edge"
+      echo "  bash mount-loa.sh --edge"
       exit 0
       ;;
     *)
@@ -96,6 +247,167 @@ yq_to_json() {
   fi
 }
 
+# === Version Resolution ===
+# Fetches latest loa@v* release from GitHub API
+# Args: mode - "latest" (default), "edge", or "loa@vX.Y.Z"
+# Returns: version string to stdout, exit 1 if fallback used
+fetch_latest_loa_release() {
+  local mode="${1:-latest}"
+
+  case "$mode" in
+    edge)
+      # Edge mode: use main branch
+      echo "main"
+      return 0
+      ;;
+    latest)
+      # Fetch from GitHub API, filter loa@v* tags
+      local response
+      response=$(curl -sL --proto =https --tlsv1.2 \
+        -H "Accept: application/vnd.github+json" \
+        --max-time 5 \
+        "https://api.github.com/repos/0xHoneyJar/loa/releases" 2>/dev/null) || {
+        warn "Network error fetching releases"
+        echo "$FALLBACK_VERSION"
+        return 1
+      }
+
+      # Extract first loa@v* tag (most recent)
+      local tag
+      tag=$(echo "$response" | jq -r '[.[] | select(.tag_name | startswith("loa@v"))][0].tag_name // empty' 2>/dev/null)
+
+      if [[ -n "$tag" && "$tag" != "null" ]]; then
+        echo "${tag#loa@v}"  # Strip prefix, return "1.14.1"
+        return 0
+      fi
+
+      # No loa@v* releases found, try any release
+      tag=$(echo "$response" | jq -r '.[0].tag_name // empty' 2>/dev/null)
+      if [[ -n "$tag" && "$tag" != "null" ]]; then
+        echo "${tag#v}"  # Strip v prefix if present
+        return 0
+      fi
+
+      # Fallback
+      warn "Could not determine latest version from GitHub"
+      echo "$FALLBACK_VERSION"
+      return 1
+      ;;
+    loa@v*)
+      # Specific version requested - validate format and return
+      local ver="${mode#loa@v}"
+      if [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+        echo "$ver"
+        return 0
+      else
+        warn "Invalid version format: $ver"
+        echo "$FALLBACK_VERSION"
+        return 1
+      fi
+      ;;
+    *)
+      echo "$FALLBACK_VERSION"
+      return 1
+      ;;
+  esac
+}
+
+# === Spinner Verbs Functions ===
+# Prompts user to select a spinner theme (interactive only)
+prompt_spinner_verbs() {
+  # Skip if non-interactive, force mode, or quiet mode
+  [[ ! -t 0 ]] && return 0
+  [[ "$FORCE_MODE" == "true" ]] && return 0
+  [[ "$QUIET_MODE" == "true" ]] && return 0
+
+  echo ""
+  echo -e "${BOLD}Select spinner theme${NC}"
+  echo ""
+  echo -e "  ${BOLD}1${NC}  Dune     ${DIM}Channeling spice, Riding sandworm...${NC}"
+  echo -e "  ${BOLD}2${NC}  Gibson   ${DIM}Jacking in, Running ICE...${NC}"
+  echo -e "  ${BOLD}3${NC}  Loa      ${DIM}Invoking loa, Mounting grimoire...${NC}"
+  echo -e "  ${BOLD}n${NC}  Skip"
+  echo ""
+  read -p "Choice [1/2/3/n]: " -n 1 -r
+  echo ""
+
+  case $REPLY in
+    1) apply_spinner_verbs "dune" && echo -e "${GREEN}${SYM_CHECK}${NC} Applied Dune theme" ;;
+    2) apply_spinner_verbs "gibson" && echo -e "${GREEN}${SYM_CHECK}${NC} Applied Gibson theme" ;;
+    3) apply_spinner_verbs "loa" && echo -e "${GREEN}${SYM_CHECK}${NC} Applied Loa theme" ;;
+    *) ;;
+  esac
+}
+
+# Applies selected spinner theme to .claude/settings.json
+apply_spinner_verbs() {
+  local theme="$1"
+  local settings_file=".claude/settings.json"
+
+  [[ ! -f "$settings_file" ]] && {
+    warn "settings.json not found, skipping spinner verbs"
+    return 1
+  }
+
+  # Select theme
+  local verbs_str
+  case "$theme" in
+    dune)   verbs_str="$SPINNER_THEME_DUNE" ;;
+    gibson) verbs_str="$SPINNER_THEME_GIBSON" ;;
+    loa)    verbs_str="$SPINNER_THEME_LOA" ;;
+    *)      return 1 ;;
+  esac
+
+  # Convert pipe-delimited string to JSON array
+  local verbs_array
+  verbs_array=$(echo "$verbs_str" | tr '|' '\n' | jq -R . | jq -s .)
+
+  # Build spinnerVerbs object with mode and verbs
+  local spinner_obj
+  spinner_obj=$(jq -n --argjson verbs "$verbs_array" '{"mode": "replace", "verbs": $verbs}')
+
+  # Merge into settings.json (atomic write)
+  local tmp_file
+  tmp_file=$(mktemp)
+  chmod 600 "$tmp_file"
+
+  if jq --argjson spinnerVerbs "$spinner_obj" '.spinnerVerbs = $spinnerVerbs' "$settings_file" > "$tmp_file" 2>/dev/null; then
+    mv "$tmp_file" "$settings_file"
+    log "Applied $theme spinner theme"
+  else
+    rm -f "$tmp_file"
+    warn "Failed to update settings.json"
+    return 1
+  fi
+}
+
+# === Completion Message ===
+show_completion() {
+  local version="$1"
+
+  if [[ "$VERBOSE_MODE" == "true" ]]; then
+    # Delegate to existing upgrade-banner.sh
+    local banner_script=".claude/scripts/upgrade-banner.sh"
+    if [[ -x "$banner_script" ]]; then
+      "$banner_script" "none" "$version" --mount
+    else
+      show_minimal_completion "$version"
+    fi
+  else
+    show_minimal_completion "$version"
+  fi
+}
+
+show_minimal_completion() {
+  local version="$1"
+  echo ""
+  echo -e "${GREEN}${SYM_CHECK}${NC} ${BOLD}Loa v${version} mounted${NC}"
+  echo ""
+  echo -e "  Run ${CYAN}claude${NC} to start"
+  echo -e "  Use ${CYAN}/loa${NC} for guided workflow"
+  echo ""
+}
+
 # === Pre-flight Checks ===
 preflight() {
   log "Running pre-flight checks..."
@@ -106,10 +418,11 @@ preflight() {
 
   if [[ -f "$VERSION_FILE" ]]; then
     local existing=$(jq -r '.framework_version // "unknown"' "$VERSION_FILE" 2>/dev/null)
-    warn "Loa is already mounted (version: $existing)"
     if [[ "$FORCE_MODE" == "true" ]]; then
-      log "Force mode enabled, proceeding with remount..."
+      # Silent in force mode - user knows what they're doing
+      log "Force mode: remounting over v$existing"
     else
+      warn "Loa is already mounted (version: $existing)"
       # Check if stdin is a terminal (interactive mode)
       if [[ -t 0 ]]; then
         read -p "Remount/upgrade? This will reset the System Zone. (y/N) " -n 1 -r
@@ -121,36 +434,19 @@ preflight() {
     fi
   fi
 
-  command -v git >/dev/null || err "git is required"
-  command -v jq >/dev/null || err "jq is required (brew install jq / apt install jq)"
-  command -v yq >/dev/null || err "yq is required (brew install yq / pip install yq)"
+  # Use check-prereqs.sh in verbose mode for detailed output
+  # Fall back to inline checks if script not available
+  local prereqs_script=".claude/scripts/check-prereqs.sh"
+  if [[ "$VERBOSE_MODE" == "true" && -x "$prereqs_script" ]]; then
+    "$prereqs_script" --verbose || err "Missing required prerequisites"
+  else
+    # Inline checks (always run as backup)
+    command -v git >/dev/null || err "git is required"
+    command -v jq >/dev/null || err "jq is required (brew install jq / apt install jq)"
+    command -v yq >/dev/null || err "yq is required (brew install yq / pip install yq)"
+  fi
 
   log "Pre-flight checks passed"
-}
-
-# === Install Beads CLI ===
-install_beads() {
-  if [[ "$SKIP_BEADS" == "true" ]]; then
-    log "Skipping Beads installation (--skip-beads)"
-    return 0
-  fi
-
-  if command -v br &> /dev/null; then
-    local version=$(br --version 2>/dev/null || echo "unknown")
-    log "Beads CLI already installed: $version"
-    return 0
-  fi
-
-  step "Installing Beads CLI..."
-  local installer_url="https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh"
-
-  if curl --output /dev/null --silent --head --fail "$installer_url"; then
-    curl -fsSL "$installer_url" | bash
-    log "Beads CLI installed"
-  else
-    warn "Beads installer not available - skipping"
-    return 0
-  fi
 }
 
 # === Add Loa Remote ===
@@ -382,15 +678,17 @@ EOF
 create_manifest() {
   step "Creating version manifest..."
 
-  # Version detection priority:
-  # 1. Root .loa-version.json (if exists from previous install)
-  # 2. .claude/.loa-version.json (from upstream)
-  # 3. Fallback to current framework version
-  local upstream_version="1.7.2"
-  if [[ -f ".loa-version.json" ]]; then
-    upstream_version=$(jq -r '.framework_version // "1.7.2"' .loa-version.json 2>/dev/null)
-  elif [[ -f ".claude/.loa-version.json" ]]; then
-    upstream_version=$(jq -r '.framework_version // "1.7.2"' .claude/.loa-version.json 2>/dev/null)
+  # Use RESOLVED_VERSION if set (from fetch_latest_loa_release)
+  # Otherwise fall back to detection from existing files
+  local upstream_version="${RESOLVED_VERSION:-}"
+  if [[ -z "$upstream_version" ]]; then
+    if [[ -f ".loa-version.json" ]]; then
+      upstream_version=$(jq -r '.framework_version // "'"$FALLBACK_VERSION"'"' .loa-version.json 2>/dev/null)
+    elif [[ -f ".claude/.loa-version.json" ]]; then
+      upstream_version=$(jq -r '.framework_version // "'"$FALLBACK_VERSION"'"' .claude/.loa-version.json 2>/dev/null)
+    else
+      upstream_version="$FALLBACK_VERSION"
+    fi
   fi
 
   cat > "$VERSION_FILE" << EOF
@@ -567,37 +865,6 @@ apply_stealth() {
   fi
 }
 
-# === Initialize Beads ===
-init_beads() {
-  if [[ "$SKIP_BEADS" == "true" ]]; then
-    log "Skipping Beads initialization (--skip-beads)"
-    return 0
-  fi
-
-  if ! command -v br &> /dev/null; then
-    warn "Beads CLI not installed, skipping initialization"
-    return 0
-  fi
-
-  step "Initializing Beads task graph..."
-
-  local stealth_flag=""
-  if [[ -f "$CONFIG_FILE" ]]; then
-    local mode=$(yq_read "$CONFIG_FILE" '.persistence_mode' "standard")
-    [[ "$mode" == "stealth" ]] && stealth_flag="--stealth"
-  fi
-
-  if [[ ! -f ".beads/graph.jsonl" ]]; then
-    br init $stealth_flag 2>/dev/null || {
-      warn "Beads init failed - run 'br init' manually"
-      return 0
-    }
-    log "Beads initialized"
-  else
-    log "Beads already initialized"
-  fi
-}
-
 # === Create Version Tag ===
 create_version_tag() {
   local version="$1"
@@ -716,7 +983,7 @@ Generated by Loa update.sh"
   fi
 
   # Create commit (--no-verify to skip pre-commit hooks that might interfere)
-  git commit -m "$commit_msg" --no-verify 2>/dev/null || {
+  git commit -m "$commit_msg" --no-verify --quiet 2>/dev/null || {
     warn "Failed to create commit (git commit failed)"
     return 1
   }
@@ -727,62 +994,646 @@ Generated by Loa update.sh"
   create_version_tag "$new_version"
 }
 
-# === Main ===
-main() {
-  echo ""
-  log "======================================================================="
-  log "  Loa Framework Mount v1.7.2"
-  log "  Enterprise-Grade Managed Scaffolding"
-  log "======================================================================="
-  log "  Branch: $LOA_BRANCH"
-  [[ "$FORCE_MODE" == "true" ]] && log "  Mode: Force remount"
+# === Wizard Functions ===
+
+# Gum-based wizard (used when gum is available)
+run_wizard_gum() {
+  local version="${1:-}"
+
   echo ""
 
+  # Check installed tools
+  local qmd_installed=false
+  local beads_installed=false
+  command -v qmd &>/dev/null && qmd_installed=true
+  command -v br &>/dev/null && beads_installed=true
+
+  # Build status display
+  local status_text=""
+  if [[ "$qmd_installed" == "true" ]]; then
+    status_text+="  $(gum style --foreground 250 '✓') QMD $(gum style --foreground 240 '· semantic search')\n"
+    INSTALL_STATUS[qmd]="already"
+  else
+    status_text+="  $(gum style --foreground 240 '○') QMD $(gum style --foreground 240 '· semantic search')\n"
+  fi
+  if [[ "$beads_installed" == "true" ]]; then
+    status_text+="  $(gum style --foreground 250 '✓') beads $(gum style --foreground 240 '· task tracking')\n"
+    INSTALL_STATUS[beads]="already"
+  else
+    status_text+="  $(gum style --foreground 240 '○') beads $(gum style --foreground 240 '· task tracking')\n"
+  fi
+
+  # Show header with status
+  gum style \
+    --border normal \
+    --padding "0 2" \
+    --border-foreground 240 \
+    "$(gum style --foreground 255 --bold 'Optional Enhancements')"
+  echo ""
+  printf "$status_text"
+  echo ""
+
+  # If all installed, skip selection
+  if [[ "$qmd_installed" == "true" && "$beads_installed" == "true" ]]; then
+    gum style --foreground 240 "All tools installed."
+    INSTALL_STATUS[memory]="skipped"
+  else
+    # Build choices for tools not installed
+    local choices=""
+    [[ "$qmd_installed" != "true" ]] && choices+="QMD · Semantic code search
+"
+    [[ "$beads_installed" != "true" ]] && choices+="beads · Task tracking
+"
+    choices+="Skip"
+
+    gum style --foreground 240 "Select tools to install:"
+    echo ""
+
+    local selected
+    selected=$(echo -e "$choices" | gum choose --no-limit --cursor-prefix "  [ ] " --selected-prefix "  [✓] " --unselected-prefix "  [ ] " --height 5) || selected="Skip"
+
+    echo ""
+
+    # Install selected tools
+    if [[ "$selected" == *"QMD"* ]]; then
+      if ! command -v bun &>/dev/null; then
+        if gum confirm "QMD requires Bun. Install Bun first?"; then
+          gum spin --spinner dot --title "Installing Bun..." -- bash -c 'curl -fsSL https://bun.sh/install | bash &>/dev/null'
+          export PATH="$HOME/.bun/bin:$PATH"
+        else
+          INSTALL_STATUS[qmd]="skipped"
+        fi
+      fi
+      if [[ "${INSTALL_STATUS[qmd]}" != "skipped" ]]; then
+        gum spin --spinner dot --title "Installing QMD..." -- bash -c 'bun add -g github:tobi/qmd &>/dev/null' && \
+          INSTALL_STATUS[qmd]="installed" || INSTALL_STATUS[qmd]="failed"
+      fi
+    else
+      [[ "$qmd_installed" != "true" ]] && INSTALL_STATUS[qmd]="skipped"
+    fi
+
+    if [[ "$selected" == *"beads"* ]]; then
+      gum spin --spinner dot --title "Installing beads..." -- bash -c 'curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash &>/dev/null' && \
+        INSTALL_STATUS[beads]="installed" || INSTALL_STATUS[beads]="failed"
+    else
+      [[ "$beads_installed" != "true" ]] && INSTALL_STATUS[beads]="skipped"
+    fi
+
+    INSTALL_STATUS[memory]="skipped"
+  fi
+
+  # Summary
+  echo ""
+  local summary=""
+  [[ -n "$version" ]] && summary+="$(gum style --foreground 250 '✓') Loa v${version}\n"
+
+  for tool in qmd beads; do
+    local status="${INSTALL_STATUS[$tool]}"
+    local name=""
+    case "$tool" in
+      qmd) name="QMD" ;;
+      beads) name="beads" ;;
+    esac
+    case "$status" in
+      installed) summary+="$(gum style --foreground 250 '✓') ${name}\n" ;;
+      already)   summary+="$(gum style --foreground 250 '✓') ${name}\n" ;;
+      skipped)   summary+="$(gum style --foreground 240 '○') ${name}\n" ;;
+      failed)    summary+="$(gum style --foreground 208 '!') ${name}\n" ;;
+    esac
+  done
+
+  gum style \
+    --border normal \
+    --padding "0 2" \
+    --border-foreground 240 \
+    "$(gum style --foreground 255 --bold 'Setup Complete')
+
+$(printf "$summary")
+$(gum style --foreground 240 'Run') $(gum style --foreground 255 'claude') $(gum style --foreground 240 'to start')"
+}
+
+# Background installation helper
+install_background() {
+  local name="$1"
+  local cmd="$2"
+  local log_file="/tmp/loa-${name}-install.log"
+  local status_file="/tmp/loa-${name}-install.status"
+
+  echo "starting" > "$status_file"
+
+  (
+    if eval "$cmd" >> "$log_file" 2>&1; then
+      echo "done" > "$status_file"
+    else
+      echo "failed" > "$status_file"
+    fi
+  ) &
+
+  INSTALL_PIDS[$name]=$!
+  INSTALL_LOGS[$name]="$log_file"
+  INSTALL_STATUS[$name]="installing"
+}
+
+wait_for_installations() {
+  local any_pending=false
+
+  for name in "${!INSTALL_PIDS[@]}"; do
+    local pid="${INSTALL_PIDS[$name]}"
+    if [[ -n "$pid" ]] && ps -p "$pid" > /dev/null 2>&1; then
+      any_pending=true
+      break
+    fi
+  done
+
+  if [[ "$any_pending" == "true" ]]; then
+    spinner_start "Finishing installations..."
+
+    for name in "${!INSTALL_PIDS[@]}"; do
+      local pid="${INSTALL_PIDS[$name]}"
+      if [[ -n "$pid" ]]; then
+        wait "$pid" 2>/dev/null || true
+
+        local status_file="/tmp/loa-${name}-install.status"
+        if [[ -f "$status_file" ]]; then
+          local status=$(cat "$status_file")
+          if [[ "$status" == "done" ]]; then
+            INSTALL_STATUS[$name]="installed"
+          else
+            INSTALL_STATUS[$name]="failed"
+          fi
+        fi
+      fi
+    done
+
+    spinner_stop "Installations complete"
+  fi
+}
+
+show_wizard_header() {
+  echo ""
+  echo -e "${DIM}─────────────────────────────────────────────────${NC}"
+  echo -e "  ${BOLD}Optional Enhancements${NC}"
+  echo -e "${DIM}─────────────────────────────────────────────────${NC}"
+  echo ""
+  echo -e "  These tools make Loa faster and smarter."
+  echo -e "  All are optional and open source."
+  echo ""
+  echo -e "  ${DIM}Press 's' to skip all, 'i' for more info.${NC}"
+  echo ""
+}
+
+show_wizard_summary() {
+  local version="${1:-}"
+
+  echo ""
+  echo -e "${DIM}─────────────────────────────────────────────────${NC}"
+  echo -e "  ${BOLD}Setup Complete!${NC}"
+  echo -e "${DIM}─────────────────────────────────────────────────${NC}"
+  echo ""
+
+  if [[ -n "$version" ]]; then
+    echo -e "  ${GREEN}${SYM_CHECK}${NC} Loa v${version} mounted"
+  fi
+
+  for tool in qmd beads memory; do
+    local status="${INSTALL_STATUS[$tool]}"
+    local name=""
+    case "$tool" in
+      qmd) name="Semantic search (QMD)" ;;
+      beads) name="Task tracking (beads)" ;;
+      memory) name="Memory stack" ;;
+    esac
+
+    case "$status" in
+      installed)
+        echo -e "  ${GREEN}${SYM_CHECK}${NC} ${name} installed"
+        ;;
+      skipped|pending)
+        echo -e "  ${SYM_CIRCLE} ${name} skipped"
+        ;;
+      already)
+        echo -e "  ${GREEN}${SYM_CHECK}${NC} ${name} already installed"
+        ;;
+      failed)
+        echo -e "  ${YELLOW}${SYM_WARN}${NC} ${name} failed"
+        ;;
+    esac
+  done
+
+  echo ""
+  echo -e "  ${BOLD}Next steps:${NC}"
+  echo -e "  ${SYM_ARROW} Run ${CYAN}claude${NC} to start"
+  echo -e "  ${SYM_ARROW} Use ${CYAN}/loa${NC} for guided workflow"
+  echo ""
+}
+
+# === QMD Functions ===
+
+show_qmd_prompt() {
+  echo ""
+  echo -e "${BOLD}1. Semantic Search (QMD)${NC} ${SYM_STAR} ${GREEN}Highly Recommended${NC}"
+  echo ""
+  echo -e "   ${BOLD}What it does:${NC}"
+  echo -e "   ${SYM_ARROW} Searches your code and skills by meaning"
+  echo -e "   ${SYM_ARROW} \"Find authentication logic\" works even if"
+  echo -e "     the word \"auth\" isn't in the code"
+  echo ""
+  echo -e "   ${BOLD}Made by:${NC} Tobi Lütke (Shopify) ${DIM}· github.com/tobi/qmd${NC}"
+  echo ""
+  echo -e "   ${DIM}Time: ~5-10 minutes (model download)${NC}"
+  echo ""
+}
+
+show_qmd_info() {
+  echo ""
+  echo -e "${DIM}─────────────────────────────────────────────────${NC}"
+  echo -e "  ${BOLD}QMD - Full Details${NC}"
+  echo -e "${DIM}─────────────────────────────────────────────────${NC}"
+  echo ""
+  echo -e "  ${BOLD}Repository:${NC} github.com/tobi/qmd"
+  echo -e "  ${BOLD}License:${NC} MIT"
+  echo ""
+  echo -e "  ${BOLD}What gets installed:${NC}"
+  echo -e "    ${SYM_ARROW} QMD binary (~50MB)"
+  echo -e "    ${SYM_ARROW} AI embedding models (~2GB in ~/.qmd/)"
+  echo ""
+  echo -e "  ${BOLD}Data privacy:${NC}"
+  echo -e "    ${SYM_ARROW} All embeddings computed locally"
+  echo -e "    ${SYM_ARROW} No code sent to external servers"
+  echo ""
+  echo -e "${DIM}─────────────────────────────────────────────────${NC}"
+  echo ""
+}
+
+install_qmd() {
+  if command -v qmd &>/dev/null; then
+    INSTALL_STATUS[qmd]="already"
+    return 0
+  fi
+
+  if ! command -v bun &>/dev/null; then
+    echo ""
+    echo -e "  ${YELLOW}${SYM_WARN}${NC} QMD requires Bun (JavaScript runtime)"
+    echo ""
+    printf "  Install Bun first? [Y/n]: "
+    read -n 1 -r reply
+    echo ""
+
+    if [[ "$reply" =~ ^[Nn]$ ]]; then
+      INSTALL_STATUS[qmd]="skipped"
+      return 0
+    fi
+
+    spinner_start "Installing Bun..."
+    if curl -fsSL https://bun.sh/install | bash &>/dev/null; then
+      export PATH="$HOME/.bun/bin:$PATH"
+      spinner_stop "Bun installed"
+    else
+      spinner_stop "Bun installation failed" false
+      INSTALL_STATUS[qmd]="failed"
+      return 1
+    fi
+  fi
+
+  spinner_start "Installing QMD..."
+  if bun add -g github:tobi/qmd &>/dev/null; then
+    spinner_stop "QMD installed"
+    INSTALL_STATUS[qmd]="installed"
+  else
+    spinner_stop "QMD installation failed" false
+    INSTALL_STATUS[qmd]="failed"
+  fi
+}
+
+prompt_qmd() {
+  if command -v qmd &>/dev/null; then
+    INSTALL_STATUS[qmd]="already"
+    echo ""
+    echo -e "${BOLD}1. Semantic Search (QMD)${NC}"
+    echo -e "   ${GREEN}${SYM_CHECK}${NC} Already installed"
+    return 0
+  fi
+
+  show_qmd_prompt
+
+  while true; do
+    printf "   Install? [${GREEN}Y${NC}/n/skip all/info]: "
+    read -n 1 -r reply
+    echo ""
+
+    case "$reply" in
+      [Yy]|"")
+        install_qmd
+        return 0
+        ;;
+      [Nn])
+        INSTALL_STATUS[qmd]="skipped"
+        return 0
+        ;;
+      [Ss])
+        INSTALL_STATUS[qmd]="skipped"
+        return 1
+        ;;
+      [Ii])
+        show_qmd_info
+        show_qmd_prompt
+        ;;
+      *)
+        echo -e "   ${DIM}Please enter Y, n, s (skip all), or i (info)${NC}"
+        ;;
+    esac
+  done
+}
+
+# === beads Functions ===
+
+show_beads_prompt() {
+  echo ""
+  echo -e "${BOLD}2. Task Tracking (beads)${NC}"
+  echo ""
+  echo -e "   ${BOLD}What it does:${NC}"
+  echo -e "   ${SYM_ARROW} Remembers what tasks you're working on"
+  echo -e "   ${SYM_ARROW} Tracks progress across sessions"
+  echo ""
+  echo -e "   ${BOLD}Made by:${NC} Steve Yegge ${DIM}· github.com/steveyegge/beads${NC}"
+  echo ""
+  echo -e "   ${DIM}Time: ~1-2 minutes${NC}"
+  echo ""
+}
+
+show_beads_info() {
+  echo ""
+  echo -e "${DIM}─────────────────────────────────────────────────${NC}"
+  echo -e "  ${BOLD}beads - Full Details${NC}"
+  echo -e "${DIM}─────────────────────────────────────────────────${NC}"
+  echo ""
+  echo -e "  ${BOLD}Repository:${NC} github.com/steveyegge/beads"
+  echo -e "  ${BOLD}License:${NC} MIT"
+  echo ""
+  echo -e "  ${BOLD}What gets installed:${NC}"
+  echo -e "    ${SYM_ARROW} beads CLI binary (br command)"
+  echo -e "    ${SYM_ARROW} SQLite database in .beads/ folder"
+  echo ""
+  echo -e "  ${BOLD}Data privacy:${NC}"
+  echo -e "    ${SYM_ARROW} All data stored locally"
+  echo -e "    ${SYM_ARROW} No external sync or telemetry"
+  echo ""
+  echo -e "${DIM}─────────────────────────────────────────────────${NC}"
+  echo ""
+}
+
+install_beads() {
+  if command -v br &>/dev/null; then
+    INSTALL_STATUS[beads]="already"
+    return 0
+  fi
+
+  local installer_url="https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh"
+
+  spinner_start "Installing beads..."
+  if curl --output /dev/null --silent --head --fail "$installer_url"; then
+    if curl -fsSL "$installer_url" | bash &>/dev/null; then
+      spinner_stop "beads installed"
+      INSTALL_STATUS[beads]="installed"
+    else
+      spinner_stop "beads installation failed" false
+      INSTALL_STATUS[beads]="failed"
+    fi
+  else
+    spinner_stop "beads installer not available" false
+    INSTALL_STATUS[beads]="failed"
+  fi
+}
+
+prompt_beads() {
+  if command -v br &>/dev/null; then
+    INSTALL_STATUS[beads]="already"
+    echo ""
+    echo -e "${BOLD}2. Task Tracking (beads)${NC}"
+    echo -e "   ${GREEN}${SYM_CHECK}${NC} Already installed"
+    return 0
+  fi
+
+  show_beads_prompt
+
+  while true; do
+    printf "   Install? [y/${GREEN}N${NC}/info]: "
+    read -n 1 -r reply
+    echo ""
+
+    case "$reply" in
+      [Yy])
+        install_beads
+        return 0
+        ;;
+      [Nn]|"")
+        INSTALL_STATUS[beads]="skipped"
+        return 0
+        ;;
+      [Ss])
+        INSTALL_STATUS[beads]="skipped"
+        return 1
+        ;;
+      [Ii])
+        show_beads_info
+        show_beads_prompt
+        ;;
+      *)
+        echo -e "   ${DIM}Please enter y, N, s (skip all), or i (info)${NC}"
+        ;;
+    esac
+  done
+}
+
+# === Memory Stack Functions ===
+
+show_memory_prompt() {
+  echo ""
+  echo -e "${BOLD}3. Memory Stack${NC}"
+  echo ""
+  echo -e "   ${BOLD}What it does:${NC}"
+  echo -e "   ${SYM_ARROW} Remembers patterns from past sessions"
+  echo -e "   ${SYM_ARROW} Recalls relevant context automatically"
+  echo ""
+  echo -e "   ${YELLOW}${SYM_WARN}${NC} ${DIM}Note: Downloads ~2GB of AI models${NC}"
+  echo -e "   ${DIM}Time: ~5-10 minutes${NC}"
+  echo ""
+}
+
+show_memory_info() {
+  echo ""
+  echo -e "${DIM}─────────────────────────────────────────────────${NC}"
+  echo -e "  ${BOLD}Memory Stack - Full Details${NC}"
+  echo -e "${DIM}─────────────────────────────────────────────────${NC}"
+  echo ""
+  echo -e "  ${BOLD}Requirements:${NC}"
+  echo -e "    ${SYM_ARROW} Python 3.8+"
+  echo ""
+  echo -e "  ${BOLD}Data privacy:${NC}"
+  echo -e "    ${SYM_ARROW} All embeddings computed locally"
+  echo -e "    ${SYM_ARROW} No data sent to external servers"
+  echo ""
+  echo -e "${DIM}─────────────────────────────────────────────────${NC}"
+  echo ""
+}
+
+install_memory() {
+  if ! command -v python3 &>/dev/null; then
+    echo -e "  ${YELLOW}${SYM_WARN}${NC} Memory Stack requires Python 3.8+"
+    INSTALL_STATUS[memory]="skipped"
+    return 0
+  fi
+
+  spinner_start "Setting up Memory Stack..."
+  mkdir -p grimoires/loa/memory
+  sleep 1
+  spinner_stop "Memory Stack initialized"
+  INSTALL_STATUS[memory]="installed"
+}
+
+prompt_memory() {
+  show_memory_prompt
+
+  while true; do
+    printf "   Install? [y/${GREEN}N${NC}/info]: "
+    read -n 1 -r reply
+    echo ""
+
+    case "$reply" in
+      [Yy])
+        install_memory
+        return 0
+        ;;
+      [Nn]|"")
+        INSTALL_STATUS[memory]="skipped"
+        return 0
+        ;;
+      [Ss])
+        INSTALL_STATUS[memory]="skipped"
+        return 1
+        ;;
+      [Ii])
+        show_memory_info
+        show_memory_prompt
+        ;;
+      *)
+        echo -e "   ${DIM}Please enter y, N, s (skip all), or i (info)${NC}"
+        ;;
+    esac
+  done
+}
+
+run_wizard() {
+  local version="${1:-}"
+
+  # Use gum if available for better UX
+  if command -v gum &>/dev/null; then
+    run_wizard_gum "$version"
+    return 0
+  fi
+
+  # Fallback to bash wizard
+  show_wizard_header
+
+  if ! prompt_qmd; then
+    INSTALL_STATUS[beads]="skipped"
+    INSTALL_STATUS[memory]="skipped"
+    wait_for_installations
+    show_wizard_summary "$version"
+    return 0
+  fi
+
+  if ! prompt_beads; then
+    INSTALL_STATUS[memory]="skipped"
+    wait_for_installations
+    show_wizard_summary "$version"
+    return 0
+  fi
+
+  if ! prompt_memory; then
+    wait_for_installations
+    show_wizard_summary "$version"
+    return 0
+  fi
+
+  wait_for_installations
+  show_wizard_summary "$version"
+}
+
+# === Main ===
+main() {
+  # Header
+  if [[ "$QUIET_MODE" != "true" ]]; then
+    echo ""
+    echo -e "${DIM}─────────────────────────────────────────────────${NC}"
+    echo -e "  ${BOLD}Loa${NC} ${DIM}· by 0xHoneyJar${NC}"
+    echo -e "  ${DIM}https://0xhoneyjar.xyz${NC}"
+    echo -e "${DIM}─────────────────────────────────────────────────${NC}"
+    echo ""
+  fi
+
+  # === Step 1: Resolve Version ===
+  spinner_start "Fetching latest release"
+  RESOLVED_VERSION=$(fetch_latest_loa_release "$VERSION_MODE") || {
+    RESOLVED_VERSION="$FALLBACK_VERSION"
+  }
+  spinner_stop "Resolved v${RESOLVED_VERSION}"
+
+  # Show extra info in verbose mode
+  if [[ "$VERBOSE_MODE" == "true" ]]; then
+    info "  Branch: $LOA_BRANCH"
+    info "  Version Mode: $VERSION_MODE"
+    [[ "$FORCE_MODE" == "true" ]] && info "  Mode: Force remount"
+  fi
+
+  # === Step 2: Pre-flight & Remote ===
+  spinner_start "Running pre-flight checks"
   preflight
-  install_beads
   setup_remote
+  spinner_stop "Remote configured"
+
+  # === Step 3: Sync Framework ===
+  spinner_start "Syncing framework"
   sync_zones
   sync_root_files
   init_structured_memory
+  spinner_stop "Framework synced"
+
+  # === Step 4: Initialize Config ===
+  spinner_start "Initializing config"
   create_config
   create_manifest
-  generate_checksums
-  init_beads
-  apply_stealth
+  spinner_stop "Config initialized"
 
-  # === Create Atomic Commit ===
+  # === Step 5: Generate Checksums ===
+  spinner_start "Generating checksums"
+  generate_checksums
+  apply_stealth
+  spinner_stop "Checksums generated"
+
+  # === Step 6: Finalize ===
+  spinner_start "Finalizing"
+
+  # Create atomic commit
   local old_version="none"
   local new_version=$(jq -r '.framework_version // "unknown"' "$VERSION_FILE" 2>/dev/null)
   create_upgrade_commit "mount" "$old_version" "$new_version"
 
+  # Create overrides directory
   mkdir -p .claude/overrides
   [[ -f .claude/overrides/README.md ]] || cat > .claude/overrides/README.md << 'EOF'
 # User Overrides
 Files here are preserved across framework updates.
 Mirror the .claude/ structure for any customizations.
 EOF
+  spinner_stop "Complete"
 
-  # === Show Completion Banner ===
-  local banner_script=".claude/scripts/upgrade-banner.sh"
-  if [[ -x "$banner_script" ]]; then
-    "$banner_script" "none" "$new_version" --mount
+  # === Step 7: Setup Wizard (optional enhancements) ===
+  if [[ "$QUIET_MODE" != "true" && "$FORCE_MODE" != "true" && "$SKIP_WIZARD" != "true" ]]; then
+    run_wizard "$new_version"
   else
-    # Fallback: simple completion message
-    echo ""
-    log "======================================================================="
-    log "  Loa Successfully Mounted!"
-    log "======================================================================="
-    echo ""
-    info "Next steps:"
-    info "  1. Run 'claude' to start Claude Code"
-    info "  2. Issue '/ride' to analyze this codebase"
-    info "  3. Or '/setup' for guided project configuration"
-    echo ""
+    show_completion "$new_version"
   fi
-
-  warn "STRICT ENFORCEMENT: Direct edits to .claude/ will block agent execution."
-  warn "Use .claude/overrides/ for customizations."
-  echo ""
 }
 
 main "$@"
