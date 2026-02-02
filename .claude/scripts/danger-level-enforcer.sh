@@ -138,7 +138,7 @@ is_enforcement_enabled() {
     fi
 }
 
-# Log decision to trajectory
+# Log decision to trajectory (M-5 fix: use jq for safe JSON construction)
 log_to_trajectory() {
     local skill="$1"
     local level="$2"
@@ -158,22 +158,19 @@ log_to_trajectory() {
     local timestamp
     timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-    # Build JSON entry
+    # Build JSON entry using jq for safe escaping (M-5 fix)
     local entry
-    entry=$(cat <<EOF
-{
-  "type": "danger_level",
-  "timestamp": "$timestamp",
-  "session_id": "$session_id",
-  "skill": "$skill",
-  "action": "$action",
-  "level": "$level",
-  "mode": "$mode",
-  "override_used": $override_used,
-  "reason": "$reason"
-}
-EOF
-)
+    entry=$(jq -n \
+        --arg type "danger_level" \
+        --arg timestamp "$timestamp" \
+        --arg session_id "$session_id" \
+        --arg skill "$skill" \
+        --arg action "$action" \
+        --arg level "$level" \
+        --arg mode "$mode" \
+        --argjson override_used "$override_used" \
+        --arg reason "$reason" \
+        '{type: $type, timestamp: $timestamp, session_id: $session_id, skill: $skill, action: $action, level: $level, mode: $mode, override_used: $override_used, reason: $reason}')
 
     # Append to log (compact JSON)
     echo "$entry" | jq -c . >> "$log_file"
@@ -307,17 +304,16 @@ main() {
 
     # Check if enforcement is enabled
     if ! is_enforcement_enabled; then
-        cat <<EOF
-{
-  "action": "PROCEED",
-  "skill": "$skill",
-  "level": "unknown",
-  "mode": "$mode",
-  "reason": "danger level enforcement disabled in config",
-  "log": false,
-  "override_used": false
-}
-EOF
+        # Use jq for safe JSON output (M-5 fix)
+        jq -n \
+            --arg action "PROCEED" \
+            --arg skill "$skill" \
+            --arg level "unknown" \
+            --arg mode "$mode" \
+            --arg reason "danger level enforcement disabled in config" \
+            --argjson log false \
+            --argjson override_used false \
+            '{action: $action, skill: $skill, level: $level, mode: $mode, reason: $reason, log: $log, override_used: $override_used}'
         exit 0
     fi
 
@@ -350,18 +346,16 @@ EOF
         log_to_trajectory "$skill" "$level" "$mode" "$action" "$reason" "$override_used" "$session_id"
     fi
 
-    # Output JSON result
-    cat <<EOF
-{
-  "action": "$action",
-  "skill": "$skill",
-  "level": "$level",
-  "mode": "$mode",
-  "reason": "$reason",
-  "log": $do_log,
-  "override_used": $override_used
-}
-EOF
+    # Output JSON result using jq for safe escaping (M-5 fix)
+    jq -n \
+        --arg action "$action" \
+        --arg skill "$skill" \
+        --arg level "$level" \
+        --arg mode "$mode" \
+        --arg reason "$reason" \
+        --argjson log "$do_log" \
+        --argjson override_used "$override_used" \
+        '{action: $action, skill: $skill, level: $level, mode: $mode, reason: $reason, log: $log, override_used: $override_used}'
 }
 
 main "$@"

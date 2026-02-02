@@ -2,8 +2,11 @@
 # =============================================================================
 # pii-filter.sh - PII detection and redaction for input guardrails
 # =============================================================================
-# Version: 1.0.0
+# Version: 1.1.0
 # Part of: Input Guardrails & Tool Risk Enforcement v1.20.0
+#
+# Security Fixes (v1.1.0):
+#   - M-2/I-3: Input size limits to prevent ReDoS
 #
 # Usage:
 #   echo "text with user@example.com" | pii-filter.sh
@@ -24,6 +27,9 @@ readonly SCRIPT_NAME="$(basename "$0")"
 
 # Default settings
 DEFAULT_MODE="redact"  # redact | anonymize
+
+# Maximum input size (1MB) - M-2/I-3 fix for ReDoS prevention
+MAX_INPUT_SIZE=${MAX_INPUT_SIZE:-1048576}
 
 # =============================================================================
 # PII Patterns
@@ -108,6 +114,18 @@ count_pattern() {
     local pattern="$2"
 
     echo "$input" | grep -oE "$pattern" 2>/dev/null | wc -l | tr -d ' '
+}
+
+# Check input size limit (M-2/I-3 fix)
+check_input_size() {
+    local input="$1"
+    local size=${#input}
+
+    if [[ $size -gt $MAX_INPUT_SIZE ]]; then
+        echo "Error: Input size ($size bytes) exceeds maximum ($MAX_INPUT_SIZE bytes)" >&2
+        return 1
+    fi
+    return 0
 }
 
 # Process input and return JSON result
@@ -327,6 +345,11 @@ main() {
             exit 1
         fi
         input=$(cat)
+    fi
+
+    # Check input size limit (M-2/I-3 fix)
+    if ! check_input_size "$input"; then
+        exit 1
     fi
 
     # Validate mode

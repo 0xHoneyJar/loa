@@ -2,8 +2,13 @@
 # =============================================================================
 # injection-detect.sh - Prompt injection pattern detection
 # =============================================================================
-# Version: 1.0.0
+# Version: 1.1.0
 # Part of: Input Guardrails & Tool Risk Enforcement v1.20.0
+#
+# Security Fixes (v1.1.0):
+#   - H-1: Unicode normalization + homoglyph handling
+#   - M-1: Pure bash threshold validation (no awk injection)
+#   - I-3: Input size limits
 #
 # Usage:
 #   echo "Ignore all previous instructions" | injection-detect.sh
@@ -24,6 +29,36 @@ readonly SCRIPT_NAME="$(basename "$0")"
 
 # Default threshold
 DEFAULT_THRESHOLD="0.7"
+
+# Maximum input size (1MB) - I-3 fix
+MAX_INPUT_SIZE=${MAX_INPUT_SIZE:-1048576}
+
+# =============================================================================
+# Homoglyph Mapping (H-1 fix)
+# =============================================================================
+# Maps common Unicode homoglyphs to ASCII equivalents
+# Covers Cyrillic, Greek, and other look-alike characters
+
+declare -A HOMOGLYPH_MAP=(
+    # Cyrillic homoglyphs
+    ["а"]="a" ["А"]="A" ["е"]="e" ["Е"]="E" ["о"]="o" ["О"]="O"
+    ["р"]="p" ["Р"]="P" ["с"]="c" ["С"]="C" ["у"]="y" ["У"]="Y"
+    ["х"]="x" ["Х"]="X" ["і"]="i" ["І"]="I" ["ј"]="j"
+    # Greek homoglyphs
+    ["α"]="a" ["ο"]="o" ["ρ"]="p" ["ε"]="e" ["ι"]="i"
+    # Special characters
+    ["ℯ"]="e" ["ℊ"]="g" ["ℎ"]="h" ["ℓ"]="l" ["ℕ"]="N"
+    # Full-width ASCII
+    ["ａ"]="a" ["ｂ"]="b" ["ｃ"]="c" ["ｄ"]="d" ["ｅ"]="e"
+    ["ｆ"]="f" ["ｇ"]="g" ["ｈ"]="h" ["ｉ"]="i" ["ｊ"]="j"
+    ["ｋ"]="k" ["ｌ"]="l" ["ｍ"]="m" ["ｎ"]="n" ["ｏ"]="o"
+    ["ｐ"]="p" ["ｑ"]="q" ["ｒ"]="r" ["ｓ"]="s" ["ｔ"]="t"
+    ["ｕ"]="u" ["ｖ"]="v" ["ｗ"]="w" ["ｘ"]="x" ["ｙ"]="y" ["ｚ"]="z"
+)
+
+# Zero-width characters to strip (H-1 fix)
+# U+200B Zero Width Space, U+200C ZWNJ, U+200D ZWJ, U+FEFF BOM
+ZERO_WIDTH_PATTERN=$'[\u200B\u200C\u200D\uFEFF]'
 
 # =============================================================================
 # Injection Patterns
@@ -142,6 +177,63 @@ Examples:
 EOF
 }
 
+# Normalize Unicode text (H-1 fix)
+# Applies homoglyph mapping, strips zero-width chars, normalizes whitespace
+normalize_unicode() {
+    local text="$1"
+    local result="$text"
+
+    # Strip zero-width characters
+    result=$(echo "$result" | sed "s/$ZERO_WIDTH_PATTERN//g" 2>/dev/null || echo "$result")
+
+    # Apply homoglyph mapping
+    for char in "${!HOMOGLYPH_MAP[@]}"; do
+        result="${result//$char/${HOMOGLYPH_MAP[$char]}}"
+    done
+
+    # Normalize whitespace (collapse multiple spaces, trim)
+    result=$(echo "$result" | tr -s '[:space:]' ' ' | sed 's/^ //;s/ $//')
+
+    # Convert to lowercase for pattern matching
+    result=$(echo "$result" | tr '[:upper:]' '[:lower:]')
+
+    echo "$result"
+}
+
+# Validate threshold using pure bash regex (M-1 fix)
+# Prevents awk injection vulnerability
+validate_threshold() {
+    local threshold="$1"
+
+    # Must match decimal pattern: 0, 1, 0.X, or 0.XX...
+    if [[ ! "$threshold" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+        return 1
+    fi
+
+    # Check bounds using string comparison for simple cases
+    # and bc for complex decimals
+    if [[ "$threshold" == "0" || "$threshold" == "0.0" || "$threshold" == "1" || "$threshold" == "1.0" ]]; then
+        return 0
+    fi
+
+    # Use bc for proper decimal comparison (bc returns 1 for true, 0 for false)
+    local valid
+    valid=$(echo "$threshold >= 0 && $threshold <= 1" | bc -l 2>/dev/null || echo "0")
+    [[ "$valid" == "1" ]]
+}
+
+# Check input size limit (I-3 fix)
+check_input_size() {
+    local input="$1"
+    local size=${#input}
+
+    if [[ $size -gt $MAX_INPUT_SIZE ]]; then
+        echo "Error: Input size ($size bytes) exceeds maximum ($MAX_INPUT_SIZE bytes)" >&2
+        return 1
+    fi
+    return 0
+}
+
 # Case-insensitive pattern match
 matches_pattern() {
     local text="$1"
@@ -176,9 +268,10 @@ process_input() {
 
     start_time=$(date +%s%3N 2>/dev/null || echo "0")
 
-    # Normalize input for pattern matching
+    # Apply Unicode normalization (H-1 fix)
+    # This handles homoglyphs, zero-width chars, and whitespace normalization
     local normalized
-    normalized=$(echo "$input" | tr '[:upper:]' '[:lower:]')
+    normalized=$(normalize_unicode "$input")
 
     # Count matches for each category
     local instruction_override_count
@@ -336,11 +429,15 @@ main() {
         input=$(cat)
     fi
 
-    # Validate threshold
-    local valid_threshold
-    valid_threshold=$(awk "BEGIN {if ($threshold >= 0 && $threshold <= 1) print 1; else print 0}")
-    if [[ "$valid_threshold" != "1" ]]; then
-        echo "Error: Threshold must be between 0 and 1" >&2
+    # Check input size limit (I-3 fix)
+    if ! check_input_size "$input"; then
+        exit 1
+    fi
+
+    # Validate threshold using pure bash (M-1 fix)
+    # This prevents awk command injection
+    if ! validate_threshold "$threshold"; then
+        echo "Error: Threshold must be a number between 0 and 1" >&2
         exit 1
     fi
 

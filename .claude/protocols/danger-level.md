@@ -285,7 +285,7 @@ These invariants MUST NOT be violated:
 
 **Cause**: Skill `index.yaml` doesn't declare `danger_level`.
 
-**Resolution**: Defaults to `safe`. Add explicit declaration for clarity.
+**Resolution**: Unknown skills default to `critical` (fail-safe). Add explicit declaration for clarity.
 
 ---
 

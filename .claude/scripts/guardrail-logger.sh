@@ -145,7 +145,7 @@ build_input_guardrail_event() {
 EOF
 }
 
-# Build danger_level event JSON
+# Build danger_level event JSON (M-5 fix: use jq for safe escaping)
 build_danger_level_event() {
     local timestamp="$1"
     local session_id="$2"
@@ -156,22 +156,20 @@ build_danger_level_event() {
     local override_used="$7"
     local reason="$8"
 
-    cat <<EOF
-{
-  "type": "danger_level",
-  "timestamp": "$timestamp",
-  "session_id": "$session_id",
-  "skill": "$skill",
-  "action": "$action",
-  "level": "$level",
-  "mode": "$mode",
-  "override_used": $override_used,
-  "reason": "$reason"
-}
-EOF
+    jq -n \
+        --arg type "danger_level" \
+        --arg timestamp "$timestamp" \
+        --arg session_id "$session_id" \
+        --arg skill "$skill" \
+        --arg action "$action" \
+        --arg level "$level" \
+        --arg mode "$mode" \
+        --argjson override_used "$override_used" \
+        --arg reason "$reason" \
+        '{type: $type, timestamp: $timestamp, session_id: $session_id, skill: $skill, action: $action, level: $level, mode: $mode, override_used: $override_used, reason: $reason}'
 }
 
-# Build handoff event JSON
+# Build handoff event JSON (M-5 fix: use jq for safe escaping)
 build_handoff_event() {
     local timestamp="$1"
     local session_id="$2"
@@ -183,20 +181,18 @@ build_handoff_event() {
     local artifacts="$8"
     local context_preserved="$9"
 
-    cat <<EOF
-{
-  "type": "handoff",
-  "timestamp": "$timestamp",
-  "session_id": "$session_id",
-  "skill": "$skill",
-  "action": "$action",
-  "from_agent": "$from_agent",
-  "to_agent": "$to_agent",
-  "handoff_type": "$handoff_type",
-  "artifacts": $artifacts,
-  "context_preserved": $context_preserved
-}
-EOF
+    jq -n \
+        --arg type "handoff" \
+        --arg timestamp "$timestamp" \
+        --arg session_id "$session_id" \
+        --arg skill "$skill" \
+        --arg action "$action" \
+        --arg from_agent "$from_agent" \
+        --arg to_agent "$to_agent" \
+        --arg handoff_type "$handoff_type" \
+        --argjson artifacts "$artifacts" \
+        --argjson context_preserved "$context_preserved" \
+        '{type: $type, timestamp: $timestamp, session_id: $session_id, skill: $skill, action: $action, from_agent: $from_agent, to_agent: $to_agent, handoff_type: $handoff_type, artifacts: $artifacts, context_preserved: $context_preserved}'
 }
 
 # Write event to trajectory log

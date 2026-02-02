@@ -103,7 +103,7 @@ is_rollback_enabled() {
     [[ "$enabled" == "true" ]]
 }
 
-# Attempt to rollback uncommitted changes
+# Attempt to rollback uncommitted changes (M-4 fix: stash before rollback)
 perform_rollback() {
     local rollback_result="false"
 
@@ -113,15 +113,24 @@ perform_rollback() {
         return
     fi
 
-    # Attempt git restore
-    if git restore . 2>/dev/null; then
+    # M-4 fix: Create stash backup before rollback to prevent data loss
+    local stash_name="guardrail-rollback-$(date +%s)"
+    if git stash push -m "$stash_name" --include-untracked 2>/dev/null; then
+        # Log the stash for recovery
+        echo "Changes stashed as: $stash_name" >&2
+        echo "To recover: git stash pop" >&2
         rollback_result="true"
+    else
+        # Stash failed, try direct restore (less safe)
+        if git restore . 2>/dev/null; then
+            rollback_result="true"
+        fi
     fi
 
     echo "$rollback_result"
 }
 
-# Log tripwire event to trajectory
+# Log tripwire event to trajectory (M-5 fix: use jq for safe JSON construction)
 log_tripwire() {
     local skill="$1"
     local check="$2"
@@ -140,20 +149,18 @@ log_tripwire() {
     local timestamp
     timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
+    # Build JSON entry using jq for safe escaping (M-5 fix)
     local entry
-    entry=$(cat <<EOF
-{
-  "type": "tripwire",
-  "timestamp": "$timestamp",
-  "session_id": "$session_id",
-  "skill": "$skill",
-  "check": "$check",
-  "action": "$action",
-  "reason": "$reason",
-  "rollback_performed": $rollback_performed
-}
-EOF
-)
+    entry=$(jq -n \
+        --arg type "tripwire" \
+        --arg timestamp "$timestamp" \
+        --arg session_id "$session_id" \
+        --arg skill "$skill" \
+        --arg check "$check" \
+        --arg action "$action" \
+        --arg reason "$reason" \
+        --argjson rollback_performed "$rollback_performed" \
+        '{type: $type, timestamp: $timestamp, session_id: $session_id, skill: $skill, check: $check, action: $action, reason: $reason, rollback_performed: $rollback_performed}')
 
     echo "$entry" | jq -c . >> "$log_file"
 }
@@ -264,15 +271,14 @@ main() {
 
     # Check if tripwire is enabled
     if ! is_tripwire_enabled; then
-        cat <<EOF
-{
-  "action": "disabled",
-  "skill": "$skill",
-  "check": "$check",
-  "reason": "$reason",
-  "rollback_performed": false
-}
-EOF
+        # Use jq for safe JSON output (M-5 fix)
+        jq -n \
+            --arg action "disabled" \
+            --arg skill "$skill" \
+            --arg check "$check" \
+            --arg reason "$reason" \
+            --argjson rollback_performed false \
+            '{action: $action, skill: $skill, check: $check, reason: $reason, rollback_performed: $rollback_performed}'
         exit 0
     fi
 
@@ -300,16 +306,14 @@ EOF
         show_notification "$skill" "$check" "$reason" "$action" "$rollback_performed" >&2
     fi
 
-    # Output JSON result
-    cat <<EOF
-{
-  "action": "$action",
-  "skill": "$skill",
-  "check": "$check",
-  "reason": "$reason",
-  "rollback_performed": $rollback_performed
-}
-EOF
+    # Output JSON result using jq for safe escaping (M-5 fix)
+    jq -n \
+        --arg action "$action" \
+        --arg skill "$skill" \
+        --arg check "$check" \
+        --arg reason "$reason" \
+        --argjson rollback_performed "$rollback_performed" \
+        '{action: $action, skill: $skill, check: $check, reason: $reason, rollback_performed: $rollback_performed}'
 
     # Exit with error code for halt
     if [[ "$action" == "halt" ]]; then
