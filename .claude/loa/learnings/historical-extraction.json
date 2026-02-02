@@ -1,0 +1,494 @@
+{
+  "category": "pattern",
+  "tier": "framework",
+  "extraction_source": "cycle-002, cycle-003, cycle-004",
+  "extraction_date": "2026-02-02",
+  "learnings": [
+    {
+      "id": "FHE-001",
+      "tier": "framework",
+      "version_added": "1.16.0",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "AskUserQuestion UX Best Practices",
+      "trigger": "Creating user confirmation flows or presenting options to users",
+      "solution": "Place recommended option first with '(Recommended)' suffix. Keep header under 12 chars for chip display. Include descriptions with trade-offs. Use multiSelect: false for mutually exclusive choices. Don't add 'Other' option - it's automatic.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 10,
+        "trigger_clarity": 9,
+        "verification": 10
+      },
+      "tags": [
+        "ux",
+        "askuserquestion",
+        "anthropic",
+        "best-practices"
+      ]
+    },
+    {
+      "id": "FHE-002",
+      "tier": "framework",
+      "version_added": "1.16.0",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Context Classification via Signal Scoring",
+      "trigger": "Classifying content into multiple categories or routing to different handlers",
+      "solution": "Use additive point system: +2 for strong signals (specific paths, keywords), +1 for weaker signals. Calculate confidence from score distribution. Default to most-likely category when signals are weak. Make signal patterns configurable.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 9,
+        "reusability": 9,
+        "trigger_clarity": 8,
+        "verification": 9
+      },
+      "tags": [
+        "classification",
+        "routing",
+        "signals",
+        "pattern-matching"
+      ]
+    },
+    {
+      "id": "FHE-003",
+      "tier": "framework",
+      "version_added": "1.16.0",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Graceful Degradation for External CLIs",
+      "trigger": "Calling external CLI tools that may fail for recoverable reasons",
+      "solution": "Use two-phase execution: attempt primary path with all features, fall back on specific errors. Match error patterns (e.g., 'label.*not found') to distinguish recoverable vs fatal. Warn user when features skipped. Validate tool availability upfront. Include recovery instructions in all errors.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 9,
+        "trigger_clarity": 9,
+        "verification": 10
+      },
+      "tags": [
+        "cli",
+        "reliability",
+        "error-handling",
+        "graceful-degradation"
+      ]
+    },
+    {
+      "id": "FHE-004",
+      "tier": "framework",
+      "version_added": "1.16.0",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "State File Lifecycle Management",
+      "trigger": "Managing session-transient state or workflow progress",
+      "solution": "Store in .loa/ directory (gitignored). Define JSON schema and validate on load. Clear state gracefully if JSON is corrupted. Make save/load/clear operations idempotent. Provide query helpers (is-testing, has-state) for safe checks without parsing.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 8,
+        "trigger_clarity": 8,
+        "verification": 9
+      },
+      "tags": [
+        "state-management",
+        "files",
+        "lifecycle",
+        "json"
+      ]
+    },
+    {
+      "id": "FHE-005",
+      "tier": "framework",
+      "version_added": "1.16.0",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Anthropic Provider Feature Alignment",
+      "trigger": "Designing skill schemas or integrating with Claude Code runtime",
+      "solution": "Use inputExamples for in-context learning (native Anthropic support). Map effort_hint to thinking budget tokens (low=1-4K, medium=8-16K, high=24-32K). Add danger_level for approval workflows. Include output format guidance. Use semantic categories for skill discovery.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 9,
+        "reusability": 8,
+        "trigger_clarity": 8,
+        "verification": 9
+      },
+      "tags": [
+        "anthropic",
+        "skills",
+        "schema",
+        "provider"
+      ]
+    },
+    {
+      "id": "FHE-006",
+      "tier": "framework",
+      "version_added": "1.16.0",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Primary Source Verification",
+      "trigger": "Making claims about performance, features, or capabilities",
+      "solution": "Never relay secondhand information. Check Anthropic blog posts and engineering announcements directly. Verify against official SDK documentation. Challenge your own claims adversarially before committing. Document exact source URL for future reference.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 7,
+        "reusability": 10,
+        "trigger_clarity": 9,
+        "verification": 10
+      },
+      "tags": [
+        "verification",
+        "claims",
+        "documentation",
+        "quality"
+      ]
+    },
+    {
+      "id": "FHE-007",
+      "tier": "framework",
+      "version_added": "1.16.0",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Three-Layer Architecture for Complex Features",
+      "trigger": "Designing features that span framework, runtime, and external APIs",
+      "solution": "Separate into three layers: Loa Layer (config and policy - WHAT), Runtime Layer (execution - HOW), API Layer (capability). Put all policy in .loa.config.yaml. Ensure graceful degradation when config missing. Define runtime integration signals for feedback.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 9,
+        "reusability": 9,
+        "trigger_clarity": 8,
+        "verification": 9
+      },
+      "tags": [
+        "architecture",
+        "layers",
+        "separation-of-concerns",
+        "design"
+      ]
+    },
+    {
+      "id": "FHE-008",
+      "tier": "framework",
+      "version_added": "1.16.0",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Configuration Section Schema",
+      "trigger": "Adding new configuration sections to .loa.config.yaml",
+      "solution": "Every feature needs enabled: true master toggle at top. New sections must be optional with sensible defaults. Allow per-skill/per-entity overrides. Use graceful_fallback: true. Document each option with YAML comments.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 10,
+        "trigger_clarity": 9,
+        "verification": 10
+      },
+      "tags": [
+        "configuration",
+        "schema",
+        "yaml",
+        "design"
+      ]
+    },
+    {
+      "id": "FHE-009",
+      "tier": "framework",
+      "version_added": "1.16.0",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "PTCF Prompt Quality Framework",
+      "trigger": "Assessing or improving prompt quality",
+      "solution": "Score prompts using PTCF components: Persona (who), Task (action verb), Context (background), Format (output structure). Score 0-10: 0-1 invalid (no task), 2-3 minimal, 4-5 acceptable, 6-7 good, 8-10 excellent. Auto-enhance prompts scoring <4.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 9,
+        "reusability": 9,
+        "trigger_clarity": 9,
+        "verification": 9
+      },
+      "tags": [
+        "prompts",
+        "quality",
+        "ptcf",
+        "enhancement"
+      ]
+    },
+    {
+      "id": "FHE-010",
+      "tier": "framework",
+      "version_added": "1.16.0",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "URL Registry for Hallucination Prevention",
+      "trigger": "Generating URLs or external references in agent outputs",
+      "solution": "Maintain canonical URL registry in grimoires/loa/urls.yaml. Separate production, staging, local configs. Use placeholder (your-domain.example.com) for unconfigured domains. Agent protocol: check registry BEFORE generating any URL. Never guess or hallucinate URLs.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 9,
+        "trigger_clarity": 10,
+        "verification": 9
+      },
+      "tags": [
+        "urls",
+        "hallucination",
+        "registry",
+        "safety"
+      ]
+    },
+    {
+      "id": "FHE-011",
+      "tier": "framework",
+      "version_added": "1.16.0",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Backward Compatibility Design",
+      "trigger": "Adding new features to established frameworks",
+      "solution": "New config sections must be optional and additive. New features default to matching current behavior. Use enabled: true/false soft feature flags. Create state files on-demand only. No migration required - existing projects work unchanged.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 10,
+        "trigger_clarity": 9,
+        "verification": 10
+      },
+      "tags": [
+        "compatibility",
+        "migration",
+        "design",
+        "stability"
+      ]
+    },
+    {
+      "id": "FHE-012",
+      "tier": "framework",
+      "version_added": "1.16.0",
+      "source_origin": "loa-core",
+      "type": "pattern",
+      "title": "Consistent Document Structure",
+      "trigger": "Creating PRD, SDD, or Sprint planning documents",
+      "solution": "PRD: Problem Statement → Goals → Requirements → Scope → Risks → Acceptance Criteria. SDD: Executive Summary → Architecture → Components → Config → API → Errors → Security → Testing. Sprint: Overview → Sprint 1 MVP → Sprint 2 Enhancement → Sprint 3 Polish → Appendices.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 9,
+        "trigger_clarity": 9,
+        "verification": 10
+      },
+      "tags": [
+        "documentation",
+        "structure",
+        "prd",
+        "sdd",
+        "sprint"
+      ]
+    },
+    {
+      "id": "FHE-013",
+      "tier": "framework",
+      "version_added": "1.16.0",
+      "source_origin": "loa-core",
+      "type": "anti_pattern",
+      "title": "Avoid Blocking on Optional Tool Results",
+      "trigger": "Script depends on external tool that may not be available",
+      "solution": "Check tool availability with command -v before use. Provide fallback behavior when tool missing. Use || true or || fallback to continue execution. Never crash on missing optional tools.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 7,
+        "reusability": 9,
+        "trigger_clarity": 10,
+        "verification": 10
+      },
+      "tags": [
+        "anti-pattern",
+        "reliability",
+        "tools",
+        "fallback"
+      ]
+    },
+    {
+      "id": "FHE-014",
+      "tier": "framework",
+      "version_added": "1.16.0",
+      "source_origin": "loa-core",
+      "type": "anti_pattern",
+      "title": "Avoid Hardcoded Paths in Scripts",
+      "trigger": "Writing bash scripts that reference file paths",
+      "solution": "Always use SCRIPT_DIR=$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd) and PROJECT_ROOT patterns. Construct paths relative to these anchors. Never hardcode absolute paths like /home/user or ~/.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 10,
+        "trigger_clarity": 10,
+        "verification": 10
+      },
+      "tags": [
+        "anti-pattern",
+        "bash",
+        "paths",
+        "portability"
+      ]
+    },
+    {
+      "id": "FHE-015",
+      "tier": "framework",
+      "version_added": "1.16.0",
+      "source_origin": "loa-core",
+      "type": "troubleshooting",
+      "title": "GitHub Label Creation Errors",
+      "trigger": "gh issue create fails with 'label X not found'",
+      "solution": "Labels must exist in the repository before use. Either create labels via gh label create, or implement graceful fallback that retries without labels. Check error message for 'label.*not found' pattern.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 7,
+        "reusability": 8,
+        "trigger_clarity": 10,
+        "verification": 10
+      },
+      "tags": [
+        "troubleshooting",
+        "github",
+        "labels",
+        "gh-cli"
+      ]
+    },
+    {
+      "id": "FHE-016",
+      "tier": "framework",
+      "version_added": "1.16.0",
+      "source_origin": "loa-core",
+      "type": "troubleshooting",
+      "title": "Bash Associative Array Errors",
+      "trigger": "Script fails with 'declare: -A: invalid option' or 'bad array subscript'",
+      "solution": "Bash 4.0+ required for associative arrays. Check with [[ \"${BASH_VERSINFO[0]}\" -lt 4 ]]. On macOS, install bash 4+ via Homebrew and update shebang to #!/usr/bin/env bash.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 9,
+        "trigger_clarity": 10,
+        "verification": 10
+      },
+      "tags": [
+        "troubleshooting",
+        "bash",
+        "macos",
+        "arrays"
+      ]
+    },
+    {
+      "id": "FHE-017",
+      "tier": "framework",
+      "version_added": "1.16.0",
+      "source_origin": "loa-core",
+      "type": "troubleshooting",
+      "title": "JSON Parsing Errors in jq",
+      "trigger": "jq fails with 'parse error' or 'Invalid numeric literal'",
+      "solution": "Validate JSON before passing to jq with jq empty. Use --arg for string interpolation instead of shell variables in jq expressions. Check for trailing commas and unescaped quotes in JSON strings.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 7,
+        "reusability": 8,
+        "trigger_clarity": 9,
+        "verification": 10
+      },
+      "tags": [
+        "troubleshooting",
+        "json",
+        "jq",
+        "parsing"
+      ]
+    },
+    {
+      "id": "FHE-018",
+      "tier": "framework",
+      "version_added": "1.16.0",
+      "source_origin": "loa-core",
+      "type": "decision",
+      "title": "Why Grimoires Directory Structure",
+      "trigger": "Understanding why state lives in grimoires/ not .loa/",
+      "solution": "grimoires/ contains project-specific state that should be versioned (PRD, SDD, learnings). .loa/ is for session-transient cache that should not be versioned. This separation enables team collaboration while keeping caches local.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 8,
+        "reusability": 7,
+        "trigger_clarity": 8,
+        "verification": 9
+      },
+      "tags": [
+        "decision",
+        "architecture",
+        "directories",
+        "versioning"
+      ]
+    },
+    {
+      "id": "FHE-019",
+      "tier": "framework",
+      "version_added": "1.16.0",
+      "source_origin": "loa-core",
+      "type": "decision",
+      "title": "Why Skill 3-Level Progressive Loading",
+      "trigger": "Understanding why skills have index.yaml, SKILL.md, and resources/",
+      "solution": "Token efficiency. Level 1 (~100 tokens) for routing decisions. Level 2 (~2000 tokens) for skill execution kernel. Level 3 (variable) for templates and references loaded only when needed. This prevents context bloat from unused skill content.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 9,
+        "reusability": 8,
+        "trigger_clarity": 9,
+        "verification": 9
+      },
+      "tags": [
+        "decision",
+        "skills",
+        "tokens",
+        "architecture"
+      ]
+    },
+    {
+      "id": "FHE-020",
+      "tier": "framework",
+      "version_added": "1.16.0",
+      "source_origin": "loa-core",
+      "type": "decision",
+      "title": "Why Two-Tier Learnings Architecture",
+      "trigger": "Understanding why learnings are split between .claude/loa/ and grimoires/",
+      "solution": "Framework learnings ship with Loa for immediate value. Project learnings accumulate per-project for customization. Framework tier (weight 1.0) ensures proven patterns rank highest. Project tier (weight 0.9) allows local knowledge to enhance framework.",
+      "verified": true,
+      "status": "active",
+      "quality_gates": {
+        "discovery_depth": 9,
+        "reusability": 8,
+        "trigger_clarity": 9,
+        "verification": 9
+      },
+      "tags": [
+        "decision",
+        "learnings",
+        "tiers",
+        "architecture"
+      ]
+    }
+  ],
+  "_loa_marker": {
+    "managed": true,
+    "version": "1.16.0",
+    "hash": "21e0d6e757c442c32ec8b499cc150df14674ec1c01b4dbe936408e60ed222f6c"
+  }
+}

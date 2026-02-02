@@ -31,13 +31,18 @@
       "file": "troubleshooting.json",
       "category": "troubleshooting",
       "description": "Common issues and solutions"
+    },
+    {
+      "file": "historical-extraction.json",
+      "category": "mixed",
+      "description": "Historical learnings extracted from cycles 002-004 (v1.16.0)"
     }
   ],
   "counts": {
-    "patterns": 10,
-    "anti_patterns": 8,
-    "decisions": 10,
-    "troubleshooting": 12,
-    "total": 40
+    "patterns": 22,
+    "anti_patterns": 10,
+    "decisions": 13,
+    "troubleshooting": 15,
+    "total": 60
   }
 }
