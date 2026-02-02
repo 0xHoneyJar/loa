@@ -620,6 +620,14 @@ track_query() {
 show_status() {
     if [[ ! -f "$INDEX_META" ]]; then
         echo -e "${YELLOW}No index found. Run 'loa-learnings-index.sh index' first.${NC}"
+        echo ""
+        echo -e "${BOLD}Note:${NC} Empty learnings are expected for fresh Loa installs."
+        echo "Learnings are populated through:"
+        echo "  - /retrospective  - Extract patterns from completed work"
+        echo "  - /compound       - Consolidate learnings across sessions"
+        echo "  - Manual entries  - Add to grimoires/loa/feedback/*.yaml"
+        echo ""
+        echo "Skills in .claude/skills/ are always indexed and queryable."
         return 1
     fi
 

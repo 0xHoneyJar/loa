@@ -301,10 +301,12 @@ check_updates() {
 
         if fetch_source "$key" "$url" > /dev/null; then
             echo -e "${GREEN}✓${NC}"
-            ((fetched++))
+            # Use assignment form to avoid exit code 1 when fetched=0
+            # (post-increment returns pre-value, which is falsy for 0)
+            fetched=$((fetched + 1))
         else
             echo -e "${YELLOW}⚠ (cached or failed)${NC}"
-            ((failed++))
+            failed=$((failed + 1))
         fi
     done
 
