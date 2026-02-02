@@ -770,6 +770,7 @@ invisible_retrospective:
 **Exit Conditions** (skip all processing if any are true):
 - `invisible_retrospective.enabled: false` → Log action: DISABLED, exit
 - `invisible_retrospective.skills.implementing-tasks: false` → Log action: DISABLED, exit
+- **RECURSION GUARD**: If skill is `continuous-learning` → Exit silently (but this skill is `implementing-tasks`, so proceed)
 
 ### Step 2: Scan Session for Learning Signals
 
@@ -806,6 +807,25 @@ For each candidate, evaluate these 4 gates:
 
 **Threshold**: From config `surface_threshold` (default: 3)
 
+### Step 3.5: Sanitize Descriptions (REQUIRED)
+
+**CRITICAL**: Before logging or surfacing ANY candidate, sanitize descriptions to prevent sensitive data leakage.
+
+Apply these redaction patterns:
+
+| Pattern | Replacement |
+|---------|-------------|
+| API Keys (`sk-*`, `ghp_*`, `AKIA*`) | `[REDACTED_API_KEY]` |
+| Private Keys (`-----BEGIN...PRIVATE KEY-----`) | `[REDACTED_PRIVATE_KEY]` |
+| JWT Tokens (`eyJ...`) | `[REDACTED_JWT]` |
+| Webhook URLs (`hooks.slack.com/*`, `hooks.discord.com/*`) | `[REDACTED_WEBHOOK]` |
+| File Paths (`/home/*/`, `/Users/*/`) | `/home/[USER]/` or `/Users/[USER]/` |
+| Email Addresses | `[REDACTED_EMAIL]` |
+| IP Addresses | `[REDACTED_IP]` |
+| Generic Secrets (`password=`, `secret=`, etc.) | `$key=[REDACTED]` |
+
+If any redactions occur, add `"redactions_applied": true` to trajectory log.
+
 ### Step 4: Log to Trajectory (ALWAYS)
 
 Write to `grimoires/loa/a2a/trajectory/retrospective-{YYYY-MM-DD}.jsonl`:
@@ -839,9 +859,13 @@ Write to `grimoires/loa/a2a/trajectory/retrospective-{YYYY-MM-DD}.jsonl`:
 IF any candidates score >= `surface_threshold`:
 
 1. **Add to NOTES.md `## Learnings` section**:
+
+   **CRITICAL - Markdown Escape**: Before inserting description, escape these characters:
+   - `#` → `\#`, `*` → `\*`, `[` → `\[`, `]` → `\]`, `\n` → ` `
+
    ```markdown
    ## Learnings
-   - [{timestamp}] [implementing-tasks] {Brief description} → skills-pending/{id}
+   - [{timestamp}] [implementing-tasks] {ESCAPED Brief description} → skills-pending/{id}
    ```
 
    If `## Learnings` section doesn't exist, create it after `## Session Log`.

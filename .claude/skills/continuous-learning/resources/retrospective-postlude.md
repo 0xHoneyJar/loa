@@ -34,7 +34,9 @@ invisible_retrospective:
 **Exit Conditions** (skip all processing if any are true):
 - `invisible_retrospective.enabled: false` → Log action: DISABLED, exit
 - `invisible_retrospective.skills.{this-skill}: false` → Log action: DISABLED, exit
-- This skill is `continuous-learning` → Exit silently (prevent recursion)
+- **RECURSION GUARD**: This skill is `continuous-learning` → Exit silently (prevent infinite recursion)
+  - INVARIANT: The `continuous-learning` skill MUST NEVER have a retrospective postlude
+  - The schema also excludes `continuous-learning` from valid skill values
 
 ### Step 2: Scan Session for Learning Signals
 
@@ -70,6 +72,36 @@ For each candidate, evaluate these 4 gates:
 **Scoring**: Each gate passed = 1 point. Max score = 4.
 
 **Threshold**: From config `surface_threshold` (default: 3)
+
+### Step 3.5: Sanitize Descriptions (REQUIRED)
+
+**CRITICAL**: Before logging or surfacing ANY candidate, sanitize descriptions to prevent sensitive data leakage.
+
+Apply these redaction patterns (from `.claude/scripts/anonymize-proposal.sh`):
+
+| Pattern | Regex | Replacement |
+|---------|-------|-------------|
+| API Keys | `(sk-[a-zA-Z0-9]{20,})\|(ghp_[a-zA-Z0-9]{36})\|(AKIA[A-Z0-9]{16})` | `[REDACTED_API_KEY]` |
+| Private Keys | `-----BEGIN [A-Z ]+ PRIVATE KEY-----` | `[REDACTED_PRIVATE_KEY]` |
+| JWT Tokens | `eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}` | `[REDACTED_JWT]` |
+| Webhook URLs | `https://hooks\.(slack\|discord)\.com/[^\s]+` | `[REDACTED_WEBHOOK]` |
+| File Paths | `/home/[^/]+/\|/Users/[^/]+/` | `/home/[USER]/` or `/Users/[USER]/` |
+| Email Addresses | `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}` | `[REDACTED_EMAIL]` |
+| IP Addresses | `\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b` | `[REDACTED_IP]` |
+| Generic Secrets | `(password\|secret\|token\|key)\s*[:=]\s*['"][^'"]+['"]` | `$1=[REDACTED]` |
+
+**Implementation**:
+1. For each candidate's `description` field, apply all patterns
+2. Log warning to trajectory if any redactions occurred (for audit trail)
+3. Use sanitized descriptions in ALL downstream operations
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+invisible_retrospective:
+  sanitize_descriptions: true  # Default: true, NEVER disable in production
+```
+
+If `sanitize_descriptions: false` is set, log WARNING to trajectory but still apply sanitization (defense in depth).
 
 ### Step 4: Log to Trajectory (ALWAYS)
 
@@ -112,9 +144,17 @@ Write to `grimoires/loa/a2a/trajectory/retrospective-{YYYY-MM-DD}.jsonl`:
 IF any candidates score >= `surface_threshold`:
 
 1. **Add to NOTES.md `## Learnings` section**:
+
+   **CRITICAL - Markdown Escape**: Before inserting description, escape these characters:
+   - `#` → `\#` (prevents section injection)
+   - `*` → `\*` (prevents bold/italic injection)
+   - `[` → `\[` (prevents link injection)
+   - `]` → `\]` (prevents link injection)
+   - `\n` → ` ` (collapse newlines to spaces - prevents multi-line injection)
+
    ```markdown
    ## Learnings
-   - [{timestamp}] [{skill}] {Brief description} → skills-pending/{id}
+   - [{timestamp}] [{skill}] {ESCAPED Brief description} → skills-pending/{id}
    ```
 
    If `## Learnings` section doesn't exist, create it after `## Session Log`.
@@ -175,6 +215,11 @@ On ANY error during postlude execution:
 Respect these limits from config:
 - `max_candidates`: Maximum candidates to evaluate per invocation (default: 5)
 - `max_extractions_per_session`: Maximum learnings to extract per session (default: 3)
+
+**Config Validation** (clamp out-of-range values):
+- `surface_threshold`: Range 0-4 (clamp to bounds if outside)
+- `max_candidates`: Range 1-20 (if > 20, clamp to 20 and note in trajectory)
+- `max_extractions_per_session`: Range 1-10 (if > 10, clamp to 10 and note in trajectory)
 
 Track session extractions in trajectory log and skip extraction if limit reached.
 

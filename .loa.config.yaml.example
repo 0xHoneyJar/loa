@@ -280,13 +280,20 @@ invisible_retrospective:
 
   # Minimum quality gates passed to surface finding (out of 4)
   # Gates: Depth, Reusability, Trigger Clarity, Verification
+  # Range: 0-4 (0 = surface everything, 4 = maximum strictness)
   surface_threshold: 3
 
   # Maximum candidates to evaluate per skill invocation
+  # Range: 1-20 (recommended max: 10, higher values increase processing time)
   max_candidates: 5
 
   # Maximum learnings to extract per session (prevents noise)
+  # Range: 1-10 (recommended max: 5, higher values may flood NOTES.md)
   max_extractions_per_session: 3
+
+  # Sanitize descriptions before logging (redacts API keys, paths, emails, etc.)
+  # CRITICAL: Do NOT disable in production - defense in depth applies sanitization even if false
+  sanitize_descriptions: true
 
   # Per-skill enablement (only skills with postludes support this)
   skills:
