@@ -134,6 +134,81 @@ memory:
 
 **Note**: Memory Stack is opt-in by default. Enable via config after setup.
 
+#### Flatline Protocol - NotebookLM Integration (Optional) {#notebooklm-optional}
+
+**What it does**: Enables Tier 2 knowledge retrieval from Google NotebookLM for the Flatline Protocol's multi-model adversarial review.
+
+**Benefits**:
+- **Curated knowledge**: Query your own NotebookLM notebooks with domain expertise
+- **Two-tier knowledge**: Combines local learnings (Tier 1) with NotebookLM (Tier 2)
+- **Better context**: Models receive relevant domain knowledge before reviewing
+
+**Without NotebookLM**: Flatline Protocol works perfectly with local knowledge only (Tier 1). NotebookLM adds supplementary context for specialized domains.
+
+**Prerequisites**:
+- Python 3.8+
+- A Google account (any gmail or workspace account)
+- Optionally: A NotebookLM notebook with uploaded sources
+
+> **Note**: NotebookLM is NOT Gemini. It's a separate Google product (notebooklm.google.com) for creating personal knowledge bases. No API key required - uses browser session authentication.
+
+**Installation**:
+
+```bash
+# Install patchright (browser automation) - must be accessible as Python module
+pip install --user patchright
+# OR in a virtual environment: pip install patchright
+
+# Install browser binaries (Chromium)
+patchright install chromium
+# OR: python3 -m patchright install chromium
+
+# One-time authentication (opens browser for Google sign-in)
+python3 .claude/skills/flatline-knowledge/resources/notebooklm-query.py --setup-auth
+```
+
+**Authentication Process**:
+1. Browser window opens to notebooklm.google.com
+2. Sign in with your Google account
+3. Navigate to any notebook (confirms access)
+4. Close the browser when done
+5. Session saved to `~/.claude/notebooklm-auth/` (with 0700 permissions)
+
+**Configuration** (`.loa.config.yaml`):
+
+```yaml
+flatline_protocol:
+  enabled: true
+  knowledge:
+    notebooklm:
+      enabled: true                    # Enable Tier 2 knowledge
+      notebook_id: "your-notebook-id"  # Optional: specific notebook
+      timeout_ms: 30000                # Query timeout
+```
+
+**Getting a Notebook ID** (optional):
+1. Go to notebooklm.google.com
+2. Open or create a notebook
+3. Copy the ID from the URL: `notebooklm.google.com/notebook/NOTEBOOK_ID`
+
+**Security Notes**:
+- Auth session stored with restrictive permissions (0700)
+- Uses isolated browser profile
+- No credentials stored in plain text
+- Session can be revoked by deleting `~/.claude/notebooklm-auth/`
+
+**Testing**:
+
+```bash
+# Dry run (no browser needed)
+python3 .claude/skills/flatline-knowledge/resources/notebooklm-query.py \
+  --dry-run --domain "your domain" --phase prd
+
+# Live query (requires auth setup)
+python3 .claude/skills/flatline-knowledge/resources/notebooklm-query.py \
+  --domain "your domain" --phase prd --json
+```
+
 **Updating existing repos**: If you're updating Loa to v0.8.0+ in an existing repository, you'll need to manually initialize the ck index:
 
 ```bash
