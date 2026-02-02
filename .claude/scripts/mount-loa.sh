@@ -163,22 +163,41 @@ setup_remote() {
     git remote add "$LOA_REMOTE_NAME" "$LOA_REMOTE_URL"
   fi
 
-  git fetch "$LOA_REMOTE_NAME" "$LOA_BRANCH" --quiet
+  git fetch "$LOA_REMOTE_NAME" "$LOA_BRANCH" --tags --quiet
   log "Remote configured"
+}
+
+# === Detect Latest Release Tag ===
+# Fetches the latest semver release tag (v*.*.*)
+# Falls back to branch if no tags exist
+detect_latest_version() {
+  step "Detecting latest release..."
+
+  # Find latest semver tag (v*.*.*)
+  local latest_tag
+  latest_tag=$(git tag -l 'v*.*.*' --sort=-v:refname 2>/dev/null | head -1)
+
+  if [[ -n "$latest_tag" ]]; then
+    LOA_CHECKOUT_REF="$latest_tag"
+    log "Latest release: $latest_tag"
+  else
+    LOA_CHECKOUT_REF="$LOA_REMOTE_NAME/$LOA_BRANCH"
+    warn "No release tags found, using $LOA_BRANCH branch"
+  fi
 }
 
 # === Selective Sync (Three-Zone Model) ===
 sync_zones() {
   step "Syncing System and State zones..."
 
-  log "Pulling System Zone (.claude/)..."
-  git checkout "$LOA_REMOTE_NAME/$LOA_BRANCH" -- .claude 2>/dev/null || {
-    err "Failed to checkout .claude/ from upstream"
+  log "Pulling System Zone (.claude/) from $LOA_CHECKOUT_REF..."
+  git checkout "$LOA_CHECKOUT_REF" -- .claude 2>/dev/null || {
+    err "Failed to checkout .claude/ from $LOA_CHECKOUT_REF"
   }
 
   if [[ ! -d "grimoires/loa" ]]; then
     log "Pulling State Zone template (grimoires/loa/)..."
-    git checkout "$LOA_REMOTE_NAME/$LOA_BRANCH" -- grimoires/loa 2>/dev/null || {
+    git checkout "$LOA_CHECKOUT_REF" -- grimoires/loa 2>/dev/null || {
       warn "No grimoires/loa/ in upstream, creating empty structure..."
       mkdir -p grimoires/loa/{context,discovery,a2a/trajectory}
       touch grimoires/loa/.gitkeep
@@ -200,7 +219,7 @@ pull_and_wrap_loa_file() {
   local file="$1"
 
   local content
-  content=$(git show "$LOA_REMOTE_NAME/$LOA_BRANCH:$file" 2>/dev/null) || {
+  content=$(git show "$LOA_CHECKOUT_REF:$file" 2>/dev/null) || {
     warn "No $file in upstream, skipping..."
     return 0
   }
@@ -232,7 +251,7 @@ create_hybrid_file() {
 
   # Get Loa's version
   local loa_content
-  loa_content=$(git show "$LOA_REMOTE_NAME/$LOA_BRANCH:$file" 2>/dev/null) || {
+  loa_content=$(git show "$LOA_CHECKOUT_REF:$file" 2>/dev/null) || {
     warn "Could not fetch $file from upstream - keeping original"
     rm -f "$backup"
     return 1
@@ -262,7 +281,7 @@ update_loa_section() {
 
   # Get new Loa content
   local loa_content
-  loa_content=$(git show "$LOA_REMOTE_NAME/$LOA_BRANCH:$file" 2>/dev/null) || {
+  loa_content=$(git show "$LOA_CHECKOUT_REF:$file" 2>/dev/null) || {
     warn "Could not fetch $file from upstream - keeping current"
     return 1
   }
@@ -304,7 +323,7 @@ sync_optional_file() {
   fi
 
   log "Pulling $file ($description)..."
-  git checkout "$LOA_REMOTE_NAME/$LOA_BRANCH" -- "$file" 2>/dev/null || {
+  git checkout "$LOA_CHECKOUT_REF" -- "$file" 2>/dev/null || {
     warn "No $file in upstream, skipping..."
   }
 }
@@ -741,6 +760,7 @@ main() {
   preflight
   install_beads
   setup_remote
+  detect_latest_version
   sync_zones
   sync_root_files
   init_structured_memory
@@ -763,20 +783,21 @@ Mirror the .claude/ structure for any customizations.
 EOF
 
   # === Show Completion Banner ===
+  local display_version="${LOA_CHECKOUT_REF#v}"  # Remove 'v' prefix if present
   local banner_script=".claude/scripts/upgrade-banner.sh"
   if [[ -x "$banner_script" ]]; then
     "$banner_script" "none" "$new_version" --mount
   else
     # Fallback: simple completion message
     echo ""
-    log "======================================================================="
-    log "  Loa Successfully Mounted!"
-    log "======================================================================="
+    echo "╭───────────────────────────────────────────────────────────────╮"
+    echo "│  ✓ Loa ${display_version} installed successfully!                     │"
+    echo "╰───────────────────────────────────────────────────────────────╯"
     echo ""
     info "Next steps:"
-    info "  1. Run 'claude' to start Claude Code"
-    info "  2. Issue '/ride' to analyze this codebase"
-    info "  3. Or '/setup' for guided project configuration"
+    info "  1. Run /loa to see guided workflow"
+    info "  2. Run /plan-and-analyze to start a new project"
+    info "  3. See PROCESS.md for detailed documentation"
     echo ""
   fi
 
