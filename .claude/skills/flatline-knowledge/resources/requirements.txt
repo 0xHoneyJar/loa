@@ -1,0 +1,8 @@
+# NotebookLM Query Script Dependencies
+# Install with: pip install -r requirements.txt
+
+# Browser automation (Playwright fork with stealth features)
+patchright>=1.44.0
+
+# Async support (included in Python 3.10+, listed for clarity)
+# asyncio is part of standard library

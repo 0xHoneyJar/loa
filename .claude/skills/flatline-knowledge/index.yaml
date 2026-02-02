@@ -1,0 +1,73 @@
+# Flatline Knowledge Skill - NotebookLM Integration
+# @loa-managed: true | version: 1.17.0
+name: flatline-knowledge
+version: 1.0.0
+description: |
+  Optional NotebookLM browser automation for external knowledge retrieval.
+  Provides Tier 2 knowledge source for Flatline Protocol reviews.
+  Falls back gracefully when unavailable or unauthenticated.
+
+# Skill metadata
+effort_hint: low
+danger_level: safe
+categories:
+  - support
+  - operations
+
+# Deferred loading - only load when Flatline Protocol needs NotebookLM
+defer_loading: true
+
+# Input/Output specification
+inputs:
+  - name: domain
+    type: string
+    required: true
+    description: Domain keywords extracted from document being reviewed
+  - name: phase
+    type: enum
+    values: [prd, sdd, sprint]
+    required: true
+    description: Document phase being reviewed
+  - name: notebook
+    type: string
+    required: false
+    description: NotebookLM notebook ID to query (from config)
+
+outputs:
+  - name: knowledge
+    type: markdown
+    format: detailed
+    description: Retrieved knowledge context with citations
+
+# Dependencies
+dependencies:
+  python:
+    version: ">=3.10"
+    packages:
+      - patchright
+      - asyncio
+  system:
+    - chromium  # Or Chrome browser
+
+# Configuration reference
+config_path: flatline_protocol.knowledge.notebooklm
+
+# Authentication
+auth:
+  type: browser_session
+  storage_path: ~/.claude/notebooklm-auth/
+  notes: |
+    Requires one-time manual Google authentication.
+    Session persists across invocations.
+
+# Error handling
+error_behavior:
+  auth_expired: warn_and_fallback
+  timeout: warn_and_fallback
+  unavailable: warn_and_fallback
+  fallback_to: local_knowledge
+
+# Metrics
+metrics:
+  latency_target_ms: 10000
+  timeout_ms: 30000

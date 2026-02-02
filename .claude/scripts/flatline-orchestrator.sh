@@ -43,6 +43,7 @@ TRAJECTORY_DIR="$PROJECT_ROOT/grimoires/loa/a2a/trajectory"
 MODEL_ADAPTER="$SCRIPT_DIR/model-adapter.sh"
 SCORING_ENGINE="$SCRIPT_DIR/scoring-engine.sh"
 KNOWLEDGE_LOCAL="$SCRIPT_DIR/flatline-knowledge-local.sh"
+NOTEBOOKLM_QUERY="$PROJECT_ROOT/.claude/skills/flatline-knowledge/resources/notebooklm-query.py"
 
 # Default configuration
 DEFAULT_TIMEOUT=300
@@ -124,6 +125,20 @@ get_model_secondary() {
     read_config '.flatline_protocol.models.secondary' 'gpt-5.2'
 }
 
+is_notebooklm_enabled() {
+    local enabled
+    enabled=$(read_config '.flatline_protocol.knowledge.notebooklm.enabled' 'false')
+    [[ "$enabled" == "true" ]]
+}
+
+get_notebooklm_notebook_id() {
+    read_config '.flatline_protocol.knowledge.notebooklm.notebook_id' ''
+}
+
+get_notebooklm_timeout() {
+    read_config '.flatline_protocol.knowledge.notebooklm.timeout_ms' '30000'
+}
+
 # =============================================================================
 # Domain Extraction
 # =============================================================================
@@ -171,6 +186,105 @@ extract_domain() {
     fi
 
     echo "$domain"
+}
+
+# =============================================================================
+# NotebookLM Integration (Tier 2 Knowledge)
+# =============================================================================
+
+query_notebooklm() {
+    local domain="$1"
+    local phase="$2"
+    local output_file="$3"
+
+    # Check if NotebookLM is enabled
+    if ! is_notebooklm_enabled; then
+        log "NotebookLM: disabled (skipping)"
+        return 0
+    fi
+
+    # Check if Python script exists
+    if [[ ! -f "$NOTEBOOKLM_QUERY" ]]; then
+        log "NotebookLM: query script not found (skipping)"
+        return 0
+    fi
+
+    # Check if Python is available
+    if ! command -v python3 &> /dev/null; then
+        log "NotebookLM: Python3 not available (skipping)"
+        return 0
+    fi
+
+    local notebook_id
+    notebook_id=$(get_notebooklm_notebook_id)
+
+    local timeout_ms
+    timeout_ms=$(get_notebooklm_timeout)
+
+    log "NotebookLM: querying for domain '$domain' phase '$phase'"
+
+    local nlm_result
+    local nlm_args=(
+        --domain "$domain"
+        --phase "$phase"
+        --timeout "$timeout_ms"
+        --json
+    )
+
+    if [[ -n "$notebook_id" ]]; then
+        nlm_args+=(--notebook "$notebook_id")
+    fi
+
+    # Run NotebookLM query (with timeout protection)
+    local timeout_sec=$((timeout_ms / 1000 + 5))  # Add 5s buffer
+    if nlm_result=$(timeout "${timeout_sec}s" python3 "$NOTEBOOKLM_QUERY" "${nlm_args[@]}" 2>/dev/null); then
+        local status
+        status=$(echo "$nlm_result" | jq -r '.status // "error"')
+
+        case "$status" in
+            success)
+                log "NotebookLM: query successful"
+                # Extract content and append to output
+                local content
+                content=$(echo "$nlm_result" | jq -r '.results[0].content // ""')
+                if [[ -n "$content" && "$content" != "null" ]]; then
+                    echo "" >> "$output_file"
+                    echo "## NotebookLM Knowledge (Tier 2)" >> "$output_file"
+                    echo "" >> "$output_file"
+                    echo "$content" >> "$output_file"
+                    echo "" >> "$output_file"
+                    echo "_Source: NotebookLM (weight: 0.8)_" >> "$output_file"
+
+                    local latency
+                    latency=$(echo "$nlm_result" | jq -r '.latency_ms // 0')
+                    log "NotebookLM: retrieved in ${latency}ms"
+                fi
+                return 0
+                ;;
+            auth_expired)
+                log "Warning: NotebookLM authentication expired (skipping)"
+                log "  Run: python3 $NOTEBOOKLM_QUERY --setup-auth"
+                return 0
+                ;;
+            dry_run)
+                log "NotebookLM: dry run mode"
+                return 0
+                ;;
+            timeout)
+                log "Warning: NotebookLM query timed out (skipping)"
+                return 0
+                ;;
+            *)
+                local error_msg
+                error_msg=$(echo "$nlm_result" | jq -r '.error // "Unknown error"')
+                log "Warning: NotebookLM query failed: $error_msg (skipping)"
+                return 0
+                ;;
+        esac
+    else
+        log "Warning: NotebookLM query timed out or failed (skipping)"
+        return 0
+    fi
 }
 
 # =============================================================================
@@ -595,18 +709,26 @@ main() {
         log "Extracted domain: $domain"
     fi
 
-    # Phase -0.5: Knowledge Retrieval
+    # Phase -0.5: Knowledge Retrieval (Two-Tier)
     local context_file="$TEMP_DIR/knowledge-context.md"
     if [[ "$skip_knowledge" != "true" ]]; then
         set_state "KNOWLEDGE"
-        log "Retrieving knowledge context"
+        log "Retrieving knowledge context (two-tier)"
 
+        # Tier 1: Local knowledge (framework + project learnings)
+        log "Tier 1: Local knowledge retrieval"
         if "$KNOWLEDGE_LOCAL" --domain "$domain" --phase "$phase" --format markdown > "$context_file" 2>/dev/null; then
-            log "Knowledge retrieval complete"
+            log "Tier 1: Local knowledge retrieval complete"
         else
-            log "Warning: Knowledge retrieval failed (continuing without context)"
+            log "Warning: Tier 1 knowledge retrieval failed (continuing)"
             echo "" > "$context_file"
         fi
+
+        # Tier 2: NotebookLM (optional, appends to context)
+        log "Tier 2: NotebookLM knowledge retrieval"
+        query_notebooklm "$domain" "$phase" "$context_file"
+
+        log "Knowledge retrieval complete (two-tier)"
     else
         echo "" > "$context_file"
     fi

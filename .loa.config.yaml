@@ -1555,10 +1555,18 @@ flatline_protocol:
         - "grimoires/loa/context/"
         - "grimoires/loa/a2a/compound/"
     # NotebookLM integration (Tier 2 - P1)
+    # Requires Python 3.10+, Patchright, and one-time Google authentication
+    # Setup: python3 .claude/skills/flatline-knowledge/resources/notebooklm-query.py --setup-auth
     notebooklm:
       enabled: false
-      default_notebook: "loa-learnings"
-      timeout_seconds: 30
+      # NotebookLM notebook ID to query (from URL)
+      notebook_id: ""
+      # Query timeout in milliseconds
+      timeout_ms: 30000
+      # Run browser in headless mode (set false for debugging)
+      headless: true
+      # Custom auth directory (optional, default: ~/.claude/notebooklm-auth/)
+      # auth_dir: ""
 
 # =============================================================================
 # Behavior Preferences
