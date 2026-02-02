@@ -294,6 +294,151 @@ All skill extraction events are logged to trajectory:
 
 ---
 
+## Upstream Learning Flow (v1.16.0+)
+
+High-value project learnings can be proposed for upstream contribution to the Loa framework. This enables proven patterns to benefit all Loa users.
+
+### Workflow Overview
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│              Upstream Learning Flow                               │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  1. Learning Discovery (existing /retrospective workflow)         │
+│     └─→ Extract learnings to grimoires/loa/a2a/compound/         │
+│                                                                   │
+│  2. Effectiveness Tracking                                        │
+│     └─→ Track applications and success rates over time           │
+│                                                                   │
+│  3. Upstream Detection (automatic)                                │
+│     └─→ post-retrospective-hook.sh evaluates eligibility         │
+│     └─→ Silent unless learning meets thresholds                  │
+│                                                                   │
+│  4. User Opt-In                                                   │
+│     └─→ User decides whether to propose                          │
+│     └─→ /propose-learning <ID> [--dry-run]                       │
+│                                                                   │
+│  5. Anonymization & Submission                                    │
+│     └─→ PII automatically redacted                               │
+│     └─→ GitHub Issue created with learning-proposal label        │
+│                                                                   │
+│  6. Maintainer Review                                             │
+│     └─→ Accept: merged to framework learnings                    │
+│     └─→ Reject: 90-day cooldown before resubmit                  │
+│                                                                   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Eligibility Thresholds
+
+A learning qualifies for upstream proposal when:
+
+| Criterion | Threshold | Configurable |
+|-----------|-----------|--------------|
+| **Upstream Score** | ≥ 70 | `.upstream_detection.min_upstream_score` |
+| **Applications** | ≥ 3 | `.upstream_detection.min_occurrences` |
+| **Success Rate** | ≥ 80% | `.upstream_detection.min_success_rate` |
+
+### Upstream Score Calculation
+
+The upstream score is a weighted combination of four components:
+
+| Component | Weight | Source |
+|-----------|--------|--------|
+| Quality Gates | 25% | Discovery depth, reusability, trigger clarity, verification |
+| Effectiveness | 30% | Application count and success rate |
+| Novelty | 25% | Jaccard similarity vs existing framework learnings |
+| Generality | 20% | Domain-agnostic characteristics |
+
+**Script**: `.claude/scripts/upstream-score-calculator.sh`
+
+### Proposing a Learning
+
+```bash
+# Preview proposal (recommended first step)
+/propose-learning L-0001 --dry-run
+
+# Submit proposal
+/propose-learning L-0001
+
+# Force submission (skip eligibility check)
+/propose-learning L-0001 --force
+```
+
+### Anonymization
+
+Before submission, the following PII is automatically redacted:
+
+| Type | Pattern | Replacement |
+|------|---------|-------------|
+| API Keys | `sk-*`, `ghp_*`, `AKIA*` | `[REDACTED_API_KEY]` |
+| File Paths | `/home/user/*`, `/Users/*` | `[REDACTED_PATH]` |
+| Domains | Project-specific domains | `[REDACTED_DOMAIN]` |
+| Usernames | `@mentions`, git authors | `[REDACTED_USER]` |
+| Emails | `*@*.com` | `[REDACTED_EMAIL]` |
+| IP Addresses | `192.168.*.*` | `[REDACTED_IP]` |
+
+**Script**: `.claude/scripts/anonymize-proposal.sh`
+
+### Proposal Lifecycle
+
+| Status | Description |
+|--------|-------------|
+| `none` | No proposal attempted |
+| `draft` | Created but not submitted |
+| `submitted` | GitHub Issue created, awaiting review |
+| `under_review` | Maintainer is reviewing |
+| `accepted` | Merged into framework learnings |
+| `rejected` | Not accepted (90-day cooldown applies) |
+
+### Checking Status
+
+```bash
+# Check specific proposal
+.claude/scripts/check-proposal-status.sh --learning L-0001
+
+# Check all submitted proposals and sync
+.claude/scripts/check-proposal-status.sh --all --sync
+```
+
+### Handling Rejection
+
+When a proposal is rejected:
+1. `rejection.reason` captured from maintainer feedback
+2. `rejection.reason_code` categorized (duplicate, too_specific, etc.)
+3. `rejection.resubmit_blocked_until` set to 90 days from rejection
+4. Learning can be resubmitted after cooldown expires
+
+### Configuration
+
+```yaml
+# .loa.config.yaml
+upstream_detection:
+  enabled: true
+  min_occurrences: 3
+  min_success_rate: 0.8
+  min_upstream_score: 70
+  novelty_threshold: 0.7
+
+upstream_proposals:
+  target_repo: "0xHoneyJar/loa"
+  label: "learning-proposal"
+  anonymization:
+    enabled: true
+  rejection_cooldown_days: 90
+```
+
+### Related Commands
+
+| Command | Description |
+|---------|-------------|
+| `/retrospective` | Extract learnings (auto-triggers upstream detection) |
+| `/propose-learning` | Submit learning as upstream proposal |
+| `/compound` | Cross-session learning synthesis |
+
+---
+
 ## Protocol Reference
 
 See `.claude/protocols/continuous-learning.md` for:
@@ -301,3 +446,8 @@ See `.claude/protocols/continuous-learning.md` for:
 - Zone compliance enforcement
 - Pre-commit hook for validation
 - Complete trajectory schema
+
+See `grimoires/loa/prd.md` (Upstream Learning Flow v1.1.0) for:
+- Full feature requirements
+- Maintainer acceptance workflow
+- Non-functional requirements
