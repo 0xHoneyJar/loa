@@ -113,6 +113,36 @@ The architect will:
 - Explain technical tradeoffs clearly
 - Only generate SDD when confident in all decisions
 
+## Flatline Protocol Integration (v1.17.0)
+
+After SDD generation completes, the Flatline Protocol may execute automatically for adversarial multi-model review.
+
+### Automatic Trigger Conditions
+
+The postlude runs if ALL conditions are met:
+- `flatline_protocol.enabled: true` in `.loa.config.yaml`
+- `flatline_protocol.auto_trigger: true` in `.loa.config.yaml`
+- `flatline_protocol.phases.sdd: true` in `.loa.config.yaml`
+
+### What Happens
+
+1. **Knowledge Retrieval**: Searches local grimoires for relevant patterns and decisions
+2. **Phase 1**: 4 parallel API calls (GPT review, Opus review, GPT skeptic, Opus skeptic)
+3. **Phase 2**: Cross-scoring between models
+4. **Consensus**: Categorizes improvements as HIGH_CONSENSUS, DISPUTED, or LOW_VALUE
+5. **Presentation**: Shows results and offers integration options
+
+### Output
+
+Results are saved to `grimoires/loa/a2a/flatline/sdd-review.json`
+
+### Manual Alternative
+
+If auto-trigger is disabled, run manually:
+```bash
+/flatline-review sdd
+```
+
 ## Next Step
 
 After SDD is complete: `/sprint-plan` to break down work into sprints

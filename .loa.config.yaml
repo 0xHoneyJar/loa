@@ -1497,6 +1497,70 @@ prompt_enhancement:
       - "run-mode"           # Don't enhance autonomous mode
 
 # =============================================================================
+# Flatline Protocol (v1.17.0 - Issue #29)
+# =============================================================================
+# Multi-model adversarial review for planning documents
+# Uses Claude Opus 4.5 + GPT-5.2 for cross-validation with consensus extraction
+flatline_protocol:
+  # Master toggle - set to false to disable Flatline Protocol
+  enabled: false
+
+  # Auto-trigger after planning commands (plan-and-analyze, architect, sprint-plan)
+  auto_trigger: true
+
+  # Models for adversarial review
+  models:
+    # Primary model (default: Claude Opus 4.5)
+    primary: "opus"
+    # Secondary model (default: GPT-5.2)
+    secondary: "gpt-5.2"
+    # Tertiary model (future, optional)
+    # tertiary: "gemini-2.0"
+
+  # Consensus thresholds (0-1000 scale)
+  thresholds:
+    # Both models >700 = auto-integrate improvement
+    high_consensus: 700
+    # Score difference >300 = disputed, present to user
+    dispute_delta: 300
+    # Both models <400 = discard as low value
+    low_value: 400
+    # Skeptic concern >700 = blocker, must address
+    blocker: 700
+
+  # Phase-specific toggles
+  phases:
+    prd: true
+    sdd: true
+    sprint: true
+
+  # Budget controls
+  budget:
+    # Maximum tokens per review phase
+    max_tokens_per_phase: 100000
+    # Warn when budget reaches this percentage
+    warn_at_percent: 80
+    # Hard budget limit in cents (default: 300 = $3.00)
+    hard_limit_cents: 300
+    # Block if budget exceeded (vs warn and continue)
+    block_on_exceed: false
+
+  # Knowledge retrieval (Two-Tier Hub)
+  knowledge:
+    # Local grimoire search (Tier 1 - P0)
+    local:
+      enabled: true
+      sources:
+        - ".claude/loa/learnings/"
+        - "grimoires/loa/context/"
+        - "grimoires/loa/a2a/compound/"
+    # NotebookLM integration (Tier 2 - P1)
+    notebooklm:
+      enabled: false
+      default_notebook: "loa-learnings"
+      timeout_seconds: 30
+
+# =============================================================================
 # Behavior Preferences
 # =============================================================================
 preferences:

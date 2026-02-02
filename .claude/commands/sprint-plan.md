@@ -180,6 +180,36 @@ Sprint plan created with 3 sprints (global IDs: 4-6)
 
 Without a ledger, sprint-plan works exactly as before using local sprint numbers.
 
+## Flatline Protocol Integration (v1.17.0)
+
+After sprint plan generation completes, the Flatline Protocol may execute automatically for adversarial review.
+
+### Automatic Trigger Conditions
+
+The postlude runs if ALL conditions are met:
+- `flatline_protocol.enabled: true` in `.loa.config.yaml`
+- `flatline_protocol.auto_trigger: true` in `.loa.config.yaml`
+- `flatline_protocol.phases.sprint: true` in `.loa.config.yaml`
+
+### What Happens
+
+1. **Knowledge Retrieval**: Searches local grimoires for relevant patterns
+2. **Phase 1**: 4 parallel API calls reviewing sprint plan
+3. **Phase 2**: Cross-scoring between models
+4. **Consensus**: Identifies task gaps, missing acceptance criteria, estimation concerns
+5. **Presentation**: Shows results with option to refine tasks
+
+### Output
+
+Results are saved to `grimoires/loa/a2a/flatline/sprint-review.json`
+
+### Manual Alternative
+
+If auto-trigger is disabled, run manually:
+```bash
+/flatline-review sprint
+```
+
 ## Next Step
 
 After sprint plan is complete:

@@ -1,0 +1,144 @@
+## Post-Generation Validation (Flatline Protocol)
+
+After document generation completes, execute the Flatline Protocol for adversarial review.
+
+**CRITICAL**: This postlude executes AFTER main workflow. Never skip, never fail silently.
+
+### Step 1: Check Configuration
+
+Read `.loa.config.yaml`:
+
+```yaml
+flatline_protocol:
+  enabled: true|false
+  auto_trigger: true|false
+  phases:
+    {{PHASE}}: true|false
+```
+
+**Exit Conditions** (skip if any are true):
+- `flatline_protocol.enabled: false` → Log DISABLED, exit
+- `flatline_protocol.auto_trigger: false` → Log DISABLED, exit
+- `flatline_protocol.phases.{{PHASE}}: false` → Log DISABLED, exit
+
+If skipping, surface to user:
+> "Flatline Protocol is disabled for this phase. Run `/flatline-review {{PHASE}}` manually if desired."
+
+### Step 2: Extract Domain
+
+Extract domain keywords from the generated document:
+- From PRD: Product name, industry, key technologies
+- From SDD: Tech stack, frameworks, protocols
+- From Sprint: Task domains, components
+
+```bash
+domain=$(grep -iE "^#|product|technology|framework|feature" "$OUTPUT_DOC" | \
+    head -5 | tr -cs '[:alnum:]' ' ' | cut -d' ' -f1-5)
+```
+
+### Step 3: Execute Flatline Protocol
+
+```bash
+result=$(.claude/scripts/flatline-orchestrator.sh \
+    --doc "{{OUTPUT_DOC}}" \
+    --phase "{{PHASE}}" \
+    --domain "$domain" \
+    --json)
+```
+
+### Step 4: Process Results
+
+**HIGH_CONSENSUS items** (score >700 both models):
+- Present to user with option to auto-integrate:
+  ```
+  Flatline Protocol found improvements with high consensus:
+
+  1. [IMP-001] Add hardware wallet support section
+     GPT: 850 | Opus: 920 | Action: Auto-integrate? [Y/n]
+
+  2. [IMP-002] Clarify error handling requirements
+     GPT: 780 | Opus: 810 | Action: Auto-integrate? [Y/n]
+  ```
+- If user approves, apply the improvement to the document
+
+**DISPUTED items** (delta >300):
+- Present via AskUserQuestion with details:
+  ```
+  Flatline Protocol found a disputed improvement:
+
+  Improvement: Split into mobile/desktop PRDs
+  GPT Score: 780  |  Opus Score: 420  |  Delta: 360
+
+  GPT says: "Different platforms have different constraints"
+  Opus says: "Premature optimization, handle platform differences in SDD"
+
+  Would you like to integrate this? [Yes/No/Modify]
+  ```
+
+**BLOCKER items** (skeptic concern >700):
+- Present blockers prominently:
+  ```
+  ⚠️ Flatline Protocol detected potential blockers:
+
+  1. [SKP-001] No key rotation strategy defined
+     Severity: CRITICAL (850)
+     Recommendation: Add key rotation requirements
+
+  Please address these concerns before continuing.
+  ```
+- Do NOT block workflow, but ensure user acknowledges
+
+**LOW_VALUE items** (score <400 both):
+- Log to trajectory
+- Do NOT surface to user (noise reduction)
+
+### Step 5: Trajectory Logging
+
+Always log results:
+
+```json
+{
+    "type": "flatline_protocol",
+    "timestamp": "{{ISO8601}}",
+    "phase": "{{PHASE}}",
+    "document": "{{OUTPUT_DOC}}",
+    "consensus_items": N,
+    "disputed_items": N,
+    "discarded_items": N,
+    "blocker_items": N,
+    "latency_ms": N,
+    "token_usage": N,
+    "cost_usd": N,
+    "model_agreement_percent": N
+}
+```
+
+### Step 6: Error Handling
+
+**On postlude error**:
+1. Log error to trajectory (action: ERROR)
+2. Surface warning to user: "Flatline Protocol encountered an error. Review may be incomplete."
+3. **Do NOT block workflow** - document is still valid
+4. Offer manual retry: "Run `/flatline-review {{PHASE}}` to try again."
+
+**On API timeout**:
+1. Log timeout (which models failed)
+2. Calculate partial consensus with available data
+3. Surface warning: "Partial review (X model unavailable)"
+
+**On budget exceeded**:
+1. Calculate how many more calls needed
+2. Present choice via AskUserQuestion:
+   ```
+   Flatline Protocol budget would exceed $X. Options:
+   1. Continue anyway (additional ~$Y)
+   2. Complete with partial results
+   3. Skip remaining phases
+   ```
+
+### Invariants
+
+1. **Never fail silently** - Always log to trajectory, always surface warnings
+2. **Never block workflow** - Document is valid regardless of review outcome
+3. **Always offer manual control** - User can re-run with `/flatline-review`
+4. **Respect budget limits** - Don't exceed configured budget without permission
