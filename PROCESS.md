@@ -42,6 +42,31 @@ Place all customizations in `.claude/overrides/` - they survive framework update
     └── my-command.md         # Custom command
 ```
 
+### Namespace Separation (v1.15.0)
+
+Framework content uses the `loa-` prefix namespace to separate from user content:
+
+| Content Type | Framework | User |
+|-------------|-----------|------|
+| Skills | `.claude/skills/loa-*/` | `.claude/skills/my-*/` |
+| Commands | `.claude/commands/loa-*.md` | `.claude/commands/my-*.md` |
+| Instructions | `.claude/loa/CLAUDE.loa.md` | `CLAUDE.md` |
+
+**Updates only touch `loa-*` prefixed content** - your custom skills and commands are never modified.
+
+### CLAUDE.md Import Pattern (v1.15.0)
+
+Framework instructions are loaded via Claude Code's `@` import:
+
+```markdown
+@.claude/loa/CLAUDE.loa.md
+
+# Project-Specific Instructions
+Your content here takes precedence over framework defaults.
+```
+
+See [INSTALLATION.md](INSTALLATION.md) for migration guide.
+
 ## Protocol References
 
 Detailed specifications are maintained in separate protocol files (single source of truth):

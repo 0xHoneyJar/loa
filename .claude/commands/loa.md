@@ -9,19 +9,20 @@ command_type: wizard
 
 ## Purpose
 
-Show current workflow state, progress, and suggest the next command. Reduces friction for users unfamiliar with the Loa workflow by providing clear guidance on what to do next.
+Show current workflow state, progress, version information, and suggest the next command. Reduces friction for users unfamiliar with the Loa workflow by providing clear guidance on what to do next.
 
 ## Invocation
 
 ```
-/loa              # Show status and suggestion
+/loa              # Show status, version, and suggestion
 /loa --json       # JSON output for scripting
+/loa --version    # Only show version info (quick check)
 ```
 
 ## Workflow
 
-1. **Detect State**: Run `.claude/scripts/workflow-state.sh` to determine current workflow state
-2. **Display Progress**: Show visual progress indicator
+1. **Detect State**: Run `.claude/scripts/loa-status.sh` to determine current workflow state and version info
+2. **Display Progress**: Show visual progress indicator with framework version
 3. **Suggest Command**: Present the recommended next command
 4. **Prompt User**: Ask user to proceed, skip, or exit
 
@@ -43,23 +44,42 @@ The workflow-state.sh script detects:
 ## Output Format
 
 ```
-═══════════════════════════════════════════════════
- Loa Workflow Status
-═══════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════
+ Loa Status
+═══════════════════════════════════════════════════════════════
 
- State: implementing
- Implementing sprint-2.
+Framework Version
+  Version: 1.15.0
+  Ref:     v1.15.0 (stable release)
+  Updated: 2026-01-15
+  Source:  https://github.com/0xHoneyJar/loa
 
- Progress: [████████████░░░░░░░░] 60%
+───────────────────────────────────────────────────────────────
 
- Current Sprint: sprint-2
- Sprints: 1/3 complete
+Workflow State
+  State: implementing
+  Implementing sprint-2.
+  Progress: [████████████░░░░░░░░] 60%
+  Current Sprint: sprint-2
+  Sprints: 1/3 complete
 
-───────────────────────────────────────────────────
+───────────────────────────────────────────────────────────────
  Suggested: /implement sprint-2
-═══════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════
 
 Run suggested command? [Y/n/exit]
+```
+
+### Feature Branch Warning
+
+When on a non-stable branch:
+
+```
+Framework Version
+  Version: 1.15.0
+  Ref:     feature/new-thing (feature branch)
+  Warning: You're on a non-stable branch
+  Tip: Run /update-loa @latest to switch to stable
 ```
 
 ## User Prompts
@@ -89,9 +109,13 @@ Type a command or 'exit' to quit:
 
 ## Implementation Notes
 
-1. **Run workflow-state.sh**:
+1. **Run loa-status.sh** (includes version info):
    ```bash
-   state_json=$(.claude/scripts/workflow-state.sh --json)
+   # Full status with version info
+   status_json=$(.claude/scripts/loa-status.sh --json)
+
+   # Quick version check only
+   version_json=$(.claude/scripts/loa-status.sh --version --json)
    ```
 
 2. **Parse JSON output**:
@@ -99,8 +123,13 @@ Type a command or 'exit' to quit:
    - `current_sprint`: Active sprint ID
    - `progress_percent`: Progress bar value
    - `suggested_command`: What to run next
+   - `framework.version`: Current framework version
+   - `framework.ref`: Current ref (tag/branch/commit)
+   - `framework.ref_type`: Type of ref
+   - `framework.warning`: Warning if on non-stable ref
+   - `framework.update_available`: True if update is available
 
-3. **Display formatted output** with progress bar
+3. **Display formatted output** with version info and progress bar
 
 4. **Use AskUserQuestion** for user prompt:
    ```yaml
