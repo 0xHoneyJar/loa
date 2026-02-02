@@ -183,6 +183,89 @@
       "type": "boolean",
       "default": false,
       "description": "For future runtime support of deferred skill loading. TODO: Implement in #94 (Anthropic Context Features)."
+    },
+    "input_guardrails": {
+      "type": "object",
+      "description": "Skill-specific input guardrail configuration. Overrides global guardrails settings.",
+      "properties": {
+        "pii_filter": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable PII filtering for this skill"
+            },
+            "mode": {
+              "type": "string",
+              "enum": ["blocking", "parallel", "advisory"],
+              "default": "blocking",
+              "description": "Execution mode for PII filter"
+            },
+            "patterns": {
+              "type": "object",
+              "properties": {
+                "api_keys": { "type": "boolean", "default": true },
+                "emails": { "type": "boolean", "default": true },
+                "phone_numbers": { "type": "boolean", "default": true },
+                "ssn": { "type": "boolean", "default": true },
+                "credit_cards": { "type": "boolean", "default": true },
+                "file_paths": {
+                  "type": "string",
+                  "enum": ["anonymize", "redact", "ignore"],
+                  "default": "anonymize"
+                }
+              }
+            }
+          }
+        },
+        "injection_detection": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable injection detection for this skill"
+            },
+            "mode": {
+              "type": "string",
+              "enum": ["blocking", "parallel", "advisory"],
+              "default": "blocking",
+              "description": "Execution mode for injection detection"
+            },
+            "threshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.7,
+              "description": "Score threshold for injection detection (0.0-1.0)"
+            }
+          }
+        },
+        "relevance_check": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable relevance checking for this skill"
+            },
+            "mode": {
+              "type": "string",
+              "enum": ["blocking", "parallel", "advisory"],
+              "default": "advisory",
+              "description": "Execution mode for relevance check"
+            },
+            "confidence_threshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.8,
+              "description": "Confidence threshold for relevance (0.0-1.0)"
+            }
+          }
+        }
+      }
     }
   },
   "examples": [
