@@ -417,12 +417,38 @@ EOF
     echo ""
 }
 
+# Check if index exists, auto-build if not
+ensure_index_exists() {
+    # Check if any index file exists
+    if [[ ! -f "$INDEX_META" ]]; then
+        echo -e "${YELLOW}Index not found. Building index automatically...${NC}" >&2
+        # Redirect build output to stderr so it doesn't pollute JSON output
+        build_index >&2
+
+        # Verify index was built successfully
+        if [[ ! -f "$INDEX_META" ]]; then
+            echo -e "${RED}Failed to build index. Check permissions for $INDEX_DIR${NC}" >&2
+            return 1
+        fi
+        echo "" >&2
+    fi
+    return 0
+}
+
 # Query with grep (primary search method)
 query_with_grep() {
     local terms="$1"
     local format="${2:-text}"
     local limit="${3:-10}"
     local track="${4:-false}"
+
+    # Ensure index exists before querying
+    if ! ensure_index_exists; then
+        if [[ "$format" == "json" ]]; then
+            echo "[]"
+        fi
+        return 1
+    fi
 
     local results="[]"
 
