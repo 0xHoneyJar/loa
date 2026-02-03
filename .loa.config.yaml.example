@@ -648,3 +648,93 @@ autonomous_mode:
 #   actions:
 #     blocker: log               # Log blockers instead of halting
 #   # WARNING: This may allow problematic changes to accumulate
+
+# =============================================================================
+# Post-PR Validation Loop (v1.25.0)
+# =============================================================================
+# Automated validation after PR creation: audit, context clear, E2E, Flatline
+# PRD: grimoires/loa/prd-post-pr-validation.md
+# SDD: grimoires/loa/sdd-post-pr-validation.md
+post_pr_validation:
+  # Master toggle - set to false to disable all post-PR validation
+  enabled: true
+
+  # -------------------------------------------------------------------------
+  # Phase Toggles
+  # -------------------------------------------------------------------------
+  phases:
+    # Consolidated PR audit after PR creation
+    audit:
+      enabled: true
+      # Maximum fix iterations before escalating
+      max_iterations: 5
+      # Skip findings below this severity
+      min_severity: "medium"
+
+    # Context clearing for fresh-eyes review
+    context_clear:
+      enabled: true
+      # Write checkpoint to NOTES.md Session Continuity
+      write_checkpoint: true
+
+    # E2E testing with fresh context
+    e2e:
+      enabled: true
+      # Maximum fix iterations
+      max_iterations: 3
+      # Build command (uses package.json scripts if not specified)
+      # build_command: "npm run build"
+      # Test command (uses package.json scripts if not specified)
+      # test_command: "npm test"
+
+    # Final Flatline PR review (optional, costs ~$1.50)
+    flatline:
+      enabled: false  # Disabled by default due to cost
+      # Mode for Flatline review
+      mode: "hitl"    # hitl | autonomous
+
+  # -------------------------------------------------------------------------
+  # Per-Phase Timeouts (seconds)
+  # -------------------------------------------------------------------------
+  timeouts:
+    post_pr_audit: 600    # 10 minutes
+    context_clear: 60     # 1 minute
+    e2e_testing: 1200     # 20 minutes
+    flatline_pr: 300      # 5 minutes
+
+  # -------------------------------------------------------------------------
+  # Circuit Breakers
+  # -------------------------------------------------------------------------
+  circuit_breaker:
+    # Same finding appearing N times triggers escalation
+    same_finding_threshold: 3
+    # Same E2E failure appearing N times triggers escalation
+    same_failure_threshold: 2
+
+  # -------------------------------------------------------------------------
+  # Marker Files (Flatline IMP-008)
+  # -------------------------------------------------------------------------
+  # Stored in .run/ directory with dotfile convention
+  markers:
+    audit_passed: ".PR-AUDITED"
+    e2e_passed: ".PR-E2E-PASSED"
+    validated: ".PR-VALIDATED"
+
+  # -------------------------------------------------------------------------
+  # GitHub API Retry Policy (Flatline IMP-003)
+  # -------------------------------------------------------------------------
+  github_api:
+    max_attempts: 3
+    # Exponential backoff delays (seconds)
+    backoff: [1, 2, 4]
+    # Timeout per attempt (seconds)
+    timeout_per_attempt: 30
+
+  # -------------------------------------------------------------------------
+  # Integration with Run Mode
+  # -------------------------------------------------------------------------
+  # When run_mode creates a PR, automatically invoke post-PR validation
+  auto_invoke:
+    enabled: true
+    # Mode for auto-invoked validation
+    mode: "autonomous"
