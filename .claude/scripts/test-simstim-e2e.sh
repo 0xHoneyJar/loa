@@ -52,12 +52,12 @@ log() {
 }
 
 pass() {
-    ((TESTS_PASSED++))
+    ((++TESTS_PASSED))
     log "${GREEN}✓${NC} $1"
 }
 
 fail() {
-    ((TESTS_FAILED++))
+    ((++TESTS_FAILED))
     log "${RED}✗${NC} $1"
     if [[ -n "$VERBOSE" ]]; then
         echo "  Details: $2" >&2
@@ -69,7 +69,7 @@ run_test() {
     local command="$2"
     local expected="$3"
 
-    ((TESTS_RUN++))
+    ((++TESTS_RUN))
 
     local result
     if result=$(eval "$command" 2>&1); then
