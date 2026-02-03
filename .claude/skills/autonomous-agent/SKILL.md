@@ -194,6 +194,52 @@ All quality gates enforced. No shortcuts.
 
 **Purpose:** Restore context, verify integrity, detect operator, select work.
 
+### 0.0 Workspace Cleanup (v1.23.0)
+
+**Purpose:** Archive previous cycle artifacts to create clean workspace.
+
+```markdown
+1. Run workspace-cleanup.sh --yes --json
+2. Parse JSON result
+3. Check for security errors (exit 3) → HALT
+4. Check for partial state (.staging/.failed exists) → HALT
+5. Other errors → log warning, continue
+```
+
+**Implementation:**
+
+```bash
+# Run cleanup in autonomous mode
+CLEANUP_RESULT=$(.claude/scripts/workspace-cleanup.sh --grimoire grimoires/loa --yes --json 2>&1)
+CLEANUP_EXIT=$?
+
+case $CLEANUP_EXIT in
+  0)
+    # Success - check for partial state
+    if echo "$CLEANUP_RESULT" | jq -e '.partial_state != null' > /dev/null 2>&1; then
+      PARTIAL=$(echo "$CLEANUP_RESULT" | jq -r '.partial_state[]? // empty')
+      if [[ -n "$PARTIAL" ]]; then
+        echo "HALT: Partial archive state detected - manual intervention required"
+        echo "Found: $PARTIAL"
+        exit 1
+      fi
+    fi
+    echo "✓ Workspace cleanup complete"
+    ;;
+  3)
+    # Security validation failure - HALT
+    echo "HALT: Workspace cleanup security validation failed"
+    exit 1
+    ;;
+  *)
+    # Other error - log and continue
+    echo "WARNING: Workspace cleanup failed (exit $CLEANUP_EXIT), continuing..."
+    ;;
+esac
+```
+
+**Fail-Closed Policy:** When operating autonomously, any security error or partial state MUST halt the workflow. This prevents propagating errors through subsequent phases.
+
 ### 0.1 Operator Detection
 
 ```markdown
@@ -243,6 +289,8 @@ ELSE:
 ```
 
 ### Exit Criteria (ALL required)
+- [ ] Workspace cleanup completed (or skipped with warning)
+- [ ] No partial archive state detected
 - [ ] NOTES.md read or created
 - [ ] No CRITICAL blockers
 - [ ] System Zone verified

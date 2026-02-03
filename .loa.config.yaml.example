@@ -32,6 +32,39 @@ autonomous_agent:
     hard_limit_tokens: 150000
 
 # -----------------------------------------------------------------------------
+# Workspace Cleanup (v1.23.0)
+# -----------------------------------------------------------------------------
+# Archives previous cycle artifacts when starting fresh /simstim or /autonomous
+workspace_cleanup:
+  enabled: true                        # Enable workspace cleanup in preflight
+
+  # Default action when no TTY (non-interactive mode)
+  # Options: archive | skip
+  default_action: archive
+
+  # Disk space safety settings
+  disk_space:
+    safety_margin: 2                   # Require 2x archive size free space
+
+  # Lock settings for concurrent execution prevention
+  lock:
+    ttl_seconds: 300                   # Lock timeout for stale detection
+
+  # Security settings
+  security:
+    follow_symlinks: false             # Never follow symlinks (security)
+
+  # Archive retention policy
+  retention:
+    max_age_days: 90                   # Delete archives older than 90 days
+    max_count: 10                      # Keep only 10 newest archives
+    # Note: Archives with .keep marker are never deleted
+
+  # Prompt settings (for interactive mode)
+  prompt:
+    timeout_seconds: 5                 # Timeout before defaulting to archive
+
+# -----------------------------------------------------------------------------
 # Goal Traceability (v0.21.0)
 # -----------------------------------------------------------------------------
 goal_traceability:

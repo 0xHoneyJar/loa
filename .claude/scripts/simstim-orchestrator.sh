@@ -103,6 +103,72 @@ is_enabled() {
 }
 
 # =============================================================================
+# Workspace Cleanup Integration (SDD Section 4.1)
+# =============================================================================
+
+run_workspace_cleanup() {
+    local dry_run="${1:-false}"
+    local yes_flag="${2:-false}"
+
+    local cleanup_script="$SCRIPT_DIR/workspace-cleanup.sh"
+
+    # Check if cleanup is enabled
+    if ! is_enabled ".workspace_cleanup.enabled"; then
+        log "Workspace cleanup disabled in config"
+        return 0
+    fi
+
+    # Check if script exists
+    if [[ ! -x "$cleanup_script" ]]; then
+        warn "workspace-cleanup.sh not found or not executable"
+        return 0
+    fi
+
+    # Build cleanup arguments
+    local cleanup_args=()
+    cleanup_args+=("--grimoire" "$PROJECT_ROOT/grimoires/loa")
+
+    if [[ "$dry_run" == "true" ]]; then
+        cleanup_args+=("--dry-run")
+    elif [[ "$yes_flag" == "true" ]]; then
+        cleanup_args+=("--yes")
+    fi
+
+    log "Running workspace cleanup..."
+
+    # Execute cleanup
+    local cleanup_result
+    if cleanup_result=$("$cleanup_script" "${cleanup_args[@]}" 2>&1); then
+        log "Workspace cleanup completed"
+        log_trajectory "workspace_cleanup" '{"status": "success"}'
+        return 0
+    else
+        local exit_code=$?
+        case $exit_code in
+            2)
+                # User declined - non-fatal
+                log "User declined workspace cleanup"
+                log_trajectory "workspace_cleanup" '{"status": "declined"}'
+                return 0
+                ;;
+            3)
+                # Security validation failure - fatal
+                error "Workspace cleanup security validation failed"
+                log_trajectory "workspace_cleanup" '{"status": "security_error"}'
+                return 1
+                ;;
+            *)
+                # Other error - fatal
+                error "Workspace cleanup failed (exit $exit_code)"
+                error "$cleanup_result"
+                log_trajectory "workspace_cleanup" '{"status": "error", "exit_code": '"$exit_code"'}'
+                return 1
+                ;;
+        esac
+    fi
+}
+
+# =============================================================================
 # Lock Management (Concurrent Execution Prevention)
 # =============================================================================
 # SIMSTIM-M-3 FIX: Use atomic mkdir for lock acquisition to prevent race conditions
@@ -311,6 +377,8 @@ preflight() {
     local resume=false
     local abort=false
     local dry_run=false
+    local no_clean=false
+    local yes_flag=false
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -319,6 +387,8 @@ preflight() {
             --resume) resume=true; shift ;;
             --abort) abort=true; shift ;;
             --dry-run) dry_run=true; shift ;;
+            --no-clean) no_clean=true; shift ;;
+            --yes) yes_flag=true; shift ;;
             *) shift ;;
         esac
     done
@@ -338,6 +408,11 @@ preflight() {
     if ! is_enabled ".simstim.enabled"; then
         error "simstim.enabled is false in .loa.config.yaml"
         exit 1
+    fi
+
+    # Run workspace cleanup (before lock, skip on resume)
+    if [[ "$resume" != "true" && "$no_clean" != "true" ]]; then
+        run_workspace_cleanup "$dry_run" "$yes_flag"
     fi
 
     # Check for concurrent execution
