@@ -111,16 +111,16 @@ If uncertain: STOP and ASK rather than proceed with assumptions.
 │       │         │    ┌─────────────────────┤         │          │
 │       │         │    │                     │         │          │
 │       │         │    ▼                     ▼         │          │
-│       │         │  PASS?  ──YES──▶  SUBMIT ──▶ DEPLOY ──▶ LEARN │
-│       │         │    │                                          │
-│       │         │   NO                                          │
-│       │         │    │                                          │
-│       │         │    ▼                                          │
-│       │         └─ REMEDIATE ─── loop ≤3 ───┘                   │
-│       │              │                                          │
-│       │              │ loop > 3                                 │
-│       │              ▼                                          │
-│       └────────── ESCALATE ──────────────────────────────────── │
+│       │         │  PASS?  ──YES──▶  SUBMIT                      │
+│       │         │    │                │                          │
+│       │         │   NO                ▼                          │
+│       │         │    │          POST-PR-VAL ◀── (v1.25.0)       │
+│       │         │    ▼                │                          │
+│       │         └─ REMEDIATE    READY_FOR_HITL                   │
+│       │              │                │                          │
+│       │              │ loop > 3       ▼                          │
+│       │              ▼          DEPLOY ──▶ LEARN                 │
+│       └────────── ESCALATE ─────────────────────────────────────│
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -640,14 +640,90 @@ VERIFY PR:
 - [ ] Branch pushed
 - [ ] PR created
 - [ ] Trajectory logged
+- [ ] → Proceed to Phase 5.5 (Post-PR Validation)
 </phase_5_submit>
+
+<phase_5_5_post_pr_validation>
+## Phase 5.5: Post-PR Validation (v1.25.0)
+
+**Purpose:** Validate PR quality before human review.
+
+**Gate:** Only enter if `post_pr_validation.enabled: true` in `.loa.config.yaml`
+
+### 5.5.1 Invoke Post-PR Orchestrator
+
+```markdown
+IF post_pr_validation.enabled:
+  1. Invoke: .claude/scripts/post-pr-orchestrator.sh --pr-url <pr_url> --mode autonomous
+  2. Handle exit codes:
+     - 0 (SUCCESS) → state = READY_FOR_HITL
+     - 1 (ERROR) → state = HALTED, log error
+     - 2 (TIMEOUT) → state = HALTED, escalate
+     - 3 (PHASE_FAIL) → state = HALTED, check findings
+     - 4 (BLOCKER) → state = HALTED, Flatline blocker found
+     - 5 (USER_HALT) → state = HALTED, user intervention
+ELSE:
+  → Skip to Phase 6 (Deploy) or Phase 7 (Learning)
+```
+
+### 5.5.2 Validation Phases
+
+The orchestrator executes these phases in sequence:
+
+| Phase | Description | Fix Loop |
+|-------|-------------|----------|
+| **POST_PR_AUDIT** | Consolidated security/quality audit | Yes (max 5) |
+| **CONTEXT_CLEAR** | Checkpoint, prompt user to `/clear` | No |
+| **E2E_TESTING** | Fresh-eyes build and test verification | Yes (max 3) |
+| **FLATLINE_PR** | Optional multi-model review (~$1.50) | No |
+
+**State File:** `.run/post-pr-state.json`
+
+### 5.5.3 Resume from Context Clear
+
+When user runs `/autonomous --resume` after context clear:
+
+```markdown
+1. Check post-PR state file (.run/post-pr-state.json)
+2. If state == CONTEXT_CLEAR:
+   - Load checkpoint from NOTES.md Session Continuity
+   - Continue with: post-pr-orchestrator.sh --resume
+   - E2E testing runs with fresh context
+3. On completion:
+   - state = READY_FOR_HITL
+   - Continue to Phase 6 or Phase 7
+```
+
+### 5.5.4 Configuration Reference
+
+```yaml
+# .loa.config.yaml
+post_pr_validation:
+  enabled: true
+  phases:
+    audit: { enabled: true, max_iterations: 5 }
+    context_clear: { enabled: true }
+    e2e: { enabled: true, max_iterations: 3 }
+    flatline: { enabled: false }  # Opt-in, ~$1.50 cost
+```
+
+### Exit Criteria
+- [ ] Post-PR audit passed (or disabled)
+- [ ] E2E tests passed (or disabled)
+- [ ] Flatline review passed (or disabled)
+- [ ] State = READY_FOR_HITL
+
+**Full Specification:** `.claude/commands/post-pr-validation.md`
+</phase_5_5_post_pr_validation>
 
 <phase_6_deploy>
 ## Phase 6: Deployment (Optional)
 
 **Purpose:** Safely deploy and verify.
 
-**Gate:** Only if `require_human_deploy_approval == false` OR approval received
+**Gate:**
+- Post-PR Validation passed (if enabled) OR state = READY_FOR_HITL
+- AND (`require_human_deploy_approval == false` OR approval received)
 
 ### 6.1 Deployment
 
@@ -847,6 +923,28 @@ IF --resume flag provided:
 - [ ] All blocker concerns addressed
 - [ ] Workflow resumed from correct phase
 - [ ] Resume event logged to trajectory
+
+### Resume from Post-PR Context Clear (v1.25.0)
+
+When `/autonomous --resume` detects Post-PR Validation context clear state:
+
+```markdown
+IF state file (.run/post-pr-state.json) shows state == CONTEXT_CLEAR:
+  1. Load checkpoint from NOTES.md Session Continuity section
+  2. Verify PR still exists and is open
+  3. Continue with: .claude/scripts/post-pr-orchestrator.sh --resume
+  4. E2E testing runs with fresh context (unbiased by previous work)
+  5. On success:
+     - state = READY_FOR_HITL
+     - Continue to Phase 6 (Deploy) if enabled, or Phase 7 (Learning)
+  6. On failure:
+     - Check circuit breaker (same failure 2x → HALT)
+     - Apply fix and retry, or escalate
+```
+
+**State File:** `.run/post-pr-state.json`
+**Checkpoint Location:** `grimoires/loa/NOTES.md` → Session Continuity section
+**Full Specification:** `.claude/commands/post-pr-validation.md`
 </resume_support>
 
 <attention_budget>
