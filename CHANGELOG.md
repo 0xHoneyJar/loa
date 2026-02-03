@@ -5,6 +5,84 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.24.0] - 2026-02-03 — Simstim HITL Workflow
+
+### Why This Release
+
+This release introduces the **Simstim** command (`/simstim`), a Human-In-The-Loop (HITL) accelerated development workflow that orchestrates the complete Loa development cycle with integrated Flatline Protocol reviews at each stage.
+
+*"Experience the AI's work while maintaining your own consciousness."* — Gibson, Neuromancer
+
+### Added
+
+#### /simstim Command
+
+Full-cycle orchestration from PRD to implementation:
+
+```bash
+/simstim                     # Full cycle: PRD → SDD → Sprint → Implementation
+/simstim --from architect    # Skip PRD (already exists)
+/simstim --from sprint-plan  # Skip PRD + SDD
+/simstim --from run          # Skip planning, just run sprints
+/simstim --resume            # Continue from interruption
+/simstim --dry-run           # Preview planned phases
+/simstim --abort             # Clean up state and exit
+```
+
+**8-Phase Workflow**:
+| Phase | Name | Description |
+|-------|------|-------------|
+| 0 | PREFLIGHT | Validate configuration, check state |
+| 1 | DISCOVERY | Create PRD interactively |
+| 2 | FLATLINE PRD | Multi-model review of PRD |
+| 3 | ARCHITECTURE | Create SDD interactively |
+| 4 | FLATLINE SDD | Multi-model review of SDD |
+| 5 | PLANNING | Create sprint plan interactively |
+| 6 | FLATLINE SPRINT | Multi-model review of sprint plan |
+| 7 | IMPLEMENTATION | Autonomous execution via `/run sprint-plan` |
+| 8 | COMPLETE | Summary and cleanup |
+
+#### HITL Flatline Mode
+
+New Flatline mode optimized for human operators:
+
+| Category | Criteria | Action |
+|----------|----------|--------|
+| HIGH_CONSENSUS | Both models >700 | Auto-integrate (no prompt) |
+| DISPUTED | Score delta >300 | Present to user for decision |
+| BLOCKER | Skeptic concern >700 | Present to user for decision (NOT auto-halt) |
+| LOW_VALUE | Both <400 | Skip silently |
+
+Key difference from `/autonomous`: BLOCKERs are shown to the human for decision instead of automatically halting the workflow.
+
+#### State Management
+
+Resume capability via `.run/simstim-state.json`:
+- Tracks phase completion and artifact checksums
+- Detects artifact drift on resume
+- PID-based lockfile prevents concurrent execution
+
+**Files**:
+- `.claude/skills/simstim-workflow/SKILL.md` - Main orchestration skill
+- `.claude/skills/simstim-workflow/index.yaml` - Skill metadata
+- `.claude/commands/simstim.md` - User documentation
+- `.claude/scripts/simstim-orchestrator.sh` - State and orchestration logic
+
+**Configuration** (`.loa.config.yaml`):
+```yaml
+simstim:
+  enabled: true
+  flatline:
+    auto_accept_high_consensus: true
+    show_disputed: true
+    show_blockers: true
+    phases: [prd, sdd, sprint]
+  defaults:
+    timeout_hours: 24
+```
+
+---
+
 ## [1.22.0] - 2026-02-03 — Autonomous Flatline Integration
 
 ### Why This Release

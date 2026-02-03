@@ -318,6 +318,37 @@ run_mode:
     include_commits_by_sprint: true
 
 # -----------------------------------------------------------------------------
+# Simstim - HITL Accelerated Development (v1.24.0)
+# -----------------------------------------------------------------------------
+# Orchestrate complete development cycle (PRD → SDD → Sprint → Implementation)
+# with Flatline Protocol reviews at each stage. Human drives planning phases
+# while HIGH_CONSENSUS findings auto-integrate.
+# "Experience the AI's work while maintaining your own consciousness." — Gibson
+simstim:
+  # Master toggle - set to true to enable /simstim command
+  enabled: true
+
+  # Flatline behavior in HITL mode
+  flatline:
+    auto_accept_high_consensus: true   # Auto-integrate without prompting
+    show_disputed: true                # Present DISPUTED items for decision
+    show_blockers: true                # Present BLOCKERS (NOT auto-halt like autonomous)
+    phases:                            # Which phases get Flatline review
+      - prd
+      - sdd
+      - sprint
+
+  # Default options
+  defaults:
+    timeout_hours: 24                  # Maximum workflow duration
+
+  # Phase skipping behavior
+  skip_phases:
+    prd_if_exists: false               # Still review even if PRD exists
+    sdd_if_exists: false               # Still review even if SDD exists
+    sprint_if_exists: false            # Still review even if sprint exists
+
+# -----------------------------------------------------------------------------
 # Search Orchestration (v1.7.0)
 # -----------------------------------------------------------------------------
 prefer_ck: true  # Use ck when available

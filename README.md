@@ -1,8 +1,8 @@
 # Loa
 
-[![Version](https://img.shields.io/badge/version-1.22.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.24.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
-[![Release](https://img.shields.io/badge/release-Autonomous%20Flatline-purple.svg)](CHANGELOG.md#1220---2026-02-03--autonomous-flatline-integration)
+[![Release](https://img.shields.io/badge/release-Simstim%20HITL-purple.svg)](CHANGELOG.md#1240---2026-02-03--simstim-hitl-workflow)
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
 
@@ -33,7 +33,7 @@ See **[INSTALLATION.md](INSTALLATION.md)** for detailed setup options and prereq
 | 5.5 | `/audit-sprint sprint-N` | Security Approval |
 | 6 | `/deploy-production` | Infrastructure |
 
-**Ad-hoc**: `/audit`, `/translate`, `/validate`, `/compound`, `/feedback`, `/constructs`, `/enhance`, `/flatline-review`, `/update-loa`, `/loa` (guided workflow)
+**Ad-hoc**: `/audit`, `/translate`, `/validate`, `/compound`, `/feedback`, `/constructs`, `/enhance`, `/flatline-review`, `/simstim`, `/update-loa`, `/loa` (guided workflow)
 
 See **[PROCESS.md](PROCESS.md)** for complete workflow documentation.
 
@@ -82,7 +82,7 @@ Loa uses a **three-zone model** inspired by AWS Projen and Google's ADK:
 | **Memory Stack** | Vector database + mid-stream semantic grounding | [INSTALLATION.md](INSTALLATION.md#memory-stack-optional) |
 | **Context Cleanup** | Auto-archive previous cycle before new `/plan-and-analyze` | [CLAUDE.md](CLAUDE.md#claude-code-21x-features) |
 | **Run Mode** | Autonomous sprint execution with draft PRs | [CLAUDE.md](CLAUDE.md#run-mode) |
-| **Simstim** | Telegram bridge for remote monitoring | [simstim/README.md](simstim/README.md) |
+| **Simstim** | HITL accelerated development (PRD → SDD → Sprint → Run) | [/simstim](.claude/commands/simstim.md) |
 | **Goal Traceability** | PRD goals tracked through implementation | [CLAUDE.md](CLAUDE.md#goal-traceability) |
 | **Continuous Learning** | Extract discoveries into reusable skills | [CLAUDE.md](CLAUDE.md#key-protocols) |
 | **Feedback Traces** | Execution traces for regression debugging | [CHANGELOG.md](CHANGELOG.md#1100---2026-01-30--compound-learning--visual-communication) |

@@ -1,0 +1,113 @@
+# Simstim Workflow Skill
+# HITL accelerated development workflow
+name: simstim-workflow
+version: "1.0.0"
+description: |
+  Orchestrate the complete Loa development cycle (PRD → SDD → Sprint → Run)
+  with integrated Flatline reviews. Human drives planning phases while
+  HIGH_CONSENSUS findings auto-integrate.
+
+  "Experience the AI's work while maintaining your own consciousness." — Gibson, Neuromancer
+author: Legba
+command: /simstim
+
+# v1.14.0: Skill best practices
+effort_hint: high
+danger_level: moderate
+categories:
+  - workflow
+  - orchestration
+
+# Skill triggers
+triggers:
+  commands:
+    - "/simstim"
+  patterns:
+    - "full cycle"
+    - "complete workflow"
+    - "prd to implementation"
+    - "hitl workflow"
+    - "accelerated development"
+
+# Input specification
+inputs:
+  - name: from
+    type: string
+    enum: [plan-and-analyze, architect, sprint-plan, run]
+    description: "Skip to specified phase (mutually exclusive with --resume)"
+    required: false
+  - name: resume
+    type: boolean
+    default: false
+    description: "Resume from interruption (mutually exclusive with --from)"
+  - name: abort
+    type: boolean
+    default: false
+    description: "Clean up state file and abort workflow"
+  - name: dry_run
+    type: boolean
+    default: false
+    description: "Show planned phases without executing"
+
+# Input examples
+inputExamples:
+  - input: {}
+    description: "Run full cycle from scratch"
+  - input:
+      from: "architect"
+    description: "Skip PRD, start from architecture (requires existing PRD)"
+  - input:
+      from: "sprint-plan"
+    description: "Skip PRD and SDD, start from sprint planning"
+  - input:
+      from: "run"
+    description: "Skip all planning, start autonomous implementation"
+  - input:
+      resume: true
+    description: "Resume interrupted workflow from last checkpoint"
+  - input:
+      dry_run: true
+    description: "Preview planned phases without executing"
+  - input:
+      abort: true
+    description: "Clean up state and abort current workflow"
+
+# Output specification
+outputs:
+  - name: state_json
+    path: ".run/simstim-state.json"
+    description: "Workflow state file for resume capability"
+  - name: prd
+    path: "grimoires/loa/prd.md"
+    description: "Product Requirements Document"
+  - name: sdd
+    path: "grimoires/loa/sdd.md"
+    description: "Software Design Document"
+  - name: sprint
+    path: "grimoires/loa/sprint.md"
+    description: "Sprint Plan"
+
+# Dependencies (skills orchestrated during workflow)
+dependencies:
+  - discovering-requirements
+  - designing-architecture
+  - planning-sprints
+  - run-mode
+
+# Scripts
+scripts:
+  - simstim-orchestrator.sh
+  - simstim-state.sh
+
+# Configuration section in .loa.config.yaml
+config_section: simstim
+
+# Safety requirements
+safety:
+  # Requires explicit opt-in
+  requires_opt_in: true
+  opt_in_config: "simstim.enabled"
+
+# Execution constraints
+parallel_threshold: 0  # Strictly sequential phases
+timeout_minutes: 1440  # 24 hours default (long-running HITL workflow)
