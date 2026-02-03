@@ -5,6 +5,162 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.0] - 2026-02-03 — Autonomous Flatline Integration
+
+### Why This Release
+
+This release enables the **Flatline Protocol** to operate within autonomous workflows (`/autonomous`, `/run sprint-plan`) without human intervention. HIGH_CONSENSUS findings auto-integrate, BLOCKERS halt the workflow with escalation reports, and DISPUTED items are logged for post-review.
+
+*"Adversarial review at machine speed - consensus integrates, disputes escalate."*
+
+### Added
+
+#### Autonomous Mode Detection
+
+Script: `.claude/scripts/flatline-mode-detect.sh`
+
+Intelligent mode detection with strong vs weak signal distinction:
+
+```bash
+# Strong signals (trigger auto-enable)
+CLAWDBOT_GATEWAY_TOKEN  # AI gateway authenticated
+LOA_OPERATOR=ai         # Explicit AI operator
+
+# Weak signals (require opt-in)
+Non-TTY                 # Could be pipe or batch
+CLAUDECODE              # Claude Code agent
+CLAWDBOT_AGENT          # Clawdbot agent
+```
+
+**Mode Precedence**: CLI flags → Environment → Config → Auto-detect → Default (interactive)
+
+#### Atomic Integration Pipeline
+
+Safe document modification with rollback support:
+
+```
+lock → verify_hash → snapshot → integrate → release
+```
+
+**Scripts**:
+- `.claude/scripts/flatline-lock.sh` - flock()-based advisory locking with NFS fallback
+- `.claude/scripts/flatline-snapshot.sh` - Pre-integration snapshots with quota management
+- `.claude/scripts/flatline-manifest.sh` - Run tracking with UUIDv4 IDs
+- `.claude/scripts/flatline-rollback.sh` - Single or full-run rollback
+
+#### Result Handler
+
+Script: `.claude/scripts/flatline-result-handler.sh`
+
+Mode-aware result processing:
+- **Autonomous**: HIGH_CONSENSUS auto-integrates, DISPUTED logged, BLOCKER halts
+- **Interactive**: All findings presented to user
+
+**Exit Codes**:
+| Code | Meaning | Workflow Action |
+|------|---------|-----------------|
+| 0 | Success | Continue |
+| 1 | BLOCKER halt | Generate escalation, HALT |
+| 4 | Disputed threshold | Generate escalation, HALT |
+| 5 | Integration failed | Log error, continue |
+
+#### Error Handling & Retry
+
+Script: `.claude/scripts/flatline-error-handler.sh`
+
+- Transient vs fatal error categorization
+- Exponential backoff with jitter
+- Configurable retry limits
+
+**Transient** (retryable): `rate_limit`, `timeout`, `network`, `overloaded`
+**Fatal** (no retry): `auth`, `invalid_request`, `budget_exceeded`, `permission_denied`
+
+#### Escalation Reports
+
+Script: `.claude/scripts/flatline-escalation.sh`
+
+Generated on workflow halt:
+- Markdown and JSON format
+- Includes blockers, disputed items, rollback instructions
+- Logged to `grimoires/loa/a2a/flatline/escalation-*.md`
+
+#### `/autonomous` Integration
+
+Flatline reviews integrated into `/autonomous` workflow:
+- Phase 1.4: PRD Review (after generation)
+- Phase 2.3: SDD Review (after architecture)
+- Phase 2.5: Sprint Plan Review (after planning)
+
+```bash
+/autonomous --resume  # Continue from Flatline halt
+```
+
+#### `/run sprint-plan` Integration
+
+PR template includes Flatline summary:
+
+```markdown
+### Flatline Review Summary
+
+| Phase | HIGH | DISPUTED | BLOCKER | Status |
+|-------|------|----------|---------|--------|
+| PRD   | 5    | 2        | 0       | ✅     |
+| SDD   | 3    | 1        | 0       | ✅     |
+| SPRINT| 4    | 0        | 1       | ⚠️     |
+```
+
+### Configuration
+
+```yaml
+# .loa.config.yaml
+autonomous_mode:
+  enabled: false                    # Require explicit opt-in
+  auto_enable_for_ai: true          # Auto-enable for strong AI signals
+  actions:
+    high_consensus: integrate       # Auto-apply findings
+    disputed: log                   # Log for post-review
+    blocker: halt                   # Halt workflow
+    low_value: skip                 # Discard silently
+  thresholds:
+    disputed_halt_percent: 80       # Halt if >80% disputed
+  retry:
+    max_attempts: 3
+    base_delay_ms: 1000
+    max_delay_ms: 30000
+  snapshots:
+    enabled: true
+    max_count: 100
+    max_bytes: 104857600            # 100MB
+    on_quota: purge_oldest
+```
+
+### Scripts Reference
+
+| Script | Purpose |
+|--------|---------|
+| `flatline-mode-detect.sh` | Mode detection with signal analysis |
+| `flatline-lock.sh` | Advisory locking (flock + NFS fallback) |
+| `flatline-snapshot.sh` | Pre-integration snapshots |
+| `flatline-manifest.sh` | Run tracking and integration IDs |
+| `flatline-rollback.sh` | Single or full-run rollback |
+| `flatline-result-handler.sh` | Mode-aware result processing |
+| `flatline-editor.sh` | Safe document modification |
+| `flatline-error-handler.sh` | Error categorization and retry |
+| `flatline-escalation.sh` | Escalation report generation |
+
+### Documentation
+
+- Updated `CLAUDE.loa.md` with autonomous Flatline section
+- Updated `/flatline-review` command with rollback options
+- Updated `/run sprint-plan` PR template with Flatline summary
+- Updated `/autonomous` skill with Flatline integration phases
+
+### Related PRs
+
+- PR #XXX: Autonomous Flatline Integration v1.22.0
+
+---
+
 ## [1.21.0] - 2026-02-03 — Flatline Protocol: Multi-Model Adversarial Review
 
 ### Why This Release

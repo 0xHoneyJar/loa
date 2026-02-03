@@ -294,6 +294,10 @@ $(list_remaining_sprints)
 - Files changed: $(jq '.metrics.total_files_changed' .run/sprint-plan-state.json)
 - Findings fixed: $(jq '.metrics.total_findings_fixed' .run/sprint-plan-state.json)
 
+### Flatline Review Summary (v1.22.0)
+
+$(generate_flatline_summary)
+
 $(generate_deleted_tree)
 
 ---
@@ -340,6 +344,10 @@ $(generate_deleted_tree)
 ### Commits by Sprint
 
 $(generate_commits_by_sprint)
+
+### Flatline Review Summary (v1.22.0)
+
+$(generate_flatline_summary)
 
 ### Test Results
 All tests passing (verified by /audit-sprint for each sprint).
@@ -393,6 +401,78 @@ generate_commits_by_sprint() {
     done
     echo ""
   done
+}
+
+generate_flatline_summary() {
+  # Aggregate Flatline results from all phases
+  local flatline_dir=".flatline/runs"
+  local plan_id=$(jq -r '.plan_id' .run/sprint-plan-state.json)
+
+  if [[ ! -d "$flatline_dir" ]]; then
+    echo "_No Flatline reviews executed during this run._"
+    return
+  fi
+
+  # Find all run manifests from this sprint plan
+  local manifests=$(find "$flatline_dir" -name "*.json" -newer .run/sprint-plan-state.json 2>/dev/null)
+
+  if [[ -z "$manifests" ]]; then
+    echo "_No Flatline reviews executed during this run._"
+    return
+  fi
+
+  # Aggregate metrics
+  local total_high=0
+  local total_disputed=0
+  local total_blockers=0
+  local phases_reviewed=""
+
+  for manifest in $manifests; do
+    local phase=$(jq -r '.phase // "unknown"' "$manifest")
+    local high=$(jq -r '.metrics.high_consensus // 0' "$manifest")
+    local disputed=$(jq -r '.metrics.disputed // 0' "$manifest")
+    local blockers=$(jq -r '.metrics.blockers // 0' "$manifest")
+    local status=$(jq -r '.status // "unknown"' "$manifest")
+
+    total_high=$((total_high + high))
+    total_disputed=$((total_disputed + disputed))
+    total_blockers=$((total_blockers + blockers))
+
+    phases_reviewed="${phases_reviewed}| ${phase^^} | $high | $disputed | $blockers | $(echo $status | sed 's/completed/✅/; s/escalated/⚠️/') |\n"
+  done
+
+  # Output summary table
+  echo "| Phase | HIGH | DISPUTED | BLOCKER | Status |"
+  echo "|-------|------|----------|---------|--------|"
+  echo -e "$phases_reviewed"
+  echo ""
+  echo "**Totals:** $total_high integrated, $total_disputed disputed (logged), $total_blockers blockers"
+
+  # List disputed items for post-review if any
+  if [[ $total_disputed -gt 0 ]]; then
+    echo ""
+    echo "<details>"
+    echo "<summary>Disputed items for post-review ($total_disputed)</summary>"
+    echo ""
+    for manifest in $manifests; do
+      local run_id=$(jq -r '.run_id' "$manifest")
+      local disputed_file=".flatline/runs/${run_id}-disputed.json"
+      if [[ -f "$disputed_file" ]]; then
+        jq -r '.[] | "- **\(.id // "Item")**: \(.description // .text // "No description") (delta: \(.delta // "N/A"))"' "$disputed_file" 2>/dev/null
+      fi
+    done
+    echo ""
+    echo "</details>"
+  fi
+
+  # Add rollback command if integrations were made
+  if [[ $total_high -gt 0 ]]; then
+    echo ""
+    echo "**Rollback:** To revert Flatline integrations:"
+    echo "\`\`\`bash"
+    echo ".claude/scripts/flatline-rollback.sh run --run-id <run_id> --dry-run"
+    echo "\`\`\`"
+  fi
 }
 ```
 

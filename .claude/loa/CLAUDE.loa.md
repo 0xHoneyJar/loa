@@ -1,4 +1,4 @@
-<!-- @loa-managed: true | version: 1.21.0 | hash: PLACEHOLDER -->
+<!-- @loa-managed: true | version: 1.22.0 | hash: PLACEHOLDER -->
 <!-- WARNING: This file is managed by the Loa Framework. Do not edit directly. -->
 
 # Loa Framework Instructions
@@ -152,7 +152,7 @@ guardrails:
 
 **View stats**: `/loa` shows retrospective metrics.
 
-## Flatline Protocol (v1.17.0)
+## Flatline Protocol (v1.22.0)
 
 Multi-model adversarial review using Claude Opus 4.5 + GPT-5.2 for planning document quality assurance.
 
@@ -170,9 +170,50 @@ Multi-model adversarial review using Claude Opus 4.5 + GPT-5.2 for planning docu
 | Category | Criteria | Action |
 |----------|----------|--------|
 | HIGH_CONSENSUS | Both models >700 | Auto-integrate |
-| DISPUTED | Delta >300 | Present to user |
+| DISPUTED | Delta >300 | Present to user (interactive) / Log (autonomous) |
 | LOW_VALUE | Both <400 | Discard |
-| BLOCKER | Skeptic concern >700 | Must address |
+| BLOCKER | Skeptic concern >700 | Must address / HALT (autonomous) |
+
+### Autonomous Mode (v1.22.0)
+
+Flatline Protocol integrates with `/autonomous` and `/run sprint-plan` workflows.
+
+| Mode | Behavior |
+|------|----------|
+| Interactive | Present findings to user, await decisions |
+| Autonomous | HIGH_CONSENSUS auto-integrates, BLOCKER halts workflow |
+
+**Mode Detection Priority**:
+1. CLI flags (`--interactive`, `--autonomous`)
+2. Environment (`LOA_FLATLINE_MODE`)
+3. Config (`autonomous_mode.enabled`)
+4. Auto-detect (strong AI signals only)
+5. Default (interactive)
+
+**Strong Signals** (trigger auto-enable): `CLAWDBOT_GATEWAY_TOKEN`, `LOA_OPERATOR=ai`
+**Weak Signals** (require opt-in): Non-TTY, `CLAUDECODE`, `CLAWDBOT_AGENT`
+
+### Autonomous Actions
+
+| Category | Default Action | Description |
+|----------|----------------|-------------|
+| HIGH_CONSENSUS | `integrate` | Auto-apply to document |
+| DISPUTED | `log` | Record for post-review |
+| BLOCKER | `halt` | Stop workflow, escalate |
+| LOW_VALUE | `skip` | Discard silently |
+
+### Rollback Support
+
+```bash
+# Preview rollback
+.claude/scripts/flatline-rollback.sh run --run-id <id> --dry-run
+
+# Execute rollback
+.claude/scripts/flatline-rollback.sh run --run-id <id>
+
+# Single integration rollback
+.claude/scripts/flatline-rollback.sh single --integration-id <id> --run-id <run-id>
+```
 
 ### Usage
 
@@ -180,8 +221,11 @@ Multi-model adversarial review using Claude Opus 4.5 + GPT-5.2 for planning docu
 # Manual invocation
 /flatline-review grimoires/loa/prd.md
 
-# CLI
-.claude/scripts/flatline-orchestrator.sh --doc grimoires/loa/prd.md --phase prd --json
+# CLI with mode
+.claude/scripts/flatline-orchestrator.sh --doc grimoires/loa/prd.md --phase prd --autonomous --json
+
+# Rollback
+/flatline-review --rollback --run-id flatline-run-abc123
 ```
 
 ### Configuration
@@ -194,8 +238,23 @@ flatline_protocol:
     secondary: gpt-5.2
   knowledge:
     notebooklm:
-      enabled: false        # Optional Tier 2
+      enabled: false
       notebook_id: ""
+
+autonomous_mode:
+  enabled: false                    # Require explicit opt-in
+  auto_enable_for_ai: true          # Auto-enable for strong AI signals
+  actions:
+    high_consensus: integrate       # Auto-apply high consensus findings
+    disputed: log                   # Log disputed for post-review
+    blocker: halt                   # Halt workflow on blockers
+    low_value: skip                 # Discard low value findings
+  thresholds:
+    disputed_halt_percent: 80       # Halt if >80% findings disputed
+  snapshots:
+    enabled: true
+    max_count: 100
+    max_bytes: 104857600           # 100MB
 ```
 
 ### NotebookLM (Optional Tier 2 Knowledge)
