@@ -39,6 +39,7 @@ CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 QUALITY_GATES_SCRIPT="$SCRIPT_DIR/quality-gates.sh"
 EFFECTIVENESS_SCRIPT="$SCRIPT_DIR/calculate-effectiveness.sh"
 JACCARD_SCRIPT="$SCRIPT_DIR/jaccard-similarity.sh"
+SEMANTIC_SCRIPT="$SCRIPT_DIR/flatline-semantic-similarity.sh"  # v1.23.0
 
 # Learnings paths
 FRAMEWORK_LEARNINGS_DIR="$PROJECT_ROOT/.claude/loa/learnings"
@@ -255,8 +256,32 @@ calculate_effectiveness_score() {
     echo "$score"
 }
 
-# Calculate novelty score (0-100) by comparing against framework learnings
-calculate_novelty_score() {
+# Calculate semantic novelty score (0-100) using semantic similarity (v1.23.0)
+# Falls back to Jaccard if semantic similarity unavailable
+calculate_semantic_novelty() {
+    local learning="$1"
+
+    if [[ -x "$SEMANTIC_SCRIPT" ]]; then
+        local result
+        result=$("$SEMANTIC_SCRIPT" --learning "$learning" 2>/dev/null || echo "")
+
+        if [[ -n "$result" ]]; then
+            local semantic_novelty
+            semantic_novelty=$(echo "$result" | jq -r '.semantic_novelty // "null"')
+
+            if [[ "$semantic_novelty" != "null" ]]; then
+                printf "%.0f" "$semantic_novelty"
+                return
+            fi
+        fi
+    fi
+
+    # Fallback: return empty to signal not available
+    echo ""
+}
+
+# Calculate Jaccard novelty score (0-100)
+calculate_jaccard_novelty() {
     local learning="$1"
 
     # Extract keywords from learning
@@ -306,6 +331,50 @@ calculate_novelty_score() {
     [[ $novelty -lt 0 ]] && novelty=0
 
     echo "$novelty"
+}
+
+# Calculate hybrid novelty score (0-100) v1.23.0
+# Combines Jaccard and semantic similarity: (1-α)*jaccard + α*semantic
+calculate_hybrid_novelty() {
+    local learning="$1"
+
+    # Get alpha from config (default 0.6)
+    local alpha
+    alpha=$(read_config '.compound_learning.flatline_integration.upstream_enhancement.semantic_similarity.alpha' '0.6')
+
+    # Calculate Jaccard novelty
+    local jaccard_novelty
+    jaccard_novelty=$(calculate_jaccard_novelty "$learning")
+
+    # Try semantic novelty
+    local semantic_novelty
+    semantic_novelty=$(calculate_semantic_novelty "$learning")
+
+    if [[ -n "$semantic_novelty" ]]; then
+        # Hybrid calculation
+        local hybrid
+        hybrid=$(echo "scale=0; (1 - $alpha) * $jaccard_novelty + $alpha * $semantic_novelty" | bc)
+        echo "$hybrid"
+    else
+        # Fallback to Jaccard only
+        echo "$jaccard_novelty"
+    fi
+}
+
+# Calculate novelty score (0-100) by comparing against framework learnings
+# v1.23.0: Uses hybrid novelty when semantic similarity is available
+calculate_novelty_score() {
+    local learning="$1"
+
+    # Check if semantic similarity is enabled
+    local semantic_enabled
+    semantic_enabled=$(read_config '.compound_learning.flatline_integration.upstream_enhancement.semantic_similarity.enabled' 'false')
+
+    if [[ "$semantic_enabled" == "true" ]]; then
+        calculate_hybrid_novelty "$learning"
+    else
+        calculate_jaccard_novelty "$learning"
+    fi
 }
 
 # Calculate generality score (0-100) based on domain-agnostic characteristics
@@ -499,12 +568,31 @@ main() {
             success_rate="0"
         fi
 
+        # v1.23.0: Get semantic and hybrid novelty for detailed output
+        local semantic_novelty hybrid_novelty novelty_method
+        local jaccard_novelty
+        jaccard_novelty=$(calculate_jaccard_novelty "$learning")
+        semantic_novelty=$(calculate_semantic_novelty "$learning")
+
+        if [[ -n "$semantic_novelty" ]]; then
+            hybrid_novelty=$novelty_score
+            novelty_method="hybrid"
+        else
+            semantic_novelty="null"
+            hybrid_novelty=$jaccard_novelty
+            novelty_method="jaccard_only"
+        fi
+
         jq -n \
             --arg id "$LEARNING_ID" \
             --argjson score "$upstream_score" \
             --argjson quality "$quality_score" \
             --argjson effectiveness "$effectiveness_score" \
             --argjson novelty "$novelty_score" \
+            --argjson jaccard_novelty "$jaccard_novelty" \
+            --arg semantic_novelty "$semantic_novelty" \
+            --argjson hybrid_novelty "$hybrid_novelty" \
+            --arg novelty_method "$novelty_method" \
             --argjson generality "$generality_score" \
             --argjson eligible "$([ "$eligible" == "true" ] && echo true || echo false)" \
             --arg reason "$ineligibility_reason" \
@@ -519,7 +607,14 @@ main() {
                 components: {
                     quality: { score: $quality, weight: 25 },
                     effectiveness: { score: $effectiveness, weight: 30 },
-                    novelty: { score: $novelty, weight: 25 },
+                    novelty: {
+                        score: $novelty,
+                        weight: 25,
+                        jaccard_novelty: $jaccard_novelty,
+                        semantic_novelty: (if $semantic_novelty == "null" then null else ($semantic_novelty | tonumber) end),
+                        hybrid_novelty: $hybrid_novelty,
+                        method: $novelty_method
+                    },
                     generality: { score: $generality, weight: 20 }
                 },
                 eligibility: {
