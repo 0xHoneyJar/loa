@@ -271,7 +271,10 @@ symlink_pack_skills() {
     local pack_slug="$1"
     local pack_dir="$(get_packs_dir)/$pack_slug"
     local skills_source="$pack_dir/skills"
-    local skills_target=".claude/skills"
+    # Use repo root to ensure correct path regardless of cwd
+    local repo_root
+    repo_root="$(cd "$SCRIPT_DIR/../.." && pwd)"
+    local skills_target="$repo_root/.claude/skills"
     local linked=0
 
     # Check if pack has skills
@@ -293,9 +296,9 @@ symlink_pack_skills() {
         local relative_path="../constructs/packs/$pack_slug/skills/$skill_name"
         local target_link="$skills_target/$skill_name"
 
-        # Check for collision with existing framework skill (non-symlink directory)
-        if [[ -d "$target_link" ]] && [[ ! -L "$target_link" ]]; then
-            print_warning "  Skipping skill $skill_name: framework skill exists (not a symlink)"
+        # Check for collision with existing non-symlink path (directory, file, etc.)
+        if [[ -e "$target_link" ]] && [[ ! -L "$target_link" ]]; then
+            print_warning "  Skipping skill $skill_name: existing non-symlink path present"
             continue
         fi
 
@@ -325,7 +328,10 @@ unlink_pack_skills() {
     local pack_slug="$1"
     local pack_dir="$(get_packs_dir)/$pack_slug"
     local skills_source="$pack_dir/skills"
-    local skills_target=".claude/skills"
+    # Use repo root to ensure correct path regardless of cwd
+    local repo_root
+    repo_root="$(cd "$SCRIPT_DIR/../.." && pwd)"
+    local skills_target="$repo_root/.claude/skills"
 
     # Check if pack has skills directory
     if [[ ! -d "$skills_source" ]]; then
