@@ -155,6 +155,66 @@ flatline_integration_enabled() {
   return 1
 }
 
+# Check if Flatline validation is enabled
+flatline_validation_enabled() {
+  if [[ -f "$CONFIG_FILE" ]]; then
+    local enabled
+    enabled=$(yq -e '.compound_learning.flatline_integration.validation.enabled // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+    [[ "$enabled" == "true" ]]
+    return $?
+  fi
+  return 1
+}
+
+# Validate borderline learnings via Flatline
+validate_borderline_learnings() {
+  local patterns_json="$1"
+
+  # Get borderline range from config
+  local borderline_min borderline_max
+  borderline_min=$(yq -e '.compound_learning.flatline_integration.validation.borderline_range[0] // 20' "$CONFIG_FILE" 2>/dev/null || echo "20")
+  borderline_max=$(yq -e '.compound_learning.flatline_integration.validation.borderline_range[1] // 28' "$CONFIG_FILE" 2>/dev/null || echo "28")
+
+  # Count borderline patterns
+  local borderline_count
+  borderline_count=$(echo "$patterns_json" | jq --argjson min "$borderline_min" --argjson max "$borderline_max" \
+    '[.[] | select(.passes == false and .total_score >= $min and .total_score <= $max)] | length')
+
+  if [[ "$borderline_count" -eq 0 ]]; then
+    echo "  No borderline learnings to validate"
+    log_event "borderline_validation_skipped" "count=0"
+    return 0
+  fi
+
+  echo "  Found $borderline_count borderline learnings (score $borderline_min-$borderline_max)"
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "  [DRY-RUN] Would validate with Flatline"
+    return 0
+  fi
+
+  # Run quality gates with Flatline validation
+  local validation_results
+  validation_results=$("$SCRIPT_DIR/quality-gates.sh" \
+    --patterns /tmp/compound-patterns.json \
+    --with-flatline-validation \
+    --borderline-range "$borderline_min,$borderline_max" \
+    --output json 2>/dev/null || echo "[]")
+
+  # Count results
+  local promoted demoted disputed
+  promoted=$(echo "$validation_results" | jq '[.[] | select(.flatline_action == "promote")] | length')
+  demoted=$(echo "$validation_results" | jq '[.[] | select(.flatline_action == "demote")] | length')
+  disputed=$(echo "$validation_results" | jq '[.[] | select(.flatline_action == "human_review")] | length')
+
+  echo "  Validation results: $promoted promoted, $demoted demoted, $disputed disputed"
+
+  log_event "borderline_validation_complete" "borderline=$borderline_count,promoted=$promoted,demoted=$demoted,disputed=$disputed"
+
+  # Update patterns file with validation results
+  echo "$validation_results" > /tmp/compound-patterns.json
+}
+
 # Ingest Flatline learnings from flatline-learnings.jsonl
 ingest_flatline_learnings() {
   local flatline_learnings_file="${COMPOUND_DIR}/flatline-learnings.jsonl"
@@ -420,6 +480,15 @@ cmd_review() {
       SKILLS_EXTRACTED=$((SKILLS_EXTRACTED + 1))
     done
     echo "  Extracted $SKILLS_EXTRACTED skills to skills-pending/"
+  fi
+
+  # Step 4.5: Validate borderline learnings via Flatline (v1.23.0)
+  echo ""
+  echo "[4.5/6] Validating borderline learnings..."
+  if flatline_validation_enabled; then
+    validate_borderline_learnings "$qualified_patterns"
+  else
+    echo "  Skipped (flatline_integration.validation.enabled=false)"
   fi
   
   # Step 5: Consolidation (unless review-only)

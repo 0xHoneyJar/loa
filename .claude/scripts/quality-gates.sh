@@ -36,6 +36,9 @@ OUTPUT_FORMAT="json"
 VERBOSE=false
 SOURCE_FILTER=""  # Filter by source field (v1.23.0)
 SOURCE_PASSTHROUGH=true  # Preserve source field in output (v1.23.0)
+WITH_FLATLINE_VALIDATION=false  # Enable Flatline validation for borderline (v1.23.0)
+BORDERLINE_MIN=20  # Borderline range minimum (out of 40)
+BORDERLINE_MAX=28  # Borderline range maximum (out of 40)
 
 # Gate thresholds (from config or defaults)
 DISCOVERY_DEPTH_MIN=5
@@ -76,6 +79,16 @@ parse_args() {
       --input)
         # Alias for --patterns for consistency
         PATTERNS_FILE="$2"
+        shift 2
+        ;;
+      --with-flatline-validation)
+        WITH_FLATLINE_VALIDATION=true
+        shift
+        ;;
+      --borderline-range)
+        # Format: "min,max" e.g., "20,28"
+        BORDERLINE_MIN=$(echo "$2" | cut -d',' -f1)
+        BORDERLINE_MAX=$(echo "$2" | cut -d',' -f2)
         shift 2
         ;;
       --help|-h)
@@ -418,6 +431,110 @@ evaluate_all() {
   done | jq -s '.'
 }
 
+# =============================================================================
+# Flatline Validation for Borderline Learnings (v1.23.0)
+# =============================================================================
+
+# Check if a pattern is borderline (total_score in range)
+is_borderline() {
+  local total_score="$1"
+  [[ "$total_score" -ge "$BORDERLINE_MIN" && "$total_score" -le "$BORDERLINE_MAX" ]]
+}
+
+# Validate borderline patterns with Flatline
+validate_borderline_with_flatline() {
+  local results_json="$1"
+
+  local validator_script="${SCRIPT_DIR}/flatline-validate-learning.sh"
+  if [[ ! -x "$validator_script" ]]; then
+    echo "[WARN] Flatline validator not found, skipping borderline validation" >&2
+    echo "$results_json"
+    return
+  fi
+
+  local validated_count=0
+  local promoted_count=0
+  local demoted_count=0
+  local disputed_count=0
+
+  # Process each result
+  local updated_results="[]"
+
+  echo "$results_json" | jq -c '.[]' | while IFS= read -r result; do
+    local total_score passes source
+    total_score=$(echo "$result" | jq -r '.total_score')
+    passes=$(echo "$result" | jq -r '.passes')
+    source=$(echo "$result" | jq -r '.source // ""')
+
+    # Skip non-borderline or already passing
+    if [[ "$passes" == "true" ]] || ! is_borderline "$total_score"; then
+      echo "$result"
+      continue
+    fi
+
+    # Skip Flatline-source learnings (L1 circular prevention)
+    if [[ "$source" == "flatline" || "$source" == "flatline-disputed" ]]; then
+      echo "[INFO] Skipping Flatline-source learning for validation" >&2
+      echo "$result"
+      continue
+    fi
+
+    # Build learning object for validation
+    local pattern trigger solution
+    pattern=$(echo "$result" | jq '.pattern')
+    trigger=$(echo "$pattern" | jq -r '.trigger // .signature // ""')
+    solution=$(echo "$pattern" | jq -r '.solution // .solution_keywords[0] // ""')
+
+    if [[ -z "$trigger" || -z "$solution" ]]; then
+      echo "$result"
+      continue
+    fi
+
+    local learning_json
+    learning_json=$(jq -n \
+      --arg id "$(echo "$pattern" | jq -r '.id // "temp-" + (now | tostring)')" \
+      --arg trigger "$trigger" \
+      --arg solution "$solution" \
+      --arg source "$source" \
+      '{id: $id, trigger: $trigger, solution: $solution, source: $source}')
+
+    # Call Flatline validator
+    local validation_result
+    validation_result=$("$validator_script" --learning "$learning_json" --dry-run 2>/dev/null) || {
+      echo "[WARN] Flatline validation failed for borderline learning" >&2
+      echo "$result"
+      continue
+    }
+
+    ((validated_count++))
+
+    # Apply validation result
+    local action consensus
+    action=$(echo "$validation_result" | jq -r '.action // "none"')
+    consensus=$(echo "$validation_result" | jq -r '.consensus // "UNKNOWN"')
+
+    case "$action" in
+      promote)
+        # Mark as passing
+        result=$(echo "$result" | jq '.passes = true | .flatline_validated = true | .flatline_action = "promote"')
+        ((promoted_count++))
+        ;;
+      demote)
+        # Mark as low_value
+        result=$(echo "$result" | jq '.passes = false | .flatline_validated = true | .flatline_action = "demote" | .low_value = true')
+        ((demoted_count++))
+        ;;
+      human_review)
+        # Flag for review
+        result=$(echo "$result" | jq '.flatline_validated = true | .flatline_action = "human_review" | .requires_review = true')
+        ((disputed_count++))
+        ;;
+    esac
+
+    echo "$result"
+  done | jq -s '.'
+}
+
 # Output summary
 output_summary() {
   local results="$1"
@@ -450,10 +567,16 @@ output_summary() {
 main() {
   parse_args "$@"
   load_config
-  
+
   local results
   results=$(evaluate_all)
-  
+
+  # Apply Flatline validation if enabled (v1.23.0)
+  if [[ "$WITH_FLATLINE_VALIDATION" == "true" ]]; then
+    echo "[INFO] Running Flatline validation for borderline learnings (range: $BORDERLINE_MIN-$BORDERLINE_MAX)" >&2
+    results=$(validate_borderline_with_flatline "$results")
+  fi
+
   case "$OUTPUT_FORMAT" in
     json)
       echo "$results"
