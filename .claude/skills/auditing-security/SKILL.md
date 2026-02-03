@@ -306,6 +306,146 @@ find . -name "*.ts" -o -name "*.js" -o -name "*.tf" -o -name "*.py" | xargs wc -
 **For Codebase Audit:**
 1. No prerequisites—audit entire codebase
 
+## Phase 0.5: Scope Analysis (Two-Pass Methodology v1.0)
+
+Run scope analysis to understand audit surface before detailed analysis:
+
+```bash
+.claude/scripts/security-audit-scope.sh
+```
+
+**Output Categories:**
+- **Sources**: Controllers, routes, API handlers (entry points)
+- **Sinks**: Database, exec, file operations (dangerous operations)
+- **Auth**: Authentication, authorization code
+- **LLM/AI**: Files with AI/LLM patterns
+
+**Performance Target**: <30s for small repos, <2min for medium, <5min for large.
+
+**Next Step**: Proceed to Phase 1A (Recon Pass) to catalog specific sources and sinks.
+
+## Phase 1A: RECON PASS (Flag Sources & Sinks)
+
+**Objective**: Catalog ALL untrusted data entry points and dangerous sinks WITHOUT investigating yet.
+
+### Source Taxonomy (Trust Levels)
+
+| Category | Patterns | Trust Level | Examples |
+|----------|----------|-------------|----------|
+| **Direct User Input** | `req.body`, `req.params`, `req.query` | UNTRUSTED | Form data, URL params |
+| **Headers** | `req.headers`, `x-*` | UNTRUSTED | Auth tokens, custom headers |
+| **Environment** | `process.env`, `os.environ` | SEMI-TRUSTED | Config values |
+| **File Uploads** | `req.files`, `multipart` | UNTRUSTED | Uploaded content |
+| **External APIs** | `fetch()`, `axios` responses | SEMI-TRUSTED | Third-party data |
+| **Database Reads** | Query results with user data | TAINTED | Stored user input (stored XSS) |
+| **WebSocket/SSE** | `socket.on`, `EventSource` | UNTRUSTED | Real-time messages |
+| **Caches** | Redis, Memcached reads | TAINTED | May contain user data |
+
+**Trust Level Decision Tree:**
+```
+Is data directly from end-user? → UNTRUSTED
+Was data originally from user but stored? → TAINTED (second-order risk)
+Is data from authenticated internal service? → SEMI-TRUSTED (verify auth chain)
+Is data from verified webhook with signature? → SEMI-TRUSTED (verify signature check)
+```
+
+### Sink Taxonomy
+
+| Category | Patterns | Risk | Sanitization Required |
+|----------|----------|------|----------------------|
+| **SQL Query** | `query()`, `execute()`, raw SQL | SQL Injection | Parameterized queries |
+| **Command Exec** | `exec()`, `spawn()`, `system()` | Command Injection | Allowlist, shlex |
+| **File I/O** | `readFile()`, `writeFile()` | Path Traversal | Path normalization |
+| **HTML Render** | `innerHTML`, `render()` | XSS | HTML encoding, CSP |
+| **URL Fetch** | `fetch()`, `http.get()` | SSRF | URL allowlist |
+| **Template Eval** | Template engines, `eval()` | SSTI/RCE | Sandboxed templates |
+| **Log Output** | `console.log()`, loggers | Log Injection | Output encoding |
+
+### Recon Output: SECURITY_ANALYSIS_TODO.md
+
+Create `grimoires/loa/a2a/audits/YYYY-MM-DD/SECURITY_ANALYSIS_TODO.md`:
+
+```markdown
+# Security Analysis TODO
+
+**Audit ID**: audit-YYYY-MM-DD-HHMMSS
+**Schema Version**: 1.0
+
+## Flagged Sources (Pass 1)
+
+| ID | File:Line | Type | Trust | Description | Status |
+|----|-----------|------|-------|-------------|--------|
+| SRC-001 | src/api/users.ts:42 | direct_user_input | UNTRUSTED | User payload | PENDING |
+
+## Flagged Sinks (Pass 1)
+
+| ID | File:Line | Type | Risk | Status |
+|----|-----------|------|------|--------|
+| SINK-001 | src/db/queries.ts:89 | sql_query | SQL Injection | PENDING |
+
+## Taint Paths (Pass 2)
+
+| ID | Source | Sink | Hops | Sanitized | Status |
+|----|--------|------|------|-----------|--------|
+| PATH-001 | SRC-001 | SINK-001 | 3 | NO | CONFIRMED |
+```
+
+**Status Values**: `PENDING` → `CONFIRMED` | `SAFE` | `PARTIAL` | `N/A`
+
+**Triage Rules** (if >100 entries per category):
+1. Prioritize by sink severity (CRITICAL > HIGH > MEDIUM)
+2. Prioritize by route reachability (public > auth > admin)
+3. Cap at 100 entries; overflow logged to `overflow.jsonl`
+
+## Phase 1B: INVESTIGATE PASS (Trace Flows)
+
+**Objective**: For each flagged item, trace data flow and confirm/dismiss vulnerability.
+
+### Investigation Protocol
+
+**For each SRC-* entry:**
+1. **Forward Trace**: Follow variable through code until sink or sanitization
+2. **Check Sanitization**: Is data validated/escaped before sink?
+3. **Document Path**: Record trace in TODO.md Taint Paths section
+
+**For each SINK-* entry:**
+1. **Backward Trace**: Find all data sources that reach this sink
+2. **Check Guards**: Authorization checks? Input validation?
+3. **Document Path**: Record exploitation path if vulnerable
+
+### Time Budget (Circuit Breaker)
+
+| Repo Size | Phase 1B Budget | Max Traces |
+|-----------|-----------------|------------|
+| Small (<5K LOC) | 30 seconds | 20 |
+| Medium (5-50K) | 90 seconds | 50 |
+| Large (50-200K) | 180 seconds | 100 |
+| XL (>200K) | 300 seconds | 150 (sampling) |
+
+**When Budget Exceeded:**
+- Mark remaining TODO items as `PENDING` with note "Deferred: time budget"
+- Log warning to trajectory
+- Continue to Phase 1 (Systematic Audit) with available findings
+
+### Taint Analysis Patterns
+
+| Vulnerability | Source Pattern | Sink Pattern | Sanitization |
+|---------------|---------------|--------------|--------------|
+| SQL Injection | `req.*`, db reads | `query()`, `execute()` | Parameterized queries, ORM |
+| XSS | `req.*`, db reads | `innerHTML`, `render()` | HTML encoding, CSP |
+| Command Injection | `req.*`, env vars | `exec()`, `spawn()` | Allowlist, shlex |
+| Path Traversal | `req.*`, filenames | `readFile()`, `writeFile()` | Path normalization |
+| SSRF | `req.*` (URLs) | `fetch()`, `http.get()` | URL allowlist |
+
+### Cross-Request Flow Analysis (Second-Order)
+
+Check for stored data that becomes dangerous when retrieved:
+- User profile fields rendered as HTML (stored XSS)
+- Filenames stored then used in file operations
+- URLs stored then fetched later
+
+**Document in TODO.md "Cross-Request Flows" section.**
+
 ## Phase 1: Systematic Audit
 
 Execute audit by category (sequential or parallel per Phase -1):
