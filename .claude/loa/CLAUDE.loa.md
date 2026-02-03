@@ -1,4 +1,4 @@
-<!-- @loa-managed: true | version: 1.26.0 | hash: PLACEHOLDER -->
+<!-- @loa-managed: true | version: 1.27.0 | hash: PLACEHOLDER -->
 <!-- WARNING: This file is managed by the Loa Framework. Do not edit directly. -->
 
 # Loa Framework Instructions
@@ -46,6 +46,53 @@ Agent-driven development framework. Skills auto-load their SKILL.md when invoked
 - **Feedback**: Check audit feedback FIRST, then engineer feedback
 - **Karpathy**: Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven
 - **Git Safety**: 4-layer upstream detection with soft block
+
+## Run Mode State Recovery (v1.27.0)
+
+**CRITICAL**: After context compaction or session recovery, ALWAYS check for active run mode.
+
+### Detection
+
+Check `.run/sprint-plan-state.json`:
+```bash
+if [[ -f .run/sprint-plan-state.json ]]; then
+  state=$(jq -r '.state' .run/sprint-plan-state.json)
+  if [[ "$state" == "RUNNING" ]]; then
+    # ACTIVE RUN MODE - Resume autonomous execution
+  fi
+fi
+```
+
+### When state=RUNNING
+
+1. **Do NOT ask for confirmation** - continue autonomously
+2. Read current sprint from `.sprints.current` field
+3. Resume the sprint execution loop
+4. Update `.timestamps.last_activity` on each action
+
+### State Values
+
+| State | Meaning | Action |
+|-------|---------|--------|
+| `RUNNING` | Active autonomous execution | Resume immediately |
+| `HALTED` | Stopped due to error/blocker | Await `/run-resume` |
+| `JACKED_OUT` | Completed successfully | No action needed |
+
+### Recovery Sequence
+
+```
+1. Check .run/sprint-plan-state.json exists
+2. If state=RUNNING:
+   a. Log: "Resuming run mode after context recovery"
+   b. Read sprints.current for active sprint
+   c. Continue sprint execution loop
+   d. Do NOT prompt user for confirmation
+3. If state=HALTED:
+   a. Inform user of halt reason
+   b. Await /run-resume command
+```
+
+**Rationale**: Run mode is designed for overnight/unattended execution. Context compaction should not interrupt autonomous operation.
 
 ## Invisible Prompt Enhancement (v1.17.0)
 

@@ -84,12 +84,36 @@ If context window state conflicts with ledger state:
 ```
 SESSION RECOVERY SEQUENCE:
 
+0. Check Run Mode State              # NEW v1.27.0 - FIRST!
+   - If .run/sprint-plan-state.json exists with state=RUNNING:
+   - Resume autonomous execution WITHOUT confirmation
+   - Skip interactive recovery, continue sprint loop
 1. br ready                          # Identify available tasks
 2. br show <active_id>               # Load task context (decisions[], handoffs[])
 3. Tiered Ledger Recovery            # Load NOTES.md (Level 1 default)
 4. Verify lightweight identifiers    # Don't load content yet
 5. Resume from "Reasoning State"     # Continue where left off
 ```
+
+#### Run Mode State Check (v1.27.0)
+
+**CRITICAL**: Before any interactive recovery, check for active run mode:
+
+```bash
+# Step 0: Run mode takes precedence
+if [[ -f .run/sprint-plan-state.json ]]; then
+  state=$(jq -r '.state' .run/sprint-plan-state.json)
+  if [[ "$state" == "RUNNING" ]]; then
+    echo "Run mode active - resuming autonomous execution"
+    current=$(jq -r '.sprints.current' .run/sprint-plan-state.json)
+    # Continue sprint $current without user confirmation
+    exit 0  # Skip normal recovery
+  fi
+fi
+# Proceed with normal recovery if not in run mode
+```
+
+This ensures `/run sprint-plan` survives context compaction during overnight execution.
 
 #### Tiered Ledger Recovery
 

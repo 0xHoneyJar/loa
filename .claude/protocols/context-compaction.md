@@ -20,6 +20,24 @@ These items must survive any compaction event:
 | Trajectory entries | External files, already lossless |
 | Active bead references | Task continuity |
 | Sprint context | Current work state |
+| **Run mode state** (v1.27.0) | `.run/sprint-plan-state.json` - autonomous execution continuity |
+
+### Run Mode State Recovery (v1.27.0)
+
+**CRITICAL**: After compaction, ALWAYS check for active run mode:
+
+```bash
+if [[ -f .run/sprint-plan-state.json ]]; then
+  state=$(jq -r '.state' .run/sprint-plan-state.json)
+  if [[ "$state" == "RUNNING" ]]; then
+    # Resume autonomous execution - DO NOT prompt for confirmation
+    current=$(jq -r '.sprints.current' .run/sprint-plan-state.json)
+    # Continue sprint loop from $current
+  fi
+fi
+```
+
+If `state=RUNNING`, the agent MUST resume autonomous sprint execution without user confirmation. This enables overnight/unattended runs to survive context compaction.
 
 ### COMPACTABLE
 
