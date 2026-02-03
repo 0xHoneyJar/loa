@@ -26,23 +26,24 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Build find options
-FIND_OPTS="-type f"
+# Build find options as array (HIGH-002 remediation - prevents word splitting)
+declare -a FIND_OPTS=(-type f)
 if [[ "$FOLLOW_SYMLINKS" == "false" ]]; then
-  FIND_OPTS="-type f -not -type l"
+  FIND_OPTS=(-type f -not -type l)
 fi
 if [[ -n "$MAX_DEPTH" ]]; then
-  FIND_OPTS="-maxdepth $MAX_DEPTH $FIND_OPTS"
+  FIND_OPTS=(-maxdepth "$MAX_DEPTH" "${FIND_OPTS[@]}")
 fi
 
 # Exclude patterns (POSIX compatible)
 EXCLUDE_DIRS="node_modules|\.git|dist|build|\.next|vendor|__pycache__|\.venv"
 
 # Count function with error suppression
+# Uses array expansion for safe variable handling
 count_files() {
   local pattern="$1"
   local result
-  result=$(find . $FIND_OPTS \( -name "*.ts" -o -name "*.js" -o -name "*.py" -o -name "*.go" -o -name "*.java" \) 2>/dev/null | \
+  result=$(find . "${FIND_OPTS[@]}" \( -name "*.ts" -o -name "*.js" -o -name "*.py" -o -name "*.go" -o -name "*.java" \) 2>/dev/null | \
     grep -v -E "$EXCLUDE_DIRS" | \
     xargs grep -l "$pattern" 2>/dev/null | wc -l || echo "0")
   echo "$result" | tr -d '[:space:]'
@@ -51,7 +52,7 @@ count_files() {
 count_by_name() {
   local pattern="$1"
   local result
-  result=$(find . $FIND_OPTS \( -name "*$pattern*" \) 2>/dev/null | \
+  result=$(find . "${FIND_OPTS[@]}" \( -name "*$pattern*" \) 2>/dev/null | \
     grep -v -E "$EXCLUDE_DIRS" | wc -l || echo "0")
   echo "$result" | tr -d '[:space:]'
 }
