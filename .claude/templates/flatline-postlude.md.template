@@ -4,6 +4,26 @@ After document generation completes, execute the Flatline Protocol for adversari
 
 **CRITICAL**: This postlude executes AFTER main workflow. Never skip, never fail silently.
 
+### Step 0: Determine Execution Mode (v1.22.0)
+
+Detect whether to execute in interactive or autonomous mode:
+
+```bash
+mode_result=$(.claude/scripts/flatline-mode-detect.sh --json)
+execution_mode=$(echo "$mode_result" | jq -r '.mode')
+mode_reason=$(echo "$mode_result" | jq -r '.reason')
+
+# Log mode detection
+echo "[flatline-postlude] Execution mode: $execution_mode (reason: $mode_reason)"
+```
+
+**Mode precedence:**
+1. CLI flags (`--interactive`, `--autonomous`)
+2. Environment variable (`LOA_FLATLINE_MODE`)
+3. Config (`autonomous_mode.enabled`)
+4. Auto-detection (strong AI signals only)
+5. Default (interactive)
+
 ### Step 1: Check Configuration
 
 Read `.loa.config.yaml`:
@@ -14,6 +34,15 @@ flatline_protocol:
   auto_trigger: true|false
   phases:
     {{PHASE}}: true|false
+
+autonomous_mode:  # v1.22.0
+  enabled: true|false
+  auto_enable_for_ai: true
+  actions:
+    high_consensus: integrate|log|skip
+    disputed: halt|log|skip
+    blocker: halt|log|continue
+    low_value: log|skip
 ```
 
 **Exit Conditions** (skip if any are true):
@@ -39,11 +68,88 @@ domain=$(grep -iE "^#|product|technology|framework|feature" "$OUTPUT_DOC" | \
 ### Step 3: Execute Flatline Protocol
 
 ```bash
+# Execute with mode flag (v1.22.0)
 result=$(.claude/scripts/flatline-orchestrator.sh \
     --doc "{{OUTPUT_DOC}}" \
     --phase "{{PHASE}}" \
     --domain "$domain" \
+    ${execution_mode:+--$execution_mode} \
     --json)
+```
+
+### Step 4: Process Results (Interactive Mode)
+
+**For interactive mode only.** Skip to Step 4B if `execution_mode == "autonomous"`.
+
+### Step 4B: Process Results (Autonomous Mode) - v1.22.0
+
+When `execution_mode == "autonomous"`:
+
+```bash
+# Create run manifest
+manifest_result=$(.claude/scripts/flatline-manifest.sh create \
+    --phase "{{PHASE}}" \
+    --document "{{OUTPUT_DOC}}")
+run_id=$(echo "$manifest_result" | jq -r '.run_id')
+
+# Process results via result handler
+handler_result=$(.claude/scripts/flatline-result-handler.sh \
+    --mode autonomous \
+    --result "$result" \
+    --document "{{OUTPUT_DOC}}" \
+    --phase "{{PHASE}}" \
+    --run-id "$run_id")
+
+handler_exit=$?
+```
+
+**Exit code handling:**
+
+| Exit | Meaning | Action |
+|------|---------|--------|
+| 0 | Success | Continue workflow |
+| 1 | BLOCKER halt | Generate escalation, HALT workflow |
+| 4 | Disputed threshold | Generate escalation, HALT workflow |
+| 5 | Integration failed | Log error, continue |
+
+**On BLOCKER halt (exit 1):**
+```bash
+# Generate escalation report
+blockers=$(echo "$result" | jq '.blockers')
+disputed=$(echo "$result" | jq '.disputed')
+
+.claude/scripts/flatline-escalation.sh create \
+    --run-id "$run_id" \
+    --phase "{{PHASE}}" \
+    --reason "BLOCKER item triggered workflow halt" \
+    --document "{{OUTPUT_DOC}}" \
+    --blockers "$blockers" \
+    --disputed "$disputed"
+
+# Log to NOTES.md
+echo "## Flatline Halt - {{PHASE}}" >> grimoires/loa/NOTES.md
+echo "" >> grimoires/loa/NOTES.md
+echo "**Run ID:** $run_id" >> grimoires/loa/NOTES.md
+echo "**Reason:** BLOCKER halt" >> grimoires/loa/NOTES.md
+echo "**Report:** grimoires/loa/a2a/flatline/escalation-*.md" >> grimoires/loa/NOTES.md
+
+# HALT workflow (return error to parent)
+exit 1
+```
+
+**On success (exit 0):**
+```bash
+# Log summary
+integrated=$(echo "$handler_result" | jq '.metrics.integrated')
+disputed=$(echo "$handler_result" | jq '.metrics.disputed')
+blockers=$(echo "$handler_result" | jq '.metrics.blockers')
+
+echo "[flatline-postlude] Autonomous processing complete"
+echo "  Integrated: $integrated"
+echo "  Disputed (logged): $disputed"
+echo "  Blockers (logged): $blockers"
+
+# Continue workflow
 ```
 
 ### Step 4: Process Results
