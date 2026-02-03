@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "embedding-index.schema.json",
+  "title": "Embedding Index",
+  "description": "Schema for framework learning embedding index metadata",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["version", "model", "dimensions", "learnings"],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Index format version"
+    },
+    "model": {
+      "type": "string",
+      "description": "Embedding model ID (e.g., text-embedding-3-small)"
+    },
+    "dimensions": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Vector dimensions (e.g., 1536)"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Index creation timestamp"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Last update timestamp"
+    },
+    "learnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "text_hash", "embedding_offset"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Learning ID"
+          },
+          "text_hash": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$",
+            "description": "SHA256 hash of learning text"
+          },
+          "embedding_offset": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Byte offset in embeddings.bin"
+          },
+          "embedding_length": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Number of floats in embedding"
+          }
+        }
+      }
+    }
+  }
+}

@@ -139,7 +139,7 @@ oracle:
     default_scope: all
 
 # -----------------------------------------------------------------------------
-# Compound Learning (v1.10.0)
+# Compound Learning (v1.10.0, Flatline Integration v1.23.0)
 # -----------------------------------------------------------------------------
 compound_learning:
   enabled: true
@@ -149,6 +149,79 @@ compound_learning:
   quality_gates:
     discovery_depth: { min_score: 5 }
     reusability: { min_score: 5 }
+
+  # Flatline Integration (v1.23.0)
+  # Connect Flatline Protocol multi-model consensus to Compound Learning
+  flatline_integration:
+    # Master toggle for Flatline → Compound Learning connection
+    enabled: true
+
+    # Capture learning candidates from Flatline HIGH_CONSENSUS outputs
+    capture_from_flatline:
+      enabled: true
+      min_consensus_score: 750      # Minimum consensus score (0-1000)
+      include_disputed: true         # Also capture low-delta disputed items
+      disputed_max_delta: 200        # Maximum score delta for disputed items
+
+    # Transformation configuration (content → trigger/solution)
+    transformation:
+      fallback_to_llm: true          # Use LLM when patterns fail
+      max_transformations_per_cycle: 50  # Prevent runaway API costs
+
+    # Validation of borderline learnings (Sprint 2)
+    validation:
+      enabled: true
+      borderline_range: [20, 28]     # Score range for borderline (out of 40)
+      max_validations_per_cycle: 10  # Budget control
+      rate_limit_seconds: 30         # Minimum time between validations
+
+    # Upstream proposal enhancement (Sprint 3)
+    upstream_enhancement:
+      semantic_similarity:
+        enabled: true
+        threshold: 70                # Similarity threshold (0-100)
+        alpha: 0.6                   # Weight for semantic vs Jaccard
+        combine_with_jaccard: true
+      pre_proposal_review:
+        enabled: true
+        min_alignment_score: 600     # Minimum alignment (0-1000)
+
+  # API configuration for Flatline integration
+  api:
+    max_retries: 3
+    initial_backoff_ms: 1000
+    max_backoff_ms: 30000
+    timeout_seconds: 60
+    circuit_breaker:
+      failure_threshold: 5
+      reset_timeout_seconds: 300
+
+  # LLM response validation
+  validation:
+    llm_responses:
+      require_schema_validation: true
+      sanitize_input: true
+      sanitize_output: true
+      banned_tokens:
+        - "ignore previous"
+        - "disregard instructions"
+        - "system prompt"
+
+  # Budget controls (SKP-001)
+  budget:
+    daily_budget_cents: 500          # Maximum daily API spend
+    warn_at_percent: 80              # Warning threshold
+    track_costs_in_trajectory: true
+
+  # Security and data redaction (SKP-006)
+  security:
+    redaction:
+      enabled: true
+      patterns:
+        - api_keys
+        - emails
+        - file_paths
+      allowlist_domains: []
 
 # -----------------------------------------------------------------------------
 # Visual Communication (v2.0.0)

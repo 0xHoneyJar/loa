@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "validation-vote.schema.json",
+  "title": "Validation Vote Response",
+  "description": "Schema for LLM validation vote responses",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["vote", "confidence", "reasoning"],
+  "properties": {
+    "vote": {
+      "type": "string",
+      "enum": ["approve", "reject"],
+      "description": "Validation decision"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Confidence in decision (0.0-1.0)"
+    },
+    "reasoning": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 500,
+      "description": "Brief explanation of decision"
+    }
+  },
+  "additionalProperties": false
+}

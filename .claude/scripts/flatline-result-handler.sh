@@ -478,6 +478,91 @@ append_to_notes() {
 }
 
 # =============================================================================
+# Extension Point Hooks (v1.23.0 - Flatline-Enhanced Compound Learning)
+# =============================================================================
+
+# Run hooks after result handling completes
+# Supports function-level hooks for learning extraction (SKP-004)
+run_hooks_flatline_result_complete() {
+    local run_id="$1"
+    local document="$2"
+    local result_json="$3"
+    local phase="$4"
+
+    log "Running post-result hooks..."
+
+    # Hook 1: Learning extraction (if enabled)
+    hook_learning_extraction "$run_id" "$document" "$result_json" "$phase"
+}
+
+# Hook: Extract learnings from HIGH_CONSENSUS items
+hook_learning_extraction() {
+    local run_id="$1"
+    local document="$2"
+    local result_json="$3"
+    local phase="$4"
+
+    # Check if flatline integration is enabled
+    local integration_enabled
+    integration_enabled=$(read_config '.compound_learning.flatline_integration.enabled' 'false')
+
+    if [[ "$integration_enabled" != "true" ]]; then
+        log "Learning extraction skipped (flatline_integration.enabled=false)"
+        return 0
+    fi
+
+    # Check if extractor script exists
+    local extractor_script="$SCRIPT_DIR/flatline-learning-extractor.sh"
+    if [[ ! -x "$extractor_script" ]]; then
+        log "Learning extraction skipped (extractor not found)"
+        return 0
+    fi
+
+    log_trajectory "learning_extraction_triggered" "{\"run_id\": \"$run_id\", \"phase\": \"$phase\"}"
+
+    # Output file for extracted learnings
+    local output_file="$PROJECT_ROOT/grimoires/loa/a2a/compound/flatline-learnings.jsonl"
+    local lock_file="${output_file}.lock"
+
+    # Atomic write with file locking (SKP-007)
+    local temp_file
+    temp_file=$(mktemp)
+
+    # Run extraction
+    if "$extractor_script" --result "$result_json" --output jsonl > "$temp_file" 2>/dev/null; then
+        local count
+        count=$(wc -l < "$temp_file" | tr -d ' ')
+
+        if [[ "$count" -gt 0 ]]; then
+            # Acquire exclusive lock and append
+            (
+                flock -x -w 10 200 || { log_error "Failed to acquire lock for learning output"; rm -f "$temp_file"; return 1; }
+
+                # Ensure directory exists
+                mkdir -p "$(dirname "$output_file")"
+
+                # Append to JSONL file
+                cat "$temp_file" >> "$output_file"
+
+                # fsync for durability
+                sync
+
+            ) 200>"$lock_file"
+
+            log "Extracted $count learning candidates from Flatline result"
+            log_trajectory "learning_extraction_complete" "{\"count\": $count, \"output_file\": \"$output_file\"}"
+        else
+            log "No learning candidates extracted from Flatline result"
+        fi
+    else
+        log_warning "Learning extraction failed"
+        log_trajectory "learning_extraction_failed" "{\"run_id\": \"$run_id\"}"
+    fi
+
+    rm -f "$temp_file"
+}
+
+# =============================================================================
 # Main Handler
 # =============================================================================
 
@@ -555,6 +640,9 @@ handle_results() {
 
     log "Result handling complete: $integrated integrated, $disputed_count disputed"
     log_trajectory "handling_complete" "{\"integrated\": $integrated, \"disputed\": $disputed_count, \"blockers\": $total_blockers}"
+
+    # Run extension hooks (v1.23.0)
+    run_hooks_flatline_result_complete "$run_id" "$document" "$result_json" "$phase"
 
     # Return summary
     jq -n \

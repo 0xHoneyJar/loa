@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "transformation-response.schema.json",
+  "title": "LLM Transformation Response",
+  "description": "Schema for LLM-based content-to-learning transformation responses",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["trigger", "solution", "confidence"],
+  "properties": {
+    "trigger": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 100,
+      "pattern": "^When ",
+      "description": "Trigger condition starting with 'When'"
+    },
+    "solution": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 200,
+      "description": "Actionable solution guidance"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Model confidence in transformation (0.0-1.0)"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "proposal-review.schema.json",
+  "title": "Proposal Review Response",
+  "description": "Schema for pre-proposal adversarial review responses",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["score", "alignment", "concerns", "suggestions"],
+  "properties": {
+    "score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000,
+      "description": "Alignment score (0-1000)"
+    },
+    "alignment": {
+      "type": "boolean",
+      "description": "Whether proposal aligns with framework standards"
+    },
+    "concerns": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 200
+      },
+      "description": "List of concerns about the proposal"
+    },
+    "suggestions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 200
+      },
+      "description": "Suggestions for improvement"
+    }
+  },
+  "additionalProperties": false
+}

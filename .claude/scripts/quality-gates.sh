@@ -34,6 +34,8 @@ READ_STDIN=false
 PATTERNS_FILE=""
 OUTPUT_FORMAT="json"
 VERBOSE=false
+SOURCE_FILTER=""  # Filter by source field (v1.23.0)
+SOURCE_PASSTHROUGH=true  # Preserve source field in output (v1.23.0)
 
 # Gate thresholds (from config or defaults)
 DISCOVERY_DEPTH_MIN=5
@@ -66,6 +68,15 @@ parse_args() {
       --verbose)
         VERBOSE=true
         shift
+        ;;
+      --source)
+        SOURCE_FILTER="$2"
+        shift 2
+        ;;
+      --input)
+        # Alias for --patterns for consistency
+        PATTERNS_FILE="$2"
+        shift 2
         ;;
       --help|-h)
         usage
@@ -321,26 +332,31 @@ evaluate_verification() {
 # =========================================================================
 evaluate_pattern() {
   local pattern="$1"
-  
+
   local depth_score reuse_score trigger_score verify_score
   depth_score=$(evaluate_discovery_depth "$pattern")
   reuse_score=$(evaluate_reusability "$pattern")
   trigger_score=$(evaluate_trigger_clarity "$pattern")
   verify_score=$(evaluate_verification "$pattern")
-  
+
   # Check if all gates pass
   local passes_all=true
   [[ "$depth_score" -lt "$DISCOVERY_DEPTH_MIN" ]] && passes_all=false
   [[ "$reuse_score" -lt "$REUSABILITY_MIN" ]] && passes_all=false
   [[ "$trigger_score" -lt "$TRIGGER_CLARITY_MIN" ]] && passes_all=false
   [[ "$verify_score" -lt "$VERIFICATION_MIN" ]] && passes_all=false
-  
+
   # Calculate aggregate score
   local total_score
   total_score=$((depth_score + reuse_score + trigger_score + verify_score))
-  
+
+  # Preserve source field if present (v1.23.0)
+  local source_field
+  source_field=$(echo "$pattern" | jq -r '.source // ""')
+
   # Build result
-  jq -n \
+  local result
+  result=$(jq -n \
     --argjson pattern "$pattern" \
     --argjson depth "$depth_score" \
     --argjson reuse "$reuse_score" \
@@ -358,24 +374,42 @@ evaluate_pattern() {
       },
       total_score: $total,
       passes: $passes
-    }'
+    }')
+
+  # Add source field to top level if present (v1.23.0)
+  if [[ -n "$source_field" && "$SOURCE_PASSTHROUGH" == "true" ]]; then
+    result=$(echo "$result" | jq --arg source "$source_field" '. + {source: $source}')
+  fi
+
+  echo "$result"
 }
 
 # Main evaluation
 evaluate_all() {
   local patterns
   patterns=$(get_patterns)
-  
+
   local count
   count=$(echo "$patterns" | jq 'length')
-  
+
   if [[ "$count" -eq 0 ]]; then
     echo "[]"
     return
   fi
-  
+
+  # Apply source filter if specified (v1.23.0)
+  if [[ -n "$SOURCE_FILTER" ]]; then
+    patterns=$(echo "$patterns" | jq --arg source "$SOURCE_FILTER" '[.[] | select(.source == $source)]')
+    count=$(echo "$patterns" | jq 'length')
+
+    if [[ "$count" -eq 0 ]]; then
+      echo "[]"
+      return
+    fi
+  fi
+
   local results=()
-  
+
   echo "$patterns" | jq -c '.[]' | while read -r pattern; do
     local result
     result=$(evaluate_pattern "$pattern")

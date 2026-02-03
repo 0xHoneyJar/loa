@@ -51,6 +51,7 @@ DAYS=""
 CYCLE_START=""
 CYCLE_END=""
 PATTERNS_FOUND=0
+FLATLINE_LEARNINGS=0  # v1.23.0: Count of Flatline-derived learnings
 SKILLS_EXTRACTED=0
 SKILLS_PROMOTED=0
 
@@ -139,6 +140,73 @@ log_event() {
   fi
 }
 
+# =============================================================================
+# Flatline Integration Functions (v1.23.0)
+# =============================================================================
+
+# Check if Flatline integration is enabled
+flatline_integration_enabled() {
+  if [[ -f "$CONFIG_FILE" ]]; then
+    local enabled
+    enabled=$(yq -e '.compound_learning.flatline_integration.enabled // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+    [[ "$enabled" == "true" ]]
+    return $?
+  fi
+  return 1
+}
+
+# Ingest Flatline learnings from flatline-learnings.jsonl
+ingest_flatline_learnings() {
+  local flatline_learnings_file="${COMPOUND_DIR}/flatline-learnings.jsonl"
+
+  if [[ ! -f "$flatline_learnings_file" ]]; then
+    log_event "flatline_ingest_skipped" "file_not_found"
+    return 0
+  fi
+
+  # Count learnings
+  FLATLINE_LEARNINGS=$(wc -l < "$flatline_learnings_file" | tr -d ' ')
+
+  if [[ "$FLATLINE_LEARNINGS" -eq 0 ]]; then
+    log_event "flatline_ingest_skipped" "empty_file"
+    return 0
+  fi
+
+  log_event "flatline_ingest_start" "count=$FLATLINE_LEARNINGS"
+
+  # Convert JSONL to array and merge with session patterns
+  local flatline_patterns
+  flatline_patterns=$(jq -s '.' "$flatline_learnings_file" 2>/dev/null || echo "[]")
+
+  # Merge with existing patterns
+  if [[ -f /tmp/compound-patterns.json ]]; then
+    local existing_patterns
+    existing_patterns=$(cat /tmp/compound-patterns.json)
+
+    # Combine arrays, marking flatline patterns
+    jq -s '.[0] + .[1]' <(echo "$existing_patterns") <(echo "$flatline_patterns") > /tmp/compound-patterns.json.tmp
+    mv /tmp/compound-patterns.json.tmp /tmp/compound-patterns.json
+
+    PATTERNS_FOUND=$(jq 'length' /tmp/compound-patterns.json)
+  else
+    # Just use flatline patterns
+    echo "$flatline_patterns" > /tmp/compound-patterns.json
+    PATTERNS_FOUND=$FLATLINE_LEARNINGS
+  fi
+
+  log_event "flatline_ingest_complete" "count=$FLATLINE_LEARNINGS,total_patterns=$PATTERNS_FOUND"
+
+  # Archive the ingested file to prevent re-processing
+  if [[ "$DRY_RUN" == "false" ]]; then
+    local archive_file="${flatline_learnings_file}.$(date +%Y%m%d%H%M%S)"
+    mv "$flatline_learnings_file" "$archive_file"
+  fi
+}
+
+# =============================================================================
+# Cycle Detection
+# =============================================================================
+
 # Detect current cycle from ledger
 detect_cycle() {
   if [[ ! -f "$LEDGER_FILE" ]]; then
@@ -200,10 +268,19 @@ cmd_status() {
   
   # Patterns
   local pattern_count=0
+  local flatline_pattern_count=0
   if [[ -f "${COMPOUND_DIR}/patterns.json" ]]; then
     pattern_count=$(jq '.patterns | length' "${COMPOUND_DIR}/patterns.json" 2>/dev/null || echo "0")
+    flatline_pattern_count=$(jq '[.patterns[] | select(.source == "flatline")] | length' "${COMPOUND_DIR}/patterns.json" 2>/dev/null || echo "0")
   fi
   echo "- Patterns Detected: $pattern_count"
+
+  # Flatline learnings (v1.23.0)
+  local flatline_pending=0
+  if [[ -f "${COMPOUND_DIR}/flatline-learnings.jsonl" ]]; then
+    flatline_pending=$(wc -l < "${COMPOUND_DIR}/flatline-learnings.jsonl" | tr -d ' ')
+  fi
+  echo "- Flatline Patterns: $flatline_pattern_count (active), $flatline_pending (pending)"
   
   # Pending skills
   local pending_count=0
@@ -305,7 +382,17 @@ cmd_review() {
     PATTERNS_FOUND=$(jq 'length' /tmp/compound-patterns.json 2>/dev/null || echo "0")
   fi
   echo "  Found $PATTERNS_FOUND patterns"
-  
+
+  # Step 2.5: Ingest Flatline learnings (v1.23.0)
+  echo ""
+  echo "[2.5/6] Ingesting Flatline learnings..."
+  if flatline_integration_enabled; then
+    ingest_flatline_learnings
+    echo "  Ingested $FLATLINE_LEARNINGS Flatline-derived learnings"
+  else
+    echo "  Skipped (flatline_integration.enabled=false)"
+  fi
+
   # Step 3: Quality gates
   echo ""
   echo "[3/6] Applying quality gates..."
