@@ -76,7 +76,7 @@ get_registry_config() {
 # Returns: Registry API URL
 get_registry_url() {
     local config_url
-    config_url=$(get_registry_config 'default_url' 'https://loa-constructs-api.fly.dev/v1')
+    config_url=$(get_registry_config 'default_url' 'https://api.constructs.network/v1')
     echo "${LOA_REGISTRY_URL:-$config_url}"
 }
 
