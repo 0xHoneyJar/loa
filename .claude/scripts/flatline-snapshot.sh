@@ -34,6 +34,9 @@ SNAPSHOT_DIR="$PROJECT_ROOT/.flatline/snapshots"
 REFS_DIR="$SNAPSHOT_DIR/.refs"
 TRAJECTORY_DIR="$PROJECT_ROOT/grimoires/loa/a2a/trajectory"
 
+# Component scripts
+LOCK_SCRIPT="$SCRIPT_DIR/flatline-lock.sh"
+
 # Default configuration
 DEFAULT_MAX_AGE_DAYS=7
 DEFAULT_MAX_COUNT=100
@@ -519,26 +522,67 @@ restore_snapshot() {
     local expected_hash
     expected_hash=$(jq -r '.hash' "$meta_file")
 
+    # H-2 FIX: Acquire document lock BEFORE any file operations to prevent TOCTOU race
+    local lock_acquired=false
+    if [[ -x "$LOCK_SCRIPT" ]]; then
+        if "$LOCK_SCRIPT" acquire --type document --resource "$document" --timeout 10 --caller "snapshot_restore" >/dev/null 2>&1; then
+            lock_acquired=true
+            log "Acquired document lock for restore"
+        else
+            error "Failed to acquire document lock for restore"
+            return 5
+        fi
+    fi
+
+    # Set up trap to release lock on any exit
+    if [[ "$lock_acquired" == "true" ]]; then
+        trap '"$LOCK_SCRIPT" release --type document --resource "$document" 2>/dev/null || true' EXIT
+    fi
+
+    local backup_path=""
+    local pre_backup_hash=""
+
     # Check for divergence (current file differs from what we expect)
     if [[ -f "$full_path" ]]; then
         local current_hash
         current_hash=$(calculate_hash "$full_path")
+        pre_backup_hash="$current_hash"
 
         # If document has been modified since snapshot, warn
         if [[ "$force" != "true" ]]; then
             # Create backup before restore
-            local backup_path="${full_path}.pre-rollback-$(date +%Y%m%d_%H%M%S)"
+            backup_path="${full_path}.pre-rollback-$(date +%Y%m%d_%H%M%S)"
             cp "$full_path" "$backup_path"
             chmod 600 "$backup_path"
             log "Created backup: $backup_path"
         fi
     fi
 
-    # Restore via atomic copy
+    # Prepare atomic copy
     local temp_file
     temp_file=$(mktemp)
     cp "$snapshot_file" "$temp_file"
+
+    # H-2 FIX: Re-verify hash immediately before mv to detect concurrent modification
+    if [[ -n "$pre_backup_hash" && -f "$full_path" ]]; then
+        local final_hash
+        final_hash=$(calculate_hash "$full_path")
+        if [[ "$final_hash" != "$pre_backup_hash" ]]; then
+            rm -f "$temp_file"
+            error "Document modified during restore operation (race detected)"
+            log_trajectory "restore_race_detected" "{\"snapshot_id\": \"$snapshot_id\", \"document\": \"$document\", \"expected\": \"$pre_backup_hash\", \"actual\": \"$final_hash\"}"
+            return 4
+        fi
+    fi
+
+    # Restore via atomic move
     mv "$temp_file" "$full_path"
+
+    # Release lock before logging (trap will also attempt release on exit)
+    if [[ "$lock_acquired" == "true" ]]; then
+        "$LOCK_SCRIPT" release --type document --resource "$document" 2>/dev/null || true
+        trap - EXIT
+    fi
 
     log "Restored document from snapshot: $snapshot_id -> $document"
     log_trajectory "snapshot_restored" "{\"snapshot_id\": \"$snapshot_id\", \"document\": \"$document\"}"
@@ -547,7 +591,8 @@ restore_snapshot() {
         --arg snapshot_id "$snapshot_id" \
         --arg document "$document" \
         --arg restored_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-        '{status: "restored", snapshot_id: $snapshot_id, document: $document, restored_at: $restored_at}'
+        --argjson restored true \
+        '{status: "restored", snapshot_id: $snapshot_id, document: $document, restored_at: $restored_at, restored: $restored}'
 }
 
 # =============================================================================

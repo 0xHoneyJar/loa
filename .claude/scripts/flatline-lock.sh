@@ -219,6 +219,8 @@ acquire_lock() {
             log_trajectory "lock_acquired" "$(cat "$info_path")"
             return 0
         else
+            # H-1 FIX: Close file descriptor on timeout to prevent FD leak
+            exec 200>&- 2>/dev/null || true
             log "Lock acquisition timed out: $resource"
             log_trajectory "lock_timeout" "{\"resource\": \"$resource\", \"type\": \"$lock_type\", \"timeout\": $timeout}"
             return 1

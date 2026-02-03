@@ -544,9 +544,16 @@ update_index() {
 
     ensure_runs_dir
 
-    # Acquire lock on index
+    # M-6 FIX: Acquire lock on index and fail if cannot acquire
+    local lock_acquired=false
     if [[ -x "$LOCK_SCRIPT" ]]; then
-        "$LOCK_SCRIPT" acquire "index" --type manifest --timeout 5 --caller "index" || true
+        if "$LOCK_SCRIPT" acquire "index" --type manifest --timeout 5 --caller "index" >/dev/null 2>&1; then
+            lock_acquired=true
+        else
+            error "Failed to acquire index lock, aborting update"
+            log_trajectory "index_lock_failed" "{\"run_id\": \"$run_id\", \"status\": \"$status\"}"
+            return 4
+        fi
     fi
 
     local updated
@@ -565,8 +572,8 @@ update_index() {
 
     echo "$updated" > "$INDEX_FILE"
 
-    if [[ -x "$LOCK_SCRIPT" ]]; then
-        "$LOCK_SCRIPT" release "index" --type manifest || true
+    if [[ "$lock_acquired" == "true" ]]; then
+        "$LOCK_SCRIPT" release "index" --type manifest 2>/dev/null || true
     fi
 }
 
