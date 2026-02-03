@@ -1,9 +1,10 @@
 ---
 name: "flatline-review"
-version: "1.0.0"
+version: "1.1.0"
 description: |
   Manual invocation of Flatline Protocol for adversarial multi-model review.
   Use when auto-trigger is disabled or to re-run after document changes.
+  Also provides rollback capability for autonomous integrations.
 
 agent: "reviewing-code"
 agent_path: ".claude/skills/reviewing-code/"
@@ -35,6 +36,36 @@ arguments:
     required: false
     default: 300
     description: "Cost budget in cents (default: 300 = $3.00)"
+
+  - name: "--rollback"
+    type: "string"
+    required: false
+    description: "Rollback integration or run (integration-id, run-id, or snapshot-id)"
+
+  - name: "--run-id"
+    type: "string"
+    required: false
+    description: "Run ID for rollback operations"
+
+  - name: "--snapshot"
+    type: "string"
+    required: false
+    description: "Direct snapshot restore"
+
+  - name: "--force"
+    type: "flag"
+    required: false
+    description: "Force rollback despite divergence"
+
+  - name: "--interactive"
+    type: "flag"
+    required: false
+    description: "Force interactive mode (v1.22.0)"
+
+  - name: "--autonomous"
+    type: "flag"
+    required: false
+    description: "Force autonomous mode (v1.22.0)"
 
 outputs:
   - path: "grimoires/loa/a2a/flatline/{phase}-review.json"
@@ -213,9 +244,85 @@ flatline_protocol:
 | "Budget exceeded" | Cost limit hit | Increase budget or use --skeptic-only |
 | "Timeout" | Slow API response | Retry or increase timeout |
 
+## Rollback Commands (v1.22.0)
+
+Rollback auto-integrated changes from autonomous Flatline execution.
+
+### Usage
+
+```bash
+# Rollback single integration by ID
+/flatline-review --rollback abc123-001-f7e8d9
+
+# Rollback entire run
+/flatline-review --rollback --run-id flatline-run-abc123
+
+# Direct snapshot restore
+/flatline-review --rollback --snapshot 20260203_143000_a1b2c3d4
+
+# Force rollback despite divergence
+/flatline-review --rollback abc123-001-f7e8d9 --force
+
+# List rollback options for a run
+/flatline-review --rollback --run-id flatline-run-abc123 --dry-run
+```
+
+### Rollback Workflow
+
+When `--rollback` is specified:
+
+```bash
+if [[ -n "$rollback" ]]; then
+    if [[ -n "$snapshot" ]]; then
+        # Direct snapshot restore
+        .claude/scripts/flatline-rollback.sh snapshot --snapshot-id "$snapshot" ${force:+--force}
+    elif [[ -n "$run_id" ]]; then
+        # Full run rollback
+        .claude/scripts/flatline-rollback.sh run --run-id "$run_id" ${dry_run:+--dry-run} ${force:+--force}
+    else
+        # Single integration rollback
+        .claude/scripts/flatline-rollback.sh single --integration-id "$rollback" ${run_id:+--run-id "$run_id"} ${force:+--force}
+    fi
+    exit $?
+fi
+```
+
+### Divergence Detection
+
+Before rollback, the system checks if the document has been modified since integration:
+- **Expected hash**: Stored at integration time
+- **Current hash**: Calculated from current file
+
+If diverged:
+- Without `--force`: Rollback refused with warning
+- With `--force`: Creates backup and proceeds
+
+### Backup Creation
+
+Before any rollback, a backup is created:
+- Path: `{document}.pre-rollback-{timestamp}`
+- Permissions: 600 (owner only)
+- Always created unless document doesn't exist
+
+### Interactive Confirmation
+
+In interactive mode, user confirmation is requested before rollback:
+
+```
+Document has been modified since integration.
+Current hash:  a1b2c3d4...
+Expected hash: e5f6g7h8...
+
+This may overwrite changes made after the integration.
+Continue with rollback? [y/N]
+```
+
+In autonomous mode, `--force` is required to override divergence.
+
 ## Related
 
 - `/plan-and-analyze` - Creates PRD (auto-triggers Flatline if enabled)
 - `/architect` - Creates SDD (auto-triggers Flatline if enabled)
 - `/sprint-plan` - Creates sprint plan (auto-triggers Flatline if enabled)
 - `/gpt-review` - Single-model GPT review (simpler alternative)
+- `/run sprint-plan` - Autonomous sprint execution (uses autonomous Flatline)
