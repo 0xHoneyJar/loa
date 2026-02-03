@@ -66,7 +66,7 @@ check_validation_history() {
     return 1
 }
 
-# Record a validation in history
+# Record a validation in history (with flock for concurrency safety - HIGH-003)
 record_validation() {
     local learning_id="$1"
     local result="${2:-}"  # Optional: approve, reject, disputed
@@ -75,21 +75,32 @@ record_validation() {
 
     init_validation_storage
 
-    # Add to history with atomic write
-    local temp_file
-    temp_file=$(mktemp)
+    # Use flock for atomic writes to prevent race conditions (Security: HIGH-003)
+    local lock_file="${HISTORY_FILE}.lock"
 
-    jq --arg id "$learning_id" --arg ts "$now" --arg result "$result" '
-        .validated_learnings += [$id] |
-        .validated_learnings |= unique |
-        .last_validation = $ts |
-        if $result != "" then .last_result = $result else . end
-    ' "$HISTORY_FILE" > "$temp_file" && mv "$temp_file" "$HISTORY_FILE"
+    (
+        # Acquire exclusive lock with 10-second timeout
+        if ! flock -x -w 10 200 2>/dev/null; then
+            log_debug "Warning: Could not acquire lock for $HISTORY_FILE, proceeding anyway"
+        fi
 
-    # Also record timestamp for rate limiting
-    jq --arg id "$learning_id" --argjson ts "$(date +%s)" '
-        .[$id] = $ts
-    ' "$TIMESTAMPS_FILE" > "$temp_file" && mv "$temp_file" "$TIMESTAMPS_FILE"
+        # Add to history with atomic write
+        local temp_file
+        temp_file=$(mktemp)
+
+        jq --arg id "$learning_id" --arg ts "$now" --arg result "$result" '
+            .validated_learnings += [$id] |
+            .validated_learnings |= unique |
+            .last_validation = $ts |
+            if $result != "" then .last_result = $result else . end
+        ' "$HISTORY_FILE" > "$temp_file" && mv "$temp_file" "$HISTORY_FILE"
+
+        # Also record timestamp for rate limiting
+        jq --arg id "$learning_id" --argjson ts "$(date +%s)" '
+            .[$id] = $ts
+        ' "$TIMESTAMPS_FILE" > "$temp_file" && mv "$temp_file" "$TIMESTAMPS_FILE"
+
+    ) 200>"$lock_file"
 
     log_debug "Recorded validation for $learning_id"
 }
@@ -102,25 +113,36 @@ clear_validation_history() {
 
     init_validation_storage
 
-    # Archive old history if it has entries
-    local old_count
-    old_count=$(jq '.validated_learnings | length' "$HISTORY_FILE")
+    # Use flock for atomic writes (Security: HIGH-003)
+    local lock_file="${HISTORY_FILE}.lock"
 
-    if [[ "$old_count" -gt 0 ]]; then
-        local archive_file="${HISTORY_FILE}.$(date +%Y%m%d%H%M%S)"
-        cp "$HISTORY_FILE" "$archive_file"
-        log_debug "Archived $old_count validation history entries to $archive_file"
-    fi
+    (
+        # Acquire exclusive lock with 10-second timeout
+        if ! flock -x -w 10 200 2>/dev/null; then
+            log_debug "Warning: Could not acquire lock for $HISTORY_FILE, proceeding anyway"
+        fi
 
-    # Reset history
-    jq -n --arg cycle "$cycle_id" --arg ts "$now" '{
-        validated_learnings: [],
-        cycle_id: $cycle,
-        created_at: $ts
-    }' > "$HISTORY_FILE"
+        # Archive old history if it has entries
+        local old_count
+        old_count=$(jq '.validated_learnings | length' "$HISTORY_FILE")
 
-    # Clear timestamps
-    echo '{}' > "$TIMESTAMPS_FILE"
+        if [[ "$old_count" -gt 0 ]]; then
+            local archive_file="${HISTORY_FILE}.$(date +%Y%m%d%H%M%S)"
+            cp "$HISTORY_FILE" "$archive_file"
+            log_debug "Archived $old_count validation history entries to $archive_file"
+        fi
+
+        # Reset history
+        jq -n --arg cycle "$cycle_id" --arg ts "$now" '{
+            validated_learnings: [],
+            cycle_id: $cycle,
+            created_at: $ts
+        }' > "$HISTORY_FILE"
+
+        # Clear timestamps
+        echo '{}' > "$TIMESTAMPS_FILE"
+
+    ) 200>"$lock_file"
 
     log_debug "Cleared validation history for cycle: $cycle_id"
 }

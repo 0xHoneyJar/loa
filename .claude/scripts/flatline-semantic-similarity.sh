@@ -32,6 +32,12 @@ TRAJECTORY_DIR="$PROJECT_ROOT/grimoires/loa/a2a/trajectory"
 DEFAULT_INDEX_PATH="$PROJECT_ROOT/.claude/loa/learnings/index.json"
 DEFAULT_EMBEDDINGS_PATH="$PROJECT_ROOT/.claude/loa/learnings/embeddings.bin"
 
+# Allowed index directories (for path validation)
+ALLOWED_INDEX_DIRS=(
+    "$PROJECT_ROOT/.claude/loa/learnings"
+    "$PROJECT_ROOT/grimoires/loa"
+)
+
 # Source utilities
 if [[ -f "$LIB_DIR/api-resilience.sh" ]]; then
     source "$LIB_DIR/api-resilience.sh"
@@ -55,6 +61,61 @@ log_error() { echo "[ERROR] $(date -Iseconds) $*" >&2; }
 log_warning() { echo "[WARN] $(date -Iseconds) $*" >&2; }
 log_info() { echo "[INFO] $(date -Iseconds) $*" >&2; }
 log_debug() { [[ "${LOA_DEBUG:-false}" == "true" ]] && echo "[DEBUG] $(date -Iseconds) $*" >&2 || true; }
+
+# =============================================================================
+# Path Validation (Security: HIGH-002)
+# =============================================================================
+
+# Validate that a path is within allowed directories
+# Returns: 0 if valid, 1 if invalid
+validate_index_path() {
+    local path="$1"
+
+    # Resolve to absolute path and canonicalize
+    local resolved_path
+    if [[ -f "$path" ]]; then
+        resolved_path=$(cd "$(dirname "$path")" && pwd)/$(basename "$path")
+    else
+        # File doesn't exist yet - validate parent directory
+        local parent_dir
+        parent_dir=$(dirname "$path")
+        if [[ -d "$parent_dir" ]]; then
+            resolved_path=$(cd "$parent_dir" && pwd)/$(basename "$path")
+        else
+            log_error "Parent directory does not exist: $parent_dir"
+            return 1
+        fi
+    fi
+
+    # Check for path traversal attempts
+    if [[ "$resolved_path" == *".."* ]]; then
+        log_error "Path traversal detected: $path"
+        return 1
+    fi
+
+    # Verify path is within allowed directories
+    local allowed=false
+    for allowed_dir in "${ALLOWED_INDEX_DIRS[@]}"; do
+        # Resolve allowed dir to absolute
+        if [[ -d "$allowed_dir" ]]; then
+            local resolved_allowed
+            resolved_allowed=$(cd "$allowed_dir" && pwd)
+            if [[ "$resolved_path" == "$resolved_allowed"* ]]; then
+                allowed=true
+                break
+            fi
+        fi
+    done
+
+    if [[ "$allowed" != "true" ]]; then
+        log_error "Path not in allowed directories: $path"
+        log_error "Allowed: ${ALLOWED_INDEX_DIRS[*]}"
+        return 1
+    fi
+
+    log_debug "Path validated: $resolved_path"
+    return 0
+}
 
 # Log to trajectory
 log_trajectory() {
@@ -447,6 +508,12 @@ main() {
     # Validate JSON
     if ! echo "$learning_json" | jq '.' >/dev/null 2>&1; then
         log_error "Invalid JSON input"
+        exit 1
+    fi
+
+    # Validate index path (Security: HIGH-002 - prevent path traversal)
+    if ! validate_index_path "$index_path"; then
+        log_error "Index path validation failed"
         exit 1
     fi
 
