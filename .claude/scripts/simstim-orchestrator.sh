@@ -623,11 +623,33 @@ save_interrupt() {
     if [[ -f "$STATE_FILE" ]]; then
         backup_state
 
+        local timestamp
+        timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
         local tmp_file="${STATE_FILE}.tmp"
-        jq '.state = "INTERRUPTED"' "$STATE_FILE" > "$tmp_file"
+        jq --arg ts "$timestamp" \
+            '.state = "INTERRUPTED" | .timestamps.interrupted = $ts | .timestamps.last_activity = $ts' \
+            "$STATE_FILE" > "$tmp_file"
         mv "$tmp_file" "$STATE_FILE"
 
         log_trajectory "workflow_interrupted" '{"reason": "signal"}'
+
+        # Also use simstim-state.sh for consistency
+        local state_script="$SCRIPT_DIR/simstim-state.sh"
+        if [[ -x "$state_script" ]]; then
+            "$state_script" save-interrupt >/dev/null 2>&1 || true
+        fi
+
+        echo "" >&2
+        echo "════════════════════════════════════════════════════════════" >&2
+        echo "     Workflow Interrupted" >&2
+        echo "════════════════════════════════════════════════════════════" >&2
+        echo "" >&2
+        echo "State saved to: .run/simstim-state.json" >&2
+        echo "" >&2
+        echo "To continue: /simstim --resume" >&2
+        echo "To abort:    /simstim --abort" >&2
+        echo "" >&2
     fi
 
     release_lock

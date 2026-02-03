@@ -126,22 +126,87 @@ Simstim tracks progress in `.run/simstim-state.json`:
 
 If your session is interrupted (timeout, Ctrl+C, etc.):
 
-1. State is automatically saved
+1. State is automatically saved to `.run/simstim-state.json`
 2. Run `/simstim --resume` to continue
 3. Artifact checksums are validated (detects manual edits)
 4. Workflow resumes from last incomplete phase
+
+**Example Resume Session:**
+```bash
+# Session interrupted during SDD creation
+# Later, in new session:
+/simstim --resume
+
+# Output:
+# ════════════════════════════════════════════════════════════
+#      Resuming Simstim Workflow
+# ════════════════════════════════════════════════════════════
+#
+# Simstim ID: simstim-20260203-abc123
+# Started: 2026-02-03T10:00:00Z
+# Last Activity: 2026-02-03T11:30:00Z
+#
+# Completed Phases:
+#   ✓ PREFLIGHT
+#   ✓ DISCOVERY (PRD created)
+#   ✓ FLATLINE PRD (3 integrated, 1 disputed)
+#
+# Resuming from: ARCHITECTURE
+# ════════════════════════════════════════════════════════════
+```
+
+### State File Location
+
+State is stored in `.run/simstim-state.json`:
+
+```json
+{
+  "simstim_id": "simstim-20260203-abc123",
+  "schema_version": 1,
+  "state": "RUNNING",
+  "phase": "architecture",
+  "timestamps": {
+    "started": "2026-02-03T10:00:00Z",
+    "last_activity": "2026-02-03T11:30:00Z"
+  },
+  "phases": {
+    "preflight": "completed",
+    "discovery": "completed",
+    "flatline_prd": "completed",
+    "architecture": "in_progress",
+    ...
+  },
+  "artifacts": {
+    "prd": {
+      "path": "grimoires/loa/prd.md",
+      "checksum": "sha256:abc123..."
+    }
+  }
+}
+```
 
 ### Artifact Drift Detection
 
 If you manually edit an artifact after completing a phase:
 
 ```
-Artifact [prd.md] has been modified since last session.
+⚠️ Artifact drift detected:
+
+prd.md (grimoires/loa/prd.md)
+  Expected: sha256:abc123...
+  Actual:   sha256:def456...
+
+This file was modified since the last session.
 
 [R]e-review with Flatline
 [C]ontinue without re-review
 [A]bort
 ```
+
+**Recommendations:**
+- Choose **Re-review** if you made substantive changes that need quality validation
+- Choose **Continue** for minor formatting or typo fixes
+- Choose **Abort** if you need to start fresh
 
 ## Error Recovery
 
@@ -236,6 +301,45 @@ Flatline API issues. Options:
 - Wait and retry
 - Continue without Flatline review (quality risk)
 - Check API keys and network
+
+### Resume Issues
+
+**"No state file found"**
+
+Cannot resume - no previous workflow exists:
+```bash
+# Start a new workflow instead
+/simstim
+```
+
+**"Schema version mismatch"**
+
+State file from older Loa version. Automatic migration attempted:
+```bash
+# If migration fails, start fresh
+/simstim --abort
+/simstim
+```
+
+**"State conflict detected"**
+
+A previous workflow exists. Options:
+```bash
+# Continue the existing workflow
+/simstim --resume
+
+# Or abandon and start fresh
+/simstim --abort
+/simstim
+```
+
+**"Implementation incomplete"**
+
+Previous `/run sprint-plan` hit a circuit breaker. On resume:
+```bash
+# Will invoke /run-resume instead of fresh /run sprint-plan
+/simstim --resume
+```
 
 ## Related Commands
 
