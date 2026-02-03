@@ -49,15 +49,20 @@ log_debug() {
 }
 
 # Retry with exponential backoff (Flatline IMP-003)
+# H-1 fix: Use array-based execution to avoid bash -c string injection
+# Usage: retry_with_backoff output_file cmd [args...]
 retry_with_backoff() {
-  local cmd="$1"
+  local output_file="$1"
+  shift
+  local -a cmd_array=("$@")
   local attempt=1
 
   while (( attempt <= MAX_ATTEMPTS )); do
-    log_debug "Attempt $attempt/$MAX_ATTEMPTS: $cmd"
+    log_debug "Attempt $attempt/$MAX_ATTEMPTS: ${cmd_array[*]}"
 
     local result=0
-    if timeout "$TIMEOUT_PER_ATTEMPT" bash -c "$cmd" 2>/dev/null; then
+    # Execute command array directly, redirect output to file
+    if timeout "$TIMEOUT_PER_ATTEMPT" "${cmd_array[@]}" > "$output_file" 2>/dev/null; then
       return 0
     else
       result=$?
@@ -159,10 +164,9 @@ fetch_pr_metadata() {
 
   log_info "Fetching PR #$number from $owner/$repo"
 
-  # Fetch with retry
-  local gh_cmd="gh pr view $number --repo $owner/$repo --json number,title,body,files,additions,deletions,changedFiles,baseRefName,headRefName,state"
-
-  if retry_with_backoff "$gh_cmd > '$output_file'"; then
+  # Fetch with retry - H-1 fix: use array-based execution
+  if retry_with_backoff "$output_file" gh pr view "$number" --repo "$owner/$repo" \
+      --json number,title,body,files,additions,deletions,changedFiles,baseRefName,headRefName,state; then
     log_info "PR metadata fetched successfully"
     return 0
   else

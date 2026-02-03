@@ -413,6 +413,8 @@ validate_scanned_paths() {
     local valid_files=()
 
     for path in "${FILES_TO_ARCHIVE[@]:-}"; do
+        # Skip empty paths
+        [[ -z "$path" ]] && continue
         if validate_single_path "$path"; then
             valid_files+=("$path")
         else
@@ -420,7 +422,12 @@ validate_scanned_paths() {
         fi
     done
 
-    FILES_TO_ARCHIVE=("${valid_files[@]:-}")
+    # Reset array - use proper empty array syntax when no valid files
+    if [[ ${#valid_files[@]} -eq 0 ]]; then
+        FILES_TO_ARCHIVE=()
+    else
+        FILES_TO_ARCHIVE=("${valid_files[@]}")
+    fi
 }
 
 validate_single_path() {
