@@ -455,32 +455,24 @@ test_result_handler_autonomous_high_consensus() {
 
     cd "$TEST_DIR"
 
-    # Create a mock result with HIGH_CONSENSUS item
+    # Create a mock result with HIGH_CONSENSUS item (flat structure expected by handler)
     local mock_result
     mock_result=$(cat <<'EOF'
 {
-    "consensus": {
-        "high_consensus": [
-            {
-                "id": "IMP-001",
-                "description": "Add security section",
-                "gpt_score": 850,
-                "opus_score": 920,
-                "action": "append_section",
-                "target_section": "## Requirements",
-                "content": "### Security\n- Use HTTPS\n- Validate inputs"
-            }
-        ],
-        "disputed": [],
-        "blockers": [],
-        "low_value": []
-    },
-    "metrics": {
-        "total": 1,
-        "high_consensus": 1,
-        "disputed": 0,
-        "blockers": 0
-    }
+    "high_consensus": [
+        {
+            "id": "IMP-001",
+            "description": "Add security section",
+            "gpt_score": 850,
+            "opus_score": 920,
+            "action": "append_section",
+            "target_section": "## Requirements",
+            "content": "### Security\n- Use HTTPS\n- Validate inputs"
+        }
+    ],
+    "disputed": [],
+    "blockers": [],
+    "low_value": []
 }
 EOF
 )
@@ -527,30 +519,22 @@ test_result_handler_blocker_halt() {
 
     cd "$TEST_DIR"
 
-    # Create mock result with BLOCKER
+    # Create mock result with BLOCKER (flat structure expected by handler)
     local mock_result
     mock_result=$(cat <<'EOF'
 {
-    "consensus": {
-        "high_consensus": [],
-        "disputed": [],
-        "blockers": [
-            {
-                "id": "SKP-001",
-                "description": "Missing authentication requirements",
-                "severity": "CRITICAL",
-                "skeptic_score": 850,
-                "source": "gpt_skeptic"
-            }
-        ],
-        "low_value": []
-    },
-    "metrics": {
-        "total": 1,
-        "high_consensus": 0,
-        "disputed": 0,
-        "blockers": 1
-    }
+    "high_consensus": [],
+    "disputed": [],
+    "blockers": [
+        {
+            "id": "SKP-001",
+            "description": "Missing authentication requirements",
+            "severity": "CRITICAL",
+            "skeptic_score": 850,
+            "source": "gpt_skeptic"
+        }
+    ],
+    "low_value": []
 }
 EOF
 )

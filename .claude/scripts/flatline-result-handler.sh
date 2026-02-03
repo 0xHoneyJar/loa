@@ -380,8 +380,10 @@ process_blockers() {
 
     log "Processing BLOCKER items (action: $action)"
 
-    # Safe iteration
-    echo "$items_json" | jq -c '.[]' 2>/dev/null | while IFS= read -r item; do
+    # L-5 FIX: Use process substitution instead of pipeline to preserve return values
+    local should_halt=false
+    while IFS= read -r item; do
+        [[ -z "$item" ]] && continue
         ((count++)) || true
 
         local item_id
@@ -395,7 +397,8 @@ process_blockers() {
                 error "BLOCKER triggered halt: $item_id (severity: $severity)"
                 "$MANIFEST_SCRIPT" add-blocker "$run_id" --item "$item" 2>/dev/null || true
                 log_trajectory "blocker_halt" "$item"
-                return 1
+                should_halt=true
+                break
                 ;;
             log)
                 warn "BLOCKER (logged): $item_id (severity: $severity)"
@@ -407,10 +410,15 @@ process_blockers() {
                 log_trajectory "blocker_continued" "$item"
                 ;;
         esac
-    done
+    done < <(echo "$items_json" | jq -c '.[]' 2>/dev/null)
 
     log "BLOCKER: $count total"
     echo "$count"
+
+    # Return 1 if halt was triggered
+    if [[ "$should_halt" == "true" ]]; then
+        return 1
+    fi
 }
 
 process_low_value() {
