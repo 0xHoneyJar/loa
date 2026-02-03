@@ -293,7 +293,8 @@ This phase delegates to the run-mode skill for autonomous implementation.
 
 3. After run-mode completes, check result:
    - Read `.run/state.json` for final state
-   - If state = "JACKED_OUT": Implementation complete
+   - If state = "JACKED_OUT": Implementation complete (no post-PR validation)
+   - If state = "READY_FOR_HITL": Post-PR validation complete, proceed to Phase 8
    - If state = "HALTED": Mark as "incomplete", inform user of `/run-resume`
 
 4. Update simstim state:
@@ -301,8 +302,65 @@ This phase delegates to the run-mode skill for autonomous implementation.
    .claude/scripts/simstim-orchestrator.sh --update-phase implementation [completed|incomplete]
    ```
 
-Proceed to Phase 8.
+Proceed to Phase 7.5 (if post-PR validation ran) or Phase 8.
 </phase_7_implementation>
+
+---
+
+<phase_7_5_post_pr_validation>
+### Phase 7.5: POST-PR VALIDATION [7.5/8] (v1.25.0)
+
+Display: `[7.5/8] POST-PR VALIDATION - Fresh-eyes review...`
+
+**This phase runs automatically via post-pr-orchestrator.sh when `post_pr_validation.enabled: true`.**
+
+The post-PR validation loop includes:
+
+1. **POST_PR_AUDIT**: Consolidated audit on PR changes
+   - Auto-fixable issues enter fix loop (max 5 iterations)
+   - Circuit breaker: same finding 3x = escalate
+   - Creates `.PR-AUDITED` marker
+
+2. **CONTEXT_CLEAR**: Checkpoint and fresh context
+   - Saves checkpoint to NOTES.md Session Continuity
+   - Logs to trajectory JSONL
+   - Displays instructions:
+     ```
+     To continue with fresh-eyes E2E testing:
+       1. Run: /clear
+       2. Run: /simstim --resume
+     ```
+
+3. **E2E_TESTING**: Fresh-eyes testing
+   - Runs build and tests with clean context
+   - Fix loop for failures (max 3 iterations)
+   - Circuit breaker: same failure 2x = escalate
+   - Creates `.PR-E2E-PASSED` marker
+
+4. **FLATLINE_PR** (optional): Multi-model PR review
+   - Runs if `flatline_review.enabled: true`
+   - Cost: ~$1.50
+   - Uses HITL mode (blockers prompt user, not auto-halt)
+   - Creates `.PR-VALIDATED` marker
+
+**Resume from context clear:**
+
+When user runs `/simstim --resume` after context clear:
+
+```bash
+# Check post-PR state
+current_phase=$(post-pr-state.sh get state)
+if [[ "$current_phase" == "CONTEXT_CLEAR" ]]; then
+  # Continue from E2E_TESTING
+  post-pr-orchestrator.sh --resume --pr-url "$PR_URL"
+fi
+```
+
+**Final states:**
+- `READY_FOR_HITL`: All validations passed, PR ready for human review
+- `HALTED`: Validation failed, check `halt_reason` field
+
+</phase_7_5_post_pr_validation>
 
 ---
 

@@ -90,8 +90,31 @@ while circuit_breaker.state == CLOSED:
   7. If COMPLETED → break
 
 Create draft PR
-Update state to JACKED_OUT
+Invoke Post-PR Validation (if enabled)
+Update state to READY_FOR_HITL or JACKED_OUT
 ```
+
+**Post-PR Validation (v1.25.0):**
+
+After PR creation, check `post_pr_validation.enabled` in `.loa.config.yaml`:
+
+```
+if post_pr_validation.enabled:
+  1. Invoke: post-pr-orchestrator.sh --pr-url <url> --mode autonomous
+  2. On SUCCESS (exit 0) → state = READY_FOR_HITL
+  3. On HALTED (exit 2-5) → state = HALTED, create [INCOMPLETE] PR note
+else:
+  state = JACKED_OUT
+```
+
+The post-PR validation loop runs:
+- **POST_PR_AUDIT**: Consolidated PR audit with fix loop
+- **CONTEXT_CLEAR**: Save checkpoint, prompt user to /clear
+- **E2E_TESTING**: Fresh-eyes testing with fix loop
+- **FLATLINE_PR**: Optional multi-model review (~$1.50)
+- **READY_FOR_HITL**: All validations complete
+
+See `grimoires/loa/prd-post-pr-validation.md` for full specification.
 
 **Sprint Plan Execution Loop (`/run sprint-plan`):**
 ```
@@ -114,7 +137,8 @@ Create SINGLE consolidated draft PR with all sprints
   - Summary table showing per-sprint breakdown
   - Commits grouped by sprint
   - Deleted files section
-Update state to JACKED_OUT
+Invoke Post-PR Validation (if enabled)
+Update state to READY_FOR_HITL or JACKED_OUT
 ```
 
 **Consolidated PR (Default - v1.15.1):**
