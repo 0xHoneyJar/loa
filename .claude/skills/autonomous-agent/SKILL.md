@@ -287,9 +287,48 @@ VERIFY PRD contains:
 - [ ] Risks with mitigations
 ```
 
+### 1.4 Flatline PRD Review (v1.22.0)
+
+**Purpose:** Adversarial multi-model review of PRD before proceeding to Design.
+
+```markdown
+IF flatline_protocol.enabled AND autonomous_mode.enabled:
+  1. Execute Flatline Protocol on PRD:
+     ```bash
+     result=$(.claude/scripts/flatline-orchestrator.sh \
+         --doc grimoires/loa/prd.md \
+         --phase prd \
+         --autonomous \
+         --run-id "$run_id" \
+         --json)
+     ```
+
+  2. Handle results per autonomous_mode.actions:
+     ```bash
+     .claude/scripts/flatline-result-handler.sh \
+         --mode autonomous \
+         --result "$result" \
+         --document grimoires/loa/prd.md \
+         --phase prd \
+         --run-id "$run_id"
+     ```
+
+  3. Exit code handling:
+     - 0: Continue to Phase 2
+     - 1: BLOCKER halt → Generate escalation, STOP workflow
+     - 4: Disputed threshold → Generate escalation, STOP workflow
+
+  4. Log summary to NOTES.md:
+     "Flatline PRD Review: {N} integrated, {M} disputed, {K} blockers"
+
+ELSE:
+  Skip Flatline review, log "Flatline disabled for PRD phase"
+```
+
 ### Exit Criteria
 - [ ] PRD complete and verified
 - [ ] All claims grounded (file:line or [ASSUMPTION])
+- [ ] Flatline review passed (if enabled)
 - [ ] Trajectory logged
 </phase_1_discovery>
 
@@ -321,7 +360,42 @@ VERIFY PRD contains:
    - Dependencies mapped
 ```
 
-### 2.3 Design Review
+### 2.3 Flatline SDD Review (v1.22.0)
+
+**Purpose:** Adversarial multi-model review of SDD before sprint planning execution.
+
+```markdown
+IF flatline_protocol.enabled AND autonomous_mode.enabled:
+  1. Execute Flatline Protocol on SDD:
+     ```bash
+     result=$(.claude/scripts/flatline-orchestrator.sh \
+         --doc grimoires/loa/sdd.md \
+         --phase sdd \
+         --autonomous \
+         --run-id "$run_id" \
+         --json)
+     ```
+
+  2. Handle results per autonomous_mode.actions:
+     ```bash
+     .claude/scripts/flatline-result-handler.sh \
+         --mode autonomous \
+         --result "$result" \
+         --document grimoires/loa/sdd.md \
+         --phase sdd \
+         --run-id "$run_id"
+     ```
+
+  3. Exit code handling:
+     - 0: Continue to Sprint review
+     - 1: BLOCKER halt → Generate escalation, STOP workflow
+     - 4: Disputed threshold → Generate escalation, STOP workflow
+
+ELSE:
+  Skip Flatline review, log "Flatline disabled for SDD phase"
+```
+
+### 2.4 Design Review
 
 ```markdown
 VERIFY:
@@ -331,9 +405,46 @@ VERIFY:
 - [ ] No circular dependencies
 ```
 
+### 2.5 Flatline Sprint Review (v1.22.0)
+
+**Purpose:** Adversarial multi-model review of sprint plan before implementation.
+
+```markdown
+IF flatline_protocol.enabled AND autonomous_mode.enabled:
+  1. Execute Flatline Protocol on sprint plan:
+     ```bash
+     result=$(.claude/scripts/flatline-orchestrator.sh \
+         --doc grimoires/loa/sprint.md \
+         --phase sprint \
+         --autonomous \
+         --run-id "$run_id" \
+         --json)
+     ```
+
+  2. Handle results per autonomous_mode.actions:
+     ```bash
+     .claude/scripts/flatline-result-handler.sh \
+         --mode autonomous \
+         --result "$result" \
+         --document grimoires/loa/sprint.md \
+         --phase sprint \
+         --run-id "$run_id"
+     ```
+
+  3. Exit code handling:
+     - 0: Continue to Phase 3 (Implementation)
+     - 1: BLOCKER halt → Generate escalation, STOP workflow
+     - 4: Disputed threshold → Generate escalation, STOP workflow
+
+ELSE:
+  Skip Flatline review, log "Flatline disabled for sprint phase"
+```
+
 ### Exit Criteria
 - [ ] SDD complete
 - [ ] Sprint plan ready
+- [ ] Flatline SDD review passed (if enabled)
+- [ ] Flatline Sprint review passed (if enabled)
 - [ ] Design traces to requirements
 </phase_2_design>
 
@@ -664,6 +775,79 @@ Review execution:
 - [ ] Work item marked complete
 - [ ] Ready for next cycle
 </phase_7_learning>
+
+<resume_support>
+## Resume Support (v1.22.0)
+
+The `/autonomous --resume` flag enables resumption of workflows halted by Flatline BLOCKER items.
+
+### Resume Detection
+
+```bash
+IF --resume flag provided:
+  1. Check for pending escalation report:
+     ```bash
+     escalation=$(.claude/scripts/flatline-escalation.sh list | jq '.[0]')
+     ```
+
+  2. IF escalation exists:
+     - Extract run_id, phase, halted_at
+     - Validate blocker concerns addressed
+     - Resume from last completed phase
+
+  3. IF no escalation:
+     - Check NOTES.md for "Flatline Halt" section
+     - Resume from last checkpoint
+```
+
+### Resume Workflow
+
+```markdown
+1. Load escalation report:
+   - run_id: Original Flatline run ID
+   - phase: Phase where halt occurred (prd, sdd, sprint)
+   - blockers: List of BLOCKER items that caused halt
+
+2. Validate blockers addressed:
+   FOR each blocker IN escalation.blockers:
+     - Re-run Flatline on affected document
+     - Verify blocker concern resolved
+     - IF still present: HALT with "Blocker not addressed: {id}"
+
+3. Resume execution:
+   CASE phase:
+     "prd":  Resume from Phase 1.4 (Flatline PRD Review)
+     "sdd":  Resume from Phase 2.3 (Flatline SDD Review)
+     "sprint": Resume from Phase 2.5 (Flatline Sprint Review)
+
+4. Log resume event:
+   ```json
+   {
+     "type": "flatline_resume",
+     "original_run_id": "{run_id}",
+     "phase": "{phase}",
+     "blockers_resolved": N,
+     "timestamp": "{ISO8601}"
+   }
+   ```
+```
+
+### Resume Command
+
+```bash
+# Resume from Flatline halt
+/autonomous --resume
+
+# Resume with specific escalation
+/autonomous --resume --run-id flatline-run-abc123
+```
+
+### Exit Criteria for Resume
+- [ ] Escalation report found and loaded
+- [ ] All blocker concerns addressed
+- [ ] Workflow resumed from correct phase
+- [ ] Resume event logged to trajectory
+</resume_support>
 
 <attention_budget>
 ## Attention Budget
