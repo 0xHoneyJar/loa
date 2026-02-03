@@ -219,8 +219,12 @@ acquire_lock() {
             log_trajectory "lock_acquired" "$(cat "$info_path")"
             return 0
         else
-            # H-1 FIX: Close file descriptor on timeout to prevent FD leak
-            exec 200>&- 2>/dev/null || true
+            # SIMSTIM-H-1 FIX: Close file descriptor on timeout to prevent FD leak
+            # Log close failure for debugging instead of silent suppression
+            local fd_close_error
+            fd_close_error=$(exec 200>&- 2>&1) || {
+                warn "FD close warning: ${fd_close_error:-close returned non-zero}"
+            }
             log "Lock acquisition timed out: $resource"
             log_trajectory "lock_timeout" "{\"resource\": \"$resource\", \"type\": \"$lock_type\", \"timeout\": $timeout}"
             return 1

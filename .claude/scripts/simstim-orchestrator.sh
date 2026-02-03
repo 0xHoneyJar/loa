@@ -105,28 +105,51 @@ is_enabled() {
 # =============================================================================
 # Lock Management (Concurrent Execution Prevention)
 # =============================================================================
+# SIMSTIM-M-3 FIX: Use atomic mkdir for lock acquisition to prevent race conditions
+
+LOCK_DIR="${LOCK_FILE}.d"
 
 acquire_lock() {
     mkdir -p "$(dirname "$LOCK_FILE")"
 
-    # Check for stale lock
+    # Atomic lock acquisition using mkdir (atomic on POSIX systems)
+    if mkdir "$LOCK_DIR" 2>/dev/null; then
+        # Successfully acquired lock, record PID
+        echo $$ > "$LOCK_FILE"
+        return 0
+    fi
+
+    # mkdir failed - check if it's our own stale lock or another process
     if [[ -f "$LOCK_FILE" ]]; then
         local lock_pid
         lock_pid=$(cat "$LOCK_FILE" 2>/dev/null || echo "")
+
+        # Check if the process is still running
         if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
             error "Another simstim session is running (PID: $lock_pid)"
-            error "If this is incorrect, remove $LOCK_FILE manually"
+            error "If this is incorrect, run: /simstim --abort"
             return 1
         fi
-        # Stale lock, remove it
+
+        # Stale lock from dead process - clean up and retry once
+        log "Cleaning up stale lock from PID $lock_pid"
         rm -f "$LOCK_FILE"
+        rmdir "$LOCK_DIR" 2>/dev/null || true
+
+        # Retry atomic acquisition
+        if mkdir "$LOCK_DIR" 2>/dev/null; then
+            echo $$ > "$LOCK_FILE"
+            return 0
+        fi
     fi
 
-    echo $$ > "$LOCK_FILE"
+    error "Failed to acquire lock (race condition or permission issue)"
+    return 1
 }
 
 release_lock() {
     rm -f "$LOCK_FILE"
+    rmdir "$LOCK_DIR" 2>/dev/null || true
 }
 
 # =============================================================================
@@ -153,6 +176,7 @@ create_initial_state() {
     timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
     # Determine starting phase and skip prior phases
+    # SIMSTIM-M-1 FIX: Add default case to reject unknown phase values
     local start_index=0
     if [[ -n "$from_phase" ]]; then
         case "$from_phase" in
@@ -160,6 +184,11 @@ create_initial_state() {
             architect|architecture) start_index=3 ;;
             sprint-plan|planning) start_index=5 ;;
             run|implementation) start_index=7 ;;
+            *)
+                error "Unknown phase: $from_phase"
+                error "Valid phases: plan-and-analyze, architect, sprint-plan, run"
+                exit 3
+                ;;
         esac
     fi
 
@@ -380,6 +409,15 @@ preflight() {
                     exit 3
                 fi
                 ;;
+            plan-and-analyze|discovery)
+                # No prerequisites
+                ;;
+            # SIMSTIM-M-1 FIX: Reject unknown phases in prerequisite check
+            *)
+                error "Unknown phase: $from_phase"
+                error "Valid phases: plan-and-analyze, architect, sprint-plan, run"
+                exit 3
+                ;;
         esac
     fi
 
@@ -387,11 +425,16 @@ preflight() {
     if [[ "$dry_run" == "true" ]]; then
         local start_index=0
         if [[ -n "$from_phase" ]]; then
+            # SIMSTIM-M-1 FIX: Validate phase values
             case "$from_phase" in
                 plan-and-analyze|discovery) start_index=1 ;;
                 architect|architecture) start_index=3 ;;
                 sprint-plan|planning) start_index=5 ;;
                 run|implementation) start_index=7 ;;
+                *)
+                    error "Unknown phase: $from_phase"
+                    exit 3
+                    ;;
             esac
         fi
 
@@ -531,8 +574,9 @@ log_blocker_override() {
     local timestamp
     timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-    # Sanitize rationale (basic XSS prevention, remove control chars)
-    rationale=$(echo "$rationale" | tr -d '\000-\037')
+    # SIMSTIM-M-2 FIX: Sanitize rationale with length limit
+    # Remove control characters and limit to 1000 chars to prevent DoS/log bloat
+    rationale=$(echo "$rationale" | tr -d '\000-\037' | head -c 1000)
 
     # Add to state file
     local tmp_file="${STATE_FILE}.tmp"
