@@ -494,6 +494,66 @@ update_flatline_metrics() {
 }
 
 # =============================================================================
+# Blocker Override Logging
+# =============================================================================
+
+# Log a blocker override decision with rationale
+# Called when user chooses to override a BLOCKER in HITL mode
+log_blocker_override() {
+    local blocker_id=""
+    local decision=""
+    local rationale=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --blocker-id) blocker_id="$2"; shift 2 ;;
+            --decision) decision="$2"; shift 2 ;;
+            --rationale) rationale="$2"; shift 2 ;;
+            *) shift ;;
+        esac
+    done
+
+    if [[ -z "$blocker_id" || -z "$decision" ]]; then
+        error "--blocker-id and --decision required"
+        exit 3
+    fi
+
+    if [[ "$decision" == "override" && -z "$rationale" ]]; then
+        error "--rationale required for override decision"
+        exit 3
+    fi
+
+    if [[ ! -f "$STATE_FILE" ]]; then
+        error "No state file found"
+        exit 1
+    fi
+
+    local timestamp
+    timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+    # Sanitize rationale (basic XSS prevention, remove control chars)
+    rationale=$(echo "$rationale" | tr -d '\000-\037')
+
+    # Add to state file
+    local tmp_file="${STATE_FILE}.tmp"
+    jq --arg id "$blocker_id" --arg decision "$decision" --arg rationale "$rationale" --arg ts "$timestamp" \
+        '.blocker_decisions += [{id: $id, decision: $decision, rationale: $rationale, timestamp: $ts}]' \
+        "$STATE_FILE" > "$tmp_file"
+    mv "$tmp_file" "$STATE_FILE"
+
+    # Log to trajectory
+    log_trajectory "blocker_override" "$(jq -n \
+        --arg id "$blocker_id" \
+        --arg decision "$decision" \
+        --arg rationale "$rationale" \
+        --arg timestamp "$timestamp" \
+        '{blocker_id: $id, decision: $decision, rationale: $rationale, timestamp: $timestamp}')"
+
+    log "Blocker $blocker_id: $decision (rationale: ${rationale:0:50}...)"
+    echo '{"logged": true}'
+}
+
+# =============================================================================
 # Completion
 # =============================================================================
 
@@ -616,6 +676,9 @@ main() {
             ;;
         --check-drift)
             check_artifact_drift
+            ;;
+        --log-blocker-override)
+            log_blocker_override "$@"
             ;;
         --cleanup)
             rm -f "$STATE_FILE" "$STATE_BACKUP" "$LOCK_FILE"

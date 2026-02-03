@@ -121,7 +121,18 @@ Display: `[2/8] FLATLINE PRD - Multi-model adversarial review...`
    Severity: [score]
    [O]verride (requires rationale) / [R]eject / [D]efer?
    ```
-   If Override: Record rationale in trajectory log.
+
+   **BLOCKER Override Handling:**
+   - If Override: REQUIRE user to provide rationale
+   - Log override to trajectory:
+     ```bash
+     .claude/scripts/simstim-orchestrator.sh --log-blocker-override \
+         --blocker-id "[id]" \
+         --decision "override" \
+         --rationale "[user rationale]"
+     ```
+   - If Reject: Mark blocker as rejected, continue to next
+   - If Defer: Add to deferred list in state for post-implementation review
 
 5. Update state with metrics:
    ```bash

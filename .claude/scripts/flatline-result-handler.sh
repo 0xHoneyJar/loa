@@ -2,11 +2,16 @@
 # =============================================================================
 # flatline-result-handler.sh - Mode-aware result handler for Flatline Protocol
 # =============================================================================
-# Version: 1.0.0
-# Part of: Autonomous Flatline Integration v1.22.0
+# Version: 1.1.0
+# Part of: Autonomous Flatline Integration v1.22.0, Simstim v1.24.0
 #
 # Processes Flatline Protocol results based on execution mode and configuration.
 # Handles HIGH_CONSENSUS, DISPUTED, BLOCKER, and LOW_VALUE items appropriately.
+#
+# Modes:
+#   interactive - Present all findings to user
+#   autonomous  - HIGH_CONSENSUS integrates, BLOCKER halts, DISPUTED logs
+#   hitl        - HIGH_CONSENSUS integrates, DISPUTED/BLOCKER prompt user (no halt)
 #
 # Usage:
 #   flatline-result-handler.sh --mode <mode> --result <json> --document <path> \
@@ -14,10 +19,10 @@
 #
 # Exit codes:
 #   0 - Success (all actions completed)
-#   1 - Blocker halt (BLOCKER item triggered halt)
+#   1 - Blocker halt (BLOCKER item triggered halt - autonomous mode only)
 #   2 - Resource not found
 #   3 - Invalid arguments
-#   4 - Disputed threshold exceeded
+#   4 - Disputed threshold exceeded (autonomous mode only)
 #   5 - Integration failure
 # =============================================================================
 
@@ -93,9 +98,17 @@ read_config() {
     echo "$default"
 }
 
+# Global variable for current mode (set by main)
+CURRENT_MODE=""
+
 get_action() {
     local category="$1"
-    read_config ".autonomous_mode.actions.$category" "$(get_default_action "$category")"
+    # In HITL mode, use HITL-specific defaults
+    if [[ "$CURRENT_MODE" == "hitl" ]]; then
+        echo "$(get_hitl_action "$category")"
+    else
+        read_config ".autonomous_mode.actions.$category" "$(get_default_action "$category")"
+    fi
 }
 
 get_default_action() {
@@ -104,6 +117,18 @@ get_default_action() {
         high_consensus) echo "integrate" ;;
         disputed) echo "log" ;;
         blocker) echo "halt" ;;
+        low_value) echo "skip" ;;
+        *) echo "skip" ;;
+    esac
+}
+
+# HITL mode actions: HIGH_CONSENSUS integrates, DISPUTED/BLOCKER prompt user
+get_hitl_action() {
+    local category="$1"
+    case "$category" in
+        high_consensus) echo "integrate" ;;
+        disputed) echo "prompt" ;;
+        blocker) echo "prompt" ;;  # NOT halt - let human decide
         low_value) echo "skip" ;;
         *) echo "skip" ;;
     esac
@@ -343,6 +368,13 @@ process_disputed() {
                 "$MANIFEST_SCRIPT" add-disputed "$run_id" --item "$item" 2>/dev/null || true
                 return 4
                 ;;
+            prompt)
+                # HITL mode: collect for Claude to present to user
+                log "DISPUTED (prompt): $item_id"
+                "$MANIFEST_SCRIPT" add-disputed "$run_id" --item "$item" 2>/dev/null || true
+                log_trajectory "disputed_prompt" "$item"
+                # Item will be returned in JSON response for Claude to present
+                ;;
             log)
                 log "DISPUTED (logged): $item_id"
                 "$MANIFEST_SCRIPT" add-disputed "$run_id" --item "$item" 2>/dev/null || true
@@ -400,6 +432,14 @@ process_blockers() {
                 should_halt=true
                 break
                 ;;
+            prompt)
+                # HITL mode: present to user for decision (do NOT halt)
+                warn "BLOCKER (prompt): $item_id (severity: $severity)"
+                "$MANIFEST_SCRIPT" add-blocker "$run_id" --item "$item" 2>/dev/null || true
+                log_trajectory "blocker_prompt" "$item"
+                # Item will be returned in JSON response for Claude to present
+                # User decides: Override (with rationale) / Reject / Defer
+                ;;
             log)
                 warn "BLOCKER (logged): $item_id (severity: $severity)"
                 "$MANIFEST_SCRIPT" add-blocker "$run_id" --item "$item" 2>/dev/null || true
@@ -444,6 +484,113 @@ process_low_value() {
     done
 
     log "LOW_VALUE: $count discarded"
+}
+
+# =============================================================================
+# HITL Mode Handler
+# =============================================================================
+
+# Handle results in HITL mode:
+# - HIGH_CONSENSUS: auto-integrate (no user prompt)
+# - DISPUTED: return for user decision
+# - BLOCKER: return for user decision (NOT halt)
+# - LOW_VALUE: skip silently
+handle_hitl_results() {
+    local run_id="$1"
+    local document="$2"
+    local phase="$3"
+    local doc_hash="$4"
+    local high_consensus="$5"
+    local disputed="$6"
+    local blockers="$7"
+    local low_value="$8"
+    local total_high="$9"
+    local total_disputed="${10}"
+    local total_blockers="${11}"
+
+    local integrated=0
+    local items_for_user=()
+
+    # Auto-integrate HIGH_CONSENSUS items
+    if [[ $total_high -gt 0 ]]; then
+        log "HITL: Auto-integrating $total_high HIGH_CONSENSUS items"
+        integrated=$(process_high_consensus "$run_id" "$document" "$high_consensus" "$doc_hash")
+    fi
+
+    # Skip LOW_VALUE silently
+    process_low_value "$low_value"
+
+    # Build response with items for user decision
+    local disputed_items="[]"
+    local blocker_items="[]"
+
+    if [[ $total_disputed -gt 0 ]]; then
+        # Format disputed items for user presentation
+        disputed_items=$(echo "$disputed" | jq '[.[] | {
+            id: (.id // .item_id // "DISP-\(.)"),
+            type: "DISPUTED",
+            suggestion: (.suggestion // .text // .description // ""),
+            scores: {
+                gpt: (.gpt_score // .score_gpt // 0),
+                opus: (.opus_score // .score_opus // 0)
+            },
+            delta: ((.gpt_score // .score_gpt // 0) - (.opus_score // .score_opus // 0) | if . < 0 then . * -1 else . end)
+        }]')
+    fi
+
+    if [[ $total_blockers -gt 0 ]]; then
+        # Format blocker items for user presentation
+        blocker_items=$(echo "$blockers" | jq '[.[] | {
+            id: (.id // .item_id // "BLK-\(.)"),
+            type: "BLOCKER",
+            concern: (.concern // .text // .description // ""),
+            severity: (.severity // .skeptic_score // 0),
+            requires_rationale: true
+        }]')
+    fi
+
+    # Log HITL processing
+    log_trajectory "hitl_processing" "{\"integrated\": $integrated, \"disputed\": $total_disputed, \"blockers\": $total_blockers}"
+
+    # Update manifest
+    "$MANIFEST_SCRIPT" update "$run_id" --field status --value "hitl_pending" 2>/dev/null || true
+
+    # Return structured JSON for Claude to present to user
+    jq -n \
+        --arg run_id "$run_id" \
+        --arg phase "$phase" \
+        --arg document "$document" \
+        --argjson integrated "$integrated" \
+        --argjson disputed_count "$total_disputed" \
+        --argjson blocker_count "$total_blockers" \
+        --argjson disputed_items "$disputed_items" \
+        --argjson blocker_items "$blocker_items" \
+        '{
+            status: "hitl_pending",
+            mode: "hitl",
+            run_id: $run_id,
+            phase: $phase,
+            document: $document,
+            auto_integrated: {
+                count: $integrated,
+                message: "HIGH_CONSENSUS items auto-integrated"
+            },
+            requires_decision: {
+                disputed: $disputed_items,
+                blockers: $blocker_items
+            },
+            summary: {
+                integrated: $integrated,
+                disputed: $disputed_count,
+                blockers: $blocker_count
+            },
+            instructions: {
+                disputed: "For each DISPUTED item: [A]ccept / [R]eject / [S]kip",
+                blocker: "For each BLOCKER: [O]verride (requires rationale) / [R]eject / [D]efer"
+            }
+        }'
+
+    return 0
 }
 
 # =============================================================================
@@ -600,11 +747,20 @@ handle_results() {
 
     log "Items: HIGH=$total_high, DISPUTED=$total_disputed, BLOCKER=$total_blockers"
 
-    # Interactive mode: just report
+    # Interactive mode: just report all findings
     if [[ "$mode" == "interactive" ]]; then
         log "Interactive mode - presenting results for user review"
         echo "$result_json"
         return 0
+    fi
+
+    # HITL mode: auto-integrate HIGH_CONSENSUS, return DISPUTED/BLOCKER for user decision
+    if [[ "$mode" == "hitl" ]]; then
+        log "HITL mode - auto-integrating HIGH_CONSENSUS, collecting DISPUTED/BLOCKER for user"
+        handle_hitl_results "$run_id" "$document" "$phase" "$doc_hash" \
+            "$high_consensus" "$disputed" "$blockers" "$low_value" \
+            "$total_high" "$total_disputed" "$total_blockers"
+        return $?
     fi
 
     # Autonomous mode: process based on actions
@@ -676,23 +832,33 @@ usage() {
 Usage: flatline-result-handler.sh [options]
 
 Options:
-  --mode <mode>            Execution mode: interactive, autonomous (required)
+  --mode <mode>            Execution mode: interactive, autonomous, hitl (required)
   --result <json>          Flatline result JSON or path to JSON file (required)
   --document <path>        Document that was reviewed (required)
   --phase <type>           Phase: prd, sdd, sprint (required)
-  --run-id <id>            Run ID for manifest tracking (required for autonomous)
+  --run-id <id>            Run ID for manifest tracking (required for autonomous/hitl)
+
+Modes:
+  interactive   Present all findings to user
+  autonomous    HIGH_CONSENSUS integrates, BLOCKER halts, DISPUTED logs
+  hitl          HIGH_CONSENSUS integrates, DISPUTED/BLOCKER prompt user (no halt)
 
 Exit codes:
   0 - Success
-  1 - Blocker halt
+  1 - Blocker halt (autonomous mode only)
   2 - Resource not found
   3 - Invalid arguments
-  4 - Disputed threshold exceeded
+  4 - Disputed threshold exceeded (autonomous mode only)
   5 - Integration failure
 
 Examples:
+  # Autonomous mode
   flatline-result-handler.sh --mode autonomous --result result.json \\
       --document grimoires/loa/prd.md --phase prd --run-id flatline-run-abc123
+
+  # HITL mode (for /simstim)
+  flatline-result-handler.sh --mode hitl --result result.json \\
+      --document grimoires/loa/prd.md --phase prd --run-id simstim-run-abc123
 EOF
 }
 
@@ -761,6 +927,14 @@ main() {
         error "--run-id required for autonomous mode"
         exit 3
     fi
+
+    if [[ "$mode" == "hitl" && -z "$run_id" ]]; then
+        error "--run-id required for hitl mode"
+        exit 3
+    fi
+
+    # Set global mode for get_action() to use
+    CURRENT_MODE="$mode"
 
     # Load result JSON
     local result_json

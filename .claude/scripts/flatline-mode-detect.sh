@@ -2,10 +2,10 @@
 # =============================================================================
 # flatline-mode-detect.sh - Mode detection for Flatline Protocol
 # =============================================================================
-# Version: 1.0.0
-# Part of: Autonomous Flatline Integration v1.22.0
+# Version: 1.1.0
+# Part of: Autonomous Flatline Integration v1.22.0, Simstim v1.24.0
 #
-# Determines whether Flatline should operate in interactive or autonomous mode.
+# Determines whether Flatline should operate in interactive, autonomous, or hitl mode.
 # Implements hardened detection with strong vs weak signal distinction.
 #
 # Usage:
@@ -14,15 +14,17 @@
 # Options:
 #   --interactive      Force interactive mode
 #   --autonomous       Force autonomous mode
+#   --hitl             Force HITL mode (for /simstim)
 #   --json             Output as JSON (default: human-readable)
 #   --quiet            Suppress logging
 #
 # Precedence (highest to lowest):
-#   1. CLI flags (--interactive, --autonomous)
+#   1. CLI flags (--interactive, --autonomous, --hitl)
 #   2. Environment variable (LOA_FLATLINE_MODE)
-#   3. Config file (autonomous_mode.enabled)
-#   4. Auto-detection (strong signals only)
-#   5. Default (interactive)
+#   3. Simstim context (.run/simstim-state.json exists with state=RUNNING)
+#   4. Config file (autonomous_mode.enabled)
+#   5. Auto-detection (strong signals only)
+#   6. Default (interactive)
 #
 # Exit codes:
 #   0 - Success
@@ -35,6 +37,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 TRAJECTORY_DIR="$PROJECT_ROOT/grimoires/loa/a2a/trajectory"
+SIMSTIM_STATE="$PROJECT_ROOT/.run/simstim-state.json"
 
 # =============================================================================
 # Defaults
@@ -223,6 +226,24 @@ verify_autonomous_allowed() {
 }
 
 # =============================================================================
+# Simstim Context Detection
+# =============================================================================
+
+# Check if we're running within a simstim workflow
+# Returns 0 if simstim is active, 1 otherwise
+detect_simstim_context() {
+    if [[ -f "$SIMSTIM_STATE" ]]; then
+        local state
+        state=$(jq -r '.state // ""' "$SIMSTIM_STATE" 2>/dev/null)
+        if [[ "$state" == "RUNNING" ]]; then
+            log "Simstim context detected (state=RUNNING)"
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# =============================================================================
 # Mode Resolution
 # =============================================================================
 
@@ -238,7 +259,7 @@ resolve_mode() {
     # Priority 2: Environment variable
     if [[ -n "${LOA_FLATLINE_MODE:-}" ]]; then
         case "${LOA_FLATLINE_MODE}" in
-            "interactive"|"autonomous")
+            "interactive"|"autonomous"|"hitl")
                 MODE="$LOA_FLATLINE_MODE"
                 REASON="Environment variable LOA_FLATLINE_MODE=$LOA_FLATLINE_MODE"
                 ENV_VAR="$LOA_FLATLINE_MODE"
@@ -246,12 +267,20 @@ resolve_mode() {
                 return
                 ;;
             *)
-                warn "Invalid LOA_FLATLINE_MODE value: $LOA_FLATLINE_MODE (expected: interactive, autonomous)"
+                warn "Invalid LOA_FLATLINE_MODE value: $LOA_FLATLINE_MODE (expected: interactive, autonomous, hitl)"
                 ;;
         esac
     fi
 
-    # Priority 3: Config file
+    # Priority 3: Simstim context (implies HITL mode)
+    if detect_simstim_context; then
+        MODE="hitl"
+        REASON="Simstim workflow active (.run/simstim-state.json state=RUNNING)"
+        log "Mode resolved from simstim context: hitl"
+        return
+    fi
+
+    # Priority 4: Config file
     local config_enabled
     config_enabled=$(read_config '.autonomous_mode.enabled' 'false')
     CONFIG_VALUE="$config_enabled"
@@ -263,7 +292,7 @@ resolve_mode() {
         return
     fi
 
-    # Priority 4: Auto-detection (only for strong signals)
+    # Priority 5: Auto-detection (only for strong signals)
     local signals
     signals=$(detect_operator_type)
 
@@ -281,7 +310,7 @@ resolve_mode() {
         warn "Set autonomous_mode.enabled: true in .loa.config.yaml to enable"
     fi
 
-    # Priority 5: Default to interactive
+    # Priority 6: Default to interactive
     MODE="interactive"
     REASON="Default (no explicit mode specified)"
     log "Mode defaulted to interactive"
@@ -356,6 +385,10 @@ main() {
                 ;;
             --autonomous)
                 CLI_FLAG="autonomous"
+                shift
+                ;;
+            --hitl)
+                CLI_FLAG="hitl"
                 shift
                 ;;
             --json)
