@@ -26,7 +26,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Use realpath for PROJECT_ROOT to ensure consistent case on macOS (issue #150)
+PROJECT_ROOT="$(realpath "$(cd "$SCRIPT_DIR/../.." && pwd)" 2>/dev/null || cd "$SCRIPT_DIR/../.." && pwd)"
 TRAJECTORY_DIR="$PROJECT_ROOT/grimoires/loa/a2a/trajectory"
 
 # Maximum file size (10MB)

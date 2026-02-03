@@ -28,7 +28,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Use realpath for PROJECT_ROOT to ensure consistent case on macOS (issue #150)
+PROJECT_ROOT="$(realpath "$(cd "$SCRIPT_DIR/../.." && pwd)" 2>/dev/null || cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 SNAPSHOT_DIR="$PROJECT_ROOT/.flatline/snapshots"
 REFS_DIR="$SNAPSHOT_DIR/.refs"
