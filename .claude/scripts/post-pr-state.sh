@@ -453,22 +453,23 @@ cmd_set() {
   # Create backup
   create_backup
 
-  # Update field
+  # Update field (H-2 fix: use --arg for safe value injection)
   local jq_path=".$field"
   local ts
   ts=$(timestamp)
 
-  # Determine if value is a number, boolean, or string
-  local jq_value
-  if [[ "$value" =~ ^[0-9]+$ ]]; then
-    jq_value="$value"
+  # Use jq --arg for safe string interpolation (prevents jq injection)
+  # Determine if value is a number or boolean for proper JSON typing
+  if [[ "$value" =~ ^-?[0-9]+$ ]]; then
+    # Numeric value - use --argjson for proper JSON number
+    jq --argjson val "$value" --arg ts "$ts" "$jq_path = \$val | .timestamps.last_activity = \$ts" "$STATE_FILE" > "${STATE_FILE}.tmp"
   elif [[ "$value" == "true" ]] || [[ "$value" == "false" ]]; then
-    jq_value="$value"
+    # Boolean value - use --argjson for proper JSON boolean
+    jq --argjson val "$value" --arg ts "$ts" "$jq_path = \$val | .timestamps.last_activity = \$ts" "$STATE_FILE" > "${STATE_FILE}.tmp"
   else
-    jq_value="\"$value\""
+    # String value - use --arg for safe string injection
+    jq --arg val "$value" --arg ts "$ts" "$jq_path = \$val | .timestamps.last_activity = \$ts" "$STATE_FILE" > "${STATE_FILE}.tmp"
   fi
-
-  jq "$jq_path = $jq_value | .timestamps.last_activity = \"$ts\"" "$STATE_FILE" > "${STATE_FILE}.tmp"
   mv "${STATE_FILE}.tmp" "$STATE_FILE"
   chmod 600 "$STATE_FILE"
 

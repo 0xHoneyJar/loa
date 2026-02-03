@@ -54,13 +54,22 @@ timestamp() {
 }
 
 # Run command with timeout
+# Note: Commands may be multi-word strings (e.g., "npm run build") requiring shell expansion.
+# This is safe because: (1) commands are auto-detected from project config or (2) user-provided
+# via CLI (same privilege level). Use eval for explicit shell expansion intent.
 run_with_timeout() {
-  local timeout="$1"
+  local timeout_val="$1"
   shift
   local cmd="$*"
 
+  # Validate command is not empty
+  if [[ -z "$cmd" ]]; then
+    log_error "Empty command provided to run_with_timeout"
+    return 1
+  fi
+
   if command -v timeout &>/dev/null; then
-    timeout "$timeout" bash -c "$cmd"
+    timeout "$timeout_val" bash -c "$cmd"
   else
     # Fallback for systems without timeout (macOS)
     local pid
@@ -71,7 +80,7 @@ run_with_timeout() {
     while kill -0 "$pid" 2>/dev/null; do
       sleep 1
       ((++count))
-      if (( count >= timeout )); then
+      if (( count >= timeout_val )); then
         kill -TERM "$pid" 2>/dev/null || true
         sleep 2
         kill -KILL "$pid" 2>/dev/null || true

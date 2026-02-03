@@ -101,25 +101,26 @@ should_skip_phase() {
   return 1
 }
 
-# Run command with timeout
+# Run command with timeout (H-1 fix: array-based execution, no bash -c)
 run_with_timeout() {
-  local timeout="$1"
+  local timeout_val="$1"
   shift
-  local cmd="$*"
+  # Execute command array directly, not via bash -c string interpolation
+  local -a cmd_array=("$@")
 
   if command -v timeout &>/dev/null; then
-    timeout "$timeout" bash -c "$cmd"
+    timeout "$timeout_val" "${cmd_array[@]}"
   else
     # Fallback for systems without timeout (macOS)
     local pid
-    bash -c "$cmd" &
+    "${cmd_array[@]}" &
     pid=$!
 
     local count=0
     while kill -0 "$pid" 2>/dev/null; do
       sleep 1
       ((++count))
-      if (( count >= timeout )); then
+      if (( count >= timeout_val )); then
         kill -TERM "$pid" 2>/dev/null || true
         sleep 2
         kill -KILL "$pid" 2>/dev/null || true
@@ -174,7 +175,7 @@ phase_post_pr_audit() {
     # Run audit with timeout
     local audit_result=0
     if [[ -x "$AUDIT_SCRIPT" ]]; then
-      run_with_timeout "$TIMEOUT_POST_PR_AUDIT" "$AUDIT_SCRIPT --pr-url '$PR_URL'" || audit_result=$?
+      run_with_timeout "$TIMEOUT_POST_PR_AUDIT" "$AUDIT_SCRIPT" --pr-url "$PR_URL" || audit_result=$?
     else
       # Placeholder: audit not implemented yet
       log_info "Audit script not found, assuming APPROVED"
@@ -405,7 +406,7 @@ phase_flatline_pr() {
     local sdd_path="grimoires/loa/sdd.md"
 
     run_with_timeout "$TIMEOUT_FLATLINE_PR" \
-      "${SCRIPT_DIR}/flatline-orchestrator.sh --doc '$prd_path' --doc '$sdd_path' --phase pr $flatline_mode" \
+      "${SCRIPT_DIR}/flatline-orchestrator.sh" --doc "$prd_path" --doc "$sdd_path" --phase pr "$flatline_mode" \
       || flatline_result=$?
   else
     log_info "Flatline orchestrator not found, skipping"
