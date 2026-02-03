@@ -385,3 +385,162 @@ invisible_retrospective:
     require_reusability: true    # Gate 2: Generalizable beyond this instance
     require_trigger_clarity: true # Gate 3: Clear when to apply learning
     require_verification: true   # Gate 4: Solution confirmed working
+
+# -----------------------------------------------------------------------------
+# Flatline Protocol (v1.17.0)
+# -----------------------------------------------------------------------------
+# Multi-model adversarial review using Claude Opus 4.5 + GPT-5.2 for planning
+# document quality assurance. Phase 1: parallel reviews, Phase 2: cross-scoring,
+# Phase 3: consensus extraction with HIGH/DISPUTED/LOW/BLOCKER classification.
+flatline_protocol:
+  # Master toggle - set to true to enable Flatline Protocol
+  enabled: true
+
+  # Auto-trigger after planning phases (prd, sdd, sprint)
+  auto_trigger: true
+
+  # Phase-specific toggles
+  phases:
+    prd: true      # Review after /plan-and-analyze
+    sdd: true      # Review after /architect
+    sprint: true   # Review after /sprint-plan
+
+  # Model configuration
+  models:
+    primary: opus        # Claude Opus 4.5 (via claude.ai or API)
+    secondary: gpt-5.2   # OpenAI GPT-5.2 (via API)
+
+  # Consensus thresholds (0-1000 scale)
+  thresholds:
+    high_consensus: 700      # Both models > this = auto-integrate
+    disputed_delta: 300      # Score delta > this = disputed
+    low_value: 400           # Both < this = discard
+    blocker_skeptic: 700     # Skeptic concern > this = blocker
+
+  # Knowledge retrieval for domain context
+  knowledge:
+    # Tier 1: Local grimoires (always active)
+    local:
+      enabled: true
+      paths:
+        - grimoires/loa/
+        - .claude/protocols/
+
+    # Tier 2: NotebookLM (optional, requires browser auth setup)
+    notebooklm:
+      enabled: false           # Opt-in (requires auth setup)
+      notebook_id: ""          # Your NotebookLM notebook ID
+      timeout_ms: 30000        # Query timeout
+
+# -----------------------------------------------------------------------------
+# Autonomous Flatline Mode (v1.22.0)
+# -----------------------------------------------------------------------------
+# Enable Flatline Protocol to operate within autonomous workflows (/autonomous,
+# /run sprint-plan) without human intervention. HIGH_CONSENSUS findings auto-
+# integrate, BLOCKERS halt workflow, DISPUTED items are logged for post-review.
+autonomous_mode:
+  # Master toggle - set to true to enable autonomous operation
+  # Default: false (requires explicit opt-in for safety)
+  enabled: false
+
+  # Auto-enable when AI operator detected (CLAWDBOT_GATEWAY_TOKEN, LOA_OPERATOR=ai)
+  # Only triggers on "strong" signals - weak signals require explicit enabled: true
+  auto_enable_for_ai: true
+
+  # Actions for each consensus category
+  actions:
+    high_consensus: integrate    # integrate | log | skip
+    disputed: log                # halt | log | skip (logged to NOTES.md + trajectory)
+    blocker: halt                # halt | log | continue (halt generates escalation)
+    low_value: skip              # log | skip
+
+  # Behavior on unrecoverable error (auth failure, invalid response, etc.)
+  # halt: Stop workflow, generate escalation report
+  # continue: Log error, skip document, continue with next
+  on_error: halt
+
+  # Maximum disputed items before converting to BLOCKER
+  # Threshold scope determines if this is per-phase or cumulative
+  # Default: 5 per phase
+  max_disputed_items: 5
+
+  # Disputed threshold configuration
+  disputed:
+    threshold_scope: per_phase   # per_phase | cumulative
+    warn_at_percent: 60          # Warn at N% of threshold (e.g., 3/5)
+    critical_at_percent: 80      # Escalate warning at N% (e.g., 4/5)
+
+  # Timeout configuration (all values in milliseconds)
+  timeouts:
+    per_call: 60000              # Single API call timeout (60s)
+    per_document: 180000         # Total time for one document review (3min)
+    total_run: 900000            # Total time for all phases (15min)
+
+  # Retry configuration for transient errors
+  retry:
+    max_attempts: 3              # Maximum retry attempts per call
+    base_delay_ms: 1000          # Initial delay between retries
+    max_delay_ms: 30000          # Maximum delay (with exponential backoff + jitter)
+
+  # Pre-integration snapshot configuration
+  snapshots:
+    enabled: true                # Create snapshots before auto-integration
+    max_age_days: 7              # Auto-cleanup snapshots older than this
+
+    # Git integration (SECURITY: defaults to false to prevent history pollution)
+    git_commit: false            # Commit snapshots to git (default: local only)
+    git_commit_with_hooks: true  # Run pre-commit hooks when git_commit is true
+    secret_scanning: true        # Scan for secrets before git commit (gitleaks/basic)
+
+    # Storage quota management (prevents disk exhaustion)
+    max_count: 100               # Maximum number of snapshots to retain
+    max_bytes: 104857600         # Maximum total storage (100MB default)
+    on_quota: fail               # fail | purge_oldest (what to do when quota exceeded)
+
+  # Document/manifest locking (prevents concurrent modification)
+  locking:
+    enabled: true                # Enable flock()-based advisory locks
+    timeout_seconds: 10          # Lock acquisition timeout
+    stale_ttl_seconds: 300       # Auto-expire stale locks (5min)
+    max_retries: 3               # Retry attempts with exponential backoff
+
+    # Run-level isolation (prevents concurrent Flatline runs)
+    run_isolation: true          # Acquire global run mutex before starting
+
+    # NFS fallback (for shared filesystems where flock may not work)
+    nfs_fallback: true           # Use mkdir-based atomic locking as fallback
+
+# -----------------------------------------------------------------------------
+# Autonomous Flatline Examples
+# -----------------------------------------------------------------------------
+# Example 1: Minimal (AI auto-enable, safe defaults)
+# autonomous_mode:
+#   enabled: false               # Let auto_enable_for_ai handle it
+#   auto_enable_for_ai: true     # Enable when running under AI operator
+#
+# Example 2: Explicit autonomous with safety limits
+# autonomous_mode:
+#   enabled: true
+#   max_disputed_items: 3        # Lower threshold for safety
+#   timeouts:
+#     total_run: 600000          # 10 minute limit
+#   snapshots:
+#     enabled: true
+#     git_commit: false          # Local snapshots only
+#
+# Example 3: Conservative (log everything, no auto-integrate)
+# autonomous_mode:
+#   enabled: true
+#   actions:
+#     high_consensus: log        # Log instead of integrate
+#     disputed: log
+#     blocker: halt
+#     low_value: log
+#
+# Example 4: Aggressive (continue on errors) - USE WITH CAUTION
+# autonomous_mode:
+#   enabled: true
+#   on_error: continue           # Don't halt on errors
+#   actions:
+#     blocker: log               # Log blockers instead of halting
+#   # WARNING: This may allow problematic changes to accumulate

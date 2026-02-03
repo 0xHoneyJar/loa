@@ -2,8 +2,8 @@
 # =============================================================================
 # flatline-orchestrator.sh - Main orchestrator for Flatline Protocol
 # =============================================================================
-# Version: 1.0.0
-# Part of: Flatline Protocol v1.17.0
+# Version: 1.1.0
+# Part of: Flatline Protocol v1.17.0, Autonomous Flatline v1.22.0
 #
 # Usage:
 #   flatline-orchestrator.sh --doc <path> --phase <type> [options]
@@ -12,12 +12,22 @@
 #   --doc <path>           Document to review (required)
 #   --phase <type>         Phase type: prd, sdd, sprint (required)
 #   --domain <text>        Domain for knowledge retrieval (auto-extracted if not provided)
+#   --interactive          Force interactive mode (overrides auto-detection)
+#   --autonomous           Force autonomous mode (overrides auto-detection)
+#   --run-id <id>          Run ID for manifest tracking (autonomous mode)
 #   --dry-run              Validate without executing reviews
 #   --skip-knowledge       Skip knowledge retrieval
 #   --skip-consensus       Return raw reviews without consensus
 #   --timeout <seconds>    Overall timeout (default: 300)
 #   --budget <cents>       Cost budget in cents (default: 300 = $3.00)
 #   --json                 Output as JSON
+#
+# Mode Detection Precedence:
+#   1. CLI flags (--interactive, --autonomous)
+#   2. Environment variable (LOA_FLATLINE_MODE)
+#   3. Config file (autonomous_mode.enabled)
+#   4. Auto-detection (strong AI signals only)
+#   5. Default (interactive)
 #
 # State Machine:
 #   INIT -> KNOWLEDGE -> PHASE1 -> PHASE2 -> CONSENSUS -> INTEGRATE -> DONE
@@ -627,6 +637,8 @@ main() {
     local timeout="$DEFAULT_TIMEOUT"
     local budget="$DEFAULT_BUDGET"
     local json_output=false
+    local mode_flag=""
+    local run_id=""
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -641,6 +653,18 @@ main() {
                 ;;
             --domain)
                 domain="$2"
+                shift 2
+                ;;
+            --interactive)
+                mode_flag="--interactive"
+                shift
+                ;;
+            --autonomous)
+                mode_flag="--autonomous"
+                shift
+                ;;
+            --run-id)
+                run_id="$2"
                 shift 2
                 ;;
             --dry-run)
@@ -730,8 +754,27 @@ main() {
     TEMP_DIR=$(mktemp -d)
     START_TIME=$(date +%s)
 
+    # Detect execution mode (interactive vs autonomous)
+    local mode_detect_script="$SCRIPT_DIR/flatline-mode-detect.sh"
+    local execution_mode="interactive"
+    local mode_reason="default"
+
+    if [[ -x "$mode_detect_script" ]]; then
+        local mode_result
+        if mode_result=$("$mode_detect_script" $mode_flag --json 2>/dev/null); then
+            execution_mode=$(echo "$mode_result" | jq -r '.mode // "interactive"')
+            mode_reason=$(echo "$mode_result" | jq -r '.reason // "unknown"')
+            log "Execution mode: $execution_mode (reason: $mode_reason)"
+        else
+            log "Warning: Mode detection failed, defaulting to interactive"
+        fi
+    else
+        log "Warning: Mode detection script not found, defaulting to interactive"
+    fi
+
     log "Document: $doc"
     log "Phase: $phase"
+    log "Mode: $execution_mode"
     log "Timeout: ${timeout}s"
     log "Budget: ${budget} cents"
 
@@ -742,7 +785,9 @@ main() {
             --arg status "dry_run" \
             --arg doc "$doc" \
             --arg phase "$phase" \
-            '{status: $status, document: $doc, phase: $phase}'
+            --arg mode "$execution_mode" \
+            --arg mode_reason "$mode_reason" \
+            '{status: $status, document: $doc, phase: $phase, mode: $mode, mode_reason: $mode_reason}'
         exit 0
     fi
 
@@ -840,6 +885,9 @@ main() {
         --arg phase "$phase" \
         --arg doc "$doc" \
         --arg domain "$domain" \
+        --arg mode "$execution_mode" \
+        --arg mode_reason "$mode_reason" \
+        --arg run_id "${run_id:-}" \
         --argjson latency_ms "$total_latency_ms" \
         --argjson cost_cents "$TOTAL_COST" \
         --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -847,6 +895,11 @@ main() {
             phase: $phase,
             document: $doc,
             domain: $domain,
+            execution: {
+                mode: $mode,
+                mode_reason: $mode_reason,
+                run_id: (if $run_id == "" then null else $run_id end)
+            },
             timestamp: $timestamp,
             metrics: {
                 total_latency_ms: $latency_ms,
