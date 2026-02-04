@@ -10,7 +10,7 @@
 #
 # Options:
 #   --doc <path>           Document to review (required)
-#   --phase <type>         Phase type: prd, sdd, sprint (required)
+#   --phase <type>         Phase type: prd, sdd, sprint, beads (required)
 #   --domain <text>        Domain for knowledge retrieval (auto-extracted if not provided)
 #   --interactive          Force interactive mode (overrides auto-detection)
 #   --autonomous           Force autonomous mode (overrides auto-detection)
@@ -236,6 +236,14 @@ extract_domain() {
                 tr '[:upper:]' '[:lower:]' | \
                 tr -s ' ' | \
                 cut -d' ' -f1-5)
+            ;;
+        beads)
+            # Look for task graph keywords from JSON
+            domain=$(jq -r '[.[]? | .title // .description // empty] | join(" ")' "$doc" 2>/dev/null | \
+                tr -cs '[:alnum:]' ' ' | \
+                tr '[:upper:]' '[:lower:]' | \
+                tr -s ' ' | \
+                cut -d' ' -f1-5 || echo "task graph")
             ;;
     esac
 
@@ -593,7 +601,7 @@ Usage: flatline-orchestrator.sh --doc <path> --phase <type> [options]
 
 Required:
   --doc <path>           Document to review
-  --phase <type>         Phase type: prd, sdd, sprint
+  --phase <type>         Phase type: prd, sdd, sprint, beads
 
 Options:
   --domain <text>        Domain for knowledge retrieval (auto-extracted if not provided)
@@ -735,8 +743,8 @@ main() {
         exit 1
     fi
 
-    if [[ "$phase" != "prd" && "$phase" != "sdd" && "$phase" != "sprint" ]]; then
-        error "Invalid phase: $phase (expected: prd, sdd, sprint)"
+    if [[ "$phase" != "prd" && "$phase" != "sdd" && "$phase" != "sprint" && "$phase" != "beads" ]]; then
+        error "Invalid phase: $phase (expected: prd, sdd, sprint, beads)"
         exit 1
     fi
 
