@@ -211,7 +211,8 @@ format_packs_human() {
     
     # Parse and display each pack
     # API returns { data: [...], pagination: {...} } envelope
-    echo "$packs_json" | jq -r '.data[]? | "\(.icon // "📦") \(.name) (\(.skills_count // .skills | length // 0) skills) - \(.tier_required // .tier // "free")\n   \(.description)\n"' 2>/dev/null || {
+    # skills_count field added in API, with fallback to manifest.skills array length
+    echo "$packs_json" | jq -r '.data[]? | "\(.icon // "📦") \(.name) (\(.skills_count // (.manifest.skills | length?) // 0) skills) - \(.tier_required // .tier // "free")\n   \(.description)\n"' 2>/dev/null || {
         echo "No packs available or error parsing response"
         return 1
     }
@@ -223,12 +224,13 @@ format_packs_json() {
     
     # Normalize to array format expected by UI
     # API returns { data: [...], pagination: {...} } envelope
+    # skills_count field added in API, with fallback to manifest.skills array length
     echo "$packs_json" | jq '[
         .data[]? | {
             slug: .slug,
             name: .name,
             description: .description,
-            skills_count: (.skills_count // (.skills | length?) // 0),
+            skills_count: (.skills_count // (.manifest.skills | length?) // 0),
             tier: (.tier_required // .tier // "free"),
             icon: (.icon // "📦"),
             version: (.latest_version.version // .version // "1.0.0")
