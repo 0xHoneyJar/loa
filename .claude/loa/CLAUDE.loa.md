@@ -1,4 +1,4 @@
-<!-- @loa-managed: true | version: 1.27.0 | hash: PLACEHOLDER -->
+<!-- @loa-managed: true | version: 1.28.0 | hash: PLACEHOLDER -->
 <!-- WARNING: This file is managed by the Loa Framework. Do not edit directly. -->
 
 # Loa Framework Instructions
@@ -144,6 +144,82 @@ Hooks are in `.claude/hooks/`. To enable, add to `~/.claude/settings.json`:
 ```
 
 See `.claude/hooks/README.md` for full documentation.
+
+## Flatline Beads Loop (v1.28.0)
+
+Iterative multi-model refinement of task graphs. "Check your beads N times, implement once."
+
+### How It Works
+
+1. Export beads to JSON (`br list --json`)
+2. Run Flatline Protocol review on task graph
+3. Apply HIGH_CONSENSUS suggestions automatically
+4. Repeat until changes "flatline" (< 5% change for 2 iterations)
+5. Sync final state to git
+
+### Usage
+
+```bash
+# Manual invocation
+.claude/scripts/beads-flatline-loop.sh --max-iterations 6 --threshold 5
+
+# In simstim workflow (Phase 6.5)
+# Automatically runs after FLATLINE SPRINT phase when beads_rust is installed
+```
+
+### Configuration
+
+```yaml
+simstim:
+  flatline:
+    beads_loop: true    # Enable Flatline Beads Loop
+```
+
+Requires beads_rust (`br`). See: https://github.com/Dicklesworthstone/beads_rust
+
+## Persistent Memory (v1.28.0)
+
+Session-spanning observation storage with progressive disclosure for cross-session recall.
+
+### How It Works
+
+1. **Memory Writer Hook**: Captures observations from tool outputs when learning signals detected
+2. **Observations File**: Stored in `grimoires/loa/memory/observations.jsonl`
+3. **Progressive Disclosure**: Query at different detail levels to manage token budget
+
+### Learning Signals
+
+Automatically captured: discovered, learned, fixed, resolved, pattern, insight
+
+### Query Interface
+
+```bash
+# Token-efficient index (~50 tokens per entry)
+.claude/scripts/memory-query.sh --index
+
+# Summary view (~200 tokens per entry)
+.claude/scripts/memory-query.sh --summary --limit 5
+
+# Full details (~500 tokens)
+.claude/scripts/memory-query.sh --full obs-1234567890-abc123
+
+# Filter by type
+.claude/scripts/memory-query.sh --type learning
+
+# Free-text search
+.claude/scripts/memory-query.sh "authentication pattern"
+```
+
+### Configuration
+
+```yaml
+memory:
+  enabled: true
+  max_observations: 10000
+  capture:
+    discoveries: true
+    errors: true
+```
 
 ## Invisible Prompt Enhancement (v1.17.0)
 

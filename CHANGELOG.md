@@ -5,6 +5,110 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.28.0] - 2026-02-05 — Dicklesworth Improvements
+
+### Why This Release
+
+This release adds three major features inspired by the Dicklesworthstone ecosystem: **Post-Compact Recovery Hooks** for automatic context recovery after compaction, **Flatline Beads Loop** for iterative task graph refinement, and **Persistent Memory** for session-spanning observation storage.
+
+*"Check your beads N times, implement once."*
+
+### Added
+
+#### Post-Compact Recovery Hooks (#178)
+
+Automatic context recovery after Claude Code context compaction:
+
+```json
+{
+  "hooks": {
+    "PreCompact": [{"matcher": "", "hooks": [{"type": "command", "command": ".claude/hooks/pre-compact-marker.sh"}]}],
+    "UserPromptSubmit": [{"matcher": "", "hooks": [{"type": "command", "command": ".claude/hooks/post-compact-reminder.sh"}]}]
+  }
+}
+```
+
+**New Files**:
+| File | Purpose |
+|------|---------|
+| `pre-compact-marker.sh` | Captures state before compaction |
+| `post-compact-reminder.sh` | Injects recovery reminder after compaction |
+| `settings.hooks.json` | Hook registration template |
+| `test_pcr_hooks.sh` | 13 unit tests |
+
+**Features**:
+- One-shot delivery (marker deleted after reminder)
+- Captures run_mode, simstim, and skill state
+- Logs compaction events to trajectory
+- Project-local and global fallback markers
+
+#### Flatline Beads Loop (#177)
+
+Iterative multi-model refinement of task graphs:
+
+```bash
+.claude/scripts/beads-flatline-loop.sh --max-iterations 6 --threshold 5
+```
+
+**How It Works**:
+1. Export beads to JSON
+2. Run Flatline Protocol review on task graph
+3. Apply HIGH_CONSENSUS suggestions automatically
+4. Repeat until changes "flatline" (< 5% for 2 iterations)
+5. Sync final state to git
+
+**New Files**:
+| File | Purpose |
+|------|---------|
+| `beads-flatline-loop.sh` | Main orchestrator script |
+| `beads-review.md` | Flatline prompt for task graph review |
+| `test_blf.sh` | 16 unit tests |
+
+**Simstim Integration**: New Phase 6.5 "FLATLINE_BEADS" runs automatically after PLANNING when beads_rust is installed.
+
+#### Persistent Memory (#175)
+
+Session-spanning observation storage with progressive disclosure:
+
+```bash
+# Token-efficient index (~50 tokens per entry)
+.claude/scripts/memory-query.sh --index
+
+# Full details (~500 tokens)
+.claude/scripts/memory-query.sh --full obs-1234567890-abc123
+```
+
+**New Files**:
+| File | Purpose |
+|------|---------|
+| `memory-writer.sh` | Hook for capturing observations |
+| `memory-query.sh` | Query interface with progressive disclosure |
+| `test_memory.sh` | 19 unit tests |
+
+**Features**:
+- Learning signal detection (discovered, learned, fixed, resolved, pattern, insight)
+- Privacy filtering (redacts `<private>` tagged content)
+- Session-specific logging
+- Retention limits with automatic archiving
+
+### Changed
+
+- Updated `flatline-orchestrator.sh` to support `--phase beads`
+- Updated `simstim.md` with Phase 6.5 documentation
+- Updated `planning-sprints/SKILL.md` with Beads Flatline Loop section
+- Added memory configuration section to `.loa.config.yaml.example`
+
+### Tests
+
+| Test Suite | Tests | Status |
+|------------|-------|--------|
+| PCR Hooks | 13 | ✅ All passing |
+| BLF | 16 | ✅ All passing |
+| Memory | 19 | ✅ All passing |
+| **Total** | **48** | ✅ All passing |
+
+---
+
 ## [1.27.0] - 2026-02-04 — Configurable Paths & Trace-Based Routing
 
 ### Why This Release
