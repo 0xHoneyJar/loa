@@ -1,0 +1,1176 @@
+# Trace Classifier Validation Dataset
+# Version: 1.0.0
+# Total items: 200 (50 per category)
+#
+# Categories:
+#   - skill_bug: Direct evidence of skill malfunction
+#   - skill_gap: Missing capability in existing skill
+#   - missing_skill: Need for entirely new skill
+#   - runtime_bug: Environment/infrastructure issues
+
+version: "1.0.0"
+created: "2026-02-04"
+labeling_guidelines: |
+  skill_bug: The user reports something that WAS working but now fails, crashes,
+             or produces wrong output. Keywords: failed, error, crash, broken, wrong.
+
+  skill_gap: The user wants MORE from an EXISTING skill. The skill works but
+             lacks a feature. Keywords: should also, could, missing feature, enhance.
+
+  missing_skill: The user wants something that NO skill currently does.
+                 Keywords: need new, wish there was, no skill for.
+
+  runtime_bug: Infrastructure issues unrelated to skill logic.
+               Keywords: timeout, slow, permission denied, network error.
+
+items:
+  # ==========================================================================
+  # SKILL_BUG (50 items)
+  # ==========================================================================
+  - id: sb-001
+    feedback: "The commit skill failed with a pre-commit hook error"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["commit"]
+      recent_errors: ["Pre-commit hook failed: eslint found 3 errors"]
+
+  - id: sb-002
+    feedback: "Review sprint crashed when analyzing the test files"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["review-sprint"]
+      recent_errors: ["TypeError: Cannot read property 'length' of undefined"]
+
+  - id: sb-003
+    feedback: "The implement skill produced wrong code that doesn't compile"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["implement"]
+      recent_errors: ["SyntaxError: Unexpected token"]
+
+  - id: sb-004
+    feedback: "Audit skill gave false positive on SQL injection"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["audit"]
+
+  - id: sb-005
+    feedback: "The architect skill generated invalid JSON in the SDD"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["architect"]
+      recent_errors: ["JSONDecodeError: Expecting property name"]
+
+  - id: sb-006
+    feedback: "Flatline review failed to parse the PRD document"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["flatline-review"]
+      recent_errors: ["ParseError: Invalid markdown structure"]
+
+  - id: sb-007
+    feedback: "The deploy skill didn't update the environment variables correctly"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["deploy-production"]
+
+  - id: sb-008
+    feedback: "Sprint plan skill created duplicate tasks"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["sprint-plan"]
+
+  - id: sb-009
+    feedback: "The run mode stopped unexpectedly without error message"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["run"]
+
+  - id: sb-010
+    feedback: "Commit skill ignored my staged changes"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["commit"]
+
+  - id: sb-011
+    feedback: "The skill crashed with a stack overflow error"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_errors: ["RecursionError: maximum recursion depth exceeded"]
+
+  - id: sb-012
+    feedback: "Review gave wrong line numbers for the issues it found"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["review-sprint"]
+
+  - id: sb-013
+    feedback: "The PR creation failed silently"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["implement"]
+
+  - id: sb-014
+    feedback: "Skill output was truncated and incomplete"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["architect"]
+
+  - id: sb-015
+    feedback: "The analysis returned empty results when there should be findings"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["audit"]
+
+  - id: sb-016
+    feedback: "Error: skill failed to read configuration file"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_errors: ["FileNotFoundError: .loa.config.yaml"]
+
+  - id: sb-017
+    feedback: "The git operations failed with merge conflict that wasn't there"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["commit"]
+      recent_errors: ["MergeConflictError"]
+
+  - id: sb-018
+    feedback: "Skill keeps repeating the same action in a loop"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["implement"]
+
+  - id: sb-019
+    feedback: "The skill broke after the last update"
+    expected_category: skill_bug
+    trajectory_context: {}
+
+  - id: sb-020
+    feedback: "Getting assertion error when running the review skill"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_errors: ["AssertionError: expected list, got dict"]
+
+  - id: sb-021
+    feedback: "The commit message generation produced gibberish"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["commit"]
+
+  - id: sb-022
+    feedback: "Skill throws exception on valid input"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_errors: ["ValueError: invalid literal for int()"]
+
+  - id: sb-023
+    feedback: "The skill deleted files it shouldn't have touched"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["implement"]
+
+  - id: sb-024
+    feedback: "Output format changed unexpectedly breaking my workflow"
+    expected_category: skill_bug
+    trajectory_context: {}
+
+  - id: sb-025
+    feedback: "The skill hangs when processing large files"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["review-sprint"]
+
+  - id: sb-026
+    feedback: "Security audit missed obvious XSS vulnerability"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["audit"]
+
+  - id: sb-027
+    feedback: "The skill corrupted my git history"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["commit"]
+
+  - id: sb-028
+    feedback: "Wrong branch was checked out by the skill"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["implement"]
+
+  - id: sb-029
+    feedback: "The skill response was malformed JSON"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_errors: ["JSONDecodeError"]
+
+  - id: sb-030
+    feedback: "Skill crashed with out of memory error"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_errors: ["MemoryError"]
+
+  - id: sb-031
+    feedback: "The validation skill accepted invalid data"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["validate"]
+
+  - id: sb-032
+    feedback: "Run mode circuit breaker triggered incorrectly"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["run"]
+
+  - id: sb-033
+    feedback: "The skill misread my configuration settings"
+    expected_category: skill_bug
+    trajectory_context: {}
+
+  - id: sb-034
+    feedback: "Flatline integration failed to apply high-consensus changes"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["flatline-review"]
+
+  - id: sb-035
+    feedback: "The skill produced code with syntax errors"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["implement"]
+      recent_errors: ["SyntaxError"]
+
+  - id: sb-036
+    feedback: "Sprint tracking shows wrong completion status"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["run"]
+
+  - id: sb-037
+    feedback: "The skill ignored the --dry-run flag"
+    expected_category: skill_bug
+    trajectory_context: {}
+
+  - id: sb-038
+    feedback: "Error parsing user input in the skill"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_errors: ["InputParseError"]
+
+  - id: sb-039
+    feedback: "The skill created files in the wrong directory"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["implement"]
+
+  - id: sb-040
+    feedback: "Commit skill included files that should be gitignored"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["commit"]
+
+  - id: sb-041
+    feedback: "The skill failed to handle Unicode characters"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_errors: ["UnicodeDecodeError"]
+
+  - id: sb-042
+    feedback: "Review skill marked correct code as incorrect"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["review-sprint"]
+
+  - id: sb-043
+    feedback: "The architect skill overwrote existing design decisions"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["architect"]
+
+  - id: sb-044
+    feedback: "Skill execution order was wrong"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["run"]
+
+  - id: sb-045
+    feedback: "The skill didn't respect the timeout setting"
+    expected_category: skill_bug
+    trajectory_context: {}
+
+  - id: sb-046
+    feedback: "Feedback routing sent my report to wrong repo"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["feedback"]
+
+  - id: sb-047
+    feedback: "The skill failed to clean up temporary files"
+    expected_category: skill_bug
+    trajectory_context: {}
+
+  - id: sb-048
+    feedback: "Parallel execution caused race condition"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["run"]
+
+  - id: sb-049
+    feedback: "The skill's output contradicts its own analysis"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_skills: ["audit"]
+
+  - id: sb-050
+    feedback: "Skill threw unhandled exception during normal operation"
+    expected_category: skill_bug
+    trajectory_context:
+      recent_errors: ["UnhandledException"]
+
+  # ==========================================================================
+  # SKILL_GAP (50 items)
+  # ==========================================================================
+  - id: sg-001
+    feedback: "The commit skill should also run tests before committing"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["commit"]
+
+  - id: sg-002
+    feedback: "Review skill needs to check for accessibility issues"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["review-sprint"]
+
+  - id: sg-003
+    feedback: "The implement skill could generate better error messages"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["implement"]
+
+  - id: sg-004
+    feedback: "Audit should additionally check for GDPR compliance"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["audit"]
+
+  - id: sg-005
+    feedback: "The architect skill lacks support for microservices patterns"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["architect"]
+
+  - id: sg-006
+    feedback: "Flatline review should support more document formats"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["flatline-review"]
+
+  - id: sg-007
+    feedback: "Deploy skill should have rollback capability"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["deploy-production"]
+
+  - id: sg-008
+    feedback: "Sprint plan skill could auto-estimate task complexity"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["sprint-plan"]
+
+  - id: sg-009
+    feedback: "Run mode should support pause and resume"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["run"]
+
+  - id: sg-010
+    feedback: "The commit skill doesn't support signing commits"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["commit"]
+
+  - id: sg-011
+    feedback: "Review should also check for performance issues"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["review-sprint"]
+
+  - id: sg-012
+    feedback: "The skill should have a verbose mode for debugging"
+    expected_category: skill_gap
+    trajectory_context: {}
+
+  - id: sg-013
+    feedback: "Implement skill could support more languages"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["implement"]
+
+  - id: sg-014
+    feedback: "The audit should check for license compliance"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["audit"]
+
+  - id: sg-015
+    feedback: "Architect skill should generate sequence diagrams"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["architect"]
+
+  - id: sg-016
+    feedback: "The skill should remember my preferences"
+    expected_category: skill_gap
+    trajectory_context: {}
+
+  - id: sg-017
+    feedback: "Commit could auto-link to issues in commit messages"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["commit"]
+
+  - id: sg-018
+    feedback: "Review skill should suggest code improvements"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["review-sprint"]
+
+  - id: sg-019
+    feedback: "The skill should export results to different formats"
+    expected_category: skill_gap
+    trajectory_context: {}
+
+  - id: sg-020
+    feedback: "Implement skill doesn't handle monorepos well"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["implement"]
+
+  - id: sg-021
+    feedback: "Audit should have configurable severity levels"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["audit"]
+
+  - id: sg-022
+    feedback: "The skill should support custom templates"
+    expected_category: skill_gap
+    trajectory_context: {}
+
+  - id: sg-023
+    feedback: "Sprint plan should integrate with Jira"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["sprint-plan"]
+
+  - id: sg-024
+    feedback: "Run mode could have better progress reporting"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["run"]
+
+  - id: sg-025
+    feedback: "The commit skill should validate branch naming"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["commit"]
+
+  - id: sg-026
+    feedback: "Review should check for dead code"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["review-sprint"]
+
+  - id: sg-027
+    feedback: "The skill should have undo functionality"
+    expected_category: skill_gap
+    trajectory_context: {}
+
+  - id: sg-028
+    feedback: "Architect skill needs better API documentation generation"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["architect"]
+
+  - id: sg-029
+    feedback: "Deploy should support blue-green deployments"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["deploy-production"]
+
+  - id: sg-030
+    feedback: "The skill could be smarter about caching"
+    expected_category: skill_gap
+    trajectory_context: {}
+
+  - id: sg-031
+    feedback: "Implement skill should auto-generate tests"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["implement"]
+
+  - id: sg-032
+    feedback: "Audit should check for dependency vulnerabilities"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["audit"]
+
+  - id: sg-033
+    feedback: "The skill lacks interactive mode"
+    expected_category: skill_gap
+    trajectory_context: {}
+
+  - id: sg-034
+    feedback: "Flatline should compare against more models"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["flatline-review"]
+
+  - id: sg-035
+    feedback: "Run mode should notify on completion"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["run"]
+
+  - id: sg-036
+    feedback: "The commit skill should squash related commits"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["commit"]
+
+  - id: sg-037
+    feedback: "Review skill doesn't understand framework conventions"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["review-sprint"]
+
+  - id: sg-038
+    feedback: "The skill should support plugins"
+    expected_category: skill_gap
+    trajectory_context: {}
+
+  - id: sg-039
+    feedback: "Implement skill could refactor existing code better"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["implement"]
+
+  - id: sg-040
+    feedback: "Audit should generate remediation scripts"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["audit"]
+
+  - id: sg-041
+    feedback: "The skill should work offline"
+    expected_category: skill_gap
+    trajectory_context: {}
+
+  - id: sg-042
+    feedback: "Sprint plan should predict blockers"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["sprint-plan"]
+
+  - id: sg-043
+    feedback: "Deploy should validate health checks"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["deploy-production"]
+
+  - id: sg-044
+    feedback: "The skill should have better documentation"
+    expected_category: skill_gap
+    trajectory_context: {}
+
+  - id: sg-045
+    feedback: "Commit skill should enforce conventional commits"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["commit"]
+
+  - id: sg-046
+    feedback: "Review should detect code smells"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["review-sprint"]
+
+  - id: sg-047
+    feedback: "The skill should support batch processing"
+    expected_category: skill_gap
+    trajectory_context: {}
+
+  - id: sg-048
+    feedback: "Architect skill should estimate infrastructure costs"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["architect"]
+
+  - id: sg-049
+    feedback: "Run mode should allow skipping specific tasks"
+    expected_category: skill_gap
+    trajectory_context:
+      recent_skills: ["run"]
+
+  - id: sg-050
+    feedback: "The skill could use machine learning for better suggestions"
+    expected_category: skill_gap
+    trajectory_context: {}
+
+  # ==========================================================================
+  # MISSING_SKILL (50 items)
+  # ==========================================================================
+  - id: ms-001
+    feedback: "I need a new skill for database migrations"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-002
+    feedback: "There's no skill for generating API documentation"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-003
+    feedback: "Wish there was a skill for load testing"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-004
+    feedback: "Need a skill to manage feature flags"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-005
+    feedback: "Please add a skill for dependency updates"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-006
+    feedback: "Would love a skill for code coverage reports"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-007
+    feedback: "No command exists for monitoring setup"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-008
+    feedback: "Need to create a skill for changelog generation"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-009
+    feedback: "I want a skill that helps with code refactoring"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-010
+    feedback: "There should be a skill for internationalization"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-011
+    feedback: "Need a new command for environment management"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-012
+    feedback: "Add a skill for container orchestration"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-013
+    feedback: "I wish there was a skill for API mocking"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-014
+    feedback: "Need a skill to generate test data"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-015
+    feedback: "Please create a skill for documentation site generation"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-016
+    feedback: "There's no way to manage secrets with Loa"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-017
+    feedback: "Need a skill for performance profiling"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-018
+    feedback: "Want a skill for visual regression testing"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-019
+    feedback: "Add a new skill for code generation from OpenAPI"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-020
+    feedback: "I need a skill to manage git hooks"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-021
+    feedback: "There should be a skill for semantic versioning"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-022
+    feedback: "Please implement a skill for code formatting"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-023
+    feedback: "Need a command to analyze bundle size"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-024
+    feedback: "I want a skill for managing environment variables"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-025
+    feedback: "Add a skill for serverless deployment"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-026
+    feedback: "There's no skill for GraphQL schema management"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-027
+    feedback: "Need a skill to generate component storybooks"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-028
+    feedback: "I wish Loa had a skill for mobile app builds"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-029
+    feedback: "Please create a skill for contract testing"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-030
+    feedback: "Need a new skill for log analysis"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-031
+    feedback: "Add support for infrastructure cost estimation"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-032
+    feedback: "There should be a skill for release notes generation"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-033
+    feedback: "I need a skill for endpoint testing"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-034
+    feedback: "Want a skill to manage cron jobs"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-035
+    feedback: "Please add a skill for database seeding"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-036
+    feedback: "No skill for managing webhooks"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-037
+    feedback: "Need a skill to generate ER diagrams"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-038
+    feedback: "I want a skill for A/B testing setup"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-039
+    feedback: "Add a new skill for SSL certificate management"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-040
+    feedback: "There should be a command for cache management"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-041
+    feedback: "Need a skill to analyze code complexity"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-042
+    feedback: "Please implement DNS management skill"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-043
+    feedback: "I wish there was a skill for queue management"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-044
+    feedback: "Add a skill for scheduled task management"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-045
+    feedback: "No way to manage feature toggles"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-046
+    feedback: "Need a skill for static analysis"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-047
+    feedback: "Want a command for dependency graph visualization"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-048
+    feedback: "Please create skill for multi-region deployment"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-049
+    feedback: "I need a skill for backup management"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  - id: ms-050
+    feedback: "There should be a skill for compliance reporting"
+    expected_category: missing_skill
+    trajectory_context: {}
+
+  # ==========================================================================
+  # RUNTIME_BUG (50 items)
+  # ==========================================================================
+  - id: rb-001
+    feedback: "The command timed out after 5 minutes"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["TimeoutError: Operation timed out after 300s"]
+
+  - id: rb-002
+    feedback: "Permission denied when trying to write to the directory"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["PermissionError: Access denied"]
+
+  - id: rb-003
+    feedback: "Network connection failed during API call"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["ConnectionError: Failed to connect to api.github.com"]
+
+  - id: rb-004
+    feedback: "Out of disk space error during execution"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["OSError: No space left on device"]
+
+  - id: rb-005
+    feedback: "The process ran out of memory"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["MemoryError: Unable to allocate memory"]
+
+  - id: rb-006
+    feedback: "Environment variable not set causing failure"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["KeyError: GITHUB_TOKEN not found"]
+
+  - id: rb-007
+    feedback: "SSL certificate verification failed"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["SSLError: Certificate verify failed"]
+
+  - id: rb-008
+    feedback: "Docker daemon not running"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["DockerError: Cannot connect to Docker daemon"]
+
+  - id: rb-009
+    feedback: "Git command failed with authentication error"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["GitAuthError: Authentication failed"]
+
+  - id: rb-010
+    feedback: "The operation was too slow and hit rate limits"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["RateLimitError: API rate limit exceeded"]
+
+  - id: rb-011
+    feedback: "Connection reset by peer during file download"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["ConnectionResetError"]
+
+  - id: rb-012
+    feedback: "DNS resolution failed for the API endpoint"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["DNSError: Name resolution failed"]
+
+  - id: rb-013
+    feedback: "The process was killed by the system"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["ProcessKilledError: SIGKILL"]
+
+  - id: rb-014
+    feedback: "Temporary directory creation failed"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["OSError: Cannot create temp directory"]
+
+  - id: rb-015
+    feedback: "File lock could not be acquired"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["LockError: Resource temporarily unavailable"]
+
+  - id: rb-016
+    feedback: "The proxy server refused connection"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["ProxyError: Connection refused"]
+
+  - id: rb-017
+    feedback: "Subprocess execution timed out"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["SubprocessTimeoutError"]
+
+  - id: rb-018
+    feedback: "Configuration file not found in expected location"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["FileNotFoundError: config.yaml"]
+
+  - id: rb-019
+    feedback: "Insufficient CPU resources available"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["ResourceError: CPU limit exceeded"]
+
+  - id: rb-020
+    feedback: "Database connection pool exhausted"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["PoolExhaustedError: No connections available"]
+
+  - id: rb-021
+    feedback: "The API returned 503 Service Unavailable"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["HTTPError: 503 Service Unavailable"]
+
+  - id: rb-022
+    feedback: "Socket timeout during data transfer"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["SocketTimeoutError"]
+
+  - id: rb-023
+    feedback: "Maximum recursion depth exceeded in system call"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["RecursionError: maximum recursion depth exceeded"]
+
+  - id: rb-024
+    feedback: "Port already in use, cannot start server"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["OSError: Address already in use"]
+
+  - id: rb-025
+    feedback: "File descriptor limit reached"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["OSError: Too many open files"]
+
+  - id: rb-026
+    feedback: "Slow network causing intermittent failures"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["TimeoutError: Connection timed out"]
+
+  - id: rb-027
+    feedback: "The cloud provider API is rate limiting us"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["AWSError: Rate exceeded"]
+
+  - id: rb-028
+    feedback: "Certificate expired, HTTPS connection failed"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["SSLError: Certificate has expired"]
+
+  - id: rb-029
+    feedback: "Execution hung waiting for user input that shouldn't be needed"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["TimeoutError: Waiting for input"]
+
+  - id: rb-030
+    feedback: "Node modules installation timed out"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["NPMError: ETIMEDOUT"]
+
+  - id: rb-031
+    feedback: "Access denied to write to system directory"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["PermissionError: /usr/local/bin"]
+
+  - id: rb-032
+    feedback: "The process froze and became unresponsive"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["TimeoutError: Process not responding"]
+
+  - id: rb-033
+    feedback: "Kernel killed the process due to OOM"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["OOMKilledError"]
+
+  - id: rb-034
+    feedback: "Cannot connect to localhost:3000"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["ConnectionRefusedError"]
+
+  - id: rb-035
+    feedback: "HTTP proxy authentication required"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["ProxyAuthError: 407"]
+
+  - id: rb-036
+    feedback: "The command hung indefinitely"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["TimeoutError"]
+
+  - id: rb-037
+    feedback: "pip install failed due to network error"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["PipError: Network unreachable"]
+
+  - id: rb-038
+    feedback: "Container health check failed"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["HealthCheckError: Unhealthy"]
+
+  - id: rb-039
+    feedback: "SSH connection to remote server timed out"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["SSHTimeoutError"]
+
+  - id: rb-040
+    feedback: "The API endpoint returned gateway timeout"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["HTTPError: 504 Gateway Timeout"]
+
+  - id: rb-041
+    feedback: "Disk I/O error during file write"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["IOError: Input/output error"]
+
+  - id: rb-042
+    feedback: "VPN connection dropped during execution"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["NetworkError: VPN disconnected"]
+
+  - id: rb-043
+    feedback: "System load too high, operations slow"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["ResourceError: System overloaded"]
+
+  - id: rb-044
+    feedback: "Cache server unreachable"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["RedisError: Connection refused"]
+
+  - id: rb-045
+    feedback: "Firewall blocking outbound connection"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["NetworkError: Connection blocked"]
+
+  - id: rb-046
+    feedback: "The execution environment is misconfigured"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["ConfigurationError: Invalid setup"]
+
+  - id: rb-047
+    feedback: "Antivirus blocked the execution"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["SecurityError: Blocked by antivirus"]
+
+  - id: rb-048
+    feedback: "inotify watch limit reached"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["OSError: inotify limit exceeded"]
+
+  - id: rb-049
+    feedback: "The API is experiencing high latency"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["SlowResponseError: 30s latency"]
+
+  - id: rb-050
+    feedback: "Session token expired during long operation"
+    expected_category: runtime_bug
+    trajectory_context:
+      recent_errors: ["AuthError: Token expired"]

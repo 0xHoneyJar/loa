@@ -1202,6 +1202,23 @@ feedback:
       - "feedback"
       - "user-report"
 
+  # -------------------------------------------------------------------------
+  # Trace-Based Routing (v1.28.0 - Issue #171)
+  # -------------------------------------------------------------------------
+  # Analyze execution trajectory to automatically route feedback to the
+  # appropriate skill or construct based on recent activity.
+  trace_routing:
+    # Master toggle - disabled by default for staged rollout
+    enabled: false
+    # Minimum confidence (0-100) to use trace-based routing
+    confidence_threshold: 70
+    # Hours of trajectory history to analyze
+    time_window_hours: 24
+    # Health check timeout in milliseconds
+    health_check_timeout_ms: 100
+    # Full analysis timeout in seconds
+    analysis_timeout_seconds: 5
+
 # =============================================================================
 # Update-Loa Branch Testing (v1.11.0 - Issue #91)
 # =============================================================================
@@ -1575,3 +1592,20 @@ preferences:
   auto_bead_on_review: true
   require_security_audit: true
   confirm_app_writes: true
+
+# =============================================================================
+# Simstim HITL Workflow (v1.24.0)
+# =============================================================================
+# Human-in-the-loop accelerated development with Flatline integration
+simstim:
+  enabled: true
+  flatline:
+    auto_accept_high_consensus: true
+    show_disputed: true
+    show_blockers: true
+    phases:
+      - prd
+      - sdd
+      - sprint
+  defaults:
+    timeout_hours: 24
