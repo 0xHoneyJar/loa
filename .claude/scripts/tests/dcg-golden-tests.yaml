@@ -1,0 +1,323 @@
+# Golden Test Corpus for DCG
+# Comprehensive test cases for pattern validation
+#
+# Usage:
+#   .claude/scripts/tests/dcg-golden-test-runner.sh dcg-golden-tests.yaml
+
+version: 1.0.0
+
+# ==============================================================================
+# Filesystem - BLOCK cases
+# ==============================================================================
+
+tests:
+  # Root deletion
+  - id: fs_001
+    input: "rm -rf /"
+    expected: BLOCK
+    pattern: fs_rm_rf_root
+    description: "Delete root filesystem"
+
+  - id: fs_002
+    input: "rm -rf /*"
+    expected: BLOCK
+    pattern: fs_rm_rf_root
+    description: "Delete all files in root"
+
+  - id: fs_003
+    input: "rm -r -f /"
+    expected: BLOCK
+    pattern: fs_rm_rf_root
+    description: "Delete root with separated flags"
+
+  # Home deletion
+  - id: fs_004
+    input: "rm -rf ~"
+    expected: BLOCK
+    pattern: fs_rm_rf_home
+    description: "Delete home directory (tilde)"
+
+  - id: fs_005
+    input: "rm -rf $HOME"
+    expected: BLOCK
+    pattern: fs_rm_rf_home
+    description: "Delete home directory (variable)"
+
+  - id: fs_006
+    input: "rm -rf /home/user"
+    expected: BLOCK
+    pattern: fs_rm_rf_home
+    description: "Delete specific user home"
+
+  # System directories
+  - id: fs_007
+    input: "rm -rf /etc"
+    expected: BLOCK
+    pattern: fs_rm_rf_system
+    description: "Delete /etc"
+
+  - id: fs_008
+    input: "rm -rf /usr"
+    expected: BLOCK
+    pattern: fs_rm_rf_system
+    description: "Delete /usr"
+
+  - id: fs_009
+    input: "rm -rf /var"
+    expected: BLOCK
+    pattern: fs_rm_rf_system
+    description: "Delete /var"
+
+  - id: fs_010
+    input: "rm -rf /bin"
+    expected: BLOCK
+    pattern: fs_rm_rf_system
+    description: "Delete /bin"
+
+  - id: fs_011
+    input: "rm -rf /lib"
+    expected: BLOCK
+    pattern: fs_rm_rf_system
+    description: "Delete /lib"
+
+  - id: fs_012
+    input: "rm -rf /boot"
+    expected: BLOCK
+    pattern: fs_rm_rf_system
+    description: "Delete /boot"
+
+# ==============================================================================
+# Filesystem - ALLOW cases (safe paths)
+# ==============================================================================
+
+  - id: fs_safe_001
+    input: "rm -rf /tmp/test"
+    expected: ALLOW
+    description: "Delete in /tmp (safe path)"
+
+  - id: fs_safe_002
+    input: "rm -rf /var/tmp/cache"
+    expected: ALLOW
+    description: "Delete in /var/tmp (safe path)"
+
+  - id: fs_safe_003
+    input: "rm -rf node_modules"
+    expected: ALLOW
+    description: "Delete node_modules (relative, safe)"
+
+  - id: fs_safe_004
+    input: "rm -rf dist"
+    expected: ALLOW
+    description: "Delete dist directory"
+
+  - id: fs_safe_005
+    input: "rm -rf build"
+    expected: ALLOW
+    description: "Delete build directory"
+
+# ==============================================================================
+# Git - BLOCK cases
+# ==============================================================================
+
+  - id: git_001
+    input: "git push --force origin main"
+    expected: BLOCK
+    pattern: git_push_force
+    description: "Force push to main"
+
+  - id: git_002
+    input: "git push -f origin main"
+    expected: BLOCK
+    pattern: git_push_force_short
+    description: "Force push short flag"
+
+  - id: git_003
+    input: "git push --force-with-lease origin main"
+    expected: ALLOW
+    description: "Force with lease is safer"
+
+# ==============================================================================
+# Git - WARN cases
+# ==============================================================================
+
+  - id: git_warn_001
+    input: "git reset --hard"
+    expected: WARN
+    pattern: git_reset_hard
+    description: "Reset hard"
+
+  - id: git_warn_002
+    input: "git reset --hard HEAD~1"
+    expected: WARN
+    pattern: git_reset_hard
+    description: "Reset hard to previous commit"
+
+  - id: git_warn_003
+    input: "git clean -fd"
+    expected: WARN
+    pattern: git_clean_force
+    description: "Clean force directories"
+
+  - id: git_warn_004
+    input: "git clean -fdx"
+    expected: WARN
+    pattern: git_clean_force
+    description: "Clean force with ignored files"
+
+  - id: git_warn_005
+    input: "git checkout ."
+    expected: WARN
+    pattern: git_checkout_dot
+    description: "Checkout discard all changes"
+
+# ==============================================================================
+# Safe Context - grep/echo/cat
+# ==============================================================================
+
+  - id: safe_ctx_001
+    input: "grep 'rm -rf' logs.txt"
+    expected: ALLOW
+    description: "Grep for dangerous pattern"
+
+  - id: safe_ctx_002
+    input: "echo 'DROP TABLE users'"
+    expected: ALLOW
+    description: "Echo SQL statement"
+
+  - id: safe_ctx_003
+    input: "cat /etc/passwd"
+    expected: ALLOW
+    description: "Cat system file (read-only)"
+
+  - id: safe_ctx_004
+    input: "printf 'rm -rf /\\n'"
+    expected: ALLOW
+    description: "Printf dangerous string"
+
+  - id: safe_ctx_005
+    input: "egrep 'git push --force' history.log"
+    expected: ALLOW
+    description: "Egrep for dangerous pattern"
+
+# ==============================================================================
+# Safe Flags
+# ==============================================================================
+
+  - id: safe_flag_001
+    input: "rm --help"
+    expected: ALLOW
+    description: "Help flag"
+
+  - id: safe_flag_002
+    input: "terraform destroy --dry-run"
+    expected: ALLOW
+    description: "Dry run flag"
+
+  - id: safe_flag_003
+    input: "git --version"
+    expected: ALLOW
+    description: "Version flag"
+
+# ==============================================================================
+# Command Chaining
+# ==============================================================================
+
+  - id: chain_001
+    input: "npm test && rm -rf /"
+    expected: BLOCK
+    description: "Safe command chained with dangerous"
+
+  - id: chain_002
+    input: "rm -rf / && npm test"
+    expected: BLOCK
+    description: "Dangerous first in chain"
+
+  - id: chain_003
+    input: "npm test && npm build"
+    expected: ALLOW
+    description: "All safe commands"
+
+  - id: chain_004
+    input: "npm test || exit 1"
+    expected: ALLOW
+    description: "Or chain with exit"
+
+  - id: chain_005
+    input: "npm test; git reset --hard"
+    expected: WARN
+    description: "Semicolon chain with warn"
+
+  - id: chain_006
+    input: "npm test | grep pass"
+    expected: ALLOW
+    description: "Pipe to grep"
+
+# ==============================================================================
+# Shell Patterns
+# ==============================================================================
+
+  - id: shell_001
+    input: 'eval "$cmd"'
+    expected: WARN
+    pattern: shell_eval
+    description: "Eval with variable"
+
+  - id: shell_002
+    input: "eval \"$(cat script.sh)\""
+    expected: WARN
+    pattern: shell_eval
+    description: "Eval with command substitution"
+
+# ==============================================================================
+# Common Safe Commands
+# ==============================================================================
+
+  - id: allow_001
+    input: "npm test"
+    expected: ALLOW
+    description: "NPM test"
+
+  - id: allow_002
+    input: "npm install"
+    expected: ALLOW
+    description: "NPM install"
+
+  - id: allow_003
+    input: "npm run build"
+    expected: ALLOW
+    description: "NPM build"
+
+  - id: allow_004
+    input: "ls -la"
+    expected: ALLOW
+    description: "List files"
+
+  - id: allow_005
+    input: "pwd"
+    expected: ALLOW
+    description: "Print working directory"
+
+  - id: allow_006
+    input: "git status"
+    expected: ALLOW
+    description: "Git status"
+
+  - id: allow_007
+    input: "git add ."
+    expected: ALLOW
+    description: "Git add"
+
+  - id: allow_008
+    input: "git commit -m 'message'"
+    expected: ALLOW
+    description: "Git commit"
+
+  - id: allow_009
+    input: "git push origin feature"
+    expected: ALLOW
+    description: "Normal git push"
+
+  - id: allow_010
+    input: "make test"
+    expected: ALLOW
+    description: "Make test"

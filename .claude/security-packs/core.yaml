@@ -1,0 +1,173 @@
+# Core Security Pack for DCG
+# Always enabled - provides filesystem, git, and shell protections
+#
+# Version: 1.0.0
+# Priority: P0 (highest)
+
+name: core
+version: 1.0.0
+description: Core filesystem, git, and shell protections (always enabled)
+
+patterns:
+  # ===========================================================================
+  # Filesystem Destruction
+  # ===========================================================================
+
+  - id: fs_rm_rf_root
+    pattern: '\brm\s+(-[rf]+\s+)*(/|/\*)\s*$'
+    action: BLOCK
+    severity: critical
+    message: "Attempt to delete root filesystem"
+    suggestion: "Specify a safe subdirectory to delete"
+
+  - id: fs_rm_rf_home
+    pattern: '\brm\s+(-[rf]+\s+)*(~|\$HOME|/home/[^/\s]+)\s*$'
+    action: BLOCK
+    severity: critical
+    message: "Attempt to delete home directory"
+    suggestion: "Specify a subdirectory within home"
+
+  - id: fs_rm_rf_system
+    pattern: '\brm\s+(-[rf]+\s+)*/(etc|usr|var|bin|lib|lib64|sbin|boot|root|opt|srv)\b'
+    action: BLOCK
+    severity: critical
+    message: "Attempt to delete system directory"
+    suggestion: "System directories should never be deleted"
+
+  - id: fs_rm_rf_star
+    pattern: '\brm\s+(-[rf]+\s+)*\.\.\s*$'
+    action: BLOCK
+    severity: critical
+    message: "Attempt to delete parent directory with rm -rf .."
+    suggestion: "Be explicit about which directory to delete"
+
+  - id: fs_chmod_world_write
+    pattern: '\bchmod\s+(-R\s+)?777\s+/'
+    action: WARN
+    severity: high
+    message: "Setting world-writable permissions on system path"
+    suggestion: "Use more restrictive permissions (755 or 644)"
+
+  - id: fs_chown_recursive_root
+    pattern: '\bchown\s+-R\s+root[:\s]'
+    action: WARN
+    severity: medium
+    message: "Recursive chown to root detected"
+    suggestion: "Verify this is the intended ownership change"
+
+  # ===========================================================================
+  # Git Destructive Operations
+  # ===========================================================================
+
+  - id: git_push_force
+    pattern: '\bgit\s+push\s+.*--force\b'
+    action: BLOCK
+    severity: high
+    message: "Force push blocked - use ICE-approved git-safety flow"
+    suggestion: "Use git push --force-with-lease or work through PR workflow"
+
+  - id: git_push_force_short
+    pattern: '\bgit\s+push\s+-f\b'
+    action: BLOCK
+    severity: high
+    message: "Force push (-f) blocked"
+    suggestion: "Use git push --force-with-lease instead"
+
+  - id: git_reset_hard
+    pattern: '\bgit\s+reset\s+--hard\b'
+    action: WARN
+    severity: medium
+    message: "git reset --hard will discard uncommitted changes"
+    suggestion: "Consider git stash first to preserve changes"
+
+  - id: git_clean_force
+    pattern: '\bgit\s+clean\s+-[fdx]+'
+    action: WARN
+    severity: medium
+    message: "git clean will permanently remove untracked files"
+    suggestion: "Use git clean -n first to preview deletions"
+
+  - id: git_checkout_dot
+    pattern: '\bgit\s+checkout\s+\.\s*$'
+    action: WARN
+    severity: medium
+    message: "git checkout . will discard all unstaged changes"
+    suggestion: "Consider git stash to preserve changes"
+
+  - id: git_branch_delete_force
+    pattern: '\bgit\s+branch\s+-D\b'
+    action: WARN
+    severity: medium
+    message: "Force delete branch may lose unmerged commits"
+    suggestion: "Use git branch -d for safe deletion"
+
+  # ===========================================================================
+  # Shell Injection Patterns
+  # ===========================================================================
+
+  - id: shell_eval
+    pattern: '\beval\s+[\$"]'
+    action: WARN
+    severity: high
+    message: "eval with variable expansion detected"
+    suggestion: "Avoid eval with user-provided input"
+
+  - id: shell_exec_replace
+    pattern: '\bexec\s+[^<>|&]'
+    action: WARN
+    severity: medium
+    message: "exec will replace current shell"
+    suggestion: "Ensure this is the intended behavior"
+
+  - id: shell_source_remote
+    pattern: '\b(source|\.)\s+<\(curl'
+    action: BLOCK
+    severity: critical
+    message: "Sourcing remote script detected"
+    suggestion: "Download and review script before sourcing"
+
+  - id: shell_bash_c_curl
+    pattern: '\bbash\s+-c\s+.*curl.*\|'
+    action: WARN
+    severity: high
+    message: "Piping curl output to bash detected"
+    suggestion: "Download and review script before execution"
+
+  # ===========================================================================
+  # Dangerous System Commands
+  # ===========================================================================
+
+  - id: sys_dd_of_dev
+    pattern: '\bdd\s+.*of=/dev/(sd|nvme|hd)'
+    action: BLOCK
+    severity: critical
+    message: "Writing directly to disk device"
+    suggestion: "Verify disk device is correct, use with extreme caution"
+
+  - id: sys_mkfs
+    pattern: '\bmkfs\b'
+    action: WARN
+    severity: high
+    message: "Filesystem creation detected"
+    suggestion: "Verify this is the intended device"
+
+  - id: sys_kill_all
+    pattern: '\bkillall\s+-9\b'
+    action: WARN
+    severity: medium
+    message: "killall -9 will force terminate all matching processes"
+    suggestion: "Use killall without -9 first for graceful shutdown"
+
+contexts:
+  safe_patterns:
+    - '^grep\s+'
+    - '^egrep\s+'
+    - '^fgrep\s+'
+    - '^rg\s+'
+    - '^echo\s+'
+    - '^printf\s+'
+    - '^cat\s+'
+    - '--help'
+    - '--dry-run'
+    - '--version'
+    - '-n\s+'  # dry-run flag for many commands
