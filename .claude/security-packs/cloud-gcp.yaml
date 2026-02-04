@@ -1,0 +1,125 @@
+# cloud-gcp.yaml - Google Cloud security pack for DCG
+# Detects dangerous gcloud CLI operations
+#
+# Enable in .loa.config.yaml:
+#   destructive_command_guard:
+#     packs:
+#       cloud-gcp: true
+
+version: 1.0.0
+name: cloud-gcp
+description: Detects dangerous Google Cloud CLI operations
+author: Loa Framework
+
+patterns:
+  # Compute Engine
+  - id: gcp_compute_delete
+    pattern: "\\bgcloud\\s+compute\\s+instances\\s+delete"
+    action: BLOCK
+    severity: critical
+    message: "Deleting Compute Engine instance"
+
+  - id: gcp_compute_delete_all
+    pattern: "\\bgcloud\\s+compute\\s+instances\\s+delete\\s+.*\\$\\("
+    action: BLOCK
+    severity: critical
+    message: "Deleting Compute instances via subshell"
+
+  # Cloud SQL
+  - id: gcp_sql_delete
+    pattern: "\\bgcloud\\s+sql\\s+instances\\s+delete"
+    action: BLOCK
+    severity: critical
+    message: "Deleting Cloud SQL instance"
+
+  # GKE
+  - id: gcp_gke_delete
+    pattern: "\\bgcloud\\s+container\\s+clusters\\s+delete"
+    action: BLOCK
+    severity: critical
+    message: "Deleting GKE cluster"
+
+  # Cloud Storage
+  - id: gcp_storage_rm_r
+    pattern: "\\bgsutil\\s+rm\\s+-r"
+    action: BLOCK
+    severity: critical
+    message: "Recursively deleting Cloud Storage objects"
+
+  - id: gcp_storage_rb
+    pattern: "\\bgsutil\\s+rb"
+    action: BLOCK
+    severity: critical
+    message: "Removing Cloud Storage bucket"
+
+  - id: gcp_gcloud_storage_rm
+    pattern: "\\bgcloud\\s+storage\\s+rm\\s+--recursive"
+    action: BLOCK
+    severity: critical
+    message: "Recursively deleting Cloud Storage objects"
+
+  # BigQuery
+  - id: gcp_bq_rm_dataset
+    pattern: "\\bbq\\s+rm\\s+.*-d"
+    action: BLOCK
+    severity: critical
+    message: "Removing BigQuery dataset"
+
+  - id: gcp_bq_rm_table
+    pattern: "\\bbq\\s+rm\\s+.*-t"
+    action: WARN
+    severity: high
+    message: "Removing BigQuery table"
+
+  # Firestore/Datastore
+  - id: gcp_firestore_delete
+    pattern: "\\bgcloud\\s+firestore\\s+databases\\s+delete"
+    action: BLOCK
+    severity: critical
+    message: "Deleting Firestore database"
+
+  # Cloud Functions
+  - id: gcp_functions_delete
+    pattern: "\\bgcloud\\s+functions\\s+delete"
+    action: WARN
+    severity: medium
+    message: "Deleting Cloud Function"
+
+  # Cloud Run
+  - id: gcp_run_delete
+    pattern: "\\bgcloud\\s+run\\s+services\\s+delete"
+    action: WARN
+    severity: medium
+    message: "Deleting Cloud Run service"
+
+  # Project-level (extremely dangerous)
+  - id: gcp_project_delete
+    pattern: "\\bgcloud\\s+projects\\s+delete"
+    action: BLOCK
+    severity: critical
+    message: "Deleting entire GCP project"
+
+  # IAM
+  - id: gcp_iam_delete_sa
+    pattern: "\\bgcloud\\s+iam\\s+service-accounts\\s+delete"
+    action: WARN
+    severity: high
+    message: "Deleting service account"
+
+  # Pub/Sub
+  - id: gcp_pubsub_delete_topic
+    pattern: "\\bgcloud\\s+pubsub\\s+topics\\s+delete"
+    action: WARN
+    severity: medium
+    message: "Deleting Pub/Sub topic"
+
+  - id: gcp_pubsub_delete_sub
+    pattern: "\\bgcloud\\s+pubsub\\s+subscriptions\\s+delete"
+    action: WARN
+    severity: medium
+    message: "Deleting Pub/Sub subscription"
+
+safe_contexts:
+  # Quiet mode usually means non-destructive
+  - pattern: "--format"
+    reason: "Format output, not destructive"

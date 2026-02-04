@@ -1,0 +1,140 @@
+# cloud-azure.yaml - Azure security pack for DCG
+# Detects dangerous Azure CLI operations
+#
+# Enable in .loa.config.yaml:
+#   destructive_command_guard:
+#     packs:
+#       cloud-azure: true
+
+version: 1.0.0
+name: cloud-azure
+description: Detects dangerous Azure CLI operations
+author: Loa Framework
+
+patterns:
+  # Virtual Machines
+  - id: azure_vm_delete
+    pattern: "\\baz\\s+vm\\s+delete"
+    action: BLOCK
+    severity: critical
+    message: "Deleting Azure VM"
+
+  - id: azure_vmss_delete
+    pattern: "\\baz\\s+vmss\\s+delete"
+    action: BLOCK
+    severity: critical
+    message: "Deleting Azure VM scale set"
+
+  # Resource Groups (contains many resources)
+  - id: azure_group_delete
+    pattern: "\\baz\\s+group\\s+delete"
+    action: BLOCK
+    severity: critical
+    message: "Deleting resource group (destroys all contained resources)"
+
+  # Storage
+  - id: azure_storage_delete_container
+    pattern: "\\baz\\s+storage\\s+container\\s+delete"
+    action: BLOCK
+    severity: critical
+    message: "Deleting storage container"
+
+  - id: azure_storage_delete_account
+    pattern: "\\baz\\s+storage\\s+account\\s+delete"
+    action: BLOCK
+    severity: critical
+    message: "Deleting storage account"
+
+  - id: azure_storage_blob_delete_batch
+    pattern: "\\baz\\s+storage\\s+blob\\s+delete-batch"
+    action: BLOCK
+    severity: critical
+    message: "Batch deleting blobs"
+
+  # SQL
+  - id: azure_sql_server_delete
+    pattern: "\\baz\\s+sql\\s+server\\s+delete"
+    action: BLOCK
+    severity: critical
+    message: "Deleting SQL server"
+
+  - id: azure_sql_db_delete
+    pattern: "\\baz\\s+sql\\s+db\\s+delete"
+    action: BLOCK
+    severity: critical
+    message: "Deleting SQL database"
+
+  # Cosmos DB
+  - id: azure_cosmosdb_delete
+    pattern: "\\baz\\s+cosmosdb\\s+delete"
+    action: BLOCK
+    severity: critical
+    message: "Deleting Cosmos DB account"
+
+  # AKS
+  - id: azure_aks_delete
+    pattern: "\\baz\\s+aks\\s+delete"
+    action: BLOCK
+    severity: critical
+    message: "Deleting AKS cluster"
+
+  # App Service
+  - id: azure_webapp_delete
+    pattern: "\\baz\\s+webapp\\s+delete"
+    action: WARN
+    severity: high
+    message: "Deleting web app"
+
+  - id: azure_functionapp_delete
+    pattern: "\\baz\\s+functionapp\\s+delete"
+    action: WARN
+    severity: medium
+    message: "Deleting function app"
+
+  # Key Vault
+  - id: azure_keyvault_delete
+    pattern: "\\baz\\s+keyvault\\s+delete"
+    action: BLOCK
+    severity: critical
+    message: "Deleting Key Vault"
+
+  - id: azure_keyvault_purge
+    pattern: "\\baz\\s+keyvault\\s+purge"
+    action: BLOCK
+    severity: critical
+    message: "Purging Key Vault (permanent)"
+
+  # Network
+  - id: azure_vnet_delete
+    pattern: "\\baz\\s+network\\s+vnet\\s+delete"
+    action: BLOCK
+    severity: critical
+    message: "Deleting virtual network"
+
+  - id: azure_nsg_delete
+    pattern: "\\baz\\s+network\\s+nsg\\s+delete"
+    action: WARN
+    severity: high
+    message: "Deleting network security group"
+
+  # Container Registry
+  - id: azure_acr_delete
+    pattern: "\\baz\\s+acr\\s+delete"
+    action: WARN
+    severity: high
+    message: "Deleting container registry"
+
+  # Service Bus
+  - id: azure_servicebus_delete
+    pattern: "\\baz\\s+servicebus\\s+namespace\\s+delete"
+    action: WARN
+    severity: high
+    message: "Deleting Service Bus namespace"
+
+safe_contexts:
+  # Dry run
+  - pattern: "--dry-run"
+    reason: "Dry run won't execute changes"
+  # Output format
+  - pattern: "--output\\s+(json|yaml|table)"
+    reason: "Only formatting output"

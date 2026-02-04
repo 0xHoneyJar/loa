@@ -494,3 +494,378 @@ tests:
     input: "docker run hello-world"
     expected: ALLOW
     description: "Run container"
+
+# ==============================================================================
+# Kubernetes - BLOCK cases (requires kubernetes pack)
+# ==============================================================================
+
+  - id: k8s_001
+    input: "kubectl delete namespace production"
+    expected: BLOCK
+    pattern: k8s_delete_namespace
+    description: "Delete namespace"
+
+  - id: k8s_002
+    input: "kubectl delete ns default"
+    expected: BLOCK
+    pattern: k8s_delete_namespace
+    description: "Delete namespace (short)"
+
+  - id: k8s_003
+    input: "kubectl delete pods --all"
+    expected: BLOCK
+    pattern: k8s_delete_all_type
+    description: "Delete all pods"
+
+  - id: k8s_004
+    input: "kubectl delete deployments --all"
+    expected: BLOCK
+    pattern: k8s_delete_all_type
+    description: "Delete all deployments"
+
+  - id: k8s_005
+    input: "helm delete myrelease --purge"
+    expected: BLOCK
+    pattern: helm_delete_purge
+    description: "Helm delete with purge"
+
+# ==============================================================================
+# Kubernetes - WARN cases
+# ==============================================================================
+
+  - id: k8s_warn_001
+    input: "kubectl drain node1 --force"
+    expected: WARN
+    pattern: k8s_drain_force
+    description: "Force drain node"
+
+  - id: k8s_warn_002
+    input: "kubectl scale deployment myapp --replicas=0"
+    expected: WARN
+    pattern: k8s_scale_zero
+    description: "Scale to zero"
+
+  - id: k8s_warn_003
+    input: "kubectl config use-context production"
+    expected: WARN
+    pattern: k8s_context_production
+    description: "Switch to production context"
+
+  - id: k8s_warn_004
+    input: "helm uninstall myrelease"
+    expected: WARN
+    pattern: helm_uninstall
+    description: "Helm uninstall"
+
+# ==============================================================================
+# Kubernetes - ALLOW cases
+# ==============================================================================
+
+  - id: k8s_allow_001
+    input: "kubectl get pods"
+    expected: ALLOW
+    description: "Get pods"
+
+  - id: k8s_allow_002
+    input: "kubectl apply -f deployment.yaml"
+    expected: ALLOW
+    description: "Apply deployment"
+
+  - id: k8s_allow_003
+    input: "kubectl describe pod myapp"
+    expected: ALLOW
+    description: "Describe pod"
+
+  - id: k8s_allow_004
+    input: "kubectl delete pod myapp-abc123 --dry-run"
+    expected: ALLOW
+    description: "Delete pod dry-run"
+
+# ==============================================================================
+# AWS - BLOCK cases (requires cloud-aws pack)
+# ==============================================================================
+
+  - id: aws_001
+    input: "aws ec2 terminate-instances --instance-ids i-1234"
+    expected: BLOCK
+    pattern: aws_ec2_terminate
+    description: "Terminate EC2 instance"
+
+  - id: aws_002
+    input: "aws rds delete-db-instance --db-instance-identifier mydb"
+    expected: BLOCK
+    pattern: aws_rds_delete
+    description: "Delete RDS instance"
+
+  - id: aws_003
+    input: "aws s3 rb s3://mybucket --force"
+    expected: BLOCK
+    pattern: aws_s3_rb_force
+    description: "Force remove S3 bucket"
+
+  - id: aws_004
+    input: "aws cloudformation delete-stack --stack-name mystack"
+    expected: BLOCK
+    pattern: aws_cfn_delete_stack
+    description: "Delete CloudFormation stack"
+
+  - id: aws_005
+    input: "aws dynamodb delete-table --table-name mytable"
+    expected: BLOCK
+    pattern: aws_dynamodb_delete
+    description: "Delete DynamoDB table"
+
+  - id: aws_006
+    input: "aws eks delete-cluster --name mycluster"
+    expected: BLOCK
+    pattern: aws_eks_delete
+    description: "Delete EKS cluster"
+
+# ==============================================================================
+# AWS - WARN cases
+# ==============================================================================
+
+  - id: aws_warn_001
+    input: "aws s3 rm s3://mybucket/folder --recursive"
+    expected: WARN
+    pattern: aws_s3_rm_recursive
+    description: "Recursive S3 delete"
+
+  - id: aws_warn_002
+    input: "aws iam delete-user --user-name myuser"
+    expected: WARN
+    pattern: aws_iam_delete_user
+    description: "Delete IAM user"
+
+  - id: aws_warn_003
+    input: "aws lambda delete-function --function-name myfunc"
+    expected: WARN
+    pattern: aws_lambda_delete
+    description: "Delete Lambda function"
+
+# ==============================================================================
+# AWS - ALLOW cases
+# ==============================================================================
+
+  - id: aws_allow_001
+    input: "aws s3 ls"
+    expected: ALLOW
+    description: "List S3 buckets"
+
+  - id: aws_allow_002
+    input: "aws ec2 describe-instances"
+    expected: ALLOW
+    description: "Describe EC2 instances"
+
+  - id: aws_allow_003
+    input: "aws ec2 terminate-instances --dry-run --instance-ids i-1234"
+    expected: ALLOW
+    description: "Terminate with dry-run"
+
+# ==============================================================================
+# GCP - BLOCK cases (requires cloud-gcp pack)
+# ==============================================================================
+
+  - id: gcp_001
+    input: "gcloud compute instances delete myvm"
+    expected: BLOCK
+    pattern: gcp_compute_delete
+    description: "Delete compute instance"
+
+  - id: gcp_002
+    input: "gcloud sql instances delete mydb"
+    expected: BLOCK
+    pattern: gcp_sql_delete
+    description: "Delete Cloud SQL instance"
+
+  - id: gcp_003
+    input: "gcloud container clusters delete mycluster"
+    expected: BLOCK
+    pattern: gcp_gke_delete
+    description: "Delete GKE cluster"
+
+  - id: gcp_004
+    input: "gsutil rm -r gs://mybucket"
+    expected: BLOCK
+    pattern: gcp_storage_rm_r
+    description: "Recursive storage delete"
+
+  - id: gcp_005
+    input: "gcloud projects delete myproject"
+    expected: BLOCK
+    pattern: gcp_project_delete
+    description: "Delete entire project"
+
+# ==============================================================================
+# GCP - WARN cases
+# ==============================================================================
+
+  - id: gcp_warn_001
+    input: "gcloud functions delete myfunction"
+    expected: WARN
+    pattern: gcp_functions_delete
+    description: "Delete Cloud Function"
+
+  - id: gcp_warn_002
+    input: "bq rm -t mydataset.mytable"
+    expected: WARN
+    pattern: gcp_bq_rm_table
+    description: "Remove BigQuery table"
+
+# ==============================================================================
+# GCP - ALLOW cases
+# ==============================================================================
+
+  - id: gcp_allow_001
+    input: "gcloud compute instances list"
+    expected: ALLOW
+    description: "List compute instances"
+
+  - id: gcp_allow_002
+    input: "gsutil ls gs://mybucket"
+    expected: ALLOW
+    description: "List storage bucket"
+
+# ==============================================================================
+# Azure - BLOCK cases (requires cloud-azure pack)
+# ==============================================================================
+
+  - id: azure_001
+    input: "az vm delete --name myvm --resource-group mygroup"
+    expected: BLOCK
+    pattern: azure_vm_delete
+    description: "Delete Azure VM"
+
+  - id: azure_002
+    input: "az group delete --name mygroup"
+    expected: BLOCK
+    pattern: azure_group_delete
+    description: "Delete resource group"
+
+  - id: azure_003
+    input: "az sql server delete --name myserver --resource-group mygroup"
+    expected: BLOCK
+    pattern: azure_sql_server_delete
+    description: "Delete SQL server"
+
+  - id: azure_004
+    input: "az aks delete --name mycluster --resource-group mygroup"
+    expected: BLOCK
+    pattern: azure_aks_delete
+    description: "Delete AKS cluster"
+
+  - id: azure_005
+    input: "az keyvault delete --name myvault"
+    expected: BLOCK
+    pattern: azure_keyvault_delete
+    description: "Delete Key Vault"
+
+# ==============================================================================
+# Azure - WARN cases
+# ==============================================================================
+
+  - id: azure_warn_001
+    input: "az webapp delete --name myapp --resource-group mygroup"
+    expected: WARN
+    pattern: azure_webapp_delete
+    description: "Delete web app"
+
+  - id: azure_warn_002
+    input: "az acr delete --name myregistry"
+    expected: WARN
+    pattern: azure_acr_delete
+    description: "Delete container registry"
+
+# ==============================================================================
+# Azure - ALLOW cases
+# ==============================================================================
+
+  - id: azure_allow_001
+    input: "az vm list"
+    expected: ALLOW
+    description: "List Azure VMs"
+
+  - id: azure_allow_002
+    input: "az group list"
+    expected: ALLOW
+    description: "List resource groups"
+
+# ==============================================================================
+# Terraform - BLOCK cases (requires terraform pack)
+# ==============================================================================
+
+  - id: tf_001
+    input: "terraform destroy -auto-approve"
+    expected: BLOCK
+    pattern: tf_destroy_auto_approve
+    description: "Terraform destroy auto-approve"
+
+  - id: tf_002
+    input: "terragrunt run-all destroy"
+    expected: BLOCK
+    pattern: tg_destroy_all
+    description: "Terragrunt destroy all"
+
+  - id: tf_003
+    input: "tofu destroy -auto-approve"
+    expected: BLOCK
+    pattern: tf_destroy_auto_approve
+    description: "OpenTofu destroy auto-approve"
+
+# ==============================================================================
+# Terraform - WARN cases
+# ==============================================================================
+
+  - id: tf_warn_001
+    input: "terraform destroy"
+    expected: WARN
+    pattern: tf_destroy
+    description: "Terraform destroy (requires confirmation)"
+
+  - id: tf_warn_002
+    input: "terraform state rm module.vpc"
+    expected: WARN
+    pattern: tf_state_rm
+    description: "Remove from state"
+
+  - id: tf_warn_003
+    input: "terraform apply -auto-approve"
+    expected: WARN
+    pattern: tf_apply_auto_approve
+    description: "Apply auto-approve"
+
+  - id: tf_warn_004
+    input: "terraform taint aws_instance.example"
+    expected: WARN
+    pattern: tf_taint
+    description: "Taint resource"
+
+  - id: tf_warn_005
+    input: "terraform force-unlock abc123"
+    expected: WARN
+    pattern: tf_force_unlock
+    description: "Force unlock state"
+
+# ==============================================================================
+# Terraform - ALLOW cases
+# ==============================================================================
+
+  - id: tf_allow_001
+    input: "terraform plan"
+    expected: ALLOW
+    description: "Terraform plan"
+
+  - id: tf_allow_002
+    input: "terraform init"
+    expected: ALLOW
+    description: "Terraform init"
+
+  - id: tf_allow_003
+    input: "terraform validate"
+    expected: ALLOW
+    description: "Terraform validate"
+
+  - id: tf_allow_004
+    input: "terraform fmt"
+    expected: ALLOW
+    description: "Terraform format"

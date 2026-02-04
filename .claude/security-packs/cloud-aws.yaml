@@ -1,0 +1,140 @@
+# cloud-aws.yaml - AWS security pack for DCG
+# Detects dangerous AWS CLI operations
+#
+# Enable in .loa.config.yaml:
+#   destructive_command_guard:
+#     packs:
+#       cloud-aws: true
+
+version: 1.0.0
+name: cloud-aws
+description: Detects dangerous AWS CLI operations
+author: Loa Framework
+
+patterns:
+  # EC2 - Instance termination
+  - id: aws_ec2_terminate
+    pattern: "\\baws\\s+ec2\\s+terminate-instances"
+    action: BLOCK
+    severity: critical
+    message: "Terminating EC2 instances permanently destroys them"
+
+  - id: aws_ec2_terminate_all
+    pattern: "\\baws\\s+ec2\\s+terminate-instances\\s+.*\\$\\("
+    action: BLOCK
+    severity: critical
+    message: "Terminating EC2 instances via subshell"
+
+  # RDS - Database deletion
+  - id: aws_rds_delete
+    pattern: "\\baws\\s+rds\\s+delete-db-instance"
+    action: BLOCK
+    severity: critical
+    message: "Deleting RDS instance"
+
+  - id: aws_rds_delete_cluster
+    pattern: "\\baws\\s+rds\\s+delete-db-cluster"
+    action: BLOCK
+    severity: critical
+    message: "Deleting RDS cluster"
+
+  - id: aws_rds_no_snapshot
+    pattern: "\\baws\\s+rds\\s+delete-db-instance.*--skip-final-snapshot"
+    action: BLOCK
+    severity: critical
+    message: "Deleting RDS instance without final snapshot"
+
+  # S3 - Bucket operations
+  - id: aws_s3_rb_force
+    pattern: "\\baws\\s+s3\\s+rb\\s+.*--force"
+    action: BLOCK
+    severity: critical
+    message: "Force removing S3 bucket (deletes all contents)"
+
+  - id: aws_s3_rm_recursive
+    pattern: "\\baws\\s+s3\\s+rm\\s+.*--recursive"
+    action: WARN
+    severity: high
+    message: "Recursively deleting S3 objects"
+
+  - id: aws_s3_rm_all
+    pattern: "\\baws\\s+s3\\s+rm\\s+s3://[^/]+/\\s+--recursive"
+    action: BLOCK
+    severity: critical
+    message: "Deleting all objects in S3 bucket"
+
+  # CloudFormation
+  - id: aws_cfn_delete_stack
+    pattern: "\\baws\\s+cloudformation\\s+delete-stack"
+    action: BLOCK
+    severity: critical
+    message: "Deleting CloudFormation stack (destroys all resources)"
+
+  - id: aws_cfn_delete_all
+    pattern: "\\baws\\s+cloudformation\\s+delete-stack\\s+.*\\$\\("
+    action: BLOCK
+    severity: critical
+    message: "Deleting CloudFormation stacks via subshell"
+
+  # IAM - User/Role deletion
+  - id: aws_iam_delete_user
+    pattern: "\\baws\\s+iam\\s+delete-user"
+    action: WARN
+    severity: high
+    message: "Deleting IAM user"
+
+  - id: aws_iam_delete_role
+    pattern: "\\baws\\s+iam\\s+delete-role"
+    action: WARN
+    severity: high
+    message: "Deleting IAM role"
+
+  # Lambda
+  - id: aws_lambda_delete
+    pattern: "\\baws\\s+lambda\\s+delete-function"
+    action: WARN
+    severity: medium
+    message: "Deleting Lambda function"
+
+  # DynamoDB
+  - id: aws_dynamodb_delete
+    pattern: "\\baws\\s+dynamodb\\s+delete-table"
+    action: BLOCK
+    severity: critical
+    message: "Deleting DynamoDB table"
+
+  # EKS
+  - id: aws_eks_delete
+    pattern: "\\baws\\s+eks\\s+delete-cluster"
+    action: BLOCK
+    severity: critical
+    message: "Deleting EKS cluster"
+
+  # ElastiCache
+  - id: aws_elasticache_delete
+    pattern: "\\baws\\s+elasticache\\s+delete-cache-cluster"
+    action: BLOCK
+    severity: critical
+    message: "Deleting ElastiCache cluster"
+
+  # VPC
+  - id: aws_vpc_delete
+    pattern: "\\baws\\s+ec2\\s+delete-vpc"
+    action: BLOCK
+    severity: critical
+    message: "Deleting VPC"
+
+  # Security Group
+  - id: aws_sg_delete
+    pattern: "\\baws\\s+ec2\\s+delete-security-group"
+    action: WARN
+    severity: high
+    message: "Deleting security group"
+
+safe_contexts:
+  # Dry-run is safe
+  - pattern: "--dry-run"
+    reason: "AWS dry run won't execute changes"
+  # Query only
+  - pattern: "--query"
+    reason: "Only querying data"

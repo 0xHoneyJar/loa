@@ -1,0 +1,114 @@
+# terraform.yaml - Terraform security pack for DCG
+# Detects dangerous Terraform operations
+#
+# Enable in .loa.config.yaml:
+#   destructive_command_guard:
+#     packs:
+#       terraform: true
+
+version: 1.0.0
+name: terraform
+description: Detects dangerous Terraform and OpenTofu operations
+author: Loa Framework
+
+patterns:
+  # Destroy operations
+  - id: tf_destroy
+    pattern: "\\b(terraform|tofu)\\s+destroy\\b"
+    action: WARN
+    severity: critical
+    message: "terraform destroy will remove all managed infrastructure"
+
+  - id: tf_destroy_auto_approve
+    pattern: "\\b(terraform|tofu)\\s+destroy\\s+.*-auto-approve"
+    action: BLOCK
+    severity: critical
+    message: "terraform destroy with auto-approve skips confirmation"
+
+  - id: tf_destroy_force
+    pattern: "\\b(terraform|tofu)\\s+destroy\\s+.*-force"
+    action: BLOCK
+    severity: critical
+    message: "terraform destroy with force flag"
+
+  # State manipulation
+  - id: tf_state_rm
+    pattern: "\\b(terraform|tofu)\\s+state\\s+rm"
+    action: WARN
+    severity: high
+    message: "terraform state rm will remove resource from state without destroying"
+
+  - id: tf_state_push
+    pattern: "\\b(terraform|tofu)\\s+state\\s+push"
+    action: WARN
+    severity: high
+    message: "terraform state push will overwrite remote state"
+
+  - id: tf_state_replace_provider
+    pattern: "\\b(terraform|tofu)\\s+state\\s+replace-provider"
+    action: WARN
+    severity: medium
+    message: "Changing provider in state"
+
+  # Workspace operations
+  - id: tf_workspace_delete
+    pattern: "\\b(terraform|tofu)\\s+workspace\\s+delete"
+    action: WARN
+    severity: medium
+    message: "Deleting Terraform workspace"
+
+  # Import without plan
+  - id: tf_import_no_plan
+    pattern: "\\b(terraform|tofu)\\s+import\\s+(?!.*-generate-config-out)"
+    action: WARN
+    severity: medium
+    message: "Importing resource without generating config"
+
+  # Force unlock
+  - id: tf_force_unlock
+    pattern: "\\b(terraform|tofu)\\s+force-unlock"
+    action: WARN
+    severity: high
+    message: "Force unlocking state lock"
+
+  # Apply with auto-approve in production
+  - id: tf_apply_auto_approve
+    pattern: "\\b(terraform|tofu)\\s+apply\\s+.*-auto-approve"
+    action: WARN
+    severity: high
+    message: "terraform apply with auto-approve skips confirmation"
+
+  # Taint (marks for recreation)
+  - id: tf_taint
+    pattern: "\\b(terraform|tofu)\\s+taint"
+    action: WARN
+    severity: medium
+    message: "Tainting resource will force recreation on next apply"
+
+  # Refresh only can cause drift issues
+  - id: tf_refresh
+    pattern: "\\b(terraform|tofu)\\s+refresh"
+    action: WARN
+    severity: low
+    message: "terraform refresh updates state to match real infrastructure"
+
+  # Terragrunt destroy-all
+  - id: tg_destroy_all
+    pattern: "\\bterragrunt\\s+run-all\\s+destroy"
+    action: BLOCK
+    severity: critical
+    message: "terragrunt run-all destroy will destroy all modules"
+
+  - id: tg_destroy_all_auto
+    pattern: "\\bterragrunt\\s+destroy-all"
+    action: BLOCK
+    severity: critical
+    message: "terragrunt destroy-all will destroy all modules"
+
+safe_contexts:
+  # Plan is always safe
+  - pattern: "\\bplan\\b"
+    reason: "Planning doesn't make changes"
+  # Target specific resource
+  - pattern: "-target="
+    reason: "Targeting specific resources is more controlled"

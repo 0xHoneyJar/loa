@@ -390,6 +390,62 @@ run_mode:
     include_commits_by_sprint: true
 
 # -----------------------------------------------------------------------------
+# Destructive Command Guard (v1.28.0)
+# -----------------------------------------------------------------------------
+# Runtime safety layer that validates shell commands before execution.
+# Intercepts potentially dangerous operations and applies configurable policies.
+# See: .claude/protocols/destructive-command-guard.md
+destructive_command_guard:
+  # Master toggle - set to true to enable DCG
+  enabled: true
+
+  # Timeout for pattern matching (milliseconds)
+  timeout_ms: 100
+
+  # Security packs to load (core is always loaded)
+  # Each pack adds domain-specific patterns
+  packs:
+    # Database operations (SQL, MongoDB, Redis)
+    database: true
+    # Docker/container operations
+    docker: true
+    # Kubernetes operations (kubectl, helm)
+    kubernetes: false
+    # AWS CLI operations
+    cloud-aws: false
+    # Google Cloud operations
+    cloud-gcp: false
+    # Azure CLI operations
+    cloud-azure: false
+    # Terraform/OpenTofu operations
+    terraform: false
+
+  # Additional safe paths beyond defaults
+  # Paths must be absolute or use environment variables
+  safe_paths:
+    - "${PROJECT_ROOT}/tmp"
+    - "${PROJECT_ROOT}/cache"
+    # Add project-specific paths here
+    # - /app/cache
+
+  # Override default actions for specific patterns
+  # Useful for relaxing rules in specific contexts
+  overrides:
+    # Example: Allow git push --force with warning instead of block
+    # git_push_force:
+    #   action: WARN
+    #   reason: "Team workflow allows force push to feature branches"
+
+  # Run Mode integration
+  run_mode:
+    # Enable DCG during autonomous execution
+    enabled: true
+    # Log blocked commands to trajectory
+    audit_log: true
+    # Halt workflow after N blocked commands
+    halt_on_block_count: 3
+
+# -----------------------------------------------------------------------------
 # Simstim - HITL Accelerated Development (v1.24.0)
 # -----------------------------------------------------------------------------
 # Orchestrate complete development cycle (PRD → SDD → Sprint → Implementation)

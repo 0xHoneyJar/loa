@@ -1,0 +1,121 @@
+# kubernetes.yaml - Kubernetes security pack for DCG
+# Detects dangerous kubectl and helm operations
+#
+# Enable in .loa.config.yaml:
+#   destructive_command_guard:
+#     packs:
+#       kubernetes: true
+
+version: 1.0.0
+name: kubernetes
+description: Detects dangerous Kubernetes operations (kubectl, helm)
+author: Loa Framework
+
+patterns:
+  # Namespace deletion
+  - id: k8s_delete_namespace
+    pattern: "\\bkubectl\\s+delete\\s+(ns|namespace)\\s+\\S+"
+    action: BLOCK
+    severity: critical
+    message: "Deleting namespace will destroy all resources in it"
+
+  - id: k8s_delete_all_namespaces
+    pattern: "\\bkubectl\\s+delete\\s+(ns|namespace)\\s+--all"
+    action: BLOCK
+    severity: critical
+    message: "Deleting all namespaces"
+
+  # Delete --all in any namespace
+  - id: k8s_delete_all_type
+    pattern: "\\bkubectl\\s+delete\\s+(pods?|deployments?|services?|configmaps?|secrets?|pvc?|pv?)\\s+--all"
+    action: BLOCK
+    severity: critical
+    message: "Deleting all resources of type"
+
+  - id: k8s_delete_all_selector
+    pattern: "\\bkubectl\\s+delete\\s+\\S+\\s+--selector=.+\\s+-A"
+    action: WARN
+    severity: high
+    message: "Deleting resources cluster-wide by selector"
+
+  # Dangerous context switches
+  - id: k8s_context_production
+    pattern: "\\bkubectl\\s+config\\s+use-context\\s+.*(prod|production|live)\\b"
+    action: WARN
+    severity: medium
+    message: "Switching to production context"
+
+  # Drain operations
+  - id: k8s_drain_force
+    pattern: "\\bkubectl\\s+drain\\s+.+--force"
+    action: WARN
+    severity: high
+    message: "Force draining node will evict all pods"
+
+  - id: k8s_drain_ignore
+    pattern: "\\bkubectl\\s+drain\\s+.+--ignore-daemonsets"
+    action: WARN
+    severity: medium
+    message: "Draining node, ignoring daemonsets"
+
+  # Cordon (less dangerous but worth noting)
+  - id: k8s_cordon_all
+    pattern: "\\bkubectl\\s+cordon\\s+--all"
+    action: WARN
+    severity: high
+    message: "Cordoning all nodes"
+
+  # Dangerous edits
+  - id: k8s_edit_production_secret
+    pattern: "\\bkubectl\\s+edit\\s+secret\\s+.*(prod|production)\\b"
+    action: WARN
+    severity: high
+    message: "Editing production secrets"
+
+  # Scale to zero
+  - id: k8s_scale_zero
+    pattern: "\\bkubectl\\s+scale\\s+.*--replicas=0"
+    action: WARN
+    severity: medium
+    message: "Scaling to zero replicas"
+
+  # Apply with replace
+  - id: k8s_replace_force
+    pattern: "\\bkubectl\\s+replace\\s+--force"
+    action: WARN
+    severity: high
+    message: "Force replacing resource (will delete and recreate)"
+
+  # Delete with no selector (deletes everything of type)
+  - id: k8s_delete_no_name
+    pattern: "\\bkubectl\\s+delete\\s+(pods?|deployments?|services?)\\s+-n\\s+\\S+\\s*$"
+    action: WARN
+    severity: high
+    message: "Delete command without resource name"
+
+  # Helm dangerous operations
+  - id: helm_uninstall
+    pattern: "\\bhelm\\s+uninstall\\s+\\S+"
+    action: WARN
+    severity: medium
+    message: "Helm uninstall will remove release"
+
+  - id: helm_delete_purge
+    pattern: "\\bhelm\\s+(delete|uninstall)\\s+.*--purge"
+    action: BLOCK
+    severity: high
+    message: "Helm delete with purge removes all history"
+
+  - id: helm_rollback_zero
+    pattern: "\\bhelm\\s+rollback\\s+\\S+\\s+0"
+    action: BLOCK
+    severity: high
+    message: "Helm rollback to revision 0 deletes release"
+
+safe_contexts:
+  # Dry-run is safe
+  - pattern: "--dry-run"
+    reason: "Dry run won't execute changes"
+  # Output format only is safe
+  - pattern: "-o\\s+(yaml|json|wide)"
+    reason: "Only formatting output"
