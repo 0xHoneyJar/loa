@@ -298,7 +298,7 @@ output_json() {
     "jsonl_age_hours": ${CHECKS[jsonl_age_hours]:-0},
     "jsonl_stale": ${CHECKS[jsonl_stale]:-false}
   },
-  "recommendations": $(printf '%s\n' "${RECOMMENDATIONS[@]:-}" | jq -R . | jq -s . 2>/dev/null || echo "[]"),
+  "recommendations": $(if [[ ${#RECOMMENDATIONS[@]} -gt 0 ]]; then printf '%s\n' "${RECOMMENDATIONS[@]}" | jq -R . | jq -s .; else echo "[]"; fi),
   "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 EOF
