@@ -24,6 +24,25 @@ Agent-driven development framework. Skills auto-load their SKILL.md when invoked
 
 **Critical**: Never edit `.claude/` - use `.claude/overrides/` or `.loa.config.yaml`.
 
+## Configurable Paths (v1.27.0)
+
+Grimoire and state file locations are configurable via `.loa.config.yaml`:
+
+```yaml
+paths:
+  grimoire: grimoires/loa          # Default
+  beads: .beads                    # Default
+  soul:
+    source: grimoires/loa/BEAUVOIR.md
+    output: grimoires/loa/SOUL.md
+```
+
+**Environment overrides**: `LOA_GRIMOIRE_DIR`, `LOA_BEADS_DIR`, `LOA_SOUL_SOURCE`, `LOA_SOUL_OUTPUT`
+
+**Rollback**: Set `LOA_USE_LEGACY_PATHS=1` to bypass config and use hardcoded defaults.
+
+**Requirements**: yq v4+ (mikefarah/yq) for YAML parsing. Missing yq uses defaults with warning.
+
 ## Workflow
 
 | Phase | Command | Output |

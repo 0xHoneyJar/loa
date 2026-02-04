@@ -10,6 +10,45 @@
 # =============================================================================
 
 # -----------------------------------------------------------------------------
+# Configurable Paths (v1.27.0)
+# -----------------------------------------------------------------------------
+# Customize grimoire and state file locations. All paths are relative to
+# PROJECT_ROOT. Useful for OpenClaw integration or custom project structures.
+#
+# Requirements:
+# - yq v4+ (mikefarah/yq) for YAML parsing
+# - Paths must be relative (no leading /)
+# - Soul source and output must be different files
+paths:
+  # Grimoire directory (default: grimoires/loa)
+  # All derived paths (ledger, notes, trajectory, etc.) are relative to this
+  grimoire: grimoires/loa
+
+  # Beads directory (default: .beads)
+  beads: .beads
+
+  # Soul file paths (BEAUVOIR.md -> SOUL.md transformation)
+  soul:
+    source: grimoires/loa/BEAUVOIR.md   # Input template
+    output: grimoires/loa/SOUL.md       # Generated output
+
+# OpenClaw Integration Example:
+# Place SOUL.md at workspace root for OpenClaw bootstrap
+# paths:
+#   grimoire: .loa/grimoire
+#   soul:
+#     source: .loa/grimoire/BEAUVOIR.md
+#     output: SOUL.md    # At workspace root
+
+# Environment Variable Overrides:
+# - LOA_GRIMOIRE_DIR: Override grimoire path
+# - LOA_BEADS_DIR: Override beads path
+# - LOA_SOUL_SOURCE: Override soul source path
+# - LOA_SOUL_OUTPUT: Override soul output path
+# - LOA_USE_LEGACY_PATHS=1: Bypass config, use hardcoded defaults
+# - LOA_STRICT_CONFIG=1: Fail on missing yq (default: warn and use defaults)
+
+# -----------------------------------------------------------------------------
 # Plan and Analyze (v1.6.0)
 # -----------------------------------------------------------------------------
 plan_and_analyze:
