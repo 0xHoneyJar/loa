@@ -321,3 +321,176 @@ tests:
     input: "make test"
     expected: ALLOW
     description: "Make test"
+
+# ==============================================================================
+# Database - BLOCK cases (requires database pack)
+# ==============================================================================
+
+  - id: db_001
+    input: "DROP TABLE users"
+    expected: BLOCK
+    pattern: sql_drop_table
+    description: "Drop table SQL"
+
+  - id: db_002
+    input: "DROP DATABASE production"
+    expected: BLOCK
+    pattern: sql_drop_database
+    description: "Drop database SQL"
+
+  - id: db_003
+    input: "DELETE FROM users ;"
+    expected: BLOCK
+    pattern: sql_delete_all
+    description: "Delete without WHERE"
+
+  - id: db_004
+    input: "db.dropDatabase()"
+    expected: BLOCK
+    pattern: mongo_drop_database
+    description: "MongoDB drop database"
+
+  - id: db_005
+    input: "FLUSHALL"
+    expected: BLOCK
+    pattern: redis_flushall
+    description: "Redis flush all"
+
+  - id: db_006
+    input: "FLUSHDB"
+    expected: BLOCK
+    pattern: redis_flushdb
+    description: "Redis flush db"
+
+  - id: db_007
+    input: "mysql -e 'DROP TABLE users'"
+    expected: BLOCK
+    pattern: mysql_drop
+    description: "MySQL CLI drop"
+
+  - id: db_008
+    input: "psql -c 'DROP TABLE users'"
+    expected: BLOCK
+    pattern: psql_drop
+    description: "PostgreSQL CLI drop"
+
+  - id: db_009
+    input: "db.users.deleteMany({})"
+    expected: BLOCK
+    pattern: mongo_remove_all
+    description: "MongoDB delete all"
+
+# ==============================================================================
+# Database - WARN cases
+# ==============================================================================
+
+  - id: db_warn_001
+    input: "TRUNCATE TABLE logs"
+    expected: WARN
+    pattern: sql_truncate
+    description: "Truncate table"
+
+  - id: db_warn_002
+    input: "db.users.drop()"
+    expected: WARN
+    pattern: mongo_drop_collection
+    description: "MongoDB drop collection"
+
+# ==============================================================================
+# Database - ALLOW cases
+# ==============================================================================
+
+  - id: db_allow_001
+    input: "SELECT * FROM users"
+    expected: ALLOW
+    description: "Safe SQL query"
+
+  - id: db_allow_002
+    input: "DELETE FROM users WHERE id = 1"
+    expected: ALLOW
+    description: "Delete with WHERE"
+
+  - id: db_allow_003
+    input: "db.users.find({})"
+    expected: ALLOW
+    description: "MongoDB find"
+
+# ==============================================================================
+# Docker - BLOCK cases (requires docker pack)
+# ==============================================================================
+
+  - id: docker_001
+    input: "docker rm -f $(docker ps -aq)"
+    expected: BLOCK
+    pattern: docker_rm_all
+    description: "Remove all containers"
+
+  - id: docker_002
+    input: "docker rmi $(docker images -q)"
+    expected: BLOCK
+    pattern: docker_rmi_all
+    description: "Remove all images"
+
+  - id: docker_003
+    input: "docker system prune -a -f"
+    expected: BLOCK
+    pattern: docker_system_prune_all
+    description: "Prune all Docker data"
+
+  - id: docker_004
+    input: "docker volume rm $(docker volume ls -q)"
+    expected: BLOCK
+    pattern: docker_volume_rm_all
+    description: "Remove all volumes"
+
+  - id: docker_005
+    input: "docker kill $(docker ps -q)"
+    expected: BLOCK
+    pattern: docker_kill_all
+    description: "Kill all containers"
+
+# ==============================================================================
+# Docker - WARN cases
+# ==============================================================================
+
+  - id: docker_warn_001
+    input: "docker system prune -f"
+    expected: WARN
+    pattern: docker_system_prune_force
+    description: "Force prune unused"
+
+  - id: docker_warn_002
+    input: "docker volume prune -f"
+    expected: WARN
+    pattern: docker_volume_prune
+    description: "Prune unused volumes"
+
+  - id: docker_warn_003
+    input: "docker-compose down -v"
+    expected: WARN
+    pattern: compose_down_volumes
+    description: "Compose down with volumes"
+
+# ==============================================================================
+# Docker - ALLOW cases
+# ==============================================================================
+
+  - id: docker_allow_001
+    input: "docker ps"
+    expected: ALLOW
+    description: "List containers"
+
+  - id: docker_allow_002
+    input: "docker images"
+    expected: ALLOW
+    description: "List images"
+
+  - id: docker_allow_003
+    input: "docker build -t myapp ."
+    expected: ALLOW
+    description: "Build image"
+
+  - id: docker_allow_004
+    input: "docker run hello-world"
+    expected: ALLOW
+    description: "Run container"

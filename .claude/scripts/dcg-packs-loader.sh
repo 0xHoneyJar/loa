@@ -49,6 +49,38 @@ _dcg_packs_load_embedded_core() {
     )
 }
 
+_dcg_packs_load_embedded_database() {
+    # Database patterns for environments without yq v4+
+    _DCG_PATTERNS+=(
+        '{"id":"sql_drop_table","pattern":"\\bDROP\\s+TABLE\\s+(?:IF\\s+EXISTS\\s+)?\\w+","action":"BLOCK","severity":"critical","message":"DROP TABLE will permanently delete table and all data"}'
+        '{"id":"sql_drop_database","pattern":"\\bDROP\\s+DATABASE\\s+(?:IF\\s+EXISTS\\s+)?\\w+","action":"BLOCK","severity":"critical","message":"DROP DATABASE will permanently delete entire database"}'
+        '{"id":"sql_truncate","pattern":"\\bTRUNCATE\\s+(?:TABLE\\s+)?\\w+","action":"WARN","severity":"high","message":"TRUNCATE will delete all rows without logging"}'
+        '{"id":"sql_delete_all","pattern":"\\bDELETE\\s+FROM\\s+\\w+\\s*(?:;|$)","action":"BLOCK","severity":"critical","message":"DELETE without WHERE will delete all rows"}'
+        '{"id":"mongo_drop_database","pattern":"\\b(db\\.dropDatabase|dropDatabase)\\(\\)","action":"BLOCK","severity":"critical","message":"MongoDB dropDatabase() will delete entire database"}'
+        '{"id":"mongo_drop_collection","pattern":"\\bdb\\.[\\w]+\\.drop\\(\\)","action":"WARN","severity":"high","message":"MongoDB drop() will delete collection"}'
+        '{"id":"mongo_remove_all","pattern":"\\bdb\\.[\\w]+\\.(remove|deleteMany)\\(\\{\\}\\)","action":"BLOCK","severity":"critical","message":"MongoDB remove/deleteMany with empty query deletes all"}'
+        '{"id":"redis_flushall","pattern":"\\bFLUSHALL\\b","action":"BLOCK","severity":"critical","message":"FLUSHALL will delete all Redis data"}'
+        '{"id":"redis_flushdb","pattern":"\\bFLUSHDB\\b","action":"BLOCK","severity":"critical","message":"FLUSHDB will delete current Redis database"}'
+        '{"id":"mysql_drop","pattern":"\\bmysql\\b.*(-e|--execute)\\s+['"'"'\"]?.*DROP\\s+(TABLE|DATABASE)","action":"BLOCK","severity":"critical","message":"MySQL CLI DROP command"}'
+        '{"id":"psql_drop","pattern":"\\bpsql\\b.*(-c|--command)\\s+['"'"'\"]?.*DROP\\s+(TABLE|DATABASE)","action":"BLOCK","severity":"critical","message":"PostgreSQL CLI DROP command"}'
+    )
+}
+
+_dcg_packs_load_embedded_docker() {
+    # Docker patterns for environments without yq v4+
+    _DCG_PATTERNS+=(
+        '{"id":"docker_rm_all","pattern":"\\bdocker\\s+rm\\s+.*\\$\\(docker\\s+ps","action":"BLOCK","severity":"critical","message":"Will remove all matching containers"}'
+        '{"id":"docker_rm_force_all","pattern":"\\bdocker\\s+rm\\s+-f\\s+\\$\\(","action":"BLOCK","severity":"critical","message":"Force removing containers via subshell"}'
+        '{"id":"docker_rmi_all","pattern":"\\bdocker\\s+rmi\\s+.*\\$\\(docker\\s+images","action":"BLOCK","severity":"critical","message":"Will remove all matching images"}'
+        '{"id":"docker_volume_rm_all","pattern":"\\bdocker\\s+volume\\s+rm\\s+\\$\\(docker\\s+volume","action":"BLOCK","severity":"critical","message":"Will remove all volumes"}'
+        '{"id":"docker_kill_all","pattern":"\\bdocker\\s+kill\\s+\\$\\(docker\\s+ps","action":"BLOCK","severity":"critical","message":"Will kill all containers"}'
+        '{"id":"docker_system_prune_all","pattern":"\\bdocker\\s+system\\s+prune\\s+-a","action":"BLOCK","severity":"critical","message":"docker system prune -a removes all unused data"}'
+        '{"id":"docker_system_prune_force","pattern":"\\bdocker\\s+system\\s+prune\\s+-f","action":"WARN","severity":"high","message":"docker system prune removes unused data"}'
+        '{"id":"docker_volume_prune","pattern":"\\bdocker\\s+volume\\s+prune\\s+-f","action":"WARN","severity":"high","message":"Will remove all unused volumes"}'
+        '{"id":"compose_down_volumes","pattern":"\\bdocker[-\\s]compose\\s+down\\s+.*-v","action":"WARN","severity":"high","message":"docker-compose down -v removes volumes"}'
+    )
+}
+
 # =============================================================================
 # Pack Loading
 # =============================================================================
@@ -126,14 +158,27 @@ _dcg_load_pack() {
         _DCG_LOADED_PACKS+=("$pack_name")
     else
         # Fallback: use embedded patterns (no yq or yq v3)
-        # For core pack, load embedded patterns directly
-        if [[ "$pack_name" == "core" ]]; then
-            _dcg_packs_load_embedded_core
-            _DCG_LOADED_PACKS+=("core (embedded)")
-            return 0
-        fi
-        echo "WARNING: yq v4+ required for pack loading, using embedded patterns" >&2
-        return 1
+        case "$pack_name" in
+            core)
+                _dcg_packs_load_embedded_core
+                _DCG_LOADED_PACKS+=("core (embedded)")
+                return 0
+                ;;
+            database)
+                _dcg_packs_load_embedded_database
+                _DCG_LOADED_PACKS+=("database (embedded)")
+                return 0
+                ;;
+            docker)
+                _dcg_packs_load_embedded_docker
+                _DCG_LOADED_PACKS+=("docker (embedded)")
+                return 0
+                ;;
+            *)
+                echo "WARNING: yq v4+ required for $pack_name pack, no embedded fallback" >&2
+                return 1
+                ;;
+        esac
     fi
 
     return 0

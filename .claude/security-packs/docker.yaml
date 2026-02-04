@@ -1,0 +1,123 @@
+# docker.yaml - Docker security pack for DCG
+# Detects dangerous Docker operations that could destroy containers, images, or volumes
+#
+# Enable in .loa.config.yaml:
+#   destructive_command_guard:
+#     packs:
+#       docker: true
+
+version: 1.0.0
+name: docker
+description: Detects dangerous Docker and container operations
+author: Loa Framework
+
+patterns:
+  # Container destruction
+  - id: docker_rm_all
+    pattern: "\\bdocker\\s+rm\\s+.*\\$\\(docker\\s+ps"
+    action: BLOCK
+    severity: critical
+    message: "Will remove all matching containers"
+
+  - id: docker_rm_force_all
+    pattern: "\\bdocker\\s+rm\\s+-f\\s+\\$\\("
+    action: BLOCK
+    severity: critical
+    message: "Force removing containers via subshell"
+
+  - id: docker_kill_all
+    pattern: "\\bdocker\\s+kill\\s+\\$\\(docker\\s+ps"
+    action: BLOCK
+    severity: critical
+    message: "Will kill all matching containers"
+
+  # Image destruction
+  - id: docker_rmi_all
+    pattern: "\\bdocker\\s+rmi\\s+.*\\$\\(docker\\s+images"
+    action: BLOCK
+    severity: critical
+    message: "Will remove all matching images"
+
+  - id: docker_rmi_force
+    pattern: "\\bdocker\\s+rmi\\s+-f\\s+\\$\\("
+    action: BLOCK
+    severity: critical
+    message: "Force removing images via subshell"
+
+  # Volume destruction
+  - id: docker_volume_rm_all
+    pattern: "\\bdocker\\s+volume\\s+rm\\s+\\$\\(docker\\s+volume"
+    action: BLOCK
+    severity: critical
+    message: "Will remove all matching volumes (data loss!)"
+
+  - id: docker_volume_prune
+    pattern: "\\bdocker\\s+volume\\s+prune\\s+-f"
+    action: WARN
+    severity: high
+    message: "Will remove all unused volumes"
+
+  # System-wide cleanup
+  - id: docker_system_prune_all
+    pattern: "\\bdocker\\s+system\\s+prune\\s+-a"
+    action: BLOCK
+    severity: critical
+    message: "docker system prune -a removes all unused data"
+
+  - id: docker_system_prune_force
+    pattern: "\\bdocker\\s+system\\s+prune\\s+-f"
+    action: WARN
+    severity: high
+    message: "docker system prune removes unused data without confirmation"
+
+  # Network destruction
+  - id: docker_network_rm_all
+    pattern: "\\bdocker\\s+network\\s+rm\\s+\\$\\(docker\\s+network"
+    action: BLOCK
+    severity: high
+    message: "Will remove all matching networks"
+
+  - id: docker_network_prune
+    pattern: "\\bdocker\\s+network\\s+prune\\s+-f"
+    action: WARN
+    severity: medium
+    message: "Will remove all unused networks"
+
+  # Compose destruction
+  - id: compose_down_volumes
+    pattern: "\\bdocker[-\\s]compose\\s+down\\s+.*-v"
+    action: WARN
+    severity: high
+    message: "docker-compose down -v will remove named volumes"
+
+  - id: compose_down_rmi
+    pattern: "\\bdocker[-\\s]compose\\s+down\\s+.*--rmi\\s+all"
+    action: WARN
+    severity: high
+    message: "docker-compose down --rmi all will remove all images"
+
+  # Podman equivalents
+  - id: podman_rm_all
+    pattern: "\\bpodman\\s+rm\\s+.*\\$\\(podman\\s+ps"
+    action: BLOCK
+    severity: critical
+    message: "Will remove all matching Podman containers"
+
+  - id: podman_rmi_all
+    pattern: "\\bpodman\\s+rmi\\s+.*\\$\\(podman\\s+images"
+    action: BLOCK
+    severity: critical
+    message: "Will remove all matching Podman images"
+
+  - id: podman_system_prune
+    pattern: "\\bpodman\\s+system\\s+prune\\s+-a"
+    action: BLOCK
+    severity: critical
+    message: "podman system prune -a removes all unused data"
+
+safe_contexts:
+  # Test and CI environments often need cleanup
+  - pattern: "\\bCI=true\\b"
+    reason: "CI environments may need aggressive cleanup"
+  - pattern: "\\btest\\b"
+    reason: "Test environments may need cleanup"

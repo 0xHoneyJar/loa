@@ -1,0 +1,125 @@
+# database.yaml - Database security pack for DCG
+# Detects dangerous database operations across SQL, MongoDB, and Redis
+#
+# Enable in .loa.config.yaml:
+#   destructive_command_guard:
+#     packs:
+#       database: true
+
+version: 1.0.0
+name: database
+description: Detects dangerous database operations (SQL, MongoDB, Redis)
+author: Loa Framework
+
+patterns:
+  # SQL - DROP operations (always dangerous)
+  - id: sql_drop_table
+    pattern: "\\bDROP\\s+TABLE\\s+(?:IF\\s+EXISTS\\s+)?\\w+"
+    action: BLOCK
+    severity: critical
+    message: "DROP TABLE will permanently delete table and all data"
+
+  - id: sql_drop_database
+    pattern: "\\bDROP\\s+DATABASE\\s+(?:IF\\s+EXISTS\\s+)?\\w+"
+    action: BLOCK
+    severity: critical
+    message: "DROP DATABASE will permanently delete entire database"
+
+  - id: sql_drop_schema
+    pattern: "\\bDROP\\s+SCHEMA\\s+(?:IF\\s+EXISTS\\s+)?\\w+"
+    action: BLOCK
+    severity: critical
+    message: "DROP SCHEMA will permanently delete schema and all objects"
+
+  # SQL - TRUNCATE (fast delete, no rollback possible)
+  - id: sql_truncate
+    pattern: "\\bTRUNCATE\\s+(?:TABLE\\s+)?\\w+"
+    action: WARN
+    severity: high
+    message: "TRUNCATE will delete all rows without logging individual deletes"
+
+  # SQL - DELETE without WHERE (deletes all rows)
+  - id: sql_delete_all
+    pattern: "\\bDELETE\\s+FROM\\s+\\w+\\s*(?:;|$)"
+    action: BLOCK
+    severity: critical
+    message: "DELETE without WHERE clause will delete all rows"
+
+  # SQL - UPDATE without WHERE (updates all rows)
+  - id: sql_update_all
+    pattern: "\\bUPDATE\\s+\\w+\\s+SET\\s+[^;]+(?:;|$)(?!.*WHERE)"
+    action: WARN
+    severity: high
+    message: "UPDATE without WHERE clause will modify all rows"
+
+  # SQL - Dangerous operations via CLI tools
+  - id: mysql_drop
+    pattern: "\\bmysql\\b.*(-e|--execute)\\s+['\"]?.*DROP\\s+(TABLE|DATABASE)"
+    action: BLOCK
+    severity: critical
+    message: "MySQL CLI executing DROP command"
+
+  - id: psql_drop
+    pattern: "\\bpsql\\b.*(-c|--command)\\s+['\"]?.*DROP\\s+(TABLE|DATABASE)"
+    action: BLOCK
+    severity: critical
+    message: "PostgreSQL CLI executing DROP command"
+
+  # MongoDB operations
+  - id: mongo_drop_database
+    pattern: "\\b(db\\.dropDatabase|dropDatabase)\\(\\)"
+    action: BLOCK
+    severity: critical
+    message: "MongoDB dropDatabase() will delete entire database"
+
+  - id: mongo_drop_collection
+    pattern: "\\bdb\\.[\\w]+\\.drop\\(\\)"
+    action: WARN
+    severity: high
+    message: "MongoDB drop() will delete entire collection"
+
+  - id: mongo_remove_all
+    pattern: "\\bdb\\.[\\w]+\\.(remove|deleteMany)\\(\\{\\}\\)"
+    action: BLOCK
+    severity: critical
+    message: "MongoDB remove/deleteMany with empty query deletes all documents"
+
+  - id: mongosh_drop
+    pattern: "\\bmongosh?\\b.*--eval\\s+['\"]?.*dropDatabase"
+    action: BLOCK
+    severity: critical
+    message: "MongoDB shell executing dropDatabase"
+
+  # Redis operations
+  - id: redis_flushall
+    pattern: "\\bFLUSHALL\\b"
+    action: BLOCK
+    severity: critical
+    message: "FLUSHALL will delete all data from all Redis databases"
+
+  - id: redis_flushdb
+    pattern: "\\bFLUSHDB\\b"
+    action: BLOCK
+    severity: critical
+    message: "FLUSHDB will delete all data from current Redis database"
+
+  - id: redis_cli_flush
+    pattern: "\\bredis-cli\\b.*\\b(FLUSHALL|FLUSHDB)\\b"
+    action: BLOCK
+    severity: critical
+    message: "Redis CLI executing flush command"
+
+  # SQLite operations
+  - id: sqlite_drop
+    pattern: "\\bsqlite3\\b.*['\"]?DROP\\s+(TABLE|DATABASE)"
+    action: BLOCK
+    severity: critical
+    message: "SQLite executing DROP command"
+
+safe_contexts:
+  # Allow in migration scripts that are reviewed
+  - pattern: "\\bmigrate\\b"
+    reason: "Migration scripts are typically reviewed"
+  # Allow in rollback operations
+  - pattern: "\\brollback\\b"
+    reason: "Rollbacks are intentional reversals"
