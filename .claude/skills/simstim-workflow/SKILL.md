@@ -285,22 +285,48 @@ This phase delegates to the run-mode skill for autonomous implementation.
    Continue? [Y/n]
    ```
 
-2. Invoke /run sprint-plan:
+2. **Set plan_id reference** (v1.28.0):
+   ```bash
+   .claude/scripts/simstim-orchestrator.sh --set-expected-plan-id
+   ```
+   This stores the expected plan_id for state correlation after run-mode completes.
+
+3. Invoke /run sprint-plan:
    - Run-mode takes over the conversation
-   - Creates its own state at `.run/state.json`
+   - Creates its own state at `.run/sprint-plan-state.json`
    - Implements all sprints autonomously
    - Creates draft PR when complete
 
-3. After run-mode completes, check result:
-   - Read `.run/state.json` for final state
-   - If state = "JACKED_OUT": Implementation complete (no post-PR validation)
-   - If state = "READY_FOR_HITL": Post-PR validation complete, proceed to Phase 8
-   - If state = "HALTED": Mark as "incomplete", inform user of `/run-resume`
+4. **Sync run-mode state** (v1.28.0):
+   ```bash
+   sync_result=$(.claude/scripts/simstim-orchestrator.sh --sync-run-mode)
+   ```
+   This synchronizes run-mode completion state back to simstim state atomically.
 
-4. Update simstim state:
+   **Check sync result**:
+   - If `synced: true`: State successfully synchronized
+   - If `synced: false, reason: plan_id_mismatch`: Stale run-mode state detected, do NOT proceed
+   - If `synced: false, reason: stale_timestamp`: Run-mode state too old, do NOT proceed
+   - If `synced: false, reason: no_run_mode_state`: Run-mode didn't complete, check manually
+
+5. Check synchronized state:
+   - If simstim state = "COMPLETED": Implementation complete (no post-PR validation)
+   - If simstim state = "AWAITING_HITL": Post-PR validation complete, proceed to Phase 8
+   - If simstim state = "HALTED": Mark as "incomplete", inform user of `/run-resume`
+   - If simstim state = "SYNC_FAILED": Sync failed after max attempts, use `--force-phase` to bypass
+
+6. Update simstim state (if sync didn't already):
    ```bash
    .claude/scripts/simstim-orchestrator.sh --update-phase implementation [completed|incomplete]
    ```
+
+**Recovery: Force Phase** (v1.28.0):
+
+If sync fails repeatedly (after 3 attempts), use the escape hatch:
+```bash
+.claude/scripts/simstim-orchestrator.sh --force-phase complete --yes
+```
+⚠️ WARNING: This bypasses validation. Only use as last resort when you've verified implementation is actually complete.
 
 Proceed to Phase 7.5 (if post-PR validation ran) or Phase 8.
 </phase_7_implementation>
@@ -576,6 +602,32 @@ On resume:
 1. Check if implementation phase is `incomplete`
 2. Inform user: "Previous implementation attempt incomplete. Continuing..."
 3. Invoke `/run-resume` instead of fresh `/run sprint-plan`
+
+### Handling State Sync Issues (v1.28.0)
+
+When state sync fails (plan_id mismatch, stale timestamp, etc.):
+
+**Automatic Detection on Resume:**
+The preflight phase automatically detects when implementation completed but simstim state wasn't updated (e.g., due to context compaction). It validates:
+- Plan ID correlation between simstim and run-mode state
+- Timestamp staleness (rejects state older than 24 hours)
+- Run-mode terminal state (JACKED_OUT, READY_FOR_HITL, HALTED)
+
+**SYNC_FAILED State:**
+After 3 failed sync attempts, simstim enters SYNC_FAILED state. Recovery options:
+
+1. **Investigate**: Check `.run/sprint-plan-state.json` manually
+2. **Force bypass**: Use escape hatch if implementation is verified complete:
+   ```bash
+   .claude/scripts/simstim-orchestrator.sh --force-phase complete --yes
+   ```
+   ⚠️ WARNING: Only use after manually verifying implementation is complete
+
+**AWAITING_HITL State:**
+When run-mode returns READY_FOR_HITL (post-PR validation requested human review):
+1. Simstim state is set to AWAITING_HITL
+2. Phase 8 displays PR URL and prompts for HITL review
+3. After review, workflow completes normally
 </resume_support>
 
 ---

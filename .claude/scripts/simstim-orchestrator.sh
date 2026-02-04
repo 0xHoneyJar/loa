@@ -13,6 +13,9 @@
 #   simstim-orchestrator.sh --update-phase <phase> <status>
 #   simstim-orchestrator.sh --update-flatline-metrics <phase> <integrated> <disputed> <blockers>
 #   simstim-orchestrator.sh --complete [--pr-url <url>]
+#   simstim-orchestrator.sh --set-expected-plan-id      # Store plan_id before /run sprint-plan
+#   simstim-orchestrator.sh --sync-run-mode             # Sync run-mode completion state
+#   simstim-orchestrator.sh --force-phase <phase> --yes # Force phase transition (escape hatch)
 #
 # Exit codes:
 #   0 - Success
@@ -313,6 +316,305 @@ backup_state() {
     fi
 }
 
+# =============================================================================
+# Atomic Write Pattern (Issue #169 - State Sync Fix)
+# =============================================================================
+# Uses existing mkdir-based locking + temp file rename for atomicity.
+# Prevents:
+# 1. Interrupted writes (atomic rename)
+# 2. Concurrent writers (mkdir lock)
+# 3. Read-modify-write races (hold lock during entire operation)
+
+# Atomic write: temp file + rename (no content written to target directly)
+atomic_write() {
+    local target="$1"
+    local content="$2"
+    local temp="${target}.tmp.$$"
+
+    # Write to temp file
+    echo "$content" > "$temp"
+
+    # Sync to disk (best-effort, not critical)
+    sync "$temp" 2>/dev/null || true
+
+    # Atomic rename (POSIX guarantees atomicity on local filesystems)
+    mv "$temp" "$target"
+}
+
+# Wrapper for jq operations with atomic write
+# NOTE: Caller should hold session lock (LOCK_DIR) for concurrent session safety
+# This function provides atomic file operations, not session-level locking
+atomic_jq_update() {
+    local state_file="$1"
+    shift
+
+    if [[ ! -f "$state_file" ]]; then
+        error "State file not found: $state_file"
+        return 1
+    fi
+
+    local content
+    content=$(jq "$@" "$state_file")
+    atomic_write "$state_file" "$content"
+}
+
+# =============================================================================
+# Sync Attempt Tracking (Issue #169 - State Sync Fix)
+# =============================================================================
+
+MAX_SYNC_ATTEMPTS=3
+
+increment_sync_attempts() {
+    if [[ ! -f "$STATE_FILE" ]]; then
+        return
+    fi
+
+    local current
+    current=$(jq -r '.sync_attempts // 0' "$STATE_FILE")
+    local new=$((current + 1))
+
+    atomic_jq_update "$STATE_FILE" --argjson attempts "$new" '.sync_attempts = $attempts'
+
+    if [[ $new -ge $MAX_SYNC_ATTEMPTS ]]; then
+        warn "Sync failed $new times. Use --force-phase to bypass."
+    fi
+}
+
+reset_sync_attempts() {
+    if [[ ! -f "$STATE_FILE" ]]; then
+        return
+    fi
+
+    atomic_jq_update "$STATE_FILE" '.sync_attempts = 0'
+}
+
+# =============================================================================
+# Run-Mode State Sync (Issue #169 - State Sync Fix)
+# =============================================================================
+
+RUN_MODE_STATE="$PROJECT_ROOT/.run/sprint-plan-state.json"
+
+set_expected_plan_id() {
+    if [[ ! -f "$STATE_FILE" ]]; then
+        error "No state file found"
+        exit 1
+    fi
+
+    backup_state
+
+    # Generate expected plan_id from simstim_id
+    # Format: simstim-YYYYMMDD-hash → plan-YYYYMMDD-hash
+    local simstim_id
+    simstim_id=$(jq -r '.simstim_id // ""' "$STATE_FILE")
+
+    if [[ -z "$simstim_id" || "$simstim_id" == "null" ]]; then
+        error "No simstim_id in state file"
+        exit 1
+    fi
+
+    # Extract date and hash portions
+    local expected_plan_id="plan-${simstim_id#simstim-}"
+
+    local timestamp
+    timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+    atomic_jq_update "$STATE_FILE" \
+        --arg plan_id "$expected_plan_id" \
+        --arg ts "$timestamp" \
+        '.expected_plan_id = $plan_id | .implementation_started_at = $ts | .sync_attempts = 0'
+
+    jq -n --arg plan_id "$expected_plan_id" --arg ts "$timestamp" \
+        '{expected_plan_id: $plan_id, implementation_started_at: $ts}'
+}
+
+sync_run_mode() {
+    # Check simstim state file exists
+    if [[ ! -f "$STATE_FILE" ]]; then
+        error "No simstim state file found"
+        exit 1
+    fi
+
+    # Check run-mode state exists
+    if [[ ! -f "$RUN_MODE_STATE" ]]; then
+        echo '{"synced": false, "reason": "no_run_mode_state"}'
+        return 0
+    fi
+
+    # Validate JSON
+    if ! jq empty "$RUN_MODE_STATE" 2>/dev/null; then
+        increment_sync_attempts
+        echo '{"synced": false, "reason": "invalid_json"}'
+        return 0
+    fi
+
+    # Extract run-mode state
+    local run_mode_state
+    run_mode_state=$(jq -r '.state // "unknown"' "$RUN_MODE_STATE")
+
+    # Don't sync if still running
+    if [[ "$run_mode_state" == "RUNNING" ]]; then
+        echo '{"synced": false, "reason": "still_running"}'
+        return 0
+    fi
+
+    # =========================================================================
+    # Validation 1: Plan ID correlation
+    # =========================================================================
+    local run_mode_plan_id
+    run_mode_plan_id=$(jq -r '.plan_id // ""' "$RUN_MODE_STATE")
+
+    local expected_plan_id
+    expected_plan_id=$(jq -r '.expected_plan_id // ""' "$STATE_FILE")
+
+    if [[ -n "$expected_plan_id" && -n "$run_mode_plan_id" ]]; then
+        if [[ "$expected_plan_id" != "$run_mode_plan_id" ]]; then
+            increment_sync_attempts
+            jq -n \
+                --arg expected "$expected_plan_id" \
+                --arg found "$run_mode_plan_id" \
+                '{synced: false, reason: "plan_id_mismatch", expected: $expected, found: $found}'
+            return 0
+        fi
+    fi
+
+    # =========================================================================
+    # Validation 2: Timestamp staleness check
+    # =========================================================================
+    local impl_started_at
+    impl_started_at=$(jq -r '.implementation_started_at // ""' "$STATE_FILE")
+
+    local run_mode_last_activity
+    run_mode_last_activity=$(jq -r '.timestamps.last_activity // .timestamps.started // ""' "$RUN_MODE_STATE")
+
+    if [[ -n "$impl_started_at" && -n "$run_mode_last_activity" ]]; then
+        # Convert to epoch for comparison (try GNU date first, then BSD date)
+        local impl_epoch run_epoch
+        impl_epoch=$(date -d "$impl_started_at" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%SZ" "$impl_started_at" +%s 2>/dev/null || echo "0")
+        run_epoch=$(date -d "$run_mode_last_activity" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%SZ" "$run_mode_last_activity" +%s 2>/dev/null || echo "0")
+
+        if [[ "$run_epoch" -lt "$impl_epoch" ]]; then
+            increment_sync_attempts
+            jq -n \
+                --arg impl_ts "$impl_started_at" \
+                --arg run_ts "$run_mode_last_activity" \
+                '{synced: false, reason: "stale_run_mode_state", implementation_started: $impl_ts, run_mode_activity: $run_ts}'
+            return 0
+        fi
+    fi
+
+    # =========================================================================
+    # Validation passed - proceed with sync
+    # =========================================================================
+    local pr_url
+    pr_url=$(jq -r '.pr_url // ""' "$RUN_MODE_STATE")
+
+    # Map run-mode state to simstim state
+    local impl_status simstim_state
+    case "$run_mode_state" in
+        JACKED_OUT)
+            impl_status="completed"
+            simstim_state="COMPLETED"
+            ;;
+        READY_FOR_HITL)
+            impl_status="completed"
+            simstim_state="AWAITING_HITL"
+            ;;
+        HALTED)
+            impl_status="incomplete"
+            simstim_state="HALTED"
+            ;;
+        *)
+            increment_sync_attempts
+            jq -n --arg state "$run_mode_state" \
+                '{synced: false, reason: "unknown_state", state: $state}'
+            return 0
+            ;;
+    esac
+
+    backup_state
+
+    local timestamp
+    timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+    atomic_jq_update "$STATE_FILE" \
+        --arg state "$simstim_state" \
+        --arg impl_status "$impl_status" \
+        --arg pr_url "$pr_url" \
+        --arg ts "$timestamp" \
+        '.state = $state |
+         .phases.implementation.status = $impl_status |
+         .phases.implementation.synced_at = $ts |
+         .pr_url = (if $pr_url == "" then null else $pr_url end) |
+         .sync_attempts = 0'
+
+    log_trajectory "run_mode_synced" "$(jq -n \
+        --arg run_mode_state "$run_mode_state" \
+        --arg simstim_state "$simstim_state" \
+        --arg impl_status "$impl_status" \
+        '{run_mode_state: $run_mode_state, simstim_state: $simstim_state, implementation_status: $impl_status}')"
+
+    jq -n \
+        --arg run_mode_state "$run_mode_state" \
+        --arg impl_status "$impl_status" \
+        --arg pr_url "$pr_url" \
+        '{synced: true, run_mode_state: $run_mode_state, implementation_status: $impl_status, pr_url: (if $pr_url == "" then null else $pr_url end), plan_id_match: true}'
+}
+
+force_phase() {
+    local target_phase="$1"
+    local yes_flag="${2:-false}"
+
+    # Validate phase name
+    local valid_phases="preflight discovery flatline_prd architecture flatline_sdd planning flatline_sprint implementation complete"
+    local phase_valid=false
+    for p in $valid_phases; do
+        if [[ "$target_phase" == "$p" ]]; then
+            phase_valid=true
+            break
+        fi
+    done
+
+    if [[ "$phase_valid" != "true" ]]; then
+        error "Invalid phase: $target_phase"
+        error "Valid phases: $valid_phases"
+        exit 3
+    fi
+
+    if [[ ! -f "$STATE_FILE" ]]; then
+        error "No state file found"
+        exit 1
+    fi
+
+    # Display warning
+    warn "════════════════════════════════════════════════════════════"
+    warn "  WARNING: Force-phase bypasses validation safeguards"
+    warn "  Use only as a last resort when normal recovery fails"
+    warn "════════════════════════════════════════════════════════════"
+
+    # Require confirmation if not --yes
+    if [[ "$yes_flag" != "true" ]]; then
+        error "Add --yes flag to confirm: --force-phase $target_phase --yes"
+        exit 5
+    fi
+
+    backup_state
+
+    local from_phase
+    from_phase=$(jq -r '.phase // "unknown"' "$STATE_FILE")
+
+    atomic_jq_update "$STATE_FILE" \
+        --arg phase "$target_phase" \
+        '.phase = $phase | .sync_attempts = 0 | .force_phase_used = true'
+
+    log_trajectory "force_phase" "$(jq -n \
+        --arg from "$from_phase" \
+        --arg to "$target_phase" \
+        '{from_phase: $from, to_phase: $to, reason: "user_override"}')"
+
+    warn "Phase forced: $from_phase → $target_phase"
+    echo '{"forced": true, "from": "'"$from_phase"'", "to": "'"$target_phase"'"}'
+}
+
 update_last_activity() {
     if [[ ! -f "$STATE_FILE" ]]; then
         return 1
@@ -429,6 +731,76 @@ preflight() {
             # Validate resume
             local phase
             phase=$(jq -r '.phase' "$STATE_FILE")
+
+            # =========================================================================
+            # Issue #169 Fix: Detect completed-but-not-recorded implementation
+            # =========================================================================
+            local simstim_impl_status
+            simstim_impl_status=$(jq -r '.phases.implementation.status // "pending"' "$STATE_FILE")
+            local sync_attempts
+            sync_attempts=$(jq -r '.sync_attempts // 0' "$STATE_FILE")
+
+            # Check for sync attempt limit
+            if [[ $sync_attempts -ge $MAX_SYNC_ATTEMPTS ]]; then
+                error "Sync failed $sync_attempts times."
+                error "Use --force-phase <phase> --yes to bypass, or --abort to start fresh."
+                release_lock
+                exit 6
+            fi
+
+            # Detect completed-but-not-recorded scenario
+            if [[ "$phase" == "implementation" && "$simstim_impl_status" == "in_progress" ]]; then
+                if [[ -f "$RUN_MODE_STATE" ]]; then
+                    local run_mode_state
+                    run_mode_state=$(jq -r '.state // "unknown"' "$RUN_MODE_STATE" 2>/dev/null || echo "unknown")
+
+                    case "$run_mode_state" in
+                        JACKED_OUT|READY_FOR_HITL)
+                            log "Detected completed implementation - syncing state..."
+
+                            # Validate plan_id
+                            local expected_plan_id
+                            expected_plan_id=$(jq -r '.expected_plan_id // ""' "$STATE_FILE")
+                            local run_mode_plan_id
+                            run_mode_plan_id=$(jq -r '.plan_id // ""' "$RUN_MODE_STATE" 2>/dev/null || echo "")
+
+                            local plan_id_match=true
+                            if [[ -n "$expected_plan_id" && -n "$run_mode_plan_id" ]]; then
+                                if [[ "$expected_plan_id" != "$run_mode_plan_id" ]]; then
+                                    warn "Plan ID mismatch - stale run-mode state detected"
+                                    increment_sync_attempts
+                                    plan_id_match=false
+                                fi
+                            fi
+
+                            if [[ "$plan_id_match" == "true" ]]; then
+                                # Sync and proceed to complete phase
+                                sync_run_mode >/dev/null
+                                log "Implementation completed - proceeding to Phase 8"
+
+                                log_trajectory "workflow_resumed" '{"from_phase": "implementation", "note": "auto-synced from run-mode"}'
+
+                                jq -n \
+                                    --arg action "resume" \
+                                    --arg phase "complete" \
+                                    --argjson drift '{"drift": false, "artifacts": []}' \
+                                    --arg note "Implementation completed, synced from run-mode" \
+                                    '{action: $action, phase: $phase, drift: $drift, note: $note}'
+                                exit 0
+                            fi
+                            ;;
+                        HALTED)
+                            log "Detected halted implementation"
+                            sync_run_mode >/dev/null
+                            # Continue with normal resume - will show HALTED state
+                            ;;
+                    esac
+                fi
+            fi
+            # =========================================================================
+            # End Issue #169 Fix
+            # =========================================================================
+
             local drift
             drift=$(check_artifact_drift)
 
@@ -824,6 +1196,28 @@ main() {
         --cleanup)
             rm -f "$STATE_FILE" "$STATE_BACKUP" "$LOCK_FILE"
             echo '{"cleaned": true}'
+            ;;
+        --set-expected-plan-id)
+            set_expected_plan_id
+            ;;
+        --sync-run-mode)
+            sync_run_mode
+            ;;
+        --force-phase)
+            if [[ $# -lt 1 ]]; then
+                error "Usage: --force-phase <phase> [--yes]"
+                exit 1
+            fi
+            local target_phase="$1"
+            local yes_flag="false"
+            shift
+            while [[ $# -gt 0 ]]; do
+                case "$1" in
+                    --yes) yes_flag="true"; shift ;;
+                    *) shift ;;
+                esac
+            done
+            force_phase "$target_phase" "$yes_flag"
             ;;
         *)
             error "Unknown command: $command"

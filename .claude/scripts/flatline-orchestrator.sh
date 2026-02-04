@@ -45,7 +45,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Use realpath for macOS case-sensitivity (fixes #166, regression from #150)
+PROJECT_ROOT="$(realpath "$(cd "$SCRIPT_DIR/../.." && pwd)" 2>/dev/null || (cd "$SCRIPT_DIR/../.." && pwd))"
 CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 TRAJECTORY_DIR="$PROJECT_ROOT/grimoires/loa/a2a/trajectory"
 
