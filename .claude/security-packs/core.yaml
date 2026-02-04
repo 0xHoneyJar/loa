@@ -20,6 +20,21 @@ patterns:
     message: "Attempt to delete root filesystem"
     suggestion: "Specify a safe subdirectory to delete"
 
+  # CRITICAL-003: Detect rm inside command substitution
+  - id: fs_rm_rf_root_subst
+    pattern: '\$\([^)]*rm\s+(-[rf]+\s+)*(/|/\*)'
+    action: BLOCK
+    severity: critical
+    message: "Attempt to delete root filesystem via command substitution"
+    suggestion: "Remove the dangerous command substitution"
+
+  - id: fs_rm_rf_root_backtick
+    pattern: '`[^`]*rm\s+(-[rf]+\s+)*(/|/\*)'
+    action: BLOCK
+    severity: critical
+    message: "Attempt to delete root filesystem via backtick substitution"
+    suggestion: "Remove the dangerous backtick substitution"
+
   - id: fs_rm_rf_home
     pattern: '\brm\s+(-[rf]+\s+)*(~|\$HOME|/home/[^/\s]+)\s*$'
     action: BLOCK
@@ -104,6 +119,28 @@ patterns:
   # ===========================================================================
   # Shell Injection Patterns
   # ===========================================================================
+
+  # CRITICAL-004 FIX: Detect attempts to bypass DCG via environment variable
+  - id: shell_dcg_bypass
+    pattern: '\bDCG_SKIP=1\b'
+    action: BLOCK
+    severity: critical
+    message: "Attempt to set DCG bypass variable"
+    suggestion: "DCG_SKIP bypass is not allowed - address the underlying command safety"
+
+  - id: shell_dcg_bypass_env
+    pattern: '\benv\s+.*DCG_SKIP='
+    action: BLOCK
+    severity: critical
+    message: "Attempt to set DCG bypass via env command"
+    suggestion: "DCG_SKIP bypass is not allowed"
+
+  - id: shell_dcg_bypass_export
+    pattern: '\bexport\s+DCG_SKIP='
+    action: BLOCK
+    severity: critical
+    message: "Attempt to export DCG bypass variable"
+    suggestion: "DCG_SKIP bypass is not allowed"
 
   - id: shell_eval
     pattern: '\beval\s+[\$"]'

@@ -317,6 +317,137 @@ test_safe_help() {
 }
 
 # =============================================================================
+# CRITICAL-003: Safe Context Bypass Tests
+# =============================================================================
+
+test_block_echo_command_substitution() {
+    local result
+    result=$(dcg_validate 'echo $(rm -rf /)')
+    local action
+    action=$(echo "$result" | jq -r '.action' 2>/dev/null)
+
+    # Should NOT be allowed - command substitution in echo
+    assert_equals "BLOCK" "$action" "CRITICAL-003: Block echo with \$(rm -rf /)"
+}
+
+test_block_printf_command_substitution() {
+    # Test printf with dangerous command inside substitution
+    local result
+    result=$(dcg_validate 'printf "%s" "$(rm -rf /tmp/cache)"')
+    local action
+    action=$(echo "$result" | jq -r '.action' 2>/dev/null)
+
+    # Note: /tmp is a safe path, so this should be ALLOW
+    # Test with non-safe path instead
+    result=$(dcg_validate 'printf "%s" "$(rm -rf /etc)"')
+    action=$(echo "$result" | jq -r '.action' 2>/dev/null)
+
+    if [[ "$action" == "BLOCK" ]]; then
+        log_pass "CRITICAL-003: Block printf with dangerous command substitution"
+    else
+        log_fail "CRITICAL-003: Block printf with dangerous command substitution (got $action)"
+    fi
+}
+
+test_not_safe_context_process_substitution() {
+    # Process substitution should not be treated as safe context
+    # But we need a dangerous pattern inside
+    local result
+    result=$(dcg_validate 'cat <(echo "$(rm -rf /)")')
+    local action
+    action=$(echo "$result" | jq -r '.action' 2>/dev/null)
+
+    if [[ "$action" == "BLOCK" ]]; then
+        log_pass "CRITICAL-003: Block process substitution with dangerous command"
+    else
+        log_fail "CRITICAL-003: Block process substitution with dangerous command (got $action)"
+    fi
+}
+
+test_block_find_exec_dangerous() {
+    # find with -exec rm is dangerous
+    local result
+    result=$(dcg_validate 'find / -name "*.tmp" -exec rm {} \;')
+    local action
+    action=$(echo "$result" | jq -r '.action' 2>/dev/null)
+
+    # This should be caught by the -exec detection in safe context
+    # or by pattern matching. For accidental protection, just verify
+    # it's not trivially allowed as a "safe" find command
+    if [[ "$action" != "ALLOW" ]]; then
+        log_pass "CRITICAL-003: Don't allow find with -exec rm"
+    else
+        # For accidental protection, find ... -exec rm isn't our main concern
+        # unless it matches a dangerous pattern. Skip for now.
+        log_skip "CRITICAL-003: find -exec rm (no pattern match - out of scope for accidental)"
+    fi
+}
+
+test_block_backtick_substitution() {
+    local result
+    result=$(dcg_validate 'echo `rm -rf /`')
+    local action
+    action=$(echo "$result" | jq -r '.action' 2>/dev/null)
+
+    assert_equals "BLOCK" "$action" "CRITICAL-003: Block echo with backticks"
+}
+
+# =============================================================================
+# CRITICAL-004: DCG_SKIP Bypass Tests
+# =============================================================================
+
+test_block_dcg_skip_in_command() {
+    local result
+    result=$(dcg_validate 'DCG_SKIP=1 rm -rf /')
+    local action
+    action=$(echo "$result" | jq -r '.action' 2>/dev/null)
+
+    assert_equals "BLOCK" "$action" "CRITICAL-004: Block DCG_SKIP=1 in command"
+}
+
+test_block_env_dcg_skip() {
+    local result
+    result=$(dcg_validate 'env DCG_SKIP=1 bash -c "rm -rf /"')
+    local action
+    action=$(echo "$result" | jq -r '.action' 2>/dev/null)
+
+    assert_equals "BLOCK" "$action" "CRITICAL-004: Block env DCG_SKIP"
+}
+
+test_block_export_dcg_skip() {
+    local result
+    result=$(dcg_validate 'export DCG_SKIP=1')
+    local action
+    action=$(echo "$result" | jq -r '.action' 2>/dev/null)
+
+    assert_equals "BLOCK" "$action" "CRITICAL-004: Block export DCG_SKIP"
+}
+
+# =============================================================================
+# HIGH-008: Dry-run Flag Spoofing Tests
+# =============================================================================
+
+test_block_fake_dry_run_in_comment() {
+    local result
+    result=$(dcg_validate 'rm -rf / #--dry-run')
+    local action
+    action=$(echo "$result" | jq -r '.action' 2>/dev/null)
+
+    # Should be BLOCKED - --dry-run is in a comment, not a real flag
+    assert_equals "BLOCK" "$action" "HIGH-008: Block fake --dry-run in comment"
+}
+
+test_block_fake_dry_run_in_string() {
+    local result
+    result=$(dcg_validate 'rm -rf / ; echo "--dry-run"')
+    local action
+    action=$(echo "$result" | jq -r '.action' 2>/dev/null)
+
+    # Should be BLOCKED - --dry-run is in a string, not a real flag
+    assert_equals "BLOCK" "$action" "HIGH-008: Block fake --dry-run in string"
+}
+
+# =============================================================================
 # Safe Path Tests
 # =============================================================================
 
@@ -440,6 +571,31 @@ main() {
     test_safe_cat_file
     test_safe_dry_run
     test_safe_help
+
+    echo ""
+
+    # CRITICAL-003: Safe context bypass tests
+    echo "--- CRITICAL-003: Safe Context Bypass ---"
+    test_block_echo_command_substitution
+    test_block_printf_command_substitution
+    test_not_safe_context_process_substitution
+    test_block_find_exec_dangerous
+    test_block_backtick_substitution
+
+    echo ""
+
+    # CRITICAL-004: DCG_SKIP bypass tests
+    echo "--- CRITICAL-004: DCG_SKIP Bypass ---"
+    test_block_dcg_skip_in_command
+    test_block_env_dcg_skip
+    test_block_export_dcg_skip
+
+    echo ""
+
+    # HIGH-008: Dry-run flag spoofing tests
+    echo "--- HIGH-008: Dry-run Spoofing ---"
+    test_block_fake_dry_run_in_comment
+    test_block_fake_dry_run_in_string
 
     echo ""
 

@@ -77,11 +77,52 @@ _dcg_parse_fast() {
     while IFS= read -r segment; do
         # Trim whitespace
         segment=$(echo "$segment" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+
+        # Strip trailing comments (not inside quotes) for pattern matching
+        # This handles: rm -rf / #comment
+        # But preserves: echo "hello # not a comment"
+        segment=$(_dcg_strip_trailing_comment "$segment")
+
         [[ -n "$segment" ]] && segments+=("$segment")
     done < <(echo "$command" | sed -E 's/(\s*&&\s*|\s*\|\|\s*|\s*;\s*)/\n/g' | sed 's/\s*|\s*/\n/g')
 
     # Output as JSON
     _dcg_json_segments "fast" "${segments[@]}"
+}
+
+# Strip trailing comment from segment (handles quotes)
+_dcg_strip_trailing_comment() {
+    local segment="$1"
+
+    # Simple approach: if # appears outside quotes, strip from there
+    # This is a best-effort for common cases
+    local in_single=false
+    local in_double=false
+    local result=""
+    local i=0
+    local len=${#segment}
+
+    while [[ $i -lt $len ]]; do
+        local char="${segment:$i:1}"
+
+        if [[ "$char" == "'" && "$in_double" == "false" ]]; then
+            in_single=$([[ "$in_single" == "true" ]] && echo "false" || echo "true")
+            result="$result$char"
+        elif [[ "$char" == '"' && "$in_single" == "false" ]]; then
+            in_double=$([[ "$in_double" == "true" ]] && echo "false" || echo "true")
+            result="$result$char"
+        elif [[ "$char" == '#' && "$in_single" == "false" && "$in_double" == "false" ]]; then
+            # Start of comment - strip rest
+            break
+        else
+            result="$result$char"
+        fi
+
+        ((i++)) || true
+    done
+
+    # Trim trailing whitespace
+    echo "$result" | sed 's/[[:space:]]*$//'
 }
 
 # =============================================================================

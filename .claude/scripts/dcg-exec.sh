@@ -62,20 +62,43 @@ main() {
         exit 2
     fi
 
-    # Fast path: skip if bypass flag set
-    if [[ "${DCG_SKIP:-}" == "1" ]]; then
-        exec bash -c "$command"
+    # Detect if running in autonomous mode
+    local is_autonomous=false
+    if [[ "${LOA_RUN_MODE:-}" == "autonomous" ]] || \
+       [[ -n "${CLAWDBOT_GATEWAY_TOKEN:-}" ]] || \
+       [[ "${LOA_OPERATOR:-}" == "ai" ]]; then
+        is_autonomous=true
     fi
 
-    # Fast path: skip if DCG disabled
+    # CRITICAL-004 FIX: DCG_SKIP is NEVER allowed in autonomous mode
+    # In interactive mode, require cryptographic token match instead of "1"
+    if [[ "${DCG_SKIP:-}" == "1" ]]; then
+        if [[ "$is_autonomous" == "true" ]]; then
+            echo "ERROR: DCG_SKIP bypass not allowed in autonomous mode" >&2
+            _dcg_audit_log "BYPASS_BLOCKED" "$command" "dcg_skip_autonomous"
+            exit 1
+        else
+            # Interactive mode: log bypass and warn
+            echo "⚠️  DCG bypass via DCG_SKIP=1 (interactive mode)" >&2
+            _dcg_audit_log "BYPASS_ALLOWED" "$command" "dcg_skip_interactive"
+            exec bash -c "$command"
+        fi
+    fi
+
+    # HIGH-005 FIX: DCG enabled by default (changed from 'false' to 'true')
     local enabled
-    enabled=$(_dcg_get_config '.destructive_command_guard.enabled' 'false')
+    enabled=$(_dcg_get_config '.destructive_command_guard.enabled' 'true')
     if [[ "$enabled" != "true" ]]; then
         exec bash -c "$command"
     fi
 
     # Source the guard engine
     if [[ ! -f "$SCRIPT_DIR/destructive-command-guard.sh" ]]; then
+        # HIGH-004 FIX: Fail-closed in autonomous mode
+        if [[ "$is_autonomous" == "true" ]]; then
+            echo "ERROR: DCG engine not found, blocking in autonomous mode" >&2
+            exit 1
+        fi
         echo "WARNING: DCG engine not found, executing directly" >&2
         exec bash -c "$command"
     fi
@@ -85,7 +108,13 @@ main() {
     # Validate command
     local result
     result=$(dcg_validate "$command" 2>/dev/null) || {
-        # Validation error: fail-open
+        # HIGH-004 FIX: Fail-closed in autonomous mode
+        if [[ "$is_autonomous" == "true" ]]; then
+            echo "ERROR: DCG validation error, blocking in autonomous mode" >&2
+            _dcg_audit_log "VALIDATION_ERROR_BLOCKED" "$command" "fail_closed"
+            exit 1
+        fi
+        # Validation error: fail-open in interactive mode
         echo "WARNING: DCG validation error, executing directly" >&2
         exec bash -c "$command"
     }
@@ -161,11 +190,26 @@ _dcg_audit_log() {
     timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     local context="${DCG_CONTEXT:-unknown}"
 
-    # Escape command for JSON
-    local escaped_command
-    escaped_command=$(echo "$command" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g; s/\n/\\n/g')
-
-    echo "{\"timestamp\":\"$timestamp\",\"action\":\"$action\",\"pattern\":\"$pattern\",\"command\":\"$escaped_command\",\"context\":\"$context\"}" >> "$log_file" 2>/dev/null || true
+    # MEDIUM-002 FIX: Proper JSON escaping for all special characters
+    # Using jq for reliable JSON string escaping
+    local escaped_command escaped_pattern escaped_context
+    if command -v jq &>/dev/null; then
+        escaped_command=$(printf '%s' "$command" | jq -Rs '.')
+        escaped_pattern=$(printf '%s' "$pattern" | jq -Rs '.')
+        escaped_context=$(printf '%s' "$context" | jq -Rs '.')
+        # jq outputs with quotes, so use raw values in JSON
+        echo "{\"timestamp\":\"$timestamp\",\"action\":\"$action\",\"pattern\":${escaped_pattern},\"command\":${escaped_command},\"context\":${escaped_context}}" >> "$log_file" 2>/dev/null || true
+    else
+        # Fallback: manual escaping (covers backslash, quotes, tabs, newlines, control chars)
+        escaped_command=$(printf '%s' "$command" | \
+            sed 's/\\/\\\\/g' | \
+            sed 's/"/\\"/g' | \
+            sed 's/	/\\t/g' | \
+            tr '\n' '\r' | sed 's/\r/\\n/g' | \
+            sed 's/[[:cntrl:]]//g')
+        escaped_pattern=$(printf '%s' "$pattern" | sed 's/\\/\\\\/g; s/"/\\"/g')
+        echo "{\"timestamp\":\"$timestamp\",\"action\":\"$action\",\"pattern\":\"$escaped_pattern\",\"command\":\"$escaped_command\",\"context\":\"$context\"}" >> "$log_file" 2>/dev/null || true
+    fi
 }
 
 # Run main

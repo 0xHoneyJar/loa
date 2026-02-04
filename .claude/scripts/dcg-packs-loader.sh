@@ -38,14 +38,21 @@ _dcg_packs_load_embedded_core() {
     # These patterns mirror core.yaml but are hardcoded for environments without yq v4+
     _DCG_PATTERNS+=(
         '{"id":"fs_rm_rf_root","pattern":"\\brm\\s+(-[rf]+\\s+)*(/|/\\*)\\s*$","action":"BLOCK","severity":"critical","message":"Attempt to delete root filesystem"}'
+        '{"id":"fs_rm_rf_root_subst","pattern":"\\$\\([^)]*rm\\s+(-[rf]+\\s+)*(/|/\\*)","action":"BLOCK","severity":"critical","message":"Attempt to delete root filesystem via command substitution"}'
+        '{"id":"fs_rm_rf_root_backtick","pattern":"`[^`]*rm\\s+(-[rf]+\\s+)*(/|/\\*)","action":"BLOCK","severity":"critical","message":"Attempt to delete root filesystem via backtick substitution"}'
         '{"id":"fs_rm_rf_home","pattern":"\\brm\\s+(-[rf]+\\s+)*(~|\\$HOME|/home/[^/]+)\\s*$","action":"BLOCK","severity":"critical","message":"Attempt to delete home directory"}'
+        '{"id":"fs_rm_rf_home_subst","pattern":"\\$\\([^)]*rm\\s+(-[rf]+\\s+)*(~|\\$HOME|/home/)","action":"BLOCK","severity":"critical","message":"Attempt to delete home directory via command substitution"}'
         '{"id":"fs_rm_rf_system","pattern":"\\brm\\s+(-[rf]+\\s+)*/(etc|usr|var|bin|lib|sbin|boot|root)\\b","action":"BLOCK","severity":"critical","message":"Attempt to delete system directory"}'
+        '{"id":"fs_rm_rf_system_subst","pattern":"\\$\\([^)]*rm\\s+(-[rf]+\\s+)*/(etc|usr|var|bin|lib|sbin|boot|root)","action":"BLOCK","severity":"critical","message":"Attempt to delete system directory via command substitution"}'
         '{"id":"git_push_force","pattern":"\\bgit\\s+push\\s+.*--force\\b","action":"BLOCK","severity":"high","message":"Force push blocked - use git-safety flow"}'
         '{"id":"git_push_force_short","pattern":"\\bgit\\s+push\\s+.*-f\\b","action":"BLOCK","severity":"high","message":"Force push blocked - use git-safety flow"}'
         '{"id":"git_reset_hard","pattern":"\\bgit\\s+reset\\s+--hard\\b","action":"WARN","severity":"medium","message":"git reset --hard will discard uncommitted changes"}'
         '{"id":"git_clean_force","pattern":"\\bgit\\s+clean\\s+-[fdx]+","action":"WARN","severity":"medium","message":"git clean will permanently remove untracked files"}'
         '{"id":"git_checkout_dot","pattern":"\\bgit\\s+checkout\\s+\\.\\s*$","action":"WARN","severity":"medium","message":"git checkout . will discard all local changes"}'
         '{"id":"shell_eval","pattern":"\\beval\\s+[\\$\"]","action":"WARN","severity":"high","message":"eval with variable expansion detected"}'
+        '{"id":"shell_dcg_bypass","pattern":"\\bDCG_SKIP=1\\b","action":"BLOCK","severity":"critical","message":"Attempt to set DCG bypass variable"}'
+        '{"id":"shell_dcg_bypass_env","pattern":"\\benv\\s+.*DCG_SKIP=","action":"BLOCK","severity":"critical","message":"Attempt to set DCG bypass via env command"}'
+        '{"id":"shell_dcg_bypass_export","pattern":"\\bexport\\s+DCG_SKIP=","action":"BLOCK","severity":"critical","message":"Attempt to export DCG bypass variable"}'
     )
 }
 
@@ -230,9 +237,9 @@ _dcg_packs_expand_safe_paths() {
 
     # Expand and canonicalize paths
     for path in "${default_paths[@]}"; do
-        # Expand environment variables
+        # CRITICAL-001 FIX: Use safe path expansion instead of eval
         local expanded
-        expanded=$(eval echo "$path" 2>/dev/null) || continue
+        expanded=$(_dcg_packs_expand_path_safe "$path")
 
         # Skip relative paths (security requirement per Flatline SKP-004)
         if [[ ! "$expanded" =~ ^/ ]]; then
@@ -251,6 +258,26 @@ _dcg_packs_expand_safe_paths() {
 
         [[ "$exists" == "false" ]] && _DCG_SAFE_PATHS+=("$canonical")
     done
+}
+
+# CRITICAL-001 FIX: Safe path expansion without eval
+_dcg_packs_expand_path_safe() {
+    local path="$1"
+
+    # Only expand known safe variables via parameter substitution
+    path="${path//\~/$HOME}"
+    path="${path//\$HOME/$HOME}"
+    path="${path//\${HOME\}/$HOME}"
+    path="${path//\$TMPDIR/${TMPDIR:-/tmp}}"
+    path="${path//\${TMPDIR\}/${TMPDIR:-/tmp}}"
+    path="${path//\$PROJECT_ROOT/${PROJECT_ROOT:-.}}"
+    path="${path//\${PROJECT_ROOT\}/${PROJECT_ROOT:-.}}"
+    path="${path//\$PWD/${PWD:-.}}"
+    path="${path//\${PWD\}/${PWD:-.}}"
+    path="${path//\$USER/${USER:-unknown}}"
+    path="${path//\${USER\}/${USER:-unknown}}"
+
+    echo "$path"
 }
 
 # =============================================================================

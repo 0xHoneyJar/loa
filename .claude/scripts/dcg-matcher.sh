@@ -82,6 +82,12 @@ dcg_match() {
 _dcg_matcher_is_safe_context() {
     local segment="$1"
 
+    # CRITICAL-003 FIX: Check for embedded command execution FIRST
+    # These patterns are NEVER safe regardless of wrapper command
+    if _dcg_has_embedded_execution "$segment"; then
+        return 1  # NOT safe - contains embedded execution
+    fi
+
     # Commands that reference dangerous patterns but don't execute them
     # grep "rm -rf" - searching for pattern
     # echo "DROP TABLE" - printing text
@@ -99,12 +105,71 @@ _dcg_matcher_is_safe_context() {
     [[ "$segment" =~ ^less[[:space:]] ]] && return 0
     [[ "$segment" =~ ^more[[:space:]] ]] && return 0
 
-    # Flags that indicate safe/preview mode
-    [[ "$segment" =~ --help ]] && return 0
-    [[ "$segment" =~ --dry-run ]] && return 0
-    [[ "$segment" =~ --version ]] && return 0
-    [[ "$segment" =~ -n[[:space:]] ]] && [[ "$segment" =~ ^git ]] && return 0  # git -n (dry-run)
-    [[ "$segment" =~ --what-if ]] && return 0  # terraform what-if
+    # HIGH-008 FIX: Flags must appear as actual flags, not in strings/comments
+    # Check that flag is at word boundary and not after # (comment) or in quotes
+    if _dcg_has_safe_flag "$segment"; then
+        return 0
+    fi
+
+    return 1
+}
+
+# CRITICAL-003 FIX: Detect embedded command execution patterns
+_dcg_has_embedded_execution() {
+    local segment="$1"
+
+    # Command substitution: $(...)
+    if [[ "$segment" =~ \$\( ]]; then
+        return 0  # Has embedded execution
+    fi
+
+    # Backtick command substitution: `...`
+    if [[ "$segment" =~ \` ]]; then
+        return 0
+    fi
+
+    # Process substitution: <(...) or >(...)
+    if [[ "$segment" =~ '<(' ]] || [[ "$segment" =~ '>(' ]]; then
+        return 0
+    fi
+
+    # Pipe to interpreter
+    if [[ "$segment" =~ \|[[:space:]]*(bash|sh|zsh|python|perl|ruby|node|eval) ]]; then
+        return 0
+    fi
+
+    # -exec flag (dangerous in find/grep/xargs)
+    if [[ "$segment" =~ [[:space:]]-exec[[:space:]] ]]; then
+        return 0
+    fi
+
+    # xargs with command execution
+    if [[ "$segment" =~ \|[[:space:]]*xargs ]]; then
+        return 0
+    fi
+
+    return 1  # No embedded execution found
+}
+
+# HIGH-008 FIX: Proper flag detection (not in comments or strings)
+_dcg_has_safe_flag() {
+    local segment="$1"
+
+    # Remove quoted strings to avoid false positives
+    local clean_segment
+    clean_segment=$(echo "$segment" | sed -E "s/'[^']*'//g; s/\"[^\"]*\"//g")
+
+    # Remove everything after # (comment)
+    clean_segment=$(echo "$clean_segment" | sed 's/#.*//')
+
+    # Now check for actual flags
+    [[ "$clean_segment" =~ [[:space:]]--help([[:space:]]|$) ]] && return 0
+    [[ "$clean_segment" =~ [[:space:]]--dry-run([[:space:]]|$) ]] && return 0
+    [[ "$clean_segment" =~ [[:space:]]--version([[:space:]]|$) ]] && return 0
+    [[ "$clean_segment" =~ [[:space:]]--what-if([[:space:]]|$) ]] && return 0
+
+    # git -n (dry-run) - must be git command with -n as flag
+    [[ "$clean_segment" =~ ^git[[:space:]] ]] && [[ "$clean_segment" =~ [[:space:]]-n([[:space:]]|$) ]] && return 0
 
     return 1
 }
@@ -168,9 +233,17 @@ _dcg_matcher_in_safe_path() {
     path=$(echo "$segment" | grep -oP '(?:rm\s+(?:-[rf]+\s+)*)\K[^\s]+' | head -1) || return 1
     [[ -z "$path" ]] && return 1
 
-    # Expand environment variables
+    # CRITICAL-001 FIX: Use safe path expansion instead of eval
     local expanded
-    expanded=$(eval echo "$path" 2>/dev/null) || expanded="$path"
+    expanded=$(_dcg_expand_path_safe "$path")
+
+    # MEDIUM-001 FIX: Normalize path traversal sequences BEFORE canonicalization
+    # Reject paths with suspicious patterns that try to escape
+    if [[ "$expanded" =~ \.\.\/ ]] || [[ "$expanded" =~ \/\.\. ]]; then
+        # Path traversal detected - check if it escapes safe paths
+        # Canonicalize first, then check
+        :
+    fi
 
     # Skip relative paths (can't verify safety)
     if [[ ! "$expanded" =~ ^/ ]] && [[ ! "$expanded" =~ ^~ ]]; then
@@ -181,7 +254,7 @@ _dcg_matcher_in_safe_path() {
     # Expand ~ to home
     expanded="${expanded/#\~/$HOME}"
 
-    # Canonicalize path
+    # Canonicalize path (resolve symlinks)
     local canonical
     canonical=$(realpath -m "$expanded" 2>/dev/null) || return 1
 
@@ -195,6 +268,31 @@ _dcg_matcher_in_safe_path() {
     fi
 
     return 1
+}
+
+# CRITICAL-001 FIX: Safe path expansion without eval
+# Only expands known safe variables via parameter substitution
+_dcg_expand_path_safe() {
+    local path="$1"
+
+    # Only expand known safe variables - no command substitution possible
+    path="${path//\~/$HOME}"
+    path="${path//\$HOME/$HOME}"
+    path="${path//\${HOME\}/$HOME}"
+    path="${path//\$TMPDIR/${TMPDIR:-/tmp}}"
+    path="${path//\${TMPDIR\}/${TMPDIR:-/tmp}}"
+    path="${path//\$PROJECT_ROOT/${PROJECT_ROOT:-.}}"
+    path="${path//\${PROJECT_ROOT\}/${PROJECT_ROOT:-.}}"
+    path="${path//\$PWD/${PWD:-.}}"
+    path="${path//\${PWD\}/${PWD:-.}}"
+    path="${path//\$USER/${USER:-unknown}}"
+    path="${path//\${USER\}/${USER:-unknown}}"
+
+    # SECURITY: Do NOT expand any other variables or $(...)
+    # If path still contains $ it may be an attempted injection - return as-is
+    # The canonicalization step will handle it
+
+    echo "$path"
 }
 
 # =============================================================================

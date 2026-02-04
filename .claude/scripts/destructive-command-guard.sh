@@ -116,12 +116,19 @@ declare -a _DCG_CORE_PATTERNS=()
 _dcg_load_core_patterns() {
     _DCG_CORE_PATTERNS=(
         '{"id":"fs_rm_rf_root","pattern":"\\brm\\s+(-[rf]+\\s+)*(/|/\\*)\\s*$","action":"BLOCK","severity":"critical","message":"Attempt to delete root filesystem"}'
+        '{"id":"fs_rm_rf_root_subst","pattern":"\\$\\([^)]*rm\\s+(-[rf]+\\s+)*(/|/\\*)","action":"BLOCK","severity":"critical","message":"Attempt to delete root filesystem via command substitution"}'
+        '{"id":"fs_rm_rf_root_backtick","pattern":"`[^`]*rm\\s+(-[rf]+\\s+)*(/|/\\*)","action":"BLOCK","severity":"critical","message":"Attempt to delete root filesystem via backtick substitution"}'
         '{"id":"fs_rm_rf_home","pattern":"\\brm\\s+(-[rf]+\\s+)*(~|\\$HOME|/home/[^/]+)\\s*$","action":"BLOCK","severity":"critical","message":"Attempt to delete home directory"}'
+        '{"id":"fs_rm_rf_home_subst","pattern":"\\$\\([^)]*rm\\s+(-[rf]+\\s+)*(~|\\$HOME|/home/)","action":"BLOCK","severity":"critical","message":"Attempt to delete home directory via command substitution"}'
         '{"id":"fs_rm_rf_system","pattern":"\\brm\\s+(-[rf]+\\s+)*/(etc|usr|var|bin|lib|sbin|boot|root)\\b","action":"BLOCK","severity":"critical","message":"Attempt to delete system directory"}'
+        '{"id":"fs_rm_rf_system_subst","pattern":"\\$\\([^)]*rm\\s+(-[rf]+\\s+)*/(etc|usr|var|bin|lib|sbin|boot|root)","action":"BLOCK","severity":"critical","message":"Attempt to delete system directory via command substitution"}'
         '{"id":"git_push_force","pattern":"\\bgit\\s+push\\s+.*--force\\b","action":"BLOCK","severity":"high","message":"Force push blocked - use git-safety flow"}'
         '{"id":"git_reset_hard","pattern":"\\bgit\\s+reset\\s+--hard\\b","action":"WARN","severity":"medium","message":"git reset --hard will discard uncommitted changes"}'
         '{"id":"git_clean_force","pattern":"\\bgit\\s+clean\\s+-[fdx]+","action":"WARN","severity":"medium","message":"git clean will permanently remove untracked files"}'
         '{"id":"shell_eval","pattern":"\\beval\\s+[\\$\"]","action":"WARN","severity":"high","message":"eval with variable expansion detected"}'
+        '{"id":"shell_dcg_bypass","pattern":"\\bDCG_SKIP=1\\b","action":"BLOCK","severity":"critical","message":"Attempt to set DCG bypass variable"}'
+        '{"id":"shell_dcg_bypass_env","pattern":"\\benv\\s+.*DCG_SKIP=","action":"BLOCK","severity":"critical","message":"Attempt to set DCG bypass via env command"}'
+        '{"id":"shell_dcg_bypass_export","pattern":"\\bexport\\s+DCG_SKIP=","action":"BLOCK","severity":"critical","message":"Attempt to export DCG bypass variable"}'
     )
 }
 
@@ -156,9 +163,9 @@ _dcg_expand_safe_paths() {
 
     # Expand and canonicalize paths
     for path in "${default_paths[@]}"; do
-        # Expand environment variables
+        # CRITICAL-001 FIX: Use safe path expansion instead of eval
         local expanded
-        expanded=$(eval echo "$path" 2>/dev/null) || continue
+        expanded=$(_dcg_expand_path_safe "$path")
 
         # Skip relative paths (security requirement)
         if [[ ! "$expanded" =~ ^/ ]]; then
@@ -171,6 +178,26 @@ _dcg_expand_safe_paths() {
 
         _DCG_SAFE_PATHS+=("$canonical")
     done
+}
+
+# CRITICAL-001 FIX: Safe path expansion without eval
+_dcg_expand_path_safe() {
+    local path="$1"
+
+    # Only expand known safe variables via parameter substitution
+    path="${path//\~/$HOME}"
+    path="${path//\$HOME/$HOME}"
+    path="${path//\${HOME\}/$HOME}"
+    path="${path//\$TMPDIR/${TMPDIR:-/tmp}}"
+    path="${path//\${TMPDIR\}/${TMPDIR:-/tmp}}"
+    path="${path//\$PROJECT_ROOT/${PROJECT_ROOT:-.}}"
+    path="${path//\${PROJECT_ROOT\}/${PROJECT_ROOT:-.}}"
+    path="${path//\$PWD/${PWD:-.}}"
+    path="${path//\${PWD\}/${PWD:-.}}"
+    path="${path//\$USER/${USER:-unknown}}"
+    path="${path//\${USER\}/${USER:-unknown}}"
+
+    echo "$path"
 }
 
 # =============================================================================
@@ -298,14 +325,59 @@ _dcg_simple_match() {
 _dcg_is_safe_context() {
     local segment="$1"
 
+    # CRITICAL-003 FIX: Check for embedded execution FIRST
+    if _dcg_has_embedded_exec "$segment"; then
+        return 1  # NOT safe - has embedded execution
+    fi
+
     # Data reference patterns
     [[ "$segment" =~ ^grep[[:space:]] ]] && return 0
     [[ "$segment" =~ ^echo[[:space:]] ]] && return 0
     [[ "$segment" =~ ^cat[[:space:]] ]] && return 0
     [[ "$segment" =~ ^printf[[:space:]] ]] && return 0
-    [[ "$segment" =~ --help ]] && return 0
-    [[ "$segment" =~ --dry-run ]] && return 0
-    [[ "$segment" =~ --version ]] && return 0
+
+    # HIGH-008 FIX: Check flags properly (not in strings/comments)
+    if _dcg_has_real_safe_flag "$segment"; then
+        return 0
+    fi
+
+    return 1
+}
+
+# CRITICAL-003 FIX: Detect embedded command execution
+_dcg_has_embedded_exec() {
+    local segment="$1"
+
+    # Command substitution
+    [[ "$segment" =~ \$\( ]] && return 0
+    [[ "$segment" =~ \` ]] && return 0
+
+    # Process substitution
+    [[ "$segment" =~ '<(' ]] && return 0
+    [[ "$segment" =~ '>(' ]] && return 0
+
+    # Pipe to interpreter
+    [[ "$segment" =~ \|[[:space:]]*(bash|sh|zsh|python|perl|ruby|node|eval) ]] && return 0
+
+    # -exec flag
+    [[ "$segment" =~ [[:space:]]-exec[[:space:]] ]] && return 0
+
+    return 1
+}
+
+# HIGH-008 FIX: Detect real flags (not in strings/comments)
+_dcg_has_real_safe_flag() {
+    local segment="$1"
+
+    # Remove quoted strings
+    local clean
+    clean=$(echo "$segment" | sed -E "s/'[^']*'//g; s/\"[^\"]*\"//g")
+    # Remove comments
+    clean=$(echo "$clean" | sed 's/#.*//')
+
+    [[ "$clean" =~ [[:space:]]--help([[:space:]]|$) ]] && return 0
+    [[ "$clean" =~ [[:space:]]--dry-run([[:space:]]|$) ]] && return 0
+    [[ "$clean" =~ [[:space:]]--version([[:space:]]|$) ]] && return 0
 
     return 1
 }
@@ -318,9 +390,9 @@ _dcg_in_safe_path() {
     path=$(echo "$segment" | grep -oP '(?:rm\s+(?:-[rf]+\s+)*)\K[^\s]+' | head -1) || return 1
     [[ -z "$path" ]] && return 1
 
-    # Expand variables in path
+    # CRITICAL-001 FIX: Use safe path expansion instead of eval
     local expanded
-    expanded=$(eval echo "$path" 2>/dev/null) || expanded="$path"
+    expanded=$(_dcg_expand_path_safe "$path")
 
     # Canonicalize
     local canonical
