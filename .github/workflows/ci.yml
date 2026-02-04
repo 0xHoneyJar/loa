@@ -278,3 +278,77 @@ jobs:
       - name: Lint YAML files
         run: yamllint .github/ || true
         # Note: Using || true to not fail on lint warnings for now
+
+  # =============================================================================
+  # PATH-LIB ENFORCEMENT - Prevents hardcoded grimoire paths
+  # =============================================================================
+  path-lint:
+    name: Check Hardcoded Paths
+    needs: template-guard
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for hardcoded grimoire paths
+        run: |
+          echo "Checking for hardcoded grimoire paths in scripts..."
+
+          # Create allowlist file if it doesn't exist
+          ALLOWLIST=".github/path-lint-allowlist.txt"
+          if [ ! -f "$ALLOWLIST" ]; then
+            # Default allowlist: path-lib.sh and test files
+            echo ".claude/scripts/path-lib.sh" > /tmp/allowlist.txt
+            echo ".claude/scripts/tests/" >> /tmp/allowlist.txt
+            ALLOWLIST="/tmp/allowlist.txt"
+          fi
+
+          # Find all shell scripts with hardcoded grimoire paths
+          VIOLATIONS=""
+          while IFS= read -r -d '' file; do
+            # Check if file is in allowlist
+            skip=false
+            while IFS= read -r pattern; do
+              if [[ "$file" == *"$pattern"* ]]; then
+                skip=true
+                break
+              fi
+            done < "$ALLOWLIST"
+
+            if $skip; then
+              continue
+            fi
+
+            # Check for file-level pragma exemption
+            if head -20 "$file" | grep -q "# path-lib: exempt"; then
+              continue
+            fi
+
+            # Check for hardcoded paths (but not in comments)
+            matches=$(grep -n "grimoires/loa" "$file" 2>/dev/null | grep -v "^[0-9]*:[[:space:]]*#" | grep -v "_DEFAULT_" || true)
+            if [ -n "$matches" ]; then
+              VIOLATIONS="$VIOLATIONS\n$file:\n$matches\n"
+            fi
+          done < <(find .claude/scripts -name "*.sh" -type f -print0)
+
+          if [ -n "$VIOLATIONS" ]; then
+            echo ""
+            echo "============================================================"
+            echo "WARNING: Hardcoded grimoire paths detected!"
+            echo "============================================================"
+            echo ""
+            echo "The following scripts have hardcoded 'grimoires/loa' paths:"
+            echo -e "$VIOLATIONS"
+            echo ""
+            echo "Scripts should use path-lib.sh getters instead:"
+            echo "  source \"\$SCRIPT_DIR/bootstrap.sh\""
+            echo "  LEDGER_FILE=\"\$(get_ledger_path)\""
+            echo ""
+            echo "To exempt a file, add '# path-lib: exempt' in first 20 lines."
+            echo "============================================================"
+            # Currently warning-only (Sprint 1), will become error in Sprint 2
+            # exit 1
+          else
+            echo "No hardcoded path violations found."
+          fi
