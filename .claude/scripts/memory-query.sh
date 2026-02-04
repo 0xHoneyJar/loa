@@ -124,8 +124,9 @@ show_full() {
         exit 1
     fi
 
+    # SECURITY FIX M1: Use jq --arg to prevent injection
     local result
-    result=$(jq -s ".[] | select(.id == \"$obs_id\")" "$OBSERVATIONS_FILE" 2>/dev/null)
+    result=$(jq -s --arg id "$obs_id" '.[] | select(.id == $id)' "$OBSERVATIONS_FILE" 2>/dev/null)
 
     if [[ -z "$result" || "$result" == "null" ]]; then
         echo "Observation not found: $obs_id" >&2
@@ -140,13 +141,14 @@ filter_by_type() {
     local obs_type="$1"
     local limit="${2:-10}"
 
-    jq -s "
-        [.[] | select(.private != true) | select(.type == \"$obs_type\")] |
-        .[-$limit:] |
+    # SECURITY FIX M2: Use jq --arg to prevent injection
+    jq -s --arg t "$obs_type" --argjson lim "$limit" '
+        [.[] | select(.private != true) | select(.type == $t)] |
+        .[-$lim:] |
         reverse |
         .[] |
-        {id, type, timestamp: .timestamp[0:10], summary: (.summary[0:100] + \"...\")}
-    " "$OBSERVATIONS_FILE" 2>/dev/null || echo "[]"
+        {id, type, timestamp: .timestamp[0:10], summary: (.summary[0:100] + "...")}
+    ' "$OBSERVATIONS_FILE" 2>/dev/null || echo "[]"
 }
 
 # Filter by tags
@@ -200,10 +202,11 @@ search_observations() {
     local query="$1"
     local limit="${2:-10}"
 
-    # Use grep for initial filtering, then format with jq
-    grep -i "$query" "$OBSERVATIONS_FILE" 2>/dev/null | \
+    # SECURITY FIX M3: Use grep -F for literal matching (prevents regex injection)
+    # This prevents ReDoS attacks and unexpected regex behavior
+    grep -iF "$query" "$OBSERVATIONS_FILE" 2>/dev/null | \
         tail -n "$limit" | \
-        jq -s ".[] | {id, type, timestamp: .timestamp[0:10], summary: (.summary[0:100] + \"...\")}" 2>/dev/null || echo "[]"
+        jq -s '.[] | {id, type, timestamp: .timestamp[0:10], summary: (.summary[0:100] + "...")}' 2>/dev/null || echo "[]"
 }
 
 # Statistics

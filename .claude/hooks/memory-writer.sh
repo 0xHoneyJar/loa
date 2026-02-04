@@ -209,18 +209,32 @@ create_observation() {
 # Storage
 # =============================================================================
 
+# Atomic append with file locking to prevent concurrent write corruption
+# Uses flock for exclusive lock during JSONL writes
+locked_append() {
+    local file="$1"
+    local content="$2"
+    local lock_file="${file}.lock"
+
+    # Use flock for atomic append (fd 200 for lock)
+    (
+        flock -x 200 2>/dev/null || true  # Continue even if flock unavailable
+        echo "$content" >> "$file"
+    ) 200>"$lock_file"
+}
+
 store_observation() {
     local observation="$1"
 
     # Ensure directories exist
     mkdir -p "$MEMORY_DIR/sessions"
 
-    # Append to main observations file
-    echo "$observation" >> "$MEMORY_DIR/observations.jsonl"
+    # Append to main observations file (with locking)
+    locked_append "$MEMORY_DIR/observations.jsonl" "$observation"
 
-    # Append to session-specific file
+    # Append to session-specific file (with locking)
     local session_file="$MEMORY_DIR/sessions/${SESSION_ID}.jsonl"
-    echo "$observation" >> "$session_file"
+    locked_append "$session_file" "$observation"
 
     # Check retention limits
     enforce_retention_limits
@@ -234,18 +248,23 @@ enforce_retention_limits() {
     local current_count
     current_count=$(wc -l < "$MEMORY_DIR/observations.jsonl" 2>/dev/null || echo "0")
 
-    # If over limit, archive oldest
+    # If over limit, archive oldest (with locking to prevent TOCTOU race)
     if [[ $current_count -gt $max_observations ]]; then
         local archive_dir="$MEMORY_DIR/archive"
         mkdir -p "$archive_dir"
 
         local excess=$((current_count - max_observations))
         local archive_file="$archive_dir/archived-$(date +%Y%m%d).jsonl"
+        local lock_file="$MEMORY_DIR/observations.jsonl.lock"
 
-        # Move oldest entries to archive
-        head -n "$excess" "$MEMORY_DIR/observations.jsonl" >> "$archive_file"
-        tail -n "+$((excess + 1))" "$MEMORY_DIR/observations.jsonl" > "$MEMORY_DIR/observations.jsonl.tmp"
-        mv "$MEMORY_DIR/observations.jsonl.tmp" "$MEMORY_DIR/observations.jsonl"
+        # Use flock for atomic archival operation
+        (
+            flock -x 200 2>/dev/null || true
+            # Move oldest entries to archive
+            head -n "$excess" "$MEMORY_DIR/observations.jsonl" >> "$archive_file"
+            tail -n "+$((excess + 1))" "$MEMORY_DIR/observations.jsonl" > "$MEMORY_DIR/observations.jsonl.tmp"
+            mv "$MEMORY_DIR/observations.jsonl.tmp" "$MEMORY_DIR/observations.jsonl"
+        ) 200>"$lock_file"
     fi
 }
 

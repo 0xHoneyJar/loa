@@ -8,6 +8,8 @@
 # Usage: Called automatically via Claude Code hooks
 #
 # Output: Reminder message to stdout (injected into context)
+#
+# Security: Validates state values against allowlists to prevent prompt injection
 
 set -uo pipefail
 
@@ -15,6 +17,40 @@ set -uo pipefail
 GLOBAL_MARKER="${HOME}/.local/state/loa-compact/compact-pending"
 PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
 PROJECT_MARKER="${PROJECT_ROOT}/.run/compact-pending"
+
+# =============================================================================
+# Security: Allowlist validation for state values (prevents prompt injection)
+# =============================================================================
+
+# Allowed values for run_mode_state
+VALID_RUN_MODE_STATES=("RUNNING" "HALTED" "JACKED_OUT" "unknown" "false")
+
+# Allowed values for simstim_phase
+VALID_SIMSTIM_PHASES=("preflight" "discovery" "flatline_prd" "architecture" "flatline_sdd" "planning" "flatline_sprint" "flatline_beads" "implementation" "complete" "unknown" "false")
+
+# Validate a value against an allowlist
+validate_state() {
+    local value="$1"
+    shift
+    local -a allowed=("$@")
+
+    for valid in "${allowed[@]}"; do
+        if [[ "$value" == "$valid" ]]; then
+            echo "$value"
+            return 0
+        fi
+    done
+
+    # Invalid value - return safe default
+    echo "unknown"
+}
+
+# Sanitize any string for safe output (remove newlines, control chars)
+sanitize_output() {
+    local value="$1"
+    # Remove newlines, carriage returns, and other control characters
+    echo "$value" | tr -d '\n\r' | tr -cd '[:print:]' | head -c 50
+}
 
 # Check for marker (prefer project-local, fallback to global)
 ACTIVE_MARKER=""
@@ -34,12 +70,13 @@ CONTEXT=$(cat "$ACTIVE_MARKER" 2>/dev/null) || CONTEXT="{}"
 
 # Extract state for customized recovery
 run_mode_active=$(echo "$CONTEXT" | jq -r '.run_mode.active // false' 2>/dev/null) || run_mode_active="false"
-run_mode_state=$(echo "$CONTEXT" | jq -r '.run_mode.state // "unknown"' 2>/dev/null) || run_mode_state="unknown"
+run_mode_state_raw=$(echo "$CONTEXT" | jq -r '.run_mode.state // "unknown"' 2>/dev/null) || run_mode_state_raw="unknown"
 simstim_active=$(echo "$CONTEXT" | jq -r '.simstim.active // false' 2>/dev/null) || simstim_active="false"
-simstim_phase=$(echo "$CONTEXT" | jq -r '.simstim.phase // "unknown"' 2>/dev/null) || simstim_phase="unknown"
+simstim_phase_raw=$(echo "$CONTEXT" | jq -r '.simstim.phase // "unknown"' 2>/dev/null) || simstim_phase_raw="unknown"
 
-# Delete markers immediately (one-shot)
-rm -f "$GLOBAL_MARKER" "$PROJECT_MARKER" 2>/dev/null || true
+# SECURITY: Validate state values against allowlists to prevent prompt injection
+run_mode_state=$(validate_state "$run_mode_state_raw" "${VALID_RUN_MODE_STATES[@]}")
+simstim_phase=$(validate_state "$simstim_phase_raw" "${VALID_SIMSTIM_PHASES[@]}")
 
 # Output reminder (this gets injected into Claude's context)
 cat <<'REMINDER'
@@ -120,5 +157,9 @@ EOF
     )
     echo "$LOG_ENTRY" >> "$TRAJECTORY_DIR/compact-events.jsonl" 2>/dev/null || true
 fi
+
+# Delete markers AFTER output (prevents lost recovery messages on interrupt)
+# Previously deleted before output which caused race condition (M7)
+rm -f "$GLOBAL_MARKER" "$PROJECT_MARKER" 2>/dev/null || true
 
 exit 0

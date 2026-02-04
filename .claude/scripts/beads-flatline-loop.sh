@@ -32,10 +32,28 @@ fi
 # Configuration
 # =============================================================================
 
+# Hard limit to prevent resource exhaustion (H3 security fix)
+MAX_ITERATION_LIMIT=20
+
 MAX_ITERATIONS="${BLF_MAX_ITERATIONS:-6}"
 FLATLINE_THRESHOLD="${BLF_FLATLINE_THRESHOLD:-5}"
 DRY_RUN=false
 VERBOSE=false
+
+# Temp file tracking for cleanup
+TEMP_FILES_TO_CLEAN=()
+
+# =============================================================================
+# Cleanup trap for temp files (H5 security fix)
+# =============================================================================
+
+cleanup_temp_files() {
+    for f in "${TEMP_FILES_TO_CLEAN[@]}"; do
+        rm -f "$f" 2>/dev/null || true
+    done
+}
+
+trap cleanup_temp_files EXIT INT TERM
 
 # =============================================================================
 # Argument Parsing
@@ -45,6 +63,15 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --max-iterations)
             MAX_ITERATIONS="$2"
+            # Validate numeric and enforce hard limit (H3, L7 security fix)
+            if ! [[ "$MAX_ITERATIONS" =~ ^[0-9]+$ ]]; then
+                echo "Error: --max-iterations must be a positive integer" >&2
+                exit 1
+            fi
+            if [[ $MAX_ITERATIONS -gt $MAX_ITERATION_LIMIT ]]; then
+                echo "Warning: MAX_ITERATIONS capped at $MAX_ITERATION_LIMIT (was $MAX_ITERATIONS)" >&2
+                MAX_ITERATIONS=$MAX_ITERATION_LIMIT
+            fi
             shift 2
             ;;
         --threshold)
@@ -133,8 +160,10 @@ run_flatline_review() {
         return 0
     fi
 
-    # Create temp file with beads for review
-    local temp_file=$(mktemp)
+    # Create temp file with beads for review (tracked for cleanup on interrupt - H5)
+    local temp_file
+    temp_file=$(mktemp)
+    TEMP_FILES_TO_CLEAN+=("$temp_file")
     echo "$beads_json" > "$temp_file"
 
     # Run Flatline review
@@ -164,6 +193,9 @@ run_flatline_review() {
 }
 
 # Apply Flatline suggestions to beads
+# NOTE: Phase 2 stub - currently logs suggestions but does not modify beads.
+# Actual bead modifications (br edit, br split, etc.) will be implemented in a future release.
+# See: https://github.com/0xHoneyJar/loa/issues/TBD
 apply_flatline_suggestions() {
     local findings="$1"
 
@@ -172,7 +204,7 @@ apply_flatline_suggestions() {
         return 0
     fi
 
-    # Extract high consensus findings and apply them
+    # Extract high consensus findings
     local suggestions
     suggestions=$(echo "$findings" | jq -r '.findings[]? | select(.consensus == "high") | .suggestion // empty' 2>/dev/null) || true
 
@@ -181,17 +213,21 @@ apply_flatline_suggestions() {
         return 0
     fi
 
-    # Count applied changes
-    local applied=0
+    # PHASE 2 STUB: Log suggestions for manual review
+    # In Phase 2, this will parse suggestions and call br commands:
+    # - "split task" -> br split <id>
+    # - "merge tasks" -> br merge <id1> <id2>
+    # - "reprioritize" -> br update <id> --priority <P>
+    # - "add dependency" -> br link <id1> --blocks <id2>
+    local logged=0
+    log "  [PHASE 2 STUB] High-consensus suggestions logged for manual review:"
     while IFS= read -r suggestion; do
         [[ -z "$suggestion" ]] && continue
-        log_verbose "  Applying: $suggestion"
-        # In a real implementation, this would parse and apply the suggestion
-        # For now, we log it
-        ((applied++)) || true
+        log "    → $suggestion"
+        ((logged++)) || true
     done <<< "$suggestions"
 
-    log_verbose "  Applied $applied suggestions"
+    log_verbose "  Logged $logged suggestions (manual application required in Phase 1)"
 }
 
 # =============================================================================
@@ -203,7 +239,17 @@ main() {
     log "         FLATLINE BEADS LOOP"
     log "════════════════════════════════════════════════════════════"
     log ""
-    log "Max iterations: $MAX_ITERATIONS"
+    # Enforce hard iteration limit from environment variable too (H3)
+    if ! [[ "$MAX_ITERATIONS" =~ ^[0-9]+$ ]]; then
+        log "ERROR: MAX_ITERATIONS must be a positive integer (got: $MAX_ITERATIONS)"
+        exit 1
+    fi
+    if [[ $MAX_ITERATIONS -gt $MAX_ITERATION_LIMIT ]]; then
+        log "Warning: MAX_ITERATIONS capped at $MAX_ITERATION_LIMIT (was $MAX_ITERATIONS)"
+        MAX_ITERATIONS=$MAX_ITERATION_LIMIT
+    fi
+
+    log "Max iterations: $MAX_ITERATIONS (hard limit: $MAX_ITERATION_LIMIT)"
     log "Flatline threshold: <${FLATLINE_THRESHOLD}% change"
     log ""
 
