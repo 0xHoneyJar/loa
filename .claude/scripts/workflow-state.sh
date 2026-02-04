@@ -15,8 +15,10 @@
 
 set -euo pipefail
 
-# Establish project root
-PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+# Establish project root and source path-lib
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/bootstrap.sh"
+
 CACHE_MANAGER="${PROJECT_ROOT}/.claude/scripts/cache-manager.sh"
 
 # Arguments
@@ -40,11 +42,12 @@ STATE_REVIEWING="reviewing"
 STATE_AUDITING="auditing"
 STATE_COMPLETE="complete"
 
-# File paths
-PRD_FILE="${PROJECT_ROOT}/grimoires/loa/prd.md"
-SDD_FILE="${PROJECT_ROOT}/grimoires/loa/sdd.md"
-SPRINT_FILE="${PROJECT_ROOT}/grimoires/loa/sprint.md"
-LEDGER_FILE="${PROJECT_ROOT}/grimoires/loa/ledger.json"
+# File paths (use path-lib getters)
+_GRIMOIRE_DIR=$(get_grimoire_dir)
+PRD_FILE="${_GRIMOIRE_DIR}/prd.md"
+SDD_FILE="${_GRIMOIRE_DIR}/sdd.md"
+SPRINT_FILE="${_GRIMOIRE_DIR}/sprint.md"
+LEDGER_FILE=$(get_ledger_path)
 
 # Function: Get current sprint from ledger
 get_current_sprint() {
@@ -76,7 +79,8 @@ get_total_sprints() {
 get_completed_sprints() {
     local count=0
     local sprint_dirs
-    sprint_dirs=$(find "${PROJECT_ROOT}/grimoires/loa/a2a" -maxdepth 1 -type d -name "sprint-*" 2>/dev/null || true)
+    local a2a_dir="${_GRIMOIRE_DIR}/a2a"
+    sprint_dirs=$(find "${a2a_dir}" -maxdepth 1 -type d -name "sprint-*" 2>/dev/null || true)
 
     for dir in ${sprint_dirs}; do
         if [[ -f "${dir}/COMPLETED" ]]; then
@@ -89,7 +93,7 @@ get_completed_sprints() {
 # Function: Get current sprint state
 get_sprint_state() {
     local sprint_id="$1"
-    local sprint_dir="${PROJECT_ROOT}/grimoires/loa/a2a/${sprint_id}"
+    local sprint_dir="${_GRIMOIRE_DIR}/a2a/${sprint_id}"
 
     if [[ -f "${sprint_dir}/COMPLETED" ]]; then
         echo "completed"

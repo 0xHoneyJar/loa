@@ -20,6 +20,7 @@ set -euo pipefail
 # ============================================================================
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/bootstrap.sh"
 readonly STATE_SCRIPT="${SCRIPT_DIR}/post-pr-state.sh"
 
 # Default commands (detected from package.json or config)
@@ -28,8 +29,9 @@ TEST_CMD="${TEST_CMD:-}"
 BUILD_TIMEOUT="${BUILD_TIMEOUT:-300}"  # 5 minutes
 TEST_TIMEOUT="${TEST_TIMEOUT:-600}"     # 10 minutes
 
-# Output directory
-readonly BASE_CONTEXT_DIR="${BASE_CONTEXT_DIR:-grimoires/loa/a2a}"
+# Output directory (use path-lib)
+_GRIMOIRE_DIR=$(get_grimoire_dir)
+readonly BASE_CONTEXT_DIR="${BASE_CONTEXT_DIR:-${_GRIMOIRE_DIR}/a2a}"
 
 # ============================================================================
 # Utility Functions

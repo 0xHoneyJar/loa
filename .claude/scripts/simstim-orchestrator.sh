@@ -29,12 +29,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
+source "$SCRIPT_DIR/bootstrap.sh"
+
 STATE_FILE="$PROJECT_ROOT/.run/simstim-state.json"
 STATE_BACKUP="$PROJECT_ROOT/.run/simstim-state.json.bak"
 LOCK_FILE="$PROJECT_ROOT/.run/simstim.lock"
-TRAJECTORY_DIR="$PROJECT_ROOT/grimoires/loa/a2a/trajectory"
+TRAJECTORY_DIR=$(get_trajectory_dir)
+_GRIMOIRE_DIR=$(get_grimoire_dir)
 
 # Phase definitions
 PHASES=(preflight discovery flatline_prd architecture flatline_sdd planning flatline_sprint implementation)
@@ -129,7 +130,7 @@ run_workspace_cleanup() {
 
     # Build cleanup arguments
     local cleanup_args=()
-    cleanup_args+=("--grimoire" "$PROJECT_ROOT/grimoires/loa")
+    cleanup_args+=("--grimoire" "$_GRIMOIRE_DIR")
 
     if [[ "$dry_run" == "true" ]]; then
         cleanup_args+=("--dry-run")
@@ -826,32 +827,32 @@ preflight() {
     if [[ -n "$from_phase" ]]; then
         case "$from_phase" in
             architect|architecture)
-                if [[ ! -f "$PROJECT_ROOT/grimoires/loa/prd.md" ]]; then
+                if [[ ! -f "$_GRIMOIRE_DIR/prd.md" ]]; then
                     error "Cannot start from architect: PRD not found"
-                    error "Create grimoires/loa/prd.md first or run without --from"
+                    error "Create $_GRIMOIRE_DIR/prd.md first or run without --from"
                     exit 3
                 fi
                 ;;
             sprint-plan|planning)
-                if [[ ! -f "$PROJECT_ROOT/grimoires/loa/prd.md" ]]; then
+                if [[ ! -f "$_GRIMOIRE_DIR/prd.md" ]]; then
                     error "Cannot start from sprint-plan: PRD not found"
                     exit 3
                 fi
-                if [[ ! -f "$PROJECT_ROOT/grimoires/loa/sdd.md" ]]; then
+                if [[ ! -f "$_GRIMOIRE_DIR/sdd.md" ]]; then
                     error "Cannot start from sprint-plan: SDD not found"
                     exit 3
                 fi
                 ;;
             run|implementation)
-                if [[ ! -f "$PROJECT_ROOT/grimoires/loa/prd.md" ]]; then
+                if [[ ! -f "$_GRIMOIRE_DIR/prd.md" ]]; then
                     error "Cannot start from run: PRD not found"
                     exit 3
                 fi
-                if [[ ! -f "$PROJECT_ROOT/grimoires/loa/sdd.md" ]]; then
+                if [[ ! -f "$_GRIMOIRE_DIR/sdd.md" ]]; then
                     error "Cannot start from run: SDD not found"
                     exit 3
                 fi
-                if [[ ! -f "$PROJECT_ROOT/grimoires/loa/sprint.md" ]]; then
+                if [[ ! -f "$_GRIMOIRE_DIR/sprint.md" ]]; then
                     error "Cannot start from run: Sprint plan not found"
                     exit 3
                 fi

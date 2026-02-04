@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 # mount-submodule.sh - Install Loa as a git submodule
+# path-lib: exempt
+#
+# Note: This script bootstraps the project BEFORE path-lib.sh exists.
+# It must use hardcoded default paths to create the initial structure.
 #
 # This script installs Loa as a git submodule at .loa/, then creates symlinks
 # from the standard .claude/ locations to the submodule content. This provides:

@@ -24,17 +24,19 @@
 set -euo pipefail
 
 # Configuration
-PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/bootstrap.sh"
+
 CHECK_ONLY="${CHECK_ONLY:-false}"
 VERBOSE="${VERBOSE:-false}"
 TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-# State Zone paths
-NOTES_FILE="${PROJECT_ROOT}/grimoires/loa/NOTES.md"
-BEADS_DIR="${PROJECT_ROOT}/.beads"
+# State Zone paths (use path-lib)
+NOTES_FILE=$(get_notes_path)
+BEADS_DIR=$(get_beads_dir)
 CK_DIR="${PROJECT_ROOT}/.ck"
-TRAJECTORY_DIR="${PROJECT_ROOT}/grimoires/loa/a2a/trajectory"
-GRIMOIRE_DIR="${PROJECT_ROOT}/grimoires/loa"
+TRAJECTORY_DIR=$(get_trajectory_dir)
+GRIMOIRE_DIR=$(get_grimoire_dir)
 
 # Templates
 NOTES_TEMPLATE='# Agent Working Memory (NOTES.md)
@@ -313,37 +315,37 @@ heal_trajectory() {
     return 0
 }
 
-# Check and heal grimoires/loa directory
+# Check and heal grimoire directory
 heal_grimoire() {
-    log "Checking: grimoires/loa/"
+    # Get relative path for git operations and logging
+    local grimoire_rel="${GRIMOIRE_DIR#$PROJECT_ROOT/}"
+    log "Checking: $grimoire_rel/"
 
     if [[ -d "$GRIMOIRE_DIR" ]]; then
-        log_verbose "  grimoires/loa/ exists"
+        log_verbose "  $grimoire_rel/ exists"
         return 0
     else
-        log "  grimoires/loa/ is missing"
+        log "  $grimoire_rel/ is missing"
     fi
 
     # Try recovery from git
-    if git ls-files --error-unmatch "grimoires/loa/" &>/dev/null 2>&1; then
+    if git ls-files --error-unmatch "$grimoire_rel/" &>/dev/null 2>&1; then
         if [[ "$CHECK_ONLY" == "true" ]]; then
-            log "  Can recover grimoires/loa/ from git"
+            log "  Can recover $grimoire_rel/ from git"
             return 0
         fi
 
-        git checkout HEAD -- "grimoires/loa/" 2>/dev/null || true
-        log "  Recovered grimoires/loa/ from git"
+        git checkout HEAD -- "$grimoire_rel/" 2>/dev/null || true
+        log "  Recovered $grimoire_rel/ from git"
         return 0
     fi
 
-    # Create directory structure
+    # Create directory structure using ensure_grimoire_structure from path-lib
     if [[ "$CHECK_ONLY" != "true" ]]; then
-        mkdir -p "$GRIMOIRE_DIR"
-        mkdir -p "${GRIMOIRE_DIR}/a2a"
-        mkdir -p "${GRIMOIRE_DIR}/a2a/trajectory"
-        log "  Created grimoires/loa/ directory structure"
+        ensure_grimoire_structure
+        log "  Created $grimoire_rel/ directory structure"
     else
-        log "  Will create grimoires/loa/ directory structure"
+        log "  Will create $grimoire_rel/ directory structure"
     fi
 
     return 0

@@ -14,6 +14,12 @@
 set -euo pipefail
 
 # =============================================================================
+# Path Resolution
+# =============================================================================
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/bootstrap.sh"
+
+# =============================================================================
 # Exit Codes (per SDD §6.2)
 # =============================================================================
 readonly LEDGER_OK=0
@@ -41,14 +47,11 @@ else
 fi
 
 # =============================================================================
-# Path Functions
+# Path Functions (delegate to path-lib.sh)
 # =============================================================================
 
-# Get ledger file path
-# Returns: "grimoires/loa/ledger.json"
-get_ledger_path() {
-    echo "grimoires/loa/ledger.json"
-}
+# Note: get_ledger_path() is now provided by path-lib.sh via bootstrap.sh
+# The function returns the full path based on configuration
 
 # Check if ledger exists
 # Returns: 0 if exists, 1 if not
@@ -245,7 +248,9 @@ init_ledger_from_existing() {
 
     # Find highest existing sprint number
     local max_sprint=0
-    local a2a_dir="grimoires/loa/a2a"
+    local grimoire_dir
+    grimoire_dir=$(get_grimoire_dir)
+    local a2a_dir="${grimoire_dir}/a2a"
 
     if [[ -d "$a2a_dir" ]]; then
         for dir in "$a2a_dir"/sprint-*; do
@@ -344,6 +349,11 @@ create_cycle() {
     local now
     now=$(now_iso)
 
+    # Get grimoire directory for PRD path
+    local grimoire_dir
+    grimoire_dir=$(get_grimoire_dir)
+    local prd_path="${grimoire_dir}/prd.md"
+
     # Create cycle object
     local cycle_json
     cycle_json=$(cat <<EOF
@@ -354,7 +364,7 @@ create_cycle() {
   "created": "$now",
   "archived": null,
   "archive_path": null,
-  "prd": "grimoires/loa/prd.md",
+  "prd": "$prd_path",
   "sdd": null,
   "sprints": []
 }
@@ -597,7 +607,9 @@ update_sprint_status() {
 # Returns: Path to a2a directory (e.g., "grimoires/loa/a2a/sprint-3")
 get_sprint_directory() {
     local global_id="$1"
-    echo "grimoires/loa/a2a/sprint-${global_id}"
+    local grimoire_dir
+    grimoire_dir=$(get_grimoire_dir)
+    echo "${grimoire_dir}/a2a/sprint-${global_id}"
 }
 
 # =============================================================================
@@ -758,15 +770,19 @@ archive_cycle() {
 
     local now_date_str
     now_date_str=$(now_date)
-    local archive_path="grimoires/loa/archive/${now_date_str}-${slug}"
+    local grimoire_dir
+    grimoire_dir=$(get_grimoire_dir)
+    local archive_dir
+    archive_dir=$(get_archive_dir)
+    local archive_path="${archive_dir}/${now_date_str}-${slug}"
 
     # Create archive directory
     mkdir -p "$archive_path/a2a"
 
     # Copy current artifacts
-    [[ -f "grimoires/loa/prd.md" ]] && cp "grimoires/loa/prd.md" "$archive_path/"
-    [[ -f "grimoires/loa/sdd.md" ]] && cp "grimoires/loa/sdd.md" "$archive_path/"
-    [[ -f "grimoires/loa/sprint.md" ]] && cp "grimoires/loa/sprint.md" "$archive_path/"
+    [[ -f "${grimoire_dir}/prd.md" ]] && cp "${grimoire_dir}/prd.md" "$archive_path/"
+    [[ -f "${grimoire_dir}/sdd.md" ]] && cp "${grimoire_dir}/sdd.md" "$archive_path/"
+    [[ -f "${grimoire_dir}/sprint.md" ]] && cp "${grimoire_dir}/sprint.md" "$archive_path/"
 
     # Copy sprint directories for this cycle
     local sprints
@@ -774,7 +790,7 @@ archive_cycle() {
         '(.cycles[] | select(.id == $id)).sprints[].global_id' "$ledger_path")
 
     for sprint_id in $sprints; do
-        local sprint_dir="grimoires/loa/a2a/sprint-${sprint_id}"
+        local sprint_dir="${grimoire_dir}/a2a/sprint-${sprint_id}"
         if [[ -d "$sprint_dir" ]]; then
             cp -r "$sprint_dir" "$archive_path/a2a/"
         fi

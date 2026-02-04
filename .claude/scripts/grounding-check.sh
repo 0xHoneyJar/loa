@@ -22,12 +22,14 @@
 set -euo pipefail
 
 # Configuration
-PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/bootstrap.sh"
+
 AGENT="${1:-implementing-tasks}"
 THRESHOLD="${2:-0.95}"
 DATE="${3:-$(date +%Y-%m-%d)}"
 
-TRAJECTORY_DIR="${PROJECT_ROOT}/grimoires/loa/a2a/trajectory"
+TRAJECTORY_DIR=$(get_trajectory_dir)
 TRAJECTORY="${TRAJECTORY_DIR}/${AGENT}-${DATE}.jsonl"
 
 # Validate threshold is a valid number

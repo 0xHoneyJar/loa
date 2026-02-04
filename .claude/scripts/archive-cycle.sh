@@ -17,10 +17,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-ARCHIVE_DIR="${PROJECT_ROOT}/grimoires/loa/archive"
-GRIMOIRE_DIR="${PROJECT_ROOT}/grimoires/loa"
-CONFIG_FILE="${PROJECT_ROOT}/.loa.config.yaml"
+source "$SCRIPT_DIR/bootstrap.sh"
+
+ARCHIVE_DIR=$(get_archive_dir)
+GRIMOIRE_DIR=$(get_grimoire_dir)
 
 CYCLE_NUM=""
 RETENTION=5

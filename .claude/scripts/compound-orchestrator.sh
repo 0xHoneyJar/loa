@@ -28,14 +28,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-CONFIG_FILE="${PROJECT_ROOT}/.loa.config.yaml"
-LEDGER_FILE="${PROJECT_ROOT}/grimoires/loa/ledger.json"
-NOTES_FILE="${PROJECT_ROOT}/grimoires/loa/NOTES.md"
-COMPOUND_DIR="${PROJECT_ROOT}/grimoires/loa/a2a/compound"
-TRAJECTORY_DIR="${PROJECT_ROOT}/grimoires/loa/a2a/trajectory"
-SKILLS_PENDING="${PROJECT_ROOT}/grimoires/loa/skills-pending"
-SKILLS_ACTIVE="${PROJECT_ROOT}/grimoires/loa/skills"
+source "$SCRIPT_DIR/bootstrap.sh"
+
+LEDGER_FILE=$(get_ledger_path)
+NOTES_FILE=$(get_notes_path)
+COMPOUND_DIR=$(get_compound_dir)
+TRAJECTORY_DIR=$(get_trajectory_dir)
+SKILLS_PENDING=$(get_skills_pending_dir)
+SKILLS_ACTIVE=$(get_skills_dir)
 
 # Parameters
 SUBCOMMAND=""

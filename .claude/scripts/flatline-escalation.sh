@@ -23,12 +23,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
-ESCALATION_DIR="$PROJECT_ROOT/grimoires/loa/a2a/flatline"
+source "$SCRIPT_DIR/bootstrap.sh"
+
+ESCALATION_DIR=$(get_flatline_dir)
 RUNS_DIR="$PROJECT_ROOT/.flatline/runs"
 SNAPSHOT_DIR="$PROJECT_ROOT/.flatline/snapshots"
-TRAJECTORY_DIR="$PROJECT_ROOT/grimoires/loa/a2a/trajectory"
+TRAJECTORY_DIR=$(get_trajectory_dir)
 
 # Component scripts
 MANIFEST_SCRIPT="$SCRIPT_DIR/flatline-manifest.sh"

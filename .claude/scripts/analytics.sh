@@ -4,6 +4,16 @@
 
 set -euo pipefail
 
+# Source path-lib if available (analytics can run early in bootstrap)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "$SCRIPT_DIR/bootstrap.sh" ]]; then
+    source "$SCRIPT_DIR/bootstrap.sh"
+    _ANALYTICS_DIR=$(get_analytics_dir)
+else
+    # Fallback for pre-bootstrap scenarios
+    _ANALYTICS_DIR="grimoires/loa/analytics"
+fi
+
 # Get framework version from package.json or CHANGELOG.md
 get_framework_version() {
     if [ -f "package.json" ]; then
@@ -49,8 +59,8 @@ get_configured_mcp_servers() {
 
 # Initialize analytics file if missing
 init_analytics() {
-    local analytics_file="grimoires/loa/analytics/usage.json"
-    local analytics_dir="grimoires/loa/analytics"
+    local analytics_file="${_ANALYTICS_DIR}/usage.json"
+    local analytics_dir="$_ANALYTICS_DIR"
 
     mkdir -p "$analytics_dir"
 
@@ -78,7 +88,7 @@ EOF
 update_analytics_field() {
     local field="$1"
     local value="$2"
-    local file="grimoires/loa/analytics/usage.json"
+    local file="${_ANALYTICS_DIR}/usage.json"
 
     if command -v jq &>/dev/null; then
         local tmp

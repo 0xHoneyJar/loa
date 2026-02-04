@@ -16,12 +16,13 @@ set -euo pipefail
 # Configuration
 # =============================================================================
 
-PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/bootstrap.sh"
+
 MEMORY_ADMIN="${PROJECT_ROOT}/.claude/scripts/memory-admin.sh"
-CONFIG_FILE="${PROJECT_ROOT}/.loa.config.yaml"
-NOTES_FILE="${PROJECT_ROOT}/grimoires/loa/NOTES.md"
+NOTES_FILE=$(get_notes_path)
 SYNC_STATE_FILE="${PROJECT_ROOT}/.loa/sync_state.json"
-TRAJECTORY_DIR="${PROJECT_ROOT}/grimoires/loa/a2a/trajectory"
+TRAJECTORY_DIR=$(get_trajectory_dir)
 
 # Colors
 RED='\033[0;31m'
