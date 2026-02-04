@@ -1,3 +1,6 @@
+# Rust build artifacts
+/target/
+
 # Dependencies
 node_modules/
 .pnp
