@@ -39,6 +39,19 @@ API_KEY_PATTERNS = [
     re.compile(r'github_pat_[A-Za-z0-9_]{22,}'),  # GitHub fine-grained PAT
     re.compile(r'xox[baprs]-[A-Za-z0-9-]+'),  # Slack tokens
     re.compile(r'AKIA[0-9A-Z]{16}'),  # AWS access key
+    # Google Cloud API keys (AIza prefix)
+    re.compile(r'AIza[A-Za-z0-9_-]{35}'),
+    # Azure connection strings
+    re.compile(r'DefaultEndpointsProtocol=https?;[^\s;]+AccountKey=[^\s;]+', re.IGNORECASE),
+    re.compile(r'AccountKey=[A-Za-z0-9+/=]{44,}'),  # Azure storage account key
+    # Anthropic API keys
+    re.compile(r'sk-ant-[A-Za-z0-9_-]{20,}'),
+]
+
+# PEM private key patterns (multi-line aware)
+PEM_KEY_PATTERNS = [
+    re.compile(r'-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----'),
+    re.compile(r'-----BEGIN ENCRYPTED PRIVATE KEY-----[\s\S]*?-----END ENCRYPTED PRIVATE KEY-----'),
 ]
 
 # Email pattern (RFC 5322 simplified)
@@ -131,13 +144,17 @@ class PrivacyRedactor:
 
         original = text
 
+        # PEM private keys (check first, multi-line patterns)
+        for pattern in PEM_KEY_PATTERNS:
+            text = pattern.sub("[REDACTED:PRIVATE_KEY]", text)
+
         # JWT tokens
         text = JWT_PATTERN.sub("[REDACTED:JWT]", text)
 
         # UUIDs (may be session IDs, but safer to redact in error messages)
         text = UUID_PATTERN.sub("[REDACTED:UUID]", text)
 
-        # API keys
+        # API keys (includes Google Cloud, Azure, Anthropic)
         for pattern in API_KEY_PATTERNS:
             text = pattern.sub("[REDACTED:API_KEY]", text)
 

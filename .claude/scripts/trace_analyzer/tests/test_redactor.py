@@ -100,6 +100,105 @@ class TestAPIKeyRedaction:
 
         assert "[REDACTED:API_KEY]" in result
 
+    def test_redact_google_cloud_api_key(self, redactor):
+        """Test that Google Cloud API keys are redacted."""
+        text = "GOOGLE_API_KEY=AIzaSyBg-example1234567890abcdefghijk"
+
+        result = redactor.redact_text(text)
+
+        assert "AIza" not in result
+        assert "[REDACTED:API_KEY]" in result
+
+    def test_redact_azure_connection_string(self, redactor):
+        """Test that Azure connection strings are redacted."""
+        text = "DefaultEndpointsProtocol=https;AccountName=myaccount;AccountKey=abc123def456ghi789jkl012mno345pqr678stu901vwx="
+
+        result = redactor.redact_text(text)
+
+        assert "AccountKey=" not in result or "[REDACTED" in result
+        assert "abc123def456" not in result
+
+    def test_redact_azure_account_key(self, redactor):
+        """Test that Azure storage account keys are redacted."""
+        text = "AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
+
+        result = redactor.redact_text(text)
+
+        assert "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1" not in result
+        assert "[REDACTED:API_KEY]" in result
+
+    def test_redact_anthropic_api_key(self, redactor):
+        """Test that Anthropic API keys are redacted."""
+        text = "ANTHROPIC_API_KEY=sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+        result = redactor.redact_text(text)
+
+        assert "sk-ant-" not in result
+        assert "[REDACTED:API_KEY]" in result
+
+
+class TestPEMKeyRedaction:
+    """Test PEM private key redaction."""
+
+    def test_redact_rsa_private_key(self, redactor):
+        """Test that RSA private keys are redacted."""
+        text = """-----BEGIN RSA PRIVATE KEY-----
+MIICXgIBAAJBAKj34GkxFhD90vcNLYLInFEX6Ppy1tPf9Cnzj4p4WGeKLs1Pt8Qu
+KUpRKfFLfRYC9AIKjbJTWit+CqvjWYzvQwECAwEAAQ==
+-----END RSA PRIVATE KEY-----"""
+
+        result = redactor.redact_text(text)
+
+        assert "MIICXgIBAAJ" not in result
+        assert "[REDACTED:PRIVATE_KEY]" in result
+
+    def test_redact_ec_private_key(self, redactor):
+        """Test that EC private keys are redacted."""
+        text = """-----BEGIN EC PRIVATE KEY-----
+MHQCAQEEIMeMHVL8MH4O1QFHDl77n3cqNUDAWBCPWVvI1I8PqCi3oAcGBSuBBAAK
+oUQDQgAE9TBLKi1s7h3vHH5LVoHsOl2+D0aDOe0m0z3JrkYkJr4o4o7hH0Kfx4ve
+-----END EC PRIVATE KEY-----"""
+
+        result = redactor.redact_text(text)
+
+        assert "MHQCAQEEIMeM" not in result
+        assert "[REDACTED:PRIVATE_KEY]" in result
+
+    def test_redact_openssh_private_key(self, redactor):
+        """Test that OpenSSH private keys are redacted."""
+        text = """-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABFwAAAAdzc2gtcn
+NhAAAAAwEAAQAAAQEA6NF8iallvQVp22WDkTkyrtvp9eWW6A8YVr+kz4TjGYe7gHzIw+ni
+-----END OPENSSH PRIVATE KEY-----"""
+
+        result = redactor.redact_text(text)
+
+        assert "b3BlbnNzaC1rZXktdjE" not in result
+        assert "[REDACTED:PRIVATE_KEY]" in result
+
+    def test_redact_encrypted_private_key(self, redactor):
+        """Test that encrypted private keys are redacted."""
+        text = """-----BEGIN ENCRYPTED PRIVATE KEY-----
+MIIFHDBOBgkqhkiG9w0BBQ0wQTApBgkqhkiG9w0BBQwwHAQI5j8qHQ3JKEoCAggA
+MAwGCCqGSIb3DQIJBQAwFAYIKoZIhvcNAwcECFr0QQxhvQkABIIEyPZEw4OZ+BqH
+-----END ENCRYPTED PRIVATE KEY-----"""
+
+        result = redactor.redact_text(text)
+
+        assert "MIIFHDBOBgkqhkiG9w0BBQ0wQT" not in result
+        assert "[REDACTED:PRIVATE_KEY]" in result
+
+    def test_preserve_public_key(self, redactor):
+        """Test that public keys are not redacted."""
+        text = """-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC6YrDZQuKvRnPz8xCmSzQ=
+-----END PUBLIC KEY-----"""
+
+        result = redactor.redact_text(text)
+
+        # Public keys should NOT be redacted (they're meant to be public)
+        assert "-----BEGIN PUBLIC KEY-----" in result
+
 
 class TestEmailRedaction:
     """Test email redaction."""

@@ -44,35 +44,64 @@ validate_path() {
     local path="$1"
     local name="$2"
 
-    # Reject path traversal attempts
+    # Reject path traversal attempts (pre-canonicalization check)
     if [[ "$path" == *".."* ]]; then
         echo "ERROR: Path traversal detected in $name" >&2
         exit 1
     fi
 
-    # Reject absolute paths outside known safe locations
-    if [[ "$path" == /* ]]; then
-        # Allow common safe prefixes
-        case "$path" in
-            /home/*|/tmp/*|/var/tmp/*|"${SCRIPT_DIR}"*)
-                ;;
-            *)
-                echo "ERROR: Unsafe absolute path in $name" >&2
-                exit 1
-                ;;
-        esac
+    # Canonicalize with realpath to resolve symlinks and relative paths
+    # Use -m to handle non-existent files (trajectory may not exist yet)
+    local canonical_path
+    if ! canonical_path=$(realpath -m -- "$path" 2>/dev/null); then
+        echo "ERROR: Invalid path in $name" >&2
+        exit 1
     fi
+
+    # Post-canonicalization check: ensure no escape via symlink resolution
+    if [[ "$canonical_path" == *".."* ]]; then
+        echo "ERROR: Path traversal detected after canonicalization in $name" >&2
+        exit 1
+    fi
+
+    # Get workspace root (parent of .claude directory)
+    local workspace_root
+    workspace_root=$(realpath -m -- "${SCRIPT_DIR}/../.." 2>/dev/null)
+
+    # Reject absolute paths outside known safe locations
+    case "$canonical_path" in
+        "${workspace_root}"/*|/home/*|/tmp/*|/var/tmp/*)
+            ;;
+        *)
+            echo "ERROR: Path escapes workspace boundary in $name: $canonical_path" >&2
+            exit 1
+            ;;
+    esac
 }
 
 # Check for unexpected flags that might be injection attempts
 validate_args() {
     for arg in "$@"; do
-        # Reject suspicious patterns
-        if [[ "$arg" == *";"* || "$arg" == *"|"* || "$arg" == *"&"* ]]; then
-            if [[ "$arg" != "--"* ]]; then
-                echo "ERROR: Suspicious characters in argument" >&2
-                exit 1
-            fi
+        # Skip flag names (--option)
+        if [[ "$arg" == "--"* ]]; then
+            continue
+        fi
+
+        # Reject shell metacharacters that could enable injection
+        # Covers: command separators, pipes, backgrounding, subshells,
+        # command substitution, redirectors, glob expansion
+        if [[ "$arg" == *";"* ]] || \
+           [[ "$arg" == *"|"* ]] || \
+           [[ "$arg" == *"&"* ]] || \
+           [[ "$arg" == *"\`"* ]] || \
+           [[ "$arg" == *'$('* ]] || \
+           [[ "$arg" == *'${'* ]] || \
+           [[ "$arg" == *"<"* ]] || \
+           [[ "$arg" == *">"* ]] || \
+           [[ "$arg" == *$'\n'* ]] || \
+           [[ "$arg" == *$'\r'* ]]; then
+            echo "ERROR: Shell metacharacter detected in argument" >&2
+            exit 1
         fi
     done
 }
