@@ -5,6 +5,99 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.0] - 2026-02-05 — Beads-First Infrastructure
+
+### Why This Release
+
+This release implements **Beads-First Architecture** where task tracking via beads_rust is the EXPECTED DEFAULT, not an optional enhancement. Working without beads becomes ABNORMAL and requires explicit, time-limited acknowledgment.
+
+*"We're building spaceships. Safety of operators and users is paramount."*
+
+### Added
+
+#### Beads-First Preflight (#182)
+
+Comprehensive health check infrastructure for beads_rust:
+
+```bash
+# Check beads health
+.claude/scripts/beads/beads-health.sh --json
+
+# Manage state
+.claude/scripts/beads/update-beads-state.sh --health HEALTHY
+.claude/scripts/beads/update-beads-state.sh --opt-out "Reason"
+```
+
+**New Files**:
+| File | Purpose |
+|------|---------|
+| `beads-health.sh` | Comprehensive health check (6 exit codes) |
+| `update-beads-state.sh` | State file management |
+| `beads-preflight.md` | Protocol documentation |
+| `test_beads_health.sh` | Unit tests |
+
+**Health Check Exit Codes**:
+| Code | Status | Meaning |
+|------|--------|---------|
+| 0 | HEALTHY | All checks pass |
+| 1 | NOT_INSTALLED | br binary not found |
+| 2 | NOT_INITIALIZED | No .beads directory |
+| 3 | MIGRATION_NEEDED | Schema incompatible |
+| 4 | DEGRADED | Partial functionality |
+| 5 | UNHEALTHY | Critical issues |
+
+#### Autonomous Mode Beads Gate
+
+Autonomous mode (`/run`) now REQUIRES beads by default:
+
+```bash
+# Will HALT if beads unavailable
+/run sprint-1
+
+# Override (not recommended)
+export LOA_BEADS_AUTONOMOUS_OVERRIDE=true
+```
+
+**Configuration**:
+```yaml
+beads:
+  mode: recommended  # required | recommended | disabled
+  autonomous:
+    requires_beads: true
+```
+
+#### Opt-Out Workflow
+
+Time-limited acknowledgment for working without beads:
+
+- 24h expiry (configurable)
+- Requires reason (configurable)
+- Re-prompts when expired
+- Logs to trajectory for auditability
+
+### Changed
+
+- Updated `/sprint-plan` with Phase -1 beads preflight
+- Updated `/implement` with Phase -2 beads sync
+- Updated `/simstim` Phase 0 with beads check
+- Updated `/run` preflight with autonomous beads gate
+- Added beads configuration section to `.loa.config.yaml.example`
+- Updated `CLAUDE.loa.md` with Beads-First documentation
+
+### Migration Notes
+
+**For existing users without beads_rust installed**:
+
+1. Install beads_rust: `cargo install beads_rust`
+2. Initialize: `br init`
+3. Workflows will prompt if beads unavailable (not a hard block in interactive mode)
+
+**For autonomous/run mode**:
+- If you run autonomous mode without beads, add `beads.autonomous.requires_beads: false` to your config
+- Consider installing beads for better state persistence across context windows
+
+---
+
 ## [1.28.0] - 2026-02-05 — Dicklesworth Improvements
 
 ### Why This Release

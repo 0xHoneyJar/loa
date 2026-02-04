@@ -57,7 +57,7 @@ Orchestrate the complete Loa development cycle with integrated Flatline Protocol
 
 | Phase | Name | Description |
 |-------|------|-------------|
-| 0 | PREFLIGHT | Validate configuration, check state |
+| 0 | PREFLIGHT | Validate config, check state, **beads health** |
 | 1 | DISCOVERY | Create PRD interactively |
 | 2 | FLATLINE PRD | Multi-model review of PRD |
 | 3 | ARCHITECTURE | Create SDD interactively |
@@ -287,6 +287,44 @@ If Flatline API times out:
 - Review phase is marked "skipped"
 - Workflow continues to next planning phase
 - Warning logged to trajectory
+
+## Beads-First Preflight (v1.29.0)
+
+Phase 0 includes comprehensive beads health checking. Beads task tracking is the EXPECTED DEFAULT.
+
+### Preflight Check
+
+```bash
+health=$(.claude/scripts/beads/beads-health.sh --quick --json)
+status=$(echo "$health" | jq -r '.status')
+```
+
+### Status Handling
+
+| Status | Action |
+|--------|--------|
+| `HEALTHY` | Proceed silently |
+| `DEGRADED` | Warn about Phase 6.5 impact, proceed |
+| `NOT_INSTALLED`/`NOT_INITIALIZED` | Warn that Phase 6.5 will be skipped |
+| `MIGRATION_NEEDED`/`UNHEALTHY` | Warn, recommend fix, proceed |
+
+### Phase 6.5 Impact
+
+If beads unavailable, Phase 6.5 (FLATLINE BEADS) will be skipped:
+
+```
+Beads Health: NOT_INSTALLED
+Phase 6.5 (Flatline Beads Loop) will be skipped.
+
+To enable full workflow:
+  cargo install beads_rust && br init
+
+Continuing without beads...
+```
+
+### Protocol Reference
+
+See `.claude/protocols/beads-preflight.md` for full specification.
 
 ## Configuration
 

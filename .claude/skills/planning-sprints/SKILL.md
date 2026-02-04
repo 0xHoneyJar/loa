@@ -202,43 +202,87 @@ Before creating sprint plan:
 </citation_requirements>
 
 <workflow>
-## Phase -1: Optional Dependency Check (HITL Gate)
+## Phase -1: Beads-First Preflight (v1.29.0)
 
-Before starting sprint planning, check for optional dependencies that enhance the workflow:
+Beads task tracking is the EXPECTED DEFAULT. Check health before starting sprint planning.
 
-### Beads Check
+### Run Beads Health Check
 
 ```bash
-.claude/scripts/beads/check-beads.sh --quiet
+health=$(.claude/scripts/beads/beads-health.sh --json)
+status=$(echo "$health" | jq -r '.status')
 ```
 
-**If NOT_INSTALLED**, present HITL gate using AskUserQuestion:
+### Status Handling
 
+| Status | Action |
+|--------|--------|
+| `HEALTHY` | Proceed silently to Phase 0 |
+| `DEGRADED` | Show recommendations, offer quick fix, proceed |
+| `NOT_INSTALLED` | Check opt-out, prompt if needed |
+| `NOT_INITIALIZED` | Check opt-out, prompt if needed |
+| `MIGRATION_NEEDED` | Must address before proceeding |
+| `UNHEALTHY` | Must address before proceeding |
+
+### If NOT_INSTALLED or NOT_INITIALIZED
+
+1. **Check for valid opt-out**:
+   ```bash
+   opt_out=$(.claude/scripts/beads/update-beads-state.sh --opt-out-check 2>/dev/null || echo "NO_OPT_OUT")
+   ```
+
+2. **If no valid opt-out**, present HITL gate using AskUserQuestion:
+
+   ```
+   Beads Preflight Check
+   ════════════════════════════════════════════════════════════
+
+   Status: {status}
+
+   Beads is not available. Task tracking is the EXPECTED DEFAULT
+   for safe, auditable agent workflows.
+
+   "We're building spaceships. Safety of operators and users is paramount."
+
+   Options:
+   [1] Install beads (Recommended)
+       └─ .claude/scripts/beads/install-br.sh
+       └─ Or: cargo install beads_rust
+
+   [2] Initialize beads
+       └─ br init
+
+   [3] Continue without beads (24h acknowledgment)
+       └─ Requires reason for audit trail
+
+   [4] Abort
+   ```
+
+3. **If "Continue without beads" selected**:
+   - Require reason (configurable via `beads.opt_out.require_reason`)
+   - Record opt-out: `.claude/scripts/beads/update-beads-state.sh --opt-out "Reason"`
+   - Log to trajectory: `grimoires/loa/a2a/trajectory/beads-preflight-{date}.jsonl`
+   - Opt-out expires after 24h (configurable)
+
+4. **Update state after health check**:
+   ```bash
+   .claude/scripts/beads/update-beads-state.sh --health "$status"
+   ```
+
+### If DEGRADED
+
+Show recommendations but proceed:
 ```
-Pre-flight check...
-⚠️  Optional dependency not installed: beads_rust (br CLI)
+Beads Health: DEGRADED
+Recommendations:
+$(echo "$health" | jq -r '.recommendations[]')
 
-beads_rust provides:
-- Git-backed task graph (replaces markdown parsing)
-- Dependency tracking (blocks) with semantic labels
-- Session persistence across context windows
-- JIT task retrieval with `br ready`
-
-Options:
-1. Install now (recommended)
-   └─ .claude/scripts/beads/install-br.sh
-   └─ Or: curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/beads_rust/main/install.sh | bash
-
-2. Continue without beads_rust
-   └─ Sprint plan will use markdown-based tracking
+Proceeding with sprint planning...
 ```
 
-Use AskUserQuestion with options:
-- "Install beads_rust" → Run install script and wait for confirmation
-- "Continue without" → Proceed with markdown-only workflow
-- "Show more info" → Explain beads_rust benefits in detail
+### Protocol Reference
 
-**If INSTALLED**, proceed silently to Phase 0.
+See `.claude/protocols/beads-preflight.md` for full specification.
 
 ## Phase 0: Check Feedback Files, Ledger, and Integration Context (CRITICAL—DO THIS FIRST)
 
