@@ -113,6 +113,38 @@ fi
 
 **Rationale**: Run mode is designed for overnight/unattended execution. Context compaction should not interrupt autonomous operation.
 
+## Post-Compact Recovery Hooks (v1.28.0)
+
+Loa provides automatic context recovery after compaction via Claude Code hooks.
+
+### How It Works
+
+1. **PreCompact Hook**: Saves current state to `.run/compact-pending`
+2. **UserPromptSubmit Hook**: Detects marker, injects recovery reminder
+3. **One-shot delivery**: Reminder appears once, marker is deleted
+
+### Automatic Recovery
+
+When compaction is detected, you will see a recovery reminder instructing you to:
+1. Re-read this file (CLAUDE.md) for conventions
+2. Check `.run/sprint-plan-state.json` - resume if `state=RUNNING`
+3. Check `.run/simstim-state.json` - resume from last phase
+4. Review `grimoires/loa/NOTES.md` for learnings
+
+### Installation
+
+Hooks are in `.claude/hooks/`. To enable, add to `~/.claude/settings.json`:
+```json
+{
+  "hooks": {
+    "PreCompact": [{"matcher": "", "hooks": [{"type": "command", "command": ".claude/hooks/pre-compact-marker.sh"}]}],
+    "UserPromptSubmit": [{"matcher": "", "hooks": [{"type": "command", "command": ".claude/hooks/post-compact-reminder.sh"}]}]
+  }
+}
+```
+
+See `.claude/hooks/README.md` for full documentation.
+
 ## Invisible Prompt Enhancement (v1.17.0)
 
 Prompts are automatically enhanced before skill execution using PTCF framework.
