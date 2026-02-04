@@ -390,6 +390,52 @@ run_mode:
     include_commits_by_sprint: true
 
 # -----------------------------------------------------------------------------
+# Persistent Memory (v1.28.0)
+# -----------------------------------------------------------------------------
+# Session-spanning observation storage with progressive disclosure.
+# Captures learnings, discoveries, and decisions for cross-session recall.
+# See: grimoires/loa/memory/README.md
+memory:
+  # Master toggle
+  enabled: true
+
+  # Capture settings
+  capture:
+    discoveries: true       # Capture code discoveries
+    errors: true           # Capture error-solution pairs
+    decisions: true        # Capture architecture decisions
+    patterns: true         # Capture recurring patterns
+
+  # Storage limits
+  max_observations: 10000  # Maximum observations before archiving oldest
+  retention_days: 90       # Archive observations older than this
+
+  # Progressive disclosure levels
+  disclosure:
+    index_tokens: 50       # Tokens per entry in index mode
+    summary_tokens: 200    # Tokens per entry in summary mode
+    full_tokens: 500       # Tokens for full observation
+
+  # Hook configuration
+  hooks:
+    post_tool: true        # Capture from PostToolUse hook
+    learning_signals:      # Patterns that trigger capture
+      - "discovered"
+      - "learned"
+      - "fixed"
+      - "resolved"
+      - "pattern"
+      - "insight"
+
+  # Privacy
+  privacy:
+    redact_sensitive: true # Redact content with <private> tags
+    exclude_tools:         # Tools to never capture from
+      - Read
+      - Glob
+      - Grep
+
+# -----------------------------------------------------------------------------
 # Destructive Command Guard (v1.28.0)
 # -----------------------------------------------------------------------------
 # Runtime safety layer that validates shell commands before execution.
