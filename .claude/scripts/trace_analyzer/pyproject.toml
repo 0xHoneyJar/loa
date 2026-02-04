@@ -1,0 +1,60 @@
+[project]
+name = "trace_analyzer"
+version = "1.0.0"
+description = "Feedback trace-based routing for Loa Framework"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "Loa Framework", email = "noreply@loa.dev"}
+]
+keywords = ["loa", "feedback", "routing", "trajectory", "analysis"]
+
+dependencies = [
+    "pydantic>=2.0,<3.0",
+    "PyYAML>=6.0,<7.0",
+]
+
+[project.optional-dependencies]
+# Optional dependencies for enhanced functionality
+fuzzy = [
+    "rapidfuzz>=3.0,<4.0",
+]
+embeddings = [
+    "sentence-transformers>=2.0,<3.0",
+]
+streaming = [
+    "ijson>=3.0,<4.0",
+]
+all = [
+    "rapidfuzz>=3.0,<4.0",
+    "sentence-transformers>=2.0,<3.0",
+    "ijson>=3.0,<4.0",
+]
+dev = [
+    "pytest>=7.0,<8.0",
+    "pytest-cov>=4.0,<5.0",
+    "mypy>=1.0,<2.0",
+]
+
+[project.scripts]
+trace-analyzer = "trace_analyzer.__main__:main"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["trace_analyzer*"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"

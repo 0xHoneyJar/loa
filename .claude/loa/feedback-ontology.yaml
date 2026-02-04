@@ -1,0 +1,319 @@
+# Feedback Ontology for Trace-Based Routing
+# Version: 1.0.0
+#
+# This ontology maps domains to keywords and skills for feedback routing.
+# Used by the HybridMatcher for keyword, fuzzy, and embedding matching.
+
+version: "1.0.0"
+
+domains:
+  # ==========================================================================
+  # Development Workflow Domains
+  # ==========================================================================
+
+  commit:
+    description: "Git commit operations, commit message generation, and version control"
+    keywords:
+      - commit
+      - git commit
+      - commit message
+      - staged
+      - staging
+      - amend
+      - pre-commit
+      - hook
+    skills:
+      - commit
+      - implement
+
+  review:
+    description: "Code review, PR review, and quality feedback on code changes"
+    keywords:
+      - review
+      - code review
+      - PR review
+      - pull request
+      - feedback
+      - changes
+      - diff
+    skills:
+      - review-sprint
+      - gpt-review
+
+  implementation:
+    description: "Code implementation, feature development, and task execution"
+    keywords:
+      - implement
+      - implementation
+      - feature
+      - develop
+      - code
+      - write
+      - create
+      - build
+    skills:
+      - implement
+      - run
+
+  planning:
+    description: "Sprint planning, task breakdown, and project organization"
+    keywords:
+      - plan
+      - planning
+      - sprint
+      - task
+      - breakdown
+      - roadmap
+      - milestone
+    skills:
+      - sprint-plan
+      - plan-and-analyze
+
+  architecture:
+    description: "Software architecture, system design, and technical specifications"
+    keywords:
+      - architecture
+      - architect
+      - design
+      - SDD
+      - system design
+      - technical spec
+      - data model
+    skills:
+      - architect
+
+  # ==========================================================================
+  # Quality Assurance Domains
+  # ==========================================================================
+
+  testing:
+    description: "Test execution, test writing, and quality validation"
+    keywords:
+      - test
+      - testing
+      - unit test
+      - integration test
+      - e2e
+      - coverage
+      - assertion
+      - pytest
+      - jest
+    skills:
+      - implement
+      - audit-sprint
+
+  security:
+    description: "Security auditing, vulnerability detection, and secure coding"
+    keywords:
+      - security
+      - audit
+      - vulnerability
+      - OWASP
+      - injection
+      - XSS
+      - authentication
+      - authorization
+      - secrets
+    skills:
+      - audit
+      - audit-sprint
+      - audit-deployment
+
+  validation:
+    description: "Data validation, input validation, and schema compliance"
+    keywords:
+      - validate
+      - validation
+      - schema
+      - type check
+      - format
+      - sanitize
+    skills:
+      - validate
+
+  # ==========================================================================
+  # Infrastructure Domains
+  # ==========================================================================
+
+  deployment:
+    description: "Production deployment, CI/CD, and infrastructure setup"
+    keywords:
+      - deploy
+      - deployment
+      - production
+      - CI/CD
+      - pipeline
+      - infrastructure
+      - IaC
+      - terraform
+      - docker
+    skills:
+      - deploy-production
+      - audit-deployment
+
+  configuration:
+    description: "Configuration management, settings, and environment setup"
+    keywords:
+      - config
+      - configuration
+      - settings
+      - environment
+      - env
+      - yaml
+      - dotenv
+    skills:
+      - mount
+      - update-loa
+
+  # ==========================================================================
+  # Documentation Domains
+  # ==========================================================================
+
+  documentation:
+    description: "Documentation generation, README updates, and technical writing"
+    keywords:
+      - docs
+      - documentation
+      - README
+      - markdown
+      - API docs
+      - changelog
+    skills:
+      - translate
+
+  requirements:
+    description: "Product requirements, feature specifications, and user stories"
+    keywords:
+      - PRD
+      - requirements
+      - specification
+      - user story
+      - feature request
+      - epic
+    skills:
+      - plan-and-analyze
+      - ride
+
+  # ==========================================================================
+  # Framework Domains
+  # ==========================================================================
+
+  loa-framework:
+    description: "Loa framework operations, updates, and skill management"
+    keywords:
+      - loa
+      - framework
+      - skill
+      - grimoire
+      - mount
+      - update-loa
+      - construct
+    skills:
+      - loa
+      - mount
+      - update-loa
+      - constructs
+
+  feedback-system:
+    description: "The feedback command and issue routing system itself"
+    keywords:
+      - feedback
+      - issue
+      - bug report
+      - feature request
+      - routing
+    skills:
+      - feedback
+
+  run-mode:
+    description: "Autonomous run mode, sprint execution, and automation"
+    keywords:
+      - run mode
+      - autonomous
+      - auto
+      - batch
+      - overnight
+      - unattended
+    skills:
+      - run
+      - run-sprint-plan
+      - autonomous
+
+  # ==========================================================================
+  # Analysis Domains
+  # ==========================================================================
+
+  codebase-analysis:
+    description: "Codebase exploration, code search, and repository understanding"
+    keywords:
+      - codebase
+      - explore
+      - search
+      - find
+      - grep
+      - where is
+      - how does
+    skills:
+      - ride
+      - reality
+
+  flatline:
+    description: "Multi-model adversarial review and document quality"
+    keywords:
+      - flatline
+      - adversarial
+      - multi-model
+      - consensus
+      - skeptic
+      - review quality
+    skills:
+      - flatline-review
+
+# ==========================================================================
+# Skill Metadata (for reverse lookup)
+# ==========================================================================
+
+skills_metadata:
+  commit:
+    primary_domain: commit
+    danger_level: moderate
+
+  implement:
+    primary_domain: implementation
+    danger_level: moderate
+
+  review-sprint:
+    primary_domain: review
+    danger_level: safe
+
+  audit:
+    primary_domain: security
+    danger_level: safe
+
+  audit-sprint:
+    primary_domain: security
+    danger_level: safe
+
+  sprint-plan:
+    primary_domain: planning
+    danger_level: safe
+
+  architect:
+    primary_domain: architecture
+    danger_level: safe
+
+  deploy-production:
+    primary_domain: deployment
+    danger_level: high
+
+  run:
+    primary_domain: run-mode
+    danger_level: high
+
+  feedback:
+    primary_domain: feedback-system
+    danger_level: safe
+
+  flatline-review:
+    primary_domain: flatline
+    danger_level: safe
