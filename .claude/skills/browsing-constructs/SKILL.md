@@ -297,7 +297,7 @@ Search packs by name, description, or slug.
 
 **If no results:** Suggest broadening the search or browsing all packs with `/constructs browse`.
 
-> **Note:** Currently searches at pack level. Skill-level search is planned for a future registry API enhancement.
+> **Note:** Currently searches at pack level. Skill-level search is tracked in [loa-constructs#93](https://github.com/0xHoneyJar/loa-constructs/issues/93).
 
 ### Action: update
 
