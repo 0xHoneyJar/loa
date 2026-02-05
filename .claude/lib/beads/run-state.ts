@@ -34,7 +34,7 @@ import {
   parseSameIssueCount,
   getLabelsWithPrefix,
 } from "./labels";
-import { validateBeadId, validateLabel, shellEscape, validatePath } from "./validation";
+import { validateBeadId, validateLabel, shellEscape, validatePath, validateBrCommand } from "./validation";
 
 const execAsync = promisify(exec);
 
@@ -116,6 +116,8 @@ export class BeadsRunStateManager implements IBeadsRunStateManager {
 
   constructor(config?: BeadsRunStateConfig) {
     const brCommand = config?.brCommand ?? "br";
+    // SECURITY: Validate brCommand to prevent command injection via config
+    validateBrCommand(brCommand);
     this.executor = config?.executor ?? new DefaultBrExecutor(brCommand);
     this.verbose = config?.verbose ?? process.env.DEBUG === "true";
   }
@@ -606,18 +608,19 @@ export class BeadsRunStateManager implements IBeadsRunStateManager {
     priority: number;
     labels?: string[];
   }): Promise<string> {
-    // Validate and escape
+    // shellEscape() already wraps in single quotes - don't double-wrap
     const escapedTitle = shellEscape(opts.title);
     const labelArgs =
       opts.labels
         ?.map((l) => {
           validateLabel(l);
-          return `--label '${shellEscape(l)}'`;
+          // shellEscape() returns 'label' so don't add extra quotes
+          return `--label ${shellEscape(l)}`;
         })
         .join(" ") || "";
 
     const result = await this.executor.execJson<{ id: string }>(
-      `create '${escapedTitle}' --type ${opts.type} --priority ${opts.priority} ${labelArgs} --json`,
+      `create ${escapedTitle} --type ${opts.type} --priority ${opts.priority} ${labelArgs} --json`,
     );
 
     return result.id;
@@ -626,14 +629,15 @@ export class BeadsRunStateManager implements IBeadsRunStateManager {
   private async addLabel(beadId: string, label: string): Promise<void> {
     validateBeadId(beadId);
     validateLabel(label);
-    await this.executor.exec(`label add '${beadId}' '${shellEscape(label)}'`);
+    // beadId is validated (safe chars only), label is shellEscaped
+    await this.executor.exec(`label add ${shellEscape(beadId)} ${shellEscape(label)}`);
   }
 
   private async removeLabel(beadId: string, label: string): Promise<void> {
     validateBeadId(beadId);
     validateLabel(label);
     try {
-      await this.executor.exec(`label remove '${beadId}' '${shellEscape(label)}'`);
+      await this.executor.exec(`label remove ${shellEscape(beadId)} ${shellEscape(label)}`);
     } catch {
       // Ignore if label doesn't exist
     }
@@ -641,13 +645,13 @@ export class BeadsRunStateManager implements IBeadsRunStateManager {
 
   private async addComment(beadId: string, text: string): Promise<void> {
     validateBeadId(beadId);
-    const escapedText = shellEscape(text);
-    await this.executor.exec(`comments add '${beadId}' '${escapedText}'`);
+    // shellEscape() already wraps in quotes
+    await this.executor.exec(`comments add ${shellEscape(beadId)} ${shellEscape(text)}`);
   }
 
   private async closeBead(beadId: string): Promise<void> {
     validateBeadId(beadId);
-    await this.executor.exec(`close '${beadId}'`);
+    await this.executor.exec(`close ${shellEscape(beadId)}`);
   }
 
   private extractSprintNumber(labels: string[]): number {

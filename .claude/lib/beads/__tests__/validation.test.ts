@@ -321,6 +321,24 @@ describe("validatePath", () => {
       expect(() => validatePath("foo/../bar")).toThrow("traversal");
       expect(() => validatePath("./..")).toThrow("traversal");
     });
+
+    it("should reject URL-encoded traversal", () => {
+      expect(() => validatePath("%2e%2e/etc/passwd")).toThrow("encoded traversal");
+      expect(() => validatePath("foo/%2e%2e/bar")).toThrow("encoded traversal");
+      expect(() => validatePath("%2E%2E")).toThrow("encoded traversal"); // uppercase
+      expect(() => validatePath("%2e%2E")).toThrow("encoded traversal"); // mixed case
+    });
+  });
+
+  describe("SECURITY: null byte injection", () => {
+    it("should reject paths with null bytes", () => {
+      expect(() => validatePath("file.txt\x00.jpg")).toThrow("null bytes");
+      expect(() => validatePath("\x00")).toThrow("null bytes");
+    });
+
+    it("should reject paths with URL-encoded null bytes", () => {
+      expect(() => validatePath("file.txt%00.jpg")).toThrow("null bytes");
+    });
   });
 
   it("should reject non-string inputs", () => {
@@ -380,6 +398,26 @@ describe("shellEscape", () => {
   it("should accept strings at max length", () => {
     const maxLength = "a".repeat(MAX_STRING_LENGTH);
     expect(() => shellEscape(maxLength)).not.toThrow();
+  });
+
+  describe("edge cases", () => {
+    it("should handle empty string", () => {
+      expect(shellEscape("")).toBe("''");
+    });
+
+    it("should handle string of only single quotes", () => {
+      expect(shellEscape("'''")).toBe("''\\'''\\'''\\'''");
+    });
+
+    it("should handle unicode characters", () => {
+      expect(shellEscape("emoji: 😀")).toBe("'emoji: 😀'");
+      expect(shellEscape("日本語")).toBe("'日本語'");
+    });
+
+    it("should handle control characters", () => {
+      expect(shellEscape("line1\r\nline2")).toBe("'line1\r\nline2'");
+      expect(shellEscape("tab\there")).toBe("'tab\there'");
+    });
   });
 });
 

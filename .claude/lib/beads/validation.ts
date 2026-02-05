@@ -194,14 +194,32 @@ export function validatePriority(
  *
  * SECURITY: Must be called before using user-provided paths
  *
- * @throws Error if path contains '..'
+ * Checks for:
+ * - Direct traversal (..)
+ * - URL-encoded traversal (%2e%2e)
+ * - Null byte injection (\x00)
+ *
+ * @throws Error if path contains traversal or unsafe characters
  */
 export function validatePath(path: unknown): asserts path is string {
   if (!path || typeof path !== "string") {
     throw new Error("Invalid path: must be a non-empty string");
   }
+
+  // SECURITY: Check for null bytes (can truncate paths in some systems)
+  if (path.includes("\x00") || path.includes("%00")) {
+    throw new Error("Invalid path: null bytes not allowed");
+  }
+
+  // SECURITY: Check for direct traversal
   if (path.includes("..")) {
     throw new Error("Invalid path: traversal not allowed");
+  }
+
+  // SECURITY: Check for URL-encoded traversal (double dot = %2e%2e)
+  // Also handle mixed case (%2E%2e, %2e%2E, etc.)
+  if (/%2e%2e/i.test(path)) {
+    throw new Error("Invalid path: encoded traversal not allowed");
   }
 }
 
