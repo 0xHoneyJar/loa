@@ -388,6 +388,17 @@ run_mode:
     consolidate_pr: true
     commit_prefix: "feat"
     include_commits_by_sprint: true
+  # Git operations control (v1.30.0)
+  # Controls automatic push and PR creation at end of /run execution
+  git:
+    # auto_push: Controls whether to push commits to remote
+    #   - true: Push and create PR automatically (default, current behavior)
+    #   - false: Never auto-push, keep all changes local
+    #   - prompt: Ask before pushing (HITL confirmation)
+    # Can be overridden with --local (forces false) or --confirm-push (forces prompt)
+    auto_push: true
+    # Always create PRs as drafts - this is hardcoded and cannot be changed
+    create_draft_pr: true
 
 # -----------------------------------------------------------------------------
 # Beads-First Infrastructure (v1.29.0)

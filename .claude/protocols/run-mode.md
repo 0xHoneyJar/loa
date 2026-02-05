@@ -144,7 +144,57 @@ All actions are visible for human review:
 3. **Full Trajectory**: Complete audit trail in `grimoires/loa/a2a/trajectory/`
 4. **State Persistence**: `.run/state.json` shows current progress
 
-### Level 5: Danger Level Enforcement (v1.20.0)
+### Level 5: Push Control (v1.30.0)
+
+User-controlled push behavior prevents accidental remote operations.
+
+#### Control Hierarchy
+
+| Priority | Control | Effect |
+|----------|---------|--------|
+| 1 (highest) | `--local` flag | Never push, never create PR |
+| 2 | `--confirm-push` flag | Prompt before pushing |
+| 3 | `run_mode.git.auto_push` config | Default behavior |
+| 4 (lowest) | Hardcoded default | Auto push (backwards compatible) |
+
+#### Push Mode Settings
+
+| Setting | Behavior |
+|---------|----------|
+| `true` (default) | Push commits and create draft PR automatically |
+| `false` | Never auto-push, keep all changes local |
+| `prompt` | Ask user before pushing (HITL confirmation) |
+
+#### Configuration
+
+```yaml
+run_mode:
+  git:
+    auto_push: true    # true | false | prompt
+    create_draft_pr: true  # Always true, cannot be changed
+```
+
+#### State Tracking
+
+Push mode is recorded in `.run/state.json`:
+
+```json
+{
+  "options": {
+    "local_mode": false,
+    "confirm_push": false,
+    "push_mode": "AUTO"
+  },
+  "completion": {
+    "pushed": true,
+    "pr_created": true,
+    "pr_url": "https://github.com/...",
+    "skipped_reason": null
+  }
+}
+```
+
+### Level 6: Danger Level Enforcement (v1.20.0)
 
 Skills are classified by risk level and enforced before execution.
 

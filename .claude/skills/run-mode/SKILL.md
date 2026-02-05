@@ -244,7 +244,47 @@ Execute single sprint autonomously.
 /run sprint-1 --max-cycles 10 --timeout 4
 /run sprint-1 --branch feature/my-branch
 /run sprint-1 --dry-run
+/run sprint-1 --local
+/run sprint-1 --confirm-push
 ```
+
+#### Local Mode (`--local`)
+
+Keeps all changes on your local machine:
+- Implementation runs normally (commits created)
+- No push to remote repository
+- No pull request created
+- Work stays on local feature branch
+
+**Use when:** Experimenting, not ready to share, or want manual control.
+
+#### Confirm Push (`--confirm-push`)
+
+Prompts before any remote operations:
+- Implementation runs normally
+- Before push, shows summary of changes
+- You choose: push + PR, or keep local
+- Gives you a checkpoint to review before sharing
+
+**Use when:** You want to review changes before teammates see them.
+
+#### Configuration Default
+
+Set default behavior in `.loa.config.yaml`:
+
+```yaml
+run_mode:
+  git:
+    auto_push: true    # true | false | prompt
+```
+
+| Setting | Behavior |
+|---------|----------|
+| `true` | Push and create PR automatically (default) |
+| `false` | Never auto-push (like always using `--local`) |
+| `prompt` | Always ask before push (like always using `--confirm-push`) |
+
+**Priority:** `--local` flag > `--confirm-push` flag > config setting > default (`true`)
 
 ### /run sprint-plan
 

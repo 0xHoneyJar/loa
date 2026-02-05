@@ -250,6 +250,45 @@ safe_force_push() {
   return 1
 }
 
+# Determine push mode based on config and optional override flag
+# Args: override_flag (optional) - "local", "prompt", or ""
+# Output: LOCAL, PROMPT, or AUTO
+# Returns: 0 always (output indicates mode)
+should_push() {
+  local override_flag="${1:-}"
+
+  # CLI flags take highest priority
+  if [[ "$override_flag" == "local" ]]; then
+    echo "LOCAL"
+    return 0
+  fi
+
+  if [[ "$override_flag" == "prompt" ]]; then
+    echo "PROMPT"
+    return 0
+  fi
+
+  # Read from config if available
+  if [[ -f "$REPO_ROOT/.loa.config.yaml" ]] && command -v yq &>/dev/null; then
+    local config_value
+    config_value=$(yq eval '.run_mode.git.auto_push // "true"' "$REPO_ROOT/.loa.config.yaml" 2>/dev/null || echo "true")
+
+    case "$config_value" in
+      false|"false")
+        echo "LOCAL"
+        return 0
+        ;;
+      prompt|"prompt")
+        echo "PROMPT"
+        return 0
+        ;;
+    esac
+  fi
+
+  # Default to AUTO for backwards compatibility
+  echo "AUTO"
+}
+
 # Safe PR create - creates DRAFT PRs only
 safe_pr_create() {
   local title="$1"
@@ -305,6 +344,7 @@ Commands:
   branch-delete [branch]    ALWAYS BLOCKED - humans delete branches
   force-push                ALWAYS BLOCKED - dangerous operation
   pr-create <title> <body>  Create DRAFT pull request only
+  should-push [override]    Determine push mode (LOCAL, PROMPT, or AUTO)
 
 Protected Branches (immutable, not configurable):
   main, master, staging, develop, development, production, prod
@@ -399,6 +439,10 @@ main() {
         exit 2
       fi
       safe_pr_create "$@"
+      ;;
+
+    should-push)
+      should_push "${1:-}"
       ;;
 
     help|--help|-h)
