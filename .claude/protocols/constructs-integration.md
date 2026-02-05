@@ -116,7 +116,7 @@ Skills are discovered and loaded in priority order:
     "kid": "key-id-from-registry"
   },
   "payload": {
-    "iss": "loaskills.dev",
+    "iss": "constructs.network",
     "sub": "vendor/skill-slug",
     "aud": "loa-framework",
     "iat": 1704067200,
@@ -252,7 +252,7 @@ registry:
    Expired: 3 days ago
    Grace period: 24 hours (exceeded)
 
-   To renew: Visit https://loaskills.dev/renew/vendor/skill-name
+   To renew: Visit https://loa-constructs.dev/renew/vendor/skill-name
 ```
 
 ### Invalid Signature
@@ -261,7 +261,7 @@ registry:
 ✗ Invalid license signature for 'vendor/skill-name'
    The license file may be corrupted or tampered with.
 
-   To fix: Re-download from https://loaskills.dev/skills/vendor/skill-name
+   To fix: Re-download from https://loa-constructs.dev/skills/vendor/skill-name
 ```
 
 ### Missing License
@@ -289,7 +289,7 @@ registry:
    Expires: in 12 hours
 
    Skill will continue to work for 24 more hours after expiry.
-   To renew: Visit https://loaskills.dev/renew/vendor/skill-name
+   To renew: Visit https://loa-constructs.dev/renew/vendor/skill-name
 ```
 
 ## Integration with /setup
