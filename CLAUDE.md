@@ -5,29 +5,12 @@
 > This file contains project-specific customizations that take precedence over the framework instructions.
 > The framework instructions are loaded via the `@` import above.
 
-## Project Configuration
+## Team & Ownership
 
-Add your project-specific Claude Code instructions here. These instructions will take precedence over
-the imported framework defaults.
-
-### Example Customizations
-
-```markdown
-## Tech Stack
-- Language: TypeScript
-- Framework: Next.js 14
-- Database: PostgreSQL
-
-## Coding Standards
-- Use functional components with hooks
-- Prefer named exports
-- Always include unit tests
-
-## Domain Context
-- This is a fintech application
-- Security is paramount
-- All API calls must be authenticated
-```
+- **Primary maintainer**: @janitooor
+- **Default PR reviewer**: @janitooor — always request review from them
+- **Repo**: 0xHoneyJar/loa
+- **CODEOWNERS**: `.github/CODEOWNERS` handles auto-assignment on GitHub
 
 ## How This Works
 
