@@ -7,8 +7,12 @@
  *
  * OPTIMIZATION (RFC #198): Append-only writes with periodic compaction.
  * Previous implementation did full file read + rewrite on every status
- * update (O(n²) for n entries). Now uses append-only writes (O(1) per
- * update) with lazy state resolution during reads.
+ * update (O(n²) for n entries). Now uses append-only writes with lazy
+ * state resolution during reads.
+ *
+ * Complexity:
+ *   markApplied: O(1) append
+ *   markFailed:  O(n) read + O(1) append (needs retryCount for decision)
  *
  * Isomorphism guarantee: For any sequence of operations, the resolved
  * state (getPendingEntries, replay, truncate) produces identical results
@@ -61,8 +65,8 @@ interface WALDelta {
   _delta: true;
   /** ID of the entry being updated */
   entryId: string;
-  /** Fields to merge into the entry */
-  updates: Partial<WALEntry>;
+  /** Fields that can be updated via delta (constrained to status-related fields) */
+  updates: Pick<Partial<WALEntry>, "status" | "error" | "retryCount">;
 }
 
 /** Union type for lines in the JSONL file */
@@ -157,8 +161,10 @@ export class FileWALAdapter implements IWALAdapter {
   /**
    * Mark an entry as failed
    *
-   * O(1) - appends a delta record. Reads only the entry's current
-   * retryCount from the resolved state to determine final status.
+   * O(n) read + O(1) append. Reads the current retryCount from the
+   * resolved state to determine whether to mark as "failed" (exhausted)
+   * or "pending" (retriable). The read is inherent — retryCount must
+   * be known to decide final status.
    */
   async markFailed(entryId: string, error: string): Promise<void> {
     // We need the current entry state to compute retryCount
@@ -326,7 +332,7 @@ export class FileWALAdapter implements IWALAdapter {
    */
   private async appendDelta(
     entryId: string,
-    updates: Partial<WALEntry>,
+    updates: WALDelta["updates"],
   ): Promise<void> {
     const delta: WALDelta = {
       _delta: true,
@@ -340,8 +346,16 @@ export class FileWALAdapter implements IWALAdapter {
   /**
    * Write compacted entries (no deltas) to the WAL file.
    * Used by truncate() and compact().
+   *
+   * NOTE: Not atomic. A crash mid-write could leave the file partially
+   * written. Production implementations should use write-to-temp +
+   * rename (atomic on POSIX) for crash safety.
    */
   private async writeCompacted(entries: WALEntry[]): Promise<void> {
+    if (entries.length === 0) {
+      await writeFile(this.path, "", "utf-8");
+      return;
+    }
     const content = entries.map((e) => JSON.stringify(e)).join("\n") + "\n";
     await writeFile(this.path, content, "utf-8");
   }

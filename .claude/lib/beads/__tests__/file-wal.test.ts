@@ -306,6 +306,27 @@ describe("FileWALAdapter", () => {
       const compacted = await wal.compact();
       expect(compacted).toBe(false);
     });
+
+    it("should handle non-existent WAL file", async () => {
+      const wal = new FileWALAdapter({ path: walPath });
+
+      // File doesn't exist yet — compact should be a no-op
+      const compacted = await wal.compact();
+      expect(compacted).toBe(false);
+    });
+  });
+
+  describe("maybeCompact (non-existent file)", () => {
+    it("should handle non-existent WAL file", async () => {
+      const wal = new FileWALAdapter({
+        path: walPath,
+        minEntriesForCompaction: 1,
+      });
+
+      // File doesn't exist — should return false (0 < 1 threshold)
+      const compacted = await wal.maybeCompact();
+      expect(compacted).toBe(false);
+    });
   });
 
   describe("maybeCompact", () => {

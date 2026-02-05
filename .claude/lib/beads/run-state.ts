@@ -249,8 +249,11 @@ export class BeadsRunStateManager implements IBeadsRunStateManager {
 
       if (sprintEpics.length === 0) return [];
 
-      // OPTIMIZATION: Single batch query for ALL tasks instead of N queries
-      // Fetch all task-type beads and group by parent epic in memory
+      // OPTIMIZATION: Single batch query for ALL tasks instead of N queries.
+      // Fetch all task-type beads and group by parent epic in memory.
+      // TODO: If beads database grows large with historical data, consider
+      // scoping via compound label filter (e.g. --label 'run:current') if
+      // br supports it, to avoid fetching unrelated tasks.
       const allTasks = await this.queryBeadsJson<Bead[]>(`list --type task --json`);
       const tasksByEpic = new Map<string, Bead[]>();
 
@@ -536,7 +539,11 @@ export class BeadsRunStateManager implements IBeadsRunStateManager {
         }
       }
 
-      // Fallback: scan all circuit breakers (backward compatibility)
+      // Fallback: scan all circuit breakers (backward compatibility).
+      // NOTE: Returns the global max same-issue count across ALL circuit
+      // breakers, not filtered to the specific issueHash. This preserves
+      // the original function's behavior which also ignored issueHash.
+      // A future fix could filter by issue content here.
       const beads = await this.queryBeadsJson<Bead[]>(
         `list --label '${LABELS.CIRCUIT_BREAKER}' --json`,
       );
