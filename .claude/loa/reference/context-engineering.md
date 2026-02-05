@@ -12,7 +12,7 @@ Anthropic's extended thinking with budget control. Uses `thinking.budget_tokens`
 | **medium** | 8K-16K | 76% fewer tokens | Standard implementation |
 | **high** | 24K-32K | 48% fewer tokens | Complex architecture, security audit |
 
-**Source**: [Anthropic Claude Opus 4.5 Announcement](https://www.anthropic.com/news/claude-opus-4-5)
+**Source**: [Anthropic Claude Opus 4.6 Announcement](https://www.anthropic.com/news/claude-opus-4-6)
 
 See `.loa.config.yaml.example` for configuration.
 
