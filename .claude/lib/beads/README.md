@@ -261,6 +261,62 @@ shellEscape('`id`');          // '`id`'      - not executed
 shellEscape('foo; rm -rf /'); // 'foo; rm -rf /' - semicolon is literal
 ```
 
+## Common Pitfalls
+
+### Validation vs Escaping
+
+**Always validate before escaping.** `shellEscape()` makes strings safe for shell execution but doesn't validate the content is a legitimate bead ID or label:
+
+```typescript
+// WRONG - escaping alone doesn't validate
+const cmd = `br show ${shellEscape(userInput)}`;  // Could still be garbage
+
+// CORRECT - validate first, then escape
+validateBeadId(userInput);  // Throws if invalid format
+const cmd = `br show ${shellEscape(userInput)}`;  // Now safe AND valid
+```
+
+### Reference Implementations Are Not Production-Ready
+
+The implementations in `reference/` are for development and testing only:
+
+```typescript
+// OK for development/testing
+const wal = createFileWAL({ path: ".beads/wal.jsonl" });
+
+// For production, consider:
+// - Atomic file writes (write-rename pattern)
+// - File locking for multi-process safety
+// - Log rotation for high-volume scenarios
+// - Distributed coordination if running multiple instances
+```
+
+### Don't Double-Escape
+
+`shellEscape()` already wraps the result in single quotes. Don't add more:
+
+```typescript
+// WRONG - double-escaped
+const cmd = `br label add '${shellEscape(beadId)}' '${shellEscape(label)}'`;
+
+// CORRECT - shellEscape() handles the quoting
+const cmd = `br label add ${shellEscape(beadId)} ${shellEscape(label)}`;
+```
+
+### Type Conflicts Between Modules
+
+When importing from this module, note that `SprintState` exists in both `labels.ts` and `interfaces.ts`:
+
+```typescript
+// labels.ts: type SprintState = 'pending' | 'in_progress' | 'complete'
+// interfaces.ts: interface SprintState { id, status, tasksTotal, ... }
+
+// The barrel export renames labels.SprintState to avoid conflict:
+import { LabelSprintState, SprintState } from '.claude/lib/beads';
+// LabelSprintState = the string union from labels.ts
+// SprintState = the interface from interfaces.ts
+```
+
 ## Examples
 
 ### Safe br Command Execution
