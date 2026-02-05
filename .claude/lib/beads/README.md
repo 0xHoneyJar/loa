@@ -333,6 +333,87 @@ async function recordCircuitBreaker(runId: string, issueHash: string): Promise<v
 }
 ```
 
+## Run State Manager
+
+The `BeadsRunStateManager` provides a high-level API for run-mode state management:
+
+```typescript
+import { createBeadsRunStateManager } from '.claude/lib/beads';
+
+const manager = createBeadsRunStateManager({ verbose: true });
+
+// Check current state
+const state = await manager.getRunState();
+// Returns: "READY" | "RUNNING" | "HALTED" | "COMPLETE"
+
+// Start a new run with sprints
+const runId = await manager.startRun(["sprint-1", "sprint-2", "sprint-3"]);
+
+// Start a sprint
+await manager.startSprint("sprint-1");
+
+// Complete a sprint
+await manager.completeSprint("sprint-1");
+
+// Halt on failure
+const cb = await manager.haltRun("Audit failed: security vulnerability found");
+
+// Resume after fixing
+await manager.resumeRun();
+```
+
+### Migration from .run/ Directory
+
+If you have existing `.run/` state files, migrate to beads:
+
+```typescript
+const manager = createBeadsRunStateManager();
+
+// Check if migration needed
+if (manager.dotRunExists(".run")) {
+  const result = await manager.migrateFromDotRun(".run");
+
+  if (result.success) {
+    console.log(`Migrated ${result.migratedSprints} sprints`);
+    // Safe to delete .run/ directory after verification
+  } else {
+    console.error("Migration failed:", result.warnings);
+  }
+}
+```
+
+**Migration process**:
+
+1. Reads `state.json`, `sprint-plan-state.json`, `circuit-breaker.json`
+2. Creates corresponding beads with appropriate labels
+3. Preserves sprint status (pending/in_progress/completed)
+4. Recreates active circuit breakers
+
+**Rollback**: If migration fails, the original `.run/` files are not modified.
+
+## Reference Implementations
+
+The `reference/` directory contains simple implementations of abstract interfaces:
+
+```typescript
+import {
+  createFileWAL,
+  createIntervalScheduler,
+  createJsonStateStore,
+} from '.claude/lib/beads/reference';
+
+// File-based WAL (JSONL format)
+const wal = createFileWAL({ path: ".beads/wal.jsonl" });
+
+// Interval-based scheduler
+const scheduler = createIntervalScheduler({ verbose: true });
+
+// JSON state store
+const store = createJsonStateStore<MyState>({ path: ".beads/state.json" });
+```
+
+**Note**: These are reference implementations for development and testing. Production use may require more robust solutions (atomic writes, distributed coordination, etc.).
+
 ## Testing
 
 Tests are located in `__tests__/` and can be run with Vitest:
@@ -346,6 +427,8 @@ Test coverage includes:
 - Security validation against injection payloads
 - Path traversal attack prevention
 - Label manipulation and state derivation
+- Run state manager with mock br executor
+- Circuit breaker lifecycle
 - Type safety verification
 
 ## Contributing
