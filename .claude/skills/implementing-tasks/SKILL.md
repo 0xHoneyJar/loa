@@ -637,6 +637,63 @@ Key sections:
 4. Generate updated report
 </workflow>
 
+<file_creation_safety>
+## File Creation Safety (CRITICAL)
+
+When creating source files, Bash heredocs can **silently corrupt** content containing template literal syntax.
+
+### The Problem
+
+JSX/TypeScript template literals (`${variable}`) use identical syntax to shell variables:
+
+```bash
+# DANGEROUS: Unquoted heredoc - ${active} becomes empty string
+cat > Button.tsx << EOF
+<button className={`btn ${active ? 'active' : ''}`}>
+EOF
+# Result: <button className={`btn  ? 'active' : ''`}>  ← CORRUPTED
+```
+
+This corruption is **silent** - no error is raised, the file is created, and the bug may not be caught until runtime.
+
+### Rules
+
+1. **Use Write tool** for ALL source files (PREFERRED)
+   - `.tsx`, `.jsx`, `.ts`, `.js`, `.vue`, `.svelte`, etc.
+   - Content is passed exactly as-is
+   - No shell interpretation occurs
+
+2. **If heredoc required**, use **quoted delimiter**:
+   ```bash
+   cat > file.tsx <<'EOF'  # Note: 'EOF' is QUOTED
+   const x = `Value: ${variable}`;  # Preserved literally
+   EOF
+   ```
+
+3. **NEVER use unquoted heredoc** for source files:
+   ```bash
+   cat > file.tsx << EOF   # DANGEROUS - will corrupt ${...}
+   ```
+
+### High-Risk Extensions
+
+Always use Write tool or quoted heredoc for:
+- `.tsx`, `.jsx` - React/JSX
+- `.ts`, `.js`, `.mjs`, `.cjs` - JavaScript/TypeScript
+- `.vue`, `.svelte`, `.astro` - Component frameworks
+- `.graphql`, `.gql` - GraphQL
+- `.md` - Markdown with code blocks
+
+### Pre-Write Checklist Addition
+
+- [ ] File extension checked (source file → Write tool)
+- [ ] Content contains `${...}` → verified method is safe
+
+### Protocol Reference
+
+See `.claude/protocols/safe-file-creation.md` for complete decision tree and examples.
+</file_creation_safety>
+
 <parallel_execution>
 ## When to Split
 

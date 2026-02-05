@@ -7,8 +7,12 @@
  * SECURITY: All user-controllable values are validated and shell-escaped
  * before being used in commands to prevent command injection.
  *
+ * OPTIMIZATION (RFC #198):
+ * - getSprintPlan(): Batch query replaces N+1 pattern (1 query per epic -> 2 queries total)
+ * - getSameIssueCount(): Targeted query by issueHash instead of scanning all circuit breakers
+ *
  * @module beads/run-state
- * @version 1.0.0
+ * @version 1.1.0
  * @origin Extracted from loa-beauvoir production implementation
  */
 
@@ -224,6 +228,11 @@ export class BeadsRunStateManager implements IBeadsRunStateManager {
 
   /**
    * Get all sprints in the current run plan
+   *
+   * OPTIMIZATION (RFC #198): Batch query pattern.
+   * Previous: 1 query for epics + N queries for tasks (one per epic) = N+1 queries.
+   * Now: 1 query for epics + 1 query for all tasks = 2 queries total.
+   * With 4 sprints x 5 tasks, this reduces from ~21 subprocess calls to 2.
    */
   async getSprintPlan(): Promise<SprintState[]> {
     try {
@@ -232,13 +241,42 @@ export class BeadsRunStateManager implements IBeadsRunStateManager {
 
       if (!epics) return [];
 
+      // Filter to sprint epics first
+      const sprintEpics = epics.filter((epic) => {
+        const labels = epic.labels || [];
+        return this.extractSprintNumber(labels) !== 0;
+      });
+
+      if (sprintEpics.length === 0) return [];
+
+      // OPTIMIZATION: Single batch query for ALL tasks instead of N queries.
+      // Fetch all task-type beads and group by parent epic in memory.
+      // TODO: If beads database grows large with historical data, consider
+      // scoping via compound label filter (e.g. --label 'run:current') if
+      // br supports it, to avoid fetching unrelated tasks.
+      const allTasks = await this.queryBeadsJson<Bead[]>(`list --type task --json`);
+      const tasksByEpic = new Map<string, Bead[]>();
+
+      if (allTasks) {
+        for (const task of allTasks) {
+          const labels = task.labels || [];
+          // Match tasks to epics via "epic:{epicId}" label
+          for (const label of labels) {
+            if (label.startsWith("epic:")) {
+              const epicId = label.slice(5); // "epic:".length
+              const existing = tasksByEpic.get(epicId) || [];
+              existing.push(task);
+              tasksByEpic.set(epicId, existing);
+            }
+          }
+        }
+      }
+
       const sprints: SprintState[] = [];
 
-      for (const epic of epics) {
+      for (const epic of sprintEpics) {
         const labels = epic.labels || [];
         const sprintNumber = this.extractSprintNumber(labels);
-
-        if (sprintNumber === 0) continue; // Not a sprint
 
         let status: SprintState["status"] = "pending";
         if (labels.includes(LABELS.SPRINT_COMPLETE)) {
@@ -249,17 +287,15 @@ export class BeadsRunStateManager implements IBeadsRunStateManager {
           status = "halted";
         }
 
-        // Count tasks
-        const tasks = await this.queryBeadsJson<Bead[]>(
-          `list --label 'epic:${epic.id}' --json`,
-        );
+        // Look up tasks from pre-fetched map (O(1) instead of subprocess)
+        const tasks = tasksByEpic.get(epic.id) || [];
 
         sprints.push({
           id: epic.id,
           sprintNumber,
           status,
-          tasksTotal: (tasks || []).length,
-          tasksCompleted: (tasks || []).filter((t) => t.status === "closed").length,
+          tasksTotal: tasks.length,
+          tasksCompleted: tasks.filter((t) => t.status === "closed").length,
         });
       }
 
@@ -464,10 +500,50 @@ export class BeadsRunStateManager implements IBeadsRunStateManager {
   /**
    * Get same-issue count from circuit breaker history
    *
-   * Used to track how many times the same issue has occurred
+   * Used to track how many times the same issue has occurred.
+   *
+   * OPTIMIZATION (RFC #198): When an issueHash is provided, uses a
+   * targeted label query (`issue:{hash}`) to let br (SQLite) do the
+   * filtering. Falls back to scanning all circuit breakers if the
+   * targeted query returns nothing (backward compatibility with
+   * circuit breakers created before issue-hash labeling).
+   *
+   * Previous: Always fetched ALL circuit breakers and scanned linearly.
+   * Now: Single targeted query when issue labels exist, O(1) via SQLite index.
    */
   async getSameIssueCount(issueHash: string): Promise<number> {
     try {
+      // Targeted query: look for circuit breakers labeled with this specific issue
+      if (issueHash) {
+        // SECURITY: Validate constructed label before shell interpolation
+        const issueLabel = `issue:${issueHash}`;
+        validateLabel(issueLabel);
+
+        const targeted = await this.queryBeadsJson<Bead[]>(
+          `list --label '${LABELS.CIRCUIT_BREAKER}' --label '${issueLabel}' --json`,
+        );
+
+        if (targeted && targeted.length > 0) {
+          let maxCount = 0;
+          for (const bead of targeted) {
+            const labels = bead.labels || [];
+            const sameIssueLabels = getLabelsWithPrefix(labels, LABELS.SAME_ISSUE_PREFIX);
+            for (const label of sameIssueLabels) {
+              const count = parseSameIssueCount(label);
+              if (count && count > maxCount) {
+                maxCount = count;
+              }
+            }
+          }
+          return maxCount;
+        }
+      }
+
+      // Fallback: scan all circuit breakers (backward compatibility).
+      // NOTE: Returns the global max same-issue count across ALL circuit
+      // breakers, not filtered to the specific issueHash. This preserves
+      // the original function's behavior which also ignored issueHash.
+      // A future fix could filter by issue content here.
       const beads = await this.queryBeadsJson<Bead[]>(
         `list --label '${LABELS.CIRCUIT_BREAKER}' --json`,
       );

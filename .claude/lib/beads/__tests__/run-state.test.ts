@@ -550,6 +550,246 @@ describe("BeadsRunStateManager", () => {
   });
 
   // ===========================================================================
+  // Tests: Batch Query Optimization (RFC #198)
+  // ===========================================================================
+
+  describe("getSprintPlan (batch query optimization)", () => {
+    it("should return sprints with correct task counts using batch query", async () => {
+      const sprint1 = createMockSprint("sprint-1", 1, "complete");
+      const sprint2 = createMockSprint("sprint-2", 2, "in_progress");
+
+      // Mock epic list (single query)
+      mockExecutor.mockResponse("--type epic --json", {
+        success: true,
+        stdout: JSON.stringify([sprint1, sprint2]),
+        stderr: "",
+        exitCode: 0,
+      });
+
+      // Mock batch task query (single query for ALL tasks)
+      mockExecutor.mockResponse("--type task --json", {
+        success: true,
+        stdout: JSON.stringify([
+          createMockBead({ id: "task-1", type: "task", status: "closed", labels: ["epic:sprint-1"] }),
+          createMockBead({ id: "task-2", type: "task", status: "closed", labels: ["epic:sprint-1"] }),
+          createMockBead({ id: "task-3", type: "task", status: "open", labels: ["epic:sprint-2"] }),
+          createMockBead({ id: "task-4", type: "task", status: "closed", labels: ["epic:sprint-2"] }),
+          createMockBead({ id: "task-5", type: "task", status: "open", labels: ["epic:sprint-2"] }),
+        ]),
+        stderr: "",
+        exitCode: 0,
+      });
+
+      const plan = await manager.getSprintPlan();
+
+      expect(plan).toHaveLength(2);
+
+      // Sprint 1: 2 tasks, both completed
+      expect(plan[0].id).toBe("sprint-1");
+      expect(plan[0].sprintNumber).toBe(1);
+      expect(plan[0].status).toBe("completed");
+      expect(plan[0].tasksTotal).toBe(2);
+      expect(plan[0].tasksCompleted).toBe(2);
+
+      // Sprint 2: 3 tasks, 1 completed
+      expect(plan[1].id).toBe("sprint-2");
+      expect(plan[1].sprintNumber).toBe(2);
+      expect(plan[1].status).toBe("in_progress");
+      expect(plan[1].tasksTotal).toBe(3);
+      expect(plan[1].tasksCompleted).toBe(1);
+    });
+
+    it("should only make 2 br subprocess calls (batch optimization)", async () => {
+      const sprint1 = createMockSprint("sprint-1", 1, "pending");
+      const sprint2 = createMockSprint("sprint-2", 2, "pending");
+      const sprint3 = createMockSprint("sprint-3", 3, "pending");
+
+      mockExecutor.mockResponse("--type epic --json", {
+        success: true,
+        stdout: JSON.stringify([sprint1, sprint2, sprint3]),
+        stderr: "",
+        exitCode: 0,
+      });
+
+      mockExecutor.mockResponse("--type task --json", {
+        success: true,
+        stdout: "[]",
+        stderr: "",
+        exitCode: 0,
+      });
+
+      await manager.getSprintPlan();
+
+      // Should be exactly 2 calls: one for epics, one for tasks
+      // Previously would be 1 + N (4 calls for 3 sprints)
+      expect(mockExecutor.callHistory).toHaveLength(2);
+      expect(mockExecutor.callHistory[0]).toContain("--type epic");
+      expect(mockExecutor.callHistory[1]).toContain("--type task");
+    });
+
+    it("should filter out non-sprint epics", async () => {
+      const sprintEpic = createMockSprint("sprint-1", 1, "pending");
+      const nonSprintEpic = createMockBead({
+        id: "run-001",
+        type: "epic",
+        labels: [LABELS.RUN_CURRENT, LABELS.RUN_EPIC],
+      });
+
+      mockExecutor.mockResponse("--type epic --json", {
+        success: true,
+        stdout: JSON.stringify([sprintEpic, nonSprintEpic]),
+        stderr: "",
+        exitCode: 0,
+      });
+
+      mockExecutor.mockResponse("--type task --json", {
+        success: true,
+        stdout: "[]",
+        stderr: "",
+        exitCode: 0,
+      });
+
+      const plan = await manager.getSprintPlan();
+
+      expect(plan).toHaveLength(1);
+      expect(plan[0].id).toBe("sprint-1");
+    });
+
+    it("should handle empty epic list", async () => {
+      mockExecutor.mockResponse("--type epic --json", {
+        success: true,
+        stdout: "[]",
+        stderr: "",
+        exitCode: 0,
+      });
+
+      const plan = await manager.getSprintPlan();
+      expect(plan).toEqual([]);
+
+      // Should only call once (no task query needed)
+      expect(mockExecutor.callHistory).toHaveLength(1);
+    });
+  });
+
+  // ===========================================================================
+  // Tests: Circuit Breaker Optimization (RFC #198)
+  // ===========================================================================
+
+  describe("getSameIssueCount (targeted query optimization)", () => {
+    it("should use targeted query when issueHash provided", async () => {
+      // Mock targeted query returning a match
+      mockExecutor.mockResponse(
+        `--label '${LABELS.CIRCUIT_BREAKER}' --label 'issue:abc123'`,
+        {
+          success: true,
+          stdout: JSON.stringify([
+            createMockBead({
+              id: "cb-001",
+              type: "debt",
+              labels: [LABELS.CIRCUIT_BREAKER, "same-issue-3x", "issue:abc123"],
+            }),
+          ]),
+          stderr: "",
+          exitCode: 0,
+        },
+      );
+
+      const count = await manager.getSameIssueCount("abc123");
+
+      expect(count).toBe(3);
+      // Should only make the targeted query
+      expect(mockExecutor.callHistory).toHaveLength(1);
+      expect(mockExecutor.callHistory[0]).toContain("issue:abc123");
+    });
+
+    it("should fallback to full scan when targeted query returns empty", async () => {
+      // Mock targeted query returning empty
+      mockExecutor.mockResponse(
+        `--label '${LABELS.CIRCUIT_BREAKER}' --label 'issue:xyz789'`,
+        {
+          success: true,
+          stdout: "[]",
+          stderr: "",
+          exitCode: 0,
+        },
+      );
+
+      // Mock fallback full scan
+      mockExecutor.mockResponse(
+        `--label '${LABELS.CIRCUIT_BREAKER}' --json`,
+        {
+          success: true,
+          stdout: JSON.stringify([
+            createMockBead({
+              id: "cb-old",
+              type: "debt",
+              labels: [LABELS.CIRCUIT_BREAKER, "same-issue-2x"],
+            }),
+          ]),
+          stderr: "",
+          exitCode: 0,
+        },
+      );
+
+      const count = await manager.getSameIssueCount("xyz789");
+
+      expect(count).toBe(2);
+      // Should make both targeted + fallback queries
+      expect(mockExecutor.callHistory).toHaveLength(2);
+    });
+
+    it("should return 0 when no circuit breakers exist", async () => {
+      mockExecutor.mockResponse(`--label '${LABELS.CIRCUIT_BREAKER}'`, {
+        success: true,
+        stdout: "[]",
+        stderr: "",
+        exitCode: 0,
+      });
+
+      const count = await manager.getSameIssueCount("nonexistent");
+      expect(count).toBe(0);
+    });
+
+    it("should return 0 on error (graceful degradation)", async () => {
+      mockExecutor.mockResponse(`--label '${LABELS.CIRCUIT_BREAKER}'`, {
+        success: false,
+        stdout: "",
+        stderr: "database error",
+        exitCode: 1,
+      });
+
+      const count = await manager.getSameIssueCount("abc");
+      expect(count).toBe(0);
+    });
+
+    it("should prevent malicious issueHash from reaching shell (injection prevention)", async () => {
+      // These payloads contain shell metacharacters that must not reach exec()
+      const injectionPayloads = [
+        "abc'; rm -rf /; echo '",
+        "abc$(whoami)",
+        "abc`id`",
+        "abc & cat /etc/passwd",
+        "abc\"; malicious",
+      ];
+
+      for (const payload of injectionPayloads) {
+        mockExecutor.callHistory = [];
+
+        // validateLabel() throws inside the try/catch, so getSameIssueCount
+        // gracefully returns 0 without the payload reaching the shell
+        const count = await manager.getSameIssueCount(payload);
+        expect(count).toBe(0);
+
+        // CRITICAL: verify the malicious payload never reached the executor
+        const targetedCalls = mockExecutor.callHistory.filter(
+          (c) => c.includes("issue:"),
+        );
+        expect(targetedCalls).toHaveLength(0);
+      }
+    });
+  });
+
+  // ===========================================================================
   // Tests: Security
   // ===========================================================================
 
