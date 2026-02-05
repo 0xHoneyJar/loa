@@ -1,0 +1,37 @@
+# CODEOWNERS — Auto-assign reviewers on PRs
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# When a PR touches files matching these patterns, GitHub automatically
+# requests review from the listed owners. Pair with the branch protection
+# rule "Require review from Code Owners" for enforcement.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Default owner — catch-all for any file not matched below
+# ─────────────────────────────────────────────────────────────────────────────
+*                               @janitooor
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Framework core (System Zone)
+# ─────────────────────────────────────────────────────────────────────────────
+.claude/                        @janitooor
+.loa.config.yaml                @janitooor
+.loa.config.yaml.example        @janitooor
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Project configuration & documentation
+# ─────────────────────────────────────────────────────────────────────────────
+CLAUDE.md                       @janitooor
+PROCESS.md                      @janitooor
+CONTRIBUTING.md                 @janitooor
+SECURITY.md                     @janitooor
+CHANGELOG.md                    @janitooor
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CI / GitHub configuration
+# ─────────────────────────────────────────────────────────────────────────────
+.github/                        @janitooor
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Grimoire state (State Zone)
+# ─────────────────────────────────────────────────────────────────────────────
+grimoires/                      @janitooor

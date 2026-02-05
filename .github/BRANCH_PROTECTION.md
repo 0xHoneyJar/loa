@@ -12,7 +12,7 @@ Navigate to: **Settings > Branches > Branch protection rules > Add rule**
 - **Require a pull request before merging**: ✅ Enabled
   - **Required approving reviews**: 1
   - **Dismiss stale pull request approvals when new commits are pushed**: ✅
-  - **Require review from Code Owners**: Optional (enable if CODEOWNERS file exists)
+  - **Require review from Code Owners**: ✅ Enabled (CODEOWNERS file exists)
 
 ### Status Checks
 
