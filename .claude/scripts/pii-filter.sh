@@ -23,6 +23,10 @@ set -euo pipefail
 # =============================================================================
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source cross-platform time utilities
+# shellcheck source=time-lib.sh
+source "$SCRIPT_DIR/time-lib.sh"
 readonly SCRIPT_NAME="$(basename "$0")"
 
 # Default settings
@@ -136,7 +140,7 @@ process_input() {
     local end_time
     local latency_ms
 
-    start_time=$(date +%s%3N 2>/dev/null || echo "0")
+    start_time=$(get_timestamp_ms)
 
     local redacted="$input"
     local total_redactions=0
@@ -254,7 +258,7 @@ process_input() {
         fi
     fi
 
-    end_time=$(date +%s%3N 2>/dev/null || echo "0")
+    end_time=$(get_timestamp_ms)
     latency_ms=$((end_time - start_time))
     [[ $latency_ms -lt 0 ]] && latency_ms=0
 

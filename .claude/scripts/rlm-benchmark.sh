@@ -7,6 +7,10 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Source cross-platform time utilities
+# shellcheck source=time-lib.sh
+source "$SCRIPT_DIR/time-lib.sh"
+
 # Allow environment variable overrides for testing
 CONFIG_FILE="${CONFIG_FILE:-${SCRIPT_DIR}/../../.loa.config.yaml}"
 GRIMOIRE_DIR="${GRIMOIRE_DIR:-${SCRIPT_DIR}/../../grimoires/loa}"
@@ -168,13 +172,10 @@ estimate_tokens() {
 
 #######################################
 # Get current time in milliseconds
+# Uses cross-platform time-lib.sh
 #######################################
 get_time_ms() {
-    if date +%s%3N &>/dev/null 2>&1; then
-        date +%s%3N
-    else
-        echo "$(($(date +%s) * 1000))"
-    fi
+    get_timestamp_ms
 }
 
 #######################################

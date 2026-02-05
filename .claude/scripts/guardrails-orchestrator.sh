@@ -24,6 +24,10 @@ readonly SCRIPT_NAME="$(basename "$0")"
 readonly PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 readonly CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 
+# Source cross-platform time utilities
+# shellcheck source=time-lib.sh
+source "$SCRIPT_DIR/time-lib.sh"
+
 # Scripts
 readonly PII_FILTER="$SCRIPT_DIR/pii-filter.sh"
 readonly INJECTION_DETECT="$SCRIPT_DIR/injection-detect.sh"
@@ -303,7 +307,7 @@ main() {
     local do_log="true"
     local start_time
 
-    start_time=$(date +%s%3N 2>/dev/null || echo "0")
+    start_time=$(get_timestamp_ms)
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -399,7 +403,7 @@ EOF
         reason=$(echo "$danger_result" | jq -r '.reason')
 
         local end_time
-        end_time=$(date +%s%3N 2>/dev/null || echo "0")
+        end_time=$(get_timestamp_ms)
         local latency_ms=$((end_time - start_time))
         [[ $latency_ms -lt 0 ]] && latency_ms=0
 
@@ -463,7 +467,7 @@ EOF
     fi
 
     local end_time
-    end_time=$(date +%s%3N 2>/dev/null || echo "0")
+    end_time=$(get_timestamp_ms)
     local latency_ms=$((end_time - start_time))
     [[ $latency_ms -lt 0 ]] && latency_ms=0
 

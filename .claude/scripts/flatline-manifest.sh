@@ -29,6 +29,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 RUNS_DIR="$PROJECT_ROOT/.flatline/runs"
+
+# Source cross-platform time utilities
+# shellcheck source=time-lib.sh
+source "$SCRIPT_DIR/time-lib.sh"
 INDEX_FILE="$RUNS_DIR/index.json"
 TRAJECTORY_DIR="$PROJECT_ROOT/grimoires/loa/a2a/trajectory"
 
@@ -109,8 +113,8 @@ generate_run_id() {
     elif command -v python3 &> /dev/null; then
         uuid=$(python3 -c 'import uuid; print(uuid.uuid4())')
     else
-        # Last resort: use timestamp + random
-        uuid=$(date +%s%N)$(( RANDOM * RANDOM ))
+        # Last resort: use timestamp + random (cross-platform via time-lib.sh)
+        uuid=$(get_timestamp_ns)$(( RANDOM * RANDOM ))
     fi
 
     echo "flatline-run-${uuid}"

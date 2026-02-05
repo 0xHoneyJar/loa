@@ -14,6 +14,10 @@ setup() {
     export DB_FILE="$TEST_LOA_DIR/memory.db"
     mkdir -p "$TEST_LOA_DIR"
 
+    # Source cross-platform time utilities
+    # shellcheck source=../time-lib.sh
+    source "$PROJECT_ROOT/.claude/scripts/time-lib.sh"
+
     # Path to scripts
     export MEMORY_ADMIN="$PROJECT_ROOT/.claude/scripts/memory-admin.sh"
     export MEMORY_INJECT="$PROJECT_ROOT/.claude/hooks/memory-inject.sh"
@@ -102,10 +106,10 @@ skip_if_no_sentence_transformers() {
 
 measure_latency() {
     local start end
-    start=$(date +%s%N)
+    start=$(get_timestamp_ms)
     "$@" >/dev/null 2>&1
-    end=$(date +%s%N)
-    echo $(( (end - start) / 1000000 ))  # milliseconds
+    end=$(get_timestamp_ms)
+    echo $(( end - start ))  # milliseconds
 }
 
 # =============================================================================

@@ -50,6 +50,10 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 TEMPLATES_DIR="$SCRIPT_DIR/../templates"
 
+# Source cross-platform time utilities
+# shellcheck source=time-lib.sh
+source "$SCRIPT_DIR/time-lib.sh"
+
 # Default configuration
 DEFAULT_TIMEOUT=60
 MAX_RETRIES=3
@@ -146,16 +150,19 @@ load_api_key() {
         return 0
     fi
 
-    # Try .env.local then .env
-    for env_file in ".env.local" ".env"; do
-        if [[ -f "$env_file" ]]; then
-            local key
-            key=$(grep -E "^${key_var}=" "$env_file" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
-            if [[ -n "$key" ]]; then
-                echo "$key"
-                return 0
+    # Try .env.local then .env (both in current dir and project root)
+    for base_dir in "." "$PROJECT_ROOT"; do
+        for env_file in ".env.local" ".env"; do
+            local full_path="$base_dir/$env_file"
+            if [[ -f "$full_path" ]]; then
+                local key
+                key=$(grep -E "^${key_var}=" "$full_path" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
+                if [[ -n "$key" ]]; then
+                    echo "$key"
+                    return 0
+                fi
             fi
-        fi
+        done
     done
 
     return 1
@@ -293,7 +300,7 @@ call_api_with_retry() {
     while [[ $attempt -le $max_retries ]]; do
         log "API call attempt $attempt/$max_retries (model: $model_id)"
 
-        start_time=$(date +%s%3N 2>/dev/null || date +%s)000
+        start_time=$(get_timestamp_ms)
 
         case "$provider" in
             openai)
@@ -338,7 +345,7 @@ call_api_with_retry() {
                 ;;
         esac
 
-        end_time=$(date +%s%3N 2>/dev/null || date +%s)000
+        end_time=$(get_timestamp_ms)
         latency_ms=$((end_time - start_time))
 
         # Check for error responses
