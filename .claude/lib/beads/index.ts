@@ -46,7 +46,16 @@ export {
   // Types
   type BeadLabel,
   type RunState,
-  type SprintState as LabelSprintState, // Renamed to avoid conflict with interfaces
+  /**
+   * Sprint state derived from labels (string union: 'pending' | 'in_progress' | 'complete').
+   *
+   * Renamed from `SprintState` to `LabelSprintState` to avoid conflict with
+   * `interfaces.SprintState` which is a full interface with id, status, tasksTotal, etc.
+   *
+   * Use `LabelSprintState` when working with label-based state derivation.
+   * Use `SprintState` (from interfaces) when working with full sprint objects.
+   */
+  type SprintState as LabelSprintState,
   // Utility Functions
   createSameIssueLabel,
   parseSameIssueCount,
