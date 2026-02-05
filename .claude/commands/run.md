@@ -416,19 +416,15 @@ The completion flow respects user preferences for push behavior:
 ```bash
 # Resolve push mode from flags and config
 # Priority: --local > --confirm-push > config > default (AUTO)
+# Delegates entirely to ICE as single source of truth for push decisions
 resolve_push_mode() {
   if [[ "${LOCAL_FLAG:-false}" == "true" ]]; then
-    echo "LOCAL"
-    return 0
+    .claude/scripts/run-mode-ice.sh should-push local
+  elif [[ "${CONFIRM_PUSH_FLAG:-false}" == "true" ]]; then
+    .claude/scripts/run-mode-ice.sh should-push prompt
+  else
+    .claude/scripts/run-mode-ice.sh should-push
   fi
-
-  if [[ "${CONFIRM_PUSH_FLAG:-false}" == "true" ]]; then
-    echo "PROMPT"
-    return 0
-  fi
-
-  # Delegate to ICE for config-based resolution
-  .claude/scripts/run-mode-ice.sh should-push
 }
 ```
 
@@ -469,17 +465,13 @@ complete_local() {
   local commits=$(jq '.metrics.commits' .run/state.json)
   local files=$(jq '.metrics.files_changed' .run/state.json)
 
-  # Update completion state
+  # Update completion + run state atomically
   jq '.completion = {
     "pushed": false,
     "pr_created": false,
     "pr_url": null,
     "skipped_reason": "local_mode"
-  }' .run/state.json > .run/state.json.tmp
-  mv .run/state.json.tmp .run/state.json
-
-  # Update run state
-  jq '.state = "JACKED_OUT"' .run/state.json > .run/state.json.tmp
+  } | .state = "JACKED_OUT"' .run/state.json > .run/state.json.tmp
   mv .run/state.json.tmp .run/state.json
 
   cat << EOF
@@ -525,16 +517,13 @@ complete_declined() {
   local commits=$(jq '.metrics.commits' .run/state.json)
   local files=$(jq '.metrics.files_changed' .run/state.json)
 
-  # Update completion state
+  # Update completion + run state atomically
   jq '.completion = {
     "pushed": false,
     "pr_created": false,
     "pr_url": null,
     "skipped_reason": "user_declined"
-  }' .run/state.json > .run/state.json.tmp
-  mv .run/state.json.tmp .run/state.json
-
-  jq '.state = "JACKED_OUT"' .run/state.json > .run/state.json.tmp
+  } | .state = "JACKED_OUT"' .run/state.json > .run/state.json.tmp
   mv .run/state.json.tmp .run/state.json
 
   cat << EOF
@@ -592,16 +581,13 @@ All tests passing (verified by /audit-sprint).
     "Run Mode: $target implementation" \
     "$body")
 
-  # Update completion state
+  # Update completion + run state atomically
   jq --arg url "$pr_url" '.completion = {
     "pushed": true,
     "pr_created": true,
     "pr_url": $url,
     "skipped_reason": null
-  }' .run/state.json > .run/state.json.tmp
-  mv .run/state.json.tmp .run/state.json
-
-  jq '.state = "JACKED_OUT"' .run/state.json > .run/state.json.tmp
+  } | .state = "JACKED_OUT"' .run/state.json > .run/state.json.tmp
   mv .run/state.json.tmp .run/state.json
 
   echo "[COMPLETE] All checks passed!"
@@ -631,12 +617,12 @@ initialize_run() {
   local run_id="run-$(date +%Y%m%d)-$(openssl rand -hex 4)"
   local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-  # Resolve initial push mode for state tracking
-  local push_mode="AUTO"
+  # Resolve initial push mode via ICE (single source of truth)
+  local push_mode
   if [[ "$local_mode" == "true" ]]; then
-    push_mode="LOCAL"
+    push_mode=$(.claude/scripts/run-mode-ice.sh should-push local)
   elif [[ "$confirm_push" == "true" ]]; then
-    push_mode="PROMPT"
+    push_mode=$(.claude/scripts/run-mode-ice.sh should-push prompt)
   else
     push_mode=$(.claude/scripts/run-mode-ice.sh should-push)
   fi

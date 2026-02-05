@@ -274,6 +274,10 @@ should_push() {
     config_value=$(yq eval '.run_mode.git.auto_push // "true"' "$REPO_ROOT/.loa.config.yaml" 2>/dev/null || echo "true")
 
     case "$config_value" in
+      true|"true")
+        echo "AUTO"
+        return 0
+        ;;
       false|"false")
         echo "LOCAL"
         return 0
@@ -282,10 +286,15 @@ should_push() {
         echo "PROMPT"
         return 0
         ;;
+      *)
+        echo "ICE: Unknown auto_push value '$config_value', defaulting to AUTO" >&2
+        echo "AUTO"
+        return 0
+        ;;
     esac
   fi
 
-  # Default to AUTO for backwards compatibility
+  # Default to AUTO for backwards compatibility (no config or no yq)
   echo "AUTO"
 }
 
@@ -308,10 +317,10 @@ safe_pr_create() {
     return 1
   fi
 
-  echo "Creating DRAFT pull request..."
-  echo "  Title: $title"
-  echo "  Base: $base"
-  echo "  Head: $head"
+  echo "Creating DRAFT pull request..." >&2
+  echo "  Title: $title" >&2
+  echo "  Base: $base" >&2
+  echo "  Head: $head" >&2
 
   # Always create as draft
   gh pr create \
