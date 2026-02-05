@@ -6,10 +6,11 @@ Provide a multi-select UI for browsing and installing packs from the Loa Constru
 
 ## Invocation
 
-- `/constructs` - Browse and install packs (default)
+- `/constructs` - Smart default: manage installed packs OR browse to install
 - `/constructs browse` - Browse available packs with selection UI
 - `/constructs install <pack>` - Install specific pack directly
 - `/constructs list` - List installed packs
+- `/constructs search <query>` - Search skills across all packs by name/description
 - `/constructs update` - Check for updates
 - `/constructs uninstall <pack>` - Remove a pack
 - `/constructs auth` - Check authentication status
@@ -65,11 +66,36 @@ If user has key, prompt for it and run:
 .claude/scripts/constructs-auth.sh setup <api_key>
 ```
 
-### Action: browse (default)
+### Action: default (no args)
 
-#### Phase 0: Check Authentication
+**Smart routing based on installed state.**
 
-First, check auth status to determine which packs to show:
+#### Phase 0: Check Installed Packs FIRST
+
+```bash
+installed=$(.claude/scripts/constructs-loader.sh list --json 2>/dev/null || echo "[]")
+installed_count=$(echo "$installed" | jq 'length')
+```
+
+**If packs ARE installed (`installed_count > 0`):**
+- Show installed packs summary
+- Use AskUserQuestion with options:
+  - "Use installed packs" → List skills/commands available
+  - "Browse & install more" → Continue to browse flow
+  - "Manage installed" → Show update/uninstall options
+
+**If NO packs installed:**
+- Continue to browse flow (Phase 1+)
+
+---
+
+### Action: browse
+
+Browse and install packs from registry.
+
+#### Phase 1: Check Authentication
+
+Check auth status to determine which packs to show:
 
 ```bash
 auth_status=$(.claude/scripts/constructs-auth.sh status --json)
@@ -78,7 +104,7 @@ is_authenticated=$(echo "$auth_status" | jq -r '.authenticated')
 
 If not authenticated, show a note about premium packs requiring auth.
 
-#### Phase 1: Fetch Available Packs
+#### Phase 2: Fetch Available Packs
 
 Run the browse script to get available packs:
 
@@ -94,7 +120,7 @@ This returns a JSON array of packs with:
 - `tier` - "free" or "pro"
 - `icon` - Emoji icon
 
-#### Phase 2: Check Installed Packs
+#### Phase 3: Check Already Installed
 
 Check which packs are already installed:
 
@@ -251,6 +277,41 @@ Show installed packs:
 ```bash
 .claude/scripts/constructs-loader.sh list
 ```
+
+### Action: search <query>
+
+Search skills across all packs by name, description, or command.
+
+```bash
+# Search registry API for skills matching query
+.claude/scripts/constructs-browse.sh search --skills "<query>" --json
+```
+
+**Returns** JSON array of matching skills:
+```json
+[
+  {
+    "skill_name": "interview",
+    "pack_slug": "observer",
+    "pack_name": "Observer",
+    "description": "Conduct user interviews with hypothesis-first approach",
+    "command": "/interview"
+  }
+]
+```
+
+**Display results** as a table:
+```markdown
+## Search Results for "user"
+
+| Skill | Pack | Description | Command |
+|-------|------|-------------|---------|
+| interview | 👁️ Observer | Conduct user interviews | /interview |
+| user-story | 👁️ Observer | Generate user stories from research | /user-story |
+| persona | 👁️ Observer | Create user personas | /persona |
+```
+
+**If no results:** Suggest broadening the search or browsing packs.
 
 ### Action: update
 
