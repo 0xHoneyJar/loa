@@ -280,38 +280,24 @@ Show installed packs:
 
 ### Action: search <query>
 
-Search skills across all packs by name, description, or command.
+Search packs by name, description, or slug.
 
 ```bash
-# Search registry API for skills matching query
-.claude/scripts/constructs-browse.sh search --skills "<query>" --json
-```
-
-**Returns** JSON array of matching skills:
-```json
-[
-  {
-    "skill_name": "interview",
-    "pack_slug": "observer",
-    "pack_name": "Observer",
-    "description": "Conduct user interviews with hypothesis-first approach",
-    "command": "/interview"
-  }
-]
+.claude/scripts/constructs-browse.sh search "<query>"
 ```
 
 **Display results** as a table:
 ```markdown
-## Search Results for "user"
+## Search Results for "validation"
 
-| Skill | Pack | Description | Command |
-|-------|------|-------------|---------|
-| interview | 👁️ Observer | Conduct user interviews | /interview |
-| user-story | 👁️ Observer | Generate user stories from research | /user-story |
-| persona | 👁️ Observer | Create user personas | /persona |
+| # | Pack | Description | Skills | Version | Status |
+|---|------|-------------|--------|---------|--------|
+| 1 | 🧪 Crucible | Validation and testing skills for journey verification | 5 | 1.0.2 | Free |
 ```
 
-**If no results:** Suggest broadening the search or browsing packs.
+**If no results:** Suggest broadening the search or browsing all packs with `/constructs browse`.
+
+> **Note:** Currently searches at pack level. Skill-level search is planned for a future registry API enhancement.
 
 ### Action: update
 
