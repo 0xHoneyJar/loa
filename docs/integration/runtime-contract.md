@@ -386,7 +386,7 @@ function getEffortBudget(skillName: string, config: EffortConfig): number {
 
 // Pass to API
 const request = {
-  model: "claude-opus-4-5",
+  model: "claude-opus-4-6",
   thinking: {
     budget_tokens: getEffortBudget("auditing-security", config)
   },

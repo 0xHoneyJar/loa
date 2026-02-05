@@ -1,6 +1,6 @@
 # Flatline Protocol
 
-> Multi-model adversarial review using Claude Opus 4.5 + GPT-5.2 for planning document quality assurance.
+> Multi-model adversarial review using Claude Opus 4.6 + GPT-5.2 for planning document quality assurance.
 
 ## Overview
 
@@ -54,7 +54,7 @@ flatline_protocol:
   enabled: true
 
   models:
-    primary: opus           # Claude Opus 4.5
+    primary: opus           # Claude Opus 4.6
     secondary: gpt-5.2      # OpenAI GPT-5.2
 
   # Consensus thresholds (0-1000 scale)

@@ -261,4 +261,4 @@ circuit_breaker:
 
 ---
 
-*Research conducted by Claude Opus 4.5 for Loa Framework improvement analysis*
+*Research conducted by Claude Opus 4.6 for Loa Framework improvement analysis*

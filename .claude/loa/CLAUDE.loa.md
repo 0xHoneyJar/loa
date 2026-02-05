@@ -407,7 +407,7 @@ guardrails:
 
 ## Flatline Protocol (v1.22.0)
 
-Multi-model adversarial review using Claude Opus 4.5 + GPT-5.2 for planning document quality assurance.
+Multi-model adversarial review using Claude Opus 4.6 + GPT-5.2 for planning document quality assurance.
 
 ### How It Works
 
