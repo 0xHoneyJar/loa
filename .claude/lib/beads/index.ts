@@ -46,7 +46,7 @@ export {
   // Types
   type BeadLabel,
   type RunState,
-  type SprintState,
+  type SprintState as LabelSprintState, // Renamed to avoid conflict with interfaces
   // Utility Functions
   createSameIssueLabel,
   parseSameIssueCount,
@@ -58,3 +58,40 @@ export {
   deriveRunState,
   deriveSprintState,
 } from "./labels";
+
+// =============================================================================
+// Abstract Interfaces
+// =============================================================================
+
+export {
+  // Bead Types
+  type Bead,
+  type BeadCreateOptions,
+  type BeadQueryOptions,
+  // WAL Interface
+  type WALEntry,
+  type IWALAdapter,
+  // Scheduler Interface
+  type SchedulerTask,
+  type IScheduler,
+  // State Store Interface
+  type IStateStore,
+  // BR Executor Interface
+  type BrCommandResult,
+  type IBrExecutor,
+  // Run State Manager Interface
+  type SprintState,
+  type CircuitBreakerRecord,
+  type MigrationResult,
+  type BeadsRunStateConfig,
+  type IBeadsRunStateManager,
+} from "./interfaces";
+
+// =============================================================================
+// Run State Manager
+// =============================================================================
+
+export {
+  BeadsRunStateManager,
+  createBeadsRunStateManager,
+} from "./run-state";
