@@ -40,7 +40,7 @@ Guide user through API key setup using AskUserQuestion:
 ```json
 {
   "questions": [{
-    "question": "Enter your Constructs API key (get from loa-constructs.dev/account):",
+    "question": "Enter your Constructs API key (get from www.constructs.network/account):",
     "header": "API Key",
     "multiSelect": false,
     "options": [
@@ -50,7 +50,7 @@ Guide user through API key setup using AskUserQuestion:
       },
       {
         "label": "I need to get a key first",
-        "description": "Opens browser to loa-constructs.dev/account"
+        "description": "Opens browser to www.constructs.network/account"
       },
       {
         "label": "Skip for now",
@@ -409,7 +409,7 @@ API keys can be configured in three ways (checked in order):
 
 ### Getting an API Key
 
-1. Visit https://loa-constructs.dev/account
+1. Visit https://www.constructs.network/account
 2. Sign in or create an account
 3. Generate an API key
 4. Run `/constructs auth setup` and paste the key

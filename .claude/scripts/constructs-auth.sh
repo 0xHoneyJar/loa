@@ -73,7 +73,7 @@ cmd_status() {
         echo "  Premium packs require an API key."
         echo ""
         echo "  To authenticate:"
-        echo "    1. Get your API key from https://loa-constructs.dev/account"
+        echo "    1. Get your API key from https://www.constructs.network/account"
         echo "    2. Run: /constructs auth setup"
         echo "    3. Or set: export LOA_CONSTRUCTS_API_KEY=sk_your_key"
         echo ""
@@ -93,7 +93,7 @@ cmd_setup() {
         echo "" >&2
         echo "Usage: constructs-auth.sh setup <api_key>" >&2
         echo "" >&2
-        echo "Get your API key from: https://loa-constructs.dev/account" >&2
+        echo "Get your API key from: https://www.constructs.network/account" >&2
         return 1
     fi
     
@@ -250,7 +250,7 @@ Usage:
   constructs-auth.sh status --json    Status as JSON (for UI)
 
 Get your API key:
-  https://loa-constructs.dev/account
+  https://www.constructs.network/account
 
 Examples:
   constructs-auth.sh status

@@ -207,7 +207,7 @@ Check or set up authentication for premium packs.
 ```
 
 **Getting an API key:**
-1. Visit https://loa-constructs.dev/account
+1. Visit https://www.constructs.network/account
 2. Sign in or create an account
 3. Generate an API key
 4. Run `/constructs auth setup` and paste the key
