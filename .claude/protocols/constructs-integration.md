@@ -12,7 +12,6 @@ The Registry Integration enables commercial skill distribution through the Loa C
 |---------|-----|--------|
 | API | `https://api.constructs.network/v1` | Live |
 | Health | `https://api.constructs.network/v1/health` | Live |
-| Legacy | `https://api.loaskills.dev/v1` | Deprecated |
 
 **Key Principles:**
 - Local skills always take precedence over registry skills
