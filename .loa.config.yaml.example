@@ -713,7 +713,7 @@ invisible_retrospective:
 # -----------------------------------------------------------------------------
 # Flatline Protocol (v1.17.0)
 # -----------------------------------------------------------------------------
-# Multi-model adversarial review using Claude Opus 4.5 + GPT-5.2 for planning
+# Multi-model adversarial review using Claude Opus 4.6 + GPT-5.2 for planning
 # document quality assurance. Phase 1: parallel reviews, Phase 2: cross-scoring,
 # Phase 3: consensus extraction with HIGH/DISPUTED/LOW/BLOCKER classification.
 flatline_protocol:
@@ -731,7 +731,7 @@ flatline_protocol:
 
   # Model configuration
   models:
-    primary: opus        # Claude Opus 4.5 (via claude.ai or API)
+    primary: opus        # Claude Opus 4.6 (via claude.ai or API)
     secondary: gpt-5.2   # OpenAI GPT-5.2 (via API)
 
   # Consensus thresholds (0-1000 scale)

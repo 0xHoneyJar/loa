@@ -1243,7 +1243,7 @@ update_loa:
 # Effort Parameter (v1.13.0 - Issue #94)
 # =============================================================================
 # Control reasoning depth vs token efficiency for extended thinking
-# Based on Anthropic's effort parameter: https://www.anthropic.com/news/claude-opus-4-5
+# Based on Anthropic's effort parameter: https://www.anthropic.com/news/claude-opus-4-6
 #
 # IMPORTANT: The actual API uses `thinking.budget_tokens` (integer), not named effort levels.
 # These conceptual levels map to budget_tokens ranges that runtimes should use.
@@ -1517,7 +1517,7 @@ prompt_enhancement:
 # Flatline Protocol (v1.17.0 - Issue #29)
 # =============================================================================
 # Multi-model adversarial review for planning documents
-# Uses Claude Opus 4.5 + GPT-5.2 for cross-validation with consensus extraction
+# Uses Claude Opus 4.6 + GPT-5.2 for cross-validation with consensus extraction
 flatline_protocol:
   # Master toggle - set to false to disable Flatline Protocol
   enabled: true
@@ -1527,7 +1527,7 @@ flatline_protocol:
 
   # Models for adversarial review
   models:
-    # Primary model (default: Claude Opus 4.5)
+    # Primary model (default: Claude Opus 4.6)
     primary: "opus"
     # Secondary model (default: GPT-5.2)
     secondary: "gpt-5.2"

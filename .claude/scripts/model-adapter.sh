@@ -65,6 +65,7 @@ declare -A MODEL_PROVIDERS=(
     ["gpt-5.2-codex"]="openai"
     ["opus"]="anthropic"
     ["claude-opus-4.6"]="anthropic"
+    ["claude-opus-4.5"]="anthropic"    # Backward compat alias → 4.6
     ["gemini-2.0"]="google"
 )
 
@@ -73,6 +74,7 @@ declare -A MODEL_IDS=(
     ["gpt-5.2-codex"]="gpt-5.2-codex"
     ["opus"]="claude-opus-4-6-20260201"
     ["claude-opus-4.6"]="claude-opus-4-6-20260201"
+    ["claude-opus-4.5"]="claude-opus-4-6-20260201"  # Alias → current
     ["gemini-2.0"]="gemini-2.0-flash"
 )
 
@@ -82,6 +84,7 @@ declare -A COST_INPUT=(
     ["gpt-5.2-codex"]="0.015"
     ["opus"]="0.015"
     ["claude-opus-4.6"]="0.015"
+    ["claude-opus-4.5"]="0.015"        # Alias → 4.6 pricing
     ["gemini-2.0"]="0.005"
 )
 
@@ -90,6 +93,7 @@ declare -A COST_OUTPUT=(
     ["gpt-5.2-codex"]="0.06"
     ["opus"]="0.075"
     ["claude-opus-4.6"]="0.075"
+    ["claude-opus-4.5"]="0.075"        # Alias → 4.6 pricing
     ["gemini-2.0"]="0.015"
 )
 
@@ -542,7 +546,7 @@ Usage: model-adapter.sh --model <model> --mode <mode> [options]
 
 Models:
   gpt-5.2, gpt-5.2-codex    OpenAI GPT-5.2 variants
-  opus, claude-opus-4.6     Claude Opus 4.6
+  opus, claude-opus-4.6     Claude Opus 4.6 (claude-opus-4.5 also accepted)
   gemini-2.0                Google Gemini 2.0 (future)
 
 Modes:
