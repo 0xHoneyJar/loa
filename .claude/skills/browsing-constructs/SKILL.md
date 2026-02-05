@@ -115,11 +115,11 @@ Generate a markdown table from the packs JSON with full details:
 
 | # | Pack | Description | Skills | Version | Status |
 |---|------|-------------|--------|---------|--------|
-| 1 | 🎨 Artisan | Brand and UI craftsmanship skills for design systems and motion | 10 | 1.0.2 | |
-| 2 | 👁️ Observer | User truth capture skills for hypothesis-first research | 6 | 1.0.2 | |
-| 3 | 🔔 Sigil of the Beacon | Signal readiness to the agent network with AI-retrievable content | 6 | 1.0.2 | |
-| 4 | 🧪 Crucible | Validation and testing skills for journey verification | 5 | 1.0.2 | Installed |
-| 5 | 🚀 GTM Collective | Go-To-Market skills for product launches and developer relations | 8 | 1.0.0 | |
+| 1 | 🎨 Artisan | Brand and UI craftsmanship skills for design systems and motion | 10 | 1.0.2 | Free |
+| 2 | 👁️ Observer | User truth capture skills for hypothesis-first research | 6 | 1.0.2 | Free |
+| 3 | 🔔 Sigil of the Beacon | Signal readiness to the agent network with AI-retrievable content | 6 | 1.0.2 | Free |
+| 4 | 🧪 Crucible | Validation and testing skills for journey verification | 5 | 1.0.2 | ✓ Installed |
+| 5 | 🚀 GTM Collective | Go-To-Market skills for product launches and developer relations | 8 | 1.0.0 | Free |
 ```
 
 **Table columns:**
@@ -128,7 +128,10 @@ Generate a markdown table from the packs JSON with full details:
 - `Description` - One-line description of what the pack does
 - `Skills` - Number of skills in pack
 - `Version` - Current version from registry
-- `Status` - "Installed" if already installed, empty otherwise
+- `Status` - Show tier and install state:
+  - `Free` - Free pack, not installed
+  - `Pro 🔒` - Pro pack, requires subscription
+  - `✓ Installed` - Already installed
 
 **Step 3b: Selection Prompt**
 
