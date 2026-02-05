@@ -89,6 +89,20 @@ beads:
 
 **Critical**: Never edit `.claude/` - use `.claude/overrides/` or `.loa.config.yaml`.
 
+## File Creation Safety
+
+**CRITICAL**: Bash heredocs silently corrupt source files containing `${...}` template literals.
+
+| Method | Shell Expansion | When to Use |
+|--------|-----------------|-------------|
+| **Write tool** | None | Source files (.tsx, .jsx, .ts, .js, etc.) - PREFERRED |
+| `<<'EOF'` (quoted) | None | Shell content with literal `${...}` |
+| `<< EOF` (unquoted) | Yes | Shell scripts needing variable expansion only |
+
+**Rule**: For source files, ALWAYS use Write tool. If heredoc required, ALWAYS quote the delimiter.
+
+**Protocol**: `.claude/protocols/safe-file-creation.md`
+
 ## Configurable Paths (v1.27.0)
 
 Grimoire and state file locations are configurable via `.loa.config.yaml`:
