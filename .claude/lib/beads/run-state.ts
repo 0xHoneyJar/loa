@@ -512,8 +512,12 @@ export class BeadsRunStateManager implements IBeadsRunStateManager {
     try {
       // Targeted query: look for circuit breakers labeled with this specific issue
       if (issueHash) {
+        // SECURITY: Validate constructed label before shell interpolation
+        const issueLabel = `issue:${issueHash}`;
+        validateLabel(issueLabel);
+
         const targeted = await this.queryBeadsJson<Bead[]>(
-          `list --label '${LABELS.CIRCUIT_BREAKER}' --label 'issue:${issueHash}' --json`,
+          `list --label '${LABELS.CIRCUIT_BREAKER}' --label '${issueLabel}' --json`,
         );
 
         if (targeted && targeted.length > 0) {

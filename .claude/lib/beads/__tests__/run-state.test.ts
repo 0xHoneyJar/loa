@@ -761,6 +761,32 @@ describe("BeadsRunStateManager", () => {
       const count = await manager.getSameIssueCount("abc");
       expect(count).toBe(0);
     });
+
+    it("should prevent malicious issueHash from reaching shell (injection prevention)", async () => {
+      // These payloads contain shell metacharacters that must not reach exec()
+      const injectionPayloads = [
+        "abc'; rm -rf /; echo '",
+        "abc$(whoami)",
+        "abc`id`",
+        "abc & cat /etc/passwd",
+        "abc\"; malicious",
+      ];
+
+      for (const payload of injectionPayloads) {
+        mockExecutor.callHistory = [];
+
+        // validateLabel() throws inside the try/catch, so getSameIssueCount
+        // gracefully returns 0 without the payload reaching the shell
+        const count = await manager.getSameIssueCount(payload);
+        expect(count).toBe(0);
+
+        // CRITICAL: verify the malicious payload never reached the executor
+        const targetedCalls = mockExecutor.callHistory.filter(
+          (c) => c.includes("issue:"),
+        );
+        expect(targetedCalls).toHaveLength(0);
+      }
+    });
   });
 
   // ===========================================================================
