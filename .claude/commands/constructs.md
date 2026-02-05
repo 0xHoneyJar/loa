@@ -102,21 +102,21 @@ Returns JSON array:
 
 #### Phase 2: Display Pack Table
 
-Display ALL packs in a numbered markdown table:
+Display ALL packs in a numbered markdown table with full details:
 
 ```markdown
 ## Available Packs
 
-| # | Pack | Skills | Tier | Status |
-|---|------|--------|------|--------|
-| 1 | 🔮 Observer | 6 | Free | |
-| 2 | ⚗️ Crucible | 5 | Free | |
-| 3 | 🎨 Artisan | 10 | Pro | Installed |
-| 4 | 🚀 GTM Collective | 8 | Free | |
-| 5 | 🔔 Sigil of the Beacon | 6 | Free | |
+| # | Pack | Description | Skills | Version | Status |
+|---|------|-------------|--------|---------|--------|
+| 1 | 🎨 Artisan | Brand and UI craftsmanship skills for design systems and motion | 10 | 1.0.2 | |
+| 2 | 👁️ Observer | User truth capture skills for hypothesis-first research | 6 | 1.0.2 | |
+| 3 | 🔔 Sigil of the Beacon | Signal readiness to the agent network with AI-retrievable content | 6 | 1.0.2 | |
+| 4 | 🧪 Crucible | Validation and testing skills for journey verification | 5 | 1.0.2 | Installed |
+| 5 | 🚀 GTM Collective | Go-To-Market skills for product launches and developer relations | 8 | 1.0.0 | |
 ```
 
-Then use AskUserQuestion (NOT multiSelect) for selection:
+Then use AskUserQuestion (NOT multiSelect) for selection method:
 
 ```json
 {
@@ -133,7 +133,11 @@ Then use AskUserQuestion (NOT multiSelect) for selection:
 }
 ```
 
-If user selects "Enter pack numbers", prompt for comma-separated input and confirm selection before installing.
+If user selects "Enter pack numbers":
+1. **Output text directly** (do NOT use AskUserQuestion): `"Enter pack numbers (comma-separated, e.g., 1,3,5):"`
+2. Wait for user's text response
+3. Parse and validate the input
+4. Confirm selection before installing
 
 #### Phase 3: Install Selected Packs
 

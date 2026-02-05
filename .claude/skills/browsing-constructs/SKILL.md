@@ -108,25 +108,26 @@ Display ALL available packs in a numbered markdown table, then use AskUserQuesti
 
 **Step 3a: Render Pack Table**
 
-Generate a markdown table from the packs JSON:
+Generate a markdown table from the packs JSON with full details:
 
 ```markdown
 ## Available Packs
 
-| # | Pack | Skills | Tier | Status |
-|---|------|--------|------|--------|
-| 1 | 🔮 Observer | 6 | Free | |
-| 2 | ⚗️ Crucible | 5 | Free | |
-| 3 | 🎨 Artisan | 10 | Pro | Installed |
-| 4 | 🚀 GTM Collective | 8 | Free | |
-| 5 | 🔔 Sigil of the Beacon | 6 | Free | |
+| # | Pack | Description | Skills | Version | Status |
+|---|------|-------------|--------|---------|--------|
+| 1 | 🎨 Artisan | Brand and UI craftsmanship skills for design systems and motion | 10 | 1.0.2 | |
+| 2 | 👁️ Observer | User truth capture skills for hypothesis-first research | 6 | 1.0.2 | |
+| 3 | 🔔 Sigil of the Beacon | Signal readiness to the agent network with AI-retrievable content | 6 | 1.0.2 | |
+| 4 | 🧪 Crucible | Validation and testing skills for journey verification | 5 | 1.0.2 | Installed |
+| 5 | 🚀 GTM Collective | Go-To-Market skills for product launches and developer relations | 8 | 1.0.0 | |
 ```
 
 **Table columns:**
 - `#` - Row number (1-indexed)
 - `Pack` - Icon + name
+- `Description` - One-line description of what the pack does
 - `Skills` - Number of skills in pack
-- `Tier` - "Free" or "Pro"
+- `Version` - Current version from registry
 - `Status` - "Installed" if already installed, empty otherwise
 
 **Step 3b: Selection Prompt**
@@ -157,11 +158,12 @@ Use AskUserQuestion with 3 options (NOT multiSelect):
 }
 ```
 
-**Step 3c: Parse User Input**
+**Step 3c: Collect User Input**
 
 If user selects "Enter pack numbers":
-1. Prompt: "Enter pack numbers (comma-separated):"
-2. Parse the input using this grammar:
+1. **Output text directly** (do NOT use AskUserQuestion): `"Enter pack numbers (comma-separated, e.g., 1,3,5):"`
+2. Wait for user's text response
+3. Parse the input using this grammar:
    ```
    input     ::= "all" | selection | ""
    selection ::= number ("," number)*
