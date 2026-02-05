@@ -15,6 +15,33 @@ Orchestrate the complete Loa development cycle with integrated Flatline Protocol
 | Flatline results | BLOCKER halts workflow | BLOCKER shown to you, you decide |
 | Implementation | Integrated into workflow | Hands off to /run sprint-plan |
 
+## Getting Started
+
+You can provide as much context as you want when invoking simstim:
+
+```bash
+# Simple invocation
+/simstim
+
+# With context — works great!
+/simstim I want to build a user authentication system with OAuth2,
+         JWT tokens, and role-based access control
+
+# For large context, use the context directory
+# Put files in grimoires/loa/context/ first, then:
+/simstim
+```
+
+### How It Works
+
+Simstim guides you through 8 phases:
+
+1. **Phases 1-6** are interactive — you answer questions and make decisions
+2. **Phase 7** runs autonomously via `/run sprint-plan`
+3. Each phase completes fully before the next begins
+
+**Note**: Simstim has its own workflow structure and does NOT use Claude Code's Plan Mode.
+
 ## Usage
 
 ```bash

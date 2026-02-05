@@ -4,6 +4,16 @@
 
 Meta-orchestrator for exhaustive Loa process compliance. Executes end-to-end autonomous workflow with 8-phase execution model, quality gates, operator detection, and continuous learning.
 
+## Invocation
+
+The `/autonomous` command has its own multi-phase workflow structure. You can provide context:
+
+```bash
+/autonomous implement the feature from the PRD
+```
+
+The command executes through its 8 phases without using Claude Code's native Plan Mode.
+
 ## Usage
 
 ```

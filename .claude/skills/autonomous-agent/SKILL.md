@@ -54,6 +54,25 @@ Write to `grimoires/loa/a2a/trajectory/guardrails-{date}.jsonl`.
 On error: Log to trajectory, **fail-open** (continue to skill).
 </input_guardrails>
 
+<constraints>
+## Plan Mode Prevention
+
+This skill manages its own multi-phase autonomous workflow. DO NOT use Claude Code's native Plan Mode.
+
+**CRITICAL RULES**:
+1. NEVER call `EnterPlanMode` — autonomous phases ARE the plan
+2. NEVER jump to implementation after any approval
+3. Each phase MUST complete before proceeding
+4. This skill orchestrates OTHER skills — each has its own workflow
+
+**Why this matters**:
+- Plan Mode would bypass quality gates
+- PRD/SDD/Sprint artifacts would not be created
+- Multi-model Flatline reviews would be skipped
+
+**Correct behavior**: Execute phases sequentially with full quality gate compliance.
+</constraints>
+
 # Autonomous Agent Orchestrator
 
 <objective>
