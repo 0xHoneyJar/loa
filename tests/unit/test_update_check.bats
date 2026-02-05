@@ -345,7 +345,7 @@ EOF
     popd > /dev/null
 
     # Should get default URL
-    [[ "$result" == "https://api.loaskills.dev/v1" ]]
+    [[ "$result" == "https://api.constructs.network/v1" ]]
 }
 
 # =============================================================================

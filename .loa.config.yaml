@@ -259,13 +259,13 @@ jit_retrieval:
 # Registry Integration (v0.9.2+)
 # =============================================================================
 # Loa Constructs for third-party skill management
-# Production API: https://loa-constructs-api.fly.dev
+# Production API: https://api.constructs.network
 registry:
   # Master toggle for registry features
   enabled: true
   # Default registry API URL (can be overridden with LOA_REGISTRY_URL env var)
   # Note: Production API endpoint for Loa Constructs
-  default_url: "https://loa-constructs-api.fly.dev/v1"
+  default_url: "https://api.constructs.network/v1"
   # Cache public keys for N hours (reduces API calls)
   public_key_cache_hours: 24
   # Load registry skills during /setup

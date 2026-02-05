@@ -102,40 +102,103 @@ Check which packs are already installed:
 installed=$(.claude/scripts/constructs-loader.sh list --json 2>/dev/null || echo "[]")
 ```
 
-#### Phase 3: Present Multi-Select UI
+#### Phase 3: Present Pack Selection Table
 
-Use **AskUserQuestion** with `multiSelect: true` to present pack selection.
+Display ALL available packs in a numbered markdown table, then use AskUserQuestion for selection.
 
-Build options array from packs JSON. For each pack:
-- **label**: `"{icon} {name} ({skills_count} skills)"`
-- **description**: Pack description + tier indicator
+**Step 3a: Render Pack Table**
 
-Example:
+Generate a markdown table from the packs JSON:
+
+```markdown
+## Available Packs
+
+| # | Pack | Skills | Tier | Status |
+|---|------|--------|------|--------|
+| 1 | 🔮 Observer | 6 | Free | |
+| 2 | ⚗️ Crucible | 5 | Free | |
+| 3 | 🎨 Artisan | 10 | Pro | Installed |
+| 4 | 🚀 GTM Collective | 8 | Free | |
+| 5 | 🔔 Sigil of the Beacon | 6 | Free | |
 ```
+
+**Table columns:**
+- `#` - Row number (1-indexed)
+- `Pack` - Icon + name
+- `Skills` - Number of skills in pack
+- `Tier` - "Free" or "Pro"
+- `Status` - "Installed" if already installed, empty otherwise
+
+**Step 3b: Selection Prompt**
+
+Use AskUserQuestion with 3 options (NOT multiSelect):
+
+```json
 {
   "questions": [{
-    "question": "Select packs to install:",
-    "header": "Packs",
-    "multiSelect": true,
+    "question": "How would you like to install packs?",
+    "header": "Install",
+    "multiSelect": false,
     "options": [
       {
-        "label": "🔮 Observer (6 skills)",
-        "description": "User truth capture - interviews, personas, journey mapping"
+        "label": "Enter pack numbers",
+        "description": "Type numbers like: 1,3,5"
       },
       {
-        "label": "⚗️ Crucible (5 skills)",
-        "description": "Validation & testing - test plans, quality gates"
+        "label": "Install all",
+        "description": "Install all available packs"
       },
       {
-        "label": "🎨 Artisan (10 skills)",
-        "description": "Brand/UI craftsmanship - design systems, components"
+        "label": "Cancel",
+        "description": "Exit without installing"
       }
     ]
   }]
 }
 ```
 
-**Important**: Mark already-installed packs in the description (e.g., "✓ Installed").
+**Step 3c: Parse User Input**
+
+If user selects "Enter pack numbers":
+1. Prompt: "Enter pack numbers (comma-separated):"
+2. Parse the input using this grammar:
+   ```
+   input     ::= "all" | selection | ""
+   selection ::= number ("," number)*
+   number    ::= [0-9]+
+   ```
+3. Trim whitespace from input and between commas
+4. Convert each token to integer
+5. Validate: `1 <= n <= pack_count`
+6. Filter: Skip already-installed packs
+
+**Step 3d: Confirmation (Required)**
+
+Before installing, echo back the resolved selection:
+
+```
+You selected:
+  - Observer (#1)
+  - Artisan (#3)
+
+Proceed with installation? [Y/n]
+```
+
+**Retry Limits:**
+- Max 3 invalid input attempts
+- After 3 failures, abort with message: "Too many invalid attempts. Run `/constructs browse` to try again."
+
+**Edge Cases:**
+
+| Input | Behavior |
+|-------|----------|
+| `"1,3,5"` | Install packs 1, 3, 5 |
+| `"all"` | Install all non-installed packs |
+| `"1, 3, 5"` | Same as "1,3,5" (whitespace tolerant) |
+| `"1,99,3"` | Warn about 99, install 1 and 3 |
+| `""` | Re-prompt (counts as invalid attempt) |
+| `"abc"` | Error, re-prompt (counts as invalid attempt) |
+| 3 failures | Abort with "Too many invalid attempts" |
 
 #### Phase 4: Install Selected Packs
 
@@ -235,12 +298,13 @@ When building AskUserQuestion options:
 4. **Description**: What it does
 5. **Status**: Installed marker if applicable
 
-### Maximum Options
+### Scalable Pack Display
 
-AskUserQuestion supports 2-4 options per question. If more than 4 packs available:
-- Show top 4 most relevant/popular
-- Add "Show more packs..." option
-- Chain multiple questions if needed
+The table-based approach handles unlimited packs:
+- ALL packs displayed in numbered table (no 4-option limit)
+- User selects by entering numbers (comma-separated)
+- Supports "all" keyword for bulk installation
+- Confirmation step before installation
 
 ### Tier Indicators
 

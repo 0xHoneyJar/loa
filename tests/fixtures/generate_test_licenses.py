@@ -110,7 +110,7 @@ def create_license_file(
         "tier": tier,
         "watermark": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
         "lid": "lic_test789",
-        "iss": "https://api.loaskills.dev",
+        "iss": "https://api.constructs.network",
         "aud": "loa-skills-client",
         "iat": int(datetime.now().timestamp()),
         "exp": int(expires_at.timestamp())

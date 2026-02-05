@@ -24,7 +24,7 @@ setup() {
     cat > "$TEST_CONFIG" << 'EOF'
 registry:
   enabled: true
-  default_url: "https://api.loaskills.dev/v1"
+  default_url: "https://api.constructs.network/v1"
   public_key_cache_hours: 24
   load_on_startup: true
   validate_licenses: true
@@ -79,7 +79,7 @@ teardown() {
     skip_if_not_implemented
 
     result=$(get_registry_config "default_url" "")
-    [[ "$result" == "https://api.loaskills.dev/v1" ]]
+    [[ "$result" == "https://api.constructs.network/v1" ]]
 }
 
 @test "get_registry_config reads public_key_cache_hours as number" {
@@ -94,7 +94,7 @@ teardown() {
 
     unset LOA_REGISTRY_URL
     result=$(get_registry_url)
-    [[ "$result" == "https://api.loaskills.dev/v1" ]]
+    [[ "$result" == "https://api.constructs.network/v1" ]]
 }
 
 @test "get_registry_url respects LOA_REGISTRY_URL environment variable" {

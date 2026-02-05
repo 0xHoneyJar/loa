@@ -435,7 +435,7 @@ EOF
     local default_url
     default_url=$(get_registry_url)
     # Should return default since no .loa.config.yaml in current dir
-    [[ "$default_url" == "https://api.loaskills.dev/v1" ]] || [[ -n "$default_url" ]]
+    [[ "$default_url" == "https://api.constructs.network/v1" ]] || [[ -n "$default_url" ]]
 
     # Test 2: Env override takes precedence
     export LOA_REGISTRY_URL="http://env.example.com/v1"
