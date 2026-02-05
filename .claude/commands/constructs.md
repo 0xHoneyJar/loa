@@ -55,7 +55,7 @@ Browse and install packs from the Loa Constructs Registry with a multi-select UI
 /constructs browse             # Browse available packs
 /constructs install <pack>     # Install specific pack
 /constructs list               # List installed packs
-/constructs search <query>     # Search skills across all packs
+/constructs search <query>     # Search packs by name/description
 /constructs update             # Check for updates
 /constructs uninstall <pack>   # Remove a pack
 ```

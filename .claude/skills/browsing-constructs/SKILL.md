@@ -10,7 +10,7 @@ Provide a multi-select UI for browsing and installing packs from the Loa Constru
 - `/constructs browse` - Browse available packs with selection UI
 - `/constructs install <pack>` - Install specific pack directly
 - `/constructs list` - List installed packs
-- `/constructs search <query>` - Search skills across all packs by name/description
+- `/constructs search <query>` - Search packs by name/description
 - `/constructs update` - Check for updates
 - `/constructs uninstall <pack>` - Remove a pack
 - `/constructs auth` - Check authentication status
