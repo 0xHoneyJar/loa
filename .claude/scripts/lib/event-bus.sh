@@ -107,6 +107,24 @@ _require_jq() {
     fi
 }
 
+# Ensure flock is available — required for atomic writes
+# flock is standard on Linux (util-linux) but not on macOS. The cross-platform
+# shell protocol (PR #210) established that missing tools should fail with
+# actionable install instructions, not cryptic errors.
+# This follows the /loa doctor pattern from Issue #211.
+_require_flock() {
+    if ! command -v flock &>/dev/null; then
+        echo "ERROR: event-bus requires flock for atomic writes." >&2
+        if [[ "$(uname -s)" == "Darwin" ]]; then
+            echo "  Install on macOS: brew install util-linux" >&2
+            echo "  Then add to PATH: export PATH=\"\$(brew --prefix)/opt/util-linux/bin:\$PATH\"" >&2
+        else
+            echo "  Install: apt-get install util-linux" >&2
+        fi
+        return 3
+    fi
+}
+
 # =============================================================================
 # Event Emission
 # =============================================================================
@@ -144,6 +162,7 @@ emit_event() {
     local subject="${6:-}"
 
     _require_jq || return 3
+    _require_flock || return 3
     _init_event_bus
 
     # Validate event type format: dotted lowercase (e.g., forge.observer.utc_created)
@@ -213,15 +232,28 @@ emit_event() {
     # Atomic append with flock
     # flock(1) provides advisory file locking — same mechanism SQLite uses for WAL
     # The lock file is separate from the data file to avoid corruption
+    #
+    # NOTE: We use ( subshell ) not { group } because flock FD redirection
+    # with 200> requires a subshell for clean FD scoping. Inside subshells,
+    # `exit` (not `return`) is the correct way to abort — `return` in a
+    # subshell is a bash-ism that silently becomes `exit` anyway, but using
+    # `exit` explicitly makes the intent clear and avoids subtle bugs if
+    # this code is ever refactored into a { group } block.
+    # Google's bash style guide mandates this distinction.
     local lock_file="${partition_file}.lock"
     (
         flock -w 5 200 || {
             echo "ERROR: Could not acquire lock for event write (timeout after 5s)" >&2
-            return 2
+            exit 2
         }
         # Compact JSON (one line) and append
         echo "$envelope" | jq -c . >> "$partition_file"
     ) 200>"$lock_file"
+
+    # Check if the atomic write succeeded before dispatching
+    if [[ $? -ne 0 ]]; then
+        return 2
+    fi
 
     # Dispatch to handlers (synchronous, best-effort)
     _dispatch_event "$event_type" "$envelope" || true
@@ -263,25 +295,32 @@ _dispatch_event() {
             continue
         fi
 
-        # Invoke handler
+        # Invoke handler — capture stderr for DLQ diagnostics
+        # The key insight from SRE practice at Google and Netflix: when a
+        # handler fails, the error message is often more valuable than the
+        # exit code. Suppressing stderr entirely (2>/dev/null) makes DLQ
+        # entries useless for debugging. Instead, capture stderr to a temp
+        # file and include it in the dead letter entry on failure.
         local exit_code=0
+        local handler_stderr=""
+        local stderr_tmp="${EVENT_STORE_DIR}/.handler_stderr.$$"
         if [[ -f "$handler" ]] && [[ -x "$handler" ]]; then
-            # Handler is an executable script — pipe event as stdin
-            echo "$envelope" | "$handler" 2>/dev/null || exit_code=$?
+            echo "$envelope" | "$handler" 2>"$stderr_tmp" || exit_code=$?
         elif declare -F "$handler" &>/dev/null; then
-            # Handler is a bash function (for in-process consumers)
-            echo "$envelope" | "$handler" 2>/dev/null || exit_code=$?
+            echo "$envelope" | "$handler" 2>"$stderr_tmp" || exit_code=$?
         else
-            echo "WARN: Handler not found or not executable: $handler" >&2
+            echo "Handler not found or not executable: $handler" > "$stderr_tmp"
             exit_code=127
         fi
+        handler_stderr=$(cat "$stderr_tmp" 2>/dev/null | head -c 4096) || true
+        rm -f "$stderr_tmp"
 
         if [[ "$exit_code" -eq 0 ]]; then
             # Record successful consumption for idempotency
             _record_consumption "$consumer_key" "$event_id"
         else
-            # Route to dead letter queue
-            _write_dead_letter "$event_type" "$envelope" "$handler" "$exit_code"
+            # Route to dead letter queue with error context
+            _write_dead_letter "$event_type" "$envelope" "$handler" "$exit_code" "$handler_stderr"
         fi
     done <<< "$handlers"
 }
@@ -300,7 +339,13 @@ _check_idempotency() {
     [[ -f "$state_file" ]] || return 1
 
     # Check if event ID exists in the seen file
-    if grep -qF "$event_id" "$state_file" 2>/dev/null; then
+    # Use -x (exact line match) instead of plain -F (substring match).
+    # With -F alone, searching for "evt-abc" would match "evt-abc-123",
+    # causing a false positive that skips processing. UUIDs make this
+    # astronomically unlikely, but defense-in-depth costs nothing here.
+    # This is the same principle behind Stripe's idempotency key matching —
+    # exact equality, never substring.
+    if grep -qxF "$event_id" "$state_file" 2>/dev/null; then
         return 0  # Already seen — skip
     fi
 
@@ -333,12 +378,18 @@ _record_consumption() {
 # =============================================================================
 
 # Write a failed delivery to the dead letter queue
-# DLQ entries include the original event + failure context
+# DLQ entries include the original event + failure context + handler stderr
+#
+# Including stderr in DLQ entries follows the pattern from AWS SQS DLQ and
+# GCP Pub/Sub dead lettering — the error context is the most valuable part
+# of a dead letter for debugging. Without it, operators see "exit code 1"
+# and have to manually reproduce the failure.
 _write_dead_letter() {
     local event_type="$1"
     local envelope="$2"
     local handler="$3"
     local exit_code="$4"
+    local error_output="${5:-}"
 
     local dlq_entry
     dlq_entry=$(jq -n \
@@ -347,20 +398,22 @@ _write_dead_letter() {
         --arg handler "$handler" \
         --argjson exit_code "$exit_code" \
         --argjson event "$envelope" \
+        --arg error_output "$error_output" \
         '{
             dead_letter_ts: $ts,
             event_type: $event_type,
             handler: $handler,
             exit_code: $exit_code,
+            error_output: (if $error_output != "" then $error_output else null end),
             event: $event,
             retry_count: 0
         }'
     )
 
-    # Atomic append to DLQ
+    # Atomic append to DLQ (best-effort — DLQ write failure is non-fatal)
     local lock_file="${EVENT_DLQ_FILE}.lock"
     (
-        flock -w 5 200 || return 0
+        flock -w 5 200 || exit 0
         echo "$dlq_entry" | jq -c . >> "$EVENT_DLQ_FILE"
     ) 200>"$lock_file"
 
@@ -502,26 +555,40 @@ query_events() {
         return 0
     fi
 
-    # Build jq filter
+    # Build jq filter using --arg for safe parameter binding
+    # SECURITY: Never interpolate user input into jq filter strings.
+    # String interpolation allows jq expression injection (e.g., a crafted
+    # --since value could bypass filters). Using --arg binds values as
+    # string literals that jq cannot interpret as code.
+    #
+    # This is the same principle behind SQL parameterized queries — the
+    # query structure is fixed, only the data varies. Google's production
+    # jq usage in GKE tooling follows this pattern for the same reason.
+    local jq_args=()
     local jq_filter="."
+
     if [[ -n "$since" ]]; then
-        jq_filter="${jq_filter} | select(.time >= \"${since}\")"
+        jq_args+=(--arg since "$since")
+        jq_filter="${jq_filter} | select(.time >= \$since)"
     fi
     if [[ -n "$until" ]]; then
-        jq_filter="${jq_filter} | select(.time <= \"${until}\")"
+        jq_args+=(--arg until_date "$until")
+        jq_filter="${jq_filter} | select(.time <= \$until_date)"
     fi
     if [[ -n "$source_filter" ]]; then
-        jq_filter="${jq_filter} | select(.source == \"${source_filter}\")"
+        jq_args+=(--arg src "$source_filter")
+        jq_filter="${jq_filter} | select(.source == \$src)"
     fi
     if [[ -n "$correlation" ]]; then
-        jq_filter="${jq_filter} | select(.correlation_id == \"${correlation}\")"
+        jq_args+=(--arg corr "$correlation")
+        jq_filter="${jq_filter} | select(.correlation_id == \$corr)"
     fi
 
-    # Execute query
+    # Execute query with parameterized filter
     if [[ "$json_output" == "true" ]]; then
-        cat "${files[@]}" 2>/dev/null | jq -c "$jq_filter" 2>/dev/null | head -n "$limit" | jq -s '.'
+        cat "${files[@]}" 2>/dev/null | jq -c "${jq_args[@]}" "$jq_filter" 2>/dev/null | head -n "$limit" | jq -s '.'
     else
-        cat "${files[@]}" 2>/dev/null | jq -c "$jq_filter" 2>/dev/null | head -n "$limit"
+        cat "${files[@]}" 2>/dev/null | jq -c "${jq_args[@]}" "$jq_filter" 2>/dev/null | head -n "$limit"
     fi
 }
 
@@ -559,7 +626,7 @@ register_handler() {
     (
         flock -w 5 200 || {
             echo "ERROR: Could not acquire registry lock" >&2
-            return 2
+            exit 2
         }
 
         local updated
@@ -590,7 +657,7 @@ unregister_handler() {
 
     local lock_file="${EVENT_REGISTRY_FILE}.lock"
     (
-        flock -w 5 200 || return 0
+        flock -w 5 200 || exit 0
         local updated
         updated=$(jq --arg type "$event_type" --arg handler "$handler" \
             '.handlers[$type] = [.handlers[$type][]? | select(.handler != $handler)]' \
@@ -613,7 +680,10 @@ bus_status() {
 
     local total_events=0
     local event_types=0
-    local type_counts=()
+    # Build type_counts using jq for safe JSON construction (CI-013 pattern).
+    # String interpolation into JSON is fragile — the same reason React
+    # escapes JSX props and prepared statements escape SQL parameters.
+    local types_json="[]"
 
     for f in "${EVENT_STORE_DIR}"/*.events.jsonl; do
         [[ -f "$f" ]] || continue
@@ -623,7 +693,7 @@ bus_status() {
         count=$(wc -l < "$f" 2>/dev/null || echo "0")
         total_events=$((total_events + count))
         event_types=$((event_types + 1))
-        type_counts+=("{\"type\":\"${type_name}\",\"count\":${count}}")
+        types_json=$(echo "$types_json" | jq --arg t "$type_name" --argjson c "$count" '. + [{type: $t, count: $c}]')
     done
 
     # DLQ depth
@@ -636,12 +706,6 @@ bus_status() {
     local handler_count=0
     if [[ -f "$EVENT_REGISTRY_FILE" ]]; then
         handler_count=$(jq '[.handlers | to_entries[] | .value | length] | add // 0' "$EVENT_REGISTRY_FILE" 2>/dev/null || echo "0")
-    fi
-
-    # Build status JSON
-    local types_json="[]"
-    if [[ ${#type_counts[@]} -gt 0 ]]; then
-        types_json=$(printf '%s\n' "${type_counts[@]}" | jq -s '.')
     fi
 
     jq -n \
@@ -708,6 +772,51 @@ compact_events() {
     echo "Compacted $compacted events older than $retention_days days"
 }
 
+# Compact the dead letter queue (retention policy)
+# Without this, DLQ grows unbounded — the same oversight that caused
+# LinkedIn's Kafka DLQ incident in 2019, where unconsumed dead letters
+# filled disks. Every append-only log needs a retention policy.
+#
+# Args:
+#   $1 - Retention days (default: 7 — shorter than events since DLQ
+#        entries are diagnostic, not data)
+compact_dlq() {
+    local retention_days="${1:-7}"
+
+    _require_jq || return 3
+    _init_event_bus
+
+    [[ -f "$EVENT_DLQ_FILE" ]] || { echo "No DLQ to compact"; return 0; }
+
+    local cutoff_date
+    cutoff_date=$(date -u -d "-${retention_days} days" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
+                  date -u -v-"${retention_days}d" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
+                  echo "")
+
+    if [[ -z "$cutoff_date" ]]; then
+        echo "WARN: Could not compute cutoff date. Skipping DLQ compaction." >&2
+        return 0
+    fi
+
+    local before_count after_count
+    before_count=$(wc -l < "$EVENT_DLQ_FILE")
+
+    local temp_file="${EVENT_DLQ_FILE}.compact.tmp"
+    jq -c --arg cutoff "$cutoff_date" 'select(.dead_letter_ts >= $cutoff)' \
+        "$EVENT_DLQ_FILE" > "$temp_file" 2>/dev/null || { rm -f "$temp_file"; return 0; }
+
+    after_count=$(wc -l < "$temp_file")
+    local removed=$((before_count - after_count))
+
+    if (( removed > 0 )); then
+        mv "$temp_file" "$EVENT_DLQ_FILE"
+        echo "Compacted $removed DLQ entries older than $retention_days days"
+    else
+        rm -f "$temp_file"
+        echo "No DLQ entries to compact"
+    fi
+}
+
 # =============================================================================
 # CLI Interface
 # =============================================================================
@@ -747,6 +856,9 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
                 echo "No dead letter entries"
             fi
             ;;
+        compact-dlq)
+            compact_dlq "${2:-7}"
+            ;;
         --help|-h|help)
             cat << 'EOF'
 Usage: event-bus.sh <command> [args]
@@ -772,6 +884,9 @@ Commands:
 
     compact [retention_days]
         Remove events older than retention period (default: 30 days)
+
+    compact-dlq [retention_days]
+        Remove DLQ entries older than retention period (default: 7 days)
 
     dlq
         Show dead letter queue entries

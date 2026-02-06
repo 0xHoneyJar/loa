@@ -115,6 +115,23 @@ teardown() {
     [[ "$output" == *"not valid JSON"* ]]
 }
 
+@test "emit_event: rejects oversized payload" {
+    # Generate a payload larger than a small limit
+    # This prevents runaway events from bloating the event store —
+    # the same protection Kafka provides with max.message.bytes
+    #
+    # Override the runtime variable directly (env var is only read at
+    # source time, so exporting after setup() won't take effect)
+    EVENT_MAX_PAYLOAD_BYTES=100
+    local big_data='{"padding":"'
+    for _ in $(seq 1 120); do big_data+="x"; done
+    big_data+='"}'
+
+    run emit_event "test.system.big_payload" "$big_data" "test/skill"
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"exceeds max payload size"* ]]
+}
+
 @test "emit_event: multiple events append to same partition" {
     emit_event "test.system.multi" '{"seq":1}' "test/a" > /dev/null
     emit_event "test.system.multi" '{"seq":2}' "test/b" > /dev/null
@@ -253,6 +270,27 @@ HANDLER
     [[ "$(echo "$dlq_entry" | jq -r '.event_type')" == "test.dlq.failing" ]]
     [[ "$(echo "$dlq_entry" | jq -r '.exit_code')" -eq 1 ]]
     [[ "$(echo "$dlq_entry" | jq -r '.event.data.should')" == "fail" ]]
+}
+
+@test "DLQ: captures handler stderr in error_output field" {
+    # In production systems (AWS SQS DLQ, GCP Pub/Sub dead lettering),
+    # the error context is the most valuable part of a dead letter.
+    # Verify that handler stderr is preserved for debugging.
+    register_handler "test.dlq.verbose" "$TEST_EVENT_DIR/verbose-fail.sh"
+
+    cat > "$TEST_EVENT_DIR/verbose-fail.sh" << 'HANDLER'
+#!/usr/bin/env bash
+cat > /dev/null
+echo "ERROR: connection refused to upstream service" >&2
+exit 1
+HANDLER
+    chmod +x "$TEST_EVENT_DIR/verbose-fail.sh"
+
+    emit_event "test.dlq.verbose" '{"debug":"true"}' "test/src" > /dev/null 2>&1
+
+    local dlq_entry
+    dlq_entry=$(cat "$TEST_EVENT_DIR/dead-letter.events.jsonl")
+    [[ "$(echo "$dlq_entry" | jq -r '.error_output')" == *"connection refused"* ]]
 }
 
 # =============================================================================
