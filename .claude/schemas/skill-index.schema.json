@@ -266,6 +266,27 @@
           }
         }
       }
+    },
+    "events": {
+      "type": "object",
+      "description": "Event declarations for this skill. Enables inter-construct communication, workflow chaining, and dependency visualization. See event-envelope.schema.json for the event wire format.",
+      "properties": {
+        "emits": {
+          "type": "array",
+          "items": {
+            "$ref": "event-envelope.schema.json#/$defs/eventRef"
+          },
+          "description": "Events this skill produces. Each emitted event becomes part of the pack's public event surface. Analogous to a service's published API endpoints."
+        },
+        "consumes": {
+          "type": "array",
+          "items": {
+            "$ref": "event-envelope.schema.json#/$defs/consumeRef"
+          },
+          "description": "Events this skill subscribes to. The consumer-driven contract pattern (Pact) can be used to prevent upstream producers from breaking this skill's expectations."
+        }
+      },
+      "additionalProperties": false
     }
   },
   "examples": [

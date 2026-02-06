@@ -1,0 +1,283 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loa.dev/schemas/pack-manifest.schema.json",
+  "title": "Loa Pack Manifest",
+  "description": "Schema for construct pack manifest.json files. Defines pack metadata, skills, commands, events, tool dependencies, and health probes. Extends the existing pack format with event-driven construct coordination (RFC #162).",
+  "type": "object",
+  "required": ["name", "slug", "version", "description", "skills"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Human-readable pack name (e.g., 'GTM Collective')"
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]+$",
+      "description": "URL-safe pack identifier (kebab-case). Used as directory name and in event source references."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Semantic version. Major bumps for breaking event schema changes, minor for new events/skills, patch for fixes."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 500,
+      "description": "Pack description (10-500 characters)"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]+$"
+      },
+      "description": "Searchable tags for registry discovery"
+    },
+    "author": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "url": { "type": "string", "format": "uri" }
+      },
+      "description": "Pack author information"
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX license identifier (e.g., 'MIT', 'proprietary')"
+    },
+    "pricing": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["free", "subscription", "one-time"],
+          "description": "Pricing model"
+        },
+        "tier": {
+          "type": "string",
+          "enum": ["free", "starter", "pro", "enterprise"],
+          "description": "Pricing tier"
+        }
+      },
+      "description": "Pack pricing information"
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/skillRef"
+      },
+      "minItems": 1,
+      "description": "Skills provided by this pack. Each skill SHOULD have an index.yaml for natural language triggers."
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/commandRef"
+      },
+      "description": "Slash commands provided by this pack"
+    },
+    "events": {
+      "type": "object",
+      "description": "Event declarations for inter-construct communication. The emits/consumes topology enables workflow chaining, dependency visualization, and dead-letter detection.",
+      "properties": {
+        "emits": {
+          "type": "array",
+          "items": {
+            "$ref": "event-envelope.schema.json#/$defs/eventRef"
+          },
+          "description": "Events this pack produces. Each event SHOULD have a schema defining its data payload. Think of this as the pack's public API surface for downstream consumers."
+        },
+        "consumes": {
+          "type": "array",
+          "items": {
+            "$ref": "event-envelope.schema.json#/$defs/consumeRef"
+          },
+          "description": "Events this pack subscribes to. Consumer-driven contracts (Pact pattern) can be specified to prevent upstream breaking changes."
+        }
+      },
+      "additionalProperties": false
+    },
+    "tools": {
+      "type": "object",
+      "description": "External tool dependencies. Declarative only — Loa does NOT auto-install. The loader checks tool availability and warns users. Inspired by loa-constructs field report (Issue #162, @zkSoju).",
+      "additionalProperties": {
+        "$ref": "#/$defs/toolDependency"
+      }
+    },
+    "meta_probe": {
+      "$ref": "#/$defs/metaProbe",
+      "description": "Health check probe for internal coherence. Maps to the existing beads-health.sh pattern but standardized across construct systems."
+    },
+    "dependencies": {
+      "type": "object",
+      "properties": {
+        "loa_version": {
+          "type": "string",
+          "description": "Required Loa version constraint (semver range, e.g., '>=1.20.0')"
+        },
+        "packs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/packDependency"
+          },
+          "description": "Required packs that must be installed"
+        },
+        "skills": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Required skills (by slug)"
+        }
+      },
+      "description": "Pack dependencies. Version constraints follow semver range syntax."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "skillRef": {
+      "type": "object",
+      "required": ["slug", "path"],
+      "properties": {
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]+$",
+          "description": "Skill identifier (kebab-case)"
+        },
+        "path": {
+          "type": "string",
+          "description": "Relative path to skill directory from pack root"
+        }
+      },
+      "additionalProperties": false
+    },
+    "commandRef": {
+      "type": "object",
+      "required": ["name", "path"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]+$",
+          "description": "Command name (kebab-case, without leading slash)"
+        },
+        "path": {
+          "type": "string",
+          "description": "Relative path to command markdown file"
+        }
+      },
+      "additionalProperties": false
+    },
+    "toolDependency": {
+      "type": "object",
+      "required": ["purpose"],
+      "properties": {
+        "install": {
+          "type": "string",
+          "description": "Installation command. Displayed to user, never auto-executed. Security boundary: Loa shows this as guidance, user decides whether to run it."
+        },
+        "required": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether the pack functions without this tool. If true, affected skills are blocked when tool is missing."
+        },
+        "purpose": {
+          "type": "string",
+          "description": "Human-readable explanation of why this tool is needed"
+        },
+        "check": {
+          "type": "string",
+          "description": "Command to verify tool is installed (e.g., 'agent-browser --version'). Exit code 0 = installed."
+        },
+        "version": {
+          "type": "string",
+          "description": "Required version constraint (semver range)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "metaProbe": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Probe identifier"
+        },
+        "command": {
+          "type": "string",
+          "description": "Slash command to trigger the probe (e.g., '/pulse')"
+        },
+        "skill": {
+          "type": "string",
+          "description": "Skill slug that implements the health check"
+        },
+        "scope": {
+          "type": "string",
+          "enum": ["internal", "external"],
+          "default": "internal",
+          "description": "Whether the probe is pack-internal or externally accessible"
+        }
+      },
+      "additionalProperties": false
+    },
+    "packDependency": {
+      "type": "object",
+      "required": ["slug"],
+      "properties": {
+        "slug": {
+          "type": "string",
+          "description": "Required pack slug"
+        },
+        "version": {
+          "type": "string",
+          "description": "Version constraint (semver range)"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "examples": [
+    {
+      "name": "GTM Collective",
+      "slug": "gtm-collective",
+      "version": "1.1.0",
+      "description": "Go-To-Market skills and commands for product launches, positioning, and developer relations.",
+      "tags": ["gtm", "marketing", "product"],
+      "license": "proprietary",
+      "skills": [
+        { "slug": "analyzing-market", "path": "skills/analyzing-market/" },
+        { "slug": "positioning-product", "path": "skills/positioning-product/" }
+      ],
+      "commands": [
+        { "name": "analyze-market", "path": "commands/analyze-market.md" }
+      ],
+      "events": {
+        "emits": [
+          {
+            "name": "gtm.market_analysis_complete",
+            "version": "1.0.0",
+            "description": "Fired when market analysis produces actionable insights",
+            "compatibility": "backward"
+          }
+        ],
+        "consumes": [
+          {
+            "event": "forge.observer.utc_created",
+            "delivery": "broadcast",
+            "idempotency": {
+              "key": "$.utc_id",
+              "window_hours": 24
+            }
+          }
+        ]
+      },
+      "dependencies": {
+        "loa_version": ">=1.29.0",
+        "packs": [],
+        "skills": []
+      }
+    }
+  ]
+}

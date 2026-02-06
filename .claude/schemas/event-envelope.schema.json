@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loa.dev/schemas/event-envelope.schema.json",
+  "title": "Loa Event Envelope",
+  "description": "Standard event envelope for inter-construct communication. Inspired by CloudEvents (https://cloudevents.io) but adapted for Loa's agent-driven architecture. All events flowing between constructs MUST use this envelope.",
+  "type": "object",
+  "required": ["specversion", "id", "type", "source", "time"],
+  "properties": {
+    "specversion": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Event envelope schema version. Follows CloudEvents specversion pattern for forward compatibility."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique event identifier. MUST be unique within the scope of the source. UUIDv4 recommended. Maps to CloudEvents 'id' attribute."
+    },
+    "type": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+      "description": "Event type using reverse-domain notation (e.g., 'forge.observer.utc_created'). Analogous to Kafka topic names or EventBridge detail-type. Pattern: {system}.{construct}.{event_name}"
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identifies the construct that produced the event. Format: '{pack_slug}/{skill_name}' (e.g., 'forge/observing-users'). Equivalent to CloudEvents 'source' URI."
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the event was produced. ISO 8601 UTC format."
+    },
+    "datacontenttype": {
+      "type": "string",
+      "default": "application/json",
+      "description": "Content type of the data field. Defaults to application/json."
+    },
+    "subject": {
+      "type": "string",
+      "description": "Optional subject of the event in context of the source. E.g., the artifact path or entity ID the event relates to."
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Root trace identifier that propagates through an entire event chain. Equivalent to OpenTelemetry trace_id or W3C traceparent. Enables: 'Show me everything that happened because a user submitted feedback.'"
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "ID of the event that directly caused this one. Forms a causal DAG when combined with correlation_id. Pattern from Greg Young's event sourcing: every effect has a cause."
+    },
+    "data": {
+      "type": "object",
+      "description": "Event payload. Structure defined by per-event schemas referenced in construct manifests. Consumers MUST validate against the event's declared schema."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "eventRef": {
+      "type": "object",
+      "description": "Reference to a declared event type. Used in manifest emits/consumes arrays.",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+          "description": "Event type name. Use dotted notation for namespaced events (e.g., 'observer.utc_created')."
+        },
+        "schema": {
+          "type": "string",
+          "description": "Path to JSON Schema defining the event's data payload. Relative to pack root. Analogous to Confluent Schema Registry schema references."
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "description": "Semantic version of the event schema. Major version bumps indicate breaking changes (field removal, type changes). Minor for additive changes."
+        },
+        "compatibility": {
+          "type": "string",
+          "enum": ["backward", "forward", "full", "none"],
+          "default": "backward",
+          "description": "Schema evolution compatibility mode. Borrowed from Confluent Schema Registry: backward = new schema reads old data, forward = old schema reads new data, full = both directions."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of what this event represents and when it fires."
+        }
+      }
+    },
+    "consumeRef": {
+      "type": "object",
+      "description": "Reference to a consumed event with delivery semantics.",
+      "required": ["event"],
+      "properties": {
+        "event": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+          "description": "Event type name to consume."
+        },
+        "delivery": {
+          "type": "string",
+          "enum": ["broadcast", "queue"],
+          "default": "broadcast",
+          "description": "Delivery semantic. 'broadcast' = all consumers get every event (pub/sub). 'queue' = one consumer per event (competing consumers). Maps to Kafka consumer groups vs. broadcast topics."
+        },
+        "consumer_group": {
+          "type": "string",
+          "description": "Consumer group identifier for 'queue' delivery. Defaults to construct name. Kafka-inspired pattern for load balancing across instances."
+        },
+        "idempotency": {
+          "type": "object",
+          "description": "Idempotency contract for at-least-once delivery. Without this, duplicate events cause duplicate processing.",
+          "properties": {
+            "key": {
+              "type": "string",
+              "description": "JSONPath expression identifying the deduplication key in the event data (e.g., '$.utc_id'). Events with the same key within the window are deduplicated."
+            },
+            "window_hours": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 168,
+              "default": 24,
+              "description": "Duration in hours to track seen event IDs for deduplication."
+            }
+          }
+        },
+        "contract": {
+          "type": "string",
+          "description": "Path to consumer-driven contract file. The Pact pattern: consumers declare what fields they need, CI verifies producers satisfy those contracts. Prevents breaking changes."
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "specversion": "1.0",
+      "id": "evt-550e8400-e29b-41d4-a716-446655440000",
+      "type": "forge.observer.utc_created",
+      "source": "forge/observing-users",
+      "time": "2026-02-06T10:30:00Z",
+      "correlation_id": "trace-123e4567-e89b-12d3-a456-426614174000",
+      "causation_id": null,
+      "data": {
+        "utc_id": "utc-789",
+        "user_id": "user-456",
+        "raw_truth": "Users are confused by the onboarding flow",
+        "captured_at": "2026-02-06T10:30:00Z"
+      }
+    }
+  ]
+}

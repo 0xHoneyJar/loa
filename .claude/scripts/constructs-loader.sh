@@ -925,14 +925,11 @@ do_validate_pack() {
     # Ensure constructs directory is gitignored
     ensure_constructs_gitignored
 
-    # First validate the manifest is valid JSON
+    # Validate manifest against schema (warnings only — does not block license validation)
     local manifest_file="$pack_dir/manifest.json"
     if [[ -f "$manifest_file" ]]; then
-        if command -v jq &>/dev/null; then
-            if ! jq empty "$manifest_file" 2>/dev/null; then
-                echo "ERROR: Invalid JSON in manifest: $manifest_file" >&2
-                return $EXIT_ERROR
-            fi
+        if ! validate_pack_manifest "$pack_dir" "--quiet" 2>/dev/null; then
+            echo "WARN: Pack manifest has validation issues. Run 'validate-manifest $pack_dir' for details." >&2
         fi
     fi
 
@@ -1242,6 +1239,204 @@ do_check_updates() {
 }
 
 # =============================================================================
+# Manifest Schema Validation
+# =============================================================================
+
+# Schema directory for manifest validation
+MANIFEST_SCHEMA_DIR="${SCRIPT_DIR}/../schemas"
+
+# Validate a pack manifest.json against the pack-manifest schema
+# Args:
+#   $1 - Pack directory path (or path to manifest.json directly)
+#   $2 - Optional: --json for JSON output, --quiet for silent validation
+# Returns: 0 if valid, 1 if invalid, 5 if error
+validate_pack_manifest() {
+    local input="$1"
+    local mode="${2:-}"
+    local manifest_file
+
+    # Accept either a directory or a file path
+    if [[ -d "$input" ]]; then
+        manifest_file="$input/manifest.json"
+    elif [[ -f "$input" ]]; then
+        manifest_file="$input"
+    else
+        [[ "$mode" != "--quiet" ]] && echo "ERROR: Not a valid path: $input" >&2
+        return $EXIT_ERROR
+    fi
+
+    if [[ ! -f "$manifest_file" ]]; then
+        [[ "$mode" != "--quiet" ]] && echo "ERROR: manifest.json not found: $manifest_file" >&2
+        return $EXIT_ERROR
+    fi
+
+    # Require jq for schema validation
+    if ! command -v jq &>/dev/null; then
+        [[ "$mode" != "--quiet" ]] && echo "WARN: jq not available, skipping schema validation" >&2
+        return 0
+    fi
+
+    local errors=()
+
+    # 1. Validate JSON syntax
+    if ! jq empty "$manifest_file" 2>/dev/null; then
+        errors+=("Invalid JSON syntax")
+        if [[ "$mode" == "--json" ]]; then
+            jq -n --arg file "$manifest_file" --arg err "Invalid JSON syntax" \
+                '{valid: false, file: $file, errors: [$err]}'
+        elif [[ "$mode" != "--quiet" ]]; then
+            echo "FAIL: Invalid JSON syntax in $manifest_file" >&2
+        fi
+        return 1
+    fi
+
+    # 2. Check required fields: name, slug, version, description, skills
+    local required_fields=("name" "slug" "version" "description" "skills")
+    for field in "${required_fields[@]}"; do
+        if ! jq -e "has(\"$field\")" "$manifest_file" > /dev/null 2>&1; then
+            errors+=("Missing required field: $field")
+        fi
+    done
+
+    # 3. Validate field types
+    # slug must be kebab-case
+    local slug
+    slug=$(jq -r '.slug // ""' "$manifest_file" 2>/dev/null)
+    if [[ -n "$slug" ]] && ! [[ "$slug" =~ ^[a-z][a-z0-9-]+$ ]]; then
+        errors+=("Invalid slug format (must be kebab-case): $slug")
+    fi
+
+    # version must be semver
+    local version
+    version=$(jq -r '.version // ""' "$manifest_file" 2>/dev/null)
+    if [[ -n "$version" ]] && ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        errors+=("Invalid version format (must be semver): $version")
+    fi
+
+    # skills must be a non-empty array
+    local skills_count
+    skills_count=$(jq '.skills | if type == "array" then length else -1 end' "$manifest_file" 2>/dev/null)
+    if [[ "${skills_count:-0}" -lt 1 ]]; then
+        errors+=("skills must be a non-empty array")
+    fi
+
+    # 4. Validate each skill has required fields (slug, path)
+    local invalid_skills
+    invalid_skills=$(jq -r '.skills // [] | to_entries[] | select(.value.slug == null or .value.path == null) | .key' "$manifest_file" 2>/dev/null)
+    if [[ -n "$invalid_skills" ]]; then
+        errors+=("Skills at indices [$invalid_skills] missing required fields (slug, path)")
+    fi
+
+    # 5. Validate events structure if present
+    local has_events
+    has_events=$(jq 'has("events")' "$manifest_file" 2>/dev/null)
+    if [[ "$has_events" == "true" ]]; then
+        # Validate emits entries have 'name' field
+        local invalid_emits
+        invalid_emits=$(jq -r '.events.emits // [] | to_entries[] | select(.value.name == null) | .key' "$manifest_file" 2>/dev/null)
+        if [[ -n "$invalid_emits" ]]; then
+            errors+=("events.emits entries at indices [$invalid_emits] missing 'name' field")
+        fi
+
+        # Validate consumes entries have 'event' field
+        local invalid_consumes
+        invalid_consumes=$(jq -r '.events.consumes // [] | to_entries[] | select(.value.event == null) | .key' "$manifest_file" 2>/dev/null)
+        if [[ -n "$invalid_consumes" ]]; then
+            errors+=("events.consumes entries at indices [$invalid_consumes] missing 'event' field")
+        fi
+    fi
+
+    # 6. Validate tools entries if present
+    local has_tools
+    has_tools=$(jq 'has("tools")' "$manifest_file" 2>/dev/null)
+    if [[ "$has_tools" == "true" ]]; then
+        local tools_missing_purpose
+        tools_missing_purpose=$(jq -r '.tools // {} | to_entries[] | select(.value.purpose == null) | .key' "$manifest_file" 2>/dev/null)
+        if [[ -n "$tools_missing_purpose" ]]; then
+            errors+=("tools entries [$tools_missing_purpose] missing required 'purpose' field")
+        fi
+    fi
+
+    # 7. Try full schema validation with schema-validator.sh if available
+    local schema_file="$MANIFEST_SCHEMA_DIR/pack-manifest.schema.json"
+    if [[ -f "$schema_file" ]] && command -v ajv &>/dev/null; then
+        if ! ajv validate -s "$schema_file" -d "$manifest_file" 2>/dev/null; then
+            errors+=("Full schema validation failed (ajv)")
+        fi
+    fi
+
+    # Report results
+    if [[ ${#errors[@]} -eq 0 ]]; then
+        if [[ "$mode" == "--json" ]]; then
+            jq -n --arg file "$manifest_file" '{valid: true, file: $file, errors: []}'
+        elif [[ "$mode" != "--quiet" ]]; then
+            echo "PASS: $manifest_file"
+        fi
+        return 0
+    else
+        if [[ "$mode" == "--json" ]]; then
+            local errors_json
+            errors_json=$(printf '%s\n' "${errors[@]}" | jq -R . | jq -s .)
+            jq -n --arg file "$manifest_file" --argjson errors "$errors_json" \
+                '{valid: false, file: $file, errors: $errors}'
+        elif [[ "$mode" != "--quiet" ]]; then
+            echo "FAIL: $manifest_file" >&2
+            for err in "${errors[@]}"; do
+                echo "  - $err" >&2
+            done
+        fi
+        return 1
+    fi
+}
+
+# Validate all pack manifests in the registry
+# Args:
+#   $1 - Optional: --json for JSON output
+# Returns: 0 if all valid, 1 if any invalid
+do_validate_all_manifests() {
+    local mode="${1:-}"
+    local packs_dir
+    packs_dir=$(get_packs_dir)
+
+    if [[ ! -d "$packs_dir" ]]; then
+        [[ "$mode" != "--json" ]] && echo "No packs directory found" >&2
+        return 0
+    fi
+
+    local total=0
+    local passed=0
+    local failed=0
+    local results=()
+
+    for pack_dir in "$packs_dir"/*/; do
+        [[ -d "$pack_dir" ]] || continue
+        local manifest_file="$pack_dir/manifest.json"
+        [[ -f "$manifest_file" ]] || continue
+
+        total=$((total + 1))
+        if validate_pack_manifest "$pack_dir" "--quiet" 2>/dev/null; then
+            passed=$((passed + 1))
+            results+=("{\"pack\":\"$(basename "$pack_dir")\",\"valid\":true}")
+        else
+            failed=$((failed + 1))
+            results+=("{\"pack\":\"$(basename "$pack_dir")\",\"valid\":false}")
+        fi
+    done
+
+    if [[ "$mode" == "--json" ]]; then
+        local results_json
+        results_json=$(printf '%s\n' "${results[@]}" | jq -s '.')
+        jq -n --argjson total "$total" --argjson passed "$passed" \
+            --argjson failed "$failed" --argjson results "$results_json" \
+            '{total: $total, passed: $passed, failed: $failed, results: $results}'
+    else
+        echo "Manifest validation: $passed/$total passed ($failed failed)"
+    fi
+
+    [[ "$failed" -eq 0 ]]
+}
+
+# =============================================================================
 # Command Line Interface
 # =============================================================================
 
@@ -1259,6 +1454,8 @@ Commands:
     list-pack-skills <dir>  List skills in a pack
     get-pack-version <dir>  Get pack version from manifest
     check-updates           Check for available updates
+    validate-manifest <dir> Validate a pack's manifest.json against schema
+    validate-all-manifests  Validate all pack manifests in registry
     ensure-gitignore        Add .claude/constructs/ to .gitignore if missing
 
 Exit Codes (validate/preload):
@@ -1283,6 +1480,8 @@ Examples:
     constructs-loader.sh loadable | xargs -I {} echo "Loading: {}"
     constructs-loader.sh validate .claude/constructs/skills/vendor/skill
     constructs-loader.sh validate-pack .claude/constructs/packs/my-pack
+    constructs-loader.sh validate-manifest .claude/constructs/packs/my-pack
+    constructs-loader.sh validate-all-manifests --json
     constructs-loader.sh preload .claude/constructs/skills/vendor/skill
     constructs-loader.sh ensure-gitignore
 EOF
@@ -1328,6 +1527,13 @@ main() {
             ;;
         check-updates)
             do_check_updates
+            ;;
+        validate-manifest)
+            [[ -n "${2:-}" ]] || { echo "ERROR: Missing pack directory argument" >&2; exit $EXIT_ERROR; }
+            validate_pack_manifest "$2" "${3:-}"
+            ;;
+        validate-all-manifests)
+            do_validate_all_manifests "${2:-}"
             ;;
         ensure-gitignore)
             ensure_constructs_gitignored
