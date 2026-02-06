@@ -372,10 +372,11 @@ Pre-execution validation for skill invocations based on OpenAI's "A Practical Gu
 | `high` | Confirm | BLOCK (use `--allow-high`) |
 | `critical` | Confirm+Reason | ALWAYS BLOCK |
 
-**Skills by danger level**:
-- `safe`: discovering-requirements, designing-architecture, reviewing-code, auditing-security
-- `moderate`: implementing-tasks, planning-sprints, mounting-framework
-- `high`: deploying-infrastructure, run-mode, autonomous-agent
+**Skills by danger level** (synced with index.yaml 2026-02-06):
+- `safe`: continuous-learning, enhancing-prompts, flatline-knowledge, mounting-framework, translating-for-executives, browsing-constructs
+- `moderate`: discovering-requirements, designing-architecture, planning-sprints, implementing-tasks, reviewing-code, riding-codebase, simstim-workflow
+- `high`: auditing-security, deploying-infrastructure, run-mode
+- `critical`: autonomous-agent
 
 ### Run Mode Integration
 

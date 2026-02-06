@@ -198,6 +198,8 @@ export class BeadsRunStateManager implements IBeadsRunStateManager {
       }
 
       const sprint = sprints[0];
+      // SECURITY (TS-001): Validate bead ID from query result before shell interpolation
+      validateBeadId(sprint.id);
       const sprintNumber = this.extractSprintNumber(sprint.labels || []);
 
       // Count tasks in this sprint

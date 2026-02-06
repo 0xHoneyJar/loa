@@ -39,25 +39,26 @@ if [[ -f "${PROJECT_ROOT}/.run/simstim-state.json" ]]; then
     simstim_phase=$(jq -r '.phase // "unknown"' "${PROJECT_ROOT}/.run/simstim-state.json" 2>/dev/null) || simstim_phase="unknown"
 fi
 
-# Capture current context
-CONTEXT=$(cat <<EOF
-{
-  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "project_root": "$PROJECT_ROOT",
-  "run_mode": {
-    "active": $run_mode_active,
-    "state": "$run_mode_state"
-  },
-  "simstim": {
-    "active": $simstim_active,
-    "phase": "$simstim_phase"
-  },
-  "current_skill": "${LOA_CURRENT_SKILL:-unknown}",
-  "current_phase": "${LOA_CURRENT_PHASE:-unknown}",
-  "current_task": "${LOA_CURRENT_TASK:-unknown}"
-}
-EOF
-)
+# CI-013: Use jq for safe JSON construction instead of unquoted heredoc
+CONTEXT=$(jq -n \
+  --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --arg project_root "$PROJECT_ROOT" \
+  --argjson run_active "$run_mode_active" \
+  --arg run_state "$run_mode_state" \
+  --argjson sim_active "$simstim_active" \
+  --arg sim_phase "$simstim_phase" \
+  --arg skill "${LOA_CURRENT_SKILL:-unknown}" \
+  --arg phase "${LOA_CURRENT_PHASE:-unknown}" \
+  --arg task "${LOA_CURRENT_TASK:-unknown}" \
+  '{
+    timestamp: $ts,
+    project_root: $project_root,
+    run_mode: { active: $run_active, state: $run_state },
+    simstim: { active: $sim_active, phase: $sim_phase },
+    current_skill: $skill,
+    current_phase: $phase,
+    current_task: $task
+  }' 2>/dev/null) || CONTEXT="{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"error\":\"jq_unavailable\"}"
 
 # Write markers (both locations for reliability)
 echo "$CONTEXT" > "$GLOBAL_MARKER" 2>/dev/null || true

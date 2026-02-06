@@ -1,5 +1,9 @@
 name: Security Audit
 
+# Least-privilege permissions (CI-004)
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ main, audit ]
@@ -17,7 +21,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Check if app has dependencies
         id: check-deps
@@ -31,7 +35,7 @@ jobs:
 
       - name: Setup Node.js
         if: steps.check-deps.outputs.has_deps == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '18'
 
@@ -44,13 +48,11 @@ jobs:
         if: steps.check-deps.outputs.has_deps == 'true'
         working-directory: ./app
         run: npm audit --audit-level=moderate
-        continue-on-error: true
 
       - name: Run security check
         if: steps.check-deps.outputs.has_deps == 'true'
         working-directory: ./app
         run: npm run security:check
-        continue-on-error: true
 
   dependency-review:
     name: Dependency Review
@@ -59,7 +61,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Check if has dependencies to review
         id: check-deps
@@ -73,8 +75,7 @@ jobs:
 
       - name: Dependency Review
         if: steps.check-deps.outputs.has_deps == 'true'
-        uses: actions/dependency-review-action@v4
-        continue-on-error: true
+        uses: actions/dependency-review-action@3c4e3dcb1aa7874d2c16be7d79418e9b7efd6261 # v4.8.2
         with:
           fail-on-severity: moderate
 
@@ -93,7 +94,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Check if has code to analyze
         id: check-code
@@ -108,15 +109,15 @@ jobs:
 
       - name: Initialize CodeQL
         if: steps.check-code.outputs.has_code == 'true'
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@2588666de8825e1e9dc4e2329a4c985457d55b32 # v3.32.1
         with:
           languages: typescript, javascript
           queries: security-extended
 
       - name: Autobuild
         if: steps.check-code.outputs.has_code == 'true'
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@2588666de8825e1e9dc4e2329a4c985457d55b32 # v3.32.1
 
       - name: Perform CodeQL Analysis
         if: steps.check-code.outputs.has_code == 'true'
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@2588666de8825e1e9dc4e2329a4c985457d55b32 # v3.32.1

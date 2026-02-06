@@ -1,5 +1,10 @@
 name: Melange PR Resolution
 
+# Least-privilege permissions (CI-004)
+permissions:
+  issues: write
+  pull-requests: read
+
 on:
   issue_comment:
     types: [created]
@@ -15,7 +20,7 @@ jobs:
 
     steps:
       - name: Process Resolution
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
             const event = context.eventName;

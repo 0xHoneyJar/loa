@@ -11,7 +11,7 @@ command: /autonomous
 
 # v1.14.0: Skill best practices (Issue #97)
 effort_hint: high
-danger_level: high
+danger_level: critical
 categories:
   - operations
 

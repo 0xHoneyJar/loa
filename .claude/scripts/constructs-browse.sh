@@ -110,14 +110,20 @@ fetch_packs() {
     fi
 
     # Fetch from API - use unified /constructs endpoint
+    # SHELL-003: Use curl config file to avoid exposing API key in process list
     local curl_args=(-s -f)
+    local curl_config=""
     if [[ -n "$api_key" ]]; then
-        curl_args+=(-H "Authorization: Bearer $api_key")
+        curl_config=$(mktemp)
+        chmod 600 "$curl_config"
+        echo "header = \"Authorization: Bearer ${api_key}\"" > "$curl_config"
+        curl_args+=(--config "$curl_config")
     fi
 
     local response http_code
     # Capture both response and HTTP code
     response=$(curl "${curl_args[@]}" -w "\n%{http_code}" "${registry_url}/constructs?type=pack" 2>/dev/null) || true
+    [[ -n "$curl_config" ]] && rm -f "$curl_config"
     http_code=$(echo "$response" | tail -n1)
     response=$(echo "$response" | sed '$d')
 
@@ -166,13 +172,19 @@ fetch_pack_info() {
     local api_key
     api_key=$(get_api_key 2>/dev/null || echo "")
 
+    # SHELL-003: Use curl config file to avoid exposing API key in process list
     local curl_args=(-s -f)
+    local curl_config=""
     if [[ -n "$api_key" ]]; then
-        curl_args+=(-H "Authorization: Bearer $api_key")
+        curl_config=$(mktemp)
+        chmod 600 "$curl_config"
+        echo "header = \"Authorization: Bearer ${api_key}\"" > "$curl_config"
+        curl_args+=(--config "$curl_config")
     fi
 
     local response http_code
     response=$(curl "${curl_args[@]}" -w "\n%{http_code}" "${registry_url}/constructs/${slug}" 2>/dev/null) || true
+    [[ -n "$curl_config" ]] && rm -f "$curl_config"
     http_code=$(echo "$response" | tail -n1)
     response=$(echo "$response" | sed '$d')
 

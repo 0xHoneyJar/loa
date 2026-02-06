@@ -102,19 +102,16 @@ cmd_setup() {
         echo "WARNING: API key should start with 'sk_'" >&2
     fi
     
-    # Create credentials directory
+    # Create credentials directory with restrictive permissions
     mkdir -p "$(dirname "$CREDS_FILE")"
-    
-    # Write credentials file with secure permissions
-    cat > "$CREDS_FILE" << EOF
-{
-  "api_key": "$api_key",
-  "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-}
-EOF
-    
-    # Set secure permissions
-    chmod 600 "$CREDS_FILE"
+
+    # Write credentials file with secure permissions (SHELL-004: umask before creation)
+    # SHELL-012: Use jq for safe JSON construction instead of heredoc interpolation
+    (
+        umask 077
+        jq -n --arg key "$api_key" --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{api_key: $key, created_at: $date}' > "$CREDS_FILE"
+    )
     
     echo ""
     echo "✅ API key saved to $CREDS_FILE"
@@ -155,9 +152,16 @@ cmd_validate() {
     local response
     local http_code
     
+    # SHELL-002: Use curl config file to avoid exposing API key in process list
+    local curl_config
+    curl_config=$(mktemp)
+    chmod 600 "$curl_config"
+    echo "header = \"Authorization: Bearer ${api_key}\"" > "$curl_config"
+
     http_code=$(curl -s -o /dev/null -w "%{http_code}" \
-        -H "Authorization: Bearer $api_key" \
+        --config "$curl_config" \
         "${registry_url}/auth/validate" 2>/dev/null || echo "000")
+    rm -f "$curl_config"
     
     case "$http_code" in
         200|204)

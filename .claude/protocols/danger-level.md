@@ -29,22 +29,27 @@ Skill Invocation → Danger Level Check → Mode-Specific Enforcement → Execut
 
 ## Current Skill Assignments
 
+<!-- PROTO-002: Synchronized with index.yaml sources of truth (2026-02-06) -->
+
 | Skill | Danger Level | Rationale |
 |-------|--------------|-----------|
-| `discovering-requirements` | safe | Read-only analysis |
-| `designing-architecture` | safe | Read-only design |
-| `planning-sprints` | safe | Read-only planning |
+| `discovering-requirements` | moderate | Writes analysis artifacts to grimoire |
+| `designing-architecture` | moderate | Writes design documents to grimoire |
+| `planning-sprints` | moderate | Writes sprint plans and ledger state |
 | `implementing-tasks` | moderate | Writes code files |
-| `reviewing-code` | safe | Read-only review |
-| `auditing-security` | safe | Read-only audit |
+| `reviewing-code` | moderate | Writes review feedback artifacts |
+| `auditing-security` | high | Writes audit reports, may trigger emergency procedures |
 | `deploying-infrastructure` | high | Creates infrastructure |
 | `run-mode` | high | Autonomous execution |
 | `autonomous-agent` | critical | Full autonomous control |
-| `riding-codebase` | safe | Read-only analysis |
-| `mounting-framework` | moderate | Writes framework files |
+| `riding-codebase` | moderate | Writes reality artifacts to grimoire |
+| `mounting-framework` | safe | Read-only framework setup (writes only to .claude/) |
 | `continuous-learning` | safe | Read-only extraction |
 | `translating-for-executives` | safe | Read-only translation |
 | `enhancing-prompts` | safe | Read-only enhancement |
+| `flatline-knowledge` | safe | Read-only knowledge retrieval |
+| `simstim-workflow` | moderate | Orchestrates multi-step HITL workflow |
+| `browsing-constructs` | safe | Read-only registry browsing |
 
 ---
 

@@ -304,6 +304,9 @@ export function parseSameIssueCount(label: string): number | null {
  * @returns Label string like 'session:abc123'
  */
 export function createSessionLabel(sessionId: string): string {
+  if (!sessionId || /[^a-zA-Z0-9_\-.:@]/.test(sessionId)) {
+    throw new Error(`Invalid session ID: ${sessionId}`);
+  }
   return `${LABELS.SESSION_PREFIX}${sessionId}`;
 }
 
@@ -314,6 +317,9 @@ export function createSessionLabel(sessionId: string): string {
  * @returns Label string like 'handoff:abc123'
  */
 export function createHandoffLabel(fromSession: string): string {
+  if (!fromSession || /[^a-zA-Z0-9_\-.:@]/.test(fromSession)) {
+    throw new Error(`Invalid session ID: ${fromSession}`);
+  }
   return `${LABELS.HANDOFF_PREFIX}${fromSession}`;
 }
 
@@ -403,6 +409,9 @@ export function deriveSprintState(labels: string[]): SprintState {
  * ```
  */
 export function createSupersedesLabel(oldBeadId: string): string {
+  if (!oldBeadId || /[^a-zA-Z0-9_\-.:@]/.test(oldBeadId)) {
+    throw new Error(`Invalid bead ID: ${oldBeadId}`);
+  }
   return `${LABELS.SUPERSEDES_PREFIX}${oldBeadId}`;
 }
 
@@ -421,6 +430,9 @@ export function createSupersedesLabel(oldBeadId: string): string {
  * ```
  */
 export function createBranchedFromLabel(sourceBeadId: string): string {
+  if (!sourceBeadId || /[^a-zA-Z0-9_\-.:@]/.test(sourceBeadId)) {
+    throw new Error(`Invalid bead ID: ${sourceBeadId}`);
+  }
   return `${LABELS.BRANCHED_FROM_PREFIX}${sourceBeadId}`;
 }
 

@@ -258,10 +258,10 @@ EOF
     curl_config=$(mktemp)
     trap "rm -f '$curl_config'" RETURN
     chmod 600 "$curl_config"
-    cat > "$curl_config" <<CURLCFG
+    cat > "$curl_config" <<'CURLCFG'
 header = "Content-Type: application/json"
-header = "Authorization: Bearer ${api_key}"
 CURLCFG
+    echo "header = \"Authorization: Bearer ${api_key}\"" >> "$curl_config"
 
     response=$(curl -s --max-time "$timeout" \
         --config "$curl_config" \
@@ -307,11 +307,11 @@ EOF
     curl_config=$(mktemp)
     trap "rm -f '$curl_config'" RETURN
     chmod 600 "$curl_config"
-    cat > "$curl_config" <<CURLCFG
-header = "x-api-key: ${api_key}"
+    cat > "$curl_config" <<'CURLCFG'
 header = "anthropic-version: 2023-06-01"
 header = "content-type: application/json"
 CURLCFG
+    echo "header = \"x-api-key: ${api_key}\"" >> "$curl_config"
 
     response=$(curl -s --max-time "$timeout" \
         --config "$curl_config" \

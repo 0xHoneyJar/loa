@@ -305,13 +305,22 @@ EOF
     log "API call attempt $attempt/$MAX_RETRIES (model: $model, timeout: ${timeout}s)"
 
     # Make API call with timeout
+    # Security: Use curl config file to avoid exposing API key in process list (SHELL-001)
+    local curl_config
+    curl_config=$(mktemp)
+    chmod 600 "$curl_config"
+    cat > "$curl_config" <<'CURLCFG'
+header = "Content-Type: application/json"
+CURLCFG
+    echo "header = \"Authorization: Bearer ${OPENAI_API_KEY}\"" >> "$curl_config"
+
     local curl_output
     curl_output=$(curl -s -w "\n%{http_code}" \
       --max-time "$timeout" \
-      -H "Content-Type: application/json" \
-      -H "Authorization: Bearer ${OPENAI_API_KEY}" \
+      --config "$curl_config" \
       -d "$payload" \
       "$api_url" 2>&1) || {
+        rm -f "$curl_config"
         local curl_exit=$?
         if [[ $curl_exit -eq 28 ]]; then
           error "API call timed out after ${timeout}s (attempt $attempt)"
@@ -326,6 +335,9 @@ EOF
         error "curl failed with exit code $curl_exit"
         exit 1
       }
+
+    # Clean up curl config
+    rm -f "$curl_config"
 
     # Extract HTTP code from last line
     http_code=$(echo "$curl_output" | tail -1)
