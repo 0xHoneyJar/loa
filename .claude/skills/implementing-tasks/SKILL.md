@@ -403,6 +403,17 @@ Before implementing:
 
 Beads task tracking is the EXPECTED DEFAULT. Check health and sync before implementation.
 
+### Task Tracking: Beads vs TaskCreate
+
+**For sprint task lifecycle**: Use beads (`br`) commands exclusively.
+- `br update <task-id> --status in-progress` when starting a task
+- `br close <task-id>` when completing a task
+- `br list` to see all tasks and their status
+
+**Claude's `TaskCreate`/`TaskUpdate`**: Use ONLY for session-level progress display to the user (e.g., showing a progress checklist). These are NOT a substitute for beads task tracking. Sprint tasks tracked only via TaskCreate are invisible to cross-session recovery, `/run-resume`, and beads health checks.
+
+**If beads is not available**: Fall back to markdown tracking in NOTES.md (existing behavior).
+
 ### Run Beads Health Check
 
 ```bash

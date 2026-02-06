@@ -1,4 +1,4 @@
-<!-- @loa-managed: true | version: 1.30.0 | hash: PLACEHOLDER -->
+<!-- @loa-managed: true | version: 1.31.0 | hash: PLACEHOLDER -->
 <!-- WARNING: This file is managed by the Loa Framework. Do not edit directly. -->
 
 # Loa Framework Instructions
@@ -160,6 +160,38 @@ paths:
 - **Feedback**: Check audit feedback FIRST, then engineer feedback
 - **Karpathy**: Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven
 - **Git Safety**: 4-layer upstream detection with soft block
+
+## Process Compliance
+
+**CRITICAL**: These rules prevent the AI from bypassing Loa's quality gates.
+
+### NEVER Rules
+
+| Rule | Why |
+|------|-----|
+| NEVER write application code outside of `/implement` skill invocation | Code written outside `/implement` bypasses review and audit gates |
+| NEVER use Claude's `TaskCreate`/`TaskUpdate` for sprint task tracking when beads (`br`) is available | Beads is the single source of truth for task lifecycle; TaskCreate is for session progress display only |
+| NEVER skip from sprint plan directly to implementation without `/run sprint-plan` or `/run sprint-N` | `/run` wraps implement+review+audit in a cycle loop with circuit breaker |
+| NEVER skip `/review-sprint` and `/audit-sprint` quality gates | These are the only validation that code meets acceptance criteria and security standards |
+
+### ALWAYS Rules
+
+| Rule | Why |
+|------|-----|
+| ALWAYS use `/run sprint-plan` or `/run sprint-N` for implementation | Ensures review+audit cycle with circuit breaker protection |
+| ALWAYS create beads tasks from sprint plan before implementation (if beads available) | Tasks without beads tracking are invisible to cross-session recovery |
+| ALWAYS complete the full implement → review → audit cycle | Partial cycles leave unreviewed code in the codebase |
+| ALWAYS check for existing sprint plan before writing code | Prevents ad-hoc implementation without requirements traceability |
+
+### Task Tracking Hierarchy
+
+| Tool | Use For | Do NOT Use For |
+|------|---------|----------------|
+| `br` (beads_rust) | Sprint task lifecycle: create, in-progress, closed | — |
+| `TaskCreate`/`TaskUpdate` | Session-level progress display to user | Sprint task tracking |
+| `grimoires/loa/NOTES.md` | Observations, blockers, cross-session memory | Task status |
+
+**Protocol**: `.claude/protocols/implementation-compliance.md`
 
 ## Run Mode State Recovery (v1.27.0)
 

@@ -250,5 +250,40 @@
     "category": "constructs",
     "what": "Event topology validation found issues (orphaned emitters or unsatisfied consumers).",
     "fix": "Run: source .claude/scripts/lib/event-registry.sh && validate_event_topology --strict"
+  },
+  {
+    "code": "E110",
+    "name": "implementation_without_sprint",
+    "category": "workflow",
+    "what": "Attempting to write application code without an active sprint plan.",
+    "fix": "Create a sprint plan with /sprint-plan first, then use /run sprint-N to implement."
+  },
+  {
+    "code": "E111",
+    "name": "direct_implementation_bypass",
+    "category": "workflow",
+    "what": "Implementation started outside of /implement or /run skill.",
+    "fix": "Use /run sprint-plan or /run sprint-N for implementation. Direct code changes bypass quality gates."
+  },
+  {
+    "code": "E112",
+    "name": "beads_tasks_missing",
+    "category": "workflow",
+    "what": "Sprint plan exists but no beads tasks were created for it.",
+    "fix": "Create beads tasks from the sprint plan: read sprint.md and use br create for each task."
+  },
+  {
+    "code": "E113",
+    "name": "quality_gate_skipped",
+    "category": "workflow",
+    "what": "Implementation completed without /review-sprint and /audit-sprint cycle.",
+    "fix": "Run /review-sprint sprint-N followed by /audit-sprint sprint-N before considering work complete."
+  },
+  {
+    "code": "E114",
+    "name": "wrong_task_tracker",
+    "category": "workflow",
+    "what": "Using Claude's TaskCreate instead of beads for sprint task tracking.",
+    "fix": "Use br create, br update, and br list for sprint tasks. TaskCreate is for session progress display only."
   }
 ]

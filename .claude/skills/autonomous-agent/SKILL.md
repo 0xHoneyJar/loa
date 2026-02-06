@@ -71,6 +71,13 @@ This skill manages its own multi-phase autonomous workflow. DO NOT use Claude Co
 - Multi-model Flatline reviews would be skipped
 
 **Correct behavior**: Execute phases sequentially with full quality gate compliance.
+
+## Implementation Enforcement
+
+5. Implementation phases MUST use `/run sprint-plan` or `/run sprint-N` — NEVER implement directly
+6. Do NOT use `/implement` without `/run` — `/run` provides the review→audit cycle
+7. Use `br` commands for task lifecycle, NOT `TaskCreate`/`TaskUpdate`
+8. If sprint plan exists but no beads tasks created, create them FIRST
 </constraints>
 
 # Autonomous Agent Orchestrator
@@ -519,6 +526,18 @@ ELSE:
 ## Phase 3: Implementation
 
 **Purpose:** Build the solution with quality.
+
+### Implementation Guard
+
+This phase hands off to `/run sprint-plan`. Do NOT implement directly.
+
+**Sequence**:
+1. Verify beads tasks exist for all sprint items
+2. Invoke `/run sprint-plan` (or `/run sprint-N` for individual sprints)
+3. Monitor run state — do NOT proceed until `/run` completes or halts
+4. If `/run` halts (circuit breaker), report to user — do NOT bypass
+
+**NEVER**: Write application code directly in this phase. All code must flow through `/run` → `/implement` → `/review-sprint` → `/audit-sprint`.
 
 ### 3.1 Task Execution
 
