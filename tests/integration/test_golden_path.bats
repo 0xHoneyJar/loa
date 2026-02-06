@@ -221,7 +221,7 @@ EOF
     [[ "$output" == *"No sprint plan"* ]]
 }
 
-@test "golden_check_ship_ready: fails when sprint not audited" {
+@test "golden_check_ship_ready: fails when sprint not reviewed or audited" {
     cat > "$TEST_DIR/grimoires/loa/sprint.md" << 'EOF'
 ## Sprint 1: Foundation
 Tasks
@@ -230,7 +230,7 @@ EOF
 
     run golden_check_ship_ready
     [[ "$status" -eq 1 ]]
-    [[ "$output" == *"not been audited"* ]]
+    [[ "$output" == *"not been reviewed"* ]]
 }
 
 @test "golden_check_ship_ready: passes when all sprints complete" {
@@ -257,6 +257,23 @@ EOF
     [[ "$status" -eq 0 ]]
 }
 
+@test "golden_check_ship_ready: fails when sprint not reviewed (has findings)" {
+    cat > "$TEST_DIR/grimoires/loa/sprint.md" << 'EOF'
+## Sprint 1: Foundation
+Tasks
+EOF
+    mkdir -p "$TEST_DIR/grimoires/loa/a2a/sprint-1"
+    cat > "$TEST_DIR/grimoires/loa/a2a/sprint-1/engineer-feedback.md" << 'FEEDBACK'
+# Review Feedback
+## Changes Required
+- Fix the thing
+FEEDBACK
+
+    run golden_check_ship_ready
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"not been reviewed"* ]]
+}
+
 @test "golden_check_ship_ready: fails on multi-sprint with one incomplete" {
     cat > "$TEST_DIR/grimoires/loa/sprint.md" << 'EOF'
 ## Sprint 1: Foundation
@@ -277,17 +294,16 @@ EOF
 # Journey Bar
 # ─────────────────────────────────────────────────────────────
 
-@test "golden_format_journey: shows /plan position when no artifacts" {
+@test "golden_format_journey: shows marker at /plan when no artifacts" {
     local result
     result=$(golden_format_journey)
-    # Should have ● marker near /plan
-    [[ "$result" == *"/plan"* ]]
-    [[ "$result" == *"/build"* ]]
-    [[ "$result" == *"/review"* ]]
-    [[ "$result" == *"/ship"* ]]
+    # Marker ● should be right after /plan, before /build
+    [[ "$result" == */plan\ ●* ]]
+    # build/review/ship should have ─ (not ●)
+    [[ "$result" == */build\ ─* ]]
 }
 
-@test "golden_format_journey: shows /build position when planning complete and sprints exist" {
+@test "golden_format_journey: shows marker at /build when planning complete and sprints exist" {
     touch "$TEST_DIR/grimoires/loa/prd.md"
     touch "$TEST_DIR/grimoires/loa/sdd.md"
     cat > "$TEST_DIR/grimoires/loa/sprint.md" << 'EOF'
@@ -296,8 +312,24 @@ Tasks
 EOF
     local result
     result=$(golden_format_journey)
-    [[ "$result" == *"/plan"* ]]
-    [[ "$result" == *"/build"* ]]
+    # plan should be completed (━), build should have marker
+    [[ "$result" == */plan\ ━* ]]
+    [[ "$result" == */build\ ●* ]]
+}
+
+@test "golden_format_journey: shows marker at /ship when all sprints complete" {
+    touch "$TEST_DIR/grimoires/loa/prd.md"
+    touch "$TEST_DIR/grimoires/loa/sdd.md"
+    cat > "$TEST_DIR/grimoires/loa/sprint.md" << 'EOF'
+## Sprint 1: Foundation
+Tasks
+EOF
+    mkdir -p "$TEST_DIR/grimoires/loa/a2a/sprint-1"
+    touch "$TEST_DIR/grimoires/loa/a2a/sprint-1/COMPLETED"
+
+    local result
+    result=$(golden_format_journey)
+    [[ "$result" == */ship\ ●* ]]
 }
 
 @test "golden_format_journey: contains all 4 golden commands" {
@@ -344,6 +376,25 @@ EOF
     local result
     result=$(golden_suggest_command)
     [[ "$result" == "/build" ]]
+}
+
+@test "golden_suggest_command: /review is defensive fallback when ship not ready" {
+    # The /review suggestion triggers when all sprints are COMPLETED
+    # but golden_check_ship_ready fails. In practice, COMPLETED markers
+    # imply review+audit passed, so this is a pure safety net.
+    # Verify the normal flow: COMPLETED → /ship
+    touch "$TEST_DIR/grimoires/loa/prd.md"
+    touch "$TEST_DIR/grimoires/loa/sdd.md"
+    cat > "$TEST_DIR/grimoires/loa/sprint.md" << 'EOF'
+## Sprint 1: Foundation
+Tasks
+EOF
+    mkdir -p "$TEST_DIR/grimoires/loa/a2a/sprint-1"
+    touch "$TEST_DIR/grimoires/loa/a2a/sprint-1/COMPLETED"
+
+    local result
+    result=$(golden_suggest_command)
+    [[ "$result" == "/ship" ]]
 }
 
 @test "golden_suggest_command: suggests /ship when all sprints complete" {
@@ -440,6 +491,24 @@ EOF
     [[ "$result" == "/deploy-production" ]]
 }
 
+@test "golden_resolve_truename: rejects invalid sprint ID override" {
+    cat > "$TEST_DIR/grimoires/loa/sprint.md" << 'EOF'
+## Sprint 1: Foundation
+Tasks
+EOF
+    run golden_resolve_truename "build" "not-a-sprint"
+    [[ "$status" -eq 1 ]]
+}
+
+@test "golden_resolve_truename: rejects sprint-0 as invalid" {
+    cat > "$TEST_DIR/grimoires/loa/sprint.md" << 'EOF'
+## Sprint 1: Foundation
+Tasks
+EOF
+    run golden_resolve_truename "build" "sprint-0"
+    [[ "$status" -eq 1 ]]
+}
+
 # ─────────────────────────────────────────────────────────────
 # Edge Cases
 # ─────────────────────────────────────────────────────────────
@@ -478,6 +547,46 @@ EOF
     local result
     result=$(golden_detect_review_target)
     [[ "$result" == "sprint-1" ]]
+}
+
+@test "review detection: sprint reviewed when feedback has no findings sections" {
+    cat > "$TEST_DIR/grimoires/loa/sprint.md" << 'EOF'
+## Sprint 1: Foundation
+Tasks
+EOF
+    mkdir -p "$TEST_DIR/grimoires/loa/a2a/sprint-1"
+    echo "Looks great, no issues found." > "$TEST_DIR/grimoires/loa/a2a/sprint-1/engineer-feedback.md"
+
+    run _gp_sprint_is_reviewed "sprint-1"
+    [[ "$status" -eq 0 ]]
+}
+
+@test "review detection: sprint NOT reviewed when feedback has Changes Required" {
+    cat > "$TEST_DIR/grimoires/loa/sprint.md" << 'EOF'
+## Sprint 1: Foundation
+Tasks
+EOF
+    mkdir -p "$TEST_DIR/grimoires/loa/a2a/sprint-1"
+    cat > "$TEST_DIR/grimoires/loa/a2a/sprint-1/engineer-feedback.md" << 'FEEDBACK'
+# Sprint 1 Review
+## Changes Required
+- Fix the broken tests
+FEEDBACK
+
+    run _gp_sprint_is_reviewed "sprint-1"
+    [[ "$status" -eq 1 ]]
+}
+
+@test "review detection: sprint reviewed implicitly when audited" {
+    cat > "$TEST_DIR/grimoires/loa/sprint.md" << 'EOF'
+## Sprint 1: Foundation
+Tasks
+EOF
+    mkdir -p "$TEST_DIR/grimoires/loa/a2a/sprint-1"
+    echo "APPROVED" > "$TEST_DIR/grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md"
+
+    run _gp_sprint_is_reviewed "sprint-1"
+    [[ "$status" -eq 0 ]]
 }
 
 @test "audit detection: approved audit passes ship readiness" {

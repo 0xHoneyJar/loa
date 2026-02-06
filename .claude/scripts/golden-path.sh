@@ -30,7 +30,6 @@ _GP_GRIMOIRE_DIR=$(get_grimoire_dir)
 _GP_PRD_FILE="${_GP_GRIMOIRE_DIR}/prd.md"
 _GP_SDD_FILE="${_GP_GRIMOIRE_DIR}/sdd.md"
 _GP_SPRINT_FILE="${_GP_GRIMOIRE_DIR}/sprint.md"
-_GP_LEDGER_FILE=$(get_ledger_path)
 _GP_A2A_DIR="${_GP_GRIMOIRE_DIR}/a2a"
 
 # ─────────────────────────────────────────────────────────────
@@ -71,14 +70,24 @@ _gp_sprint_is_complete() {
     [[ -f "${sprint_dir}/COMPLETED" ]]
 }
 
-# Check if a sprint has been reviewed (review approved or audit exists)
+# Check if a sprint has been reviewed (no findings or no required changes).
+# Detection: feedback file exists AND contains no "## Changes Required" or "## Findings" sections,
+# OR the sprint has already passed audit (which implies review was acceptable).
 _gp_sprint_is_reviewed() {
     local sprint_id="$1"
     local sprint_dir="${_GP_A2A_DIR}/${sprint_id}"
 
+    # If already audited, review is implicitly passed
+    if _gp_sprint_is_audited "${sprint_id}"; then
+        return 0
+    fi
+
     if [[ -f "${sprint_dir}/engineer-feedback.md" ]]; then
-        grep -q "All good" "${sprint_dir}/engineer-feedback.md" 2>/dev/null
-        return $?
+        # If feedback file has no actionable findings, review passed
+        if ! grep -qE "^## (Changes Required|Findings|Issues)" "${sprint_dir}/engineer-feedback.md" 2>/dev/null; then
+            return 0
+        fi
+        return 1
     fi
     return 1
 }
@@ -175,6 +184,10 @@ golden_check_ship_ready() {
         local sprint_id="sprint-${i}"
 
         if ! _gp_sprint_is_complete "${sprint_id}"; then
+            if ! _gp_sprint_is_reviewed "${sprint_id}"; then
+                echo "${sprint_id} has not been reviewed. Run /review first."
+                return 1
+            fi
             if ! _gp_sprint_is_audited "${sprint_id}"; then
                 echo "${sprint_id} has not been audited. Run /review first."
                 return 1
@@ -303,17 +316,11 @@ golden_suggest_command() {
         return
     fi
 
-    # All sprints done — check if review/audit needed
-    local total
-    total=$(_gp_count_sprints)
-    local i
-    for i in $(seq 1 "${total}"); do
-        local sprint_id="sprint-${i}"
-        if ! _gp_sprint_is_audited "${sprint_id}" && ! _gp_sprint_is_complete "${sprint_id}"; then
-            echo "/review"
-            return
-        fi
-    done
+    # All sprints complete — check ship readiness (review + audit)
+    if ! golden_check_ship_ready >/dev/null 2>&1; then
+        echo "/review"
+        return
+    fi
 
     echo "/ship"
 }
@@ -322,12 +329,26 @@ golden_suggest_command() {
 # Truename Resolution
 # ─────────────────────────────────────────────────────────────
 
+# Validate sprint ID format (sprint-N where N is a positive integer).
+_gp_validate_sprint_id() {
+    local id="$1"
+    [[ "${id}" =~ ^sprint-[1-9][0-9]*$ ]]
+}
+
 # Resolve a golden command to its truename(s) with arguments.
 # Args: golden_command [override_arg]
 # Returns: truename command string
 golden_resolve_truename() {
     local command="${1:-}"
     local override="${2:-}"
+
+    # Validate override format for sprint-accepting commands
+    if [[ -n "${override}" ]] && [[ "${command}" == "build" || "${command}" == "review" ]]; then
+        if ! _gp_validate_sprint_id "${override}"; then
+            echo "Invalid sprint ID: ${override} (expected: sprint-N)" >&2
+            return 1
+        fi
+    fi
 
     case "${command}" in
         plan)
