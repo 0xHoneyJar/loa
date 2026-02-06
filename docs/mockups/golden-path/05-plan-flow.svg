@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="620" viewBox="0 0 720 620">
+  <defs>
+    <style>
+      .term-bg { fill: #1e1e2e; }
+      .title-bar { fill: #313244; }
+      .dot-red { fill: #f38ba8; }
+      .dot-yellow { fill: #f9e2af; }
+      .dot-green { fill: #a6e3a1; }
+      .title-text { fill: #cdd6f4; font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 13px; }
+      .text { fill: #cdd6f4; font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 13px; }
+      .dim { fill: #6c7086; }
+      .green { fill: #a6e3a1; }
+      .cyan { fill: #89dceb; }
+      .yellow { fill: #f9e2af; }
+      .red { fill: #f38ba8; }
+      .white-bold { fill: #ffffff; font-weight: bold; }
+      .box { fill: none; stroke: #45475a; stroke-width: 1; }
+      .prompt { fill: #89b4fa; }
+      .sep { fill: #45475a; }
+    </style>
+  </defs>
+  <rect class="term-bg" width="720" height="620" rx="10" ry="10"/>
+  <rect class="title-bar" width="720" height="36" rx="10" ry="10"/>
+  <rect class="title-bar" y="20" width="720" height="16"/>
+  <circle class="dot-red" cx="20" cy="18" r="6"/>
+  <circle class="dot-yellow" cx="40" cy="18" r="6"/>
+  <circle class="dot-green" cx="60" cy="18" r="6"/>
+  <text class="title-text" x="360" y="22" text-anchor="middle">loa — claude</text>
+  <!-- Phase 1: Discovery -->
+  <text class="prompt" x="20" y="68">&gt; /plan</text>
+  <text class="white-bold" x="20" y="100">  /plan</text>
+  <text class="dim" x="72" y="100"> — Plan Your Project</text>
+  <text class="text" x="20" y="128">  Phase:</text>
+  <text class="cyan" x="80" y="128"> Discovery</text>
+  <text class="dim" x="164" y="128">(1 of 3)</text>
+  <!-- Mini journey -->
+  <rect class="box" x="28" y="144" width="500" height="32" rx="4" ry="4"/>
+  <text class="cyan" x="44" y="166">Discovery</text>
+  <text class="yellow" x="118" y="166"> ●</text>
+  <text class="dim" x="132" y="166">━━━━━</text>
+  <text class="dim" x="184" y="166">Architecture</text>
+  <text class="dim" x="280" y="166"> ─────</text>
+  <text class="dim" x="332" y="166">Sprint Plan</text>
+  <text class="text" x="20" y="200">  No PRD found. Starting requirements discovery.</text>
+  <text class="green" x="20" y="224">  Launching /plan-and-analyze...</text>
+  <!-- Separator -->
+  <text class="sep" x="20" y="252">  ─────────────────────────────────────────────────</text>
+  <!-- Phase 2: Architecture -->
+  <text class="dim" x="20" y="274">  ... PRD created ...</text>
+  <text class="white-bold" x="20" y="304">  /plan</text>
+  <text class="dim" x="72" y="304"> — Plan Your Project</text>
+  <text class="text" x="20" y="328">  Phase:</text>
+  <text class="cyan" x="80" y="328"> Architecture</text>
+  <text class="dim" x="188" y="328">(2 of 3)</text>
+  <rect class="box" x="28" y="344" width="500" height="32" rx="4" ry="4"/>
+  <text class="dim" x="44" y="366">Discovery</text>
+  <text class="green" x="118" y="366"> ━━━━━━━</text>
+  <text class="cyan" x="192" y="366">Architecture</text>
+  <text class="yellow" x="288" y="366"> ●</text>
+  <text class="dim" x="302" y="366">━━━━</text>
+  <text class="dim" x="340" y="366">Sprint Plan</text>
+  <text class="green" x="20" y="400">  ✓ PRD:</text>
+  <text class="text" x="80" y="400"> grimoires/loa/prd.md</text>
+  <text class="green" x="20" y="420">  Launching /architect...</text>
+  <!-- Separator -->
+  <text class="sep" x="20" y="448">  ─────────────────────────────────────────────────</text>
+  <!-- Phase 3: Complete -->
+  <text class="dim" x="20" y="470">  ... SDD + Sprint Plan created ...</text>
+  <text class="white-bold" x="20" y="500">  /plan</text>
+  <text class="dim" x="72" y="500"> — Planning Complete</text>
+  <text class="green" x="188" y="500">✓</text>
+  <rect class="box" x="28" y="516" width="500" height="32" rx="4" ry="4"/>
+  <text class="green" x="44" y="538">Discovery ━━━━━ Architecture ━━━━━ Sprint Plan ✓</text>
+  <text class="green" x="20" y="568">  ✓ PRD:</text>
+  <text class="text" x="80" y="568"> grimoires/loa/prd.md</text>
+  <text class="green" x="20" y="588">  ✓ SDD:</text>
+  <text class="text" x="80" y="588"> grimoires/loa/sdd.md</text>
+  <text class="green" x="20" y="608">  ✓ Sprint Plan:</text>
+  <text class="text" x="140" y="608"> grimoires/loa/sprint.md (3 sprints)</text>
+</svg>

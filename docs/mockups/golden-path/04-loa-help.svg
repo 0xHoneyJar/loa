@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="520" viewBox="0 0 720 520">
+  <defs>
+    <style>
+      .term-bg { fill: #1e1e2e; }
+      .title-bar { fill: #313244; }
+      .dot-red { fill: #f38ba8; }
+      .dot-yellow { fill: #f9e2af; }
+      .dot-green { fill: #a6e3a1; }
+      .title-text { fill: #cdd6f4; font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 13px; }
+      .text { fill: #cdd6f4; font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 13px; }
+      .dim { fill: #6c7086; }
+      .green { fill: #a6e3a1; }
+      .cyan { fill: #89dceb; }
+      .yellow { fill: #f9e2af; }
+      .white-bold { fill: #ffffff; font-weight: bold; }
+      .prompt { fill: #89b4fa; }
+    </style>
+  </defs>
+  <rect class="term-bg" width="720" height="520" rx="10" ry="10"/>
+  <rect class="title-bar" width="720" height="36" rx="10" ry="10"/>
+  <rect class="title-bar" y="20" width="720" height="16"/>
+  <circle class="dot-red" cx="20" cy="18" r="6"/>
+  <circle class="dot-yellow" cx="40" cy="18" r="6"/>
+  <circle class="dot-green" cx="60" cy="18" r="6"/>
+  <text class="title-text" x="360" y="22" text-anchor="middle">loa — claude</text>
+  <text class="prompt" x="20" y="68">&gt; /loa --help</text>
+  <text class="white-bold" x="20" y="100">The Golden Path</text>
+  <text class="dim" x="152" y="100"> — 5 commands, full development cycle:</text>
+  <!-- Golden Path commands -->
+  <text class="cyan" x="36" y="132">  /loa</text>
+  <text class="text" x="140" y="132">Where am I? What's next?</text>
+  <text class="cyan" x="36" y="152">  /plan</text>
+  <text class="text" x="140" y="152">Plan your project</text>
+  <text class="dim" x="288" y="152">(requirements → architecture → sprints)</text>
+  <text class="cyan" x="36" y="172">  /build</text>
+  <text class="text" x="140" y="172">Build the current sprint</text>
+  <text class="cyan" x="36" y="192">  /review</text>
+  <text class="text" x="140" y="192">Review and audit your work</text>
+  <text class="cyan" x="36" y="212">  /ship</text>
+  <text class="text" x="140" y="212">Deploy and archive</text>
+  <!-- Power user section -->
+  <text class="white-bold" x="20" y="248">Power user commands:</text>
+  <text class="dim" x="36" y="272">  /plan-and-analyze</text>
+  <text class="dim" x="240" y="272">Create PRD only</text>
+  <text class="dim" x="36" y="292">  /architect</text>
+  <text class="dim" x="240" y="292">Design architecture only</text>
+  <text class="dim" x="36" y="312">  /sprint-plan</text>
+  <text class="dim" x="240" y="312">Plan sprints only</text>
+  <text class="dim" x="36" y="332">  /implement sprint-N</text>
+  <text class="dim" x="240" y="332">Build specific sprint</text>
+  <text class="dim" x="36" y="352">  /review-sprint N</text>
+  <text class="dim" x="240" y="352">Review specific sprint</text>
+  <text class="dim" x="36" y="372">  /audit-sprint N</text>
+  <text class="dim" x="240" y="372">Security audit specific sprint</text>
+  <text class="dim" x="36" y="392">  /run sprint-plan</text>
+  <text class="dim" x="240" y="392">Autonomous mode (overnight)</text>
+  <!-- Diagnostics -->
+  <text class="white-bold" x="20" y="428">Diagnostics:</text>
+  <text class="dim" x="36" y="452">  /loa doctor</text>
+  <text class="dim" x="240" y="452">System health check</text>
+  <text class="dim" x="36" y="472">  /loa doctor --json</text>
+  <text class="dim" x="240" y="472">CI-friendly health check</text>
+  <text class="dim" x="20" y="500">Run /loa --help-full for all 43+ commands.</text>
+</svg>
