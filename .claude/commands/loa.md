@@ -9,145 +9,235 @@ command_type: wizard
 
 ## Purpose
 
-Show current workflow state, progress, version information, and suggest the next command. Reduces friction for users unfamiliar with the Loa workflow by providing clear guidance on what to do next.
+Show current workflow state, health, progress, and suggest the next command. The **universal entry point** for Loa — the only command you need to remember.
 
 ## Invocation
 
 ```
-/loa              # Show status, version, and suggestion
+/loa              # Show status, health, journey, and suggestion
+/loa --help       # Show the 5 Golden Path commands
+/loa --help-full  # Show all 43+ commands
 /loa --json       # JSON output for scripting
 /loa --version    # Only show version info (quick check)
+/loa doctor       # Run full health check (delegates to loa-doctor.sh)
 ```
 
 ## Workflow
 
-1. **Detect State**: Run `.claude/scripts/loa-status.sh` to determine current workflow state and version info
-2. **Display Progress**: Show visual progress indicator with framework version
-3. **Suggest Command**: Present the recommended next command
-4. **Prompt User**: Ask user to proceed, skip, or exit
+1. **Detect State**: Run `.claude/scripts/loa-status.sh` and `.claude/scripts/golden-path.sh` to determine workflow state
+2. **Health Summary**: Show one-line system health (from `/loa doctor` quick check)
+3. **Journey Bar**: Show golden path progress visualization
+4. **Suggest Command**: Present the recommended **golden command** (not truename)
+5. **Prompt User**: Ask user to proceed or explore
+
+## Golden Path Integration (v1.30.0)
+
+The `/loa` command now suggests **golden commands** instead of truenames:
+
+| State | Old Suggestion | Golden Suggestion |
+|-------|---------------|-------------------|
+| `initial` | `/plan-and-analyze` | `/plan` |
+| `prd_created` | `/architect` | `/plan` |
+| `sdd_created` | `/sprint-plan` | `/plan` |
+| `sprint_planned` | `/implement sprint-1` | `/build` |
+| `implementing` | `/implement sprint-N` | `/build` |
+| `reviewing` | `/review-sprint sprint-N` | `/review` |
+| `auditing` | `/audit-sprint sprint-N` | `/review` |
+| `complete` | `/deploy-production` | `/ship` |
+
+## Output Format (Enhanced)
+
+```
+  Loa — Agent-Driven Development
+
+  Health: ✓ All systems operational
+  State:  Building (implementing sprint-2)
+
+  ┌─────────────────────────────────────────────────────┐
+  │  /plan ━━━━━━━ /build ━━●━━━━ /review ─── /ship    │
+  │                     ▲                                │
+  │                 you are here                         │
+  └─────────────────────────────────────────────────────┘
+
+  Progress: [████████████░░░░░░░░] 60%
+  Sprint 2 of 3 — 1 complete
+
+  Next: /build
+  Continue implementing sprint-2.
+
+  Run /loa --help for all commands.
+```
+
+### Health Summary Line
+
+Run a quick health check and display one-line summary:
+
+```bash
+# Run golden-path.sh for state detection
+source .claude/scripts/golden-path.sh
+suggested=$(golden_suggest_command)
+journey=$(golden_format_journey)
+```
+
+The health line shows:
+- `✓ All systems operational` (green) — no issues
+- `⚠ 2 warnings — run /loa doctor` (yellow) — non-blocking issues
+- `✗ System unhealthy — run /loa doctor` (red) — blocking issues
+
+### Journey Bar
+
+The journey bar shows position in the golden path:
+
+```
+/plan ━━━━━●━━━━━ /build ─── /review ─── /ship
+      ▲
+  you are here
+```
+
+Using `golden_format_journey()` from golden-path.sh.
+
+## `/loa --help` Output
+
+```
+The Golden Path — 5 commands, full development cycle:
+
+  /loa      Where am I? What's next?
+  /plan     Plan your project (requirements → architecture → sprints)
+  /build    Build the current sprint
+  /review   Review and audit your work
+  /ship     Deploy and archive
+
+Power user commands:
+  /plan-and-analyze    Create PRD only
+  /architect           Design architecture only
+  /sprint-plan         Plan sprints only
+  /implement sprint-N  Build specific sprint
+  /review-sprint N     Review specific sprint
+  /audit-sprint N      Security audit specific sprint
+  /run sprint-plan     Autonomous mode (overnight)
+
+Diagnostics:
+  /loa doctor          System health check
+  /loa doctor --json   CI-friendly health check
+
+Run /loa --help-full for all commands.
+```
+
+## `/loa --help-full` Output
+
+Show all commands grouped by category:
+
+```
+All Loa Commands
+
+  Core Workflow (Golden Path):
+    /loa                     Where am I? What's next?
+    /plan                    Plan (requirements → architecture → sprints)
+    /build                   Build the current sprint
+    /review                  Review and audit your work
+    /ship                    Deploy and archive
+
+  Planning (Truenames):
+    /plan-and-analyze        Create PRD with context-first discovery
+    /architect               Design system architecture → SDD
+    /sprint-plan             Create sprint plan with task breakdown
+
+  Implementation:
+    /implement sprint-N      Implement specific sprint
+    /review-sprint sprint-N  Code review for specific sprint
+    /audit-sprint sprint-N   Security audit for specific sprint
+    /deploy-production       Deploy to production
+
+  Autonomous:
+    /run sprint-N            Autonomous sprint execution
+    /run sprint-plan         Execute all sprints autonomously
+    /run-status              Check run progress
+    /run-halt                Stop active run
+    /run-resume              Resume halted run
+    /autonomous              Full autonomous workflow
+    /simstim                 HITL accelerated workflow
+
+  Analysis:
+    /ride                    Analyze existing codebase
+    /audit                   Full codebase security audit
+    /validate                Validation suite
+    /oracle                  Code pattern analysis
+    /flatline-review         Multi-model adversarial review
+
+  Framework:
+    /mount                   Install Loa on a repo
+    /update-loa              Pull framework updates
+    /loa doctor              System health check
+    /ledger                  Sprint ledger management
+    /archive-cycle           Archive development cycle
+    /constructs              Browse construct packs
+
+  Learning:
+    /compound                Extract learnings from cycles
+    /enhance                 Improve prompt quality
+    /feedback                Submit DX feedback
+    /translate               Executive translations
+```
 
 ## State Detection
 
-The workflow-state.sh script detects:
+The workflow-state.sh script detects states, and golden-path.sh maps them to golden commands:
 
-| State | Condition | Suggested Command |
-|-------|-----------|-------------------|
-| `initial` | No `prd.md` exists | `/plan-and-analyze` |
-| `prd_created` | PRD exists, no SDD | `/architect` |
-| `sdd_created` | SDD exists, no sprint plan | `/sprint-plan` |
-| `sprint_planned` | Sprint plan exists, no work started | `/implement sprint-1` |
-| `implementing` | Sprint in progress | `/implement sprint-N` |
-| `reviewing` | Awaiting review | `/review-sprint sprint-N` |
-| `auditing` | Awaiting security audit | `/audit-sprint sprint-N` |
-| `complete` | All sprints done | `/deploy-production` |
-
-## Output Format
-
-```
-═══════════════════════════════════════════════════════════════
- Loa Status
-═══════════════════════════════════════════════════════════════
-
-Framework Version
-  Version: 1.15.0
-  Ref:     v1.15.0 (stable release)
-  Updated: 2026-01-15
-  Source:  https://github.com/0xHoneyJar/loa
-
-───────────────────────────────────────────────────────────────
-
-Workflow State
-  State: implementing
-  Implementing sprint-2.
-  Progress: [████████████░░░░░░░░] 60%
-  Current Sprint: sprint-2
-  Sprints: 1/3 complete
-
-───────────────────────────────────────────────────────────────
-
-Prompt Enhancement (v1.17.0)
-  Today: 5 enhanced, 12 skipped, 0 errors
-  Avg latency: 42ms
-  Last enhanced: 2 hours ago
-
-───────────────────────────────────────────────────────────────
-
-Invisible Retrospective (v1.19.0)
-  Today: 3 detected, 1 extracted, 2 skipped
-  Session: 1 learning captured
-  Last extraction: 2 hours ago
-
-───────────────────────────────────────────────────────────────
- Suggested: /implement sprint-2
-═══════════════════════════════════════════════════════════════
-
-Run suggested command? [Y/n/exit]
-```
-
-### Feature Branch Warning
-
-When on a non-stable branch:
-
-```
-Framework Version
-  Version: 1.15.0
-  Ref:     feature/new-thing (feature branch)
-  Warning: You're on a non-stable branch
-  Tip: Run /update-loa @latest to switch to stable
-```
+| State | Condition | Golden Command |
+|-------|-----------|----------------|
+| `initial` | No `prd.md` exists | `/plan` |
+| `prd_created` | PRD exists, no SDD | `/plan` |
+| `sdd_created` | SDD exists, no sprint plan | `/plan` |
+| `sprint_planned` | Sprint plan exists, no work started | `/build` |
+| `implementing` | Sprint in progress | `/build` |
+| `reviewing` | Awaiting review | `/review` |
+| `auditing` | Awaiting security audit | `/review` |
+| `complete` | All sprints done | `/ship` |
 
 ## User Prompts
 
-After displaying status, prompt the user:
+After displaying status, prompt the user using AskUserQuestion:
 
-| Input | Action |
-|-------|--------|
-| `Y` or `y` or Enter | Execute the suggested command |
-| `n` or `N` | Show available commands without executing |
-| `exit` or `q` | Exit without action |
-
-## Available Commands Display
-
-When user selects `n`, show:
-
-```
-Available commands at this stage:
-
-  /implement sprint-2   ← Suggested (continue implementation)
-  /review-sprint sprint-1  (review completed sprint)
-  /validate             (run validation suite)
-  /audit                (full codebase audit)
-
-Type a command or 'exit' to quit:
+```yaml
+question: "What would you like to do?"
+options:
+  - label: "Run suggested"
+    description: "Execute /build (continue implementing sprint-2)"
+  - label: "Show all commands"
+    description: "See all available commands"
+  - label: "Run doctor"
+    description: "Full system health check"
 ```
 
 ## Implementation Notes
 
-1. **Run loa-status.sh** (includes version info):
+1. **Run loa-status.sh** for version and state info:
    ```bash
-   # Full status with version info
    status_json=$(.claude/scripts/loa-status.sh --json)
-
-   # Quick version check only
-   version_json=$(.claude/scripts/loa-status.sh --version --json)
    ```
 
-2. **Parse JSON output**:
-   - `state`: Current workflow state
-   - `current_sprint`: Active sprint ID
-   - `progress_percent`: Progress bar value
-   - `suggested_command`: What to run next
-   - `framework.version`: Current framework version
-   - `framework.ref`: Current ref (tag/branch/commit)
-   - `framework.ref_type`: Type of ref
-   - `framework.warning`: Warning if on non-stable ref
-   - `framework.update_available`: True if update is available
+2. **Run golden-path.sh** for golden command resolution:
+   ```bash
+   source .claude/scripts/golden-path.sh
+   suggested=$(golden_suggest_command)
+   journey=$(golden_format_journey)
+   phase=$(golden_detect_plan_phase)
+   sprint=$(golden_detect_sprint)
+   ```
 
-3. **Display formatted output** with version info and progress bar
+3. **Health summary** (quick check):
+   ```bash
+   # If loa-doctor.sh exists (from PR #218), run quick check
+   if [[ -x .claude/scripts/loa-doctor.sh ]]; then
+     health_json=$(.claude/scripts/loa-doctor.sh --json --quick 2>/dev/null)
+     health_status=$(echo "$health_json" | jq -r '.status')
+     health_warnings=$(echo "$health_json" | jq '.warnings // 0')
+     health_issues=$(echo "$health_json" | jq '.issues // 0')
+   fi
+   ```
 
 4. **Prompt Enhancement Statistics** (v1.17.0):
    ```bash
-   # Parse today's trajectory log for enhancement metrics
    today=$(date +%Y-%m-%d)
    log_file="grimoires/loa/a2a/trajectory/prompt-enhancement-${today}.jsonl"
 
@@ -163,7 +253,6 @@ Type a command or 'exit' to quit:
 
 5. **Invisible Retrospective Statistics** (v1.19.0):
    ```bash
-   # Parse today's retrospective trajectory log for learning metrics
    today=$(date +%Y-%m-%d)
    retro_log="grimoires/loa/a2a/trajectory/retrospective-${today}.jsonl"
 
@@ -171,25 +260,7 @@ Type a command or 'exit' to quit:
      detected=$(grep -c '"action":"DETECTED"' "$retro_log" 2>/dev/null || echo 0)
      extracted=$(grep -c '"action":"EXTRACTED"' "$retro_log" 2>/dev/null || echo 0)
      skipped=$(grep -c '"action":"SKIPPED"' "$retro_log" 2>/dev/null || echo 0)
-     disabled=$(grep -c '"action":"DISABLED"' "$retro_log" 2>/dev/null || echo 0)
-
-     # Get last extraction timestamp
-     last_extracted=$(grep '"action":"EXTRACTED"' "$retro_log" | tail -1 | jq -r '.timestamp' 2>/dev/null)
    fi
-   ```
-
-   If no retrospective data exists, show: "Invisible Retrospective: No activity today"
-
-   If feature is disabled in config, show: "Invisible Retrospective: Disabled"
-
-5. **Use AskUserQuestion** for user prompt:
-   ```yaml
-   question: "Run suggested command?"
-   options:
-     - label: "Yes, run it"
-       description: "Execute the suggested command now"
-     - label: "Show alternatives"
-       description: "See other available commands"
    ```
 
 ## Error Handling
@@ -197,6 +268,7 @@ Type a command or 'exit' to quit:
 | Error | Resolution |
 |-------|------------|
 | workflow-state.sh missing | "Workflow detection unavailable. Try `/help`." |
+| golden-path.sh missing | Fall back to truename suggestions |
 | Invalid state | "Unable to determine state. Check grimoires/loa/ files." |
 | User cancels | Exit gracefully with no action |
 
@@ -204,8 +276,10 @@ Type a command or 'exit' to quit:
 
 The `/loa` command integrates with:
 
-- **workflow-chain.yaml**: Uses same state definitions
-- **suggest-next-step.sh**: Consistent suggestions
+- **golden-path.sh**: Golden command resolution, journey bar, state detection
+- **loa-status.sh**: Version info, workflow state
+- **loa-doctor.sh**: Health summary (if available from PR #218)
+- **workflow-chain.yaml**: State definitions
 - **All skill commands**: Can be called from `/loa` prompt
 
 ## Examples
@@ -215,23 +289,21 @@ The `/loa` command integrates with:
 ```
 /loa
 
-═══════════════════════════════════════════════════
- Loa Workflow Status
-═══════════════════════════════════════════════════
+  Loa — Agent-Driven Development
 
- State: initial
- No PRD found. Ready to start discovery.
+  Health: ✓ All systems operational
+  State:  Ready to start
 
- Progress: [░░░░░░░░░░░░░░░░░░░░] 0%
+  ┌─────────────────────────────────────────────────────┐
+  │  /plan ●━━━━━━ /build ─── /review ─── /ship        │
+  │     ▲                                                │
+  │ you are here                                         │
+  └─────────────────────────────────────────────────────┘
 
- Sprints: 0/0 complete
+  No PRD found. Ready to start planning.
 
-───────────────────────────────────────────────────
- Suggested: /plan-and-analyze
-═══════════════════════════════════════════════════
-
-This command will gather requirements and create a PRD.
-Ready to start? [Y/n/exit]
+  Next: /plan
+  Gather requirements and plan your project.
 ```
 
 ### Mid-Development
@@ -239,23 +311,44 @@ Ready to start? [Y/n/exit]
 ```
 /loa
 
-═══════════════════════════════════════════════════
- Loa Workflow Status
-═══════════════════════════════════════════════════
+  Loa — Agent-Driven Development
 
- State: reviewing
- Review pending for sprint-2.
+  Health: ⚠ 1 warning — run /loa doctor
+  State:  Building (implementing sprint-2)
 
- Progress: [████████████████░░░░] 80%
+  ┌─────────────────────────────────────────────────────┐
+  │  /plan ━━━━━━━ /build ━━●━━━━ /review ─── /ship    │
+  │                     ▲                                │
+  │                 you are here                         │
+  └─────────────────────────────────────────────────────┘
 
- Current Sprint: sprint-2
- Sprints: 2/3 complete
+  Progress: [████████████░░░░░░░░] 60%
+  Sprint 2 of 3 — 1 complete
 
-───────────────────────────────────────────────────
- Suggested: /review-sprint sprint-2
-═══════════════════════════════════════════════════
+  Next: /build
+  Continue implementing sprint-2.
+```
 
-Run suggested command? [Y/n/exit]
+### All Done
+
+```
+/loa
+
+  Loa — Agent-Driven Development
+
+  Health: ✓ All systems operational
+  State:  Ready to ship
+
+  ┌─────────────────────────────────────────────────────┐
+  │  /plan ━━━━━━━ /build ━━━━━━━ /review ━━━━━ /ship ●│
+  │                                                  ▲   │
+  │                                          you are here│
+  └─────────────────────────────────────────────────────┘
+
+  All 3 sprints reviewed and audited.
+
+  Next: /ship
+  Deploy to production and archive the cycle.
 ```
 
 ## Configuration
@@ -267,4 +360,5 @@ guided_workflow:
   auto_execute: false        # Auto-run suggested command (default: prompt)
   show_progress_bar: true    # Display visual progress
   show_alternatives: true    # Show alternative commands on 'n'
+  golden_path: true          # Use golden command suggestions (default: true)
 ```

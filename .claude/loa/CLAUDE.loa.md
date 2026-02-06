@@ -122,7 +122,23 @@ paths:
 
 **Requirements**: yq v4+ (mikefarah/yq) for YAML parsing. Missing yq uses defaults with warning.
 
-## Workflow
+## Golden Path (v1.30.0)
+
+**5 commands for 90% of users.** All existing truename commands remain available for power users.
+
+| Command | What It Does | Routes To |
+|---------|-------------|-----------|
+| `/loa` | Where am I? What's next? | Status + health + next step |
+| `/plan` | Plan your project | `/plan-and-analyze` → `/architect` → `/sprint-plan` |
+| `/build` | Build the current sprint | `/implement sprint-N` (auto-detected) |
+| `/review` | Review and audit your work | `/review-sprint` + `/audit-sprint` |
+| `/ship` | Deploy and archive | `/deploy-production` + `/archive-cycle` |
+
+**Design**: Porcelain & Plumbing (git model). Golden commands are zero-arg by default with auto-detection. Truenames accept specific arguments for power users.
+
+**Script**: `.claude/scripts/golden-path.sh` — shared state resolution helpers.
+
+## Workflow (Truenames)
 
 | Phase | Command | Output |
 |-------|---------|--------|
