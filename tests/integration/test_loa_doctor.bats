@@ -183,6 +183,30 @@ run_doctor() {
     [[ $status -eq 2 ]]
 }
 
+@test "doctor --json: dependency checks have correct structure" {
+    run_doctor --json
+    # Verify each hard dep has status, name, and version
+    local git_status jq_status
+    git_status=$(echo "$output" | jq -r '.checks.dependencies.git.status')
+    jq_status=$(echo "$output" | jq -r '.checks.dependencies.jq.status')
+    [[ "$git_status" == "ok" ]]
+    [[ "$jq_status" == "ok" ]]
+    # Verify version is captured
+    [[ $(echo "$output" | jq -r '.checks.dependencies.git.version') != "null" ]]
+    [[ $(echo "$output" | jq -r '.checks.dependencies.jq.version') != "null" ]]
+}
+
+@test "doctor --json: multiple warnings accumulate correctly" {
+    # Remove both config and version file to produce 2 warnings
+    rm -f "$TEST_DIR/.loa.config.yaml"
+    rm -f "$TEST_DIR/.loa-version.json"
+    run_doctor --json
+    local warnings
+    warnings=$(echo "$output" | jq '.warnings')
+    [[ "$warnings" -ge 2 ]]
+    [[ $(echo "$output" | jq -r '.status') == "DEGRADED" ]]
+}
+
 # =============================================================================
 # JSON Output
 # =============================================================================
@@ -283,10 +307,12 @@ run_doctor() {
 # Verbose Mode
 # =============================================================================
 
-@test "doctor --verbose: shows tool names" {
+@test "doctor --verbose: shows passing check details" {
     run_doctor --verbose
     [[ "$output" == *"git"* ]]
     [[ "$output" == *"jq"* ]]
+    # Verbose mode should show detail text for passing checks
+    [[ "$output" == *"Version control"* ]] || [[ "$output" == *"JSON processor"* ]]
 }
 
 # =============================================================================
@@ -312,6 +338,15 @@ run_doctor() {
     local detail
     detail=$(echo "$output" | jq -r '.checks.framework.error_codes.detail')
     [[ "$detail" == *"error codes"* ]]
+}
+
+@test "doctor --json: check count >= 10 (no silent skips)" {
+    run_doctor --json
+    # Count total checks across all categories
+    local total_checks
+    total_checks=$(echo "$output" | jq '[.checks | to_entries[] | .value | to_entries | length] | add')
+    # Expect at least 10 checks (4 deps + 3 optional + 3 framework + project + event + beads)
+    [[ "$total_checks" -ge 10 ]]
 }
 
 # =============================================================================

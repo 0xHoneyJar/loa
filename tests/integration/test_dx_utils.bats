@@ -327,6 +327,26 @@ setup() {
     [[ "$output" == *"Unknown error code"* ]]
 }
 
+@test "graceful fallback: missing registry file shows unloaded message" {
+    # Source dx-utils with a fake lib dir that has no error-codes.json
+    local fake_dir
+    fake_dir=$(mktemp -d)
+    mkdir -p "$fake_dir/lib"
+    # Copy dx-utils.sh to fake location so BASH_SOURCE resolves there
+    cp "$DX_UTILS" "$fake_dir/lib/dx-utils.sh"
+    # No .claude/data/error-codes.json exists relative to fake_dir/lib/
+
+    # Source from fake location — registry will fail to load
+    unset _DX_UTILS_LOADED
+    source "$fake_dir/lib/dx-utils.sh"
+
+    local output rc
+    output=$(dx_error "E001" 2>&1) && rc=$? || rc=$?
+    [[ $rc -eq 1 ]]
+    [[ "$output" == *"Unknown error code"* ]] || [[ "$output" == *"registry not loaded"* ]]
+    rm -rf "$fake_dir"
+}
+
 # =============================================================================
 # Platform Install Hints
 # =============================================================================
