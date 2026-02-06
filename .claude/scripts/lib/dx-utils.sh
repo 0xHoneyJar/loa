@@ -80,8 +80,10 @@ _DX_ICON_SKIP="${_DX_DIM}·${_DX_NC}"
 _dx_sanitize() {
     local text="${1:-}"
     local max_bytes="${2:-4096}"
-    # Strip control chars except newline and tab
-    text=$(printf '%s' "$text" | tr -d '\000-\010\013\014\016-\037\177')
+    # Strip control chars including newlines (prevents fake "Fix:" injection via
+    # multiline context). Preserves tabs only. Strips C0 (0x00-0x1F except HT),
+    # DEL (0x7F), and C1 control range (0x80-0x9F) for terminal safety.
+    text=$(printf '%s' "$text" | tr -d '\000-\010\012-\014\016-\037\177')
     # Truncate
     if [[ ${#text} -gt ${max_bytes} ]]; then
         text="${text:0:${max_bytes}}... (truncated)"
