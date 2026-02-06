@@ -341,7 +341,7 @@ run_migration() {
     if [[ -f ".loa.config.yaml" ]]; then
         if grep -q "loa-grimoire" ".loa.config.yaml" 2>/dev/null; then
             log_info "Updating .loa.config.yaml..."
-            sed -i 's|loa-grimoire|grimoires/loa|g' ".loa.config.yaml"
+            sed 's|loa-grimoire|grimoires/loa|g' ".loa.config.yaml" > ".loa.config.yaml.tmp" && mv ".loa.config.yaml.tmp" ".loa.config.yaml"
             log_success "Updated .loa.config.yaml"
         fi
     fi
@@ -350,7 +350,7 @@ run_migration() {
     if [[ -f ".gitignore" ]]; then
         if grep -q "loa-grimoire" ".gitignore" 2>/dev/null; then
             log_info "Updating .gitignore..."
-            sed -i 's|loa-grimoire|grimoires/loa|g' ".gitignore"
+            sed 's|loa-grimoire|grimoires/loa|g' ".gitignore" > ".gitignore.tmp" && mv ".gitignore.tmp" ".gitignore"
             log_success "Updated .gitignore"
         fi
     fi

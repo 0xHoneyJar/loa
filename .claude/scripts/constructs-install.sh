@@ -122,7 +122,7 @@ validate_symlink_target() {
     fi
 
     # SECURITY: If the target already exists, verify it resolves correctly
-    # This is the definitive check using readlink -f
+    # Portable: readlink -f → realpath → cd+pwd fallback (macOS compat)
     if [[ -d "$link_dir" ]]; then
         local project_root
         project_root=$(cd "$link_dir" && pwd)
@@ -130,12 +130,13 @@ validate_symlink_target() {
 
         # Create a temporary test to verify resolution
         # Use cd to the link directory and resolve from there
-        resolved_target=$(cd "$link_dir" && readlink -f "$target" 2>/dev/null || echo "")
+        resolved_target=$(cd "$link_dir" && (readlink -f "$target" 2>/dev/null || realpath "$target" 2>/dev/null || echo ""))
 
         if [[ -n "$resolved_target" ]]; then
             # Get the constructs directory absolute path
-            local constructs_abs
-            constructs_abs=$(readlink -f "$(get_constructs_dir)" 2>/dev/null || echo "")
+            local constructs_abs constructs_dir
+            constructs_dir=$(get_constructs_dir)
+            constructs_abs=$(readlink -f "$constructs_dir" 2>/dev/null || realpath "$constructs_dir" 2>/dev/null || (cd "$constructs_dir" 2>/dev/null && pwd -P) || echo "")
 
             # Verify resolved path is within constructs
             if [[ -n "$constructs_abs" ]] && [[ "$resolved_target" != "$constructs_abs"* ]]; then

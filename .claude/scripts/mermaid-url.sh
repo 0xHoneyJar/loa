@@ -333,7 +333,9 @@ render_local() {
 
     # Create temp file for input
     local tmpfile
-    tmpfile=$(mktemp --suffix=.mmd)
+    tmpfile=$(mktemp "${TMPDIR:-/tmp}/loa-mermaid.XXXXXX")
+    mv "$tmpfile" "${tmpfile}.mmd"
+    tmpfile="${tmpfile}.mmd"
     printf '%s' "$mermaid" > "$tmpfile"
 
     # Render using mermaid-cli
