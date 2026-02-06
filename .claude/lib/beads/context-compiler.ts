@@ -30,7 +30,7 @@ import {
   type BeadClassification,
   type ConfidenceLevel,
 } from "./labels";
-import { validateBeadId } from "./validation";
+import { validateBeadId, validateLabel } from "./validation";
 
 // =============================================================================
 // Types
@@ -127,7 +127,7 @@ export interface ContextCompilerConfig {
    * Whether to include superseded beads.
    * Default: false (only include the latest in a supersession chain).
    */
-  includeSuperseeded?: boolean;
+  includeSuperseded?: boolean;
 
   /**
    * Whether to include beads with stale confidence.
@@ -188,7 +188,7 @@ export class ContextCompiler {
     this.executor = executor;
     this.tokenBudget = config?.tokenBudget ?? DEFAULT_TOKEN_BUDGET;
     this.charsPerToken = config?.charsPerToken ?? DEFAULT_CHARS_PER_TOKEN;
-    this.includeSuperseded = config?.includeSuperseeded ?? false;
+    this.includeSuperseded = config?.includeSuperseded ?? false;
     this.includeStale = config?.includeStale ?? false;
     this.verbose = config?.verbose ?? false;
   }
@@ -290,6 +290,7 @@ export class ContextCompiler {
       // Find sprint/epic labels to scope the query
       const epicLabels = getLabelsWithPrefix(taskLabels, "epic:");
       for (const epicLabel of epicLabels) {
+        validateLabel(epicLabel); // Defense-in-depth: label from store interpolated into shell cmd
         const sprintBeads = await this.queryBeads(
           `list --label '${epicLabel}' --json`,
         );
