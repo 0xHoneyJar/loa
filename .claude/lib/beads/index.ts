@@ -4,7 +4,7 @@
  * Production-hardened utilities for beads_rust integration.
  *
  * @module beads
- * @version 1.0.0
+ * @version 1.1.0
  * @origin Extracted from loa-beauvoir production implementation
  */
 
@@ -56,7 +56,9 @@ export {
    * Use `SprintState` (from interfaces) when working with full sprint objects.
    */
   type SprintState as LabelSprintState,
-  // Utility Functions
+  type BeadClassification,
+  type ConfidenceLevel,
+  // Existing Utility Functions
   createSameIssueLabel,
   parseSameIssueCount,
   createSessionLabel,
@@ -66,6 +68,18 @@ export {
   getLabelsWithPrefix,
   deriveRunState,
   deriveSprintState,
+  // Lineage Utilities (Issue #208, Phase 2)
+  createSupersedesLabel,
+  createBranchedFromLabel,
+  parseLineageTarget,
+  getSupersedesTargets,
+  getBranchedFromSources,
+  // Classification Utilities (Issue #208, Phase 3)
+  classificationToLabel,
+  confidenceToLabel,
+  deriveClassification,
+  deriveConfidence,
+  classificationPriority,
 } from "./labels";
 
 // =============================================================================
@@ -104,3 +118,29 @@ export {
   BeadsRunStateManager,
   createBeadsRunStateManager,
 } from "./run-state";
+
+// =============================================================================
+// Gap Detection (Issue #208, Phase 1)
+// =============================================================================
+
+export {
+  GapDetector,
+  createGapDetector,
+  type DetectedGap,
+  type GapDetectionResult,
+  type GapDetectionConfig,
+  type GapSeverity,
+} from "./gap-detection";
+
+// =============================================================================
+// Context Compiler (Issue #208, Phase 4)
+// =============================================================================
+
+export {
+  ContextCompiler,
+  createContextCompiler,
+  type ContextCompilationResult,
+  type ContextCompilerConfig,
+  type ScoredBead,
+  type ExclusionReason,
+} from "./context-compiler";
