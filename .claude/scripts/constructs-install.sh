@@ -41,6 +41,11 @@ else
     exit 6
 fi
 
+# Source cross-platform compatibility library
+if [[ -f "$SCRIPT_DIR/compat-lib.sh" ]]; then
+    source "$SCRIPT_DIR/compat-lib.sh"
+fi
+
 # =============================================================================
 # Exit Codes
 # =============================================================================
@@ -130,13 +135,21 @@ validate_symlink_target() {
 
         # Create a temporary test to verify resolution
         # Use cd to the link directory and resolve from there
-        resolved_target=$(cd "$link_dir" && (readlink -f "$target" 2>/dev/null || realpath "$target" 2>/dev/null || echo ""))
+        if command -v get_canonical_path &>/dev/null; then
+            resolved_target=$(cd "$link_dir" && get_canonical_path "$target")
+        else
+            resolved_target=$(cd "$link_dir" && (readlink -f "$target" 2>/dev/null || realpath "$target" 2>/dev/null || echo ""))
+        fi
 
         if [[ -n "$resolved_target" ]]; then
             # Get the constructs directory absolute path
             local constructs_abs constructs_dir
             constructs_dir=$(get_constructs_dir)
-            constructs_abs=$(readlink -f "$constructs_dir" 2>/dev/null || realpath "$constructs_dir" 2>/dev/null || (cd "$constructs_dir" 2>/dev/null && pwd -P) || echo "")
+            if command -v get_canonical_path &>/dev/null; then
+                constructs_abs=$(get_canonical_path "$constructs_dir")
+            else
+                constructs_abs=$(readlink -f "$constructs_dir" 2>/dev/null || realpath "$constructs_dir" 2>/dev/null || (cd "$constructs_dir" 2>/dev/null && pwd -P) || echo "")
+            fi
 
             # Verify resolved path is within constructs
             if [[ -n "$constructs_abs" ]] && [[ "$resolved_target" != "$constructs_abs"* ]]; then

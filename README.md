@@ -1,8 +1,8 @@
 # Loa
 
-[![Version](https://img.shields.io/badge/version-1.28.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.29.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
-[![Release](https://img.shields.io/badge/release-Dicklesworth%20Improvements-purple.svg)](CHANGELOG.md#1280---2026-02-05--dicklesworth-improvements)
+[![Release](https://img.shields.io/badge/release-Beads--First%20Infrastructure-purple.svg)](CHANGELOG.md#1290---2026-02-05--beads-first-infrastructure)
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
 
