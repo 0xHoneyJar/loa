@@ -1,0 +1,171 @@
+# =============================================================================
+# Shell Compatibility Lint
+# =============================================================================
+# Catches platform-specific shell patterns that break on macOS/Linux/WSL.
+#
+# Runs on PRs that touch .claude/scripts/**/*.sh files.
+# See: .claude/protocols/cross-platform-shell.md
+# Issue: https://github.com/0xHoneyJar/loa/issues/195
+
+name: Shell Compatibility Lint
+
+on:
+  pull_request:
+    paths:
+      - '.claude/scripts/**/*.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  compat-lint:
+    name: Cross-Platform Compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for platform-specific patterns
+        shell: bash
+        run: |
+          errors=0
+          warnings=0
+
+          echo "═══════════════════════════════════════════════"
+          echo "  Cross-Platform Shell Compatibility Lint"
+          echo "═══════════════════════════════════════════════"
+          echo ""
+
+          # ---------------------------------------------------------------
+          # ERROR: sed -i without compat-lib (breaks macOS)
+          #
+          # GNU sed:  sed -i 's/x/y/' file
+          # BSD sed:  sed -i '' 's/x/y/' file
+          #
+          # Detection: find `sed -i` NOT preceded by sourcing compat-lib
+          # Allowlist: compat-lib.sh itself, test files
+          # ---------------------------------------------------------------
+          echo "Checking: sed -i usage..."
+          while IFS=: read -r file line content; do
+            # Skip the library itself and test files
+            [[ "$file" == *"compat-lib.sh"* ]] && continue
+            [[ "$file" == *"test"* ]] && continue
+            [[ "$file" == *".bats"* ]] && continue
+
+            # Skip if file sources compat-lib
+            if grep -q 'compat-lib\.sh' "$file" 2>/dev/null; then
+              continue
+            fi
+
+            echo "  ERROR: $file:$line — bare 'sed -i' without compat-lib.sh"
+            echo "         Use: sed_inplace 's/pattern/replacement/' file"
+            echo "         $content"
+            ((errors++)) || true
+          done < <(grep -rn 'sed -i ' .claude/scripts/*.sh .claude/scripts/**/*.sh 2>/dev/null || true)
+
+          # ---------------------------------------------------------------
+          # ERROR: readlink -f (not available on macOS)
+          # ---------------------------------------------------------------
+          echo "Checking: readlink -f usage..."
+          while IFS=: read -r file line content; do
+            [[ "$file" == *"compat-lib.sh"* ]] && continue
+            [[ "$file" == *"test"* ]] && continue
+
+            # Skip if file sources compat-lib or has its own fallback
+            if grep -q 'compat-lib\.sh\|get_canonical_path\|realpath.*||.*readlink' "$file" 2>/dev/null; then
+              continue
+            fi
+
+            echo "  ERROR: $file:$line — bare 'readlink -f' without fallback"
+            echo "         Use: get_canonical_path (from compat-lib.sh)"
+            echo "         $content"
+            ((errors++)) || true
+          done < <(grep -rn 'readlink -f' .claude/scripts/*.sh .claude/scripts/**/*.sh 2>/dev/null || true)
+
+          # ---------------------------------------------------------------
+          # ERROR: grep -P (Perl regex not on macOS)
+          # ---------------------------------------------------------------
+          echo "Checking: grep -P usage..."
+          while IFS=: read -r file line content; do
+            echo "  ERROR: $file:$line — 'grep -P' not available on macOS"
+            echo "         Use: grep -E with POSIX extended regex"
+            echo "         $content"
+            ((errors++)) || true
+          done < <(grep -rn 'grep -P ' .claude/scripts/*.sh .claude/scripts/**/*.sh 2>/dev/null || true)
+
+          # ---------------------------------------------------------------
+          # WARNING: find -printf (not available on macOS)
+          # ---------------------------------------------------------------
+          echo "Checking: find -printf usage..."
+          while IFS=: read -r file line content; do
+            [[ "$file" == *"compat-lib.sh"* ]] && continue
+
+            if grep -q 'compat-lib\.sh\|find_sorted_by_time' "$file" 2>/dev/null; then
+              continue
+            fi
+
+            echo "  WARNING: $file:$line — 'find -printf' not available on macOS"
+            echo "           Use: find_sorted_by_time (from compat-lib.sh)"
+            echo "           $content"
+            ((warnings++)) || true
+          done < <(grep -rn '\-printf' .claude/scripts/*.sh .claude/scripts/**/*.sh 2>/dev/null || true)
+
+          # ---------------------------------------------------------------
+          # WARNING: mktemp --suffix (GNU-only)
+          # ---------------------------------------------------------------
+          echo "Checking: mktemp --suffix usage..."
+          while IFS=: read -r file line content; do
+            [[ "$file" == *"compat-lib.sh"* ]] && continue
+
+            if grep -q 'compat-lib\.sh\|make_temp' "$file" 2>/dev/null; then
+              continue
+            fi
+
+            echo "  WARNING: $file:$line — 'mktemp --suffix' not available on macOS"
+            echo "           Use: make_temp (from compat-lib.sh)"
+            echo "           $content"
+            ((warnings++)) || true
+          done < <(grep -rn 'mktemp --suffix' .claude/scripts/*.sh .claude/scripts/**/*.sh 2>/dev/null || true)
+
+          # ---------------------------------------------------------------
+          # WARNING: date +%N (handled by time-lib.sh)
+          # ---------------------------------------------------------------
+          echo "Checking: date +%N usage..."
+          while IFS=: read -r file line content; do
+            [[ "$file" == *"time-lib.sh"* ]] && continue
+            [[ "$file" == *"compat-lib.sh"* ]] && continue
+
+            if grep -q 'time-lib\.sh\|get_timestamp_ms\|get_timestamp_ns' "$file" 2>/dev/null; then
+              continue
+            fi
+
+            echo "  WARNING: $file:$line — 'date +%N' not supported on macOS"
+            echo "           Use: get_timestamp_ms (from time-lib.sh)"
+            echo "           $content"
+            ((warnings++)) || true
+          done < <(grep -rn 'date +%.*N' .claude/scripts/*.sh .claude/scripts/**/*.sh 2>/dev/null || true)
+
+          # ---------------------------------------------------------------
+          # Summary
+          # ---------------------------------------------------------------
+          echo ""
+          echo "═══════════════════════════════════════════════"
+          echo "  Results: $errors errors, $warnings warnings"
+          echo "═══════════════════════════════════════════════"
+          echo ""
+          echo "See: .claude/protocols/cross-platform-shell.md"
+
+          if [[ $errors -gt 0 ]]; then
+            echo ""
+            echo "FAILED: $errors platform-specific patterns detected."
+            echo "These will break on macOS. Fix before merging."
+            exit 1
+          fi
+
+          if [[ $warnings -gt 0 ]]; then
+            echo ""
+            echo "PASSED with $warnings warnings."
+            echo "Consider migrating to compat-lib.sh functions."
+          else
+            echo ""
+            echo "PASSED: No platform-specific patterns detected."
+          fi

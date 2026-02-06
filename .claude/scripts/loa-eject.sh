@@ -224,8 +224,8 @@ remove_skill_prefix() {
   # Update index.yaml name field
   local index_file="${new_path}/index.yaml"
   if [[ -f "$index_file" ]]; then
-    sed -i "s/^name: \"loa-/name: \"/g" "$index_file"
-    sed -i "s/^name: loa-/name: /g" "$index_file"
+    sed "s/^name: \"loa-/name: \"/g" "$index_file" > "${index_file}.tmp" && mv "${index_file}.tmp" "$index_file"
+    sed "s/^name: loa-/name: /g" "$index_file" > "${index_file}.tmp" && mv "${index_file}.tmp" "$index_file"
   fi
 }
 
@@ -257,7 +257,7 @@ remove_command_prefix() {
   step "Renamed command: $cmd_name -> $new_name"
 
   # Update name field in frontmatter
-  sed -i "s/^name: loa-/name: /g" "$new_path"
+  sed "s/^name: loa-/name: /g" "$new_path" > "${new_path}.tmp" && mv "${new_path}.tmp" "$new_path"
 }
 
 # === CLAUDE.md Merge ===

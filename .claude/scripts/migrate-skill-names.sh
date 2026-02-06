@@ -57,7 +57,7 @@ update_index_yaml() {
             if [ "$DRY_RUN" = true ]; then
                 log "  [dry-run] Update name in $yaml_file"
             else
-                sed -i "s/^name: ${old_name}/name: ${new_name}/" "$yaml_file"
+                sed "s/^name: ${old_name}/name: ${new_name}/" "$yaml_file" > "${yaml_file}.tmp" && mv "${yaml_file}.tmp" "$yaml_file"
                 log "  Updated: $yaml_file"
             fi
         fi
@@ -76,7 +76,7 @@ update_commands() {
                     if [ "$DRY_RUN" = true ]; then
                         log "  [dry-run] Update $old_name -> $new_name in $(basename "$cmd_file")"
                     else
-                        sed -i "s/${old_name}/${new_name}/g" "$cmd_file"
+                        sed "s/${old_name}/${new_name}/g" "$cmd_file" > "${cmd_file}.tmp" && mv "${cmd_file}.tmp" "$cmd_file"
                         updated=true
                     fi
                 fi
@@ -99,7 +99,7 @@ update_context_check() {
                 if [ "$DRY_RUN" = true ]; then
                     log "  [dry-run] Update $old_name -> $new_name"
                 else
-                    sed -i "s/${old_name}/${new_name}/g" "$script_file"
+                    sed "s/${old_name}/${new_name}/g" "$script_file" > "${script_file}.tmp" && mv "${script_file}.tmp" "$script_file"
                 fi
             fi
         done
@@ -121,7 +121,7 @@ update_docs() {
                     if [ "$DRY_RUN" = true ]; then
                         log "  [dry-run] Update $old_name -> $new_name in $doc_file"
                     else
-                        sed -i "s/${old_name}/${new_name}/g" "$doc_file"
+                        sed "s/${old_name}/${new_name}/g" "$doc_file" > "${doc_file}.tmp" && mv "${doc_file}.tmp" "$doc_file"
                         updated=true
                     fi
                 fi
@@ -145,7 +145,7 @@ update_protocols() {
                     if [ "$DRY_RUN" = true ]; then
                         log "  [dry-run] Update $old_name -> $new_name in $(basename "$proto_file")"
                     else
-                        sed -i "s/${old_name}/${new_name}/g" "$proto_file"
+                        sed "s/${old_name}/${new_name}/g" "$proto_file" > "${proto_file}.tmp" && mv "${proto_file}.tmp" "$proto_file"
                         updated=true
                     fi
                 fi

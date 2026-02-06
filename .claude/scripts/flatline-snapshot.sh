@@ -268,8 +268,9 @@ purge_oldest_snapshots() {
         rm -f "$snapshot" "$meta_file" "$refs_file"
         ((purged++))
         log "Purged old snapshot: $snapshot"
-    done < <(find "$SNAPSHOT_DIR" -name "*.snapshot" -type f -printf '%T+ %p\0' 2>/dev/null | \
-             sort -z | cut -z -d' ' -f2-)
+    done < <(find "$SNAPSHOT_DIR" -name "*.snapshot" -type f -print0 2>/dev/null | \
+             xargs -0 -I{} bash -c 'echo "$(stat -c %Y "{}" 2>/dev/null || stat -f %m "{}" 2>/dev/null) {}"' | \
+             sort -n | cut -d' ' -f2- | tr '\n' '\0')
 
     log "Purged $purged snapshots"
 }

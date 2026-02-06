@@ -181,7 +181,7 @@ check_deprecated_references() {
             # Create backup
             cp "$SETTINGS_LOCAL" "${SETTINGS_LOCAL}.bak"
             # Replace bd with br
-            sed -i 's/"Bash(bd /"Bash(br /g' "$SETTINGS_LOCAL"
+            sed 's/"Bash(bd /"Bash(br /g' "$SETTINGS_LOCAL" > "${SETTINGS_LOCAL}.tmp" && mv "${SETTINGS_LOCAL}.tmp" "$SETTINGS_LOCAL"
             add_fix "Replaced 'bd' with 'br' in settings.local.json (backup: ${SETTINGS_LOCAL}.bak)"
         fi
     else

@@ -244,7 +244,7 @@ write_decision() {
     if ! grep -q "## Decisions" "$NOTES_FILE"; then
         # Add section before Blockers or at end
         if grep -q "## Blockers" "$NOTES_FILE"; then
-            sed -i '/## Blockers/i ## Decisions\n\n| Date | Decision | Rationale |\n|------|----------|-----------|' "$NOTES_FILE"
+            sed '/## Blockers/i ## Decisions\n\n| Date | Decision | Rationale |\n|------|----------|-----------|' "$NOTES_FILE" > "${NOTES_FILE}.tmp" && mv "${NOTES_FILE}.tmp" "$NOTES_FILE"
         else
             echo -e "\n## Decisions\n\n| Date | Decision | Rationale |\n|------|----------|-----------|" >> "$NOTES_FILE"
         fi
@@ -261,7 +261,7 @@ write_decision() {
 
     if [[ -n "$table_header_line" ]]; then
         local new_row="| $date | $escaped_message | Source: $source |"
-        sed -i "${table_header_line}a\\${new_row}" "$NOTES_FILE"
+        sed "${table_header_line}a\\${new_row}" "$NOTES_FILE" > "${NOTES_FILE}.tmp" && mv "${NOTES_FILE}.tmp" "$NOTES_FILE"
         print_success "Decision logged to NOTES.md"
 
         # Also update active bead if enabled
