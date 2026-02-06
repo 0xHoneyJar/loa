@@ -1,0 +1,254 @@
+[
+  {
+    "code": "E001",
+    "name": "framework_not_mounted",
+    "category": "framework",
+    "what": "Loa framework is not mounted on this repository.",
+    "fix": "Run /mount to initialize the Loa framework."
+  },
+  {
+    "code": "E002",
+    "name": "missing_dependency",
+    "category": "framework",
+    "what": "A required system dependency is not installed.",
+    "fix": "Run /loa doctor to see what's missing and how to install it."
+  },
+  {
+    "code": "E003",
+    "name": "config_parse_error",
+    "category": "framework",
+    "what": "The .loa.config.yaml file contains invalid YAML.",
+    "fix": "Check .loa.config.yaml syntax. Try: yq '.' .loa.config.yaml"
+  },
+  {
+    "code": "E004",
+    "name": "version_file_missing",
+    "category": "framework",
+    "what": "The .loa-version.json file is missing or corrupted.",
+    "fix": "Run /update-loa to restore the version file."
+  },
+  {
+    "code": "E005",
+    "name": "system_zone_modified",
+    "category": "framework",
+    "what": "Files in the System Zone (.claude/) have been modified unexpectedly.",
+    "fix": "Run /update-loa to restore System Zone integrity, or check .claude/overrides/ for custom overrides."
+  },
+  {
+    "code": "E006",
+    "name": "jq_not_installed",
+    "category": "framework",
+    "what": "jq is required but not found on PATH.",
+    "fix": "Install jq: brew install jq (macOS) or apt install jq (Linux)."
+  },
+  {
+    "code": "E007",
+    "name": "yq_not_installed",
+    "category": "framework",
+    "what": "yq (mikefarah/yq v4+) is required but not found on PATH.",
+    "fix": "Install yq: brew install yq (macOS) or snap install yq (Linux)."
+  },
+  {
+    "code": "E008",
+    "name": "flock_not_available",
+    "category": "framework",
+    "what": "flock is required for atomic file writes but not found on PATH.",
+    "fix": "Install on macOS: brew install util-linux && export PATH=\"$(brew --prefix)/opt/util-linux/bin:$PATH\""
+  },
+  {
+    "code": "E009",
+    "name": "project_root_not_found",
+    "category": "framework",
+    "what": "Could not determine the project root directory.",
+    "fix": "Ensure you are inside a git repository, or that .claude/ or .loa.config.yaml exists in a parent directory."
+  },
+  {
+    "code": "E101",
+    "name": "prd_not_found",
+    "category": "workflow",
+    "what": "No PRD file found. The planning phase has not been completed.",
+    "fix": "Run /plan-and-analyze to create a Product Requirements Document."
+  },
+  {
+    "code": "E102",
+    "name": "sdd_not_found",
+    "category": "workflow",
+    "what": "No SDD file found. Architecture design has not been completed.",
+    "fix": "Run /architect to create a Software Design Document. Requires PRD first."
+  },
+  {
+    "code": "E103",
+    "name": "sprint_not_found",
+    "category": "workflow",
+    "what": "The requested sprint does not exist in the sprint plan.",
+    "fix": "Check available sprints with /loa. Create sprints with /sprint-plan."
+  },
+  {
+    "code": "E104",
+    "name": "sprint_plan_missing",
+    "category": "workflow",
+    "what": "No sprint plan file found.",
+    "fix": "Run /sprint-plan to create the sprint plan. Requires PRD and SDD first."
+  },
+  {
+    "code": "E105",
+    "name": "phase_skipped",
+    "category": "workflow",
+    "what": "A required workflow phase was skipped.",
+    "fix": "Loa phases build on each other: /plan -> /architect -> /sprint-plan -> /implement. Run the missing phase."
+  },
+  {
+    "code": "E106",
+    "name": "session_timeout",
+    "category": "workflow",
+    "what": "The agent session timed out during execution.",
+    "fix": "Progress was saved. Run the same command to resume from where it left off."
+  },
+  {
+    "code": "E107",
+    "name": "run_mode_halted",
+    "category": "workflow",
+    "what": "Autonomous run mode was halted due to an error or blocker.",
+    "fix": "Check .run/sprint-plan-state.json for the halt reason. Use /run-resume to continue."
+  },
+  {
+    "code": "E201",
+    "name": "beads_not_installed",
+    "category": "beads",
+    "what": "beads_rust (br) binary not found on PATH.",
+    "fix": "Install: cargo install beads_rust. Beads enables task tracking and sprint graphs."
+  },
+  {
+    "code": "E202",
+    "name": "beads_not_initialized",
+    "category": "beads",
+    "what": "beads_rust is installed but .beads/ directory does not exist.",
+    "fix": "Run: br init to initialize the beads database."
+  },
+  {
+    "code": "E203",
+    "name": "beads_schema_migration",
+    "category": "beads",
+    "what": "The beads database schema needs migration (missing columns or tables).",
+    "fix": "Run: br doctor for details. You may need to update beads_rust: cargo install beads_rust --force"
+  },
+  {
+    "code": "E204",
+    "name": "beads_db_corrupted",
+    "category": "beads",
+    "what": "The beads database file is corrupted or unreadable.",
+    "fix": "Restore from .beads/beads.db.bak, or reinitialize with: br init"
+  },
+  {
+    "code": "E205",
+    "name": "beads_sync_stale",
+    "category": "beads",
+    "what": "The beads JSONL sync file is stale (not updated recently).",
+    "fix": "Run: br sync --flush-only to refresh the JSONL sync."
+  },
+  {
+    "code": "E301",
+    "name": "event_bus_unavailable",
+    "category": "events",
+    "what": "The event bus store directory does not exist or is not writable.",
+    "fix": "Check that the event store directory exists and is writable. Run /loa doctor for details."
+  },
+  {
+    "code": "E302",
+    "name": "event_validation_failed",
+    "category": "events",
+    "what": "An event failed envelope validation (missing required fields).",
+    "fix": "Events require: specversion, id, type, source, time. Check the event payload against event-envelope.schema.json."
+  },
+  {
+    "code": "E303",
+    "name": "event_delivery_failed",
+    "category": "events",
+    "what": "Event delivery to one or more handlers failed.",
+    "fix": "Check the dead letter queue: loa-event-bus dlq-list. Handler stderr is captured in the error_output field."
+  },
+  {
+    "code": "E304",
+    "name": "event_payload_oversized",
+    "category": "events",
+    "what": "Event payload exceeds the maximum allowed size (default: 1MB).",
+    "fix": "Reduce payload size or adjust EVENT_MAX_PAYLOAD_BYTES."
+  },
+  {
+    "code": "E305",
+    "name": "flock_timeout",
+    "category": "events",
+    "what": "Failed to acquire file lock for event bus write operation.",
+    "fix": "Another process may hold the lock. Check for stuck processes or increase FLOCK_TIMEOUT."
+  },
+  {
+    "code": "E401",
+    "name": "danger_level_blocked",
+    "category": "security",
+    "what": "A skill was blocked by its danger level in the current execution mode.",
+    "fix": "High-danger skills require --allow-high in autonomous mode. Critical skills always require interactive confirmation."
+  },
+  {
+    "code": "E402",
+    "name": "pii_detected",
+    "category": "security",
+    "what": "PII (personally identifiable information) was detected in the input.",
+    "fix": "The PII filter blocked: API keys, emails, SSN, credit cards, or phone numbers. Remove sensitive data before retrying."
+  },
+  {
+    "code": "E403",
+    "name": "injection_detected",
+    "category": "security",
+    "what": "A potential prompt injection pattern was detected in the input.",
+    "fix": "The injection detection guardrail flagged this input. Review the input for injection patterns."
+  },
+  {
+    "code": "E404",
+    "name": "guardrail_config_error",
+    "category": "security",
+    "what": "Input guardrail configuration is invalid.",
+    "fix": "Check .loa.config.yaml guardrails section. See .claude/protocols/input-guardrails.md."
+  },
+  {
+    "code": "E405",
+    "name": "integrity_check_failed",
+    "category": "security",
+    "what": "System Zone integrity verification failed. Framework files may have been tampered with.",
+    "fix": "Run /update-loa to restore the System Zone. If intentional, use .claude/overrides/ for customizations."
+  },
+  {
+    "code": "E501",
+    "name": "pack_manifest_invalid",
+    "category": "constructs",
+    "what": "A pack manifest.json failed validation.",
+    "fix": "Run the manifest validator: .claude/scripts/constructs-loader.sh --validate. Check against pack-manifest.schema.json."
+  },
+  {
+    "code": "E502",
+    "name": "skill_index_invalid",
+    "category": "constructs",
+    "what": "A skill index.yaml failed validation.",
+    "fix": "Check the skill's index.yaml against skill-index.schema.json. Required fields: name, version, description, triggers."
+  },
+  {
+    "code": "E503",
+    "name": "pack_dependency_missing",
+    "category": "constructs",
+    "what": "A required pack dependency is not installed.",
+    "fix": "Install the missing pack with /constructs or check the pack manifest's dependencies section."
+  },
+  {
+    "code": "E504",
+    "name": "tool_dependency_missing",
+    "category": "constructs",
+    "what": "A pack requires an external tool that is not installed.",
+    "fix": "Check the tool's install command in the pack manifest. Loa never auto-installs tools — you decide."
+  },
+  {
+    "code": "E505",
+    "name": "event_topology_invalid",
+    "category": "constructs",
+    "what": "Event topology validation found issues (orphaned emitters or unsatisfied consumers).",
+    "fix": "Run: source .claude/scripts/lib/event-registry.sh && validate_event_topology --strict"
+  }
+]
