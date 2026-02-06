@@ -73,11 +73,10 @@ If user has key, prompt for it and run:
 #### Phase 0: Check Installed Packs FIRST
 
 ```bash
-installed=$(.claude/scripts/constructs-loader.sh list --json 2>/dev/null || echo "[]")
-installed_count=$(echo "$installed" | jq 'length')
+installed=$(.claude/scripts/constructs-loader.sh list 2>/dev/null)
 ```
 
-**If packs ARE installed (`installed_count > 0`):**
+**If packs ARE installed (output is non-empty):**
 - Show installed packs summary
 - Use AskUserQuestion with options:
   - "Use installed packs" → List skills/commands available
@@ -125,10 +124,10 @@ This returns a JSON array of packs with:
 Check which packs are already installed:
 
 ```bash
-installed=$(.claude/scripts/constructs-loader.sh list --json 2>/dev/null || echo "[]")
+installed=$(.claude/scripts/constructs-loader.sh list 2>/dev/null)
 ```
 
-#### Phase 3: Present Pack Selection Table
+#### Phase 4: Present Pack Selection Table
 
 Display ALL available packs in a numbered markdown table, then use AskUserQuestion for selection.
 
@@ -231,7 +230,7 @@ Proceed with installation? [Y/n]
 | `"abc"` | Error, re-prompt (counts as invalid attempt) |
 | 3 failures | Abort with "Too many invalid attempts" |
 
-#### Phase 4: Install Selected Packs
+#### Phase 5: Install Selected Packs
 
 For each selected pack, run installation:
 
@@ -244,7 +243,7 @@ Capture output and track:
 - Skills installed
 - Commands available
 
-#### Phase 5: Report Results
+#### Phase 6: Report Results
 
 Present installation summary:
 

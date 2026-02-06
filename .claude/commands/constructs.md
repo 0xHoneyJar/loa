@@ -68,9 +68,17 @@ Browse and install packs from the Loa Constructs Registry with a multi-select UI
 
 ## Workflow
 
-### Action: browse (default)
+### Action: default (no args)
 
-Interactive pack selection with multi-select UI.
+Smart routing based on installed state. Check installed packs first:
+- **If packs installed**: Offer "Use installed" / "Browse & install more" / "Manage installed"
+- **If no packs**: Continue to browse flow
+
+See `SKILL.md` Phase 0 for full details.
+
+### Action: browse
+
+Interactive pack selection with table-based UI.
 
 #### Phase 1: Fetch Available Packs
 
