@@ -19,13 +19,6 @@ interactively while HIGH_CONSENSUS findings auto-integrate.
 
 This skill manages its own 8-phase workflow. DO NOT use Claude Code's native Plan Mode.
 
-**CRITICAL RULES**:
-1. NEVER call `EnterPlanMode` — simstim phases ARE the plan
-2. NEVER jump to implementation after any user confirmation
-3. Each phase MUST complete sequentially: 0→1→2→3→4→5→6→6.5→7→8
-4. User approvals within phases are for THAT PHASE ONLY
-5. Only Phase 7 (IMPLEMENTATION) involves writing application code
-
 **Why this matters**:
 - Plan Mode collapses the workflow into "plan → implement"
 - This skips DISCOVERY (no PRD), ARCHITECTURE (no SDD), and PLANNING (no sprint)
@@ -39,12 +32,20 @@ This skill manages its own 8-phase workflow. DO NOT use Claude Code's native Pla
 
 **If you feel the urge to plan**: You're already IN a planning workflow. Follow the phases.
 
-## Implementation Phase Enforcement
+## Constraint Rules
 
+<!-- @constraint-generated: start simstim_constraints | hash:852a0b4eccaea5a8 -->
+<!-- DO NOT EDIT — generated from .claude/data/constraints.json -->
+1. NEVER call `EnterPlanMode` — simstim phases ARE the plan
+2. NEVER jump to implementation after any user confirmation
+3. Each phase MUST complete sequentially: 0→1→2→3→4→5→6→6.5→7→8
+4. User approvals within phases are for THAT PHASE ONLY
+5. Only Phase 7 (IMPLEMENTATION) involves writing application code
 6. Phase 7 MUST invoke `/run sprint-plan` — NEVER implement code directly
 7. If `/run sprint-plan` fails or is unavailable, HALT and inform the user — do NOT fall back to direct implementation
 8. Use `br` commands for task lifecycle, NOT `TaskCreate`/`TaskUpdate`
-9. If sprint plan exists but no beads tasks are created, create them FIRST using `br create` before invoking `/run`
+9. If sprint plan exists but no beads tasks created, create them FIRST
+<!-- @constraint-generated: end simstim_constraints -->
 
 **Why this matters**:
 - PR #216 was rolled back because Phase 7 bypassed /run sprint-plan

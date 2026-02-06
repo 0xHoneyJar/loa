@@ -8,13 +8,15 @@ Pre-implementation checklist ensuring all prerequisites are met before writing a
 
 | # | Check | Required? | How to Verify |
 |---|-------|-----------|---------------|
+<!-- @constraint-generated: start pre_implementation_checklist | hash:dd8e49e53d83a0a4 -->
+<!-- DO NOT EDIT — generated from .claude/data/constraints.json -->
 | 1 | Sprint plan exists | ALWAYS | `test -f grimoires/loa/sprint.md` |
 | 2 | Beads tasks created | When beads HEALTHY | `br list` shows sprint tasks |
 | 3 | No unaddressed audit feedback | ALWAYS | Check `auditor-sprint-feedback.md` |
 | 4 | No unaddressed review feedback | ALWAYS | Check `engineer-feedback.md` |
 | 5 | On feature branch | ALWAYS | `git branch --show-current` is not main/master |
 | 6 | Using /run (not direct /implement) | For autonomous/simstim | /run wraps implement+review+audit |
-
+<!-- @constraint-generated: end pre_implementation_checklist -->
 ## Error Codes
 
 | Violation | Error Code |

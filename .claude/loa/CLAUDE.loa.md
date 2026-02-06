@@ -1,4 +1,4 @@
-<!-- @loa-managed: true | version: 1.31.0 | hash: PLACEHOLDER -->
+<!-- @loa-managed: true | version: 1.31.0 | hash: 4f5b1b47bbe5ac0fd924653f493dcb3688d8f2089c0bcc9dd5e08717d310ece4PLACEHOLDER -->
 <!-- WARNING: This file is managed by the Loa Framework. Do not edit directly. -->
 
 # Loa Framework Instructions
@@ -169,28 +169,34 @@ paths:
 
 | Rule | Why |
 |------|-----|
+<!-- @constraint-generated: start process_compliance_never | hash:e3d8e87823f0d4cc -->
+<!-- DO NOT EDIT — generated from .claude/data/constraints.json -->
 | NEVER write application code outside of `/implement` skill invocation | Code written outside `/implement` bypasses review and audit gates |
 | NEVER use Claude's `TaskCreate`/`TaskUpdate` for sprint task tracking when beads (`br`) is available | Beads is the single source of truth for task lifecycle; TaskCreate is for session progress display only |
 | NEVER skip from sprint plan directly to implementation without `/run sprint-plan` or `/run sprint-N` | `/run` wraps implement+review+audit in a cycle loop with circuit breaker |
 | NEVER skip `/review-sprint` and `/audit-sprint` quality gates | These are the only validation that code meets acceptance criteria and security standards |
-
+<!-- @constraint-generated: end process_compliance_never -->
 ### ALWAYS Rules
 
 | Rule | Why |
 |------|-----|
+<!-- @constraint-generated: start process_compliance_always | hash:c5aaf9a14fb386c7 -->
+<!-- DO NOT EDIT — generated from .claude/data/constraints.json -->
 | ALWAYS use `/run sprint-plan` or `/run sprint-N` for implementation | Ensures review+audit cycle with circuit breaker protection |
 | ALWAYS create beads tasks from sprint plan before implementation (if beads available) | Tasks without beads tracking are invisible to cross-session recovery |
 | ALWAYS complete the full implement → review → audit cycle | Partial cycles leave unreviewed code in the codebase |
 | ALWAYS check for existing sprint plan before writing code | Prevents ad-hoc implementation without requirements traceability |
-
+<!-- @constraint-generated: end process_compliance_always -->
 ### Task Tracking Hierarchy
 
 | Tool | Use For | Do NOT Use For |
 |------|---------|----------------|
+<!-- @constraint-generated: start task_tracking_hierarchy | hash:441e3fde55f977ca -->
+<!-- DO NOT EDIT — generated from .claude/data/constraints.json -->
 | `br` (beads_rust) | Sprint task lifecycle: create, in-progress, closed | — |
 | `TaskCreate`/`TaskUpdate` | Session-level progress display to user | Sprint task tracking |
 | `grimoires/loa/NOTES.md` | Observations, blockers, cross-session memory | Task status |
-
+<!-- @constraint-generated: end task_tracking_hierarchy -->
 **Protocol**: `.claude/protocols/implementation-compliance.md`
 
 ## Run Mode State Recovery (v1.27.0)

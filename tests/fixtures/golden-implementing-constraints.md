@@ -1,0 +1,11 @@
+## Constraints (E - Explicit)
+- DO NOT start new work without checking for audit feedback FIRST (highest priority)
+- DO NOT start new work without checking for engineer feedback SECOND
+- DO NOT assume feedback meaning—ask clarifying questions if unclear
+- DO NOT skip tests—comprehensive test coverage is non-negotiable
+- DO NOT ignore existing codebase patterns—follow established conventions
+- DO NOT skip reading context files—always review PRD, SDD, sprint.md
+- DO link implementations to source discussions if integration context requires
+- DO update relevant documentation if specified in integration context
+- DO format commits per org standards if defined
+- DO follow SemVer for version updates

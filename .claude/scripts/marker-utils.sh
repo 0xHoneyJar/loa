@@ -314,6 +314,52 @@ remove_marker() {
   echo "Removed marker from: $file"
 }
 
+# Update the hash in an existing marker to match current file content
+# Usage: update_hash /path/to/file
+# Returns: 0 on success, 1 on error
+update_hash() {
+  local file="${1:-}"
+
+  if [[ -z "$file" ]] || [[ ! -f "$file" ]]; then
+    echo "Error: File not found: $file" >&2
+    return 1
+  fi
+
+  if ! has_marker "$file"; then
+    echo "Error: No marker found in: $file" >&2
+    return 1
+  fi
+
+  local ext="${file##*.}"
+  local new_hash=""
+  new_hash=$(compute_hash "$file")
+
+  if [[ -z "$new_hash" ]]; then
+    echo "Error: Could not compute hash for: $file" >&2
+    return 1
+  fi
+
+  local temp_file=""
+  temp_file=$(mktemp "${file}.update-hash-XXXXXX")
+  chmod 600 "$temp_file"
+
+  if [[ "$ext" == "json" ]]; then
+    if command -v jq &>/dev/null; then
+      jq --arg h "$new_hash" '._loa_marker.hash = $h' "$file" > "$temp_file"
+    else
+      echo "Error: jq required for JSON hash update" >&2
+      rm -f "$temp_file"
+      return 1
+    fi
+  else
+    # Replace the hash value in the marker line
+    sed "s/\(${MARKER_PREFIX}.*hash: \)[a-f0-9]*/\1${new_hash}/" "$file" > "$temp_file"
+  fi
+
+  mv "$temp_file" "$file"
+  echo "Updated hash in: $file"
+}
+
 # =============================================================================
 # CLI Interface
 # =============================================================================
@@ -344,6 +390,9 @@ main() {
       ;;
     remove-marker|remove_marker)
       remove_marker "$@"
+      ;;
+    update-hash|update_hash)
+      update_hash "$@"
       ;;
     batch-add)
       local version="${1:-1.15.0}"
@@ -379,6 +428,7 @@ Commands:
   get-version <file>          Get version from marker
   compute-hash <file>         Compute SHA-256 of content (excluding marker)
   verify-hash <file>          Verify file hash matches marker
+  update-hash <file>          Recompute and update hash in existing marker
   add-marker <file> [version] Add marker to file
   remove-marker <file>        Remove marker from file
   batch-add <version> <files> Add markers to multiple files

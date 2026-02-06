@@ -915,6 +915,47 @@ Projects without `ledger.json` work exactly as before (legacy mode). The ledger 
 
 ---
 
+### Maintenance: Editing Constraints
+
+**Goal**: Add, modify, or remove enforcement constraints across Loa's defense-in-depth layers.
+
+Constraints are defined once in `.claude/data/constraints.json` and rendered into multiple target files via `generate-constraints.sh`. This DRY approach ensures constraints stay synchronized across CLAUDE.loa.md, SKILL.md files, and protocol documents.
+
+**To add or modify a constraint**:
+
+```bash
+# 1. Edit the constraint registry
+#    Add/modify entries in .claude/data/constraints.json
+
+# 2. Regenerate all target files
+bash .claude/scripts/generate-constraints.sh
+
+# 3. Verify everything is valid
+bash .claude/scripts/validate-constraints.sh
+
+# 4. Commit the changes (registry + regenerated files)
+```
+
+**To preview changes without writing files**:
+
+```bash
+bash .claude/scripts/generate-constraints.sh --dry-run
+```
+
+**Key files**:
+
+| File | Purpose |
+|------|---------|
+| `.claude/data/constraints.json` | Single source of truth for all constraints |
+| `.claude/schemas/constraints.schema.json` | JSON Schema for registry validation |
+| `.claude/templates/constraints/*.jq` | jq templates for rendering |
+| `.claude/scripts/generate-constraints.sh` | Generation script |
+| `.claude/scripts/validate-constraints.sh` | Validation script (also runs in CI) |
+
+**Important**: Never edit content between `<!-- @constraint-generated: start -->` and `<!-- @constraint-generated: end -->` markers directly. These sections are overwritten by the generation script.
+
+---
+
 ## Mount & Ride (Existing Codebases)
 
 For existing codebases that need Loa analysis without going through the full discovery workflow.

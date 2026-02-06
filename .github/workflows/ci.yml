@@ -204,6 +204,12 @@ jobs:
 
           echo "Versions are consistent: $CHANGELOG_VERSION"
 
+      - name: Validate constraint registry
+        run: |
+          echo "Validating DRY Constraint Registry..."
+          bash .claude/scripts/validate-constraints.sh
+          echo "Constraint validation passed"
+
       - name: Check for broken internal links
         run: |
           echo "Checking for broken internal links in documentation..."

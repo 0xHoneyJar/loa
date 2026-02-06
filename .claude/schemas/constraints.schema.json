@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loa.dev/schemas/constraints.schema.json",
+  "title": "Loa Constraint Registry",
+  "description": "Single source of truth for all enforcement constraints across Loa's 4-layer defense-in-depth model.",
+  "type": "object",
+  "required": ["version", "constraints"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/constraint" },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "constraint": {
+      "type": "object",
+      "required": ["id", "name", "category", "rule_type", "text", "why", "layers", "severity"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^C-[A-Z]+-\\d{3}$",
+          "description": "Unique ID: C-{DOMAIN}-{NNN}"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]+$",
+          "description": "Snake_case machine name"
+        },
+        "category": {
+          "type": "string",
+          "enum": ["process", "git_safety", "beads", "danger_level", "flatline", "guardrails", "phase_sequencing"]
+        },
+        "rule_type": {
+          "type": "string",
+          "enum": ["NEVER", "ALWAYS", "WHEN", "MUST"]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 10,
+          "description": "Canonical rule text"
+        },
+        "text_variants": {
+          "type": "object",
+          "description": "Per-target phrasing overrides. Rendering contract: text_variants[target] preferred, rule_type + text fallback.",
+          "propertyNames": {
+            "enum": ["claude-loa-md", "skill-md", "protocol"]
+          },
+          "additionalProperties": { "type": "string" }
+        },
+        "why": {
+          "type": "string",
+          "minLength": 10,
+          "description": "Explanation of why this constraint exists"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Explicit sort key for deterministic ordering within generated sections"
+        },
+        "layers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/layerTarget" },
+          "minItems": 1
+        },
+        "error_code": {
+          "type": "string",
+          "pattern": "^E\\d{3}$",
+          "description": "Reference to error-codes.json entry"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low"]
+        },
+        "source_incident": {
+          "type": "string",
+          "description": "Reference to the incident/PR that motivated this constraint"
+        },
+        "deprecated": {
+          "type": "boolean",
+          "default": false
+        },
+        "deprecated_reason": {
+          "type": "string"
+        },
+        "deprecated_date": {
+          "type": "string",
+          "format": "date"
+        }
+      },
+      "additionalProperties": false
+    },
+    "layerTarget": {
+      "type": "object",
+      "required": ["target"],
+      "properties": {
+        "target": {
+          "type": "string",
+          "enum": ["claude-loa-md", "skill-md", "protocol", "error-code"]
+        },
+        "section": {
+          "type": "string",
+          "description": "Section name for marker-bounded generation"
+        },
+        "render_as": {
+          "type": "string",
+          "enum": ["table_row", "constraint_rule", "checklist_item", "decision_tree_node", "error_mapping"]
+        },
+        "skills": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Skill directories this constraint applies to"
+        },
+        "file": {
+          "type": "string",
+          "description": "Protocol file path"
+        },
+        "validate": {
+          "type": "string",
+          "enum": ["exists"],
+          "description": "Validation-only target (e.g., error-code cross-reference)"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "target": { "const": "skill-md" } } },
+          "then": { "required": ["skills", "render_as"] }
+        },
+        {
+          "if": { "properties": { "target": { "const": "protocol" } } },
+          "then": { "required": ["file", "render_as"] }
+        },
+        {
+          "if": { "properties": { "target": { "const": "claude-loa-md" } } },
+          "then": { "required": ["section", "render_as"] }
+        },
+        {
+          "if": { "properties": { "target": { "const": "error-code" } } },
+          "then": { "required": ["validate"] }
+        }
+      ],
+      "additionalProperties": false
+    }
+  }
+}
