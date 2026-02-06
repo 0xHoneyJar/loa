@@ -90,7 +90,7 @@ Check for automated heartbeat patterns in `.claude/HEARTBEAT.md`:
 ```markdown
 <!-- HEARTBEAT.md -->
 Last activity: 2026-01-31T14:00:00Z
-Agent: claude-opus-4-6-20260201
+Agent: claude-opus-4-6
 Session: autonomous-run-abc123
 ```
 

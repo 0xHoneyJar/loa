@@ -324,7 +324,7 @@ gpt_review:
   max_iterations: 3          # Auto-approve after this many
   models:
     documents: "gpt-5.2"     # For PRD, SDD, Sprint
-    code: "gpt-5.2-codex"    # For code reviews
+    code: "gpt-5.2-codex"    # For code reviews (gpt-5.3-codex when API available)
   phases:
     prd: true                # Enable/disable per type
     sdd: true

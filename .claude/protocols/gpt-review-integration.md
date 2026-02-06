@@ -1,4 +1,4 @@
-# GPT 5.2 Cross-Model Review Integration Protocol
+# GPT Cross-Model Review Integration Protocol
 
 ## Overview
 
@@ -68,7 +68,7 @@ gpt_review:
   max_iterations: 3          # Auto-approve after this
   models:
     documents: "gpt-5.2"     # PRD, SDD, Sprint reviews
-    code: "gpt-5.2-codex"    # Code reviews
+    code: "gpt-5.2-codex"    # Code reviews (gpt-5.3-codex when API available)
   phases:
     prd: true
     sdd: true
@@ -211,9 +211,9 @@ The context file (created by toggle script when enabled) provides detailed instr
 - Model: `gpt-5.2`
 - Format: `messages` array with system + user roles
 
-### GPT 5.2 Codex (Code)
+### GPT Codex (Code)
 - Endpoint: `https://api.openai.com/v1/responses`
-- Model: `gpt-5.2-codex`
+- Model: `gpt-5.2-codex` (default; `gpt-5.3-codex` registered, awaiting API availability)
 - Format: `input` field (not messages)
 - Supports: `reasoning: {effort: "medium"}`
 

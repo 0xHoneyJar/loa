@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# GPT 5.2 API interaction for cross-model review
+# GPT 5.2/5.3 API interaction for cross-model review
 #
 # Usage: gpt-review-api.sh <review_type> <content_file> [options]
 #

@@ -790,7 +790,7 @@ recursive_jit:
     update_bead: true
 
 # =============================================================================
-# GPT 5.2 Cross-Model Review (v0.20.0)
+# GPT Cross-Model Review (v0.20.0)
 # =============================================================================
 # GPT review for catching issues Claude might miss
 gpt_review:
@@ -806,6 +806,7 @@ gpt_review:
     # Model for document reviews (PRD, SDD, Sprint)
     documents: "gpt-5.2"
     # Model for code reviews (uses Responses API)
+    # gpt-5.3-codex registered in model-adapter but not yet available via API
     code: "gpt-5.2-codex"
   # Per-phase toggles (only used when enabled: true)
   phases:
