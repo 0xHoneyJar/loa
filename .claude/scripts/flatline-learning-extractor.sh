@@ -302,17 +302,20 @@ EOF
                 max_tokens: 500
             }')" 30)
     else
-        # Direct curl fallback
+        # SEC-AUDIT SEC-HIGH-01: Use curl config to avoid exposing API key in process list
+        local _curl_cfg
+        _curl_cfg=$(mktemp) && chmod 600 "$_curl_cfg"
+        printf 'header = "Content-Type: application/json"\nheader = "Authorization: Bearer %s"\n' "${OPENAI_API_KEY:-}" > "$_curl_cfg"
         response=$(curl -s --max-time 30 \
             -X POST "${OPENAI_API_BASE:-https://api.openai.com}/v1/chat/completions" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${OPENAI_API_KEY:-}" \
+            --config "$_curl_cfg" \
             -d "$(jq -n --arg prompt "$prompt" '{
                 model: "gpt-4o-mini",
                 messages: [{role: "user", content: $prompt}],
                 temperature: 0.3,
                 max_tokens: 500
             }')" 2>/dev/null)
+        rm -f "$_curl_cfg"
     fi
 
     if [[ -z "$response" ]]; then

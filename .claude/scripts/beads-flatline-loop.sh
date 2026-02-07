@@ -163,6 +163,7 @@ run_flatline_review() {
     # Create temp file with beads for review (tracked for cleanup on interrupt - H5)
     local temp_file
     temp_file=$(mktemp)
+    chmod 600 "$temp_file"  # SEC-AUDIT SHELL-HIGH-01
     TEMP_FILES_TO_CLEAN+=("$temp_file")
     echo "$beads_json" > "$temp_file"
 

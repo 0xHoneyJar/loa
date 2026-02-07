@@ -154,16 +154,20 @@ call_gpt_review() {
                 max_tokens: 500
             }')" "$TIMEOUT_SECONDS")
     else
+        # SEC-AUDIT SEC-HIGH-01: Use curl config to avoid exposing API key in process list
+        local _curl_cfg
+        _curl_cfg=$(mktemp) && chmod 600 "$_curl_cfg"
+        printf 'header = "Content-Type: application/json"\nheader = "Authorization: Bearer %s"\n' "${OPENAI_API_KEY:-}" > "$_curl_cfg"
         response=$(curl -s --max-time "$TIMEOUT_SECONDS" \
             -X POST "${OPENAI_API_BASE:-https://api.openai.com}/v1/chat/completions" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${OPENAI_API_KEY:-}" \
+            --config "$_curl_cfg" \
             -d "$(jq -n --arg prompt "$prompt" --arg model "$GPT_MODEL" '{
                 model: $model,
                 messages: [{role: "user", content: $prompt}],
                 temperature: 0.2,
                 max_tokens: 500
             }')" 2>/dev/null)
+        rm -f "$_curl_cfg"
     fi
 
     if [[ -z "$response" ]]; then
@@ -213,16 +217,19 @@ call_opus_review() {
     fi
 
     local response
+    # SEC-AUDIT SEC-HIGH-01: Use curl config to avoid exposing API key in process list
+    local _curl_cfg
+    _curl_cfg=$(mktemp) && chmod 600 "$_curl_cfg"
+    printf 'header = "Content-Type: application/json"\nheader = "x-api-key: %s"\nheader = "anthropic-version: 2023-06-01"\n' "${ANTHROPIC_API_KEY:-}" > "$_curl_cfg"
     response=$(curl -s --max-time "$TIMEOUT_SECONDS" \
         -X POST "https://api.anthropic.com/v1/messages" \
-        -H "Content-Type: application/json" \
-        -H "x-api-key: ${ANTHROPIC_API_KEY:-}" \
-        -H "anthropic-version: 2023-06-01" \
+        --config "$_curl_cfg" \
         -d "$(jq -n --arg prompt "$prompt" --arg model "$OPUS_MODEL" '{
             model: $model,
             max_tokens: 500,
             messages: [{role: "user", content: $prompt}]
         }')" 2>/dev/null)
+    rm -f "$_curl_cfg"
 
     if [[ -z "$response" ]]; then
         log_error "Empty response from Opus"

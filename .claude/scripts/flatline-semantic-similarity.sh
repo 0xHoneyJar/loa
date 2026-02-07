@@ -181,15 +181,19 @@ get_embedding() {
     truncated=$(echo "$text" | head -c 8000)
 
     local response
+    # SEC-AUDIT SEC-HIGH-01: Use curl config to avoid exposing API key in process list
+    local _curl_cfg
+    _curl_cfg=$(mktemp) && chmod 600 "$_curl_cfg"
+    printf 'header = "Content-Type: application/json"\nheader = "Authorization: Bearer %s"\n' "${OPENAI_API_KEY:-}" > "$_curl_cfg"
     response=$(curl -s --max-time 30 \
         -X POST "https://api.openai.com/v1/embeddings" \
-        -H "Content-Type: application/json" \
-        -H "Authorization: Bearer ${OPENAI_API_KEY:-}" \
+        --config "$_curl_cfg" \
         -d "$(jq -n --arg text "$truncated" --arg model "$EMBEDDING_MODEL" '{
             model: $model,
             input: $text,
             dimensions: '"$EMBEDDING_DIMENSIONS"'
         }')" 2>/dev/null)
+    rm -f "$_curl_cfg"
 
     if [[ -z "$response" ]]; then
         log_warning "Empty response from embeddings API"
