@@ -17,6 +17,157 @@ err() { echo -e "${RED}[loa]${NC} ERROR: $*" >&2; exit 1; }
 info() { echo -e "${CYAN}[loa]${NC} $*"; }
 step() { echo -e "${BLUE}[loa]${NC} -> $*"; }
 
+# === Structured Error Handling (E010-E016) ===
+
+# Minimal JSON string escaping for bash (no jq dependency)
+# Handles: backslash, double-quote, newline, carriage return, tab
+# Strips other control characters (0x00-0x1F) to guarantee valid JSON
+_json_escape() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\r'/\\r}"
+  s="${s//$'\t'/\\t}"
+  s=$(printf '%s' "$s" | tr -d '\000-\010\013\014\016-\037')
+  printf '%s' "$s"
+}
+
+# Guard: tracks whether a fatal mount_error already fired (suppresses EXIT trap)
+_MOUNT_STRUCTURED_FATAL_EMITTED=false
+# Guard: tracks whether a non-fatal mount_warn_policy fired (does NOT suppress EXIT trap)
+_MOUNT_STRUCTURED_WARNING_EMITTED=false
+
+# Mount-specific error handler (bash 3.2+ compatible — case statement, no declare -A)
+# Fatal variant: emits structured error + exits 1
+# JSON schema: {"code":"E0XX","name":"...","message":"...","fix":"..."[,"details":"..."]}
+mount_error() {
+  local code="$1"
+  local extra_context="${2:-}"
+  local name="" message="" fix=""
+
+  case "$code" in
+    E010) name="mount_no_git_repo"; message="Not a git repository or git not installed"; fix="Install git (https://git-scm.com/downloads) and run 'git init', then retry mount" ;;
+    E011) name="mount_empty_repo_commit_failed"; message="Repository has no commits and auto-commit failed"; fix="Create initial commit: echo '# Project' > README.md && git add . && git commit -m 'init', then retry" ;;
+    E012) name="mount_git_user_not_configured"; message="git user.name or user.email not set"; fix="Run: git config user.name \"Name\" && git config user.email \"email\"" ;;
+    E013) name="mount_commit_failed"; message="Framework commit failed for an unexpected reason"; fix="Check 'git status' and resolve any issues, then retry with --force" ;;
+    E014) name="mount_staging_failed"; message="Could not stage framework files"; fix="Check directory permissions and disk space" ;;
+    E015) name="mount_bare_repo"; message="Repository is bare (no working tree)"; fix="Clone first: git clone <repo> myproject && cd myproject, then retry" ;;
+    E016) name="mount_commit_policy_detected"; message="Commit policies detected; auto-commit skipped"; fix="Commit manually: git add .claude CLAUDE.md PROCESS.md && git commit -m 'chore(loa): mount framework'" ;;
+    *) name="mount_commit_failed"; message="Unexpected mount error"; fix="Check 'git status' and resolve any issues, then retry with --force" ;;
+  esac
+
+  echo -e "${RED}[loa] ERROR ($code): ${message}${NC}" >&2
+  if [[ -n "$extra_context" ]]; then
+    echo -e "[loa]" >&2
+    echo -e "[loa] ${extra_context}" >&2
+  fi
+  echo -e "[loa]" >&2
+  echo -e "[loa] Fix:" >&2
+  echo -e "${CYAN}[loa]   ${fix}${NC}" >&2
+  echo -e "[loa]" >&2
+
+  local esc_msg; esc_msg=$(_json_escape "$message")
+  local esc_fix; esc_fix=$(_json_escape "$fix")
+  local esc_ctx; esc_ctx=$(_json_escape "$extra_context")
+  if [[ -n "$extra_context" ]]; then
+    printf '{"code":"%s","name":"%s","message":"%s","fix":"%s","details":"%s"}\n' \
+      "$code" "$name" "$esc_msg" "$esc_fix" "$esc_ctx" >&2
+  else
+    printf '{"code":"%s","name":"%s","message":"%s","fix":"%s"}\n' \
+      "$code" "$name" "$esc_msg" "$esc_fix" >&2
+  fi
+
+  _MOUNT_STRUCTURED_FATAL_EMITTED=true
+  exit 1
+}
+
+# Non-fatal warning variant for E016: emits structured warning but returns 0
+# Used when files are created but commit is skipped (policy detection)
+mount_warn_policy() {
+  local extra_context="${1:-}"
+  local code="E016"
+  local name="mount_commit_policy_detected"
+  local message="Commit policies detected; auto-commit skipped"
+  local fix="Commit manually: git add .claude CLAUDE.md PROCESS.md && git commit -m 'chore(loa): mount framework'"
+
+  echo -e "${YELLOW}[loa] WARNING ($code): ${message}${NC}" >&2
+  if [[ -n "$extra_context" ]]; then
+    echo -e "[loa] ${extra_context}" >&2
+  fi
+  echo -e "[loa]" >&2
+  echo -e "[loa] Framework files have been created. To commit:" >&2
+  echo -e "${CYAN}[loa]   ${fix}${NC}" >&2
+  echo -e "[loa]" >&2
+
+  local esc_msg; esc_msg=$(_json_escape "$message")
+  local esc_fix; esc_fix=$(_json_escape "$fix")
+  printf '{"code":"%s","name":"%s","message":"%s","fix":"%s","severity":"warning"}\n' \
+    "$code" "$name" "$esc_msg" "$esc_fix" >&2
+
+  _MOUNT_STRUCTURED_WARNING_EMITTED=true
+  return 0
+}
+
+# === Repository State Detection ===
+REPO_IS_BARE=false
+REPO_IS_EMPTY=false
+REPO_HAS_COMMITS=false
+REPO_HAS_GIT_USER=false
+REPO_HAS_COMMIT_POLICIES=false
+
+detect_repo_state() {
+  REPO_IS_BARE=false
+  REPO_IS_EMPTY=false
+  REPO_HAS_COMMITS=false
+  REPO_HAS_GIT_USER=false
+  REPO_HAS_COMMIT_POLICIES=false
+
+  if [[ "$(git rev-parse --is-bare-repository 2>/dev/null)" == "true" ]]; then
+    REPO_IS_BARE=true
+    return
+  fi
+
+  if git rev-parse --verify HEAD^{commit} >/dev/null 2>&1; then
+    REPO_HAS_COMMITS=true
+  else
+    # Non-bare repo with no valid HEAD — empty (unborn HEAD)
+    REPO_IS_EMPTY=true
+  fi
+
+  local user_name; user_name=$(git config user.name 2>/dev/null || true)
+  local user_email; user_email=$(git config user.email 2>/dev/null || true)
+  if [[ -n "$user_name" && -n "$user_email" ]]; then
+    REPO_HAS_GIT_USER=true
+  fi
+
+  local gpg_sign; gpg_sign=$(git config --get commit.gpgsign 2>/dev/null || true)
+  local hooks_dir; hooks_dir=$(git config --get core.hooksPath 2>/dev/null || true)
+  [[ -z "$hooks_dir" ]] && hooks_dir="$(git rev-parse --git-dir 2>/dev/null)/hooks"
+  if [[ "$gpg_sign" == "true" ]]; then
+    REPO_HAS_COMMIT_POLICIES=true
+  elif [[ -x "$hooks_dir/pre-commit" || -x "$hooks_dir/commit-msg" ]]; then
+    REPO_HAS_COMMIT_POLICIES=true
+  fi
+}
+
+# === EXIT Trap for Unexpected Failures ===
+_exit_handler() {
+  local exit_code=$?
+  if [[ $exit_code -eq 0 ]]; then
+    return
+  fi
+  if [[ "$_MOUNT_STRUCTURED_FATAL_EMITTED" == "true" ]]; then
+    return
+  fi
+  echo -e "${RED}[loa] ERROR (E013): Unexpected failure (exit code ${exit_code})${NC}" >&2
+  local esc_msg; esc_msg=$(_json_escape "Unexpected failure (exit code ${exit_code})")
+  local esc_fix; esc_fix=$(_json_escape "Check git status and retry with --force")
+  printf '{"code":"E013","name":"mount_commit_failed","message":"%s","fix":"%s"}\n' \
+    "$esc_msg" "$esc_fix" >&2
+}
+trap '_exit_handler' EXIT
+
 # === Configuration ===
 LOA_REMOTE_URL="${LOA_UPSTREAM:-https://github.com/0xHoneyJar/loa.git}"
 LOA_REMOTE_NAME="loa-upstream"
@@ -131,8 +282,21 @@ yq_to_json() {
 preflight() {
   log "Running pre-flight checks..."
 
+  # Check git executable exists (IMP-002 — containers/minimal environments)
+  if ! command -v git &>/dev/null; then
+    mount_error E010 "git is not installed. Install: https://git-scm.com/downloads"
+  fi
+
   if ! git rev-parse --git-dir > /dev/null 2>&1; then
-    err "Not a git repository. Initialize with 'git init' first."
+    mount_error E010
+  fi
+
+  # Detect repo state (bare, empty, user, policy)
+  detect_repo_state
+
+  # Reject bare repos — no working tree means mounting is impossible
+  if [[ "$REPO_IS_BARE" == "true" ]]; then
+    mount_error E015
   fi
 
   if [[ -f "$VERSION_FILE" ]]; then
@@ -720,6 +884,72 @@ create_version_tag() {
   log "Created tag: $tag_name"
 }
 
+# === Empty Repo Commit Helper ===
+# Specialized commit logic for repos with no commits (unborn HEAD)
+_handle_empty_repo_commit() {
+  local new_version="$1"
+  local fw_paths=(.claude .loa-version.json CLAUDE.md PROCESS.md)
+
+  step "Creating initial commit for empty repository..."
+
+  # Check git user identity
+  if [[ "$REPO_HAS_GIT_USER" != "true" ]]; then
+    mount_error E012
+  fi
+
+  # Stage all framework files
+  if ! git add -- "${fw_paths[@]}" 2>/dev/null; then
+    mount_error E014
+  fi
+
+  # Also stage any other framework-created files (best-effort)
+  git add grimoires/ .beads/ .loa.config.yaml .gitignore 2>/dev/null || true
+
+  # Build initial commit message
+  local commit_prefix="chore"
+  if command -v yq &>/dev/null && [[ -f "$CONFIG_FILE" ]]; then
+    commit_prefix=$(yq_read "$CONFIG_FILE" ".upgrade.commit_prefix" "chore")
+  fi
+
+  local commit_msg="${commit_prefix}(loa): mount framework v${new_version} (initial commit)
+
+- Initialized repository with Loa framework
+- Created .claude/ directory structure
+- Added CLAUDE.md (Claude Code instructions)
+- Added PROCESS.md (workflow documentation)
+- See: https://github.com/0xHoneyJar/loa/releases/tag/v${new_version}
+
+Generated by Loa mount-loa.sh"
+
+  # Attempt commit (attempt-first — classify failure from stderr, don't pre-block)
+  local git_stderr
+  git_stderr=$(git commit -m "$commit_msg" --no-verify 2>&1 1>/dev/null) || {
+    # Commit failed — unstage framework files (preserve on disk)
+    if git restore --staged -- "${fw_paths[@]}" 2>/dev/null; then
+      : # git 2.23+ — only touches index
+    elif git reset -q -- "${fw_paths[@]}" 2>/dev/null; then
+      : # fallback for older git
+    else
+      # IMP-003: Both rollback methods failed
+      echo -e "${YELLOW}[loa] WARNING: Could not unstage framework files — manual cleanup may be needed${NC}" >&2
+    fi
+
+    # Classify stderr for specific error classes
+    if echo "$git_stderr" | grep -qi "user\|name\|email\|identity\|author"; then
+      mount_error E012 "Git stderr: $git_stderr"
+    elif echo "$git_stderr" | grep -qi "gpg\|signing\|hook"; then
+      mount_warn_policy "Git stderr: $git_stderr"
+      return 0  # Non-fatal: files on disk
+    else
+      mount_error E011 "Git stderr: $git_stderr"
+    fi
+  }
+
+  log "Initial commit created with framework files"
+  create_version_tag "$new_version"
+  return 0
+}
+
 # === Create Upgrade Commit ===
 # Creates a single atomic commit for framework mount/upgrade
 # Arguments:
@@ -727,9 +957,9 @@ create_version_tag() {
 #   $2 - old_version: previous version (or "none" for fresh mount)
 #   $3 - new_version: new version being installed
 create_upgrade_commit() {
-  local commit_type="$1"
-  local old_version="$2"
-  local new_version="$3"
+  local commit_type="${1:-mount}"
+  local old_version="${2:-none}"
+  local new_version="${3:-unknown}"
 
   # Check if --no-commit flag was passed
   if [[ "$NO_COMMIT" == "true" ]]; then
@@ -741,7 +971,7 @@ create_upgrade_commit() {
   local mode="standard"
   if [[ "$STEALTH_MODE" == "true" ]]; then
     mode="stealth"
-  elif [[ -f "$CONFIG_FILE" ]]; then
+  elif command -v yq &>/dev/null && [[ -f "$CONFIG_FILE" ]]; then
     mode=$(yq_read "$CONFIG_FILE" '.persistence_mode' "standard")
   fi
 
@@ -752,7 +982,7 @@ create_upgrade_commit() {
 
   # Check config option for auto_commit
   local auto_commit="true"
-  if [[ -f "$CONFIG_FILE" ]]; then
+  if command -v yq &>/dev/null && [[ -f "$CONFIG_FILE" ]]; then
     auto_commit=$(yq_read "$CONFIG_FILE" '.upgrade.auto_commit' "true")
   fi
 
@@ -761,33 +991,50 @@ create_upgrade_commit() {
     return 0
   fi
 
-  # Check for dirty working tree (excluding our changes)
-  # We only warn, don't block - the commit will include everything staged
-  if ! git diff --quiet 2>/dev/null; then
-    if [[ "$FORCE_MODE" != "true" ]]; then
-      warn "Working tree has unstaged changes - they will NOT be included in commit"
+  # Framework file paths (for staging and rollback)
+  local fw_paths=(.claude .loa-version.json CLAUDE.md PROCESS.md)
+
+  # Re-detect repo state (defensive — may have changed since preflight)
+  detect_repo_state
+
+  # === EMPTY REPO HANDLING ===
+  if [[ "$REPO_IS_EMPTY" == "true" ]]; then
+    _handle_empty_repo_commit "$new_version"
+    return $?
+  fi
+
+  # === EXISTING REPO HANDLING ===
+
+  # Dirty tree warning — only warn about files NOT created by this script
+  if [[ "$FORCE_MODE" != "true" ]]; then
+    local user_changes
+    user_changes=$(git diff --name-only 2>/dev/null | grep -v -E '^(\.claude/|CLAUDE\.md|PROCESS\.md|\.loa-version\.json)' || true)
+    if [[ -n "$user_changes" ]]; then
+      warn "Working tree has unstaged changes (not related to Loa) — they will NOT be included in commit"
     fi
   fi
 
   step "Creating upgrade commit..."
 
-  # Stage framework files (including root docs)
-  git add .claude .loa-version.json CLAUDE.md PROCESS.md 2>/dev/null || true
+  # Stage framework files
+  if ! git add -- "${fw_paths[@]}" 2>/dev/null; then
+    mount_error E014
+  fi
 
   # Check if there are staged changes
   if git diff --cached --quiet 2>/dev/null; then
-    log "No changes to commit"
+    log "No changes to commit (framework already up to date)"
     return 0
   fi
 
   # Build commit message
   local commit_prefix="chore"
-  if [[ -f "$CONFIG_FILE" ]]; then
+  if command -v yq &>/dev/null && [[ -f "$CONFIG_FILE" ]]; then
     commit_prefix=$(yq_read "$CONFIG_FILE" '.upgrade.commit_prefix' "chore")
   fi
 
   local commit_msg
-  if [[ "$old_version" == "none" ]]; then
+  if [[ "$commit_type" == "mount" ]]; then
     commit_msg="${commit_prefix}(loa): mount framework v${new_version}
 
 - Installed Loa framework System Zone
@@ -807,13 +1054,31 @@ Generated by Loa mount-loa.sh"
 Generated by Loa update.sh"
   fi
 
-  # Create commit (--no-verify to skip pre-commit hooks that might interfere)
-  git commit -m "$commit_msg" --no-verify 2>/dev/null || {
-    warn "Failed to create commit (git commit failed)"
-    return 1
+  # Attempt commit
+  local git_stderr
+  git_stderr=$(git commit -m "$commit_msg" --no-verify 2>&1 1>/dev/null) || {
+    # Commit failed — path-scoped unstage (preserve files on disk)
+    if git restore --staged -- "${fw_paths[@]}" 2>/dev/null; then
+      : # Success — files remain on disk, only unstaged
+    elif git reset -q -- "${fw_paths[@]}" 2>/dev/null; then
+      : # Fallback for git < 2.23
+    else
+      # IMP-003: Both rollback methods failed
+      echo -e "${YELLOW}[loa] WARNING: Could not unstage framework files — manual cleanup may be needed${NC}" >&2
+    fi
+
+    # Classify stderr for known failure classes
+    if echo "$git_stderr" | grep -qi "gpg\|signing\|hook"; then
+      mount_warn_policy "Git stderr: $git_stderr"
+      return 0  # Non-fatal: files on disk, user commits manually
+    elif echo "$git_stderr" | grep -qi "user\|name\|email\|identity\|author"; then
+      mount_error E012 "Git stderr: $git_stderr"
+    else
+      mount_error E013 "Git stderr: $git_stderr"
+    fi
   }
 
-  log "Created upgrade commit"
+  log "Committed: ${commit_prefix}(loa): ${commit_type} framework v${new_version}"
 
   # Create version tag
   create_version_tag "$new_version"
@@ -946,6 +1211,14 @@ EOF
 
   warn "STRICT ENFORCEMENT: Direct edits to .claude/ will block agent execution."
   warn "Use .claude/overrides/ for customizations."
+  echo ""
+
+  # === Golden Path Next Steps ===
+  echo ""
+  log "Next steps:"
+  log "  1. Start Claude Code:  claude"
+  log "  2. Check your setup:   /loa doctor"
+  log "  3. Start planning:     /plan"
   echo ""
 }
 
