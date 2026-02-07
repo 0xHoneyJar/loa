@@ -4,7 +4,7 @@
  * Uses execFile with argument arrays (never exec with string interpolation).
  * Write operations serialized via promise queue. Per SDD Section 4.4.
  */
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { LoaLibError } from "../errors.js";
 
 // ── Types ────────────────────────────────────────────
@@ -13,7 +13,7 @@ export interface Bead {
   id: string;
   title: string;
   type: string;
-  status: "open" | "closed";
+  status: "open" | "closed" | "in_progress";
   priority: number;
   labels: string[];
   description?: string;
@@ -149,9 +149,10 @@ function mapExitCode(exitCode: number, stderr: string): LoaLibError {
   }
 }
 
-function parseJson<T>(stdout: string): T {
+function parseJson<T>(stdout: string, validator: (v: unknown) => v is T): T {
+  let parsed: unknown;
   try {
-    return JSON.parse(stdout) as T;
+    parsed = JSON.parse(stdout);
   } catch {
     throw new LoaLibError(
       `Failed to parse br JSON output: ${stdout.slice(0, 200)}`,
@@ -159,6 +160,52 @@ function parseJson<T>(stdout: string): T {
       false,
     );
   }
+  if (!validator(parsed)) {
+    throw new LoaLibError(
+      `br JSON output failed runtime validation: ${stdout.slice(0, 200)}`,
+      "BRG_003",
+      false,
+    );
+  }
+  return parsed;
+}
+
+// ── Runtime Validators (SEC-AUDIT TS-CRIT-02) ────────
+
+function isBeadArray(v: unknown): v is Bead[] {
+  if (!Array.isArray(v)) return false;
+  return v.every(isBead);
+}
+
+function isBead(v: unknown): v is Bead {
+  if (typeof v !== "object" || v === null) return false;
+  const o = v as Record<string, unknown>;
+  return (
+    typeof o.id === "string" &&
+    typeof o.title === "string" &&
+    typeof o.type === "string" &&
+    typeof o.status === "string" &&
+    VALID_STATUSES.has(o.status as string) &&
+    typeof o.priority === "number" &&
+    Array.isArray(o.labels) &&
+    typeof o.created_at === "string" &&
+    typeof o.updated_at === "string"
+  );
+}
+
+// ── Resolve absolute binary path (SEC-AUDIT TS-CRIT-03) ──
+
+function resolveAbsoluteBrPath(brPath: string): string {
+  // Already absolute — use as-is
+  if (brPath.startsWith("/")) return brPath;
+
+  try {
+    const resolved = execFileSync("which", [brPath], { timeout: 5000 }).toString().trim();
+    if (resolved) return resolved;
+  } catch {
+    // which failed — fall through to use bare name (ENOENT will be caught at runtime)
+  }
+  return brPath;
 }
 
 // ── BeadsBridge ──────────────────────────────────────
@@ -171,7 +218,8 @@ export class BeadsBridge {
   private writeQueue: Promise<void> = Promise.resolve();
 
   constructor(config?: BeadsBridgeConfig, executor?: BrExecutor) {
-    this.executor = executor ?? createDefaultExecutor(config?.brPath ?? "br");
+    const brPath = resolveAbsoluteBrPath(config?.brPath ?? "br");
+    this.executor = executor ?? createDefaultExecutor(brPath);
     this.maxBuffer = config?.maxBuffer ?? 1024 * 1024;
     this.timeoutMs = config?.timeoutMs ?? 30_000;
   }
@@ -196,18 +244,18 @@ export class BeadsBridge {
 
   async list(): Promise<Bead[]> {
     const result = await this.runOrThrow(["list", "--json"]);
-    return parseJson<Bead[]>(result.stdout);
+    return parseJson<Bead[]>(result.stdout, isBeadArray);
   }
 
   async ready(): Promise<Bead[]> {
     const result = await this.runOrThrow(["ready", "--json"]);
-    return parseJson<Bead[]>(result.stdout);
+    return parseJson<Bead[]>(result.stdout, isBeadArray);
   }
 
   async get(id: string): Promise<Bead> {
     validateId(id);
     const result = await this.runOrThrow(["show", id, "--json"]);
-    return parseJson<Bead>(result.stdout);
+    return parseJson<Bead>(result.stdout, isBead);
   }
 
   // ── Write Operations (serialized) ──────────────────

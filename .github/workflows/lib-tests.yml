@@ -36,7 +36,7 @@ jobs:
           node-version: ${{ matrix.node-version }}
 
       - name: Install tsx
-        run: npm install --no-save tsx
+        run: npm install --no-save tsx@4.21.0
 
       - name: Run lib tests
         run: .claude/scripts/run-lib-tests.sh

@@ -9,7 +9,7 @@
  * at any time. The internal promise queue serializes concurrent calls within
  * one process only.
  */
-import { createHash, createHmac } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import {
   appendFileSync,
   existsSync,
@@ -50,6 +50,26 @@ export interface AuditLoggerConfig {
 const GENESIS_HASH = "GENESIS";
 const DEFAULT_MAX_SEGMENT_BYTES = 10 * 1024 * 1024; // 10MB
 const LARGE_ENTRY_THRESHOLD = 64 * 1024; // 64KB — fsync after write
+
+/** Constant-time hash comparison to prevent timing side-channel attacks (SEC-AUDIT TS-CRIT-01). */
+function safeHashEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+
+  const isHex = (s: string) => s.length % 2 === 0 && /^[0-9a-fA-F]+$/.test(s);
+
+  if (isHex(a) && isHex(b)) {
+    const ba = Buffer.from(a, "hex");
+    const bb = Buffer.from(b, "hex");
+    if (ba.length !== bb.length) return false;
+    return timingSafeEqual(ba, bb);
+  }
+
+  // Fallback for non-hex strings (e.g. GENESIS sentinel)
+  const ba = Buffer.from(a, "utf8");
+  const bb = Buffer.from(b, "utf8");
+  if (ba.length !== bb.length) return false;
+  return timingSafeEqual(ba, bb);
+}
 
 // ── AuditLogger Class ────────────────────────────────
 
@@ -201,7 +221,7 @@ export class AuditLogger {
         continue;
       }
 
-      if (entry.previousHash !== prevHash) {
+      if (!safeHashEqual(entry.previousHash, prevHash)) {
         return { valid: false, brokenAt: i, entries: lines.length, truncated };
       }
 
@@ -215,7 +235,7 @@ export class AuditLogger {
       const payload = JSON.stringify(entryWithoutHash);
       const expectedHash = this.computeHash(prevHash, payload);
 
-      if (entry.hash !== expectedHash) {
+      if (!safeHashEqual(entry.hash, expectedHash)) {
         return { valid: false, brokenAt: i, entries: lines.length, truncated };
       }
 
@@ -280,10 +300,17 @@ export class AuditLogger {
     }
 
     if (truncatedCount > 0) {
+      // Backup original file before truncation to preserve forensic evidence (SEC-AUDIT TS-HIGH-01)
+      const corruptPath = `${this.logPath}.${new Date().toISOString().replace(/[:.]/g, "-")}.corrupt`;
+      try {
+        writeFileSync(corruptPath, content);
+      } catch {
+        // Best effort — backup failure should not prevent recovery
+      }
       // Rewrite file with only valid lines
       writeFileSync(this.logPath, validLines.map((l) => l + "\n").join(""));
       process.stderr.write(
-        `[audit-logger] SEC_003: truncated ${truncatedCount} incomplete line(s) on recovery\n`,
+        `[audit-logger] SEC_003: truncated ${truncatedCount} incomplete line(s) on recovery (backup: ${corruptPath})\n`,
       );
     }
 
