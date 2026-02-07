@@ -219,7 +219,8 @@ jobs:
 
           for mdfile in README.md CLAUDE.md PROCESS.md CONTRIBUTING.md; do
             # Extract markdown links like [text](file.md) or [text](./path/file.md)
-            grep -oP '\[.*?\]\(\K[^)]+(?=\))' "$mdfile" 2>/dev/null | while read link; do
+            # Use process substitution to avoid subshell variable scoping bug
+            while read -r link; do
               # Skip external URLs
               if [[ "$link" == http* ]] || [[ "$link" == "#"* ]]; then
                 continue
@@ -230,7 +231,7 @@ jobs:
                 echo "Broken link in $mdfile: $link"
                 LINKS_OK=false
               fi
-            done
+            done < <(grep -oP '\[.*?\]\(\K[^)]+(?=\))' "$mdfile" 2>/dev/null || true)
           done
 
           if [ "$LINKS_OK" = false ]; then

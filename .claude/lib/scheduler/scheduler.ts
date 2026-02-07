@@ -264,6 +264,9 @@ export class Scheduler {
   }
 
   private scheduleNext(entry: TaskEntry): void {
+    // Guard against zombie tasks: if the entry was unregistered while executing,
+    // the closure still holds a reference but the map no longer contains it.
+    if (!this.tasks.has(entry.config.id)) return;
     if (!this.running || !entry.enabled) return;
 
     const jitter = entry.config.jitterMs
@@ -322,10 +325,11 @@ export class Scheduler {
       try {
         await entry.config.fn(ac.signal);
         if (ac.signal.aborted) {
+          // Cancellation is user-initiated, not a system failure.
+          // Don't count it toward circuit breaker failure threshold.
           entry.state = "FAILED";
           entry.lastError = new Error("Task was cancelled");
           entry.failCount++;
-          entry.cb?.recordFailure();
           return;
         }
         entry.state = "COMPLETED";
@@ -336,7 +340,10 @@ export class Scheduler {
         entry.state = "FAILED";
         entry.lastError = error;
         entry.failCount++;
-        entry.cb?.recordFailure();
+        // Only count real failures toward circuit breaker, not cancellations
+        if (!ac.signal.aborted) {
+          entry.cb?.recordFailure();
+        }
         this.logger?.error(`Task ${entry.config.id} failed: ${error.message}`);
         this.onTaskError?.(entry.config.id, error);
       } finally {

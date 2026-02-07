@@ -41,6 +41,8 @@ export interface AuditLoggerConfig {
   hmacKey?: Buffer;
   maxSegmentBytes?: number;     // Default: 10MB
   onDiskFull?: "block" | "warn"; // Default: 'block'
+  /** If true, verify() returns valid:true even when unparseable lines are skipped. Default: false */
+  lenientVerify?: boolean;
 }
 
 // ── Constants ────────────────────────────────────────
@@ -57,6 +59,7 @@ export class AuditLogger {
   private readonly hmacKey: Buffer | undefined;
   private readonly maxSegmentBytes: number;
   private readonly onDiskFull: "block" | "warn";
+  private readonly lenientVerify: boolean;
   private previousHash: string = GENESIS_HASH;
   private currentSize: number = 0;
   private queue: Promise<void> = Promise.resolve();
@@ -67,6 +70,7 @@ export class AuditLogger {
     this.hmacKey = config.hmacKey;
     this.maxSegmentBytes = config.maxSegmentBytes ?? DEFAULT_MAX_SEGMENT_BYTES;
     this.onDiskFull = config.onDiskFull ?? "block";
+    this.lenientVerify = config.lenientVerify ?? false;
 
     // Ensure directory exists
     const dir = dirname(this.logPath);
@@ -142,7 +146,7 @@ export class AuditLogger {
       // fsync for large entries to reduce torn-write window
       if (line.length > LARGE_ENTRY_THRESHOLD) {
         try {
-          const fd = openSync(this.logPath, "r");
+          const fd = openSync(this.logPath, "r+");
           fdatasyncSync(fd);
           closeSync(fd);
         } catch {
@@ -218,7 +222,8 @@ export class AuditLogger {
       prevHash = entry.hash;
     }
 
-    return { valid: true, entries: lines.length, ...(truncated > 0 ? { truncated } : {}) };
+    const valid = truncated > 0 ? this.lenientVerify : true;
+    return { valid, entries: lines.length, ...(truncated > 0 ? { truncated } : {}) };
   }
 
   // ── Private: Rotate ────────────────────────────────
