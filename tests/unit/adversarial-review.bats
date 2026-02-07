@@ -18,8 +18,12 @@ setup() {
     # Save PROJECT_ROOT before sourcing (script redefines it)
     local saved_root="$PROJECT_ROOT"
 
+    # Pre-source lib-content.sh so its functions are available even when the
+    # eval'd script can't find it (BASH_SOURCE[0] resolves to bats tmp dir).
+    # The double-source guard in lib-content.sh prevents duplicate loading.
+    source "$PROJECT_ROOT/.claude/scripts/lib-content.sh"
+
     # Source the script functions (but don't run main)
-    # We override main to prevent execution
     eval "$(sed 's/^main "\$@"/# main disabled for testing/' "$ADVERSARIAL_REVIEW")"
 
     # Restore our PROJECT_ROOT
@@ -36,6 +40,7 @@ setup() {
     CONF_MAX_FILE_LINES=500
     CONF_MAX_FILE_BYTES=51200
     CONF_SECRET_SCANNING="true"
+    CONF_SECRET_ALLOWLIST=()
 }
 
 # =============================================================================
@@ -465,4 +470,146 @@ EOF
     # Expected categories (sorted)
     local expected="authz,concurrency,config,crypto,data-loss,deserialization,error-handling,info-disclosure,injection,input-validation,null-safety,other,performance,rate-limiting,resource-leak,secrets,spec-violation,ssrf,type-error,xss"
     [[ "$schema_cats" == "$expected" ]]
+}
+
+# =============================================================================
+# Bridgebuilder Finding #1: lib-content.sh shared library
+# =============================================================================
+
+@test "lib-content: file_priority available from shared library" {
+    # file_priority should be available via lib-content.sh (not inline)
+    local pri
+    pri=$(file_priority ".claude/scripts/adversarial-review.sh")
+    [[ "$pri" == "0" ]]
+}
+
+@test "lib-content: estimate_tokens available from shared library" {
+    local tokens
+    tokens=$(estimate_tokens "hello world")
+    [[ "$tokens" -ge 1 ]]
+}
+
+@test "lib-content: prepare_content available from shared library" {
+    # Should pass through small content unchanged
+    local result
+    result=$(prepare_content "small diff content" 30000)
+    [[ "$result" == "small diff content" ]]
+}
+
+# =============================================================================
+# Bridgebuilder Finding #2: compute_finding_id consistency
+# =============================================================================
+
+@test "compute_finding_id: anchored finding produces 8-char hex" {
+    local id
+    id=$(compute_finding_id "src/auth.ts:validateToken" "injection")
+    [[ ${#id} -eq 8 ]]
+    [[ "$id" =~ ^[0-9a-f]{8}$ ]]
+}
+
+@test "compute_finding_id: no-anchor finding produces 8-char hex" {
+    local id
+    id=$(compute_finding_id "no_anchor" "injection" "0")
+    [[ ${#id} -eq 8 ]]
+    [[ "$id" =~ ^[0-9a-f]{8}$ ]]
+}
+
+@test "compute_finding_id: same inputs produce same hash (deterministic)" {
+    local id1 id2
+    id1=$(compute_finding_id "src/auth.ts:validateToken" "injection")
+    id2=$(compute_finding_id "src/auth.ts:validateToken" "injection")
+    [[ "$id1" == "$id2" ]]
+}
+
+@test "compute_finding_id: different anchors produce different hashes" {
+    local id1 id2
+    id1=$(compute_finding_id "src/auth.ts:validateToken" "injection")
+    id2=$(compute_finding_id "src/db.ts:query" "injection")
+    [[ "$id1" != "$id2" ]]
+}
+
+@test "compute_finding_id: different categories produce different hashes" {
+    local id1 id2
+    id1=$(compute_finding_id "src/auth.ts:validateToken" "injection")
+    id2=$(compute_finding_id "src/auth.ts:validateToken" "xss")
+    [[ "$id1" != "$id2" ]]
+}
+
+@test "compute_finding_id: no-anchor uses index for uniqueness" {
+    local id1 id2
+    id1=$(compute_finding_id "no_anchor" "injection" "0")
+    id2=$(compute_finding_id "no_anchor" "injection" "1")
+    [[ "$id1" != "$id2" ]]
+}
+
+# =============================================================================
+# Bridgebuilder Finding #3: file-based secret scanning
+# =============================================================================
+
+@test "secret_scan: handles large content without ARG_MAX failure" {
+    # Generate content larger than typical ARG_MAX (128KB+)
+    # This would fail with the old printf-pipe approach
+    local large_content
+    large_content=$(dd if=/dev/urandom bs=1024 count=200 2>/dev/null | base64)
+    result=$(secret_scan_content "$large_content")
+    # Should return content unchanged (no secrets in random base64)
+    [[ -n "$result" ]]
+}
+
+@test "secret_scan: temp files are cleaned up" {
+    local content="AKIAIOSFODNN7EXAMPLE1 is a test key"
+    local before_count after_count
+    before_count=$(ls /tmp/tmp.* 2>/dev/null | wc -l || echo 0)
+    result=$(secret_scan_content "$content")
+    after_count=$(ls /tmp/tmp.* 2>/dev/null | wc -l || echo 0)
+    # Should not leak temp files
+    [[ "$after_count" -le "$before_count" ]]
+}
+
+# =============================================================================
+# Bridgebuilder Finding #4: config allowlist wiring
+# =============================================================================
+
+@test "secret_scan: allowlist protects matching patterns from redaction" {
+    # Set up allowlist to protect a specific pattern
+    CONF_SECRET_ALLOWLIST=('[0-9a-f]{64}')
+    local sha256="a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
+    local content="hash=$sha256 and secret=AKIAIOSFODNN7EXAMPLE1"
+    result=$(secret_scan_content "$content")
+    # SHA-256 hash should survive (allowlisted)
+    [[ "$result" == *"$sha256"* ]]
+    # AWS key should still be redacted
+    [[ "$result" == *"[REDACTED:aws_key]"* ]]
+    # Reset
+    CONF_SECRET_ALLOWLIST=()
+}
+
+@test "secret_scan: empty allowlist does not affect redaction" {
+    CONF_SECRET_ALLOWLIST=()
+    local content="key=AKIAIOSFODNN7EXAMPLE1"
+    result=$(secret_scan_content "$content")
+    [[ "$result" == *"[REDACTED:aws_key]"* ]]
+}
+
+# =============================================================================
+# Bridgebuilder Finding #5: code-aware token estimation (bytes/3)
+# =============================================================================
+
+@test "estimate_tokens: uses bytes/3 for code content" {
+    # 300 bytes should give ~100 tokens (300/3)
+    local content
+    content=$(printf '%0300d' 0)  # 300 bytes of zeros
+    local tokens
+    tokens=$(estimate_tokens "$content")
+    [[ "$tokens" -eq 100 ]]
+}
+
+@test "estimate_tokens: conservative estimate (higher than bytes/4)" {
+    # 1200 bytes: bytes/3 = 400, bytes/4 = 300
+    local content
+    content=$(printf '%01200d' 0)
+    local tokens
+    tokens=$(estimate_tokens "$content")
+    # Should be 400 (bytes/3), not 300 (bytes/4)
+    [[ "$tokens" -eq 400 ]]
 }

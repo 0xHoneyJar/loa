@@ -151,8 +151,9 @@ teardown() {
 }
 
 @test "e2e: degraded mode — audit sets degraded flag on API failure" {
-    # Source script functions to test directly
+    # Pre-source lib-content.sh (double-source guard prevents duplicate loading)
     local saved_root="$PROJECT_ROOT"
+    source "$PROJECT_ROOT/.claude/scripts/lib-content.sh"
     eval "$(sed 's/^main "\$@"/# main disabled for testing/' "$ADVERSARIAL_REVIEW")"
     PROJECT_ROOT="$saved_root"
 
@@ -168,7 +169,9 @@ teardown() {
 }
 
 @test "e2e: degraded mode — review does NOT set degraded flag" {
+    # Pre-source lib-content.sh (double-source guard prevents duplicate loading)
     local saved_root="$PROJECT_ROOT"
+    source "$PROJECT_ROOT/.claude/scripts/lib-content.sh"
     eval "$(sed 's/^main "\$@"/# main disabled for testing/' "$ADVERSARIAL_REVIEW")"
     PROJECT_ROOT="$saved_root"
 

@@ -39,8 +39,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="${CONFIG_FILE:-$PROJECT_ROOT/.loa.config.yaml}"
 
-# Source prepare_content and file_priority from gpt-review-api.sh
-GPT_REVIEW_SCRIPT="$SCRIPT_DIR/gpt-review-api.sh"
+# Source shared content processing functions (file_priority, prepare_content, estimate_tokens)
+# These were extracted from gpt-review-api.sh into lib-content.sh to avoid the
+# brittle eval+sed import pattern. See: Bridgebuilder Review Finding #1 (PR #235)
+# NOTE: Use absolute path stored in a global so it survives eval-based test sourcing.
+_LIB_CONTENT_PATH="$SCRIPT_DIR/lib-content.sh"
+# shellcheck source=lib-content.sh
+# The `|| true` allows eval-based test sourcing where BASH_SOURCE[0] resolves
+# to a temp dir. Tests pre-source lib-content.sh; the double-source guard prevents
+# duplicate loading. See: Bridgebuilder Review Finding #1 (PR #235)
+source "$_LIB_CONTENT_PATH" 2>/dev/null || true
 
 # Token budgets (with 80% safety margin per D-009)
 DEFAULT_PRIMARY_TOKEN_BUDGET=24000    # 80% of 30k
@@ -71,6 +79,7 @@ load_adversarial_config() {
   CONF_MAX_FILE_LINES=500
   CONF_MAX_FILE_BYTES=51200
   CONF_SECRET_SCANNING="true"
+  CONF_SECRET_ALLOWLIST=()  # Patterns that should NOT be redacted
 
   if [[ ! -f "$CONFIG_FILE" ]]; then
     log "Config file not found, using defaults"
@@ -98,6 +107,17 @@ load_adversarial_config() {
   CONF_MAX_FILE_LINES=$(yq eval ".flatline_protocol.context_escalation.max_file_lines // 500" "$CONFIG_FILE" 2>/dev/null || echo "500")
   CONF_MAX_FILE_BYTES=$(yq eval ".flatline_protocol.context_escalation.max_file_bytes // 51200" "$CONFIG_FILE" 2>/dev/null || echo "51200")
   CONF_SECRET_SCANNING=$(yq eval ".flatline_protocol.secret_scanning.enabled // true" "$CONFIG_FILE" 2>/dev/null || echo "true")
+
+  # Load allowlist patterns — content matching these is restored after redaction.
+  # Wires config to runtime. See: Bridgebuilder Review Finding #4
+  local allowlist_raw
+  allowlist_raw=$(yq eval '.flatline_protocol.secret_scanning.allowlist // [] | .[]' "$CONFIG_FILE" 2>/dev/null || true)
+  CONF_SECRET_ALLOWLIST=()
+  if [[ -n "$allowlist_raw" ]]; then
+    while IFS= read -r pattern; do
+      [[ -n "$pattern" ]] && CONF_SECRET_ALLOWLIST+=("$pattern")
+    done <<< "$allowlist_raw"
+  fi
 }
 
 # =============================================================================
@@ -106,37 +126,78 @@ load_adversarial_config() {
 
 secret_scan_content() {
   local content="$1"
+
+  # Use temp files to avoid ARG_MAX limits on large diffs.
+  # printf '%s' "$content" | sed works for small input but fails when
+  # content approaches 128KB+ because the shell passes it as an argument.
+  # Piping through files avoids this entirely.
+  # See: Bridgebuilder Review Finding #3
+  local scan_tmp
+  scan_tmp=$(mktemp)
+  printf '%s' "$content" > "$scan_tmp"
   local redaction_count=0
 
-  # AWS access keys
-  local scanned
-  scanned=$(printf '%s' "$content" | sed -E 's/AKIA[0-9A-Z]{16}/[REDACTED:aws_key]/g')
-  if [[ "$scanned" != "$content" ]]; then
-    ((redaction_count += $(diff <(echo "$content") <(echo "$scanned") | grep -c '^<' || true)))
-    content="$scanned"
+  # Pre-scan: protect allowlisted matches with unique placeholders before redaction.
+  # This ensures patterns like SHA-256 hashes and UUIDs survive the redaction pass.
+  # See: Bridgebuilder Review Finding #4
+  if [[ ${#CONF_SECRET_ALLOWLIST[@]} -gt 0 ]]; then
+    local al_idx=0
+    for pattern in "${CONF_SECRET_ALLOWLIST[@]}"; do
+      local matches
+      matches=$(grep -oE "$pattern" "$scan_tmp" 2>/dev/null | sort -u || true)
+      if [[ -n "$matches" ]]; then
+        while IFS= read -r match; do
+          [[ -z "$match" ]] && continue
+          local placeholder="__ALLOWLIST_${al_idx}__"
+          # Record placeholder→original mapping for post-redaction restore
+          printf '%s\t%s\n' "$placeholder" "$match" >> "${scan_tmp}.allowlist"
+          # Replace in file (literal match via perl to avoid regex in match)
+          perl -i -pe "s/\Q${match}\E/${placeholder}/g" "$scan_tmp" 2>/dev/null || true
+          ((al_idx++))
+        done <<< "$matches"
+      fi
+    done
   fi
 
+  # AWS access keys
+  sed -E -i 's/AKIA[0-9A-Z]{16}/[REDACTED:aws_key]/g' "$scan_tmp"
+
   # Private keys
-  scanned=$(printf '%s' "$content" | sed -E 's/-----BEGIN[A-Z ]*PRIVATE KEY-----/[REDACTED:private_key]/g')
-  if [[ "$scanned" != "$content" ]]; then ((redaction_count++)); content="$scanned"; fi
+  sed -E -i 's/-----BEGIN[A-Z ]*PRIVATE KEY-----/[REDACTED:private_key]/g' "$scan_tmp"
 
   # GitHub PATs
-  scanned=$(printf '%s' "$content" | sed -E 's/ghp_[A-Za-z0-9]{36}/[REDACTED:github_pat]/g')
-  if [[ "$scanned" != "$content" ]]; then ((redaction_count++)); content="$scanned"; fi
+  sed -E -i 's/ghp_[A-Za-z0-9]{36}/[REDACTED:github_pat]/g' "$scan_tmp"
 
   # OpenAI keys
-  scanned=$(printf '%s' "$content" | sed -E 's/sk-[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20}/[REDACTED:openai_key]/g')
-  if [[ "$scanned" != "$content" ]]; then ((redaction_count++)); content="$scanned"; fi
+  sed -E -i 's/sk-[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20}/[REDACTED:openai_key]/g' "$scan_tmp"
 
   # Generic credentials (password/secret/token/api_key = "value")
-  scanned=$(printf '%s' "$content" | sed -E 's/(password|secret|token|api_key)[[:space:]]*[:=][[:space:]]*["\x27][^\x27"]{8,}/\1=[REDACTED:credential]/g')
-  if [[ "$scanned" != "$content" ]]; then ((redaction_count++)); content="$scanned"; fi
+  sed -E -i 's/(password|secret|token|api_key)[[:space:]]*[:=][[:space:]]*["'"'"'][^'"'"'"]{8,}/\1=[REDACTED:credential]/g' "$scan_tmp"
 
-  if [[ $redaction_count -gt 0 ]]; then
+  # Apply allowlist: replace placeholder tokens back with original values.
+  # Strategy: before redaction we saved allowlisted matches with unique placeholders.
+  # After redaction, we restore them. This handles the case where e.g. a SHA-256
+  # hash accidentally matches the generic credential pattern.
+  # See: Bridgebuilder Review Finding #4
+  if [[ ${#CONF_SECRET_ALLOWLIST[@]} -gt 0 && -f "${scan_tmp}.allowlist" ]]; then
+    while IFS=$'\t' read -r placeholder original; do
+      [[ -z "$placeholder" || -z "$original" ]] && continue
+      # Use perl for literal string replacement (no regex interpretation)
+      perl -i -pe "s/\Q${placeholder}\E/${original}/g" "$scan_tmp" 2>/dev/null || true
+    done < "${scan_tmp}.allowlist"
+    rm -f "${scan_tmp}.allowlist"
+  fi
+
+  # Count redactions by comparing with original
+  local scanned
+  scanned=$(cat "$scan_tmp")
+  if [[ "$scanned" != "$content" ]]; then
+    redaction_count=$(diff <(printf '%s' "$content") <(printf '%s' "$scanned") | grep -c '^<' || true)
     log "Secret scan: $redaction_count redaction(s) applied"
   fi
 
-  printf '%s' "$content"
+  cat "$scan_tmp"
+  rm -f "$scan_tmp" "${scan_tmp}.allowlist"
 }
 
 # =============================================================================
@@ -288,12 +349,8 @@ is_denied_file() {
   esac
 }
 
-# Estimate tokens (bytes / 4)
-estimate_tokens() {
-  local bytes
-  bytes=$(printf '%s' "$1" | wc -c)
-  echo $(( bytes / 4 ))
-}
+# estimate_tokens() is now provided by lib-content.sh (sourced at top)
+# Using bytes/3 for code-aware estimation. See: Bridgebuilder Review Finding #5
 
 assemble_dissent_context() {
   local diff_file="$1"
@@ -303,31 +360,13 @@ assemble_dissent_context() {
   local diff_content
   diff_content=$(cat "$diff_file")
 
-  # Import file_priority and prepare_content from gpt-review-api.sh
-  # NOTE: Cannot `source` directly — gpt-review-api.sh calls main() at the bottom.
-  # Use eval with sed to strip the main invocation.
-  if [[ -f "$GPT_REVIEW_SCRIPT" ]]; then
-    local _saved_config_file="$CONFIG_FILE"
-    eval "$(sed 's/^main "\$@"/# main disabled for import/' "$GPT_REVIEW_SCRIPT")" 2>/dev/null || true
-    CONFIG_FILE="$_saved_config_file"  # Restore — gpt-review-api.sh overwrites CONFIG_FILE
-  fi
+  # file_priority() and prepare_content() are provided by lib-content.sh
+  # No eval+sed hack needed. See: Bridgebuilder Review Finding #1
 
   # Primary content: priority-sorted diff with 80% budget
+  # prepare_content is guaranteed available from lib-content.sh
   local prepared_diff
-  if type prepare_content &>/dev/null; then
-    prepared_diff=$(prepare_content "$diff_content" "$DEFAULT_PRIMARY_TOKEN_BUDGET")
-  else
-    # Fallback: simple truncation
-    local token_est
-    token_est=$(estimate_tokens "$diff_content")
-    if [[ $token_est -gt $DEFAULT_PRIMARY_TOKEN_BUDGET ]]; then
-      prepared_diff=$(printf '%s' "$diff_content" | head -c $(( DEFAULT_PRIMARY_TOKEN_BUDGET * 4 )))
-      prepared_diff+=$'\n--- TRUNCATED: content exceeded token budget ---'
-      log "Diff truncated from $token_est to $DEFAULT_PRIMARY_TOKEN_BUDGET tokens (fallback)"
-    else
-      prepared_diff="$diff_content"
-    fi
-  fi
+  prepared_diff=$(prepare_content "$diff_content" "$DEFAULT_PRIMARY_TOKEN_BUDGET")
 
   # P0 file escalation (if enabled)
   local escalated_content=""
@@ -342,11 +381,9 @@ assemble_dissent_context() {
       [[ -z "$filepath" ]] && continue
       [[ $escalated_count -ge $MAX_ESCALATED_FILES ]] && break
 
-      # Check if P0
-      local priority=2
-      if type file_priority &>/dev/null; then
-        priority=$(file_priority "$filepath")
-      fi
+      # Check if P0 — file_priority() provided by lib-content.sh
+      local priority
+      priority=$(file_priority "$filepath")
       [[ "$priority" != "0" ]] && continue
 
       # Denylist check
@@ -587,6 +624,27 @@ process_findings() {
 }
 
 # =============================================================================
+# Finding ID Computation (unified — Bridgebuilder Review Finding #2)
+# =============================================================================
+# Single function, single scheme (sha256), used by all code paths.
+# Design decision: sha256 over base64 because it's fixed-length (8 chars),
+# collision-resistant, and order-independent. No-anchor findings get a
+# unique sentinel to prevent false dedup. — Bridgebuilder Finding #2
+
+compute_finding_id() {
+  local anchor="${1:-no_anchor}"
+  local category="$2"
+  local index="${3:-0}"
+
+  if [[ "$anchor" == "no_anchor" ]]; then
+    # No-anchor findings are always unique — include index to prevent collision
+    printf 'noanch:%s:%s' "$category" "$index" | sha256sum | cut -c1-8
+  else
+    printf '%s:%s' "$anchor" "$category" | sha256sum | cut -c1-8
+  fi
+}
+
+# =============================================================================
 # Merge / Dedup (SDD Section 5)
 # =============================================================================
 
@@ -598,13 +656,21 @@ merge_findings() {
   dissenter_findings=$(echo "$dissenter_json" | jq '.findings')
 
   if [[ -z "$existing_file" || ! -f "$existing_file" ]]; then
-    # No existing findings to merge against — compute finding_ids and return
-    echo "$dissenter_findings" | jq '[.[] |
-      . + {
-        finding_id: ((.anchor // "no_anchor") + ":" + .category | @base64),
-        source: "dissenter"
-      }
-    ]'
+    # No existing findings to merge against — compute finding_ids via shell loop
+    local count i result="[]"
+    count=$(echo "$dissenter_findings" | jq 'length')
+    i=0
+    while [[ $i -lt $count ]]; do
+      local finding anchor category fid
+      finding=$(echo "$dissenter_findings" | jq ".[$i]")
+      anchor=$(echo "$finding" | jq -r '.anchor // "no_anchor"')
+      category=$(echo "$finding" | jq -r '.category')
+      fid=$(compute_finding_id "$anchor" "$category" "$i")
+      finding=$(echo "$finding" | jq --arg fid "$fid" '. + {finding_id: $fid, source: "dissenter"}')
+      result=$(echo "$result" | jq --argjson f "$finding" '. + [$f]')
+      ((i++))
+    done
+    echo "$result"
     return 0
   fi
 
@@ -623,14 +689,9 @@ merge_findings() {
     anchor=$(echo "$finding" | jq -r '.anchor // "no_anchor"')
     category=$(echo "$finding" | jq -r '.category')
 
-    # Compute finding_id: sha256(anchor:category)[0:8]
+    # Compute finding_id via unified function (Bridgebuilder Finding #2)
     local finding_id
-    if [[ "$anchor" == "no_anchor" ]]; then
-      # No-anchor findings are always unique
-      finding_id="noanch-$i"
-    else
-      finding_id=$(printf '%s:%s' "$anchor" "$category" | sha256sum | cut -c1-8)
-    fi
+    finding_id=$(compute_finding_id "$anchor" "$category" "$i")
 
     finding=$(echo "$finding" | jq --arg fid "$finding_id" '. + {finding_id: $fid, source: "dissenter"}')
 
@@ -799,7 +860,7 @@ main() {
   # Budget pre-check (before API call per sprint Task 1.3)
   local diff_size_bytes
   diff_size_bytes=$(wc -c < "$diff_file")
-  local estimated_input_tokens=$(( diff_size_bytes / 4 + 500 ))  # +500 for system prompt
+  local estimated_input_tokens=$(( diff_size_bytes / 3 + 500 ))  # bytes/3 for code, +500 for system prompt
   # Rough cost estimate: input_tokens * $10/1M + estimated_output * $30/1M
   local estimated_cost_cents
   estimated_cost_cents=$(echo "scale=0; ($estimated_input_tokens * 10 / 10000) + (2000 * 30 / 10000)" | bc -l 2>/dev/null || echo "0")
