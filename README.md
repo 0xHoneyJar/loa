@@ -15,12 +15,14 @@ Version: 1.31.0
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
 
-**Run Mode AI** — Agent-driven development framework with 17 specialized AI skills orchestrating the complete product lifecycle. From requirements through production deployment.
+## Why "Loa"?
+
+In William Gibson's Sprawl trilogy, Loa are AI entities that "ride" humans through neural interfaces. These agents don't replace you—they **ride with you**, channeling expertise through the interface.
 
 ## Quick Start (~2 minutes)
 
 ```bash
-# Install (one command, any repo)
+# Install (one command, any existing repo)
 curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash
 
 # Start Claude Code
@@ -33,9 +35,7 @@ claude
 /ship      # Deploy and archive
 ```
 
-Not sure where you are? `/loa` shows your current state, health, and next step.
-
-See **[INSTALLATION.md](INSTALLATION.md)** for detailed setup, prerequisites, and configuration.
+Not sure where you are? `/loa` shows your current state, health, and next step. Creating a project from scratch? See **[INSTALLATION.md](INSTALLATION.md)** to clone the template at start riding and for more detailed setup, prerequisites, and configuration.
 
 ## Why Loa?
 
@@ -157,10 +157,6 @@ Loa uses a **three-zone model** inspired by AWS Projen and Google's ADK:
 | **[PROCESS.md](PROCESS.md)** | Complete workflow, agents, commands, protocols |
 | **[CLAUDE.md](CLAUDE.md)** | Technical reference for Claude Code |
 | **[CHANGELOG.md](CHANGELOG.md)** | Version history |
-
-## Why "Loa"?
-
-In William Gibson's Sprawl trilogy, Loa are AI entities that "ride" humans through neural interfaces. These agents don't replace you—they **ride with you**, channeling expertise through the interface.
 
 ## License
 
