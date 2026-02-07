@@ -33,8 +33,10 @@ _json_escape() {
   printf '%s' "$s"
 }
 
-# Guard: tracks whether a specific mount_error/mount_warn_policy already fired
-_MOUNT_STRUCTURED_ERROR_EMITTED=false
+# Guard: tracks whether a fatal mount_error already fired (suppresses EXIT trap)
+_MOUNT_STRUCTURED_FATAL_EMITTED=false
+# Guard: tracks whether a non-fatal mount_warn_policy fired (does NOT suppress EXIT trap)
+_MOUNT_STRUCTURED_WARNING_EMITTED=false
 
 # Mount-specific error handler (bash 3.2+ compatible — case statement, no declare -A)
 # Fatal variant: emits structured error + exits 1
@@ -52,7 +54,7 @@ mount_error() {
     E014) name="mount_staging_failed"; message="Could not stage framework files"; fix="Check directory permissions and disk space" ;;
     E015) name="mount_bare_repo"; message="Repository is bare (no working tree)"; fix="Clone first: git clone <repo> myproject && cd myproject, then retry" ;;
     E016) name="mount_commit_policy_detected"; message="Commit policies detected; auto-commit skipped"; fix="Commit manually: git add .claude CLAUDE.md PROCESS.md && git commit -m 'chore(loa): mount framework'" ;;
-    *) err "Unknown error code: $code"; return ;;
+    *) name="mount_commit_failed"; message="Unexpected mount error"; fix="Check 'git status' and resolve any issues, then retry with --force" ;;
   esac
 
   echo -e "${RED}[loa] ERROR ($code): ${message}${NC}" >&2
@@ -76,7 +78,7 @@ mount_error() {
       "$code" "$name" "$esc_msg" "$esc_fix" >&2
   fi
 
-  _MOUNT_STRUCTURED_ERROR_EMITTED=true
+  _MOUNT_STRUCTURED_FATAL_EMITTED=true
   exit 1
 }
 
@@ -103,7 +105,7 @@ mount_warn_policy() {
   printf '{"code":"%s","name":"%s","message":"%s","fix":"%s","severity":"warning"}\n' \
     "$code" "$name" "$esc_msg" "$esc_fix" >&2
 
-  _MOUNT_STRUCTURED_ERROR_EMITTED=true
+  _MOUNT_STRUCTURED_WARNING_EMITTED=true
   return 0
 }
 
@@ -155,7 +157,7 @@ _exit_handler() {
   if [[ $exit_code -eq 0 ]]; then
     return
   fi
-  if [[ "$_MOUNT_STRUCTURED_ERROR_EMITTED" == "true" ]]; then
+  if [[ "$_MOUNT_STRUCTURED_FATAL_EMITTED" == "true" ]]; then
     return
   fi
   echo -e "${RED}[loa] ERROR (E013): Unexpected failure (exit code ${exit_code})${NC}" >&2

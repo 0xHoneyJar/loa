@@ -31,10 +31,10 @@ assert_json_has_keys() {
   local keys=("$@")
 
   # Must start with { and end with }
-  if [[ ! "$json" =~ ^\{.*\}$ ]]; then
-    echo "Not a JSON object: $json"
-    return 1
-  fi
+  case "$json" in
+    \{*\}) ;; # valid JSON object shape
+    *) echo "Not a JSON object: $json"; return 1 ;;
+  esac
 
   # Must be single-line (no literal newlines in the value)
   if [[ $(echo "$json" | wc -l) -gt 1 ]]; then
@@ -44,10 +44,10 @@ assert_json_has_keys() {
 
   # Check each required key exists as "key":
   for key in "${keys[@]}"; do
-    if [[ ! "$json" =~ \"${key}\" ]]; then
-      echo "Missing key: $key"
-      return 1
-    fi
+    case "$json" in
+      *"\"${key}\""*) ;; # key found
+      *) echo "Missing key: $key"; return 1 ;;
+    esac
   done
 
   # Optional: validate with jq if available
@@ -241,8 +241,15 @@ test_e010_no_git() {
         fail "E010: git not installed" "wrong code: $code"
       fi
     else
-      # Script may fail before structured output if git is truly missing
-      pass "E010: git not installed (early exit)"
+      # When git is completely absent from PATH, bash may fail to resolve
+      # mount_error's git-dependent helpers. Non-zero exit is the minimum
+      # safety guarantee; structured JSON requires git to be loadable.
+      local stderr_content; stderr_content=$(get_stderr "$dir")
+      if echo "$stderr_content" | grep -qi "git\|command not found"; then
+        pass "E010: git not installed (unstructured but clear)"
+      else
+        fail "E010: git not installed" "no JSON and no clear error message"
+      fi
     fi
   else
     fail "E010: git not installed" "expected non-zero exit"
@@ -471,7 +478,7 @@ test_warn_policy_sets_guard() {
   ((TESTS_RUN++))
 
   source_error_functions
-  _MOUNT_STRUCTURED_ERROR_EMITTED=false
+  _MOUNT_STRUCTURED_WARNING_EMITTED=false
 
   # Redefine mount_warn_policy locally for testing
   # Source the function from mount-loa.sh
@@ -486,10 +493,10 @@ test_warn_policy_sets_guard() {
   eval "$func_body"
   mount_warn_policy "test context" 2>/dev/null
 
-  if [[ "$_MOUNT_STRUCTURED_ERROR_EMITTED" == "true" ]]; then
-    pass "mount_warn_policy: sets guard"
+  if [[ "$_MOUNT_STRUCTURED_WARNING_EMITTED" == "true" ]]; then
+    pass "mount_warn_policy: sets warning guard"
   else
-    fail "mount_warn_policy: sets guard" "_MOUNT_STRUCTURED_ERROR_EMITTED=$_MOUNT_STRUCTURED_ERROR_EMITTED"
+    fail "mount_warn_policy: sets warning guard" "_MOUNT_STRUCTURED_WARNING_EMITTED=$_MOUNT_STRUCTURED_WARNING_EMITTED"
   fi
 }
 test_warn_policy_sets_guard
@@ -499,7 +506,7 @@ test_warn_policy_json() {
   ((TESTS_RUN++))
 
   source_error_functions
-  _MOUNT_STRUCTURED_ERROR_EMITTED=false
+  _MOUNT_STRUCTURED_WARNING_EMITTED=false
   RED='\033[0;31m'
   YELLOW='\033[1;33m'
   CYAN='\033[0;36m'
@@ -539,7 +546,7 @@ test_exit_trap_success() {
   cat > "$tmpscript" << 'SCRIPT'
 #!/usr/bin/env bash
 set -uo pipefail
-_MOUNT_STRUCTURED_ERROR_EMITTED=false
+_MOUNT_STRUCTURED_FATAL_EMITTED=false
 _json_escape() {
   local s="$1"
   s="${s//\\/\\\\}"
@@ -554,7 +561,7 @@ RED='\033[0;31m' NC='\033[0m'
 _exit_handler() {
   local exit_code=$?
   if [[ $exit_code -eq 0 ]]; then return; fi
-  if [[ "$_MOUNT_STRUCTURED_ERROR_EMITTED" == "true" ]]; then return; fi
+  if [[ "$_MOUNT_STRUCTURED_FATAL_EMITTED" == "true" ]]; then return; fi
   echo -e "${RED}[loa] ERROR (E013): Unexpected failure (exit code ${exit_code})${NC}" >&2
   local esc_msg; esc_msg=$(_json_escape "Unexpected failure (exit code ${exit_code})")
   local esc_fix; esc_fix=$(_json_escape "Check git status and retry with --force")
@@ -584,7 +591,7 @@ test_exit_trap_fires() {
   cat > "$tmpscript" << 'SCRIPT'
 #!/usr/bin/env bash
 set -uo pipefail
-_MOUNT_STRUCTURED_ERROR_EMITTED=false
+_MOUNT_STRUCTURED_FATAL_EMITTED=false
 _json_escape() {
   local s="$1"
   s="${s//\\/\\\\}"
@@ -599,7 +606,7 @@ RED='\033[0;31m' NC='\033[0m'
 _exit_handler() {
   local exit_code=$?
   if [[ $exit_code -eq 0 ]]; then return; fi
-  if [[ "$_MOUNT_STRUCTURED_ERROR_EMITTED" == "true" ]]; then return; fi
+  if [[ "$_MOUNT_STRUCTURED_FATAL_EMITTED" == "true" ]]; then return; fi
   local esc_msg; esc_msg=$(_json_escape "Unexpected failure (exit code ${exit_code})")
   local esc_fix; esc_fix=$(_json_escape "Check git status and retry with --force")
   printf '{"code":"E013","name":"mount_commit_failed","message":"%s","fix":"%s"}\n' "$esc_msg" "$esc_fix" >&2
@@ -635,7 +642,7 @@ test_exit_trap_suppressed_after_error() {
   cat > "$tmpscript" << 'SCRIPT'
 #!/usr/bin/env bash
 set -uo pipefail
-_MOUNT_STRUCTURED_ERROR_EMITTED=false
+_MOUNT_STRUCTURED_FATAL_EMITTED=false
 _json_escape() {
   local s="$1"
   s="${s//\\/\\\\}"
@@ -650,12 +657,12 @@ RED='\033[0;31m' NC='\033[0m'
 _exit_handler() {
   local exit_code=$?
   if [[ $exit_code -eq 0 ]]; then return; fi
-  if [[ "$_MOUNT_STRUCTURED_ERROR_EMITTED" == "true" ]]; then return; fi
+  if [[ "$_MOUNT_STRUCTURED_FATAL_EMITTED" == "true" ]]; then return; fi
   printf '{"code":"E013","name":"mount_commit_failed","message":"SHOULD_NOT_APPEAR","fix":"none"}\n' >&2
 }
 trap '_exit_handler' EXIT
-# Simulate mount_error setting guard then exiting
-_MOUNT_STRUCTURED_ERROR_EMITTED=true
+# Simulate mount_error setting fatal guard then exiting
+_MOUNT_STRUCTURED_FATAL_EMITTED=true
 printf '{"code":"E010","name":"mount_no_git_repo","message":"test","fix":"test"}\n' >&2
 exit 1
 SCRIPT
@@ -729,7 +736,7 @@ test_mount_error_json_schema() {
   ((TESTS_RUN++))
 
   source_error_functions
-  _MOUNT_STRUCTURED_ERROR_EMITTED=false
+  _MOUNT_STRUCTURED_FATAL_EMITTED=false
   RED='\033[0;31m'
   YELLOW='\033[1;33m'
   CYAN='\033[0;36m'
@@ -794,6 +801,62 @@ test_success_no_json_error() {
   cleanup
 }
 test_success_no_json_error
+
+# --- Test 20: Error code consistency between mount_error and error-codes.json ---
+test_error_code_consistency() {
+  ((TESTS_RUN++))
+
+  local error_codes_json="${SCRIPT_DIR}/data/error-codes.json"
+  if [[ ! -f "$error_codes_json" ]]; then
+    skip "error code consistency" "error-codes.json not found at $error_codes_json"
+    return
+  fi
+
+  # Extract E0XX codes from mount_error case statement in mount-loa.sh
+  local script_codes
+  script_codes=$(sed -n '/^mount_error()/,/^}/p' "$MOUNT_SCRIPT" | \
+    grep -oE 'E0[0-9]{2}\)' | sed 's/)//' | sort -u)
+
+  # Extract mount-category codes from error-codes.json (pure grep, no jq required)
+  local json_codes
+  json_codes=$(grep -B2 '"mount"' "$error_codes_json" | \
+    grep -oE '"E0[0-9]{2}"' | tr -d '"' | sort -u)
+
+  if [[ -z "$script_codes" ]]; then
+    fail "error code consistency" "no codes found in mount_error case statement"
+    return
+  fi
+  if [[ -z "$json_codes" ]]; then
+    fail "error code consistency" "no mount codes found in error-codes.json"
+    return
+  fi
+
+  # Check that every code in mount_error exists in error-codes.json
+  local missing=""
+  for code in $script_codes; do
+    if ! echo "$json_codes" | grep -q "^${code}$"; then
+      missing="${missing} ${code}"
+    fi
+  done
+
+  # Check that every mount code in error-codes.json exists in mount_error
+  local extra=""
+  for code in $json_codes; do
+    if ! echo "$script_codes" | grep -q "^${code}$"; then
+      extra="${extra} ${code}"
+    fi
+  done
+
+  if [[ -z "$missing" && -z "$extra" ]]; then
+    pass "error code consistency: mount_error matches error-codes.json"
+  else
+    local detail=""
+    [[ -n "$missing" ]] && detail="missing from JSON:${missing}"
+    [[ -n "$extra" ]] && detail="${detail:+$detail; }in JSON but not in case:${extra}"
+    fail "error code consistency" "$detail"
+  fi
+}
+test_error_code_consistency
 
 # === Summary ===
 echo ""
