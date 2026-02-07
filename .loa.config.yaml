@@ -814,6 +814,12 @@ gpt_review:
     sdd: true
     sprint: true
     implementation: true
+  # Large diff handling (#226)
+  # Token budget for review content (rough: bytes/4). Diffs exceeding this
+  # are priority-truncated: P0 (security) first, P3 (docs/tests) dropped.
+  max_review_tokens: 30000
+  # Flag .claude/ (System Zone) changes with elevated scrutiny warning
+  system_zone_alert: true
 
 # =============================================================================
 # Plan and Analyze Configuration (v1.6.0)

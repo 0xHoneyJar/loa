@@ -63,6 +63,13 @@ RETRY_DELAY=5
 # Default max iterations before auto-approve
 DEFAULT_MAX_ITERATIONS=3
 
+# Default token budget for content (rough estimate: bytes / 4)
+# 30k tokens ≈ 120k chars — leaves room for system prompt + context in 128k window
+DEFAULT_MAX_REVIEW_TOKENS=30000
+
+# System zone alert (default: true for code reviews)
+SYSTEM_ZONE_ALERT="${GPT_REVIEW_SYSTEM_ZONE_ALERT:-true}"
+
 log() {
   echo "[gpt-review-api] $*" >&2
 }
@@ -159,7 +166,195 @@ load_config() {
     if [[ -n "$code_model" && "$code_model" != "null" ]]; then
       DEFAULT_MODELS["code"]="$code_model"
     fi
+
+    # Large diff handling config (#226)
+    local max_tokens_val sza_val
+    max_tokens_val=$(yq eval '.gpt_review.max_review_tokens // ""' "$CONFIG_FILE" 2>/dev/null || echo "")
+    if [[ -n "$max_tokens_val" && "$max_tokens_val" != "null" ]]; then
+      DEFAULT_MAX_REVIEW_TOKENS="$max_tokens_val"
+    fi
+    sza_val=$(yq eval '.gpt_review.system_zone_alert // ""' "$CONFIG_FILE" 2>/dev/null || echo "")
+    if [[ -n "$sza_val" && "$sza_val" != "null" ]]; then
+      SYSTEM_ZONE_ALERT="$sza_val"
+    fi
   fi
+}
+
+# =============================================================================
+# System Zone Detection (#226)
+# =============================================================================
+# Detects when review content contains changes to .claude/ (System Zone).
+# System zone files affect framework behavior for ALL future agent sessions
+# and require elevated security scrutiny.
+
+# Detect system zone changes in diff/content
+# Outputs system zone file paths to stdout (one per line)
+# Returns: 0 if system zone changes detected, 1 otherwise
+detect_system_zone_changes() {
+  local content="$1"
+
+  # Match diff headers referencing .claude/ paths
+  local system_files
+  system_files=$(printf '%s' "$content" | grep -oE '(\+\+\+ b/|diff --git a/)\.claude/[^ ]+' \
+    | sed 's|^+++ b/||;s|^diff --git a/||' | sort -u) || true
+
+  if [[ -n "$system_files" ]]; then
+    echo "$system_files"
+    return 0
+  fi
+
+  return 1
+}
+
+# =============================================================================
+# File Priority Scoring (#226)
+# =============================================================================
+# Assigns review priority to files. Lower number = higher importance.
+# P0: Security-critical (shell, auth, crypto, env, system zone)
+# P1: Business logic (TypeScript, JS, Python, Go, Rust)
+# P2: Config and CI (YAML, JSON, Dockerfiles)
+# P3: Docs and tests (markdown, test files, assets)
+
+file_priority() {
+  local filepath="$1"
+
+  # System zone is always P0
+  if [[ "$filepath" == .claude/* ]]; then
+    echo 0; return
+  fi
+
+  case "$filepath" in
+    # P0: Security-critical
+    *.sh|*/auth/*|*/security/*|*/crypto/*|*.env*|*/api/routes/*|*/middleware/*)
+      echo 0 ;;
+    # P1: Business logic (but tests drop to P3)
+    *.ts|*.js|*.tsx|*.jsx|*.py|*.go|*.rs)
+      if [[ "$filepath" == *test* || "$filepath" == *spec* || "$filepath" == *__tests__* ]]; then
+        echo 3
+      else
+        echo 1
+      fi
+      ;;
+    # P2: Config and CI
+    *.yml|*.yaml|*.json|*.toml|*.lock|Dockerfile*|*.Dockerfile)
+      echo 2 ;;
+    # P3: Docs, assets, styles
+    *.md|*.txt|*.svg|*.png|*.jpg|*.css|*.scss)
+      echo 3 ;;
+    *)
+      echo 2 ;;
+  esac
+}
+
+# =============================================================================
+# Smart Content Preparation (#226)
+# =============================================================================
+# For large diffs, splits by file, sorts by priority, truncates at token budget.
+# This prevents silent token-limit truncation by the API and ensures
+# security-critical files are always reviewed first.
+
+# Estimate token count (rough: bytes / 4)
+estimate_tokens() {
+  local bytes
+  bytes=$(printf '%s' "$1" | wc -c)
+  echo $(( bytes / 4 ))
+}
+
+# Prepare content with priority-based truncation for large diffs
+# Args: $1 = raw content, $2 = max token budget
+# If content fits budget, passes through unchanged.
+# If over budget, parses diff into per-file sections, sorts by priority,
+# includes highest-priority files first, appends summary of skipped files.
+prepare_content() {
+  local raw_content="$1"
+  local max_tokens="${2:-$DEFAULT_MAX_REVIEW_TOKENS}"
+
+  local token_count
+  token_count=$(estimate_tokens "$raw_content")
+
+  # If content fits, return as-is
+  if [[ $token_count -le $max_tokens ]]; then
+    printf '%s' "$raw_content"
+    return 0
+  fi
+
+  log "Content exceeds token budget (${token_count} > ${max_tokens}). Applying priority-based truncation."
+
+  # Parse diff into per-file sections at "diff --git" boundaries
+  local temp_dir
+  temp_dir=$(mktemp -d)
+  chmod 700 "$temp_dir"
+
+  local current_file="" current_content="" file_index=0
+
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^diff\ --git\ a/(.+)\ b/ ]]; then
+      # Save previous file section
+      if [[ -n "$current_file" ]]; then
+        local pri
+        pri=$(file_priority "$current_file")
+        printf '%d\t%s\t%d\n' "$pri" "$current_file" "$file_index" >> "$temp_dir/manifest"
+        printf '%s' "$current_content" > "$temp_dir/chunk_${file_index}"
+        ((file_index++))
+      fi
+      current_file="${BASH_REMATCH[1]}"
+      current_content="$line"
+    else
+      current_content+=$'\n'"$line"
+    fi
+  done <<< "$raw_content"
+
+  # Save last file section
+  if [[ -n "$current_file" ]]; then
+    local pri
+    pri=$(file_priority "$current_file")
+    printf '%d\t%s\t%d\n' "$pri" "$current_file" "$file_index" >> "$temp_dir/manifest"
+    printf '%s' "$current_content" > "$temp_dir/chunk_${file_index}"
+    ((file_index++))
+  fi
+
+  # If no diff structure found (not a diff file), truncate raw content
+  if [[ ! -f "$temp_dir/manifest" ]]; then
+    rm -rf "$temp_dir"
+    log "No diff structure detected. Truncating raw content to budget."
+    printf '%s' "$raw_content" | head -c $(( max_tokens * 4 ))
+    return 0
+  fi
+
+  # Sort by priority (lowest number = highest importance)
+  local sorted_manifest
+  sorted_manifest=$(sort -t$'\t' -k1,1n "$temp_dir/manifest")
+
+  # Build output up to token budget
+  local output="" current_tokens=0 included=0
+  local -a skipped_files=()
+
+  while IFS=$'\t' read -r priority filepath chunk_idx; do
+    local chunk_content
+    chunk_content=$(cat "$temp_dir/chunk_${chunk_idx}")
+    local chunk_tokens
+    chunk_tokens=$(estimate_tokens "$chunk_content")
+
+    if [[ $(( current_tokens + chunk_tokens )) -le $max_tokens ]]; then
+      output+="$chunk_content"$'\n'
+      current_tokens=$(( current_tokens + chunk_tokens ))
+      ((included++))
+    else
+      skipped_files+=("P${priority}: ${filepath}")
+    fi
+  done <<< "$sorted_manifest"
+
+  # Append summary of skipped files
+  if [[ ${#skipped_files[@]} -gt 0 ]]; then
+    output+=$'\n'"--- TRUNCATED: ${#skipped_files[@]} lower-priority file(s) omitted (token budget: ${max_tokens}) ---"$'\n'
+    for sf in "${skipped_files[@]}"; do
+      output+="  $sf"$'\n'
+    done
+    log "Included $included files, skipped ${#skipped_files[@]} lower-priority files"
+  fi
+
+  rm -rf "$temp_dir"
+  printf '%s' "$output"
 }
 
 # Build the system prompt for first review
@@ -703,17 +898,52 @@ EOF
   local raw_content
   raw_content=$(cat "$content_file")
 
+  # ── System Zone Detection (#226) ──────────────────
+  local system_zone_warning=""
+  if [[ "$SYSTEM_ZONE_ALERT" == "true" ]]; then
+    local system_zone_files=""
+    if system_zone_files=$(detect_system_zone_changes "$raw_content"); then
+      local file_list
+      file_list=$(echo "$system_zone_files" | tr '\n' ', ' | sed 's/,$//')
+      system_zone_warning="SYSTEM ZONE (.claude/) CHANGES DETECTED. These files affect framework behavior for ALL future agent sessions. Apply ELEVATED security scrutiny: ${file_list}"
+      log "WARNING: $system_zone_warning"
+    fi
+  fi
+
+  # ── Smart Content Preparation (#226) ──────────────
+  local max_review_tokens="${GPT_REVIEW_MAX_TOKENS:-$DEFAULT_MAX_REVIEW_TOKENS}"
+  local prepared_content
+  prepared_content=$(prepare_content "$raw_content" "$max_review_tokens")
+
+  # Prepend system zone warning to content if detected
+  if [[ -n "$system_zone_warning" ]]; then
+    prepared_content=">>> ${system_zone_warning}"$'\n\n'"${prepared_content}"
+  fi
+
   # Build user prompt with context
   # User prompt = [Product Context] + [Feature Context] + [Content to Review]
   local user_prompt
-  user_prompt=$(build_user_prompt "$context_file" "$raw_content")
+  user_prompt=$(build_user_prompt "$context_file" "$prepared_content")
 
   # Call API with separated prompts
   local response
   response=$(call_api "$model" "$system_prompt" "$user_prompt" "$timeout")
 
-  # Add iteration to response
-  response=$(echo "$response" | jq --arg iter "$iteration" '. + {iteration: ($iter | tonumber)}')
+  # Add metadata to response
+  local metadata_args=(--arg iter "$iteration")
+  local metadata_jq='. + {iteration: ($iter | tonumber)}'
+
+  if [[ -n "$system_zone_warning" ]]; then
+    metadata_args+=(--argjson system_zone "true")
+    metadata_jq+='' # system_zone added via argjson below
+  fi
+
+  response=$(echo "$response" | jq "${metadata_args[@]}" "$metadata_jq")
+
+  # Add system_zone flag if detected
+  if [[ -n "$system_zone_warning" ]]; then
+    response=$(echo "$response" | jq '. + {system_zone_detected: true}')
+  fi
 
   # Sanitize output: strip ANSI escape codes and control characters
   # Defensive measure against malicious API responses
