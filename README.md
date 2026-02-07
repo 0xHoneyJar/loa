@@ -35,9 +35,7 @@ claude
 /ship      # Deploy and archive
 ```
 
-Not sure where you are? `/loa` shows your current state, health, and next step.
-
-See **[INSTALLATION.md](INSTALLATION.md)** for detailed setup, prerequisites, and configuration.
+Not sure where you are? `/loa` shows your current state, health, and next step. Creating a project from scratch? See **[INSTALLATION.md](INSTALLATION.md)** to clone the template at start riding and for more detailed setup, prerequisites, and configuration.
 
 ## Why Loa?
 
