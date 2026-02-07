@@ -128,6 +128,19 @@ export class IdentityLoader {
     return this.computeChecksum(content) !== this.lastLoadedChecksum;
   }
 
+  /**
+   * Load raw file content without parsing (finn's simpler use case).
+   */
+  async loadRaw(): Promise<string> {
+    if (!existsSync(this.config.beauvoirPath)) {
+      throw new PersistenceError(
+        "IDENTITY_PARSE_FAILED",
+        `BEAUVOIR.md not found at ${this.config.beauvoirPath}`,
+      );
+    }
+    return readFile(this.config.beauvoirPath, "utf-8");
+  }
+
   getIdentity(): IdentityDocument | null {
     return this.identity;
   }

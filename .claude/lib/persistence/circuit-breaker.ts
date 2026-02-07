@@ -22,6 +22,10 @@ export interface CircuitBreakerConfig {
   resetTimeMs: number;
   /** Number of successful probes in HALF_OPEN before closing. Default: 1 */
   halfOpenRetries: number;
+  /** Optional task ID for cross-repo tracking (finn convergence) */
+  taskId?: string;
+  /** Enable probe counter for convergence monitoring. Default: false */
+  enableProbeCounter?: boolean;
 }
 
 export type CircuitBreakerStateChangeCallback = (
@@ -47,6 +51,8 @@ export class CircuitBreaker {
   private readonly config: CircuitBreakerConfig;
   private onStateChange?: CircuitBreakerStateChangeCallback;
   private nowFn: () => number;
+  private readonly taskId: string | undefined;
+  private probeCount = 0;
 
   constructor(
     config?: Partial<CircuitBreakerConfig>,
@@ -59,6 +65,7 @@ export class CircuitBreaker {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.onStateChange = options?.onStateChange;
     this.nowFn = options?.now ?? Date.now;
+    this.taskId = config?.taskId;
   }
 
   /**
@@ -74,6 +81,10 @@ export class CircuitBreaker {
         `Circuit breaker is OPEN (${this.consecutiveFailures} failures, ` +
           `resets in ${this.msUntilReset()}ms)`,
       );
+    }
+
+    if (currentState === "HALF_OPEN" && this.config.enableProbeCounter) {
+      this.probeCount++;
     }
 
     try {
@@ -147,6 +158,20 @@ export class CircuitBreaker {
    */
   getFailureCount(): number {
     return this.consecutiveFailures;
+  }
+
+  /**
+   * Get the optional task ID (finn convergence).
+   */
+  getTaskId(): string | undefined {
+    return this.taskId;
+  }
+
+  /**
+   * Get the number of HALF_OPEN probe attempts (only counted when enableProbeCounter is true).
+   */
+  getProbeCount(): number {
+    return this.probeCount;
   }
 
   // ── Private ──────────────────────────────────────────────
