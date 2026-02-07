@@ -32,6 +32,10 @@ readonly _DX_UTILS_LOADED=1
 # =============================================================================
 _DX_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Require bash 4.0+ (associative arrays)
+# shellcheck source=../bash-version-guard.sh
+source "$_DX_LIB_DIR/../bash-version-guard.sh"
+
 # =============================================================================
 # TTY Detection (Pattern 6: Dual-Mode Output)
 # =============================================================================

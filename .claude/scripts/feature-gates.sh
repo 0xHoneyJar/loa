@@ -22,6 +22,10 @@ readonly SKILLS_DIR="$PROJECT_ROOT/.claude/skills"
 readonly DISABLED_DIR="$PROJECT_ROOT/.claude/.skills-disabled"
 readonly GITIGNORE_FILE="$PROJECT_ROOT/.gitignore"
 
+# Require bash 4.0+ (associative arrays)
+# shellcheck source=bash-version-guard.sh
+source "$SCRIPT_DIR/bash-version-guard.sh"
+
 # Feature gate to config path mapping
 declare -A GATE_CONFIG_PATHS=(
   ["security_audit"]="preferences.require_security_audit"

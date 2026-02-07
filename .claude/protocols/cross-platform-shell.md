@@ -25,6 +25,23 @@ source "${SCRIPT_DIR}/compat-lib.sh"  # or source via bootstrap chain
 
 ## Required Patterns
 
+### Bash 4.0+ Version Guard
+
+**Library**: `bash-version-guard.sh` (since Issue #240)
+
+```bash
+# WRONG — crashes with cryptic "unbound variable" on macOS bash 3.2
+declare -A MY_MAP=( ["key"]="value" )
+
+# RIGHT — source the guard before any declare -A
+source "$SCRIPT_DIR/bash-version-guard.sh"
+declare -A MY_MAP=( ["key"]="value" )
+```
+
+**Why it's subtle**: macOS ships with bash 3.2. `declare -A` (associative arrays) requires bash 4.0+. On bash 3.2, the script crashes with `unbound variable` instead of a clear version error. The guard detects this and prints upgrade instructions.
+
+The guard uses source-time detection (no function call needed) and has a double-source guard. This is the same fail-fast pattern used by `compat-lib.sh`.
+
 ### Timestamps
 
 **Library**: `time-lib.sh` (since PR #199)
@@ -184,6 +201,7 @@ The `shell-compat-lint.yml` workflow catches platform-specific patterns at PR ti
 
 | Pattern | Severity | Rationale |
 |---------|----------|-----------|
+| `declare -A` (without bash-version-guard) | error | Crashes macOS bash 3.2 |
 | `sed -i ` (without compat-lib) | error | Breaks macOS |
 | `readlink -f` (without compat-lib) | error | Breaks macOS |
 | `grep -P` | error | Breaks macOS |

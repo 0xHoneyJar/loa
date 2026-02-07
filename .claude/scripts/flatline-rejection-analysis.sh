@@ -19,6 +19,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Require bash 4.0+ (associative arrays)
+# shellcheck source=bash-version-guard.sh
+source "$SCRIPT_DIR/bash-version-guard.sh"
+
 TRAJECTORY_DIR="$PROJECT_ROOT/grimoires/loa/a2a/trajectory"
 COMPOUND_DIR="$PROJECT_ROOT/grimoires/loa/a2a/compound"
 PATTERNS_FILE="$COMPOUND_DIR/rejection-patterns.json"

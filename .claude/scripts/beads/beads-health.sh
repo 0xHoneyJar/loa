@@ -29,6 +29,10 @@ set -euo pipefail
 # -----------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Require bash 4.0+ (associative arrays)
+# shellcheck source=../bash-version-guard.sh
+source "$SCRIPT_DIR/../bash-version-guard.sh"
+
 # Allow PROJECT_ROOT override for testing
 if [[ -z "${PROJECT_ROOT:-}" ]]; then
     PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"

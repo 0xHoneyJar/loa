@@ -27,6 +27,10 @@ set -euo pipefail
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_NAME="$(basename "$0")"
 
+# Require bash 4.0+ (associative arrays)
+# shellcheck source=bash-version-guard.sh
+source "$SCRIPT_DIR/bash-version-guard.sh"
+
 # Source cross-platform time utilities
 # shellcheck source=time-lib.sh
 source "$SCRIPT_DIR/time-lib.sh"

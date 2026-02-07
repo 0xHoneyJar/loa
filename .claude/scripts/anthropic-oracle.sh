@@ -42,18 +42,9 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 BOLD='\033[1m'
 
-# Check bash version (associative arrays require bash 4+)
-check_bash_version() {
-    if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
-        echo -e "${RED}ERROR: bash 4.0+ required (found ${BASH_VERSION})${NC}" >&2
-        echo "" >&2
-        echo "Upgrade bash:" >&2
-        echo "  macOS:  brew install bash" >&2
-        echo "          Then add /opt/homebrew/bin/bash to /etc/shells" >&2
-        echo "          And run: chsh -s /opt/homebrew/bin/bash" >&2
-        exit 1
-    fi
-}
+# Require bash 4.0+ (associative arrays)
+# shellcheck source=bash-version-guard.sh
+source "$SCRIPT_DIR/bash-version-guard.sh"
 
 # Check dependencies
 check_dependencies() {
@@ -80,7 +71,6 @@ check_dependencies() {
 }
 
 # Run checks before anything else
-check_bash_version
 check_dependencies
 
 # Configuration file

@@ -116,13 +116,9 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 BOLD='\033[1m'
 
-# Check bash version (associative arrays require bash 4+)
-check_bash_version() {
-    if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
-        echo -e "${RED}ERROR: bash 4.0+ required (found ${BASH_VERSION})${NC}" >&2
-        exit 1
-    fi
-}
+# Require bash 4.0+ (associative arrays) — shared guard
+# shellcheck source=bash-version-guard.sh
+source "$SCRIPT_DIR/bash-version-guard.sh"
 
 # Check dependencies
 check_dependencies() {
@@ -138,7 +134,6 @@ check_dependencies() {
     fi
 }
 
-check_bash_version
 check_dependencies
 
 # =============================================================================

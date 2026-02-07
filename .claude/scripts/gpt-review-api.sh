@@ -37,6 +37,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROMPTS_DIR="${SCRIPT_DIR}/../prompts/gpt-review/base"
 CONFIG_FILE=".loa.config.yaml"
 
+# Require bash 4.0+ (associative arrays)
+# shellcheck source=bash-version-guard.sh
+source "$SCRIPT_DIR/bash-version-guard.sh"
+
 # Default models per review type
 declare -A DEFAULT_MODELS=(
   ["prd"]="gpt-5.2"

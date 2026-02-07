@@ -19,6 +19,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Require bash 4.0+ (associative arrays)
+# shellcheck source=bash-version-guard.sh
+source "$SCRIPT_DIR/bash-version-guard.sh"
 SKILLS_DIR="${PROJECT_ROOT}/grimoires/loa/skills"
 SYNTHESIS_FILE="${PROJECT_ROOT}/grimoires/loa/a2a/compound/synthesis-queue.json"
 CONFIG_FILE="${PROJECT_ROOT}/.loa.config.yaml"

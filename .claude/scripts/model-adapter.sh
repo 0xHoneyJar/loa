@@ -52,6 +52,10 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 TEMPLATES_DIR="$SCRIPT_DIR/../templates"
 
+# Require bash 4.0+ (associative arrays)
+# shellcheck source=bash-version-guard.sh
+source "$SCRIPT_DIR/bash-version-guard.sh"
+
 # Source cross-platform time utilities
 # shellcheck source=time-lib.sh
 source "$SCRIPT_DIR/time-lib.sh"

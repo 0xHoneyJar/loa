@@ -53,17 +53,9 @@ NOTIFY_MODE=false
 # Dependency Checks
 # =============================================================================
 
-check_bash_version() {
-    if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
-        echo -e "${RED}ERROR: bash 4.0+ required (found ${BASH_VERSION})${NC}" >&2
-        echo "" >&2
-        echo "Upgrade bash:" >&2
-        echo "  macOS:  brew install bash" >&2
-        echo "          Then add /opt/homebrew/bin/bash to /etc/shells" >&2
-        echo "          And run: chsh -s /opt/homebrew/bin/bash" >&2
-        exit 2
-    fi
-}
+# Require bash 4.0+ (associative arrays) — shared guard
+# shellcheck source=bash-version-guard.sh
+source "$SCRIPT_DIR/bash-version-guard.sh"
 
 check_dependencies() {
     local missing=()
@@ -509,7 +501,6 @@ main() {
     done
 
     # Run dependency checks
-    check_bash_version
     check_dependencies
 
     # Load configuration

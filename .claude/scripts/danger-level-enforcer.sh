@@ -26,6 +26,10 @@ readonly SKILLS_DIR="$PROJECT_ROOT/.claude/skills"
 readonly CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 readonly TRAJECTORY_DIR="$PROJECT_ROOT/grimoires/loa/a2a/trajectory"
 
+# Require bash 4.0+ (associative arrays)
+# shellcheck source=bash-version-guard.sh
+source "$SCRIPT_DIR/bash-version-guard.sh"
+
 # =============================================================================
 # Default danger levels for skills (if not specified in index.yaml)
 # =============================================================================
