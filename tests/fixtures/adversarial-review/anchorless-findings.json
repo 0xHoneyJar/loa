@@ -1,0 +1,20 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "description": "Missing rate limiting on authentication endpoint",
+      "failure_mode": "Brute force attacks possible",
+      "suggested_fix": "Add rate limiter middleware"
+    },
+    {
+      "id": "DISS-002",
+      "severity": "ADVISORY",
+      "category": "performance",
+      "description": "Token validation could be cached for repeated requests",
+      "failure_mode": "Unnecessary CPU usage on repeated token checks",
+      "suggested_fix": "Add LRU cache for validated tokens"
+    }
+  ]
+}

@@ -1592,6 +1592,53 @@ flatline_protocol:
       # Custom auth directory (optional, default: ~/.claude/notebooklm-auth/)
       # auth_dir: ""
 
+  # Adversarial cross-model dissent for quality gates (code review + security audit)
+  # Uses adversarial-review.sh to invoke a second model as dissenter
+  code_review:
+    enabled: false                # Enable for review-sprint (opt-in)
+    model: "gpt-5.2-codex"       # Dissenter model
+    timeout_seconds: 60           # Per-call timeout
+    budget_cents: 150             # Max cost per review dissent
+  security_audit:
+    enabled: false                # Enable for audit-sprint (opt-in)
+    model: "gpt-5.2-codex"       # Dissenter model
+    timeout_seconds: 60           # Per-call timeout
+    budget_cents: 150             # Max cost per audit dissent
+  stable_anchors:
+    required: true                # Demote anchorless high-severity findings
+    preferred_format: "symbol"    # symbol | hunk_header | line_number
+    enforce_for:                  # Severity levels requiring anchors
+      - "BLOCKING"
+      - "CRITICAL"
+      - "HIGH"
+  context_escalation:
+    enabled: true                 # Expand context for P0 files
+    secondary_token_budget: 15000 # Max tokens for escalated full-file context
+    max_file_lines: 500           # Skip files exceeding this
+    max_file_bytes: 51200         # Skip files exceeding 50KB
+    denylist:                     # Never send these to external APIs
+      - "*.pem"
+      - "*.key"
+      - "*.p12"
+      - "*.pfx"
+      - "id_rsa*"
+      - ".env*"
+      - "credentials.*"
+      - "secrets.*"
+      - "*.secret"
+  secret_scanning:
+    enabled: true                 # Mandatory pre-send redaction
+    patterns:                     # Narrow, format-specific regex patterns
+      - "AKIA[0-9A-Z]{16}"
+      - "-----BEGIN[A-Z ]*PRIVATE KEY-----"
+      - "ghp_[A-Za-z0-9]{36}"
+      - "sk-[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20}"
+      - "(?:password|secret|token|api_key)\\s*[:=]\\s*[\"'][^\"']{8,}"
+    allowlist:                    # False-positive exclusions
+      - "sha256:[a-f0-9]{64}"
+      - "sha1:[a-f0-9]{40}"
+      - "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+
 # =============================================================================
 # Behavior Preferences
 # =============================================================================

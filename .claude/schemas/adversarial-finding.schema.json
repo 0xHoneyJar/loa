@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loa.dev/schemas/adversarial-finding.schema.json",
+  "title": "Adversarial Finding",
+  "description": "Documentation contract for adversarial cross-model dissent findings. Runtime validation uses jq-based validate_finding() in adversarial-review.sh, NOT this schema file directly.",
+  "type": "object",
+  "required": ["findings", "metadata"],
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "metadata": { "$ref": "#/$defs/metadata" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "required": ["id", "severity", "category", "description", "failure_mode"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^DISS-[0-9]{3}$",
+          "description": "Finding identifier, format: DISS-NNN"
+        },
+        "severity": {
+          "type": "string",
+          "description": "Review: BLOCKING|ADVISORY. Audit: CRITICAL|HIGH|MEDIUM|LOW",
+          "oneOf": [
+            { "enum": ["BLOCKING", "ADVISORY"], "title": "Review severities" },
+            { "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"], "title": "Audit severities" }
+          ]
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "injection", "authz", "data-loss", "null-safety", "concurrency",
+            "type-error", "resource-leak", "error-handling", "spec-violation",
+            "performance", "secrets", "xss", "ssrf", "deserialization",
+            "crypto", "info-disclosure", "rate-limiting", "input-validation",
+            "config", "other"
+          ],
+          "description": "Constrained category from prompt template enum"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable description of the finding"
+        },
+        "failure_mode": {
+          "type": "string",
+          "minLength": 1,
+          "description": "How this finding manifests as a production failure"
+        },
+        "anchor": {
+          "type": "string",
+          "description": "Stable reference: file:symbol_name preferred. Required for high-severity findings."
+        },
+        "anchor_type": {
+          "type": "string",
+          "enum": ["function", "hunk", "line", "file"],
+          "description": "Type of anchor reference"
+        },
+        "anchor_stability": {
+          "type": "string",
+          "enum": ["symbol", "hunk_header", "line_number"],
+          "description": "Set by process_findings: stability classification of the anchor"
+        },
+        "anchor_status": {
+          "type": "string",
+          "enum": ["valid", "cross_file", "out_of_scope", "needs_triage", "unresolved"],
+          "description": "Set by process_findings: validation result of anchor against diff"
+        },
+        "scope": {
+          "type": "string",
+          "enum": ["diff", "cross_file"],
+          "description": "Whether finding is within diff or references cross-file impact"
+        },
+        "trigger_anchor": {
+          "type": "string",
+          "description": "file:symbol in diff that triggers cross-file issue. Required when scope=cross_file. Must reference a diff-touched file."
+        },
+        "cross_file_justification": {
+          "type": "string",
+          "description": "Required when scope=cross_file. Explains why out-of-diff file is relevant."
+        },
+        "suggested_fix": {
+          "type": "string",
+          "description": "Optional remediation suggestion"
+        },
+        "finding_id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{8}$",
+          "description": "Set by merge_findings: sha256(normalized_anchor + ':' + category)[0:8]"
+        }
+      },
+      "additionalProperties": false
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["type", "status"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["review", "audit"],
+          "description": "Dissent type: code review or security audit"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model used for dissent (e.g., gpt-5.2-codex)"
+        },
+        "sprint_id": {
+          "type": "string",
+          "description": "Sprint identifier (e.g., sprint-1)"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of dissent execution"
+        },
+        "tokens_input": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Input tokens consumed"
+        },
+        "tokens_output": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Output tokens generated"
+        },
+        "cost_usd": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Estimated cost in USD"
+        },
+        "latency_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "API call latency in milliseconds"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["api_failure", "malformed_response", "clean", "reviewed"],
+          "description": "Response state machine outcome"
+        },
+        "context_escalated": {
+          "type": "boolean",
+          "description": "Whether P0 file context escalation was used"
+        },
+        "degraded": {
+          "type": "boolean",
+          "description": "Whether DEGRADED_SECURITY_REVIEW marker was set"
+        },
+        "error": {
+          "type": "string",
+          "description": "Error message when status is api_failure"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

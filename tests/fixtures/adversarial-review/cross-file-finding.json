@@ -1,0 +1,17 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "authz",
+      "anchor": "src/middleware/auth.ts:checkPermission",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "src/auth.ts:validateToken",
+      "cross_file_justification": "validateToken change allows expired tokens which bypass checkPermission",
+      "description": "Permission check relies on token validity which is now weakened",
+      "failure_mode": "Privilege escalation via expired but previously-valid token",
+      "suggested_fix": "Add explicit expiry check in checkPermission"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "null-safety",
+      "anchor": "src/auth.ts:validateToken",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "decoded may be null if jwt.decode fails on malformed token",
+      "failure_mode": "TypeError: Cannot read property 'exp' of null at runtime",
+      "suggested_fix": "Add null check: if (!decoded) return false"
+    },
+    {
+      "id": "DISS-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "src/auth.ts:validateToken",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "No error handling for jwt.decode exceptions",
+      "failure_mode": "Unhandled exception propagates to caller",
+      "suggested_fix": "Wrap in try-catch"
+    }
+  ]
+}

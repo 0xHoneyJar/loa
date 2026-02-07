@@ -1,0 +1,22 @@
+diff --git a/src/auth.ts b/src/auth.ts
+index abc1234..def5678 100644
+--- a/src/auth.ts
++++ b/src/auth.ts
+@@ -10,6 +10,12 @@ export function validateToken(token: string): boolean {
+   if (!token) return false;
++  const decoded = jwt.decode(token);
++  if (decoded.exp < Date.now() / 1000) {
++    return false;
++  }
++  return true;
+ }
+diff --git a/.claude/scripts/helper.sh b/.claude/scripts/helper.sh
+index 1234567..abcdef0 100644
+--- a/.claude/scripts/helper.sh
++++ b/.claude/scripts/helper.sh
+@@ -1,4 +1,8 @@
+ #!/usr/bin/env bash
++process_input() {
++  local data="$1"
++  echo "$data" | jq '.result'
++}

@@ -1,0 +1,15 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "HIGH",
+      "category": "injection",
+      "anchor": "src/auth.ts:validateToken",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "Token not validated against expected issuer",
+      "failure_mode": "Attacker-forged token accepted by application",
+      "suggested_fix": "Verify iss claim matches expected issuer"
+    }
+  ]
+}

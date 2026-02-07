@@ -767,6 +767,38 @@ flatline_protocol:
       notebook_id: ""          # Your NotebookLM notebook ID
       timeout_ms: 30000        # Query timeout
 
+  # Adversarial cross-model dissent for quality gates (#224)
+  # A second model reviews code that Claude already reviewed
+  code_review:
+    enabled: false               # Opt-in: enable for /review-sprint
+    model: "gpt-5.2-codex"      # Dissenter model
+    timeout_seconds: 60          # Per-call timeout
+    budget_cents: 150            # Max cost per dissent call
+  security_audit:
+    enabled: false               # Opt-in: enable for /audit-sprint
+    model: "gpt-5.2-codex"      # Dissenter model
+    timeout_seconds: 60
+    budget_cents: 150
+  stable_anchors:
+    required: true               # Demote anchorless high-severity findings
+    preferred_format: "symbol"   # symbol | hunk_header | line_number
+    enforce_for: ["BLOCKING", "CRITICAL", "HIGH"]
+  context_escalation:
+    enabled: true                # Full-file context for P0 files
+    secondary_token_budget: 15000
+    max_file_lines: 500
+    max_file_bytes: 51200        # 50KB
+    denylist: ["*.pem", "*.key", "*.p12", "*.pfx", "id_rsa*", ".env*", "credentials.*", "secrets.*", "*.secret"]
+  secret_scanning:
+    enabled: true                # Pre-send redaction (recommended)
+    patterns:                    # Format-specific regex patterns
+      - "AKIA[0-9A-Z]{16}"
+      - "-----BEGIN[A-Z ]*PRIVATE KEY-----"
+      - "ghp_[A-Za-z0-9]{36}"
+    allowlist:                   # False-positive exclusions
+      - "sha256:[a-f0-9]{64}"
+      - "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+
 # -----------------------------------------------------------------------------
 # Autonomous Flatline Mode (v1.22.0)
 # -----------------------------------------------------------------------------
