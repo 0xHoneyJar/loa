@@ -49,6 +49,18 @@
 #
 # Sources: Issue #161 (Event Bus Architecture), Issue #162 (Construct Manifest Standard)
 
+# Guard: This script uses bash-specific features (BASH_SOURCE, FD redirection
+# with 200>, declare -F, process substitution). Sourcing from zsh or other
+# shells will produce cryptic errors. Detect and fail early with guidance.
+# Fixes #230.
+if [ -z "${BASH_VERSION:-}" ]; then
+    echo "ERROR: event-bus.sh requires bash. Current shell: $(ps -o comm= -p $$ 2>/dev/null || echo unknown)" >&2
+    echo "  When sourcing: bash -c 'source .claude/scripts/lib/event-bus.sh && ...'" >&2
+    echo "  When executing: bash .claude/scripts/lib/event-bus.sh <command>" >&2
+    # 'return' exits when sourced, 'exit' exits when executed
+    return 3 2>/dev/null || exit 3
+fi
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
