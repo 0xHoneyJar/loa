@@ -129,7 +129,7 @@ APPROVED (or auto-approve at max_iterations)
 | Parameter | Purpose | Example |
 |-----------|---------|---------|
 | `--iteration N` | Tells GPT which iteration this is | `--iteration 2` |
-| `--previous <file>` | Previous findings for context | `--previous /tmp/gpt-review-findings-1.json` |
+| `--previous <file>` | Previous findings for context | `--previous grimoires/loa/a2a/gpt-review/code-findings-1.json` |
 
 **Why this matters:**
 - `{{ITERATION}}` is substituted into the re-review prompt
