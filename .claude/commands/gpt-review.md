@@ -146,18 +146,23 @@ esac
 
 ### Step 3: Run Review Script
 
-**ALWAYS include both --expertise and --context:**
+**ALWAYS include both --expertise and --context.**
+
+**Output path**: Use `--output` to persist findings to `grimoires/loa/a2a/gpt-review/`.
+The directory is created automatically. Files are named by type and iteration for easy lookup.
 
 ```bash
 expertise_file="/tmp/gpt-review-expertise.md"
 context_file="/tmp/gpt-review-context.md"
+output_dir="grimoires/loa/a2a/gpt-review"
+output_file="${output_dir}/${type}-findings-1.json"
 
 response=$(.claude/scripts/gpt-review-api.sh "$type" "$content_file" \
   --expertise "$expertise_file" \
-  --context "$context_file")
+  --context "$context_file" \
+  --output "$output_file")
 
 verdict=$(echo "$response" | jq -r '.verdict')
-echo "$response" > /tmp/gpt-review-findings-1.json
 iteration=1
 ```
 
@@ -187,16 +192,17 @@ After fixing issues, run another review with iteration number and previous findi
 
 ```bash
 iteration=$((iteration + 1))
-previous_findings="/tmp/gpt-review-findings-$((iteration - 1)).json"
+previous_findings="${output_dir}/${type}-findings-$((iteration - 1)).json"
+output_file="${output_dir}/${type}-findings-${iteration}.json"
 
 response=$(.claude/scripts/gpt-review-api.sh "$type" "$content_file" \
   --expertise "$expertise_file" \
   --context "$context_file" \
   --iteration "$iteration" \
-  --previous "$previous_findings")
+  --previous "$previous_findings" \
+  --output "$output_file")
 
 verdict=$(echo "$response" | jq -r '.verdict')
-echo "$response" > "/tmp/gpt-review-findings-${iteration}.json"
 ```
 
 ## Complete Example: Sprint Task Code Review
@@ -256,10 +262,11 @@ EOF
 content_file="src/wallet/keyDerivation.ts"
 
 # === STEP 3: RUN REVIEW ===
+output_dir="grimoires/loa/a2a/gpt-review"
 response=$(.claude/scripts/gpt-review-api.sh code "$content_file" \
   --expertise /tmp/gpt-review-expertise.md \
-  --context /tmp/gpt-review-context.md)
-echo "$response" > /tmp/gpt-review-findings-1.json
+  --context /tmp/gpt-review-context.md \
+  --output "${output_dir}/code-findings-1.json")
 verdict=$(echo "$response" | jq -r '.verdict')
 iteration=1
 

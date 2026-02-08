@@ -106,17 +106,18 @@ gpt_review:
 ## Review Loop
 
 ```
-Iteration 1: gpt-review-api.sh <type> <file>
-    → Save response to /tmp/gpt-review-findings-1.json
+output_dir=grimoires/loa/a2a/gpt-review
+
+Iteration 1: gpt-review-api.sh <type> <file> --output $output_dir/<type>-findings-1.json
+    → Findings persisted to grimoires/loa/a2a/gpt-review/
     ↓
 CHANGES_REQUIRED? → Fix issues
     ↓
-Iteration 2: gpt-review-api.sh <type> <file> --iteration 2 --previous /tmp/gpt-review-findings-1.json
-    → Save response to /tmp/gpt-review-findings-2.json
+Iteration 2: gpt-review-api.sh <type> <file> --iteration 2 --previous $output_dir/<type>-findings-1.json --output $output_dir/<type>-findings-2.json
     ↓
 CHANGES_REQUIRED? → Fix issues
     ↓
-Iteration 3: gpt-review-api.sh <type> <file> --iteration 3 --previous /tmp/gpt-review-findings-2.json
+Iteration 3: gpt-review-api.sh <type> <file> --iteration 3 --previous $output_dir/<type>-findings-2.json --output $output_dir/<type>-findings-3.json
     ↓
 APPROVED (or auto-approve at max_iterations)
 ```
@@ -140,23 +141,40 @@ APPROVED (or auto-approve at max_iterations)
 Skills must track iteration number and save findings between reviews:
 
 ```bash
+output_dir="grimoires/loa/a2a/gpt-review"
+
 # First review
-response=$(.claude/scripts/gpt-review-api.sh "$type" "$file")
-echo "$response" > /tmp/gpt-review-findings-1.json
+response=$(.claude/scripts/gpt-review-api.sh "$type" "$file" \
+  --output "${output_dir}/${type}-findings-1.json")
 iteration=1
 
 # After fixing, re-review
 iteration=$((iteration + 1))
 response=$(.claude/scripts/gpt-review-api.sh "$type" "$file" \
   --iteration "$iteration" \
-  --previous "/tmp/gpt-review-findings-$((iteration - 1)).json")
-echo "$response" > "/tmp/gpt-review-findings-${iteration}.json"
+  --previous "${output_dir}/${type}-findings-$((iteration - 1)).json" \
+  --output "${output_dir}/${type}-findings-${iteration}.json")
 ```
 
 The re-review prompt focuses on:
 1. Were previous issues fixed?
 2. Did fixes introduce new problems?
 3. Converge toward approval
+
+## Output Storage
+
+Findings are persisted to `grimoires/loa/a2a/gpt-review/` using the `--output` flag:
+
+```
+grimoires/loa/a2a/gpt-review/
+├── code-findings-1.json       # First code review
+├── code-findings-2.json       # Re-review after fixes
+├── prd-findings-1.json        # PRD review
+├── sdd-findings-1.json        # SDD review
+└── sprint-findings-1.json     # Sprint plan review
+```
+
+This ensures findings survive across sessions and are available to `/implement` for feedback.
 
 ## Files
 
@@ -168,6 +186,7 @@ The re-review prompt focuses on:
 | `.claude/scripts/inject-gpt-review-gates.sh` | Manage context file based on config |
 | `.claude/commands/gpt-review.md` | Command definition |
 | `.claude/commands/toggle-gpt-review.md` | Toggle command |
+| `grimoires/loa/a2a/gpt-review/` | Persistent findings output (created by --output) |
 | `.claude/prompts/gpt-review/base/code-review.md` | Code review prompt |
 | `.claude/prompts/gpt-review/base/prd-review.md` | PRD review prompt |
 | `.claude/prompts/gpt-review/base/sdd-review.md` | SDD review prompt |
