@@ -1,14 +1,17 @@
+// Path-segment-aware patterns to avoid false positives on tsconfig.json, keyboard.ts, etc.
+// Matches when the keyword is a path segment or filename component, not an arbitrary substring.
 const SECURITY_PATTERNS = [
-    /auth/i,
-    /crypto/i,
-    /secret/i,
-    /config/i,
-    /\.env/i,
-    /password/i,
-    /token/i,
-    /\bkey\b/i,
-    /credential/i,
-    /security/i,
+    /(?:^|\/)auth/i,
+    /(?:^|\/)crypto/i,
+    /(?:^|\/)secret/i,
+    /(?:^|\/)\.env/i,
+    /(?:^|\/)password/i,
+    /(?:^|\/)credential/i,
+    /(?:^|\/)security/i,
+    /(?:^|\/)acl/i,
+    /(?:^|\/)permissions?[./]/i,
+    /\.pem$/i,
+    /\.key$/i,
 ];
 function isHighRisk(filename) {
     return SECURITY_PATTERNS.some((p) => p.test(filename));

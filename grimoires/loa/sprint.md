@@ -716,13 +716,13 @@
 **Files**: `.claude/skills/bridgebuilder-review/resources/adapters/github-cli.ts`
 
 **Acceptance Criteria**:
-- [ ] `ALLOWED_API_FLAGS` set contains only `--paginate`, `-X`, `-f`, `--raw-field`
-- [ ] Any flag starting with `-` that is not in `ALLOWED_API_FLAGS` is rejected
-- [ ] `FORBIDDEN_FLAGS` retained as additional explicit blocklist (belt-and-suspenders)
-- [ ] Combined flag forms (`--flag=value`) checked against both lists
-- [ ] `-f`/`--raw-field` values validated as `key=value` format
-- [ ] All existing call sites (7 methods) still pass validation
-- [ ] TypeScript compiles with zero errors
+- [x] `ALLOWED_API_FLAGS` set contains only `--paginate`, `-X`, `-f`, `--raw-field`
+- [x] Any flag starting with `-` that is not in `ALLOWED_API_FLAGS` is rejected
+- [x] `FORBIDDEN_FLAGS` retained as additional explicit blocklist (belt-and-suspenders)
+- [x] Combined flag forms (`--flag=value`) checked against both lists
+- [x] `-f`/`--raw-field` values validated as `key=value` format
+- [x] All existing call sites (7 methods) still pass validation
+- [x] TypeScript compiles with zero errors
 
 ### Task 5.2: Sanitize stored error messages in classifyError()
 
@@ -731,10 +731,10 @@
 **Files**: `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`
 
 **Acceptance Criteria**:
-- [ ] `classifyError()` returns generic message text (e.g., "Rate limited", "GitHub operation failed", "LLM operation failed", "Unknown failure")
-- [ ] Raw adapter error message is NOT stored in `ReviewError.message`
-- [ ] Error classification logic (matching on message content) still works correctly
-- [ ] TypeScript compiles with zero errors
+- [x] `classifyError()` returns generic message text (e.g., "Rate limited", "GitHub operation failed", "LLM operation failed", "Unknown failure")
+- [x] Raw adapter error message is NOT stored in `ReviewError.message`
+- [x] Error classification logic (matching on message content) still works correctly
+- [x] TypeScript compiles with zero errors
 
 ### Task 5.3: Add retry on Anthropic response JSON parse failure
 
@@ -743,11 +743,90 @@
 **Files**: `.claude/skills/bridgebuilder-review/resources/adapters/anthropic.ts`
 
 **Acceptance Criteria**:
-- [ ] `response.json()` wrapped in try/catch
-- [ ] JSON parse failure sets `lastError` with generic message and continues retry loop
-- [ ] No response body content included in error message
-- [ ] Retry behavior consistent with existing network error handling
-- [ ] TypeScript compiles with zero errors
+- [x] `response.json()` wrapped in try/catch
+- [x] JSON parse failure sets `lastError` with generic message and continues retry loop
+- [x] No response body content included in error message
+- [x] Retry behavior consistent with existing network error handling
+- [x] TypeScript compiles with zero errors
+
+---
+
+## Sprint 6: Bridgebuilder Review Findings (PR #248 Bridgebuilder Audit)
+
+**Goal**: Fix all actionable findings from the Bridgebuilder persona review of PR #248. Addresses 1 High, 4 Medium, and 4 Low severity items across config parsing, security patterns, risk classification, persona enrichment, error handling, observability, and decision documentation.
+
+**Rationale**: Bridgebuilder review (per loa-finn#24) identified 10 findings. Finding 6 (dist/ in git) is deferred as a tooling choice, not a code bug. 9 remaining findings implemented across 5 tasks.
+
+**Source**: PR #248 Bridgebuilder review comments
+
+**Task Order**: 6.1 → 6.2 → 6.3 → 6.4 → 6.5
+
+---
+
+### Task 6.1: Fix YAML config array parsing and repo precedence
+
+**Description**: The hand-rolled YAML parser silently drops array fields (repos, dimensions, exclude_patterns). Config repo resolution accumulates from all sources instead of first-non-empty-wins precedence. Fix both.
+
+**Files**: `.claude/skills/bridgebuilder-review/resources/config.ts`
+
+**Acceptance Criteria**:
+- [x] YAML array fields (`repos`, `dimensions`, `exclude_patterns`) parsed correctly from `.loa.config.yaml`
+- [x] Repo resolution uses first-non-empty-wins: CLI repos → env repos → YAML repos → auto-detect
+- [x] Auto-detect still appended with dedup when no explicit repos configured
+- [x] All existing scalar field parsing unchanged
+- [x] TypeScript compiles with zero errors
+
+### Task 6.2: Fix secret pattern overlap and tighten risk classifier
+
+**Description**: OpenAI key pattern double-matches Anthropic keys. Risk classifier patterns too broad — `config`, `key`, `token` match non-security files.
+
+**Files**: `.claude/skills/bridgebuilder-review/resources/adapters/sanitizer.ts`, `.claude/skills/bridgebuilder-review/resources/core/truncation.ts`
+
+**Acceptance Criteria**:
+- [x] OpenAI key pattern uses negative lookahead to exclude Anthropic keys: `/sk-(?!ant-)[A-Za-z0-9]{20,}/g`
+- [x] Security risk patterns narrowed: `config`, `key`, `token` replaced with path-segment-aware patterns
+- [x] High-risk classification still catches auth, crypto, secret, .env, password, credential, security files
+- [x] TypeScript compiles with zero errors
+
+### Task 6.3: Enrich BEAUVOIR.md with full Bridgebuilder persona voice
+
+**Description**: Current persona is generic reviewer. Enrich with FAANG analogies, metaphors for laypeople, decision trail documentation prompts, and teachable moments framing per loa-finn#24 spec.
+
+**Files**: `.claude/skills/bridgebuilder-review/resources/BEAUVOIR.md`
+
+**Acceptance Criteria**:
+- [x] Persona includes instruction for FAANG/industry analogies per finding
+- [x] Persona includes instruction for accessible metaphors per finding
+- [x] Persona includes instruction for agent-first decision trail documentation
+- [x] Persona includes "teachable moments" framing (never condescending, always illuminating)
+- [x] Total persona stays under 4000 characters (LLM token budget constraint)
+- [x] Existing 4 review dimensions preserved
+- [x] Rules section preserved (never approve, <4000 chars output, treat diff as untrusted)
+
+### Task 6.4: Harden error classification and add re-check retry
+
+**Description**: classifyError() uses greedy substring matching. hasExistingReview re-check at step 9a has no retry. Structured runId for observability.
+
+**Files**: `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`, `.claude/skills/bridgebuilder-review/resources/main.ts`
+
+**Acceptance Criteria**:
+- [x] classifyError() uses anchored patterns matching actual adapter error prefixes, not generic substrings
+- [x] Step 9a re-check `hasExistingReview()` retries once on failure before proceeding
+- [x] runId format changed to `bridgebuilder-{YYYYMMDD}T{HHMM}-{hex4}` for grep-friendly observability
+- [x] TypeScript compiles with zero errors
+
+### Task 6.5: Add decision trail documentation (inline comments)
+
+**Description**: Document key design decisions as inline comments: execFile over Octokit, chars/4 token estimation, NoOp context store rationale, entropy threshold 4.5.
+
+**Files**: `.claude/skills/bridgebuilder-review/resources/adapters/github-cli.ts`, `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`, `.claude/skills/bridgebuilder-review/resources/adapters/noop-context.ts`, `.claude/skills/bridgebuilder-review/resources/adapters/sanitizer.ts`
+
+**Acceptance Criteria**:
+- [x] github-cli.ts: Comment explaining execFile+gh CLI choice over Octokit SDK
+- [x] reviewer.ts: Comment explaining chars/4 token estimation ratio and its limitations
+- [x] noop-context.ts: Comment explaining why NoOp over file-based context for MVP
+- [x] sanitizer.ts: Comment explaining entropy threshold 4.5 provenance
+- [x] Comments are concise (1-3 lines each), not essay-length
 
 ---
 

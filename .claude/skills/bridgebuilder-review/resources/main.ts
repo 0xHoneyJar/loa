@@ -117,8 +117,11 @@ async function main(): Promise<void> {
     config,
   );
 
-  // Run
-  const runId = `run-${Date.now()}`;
+  // Run — structured ID: bridgebuilder-YYYYMMDDTHHMMSS-hex4 (sortable + unique)
+  const now = new Date();
+  const ts = now.toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "");
+  const hex = Math.random().toString(16).slice(2, 6);
+  const runId = `bridgebuilder-${ts}-${hex}`;
   const summary = await pipeline.run(runId);
 
   // Output

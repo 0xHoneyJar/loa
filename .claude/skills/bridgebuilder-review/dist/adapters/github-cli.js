@@ -1,6 +1,11 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
+// Decision: execFile+gh CLI over Octokit SDK.
+// gh handles token refresh, SSO, credential helpers, and proxy config automatically.
+// execFile avoids shell injection (no shell: true). Tradeoff: shelling out is slower
+// than HTTP-direct, but review volume is low (<50 PRs/run) so latency is acceptable.
+// If throughput becomes a bottleneck, swap to Octokit behind IGitProvider port.
 const GH_TIMEOUT_MS = 30_000;
 /** Allowlisted gh API endpoints — adapter cannot call anything else. */
 const ALLOWED_API_ENDPOINTS = [

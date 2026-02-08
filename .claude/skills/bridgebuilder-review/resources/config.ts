@@ -118,6 +118,7 @@ function parseRepoString(s: string): { owner: string; repo: string } {
 /**
  * Load YAML config from .loa.config.yaml if it exists.
  * Uses a simple key:value parser — no YAML library dependency.
+ * Supports scalar values and YAML list syntax (- item).
  */
 async function loadYamlConfig(): Promise<YamlConfig> {
   try {
@@ -128,13 +129,38 @@ async function loadYamlConfig(): Promise<YamlConfig> {
 
     const section = match[1];
     const config: YamlConfig = {};
+    const lines = section.split("\n");
 
-    // Parse simple key: value pairs
-    for (const line of section.split("\n")) {
-      const kv = line.match(/^\s+([\w_]+):\s*(.+)/);
+    for (let i = 0; i < lines.length; i++) {
+      const kv = lines[i].match(/^\s+([\w_]+):\s*(.*)/);
       if (!kv) continue;
       const [, key, rawValue] = kv;
       const value = rawValue.replace(/#.*$/, "").trim().replace(/^["']|["']$/g, "");
+
+      // Check if next lines are YAML list items (- value)
+      if (value === "" || value === undefined) {
+        const items: string[] = [];
+        while (i + 1 < lines.length) {
+          const listItem = lines[i + 1].match(/^\s+-\s+(.+)/);
+          if (!listItem) break;
+          items.push(listItem[1].replace(/#.*$/, "").trim().replace(/^["']|["']$/g, ""));
+          i++;
+        }
+        if (items.length > 0) {
+          switch (key) {
+            case "repos":
+              config.repos = items;
+              break;
+            case "dimensions":
+              config.dimensions = items;
+              break;
+            case "exclude_patterns":
+              config.exclude_patterns = items;
+              break;
+          }
+          continue;
+        }
+      }
 
       switch (key) {
         case "enabled":
@@ -198,40 +224,36 @@ export async function resolveConfig(
     );
   }
 
-  // Build repos list: CLI > env > yaml > auto-detect
-  const repos: Array<{ owner: string; repo: string }> = [];
+  // Build repos list: first-non-empty-wins (CLI > env > yaml > auto-detect)
+  let repos: Array<{ owner: string; repo: string }> = [];
 
-  // CLI --repo flags
+  // CLI --repo flags (highest priority)
   if (cliArgs.repos?.length) {
     for (const r of cliArgs.repos) {
       repos.push(parseRepoString(r));
     }
   }
 
-  // Env BRIDGEBUILDER_REPOS (comma-separated)
-  if (env.BRIDGEBUILDER_REPOS) {
+  // Env BRIDGEBUILDER_REPOS (comma-separated) — only if CLI didn't set repos
+  if (repos.length === 0 && env.BRIDGEBUILDER_REPOS) {
     for (const r of env.BRIDGEBUILDER_REPOS.split(",")) {
       const trimmed = r.trim();
       if (trimmed) repos.push(parseRepoString(trimmed));
     }
   }
 
-  // YAML repos
-  if (yaml.repos?.length) {
+  // YAML repos — only if no higher-priority source set repos
+  if (repos.length === 0 && yaml.repos?.length) {
     for (const r of yaml.repos) {
       repos.push(parseRepoString(r));
     }
   }
 
-  // Auto-detect (unless --no-auto-detect)
-  if (!cliArgs.noAutoDetect) {
+  // Auto-detect (unless --no-auto-detect) — only if no explicit repos configured
+  if (repos.length === 0 && !cliArgs.noAutoDetect) {
     const detected = await autoDetectRepo();
     if (detected) {
-      // Only add if not already in list
-      const exists = repos.some(
-        (r) => r.owner === detected.owner && r.repo === detected.repo,
-      );
-      if (!exists) repos.push(detected);
+      repos.push(detected);
     }
   }
 

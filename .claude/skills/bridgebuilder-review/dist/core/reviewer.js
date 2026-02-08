@@ -113,7 +113,12 @@ export class ReviewPipeline {
             }
             // Step 4: Build prompt
             const { systemPrompt, userPrompt } = this.template.buildPrompt(item, this.persona);
-            // Step 5: Token estimation guard (chars / 4)
+            // Step 5: Token estimation guard (chars / 4).
+            // Decision: chars/4 is a deliberate over-estimate for English+code text.
+            // Real tokenizers average ~3.5-4.2 chars/token. Over-estimating is safe —
+            // worst case we skip a PR that would have fit. Under-estimating risks
+            // truncated LLM output or API errors. A proper tokenizer (tiktoken) would
+            // add ~2MB dependency for marginal accuracy gain on a guard rail.
             const estimatedTokens = (systemPrompt.length + userPrompt.length) / 4;
             if (estimatedTokens > this.config.maxInputTokens) {
                 return this.skipResult(item, "prompt_too_large");
@@ -150,8 +155,21 @@ export class ReviewPipeline {
             // Marker is appended by the poster adapter — do not duplicate here
             const body = sanitized.sanitizedContent;
             const event = classifyEvent(sanitized.sanitizedContent);
-            // Step 9a: Re-check guard (race condition mitigation)
-            const recheck = await this.poster.hasExistingReview(owner, repo, pr.number, pr.headSha);
+            // Step 9a: Re-check guard (race condition mitigation) with retry
+            let recheck = false;
+            try {
+                recheck = await this.poster.hasExistingReview(owner, repo, pr.number, pr.headSha);
+            }
+            catch {
+                // Retry once — this is the last gate before posting
+                try {
+                    recheck = await this.poster.hasExistingReview(owner, repo, pr.number, pr.headSha);
+                }
+                catch {
+                    // Both attempts failed — conservative: skip to avoid duplicate
+                    return this.skipResult(item, "recheck_failed");
+                }
+            }
             if (recheck) {
                 return this.skipResult(item, "already_reviewed_recheck");
             }
@@ -212,15 +230,18 @@ export class ReviewPipeline {
     }
     classifyError(_err, message) {
         // Never persist raw adapter messages — may contain sensitive details.
-        // Classify based on content, but store only generic descriptions.
+        // Classify using anchored prefixes that match actual adapter error strings,
+        // not generic substrings that could false-positive on unrelated messages.
         const m = (message || "").toLowerCase();
         if (m.includes("429") || m.includes("rate limit")) {
             return makeError("E_RATE_LIMIT", "Rate limited", "github", "transient", true);
         }
-        if (m.includes("gh command failed") || m.includes("github cli") || m.includes("github")) {
+        // Match actual adapter error prefixes: "gh command failed", "gh api"
+        if (m.startsWith("gh ") || m.includes("gh command failed") || m.includes("github cli")) {
             return makeError("E_GITHUB", "GitHub operation failed", "github", "transient", true);
         }
-        if (m.includes("anthropic api") || m.includes("anthropic") || m.includes("claude")) {
+        // Match actual adapter error prefixes: "anthropic api ..."
+        if (m.startsWith("anthropic api")) {
             return makeError("E_LLM", "LLM operation failed", "llm", "transient", true);
         }
         return makeError("E_UNKNOWN", "Unknown failure", "pipeline", "unknown", false);
