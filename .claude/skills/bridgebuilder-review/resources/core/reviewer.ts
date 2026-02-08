@@ -72,16 +72,23 @@ export class ReviewPipeline {
       return this.buildSummary(runId, startTime, results);
     }
 
-    // Preflight: check each repo is accessible
+    // Preflight: check each repo is accessible, track results
+    const accessibleRepos = new Set<string>();
     for (const { owner, repo } of this.config.repos) {
       const repoPreflight = await this.git.preflightRepo(owner, repo);
       if (!repoPreflight.accessible) {
         this.logger.error("Repository not accessible, skipping", {
           owner,
           repo,
-          error: repoPreflight.error,
         });
+        continue;
       }
+      accessibleRepos.add(`${owner}/${repo}`);
+    }
+
+    if (accessibleRepos.size === 0) {
+      this.logger.warn("No accessible repositories; ending run");
+      return this.buildSummary(runId, startTime, results);
     }
 
     // Load persisted context
@@ -95,6 +102,13 @@ export class ReviewPipeline {
       // Runtime limit check
       if (this.now() - startMs > this.config.maxRuntimeMinutes * 60_000) {
         results.push(this.skipResult(item, "runtime_limit"));
+        continue;
+      }
+
+      // Skip items for inaccessible repos
+      const repoKey = `${item.owner}/${item.repo}`;
+      if (!accessibleRepos.has(repoKey)) {
+        results.push(this.skipResult(item, "repo_inaccessible"));
         continue;
       }
 
@@ -164,7 +178,7 @@ export class ReviewPipeline {
           owner,
           repo,
           pr: pr.number,
-          patterns: sanitized.redactedPatterns,
+          redactions: sanitized.redactedPatterns?.length ?? 0,
         });
         return this.errorResult(
           item,
@@ -183,13 +197,12 @@ export class ReviewPipeline {
           owner,
           repo,
           pr: pr.number,
-          patterns: sanitized.redactedPatterns,
+          redactions: sanitized.redactedPatterns?.length ?? 0,
         });
       }
 
-      // Append marker to review body
-      const marker = `\n\n<!-- ${this.config.reviewMarker}: ${pr.headSha} -->`;
-      const body = sanitized.sanitizedContent + marker;
+      // Marker is appended by the poster adapter — do not duplicate here
+      const body = sanitized.sanitizedContent;
       const event = classifyEvent(sanitized.sanitizedContent);
 
       // Step 9a: Re-check guard (race condition mitigation)
@@ -249,12 +262,14 @@ export class ReviewPipeline {
       const message = err instanceof Error ? err.message : String(err);
       const reviewError = this.classifyError(err, message);
 
+      // Log error code/category only — raw message may contain secrets from adapters
       this.logger.error("Review failed", {
         owner,
         repo,
         pr: pr.number,
-        error: message,
+        code: reviewError.code,
         category: reviewError.category,
+        source: reviewError.source,
       });
 
       return this.errorResult(item, reviewError);
@@ -294,8 +309,7 @@ export class ReviewPipeline {
       runId,
       startTime,
       endTime: new Date().toISOString(),
-      reviewed: results.filter((r) => r.posted || (!r.skipped && !r.error))
-        .length,
+      reviewed: results.filter((r) => r.posted).length,
       skipped: results.filter((r) => r.skipped).length,
       errors: results.filter((r) => r.error).length,
       results,

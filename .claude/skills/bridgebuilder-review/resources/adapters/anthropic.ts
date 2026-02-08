@@ -18,9 +18,10 @@ export class AnthropicAdapter implements ILLMProvider {
 
   constructor(apiKey: string, model: string, timeoutMs: number = DEFAULT_TIMEOUT_MS) {
     if (!apiKey) {
-      throw new Error(
-        "ANTHROPIC_API_KEY required. Set it in your environment: export ANTHROPIC_API_KEY=sk-ant-...",
-      );
+      throw new Error("ANTHROPIC_API_KEY required (set via environment)");
+    }
+    if (!model) {
+      throw new Error("Anthropic model is required");
     }
     this.apiKey = apiKey;
     this.model = model;
@@ -67,15 +68,14 @@ export class AnthropicAdapter implements ILLMProvider {
 
         if (response.status === 429 || response.status >= 500) {
           retryAfterMs = parseRetryAfter(response.headers.get("retry-after"));
-          lastError = new Error(
-            `Anthropic API ${response.status}: ${await response.text().catch(() => "unknown")}`,
-          );
+          // Do not include response body — may contain sensitive details
+          lastError = new Error(`Anthropic API ${response.status}`);
           continue;
         }
 
         if (!response.ok) {
-          const text = await response.text().catch(() => "unknown");
-          throw new Error(`Anthropic API ${response.status}: ${text}`);
+          // Do not include response body — may contain echoed prompt content
+          throw new Error(`Anthropic API ${response.status}`);
         }
 
         const data = (await response.json()) as AnthropicResponse;
@@ -93,10 +93,22 @@ export class AnthropicAdapter implements ILLMProvider {
         };
       } catch (err: unknown) {
         clearTimeout(timer);
-        if ((err as Error).name === "AbortError") {
+
+        const name = (err as Error | undefined)?.name ?? "";
+        const msg = err instanceof Error ? err.message : String(err);
+
+        // Retry on timeouts
+        if (name === "AbortError") {
           lastError = new Error("Anthropic API request timed out");
           continue;
         }
+
+        // Retry on transient network errors (TypeError from fetch, connection resets)
+        if (err instanceof TypeError || /ECONNRESET|ENOTFOUND|EAI_AGAIN|ETIMEDOUT/i.test(msg)) {
+          lastError = new Error(`Anthropic API network error`);
+          continue;
+        }
+
         throw err;
       }
     }

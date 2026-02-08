@@ -27,22 +27,61 @@ const ALLOWED_API_ENDPOINTS: RegExp[] = [
   /^\/repos\/[^/]+\/[^/]+\/pulls\/\d+\/reviews$/,
 ];
 
+/** Flags that can redirect requests or alter target host/protocol. */
+const FORBIDDEN_FLAGS = new Set([
+  "--hostname",
+  "-H",
+  "--header",
+  "--method",
+  "-F",
+  "--field",
+  "--input",
+]);
+
 function assertAllowedArgs(args: string[]): void {
   const cmd = args[0];
+
   if (cmd === "api") {
-    const endpoint = args.find((a) => a.startsWith("/"));
-    if (!endpoint) {
-      throw new Error("gh api endpoint missing");
+    // Enforce endpoint at args[1] position (not arbitrary arg)
+    const endpoint = args[1];
+    if (!endpoint || !endpoint.startsWith("/")) {
+      throw new Error("gh api endpoint missing or invalid");
     }
+
+    // Block flags that can redirect or change target host/protocol
+    for (let i = 2; i < args.length; i++) {
+      const a = args[i];
+      if (FORBIDDEN_FLAGS.has(a)) {
+        throw new Error(`gh api flag not allowlisted: ${a}`);
+      }
+      for (const f of FORBIDDEN_FLAGS) {
+        if (a.startsWith(f + "=")) {
+          throw new Error(`gh api flag not allowlisted: ${a}`);
+        }
+      }
+    }
+
     if (!ALLOWED_API_ENDPOINTS.some((re) => re.test(endpoint))) {
       throw new Error(`gh api endpoint not allowlisted: ${endpoint}`);
     }
+
+    // Only allow POST via -X POST (for review posting); default is GET
+    const xIndex = args.indexOf("-X");
+    if (xIndex !== -1) {
+      const method = args[xIndex + 1];
+      if (method !== "POST") {
+        throw new Error(`gh api method not allowlisted: ${method ?? "(missing)"}`);
+      }
+    }
+
     return;
   }
-  if (cmd === "auth" && args[1] === "status") {
+
+  if (cmd === "auth" && args[1] === "status" && args.length === 2) {
     return;
   }
-  throw new Error(`gh command not allowlisted: ${args.join(" ")}`);
+
+  throw new Error(`gh command not allowlisted: ${cmd}`);
 }
 
 export interface GitHubCLIAdapterConfig {
@@ -70,9 +109,9 @@ async function gh(
         "GitHub CLI (gh) required. Install: https://cli.github.com/ and run 'gh auth login'.",
       );
     }
-    throw new Error(
-      `gh command failed: ${e.stderr?.trim() ?? e.message}`,
-    );
+    // Do not include stderr/message — may contain tokens or sensitive repo info
+    const code = typeof e.code === "string" || typeof e.code === "number" ? String(e.code) : "unknown";
+    throw new Error(`gh command failed (code=${code})`);
   }
 }
 
@@ -80,7 +119,8 @@ function parseJson<T>(raw: string, context: string): T {
   try {
     return JSON.parse(raw) as T;
   } catch {
-    throw new Error(`Failed to parse gh JSON for ${context}: ${raw.slice(0, 200)}`);
+    // Do not include raw response — may contain sensitive data
+    throw new Error(`Failed to parse gh JSON for ${context}`);
   }
 }
 

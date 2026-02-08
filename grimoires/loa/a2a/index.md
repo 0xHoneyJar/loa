@@ -22,3 +22,4 @@
 | Sprint 1 | 64 | COMPLETED | [reviewer.md](sprint-64/reviewer.md) |
 | Sprint 2 | 65 | COMPLETED | [reviewer.md](sprint-65/reviewer.md) |
 | Sprint 3 | 66 | COMPLETED | [reviewer.md](sprint-66/reviewer.md) |
+| Sprint 4 | 67 | IN_REVIEW | [reviewer.md](sprint-67/reviewer.md) |
