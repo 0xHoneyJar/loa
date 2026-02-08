@@ -1,7 +1,0 @@
-{
-  "$schema": "patterns.schema.json",
-  "version": "1.0",
-  "last_updated": null,
-  "description": "Cross-session pattern registry for compound learning",
-  "patterns": []
-}
