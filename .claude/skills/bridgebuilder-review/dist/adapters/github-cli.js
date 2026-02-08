@@ -183,9 +183,9 @@ export class GitHubCLIAdapter {
         const body = input.body + marker;
         await gh([
             "api",
+            `/repos/${input.owner}/${input.repo}/pulls/${input.prNumber}/reviews`,
             "-X",
             "POST",
-            `/repos/${input.owner}/${input.repo}/pulls/${input.prNumber}/reviews`,
             "--raw-field",
             `body=${body}`,
             "-f",

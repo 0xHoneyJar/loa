@@ -71,9 +71,19 @@ Full findings: `/tmp/gpt-review-590/findings-gpt52-full.json`
 - Catch block now retries on `TypeError` (fetch network errors) and common transient errors: `ECONNRESET`, `ENOTFOUND`, `EAI_AGAIN`, `ETIMEDOUT` (line 106-110)
 - Previously only retried on `AbortError` (timeout), all other errors were rethrown immediately
 
+## Review Feedback Addressed
+
+### Issue 1: postReview() broken by allowlist hardening (CRITICAL)
+
+**Source**: `engineer-feedback.md` — review caught that `postReview()` placed `-X` at `args[1]` instead of the endpoint, causing `assertAllowedArgs()` to throw on every review post.
+
+**Fix**: Reordered `postReview()` args from `["api", "-X", "POST", endpoint, ...]` to `["api", endpoint, "-X", "POST", ...]` so the endpoint is at `args[1]` where the hardened allowlist expects it.
+
+**Line**: `github-cli.ts:257-268`
+
 ## Build Verification
 
-- TypeScript compilation: PASS (zero errors)
+- TypeScript compilation: PASS (zero errors, post-feedback fix)
 - All source changes in `.claude/skills/bridgebuilder-review/resources/`
 - Compiled output in `.claude/skills/bridgebuilder-review/dist/`
 
