@@ -175,11 +175,12 @@ grimoires/pub/research/*
 # - Users should install via /skill-pack-install command
 .claude/constructs/
 
-# Development planning docs (project-specific PRDs, SDDs, research)
-# Framework docs (docs/architecture/, docs/mockups/, docs/screenshots/) are tracked
+# Development-specific docs (not part of template)
 docs/planning/
 docs/proposals/
 docs/research/
+docs/mockups/
+docs/screenshots/
 
 # =============================================================================
 # PROJECT-SPECIFIC EXCLUSIONS (for repos that use loa as a base)
