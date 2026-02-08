@@ -309,6 +309,7 @@ export async function resolveConfig(
     excludePatterns: yaml.exclude_patterns ?? DEFAULTS.excludePatterns,
     sanitizerMode: yaml.sanitizer_mode ?? DEFAULTS.sanitizerMode,
     maxRuntimeMinutes: yaml.max_runtime_minutes ?? DEFAULTS.maxRuntimeMinutes,
+    ...(cliArgs.pr != null ? { targetPr: cliArgs.pr } : {}),
   };
 
   const provenance: ConfigProvenance = {
@@ -359,9 +360,10 @@ export function formatEffectiveConfig(
   const repoSrc = p ? ` (${p.repos})` : "";
   const modelSrc = p ? ` (${p.model})` : "";
   const drySrc = p ? ` (${p.dryRun})` : "";
+  const prFilter = config.targetPr != null ? `, target_pr=#${config.targetPr}` : "";
   return (
     `[bridgebuilder] Config: repos=[${repoNames}]${repoSrc}, ` +
     `model=${config.model}${modelSrc}, max_prs=${config.maxPrs}, ` +
-    `dry_run=${config.dryRun}${drySrc}, sanitizer_mode=${config.sanitizerMode}`
+    `dry_run=${config.dryRun}${drySrc}, sanitizer_mode=${config.sanitizerMode}${prFilter}`
   );
 }

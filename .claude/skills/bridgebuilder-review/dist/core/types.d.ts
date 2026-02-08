@@ -17,6 +17,7 @@ export interface BridgebuilderConfig {
     excludePatterns: string[];
     sanitizerMode: "default" | "strict";
     maxRuntimeMinutes: number;
+    targetPr?: number;
 }
 export interface ReviewItem {
     owner: string;
