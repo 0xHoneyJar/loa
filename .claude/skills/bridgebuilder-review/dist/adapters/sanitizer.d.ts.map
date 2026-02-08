@@ -1,0 +1,1 @@
+{"version":3,"file":"sanitizer.d.ts","sourceRoot":"","sources":["../../resources/adapters/sanitizer.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EACV,gBAAgB,EAChB,kBAAkB,EACnB,MAAM,8BAA8B,CAAC;AAiCtC,qBAAa,gBAAiB,YAAW,gBAAgB;IACvD,OAAO,CAAC,QAAQ,CAAC,aAAa,CAAW;gBAE7B,aAAa,CAAC,EAAE,MAAM,EAAE;IAIpC,QAAQ,CAAC,OAAO,EAAE,MAAM,GAAG,kBAAkB;CA8C9C"}

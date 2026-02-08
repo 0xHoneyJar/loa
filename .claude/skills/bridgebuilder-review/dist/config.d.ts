@@ -1,0 +1,48 @@
+import type { BridgebuilderConfig } from "./core/types.js";
+export interface CLIArgs {
+    dryRun?: boolean;
+    repos?: string[];
+    pr?: number;
+    noAutoDetect?: boolean;
+}
+export interface YamlConfig {
+    enabled?: boolean;
+    repos?: string[];
+    model?: string;
+    max_prs?: number;
+    max_files_per_pr?: number;
+    max_diff_bytes?: number;
+    max_input_tokens?: number;
+    max_output_tokens?: number;
+    dimensions?: string[];
+    review_marker?: string;
+    persona_path?: string;
+    exclude_patterns?: string[];
+    sanitizer_mode?: "default" | "strict";
+    max_runtime_minutes?: number;
+}
+export interface EnvVars {
+    BRIDGEBUILDER_REPOS?: string;
+    BRIDGEBUILDER_MODEL?: string;
+    BRIDGEBUILDER_DRY_RUN?: string;
+}
+/**
+ * Parse CLI arguments from process.argv.
+ */
+export declare function parseCLIArgs(argv: string[]): CLIArgs;
+/**
+ * Resolve config using 5-level precedence: CLI > env > yaml > auto-detect > defaults.
+ */
+export declare function resolveConfig(cliArgs: CLIArgs, env: EnvVars, yamlConfig?: YamlConfig): Promise<BridgebuilderConfig>;
+/**
+ * Validate --pr flag: requires exactly one repo (IMP-008).
+ */
+export declare function resolveRepos(config: BridgebuilderConfig, prNumber?: number): Array<{
+    owner: string;
+    repo: string;
+}>;
+/**
+ * Format effective config for logging (secrets redacted).
+ */
+export declare function formatEffectiveConfig(config: BridgebuilderConfig): string;
+//# sourceMappingURL=config.d.ts.map
