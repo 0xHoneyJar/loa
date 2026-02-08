@@ -372,14 +372,20 @@ header = "Content-Type: application/json"
 CURLCFG
     echo "header = \"Authorization: Bearer ${OPENAI_API_KEY}\"" >> "$curl_config"
 
-    local curl_output
+    # Write payload to temp file to avoid bash argument size limits (SHELL-002)
+    local payload_file
+    payload_file=$(mktemp)
+    chmod 600 "$payload_file"
+    printf '%s' "$payload" > "$payload_file"
+
+    local curl_output curl_exit
     curl_output=$(curl -s -w "\n%{http_code}" \
       --max-time "$timeout" \
       --config "$curl_config" \
-      -d "$payload" \
+      -d "@${payload_file}" \
       "$api_url" 2>&1) || {
-        rm -f "$curl_config"
-        local curl_exit=$?
+        curl_exit=$?
+        rm -f "$curl_config" "$payload_file"
         if [[ $curl_exit -eq 28 ]]; then
           error "API call timed out after ${timeout}s (attempt $attempt)"
           if [[ $attempt -lt $MAX_RETRIES ]]; then
@@ -394,8 +400,8 @@ CURLCFG
         exit 1
       }
 
-    # Clean up curl config
-    rm -f "$curl_config"
+    # Clean up curl config and payload file
+    rm -f "$curl_config" "$payload_file"
 
     # Extract HTTP code from last line
     http_code=$(echo "$curl_output" | tail -1)
