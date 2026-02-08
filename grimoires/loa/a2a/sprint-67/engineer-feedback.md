@@ -1,55 +1,37 @@
-# Sprint 4 (Global: sprint-67) — Engineer Feedback
+# Sprint 4 (Global: sprint-67) — Engineer Feedback (Round 2)
 
-## Verdict: CHANGES_REQUIRED
+## Verdict: All good
 
-## Issue 1: postReview() broken by allowlist hardening (CRITICAL)
+All acceptance criteria verified against actual code:
 
-**File**: `.claude/skills/bridgebuilder-review/resources/adapters/github-cli.ts`
-**Lines**: 257-268 (call site) vs 44-47 (validation)
+### Task 4.1: Endpoint allowlist hardening — PASS
+- `args[1]` position enforced (line 46)
+- `FORBIDDEN_FLAGS` blocks all 7 dangerous flags (lines 31-39)
+- `-X` restricted to POST only (lines 69-74)
+- `auth status` requires exactly 2 args (line 80)
+- All 7 call sites verified compatible with new allowlist
 
-### Problem
+### Task 4.2: Information leakage elimination — PASS
+- `gh()` error: exit code only (line 113-114)
+- `parseJson()`: no raw content (line 123)
+- Anthropic constructor: no `sk-ant-...` (line 21)
+- Anthropic retry/non-OK: no response body (lines 72, 78)
+- Reviewer sanitizer logs: count only (lines 181, 200)
+- Reviewer error logs: code/category/source only (lines 270-272)
 
-The hardened `assertAllowedArgs()` requires `args[1]` to be the endpoint (must start with `/`). However, `postReview()` places `-X` at `args[1]`:
+### Task 4.3: Double marker fix + reviewed count — PASS
+- Marker only in `postReview()` adapter (line 254-255)
+- `reviewed` counts `r.posted` only (line 312)
 
-```typescript
-// Line 257-261 — args[1] is "-X", not the endpoint
-await gh([
-  "api",        // args[0] = "api"
-  "-X",         // args[1] = "-X" ← FAILS: doesn't start with "/"
-  "POST",       // args[2]
-  `/repos/...`, // args[3] = actual endpoint
-  ...
-]);
-```
+### Task 4.4: Repo filtering + network retry — PASS
+- `accessibleRepos` Set built in preflight (lines 76-87)
+- Early exit on zero accessible (lines 89-92)
+- Items filtered by `repo_inaccessible` (lines 108-113)
+- Network retry on TypeError/ECONNRESET/ENOTFOUND/EAI_AGAIN/ETIMEDOUT (lines 106-110)
+- Model validation in constructor (lines 23-25)
 
-The `assertAllowedArgs()` check at line 46-48 will throw:
-```
-Error: gh api endpoint missing or invalid
-```
+### Previous Feedback — RESOLVED
+- `postReview()` args reordered: endpoint at `args[1]`, flags follow (line 257-268)
 
-This means **every call to `postReview()` will throw at runtime**. The review pipeline will never be able to post reviews.
-
-### Fix
-
-Reorder `postReview()` args to match the canonical `gh api <endpoint> [flags]` pattern:
-
-```typescript
-await gh([
-  "api",
-  `/repos/${input.owner}/${input.repo}/pulls/${input.prNumber}/reviews`,
-  "-X",
-  "POST",
-  "--raw-field",
-  `body=${body}`,
-  "-f",
-  `event=${input.event}`,
-  "-f",
-  `commit_id=${input.headSha}`,
-]);
-```
-
-This puts the endpoint at `args[1]` where the allowlist expects it, with `-X POST` as subsequent flags.
-
-## Summary
-
-All other acceptance criteria PASS. This is the only issue — but it's a runtime crash on every review post, so it must be fixed before approval.
+### Note (non-blocking)
+`adapters/index.ts:33` still has the old `sk-ant-...` error message in `createLocalAdapters()`. This is dead code since `AnthropicAdapter` constructor validates first. Not a Sprint 4 acceptance criterion — can be cleaned up later.

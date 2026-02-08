@@ -647,10 +647,10 @@
 **Files**: `.claude/skills/bridgebuilder-review/resources/adapters/github-cli.ts`
 
 **Acceptance Criteria**:
-- [ ] Endpoint must be `args[1]` (not `args.find()`)
-- [ ] Block `--hostname`, `--header`/`-H`, `--method`, `--field`/`-F`, `--input` flags
-- [ ] Only allow `-X POST` method (for review posting)
-- [ ] `auth status` requires exactly 2 args
+- [x] Endpoint must be `args[1]` (not `args.find()`)
+- [x] Block `--hostname`, `--header`/`-H`, `--method`, `--field`/`-F`, `--input` flags
+- [x] Only allow `-X POST` method (for review posting)
+- [x] `auth status` requires exactly 2 args
 
 ### Task 4.2: Eliminate information leakage in error messages
 
@@ -662,12 +662,12 @@
 - `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`
 
 **Acceptance Criteria**:
-- [ ] `gh()` error uses exit code only, no stderr
-- [ ] `parseJson()` error omits raw response content
-- [ ] Anthropic constructor error has no `sk-ant-...` example
-- [ ] Anthropic retry/non-OK errors omit response body
-- [ ] Reviewer sanitizer logs use count, not pattern content
-- [ ] Reviewer error logs use error code/category, not raw message
+- [x] `gh()` error uses exit code only, no stderr
+- [x] `parseJson()` error omits raw response content
+- [x] Anthropic constructor error has no `sk-ant-...` example
+- [x] Anthropic retry/non-OK errors omit response body
+- [x] Reviewer sanitizer logs use count, not pattern content
+- [x] Reviewer error logs use error code/category, not raw message
 
 ### Task 4.3: Fix double marker insertion and reviewed count
 
@@ -677,8 +677,8 @@
 - `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`
 
 **Acceptance Criteria**:
-- [ ] Marker appended only in `postReview()` (github-cli.ts), not in reviewer.ts
-- [ ] `reviewed` count only counts `r.posted === true`
+- [x] Marker appended only in `postReview()` (github-cli.ts), not in reviewer.ts
+- [x] `reviewed` count only counts `r.posted === true`
 
 ### Task 4.4: Add inaccessible repo filtering and network retry
 
@@ -689,11 +689,11 @@
 - `.claude/skills/bridgebuilder-review/resources/adapters/anthropic.ts`
 
 **Acceptance Criteria**:
-- [ ] Preflight builds `accessibleRepos` set
-- [ ] Items for inaccessible repos are skipped with `repo_inaccessible` reason
-- [ ] Early exit if no repos accessible
-- [ ] Anthropic adapter retries on TypeError, ECONNRESET, ENOTFOUND, EAI_AGAIN, ETIMEDOUT
-- [ ] Anthropic constructor validates model is non-empty
+- [x] Preflight builds `accessibleRepos` set
+- [x] Items for inaccessible repos are skipped with `repo_inaccessible` reason
+- [x] Early exit if no repos accessible
+- [x] Anthropic adapter retries on TypeError, ECONNRESET, ENOTFOUND, EAI_AGAIN, ETIMEDOUT
+- [x] Anthropic constructor validates model is non-empty
 
 ---
 
