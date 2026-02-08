@@ -1317,7 +1317,29 @@ EOF
   cp "${STAGING_DIR}_repo/.loa-version.json" "$STAGING_DIR/" 2>/dev/null || true
   rm -rf "${STAGING_DIR}_repo"
 
-  # === STAGE 2.5: Check override conflicts (T3.5.5) ===
+  # === STAGE 2.5: Already-up-to-date check (Issue #245) ===
+  # Compare upstream version with current version. Skip update if identical
+  # unless --force is used or targeting a specific branch/commit.
+  if [[ "$force" != "true" ]]; then
+    local upstream_version=""
+    if [[ -f "$STAGING_DIR/.loa-version.json" ]]; then
+      upstream_version=$(jq -r '.framework_version // empty' "$STAGING_DIR/.loa-version.json" 2>/dev/null || echo "")
+    fi
+
+    if [[ -n "$upstream_version" && -n "$current" && "$upstream_version" == "$current" ]]; then
+      # For tags and @latest, version match means nothing to do.
+      # For branches/commits, user may want latest commits even at same version.
+      if [[ "$TARGET_TYPE" == "latest" || "$TARGET_TYPE" == "tag" ]]; then
+        log "Already up to date (v${current})"
+        rm -rf "$STAGING_DIR"
+        exit 0
+      else
+        warn "Upstream version matches local (v${current}) but targeting ${TARGET_TYPE} '${TARGET_REF}' — continuing"
+      fi
+    fi
+  fi
+
+  # === STAGE 2.75: Check override conflicts (T3.5.5) ===
   check_override_conflicts "$STAGING_DIR" || true
 
   # === STAGE 3: Validate ===
