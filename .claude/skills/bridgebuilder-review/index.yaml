@@ -1,0 +1,49 @@
+name: "bridgebuilder-review"
+version: "1.0.0"
+model: "sonnet"
+color: "cyan"
+effort_hint: medium
+danger_level: moderate
+categories:
+  - quality
+
+description: |
+  Autonomous PR review agent. Reviews open pull requests on configured GitHub
+  repositories, posting constructive feedback covering security, quality, test
+  coverage, and operational readiness. One-shot local execution.
+  Use /bridgebuilder to review PRs on the current repo.
+
+triggers:
+  - "/bridgebuilder"
+  - "review pull requests"
+  - "review open PRs"
+  - "bridgebuilder review"
+
+dependencies: []
+
+inputs:
+  - name: "flags"
+    type: "string"
+    required: false
+    description: "CLI flags: --dry-run, --repo owner/repo, --pr N, --no-auto-detect"
+
+inputExamples:
+  - input:
+      flags: ""
+    description: "Review all open PRs on auto-detected repo"
+  - input:
+      flags: "--dry-run"
+    description: "Preview reviews without posting to GitHub"
+  - input:
+      flags: "--pr 42"
+    description: "Review only PR #42"
+
+outputs:
+  - path: "stdout"
+    description: "JSON run summary with reviewed/skipped/errors counts"
+    format: json
+
+zones:
+  system: read
+  state: none
+  app: none

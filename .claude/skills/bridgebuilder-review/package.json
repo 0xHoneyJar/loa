@@ -1,0 +1,24 @@
+{
+  "name": "@loa/bridgebuilder-review",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Autonomous PR review skill for Loa framework",
+  "exports": {
+    ".": "./dist/main.js",
+    "./ports": "./dist/ports/index.js",
+    "./core": "./dist/core/index.js",
+    "./adapters": "./dist/adapters/index.js"
+  },
+  "scripts": {
+    "build": "cd resources && npx tsc --project tsconfig.json",
+    "test": "cd resources && npx tsx --test __tests__/*.test.ts"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.2",
+    "typescript": "^5.9.3"
+  }
+}

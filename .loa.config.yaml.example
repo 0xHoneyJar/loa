@@ -1001,3 +1001,49 @@ post_pr_validation:
     enabled: true
     # Mode for auto-invoked validation
     mode: "autonomous"
+
+# =============================================================================
+# Bridgebuilder — Autonomous PR Review
+# =============================================================================
+# Configuration for the /bridgebuilder skill. All fields have sensible defaults.
+# Precedence: CLI flags > env vars > this config > auto-detect > built-in defaults.
+bridgebuilder:
+  # Master toggle — set to false to disable the skill entirely
+  enabled: true
+
+  # Additional repositories to review (owner/repo format).
+  # Auto-detected repo from git remote is always included unless --no-auto-detect.
+  # Env: BRIDGEBUILDER_REPOS (comma-separated)
+  repos: []
+
+  # LLM model for generating reviews.
+  # Env: BRIDGEBUILDER_MODEL
+  model: "claude-sonnet-4-5-20250929"
+
+  # Maximum open PRs to process per run
+  max_prs: 10
+
+  # Maximum files per PR (excess truncated, risk-prioritized: security files first)
+  max_files_per_pr: 50
+
+  # Maximum diff size in bytes (100KB default)
+  max_diff_bytes: 100000
+
+  # Token budget for LLM input (persona + diff + metadata)
+  max_input_tokens: 8000
+
+  # Maximum response tokens for generated review
+  max_output_tokens: 4000
+
+  # Review dimensions (subset of: security, quality, test-coverage, operational-readiness)
+  dimensions:
+    - security
+    - quality
+    - test-coverage
+
+  # HTML comment marker for idempotency detection
+  review_marker: "bridgebuilder-review"
+
+  # Path to persona override (project-specific reviewer personality).
+  # Falls back to built-in resources/BEAUVOIR.md if file not found.
+  persona_path: "grimoires/bridgebuilder/BEAUVOIR.md"
