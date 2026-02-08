@@ -8,6 +8,8 @@ Copyright (C) 2007 Free Software Foundation, Inc.
 Everyone is permitted to copy and distribute verbatim copies of this
 license document, but changing it is not allowed.
 
+Commercial licenses are available for organizations that wish to use Loa without AGPL obligations.
+
 ### Preamble
 
 The GNU Affero General Public License is a free, copyleft license for

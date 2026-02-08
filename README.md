@@ -162,6 +162,8 @@ Loa uses a **three-zone model** inspired by AWS Projen and Google's ADK:
 
 [AGPL-3.0](LICENSE.md) — Use, modify, distribute freely. Network service deployments must release source code.
 
+Commercial licenses are available for organizations that wish to use Loa without AGPL obligations.
+
 ## Links
 
 - [Repository](https://github.com/0xHoneyJar/loa)
