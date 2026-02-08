@@ -78,7 +78,15 @@ export class AnthropicAdapter implements ILLMProvider {
           throw new Error(`Anthropic API ${response.status}`);
         }
 
-        const data = (await response.json()) as AnthropicResponse;
+        let data: AnthropicResponse;
+        try {
+          data = (await response.json()) as AnthropicResponse;
+        } catch {
+          // Truncated/invalid JSON from proxy/CDN — treat as retryable
+          lastError = new Error("Anthropic API invalid JSON response");
+          continue;
+        }
+
         const content =
           data.content
             ?.filter((b) => b.type === "text")

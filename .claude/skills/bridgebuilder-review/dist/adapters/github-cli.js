@@ -11,7 +11,17 @@ const ALLOWED_API_ENDPOINTS = [
     /^\/repos\/[^/]+\/[^/]+\/pulls\/\d+\/reviews\?per_page=100$/,
     /^\/repos\/[^/]+\/[^/]+\/pulls\/\d+\/reviews$/,
 ];
-/** Flags that can redirect requests or alter target host/protocol. */
+/**
+ * Strict allowlist for gh api flags.
+ * Any flag not explicitly listed here is rejected (default-deny).
+ */
+const ALLOWED_API_FLAGS = new Set([
+    "--paginate",
+    "-X",
+    "-f",
+    "--raw-field",
+]);
+/** Flags that can redirect requests, alter host/protocol, or inject headers. */
 const FORBIDDEN_FLAGS = new Set([
     "--hostname",
     "-H",
@@ -20,6 +30,9 @@ const FORBIDDEN_FLAGS = new Set([
     "-F",
     "--field",
     "--input",
+    "--jq",
+    "--template",
+    "--repo",
 ]);
 function assertAllowedArgs(args) {
     const cmd = args[0];
@@ -28,18 +41,6 @@ function assertAllowedArgs(args) {
         const endpoint = args[1];
         if (!endpoint || !endpoint.startsWith("/")) {
             throw new Error("gh api endpoint missing or invalid");
-        }
-        // Block flags that can redirect or change target host/protocol
-        for (let i = 2; i < args.length; i++) {
-            const a = args[i];
-            if (FORBIDDEN_FLAGS.has(a)) {
-                throw new Error(`gh api flag not allowlisted: ${a}`);
-            }
-            for (const f of FORBIDDEN_FLAGS) {
-                if (a.startsWith(f + "=")) {
-                    throw new Error(`gh api flag not allowlisted: ${a}`);
-                }
-            }
         }
         if (!ALLOWED_API_ENDPOINTS.some((re) => re.test(endpoint))) {
             throw new Error(`gh api endpoint not allowlisted: ${endpoint}`);
@@ -50,6 +51,38 @@ function assertAllowedArgs(args) {
             const method = args[xIndex + 1];
             if (method !== "POST") {
                 throw new Error(`gh api method not allowlisted: ${method ?? "(missing)"}`);
+            }
+        }
+        // Strict flag validation: reject anything not explicitly allowed
+        for (let i = 2; i < args.length; i++) {
+            const a = args[i];
+            // Skip non-flag arguments (values for preceding flags)
+            if (!a.startsWith("-"))
+                continue;
+            // Check combined flag forms (--flag=value)
+            const flagName = a.includes("=") ? a.slice(0, a.indexOf("=")) : a;
+            // Reject explicitly forbidden flags (belt-and-suspenders)
+            if (FORBIDDEN_FLAGS.has(flagName)) {
+                throw new Error(`gh api flag not allowlisted: ${a}`);
+            }
+            // Reject any flag not in the strict allowlist
+            if (!ALLOWED_API_FLAGS.has(flagName)) {
+                throw new Error(`gh api flag not allowlisted: ${a}`);
+            }
+            // Validate -f/--raw-field values are key=value format
+            if (flagName === "-f" || flagName === "--raw-field") {
+                const value = a.includes("=") ? a.slice(a.indexOf("=") + 1) : args[i + 1];
+                if (!value || !value.includes("=")) {
+                    throw new Error(`gh api ${flagName} value must be key=value format`);
+                }
+                if (!a.includes("="))
+                    i++; // skip the value arg
+                continue;
+            }
+            // Skip value for -X (already validated above)
+            if (flagName === "-X") {
+                i++; // skip the method value
+                continue;
             }
         }
         return;

@@ -61,7 +61,15 @@ export class AnthropicAdapter {
                     // Do not include response body — may contain echoed prompt content
                     throw new Error(`Anthropic API ${response.status}`);
                 }
-                const data = (await response.json());
+                let data;
+                try {
+                    data = (await response.json());
+                }
+                catch {
+                    // Truncated/invalid JSON from proxy/CDN — treat as retryable
+                    lastError = new Error("Anthropic API invalid JSON response");
+                    continue;
+                }
                 const content = data.content
                     ?.filter((b) => b.type === "text")
                     .map((b) => b.text)

@@ -697,6 +697,60 @@
 
 ---
 
+## Sprint 5: Defense-in-Depth Hardening (GPT 5.2 Post-Audit Findings)
+
+**Goal**: Implement the 3 MEDIUM-priority defense-in-depth improvements identified by GPT 5.2 post-audit review of Sprint 4. Switch gh flag validation from blocklist to strict allowlist, sanitize error messages stored in RunSummary, and add retry logic for JSON parse failures.
+
+**Rationale**: GPT 5.2 post-audit review (100% true positive rate) identified residual hardening gaps. No bugs — all are defense-in-depth improvements that reduce attack surface for future refactors.
+
+**Source**: PR #248 Comment — GPT 5.2 post-audit findings (`grimoires/loa/a2a/sprint-67/gpt-review-sprint4-post-audit.md`)
+
+**Task Order**: 5.1 → 5.2 → 5.3
+
+---
+
+### Task 5.1: Switch gh flag validation from blocklist to strict allowlist
+
+**Description**: Replace `FORBIDDEN_FLAGS` blocklist with `ALLOWED_API_FLAGS` allowlist in `assertAllowedArgs()`. Any flag not explicitly permitted is rejected. This closes the implicit-allow gap where flags like `--jq`, `--template`, `--repo` could be passed by a compromised caller.
+
+**Files**: `.claude/skills/bridgebuilder-review/resources/adapters/github-cli.ts`
+
+**Acceptance Criteria**:
+- [ ] `ALLOWED_API_FLAGS` set contains only `--paginate`, `-X`, `-f`, `--raw-field`
+- [ ] Any flag starting with `-` that is not in `ALLOWED_API_FLAGS` is rejected
+- [ ] `FORBIDDEN_FLAGS` retained as additional explicit blocklist (belt-and-suspenders)
+- [ ] Combined flag forms (`--flag=value`) checked against both lists
+- [ ] `-f`/`--raw-field` values validated as `key=value` format
+- [ ] All existing call sites (7 methods) still pass validation
+- [ ] TypeScript compiles with zero errors
+
+### Task 5.2: Sanitize stored error messages in classifyError()
+
+**Description**: Replace raw adapter error messages with generic text in `classifyError()` to prevent residual information leakage through `RunSummary.results`. Currently the raw `message` string is passed through to `ReviewError.message` even though logs only output code/category/source.
+
+**Files**: `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`
+
+**Acceptance Criteria**:
+- [ ] `classifyError()` returns generic message text (e.g., "Rate limited", "GitHub operation failed", "LLM operation failed", "Unknown failure")
+- [ ] Raw adapter error message is NOT stored in `ReviewError.message`
+- [ ] Error classification logic (matching on message content) still works correctly
+- [ ] TypeScript compiles with zero errors
+
+### Task 5.3: Add retry on Anthropic response JSON parse failure
+
+**Description**: Wrap `response.json()` in try/catch so that truncated/invalid JSON responses (common from proxy/CDN errors) are treated as retryable transient errors instead of fatal failures.
+
+**Files**: `.claude/skills/bridgebuilder-review/resources/adapters/anthropic.ts`
+
+**Acceptance Criteria**:
+- [ ] `response.json()` wrapped in try/catch
+- [ ] JSON parse failure sets `lastError` with generic message and continues retry loop
+- [ ] No response body content included in error message
+- [ ] Retry behavior consistent with existing network error handling
+- [ ] TypeScript compiles with zero errors
+
+---
+
 ## Future Considerations (Deferred)
 
 | Item | Rationale | Reference |

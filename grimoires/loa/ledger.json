@@ -38,6 +38,13 @@
         "title": "Security Hardening (GPT 5.2 Findings)",
         "status": "completed",
         "tasks": 4
+      },
+      {
+        "local_id": 5,
+        "global_id": 68,
+        "title": "Defense-in-Depth Hardening (GPT 5.2 Post-Audit)",
+        "status": "in_progress",
+        "tasks": 3
       }
     ]
   },
@@ -584,7 +591,7 @@
       "archive_path": "grimoires/loa/archive/cycle-019-dry-constraint-registry"
     }
   ],
-  "global_sprint_counter": 66,
+  "global_sprint_counter": 68,
   "parallel_cycles": [
     {
       "id": "cycle-014",

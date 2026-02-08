@@ -276,20 +276,21 @@ export class ReviewPipeline {
     }
   }
 
-  private classifyError(err: unknown, message: string): ReviewError {
-    // Rate limit errors
-    if (message.includes("429") || message.includes("rate limit")) {
-      return makeError("E_RATE_LIMIT", message, "github", "transient", true);
+  private classifyError(_err: unknown, message: string): ReviewError {
+    // Never persist raw adapter messages — may contain sensitive details.
+    // Classify based on content, but store only generic descriptions.
+    const m = (message || "").toLowerCase();
+
+    if (m.includes("429") || m.includes("rate limit")) {
+      return makeError("E_RATE_LIMIT", "Rate limited", "github", "transient", true);
     }
-    // GitHub API errors
-    if (message.includes("gh ") || message.includes("GitHub")) {
-      return makeError("E_GITHUB", message, "github", "transient", true);
+    if (m.includes("gh command failed") || m.includes("github cli") || m.includes("github")) {
+      return makeError("E_GITHUB", "GitHub operation failed", "github", "transient", true);
     }
-    // LLM errors
-    if (message.includes("anthropic") || message.includes("claude")) {
-      return makeError("E_LLM", message, "llm", "transient", true);
+    if (m.includes("anthropic api") || m.includes("anthropic") || m.includes("claude")) {
+      return makeError("E_LLM", "LLM operation failed", "llm", "transient", true);
     }
-    return makeError("E_UNKNOWN", message, "pipeline", "unknown", false);
+    return makeError("E_UNKNOWN", "Unknown failure", "pipeline", "unknown", false);
   }
 
   private skipResult(item: ReviewItem, skipReason: string): ReviewResult {
