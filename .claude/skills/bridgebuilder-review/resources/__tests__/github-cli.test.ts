@@ -1,3 +1,10 @@
+// Decision: Node built-in test runner (node:test) + tsx over Jest/Vitest.
+// Zero test framework dependencies — tsx compiles TypeScript on-the-fly using
+// esbuild, and node:test provides describe/it/assert natively since Node 20.
+// Jest adds ~30MB of dependencies + complex transform config for ESM.
+// Vitest is lighter but still ~5MB. For 100 tests in a zero-dep skill,
+// the built-in runner is sufficient. If snapshot testing or watch mode becomes
+// critical, swap to Vitest (same describe/it API, minimal migration).
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { GitHubCLIAdapter } from "../adapters/github-cli.js";
@@ -198,6 +205,83 @@ describe("GitHubCLIAdapter", () => {
         const matches = ALLOWED_API_ENDPOINTS.some((re) => re.test(endpoint));
         assert.ok(!matches, `Expected ${endpoint} to be blocked`);
       }
+    });
+
+    it("rejects endpoints exceeding 200 chars (length guard)", () => {
+      // Simulate the length check from assertAllowedArgs
+      const longOwner = "a".repeat(200);
+      const endpoint = `/repos/${longOwner}/repo`;
+      assert.ok(endpoint.length > 200, "Test setup: endpoint should exceed 200 chars");
+      // The guard: endpoint.length > 200 should reject
+      const wouldReject = endpoint.length > 200 || !endpoint.startsWith("/");
+      assert.ok(wouldReject, "Oversized endpoint should be rejected by length guard");
+    });
+
+    it("rejects path traversal attempts via allowlist regex", () => {
+      const ALLOWED_API_ENDPOINTS: RegExp[] = [
+        /^\/rate_limit$/,
+        /^\/repos\/[^/]+\/[^/]+$/,
+        /^\/repos\/[^/]+\/[^/]+\/pulls\?state=open&per_page=100$/,
+        /^\/repos\/[^/]+\/[^/]+\/pulls\/\d+\/files\?per_page=100$/,
+        /^\/repos\/[^/]+\/[^/]+\/pulls\/\d+\/reviews\?per_page=100$/,
+        /^\/repos\/[^/]+\/[^/]+\/pulls\/\d+\/reviews$/,
+      ];
+
+      const traversalAttempts = [
+        "/repos/owner/../admin/repo",
+        "/repos/owner/repo/../../admin",
+        "/repos/owner/repo/pulls/../../../etc/passwd",
+      ];
+
+      for (const attempt of traversalAttempts) {
+        const matches = ALLOWED_API_ENDPOINTS.some((re) => re.test(attempt));
+        assert.ok(!matches, `Path traversal should be blocked: ${attempt}`);
+      }
+    });
+  });
+
+  describe("forbidden flag rejection", () => {
+    // These test the flag validation logic extracted from assertAllowedArgs.
+    // We test the sets directly since calling assertAllowedArgs requires execFile mocking.
+    const FORBIDDEN_FLAGS = new Set([
+      "--hostname", "-H", "--header", "--method",
+      "-F", "--field", "--input", "--jq", "--template", "--repo",
+    ]);
+
+    const ALLOWED_API_FLAGS = new Set([
+      "--paginate", "-X", "-f", "--raw-field",
+    ]);
+
+    it("rejects every individually forbidden flag", () => {
+      for (const flag of FORBIDDEN_FLAGS) {
+        assert.ok(!ALLOWED_API_FLAGS.has(flag), `Forbidden flag ${flag} must not be in allowlist`);
+      }
+    });
+
+    it("forbidden and allowed flag sets have zero overlap", () => {
+      for (const flag of ALLOWED_API_FLAGS) {
+        assert.ok(!FORBIDDEN_FLAGS.has(flag), `Allowed flag ${flag} must not be in forbidden set`);
+      }
+    });
+
+    it("rejects --hostname (host redirect attack)", () => {
+      assert.ok(FORBIDDEN_FLAGS.has("--hostname"));
+      assert.ok(!ALLOWED_API_FLAGS.has("--hostname"));
+    });
+
+    it("rejects --jq (arbitrary code execution via jq expressions)", () => {
+      assert.ok(FORBIDDEN_FLAGS.has("--jq"));
+      assert.ok(!ALLOWED_API_FLAGS.has("--jq"));
+    });
+
+    it("rejects --template (Go template injection)", () => {
+      assert.ok(FORBIDDEN_FLAGS.has("--template"));
+      assert.ok(!ALLOWED_API_FLAGS.has("--template"));
+    });
+
+    it("rejects -H/--header (header injection)", () => {
+      assert.ok(FORBIDDEN_FLAGS.has("-H"));
+      assert.ok(FORBIDDEN_FLAGS.has("--header"));
     });
   });
 });

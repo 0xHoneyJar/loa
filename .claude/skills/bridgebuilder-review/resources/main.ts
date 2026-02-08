@@ -43,6 +43,22 @@ async function loadPersona(configPath: string): Promise<string> {
 }
 
 function printSummary(summary: RunSummary): void {
+  // Build skip reason distribution
+  const skipReasons: Record<string, number> = {};
+  for (const r of summary.results) {
+    if (r.skipReason) {
+      skipReasons[r.skipReason] = (skipReasons[r.skipReason] ?? 0) + 1;
+    }
+  }
+
+  // Build error code distribution
+  const errorCodes: Record<string, number> = {};
+  for (const r of summary.results) {
+    if (r.error) {
+      errorCodes[r.error.code] = (errorCodes[r.error.code] ?? 0) + 1;
+    }
+  }
+
   console.log(
     JSON.stringify(
       {
@@ -52,6 +68,8 @@ function printSummary(summary: RunSummary): void {
         errors: summary.errors,
         startTime: summary.startTime,
         endTime: summary.endTime,
+        ...(Object.keys(skipReasons).length > 0 ? { skipReasons } : {}),
+        ...(Object.keys(errorCodes).length > 0 ? { errorCodes } : {}),
       },
       null,
       2,
@@ -79,7 +97,7 @@ async function main(): Promise<void> {
 
   const cliArgs = parseCLIArgs(argv);
 
-  const config = await resolveConfig(cliArgs, {
+  const { config, provenance } = await resolveConfig(cliArgs, {
     BRIDGEBUILDER_REPOS: process.env.BRIDGEBUILDER_REPOS,
     BRIDGEBUILDER_MODEL: process.env.BRIDGEBUILDER_MODEL,
     BRIDGEBUILDER_DRY_RUN: process.env.BRIDGEBUILDER_DRY_RUN,
@@ -88,8 +106,8 @@ async function main(): Promise<void> {
   // Validate --pr + repos combination
   resolveRepos(config, cliArgs.pr);
 
-  // Log effective config
-  console.error(formatEffectiveConfig(config));
+  // Log effective config with provenance annotations
+  console.error(formatEffectiveConfig(config, provenance));
 
   // Load persona
   const persona = await loadPersona(config.personaPath);

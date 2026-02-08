@@ -32,8 +32,12 @@ export interface EnvVars {
 export declare function parseCLIArgs(argv: string[]): CLIArgs;
 /**
  * Resolve config using 5-level precedence: CLI > env > yaml > auto-detect > defaults.
+ * Returns config and provenance (where each key value came from).
  */
-export declare function resolveConfig(cliArgs: CLIArgs, env: EnvVars, yamlConfig?: YamlConfig): Promise<BridgebuilderConfig>;
+export declare function resolveConfig(cliArgs: CLIArgs, env: EnvVars, yamlConfig?: YamlConfig): Promise<{
+    config: BridgebuilderConfig;
+    provenance: ConfigProvenance;
+}>;
 /**
  * Validate --pr flag: requires exactly one repo (IMP-008).
  */
@@ -41,8 +45,15 @@ export declare function resolveRepos(config: BridgebuilderConfig, prNumber?: num
     owner: string;
     repo: string;
 }>;
+export type ConfigSource = "cli" | "env" | "yaml" | "auto-detect" | "default";
+export interface ConfigProvenance {
+    repos: ConfigSource;
+    model: ConfigSource;
+    dryRun: ConfigSource;
+}
 /**
  * Format effective config for logging (secrets redacted).
+ * Includes provenance annotations showing where each value originated.
  */
-export declare function formatEffectiveConfig(config: BridgebuilderConfig): string;
+export declare function formatEffectiveConfig(config: BridgebuilderConfig, provenance?: ConfigProvenance): string;
 //# sourceMappingURL=config.d.ts.map

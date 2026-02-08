@@ -76,6 +76,12 @@ function parseRepoString(s) {
     }
     return { owner: parts[0], repo: parts[1] };
 }
+// Decision: Pure regex YAML parser over yaml/js-yaml library.
+// Zero runtime dependencies is a hard constraint for this skill (PRD NFR-1).
+// The config surface is flat key:value pairs + simple lists — no anchors, aliases,
+// multi-line strings, or nested objects needed. A full YAML parser (~50KB min)
+// would add attack surface and supply chain risk for features we don't use.
+// If nested config objects are ever needed, swap to js-yaml behind this function.
 /**
  * Load YAML config from .loa.config.yaml if it exists.
  * Uses a simple key:value parser — no YAML library dependency.
@@ -168,6 +174,7 @@ async function loadYamlConfig() {
 }
 /**
  * Resolve config using 5-level precedence: CLI > env > yaml > auto-detect > defaults.
+ * Returns config and provenance (where each key value came from).
  */
 export async function resolveConfig(cliArgs, env, yamlConfig) {
     const yaml = yamlConfig ?? (await loadYamlConfig());
@@ -177,11 +184,13 @@ export async function resolveConfig(cliArgs, env, yamlConfig) {
     }
     // Build repos list: first-non-empty-wins (CLI > env > yaml > auto-detect)
     let repos = [];
+    let reposSource = "default";
     // CLI --repo flags (highest priority)
     if (cliArgs.repos?.length) {
         for (const r of cliArgs.repos) {
             repos.push(parseRepoString(r));
         }
+        reposSource = "cli";
     }
     // Env BRIDGEBUILDER_REPOS (comma-separated) — only if CLI didn't set repos
     if (repos.length === 0 && env.BRIDGEBUILDER_REPOS) {
@@ -190,23 +199,39 @@ export async function resolveConfig(cliArgs, env, yamlConfig) {
             if (trimmed)
                 repos.push(parseRepoString(trimmed));
         }
+        if (repos.length > 0)
+            reposSource = "env";
     }
     // YAML repos — only if no higher-priority source set repos
     if (repos.length === 0 && yaml.repos?.length) {
         for (const r of yaml.repos) {
             repos.push(parseRepoString(r));
         }
+        reposSource = "yaml";
     }
     // Auto-detect (unless --no-auto-detect) — only if no explicit repos configured
     if (repos.length === 0 && !cliArgs.noAutoDetect) {
         const detected = await autoDetectRepo();
         if (detected) {
             repos.push(detected);
+            reposSource = "auto-detect";
         }
     }
     if (repos.length === 0) {
         throw new Error("No repos configured. Use --repo owner/repo, set BRIDGEBUILDER_REPOS, or run from a git repo.");
     }
+    // Track model provenance
+    const modelSource = env.BRIDGEBUILDER_MODEL
+        ? "env"
+        : yaml.model
+            ? "yaml"
+            : "default";
+    // Track dryRun provenance
+    const dryRunSource = cliArgs.dryRun != null
+        ? "cli"
+        : env.BRIDGEBUILDER_DRY_RUN === "true"
+            ? "env"
+            : "default";
     // Resolve remaining fields: CLI > env > yaml > defaults
     const config = {
         repos,
@@ -226,7 +251,12 @@ export async function resolveConfig(cliArgs, env, yamlConfig) {
         sanitizerMode: yaml.sanitizer_mode ?? DEFAULTS.sanitizerMode,
         maxRuntimeMinutes: yaml.max_runtime_minutes ?? DEFAULTS.maxRuntimeMinutes,
     };
-    return config;
+    const provenance = {
+        repos: reposSource,
+        model: modelSource,
+        dryRun: dryRunSource,
+    };
+    return { config, provenance };
 }
 /**
  * Validate --pr flag: requires exactly one repo (IMP-008).
@@ -240,13 +270,18 @@ export function resolveRepos(config, prNumber) {
 }
 /**
  * Format effective config for logging (secrets redacted).
+ * Includes provenance annotations showing where each value originated.
  */
-export function formatEffectiveConfig(config) {
+export function formatEffectiveConfig(config, provenance) {
     const repoNames = config.repos
         .map((r) => `${r.owner}/${r.repo}`)
         .join(", ");
-    return (`[bridgebuilder] Config: repos=[${repoNames}], ` +
-        `model=${config.model}, max_prs=${config.maxPrs}, ` +
-        `dry_run=${config.dryRun}, sanitizer_mode=${config.sanitizerMode}`);
+    const p = provenance;
+    const repoSrc = p ? ` (${p.repos})` : "";
+    const modelSrc = p ? ` (${p.model})` : "";
+    const drySrc = p ? ` (${p.dryRun})` : "";
+    return (`[bridgebuilder] Config: repos=[${repoNames}]${repoSrc}, ` +
+        `model=${config.model}${modelSrc}, max_prs=${config.maxPrs}, ` +
+        `dry_run=${config.dryRun}${drySrc}, sanitizer_mode=${config.sanitizerMode}`);
 }
 //# sourceMappingURL=config.js.map

@@ -7,7 +7,9 @@ const execFileAsync = promisify(execFile);
 // than HTTP-direct, but review volume is low (<50 PRs/run) so latency is acceptable.
 // If throughput becomes a bottleneck, swap to Octokit behind IGitProvider port.
 const GH_TIMEOUT_MS = 30_000;
-/** Allowlisted gh API endpoints — adapter cannot call anything else. */
+// SECURITY: Adding endpoints here requires review — each is an attack surface expansion.
+// Every regex must anchor start (^) and end ($), use [^/]+ (not .*) for path segments,
+// and escape query parameters literally. New entries should get their own PR with justification.
 const ALLOWED_API_ENDPOINTS = [
     /^\/rate_limit$/,
     /^\/repos\/[^/]+\/[^/]+$/,
@@ -43,8 +45,9 @@ function assertAllowedArgs(args) {
     const cmd = args[0];
     if (cmd === "api") {
         // Enforce endpoint at args[1] position (not arbitrary arg)
+        // Length bound prevents oversized path segments from reaching execFile
         const endpoint = args[1];
-        if (!endpoint || !endpoint.startsWith("/")) {
+        if (!endpoint || endpoint.length > 200 || !endpoint.startsWith("/")) {
             throw new Error("gh api endpoint missing or invalid");
         }
         if (!ALLOWED_API_ENDPOINTS.some((re) => re.test(endpoint))) {

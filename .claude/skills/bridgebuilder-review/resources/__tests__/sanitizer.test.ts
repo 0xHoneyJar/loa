@@ -104,4 +104,84 @@ MIIEpAIBAAKCAQEA0Z3VS5JJcds3xf
     const count = (result.sanitizedContent.match(/\[REDACTED\]/g) ?? []).length;
     assert.ok(count >= 2, `Expected at least 2 redactions, got ${count}`);
   });
+
+  // --- Boundary tests: false positives ---
+
+  describe("false positive resistance", () => {
+    it("does not redact long camelCase identifiers", () => {
+      const content = "const myVeryLongCamelCaseVariableNameThatExceedsFortyCharacters = true;";
+      const result = sanitizer.sanitize(content);
+      // camelCase has low entropy (~3.5 bits) — should not trigger
+      assert.ok(
+        !result.redactedPatterns.includes("high_entropy"),
+        "camelCase identifiers should not trigger entropy detection",
+      );
+    });
+
+    it("does not redact long import paths", () => {
+      const content = 'import { something } from "@organization/very-long-package-name/dist/some/deeply/nested/module/index";';
+      const result = sanitizer.sanitize(content);
+      assert.equal(result.safe, true, "Import paths should not be flagged as secrets");
+    });
+
+    it("does not redact base64-encoded non-secret data URIs under threshold", () => {
+      // Repeating pattern has low entropy (~2 bits) — should not trigger 4.5 threshold
+      const lowEntropyBase64 = "aaabbbcccaaabbbcccaaabbbcccaaabbbcccaaabbbccc";
+      const content = `data:image/png;base64,${lowEntropyBase64}`;
+      const result = sanitizer.sanitize(content);
+      const hasHighEntropy = result.redactedPatterns.includes("high_entropy");
+      assert.equal(hasHighEntropy, false, "Low-entropy base64 should not trigger");
+    });
+
+    it("does not redact URL paths with slashes and dots", () => {
+      const content = "Fetching https://api.example.com/v2/users/profile/settings/notifications";
+      const result = sanitizer.sanitize(content);
+      assert.equal(result.safe, true, "URL paths should not be flagged");
+    });
+  });
+
+  // --- Boundary tests: true positives ---
+
+  describe("true positive detection", () => {
+    it("catches realistic GitHub PAT format", () => {
+      const content = "export GITHUB_TOKEN=ghp_1234567890abcdefABCDEFGHIJKLMNOPQRSTUVWX";
+      const result = sanitizer.sanitize(content);
+      assert.equal(result.safe, false);
+      assert.ok(result.redactedPatterns.includes("github_pat"));
+    });
+
+    it("catches realistic AWS access key format", () => {
+      const content = "aws_access_key_id = AKIAIOSFODNN7EXAMPLE";
+      const result = sanitizer.sanitize(content);
+      assert.equal(result.safe, false);
+      assert.ok(result.redactedPatterns.includes("aws_key"));
+    });
+
+    it("OpenAI key does not match Anthropic pattern (negative lookahead)", () => {
+      const openaiKey = "sk-ABCDEFGHIJKLMNOPQRSTx";
+      const result = sanitizer.sanitize(`Key: ${openaiKey}`);
+      assert.equal(result.safe, false);
+      assert.ok(result.redactedPatterns.includes("openai_key"));
+      assert.ok(!result.redactedPatterns.includes("anthropic_key"),
+        "OpenAI key must not match Anthropic pattern");
+    });
+
+    it("Anthropic key does not match OpenAI pattern (negative lookahead)", () => {
+      const anthropicKey = "sk-ant-abcdefghijklmnopqrst";
+      const result = sanitizer.sanitize(`Key: ${anthropicKey}`);
+      assert.equal(result.safe, false);
+      assert.ok(result.redactedPatterns.includes("anthropic_key"));
+      assert.ok(!result.redactedPatterns.includes("openai_key"),
+        "Anthropic key must not match OpenAI pattern");
+    });
+
+    it("catches high-entropy base64 secret (>4.5 bits/char)", () => {
+      // Mixed-case alphanumeric with symbols — ~5.2 bits entropy
+      const secret = "aB3cD4eF5gH6iJ7kL8mN9oP0qR1sT2uV3wX4yZ5aB6cD7eF8gH9";
+      const content = `SECRET=${secret}`;
+      const result = sanitizer.sanitize(content);
+      assert.ok(result.redactedPatterns.includes("high_entropy"),
+        "High-entropy mixed secret should be caught");
+    });
+  });
 });

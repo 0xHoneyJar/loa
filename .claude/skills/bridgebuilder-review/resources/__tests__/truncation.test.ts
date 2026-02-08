@@ -205,4 +205,66 @@ describe("truncateFiles", () => {
       assert.equal(files[1].filename, original[1].filename);
     });
   });
+
+  // --- Boundary tests: edge cases ---
+
+  describe("edge cases", () => {
+    it("handles a single file with a very large patch (exceeds byte budget)", () => {
+      const hugePatch = "x".repeat(200_000); // 200KB — exceeds 100KB budget
+      const f = file("huge.ts", 5000, 0, hugePatch);
+      const result = truncateFiles([f], defaultConfig);
+
+      assert.equal(result.included.length, 0);
+      assert.equal(result.excluded.length, 1);
+      assert.ok(result.excluded[0].stats.includes("+5000 -0"));
+    });
+
+    it("handles 100 files with maxFilesPerPr=3", () => {
+      const files = Array.from({ length: 100 }, (_, i) =>
+        file(`file${i}.ts`, i + 1, 0, "x"),
+      );
+      const config = { ...defaultConfig, maxFilesPerPr: 3 };
+      const result = truncateFiles(files, config);
+
+      // Only 3 files in the included+budget-excluded window
+      assert.ok(result.included.length <= 3);
+      // All 100 files accounted for in included + excluded
+      assert.equal(result.included.length + result.excluded.length, 100);
+    });
+
+    it("handles all files being binary (patch: undefined)", () => {
+      const binaries: PullRequestFile[] = Array.from({ length: 5 }, (_, i) => ({
+        filename: `image${i}.png`,
+        status: "added" as const,
+        additions: 0,
+        deletions: 0,
+        patch: undefined,
+      }));
+      const result = truncateFiles(binaries, defaultConfig);
+
+      assert.equal(result.included.length, 0);
+      assert.equal(result.excluded.length, 5);
+      assert.equal(result.totalBytes, 0);
+      for (const ex of result.excluded) {
+        assert.ok(ex.stats.includes("diff unavailable"));
+      }
+    });
+
+    it("handles mixed security and normal files with tight byte budget", () => {
+      const files = [
+        file("src/utils.ts", 10, 0, "x".repeat(50)),
+        file("src/auth/login.ts", 5, 0, "x".repeat(50)),
+        file("src/crypto/keys.ts", 3, 0, "x".repeat(50)),
+      ];
+      // Budget fits only 2 files (100 bytes < 150)
+      const config = { ...defaultConfig, maxDiffBytes: 100 };
+      const result = truncateFiles(files, config);
+
+      // Security files (auth, crypto) should be prioritized
+      assert.equal(result.included.length, 2);
+      const includedNames = result.included.map((f) => f.filename);
+      assert.ok(includedNames.includes("src/auth/login.ts"), "auth file should be included");
+      assert.ok(includedNames.includes("src/crypto/keys.ts"), "crypto file should be included");
+    });
+  });
 });
