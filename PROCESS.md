@@ -2,8 +2,6 @@
 
 This document outlines the comprehensive agent-driven development workflow. Our process leverages specialized AI agents to guide you from initial concept to production-ready implementation.
 
-> **Note**: This is a base framework repository that THJ uses for development of our products. If you are not a part of THJ, when using as a template for a new project, uncomment the generated artifacts section in `.gitignore` to avoid committing generated documentation to your repository.
-
 ## Managed Scaffolding Architecture
 
 Loa v1.1.0 uses **enterprise-grade managed scaffolding** inspired by AWS Projen, Copier, and Google's ADK:
