@@ -54,7 +54,10 @@ export class NoOpContextStore implements IContextStore {
     _repo: string,
     _prNumber: number,
   ): Promise<string | null> {
-    // Always null: no persistent state in local mode
+    // Always null: no persistent state in local mode.
+    // This means incremental review (V3-1) is dormant in local mode — every run
+    // does a full review. To activate incremental diffs, swap to a persistent
+    // IContextStore (e.g. R2 or SQLite) that tracks the last-reviewed headSha.
     return null;
   }
 

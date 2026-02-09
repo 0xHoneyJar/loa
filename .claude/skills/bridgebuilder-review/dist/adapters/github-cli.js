@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { GitProviderError, } from "../ports/git-provider.js";
 const execFileAsync = promisify(execFile);
 // Decision: execFile+gh CLI over Octokit SDK.
 // gh handles token refresh, SSO, credential helpers, and proxy config automatically.
@@ -112,11 +113,13 @@ async function gh(args, timeoutMs = GH_TIMEOUT_MS) {
     catch (err) {
         const e = err;
         if (e.code === "ENOENT") {
-            throw new Error("GitHub CLI (gh) required. Install: https://cli.github.com/ and run 'gh auth login'.");
+            throw new GitProviderError("NETWORK", "GitHub CLI (gh) required. Install: https://cli.github.com/ and run 'gh auth login'.");
         }
         // Do not include stderr/message — may contain tokens or sensitive repo info
         const code = typeof e.code === "string" || typeof e.code === "number" ? String(e.code) : "unknown";
-        throw new Error(`gh command failed (code=${code})`);
+        // Classify by exit code: 1 = general failure, 4 = auth/forbidden in gh
+        const errorCode = code === "4" ? "FORBIDDEN" : "NETWORK";
+        throw new GitProviderError(errorCode, `gh command failed (code=${code})`);
     }
 }
 function parseJson(raw, context) {
@@ -125,7 +128,7 @@ function parseJson(raw, context) {
     }
     catch {
         // Do not include raw response — may contain sensitive data
-        throw new Error(`Failed to parse gh JSON for ${context}`);
+        throw new GitProviderError("NETWORK", `Failed to parse gh JSON for ${context}`);
     }
 }
 export class GitHubCLIAdapter {

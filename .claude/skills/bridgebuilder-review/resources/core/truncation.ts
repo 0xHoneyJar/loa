@@ -165,6 +165,10 @@ export const LOA_EXCLUDE_PATTERNS = [
 /**
  * Detect if repo is Loa-mounted by reading .loa-version.json.
  * Resolves paths against repoRoot (git root), NOT cwd (SKP-001, IMP-004).
+ *
+ * Decision: sync I/O (existsSync/readFileSync) is intentional here.
+ * truncateFiles() — the only caller — is synchronous (SDD §3.1), so async
+ * would require a cascading refactor for zero runtime benefit.
  */
 export function detectLoa(
   config: Pick<BridgebuilderConfig, "loaAware" | "repoRoot">,
@@ -353,6 +357,10 @@ export function applyLoaTierExclusion(
 }
 
 // --- Token Budget Constants (IMP-001) ---
+// Coefficients are chars-per-token ratios: 0.25 ≈ 4 chars/token (cl100k_base
+// average for English prose + code). GPT-5.2 uses 0.23 per OpenAI's tokenizer
+// calibration. These are intentionally conservative (over-estimate) to leave
+// headroom and avoid context-window overflows at runtime.
 
 export const TOKEN_BUDGETS: Record<string, TokenBudget> = {
   "claude-sonnet-4-5-20250929": { maxInput: 200_000, maxOutput: 8_192, coefficient: 0.25 },

@@ -27,8 +27,6 @@ export interface BridgebuilderConfig {
   personaFilePath?: string;
   /** Force full review even when incremental context is available (V3-1). */
   forceFullReview?: boolean;
-  /** Model override from persona frontmatter (V3-2). */
-  personaModel?: string;
 }
 
 export interface ReviewItem {

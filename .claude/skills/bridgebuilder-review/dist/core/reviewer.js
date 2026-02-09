@@ -1,3 +1,5 @@
+import { GitProviderError } from "../ports/git-provider.js";
+import { LLMProviderError } from "../ports/llm-provider.js";
 import { progressiveTruncate, getTokenBudget, } from "./truncation.js";
 const CRITICAL_PATTERN = /\b(critical|security vulnerability|sql injection|xss|secret leak|must fix)\b/i;
 const REFUSAL_PATTERN = /\b(I cannot|I'm unable|I can't|as an AI|I apologize)\b/i;
@@ -28,6 +30,11 @@ function makeError(code, message, source, category, retryable) {
     return { code, message, category, retryable, source };
 }
 function isTokenRejection(err) {
+    // Primary: typed error code from LLM adapter (BB-F3)
+    if (err instanceof LLMProviderError && err.code === "TOKEN_LIMIT") {
+        return true;
+    }
+    // Fallback: string matching for unknown/untyped errors
     const message = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
     return TOKEN_REJECTION_PATTERNS.some((p) => message.includes(p));
 }
@@ -337,19 +344,26 @@ export class ReviewPipeline {
             return this.errorResult(item, reviewError);
         }
     }
-    classifyError(_err, message) {
-        // Never persist raw adapter messages — may contain sensitive details.
-        // Classify using anchored prefixes that match actual adapter error strings,
-        // not generic substrings that could false-positive on unrelated messages.
+    classifyError(err, message) {
+        // Primary: typed port errors from adapters (BB-F3)
+        if (err instanceof GitProviderError) {
+            const retryable = err.code === "RATE_LIMITED" || err.code === "NETWORK";
+            const code = err.code === "RATE_LIMITED" ? "E_RATE_LIMIT" : "E_GITHUB";
+            return makeError(code, "GitHub operation failed", "github", retryable ? "transient" : "permanent", retryable);
+        }
+        if (err instanceof LLMProviderError) {
+            const retryable = err.code === "RATE_LIMITED" || err.code === "NETWORK";
+            const code = err.code === "RATE_LIMITED" ? "E_RATE_LIMIT" : "E_LLM";
+            return makeError(code, "LLM operation failed", "llm", retryable ? "transient" : "permanent", retryable);
+        }
+        // Fallback: string matching for unknown/untyped errors (backward compat)
         const m = (message || "").toLowerCase();
         if (m.includes("429") || m.includes("rate limit")) {
             return makeError("E_RATE_LIMIT", "Rate limited", "github", "transient", true);
         }
-        // Match actual adapter error prefixes: "gh command failed", "gh api"
         if (m.startsWith("gh ") || m.includes("gh command failed") || m.includes("github cli")) {
             return makeError("E_GITHUB", "GitHub operation failed", "github", "transient", true);
         }
-        // Match actual adapter error prefixes: "anthropic api ..."
         if (m.startsWith("anthropic api")) {
             return makeError("E_LLM", "LLM operation failed", "llm", "transient", true);
         }
