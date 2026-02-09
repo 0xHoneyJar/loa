@@ -4,6 +4,10 @@ export interface CLIArgs {
     repos?: string[];
     pr?: number;
     noAutoDetect?: boolean;
+    maxInputTokens?: number;
+    maxOutputTokens?: number;
+    maxDiffBytes?: number;
+    model?: string;
 }
 export interface YamlConfig {
     enabled?: boolean;
@@ -50,6 +54,9 @@ export interface ConfigProvenance {
     repos: ConfigSource;
     model: ConfigSource;
     dryRun: ConfigSource;
+    maxInputTokens: ConfigSource;
+    maxOutputTokens: ConfigSource;
+    maxDiffBytes: ConfigSource;
 }
 /**
  * Format effective config for logging (secrets redacted).

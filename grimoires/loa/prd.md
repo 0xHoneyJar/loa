@@ -1,382 +1,142 @@
-# PRD: RTFM Testing — Documentation Quality via Fresh Agent Spawns
+# PRD: Bridgebuilder Large PR Support — Token Budget & Progressive Review
 
 **Version**: 1.0.0
 **Status**: Draft
 **Author**: Discovery Phase (plan-and-analyze)
 **Date**: 2026-02-09
-**Issue**: #236
-**Research**: PR #256
+**Issue**: #260
 
 ---
 
 ## 1. Problem Statement
 
-Loa validates code quality across three dimensions — code quality (`/review-sprint`, `/audit-sprint`, `/gpt-review`), document quality (`/validate docs`, Flatline Protocol), and document usability (nothing). The third column is empty.
+The Bridgebuilder autonomous PR review skill cannot review large PRs. When invoked against PR #259 (10 files, 1787 additions, ~65KB diff), the skill fails at every configuration level:
 
-Documentation written by the builder is almost always incomplete. The author unconsciously fills gaps from their own context. They assume knowledge. They skip "obvious" steps. The docs pass review because reviewers also have context. Nobody tests whether a fresh user can actually follow them.
+1. **Default config** (`maxInputTokens: 8000`): Skipped as `prompt_too_large` — the 65KB diff alone estimates to ~16K tokens, double the budget
+2. **CLI override attempt** (`--max-input-tokens 32000`): CLI parser doesn't accept token flags — only `--dry-run`, `--repo`, `--pr`, `--no-auto-detect` are parsed
+3. **YAML config override** (`max_input_tokens: 64000`): Even when the token check passes, the API call fails with `E_LLM` (connection reset/timeout on large payloads)
 
-Loa's README is 173 lines. INSTALLATION.md is 858 lines. Both were written by people who built Loa. Neither has been validated by a zero-context newcomer.
+The user reports: *"each of the times i have called the skill directly it has not actually been able to run due to these limits"*
 
-> Sources: PR #256 research, Bridgebuilder review Finding 6 (three-column quality pipeline gap)
-
----
-
-## 2. Vision
-
-Create a standalone `/rtfm` skill that spawns fresh zero-context agents to test whether documentation is usable by newcomers. The skill validates that someone (or something) with no prior knowledge can complete a task using only the provided docs.
-
-The methodology is a **hermetic documentation test** — the agent equivalent of Google Bazel's hermetic builds. No implicit dependencies, no ambient state. If the zero-context agent can't follow the docs, the docs have gaps.
-
-> Sources: zscole/rtfm-testing methodology, Bridgebuilder Finding 1 (hermetic build analogy)
+This renders Bridgebuilder unable to review its own PRs — a critical gap for a review tool.
 
 ---
 
-## 3. Goals & Success Metrics
+## 2. Root Cause Analysis
 
-### Goals
+### 2.1 Token Budget Mismatch
 
-1. Fill the "Doc Usability" column in Loa's quality pipeline
-2. Provide a repeatable, automated test for documentation completeness
-3. Catch the "curse of knowledge" gaps that human/agent reviewers miss
-4. Enable iterative improvement with measurable progress (Cold Start Score)
+The default `maxInputTokens: 8000` was tuned for small PRs (~10-15 files, <20KB diff). The token estimation formula `(systemPrompt.length + userPrompt.length) / 4` is deliberately conservative (over-estimates). For PR #259:
 
-### Success Metrics
+- Persona (BEAUVOIR.md): ~5-10KB
+- PR metadata + format instructions: ~1KB
+- Diff content: ~65KB (after truncation to `maxDiffBytes: 100000`)
+- Total prompt chars: ~75KB → estimated ~18,750 tokens → exceeds 8,000 limit
 
-| Metric | Target | Measurement |
-|--------|--------|-------------|
-| Cold Start Score for README.md | 1 (certified on first try) | After docs are fixed per initial RTFM run |
-| Cold Start Score for INSTALLATION.md | 1 | After docs are fixed per initial RTFM run |
-| Gap detection rate vs manual review | >2x more gaps found | Compare RTFM gaps vs human review of same docs |
-| Time per test iteration | <60 seconds | Wall clock time for single RTFM test run |
-| Cost per test iteration | <$0.05 | API token cost per run |
+### 2.2 CLI Configuration Gap
+
+The `parseCLIArgs()` function only handles 4 flags: `--dry-run`, `--repo`, `--pr`, `--no-auto-detect`. Token/size limits are only configurable via YAML config. The user's attempt to pass `--max-input-tokens 32000` was silently ignored.
+
+### 2.3 API Payload Limits
+
+Even when YAML config raises `maxInputTokens` to 64000, the raw HTTP request body becomes very large. The Anthropic adapter uses a 120s timeout and 2 retries, but connection resets on large payloads suggest:
+- Network/proxy intermediary dropping large requests
+- API rate limiting on payload size (separate from token count)
+- The request body includes the full prompt text as a JSON string
+
+### 2.4 Truncation vs Token Check Ordering
+
+The diff truncation (`maxDiffBytes: 100000`) runs BEFORE the token check, but the token check also includes the system prompt (persona). The truncation only budgets diff bytes, not total prompt bytes. This means:
+- Diff is truncated to 100KB
+- Persona adds 5-10KB
+- Metadata/format adds ~1KB
+- Total: 106-111KB → ~27K estimated tokens
+- Even a generous `maxInputTokens` may not help if the actual API payload is too large
 
 ---
 
-## 4. User & Stakeholder Context
+## 3. Goals
 
-### Primary Persona: Loa Maintainer
+### Primary Goal
+Make Bridgebuilder reliably review PRs of any reasonable size (up to ~200 files / 200KB diff).
 
-- Writes documentation as part of development workflow
-- Wants confidence that docs are usable before release
-- Currently has no way to test docs from a newcomer perspective
+### Secondary Goals
+1. Make token/size configuration accessible from CLI (not just YAML)
+2. Provide clear feedback when a PR is too large, with actionable guidance
+3. Enable progressive review strategies for oversized PRs
+4. Maintain zero external runtime dependencies (PRD NFR-1 from original Bridgebuilder)
 
-### Secondary Persona: Loa User (Consumer of Docs)
+### Non-Goals
+- Adding a proper tokenizer (tiktoken) — would violate zero-dependency constraint
+- Changing the Anthropic API adapter to use streaming — separate concern
+- Supporting non-Anthropic LLM providers — out of scope
 
-- Encounters Loa for the first time via README or INSTALLATION.md
-- Has terminal/git knowledge but zero Loa/Claude Code context
-- Needs docs that explain every step without assuming knowledge
+---
 
-### Tertiary Persona: Project Team Using Loa
+## 4. Users
 
-- Uses Loa on their own codebase
-- Writes project-specific docs (README, API docs, guides)
-- Wants to validate their own docs before shipping
+| User | Need |
+|------|------|
+| Loa developer (primary) | Review own Loa PRs which include full PRD/SDD/sprint plan diffs |
+| Autonomous `/run` pipeline | Automated review as part of sprint plan execution |
+| OSS project maintainer | Review community PRs across repos |
 
 ---
 
 ## 5. Functional Requirements
 
-### FR-1: Core RTFM Test Execution
+### FR-1: Raised Default Token Budget
 
-The skill spawns a `Task` subagent with zero project context, providing only the bundled documentation and a task to attempt. The subagent operates under strict "no inference" rules and reports every gap it encounters.
+Raise `maxInputTokens` default from 8,000 to 128,000 (Sonnet 4.5 supports 200K context).
 
-```
-/rtfm README.md                        # Test README usability
-/rtfm INSTALLATION.md                  # Test installation guide
-/rtfm README.md INSTALLATION.md        # Test combined onboarding
-/rtfm --task "Install Loa and run /plan on a new project"
-```
+### FR-2: Raised Default Diff Byte Budget
 
-### FR-2: Tester Capabilities Manifest
+Raise `maxDiffBytes` default from 100,000 to 512,000 (512KB).
 
-**Critical** (per Bridgebuilder Finding 1): Define an explicit capabilities manifest for the tester agent — what it knows and doesn't know. Without this, test results vary based on LLM interpretation of "basic CLI usage."
+### FR-3: CLI Flags for Token/Size Configuration
 
-```yaml
-rtfm_tester_capabilities:
-  knows:
-    - terminal/shell basics (cd, ls, mkdir, cat)
-    - git basics (clone, commit, push, pull)
-    - package managers exist (npm, pip, cargo) but NOT which to use
-    - environment variables concept
-    - text editor usage
-    - GitHub web interface basics
-  does_not_know:
-    - Claude Code (what it is, how it works)
-    - Loa (any concept: grimoires, beads, skills, commands)
-    - .claude/ directory conventions
-    - YAML configuration patterns for AI tools
-    - Anthropic API or any LLM API
-    - What "slash commands" are in this context
-```
+Add CLI flags: `--max-input-tokens`, `--max-output-tokens`, `--max-diff-bytes`, `--model`.
 
-The manifest is embedded in the tester prompt and versioned alongside the skill. Projects can override it via `.loa.config.yaml` to adjust the "knowledge floor" for their domain.
+### FR-4: Increased API Timeout for Large Payloads
 
-> Source: Bridgebuilder Finding 1 — Stripe's "Persona Zero" pattern
+Scale timeout based on estimated prompt size: 120s default, 300s for large prompts.
 
-### FR-3: Structured Gap Reporting
+### FR-5: Pre-flight Prompt Size Report
 
-The tester reports gaps in a structured format with 6 types and 3 severity levels:
+Log prompt size estimates before LLM call.
 
-| Type | Description |
-|------|-------------|
-| `MISSING_STEP` | Required action not documented |
-| `MISSING_PREREQ` | Prerequisite not listed |
-| `UNCLEAR` | Instructions are ambiguous |
-| `INCORRECT` | Documentation is wrong |
-| `MISSING_CONTEXT` | Assumes undocumented knowledge |
-| `ORDERING` | Steps in wrong sequence |
+### FR-6: Graceful Oversized PR Handling
 
-| Severity | Definition |
-|----------|------------|
-| BLOCKING | Cannot proceed without this information |
-| DEGRADED | Can proceed but with confusion or workarounds |
-| MINOR | Inconvenient but not blocking |
+Actionable error messages instead of silent skips.
 
-Each gap includes: type, location, problem description, impact, severity, and suggested fix.
+### FR-7: Raised Default Output Token Budget
 
-### FR-4: Iterative Test Loop
-
-After the first test run, the user fixes gaps and re-runs. The skill tracks iteration count as the **Cold Start Score** (lower = better docs).
-
-```
-Iteration 1: 7 gaps, 3 blocking → FAILURE
-Iteration 2: 3 gaps, 1 blocking → PARTIAL
-Iteration 3: 0 gaps, 0 blocking → SUCCESS → RTFM CERTIFIED
-```
-
-### FR-5: Baseline Registry and Regression Detection
-
-**Critical** (per Bridgebuilder Finding 5): Track Cold Start Scores as baselined regression metrics, not one-shot counters.
-
-```yaml
-# grimoires/loa/a2a/rtfm/baselines.yaml
-baselines:
-  README.md:
-    task: "Install Loa on a fresh repo and run /plan"
-    cold_start_score: 1
-    certified_date: "2026-02-15"
-    certified_sha: "abc123"
-  INSTALLATION.md:
-    task: "Follow the complete installation guide"
-    cold_start_score: 1
-    certified_date: "2026-02-15"
-    certified_sha: "def456"
-```
-
-When a baselined document is modified after certification, the skill can detect the drift and recommend a retest. Integration with `/review` triggers this automatically when doc files are changed in a sprint.
-
-> Source: Bridgebuilder Finding 5 — Chromium's performance budget pattern
-
-### FR-6: Pre-Built Task Templates
-
-Default task templates for common Loa documentation testing:
-
-| Task ID | Task | Target Docs |
-|---------|------|-------------|
-| `install` | "Install Loa on a fresh repo" | INSTALLATION.md |
-| `quickstart` | "Run your first development cycle" | README.md |
-| `beads` | "Set up beads_rust for task tracking" | INSTALLATION.md |
-| `gpt-review` | "Configure GPT cross-model review" | INSTALLATION.md |
-| `update` | "Update Loa to the latest version" | INSTALLATION.md |
-| `mount` | "Mount Loa on an existing project" | README.md + INSTALLATION.md |
-
-Users can also provide custom tasks via `--task "..."`.
-
-### FR-7: Report Output
-
-Write test results to `grimoires/loa/a2a/rtfm/report-{date}.md` with:
-- Task attempted
-- Execution log (step-by-step what the tester tried)
-- All gaps found with structured format
-- Result verdict (SUCCESS / PARTIAL / FAILURE)
-- Cold Start Score
-- Iteration history table
-
-### FR-8: `/review` Integration Point
-
-**Critical** (per Bridgebuilder Finding 7): RTFM integrates at `/review` not `/ship`.
-
-When documentation files are modified in a sprint, RTFM runs automatically as part of the review cycle:
-
-```
-/review (Golden Path)
-  → /review-sprint sprint-N    (code review)
-  → /audit-sprint sprint-N     (security audit)
-  → /rtfm --auto               (doc usability, if docs changed)
-```
-
-The `--auto` flag checks if doc files were modified in the sprint. If yes, runs RTFM against modified docs. If no, skips silently.
-
-> Source: Bridgebuilder Finding 7 — Meta's documentation CI pattern
+Raise `maxOutputTokens` default from 4,000 to 16,000.
 
 ---
 
 ## 6. Non-Functional Requirements
 
-### NFR-1: Cleanroom Implementation
-
-**Critical** (per Bridgebuilder Finding 4): The tester prompt is a cleanroom implementation inspired by the RTFM methodology but written from scratch. No verbatim copying from zscole/rtfm-testing, which lacks a LICENSE file despite claiming MIT.
-
-> Source: Bridgebuilder Finding 4 — Google's cleanroom policy post-Oracle v. Google
-
-### NFR-2: Model Selection
-
-The tester subagent defaults to `sonnet`. Haiku is available as a cost optimization but must be validated first.
-
-**Validation required** (per Bridgebuilder Finding 3): Run the same test on both sonnet and haiku. If haiku finds 30%+ fewer gaps, it's unreliable (filling gaps unconsciously instead of reporting them). Only promote haiku as default if gap counts are within 10%.
-
-> Source: Bridgebuilder Finding 3 — instruction-following fidelity concern
-
-### NFR-3: Cost Budget
-
-- Target: <$0.05 per test iteration
-- Estimated: ~12K tokens per run with sonnet ≈ $0.03
-- Even with 5 iterations to certification, total cost < $0.15
-
-### NFR-4: Zero Runtime Dependencies
-
-The skill is pure SKILL.md + Task subagent invocation. No npm packages, no build step, no compiled artifacts. Consistent with Loa's skill architecture.
-
-### NFR-5: Context Isolation
-
-The Task subagent MUST NOT have access to:
-- Parent conversation history
-- CLAUDE.md or any framework instructions
-- grimoire contents
-- Source code
-- Any file not explicitly bundled as "documentation under test"
-
-This is the fundamental guarantee. Without it, the test is meaningless.
+- NFR-1: Zero external dependencies
+- NFR-2: Backward compatibility with existing YAML configs
+- NFR-3: No breaking CLI changes
+- NFR-4: TypeScript compilation to dist/
 
 ---
 
-## 7. Feedback Loop Architecture
+## 7. Success Criteria
 
-**Critical** (per Bridgebuilder Finding 2): RTFM is not just a test — it's the sensor in a closed-loop quality system.
-
-### Gap Pattern Library
-
-Gaps discovered by RTFM feed back into two places:
-
-1. **Static rules for `/validate docs`** — Recurring gap patterns become rules that `/validate docs` can enforce without spawning an agent. Example: "Every doc that references `.loa.config.yaml` must explain how to create it from the example file."
-
-2. **`/ride` output templates** — If `/ride` generates initial docs and RTFM finds the same gap types repeatedly, the generation templates should be updated to prevent those gaps from being generated in the first place.
-
-```
-/ride → generates docs
-  ↓
-Human edits and refines docs
-  ↓
-/rtfm → tests if docs are actually usable
-  ↓
-Gaps feed back to:
-  ├── /ride templates (prevent generation of known gap patterns)
-  └── /validate docs rules (catch patterns statically)
-```
-
-This is the difference between a test and a quality system. A test finds bugs. A quality system makes bugs structurally impossible.
-
-> Source: Bridgebuilder Finding 2 — Netflix's Chaos Engineering pattern library, Kubernetes known-pitfalls database
+1. `/bridgebuilder-review --pr 259` succeeds on PR #259
+2. CLI accepts new flags
+3. Pre-flight prompt estimate logged
+4. Oversized PRs produce actionable errors
+5. Existing behavior unchanged
+6. No new dependencies
 
 ---
 
-## 8. Scope & Prioritization
+## 8. References
 
-### MVP (Sprint 1)
-
-1. Core `/rtfm` command with doc bundling and Task subagent spawn
-2. Tester prompt with capabilities manifest
-3. Structured gap reporting (6 types, 3 severities)
-4. Iterative test loop with Cold Start Score
-5. Report output to `grimoires/loa/a2a/rtfm/`
-6. Pre-built task templates for Loa's own docs
-
-### Phase 2 (Sprint 2)
-
-7. Baseline registry with regression detection
-8. `/review` integration (`--auto` flag)
-9. Sonnet vs haiku model validation experiment
-10. Gap verdict mapping to Loa's existing validation system
-
-### Future (Not In Scope)
-
-- Feedback loop to `/validate docs` static rules (requires `/validate docs` changes)
-- Feedback loop to `/ride` templates (requires `/ride` changes)
-- Fourth column: "Operational Readiness" testing (per Bridgebuilder Finding 6)
-- Multi-language documentation testing
-- Visual documentation testing (screenshots, diagrams)
-
----
-
-## 9. Architecture Decisions
-
-### ADR-1: Standalone Skill (Option A from PR #256)
-
-**Decision**: Create standalone `/rtfm` skill in Loa core, not loa-constructs.
-
-**Rationale**: Documentation quality is a core framework concern, not an optional add-on. Every Loa project generates docs (`/ride`, `/plan-and-analyze`) and should be able to validate them.
-
-### ADR-2: Cleanroom Tester Prompt
-
-**Decision**: Write tester prompt from scratch, informed by but not copying zscole/rtfm-testing.
-
-**Rationale**: Source repo has no LICENSE file. The methodology is uncopyrightable but the specific prompt text is creative work with unclear licensing.
-
-### ADR-3: Integration at `/review` Not `/ship`
-
-**Decision**: RTFM runs during review phase, not deployment.
-
-**Rationale**: Discovering doc gaps at deploy time is too late. Meta, Vercel, and Netlify all run doc tests alongside code tests in the review phase. "Proofreading your wedding speech at the reception is too late."
-
-### ADR-4: Sonnet Default, Haiku Optional
-
-**Decision**: Default to sonnet for the tester agent. Haiku available but must pass validation.
-
-**Rationale**: RTFM's methodology requires the tester to suppress its strongest instinct (helpfulness). Smaller models follow adversarial constraints less reliably. Validate before promoting.
-
-### ADR-5: Closed-Loop Feedback System (Future)
-
-**Decision**: Design RTFM from day one as a sensor in a closed-loop system, even though the feedback loops to `/validate docs` and `/ride` are not in MVP scope.
-
-**Rationale**: The gap report format and pattern library structure should be designed to support future integration. Building it as a standalone script that later needs to be retrofitted into a pipeline would create technical debt.
-
----
-
-## 10. Risks & Dependencies
-
-| Risk | Severity | Mitigation |
-|------|----------|------------|
-| False positives (tester too strict) | Low | Tune capabilities manifest; distinguish "needs terminal knowledge" from "needs Loa knowledge" |
-| False negatives (model fills gaps unconsciously) | Medium | Validate with sonnet first; compare haiku gap counts before promoting |
-| Token cost at scale | Low | ~$0.03 per iteration; even heavy use is <$1/day |
-| Context leakage (Task subagent gets parent context) | High | Verify Task subagent isolation; include canary in test to detect leakage |
-| Scope creep to test all docs | Medium | Start with README + INSTALLATION only; expand deliberately |
-
-### Dependencies
-
-- Claude Code `Task` tool with subagent isolation (existing)
-- `grimoires/loa/a2a/` directory structure (existing)
-- Modifications to `/review` golden path for Phase 2 integration (new)
-
----
-
-## 11. Quality Pipeline Position
-
-```
-Code Quality          Doc Quality           Doc Usability
-────────────          ───────────           ─────────────
-/review-sprint        /validate docs        /rtfm (NEW)
-/audit-sprint         Flatline Protocol
-/gpt-review
-```
-
-> Source: Bridgebuilder Finding 6. A fourth column (Operational Readiness) is acknowledged but out of scope.
-
----
-
-## 12. References
-
-- [Issue #236](https://github.com/0xHoneyJar/loa/issues/236) — Original request
-- [PR #256](https://github.com/0xHoneyJar/loa/pull/256) — Research and Bridgebuilder review
-- [zscole/rtfm-testing](https://github.com/zscole/rtfm-testing) — Methodology inspiration
-- Bridgebuilder Review Findings 1-8 — Architecture and quality guidance
+- Issue: [#260](https://github.com/0xHoneyJar/loa/issues/260)
+- Affected PR: [#259](https://github.com/0xHoneyJar/loa/pull/259)
+- Bridgebuilder skill: `.claude/skills/bridgebuilder-review/`

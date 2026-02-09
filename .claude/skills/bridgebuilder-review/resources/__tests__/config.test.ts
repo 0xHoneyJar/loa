@@ -51,11 +51,47 @@ describe("parseCLIArgs", () => {
     assert.equal(args.noAutoDetect, true);
   });
 
+  it("parses --max-input-tokens flag", () => {
+    const args = parseCLIArgs(["--max-input-tokens", "64000"]);
+    assert.equal(args.maxInputTokens, 64000);
+  });
+
+  it("parses --max-output-tokens flag", () => {
+    const args = parseCLIArgs(["--max-output-tokens", "8000"]);
+    assert.equal(args.maxOutputTokens, 8000);
+  });
+
+  it("parses --max-diff-bytes flag", () => {
+    const args = parseCLIArgs(["--max-diff-bytes", "256000"]);
+    assert.equal(args.maxDiffBytes, 256000);
+  });
+
+  it("parses --model flag", () => {
+    const args = parseCLIArgs(["--model", "claude-opus-4-6"]);
+    assert.equal(args.model, "claude-opus-4-6");
+  });
+
+  it("rejects negative --max-input-tokens", () => {
+    assert.throws(() => parseCLIArgs(["--max-input-tokens", "-1"]), /positive integer/);
+  });
+
+  it("rejects non-numeric --max-output-tokens", () => {
+    assert.throws(() => parseCLIArgs(["--max-output-tokens", "abc"]), /positive integer/);
+  });
+
+  it("rejects zero --max-diff-bytes", () => {
+    assert.throws(() => parseCLIArgs(["--max-diff-bytes", "0"]), /positive integer/);
+  });
+
   it("returns empty args for no input", () => {
     const args = parseCLIArgs([]);
     assert.equal(args.dryRun, undefined);
     assert.equal(args.repos, undefined);
     assert.equal(args.pr, undefined);
+    assert.equal(args.maxInputTokens, undefined);
+    assert.equal(args.maxOutputTokens, undefined);
+    assert.equal(args.maxDiffBytes, undefined);
+    assert.equal(args.model, undefined);
   });
 });
 
@@ -139,6 +175,70 @@ describe("resolveConfig precedence", () => {
     assert.equal(provenance.dryRun, "env");
   });
 
+  it("CLI model overrides env and yaml model", async () => {
+    const { config, provenance } = await resolve(
+      { model: "cli-model" },
+      { BRIDGEBUILDER_MODEL: "env-model" },
+      { enabled: true, repos: ["test/repo"], model: "yaml-model" },
+    );
+    assert.equal(config.model, "cli-model");
+    assert.equal(provenance.model, "cli");
+  });
+
+  it("CLI maxInputTokens overrides yaml", async () => {
+    const { config, provenance } = await resolve(
+      { maxInputTokens: 200_000 },
+      {},
+      { enabled: true, repos: ["test/repo"], max_input_tokens: 64_000 },
+    );
+    assert.equal(config.maxInputTokens, 200_000);
+    assert.equal(provenance.maxInputTokens, "cli");
+  });
+
+  it("yaml maxInputTokens used when CLI absent", async () => {
+    const { config, provenance } = await resolve(
+      {},
+      {},
+      { enabled: true, repos: ["test/repo"], max_input_tokens: 64_000 },
+    );
+    assert.equal(config.maxInputTokens, 64_000);
+    assert.equal(provenance.maxInputTokens, "yaml");
+  });
+
+  it("CLI maxOutputTokens overrides yaml", async () => {
+    const { config, provenance } = await resolve(
+      { maxOutputTokens: 32_000 },
+      {},
+      { enabled: true, repos: ["test/repo"], max_output_tokens: 8_000 },
+    );
+    assert.equal(config.maxOutputTokens, 32_000);
+    assert.equal(provenance.maxOutputTokens, "cli");
+  });
+
+  it("CLI maxDiffBytes overrides yaml", async () => {
+    const { config, provenance } = await resolve(
+      { maxDiffBytes: 1_000_000 },
+      {},
+      { enabled: true, repos: ["test/repo"], max_diff_bytes: 256_000 },
+    );
+    assert.equal(config.maxDiffBytes, 1_000_000);
+    assert.equal(provenance.maxDiffBytes, "cli");
+  });
+
+  it("defaults used when CLI and yaml absent for token/size fields", async () => {
+    const { config, provenance } = await resolve(
+      {},
+      {},
+      { enabled: true, repos: ["test/repo"] },
+    );
+    assert.equal(config.maxInputTokens, 128_000);
+    assert.equal(config.maxOutputTokens, 16_000);
+    assert.equal(config.maxDiffBytes, 512_000);
+    assert.equal(provenance.maxInputTokens, "default");
+    assert.equal(provenance.maxOutputTokens, "default");
+    assert.equal(provenance.maxDiffBytes, "default");
+  });
+
   it("throws when bridgebuilder is disabled in yaml", async () => {
     await assert.rejects(
       () => resolve({}, {}, { enabled: false }),
@@ -173,12 +273,21 @@ describe("formatEffectiveConfig", () => {
       dryRun: false,
       sanitizerMode: "default" as const,
     } as any;
-    const provenance = { repos: "cli" as const, model: "env" as const, dryRun: "default" as const };
+    const provenance = {
+      repos: "cli" as const,
+      model: "env" as const,
+      dryRun: "default" as const,
+      maxInputTokens: "cli" as const,
+      maxOutputTokens: "yaml" as const,
+      maxDiffBytes: "default" as const,
+    };
     const output = formatEffectiveConfig(config, provenance);
 
     assert.ok(output.includes("(cli)"), "Should include repos provenance");
     assert.ok(output.includes("(env)"), "Should include model provenance");
-    assert.ok(output.includes("(default)"), "Should include dryRun provenance");
+    assert.ok(output.includes("max_input_tokens="), "Should include maxInputTokens");
+    assert.ok(output.includes("max_output_tokens="), "Should include maxOutputTokens");
+    assert.ok(output.includes("max_diff_bytes="), "Should include maxDiffBytes");
   });
 
   it("omits provenance annotations when not provided", () => {

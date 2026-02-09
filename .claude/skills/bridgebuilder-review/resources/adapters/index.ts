@@ -38,10 +38,12 @@ export function createLocalAdapters(
     reviewMarker: config.reviewMarker,
   });
 
+  const timeoutMs = config.maxInputTokens > 50_000 ? 300_000 : 120_000;
+
   return {
     git: ghAdapter,
     poster: ghAdapter,
-    llm: new AnthropicAdapter(anthropicApiKey, config.model),
+    llm: new AnthropicAdapter(anthropicApiKey, config.model, timeoutMs),
     sanitizer: new PatternSanitizer(),
     hasher: new NodeHasher(),
     logger: new ConsoleLogger(),

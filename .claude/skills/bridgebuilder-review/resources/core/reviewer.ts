@@ -158,8 +158,30 @@ export class ReviewPipeline {
       // worst case we skip a PR that would have fit. Under-estimating risks
       // truncated LLM output or API errors. A proper tokenizer (tiktoken) would
       // add ~2MB dependency for marginal accuracy gain on a guard rail.
-      const estimatedTokens = (systemPrompt.length + userPrompt.length) / 4;
+      const systemTokens = Math.ceil(systemPrompt.length / 4);
+      const userTokens = Math.ceil(userPrompt.length / 4);
+      const estimatedTokens = systemTokens + userTokens;
+
+      // Pre-flight prompt size report
+      this.logger.info("Prompt estimate", {
+        owner,
+        repo,
+        pr: pr.number,
+        estimatedTokens,
+        systemTokens,
+        userTokens,
+        budget: this.config.maxInputTokens,
+      });
+
       if (estimatedTokens > this.config.maxInputTokens) {
+        this.logger.warn("PR prompt exceeds token budget", {
+          owner,
+          repo,
+          pr: pr.number,
+          estimatedTokens,
+          budget: this.config.maxInputTokens,
+          suggestion: `Raise max_input_tokens in .loa.config.yaml or use --max-input-tokens ${Math.ceil(estimatedTokens * 1.1)}`,
+        });
         return this.skipResult(item, "prompt_too_large");
       }
 
