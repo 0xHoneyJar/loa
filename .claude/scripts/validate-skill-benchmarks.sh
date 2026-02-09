@@ -136,14 +136,16 @@ for skill_dir in "$SKILLS_DIR"/*/; do
         skill_errors+=("folder name '$skill_name' not kebab-case")
     fi
 
-    # --- Check 5: Name matches folder (from SKILL.md frontmatter) ---
+    # --- Check 5: Frontmatter has name field ---
+    # Note: frontmatter `name:` is the command name (e.g. "ride"), which may
+    # differ from the folder name (e.g. "riding-codebase"). We only check presence.
     frontmatter=$(extract_frontmatter "$skill_file")
     if [[ -n "$frontmatter" ]]; then
         fm_name=$(echo "$frontmatter" | grep -E "^name:" | head -1 | sed 's/^name:[[:space:]]*//' | tr -d '[:space:]' || true)
-        # Only fail if name field exists but is empty/malformed
-        # Many skills omit the name field entirely — that's acceptable
+        if [[ -n "$frontmatter" && -z "$fm_name" ]] && echo "$frontmatter" | grep -qE "^name:" 2>/dev/null; then
+            skill_errors+=("frontmatter has empty name field")
+        fi
     fi
-    # Frontmatter is optional; many skills start with markdown directly
 
     # --- Check 6: No XML in frontmatter ---
     if [[ -n "$frontmatter" ]]; then
