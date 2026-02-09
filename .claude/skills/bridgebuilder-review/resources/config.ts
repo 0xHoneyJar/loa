@@ -32,6 +32,8 @@ export interface CLIArgs {
   maxOutputTokens?: number;
   maxDiffBytes?: number;
   model?: string;
+  persona?: string;
+  exclude?: string[];
 }
 
 export interface YamlConfig {
@@ -49,6 +51,8 @@ export interface YamlConfig {
   exclude_patterns?: string[];
   sanitizer_mode?: "default" | "strict";
   max_runtime_minutes?: number;
+  loa_aware?: boolean;
+  persona?: string;
 }
 
 export interface EnvVars {
@@ -98,6 +102,11 @@ export function parseCLIArgs(argv: string[]): CLIArgs {
       args.maxDiffBytes = n;
     } else if (arg === "--model" && i + 1 < argv.length) {
       args.model = argv[++i];
+    } else if (arg === "--persona" && i + 1 < argv.length) {
+      args.persona = argv[++i];
+    } else if (arg === "--exclude" && i + 1 < argv.length) {
+      args.exclude = args.exclude ?? [];
+      args.exclude.push(argv[++i]);
     }
   }
 
@@ -228,6 +237,12 @@ async function loadYamlConfig(): Promise<YamlConfig> {
         case "max_runtime_minutes":
           config.max_runtime_minutes = Number(value);
           break;
+        case "loa_aware":
+          config.loa_aware = value === "true";
+          break;
+        case "persona":
+          config.persona = value;
+          break;
       }
     }
 
@@ -349,10 +364,20 @@ export async function resolveConfig(
       cliArgs.dryRun ??
       (env.BRIDGEBUILDER_DRY_RUN === "true" ? true : undefined) ??
       DEFAULTS.dryRun,
-    excludePatterns: yaml.exclude_patterns ?? DEFAULTS.excludePatterns,
+    excludePatterns: [
+      ...(yaml.exclude_patterns ?? []),
+      ...(cliArgs.exclude ?? []),
+    ],
     sanitizerMode: yaml.sanitizer_mode ?? DEFAULTS.sanitizerMode,
     maxRuntimeMinutes: yaml.max_runtime_minutes ?? DEFAULTS.maxRuntimeMinutes,
     ...(cliArgs.pr != null ? { targetPr: cliArgs.pr } : {}),
+    ...(yaml.loa_aware != null ? { loaAware: yaml.loa_aware } : {}),
+    ...(cliArgs.persona != null || yaml.persona != null
+      ? { persona: cliArgs.persona ?? yaml.persona }
+      : {}),
+    ...(yaml.persona_path != null
+      ? { personaFilePath: yaml.persona_path }
+      : {}),
   };
 
   const provenance: ConfigProvenance = {
@@ -413,12 +438,18 @@ export function formatEffectiveConfig(
   const inputSrc = p ? ` (${p.maxInputTokens})` : "";
   const outputSrc = p ? ` (${p.maxOutputTokens})` : "";
   const diffSrc = p ? ` (${p.maxDiffBytes})` : "";
+  const personaInfo = config.persona ? `, persona=${config.persona}` : "";
+  const excludeInfo =
+    config.excludePatterns.length > 0
+      ? `, exclude_patterns=[${config.excludePatterns.join(", ")}]`
+      : "";
   return (
     `[bridgebuilder] Config: repos=[${repoNames}]${repoSrc}, ` +
     `model=${config.model}${modelSrc}, max_prs=${config.maxPrs}, ` +
     `max_input_tokens=${config.maxInputTokens}${inputSrc}, ` +
     `max_output_tokens=${config.maxOutputTokens}${outputSrc}, ` +
     `max_diff_bytes=${config.maxDiffBytes}${diffSrc}, ` +
-    `dry_run=${config.dryRun}${drySrc}, sanitizer_mode=${config.sanitizerMode}${prFilter}`
+    `dry_run=${config.dryRun}${drySrc}, sanitizer_mode=${config.sanitizerMode}${prFilter}` +
+    `${personaInfo}${excludeInfo}`
   );
 }

@@ -8,6 +8,8 @@ export interface CLIArgs {
     maxOutputTokens?: number;
     maxDiffBytes?: number;
     model?: string;
+    persona?: string;
+    exclude?: string[];
 }
 export interface YamlConfig {
     enabled?: boolean;
@@ -24,6 +26,8 @@ export interface YamlConfig {
     exclude_patterns?: string[];
     sanitizer_mode?: "default" | "strict";
     max_runtime_minutes?: number;
+    loa_aware?: boolean;
+    persona?: string;
 }
 export interface EnvVars {
     BRIDGEBUILDER_REPOS?: string;

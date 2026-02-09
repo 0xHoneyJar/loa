@@ -272,6 +272,7 @@ describe("formatEffectiveConfig", () => {
       maxPrs: 10,
       dryRun: false,
       sanitizerMode: "default" as const,
+      excludePatterns: [],
     } as any;
     const provenance = {
       repos: "cli" as const,
@@ -297,11 +298,182 @@ describe("formatEffectiveConfig", () => {
       maxPrs: 10,
       dryRun: false,
       sanitizerMode: "default" as const,
+      excludePatterns: [],
     } as any;
     const output = formatEffectiveConfig(config);
 
     assert.ok(!output.includes("(cli)"));
     assert.ok(!output.includes("(env)"));
     assert.ok(!output.includes("(default)"));
+  });
+
+  it("includes persona info when persona is set", () => {
+    const config = {
+      repos: [{ owner: "test", repo: "repo" }],
+      model: "claude-sonnet-4-5-20250929",
+      maxPrs: 10,
+      dryRun: false,
+      sanitizerMode: "default" as const,
+      persona: "security",
+      excludePatterns: [],
+    } as any;
+    const output = formatEffectiveConfig(config);
+
+    assert.ok(output.includes("persona=security"), "Should include persona");
+  });
+
+  it("includes exclude patterns when set", () => {
+    const config = {
+      repos: [{ owner: "test", repo: "repo" }],
+      model: "claude-sonnet-4-5-20250929",
+      maxPrs: 10,
+      dryRun: false,
+      sanitizerMode: "default" as const,
+      excludePatterns: ["*.md", "dist/*"],
+    } as any;
+    const output = formatEffectiveConfig(config);
+
+    assert.ok(output.includes("exclude_patterns="), "Should include exclude patterns");
+    assert.ok(output.includes("*.md"), "Should include first pattern");
+    assert.ok(output.includes("dist/*"), "Should include second pattern");
+  });
+});
+
+// --- Sprint 2: New CLI flags ---
+
+describe("parseCLIArgs --persona flag", () => {
+  it("parses --persona flag", () => {
+    const args = parseCLIArgs(["--persona", "security"]);
+    assert.equal(args.persona, "security");
+  });
+
+  it("parses --persona with other flags", () => {
+    const args = parseCLIArgs(["--dry-run", "--persona", "dx", "--repo", "a/b"]);
+    assert.equal(args.persona, "dx");
+    assert.equal(args.dryRun, true);
+    assert.deepEqual(args.repos, ["a/b"]);
+  });
+});
+
+describe("parseCLIArgs --exclude flag", () => {
+  it("parses single --exclude flag", () => {
+    const args = parseCLIArgs(["--exclude", "*.md"]);
+    assert.deepEqual(args.exclude, ["*.md"]);
+  });
+
+  it("parses multiple --exclude flags (repeatable)", () => {
+    const args = parseCLIArgs(["--exclude", "*.md", "--exclude", "dist/*"]);
+    assert.deepEqual(args.exclude, ["*.md", "dist/*"]);
+  });
+
+  it("accumulates --exclude with other flags", () => {
+    const args = parseCLIArgs(["--exclude", "*.md", "--dry-run", "--exclude", "dist/*"]);
+    assert.deepEqual(args.exclude, ["*.md", "dist/*"]);
+    assert.equal(args.dryRun, true);
+  });
+});
+
+describe("resolveConfig persona precedence", () => {
+  it("CLI persona overrides YAML persona", async () => {
+    const { config } = await resolve(
+      { persona: "security" },
+      {},
+      { enabled: true, repos: ["test/repo"], persona: "dx" },
+    );
+    assert.equal(config.persona, "security");
+  });
+
+  it("YAML persona used when CLI absent", async () => {
+    const { config } = await resolve(
+      {},
+      {},
+      { enabled: true, repos: ["test/repo"], persona: "dx" },
+    );
+    assert.equal(config.persona, "dx");
+  });
+
+  it("persona undefined when CLI and YAML absent", async () => {
+    const { config } = await resolve(
+      {},
+      {},
+      { enabled: true, repos: ["test/repo"] },
+    );
+    assert.equal(config.persona, undefined);
+  });
+
+  it("passes through personaFilePath from YAML persona_path", async () => {
+    const { config } = await resolve(
+      {},
+      {},
+      { enabled: true, repos: ["test/repo"], persona_path: "/custom/persona.md" },
+    );
+    assert.equal(config.personaFilePath, "/custom/persona.md");
+  });
+});
+
+describe("resolveConfig exclude merging", () => {
+  it("merges YAML and CLI exclude patterns in order", async () => {
+    const { config } = await resolve(
+      { exclude: ["cli-pattern"] },
+      {},
+      { enabled: true, repos: ["test/repo"], exclude_patterns: ["yaml-pattern"] },
+    );
+    assert.deepEqual(config.excludePatterns, ["yaml-pattern", "cli-pattern"]);
+  });
+
+  it("CLI exclude only when YAML absent", async () => {
+    const { config } = await resolve(
+      { exclude: ["cli-only"] },
+      {},
+      { enabled: true, repos: ["test/repo"] },
+    );
+    assert.deepEqual(config.excludePatterns, ["cli-only"]);
+  });
+
+  it("YAML exclude only when CLI absent", async () => {
+    const { config } = await resolve(
+      {},
+      {},
+      { enabled: true, repos: ["test/repo"], exclude_patterns: ["yaml-only"] },
+    );
+    assert.deepEqual(config.excludePatterns, ["yaml-only"]);
+  });
+
+  it("empty excludePatterns when both absent", async () => {
+    const { config } = await resolve(
+      {},
+      {},
+      { enabled: true, repos: ["test/repo"] },
+    );
+    assert.deepEqual(config.excludePatterns, []);
+  });
+});
+
+describe("resolveConfig loaAware", () => {
+  it("passes through loa_aware: true from YAML", async () => {
+    const { config } = await resolve(
+      {},
+      {},
+      { enabled: true, repos: ["test/repo"], loa_aware: true },
+    );
+    assert.equal(config.loaAware, true);
+  });
+
+  it("passes through loa_aware: false from YAML", async () => {
+    const { config } = await resolve(
+      {},
+      {},
+      { enabled: true, repos: ["test/repo"], loa_aware: false },
+    );
+    assert.equal(config.loaAware, false);
+  });
+
+  it("loaAware undefined when not in YAML", async () => {
+    const { config } = await resolve(
+      {},
+      {},
+      { enabled: true, repos: ["test/repo"] },
+    );
+    assert.equal(config.loaAware, undefined);
   });
 });
