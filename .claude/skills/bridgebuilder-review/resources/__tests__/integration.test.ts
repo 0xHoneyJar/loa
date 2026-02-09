@@ -315,17 +315,17 @@ describe("integration: full pipeline", () => {
     assert.equal(result.skipped, false);
   });
 
-  it("marker format contains review_marker and headSha", async () => {
+  it("poster receives headSha for marker append", async () => {
     const poster = createMockPoster();
 
     const { pipeline } = buildPipeline({ poster });
     await pipeline.run("test-marker");
 
-    const body = poster.postCalls[0].body;
-    assert.ok(
-      body.includes("<!-- bridgebuilder-review: abc123def456 -->"),
-      `Marker not found in posted body: ${body.slice(-100)}`,
-    );
+    // Marker append is the adapter's responsibility (github-cli.ts:300).
+    // Core pipeline passes headSha so the adapter can build the marker.
+    const posted = poster.postCalls[0];
+    assert.equal(posted.headSha, "abc123def456");
+    assert.equal(posted.prNumber, 42);
   });
 
   it("classifies critical findings as REQUEST_CHANGES", async () => {

@@ -212,18 +212,21 @@ describe("ReviewPipeline", () => {
     });
   });
 
-  describe("marker appended", () => {
-    it("appends review marker to posted body", async () => {
+  describe("marker data passed to poster", () => {
+    it("passes headSha to poster for marker append", async () => {
+      let postedHeadSha = "";
       let postedBody = "";
       const pipeline = buildPipeline({
         poster: {
-          postReview: async (input) => { postedBody = input.body; return true; },
+          postReview: async (input) => { postedHeadSha = input.headSha; postedBody = input.body; return true; },
         },
       });
       await pipeline.run("run-1");
 
-      assert.ok(postedBody.includes("<!-- bridgebuilder-review:"));
-      assert.ok(postedBody.includes("sha1"));
+      // Marker is appended by the adapter (github-cli.ts), not the core reviewer.
+      // Core passes headSha so the adapter can build: <!-- reviewMarker: headSha -->
+      assert.equal(postedHeadSha, "sha1");
+      assert.ok(postedBody.length > 0, "Body should contain sanitized review content");
     });
   });
 

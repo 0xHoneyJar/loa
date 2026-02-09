@@ -12,12 +12,25 @@ import type {
   ReviewError,
   RunSummary,
 } from "./types.js";
+import {
+  progressiveTruncate,
+  estimateTokens,
+  getTokenBudget,
+} from "./truncation.js";
 
 const CRITICAL_PATTERN =
   /\b(critical|security vulnerability|sql injection|xss|secret leak|must fix)\b/i;
 
 const REFUSAL_PATTERN =
   /\b(I cannot|I'm unable|I can't|as an AI|I apologize)\b/i;
+
+/** Patterns that indicate an LLM token rejection (Task 1.8). */
+const TOKEN_REJECTION_PATTERNS = [
+  "prompt_too_large",
+  "maximum context length",
+  "context_length_exceeded",
+  "token limit",
+];
 
 function classifyEvent(content: string): ReviewEvent {
   return CRITICAL_PATTERN.test(content) ? "REQUEST_CHANGES" : "COMMENT";
@@ -42,6 +55,12 @@ function makeError(
   retryable: boolean,
 ): ReviewError {
   return { code, message, category, retryable, source };
+}
+
+function isTokenRejection(err: unknown): boolean {
+  const message =
+    err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+  return TOKEN_REJECTION_PATTERNS.some((p) => message.includes(p));
 }
 
 export class ReviewPipeline {
@@ -146,28 +165,39 @@ export class ReviewPipeline {
         return this.skipResult(item, "claim_failed");
       }
 
-      // Step 4: Build prompt
-      const { systemPrompt, userPrompt } = this.template.buildPrompt(
-        item,
-        this.persona,
-      );
+      // Step 4: Build prompt (includes truncation + Loa filtering)
+      const { systemPrompt, userPrompt, allExcluded, loaBanner } =
+        this.template.buildPromptWithMeta(item, this.persona);
 
-      // Step 5: Token estimation guard (chars / 4).
-      // Decision: chars/4 is a deliberate over-estimate for English+code text.
-      // Real tokenizers average ~3.5-4.2 chars/token. Over-estimating is safe —
-      // worst case we skip a PR that would have fit. Under-estimating risks
-      // truncated LLM output or API errors. A proper tokenizer (tiktoken) would
-      // add ~2MB dependency for marginal accuracy gain on a guard rail.
-      //
-      // Note: maxDiffBytes truncates the diff *before* prompt assembly.
-      // This estimate covers the full prompt (persona + diff + metadata),
-      // so the effective token budget is maxDiffBytes + persona + metadata,
-      // NOT maxInputTokens alone. The ceiling estimate accounts for this.
-      const systemTokens = Math.ceil(systemPrompt.length / 4);
-      const userTokens = Math.ceil(userPrompt.length / 4);
+      // Step 4a: Handle all-files-excluded by Loa filtering (IMP-004)
+      if (allExcluded) {
+        this.logger.info("All files excluded by Loa filtering", {
+          owner,
+          repo,
+          pr: pr.number,
+        });
+
+        if (!this.config.dryRun) {
+          await this.poster.postReview({
+            owner,
+            repo,
+            prNumber: pr.number,
+            headSha: pr.headSha,
+            body: "All changes in this PR are Loa framework files. No application code changes to review. Override with `loa_aware: false` to review framework changes.",
+            event: "COMMENT",
+          });
+        }
+
+        return this.skipResult(item, "all_files_excluded");
+      }
+
+      // Step 5: Token estimation guard with progressive truncation.
+      const { coefficient } = getTokenBudget(this.config.model);
+      const systemTokens = Math.ceil(systemPrompt.length * coefficient);
+      const userTokens = Math.ceil(userPrompt.length * coefficient);
       const estimatedTokens = systemTokens + userTokens;
 
-      // Pre-flight prompt size report
+      // Pre-flight prompt size report (SKP-004: component breakdown)
       this.logger.info("Prompt estimate", {
         owner,
         repo,
@@ -176,26 +206,117 @@ export class ReviewPipeline {
         systemTokens,
         userTokens,
         budget: this.config.maxInputTokens,
+        model: this.config.model,
       });
 
+      let finalSystemPrompt = systemPrompt;
+      let finalUserPrompt = userPrompt;
+
       if (estimatedTokens > this.config.maxInputTokens) {
-        this.logger.warn("PR prompt exceeds token budget", {
+        // Progressive truncation (replaces hard skip)
+        this.logger.info("Token budget exceeded, attempting progressive truncation", {
           owner,
           repo,
           pr: pr.number,
           estimatedTokens,
           budget: this.config.maxInputTokens,
-          suggestion: `Raise max_input_tokens in .loa.config.yaml or use --max-input-tokens ${estimatedTokens}`,
         });
-        return this.skipResult(item, "prompt_too_large");
+
+        const truncResult = progressiveTruncate(
+          item.files,
+          this.config.maxInputTokens,
+          this.config.model,
+          systemPrompt.length,
+          // Metadata estimate: PR header, format instructions (~2000 chars)
+          2000,
+        );
+
+        if (!truncResult.success) {
+          this.logger.warn("Progressive truncation failed (all 3 levels exceeded budget)", {
+            owner,
+            repo,
+            pr: pr.number,
+            estimatedTokens,
+            budget: this.config.maxInputTokens,
+          });
+          return this.skipResult(item, "prompt_too_large_after_truncation");
+        }
+
+        // Rebuild prompt with truncated files
+        const truncatedPrompt = this.template.buildPromptFromTruncation(
+          item,
+          this.persona,
+          truncResult,
+          loaBanner,
+        );
+        finalSystemPrompt = truncatedPrompt.systemPrompt;
+        finalUserPrompt = truncatedPrompt.userPrompt;
+
+        this.logger.info("Progressive truncation succeeded", {
+          owner,
+          repo,
+          pr: pr.number,
+          level: truncResult.level,
+          filesIncluded: truncResult.files.length,
+          filesExcluded: truncResult.excluded.length,
+          tokenEstimate: truncResult.tokenEstimate,
+        });
       }
 
-      // Step 6: Generate review via LLM
-      const response = await this.llm.generateReview({
-        systemPrompt,
-        userPrompt,
-        maxOutputTokens: this.config.maxOutputTokens,
-      });
+      // Step 6: Generate review via LLM (with adaptive retry — Task 1.8)
+      let response;
+      try {
+        response = await this.llm.generateReview({
+          systemPrompt: finalSystemPrompt,
+          userPrompt: finalUserPrompt,
+          maxOutputTokens: this.config.maxOutputTokens,
+        });
+      } catch (llmErr: unknown) {
+        if (isTokenRejection(llmErr)) {
+          // Adaptive retry: drop to next level with 85% budget (SKP-004)
+          this.logger.warn("LLM rejected prompt (token limit), attempting adaptive retry", {
+            owner,
+            repo,
+            pr: pr.number,
+          });
+
+          const retryBudget = Math.floor(this.config.maxInputTokens * 0.85);
+          const retryResult = progressiveTruncate(
+            item.files,
+            retryBudget,
+            this.config.model,
+            finalSystemPrompt.length,
+            2000,
+          );
+
+          if (!retryResult.success) {
+            return this.skipResult(item, "prompt_too_large_after_truncation");
+          }
+
+          const retryPrompt = this.template.buildPromptFromTruncation(
+            item,
+            this.persona,
+            retryResult,
+            loaBanner,
+          );
+
+          this.logger.info("Adaptive retry with reduced budget", {
+            owner,
+            repo,
+            pr: pr.number,
+            retryBudget,
+            level: retryResult.level,
+          });
+
+          response = await this.llm.generateReview({
+            systemPrompt: retryPrompt.systemPrompt,
+            userPrompt: retryPrompt.userPrompt,
+            maxOutputTokens: this.config.maxOutputTokens,
+          });
+        } else {
+          throw llmErr; // Re-throw non-token errors
+        }
+      }
 
       // Step 7: Validate structured output
       if (!isValidResponse(response.content)) {
@@ -351,7 +472,7 @@ export class ReviewPipeline {
       runId,
       startTime,
       endTime: new Date().toISOString(),
-      reviewed: results.filter((r) => r.posted).length,
+      reviewed: results.filter((r) => !r.skipped && !r.error).length,
       skipped: results.filter((r) => r.skipped).length,
       errors: results.filter((r) => r.error).length,
       results,
