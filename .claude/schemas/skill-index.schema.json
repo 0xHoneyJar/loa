@@ -29,14 +29,19 @@
     "description": {
       "type": "string",
       "minLength": 50,
-      "maxLength": 500,
-      "description": "Skill description (50-500 characters)"
+      "maxLength": 1024,
+      "description": "Skill description (50-1024 characters). Should follow WHAT+WHEN+capabilities formula per Anthropic best practices."
     },
     "triggers": {
       "type": "array",
       "items": { "type": "string" },
       "minItems": 1,
       "description": "Activation patterns for this skill"
+    },
+    "negative_triggers": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Phrases that should NOT trigger this skill (advisory, per Anthropic best practices)"
     },
     "examples": {
       "type": "array",

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Anthropic skill benchmark thresholds (Issue #261). Used by validate-skill-benchmarks.sh.",
+  "max_words": 5000,
+  "max_description_chars": 1024,
+  "min_error_references": 5,
+  "description_trigger_patterns": [
+    "Use when",
+    "Use this",
+    "Use if",
+    "Invoke when",
+    "Trigger when"
+  ],
+  "forbidden_frontmatter_patterns": [
+    "<[a-zA-Z]",
+    "</[a-zA-Z]"
+  ],
+  "folder_name_pattern": "^[a-z][a-z0-9-]+$"
+}
