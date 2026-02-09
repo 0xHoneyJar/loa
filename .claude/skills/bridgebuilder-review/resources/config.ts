@@ -16,7 +16,7 @@ const DEFAULTS: BridgebuilderConfig = {
   maxOutputTokens: 16_000,
   dimensions: ["security", "quality", "test-coverage"],
   reviewMarker: "bridgebuilder-review",
-  personaPath: "grimoires/bridgebuilder/BEAUVOIR.md",
+  repoOverridePath: "grimoires/bridgebuilder/BEAUVOIR.md",
   dryRun: false,
   excludePatterns: [],
   sanitizerMode: "default",
@@ -34,6 +34,7 @@ export interface CLIArgs {
   model?: string;
   persona?: string;
   exclude?: string[];
+  forceFullReview?: boolean;
 }
 
 export interface YamlConfig {
@@ -107,6 +108,8 @@ export function parseCLIArgs(argv: string[]): CLIArgs {
     } else if (arg === "--exclude" && i + 1 < argv.length) {
       args.exclude = args.exclude ?? [];
       args.exclude.push(argv[++i]);
+    } else if (arg === "--force-full-review") {
+      args.forceFullReview = true;
     }
   }
 
@@ -359,7 +362,7 @@ export async function resolveConfig(
     maxOutputTokens: cliArgs.maxOutputTokens ?? yaml.max_output_tokens ?? DEFAULTS.maxOutputTokens,
     dimensions: yaml.dimensions ?? DEFAULTS.dimensions,
     reviewMarker: yaml.review_marker ?? DEFAULTS.reviewMarker,
-    personaPath: yaml.persona_path ?? DEFAULTS.personaPath,
+    repoOverridePath: yaml.persona_path ?? DEFAULTS.repoOverridePath,
     dryRun:
       cliArgs.dryRun ??
       (env.BRIDGEBUILDER_DRY_RUN === "true" ? true : undefined) ??
@@ -378,6 +381,7 @@ export async function resolveConfig(
     ...(yaml.persona_path != null
       ? { personaFilePath: yaml.persona_path }
       : {}),
+    ...(cliArgs.forceFullReview ? { forceFullReview: true } : {}),
   };
 
   const provenance: ConfigProvenance = {

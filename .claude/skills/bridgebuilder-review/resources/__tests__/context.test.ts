@@ -11,6 +11,8 @@ function mockStore(overrides?: Partial<IContextStore>): IContextStore {
     setLastHash: async () => {},
     claimReview: async () => true,
     finalizeReview: async () => {},
+    getLastReviewedSha: async () => null,
+    setLastReviewedSha: async () => {},
     ...overrides,
   };
 }
@@ -99,10 +101,11 @@ describe("BridgebuilderContext", () => {
   });
 
   describe("finalizeReview", () => {
-    it("calls setLastHash then finalizeReview on store", async () => {
+    it("calls setLastHash, setLastReviewedSha, then finalizeReview on store", async () => {
       const callOrder: string[] = [];
       const store = mockStore({
         setLastHash: async () => { callOrder.push("setLastHash"); },
+        setLastReviewedSha: async () => { callOrder.push("setLastReviewedSha"); },
         finalizeReview: async () => { callOrder.push("finalizeReview"); },
       });
       const ctx = new BridgebuilderContext(store);
@@ -111,7 +114,7 @@ describe("BridgebuilderContext", () => {
 
       await ctx.finalizeReview(item, result);
 
-      assert.deepEqual(callOrder, ["setLastHash", "finalizeReview"]);
+      assert.deepEqual(callOrder, ["setLastHash", "setLastReviewedSha", "finalizeReview"]);
     });
 
     it("passes item hash to setLastHash", async () => {

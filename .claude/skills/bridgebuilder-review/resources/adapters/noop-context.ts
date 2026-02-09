@@ -48,4 +48,22 @@ export class NoOpContextStore implements IContextStore {
   ): Promise<void> {
     // No-op: local mode does not persist review records
   }
+
+  async getLastReviewedSha(
+    _owner: string,
+    _repo: string,
+    _prNumber: number,
+  ): Promise<string | null> {
+    // Always null: no persistent state in local mode
+    return null;
+  }
+
+  async setLastReviewedSha(
+    _owner: string,
+    _repo: string,
+    _prNumber: number,
+    _sha: string,
+  ): Promise<void> {
+    // No-op: local mode does not persist reviewed SHA
+  }
 }

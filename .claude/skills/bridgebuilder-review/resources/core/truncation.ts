@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import path from "node:path";
 import type { PullRequestFile } from "../ports/git-provider.js";
 import type {
   BridgebuilderConfig,
@@ -77,22 +78,72 @@ export function getSecurityCategory(filename: string): string | undefined {
 
 // --- Pattern Matching (SDD Section 3.8) ---
 
+/** Detect if Node 22+ path.matchesGlob is available (BB-F4). */
+const hasNativeGlob: boolean =
+  typeof (path as Record<string, unknown>).matchesGlob === "function";
+
+/**
+ * Simple glob matcher fallback for Node <22.
+ * Supports: `*.ext`, `prefix*`, `prefix*suffix`, exact match, substring match,
+ * `?` single character wildcards, and `**` recursive directory matching.
+ */
+function simplifiedGlobMatch(filename: string, pattern: string): boolean {
+  // Handle ** recursive patterns: src/**/*.ts
+  if (pattern.includes("**")) {
+    // Convert glob to regex: ** matches any number of path segments
+    const escaped = pattern
+      .split("**")
+      .map((part) =>
+        part
+          .split("*")
+          .map((seg) => seg.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\?/g, "[^/]"))
+          .join("[^/]*"),
+      )
+      .join(".*");
+    return new RegExp(`^${escaped}$`).test(filename);
+  }
+
+  // Handle ? single character wildcard (matches any char except /)
+  if (pattern.includes("?")) {
+    const escaped = pattern
+      .split("*")
+      .map((part) => part.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\?/g, "[^/]"))
+      .join("[^/]*");
+    return new RegExp(`^${escaped}$`).test(filename);
+  }
+
+  // Original simplified matching for basic patterns
+  if (pattern.startsWith("*")) {
+    const suffix = pattern.slice(1);
+    if (filename.endsWith(suffix)) return true;
+  } else if (pattern.endsWith("*")) {
+    const prefix = pattern.slice(0, -1);
+    if (filename.startsWith(prefix)) return true;
+  } else if (pattern.includes("*")) {
+    const [before, after] = pattern.split("*", 2);
+    if (filename.startsWith(before) && filename.endsWith(after)) return true;
+  } else {
+    if (filename === pattern || filename.includes(pattern)) return true;
+  }
+  return false;
+}
+
 export function matchesExcludePattern(
   filename: string,
   patterns: string[],
 ): boolean {
   for (const pattern of patterns) {
-    if (pattern.startsWith("*")) {
-      const suffix = pattern.slice(1);
-      if (filename.endsWith(suffix)) return true;
-    } else if (pattern.endsWith("*")) {
-      const prefix = pattern.slice(0, -1);
-      if (filename.startsWith(prefix)) return true;
-    } else if (pattern.includes("*")) {
-      const [before, after] = pattern.split("*", 2);
-      if (filename.startsWith(before) && filename.endsWith(after)) return true;
+    if (hasNativeGlob) {
+      // Node 22+: use native path.matchesGlob() for full glob support
+      if ((path as unknown as { matchesGlob(p: string, g: string): boolean }).matchesGlob(filename, pattern)) {
+        return true;
+      }
+      // Fallback to simplified match for non-glob patterns (exact/substring)
+      if (!pattern.includes("*") && !pattern.includes("?")) {
+        if (filename === pattern || filename.includes(pattern)) return true;
+      }
     } else {
-      if (filename === pattern || filename.includes(pattern)) return true;
+      if (simplifiedGlobMatch(filename, pattern)) return true;
     }
   }
   return false;
@@ -100,11 +151,12 @@ export function matchesExcludePattern(
 
 // --- Loa Detection (Task 1.2 — SDD Section 3.1) ---
 
-/** Default Loa framework exclude patterns. */
+/** Default Loa framework exclude patterns.
+ * Use ** for recursive directory matching (BB-F4). */
 export const LOA_EXCLUDE_PATTERNS = [
-  ".claude/*",
-  "grimoires/*",
-  ".beads/*",
+  ".claude/**",
+  "grimoires/**",
+  ".beads/**",
   ".loa-version.json",
   ".loa.config.yaml",
   ".loa.config.yaml.example",
@@ -188,8 +240,8 @@ const TIER2_MIN_PATHS = [
   /(?:^|\/)k8s\//i,
 ];
 
-/** Files that should be Tier 2 despite .md extension (SKP-002). */
-const TIER2_FILENAMES = new Set(["SECURITY.md", "CODEOWNERS"]);
+// Note: SECURITY.md and CODEOWNERS match SECURITY_PATTERNS above — no separate
+// filename check needed. They are classified as "exception" (full diff always).
 
 export type LoaTier = "tier1" | "tier2" | "exception";
 
@@ -201,11 +253,6 @@ export function classifyLoaFile(filename: string): LoaTier {
 
   const basename = filename.split("/").pop() ?? "";
   const ext = basename.includes(".") ? "." + basename.split(".").pop()!.toLowerCase() : "";
-
-  // SKP-002: specific filenames override extension-based classification
-  if (TIER2_FILENAMES.has(basename)) {
-    return "tier2";
-  }
 
   // SKP-002: path-based heuristics → Tier 2 minimum
   if (TIER2_MIN_PATHS.some((p) => p.test(filename))) {
@@ -501,6 +548,11 @@ function getFilePriority(
 }
 
 // --- Truncation Level Disclaimers ---
+// Context reduction spans Level 1 → Level 2:
+//   Level 1 uses full patches which include default git context (3 lines around changes).
+//   Level 2 reduces context: first to 1 line, then to 0 lines.
+//   The "3→1→0" reduction in the PR description spans Level 1 → Level 2 sub-steps.
+//   Level 3 drops diff content entirely, showing stats-only.
 
 const LEVEL_DISCLAIMERS: Record<1 | 2 | 3, string> = {
   1: "[Partial Review: {n} low-priority files excluded]",
@@ -582,6 +634,9 @@ export function progressiveTruncate(
   }
 
   // --- Level 2: Hunk-based truncation with context reduction ---
+  // Level 1 uses full patches which include default git context (3 lines).
+  // Level 2 reduces: context=1, then context=0. The "3→1→0" reduction
+  // spans Level 1 → Level 2.
   for (const contextLines of [1, 0]) {
     const included: PullRequestFile[] = [];
     const excluded: Array<{ filename: string; stats: string }> = [];

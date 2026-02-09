@@ -76,7 +76,7 @@ function makeConfig(overrides?: Partial<BridgebuilderConfig>): BridgebuilderConf
     maxOutputTokens: 4000,
     dimensions: ["security", "quality", "test-coverage"],
     reviewMarker: "bridgebuilder-review",
-    personaPath: "grimoires/bridgebuilder/BEAUVOIR.md",
+    repoOverridePath: "grimoires/bridgebuilder/BEAUVOIR.md",
     dryRun: false,
     excludePatterns: [],
     sanitizerMode: "default",
@@ -123,6 +123,9 @@ function createMockGit(
       repo: string,
     ): Promise<RepoPreflightResult> {
       return { owner, repo, accessible: true };
+    },
+    async getCommitDiff() {
+      return { filesChanged: [], totalCommits: 0 };
     },
   };
   return mock;
@@ -216,6 +219,10 @@ function createMockContextStore(): IContextStore {
       return true;
     },
     async finalizeReview(): Promise<void> {},
+    async getLastReviewedSha(): Promise<string | null> {
+      return null;
+    },
+    async setLastReviewedSha(): Promise<void> {},
   };
 }
 

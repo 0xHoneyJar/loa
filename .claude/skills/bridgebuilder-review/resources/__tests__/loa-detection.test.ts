@@ -372,3 +372,60 @@ describe("LOA_EXCLUDE_PATTERNS", () => {
     assert.ok(!matchesExcludePattern("package.json", LOA_EXCLUDE_PATTERNS));
   });
 });
+
+// --- matchesExcludePattern: enhanced glob matching (BB-F4) ---
+
+describe("matchesExcludePattern — enhanced glob patterns", () => {
+  it("supports ** recursive matching: src/**/*.ts", () => {
+    assert.ok(matchesExcludePattern("src/core/utils.ts", ["src/**/*.ts"]));
+    assert.ok(matchesExcludePattern("src/deep/nested/file.ts", ["src/**/*.ts"]));
+    assert.ok(!matchesExcludePattern("src/core/utils.js", ["src/**/*.ts"]));
+    assert.ok(!matchesExcludePattern("lib/core/utils.ts", ["src/**/*.ts"]));
+  });
+
+  it("supports ** at end: logs/**", () => {
+    assert.ok(matchesExcludePattern("logs/app.log", ["logs/**"]));
+    assert.ok(matchesExcludePattern("logs/2024/01/debug.log", ["logs/**"]));
+  });
+
+  it("supports ** at start: **/*.test.ts", () => {
+    assert.ok(matchesExcludePattern("src/core/utils.test.ts", ["**/*.test.ts"]));
+    assert.ok(matchesExcludePattern("utils.test.ts", ["**/*.test.ts"]));
+    assert.ok(!matchesExcludePattern("src/core/utils.ts", ["**/*.test.ts"]));
+  });
+
+  it("supports ? single character wildcard", () => {
+    assert.ok(matchesExcludePattern("file1.ts", ["file?.ts"]));
+    assert.ok(matchesExcludePattern("fileA.ts", ["file?.ts"]));
+    assert.ok(!matchesExcludePattern("file10.ts", ["file?.ts"]));
+    assert.ok(!matchesExcludePattern("file.ts", ["file?.ts"]));
+  });
+
+  it("? does not match path separator", () => {
+    assert.ok(!matchesExcludePattern("file/.ts", ["file?.ts"]));
+  });
+
+  it("existing basic patterns still work", () => {
+    // suffix pattern: *.md
+    assert.ok(matchesExcludePattern("README.md", ["*.md"]));
+    assert.ok(!matchesExcludePattern("README.txt", ["*.md"]));
+
+    // prefix pattern: src/*
+    assert.ok(matchesExcludePattern("src/app.ts", ["src/*"]));
+
+    // exact match
+    assert.ok(matchesExcludePattern(".loa-version.json", [".loa-version.json"]));
+
+    // substring match
+    assert.ok(matchesExcludePattern("path/to/grimoires/loa/file.md", ["grimoires/"]));
+  });
+
+  it("handles empty patterns array", () => {
+    assert.ok(!matchesExcludePattern("anything.ts", []));
+  });
+
+  it("handles special regex characters in patterns", () => {
+    assert.ok(matchesExcludePattern("src/file.test.ts", ["src/**/*.test.ts"]));
+    assert.ok(matchesExcludePattern("pkg(1).ts", ["pkg(1).ts"]));
+  });
+});

@@ -11,4 +11,8 @@ export interface IContextStore {
     prNumber: number,
     result: ReviewResult,
   ): Promise<void>;
+  /** Get the head SHA from the last completed review (V3-1 incremental). */
+  getLastReviewedSha(owner: string, repo: string, prNumber: number): Promise<string | null>;
+  /** Persist the head SHA after a review completes (V3-1 incremental). */
+  setLastReviewedSha(owner: string, repo: string, prNumber: number, sha: string): Promise<void>;
 }

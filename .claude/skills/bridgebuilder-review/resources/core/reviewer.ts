@@ -1,4 +1,6 @@
+import { GitProviderError } from "../ports/git-provider.js";
 import type { IGitProvider } from "../ports/git-provider.js";
+import { LLMProviderError } from "../ports/llm-provider.js";
 import type { ILLMProvider } from "../ports/llm-provider.js";
 import type { IReviewPoster, ReviewEvent } from "../ports/review-poster.js";
 import type { IOutputSanitizer } from "../ports/output-sanitizer.js";
@@ -58,6 +60,11 @@ function makeError(
 }
 
 function isTokenRejection(err: unknown): boolean {
+  // Primary: typed error code from LLM adapter (BB-F3)
+  if (err instanceof LLMProviderError && err.code === "TOKEN_LIMIT") {
+    return true;
+  }
+  // Fallback: string matching for unknown/untyped errors
   const message =
     err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
   return TOKEN_REJECTION_PATTERNS.some((p) => message.includes(p));
@@ -165,9 +172,46 @@ export class ReviewPipeline {
         return this.skipResult(item, "claim_failed");
       }
 
+      // Step 3.5: Incremental review detection (V3-1)
+      let incrementalBanner: string | undefined;
+      let effectiveItem = item;
+      if (!this.config.forceFullReview) {
+        const lastSha = await this.context.getLastReviewedSha(item);
+        if (lastSha && lastSha !== pr.headSha) {
+          try {
+            const compare = await this.git.getCommitDiff(owner, repo, lastSha, pr.headSha);
+            if (compare.filesChanged.length > 0) {
+              const deltaFiles = item.files.filter((f) =>
+                compare.filesChanged.includes(f.filename),
+              );
+              if (deltaFiles.length > 0 && deltaFiles.length < item.files.length) {
+                effectiveItem = { ...item, files: deltaFiles };
+                incrementalBanner = `[Incremental: reviewing ${deltaFiles.length} files changed since ${lastSha.slice(0, 7)}]`;
+                this.logger.info("Incremental review mode", {
+                  owner,
+                  repo,
+                  pr: pr.number,
+                  lastSha: lastSha.slice(0, 7),
+                  totalFiles: item.files.length,
+                  deltaFiles: deltaFiles.length,
+                });
+              }
+            }
+          } catch {
+            // Force push or deleted SHA — fall back to full review
+            this.logger.warn("Incremental diff failed (force push?), falling back to full review", {
+              owner,
+              repo,
+              pr: pr.number,
+              lastSha: lastSha.slice(0, 7),
+            });
+          }
+        }
+      }
+
       // Step 4: Build prompt (includes truncation + Loa filtering)
       const { systemPrompt, userPrompt, allExcluded, loaBanner } =
-        this.template.buildPromptWithMeta(item, this.persona);
+        this.template.buildPromptWithMeta(effectiveItem, this.persona);
 
       // Step 4a: Handle all-files-excluded by Loa filtering (IMP-004)
       if (allExcluded) {
@@ -191,10 +235,15 @@ export class ReviewPipeline {
         return this.skipResult(item, "all_files_excluded");
       }
 
+      // Step 4.5: Inject incremental review banner if applicable (V3-1)
+      const finalUserPrompt0 = incrementalBanner
+        ? `${incrementalBanner}\n\n${userPrompt}`
+        : userPrompt;
+
       // Step 5: Token estimation guard with progressive truncation.
       const { coefficient } = getTokenBudget(this.config.model);
       const systemTokens = Math.ceil(systemPrompt.length * coefficient);
-      const userTokens = Math.ceil(userPrompt.length * coefficient);
+      const userTokens = Math.ceil(finalUserPrompt0.length * coefficient);
       const estimatedTokens = systemTokens + userTokens;
 
       // Pre-flight prompt size report (SKP-004: component breakdown)
@@ -210,7 +259,9 @@ export class ReviewPipeline {
       });
 
       let finalSystemPrompt = systemPrompt;
-      let finalUserPrompt = userPrompt;
+      let finalUserPrompt = finalUserPrompt0;
+      let finalEstimatedTokens = estimatedTokens;
+      let truncationLevel: number | undefined;
 
       if (estimatedTokens > this.config.maxInputTokens) {
         // Progressive truncation (replaces hard skip)
@@ -223,7 +274,7 @@ export class ReviewPipeline {
         });
 
         const truncResult = progressiveTruncate(
-          item.files,
+          effectiveItem.files,
           this.config.maxInputTokens,
           this.config.model,
           systemPrompt.length,
@@ -251,6 +302,9 @@ export class ReviewPipeline {
         );
         finalSystemPrompt = truncatedPrompt.systemPrompt;
         finalUserPrompt = truncatedPrompt.userPrompt;
+
+        finalEstimatedTokens = truncResult.tokenEstimate?.total ?? estimatedTokens;
+        truncationLevel = truncResult.level;
 
         this.logger.info("Progressive truncation succeeded", {
           owner,
@@ -282,7 +336,7 @@ export class ReviewPipeline {
 
           const retryBudget = Math.floor(this.config.maxInputTokens * 0.85);
           const retryResult = progressiveTruncate(
-            item.files,
+            effectiveItem.files,
             retryBudget,
             this.config.model,
             finalSystemPrompt.length,
@@ -316,6 +370,20 @@ export class ReviewPipeline {
         } else {
           throw llmErr; // Re-throw non-token errors
         }
+      }
+
+      // Step 6b: Token calibration logging (BB-F1)
+      // Log estimated vs actual tokens for coefficient tuning over time.
+      if (response.inputTokens > 0) {
+        const ratio = +(response.inputTokens / finalEstimatedTokens).toFixed(3);
+        this.logger.info("calibration", {
+          phase: "calibration",
+          estimatedTokens: finalEstimatedTokens,
+          actualInputTokens: response.inputTokens,
+          ratio,
+          model: this.config.model,
+          truncationLevel: truncationLevel ?? null,
+        });
       }
 
       // Step 7: Validate structured output
@@ -435,20 +503,28 @@ export class ReviewPipeline {
     }
   }
 
-  private classifyError(_err: unknown, message: string): ReviewError {
-    // Never persist raw adapter messages — may contain sensitive details.
-    // Classify using anchored prefixes that match actual adapter error strings,
-    // not generic substrings that could false-positive on unrelated messages.
+  private classifyError(err: unknown, message: string): ReviewError {
+    // Primary: typed port errors from adapters (BB-F3)
+    if (err instanceof GitProviderError) {
+      const retryable = err.code === "RATE_LIMITED" || err.code === "NETWORK";
+      const code = err.code === "RATE_LIMITED" ? "E_RATE_LIMIT" : "E_GITHUB";
+      return makeError(code, "GitHub operation failed", "github", retryable ? "transient" : "permanent", retryable);
+    }
+    if (err instanceof LLMProviderError) {
+      const retryable = err.code === "RATE_LIMITED" || err.code === "NETWORK";
+      const code = err.code === "RATE_LIMITED" ? "E_RATE_LIMIT" : "E_LLM";
+      return makeError(code, "LLM operation failed", "llm", retryable ? "transient" : "permanent", retryable);
+    }
+
+    // Fallback: string matching for unknown/untyped errors (backward compat)
     const m = (message || "").toLowerCase();
 
     if (m.includes("429") || m.includes("rate limit")) {
       return makeError("E_RATE_LIMIT", "Rate limited", "github", "transient", true);
     }
-    // Match actual adapter error prefixes: "gh command failed", "gh api"
     if (m.startsWith("gh ") || m.includes("gh command failed") || m.includes("github cli")) {
       return makeError("E_GITHUB", "GitHub operation failed", "github", "transient", true);
     }
-    // Match actual adapter error prefixes: "anthropic api ..."
     if (m.startsWith("anthropic api")) {
       return makeError("E_LLM", "LLM operation failed", "llm", "transient", true);
     }

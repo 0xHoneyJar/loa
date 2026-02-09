@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { loadPersona, discoverPersonas } from "../main.js";
+import { loadPersona, discoverPersonas, parsePersonaFrontmatter } from "../main.js";
 import type { BridgebuilderConfig } from "../core/types.js";
 
 function mockConfig(overrides?: Partial<BridgebuilderConfig>): BridgebuilderConfig {
@@ -17,7 +17,7 @@ function mockConfig(overrides?: Partial<BridgebuilderConfig>): BridgebuilderConf
     maxOutputTokens: 4096,
     dimensions: ["correctness"],
     reviewMarker: "bridgebuilder-review",
-    personaPath: "grimoires/bridgebuilder/BEAUVOIR.md",
+    repoOverridePath: "grimoires/bridgebuilder/BEAUVOIR.md",
     dryRun: false,
     excludePatterns: [],
     sanitizerMode: "default" as const,
@@ -55,8 +55,8 @@ describe("discoverPersonas", () => {
 describe("loadPersona", () => {
   it("loads default persona when no persona specified", async () => {
     const config = mockConfig({ persona: undefined });
-    // personaPath points to non-existent repo override, falls through to default
-    config.personaPath = "/nonexistent/BEAUVOIR.md";
+    // repoOverridePath points to non-existent repo override, falls through to default
+    config.repoOverridePath = "/nonexistent/BEAUVOIR.md";
     const result = await loadPersona(config);
 
     assert.equal(result.source, "pack:default");
@@ -129,7 +129,7 @@ describe("loadPersona", () => {
 
       const config = mockConfig({
         persona: "security",
-        personaPath: repoOverridePath,
+        repoOverridePath: repoOverridePath,
       });
 
       const warnings: string[] = [];
@@ -166,7 +166,7 @@ describe("loadPersona", () => {
         personaFilePath: customPath,
         persona: undefined,
       });
-      config.personaPath = "/nonexistent/BEAUVOIR.md";
+      config.repoOverridePath = "/nonexistent/BEAUVOIR.md";
 
       const result = await loadPersona(config);
 
@@ -179,7 +179,7 @@ describe("loadPersona", () => {
         personaFilePath: "/nonexistent/custom-persona.md",
         persona: undefined,
       });
-      config.personaPath = "/nonexistent/BEAUVOIR.md";
+      config.repoOverridePath = "/nonexistent/BEAUVOIR.md";
 
       await assert.rejects(
         () => loadPersona(config),
@@ -222,7 +222,7 @@ describe("loadPersona", () => {
       const config = mockConfig({
         persona: undefined,
         personaFilePath: undefined,
-        personaPath: repoPath,
+        repoOverridePath: repoPath,
       });
 
       const result = await loadPersona(config);
@@ -230,5 +230,112 @@ describe("loadPersona", () => {
       assert.equal(result.source, `repo:${repoPath}`);
       assert.ok(result.content.includes("Repo Override"));
     });
+  });
+
+  describe("frontmatter model extraction (V3-2)", () => {
+    let tmpDir: string;
+
+    beforeEach(() => {
+      tmpDir = join(tmpdir(), `persona-fm-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+      mkdirSync(tmpDir, { recursive: true });
+    });
+
+    afterEach(() => {
+      if (existsSync(tmpDir)) {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("extracts model from custom persona with frontmatter", async () => {
+      const customPath = join(tmpDir, "model-persona.md");
+      writeFileSync(customPath, "---\nmodel: claude-opus-4-6\n---\n# Custom Persona\nContent.");
+
+      const config = mockConfig({
+        personaFilePath: customPath,
+        persona: undefined,
+      });
+      config.repoOverridePath = "/nonexistent/BEAUVOIR.md";
+
+      const result = await loadPersona(config);
+      assert.equal(result.model, "claude-opus-4-6");
+      assert.ok(result.content.includes("# Custom Persona"));
+      assert.ok(!result.content.includes("---"));
+    });
+
+    it("returns undefined model for persona without frontmatter", async () => {
+      const config = mockConfig({ persona: "default" });
+      const result = await loadPersona(config);
+      assert.equal(result.model, undefined);
+    });
+
+    it("returns undefined model when model line is commented out", async () => {
+      const customPath = join(tmpDir, "commented.md");
+      writeFileSync(customPath, "---\n# model: claude-opus-4-6\n---\n# Persona\nContent.");
+
+      const config = mockConfig({
+        personaFilePath: customPath,
+        persona: undefined,
+      });
+      config.repoOverridePath = "/nonexistent/BEAUVOIR.md";
+
+      const result = await loadPersona(config);
+      assert.equal(result.model, undefined);
+    });
+
+    it("security persona has no active model (commented out)", async () => {
+      const config = mockConfig({ persona: "security" });
+      const result = await loadPersona(config);
+      assert.equal(result.model, undefined);
+    });
+
+    it("quick persona has no active model (commented out)", async () => {
+      const config = mockConfig({ persona: "quick" });
+      const result = await loadPersona(config);
+      assert.equal(result.model, undefined);
+    });
+  });
+});
+
+// --- parsePersonaFrontmatter ---
+
+describe("parsePersonaFrontmatter", () => {
+  it("returns raw content when no frontmatter", () => {
+    const result = parsePersonaFrontmatter("# Persona\nSome content.");
+    assert.equal(result.content, "# Persona\nSome content.");
+    assert.equal(result.model, undefined);
+  });
+
+  it("extracts model from frontmatter", () => {
+    const result = parsePersonaFrontmatter("---\nmodel: claude-opus-4-6\n---\n# Persona\nContent.");
+    assert.equal(result.content, "# Persona\nContent.");
+    assert.equal(result.model, "claude-opus-4-6");
+  });
+
+  it("strips quotes from model value", () => {
+    const result = parsePersonaFrontmatter('---\nmodel: "claude-opus-4-6"\n---\nContent.');
+    assert.equal(result.model, "claude-opus-4-6");
+  });
+
+  it("strips single quotes from model value", () => {
+    const result = parsePersonaFrontmatter("---\nmodel: 'claude-haiku-4-5'\n---\nContent.");
+    assert.equal(result.model, "claude-haiku-4-5");
+  });
+
+  it("ignores commented-out model line", () => {
+    const result = parsePersonaFrontmatter("---\n# model: claude-opus-4-6\n---\n# Persona\nContent.");
+    assert.equal(result.model, undefined);
+    assert.equal(result.content, "# Persona\nContent.");
+  });
+
+  it("handles frontmatter with no model field", () => {
+    const result = parsePersonaFrontmatter("---\nauthor: test\n---\n# Persona\nContent.");
+    assert.equal(result.model, undefined);
+    assert.equal(result.content, "# Persona\nContent.");
+  });
+
+  it("handles empty frontmatter", () => {
+    const result = parsePersonaFrontmatter("---\n\n---\n# Persona\nContent.");
+    assert.equal(result.model, undefined);
+    assert.equal(result.content, "# Persona\nContent.");
   });
 });
