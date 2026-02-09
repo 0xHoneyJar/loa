@@ -108,13 +108,60 @@ else:
 ```
 
 The post-PR validation loop runs:
-- **POST_PR_AUDIT**: Consolidated PR audit with fix loop
+- **POST_PR_AUDIT**: Two-phase audit — deterministic fast-pass (secrets, console.log) + Bridgebuilder LLM review
+- **DOC_TEST**: RTFM manifest generation for changed `.md` files (v1.32.0)
 - **CONTEXT_CLEAR**: Save checkpoint, prompt user to /clear
 - **E2E_TESTING**: Fresh-eyes testing with fix loop
 - **FLATLINE_PR**: Optional multi-model review (~$1.50)
 - **READY_FOR_HITL**: All validations complete
 
 See `grimoires/loa/prd-post-pr-validation.md` for full specification.
+
+**RTFM Manifest Handling (v1.32.0):**
+
+After the DOC_TEST phase, the agent MUST check for and consume the RTFM manifest:
+
+| Step | Action | Details |
+|------|--------|---------|
+| Detection | Check for `.run/rtfm-manifest.json` | If missing, skip (no `.md` files changed) |
+| Validation | Verify `run_id` and `docs` array exist | Invalid manifest = log warning, skip |
+| Execution | Invoke `/rtfm <doc>` for each doc in `docs[]` | Honor `timeout_per_doc` per invocation |
+| Timeouts | Track cumulative time against `timeout_total` | Stop processing remaining docs on total timeout |
+| Partial Failure | Continue to next doc on individual failure | Log failed doc, don't halt |
+| Results | Write `.run/post-pr-doc-test-results.json` | Include matching `run_id` for correlation |
+| Cleanup | Remove `.run/rtfm-manifest.json` | Prevents re-processing on resume |
+
+Example manifest (written by `post-pr-doc-test.sh`):
+
+```json
+{
+  "run_id": "rtfm-20260209T143000-a1b2c3d4",
+  "status": "pending",
+  "pr_number": 42,
+  "docs": ["grimoires/loa/prd.md", "grimoires/loa/sdd.md"],
+  "excluded": ["grimoires/loa/a2a/sprint-1/reviewer.md"],
+  "max_docs": 5,
+  "timeout_per_doc": 180,
+  "timeout_total": 600,
+  "failure_policy": "fail_open",
+  "timestamp": "2026-02-09T14:30:00Z"
+}
+```
+
+Results schema (written by agent after consuming manifest):
+
+```json
+{
+  "run_id": "rtfm-20260209T143000-a1b2c3d4",
+  "status": "completed",
+  "results": [
+    {"doc": "grimoires/loa/prd.md", "status": "passed", "duration_ms": 4200},
+    {"doc": "grimoires/loa/sdd.md", "status": "failed", "error": "timeout", "duration_ms": 180000}
+  ],
+  "summary": {"total": 2, "passed": 1, "failed": 1},
+  "timestamp": "2026-02-09T14:35:00Z"
+}
+```
 
 **Sprint Plan Execution Loop (`/run sprint-plan`):**
 ```

@@ -1,188 +1,314 @@
-# Sprint Plan: Skill Benchmark Audit — Anthropic Best Practices
+# Sprint Plan: Bridgebuilder & RTFM Integration into Run Workflows
 
-**Version**: 1.1.0 (Flatline-hardened)
+**PRD**: `grimoires/loa/prd-run-skill-integration-265.md`
+**SDD**: `grimoires/loa/sdd-run-skill-integration-265.md`
+**Issue**: [#265](https://github.com/0xHoneyJar/loa/issues/265)
 **Date**: 2026-02-09
-**PRD**: grimoires/loa/prd.md (v1.1.0)
-**SDD**: grimoires/loa/sdd.md (v1.0.0)
-**Issue**: #261
+**Sprints**: 2
+**Team**: 1 AI agent (Claude)
 
 ---
 
-## Flatline Sprint Review Summary
+## Overview
 
-| Metric | Value |
-|--------|-------|
-| Models | Claude Opus 4.6 + GPT-5.2 |
-| Agreement | 90% |
-| HIGH_CONSENSUS integrated | 4 (IMP-001, IMP-002, IMP-003, IMP-006) |
-| BLOCKERS accepted | 3 (SKP-003, SKP-006, SKP-007) |
-| DISPUTED logged | 1 (IMP-010 — deferred, observation monitoring is over-scoped) |
-| SKP-001 (CI integration) | Addressed via IMP-003 (same recommendation) |
+Wire Bridgebuilder (automated PR review) and RTFM (doc testing) into the post-PR validation loop. The work divides naturally into two sprints: Sprint 1 implements the core shell scripts and orchestrator changes, Sprint 2 adds config, documentation, and integration testing.
+
+**Dependencies**: PRD v1.1 (Flatline-hardened), SDD v1.1 (Flatline-hardened). Both Bridgebuilder and RTFM skills are functional as-is — no changes to either skill.
 
 ---
 
-## Sprint 1: Validation Foundation + Size Compliance (P0)
+## Sprint 1: Core Implementation
 
-**Goal**: Create the structural validation test suite, test it with fixtures, fix the only hard-limit violation, and add CI integration.
+**Goal**: Validate Bridgebuilder CLI contract, replace the placeholder audit with Bridgebuilder, create the RTFM doc-test script, and wire both into the post-PR orchestrator.
 
-### Task 1: Create benchmark configuration
-- **File**: `.claude/schemas/skill-benchmark.json`
-- **Description**: Create JSON config with thresholds (max_words: 5000, max_description_chars: 1024, min_error_references: 5, trigger patterns, forbidden frontmatter patterns)
-- **Acceptance Criteria**:
-  - [ ] File exists and is valid JSON
-  - [ ] All threshold values match PRD requirements
-  - [ ] jq can parse it without errors
-  - [ ] Script handles missing/malformed config gracefully with clear error message (IMP-002)
+### Task 1.0: Preflight Spike — Validate Bridgebuilder CLI Contract (IMP-001, IMP-002, SKP-002)
 
-### Task 2: Create structural validation script
-- **File**: `.claude/scripts/validate-skill-benchmarks.sh`
-- **Description**: Bash script implementing 10 checks from SDD Section 3.1.1. Must follow existing `validate-skills.sh` output format. Reads thresholds from `skill-benchmark.json`. Uses POSIX-compatible tools only (no GNU-specific flags).
-- **Acceptance Criteria**:
-  - [ ] All 10 checks implemented (SKILL.md exists, word count, no README, kebab-case, name match, no XML frontmatter, description length, WHEN pattern, error refs, frontmatter valid)
-  - [ ] Checks 1-7 and 10 are blocking (FAIL); checks 8-9 are warnings
-  - [ ] Output matches format: `PASS/FAIL/WARN: skill-name (details)`
-  - [ ] Summary shows total/passed/failed/warnings
-  - [ ] Exit code 0 if no FAILs, exit code 1 if any FAILs
-  - [ ] Script is executable (`chmod +x`)
-  - [ ] Graceful error on missing/invalid benchmark config JSON (IMP-002)
+**Description**: Time-boxed verification (30 min max) that Bridgebuilder's `entry.sh` supports the flags and output format assumed by Task 1.1. This is a **gate** — if the contract doesn't match, Task 1.1 must be redesigned before proceeding.
 
-### Task 3: Create test fixtures for validation script (SKP-007)
-- **Dir**: `.claude/skills/__test-compliant__/` and `.claude/skills/__test-noncompliant__/`
-- **Description**: Create deliberately compliant and non-compliant skill directories as test fixtures. Run validator against both to prove all 10 checks work. Clean up fixture dirs after test.
-- **Acceptance Criteria**:
-  - [ ] Compliant fixture: passes all 10 checks
-  - [ ] Non-compliant fixture: triggers FAIL on word count, missing SKILL.md, README.md present, bad folder name, XML in frontmatter
-  - [ ] Test script verifies validator catches all failure modes
-  - [ ] Fixture dirs prefixed with `__` to avoid confusion with real skills
-  - [ ] Cleanup step removes fixture dirs after test run (IMP-006)
+**Steps**:
+1. Run `entry.sh --help` (or inspect source) to document actual CLI flags
+2. Run Bridgebuilder locally against a known PR: `entry.sh --pr <number> --repo <owner/repo>`
+3. Capture and document: exact CLI flags, exit codes, JSON output schema, auth requirements
+4. Verify `gh` CLI is installed, authenticated, and has required scopes (`gh auth status`) (SKP-004)
+5. Verify `gh pr view` works with `--json number,repository` fields
+6. Create a contract test fixture: expected input → expected output mapping
 
-### Task 4: Update skill-index schema
-- **File**: `.claude/schemas/skill-index.schema.json`
-- **Description**: Raise description maxLength from 500 to 1024. Add optional `negative_triggers` array field.
-- **Acceptance Criteria**:
-  - [ ] `description.maxLength` is 1024
-  - [ ] `negative_triggers` field added with type array of strings
-  - [ ] Existing `validate-skills.sh` still passes
+**Acceptance Criteria**:
+- [ ] Bridgebuilder `entry.sh` CLI flags documented: actual flags, not assumed
+- [ ] Exit codes documented: map actual exit codes to SDD §3.1 mapping table
+- [ ] JSON output schema captured: required fields for `RunSummary` identified
+- [ ] Auth requirements documented: `ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, any others
+- [ ] `gh auth status` passes with required scopes for `gh pr view` and `gh pr diff`
+- [ ] If contract differs from SDD assumptions, update Task 1.1 description before proceeding
+- [ ] Pass/fail: If entry.sh cannot be invoked with `--pr`/`--repo`, HALT and redesign
 
-### Task 5: Refactor riding-codebase SKILL.md
-- **File**: `.claude/skills/riding-codebase/SKILL.md` + 3 new reference files
-- **Description**: Extract ~2,400 words of reference material to `resources/references/`. Create backup (`SKILL.md.bak`). Target ≤4,500 words in SKILL.md.
-- **Acceptance Criteria**:
-  - [ ] SKILL.md is ≤ 4,500 words (`wc -w`)
-  - [ ] 3 reference files created: `output-formats.md`, `analysis-checklists.md`, `deep-analysis-guide.md`
-  - [ ] SKILL.md links to reference files with `See: resources/references/...`
-  - [ ] Core instructions (phases 0-1, edge cases) remain inline
-  - [ ] `SKILL.md.bak` backup exists
-  - [ ] `validate-skill-benchmarks.sh` passes for riding-codebase
-  - [ ] Behavioral smoke test: invoke `/ride` on a small test repo before and after refactoring, verify output is functionally equivalent (SKP-003)
-
-### Task 6: Rollback playbook (IMP-001)
-- **Description**: Document explicit rollback steps for Sprint 1 changes.
-- **Acceptance Criteria**:
-  - [ ] Rollback steps documented in sprint report: restore SKILL.md.bak, revert schema, remove validation script
-  - [ ] Decision criteria: who decides to rollback, what signals trigger it
-  - [ ] Re-validation steps after rollback
-
-### Task 7: Run full validation + CI integration (IMP-003)
-- **Description**: Execute both validation scripts, verify all checks pass, and document CI integration point.
-- **Acceptance Criteria**:
-  - [ ] `validate-skills.sh` exits 0
-  - [ ] `validate-skill-benchmarks.sh` exits 0 (riding-codebase under limit)
-  - [ ] Only expected warnings remain (5 skills with low error refs — addressed in Sprint 2)
-  - [ ] CI integration documented: which GitHub Actions workflow to add the validator to, with the exact step definition
+**Estimated Effort**: Low (30 min time-boxed spike)
+**Dependencies**: None (must complete BEFORE Task 1.1)
+**Testing**: This IS the test.
 
 ---
 
-## Sprint 2: Description Standardization + Error Handling (P1-P2)
+### Task 1.1: Modify `post-pr-audit.sh` — Bridgebuilder Integration
 
-**Goal**: Bring all 19 skill descriptions into compliance (batched) and add error handling to underserved skills.
+**File**: `.claude/scripts/post-pr-audit.sh` (modify, ~200 lines target)
+**SDD Reference**: §3.1
 
-### Task 1a: Standardize descriptions — Batch 1 (skills 1-5)
-- **Files**: `auditing-security`, `autonomous-agent`, `bridgebuilder-review`, `browsing-constructs`, `continuous-learning` index.yaml
-- **Description**: Update 5 descriptions to follow `[What] + [When] + [Capabilities]` formula. Run validation after batch.
-- **Acceptance Criteria**:
-  - [ ] 5 descriptions follow the 3-line template, ≤ 1,024 chars
-  - [ ] Contain "Use when" or equivalent trigger context
-  - [ ] No trigger file paths dropped
-  - [ ] `validate-skill-benchmarks.sh` passes for these 5 (SKP-006)
+**Description**: Refactor `post-pr-audit.sh` to:
+1. Keep a minimal deterministic fast-pass (`run_fast_checks()`) for secrets, console.log, empty catch (per SKP-003)
+2. Add `run_bridgebuilder_audit()` that invokes Bridgebuilder via `entry.sh --pr <number> --repo <owner/repo>`
+3. Add canonical PR extraction via `gh pr view <url> --json` (per SKP-004)
+4. Add strict Bridgebuilder output schema validation (per SKP-004) — invalid JSON = error
+5. Add `min_severity` threshold filtering from config
+6. Add environment-aware `resolve_failure_policy()` — CI defaults to `fail_closed`, local to `fail_open` (per SKP-001)
+7. Add `handle_phase_error()` that always creates `.run/post-pr-degraded.json` marker
+8. Add `resolve_audit_provider()` — supports `bridgebuilder` and `skip` providers
+9. Write structured results to `.run/post-pr-audit-results.json` (per IMP-003)
 
-### Task 1b: Standardize descriptions — Batch 2 (skills 6-10)
-- **Files**: `deploying-infrastructure`, `designing-architecture`, `discovering-requirements`, `enhancing-prompts`, `flatline-knowledge` index.yaml
-- **Acceptance Criteria**: Same as Task 1a for these 5 skills
+**Acceptance Criteria**:
+- [ ] `run_fast_checks()` runs deterministic regex checks (secrets, console.log, empty catch) before Bridgebuilder
+- [ ] `run_bridgebuilder_audit()` invokes `entry.sh --pr <number> --repo <owner/repo>`
+- [ ] PR number/repo extracted via `gh pr view <url> --json number,repository` (not URL parsing)
+- [ ] `gh pr view` exit code validated; failure triggers `failure_policy` path
+- [ ] Bridgebuilder JSON output validated for required fields (`results`, `status`)
+- [ ] `min_severity` config applied: only findings at or above threshold count toward CHANGES_REQUIRED
+- [ ] Exit codes: 0 (APPROVED), 1 (CHANGES_REQUIRED), 2 (ESCALATED via fail_closed)
+- [ ] `failure_policy` resolves: CI/GITHUB_ACTIONS/CLAWDBOT → `fail_closed`; local → `fail_open`; config overrides both
+- [ ] `.run/post-pr-degraded.json` created on ANY error (never silent approval)
+- [ ] `.run/post-pr-audit-results.json` written with schema from SDD §3.1
+- [ ] Provider config: `bridgebuilder` invokes Bridgebuilder, `skip` exits 0 immediately
+- [ ] Timeout enforced (120s default, configurable)
+- [ ] Existing `finding_identity()` and `retry_with_backoff()` utilities preserved and reused
 
-### Task 1c: Standardize descriptions — Batch 3 (skills 11-15)
-- **Files**: `implementing-tasks`, `mounting-framework`, `planning-sprints`, `reviewing-code`, `riding-codebase` index.yaml
-- **Acceptance Criteria**: Same as Task 1a for these 5 skills
+**Required Fields** (from SDD §3.1 Results Schema):
+- `post-pr-audit-results.json`: `tool`, `version`, `pr_number`, `repo`, `status`, `findings`, `review_posted`, `error_message`, `duration_ms`, `timestamp`
+- `post-pr-degraded.json`: `phase`, `reason`, `policy`, `timestamp`
 
-### Task 1d: Standardize descriptions — Batch 4 (skills 16-19)
-- **Files**: `rtfm-testing`, `run-mode`, `simstim-workflow`, `translating-for-executives` index.yaml
-- **Acceptance Criteria**: Same as Task 1a for these 4 skills
+**`gh` Prerequisites** (SKP-004): Script MUST verify `gh` is installed and authenticated before any `gh` calls. On failure, trigger `failure_policy` path (not silent skip).
 
-### Task 2: Add error handling to bridgebuilder-review
-- **File**: `.claude/skills/bridgebuilder-review/SKILL.md`
-- **Description**: Add `## Error Handling` section with error table and troubleshooting. Cover: API failures, auth errors, rate limits, dry-run edge cases, large PR handling.
-- **Acceptance Criteria**:
-  - [ ] Error handling section added with ≥ 5 error references
-  - [ ] Error table with cause and resolution columns
-  - [ ] Word count still under 5,000
-  - [ ] `validate-skill-benchmarks.sh` passes
+**Failure Policy Precedence** (SKP-003): Hard default → environment default (CI=fail_closed, local=fail_open) → `.loa.config.yaml` override → CLI flag override. Config example must document this precedence order.
 
-### Task 3: Add error handling to designing-architecture
-- **File**: `.claude/skills/designing-architecture/SKILL.md`
-- **Description**: Add error handling for: PRD not found, clarification loop timeout, SDD generation failure.
-- **Acceptance Criteria**:
-  - [ ] Error handling section added with ≥ 5 error references
-  - [ ] Word count still under 5,000
-
-### Task 4: Add error handling to flatline-knowledge
-- **File**: `.claude/skills/flatline-knowledge/SKILL.md`
-- **Description**: Add error handling for: NotebookLM auth, API timeout, cache miss, model unavailable.
-- **Acceptance Criteria**:
-  - [ ] Error handling section added with ≥ 5 error references
-  - [ ] Word count still under 5,000
-
-### Task 5: Add error handling to mounting-framework
-- **File**: `.claude/skills/mounting-framework/SKILL.md`
-- **Description**: Add error handling for: Permission denied, existing mount, partial install, version mismatch.
-- **Acceptance Criteria**:
-  - [ ] Error handling section added with ≥ 5 error references
-  - [ ] Word count still under 5,000
-
-### Task 6: Add error handling to planning-sprints
-- **File**: `.claude/skills/planning-sprints/SKILL.md`
-- **Description**: Add error handling for: PRD/SDD missing, capacity estimation, dependency cycles, empty sprint.
-- **Acceptance Criteria**:
-  - [ ] Error handling section added with ≥ 5 error references
-  - [ ] Word count still under 5,000
-
-### Task 7: Final validation pass
-- **Description**: Run both validation scripts. All 19 skills must pass with zero failures and zero warnings.
-- **Acceptance Criteria**:
-  - [ ] `validate-skills.sh` exits 0
-  - [ ] `validate-skill-benchmarks.sh` exits 0 with 0 warnings
-  - [ ] All 19 SKILL.md files ≤ 5,000 words
-  - [ ] All 19 descriptions ≤ 1,024 chars with trigger context
-  - [ ] All 19 skills have ≥ 5 error references
+**Estimated Effort**: Medium-high (largest task — refactoring 514-line script)
+**Dependencies**: Task 1.0 (CLI contract must be validated first)
+**Testing**: Manual invocation with `--pr-url` pointing to an existing PR. Verify JSON output schema.
 
 ---
 
-## NFR Compliance
+### Task 1.2: Create `post-pr-doc-test.sh` — RTFM Manifest Generator
 
-| NFR | Verification |
-|-----|-------------|
-| NFR-1: Zero behavioral regressions | SKILL.md.bak backups + validation before/after + behavioral smoke test for riding-codebase (SKP-003) |
-| NFR-2: No new dependencies | Script uses bash, wc, grep, jq (all existing, POSIX-compatible) |
-| NFR-3: Backward compatible | Trigger arrays unchanged; descriptions batched to isolate regressions (SKP-006) |
-| NFR-4: Documentation-only | No application code changes |
+**File**: `.claude/scripts/post-pr-doc-test.sh` (new, ~150 lines)
+**SDD Reference**: §3.2
+
+**Description**: Create a new shell script that:
+1. Parses `--pr-url` argument
+2. Extracts PR number via `gh pr view` (canonical, SKP-004)
+3. Gets changed files via `gh pr diff $number --name-only` with exit code check (IMP-009)
+4. Filters to `*.md` files
+5. Applies exclude patterns from config (or defaults: `grimoires/loa/a2a/**`, `CHANGELOG.md`, etc.)
+6. If 0 docs remain, exits 0 (skip)
+7. Caps at `max_docs` (default 5, IMP-004)
+8. Generates `run_id` (UUID) for correlation (IMP-001, SKP-002)
+9. Writes `.run/rtfm-manifest.json` with `run_id`, `status: "pending"`, docs list, timeouts, failure_policy
+10. Exits 0 — the calling agent handles RTFM invocation
+
+**Acceptance Criteria**:
+- [ ] Script is executable (`chmod +x`)
+- [ ] Parses `--pr-url <url>` argument
+- [ ] Uses `gh pr view <url> --json` for canonical PR extraction (not URL parsing)
+- [ ] `gh pr diff` exit code explicitly checked; failure triggers `failure_policy` path
+- [ ] Filters to `*.md` files only
+- [ ] Applies exclude patterns from `post_pr_validation.phases.doc_test.exclude_patterns[]` config
+- [ ] Default excludes applied when config missing: `grimoires/loa/a2a/**`, `CHANGELOG.md`, `**/reviewer.md`, `**/engineer-feedback.md`, `**/auditor-sprint-feedback.md`
+- [ ] Caps doc list at `max_docs` (default 5)
+- [ ] Exits 0 with no manifest when 0 docs remain after filtering
+- [ ] Generates unique `run_id` for manifest/results correlation
+- [ ] Writes `.run/rtfm-manifest.json` matching SDD §3.2 schema
+- [ ] Handles `doc_test.enabled: false` config (exit 0 immediately)
+- [ ] `gh` presence and auth verified before `gh pr diff` call (SKP-004)
+- [ ] On `gh` failure: trigger `failure_policy` path with descriptive error
+
+**Required Fields** (from SDD §3.2 Manifest Schema):
+- `rtfm-manifest.json`: `run_id`, `status`, `pr_number`, `docs`, `excluded`, `max_docs`, `timeout_per_doc`, `timeout_total`, `failure_policy`, `timestamp`
+
+**CI Limitation** (IMP-004, SKP-001): This script only produces a manifest — it does NOT invoke RTFM. In CI environments where no Claude Code agent is running, the manifest will go unconsumed. This is an **accepted limitation**: the orchestrator's 10s deadline (Task 1.3) will detect the missing results and apply `failure_policy`. DOC_TEST in CI is informational only (degraded marker) until a CI-native RTFM consumer is built (out of scope for #265).
+
+**Estimated Effort**: Medium (new script, well-defined contract)
+**Dependencies**: Task 1.0 (for `gh` auth verification pattern)
+**Testing**: Run against a PR with mixed `.md` and non-`.md` changes. Verify manifest JSON.
 
 ---
 
-## Risk Mitigations
+### Task 1.3: Modify `post-pr-orchestrator.sh` — Add DOC_TEST Phase
 
-| Risk | Mitigation | Owner |
-|------|-----------|-------|
-| R-1: Triggering breaks | Run validation before/after every skill change | Sprint 1 T2 |
-| R-5: Post-merge regression | SKILL.md.bak copies, 7-day observation, documented rollback playbook (IMP-001) | Sprint 1 T6 |
-| R-6: Validator false positives | Test fixtures prove all 10 checks against known inputs (SKP-007) | Sprint 1 T3 |
-| R-7: Description batch regression | 4 batches of 5 skills with validation between each (SKP-006) | Sprint 2 T1a-d |
-| R-8: CI drift | Document exact CI integration step (IMP-003) | Sprint 1 T7 |
+**File**: `.claude/scripts/post-pr-orchestrator.sh` (modify, ~40 lines added)
+**SDD Reference**: §3.3
+
+**Description**: Wire the DOC_TEST phase into the orchestrator state machine:
+1. Add `STATE_DOC_TEST="DOC_TEST"` constant
+2. Add `DOC_TEST_SCRIPT="${SCRIPT_DIR}/post-pr-doc-test.sh"` reference
+3. Add `TIMEOUT_DOC_TEST="${TIMEOUT_DOC_TEST:-600}"` timeout
+4. Add `--skip-doc-test` CLI option
+5. Add `phase_doc_test()` handler between `phase_post_pr_audit()`/`phase_fix_audit()` and `phase_context_clear()`
+6. Update state machine transition: `FIX_AUDIT → DOC_TEST → CONTEXT_CLEAR`
+7. Add `surface_degraded_state()` — after all phases, check `.run/post-pr-degraded.json` and post PR comment if present (per SKP-001)
+8. Handle CI/headless mode: if `post-pr-doc-test-results.json` doesn't appear within 10s after manifest written, mark DOC_TEST as skipped with degraded marker (per IMP-003)
+
+**Acceptance Criteria**:
+- [ ] `STATE_DOC_TEST` constant defined
+- [ ] `phase_doc_test()` function implemented per SDD §3.3
+- [ ] DOC_TEST phase executes between FIX_AUDIT and CONTEXT_CLEAR
+- [ ] `--skip-doc-test` flag skips the phase
+- [ ] `doc_test.enabled: false` config skips the phase
+- [ ] Phase handles exit codes: 0 (pass), 1 (blocking gaps — log and continue), 124 (timeout — skip), other (skip)
+- [ ] No fix loop for DOC_TEST (design decision D-3)
+- [ ] `surface_degraded_state()` checks for `.run/post-pr-degraded.json` after all phases
+- [ ] Degraded state surfaced as PR comment: "Quality gate degraded: {phase} was skipped ({reason})"
+- [ ] CI/headless fallback: 10s deadline for results file (per IMP-003)
+
+**Estimated Effort**: Medium (modifying existing state machine — need to be precise)
+**Dependencies**: Task 1.2 (DOC_TEST_SCRIPT must exist)
+**Testing**: Run orchestrator in dry-run mode. Verify state transitions.
+
+---
+
+## Sprint 2: Config, Documentation, and Integration Testing
+
+**Goal**: Add configuration, update SKILL.md docs, write integration tests, and verify end-to-end.
+
+### Task 2.1: Update `.loa.config.yaml.example` — New Config Sections
+
+**File**: `.loa.config.yaml.example` (modify, ~25 lines added)
+**SDD Reference**: §3.4
+
+**Description**: Add new config sections under `post_pr_validation.phases`:
+1. Expand `audit` section: add `provider`, `timeout_seconds`, `failure_policy`, `min_severity`
+2. Add `doc_test` section: `enabled`, `max_docs`, `timeout_per_doc`, `timeout_total`, `failure_policy`, `exclude_patterns`
+3. Add inline comments explaining each option
+
+**Acceptance Criteria**:
+- [ ] `post_pr_validation.phases.audit.provider` added with `bridgebuilder` default
+- [ ] `post_pr_validation.phases.audit.failure_policy` added with `fail_open` default
+- [ ] `post_pr_validation.phases.audit.timeout_seconds` added (120)
+- [ ] `post_pr_validation.phases.audit.min_severity` added (`medium`)
+- [ ] `post_pr_validation.phases.doc_test` section added with all fields from SDD §3.4
+- [ ] `exclude_patterns` includes all 5 default patterns
+- [ ] Comments explain `fail_open` vs `fail_closed` and CI recommendation
+- [ ] Existing config structure preserved (no breaking changes)
+
+**Estimated Effort**: Low
+**Dependencies**: None
+**Testing**: `yq` can parse the example config without errors.
+
+---
+
+### Task 2.2: Update `run-mode/SKILL.md` — Document RTFM Manifest Handling
+
+**File**: `.claude/skills/run-mode/SKILL.md` (modify, ~30 lines added)
+**SDD Reference**: §3.2 Agent-Side Contract (IMP-010)
+
+**Description**: Add documentation for the agent-side RTFM manifest contract:
+1. After DOC_TEST phase, check for `.run/rtfm-manifest.json`
+2. If present: validate schema, invoke `/rtfm` for each doc, write results with matching `run_id`
+3. Cleanup manifest after processing
+4. Document the full agent-side contract table from SDD §3.2
+
+**Acceptance Criteria**:
+- [ ] RTFM manifest detection documented in run-mode SKILL.md
+- [ ] Agent-side contract table included (detection, validation, execution, timeouts, partial failure, results, cleanup)
+- [ ] Example manifest JSON shown
+- [ ] Per-doc timeout and total timeout honored
+- [ ] Partial failure behavior documented (continue to next doc on error)
+- [ ] Results schema documented with `run_id` correlation
+
+**Estimated Effort**: Low
+**Dependencies**: Task 1.2 (manifest schema must be finalized)
+**Testing**: Manual review that SKILL.md accurately reflects SDD §3.2.
+
+---
+
+### Task 2.3: Integration Test — End-to-End Post-PR Validation
+
+**Description**: Verify the full post-PR validation loop works end-to-end:
+1. Create a test PR (or use an existing one) with both code and `.md` changes
+2. Run `post-pr-orchestrator.sh --pr-url <test-pr>` and verify:
+   - POST_PR_AUDIT: fast-pass runs, then Bridgebuilder invokes (or skips if API key missing)
+   - DOC_TEST: manifest generated for changed `.md` files
+   - Degraded marker created if Bridgebuilder/RTFM unavailable (fail_open)
+   - State transitions follow: POST_PR_AUDIT → FIX_AUDIT → DOC_TEST → CONTEXT_CLEAR → ...
+3. Test config toggles:
+   - `audit.provider: skip` → POST_PR_AUDIT exits 0 immediately
+   - `doc_test.enabled: false` → DOC_TEST exits 0 immediately
+   - `audit.failure_policy: fail_closed` → blocks on Bridgebuilder error
+
+**Acceptance Criteria**:
+- [ ] Orchestrator completes all phases without error
+- [ ] POST_PR_AUDIT writes `.run/post-pr-audit-results.json` with valid schema
+- [ ] DOC_TEST writes `.run/rtfm-manifest.json` when `.md` files changed
+- [ ] DOC_TEST skips when no `.md` files changed
+- [ ] Exclude patterns correctly filter out a2a artifacts and CHANGELOG.md
+- [ ] `--skip-doc-test` flag works
+- [ ] `provider: skip` config works for audit phase
+- [ ] `failure_policy` correctly differentiates CI vs local defaults
+- [ ] `.run/post-pr-degraded.json` created on tool errors
+- [ ] Degraded state surfaced in log output
+
+**Estimated Effort**: Medium (E2E testing requires careful setup)
+**Dependencies**: Tasks 1.1, 1.2, 1.3 (all Sprint 1 tasks)
+**Testing**: This IS the test task.
+
+---
+
+## Risk Mitigation
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| Bridgebuilder `entry.sh` doesn't support `--pr`/`--repo` flags | HIGH | **Task 1.0**: preflight spike validates contract before implementation (SKP-002) |
+| `post-pr-orchestrator.sh` state machine is complex (684 lines) | MEDIUM | Minimal changes — only add DOC_TEST phase, don't refactor existing logic |
+| Regex fast-pass removal could miss patterns Bridgebuilder handles | LOW | D-1 revised: keep fast-pass, don't remove it |
+| RTFM manifest has no agent consumer in CI | MEDIUM | IMP-003/SKP-001: 10s deadline fallback + degraded marker; CI limitation accepted and documented |
+| `gh` CLI not authenticated or missing in CI | MEDIUM | SKP-004: verify `gh auth status` in preflight + per-script auth checks |
+| Config failure_policy defaults mismatch example vs code | MEDIUM | SKP-003: single precedence order documented; example config shows CI-recommended settings |
+
+---
+
+## Success Criteria
+
+| Criterion | Measurement |
+|-----------|-------------|
+| Bridgebuilder runs on PRs from `/run sprint-plan` | Manual test: run orchestrator, verify audit results JSON |
+| RTFM manifest generated for changed `.md` files | Manual test: run doc-test script, verify manifest JSON |
+| Config toggles work (provider, enabled, failure_policy) | Integration test: verify each toggle |
+| No regressions in existing post-PR phases | All existing phases still complete normally |
+| Degraded state always surfaced (never silent approval) | Verify `.run/post-pr-degraded.json` on error paths |
+| CI/headless DOC_TEST degrades gracefully | Test with no agent: verify degraded marker created within 10s |
+| `gh` auth failures handled cleanly | Remove `GITHUB_TOKEN`, verify `failure_policy` path triggered |
+
+---
+
+## Flatline Sprint Review Log
+
+**Review Date**: 2026-02-09
+**Agreement**: 90%
+**Findings**: 3 HIGH_CONSENSUS + 1 DISPUTED (accepted) + 4 BLOCKERS (accepted)
+
+### HIGH_CONSENSUS Integrated
+
+| ID | Finding | Score | Integration |
+|----|---------|-------|-------------|
+| IMP-002 | Add gated preflight spike to verify BB CLI contract | 855 | Added Task 1.0 as gate before Task 1.1 |
+| IMP-003 | Include required-fields tables + SDD schema links | 765 | Added Required Fields sections to Tasks 1.1, 1.2 |
+| IMP-004 | Declare CI limitation for DOC_TEST explicitly | 815 | Added CI Limitation note to Task 1.2; accepted limitation documented |
+
+### DISPUTED Accepted
+
+| ID | Finding | GPT | Opus | Integration |
+|----|---------|-----|------|-------------|
+| IMP-001 | Document entry.sh flags/output/exit codes as preflight | 910 | 520 | Merged into Task 1.0 (combined with IMP-002/SKP-002) |
+
+### BLOCKERS Accepted
+
+| ID | Concern | Score | Integration |
+|----|---------|-------|-------------|
+| SKP-001 | CI RTFM execution model undefined/fragile | 930 | CI limitation accepted + documented; 10s deadline + degraded marker |
+| SKP-002 | BB CLI contract not validated; may block sprint | 900 | Task 1.0 preflight spike is a gate — HALT if contract doesn't match |
+| SKP-003 | Failure policy defaults inconsistent | 760 | Precedence order documented in Task 1.1; config example to show CI settings |
+| SKP-004 | Over-reliance on `gh` without auth/availability checks | 740 | `gh` prereqs added to Tasks 1.0, 1.1, 1.2; `gh auth status` verification |

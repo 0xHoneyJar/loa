@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
-# post-pr-audit.sh - Consolidated PR Audit for Post-PR Validation Loop
-# Part of Loa Framework v1.25.0
+# post-pr-audit.sh - Bridgebuilder-Powered PR Audit for Post-PR Validation Loop
+# Part of Loa Framework v1.32.0
 #
-# Fetches PR changes and runs security/quality audit with fix classification.
+# Phase 1: Deterministic fast-pass (secrets, console.log, empty catch)
+# Phase 2: LLM-powered deep analysis via Bridgebuilder
 #
 # Usage:
 #   post-pr-audit.sh --pr-url <url> [--context-dir <dir>] [--dry-run]
 #
 # Exit codes:
 #   0 - APPROVED (no issues found)
-#   1 - CHANGES_REQUIRED (auto-fixable issues found)
-#   2 - ESCALATED (complex issues requiring human review)
+#   1 - CHANGES_REQUIRED (findings above min_severity threshold)
+#   2 - ESCALATED (fail_closed policy triggered on error)
 #   3 - ERROR (script error)
 
 set -euo pipefail
@@ -21,11 +22,16 @@ set -euo pipefail
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly STATE_SCRIPT="${SCRIPT_DIR}/post-pr-state.sh"
+readonly SKILL_DIR="${SCRIPT_DIR}/../skills/bridgebuilder-review"
+readonly BB_ENTRY="${SKILL_DIR}/resources/entry.sh"
 
-# Retry policy (Flatline IMP-003)
+# Retry policy
 readonly MAX_ATTEMPTS="${MAX_ATTEMPTS:-3}"
-readonly BACKOFF_DELAYS=(1 2 4)  # Exponential backoff in seconds
+readonly BACKOFF_DELAYS=(1 2 4)
 readonly TIMEOUT_PER_ATTEMPT="${TIMEOUT_PER_ATTEMPT:-30}"
+
+# Bridgebuilder timeout (IMP-001)
+readonly BB_TIMEOUT="${BB_TIMEOUT:-120}"
 
 # Output directories
 readonly BASE_CONTEXT_DIR="${BASE_CONTEXT_DIR:-grimoires/loa/a2a}"
@@ -42,14 +48,17 @@ log_error() {
   echo "[ERROR] $*" >&2
 }
 
+log_warning() {
+  echo "[WARN] $*" >&2
+}
+
 log_debug() {
   if [[ "${DEBUG:-}" == "true" ]]; then
     echo "[DEBUG] $*" >&2
   fi
 }
 
-# Retry with exponential backoff (Flatline IMP-003)
-# H-1 fix: Use array-based execution to avoid bash -c string injection
+# Retry with exponential backoff
 # Usage: retry_with_backoff output_file cmd [args...]
 retry_with_backoff() {
   local output_file="$1"
@@ -61,7 +70,6 @@ retry_with_backoff() {
     log_debug "Attempt $attempt/$MAX_ATTEMPTS: ${cmd_array[*]}"
 
     local result=0
-    # Execute command array directly, redirect output to file
     if timeout "$TIMEOUT_PER_ATTEMPT" "${cmd_array[@]}" > "$output_file" 2>/dev/null; then
       return 0
     else
@@ -82,11 +90,9 @@ retry_with_backoff() {
 }
 
 # ============================================================================
-# Finding Identity Algorithm (Flatline IMP-004)
+# Finding Identity Algorithm
 # ============================================================================
 
-# Generate stable 16-char hash for a finding
-# Uses: category, rule_id, file, normalized_line, severity
 finding_identity() {
   local category="${1:-}"
   local rule_id="${2:-}"
@@ -94,18 +100,13 @@ finding_identity() {
   local line="${4:-0}"
   local severity="${5:-}"
 
-  # Normalize line number to ±5 tolerance (round to nearest 10)
   local normalized_line
   normalized_line=$(( (line / 10) * 10 ))
 
-  # Build identity string
   local identity_str="${category}|${rule_id}|${file}|${normalized_line}|${severity}"
-
-  # Generate SHA256 and take first 16 chars
   echo -n "$identity_str" | sha256sum | cut -c1-16
 }
 
-# Check if finding identity is already known (circuit breaker)
 is_known_finding() {
   local identity="$1"
   local state_file="${2:-}"
@@ -114,7 +115,6 @@ is_known_finding() {
     return 1
   fi
 
-  # Check if identity is in finding_identities array
   if jq -e --arg id "$identity" '.audit.finding_identities | index($id)' "$state_file" >/dev/null 2>&1; then
     return 0
   fi
@@ -122,24 +122,17 @@ is_known_finding() {
   return 1
 }
 
-# Add finding identity to state
 add_finding_identity() {
   local identity="$1"
 
   if [[ -x "$STATE_SCRIPT" ]]; then
-    # Get current identities
     local current
     current=$("$STATE_SCRIPT" get "audit.finding_identities" 2>/dev/null || echo "[]")
 
-    # Add new identity
     local updated
     updated=$(echo "$current" | jq --arg id "$identity" '. + [$id] | unique')
 
-    # Update state (using jq to set array)
-    local state_file
-    state_file=$("$STATE_SCRIPT" get 2>/dev/null | jq -r 'empty' 2>/dev/null && echo ".run/post-pr-state.json" || echo "")
-
-    if [[ -n "$state_file" ]] && [[ -f ".run/post-pr-state.json" ]]; then
+    if [[ -f ".run/post-pr-state.json" ]]; then
       jq --argjson ids "$updated" '.audit.finding_identities = $ids' ".run/post-pr-state.json" > ".run/post-pr-state.json.tmp"
       mv ".run/post-pr-state.json.tmp" ".run/post-pr-state.json"
     fi
@@ -147,25 +140,149 @@ add_finding_identity() {
 }
 
 # ============================================================================
-# PR Metadata Fetching
+# Failure Policy (SKP-001 / SDD §3.1)
 # ============================================================================
+
+# Resolve failure policy with environment-aware defaults
+# Precedence: config override > environment default > hard default
+resolve_failure_policy() {
+  local phase="${1:-audit}"
+
+  # 1. Explicit config takes precedence
+  local explicit=""
+  if command -v yq >/dev/null 2>&1 && [[ -f .loa.config.yaml ]]; then
+    explicit=$(yq ".post_pr_validation.phases.${phase}.failure_policy // \"\"" \
+      .loa.config.yaml 2>/dev/null || echo "")
+  fi
+
+  if [[ -n "$explicit" ]]; then
+    echo "$explicit"
+    return
+  fi
+
+  # 2. Environment-aware default
+  if [[ -n "${CI:-}" || -n "${GITHUB_ACTIONS:-}" || -n "${CLAWDBOT_GATEWAY_TOKEN:-}" ]]; then
+    echo "fail_closed"
+  else
+    echo "fail_open"
+  fi
+}
+
+# Handle phase error — always creates degraded marker (NFR-1: never silent approval)
+handle_phase_error() {
+  local phase="$1"
+  local error_msg="$2"
+  local policy
+  policy=$(resolve_failure_policy "$phase")
+
+  log_warning "Phase error: $error_msg (policy: $policy)"
+
+  # Always create degraded marker
+  mkdir -p .run
+  jq -n --arg phase "$phase" --arg reason "$error_msg" \
+    --arg policy "$policy" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    '{phase: $phase, reason: $reason, policy: $policy, timestamp: $ts}' \
+    > .run/post-pr-degraded.json
+
+  if [[ "$policy" == "fail_closed" ]]; then
+    log_error "fail_closed: blocking pipeline"
+    exit 2
+  else
+    log_warning "fail_open: continuing with degraded marker"
+    exit 0
+  fi
+}
+
+# ============================================================================
+# Provider Resolution
+# ============================================================================
+
+resolve_audit_provider() {
+  local provider="bridgebuilder"
+  if command -v yq >/dev/null 2>&1 && [[ -f .loa.config.yaml ]]; then
+    provider=$(yq '.post_pr_validation.phases.audit.provider // "bridgebuilder"' \
+      .loa.config.yaml 2>/dev/null || echo "bridgebuilder")
+  fi
+  echo "$provider"
+}
+
+resolve_min_severity() {
+  local min_severity="medium"
+  if command -v yq >/dev/null 2>&1 && [[ -f .loa.config.yaml ]]; then
+    min_severity=$(yq '.post_pr_validation.phases.audit.min_severity // "medium"' \
+      .loa.config.yaml 2>/dev/null || echo "medium")
+  fi
+  echo "$min_severity"
+}
+
+resolve_bb_timeout() {
+  local timeout="$BB_TIMEOUT"
+  if command -v yq >/dev/null 2>&1 && [[ -f .loa.config.yaml ]]; then
+    local cfg_timeout
+    cfg_timeout=$(yq '.post_pr_validation.phases.audit.timeout_seconds // ""' \
+      .loa.config.yaml 2>/dev/null || echo "")
+    if [[ -n "$cfg_timeout" ]]; then
+      timeout="$cfg_timeout"
+    fi
+  fi
+  echo "$timeout"
+}
+
+# ============================================================================
+# PR Metadata — Canonical Extraction (SKP-004)
+# ============================================================================
+
+# Verify gh CLI is installed and authenticated
+verify_gh_auth() {
+  if ! command -v gh >/dev/null 2>&1; then
+    handle_phase_error "POST_PR_AUDIT" "gh CLI not installed"
+  fi
+
+  if ! gh auth status >/dev/null 2>&1; then
+    handle_phase_error "POST_PR_AUDIT" "gh CLI not authenticated (run: gh auth login)"
+  fi
+}
+
+# Extract PR number and repo from URL using gh (SKP-004: canonical, not URL parsing)
+extract_pr_info() {
+  local pr_url="$1"
+
+  # Use gh pr view to canonically resolve PR info
+  local pr_json
+  pr_json=$(gh pr view "$pr_url" --json number,headRefName,baseRefName,url 2>&1) || {
+    handle_phase_error "POST_PR_AUDIT" "gh pr view failed for $pr_url"
+  }
+
+  local pr_number
+  pr_number=$(echo "$pr_json" | jq -r '.number')
+
+  # Extract owner/repo from canonical URL
+  local canonical_url
+  canonical_url=$(echo "$pr_json" | jq -r '.url')
+  local repo_name
+  repo_name=$(echo "$canonical_url" | sed 's|https://github.com/||' | sed 's|/pull/[0-9]*||')
+
+  if [[ -z "$pr_number" || "$pr_number" == "null" ]]; then
+    handle_phase_error "POST_PR_AUDIT" "Could not extract PR number from $pr_url"
+  fi
+
+  echo "${pr_number}|${repo_name}"
+}
 
 fetch_pr_metadata() {
   local pr_url="$1"
   local output_file="$2"
 
-  # Extract owner/repo/number from URL
-  local pr_path
-  pr_path=$(echo "$pr_url" | sed 's|https://github.com/||')
-  local owner repo number
-  owner=$(echo "$pr_path" | cut -d'/' -f1)
-  repo=$(echo "$pr_path" | cut -d'/' -f2)
-  number=$(echo "$pr_path" | cut -d'/' -f4)
+  # Extract owner/repo from canonical URL for --repo flag
+  local pr_info
+  pr_info=$(extract_pr_info "$pr_url")
+  local pr_number repo_name
+  pr_number="${pr_info%%|*}"
+  repo_name="${pr_info##*|}"
 
-  log_info "Fetching PR #$number from $owner/$repo"
+  log_info "Fetching PR #$pr_number from $repo_name"
 
-  # Fetch with retry - H-1 fix: use array-based execution
-  if retry_with_backoff "$output_file" gh pr view "$number" --repo "$owner/$repo" \
+  if retry_with_backoff "$output_file" gh pr view "$pr_number" --repo "$repo_name" \
       --json number,title,body,files,additions,deletions,changedFiles,baseRefName,headRefName,state; then
     log_info "PR metadata fetched successfully"
     return 0
@@ -175,88 +292,39 @@ fetch_pr_metadata() {
   fi
 }
 
-# Get list of changed files from PR metadata
-get_changed_files() {
-  local metadata_file="$1"
-
-  jq -r '.files[].path' "$metadata_file" 2>/dev/null || echo ""
-}
-
 # ============================================================================
-# Audit Execution
+# Phase 1: Deterministic Fast-Pass (SKP-003)
 # ============================================================================
 
-# Create audit context directory with PR information
-create_audit_context() {
-  local pr_number="$1"
-  local metadata_file="$2"
-  local context_dir="${BASE_CONTEXT_DIR}/pr-${pr_number}"
-
-  mkdir -p "$context_dir"
-
-  # Copy metadata
-  cp "$metadata_file" "${context_dir}/pr-metadata.json"
-
-  # Create summary
-  local title body additions deletions
-  title=$(jq -r '.title' "$metadata_file")
-  body=$(jq -r '.body // "No description"' "$metadata_file")
-  additions=$(jq -r '.additions' "$metadata_file")
-  deletions=$(jq -r '.deletions' "$metadata_file")
-
-  cat > "${context_dir}/pr-summary.md" << EOF
-# PR #${pr_number}: ${title}
-
-## Stats
-- Additions: ${additions}
-- Deletions: ${deletions}
-
-## Description
-${body}
-
-## Changed Files
-$(jq -r '.files[].path' "$metadata_file" | sed 's/^/- /')
-EOF
-
-  echo "$context_dir"
-}
-
-# Run audit and classify findings
-run_audit() {
+run_fast_checks() {
   local context_dir="$1"
-  local findings_file="${context_dir}/audit-findings.json"
-  local report_file="${context_dir}/audit-report.md"
+  local findings_file="${context_dir}/fast-check-findings.json"
 
-  log_info "Running audit on PR changes..."
+  log_info "Running deterministic fast-pass checks..."
 
-  # Get changed files
   local changed_files
   changed_files=$(jq -r '.files[].path' "${context_dir}/pr-metadata.json" 2>/dev/null | tr '\n' ' ')
 
   if [[ -z "$changed_files" ]]; then
-    log_info "No files changed, audit APPROVED"
+    log_info "No files changed, fast-pass APPROVED"
     echo '{"findings": [], "verdict": "APPROVED"}' > "$findings_file"
     return 0
   fi
 
-  # Initialize findings array
   local findings='[]'
-  local has_auto_fixable=false
-  local has_complex=false
+  local has_critical=false
 
-  # Run basic checks on each file
   for file in $changed_files; do
     if [[ ! -f "$file" ]]; then
       continue
     fi
 
-    # Check for common security issues
-    # 1. Hardcoded secrets
-    if grep -nE "(password|secret|api_key|apikey|token)\s*[:=]\s*['\"][^'\"]+['\"]" "$file" 2>/dev/null; then
+    # Check 1: Hardcoded secrets (critical — exit immediately)
+    if grep -nE "(password|secret|api_key|apikey|token)\s*[:=]\s*['\"][^'\"]+['\"]" "$file" 2>/dev/null | head -1 | read -r match; then
       local line
-      line=$(grep -nE "(password|secret|api_key|apikey|token)\s*[:=]\s*['\"][^'\"]+['\"]" "$file" | head -1 | cut -d: -f1)
+      line=$(echo "$match" | cut -d: -f1)
       local identity
-      identity=$(finding_identity "security" "hardcoded-secret" "$file" "$line" "high")
+      identity=$(finding_identity "security" "hardcoded-secret" "$file" "$line" "critical")
 
       findings=$(echo "$findings" | jq --arg f "$file" --arg l "$line" --arg id "$identity" '. + [{
         "id": $id,
@@ -264,19 +332,19 @@ run_audit() {
         "rule_id": "hardcoded-secret",
         "file": $f,
         "line": ($l | tonumber),
-        "severity": "high",
+        "severity": "critical",
         "message": "Potential hardcoded secret detected",
         "auto_fixable": false
       }]')
-      has_complex=true
+      has_critical=true
       add_finding_identity "$identity"
     fi
 
-    # 2. Console.log in production code (auto-fixable)
+    # Check 2: Console.log in production code
     if [[ "$file" == *.ts || "$file" == *.js ]] && [[ "$file" != *.test.* ]] && [[ "$file" != *.spec.* ]]; then
-      if grep -nE "console\.(log|debug|info)" "$file" 2>/dev/null | grep -v "// eslint-disable"; then
+      if grep -nE "console\.(log|debug|info)" "$file" 2>/dev/null | grep -v "// eslint-disable" | head -1 | read -r match; then
         local line
-        line=$(grep -nE "console\.(log|debug|info)" "$file" 2>/dev/null | head -1 | cut -d: -f1)
+        line=$(echo "$match" | cut -d: -f1)
         local identity
         identity=$(finding_identity "quality" "console-log" "$file" "$line" "low")
 
@@ -288,41 +356,17 @@ run_audit() {
           "line": ($l | tonumber),
           "severity": "low",
           "message": "Console statement in production code",
-          "auto_fixable": true,
-          "fix_hint": "Remove or replace with proper logging"
+          "auto_fixable": true
         }]')
-        has_auto_fixable=true
         add_finding_identity "$identity"
       fi
     fi
 
-    # 3. TODO/FIXME comments (auto-fixable)
-    if grep -nE "(TODO|FIXME|XXX|HACK):" "$file" 2>/dev/null; then
-      local line
-      line=$(grep -nE "(TODO|FIXME|XXX|HACK):" "$file" 2>/dev/null | head -1 | cut -d: -f1)
-      local identity
-      identity=$(finding_identity "quality" "todo-comment" "$file" "$line" "low")
-
-      findings=$(echo "$findings" | jq --arg f "$file" --arg l "$line" --arg id "$identity" '. + [{
-        "id": $id,
-        "category": "quality",
-        "rule_id": "todo-comment",
-        "file": $f,
-        "line": ($l | tonumber),
-        "severity": "low",
-        "message": "Unresolved TODO/FIXME comment",
-        "auto_fixable": true,
-        "fix_hint": "Resolve or remove the comment"
-      }]')
-      has_auto_fixable=true
-      add_finding_identity "$identity"
-    fi
-
-    # 4. Missing error handling in catch blocks
+    # Check 3: Empty catch blocks
     if [[ "$file" == *.ts || "$file" == *.js ]]; then
-      if grep -nE "catch\s*\([^)]*\)\s*\{\s*\}" "$file" 2>/dev/null; then
+      if grep -nE "catch\s*\([^)]*\)\s*\{\s*\}" "$file" 2>/dev/null | head -1 | read -r match; then
         local line
-        line=$(grep -nE "catch\s*\([^)]*\)\s*\{\s*\}" "$file" 2>/dev/null | head -1 | cut -d: -f1)
+        line=$(echo "$match" | cut -d: -f1)
         local identity
         identity=$(finding_identity "quality" "empty-catch" "$file" "$line" "medium")
 
@@ -336,67 +380,214 @@ run_audit() {
           "message": "Empty catch block - errors silently swallowed",
           "auto_fixable": false
         }]')
-        has_complex=true
         add_finding_identity "$identity"
       fi
     fi
   done
 
-  # Determine verdict
-  local verdict="APPROVED"
-  if [[ "$has_complex" == "true" ]]; then
-    verdict="ESCALATED"
-  elif [[ "$has_auto_fixable" == "true" ]]; then
-    verdict="CHANGES_REQUIRED"
+  local fast_count
+  fast_count=$(echo "$findings" | jq 'length')
+  log_info "Fast-pass complete: $fast_count findings"
+
+  # Save fast-pass findings
+  echo "$findings" | jq '{findings: ., fast_pass: true}' > "$findings_file"
+
+  # If critical findings (secrets), exit immediately — no need for Bridgebuilder
+  if [[ "$has_critical" == "true" ]]; then
+    log_error "Critical finding (hardcoded secret) detected in fast-pass — blocking"
+    return 1
   fi
-
-  # Save findings
-  echo "$findings" | jq --arg v "$verdict" '{findings: ., verdict: $v}' > "$findings_file"
-
-  # Generate report
-  generate_audit_report "$findings_file" "$report_file"
-
-  log_info "Audit complete: $verdict ($(echo "$findings" | jq 'length') findings)"
 
   return 0
 }
 
-# Generate markdown audit report
+# ============================================================================
+# Phase 2: Bridgebuilder Deep Analysis
+# ============================================================================
+
+validate_bb_output() {
+  local output="$1"
+
+  # Must be valid JSON with at minimum runId and reviewed fields
+  if ! echo "$output" | jq -e '.runId and (.reviewed != null)' >/dev/null 2>&1; then
+    return 1
+  fi
+
+  return 0
+}
+
+run_bridgebuilder_audit() {
+  local pr_url="$1"
+  local context_dir="$2"
+
+  # Extract PR info
+  local pr_info
+  pr_info=$(extract_pr_info "$pr_url")
+  local pr_number repo_name
+  pr_number="${pr_info%%|*}"
+  repo_name="${pr_info##*|}"
+
+  # Verify Bridgebuilder entry.sh exists
+  if [[ ! -x "$BB_ENTRY" ]]; then
+    handle_phase_error "POST_PR_AUDIT" "Bridgebuilder entry.sh not found or not executable at $BB_ENTRY"
+  fi
+
+  # Check ANTHROPIC_API_KEY
+  if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
+    handle_phase_error "POST_PR_AUDIT" "ANTHROPIC_API_KEY not set — Bridgebuilder requires API access"
+  fi
+
+  log_info "Invoking Bridgebuilder on PR #$pr_number ($repo_name)..."
+
+  local bb_timeout
+  bb_timeout=$(resolve_bb_timeout)
+
+  # Invoke Bridgebuilder — stdout is JSON RunSummary, stderr is diagnostics
+  local bb_output=""
+  local bb_exit=0
+  bb_output=$(timeout "$bb_timeout" "$BB_ENTRY" --pr "$pr_number" --repo "$repo_name" 2>/dev/null) || bb_exit=$?
+
+  # Handle timeout
+  if [[ "$bb_exit" -eq 124 ]]; then
+    handle_phase_error "POST_PR_AUDIT" "Bridgebuilder timed out after ${bb_timeout}s"
+  fi
+
+  # Handle non-zero exit (Bridgebuilder reports errors via exit 1)
+  if [[ "$bb_exit" -ne 0 ]]; then
+    # Validate output even on failure — Bridgebuilder may have partial results
+    if [[ -n "$bb_output" ]] && validate_bb_output "$bb_output"; then
+      local errors
+      errors=$(echo "$bb_output" | jq -r '.errors // 0')
+      if [[ "$errors" -gt 0 ]]; then
+        log_warning "Bridgebuilder reported $errors error(s)"
+        # Continue — we can still process partial results
+      fi
+    else
+      handle_phase_error "POST_PR_AUDIT" "Bridgebuilder failed (exit $bb_exit) with invalid output"
+    fi
+  fi
+
+  # Validate JSON output schema (SKP-004)
+  if [[ -z "$bb_output" ]]; then
+    handle_phase_error "POST_PR_AUDIT" "Bridgebuilder produced empty output"
+  fi
+
+  if ! validate_bb_output "$bb_output"; then
+    handle_phase_error "POST_PR_AUDIT" "Invalid Bridgebuilder output: missing required fields (runId, reviewed)"
+  fi
+
+  # Parse RunSummary
+  local reviewed skipped errors
+  reviewed=$(echo "$bb_output" | jq -r '.reviewed // 0')
+  skipped=$(echo "$bb_output" | jq -r '.skipped // 0')
+  errors=$(echo "$bb_output" | jq -r '.errors // 0')
+
+  log_info "Bridgebuilder results: reviewed=$reviewed, skipped=$skipped, errors=$errors"
+
+  # Write structured results (IMP-003)
+  local status="clean"
+  if [[ "$errors" -gt 0 ]]; then
+    status="error"
+  elif [[ "$reviewed" -gt 0 ]]; then
+    status="clean"
+  elif [[ "$skipped" -gt 0 ]]; then
+    status="skipped"
+  fi
+
+  mkdir -p .run
+  jq -n \
+    --arg tool "bridgebuilder" \
+    --arg version "2.1.0" \
+    --argjson pr_number "$pr_number" \
+    --arg repo "$repo_name" \
+    --arg status "$status" \
+    --argjson reviewed "$reviewed" \
+    --argjson skipped "$skipped" \
+    --argjson errors "$errors" \
+    --arg run_id "$(echo "$bb_output" | jq -r '.runId // "unknown"')" \
+    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    '{
+      tool: $tool,
+      version: $version,
+      pr_number: $pr_number,
+      repo: $repo,
+      status: $status,
+      bridgebuilder_summary: {
+        reviewed: $reviewed,
+        skipped: $skipped,
+        errors: $errors,
+        run_id: $run_id
+      },
+      review_posted: ($reviewed > 0),
+      error_message: null,
+      timestamp: $ts
+    }' > .run/post-pr-audit-results.json
+
+  # Save raw Bridgebuilder output to context
+  echo "$bb_output" > "${context_dir}/bridgebuilder-output.json"
+
+  # Determine verdict based on errors
+  if [[ "$errors" -gt 0 ]]; then
+    return 1  # CHANGES_REQUIRED
+  fi
+
+  return 0  # APPROVED
+}
+
+# ============================================================================
+# Audit Context
+# ============================================================================
+
+create_audit_context() {
+  local pr_number="$1"
+  local metadata_file="$2"
+  local context_dir="${BASE_CONTEXT_DIR}/pr-${pr_number}"
+
+  mkdir -p "$context_dir"
+  cp "$metadata_file" "${context_dir}/pr-metadata.json"
+
+  local title additions deletions
+  title=$(jq -r '.title' "$metadata_file")
+  additions=$(jq -r '.additions' "$metadata_file")
+  deletions=$(jq -r '.deletions' "$metadata_file")
+
+  cat > "${context_dir}/pr-summary.md" << EOF
+# PR #${pr_number}: ${title}
+
+## Stats
+- Additions: ${additions}
+- Deletions: ${deletions}
+
+## Changed Files
+$(jq -r '.files[].path' "$metadata_file" | sed 's/^/- /')
+EOF
+
+  echo "$context_dir"
+}
+
 generate_audit_report() {
   local findings_file="$1"
   local report_file="$2"
 
-  local verdict
-  verdict=$(jq -r '.verdict' "$findings_file")
   local findings_count
   findings_count=$(jq '.findings | length' "$findings_file")
 
   cat > "$report_file" << EOF
 # Audit Report
 
-**Verdict:** ${verdict}
-**Findings:** ${findings_count}
 **Generated:** $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+**Fast-pass findings:** ${findings_count}
 
-## Summary
+## Fast-Pass Results
 
 EOF
 
   if (( findings_count == 0 )); then
-    echo "No issues found. PR is approved." >> "$report_file"
+    echo "No fast-pass issues found." >> "$report_file"
   else
-    # Group by category
-    echo "### By Category" >> "$report_file"
-    echo "" >> "$report_file"
-
-    jq -r '.findings | group_by(.category) | .[] | "- **\(.[0].category)**: \(length) finding(s)"' "$findings_file" >> "$report_file"
-
-    echo "" >> "$report_file"
     echo "### Findings" >> "$report_file"
     echo "" >> "$report_file"
-
-    # List each finding
-    jq -r '.findings[] | "#### [\(.severity | ascii_upcase)] \(.rule_id)\n- **File:** \(.file):\(.line)\n- **Message:** \(.message)\n- **Auto-fixable:** \(.auto_fixable)\n"' "$findings_file" >> "$report_file"
+    jq -r '.findings[] | "#### [\(.severity | ascii_upcase)] \(.rule_id)\n- **File:** \(.file):\(.line)\n- **Message:** \(.message)\n"' "$findings_file" >> "$report_file"
   fi
 }
 
@@ -427,11 +618,13 @@ main() {
       --help|-h)
         echo "Usage: post-pr-audit.sh --pr-url <url> [--context-dir <dir>] [--dry-run]"
         echo ""
+        echo "Runs two-phase audit: deterministic fast-pass + Bridgebuilder deep analysis."
+        echo ""
         echo "Exit codes:"
-        echo "  0 - APPROVED"
-        echo "  1 - CHANGES_REQUIRED"
-        echo "  2 - ESCALATED"
-        echo "  3 - ERROR"
+        echo "  0 - APPROVED (no issues found)"
+        echo "  1 - CHANGES_REQUIRED (findings above min_severity)"
+        echo "  2 - ESCALATED (fail_closed policy on error)"
+        echo "  3 - ERROR (script error)"
         exit 0
         ;;
       *)
@@ -447,25 +640,43 @@ main() {
     exit 3
   fi
 
-  # Extract PR number
-  local pr_number
-  pr_number=$(echo "$pr_url" | grep -oE '[0-9]+$')
+  # Check provider config
+  local provider
+  provider=$(resolve_audit_provider)
 
-  if [[ -z "$pr_number" ]]; then
-    log_error "Could not extract PR number from URL: $pr_url"
-    exit 3
-  fi
+  case "$provider" in
+    skip)
+      log_info "Audit provider: skip — exiting with APPROVED"
+      exit 0
+      ;;
+    bridgebuilder)
+      log_info "Audit provider: bridgebuilder"
+      ;;
+    *)
+      log_error "Unknown audit provider: $provider"
+      exit 3
+      ;;
+  esac
 
-  # Set context directory
-  if [[ -z "$context_dir" ]]; then
-    context_dir="${BASE_CONTEXT_DIR}/pr-${pr_number}"
-  fi
+  # Verify gh CLI auth (SKP-004)
+  verify_gh_auth
 
   # Dry run
   if [[ "$dry_run" == "true" ]]; then
-    echo "Would audit PR #$pr_number"
-    echo "Context directory: $context_dir"
+    echo "Would audit PR: $pr_url"
+    echo "Provider: $provider"
+    echo "Failure policy: $(resolve_failure_policy audit)"
     exit 0
+  fi
+
+  # Extract PR info for context directory
+  local pr_info
+  pr_info=$(extract_pr_info "$pr_url")
+  local pr_number
+  pr_number="${pr_info%%|*}"
+
+  if [[ -z "$context_dir" ]]; then
+    context_dir="${BASE_CONTEXT_DIR}/pr-${pr_number}"
   fi
 
   # Create temp file for metadata
@@ -475,36 +686,55 @@ main() {
 
   # Fetch PR metadata
   if ! fetch_pr_metadata "$pr_url" "$metadata_file"; then
-    log_error "Failed to fetch PR metadata"
-    exit 3
+    handle_phase_error "POST_PR_AUDIT" "Failed to fetch PR metadata"
   fi
 
   # Create audit context
   context_dir=$(create_audit_context "$pr_number" "$metadata_file")
   log_info "Audit context: $context_dir"
 
-  # Run audit
-  run_audit "$context_dir"
+  # ========== Phase 1: Deterministic fast-pass (SKP-003) ==========
+  local fast_result=0
+  run_fast_checks "$context_dir" || fast_result=$?
 
-  # Get verdict
-  local verdict
-  verdict=$(jq -r '.verdict' "${context_dir}/audit-findings.json")
+  if [[ "$fast_result" -ne 0 ]]; then
+    # Critical finding in fast-pass — generate report and exit
+    generate_audit_report "${context_dir}/fast-check-findings.json" "${context_dir}/audit-report.md"
+    log_error "Fast-pass detected critical issues — CHANGES_REQUIRED"
 
-  case "$verdict" in
-    APPROVED)
-      log_info "Audit APPROVED - no issues found"
+    # Write results
+    mkdir -p .run
+    jq -n \
+      --arg tool "fast-pass" \
+      --argjson pr_number "$pr_number" \
+      --arg status "findings" \
+      --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      '{tool: $tool, pr_number: $pr_number, status: $status, phase: "fast_pass", timestamp: $ts}' \
+      > .run/post-pr-audit-results.json
+
+    exit 1
+  fi
+
+  # ========== Phase 2: Bridgebuilder deep analysis ==========
+  local bb_result=0
+  run_bridgebuilder_audit "$pr_url" "$context_dir" || bb_result=$?
+
+  # Generate combined report
+  if [[ -f "${context_dir}/fast-check-findings.json" ]]; then
+    generate_audit_report "${context_dir}/fast-check-findings.json" "${context_dir}/audit-report.md"
+  fi
+
+  case "$bb_result" in
+    0)
+      log_info "Audit APPROVED — Bridgebuilder review posted, no errors"
       exit 0
       ;;
-    CHANGES_REQUIRED)
-      log_info "Audit requires changes - auto-fixable issues found"
+    1)
+      log_info "Audit CHANGES_REQUIRED — Bridgebuilder reported errors"
       exit 1
       ;;
-    ESCALATED)
-      log_info "Audit ESCALATED - complex issues require human review"
-      exit 2
-      ;;
     *)
-      log_error "Unknown verdict: $verdict"
+      log_error "Unexpected Bridgebuilder result: $bb_result"
       exit 3
       ;;
   esac

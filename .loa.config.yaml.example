@@ -931,8 +931,39 @@ post_pr_validation:
       enabled: true
       # Maximum fix iterations before escalating
       max_iterations: 5
-      # Skip findings below this severity
+      # Skip findings below this severity (low | medium | high | critical)
       min_severity: "medium"
+      # Audit provider: bridgebuilder (LLM-powered) | skip (exit 0 immediately)
+      provider: "bridgebuilder"
+      # Timeout for Bridgebuilder invocation (seconds)
+      timeout_seconds: 120
+      # Failure policy when Bridgebuilder errors or is unavailable
+      # Precedence: config override > CI env detection > hard default
+      #   - CI/GITHUB_ACTIONS/CLAWDBOT_GATEWAY_TOKEN → fail_closed (block pipeline)
+      #   - Local development → fail_open (log degraded, continue)
+      # Uncomment to override environment detection:
+      # failure_policy: "fail_open"   # fail_open | fail_closed
+
+    # RTFM documentation testing — manifest-based (v1.32.0)
+    # Generates an RTFM manifest for changed .md files in the PR.
+    # The calling agent consumes the manifest and invokes /rtfm per doc.
+    doc_test:
+      enabled: true
+      # Maximum number of docs to test per PR (caps large PRs)
+      max_docs: 5
+      # Per-doc timeout for RTFM invocation (seconds)
+      timeout_per_doc: 180
+      # Total timeout for all docs (seconds)
+      timeout_total: 600
+      # Failure policy (same precedence as audit.failure_policy above)
+      # failure_policy: "fail_open"
+      # Glob patterns to exclude from doc testing
+      exclude_patterns:
+        - "grimoires/loa/a2a/**"
+        - "CHANGELOG.md"
+        - "**/reviewer.md"
+        - "**/engineer-feedback.md"
+        - "**/auditor-sprint-feedback.md"
 
     # Context clearing for fresh-eyes review
     context_clear:
@@ -961,6 +992,7 @@ post_pr_validation:
   # -------------------------------------------------------------------------
   timeouts:
     post_pr_audit: 600    # 10 minutes
+    doc_test: 600         # 10 minutes (manifest generation + agent consumption)
     context_clear: 60     # 1 minute
     e2e_testing: 1200     # 20 minutes
     flatline_pr: 300      # 5 minutes

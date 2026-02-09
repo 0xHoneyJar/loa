@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # post-pr-orchestrator.sh - Post-PR Validation Loop Orchestrator
-# Part of Loa Framework v1.25.0
+# Part of Loa Framework v1.32.0
 #
 # Executes validation phases after PR creation:
-#   PR_CREATED → POST_PR_AUDIT → CONTEXT_CLEAR → E2E_TESTING → FLATLINE_PR → READY_FOR_HITL
+#   PR_CREATED → POST_PR_AUDIT → DOC_TEST → CONTEXT_CLEAR → E2E_TESTING → FLATLINE_PR → READY_FOR_HITL
 #
 # Usage:
 #   post-pr-orchestrator.sh --pr-url <url> [options]
@@ -12,6 +12,7 @@
 #   --pr-url <url>      PR URL (required)
 #   --mode <mode>       Mode: autonomous | hitl (default: autonomous)
 #   --skip-audit        Skip audit phase
+#   --skip-doc-test     Skip doc test (RTFM) phase
 #   --skip-e2e          Skip E2E testing phase
 #   --skip-flatline     Skip Flatline PR review phase
 #   --dry-run           Show planned phases without executing
@@ -35,6 +36,7 @@ set -euo pipefail
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly STATE_SCRIPT="${SCRIPT_DIR}/post-pr-state.sh"
 readonly AUDIT_SCRIPT="${SCRIPT_DIR}/post-pr-audit.sh"
+readonly DOC_TEST_SCRIPT="${SCRIPT_DIR}/post-pr-doc-test.sh"
 readonly CONTEXT_SCRIPT="${SCRIPT_DIR}/post-pr-context-clear.sh"
 readonly E2E_SCRIPT="${SCRIPT_DIR}/post-pr-e2e.sh"
 
@@ -42,12 +44,14 @@ readonly E2E_SCRIPT="${SCRIPT_DIR}/post-pr-e2e.sh"
 readonly TIMEOUT_POST_PR_AUDIT="${TIMEOUT_POST_PR_AUDIT:-600}"    # 10 min
 readonly TIMEOUT_CONTEXT_CLEAR="${TIMEOUT_CONTEXT_CLEAR:-60}"     # 1 min
 readonly TIMEOUT_E2E_TESTING="${TIMEOUT_E2E_TESTING:-1200}"       # 20 min
+readonly TIMEOUT_DOC_TEST="${TIMEOUT_DOC_TEST:-600}"              # 10 min
 readonly TIMEOUT_FLATLINE_PR="${TIMEOUT_FLATLINE_PR:-300}"        # 5 min
 
 # State machine states
 readonly STATE_PR_CREATED="PR_CREATED"
 readonly STATE_POST_PR_AUDIT="POST_PR_AUDIT"
 readonly STATE_FIX_AUDIT="FIX_AUDIT"
+readonly STATE_DOC_TEST="DOC_TEST"
 readonly STATE_CONTEXT_CLEAR="CONTEXT_CLEAR"
 readonly STATE_E2E_TESTING="E2E_TESTING"
 readonly STATE_FIX_E2E="FIX_E2E"
@@ -240,6 +244,85 @@ phase_post_pr_audit() {
   update_state "$STATE_HALTED"
   "$STATE_SCRIPT" set "halt_reason" "audit_max_iterations"
   return 3
+}
+
+phase_doc_test() {
+  log_phase "DOC_TEST"
+
+  "$STATE_SCRIPT" update-phase doc_test in_progress
+  update_state "$STATE_DOC_TEST"
+
+  # Run doc test manifest generator with timeout
+  local doc_test_result=0
+  if [[ -x "$DOC_TEST_SCRIPT" ]]; then
+    run_with_timeout "$TIMEOUT_DOC_TEST" "$DOC_TEST_SCRIPT" --pr-url "$PR_URL" || doc_test_result=$?
+  else
+    log_info "Doc test script not found, skipping"
+    "$STATE_SCRIPT" update-phase doc_test skipped
+    return 0
+  fi
+
+  case $doc_test_result in
+    0)
+      # Manifest written or no docs to test
+      if [[ -f .run/rtfm-manifest.json ]]; then
+        local doc_count
+        doc_count=$(jq '.docs | length' .run/rtfm-manifest.json 2>/dev/null || echo "0")
+        if (( doc_count > 0 )); then
+          log_info "RTFM manifest ready: $doc_count docs to test"
+          log_info "Agent should consume .run/rtfm-manifest.json and invoke /rtfm per doc"
+        else
+          log_info "No docs in manifest, skipping RTFM"
+        fi
+      else
+        log_info "No RTFM manifest generated (no .md files changed)"
+      fi
+      log_success "DOC_TEST phase completed"
+      "$STATE_SCRIPT" update-phase doc_test completed
+      return 0
+      ;;
+    2)
+      # ESCALATED (fail_closed policy)
+      log_error "Doc test escalated - fail_closed policy triggered"
+      update_state "$STATE_HALTED"
+      "$STATE_SCRIPT" set "halt_reason" "doc_test_escalated"
+      return 3
+      ;;
+    124)
+      # Timeout
+      log_error "Doc test phase timed out after ${TIMEOUT_DOC_TEST}s"
+      update_state "$STATE_HALTED"
+      "$STATE_SCRIPT" set "halt_reason" "doc_test_timeout"
+      return 2
+      ;;
+    *)
+      # ERROR - handle via failure policy
+      log_error "Doc test failed with exit code: $doc_test_result"
+      surface_degraded_state "DOC_TEST" "exit code $doc_test_result"
+      "$STATE_SCRIPT" update-phase doc_test skipped
+      return 0
+      ;;
+  esac
+}
+
+surface_degraded_state() {
+  local phase="$1"
+  local reason="$2"
+
+  # Check for degraded marker
+  if [[ -f .run/post-pr-degraded.json ]]; then
+    local degraded_phase degraded_reason degraded_policy
+    degraded_phase=$(jq -r '.phase' .run/post-pr-degraded.json 2>/dev/null || echo "unknown")
+    degraded_reason=$(jq -r '.reason' .run/post-pr-degraded.json 2>/dev/null || echo "unknown")
+    degraded_policy=$(jq -r '.policy' .run/post-pr-degraded.json 2>/dev/null || echo "unknown")
+
+    log_info "DEGRADED: Phase $degraded_phase - $degraded_reason (policy: $degraded_policy)"
+
+    # Add degraded marker to state for PR comment surfacing
+    "$STATE_SCRIPT" set "degraded.${phase}" "{\"reason\":\"$reason\",\"policy\":\"$degraded_policy\"}" 2>/dev/null || true
+  else
+    log_info "Phase $phase encountered error: $reason (no degraded marker found)"
+  fi
 }
 
 phase_context_clear() {
@@ -474,6 +557,13 @@ run_dry_run() {
     ((++phase_num))
   fi
 
+  if [[ "$SKIP_DOC_TEST" != "true" ]]; then
+    echo "  $phase_num. DOC_TEST (timeout: ${TIMEOUT_DOC_TEST}s)"
+    echo "     - Generate RTFM manifest for changed .md files"
+    echo "     - Agent consumes manifest and invokes /rtfm per doc"
+    ((++phase_num))
+  fi
+
   echo "  $phase_num. CONTEXT_CLEAR (timeout: ${TIMEOUT_CONTEXT_CLEAR}s)"
   echo "     - Save checkpoint to NOTES.md"
   echo "     - Instruct user: /clear then /simstim --resume"
@@ -520,6 +610,17 @@ run_orchestration() {
       ;&  # Fall through
 
     "$STATE_POST_PR_AUDIT"|"$STATE_FIX_AUDIT")
+      if [[ "$(get_state)" != "$STATE_HALTED" ]]; then
+        if [[ "$SKIP_DOC_TEST" != "true" ]]; then
+          phase_doc_test || return $?
+        else
+          log_info "Skipping doc test phase"
+          "$STATE_SCRIPT" update-phase doc_test skipped
+        fi
+      fi
+      ;&  # Fall through
+
+    "$STATE_DOC_TEST")
       if [[ "$(get_state)" != "$STATE_HALTED" ]]; then
         phase_context_clear || return $?
         # After context clear, we need user to /clear and --resume
@@ -584,6 +685,7 @@ main() {
   PR_URL=""
   MODE="autonomous"
   SKIP_AUDIT="false"
+  SKIP_DOC_TEST="false"
   SKIP_E2E="false"
   SKIP_FLATLINE="false"
   DRY_RUN="false"
@@ -602,6 +704,10 @@ main() {
         ;;
       --skip-audit)
         SKIP_AUDIT="true"
+        shift
+        ;;
+      --skip-doc-test)
+        SKIP_DOC_TEST="true"
         shift
         ;;
       --skip-e2e)
@@ -635,6 +741,7 @@ main() {
         echo "  --pr-url <url>      PR URL (required)"
         echo "  --mode <mode>       Mode: autonomous | hitl (default: autonomous)"
         echo "  --skip-audit        Skip audit phase"
+        echo "  --skip-doc-test     Skip doc test (RTFM) phase"
         echo "  --skip-e2e          Skip E2E testing phase"
         echo "  --skip-flatline     Skip Flatline PR review phase"
         echo "  --dry-run           Show planned phases without executing"
@@ -656,7 +763,7 @@ main() {
   fi
 
   # Export for subprocesses
-  export PR_URL MODE DRY_RUN
+  export PR_URL MODE DRY_RUN SKIP_DOC_TEST
 
   # Handle dry-run
   if [[ "$DRY_RUN" == "true" ]]; then

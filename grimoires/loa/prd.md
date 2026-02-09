@@ -1,366 +1,328 @@
-# PRD: Skill Benchmark Audit — Anthropic Best Practices Alignment
+# PRD: Bridgebuilder & RTFM Integration into Run Workflows
 
-**Version**: 1.1.0
-**Status**: Draft (revised per PR #264 review feedback)
-**Author**: Discovery Phase (plan-and-analyze)
+**Issue**: [#265](https://github.com/0xHoneyJar/loa/issues/265)
 **Date**: 2026-02-09
-**Issue**: #261
+**Status**: Draft v1.1 (Flatline-hardened)
+**Author**: Claude (AI agent)
 
 ---
 
 ## 1. Problem Statement
 
-Anthropic published "The Complete Guide to Building Skills for Claude" — a 30-page specification defining best practices for skill structure, progressive disclosure, description quality, testing, and error handling. Loa has 19 skills built before this guide existed. Without a systematic audit, we risk:
+Bridgebuilder (automated PR review) and RTFM (documentation usability testing) are powerful quality skills that exist as standalone, manually-invoked tools. Users running convenience workflows (`/run sprint-plan`, `/simstim`, `/autonomous`) never benefit from these skills automatically. The post-PR validation loop already has a placeholder audit phase (`post-pr-audit.sh`) that always returns APPROVED — this is a missed opportunity for automated quality enforcement.
 
-1. **Trigger failures**: Skills that don't fire when users expect them to (description doesn't match Anthropic's WHAT + WHEN formula)
-2. **Context window bloat**: 1 skill exceeds Anthropic's 5,000-word SKILL.md hard limit (riding-codebase at 6,905 words), with 4 more near-limit (>4,000 words) — degrading performance when multiple skills load
-3. **Missing error recovery**: Users hit errors with no documented troubleshooting path
-4. **No testing framework**: Zero structured tests for skill triggering accuracy or completion quality
-
-Additionally, FAANG-level operators (Vercel, Anthropic's own skill repos) provide competitive reference points that Loa's skills should match or exceed.
+**Impact**: Users who don't know about `/bridgebuilder` or `/rtfm` miss automated PR review and doc testing entirely. Users who do know must invoke them manually after every sprint cycle.
 
 ---
 
-## 2. Benchmark Source Analysis
+## 2. Goals & Success Metrics
 
-### 2.1 Anthropic's Official Guide (Primary Benchmark)
+### Goals
 
-Source: `The-Complete-Guide-to-Building-Skill-for-Claude.pdf` (30 pages)
+1. Wire Bridgebuilder into the post-PR validation audit phase so every `/run` and `/simstim` PR gets automated code review
+2. Add a documentation testing phase to post-PR validation so changed `.md` files are tested via RTFM
+3. Both integrations on by default, configurable via `.loa.config.yaml`
 
-Key benchmarks extracted:
+### Success Metrics
 
-| Area | Benchmark | Loa Status |
-|------|-----------|------------|
-| **File Structure** | SKILL.md required, kebab-case folder, no README.md | 19/19 pass |
-| **SKILL.md Size** | Under 5,000 words; move detail to references/ | 16/19 pass (3 over) |
-| **Description** | `[What] + [When] + [Key capabilities]` formula, <1024 chars | Needs audit |
-| **Frontmatter** | name (kebab-case), description, no XML tags | Needs audit |
-| **Progressive Disclosure** | 3 levels: frontmatter → body → linked files | Partial |
-| **Error Handling** | Documented error states and recovery | 11/19 have >10 error refs |
-| **Examples** | Concrete usage examples | 19/19 have examples |
-| **Testing** | Triggering tests, functional tests, performance comparison | 0/19 structured tests |
-| **Negative Triggers** | Phrases that should NOT trigger the skill | Needs audit |
-
-### 2.2 External References (Secondary Benchmarks)
-
-| Source | Repository | Relevance |
-|--------|-----------|-----------|
-| Anthropic Official | `anthropics/skills` | Reference implementations of skill patterns |
-| Vercel | `vercel-labs/agent-skills` | FAANG-level CLI skill patterns |
-| Community | `awesome-claude-skills` curated list | Ecosystem patterns and conventions |
+| Metric | Target |
+|--------|--------|
+| Bridgebuilder runs automatically on PRs created by `/run sprint-plan` | 100% (when enabled) |
+| RTFM tests changed docs on PRs created by `/run sprint-plan` | 100% (when `.md` files changed and enabled) |
+| No regressions in existing post-PR validation phases | 0 failures |
+| Configurable opt-out via `.loa.config.yaml` | Both skills independently toggleable |
 
 ---
 
-## 3. Current State Audit
+## 3. User Stories
 
-### 3.1 Skill Inventory (19 skills)
+### US-1: Automatic PR Review
+**As** a developer running `/run sprint-plan`,
+**I want** Bridgebuilder to automatically review my PR after it's created,
+**So that** I get code quality feedback without manually invoking `/bridgebuilder`.
 
-| Skill | Lines | Words | Resources/ | Error Refs | Examples | Over 5K Words |
-|-------|-------|-------|-----------|------------|----------|---------------|
-| auditing-security | 1,046 | 4,548 | yes | 17 | 50 | no |
-| autonomous-agent | 1,162 | 4,134 | yes | 25 | 108 | no |
-| bridgebuilder-review | 77 | 327 | yes | 2 | 4 | no |
-| browsing-constructs | 414 | 1,562 | no | 7 | 34 | no |
-| continuous-learning | 453 | 1,819 | yes | 12 | 19 | no |
-| deploying-infrastructure | 879 | 3,880 | yes | 17 | 32 | no |
-| designing-architecture | 372 | 1,637 | yes | 3 | 20 | no |
-| discovering-requirements | 800 | 3,138 | yes | 17 | 44 | no |
-| enhancing-prompts | 259 | 1,008 | yes | 10 | 14 | no |
-| flatline-knowledge | 220 | 687 | yes | 4 | 16 | no |
-| implementing-tasks | 1,107 | 4,596 | yes | 20 | 42 | no |
-| mounting-framework | 305 | 921 | no | 4 | 32 | no |
-| planning-sprints | 599 | 2,586 | yes | 2 | 32 | no |
-| reviewing-code | 1,021 | 4,468 | yes | 21 | 43 | no |
-| riding-codebase | 1,686 | 6,905 | yes | 2 | 128 | **YES** |
-| rtfm-testing | 519 | 2,882 | no | 12 | 12 | no |
-| run-mode | 399 | 1,364 | no | 5 | 36 | no |
-| simstim-workflow | 706 | 2,755 | no | 20 | 34 | no |
-| translating-for-executives | 702 | 3,019 | yes | 4 | 48 | no |
+### US-2: Automatic Doc Testing
+**As** a developer whose sprint changes documentation,
+**I want** RTFM to automatically test changed `.md` files,
+**So that** documentation regressions are caught before merge.
 
-**Totals**: 12,726 lines, ~50,235 words across 19 skills.
-
-### 3.2 Gap Analysis Summary
-
-| Gap | Count | Skills Affected | Severity |
-|-----|-------|-----------------|----------|
-| Over 5,000 words | 1 | riding-codebase (6,905) | HIGH |
-| Near 5,000 words (>4,000) | 4 | auditing-security, implementing-tasks, reviewing-code, autonomous-agent | MEDIUM |
-| Low error handling (<5 refs) | 5 | bridgebuilder-review, designing-architecture, flatline-knowledge, mounting-framework, planning-sprints | MEDIUM |
-| Few examples (<10) | 2 | bridgebuilder-review, continuous-learning | LOW |
-| No structured test framework | 19 | All | HIGH |
-| Description quality unknown | 19 | All (needs per-skill review) | MEDIUM |
-| No negative triggers | Unknown | Needs audit | LOW |
+### US-3: Opt-Out
+**As** a developer who doesn't need automated review on a specific run,
+**I want** to disable Bridgebuilder or RTFM via config,
+**So that** I can skip them when time or cost is a concern.
 
 ---
 
-## 4. Goals
+## 4. Functional Requirements
 
-| # | Goal | Success Metric |
-|---|------|---------------|
-| G-1 | All skills under 5,000 words | 19/19 SKILL.md files ≤ 5,000 words |
-| G-2 | Descriptions follow Anthropic formula | 19/19 descriptions include WHAT + WHEN + capabilities |
-| G-3 | Error handling documented | 19/19 have ≥ 5 error/troubleshooting references |
-| G-4 | Skill test framework exists | Test harness covering trigger accuracy + functional completion |
-| G-5 | Progressive disclosure optimized | Skills >3,000 words use references/ for detail offload |
+### FR-1: Bridgebuilder Post-PR Audit Integration
 
----
+**What**: Create `post-pr-audit.sh` that invokes Bridgebuilder on the PR created by `/run`.
 
-## 5. Functional Requirements
+**Behavior**:
+1. Receives `--pr-url <url>` from `post-pr-orchestrator.sh`
+2. Extracts PR number and repo canonically via `gh pr view <url> --json number,repository` (SKP-004: avoids fragile URL parsing; handles Enterprise, forks, query params)
+3. Invokes Bridgebuilder via its entry script: `.claude/skills/bridgebuilder-review/resources/entry.sh --pr <number> --repo <owner/repo> --non-interactive` (SKP-002: stable CLI contract, no agent runtime dependency)
+4. Parses machine-readable JSON results from `.run/post-pr-audit-results.json` (IMP-003: defined schema)
+5. Maps results to orchestrator exit codes based on failure policy (SKP-001):
+   - No critical/high findings → exit 0 (APPROVED)
+   - Critical/high findings → exit 1 (CHANGES_REQUIRED)
+   - On CHANGES_REQUIRED, orchestrator logs findings and continues to next phase (IMP-002: orchestrator does NOT auto-fix; it marks the PR and proceeds)
+6. On Bridgebuilder error: consult `failure_policy` config (SKP-001):
+   - `fail_open` (default for local): exit 0 + visible warning in PR comment + `.run/post-pr-degraded.json` marker
+   - `fail_closed` (recommended for CI): exit 1 + block PR
+7. Timeout: 120 seconds default, configurable (IMP-001)
 
-### FR-1: SKILL.md Size Reduction (G-1, G-5)
-
-Refactor skills exceeding 5,000 words by extracting detailed content to `references/` files:
-
-- **riding-codebase** (6,905 words → target ≤4,500): Move phase-specific instructions, output format templates, and validation checklists to `references/`
-- **Near-limit skills** (>4,000 words): Audit for content that could be linked rather than inlined
-
-**Approach**: For each over-limit skill:
-1. Identify sections that are reference material (templates, checklists, detailed examples)
-2. Extract to `resources/references/{topic}.md`
-3. Replace inline content with a link: `See: resources/references/{topic}.md`
-4. Verify skill still triggers and functions correctly
-
-### FR-2: Description Standardization (G-2)
-
-Update all 19 skill descriptions to follow Anthropic's formula:
-
+**CLI Contract** (SKP-002):
 ```
-[What it does] + [When to use it] + [Key capabilities]
+# Invocation (non-interactive, machine-readable)
+.claude/skills/bridgebuilder-review/resources/entry.sh \
+  --pr <number> --repo <owner/repo> --non-interactive
+
+# Exit codes:
+#   0 = success (review posted or dry-run)
+#   1 = findings posted (critical/high severity)
+#   2 = error (API failure, auth, timeout)
+
+# Output: JSON to stdout (RunSummary schema)
+# Side effect: review posted to GitHub PR
 ```
 
-**Requirements**:
-- Each description must be under 1,024 characters
-- Description must include at least one trigger context ("Use when...")
-- Description must list 2-3 key capabilities
-- Descriptions appear in both `index.yaml` and SKILL.md frontmatter
+**Results Schema** (IMP-003):
+```json
+{
+  "tool": "bridgebuilder",
+  "version": "2.1.0",
+  "pr_number": 267,
+  "repo": "owner/repo",
+  "status": "findings" | "clean" | "error" | "skipped",
+  "findings": { "critical": 0, "high": 1, "medium": 2, "low": 3 },
+  "error_message": null,
+  "timestamp": "2026-02-09T12:00:00Z"
+}
+```
 
-**Example transformation**:
+**Config**:
 ```yaml
-# Before (implementing-tasks)
-description: |
-  Use this skill IF user needs to implement sprint tasks from grimoires/loa/sprint.md,
-  OR feedback has been received in engineer-feedback.md that needs addressing.
-  Implements production-grade code with comprehensive tests, follows existing patterns,
-  and generates detailed reports. Produces report at grimoires/loa/a2a/sprint-N/reviewer.md.
-
-# After
-description: |
-  Execute sprint tasks with production-quality code, tests, and implementation reports.
-  Use when implementing tasks from grimoires/loa/sprint.md or addressing feedback in
-  engineer-feedback.md / auditor-sprint-feedback.md. Handles feedback-first resolution,
-  test generation, and reviewer.md report creation.
+post_pr_validation:
+  phases:
+    audit:
+      enabled: true            # Existing — controls entire audit phase
+      provider: bridgebuilder  # NEW — "bridgebuilder" | "skip"
+      timeout_seconds: 120     # IMP-001
+      failure_policy: fail_open # SKP-001 — "fail_open" | "fail_closed"
 ```
 
-**Note**: Descriptions should preserve specific file paths referenced by the skill's trigger
-logic. Existing trigger phrases in `index.yaml` remain unchanged; descriptions may summarize
-but must not drop paths that affect matching precision.
+**Acceptance Criteria**:
+- [ ] `post-pr-audit.sh` exists and is executable
+- [ ] Uses `gh pr view <url> --json` for canonical PR/repo extraction (SKP-004)
+- [ ] Validates `gh pr view` exit code; propagates errors explicitly (IMP-009)
+- [ ] Invokes Bridgebuilder via `entry.sh --non-interactive` (SKP-002)
+- [ ] Parses JSON results schema (IMP-003), not log output
+- [ ] Maps findings to orchestrator exit codes (0=pass, 1=changes)
+- [ ] On CHANGES_REQUIRED, orchestrator logs findings and marks PR (IMP-002)
+- [ ] Respects `failure_policy`: fail_open logs warning + degraded marker; fail_closed blocks (SKP-001)
+- [ ] Creates `.run/post-pr-degraded.json` when phase is skipped/failed-open (SKP-001)
+- [ ] Timeout enforced via config (IMP-001)
+- [ ] Respects `post_pr_validation.phases.audit.provider` config
+- [ ] When provider is `skip`, returns exit 0 immediately
 
-### FR-3: Error Handling Audit (G-3)
+### FR-2: RTFM Post-PR Doc Test Phase
 
-For the 5 skills with fewer than 5 error references, add:
+**What**: Add a `DOC_TEST` phase to `post-pr-orchestrator.sh` that runs RTFM on changed `.md` files.
 
-1. **Error table**: Common failure modes with causes and resolutions
-2. **Troubleshooting section**: "Skill doesn't trigger", "Unexpected output", "API failure" patterns
-3. **Recovery guidance**: What to do when the skill fails mid-execution
+**Behavior**:
+1. Runs after `POST_PR_AUDIT` phase, before `CONTEXT_CLEAR`
+2. Gets list of changed `.md` files via `gh pr diff <number> --name-only` with explicit exit code check (IMP-009: `gh pr diff` failure must not be swallowed — if it fails, log error and exit based on `failure_policy`)
+3. Filters to relevant docs (excludes `grimoires/loa/a2a/`, `CHANGELOG.md`, generated files)
+4. If no relevant `.md` files changed → skip phase (exit 0)
+5. Executes RTFM sequentially, one doc at a time (IMP-004: sequential to avoid rate limits and keep cost predictable; max 5 docs per run to cap latency)
+6. Parses RTFM report JSON for gap severities (IMP-003: defined schema, not log scraping)
+7. Aggregates results:
+   - Any BLOCKING gaps → exit 1 (DOC_TEST_FAILED)
+   - Only DEGRADED/MINOR → exit 0 (pass with warnings logged)
+   - RTFM error: consult `failure_policy` (SKP-001)
+8. Writes results to `.run/post-pr-doc-test-results.json` (IMP-003)
+9. Timeout: 180 seconds per doc, 600 seconds total (IMP-001)
 
-Target skills: bridgebuilder-review, designing-architecture, flatline-knowledge, mounting-framework, planning-sprints.
+**Phase Ordering** (updated):
+```
+POST_PR_AUDIT → DOC_TEST → CONTEXT_CLEAR → E2E_TESTING → FLATLINE_PR
+```
 
-### FR-4: Skill Test Framework (G-4)
+**Doc Test Results Schema** (IMP-003):
+```json
+{
+  "tool": "rtfm",
+  "version": "1.0.0",
+  "docs_tested": ["README.md", "INSTALLATION.md"],
+  "docs_skipped": ["grimoires/loa/a2a/sprint-1/reviewer.md"],
+  "status": "pass" | "fail" | "error" | "skipped",
+  "gaps": { "blocking": 0, "degraded": 1, "minor": 2 },
+  "error_message": null,
+  "timestamp": "2026-02-09T12:00:00Z"
+}
+```
 
-Create a test harness for validating skill quality:
-
-#### FR-4a: Trigger Accuracy Tests
-
-For each skill, define:
-- **Positive triggers**: Phrases that SHOULD invoke the skill (from `triggers` in index.yaml)
-- **Negative triggers**: Phrases that should NOT invoke the skill
-- **Validation**: Run test phrases against Claude's skill matching and verify accuracy
-
-**Pass criteria**: ≥90% precision and recall on a 20-phrase test set per skill.
-**Outcome definitions**: `PASS` (correct skill triggered), `MISS` (expected skill not triggered), `MISFIRE` (wrong skill triggered).
-
-#### FR-4b: Structural Validation Tests
-
-Automated checks (can run in CI):
-- SKILL.md exists and has valid frontmatter
-- Word count ≤ 5,000
-- Description follows WHAT + WHEN + capabilities formula (regex/heuristic check)
-- No README.md in skill folder
-- Folder name is kebab-case
-- Name field matches folder name
-- No XML tags in frontmatter
-- resources/ directory exists if referenced in SKILL.md
-
-**Pass criteria**: Zero failures across all checks (binary pass/fail). Any single check failure = FAIL for that skill.
-
-#### FR-4c: Functional Smoke Tests
-
-Per-skill test definitions (manual or semi-automated):
-- Input scenario → expected behavior → actual behavior
-- Performance: measured in tool calls to completion
-
-**Pass criteria**: Skill completes with exit code 0 in ≤10 tool calls. No tool calls returning errors during execution.
-**Outcome definitions**: `PASS` (all assertions met), `FLAKY` (intermittent failures across 3 runs), `FAIL` (deterministic failure), `TIMEOUT` (exceeded 10 tool-call budget).
-
-### FR-5: Negative Trigger Audit (G-2)
-
-Review each skill's trigger configuration and add negative triggers where needed:
-
+**Config**:
 ```yaml
-# Example: deploying-infrastructure
-triggers:
-  - "/deploy"
-  - "deploy to production"
-negative_triggers:
-  - "deploy a feature flag"      # → implementing-tasks
-  - "deploy documentation"       # → translating-for-executives
+post_pr_validation:
+  phases:
+    doc_test:
+      enabled: true            # NEW — controls doc test phase
+      max_docs: 5              # IMP-004 — cap to limit latency/cost
+      timeout_per_doc: 180     # IMP-001 — seconds per doc
+      timeout_total: 600       # IMP-001 — total phase timeout
+      failure_policy: fail_open # SKP-001 — "fail_open" | "fail_closed"
+      exclude_patterns:        # Docs to skip
+        - "grimoires/loa/a2a/**"
+        - "CHANGELOG.md"
+        - "**/reviewer.md"
+        - "**/engineer-feedback.md"
+        - "**/auditor-sprint-feedback.md"
 ```
 
-This prevents skills from firing incorrectly when trigger phrases overlap.
+**Acceptance Criteria**:
+- [ ] `DOC_TEST` phase added to `post-pr-orchestrator.sh` state machine
+- [ ] Uses `gh pr diff` with explicit exit code check (IMP-009)
+- [ ] Filters out excluded patterns (a2a artifacts, CHANGELOG)
+- [ ] Skips gracefully when no relevant `.md` files changed
+- [ ] Executes RTFM sequentially, max 5 docs (IMP-004)
+- [ ] Parses RTFM JSON results (IMP-003), not log output
+- [ ] Aggregates gap severities correctly (BLOCKING=fail, others=pass)
+- [ ] Respects `failure_policy`: fail_open vs fail_closed (SKP-001)
+- [ ] Creates `.run/post-pr-degraded.json` when phase skipped/failed-open (SKP-001)
+- [ ] Enforces per-doc and total timeouts (IMP-001)
+- [ ] Writes structured results to `.run/post-pr-doc-test-results.json` (IMP-003)
+- [ ] Respects `post_pr_validation.phases.doc_test.enabled` config
 
-### FR-6: Progressive Disclosure Optimization (G-5)
+### FR-3: Config Defaults Update
 
-For skills with >3,000 words, audit the content structure against Anthropic's 3-level model:
+**What**: Update `.loa.config.yaml.example` with new config sections and ensure defaults are "on".
 
-| Level | What Loads | Budget |
-|-------|-----------|--------|
-| L1: Frontmatter | Always loaded into context | <1,024 chars |
-| L2: SKILL.md body | Loaded when skill triggers | ≤5,000 words |
-| L3: Linked references | Loaded on-demand during execution | No limit |
-
-Ensure each skill's content is at the right level. Inline instructions needed for every invocation stay in L2. Reference material, templates, and detailed examples move to L3.
-
----
-
-## 6. Non-Functional Requirements
-
-| # | Requirement |
-|---|-------------|
-| NFR-1 | Zero behavioral regressions — all skills must function identically after refactoring |
-| NFR-2 | No new dependencies — test framework uses existing tooling (bash, node:test) |
-| NFR-3 | Backward compatible — existing trigger phrases continue to work |
-| NFR-4 | Documentation-only changes — no application code changes in this issue |
-
----
-
-## 7. Risks
-
-| # | Risk | Impact | Mitigation |
-|---|------|--------|------------|
-| R-1 | Refactoring breaks skill triggering | HIGH | Test triggers before/after each change |
-| R-2 | Content extraction to references/ loses context | MEDIUM | Verify skills still complete functional smoke tests |
-| R-3 | Description standardization reduces specificity | LOW | Keep existing trigger phrases; add, don't replace |
-| R-4 | Test framework maintenance burden | LOW | Keep tests minimal and automated where possible |
-| R-5 | Post-merge regression discovery | HIGH | Keep PR branch open for 7 days post-merge; create SKILL.md.bak copies before refactoring; revert on user-reported trigger failures within the observation window |
+**Acceptance Criteria**:
+- [ ] `post_pr_validation.phases.audit.provider: bridgebuilder` documented in example
+- [ ] `post_pr_validation.phases.doc_test` section added to example config
+- [ ] Both enabled by default
+- [ ] Existing config files without new keys get sensible defaults (on)
 
 ---
 
-## 8. Prioritization
+## 5. Non-Functional Requirements
 
-| Priority | Requirement | Rationale |
-|----------|-------------|-----------|
-| P0 | FR-1: Size reduction (riding-codebase) | Active hard-limit violation — stop the bleeding first |
-| P0 | FR-4b: Structural validation tests | Automated regression gate for all subsequent changes |
-| P1 | FR-2: Description standardization | Affects trigger accuracy across all 19 skills |
-| P2 | FR-3: Error handling audit | 5 skills affected, improves user experience |
-| P2 | FR-6: Progressive disclosure optimization | Affects near-limit skills |
-| P3 | FR-4a: Trigger accuracy tests | Valuable but requires manual validation |
-| P3 | FR-5: Negative trigger audit | Prevents misfire but low current impact |
-| P3 | FR-4c: Functional smoke tests | Nice-to-have, labor intensive |
+### NFR-1: Configurable Failure Policy (SKP-001)
+Each phase has a `failure_policy` setting:
+- **`fail_open`** (default for local/interactive): On tool error, log visible warning, create `.run/post-pr-degraded.json` marker, continue workflow. The degraded marker includes which phase was skipped and why — this is surfaced in the PR comment so reviewers know quality gates were not fully enforced.
+- **`fail_closed`** (recommended for CI/autonomous): On tool error, block with exit 1. Use for environments where silent pass-through is unacceptable.
 
-**Priority rationale**: FR-1 and FR-4b are both P0 because the riding-codebase violation is actively broken (exceeds Anthropic's hard limit) while structural tests prevent introducing new violations during the remaining work. Following incident response principles: stop the bleeding, then build monitoring.
+Both modes MUST produce a visible artifact (degraded marker or PR comment) when a phase is skipped — silent approval is never acceptable.
 
----
+### NFR-2: Cost Awareness
+Bridgebuilder uses one Anthropic API call per PR. RTFM spawns one subagent per doc file (max 5). Both should log estimated cost when invoked.
 
-## 9. Success Criteria
+### NFR-3: Idempotency
+Re-running post-PR validation should not duplicate Bridgebuilder reviews on GitHub. Bridgebuilder already checks for existing review markers.
 
-| Criterion | Measurement |
-|-----------|-------------|
-| All SKILL.md files ≤ 5,000 words | `wc -w` on each file |
-| All descriptions follow WHAT + WHEN + capabilities | Manual review + regex validation |
-| All skills have ≥ 5 error/troubleshooting references | `grep -c` on each file |
-| Structural test suite passes for all 19 skills | CI green |
-| Zero skill behavioral regressions | Existing functionality preserved |
+### NFR-4: No New Dependencies
+Both skills already exist. Integration should wire existing skills, not create new ones.
 
----
+### NFR-5: Data Handling & Secrets Safety (SKP-008)
+- Bridgebuilder sends PR diffs to Anthropic API; RTFM sends doc content to Claude subagents. Both inherit the existing secret scanning from Bridgebuilder's sanitizer (redacts API keys, credentials, private keys before LLM submission).
+- `post-pr-audit.sh` MUST NOT log full API responses to disk — only structured results JSON.
+- The `--non-interactive` flag ensures no sensitive content is echoed to stdout beyond the results schema.
+- Repos with `bridgebuilder.enabled: false` in config are never sent to external APIs.
 
-## 10. Out of Scope
+### NFR-6: Timeout Enforcement (IMP-001)
+Every external call has a concrete timeout:
+- Bridgebuilder: 120s default (configurable)
+- RTFM per-doc: 180s default (configurable)
+- RTFM total phase: 600s default (configurable)
+- `gh pr view`/`gh pr diff`: 30s (non-configurable, hard limit)
 
-- Rewriting skill logic or changing skill behavior
-- Adding new skills
-- Changing the skill framework architecture (index.yaml structure, etc.)
-- Changing CLAUDE.md or CLAUDE.loa.md content
-- Implementing the full Anthropic test suite (triggering tests require Claude API access)
+Timeouts trigger the `failure_policy` path (fail_open or fail_closed).
 
 ---
 
-## 11. Appendix: Audit Methodology
+## 6. Scope
 
-All quantitative claims in Section 3 were measured using the following commands. Word count was chosen over token count because Anthropic's guide specifies word limits (not tokens), and `wc -w` is universally reproducible without requiring a tokenizer dependency.
+### In Scope
+- `post-pr-audit.sh` script creation (Bridgebuilder integration)
+- `DOC_TEST` phase in `post-pr-orchestrator.sh` (RTFM integration)
+- Config additions to `.loa.config.yaml.example`
+- SKILL.md documentation updates for run-mode and post-PR validation
 
-### Word Count Measurement
+### Out of Scope
+- Golden path `/review` or `/ship` integration (future)
+- Bridgebuilder or RTFM code changes (use as-is)
+- Simstim-specific phase additions (inherits from post-PR validation)
+- Autonomous-specific phase additions (inherits from post-PR validation)
 
-```bash
-for dir in .claude/skills/*/; do
-  name=$(basename "$dir")
-  words=$(wc -w < "$dir/SKILL.md" 2>/dev/null || echo "0")
-  echo "$name: $words words"
-done
+---
+
+## 7. Risks & Dependencies
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| Bridgebuilder requires `ANTHROPIC_API_KEY` which may not be set | Medium | Medium | Check for key in `post-pr-audit.sh`, skip with warning if missing |
+| RTFM subagent adds latency to post-PR validation | Low | Low | Doc test runs on small set of changed files only |
+| Post-PR orchestrator script may need refactoring for new phase | Low | Medium | DOC_TEST follows existing phase pattern — minimal changes |
+| Bridgebuilder review duplication on retry | Low | Low | Bridgebuilder already has idempotency via review markers |
+
+### Dependencies
+- Bridgebuilder skill (`bridgebuilder-review/`) must be functional
+- RTFM skill (`rtfm-testing/`) must be functional
+- `post-pr-orchestrator.sh` must support phase insertion
+- `gh` CLI must be authenticated (for PR diff extraction)
+
+---
+
+## 8. Architecture Notes
+
+### Integration Point: Post-PR Orchestrator
+
+The `post-pr-orchestrator.sh` already has a phase-based state machine:
+
+```
+Current:  POST_PR_AUDIT → CONTEXT_CLEAR → E2E_TESTING → FLATLINE_PR
+Proposed: POST_PR_AUDIT → DOC_TEST → CONTEXT_CLEAR → E2E_TESTING → FLATLINE_PR
 ```
 
-### Error/Troubleshooting Reference Count
+`POST_PR_AUDIT` currently calls a placeholder script. FR-1 replaces it with a real Bridgebuilder invocation. FR-2 adds `DOC_TEST` as a new phase in the existing state machine.
 
-```bash
-for dir in .claude/skills/*/; do
-  name=$(basename "$dir")
-  refs=$(grep -c -iE 'error|troubleshoot|fail' "$dir/SKILL.md" 2>/dev/null || echo "0")
-  echo "$name: $refs error refs"
-done
-```
+### Inheritance Chain
 
-### Example Count (code blocks + example headers)
+All workflows that use post-PR validation benefit automatically:
+- `/run sprint-N` → calls `post-pr-orchestrator.sh` → gets Bridgebuilder + RTFM
+- `/run sprint-plan` → calls `post-pr-orchestrator.sh` → gets Bridgebuilder + RTFM
+- `/simstim` Phase 7.5 → calls `post-pr-orchestrator.sh` → gets Bridgebuilder + RTFM
+- `/autonomous` Phase 5.5 → calls `post-pr-orchestrator.sh` → gets Bridgebuilder + RTFM
 
-```bash
-for dir in .claude/skills/*/; do
-  name=$(basename "$dir")
-  examples=$(grep -c -E '^(###? Example|```)' "$dir/SKILL.md" 2>/dev/null || echo "0")
-  echo "$name: $examples examples"
-done
-```
-
-### Structure Checks
-
-```bash
-for dir in .claude/skills/*/; do
-  name=$(basename "$dir")
-  has_res=$([ -d "$dir/resources" ] && echo "yes" || echo "no")
-  has_readme=$([ -f "$dir/README.md" ] && echo "YES-BAD" || echo "no")
-  echo "$name: resources=$has_res readme=$has_readme"
-done
-```
-
-**Decision**: Word count (`wc -w`) was chosen over token count because:
-1. Anthropic's guide specifies "5,000 words" not "5,000 tokens"
-2. `wc -w` is reproducible on any POSIX system without dependencies
-3. Token counts vary by tokenizer implementation; word counts are deterministic
+No per-workflow wiring needed — one integration point serves all workflows.
 
 ---
 
-## 12. Revision History
+## 9. Flatline Review Log
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0.0 | 2026-02-09 | Initial PRD from /plan-and-analyze research |
-| 1.1.0 | 2026-02-09 | Revised per Bridgebuilder review on PR #264: added audit methodology appendix, explicit test pass/fail thresholds, promoted FR-1 to P0, added rollback strategy R-5, preserved file paths in description examples |
+**Review Date**: 2026-02-09
+**Agreement**: 100%
+**Findings**: 5 HIGH_CONSENSUS (auto-integrated) + 5 BLOCKERS (accepted)
 
----
+### HIGH_CONSENSUS Integrated
 
-## 13. References
+| ID | Finding | Score | Integration |
+|----|---------|-------|-------------|
+| IMP-001 | Add concrete timeout thresholds | 835 | Added to FR-1/FR-2 configs, NFR-6 |
+| IMP-002 | Define orchestrator behavior on CHANGES_REQUIRED | 810 | Added to FR-1 behavior step 5 |
+| IMP-003 | Define JSON schemas for results files | 890 | Added schemas to FR-1 and FR-2 |
+| IMP-004 | Specify RTFM sequential execution with cap | 770 | FR-2 step 5: sequential, max 5 docs |
+| IMP-009 | Add error handling for `gh pr diff` pipeline | 770 | FR-2 step 2: explicit exit code check |
 
-| Document | Relevance |
-|----------|-----------|
-| Anthropic "Complete Guide to Building Skills for Claude" (30pp PDF) | Primary benchmark |
-| `anthropics/skills` GitHub repo | Official reference implementations |
-| `vercel-labs/agent-skills` GitHub repo | FAANG-level patterns |
-| `awesome-claude-skills` curated list | Community best practices |
-| Issue #261 | Feature request |
+### BLOCKERS Accepted
+
+| ID | Concern | Severity | Integration |
+|----|---------|----------|-------------|
+| SKP-001 | Fail-open makes gates non-enforcing | 930 | NFR-1: configurable fail_open/fail_closed with degraded marker |
+| SKP-002 | Unspecified CLI contract for skill invocation | 900 | FR-1: documented entry.sh CLI contract with exit codes |
+| SKP-003 | Result mapping underspecified | 760 | FR-1/FR-2: JSON schemas with severity enums |
+| SKP-004 | PR URL parsing fragile | 720 | FR-1: use `gh pr view <url> --json` for canonical extraction |
+| SKP-008 | Security/privacy risks for external API | 880 | NFR-5: data handling, secrets safety, sanitizer inheritance |
