@@ -1,7 +1,7 @@
 # PRD: Skill Benchmark Audit — Anthropic Best Practices Alignment
 
-**Version**: 1.0.0
-**Status**: Draft
+**Version**: 1.1.0
+**Status**: Draft (revised per PR #264 review feedback)
 **Author**: Discovery Phase (plan-and-analyze)
 **Date**: 2026-02-09
 **Issue**: #261
@@ -13,7 +13,7 @@
 Anthropic published "The Complete Guide to Building Skills for Claude" — a 30-page specification defining best practices for skill structure, progressive disclosure, description quality, testing, and error handling. Loa has 19 skills built before this guide existed. Without a systematic audit, we risk:
 
 1. **Trigger failures**: Skills that don't fire when users expect them to (description doesn't match Anthropic's WHAT + WHEN formula)
-2. **Context window bloat**: 3 skills exceed Anthropic's 5,000-word SKILL.md limit (riding-codebase at 6,905 words, implementing-tasks at 4,596, auditing-security at 4,548) — degrading performance when multiple skills load
+2. **Context window bloat**: 1 skill exceeds Anthropic's 5,000-word SKILL.md hard limit (riding-codebase at 6,905 words), with 4 more near-limit (>4,000 words) — degrading performance when multiple skills load
 3. **Missing error recovery**: Users hit errors with no documented troubleshooting path
 4. **No testing framework**: Zero structured tests for skill triggering accuracy or completion quality
 
@@ -146,9 +146,14 @@ description: |
 # After
 description: |
   Execute sprint tasks with production-quality code, tests, and implementation reports.
-  Use when implementing tasks from sprint.md or addressing review/audit feedback.
-  Handles feedback-first resolution, test generation, and reviewer.md report creation.
+  Use when implementing tasks from grimoires/loa/sprint.md or addressing feedback in
+  engineer-feedback.md / auditor-sprint-feedback.md. Handles feedback-first resolution,
+  test generation, and reviewer.md report creation.
 ```
+
+**Note**: Descriptions should preserve specific file paths referenced by the skill's trigger
+logic. Existing trigger phrases in `index.yaml` remain unchanged; descriptions may summarize
+but must not drop paths that affect matching precision.
 
 ### FR-3: Error Handling Audit (G-3)
 
@@ -171,6 +176,9 @@ For each skill, define:
 - **Negative triggers**: Phrases that should NOT invoke the skill
 - **Validation**: Run test phrases against Claude's skill matching and verify accuracy
 
+**Pass criteria**: ≥90% precision and recall on a 20-phrase test set per skill.
+**Outcome definitions**: `PASS` (correct skill triggered), `MISS` (expected skill not triggered), `MISFIRE` (wrong skill triggered).
+
 #### FR-4b: Structural Validation Tests
 
 Automated checks (can run in CI):
@@ -183,12 +191,16 @@ Automated checks (can run in CI):
 - No XML tags in frontmatter
 - resources/ directory exists if referenced in SKILL.md
 
+**Pass criteria**: Zero failures across all checks (binary pass/fail). Any single check failure = FAIL for that skill.
+
 #### FR-4c: Functional Smoke Tests
 
 Per-skill test definitions (manual or semi-automated):
 - Input scenario → expected behavior → actual behavior
-- Success criteria: skill completes without error
 - Performance: measured in tool calls to completion
+
+**Pass criteria**: Skill completes with exit code 0 in ≤10 tool calls. No tool calls returning errors during execution.
+**Outcome definitions**: `PASS` (all assertions met), `FLAKY` (intermittent failures across 3 runs), `FAIL` (deterministic failure), `TIMEOUT` (exceeded 10 tool-call budget).
 
 ### FR-5: Negative Trigger Audit (G-2)
 
@@ -239,6 +251,7 @@ Ensure each skill's content is at the right level. Inline instructions needed fo
 | R-2 | Content extraction to references/ loses context | MEDIUM | Verify skills still complete functional smoke tests |
 | R-3 | Description standardization reduces specificity | LOW | Keep existing trigger phrases; add, don't replace |
 | R-4 | Test framework maintenance burden | LOW | Keep tests minimal and automated where possible |
+| R-5 | Post-merge regression discovery | HIGH | Keep PR branch open for 7 days post-merge; create SKILL.md.bak copies before refactoring; revert on user-reported trigger failures within the observation window |
 
 ---
 
@@ -246,14 +259,16 @@ Ensure each skill's content is at the right level. Inline instructions needed fo
 
 | Priority | Requirement | Rationale |
 |----------|-------------|-----------|
-| P0 | FR-4b: Structural validation tests | Automated, catches regressions for all other changes |
-| P1 | FR-1: Size reduction (riding-codebase) | Only skill exceeding the hard limit |
+| P0 | FR-1: Size reduction (riding-codebase) | Active hard-limit violation — stop the bleeding first |
+| P0 | FR-4b: Structural validation tests | Automated regression gate for all subsequent changes |
 | P1 | FR-2: Description standardization | Affects trigger accuracy across all 19 skills |
 | P2 | FR-3: Error handling audit | 5 skills affected, improves user experience |
 | P2 | FR-6: Progressive disclosure optimization | Affects near-limit skills |
 | P3 | FR-4a: Trigger accuracy tests | Valuable but requires manual validation |
 | P3 | FR-5: Negative trigger audit | Prevents misfire but low current impact |
 | P3 | FR-4c: Functional smoke tests | Nice-to-have, labor intensive |
+
+**Priority rationale**: FR-1 and FR-4b are both P0 because the riding-codebase violation is actively broken (exceeds Anthropic's hard limit) while structural tests prevent introducing new violations during the remaining work. Following incident response principles: stop the bleeding, then build monitoring.
 
 ---
 
@@ -279,7 +294,68 @@ Ensure each skill's content is at the right level. Inline instructions needed fo
 
 ---
 
-## 11. References
+## 11. Appendix: Audit Methodology
+
+All quantitative claims in Section 3 were measured using the following commands. Word count was chosen over token count because Anthropic's guide specifies word limits (not tokens), and `wc -w` is universally reproducible without requiring a tokenizer dependency.
+
+### Word Count Measurement
+
+```bash
+for dir in .claude/skills/*/; do
+  name=$(basename "$dir")
+  words=$(wc -w < "$dir/SKILL.md" 2>/dev/null || echo "0")
+  echo "$name: $words words"
+done
+```
+
+### Error/Troubleshooting Reference Count
+
+```bash
+for dir in .claude/skills/*/; do
+  name=$(basename "$dir")
+  refs=$(grep -c -iE 'error|troubleshoot|fail' "$dir/SKILL.md" 2>/dev/null || echo "0")
+  echo "$name: $refs error refs"
+done
+```
+
+### Example Count (code blocks + example headers)
+
+```bash
+for dir in .claude/skills/*/; do
+  name=$(basename "$dir")
+  examples=$(grep -c -E '^(###? Example|```)' "$dir/SKILL.md" 2>/dev/null || echo "0")
+  echo "$name: $examples examples"
+done
+```
+
+### Structure Checks
+
+```bash
+for dir in .claude/skills/*/; do
+  name=$(basename "$dir")
+  has_res=$([ -d "$dir/resources" ] && echo "yes" || echo "no")
+  has_readme=$([ -f "$dir/README.md" ] && echo "YES-BAD" || echo "no")
+  echo "$name: resources=$has_res readme=$has_readme"
+done
+```
+
+**Decision**: Word count (`wc -w`) was chosen over token count because:
+1. Anthropic's guide specifies "5,000 words" not "5,000 tokens"
+2. `wc -w` is reproducible on any POSIX system without dependencies
+3. Token counts vary by tokenizer implementation; word counts are deterministic
+
+---
+
+## 12. Revision History
+
+| Version | Date | Changes |
+|---------|------|---------|
+| 1.0.0 | 2026-02-09 | Initial PRD from /plan-and-analyze research |
+| 1.1.0 | 2026-02-09 | Revised per Bridgebuilder review on PR #264: added audit methodology appendix, explicit test pass/fail thresholds, promoted FR-1 to P0, added rollback strategy R-5, preserved file paths in description examples |
+
+---
+
+## 13. References
 
 | Document | Relevance |
 |----------|-----------|
