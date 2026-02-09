@@ -53,9 +53,93 @@ export class PRReviewTemplate {
         const userPrompt = this.buildUserPrompt(item, truncated);
         return { systemPrompt, userPrompt };
     }
+    /**
+     * Build prompt with metadata about Loa filtering (Task 1.5).
+     * Returns allExcluded and loaBanner alongside the prompts.
+     */
+    buildPromptWithMeta(item, persona) {
+        const systemPrompt = this.buildSystemPrompt(persona);
+        const truncated = truncateFiles(item.files, this.config);
+        if (truncated.allExcluded) {
+            return {
+                systemPrompt,
+                userPrompt: "",
+                allExcluded: true,
+                loaBanner: truncated.loaBanner,
+            };
+        }
+        const userPrompt = this.buildUserPrompt(item, truncated);
+        return {
+            systemPrompt,
+            userPrompt,
+            allExcluded: false,
+            loaBanner: truncated.loaBanner,
+        };
+    }
+    /**
+     * Build prompt from progressive truncation result (TruncationPromptBinding — SDD 3.7).
+     * Deterministic mapping from truncation output to prompt variables.
+     */
+    buildPromptFromTruncation(item, persona, truncResult, loaBanner) {
+        const systemPrompt = this.buildSystemPrompt(persona);
+        const { owner, repo, pr } = item;
+        const lines = [];
+        // Inject banners and disclaimers first (Task 1.9)
+        if (loaBanner) {
+            lines.push(loaBanner);
+            lines.push("");
+        }
+        if (truncResult.disclaimer) {
+            lines.push(truncResult.disclaimer);
+            lines.push("");
+        }
+        // PR metadata header
+        lines.push(`## Pull Request: ${owner}/${repo}#${pr.number}`);
+        lines.push(`**Title**: ${pr.title}`);
+        lines.push(`**Author**: ${pr.author}`);
+        lines.push(`**Base**: ${pr.baseBranch}`);
+        lines.push(`**Head SHA**: ${pr.headSha}`);
+        if (pr.labels.length > 0) {
+            lines.push(`**Labels**: ${pr.labels.join(", ")}`);
+        }
+        lines.push("");
+        // Files changed summary
+        const totalFiles = truncResult.files.length + truncResult.excluded.length;
+        lines.push(`## Files Changed (${totalFiles} files)`);
+        lines.push("");
+        // Included files with diffs
+        for (const file of truncResult.files) {
+            lines.push(this.formatIncludedFile(file));
+        }
+        // Excluded files with stats only
+        for (const entry of truncResult.excluded) {
+            lines.push(`### ${entry.filename} [TRUNCATED]`);
+            lines.push(entry.stats);
+            lines.push("");
+        }
+        // Expected output format instructions
+        lines.push("## Expected Response Format");
+        lines.push("");
+        lines.push("Your review MUST contain these sections:");
+        lines.push("- `## Summary` (2-3 sentences)");
+        lines.push("- `## Findings` (5-8 items, grouped by dimension, severity-tagged)");
+        lines.push("- `## Callouts` (positive observations, ~30% of content)");
+        lines.push("");
+        return { systemPrompt, userPrompt: lines.join("\n") };
+    }
     buildUserPrompt(item, truncated) {
         const { owner, repo, pr } = item;
         const lines = [];
+        // Inject Loa banner if present
+        if (truncated.loaBanner) {
+            lines.push(truncated.loaBanner);
+            lines.push("");
+        }
+        // Inject truncation disclaimer if present
+        if (truncated.truncationDisclaimer) {
+            lines.push(truncated.truncationDisclaimer);
+            lines.push("");
+        }
         // PR metadata header
         lines.push(`## Pull Request: ${owner}/${repo}#${pr.number}`);
         lines.push(`**Title**: ${pr.title}`);

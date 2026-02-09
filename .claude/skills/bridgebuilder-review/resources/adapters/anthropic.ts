@@ -1,3 +1,6 @@
+import {
+  LLMProviderError,
+} from "../ports/llm-provider.js";
 import type {
   ILLMProvider,
   ReviewRequest,
@@ -66,16 +69,22 @@ export class AnthropicAdapter implements ILLMProvider {
 
         clearTimeout(timer);
 
-        if (response.status === 429 || response.status >= 500) {
+        if (response.status === 429) {
+          retryAfterMs = parseRetryAfter(response.headers.get("retry-after"));
+          lastError = new LLMProviderError("RATE_LIMITED", `Anthropic API ${response.status}`);
+          continue;
+        }
+
+        if (response.status >= 500) {
           retryAfterMs = parseRetryAfter(response.headers.get("retry-after"));
           // Do not include response body — may contain sensitive details
-          lastError = new Error(`Anthropic API ${response.status}`);
+          lastError = new LLMProviderError("NETWORK", `Anthropic API ${response.status}`);
           continue;
         }
 
         if (!response.ok) {
           // Do not include response body — may contain echoed prompt content
-          throw new Error(`Anthropic API ${response.status}`);
+          throw new LLMProviderError("INVALID_REQUEST", `Anthropic API ${response.status}`);
         }
 
         let data: AnthropicResponse;
@@ -83,7 +92,7 @@ export class AnthropicAdapter implements ILLMProvider {
           data = (await response.json()) as AnthropicResponse;
         } catch {
           // Truncated/invalid JSON from proxy/CDN — treat as retryable
-          lastError = new Error("Anthropic API invalid JSON response");
+          lastError = new LLMProviderError("NETWORK", "Anthropic API invalid JSON response");
           continue;
         }
 
@@ -107,13 +116,13 @@ export class AnthropicAdapter implements ILLMProvider {
 
         // Retry on timeouts
         if (name === "AbortError") {
-          lastError = new Error("Anthropic API request timed out");
+          lastError = new LLMProviderError("NETWORK", "Anthropic API request timed out");
           continue;
         }
 
         // Retry on transient network errors (TypeError from fetch, connection resets)
         if (err instanceof TypeError || /ECONNRESET|ENOTFOUND|EAI_AGAIN|ETIMEDOUT/i.test(msg)) {
-          lastError = new Error(`Anthropic API network error`);
+          lastError = new LLMProviderError("NETWORK", "Anthropic API network error");
           continue;
         }
 
@@ -121,7 +130,7 @@ export class AnthropicAdapter implements ILLMProvider {
       }
     }
 
-    throw lastError ?? new Error("Anthropic API failed after retries");
+    throw lastError ?? new LLMProviderError("NETWORK", "Anthropic API failed after retries");
   }
 }
 

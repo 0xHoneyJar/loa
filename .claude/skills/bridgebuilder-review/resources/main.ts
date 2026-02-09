@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -14,31 +14,137 @@ import {
   resolveRepos,
   formatEffectiveConfig,
 } from "./config.js";
-import type { RunSummary } from "./core/types.js";
+import type { BridgebuilderConfig, RunSummary } from "./core/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+/** Persona pack directory relative to this module. */
+const PERSONAS_DIR = resolve(__dirname, "personas");
+
 /**
- * Load persona from precedence chain:
- * 1. grimoires/bridgebuilder/BEAUVOIR.md (project override)
- * 2. resources/BEAUVOIR.md (default shipped with skill)
+ * Parse optional YAML frontmatter from persona content (V3-2).
+ * Returns the model override (if any) and the content without frontmatter.
  */
-async function loadPersona(configPath: string): Promise<string> {
-  // Try project override first
+export function parsePersonaFrontmatter(raw: string): { content: string; model?: string } {
+  const match = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+  if (!match) return { content: raw };
+
+  const frontmatter = match[1];
+  const content = match[2];
+
+  // Extract model field from frontmatter (simple key: value parsing)
+  const modelMatch = frontmatter.match(/^\s*model:\s*(.+?)\s*$/m);
+  const model = modelMatch?.[1]?.replace(/^["']|["']$/g, "");
+
+  // Ignore commented-out model lines (# model: ...)
+  if (model && model.startsWith("#")) return { content };
+
+  return { content, model: model || undefined };
+}
+
+/**
+ * Discover available persona packs from the personas/ directory.
+ * Returns pack names (e.g., ["default", "security", "dx", "architecture", "quick"]).
+ */
+export async function discoverPersonas(): Promise<string[]> {
   try {
-    return await readFile(configPath, "utf-8");
+    const files = await readdir(PERSONAS_DIR);
+    return files
+      .filter((f) => f.endsWith(".md"))
+      .map((f) => f.replace(/\.md$/, ""))
+      .sort();
   } catch {
-    // Fall through to default
+    return [];
+  }
+}
+
+/**
+ * Load persona using 5-level CLI-wins precedence chain:
+ * 1. --persona <name> CLI flag → resources/personas/<name>.md
+ * 2. persona: <name> YAML config → resources/personas/<name>.md
+ * 3. persona_path: <path> YAML config → load custom file path
+ * 4. grimoires/bridgebuilder/BEAUVOIR.md (repo-level override)
+ * 5. resources/personas/default.md (built-in default)
+ *
+ * Returns { content, source } for logging.
+ */
+export async function loadPersona(
+  config: BridgebuilderConfig,
+  logger?: { warn: (msg: string) => void },
+): Promise<{ content: string; source: string; model?: string }> {
+  const repoOverridePath = config.repoOverridePath;
+  const packName = config.persona;
+  const customPath = config.personaFilePath;
+
+  // Level 1 & 2: --persona CLI or persona: YAML (both resolve to pack name)
+  if (packName) {
+    const packPath = resolve(PERSONAS_DIR, `${packName}.md`);
+    try {
+      const raw = await readFile(packPath, "utf-8");
+      const { content, model } = parsePersonaFrontmatter(raw);
+
+      // Warn if repo override exists but is being ignored
+      if (repoOverridePath) {
+        try {
+          await readFile(repoOverridePath, "utf-8");
+          logger?.warn(
+            `Using --persona ${packName} (repo override at ${repoOverridePath} ignored)`,
+          );
+        } catch {
+          // Repo override doesn't exist — no warning needed
+        }
+      }
+
+      return { content, source: `pack:${packName}`, model };
+    } catch {
+      // Unknown persona — list available packs
+      const available = await discoverPersonas();
+      throw new Error(
+        `Unknown persona "${packName}". Available: ${available.join(", ")}`,
+      );
+    }
   }
 
-  // Try default persona next to main.ts (or in resources/ at build time)
-  const defaultPath = resolve(__dirname, "BEAUVOIR.md");
+  // Level 3: persona_path: YAML config → load custom file path
+  if (customPath) {
+    try {
+      const raw = await readFile(customPath, "utf-8");
+      const { content, model } = parsePersonaFrontmatter(raw);
+      return { content, source: `custom:${customPath}`, model };
+    } catch {
+      throw new Error(`Persona file not found at custom path: "${customPath}".`);
+    }
+  }
+
+  // Level 4: Repo-level override (grimoires/bridgebuilder/BEAUVOIR.md)
+  if (repoOverridePath) {
+    try {
+      const raw = await readFile(repoOverridePath, "utf-8");
+      const { content, model } = parsePersonaFrontmatter(raw);
+      return { content, source: `repo:${repoOverridePath}`, model };
+    } catch {
+      // Fall through to default
+    }
+  }
+
+  // Level 5: Built-in default persona
+  const defaultPath = resolve(PERSONAS_DIR, "default.md");
   try {
-    return await readFile(defaultPath, "utf-8");
+    const raw = await readFile(defaultPath, "utf-8");
+    const { content, model } = parsePersonaFrontmatter(raw);
+    return { content, source: "pack:default", model };
   } catch {
-    throw new Error(
-      `No persona found. Expected at "${configPath}" or "${defaultPath}".`,
-    );
+    // Fallback to legacy BEAUVOIR.md next to main.ts
+    const legacyPath = resolve(__dirname, "BEAUVOIR.md");
+    try {
+      const raw = await readFile(legacyPath, "utf-8");
+      const { content, model } = parsePersonaFrontmatter(raw);
+      return { content, source: `legacy:${legacyPath}`, model };
+    } catch {
+      throw new Error(
+        `No persona found. Expected at "${defaultPath}" or "${legacyPath}".`,
+      );
+    }
   }
 }
 
@@ -83,15 +189,18 @@ async function main(): Promise<void> {
   // --help flag
   if (argv.includes("--help") || argv.includes("-h")) {
     console.log(
-      "Usage: bridgebuilder [--dry-run] [--repo owner/repo] [--pr N] [--no-auto-detect]",
+      "Usage: bridgebuilder [--dry-run] [--repo owner/repo] [--pr N] [--persona NAME] [--exclude PATTERN]",
     );
     console.log("");
     console.log("Options:");
-    console.log("  --dry-run          Run without posting reviews");
-    console.log("  --repo owner/repo  Target repository (can be repeated)");
-    console.log("  --pr N             Target specific PR number");
-    console.log("  --no-auto-detect   Skip auto-detection of current repo");
-    console.log("  --help, -h         Show this help");
+    console.log("  --dry-run            Run without posting reviews");
+    console.log("  --repo owner/repo    Target repository (can be repeated)");
+    console.log("  --pr N               Target specific PR number");
+    console.log("  --persona NAME       Use persona pack (default, security, dx, architecture, quick)");
+    console.log("  --exclude PATTERN    Exclude file pattern (can be repeated, additive)");
+    console.log("  --no-auto-detect     Skip auto-detection of current repo");
+    console.log("  --force-full-review  Skip incremental review, review all files");
+    console.log("  --help, -h           Show this help");
     process.exit(0);
   }
 
@@ -109,8 +218,18 @@ async function main(): Promise<void> {
   // Log effective config with provenance annotations
   console.error(formatEffectiveConfig(config, provenance));
 
-  // Load persona
-  const persona = await loadPersona(config.personaPath);
+  // Load persona via 5-level precedence chain
+  const personaResult = await loadPersona(config, {
+    warn: (msg: string) => console.error(`[bridgebuilder] WARN: ${msg}`),
+  });
+  const persona = personaResult.content;
+  console.error(`[bridgebuilder] Persona: ${personaResult.source}`);
+
+  // Apply persona model override (V3-2): persona model wins unless CLI --model was explicit
+  if (personaResult.model && provenance.model !== "cli") {
+    config.model = personaResult.model;
+    console.error(`[bridgebuilder] Model override: ${personaResult.model} (from persona:${personaResult.source})`);
+  }
 
   // Create adapters
   const apiKey = process.env.ANTHROPIC_API_KEY ?? "";

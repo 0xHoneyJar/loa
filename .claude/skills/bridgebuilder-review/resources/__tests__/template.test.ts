@@ -50,7 +50,7 @@ function mockConfig(overrides?: Partial<BridgebuilderConfig>): BridgebuilderConf
     maxOutputTokens: 4096,
     dimensions: ["correctness", "security"],
     reviewMarker: "bridgebuilder-review",
-    personaPath: "BEAUVOIR.md",
+    repoOverridePath: "BEAUVOIR.md",
     dryRun: false,
     excludePatterns: [],
     sanitizerMode: "default" as const,

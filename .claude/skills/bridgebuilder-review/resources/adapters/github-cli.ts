@@ -1,5 +1,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import {
+  GitProviderError,
+} from "../ports/git-provider.js";
 import type {
   IGitProvider,
   PullRequest,
@@ -7,6 +10,7 @@ import type {
   PRReview,
   PreflightResult,
   RepoPreflightResult,
+  CommitCompareResult,
 } from "../ports/git-provider.js";
 import type {
   IReviewPoster,
@@ -32,6 +36,8 @@ const ALLOWED_API_ENDPOINTS: ReadonlyArray<RegExp> = [
   /^\/repos\/[^/]+\/[^/]+\/pulls\/\d+\/files\?per_page=100$/,
   /^\/repos\/[^/]+\/[^/]+\/pulls\/\d+\/reviews\?per_page=100$/,
   /^\/repos\/[^/]+\/[^/]+\/pulls\/\d+\/reviews$/,
+  // V3-1: compare commits for incremental review
+  /^\/repos\/[^/]+\/[^/]+\/compare\/[a-f0-9]{7,40}\.\.\.[a-f0-9]{7,40}$/,
 ];
 
 /**
@@ -151,13 +157,16 @@ async function gh(
       code?: string | number;
     };
     if (e.code === "ENOENT") {
-      throw new Error(
+      throw new GitProviderError(
+        "NETWORK",
         "GitHub CLI (gh) required. Install: https://cli.github.com/ and run 'gh auth login'.",
       );
     }
     // Do not include stderr/message — may contain tokens or sensitive repo info
     const code = typeof e.code === "string" || typeof e.code === "number" ? String(e.code) : "unknown";
-    throw new Error(`gh command failed (code=${code})`);
+    // Classify by exit code: 1 = general failure, 4 = auth/forbidden in gh
+    const errorCode = code === "4" ? "FORBIDDEN" : "NETWORK";
+    throw new GitProviderError(errorCode, `gh command failed (code=${code})`);
   }
 }
 
@@ -166,7 +175,7 @@ function parseJson<T>(raw: string, context: string): T {
     return JSON.parse(raw) as T;
   } catch {
     // Do not include raw response — may contain sensitive data
-    throw new Error(`Failed to parse gh JSON for ${context}`);
+    throw new GitProviderError("NETWORK", `Failed to parse gh JSON for ${context}`);
   }
 }
 
@@ -283,6 +292,27 @@ export class GitHubCLIAdapter implements IGitProvider, IReviewPoster {
         error: (err as Error).message,
       };
     }
+  }
+
+  async getCommitDiff(
+    owner: string,
+    repo: string,
+    base: string,
+    head: string,
+  ): Promise<CommitCompareResult> {
+    const raw = await gh([
+      "api",
+      `/repos/${owner}/${repo}/compare/${base}...${head}`,
+    ]);
+    const data = parseJson<Record<string, unknown>>(
+      raw,
+      `getCommitDiff(${owner}/${repo}, ${base.slice(0, 7)}...${head.slice(0, 7)})`,
+    );
+    const files = (data.files as Array<Record<string, unknown>> | undefined) ?? [];
+    return {
+      filesChanged: files.map((f) => f.filename as string),
+      totalCommits: (data.total_commits as number) ?? 0,
+    };
   }
 
   async hasExistingReview(

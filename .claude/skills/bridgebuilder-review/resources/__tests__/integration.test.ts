@@ -76,7 +76,7 @@ function makeConfig(overrides?: Partial<BridgebuilderConfig>): BridgebuilderConf
     maxOutputTokens: 4000,
     dimensions: ["security", "quality", "test-coverage"],
     reviewMarker: "bridgebuilder-review",
-    personaPath: "grimoires/bridgebuilder/BEAUVOIR.md",
+    repoOverridePath: "grimoires/bridgebuilder/BEAUVOIR.md",
     dryRun: false,
     excludePatterns: [],
     sanitizerMode: "default",
@@ -123,6 +123,9 @@ function createMockGit(
       repo: string,
     ): Promise<RepoPreflightResult> {
       return { owner, repo, accessible: true };
+    },
+    async getCommitDiff() {
+      return { filesChanged: [], totalCommits: 0 };
     },
   };
   return mock;
@@ -216,6 +219,10 @@ function createMockContextStore(): IContextStore {
       return true;
     },
     async finalizeReview(): Promise<void> {},
+    async getLastReviewedSha(): Promise<string | null> {
+      return null;
+    },
+    async setLastReviewedSha(): Promise<void> {},
   };
 }
 
@@ -315,17 +322,17 @@ describe("integration: full pipeline", () => {
     assert.equal(result.skipped, false);
   });
 
-  it("marker format contains review_marker and headSha", async () => {
+  it("poster receives headSha for marker append", async () => {
     const poster = createMockPoster();
 
     const { pipeline } = buildPipeline({ poster });
     await pipeline.run("test-marker");
 
-    const body = poster.postCalls[0].body;
-    assert.ok(
-      body.includes("<!-- bridgebuilder-review: abc123def456 -->"),
-      `Marker not found in posted body: ${body.slice(-100)}`,
-    );
+    // Marker append is the adapter's responsibility (github-cli.ts:300).
+    // Core pipeline passes headSha so the adapter can build the marker.
+    const posted = poster.postCalls[0];
+    assert.equal(posted.headSha, "abc123def456");
+    assert.equal(posted.prNumber, 42);
   });
 
   it("classifies critical findings as REQUEST_CHANGES", async () => {
@@ -452,6 +459,76 @@ describe("integration: full pipeline", () => {
     assert.equal(summary.reviewed, 2);
     assert.equal(poster.postCalls.length, 2);
     assert.equal(llm.calls.length, 2);
+  });
+
+  it("multi-repo: repo A inaccessible does not block repo B review", async () => {
+    const repoBPR: PullRequest = {
+      number: 99,
+      title: "Repo B feature",
+      headSha: "bbb999",
+      baseBranch: "main",
+      labels: [],
+      author: "dev-b",
+    };
+    const repoBFiles: PullRequestFile[] = [
+      {
+        filename: "src/feature.ts",
+        status: "added",
+        additions: 10,
+        deletions: 0,
+        patch: "+export const feature = true;",
+      },
+    ];
+
+    // Git mock that serves different data per repo
+    const git: IGitProvider = {
+      async listOpenPRs(_owner: string, repo: string) {
+        if (repo === "repo-b") return [repoBPR];
+        return [fakePR]; // repo-a
+      },
+      async getPRFiles(_owner: string, repo: string, _prNumber: number) {
+        if (repo === "repo-b") return repoBFiles;
+        return fakeFiles;
+      },
+      async getPRReviews() { return []; },
+      async preflight() { return { remaining: 5000, scopes: ["repo"] }; },
+      async preflightRepo(_owner: string, repo: string) {
+        // Repo A fails, Repo B succeeds
+        return { owner: _owner, repo, accessible: repo === "repo-b" };
+      },
+      async getCommitDiff() { return { filesChanged: [], totalCommits: 0 }; },
+    };
+
+    const poster = createMockPoster();
+    const llm = createMockLLM();
+
+    const { pipeline } = buildPipeline({
+      config: {
+        repos: [
+          { owner: "test-org", repo: "repo-a" },
+          { owner: "test-org", repo: "repo-b" },
+        ],
+      },
+      git,
+      poster,
+      llm,
+    });
+
+    const summary = await pipeline.run("test-multi-repo-isolation");
+
+    // Repo B's PR should be reviewed despite Repo A being inaccessible
+    assert.equal(summary.reviewed, 1);
+    assert.equal(poster.postCalls.length, 1);
+    // Repo A's PR should be skipped as inaccessible
+    const skipped = summary.results.filter((r) => r.skipped);
+    assert.equal(skipped.length, 1);
+    assert.equal(skipped[0].skipReason, "repo_inaccessible");
+    assert.equal(skipped[0].item.repo, "repo-a");
+    // The reviewed PR should be Repo B's
+    const reviewed = summary.results.filter((r) => r.posted);
+    assert.equal(reviewed.length, 1);
+    assert.equal(reviewed[0].item.repo, "repo-b");
+    assert.equal(reviewed[0].item.pr.number, 99);
   });
 
   it("RunSummary has valid timestamps", async () => {
