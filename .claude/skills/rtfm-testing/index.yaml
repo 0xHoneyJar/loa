@@ -1,0 +1,71 @@
+name: "rtfm-testing"
+version: "1.0.0"
+model: "sonnet"
+color: "cyan"
+
+effort_hint: low
+danger_level: safe
+categories:
+  - quality
+
+description: |
+  Test documentation usability by spawning fresh zero-context agents.
+  Identifies gaps that human reviewers miss due to the curse of knowledge.
+  The agent equivalent of a hermetic build — no implicit dependencies, no ambient state.
+
+triggers:
+  - "/rtfm"
+  - "test documentation"
+  - "validate docs usability"
+  - "rtfm test"
+  - "documentation quality test"
+
+examples:
+  - context: "User wants to verify README is usable by newcomers"
+    user_says: "/rtfm README.md"
+    agent_action: "Spawn zero-context tester to attempt quickstart using only README.md"
+  - context: "User wants to test installation guide completeness"
+    user_says: "/rtfm INSTALLATION.md"
+    agent_action: "Spawn zero-context tester to attempt installation using only INSTALLATION.md"
+  - context: "User wants to test combined onboarding flow"
+    user_says: "/rtfm README.md INSTALLATION.md"
+    agent_action: "Spawn zero-context tester with both docs bundled"
+  - context: "User wants to test with a custom task"
+    user_says: "/rtfm --task 'Install and run first command' README.md"
+    agent_action: "Spawn zero-context tester with custom task and README.md"
+
+inputs:
+  - name: "docs"
+    type: "string[]"
+    required: false
+    description: "Documentation files to test"
+  - name: "task"
+    type: "string"
+    required: false
+    description: "Custom task for the tester to attempt"
+  - name: "template"
+    type: "string"
+    required: false
+    description: "Pre-built task template (install, quickstart, mount, beads, gpt-review, update)"
+  - name: "model"
+    type: "string"
+    required: false
+    description: "Model for tester subagent (sonnet or haiku)"
+
+inputExamples:
+  - input:
+      docs: ["README.md"]
+    description: "Test README usability with default quickstart task"
+  - input:
+      docs: ["INSTALLATION.md"]
+      template: "install"
+    description: "Test installation guide with install template"
+  - input:
+      docs: ["README.md", "INSTALLATION.md"]
+      task: "Install this framework and run your first command"
+    description: "Test combined onboarding with custom task"
+
+outputs:
+  - path: "grimoires/loa/a2a/rtfm/report-{date}.md"
+    description: "RTFM test report with gaps and verdict"
+    format: detailed
