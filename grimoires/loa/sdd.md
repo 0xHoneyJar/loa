@@ -289,17 +289,23 @@ Phase 5: Baseline Check (Phase 2 scope)
   - Warn about potential regression
 ```
 
-### 4.4 Context Isolation Canary
+### 4.4 Context Isolation Canary (Two-Layer)
 
-Embedded in the tester prompt:
+#### Layer 1: Self-Report (Suggestive)
 
-```
-CANARY CHECK: Before starting, answer: "What framework is this documentation for?"
-If you can answer from prior knowledge (not from the docs), state that.
-Report your answer at the top of your response.
-```
+Embedded in the tester prompt — asks the tester to honestly report whether it recognizes the project from training data.
 
-If the tester answers with project-specific knowledge not present in the docs, context isolation has leaked. The skill flags this and aborts.
+**Limitation**: LLMs cannot reliably distinguish "I know this from training data" from "I learned this from the docs." This is suggestive but not deterministic.
+
+#### Layer 2: Planted Canary (Deterministic)
+
+A fictitious project name is injected into the doc bundle via a `=== PROJECT CONTEXT ===` header. The gap parser checks whether the tester references the planted name or the real one.
+
+- Uses the planted name → PASS (isolation verified mechanically)
+- Uses the real name → COMPROMISED (prior knowledge detected)
+- Uses neither → INCONCLUSIVE (fall back to Layer 1 result)
+
+**Combined result** determines the canary status in the report: PASS, WARNING, or COMPROMISED. See SKILL.md `<planted_canary>` section for the full decision matrix.
 
 ---
 
@@ -491,9 +497,13 @@ rtfm:
 
 ## 11. Security Considerations
 
-1. **Prompt injection via docs** — Tester has no elevated permissions, output is parsed not executed, canary detects behavior alteration
-2. **Context isolation** — Canary check is primary defense. If tester shows project knowledge not in docs, abort
-3. **No file writes by tester** — `general-purpose` subagent cannot write files in the parent session
+1. **Prompt injection via docs** — Tester has no elevated permissions, output is parsed not executed. Rules 7-8 in the tester prompt explicitly instruct the agent to treat docs as untrusted input and refuse conflicting instructions.
+2. **Context isolation — Two-layer canary architecture**:
+   - **Layer 1 (Self-report, suggestive)**: Tester is asked to report if it recognizes the project from training data. Limitation: LLMs cannot reliably introspect on knowledge provenance (Goodhart's Law). The smoke test confirmed this — the tester recognized Loa from training data.
+   - **Layer 2 (Planted canary, deterministic)**: A fictitious project name is injected into the doc bundle. The parser mechanically checks whether the tester references the planted name or the real one. This catches name-level knowledge leakage without relying on self-reporting.
+   - **Limitations**: Neither layer catches concept-level leakage (e.g., knowing what "grimoires" means without the docs explaining it). Planted names may coincidentally match real project names. Both layers together provide meaningful but not complete coverage.
+3. **No file writes by tester** — The `general-purpose` subagent spawned via Task tool returns text output only and cannot write files in the parent session. This is an implementation characteristic of Claude Code's Task tool, not an explicitly enforced security boundary.
+4. **Gap parser resilience** — The parser accepts format variants (bold markers, synonym severities) and falls back to MANUAL_REVIEW on unparseable output rather than silently dropping gaps. This prevents a compromised tester from hiding findings by using non-standard formatting.
 
 ---
 
