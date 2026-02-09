@@ -17,6 +17,7 @@ export interface BridgebuilderConfig {
     excludePatterns: string[];
     sanitizerMode: "default" | "strict";
     maxRuntimeMinutes: number;
+    /** When set (via --pr flag), filters fetchPRItems() to this single PR number. */
     targetPr?: number;
 }
 export interface ReviewItem {

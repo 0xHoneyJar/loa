@@ -119,6 +119,11 @@ export class ReviewPipeline {
             // worst case we skip a PR that would have fit. Under-estimating risks
             // truncated LLM output or API errors. A proper tokenizer (tiktoken) would
             // add ~2MB dependency for marginal accuracy gain on a guard rail.
+            //
+            // Note: maxDiffBytes truncates the diff *before* prompt assembly.
+            // This estimate covers the full prompt (persona + diff + metadata),
+            // so the effective token budget is maxDiffBytes + persona + metadata,
+            // NOT maxInputTokens alone. The ceiling estimate accounts for this.
             const systemTokens = Math.ceil(systemPrompt.length / 4);
             const userTokens = Math.ceil(userPrompt.length / 4);
             const estimatedTokens = systemTokens + userTokens;
@@ -139,7 +144,7 @@ export class ReviewPipeline {
                     pr: pr.number,
                     estimatedTokens,
                     budget: this.config.maxInputTokens,
-                    suggestion: `Raise max_input_tokens in .loa.config.yaml or use --max-input-tokens ${Math.ceil(estimatedTokens * 1.1)}`,
+                    suggestion: `Raise max_input_tokens in .loa.config.yaml or use --max-input-tokens ${estimatedTokens}`,
                 });
                 return this.skipResult(item, "prompt_too_large");
             }
