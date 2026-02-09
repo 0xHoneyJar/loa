@@ -1,235 +1,188 @@
-# Sprint Plan: Bridgebuilder v2.1 — Review Findings Polish
+# Sprint Plan: Skill Benchmark Audit — Anthropic Best Practices
 
-**Source**: PR #266 Bridgebuilder Review Comments (Sprint 1 Review + Bridgebuilder Persona Review)
-**PRD Reference**: `grimoires/loa/prd-bridgebuilder-263.md`
-**SDD Reference**: `grimoires/loa/sdd-bridgebuilder-263.md`
+**Version**: 1.1.0 (Flatline-hardened)
 **Date**: 2026-02-09
-**Branch**: `feature/bridgebuilder-v2.1`
-**Team**: 1 AI engineer (Claude)
+**PRD**: grimoires/loa/prd.md (v1.1.0)
+**SDD**: grimoires/loa/sdd.md (v1.0.0)
+**Issue**: #261
 
 ---
 
-## Overview
+## Flatline Sprint Review Summary
 
-PR #266 (Bridgebuilder v2) received a comprehensive review with 6 findings (F-1 through F-6) plus 1 dead code observation from the Sprint 1 review. Additionally, the closing review identified 4 v3 roadmap items, 2 of which are scoped as concrete improvements for this polish cycle.
-
-### Fix Inventory (from PR #266 comments)
-
-| Source | ID | Severity | Title | Sprint |
-|--------|----|----------|-------|--------|
-| Bridgebuilder F-3 | BB-F3 | Medium | String-based error classification → typed port errors | Sprint 1 |
-| Bridgebuilder F-1 | BB-F1 | Medium | Token calibration logging (estimated vs actual) | Sprint 1 |
-| Sprint 1 Review | S1-NOTE | Low | TIER2_FILENAMES dead code (unreachable due to SECURITY_PATTERNS priority) | Sprint 1 |
-| Bridgebuilder F-5 | BB-F5 | Low | Rename `personaPath` → `repoOverridePath` for clarity | Sprint 1 |
-| Bridgebuilder F-6 | BB-F6 | Info | Documentation alignment ("3→1→0" vs actual Level 2 starting at 1) | Sprint 1 |
-| Bridgebuilder F-4 | BB-F4 | Low | Glob matching: use `path.matchesGlob()` (Node 22+) or add `**` support | Sprint 2 |
-| Closing Note | V3-1 | Medium | Incremental review context (delta-only on PR updates) | Sprint 2 |
-| Closing Note | V3-2 | Low | Multi-model persona routing (per-persona model selection) | Sprint 2 |
+| Metric | Value |
+|--------|-------|
+| Models | Claude Opus 4.6 + GPT-5.2 |
+| Agreement | 90% |
+| HIGH_CONSENSUS integrated | 4 (IMP-001, IMP-002, IMP-003, IMP-006) |
+| BLOCKERS accepted | 3 (SKP-003, SKP-006, SKP-007) |
+| DISPUTED logged | 1 (IMP-010 — deferred, observation monitoring is over-scoped) |
+| SKP-001 (CI integration) | Addressed via IMP-003 (same recommendation) |
 
 ---
 
-## Sprint 1: Core Quality & Naming Polish
+## Sprint 1: Validation Foundation + Size Compliance (P0)
 
-**Goal**: Address the two Medium findings (typed errors, token calibration) plus quick cleanup items.
-**Estimated tasks**: 5
-**Files touched**: `truncation.ts`, `reviewer.ts`, `types.ts`, `main.ts`, `config.ts`, port interfaces
+**Goal**: Create the structural validation test suite, test it with fixtures, fix the only hard-limit violation, and add CI integration.
 
-### Task 1.1: Typed Port Errors (BB-F3)
+### Task 1: Create benchmark configuration
+- **File**: `.claude/schemas/skill-benchmark.json`
+- **Description**: Create JSON config with thresholds (max_words: 5000, max_description_chars: 1024, min_error_references: 5, trigger patterns, forbidden frontmatter patterns)
+- **Acceptance Criteria**:
+  - [ ] File exists and is valid JSON
+  - [ ] All threshold values match PRD requirements
+  - [ ] jq can parse it without errors
+  - [ ] Script handles missing/malformed config gracefully with clear error message (IMP-002)
 
-**Description**: Replace string-based error classification in `reviewer.ts:classifyError()` with typed error classes defined in port interfaces. Each port should declare its error vocabulary; adapters map internal errors to port error codes. The pipeline classifies by type, not message content.
+### Task 2: Create structural validation script
+- **File**: `.claude/scripts/validate-skill-benchmarks.sh`
+- **Description**: Bash script implementing 10 checks from SDD Section 3.1.1. Must follow existing `validate-skills.sh` output format. Reads thresholds from `skill-benchmark.json`. Uses POSIX-compatible tools only (no GNU-specific flags).
+- **Acceptance Criteria**:
+  - [ ] All 10 checks implemented (SKILL.md exists, word count, no README, kebab-case, name match, no XML frontmatter, description length, WHEN pattern, error refs, frontmatter valid)
+  - [ ] Checks 1-7 and 10 are blocking (FAIL); checks 8-9 are warnings
+  - [ ] Output matches format: `PASS/FAIL/WARN: skill-name (details)`
+  - [ ] Summary shows total/passed/failed/warnings
+  - [ ] Exit code 0 if no FAILs, exit code 1 if any FAILs
+  - [ ] Script is executable (`chmod +x`)
+  - [ ] Graceful error on missing/invalid benchmark config JSON (IMP-002)
 
-**Files**:
-- `resources/ports/git-provider.ts` — add `GitProviderError` type with codes: `RATE_LIMITED`, `NOT_FOUND`, `FORBIDDEN`, `NETWORK`
-- `resources/ports/llm-provider.ts` — add `LLMProviderError` type with codes: `TOKEN_LIMIT`, `RATE_LIMITED`, `INVALID_REQUEST`, `NETWORK`
-- `resources/core/reviewer.ts` — refactor `classifyError()` to check `instanceof` typed errors, keep string-matching as fallback for unknown errors
-- `resources/core/types.ts` — move `ReviewError` source union to use port error codes
-- `resources/adapters/` — wrap adapter errors in typed port error classes
+### Task 3: Create test fixtures for validation script (SKP-007)
+- **Dir**: `.claude/skills/__test-compliant__/` and `.claude/skills/__test-noncompliant__/`
+- **Description**: Create deliberately compliant and non-compliant skill directories as test fixtures. Run validator against both to prove all 10 checks work. Clean up fixture dirs after test.
+- **Acceptance Criteria**:
+  - [ ] Compliant fixture: passes all 10 checks
+  - [ ] Non-compliant fixture: triggers FAIL on word count, missing SKILL.md, README.md present, bad folder name, XML in frontmatter
+  - [ ] Test script verifies validator catches all failure modes
+  - [ ] Fixture dirs prefixed with `__` to avoid confusion with real skills
+  - [ ] Cleanup step removes fixture dirs after test run (IMP-006)
 
-**Acceptance Criteria**:
-- [ ] `GitProviderError` type exported from git-provider port with `code` field
-- [ ] `LLMProviderError` type exported from llm-provider port with `code` field
-- [ ] `classifyError()` checks `instanceof` before falling back to string matching
-- [ ] Token rejection detection (`isTokenRejection`) uses typed error `code === "TOKEN_LIMIT"` as primary check, string patterns as fallback
-- [ ] All existing tests pass (string-matching fallback preserves backward compat)
-- [ ] New tests: typed error classification for each port error code
-- [ ] No behavior change for callers — same `ReviewError` output shape
+### Task 4: Update skill-index schema
+- **File**: `.claude/schemas/skill-index.schema.json`
+- **Description**: Raise description maxLength from 500 to 1024. Add optional `negative_triggers` array field.
+- **Acceptance Criteria**:
+  - [ ] `description.maxLength` is 1024
+  - [ ] `negative_triggers` field added with type array of strings
+  - [ ] Existing `validate-skills.sh` still passes
 
-**Dependencies**: None
-**Estimated effort**: Medium
+### Task 5: Refactor riding-codebase SKILL.md
+- **File**: `.claude/skills/riding-codebase/SKILL.md` + 3 new reference files
+- **Description**: Extract ~2,400 words of reference material to `resources/references/`. Create backup (`SKILL.md.bak`). Target ≤4,500 words in SKILL.md.
+- **Acceptance Criteria**:
+  - [ ] SKILL.md is ≤ 4,500 words (`wc -w`)
+  - [ ] 3 reference files created: `output-formats.md`, `analysis-checklists.md`, `deep-analysis-guide.md`
+  - [ ] SKILL.md links to reference files with `See: resources/references/...`
+  - [ ] Core instructions (phases 0-1, edge cases) remain inline
+  - [ ] `SKILL.md.bak` backup exists
+  - [ ] `validate-skill-benchmarks.sh` passes for riding-codebase
+  - [ ] Behavioral smoke test: invoke `/ride` on a small test repo before and after refactoring, verify output is functionally equivalent (SKP-003)
 
-### Task 1.2: Token Calibration Logging (BB-F1)
+### Task 6: Rollback playbook (IMP-001)
+- **Description**: Document explicit rollback steps for Sprint 1 changes.
+- **Acceptance Criteria**:
+  - [ ] Rollback steps documented in sprint report: restore SKILL.md.bak, revert schema, remove validation script
+  - [ ] Decision criteria: who decides to rollback, what signals trigger it
+  - [ ] Re-validation steps after rollback
 
-**Description**: Add calibration logging that records estimated tokens vs actual tokens (from LLM API response) after each review. This enables coefficient tuning over time. Log to stderr as structured JSON for machine parsing.
-
-**Files**:
-- `resources/core/reviewer.ts` — after successful LLM call, log calibration data: `{ estimated, actual, ratio, model, level }`
-- `resources/core/truncation.ts` — add `estimatePromptTokens()` helper that returns breakdown alongside total
-- `resources/core/types.ts` — add `CalibrationEntry` type if needed
-
-**Acceptance Criteria**:
-- [ ] After each successful LLM call, log calibration entry to stderr via logger: `{ phase: "calibration", estimatedTokens, actualInputTokens, ratio, model, truncationLevel }`
-- [ ] Ratio = actualInputTokens / estimatedTokens (shows if coefficient is accurate)
-- [ ] Only logs when `response.inputTokens` is available (some providers may not return it)
-- [ ] No behavior change — logging only, no coefficient auto-tuning yet
-- [ ] Test: mock LLM response with inputTokens, verify calibration log emitted
-
-**Dependencies**: None
-**Estimated effort**: Small
-
-### Task 1.3: Remove Dead TIER2_FILENAMES Code (S1-NOTE)
-
-**Description**: The Sprint 1 review noted that `SECURITY.md` and `CODEOWNERS` both match `SECURITY_PATTERNS` before reaching `TIER2_FILENAMES` (line 192 of truncation.ts), making those filename overrides unreachable. Remove the dead code and update tests.
-
-**Files**:
-- `resources/core/truncation.ts` — remove `TIER2_FILENAMES` Set and the corresponding check in `classifyLoaFile()`
-
-**Acceptance Criteria**:
-- [ ] `TIER2_FILENAMES` constant removed from `truncation.ts`
-- [ ] `classifyLoaFile()` no longer checks basename against TIER2_FILENAMES
-- [ ] `SECURITY.md` still classified as `"exception"` (covered by SECURITY_PATTERNS)
-- [ ] `CODEOWNERS` still classified as `"exception"` (covered by SECURITY_PATTERNS)
-- [ ] All existing tests pass
-- [ ] Comment added at `classifyLoaFile()` explaining that security patterns take priority: "SECURITY.md and CODEOWNERS match SECURITY_PATTERNS above — no separate filename check needed"
-
-**Dependencies**: None
-**Estimated effort**: Small
-
-### Task 1.4: Rename personaPath → repoOverridePath (BB-F5)
-
-**Description**: Rename `BridgebuilderConfig.personaPath` to `repoOverridePath` to eliminate naming confusion with `YamlConfig.persona_path` (which maps to `personaFilePath`). This is a pure clarity rename — no behavior change.
-
-**Files**:
-- `resources/core/types.ts` — rename field in `BridgebuilderConfig`
-- `resources/config.ts` — update DEFAULTS and resolveConfig references
-- `resources/main.ts` — update loadPersona references
-- `resources/__tests__/config.test.ts` — update test references
-- `resources/__tests__/persona.test.ts` — update test references
-
-**Acceptance Criteria**:
-- [ ] `BridgebuilderConfig.personaPath` renamed to `repoOverridePath`
-- [ ] DEFAULTS constant updated
-- [ ] `resolveConfig()` maps correctly (persona_path YAML still maps to `personaFilePath` for custom paths, `review_marker` default still goes to `repoOverridePath`)
-- [ ] `loadPersona()` reads from `config.repoOverridePath`
-- [ ] All 269 existing tests pass
-- [ ] No behavior change — pure rename
-
-**Dependencies**: None
-**Estimated effort**: Small
-
-### Task 1.5: Documentation Alignment (BB-F6)
-
-**Description**: The PR description and comments reference "3→1→0" context reduction, but Level 2 in code starts at context=1 (not 3). Context=3 is the default git diff format used by Level 1 (full patches). Add inline documentation clarifying this.
-
-**Files**:
-- `resources/core/truncation.ts` — add comment at progressive truncation Level 2 section explaining the context=3 is implicit in Level 1's full patch
-
-**Acceptance Criteria**:
-- [ ] Comment at `progressiveTruncate()` Level 2 section (around line 585) explaining: "Level 1 uses full patches which include default git context (3 lines). Level 2 reduces: context=1, then context=0. The '3→1→0' reduction spans Level 1→Level 2."
-- [ ] No code changes — documentation only
-- [ ] Comment at LEVEL_DISCLAIMERS explaining the relationship between levels and context
-
-**Dependencies**: None
-**Estimated effort**: Trivial
+### Task 7: Run full validation + CI integration (IMP-003)
+- **Description**: Execute both validation scripts, verify all checks pass, and document CI integration point.
+- **Acceptance Criteria**:
+  - [ ] `validate-skills.sh` exits 0
+  - [ ] `validate-skill-benchmarks.sh` exits 0 (riding-codebase under limit)
+  - [ ] Only expected warnings remain (5 skills with low error refs — addressed in Sprint 2)
+  - [ ] CI integration documented: which GitHub Actions workflow to add the validator to, with the exact step definition
 
 ---
 
-## Sprint 2: Glob Upgrade & New Capabilities
+## Sprint 2: Description Standardization + Error Handling (P1-P2)
 
-**Goal**: Upgrade glob matching for Node 22+ and implement two high-value v3 features from the roadmap.
-**Estimated tasks**: 3
-**Files touched**: `truncation.ts`, `reviewer.ts`, `template.ts`, `types.ts`, `config.ts`, context module
+**Goal**: Bring all 19 skill descriptions into compliance (batched) and add error handling to underserved skills.
 
-### Task 2.1: Enhanced Glob Matching (BB-F4)
+### Task 1a: Standardize descriptions — Batch 1 (skills 1-5)
+- **Files**: `auditing-security`, `autonomous-agent`, `bridgebuilder-review`, `browsing-constructs`, `continuous-learning` index.yaml
+- **Description**: Update 5 descriptions to follow `[What] + [When] + [Capabilities]` formula. Run validation after batch.
+- **Acceptance Criteria**:
+  - [ ] 5 descriptions follow the 3-line template, ≤ 1,024 chars
+  - [ ] Contain "Use when" or equivalent trigger context
+  - [ ] No trigger file paths dropped
+  - [ ] `validate-skill-benchmarks.sh` passes for these 5 (SKP-006)
 
-**Description**: Upgrade `matchesExcludePattern()` in `truncation.ts` to support `**` recursive glob matching. Use `path.matchesGlob()` (Node 22+, available since Node 22.5.0) when available, falling back to the existing simplified implementation. This maintains zero-dep while gaining proper glob support on modern runtimes.
+### Task 1b: Standardize descriptions — Batch 2 (skills 6-10)
+- **Files**: `deploying-infrastructure`, `designing-architecture`, `discovering-requirements`, `enhancing-prompts`, `flatline-knowledge` index.yaml
+- **Acceptance Criteria**: Same as Task 1a for these 5 skills
 
-**Files**:
-- `resources/core/truncation.ts` — upgrade `matchesExcludePattern()` with `path.matchesGlob()` detection and fallback
-- `resources/__tests__/loa-detection.test.ts` — add tests for `**` patterns
+### Task 1c: Standardize descriptions — Batch 3 (skills 11-15)
+- **Files**: `implementing-tasks`, `mounting-framework`, `planning-sprints`, `reviewing-code`, `riding-codebase` index.yaml
+- **Acceptance Criteria**: Same as Task 1a for these 5 skills
 
-**Acceptance Criteria**:
-- [ ] `matchesExcludePattern()` uses `path.matchesGlob()` when available (typeof check)
-- [ ] Falls back to current simplified matching on Node <22
-- [ ] Supports `**` recursive patterns: `src/**/*.test.ts` matches `src/core/utils.test.ts`
-- [ ] Supports `?` single character wildcards
-- [ ] Existing patterns (`*.md`, `src/*`, `src/*.test.ts`) continue working identically
-- [ ] No new dependencies
-- [ ] Tests: recursive patterns, fallback behavior, character wildcards
+### Task 1d: Standardize descriptions — Batch 4 (skills 16-19)
+- **Files**: `rtfm-testing`, `run-mode`, `simstim-workflow`, `translating-for-executives` index.yaml
+- **Acceptance Criteria**: Same as Task 1a for these 4 skills
 
-**Dependencies**: None
-**Estimated effort**: Medium
+### Task 2: Add error handling to bridgebuilder-review
+- **File**: `.claude/skills/bridgebuilder-review/SKILL.md`
+- **Description**: Add `## Error Handling` section with error table and troubleshooting. Cover: API failures, auth errors, rate limits, dry-run edge cases, large PR handling.
+- **Acceptance Criteria**:
+  - [ ] Error handling section added with ≥ 5 error references
+  - [ ] Error table with cause and resolution columns
+  - [ ] Word count still under 5,000
+  - [ ] `validate-skill-benchmarks.sh` passes
 
-### Task 2.2: Incremental Review Context (V3-1)
+### Task 3: Add error handling to designing-architecture
+- **File**: `.claude/skills/designing-architecture/SKILL.md`
+- **Description**: Add error handling for: PRD not found, clarification loop timeout, SDD generation failure.
+- **Acceptance Criteria**:
+  - [ ] Error handling section added with ≥ 5 error references
+  - [ ] Word count still under 5,000
 
-**Description**: When a PR updates after an initial review, only review the delta (new commits since last review). The `BridgebuilderContext` already tracks a `hash` per PR (based on headSha + sorted filenames). Extend it to persist the reviewed-at SHA and, on subsequent runs, filter the diff to only include files changed since that SHA.
+### Task 4: Add error handling to flatline-knowledge
+- **File**: `.claude/skills/flatline-knowledge/SKILL.md`
+- **Description**: Add error handling for: NotebookLM auth, API timeout, cache miss, model unavailable.
+- **Acceptance Criteria**:
+  - [ ] Error handling section added with ≥ 5 error references
+  - [ ] Word count still under 5,000
 
-**Files**:
-- `resources/core/types.ts` — add `lastReviewedSha` to persisted context
-- `resources/core/context.ts` — persist reviewed SHA on finalize, expose `getLastReviewedSha()`
-- `resources/core/template.ts` — when incremental context available, add banner: `[Incremental: reviewing changes since <sha>]`
-- `resources/core/reviewer.ts` — pass incremental context to template when available
-- `resources/ports/git-provider.ts` — add `getCommitDiff(owner, repo, base, head)` to port interface
-- `resources/adapters/` — implement `getCommitDiff` using `gh api repos/{owner}/{repo}/compare/{base}...{head}`
+### Task 5: Add error handling to mounting-framework
+- **File**: `.claude/skills/mounting-framework/SKILL.md`
+- **Description**: Add error handling for: Permission denied, existing mount, partial install, version mismatch.
+- **Acceptance Criteria**:
+  - [ ] Error handling section added with ≥ 5 error references
+  - [ ] Word count still under 5,000
 
-**Acceptance Criteria**:
-- [ ] On first review of a PR, behavior unchanged (full diff review)
-- [ ] On subsequent review of same PR (headSha changed), review only delta since last reviewed SHA
-- [ ] `lastReviewedSha` persisted in context store alongside existing hash
-- [ ] Banner in prompt: `[Incremental: reviewing N files changed since <short-sha>]`
-- [ ] If incremental diff fails (e.g., force push), fall back to full review with warning
-- [ ] `--force-full-review` CLI flag to bypass incremental mode
-- [ ] Tests: incremental detection, delta filtering, fallback on force push, CLI override
+### Task 6: Add error handling to planning-sprints
+- **File**: `.claude/skills/planning-sprints/SKILL.md`
+- **Description**: Add error handling for: PRD/SDD missing, capacity estimation, dependency cycles, empty sprint.
+- **Acceptance Criteria**:
+  - [ ] Error handling section added with ≥ 5 error references
+  - [ ] Word count still under 5,000
 
-**Dependencies**: Task 2.1 (not strictly, but sequential for clean diffs)
-**Estimated effort**: Large
-
-### Task 2.3: Multi-Model Persona Routing (V3-2)
-
-**Description**: Extend persona packs to optionally specify a preferred model. The `TOKEN_BUDGETS` table already supports per-model coefficients. Add a `model` frontmatter field to persona .md files. When set, it overrides the configured model for that review. CLI `--model` flag still wins (consistent with CLI-wins precedence).
-
-**Files**:
-- `resources/personas/*.md` — add optional YAML frontmatter with `model` field
-- `resources/main.ts` — parse frontmatter from persona content, apply model override
-- `resources/core/types.ts` — add `personaModel` field to config
-- `resources/config.ts` — integrate persona model into precedence: CLI --model > persona model > env > yaml > default
-
-**Acceptance Criteria**:
-- [ ] Persona files can include optional YAML frontmatter: `---\nmodel: claude-opus-4-6\n---`
-- [ ] When persona specifies model and no CLI `--model` override, use persona's model
-- [ ] CLI `--model` always wins over persona model (consistent precedence)
-- [ ] Default personas ship without model override (no behavior change)
-- [ ] `security` persona gets suggested model in comment (not default — user opt-in): `# model: claude-opus-4-6  # Uncomment for deeper reasoning`
-- [ ] `quick` persona gets suggested model in comment: `# model: claude-haiku-4-5  # Uncomment for speed`
-- [ ] Logging shows model source: `persona:security` when persona model active
-- [ ] Token budget automatically adjusts to persona's model (uses `getTokenBudget()`)
-- [ ] Tests: frontmatter parsing, model override, CLI precedence, no-frontmatter passthrough
-
-**Dependencies**: None
-**Estimated effort**: Medium
+### Task 7: Final validation pass
+- **Description**: Run both validation scripts. All 19 skills must pass with zero failures and zero warnings.
+- **Acceptance Criteria**:
+  - [ ] `validate-skills.sh` exits 0
+  - [ ] `validate-skill-benchmarks.sh` exits 0 with 0 warnings
+  - [ ] All 19 SKILL.md files ≤ 5,000 words
+  - [ ] All 19 descriptions ≤ 1,024 chars with trigger context
+  - [ ] All 19 skills have ≥ 5 error references
 
 ---
 
-## Summary
+## NFR Compliance
 
-| Sprint | Tasks | Severity Coverage | Estimated Effort |
-|--------|-------|-------------------|-----------------|
-| Sprint 1 | 5 tasks (1.1–1.5) | 2 Medium, 2 Low, 1 Info | Medium |
-| Sprint 2 | 3 tasks (2.1–2.3) | 1 Low, 1 Medium (feature), 1 Low (feature) | Large |
+| NFR | Verification |
+|-----|-------------|
+| NFR-1: Zero behavioral regressions | SKILL.md.bak backups + validation before/after + behavioral smoke test for riding-codebase (SKP-003) |
+| NFR-2: No new dependencies | Script uses bash, wc, grep, jq (all existing, POSIX-compatible) |
+| NFR-3: Backward compatible | Trigger arrays unchanged; descriptions batched to isolate regressions (SKP-006) |
+| NFR-4: Documentation-only | No application code changes |
 
-### Risk Assessment
+---
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| Typed errors break adapter contract | Low | Medium | String-matching fallback preserves backward compat |
-| Node 22 detection false positive | Low | Low | typeof check + fallback |
-| Incremental diff miss on force push | Medium | Medium | SHA comparison + full-review fallback |
-| Persona frontmatter parsing edge cases | Low | Low | Missing/malformed frontmatter → ignore, use config model |
+## Risk Mitigations
 
-### Out of Scope
-
-| Item | Reason |
-|------|--------|
-| Token coefficient auto-tuning | Requires production data collection first (Task 1.2 is the prerequisite) |
-| GitLab/Bitbucket adapters | Separate architecture decision |
-| AST-aware diff analysis | Major feature, needs own PRD |
-| PR auto-approval | Security risk, explicitly forbidden |
+| Risk | Mitigation | Owner |
+|------|-----------|-------|
+| R-1: Triggering breaks | Run validation before/after every skill change | Sprint 1 T2 |
+| R-5: Post-merge regression | SKILL.md.bak copies, 7-day observation, documented rollback playbook (IMP-001) | Sprint 1 T6 |
+| R-6: Validator false positives | Test fixtures prove all 10 checks against known inputs (SKP-007) | Sprint 1 T3 |
+| R-7: Description batch regression | 4 batches of 5 skills with validation between each (SKP-006) | Sprint 2 T1a-d |
+| R-8: CI drift | Document exact CI integration step (IMP-003) | Sprint 1 T7 |
