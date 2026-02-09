@@ -38,14 +38,14 @@ Create the main skill definition containing:
 - 5-phase workflow (arg resolution → doc bundling → tester spawn → gap parsing → report)
 
 **Acceptance Criteria**:
-- [ ] Tester prompt is cleanroom (no verbatim text from zscole/rtfm-testing)
-- [ ] Capabilities manifest explicitly lists knows and does_not_know
-- [ ] Canary check embedded in prompt
-- [ ] All 6 gap types defined (MISSING_STEP, MISSING_PREREQ, UNCLEAR, INCORRECT, MISSING_CONTEXT, ORDERING)
-- [ ] All 3 severity levels defined (BLOCKING, DEGRADED, MINOR)
-- [ ] Verdict rules: SUCCESS (0 blocking) / PARTIAL (>0 blocking, progress) / FAILURE (stuck)
-- [ ] 6 task templates with default doc mappings
-- [ ] Workflow phases 0-4 documented
+- [x] Tester prompt is cleanroom (no verbatim text from zscole/rtfm-testing)
+- [x] Capabilities manifest explicitly lists knows and does_not_know
+- [x] Canary check embedded in prompt
+- [x] All 6 gap types defined (MISSING_STEP, MISSING_PREREQ, UNCLEAR, INCORRECT, MISSING_CONTEXT, ORDERING)
+- [x] All 3 severity levels defined (BLOCKING, DEGRADED, MINOR)
+- [x] Verdict rules: SUCCESS (0 blocking) / PARTIAL (>0 blocking, progress) / FAILURE (stuck)
+- [x] 6 task templates with default doc mappings
+- [x] Workflow phases 0-4 documented
 
 **Estimated Effort**: Medium
 
@@ -60,10 +60,10 @@ Create skill metadata following Loa conventions:
 - Outputs: report path
 
 **Acceptance Criteria**:
-- [ ] danger_level is `safe`
-- [ ] model is `sonnet`
-- [ ] Triggers match command invocation patterns
-- [ ] Categories include `quality`
+- [x] danger_level is `safe`
+- [x] model is `sonnet`
+- [x] Triggers match command invocation patterns
+- [x] Categories include `quality`
 
 **Estimated Effort**: Low
 
@@ -78,10 +78,10 @@ Create command definition with:
 - Output path declaration
 
 **Acceptance Criteria**:
-- [ ] All arguments from SDD Section 4.1 defined
-- [ ] Routes to `skills/rtfm-testing/` agent
-- [ ] Default model is sonnet
-- [ ] --template accepts: install, quickstart, mount, beads, gpt-review, update
+- [x] All arguments from SDD Section 4.1 defined
+- [x] Routes to `skills/rtfm-testing/` agent
+- [x] Default model is sonnet
+- [x] --template accepts: install, quickstart, mount, beads, gpt-review, update
 
 **Estimated Effort**: Low
 
@@ -90,12 +90,12 @@ Create command definition with:
 Run `/rtfm README.md` against Loa's actual README and verify:
 
 **Acceptance Criteria**:
-- [ ] Tester subagent spawns successfully
-- [ ] Canary check passes (tester doesn't know about Loa from prior knowledge)
-- [ ] Gaps are found and reported in [GAP] format
-- [ ] Verdict is returned (SUCCESS, PARTIAL, or FAILURE)
-- [ ] Report is written to `grimoires/loa/a2a/rtfm/report-{date}.md`
-- [ ] Summary displayed to user with gap count and verdict
+- [x] Tester subagent spawns successfully
+- [ ] Canary check passes — WARNING: tester recognized Loa (expected for known projects)
+- [x] Gaps are found and reported in [GAP] format
+- [x] Verdict is returned (FAILURE — 5 blocking gaps in README)
+- [x] Report is written to `grimoires/loa/a2a/rtfm/report-2026-02-09.md`
+- [x] Summary displayed to user with gap count and verdict
 
 **Estimated Effort**: Low (validation only)
 
