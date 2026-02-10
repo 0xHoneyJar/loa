@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loa.dev/schemas/model-config.schema.json",
+  "title": "Hounfour Model Configuration",
+  "description": "Schema for the hounfour: section of .loa.config.yaml (SDD §4.1.2)",
+  "type": "object",
+  "properties": {
+    "providers": {
+      "type": "object",
+      "description": "Provider registry — each key is a provider name",
+      "additionalProperties": {
+        "$ref": "#/$defs/provider"
+      }
+    },
+    "aliases": {
+      "type": "object",
+      "description": "Short names → provider:model-id mappings",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "properties": {
+        "native": {
+          "type": "string",
+          "const": "claude-code:session",
+          "description": "Reserved alias — always resolves to Claude Code native runtime"
+        }
+      }
+    },
+    "agents": {
+      "type": "object",
+      "description": "Agent bindings — agent name → model + requirements",
+      "additionalProperties": {
+        "$ref": "#/$defs/agentBinding"
+      }
+    },
+    "routing": {
+      "$ref": "#/$defs/routing"
+    },
+    "retry": {
+      "$ref": "#/$defs/retry"
+    },
+    "metering": {
+      "$ref": "#/$defs/metering"
+    },
+    "defaults": {
+      "type": "object",
+      "properties": {
+        "connect_timeout": { "type": "number", "minimum": 1 },
+        "read_timeout": { "type": "number", "minimum": 1 },
+        "write_timeout": { "type": "number", "minimum": 1 }
+      },
+      "additionalProperties": true
+    },
+    "secret_env_allowlist": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Additional regex patterns for allowed env var interpolation"
+    },
+    "secret_paths": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Additional allowed directories for {file:path} interpolation"
+    },
+    "secret_commands_enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable {cmd:...} interpolation (disabled by default)"
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "provider": {
+      "type": "object",
+      "required": ["type", "endpoint", "auth"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["openai", "anthropic", "openai_compat"],
+          "description": "Provider API type"
+        },
+        "endpoint": {
+          "type": "string",
+          "format": "uri",
+          "description": "API base URL"
+        },
+        "auth": {
+          "type": "string",
+          "description": "Auth value or interpolation string ({env:VAR} or {file:path})"
+        },
+        "models": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/modelConfig"
+          }
+        },
+        "connect_timeout": { "type": "number", "minimum": 0 },
+        "read_timeout": { "type": "number", "minimum": 0 },
+        "write_timeout": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "modelConfig": {
+      "type": "object",
+      "properties": {
+        "capabilities": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Model capabilities: chat, tools, function_calling, thinking_traces, code"
+        },
+        "context_window": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum context window in tokens"
+        },
+        "pricing": {
+          "type": "object",
+          "properties": {
+            "input_per_mtok": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Cost per million input tokens in micro-USD"
+            },
+            "output_per_mtok": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Cost per million output tokens in micro-USD"
+            }
+          },
+          "required": ["input_per_mtok", "output_per_mtok"]
+        }
+      },
+      "additionalProperties": true
+    },
+    "agentBinding": {
+      "type": "object",
+      "required": ["model"],
+      "properties": {
+        "model": {
+          "type": "string",
+          "description": "Alias name or provider:model-id"
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "persona": {
+          "type": "string",
+          "description": "Path to persona.md (auto-resolved if not specified)"
+        },
+        "requires": {
+          "type": "object",
+          "properties": {
+            "native_runtime": { "type": "boolean" },
+            "thinking_traces": {
+              "oneOf": [
+                { "type": "boolean" },
+                { "type": "string", "enum": ["preferred"] }
+              ]
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "routing": {
+      "type": "object",
+      "properties": {
+        "fallback": {
+          "type": "object",
+          "description": "Fallback chains: provider → [fallback providers]",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "downgrade": {
+          "type": "object",
+          "description": "Downgrade chains: alias → [cheaper aliases]",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "circuit_breaker": {
+          "type": "object",
+          "properties": {
+            "failure_threshold": { "type": "integer", "minimum": 1 },
+            "reset_timeout_seconds": { "type": "integer", "minimum": 1 },
+            "half_open_max_probes": { "type": "integer", "minimum": 1 },
+            "count_window_seconds": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "retry": {
+      "type": "object",
+      "properties": {
+        "max_retries": { "type": "integer", "minimum": 0 },
+        "max_total_attempts": { "type": "integer", "minimum": 1 },
+        "max_provider_switches": { "type": "integer", "minimum": 0 },
+        "base_delay_seconds": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "metering": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "ledger_path": { "type": "string" },
+        "budget": {
+          "type": "object",
+          "properties": {
+            "daily_micro_usd": { "type": "integer", "minimum": 0 },
+            "warn_at_percent": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "on_exceeded": {
+              "type": "string",
+              "enum": ["downgrade", "block", "warn"]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "id": "msg_tool123",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-opus-4-6",
+  "content": [
+    {
+      "type": "text",
+      "text": "I'll search for that information."
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_abc123",
+      "name": "search",
+      "input": {
+        "query": "test query"
+      }
+    }
+  ],
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 150,
+    "output_tokens": 60
+  }
+}

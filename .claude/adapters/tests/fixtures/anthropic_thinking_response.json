@@ -1,0 +1,21 @@
+{
+  "id": "msg_think123",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-opus-4-6",
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "Let me analyze this step by step. First, I need to consider the security implications..."
+    },
+    {
+      "type": "text",
+      "text": "After careful analysis, the implementation looks secure."
+    }
+  ],
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 200,
+    "output_tokens": 85
+  }
+}

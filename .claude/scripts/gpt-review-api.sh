@@ -34,8 +34,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PROMPTS_DIR="${SCRIPT_DIR}/../prompts/gpt-review/base"
 CONFIG_FILE=".loa.config.yaml"
+MODEL_INVOKE="$SCRIPT_DIR/model-invoke"
 
 # Require bash 4.0+ (associative arrays)
 # shellcheck source=bash-version-guard.sh
@@ -301,6 +303,104 @@ build_re_review_prompt() {
   system_prompt+="$re_review_prompt"
 
   echo "$system_prompt"
+}
+
+# =============================================================================
+# Hounfour Routing (SDD §4.4.2)
+# =============================================================================
+
+is_flatline_routing_enabled() {
+  if [[ "${HOUNFOUR_FLATLINE_ROUTING:-}" == "true" ]]; then
+    return 0
+  fi
+  if [[ "${HOUNFOUR_FLATLINE_ROUTING:-}" == "false" ]]; then
+    return 1
+  fi
+  if [[ -f "$CONFIG_FILE" ]] && command -v yq &> /dev/null; then
+    local value
+    value=$(yq -r '.hounfour.flatline_routing // false' "$CONFIG_FILE" 2>/dev/null)
+    if [[ "$value" == "true" ]]; then
+      return 0
+    fi
+  fi
+  return 1
+}
+
+# Call model-invoke instead of direct curl to OpenAI.
+# Uses gpt-reviewer agent binding. Writes system/user prompts to temp files.
+call_api_via_model_invoke() {
+  local model="$1"
+  local system_prompt="$2"
+  local content="$3"
+  local timeout="$4"
+
+  log "Routing through model-invoke (gpt-reviewer agent)"
+
+  # Write system prompt to temp file for --system
+  local system_file
+  system_file=$(mktemp)
+  chmod 600 "$system_file"
+  printf '%s' "$system_prompt" > "$system_file"
+
+  # Write user content to temp file for --input
+  local input_file
+  input_file=$(mktemp)
+  chmod 600 "$input_file"
+  printf '%s' "$content" > "$input_file"
+
+  # Map legacy model name to provider:model-id format
+  local model_override="$model"
+  case "$model" in
+    gpt-5.2)       model_override="openai:gpt-5.2" ;;
+    gpt-5.2-codex) model_override="openai:gpt-5.2-codex" ;;
+    gpt-5.3-codex) model_override="openai:gpt-5.3-codex" ;;
+  esac
+
+  local result exit_code=0
+  result=$("$MODEL_INVOKE" \
+    --agent gpt-reviewer \
+    --input "$input_file" \
+    --system "$system_file" \
+    --model "$model_override" \
+    --output-format text \
+    --json-errors \
+    --timeout "$timeout" \
+    2>/dev/null) || exit_code=$?
+
+  rm -f "$system_file" "$input_file"
+
+  if [[ $exit_code -ne 0 ]]; then
+    error "model-invoke failed with exit code $exit_code"
+    exit $exit_code
+  fi
+
+  # model-invoke returns the raw content text.
+  # gpt-review-api expects the content to be valid JSON with a verdict field.
+  local content_response
+  content_response=$(echo "$result" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+  # Validate JSON response
+  if ! echo "$content_response" | jq empty 2>/dev/null; then
+    error "Invalid JSON in model-invoke response"
+    log "Response content: $content_response"
+    exit 5
+  fi
+
+  # Validate required verdict field
+  local verdict
+  verdict=$(echo "$content_response" | jq -r '.verdict // empty')
+  if [[ -z "$verdict" ]]; then
+    error "Response missing 'verdict' field"
+    log "Response content: $content_response"
+    exit 5
+  fi
+
+  if [[ "$verdict" != "APPROVED" && "$verdict" != "CHANGES_REQUIRED" && "$verdict" != "DECISION_NEEDED" ]]; then
+    error "Invalid verdict: $verdict (expected: APPROVED, CHANGES_REQUIRED, or DECISION_NEEDED)"
+    exit 5
+  fi
+
+  echo "$content_response"
 }
 
 # Call OpenAI API with retry logic
@@ -808,9 +908,13 @@ EOF
   local user_prompt
   user_prompt=$(build_user_prompt "$context_file" "$prepared_content")
 
-  # Call API with separated prompts
+  # Call API — route through model-invoke or direct curl based on feature flag
   local response
-  response=$(call_api "$model" "$system_prompt" "$user_prompt" "$timeout")
+  if is_flatline_routing_enabled && [[ -x "$MODEL_INVOKE" ]]; then
+    response=$(call_api_via_model_invoke "$model" "$system_prompt" "$user_prompt" "$timeout")
+  else
+    response=$(call_api "$model" "$system_prompt" "$user_prompt" "$timeout")
+  fi
 
   # Add metadata to response
   local metadata_args=(--arg iter "$iteration")

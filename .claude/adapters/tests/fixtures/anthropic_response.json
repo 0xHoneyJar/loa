@@ -1,0 +1,17 @@
+{
+  "id": "msg_abc123",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-opus-4-6",
+  "content": [
+    {
+      "type": "text",
+      "text": "This is a test response from the Anthropic API."
+    }
+  ],
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 50,
+    "output_tokens": 12
+  }
+}

@@ -52,6 +52,7 @@ TRAJECTORY_DIR=$(get_trajectory_dir)
 
 # Component scripts
 MODEL_ADAPTER="$SCRIPT_DIR/model-adapter.sh"
+MODEL_INVOKE="$SCRIPT_DIR/model-invoke"
 SCORING_ENGINE="$SCRIPT_DIR/scoring-engine.sh"
 KNOWLEDGE_LOCAL="$SCRIPT_DIR/flatline-knowledge-local.sh"
 NOTEBOOKLM_QUERY="$PROJECT_ROOT/.claude/skills/flatline-knowledge/resources/notebooklm-query.py"
@@ -196,6 +197,104 @@ get_notebooklm_notebook_id() {
 
 get_notebooklm_timeout() {
     read_config '.flatline_protocol.knowledge.notebooklm.timeout_ms' '30000'
+}
+
+# =============================================================================
+# Hounfour Routing (SDD §4.4.2)
+# =============================================================================
+
+# Feature flag: when true, call model-invoke directly instead of model-adapter.sh
+is_flatline_routing_enabled() {
+    if [[ "${HOUNFOUR_FLATLINE_ROUTING:-}" == "true" ]]; then
+        return 0
+    fi
+    if [[ "${HOUNFOUR_FLATLINE_ROUTING:-}" == "false" ]]; then
+        return 1
+    fi
+    local value
+    value=$(read_config '.hounfour.flatline_routing' 'false')
+    [[ "$value" == "true" ]]
+}
+
+# Mode → Agent mapping for model-invoke routing
+declare -A MODE_TO_AGENT=(
+    ["review"]="flatline-reviewer"
+    ["skeptic"]="flatline-skeptic"
+    ["score"]="flatline-scorer"
+    ["dissent"]="flatline-dissenter"
+)
+
+# Legacy model name → provider:model-id for model-invoke --model override
+declare -A MODEL_TO_PROVIDER_ID=(
+    ["gpt-5.2"]="openai:gpt-5.2"
+    ["gpt-5.2-codex"]="openai:gpt-5.2-codex"
+    ["opus"]="anthropic:claude-opus-4-6"
+    ["claude-opus-4.6"]="anthropic:claude-opus-4-6"
+)
+
+# Unified model call: routes through model-invoke (direct) or model-adapter.sh (legacy)
+# Usage: call_model <model> <mode> <input> <phase> [context] [timeout]
+call_model() {
+    local model="$1"
+    local mode="$2"
+    local input="$3"
+    local phase="$4"
+    local context="${5:-}"
+    local timeout="${6:-$DEFAULT_MODEL_TIMEOUT}"
+
+    if is_flatline_routing_enabled && [[ -x "$MODEL_INVOKE" ]]; then
+        # Direct model-invoke path (SDD §4.4.2)
+        local agent="${MODE_TO_AGENT[$mode]:-}"
+        local model_override="${MODEL_TO_PROVIDER_ID[$model]:-$model}"
+
+        if [[ -z "$agent" ]]; then
+            log "ERROR: Unknown mode for model-invoke: $mode"
+            return 2
+        fi
+
+        local -a args=(
+            --agent "$agent"
+            --input "$input"
+            --model "$model_override"
+            --output-format json
+            --json-errors
+            --timeout "$timeout"
+        )
+
+        if [[ -n "$context" && -f "$context" ]]; then
+            args+=(--system "$context")
+        fi
+
+        local result exit_code=0
+        result=$("$MODEL_INVOKE" "${args[@]}" 2>/dev/null) || exit_code=$?
+
+        if [[ $exit_code -ne 0 ]]; then
+            return $exit_code
+        fi
+
+        # Translate output to legacy format for downstream compatibility
+        echo "$result" | jq \
+            --arg model "$model" \
+            --arg mode "$mode" \
+            --arg phase "$phase" \
+            '{
+                content: .content,
+                tokens_input: (.usage.input_tokens // 0),
+                tokens_output: (.usage.output_tokens // 0),
+                latency_ms: (.latency_ms // 0),
+                retries: 0,
+                model: $model,
+                mode: $mode,
+                phase: $phase,
+                cost_usd: 0
+            }'
+    else
+        # Legacy path: model-adapter.sh (or shim)
+        "$MODEL_ADAPTER" --model "$model" --mode "$mode" \
+            --input "$input" --phase "$phase" \
+            ${context:+--context "$context"} \
+            --timeout "$timeout" --json
+    fi
 }
 
 # =============================================================================
@@ -414,33 +513,29 @@ run_phase1() {
 
     # GPT review
     {
-        "$MODEL_ADAPTER" --model "$secondary_model" --mode review \
-            --input "$doc" --phase "$phase" --context "$context_file" \
-            --timeout "$timeout" --json > "$gpt_review_file" 2>/dev/null
+        call_model "$secondary_model" review "$doc" "$phase" "$context_file" "$timeout" \
+            > "$gpt_review_file" 2>/dev/null
     } &
     pids+=($!)
 
     # Opus review
     {
-        "$MODEL_ADAPTER" --model "$primary_model" --mode review \
-            --input "$doc" --phase "$phase" --context "$context_file" \
-            --timeout "$timeout" --json > "$opus_review_file" 2>/dev/null
+        call_model "$primary_model" review "$doc" "$phase" "$context_file" "$timeout" \
+            > "$opus_review_file" 2>/dev/null
     } &
     pids+=($!)
 
     # GPT skeptic
     {
-        "$MODEL_ADAPTER" --model "$secondary_model" --mode skeptic \
-            --input "$doc" --phase "$phase" --context "$context_file" \
-            --timeout "$timeout" --json > "$gpt_skeptic_file" 2>/dev/null
+        call_model "$secondary_model" skeptic "$doc" "$phase" "$context_file" "$timeout" \
+            > "$gpt_skeptic_file" 2>/dev/null
     } &
     pids+=($!)
 
     # Opus skeptic
     {
-        "$MODEL_ADAPTER" --model "$primary_model" --mode skeptic \
-            --input "$doc" --phase "$phase" --context "$context_file" \
-            --timeout "$timeout" --json > "$opus_skeptic_file" 2>/dev/null
+        call_model "$primary_model" skeptic "$doc" "$phase" "$context_file" "$timeout" \
+            > "$opus_skeptic_file" 2>/dev/null
     } &
     pids+=($!)
 
@@ -512,17 +607,15 @@ run_phase2() {
 
     # GPT scores Opus items
     {
-        "$MODEL_ADAPTER" --model "$secondary_model" --mode score \
-            --input "$opus_items_file" --phase "$phase" \
-            --timeout "$timeout" --json > "$gpt_scores_file" 2>/dev/null
+        call_model "$secondary_model" score "$opus_items_file" "$phase" "" "$timeout" \
+            > "$gpt_scores_file" 2>/dev/null
     } &
     pids+=($!)
 
     # Opus scores GPT items
     {
-        "$MODEL_ADAPTER" --model "$primary_model" --mode score \
-            --input "$gpt_items_file" --phase "$phase" \
-            --timeout "$timeout" --json > "$opus_scores_file" 2>/dev/null
+        call_model "$primary_model" score "$gpt_items_file" "$phase" "" "$timeout" \
+            > "$opus_scores_file" 2>/dev/null
     } &
     pids+=($!)
 

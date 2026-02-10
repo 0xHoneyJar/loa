@@ -18,9 +18,8 @@
     },
     "model": {
       "type": "string",
-      "enum": ["sonnet", "opus", "haiku"],
-      "default": "sonnet",
-      "description": "Recommended model for this skill"
+      "default": "native",
+      "description": "Model binding for this skill. Use 'native' for Claude Code session, or a Hounfour alias (e.g., 'reviewer', 'reasoning') or provider:model-id from the provider registry."
     },
     "color": {
       "type": "string",

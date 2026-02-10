@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# model-invoke — Shell wrapper for cheval.py (SDD §4.2.2)
+#
+# Single entry point for all model API calls.
+# Delegates to Python adapter: exec python3 .claude/adapters/cheval.py "$@"
+#
+# Exit codes (SDD §4.2.2):
+#   0 = Success
+#   1 = API error (retries exhausted)
+#   2 = Invalid input / config
+#   3 = Timeout
+#   4 = Missing API key
+#   5 = Invalid response format
+#   6 = Budget exceeded
+#   7 = Context too large
+
+set -euo pipefail
+
+# Resolve script directory to find project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+# Adapter location
+CHEVAL_PY="${PROJECT_ROOT}/.claude/adapters/cheval.py"
+
+if [[ ! -f "$CHEVAL_PY" ]]; then
+    echo '{"error":true,"code":"INVALID_CONFIG","message":"cheval.py not found at '"${CHEVAL_PY}"'"}' >&2
+    exit 2
+fi
+
+# Delegate to Python adapter
+exec python3 "$CHEVAL_PY" "$@"

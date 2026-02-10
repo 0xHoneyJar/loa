@@ -1,0 +1,133 @@
+# Hounfour Default Configuration (SDD §4.1.2)
+#
+# System Zone defaults — ships with the Loa framework.
+# Users override in .loa.config.yaml under hounfour: section.
+# DO NOT EDIT — use project config for customization.
+
+# Provider registry
+providers:
+  openai:
+    type: openai
+    endpoint: "https://api.openai.com/v1"
+    auth: "{env:OPENAI_API_KEY}"
+    models:
+      gpt-5.2:
+        capabilities: [chat, tools, function_calling]
+        context_window: 128000
+        pricing:
+          input_per_mtok: 10000    # $10.00 per million tokens (micro-USD)
+          output_per_mtok: 30000   # $30.00 per million tokens
+      gpt-5.2-codex:
+        capabilities: [chat, tools, function_calling, code]
+        context_window: 200000
+        pricing:
+          input_per_mtok: 15000
+          output_per_mtok: 60000
+
+  anthropic:
+    type: anthropic
+    endpoint: "https://api.anthropic.com/v1"
+    auth: "{env:ANTHROPIC_API_KEY}"
+    models:
+      claude-opus-4-6:
+        capabilities: [chat, tools, function_calling, thinking_traces]
+        context_window: 200000
+        pricing:
+          input_per_mtok: 5000
+          output_per_mtok: 25000
+      claude-sonnet-4-6:
+        capabilities: [chat, tools, function_calling]
+        context_window: 200000
+        pricing:
+          input_per_mtok: 3000
+          output_per_mtok: 15000
+
+# Aliases (short names → provider:model-id)
+aliases:
+  native: "claude-code:session"         # Reserved — Claude Code native runtime
+  reviewer: "openai:gpt-5.2"            # Primary review model
+  reasoning: "openai:gpt-5.2"           # Reasoning/skeptic model
+  cheap: "anthropic:claude-sonnet-4-6"  # Budget-conscious model
+  opus: "anthropic:claude-opus-4-6"     # High-quality model
+
+# Agent bindings (agent name → model + requirements)
+# Conservative profile: maximize quality, most agents on native (PRD FR-4)
+agents:
+  implementing-tasks:
+    model: native
+    requires:
+      native_runtime: true
+  riding-codebase:
+    model: native
+    requires:
+      native_runtime: true
+  designing-architecture:
+    model: native
+  planning-sprints:
+    model: native
+  discovering-requirements:
+    model: native
+  reviewing-code:
+    model: reviewer
+    temperature: 0.3
+  auditing-security:
+    model: native
+  translating-for-executives:
+    model: cheap
+    temperature: 0.5
+  flatline-reviewer:
+    model: reviewer
+    temperature: 0.3
+  flatline-skeptic:
+    model: reasoning
+    temperature: 0.5
+    requires:
+      thinking_traces: preferred
+  flatline-scorer:
+    model: reviewer
+    temperature: 0.2
+  flatline-dissenter:
+    model: reasoning
+    temperature: 0.6
+    requires:
+      thinking_traces: preferred
+  gpt-reviewer:
+    model: reviewer
+    temperature: 0.3
+
+# Routing
+routing:
+  fallback:
+    openai: [anthropic]           # If OpenAI down, try Anthropic
+    anthropic: [openai]           # If Anthropic down, try OpenAI
+  downgrade:
+    reviewer: [cheap]             # If budget exceeded, downgrade
+
+  # Circuit breaker defaults
+  circuit_breaker:
+    failure_threshold: 5          # Consecutive failures to trip
+    reset_timeout_seconds: 60     # Time in OPEN before probing
+    half_open_max_probes: 1       # Concurrent probes in HALF_OPEN
+    count_window_seconds: 300     # Rolling window for failure count
+
+# Retry defaults
+retry:
+  max_retries: 3                  # Per-provider retries
+  max_total_attempts: 6           # Global hard cap (SDD §4.2.7)
+  max_provider_switches: 2        # Maximum fallback chain depth
+  base_delay_seconds: 1.0         # Exponential backoff base
+
+# Metering
+metering:
+  enabled: true
+  ledger_path: "grimoires/loa/a2a/cost-ledger.jsonl"
+  budget:
+    daily_micro_usd: 500000000    # $500/day default (effectively unlimited)
+    warn_at_percent: 80
+    on_exceeded: downgrade        # downgrade | block | warn
+
+# Default timeouts (per provider, overridable)
+defaults:
+  connect_timeout: 10             # seconds
+  read_timeout: 120               # seconds
+  write_timeout: 30               # seconds

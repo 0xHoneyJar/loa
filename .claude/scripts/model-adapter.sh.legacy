@@ -1,0 +1,827 @@
+#!/usr/bin/env bash
+# =============================================================================
+# model-adapter.sh - Unified multi-model API adapter for Flatline Protocol
+# =============================================================================
+# Version: 1.0.0
+# Part of: Flatline Protocol v1.17.0
+#
+# Usage:
+#   model-adapter.sh --model <model> --mode <mode> [options]
+#
+# Models:
+#   gpt-5.2              OpenAI GPT-5.2
+#   gpt-5.2-codex        OpenAI GPT-5.2 Codex
+#   gpt-5.3-codex        OpenAI GPT-5.3 Codex
+#   opus                 Claude Opus 4.6 (alias for claude-opus-4.6)
+#   claude-opus-4.6      Claude Opus 4.6
+#   gemini-2.0           Google Gemini 2.0 (future)
+#
+# Modes:
+#   review               Generate improvements (10 items)
+#   skeptic              Generate concerns (devil's advocate)
+#   score                Score items (0-1000)
+#   dissent              Adversarial cross-model code/security review
+#
+# Options:
+#   --input <file>       Input document/items to process
+#   --context <file>     Knowledge context file
+#   --prompt <file>      Custom prompt template
+#   --timeout <seconds>  API timeout (default: 60)
+#   --max-retries <n>    Max retry attempts (default: 3)
+#   --json               Output as JSON (default)
+#   --dry-run            Validate without calling API
+#
+# Environment:
+#   OPENAI_API_KEY       Required for GPT models
+#   ANTHROPIC_API_KEY    Required for Claude models
+#   FLATLINE_MOCK_MODE   Set to 'true' for testing with fixtures
+#
+# Exit codes:
+#   0 - Success
+#   1 - API error
+#   2 - Invalid input
+#   3 - Timeout
+#   4 - Missing API key
+#   5 - Invalid response format
+# =============================================================================
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
+TEMPLATES_DIR="$SCRIPT_DIR/../templates"
+
+# Require bash 4.0+ (associative arrays)
+# shellcheck source=bash-version-guard.sh
+source "$SCRIPT_DIR/bash-version-guard.sh"
+
+# Source cross-platform time utilities
+# shellcheck source=time-lib.sh
+source "$SCRIPT_DIR/time-lib.sh"
+
+# Default configuration
+DEFAULT_TIMEOUT=60
+MAX_RETRIES=3
+RETRY_BASE_DELAY=5
+
+# Model configurations
+declare -A MODEL_PROVIDERS=(
+    ["gpt-5.2"]="openai"
+    ["gpt-5.2-codex"]="openai"
+    ["gpt-5.3-codex"]="openai"
+    ["opus"]="anthropic"
+    ["claude-opus-4.6"]="anthropic"
+    ["claude-opus-4.5"]="anthropic"    # Backward compat alias → 4.6
+    ["gemini-2.0"]="google"
+)
+
+declare -A MODEL_IDS=(
+    ["gpt-5.2"]="gpt-5.2"
+    ["gpt-5.2-codex"]="gpt-5.2-codex"
+    ["gpt-5.3-codex"]="gpt-5.3-codex"
+    ["opus"]="claude-opus-4-6"
+    ["claude-opus-4.6"]="claude-opus-4-6"
+    ["claude-opus-4.5"]="claude-opus-4-6"              # Alias → current
+    ["gemini-2.0"]="gemini-2.0-flash"
+)
+
+# Cost per 1K tokens (approximate, 2026-02 pricing)
+# Opus 4.6: $5/$25 per MTok → $0.005/$0.025 per 1K tokens
+declare -A COST_INPUT=(
+    ["gpt-5.2"]="0.01"
+    ["gpt-5.2-codex"]="0.015"
+    ["gpt-5.3-codex"]="0.015"
+    ["opus"]="0.005"
+    ["claude-opus-4.6"]="0.005"
+    ["claude-opus-4.5"]="0.005"        # Alias → 4.6 pricing
+    ["gemini-2.0"]="0.005"
+)
+
+declare -A COST_OUTPUT=(
+    ["gpt-5.2"]="0.03"
+    ["gpt-5.2-codex"]="0.06"
+    ["gpt-5.3-codex"]="0.06"
+    ["opus"]="0.025"
+    ["claude-opus-4.6"]="0.025"
+    ["claude-opus-4.5"]="0.025"        # Alias → 4.6 pricing
+    ["gemini-2.0"]="0.015"
+)
+
+# =============================================================================
+# Registry Validation
+# =============================================================================
+
+# Ensures all model keys are consistent across all four maps.
+# Catches cross-PR inconsistencies at startup rather than at call time.
+validate_model_registry() {
+    local errors=0
+    for key in "${!MODEL_IDS[@]}"; do
+        if [[ -z "${MODEL_PROVIDERS[$key]+x}" ]]; then
+            echo "ERROR: MODEL_PROVIDERS missing key: $key" >&2
+            ((errors+=1))
+        fi
+        if [[ -z "${COST_INPUT[$key]+x}" ]]; then
+            echo "ERROR: COST_INPUT missing key: $key" >&2
+            ((errors+=1))
+        fi
+        if [[ -z "${COST_OUTPUT[$key]+x}" ]]; then
+            echo "ERROR: COST_OUTPUT missing key: $key" >&2
+            ((errors+=1))
+        fi
+    done
+    if [[ $errors -gt 0 ]]; then
+        echo "ERROR: Model registry has $errors inconsistencies. Fix MODEL_* arrays in model-adapter.sh" >&2
+        return 1
+    fi
+    return 0
+}
+
+validate_model_registry || exit 2
+
+# =============================================================================
+# Logging
+# =============================================================================
+
+log() {
+    echo "[model-adapter] $*" >&2
+}
+
+error() {
+    echo "ERROR: $*" >&2
+}
+
+# =============================================================================
+# Configuration
+# =============================================================================
+
+read_config() {
+    local path="$1"
+    local default="$2"
+    if [[ -f "$CONFIG_FILE" ]] && command -v yq &> /dev/null; then
+        local value
+        value=$(yq -r "$path // \"\"" "$CONFIG_FILE" 2>/dev/null)
+        if [[ -n "$value" && "$value" != "null" ]]; then
+            echo "$value"
+            return
+        fi
+    fi
+    echo "$default"
+}
+
+# Load API key from environment or .env files
+load_api_key() {
+    local provider="$1"
+    local key_var=""
+
+    case "$provider" in
+        openai)
+            key_var="OPENAI_API_KEY"
+            ;;
+        anthropic)
+            key_var="ANTHROPIC_API_KEY"
+            ;;
+        google)
+            key_var="GOOGLE_API_KEY"
+            ;;
+        *)
+            error "Unknown provider: $provider"
+            return 1
+            ;;
+    esac
+
+    # Check environment first
+    if [[ -n "${!key_var:-}" ]]; then
+        echo "${!key_var}"
+        return 0
+    fi
+
+    # Try .env.local then .env (both in current dir and project root)
+    for base_dir in "." "$PROJECT_ROOT"; do
+        for env_file in ".env.local" ".env"; do
+            local full_path="$base_dir/$env_file"
+            if [[ -f "$full_path" ]]; then
+                local key
+                key=$(grep -E "^${key_var}=" "$full_path" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
+                if [[ -n "$key" ]]; then
+                    echo "$key"
+                    return 0
+                fi
+            fi
+        done
+    done
+
+    return 1
+}
+
+# =============================================================================
+# API Calls
+# =============================================================================
+
+# Exponential backoff with jitter
+calculate_delay() {
+    local attempt="$1"
+    local base_delay="$2"
+    local delay=$((base_delay * (2 ** (attempt - 1))))
+    local jitter=$((RANDOM % (delay / 2 + 1)))
+    echo $((delay + jitter))
+}
+
+# Call OpenAI API
+call_openai_api() {
+    local model_id="$1"
+    local system_prompt="$2"
+    local user_prompt="$3"
+    local timeout="$4"
+    local api_key="$5"
+
+    local api_url="https://api.openai.com/v1/chat/completions"
+
+    # Escape for JSON
+    local escaped_system escaped_user
+    escaped_system=$(printf '%s' "$system_prompt" | jq -Rs .)
+    escaped_user=$(printf '%s' "$user_prompt" | jq -Rs .)
+
+    local payload
+    payload=$(cat <<EOF
+{
+    "model": "${model_id}",
+    "messages": [
+        {"role": "system", "content": ${escaped_system}},
+        {"role": "user", "content": ${escaped_user}}
+    ],
+    "temperature": 0.3,
+    "response_format": {"type": "json_object"}
+}
+EOF
+)
+
+    local response
+
+    # Security: Use curl config file to avoid exposing API key in process list
+    local curl_config
+    curl_config=$(mktemp)
+    trap "rm -f '$curl_config'" RETURN
+    chmod 600 "$curl_config"
+    cat > "$curl_config" <<'CURLCFG'
+header = "Content-Type: application/json"
+CURLCFG
+    echo "header = \"Authorization: Bearer ${api_key}\"" >> "$curl_config"
+
+    response=$(curl -s --max-time "$timeout" \
+        --config "$curl_config" \
+        -d "$payload" \
+        "$api_url")
+
+    rm -f "$curl_config"
+    echo "$response"
+}
+
+# Call Anthropic API
+call_anthropic_api() {
+    local model_id="$1"
+    local system_prompt="$2"
+    local user_prompt="$3"
+    local timeout="$4"
+    local api_key="$5"
+
+    local api_url="https://api.anthropic.com/v1/messages"
+
+    # Escape for JSON
+    local escaped_system escaped_user
+    escaped_system=$(printf '%s' "$system_prompt" | jq -Rs .)
+    escaped_user=$(printf '%s' "$user_prompt" | jq -Rs .)
+
+    local payload
+    payload=$(cat <<EOF
+{
+    "model": "${model_id}",
+    "max_tokens": 4096,
+    "system": ${escaped_system},
+    "messages": [
+        {"role": "user", "content": ${escaped_user}}
+    ]
+}
+EOF
+)
+
+    local response
+
+    # Security: Use curl config file to avoid exposing API key in process list
+    local curl_config
+    curl_config=$(mktemp)
+    trap "rm -f '$curl_config'" RETURN
+    chmod 600 "$curl_config"
+    cat > "$curl_config" <<'CURLCFG'
+header = "anthropic-version: 2023-06-01"
+header = "content-type: application/json"
+CURLCFG
+    echo "header = \"x-api-key: ${api_key}\"" >> "$curl_config"
+
+    response=$(curl -s --max-time "$timeout" \
+        --config "$curl_config" \
+        -d "$payload" \
+        "$api_url")
+
+    rm -f "$curl_config"
+    echo "$response"
+}
+
+# Call API with retry logic
+call_api_with_retry() {
+    local provider="$1"
+    local model_id="$2"
+    local system_prompt="$3"
+    local user_prompt="$4"
+    local timeout="$5"
+    local api_key="$6"
+    local max_retries="$7"
+
+    local attempt=1
+    local response
+    local start_time
+    local end_time
+    local latency_ms
+
+    while [[ $attempt -le $max_retries ]]; do
+        log "API call attempt $attempt/$max_retries (model: $model_id)"
+
+        start_time=$(get_timestamp_ms)
+
+        case "$provider" in
+            openai)
+                response=$(call_openai_api "$model_id" "$system_prompt" "$user_prompt" "$timeout" "$api_key" 2>&1) || {
+                    local exit_code=$?
+                    if [[ $exit_code -eq 28 ]]; then
+                        log "Timeout (attempt $attempt)"
+                        if [[ $attempt -lt $max_retries ]]; then
+                            local delay
+                            delay=$(calculate_delay "$attempt" "$RETRY_BASE_DELAY")
+                            log "Retrying in ${delay}s..."
+                            sleep "$delay"
+                            ((attempt++))
+                            continue
+                        fi
+                        return 3
+                    fi
+                    return 1
+                }
+                ;;
+            anthropic)
+                response=$(call_anthropic_api "$model_id" "$system_prompt" "$user_prompt" "$timeout" "$api_key" 2>&1) || {
+                    local exit_code=$?
+                    if [[ $exit_code -eq 28 ]]; then
+                        log "Timeout (attempt $attempt)"
+                        if [[ $attempt -lt $max_retries ]]; then
+                            local delay
+                            delay=$(calculate_delay "$attempt" "$RETRY_BASE_DELAY")
+                            log "Retrying in ${delay}s..."
+                            sleep "$delay"
+                            ((attempt++))
+                            continue
+                        fi
+                        return 3
+                    fi
+                    return 1
+                }
+                ;;
+            *)
+                error "Unsupported provider: $provider"
+                return 2
+                ;;
+        esac
+
+        end_time=$(get_timestamp_ms)
+        latency_ms=$((end_time - start_time))
+
+        # Check for error responses
+        local error_msg
+        error_msg=$(echo "$response" | jq -r '.error.message // empty' 2>/dev/null)
+        if [[ -n "$error_msg" ]]; then
+            log "API error: $error_msg"
+            if [[ $attempt -lt $max_retries ]]; then
+                local delay
+                delay=$(calculate_delay "$attempt" "$RETRY_BASE_DELAY")
+                log "Retrying in ${delay}s..."
+                sleep "$delay"
+                ((attempt++))
+                continue
+            fi
+            return 1
+        fi
+
+        # Success - extract content
+        local content
+        case "$provider" in
+            openai)
+                content=$(echo "$response" | jq -r '.choices[0].message.content // empty')
+                ;;
+            anthropic)
+                content=$(echo "$response" | jq -r '.content[0].text // empty')
+                ;;
+        esac
+
+        if [[ -z "$content" ]]; then
+            log "Empty response content"
+            if [[ $attempt -lt $max_retries ]]; then
+                ((attempt++))
+                continue
+            fi
+            return 5
+        fi
+
+        # Return content with metadata
+        local tokens_input tokens_output
+        case "$provider" in
+            openai)
+                tokens_input=$(echo "$response" | jq -r '.usage.prompt_tokens // 0')
+                tokens_output=$(echo "$response" | jq -r '.usage.completion_tokens // 0')
+                ;;
+            anthropic)
+                tokens_input=$(echo "$response" | jq -r '.usage.input_tokens // 0')
+                tokens_output=$(echo "$response" | jq -r '.usage.output_tokens // 0')
+                ;;
+        esac
+
+        # Output result
+        jq -n \
+            --arg content "$content" \
+            --argjson tokens_input "$tokens_input" \
+            --argjson tokens_output "$tokens_output" \
+            --argjson latency_ms "$latency_ms" \
+            --argjson retries "$((attempt - 1))" \
+            '{
+                content: $content,
+                tokens_input: $tokens_input,
+                tokens_output: $tokens_output,
+                latency_ms: $latency_ms,
+                retries: $retries
+            }'
+
+        return 0
+    done
+
+    return 1
+}
+
+# =============================================================================
+# Mock Mode (for testing)
+# =============================================================================
+
+get_mock_response() {
+    local mode="$1"
+    local model="$2"
+
+    local mock_dir="${FLATLINE_MOCK_DIR:-$PROJECT_ROOT/tests/fixtures/api-responses}"
+    local mock_file="$mock_dir/${model}-${mode}-response.json"
+
+    if [[ -f "$mock_file" ]]; then
+        cat "$mock_file"
+    else
+        # Generate synthetic mock response
+        case "$mode" in
+            review)
+                cat <<'EOF'
+{
+    "improvements": [
+        {"id": "IMP-001", "description": "Mock improvement 1", "priority": "HIGH", "confidence": 0.9},
+        {"id": "IMP-002", "description": "Mock improvement 2", "priority": "MEDIUM", "confidence": 0.8}
+    ],
+    "summary": "2 mock improvements generated"
+}
+EOF
+                ;;
+            skeptic)
+                cat <<'EOF'
+{
+    "concerns": [
+        {"id": "SKP-001", "concern": "Mock concern 1", "severity": "MEDIUM", "severity_score": 650},
+        {"id": "SKP-002", "concern": "Mock concern 2", "severity": "LOW", "severity_score": 400}
+    ],
+    "summary": "2 mock concerns generated"
+}
+EOF
+                ;;
+            score)
+                cat <<'EOF'
+{
+    "scores": [
+        {"id": "IMP-001", "score": 850, "evaluation": "Strong improvement", "would_integrate": true},
+        {"id": "IMP-002", "score": 550, "evaluation": "Nice to have", "would_integrate": false}
+    ]
+}
+EOF
+                ;;
+            dissent)
+                cat <<'EOF'
+{
+    "findings": [
+        {"id": "DISS-001", "severity": "BLOCKING", "category": "null-safety", "anchor": "src/example.ts:processInput", "anchor_type": "function", "scope": "diff", "description": "Mock: unchecked null dereference on user input", "failure_mode": "Runtime TypeError when input is undefined", "suggested_fix": "Add null check before processing"},
+        {"id": "DISS-002", "severity": "ADVISORY", "category": "error-handling", "anchor": "src/example.ts:handleError", "anchor_type": "function", "scope": "diff", "description": "Mock: error handler swallows original stack trace", "failure_mode": "Debugging difficulty in production", "suggested_fix": "Preserve cause chain with Error.cause"}
+    ]
+}
+EOF
+                ;;
+        esac
+    fi
+}
+
+# =============================================================================
+# Prompt Building
+# =============================================================================
+
+build_prompt() {
+    local mode="$1"
+    local phase="$2"
+    local context_file="$3"
+    local input_file="$4"
+    local custom_prompt_file="$5"
+
+    local template_file
+    if [[ -n "$custom_prompt_file" && -f "$custom_prompt_file" ]]; then
+        template_file="$custom_prompt_file"
+    else
+        template_file="$TEMPLATES_DIR/flatline-${mode}.md.template"
+    fi
+
+    if [[ ! -f "$template_file" ]]; then
+        error "Template not found: $template_file"
+        return 2
+    fi
+
+    local template
+    template=$(cat "$template_file")
+
+    # Get phase full name
+    local phase_full
+    case "$phase" in
+        prd) phase_full="Product Requirements Document" ;;
+        sdd) phase_full="Software Design Document" ;;
+        sprint) phase_full="Sprint Plan" ;;
+        *) phase_full="Document" ;;
+    esac
+
+    # Get knowledge context
+    local knowledge_context=""
+    if [[ -n "$context_file" && -f "$context_file" ]]; then
+        knowledge_context=$(cat "$context_file")
+    fi
+
+    # Get document content or items to score
+    local document_content=""
+    local items_to_score=""
+    if [[ -n "$input_file" && -f "$input_file" ]]; then
+        if [[ "$mode" == "score" ]]; then
+            items_to_score=$(cat "$input_file")
+        else
+            document_content=$(cat "$input_file")
+        fi
+    fi
+
+    # Replace placeholders
+    template="${template//\{\{PHASE\}\}/$phase}"
+    template="${template//\{\{PHASE_FULL\}\}/$phase_full}"
+    template="${template//\{\{KNOWLEDGE_CONTEXT\}\}/$knowledge_context}"
+    template="${template//\{\{DOCUMENT_CONTENT\}\}/$document_content}"
+    template="${template//\{\{ITEMS_TO_SCORE\}\}/$items_to_score}"
+
+    echo "$template"
+}
+
+# =============================================================================
+# Main
+# =============================================================================
+
+usage() {
+    cat <<EOF
+Usage: model-adapter.sh --model <model> --mode <mode> [options]
+
+Models:
+  gpt-5.2, gpt-5.2-codex    OpenAI GPT-5.2 variants
+  gpt-5.3-codex             OpenAI GPT-5.3 Codex
+  opus, claude-opus-4.6     Claude Opus 4.6 (claude-opus-4.5 also accepted)
+  gemini-2.0                Google Gemini 2.0 (future)
+
+Modes:
+  review                    Generate improvements (10 items)
+  skeptic                   Generate concerns (devil's advocate)
+  score                     Score items (0-1000)
+  dissent                   Adversarial cross-model code/security review
+
+Options:
+  --input <file>            Input document/items to process (required)
+  --phase <type>            Phase: prd, sdd, sprint (default: prd)
+  --context <file>          Knowledge context file
+  --prompt <file>           Custom prompt template
+  --timeout <seconds>       API timeout (default: 60)
+  --max-retries <n>         Max retry attempts (default: 3)
+  --json                    Output as JSON (default)
+  --dry-run                 Validate without calling API
+
+Environment:
+  OPENAI_API_KEY            Required for GPT models
+  ANTHROPIC_API_KEY         Required for Claude models
+  FLATLINE_MOCK_MODE=true   Use mock responses for testing
+  FLATLINE_MOCK_DIR=<path>  Custom mock fixtures directory
+
+Exit codes:
+  0 - Success
+  1 - API error
+  2 - Invalid input
+  3 - Timeout
+  4 - Missing API key
+  5 - Invalid response format
+EOF
+}
+
+main() {
+    local model=""
+    local mode=""
+    local input_file=""
+    local phase="prd"
+    local context_file=""
+    local prompt_file=""
+    local timeout="$DEFAULT_TIMEOUT"
+    local max_retries="$MAX_RETRIES"
+    local dry_run=false
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --model)
+                model="$2"
+                shift 2
+                ;;
+            --mode)
+                mode="$2"
+                shift 2
+                ;;
+            --input)
+                input_file="$2"
+                shift 2
+                ;;
+            --phase)
+                phase="$2"
+                shift 2
+                ;;
+            --context)
+                context_file="$2"
+                shift 2
+                ;;
+            --prompt)
+                prompt_file="$2"
+                shift 2
+                ;;
+            --timeout)
+                timeout="$2"
+                shift 2
+                ;;
+            --max-retries)
+                max_retries="$2"
+                shift 2
+                ;;
+            --json)
+                # Default behavior
+                shift
+                ;;
+            --dry-run)
+                dry_run=true
+                shift
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                error "Unknown option: $1"
+                usage
+                exit 2
+                ;;
+        esac
+    done
+
+    # Validate required arguments
+    if [[ -z "$model" ]]; then
+        error "Model required (--model)"
+        usage
+        exit 2
+    fi
+
+    if [[ -z "$mode" ]]; then
+        error "Mode required (--mode)"
+        usage
+        exit 2
+    fi
+
+    # Validate model
+    if [[ -z "${MODEL_PROVIDERS[$model]:-}" ]]; then
+        error "Unknown model: $model"
+        echo "Valid models: ${!MODEL_PROVIDERS[*]}" >&2
+        exit 2
+    fi
+
+    # Validate mode
+    if [[ "$mode" != "review" && "$mode" != "skeptic" && "$mode" != "score" && "$mode" != "dissent" ]]; then
+        error "Invalid mode: $mode"
+        echo "Valid modes: review, skeptic, score, dissent" >&2
+        exit 2
+    fi
+
+    # Validate input file
+    if [[ -z "$input_file" ]]; then
+        error "Input file required (--input)"
+        exit 2
+    fi
+
+    if [[ ! -f "$input_file" ]]; then
+        error "Input file not found: $input_file"
+        exit 2
+    fi
+
+    local provider="${MODEL_PROVIDERS[$model]}"
+    local model_id="${MODEL_IDS[$model]}"
+
+    log "Model: $model ($model_id)"
+    log "Provider: $provider"
+    log "Mode: $mode"
+    log "Phase: $phase"
+    log "Input: $input_file"
+    [[ -n "$context_file" ]] && log "Context: $context_file"
+
+    # Dry run - just validate
+    if [[ "$dry_run" == "true" ]]; then
+        log "Dry run - validation passed"
+        jq -n \
+            --arg model "$model" \
+            --arg mode "$mode" \
+            --arg phase "$phase" \
+            '{status: "dry_run", model: $model, mode: $mode, phase: $phase}'
+        exit 0
+    fi
+
+    # Mock mode for testing
+    if [[ "${FLATLINE_MOCK_MODE:-}" == "true" ]]; then
+        log "Mock mode enabled"
+        local mock_content
+        mock_content=$(get_mock_response "$mode" "$model")
+        jq -n \
+            --arg content "$mock_content" \
+            --argjson tokens_input 1000 \
+            --argjson tokens_output 500 \
+            --argjson latency_ms 100 \
+            --argjson retries 0 \
+            '{
+                content: $content,
+                tokens_input: $tokens_input,
+                tokens_output: $tokens_output,
+                latency_ms: $latency_ms,
+                retries: $retries,
+                mock: true
+            }'
+        exit 0
+    fi
+
+    # Load API key
+    local api_key
+    api_key=$(load_api_key "$provider") || {
+        error "Missing API key for $provider"
+        case "$provider" in
+            openai) echo "Set OPENAI_API_KEY environment variable or add to .env" >&2 ;;
+            anthropic) echo "Set ANTHROPIC_API_KEY environment variable or add to .env" >&2 ;;
+            google) echo "Set GOOGLE_API_KEY environment variable or add to .env" >&2 ;;
+        esac
+        exit 4
+    }
+
+    # Build prompts
+    local user_prompt
+    user_prompt=$(build_prompt "$mode" "$phase" "$context_file" "$input_file" "$prompt_file") || exit $?
+
+    # System prompt is minimal for this adapter - specifics are in user prompt
+    local system_prompt="You are a senior software architect reviewing a ${phase} document. Respond with valid JSON only."
+
+    # Call API
+    local result
+    result=$(call_api_with_retry "$provider" "$model_id" "$system_prompt" "$user_prompt" "$timeout" "$api_key" "$max_retries") || {
+        local exit_code=$?
+        error "API call failed with exit code $exit_code"
+        exit $exit_code
+    }
+
+    # Add model metadata to result
+    local cost_input="${COST_INPUT[$model]}"
+    local cost_output="${COST_OUTPUT[$model]}"
+    local tokens_input tokens_output cost_usd
+    tokens_input=$(echo "$result" | jq -r '.tokens_input')
+    tokens_output=$(echo "$result" | jq -r '.tokens_output')
+    cost_usd=$(echo "scale=4; ($tokens_input * $cost_input / 1000) + ($tokens_output * $cost_output / 1000)" | bc -l)
+
+    echo "$result" | jq \
+        --arg model "$model" \
+        --arg mode "$mode" \
+        --arg phase "$phase" \
+        --argjson cost_usd "$cost_usd" \
+        '. + {model: $model, mode: $mode, phase: $phase, cost_usd: $cost_usd}'
+}
+
+main "$@"

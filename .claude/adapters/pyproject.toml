@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "loa-cheval"
+version = "1.0.0"
+description = "Hounfour multi-model provider adapter for the Loa framework"
+requires-python = ">=3.8"
+dependencies = []
+
+[project.optional-dependencies]
+full = ["httpx>=0.24.0", "pyyaml>=6.0"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+cheval = "loa_cheval.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["loa_cheval*"]
