@@ -10,6 +10,16 @@
 # =============================================================================
 
 # -----------------------------------------------------------------------------
+# Ride Configuration (v1.31.0)
+# -----------------------------------------------------------------------------
+# Controls /ride codebase analysis behavior.
+ride:
+  # Days before ride artifacts are considered stale. When /ride is invoked
+  # and .reality-meta.json shows artifacts younger than this, the user is
+  # prompted to skip or re-analyze. Use --fresh flag to bypass.
+  staleness_days: 7
+
+# -----------------------------------------------------------------------------
 # Configurable Paths (v1.27.0)
 # -----------------------------------------------------------------------------
 # Customize grimoire and state file locations. All paths are relative to

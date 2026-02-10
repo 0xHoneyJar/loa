@@ -1,168 +1,97 @@
-# Sprint Plan: Skill Benchmark Audit — Anthropic Best Practices
+# Sprint Plan: /ride Persistent Artifacts & Context-Aware Invocation
 
-**Version**: 1.1.0 (Flatline-hardened)
-**Date**: 2026-02-09
-**PRD**: grimoires/loa/prd.md (v1.1.0)
+**Version**: 1.0.0
+**Date**: 2026-02-10
+**PRD**: grimoires/loa/prd.md (v1.0.0)
 **SDD**: grimoires/loa/sdd.md (v1.0.0)
-**Issue**: #261
+**Issue**: #270
 
 ---
 
-## Flatline Sprint Review Summary
+## Sprint 1: MVP — Tool Access Fix + Write Checkpoints + Verification Gate
 
-| Metric | Value |
-|--------|-------|
-| Models | Claude Opus 4.6 + GPT-5.2 |
-| Agreement | 90% |
-| HIGH_CONSENSUS integrated | 4 (IMP-001, IMP-002, IMP-003, IMP-006) |
-| BLOCKERS accepted | 3 (SKP-003, SKP-006, SKP-007) |
-| DISPUTED logged | 1 (IMP-010 — deferred, observation monitoring is over-scoped) |
-| SKP-001 (CI integration) | Addressed via IMP-003 (same recommendation) |
+**Goal**: Fix the root cause (missing Write tool permission), add persistence checkpoints after every artifact-producing phase, and add a verification gate at Phase 10. This single sprint delivers the complete MVP.
 
----
+### Task 1: Add Write tool to SKILL.md allowed-tools
 
-## Sprint 1: Validation Foundation + Size Compliance (P0)
-
-**Goal**: Create the structural validation test suite, test it with fixtures, fix the only hard-limit violation, and add CI integration.
-
-### Task 1: Create benchmark configuration
-- **File**: `.claude/schemas/skill-benchmark.json`
-- **Description**: Create JSON config with thresholds (max_words: 5000, max_description_chars: 1024, min_error_references: 5, trigger patterns, forbidden frontmatter patterns)
+- **File**: `.claude/skills/riding-codebase/SKILL.md`
+- **Description**: Change frontmatter line 6 from `allowed-tools: Read, Grep, Glob, Bash(git *)` to `allowed-tools: Read, Grep, Glob, Write, Bash(git *)`. This is the root cause fix — the agent currently has no mechanism to write files to disk.
 - **Acceptance Criteria**:
-  - [ ] File exists and is valid JSON
-  - [ ] All threshold values match PRD requirements
-  - [ ] jq can parse it without errors
-  - [ ] Script handles missing/malformed config gracefully with clear error message (IMP-002)
+  - [ ] Frontmatter `allowed-tools` includes `Write`
+  - [ ] All other frontmatter fields unchanged
+  - [ ] SKILL.md backup created before modification (`SKILL.md.bak-270`)
 
-### Task 2: Create structural validation script
-- **File**: `.claude/scripts/validate-skill-benchmarks.sh`
-- **Description**: Bash script implementing 10 checks from SDD Section 3.1.1. Must follow existing `validate-skills.sh` output format. Reads thresholds from `skill-benchmark.json`. Uses POSIX-compatible tools only (no GNU-specific flags).
+### Task 2: Add write checkpoints after each artifact-producing phase
+
+- **File**: `.claude/skills/riding-codebase/SKILL.md`
+- **Description**: Add explicit file-write checkpoint blocks after each of the 10 artifact-producing phases. Each checkpoint instructs the agent to: (1) use the Write tool to persist the artifact, (2) verify with Glob that the file exists, (3) log failure to trajectory if missing. Checkpoints follow the template defined in SDD Section 4.2.
+- **Checkpoint Locations**:
+  - After Phase 1.5: CP-1 (`claims-to-verify.md`)
+  - After Phase 2b: CP-2b (`reality/hygiene-report.md`)
+  - After Phase 4.3: CP-4 (`drift-report.md`)
+  - After Phase 5: CP-5 (`consistency-report.md`)
+  - After Phase 6.3: CP-6a/6b (`prd.md`, `sdd.md`)
+  - End of Phase 6.5: CP-6.5 (6 reality files + `.reality-meta.json`)
+  - After Phase 7: CP-7 (`governance-report.md`)
+  - After Phase 9.2: CP-9 (`trajectory-audit.md`)
 - **Acceptance Criteria**:
-  - [ ] All 10 checks implemented (SKILL.md exists, word count, no README, kebab-case, name match, no XML frontmatter, description length, WHEN pattern, error refs, frontmatter valid)
-  - [ ] Checks 1-7 and 10 are blocking (FAIL); checks 8-9 are warnings
-  - [ ] Output matches format: `PASS/FAIL/WARN: skill-name (details)`
-  - [ ] Summary shows total/passed/failed/warnings
-  - [ ] Exit code 0 if no FAILs, exit code 1 if any FAILs
-  - [ ] Script is executable (`chmod +x`)
-  - [ ] Graceful error on missing/invalid benchmark config JSON (IMP-002)
+  - [ ] 10 checkpoint blocks added (CP-1, CP-2b, CP-4, CP-5, CP-6a, CP-6b, CP-6.5, CP-6.5m, CP-7, CP-9)
+  - [ ] Each checkpoint follows the standard template: Write → Glob verify → trajectory log on failure
+  - [ ] Checkpoints reference the correct file paths per SDD Section 4.2
+  - [ ] No existing phase content removed or modified (additive only)
 
-### Task 3: Create test fixtures for validation script (SKP-007)
-- **Dir**: `.claude/skills/__test-compliant__/` and `.claude/skills/__test-noncompliant__/`
-- **Description**: Create deliberately compliant and non-compliant skill directories as test fixtures. Run validator against both to prove all 10 checks work. Clean up fixture dirs after test.
+### Task 3: Add Phase 10.0 artifact verification gate
+
+- **File**: `.claude/skills/riding-codebase/SKILL.md`
+- **Description**: Insert a new section `10.0 Artifact Verification Gate` before the existing Phase 10.1. This gate verifies all expected artifacts exist on disk using Glob, reports a pass/fail count, and attempts recovery for missing files. The ride must not complete if 0 artifacts are verified.
 - **Acceptance Criteria**:
-  - [ ] Compliant fixture: passes all 10 checks
-  - [ ] Non-compliant fixture: triggers FAIL on word count, missing SKILL.md, README.md present, bad folder name, XML in frontmatter
-  - [ ] Test script verifies validator catches all failure modes
-  - [ ] Fixture dirs prefixed with `__` to avoid confusion with real skills
-  - [ ] Cleanup step removes fixture dirs after test run (IMP-006)
+  - [ ] Phase 10.0 section added before existing 10.1
+  - [ ] Full mode checklist includes all 10 artifacts (per SDD Section 5.1)
+  - [ ] Verification uses Glob tool
+  - [ ] Recovery attempt for missing files documented
+  - [ ] Trajectory logging for verification results
 
-### Task 4: Update skill-index schema
-- **File**: `.claude/schemas/skill-index.schema.json`
-- **Description**: Raise description maxLength from 500 to 1024. Add optional `negative_triggers` array field.
+### Task 4: Update Phase 10.2 completion summary
+
+- **File**: `.claude/skills/riding-codebase/SKILL.md`
+- **Description**: Update the existing completion summary template (Phase 10.2) to include: artifact verification count, checkmark per artifact, and `/translate-ride` as a next step.
 - **Acceptance Criteria**:
-  - [ ] `description.maxLength` is 1024
-  - [ ] `negative_triggers` field added with type array of strings
-  - [ ] Existing `validate-skills.sh` still passes
+  - [ ] Summary includes "Artifact Verification: X/Y files persisted"
+  - [ ] Each artifact listed with verification indicator
+  - [ ] `/translate-ride` added to next steps
+  - [ ] `trajectory-audit.md` listed in artifacts
 
-### Task 5: Refactor riding-codebase SKILL.md
-- **File**: `.claude/skills/riding-codebase/SKILL.md` + 3 new reference files
-- **Description**: Extract ~2,400 words of reference material to `resources/references/`. Create backup (`SKILL.md.bak`). Target ≤4,500 words in SKILL.md.
+### Task 5: Add architecture-overview.md template (FR-3 stretch)
+
+- **File**: `.claude/skills/riding-codebase/resources/references/output-formats.md`
+- **Description**: Add the `architecture-overview.md` template to the Phase 6.5 section of output-formats.md. Also update SKILL.md Phase 6.5 reality file table to include `architecture-overview.md` with <1500 token budget.
 - **Acceptance Criteria**:
-  - [ ] SKILL.md is ≤ 4,500 words (`wc -w`)
-  - [ ] 3 reference files created: `output-formats.md`, `analysis-checklists.md`, `deep-analysis-guide.md`
-  - [ ] SKILL.md links to reference files with `See: resources/references/...`
-  - [ ] Core instructions (phases 0-1, edge cases) remain inline
-  - [ ] `SKILL.md.bak` backup exists
-  - [ ] `validate-skill-benchmarks.sh` passes for riding-codebase
-  - [ ] Behavioral smoke test: invoke `/ride` on a small test repo before and after refactoring, verify output is functionally equivalent (SKP-003)
+  - [ ] Template added to output-formats.md with sections: System Components, Data Flow, Technology Stack, Entry Points
+  - [ ] SKILL.md Phase 6.5 table updated with new row for `architecture-overview.md`
+  - [ ] Token budget note: <1500 tokens
+  - [ ] Total reality file budget updated (< 8500 tokens with architecture-overview)
 
-### Task 6: Rollback playbook (IMP-001)
-- **Description**: Document explicit rollback steps for Sprint 1 changes.
+### Task 6: Add staleness detection (FR-5 stretch)
+
+- **Files**: `.claude/skills/riding-codebase/SKILL.md`, `.loa.config.yaml.example`
+- **Description**: Add Phase 0.7 (Artifact Staleness Check) to SKILL.md between Phase 0.5 and Phase 1. Reads `.reality-meta.json` timestamp, checks `ride.staleness_days` config (default 7), prompts user if artifacts are fresh. Add `ride.staleness_days` config option to `.loa.config.yaml.example`.
 - **Acceptance Criteria**:
-  - [ ] Rollback steps documented in sprint report: restore SKILL.md.bak, revert schema, remove validation script
-  - [ ] Decision criteria: who decides to rollback, what signals trigger it
-  - [ ] Re-validation steps after rollback
+  - [ ] Phase 0.7 section added to SKILL.md
+  - [ ] Reads `generated_at` from `.reality-meta.json`
+  - [ ] Respects `--fresh` flag bypass
+  - [ ] Uses `AskUserQuestion` for fresh artifact prompt
+  - [ ] `ride.staleness_days: 7` added to `.loa.config.yaml.example`
+  - [ ] Trajectory logging for staleness check
 
-### Task 7: Run full validation + CI integration (IMP-003)
-- **Description**: Execute both validation scripts, verify all checks pass, and document CI integration point.
+### Task 7: Validation and smoke test
+
+- **Description**: Verify all changes are internally consistent. Word count check on SKILL.md. Verify the checkpoint paths match translate-ride expectations. Run `wc -w` on modified SKILL.md to document the new word count.
 - **Acceptance Criteria**:
-  - [ ] `validate-skills.sh` exits 0
-  - [ ] `validate-skill-benchmarks.sh` exits 0 (riding-codebase under limit)
-  - [ ] Only expected warnings remain (5 skills with low error refs — addressed in Sprint 2)
-  - [ ] CI integration documented: which GitHub Actions workflow to add the validator to, with the exact step definition
-
----
-
-## Sprint 2: Description Standardization + Error Handling (P1-P2)
-
-**Goal**: Bring all 19 skill descriptions into compliance (batched) and add error handling to underserved skills.
-
-### Task 1a: Standardize descriptions — Batch 1 (skills 1-5)
-- **Files**: `auditing-security`, `autonomous-agent`, `bridgebuilder-review`, `browsing-constructs`, `continuous-learning` index.yaml
-- **Description**: Update 5 descriptions to follow `[What] + [When] + [Capabilities]` formula. Run validation after batch.
-- **Acceptance Criteria**:
-  - [ ] 5 descriptions follow the 3-line template, ≤ 1,024 chars
-  - [ ] Contain "Use when" or equivalent trigger context
-  - [ ] No trigger file paths dropped
-  - [ ] `validate-skill-benchmarks.sh` passes for these 5 (SKP-006)
-
-### Task 1b: Standardize descriptions — Batch 2 (skills 6-10)
-- **Files**: `deploying-infrastructure`, `designing-architecture`, `discovering-requirements`, `enhancing-prompts`, `flatline-knowledge` index.yaml
-- **Acceptance Criteria**: Same as Task 1a for these 5 skills
-
-### Task 1c: Standardize descriptions — Batch 3 (skills 11-15)
-- **Files**: `implementing-tasks`, `mounting-framework`, `planning-sprints`, `reviewing-code`, `riding-codebase` index.yaml
-- **Acceptance Criteria**: Same as Task 1a for these 5 skills
-
-### Task 1d: Standardize descriptions — Batch 4 (skills 16-19)
-- **Files**: `rtfm-testing`, `run-mode`, `simstim-workflow`, `translating-for-executives` index.yaml
-- **Acceptance Criteria**: Same as Task 1a for these 4 skills
-
-### Task 2: Add error handling to bridgebuilder-review
-- **File**: `.claude/skills/bridgebuilder-review/SKILL.md`
-- **Description**: Add `## Error Handling` section with error table and troubleshooting. Cover: API failures, auth errors, rate limits, dry-run edge cases, large PR handling.
-- **Acceptance Criteria**:
-  - [ ] Error handling section added with ≥ 5 error references
-  - [ ] Error table with cause and resolution columns
-  - [ ] Word count still under 5,000
-  - [ ] `validate-skill-benchmarks.sh` passes
-
-### Task 3: Add error handling to designing-architecture
-- **File**: `.claude/skills/designing-architecture/SKILL.md`
-- **Description**: Add error handling for: PRD not found, clarification loop timeout, SDD generation failure.
-- **Acceptance Criteria**:
-  - [ ] Error handling section added with ≥ 5 error references
-  - [ ] Word count still under 5,000
-
-### Task 4: Add error handling to flatline-knowledge
-- **File**: `.claude/skills/flatline-knowledge/SKILL.md`
-- **Description**: Add error handling for: NotebookLM auth, API timeout, cache miss, model unavailable.
-- **Acceptance Criteria**:
-  - [ ] Error handling section added with ≥ 5 error references
-  - [ ] Word count still under 5,000
-
-### Task 5: Add error handling to mounting-framework
-- **File**: `.claude/skills/mounting-framework/SKILL.md`
-- **Description**: Add error handling for: Permission denied, existing mount, partial install, version mismatch.
-- **Acceptance Criteria**:
-  - [ ] Error handling section added with ≥ 5 error references
-  - [ ] Word count still under 5,000
-
-### Task 6: Add error handling to planning-sprints
-- **File**: `.claude/skills/planning-sprints/SKILL.md`
-- **Description**: Add error handling for: PRD/SDD missing, capacity estimation, dependency cycles, empty sprint.
-- **Acceptance Criteria**:
-  - [ ] Error handling section added with ≥ 5 error references
-  - [ ] Word count still under 5,000
-
-### Task 7: Final validation pass
-- **Description**: Run both validation scripts. All 19 skills must pass with zero failures and zero warnings.
-- **Acceptance Criteria**:
-  - [ ] `validate-skills.sh` exits 0
-  - [ ] `validate-skill-benchmarks.sh` exits 0 with 0 warnings
-  - [ ] All 19 SKILL.md files ≤ 5,000 words
-  - [ ] All 19 descriptions ≤ 1,024 chars with trigger context
-  - [ ] All 19 skills have ≥ 5 error references
+  - [ ] SKILL.md word count documented (expected ~7,600 words)
+  - [ ] All 5 translate-ride artifact paths confirmed in checkpoints
+  - [ ] No syntax errors in SKILL.md markdown
+  - [ ] Backup exists (`SKILL.md.bak-270`)
+  - [ ] output-formats.md has valid markdown
 
 ---
 
@@ -170,19 +99,31 @@
 
 | NFR | Verification |
 |-----|-------------|
-| NFR-1: Zero behavioral regressions | SKILL.md.bak backups + validation before/after + behavioral smoke test for riding-codebase (SKP-003) |
-| NFR-2: No new dependencies | Script uses bash, wc, grep, jq (all existing, POSIX-compatible) |
-| NFR-3: Backward compatible | Trigger arrays unchanged; descriptions batched to isolate regressions (SKP-006) |
-| NFR-4: Documentation-only | No application code changes |
+| NFR-1: Performance | Write checkpoints add <20s total (Glob verification is fast) |
+| NFR-2: Token budget | Architecture-overview.md adds <1500 tokens; total budget documented |
+| NFR-3: Backward compatibility | No CLI argument changes; `context: fork` preserved; plan-and-analyze unchanged |
+| NFR-4: No breaking changes | All changes additive to SKILL.md; phase structure preserved |
 
 ---
 
 ## Risk Mitigations
 
-| Risk | Mitigation | Owner |
-|------|-----------|-------|
-| R-1: Triggering breaks | Run validation before/after every skill change | Sprint 1 T2 |
-| R-5: Post-merge regression | SKILL.md.bak copies, 7-day observation, documented rollback playbook (IMP-001) | Sprint 1 T6 |
-| R-6: Validator false positives | Test fixtures prove all 10 checks against known inputs (SKP-007) | Sprint 1 T3 |
-| R-7: Description batch regression | 4 batches of 5 skills with validation between each (SKP-006) | Sprint 2 T1a-d |
-| R-8: CI drift | Document exact CI integration step (IMP-003) | Sprint 1 T7 |
+| Risk | Mitigation |
+|------|-----------|
+| `context: fork` blocks Write tool | Test after implementation; fallback to `context: shared` if blocked |
+| Word count increases past #261 limit | Document for extraction to reference file during #261 Sprint 1 Task 5 |
+| Agent ignores checkpoint instructions | Phase 10.0 verification gate catches missed writes |
+
+---
+
+## Rollback
+
+If issues discovered post-merge:
+1. Restore `SKILL.md.bak-270` to `SKILL.md`
+2. Revert output-formats.md changes
+3. Revert config example changes
+4. Re-run `wc -w` to confirm word count restored
+
+---
+
+*Generated from PRD v1.0.0 and SDD v1.0.0 via /sprint-plan.*

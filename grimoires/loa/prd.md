@@ -1,366 +1,203 @@
-# PRD: Skill Benchmark Audit — Anthropic Best Practices Alignment
+# PRD: /ride Persistent Artifacts & Context-Aware Invocation
 
-**Version**: 1.1.0
-**Status**: Draft (revised per PR #264 review feedback)
+**Version**: 1.0.0
+**Status**: Draft
 **Author**: Discovery Phase (plan-and-analyze)
-**Date**: 2026-02-09
-**Issue**: #261
+**Issue**: [#270](https://github.com/0xHoneyJar/loa/issues/270)
+**Date**: 2026-02-10
 
 ---
 
 ## 1. Problem Statement
 
-Anthropic published "The Complete Guide to Building Skills for Claude" — a 30-page specification defining best practices for skill structure, progressive disclosure, description quality, testing, and error handling. Loa has 19 skills built before this guide existed. Without a systematic audit, we risk:
+The `/ride` skill defines 10+ phases that generate structured analysis artifacts (drift-report.md, governance-report.md, consistency-report.md, etc.), but **none of these artifacts are persisted to disk** when the skill completes. The output is rendered inline in the conversation and lost when the session ends.
 
-1. **Trigger failures**: Skills that don't fire when users expect them to (description doesn't match Anthropic's WHAT + WHEN formula)
-2. **Context window bloat**: 1 skill exceeds Anthropic's 5,000-word SKILL.md hard limit (riding-codebase at 6,905 words), with 4 more near-limit (>4,000 words) — degrading performance when multiple skills load
-3. **Missing error recovery**: Users hit errors with no documented troubleshooting path
-4. **No testing framework**: Zero structured tests for skill triggering accuracy or completion quality
+This creates two downstream failures:
 
-Additionally, FAANG-level operators (Vercel, Anthropic's own skill repos) provide competitive reference points that Loa's skills should match or exceed.
+1. **`/translate-ride` is blocked**: The batch translation command expects 5 report files at specific paths. When invoked after `/ride`, it finds 0/5 artifacts and cannot proceed.
 
----
+2. **Cross-session continuity is broken**: Other agents (e.g., during `/plan-and-analyze` or `/architect`) have no architecture grounding documents from `/ride` to build on. Each session starts from scratch.
 
-## 2. Benchmark Source Analysis
+**Source**: User feedback via `/feedback` command (Issue #270, v1.31.0).
 
-### 2.1 Anthropic's Official Guide (Primary Benchmark)
+## 2. Goals & Success Metrics
 
-Source: `The-Complete-Guide-to-Building-Skill-for-Claude.pdf` (30 pages)
+### Goals
 
-Key benchmarks extracted:
+| # | Goal | Measurable Outcome |
+|---|------|--------------------|
+| G1 | Artifacts persist after `/ride` completes | All 5 report files exist on disk after invocation |
+| G2 | `/translate-ride` works end-to-end | Translation produces EXECUTIVE-INDEX.md from ride artifacts |
+| G3 | Context-aware invocation | Direct call = full artifacts; internal call = lightweight mode |
+| G4 | Architecture grounding available | Other agents can load ride-produced architecture context |
 
-| Area | Benchmark | Loa Status |
-|------|-----------|------------|
-| **File Structure** | SKILL.md required, kebab-case folder, no README.md | 19/19 pass |
-| **SKILL.md Size** | Under 5,000 words; move detail to references/ | 16/19 pass (3 over) |
-| **Description** | `[What] + [When] + [Key capabilities]` formula, <1024 chars | Needs audit |
-| **Frontmatter** | name (kebab-case), description, no XML tags | Needs audit |
-| **Progressive Disclosure** | 3 levels: frontmatter → body → linked files | Partial |
-| **Error Handling** | Documented error states and recovery | 11/19 have >10 error refs |
-| **Examples** | Concrete usage examples | 19/19 have examples |
-| **Testing** | Triggering tests, functional tests, performance comparison | 0/19 structured tests |
-| **Negative Triggers** | Phrases that should NOT trigger the skill | Needs audit |
+### Success Metrics
 
-### 2.2 External References (Secondary Benchmarks)
+- **M1**: `/ride` → `ls grimoires/loa/drift-report.md` returns file (currently fails)
+- **M2**: `/ride` → `/translate-ride` → `grimoires/loa/translations/EXECUTIVE-INDEX.md` exists (currently blocked)
+- **M3**: `/plan-and-analyze` internal `/ride` call completes in <5 minutes (lightweight mode)
+- **M4**: Full `/ride` direct invocation completes all 10 phases with file persistence
 
-| Source | Repository | Relevance |
-|--------|-----------|-----------|
-| Anthropic Official | `anthropics/skills` | Reference implementations of skill patterns |
-| Vercel | `vercel-labs/agent-skills` | FAANG-level CLI skill patterns |
-| Community | `awesome-claude-skills` curated list | Ecosystem patterns and conventions |
+## 3. User & Stakeholder Context
 
----
+### Primary Persona: Loa Developer (Human Operator)
 
-## 3. Current State Audit
+Runs `/ride` on brownfield codebases to generate analysis reports. Expects persistent output files they can review across sessions, share with team, and feed into downstream workflows (`/translate-ride`, `/architect`).
 
-### 3.1 Skill Inventory (19 skills)
+### Secondary Persona: Agent Pipeline
 
-| Skill | Lines | Words | Resources/ | Error Refs | Examples | Over 5K Words |
-|-------|-------|-------|-----------|------------|----------|---------------|
-| auditing-security | 1,046 | 4,548 | yes | 17 | 50 | no |
-| autonomous-agent | 1,162 | 4,134 | yes | 25 | 108 | no |
-| bridgebuilder-review | 77 | 327 | yes | 2 | 4 | no |
-| browsing-constructs | 414 | 1,562 | no | 7 | 34 | no |
-| continuous-learning | 453 | 1,819 | yes | 12 | 19 | no |
-| deploying-infrastructure | 879 | 3,880 | yes | 17 | 32 | no |
-| designing-architecture | 372 | 1,637 | yes | 3 | 20 | no |
-| discovering-requirements | 800 | 3,138 | yes | 17 | 44 | no |
-| enhancing-prompts | 259 | 1,008 | yes | 10 | 14 | no |
-| flatline-knowledge | 220 | 687 | yes | 4 | 16 | no |
-| implementing-tasks | 1,107 | 4,596 | yes | 20 | 42 | no |
-| mounting-framework | 305 | 921 | no | 4 | 32 | no |
-| planning-sprints | 599 | 2,586 | yes | 2 | 32 | no |
-| reviewing-code | 1,021 | 4,468 | yes | 21 | 43 | no |
-| riding-codebase | 1,686 | 6,905 | yes | 2 | 128 | **YES** |
-| rtfm-testing | 519 | 2,882 | no | 12 | 12 | no |
-| run-mode | 399 | 1,364 | no | 5 | 36 | no |
-| simstim-workflow | 706 | 2,755 | no | 20 | 34 | no |
-| translating-for-executives | 702 | 3,019 | yes | 4 | 48 | no |
+Other Loa skills (`/plan-and-analyze`, `/architect`, `/simstim`) invoke `/ride` internally for codebase grounding. These need lightweight, fast output — not the full 10-phase ceremony.
 
-**Totals**: 12,726 lines, ~50,235 words across 19 skills.
+## 4. Functional Requirements
 
-### 3.2 Gap Analysis Summary
+### FR-1: Artifact Persistence (MUST)
 
-| Gap | Count | Skills Affected | Severity |
-|-----|-------|-----------------|----------|
-| Over 5,000 words | 1 | riding-codebase (6,905) | HIGH |
-| Near 5,000 words (>4,000) | 4 | auditing-security, implementing-tasks, reviewing-code, autonomous-agent | MEDIUM |
-| Low error handling (<5 refs) | 5 | bridgebuilder-review, designing-architecture, flatline-knowledge, mounting-framework, planning-sprints | MEDIUM |
-| Few examples (<10) | 2 | bridgebuilder-review, continuous-learning | LOW |
-| No structured test framework | 19 | All | HIGH |
-| Description quality unknown | 19 | All (needs per-skill review) | MEDIUM |
-| No negative triggers | Unknown | Needs audit | LOW |
+When `/ride` completes (direct invocation or full mode), the following files MUST exist on disk:
 
----
+| Artifact | Path | Source Phase |
+|----------|------|-------------|
+| Drift Report | `grimoires/loa/drift-report.md` | Phase 4 |
+| Consistency Report | `grimoires/loa/consistency-report.md` | Phase 5 |
+| Governance Report | `grimoires/loa/governance-report.md` | Phase 7 |
+| Hygiene Report | `grimoires/loa/reality/hygiene-report.md` | Phase 2b |
+| Trajectory Audit | `grimoires/loa/trajectory-audit.md` | Phase 9 |
 
-## 4. Goals
+These paths are already defined in `SKILL.md` — the requirement is that they are actually written using the `Write` tool, not just rendered inline.
 
-| # | Goal | Success Metric |
-|---|------|---------------|
-| G-1 | All skills under 5,000 words | 19/19 SKILL.md files ≤ 5,000 words |
-| G-2 | Descriptions follow Anthropic formula | 19/19 descriptions include WHAT + WHEN + capabilities |
-| G-3 | Error handling documented | 19/19 have ≥ 5 error/troubleshooting references |
-| G-4 | Skill test framework exists | Test harness covering trigger accuracy + functional completion |
-| G-5 | Progressive disclosure optimized | Skills >3,000 words use references/ for detail offload |
+**Additionally**, the existing Phase 6 artifacts (PRD, SDD) and Phase 6.5 artifacts (reality files) must also be persisted as already specified in SKILL.md.
 
----
+### FR-2: Context-Aware Invocation Mode (MUST)
 
-## 5. Functional Requirements
+`/ride` must detect its invocation context and select the appropriate mode:
 
-### FR-1: SKILL.md Size Reduction (G-1, G-5)
+| Context | Detection | Mode | Behavior |
+|---------|-----------|------|----------|
+| Direct user call | No `LOA_RIDE_CALLER` env var, or `CALLER=user` | **Full** | All 10 phases, full artifact persistence |
+| `/plan-and-analyze` internal | `LOA_RIDE_CALLER=plan-and-analyze` | **Lightweight** | Phases 0-2 + 6.5 only (reality files), skip reports |
+| No prior artifacts exist | `drift-report.md` not found | **Full** | Override lightweight → full if no artifacts exist |
+| `--full` flag | CLI argument | **Full** | Force full mode regardless of caller |
 
-Refactor skills exceeding 5,000 words by extracting detailed content to `references/` files:
+**Lightweight mode** produces only:
+- `grimoires/loa/reality/*` (token-optimized codebase interface)
+- `grimoires/loa/context/claims-to-verify.md`
+- Trajectory log entries
 
-- **riding-codebase** (6,905 words → target ≤4,500): Move phase-specific instructions, output format templates, and validation checklists to `references/`
-- **Near-limit skills** (>4,000 words): Audit for content that could be linked rather than inlined
+**Full mode** produces everything lightweight produces PLUS:
+- All 5 analysis reports (FR-1)
+- PRD and SDD (Phase 6)
+- Legacy inventory and deprecation (Phases 3, 8)
 
-**Approach**: For each over-limit skill:
-1. Identify sections that are reference material (templates, checklists, detailed examples)
-2. Extract to `resources/references/{topic}.md`
-3. Replace inline content with a link: `See: resources/references/{topic}.md`
-4. Verify skill still triggers and functions correctly
+### FR-3: Architecture Grounding Document (SHOULD)
 
-### FR-2: Description Standardization (G-2)
+Generate a concise architecture overview for consumption by other agents:
 
-Update all 19 skill descriptions to follow Anthropic's formula:
+- Path: `grimoires/loa/reality/architecture-overview.md`
+- Content: System component diagram (ASCII), key data flows, technology stack summary, entry points
+- Token budget: < 1500 tokens
+- Updated during Phase 6.5 alongside other reality files
 
-```
-[What it does] + [When to use it] + [Key capabilities]
-```
+This serves as the "grounding document" that issue #270 requests so agents have structural understanding without loading full PRD/SDD.
 
-**Requirements**:
-- Each description must be under 1,024 characters
-- Description must include at least one trigger context ("Use when...")
-- Description must list 2-3 key capabilities
-- Descriptions appear in both `index.yaml` and SKILL.md frontmatter
+### FR-4: `/translate-ride` Compatibility (MUST)
 
-**Example transformation**:
-```yaml
-# Before (implementing-tasks)
-description: |
-  Use this skill IF user needs to implement sprint tasks from grimoires/loa/sprint.md,
-  OR feedback has been received in engineer-feedback.md that needs addressing.
-  Implements production-grade code with comprehensive tests, follows existing patterns,
-  and generates detailed reports. Produces report at grimoires/loa/a2a/sprint-N/reviewer.md.
+The artifacts produced by FR-1 must match the paths and format expected by `/translate-ride`:
 
-# After
-description: |
-  Execute sprint tasks with production-quality code, tests, and implementation reports.
-  Use when implementing tasks from grimoires/loa/sprint.md or addressing feedback in
-  engineer-feedback.md / auditor-sprint-feedback.md. Handles feedback-first resolution,
-  test generation, and reviewer.md report creation.
-```
+| Translate-Ride Expects | Ride Produces | Status |
+|------------------------|---------------|--------|
+| `grimoires/loa/drift-report.md` | Phase 4 output | Currently missing → Fix |
+| `grimoires/loa/governance-report.md` | Phase 7 output | Currently missing → Fix |
+| `grimoires/loa/consistency-report.md` | Phase 5 output | Currently missing → Fix |
+| `grimoires/loa/reality/hygiene-report.md` | Phase 2b output | Currently missing → Fix |
+| `grimoires/loa/trajectory-audit.md` | Phase 9 output | Currently missing → Fix |
+| `grimoires/loa/NOTES.md` | Phase 10 output | Already works |
 
-**Note**: Descriptions should preserve specific file paths referenced by the skill's trigger
-logic. Existing trigger phrases in `index.yaml` remain unchanged; descriptions may summarize
-but must not drop paths that affect matching precision.
+### FR-5: Staleness Detection (SHOULD)
 
-### FR-3: Error Handling Audit (G-3)
+When `/ride` is invoked and artifacts already exist:
 
-For the 5 skills with fewer than 5 error references, add:
+- Check `.reality-meta.json` for `generated_at` timestamp
+- If < 7 days old: prompt user to skip/refresh (configurable via `ride.staleness_days`)
+- If >= 7 days old: run full analysis
+- If `--fresh` flag: always run full analysis regardless of age
 
-1. **Error table**: Common failure modes with causes and resolutions
-2. **Troubleshooting section**: "Skill doesn't trigger", "Unexpected output", "API failure" patterns
-3. **Recovery guidance**: What to do when the skill fails mid-execution
+## 5. Technical & Non-Functional Requirements
 
-Target skills: bridgebuilder-review, designing-architecture, flatline-knowledge, mounting-framework, planning-sprints.
+### NFR-1: Performance
 
-### FR-4: Skill Test Framework (G-4)
+- Lightweight mode: < 5 minutes for codebases under 50K lines
+- Full mode: < 20 minutes for codebases under 50K lines (existing SKILL.md timeout)
 
-Create a test harness for validating skill quality:
+### NFR-2: Token Budget Compliance
 
-#### FR-4a: Trigger Accuracy Tests
+Reality files must stay within the existing SKILL.md token budgets (< 7000 tokens total). The new `architecture-overview.md` adds < 1500 tokens.
 
-For each skill, define:
-- **Positive triggers**: Phrases that SHOULD invoke the skill (from `triggers` in index.yaml)
-- **Negative triggers**: Phrases that should NOT invoke the skill
-- **Validation**: Run test phrases against Claude's skill matching and verify accuracy
+### NFR-3: Backward Compatibility
 
-**Pass criteria**: ≥90% precision and recall on a 20-phrase test set per skill.
-**Outcome definitions**: `PASS` (correct skill triggered), `MISS` (expected skill not triggered), `MISFIRE` (wrong skill triggered).
+- No changes to `/ride` CLI invocation syntax
+- Existing `context: fork` agent model preserved
+- `/plan-and-analyze` continues to work with or without the mode detection
+- `--fresh` flag behavior in `/plan-and-analyze` unchanged
 
-#### FR-4b: Structural Validation Tests
+### NFR-4: No Breaking Changes to SKILL.md Structure
 
-Automated checks (can run in CI):
-- SKILL.md exists and has valid frontmatter
-- Word count ≤ 5,000
-- Description follows WHAT + WHEN + capabilities formula (regex/heuristic check)
-- No README.md in skill folder
-- Folder name is kebab-case
-- Name field matches folder name
-- No XML tags in frontmatter
-- resources/ directory exists if referenced in SKILL.md
+The fix should work within the existing SKILL.md phase structure. The phases and their outputs are already correctly specified — the implementation gap is in ensuring the agent actually writes the files rather than rendering them inline.
 
-**Pass criteria**: Zero failures across all checks (binary pass/fail). Any single check failure = FAIL for that skill.
+## 6. Scope & Prioritization
 
-#### FR-4c: Functional Smoke Tests
+### MVP (This PR)
 
-Per-skill test definitions (manual or semi-automated):
-- Input scenario → expected behavior → actual behavior
-- Performance: measured in tool calls to completion
+1. **Artifact persistence** — Ensure all 5 analysis reports are written to disk (FR-1)
+2. **Context-aware mode** — Lightweight vs. full invocation detection (FR-2)
+3. **Translate-ride compatibility** — Verify end-to-end pipeline works (FR-4)
 
-**Pass criteria**: Skill completes with exit code 0 in ≤10 tool calls. No tool calls returning errors during execution.
-**Outcome definitions**: `PASS` (all assertions met), `FLAKY` (intermittent failures across 3 runs), `FAIL` (deterministic failure), `TIMEOUT` (exceeded 10 tool-call budget).
+### Stretch
 
-### FR-5: Negative Trigger Audit (G-2)
+4. **Architecture grounding document** — New `architecture-overview.md` file (FR-3)
+5. **Staleness detection** — Freshness check before re-running (FR-5)
 
-Review each skill's trigger configuration and add negative triggers where needed:
+### Out of Scope
 
-```yaml
-# Example: deploying-infrastructure
-triggers:
-  - "/deploy"
-  - "deploy to production"
-negative_triggers:
-  - "deploy a feature flag"      # → implementing-tasks
-  - "deploy documentation"       # → translating-for-executives
-```
+- Modifying `/translate-ride` itself (it should work once artifacts exist)
+- Changing the `/ride` phase structure or analysis methodology
+- Adding new analysis dimensions beyond what SKILL.md already defines
+- Cross-repo ride support (future enhancement)
 
-This prevents skills from firing incorrectly when trigger phrases overlap.
+## 7. Risks & Dependencies
 
-### FR-6: Progressive Disclosure Optimization (G-5)
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| SKILL.md instructions are correct but ignored by agent | High | High | Add explicit `Write` tool instructions with checkpoint verification |
+| Fork context drops file writes | Medium | High | Verify `context: fork` allows Write tool; if not, change to `context: shared` |
+| Lightweight mode misdetects context | Low | Medium | Fall back to full mode when unsure; `--full` escape hatch |
+| Token budget exceeded with new architecture file | Low | Low | Strict < 1500 token limit; omit if over budget |
 
-For skills with >3,000 words, audit the content structure against Anthropic's 3-level model:
+### Dependencies
 
-| Level | What Loads | Budget |
-|-------|-----------|--------|
-| L1: Frontmatter | Always loaded into context | <1,024 chars |
-| L2: SKILL.md body | Loaded when skill triggers | ≤5,000 words |
-| L3: Linked references | Loaded on-demand during execution | No limit |
+- Existing SKILL.md phase definitions (already stable)
+- `/translate-ride` artifact path expectations (already documented)
+- `.reality-meta.json` schema for staleness detection
 
-Ensure each skill's content is at the right level. Inline instructions needed for every invocation stay in L2. Reference material, templates, and detailed examples move to L3.
+## 8. Implementation Hints
+
+### Root Cause Analysis
+
+The likely root cause is that SKILL.md tells the agent to "generate" or "create" artifacts, but doesn't include explicit `Write` tool invocations or file-write checkpoints. The agent renders the content in its response but may not invoke the Write tool to persist it.
+
+### Suggested Approach
+
+1. **Add explicit file-write checkpoints** after each artifact-producing phase in SKILL.md
+2. **Add a verification step** at Phase 10 that checks all expected files exist on disk
+3. **Add mode detection logic** at Phase 0 based on environment variable or invocation context
+4. **Add `architecture-overview.md` template** to the reality file generation in Phase 6.5
+
+### Key Files to Modify
+
+| File | Change |
+|------|--------|
+| `.claude/skills/riding-codebase/SKILL.md` | Add file-write checkpoints, mode detection, architecture overview |
+| `.claude/skills/riding-codebase/resources/references/output-formats.md` | Add architecture-overview template |
+| `.loa.config.yaml.example` | Add `ride.staleness_days` config option |
 
 ---
 
-## 6. Non-Functional Requirements
-
-| # | Requirement |
-|---|-------------|
-| NFR-1 | Zero behavioral regressions — all skills must function identically after refactoring |
-| NFR-2 | No new dependencies — test framework uses existing tooling (bash, node:test) |
-| NFR-3 | Backward compatible — existing trigger phrases continue to work |
-| NFR-4 | Documentation-only changes — no application code changes in this issue |
-
----
-
-## 7. Risks
-
-| # | Risk | Impact | Mitigation |
-|---|------|--------|------------|
-| R-1 | Refactoring breaks skill triggering | HIGH | Test triggers before/after each change |
-| R-2 | Content extraction to references/ loses context | MEDIUM | Verify skills still complete functional smoke tests |
-| R-3 | Description standardization reduces specificity | LOW | Keep existing trigger phrases; add, don't replace |
-| R-4 | Test framework maintenance burden | LOW | Keep tests minimal and automated where possible |
-| R-5 | Post-merge regression discovery | HIGH | Keep PR branch open for 7 days post-merge; create SKILL.md.bak copies before refactoring; revert on user-reported trigger failures within the observation window |
-
----
-
-## 8. Prioritization
-
-| Priority | Requirement | Rationale |
-|----------|-------------|-----------|
-| P0 | FR-1: Size reduction (riding-codebase) | Active hard-limit violation — stop the bleeding first |
-| P0 | FR-4b: Structural validation tests | Automated regression gate for all subsequent changes |
-| P1 | FR-2: Description standardization | Affects trigger accuracy across all 19 skills |
-| P2 | FR-3: Error handling audit | 5 skills affected, improves user experience |
-| P2 | FR-6: Progressive disclosure optimization | Affects near-limit skills |
-| P3 | FR-4a: Trigger accuracy tests | Valuable but requires manual validation |
-| P3 | FR-5: Negative trigger audit | Prevents misfire but low current impact |
-| P3 | FR-4c: Functional smoke tests | Nice-to-have, labor intensive |
-
-**Priority rationale**: FR-1 and FR-4b are both P0 because the riding-codebase violation is actively broken (exceeds Anthropic's hard limit) while structural tests prevent introducing new violations during the remaining work. Following incident response principles: stop the bleeding, then build monitoring.
-
----
-
-## 9. Success Criteria
-
-| Criterion | Measurement |
-|-----------|-------------|
-| All SKILL.md files ≤ 5,000 words | `wc -w` on each file |
-| All descriptions follow WHAT + WHEN + capabilities | Manual review + regex validation |
-| All skills have ≥ 5 error/troubleshooting references | `grep -c` on each file |
-| Structural test suite passes for all 19 skills | CI green |
-| Zero skill behavioral regressions | Existing functionality preserved |
-
----
-
-## 10. Out of Scope
-
-- Rewriting skill logic or changing skill behavior
-- Adding new skills
-- Changing the skill framework architecture (index.yaml structure, etc.)
-- Changing CLAUDE.md or CLAUDE.loa.md content
-- Implementing the full Anthropic test suite (triggering tests require Claude API access)
-
----
-
-## 11. Appendix: Audit Methodology
-
-All quantitative claims in Section 3 were measured using the following commands. Word count was chosen over token count because Anthropic's guide specifies word limits (not tokens), and `wc -w` is universally reproducible without requiring a tokenizer dependency.
-
-### Word Count Measurement
-
-```bash
-for dir in .claude/skills/*/; do
-  name=$(basename "$dir")
-  words=$(wc -w < "$dir/SKILL.md" 2>/dev/null || echo "0")
-  echo "$name: $words words"
-done
-```
-
-### Error/Troubleshooting Reference Count
-
-```bash
-for dir in .claude/skills/*/; do
-  name=$(basename "$dir")
-  refs=$(grep -c -iE 'error|troubleshoot|fail' "$dir/SKILL.md" 2>/dev/null || echo "0")
-  echo "$name: $refs error refs"
-done
-```
-
-### Example Count (code blocks + example headers)
-
-```bash
-for dir in .claude/skills/*/; do
-  name=$(basename "$dir")
-  examples=$(grep -c -E '^(###? Example|```)' "$dir/SKILL.md" 2>/dev/null || echo "0")
-  echo "$name: $examples examples"
-done
-```
-
-### Structure Checks
-
-```bash
-for dir in .claude/skills/*/; do
-  name=$(basename "$dir")
-  has_res=$([ -d "$dir/resources" ] && echo "yes" || echo "no")
-  has_readme=$([ -f "$dir/README.md" ] && echo "YES-BAD" || echo "no")
-  echo "$name: resources=$has_res readme=$has_readme"
-done
-```
-
-**Decision**: Word count (`wc -w`) was chosen over token count because:
-1. Anthropic's guide specifies "5,000 words" not "5,000 tokens"
-2. `wc -w` is reproducible on any POSIX system without dependencies
-3. Token counts vary by tokenizer implementation; word counts are deterministic
-
----
-
-## 12. Revision History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0.0 | 2026-02-09 | Initial PRD from /plan-and-analyze research |
-| 1.1.0 | 2026-02-09 | Revised per Bridgebuilder review on PR #264: added audit methodology appendix, explicit test pass/fail thresholds, promoted FR-1 to P0, added rollback strategy R-5, preserved file paths in description examples |
-
----
-
-## 13. References
-
-| Document | Relevance |
-|----------|-----------|
-| Anthropic "Complete Guide to Building Skills for Claude" (30pp PDF) | Primary benchmark |
-| `anthropics/skills` GitHub repo | Official reference implementations |
-| `vercel-labs/agent-skills` GitHub repo | FAANG-level patterns |
-| `awesome-claude-skills` curated list | Community best practices |
-| Issue #261 | Feature request |
+*Generated from Issue #270 context via /plan-and-analyze. Codebase grounded against SKILL.md (443 lines), translate-ride command, and reality directory state.*

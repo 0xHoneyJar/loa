@@ -3,7 +3,7 @@ name: ride
 description: Analyze codebase to extract reality into Loa artifacts
 context: fork
 agent: Explore
-allowed-tools: Read, Grep, Glob, Write, Bash(git *)
+allowed-tools: Read, Grep, Glob, Bash(git *)
 ---
 
 # Riding Through the Codebase
@@ -64,23 +64,6 @@ mkdir -p grimoires/loa/a2a/trajectory
 ```
 
 Log preflight completion to trajectory.
-
-### 0.6 Artifact Staleness Check
-
-If `grimoires/loa/reality/.reality-meta.json` exists:
-
-1. Read `generated_at` timestamp from the JSON
-2. Read `ride.staleness_days` from `.loa.config.yaml` (default: 7)
-3. If artifacts are fresh (< staleness_days old) AND `--fresh` flag NOT passed:
-   - Use `AskUserQuestion`: "Ride artifacts are N days old. [R]e-analyze or [S]kip?"
-   - If skip: Exit with message "Using existing ride artifacts from [date]"
-4. If `--fresh` flag: proceed regardless of artifact age
-5. If `.reality-meta.json` does not exist: proceed (first ride)
-
-Log staleness check to trajectory:
-```json
-{"phase": 0.6, "action": "staleness_check", "status": "fresh|stale|first_ride", "artifact_age_days": N}
-```
 
 ---
 
@@ -176,18 +159,7 @@ Use `AskUserQuestion` for each topic, skipping questions answered by context fil
 
 Even if interview is skipped, create this file from existing context.
 
-### 1.6 File Persistence Checkpoint (CP-1)
-
-**WRITE TO DISK**: Use the `Write` tool to persist `grimoires/loa/context/claims-to-verify.md`.
-
-After writing, verify with `Glob` pattern `grimoires/loa/context/claims-to-verify.md` — must return 1 match. If missing after Write, retry once. If still missing, log to trajectory:
-```json
-{"phase": 1, "action": "write_failed", "artifact": "claims-to-verify.md", "status": "error"}
-```
-
-**Do NOT render the artifact inline without also writing it to disk.**
-
-### 1.7 Tool Result Clearing Checkpoint
+### 1.6 Tool Result Clearing Checkpoint
 
 Clear raw interview data. Summarize captured claims count and top investigation areas.
 
@@ -236,15 +208,6 @@ Generate `grimoires/loa/reality/hygiene-report.md` flagging potential issues for
 
 **See**: `resources/references/deep-analysis-guide.md` for the hygiene report template and dead code philosophy.
 
-### 2b.1 File Persistence Checkpoint (CP-2b)
-
-**WRITE TO DISK**: Use the `Write` tool to persist `grimoires/loa/reality/hygiene-report.md`.
-
-After writing, verify with `Glob` pattern `grimoires/loa/reality/hygiene-report.md` — must return 1 match. If missing after Write, retry once. If still missing, log to trajectory:
-```json
-{"phase": "2b", "action": "write_failed", "artifact": "hygiene-report.md", "status": "error"}
-```
-
 ---
 
 ## Phase 3: Legacy Documentation Inventory
@@ -288,15 +251,6 @@ Create `grimoires/loa/drift-report.md` with summary table, drift score, breakdow
 
 Log drift analysis to trajectory.
 
-### 4.4 File Persistence Checkpoint (CP-4)
-
-**WRITE TO DISK**: Use the `Write` tool to persist `grimoires/loa/drift-report.md`.
-
-After writing, verify with `Glob` pattern `grimoires/loa/drift-report.md` — must return 1 match. If missing after Write, retry once. If still missing, log to trajectory:
-```json
-{"phase": 4, "action": "write_failed", "artifact": "drift-report.md", "status": "error"}
-```
-
 ---
 
 ## Phase 5: Consistency Analysis (MANDATORY OUTPUT)
@@ -308,15 +262,6 @@ Analyze naming patterns (entities, functions, files), compute consistency score 
 **See**: `resources/references/analysis-checklists.md` for the consistency report template.
 
 Log to trajectory.
-
-### 5.1 File Persistence Checkpoint (CP-5)
-
-**WRITE TO DISK**: Use the `Write` tool to persist `grimoires/loa/consistency-report.md`.
-
-After writing, verify with `Glob` pattern `grimoires/loa/consistency-report.md` — must return 1 match. If missing after Write, retry once. If still missing, log to trajectory:
-```json
-{"phase": 5, "action": "write_failed", "artifact": "consistency-report.md", "status": "error"}
-```
 
 ---
 
@@ -348,20 +293,6 @@ Append to BOTH PRD and SDD: counts and percentages of GROUNDED/INFERRED/ASSUMPTI
 
 Log to trajectory.
 
-### 6.4 File Persistence Checkpoint (CP-6a, CP-6b)
-
-**WRITE TO DISK**: Use the `Write` tool to persist BOTH artifacts:
-
-| File | Path |
-|------|------|
-| PRD | `grimoires/loa/prd.md` |
-| SDD | `grimoires/loa/sdd.md` |
-
-After writing each, verify with `Glob` — must return 1 match per file. If either missing after Write, retry once. If still missing, log to trajectory:
-```json
-{"phase": 6, "action": "write_failed", "artifact": "prd.md|sdd.md", "status": "error"}
-```
-
 ---
 
 ## Phase 6.5: Reality File Generation (Token-Optimized Codebase Interface)
@@ -376,35 +307,14 @@ Generate token-optimized reality files for the `/reality` command in `grimoires/
 | `interfaces.md` | External integration patterns, webhooks | < 1000 |
 | `structure.md` | Annotated directory tree, module responsibilities | < 1000 |
 | `entry-points.md` | Main files, CLI commands, env requirements | < 500 |
-| `architecture-overview.md` | System component diagram, data flows, tech stack, entry points | < 1500 |
 
 Also generate `.reality-meta.json` with token counts and staleness threshold.
 
-**Total budget**: < 8500 tokens across all files (7000 base + 1500 architecture-overview).
+**Total budget**: < 7000 tokens across all files.
 
 **See**: `resources/references/output-formats.md` for all reality file templates.
 
 Log to trajectory.
-
-### 6.5.1 File Persistence Checkpoint (CP-6.5)
-
-**WRITE TO DISK**: Use the `Write` tool to persist ALL reality files:
-
-| File | Path |
-|------|------|
-| Index | `grimoires/loa/reality/index.md` |
-| API Surface | `grimoires/loa/reality/api-surface.md` |
-| Types | `grimoires/loa/reality/types.md` |
-| Interfaces | `grimoires/loa/reality/interfaces.md` |
-| Structure | `grimoires/loa/reality/structure.md` |
-| Entry Points | `grimoires/loa/reality/entry-points.md` |
-| Architecture Overview | `grimoires/loa/reality/architecture-overview.md` |
-| Reality Meta | `grimoires/loa/reality/.reality-meta.json` |
-
-After writing each file, verify with `Glob` — each must return 1 match. Log any failures to trajectory:
-```json
-{"phase": 6.5, "action": "write_failed", "artifact": "{filename}", "status": "error"}
-```
 
 ---
 
@@ -419,15 +329,6 @@ Generate `grimoires/loa/governance-report.md`:
 | SECURITY.md | Security disclosure policy |
 | CODEOWNERS | Required reviewers |
 | Semver tags | Release versioning |
-
-### 7.1 File Persistence Checkpoint (CP-7)
-
-**WRITE TO DISK**: Use the `Write` tool to persist `grimoires/loa/governance-report.md`.
-
-After writing, verify with `Glob` pattern `grimoires/loa/governance-report.md` — must return 1 match. If missing after Write, retry once. If still missing, log to trajectory:
-```json
-{"phase": 7, "action": "write_failed", "artifact": "governance-report.md", "status": "error"}
-```
 
 ---
 
@@ -455,46 +356,9 @@ Include: execution summary table (all phases with status/output/findings), groun
 
 Log to trajectory.
 
-### 9.3 File Persistence Checkpoint (CP-9)
-
-**WRITE TO DISK**: Use the `Write` tool to persist `grimoires/loa/trajectory-audit.md`.
-
-After writing, verify with `Glob` pattern `grimoires/loa/trajectory-audit.md` — must return 1 match. If missing after Write, retry once. If still missing, log to trajectory:
-```json
-{"phase": 9, "action": "write_failed", "artifact": "trajectory-audit.md", "status": "error"}
-```
-
 ---
 
 ## Phase 10: Maintenance Handoff
-
-### 10.0 Artifact Verification Gate (BLOCKING)
-
-Before handoff, verify ALL expected artifacts exist on disk using `Glob`.
-
-**Full Mode Checklist**:
-
-| # | Artifact | Path |
-|---|----------|------|
-| 1 | Claims to Verify | `grimoires/loa/context/claims-to-verify.md` |
-| 2 | Hygiene Report | `grimoires/loa/reality/hygiene-report.md` |
-| 3 | Drift Report | `grimoires/loa/drift-report.md` |
-| 4 | Consistency Report | `grimoires/loa/consistency-report.md` |
-| 5 | PRD | `grimoires/loa/prd.md` |
-| 6 | SDD | `grimoires/loa/sdd.md` |
-| 7 | Reality Index | `grimoires/loa/reality/index.md` |
-| 8 | Governance Report | `grimoires/loa/governance-report.md` |
-| 9 | Trajectory Audit | `grimoires/loa/trajectory-audit.md` |
-| 10 | Reality Meta | `grimoires/loa/reality/.reality-meta.json` |
-
-**Procedure**:
-1. For each file, use `Glob` to verify existence
-2. Count: passed / total
-3. If any missing: attempt to write from context, then re-verify
-4. Report final count in completion summary
-5. Log verification to trajectory
-
-**The ride MUST NOT complete with 0/N artifacts verified.** If critical artifacts (drift-report, consistency-report, governance-report, trajectory-audit, hygiene-report) are missing, flag as ride failure.
 
 ### 10.1 Update NOTES.md
 
@@ -505,8 +369,6 @@ Add session continuity entry and ride results (routes documented, entities, tech
 ```
 The Loa Has Ridden
 
-Artifact Verification: X/Y files persisted
-
 Grimoire Artifacts Created:
 - grimoires/loa/prd.md (Product truth)
 - grimoires/loa/sdd.md (System truth)
@@ -514,14 +376,12 @@ Grimoire Artifacts Created:
 - grimoires/loa/consistency-report.md (Pattern analysis)
 - grimoires/loa/governance-report.md (Process gaps)
 - grimoires/loa/reality/* (Raw extractions + token-optimized files)
-- grimoires/loa/trajectory-audit.md (Self-audit)
 
 Next Steps:
 1. Review drift-report.md for critical issues
 2. Address governance gaps
-3. /translate-ride for executive communications
-4. Schedule stakeholder PRD review
-5. Run /implement for high-priority drift
+3. Schedule stakeholder PRD review
+4. Run /implement for high-priority drift
 ```
 
 ---
@@ -557,7 +417,6 @@ Each phase appends a JSON line:
 | Phase | Action | Key Details Fields |
 |-------|--------|--------------------|
 | 0 | `preflight` | `loa_version` |
-| 0.6 | `staleness_check` | `status`, `artifact_age_days` |
 | 0.5 | `codebase_probe` | `strategy`, `total_files`, `total_lines`, `estimated_tokens` |
 | 1 | `claims_generated` | `claim_count`, `output` |
 | 2 | `code_extraction` | `routes`, `entities`, `env_vars` |
