@@ -51,6 +51,10 @@ tmp/
 temp/
 *.tmp
 
+# Skill backup files (local-only rollback safety net)
+# Use git tags for rollback reference instead of committed .bak files
+.claude/skills/**/*.bak*
+
 # Loa Framework State (Legacy - v0.14.0 and earlier)
 # The .loa-setup-complete file is no longer created as of v0.15.0.
 # THJ membership is now detected via LOA_CONSTRUCTS_API_KEY environment variable.
