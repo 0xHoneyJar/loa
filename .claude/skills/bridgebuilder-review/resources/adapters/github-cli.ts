@@ -26,6 +26,15 @@ const execFileAsync = promisify(execFile);
 // If throughput becomes a bottleneck, swap to Octokit behind IGitProvider port.
 const GH_TIMEOUT_MS = 30_000;
 
+/** Error from gh CLI that carries the HTTP status code when available. */
+class GhApiError extends GitProviderError {
+  readonly httpStatus: number | undefined;
+  constructor(code: GitProviderError["code"], message: string, httpStatus?: number) {
+    super(code, message);
+    this.httpStatus = httpStatus;
+  }
+}
+
 // SECURITY: Adding endpoints here requires review — each is an attack surface expansion.
 // Every regex must anchor start (^) and end ($), use [^/]+ (not .*) for path segments,
 // and escape query parameters literally. New entries should get their own PR with justification.
@@ -166,7 +175,10 @@ async function gh(
     const code = typeof e.code === "string" || typeof e.code === "number" ? String(e.code) : "unknown";
     // Classify by exit code: 1 = general failure, 4 = auth/forbidden in gh
     const errorCode = code === "4" ? "FORBIDDEN" : "NETWORK";
-    throw new GitProviderError(errorCode, `gh command failed (code=${code})`);
+    // Extract HTTP status from gh stderr: "gh: ... (HTTP NNN)"
+    const httpMatch = e.stderr?.match(/\(HTTP (\d{3})\)/);
+    const httpStatus = httpMatch ? parseInt(httpMatch[1], 10) : undefined;
+    throw new GhApiError(errorCode, `gh command failed (code=${code})`, httpStatus);
   }
 }
 
@@ -330,7 +342,7 @@ export class GitHubCLIAdapter implements IGitProvider, IReviewPoster {
     const marker = `\n\n<!-- ${this.marker}: ${input.headSha} -->`;
     const body = input.body + marker;
 
-    await gh([
+    const makeArgs = (event: string): string[] => [
       "api",
       `/repos/${input.owner}/${input.repo}/pulls/${input.prNumber}/reviews`,
       "-X",
@@ -338,10 +350,26 @@ export class GitHubCLIAdapter implements IGitProvider, IReviewPoster {
       "--raw-field",
       `body=${body}`,
       "-f",
-      `event=${input.event}`,
+      `event=${event}`,
       "-f",
       `commit_id=${input.headSha}`,
-    ]);
+    ];
+
+    try {
+      await gh(makeArgs(input.event));
+    } catch (err) {
+      // GitHub returns 422 when REQUEST_CHANGES targets own PR.
+      // Fall back to COMMENT so the review content is still posted.
+      if (
+        input.event === "REQUEST_CHANGES" &&
+        err instanceof GhApiError &&
+        err.httpStatus === 422
+      ) {
+        await gh(makeArgs("COMMENT"));
+        return true;
+      }
+      throw err;
+    }
 
     return true;
   }
