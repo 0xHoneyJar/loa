@@ -1,19 +1,19 @@
-# SDD: Hounfour Upstream Extraction — Multi-Model Provider Abstraction
+# SDD: Bug Mode — Lightweight Bug-Fixing Workflow
 
 **Version**: 1.1.0
 **Status**: Draft (Flatline-reviewed)
 **Author**: Architecture Phase (architect)
 **PRD**: grimoires/loa/prd.md (v1.1.0)
-**Issue**: [loa-finn #31](https://github.com/0xHoneyJar/loa-finn/issues/31) (upstream extraction)
-**Date**: 2026-02-10
+**Issue**: [loa #278](https://github.com/0xHoneyJar/loa/issues/278)
+**Date**: 2026-02-11
 
 ---
 
 ## 1. Executive Summary
 
-This SDD defines the architecture for extracting Hounfour multi-model provider abstractions from loa-finn into the upstream Loa framework. The design introduces three new subsystems — a Python provider adapter (`cheval.py`), a YAML configuration schema for model routing, and a skill decomposition pattern (`persona.md`) — while preserving zero breaking changes on the existing `native_runtime` path.
+This SDD defines the architecture for a lightweight bug-fixing workflow (`/bug`) that bypasses the PRD/SDD/Sprint Plan planning phases while preserving all quality gates (test-first execution, review, audit). The design introduces one new skill (`bug-triaging`), extends the existing run mode with a `--bug` flag, amends process compliance constraints, and adds micro-sprint lifecycle management to the Sprint Ledger.
 
-The architecture follows the hexagonal (ports and adapters) pattern: Loa owns the ports (interfaces, schemas, routing logic, reference adapter) while loa-finn and other runtimes implement the adapters (Redis state, sidecar lifecycle, JWT auth). All model API calls flow through a single `model-invoke` entry point, eliminating the current ad-hoc dual-path integration.
+The architecture follows Loa's existing patterns: the new skill is a self-contained directory under `.claude/skills/`, state is managed in `.run/`, artifacts land in `grimoires/loa/a2a/`, and the golden path is aware of active bug cycles. No existing skills are modified — the bug triage skill produces artifacts that the existing `/implement`, `/review-sprint`, and `/audit-sprint` skills consume unchanged.
 
 ---
 
@@ -22,1077 +22,960 @@ The architecture follows the hexagonal (ports and adapters) pattern: Loa owns th
 ### 2.1 High-Level Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Skill Invocation Layer                       │
-│  /flatline-review, /gpt-review, /bridgebuilder, /architect...  │
-│  Skills reference agents by name (e.g., "reviewing-code")       │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │ agent name + prompt
-┌──────────────────────────▼──────────────────────────────────────┐
-│                    Orchestration Layer                           │
-│  flatline-orchestrator.sh, gpt-review-api.sh                    │
-│  Calls: model-invoke --agent <name> --input <file>              │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │ shell exec
-┌──────────────────────────▼──────────────────────────────────────┐
-│                   model-invoke (shell wrapper)                   │
-│  exec python3 .claude/adapters/cheval.py "$@"                   │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │ python
-┌──────────────────────────▼──────────────────────────────────────┐
-│                      cheval.py (Python Adapter)                  │
-│                                                                  │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐       │
-│  │ Config   │  │ Routing  │  │ Provider │  │ Metering │       │
-│  │ Loader   │  │ Engine   │  │ Adapters │  │ (JSONL)  │       │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘       │
-│                                                                  │
-│  Config Loader:  Merge defaults + project + env + CLI           │
-│  Routing Engine: Resolve alias → provider:model, walk chains    │
-│  Provider Adapters: OpenAI, Anthropic (conformance-tested)      │
-│  Metering: Append to cost-ledger.jsonl with flock               │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │ HTTPS
-┌──────────────────────────▼──────────────────────────────────────┐
-│                   Provider API Layer                              │
-│  OpenAI: POST /v1/chat/completions                              │
-│  Anthropic: POST /v1/messages                                    │
-│  OpenAI-compatible: POST /v1/chat/completions (Moonshot, vLLM)  │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                     User Invocation                          │
+│  /bug "description"          /run --bug "description"        │
+│  /bug --from-issue 42        /run --bug --from-issue 42      │
+└──────────────────┬──────────────────────┬───────────────────┘
+                   │ interactive          │ autonomous
+┌──────────────────▼──────────────────────▼───────────────────┐
+│                    Bug Triage Skill                           │
+│  .claude/skills/bug-triaging/SKILL.md                        │
+│                                                              │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
+│  │Eligiblty │  │ Hybrid   │  │ Codebase │  │ Sprint   │   │
+│  │  Check   │→ │ Interview│→ │ Analysis │→ │ Integr.  │   │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
+│                                                              │
+│  Output: grimoires/loa/a2a/bug-{id}/triage.md               │
+│          grimoires/loa/sprint.md (micro-sprint)              │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ handoff contract
+┌──────────────────────────────▼──────────────────────────────┐
+│                    Existing Skill Pipeline                    │
+│                                                              │
+│  /implement ──→ /review-sprint ──→ /audit-sprint             │
+│  (test-first)    (code review)      (security audit)         │
+│                                                              │
+│  Artifacts: bug-{id}/reviewer.md, auditor-sprint-feedback.md │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ COMPLETED
+┌──────────────────────────────▼──────────────────────────────┐
+│                    Completion & Cleanup                       │
+│                                                              │
+│  - COMPLETED marker created                                  │
+│  - Beads task closed                                         │
+│  - Ledger entry updated                                      │
+│  - Draft PR created (autonomous mode)                        │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### 2.2 Execution Mode Decision
+### 2.2 Component Inventory
+
+| Component | Type | Action | Path |
+|-----------|------|--------|------|
+| `bug-triaging` skill | New | Create | `.claude/skills/bug-triaging/` |
+| `bug-triaging/index.yaml` | New | Create | `.claude/skills/bug-triaging/index.yaml` |
+| `bug-triaging/SKILL.md` | New | Create | `.claude/skills/bug-triaging/SKILL.md` |
+| `bug-triaging/resources/templates/triage.md` | New | Create | Triage handoff template |
+| `bug-triaging/resources/templates/micro-sprint.md` | New | Create | Micro-sprint template |
+| `constraints.json` | Existing | Amend | `.claude/data/constraints.json` |
+| `run-mode/SKILL.md` | Existing | Extend | `.claude/skills/run-mode/SKILL.md` |
+| `run-mode/index.yaml` | Existing | Extend | `.claude/skills/run-mode/index.yaml` |
+| `golden-path.sh` | Existing | Extend | `.claude/scripts/golden-path.sh` |
+| `CLAUDE.loa.md` | Existing | Amend | `.claude/loa/CLAUDE.loa.md` |
+| `danger-level config` | Existing | Add entry | `.claude/data/constraints.json` or skill index |
+
+### 2.3 Data Flow
 
 ```
-Agent invoked (e.g., "reviewing-code")
-    │
-    ▼
-Read agent binding from config
-    │
-    ├── model: "native" ──────────► native_runtime path
-    │                                 (SKILL.md loaded directly by Claude Code)
-    │                                 (model-invoke NOT called)
-    │                                 (ZERO changes to current behavior)
-    │
-    └── model: "<alias>" ─────────► remote_model path
-          │                           (resolve alias → provider:model-id)
-          │                           (load persona.md as system prompt)
-          │                           (call cheval.py)
-          │
-          ▼
-        model-invoke --agent reviewing-code --input review.md
+User Input (description/issue)
+       │
+       ▼
+  ┌─────────────┐     ┌──────────────┐
+  │ Eligibility │────→│  REJECTED    │──→ "Use /plan instead"
+  │   Check     │     └──────────────┘
+  └──────┬──────┘
+         │ ACCEPTED
+         ▼
+  ┌─────────────┐     ┌──────────────┐
+  │   Hybrid    │────→│  triage.md   │  (handoff contract)
+  │  Interview  │     └──────┬───────┘
+  └─────────────┘            │
+                             ▼
+  ┌─────────────┐     ┌──────────────┐
+  │  Codebase   │────→│ suspected    │
+  │  Analysis   │     │ files, tests │
+  └─────────────┘     └──────┬───────┘
+                             │
+                             ▼
+                     ┌──────────────┐
+                     │   Create     │
+                     │ Micro-sprint │
+                     │  (always)    │
+                     └──────┬───────┘
+                            │
+                            ▼
+                    ┌──────────────┐
+                    │  /implement  │  (test-first)
+                    │   --bug      │
+                    └──────┬───────┘
+                           ▼
+                    ┌──────────────┐
+                    │/review-sprint│
+                    └──────┬───────┘
+                           ▼
+                    ┌──────────────┐
+                    │/audit-sprint │
+                    └──────┬───────┘
+                           ▼
+                      COMPLETED
 ```
-
-### 2.3 Compatibility Guarantees
-
-**Zero-breaking-change contract scope**: The `native_runtime` path (SKILL.md loaded directly by Claude Code) is guaranteed unchanged. This means:
-1. Skills bound to `model: native` in agent config are NEVER routed through `model-invoke`
-2. `model-invoke` includes a hard guard: if the resolved agent has `requires.native_runtime: true`, invocation fails with exit code 2 (`INVALID_CONFIG`) rather than silently routing to a remote model
-3. `native` is a reserved alias that always resolves to Claude Code session — it cannot be reassigned in config
-
-**Compatibility matrix** (migration regression tests):
-
-| Skill | Pre-Migration Path | Post-Migration Path | Test |
-|-------|-------------------|-------------------|------|
-| `/implement` | SKILL.md (Claude Code) | SKILL.md (Claude Code) | `native_runtime` guard prevents `model-invoke` |
-| `/ride` | SKILL.md (Claude Code) | SKILL.md (Claude Code) | Same as above |
-| `/flatline-review` | `model-adapter.sh` → curl | `model-invoke` → cheval.py | Golden fixture comparison |
-| `/gpt-review` | `gpt-review-api.sh` → curl | `model-invoke` → cheval.py | Golden fixture comparison |
-
-**Migration linter**: `model-invoke --validate-bindings` checks all agent names referenced by scripts exist in config and have valid model bindings. Runs as part of the test suite and can be invoked manually.
-
-### 2.4 Component Ownership
-
-| Component | Owner | Location |
-|-----------|-------|----------|
-| Config schema + defaults | Loa upstream | `.claude/defaults/`, `.claude/schemas/` |
-| `cheval.py` reference adapter | Loa upstream | `.claude/adapters/cheval.py` |
-| `model-invoke` wrapper | Loa upstream | `.claude/scripts/model-invoke` |
-| `persona.md` + `output-schema.md` | Loa upstream (per skill) | `.claude/skills/*/` |
-| Cost ledger | Per-project | `grimoires/loa/a2a/cost-ledger.jsonl` |
-| `model-adapter.sh` (deprecated) | Loa upstream (shim) | `.claude/scripts/model-adapter.sh` |
-| `cheval_server.py` (HTTP sidecar) | loa-finn | loa-finn repo |
-| Redis state backend | loa-finn | loa-finn repo |
-| JWT/tenant auth | arrakis | arrakis repo |
 
 ---
 
-## 3. Technology Stack
+## 3. Component Design
 
-| Layer | Technology | Justification |
-|-------|-----------|---------------|
-| Adapter runtime | Python 3.8+ | Already required by NotebookLM integration; `cheval.py` needs `httpx` for HTTP/2 and connection pooling |
-| Adapter fallback | `urllib.request` (stdlib) | Zero-dep mode when `httpx` not installed |
-| Config format | YAML (via `yq` or `pyyaml`) | Consistent with existing `.loa.config.yaml`; `yq` already required (v4+) |
-| Config validation | JSON Schema | Consistent with existing `.claude/schemas/*.schema.json` |
-| Cost ledger | JSONL (append-only) | Proven in loa-finn; simple, greppable, tooling-friendly |
-| Shell wrapper | Bash 4.0+ | Consistent with existing `.claude/scripts/`; associative arrays for shim |
-| Concurrency control | `fcntl.flock` (Python) | POSIX-standard, available on all target platforms (Linux, macOS) |
+### 3.1 Bug Triage Skill (`bug-triaging`)
 
-### 3.1 Python Dependencies
-
-```
-# .claude/adapters/requirements.txt
-httpx>=0.24.0    # HTTP/2, connection pooling, timeout control
-pyyaml>=6.0      # Config loading (also used by yq)
-```
-
-**Graceful degradation**: If `httpx` is not installed, `cheval.py` falls back to `urllib.request` with reduced functionality (no HTTP/2, no connection pooling, basic timeout handling). A startup warning is logged.
-
----
-
-## 4. Component Design
-
-### 4.1 Configuration System
-
-#### 4.1.1 Config Merge Pipeline
-
-```
-┌────────────────────┐
-│ System Zone Defaults│  .claude/defaults/model-config.yaml
-│ (lowest precedence) │  Ships with framework, never edited by user
-└─────────┬──────────┘
-          │ merge (deep)
-┌─────────▼──────────┐
-│ Project Config      │  .loa.config.yaml (hounfour: section)
-│                     │  User-controlled, per-project
-└─────────┬──────────┘
-          │ merge (deep)
-┌─────────▼──────────┐
-│ Environment Vars    │  LOA_MODEL, LOA_PROVIDER_*_KEY only
-│ (opt-in, limited)   │  Cannot override routing/pricing/bindings
-└─────────┬──────────┘
-          │ override
-┌─────────▼──────────┐
-│ CLI Arguments       │  --model, --agent, --timeout
-│ (highest precedence)│  Per-invocation overrides
-└────────────────────┘
-```
-
-#### 4.1.2 Config Schema
+#### 3.1.1 Skill Registration
 
 ```yaml
-# .loa.config.yaml (new hounfour: section)
-hounfour:
-  # Provider registry
-  providers:
-    openai:
-      type: openai                    # openai | anthropic | openai_compat
-      endpoint: "https://api.openai.com/v1"
-      auth: "{env:OPENAI_API_KEY}"
-      models:
-        gpt-5.2:
-          capabilities: [chat, tools, function_calling]
-          context_window: 128000
-          pricing: { input_per_mtok: 10000, output_per_mtok: 30000 }  # micro-USD
-        gpt-5.2-codex:
-          capabilities: [chat, tools, function_calling, code]
-          context_window: 200000
-          pricing: { input_per_mtok: 15000, output_per_mtok: 60000 }
+# .claude/skills/bug-triaging/index.yaml
+name: "bug-triaging"
+version: "1.0.0"
+model: "native"
+color: "red"
+effort_hint: medium
+danger_level: moderate
+categories:
+  - quality
+  - debugging
+  - support
 
-    anthropic:
-      type: anthropic
-      endpoint: "https://api.anthropic.com/v1"
-      auth: "{env:ANTHROPIC_API_KEY}"
-      models:
-        claude-opus-4-6:
-          capabilities: [chat, tools, function_calling, thinking_traces]
-          context_window: 200000
-          pricing: { input_per_mtok: 5000, output_per_mtok: 25000 }
+description: |
+  Use this skill when a user reports a bug that needs fixing. Performs
+  dependency check, eligibility validation, hybrid interview, codebase
+  analysis, and creates a micro-sprint. Produces a triage.md handoff
+  contract for the implement phase. Test-first is non-negotiable.
+  Bugs always get their own micro-sprint (never injected into active sprints).
 
-  # Aliases (short names → provider:model)
-  aliases:
-    native: "claude-code:session"       # Claude Code native runtime
-    reviewer: "openai:gpt-5.2"
-    reasoning: "openai:gpt-5.2"         # Placeholder until moonshot configured
-    cheap: "openai:gpt-5.2"             # Placeholder until qwen configured
-    opus: "anthropic:claude-opus-4-6"
+triggers:
+  - "/bug"
+  - "fix bug"
+  - "debug issue"
+  - "bug report"
+  - "production bug"
 
-  # Agent bindings (agent name → model + requirements)
-  agents:
-    implementing-tasks:
-      model: native
-      requires: { native_runtime: true }
-    designing-architecture:
-      model: native
-    reviewing-code:
-      model: reviewer
-      temperature: 0.3
-    auditing-security:
-      model: native
-    planning-sprints:
-      model: native
-    discovering-requirements:
-      model: native
-    translating-for-executives:
-      model: cheap
-    riding-codebase:
-      model: native
-      requires: { native_runtime: true }
-    flatline-reviewer:
-      model: reviewer
-    flatline-skeptic:
-      model: reasoning
-      requires: { thinking_traces: preferred }
+inputs:
+  - name: "description"
+    type: "string"
+    description: "Free-form bug description, error message, or stack trace"
+    required: false
+  - name: "from_issue"
+    type: "integer"
+    description: "GitHub issue number to import as bug report"
+    required: false
 
-  # Routing
-  routing:
-    fallback:
-      openai: [anthropic]               # If OpenAI down, try Anthropic
-      anthropic: [openai]               # If Anthropic down, try OpenAI
-    downgrade:
-      reviewer: [cheap]                  # If budget exceeded, downgrade
+outputs:
+  - path: "grimoires/loa/a2a/bug-{id}/triage.md"
+    description: "Bug analysis and handoff contract"
+    format: detailed
+  - path: "grimoires/loa/sprint.md"
+    description: "Micro-sprint plan (if no active sprint)"
+    format: standard
+    condition: "no_active_sprint"
 
-  # Metering
-  metering:
+dependencies:
+  upstream: []
+  artifacts: []
+
+protocols:
+  required:
+    - name: "session-continuity"
+      path: ".claude/protocols/session-continuity.md"
+      purpose: "Maintain triage context across sessions"
+  recommended:
+    - name: "grounding-enforcement"
+      path: ".claude/protocols/grounding-enforcement.md"
+      purpose: "Verify suspected files with source references"
+
+input_guardrails:
+  pii_filter:
     enabled: true
-    ledger_path: "grimoires/loa/a2a/cost-ledger.jsonl"
-    budget:
-      daily_micro_usd: 500000000         # $500/day default (effectively unlimited)
-      warn_at_percent: 80
-      on_exceeded: downgrade             # downgrade | block | warn
+    mode: blocking
+  injection_detection:
+    enabled: true
+    threshold: 0.7
+  relevance_check:
+    enabled: true
+    reject_irrelevant: true
 ```
 
-#### 4.1.3 Secret Handling
+#### 3.1.2 SKILL.md Structure
 
-| Interpolation | Allowed Sources | Validation |
-|--------------|-----------------|------------|
-| `{env:VAR}` | `^LOA_.*`, `^OPENAI_API_KEY$`, `^ANTHROPIC_API_KEY$`, `^MOONSHOT_API_KEY$` | Regex allowlist; reject all others |
-| `{file:path}` | Files under `.loa.config.d/` or paths in `hounfour.secret_paths` allowlist | No symlinks, owner match, mode ≤ 0640 |
+The SKILL.md follows five phases. Each phase includes explicit failure modes and recovery actions.
 
-**Redaction rules**:
-- Values sourced from `{env:}` or `{file:}` are tagged as `_REDACTED_` in all log output
-- Error messages containing auth headers show `Authorization: Bearer ***REDACTED***`
-- Cost ledger NEVER contains prompt text, response text, or auth values
-
-### 4.2 cheval.py — Provider Adapter
-
-#### 4.2.1 Module Structure
+**Phase 0: Dependency Check**
 
 ```
-.claude/adapters/
-├── pyproject.toml           # Package metadata (loa_cheval), version, entry points
-├── cheval.py                # CLI entry point (exec wrapper)
-├── loa_cheval/
-│   ├── __init__.py          # Public API surface (re-exports)
-│   ├── __version__.py       # Semantic version (e.g., "1.0.0")
-│   ├── types.py             # CompletionRequest, CompletionResult, Usage dataclasses
-│   ├── providers/
-│   │   ├── __init__.py
-│   │   ├── base.py          # ProviderAdapter abstract base
-│   │   ├── openai_adapter.py  # OpenAI + OpenAI-compatible
-│   │   └── anthropic_adapter.py # Anthropic Messages API
-│   ├── config/
-│   │   ├── __init__.py
-│   │   ├── loader.py        # Config merge pipeline
-│   │   ├── interpolation.py # {env:VAR}, {file:path}, {cmd:} resolution
-│   │   └── validation.py    # JSON Schema validation
-│   ├── routing/
-│   │   ├── __init__.py
-│   │   ├── resolver.py      # Alias resolution + agent binding lookup
-│   │   └── chains.py        # Fallback + downgrade chain walker
-│   └── metering/
-│       ├── __init__.py
-│       ├── ledger.py        # JSONL append with flock + daily summary
-│       └── pricing.py       # Integer micro-USD cost calculation
-└── tests/
-    ├── fixtures/             # Golden request/response per provider
-    ├── test_config.py
-    ├── test_routing.py
-    ├── test_pricing.py
-    ├── test_providers.py     # Contract tests (schema validation, not just fixtures)
-    └── test_redaction.py     # Forced-failure secret leakage tests
+Algorithm:
+1. Check required tools:
+   - jq: required (JSON parsing for state files)
+   - git: required (branch creation)
+2. Check optional tools with fallbacks:
+   - gh: optional (--from-issue requires it; fallback: manual paste of issue content)
+   - br: optional (beads tracking; fallback: skip beads, warn user)
+3. Check connectivity:
+   - If --from-issue: verify `gh auth status` succeeds
+4. If required tool missing: HALT with install guidance
+
+Failure Modes:
+- jq missing → HALT: "Install jq: brew install jq / apt install jq"
+- gh not authenticated → HALT: "Run gh auth login first"
+- br not found → WARN: "Beads not available. Task tracking will be skipped."
 ```
 
-#### 4.2.2 CLI Interface
-
-```bash
-# Basic invocation
-model-invoke --agent reviewing-code --input review-content.md
-
-# With overrides
-model-invoke --agent reviewing-code --input review-content.md --model openai:gpt-5.2-codex
-
-# System prompt from persona.md
-model-invoke --agent reviewing-code --system .claude/skills/reviewing-code/persona.md --input review-content.md
-
-# Effective config debug
-model-invoke --print-effective-config
-
-# Dry run (validate config, print resolved model, don't call API)
-model-invoke --agent reviewing-code --dry-run
-```
-
-**I/O Contract**:
-- **stdout**: Model response content ONLY (raw text or JSON depending on `--output-format`). No log messages, no metadata.
-- **stderr**: All diagnostic output (logs, warnings, errors). When `--json-errors` is set (default for orchestrator callers), errors are JSON:
-  ```json
-  {"error": true, "code": "RATE_LIMITED", "provider": "openai", "message": "429 Too Many Requests", "retries_left": 2, "attempt": 1}
-  ```
-- **Exit code + stderr JSON** together form the error contract. Exit code for quick shell checks, JSON for programmatic handling.
-
-**Error Taxonomy** (stderr JSON `code` field):
-
-| Code | Category | Exit Code | Retryable |
-|------|----------|-----------|-----------|
-| `SUCCESS` | — | 0 | — |
-| `API_ERROR` | Transport | 1 | Yes |
-| `RATE_LIMITED` | Transport | 1 | Yes (backoff) |
-| `PROVIDER_UNAVAILABLE` | Transport | 1 | Yes (fallback) |
-| `INVALID_INPUT` | User | 2 | No |
-| `INVALID_CONFIG` | User | 2 | No |
-| `TIMEOUT` | Transport | 3 | Yes |
-| `MISSING_API_KEY` | Auth | 4 | No |
-| `INVALID_RESPONSE` | Provider | 5 | Yes (once) |
-| `BUDGET_EXCEEDED` | Policy | 6 | No |
-| `CONTEXT_TOO_LARGE` | User | 7 | No (truncate input) |
-
-**Exit codes** (compatible with existing `model-adapter.sh`, extended):
-
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | API error (retries exhausted) |
-| 2 | Invalid input / config |
-| 3 | Timeout |
-| 4 | Missing API key |
-| 5 | Invalid response format |
-| 6 | Budget exceeded |
-| 7 | Context too large (input exceeds model context_window) |
-
-#### 4.2.3 Provider Adapter Interface
-
-```python
-class ProviderAdapter(ABC):
-    """Base class for model provider adapters."""
-
-    @abstractmethod
-    def complete(self, request: CompletionRequest) -> CompletionResult:
-        """Send completion request, return normalized result."""
-
-    @abstractmethod
-    def validate_config(self, provider_config: dict) -> list[str]:
-        """Validate provider-specific config. Return list of errors."""
-
-    @abstractmethod
-    def health_check(self, provider_config: dict) -> bool:
-        """Quick health probe. Returns True if provider is reachable."""
-```
-
-```python
-@dataclass
-class CompletionRequest:
-    messages: list[dict]           # [{"role": "system"|"user"|"assistant", "content": str}]
-    model: str                     # Provider-specific model ID
-    temperature: float = 0.7
-    max_tokens: int = 4096
-    tools: list[dict] | None = None
-    tool_choice: str | None = None
-    metadata: dict | None = None   # agent, trace_id, sprint_id (not sent to provider)
-
-@dataclass
-class CompletionResult:
-    content: str                   # Model response text
-    tool_calls: list[dict] | None  # Normalized tool call format
-    thinking: str | None           # Reasoning/thinking trace (if provider supports)
-    usage: Usage                   # Token counts
-    model: str                     # Actual model used (may differ from requested)
-    latency_ms: int
-    provider: str
-
-@dataclass
-class Usage:
-    input_tokens: int
-    output_tokens: int
-    reasoning_tokens: int = 0
-    source: str = "actual"         # "actual" | "estimated"
-```
-
-#### 4.2.4 Context Window Enforcement
-
-Pre-call token estimation prevents oversized requests from failing at the provider:
-
-```python
-def estimate_tokens(messages: list[dict]) -> int:
-    """Best-effort token estimation. Provider-specific tokenizer preferred, fallback to heuristic."""
-    # Priority 1: tiktoken (if installed) for OpenAI models
-    # Priority 2: anthropic tokenizer (if installed) for Anthropic models
-    # Priority 3: Heuristic: len(text) / 3.5 (conservative estimate for English)
-    ...
-
-def enforce_context_window(request: CompletionRequest, model_config: dict) -> CompletionRequest:
-    """Check input fits within model context window. Raises ContextTooLargeError if not."""
-    max_tokens = model_config.get("context_window", 128000)
-    reserved_output = request.max_tokens  # Reserve space for response
-    available = max_tokens - reserved_output
-
-    estimated = estimate_tokens(request.messages)
-    if estimated > available:
-        raise ContextTooLargeError(
-            f"Input ~{estimated} tokens exceeds available {available} tokens "
-            f"(context_window={max_tokens}, reserved_output={reserved_output})"
-        )
-    return request
-```
-
-**Failure mode**: `ContextTooLargeError` → exit code 7. Callers (orchestrators) are responsible for truncation or chunking strategies.
-
-#### 4.2.5 Request/Response Normalization
-
-The canonical response schema is versioned (`schema_version: 1`) and validated by JSON Schema (`model-response.schema.json`). All provider adapters normalize responses to this schema before returning.
-
-| Provider | Request Transform | Response Transform |
-|----------|------------------|-------------------|
-| OpenAI | Pass-through (native format) | Extract `choices[0].message.content`, `tool_calls`, `usage` |
-| Anthropic | `messages` → Anthropic format, `system` extracted from messages | Extract `content[0].text`, `tool_use` blocks, `usage`, `thinking` blocks |
-| OpenAI-compatible | Same as OpenAI | Same as OpenAI + handle missing fields gracefully |
-
-**Tool call canonical format** (normalized from provider-specific formats):
-
-```json
-{
-  "id": "call_abc123",
-  "function": { "name": "search", "arguments": "{\"query\": \"...\"}" },
-  "type": "function"
-}
-```
-
-**Feature support matrix** (behavior when unsupported):
-
-| Feature | OpenAI | Anthropic | OpenAI-compat | When Unsupported |
-|---------|--------|-----------|---------------|-----------------|
-| `tools` | ✓ | ✓ | Varies | Fail with `INVALID_INPUT` if agent requires tools |
-| `function_calling` | ✓ | ✓ | Varies | Same as tools |
-| `thinking_traces` | ✗ | ✓ | ✗ | `CompletionResult.thinking = None` (degrade silently) |
-| `max_tokens` | ✓ | ✓ | ✓ | Use provider default |
-
-**Contract tests**: Each provider adapter has contract tests that validate output against the canonical JSON Schema, not just golden fixture byte-equality. This catches provider API drift that changes structure but not content.
-
-#### 4.2.5 Retry Logic
-
-```python
-def invoke_with_retry(adapter, request, config, ledger_path):
-    max_retries = config.get("max_retries", 3)
-    max_total_attempts = config.get("max_total_attempts", 6)  # Global hard cap
-    max_provider_switches = config.get("max_provider_switches", 2)
-    base_delay = 1.0  # seconds
-
-    total_attempts = 0
-    provider_switches = 0
-
-    for attempt in range(max_retries + 1):
-        # Global attempt budget check
-        total_attempts += 1
-        if total_attempts > max_total_attempts:
-            raise RetriesExhaustedError(
-                f"Global attempt limit ({max_total_attempts}) reached"
-            )
-
-        # Budget check BEFORE each attempt
-        budget = check_budget(request.metadata["agent"], config, ledger_path)
-        if budget == BudgetStatus.BLOCK:
-            raise BudgetExceededError("Daily budget exceeded")
-
-        # Circuit breaker check
-        if get_circuit_state(adapter.provider) == CircuitState.OPEN:
-            # Skip to fallback without counting as a retry
-            fallback = resolve_fallback(request.metadata["agent"], config)
-            if fallback and provider_switches < max_provider_switches:
-                provider_switches += 1
-                adapter = get_adapter(fallback.provider)
-                request.model = fallback.model_id
-                continue
-            raise ProviderUnavailableError(f"Circuit open for {adapter.provider}")
-
-        try:
-            result = adapter.complete(request)
-            # Post-call cost reconciliation
-            record_cost(result.usage, config, ledger_path)
-            return result
-        except RateLimitError:
-            record_failed_attempt(adapter.provider)
-            delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
-            time.sleep(delay)
-        except ProviderUnavailableError:
-            record_failed_attempt(adapter.provider)
-            fallback = resolve_fallback(request.metadata["agent"], config)
-            if fallback and provider_switches < max_provider_switches:
-                provider_switches += 1
-                adapter = get_adapter(fallback.provider)
-                request.model = fallback.model_id
-                continue
-            raise
-    raise RetriesExhaustedError(f"Failed after {total_attempts} attempts")
-```
-
-#### 4.2.6 Circuit Breaker State Machine
-
-Each provider has an independent circuit breaker stored in `.run/circuit-breaker-{provider}.json`:
+**Phase 1: Eligibility Check**
 
 ```
-CLOSED ──[failure_count >= threshold]──► OPEN
-  ▲                                        │
-  │                                    [reset_timeout expires]
-  │                                        │
-  └───[probe succeeds]──── HALF_OPEN ◄────┘
-                              │
-                          [probe fails]
-                              │
-                              ▼
-                            OPEN (reset timer restarts)
+Algorithm:
+1. Parse input (free-form text, --from-issue, or interactive prompt)
+2. If --from-issue: fetch via `gh issue view {N} --json title,body,comments`
+   - Apply PII redaction to imported content (issue body + comments)
+3. Extract signals: error messages, stack traces, test names, regression refs
+4. Require at least ONE verifiable artifact:
+   - A failing test name that can be executed
+   - Reproducible steps that can be followed to observe failure
+   - A linked production incident with logs/error output
+   - A stack trace with identifiable source locations
+5. Check explicit disqualifiers (any one → REJECT):
+   - Describes a new endpoint or API route
+   - Describes a new UI flow or page
+   - Requires schema changes or new database tables
+   - Involves cross-service architectural changes
+   - Requests new configuration options
+6. Score eligibility:
+   - Has verifiable artifact: +2 (required — see step 4)
+   - Has stack trace or error log: +1
+   - References regression from known baseline: +1
+   - References failing test: +1
+   - Matches any disqualifier: REJECT immediately
+7. If score < 2: REJECT → "This looks like a feature request. Use /plan."
+   If score == 2: CONFIRM with user → "This is borderline. Confirm this is a bug?"
+   If score > 2: ACCEPT
+8. Log classification decision to triage.md with reasoning
+
+Calibration Examples:
+- "Login fails with + in email" + stack trace → ACCEPT (score: 3)
+- "Add dark mode support" → REJECT (new UI flow disqualifier)
+- "API returns 500 on empty cart" → score 2 → CONFIRM
+- "Test test_checkout fails after deploy" → ACCEPT (score: 3)
+- "We need a logout button" → REJECT (new feature, no failure)
+
+Failure Modes:
+- --from-issue fetch fails → FALLBACK: ask user to paste issue content
+- Score ambiguous (==2) → CONFIRM: ask user to verify it's a bug
+- PII detected in imported content → QUARANTINE: redact and show user what was removed
 ```
 
-**Configuration**:
-
-```yaml
-hounfour:
-  routing:
-    circuit_breaker:
-      failure_threshold: 5        # Consecutive failures to trip
-      reset_timeout_seconds: 60   # Time in OPEN before probing
-      half_open_max_probes: 1     # Concurrent probes in HALF_OPEN
-      count_window_seconds: 300   # Rolling window for failure count
-```
-
-**State file format** (`.run/circuit-breaker-openai.json`):
-
-```json
-{
-  "provider": "openai",
-  "state": "CLOSED",
-  "failure_count": 0,
-  "last_failure_ts": null,
-  "opened_at": null,
-  "half_open_probes": 0
-}
-```
-
-**Interaction with retries and fallback**: Circuit breaker is checked BEFORE retry attempts. If a provider is OPEN, it is skipped immediately and the fallback chain is consulted. A HALF_OPEN provider accepts one probe request; if the probe succeeds, the breaker resets to CLOSED; if it fails, it returns to OPEN. Retries only occur against providers in CLOSED or HALF_OPEN state.
-
-#### 4.2.7 Global Attempt Budget
-
-To prevent cost amplification from retry + fallback cascading:
-
-```python
-MAX_TOTAL_ATTEMPTS = 6  # Hard cap across all providers per invocation
-MAX_PROVIDER_SWITCHES = 2  # Maximum fallback chain depth per invocation
-
-# Budget check occurs BEFORE each attempt
-# Post-call reconciliation occurs AFTER each attempt (success or failure)
-```
-
-Each `model-invoke` invocation tracks a running attempt counter. When `MAX_TOTAL_ATTEMPTS` is reached, the invocation fails with exit code 1 regardless of remaining fallback options.
-
-### 4.3 Skill Decomposition
-
-#### 4.3.1 File Structure Per Skill
+**Phase 2: Hybrid Interview**
 
 ```
-.claude/skills/reviewing-code/
-├── SKILL.md              # Existing (unchanged) — Claude Code native_runtime
-├── persona.md            # NEW — Model-agnostic system prompt
-├── output-schema.md      # NEW — Expected output format
-├── evaluation-criteria.md # NEW — What this agent evaluates
-├── index.yaml            # Existing — Updated model field
-└── resources/            # Existing (unchanged)
+Algorithm:
+1. Parse free-form input for known fields (reproduction, expected/actual, severity)
+2. Identify gaps in required fields
+3. For each gap, ask one targeted question (max 3-5 questions total)
+4. Required fields:
+   - reproduction_steps (if not extractable from stack trace)
+   - expected_behavior
+   - actual_behavior
+   - severity (critical/high/medium/low)
+5. Optional fields (Loa can infer):
+   - affected_area
+   - environment
+
+Failure Modes:
+- User cannot provide reproduction steps → WARN: "Without repro steps, fix may
+  take longer. Proceed?" If yes, mark reproduction_strength as "weak".
+- User provides contradictory info → ASK: clarifying question to resolve
 ```
 
-#### 4.3.2 persona.md Contract
+**Phase 3: Codebase Analysis**
 
-The `persona.md` file serves as the system prompt when an agent runs via `remote_model`. It must:
+```
+Algorithm:
+1. Parse stack traces → extract file:line references
+2. Keyword search: grep codebase for function/module names from error
+3. Dependency mapping: trace imports/requires from affected files
+4. Test discovery: glob for test files matching affected modules
+5. Assess test infrastructure:
+   - Search for test runners (jest, pytest, cargo test, go test, etc.)
+   - If NO test runner found: HALT with guidance
+     "No test runner detected. Set up test infrastructure before using /bug."
+6. Determine test_type based on bug classification:
+   - runtime_error/logic_bug → unit test
+   - integration_issue → integration test
+   - edge_case (user-facing) → e2e test
+   - schema/contract → contract test
+7. Produce suspected_files list with confidence scores
+8. Check high-risk patterns in suspected files (auth, payment, migration, etc.)
 
-1. **Define role and expertise** — Who is this agent?
-2. **Specify task structure** — What are the inputs, what are the outputs?
-3. **Set quality bar** — What are the evaluation criteria?
-4. **Reference output-schema.md** — How should the response be formatted?
-5. **Be model-agnostic** — No Claude-specific or GPT-specific instructions
+Failure Modes:
+- No test runner found → HALT: cannot proceed without test infrastructure
+- No suspected files found → WARN: ask user for hints, expand search
+- All suspected files low confidence → WARN: "Analysis inconclusive. Recommend
+  manual investigation before proceeding."
+```
 
-**Example** (`reviewing-code/persona.md`):
+**Phase 4: Micro-Sprint Creation & Handoff**
+
+Bugs **always** get their own micro-sprint. This is a deliberate simplification that avoids concurrency issues, state corruption, and complex sprint-mutation semantics.
+
+```
+Algorithm:
+1. Generate bug_id: YYYYMMDD-{6-char-hash} (or YYYYMMDD-i{N}-{hash} for issues)
+2. Create state directory: .run/bugs/{bug_id}/
+3. Write state file: .run/bugs/{bug_id}/state.json
+4. Create micro-sprint in grimoires/loa/a2a/bug-{bug_id}/sprint.md
+   (NOT grimoires/loa/sprint.md — bug sprints are namespaced per bug)
+5. Register in ledger as type: "bugfix"
+6. Create beads task (if br available)
+7. Write triage.md (schema version 1) with all required handoff fields
+8. Apply PII redaction to all output files (triage.md, sprint.md)
+9. Return bug_id for implement phase
+
+Failure Modes:
+- Ledger write fails → WARN: proceed without ledger entry, note in NOTES.md
+- Beads create fails → WARN: proceed without beads, note in NOTES.md
+- State directory creation fails → HALT: filesystem issue, cannot proceed
+```
+
+#### 3.1.3 Triage Handoff Contract Schema
+
+The `/implement` skill performs preflight validation of `triage.md` before execution:
+1. Parse metadata section
+2. Verify `schema_version` is supported (currently: 1)
+3. Verify all required fields are present and non-empty
+4. If validation fails → HALT with: "Triage handoff incomplete. Re-run /bug."
 
 ```markdown
-# Senior Technical Reviewer
+# Bug Triage: {title}
 
-You are a senior technical lead reviewing sprint implementation.
+## Metadata
+- **schema_version**: 1
+- **bug_id**: {YYYYMMDD}-{hash} or {YYYYMMDD}-i{issue}-{hash}
+- **classification**: runtime_error | logic_bug | edge_case | integration_issue | regression
+- **severity**: critical | high | medium | low
+- **eligibility_score**: {N} (signals matched)
+- **eligibility_reasoning**: {why accepted/confirmed}
+- **test_type**: unit | integration | e2e | contract
+- **risk_level**: low | medium | high
+- **created**: {ISO timestamp}
 
-## Your Responsibilities
-- Verify acceptance criteria are met
-- Review code quality and maintainability
-- Check test coverage and edge cases
-- Identify security vulnerabilities
-- Verify architecture alignment
+## Reproduction
+### Steps
+1. {step}
+2. {step}
+...
 
-## Input
-You will receive an implementation report and relevant code files.
+### Expected Behavior
+{description}
 
-## Output
-Follow the output format in output-schema.md. Your verdict is either:
-- "All good" — Implementation meets all standards
-- Detailed feedback — Specific issues with file paths and line numbers
+### Actual Behavior
+{description}
+
+### Environment
+{local/staging/production} (optional)
+
+## Analysis
+### Suspected Files
+| File | Line(s) | Confidence | Reason |
+|------|---------|------------|--------|
+| {path} | {lines} | high/medium/low | {why} |
+
+### Related Tests
+| Test File | Coverage |
+|-----------|----------|
+| {path} | {what it tests} |
+
+### Test Target
+{What the failing test should assert — the specific behavior to verify}
+
+### Constraints
+{Areas that must NOT be modified} (optional)
+
+## Fix Strategy
+{Proposed approach — brief, 2-3 sentences}
 ```
 
-#### 4.3.3 Portability Classification
+### 3.2 Run Mode Extension
 
-| Agent | native_runtime | remote_model | Notes |
-|-------|---------------|-------------|-------|
-| implementing-tasks | Required | Not portable | Needs Write/Edit/Bash tools, session state |
-| riding-codebase | Required | Not portable | Needs Glob/Grep/Read extensively |
-| designing-architecture | Default | Portable | System prompt sufficient |
-| planning-sprints | Default | Portable | System prompt sufficient |
-| discovering-requirements | Default | Portable | System prompt sufficient |
-| reviewing-code | Default | Portable | Primary Flatline consumer |
-| auditing-security | Default | Portable | Primary Flatline consumer |
-| translating-for-executives | Default | Portable | No tool access needed |
+#### 3.2.1 New Input: `--bug`
 
-### 4.4 Flatline Protocol Integration
+Add to `.claude/skills/run-mode/index.yaml` inputs:
 
-#### 4.4.1 Current Call Path (Before)
-
-```
-flatline-orchestrator.sh
-  └── model-adapter.sh --model gpt-5.2 --mode review --input doc.md
-        └── curl https://api.openai.com/v1/chat/completions ...
-
-  └── model-adapter.sh --model opus --mode skeptic --input doc.md
-        └── curl https://api.anthropic.com/v1/messages ...
+```yaml
+- name: "bug"
+  type: "string"
+  description: "Bug description for autonomous bug-fixing mode"
+  required: false
+- name: "bug_from_issue"
+  type: "integer"
+  description: "GitHub issue number for autonomous bug-fixing"
+  required: false
 ```
 
-#### 4.4.2 New Call Path (After)
+#### 3.2.2 Bug Run Loop
 
 ```
-flatline-orchestrator.sh
-  └── model-invoke --agent flatline-reviewer --input doc.md
-        └── cheval.py (resolves "flatline-reviewer" → openai:gpt-5.2)
-              └── httpx POST https://api.openai.com/v1/chat/completions
-
-  └── model-invoke --agent flatline-skeptic --input doc.md
-        └── cheval.py (resolves "flatline-skeptic" → openai:gpt-5.2)
-              └── httpx POST https://api.openai.com/v1/chat/completions
+/run --bug "description"
+       │
+       ▼
+  ┌─────────────┐
+  │  TRIAGE     │  Invoke bug-triaging skill
+  │  (Phase 1)  │  Output: triage.md, sprint.md
+  └──────┬──────┘
+         │
+         ▼
+  ┌─────────────┐
+  │  IMPLEMENT  │  /implement sprint-bug-{N} --bug
+  │  (Phase 2)  │  Test-first: write test → fix → verify
+  └──────┬──────┘
+         │
+         ▼
+  ┌─────────────┐
+  │  REVIEW     │  /review-sprint sprint-bug-{N}
+  │  (Phase 3)  │  Scoped to bug fix only
+  └──────┬──────┘
+         │ if findings → back to IMPLEMENT
+         ▼
+  ┌─────────────┐
+  │   AUDIT     │  /audit-sprint sprint-bug-{N}
+  │  (Phase 4)  │  Standard audit checklist
+  └──────┬──────┘
+         │ if findings → back to IMPLEMENT
+         ▼
+  ┌─────────────┐
+  │  COMPLETE   │  COMPLETED marker
+  │  (Phase 5)  │  Draft PR with confidence signals
+  └─────────────┘
 ```
 
-#### 4.4.3 Compatibility Shim
+#### 3.2.3 Circuit Breaker (Bug-Scoped)
 
-During transition, `model-adapter.sh` is preserved as a shim:
+| Trigger | Limit | Rationale |
+|---------|-------|-----------|
+| Same Issue | 3 cycles | Bug fix shouldn't need >3 review cycles |
+| No Progress | 5 cycles | If no file changes, bug may be misdiagnosed |
+| Cycle Limit | 10 total | Reduced from 20 (bug scope is smaller) |
+| Timeout | 2 hours | Reduced from 8 (bug scope is smaller) |
 
-```bash
-# model-adapter.sh (shim version)
-# Translates legacy --model/--mode flags to model-invoke --agent format
+#### 3.2.4 State File (Namespaced Per Bug)
 
-AGENT_MAP=(
-    ["review"]="flatline-reviewer"
-    ["skeptic"]="flatline-skeptic"
-    ["score"]="flatline-scorer"
-    ["dissent"]="flatline-dissenter"
-)
+State is isolated per bug to support concurrent bug fixes without corruption.
 
-agent="${AGENT_MAP[$mode]}"
-exec .claude/scripts/model-invoke --agent "$agent" --input "$input" "$@"
+```json
+// .run/bugs/{bug_id}/state.json  (NOT a global file)
+{
+  "state": "TRIAGE | IMPLEMENTING | REVIEWING | AUDITING | COMPLETED | HALTED",
+  "bug_id": "20260211-a3f2b1",
+  "bug_title": "Login fails with + in email",
+  "sprint_id": "sprint-bug-1",
+  "mode": "interactive | autonomous",
+  "circuit_breaker": {
+    "cycle_count": 0,
+    "same_issue_count": 0,
+    "no_progress_count": 0,
+    "last_finding_hash": null
+  },
+  "timestamps": {
+    "triage_started": null,
+    "triage_completed": null,
+    "implement_started": null,
+    "review_started": null,
+    "audit_started": null,
+    "completed": null
+  },
+  "confidence": {
+    "reproduction_strength": "strong | weak | manual_only",
+    "test_type": "unit | integration | e2e | contract",
+    "risk_level": "low | medium | high",
+    "files_changed": 0,
+    "lines_changed": 0
+  }
+}
 ```
 
-### 4.5 Cost Ledger
+### 3.3 Micro-Sprint Lifecycle
 
-#### 4.5.1 JSONL Entry Format
+#### 3.3.1 Naming Convention
+
+```
+sprint-bug-{NNN}
+```
+
+Where `NNN` is a global counter from the Sprint Ledger (`global_sprint_counter`). This ensures micro-sprints don't collide with feature sprints.
+
+#### 3.3.2 Micro-Sprint Template
+
+```markdown
+# Sprint Plan: Bug Fix — {bug_title}
+
+**Type**: bugfix
+**Bug ID**: {bug_id}
+**Source**: /bug (triage)
+
+## Sprint {sprint-bug-NNN}: {bug_title}
+
+### Sprint Goal
+Fix the reported bug with a failing test proving the fix.
+
+### Deliverables
+- [ ] Failing test that reproduces the bug
+- [ ] Source code fix
+- [ ] All existing tests pass (no regressions)
+- [ ] Triage analysis document
+
+### Technical Tasks
+
+#### Task 1: Write Failing Test [G-5]
+- Create {test_type} test reproducing the bug
+- Verify test fails with current code
+- Test file: {suggested_test_file}
+
+#### Task 2: Implement Fix [G-1, G-2]
+- Fix root cause in {suspected_files}
+- Verify failing test now passes
+- Run full test suite
+
+### Acceptance Criteria
+- [ ] Bug is no longer reproducible
+- [ ] Failing test proves the fix
+- [ ] No regressions in existing tests
+- [ ] Fix addresses root cause (not just symptoms)
+
+### Triage Reference
+See: grimoires/loa/a2a/bug-{bug_id}/triage.md
+```
+
+#### 3.3.3 Lifecycle States
+
+```
+CREATED ──→ IN_PROGRESS ──→ REVIEW ──→ AUDIT ──→ COMPLETED
+                 │              │          │
+                 │              ▼          ▼
+                 │         (findings)  (findings)
+                 │              │          │
+                 └──────────────┘──────────┘
+                    (loop back)
+```
+
+| State | Entry Condition | Marker |
+|-------|----------------|--------|
+| CREATED | Triage produces sprint.md | `triage.md` exists |
+| IN_PROGRESS | `/implement` begins | beads task `in_progress` |
+| REVIEW | Implementation complete | `reviewer.md` exists |
+| AUDIT | Review passes | `auditor-sprint-feedback.md` exists |
+| COMPLETED | Audit passes | `COMPLETED` marker |
+
+#### 3.3.4 Interaction with Active Feature Sprints
+
+Bugs **always** create micro-sprints — they are never injected into active feature sprints. This is a deliberate architectural decision (per Flatline review SKP-002/SKP-005) that eliminates:
+- State corruption from modifying shared sprint.md
+- Concurrency issues with parallel bug fixes
+- Complex pause/resume semantics
+- Ambiguous review/audit scope
+
+Micro-sprints are **fully independent**:
+- Separate branch (`bugfix/{bug_id}`)
+- Separate sprint file (`grimoires/loa/a2a/bug-{id}/sprint.md`)
+- Separate state file (`.run/bugs/{bug_id}/state.json`)
+- Separate review/audit cycle
+- Separate COMPLETED marker
+- Separate ledger entry
+- Does NOT block or modify any active feature sprint
+
+**Concurrent bugs**: Multiple bug fixes can run in parallel because each has fully namespaced state. The golden path detects the most recent active bug for status display.
+
+### 3.4 Process Compliance Amendments
+
+#### 3.4.1 Constraint Changes
+
+**Amend C-PROC-003** (`.claude/data/constraints.json`):
+
+```json
+// BEFORE:
+{
+  "id": "C-PROC-003",
+  "rule": "NEVER skip from sprint plan directly to implementation without /run sprint-plan or /run sprint-N",
+  "reason": "/run wraps implement+review+audit in a cycle loop with circuit breaker"
+}
+
+// AFTER:
+{
+  "id": "C-PROC-003",
+  "rule": "NEVER skip from sprint plan directly to implementation without /run sprint-plan, /run sprint-N, or /bug triage",
+  "reason": "/run wraps implement+review+audit in a cycle loop with circuit breaker. /bug produces a triage handoff that feeds directly into /implement."
+}
+```
+
+**Amend C-PROC-005**:
+
+```json
+// BEFORE:
+{
+  "id": "C-PROC-005",
+  "rule": "ALWAYS use /run sprint-plan or /run sprint-N for implementation",
+  "reason": "Ensures review+audit cycle with circuit breaker protection"
+}
+
+// AFTER:
+{
+  "id": "C-PROC-005",
+  "rule": "ALWAYS use /run sprint-plan, /run sprint-N, or /bug for implementation",
+  "reason": "Ensures review+audit cycle with circuit breaker protection. /bug enforces the same cycle for bug fixes."
+}
+```
+
+**Add C-PROC-015** (new):
 
 ```json
 {
-  "ts": "2026-02-10T15:30:00.000Z",
-  "trace_id": "tr-abc123",
-  "request_id": "req-def456",
-  "agent": "reviewing-code",
-  "provider": "openai",
-  "model": "gpt-5.2",
-  "tokens_in": 4200,
-  "tokens_out": 1800,
-  "tokens_reasoning": 0,
-  "latency_ms": 3200,
-  "cost_micro_usd": 94000,
-  "usage_source": "actual",
-  "pricing_source": "config",
-  "phase_id": "flatline_prd",
-  "sprint_id": null,
-  "attempt": 1
+  "id": "C-PROC-015",
+  "type": "always",
+  "category": "process_compliance_always",
+  "rule": "ALWAYS validate bug eligibility before /bug implementation",
+  "reason": "Prevents feature work from bypassing PRD/SDD gates via /bug. Must reference observed failure, regression, or stack trace."
 }
 ```
 
-#### 4.5.2 Atomic Write Protocol
+#### 3.4.2 CLAUDE.loa.md Updates
+
+Add to NEVER rules:
+```
+| NEVER use /bug for feature work that doesn't reference an observed failure | /bug bypasses PRD/SDD gates; feature work must go through /plan |
+```
+
+Add to ALWAYS rules:
+```
+| ALWAYS validate bug eligibility (observed failure, stack trace, or regression) before implementation via /bug | Prevents planning bypass; escalates to /plan if not a genuine bug |
+```
+
+### 3.5 Bug ID Generation
 
 ```python
-def append_ledger(entry: dict, ledger_path: str):
-    """Append a single JSONL line with concurrency safety."""
-    line = json.dumps(entry, separators=(",", ":")) + "\n"
-    encoded = line.encode("utf-8")
+# Pseudocode for bug ID generation
+import hashlib, datetime
 
-    fd = os.open(ledger_path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
-    try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
-        os.write(fd, encoded)
-    finally:
-        fcntl.flock(fd, fcntl.LOCK_UN)
-        os.close(fd)
+def generate_bug_id(title: str, issue_number: int | None = None) -> str:
+    timestamp = datetime.now().strftime("%Y%m%d")
+    raw = f"{title}{timestamp}{os.urandom(4).hex()}"
+    short_hash = hashlib.sha256(raw.encode()).hexdigest()[:6]
+
+    if issue_number:
+        return f"{timestamp}-i{issue_number}-{short_hash}"
+    return f"{timestamp}-{short_hash}"
+
+# Examples:
+# generate_bug_id("Login fails with + in email") → "20260211-a3f2b1"
+# generate_bug_id("Login fails", issue_number=42) → "20260211-i42-a3f2b1"
 ```
 
-#### 4.5.3 Budget Enforcement
+Properties:
+- **Unique**: Random bytes prevent collisions
+- **Stable**: ID doesn't change if title is later edited
+- **Safe**: No user text in filesystem paths
+- **Sortable**: Chronological by prefix
+- **Traceable**: Optional issue number embedded
 
-```python
-def check_budget(agent: str, config: dict, ledger_path: str) -> BudgetStatus:
-    """Pre-call budget check. Returns ALLOW, WARN, DOWNGRADE, or BLOCK.
+### 3.6 Golden Path Awareness
 
-    Uses an atomic daily summary file for O(1) reads instead of scanning
-    the full JSONL ledger. The summary is updated atomically on each append.
-    """
-    daily_limit = config["metering"]["budget"]["daily_micro_usd"]
-    warn_pct = config["metering"]["budget"]["warn_at_percent"]
+#### 3.6.1 New Functions in `golden-path.sh`
 
-    # Read daily summary (O(1)) instead of scanning ledger (O(n))
-    spent = read_daily_spend(ledger_path)  # Reads .daily-spend-{date}.json
+All functions are shellcheck-compliant and tested with fixture files.
 
-    if spent >= daily_limit:
-        action = config["metering"]["budget"]["on_exceeded"]
-        if action == "block":
-            return BudgetStatus.BLOCK
-        elif action == "downgrade":
-            return BudgetStatus.DOWNGRADE
-        return BudgetStatus.WARN
-    elif spent >= daily_limit * warn_pct / 100:
-        return BudgetStatus.WARN
-    return BudgetStatus.ALLOW
+```bash
+# Detect most recent active bug fix (namespaced state)
+# Returns: bug_id on stdout, exit 0 if found, exit 1 if none
+golden_detect_active_bug() {
+  local bugs_dir=".run/bugs"
+  [[ -d "$bugs_dir" ]] || return 1
 
-def update_daily_spend(entry_cost_micro: int, ledger_path: str):
-    """Atomically update daily spend counter. Called after each ledger append.
+  local latest_bug=""
+  local latest_time=0
 
-    Uses flock-protected read-modify-write on a per-day summary file.
-    File: {ledger_dir}/.daily-spend-{YYYY-MM-DD}.json
-    Format: {"date": "2026-02-10", "total_micro_usd": 1234567, "entry_count": 42}
-    """
-    today = datetime.utcnow().strftime("%Y-%m-%d")
-    summary_path = os.path.join(os.path.dirname(ledger_path), f".daily-spend-{today}.json")
+  for state_file in "$bugs_dir"/*/state.json; do
+    [[ -f "$state_file" ]] || continue
+    local state
+    state=$(jq -r '.state // empty' "$state_file" 2>/dev/null) || continue
+    if [[ "$state" != "COMPLETED" && "$state" != "HALTED" ]]; then
+      local mtime
+      mtime=$(stat -c %Y "$state_file" 2>/dev/null || stat -f %m "$state_file" 2>/dev/null) || continue
+      if (( mtime > latest_time )); then
+        latest_time=$mtime
+        latest_bug=$(jq -r '.bug_id // empty' "$state_file" 2>/dev/null)
+      fi
+    fi
+  done
 
-    fd = os.open(summary_path, os.O_RDWR | os.O_CREAT, 0o644)
-    try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
-        data = json.loads(os.read(fd, 4096) or '{"total_micro_usd": 0, "entry_count": 0}')
-        data["date"] = today
-        data["total_micro_usd"] = data.get("total_micro_usd", 0) + entry_cost_micro
-        data["entry_count"] = data.get("entry_count", 0) + 1
-        os.lseek(fd, 0, os.SEEK_SET)
-        os.ftruncate(fd, 0)
-        os.write(fd, json.dumps(data).encode("utf-8"))
-    finally:
-        fcntl.flock(fd, fcntl.LOCK_UN)
-        os.close(fd)
-```
+  if [[ -n "$latest_bug" ]]; then
+    echo "$latest_bug"
+    return 0
+  fi
+  return 1
+}
 
-**Budget enforcement mode**: Budget is **best-effort** under concurrent invocations. The pre-call check uses the summary counter (fast O(1)), but parallel invocations may pass the check simultaneously before either records cost. Expected overshoot is bounded by `MAX_TOTAL_ATTEMPTS × max_cost_per_call` — documented in operational runbook. For strict enforcement in CI, use `on_exceeded: block` with a pre-job budget reset.
+# Check if a micro-sprint exists for a given bug
+# Args: $1 = bug_id
+golden_detect_micro_sprint() {
+  local bug_id="${1:-}"
+  local sprint_file="grimoires/loa/a2a/bug-${bug_id}/sprint.md"
+  [[ -f "$sprint_file" ]] && return 0
+  return 1
+}
 
----
+# Dependency check: verify required tools are available
+# Returns: 0 if all required present, 1 if missing
+golden_bug_check_deps() {
+  local missing=()
+  command -v jq >/dev/null 2>&1 || missing+=("jq")
+  command -v git >/dev/null 2>&1 || missing+=("git")
 
-## 5. Data Architecture
-
-### 5.1 Configuration Files (Read-Only at Runtime)
-
-| File | Zone | Format | Purpose |
-|------|------|--------|---------|
-| `.claude/defaults/model-config.yaml` | System | YAML | Framework defaults |
-| `.claude/schemas/model-config.schema.json` | System | JSON Schema | Config validation |
-| `.claude/schemas/skill-index.schema.json` | System | JSON Schema | Skill definition (updated) |
-| `.loa.config.yaml` | Project | YAML | User overrides |
-
-### 5.2 Runtime State (Written During Execution)
-
-| File | Zone | Format | Purpose |
-|------|------|--------|---------|
-| `grimoires/loa/a2a/cost-ledger.jsonl` | State | JSONL | Cost tracking |
-| `.run/circuit-breaker-*.json` | Ephemeral | JSON | Circuit breaker state per provider |
-
-### 5.3 Skill Artifacts (Framework-Managed)
-
-| File | Zone | Format | Purpose |
-|------|------|--------|---------|
-| `.claude/skills/*/persona.md` | System | Markdown | Model-agnostic agent persona |
-| `.claude/skills/*/output-schema.md` | System | Markdown | Expected output format |
-| `.claude/skills/*/evaluation-criteria.md` | System | Markdown | Quality evaluation criteria |
-
----
-
-## 6. Security Architecture
-
-### 6.1 Secret Management
-
-```
-┌──────────────────────────────────────┐
-│ Config Layer                          │
-│ auth: "{env:OPENAI_API_KEY}"         │  ← Placeholder in config
-└──────────────┬───────────────────────┘
-               │ interpolation
-┌──────────────▼───────────────────────┐
-│ Interpolation Engine                  │
-│ Allowlist: ^LOA_.*, ^OPENAI_API_KEY$ │  ← Regex validation
-│ Reject all non-matching env vars      │
-│ File: .loa.config.d/ only, no symlinks│
-└──────────────┬───────────────────────┘
-               │ resolved value
-┌──────────────▼───────────────────────┐
-│ Provider Adapter                      │
-│ Authorization: Bearer <value>         │  ← Used in HTTP header
-│ NEVER logged, NEVER in ledger         │
-└──────────────────────────────────────┘
-```
-
-### 6.2 Secret Provider Interface
-
-The interpolation engine supports three secret sources with a formal extension mechanism:
-
-| Source | Syntax | Default Allowlist | Extension |
-|--------|--------|------------------|-----------|
-| Environment | `{env:VAR}` | `^LOA_.*`, `^OPENAI_API_KEY$`, `^ANTHROPIC_API_KEY$`, `^MOONSHOT_API_KEY$` | `hounfour.secret_env_allowlist: ["^CUSTOM_.*"]` in config |
-| File | `{file:path}` | Files under `.loa.config.d/` | `hounfour.secret_paths: ["/etc/secrets/"]` in config |
-| Command | `{cmd:command}` | Disabled by default | `hounfour.secret_commands_enabled: true` (opt-in) |
-
-**Extension mechanism**: Users can extend the env allowlist via config without editing core code:
-
-```yaml
-hounfour:
-  secret_env_allowlist:
-    - "^AZURE_OPENAI_.*"
-    - "^GOOGLE_AI_.*"
-```
-
-The core allowlist is always applied first. User extensions are additive only (cannot remove core patterns). All resolved values are tagged `_REDACTED_` in any output path.
-
-**Redaction CI test**: The test suite includes forced-failure scenarios that assert:
-1. `httpx` connection errors do not include `Authorization` headers in exception messages
-2. `urllib.request` fallback errors do not include auth in repr()
-3. Debug-level log output contains `***REDACTED***` for all secret values
-4. Python tracebacks from cheval.py do not contain env var values (custom exception handler strips them)
-
-### 6.3 Threat Mitigations
-
-| Threat | Mitigation |
-|--------|------------|
-| API key in process list | `cheval.py` reads key in-process, never passed as CLI arg |
-| Key in logs | All `{env:}`/`{file:}` values tagged `_REDACTED_` in log output |
-| Prompt injection via persona | `persona.md` is framework-managed (System Zone); user cannot modify |
-| Config injection via env | Only `LOA_MODEL` and `LOA_PROVIDER_*_KEY` are accepted |
-| JSONL ledger leaks prompts | Ledger contains ONLY metadata (tokens, cost, timing, agent name) |
-| Symlink traversal | `{file:path}` rejects symlinks, validates owner and mode |
-| Concurrent ledger corruption | `fcntl.flock(LOCK_EX)` for exclusive write access |
-
----
-
-## 7. Integration Points
-
-### 7.1 Flatline Protocol
-
-| Current Integration | New Integration |
-|-------------------|----------------|
-| `model-adapter.sh` direct API calls | `model-invoke --agent flatline-*` |
-| `gpt-review-api.sh` hardcoded OpenAI curl | `model-invoke --agent gpt-reviewer` |
-| Scoring engine reads raw API responses | Scoring engine reads normalized `CompletionResult` |
-
-### 7.2 Skill Index Schema
-
-**Before** (line 19-24 of `skill-index.schema.json`):
-```json
-"model": {
-  "type": "string",
-  "enum": ["sonnet", "opus", "haiku"],
-  "default": "sonnet"
+  if (( ${#missing[@]} > 0 )); then
+    echo "Missing required tools: ${missing[*]}" >&2
+    return 1
+  fi
+  return 0
 }
 ```
 
-**After**:
-```json
-"model": {
-  "type": "string",
-  "default": "native",
-  "description": "Model alias or provider:model-id. Resolves through Hounfour provider registry. Use 'native' for Claude Code native runtime."
-}
-```
+#### 3.6.2 `/loa` Status Integration
 
-### 7.3 loa-finn Downstream
-
-#### 7.3.1 Package Structure
-
-`cheval.py` is structured as an installable Python package (`loa_cheval`) to prevent brittle direct-path imports:
+When a bug fix is active, `/loa` should display:
 
 ```
-.claude/adapters/
-├── pyproject.toml              # Package metadata, version, entry points
-├── loa_cheval/                 # Importable package
-│   ├── __init__.py             # Public API re-exports
-│   ├── __version__.py          # Semantic version string
-│   ├── types.py                # CompletionRequest, CompletionResult, Usage
-│   ├── providers/              # Provider adapters
-│   ├── config/                 # Config loading
-│   ├── routing/                # Alias resolution
-│   └── metering/               # Cost ledger
-├── cheval.py                   # CLI entry point (imports from loa_cheval)
-└── tests/
+Active Bug Fix: 20260211-a3f2b1
+  Title: Login fails with + in email
+  State: IMPLEMENTING
+  Sprint: sprint-bug-1
+  Next: /build (continues bug fix implementation)
 ```
 
-**Installation**: `pip install -e .claude/adapters/` (editable for development) or `pip install .claude/adapters/` (fixed version).
+#### 3.6.3 `/build` Behavior
 
-#### 7.3.2 Public API Surface
+When a micro-sprint is active, `/build` should route to:
+```bash
+/implement sprint-bug-{N} --bug
+```
 
-The `__init__.py` exports the stable public API:
+This is transparent — the user doesn't need to know about micro-sprints.
 
-```python
-# loa-finn imports from upstream package
-from loa_cheval import (
-    CompletionRequest,
-    CompletionResult,
-    Usage,
-    ProviderAdapter,
-    OpenAIAdapter,
-    AnthropicAdapter,
-    ConfigLoader,
-    calculate_cost_micro,
-    __version__,
+### 3.7 Beads Integration
+
+#### 3.7.1 Task Creation
+
+```bash
+# After triage, create beads task
+br create "Fix: {bug_title}" \
+  --label bug \
+  --label "severity:{severity}" \
+  --priority {1-4 based on severity}
+```
+
+#### 3.7.2 Task Lifecycle
+
+```bash
+# Start implementation
+br update {task_id} --status in_progress
+
+# Complete implementation
+br close {task_id}
+```
+
+#### 3.7.3 Beads Failure Handling
+
+```bash
+# If br is not available, skip silently with warning
+if ! command -v br >/dev/null 2>&1; then
+  echo "[bug] Beads not available. Task tracking skipped." >&2
+  # Continue without beads — bug fix still works
+fi
+
+# If br create fails, warn but continue
+if ! br create "Fix: ${bug_title}" --label bug 2>/dev/null; then
+  echo "[bug] Beads task creation failed. Continuing without tracking." >&2
+fi
+```
+
+### 3.8 Autonomous Mode Safety
+
+#### 3.8.1 Human Checkpoint
+
+Autonomous mode creates a draft PR in `ready-for-human-review` state:
+
+```bash
+# ICE creates draft PR
+gh pr create --draft \
+  --title "fix: {bug_title}" \
+  --body "$(cat <<'EOF'
+## Bug Fix: {bug_title}
+
+**Bug ID**: {bug_id}
+**Source**: {/bug or /run --bug}
+
+### Confidence Signals
+- Reproduction: {strong/weak/manual_only}
+- Test type: {unit/integration/e2e/contract}
+- Files changed: {N}
+- Lines changed: {N}
+- Risk level: {low/medium/high}
+
+### Artifacts
+- Triage: grimoires/loa/a2a/bug-{id}/triage.md
+- Review: grimoires/loa/a2a/bug-{id}/reviewer.md
+- Audit: grimoires/loa/a2a/bug-{id}/auditor-sprint-feedback.md
+
+### Status: READY FOR HUMAN REVIEW
+This PR was created by `/run --bug` autonomous mode.
+Please review before merging.
+EOF
+)"
+```
+
+#### 3.8.2 High-Risk Area Detection
+
+```bash
+# High-risk patterns (checked during triage)
+HIGH_RISK_PATTERNS=(
+  "auth" "authentication" "login" "password" "token" "jwt" "oauth"
+  "payment" "billing" "charge" "stripe" "checkout"
+  "migration" "schema" "database" "db"
+  "encrypt" "decrypt" "secret" "credential" "key"
 )
+
+# Check suspected files against patterns
+for file in "${suspected_files[@]}"; do
+  for pattern in "${HIGH_RISK_PATTERNS[@]}"; do
+    if echo "$file" | grep -qi "$pattern"; then
+      risk_level="high"
+      if [[ "$mode" == "autonomous" && "$allow_high" != "true" ]]; then
+        # HALT: require --allow-high flag
+      fi
+    fi
+  done
+done
 ```
 
-**Deprecation policy**: Public symbols are deprecated for one minor version before removal. Deprecated imports log a warning with migration instructions.
-
-#### 7.3.3 Downstream Integration Tests
-
-loa-finn pins to a version range (`loa_cheval>=1.0,<2.0`) and runs contract tests against the public API surface on each upstream update. The contract tests validate:
-1. All public symbols are importable
-2. `CompletionRequest`/`CompletionResult` dataclass fields match expected schema
-3. `ProviderAdapter.complete()` signature is unchanged
-
-loa-finn adds: Redis-backed circuit breaker, sidecar lifecycle management, streaming SSE transport, JWT auth, tenant routing.
-
 ---
 
-## 8. Scalability & Performance
+## 4. File System Layout
 
-### 8.1 Performance Characteristics
-
-| Operation | Target | Mechanism |
-|-----------|--------|-----------|
-| Config loading | < 100ms | Cached after first load per process |
-| Alias resolution | < 1ms | Dictionary lookup |
-| `native_runtime` overhead | 0ms | Config check only, no `model-invoke` call |
-| Cost ledger append | < 10ms | `flock` + single `write()` syscall |
-| Python cold start | ~200ms | One-time per `model-invoke` invocation |
-
-### 8.2 Scaling Considerations
-
-This is a **CLI-first framework** — not a server. Concurrency is limited to:
-- Flatline Protocol: 4 parallel model calls (2 review + 2 skeptic)
-- `/run sprint-plan`: Sequential sprint execution
-- CI: Potentially parallel across jobs
-
-The `flock`-based ledger is sufficient for this concurrency profile. Server-side scaling (Redis, connection pooling) remains in loa-finn.
-
----
-
-## 9. Testing Strategy
-
-### 9.1 Provider Conformance Tests
-
-Each provider adapter has golden test fixtures:
+### 4.1 New Files
 
 ```
-.claude/adapters/tests/fixtures/
-├── openai/
-│   ├── chat-completion-request.json    # Expected request body
-│   ├── chat-completion-response.json   # Mocked response
-│   ├── tool-call-request.json
-│   ├── tool-call-response.json
-│   └── error-rate-limit.json
-└── anthropic/
-    ├── messages-request.json
-    ├── messages-response.json
-    ├── thinking-response.json
-    └── error-overloaded.json
+.claude/skills/bug-triaging/
+├── index.yaml                              # Skill registration
+├── SKILL.md                                # Execution guide (~15K lines)
+└── resources/
+    └── templates/
+        ├── triage.md                       # Handoff contract template
+        └── micro-sprint.md                 # Micro-sprint template
 ```
 
-### 9.2 Config Validation Tests
+### 4.2 Modified Files
 
-- Schema validation passes for `model-config.yaml` defaults
-- Invalid interpolation patterns rejected (`{env:INVALID_KEY}`)
-- Merge pipeline produces expected output for defaults + project + env combinations
-- Circular fallback chains detected and rejected
+```
+.claude/data/constraints.json               # Amend C-PROC-003, C-PROC-005, add C-PROC-015
+.claude/loa/CLAUDE.loa.md                   # Add NEVER/ALWAYS rules for /bug
+.claude/skills/run-mode/index.yaml          # Add --bug, --bug-from-issue inputs
+.claude/skills/run-mode/SKILL.md            # Add bug run loop section
+.claude/scripts/golden-path.sh              # Add bug detection functions
+```
 
-### 9.3 Cost Calculation Tests
+### 4.3 Runtime Artifacts
 
-- Integer arithmetic produces expected micro-USD values for known token counts
-- Budget enforcement triggers at correct thresholds
-- Missing usage fields produce estimated costs
-- Retry accounting counts all attempts
+```
+.run/bugs/{bug_id}/
+├── state.json                              # Bug fix state (per-bug, ephemeral)
+└── circuit-breaker.json                    # Circuit breaker state (autonomous mode)
 
----
+grimoires/loa/a2a/bug-{id}/
+├── triage.md                               # Triage handoff contract (schema v1)
+├── sprint.md                               # Micro-sprint plan (per-bug)
+├── reviewer.md                             # Review findings
+├── auditor-sprint-feedback.md              # Audit findings
+└── COMPLETED                               # Completion marker
 
-## 10. Migration Strategy
-
-### 10.1 Phase 1: Ship Adapter (No Breaking Changes)
-
-1. Create `.claude/adapters/` with `cheval.py` and dependencies
-2. Create `.claude/defaults/model-config.yaml` with defaults
-3. Create `.claude/schemas/model-config.schema.json`
-4. Create `persona.md` for 8 core agents
-5. Update `skill-index.schema.json` model field
-6. Ship `model-invoke` wrapper script
-
-At this point, everything works as before. `model-adapter.sh` is unchanged. The new path is available but not active.
-
-### 10.2 Phase 2: Flatline Unification
-
-1. Update `flatline-orchestrator.sh` to call `model-invoke` instead of `model-adapter.sh`
-2. Update `gpt-review-api.sh` to call `model-invoke` instead of direct curl
-3. Convert `model-adapter.sh` to compatibility shim
-4. Feature flag: `hounfour.flatline_routing: true` (default false initially)
-
-### 10.3 Phase 3: Cost Ledger + Routing
-
-1. Enable JSONL metering in `cheval.py`
-2. Implement fallback/downgrade chain walking
-3. Add circuit breaker state files
-4. Ship `/cost-report` command
+grimoires/loa/ledger.json                   # Updated with bugfix cycle entry
+```
 
 ---
 
-## 11. Technical Risks & Mitigations
+## 5. Security Considerations
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| Python cold start adds latency to Flatline | Medium | Low | Config caching; 200ms is <1% of typical Flatline runtime (30-60s) |
-| Provider API drift (vendor changes response format) | Medium | Medium | Conformance test suite catches drift; version-pinned adapters |
-| Config merge produces unexpected results | Low | High | `--print-effective-config` debug command; merge tests |
-| `cheval.py` import in loa-finn breaks on upstream update | Low | High | Semantic versioning on `cheval.py`; conformance test contract |
-| Stale circuit breaker blocks requests after recovery | Low | Medium | `HALF_OPEN` state with probe requests; configurable reset timeout |
-
----
-
-## 12. Future Considerations
-
-### 12.1 Streaming Support (Deferred)
-
-**Decision**: Streaming is an explicit non-goal for MVP. All current orchestration (Flatline, GPT review, skill invocation) is batch-only — the caller submits a request and waits for the complete response.
-
-**Rationale**: Streaming (SSE/async iterators) materially complicates the adapter surface (partial events, cancellation semantics, error mid-stream, backpressure). The CLI stdout contract (§4.2.2) assumes complete output.
-
-**Migration path**: If streaming is needed (e.g., interactive agent UIs in loa-finn):
-1. Add `stream: bool` to `CompletionRequest`
-2. `ProviderAdapter.complete()` returns `CompletionResult` (batch) or `Iterator[StreamEvent]` (stream)
-3. `StreamEvent` type: `content_delta | tool_call_delta | thinking_delta | done | error`
-4. loa-finn's `cheval_server.py` wraps the iterator in SSE transport
-5. CLI `model-invoke` would use `--stream` flag and emit events line-by-line to stdout
-
-This interface is designed to be additive — existing batch callers remain unchanged.
-
-### 12.2 Ensemble Orchestration
-
-loa-finn has implemented `EnsembleOrchestrator` with three merge strategies (`first_complete`, `best_of_n`, `consensus`). If demand materializes for framework-level ensemble support, the interface can be extracted from loa-finn. This is explicitly deferred from MVP.
-
-### 12.3 Model Quality Benchmarking
-
-The `persona.md` + `output-schema.md` pattern enables automated quality benchmarking: run the same task on multiple models, compare output against structural assertions. This would inform adaptive model routing. Deferred until M2 (8+ agents with persona.md) is achieved.
-
-### 12.4 Construct Portability
-
-Once skill decomposition is proven with 8 core agents, the pattern can be standardized for Loa Constructs. A construct could ship `persona.md` + `output-schema.md` alongside `SKILL.md`, making it usable on any configured provider.
+| Concern | Mitigation |
+|---------|------------|
+| Bug description injection | Input guardrails: PII filter + injection detection on user input |
+| Path traversal via bug ID | ID is timestamp + hash only — no user text in paths |
+| Feature work bypassing /plan | Strict eligibility with verifiable artifacts + explicit disqualifiers |
+| Autonomous mode unsafe merges | Draft PR with human approval gate; high-risk blocking |
+| Sensitive data in user input | PII filter runs on user input before writing to triage.md |
+| Sensitive data in imported issues | PII redaction applied to `gh issue view` content (body + comments) before processing |
+| Secrets in triage.md output | Secret scanning (API keys, JWTs, tokens) on all written artifacts |
+| Secrets in PR body | PII redaction applied to generated PR description before `gh pr create` |
+| Concurrent state corruption | Per-bug namespaced state (`.run/bugs/{bug_id}/`) prevents cross-bug interference |
 
 ---
 
-*Generated from PRD v1.1.0. Architecture grounded against model-adapter.sh (827 lines), skill-index.schema.json (332 lines), flatline-orchestrator.sh (929 lines), and loa-finn Hounfour source (229 files, 40,170 lines). Flatline SDD review integrated 5 HIGH_CONSENSUS improvements and resolved 6 BLOCKERS into v1.1.0.*
+## 6. Testing Strategy
+
+| Test | What It Verifies |
+|------|-----------------|
+| Dependency check | Missing jq/git halts; missing gh/br degrades gracefully |
+| Eligibility rejection | Feature-shaped requests (new endpoint, UI flow, schema change) rejected |
+| Eligibility acceptance | Bug reports with verifiable artifacts accepted |
+| Eligibility borderline | Score==2 requests trigger user confirmation |
+| Disqualifier detection | Explicit disqualifiers (new endpoint, schema change) trigger immediate REJECT |
+| Triage handoff completeness | All required fields present in triage.md with schema_version |
+| Implement preflight | /implement validates triage.md schema before execution |
+| Micro-sprint creation | Per-bug sprint.md created in grimoires/loa/a2a/bug-{id}/ |
+| State isolation | Concurrent bugs don't corrupt each other's .run/bugs/{id}/state.json |
+| Bug ID uniqueness | No collisions across 1000 generated IDs |
+| Bug ID safety | No special characters, path traversal, or length issues |
+| Circuit breaker (bug-scoped) | Halts at 10 cycles / 2 hours |
+| High-risk detection | Auth/payment/migration files trigger --allow-high gate |
+| Autonomous PR creation | Draft PR with confidence signals, not auto-merged |
+| PII redaction (input) | User input redacted before triage.md |
+| PII redaction (import) | GitHub issue content redacted before processing |
+| PII redaction (output) | PR body and artifacts scanned for secrets |
+| Ledger integration | Micro-sprint registered with type: bugfix |
+| Beads lifecycle | Task created, tracked, and closed; graceful degradation if br unavailable |
+| Golden path awareness | /loa shows active bug, /build routes to bug sprint |
+| Phase failure modes | Each phase halts/warns/falls back correctly per spec |
+
+---
+
+## 7. Migration & Rollback
+
+### 7.1 Migration
+
+No migration needed. Bug mode is purely additive:
+- New skill directory (no existing files modified except constraints.json, golden-path.sh, run-mode)
+- New constraint (C-PROC-015) doesn't break existing workflows
+- Amended constraints (C-PROC-003, C-PROC-005) only add alternatives, don't remove existing paths
+
+### 7.2 Rollback
+
+If bug mode needs to be disabled:
+1. Remove `.claude/skills/bug-triaging/` directory
+2. Revert constraint amendments in `constraints.json`
+3. Revert CLAUDE.loa.md amendments
+4. Revert run-mode and golden-path changes
+5. Clean up `.run/bug-state.json` if exists
+
+All changes are isolated and revertible with a single `git revert`.
+
+---
+
+## 8. Sprint Mapping
+
+| Sprint | Components | PRD Requirements |
+|--------|-----------|-----------------|
+| Sprint 1 | bug-triaging skill, triage handoff, micro-sprint, process compliance, beads | FR1, FR2, FR3, FR5, FR6, TNF1, TNF4 |
+| Sprint 2 | run-mode --bug, autonomous loop, ledger integration, golden path, --from-issue | FR4, TNF2, TNF3, TNF5 |
+
+---
+
+*Generated by Loa architect phase for Issue #278 (Bug Mode). Grounded in codebase reality: skill-index.schema.json, constraints.json, golden-path.sh, run-mode SKILL.md.*
+*Revised per Flatline Protocol review: 4 HIGH_CONSENSUS auto-integrated, 6 BLOCKERS addressed (always-micro-sprint, namespaced state, tightened eligibility, dependency checks, full PII pipeline, schema versioning).*

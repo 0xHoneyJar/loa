@@ -64,12 +64,12 @@
       "name": "no_skip_to_implementation",
       "category": "process",
       "rule_type": "NEVER",
-      "text": "skip from sprint plan directly to implementation without `/run sprint-plan` or `/run sprint-N`",
+      "text": "skip from sprint plan directly to implementation without `/run sprint-plan`, `/run sprint-N`, or `/bug` triage",
       "text_variants": {
-        "claude-loa-md": "NEVER skip from sprint plan directly to implementation without `/run sprint-plan` or `/run sprint-N`",
-        "skill-md": "Implementation phases MUST use `/run sprint-plan` or `/run sprint-N` — NEVER implement directly"
+        "claude-loa-md": "NEVER skip from sprint plan directly to implementation without `/run sprint-plan`, `/run sprint-N`, or `/bug` triage",
+        "skill-md": "Implementation phases MUST use `/run sprint-plan`, `/run sprint-N`, or `/bug` — NEVER implement directly"
       },
-      "why": "`/run` wraps implement+review+audit in a cycle loop with circuit breaker",
+      "why": "`/run` wraps implement+review+audit in a cycle loop with circuit breaker. `/bug` produces a triage handoff that feeds directly into `/implement`.",
       "order": 2,
       "layers": [
         {
@@ -127,13 +127,13 @@
       "name": "always_use_run_for_implementation",
       "category": "process",
       "rule_type": "ALWAYS",
-      "text": "use `/run sprint-plan` or `/run sprint-N` for implementation",
+      "text": "use `/run sprint-plan`, `/run sprint-N`, or `/bug` for implementation",
       "text_variants": {
-        "claude-loa-md": "ALWAYS use `/run sprint-plan` or `/run sprint-N` for implementation",
+        "claude-loa-md": "ALWAYS use `/run sprint-plan`, `/run sprint-N`, or `/bug` for implementation",
         "skill-md": "Phase 7 MUST invoke `/run sprint-plan` — NEVER implement code directly",
-        "protocol": "Using /run (not direct /implement) ||| For autonomous/simstim ||| /run wraps implement+review+audit"
+        "protocol": "Using /run or /bug (not direct /implement) ||| For autonomous/simstim ||| /run wraps implement+review+audit"
       },
-      "why": "Ensures review+audit cycle with circuit breaker protection",
+      "why": "Ensures review+audit cycle with circuit breaker protection. `/bug` enforces the same cycle for bug fixes.",
       "order": 0,
       "layers": [
         {
@@ -529,6 +529,58 @@
       ],
       "severity": "critical",
       "source_incident": "#216"
+    },
+    {
+      "id": "C-PROC-015",
+      "name": "always_validate_bug_eligibility",
+      "category": "process",
+      "rule_type": "ALWAYS",
+      "text": "validate bug eligibility (observed failure, stack trace, or regression) before implementation via `/bug`",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS validate bug eligibility before `/bug` implementation",
+        "skill-md": "Bug eligibility MUST be validated — observed failure, stack trace, or regression required"
+      },
+      "why": "Prevents feature work from bypassing PRD/SDD gates via `/bug`. Must reference observed failure, regression, or stack trace.",
+      "order": 10,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "process_compliance_always",
+          "render_as": "table_row"
+        },
+        {
+          "target": "skill-md",
+          "skills": ["bug-triaging"],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-PROC-016",
+      "name": "never_use_bug_for_features",
+      "category": "process",
+      "rule_type": "NEVER",
+      "text": "use `/bug` for feature work that doesn't reference an observed failure",
+      "text_variants": {
+        "claude-loa-md": "NEVER use `/bug` for feature work that doesn't reference an observed failure",
+        "skill-md": "NEVER accept feature requests through /bug — redirect to /plan"
+      },
+      "why": "`/bug` bypasses PRD/SDD gates; feature work must go through `/plan`",
+      "order": 4,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "process_compliance_never",
+          "render_as": "table_row"
+        },
+        {
+          "target": "skill-md",
+          "skills": ["bug-triaging"],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "critical"
     },
     {
       "id": "C-GUARD-001",

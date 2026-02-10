@@ -1,0 +1,102 @@
+name: "bug-triaging"
+version: "1.0.0"
+model: "native"
+color: "red"
+
+effort_hint: medium
+danger_level: moderate
+categories:
+  - quality
+  - debugging
+  - support
+
+description: |
+  Use this skill when a user reports a bug that needs fixing. Performs
+  dependency check, eligibility validation, hybrid interview, codebase
+  analysis, and creates a micro-sprint. Produces a triage.md handoff
+  contract for the implement phase. Test-first is non-negotiable.
+  Bugs always get their own micro-sprint (never injected into active sprints).
+
+triggers:
+  - "/bug"
+  - "fix bug"
+  - "debug issue"
+  - "bug report"
+  - "production bug"
+
+negative_triggers:
+  - "add feature"
+  - "new endpoint"
+  - "design system"
+  - "create UI"
+
+examples:
+  - context: "User encountered a production error"
+    user_says: "/bug Login fails when email contains a + character"
+    agent_action: "Launch bug-triaging to validate eligibility, interview for gaps, analyze codebase, and create micro-sprint"
+  - context: "User has a GitHub issue tracking a bug"
+    user_says: "/bug --from-issue 42"
+    agent_action: "Launch bug-triaging to import issue content, validate eligibility, and create micro-sprint"
+  - context: "User reports a regression"
+    user_says: "/bug API returns 500 on empty cart after last deploy"
+    agent_action: "Launch bug-triaging to triage regression with stack trace analysis and micro-sprint creation"
+
+dependencies:
+  upstream: []
+  artifacts: []
+
+inputs:
+  - name: "description"
+    type: "string"
+    description: "Free-form bug description, error message, or stack trace"
+    required: false
+  - name: "from_issue"
+    type: "integer"
+    description: "GitHub issue number to import as bug report"
+    required: false
+
+outputs:
+  - path: "grimoires/loa/a2a/bug-{id}/triage.md"
+    description: "Bug analysis and handoff contract"
+    format: detailed
+  - path: "grimoires/loa/a2a/bug-{id}/sprint.md"
+    description: "Micro-sprint plan for this bug"
+    format: detailed
+
+protocols:
+  required:
+    - name: "session-continuity"
+      path: ".claude/protocols/session-continuity.md"
+      purpose: "Maintain triage context across sessions"
+  recommended:
+    - name: "grounding-enforcement"
+      path: ".claude/protocols/grounding-enforcement.md"
+      purpose: "Verify suspected files with source references"
+
+protocol_loading:
+  on_session_start:
+    - "session-continuity"
+  during_execution:
+    - "grounding-enforcement"
+
+inputExamples:
+  - input:
+      description: "Login fails when email contains a + character"
+    description: "Simple bug report with clear symptom"
+  - input:
+      from_issue: 42
+    description: "Import bug from GitHub issue"
+  - input:
+      description: "TypeError: Cannot read property 'map' of undefined in CartCheckout.tsx:47"
+    description: "Bug report with stack trace"
+
+input_guardrails:
+  pii_filter:
+    enabled: true
+    mode: blocking
+  injection_detection:
+    enabled: true
+    threshold: 0.7
+  relevance_check:
+    enabled: true
+    reject_irrelevant: true

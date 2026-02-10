@@ -1,22 +1,35 @@
-# PRD: Hounfour Upstream Extraction — Multi-Model Provider Abstraction for Loa
+# PRD: Bug Mode — Lightweight Bug-Fixing Workflow for Loa
 
 **Version**: 1.1.0
 **Status**: Draft (revised per Flatline Protocol review)
 **Author**: Discovery Phase (plan-and-analyze)
-**Issue**: [loa-finn #31](https://github.com/0xHoneyJar/loa-finn/issues/31) (upstream extraction)
-**Date**: 2026-02-10
+**Issue**: [loa #278](https://github.com/0xHoneyJar/loa/issues/278)
+**Date**: 2026-02-11
 
 ---
 
 ## 1. Problem Statement
 
-Loa's multi-model integration is currently **ad-hoc and hardcoded**. The Flatline Protocol calls GPT-5.2 through direct API invocations in `gpt-review-api.sh` (850 lines), while `model-adapter.sh` (827 lines) contains a growing associative-array registry of providers, models, cost tables, and retry logic — all in bash. The skill schema (`skill-index.schema.json`) only supports `["sonnet", "opus", "haiku"]` as model options, locking skills to Anthropic.
+Loa's workflow enforces a full **PRD → SDD → Sprint Plan → Implement → Review → Audit** pipeline for every code change. This is correct for feature development but creates significant friction for the most common post-deployment activity: **fixing bugs**.
 
-Meanwhile, the complete solution already exists: **loa-finn has implemented Phases 0-5 of the Hounfour RFC** (loa-finn #31) — 40,170 lines across 229 files, covering provider abstraction (`cheval.py`), routing with fallback/downgrade chains, capability-based model selection, budget enforcement, circuit breakers, ensemble orchestration, and skill decomposition into model-agnostic `persona.md` files. This code works. It's been reviewed by Bridgebuilder (4 review rounds), cross-model reviewed by GPT-5.2 (42+ findings fixed), and tested with 578+ assertions.
+The real-world pattern (reported by zergucci in issue #278):
 
-**The gap**: None of these patterns are available in the upstream Loa framework. Any loa-powered project that isn't loa-finn gets zero multi-model capability. The ad-hoc bash integrations in `.claude/scripts/` will continue to accumulate complexity until they're replaced by the principled abstractions that loa-finn has already proven.
+1. User builds features with Loa's full workflow — works great
+2. User deploys and tests production code
+3. User discovers bugs (edge cases, runtime errors, logic issues)
+4. User invokes Loa to fix the bug
+5. **Loa demands full plan-and-analyze** — a PRD for a null pointer fix
+6. User bypasses Loa entirely and talks to "raw Claude"
+7. All quality gates (test-first, review, audit) are lost
 
-**Source**: [Hounfour RFC](https://github.com/0xHoneyJar/loa-finn/issues/31) handoff directions (comment `finn-analysis: rfc31-handoff-directions-2026-02-09`).
+**The gap**: There is no path between "full ceremony" and "no ceremony." The NEVER rules in `CLAUDE.loa.md` explicitly block writing application code outside `/implement`, and there's no configuration to bypass PRD/SDD for lightweight fixes. Users who need to fix bugs are forced to either:
+
+- **Option A**: Run the full 6-phase workflow for a one-line fix (30+ minutes of planning overhead)
+- **Option B**: Abandon Loa's quality gates entirely (lose test-first, review, and audit)
+
+Neither option is acceptable. Bug fixing needs its own workflow that's **lightweight on planning** but **preserves quality gates**.
+
+> Source: [Issue #278](https://github.com/0xHoneyJar/loa/issues/278), zergucci Discord transcript (2026-02-11)
 
 ## 2. Goals & Success Metrics
 
@@ -24,320 +37,449 @@ Meanwhile, the complete solution already exists: **loa-finn has implemented Phas
 
 | # | Goal | Measurable Outcome |
 |---|------|-------------------|
-| G1 | Replace ad-hoc bash model integration with principled provider abstraction | `model-adapter.sh` replaced by config-driven routing through `cheval.py` |
-| G2 | Make multi-model routing available to any loa-powered project | Config schema + default templates ship in `.claude/` System Zone |
-| G3 | Enable skill portability across model providers | Skills decomposed into `persona.md` (model-agnostic) + `SKILL.md` (native runtime) |
-| G4 | Unify Flatline Protocol model calls through the Hounfour router | `flatline-orchestrator.sh` and `gpt-review-api.sh` route through `model-invoke` |
-| G5 | Provide framework-level budget enforcement and cost visibility | JSONL cost ledger with `/cost-report` command |
+| G1 | Provide a lightweight bug-fixing workflow that skips PRD/SDD/Sprint Plan | `/bug` command goes from description to implementation in <2 minutes of triage |
+| G2 | Preserve all quality gates (test-first, review, audit) | Bug fixes go through implement → review → audit cycle, same as feature sprints |
+| G3 | Integrate with sprint lifecycle and beads task tracking | Bugs tracked as sprint tasks in beads, visible in ledger |
+| G4 | Support both interactive and autonomous execution | Interactive by default, `/run --bug` for autonomous batch fixing |
+| G5 | Use test-driven bug fixing (reproduce → fix → verify) | Every bug fix starts with a failing test, fix is validated by test passing |
 
 ### Success Metrics
 
 | # | Metric | Current | Target |
 |---|--------|---------|--------|
-| M1 | Model providers configurable per project | 2 (hardcoded Anthropic + OpenAI) | 4+ (any OpenAI-compatible) |
-| M2 | Skills with model-agnostic `persona.md` | 0/19 | 8+ core agents |
-| M3 | Skill schema model options | 3 (sonnet/opus/haiku) | Alias-based (any configured model) |
-| M4 | Ad-hoc API calls bypassing model adapter | 2 (gpt-review-api.sh, flatline-orchestrator.sh) | 0 |
-| M5 | Cost tracking granularity | Per-call in model-adapter.sh | Per-agent, per-model, per-sprint JSONL |
+| M1 | Time from bug report to implementation start | 30+ min (full planning) | <2 min (triage only) |
+| M2 | Bug fixes going through quality gates | ~0% (users bypass Loa) | 100% (review + audit enforced) |
+| M3 | Bug fixes with automated reproduction | Unknown (no tracking) | 100% (at least one automated check per fix) |
+| M4 | Sprint/beads traceability for bug fixes | 0% (bypassed) | 100% (ledger + beads tracked) |
 
 ## 3. User & Stakeholder Context
 
-### Primary Persona: Loa Framework User
+### Primary Persona: Loa Power User (zergucci)
 
-Developers who adopt Loa for their projects. Currently locked to Claude Code as the only model backend. They need the ability to configure alternative models for cost optimization, resilience, or capability matching — without modifying any `.claude/` files.
+Developers who use Loa's full workflow for feature development and are comfortable with `/run sprint-plan`, beads, and the implement/review/audit cycle. They deploy features, test in production, and need to fix bugs quickly **without leaving the Loa ecosystem**.
 
-### Secondary Persona: loa-finn Integration
+**Pain points**:
+- Full plan-and-analyze is overkill for bug fixes
+- After context compaction, Loa forgets sprint completion status
+- Resorting to "raw Claude" loses all quality gates and traceability
 
-loa-finn has built Hounfour as its runtime model layer. The upstream extraction creates a shared contract: Loa defines the schemas, defaults, and routing abstractions; loa-finn implements the runtime adapters. This prevents contract drift between the framework and its primary runtime.
+**Needs**:
+- Describe bug → Loa investigates → test-first fix → review → audit
+- Bugs tracked in beads with full lifecycle
+- Autonomous mode for batch bug fixing
 
-### Tertiary Persona: Construct Authors
+### Secondary Persona: Loa New User
 
-Developers building Loa Constructs (skill packs). Model-agnostic skills (`persona.md` + `output-schema.md`) enable constructs that work across any model provider, increasing the addressable user base.
+Developers exploring Loa who hit their first bug. The `/bug` truename provides a safe entry point that's less intimidating than the full workflow while still teaching Loa's quality culture (test-first, review gates).
 
 ## 4. Functional Requirements
 
-### FR-1: Configuration Schema v2 (MUST)
+### FR1: Bug Triage Phase (replaces PRD/SDD/Sprint Plan)
 
-Extend `.loa.config.yaml` with the Hounfour configuration schema. The schema defines providers, aliases, agent bindings, routing rules, and metering.
+The triage phase is a **hybrid interview**: accept free-form input first, then ask structured follow-ups for any gaps.
 
-**Key sections**:
-- `providers`: Registry of model providers with type, endpoint, auth, and per-model capabilities
-- `aliases`: Short names resolving to `provider:model-id` pairs (e.g., `reasoning: "moonshot:kimi-k2-thinking"`)
-- `agents`: Per-agent model binding with required capabilities
-- `routing`: Fallback chains (availability) and downgrade chains (cost)
-- `metering`: Budget enforcement with per-phase/sprint/project scoping
+#### FR1.0: Bug Eligibility Policy
 
-**Naming convention**: `provider:model-id` everywhere. Aliases are Loa-internal shorthand. Model IDs match the string sent to the provider API. Provider keys in config match provider keys in pricing.
+**CRITICAL**: `/bug` is strictly for defects, not features. The triage phase enforces eligibility before proceeding.
 
-**Precedence** (lowest → highest):
-1. System Zone defaults (`.claude/defaults/model-config.yaml`)
-2. Project config (`.loa.config.yaml`)
-3. Environment variables (`LOA_MODEL=...`) — opt-in only, limited to model alias override
-4. CLI override (`--model provider:model-id`)
+**Eligibility criteria** (at least one required):
+- References an **observed failure** (error message, crash, incorrect output)
+- Includes a **stack trace** or error log
+- Describes a **regression** from a known working baseline (version/commit)
+- References a **failing test** by name
 
-**Env var scope**: Only `LOA_MODEL` (alias override) and `LOA_PROVIDER_<NAME>_KEY` (auth) are recognized. Env vars cannot override routing, pricing, or agent bindings — those are project-level concerns that must be reproducible. Use `model-invoke --print-effective-config` to debug resolution.
+**Rejection criteria** (any one triggers escalation):
+- Request describes **new behavior** not previously implemented
+- No observable failure can be articulated
+- Triage cannot produce a **reproducible failing condition** within the triage phase
+- Request involves **architectural changes** to multiple systems
 
-**Debug command**: `model-invoke --print-effective-config` outputs the merged config with source annotations (which layer each value came from).
+**Escalation path**: If input fails eligibility, triage terminates with:
+> "This looks like a feature request, not a bug. Use `/plan` to start the full workflow."
 
-**Source**: Hounfour RFC §6.1-6.3, proven in loa-finn PR #36.
+The classification decision (accepted/rejected + reasoning) is logged in `triage.md` for audit trail.
 
-### FR-2: Provider Abstraction — `model-invoke` + `cheval.py` (MUST)
+#### FR1.1: Free-Form Input
 
-Ship the Hounfour adapter as a framework primitive:
+The user provides initial bug description in any format:
 
-- **`model-invoke`**: Shell wrapper in `.claude/scripts/` that delegates to `cheval.py`. Thin dispatcher — `exec python3 .claude/adapters/cheval.py "$@"`.
-- **`cheval.py`**: Python adapter core in `.claude/adapters/`. Handles config loading, variable interpolation (`{env:VAR}`, `{file:path}`), alias resolution, capability checking, request building (OpenAI-compatible wire format), response normalization, thinking trace extraction, and JSONL metering.
-
-**Ownership**: Loa upstream owns `cheval.py` as the **reference adapter implementation**. loa-finn may wrap it (HTTP sidecar via `cheval_server.py`) but the core request/response translation lives upstream. Bug fixes and security patches to provider wire format handling are made in Loa, not in downstream forks. The extraction principle ("ports upstream, adapters in loa-finn") applies to *runtime infrastructure* (Redis, sidecar lifecycle, JWT auth) — not to the adapter itself.
-
-**Execution modes**:
-- `native_runtime`: Agent runs inside Claude Code. `model-invoke` is NOT called. SKILL.md is loaded directly.
-- `remote_model`: Agent's persona is sent as system prompt to an HTTP-accessible model via `cheval.py`.
-
-**The adapter is stateless** — it never executes tools. Tool-call loops are owned by the orchestrator (loa-finn in server mode, or the calling agent in CLI mode).
-
-**Secret handling**:
-- `{env:VAR}` interpolation is restricted to keys matching `^LOA_` or provider-specific `^(OPENAI|ANTHROPIC|MOONSHOT)_API_KEY$`. All other env vars are rejected.
-- `{file:path}` is restricted to files under `.loa.config.d/` or paths explicitly allowlisted in config. Symlinks are never followed. File must be owned by current user with mode <= 0640.
-- Auth headers are NEVER logged, even at debug level. Error messages redact any value that was sourced from `{env:}` or `{file:}`.
-- Prompt/response content is NEVER written to the cost ledger. Only metadata (tokens, cost, timing, agent name) is recorded.
-
-**Provider compatibility**: The "OpenAI-compatible wire format" is defined as the subset of the OpenAI Chat Completions API that `cheval.py` supports, NOT the full API surface. Specifically: `messages` array, `model`, `temperature`, `max_tokens`, `tools` (function calling), `tool_choice`, and `stream`. Each provider adapter includes a conformance test suite with golden request/response fixtures. MVP supports 2 verified providers (OpenAI, Anthropic). Additional providers require passing the conformance test suite before being added to defaults.
-
-**Source**: Hounfour RFC §5.1-5.5, §7.1-7.2, proven in loa-finn PRs #36 and #39.
-
-### FR-3: Skill Decomposition for Portability (MUST)
-
-Decompose the 8 core agent skills into model-portable structure:
-
-```
-.claude/skills/<skill-name>/
-├── SKILL.md              # Claude Code native_runtime entry point (unchanged)
-├── persona.md            # Model-agnostic persona → system prompt for remote_model
-├── evaluation-criteria.md # What this agent evaluates (optional)
-└── output-schema.md      # Expected output format for validation (optional)
+```bash
+/bug "Login fails when email contains a + character"
+/bug "API returns 500 on empty cart checkout"
+/bug   # Interactive — prompts for description
 ```
 
-`remote_model` reads `persona.md` as system prompt + `output-schema.md` as formatting instruction. `native_runtime` uses `SKILL.md` which wraps everything. Zero breakage on the native path.
+Accepted input formats:
+- Plain text description
+- Error message / stack trace (paste)
+- GitHub issue reference (`/bug --from-issue 42`)
+- Test failure name (`/bug "test_checkout_empty_cart fails"`)
 
-**8 core agents to decompose**:
-1. `discovering-requirements` (plan-and-analyze)
-2. `designing-architecture` (architect)
-3. `planning-sprints` (sprint-plan)
-4. `implementing-tasks` (implement) — `native_runtime` only
-5. `reviewing-code` (review-sprint)
-6. `auditing-security` (audit-sprint)
-7. `translating-for-executives` (translate)
-8. `riding-codebase` (ride) — `native_runtime` only
+#### FR1.2: Structured Follow-Up
 
-**Source**: Hounfour RFC §5.6, implemented in loa-finn PR #36 (16 persona.md + output-schema.md files).
+After parsing the free-form input, Loa identifies gaps and asks targeted follow-ups. Maximum 3-5 questions covering:
 
-### FR-4: Default Provider & Pricing Templates (MUST)
+| Field | Question If Missing | Priority |
+|-------|-------------------|----------|
+| Reproduction steps | "How do you trigger this bug?" | Required |
+| Expected vs actual behavior | "What should happen vs what happens?" | Required |
+| Severity | "Is this blocking production?" | Required |
+| Affected area | "Which part of the codebase?" | Optional (Loa can analyze) |
+| Environment | "Local, staging, or production?" | Optional |
 
-Ship sensible defaults that work out-of-the-box:
+#### FR1.3: Codebase Analysis
 
-- `.claude/defaults/model-config.yaml`: Default provider registry (claude-code, openai, moonshot, qwen-local), default aliases, default agent bindings, default pricing
-- Config schema validation via JSON Schema in `.claude/schemas/model-config.schema.json`
+After triage, Loa performs targeted codebase analysis:
 
-**Default agent bindings** (conservative profile — maximize quality):
-```yaml
-implementing-tasks:          { model: native, requires: { native_runtime: true } }
-designing-architecture:      { model: native }
-reviewing-code:              { model: reviewer, temperature: 0.3 }
-flatline-challenger:         { model: reasoning, requires: { thinking_traces: required } }
-translating-for-executives:  { model: cheap }
+1. **Error trace analysis**: Parse stack traces to locate source files
+2. **Keyword search**: Search codebase for relevant functions/modules
+3. **Dependency mapping**: Identify related files that may need changes
+4. **Test discovery**: Find existing tests for the affected area
+
+Output: A structured **bug analysis** document (not a PRD) containing:
+- Bug classification (runtime error, logic bug, edge case, integration issue)
+- Affected files with line references
+- Existing test coverage assessment
+- Proposed fix strategy
+
+#### FR1.3.1: Triage→Implement Handoff Contract
+
+The triage phase produces a structured handoff document (`triage.md`) with **required fields** that the implement phase consumes:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `bug_id` | Yes | Stable identifier (timestamp + short hash) |
+| `title` | Yes | One-line summary |
+| `classification` | Yes | `runtime_error` \| `logic_bug` \| `edge_case` \| `integration_issue` \| `regression` |
+| `reproduction_steps` | Yes | Numbered steps to trigger the bug |
+| `expected_behavior` | Yes | What should happen |
+| `actual_behavior` | Yes | What actually happens |
+| `suspected_files` | Yes | List of files with line references |
+| `test_target` | Yes | What the failing test should assert |
+| `test_type` | Yes | `unit` \| `integration` \| `e2e` \| `contract` (see FR2) |
+| `severity` | Yes | `critical` \| `high` \| `medium` \| `low` |
+| `environment` | No | Where the bug was observed |
+| `constraints` | No | Areas that must NOT be modified |
+| `related_tests` | No | Existing tests in the affected area |
+
+If the implement phase receives a `triage.md` missing required fields, it halts with an error and returns to triage.
+
+#### FR1.4: Sprint Integration
+
+After triage completes:
+
+| Scenario | Action |
+|----------|--------|
+| Active sprint exists | Add bug as priority task to current sprint's task list |
+| No active sprint | Create a **micro-sprint** with a single bug-fix task |
+
+**Active Sprint Integration Rules**:
+- Bug task is **prepended** to the task queue (not appended) — bugs are priority
+- Bug task gets its own **branch** (`bugfix/{bug_id}`) even within an active sprint
+- Review/audit of the bug fix is **scoped to the bug task only**, not the entire sprint
+- Active sprint progress is **paused** during bug fix, then resumed
+- If the active sprint is mid-review or mid-audit, the bug fix creates a separate review/audit pass
+
+**Micro-sprint** structure:
+- Minimal `grimoires/loa/sprint.md` with one task
+- Registered in Sprint Ledger as a full cycle (type: `bugfix`)
+- Single beads task created (if beads available)
+- Branch: `bugfix/{bug_id}` (not `feature/`)
+
+**Micro-sprint Lifecycle**:
+
+| State | Condition | Marker |
+|-------|-----------|--------|
+| Created | Triage completes, sprint.md written | `triage.md` exists |
+| In Progress | `/implement` begins | beads task `in_progress` |
+| Review | Implementation complete | `reviewer.md` exists |
+| Audit | Review passes | `auditor-sprint-feedback.md` exists |
+| Completed | Audit passes | `COMPLETED` marker created |
+
+**Naming convention**: `sprint-bug-{NNN}` where NNN is a global counter from the Sprint Ledger.
+
+**Interaction with active sprints**: A micro-sprint is **independent** — it has its own review/audit cycle, its own COMPLETED marker, and its own ledger entry. It does not block or modify the active feature sprint.
+
+### FR2: Test-First Execution
+
+Bug mode enforces **test-driven debugging** (zergucci's core request). Test-first is **non-negotiable** — there is no degraded "fix-only" mode.
+
+1. **Write failing test**: Create a test that reproduces the bug
+2. **Verify test fails**: Run the test to confirm it captures the bug
+3. **Implement fix**: Modify source code to fix the root cause
+4. **Verify test passes**: Run the test to confirm the fix works
+5. **Run full test suite**: Ensure no regressions
+
+This is delegated to `/implement` with a `--bug` context flag that instructs the implementing skill to follow the test-first protocol.
+
+#### FR2.1: Acceptable Test Types
+
+The triage phase determines the appropriate test type based on bug classification:
+
+| Test Type | When To Use | Example |
+|-----------|-------------|---------|
+| **Unit test** | Isolated logic bugs, pure function errors | Wrong calculation, bad parsing |
+| **Integration test** | Cross-module failures, API contract violations | Service A calls Service B incorrectly |
+| **E2E test** | User-facing workflow failures | Checkout flow breaks on edge case |
+| **Contract test** | API response format changes, schema drift | Endpoint returns unexpected shape |
+
+**Hierarchy of evidence** (minimum requirement):
+1. At least one **automated test** that reproduces the bug (any type from above)
+2. Plus a **documented reproduction script** in `triage.md` (human-readable steps)
+
+**If no test infrastructure exists**: Bug mode halts during triage with:
+> "No test runner detected. Set up test infrastructure before using /bug. See your framework's testing guide."
+
+This is not a soft warning — test-first is a hard requirement. Projects without tests should use `/plan` to set up testing as a feature first.
+
+### FR3: Quality Gates (Review + Audit)
+
+After implementation, the standard quality gates execute:
+
+1. **`/review-sprint`**: Code review of the bug fix
+   - Verifies test adequately captures the bug
+   - Checks fix doesn't introduce new issues
+   - Validates fix addresses root cause (not just symptoms)
+
+2. **`/audit-sprint`**: Security and quality audit
+   - Standard audit checklist
+   - Creates `COMPLETED` marker on approval
+
+This reuses existing skill infrastructure — no new review/audit skills needed.
+
+### FR4: Autonomous Mode
+
+Bug mode supports autonomous execution through `/run`:
+
+```bash
+# Fix a single bug autonomously
+/run --bug "Login fails with + in email"
+
+# Fix bug from GitHub issue autonomously
+/run --bug --from-issue 42
 ```
 
-**Source**: Hounfour RFC Appendix A, proven in loa-finn.
+Autonomous mode follows the same circuit breaker rules as sprint execution:
+- Same Issue: 3 cycles max
+- No Progress: 5 cycles max
+- Cycle Limit: 10 (reduced from 20 for bug scope)
+- Timeout: 2 hours (reduced from 8 for bug scope)
 
-### FR-5: Flatline Protocol Unification (SHOULD)
+**Human checkpoint requirement**: Autonomous mode creates a **draft PR** but does NOT mark it as ready for merge. The PR enters a `ready-for-human-review` state where the user must:
+1. Review the fix, test, and audit artifacts
+2. Explicitly approve (convert draft → ready)
 
-Refactor the Flatline Protocol to route all model calls through `model-invoke` / `cheval.py` instead of making direct API calls:
+**Confidence signals** included in the PR description:
+- Reproduction strength: How reliably the test reproduces the bug
+- Test type used (unit/integration/e2e/contract)
+- Files touched and lines changed
+- Risk level: `low` (isolated change) / `medium` (cross-module) / `high` (auth, payments, data)
 
-- `flatline-orchestrator.sh` calls `model-invoke` with agent name + prompt file
-- `gpt-review-api.sh` calls `model-invoke` instead of direct `curl` to OpenAI
-- `model-adapter.sh` (827 lines) becomes a thin compatibility shim that delegates to `model-invoke`, then is deprecated
+**High-risk area blocking**: For bugs in sensitive areas (authentication, payments, data migrations, encryption), autonomous mode requires explicit user opt-in via `--allow-high`. Without it, autonomous mode halts after triage with:
+> "Bug is in a high-risk area ({area}). Use `/run --bug --allow-high` to proceed autonomously, or fix interactively with `/bug`."
 
-This eliminates the duplicate model registry (bash associative arrays vs. YAML config), duplicate retry logic, and duplicate cost tracking.
+### FR5: Artifact Trail
 
-**Source**: Hounfour RFC §14 Phase 1, proven in loa-finn PR #36.
+Bug mode creates a traceable artifact trail:
 
-### FR-6: Cost Ledger & `/cost-report` Command (SHOULD)
-
-Implement framework-level cost tracking:
-
-- Every `cheval.py` invocation appends one JSONL line to the cost ledger (default: `grimoires/loa/a2a/cost-ledger.jsonl`)
-- Fields: `ts`, `trace_id`, `request_id`, `agent`, `provider`, `model`, `tokens_in`, `tokens_out`, `tokens_reasoning`, `latency_ms`, `cost_micro_usd`, `phase_id`, `sprint_id`
-- `/cost-report` command reads the ledger and generates a markdown summary with per-agent, per-model, and per-provider breakdowns
-
-**Concurrency safety**: Ledger writes use atomic append (write to temp file + `os.rename()` to final path with `.{pid}.tmp` suffix, then append to ledger under `fcntl.flock(LOCK_EX)` on Unix). On platforms without `flock`, fall back to per-process temp files merged by `/cost-report`. Corrupted lines (incomplete JSON) are silently skipped during reads with a warning counter.
-
-**Cost calculation**:
-- All costs are tracked in **micro-USD** (1 USD = 1,000,000 micro-USD) using integer arithmetic only — no floating point in the cost path. This matches loa-finn's proven approach.
-- **Enforcement point**: Pre-call budget check (estimate based on `max_tokens` × output price + prompt token count × input price). Post-call reconciliation updates the actual cost. If post-call actual exceeds pre-call estimate by >20%, a warning is logged.
-- **Retry accounting**: Each retry is a separate ledger entry with the same `trace_id` but different `request_id`. Budget enforcement counts all entries for a trace.
-- **Missing usage fields**: If provider returns no token counts, cost is estimated from `max_tokens` config (worst case). A `usage_source: "estimated"` field is added to the ledger entry.
-- **Unknown pricing**: If no pricing entry exists for a model, cost is recorded as `0` with `pricing_source: "unknown"`. A warning is logged. Budget enforcement treats unknown-cost calls as zero (permissive) — the alternative (blocking) would break new provider onboarding.
-
-**Source**: Hounfour RFC §9, proven in loa-finn PRs #36 and #39.
-
-### FR-7: Routing — Fallback & Downgrade Chains (SHOULD)
-
-Config-driven routing for resilience and cost optimization:
-
-- **Fallback** (availability): Provider is down → walk fallback chain, skip entries that don't satisfy agent's `requires` capabilities
-- **Downgrade** (cost): Budget exceeded → walk downgrade chain to cheaper model
-- **Health checks**: Provider-specific probes with circuit breaker (CLOSED → OPEN → HALF_OPEN)
-
-Resolution algorithm is deterministic: config-driven, capability-filtered, no randomness.
-
-**Source**: Hounfour RFC §6.4, proven in loa-finn PR #36 (`walkChain()` with cycle detection).
-
-### FR-8: Skill Schema Update (MUST)
-
-Update `.claude/schemas/skill-index.schema.json` to support alias-based model specification:
-
-```json
-"model": {
-  "type": "string",
-  "description": "Model alias or provider:model-id for this skill. Resolves through the Hounfour provider registry."
-}
+```
+grimoires/loa/a2a/bug-{id}/
+├── triage.md              # Bug analysis from triage phase (handoff contract)
+├── reviewer.md            # Review findings
+├── auditor-sprint-feedback.md  # Audit findings
+└── COMPLETED              # Completion marker
 ```
 
-Remove the hardcoded `enum: ["sonnet", "opus", "haiku"]` — any configured alias or `provider:model-id` is valid.
+**ID scheme**: `{timestamp}-{short_hash}` (e.g., `20260211-a3f2b1`). The timestamp is `YYYYMMDD` and the short hash is 6 hex characters derived from the bug title + timestamp. This ensures:
+- **Uniqueness**: No collisions even for same-titled bugs on different days
+- **Stability**: ID doesn't change if title is edited
+- **Safety**: No user-provided text in filesystem paths (human-readable title stored inside `triage.md`)
+- **Sortability**: Chronological ordering by directory name
 
-**Source**: Hounfour RFC §5.4, current schema limitation.
+If `--from-issue N` is used, the ID also includes the issue number: `20260211-i42-a3f2b1`.
+
+### FR6: Process Compliance Amendment
+
+The NEVER rule "NEVER skip from sprint plan directly to implementation" must be amended to allow bug mode's lightweight path:
+
+**Current**: Code cannot be written without a sprint plan created by `/sprint-plan`
+**Amended**: Code cannot be written without either (a) a sprint plan from `/sprint-plan`, OR (b) a bug triage from `/bug`
+
+This is the **only** process compliance change. All other NEVER/ALWAYS rules remain intact.
 
 ## 5. Technical & Non-Functional Requirements
 
-### NFR-1: Zero Breaking Changes on Native Path
+### TNF1: New Skill — `bug-triage`
 
-All existing skills continue to work exactly as they do today when running in Claude Code (`native_runtime` mode). The `SKILL.md` files are unchanged. Model routing only activates when the resolved agent binding points to a `remote_model` provider.
+A new skill directory at `.claude/skills/bug-triage/`:
 
-### NFR-2: Python Dependency Management
+| File | Purpose |
+|------|---------|
+| `index.yaml` | Metadata: `danger_level: moderate`, `effort_hint: medium`, `categories: [quality, debugging]` |
+| `SKILL.md` | Triage workflow: input parsing, gap analysis, codebase analysis, sprint integration |
+| `resources/templates/triage.md` | Template for bug analysis document |
 
-`cheval.py` requires `httpx` and `pyyaml`. These are installed via `.claude/adapters/requirements.txt`. The adapter gracefully degrades to `urllib.request` (stdlib) if `httpx` is not available.
+**Triggers**: `/bug`, `debug bug`, `fix bug`, `bug report`
 
-### NFR-3: Three-Zone Model Compliance
+### TNF2: Run Mode Extension
 
-- **System Zone** (`.claude/`): Config schema, default templates, adapters, `model-invoke` wrapper — all framework-managed
-- **State Zone** (`grimoires/`): Cost ledger, metering data — user-writable
-- **App Zone** (`src/`, `lib/`): Unaffected
+Extend `.claude/skills/run-mode/SKILL.md` to support `--bug` flag:
 
-### NFR-4: Backward Compatibility
+- New entry point: `/run --bug "description"`
+- Reduced circuit breaker limits (10 cycles, 2h timeout)
+- Single-sprint loop: triage → implement → review → audit
+- Same ICE git safety, draft PR creation, post-PR validation
 
-- Existing `.loa.config.yaml` files without Hounfour sections continue to work (defaults applied)
-- `model-adapter.sh` remains as a compatibility shim during transition
-- Skills without `persona.md` default to `SKILL.md` as system prompt for `remote_model`
+### TNF3: Sprint Ledger Integration
 
-### NFR-5: Performance
+Micro-sprints registered in `grimoires/loa/ledger.json`:
 
-- `cheval.py` config loading: < 100ms (cached after first load)
-- No additional latency on `native_runtime` path (model routing is a config lookup, not an API call)
-- Cost ledger append: < 10ms per entry (JSONL append with `flock` — see FR-6 concurrency safety)
+```json
+{
+  "type": "bugfix",
+  "label": "Bug: Login fails with + in email",
+  "sprints": ["sprint-bug-1"],
+  "source_issue": "#42"
+}
+```
+
+### TNF4: Beads Integration
+
+If beads_rust (`br`) is available:
+
+- Create task from triage output: `br create "Fix: {bug_title}" --label bug`
+- Track lifecycle: `br update {id} --status in_progress` → `br close {id}`
+- Link to parent sprint if adding to existing sprint
+
+### TNF5: Golden Path Awareness
+
+While `/bug` is a truename (not a golden path command), the golden path should be **aware** of it:
+
+- `/loa` status should show active bug fixes
+- `/build` should not conflict with active bug micro-sprints
+- `golden-path.sh` state detection should recognize bug cycles
+
+### TNF6: Performance
+
+| Metric | Target |
+|--------|--------|
+| Triage phase completion | <2 minutes (with follow-ups) |
+| Total bug fix cycle (interactive) | <15 minutes for simple bugs |
+| Total bug fix cycle (autonomous) | <30 minutes including review + audit |
 
 ## 6. Scope & Prioritization
 
-### MVP (This Cycle)
+### MVP (Sprint 1)
 
-1. **Configuration schema v2** — Hounfour config sections in `.loa.config.yaml` (FR-1)
-2. **`cheval.py` + `model-invoke`** — Provider adapter shipped in `.claude/adapters/` (FR-2)
-3. **Skill decomposition** — `persona.md` for 8 core agents (FR-3)
-4. **Default templates** — `.claude/defaults/model-config.yaml` (FR-4)
-5. **Skill schema update** — Remove hardcoded model enum (FR-8)
+| # | Feature | Priority |
+|---|---------|----------|
+| 1 | `/bug` command with hybrid triage | P0 |
+| 2 | Micro-sprint creation (when no active sprint) | P0 |
+| 3 | Test-first execution via `/implement --bug` | P0 |
+| 4 | Review + audit gates (reuse existing) | P0 |
+| 5 | Artifact trail in `grimoires/loa/a2a/bug-{id}/` | P0 |
+| 6 | Process compliance amendment | P0 |
+| 7 | Beads integration | P1 |
 
-### Stretch
+### Sprint 2
 
-6. **Flatline unification** — Route Flatline through `model-invoke` (FR-5)
-7. **Cost ledger** — JSONL metering + `/cost-report` (FR-6)
-8. **Routing chains** — Fallback + downgrade + health checks (FR-7)
+| # | Feature | Priority |
+|---|---------|----------|
+| 1 | Autonomous mode (`/run --bug`) | P0 |
+| 2 | Sprint Ledger integration (bugfix cycle type) | P0 |
+| 3 | `--from-issue` GitHub issue intake | P1 |
+| 4 | Golden path awareness (`/loa` shows bug status) | P1 |
 
 ### Out of Scope
 
-- **loa-finn runtime changes** — loa-finn already has its Hounfour implementation; this PRD is about upstream extraction only
-- **Arrakis distribution layer** — Tenant isolation, JWT auth, per-NFT routing remain in arrakis
-- **Redis-backed state** — Server-side scaling concerns stay in loa-finn
-- **Streaming support** — SSE/streaming is a runtime concern, not a framework concern
-- **NativeRuntimeAdapter** — Claude Code as `remote_model` via Anthropic API remains in loa-finn
+| Feature | Reason |
+|---------|--------|
+| Bug mode as golden path command | Keeps 5-command golden path pristine; truename for power users |
+| Automated bug detection | Bug mode is reactive (user reports bug), not proactive |
+| Multi-bug batch triage | One bug per `/bug` invocation; use `/run --bug` for sequential autonomous fixes |
+| Integration with external bug trackers (Jira, Linear) | Future consideration; GitHub issues via `--from-issue` is sufficient for MVP |
 
 ## 7. Risks & Dependencies
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| Python not available on all systems | Low | High | `cheval.py` falls back to stdlib `urllib`; document Python 3.8+ requirement |
-| Config schema breaks existing `.loa.config.yaml` | Low | High | New sections are additive; existing configs work unchanged via defaults |
-| `persona.md` quality varies across models | Medium | Medium | Ship fidelity test fixtures (golden inputs with structural assertions) per Bridgebuilder Finding #7 |
-| Flatline refactor breaks cross-model review | Medium | High | Keep `model-adapter.sh` as shim during transition; feature flag for new path |
-| `model-invoke` adds latency to Flatline | Low | Low | Python cold start ~200ms; config cached after first load |
+### Risks
+
+| # | Risk | Impact | Mitigation |
+|---|------|--------|------------|
+| R1 | Process compliance amendment creates a "loophole" for bypassing planning | Users might use `/bug` for features to skip PRD | Strict bug eligibility policy (FR1.0): must reference observed failure, regression, or stack trace. Classification logged in triage.md. Escalation to `/plan` if not a bug. |
+| R2 | Micro-sprints pollute the Sprint Ledger | Ledger fills with single-task cycles | Ledger type field (`bugfix` vs `feature`) enables filtering. `/ledger` shows counts by type. |
+| R3 | Test-first enforcement blocks codebases without test infrastructure | Bug mode halts if project has no test runner | Triage detects missing test infrastructure and halts with guidance to set up tests via `/plan`. No degraded fix-only mode — test-first is non-negotiable. |
+| R4 | Autonomous bug fixing may loop on hard-to-reproduce bugs | Circuit breaker triggers, wasting compute | Reduced limits (10 cycles, 2h) and enhanced circuit breaker: detect "flaky test" patterns and halt early. |
+| R5 | Autonomous mode produces incorrect fixes without human verification | Wrong patch merged with a misleading test | Draft PR with `ready-for-human-review` state. Confidence signals in PR description. High-risk areas require `--allow-high` opt-in. |
 
 ### Dependencies
 
-| Dependency | Status | Notes |
-|-----------|--------|-------|
-| Hounfour RFC (loa-finn #31) | Complete (Phases 0-5) | 40,170 lines across 4 PRs |
-| `cheval.py` reference implementation | Available | loa-finn `src/hounfour/` + `.claude/adapters/cheval.py` |
-| Persona files (8 agents) | Available | loa-finn `.claude/skills/*/persona.md` |
-| Config schema | Available | Hounfour RFC §6.3 |
-| Skill index schema | In `.claude/schemas/` | Needs model enum update |
+| # | Dependency | Type | Status |
+|---|-----------|------|--------|
+| D1 | Existing `/implement` skill | Reuse | Available |
+| D2 | Existing `/review-sprint` skill | Reuse | Available |
+| D3 | Existing `/audit-sprint` skill | Reuse | Available |
+| D4 | Existing `/run` mode infrastructure | Extend | Available |
+| D5 | Sprint Ledger (`grimoires/loa/ledger.json`) | Extend | Available |
+| D6 | beads_rust (`br`) | Optional integration | Available where installed |
+| D7 | Process compliance rules in `CLAUDE.loa.md` | Amendment needed | Controlled by framework |
 
-## 8. Implementation Hints
+## 8. User Stories
 
-### Extraction Principle: Ports Go Upstream, Adapters Stay in loa-finn
+### US1: Interactive Bug Fix (Primary Flow)
 
-The key design principle from the RFC handoff: Loa upstream gets the **interfaces and routing logic**. loa-finn keeps the **runtime implementations**.
+**As a** Loa power user,
+**I want to** describe a bug and have Loa investigate, write a test, fix it, and review it,
+**So that** I can fix production bugs quickly without losing quality gates.
 
-| Goes to Loa upstream | Stays in loa-finn |
-|---------------------|-------------------|
-| `cheval.py` reference adapter (owned upstream) | `cheval_server.py` HTTP sidecar wrapper |
-| `ModelPort` interface (as documentation) | `NativeRuntimeAdapter` implementation |
-| `BudgetEnforcer` interface | `RedisBudgetEnforcer` implementation |
-| `ProviderRegistry` + routing logic | Redis state backend |
-| `walkChain()` fallback logic | Sidecar manager |
-| `EnsembleOrchestrator` pattern | `UsageReporter` (arrakis-specific) |
-| `calculateCostMicro()` integer arithmetic | JWT auth (arrakis-specific) |
-| `HounfourError` types | BYOK proxy client |
-| Persona loader | Gateway/stream-bridge |
-| Provider conformance test fixtures | Streaming transport (SSE consumer) |
+**Acceptance Criteria**:
+- `/bug "description"` triggers eligibility check then hybrid triage (<2 min)
+- Feature-shaped requests are rejected with escalation to `/plan`
+- Codebase analysis identifies affected files
+- Triage produces complete handoff contract (all required fields in triage.md)
+- Appropriate test type selected based on bug classification
+- Failing test written before fix attempted
+- Fix validated by test passing
+- `/review-sprint` and `/audit-sprint` execute
+- Artifacts saved to `grimoires/loa/a2a/bug-{timestamp}-{hash}/`
 
-### Key Files to Create
+### US2: Bug Fix During Active Sprint
 
-| File | Description |
-|------|------------|
-| `.claude/adapters/cheval.py` | Python adapter core (extract from loa-finn) |
-| `.claude/adapters/requirements.txt` | `httpx`, `pyyaml` |
-| `.claude/scripts/model-invoke` | Shell wrapper → `exec python3 .claude/adapters/cheval.py "$@"` |
-| `.claude/defaults/model-config.yaml` | Default provider/pricing/agent templates |
-| `.claude/schemas/model-config.schema.json` | JSON Schema for config validation |
-| `.claude/protocols/model-routing.md` | Human-readable routing spec |
-| `.claude/scripts/cost-report.sh` | JSONL ledger → markdown summary |
+**As a** developer mid-sprint,
+**I want to** fix a production bug without derailing my current sprint,
+**So that** the bug is tracked alongside sprint work.
 
-### Key Files to Modify
+**Acceptance Criteria**:
+- `/bug` detects active sprint and adds bug as priority task
+- Bug task is trackable in beads alongside sprint tasks
+- Review/audit covers bug fix as part of sprint review
+- Sprint completion not blocked by bug task completion
 
-| File | Change |
-|------|--------|
-| `.loa.config.yaml.example` | Add Hounfour config sections |
-| `.claude/schemas/skill-index.schema.json` | Replace model enum with string |
-| `.claude/scripts/flatline-orchestrator.sh` | Route through `model-invoke` |
-| `.claude/scripts/gpt-review-api.sh` | Route through `model-invoke` |
-| `.claude/scripts/model-adapter.sh` | Become shim → `model-invoke` |
-| `.claude/skills/*/` (8 agents) | Add `persona.md` + `output-schema.md` |
+### US3: Autonomous Bug Fix
 
-### Source Files in loa-finn
+**As a** developer with a known bug,
+**I want to** kick off an autonomous fix cycle and walk away,
+**So that** the bug is fixed, tested, reviewed, and ready for my PR review.
 
-All extraction source code lives at `/home/merlin/Documents/thj/code/loa-finn/src/hounfour/`:
+**Acceptance Criteria**:
+- `/run --bug "description"` runs triage → implement → review → audit autonomously
+- Circuit breaker halts on stuck bugs (10 cycles, 2h timeout)
+- Draft PR created in `ready-for-human-review` state (not auto-merged)
+- PR includes confidence signals (reproduction strength, test type, risk level)
+- High-risk areas (auth, payments, data) blocked unless `--allow-high` flag used
+- ICE git safety prevents push to protected branches
 
-| loa-finn Source | What to Extract |
-|----------------|-----------------|
-| `registry.ts` | `ProviderRegistry`, alias resolution, capability validation |
-| `router.ts` | `walkChain()` fallback/downgrade, `resolveExecution()` |
-| `types.ts` | `ModelPortBase`, `CompletionRequest/Result`, `ModelCapabilities` |
-| `budget.ts` | `BudgetEnforcer` interface |
-| `health.ts` | Circuit breaker port + health check contract |
-| `pricing.ts` | `calculateCostMicro()` integer arithmetic |
-| `ensemble.ts` | `EnsembleOrchestrator` with merge strategies |
-| `pool-registry.ts` | `PoolRegistry` with tier authorization |
-| `errors.ts` | `HounfourError`, error code union type |
+### US4: Bug Fix from GitHub Issue
+
+**As a** developer triaging GitHub issues,
+**I want to** feed a GitHub issue directly into bug mode,
+**So that** issue context (title, body, comments) informs the triage.
+
+**Acceptance Criteria**:
+- `/bug --from-issue 42` fetches issue via `gh issue view`
+- Issue title, body, and comments parsed as triage input
+- Follow-up questions only for gaps not covered by issue
 
 ---
 
-*Generated from loa-finn Issue #31 (Hounfour RFC) handoff directions via /plan-and-analyze. Codebase grounded against model-adapter.sh (827 lines), gpt-review-api.sh (850 lines), flatline-orchestrator.sh (929 lines), skill-index.schema.json, and loa-finn Hounfour source (229 files, 40,170 lines).*
+*Generated by Loa plan-and-analyze from Issue #278 (zergucci) with codebase grounding.*
+*Revised per Flatline Protocol review: 3 HIGH_CONSENSUS auto-integrated, 1 DISPUTED resolved (remove fix-only mode), 5 BLOCKERS addressed (eligibility policy, test hierarchy, micro-sprint lifecycle, safe IDs, human checkpoint).*

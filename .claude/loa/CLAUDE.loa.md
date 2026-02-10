@@ -150,7 +150,7 @@ paths:
 | 5.5 | `/audit-sprint sprint-N` | Approval |
 | 6 | `/deploy-production` | Infrastructure |
 
-**Ad-hoc**: `/audit`, `/translate`, `/validate`, `/feedback`, `/compound`, `/enhance`, `/flatline-review`, `/update-loa`, `/loa`
+**Ad-hoc**: `/audit`, `/bug`, `/translate`, `/validate`, `/feedback`, `/compound`, `/enhance`, `/flatline-review`, `/update-loa`, `/loa`
 
 **Run Mode**: `/run sprint-N`, `/run sprint-plan`, `/run-status`, `/run-halt`, `/run-resume`
 
@@ -169,23 +169,25 @@ paths:
 
 | Rule | Why |
 |------|-----|
-<!-- @constraint-generated: start process_compliance_never | hash:e3d8e87823f0d4cc -->
+<!-- @constraint-generated: start process_compliance_never | hash:updated-bug-mode-278 -->
 <!-- DO NOT EDIT — generated from .claude/data/constraints.json -->
 | NEVER write application code outside of `/implement` skill invocation | Code written outside `/implement` bypasses review and audit gates |
 | NEVER use Claude's `TaskCreate`/`TaskUpdate` for sprint task tracking when beads (`br`) is available | Beads is the single source of truth for task lifecycle; TaskCreate is for session progress display only |
-| NEVER skip from sprint plan directly to implementation without `/run sprint-plan` or `/run sprint-N` | `/run` wraps implement+review+audit in a cycle loop with circuit breaker |
+| NEVER skip from sprint plan directly to implementation without `/run sprint-plan`, `/run sprint-N`, or `/bug` triage | `/run` wraps implement+review+audit in a cycle loop with circuit breaker. `/bug` produces a triage handoff that feeds directly into `/implement`. |
 | NEVER skip `/review-sprint` and `/audit-sprint` quality gates | These are the only validation that code meets acceptance criteria and security standards |
+| NEVER use `/bug` for feature work that doesn't reference an observed failure | `/bug` bypasses PRD/SDD gates; feature work must go through `/plan` |
 <!-- @constraint-generated: end process_compliance_never -->
 ### ALWAYS Rules
 
 | Rule | Why |
 |------|-----|
-<!-- @constraint-generated: start process_compliance_always | hash:c5aaf9a14fb386c7 -->
+<!-- @constraint-generated: start process_compliance_always | hash:updated-bug-mode-278 -->
 <!-- DO NOT EDIT — generated from .claude/data/constraints.json -->
-| ALWAYS use `/run sprint-plan` or `/run sprint-N` for implementation | Ensures review+audit cycle with circuit breaker protection |
+| ALWAYS use `/run sprint-plan`, `/run sprint-N`, or `/bug` for implementation | Ensures review+audit cycle with circuit breaker protection. `/bug` enforces the same cycle for bug fixes. |
 | ALWAYS create beads tasks from sprint plan before implementation (if beads available) | Tasks without beads tracking are invisible to cross-session recovery |
 | ALWAYS complete the full implement → review → audit cycle | Partial cycles leave unreviewed code in the codebase |
 | ALWAYS check for existing sprint plan before writing code | Prevents ad-hoc implementation without requirements traceability |
+| ALWAYS validate bug eligibility before `/bug` implementation | Prevents feature work from bypassing PRD/SDD gates via `/bug` |
 <!-- @constraint-generated: end process_compliance_always -->
 ### Task Tracking Hierarchy
 
@@ -428,7 +430,7 @@ Pre-execution validation for skill invocations based on OpenAI's "A Practical Gu
 
 **Skills by danger level** (synced with index.yaml 2026-02-06):
 - `safe`: continuous-learning, enhancing-prompts, flatline-knowledge, mounting-framework, translating-for-executives, browsing-constructs
-- `moderate`: discovering-requirements, designing-architecture, planning-sprints, implementing-tasks, reviewing-code, riding-codebase, simstim-workflow
+- `moderate`: bug-triaging, discovering-requirements, designing-architecture, planning-sprints, implementing-tasks, reviewing-code, riding-codebase, simstim-workflow
 - `high`: auditing-security, deploying-infrastructure, run-mode
 - `critical`: autonomous-agent
 
