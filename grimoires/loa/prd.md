@@ -1,7 +1,7 @@
 # PRD: /ride Persistent Artifacts & Context-Aware Invocation
 
-**Version**: 1.0.0
-**Status**: Draft
+**Version**: 1.0.1
+**Status**: Draft (revised per PR #272 Bridgebuilder review)
 **Author**: Discovery Phase (plan-and-analyze)
 **Issue**: [#270](https://github.com/0xHoneyJar/loa/issues/270)
 **Date**: 2026-02-10
@@ -28,14 +28,14 @@ This creates two downstream failures:
 |---|------|--------------------|
 | G1 | Artifacts persist after `/ride` completes | All 5 report files exist on disk after invocation |
 | G2 | `/translate-ride` works end-to-end | Translation produces EXECUTIVE-INDEX.md from ride artifacts |
-| G3 | Context-aware invocation | Direct call = full artifacts; internal call = lightweight mode |
+| G3 | Context-aware invocation (deferred) | `/plan-and-analyze` handles staleness externally; `/ride` always runs full |
 | G4 | Architecture grounding available | Other agents can load ride-produced architecture context |
 
 ### Success Metrics
 
 - **M1**: `/ride` → `ls grimoires/loa/drift-report.md` returns file (currently fails)
 - **M2**: `/ride` → `/translate-ride` → `grimoires/loa/translations/EXECUTIVE-INDEX.md` exists (currently blocked)
-- **M3**: `/plan-and-analyze` internal `/ride` call completes in <5 minutes (lightweight mode)
+- **M3**: `/plan-and-analyze` staleness check skips `/ride` when artifacts are fresh (deferred — FR-2)
 - **M4**: Full `/ride` direct invocation completes all 10 phases with file persistence
 
 ## 3. User & Stakeholder Context
@@ -66,9 +66,11 @@ These paths are already defined in `SKILL.md` — the requirement is that they a
 
 **Additionally**, the existing Phase 6 artifacts (PRD, SDD) and Phase 6.5 artifacts (reality files) must also be persisted as already specified in SKILL.md.
 
-### FR-2: Context-Aware Invocation Mode (MUST)
+### FR-2: Context-Aware Invocation Mode (SHOULD — deferred)
 
-`/ride` must detect its invocation context and select the appropriate mode:
+> **Deferred rationale (v1.0.1)**: The SDD §4.3.2 "Practical Mode Detection" analysis concluded that `/ride` should always run FULL mode when invoked. The lightweight behavior is already achieved by `/plan-and-analyze` not invoking `/ride` at all when artifacts are fresh (via its Phase -0.5 staleness check). Adding mode-switching logic to SKILL.md would introduce complexity without benefit, since the calling skill already provides the optimization. If future requirements need lightweight mode, it can be added via a marker file (`.run/ride-caller.json`) or the `--phase` argument already supported by `ride.md`.
+
+`/ride` could detect its invocation context and select an appropriate mode:
 
 | Context | Detection | Mode | Behavior |
 |---------|-----------|------|----------|
@@ -77,7 +79,7 @@ These paths are already defined in `SKILL.md` — the requirement is that they a
 | No prior artifacts exist | `drift-report.md` not found | **Full** | Override lightweight → full if no artifacts exist |
 | `--full` flag | CLI argument | **Full** | Force full mode regardless of caller |
 
-**Lightweight mode** produces only:
+**Lightweight mode** would produce only:
 - `grimoires/loa/reality/*` (token-optimized codebase interface)
 - `grimoires/loa/context/claims-to-verify.md`
 - Trajectory log entries
@@ -86,6 +88,8 @@ These paths are already defined in `SKILL.md` — the requirement is that they a
 - All 5 analysis reports (FR-1)
 - PRD and SDD (Phase 6)
 - Legacy inventory and deprecation (Phases 3, 8)
+
+**Current behavior**: `/ride` always runs FULL mode. Lightweight optimization is handled externally by `/plan-and-analyze`.
 
 ### FR-3: Architecture Grounding Document (SHOULD)
 

@@ -261,6 +261,15 @@ Score existing CLAUDE.md on: length (>50 lines), tech stack mentions, pattern/co
 
 Create `grimoires/loa/legacy/INVENTORY.md` listing all docs with type and key claims.
 
+### 3.4 File Persistence Checkpoint (CP-3)
+
+**WRITE TO DISK**: Use the `Write` tool to persist `grimoires/loa/legacy/INVENTORY.md`.
+
+After writing, verify with `Glob` pattern `grimoires/loa/legacy/INVENTORY.md` â€” must return 1 match. If missing after Write, retry once. If still missing, log to trajectory:
+```json
+{"phase": 3, "action": "write_failed", "artifact": "INVENTORY.md", "status": "error"}
+```
+
 ---
 
 ## Phase 4: Three-Way Drift Analysis
@@ -435,6 +444,8 @@ After writing, verify with `Glob` pattern `grimoires/loa/governance-report.md` â
 
 For each file in `legacy/doc-files.txt`, prepend a deprecation notice pointing to `grimoires/loa/prd.md` and `grimoires/loa/sdd.md` as the new source of truth, with reference to `grimoires/loa/drift-report.md`.
 
+> **Checkpoint coverage note**: Phases 2 (extraction), 3 (`doc-files.txt`), and 8 (deprecation) produce intermediate or modified artifacts not covered by write checkpoints. Phase 2 extractions are working data consumed immediately by later phases. Phase 3's `INVENTORY.md` is covered by CP-3; `doc-files.txt` is an intermediate file. Phase 8 modifies existing files rather than creating new ones, so existence checks do not apply.
+
 ---
 
 ## Phase 9: Trajectory Self-Audit (MANDATORY OUTPUT)
@@ -486,6 +497,7 @@ Before handoff, verify ALL expected artifacts exist on disk using `Glob`.
 | 8 | Governance Report | `grimoires/loa/governance-report.md` |
 | 9 | Trajectory Audit | `grimoires/loa/trajectory-audit.md` |
 | 10 | Reality Meta | `grimoires/loa/reality/.reality-meta.json` |
+| 11 | Legacy Inventory | `grimoires/loa/legacy/INVENTORY.md` |
 
 **Procedure**:
 1. For each file, use `Glob` to verify existence
@@ -557,8 +569,8 @@ Each phase appends a JSON line:
 | Phase | Action | Key Details Fields |
 |-------|--------|--------------------|
 | 0 | `preflight` | `loa_version` |
-| 0.6 | `staleness_check` | `status`, `artifact_age_days` |
 | 0.5 | `codebase_probe` | `strategy`, `total_files`, `total_lines`, `estimated_tokens` |
+| 0.6 | `staleness_check` | `status`, `artifact_age_days` |
 | 1 | `claims_generated` | `claim_count`, `output` |
 | 2 | `code_extraction` | `routes`, `entities`, `env_vars` |
 | 2b | `hygiene_audit` | `items_flagged` |

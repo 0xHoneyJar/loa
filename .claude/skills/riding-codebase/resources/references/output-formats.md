@@ -371,7 +371,7 @@ Example:
 | [name] | [file path] | HTTP/CLI/Worker/Cron |
 ```
 
-### 6.5.9 .reality-meta.json (Metadata)
+### 6.5.8 .reality-meta.json (Metadata)
 
 ```bash
 # Count tokens (using word count as proxy)
@@ -404,7 +404,7 @@ TOTAL_TOKENS=$((INDEX_TOKENS + API_TOKENS + TYPES_TOKENS + INTERFACES_TOKENS + S
 }
 ```
 
-### 6.5.10 Token Budget Verification
+### 6.5.9 Token Budget Verification
 
 ```bash
 # Verify token budgets
@@ -419,11 +419,11 @@ if [[ $TOTAL_TOKENS -gt 8500 ]]; then
 fi
 
 echo "Reality files generated in $REALITY_DIR"
-echo "  Total tokens: $TOTAL_TOKENS (budget: 7000)"
+echo "  Total tokens: $TOTAL_TOKENS (budget: 8500)"
 ```
 
-### 6.5.11 Trajectory Log Entry
+### 6.5.10 Trajectory Log Entry
 
 ```json
-{"timestamp": "...", "agent": "riding-codebase", "phase": "6.5", "action": "reality_generation", "details": {"files": 6, "total_tokens": N, "within_budget": true}}
+{"timestamp": "...", "agent": "riding-codebase", "phase": "6.5", "action": "reality_generation", "details": {"files": 7, "total_tokens": N, "within_budget": true}}
 ```
