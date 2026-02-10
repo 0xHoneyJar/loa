@@ -21,11 +21,16 @@ export class AnthropicAdapter {
         this.timeoutMs = timeoutMs;
     }
     async generateReview(request) {
+        // Use streaming to avoid Cloudflare's 60s TTFB proxy timeout.
+        // Without streaming, the API generates the full response before sending
+        // any bytes. For large reviews (>2000 tokens) this exceeds 60s, and
+        // Cloudflare kills the connection with a TCP RST (UND_ERR_SOCKET).
         const body = JSON.stringify({
             model: this.model,
             max_tokens: request.maxOutputTokens,
             system: request.systemPrompt,
             messages: [{ role: "user", content: request.userPrompt }],
+            stream: true,
         });
         let lastError;
         let retryAfterMs = 0;
@@ -51,40 +56,32 @@ export class AnthropicAdapter {
                     body,
                     signal: controller.signal,
                 });
-                clearTimeout(timer);
                 if (response.status === 429) {
+                    clearTimeout(timer);
                     retryAfterMs = parseRetryAfter(response.headers.get("retry-after"));
                     lastError = new LLMProviderError("RATE_LIMITED", `Anthropic API ${response.status}`);
                     continue;
                 }
                 if (response.status >= 500) {
+                    clearTimeout(timer);
                     retryAfterMs = parseRetryAfter(response.headers.get("retry-after"));
                     // Do not include response body — may contain sensitive details
                     lastError = new LLMProviderError("NETWORK", `Anthropic API ${response.status}`);
                     continue;
                 }
                 if (!response.ok) {
+                    clearTimeout(timer);
                     // Do not include response body — may contain echoed prompt content
                     throw new LLMProviderError("INVALID_REQUEST", `Anthropic API ${response.status}`);
                 }
-                let data;
-                try {
-                    data = (await response.json());
-                }
-                catch {
-                    // Truncated/invalid JSON from proxy/CDN — treat as retryable
-                    lastError = new LLMProviderError("NETWORK", "Anthropic API invalid JSON response");
-                    continue;
-                }
-                const content = data.content
-                    ?.filter((b) => b.type === "text")
-                    .map((b) => b.text)
-                    .join("\n") ?? "";
+                // Collect streamed SSE response
+                const result = await collectStream(response, controller.signal);
+                clearTimeout(timer);
                 return {
-                    content,
-                    inputTokens: data.usage?.input_tokens ?? 0,
-                    outputTokens: data.usage?.output_tokens ?? 0,
-                    model: data.model ?? this.model,
+                    content: result.content,
+                    inputTokens: result.inputTokens,
+                    outputTokens: result.outputTokens,
+                    model: result.model ?? this.model,
                 };
             }
             catch (err) {
@@ -106,6 +103,60 @@ export class AnthropicAdapter {
         }
         throw lastError ?? new LLMProviderError("NETWORK", "Anthropic API failed after retries");
     }
+}
+/** Collect an SSE stream from the Anthropic Messages API into a single response. */
+async function collectStream(response, _signal) {
+    let content = "";
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let model;
+    if (!response.body) {
+        throw new Error("Anthropic API stream: no response body");
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done)
+                break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+            for (const line of lines) {
+                if (!line.startsWith("data: "))
+                    continue;
+                const data = line.slice(6);
+                if (data === "[DONE]")
+                    continue;
+                let event;
+                try {
+                    event = JSON.parse(data);
+                }
+                catch {
+                    continue; // Skip malformed events
+                }
+                if (event.type === "message_start" && event.message) {
+                    model = event.message.model;
+                    inputTokens = event.message.usage?.input_tokens ?? 0;
+                }
+                else if (event.type === "content_block_delta" && event.delta?.text) {
+                    content += event.delta.text;
+                }
+                else if (event.type === "message_delta" && event.usage) {
+                    outputTokens = event.usage.output_tokens ?? 0;
+                }
+                else if (event.type === "error") {
+                    throw new Error(`Anthropic API stream error: ${event.error?.message ?? "unknown"}`);
+                }
+            }
+        }
+    }
+    finally {
+        reader.releaseLock();
+    }
+    return { content, inputTokens, outputTokens, model };
 }
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
