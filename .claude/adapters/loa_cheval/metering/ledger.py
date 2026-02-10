@@ -52,13 +52,7 @@ def create_ledger_entry(
     """
     pricing = find_pricing(provider, model, config)
 
-    if pricing and usage_source == "actual":
-        breakdown = calculate_total_cost(
-            input_tokens, output_tokens, reasoning_tokens, pricing
-        )
-        cost_micro_usd = breakdown.total_cost_micro
-        pricing_source = "config"
-    elif pricing and usage_source == "estimated":
+    if pricing:
         breakdown = calculate_total_cost(
             input_tokens, output_tokens, reasoning_tokens, pricing
         )

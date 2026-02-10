@@ -30,7 +30,12 @@ except ImportError:
     import subprocess
 
     def _load_yaml(path: str) -> Dict[str, Any]:
-        """Fallback: use yq to convert YAML to JSON, then parse."""
+        """Fallback: use yq to convert YAML to JSON, then parse.
+
+        SAFETY: path comes from _find_project_root() or hardcoded defaults,
+        never from user input. If config paths become user-configurable,
+        this subprocess call will need input sanitization.
+        """
         try:
             result = subprocess.run(
                 ["yq", "-o", "json", ".", path],
@@ -224,12 +229,21 @@ def _flatten_keys(d: Dict[str, Any], prefix: str = "") -> List[str]:
 
 
 # --- Config cache (one per process) ---
+# NOTE: Not thread-safe. Current use is single-threaded CLI (model-invoke).
+# If loa_cheval is imported as a library in a multi-threaded application,
+# wrap get_config() with threading.Lock or replace with functools.lru_cache.
 
 _cached_config: Optional[Tuple[Dict[str, Any], Dict[str, str]]] = None
+_cache_lock: Optional[Any] = None  # Lazy-init threading.Lock if needed
 
 
 def get_config(project_root: Optional[str] = None, cli_args: Optional[Dict[str, Any]] = None, force_reload: bool = False) -> Dict[str, Any]:
-    """Get cached config. Loads on first call, caches thereafter."""
+    """Get cached config. Loads on first call, caches thereafter.
+
+    Thread safety: safe for single-threaded CLI use. For multi-threaded
+    library use, callers should synchronize externally or call load_config()
+    directly.
+    """
     global _cached_config
     if _cached_config is None or force_reload:
         _cached_config = load_config(project_root, cli_args)

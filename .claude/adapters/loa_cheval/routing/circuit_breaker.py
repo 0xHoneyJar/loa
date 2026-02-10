@@ -36,6 +36,15 @@ def _read_state(provider: str, run_dir: str = ".run") -> Dict[str, Any]:
     """Read circuit breaker state from file.
 
     Returns default CLOSED state if file doesn't exist or is corrupted.
+
+    NOTE: _read_state() and _write_state() acquire locks independently.
+    This means read-modify-write sequences (e.g. in record_failure) are
+    NOT fully atomic across processes — two concurrent callers may both
+    read the same state, both increment, and one write overwrites the other.
+    This is intentional: best-effort counting is acceptable for circuit
+    breakers because missed counts are self-correcting on the next failure.
+    Compare with ledger.py:update_daily_spend() which holds the lock across
+    the full read-modify-write because cost accounting requires atomicity.
     """
     path = _state_file_path(provider, run_dir)
     if not os.path.exists(path):

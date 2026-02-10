@@ -6,7 +6,6 @@ No floating-point anywhere in the cost path.
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
