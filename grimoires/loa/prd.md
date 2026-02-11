@@ -1,60 +1,50 @@
-# PRD: Eval Sandbox — Benchmarking & Regression Framework for Loa
+# PRD: Eval Traceability & Output Contracts — Scientific Agent Optimization
 
-**Version**: 1.1.0
-**Status**: Draft (revised per Flatline Protocol review)
+**Version**: 1.0.0
+**Status**: Draft
 **Author**: Discovery Phase (plan-and-analyze)
-**Issue**: [loa #277](https://github.com/0xHoneyJar/loa/issues/277)
-**Date**: 2026-02-11
+**Issue**: [loa #286](https://github.com/0xHoneyJar/loa/issues/286)
+**Date**: 2026-02-12
+**Prior Art**: [PR #282](https://github.com/0xHoneyJar/loa/pull/282) — Eval Sandbox (cycle-002)
+**Feedback Source**: `eileen1337` review comments on PR #282
 
 ---
 
 ## 1. Problem Statement
 
-Loa is a complex agent-driven development framework with 21 skills, 48 process compliance constraints, multiple quality gates, and a multi-phase workflow (plan → build → review → ship). Changes to any of these components — a SKILL.md rewrite, a protocol amendment, a config schema change, a new constraint — can have cascading effects on agent behavior across the entire system.
+The Eval Sandbox (cycle-002) established the **measurement infrastructure** for Loa: deterministic framework evals, stochastic agent evals, CI regression gates, Wilson CI statistical comparison, and a dual-checkout trust model. It answers "is this change better or worse?" with empirical evidence.
 
-**There is currently no systematic way to know whether a change to Loa makes things better or worse.**
+**What's still missing is the ability to answer _why_.**
 
-The real-world pattern:
+When a regression is detected, the current system tells you:
+- "Task `impl-hello-world-ts` pass rate dropped from 1.0 to 0.67"
+- "Wilson CI [0.12, 0.94] overlaps with baseline"
 
-1. Developer modifies a skill (e.g., improves `implementing-tasks` prompting)
-2. Developer manually tests against one or two scenarios
-3. Change gets merged through review + audit gates
-4. Weeks later, a subtle regression surfaces — the skill now struggles with edge cases it previously handled
-5. Nobody connects the regression to the earlier change because there's no baseline
+But it **cannot** tell you:
+- **Which prompt/constraint change caused it** — `model_version` is "none" for framework evals, and there's no `constraints_registry_version` or `skill_prompt_version` in the result record
+- **What specifically failed in the output** — graders check for file existence and pattern matches, but don't validate that the agent's output conforms to the skill's documented output contract (required sections, verdict format, citation coverage)
+- **How to reproduce the failure scientifically** — no A/B variant management, no paired comparison framework, no sequential testing for cost optimization
+- **Whether the failure is structural or semantic** — all graders return binary pass/fail; no rubric scoring that distinguishes "completely wrong format" from "right format but missing one section"
 
-**What's missing**:
+Eileen (`eileen1337`) identified this gap precisely in 6 comments on PR #282:
 
-- **No reproducible test scenarios**: Skills are tested ad-hoc against whatever project happens to be active. There are no fixture repositories with known outcomes.
-- **No quality baselines**: There's no record of "this skill produced correct output for these 20 scenarios" that would catch a regression.
-- **No deterministic graders**: Quality assessment is human judgment during review. Two reviewers might grade the same output differently.
-- **No trial-level variance measurement**: Agent outputs are non-deterministic. A skill that passes once and fails twice has a 33% success rate, but we'd never know without multiple trials.
-- **No CI integration**: Changes to `.claude/skills/` or `.claude/protocols/` can be merged without any automated quality check.
+> *"The next step to 'optimize agent outputs' is to connect it to agent-facing specs... Add to every eval result record: `constraints_registry_version`, `skill_prompt_version`, `harness_sha`, `model_version`. Then your optimization work becomes scientific."*
 
-The existing test infrastructure (50+ TypeScript unit tests, shell script validators, skill benchmarks) tests *framework mechanics* — does the script run, does the config parse, does the quality gate trigger. It does **not** test *agent behavior* — does the skill produce good output when given a realistic task.
+> *"Output contracts turn 'quality' from subjective to testable."*
 
-> Source: [Issue #277](https://github.com/0xHoneyJar/loa/issues/277), [Anthropic: Demystifying Evals for AI Agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)
+### The Missing Loop
 
-### Prior Art
+```
+registry change → eval run → regression detected → ??? → fix prompt/skill/spec → re-run → ship
+                                                    ↑
+                                           Can't attribute cause.
+                                           Can't validate output structure.
+                                           Can't run controlled experiments.
+```
 
-The loa-finn ecosystem has established patterns that inform this design:
+This PRD closes the `???` gap by implementing 8 capabilities that transform the eval sandbox from a regression detector into a **scientific optimization platform**.
 
-- **Ground Truth skill** ([PR #51](https://github.com/0xHoneyJar/loa-finn/pull/51), [PR #52](https://github.com/0xHoneyJar/loa-finn/pull/52)): 7-stage deterministic verification pipeline with no LLM in the verification path. Quality gates are shell scripts. Property-based testing with 100 generated test documents. This is the gold standard for the "code-based grader" pattern.
-- **Bridgebuilder review** ([PR #54](https://github.com/0xHoneyJar/loa-finn/pull/54)): 547 tests across the test suite. Fixture-based testing with pass/fail examples and exit code contracts. Multi-layer testing (unit → integration → e2e).
-- **Hounfour RFC** ([Issue #31](https://github.com/0xHoneyJar/loa-finn/issues/31)): Model adapter architecture with capability matrices and JSONL cost ledger — patterns for eval result storage and multi-model parameterization.
-- **Bridgebuilder persona** ([Issue #24](https://github.com/0xHoneyJar/loa-finn/issues/24)): Structured review pipeline with severity levels and quality scoring — patterns for eval grading rubrics.
-
-### Anthropic's Eval Framework
-
-The [Anthropic engineering article](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents) defines the canonical vocabulary:
-
-| Concept | Definition | Loa Mapping |
-|---------|-----------|-------------|
-| **Task** | Individual test with defined inputs and success criteria | A skill invocation against a fixture repo with expected outcome |
-| **Trial** | One attempt at a task (multiple needed for variance) | One execution of a skill against a fixture |
-| **Grader** | Logic that scores performance | Shell scripts and TS assertions (code-based), LLM judges (model-based, future) |
-| **Transcript** | Complete record of interactions, tool calls, reasoning | Agent session log capturing all tool calls and outputs |
-| **Outcome** | Final environmental state demonstrating success | Files created, tests passing, quality gates satisfied |
-| **Eval Harness** | Infrastructure managing end-to-end eval execution | The `/eval` skill + CI pipeline |
+> Sources: [PR #282 comments](https://github.com/0xHoneyJar/loa/pull/282) from `eileen1337`, Anthropic eval guidance, cycle-002 PRD/SDD
 
 ---
 
@@ -64,565 +54,521 @@ The [Anthropic engineering article](https://www.anthropic.com/engineering/demyst
 
 | # | Goal | Measurable Outcome |
 |---|------|-------------------|
-| G1 | Provide reproducible evaluation of Loa skill quality with explicit determinism boundaries | Framework evals: 100% deterministic (code-based graders). Agent evals: statistical determinism via pinned model params + multi-trial confidence intervals. |
-| G2 | Catch regressions before merge | CI gate blocks PRs that degrade eval scores below baseline |
-| G3 | Measure agent behavior, not just framework mechanics | Evals test skill output quality against realistic scenarios, not just "does the script parse" |
-| G4 | Support iterative improvement with clear metrics | Developers see "this change improved /implement pass rate from 60% to 80%" before merging |
-| G5 | Establish baselines for all core skills | Every skill with danger level ≥ moderate has at least 5 eval tasks with recorded baselines |
-| G6 | Integrate with existing PR workflow | Eval results posted as structured PR comments alongside review/audit feedback |
+| G1 | **Attribution**: Every eval result traces to specific registry/prompt versions | 100% of result records include `constraints_version`, `skill_prompt_version`, `harness_sha` |
+| G2 | **Output Contracts**: Agent outputs are validated against skill-specific schemas | Top 3 skills (implementing-tasks, reviewing-code, auditing-security) have enforceable output contracts |
+| G3 | **Scoring**: Quality is measured on a continuous scale, not just pass/fail | New rubric graders produce 0-100 scores with per-dimension breakdown |
+| G4 | **Scientific Experimentation**: A/B testing of prompt/policy changes | `compare.sh` supports variant comparison with paired statistical tests |
+| G5 | **Cost Efficiency**: Eval runs use adaptive trial counts | Sequential testing (Wald SPRT) reduces trial count by 30% on average |
+| G6 | **Self-Correction**: High-stakes outputs go through critic/reviser loops | Critic/reviser loop available for danger_level >= high skills |
+| G7 | **Comprehensive Instrumentation**: Every run logs enough data for root cause analysis | Per-constraint violation tracking, tool call traces, score breakdowns in results |
+| G8 | **Eval Coverage**: Sufficient eval tasks to catch real regressions | 30+ eval tasks per target skill (90+ total for top 3) |
 
-### Determinism Model
+### Success Criteria
 
-> Flatline SKP-001 integration: Determinism means different things for different eval tiers.
-
-| Eval Tier | Determinism Type | What's Pinned | Variance Handling |
-|-----------|-----------------|---------------|-------------------|
-| **Framework correctness** | Full determinism | Inputs + graders (no LLM) | Same input = same output. No trials needed. |
-| **Regression (code-based graders)** | Grader determinism | Grader scripts. Agent output varies. | Multiple trials. Statistical pass rate. Grader itself is deterministic. |
-| **Skill quality (agent execution)** | Statistical determinism | Model version, temperature, top_p, tool versions. Recorded per baseline. | ≥3 trials per task. Confidence intervals. Rerun-on-fail policy. Flake quarantine. |
-| **E2E workflows** | Observational | Full environment snapshot | Advisory only — not used for merge gating |
-
-**Flake handling**: If a task passes in <50% of trials across 3 consecutive eval runs, it enters quarantine (removed from regression suite, flagged for investigation). Quarantined tasks do not block merges.
-
-### Success Metrics
-
-| # | Metric | Current | Target |
-|---|--------|---------|--------|
-| M1 | Skills with automated eval coverage | 0/21 | ≥10/21 (all moderate+ skills) |
-| M2 | Eval tasks per covered skill | 0 | ≥5 tasks per skill |
-| M3 | Regression detection rate | 0% (manual only) | ≥90% (CI catches regressions before merge) |
-| M4 | Time from PR to eval result | N/A | <5 minutes for framework evals (required check), <30 minutes for skill quality (async) |
-| M5 | Eval result consistency | N/A | Code-based graders: 100% deterministic. Agent evals: <10% inter-run variance with pinned params. |
-| M6 | False positive rate on regression alerts | N/A | <5% (evals don't block good changes) |
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| Attribution coverage | 100% of results | Grep result JSONL for version fields |
+| Output contract enforcement | 3 skills | Count skills with output-schema graders |
+| Scoring resolution | Avg 5+ distinct score values per task | Analyze score distribution in results |
+| A/B comparison capability | Working `--variant` flag | Manual test |
+| Sequential testing savings | ≥20% fewer trials vs fixed-count | Compare total trials with/without SPRT |
+| Critic/reviser improvement | ≥15% compliance rate increase | Before/after on same eval set |
+| Eval task count | ≥30 per target skill | Count task YAML files |
 
 ---
 
-## 3. User & Stakeholder Context
+## 3. Users & Stakeholders
 
-### Primary Persona: Loa Framework Developer
+### Primary Users
 
-The person modifying skills, protocols, constraints, or configurations within Loa. They need confidence that their changes don't break existing behavior and visibility into how their changes affect agent quality.
+| Persona | Role | Key Needs |
+|---------|------|-----------|
+| **Framework Developer** | Modifies skills, protocols, constraints | "I changed a constraint — did anything break? What specifically?" |
+| **Agent Developer** | Tunes prompts, adjusts behavior | "I rewrote the /implement prompt — is it better? By how much?" |
+| **CI Pipeline** | Automated regression detection | Version-stamped results, regression attribution, cost-efficient trials |
 
-**Workflow**: Modify skill → run `/eval` locally → see results → iterate → push → CI eval gate passes → merge
+### Secondary Users
 
-### Secondary Persona: Loa Contributor / Reviewer
-
-The person reviewing PRs to Loa. They need automated evidence that a change doesn't regress quality, beyond manual inspection of the diff.
-
-**Workflow**: Open PR → see eval results in PR comment → understand impact → approve/request changes
-
-### Tertiary Persona: Loa End User (Indirect)
-
-Developers using Loa for their projects. They benefit from a framework that gets measurably better over time, with confidence that updates won't degrade their experience.
+| Persona | Role | Key Needs |
+|---------|------|-----------|
+| **Hounfour Routing Layer** | Multi-model provider abstraction | Per-model eval results for empirical routing decisions |
+| **Security Auditor** | Reviews eval trust model | Grader trust chain, output contract integrity |
 
 ---
 
 ## 4. Functional Requirements
 
-### FR1: Eval Harness — Task Definition & Execution
+### FR-1: Result Schema Enhancement (P0 — Attribution)
 
-The eval harness is the core infrastructure that defines, executes, and grades evaluation tasks.
+**What**: Add version traceability fields to every eval result record.
 
-| ID | Requirement | Priority |
-|----|-------------|----------|
-| FR1.1 | Define eval tasks as declarative YAML files with: task ID, schema version, skill target, fixture repo, input parameters, expected outcomes, grader(s), and metadata | P0 |
-| FR1.2 | Execute eval tasks in isolated sandbox environments (container-based for CI, temp-dir for local dev) | P0 |
-| FR1.3 | Support multiple trials per task (configurable, default: 3) to measure non-determinism | P0 |
-| FR1.4 | Capture full transcripts of agent interactions during eval execution as structured JSONL: `{timestamp, tool_name, tool_input, tool_output, duration_ms, tokens_used}` | P1 |
-| FR1.5 | Support task tagging for filtering: `category` (framework, skill, e2e), `skill` (implementing-tasks, reviewing-code, etc.), `difficulty` (basic, intermediate, advanced) | P1 |
-| FR1.6 | Support eval suites — named collections of tasks that run together (e.g., "regression", "skill-quality", "framework-correctness") | P0 |
-| FR1.7 | Task schema versioning: task YAML includes `schema_version` field. Harness validates schema compatibility and rejects unknown versions with actionable error. | P0 |
-| FR1.8 | Task validation on load: verify required fields, fixture existence, grader script existence, and schema version before execution begins | P0 |
+**Current schema** (run-eval.sh L413-428):
+```json
+{
+  "run_id", "task_id", "trial", "timestamp", "duration_ms",
+  "model_version": "none", "status", "graders", "composite",
+  "error", "schema_version": 1
+}
+```
 
-**Task Definition Example**:
+**Enhanced schema** (schema_version: 2):
+```json
+{
+  "run_id", "task_id", "trial", "timestamp", "duration_ms",
+  "model_version", "status", "graders", "composite", "error",
+  "schema_version": 2,
+  "versions": {
+    "constraints_registry": "1.0.0",
+    "harness_sha": "abc1234",
+    "skill_prompt": "1.0.0",
+    "loa_version": "1.33.0"
+  }
+}
+```
+
+**Fields**:
+| Field | Source | Value |
+|-------|--------|-------|
+| `versions.constraints_registry` | `jq -r '.version' .claude/data/constraints.json` | "1.0.0" |
+| `versions.harness_sha` | `git rev-parse --short HEAD -- evals/harness/` | Short SHA of harness dir |
+| `versions.skill_prompt` | `yq '.version // "0.0.0"' .claude/skills/{skill}/index.yaml` | Per-skill version (new field) |
+| `versions.loa_version` | Parse from CLAUDE.loa.md header | "1.33.0" |
+
+**Acceptance Criteria**:
+- [ ] All result records include `versions` object
+- [ ] `schema_version` bumped to 2
+- [ ] `compare.sh` handles mixed v1/v2 results gracefully (backward compatible)
+- [ ] Run-meta.json includes aggregate version info
+- [ ] Version fields populated from live data, not hardcoded
+
+### FR-2: Skill Prompt Versioning (P0 — Prerequisite)
+
+**What**: Add `version` field to skill `index.yaml` files.
+
+**Current index.yaml** (no version field):
 ```yaml
-# evals/tasks/implement-simple-function.yaml
-id: implement-simple-function
-schema_version: 1
-skill: implementing-tasks
-category: skill-quality
-difficulty: basic
-fixture: fixtures/hello-world-ts
-description: "Implement a simple TypeScript function from a clear specification"
-input:
-  sprint_task: "Implement isPrime(n) function in src/math.ts with full test coverage"
-  acceptance_criteria:
-    - "src/math.ts exports isPrime function"
-    - "Handles edge cases: 0, 1, negative numbers, 2"
-    - "Tests cover at least 5 cases"
-trials: 3
-timeout:
-  per_trial: 120  # seconds
-  per_grader: 30  # seconds
-model:
-  pin: true  # Record model version in results for baseline stability
-graders:
-  - type: code
-    script: graders/file-exists.sh
-    args: ["src/math.ts"]
-  - type: code
-    script: graders/tests-pass.sh
-  - type: code
-    script: graders/function-exported.sh
-    args: ["isPrime", "src/math.ts"]
-baseline:
-  pass_rate: 0.67  # 2/3 trials expected to pass
-  model_version: "claude-opus-4-6"
-  recorded_at: "2026-02-11"
+name: implementing-tasks
+description: "..."
+danger_level: moderate
 ```
 
-### FR2: Fixture Repositories — Sandbox Environments
-
-Pre-built test repositories that provide deterministic, known-state inputs for eval tasks.
-
-| ID | Requirement | Priority |
-|----|-------------|----------|
-| FR2.1 | Store fixture repos as git bundles or template directories within the eval suite | P0 |
-| FR2.2 | Each fixture defines: language/framework, directory structure, existing code, known bugs (for bug-fixing evals), missing features (for implementation evals), and a `fixture.yaml` metadata file | P0 |
-| FR2.3 | Fixtures are cloned to isolated sandbox environments before each eval task — no cross-contamination between trials | P0 |
-| FR2.4 | Fixture metadata (`fixture.yaml`) describes: scenario, difficulty, domain, language, required runtime, and dependency strategy | P1 |
-| FR2.5 | Provide at least 5 fixture repos for MVP: TypeScript (simple), TypeScript (with bugs), Python (simple), shell scripts, and a Loa-style skill directory | P0 |
-| FR2.6 | Fixture lifecycle: creation guide, versioning (semver tags), deprecation notice field in `fixture.yaml`, staleness check on eval run | P1 |
-| FR2.7 | Dependency strategy per fixture: `prebaked` (vendored node_modules/venv), `offline-cache` (lockfile + cached packages), or `none` (no install needed). npm lifecycle scripts disabled by default (`--ignore-scripts`). | P0 |
-
-### FR3: Code-Based Graders — Deterministic Scoring
-
-Deterministic grading scripts that produce consistent pass/fail results. Follows loa-finn's "no LLM in the verification path" principle.
-
-| ID | Requirement | Priority |
-|----|-------------|----------|
-| FR3.1 | Graders are executable scripts (shell or TS) that receive the task workspace path and output a structured JSON result: `{pass: bool, score: 0-100, details: string, grader_version: string}` | P0 |
-| FR3.2 | Provide a standard grader library covering: file existence, test execution (npm test / pytest), function export verification, pattern matching (grep-based), diff comparison, quality gate execution, secret scanning, constraint enforcement | P0 |
-| FR3.3 | Graders must be deterministic — same input always produces same output. No network calls, no LLM invocations, no time-dependent logic | P0 |
-| FR3.4 | Support composite graders that aggregate multiple sub-graders with configurable weights and aggregation strategy (`all_must_pass`, `weighted_average`, `any_pass`) | P1 |
-| FR3.5 | Grader exit code contract: 0 = pass, 1 = fail, 2 = error (grader itself failed). Follows loa-finn's exit code pattern | P0 |
-| FR3.6 | Per-grader timeout (default: 30s, configurable per task). Timeout = error (exit code 2), not fail. | P0 |
-| FR3.7 | Future: model-based graders (LLM-as-judge) as a second grader type. Deferred to Phase 2. | P2 |
-
-### FR4: Result Storage & Baseline Management
-
-JSONL-based result storage with baseline comparison for regression detection.
-
-| ID | Requirement | Priority |
-|----|-------------|----------|
-| FR4.1 | Store eval results as JSONL entries with: task ID, trial number, timestamp, grader results, pass/fail, score, duration, model version, transcript hash, run ID | P0 |
-| FR4.2 | Maintain baselines as committed YAML files (one per eval suite) with expected pass rates per task, pinned model version, and recording date | P0 |
-| FR4.3 | Compare current eval run against baseline and report: improvements, regressions, unchanged, and new (no baseline) | P0 |
-| FR4.4 | Baseline update workflow: run evals → review results → submit baseline update PR with rationale → CODEOWNERS review → merge | P0 |
-| FR4.5 | CLI report showing pass rates, score distributions, and regression alerts in human-readable format | P0 |
-| FR4.6 | Result retention: keep last 100 eval runs per suite. Configurable via `.loa.config.yaml` | P1 |
-| FR4.7 | Baseline governance: updates require a PR with rationale in description. Baseline YAML files are owned by CODEOWNERS. Tasks in quarantine are labeled separately and do not affect regression scoring. | P0 |
-| FR4.8 | Baseline diff reporting: when baselines change, the PR shows before/after for each task (pass rate, model version, trial count) | P1 |
-
-### FR5: CLI Integration — `/eval` Command
-
-The primary developer interface for running evals locally.
-
-| ID | Requirement | Priority |
-|----|-------------|----------|
-| FR5.1 | `/eval` — run all eval suites (default behavior) | P0 |
-| FR5.2 | `/eval <suite>` — run a specific suite (e.g., `/eval regression`, `/eval skill-quality`) | P0 |
-| FR5.3 | `/eval --task <id>` — run a single task (for development/debugging) | P0 |
-| FR5.4 | `/eval --skill <name>` — run all tasks targeting a specific skill | P1 |
-| FR5.5 | `/eval --update-baseline` — update baselines from current results (requires confirmation) | P0 |
-| FR5.6 | `/eval --compare <run-id>` — compare two eval runs | P1 |
-| FR5.7 | Display results in terminal with pass/fail indicators, scores, and regression alerts | P0 |
-
-### FR6: CI Integration — GitHub Actions
-
-Automated eval execution on PRs with results posted as comments.
-
-| ID | Requirement | Priority |
-|----|-------------|----------|
-| FR6.1 | GitHub Action workflow triggered on PRs that modify `.claude/skills/`, `.claude/protocols/`, `.claude/data/`, or `.loa.config.yaml` | P0 |
-| FR6.2 | Run the `framework` + `regression` eval suites on every qualifying PR | P0 |
-| FR6.3 | Post structured eval results as a PR comment (see PR Comment Format below) | P0 |
-| FR6.4 | Block PR merge (via required check) if framework eval or regression eval score drops below baseline by configurable threshold (default: 10%) | P1 |
-| FR6.5 | Support `eval-skip` label on PRs to bypass eval gate (for documentation-only changes) | P1 |
-| FR6.6 | Cache fixture repos and dependency caches between CI runs to reduce setup time | P1 |
-| FR6.7 | CI security: graders and harness scripts used in CI are sourced from the base branch, not the PR branch. Only task definitions and fixture content from the PR are used. | P0 |
-| FR6.8 | CI execution environment: containerized with read-only root filesystem (except workspace mount), controlled env vars (no secrets exposed to eval), network namespace with egress blocked, npm lifecycle scripts disabled. | P0 |
-| FR6.9 | Fork PR restriction: eval CI does not run on fork PRs (prevents untrusted code execution). Fork PRs get a comment explaining how to trigger evals after review. | P1 |
-
-**PR Comment Format**:
-
-```markdown
-## Eval Results — `<suite-name>`
-
-**Run ID**: `eval-run-<hash>` | **Duration**: 3m 42s | **Model**: claude-opus-4-6
-
-### Summary
-| Status | Count |
-|--------|-------|
-| ✅ Pass | 18 |
-| ❌ Fail | 1 |
-| ⚠️ Regression | 1 |
-| 🆕 New (no baseline) | 2 |
-
-### Regressions
-| Task | Baseline | Current | Delta |
-|------|----------|---------|-------|
-| `implement-error-handling` | 100% (3/3) | 33% (1/3) | -67% ⛔ |
-
-### Improvements
-| Task | Baseline | Current | Delta |
-|------|----------|---------|-------|
-| `review-catches-xss` | 67% (2/3) | 100% (3/3) | +33% ✅ |
-
-### New Tasks (no baseline)
-- `validate-new-constraint`: 100% (3/3)
-- `audit-finds-sqli`: 67% (2/3)
-
-<details><summary>Full Results</summary>
-[... per-task details ...]
-</details>
-
----
-*Eval Sandbox v1.0 | [View run details](evals/results/eval-run-<hash>.jsonl)*
+**Enhanced index.yaml**:
+```yaml
+name: implementing-tasks
+version: "1.0.0"
+description: "..."
+danger_level: moderate
 ```
 
-### FR7: Framework Correctness Evals
+**Acceptance Criteria**:
+- [ ] All 21 skill `index.yaml` files include `version: "1.0.0"` (initial)
+- [ ] `skill-index.schema.json` updated with `version` field (semver pattern)
+- [ ] `skill-index-validator.sh` validates version field presence
+- [ ] Framework eval task added to verify all skills have version fields
 
-Evals that test Loa's infrastructure contracts without requiring agent execution.
+### FR-3: Output Contract Schemas (P1 — Contracts)
 
-| ID | Requirement | Priority |
-|----|-------------|----------|
-| FR7.1 | Validate all 48 constraints in `constraints.json` are enforced by the corresponding protocol or skill | P0 |
-| FR7.2 | Validate golden path routing: `/loa`, `/plan`, `/build`, `/review`, `/ship` resolve to correct skills | P0 |
-| FR7.3 | Validate skill index: all skills in `.claude/skills/` have valid `index.yaml` with required fields | P0 |
-| FR7.4 | Validate quality gate pipeline: review + audit gates produce blocking results for known-bad inputs | P1 |
-| FR7.5 | Validate beads integration: task lifecycle transitions are tracked correctly | P1 |
-| FR7.6 | Validate config schema: `.loa.config.yaml` merges correctly with defaults and overrides | P1 |
+**What**: Define JSON-like schemas for the structured output of top 3 skills.
 
-### FR8: Error Handling & Partial Failure Semantics
+**Target skills and their output contracts**:
 
-> Flatline IMP-008 integration: Define how the system behaves when things go wrong.
+| Skill | Output File | Contract |
+|-------|------------|----------|
+| implementing-tasks | `reviewer.md` | Required sections: Executive Summary, Tasks Completed (per-task with files table), Testing Summary, Version Update |
+| reviewing-code | `engineer-feedback.md` | Verdict format ("All good" OR "CHANGES REQUIRED"), critical issues with file:line refs, acceptance criteria checklist |
+| auditing-security | `auditor-sprint-feedback.md` | Verdict (APPROVED/CHANGES_REQUIRED), severity count table, findings with PoC and CWE/OWASP refs |
 
-| ID | Requirement | Priority |
-|----|-------------|----------|
-| FR8.1 | Error taxonomy: `infrastructure_error` (sandbox failed, grader crashed), `eval_failure` (task failed grading), `timeout` (trial/grader exceeded limit), `budget_exceeded` (cost cap hit) | P0 |
-| FR8.2 | Retry policy: `infrastructure_error` retries once automatically. `eval_failure` does not retry (it's a real result). `timeout` counts as failure, no retry. `budget_exceeded` stops the suite. | P0 |
-| FR8.3 | Suite abort vs continue: on infrastructure error after retry, log the error and continue to remaining tasks. Report partial results with clear indication of which tasks were skipped. | P0 |
-| FR8.4 | CI exit codes: 0 = all pass, 1 = regressions detected, 2 = infrastructure errors (should not block merge), 3 = configuration error (harness broken) | P0 |
-| FR8.5 | Partial results: always publish results for completed tasks even if the suite didn't finish. PR comment clearly marks incomplete runs. | P1 |
+**Contract format** (new files in `.claude/schemas/`):
+```json
+{
+  "skill": "implementing-tasks",
+  "output_file": "reviewer.md",
+  "required_sections": [
+    {"heading": "Executive Summary", "min_words": 50},
+    {"heading": "Tasks Completed", "repeatable": true},
+    {"heading": "Testing Summary"}
+  ],
+  "required_patterns": [
+    {"pattern": "\\| File \\| Action \\|", "description": "Files table"},
+    {"pattern": "Coverage.*\\d+%", "description": "Coverage metric"}
+  ],
+  "forbidden_patterns": [
+    {"pattern": "TODO|FIXME|PLACEHOLDER", "description": "Incomplete markers"}
+  ]
+}
+```
+
+**Acceptance Criteria**:
+- [ ] Contract schemas created for 3 target skills
+- [ ] Contracts derived from existing SKILL.md templates (not invented)
+- [ ] Contract format is machine-readable (JSON)
+- [ ] Contracts versioned alongside skill version
+
+### FR-4: Output Contract Grader (P1 — Enforcement)
+
+**What**: New grader `output-contract.sh` that validates agent output against contract schemas.
+
+**Grader behavior**:
+- Input: `$1=workspace`, `$2=contract-schema-path`
+- Reads the contract schema
+- Locates the output file in workspace
+- Validates: required sections present, required patterns match, forbidden patterns absent
+- Returns graduated score (not just pass/fail):
+  - 100: All checks pass
+  - 75: Required sections present but some patterns missing
+  - 50: Major sections missing
+  - 0: Output file missing or fundamentally wrong format
+
+**Acceptance Criteria**:
+- [ ] Grader validates section presence via heading detection
+- [ ] Grader validates pattern presence via regex
+- [ ] Grader rejects forbidden patterns
+- [ ] Score is graduated (0-100), not binary
+- [ ] Grader outputs per-check breakdown in `details`
+- [ ] ReDoS protection on all pattern checks (existing pattern-match.sh safeguards)
+- [ ] Added to grader allowlist
+
+### FR-5: Rubric Scoring Graders (P1 — Quality Signals)
+
+**What**: Graders that produce meaningful intermediate scores based on measurable quality dimensions.
+
+**New graders**:
+
+| Grader | What It Scores | Score Calculation |
+|--------|---------------|-------------------|
+| `constraint-compliance.sh` | % of applicable constraints the output respects | `(passed_constraints / total_applicable) * 100` |
+| `citation-coverage.sh` | % of claims with file:line references | `(cited_claims / total_claims) * 100` |
+| `completeness.sh` | % of acceptance criteria addressed in output | `(addressed_criteria / total_criteria) * 100` |
+
+**Acceptance Criteria**:
+- [ ] Each grader produces 0-100 score (not binary)
+- [ ] Each grader outputs dimension-level breakdown in `details` JSON
+- [ ] Graders work with existing composite strategies (weighted_average becomes useful)
+- [ ] Tasks can use `composite_strategy: weighted_average` with these graders
+
+### FR-6: Eval Set Expansion (P2 — Coverage)
+
+**What**: Expand from 11 regression tasks to 30+ per target skill.
+
+**Task sources**:
+1. **Real failure patterns**: Mine past session trajectories for common failure modes
+2. **Template variations**: Same fixture, different prompts testing different aspects
+3. **Edge cases**: Adversarial inputs, missing context, ambiguous requirements
+4. **Cross-skill handoffs**: Output of skill A must be valid input for skill B
+
+**New fixture requirements**:
+- 5+ additional fixture repositories covering: Python Flask app, Rust CLI, monorepo, security-focused app
+- Each fixture must have `fixture.yaml` with known properties and expected outcomes
+
+**Acceptance Criteria**:
+- [ ] ≥30 eval tasks for implementing-tasks
+- [ ] ≥30 eval tasks for reviewing-code
+- [ ] ≥30 eval tasks for auditing-security
+- [ ] ≥5 new fixture repositories
+- [ ] Task YAML schema extended with `context` and `requirements` fields
+- [ ] Tasks cover: happy path, edge cases, adversarial inputs, cross-skill handoffs
+
+### FR-7: A/B Variant Comparison (P2 — Scientific Experimentation)
+
+**What**: Run eval suites against two prompt/policy variants and compare statistically.
+
+**New CLI interface**:
+```bash
+# Run variant A (current)
+./evals/harness/run-eval.sh --suite regression --variant baseline
+
+# Run variant B (new prompt)
+./evals/harness/run-eval.sh --suite regression --variant experiment-1
+
+# Compare A vs B
+./evals/harness/compare.sh --results-a results-baseline.jsonl --results-b results-experiment-1.jsonl --paired
+```
+
+**Statistical method**: Paired comparison across same eval cases. McNemar's test for pass/fail, Wilcoxon signed-rank for scores.
+
+**Acceptance Criteria**:
+- [ ] `run-eval.sh` accepts `--variant` flag, recorded in results
+- [ ] `compare.sh` supports dual-result comparison (not just results-vs-baseline)
+- [ ] Paired statistical tests implemented (McNemar's + Wilcoxon)
+- [ ] Results clearly show "Variant A wins on N tasks, B wins on M tasks, tied on K"
+- [ ] PR comments can show A/B comparison
+
+### FR-8: Sequential Testing (P2 — Cost Optimization)
+
+**What**: Implement Wald's Sequential Probability Ratio Test (SPRT) for adaptive trial counts.
+
+**Current behavior**: Fixed trial count (1 for framework, 3 for regression). Early stopping only when regression is inevitable.
+
+**Enhanced behavior**: After each trial, compute likelihood ratio. Stop when evidence is strong enough (either pass or fail), continue only when ambiguous.
+
+**Parameters**:
+- Alpha (Type I error): 0.05
+- Beta (Type II error): 0.10
+- Effect size: 0.15 (minimum meaningful difference)
+
+**Expected savings**: ~30% fewer trials on clear pass/fail tasks. Full trial count only on ambiguous tasks.
+
+**Acceptance Criteria**:
+- [ ] SPRT implemented in run-eval.sh trial loop
+- [ ] Configurable alpha, beta, effect size in suite YAML
+- [ ] Results include `early_stopped_reason: "sprt_accept" | "sprt_reject" | "max_trials"`
+- [ ] Total trial savings tracked and reported
+- [ ] Fallback to fixed-count if SPRT parameters invalid
+
+### FR-9: Critic/Reviser Loop (P3 — Self-Correction)
+
+**What**: For high-stakes skills, agent output goes through an automated critique → revision cycle before final grading.
+
+**Loop structure**:
+```
+1. Generator produces draft output
+2. Critic checks against output contract + rubric, lists violations
+3. Reviser addresses violations, produces revised output
+4. Grade revised output (or loop back to step 2, max 3 iterations)
+5. Circuit breaker: if violations don't decrease after 2 iterations, stop
+```
+
+**Integration point**: New task YAML field `critic_reviser: true` enables the loop. Only applicable to `skill-quality` and `e2e` category tasks.
+
+**Acceptance Criteria**:
+- [ ] Critic/reviser loop implemented in run-eval.sh
+- [ ] Configurable max iterations (default 3) and circuit breaker
+- [ ] Results include `revisions: N` and per-revision scores
+- [ ] Loop only activates for tasks with `critic_reviser: true`
+- [ ] Critic uses output contract schema (FR-3) as its reference
+- [ ] Cost tracked per revision (token usage)
+- [ ] Loop does NOT apply to framework evals (deterministic)
+
+### FR-10: Comprehensive Instrumentation (P1 — Logging)
+
+**What**: Every eval run logs sufficient data for root cause analysis.
+
+**New fields in per-trial results**:
+```json
+{
+  "constraint_violations": [
+    {"constraint_id": "C-PROC-001", "status": "pass"},
+    {"constraint_id": "C-PROC-004", "status": "fail", "detail": "Missing section"}
+  ],
+  "score_breakdown": {
+    "structure": 85,
+    "completeness": 70,
+    "citation_coverage": 90,
+    "constraint_compliance": 95
+  }
+}
+```
+
+**New run-level analytics**:
+```json
+{
+  "analytics": {
+    "total_trials_run": 45,
+    "total_trials_saved": 12,
+    "avg_score_by_dimension": {"structure": 82, "completeness": 75},
+    "top_violations": [
+      {"constraint_id": "C-PROC-004", "violation_count": 8},
+      {"constraint_id": "C-PROC-015", "violation_count": 3}
+    ]
+  }
+}
+```
+
+**Acceptance Criteria**:
+- [ ] Per-trial results include `constraint_violations` array (when applicable graders run)
+- [ ] Per-trial results include `score_breakdown` object (when scoring graders run)
+- [ ] Run-level analytics computed in `finalize_results()`
+- [ ] Top violations surfaced in PR comments
+- [ ] Analytics queryable: "which constraints fail most?"
 
 ---
 
-## 5. Technical & Non-Functional Requirements
+## 5. Non-Functional Requirements
 
-### Performance
-
-> Flatline SKP-004 integration: Tiered gating with realistic targets and explicit caching strategy.
-
-| Suite | Target | Gate Type | Caching Strategy |
-|-------|--------|-----------|-----------------|
-| Framework correctness | <2 minutes | Required check (blocking) | None needed (no external deps) |
-| Regression (code-based graders) | <5 minutes | Required check (blocking) | Fixture snapshots, package manager caches |
-| Skill quality (agent execution) | <30 minutes | Async (non-blocking comment) | Pre-built fixture images, model response caching for identical prompts |
-| E2E workflows | <2 hours | Scheduled (nightly), not per-PR | Full environment snapshots |
-
-**Parallelism**: Tasks within a suite run in parallel (up to configurable concurrency limit, default: 4). Trials within a task run sequentially (to avoid resource contention).
-
-**Hard timeouts**: Per-trial timeout (default: 120s for framework, 300s for skill quality). Per-suite timeout (default: 2x target). Timeout produces a structured error result, not a hang.
-
-### Determinism
-
-| Eval Tier | Determinism Guarantee | Pinned Parameters |
-|-----------|----------------------|-------------------|
-| Framework correctness | 100% deterministic | N/A (no LLM) |
-| Regression (code-based graders) | Grader output deterministic; agent output varies | Grader version in results |
-| Skill quality (agent execution) | Statistical (confidence intervals) | Model version, temperature, top_p, tool versions. All recorded per baseline. |
-
-### Cost
-
-| Requirement | Details |
-|-------------|---------|
-| Framework correctness evals | Zero LLM cost (pure shell/TS scripts) |
-| Skill quality evals | ~$0.50-2.00 per task trial (Claude API for agent execution) |
-| Metering | All eval API calls tracked in JSONL cost ledger (follows Hounfour pattern) |
-| Budget cap | Per-run budget limit (default: $5.00). Suite aborts when cap reached, partial results published. |
-
-### Security
-
-> Flatline SKP-002, SKP-006 integration: Defense-in-depth sandbox model.
-
-| Layer | Local Dev | CI |
-|-------|-----------|-----|
-| **Filesystem isolation** | Temp directory with fresh fixture clone | Container with read-only root, workspace mount only |
-| **Environment** | Inherited (developer machine) | Controlled: no secrets, fixed locale/timezone, minimal PATH |
-| **Network** | Advisory (graders should not use network) | Enforced: network namespace with egress blocked |
-| **Process** | Standard user | Restricted: no privilege escalation, resource limits (CPU, memory, disk) |
-| **Code trust** | All code from local repo | Graders/harness from base branch only. Task definitions from PR allowed (validated). Fork PRs blocked. |
-| **Dependency safety** | Developer responsibility | npm `--ignore-scripts`, pip `--no-deps` with vendored wheels, no postinstall hooks |
-
-**Threat model**: The CI eval system must assume that PR authors may be adversarial. Graders and harness infrastructure are trusted (sourced from base branch). Fixture content and task definitions from PRs are semi-trusted (validated before execution). Agent-generated code within sandboxes is untrusted (sandboxed execution).
-
-**PATH_SAFETY**: Apply loa-finn's 4-layer defense for any file path operations within graders.
-
-### Extensibility
-
-| Requirement | Details |
-|-------------|---------|
-| Model-agnostic harness | Task definitions don't reference specific models — model is injected at runtime |
-| Cross-repo ready | Harness architecture supports evaluating loa-finn and arrakis skills in future |
-| Custom graders | Users can add graders by dropping scripts into the graders directory |
+| # | Requirement | Target |
+|---|------------|--------|
+| NFR-1 | Backward compatibility | v1 results still parseable by v2 harness |
+| NFR-2 | Performance | Version field lookup adds <100ms per run (not per trial) |
+| NFR-3 | Storage | Instrumentation adds <20% to JSONL size |
+| NFR-4 | Security | Output contract graders inherit existing trust model (base branch) |
+| NFR-5 | Cost | Sequential testing saves ≥20% of trial costs |
+| NFR-6 | Shell compatibility | All new graders work on Bash 4.0+ (same as existing) |
 
 ---
 
-## 6. Scope & Prioritization
+## 6. Technical Constraints
 
-### Build Order
+| Constraint | Implication |
+|------------|------------|
+| Shell-based harness (ADR-003) | All graders must be Bash scripts; complex scoring may use inline Python |
+| No LLM in grader path (cycle-002 principle) | Rubric graders must use code-based heuristics, not LLM judges |
+| Dual-checkout trust model | New graders live in `evals/graders/`, inherit trust from base branch |
+| JSONL storage (ADR-001) | Results remain append-only JSONL; schema must be self-describing |
+| mikefarah/yq pinned (ADR-002) | YAML parsing uses Go yq; skill version reading uses same tool |
 
-The four eval focuses are built iteratively, each layer building on the previous:
+**Exception**: Critic/reviser loop (FR-9) necessarily involves LLM execution. This is in the *execution* path, not the *grading* path. The graders that evaluate the revised output are still code-based.
 
-| Phase | Focus | Why This Order | Depends On |
-|-------|-------|---------------|------------|
-| **Phase 1** | Framework Correctness | Deterministic, no agent execution, validates infrastructure everything else depends on. Cheapest to run, fastest to build. | Nothing |
-| **Phase 2** | Regression Protection | Establishes baselines + CI gate. Catches breakage from Phase 1 infra changes. Uses code-based graders. | Phase 1 (harness + graders) |
-| **Phase 3** | Skill Output Quality | Tests agent behavior with fixture repos. Most novel and valuable layer. Requires agent execution. | Phase 2 (baselines + fixture repos) |
-| **Phase 4** | End-to-End Workflows | Full plan→build→review→ship cycles. Most expensive, most realistic. | Phase 3 (skill evals + sandbox) |
+---
 
-### MVP Definition (Phases 1-2)
+## 7. Scope & Prioritization
 
-The minimum viable eval system delivers:
+### In Scope (This Cycle)
 
-1. Eval harness that reads YAML task definitions (with schema versioning) and executes them
-2. Fixture repository infrastructure (5 repos with dependency strategy)
-3. Standard grader library (8 graders with exit code contract)
-4. JSONL result storage with baseline comparison and governance workflow
-5. `/eval` CLI command
-6. Framework correctness eval suite (≥20 tasks)
-7. Regression eval suite with baselines (≥10 tasks)
-8. GitHub Actions workflow with PR comment reporting and CI security hardening
-9. Error handling with error taxonomy, retry policy, and partial result publishing
+| Priority | Feature | FRs |
+|----------|---------|-----|
+| **P0** | Result schema enhancement + skill versioning | FR-1, FR-2 |
+| **P1** | Output contracts + scoring graders + instrumentation | FR-3, FR-4, FR-5, FR-10 |
+| **P2** | Eval set expansion + A/B comparison + sequential testing | FR-6, FR-7, FR-8 |
+| **P3** | Critic/reviser loop | FR-9 |
 
-### Phase 3 Additions
-
-- Skill quality eval suite (≥30 tasks across 10 skills)
-- Agent execution sandbox with transcript capture (structured JSONL transcripts)
-- Multi-trial variance measurement (pass@k, pass^k) with confidence intervals
-- Cost tracking per eval run with budget enforcement
-- Container-based sandboxing for CI (read-only root, network isolation)
-- Flake quarantine workflow
-
-### Phase 4 Additions (Future)
-
-- E2E workflow evals against realistic project scenarios
-- Model-based graders (LLM-as-judge)
-- Multi-model comparison (when Hounfour lands)
-- Dashboard for eval trend visualization
-- Human grader workflow for calibration
-
-### Out of Scope (Explicit)
+### Out of Scope
 
 | Item | Reason |
 |------|--------|
-| Multi-model eval | Deferred until Hounfour provider abstraction lands |
-| Web dashboard | JSONL + CLI + PR comments sufficient for MVP |
-| User-facing eval (end users testing their projects) | This is a framework-internal tool |
-| Performance benchmarking (latency, tokens) | Focus is on quality, not speed |
-| Eval authoring UI | YAML files + fixture repos are the authoring interface |
+| LLM-based judge graders (type: `model`) | Deferred to future cycle; requires separate trust model analysis |
+| Cross-repo eval tasks | Hounfour routing layer not yet available |
+| Real-time eval dashboard | CLI + PR comments sufficient for current scale |
+| Automated prompt optimization | A/B framework enables manual optimization; auto-tuning is a separate initiative |
+| Per-constraint versioning | Registry-level version + git SHA sufficient for attribution |
+
+### Build Order
+
+```
+Sprint 1: FR-1 + FR-2 (schema + skill versioning) — Foundation
+Sprint 2: FR-3 + FR-4 + FR-5 (contracts + scoring graders) — Validation
+Sprint 3: FR-10 + FR-6 (instrumentation + eval expansion) — Coverage
+Sprint 4: FR-7 + FR-8 (A/B + sequential testing) — Experimentation
+Sprint 5: FR-9 (critic/reviser loop) — Self-correction
+```
+
+Each sprint builds on the previous. Sprint 1 is prerequisite for all others. Sprint 2 enables Sprint 3's expanded eval tasks to use scoring graders. Sprint 4 requires Sprint 3's larger eval set for meaningful A/B results.
 
 ---
 
-## 7. Risks & Dependencies
-
-### Technical Risks
+## 8. Risks & Mitigations
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Agent execution in CI is expensive | High | Medium | Phase 1-2 use no agent execution. Phase 3+ runs async (non-blocking). Cost cap per run ($5 default). |
-| Non-deterministic agent outputs make grading unreliable | High | High | Explicit determinism model (Section 2). Pinned model params per baseline. Confidence intervals. Flake quarantine. |
-| Fixture repos become stale as Loa evolves | Medium | Medium | Fixtures are versioned (semver). Staleness checks on eval run. Deprecation field in fixture.yaml. |
-| CI eval time exceeds acceptable PR latency | Medium | Medium | Tiered gating: framework (<2 min, blocking) + regression (<5 min, blocking) + skill quality (<30 min, async non-blocking). |
-| False regression alerts block legitimate improvements | Medium | High | Configurable threshold (default: 10% drop). Flake quarantine. `eval-skip` label. Baseline update workflow with rationale. |
-| CI security: malicious PR exfiltrates secrets via graders | Medium | Critical | Graders sourced from base branch. Fork PRs blocked. Container sandboxing with egress blocked. No secrets in eval env. |
-| Baseline gaming: developers update baselines to paper over regressions | Low | Medium | Baseline updates require PR with rationale. CODEOWNERS review. Baseline diff reporting shows before/after. |
-
-### Dependencies
-
-| Dependency | Type | Status | Risk |
-|------------|------|--------|------|
-| Claude API access in CI | External | Available | API key management in GitHub secrets (not exposed to eval sandbox) |
-| Fixture repo maintenance | Internal | New effort | Need ownership assignment |
-| Beads (br) for task tracking | Internal | Available | Works without beads via opt-out |
-| GitHub Actions minutes | External | Available | Cost scales with eval suite size |
-| Node.js / TypeScript runtime | Internal | Available | Already in use for lib tests |
-| Container runtime (Docker/Podman) for CI sandboxing | External | Available on GitHub runners | Phase 3+ requirement |
-
-### Open Questions
-
-| # | Question | Default Assumption |
-|---|----------|-------------------|
-| Q1 | Should eval results be stored in the Loa repo or a separate repo? | Same repo, under `evals/results/` (gitignored except baselines) |
-| Q2 | How do we handle eval flakiness from model non-determinism? | 3 trials per task, pass rate threshold (2/3 must pass). Flake quarantine after 3 consecutive flaky runs. |
-| Q3 | Should we eval against pinned model versions or latest? | Pin per baseline. Record model version. Baseline update required when model version changes. |
-| Q4 | How do we bootstrap initial baselines? | Run evals against current main, commit results as v1 baseline with rationale. |
+| Output contract schemas become maintenance burden | Medium | Medium | Derive schemas mechanically from SKILL.md templates; version alongside skill |
+| Rubric scoring heuristics produce misleading scores | Medium | High | Validate scoring against human judgment on 20+ cases before deploying |
+| Sequential testing (SPRT) produces incorrect accept/reject | Low | High | Conservative parameters (alpha=0.05, beta=0.10); fallback to fixed-count |
+| Eval set expansion creates 100+ fixtures to maintain | Medium | Medium | Reuse existing 5 fixtures with varied prompts; new fixtures only for new languages |
+| Critic/reviser loop enters infinite regression | Low | Medium | Circuit breaker (max 3 iterations, stop if violations don't decrease) |
+| Schema v2 breaks existing CI pipeline | Low | High | Backward-compatible: v2 harness reads v1 results; v1 harness ignores unknown fields |
+| A/B comparison leads to p-hacking | Medium | Medium | Require pre-registered hypothesis in variant metadata; paired tests only |
 
 ---
 
-## 8. Eval Architecture Overview
+## 9. Dependencies
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        /eval CLI                                 │
-│  Parse args → Load suite → Validate tasks → Execute → Report     │
-├─────────────────────────────────────────────────────────────────┤
-│                      EVAL HARNESS                                │
-│  Task loader (YAML) · Schema validator · Trial executor          │
-│  ↕ Reads task definitions, validates schema, runs trials         │
-├─────────────────────────────────────────────────────────────────┤
-│                    SANDBOX LAYER                                  │
-│  Fixture cloner · Container manager (CI) / Temp dir (local)      │
-│  ↕ Isolated environments per trial. Egress blocked in CI.        │
-├──────────────────────┬──────────────────────────────────────────┤
-│   GRADER LAYER       │        RESULT LAYER                       │
-│  Code-based graders  │  JSONL storage · Baseline manager         │
-│  Composite graders   │  Comparison engine · Flake detector       │
-│  Exit code contract  │  PR comment formatter                     │
-│  Per-grader timeout  │  Baseline governance                      │
-├──────────────────────┴──────────────────────────────────────────┤
-│                   REPORTING LAYER                                 │
-│  CLI terminal output · GitHub PR comments · JSONL ledger          │
-│  Error taxonomy · Partial result publishing                       │
-└─────────────────────────────────────────────────────────────────┘
+| Dependency | Status | Impact if Unavailable |
+|------------|--------|----------------------|
+| Eval Sandbox (cycle-002) | Merged (PR #282) | Blocker — entire cycle builds on it |
+| constraints.json version field | Exists ("1.0.0") | None — already available |
+| Skill index.yaml files | Exist (21 skills) | FR-2 adds version field |
+| Python 3 (inline) | Available in harness | Required for SPRT math |
+| jq | Available in harness | Required for JSON manipulation |
+| yq (mikefarah) | Pinned v4.40.5 | Required for YAML parsing |
+
+---
+
+## 10. Eileen's Suggestions — Traceability Matrix
+
+| # | Eileen Suggestion | FR Mapping | Status |
+|---|-------------------|-----------|--------|
+| 1 | Define "good output" as measurable signals | FR-5 (rubric graders) | Covered |
+| 2 | Build eval set (30-50 per skill) | FR-6 (eval expansion) | Covered |
+| 3 | Add output contracts | FR-3, FR-4 (schemas + grader) | Covered |
+| 4 | Compose prompts/policies from registry | FR-1, FR-2 (versioning) | Covered |
+| 5 | Build regression harness (CI for quality) | Already done (cycle-002); FR-10 extends | Covered |
+| 6 | Controlled experiments (A/B) | FR-7 (variant comparison) | Covered |
+| 7 | Critic/reviser loop | FR-9 | Covered |
+| 8 | Instrumentation | FR-1, FR-10 (version fields + analytics) | Covered |
+
+**Eileen's "one concrete do this next"**:
+> Add to every eval result record: `constraints_registry_version`, `skill_prompt_version`, `harness_sha`, `model_version`
+
+This is FR-1, our P0 priority. Sprint 1 delivers exactly this.
+
+---
+
+## Appendix A: Current vs Target Result Schema
+
+### Current (schema_version 1)
+```json
+{
+  "run_id": "run-20260211-...",
+  "task_id": "impl-hello-world-ts",
+  "trial": 1,
+  "timestamp": "2026-02-11T06:26:49Z",
+  "duration_ms": 334,
+  "model_version": "none",
+  "status": "completed",
+  "graders": [{"name": "file-exists.sh", "pass": true, "score": 100, ...}],
+  "composite": {"strategy": "all_must_pass", "pass": true, "score": 100},
+  "error": null,
+  "schema_version": 1
+}
 ```
 
-### Directory Structure
-
-```
-evals/
-├── README.md                    # How to write and run evals
-├── suites/                      # Named eval suites
-│   ├── framework.yaml           # Framework correctness suite
-│   ├── regression.yaml          # Regression protection suite
-│   └── skill-quality.yaml       # Skill output quality suite
-├── tasks/                       # Individual task definitions
-│   ├── framework/               # Framework correctness tasks
-│   │   ├── validate-constraints.yaml
-│   │   ├── golden-path-routing.yaml
-│   │   └── skill-index-integrity.yaml
-│   ├── regression/              # Regression tasks
-│   │   ├── implement-simple-function.yaml
-│   │   └── review-catches-bug.yaml
-│   └── skill-quality/           # Skill quality tasks
-│       ├── implement-typescript-feature.yaml
-│       └── audit-finds-xss.yaml
-├── fixtures/                    # Test repositories
-│   ├── hello-world-ts/          # Simple TypeScript project
-│   │   └── fixture.yaml         # Metadata: deps=prebaked, lang=typescript
-│   ├── buggy-auth-ts/           # TypeScript with known bugs
-│   ├── simple-python/           # Simple Python project
-│   ├── shell-scripts/           # Shell script project
-│   └── loa-skill-dir/           # Mock Loa skill directory
-├── graders/                     # Grading scripts
-│   ├── file-exists.sh           # Check file existence
-│   ├── tests-pass.sh            # Run test suite
-│   ├── function-exported.sh     # Check function export
-│   ├── pattern-match.sh         # Grep-based pattern check
-│   ├── diff-compare.sh          # Compare against expected output
-│   ├── quality-gate.sh          # Run Loa quality gates
-│   ├── no-secrets.sh            # Scan for leaked secrets
-│   └── constraint-enforced.sh   # Verify constraint enforcement
-├── baselines/                   # Committed baseline scores (CODEOWNERS protected)
-│   ├── framework.baseline.yaml
-│   ├── regression.baseline.yaml
-│   └── skill-quality.baseline.yaml
-├── results/                     # Run results (gitignored except baselines)
-│   └── .gitkeep
-└── harness/                     # Harness implementation
-    ├── run-eval.sh              # Main eval runner
-    ├── sandbox.sh               # Sandbox provisioning (local: tmpdir, CI: container)
-    ├── grade.sh                 # Grader orchestration with timeouts
-    ├── report.sh                # CLI report generation
-    ├── compare.sh               # Baseline comparison + flake detection
-    └── pr-comment.sh            # GitHub PR comment formatter
+### Target (schema_version 2)
+```json
+{
+  "run_id": "run-20260212-...",
+  "task_id": "impl-hello-world-ts",
+  "trial": 1,
+  "timestamp": "2026-02-12T10:00:00Z",
+  "duration_ms": 450,
+  "model_version": "claude-opus-4-6",
+  "status": "completed",
+  "graders": [
+    {"name": "output-contract.sh", "pass": true, "score": 85, "details": {...}},
+    {"name": "citation-coverage.sh", "pass": true, "score": 92, "details": {...}},
+    {"name": "completeness.sh", "pass": false, "score": 60, "details": {...}}
+  ],
+  "composite": {"strategy": "weighted_average", "pass": true, "score": 79},
+  "error": null,
+  "schema_version": 2,
+  "versions": {
+    "constraints_registry": "1.0.0",
+    "harness_sha": "abc1234",
+    "skill_prompt": "1.0.0",
+    "loa_version": "1.33.0"
+  },
+  "constraint_violations": [
+    {"constraint_id": "C-PROC-001", "status": "pass"},
+    {"constraint_id": "C-PROC-004", "status": "fail", "detail": "Missing section: Testing Summary"}
+  ],
+  "score_breakdown": {
+    "structure": 85,
+    "completeness": 60,
+    "citation_coverage": 92,
+    "constraint_compliance": 95
+  },
+  "variant": "baseline",
+  "early_stopped_reason": null,
+  "revisions": 0
+}
 ```
 
 ---
 
-## 9. Relationship to Existing Infrastructure
+## Appendix B: Eileen's Original Comments (Reference)
 
-| Existing Component | Relationship to Eval System |
-|---|---|
-| `.claude/lib/__tests__/` | Complementary — unit tests test framework internals, evals test agent behavior |
-| `.claude/scripts/test-skill-benchmarks.sh` | Predecessor — validates skill structure, not skill output quality |
-| `.claude/scripts/test-flatline-autonomous.sh` | Inspiration — e2e test pattern for autonomous workflows |
-| `grimoires/loa/a2a/` | Results storage precedent — eval results follow similar structure |
-| loa-finn `tests/ground-truth/` | Direct ancestor — property-based testing and quality gate patterns |
-| loa-finn `tests/fixtures/` | Pattern source — fixture-based testing approach |
-| Hounfour cost ledger (JSONL) | Pattern source — metering and result storage format |
-| Bridgebuilder review pipeline | Pattern source — structured findings with severity levels |
+**Comment 1** — Core traceability:
+> "Add to every eval result record: constraints_registry_version, skill_prompt_version, harness_sha, model_version. Then your optimization work becomes scientific."
 
----
+**Comment 2** — Output contracts:
+> "The next step is to push contracts 'up the stack': not just 'grader returns 0/1/2' but 'agent output must conform to schema X / sections Y / citations Z'"
 
-## 10. Configuration
+**Comment 3** — Registry composition:
+> "The missing piece is: attach version IDs from that registry into eval results so you can attribute regressions to 'policy v1.3.2' instead of 'something changed.'"
 
-```yaml
-# .loa.config.yaml additions
-eval:
-  enabled: true
-  suites:
-    default: ["framework", "regression"]  # Suites to run by default
-    ci: ["framework", "regression"]       # Suites for CI (blocking)
-    ci_async: ["skill-quality"]           # Suites for CI (non-blocking async)
-    full: ["framework", "regression", "skill-quality"]  # Full evaluation
-  trials:
-    default: 3                # Trials per task (overridable per task)
-    ci: 1                     # Fewer trials in CI for speed
-  timeout:
-    per_trial: 120            # Default per-trial timeout (seconds)
-    per_grader: 30            # Default per-grader timeout (seconds)
-    per_suite_multiplier: 2   # Suite timeout = target * multiplier
-  regression:
-    threshold: 0.10           # 10% drop triggers regression alert
-    block_merge: true         # Block PR merge on regression
-    flake_quarantine:
-      enabled: true
-      consecutive_flaky_runs: 3  # Quarantine after N flaky runs
-  results:
-    retention: 100            # Keep last N runs per suite
-    ledger_path: "evals/results/eval-ledger.jsonl"
-  ci:
-    post_pr_comment: true
-    required_check: true
-    skip_label: "eval-skip"
-    fork_pr_policy: "block"   # block | comment-only
-    sandbox:
-      container: true         # Use container-based sandbox in CI
-      network: "none"         # none | host (for special cases)
-      ignore_scripts: true    # Disable npm lifecycle scripts
-  cost:
-    budget_per_run: 5.00      # USD cap per eval run
-    track_usage: true
-  baseline:
-    require_rationale: true   # Baseline updates must include rationale
-    pin_model_version: true   # Record model version per baseline
-```
+**Comment 4** — Controlled experiments:
+> "The natural next evolution: sequential/adaptive trials to save eval budget."
 
----
+**Comment 5** — High-stakes reliability:
+> "Don't let the model grade itself without constraints."
 
-## 11. Flatline Protocol Integration Log
-
-| Finding | Category | Action | Integration |
-|---------|----------|--------|-------------|
-| IMP-001 | HIGH_CONSENSUS | Auto-integrated | Task schema versioning added (FR1.7, FR1.8) |
-| IMP-002 | HIGH_CONSENSUS | Auto-integrated | Transcript schema defined (FR1.4) |
-| IMP-003 | HIGH_CONSENSUS | Auto-integrated | Composite grader semantics expanded (FR3.4) |
-| IMP-004 | HIGH_CONSENSUS | Auto-integrated | Fixture lifecycle added (FR2.6) |
-| IMP-005 | HIGH_CONSENSUS | Auto-integrated | Per-trial/per-grader timeouts (FR3.6, task example, config) |
-| IMP-006 | HIGH_CONSENSUS | Auto-integrated | PR comment format specified (FR6 section) |
-| IMP-007 | HIGH_CONSENSUS | Auto-integrated | Task validation on load (FR1.8) |
-| IMP-008 | HIGH_CONSENSUS | Auto-integrated | Error handling section added (FR8) |
-| IMP-009 | HIGH_CONSENSUS | Auto-integrated | Dependency strategy per fixture (FR2.7) |
-| SKP-001 | BLOCKER (CRITICAL) | Accepted | Determinism model added (Section 2), pinned model params, flake quarantine |
-| SKP-002 | BLOCKER (CRITICAL) | Accepted | CI security section (Section 5), base-branch graders (FR6.7-6.9), threat model |
-| SKP-003 | BLOCKER (HIGH) | Accepted | Baseline governance (FR4.7-4.8), CODEOWNERS, rationale requirement |
-| SKP-004 | BLOCKER (HIGH) | Accepted | Tiered gating (Section 5), caching strategy, parallelism, hard timeouts |
-| SKP-006 | BLOCKER (HIGH) | Accepted | Container sandboxing (Section 5 Security), layered isolation model |
-
----
-
-## Next Step
-
-After PRD approval: `/architect` to create Software Design Document detailing harness implementation, grader contracts, sandbox isolation, and CI pipeline design.
+**Comment 6** — Comprehensive 8-point framework:
+> "If you want the most leverage quickly, we can produce these three artifacts: (1) A rubric + scoring spec, (2) An output contract for your top skill, (3) An eval suite + regression runner design."
