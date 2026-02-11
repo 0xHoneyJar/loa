@@ -583,6 +583,48 @@
       "severity": "critical"
     },
     {
+      "id": "C-EVAL-001",
+      "name": "never_modify_baselines_without_reason",
+      "category": "eval",
+      "rule_type": "NEVER",
+      "text": "update eval baselines without providing `--reason` explaining why the change is justified",
+      "text_variants": {
+        "claude-loa-md": "NEVER update eval baselines without providing `--reason` explaining why the change is justified",
+        "skill-md": "Baseline updates MUST include --reason flag with justification"
+      },
+      "why": "Baselines are the source of truth for regression detection; unexplained changes can mask real regressions",
+      "order": 11,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": ["eval-running"],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-EVAL-002",
+      "name": "never_commit_eval_results",
+      "category": "eval",
+      "rule_type": "NEVER",
+      "text": "commit eval result artifacts (`evals/results/`) to version control — only baselines are committed",
+      "text_variants": {
+        "claude-loa-md": "NEVER commit eval result artifacts (`evals/results/`) to version control — only baselines are committed",
+        "skill-md": "Result artifacts are ephemeral; only baselines belong in git"
+      },
+      "why": "Result files are ephemeral CI artifacts stored via GitHub Actions artifacts; committing them pollutes history and inflates repo size",
+      "order": 12,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": ["eval-running"],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "medium"
+    },
+    {
       "id": "C-GUARD-001",
       "name": "check_audit_feedback_first",
       "category": "guardrails",

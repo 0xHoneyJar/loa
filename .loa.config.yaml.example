@@ -1075,6 +1075,58 @@ autonomous_mode:
 #     blocker: log               # Log blockers instead of halting
 #   # WARNING: This may allow problematic changes to accumulate
 
+# -----------------------------------------------------------------------------
+# Eval Sandbox (v1.32.0)
+# -----------------------------------------------------------------------------
+# Configuration for the eval framework: deterministic framework evals and
+# stochastic agent evals with baseline comparison and CI integration.
+# See: evals/README.md for architecture and usage.
+eval:
+  # Default suite to run when no --suite specified
+  default_suite: framework
+
+  # Sandbox mode: local (default) or container (Docker)
+  sandbox_mode: local
+
+  # Trial configuration
+  trials:
+    # Default trials for framework evals (deterministic, 1 is sufficient)
+    framework: 1
+    # Default trials for agent evals (stochastic, 3+ recommended)
+    agent: 3
+
+  # Comparison thresholds
+  comparison:
+    # Regression threshold — pass rate drop larger than this triggers regression
+    threshold: 0.10
+    # Use Wilson confidence intervals for multi-trial comparisons
+    wilson_ci: true
+    # Model version skew makes results advisory-only
+    advisory_on_model_skew: true
+
+  # CI integration
+  ci:
+    # Post PR comment with eval results
+    post_pr_comment: true
+    # Block PR on regressions (exit code 1)
+    block_on_regression: true
+    # Allow infrastructure errors to pass (exit code 2)
+    allow_infra_errors: true
+
+  # Baseline management
+  baselines:
+    # Require --reason flag when updating baselines
+    require_reason: true
+    # Directory for baseline YAML files
+    directory: evals/baselines
+
+  # Result storage
+  results:
+    # JSONL ledger for historical results
+    ledger: evals/results/eval-ledger.jsonl
+    # Retention for CI artifacts (days)
+    artifact_retention_days: 90
+
 # =============================================================================
 # Post-PR Validation Loop (v1.25.0)
 # =============================================================================

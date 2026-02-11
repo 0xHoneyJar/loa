@@ -1,0 +1,26 @@
+id: review-ts-exports
+schema_version: 1
+skill: reviewing-code
+category: regression
+fixture: hello-world-ts
+description: "Verify /review can identify exported functions in TypeScript project"
+prompt: "Review the TypeScript project. Verify all public functions are properly exported and typed."
+trials: 3
+timeout:
+  per_trial: 180
+  per_grader: 60
+graders:
+  - type: code
+    script: function-exported.sh
+    args: ["greet", "src/index.ts"]
+    weight: 1.0
+  - type: code
+    script: function-exported.sh
+    args: ["add", "src/index.ts"]
+    weight: 1.0
+  - type: code
+    script: function-exported.sh
+    args: ["isEven", "src/index.ts"]
+    weight: 1.0
+difficulty: basic
+tags: ["regression", "reviewing-code", "typescript"]

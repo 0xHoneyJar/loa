@@ -1,0 +1,11 @@
+name: simple-python
+version: "1.0.0"
+language: Python
+runtime: python-3.11
+dependency_strategy: none
+description: "Python stdlib-only project for basic eval tasks"
+difficulty: basic
+domain: general
+deprecated: false
+test_command: "python3 -m pytest tests/ -v"
+runtime_version: "3.11"

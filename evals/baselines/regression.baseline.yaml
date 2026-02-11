@@ -1,0 +1,7 @@
+version: 1
+suite: regression
+model_version: "unknown"
+recorded_at: "2026-02-11"
+recorded_from_run: "pending"
+update_reason: "Initial baseline — pending first regression eval run"
+tasks: {}

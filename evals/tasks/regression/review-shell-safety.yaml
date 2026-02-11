@@ -1,0 +1,22 @@
+id: review-shell-safety
+schema_version: 1
+skill: reviewing-code
+category: regression
+fixture: shell-scripts
+description: "Verify /review can check shell script safety practices"
+prompt: "Review shell scripts for safety: set -euo pipefail, proper quoting, no eval usage."
+trials: 3
+timeout:
+  per_trial: 180
+  per_grader: 60
+graders:
+  - type: code
+    script: pattern-match.sh
+    args: ["set -euo pipefail", "*.sh"]
+    weight: 1.0
+  - type: code
+    script: file-exists.sh
+    args: ["src/utils.sh"]
+    weight: 1.0
+difficulty: basic
+tags: ["regression", "reviewing-code", "bash"]

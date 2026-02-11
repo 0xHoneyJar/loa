@@ -1,0 +1,22 @@
+id: review-auth-security
+schema_version: 1
+skill: reviewing-code
+category: regression
+fixture: buggy-auth-ts
+description: "Verify /review can identify security issues in auth module"
+prompt: "Review the auth module for security vulnerabilities. Check for hardcoded secrets, missing validation, and race conditions."
+trials: 3
+timeout:
+  per_trial: 180
+  per_grader: 60
+graders:
+  - type: code
+    script: no-secrets.sh
+    args: []
+    weight: 1.0
+  - type: code
+    script: file-exists.sh
+    args: ["src/auth.ts", "tests/auth.test.ts"]
+    weight: 1.0
+difficulty: intermediate
+tags: ["regression", "reviewing-code", "security"]

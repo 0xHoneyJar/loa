@@ -1,0 +1,26 @@
+id: impl-python-functions
+schema_version: 1
+skill: implementing-tasks
+category: regression
+fixture: simple-python
+description: "Verify /implement can work with Python project — functions and tests present"
+prompt: "Review the Python calculator module. Verify all four operations are implemented and tests exist."
+trials: 3
+timeout:
+  per_trial: 180
+  per_grader: 60
+graders:
+  - type: code
+    script: file-exists.sh
+    args: ["src/calculator.py", "tests/test_calculator.py"]
+    weight: 1.0
+  - type: code
+    script: function-exported.sh
+    args: ["add", "src/calculator.py"]
+    weight: 1.0
+  - type: code
+    script: function-exported.sh
+    args: ["divide", "src/calculator.py"]
+    weight: 1.0
+difficulty: basic
+tags: ["regression", "implementing-tasks", "python"]

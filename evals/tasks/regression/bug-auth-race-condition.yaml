@@ -1,0 +1,22 @@
+id: bug-auth-race-condition
+schema_version: 1
+skill: bug-triaging
+category: regression
+fixture: buggy-auth-ts
+description: "Verify /bug can identify TOCTOU race condition in refreshToken()"
+prompt: "Triage a bug report: 'Token refresh sometimes fails under concurrent requests'. Identify the race condition."
+trials: 3
+timeout:
+  per_trial: 180
+  per_grader: 60
+graders:
+  - type: code
+    script: function-exported.sh
+    args: ["refreshToken", "src/auth.ts"]
+    weight: 1.0
+  - type: code
+    script: function-exported.sh
+    args: ["validateToken", "src/auth.ts"]
+    weight: 1.0
+difficulty: advanced
+tags: ["regression", "bug-triaging", "concurrency"]

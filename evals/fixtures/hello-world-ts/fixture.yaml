@@ -1,0 +1,11 @@
+name: hello-world-ts
+version: "1.0.0"
+language: TypeScript
+runtime: node-20
+dependency_strategy: prebaked
+description: "Simple TypeScript project for basic skill eval tasks"
+difficulty: basic
+domain: general
+deprecated: false
+test_command: "npx jest --ci"
+runtime_version: "20.11.0"

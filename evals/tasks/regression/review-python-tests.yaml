@@ -1,0 +1,22 @@
+id: review-python-tests
+schema_version: 1
+skill: reviewing-code
+category: regression
+fixture: simple-python
+description: "Verify /review can verify Python test coverage"
+prompt: "Review the Python project for test coverage. Verify each calculator function has at least one test."
+trials: 3
+timeout:
+  per_trial: 180
+  per_grader: 60
+graders:
+  - type: code
+    script: pattern-match.sh
+    args: ["def test_add", "*.py"]
+    weight: 1.0
+  - type: code
+    script: pattern-match.sh
+    args: ["def test_divide", "*.py"]
+    weight: 1.0
+difficulty: basic
+tags: ["regression", "reviewing-code", "python"]

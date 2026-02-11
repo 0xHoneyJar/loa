@@ -32,6 +32,11 @@ CHANGELOG.md                    @janitooor
 .github/                        @janitooor
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Eval baselines (require explicit review for regression threshold changes)
+# ─────────────────────────────────────────────────────────────────────────────
+evals/baselines/                @janitooor
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Grimoire state (State Zone)
 # ─────────────────────────────────────────────────────────────────────────────
 grimoires/                      @janitooor

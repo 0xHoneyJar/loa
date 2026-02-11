@@ -1,0 +1,22 @@
+id: impl-test-structure
+schema_version: 1
+skill: implementing-tasks
+category: regression
+fixture: hello-world-ts
+description: "Verify /implement produces proper test structure with describe/it blocks"
+prompt: "Verify the test file follows proper testing structure with describe blocks and it assertions."
+trials: 3
+timeout:
+  per_trial: 180
+  per_grader: 60
+graders:
+  - type: code
+    script: pattern-match.sh
+    args: ["describe\\(", "*.test.ts"]
+    weight: 1.0
+  - type: code
+    script: pattern-match.sh
+    args: ["expect\\(", "*.test.ts"]
+    weight: 1.0
+difficulty: basic
+tags: ["regression", "implementing-tasks", "testing"]

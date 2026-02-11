@@ -1,0 +1,26 @@
+id: impl-hello-world-ts
+schema_version: 1
+skill: implementing-tasks
+category: regression
+fixture: hello-world-ts
+description: "Verify /implement can work with basic TypeScript project — tests should pass"
+prompt: "Review the TypeScript project in the workspace. Verify the code compiles conceptually and tests are well-structured."
+trials: 3
+timeout:
+  per_trial: 180
+  per_grader: 60
+graders:
+  - type: code
+    script: file-exists.sh
+    args: ["src/index.ts", "tests/index.test.ts", "package.json"]
+    weight: 1.0
+  - type: code
+    script: function-exported.sh
+    args: ["greet", "src/index.ts"]
+    weight: 1.0
+  - type: code
+    script: pattern-match.sh
+    args: ["export function", "*.ts"]
+    weight: 0.5
+difficulty: basic
+tags: ["regression", "implementing-tasks", "typescript"]

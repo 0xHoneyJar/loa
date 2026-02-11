@@ -1,0 +1,23 @@
+name: regression
+description: "Regression detection — agent skill behavior verification"
+version: 1
+
+tasks:
+  include:
+    - "tasks/regression/**/*.yaml"
+  exclude: []
+
+defaults:
+  trials: 3
+  timeout:
+    per_trial: 180
+    per_grader: 60
+  composite_strategy: all_must_pass
+
+ci:
+  gate_type: blocking
+  min_trials: 3
+  regression_threshold: 0.10
+
+execution_order: parallel
+concurrency: 2

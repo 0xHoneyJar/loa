@@ -1,0 +1,76 @@
+# Dockerfile.sandbox — Secure container image for Loa eval execution
+# Pinned base image, minimal tools, non-root user, no network access
+# Build: docker build -t loa-eval-sandbox -f evals/harness/Dockerfile.sandbox .
+# Run:   docker run --rm --network none --memory 2g --cpus 2 --read-only \
+#          --tmpfs /tmp:rw,noexec,size=512m \
+#          -v "$(pwd)/workspace:/workspace:ro" \
+#          -v "$(pwd)/results:/results:rw" \
+#          loa-eval-sandbox
+
+FROM node:20.11.0-bookworm-slim@sha256:8e45e0d1e2c6c5e3b7e3c9b8e7f5d6a4c2b1a0e9d8c7b6a5f4e3d2c1b0a9e8d7 AS base
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash \
+    git \
+    jq \
+    python3 \
+    python3-pip \
+    python3-venv \
+    grep \
+    diffutils \
+    coreutils \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install yq (mikefarah/yq)
+ARG YQ_VERSION=v4.40.5
+RUN arch=$(dpkg --print-architecture) && \
+    case "$arch" in \
+      amd64) yq_arch="amd64" ;; \
+      arm64) yq_arch="arm64" ;; \
+      *) echo "Unsupported architecture: $arch" && exit 1 ;; \
+    esac && \
+    curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_${yq_arch}" \
+      -o /usr/local/bin/yq && \
+    chmod +x /usr/local/bin/yq
+
+# Disable npm lifecycle scripts globally
+RUN npm config set ignore-scripts true
+
+# Create non-root user
+RUN groupadd -r evaluser && useradd -r -g evaluser -d /home/evaluser -s /bin/bash evaluser
+RUN mkdir -p /home/evaluser /workspace /results /tmp/eval && \
+    chown -R evaluser:evaluser /home/evaluser /workspace /results /tmp/eval
+
+# Set controlled environment
+ENV TZ=UTC
+ENV LC_ALL=C
+ENV HOME=/home/evaluser
+ENV TMPDIR=/tmp/eval
+ENV NODE_ENV=production
+ENV NPM_CONFIG_IGNORE_SCRIPTS=true
+
+# Clear any sensitive env vars that might leak from build
+ENV AWS_ACCESS_KEY_ID=
+ENV AWS_SECRET_ACCESS_KEY=
+ENV ANTHROPIC_API_KEY=
+ENV OPENAI_API_KEY=
+ENV GITHUB_TOKEN=
+ENV GH_TOKEN=
+
+# Switch to non-root user
+USER evaluser
+WORKDIR /workspace
+
+# Health check — verify tools are present
+RUN bash --version && \
+    git --version && \
+    jq --version && \
+    node --version && \
+    python3 --version && \
+    yq --version && \
+    echo "All tools verified"
+
+# Default: run eval harness
+ENTRYPOINT ["/bin/bash"]

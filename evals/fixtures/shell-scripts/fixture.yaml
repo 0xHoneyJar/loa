@@ -1,0 +1,11 @@
+name: shell-scripts
+version: "1.0.0"
+language: Bash
+runtime: bash-5
+dependency_strategy: none
+description: "Shell script project for bash eval tasks"
+difficulty: basic
+domain: general
+deprecated: false
+test_command: "bash tests/run.sh"
+runtime_version: "5.0"

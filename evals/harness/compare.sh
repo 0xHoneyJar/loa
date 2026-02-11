@@ -105,6 +105,29 @@ aggregate_results() {
   ' "$results_file"
 }
 
+# --- Wilson confidence interval (95%) ---
+# Computes lower and upper bounds for a binomial proportion.
+# Uses the Wilson score interval: more accurate than normal approximation for small n.
+# z = 1.96 for 95% confidence
+wilson_interval() {
+  local passes="$1"
+  local trials="$2"
+
+  # Return JSON: {"lower": float, "upper": float}
+  python3 -c "
+import math, json
+n = $trials
+p = $passes / n if n > 0 else 0
+z = 1.96
+denom = 1 + z*z/n
+center = (p + z*z/(2*n)) / denom
+spread = z * math.sqrt((p*(1-p) + z*z/(4*n)) / n) / denom
+lower = max(0, center - spread)
+upper = min(1, center + spread)
+print(json.dumps({'lower': round(lower, 4), 'upper': round(upper, 4)}))
+" 2>/dev/null || echo '{"lower":0,"upper":1}'
+}
+
 # --- Compare against baseline ---
 compare_baseline() {
   local current_json="$1"
@@ -113,48 +136,149 @@ compare_baseline() {
 
   if [[ ! -f "$baseline_file" ]]; then
     # No baseline — all tasks are "new"
-    echo "$current_json" | jq '[.[] | . + {classification: "new", baseline_pass_rate: null, delta: null}]'
+    echo "$current_json" | jq '[.[] | . + {classification: "new", baseline_pass_rate: null, delta: null, wilson_ci: null, advisory: false}]'
     return
   fi
 
-  # Read baseline tasks
+  # Read baseline tasks and model version
   local baseline_tasks
   baseline_tasks="$(yq -o=json '.tasks' "$baseline_file")"
+  local baseline_model
+  baseline_model="$(yq -r '.model_version // "unknown"' "$baseline_file")"
 
-  echo "$current_json" | jq --argjson baseline "$baseline_tasks" --argjson threshold "$threshold" '
-    . as $current |
-    [
-      .[] |
-      .task_id as $tid |
-      ($baseline[$tid] // null) as $bl |
-      if $bl == null then
-        . + {classification: "new", baseline_pass_rate: null, delta: null}
-      elif $bl.status == "quarantined" then
-        . + {classification: "quarantined", baseline_pass_rate: $bl.pass_rate, delta: (.pass_rate - $bl.pass_rate)}
-      elif .pass_rate >= $bl.pass_rate then
-        if .pass_rate > $bl.pass_rate then
-          . + {classification: "improvement", baseline_pass_rate: $bl.pass_rate, delta: (.pass_rate - $bl.pass_rate)}
+  # Get current model version from results
+  local current_model="unknown"
+  if [[ -f "$RESULTS_FILE" ]]; then
+    current_model="$(jq -r '.[0].model_version // "unknown"' "$RESULTS_FILE" 2>/dev/null || echo "unknown")"
+  fi
+
+  # Detect model version skew
+  local model_skew=false
+  if [[ "$baseline_model" != "unknown" && "$current_model" != "unknown" && "$baseline_model" != "$current_model" ]]; then
+    model_skew=true
+  fi
+
+  # Build comparison with Wilson intervals for agent evals
+  local task_count
+  task_count="$(echo "$current_json" | jq 'length')"
+  local result_array="["
+  local first=true
+
+  for i in $(seq 0 $((task_count - 1))); do
+    local task_json
+    task_json="$(echo "$current_json" | jq ".[$i]")"
+    local tid passes trials
+    tid="$(echo "$task_json" | jq -r '.task_id')"
+    passes="$(echo "$task_json" | jq -r '.passes')"
+    trials="$(echo "$task_json" | jq -r '.trials')"
+    local pass_rate
+    pass_rate="$(echo "$task_json" | jq -r '.pass_rate')"
+
+    # Get baseline data
+    local bl_pass_rate bl_trials bl_status
+    bl_pass_rate="$(echo "$baseline_tasks" | jq -r --arg tid "$tid" '.[$tid].pass_rate // -1')"
+    bl_trials="$(echo "$baseline_tasks" | jq -r --arg tid "$tid" '.[$tid].trials // 0')"
+    bl_status="$(echo "$baseline_tasks" | jq -r --arg tid "$tid" '.[$tid].status // "active"')"
+
+    local classification="new"
+    local delta="null"
+    local wilson_ci="null"
+    local advisory=false
+
+    if [[ "$bl_pass_rate" == "-1" ]]; then
+      classification="new"
+    elif [[ "$bl_status" == "quarantined" ]]; then
+      classification="quarantined"
+      delta="$(echo "$pass_rate - $bl_pass_rate" | bc 2>/dev/null || echo "0")"
+    elif [[ "$trials" -eq 1 ]]; then
+      # Single trial — exact match comparison (framework evals or emergency agent eval)
+      if echo "$pass_rate >= $bl_pass_rate" | bc -l 2>/dev/null | grep -q '^1'; then
+        if echo "$pass_rate > $bl_pass_rate" | bc -l 2>/dev/null | grep -q '^1'; then
+          classification="improvement"
         else
-          . + {classification: "pass", baseline_pass_rate: $bl.pass_rate, delta: 0}
-        end
-      elif (.pass_rate < ($bl.pass_rate - $threshold)) then
-        . + {classification: "regression", baseline_pass_rate: $bl.pass_rate, delta: (.pass_rate - $bl.pass_rate)}
+          classification="pass"
+        fi
+      elif echo "$pass_rate < $bl_pass_rate - $threshold" | bc -l 2>/dev/null | grep -q '^1'; then
+        classification="regression"
+        # Single-trial agent eval with regression — advisory only
+        if [[ "$bl_trials" -gt 1 ]]; then
+          advisory=true
+        fi
       else
-        . + {classification: "degraded", baseline_pass_rate: $bl.pass_rate, delta: (.pass_rate - $bl.pass_rate)}
-      end
-    ] +
-    # Find missing tasks (in baseline but not in current)
+        classification="degraded"
+      fi
+      delta="$(echo "$pass_rate - $bl_pass_rate" | bc 2>/dev/null || echo "0")"
+    else
+      # Multi-trial: use Wilson confidence intervals
+      local ci
+      ci="$(wilson_interval "$passes" "$trials")"
+      wilson_ci="$ci"
+      local ci_lower ci_upper
+      ci_lower="$(echo "$ci" | jq -r '.lower')"
+      ci_upper="$(echo "$ci" | jq -r '.upper')"
+
+      # Compute baseline Wilson CI
+      local bl_passes
+      bl_passes="$(echo "$bl_pass_rate * $bl_trials" | bc 2>/dev/null | cut -d. -f1)"
+      bl_passes="${bl_passes:-0}"
+      local bl_ci
+      bl_ci="$(wilson_interval "$bl_passes" "$bl_trials")"
+      local bl_ci_upper
+      bl_ci_upper="$(echo "$bl_ci" | jq -r '.upper')"
+
+      # Regression: lower bound of current < upper bound of baseline - threshold
+      if echo "$ci_lower < $bl_ci_upper - $threshold" | bc -l 2>/dev/null | grep -q '^1'; then
+        classification="regression"
+      elif echo "$pass_rate > $bl_pass_rate" | bc -l 2>/dev/null | grep -q '^1'; then
+        classification="improvement"
+      elif echo "$pass_rate >= $bl_pass_rate" | bc -l 2>/dev/null | grep -q '^1'; then
+        classification="pass"
+      else
+        classification="degraded"
+      fi
+      delta="$(echo "$pass_rate - $bl_pass_rate" | bc 2>/dev/null || echo "0")"
+    fi
+
+    # Model skew makes all results advisory
+    if [[ "$model_skew" == "true" ]]; then
+      advisory=true
+    fi
+
+    [[ "$first" == "true" ]] && first=false || result_array+=","
+    result_array+="$(echo "$task_json" | jq \
+      --arg cl "$classification" \
+      --argjson bl_pr "$bl_pass_rate" \
+      --argjson delta "${delta:-null}" \
+      --argjson wilson "$wilson_ci" \
+      --argjson adv "$advisory" \
+      '. + {classification: $cl, baseline_pass_rate: (if $bl_pr == -1 then null else $bl_pr end), delta: $delta, wilson_ci: $wilson, advisory: $adv}')"
+  done
+
+  # Add missing tasks
+  local missing_tasks
+  missing_tasks="$(echo "$current_json" | jq --argjson baseline "$baseline_tasks" '
     [
       $baseline | to_entries[] |
       .key as $tid |
       .value as $bl |
-      if ($current | map(.task_id) | index($tid)) == null then
-        {task_id: $tid, trials: 0, passes: 0, pass_rate: 0, mean_score: 0, status: $bl.status, classification: "missing", baseline_pass_rate: $bl.pass_rate, delta: (0 - $bl.pass_rate)}
+      if (input | map(.task_id) | index($tid)) == null then
+        {task_id: $tid, trials: 0, passes: 0, pass_rate: 0, mean_score: 0, status: $bl.status,
+         classification: "missing", baseline_pass_rate: $bl.pass_rate, delta: (0 - $bl.pass_rate),
+         wilson_ci: null, advisory: false}
       else
         empty
       end
     ]
-  '
+  ' 2>/dev/null || echo "[]")"
+
+  # Merge missing tasks
+  for missing in $(echo "$missing_tasks" | jq -c '.[]' 2>/dev/null); do
+    [[ "$first" == "true" ]] && first=false || result_array+=","
+    result_array+="$missing"
+  done
+
+  result_array+="]"
+  echo "$result_array" | jq .
 }
 
 # --- Update baseline ---

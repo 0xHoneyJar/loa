@@ -27,9 +27,10 @@ Commands:
   destroy-all  Destroy all sandboxes for a run
 
 Options (create):
-  --fixture <path>     Fixture directory (relative to evals/fixtures/)
-  --run-id <id>        Run identifier
-  --trial-id <id>      Trial identifier
+  --fixture <path>       Fixture directory (relative to evals/fixtures/)
+  --run-id <id>          Run identifier
+  --trial-id <id>        Trial identifier
+  --sandbox-mode <mode>  Sandbox mode: local (default), container
 
 Options (destroy):
   --trial-id <id>      Trial identifier to destroy
@@ -112,12 +113,14 @@ cmd_create() {
   local fixture=""
   local run_id=""
   local trial_id=""
+  local sandbox_mode="local"
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --fixture) fixture="$2"; shift 2 ;;
       --run-id) run_id="$2"; shift 2 ;;
       --trial-id) trial_id="$2"; shift 2 ;;
+      --sandbox-mode) sandbox_mode="$2"; shift 2 ;;
       *) echo "ERROR: Unknown option: $1" >&2; exit 1 ;;
     esac
   done
@@ -134,6 +137,12 @@ cmd_create() {
   validate_fixture_path "$fixture" || exit 1
 
   local fixture_dir="$EVALS_DIR/fixtures/$fixture"
+
+  # Container mode: use docker for isolation
+  if [[ "$sandbox_mode" == "container" ]]; then
+    cmd_create_container "$fixture" "$fixture_dir" "$run_id" "$trial_id"
+    return
+  fi
 
   # Create sandbox directory
   local sandbox_dir
@@ -262,6 +271,83 @@ cmd_destroy_all() {
       rm -rf "$dir"
     fi
   done
+}
+
+# --- Container sandbox create ---
+cmd_create_container() {
+  local fixture="$1"
+  local fixture_dir="$2"
+  local run_id="$3"
+  local trial_id="$4"
+
+  # Verify docker is available
+  if ! command -v docker &>/dev/null; then
+    echo "ERROR: docker required for container sandbox mode" >&2
+    exit 1
+  fi
+
+  # Verify image exists
+  local image="loa-eval-sandbox:latest"
+  if ! docker image inspect "$image" &>/dev/null; then
+    echo "ERROR: Container image not found: $image" >&2
+    echo "Build with: docker build -t $image -f evals/harness/Dockerfile.sandbox ." >&2
+    exit 1
+  fi
+
+  # Create host-side directory for results
+  local sandbox_dir
+  sandbox_dir="$(mktemp -d "${SANDBOX_PREFIX}-${trial_id}-XXXXXX")"
+  mkdir -p "$sandbox_dir/workspace" "$sandbox_dir/results"
+
+  # Copy fixture to workspace
+  cp -a "$fixture_dir/." "$sandbox_dir/workspace/"
+
+  # Initialize git in workspace
+  (
+    cd "$sandbox_dir/workspace"
+    git init -q 2>/dev/null || true
+    git add -A 2>/dev/null || true
+    git commit -q -m "Initial fixture state" --allow-empty 2>/dev/null || true
+  )
+
+  # Run container with security constraints
+  local container_name="loa-eval-${trial_id}"
+  docker run -d \
+    --name "$container_name" \
+    --network none \
+    --memory 2g \
+    --cpus 2 \
+    --read-only \
+    --tmpfs /tmp:rw,noexec,size=512m \
+    --tmpfs /home/evaluser:rw,size=64m \
+    -v "$sandbox_dir/workspace:/workspace:ro" \
+    -v "$sandbox_dir/results:/results:rw" \
+    -e "RUN_ID=$run_id" \
+    -e "TRIAL_ID=$trial_id" \
+    "$image" \
+    sleep infinity &>/dev/null
+
+  # Record container info in fingerprint
+  jq -n \
+    --arg run_id "$run_id" \
+    --arg trial_id "$trial_id" \
+    --arg fixture "$fixture" \
+    --arg sandbox_path "$sandbox_dir" \
+    --arg container_name "$container_name" \
+    --arg created_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg sandbox_mode "container" \
+    '{
+      run_id: $run_id,
+      trial_id: $trial_id,
+      fixture: $fixture,
+      sandbox_path: $sandbox_path,
+      container_name: $container_name,
+      created_at: $created_at,
+      sandbox_mode: $sandbox_mode
+    }' > "$sandbox_dir/env-fingerprint.json"
+
+  # Output workspace path (inside the host mount)
+  echo "$sandbox_dir/workspace"
 }
 
 # --- Main ---

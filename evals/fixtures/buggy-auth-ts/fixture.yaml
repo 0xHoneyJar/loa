@@ -1,0 +1,24 @@
+name: buggy-auth-ts
+version: "1.0.0"
+language: TypeScript
+runtime: node-20
+dependency_strategy: prebaked
+description: "TypeScript auth module with known bugs for /bug triage evaluation"
+difficulty: intermediate
+domain: security
+deprecated: false
+test_command: "npx jest --ci"
+runtime_version: "20.11.0"
+known_bugs:
+  - id: race-condition
+    description: "Token refresh has TOCTOU race condition"
+    file: src/auth.ts
+    line: 45
+  - id: missing-validation
+    description: "Email validation missing in register()"
+    file: src/auth.ts
+    line: 12
+  - id: exposed-secret
+    description: "JWT secret hardcoded in source"
+    file: src/auth.ts
+    line: 3

@@ -1,0 +1,22 @@
+id: bug-auth-missing-validation
+schema_version: 1
+skill: bug-triaging
+category: regression
+fixture: buggy-auth-ts
+description: "Verify /bug can identify missing email validation in register()"
+prompt: "Triage a bug report: 'User registration accepts invalid email addresses'. Find the root cause."
+trials: 3
+timeout:
+  per_trial: 180
+  per_grader: 60
+graders:
+  - type: code
+    script: function-exported.sh
+    args: ["register", "src/auth.ts"]
+    weight: 1.0
+  - type: code
+    script: pattern-match.sh
+    args: ["email", "*.ts"]
+    weight: 0.5
+difficulty: intermediate
+tags: ["regression", "bug-triaging", "validation"]

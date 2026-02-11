@@ -1,0 +1,22 @@
+id: impl-shell-utils
+schema_version: 1
+skill: implementing-tasks
+category: regression
+fixture: shell-scripts
+description: "Verify /implement can work with shell script project — functions and tests present"
+prompt: "Review the shell utility functions. Verify they follow bash best practices."
+trials: 3
+timeout:
+  per_trial: 180
+  per_grader: 60
+graders:
+  - type: code
+    script: file-exists.sh
+    args: ["src/utils.sh", "tests/run.sh"]
+    weight: 1.0
+  - type: code
+    script: pattern-match.sh
+    args: ["set -euo pipefail", "*.sh"]
+    weight: 1.0
+difficulty: basic
+tags: ["regression", "implementing-tasks", "bash"]

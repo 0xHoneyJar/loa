@@ -1,0 +1,215 @@
+# eval.yml — Loa Eval Sandbox CI Pipeline
+# Runs eval suites on PRs that modify Loa framework files.
+# Uses container sandboxing for secure execution.
+name: Eval Sandbox
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.claude/skills/**'
+      - '.claude/protocols/**'
+      - '.claude/data/**'
+      - '.loa.config.yaml'
+      - 'evals/**'
+
+# Prevent concurrent runs on same PR
+concurrency:
+  group: eval-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  eval:
+    name: Run Eval Suites
+    runs-on: ubuntu-latest
+    # Do not run on fork PRs (security: forks could modify graders)
+    if: >
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !contains(github.event.pull_request.labels.*.name, 'eval-skip')
+    timeout-minutes: 30
+
+    steps:
+      # 1. Checkout base branch for trusted graders/harness
+      - name: Checkout base branch (trusted)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          path: base
+
+      # 2. Checkout PR branch for code under test
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
+
+      # 3. Copy trusted harness/graders from base to PR workspace
+      - name: Copy trusted eval infrastructure
+        run: |
+          # Use graders and harness from BASE branch (tamper-proof)
+          cp -a base/evals/harness/ pr/evals/harness/
+          cp -a base/evals/graders/ pr/evals/graders/
+
+          # Validate symlinks in PR workspace
+          echo "Checking for suspicious symlinks in PR workspace..."
+          suspicious=$(find pr/ -type l -exec readlink -f {} \; 2>/dev/null | grep -v "^$(realpath pr)/" || true)
+          if [[ -n "$suspicious" ]]; then
+            echo "::error::Symlinks pointing outside workspace detected"
+            echo "$suspicious"
+            exit 1
+          fi
+
+      # 4. Install dependencies
+      - name: Install yq
+        uses: mikefarah/yq@v4.40.5
+
+      - name: Verify tools
+        run: |
+          bash --version
+          jq --version
+          yq --version
+          git --version
+
+      # 5. Download previous eval ledger (if exists)
+      - name: Download eval ledger
+        uses: actions/download-artifact@v4
+        with:
+          name: eval-ledger
+          path: pr/evals/results/
+        continue-on-error: true
+
+      # 6. Validate downloaded ledger integrity
+      - name: Validate ledger integrity
+        run: |
+          ledger="pr/evals/results/eval-ledger.jsonl"
+          if [[ -f "$ledger" ]]; then
+            echo "Validating ledger JSONL integrity..."
+            if ! jq -e . "$ledger" >/dev/null 2>&1; then
+              # Try line-by-line validation
+              invalid_lines=0
+              while IFS= read -r line; do
+                if [[ -n "$line" ]] && ! echo "$line" | jq -e . >/dev/null 2>&1; then
+                  invalid_lines=$((invalid_lines + 1))
+                fi
+              done < "$ledger"
+              if [[ $invalid_lines -gt 0 ]]; then
+                echo "::warning::Eval ledger has $invalid_lines invalid lines. Starting fresh."
+                rm -f "$ledger"
+              fi
+            fi
+          fi
+
+      # 7. Build sandbox container
+      - name: Build sandbox container
+        run: |
+          if [[ -f "pr/evals/harness/Dockerfile.sandbox" ]]; then
+            docker build -t loa-eval-sandbox -f pr/evals/harness/Dockerfile.sandbox pr/
+          else
+            echo "No Dockerfile.sandbox found, using local mode"
+          fi
+        continue-on-error: true
+
+      # 8. Run framework suite
+      - name: Run framework suite
+        id: framework
+        working-directory: pr
+        run: |
+          set +e
+          output=$(./evals/harness/run-eval.sh \
+            --suite framework \
+            --trusted \
+            --json \
+            --no-color 2>&1)
+          exit_code=$?
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+
+          # Save results
+          echo "$output" > evals/results/framework-output.json
+          echo "Framework suite exit code: $exit_code"
+          exit 0
+
+      # 9. Run regression suite (if exists)
+      - name: Run regression suite
+        id: regression
+        working-directory: pr
+        run: |
+          set +e
+          if [[ -f "evals/suites/regression.yaml" ]]; then
+            output=$(./evals/harness/run-eval.sh \
+              --suite regression \
+              --trusted \
+              --json \
+              --no-color 2>&1)
+            exit_code=$?
+          else
+            echo "No regression suite found, skipping"
+            exit_code=0
+          fi
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          echo "Regression suite exit code: $exit_code"
+          exit 0
+
+      # 10. Post PR comment
+      - name: Post eval results
+        if: always()
+        working-directory: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Find the most recent run directory
+          run_dir=$(ls -td evals/results/run-* 2>/dev/null | head -1)
+          if [[ -z "$run_dir" ]]; then
+            echo "No run results found"
+            exit 0
+          fi
+
+          # Generate PR comment
+          comment_args=("--run-dir" "$run_dir")
+          [[ -f "$run_dir/comparison.json" ]] && comment_args+=("--comparison" "$run_dir/comparison.json")
+          comment_args+=("--pr" "${{ github.event.pull_request.number }}")
+          comment_args+=("--repo" "${{ github.repository }}")
+
+          chmod +x evals/harness/pr-comment.sh
+          ./evals/harness/pr-comment.sh "${comment_args[@]}" || true
+
+      # 11. Upload eval ledger as artifact
+      - name: Upload eval ledger
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-ledger
+          path: pr/evals/results/eval-ledger.jsonl
+          retention-days: 90
+          if-no-files-found: ignore
+
+      # 12. Upload run results
+      - name: Upload run results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results-${{ github.event.pull_request.number }}
+          path: pr/evals/results/run-*
+          retention-days: 30
+          if-no-files-found: ignore
+
+      # 13. Check for regressions (final gate)
+      - name: Check for regressions
+        run: |
+          framework_exit="${{ steps.framework.outputs.exit_code }}"
+          regression_exit="${{ steps.regression.outputs.exit_code }}"
+
+          if [[ "$framework_exit" == "1" || "$regression_exit" == "1" ]]; then
+            echo "::error::Regressions detected in eval suites"
+            exit 1
+          elif [[ "$framework_exit" == "2" || "$regression_exit" == "2" ]]; then
+            echo "::warning::Infrastructure errors in eval suites"
+            # Don't block on infra errors
+            exit 0
+          else
+            echo "All eval suites passed"
+            exit 0
+          fi
