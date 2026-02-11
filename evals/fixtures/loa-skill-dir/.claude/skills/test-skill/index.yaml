@@ -1,0 +1,42 @@
+name: "test-skill"
+version: "1.0.0"
+model: "sonnet"
+color: "green"
+effort_hint: "light"
+danger_level: "safe"
+categories:
+  - testing
+
+description: |
+  A test skill for eval framework correctness testing.
+
+triggers:
+  - "/test-skill"
+  - "run test skill"
+
+negative_triggers:
+  - "production"
+
+inputs:
+  - name: "target"
+    type: "string"
+    required: false
+    description: "Target to test"
+
+outputs:
+  - path: "output.txt"
+    description: "Test output"
+    format: raw
+
+protocols:
+  required: []
+  recommended: []
+
+input_guardrails:
+  pii_filter:
+    enabled: false
+  injection_detection:
+    enabled: false
+  relevance_check:
+    enabled: true
+    reject_irrelevant: false

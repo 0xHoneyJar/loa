@@ -1,0 +1,17 @@
+id: constraint-proc-015-enforced
+schema_version: 1
+skill: test-skill
+category: framework
+fixture: loa-skill-dir
+description: "Checks C-PROC-015 is enforced"
+trials: 1
+timeout:
+  per_trial: 60
+  per_grader: 30
+graders:
+  - type: code
+    script: constraint-enforced.sh
+    args: ["C-PROC-015"]
+    weight: 1.0
+difficulty: basic
+tags: ["framework", "constraint-validation"]

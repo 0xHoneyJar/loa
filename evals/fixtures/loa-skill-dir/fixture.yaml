@@ -1,0 +1,11 @@
+name: loa-skill-dir
+version: "1.0.0"
+language: yaml
+runtime: bash
+runtime_version: "4.0"
+dependency_strategy: none
+test_command: "echo 'no tests'"
+description: "Minimal Loa project structure for framework correctness testing"
+difficulty: basic
+domain: framework
+deprecated: false

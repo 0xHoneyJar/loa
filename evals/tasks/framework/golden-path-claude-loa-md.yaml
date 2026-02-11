@@ -1,0 +1,17 @@
+id: golden-path-claude-loa-md
+schema_version: 1
+skill: test-skill
+category: framework
+fixture: loa-skill-dir
+description: "CLAUDE.loa.md exists"
+trials: 1
+timeout:
+  per_trial: 60
+  per_grader: 30
+graders:
+  - type: code
+    script: file-exists.sh
+    args: [".claude/loa/CLAUDE.loa.md"]
+    weight: 1.0
+difficulty: basic
+tags: ["framework", "golden-path"]

@@ -1,0 +1,70 @@
+name: "eval-running"
+version: "1.0.0"
+model: "native"
+color: "cyan"
+
+effort_hint: medium
+danger_level: safe
+categories:
+  - quality
+  - testing
+
+description: |
+  Run evaluation suites to benchmark Loa skill quality and detect regressions.
+  Use this skill to validate that framework changes don't degrade agent behavior.
+  Supports framework correctness, regression, and skill quality eval suites.
+
+triggers:
+  - "/eval"
+  - "run evals"
+  - "benchmark skills"
+  - "check for regressions"
+  - "run evaluation"
+
+negative_triggers:
+  - "unit test"
+  - "integration test"
+  - "npm test"
+
+inputs:
+  - name: "suite"
+    type: "string"
+    description: "Named eval suite to run (framework, regression, skill-quality)"
+    required: false
+  - name: "task"
+    type: "string"
+    description: "Single task ID to run"
+    required: false
+  - name: "skill"
+    type: "string"
+    description: "Run all tasks targeting this skill"
+    required: false
+  - name: "update_baseline"
+    type: "boolean"
+    description: "Update baselines from current results"
+    required: false
+  - name: "compare"
+    type: "string"
+    description: "Run ID to compare against"
+    required: false
+
+outputs:
+  - path: "evals/results/run-*/results.jsonl"
+    description: "Per-trial evaluation results"
+    format: detailed
+  - path: "evals/results/eval-ledger.jsonl"
+    description: "Append-only result ledger"
+    format: raw
+
+protocols:
+  required: []
+  recommended: []
+
+input_guardrails:
+  pii_filter:
+    enabled: false
+  injection_detection:
+    enabled: false
+  relevance_check:
+    enabled: true
+    reject_irrelevant: false

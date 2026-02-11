@@ -1,0 +1,117 @@
+version: 1
+suite: framework
+model_version: "unknown"
+recorded_at: "2026-02-11"
+recorded_from_run: "unknown"
+update_reason: "Initial baseline — all 22 framework tasks passing"
+tasks:
+  config-has-run-mode:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  config-has-simstim:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  config-yaml-valid:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  constraint-ids-unique:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  constraint-json-valid:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  constraint-proc-001-enforced:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  constraint-proc-005-enforced:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  constraint-proc-015-enforced:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  golden-path-claude-loa-md:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  golden-path-config-exists:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  golden-path-protocols-dir:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  golden-path-skill-dirs-exist:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  golden-path-skill-md-exists:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  quality-constraints-json:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  quality-ledger-valid:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  quality-no-secrets:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  quality-skill-index:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  skill-index-all-valid:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  skill-index-danger-levels:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  skill-index-triggers-unique:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  structure-data-dir:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  structure-grimoire-exists:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active

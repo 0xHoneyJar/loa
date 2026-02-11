@@ -1,0 +1,16 @@
+# Grader command allowlist
+# Commands that graders may invoke. One per line.
+node
+npx
+python3
+pytest
+bash
+sh
+grep
+diff
+jq
+git
+test
+[
+[[
+yq

@@ -1,0 +1,17 @@
+id: structure-grimoire-exists
+schema_version: 1
+skill: test-skill
+category: framework
+fixture: loa-skill-dir
+description: "grimoires/loa/ directory exists"
+trials: 1
+timeout:
+  per_trial: 60
+  per_grader: 30
+graders:
+  - type: code
+    script: file-exists.sh
+    args: ["grimoires/loa/ledger.json"]
+    weight: 1.0
+difficulty: basic
+tags: ["framework", "structure-validation"]

@@ -201,6 +201,10 @@ docs/screenshots/
 # .beads/beads.db
 # .beads/*.meta.json
 
+# Eval results (run-specific, gitignored except baselines and .gitkeep)
+evals/results/*
+!evals/results/.gitkeep
+
 # Application artifacts (app/)
 app/src/
 app/tests/

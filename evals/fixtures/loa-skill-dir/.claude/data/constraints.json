@@ -1,0 +1,70 @@
+{
+  "$schema": "../schemas/constraints.schema.json",
+  "version": "1.0.0",
+  "constraints": [
+    {
+      "id": "C-PROC-001",
+      "name": "no_code_outside_implement",
+      "category": "process",
+      "rule_type": "NEVER",
+      "text": "NEVER write application code outside of /implement skill invocation",
+      "why": "Code written outside /implement bypasses review and audit gates",
+      "order": 0,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "process_compliance_never",
+          "render_as": "table_row"
+        },
+        {
+          "target": "skill-md",
+          "skills": ["implementing-tasks"],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "error_code": "E111",
+      "severity": "critical"
+    },
+    {
+      "id": "C-PROC-005",
+      "name": "always_complete_review_audit",
+      "category": "process",
+      "rule_type": "ALWAYS",
+      "text": "ALWAYS complete the full implement → review → audit cycle",
+      "why": "Partial cycles leave unreviewed code in the codebase",
+      "order": 4,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "process_compliance_always",
+          "render_as": "table_row"
+        }
+      ],
+      "error_code": "E114",
+      "severity": "critical"
+    },
+    {
+      "id": "C-PROC-015",
+      "name": "validate_bug_eligibility",
+      "category": "process",
+      "rule_type": "ALWAYS",
+      "text": "ALWAYS validate bug eligibility before /bug implementation",
+      "why": "Prevents feature work from bypassing PRD/SDD gates via /bug",
+      "order": 14,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "process_compliance_always",
+          "render_as": "table_row"
+        },
+        {
+          "target": "skill-md",
+          "skills": ["bug-triaging"],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "error_code": "E130",
+      "severity": "high"
+    }
+  ]
+}

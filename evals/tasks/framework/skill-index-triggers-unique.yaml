@@ -1,0 +1,17 @@
+id: skill-index-triggers-unique
+schema_version: 1
+skill: test-skill
+category: framework
+fixture: loa-skill-dir
+description: "No trigger collisions"
+trials: 1
+timeout:
+  per_trial: 60
+  per_grader: 30
+graders:
+  - type: code
+    script: skill-index-validator.sh
+    args: ["triggers-unique"]
+    weight: 1.0
+difficulty: basic
+tags: ["framework", "skill-index"]

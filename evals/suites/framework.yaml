@@ -1,0 +1,23 @@
+name: framework
+description: "Framework correctness — deterministic checks of Loa infrastructure contracts"
+version: 1
+
+tasks:
+  include:
+    - "tasks/framework/**/*.yaml"
+  exclude: []
+
+defaults:
+  trials: 1
+  timeout:
+    per_trial: 60
+    per_grader: 30
+  composite_strategy: all_must_pass
+
+ci:
+  gate_type: blocking
+  min_trials: 1
+  regression_threshold: 0.0
+
+execution_order: parallel
+concurrency: 4
