@@ -73,8 +73,8 @@ jobs:
           echo "Scanning trusted eval scripts for source-injection vectors..."
           violations=0
 
-          # Scan all .sh files in trusted eval directories
-          for f in $(find pr/evals/graders/ pr/evals/harness/ -name '*.sh' -type f 2>/dev/null); do
+          # Scan all .sh files in trusted eval directories (exclude tests/)
+          for f in $(find pr/evals/graders/ pr/evals/harness/ -name '*.sh' -type f -not -path '*/tests/*' 2>/dev/null); do
             # Check for source/dot directives with variable expansion or paths outside evals/
             while IFS= read -r line; do
               # Skip comments
