@@ -49,8 +49,8 @@ inputs:
   - name: target
     type: string
     pattern: "sprint-[0-9]+"
-    description: "Sprint to implement (e.g., sprint-1)"
-    required: true
+    description: "Sprint to implement (e.g., sprint-1). Required for sprint mode; generated during triage for bug mode."
+    required: false
   - name: max_cycles
     type: integer
     default: 20

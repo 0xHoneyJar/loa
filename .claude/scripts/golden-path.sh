@@ -402,6 +402,43 @@ golden_get_bug_sprint_id() {
     return 1
 }
 
+# Validate a bug state transition against the allowed transition table.
+# Args: $1 = current_state, $2 = proposed_state
+# Returns: 0 if valid, 1 if invalid.
+# Transition table (SDD Appendix E / SKILL.md):
+#   TRIAGE → IMPLEMENTING
+#   IMPLEMENTING → REVIEWING
+#   REVIEWING → IMPLEMENTING | AUDITING
+#   AUDITING → IMPLEMENTING | COMPLETED
+#   ANY → HALTED
+#   COMPLETED/HALTED are terminal (no transitions out except HALTED→HALTED)
+golden_validate_bug_transition() {
+    local current="${1:-}"
+    local proposed="${2:-}"
+    [[ -z "${current}" || -z "${proposed}" ]] && return 1
+
+    # HALTED is always a valid target from any state
+    [[ "${proposed}" == "HALTED" ]] && return 0
+
+    # Terminal states: no transitions out
+    if [[ "${current}" == "COMPLETED" || "${current}" == "HALTED" ]]; then
+        return 1
+    fi
+
+    case "${current}" in
+        TRIAGE)
+            [[ "${proposed}" == "IMPLEMENTING" ]] && return 0 ;;
+        IMPLEMENTING)
+            [[ "${proposed}" == "REVIEWING" ]] && return 0 ;;
+        REVIEWING)
+            [[ "${proposed}" == "IMPLEMENTING" || "${proposed}" == "AUDITING" ]] && return 0 ;;
+        AUDITING)
+            [[ "${proposed}" == "IMPLEMENTING" || "${proposed}" == "COMPLETED" ]] && return 0 ;;
+    esac
+
+    return 1
+}
+
 # Dependency check: verify required tools for /bug workflow.
 # Returns: 0 if all required present, 1 if missing.
 golden_bug_check_deps() {
@@ -421,6 +458,9 @@ golden_bug_check_deps() {
 # ─────────────────────────────────────────────────────────────
 
 # Validate sprint ID format (sprint-N where N is a positive integer).
+# Note: Bug sprint IDs (sprint-bug-N) bypass this validation entirely via
+# golden_detect_active_bug() early return in golden_resolve_truename("build").
+# User-provided overrides still pass through this check.
 _gp_validate_sprint_id() {
     local id="$1"
     [[ "${id}" =~ ^sprint-[1-9][0-9]*$ ]]
