@@ -43,3 +43,10 @@
 
 ## Fix Strategy
 {strategy}
+
+### Fix Hints
+Structured hints for multi-model handoff (each hint targets one file change):
+
+| File | Action | Target | Constraint |
+|------|--------|--------|------------|
+| {file} | {action} | {target} | {constraint} |

@@ -344,7 +344,11 @@ golden_suggest_command() {
 # ─────────────────────────────────────────────────────────────
 
 # Detect most recent active bug fix from namespaced state.
-# Returns: bug_id on stdout, exit 0 if found, exit 1 if none.
+# Returns: "bug_id:state_hash" on stdout, exit 0 if found, exit 1 if none.
+# The state_hash is an md5 of the state file at detection time, enabling
+# callers to verify the state hasn't changed between detection and action
+# (TOCTOU safety for future concurrent multi-model execution).
+# Use golden_parse_bug_id() to extract just the bug_id.
 # Concurrent bugs → returns most recently modified.
 golden_detect_active_bug() {
     local bugs_dir="${PROJECT_ROOT}/.run/bugs"
@@ -352,6 +356,7 @@ golden_detect_active_bug() {
 
     local latest_bug=""
     local latest_time=0
+    local latest_hash=""
 
     local state_file
     for state_file in "${bugs_dir}"/*/state.json; do
@@ -364,15 +369,41 @@ golden_detect_active_bug() {
             if (( mtime > latest_time )); then
                 latest_time="${mtime}"
                 latest_bug=$(jq -r '.bug_id // empty' "${state_file}" 2>/dev/null)
+                latest_hash=$(md5sum "${state_file}" 2>/dev/null | cut -d' ' -f1 || md5 -q "${state_file}" 2>/dev/null) || latest_hash="none"
             fi
         fi
     done
 
     if [[ -n "${latest_bug}" ]]; then
-        echo "${latest_bug}"
+        echo "${latest_bug}:${latest_hash}"
         return 0
     fi
     return 1
+}
+
+# Parse bug_id from golden_detect_active_bug() output.
+# Args: $1 = "bug_id:state_hash" string from golden_detect_active_bug
+# Returns: bug_id on stdout (strips the :hash suffix).
+golden_parse_bug_id() {
+    echo "${1%%:*}"
+}
+
+# Verify that a bug's state hasn't changed since detection.
+# Args: $1 = bug_id, $2 = state_hash from golden_detect_active_bug
+# Returns: 0 if state matches (safe to act), 1 if changed (stale).
+golden_verify_bug_state() {
+    local bug_id="${1:-}"
+    local expected_hash="${2:-}"
+    [[ -z "${bug_id}" || -z "${expected_hash}" ]] && return 1
+    [[ "${expected_hash}" == "none" ]] && return 0  # Hash unavailable, skip check
+
+    local state_file="${PROJECT_ROOT}/.run/bugs/${bug_id}/state.json"
+    [[ -f "${state_file}" ]] || return 1
+
+    local current_hash
+    current_hash=$(md5sum "${state_file}" 2>/dev/null | cut -d' ' -f1 || md5 -q "${state_file}" 2>/dev/null) || return 0
+
+    [[ "${current_hash}" == "${expected_hash}" ]]
 }
 
 # Check if a micro-sprint exists for a given bug.
@@ -495,8 +526,10 @@ golden_resolve_truename() {
         build)
             if [[ -z "${override}" ]]; then
                 # Check for active bug fix first
-                local active_bug
-                if active_bug=$(golden_detect_active_bug 2>/dev/null); then
+                local active_bug_ref
+                if active_bug_ref=$(golden_detect_active_bug 2>/dev/null); then
+                    local active_bug
+                    active_bug=$(golden_parse_bug_id "${active_bug_ref}")
                     local bug_sprint
                     if bug_sprint=$(golden_get_bug_sprint_id "${active_bug}" 2>/dev/null); then
                         echo "/implement ${bug_sprint}"

@@ -429,6 +429,22 @@ Produce a list of suspected files with:
 - Confidence: high (direct stack trace), medium (keyword match), low (dependency chain)
 - Reason for suspicion
 
+### Output: Fix Hints (Multi-Model Handoff)
+
+In addition to the prose `fix_strategy`, generate structured `fix_hints` for each
+suspected file change. These enable smaller models (e.g., 3B parameter fast-code)
+to act on the fix without parsing nuanced prose:
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| `file` | Source file path | `src/auth/login.ts` |
+| `action` | What to do: fix, add, remove, refactor, encode, validate | `encode` |
+| `target` | What specifically to change | `email parameter` |
+| `constraint` | Scope limitation or condition | `login path only` |
+
+Generate one hint per suspected file. Prose `fix_strategy` remains the primary
+reference for capable models; hints are the structured fallback.
+
 ### Failure Modes
 
 | Failure | Action | Recovery |
