@@ -2,6 +2,7 @@
 # file-exists.sh — Check that file(s) exist in workspace
 # Args: $1=workspace, $2..N=file paths (relative to workspace)
 # Exit: 0=pass, 1=fail, 2=error
+# Version: 1.0.1
 set -euo pipefail
 
 workspace="${1:-}"
