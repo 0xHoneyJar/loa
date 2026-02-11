@@ -23,6 +23,12 @@ inputExamples:
       max_cycles: 10
       timeout_hours: 4
     description: "Run sprint with custom limits"
+  - input:
+      bug: "Login fails when email contains + character"
+    description: "Autonomous bug fix from description"
+  - input:
+      bug_from_issue: 42
+    description: "Autonomous bug fix from GitHub issue"
 
 # Skill triggers
 triggers:
@@ -60,6 +66,18 @@ inputs:
     type: boolean
     default: false
     description: "Validate without executing"
+  - name: bug
+    type: string
+    description: "Bug description for autonomous bug-fixing mode (/run --bug)"
+    required: false
+  - name: bug_from_issue
+    type: integer
+    description: "GitHub issue number for autonomous bug-fixing (/run --bug --from-issue N)"
+    required: false
+  - name: allow_high
+    type: boolean
+    default: false
+    description: "Allow high-risk autonomous fixes (auth, payment, migration)"
 
 outputs:
   - name: reviewer_md

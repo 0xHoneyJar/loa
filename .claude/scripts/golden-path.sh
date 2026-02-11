@@ -205,6 +205,13 @@ golden_check_ship_ready() {
 # Map workflow state to a golden path position.
 # Returns: "plan" | "build" | "review" | "ship" | "done"
 _gp_journey_position() {
+    # Active bug fix overrides normal journey position
+    local active_bug
+    if active_bug=$(golden_detect_active_bug 2>/dev/null); then
+        echo "build"
+        return
+    fi
+
     local plan_phase
     plan_phase=$(golden_detect_plan_phase)
 
@@ -300,6 +307,13 @@ golden_format_journey() {
 # Suggest the next golden command based on current state.
 # Returns a single golden command string.
 golden_suggest_command() {
+    # Active bug fix takes priority over feature sprint workflow
+    local active_bug
+    if active_bug=$(golden_detect_active_bug 2>/dev/null); then
+        echo "/build"
+        return
+    fi
+
     local plan_phase
     plan_phase=$(golden_detect_plan_phase)
 
@@ -323,6 +337,83 @@ golden_suggest_command() {
     fi
 
     echo "/ship"
+}
+
+# ─────────────────────────────────────────────────────────────
+# Bug Detection (v1.32.0 — Issue #278)
+# ─────────────────────────────────────────────────────────────
+
+# Detect most recent active bug fix from namespaced state.
+# Returns: bug_id on stdout, exit 0 if found, exit 1 if none.
+# Concurrent bugs → returns most recently modified.
+golden_detect_active_bug() {
+    local bugs_dir="${PROJECT_ROOT}/.run/bugs"
+    [[ -d "${bugs_dir}" ]] || return 1
+
+    local latest_bug=""
+    local latest_time=0
+
+    local state_file
+    for state_file in "${bugs_dir}"/*/state.json; do
+        [[ -f "${state_file}" ]] || continue
+        local state
+        state=$(jq -r '.state // empty' "${state_file}" 2>/dev/null) || continue
+        if [[ "${state}" != "COMPLETED" && "${state}" != "HALTED" ]]; then
+            local mtime
+            mtime=$(stat -c %Y "${state_file}" 2>/dev/null || stat -f %m "${state_file}" 2>/dev/null) || continue
+            if (( mtime > latest_time )); then
+                latest_time="${mtime}"
+                latest_bug=$(jq -r '.bug_id // empty' "${state_file}" 2>/dev/null)
+            fi
+        fi
+    done
+
+    if [[ -n "${latest_bug}" ]]; then
+        echo "${latest_bug}"
+        return 0
+    fi
+    return 1
+}
+
+# Check if a micro-sprint exists for a given bug.
+# Args: $1 = bug_id
+# Returns: 0 if sprint file exists, 1 otherwise.
+golden_detect_micro_sprint() {
+    local bug_id="${1:-}"
+    [[ -z "${bug_id}" ]] && return 1
+    local sprint_file="${_GP_A2A_DIR}/bug-${bug_id}/sprint.md"
+    [[ -f "${sprint_file}" ]]
+}
+
+# Get the sprint ID for an active bug from its state file.
+# Args: $1 = bug_id
+# Returns: sprint_id on stdout, exit 0 if found, exit 1 if none.
+golden_get_bug_sprint_id() {
+    local bug_id="${1:-}"
+    [[ -z "${bug_id}" ]] && return 1
+    local state_file="${PROJECT_ROOT}/.run/bugs/${bug_id}/state.json"
+    [[ -f "${state_file}" ]] || return 1
+    local sprint_id
+    sprint_id=$(jq -r '.sprint_id // empty' "${state_file}" 2>/dev/null) || return 1
+    if [[ -n "${sprint_id}" ]]; then
+        echo "${sprint_id}"
+        return 0
+    fi
+    return 1
+}
+
+# Dependency check: verify required tools for /bug workflow.
+# Returns: 0 if all required present, 1 if missing.
+golden_bug_check_deps() {
+    local missing=()
+    command -v jq >/dev/null 2>&1 || missing+=("jq")
+    command -v git >/dev/null 2>&1 || missing+=("git")
+
+    if (( ${#missing[@]} > 0 )); then
+        echo "Missing required tools: ${missing[*]}" >&2
+        return 1
+    fi
+    return 0
 }
 
 # ─────────────────────────────────────────────────────────────
@@ -362,6 +453,17 @@ golden_resolve_truename() {
             esac
             ;;
         build)
+            if [[ -z "${override}" ]]; then
+                # Check for active bug fix first
+                local active_bug
+                if active_bug=$(golden_detect_active_bug 2>/dev/null); then
+                    local bug_sprint
+                    if bug_sprint=$(golden_get_bug_sprint_id "${active_bug}" 2>/dev/null); then
+                        echo "/implement ${bug_sprint}"
+                        return
+                    fi
+                fi
+            fi
             local sprint
             sprint="${override:-$(golden_detect_sprint)}"
             if [[ -n "${sprint}" ]]; then

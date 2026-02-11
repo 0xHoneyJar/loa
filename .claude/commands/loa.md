@@ -146,11 +146,13 @@ All Loa Commands
     /implement sprint-N      Implement specific sprint
     /review-sprint sprint-N  Code review for specific sprint
     /audit-sprint sprint-N   Security audit for specific sprint
+    /bug                     Triage and fix a bug (lightweight workflow)
     /deploy-production       Deploy to production
 
   Autonomous:
     /run sprint-N            Autonomous sprint execution
     /run sprint-plan         Execute all sprints autonomously
+    /run --bug "desc"        Autonomous bug fix
     /run-status              Check run progress
     /run-halt                Stop active run
     /run-resume              Resume halted run
@@ -185,6 +187,7 @@ The workflow-state.sh script detects states, and golden-path.sh maps them to gol
 
 | State | Condition | Golden Command |
 |-------|-----------|----------------|
+| `bug_active` | Active bug fix in `.run/bugs/` | `/build` |
 | `initial` | No `prd.md` exists | `/plan` |
 | `prd_created` | PRD exists, no SDD | `/plan` |
 | `sdd_created` | SDD exists, no sprint plan | `/plan` |
@@ -193,6 +196,8 @@ The workflow-state.sh script detects states, and golden-path.sh maps them to gol
 | `reviewing` | Awaiting review | `/review` |
 | `auditing` | Awaiting security audit | `/review` |
 | `complete` | All sprints done | `/ship` |
+
+**Note**: `bug_active` takes priority over all other states. When a bug fix is in progress, `/loa` shows bug status and `/build` routes to the bug's micro-sprint.
 
 ## User Prompts
 
@@ -224,6 +229,19 @@ options:
    phase=$(golden_detect_plan_phase)
    sprint=$(golden_detect_sprint)
    ```
+
+2b. **Check for active bug fix** (v1.32.0 — Issue #278):
+   ```bash
+   source .claude/scripts/golden-path.sh
+   if active_bug=$(golden_detect_active_bug 2>/dev/null); then
+     bug_state=$(jq -r '.state' ".run/bugs/${active_bug}/state.json")
+     bug_title=$(jq -r '.bug_title' ".run/bugs/${active_bug}/state.json")
+     bug_sprint=$(jq -r '.sprint_id' ".run/bugs/${active_bug}/state.json")
+     # Display: "Active Bug Fix: {active_bug} — {bug_title} ({bug_state})"
+     # Suggested command: /build (routes to bug micro-sprint)
+   fi
+   ```
+   If an active bug is detected, display it prominently before the journey bar.
 
 3. **Health summary** (quick check):
    ```bash
@@ -327,6 +345,31 @@ The `/loa` command integrates with:
 
   Next: /build
   Continue implementing sprint-2.
+```
+
+### Active Bug Fix
+
+```
+/loa
+
+  Loa — Agent-Driven Development
+
+  Health: ✓ All systems operational
+  State:  Bug Fix in Progress
+
+  Active Bug Fix: 20260211-a3f2b1
+    Title: Login fails with + in email
+    State: IMPLEMENTING
+    Sprint: sprint-bug-3
+
+  ┌─────────────────────────────────────────────────────┐
+  │  /plan ━━━━━━━ /build ━━●━━━━ /review ─── /ship    │
+  │                     ▲                                │
+  │                 you are here                         │
+  └─────────────────────────────────────────────────────┘
+
+  Next: /build
+  Continue bug fix implementation (sprint-bug-3).
 ```
 
 ### All Done

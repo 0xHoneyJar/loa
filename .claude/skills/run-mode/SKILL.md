@@ -337,6 +337,176 @@ Tracks API calls per hour to prevent exhaustion:
 - Default limit: 100 calls/hour
 - Configurable via `run_mode.rate_limiting.calls_per_hour`
 
+## Bug Run Mode (`/run --bug`)
+
+Autonomous bug fixing with triage → implement → review → audit cycle.
+
+### Commands
+
+```
+/run --bug "Login fails when email contains + character"
+/run --bug --from-issue 42
+/run --bug "description" --allow-high
+```
+
+### Bug Run Loop
+
+```
+/run --bug "description"
+       │
+       ▼
+  ┌─────────────┐
+  │  TRIAGE     │  Invoke bug-triaging skill
+  │             │  Output: triage.md, micro-sprint
+  └──────┬──────┘
+         │
+         ▼
+  ┌─────────────┐
+  │  IMPLEMENT  │  /implement sprint-bug-{N}
+  │             │  Test-first: write test → fix → verify
+  └──────┬──────┘
+         │
+         ▼
+  ┌─────────────┐
+  │  REVIEW     │  /review-sprint sprint-bug-{N}
+  │             │  If findings → back to IMPLEMENT
+  └──────┬──────┘
+         │
+         ▼
+  ┌─────────────┐
+  │   AUDIT     │  /audit-sprint sprint-bug-{N}
+  │             │  If findings → back to IMPLEMENT
+  └──────┬──────┘
+         │
+         ▼
+  ┌─────────────┐
+  │  COMPLETE   │  COMPLETED marker + draft PR
+  └─────────────┘
+```
+
+### Bug Run Execution
+
+1. **Pre-flight**: Same as standard run (config check, ICE, permissions)
+2. **Branch**: Create `bugfix/{bug_id}` branch via ICE
+3. **Triage**: Invoke `/bug` skill with description or `--from-issue N`
+   - If `--from-issue`: pass issue number to bug-triaging skill
+   - Skill produces `triage.md` and micro-sprint in `grimoires/loa/a2a/bug-{id}/`
+4. **High-Risk Check**: Read `risk_level` from bug state
+   - If `risk_level: high` AND `--allow-high` not set → **HALT**
+   - Message: "High-risk area detected (auth/payment/migration). Use --allow-high to proceed."
+5. **Implementation Loop**: Same as standard run but with bug-scoped circuit breaker
+   - `/implement sprint-bug-{N}`
+   - Commit changes, track deletions
+   - `/review-sprint sprint-bug-{N}`
+   - If findings → continue loop
+   - `/audit-sprint sprint-bug-{N}`
+   - If findings → continue loop
+   - If COMPLETED → break
+6. **Completion**: Draft PR with confidence signals (see below)
+
+### Bug-Scoped Circuit Breaker
+
+Tighter limits than standard run (bug scope is smaller):
+
+| Trigger | Limit | Rationale |
+|---------|-------|-----------|
+| Same Issue | 3 cycles | Bug fix shouldn't need >3 review cycles |
+| No Progress | 5 cycles | If no file changes, bug may be misdiagnosed |
+| Cycle Limit | 10 total | Reduced from 20 (smaller scope) |
+| Timeout | 2 hours | Reduced from 8 (smaller scope) |
+
+Circuit breaker state stored in `.run/bugs/{bug_id}/circuit-breaker.json` (namespaced per bug).
+
+### Bug State File
+
+Per-bug namespaced state in `.run/bugs/{bug_id}/state.json`:
+
+```json
+{
+  "schema_version": 1,
+  "bug_id": "20260211-a3f2b1",
+  "bug_title": "Login fails with + in email",
+  "sprint_id": "sprint-bug-3",
+  "state": "IMPLEMENTING",
+  "mode": "autonomous",
+  "created_at": "2026-02-11T10:00:00Z",
+  "updated_at": "2026-02-11T10:30:00Z",
+  "circuit_breaker": {
+    "cycle_count": 1,
+    "same_issue_count": 0,
+    "no_progress_count": 0,
+    "last_finding_hash": null
+  },
+  "confidence": {
+    "reproduction_strength": "strong",
+    "test_type": "unit",
+    "risk_level": "low",
+    "files_changed": 3,
+    "lines_changed": 42
+  }
+}
+```
+
+**Allowed State Transitions:**
+```
+TRIAGE → IMPLEMENTING       (triage complete)
+IMPLEMENTING → REVIEWING    (implementation complete)
+REVIEWING → IMPLEMENTING    (review found issues)
+REVIEWING → AUDITING        (review passed)
+AUDITING → IMPLEMENTING     (audit found issues)
+AUDITING → COMPLETED        (audit passed)
+ANY → HALTED                (circuit breaker or manual halt)
+```
+
+Invalid transitions must be rejected with an error.
+
+### Bug PR Creation (Confidence Signals)
+
+On completion, create draft PR via ICE with confidence signals:
+
+```
+## Bug Fix: {bug_title}
+
+**Bug ID**: {bug_id}
+**Source**: /run --bug
+
+### Confidence Signals
+- Reproduction: {strong/weak/manual_only}
+- Test type: {unit/integration/e2e/contract}
+- Files changed: {N}
+- Lines changed: {N}
+- Risk level: {low/medium/high}
+
+### Artifacts
+- Triage: grimoires/loa/a2a/bug-{id}/triage.md
+- Review: grimoires/loa/a2a/bug-{id}/reviewer.md
+- Audit: grimoires/loa/a2a/bug-{id}/auditor-sprint-feedback.md
+
+### Status: READY FOR HUMAN REVIEW
+This PR was created by `/run --bug` autonomous mode.
+Please review before merging.
+```
+
+**CRITICAL**: Bug PRs are ALWAYS draft. Never auto-merged. Human approval required.
+
+### High-Risk Area Detection
+
+Suspected files are checked against high-risk patterns during triage (Phase 3):
+
+```
+auth, authentication, login, password, token, jwt, oauth
+payment, billing, charge, stripe, checkout
+migration, schema, database, db
+encrypt, decrypt, secret, credential, key
+```
+
+| Mode | Risk Level | Behavior |
+|------|-----------|----------|
+| Interactive | high | WARN: display risk, ask confirmation |
+| Autonomous | high (no --allow-high) | **HALT**: require --allow-high flag |
+| Autonomous | high (--allow-high) | Proceed with risk_level: high in PR |
+| Any | low/medium | Proceed normally |
+
 ## Deleted Files Tracking
 
 All deletions logged to `.run/deleted-files.log`:
