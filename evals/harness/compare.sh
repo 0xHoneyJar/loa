@@ -105,6 +105,43 @@ aggregate_results() {
   ' "$results_file"
 }
 
+# --- Early stopping check for multi-trial evals ---
+# Returns "true" if regression is inevitable even if all remaining trials pass.
+# Used by run-eval.sh to skip remaining trials when outcome is determined.
+# Uses raw pass rate (not Wilson CI) to avoid false positives from wide CIs at small n.
+# Wilson CI is applied at comparison time for the final verdict; early stopping
+# only needs to answer: "can the best-case pass rate reach the baseline?"
+# Args: $1=passes, $2=failures, $3=remaining, $4=baseline_pass_rate, $5=threshold
+can_early_stop() {
+  local passes="$1"
+  local failures="$2"
+  local remaining="$3"
+  local bl_pass_rate="${4:-1.0}"
+  local threshold="${5:-0.10}"
+
+  python3 -c "
+passes = $passes
+failures = $failures
+remaining = $remaining
+bl_pass_rate = $bl_pass_rate
+threshold = $threshold
+
+# Best case: all remaining trials pass
+best_passes = passes + remaining
+total = passes + failures + remaining
+
+if total == 0:
+    print('false')
+else:
+    best_pass_rate = best_passes / total
+    # Regression inevitable if best-case pass rate still below threshold
+    if best_pass_rate < bl_pass_rate - threshold:
+        print('true')
+    else:
+        print('false')
+" 2>/dev/null || echo "false"
+}
+
 # --- Wilson confidence interval (95%) ---
 # Computes lower and upper bounds for a binomial proportion.
 # Uses the Wilson score interval: more accurate than normal approximation for small n.

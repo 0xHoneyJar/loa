@@ -343,6 +343,10 @@ execute_task() {
 
   log_verbose "  [TASK] $task_id ($category, ${trials} trial(s))"
 
+  # Early stopping counters for multi-trial tasks
+  local es_passes=0
+  local es_failures=0
+
   for trial_num in $(seq 1 "$trials"); do
     local trial_id="${RUN_ID}-${task_id}-trial-${trial_num}"
     local trial_start_ms
@@ -423,6 +427,48 @@ execute_task() {
 
     # Cleanup sandbox
     "$HARNESS_DIR/sandbox.sh" destroy --trial-id "$trial_id" 2>/dev/null || true
+
+    # Track pass/fail for early stopping
+    local trial_passed
+    trial_passed="$(echo "${composite_json:-{}}" | jq -r '.pass // false' 2>/dev/null || echo "false")"
+    if [[ "$trial_passed" == "true" ]]; then
+      es_passes=$((es_passes + 1))
+    else
+      es_failures=$((es_failures + 1))
+    fi
+
+    # Early stopping for multi-trial tasks: skip remaining trials if regression is inevitable
+    # Uses raw pass rate: if best-case (all remaining pass) still below baseline - threshold, stop.
+    # Note: 0.90 assumes baseline=1.0 threshold=0.10 (conservative default since baselines
+    # aren't loaded during EXECUTE phase — they're loaded in the later COMPARE phase).
+    if [[ "$trials" -gt 1 && "$trial_num" -lt "$trials" ]]; then
+      local remaining=$(( trials - trial_num ))
+      local should_stop
+      should_stop="$(python3 -c "
+p = $es_passes; f = $es_failures; r = $remaining
+best = (p + r) / (p + f + r) if (p + f + r) > 0 else 0
+print('true' if best < 0.90 else 'false')
+" 2>/dev/null)" || should_stop="false"
+      if [[ "$should_stop" == "true" ]]; then
+        log_verbose "  Task $task_id: early stopped at trial $trial_num/$trials — regression inevitable"
+        # Mark remaining trials as skipped in result
+        jq -cn \
+          --arg run_id "$RUN_ID" \
+          --arg task_id "$task_id" \
+          --argjson trial "$((trial_num + 1))" \
+          --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          --argjson duration_ms 0 \
+          --arg model_version "none" \
+          --arg status "skipped" \
+          --argjson schema_version 1 \
+          '{run_id:$run_id,task_id:$task_id,trial:$trial,timestamp:$timestamp,duration_ms:$duration_ms,
+            model_version:$model_version,status:$status,graders:[],
+            composite:{strategy:"all_must_pass",pass:false,score:0},
+            error:null,schema_version:$schema_version,early_stopped:true}' \
+          >> "$task_result_file"
+        break
+      fi
+    fi
   done
 }
 

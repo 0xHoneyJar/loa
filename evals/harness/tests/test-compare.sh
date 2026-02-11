@@ -117,6 +117,29 @@ assert_eq "Exit code 0 when no regressions" "0" "$exit_code"
 "$COMPARE" --results "$TEST_DIR/results.jsonl" --suite test --update-baseline 2>/dev/null && exit_code=0 || exit_code=$?
 assert_eq "Update baseline without --reason fails" "2" "$exit_code"
 
+# --- Test 9: Early stopping function ---
+echo ""
+echo "--- can_early_stop ---"
+
+# Extract and source only the can_early_stop function from compare.sh
+eval "$(sed -n '/^can_early_stop()/,/^}/p' "$COMPARE")"
+
+# 0 passes, 3 failures, 0 remaining, baseline 1.0, threshold 0.10 → should stop (trivially true, 0 total)
+result="$(can_early_stop 0 3 0 1.0 0.10)"
+assert_eq "Early stop: 0/3 done, 0 remaining" "true" "$result"
+
+# 0 passes, 1 failure, 2 remaining, baseline 1.0, threshold 0.10 → best case 2/3=0.67, Wilson lower ~0.35 < 0.90
+result="$(can_early_stop 0 1 2 1.0 0.10)"
+assert_eq "Early stop: 0/1 done, 2 remaining, bl=1.0" "true" "$result"
+
+# 3 passes, 0 failures, 2 remaining, baseline 1.0, threshold 0.10 → best case 5/5=1.0, should NOT stop
+result="$(can_early_stop 3 0 2 1.0 0.10)"
+assert_eq "No early stop: 3/3 done, 2 remaining, bl=1.0" "false" "$result"
+
+# 1 pass, 0 failures, 4 remaining, baseline 0.5, threshold 0.10 → best case 5/5, should NOT stop
+result="$(can_early_stop 1 0 4 0.5 0.10)"
+assert_eq "No early stop: 1/1 done, 4 remaining, bl=0.5" "false" "$result"
+
 echo ""
 echo "Results: $passed/$total passed, $failed failed"
 [[ $failed -gt 0 ]] && exit 1

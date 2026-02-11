@@ -153,7 +153,7 @@ Create tests for the harness infrastructure.
 
 ---
 
-## Sprint 2: Regression Suite, CI Pipeline & PR Comments
+## Sprint 2: Regression Suite, CI Pipeline & PR Comments -- REVIEWED, APPROVED
 
 ### Sprint Goal
 
@@ -262,13 +262,115 @@ Add eval configuration to `.loa.config.yaml` and amend constraints.
 
 ---
 
+## Sprint 3: Bridgebuilder Refinements — Hardening, Observability & Decision Trail
+
+### Sprint Goal
+
+Address all findings from the Bridgebuilder PR review (#282) and prior audit advisories. Harden grader security (ReDoS, source-injection, command execution), add sequential testing optimization for multi-trial evals, resolve the Dockerfile digest placeholder, and document architectural decisions with forward-looking Hounfour routing hooks.
+
+### Deliverables
+
+- [x] Grader hardening: ReDoS guard, direct execution, source-injection CI check
+- [x] Wilson CI sequential testing optimization (early stopping)
+- [x] Real Dockerfile SHA256 digest (not placeholder)
+- [x] ADR decision trail (JSONL vs SQLite, yq variant)
+- [x] Multi-model routing documentation and `model_version` hooks
+- [x] Updated harness tests covering new hardening
+- [x] Framework eval suite stays green (22/22)
+
+### Technical Tasks
+
+#### Task 3.1: ReDoS Guard in `pattern-match.sh` **[Audit Advisory, Bridgebuilder F1]**
+
+Add a regex complexity guard to prevent ReDoS patterns from being passed as grader args. The current implementation passes task YAML `args` directly into `grep -qlE` without complexity validation.
+
+**Acceptance Criteria**:
+- [ ] Reject regex patterns with nested quantifiers (e.g., `(a+)+`, `(a*)*`, `(a{2,}){2,}`)
+- [ ] Reject patterns exceeding 200 characters (configurable via `MAX_REGEX_LEN`)
+- [ ] Return exit code 2 (grader error) with descriptive JSON on rejection
+- [ ] Add test case in `evals/harness/tests/` verifying ReDoS rejection
+- [ ] Existing pattern-match eval tasks still pass
+
+#### Task 3.2: Safer Command Execution in `tests-pass.sh` **[Audit Advisory, Bridgebuilder F2]**
+
+Replace `bash -c "$test_command"` with direct argument-array execution. The current approach concatenates the command string through a subshell, which is less secure than splitting and executing directly.
+
+**Acceptance Criteria**:
+- [ ] Replace `bash -c "$test_command"` at line 40 with array-based execution: split command into array, execute `"${cmd_array[@]}"` directly
+- [ ] Preserve allowlist validation (must still check first token)
+- [ ] Handle multi-word commands correctly (e.g., `npx jest --verbose`)
+- [ ] Return exit code 2 with JSON error on empty/malformed commands
+- [ ] Existing tests-pass eval tasks still pass
+- [ ] Add test case verifying argument injection is blocked (e.g., `; rm -rf /` in args)
+
+#### Task 3.3: Grader Source-Injection Guard in CI **[Bridgebuilder F3, Medium]**
+
+Add a CI step that validates no grader scripts contain `source`, `.`, or `eval` directives that reference paths outside the trusted grader tree. Prevents a PR from injecting code into trusted graders via sourced files.
+
+**Acceptance Criteria**:
+- [ ] New CI step (after "Copy trusted eval infrastructure", before "Run framework suite") in `eval.yml`
+- [ ] Scans all `.sh` files in `pr/evals/graders/` and `pr/evals/harness/` for `source`/`.`/`eval` directives
+- [ ] Fails CI if any `source`/`.` targets resolve outside `pr/evals/` or contain variable expansion (`$`, backticks)
+- [ ] Static analysis only — no execution of grader code
+- [ ] Does not block legitimate `source` of sibling scripts within the eval tree
+- [ ] Add comment in CI workflow explaining the trust boundary rationale
+
+#### Task 3.4: Sequential Testing Optimization **[Bridgebuilder F4, Medium]**
+
+Add early stopping for multi-trial agent evals. When a task accumulates enough failures that its Wilson CI lower bound can never exceed the regression threshold, stop remaining trials early. Saves CI time proportional to trial count.
+
+**Acceptance Criteria**:
+- [ ] New function `can_early_stop(passes, failures, remaining, threshold)` in `compare.sh` or a shared util
+- [ ] Returns true when the best-case Wilson CI lower bound (all remaining trials pass) still indicates regression
+- [ ] `run-eval.sh` trial loop calls `can_early_stop()` after each trial for multi-trial tasks (trials > 1)
+- [ ] Single-trial framework evals are unaffected (no early stopping check)
+- [ ] Early-stopped tasks are marked with `"early_stopped": true` in result JSON
+- [ ] Add test case verifying early stopping triggers correctly (e.g., 0/3 passes with threshold 0.5)
+- [ ] Log message when early stopping: `"Task {id}: early stopped at trial {n}/{total} — regression inevitable"`
+
+#### Task 3.5: Dockerfile Real SHA256 Digest **[Audit Advisory, Bridgebuilder F5]**
+
+Replace the placeholder SHA256 digest in `Dockerfile.sandbox` with the real digest for `node:20.11.0-bookworm-slim` from Docker Hub.
+
+**Acceptance Criteria**:
+- [ ] SHA256 digest on FROM line matches actual `node:20.11.0-bookworm-slim` manifest digest from Docker Hub
+- [ ] Digest verified by running `docker manifest inspect node:20.11.0-bookworm-slim` (or equivalent registry API)
+- [ ] Comment added noting the date the digest was pinned and how to refresh it
+- [ ] Dockerfile health check still passes (all tools verified)
+
+#### Task 3.6: ADR Decision Trail **[Bridgebuilder F6, Low]**
+
+Document the key architectural decisions made during eval sandbox design as lightweight ADR entries in the README. Addresses the "decision trail gaps" finding.
+
+**Acceptance Criteria**:
+- [ ] New `## Architecture Decisions` section in `evals/README.md`
+- [ ] ADR-001: JSONL vs SQLite — why append-only JSONL was chosen over SQLite for result storage (simplicity, no binary dependency, git-friendly audit trail, flock atomicity)
+- [ ] ADR-002: yq variant — explicitly states mikefarah/yq (Go binary) was chosen over kislyuk/yq (Python wrapper), with rationale (no Python runtime dependency, single binary, consistent behavior)
+- [ ] ADR-003: Shell-based harness — why bash over Node.js/Python for the harness (zero additional runtime, universal CI availability, exit code contract simplicity)
+- [ ] Each ADR has: Context, Decision, Consequences (1-3 sentences each)
+
+#### Task 3.7: Multi-Model Eval Routing Documentation **[Bridgebuilder F7, Low]**
+
+Document the `model_version` field's forward-looking connection to multi-model routing (Hounfour / permission-scape). The field already exists in results but its strategic purpose for model comparison and routing is undocumented.
+
+**Acceptance Criteria**:
+- [ ] New `## Multi-Model Evaluation` section in `evals/README.md`
+- [ ] Documents `model_version` field in result schema and its purpose for cross-model comparison
+- [ ] Explains model version skew detection in `compare.sh` (advisory mode when model versions differ)
+- [ ] Forward reference to Hounfour multi-model routing: eval data provides empirical evidence for routing decisions (which model performs best on which task categories)
+- [ ] Notes that `model_version` in baselines enables per-model baseline tracking when multi-model support lands
+- [ ] Does NOT implement routing — documentation only, connecting the existing `model_version` field to the vision
+
+---
+
 ## Sprint Summary
 
 | Sprint | Goal | Tasks | Est. Components |
 |--------|------|-------|-----------------|
 | Sprint 1 | Eval Harness + Framework Correctness | 10 | 28 new files, 0 modified |
 | Sprint 2 | Regression Suite + CI Pipeline | 7 | 20 new files, 4 modified |
-| **Total** | **MVP Complete** | **17** | **48 new, 4 modified** |
+| Sprint 3 | Bridgebuilder Refinements | 7 | 0 new files, 8 modified |
+| **Total** | **Exceptional PR** | **24** | **48 new, 12 modified** |
 
 ### Risk Mitigation in Sprint Plan
 
@@ -278,6 +380,9 @@ Add eval configuration to `.loa.config.yaml` and amend constraints.
 | Grader quality | 1 | Task 1.9 harness tests catch grader regressions |
 | Container complexity | 2 | Task 2.3 isolated from other work; falls back to local mode |
 | CI integration issues | 2 | Task 2.4 can be tested on a branch before merge |
+| ReDoS guard false positives | 3 | Permissive length limit (200 chars); only rejects nested quantifiers |
+| Early stopping edge cases | 3 | Only activates for multi-trial; single-trial evals unchanged |
+| Dockerfile digest staleness | 3 | Comment documents refresh procedure |
 
 ### Dependencies
 
@@ -296,6 +401,15 @@ Task 1.5 (compare) ← Task 2.6 (Wilson intervals)
 Task 1.6 (report) ← Task 2.5 (PR comment)
 Task 2.1 (fixtures) ← Task 2.2 (regression tasks)
 Task 2.3 (container) ← Task 2.4 (CI pipeline)
+
+Sprint 3 (all tasks independent — no inter-task dependencies):
+Task 3.1 (ReDoS guard) ← Task 1.4 (graders)
+Task 3.2 (tests-pass fix) ← Task 1.4 (graders)
+Task 3.3 (CI injection guard) ← Task 2.4 (CI pipeline)
+Task 3.4 (early stopping) ← Task 2.6 (Wilson intervals)
+Task 3.5 (Dockerfile digest) ← Task 2.3 (container)
+Task 3.6 (ADR trail) ← Task 1.9 (README)
+Task 3.7 (routing docs) ← Task 1.9 (README)
 ```
 
 ### Flatline Protocol Integration Log
@@ -313,3 +427,15 @@ Task 2.3 (container) ← Task 2.4 (CI pipeline)
 | SKP-004 | BLOCKER (CRITICAL) | Accepted | Strict grader execution model in Task 1.4 |
 | SKP-005 | BLOCKER (HIGH) | Accepted | Baseline --reason requirement in Task 1.5 |
 | SKP-010 | BLOCKER (HIGH) | Accepted | Ledger validation + symlink checks in Task 2.4 |
+
+### Bridgebuilder Review Integration Log (Sprint 3)
+
+| Finding | Severity | Source | Integration |
+|---------|----------|--------|-------------|
+| BRG-001 | Advisory | Audit + Bridgebuilder | Task 3.1 — ReDoS guard in pattern-match.sh |
+| BRG-002 | Advisory | Audit + Bridgebuilder | Task 3.2 — Safer execution in tests-pass.sh |
+| BRG-003 | Medium | Bridgebuilder | Task 3.3 — Grader source-injection CI guard |
+| BRG-004 | Medium | Bridgebuilder | Task 3.4 — Sequential testing optimization |
+| BRG-005 | Advisory | Audit + Bridgebuilder | Task 3.5 — Real Dockerfile SHA256 digest |
+| BRG-006 | Low | Bridgebuilder | Task 3.6 — ADR decision trail |
+| BRG-007 | Low | Bridgebuilder | Task 3.7 — Multi-model routing documentation |

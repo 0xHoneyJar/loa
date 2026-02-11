@@ -18,6 +18,18 @@ if [[ -z "$pattern" ]]; then
   exit 2
 fi
 
+# ReDoS guard: reject patterns with nested quantifiers or excessive length
+MAX_REGEX_LEN="${MAX_REGEX_LEN:-200}"
+if [[ ${#pattern} -gt $MAX_REGEX_LEN ]]; then
+  echo '{"pass":false,"score":0,"details":"Regex exceeds maximum length ('"$MAX_REGEX_LEN"' chars)","grader_version":"1.0.0"}'
+  exit 2
+fi
+# Detect nested quantifiers: (x+)+, (x*)+, (x{n,})+, etc.
+if echo "$pattern" | grep -qE '\([^)]*[+*][^)]*\)[+*{]|\([^)]*\{[0-9]+,[^)]*\)[+*{]'; then
+  echo '{"pass":false,"score":0,"details":"Regex rejected: nested quantifiers detected (potential ReDoS)","grader_version":"1.0.0"}'
+  exit 2
+fi
+
 # Search for pattern in matching files
 match_count=0
 matched_files=()

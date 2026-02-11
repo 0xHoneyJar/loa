@@ -63,6 +63,43 @@ jobs:
             exit 1
           fi
 
+      # 3.5. Validate grader trust boundary
+      #   Graders execute during eval and have access to the workspace.
+      #   Ensure no grader/harness script sources files from outside the
+      #   trusted eval tree or uses dynamic evaluation that could be
+      #   influenced by PR content.
+      - name: Validate grader trust boundary
+        run: |
+          echo "Scanning trusted eval scripts for source-injection vectors..."
+          violations=0
+
+          # Scan all .sh files in trusted eval directories
+          for f in $(find pr/evals/graders/ pr/evals/harness/ -name '*.sh' -type f 2>/dev/null); do
+            # Check for source/dot directives with variable expansion or paths outside evals/
+            while IFS= read -r line; do
+              # Skip comments
+              [[ "$line" =~ ^[[:space:]]*# ]] && continue
+
+              # Detect: source $VAR, . $VAR, source $(cmd), eval $(...), eval "$var"
+              if echo "$line" | grep -qE '(^|[;&|])[[:space:]]*(source|\.)[ \t]+.*(\$|`)'; then
+                echo "::error file=$f::Source directive with variable expansion: $line"
+                violations=$((violations + 1))
+              fi
+
+              # Detect: eval with variable expansion
+              if echo "$line" | grep -qE '(^|[;&|])[[:space:]]*eval[ \t]+.*(\$|`)'; then
+                echo "::error file=$f::Eval with variable expansion: $line"
+                violations=$((violations + 1))
+              fi
+            done < "$f"
+          done
+
+          if [[ $violations -gt 0 ]]; then
+            echo "::error::Found $violations trust boundary violations in eval scripts"
+            exit 1
+          fi
+          echo "Trust boundary check passed"
+
       # 4. Install dependencies
       - name: Install yq
         uses: mikefarah/yq@v4.40.5

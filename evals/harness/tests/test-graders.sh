@@ -100,6 +100,48 @@ echo '{}' > "$TEST_DIR/quality-workspace/.claude/data/constraints.json"
 assert_pass "Quality gate: skill-index" "quality-gate.sh" "$TEST_DIR/quality-workspace" "skill-index"
 assert_pass "Quality gate: constraints" "quality-gate.sh" "$TEST_DIR/quality-workspace" "constraints"
 
+# --- pattern-match.sh: ReDoS guard ---
+echo ""
+echo "--- pattern-match.sh: ReDoS guard ---"
+
+# Nested quantifiers should be rejected (exit 2)
+assert_grader_error() {
+  local desc="$1"
+  local grader="$2"
+  shift 2
+  total=$((total + 1))
+  local output
+  output="$("$GRADERS_DIR/$grader" "$@" 2>/dev/null)" && exit_code=0 || exit_code=$?
+  if [[ $exit_code -eq 2 ]]; then
+    echo "  PASS: $desc"
+    passed=$((passed + 1))
+  else
+    echo "  FAIL: $desc (expected exit=2, got exit=$exit_code)"
+    failed=$((failed + 1))
+  fi
+}
+
+assert_grader_error "ReDoS: nested (a+)+" "pattern-match.sh" "$TEST_DIR/workspace" '(a+)+' "*.ts"
+assert_grader_error "ReDoS: nested (a*)*" "pattern-match.sh" "$TEST_DIR/workspace" '(a*)*' "*.ts"
+assert_grader_error "ReDoS: nested (a{2,}){2,}" "pattern-match.sh" "$TEST_DIR/workspace" '(a{2,}){2,}' "*.ts"
+
+# Long regex should be rejected
+long_pattern="$(printf 'a%.0s' {1..201})"
+assert_grader_error "ReDoS: pattern exceeds 200 chars" "pattern-match.sh" "$TEST_DIR/workspace" "$long_pattern" "*.ts"
+
+# Normal patterns should still work
+assert_pass "Normal regex still works" "pattern-match.sh" "$TEST_DIR/workspace" "function" "*.ts"
+
+# --- tests-pass.sh: metacharacter injection guard ---
+echo ""
+echo "--- tests-pass.sh: injection guard ---"
+
+# Shell metacharacters should be rejected
+assert_grader_error "Injection: semicolon" "tests-pass.sh" "$TEST_DIR/workspace" "echo hello; rm -rf /"
+assert_grader_error "Injection: pipe" "tests-pass.sh" "$TEST_DIR/workspace" "echo hello | cat"
+assert_grader_error "Injection: backtick" "tests-pass.sh" "$TEST_DIR/workspace" 'echo `whoami`'
+assert_grader_error "Injection: dollar" "tests-pass.sh" "$TEST_DIR/workspace" 'echo $HOME'
+
 # --- Path traversal rejection ---
 echo ""
 echo "--- Security: Path traversal ---"

@@ -33,11 +33,24 @@ if [[ "$allowed" == "false" ]]; then
   exit 2
 fi
 
+# Reject shell metacharacters in command (prevent injection via args)
+if echo "$test_command" | grep -qE '[;|&`$\\]'; then
+  echo '{"pass":false,"score":0,"details":"Test command contains shell metacharacters","grader_version":"1.0.0"}'
+  exit 2
+fi
+
+# Split command into array for direct execution (no bash -c subshell)
+read -ra cmd_array <<< "$test_command"
+if [[ ${#cmd_array[@]} -eq 0 ]]; then
+  echo '{"pass":false,"score":0,"details":"Empty test command after parsing","grader_version":"1.0.0"}'
+  exit 2
+fi
+
 # Run tests from workspace directory
 cd "$workspace"
 test_output=""
 test_exit=0
-test_output="$(bash -c "$test_command" 2>&1)" || test_exit=$?
+test_output="$("${cmd_array[@]}" 2>&1)" || test_exit=$?
 
 if [[ $test_exit -eq 0 ]]; then
   echo '{"pass":true,"score":100,"details":"Tests passed","grader_version":"1.0.0"}'

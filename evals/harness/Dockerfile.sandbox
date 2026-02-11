@@ -7,7 +7,9 @@
 #          -v "$(pwd)/results:/results:rw" \
 #          loa-eval-sandbox
 
-FROM node:20.11.0-bookworm-slim@sha256:8e45e0d1e2c6c5e3b7e3c9b8e7f5d6a4c2b1a0e9d8c7b6a5f4e3d2c1b0a9e8d7 AS base
+# Digest pinned 2026-02-11 via: docker manifest inspect node:20.11.0-bookworm-slim
+# To refresh: docker manifest inspect node:20.11.0-bookworm-slim | jq '.manifests[0].digest'
+FROM node:20.11.0-bookworm-slim@sha256:8ea90c4f037cc3c2f566eb46c53eaac005129113487eda4090058fe554578104 AS base
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
