@@ -18,15 +18,28 @@
       "id": "cycle-002",
       "label": "Eval Sandbox — Benchmarking & Regression Framework",
       "type": "feature",
-      "status": "active",
+      "status": "archived",
       "source_issue": "https://github.com/0xHoneyJar/loa/issues/277",
       "created_at": "2026-02-11T14:00:00Z",
+      "archived_at": "2026-02-12T00:00:00Z",
       "sprints": ["sprint-1", "sprint-2", "sprint-3"],
+      "prd": "grimoires/loa/a2a/cycle-002-archive/prd.md",
+      "sdd": "grimoires/loa/a2a/cycle-002-archive/sdd.md",
+      "sprint_plan": "grimoires/loa/a2a/cycle-002-archive/sprint.md"
+    },
+    {
+      "id": "cycle-003",
+      "label": "Eval Traceability & Output Contracts — Eileen Feedback",
+      "type": "feature",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/286",
+      "created_at": "2026-02-12T00:00:00Z",
+      "sprints": [],
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "sprint_plan": "grimoires/loa/sprint.md"
     }
   ],
-  "active_cycle": "cycle-002",
+  "active_cycle": "cycle-003",
   "global_sprint_counter": 6
 }
