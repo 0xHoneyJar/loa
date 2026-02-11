@@ -1,19 +1,19 @@
-# SDD: Bug Mode — Lightweight Bug-Fixing Workflow
+# SDD: Eval Sandbox — Benchmarking & Regression Framework for Loa
 
 **Version**: 1.1.0
-**Status**: Draft (Flatline-reviewed)
+**Status**: Draft (revised per Flatline Protocol review)
 **Author**: Architecture Phase (architect)
 **PRD**: grimoires/loa/prd.md (v1.1.0)
-**Issue**: [loa #278](https://github.com/0xHoneyJar/loa/issues/278)
+**Issue**: [loa #277](https://github.com/0xHoneyJar/loa/issues/277)
 **Date**: 2026-02-11
 
 ---
 
 ## 1. Executive Summary
 
-This SDD defines the architecture for a lightweight bug-fixing workflow (`/bug`) that bypasses the PRD/SDD/Sprint Plan planning phases while preserving all quality gates (test-first execution, review, audit). The design introduces one new skill (`bug-triaging`), extends the existing run mode with a `--bug` flag, amends process compliance constraints, and adds micro-sprint lifecycle management to the Sprint Ledger.
+The Eval Sandbox is an evaluation and benchmarking framework for Loa that measures whether changes to skills, protocols, and configurations improve or degrade agent behavior. It introduces a YAML-based task definition system, fixture repositories for reproducible test environments, a deterministic code-based grader framework, JSONL result storage with baseline comparison, a `/eval` CLI command, and GitHub Actions CI integration with structured PR comments.
 
-The architecture follows Loa's existing patterns: the new skill is a self-contained directory under `.claude/skills/`, state is managed in `.run/`, artifacts land in `grimoires/loa/a2a/`, and the golden path is aware of active bug cycles. No existing skills are modified — the bug triage skill produces artifacts that the existing `/implement`, `/review-sprint`, and `/audit-sprint` skills consume unchanged.
+The architecture follows loa-finn's ground-truth verification patterns: deterministic graders with exit code contracts, property-based testing with pass/fail fixtures, and JSON-first output for programmatic analysis. The system is built in four phases: framework correctness → regression protection → skill quality → e2e workflows, with Phases 1-2 as MVP.
 
 ---
 
@@ -22,960 +22,1098 @@ The architecture follows Loa's existing patterns: the new skill is a self-contai
 ### 2.1 High-Level Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     User Invocation                          │
-│  /bug "description"          /run --bug "description"        │
-│  /bug --from-issue 42        /run --bug --from-issue 42      │
-└──────────────────┬──────────────────────┬───────────────────┘
-                   │ interactive          │ autonomous
-┌──────────────────▼──────────────────────▼───────────────────┐
-│                    Bug Triage Skill                           │
-│  .claude/skills/bug-triaging/SKILL.md                        │
-│                                                              │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
-│  │Eligiblty │  │ Hybrid   │  │ Codebase │  │ Sprint   │   │
-│  │  Check   │→ │ Interview│→ │ Analysis │→ │ Integr.  │   │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
-│                                                              │
-│  Output: grimoires/loa/a2a/bug-{id}/triage.md               │
-│          grimoires/loa/sprint.md (micro-sprint)              │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ handoff contract
-┌──────────────────────────────▼──────────────────────────────┐
-│                    Existing Skill Pipeline                    │
-│                                                              │
-│  /implement ──→ /review-sprint ──→ /audit-sprint             │
-│  (test-first)    (code review)      (security audit)         │
-│                                                              │
-│  Artifacts: bug-{id}/reviewer.md, auditor-sprint-feedback.md │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ COMPLETED
-┌──────────────────────────────▼──────────────────────────────┐
-│                    Completion & Cleanup                       │
-│                                                              │
-│  - COMPLETED marker created                                  │
-│  - Beads task closed                                         │
-│  - Ledger entry updated                                      │
-│  - Draft PR created (autonomous mode)                        │
-└─────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│                    ENTRY POINTS                                 │
+│  /eval CLI skill  ·  GitHub Actions workflow  ·  /run --eval    │
+├────────────────────────────────────────────────────────────────┤
+│                    EVAL HARNESS (run-eval.sh)                   │
+│  Suite loader → Task validator → Trial scheduler → Reporter     │
+│  ↕ Orchestrates the full eval pipeline                          │
+├──────────┬─────────────┬──────────────┬───────────────────────┤
+│  TASK    │  SANDBOX    │   GRADER     │    RESULT             │
+│  LAYER   │  LAYER      │   LAYER      │    LAYER              │
+│          │             │              │                        │
+│  YAML    │  Fixture    │  Code-based  │  JSONL ledger          │
+│  loader  │  cloner     │  graders     │  Baseline YAML         │
+│  Schema  │  Dep setup  │  Composite   │  Comparison engine     │
+│  valid.  │  Isolation  │  Timeouts    │  Flake detector        │
+├──────────┴─────────────┴──────────────┴───────────────────────┤
+│                    REPORTING LAYER                               │
+│  CLI report  ·  PR comment (gh)  ·  JSONL metrics               │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 ### 2.2 Component Inventory
 
 | Component | Type | Action | Path |
 |-----------|------|--------|------|
-| `bug-triaging` skill | New | Create | `.claude/skills/bug-triaging/` |
-| `bug-triaging/index.yaml` | New | Create | `.claude/skills/bug-triaging/index.yaml` |
-| `bug-triaging/SKILL.md` | New | Create | `.claude/skills/bug-triaging/SKILL.md` |
-| `bug-triaging/resources/templates/triage.md` | New | Create | Triage handoff template |
-| `bug-triaging/resources/templates/micro-sprint.md` | New | Create | Micro-sprint template |
-| `constraints.json` | Existing | Amend | `.claude/data/constraints.json` |
-| `run-mode/SKILL.md` | Existing | Extend | `.claude/skills/run-mode/SKILL.md` |
-| `run-mode/index.yaml` | Existing | Extend | `.claude/skills/run-mode/index.yaml` |
-| `golden-path.sh` | Existing | Extend | `.claude/scripts/golden-path.sh` |
-| `CLAUDE.loa.md` | Existing | Amend | `.claude/loa/CLAUDE.loa.md` |
-| `danger-level config` | Existing | Add entry | `.claude/data/constraints.json` or skill index |
+| eval-running skill | New | Create | `.claude/skills/eval-running/` |
+| eval command | New | Create | `.claude/commands/eval.md` |
+| run-eval.sh | New | Create | `evals/harness/run-eval.sh` |
+| sandbox.sh | New | Create | `evals/harness/sandbox.sh` |
+| grade.sh | New | Create | `evals/harness/grade.sh` |
+| report.sh | New | Create | `evals/harness/report.sh` |
+| compare.sh | New | Create | `evals/harness/compare.sh` |
+| pr-comment.sh | New | Create | `evals/harness/pr-comment.sh` |
+| validate-task.sh | New | Create | `evals/harness/validate-task.sh` |
+| 8 standard graders | New | Create | `evals/graders/*.sh` |
+| 5 fixture repos | New | Create | `evals/fixtures/*/` |
+| Suite definitions | New | Create | `evals/suites/*.yaml` |
+| Task definitions | New | Create | `evals/tasks/**/*.yaml` |
+| Baseline files | New | Create | `evals/baselines/*.baseline.yaml` |
+| CI workflow | New | Create | `.github/workflows/eval.yml` |
+| constraints.json | Existing | Amend | `.claude/data/constraints.json` |
+| CLAUDE.loa.md | Existing | Amend | `.claude/loa/CLAUDE.loa.md` |
+| golden-path.sh | Existing | Extend | `.claude/scripts/golden-path.sh` |
+| .loa.config.yaml | Existing | Extend | `.loa.config.yaml` |
 
 ### 2.3 Data Flow
 
 ```
-User Input (description/issue)
-       │
-       ▼
-  ┌─────────────┐     ┌──────────────┐
-  │ Eligibility │────→│  REJECTED    │──→ "Use /plan instead"
-  │   Check     │     └──────────────┘
-  └──────┬──────┘
-         │ ACCEPTED
-         ▼
-  ┌─────────────┐     ┌──────────────┐
-  │   Hybrid    │────→│  triage.md   │  (handoff contract)
-  │  Interview  │     └──────┬───────┘
-  └─────────────┘            │
-                             ▼
-  ┌─────────────┐     ┌──────────────┐
-  │  Codebase   │────→│ suspected    │
-  │  Analysis   │     │ files, tests │
-  └─────────────┘     └──────┬───────┘
-                             │
-                             ▼
-                     ┌──────────────┐
-                     │   Create     │
-                     │ Micro-sprint │
-                     │  (always)    │
-                     └──────┬───────┘
-                            │
-                            ▼
-                    ┌──────────────┐
-                    │  /implement  │  (test-first)
-                    │   --bug      │
-                    └──────┬───────┘
-                           ▼
-                    ┌──────────────┐
-                    │/review-sprint│
-                    └──────┬───────┘
-                           ▼
-                    ┌──────────────┐
-                    │/audit-sprint │
-                    └──────┬───────┘
-                           ▼
-                      COMPLETED
+Developer modifies skill
+        │
+        ▼
+   /eval (CLI)  ─── or ─── GitHub Actions (CI)
+        │                        │
+        ▼                        ▼
+   Load suite YAML          Load suite YAML
+        │                        │
+        ▼                        ▼
+   For each task:            For each task:
+   ┌──────────────┐         ┌──────────────┐
+   │ Validate YAML │         │ Validate YAML │
+   │ Clone fixture │         │ Clone fixture │
+   │ Setup deps    │         │ Setup deps    │
+   │ Run N trials  │         │ Run 1 trial   │
+   │ Grade each    │         │ Grade each    │
+   │ Store JSONL   │         │ Store JSONL   │
+   └──────────────┘         └──────────────┘
+        │                        │
+        ▼                        ▼
+   Compare baselines         Compare baselines
+        │                        │
+        ▼                        ▼
+   CLI report               PR comment + check status
 ```
 
 ---
 
 ## 3. Component Design
 
-### 3.1 Bug Triage Skill (`bug-triaging`)
+### 3.1 Eval Harness (`evals/harness/run-eval.sh`)
 
-#### 3.1.1 Skill Registration
+The main orchestrator. Follows loa-finn's `quality-gates.sh` pattern: composable scripts with exit code contracts and JSON output.
+
+**Interface**:
+```bash
+# Run all default suites
+./evals/harness/run-eval.sh
+
+# Run specific suite
+./evals/harness/run-eval.sh --suite regression
+
+# Run single task
+./evals/harness/run-eval.sh --task implement-simple-function
+
+# Run tasks for a specific skill
+./evals/harness/run-eval.sh --skill implementing-tasks
+
+# Update baselines
+./evals/harness/run-eval.sh --update-baseline
+
+# Compare runs
+./evals/harness/run-eval.sh --compare <run-id-1> <run-id-2>
+
+# JSON output for CI
+./evals/harness/run-eval.sh --suite regression --json
+```
+
+**Exit codes** (follows loa-finn pattern):
+| Code | Meaning | CI Behavior |
+|------|---------|-------------|
+| 0 | All tasks pass, no regressions | Check passes |
+| 1 | Regressions detected | Check fails (blocks merge) |
+| 2 | Infrastructure error (sandbox/grader failure) | Check neutral (does not block) |
+| 3 | Configuration error (harness broken) | Check fails |
+
+**Pipeline**:
+```
+INIT → LOAD_SUITE → VALIDATE_TASKS → EXECUTE_TRIALS → GRADE → COMPARE → REPORT → DONE
+```
+
+Each step writes to a run directory: `evals/results/run-{timestamp}-{hash}/`
+
+### 3.2 Task Schema & Validation (`evals/harness/validate-task.sh`)
+
+**Schema Version 1**:
+```yaml
+# Required fields
+id: string              # Unique task identifier (kebab-case)
+schema_version: 1       # Schema version for compatibility
+skill: string           # Target skill name (must exist in .claude/skills/)
+category: enum          # framework | regression | skill-quality | e2e
+fixture: string         # Path relative to evals/fixtures/
+description: string     # Human-readable description
+
+# Execution
+trials: integer         # Number of trials (default: from suite config)
+timeout:
+  per_trial: integer    # Seconds (default: 120)
+  per_grader: integer   # Seconds (default: 30)
+
+# Agent invocation (required for skill-quality and e2e categories)
+prompt: string          # Explicit prompt/instruction for the agent
+                        # (replaces implicit 'input' for agent tasks)
+input: object           # Skill-specific structured input parameters
+
+# Grading
+graders:                # At least one required
+  - type: code          # code (future: model)
+    script: string      # Path relative to evals/graders/
+    args: [string]      # Optional arguments (from ALLOWLIST only)
+    weight: float       # For composite scoring (default: 1.0)
+
+# Optional
+difficulty: enum        # basic | intermediate | advanced
+tags: [string]          # Arbitrary tags for filtering
+model:
+  pin: boolean          # Record model version in results
+baseline:
+  pass_rate: float      # Expected pass rate (0.0-1.0)
+  model_version: string # Model version used for baseline
+  recorded_at: string   # ISO date
+```
+
+**Agent Invocation Contract** (IMP-002):
+
+For `skill-quality` and `e2e` category tasks, the harness executes the agent:
+
+1. **Prompt Assembly**: Combine `task.prompt` + `task.input` + fixture context into agent input
+2. **Workspace Handoff**: Agent receives sandbox path as working directory
+3. **Output Capture**: All tool calls, outputs, and timing captured to JSONL transcript
+4. **Timeout**: Per-trial timeout enforced. Agent process killed on timeout.
+5. **Retry**: Infrastructure errors retry once. Agent failures do not retry.
+
+```
+Harness → Clone fixture → Set working dir → Assemble prompt
+       → Invoke agent (claude --prompt <assembled> --cwd <sandbox>)
+       → Capture transcript → Run graders → Record result
+```
+
+**Validation rules** (checked before any execution):
+1. `id` matches filename (without `.yaml`)
+2. `schema_version` is supported (currently: 1)
+3. `skill` exists in `.claude/skills/`
+4. `fixture` directory exists in `evals/fixtures/`
+5. All `graders[].script` files exist and are executable
+6. `trials` > 0 if specified
+7. `timeout.per_trial` and `timeout.per_grader` > 0 if specified
+
+**Validation output** (JSON):
+```json
+{
+  "valid": true,
+  "task_id": "implement-simple-function",
+  "warnings": [],
+  "errors": []
+}
+```
+
+### 3.2.1 Suite YAML Schema (IMP-001)
+
+Suites define which tasks run together, with default settings.
 
 ```yaml
-# .claude/skills/bug-triaging/index.yaml
-name: "bug-triaging"
+# evals/suites/regression.yaml
+name: regression
+description: "Regression protection — catch breakage before merge"
+version: 1
+
+# Task inclusion
+tasks:
+  include:
+    - "tasks/regression/**/*.yaml"    # Glob patterns
+  exclude:
+    - "tasks/regression/experimental-*"
+
+# Execution defaults (overridable per task)
+defaults:
+  trials: 3
+  timeout:
+    per_trial: 120
+    per_grader: 30
+  composite_strategy: all_must_pass
+
+# CI behavior
+ci:
+  gate_type: blocking         # blocking | async | scheduled
+  min_trials: 3               # Minimum trials for regression classification
+  regression_threshold: 0.10  # 10% drop triggers regression
+
+# Ordering (optional)
+execution_order: parallel     # parallel | sequential
+concurrency: 4                # Max parallel tasks
+```
+
+**Required fields**: `name`, `version`, `tasks.include`
+**Validation**: Suite YAML validated at load time. Unknown fields rejected.
+
+### 3.3 Sandbox Manager (`evals/harness/sandbox.sh`)
+
+Provides isolated environments for eval task execution.
+
+**Interface**:
+```bash
+# Create sandbox from fixture
+sandbox.sh create --fixture fixtures/hello-world-ts --trial-id run-abc-trial-1
+# Returns: /tmp/loa-eval-run-abc-trial-1/
+
+# Destroy sandbox
+sandbox.sh destroy --trial-id run-abc-trial-1
+
+# Destroy all sandboxes for a run
+sandbox.sh destroy-all --run-id run-abc
+```
+
+**Local mode** (developer machine):
+1. Create temp directory: `mktemp -d /tmp/loa-eval-XXXXXX`
+2. Copy fixture contents (not symlink — isolation)
+3. Initialize git repo in sandbox (for skills that use git)
+4. Set controlled environment: `TZ=UTC`, `LC_ALL=C`, `HOME=/tmp/loa-eval-home`
+5. Install dependencies per fixture strategy (prebaked: copy, offline-cache: install from cache, none: skip)
+6. Record environment fingerprint: runtime versions (node, python, bash), OS, architecture → `env-fingerprint.json`
+7. Return sandbox path
+
+**CI mode** (GitHub Actions — container-based from MVP):
+> Flatline SKP-001 integration: Container sandboxing moved from Phase 3 to Phase 2 (MVP) for CI security.
+
+1. Build container image from `evals/harness/Dockerfile.sandbox` (pinned base image with exact runtime versions)
+2. Mount fixture as read-write volume at `/workspace`
+3. No network namespace (`--network none`)
+4. Resource limits: `--memory 2g --cpus 2 --pids-limit 256`
+5. Read-only root filesystem except `/workspace` and `/tmp`
+6. No secrets in environment
+7. Controlled toolchain: exact Node.js, Python, Bash versions pinned in Dockerfile
+8. npm lifecycle scripts disabled: `--ignore-scripts` enforced
+9. Run grader inside container
+10. Record environment fingerprint for reproducibility
+
+**Cleanup**: Always destroy sandbox after trial completes (success or failure). Use trap for signal handling.
+
+**Grader command allowlist** (SKP-001):
+
+Only the following commands may be invoked by graders. `validate-task.sh` rejects tasks with grader args containing commands outside this list:
+
+```
+node, npx, python3, pytest, bash, sh, grep, diff, jq, git, test, [, [[
+```
+
+Custom commands must be registered in `evals/graders/allowlist.txt`.
+
+**Dependency strategies**:
+```yaml
+# fixture.yaml
+name: hello-world-ts
+language: typescript
+runtime: node-20
+runtime_version: "20.11.0"     # Exact version (SKP-002: pin toolchains)
+dependency_strategy: prebaked   # prebaked | offline-cache | none
+test_command: "npx jest --ci"   # Explicit test command (SKP-002: no auto-detect)
+```
+
+| Strategy | Description | When |
+|----------|-------------|------|
+| `prebaked` | `node_modules/` or `venv/` committed in fixture | Default. Fastest. Deterministic. |
+| `offline-cache` | `package-lock.json` + cached tarballs, `npm ci --offline --ignore-scripts` | When `node_modules` is too large |
+| `none` | No dependency installation | Shell-only fixtures, Loa skill fixtures |
+
+### 3.4 Grader Framework (`evals/harness/grade.sh` + `evals/graders/`)
+
+**Grader orchestrator** (`grade.sh`):
+```bash
+# Run all graders for a task in a sandbox
+grade.sh --task-yaml <path> --workspace <sandbox-path> --timeout 30
+
+# Output: JSON array of grader results
+```
+
+**Grader contract** (every grader must follow):
+
+| Aspect | Contract |
+|--------|----------|
+| Input | `$1` = workspace path, `$2..N` = args from task YAML |
+| Output | JSON to stdout: `{"pass": bool, "score": 0-100, "details": "string", "grader_version": "1.0.0"}` |
+| Exit code | 0 = pass, 1 = fail, 2 = error (grader itself broken) |
+| Timeout | Enforced by `grade.sh` via `timeout(1)`. Timeout → exit code 2. |
+| Determinism | No network, no LLM, no time-dependent logic, no randomness |
+| Side effects | Read-only access to workspace. No writes outside workspace. |
+
+**Standard grader library**:
+
+| Grader | Purpose | Args | Score Logic |
+|--------|---------|------|-------------|
+| `file-exists.sh` | Check file(s) exist | `<path> [path...]` | 100 if all exist, 0 if any missing |
+| `tests-pass.sh` | Run test suite | `<test-command>` | 100 × (passed / total). Explicit command required (no auto-detect). |
+| `function-exported.sh` | Check named export | `<name> <file>` | 100 if exported, 0 if not |
+| `pattern-match.sh` | Grep pattern in file(s) | `<pattern> <glob>` | 100 if found, 0 if not |
+| `diff-compare.sh` | Diff against expected | `<expected-dir>` | 100 × (1 - lines_changed / total_lines) |
+| `quality-gate.sh` | Run Loa quality gates | `[gate-name]` | Pass/fail per gate |
+| `no-secrets.sh` | Scan for leaked secrets | (none) | 100 if clean, 0 if secrets found |
+| `constraint-enforced.sh` | Verify constraint | `<constraint-id>` | 100 if enforced, 0 if not |
+
+**Composite grading** (in `grade.sh`):
+
+When a task has multiple graders, aggregate using the task's composite strategy:
+
+| Strategy | Logic | Use Case |
+|----------|-------|----------|
+| `all_must_pass` (default) | All graders must exit 0. Score = min(scores). | Regression tests — strict. |
+| `weighted_average` | Score = Σ(weight × score) / Σ(weight). Pass if score ≥ threshold. | Quality scoring — nuanced. |
+| `any_pass` | At least one grader passes. Score = max(scores). | Exploratory — lenient. |
+
+### 3.5 Result Storage (`evals/results/`)
+
+**Run directory structure**:
+```
+evals/results/
+├── .gitkeep
+├── eval-ledger.jsonl            # Append-only result ledger
+└── run-20260211-143000-a1b2/    # Per-run directory
+    ├── run-meta.json            # Run metadata
+    ├── results.jsonl            # Per-trial results
+    └── transcripts/             # Agent transcripts (Phase 3+)
+        └── trial-001.jsonl
+```
+
+**JSONL result entry** (one per trial):
+```json
+{
+  "run_id": "run-20260211-143000-a1b2",
+  "task_id": "implement-simple-function",
+  "trial": 1,
+  "timestamp": "2026-02-11T14:30:15Z",
+  "duration_ms": 45200,
+  "model_version": "claude-opus-4-6",
+  "status": "completed",
+  "graders": [
+    {"name": "file-exists.sh", "pass": true, "score": 100, "exit_code": 0, "duration_ms": 50},
+    {"name": "tests-pass.sh", "pass": true, "score": 100, "exit_code": 0, "duration_ms": 3200},
+    {"name": "function-exported.sh", "pass": true, "score": 100, "exit_code": 0, "duration_ms": 30}
+  ],
+  "composite": {
+    "strategy": "all_must_pass",
+    "pass": true,
+    "score": 100
+  },
+  "error": null,
+  "transcript_hash": "sha256:abc123..."
+}
+```
+
+**Run metadata** (`run-meta.json`):
+```json
+{
+  "run_id": "run-20260211-143000-a1b2",
+  "suite": "regression",
+  "started_at": "2026-02-11T14:30:00Z",
+  "completed_at": "2026-02-11T14:35:42Z",
+  "duration_ms": 342000,
+  "tasks_total": 10,
+  "tasks_passed": 9,
+  "tasks_failed": 1,
+  "tasks_error": 0,
+  "model_version": "claude-opus-4-6",
+  "git_sha": "abc123",
+  "git_branch": "feature/eval-sandbox-277",
+  "harness_version": "1.0.0",
+  "cost_usd": 0.00,
+  "environment": "local"
+}
+```
+
+**Gitignore**: `evals/results/` is gitignored except `evals/results/.gitkeep`. Baselines are in `evals/baselines/` (tracked).
+
+### 3.6 Baseline Manager (`evals/harness/compare.sh`)
+
+**Baseline file format** (`evals/baselines/regression.baseline.yaml`):
+```yaml
+version: 1
+suite: regression
+model_version: "claude-opus-4-6"
+recorded_at: "2026-02-11"
+recorded_from_run: "run-20260211-143000-a1b2"
+tasks:
+  implement-simple-function:
+    pass_rate: 0.67
+    trials: 3
+    mean_score: 89
+    status: active    # active | quarantined
+  review-catches-bug:
+    pass_rate: 1.0
+    trials: 3
+    mean_score: 100
+    status: active
+```
+
+**Comparison logic**:
+
+For each task in current run vs baseline:
+
+| Condition | Classification | Detail |
+|-----------|---------------|--------|
+| Current pass_rate ≥ baseline pass_rate | **Pass** | Task is at or above baseline |
+| Current pass_rate < baseline - threshold | **Regression** | Score dropped below threshold (default: 10%) |
+| Current pass_rate < baseline but within threshold | **Degraded** | Minor drop, warning only |
+| Task not in baseline | **New** | No comparison available |
+| Task in baseline but not in run | **Missing** | Task may have been removed |
+| Task status = quarantined | **Quarantined** | Excluded from regression scoring |
+
+**Statistical comparison** (SKP-003):
+
+With low trial counts, raw pass_rate deltas are unreliable. The comparison engine uses:
+
+| CI Trial Count | Comparison Method | Gate Behavior |
+|----------------|-------------------|---------------|
+| 1 (framework — deterministic) | Exact match | Pass=pass, fail=regression |
+| ≥3 (agent evals) | Wilson confidence interval (95%) | Regression only if lower bound of current interval < upper bound of baseline interval minus threshold |
+| 1 (agent eval — emergency) | Advisory only | Warning posted, does not block merge |
+
+For MVP, flake detection is deferred. The system records per-run variance but does not auto-quarantine until ledger history exists (Phase 3).
+
+**Ledger persistence in CI** (SKP-004):
+
+The eval ledger is persisted as a GitHub Actions artifact with 90-day retention:
+
+```yaml
+# In eval.yml
+- name: Upload eval ledger
+  uses: actions/upload-artifact@v4
+  with:
+    name: eval-ledger-${{ github.sha }}
+    path: pr/evals/results/eval-ledger.jsonl
+    retention-days: 90
+
+- name: Download previous ledger (if exists)
+  uses: actions/download-artifact@v4
+  continue-on-error: true
+  with:
+    name: eval-ledger-latest
+    path: pr/evals/results/
+```
+
+**Model version skew handling** (IMP-006):
+
+When the current run's model version differs from the baseline's pinned version:
+
+| Scenario | Action |
+|----------|--------|
+| Framework eval (no model) | No check needed |
+| Agent eval, same model version | Normal comparison |
+| Agent eval, different model version | Mark results as `model_skew: true`. Post warning. Results are advisory only — do not block merge. Recommend baseline update. |
+| Baseline has no model_version | Warn about missing pin. Compare normally. |
+
+**Cost tracking** (IMP-004):
+
+For agent-invoking trials, cost is tracked per-trial:
+
+1. **Measurement**: Record tokens_in, tokens_out, model from API response
+2. **Calculation**: Apply pricing from `.loa.config.yaml` or default rates
+3. **Enforcement**: Sum running cost per suite. If `budget_per_run` exceeded, abort remaining tasks, publish partial results with `budget_exceeded` error.
+4. **Reporting**: Total cost in run-meta.json and CLI report
+
+**Baseline update workflow**:
+```bash
+# Generate updated baseline from current run
+./evals/harness/compare.sh --update-baseline --run-id run-abc --suite regression
+
+# Output: evals/baselines/regression.baseline.yaml (modified)
+# Developer reviews diff, commits with rationale
+```
+
+### 3.7 Reporter (`evals/harness/report.sh` + `evals/harness/pr-comment.sh`)
+
+**CLI report** (`report.sh`):
+```
+═══════════════════════════════════════════════════════════
+  EVAL RESULTS — regression
+═══════════════════════════════════════════════════════════
+
+  Run ID:    run-20260211-143000-a1b2
+  Duration:  5m 42s
+  Model:     claude-opus-4-6
+  Git SHA:   abc123 (feature/eval-sandbox-277)
+
+  Summary:
+    ✅ Pass:        9
+    ❌ Fail:        1
+    ⚠️  Regression:  1
+    🆕 New:         0
+    ⏭️  Quarantined: 1
+
+  Regressions:
+    implement-error-handling  100% → 33%  (-67%) ⛔
+
+  Improvements:
+    review-catches-xss       67% → 100%  (+33%) ✅
+
+═══════════════════════════════════════════════════════════
+```
+
+**PR comment** (`pr-comment.sh`):
+Uses `gh pr comment` to post structured markdown (format defined in PRD FR6.3).
+
+```bash
+# Post comment to PR
+pr-comment.sh --run-id run-abc --pr 42
+
+# Uses: gh pr comment 42 --body "$(cat formatted-comment.md)"
+```
+
+### 3.7.1 Parallelism Model (IMP-003)
+
+**Unit of parallelism**: Task (not trial). Each task runs its trials sequentially, but multiple tasks run in parallel.
+
+```
+Suite: regression (10 tasks, concurrency=4)
+├── Slot 1: task-A (trial 1 → trial 2 → trial 3) → grade → record
+├── Slot 2: task-B (trial 1 → trial 2 → trial 3) → grade → record
+├── Slot 3: task-C (trial 1 → trial 2 → trial 3) → grade → record
+└── Slot 4: task-D (trial 1 → trial 2 → trial 3) → grade → record
+     ↓ (slot freed)
+     Slot 4: task-E ...
+```
+
+**Isolation**: Each task gets its own sandbox directory. No shared state between parallel tasks.
+
+**Write semantics**: JSONL ledger uses `flock(1)` for atomic appends. Each task writes its own result block, then appends to the shared ledger under lock.
+
+**Aggregation**: After all tasks complete, `compare.sh` reads the full results JSONL and produces the comparison report.
+
+### 3.8 Skill Definition (`eval-running`)
+
+**`evals/skills/eval-running/index.yaml`** (placed in evals/ not .claude/skills/ since this is an eval-specific skill):
+
+Wait — actually, `/eval` should be a proper Loa skill for the golden path. Let me place it in `.claude/skills/`.
+
+**`.claude/skills/eval-running/index.yaml`**:
+```yaml
+name: "eval-running"
 version: "1.0.0"
 model: "native"
-color: "red"
+color: "cyan"
+
 effort_hint: medium
-danger_level: moderate
+danger_level: safe
 categories:
   - quality
-  - debugging
-  - support
+  - testing
 
 description: |
-  Use this skill when a user reports a bug that needs fixing. Performs
-  dependency check, eligibility validation, hybrid interview, codebase
-  analysis, and creates a micro-sprint. Produces a triage.md handoff
-  contract for the implement phase. Test-first is non-negotiable.
-  Bugs always get their own micro-sprint (never injected into active sprints).
+  Run evaluation suites to benchmark Loa skill quality and detect regressions.
+  Use this skill to validate that framework changes don't degrade agent behavior.
+  Supports framework correctness, regression, and skill quality eval suites.
 
 triggers:
-  - "/bug"
-  - "fix bug"
-  - "debug issue"
-  - "bug report"
-  - "production bug"
+  - "/eval"
+  - "run evals"
+  - "benchmark skills"
+  - "check for regressions"
+
+negative_triggers:
+  - "unit test"
+  - "integration test"
 
 inputs:
-  - name: "description"
+  - name: "suite"
     type: "string"
-    description: "Free-form bug description, error message, or stack trace"
+    description: "Named eval suite to run (framework, regression, skill-quality)"
     required: false
-  - name: "from_issue"
-    type: "integer"
-    description: "GitHub issue number to import as bug report"
+  - name: "task"
+    type: "string"
+    description: "Single task ID to run"
+    required: false
+  - name: "skill"
+    type: "string"
+    description: "Run all tasks targeting this skill"
+    required: false
+  - name: "update_baseline"
+    type: "boolean"
+    description: "Update baselines from current results"
+    required: false
+  - name: "compare"
+    type: "string"
+    description: "Run ID to compare against"
     required: false
 
 outputs:
-  - path: "grimoires/loa/a2a/bug-{id}/triage.md"
-    description: "Bug analysis and handoff contract"
+  - path: "evals/results/run-*/results.jsonl"
+    description: "Per-trial evaluation results"
     format: detailed
-  - path: "grimoires/loa/sprint.md"
-    description: "Micro-sprint plan (if no active sprint)"
-    format: standard
-    condition: "no_active_sprint"
-
-dependencies:
-  upstream: []
-  artifacts: []
+  - path: "evals/results/eval-ledger.jsonl"
+    description: "Append-only result ledger"
+    format: raw
 
 protocols:
-  required:
-    - name: "session-continuity"
-      path: ".claude/protocols/session-continuity.md"
-      purpose: "Maintain triage context across sessions"
-  recommended:
-    - name: "grounding-enforcement"
-      path: ".claude/protocols/grounding-enforcement.md"
-      purpose: "Verify suspected files with source references"
+  required: []
+  recommended: []
 
 input_guardrails:
   pii_filter:
-    enabled: true
-    mode: blocking
+    enabled: false
   injection_detection:
-    enabled: true
-    threshold: 0.7
+    enabled: false
   relevance_check:
     enabled: true
-    reject_irrelevant: true
+    reject_irrelevant: false
 ```
 
-#### 3.1.2 SKILL.md Structure
+**`.claude/skills/eval-running/SKILL.md`** — routes to `evals/harness/run-eval.sh` with appropriate flags. The skill is a thin wrapper that translates `/eval` arguments to harness CLI arguments.
 
-The SKILL.md follows five phases. Each phase includes explicit failure modes and recovery actions.
+**`.claude/commands/eval.md`** — command file routing `/eval` to the `eval-running` skill.
 
-**Phase 0: Dependency Check**
-
-```
-Algorithm:
-1. Check required tools:
-   - jq: required (JSON parsing for state files)
-   - git: required (branch creation)
-2. Check optional tools with fallbacks:
-   - gh: optional (--from-issue requires it; fallback: manual paste of issue content)
-   - br: optional (beads tracking; fallback: skip beads, warn user)
-3. Check connectivity:
-   - If --from-issue: verify `gh auth status` succeeds
-4. If required tool missing: HALT with install guidance
-
-Failure Modes:
-- jq missing → HALT: "Install jq: brew install jq / apt install jq"
-- gh not authenticated → HALT: "Run gh auth login first"
-- br not found → WARN: "Beads not available. Task tracking will be skipped."
-```
-
-**Phase 1: Eligibility Check**
-
-```
-Algorithm:
-1. Parse input (free-form text, --from-issue, or interactive prompt)
-2. If --from-issue: fetch via `gh issue view {N} --json title,body,comments`
-   - Apply PII redaction to imported content (issue body + comments)
-3. Extract signals: error messages, stack traces, test names, regression refs
-4. Require at least ONE verifiable artifact:
-   - A failing test name that can be executed
-   - Reproducible steps that can be followed to observe failure
-   - A linked production incident with logs/error output
-   - A stack trace with identifiable source locations
-5. Check explicit disqualifiers (any one → REJECT):
-   - Describes a new endpoint or API route
-   - Describes a new UI flow or page
-   - Requires schema changes or new database tables
-   - Involves cross-service architectural changes
-   - Requests new configuration options
-6. Score eligibility:
-   - Has verifiable artifact: +2 (required — see step 4)
-   - Has stack trace or error log: +1
-   - References regression from known baseline: +1
-   - References failing test: +1
-   - Matches any disqualifier: REJECT immediately
-7. If score < 2: REJECT → "This looks like a feature request. Use /plan."
-   If score == 2: CONFIRM with user → "This is borderline. Confirm this is a bug?"
-   If score > 2: ACCEPT
-8. Log classification decision to triage.md with reasoning
-
-Calibration Examples:
-- "Login fails with + in email" + stack trace → ACCEPT (score: 3)
-- "Add dark mode support" → REJECT (new UI flow disqualifier)
-- "API returns 500 on empty cart" → score 2 → CONFIRM
-- "Test test_checkout fails after deploy" → ACCEPT (score: 3)
-- "We need a logout button" → REJECT (new feature, no failure)
-
-Failure Modes:
-- --from-issue fetch fails → FALLBACK: ask user to paste issue content
-- Score ambiguous (==2) → CONFIRM: ask user to verify it's a bug
-- PII detected in imported content → QUARANTINE: redact and show user what was removed
-```
-
-**Phase 2: Hybrid Interview**
-
-```
-Algorithm:
-1. Parse free-form input for known fields (reproduction, expected/actual, severity)
-2. Identify gaps in required fields
-3. For each gap, ask one targeted question (max 3-5 questions total)
-4. Required fields:
-   - reproduction_steps (if not extractable from stack trace)
-   - expected_behavior
-   - actual_behavior
-   - severity (critical/high/medium/low)
-5. Optional fields (Loa can infer):
-   - affected_area
-   - environment
-
-Failure Modes:
-- User cannot provide reproduction steps → WARN: "Without repro steps, fix may
-  take longer. Proceed?" If yes, mark reproduction_strength as "weak".
-- User provides contradictory info → ASK: clarifying question to resolve
-```
-
-**Phase 3: Codebase Analysis**
-
-```
-Algorithm:
-1. Parse stack traces → extract file:line references
-2. Keyword search: grep codebase for function/module names from error
-3. Dependency mapping: trace imports/requires from affected files
-4. Test discovery: glob for test files matching affected modules
-5. Assess test infrastructure:
-   - Search for test runners (jest, pytest, cargo test, go test, etc.)
-   - If NO test runner found: HALT with guidance
-     "No test runner detected. Set up test infrastructure before using /bug."
-6. Determine test_type based on bug classification:
-   - runtime_error/logic_bug → unit test
-   - integration_issue → integration test
-   - edge_case (user-facing) → e2e test
-   - schema/contract → contract test
-7. Produce suspected_files list with confidence scores
-8. Check high-risk patterns in suspected files (auth, payment, migration, etc.)
-
-Failure Modes:
-- No test runner found → HALT: cannot proceed without test infrastructure
-- No suspected files found → WARN: ask user for hints, expand search
-- All suspected files low confidence → WARN: "Analysis inconclusive. Recommend
-  manual investigation before proceeding."
-```
-
-**Phase 4: Micro-Sprint Creation & Handoff**
-
-Bugs **always** get their own micro-sprint. This is a deliberate simplification that avoids concurrency issues, state corruption, and complex sprint-mutation semantics.
-
-```
-Algorithm:
-1. Generate bug_id: YYYYMMDD-{6-char-hash} (or YYYYMMDD-i{N}-{hash} for issues)
-2. Create state directory: .run/bugs/{bug_id}/
-3. Write state file: .run/bugs/{bug_id}/state.json
-4. Create micro-sprint in grimoires/loa/a2a/bug-{bug_id}/sprint.md
-   (NOT grimoires/loa/sprint.md — bug sprints are namespaced per bug)
-5. Register in ledger as type: "bugfix"
-6. Create beads task (if br available)
-7. Write triage.md (schema version 1) with all required handoff fields
-8. Apply PII redaction to all output files (triage.md, sprint.md)
-9. Return bug_id for implement phase
-
-Failure Modes:
-- Ledger write fails → WARN: proceed without ledger entry, note in NOTES.md
-- Beads create fails → WARN: proceed without beads, note in NOTES.md
-- State directory creation fails → HALT: filesystem issue, cannot proceed
-```
-
-#### 3.1.3 Triage Handoff Contract Schema
-
-The `/implement` skill performs preflight validation of `triage.md` before execution:
-1. Parse metadata section
-2. Verify `schema_version` is supported (currently: 1)
-3. Verify all required fields are present and non-empty
-4. If validation fails → HALT with: "Triage handoff incomplete. Re-run /bug."
-
-```markdown
-# Bug Triage: {title}
-
-## Metadata
-- **schema_version**: 1
-- **bug_id**: {YYYYMMDD}-{hash} or {YYYYMMDD}-i{issue}-{hash}
-- **classification**: runtime_error | logic_bug | edge_case | integration_issue | regression
-- **severity**: critical | high | medium | low
-- **eligibility_score**: {N} (signals matched)
-- **eligibility_reasoning**: {why accepted/confirmed}
-- **test_type**: unit | integration | e2e | contract
-- **risk_level**: low | medium | high
-- **created**: {ISO timestamp}
-
-## Reproduction
-### Steps
-1. {step}
-2. {step}
-...
-
-### Expected Behavior
-{description}
-
-### Actual Behavior
-{description}
-
-### Environment
-{local/staging/production} (optional)
-
-## Analysis
-### Suspected Files
-| File | Line(s) | Confidence | Reason |
-|------|---------|------------|--------|
-| {path} | {lines} | high/medium/low | {why} |
-
-### Related Tests
-| Test File | Coverage |
-|-----------|----------|
-| {path} | {what it tests} |
-
-### Test Target
-{What the failing test should assert — the specific behavior to verify}
-
-### Constraints
-{Areas that must NOT be modified} (optional)
-
-## Fix Strategy
-{Proposed approach — brief, 2-3 sentences}
-```
-
-### 3.2 Run Mode Extension
-
-#### 3.2.1 New Input: `--bug`
-
-Add to `.claude/skills/run-mode/index.yaml` inputs:
+### 3.9 CI Pipeline (`.github/workflows/eval.yml`)
 
 ```yaml
-- name: "bug"
-  type: "string"
-  description: "Bug description for autonomous bug-fixing mode"
-  required: false
-- name: "bug_from_issue"
-  type: "integer"
-  description: "GitHub issue number for autonomous bug-fixing"
-  required: false
+name: Eval Gate
+
+permissions:
+  contents: read
+  pull-requests: write  # For PR comments
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.claude/skills/**'
+      - '.claude/protocols/**'
+      - '.claude/data/**'
+      - '.loa.config.yaml'
+      - 'evals/**'
+
+jobs:
+  eval-gate:
+    name: Eval — Framework + Regression
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.pull_request.labels.*.name, 'eval-skip')"
+
+    steps:
+      - name: Checkout base branch (for trusted graders/harness)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+
+      - name: Checkout PR branch (for task definitions + framework code)
+        uses: actions/checkout@v4
+        with:
+          path: pr
+
+      - name: Setup eval environment
+        run: |
+          # Use graders and harness from BASE branch (trusted — SKP-001)
+          cp -r base/evals/harness/ pr/evals/harness/
+          cp -r base/evals/graders/ pr/evals/graders/
+
+      - name: Download previous eval ledger
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: eval-ledger-latest
+          path: pr/evals/results/
+
+      - name: Build sandbox container
+        working-directory: pr
+        run: docker build -t loa-eval-sandbox -f evals/harness/Dockerfile.sandbox .
+
+      - name: Run framework eval suite (in container)
+        working-directory: pr
+        run: |
+          ./evals/harness/run-eval.sh --suite framework --json \
+            --sandbox-mode container > framework-results.json
+        timeout-minutes: 5
+
+      - name: Run regression eval suite (in container)
+        working-directory: pr
+        run: |
+          ./evals/harness/run-eval.sh --suite regression --json \
+            --sandbox-mode container --min-trials 3 > regression-results.json
+        timeout-minutes: 15
+
+      - name: Post PR comment
+        if: always()
+        working-directory: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./evals/harness/pr-comment.sh \
+            --pr ${{ github.event.pull_request.number }} \
+            --framework-results framework-results.json \
+            --regression-results regression-results.json
+
+      - name: Upload eval ledger
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-ledger-latest
+          path: pr/evals/results/eval-ledger.jsonl
+          retention-days: 90
+
+      - name: Check for regressions
+        working-directory: pr
+        run: |
+          # Exit 1 if regressions detected (blocks merge)
+          ./evals/harness/compare.sh --results regression-results.json --strict
 ```
 
-#### 3.2.2 Bug Run Loop
+**Security measures** (per PRD SKP-002):
+- Graders and harness sourced from base branch, not PR
+- `permissions: contents: read` (minimal)
+- No secrets exposed to eval scripts (GITHUB_TOKEN only for PR comments)
+- Fork PRs: workflow does not trigger (controlled by `pull_request` event type)
+
+---
+
+## 4. Framework Correctness Eval Tasks
+
+These are the P0 tasks that run without agent execution — pure deterministic checks.
+
+### 4.1 Constraint Validation Tasks
+
+For each constraint category in `constraints.json`, verify enforcement:
+
+| Task ID | What It Checks |
+|---------|---------------|
+| `constraint-never-code-outside-implement` | C-PROC-001: verify SKILL.md references the constraint |
+| `constraint-always-review-audit-cycle` | C-PROC-005: verify run-mode enforces cycle |
+| `constraint-beads-tracking` | C-BEADS-*: verify beads integration points |
+| `constraint-bug-eligibility` | C-PROC-015/016: verify bug skill checks eligibility |
+
+**Grader**: `constraint-enforced.sh` — parses constraints.json, finds the skill/protocol that should enforce it, greps for enforcement markers.
+
+### 4.2 Golden Path Routing Tasks
+
+| Task ID | What It Checks |
+|---------|---------------|
+| `golden-path-loa-resolves` | `/loa` command exists and routes correctly |
+| `golden-path-plan-resolves` | `/plan` routes to plan-and-analyze |
+| `golden-path-build-resolves` | `/build` routes to implementing-tasks |
+| `golden-path-review-resolves` | `/review` routes to review-sprint + audit-sprint |
+| `golden-path-ship-resolves` | `/ship` routes to deploy-production + archive-cycle |
+
+**Grader**: `pattern-match.sh` — verifies routing scripts contain expected targets.
+
+### 4.3 Skill Index Integrity Tasks
+
+| Task ID | What It Checks |
+|---------|---------------|
+| `skill-index-all-valid` | All skills have index.yaml with required fields |
+| `skill-index-triggers-unique` | No trigger collisions between skills |
+| `skill-index-danger-levels` | All skills have danger_level matching expectations |
+
+**Grader**: custom `skill-index-validator.sh` — reads all `index.yaml` files, validates schema.
+
+---
+
+## 5. Fixture Repository Design
+
+### 5.1 MVP Fixtures
+
+| Fixture | Language | Purpose | Dependency Strategy |
+|---------|----------|---------|-------------------|
+| `hello-world-ts` | TypeScript | Simple implementation tasks | prebaked |
+| `buggy-auth-ts` | TypeScript | Bug-fixing tasks (known auth bugs) | prebaked |
+| `simple-python` | Python | Cross-language testing | none (stdlib only) |
+| `shell-scripts` | Bash | Script-based tasks | none |
+| `loa-skill-dir` | YAML/MD | Framework correctness testing | none |
+
+### 5.2 Fixture Structure
 
 ```
-/run --bug "description"
-       │
-       ▼
-  ┌─────────────┐
-  │  TRIAGE     │  Invoke bug-triaging skill
-  │  (Phase 1)  │  Output: triage.md, sprint.md
-  └──────┬──────┘
-         │
-         ▼
-  ┌─────────────┐
-  │  IMPLEMENT  │  /implement sprint-bug-{N} --bug
-  │  (Phase 2)  │  Test-first: write test → fix → verify
-  └──────┬──────┘
-         │
-         ▼
-  ┌─────────────┐
-  │  REVIEW     │  /review-sprint sprint-bug-{N}
-  │  (Phase 3)  │  Scoped to bug fix only
-  └──────┬──────┘
-         │ if findings → back to IMPLEMENT
-         ▼
-  ┌─────────────┐
-  │   AUDIT     │  /audit-sprint sprint-bug-{N}
-  │  (Phase 4)  │  Standard audit checklist
-  └──────┬──────┘
-         │ if findings → back to IMPLEMENT
-         ▼
-  ┌─────────────┐
-  │  COMPLETE   │  COMPLETED marker
-  │  (Phase 5)  │  Draft PR with confidence signals
-  └─────────────┘
+evals/fixtures/hello-world-ts/
+├── fixture.yaml           # Metadata
+├── package.json           # Project definition
+├── package-lock.json      # Locked dependencies
+├── node_modules/          # Prebaked (for prebaked strategy)
+├── tsconfig.json          # TypeScript config
+├── src/
+│   └── index.ts           # Starter code
+├── tests/
+│   └── index.test.ts      # Existing tests (if applicable)
+└── README.md              # Scenario description
 ```
 
-#### 3.2.3 Circuit Breaker (Bug-Scoped)
-
-| Trigger | Limit | Rationale |
-|---------|-------|-----------|
-| Same Issue | 3 cycles | Bug fix shouldn't need >3 review cycles |
-| No Progress | 5 cycles | If no file changes, bug may be misdiagnosed |
-| Cycle Limit | 10 total | Reduced from 20 (bug scope is smaller) |
-| Timeout | 2 hours | Reduced from 8 (bug scope is smaller) |
-
-#### 3.2.4 State File (Namespaced Per Bug)
-
-State is isolated per bug to support concurrent bug fixes without corruption.
-
-```json
-// .run/bugs/{bug_id}/state.json  (NOT a global file)
-{
-  "state": "TRIAGE | IMPLEMENTING | REVIEWING | AUDITING | COMPLETED | HALTED",
-  "bug_id": "20260211-a3f2b1",
-  "bug_title": "Login fails with + in email",
-  "sprint_id": "sprint-bug-1",
-  "mode": "interactive | autonomous",
-  "circuit_breaker": {
-    "cycle_count": 0,
-    "same_issue_count": 0,
-    "no_progress_count": 0,
-    "last_finding_hash": null
-  },
-  "timestamps": {
-    "triage_started": null,
-    "triage_completed": null,
-    "implement_started": null,
-    "review_started": null,
-    "audit_started": null,
-    "completed": null
-  },
-  "confidence": {
-    "reproduction_strength": "strong | weak | manual_only",
-    "test_type": "unit | integration | e2e | contract",
-    "risk_level": "low | medium | high",
-    "files_changed": 0,
-    "lines_changed": 0
-  }
-}
+**`fixture.yaml`**:
+```yaml
+name: hello-world-ts
+version: "1.0.0"
+language: typescript
+runtime: node-20
+dependency_strategy: prebaked
+description: "Simple TypeScript project for implementation eval tasks"
+difficulty: basic
+domain: general
+deprecated: false
 ```
 
-### 3.3 Micro-Sprint Lifecycle
-
-#### 3.3.1 Naming Convention
+### 5.3 Fixture for Loa Framework Testing
 
 ```
-sprint-bug-{NNN}
+evals/fixtures/loa-skill-dir/
+├── fixture.yaml
+├── .claude/
+│   ├── skills/
+│   │   └── test-skill/
+│   │       ├── index.yaml
+│   │       └── SKILL.md
+│   ├── data/
+│   │   └── constraints.json
+│   └── protocols/
+│       └── test-protocol.md
+├── .loa.config.yaml
+└── grimoires/
+    └── loa/
+        └── ledger.json
 ```
 
-Where `NNN` is a global counter from the Sprint Ledger (`global_sprint_counter`). This ensures micro-sprints don't collide with feature sprints.
+This fixture provides a minimal Loa project structure for framework correctness evals.
 
-#### 3.3.2 Micro-Sprint Template
+---
 
-```markdown
-# Sprint Plan: Bug Fix — {bug_title}
+## 6. Error Handling
 
-**Type**: bugfix
-**Bug ID**: {bug_id}
-**Source**: /bug (triage)
+### 6.1 Error Taxonomy
 
-## Sprint {sprint-bug-NNN}: {bug_title}
+| Error Type | Exit Code | Retry | CI Behavior |
+|------------|-----------|-------|-------------|
+| `infrastructure_error` | 2 | Once | Neutral (does not block) |
+| `eval_failure` | 1 | No | Blocks (regression detected) |
+| `timeout` | 2 | No | Neutral |
+| `budget_exceeded` | 2 | No | Neutral (partial results published) |
+| `config_error` | 3 | No | Blocks (harness broken) |
+| `validation_error` | 3 | No | Blocks (task definition invalid) |
 
-### Sprint Goal
-Fix the reported bug with a failing test proving the fix.
+### 6.2 Partial Failure Behavior
 
-### Deliverables
-- [ ] Failing test that reproduces the bug
-- [ ] Source code fix
-- [ ] All existing tests pass (no regressions)
-- [ ] Triage analysis document
+When a task fails with `infrastructure_error`:
+1. Log the error with full context
+2. Record result as `{"status": "error", "error": {"type": "infrastructure_error", "message": "..."}}`
+3. Continue to next task
+4. Final report marks which tasks errored vs which failed grading
+5. Infrastructure errors do not count toward regression scoring
 
-### Technical Tasks
-
-#### Task 1: Write Failing Test [G-5]
-- Create {test_type} test reproducing the bug
-- Verify test fails with current code
-- Test file: {suggested_test_file}
-
-#### Task 2: Implement Fix [G-1, G-2]
-- Fix root cause in {suspected_files}
-- Verify failing test now passes
-- Run full test suite
-
-### Acceptance Criteria
-- [ ] Bug is no longer reproducible
-- [ ] Failing test proves the fix
-- [ ] No regressions in existing tests
-- [ ] Fix addresses root cause (not just symptoms)
-
-### Triage Reference
-See: grimoires/loa/a2a/bug-{bug_id}/triage.md
-```
-
-#### 3.3.3 Lifecycle States
-
-```
-CREATED ──→ IN_PROGRESS ──→ REVIEW ──→ AUDIT ──→ COMPLETED
-                 │              │          │
-                 │              ▼          ▼
-                 │         (findings)  (findings)
-                 │              │          │
-                 └──────────────┘──────────┘
-                    (loop back)
-```
-
-| State | Entry Condition | Marker |
-|-------|----------------|--------|
-| CREATED | Triage produces sprint.md | `triage.md` exists |
-| IN_PROGRESS | `/implement` begins | beads task `in_progress` |
-| REVIEW | Implementation complete | `reviewer.md` exists |
-| AUDIT | Review passes | `auditor-sprint-feedback.md` exists |
-| COMPLETED | Audit passes | `COMPLETED` marker |
-
-#### 3.3.4 Interaction with Active Feature Sprints
-
-Bugs **always** create micro-sprints — they are never injected into active feature sprints. This is a deliberate architectural decision (per Flatline review SKP-002/SKP-005) that eliminates:
-- State corruption from modifying shared sprint.md
-- Concurrency issues with parallel bug fixes
-- Complex pause/resume semantics
-- Ambiguous review/audit scope
-
-Micro-sprints are **fully independent**:
-- Separate branch (`bugfix/{bug_id}`)
-- Separate sprint file (`grimoires/loa/a2a/bug-{id}/sprint.md`)
-- Separate state file (`.run/bugs/{bug_id}/state.json`)
-- Separate review/audit cycle
-- Separate COMPLETED marker
-- Separate ledger entry
-- Does NOT block or modify any active feature sprint
-
-**Concurrent bugs**: Multiple bug fixes can run in parallel because each has fully namespaced state. The golden path detects the most recent active bug for status display.
-
-### 3.4 Process Compliance Amendments
-
-#### 3.4.1 Constraint Changes
-
-**Amend C-PROC-003** (`.claude/data/constraints.json`):
-
-```json
-// BEFORE:
-{
-  "id": "C-PROC-003",
-  "rule": "NEVER skip from sprint plan directly to implementation without /run sprint-plan or /run sprint-N",
-  "reason": "/run wraps implement+review+audit in a cycle loop with circuit breaker"
-}
-
-// AFTER:
-{
-  "id": "C-PROC-003",
-  "rule": "NEVER skip from sprint plan directly to implementation without /run sprint-plan, /run sprint-N, or /bug triage",
-  "reason": "/run wraps implement+review+audit in a cycle loop with circuit breaker. /bug produces a triage handoff that feeds directly into /implement."
-}
-```
-
-**Amend C-PROC-005**:
-
-```json
-// BEFORE:
-{
-  "id": "C-PROC-005",
-  "rule": "ALWAYS use /run sprint-plan or /run sprint-N for implementation",
-  "reason": "Ensures review+audit cycle with circuit breaker protection"
-}
-
-// AFTER:
-{
-  "id": "C-PROC-005",
-  "rule": "ALWAYS use /run sprint-plan, /run sprint-N, or /bug for implementation",
-  "reason": "Ensures review+audit cycle with circuit breaker protection. /bug enforces the same cycle for bug fixes."
-}
-```
-
-**Add C-PROC-015** (new):
-
-```json
-{
-  "id": "C-PROC-015",
-  "type": "always",
-  "category": "process_compliance_always",
-  "rule": "ALWAYS validate bug eligibility before /bug implementation",
-  "reason": "Prevents feature work from bypassing PRD/SDD gates via /bug. Must reference observed failure, regression, or stack trace."
-}
-```
-
-#### 3.4.2 CLAUDE.loa.md Updates
-
-Add to NEVER rules:
-```
-| NEVER use /bug for feature work that doesn't reference an observed failure | /bug bypasses PRD/SDD gates; feature work must go through /plan |
-```
-
-Add to ALWAYS rules:
-```
-| ALWAYS validate bug eligibility (observed failure, stack trace, or regression) before implementation via /bug | Prevents planning bypass; escalates to /plan if not a genuine bug |
-```
-
-### 3.5 Bug ID Generation
-
-```python
-# Pseudocode for bug ID generation
-import hashlib, datetime
-
-def generate_bug_id(title: str, issue_number: int | None = None) -> str:
-    timestamp = datetime.now().strftime("%Y%m%d")
-    raw = f"{title}{timestamp}{os.urandom(4).hex()}"
-    short_hash = hashlib.sha256(raw.encode()).hexdigest()[:6]
-
-    if issue_number:
-        return f"{timestamp}-i{issue_number}-{short_hash}"
-    return f"{timestamp}-{short_hash}"
-
-# Examples:
-# generate_bug_id("Login fails with + in email") → "20260211-a3f2b1"
-# generate_bug_id("Login fails", issue_number=42) → "20260211-i42-a3f2b1"
-```
-
-Properties:
-- **Unique**: Random bytes prevent collisions
-- **Stable**: ID doesn't change if title is later edited
-- **Safe**: No user text in filesystem paths
-- **Sortable**: Chronological by prefix
-- **Traceable**: Optional issue number embedded
-
-### 3.6 Golden Path Awareness
-
-#### 3.6.1 New Functions in `golden-path.sh`
-
-All functions are shellcheck-compliant and tested with fixture files.
+### 6.3 Timeout Handling
 
 ```bash
-# Detect most recent active bug fix (namespaced state)
-# Returns: bug_id on stdout, exit 0 if found, exit 1 if none
-golden_detect_active_bug() {
-  local bugs_dir=".run/bugs"
-  [[ -d "$bugs_dir" ]] || return 1
+# Per-trial timeout via timeout(1)
+timeout --signal=TERM --kill-after=10 "${per_trial_timeout}" run_trial "$@"
+exit_code=$?
 
-  local latest_bug=""
-  local latest_time=0
-
-  for state_file in "$bugs_dir"/*/state.json; do
-    [[ -f "$state_file" ]] || continue
-    local state
-    state=$(jq -r '.state // empty' "$state_file" 2>/dev/null) || continue
-    if [[ "$state" != "COMPLETED" && "$state" != "HALTED" ]]; then
-      local mtime
-      mtime=$(stat -c %Y "$state_file" 2>/dev/null || stat -f %m "$state_file" 2>/dev/null) || continue
-      if (( mtime > latest_time )); then
-        latest_time=$mtime
-        latest_bug=$(jq -r '.bug_id // empty' "$state_file" 2>/dev/null)
-      fi
-    fi
-  done
-
-  if [[ -n "$latest_bug" ]]; then
-    echo "$latest_bug"
-    return 0
-  fi
-  return 1
-}
-
-# Check if a micro-sprint exists for a given bug
-# Args: $1 = bug_id
-golden_detect_micro_sprint() {
-  local bug_id="${1:-}"
-  local sprint_file="grimoires/loa/a2a/bug-${bug_id}/sprint.md"
-  [[ -f "$sprint_file" ]] && return 0
-  return 1
-}
-
-# Dependency check: verify required tools are available
-# Returns: 0 if all required present, 1 if missing
-golden_bug_check_deps() {
-  local missing=()
-  command -v jq >/dev/null 2>&1 || missing+=("jq")
-  command -v git >/dev/null 2>&1 || missing+=("git")
-
-  if (( ${#missing[@]} > 0 )); then
-    echo "Missing required tools: ${missing[*]}" >&2
-    return 1
-  fi
-  return 0
-}
-```
-
-#### 3.6.2 `/loa` Status Integration
-
-When a bug fix is active, `/loa` should display:
-
-```
-Active Bug Fix: 20260211-a3f2b1
-  Title: Login fails with + in email
-  State: IMPLEMENTING
-  Sprint: sprint-bug-1
-  Next: /build (continues bug fix implementation)
-```
-
-#### 3.6.3 `/build` Behavior
-
-When a micro-sprint is active, `/build` should route to:
-```bash
-/implement sprint-bug-{N} --bug
-```
-
-This is transparent — the user doesn't need to know about micro-sprints.
-
-### 3.7 Beads Integration
-
-#### 3.7.1 Task Creation
-
-```bash
-# After triage, create beads task
-br create "Fix: {bug_title}" \
-  --label bug \
-  --label "severity:{severity}" \
-  --priority {1-4 based on severity}
-```
-
-#### 3.7.2 Task Lifecycle
-
-```bash
-# Start implementation
-br update {task_id} --status in_progress
-
-# Complete implementation
-br close {task_id}
-```
-
-#### 3.7.3 Beads Failure Handling
-
-```bash
-# If br is not available, skip silently with warning
-if ! command -v br >/dev/null 2>&1; then
-  echo "[bug] Beads not available. Task tracking skipped." >&2
-  # Continue without beads — bug fix still works
+if [[ $exit_code -eq 124 ]]; then
+  # Timed out
+  record_result --status timeout --error "Trial exceeded ${per_trial_timeout}s"
 fi
-
-# If br create fails, warn but continue
-if ! br create "Fix: ${bug_title}" --label bug 2>/dev/null; then
-  echo "[bug] Beads task creation failed. Continuing without tracking." >&2
-fi
-```
-
-### 3.8 Autonomous Mode Safety
-
-#### 3.8.1 Human Checkpoint
-
-Autonomous mode creates a draft PR in `ready-for-human-review` state:
-
-```bash
-# ICE creates draft PR
-gh pr create --draft \
-  --title "fix: {bug_title}" \
-  --body "$(cat <<'EOF'
-## Bug Fix: {bug_title}
-
-**Bug ID**: {bug_id}
-**Source**: {/bug or /run --bug}
-
-### Confidence Signals
-- Reproduction: {strong/weak/manual_only}
-- Test type: {unit/integration/e2e/contract}
-- Files changed: {N}
-- Lines changed: {N}
-- Risk level: {low/medium/high}
-
-### Artifacts
-- Triage: grimoires/loa/a2a/bug-{id}/triage.md
-- Review: grimoires/loa/a2a/bug-{id}/reviewer.md
-- Audit: grimoires/loa/a2a/bug-{id}/auditor-sprint-feedback.md
-
-### Status: READY FOR HUMAN REVIEW
-This PR was created by `/run --bug` autonomous mode.
-Please review before merging.
-EOF
-)"
-```
-
-#### 3.8.2 High-Risk Area Detection
-
-```bash
-# High-risk patterns (checked during triage)
-HIGH_RISK_PATTERNS=(
-  "auth" "authentication" "login" "password" "token" "jwt" "oauth"
-  "payment" "billing" "charge" "stripe" "checkout"
-  "migration" "schema" "database" "db"
-  "encrypt" "decrypt" "secret" "credential" "key"
-)
-
-# Check suspected files against patterns
-for file in "${suspected_files[@]}"; do
-  for pattern in "${HIGH_RISK_PATTERNS[@]}"; do
-    if echo "$file" | grep -qi "$pattern"; then
-      risk_level="high"
-      if [[ "$mode" == "autonomous" && "$allow_high" != "true" ]]; then
-        # HALT: require --allow-high flag
-      fi
-    fi
-  done
-done
 ```
 
 ---
 
-## 4. File System Layout
+## 7. Configuration Integration
 
-### 4.1 New Files
+**New config section in `.loa.config.yaml`**:
 
-```
-.claude/skills/bug-triaging/
-├── index.yaml                              # Skill registration
-├── SKILL.md                                # Execution guide (~15K lines)
-└── resources/
-    └── templates/
-        ├── triage.md                       # Handoff contract template
-        └── micro-sprint.md                 # Micro-sprint template
-```
-
-### 4.2 Modified Files
-
-```
-.claude/data/constraints.json               # Amend C-PROC-003, C-PROC-005, add C-PROC-015
-.claude/loa/CLAUDE.loa.md                   # Add NEVER/ALWAYS rules for /bug
-.claude/skills/run-mode/index.yaml          # Add --bug, --bug-from-issue inputs
-.claude/skills/run-mode/SKILL.md            # Add bug run loop section
-.claude/scripts/golden-path.sh              # Add bug detection functions
-```
-
-### 4.3 Runtime Artifacts
-
-```
-.run/bugs/{bug_id}/
-├── state.json                              # Bug fix state (per-bug, ephemeral)
-└── circuit-breaker.json                    # Circuit breaker state (autonomous mode)
-
-grimoires/loa/a2a/bug-{id}/
-├── triage.md                               # Triage handoff contract (schema v1)
-├── sprint.md                               # Micro-sprint plan (per-bug)
-├── reviewer.md                             # Review findings
-├── auditor-sprint-feedback.md              # Audit findings
-└── COMPLETED                               # Completion marker
-
-grimoires/loa/ledger.json                   # Updated with bugfix cycle entry
+```yaml
+eval:
+  enabled: true
+  suites:
+    default: ["framework", "regression"]
+    ci: ["framework", "regression"]
+    ci_async: ["skill-quality"]
+    full: ["framework", "regression", "skill-quality"]
+  trials:
+    default: 3
+    ci: 1
+  timeout:
+    per_trial: 120
+    per_grader: 30
+    per_suite_multiplier: 2
+  concurrency: 4
+  regression:
+    threshold: 0.10
+    block_merge: true
+    flake_quarantine:
+      enabled: true
+      consecutive_flaky_runs: 3
+  results:
+    retention: 100
+    ledger_path: "evals/results/eval-ledger.jsonl"
+  ci:
+    post_pr_comment: true
+    required_check: true
+    skip_label: "eval-skip"
+    fork_pr_policy: "block"
+    sandbox:
+      container: true   # Container sandboxing from MVP (SKP-001)
+      network: "none"
+      ignore_scripts: true
+  cost:
+    budget_per_run: 5.00
+    track_usage: true
+  baseline:
+    require_rationale: true
+    pin_model_version: true
 ```
 
 ---
 
-## 5. Security Considerations
+## 8. Constraint Amendments
+
+### New Constraints
+
+| ID | Name | Type | Text |
+|----|------|------|------|
+| C-EVAL-001 | `eval_baselines_require_review` | ALWAYS | ALWAYS submit baseline updates as PRs with rationale for CODEOWNERS review |
+| C-EVAL-002 | `eval_graders_deterministic` | ALWAYS | ALWAYS ensure code-based graders are deterministic — no network, no LLM, no time-dependent logic |
+
+### Process Compliance Amendments
+
+The `/eval` command does NOT require the implement→review→audit cycle because it is a read-only quality measurement tool, not an implementation skill. It sits alongside `/validate` and `/audit` as a quality gate command.
+
+---
+
+## 9. Testing Strategy
+
+### 9.1 Harness Tests
+
+| Test | Type | What It Validates |
+|------|------|-------------------|
+| `test-validate-task.sh` | Unit | Task YAML validation catches all error types |
+| `test-sandbox.sh` | Unit | Sandbox creation, isolation, cleanup |
+| `test-graders.sh` | Unit | Each grader returns correct pass/fail for known inputs |
+| `test-compare.sh` | Unit | Baseline comparison logic (regression, improvement, new, missing) |
+| `test-report.sh` | Unit | CLI report formatting |
+| `test-run-eval.sh` | Integration | Full pipeline: load → validate → execute → grade → compare → report |
+| `test-pr-comment.sh` | Integration | PR comment formatting (mock gh) |
+
+### 9.2 Grader Tests
+
+Each grader has a paired test with known-pass and known-fail fixtures:
+
+```
+evals/graders/tests/
+├── file-exists/
+│   ├── pass/              # Fixture where file exists
+│   │   └── src/math.ts
+│   └── fail/              # Fixture where file doesn't exist
+│       └── src/           # (empty)
+├── tests-pass/
+│   ├── pass/              # Fixture where tests pass
+│   └── fail/              # Fixture where tests fail
+└── ...
+```
+
+### 9.3 Self-Testing Property
+
+The eval system must be able to evaluate itself: run the `framework` suite against the Loa repo to validate that framework correctness tasks pass. This serves as a bootstrap test.
+
+---
+
+## 10. Implementation Phases
+
+### Phase 1: Framework Correctness (Sprint 1)
+
+**Deliverables**:
+1. `evals/harness/run-eval.sh` — main orchestrator
+2. `evals/harness/validate-task.sh` — task YAML validation
+3. `evals/harness/sandbox.sh` — temp-dir sandbox (local mode only)
+4. `evals/harness/grade.sh` — grader orchestrator with timeouts
+5. `evals/harness/report.sh` — CLI report
+6. `evals/harness/compare.sh` — baseline comparison
+7. `evals/graders/` — 8 standard graders
+8. `evals/fixtures/loa-skill-dir/` — framework testing fixture
+9. `evals/tasks/framework/` — ≥20 framework correctness tasks
+10. `evals/suites/framework.yaml` — suite definition
+11. `evals/baselines/framework.baseline.yaml` — initial baseline
+12. `.claude/skills/eval-running/` — skill registration
+13. `.claude/commands/eval.md` — command routing
+14. Harness test suite
+
+### Phase 2: Regression Protection (Sprint 2)
+
+**Deliverables**:
+1. `evals/fixtures/hello-world-ts/` — TypeScript fixture (with `fixture.yaml`, explicit `test_command`, pinned `runtime_version`)
+2. `evals/fixtures/buggy-auth-ts/` — bug-fixing fixture
+3. `evals/fixtures/simple-python/` — Python fixture
+4. `evals/fixtures/shell-scripts/` — shell fixture
+5. `evals/tasks/regression/` — ≥10 regression tasks
+6. `evals/suites/regression.yaml` — suite definition (with suite YAML schema)
+7. `evals/baselines/regression.baseline.yaml` — initial baseline
+8. `evals/harness/pr-comment.sh` — PR comment formatter
+9. `evals/harness/Dockerfile.sandbox` — container sandbox image (pinned runtimes)
+10. `evals/graders/allowlist.txt` — permitted grader commands
+11. `.github/workflows/eval.yml` — CI pipeline (with container sandboxing + ledger persistence)
+12. Error taxonomy implementation in `run-eval.sh`
+13. Wilson confidence interval comparison in `compare.sh`
+14. `.loa.config.yaml` eval section
+15. Environment fingerprint recording in `sandbox.sh`
+
+### Phase 3: Skill Quality (Future Sprint)
+
+- Agent execution sandbox with transcript capture
+- `evals/tasks/skill-quality/` tasks
+- Container-based CI sandboxing
+- Cost tracking and budget enforcement
+- Statistical determinism with confidence intervals
+
+### Phase 4: E2E Workflows (Future Sprint)
+
+- Full plan→build→review→ship eval scenarios
+- Model-based graders (LLM-as-judge)
+- E2E fixture repositories
+
+---
+
+## 11. Security Considerations
 
 | Concern | Mitigation |
-|---------|------------|
-| Bug description injection | Input guardrails: PII filter + injection detection on user input |
-| Path traversal via bug ID | ID is timestamp + hash only — no user text in paths |
-| Feature work bypassing /plan | Strict eligibility with verifiable artifacts + explicit disqualifiers |
-| Autonomous mode unsafe merges | Draft PR with human approval gate; high-risk blocking |
-| Sensitive data in user input | PII filter runs on user input before writing to triage.md |
-| Sensitive data in imported issues | PII redaction applied to `gh issue view` content (body + comments) before processing |
-| Secrets in triage.md output | Secret scanning (API keys, JWTs, tokens) on all written artifacts |
-| Secrets in PR body | PII redaction applied to generated PR description before `gh pr create` |
-| Concurrent state corruption | Per-bug namespaced state (`.run/bugs/{bug_id}/`) prevents cross-bug interference |
+|---------|-----------|
+| Grader code injection via PR | Graders sourced from base branch in CI |
+| Fixture dependency attacks | `--ignore-scripts` for npm, `--no-deps` for pip, prebaked strategy preferred |
+| Secret leakage in eval results | No secrets in eval environment. Results contain no env vars. |
+| Resource exhaustion | Per-trial timeouts, per-grader timeouts, concurrency limits, budget cap |
+| Path traversal in graders | PATH_SAFETY checks in sandbox.sh (reject `..`, require within workspace) |
+| Fork PR exploitation | Fork PRs blocked from eval CI |
 
 ---
 
-## 6. Testing Strategy
+## 12. Risk Mitigation
 
-| Test | What It Verifies |
-|------|-----------------|
-| Dependency check | Missing jq/git halts; missing gh/br degrades gracefully |
-| Eligibility rejection | Feature-shaped requests (new endpoint, UI flow, schema change) rejected |
-| Eligibility acceptance | Bug reports with verifiable artifacts accepted |
-| Eligibility borderline | Score==2 requests trigger user confirmation |
-| Disqualifier detection | Explicit disqualifiers (new endpoint, schema change) trigger immediate REJECT |
-| Triage handoff completeness | All required fields present in triage.md with schema_version |
-| Implement preflight | /implement validates triage.md schema before execution |
-| Micro-sprint creation | Per-bug sprint.md created in grimoires/loa/a2a/bug-{id}/ |
-| State isolation | Concurrent bugs don't corrupt each other's .run/bugs/{id}/state.json |
-| Bug ID uniqueness | No collisions across 1000 generated IDs |
-| Bug ID safety | No special characters, path traversal, or length issues |
-| Circuit breaker (bug-scoped) | Halts at 10 cycles / 2 hours |
-| High-risk detection | Auth/payment/migration files trigger --allow-high gate |
-| Autonomous PR creation | Draft PR with confidence signals, not auto-merged |
-| PII redaction (input) | User input redacted before triage.md |
-| PII redaction (import) | GitHub issue content redacted before processing |
-| PII redaction (output) | PR body and artifacts scanned for secrets |
-| Ledger integration | Micro-sprint registered with type: bugfix |
-| Beads lifecycle | Task created, tracked, and closed; graceful degradation if br unavailable |
-| Golden path awareness | /loa shows active bug, /build routes to bug sprint |
-| Phase failure modes | Each phase halts/warns/falls back correctly per spec |
+| Risk (from PRD) | Architectural Mitigation |
+|-----------------|-------------------------|
+| Expensive CI | Phase 1-2: zero LLM cost. Phase 3+: async non-blocking. Budget cap. |
+| Non-deterministic agent output | Explicit determinism model. Pinned params per baseline. Flake quarantine. |
+| Stale fixtures | `fixture.yaml` versioning. Staleness check on eval run. |
+| CI latency | Tiered gating: framework (<2 min) + regression (<5 min) blocking. Skill quality async. |
+| False regressions | Threshold-based comparison. Quarantine for flaky tasks. `eval-skip` label. |
+| Baseline gaming | PR-based updates with rationale. CODEOWNERS review. Diff reporting. |
 
 ---
 
-## 7. Migration & Rollback
+## 13. Flatline Protocol Integration Log
 
-### 7.1 Migration
-
-No migration needed. Bug mode is purely additive:
-- New skill directory (no existing files modified except constraints.json, golden-path.sh, run-mode)
-- New constraint (C-PROC-015) doesn't break existing workflows
-- Amended constraints (C-PROC-003, C-PROC-005) only add alternatives, don't remove existing paths
-
-### 7.2 Rollback
-
-If bug mode needs to be disabled:
-1. Remove `.claude/skills/bug-triaging/` directory
-2. Revert constraint amendments in `constraints.json`
-3. Revert CLAUDE.loa.md amendments
-4. Revert run-mode and golden-path changes
-5. Clean up `.run/bug-state.json` if exists
-
-All changes are isolated and revertible with a single `git revert`.
+| Finding | Category | Action | Integration |
+|---------|----------|--------|-------------|
+| IMP-001 | HIGH_CONSENSUS | Auto-integrated | Suite YAML schema defined (Section 3.2.1) |
+| IMP-002 | HIGH_CONSENSUS | Auto-integrated | Agent invocation contract added (Section 3.2) |
+| IMP-003 | HIGH_CONSENSUS | Auto-integrated | Parallelism model defined (Section 3.7.1) |
+| IMP-004 | HIGH_CONSENSUS | Auto-integrated | Cost measurement/enforcement points (Section 3.6) |
+| IMP-006 | HIGH_CONSENSUS | Auto-integrated | Model version skew handling (Section 3.6) |
+| IMP-007 | HIGH_CONSENSUS | Auto-integrated | Explicit prompt field in task schema (Section 3.2) |
+| SKP-001 | BLOCKER (CRITICAL) | Accepted | Container sandboxing in MVP, grader command allowlist, strict validation (Sections 3.3, 3.4, 3.9) |
+| SKP-002 | BLOCKER (CRITICAL) | Accepted | No auto-detect, explicit test commands in fixture.yaml, pinned runtimes, env fingerprint (Sections 3.3, 3.4, 3.5) |
+| SKP-003 | BLOCKER (HIGH) | Accepted | Wilson confidence intervals, min_trials=3 for agent evals in CI (Section 3.6) |
+| SKP-004 | BLOCKER (HIGH) | Accepted | Ledger persisted as CI artifact, flake detection deferred to Phase 3 (Section 3.6, 3.9) |
 
 ---
 
-## 8. Sprint Mapping
+## Next Step
 
-| Sprint | Components | PRD Requirements |
-|--------|-----------|-----------------|
-| Sprint 1 | bug-triaging skill, triage handoff, micro-sprint, process compliance, beads | FR1, FR2, FR3, FR5, FR6, TNF1, TNF4 |
-| Sprint 2 | run-mode --bug, autonomous loop, ledger integration, golden path, --from-issue | FR4, TNF2, TNF3, TNF5 |
-
----
-
-*Generated by Loa architect phase for Issue #278 (Bug Mode). Grounded in codebase reality: skill-index.schema.json, constraints.json, golden-path.sh, run-mode SKILL.md.*
-*Revised per Flatline Protocol review: 4 HIGH_CONSENSUS auto-integrated, 6 BLOCKERS addressed (always-micro-sprint, namespaced state, tightened eligibility, dependency checks, full PII pipeline, schema versioning).*
+After SDD approval: `/sprint-plan` to create sprint plan with task breakdown for Phases 1-2.
