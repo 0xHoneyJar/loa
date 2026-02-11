@@ -119,6 +119,8 @@ grimoires/loa/decisions.yaml
 
 # User config (copy from .loa.config.yaml.example)
 .loa.config.yaml
+# But DO track config files inside eval fixtures (needed for CI)
+!evals/fixtures/**/.loa.config.yaml
 
 # Sprint Ledger (project-specific cycle/sprint history)
 # Created by /plan-and-analyze, tracks development cycles per-project

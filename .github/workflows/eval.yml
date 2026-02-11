@@ -190,28 +190,28 @@ jobs:
           echo "Regression suite exit code: $exit_code"
           exit 0
 
-      # 10. Post PR comment
+      # 10. Post PR comment (one per suite)
       - name: Post eval results
         if: always()
         working-directory: pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Find the most recent run directory
-          run_dir=$(ls -td evals/results/run-* 2>/dev/null | head -1)
-          if [[ -z "$run_dir" ]]; then
-            echo "No run results found"
-            exit 0
-          fi
-
-          # Generate PR comment
-          comment_args=("--run-dir" "$run_dir")
-          [[ -f "$run_dir/comparison.json" ]] && comment_args+=("--comparison" "$run_dir/comparison.json")
-          comment_args+=("--pr" "${{ github.event.pull_request.number }}")
-          comment_args+=("--repo" "${{ github.repository }}")
-
           chmod +x evals/harness/pr-comment.sh
-          ./evals/harness/pr-comment.sh "${comment_args[@]}" || true
+
+          # Post results for each run directory (one per suite)
+          for run_dir in $(ls -td evals/results/run-* 2>/dev/null); do
+            if [[ ! -f "$run_dir/run-meta.json" ]]; then
+              continue
+            fi
+
+            comment_args=("--run-dir" "$run_dir")
+            [[ -f "$run_dir/comparison.json" ]] && comment_args+=("--comparison" "$run_dir/comparison.json")
+            comment_args+=("--pr" "${{ github.event.pull_request.number }}")
+            comment_args+=("--repo" "${{ github.repository }}")
+
+            ./evals/harness/pr-comment.sh "${comment_args[@]}" || true
+          done
 
       # 11. Upload eval ledger as artifact
       - name: Upload eval ledger
