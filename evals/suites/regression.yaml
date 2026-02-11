@@ -1,6 +1,6 @@
 name: regression
 description: "Regression detection — agent skill behavior verification"
-version: 2
+version: 1
 
 tasks:
   include:
