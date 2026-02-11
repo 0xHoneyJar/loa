@@ -17,6 +17,19 @@ README.md merge=ours
 CHANGELOG.md merge=ours
 
 # =============================================================================
+# CI/CD WORKFLOW FILES
+# =============================================================================
+# GitHub Actions workflow files require the `workflow` OAuth scope to push.
+# Downstream projects should not receive upstream workflow changes via
+# `git merge loa/main` — this blocks pushes for users without that scope.
+# Using merge=ours ensures downstream workflow files are preserved.
+# For NEW workflow files added upstream, /update-loa includes a post-merge
+# revert step (Phase 5.5) to remove them.
+
+.github/workflows/*.yml merge=ours
+.github/workflows/*.yaml merge=ours
+
+# =============================================================================
 # LINE ENDING NORMALIZATION
 # =============================================================================
 # Ensure consistent line endings across platforms

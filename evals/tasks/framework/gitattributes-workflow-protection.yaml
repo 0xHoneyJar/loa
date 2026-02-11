@@ -1,0 +1,17 @@
+id: gitattributes-workflow-protection
+schema_version: 1
+skill: test-skill
+category: framework
+fixture: loa-skill-dir
+description: ".gitattributes protects .github/workflows/ from upstream merge propagation"
+trials: 1
+timeout:
+  per_trial: 60
+  per_grader: 30
+graders:
+  - type: code
+    script: pattern-match.sh
+    args: ["github/workflows/.*merge=ours", ".gitattributes"]
+    weight: 1.0
+difficulty: basic
+tags: ["framework", "update-safety", "regression-288"]

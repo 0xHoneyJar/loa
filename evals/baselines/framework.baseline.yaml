@@ -3,7 +3,7 @@ suite: framework
 model_version: "unknown"
 recorded_at: "2026-02-11"
 recorded_from_run: "unknown"
-update_reason: "Initial baseline — all 22 framework tasks passing"
+update_reason: "Add gitattributes-workflow-protection task for issue #288"
 tasks:
   config-has-run-mode:
     pass_rate: 1
@@ -41,6 +41,11 @@ tasks:
     mean_score: 100
     status: active
   constraint-proc-015-enforced:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  gitattributes-workflow-protection:
     pass_rate: 1
     trials: 1
     mean_score: 100

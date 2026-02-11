@@ -1,0 +1,22 @@
+# Loa Framework Git Attributes
+# These settings ensure smooth updates from upstream without overwriting project files
+
+# =============================================================================
+# PROJECT IDENTITY FILES
+# =============================================================================
+README.md merge=ours
+CHANGELOG.md merge=ours
+
+# =============================================================================
+# CI/CD WORKFLOW FILES
+# =============================================================================
+# GitHub Actions workflow files require the `workflow` OAuth scope to push.
+# Using merge=ours ensures downstream workflow files are preserved.
+.github/workflows/*.yml merge=ours
+.github/workflows/*.yaml merge=ours
+
+# =============================================================================
+# LINE ENDING NORMALIZATION
+# =============================================================================
+* text=auto
+*.sh text eol=lf

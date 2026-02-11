@@ -190,6 +190,29 @@ Ask for confirmation before merging. Note which files will be updated vs preserv
 git merge loa/main -m "chore: update Loa framework"
 ```
 
+### Phase 5.5: Revert Protected Paths
+
+After the merge succeeds, check for and revert any changes to protected paths that should not propagate to downstream projects:
+
+```bash
+# Check if .github/workflows/ was modified by the merge
+workflow_changes=$(git diff HEAD~1 --name-only -- '.github/workflows/')
+if [[ -n "$workflow_changes" ]]; then
+  echo "$workflow_changes" | while read -r f; do
+    if git show "HEAD~1:$f" >/dev/null 2>&1; then
+      # File existed before merge — restore pre-merge version
+      git checkout HEAD~1 -- "$f"
+    else
+      # New file from upstream — remove it
+      git rm -f "$f"
+    fi
+  done
+  git commit --amend --no-edit
+fi
+```
+
+> **Why?** GitHub requires the `workflow` OAuth scope to push changes to `.github/workflows/`. Most downstream users don't have this scope. The `.gitattributes` `merge=ours` rule protects existing workflow files, but new workflow files added upstream still propagate via merge. This step catches both cases.
+
 ### Phase 6: Handle Merge Result
 
 - **Success**: Show changelog excerpt and next steps
@@ -221,10 +244,11 @@ git merge loa/main -m "chore: update Loa framework"
 | `grimoires/loa/prd.md` | Preserved (your docs) |
 | `grimoires/loa/sdd.md` | Preserved (your docs) |
 | `grimoires/loa/analytics/` | Preserved (your data) |
+| `.github/workflows/` | **Auto-preserved** via `.gitattributes` + Phase 5.5 revert |
 | `CHANGELOG.md` | **Auto-preserved** via `.gitattributes` (merge=ours) |
 | `README.md` | **Auto-preserved** via `.gitattributes` (merge=ours) |
 
-> **Note**: README.md and CHANGELOG.md are automatically preserved during merges thanks to `.gitattributes`. The pre-flight check ensures the `merge.ours.driver` is configured.
+> **Note**: README.md, CHANGELOG.md, and `.github/workflows/` files are automatically preserved during merges thanks to `.gitattributes`. New workflow files added upstream are reverted in Phase 5.5. The pre-flight check ensures the `merge.ours.driver` is configured.
 
 ## Conflict Resolution
 
