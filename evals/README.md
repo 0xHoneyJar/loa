@@ -189,6 +189,232 @@ evals/
     └── eval-ledger.jsonl
 ```
 
+## CI Pipeline
+
+The Eval Sandbox runs automatically on PRs via GitHub Actions (`.github/workflows/eval.yml`).
+
+### Trigger Paths
+
+The workflow runs when a PR modifies any of:
+- `.claude/skills/**` — Skill definitions
+- `.claude/protocols/**` — Protocol files
+- `.claude/data/**` — Data files (constraints, etc.)
+- `.loa.config.yaml` — Framework configuration
+- `evals/**` — Eval infrastructure itself
+
+PRs that don't touch these paths skip the eval entirely.
+
+### Pipeline Steps
+
+```
+┌─────────────────────────────────────────────────────┐
+│  1. CHECKOUT                                         │
+│     base/ ← main branch (TRUSTED)                   │
+│     pr/   ← PR branch (UNTRUSTED)                   │
+│                                                      │
+│  2. COPY TRUSTED INFRASTRUCTURE                      │
+│     base/evals/harness/ → pr/evals/harness/          │
+│     base/evals/graders/ → pr/evals/graders/          │
+│                                                      │
+│  3. TRUST BOUNDARY SCAN                              │
+│     Reject source/eval with variable expansion       │
+│                                                      │
+│  4. INSTALL TOOLS (yq, verify bash/jq/git)           │
+│                                                      │
+│  5. BUILD SANDBOX CONTAINER (optional)               │
+│                                                      │
+│  6. RUN SUITES                                       │
+│     Framework: 22 deterministic tasks                │
+│     Regression: 10 agent-simulated tasks             │
+│                                                      │
+│  7. POST PR COMMENTS (one per suite)                 │
+│                                                      │
+│  8. UPLOAD ARTIFACTS (ledger + results)               │
+│                                                      │
+│  9. REGRESSION GATE (exit 1 blocks merge)            │
+└─────────────────────────────────────────────────────┘
+```
+
+### Trust Model
+
+The CI pipeline uses a **dual-checkout trust model**:
+
+| Source | What It Provides | Trust Level |
+|--------|-----------------|-------------|
+| Base branch (main) | Graders, harness, workflow | **Trusted** — copied over PR versions |
+| PR branch | Tasks, fixtures, baselines, app code | **Untrusted** — being evaluated |
+
+This means a PR **cannot** modify the graders or harness that grade it. The base branch versions are always used. A PR can add new tasks or change fixtures, but the evaluation infrastructure is tamper-proof.
+
+**Symlink check**: After copying, the pipeline scans for symlinks pointing outside the workspace (prevents escape-to-host attacks).
+
+**Trust boundary scan**: All `.sh` files in `harness/` and `graders/` (excluding `tests/`) are scanned for `source`/`eval` with variable expansion — patterns that could allow injected content to influence execution.
+
+### Suite Types
+
+**Framework Suite** (`evals/suites/framework.yaml`):
+- 22 deterministic tasks, 1 trial each, ~4 seconds total
+- Checks Loa's structural contracts (file existence, config schema, constraint enforcement, skill index validity, secret scanning)
+- No AI execution — pure code-based grading
+- **This is your safety net** for framework changes
+
+**Regression Suite** (`evals/suites/regression.yaml`):
+- 10 agent-simulated tasks, 3 trials each
+- Tests implement, review, and bug-fix scenarios with real fixtures
+- Designed for model-in-the-loop evaluation (future)
+- Baseline currently empty — needs agent execution to populate
+
+### PR Comments
+
+Each suite produces a structured PR comment:
+
+```markdown
+## ✅ Eval Results — framework
+| ✅ Pass | 22 |
+| ❌ Fail | 0  |
+| 🔴 Regression | 0 |
+```
+
+Comments include: run ID, duration, model version, git SHA, and a collapsible full results table.
+
+### Skipping Evals
+
+Add the `eval-skip` label to a PR to skip the entire eval job. Use sparingly — this bypasses the regression gate.
+
+### Artifacts
+
+| Artifact | Retention | Contents |
+|----------|-----------|----------|
+| `eval-ledger` | 90 days | Append-only JSONL of all task results |
+| `eval-results-{PR}` | 30 days | Per-run directories with comparison JSON |
+
+## Health Checks
+
+### Local Verification
+
+```bash
+# Quick health check — should print 22/22 pass
+./evals/harness/run-eval.sh --suite framework --trusted
+
+# Verbose mode for debugging
+./evals/harness/run-eval.sh --suite framework --trusted --verbose
+
+# Run harness unit tests
+bash evals/harness/tests/test-graders.sh
+bash evals/harness/tests/test-compare.sh
+```
+
+### What Each Task Category Checks
+
+| Category | Tasks | What Breaks It |
+|----------|-------|----------------|
+| Golden Path | 5 | Missing core files (config, CLAUDE.md, protocols/) |
+| Config Schema | 2 | Missing `run_mode:` or `simstim:` in config |
+| Constraints | 3 | Constraint IDs not unique, JSON invalid, rules not enforced |
+| Skill Index | 3 | Invalid skill YAML, non-unique triggers, missing danger levels |
+| Quality | 4 | Secrets in codebase, invalid ledger, bad constraints JSON |
+| Structure | 2 | Missing `.claude/data/` or `grimoires/` directories |
+
+### Monitoring Recommendations
+
+1. **Required status check**: Add `Run Eval Suites` to branch protection rules so regressions block merge
+2. **CODEOWNERS for baselines**: Add `evals/baselines/ @janitooor` to `.github/CODEOWNERS` so baseline changes require explicit approval
+3. **Scheduled runs** (optional): Add a cron-triggered workflow to catch drift on main between PRs
+
+## Operational Runbook
+
+### Adding a New Eval Task
+
+1. Create task YAML in `evals/tasks/<category>/`:
+   ```yaml
+   id: my-new-check
+   schema_version: 1
+   skill: implementing-tasks
+   category: framework
+   fixture: loa-skill-dir
+   description: "Verify something important"
+   trials: 1
+   timeout: { per_trial: 60, per_grader: 30 }
+   graders:
+     - type: code
+       script: pattern-match.sh
+       args: ["important_pattern", "path/to/check"]
+       weight: 1.0
+   difficulty: basic
+   tags: ["framework"]
+   ```
+
+2. Verify locally:
+   ```bash
+   ./evals/harness/run-eval.sh --task my-new-check --trusted --verbose
+   ```
+
+3. Update baseline:
+   ```bash
+   ./evals/harness/run-eval.sh --suite framework --update-baseline \
+     --reason "Added my-new-check task" --trusted
+   ```
+
+4. Commit task + baseline together in a PR.
+
+### Adding a New Grader
+
+1. Create script in `evals/graders/`:
+   ```bash
+   #!/usr/bin/env bash
+   set -euo pipefail
+   workspace="$1"
+   # ... your check logic ...
+   echo '{"pass":true,"score":100,"details":"OK","grader_version":"1.0.0"}'
+   ```
+
+2. Make executable: `chmod +x evals/graders/my-grader.sh`
+
+3. **Important**: Do not use `source`, `eval`, or `.` with variable expansion — the trust boundary scanner will reject it in CI.
+
+### Adding a New Fixture
+
+1. Create directory in `evals/fixtures/<name>/`
+2. Add `fixture.yaml` with metadata:
+   ```yaml
+   name: my-fixture
+   description: "What this fixture represents"
+   dependency_strategy: none  # none | prebaked | offline-cache
+   ```
+3. Add fixture files (source code, configs, etc.)
+4. **Note**: If the fixture needs `.loa.config.yaml`, it will be tracked automatically (gitignore negation rule exists for `evals/fixtures/**/.loa.config.yaml`)
+
+### Investigating a CI Failure
+
+1. Check the PR comment for which suite/tasks failed
+2. Download artifacts:
+   ```bash
+   gh run download <run-id> --name eval-results-<pr-number>
+   ```
+3. Read `run-meta.json` for summary, `comparison.json` for regression details
+4. Read `task-<task-id>.jsonl` for per-grader output
+5. Reproduce locally:
+   ```bash
+   ./evals/harness/run-eval.sh --task <task-id> --trusted --verbose
+   ```
+
+### Updating Baselines After Intentional Changes
+
+When you intentionally change something that affects eval results (e.g., renaming a config section):
+
+```bash
+# Run and update
+./evals/harness/run-eval.sh --suite framework --update-baseline \
+  --reason "Renamed run_mode to execution_mode" --trusted
+
+# Review changes
+git diff evals/baselines/
+
+# Commit with explanation
+git add evals/baselines/
+git commit -m "chore(eval): update baseline — renamed run_mode config section"
+```
+
 ## Architecture Decisions
 
 ### ADR-001: JSONL for Result Storage
