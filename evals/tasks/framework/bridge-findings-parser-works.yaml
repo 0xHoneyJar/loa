@@ -1,0 +1,21 @@
+id: bridge-findings-parser-works
+schema_version: 1
+skill: test-skill
+category: framework
+fixture: loa-skill-dir
+description: "Bridge findings parser script exists with marker extraction"
+trials: 1
+timeout:
+  per_trial: 60
+  per_grader: 30
+graders:
+  - type: code
+    script: file-exists.sh
+    args: [".claude/scripts/bridge-findings-parser.sh"]
+    weight: 0.5
+  - type: code
+    script: pattern-match.sh
+    args: ["bridge-findings-start", ".claude/scripts/bridge-findings-parser.sh"]
+    weight: 0.5
+difficulty: basic
+tags: ["framework", "bridge", "quality-gate"]
