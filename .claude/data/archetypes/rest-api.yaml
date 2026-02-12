@@ -1,0 +1,25 @@
+name: "REST API"
+description: "Backend API service with authentication, CRUD, and documentation"
+tags: ["backend", "api", "web"]
+context:
+  vision: |
+    A RESTful API service following industry best practices.
+  technical:
+    - "RESTful API design with versioned endpoints (/api/v1/...)"
+    - "Authentication (JWT or session-based) with refresh tokens"
+    - "Input validation at API boundaries"
+    - "OpenAPI/Swagger documentation generated from code"
+    - "Database migrations with rollback support"
+  non_functional:
+    - "Response time < 200ms p95 for read operations"
+    - "Rate limiting per API key"
+    - "CORS configuration for frontend origins"
+    - "Structured JSON logging with request tracing"
+  testing:
+    - "Integration tests for all endpoints"
+    - "Auth flow tests (login, refresh, revoke)"
+    - "Error response format validation"
+  risks:
+    - "SQL injection via unvalidated query parameters"
+    - "Broken authentication (OWASP A07:2021)"
+    - "Mass assignment vulnerabilities"

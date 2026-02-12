@@ -1,0 +1,17 @@
+id: golden-menu-options-function
+schema_version: 1
+skill: test-skill
+category: framework
+fixture: loa-skill-dir
+description: "golden-path.sh contains golden_menu_options() function for context-aware menu"
+trials: 1
+timeout:
+  per_trial: 60
+  per_grader: 30
+graders:
+  - type: code
+    script: pattern-match.sh
+    args: ["golden_menu_options", "golden-path.sh"]
+    weight: 1.0
+difficulty: basic
+tags: ["framework", "golden-path", "onboarding-ux"]

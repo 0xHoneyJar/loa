@@ -5,7 +5,7 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.34.0] - 2026-02-12 — Bridge Release
+## [1.35.0] - 2026-02-12 — Bridge Release
 
 ### Why This Release
 
@@ -100,6 +100,98 @@ Shell script handling mechanical GT operations:
 - **lore-validation.bats**: 25 tests (YAML schema, cross-references, glossary count)
 - **ground-truth-gen.bats**: 11 tests (scaffold, checksums, validate, all modes)
 - **7 eval tasks**: lore-index-valid, lore-entries-schema, gt-checksums-match, bridge-state-schema-valid, bridge-findings-parser-works, golden-path-bridge-detection, vision-entries-traceability
+
+## [1.34.1] - 2026-02-12
+
+### Why This Release
+
+Quality hardening pass for the Onboarding UX release. Fixes CI failures, adds missing test coverage, formalizes schemas, and documents lifecycle protocols — all traced to Bridgebuilder architectural review findings on PR #291.
+
+### Fixed
+
+- **Template Protection CI** — removed 37 forbidden state files (`.run/`, `.beads/`, `.ck/`) from git tracking that accumulated during previous development cycles
+- **Fixture sync CI integration** — new `fixture-sync` CI job runs `sync-fixtures.sh --check` on every PR to catch drift before merge
+
+### Added
+
+- **Bug-specific journey bar** — `golden_format_bug_journey()` renders bug lifecycle visualization: `/triage ━━━ /fix ●━━━ /review ━━━ /close`
+- **JSON output mode** — `golden_menu_options --json` produces machine-readable output for tooling integration
+- **Archetype risk seeding** — `/plan` now seeds `NOTES.md ## Known Risks` from selected archetype's `context.risks`
+- **Archetype schema validation** — `schema.yaml` defines required archetype fields; `sync-fixtures.sh --check` validates all archetypes
+- **Auto-discovery of sync targets** — `sync-fixtures.sh` scans eval task YAML files to auto-populate fixture sync map
+- **BATS unit test suite** — 33 tests covering `golden-path.sh` state detection, menu options, journey visualization, pipe sanitization, and bug transitions
+- **Sprint completion protocol** — `.claude/protocols/sprint-completion.md` documents the implement → review → audit → COMPLETED lifecycle
+- **Bug lifecycle protocol** — `.claude/protocols/bug-lifecycle.md` documents the full bug state machine with transitions and TOCTOU-safe verification
+- 2 new framework eval tasks: `golden-bug-journey`, `golden-menu-json`
+
+## [1.34.0] - 2026-02-12
+
+### Why This Release
+
+The Onboarding UX release makes Loa dramatically easier to get started with. Inspired by competitive analysis of Hive's onboarding (PR #290), this release adds **context-aware navigation**, **post-mount verification**, a **setup wizard**, and **project archetypes** — reducing first-5-minutes friction while keeping all power-user truename commands intact.
+
+### Added
+
+#### Context-Aware `/loa` Menu (FR-1, Sprint 8)
+
+The `/loa` command now shows a dynamic, state-aware action menu instead of a static 3-option list:
+
+- **9-state detection engine** (`golden_detect_workflow_state()`) — determines where you are in the workflow
+- **Context-specific menu options** — each state shows relevant next actions (e.g., "Build sprint-2" when implementing, "Fix bug: title" when triaging)
+- **Smart routing** — menu selections invoke the correct skill automatically
+- **Destructive action safety** — "Plan new cycle" requires confirmation before archiving
+- 3 new framework eval tasks (golden-menu-*)
+
+#### Post-Mount Verification (FR-2, Sprint 9)
+
+`mount-loa.sh` now validates the installation after framework sync:
+
+- **`verify_mount()`** — checks framework files, config, deps, optional tools, and API key presence
+- **NFR-8 compliance** — API key check is boolean-only ("is set" / "not set"), zero key material in output
+- **Safe JSON assembly** — uses `jq -n --arg` instead of string concatenation (Flatline SKP-004)
+- **Flags**: `--quiet`, `--json`, `--strict` (converts warnings to failures)
+- **Exit codes**: 0 = success+warnings, 1 = failure
+- 2 new framework eval tasks (mount-verify-*)
+
+#### Setup Wizard `/loa setup` (FR-3, Sprint 10)
+
+New interactive environment setup command:
+
+- **`loa-setup-check.sh`** — JSONL validation engine checking API key, deps, optional tools, config
+- **4-step wizard** — validate deps → check tools → show config → toggle features
+- **`--check` flag** — non-interactive validation-only mode
+- **Feature toggle UI** — AskUserQuestion with multiSelect for Flatline, Memory, Enhancement
+
+#### Project Archetypes (FR-4, Sprint 10)
+
+First-time `/plan` users now see a project archetype menu:
+
+- **4 templates**: REST API, CLI Tool, Library/Package, Full-Stack App
+- **Each template** provides vision, technical context, NFRs, testing strategy, and risks
+- **"Other" option** skips to blank-slate interview
+- **Auto-ingestion** — selected archetype written to `grimoires/loa/context/archetype.md`
+- 2 new framework eval tasks (setup-check-nfr8, archetype-schema)
+
+#### Use-Case Qualification (FR-5, Sprint 11)
+
+First-time `/plan` users see a brief "Loa works best for..." guidance screen:
+
+- Shows feature comparison ("What does Loa add?")
+- Never blocks — always allows continuing
+- Helps users self-qualify before investing in full planning
+
+#### Auto-Format Construct Pack Spec (FR-6, Sprint 11)
+
+Design specification for a construct pack that installs language-specific formatting hooks:
+
+- Supports Python (ruff), JS/TS (prettier), Go (gofmt), Rust (rustfmt)
+- Non-destructive — preserves existing formatter configs
+- Implementation ships separately in `loa-constructs` repo
+
+### Framework Eval Suite
+
+- **30 tasks** (up from 23), 0 failures
+- New coverage: golden-menu-*, mount-verify-*, setup-check-*, archetype-*
 
 ---
 

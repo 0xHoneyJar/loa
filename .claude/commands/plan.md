@@ -52,7 +52,91 @@ LOA-E001: Missing prerequisite
   Run /plan first (or /plan --from discovery).
 ```
 
-### 3. Route to Truename
+### 3. Use-Case Qualification (First-Time Projects Only)
+
+Before archetype selection, help new users understand if Loa is right for them. Only show this when:
+1. `grimoires/loa/prd.md` does NOT exist
+2. `grimoires/loa/ledger.json` has NO completed cycles
+
+Present via AskUserQuestion:
+```yaml
+question: "Ready to plan your project with Loa?"
+header: "Welcome"
+options:
+  - label: "Let's go!"
+    description: "Start planning — I know what I want to build"
+  - label: "What does Loa add?"
+    description: "Show me what Loa provides over vanilla Claude Code"
+multiSelect: false
+```
+
+If user selects "What does Loa add?", display:
+
+```
+What Loa adds to Claude Code:
+
+  Structured Planning     PRD → SDD → Sprint Plan → Implementation
+  Quality Gates           Code review + security audit on every sprint
+  Cross-Session Memory    NOTES.md persists learnings across sessions
+  Multi-Model Review      Flatline Protocol (Opus + GPT-5.2) on docs
+  Task Tracking           Beads CLI for sprint task lifecycle
+  Deployment Support      IaC, CI/CD, and production hardening
+
+Loa works best for:
+  ✓ Projects with 2+ weeks of development
+  ✓ Teams that want structured quality gates
+  ✓ Codebases that need architecture documentation
+
+Less useful for:
+  → Quick scripts or one-off tasks
+  → Projects with < 1 day of work
+```
+
+Then continue to archetype selection. This step never blocks — it's informational only.
+
+### 4. Archetype Selection (First-Time Projects Only)
+
+Before routing to discovery, check if this is a first-time project:
+
+1. Does `grimoires/loa/prd.md` exist? → If yes, **SKIP** archetypes.
+2. Does `grimoires/loa/ledger.json` have any completed cycles? → If yes, **SKIP**.
+3. If both conditions indicate a fresh project, **dynamically discover** archetypes:
+
+```bash
+for f in .claude/data/archetypes/*.yaml; do
+  name=$(yq '.name' "$f")
+  desc=$(yq '.description' "$f")
+  echo "$name: $desc"
+done
+```
+
+Build AskUserQuestion options dynamically from the discovered files. For each archetype YAML, extract `name` as the label and `description` as the option description. This ensures new archetype files added to `.claude/data/archetypes/` are automatically discovered without modifying this command file.
+
+```yaml
+question: "What type of project are you building?"
+header: "Archetype"
+options:
+  # Dynamically built from .claude/data/archetypes/*.yaml
+  # Each file becomes one option: name → label, description → description
+  # AskUserQuestion supports max 4 options, so use the first 4 files found
+multiSelect: false
+```
+
+The user can select "Other" to skip and start from a blank slate. If no archetype files exist, skip this step entirely.
+
+On selection: read the archetype YAML, format its `context` fields into Markdown, and write to `grimoires/loa/context/archetype.md`. The context ingestion pipeline in `/plan-and-analyze` picks it up automatically.
+
+**Risk Seeding**: After writing `archetype.md`, also seed `grimoires/loa/NOTES.md` with domain-specific risks from the archetype:
+
+1. Extract `context.risks` from the selected archetype YAML
+2. If `grimoires/loa/NOTES.md` does not exist, create it with a `## Known Risks` section
+3. If `grimoires/loa/NOTES.md` exists but has no `## Known Risks` section, append it
+4. If `## Known Risks` already has content, **skip** (don't duplicate on re-selection)
+5. Each risk becomes a bullet point: `- **[Archetype: {name}]**: {risk}`
+
+This ensures domain knowledge persists across sessions. A developer starting sprint-3 of a REST API project sees OWASP risks in NOTES.md even if archetype selection happened weeks ago.
+
+### 5. Route to Truename
 
 Based on detected (or overridden) phase:
 
@@ -63,7 +147,7 @@ Based on detected (or overridden) phase:
 | `sprint_planning` | Execute `/sprint-plan` |
 | `complete` | Show: "Planning complete. All artifacts exist. Next: /build" |
 
-### 4. Chain Phases
+### 6. Chain Phases
 
 After each phase completes successfully, check if the next phase should run:
 

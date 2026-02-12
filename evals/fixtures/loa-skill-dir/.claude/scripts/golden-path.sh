@@ -751,58 +751,6 @@ golden_bug_check_deps() {
 }
 
 # ─────────────────────────────────────────────────────────────
-# Bridge State Detection (v1.34.0 — Issue #292)
-# ─────────────────────────────────────────────────────────────
-
-# Detect bridge loop state from .run/bridge-state.json.
-# Returns: state string ("ITERATING", "HALTED", "FINALIZING", etc.) or "none"
-golden_detect_bridge_state() {
-    local bridge_file="${PROJECT_ROOT}/.run/bridge-state.json"
-    if [[ -f "${bridge_file}" ]]; then
-        local state
-        state=$(jq -r '.state // "none"' "${bridge_file}" 2>/dev/null) || state="none"
-        echo "${state}"
-    else
-        echo "none"
-    fi
-}
-
-# Get bridge progress details for /loa display.
-# Returns: human-readable progress string or empty.
-golden_bridge_progress() {
-    local bridge_file="${PROJECT_ROOT}/.run/bridge-state.json"
-    [[ -f "${bridge_file}" ]] || return 0
-
-    local state bridge_id depth
-    state=$(jq -r '.state // "none"' "${bridge_file}" 2>/dev/null) || return 0
-    [[ "${state}" == "none" || "${state}" == "JACKED_OUT" ]] && return 0
-
-    bridge_id=$(jq -r '.bridge_id // "unknown"' "${bridge_file}" 2>/dev/null)
-    depth=$(jq '.config.depth // 0' "${bridge_file}" 2>/dev/null)
-
-    local iteration
-    iteration=$(jq '.iterations | length' "${bridge_file}" 2>/dev/null || echo "0")
-
-    case "${state}" in
-        ITERATING)
-            local score initial
-            score=$(jq '.flatline.last_score // 0' "${bridge_file}" 2>/dev/null)
-            initial=$(jq '.flatline.initial_score // 0' "${bridge_file}" 2>/dev/null)
-            echo "Bridge Loop: Iteration ${iteration}/${depth} (score: ${score}, initial: ${initial})"
-            ;;
-        HALTED)
-            echo "Bridge HALTED at iteration ${iteration}/${depth}. Resume with /run-bridge --resume"
-            ;;
-        FINALIZING)
-            echo "Bridge finalizing after ${iteration} iterations..."
-            ;;
-        PREFLIGHT|JACK_IN)
-            echo "Bridge starting up (${state})..."
-            ;;
-    esac
-}
-
-# ─────────────────────────────────────────────────────────────
 # Truename Resolution
 # ─────────────────────────────────────────────────────────────
 

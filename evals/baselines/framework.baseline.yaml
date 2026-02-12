@@ -1,10 +1,15 @@
 version: 1
 suite: framework
 model_version: "unknown"
-recorded_at: "2026-02-11"
+recorded_at: "2026-02-12"
 recorded_from_run: "unknown"
-update_reason: "Add gitattributes-workflow-protection task for issue #288"
+update_reason: "Sprint 13: bug journey + menu JSON"
 tasks:
+  archetype-schema:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
   config-has-run-mode:
     pass_rate: 1
     trials: 1
@@ -50,6 +55,31 @@ tasks:
     trials: 1
     mean_score: 100
     status: active
+  golden-bug-journey:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  golden-menu-bug-support:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  golden-menu-json:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  golden-menu-options-function:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  golden-menu-state-detection:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
   golden-path-claude-loa-md:
     pass_rate: 1
     trials: 1
@@ -75,6 +105,16 @@ tasks:
     trials: 1
     mean_score: 100
     status: active
+  mount-verify-function:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  mount-verify-nfr8:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
   quality-constraints-json:
     pass_rate: 1
     trials: 1
@@ -91,6 +131,11 @@ tasks:
     mean_score: 100
     status: active
   quality-skill-index:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  setup-check-nfr8:
     pass_rate: 1
     trials: 1
     mean_score: 100
