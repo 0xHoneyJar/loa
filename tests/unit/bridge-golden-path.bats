@@ -55,11 +55,15 @@ skip_if_deps_missing() {
     skip_if_deps_missing
     cat > "$TEST_TMPDIR/.run/bridge-state.json" <<'EOF'
 {
+    "schema_version": 1,
     "state": "ITERATING",
     "bridge_id": "bridge-test-123",
-    "config": {"depth": 3},
-    "iterations": [{"iteration": 1, "state": "completed"}],
-    "flatline": {"initial_score": 15.5, "last_score": 4.0}
+    "config": {"depth": 3, "mode": "full", "flatline_threshold": 0.05, "per_sprint": false, "branch": "feature/test"},
+    "timestamps": {"started": "2026-01-01T00:00:00Z", "last_activity": "2026-01-01T01:00:00Z"},
+    "iterations": [{"iteration": 1, "state": "completed", "sprint_plan_source": "existing", "sprints_executed": 2, "bridgebuilder": {"total_findings": 10, "by_severity": {"critical": 1, "high": 2, "medium": 3, "low": 2, "vision": 2}, "severity_weighted_score": 26, "pr_comment_url": null}, "visions_captured": 0, "started_at": "2026-01-01T00:00:00Z"}],
+    "flatline": {"initial_score": 15.5, "last_score": 4.0, "consecutive_below_threshold": 0},
+    "metrics": {"total_sprints_executed": 2, "total_files_changed": 10, "total_findings_addressed": 0, "total_visions_captured": 0},
+    "finalization": {"ground_truth_updated": false, "rtfm_passed": false, "pr_url": null}
 }
 EOF
 
@@ -114,14 +118,18 @@ EOF
     skip_if_deps_missing
     cat > "$TEST_TMPDIR/.run/bridge-state.json" <<'EOF'
 {
+    "schema_version": 1,
     "state": "ITERATING",
     "bridge_id": "bridge-test-p1",
-    "config": {"depth": 3},
+    "config": {"depth": 3, "mode": "full", "flatline_threshold": 0.05, "per_sprint": false, "branch": "feature/test"},
+    "timestamps": {"started": "2026-01-01T00:00:00Z", "last_activity": "2026-01-01T02:00:00Z"},
     "iterations": [
-        {"iteration": 1, "state": "completed"},
-        {"iteration": 2, "state": "in_progress"}
+        {"iteration": 1, "state": "completed", "sprint_plan_source": "existing", "sprints_executed": 2, "bridgebuilder": {"total_findings": 10, "by_severity": {"critical": 1, "high": 2, "medium": 3, "low": 2, "vision": 2}, "severity_weighted_score": 26, "pr_comment_url": null}, "visions_captured": 0, "started_at": "2026-01-01T00:00:00Z"},
+        {"iteration": 2, "state": "in_progress", "sprint_plan_source": "findings", "sprints_executed": 0, "bridgebuilder": {"total_findings": 0, "by_severity": {"critical": 0, "high": 0, "medium": 0, "low": 0, "vision": 0}, "severity_weighted_score": 0, "pr_comment_url": null}, "visions_captured": 0, "started_at": "2026-01-01T01:00:00Z"}
     ],
-    "flatline": {"initial_score": 15.5, "last_score": 4.0}
+    "flatline": {"initial_score": 15.5, "last_score": 4.0, "consecutive_below_threshold": 0},
+    "metrics": {"total_sprints_executed": 2, "total_files_changed": 10, "total_findings_addressed": 0, "total_visions_captured": 0},
+    "finalization": {"ground_truth_updated": false, "rtfm_passed": false, "pr_url": null}
 }
 EOF
 

@@ -148,6 +148,92 @@ skip_if_deps_missing() {
     [ "$status" -ne 0 ]
 }
 
+@test "bridge-state: valid transition JACK_IN → HALTED" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-h1" 3
+    update_bridge_state "JACK_IN"
+    run update_bridge_state "HALTED"
+    [ "$status" -eq 0 ]
+
+    local state
+    state=$(jq -r '.state' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$state" = "HALTED" ]
+}
+
+@test "bridge-state: valid transition ITERATING → HALTED" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-h2" 3
+    update_bridge_state "JACK_IN"
+    update_bridge_state "ITERATING"
+    run update_bridge_state "HALTED"
+    [ "$status" -eq 0 ]
+
+    local state
+    state=$(jq -r '.state' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$state" = "HALTED" ]
+}
+
+@test "bridge-state: valid transition FINALIZING → HALTED" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-h3" 3
+    update_bridge_state "JACK_IN"
+    update_bridge_state "ITERATING"
+    update_bridge_state "FINALIZING"
+    run update_bridge_state "HALTED"
+    [ "$status" -eq 0 ]
+}
+
+@test "bridge-state: valid transition HALTED → ITERATING" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-h4" 3
+    update_bridge_state "JACK_IN"
+    update_bridge_state "HALTED"
+    run update_bridge_state "ITERATING"
+    [ "$status" -eq 0 ]
+
+    local state
+    state=$(jq -r '.state' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$state" = "ITERATING" ]
+}
+
+@test "bridge-state: valid transition HALTED → JACKED_OUT" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-h5" 3
+    update_bridge_state "JACK_IN"
+    update_bridge_state "HALTED"
+    run update_bridge_state "JACKED_OUT"
+    [ "$status" -eq 0 ]
+
+    local state
+    state=$(jq -r '.state' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$state" = "JACKED_OUT" ]
+}
+
+@test "bridge-state: valid self-transition ITERATING → ITERATING" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-s1" 3
+    update_bridge_state "JACK_IN"
+    update_bridge_state "ITERATING"
+    run update_bridge_state "ITERATING"
+    [ "$status" -eq 0 ]
+
+    local state
+    state=$(jq -r '.state' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$state" = "ITERATING" ]
+}
+
 @test "bridge-state: illegal transition JACKED_OUT → ITERATING rejected" {
     skip_if_deps_missing
     source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
@@ -194,6 +280,71 @@ skip_if_deps_missing() {
     state=$(jq -r '.iterations[0].state' "$TEST_TMPDIR/.run/bridge-state.json")
     [ "$count" = "1" ]
     [ "$state" = "completed" ]
+}
+
+# =============================================================================
+# Iteration Findings
+# =============================================================================
+
+@test "bridge-state: update_iteration_findings sets bridgebuilder data" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-if1" 3
+    update_iteration 1 "in_progress" "existing"
+
+    # Create findings summary JSON
+    cat > "$TEST_TMPDIR/findings.json" <<'EOF'
+{
+    "total": 10,
+    "by_severity": {"critical": 2, "high": 3, "medium": 3, "low": 1, "vision": 1},
+    "severity_weighted_score": 42
+}
+EOF
+
+    update_iteration_findings 1 "$TEST_TMPDIR/findings.json"
+
+    local total score
+    total=$(jq '.iterations[0].bridgebuilder.total_findings' "$TEST_TMPDIR/.run/bridge-state.json")
+    score=$(jq '.iterations[0].bridgebuilder.severity_weighted_score' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$total" = "10" ]
+    [ "$score" = "42" ]
+}
+
+@test "bridge-state: update_iteration_findings sets severity breakdown" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-if2" 3
+    update_iteration 1 "in_progress" "existing"
+
+    cat > "$TEST_TMPDIR/findings.json" <<'EOF'
+{
+    "total": 5,
+    "by_severity": {"critical": 1, "high": 2, "medium": 1, "low": 0, "vision": 1},
+    "severity_weighted_score": 22
+}
+EOF
+
+    update_iteration_findings 1 "$TEST_TMPDIR/findings.json"
+
+    local critical high vision
+    critical=$(jq '.iterations[0].bridgebuilder.by_severity.critical' "$TEST_TMPDIR/.run/bridge-state.json")
+    high=$(jq '.iterations[0].bridgebuilder.by_severity.high' "$TEST_TMPDIR/.run/bridge-state.json")
+    vision=$(jq '.iterations[0].bridgebuilder.by_severity.vision' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$critical" = "1" ]
+    [ "$high" = "2" ]
+    [ "$vision" = "1" ]
+}
+
+@test "bridge-state: update_iteration_findings fails with missing files" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-if3" 3
+
+    run update_iteration_findings 1 "/nonexistent/findings.json"
+    [ "$status" -ne 0 ]
 }
 
 # =============================================================================

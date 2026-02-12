@@ -199,7 +199,7 @@ cmd_update_pr() {
   metrics_info="\n\n**Metrics**: ${total_sprints} sprints, ${total_files} files changed, ${total_findings} findings addressed, ${total_visions} visions captured"
 
   local body
-  body=$(printf "${table_header}${table_rows}${flatline_info}${metrics_info}\n\n**Bridge ID**: \`${bridge_id}\` | **State**: ${state} | **Depth**: ${depth}")
+  body="${table_header}${table_rows}${flatline_info}${metrics_info}\n\n**Bridge ID**: \`${bridge_id}\` | **State**: ${state} | **Depth**: ${depth}"
 
   # Get current PR body and append/update bridge section
   local current_body

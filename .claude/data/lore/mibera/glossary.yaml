@@ -95,7 +95,7 @@ entries:
       enters the execution loop.
     source: "Gibson's Neuromancer, run-mode SKILL.md"
     tags: [naming, autonomy]
-    related: [jacking-in-ritual, ice-defense]
+    related: [jacking-in-ritual, glossary-ice]
     loa_mapping: "JACK_IN state in /run"
 
   - id: glossary-jack-out

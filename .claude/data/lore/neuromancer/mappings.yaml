@@ -2,8 +2,8 @@ description: "Mappings from Neuromancer/Sprawl Trilogy concepts to Loa framework
 
 mappings:
   - concept: ice
-    loa_feature: "run-mode-ice.sh"
-    description: "ICE protects cyberspace systems; run-mode-ice.sh protects git operations during autonomous execution"
+    loa_feature: "run-mode-ice.sh, circuit breakers"
+    description: "ICE protects cyberspace systems; run-mode-ice.sh protects git operations during autonomous execution, and circuit breaker patterns (same-issue limit, no-progress limit, cycle limit) serve as defensive barriers"
 
   - concept: jacking-in
     loa_feature: "/run jack-in (JACK_IN state)"
@@ -32,7 +32,3 @@ mappings:
   - concept: neuromancer-ai
     loa_feature: "/simstim, vision capture"
     description: "Creative AI counterpart becomes human-in-the-loop creativity and speculative insight preservation"
-
-  - concept: ice
-    loa_feature: "Circuit breakers"
-    description: "Defensive barriers extend to circuit breaker patterns — same issue limit, no-progress limit, cycle limit"

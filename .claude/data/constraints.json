@@ -87,7 +87,7 @@
           "validate": "exists"
         }
       ],
-      "error_code": "E111",
+      "error_code": "E115",
       "severity": "critical",
       "source_incident": "#216"
     },
@@ -213,7 +213,7 @@
           "validate": "exists"
         }
       ],
-      "error_code": "E113",
+      "error_code": "E116",
       "severity": "high"
     },
     {

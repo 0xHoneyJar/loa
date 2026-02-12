@@ -13,7 +13,7 @@ entries:
       that deepen the connection between practitioner and spirit.
     source: "Issue #292 — Run Bridge design"
     tags: [ritual, architecture, time]
-    related: [kaironic-time, flatline, triskelion]
+    related: [kaironic-time, glossary-flatline, triskelion]
     loa_mapping: "/run-bridge command, bridge-orchestrator.sh"
 
   - id: sprint-ceremony
@@ -61,7 +61,7 @@ entries:
       act, not an accidental drift into automation.
     source: "run-mode SKILL.md, Gibson's Neuromancer"
     tags: [ritual, naming, autonomy]
-    related: [simstim-experience, ice-defense]
+    related: [glossary-simstim, glossary-ice]
     loa_mapping: "JACK_IN state in run-mode state machine"
 
   - id: flatline-ceremony
@@ -77,7 +77,7 @@ entries:
       BLOCKERS are the warnings that must be heeded.
     source: "Flatline Protocol design, CLAUDE.loa.md"
     tags: [ritual, multi-model]
-    related: [hounfour, flatline]
+    related: [hounfour, glossary-flatline]
     loa_mapping: "Flatline Protocol, flatline-orchestrator.sh"
 
   - id: vision-capture

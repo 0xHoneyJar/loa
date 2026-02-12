@@ -12,7 +12,7 @@ entries:
       This is the opposite of arbitrary timeout-based termination.
     source: "Issue #292 — Run Bridge design discussion"
     tags: [time, philosophy, architecture]
-    related: [flatline, bridge-loop]
+    related: [glossary-flatline, bridge-loop]
     loa_mapping: "Flatline detection in bridge-orchestrator.sh"
 
   - id: cheval
@@ -93,5 +93,5 @@ entries:
       multiple spirits interacting through the same ceremonial space.
     source: "Flatline Protocol design, Issue #292"
     tags: [multi-model, naming, architecture]
-    related: [flatline, cheval]
+    related: [glossary-flatline, cheval]
     loa_mapping: "Flatline Protocol, loa_cheval multi-model routing"

@@ -70,6 +70,10 @@ USAGE
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --depth)
+      if [[ -z "${2:-}" ]]; then
+        echo "ERROR: --depth requires a value" >&2
+        exit 2
+      fi
       DEPTH="$2"
       shift 2
       ;;
@@ -82,6 +86,10 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --from)
+      if [[ -z "${2:-}" ]]; then
+        echo "ERROR: --from requires a value" >&2
+        exit 2
+      fi
       FROM_PHASE="$2"
       shift 2
       ;;
@@ -142,22 +150,29 @@ preflight() {
     fi
   fi
 
-  # Validate branch via ICE
-  if [[ -f "$SCRIPT_DIR/run-mode-ice.sh" ]]; then
-    local current_branch
-    current_branch=$(git branch --show-current 2>/dev/null || echo "unknown")
-    echo "Branch: $current_branch"
+  # Validate branch — protected branch check is unconditional
+  local current_branch
+  current_branch=$(git branch --show-current 2>/dev/null || echo "unknown")
+  echo "Branch: $current_branch"
 
-    # Check we're not on a protected branch
-    if [[ "$current_branch" == "main" ]] || [[ "$current_branch" == "master" ]]; then
-      echo "ERROR: Cannot run bridge on protected branch: $current_branch" >&2
-      exit 2
-    fi
+  if [[ "$current_branch" == "main" ]] || [[ "$current_branch" == "master" ]]; then
+    echo "ERROR: Cannot run bridge on protected branch: $current_branch" >&2
+    exit 2
   fi
 
   # Check required files
   if [[ ! -f "$PROJECT_ROOT/grimoires/loa/sprint.md" ]]; then
     echo "ERROR: Sprint plan not found at grimoires/loa/sprint.md" >&2
+    exit 2
+  fi
+
+  # Validate depth is numeric and in range
+  if ! [[ "$DEPTH" =~ ^[0-9]+$ ]]; then
+    echo "ERROR: --depth must be a positive integer, got: $DEPTH" >&2
+    exit 2
+  fi
+  if [[ "$DEPTH" -lt 1 ]] || [[ "$DEPTH" -gt 10 ]]; then
+    echo "ERROR: --depth must be between 1 and 10, got: $DEPTH" >&2
     exit 2
   fi
 
@@ -183,7 +198,7 @@ handle_resume() {
   state=$(jq -r '.state' "$BRIDGE_STATE_FILE")
   bridge_id=$(jq -r '.bridge_id' "$BRIDGE_STATE_FILE")
 
-  echo "Resuming bridge: $bridge_id (state: $state)"
+  echo "Resuming bridge: $bridge_id (state: $state)" >&2
 
   case "$state" in
     HALTED)
@@ -191,15 +206,15 @@ handle_resume() {
       update_bridge_state "ITERATING"
       local last_iteration
       last_iteration=$(jq '.iterations | length' "$BRIDGE_STATE_FILE")
-      echo "Resuming from iteration $((last_iteration + 1))"
-      return "$last_iteration"
+      echo "Resuming from iteration $((last_iteration + 1))" >&2
+      echo "$last_iteration"
       ;;
     ITERATING)
       # Already iterating — continue from current
       local last_iteration
       last_iteration=$(jq '.iterations | length' "$BRIDGE_STATE_FILE")
-      echo "Continuing from iteration $last_iteration"
-      return "$last_iteration"
+      echo "Continuing from iteration $last_iteration" >&2
+      echo "$last_iteration"
       ;;
     *)
       echo "ERROR: Cannot resume from state: $state" >&2
@@ -216,8 +231,7 @@ bridge_main() {
   local start_iteration=0
 
   if [[ "$RESUME" == "true" ]]; then
-    handle_resume
-    start_iteration=$?
+    start_iteration=$(handle_resume)
   else
     # Fresh start
     preflight

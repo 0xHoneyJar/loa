@@ -120,13 +120,15 @@ parse_findings() {
     if [[ -n "$current_id" ]]; then
       local weight=${SEVERITY_WEIGHTS[${current_severity^^}]:-0}
       # Escape strings for JSON
+      # Clean values (trim newlines and trailing whitespace)
+      # Note: jq --arg handles JSON string escaping automatically — no manual sed needed
       local esc_title esc_desc esc_sug esc_file esc_cat esc_pot
-      esc_title=$(echo "$current_title" | sed 's/"/\\"/g' | tr -d '\n')
-      esc_desc=$(echo "$current_description" | sed 's/"/\\"/g' | tr -d '\n' | sed 's/[[:space:]]*$//')
-      esc_sug=$(echo "$current_suggestion" | sed 's/"/\\"/g' | tr -d '\n' | sed 's/[[:space:]]*$//')
-      esc_file=$(echo "$current_file" | sed 's/"/\\"/g' | tr -d '\n')
-      esc_cat=$(echo "$current_category" | sed 's/"/\\"/g' | tr -d '\n')
-      esc_pot=$(echo "$current_potential" | sed 's/"/\\"/g' | tr -d '\n' | sed 's/[[:space:]]*$//')
+      esc_title=$(echo "$current_title" | tr -d '\n')
+      esc_desc=$(echo "$current_description" | tr -d '\n' | sed 's/[[:space:]]*$//')
+      esc_sug=$(echo "$current_suggestion" | tr -d '\n' | sed 's/[[:space:]]*$//')
+      esc_file=$(echo "$current_file" | tr -d '\n')
+      esc_cat=$(echo "$current_category" | tr -d '\n')
+      esc_pot=$(echo "$current_potential" | tr -d '\n' | sed 's/[[:space:]]*$//')
 
       local finding_json
       finding_json=$(jq -n \

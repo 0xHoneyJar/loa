@@ -55,40 +55,47 @@ init_bridge_state() {
   local now
   now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-  cat > "${BRIDGE_STATE_FILE}.tmp" <<EOF
-{
-  "schema_version": $BRIDGE_SCHEMA_VERSION,
-  "bridge_id": "$bridge_id",
-  "state": "PREFLIGHT",
-  "config": {
-    "depth": $depth,
-    "mode": "full",
-    "flatline_threshold": $flatline_threshold,
-    "per_sprint": $per_sprint,
-    "branch": "$branch"
-  },
-  "timestamps": {
-    "started": "$now",
-    "last_activity": "$now"
-  },
-  "iterations": [],
-  "flatline": {
-    "initial_score": 0,
-    "consecutive_below_threshold": 0
-  },
-  "metrics": {
-    "total_sprints_executed": 0,
-    "total_files_changed": 0,
-    "total_findings_addressed": 0,
-    "total_visions_captured": 0
-  },
-  "finalization": {
-    "ground_truth_updated": false,
-    "rtfm_passed": false,
-    "pr_url": null
-  }
-}
-EOF
+  jq -n \
+    --argjson schema_version "$BRIDGE_SCHEMA_VERSION" \
+    --arg bridge_id "$bridge_id" \
+    --argjson depth "$depth" \
+    --argjson flatline_threshold "$flatline_threshold" \
+    --argjson per_sprint "$per_sprint" \
+    --arg branch "$branch" \
+    --arg now "$now" \
+    '{
+      schema_version: $schema_version,
+      bridge_id: $bridge_id,
+      state: "PREFLIGHT",
+      config: {
+        depth: $depth,
+        mode: "full",
+        flatline_threshold: $flatline_threshold,
+        per_sprint: $per_sprint,
+        branch: $branch
+      },
+      timestamps: {
+        started: $now,
+        last_activity: $now
+      },
+      iterations: [],
+      flatline: {
+        initial_score: 0,
+        last_score: 0,
+        consecutive_below_threshold: 0
+      },
+      metrics: {
+        total_sprints_executed: 0,
+        total_files_changed: 0,
+        total_findings_addressed: 0,
+        total_visions_captured: 0
+      },
+      finalization: {
+        ground_truth_updated: false,
+        rtfm_passed: false,
+        pr_url: null
+      }
+    }' > "${BRIDGE_STATE_FILE}.tmp"
   mv "${BRIDGE_STATE_FILE}.tmp" "$BRIDGE_STATE_FILE"
   echo "Bridge state initialized: $bridge_id"
 }
@@ -262,6 +269,7 @@ update_flatline() {
   if [[ "$iteration" -eq 1 ]]; then
     jq --argjson score "$current_score" '
       .flatline.initial_score = $score |
+      .flatline.last_score = $score |
       .flatline.consecutive_below_threshold = 0
     ' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
     mv "${BRIDGE_STATE_FILE}.tmp" "$BRIDGE_STATE_FILE"
@@ -282,9 +290,15 @@ update_flatline() {
   fi
 
   if [[ "$is_below" == "true" ]]; then
-    jq '.flatline.consecutive_below_threshold += 1' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
+    jq --argjson score "$current_score" '
+      .flatline.last_score = $score |
+      .flatline.consecutive_below_threshold += 1
+    ' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
   else
-    jq '.flatline.consecutive_below_threshold = 0' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
+    jq --argjson score "$current_score" '
+      .flatline.last_score = $score |
+      .flatline.consecutive_below_threshold = 0
+    ' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
   fi
   mv "${BRIDGE_STATE_FILE}.tmp" "$BRIDGE_STATE_FILE"
 }

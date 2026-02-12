@@ -112,7 +112,7 @@ fi
 captured=0
 now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-jq -c '.findings[] | select(.severity == "VISION")' "$FINDINGS_FILE" | while IFS= read -r vision; do
+while IFS= read -r vision; do
   local_num=$((next_number + captured))
   vision_id=$(printf "vision-%03d" "$local_num")
 
@@ -147,13 +147,13 @@ ${potential}
 EOF
 
   captured=$((captured + 1))
-done
+done < <(jq -c '.findings[] | select(.severity == "VISION")' "$FINDINGS_FILE")
 
 # Update index.md
 if [[ -f "$OUTPUT_DIR/index.md" ]]; then
   # Read current index and append new entries to the table
   local_num=$next_number
-  jq -c '.findings[] | select(.severity == "VISION")' "$FINDINGS_FILE" | while IFS= read -r vision; do
+  while IFS= read -r vision; do
     vision_id=$(printf "vision-%03d" "$local_num")
     title=$(echo "$vision" | jq -r '.title // "Untitled Vision"')
 
@@ -162,16 +162,16 @@ if [[ -f "$OUTPUT_DIR/index.md" ]]; then
     if grep -q "^| $vision_id " "$OUTPUT_DIR/index.md" 2>/dev/null; then
       : # Already exists, skip
     else
-      # Append to table (before Statistics section)
-      sed -i "/^## Statistics/i | $vision_id | $title | Bridge iter $ITERATION, PR #${PR_NUMBER:-?} | Captured | [architecture] |" "$OUTPUT_DIR/index.md"
+      # Append to table (before Statistics section) — portable sed (no -i)
+      sed "/^## Statistics/i | $vision_id | $title | Bridge iter $ITERATION, PR #${PR_NUMBER:-?} | Captured | [architecture] |" "$OUTPUT_DIR/index.md" > "$OUTPUT_DIR/index.md.tmp" && mv "$OUTPUT_DIR/index.md.tmp" "$OUTPUT_DIR/index.md"
     fi
 
     local_num=$((local_num + 1))
-  done
+  done < <(jq -c '.findings[] | select(.severity == "VISION")' "$FINDINGS_FILE")
 
-  # Update statistics
+  # Update statistics — portable sed (no -i)
   total_captured=$(ls "$entries_dir"/vision-*.md 2>/dev/null | wc -l)
-  sed -i "s/^- Total captured: .*/- Total captured: $total_captured/" "$OUTPUT_DIR/index.md"
+  sed "s/^- Total captured: .*/- Total captured: $total_captured/" "$OUTPUT_DIR/index.md" > "$OUTPUT_DIR/index.md.tmp" && mv "$OUTPUT_DIR/index.md.tmp" "$OUTPUT_DIR/index.md"
 fi
 
 echo "$vision_count"

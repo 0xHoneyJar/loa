@@ -4,7 +4,7 @@
   "last_sync": null,
   "zones": {
     "system": ".claude",
-    "state": ["grimoires", ".beads", ".ck"],
+    "state": ["grimoires", ".beads", ".ck", ".run"],
     "app": ["src", "lib", "app"]
   },
   "migrations_applied": ["1.1.0-beads-rust"],

@@ -59,6 +59,6 @@ The bridge loop terminates when:
 ## Related
 
 - `/run sprint-plan` — Execute all sprints (used within bridge iterations)
-- `/run-status` — Check current progress
-- `/run-halt` — Stop execution
-- `/run-resume` — Continue from halt
+- `/run-bridge --resume` — Resume interrupted bridge
+- `/run-status` — Check current run mode progress
+- `/loa` — View bridge state and next steps

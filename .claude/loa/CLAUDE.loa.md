@@ -265,8 +265,9 @@ Loa provides automatic context recovery after compaction via Claude Code hooks.
 When compaction is detected, you will see a recovery reminder instructing you to:
 1. Re-read this file (CLAUDE.md) for conventions
 2. Check `.run/sprint-plan-state.json` - resume if `state=RUNNING`
-3. Check `.run/simstim-state.json` - resume from last phase
-4. Review `grimoires/loa/NOTES.md` for learnings
+3. Check `.run/bridge-state.json` - resume if `state=ITERATING` or `state=FINALIZING`
+4. Check `.run/simstim-state.json` - resume from last phase
+5. Review `grimoires/loa/NOTES.md` for learnings
 
 ### Installation
 
@@ -333,6 +334,7 @@ Each iteration: Run sprint-plan → Bridgebuilder review → Parse findings → 
 /run-bridge --depth 5          # Up to 5 iterations
 /run-bridge --per-sprint       # Per-sprint review granularity
 /run-bridge --resume           # Resume interrupted bridge
+/run-bridge --from sprint-plan # Start from existing sprint plan
 ```
 
 ### Bridge State Recovery
@@ -498,7 +500,7 @@ Pre-execution validation for skill invocations based on OpenAI's "A Practical Gu
 **Skills by danger level** (synced with index.yaml 2026-02-06):
 - `safe`: continuous-learning, enhancing-prompts, flatline-knowledge, mounting-framework, translating-for-executives, browsing-constructs
 - `moderate`: bug-triaging, discovering-requirements, designing-architecture, planning-sprints, implementing-tasks, reviewing-code, riding-codebase, simstim-workflow
-- `high`: auditing-security, deploying-infrastructure, run-mode
+- `high`: auditing-security, deploying-infrastructure, run-mode, run-bridge
 - `critical`: autonomous-agent
 
 ### Run Mode Integration
