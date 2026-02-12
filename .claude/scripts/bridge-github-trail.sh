@@ -119,12 +119,17 @@ redact_security_content() {
     done < <(printf '%s' "$content" | grep -oE "$pattern" 2>/dev/null || true)
   done
 
-  # Apply each redaction pattern
+  # Build combined sed expression for all redaction patterns (single invocation)
+  local sed_expr=""
   for entry in "${REDACT_PATTERNS[@]}"; do
     local name="${entry%%|*}"
     local regex="${entry#*|}"
-    content=$(printf '%s' "$content" | sed -E "s/${regex}/[REDACTED:${name}]/g" 2>/dev/null || printf '%s' "$content")
+    sed_expr="${sed_expr}s/${regex}/[REDACTED:${name}]/g;"
   done
+
+  if [[ -n "$sed_expr" ]]; then
+    content=$(printf '%s' "$content" | sed -E "$sed_expr" 2>/dev/null || printf '%s' "$content")
+  fi
 
   # Restore allowlisted content from sentinels
   for sentinel in "${!sentinel_map[@]}"; do
@@ -358,42 +363,32 @@ cmd_update_pr() {
   depth=$(jq '.config.depth' "$state_file")
   state=$(jq -r '.state' "$state_file")
 
-  local nl=$'\n'
-  local table_header="## Bridge Loop Summary${nl}${nl}| Iter | State | Score | Visions | Source |${nl}|------|-------|-------|---------|--------|"
-  local table_rows=""
+  # Build iteration table rows using single jq invocation
+  local table_rows
+  table_rows=$(jq -r '.iterations[] | "| \(.iteration) | \(.state) | \(.bridgebuilder.severity_weighted_score // "—") | \(.visions_captured // "—") | \(.sprint_plan_source // "existing") |"' "$state_file" 2>/dev/null || true)
 
-  local iter_count
-  iter_count=$(jq '.iterations | length' "$state_file")
-
-  local i
-  for ((i = 0; i < iter_count; i++)); do
-    local iter_num iter_state source
-    iter_num=$(jq ".iterations[$i].iteration" "$state_file")
-    iter_state=$(jq -r ".iterations[$i].state" "$state_file")
-    # Field name matches bridge-state.sh update_iteration() — both use .sprint_plan_source
-    source=$(jq -r ".iterations[$i].sprint_plan_source // \"existing\"" "$state_file")
-    table_rows="${table_rows}${nl}| ${iter_num} | ${iter_state} | — | — | ${source} |"
-  done
-
-  # Build flatline info
-  local flatline_info=""
   local flatline_status
   flatline_status=$(jq -r '.flatline.consecutive_below_threshold // 0' "$state_file")
-  if [[ "$flatline_status" -gt 0 ]]; then
-    flatline_info="${nl}${nl}**Flatline**: ${flatline_status} consecutive iterations below threshold"
-  fi
 
-  # Metrics
-  local metrics_info=""
   local total_sprints total_files total_findings total_visions
   total_sprints=$(jq '.metrics.total_sprints_executed // 0' "$state_file")
   total_files=$(jq '.metrics.total_files_changed // 0' "$state_file")
   total_findings=$(jq '.metrics.total_findings_addressed // 0' "$state_file")
   total_visions=$(jq '.metrics.total_visions_captured // 0' "$state_file")
-  metrics_info="${nl}${nl}**Metrics**: ${total_sprints} sprints, ${total_files} files changed, ${total_findings} findings addressed, ${total_visions} visions captured"
 
+  # Build body using printf for readable template
   local body
-  body="${table_header}${table_rows}${flatline_info}${metrics_info}${nl}${nl}**Bridge ID**: \`${bridge_id}\` | **State**: ${state} | **Depth**: ${depth}${nl}<!-- bridge-summary-end -->"
+  body=$(printf '## Bridge Loop Summary\n\n| Iter | State | Score | Visions | Source |\n|------|-------|-------|---------|--------|\n%s' "$table_rows")
+
+  if [[ "$flatline_status" -gt 0 ]]; then
+    body=$(printf '%s\n\n**Flatline**: %s consecutive iterations below threshold' "$body" "$flatline_status")
+  fi
+
+  body=$(printf '%s\n\n**Metrics**: %s sprints, %s files changed, %s findings addressed, %s visions captured' \
+    "$body" "$total_sprints" "$total_files" "$total_findings" "$total_visions")
+
+  body=$(printf '%s\n\n**Bridge ID**: `%s` | **State**: %s | **Depth**: %s\n<!-- bridge-summary-end -->' \
+    "$body" "$bridge_id" "$state" "$depth")
 
   # Get current PR body and append/update bridge section
   local current_body
@@ -409,7 +404,7 @@ cmd_update_pr() {
     fi
     new_body="${new_body}${body}"
   else
-    new_body="${current_body}${nl}${nl}---${nl}${nl}${body}"
+    new_body=$(printf '%s\n\n---\n\n%s' "$current_body" "$body")
   fi
 
   printf '%s' "$new_body" | gh pr edit "$pr" --body-file - 2>/dev/null || {
