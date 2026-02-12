@@ -183,12 +183,13 @@ if [[ -f "$OUTPUT_DIR/index.md" ]]; then
       : # Already exists, skip
     else
       # Sanitize all sed-interpolated variables for metacharacters
+      safe_vid=$(printf '%s' "$vision_id" | sed 's/[\\/&]/\\\\&/g')
       safe_title=$(printf '%s' "$title" | sed 's/[\\/&]/\\\\&/g')
       safe_iteration=$(printf '%s' "$ITERATION" | sed 's/[\\/&]/\\\\&/g')
       safe_bridge_id=$(printf '%s' "$BRIDGE_ID" | sed 's/[\\/&]/\\\\&/g')
       safe_pr=$(printf '%s' "${PR_NUMBER:-?}" | sed 's/[\\/&]/\\\\&/g')
       # Append to table (before Statistics section) — portable sed (no -i)
-      sed "/^## Statistics/i | $vision_id | $safe_title | Bridge iter $safe_iteration, PR #$safe_pr | Captured | [architecture] |" "$OUTPUT_DIR/index.md" > "$OUTPUT_DIR/index.md.tmp" && mv "$OUTPUT_DIR/index.md.tmp" "$OUTPUT_DIR/index.md"
+      sed "/^## Statistics/i | $safe_vid | $safe_title | Bridge iter $safe_iteration, PR #$safe_pr | Captured | [architecture] |" "$OUTPUT_DIR/index.md" > "$OUTPUT_DIR/index.md.tmp" && mv "$OUTPUT_DIR/index.md.tmp" "$OUTPUT_DIR/index.md"
     fi
 
     local_num=$((local_num + 1))
@@ -196,7 +197,8 @@ if [[ -f "$OUTPUT_DIR/index.md" ]]; then
 
   # Update statistics — portable sed (no -i)
   total_captured=$(ls "$entries_dir"/vision-*.md 2>/dev/null | wc -l)
-  sed "s/^- Total captured: .*/- Total captured: $total_captured/" "$OUTPUT_DIR/index.md" > "$OUTPUT_DIR/index.md.tmp" && mv "$OUTPUT_DIR/index.md.tmp" "$OUTPUT_DIR/index.md"
+  safe_total=$(printf '%s' "$total_captured" | sed 's/[\\/&]/\\\\&/g')
+  sed "s/^- Total captured: .*/- Total captured: $safe_total/" "$OUTPUT_DIR/index.md" > "$OUTPUT_DIR/index.md.tmp" && mv "$OUTPUT_DIR/index.md.tmp" "$OUTPUT_DIR/index.md"
 fi
 
 echo "$vision_count"
