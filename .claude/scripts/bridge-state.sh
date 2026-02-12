@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # bridge-state.sh - Bridge loop state management
-# Version: 1.0.0
+# Version: 2.0.0
 #
 # Manages the bridge state file (.run/bridge-state.json) with schema
 # validation, state transitions, iteration tracking, flatline detection,
 # and metrics accumulation.
+#
+# All read-modify-write operations use flock-based atomic updates to
+# prevent corruption from concurrent access or interrupted writes.
 #
 # Usage:
 #   source "$SCRIPT_DIR/bridge-state.sh"
@@ -24,6 +27,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/bootstrap.sh"
 
 BRIDGE_STATE_FILE="${PROJECT_ROOT}/.run/bridge-state.json"
+BRIDGE_STATE_LOCK="${PROJECT_ROOT}/.run/bridge-state.lock"
 BRIDGE_SCHEMA_VERSION=1
 
 # =============================================================================
@@ -38,6 +42,71 @@ declare -A VALID_TRANSITIONS=(
   ["FINALIZING"]="JACKED_OUT HALTED"
   ["HALTED"]="ITERATING JACKED_OUT"
 )
+
+# =============================================================================
+# Atomic State Update (flock-based)
+# =============================================================================
+
+# Perform an atomic read-modify-write on the bridge state file.
+# Uses flock for mutual exclusion and write-to-temp + mv for crash safety.
+#
+# Usage:
+#   atomic_state_update <jq_filter> [jq_args...]
+#
+# The jq filter receives the current state and must produce the new state.
+# Additional arguments are passed directly to jq (e.g., --arg, --argjson).
+#
+# Hard-fails if flock is unavailable — never silently degrades.
+atomic_state_update() {
+  local jq_filter="$1"
+  shift
+
+  if [[ ! -f "$BRIDGE_STATE_FILE" ]]; then
+    echo "ERROR: Bridge state file not found: $BRIDGE_STATE_FILE" >&2
+    return 1
+  fi
+
+  # Hard-fail if flock is unavailable (Flatline IMP-002)
+  if ! command -v flock &>/dev/null; then
+    echo "ERROR: flock is required for atomic state updates but is not available on this system" >&2
+    echo "ERROR: Cannot proceed without flock — state corruption risk is unacceptable" >&2
+    return 1
+  fi
+
+  mkdir -p "$(dirname "$BRIDGE_STATE_LOCK")"
+
+  local lock_fd
+  exec {lock_fd}>"$BRIDGE_STATE_LOCK"
+
+  # Acquire lock with 5s timeout; detect stale locks (Flatline SKP-004)
+  if ! flock -w 5 "$lock_fd" 2>/dev/null; then
+    echo "ERROR: Failed to acquire state lock within 5s — possible stale lock" >&2
+    echo "ERROR: Lock file: $BRIDGE_STATE_LOCK" >&2
+    # Clean up stale lock and retry once
+    rm -f "$BRIDGE_STATE_LOCK"
+    exec {lock_fd}>"$BRIDGE_STATE_LOCK"
+    if ! flock -w 5 "$lock_fd" 2>/dev/null; then
+      echo "ERROR: Still cannot acquire lock after cleanup — aborting" >&2
+      return 1
+    fi
+    echo "WARNING: Recovered from stale lock" >&2
+  fi
+
+  # Write to temp file + atomic rename (crash safety)
+  local tmp_file="${BRIDGE_STATE_FILE}.tmp.$$"
+  if ! jq "$jq_filter" "$@" "$BRIDGE_STATE_FILE" > "$tmp_file" 2>/dev/null; then
+    rm -f "$tmp_file"
+    eval "exec ${lock_fd}>&-"
+    echo "ERROR: jq transformation failed" >&2
+    return 1
+  fi
+
+  # Atomic rename
+  mv "$tmp_file" "$BRIDGE_STATE_FILE"
+
+  # Release lock
+  eval "exec ${lock_fd}>&-"
+}
 
 # =============================================================================
 # State Management Functions
@@ -95,8 +164,8 @@ init_bridge_state() {
         rtfm_passed: false,
         pr_url: null
       }
-    }' > "${BRIDGE_STATE_FILE}.tmp"
-  mv "${BRIDGE_STATE_FILE}.tmp" "$BRIDGE_STATE_FILE"
+    }' > "${BRIDGE_STATE_FILE}.tmp.$$"
+  mv "${BRIDGE_STATE_FILE}.tmp.$$" "$BRIDGE_STATE_FILE"
   echo "Bridge state initialized: $bridge_id"
 }
 
@@ -134,11 +203,9 @@ update_bridge_state() {
   local now
   now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-  jq --arg state "$new_state" --arg now "$now" '
-    .state = $state |
-    .timestamps.last_activity = $now
-  ' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
-  mv "${BRIDGE_STATE_FILE}.tmp" "$BRIDGE_STATE_FILE"
+  atomic_state_update \
+    '.state = $state | .timestamps.last_activity = $now' \
+    --arg state "$new_state" --arg now "$now"
 }
 
 update_iteration() {
@@ -160,36 +227,35 @@ update_iteration() {
 
   if [[ -n "$existing" ]]; then
     # Update existing iteration
-    jq --argjson iter "$iteration" --arg state "$state" --arg now "$now" '
-      .iterations |= map(
+    atomic_state_update \
+      '.iterations |= map(
         if .iteration == $iter then
           .state = $state |
           .updated_at = $now
         else . end
       ) |
-      .timestamps.last_activity = $now
-    ' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
+      .timestamps.last_activity = $now' \
+      --argjson iter "$iteration" --arg state "$state" --arg now "$now"
   else
     # Append new iteration
-    jq --argjson iter "$iteration" --arg state "$state" --arg source "$sprint_plan_source" --arg now "$now" '
-      .iterations += [{
+    atomic_state_update \
+      '.iterations += [{
         "iteration": $iter,
         "state": $state,
         "sprint_plan_source": $source,
         "sprints_executed": 0,
         "bridgebuilder": {
           "total_findings": 0,
-          "by_severity": {"critical": 0, "high": 0, "medium": 0, "low": 0, "vision": 0},
+          "by_severity": {"critical": 0, "high": 0, "medium": 0, "low": 0, "vision": 0, "praise": 0},
           "severity_weighted_score": 0,
           "pr_comment_url": null
         },
         "visions_captured": 0,
         "started_at": $now
       }] |
-      .timestamps.last_activity = $now
-    ' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
+      .timestamps.last_activity = $now' \
+      --argjson iter "$iteration" --arg state "$state" --arg source "$sprint_plan_source" --arg now "$now"
   fi
-  mv "${BRIDGE_STATE_FILE}.tmp" "$BRIDGE_STATE_FILE"
 }
 
 update_iteration_findings() {
@@ -201,24 +267,18 @@ update_iteration_findings() {
     return 1
   fi
 
-  local total by_critical by_high by_medium by_low by_vision score
+  local total by_critical by_high by_medium by_low by_vision by_praise score
   total=$(jq '.total // 0' "$findings_json")
   by_critical=$(jq '.by_severity.critical // 0' "$findings_json")
   by_high=$(jq '.by_severity.high // 0' "$findings_json")
   by_medium=$(jq '.by_severity.medium // 0' "$findings_json")
   by_low=$(jq '.by_severity.low // 0' "$findings_json")
   by_vision=$(jq '.by_severity.vision // 0' "$findings_json")
+  by_praise=$(jq '.by_severity.praise // 0' "$findings_json")
   score=$(jq '.severity_weighted_score // 0' "$findings_json")
 
-  jq --argjson iter "$iteration" \
-     --argjson total "$total" \
-     --argjson critical "$by_critical" \
-     --argjson high "$by_high" \
-     --argjson medium "$by_medium" \
-     --argjson low "$by_low" \
-     --argjson vision "$by_vision" \
-     --argjson score "$score" '
-    .iterations |= map(
+  atomic_state_update \
+    '.iterations |= map(
       if .iteration == $iter then
         .bridgebuilder.total_findings = $total |
         .bridgebuilder.by_severity.critical = $critical |
@@ -226,11 +286,19 @@ update_iteration_findings() {
         .bridgebuilder.by_severity.medium = $medium |
         .bridgebuilder.by_severity.low = $low |
         .bridgebuilder.by_severity.vision = $vision |
+        .bridgebuilder.by_severity.praise = $praise |
         .bridgebuilder.severity_weighted_score = $score
       else . end
-    )
-  ' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
-  mv "${BRIDGE_STATE_FILE}.tmp" "$BRIDGE_STATE_FILE"
+    )' \
+    --argjson iter "$iteration" \
+    --argjson total "$total" \
+    --argjson critical "$by_critical" \
+    --argjson high "$by_high" \
+    --argjson medium "$by_medium" \
+    --argjson low "$by_low" \
+    --argjson vision "$by_vision" \
+    --argjson praise "$by_praise" \
+    --argjson score "$score"
 }
 
 read_bridge_state() {
@@ -267,12 +335,11 @@ update_flatline() {
 
   # Set initial score on first iteration
   if [[ "$iteration" -eq 1 ]]; then
-    jq --argjson score "$current_score" '
-      .flatline.initial_score = $score |
-      .flatline.last_score = $score |
-      .flatline.consecutive_below_threshold = 0
-    ' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
-    mv "${BRIDGE_STATE_FILE}.tmp" "$BRIDGE_STATE_FILE"
+    atomic_state_update \
+      '.flatline.initial_score = $score |
+       .flatline.last_score = $score |
+       .flatline.consecutive_below_threshold = 0' \
+      --argjson score "$current_score"
     return
   fi
 
@@ -290,17 +357,16 @@ update_flatline() {
   fi
 
   if [[ "$is_below" == "true" ]]; then
-    jq --argjson score "$current_score" '
-      .flatline.last_score = $score |
-      .flatline.consecutive_below_threshold += 1
-    ' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
+    atomic_state_update \
+      '.flatline.last_score = $score |
+       .flatline.consecutive_below_threshold += 1' \
+      --argjson score "$current_score"
   else
-    jq --argjson score "$current_score" '
-      .flatline.last_score = $score |
-      .flatline.consecutive_below_threshold = 0
-    ' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
+    atomic_state_update \
+      '.flatline.last_score = $score |
+       .flatline.consecutive_below_threshold = 0' \
+      --argjson score "$current_score"
   fi
-  mv "${BRIDGE_STATE_FILE}.tmp" "$BRIDGE_STATE_FILE"
 }
 
 is_flatlined() {
@@ -332,13 +398,12 @@ update_metrics() {
     return 1
   fi
 
-  jq --argjson s "$sprints" --argjson f "$files" --argjson fi "$findings" --argjson v "$visions" '
-    .metrics.total_sprints_executed += $s |
-    .metrics.total_files_changed += $f |
-    .metrics.total_findings_addressed += $fi |
-    .metrics.total_visions_captured += $v
-  ' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
-  mv "${BRIDGE_STATE_FILE}.tmp" "$BRIDGE_STATE_FILE"
+  atomic_state_update \
+    '.metrics.total_sprints_executed += $s |
+     .metrics.total_files_changed += $f |
+     .metrics.total_findings_addressed += $fi |
+     .metrics.total_visions_captured += $v' \
+    --argjson s "$sprints" --argjson f "$files" --argjson fi "$findings" --argjson v "$visions"
 }
 
 get_bridge_id() {

@@ -1,6 +1,7 @@
 #!/usr/bin/env bats
 # Unit tests for bridge-state.sh - Bridge state management
 # Sprint 2: Bridge Core — state transitions, flatline, resume
+# Sprint 1 cycle-006: flock atomic updates, crash safety, praise in by_severity
 
 setup() {
     BATS_TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
@@ -282,6 +283,18 @@ skip_if_deps_missing() {
     [ "$state" = "completed" ]
 }
 
+@test "bridge-state: new iteration includes praise in by_severity" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-praise1" 3
+    update_iteration 1 "in_progress" "existing"
+
+    local praise
+    praise=$(jq '.iterations[0].bridgebuilder.by_severity.praise // "missing"' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$praise" = "0" ]
+}
+
 # =============================================================================
 # Iteration Findings
 # =============================================================================
@@ -297,7 +310,7 @@ skip_if_deps_missing() {
     cat > "$TEST_TMPDIR/findings.json" <<'EOF'
 {
     "total": 10,
-    "by_severity": {"critical": 2, "high": 3, "medium": 3, "low": 1, "vision": 1},
+    "by_severity": {"critical": 2, "high": 3, "medium": 3, "low": 1, "vision": 1, "praise": 0},
     "severity_weighted_score": 42
 }
 EOF
@@ -321,7 +334,7 @@ EOF
     cat > "$TEST_TMPDIR/findings.json" <<'EOF'
 {
     "total": 5,
-    "by_severity": {"critical": 1, "high": 2, "medium": 1, "low": 0, "vision": 1},
+    "by_severity": {"critical": 1, "high": 2, "medium": 1, "low": 0, "vision": 1, "praise": 0},
     "severity_weighted_score": 22
 }
 EOF
@@ -335,6 +348,28 @@ EOF
     [ "$critical" = "1" ]
     [ "$high" = "2" ]
     [ "$vision" = "1" ]
+}
+
+@test "bridge-state: update_iteration_findings sets praise count" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-ifp" 3
+    update_iteration 1 "in_progress" "existing"
+
+    cat > "$TEST_TMPDIR/findings.json" <<'EOF'
+{
+    "total": 3,
+    "by_severity": {"critical": 0, "high": 1, "medium": 0, "low": 0, "vision": 0, "praise": 2},
+    "severity_weighted_score": 5
+}
+EOF
+
+    update_iteration_findings 1 "$TEST_TMPDIR/findings.json"
+
+    local praise
+    praise=$(jq '.iterations[0].bridgebuilder.by_severity.praise' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$praise" = "2" ]
 }
 
 @test "bridge-state: update_iteration_findings fails with missing files" {
@@ -482,7 +517,7 @@ EOF
 }
 
 # =============================================================================
-# last_score tracking (iteration 3 test addition)
+# last_score tracking
 # =============================================================================
 
 @test "bridge-state: update_flatline sets last_score on iteration 1" {
@@ -524,7 +559,7 @@ EOF
 }
 
 # =============================================================================
-# get_current_iteration (iteration 3 test addition)
+# get_current_iteration
 # =============================================================================
 
 @test "bridge-state: get_current_iteration returns 0 with no iterations" {
@@ -550,4 +585,109 @@ EOF
     local count
     count=$(get_current_iteration)
     [ "$count" = "2" ]
+}
+
+# =============================================================================
+# Flock Atomic Updates (cycle-006)
+# =============================================================================
+
+@test "bridge-state: atomic_state_update creates and removes lock" {
+    skip_if_deps_missing
+    if ! command -v flock &>/dev/null; then
+        skip "flock not available"
+    fi
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-flock1" 3
+
+    # Perform an atomic update
+    atomic_state_update '.state = "test"'
+
+    # Verify state changed
+    local state
+    state=$(jq -r '.state' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$state" = "test" ]
+}
+
+@test "bridge-state: atomic_state_update no tmp files remain after success" {
+    skip_if_deps_missing
+    if ! command -v flock &>/dev/null; then
+        skip "flock not available"
+    fi
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-flock2" 3
+    atomic_state_update '.state = "test"'
+
+    # No temporary files should remain (use find to avoid pipefail issues with ls glob)
+    local tmp_count
+    tmp_count=$(find "$TEST_TMPDIR/.run" -name "bridge-state.json.tmp*" 2>/dev/null | wc -l)
+    [ "$tmp_count" = "0" ]
+}
+
+@test "bridge-state: atomic_state_update fails gracefully on bad jq filter" {
+    skip_if_deps_missing
+    if ! command -v flock &>/dev/null; then
+        skip "flock not available"
+    fi
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-flock3" 3
+
+    # Bad jq filter should fail and not corrupt state
+    run atomic_state_update '.this.is.invalid | explode'
+    [ "$status" -ne 0 ]
+
+    # Original state should be unchanged
+    local state
+    state=$(jq -r '.state' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$state" = "PREFLIGHT" ]
+}
+
+@test "bridge-state: update_bridge_state uses flock when available" {
+    skip_if_deps_missing
+    if ! command -v flock &>/dev/null; then
+        skip "flock not available"
+    fi
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-flock4" 3
+
+    # This should use atomic_state_update internally
+    update_bridge_state "JACK_IN"
+
+    local state
+    state=$(jq -r '.state' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$state" = "JACK_IN" ]
+}
+
+@test "bridge-state: crash safety - no corruption on failed jq" {
+    skip_if_deps_missing
+    if ! command -v flock &>/dev/null; then
+        skip "flock not available"
+    fi
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-crash1" 3
+    update_bridge_state "JACK_IN"
+    update_bridge_state "ITERATING"
+
+    # Get current state before crash attempt
+    local before
+    before=$(jq -r '.state' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$before" = "ITERATING" ]
+
+    # Attempt a bad atomic update (should fail)
+    run atomic_state_update 'invalid_filter'
+    [ "$status" -ne 0 ]
+
+    # State should be unchanged after failed write
+    local after
+    after=$(jq -r '.state' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$after" = "ITERATING" ]
+
+    # No temp files left behind (use find to avoid pipefail issues with ls glob)
+    local tmp_count
+    tmp_count=$(find "$TEST_TMPDIR/.run" -name "bridge-state.json.tmp*" 2>/dev/null | wc -l)
+    [ "$tmp_count" = "0" ]
 }

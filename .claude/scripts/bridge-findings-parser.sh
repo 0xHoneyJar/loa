@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
 # bridge-findings-parser.sh - Extract structured findings from Bridgebuilder review
-# Version: 1.0.0
+# Version: 2.0.0
 #
-# Parses markdown review output between bridge-findings-start/end markers
-# into structured JSON with severity weighting.
+# Parses findings from Bridgebuilder review output. Supports two formats:
+#   1. JSON fenced block between bridge-findings markers (v2, preferred)
+#   2. Legacy markdown field-based findings (v1, fallback)
+#
+# Strict grammar (v2): exactly one findings block, markers required,
+# JSON fence required, fail closed on violations.
 #
 # Usage:
 #   bridge-findings-parser.sh --input review.md --output findings.json
 #
 # Exit Codes:
 #   0 - Success
-#   1 - Parse error
+#   1 - Parse error (invalid JSON)
 #   2 - Missing input
+#   3 - Strict grammar violation (multiple blocks, missing fence, etc.)
 
 set -euo pipefail
 
@@ -28,6 +33,7 @@ declare -A SEVERITY_WEIGHTS=(
   ["MEDIUM"]=2
   ["LOW"]=1
   ["VISION"]=0
+  ["PRAISE"]=0
 )
 
 # =============================================================================
@@ -61,9 +67,19 @@ while [[ $# -gt 0 ]]; do
       echo "Extracts findings between <!-- bridge-findings-start --> and"
       echo "<!-- bridge-findings-end --> markers from Bridgebuilder review markdown."
       echo ""
+      echo "Supports two formats:"
+      echo "  JSON fenced block (v2): structured JSON inside markers"
+      echo "  Legacy markdown (v1):   field-based markdown findings"
+      echo ""
       echo "Options:"
       echo "  --input FILE    Input markdown file (required)"
       echo "  --output FILE   Output JSON file (required)"
+      echo ""
+      echo "Exit Codes:"
+      echo "  0  Success"
+      echo "  1  Parse error (invalid JSON)"
+      echo "  2  Missing input"
+      echo "  3  Strict grammar violation"
       exit 0
       ;;
     *)
@@ -110,8 +126,77 @@ extract_findings_block() {
   echo "$block"
 }
 
-# Parse individual findings from the extracted block
-parse_findings() {
+# =============================================================================
+# JSON Extraction (v2 — preferred)
+# =============================================================================
+
+# Extract and validate JSON from a fenced block within the findings markers.
+# Enforces strict grammar: exactly one JSON fence, valid JSON, schema_version.
+# Returns findings array on stdout.
+extract_and_validate_json() {
+  local block="$1"
+
+  local json_content=""
+  local in_fence=false
+  local fence_count=0
+
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^\`\`\`json[[:space:]]*$ ]]; then
+      if [[ "$in_fence" == "true" ]]; then
+        echo "ERROR: Nested JSON fence detected — strict grammar violation" >&2
+        return 3
+      fi
+      fence_count=$((fence_count + 1))
+      if [[ "$fence_count" -gt 1 ]]; then
+        echo "ERROR: Multiple JSON fences detected — strict grammar requires exactly one" >&2
+        return 3
+      fi
+      in_fence=true
+      continue
+    fi
+    if [[ "$line" == '```' ]] && [[ "$in_fence" == "true" ]]; then
+      in_fence=false
+      continue
+    fi
+    if [[ "$in_fence" == "true" ]]; then
+      json_content+="$line"$'\n'
+    fi
+  done <<< "$block"
+
+  if [[ "$fence_count" -eq 0 ]]; then
+    echo "ERROR: No JSON fence found in findings block — strict grammar violation" >&2
+    return 3
+  fi
+
+  if [[ "$in_fence" == "true" ]]; then
+    echo "ERROR: Unclosed JSON fence — truncated output" >&2
+    return 3
+  fi
+
+  # Validate JSON
+  if ! printf '%s' "$json_content" | jq empty 2>/dev/null; then
+    echo "ERROR: Findings block contains invalid JSON" >&2
+    return 1
+  fi
+
+  # Check schema_version
+  local version
+  version=$(printf '%s' "$json_content" | jq -r '.schema_version // empty')
+  if [[ -z "$version" ]]; then
+    echo "WARNING: Findings JSON missing schema_version — treating as v1" >&2
+  fi
+
+  # Return the full JSON content (findings + metadata preserved)
+  printf '%s' "$json_content"
+}
+
+# =============================================================================
+# Legacy Markdown Parsing (v1 — fallback)
+# =============================================================================
+
+# Parse individual findings from legacy markdown format.
+# This is the original parser preserved for backward compatibility.
+parse_findings_legacy() {
   local block="$1"
   local tmp_findings
   tmp_findings=$(mktemp)
@@ -222,6 +307,15 @@ if ! command -v jq &>/dev/null; then
   exit 2
 fi
 
+# Strict grammar: count markers in input file
+start_count=$(grep -c 'bridge-findings-start' "$INPUT_FILE" || true)
+end_count=$(grep -c 'bridge-findings-end' "$INPUT_FILE" || true)
+
+if [[ "$start_count" -gt 1 ]] || [[ "$end_count" -gt 1 ]]; then
+  echo "ERROR: Multiple findings blocks detected — strict grammar requires exactly one" >&2
+  exit 3
+fi
+
 # Extract findings block
 findings_block=$(extract_findings_block "$INPUT_FILE")
 
@@ -229,9 +323,10 @@ if [[ -z "$findings_block" ]] || [[ "$findings_block" =~ ^[[:space:]]*$ ]]; then
   # No findings markers found — output empty result
   cat > "$OUTPUT_FILE" <<'EOF'
 {
+  "schema_version": 1,
   "findings": [],
   "total": 0,
-  "by_severity": {"critical": 0, "high": 0, "medium": 0, "low": 0, "vision": 0},
+  "by_severity": {"critical": 0, "high": 0, "medium": 0, "low": 0, "vision": 0, "praise": 0},
   "severity_weighted_score": 0
 }
 EOF
@@ -239,20 +334,50 @@ EOF
   exit 0
 fi
 
-# Parse findings
-findings_array=$(parse_findings "$findings_block")
+# Detect format: JSON fenced block (v2) vs legacy markdown (v1)
+findings_array=""
+schema_version=1
+
+if printf '%s' "$findings_block" | grep -q '```json'; then
+  # v2: JSON fenced block extraction
+  json_content=$(extract_and_validate_json "$findings_block")
+  rc=$?
+  if [[ $rc -ne 0 ]]; then
+    exit $rc
+  fi
+
+  # Extract schema_version from the JSON
+  schema_version=$(printf '%s' "$json_content" | jq -r '.schema_version // 1')
+
+  # Extract findings array — preserves all enriched fields
+  findings_array=$(printf '%s' "$json_content" | jq -c '[.findings[] | . + {weight: (
+    if .severity == "CRITICAL" then 10
+    elif .severity == "HIGH" then 5
+    elif .severity == "MEDIUM" then 2
+    elif .severity == "LOW" then 1
+    elif .severity == "VISION" then 0
+    elif .severity == "PRAISE" then 0
+    else 0
+    end
+  )}]')
+else
+  # v1: Legacy markdown parsing (fallback)
+  findings_array=$(parse_findings_legacy "$findings_block")
+fi
 
 # Compute aggregates
-total=$(echo "$findings_array" | jq 'length')
-by_critical=$(echo "$findings_array" | jq '[.[] | select(.severity == "CRITICAL")] | length')
-by_high=$(echo "$findings_array" | jq '[.[] | select(.severity == "HIGH")] | length')
-by_medium=$(echo "$findings_array" | jq '[.[] | select(.severity == "MEDIUM")] | length')
-by_low=$(echo "$findings_array" | jq '[.[] | select(.severity == "LOW")] | length')
-by_vision=$(echo "$findings_array" | jq '[.[] | select(.severity == "VISION")] | length')
-weighted_score=$(echo "$findings_array" | jq '[.[].weight] | add // 0')
+total=$(printf '%s' "$findings_array" | jq 'length')
+by_critical=$(printf '%s' "$findings_array" | jq '[.[] | select(.severity == "CRITICAL")] | length')
+by_high=$(printf '%s' "$findings_array" | jq '[.[] | select(.severity == "HIGH")] | length')
+by_medium=$(printf '%s' "$findings_array" | jq '[.[] | select(.severity == "MEDIUM")] | length')
+by_low=$(printf '%s' "$findings_array" | jq '[.[] | select(.severity == "LOW")] | length')
+by_vision=$(printf '%s' "$findings_array" | jq '[.[] | select(.severity == "VISION")] | length')
+by_praise=$(printf '%s' "$findings_array" | jq '[.[] | select(.severity == "PRAISE")] | length')
+weighted_score=$(printf '%s' "$findings_array" | jq '[.[].weight] | add // 0')
 
 # Write output
 jq -n \
+  --argjson schema_version "$schema_version" \
   --argjson findings "$findings_array" \
   --argjson total "$total" \
   --argjson critical "$by_critical" \
@@ -260,11 +385,13 @@ jq -n \
   --argjson medium "$by_medium" \
   --argjson low "$by_low" \
   --argjson vision "$by_vision" \
+  --argjson praise "$by_praise" \
   --argjson score "$weighted_score" \
   '{
+    schema_version: $schema_version,
     findings: $findings,
     total: $total,
-    by_severity: {critical: $critical, high: $high, medium: $medium, low: $low, vision: $vision},
+    by_severity: {critical: $critical, high: $high, medium: $medium, low: $low, vision: $vision, praise: $praise},
     severity_weighted_score: $score
   }' > "$OUTPUT_FILE"
 

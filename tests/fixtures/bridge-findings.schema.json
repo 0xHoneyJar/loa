@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loa.dev/schemas/bridge-findings.schema.json",
+  "title": "Bridge Findings",
+  "description": "Schema for structured findings produced by the Bridgebuilder review and parsed by bridge-findings-parser.sh. Backward compatibility: new optional fields may be added; existing required fields will never be removed.",
+  "type": "object",
+  "required": ["schema_version", "findings"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Schema version for forward compatibility"
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "required": ["id", "title", "severity", "category", "file", "description", "suggestion"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z]+-[0-9]+$",
+          "description": "Unique finding ID in format severity-number (e.g., high-1, praise-2)"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Short finding title"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "VISION", "PRAISE"],
+          "description": "Finding severity level"
+        },
+        "category": {
+          "type": "string",
+          "description": "Finding category (e.g., security, quality, architecture, vision)"
+        },
+        "file": {
+          "type": "string",
+          "description": "Affected file path with optional line reference (e.g., src/api.ts:42)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of the finding"
+        },
+        "suggestion": {
+          "type": "string",
+          "description": "Recommended action or fix"
+        },
+        "potential": {
+          "type": ["string", "null"],
+          "description": "Future potential or vision exploration (primarily for VISION findings)"
+        },
+        "weight": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Severity weight for convergence scoring (CRITICAL=10, HIGH=5, MEDIUM=2, LOW=1, VISION=0, PRAISE=0)"
+        },
+        "faang_parallel": {
+          "type": ["string", "null"],
+          "description": "Industry precedent from FAANG or similar companies grounding this finding"
+        },
+        "metaphor": {
+          "type": ["string", "null"],
+          "description": "Accessible analogy explaining the finding for non-specialists"
+        },
+        "teachable_moment": {
+          "type": ["string", "null"],
+          "description": "The broader engineering lesson beyond the immediate fix"
+        },
+        "connection": {
+          "type": ["string", "null"],
+          "description": "Link to broader architectural patterns or system design principles"
+        },
+        "praise": {
+          "type": ["boolean", "null"],
+          "description": "Whether this finding celebrates a good decision (true for PRAISE severity)"
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

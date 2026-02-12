@@ -123,7 +123,7 @@ ${review_content}
     return 0
   fi
 
-  echo "$body" | gh pr comment "$pr" --body-file - 2>/dev/null || {
+  printf '%s' "$body" | gh pr comment "$pr" --body-file - 2>/dev/null || {
     echo "WARNING: Failed to post comment to PR #$pr" >&2
     return 0
   }
@@ -176,6 +176,7 @@ cmd_update_pr() {
     local iter_num iter_state source
     iter_num=$(jq ".iterations[$i].iteration" "$state_file")
     iter_state=$(jq -r ".iterations[$i].state" "$state_file")
+    # Field name matches bridge-state.sh update_iteration() — both use .sprint_plan_source
     source=$(jq -r ".iterations[$i].sprint_plan_source // \"existing\"" "$state_file")
     table_rows="${table_rows}${nl}| ${iter_num} | ${iter_state} | — | — | ${source} |"
   done
@@ -249,18 +250,14 @@ cmd_vision() {
   check_gh || return 0
 
   local body
-  body=$(cat <<EOF
-<!-- bridge-vision: ${vision_id} -->
-### Vision Captured: ${title}
+  body=$(printf '%s\n%s\n\n%s\n%s\n\n%s' \
+    "<!-- bridge-vision: ${vision_id} -->" \
+    "### Vision Captured: ${title}" \
+    "**Vision ID**: \`${vision_id}\`" \
+    "**Entry**: \`grimoires/loa/visions/entries/${vision_id}.md\`" \
+    "> This vision was captured during a bridge iteration. See the vision registry for details.")
 
-**Vision ID**: \`${vision_id}\`
-**Entry**: \`grimoires/loa/visions/entries/${vision_id}.md\`
-
-> This vision was captured during a bridge iteration. See the vision registry for details.
-EOF
-)
-
-  echo "$body" | gh pr comment "$pr" --body-file - 2>/dev/null || {
+  printf '%s' "$body" | gh pr comment "$pr" --body-file - 2>/dev/null || {
     echo "WARNING: Failed to post vision link to PR #$pr" >&2
     return 0
   }

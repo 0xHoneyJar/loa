@@ -323,6 +323,10 @@ Iterative improvement loop: execute sprint plan, invoke Bridgebuilder review, pa
 
 ```
 PREFLIGHT → JACK_IN → ITERATING ↔ ITERATING → FINALIZING → JACKED_OUT
+                ↓           ↓                      ↓
+              HALTED ← ← HALTED ← ← ← ← ← ← HALTED
+                ↓
+          ITERATING (resume) or JACKED_OUT (abandon)
 ```
 
 Each iteration: Run sprint-plan → Bridgebuilder review → Parse findings → Flatline check → GitHub trail → Vision capture. Loop terminates when severity-weighted score drops below threshold for consecutive iterations (kaironic termination).

@@ -1,6 +1,7 @@
 #!/usr/bin/env bats
 # Unit tests for bridge-findings-parser.sh
 # Sprint 2: Bridge Core — markdown parsing, severity weighting, edge cases
+# Sprint 1 cycle-006: JSON extraction, schema validation, PRAISE, enriched fields
 
 setup() {
     BATS_TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
@@ -29,14 +30,14 @@ skip_if_deps_missing() {
 }
 
 # =============================================================================
-# Basic Parsing
+# Basic Parsing (Legacy)
 # =============================================================================
 
 @test "findings-parser: script exists and is executable" {
     [ -x "$SCRIPT" ]
 }
 
-@test "findings-parser: parses known-good markdown" {
+@test "findings-parser: parses known-good legacy markdown" {
     skip_if_deps_missing
 
     cat > "$TEST_TMPDIR/review.md" <<'EOF'
@@ -206,4 +207,426 @@ EOF
     run "$SCRIPT" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage"* ]]
+}
+
+# =============================================================================
+# JSON Extraction (v2)
+# =============================================================================
+
+@test "findings-parser: extracts findings from JSON fenced block" {
+    skip_if_deps_missing
+
+    cat > "$TEST_TMPDIR/review.md" <<'EOF'
+# Bridge Review — Iteration 1
+
+Some opening prose about architecture.
+
+<!-- bridge-findings-start -->
+
+```json
+{
+  "schema_version": 1,
+  "findings": [
+    {
+      "id": "high-1",
+      "title": "Missing error handling",
+      "severity": "HIGH",
+      "category": "quality",
+      "file": "src/api.ts:42",
+      "description": "No try-catch around database calls",
+      "suggestion": "Wrap in try-catch"
+    },
+    {
+      "id": "low-1",
+      "title": "Typo in comment",
+      "severity": "LOW",
+      "category": "documentation",
+      "file": "src/index.ts:1",
+      "description": "Spelling error",
+      "suggestion": "Fix typo"
+    }
+  ]
+}
+```
+
+<!-- bridge-findings-end -->
+
+Closing meditation on craft.
+EOF
+
+    run "$SCRIPT" --input "$TEST_TMPDIR/review.md" --output "$TEST_TMPDIR/findings.json"
+    [ "$status" -eq 0 ]
+
+    local total score
+    total=$(jq '.total' "$TEST_TMPDIR/findings.json")
+    score=$(jq '.severity_weighted_score' "$TEST_TMPDIR/findings.json")
+    [ "$total" = "2" ]
+    # HIGH=5 + LOW=1 = 6
+    [ "$score" = "6" ]
+}
+
+@test "findings-parser: JSON path preserves enriched fields" {
+    skip_if_deps_missing
+
+    cat > "$TEST_TMPDIR/review.md" <<'EOF'
+<!-- bridge-findings-start -->
+
+```json
+{
+  "schema_version": 1,
+  "findings": [
+    {
+      "id": "high-1",
+      "title": "Missing error handling",
+      "severity": "HIGH",
+      "category": "quality",
+      "file": "src/api.ts:42",
+      "description": "No try-catch around database calls",
+      "suggestion": "Wrap in try-catch",
+      "faang_parallel": "Google's Stubby RPC framework enforces error handling at the protocol level",
+      "metaphor": "Like a surgeon operating without anesthesia monitoring",
+      "teachable_moment": "Error boundaries should exist at every I/O boundary",
+      "connection": "Relates to the hexagonal architecture's port-adapter pattern",
+      "praise": false
+    }
+  ]
+}
+```
+
+<!-- bridge-findings-end -->
+EOF
+
+    "$SCRIPT" --input "$TEST_TMPDIR/review.md" --output "$TEST_TMPDIR/findings.json"
+
+    local faang metaphor teachable connection
+    faang=$(jq -r '.findings[0].faang_parallel' "$TEST_TMPDIR/findings.json")
+    metaphor=$(jq -r '.findings[0].metaphor' "$TEST_TMPDIR/findings.json")
+    teachable=$(jq -r '.findings[0].teachable_moment' "$TEST_TMPDIR/findings.json")
+    connection=$(jq -r '.findings[0].connection' "$TEST_TMPDIR/findings.json")
+
+    [[ "$faang" == *"Google"* ]]
+    [[ "$metaphor" == *"surgeon"* ]]
+    [[ "$teachable" == *"I/O boundary"* ]]
+    [[ "$connection" == *"hexagonal"* ]]
+}
+
+@test "findings-parser: JSON path recognizes PRAISE severity" {
+    skip_if_deps_missing
+
+    cat > "$TEST_TMPDIR/review.md" <<'EOF'
+<!-- bridge-findings-start -->
+
+```json
+{
+  "schema_version": 1,
+  "findings": [
+    {
+      "id": "praise-1",
+      "title": "Beautiful hexagonal architecture",
+      "severity": "PRAISE",
+      "category": "architecture",
+      "file": "src/core/ports.ts",
+      "description": "Textbook port-adapter separation",
+      "suggestion": "No changes needed — this is exemplary",
+      "praise": true,
+      "teachable_moment": "This is what hexagonal architecture looks like when done right"
+    },
+    {
+      "id": "critical-1",
+      "title": "SQL injection",
+      "severity": "CRITICAL",
+      "category": "security",
+      "file": "src/db.ts:5",
+      "description": "Raw SQL concatenation",
+      "suggestion": "Use parameterized queries"
+    }
+  ]
+}
+```
+
+<!-- bridge-findings-end -->
+EOF
+
+    "$SCRIPT" --input "$TEST_TMPDIR/review.md" --output "$TEST_TMPDIR/findings.json"
+
+    local total praise_count score
+    total=$(jq '.total' "$TEST_TMPDIR/findings.json")
+    praise_count=$(jq '.by_severity.praise' "$TEST_TMPDIR/findings.json")
+    score=$(jq '.severity_weighted_score' "$TEST_TMPDIR/findings.json")
+
+    [ "$total" = "2" ]
+    [ "$praise_count" = "1" ]
+    # PRAISE=0 + CRITICAL=10 = 10 (PRAISE does NOT affect score)
+    [ "$score" = "10" ]
+}
+
+@test "findings-parser: schema_version preserved in output" {
+    skip_if_deps_missing
+
+    cat > "$TEST_TMPDIR/review.md" <<'EOF'
+<!-- bridge-findings-start -->
+
+```json
+{
+  "schema_version": 1,
+  "findings": [
+    {
+      "id": "low-1",
+      "title": "Minor issue",
+      "severity": "LOW",
+      "category": "quality",
+      "file": "a.ts:1",
+      "description": "Minor",
+      "suggestion": "Fix"
+    }
+  ]
+}
+```
+
+<!-- bridge-findings-end -->
+EOF
+
+    "$SCRIPT" --input "$TEST_TMPDIR/review.md" --output "$TEST_TMPDIR/findings.json"
+
+    local version
+    version=$(jq '.schema_version' "$TEST_TMPDIR/findings.json")
+    [ "$version" = "1" ]
+}
+
+@test "findings-parser: by_severity includes praise field" {
+    skip_if_deps_missing
+
+    cat > "$TEST_TMPDIR/review.md" <<'EOF'
+<!-- bridge-findings-start -->
+
+```json
+{
+  "schema_version": 1,
+  "findings": [
+    {
+      "id": "high-1",
+      "title": "Issue",
+      "severity": "HIGH",
+      "category": "quality",
+      "file": "a.ts:1",
+      "description": "Desc",
+      "suggestion": "Fix"
+    }
+  ]
+}
+```
+
+<!-- bridge-findings-end -->
+EOF
+
+    "$SCRIPT" --input "$TEST_TMPDIR/review.md" --output "$TEST_TMPDIR/findings.json"
+
+    # Verify praise field exists in by_severity (even if 0)
+    local praise
+    praise=$(jq '.by_severity.praise' "$TEST_TMPDIR/findings.json")
+    [ "$praise" = "0" ]
+}
+
+# =============================================================================
+# Strict Grammar Enforcement
+# =============================================================================
+
+@test "findings-parser: rejects multiple findings blocks (exit 3)" {
+    skip_if_deps_missing
+
+    cat > "$TEST_TMPDIR/review.md" <<'EOF'
+<!-- bridge-findings-start -->
+### [HIGH-1] First finding
+**Severity**: HIGH
+**Category**: quality
+**File**: a.ts:1
+**Description**: First
+**Suggestion**: Fix
+<!-- bridge-findings-end -->
+
+Some text between blocks.
+
+<!-- bridge-findings-start -->
+### [HIGH-2] Second finding
+**Severity**: HIGH
+**Category**: quality
+**File**: b.ts:2
+**Description**: Second
+**Suggestion**: Fix
+<!-- bridge-findings-end -->
+EOF
+
+    run "$SCRIPT" --input "$TEST_TMPDIR/review.md" --output "$TEST_TMPDIR/findings.json"
+    [ "$status" -eq 3 ]
+    [[ "$output" == *"Multiple findings blocks"* ]]
+}
+
+@test "findings-parser: rejects multiple JSON fences in block (exit 3)" {
+    skip_if_deps_missing
+
+    cat > "$TEST_TMPDIR/review.md" <<'EOF'
+<!-- bridge-findings-start -->
+
+```json
+{
+  "schema_version": 1,
+  "findings": [{"id": "high-1", "title": "A", "severity": "HIGH", "category": "q", "file": "a.ts", "description": "d", "suggestion": "s"}]
+}
+```
+
+```json
+{
+  "schema_version": 1,
+  "findings": [{"id": "high-2", "title": "B", "severity": "HIGH", "category": "q", "file": "b.ts", "description": "d", "suggestion": "s"}]
+}
+```
+
+<!-- bridge-findings-end -->
+EOF
+
+    run "$SCRIPT" --input "$TEST_TMPDIR/review.md" --output "$TEST_TMPDIR/findings.json"
+    [ "$status" -eq 3 ]
+    [[ "$output" == *"Multiple JSON fences"* ]]
+}
+
+@test "findings-parser: rejects invalid JSON in fence (exit 1)" {
+    skip_if_deps_missing
+
+    cat > "$TEST_TMPDIR/review.md" <<'EOF'
+<!-- bridge-findings-start -->
+
+```json
+{ this is not valid json }
+```
+
+<!-- bridge-findings-end -->
+EOF
+
+    run "$SCRIPT" --input "$TEST_TMPDIR/review.md" --output "$TEST_TMPDIR/findings.json"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"invalid JSON"* ]]
+}
+
+@test "findings-parser: rejects truncated output (unclosed fence, exit 3)" {
+    skip_if_deps_missing
+
+    cat > "$TEST_TMPDIR/review.md" <<'EOF'
+<!-- bridge-findings-start -->
+
+```json
+{
+  "schema_version": 1,
+  "findings": []
+}
+
+<!-- bridge-findings-end -->
+EOF
+
+    run "$SCRIPT" --input "$TEST_TMPDIR/review.md" --output "$TEST_TMPDIR/findings.json"
+    [ "$status" -eq 3 ]
+    [[ "$output" == *"Unclosed JSON fence"* ]]
+}
+
+@test "findings-parser: warns on missing schema_version" {
+    skip_if_deps_missing
+
+    cat > "$TEST_TMPDIR/review.md" <<'EOF'
+<!-- bridge-findings-start -->
+
+```json
+{
+  "findings": [
+    {
+      "id": "low-1",
+      "title": "Minor",
+      "severity": "LOW",
+      "category": "quality",
+      "file": "a.ts",
+      "description": "Minor issue",
+      "suggestion": "Fix it"
+    }
+  ]
+}
+```
+
+<!-- bridge-findings-end -->
+EOF
+
+    run "$SCRIPT" --input "$TEST_TMPDIR/review.md" --output "$TEST_TMPDIR/findings.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"missing schema_version"* ]] || [[ "$output" == *"WARNING"* ]]
+
+    local total
+    total=$(jq '.total' "$TEST_TMPDIR/findings.json")
+    [ "$total" = "1" ]
+}
+
+@test "findings-parser: no markers produces empty output" {
+    skip_if_deps_missing
+
+    cat > "$TEST_TMPDIR/review.md" <<'EOF'
+# Just a regular review with no markers
+
+Some text about architecture.
+
+No findings blocks here.
+EOF
+
+    run "$SCRIPT" --input "$TEST_TMPDIR/review.md" --output "$TEST_TMPDIR/findings.json"
+    [ "$status" -eq 0 ]
+
+    local total
+    total=$(jq '.total' "$TEST_TMPDIR/findings.json")
+    [ "$total" = "0" ]
+}
+
+# =============================================================================
+# Legacy Fallback
+# =============================================================================
+
+@test "findings-parser: legacy markdown still works when no JSON fence" {
+    skip_if_deps_missing
+
+    cat > "$TEST_TMPDIR/review.md" <<'EOF'
+<!-- bridge-findings-start -->
+### [HIGH-1] Missing validation
+**Severity**: HIGH
+**Category**: security
+**File**: src/api.ts:10
+**Description**: No input validation
+**Suggestion**: Add Zod schema
+<!-- bridge-findings-end -->
+EOF
+
+    run "$SCRIPT" --input "$TEST_TMPDIR/review.md" --output "$TEST_TMPDIR/findings.json"
+    [ "$status" -eq 0 ]
+
+    local total severity
+    total=$(jq '.total' "$TEST_TMPDIR/findings.json")
+    severity=$(jq -r '.findings[0].severity' "$TEST_TMPDIR/findings.json")
+    [ "$total" = "1" ]
+    [ "$severity" = "HIGH" ]
+}
+
+@test "findings-parser: legacy output includes schema_version and praise" {
+    skip_if_deps_missing
+
+    cat > "$TEST_TMPDIR/review.md" <<'EOF'
+<!-- bridge-findings-start -->
+### [LOW-1] Minor formatting
+**Severity**: LOW
+**Category**: style
+**File**: src/index.ts:1
+**Description**: Inconsistent formatting
+**Suggestion**: Run prettier
+<!-- bridge-findings-end -->
+EOF
+
+    "$SCRIPT" --input "$TEST_TMPDIR/review.md" --output "$TEST_TMPDIR/findings.json"
+
+    local schema_version praise
+    schema_version=$(jq '.schema_version' "$TEST_TMPDIR/findings.json")
+    praise=$(jq '.by_severity.praise' "$TEST_TMPDIR/findings.json")
+    [ "$schema_version" = "1" ]
+    [ "$praise" = "0" ]
 }
