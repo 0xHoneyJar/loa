@@ -113,11 +113,22 @@ atomic_state_update() {
 # =============================================================================
 
 init_bridge_state() {
-  local bridge_id="$1"
+  local bridge_id="${1:-}"
   local depth="${2:-3}"
   local per_sprint="${3:-false}"
   local flatline_threshold="${4:-0.05}"
   local branch="${5:-}"
+
+  # Generate bridge_id if not provided
+  if [[ -z "$bridge_id" ]]; then
+    bridge_id="bridge-$(date +%Y%m%d)-$(openssl rand -hex 3)"
+  fi
+
+  # Validate bridge_id format: bridge-YYYYMMDD-hexhex
+  if [[ ! "$bridge_id" =~ ^bridge-[0-9]{8}-[a-f0-9]{6}$ ]]; then
+    echo "ERROR: Invalid bridge_id format '$bridge_id' (expected bridge-YYYYMMDD-HEXHEX)" >&2
+    return 1
+  fi
 
   mkdir -p "$(dirname "$BRIDGE_STATE_FILE")"
 
@@ -325,10 +336,10 @@ update_iteration_enrichment() {
   atomic_state_update \
     '.iterations |= map(
       if .iteration == $iter then
-        .enrichment = ($enrich | fromjson)
+        .enrichment = $enrich
       else . end
     )' \
-    --argjson iter "$iteration" --arg enrich "$enrichment_json"
+    --argjson iter "$iteration" --argjson enrich "$enrichment_json"
 }
 
 read_bridge_state() {

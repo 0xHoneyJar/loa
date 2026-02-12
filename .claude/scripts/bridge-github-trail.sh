@@ -84,7 +84,7 @@ REDACT_PATTERNS=(
   'github_app|ghs_[A-Za-z0-9]{36}'
   'github_refresh|ghr_[A-Za-z0-9]{36}'
   'jwt_token|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}'
-  'generic_secret|(api_key|api_secret|apikey|secret_key|access_token|auth_token|private_key)[[:space:]]*[=:][[:space:]]*["\x27][A-Za-z0-9+/=_-]{16,}'
+  'generic_secret|(api_key|api_secret|apikey|secret_key|access_token|auth_token|private_key)[[:space:]]*[=:][[:space:]]*["'"'"'][A-Za-z0-9+/=_-]{16,}'
 )
 
 # Allowlist patterns — known-safe strings that match redaction patterns
@@ -102,25 +102,33 @@ ALLOWLIST_PATTERNS=(
 # Returns 0 always (redaction is best-effort)
 redact_security_content() {
   local content
-  content=$(cat)
+  content=$(cat; echo x)
+  content="${content%x}"
 
-  # Build combined allowlist regex
-  local allowlist_re=""
+  # Protect allowlisted content with sentinel tokens before redaction
+  local sentinel_idx=0
+  declare -A sentinel_map
   for pattern in "${ALLOWLIST_PATTERNS[@]}"; do
-    if [[ -z "$allowlist_re" ]]; then
-      allowlist_re="$pattern"
-    else
-      allowlist_re="${allowlist_re}|${pattern}"
-    fi
+    while IFS= read -r match; do
+      if [[ -n "$match" ]]; then
+        local sentinel="__ALLOWLIST_SENTINEL_${sentinel_idx}__"
+        sentinel_map["$sentinel"]="$match"
+        content="${content//$match/$sentinel}"
+        sentinel_idx=$((sentinel_idx + 1))
+      fi
+    done < <(printf '%s' "$content" | grep -oE "$pattern" 2>/dev/null || true)
   done
 
   # Apply each redaction pattern
   for entry in "${REDACT_PATTERNS[@]}"; do
     local name="${entry%%|*}"
     local regex="${entry#*|}"
-    # Use sed for in-place replacement; allowlisted content is protected
-    # by the post-redaction safety check (defense in depth)
     content=$(printf '%s' "$content" | sed -E "s/${regex}/[REDACTED:${name}]/g" 2>/dev/null || printf '%s' "$content")
+  done
+
+  # Restore allowlisted content from sentinels
+  for sentinel in "${!sentinel_map[@]}"; do
+    content="${content//$sentinel/${sentinel_map[$sentinel]}}"
   done
 
   printf '%s' "$content"
@@ -182,10 +190,12 @@ enforce_size_limit() {
     return 0
   fi
 
+  # Extract findings block once for reuse in all size branches
+  local findings_block=""
+  findings_block=$(printf '%s' "$content" | sed -n '/<!-- bridge-findings-start -->/,/<!-- bridge-findings-end -->/p' 2>/dev/null || true)
+
   if [[ "$size" -gt "$SIZE_LIMIT_FINDINGS_ONLY" ]]; then
-    # Extract findings JSON only (256KB emergency fallback)
-    local findings_block=""
-    findings_block=$(printf '%s' "$content" | sed -n '/<!-- bridge-findings-start -->/,/<!-- bridge-findings-end -->/p' 2>/dev/null || true)
+    # 256KB emergency fallback — findings-only
     if [[ -n "$findings_block" ]]; then
       echo "WARNING: Review exceeds 256KB ($size bytes) — posting findings-only" >&2
       printf '%s' "$findings_block"
@@ -196,10 +206,6 @@ enforce_size_limit() {
   else
     echo "WARNING: Review exceeds 65KB ($size bytes) — truncating with findings preserved" >&2
   fi
-
-  # Truncate strategy: preserve findings block, trim prose
-  local findings_block=""
-  findings_block=$(printf '%s' "$content" | sed -n '/<!-- bridge-findings-start -->/,/<!-- bridge-findings-end -->/p' 2>/dev/null || true)
 
   if [[ -n "$findings_block" ]]; then
     # Calculate how much prose we can keep
