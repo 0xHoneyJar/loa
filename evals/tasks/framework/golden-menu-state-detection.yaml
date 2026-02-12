@@ -1,0 +1,17 @@
+id: golden-menu-state-detection
+schema_version: 1
+skill: test-skill
+category: framework
+fixture: loa-skill-dir
+description: "golden-path.sh contains golden_detect_workflow_state() function with all 9 states"
+trials: 1
+timeout:
+  per_trial: 60
+  per_grader: 30
+graders:
+  - type: code
+    script: pattern-match.sh
+    args: ["golden_detect_workflow_state", "golden-path.sh"]
+    weight: 1.0
+difficulty: basic
+tags: ["framework", "golden-path", "onboarding-ux"]

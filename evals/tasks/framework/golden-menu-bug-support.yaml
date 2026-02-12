@@ -1,0 +1,17 @@
+id: golden-menu-bug-support
+schema_version: 1
+skill: test-skill
+category: framework
+fixture: loa-skill-dir
+description: "golden_menu_options() outputs 'Fix bug:' label in bug_active state"
+trials: 1
+timeout:
+  per_trial: 60
+  per_grader: 30
+graders:
+  - type: code
+    script: pattern-match.sh
+    args: ["Fix bug:.*bug fix implementation", "golden-path.sh"]
+    weight: 1.0
+difficulty: basic
+tags: ["framework", "golden-path", "onboarding-ux", "bug-mode"]
