@@ -287,38 +287,16 @@ update_iteration_findings() {
     return 1
   fi
 
-  local total by_critical by_high by_medium by_low by_vision by_praise score
-  total=$(jq '.total // 0' "$findings_json")
-  by_critical=$(jq '.by_severity.critical // 0' "$findings_json")
-  by_high=$(jq '.by_severity.high // 0' "$findings_json")
-  by_medium=$(jq '.by_severity.medium // 0' "$findings_json")
-  by_low=$(jq '.by_severity.low // 0' "$findings_json")
-  by_vision=$(jq '.by_severity.vision // 0' "$findings_json")
-  by_praise=$(jq '.by_severity.praise // 0' "$findings_json")
-  score=$(jq '.severity_weighted_score // 0' "$findings_json")
-
   atomic_state_update \
     '.iterations |= map(
       if .iteration == $iter then
-        .bridgebuilder.total_findings = $total |
-        .bridgebuilder.by_severity.critical = $critical |
-        .bridgebuilder.by_severity.high = $high |
-        .bridgebuilder.by_severity.medium = $medium |
-        .bridgebuilder.by_severity.low = $low |
-        .bridgebuilder.by_severity.vision = $vision |
-        .bridgebuilder.by_severity.praise = $praise |
-        .bridgebuilder.severity_weighted_score = $score
+        .bridgebuilder.total_findings = $f[0].total |
+        .bridgebuilder.by_severity = $f[0].by_severity |
+        .bridgebuilder.severity_weighted_score = $f[0].severity_weighted_score
       else . end
     )' \
     --argjson iter "$iteration" \
-    --argjson total "$total" \
-    --argjson critical "$by_critical" \
-    --argjson high "$by_high" \
-    --argjson medium "$by_medium" \
-    --argjson low "$by_low" \
-    --argjson vision "$by_vision" \
-    --argjson praise "$by_praise" \
-    --argjson score "$score"
+    --slurpfile f "$findings_json"
 }
 
 update_iteration_enrichment() {

@@ -182,7 +182,8 @@ save_full_review() {
 # Args: $1 = truncation strategy ("truncate" or "findings-only")
 enforce_size_limit() {
   local content
-  content=$(cat)
+  content=$(cat; echo x)
+  content="${content%x}"
   local size=${#content}
 
   if [[ "$size" -le "$SIZE_LIMIT_TRUNCATE" ]]; then
@@ -280,7 +281,8 @@ cmd_comment() {
   # Build comment with dedup marker
   local marker="<!-- bridge-iteration: ${bridge_id}:${iteration} -->"
   local review_content
-  review_content=$(cat "$review_body")
+  review_content=$(cat "$review_body"; echo x)
+  review_content="${review_content%x}"
   local body="${marker}
 ## Bridge Review — Iteration ${iteration}
 
@@ -308,7 +310,7 @@ ${review_content}
 
   # Check for existing comment with this marker to avoid duplicates
   local existing
-  existing=$(gh pr view "$pr" --json comments --jq ".comments[].body" 2>/dev/null | grep -c "$marker" || true)
+  existing=$(gh pr view "$pr" --json comments --jq "[.comments[].body | select(contains(\"$marker\"))] | length" 2>/dev/null || echo "0")
 
   if [[ "$existing" -gt 0 ]]; then
     echo "Skipping: comment for iteration $iteration already exists on PR #$pr"
