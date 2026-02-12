@@ -341,6 +341,11 @@ golden_detect_workflow_state() {
         if golden_check_ship_ready >/dev/null 2>&1; then
             echo "complete"
         else
+            # WHY: ship_ready fails when reviews/audits are incomplete, OR
+            # on ledger issues, missing markers, etc. "reviewing" is
+            # intentionally conservative — it prompts investigation rather
+            # than falsely reporting "complete". The /review command will
+            # surface the specific blocker.
             echo "reviewing"
         fi
         return

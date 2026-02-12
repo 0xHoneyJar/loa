@@ -100,7 +100,7 @@ Before routing to discovery, check if this is a first-time project:
 
 1. Does `grimoires/loa/prd.md` exist? → If yes, **SKIP** archetypes.
 2. Does `grimoires/loa/ledger.json` have any completed cycles? → If yes, **SKIP**.
-3. If both conditions indicate a fresh project, list archetypes from `.claude/data/archetypes/`:
+3. If both conditions indicate a fresh project, **dynamically discover** archetypes:
 
 ```bash
 for f in .claude/data/archetypes/*.yaml; do
@@ -110,23 +110,19 @@ for f in .claude/data/archetypes/*.yaml; do
 done
 ```
 
-Present via AskUserQuestion:
+Build AskUserQuestion options dynamically from the discovered files. For each archetype YAML, extract `name` as the label and `description` as the option description. This ensures new archetype files added to `.claude/data/archetypes/` are automatically discovered without modifying this command file.
+
 ```yaml
 question: "What type of project are you building?"
 header: "Archetype"
 options:
-  - label: "REST API"
-    description: "Backend API service with auth, CRUD, and docs"
-  - label: "CLI Tool"
-    description: "Command-line app with argument parsing"
-  - label: "Library / Package"
-    description: "Reusable library with public API"
-  - label: "Full-Stack App"
-    description: "Web app with frontend, backend, and database"
+  # Dynamically built from .claude/data/archetypes/*.yaml
+  # Each file becomes one option: name → label, description → description
+  # AskUserQuestion supports max 4 options, so use the first 4 files found
 multiSelect: false
 ```
 
-The user can select "Other" to skip and start from a blank slate.
+The user can select "Other" to skip and start from a blank slate. If no archetype files exist, skip this step entirely.
 
 On selection: read the archetype YAML, format its `context` fields into Markdown, and write to `grimoires/loa/context/archetype.md`. The context ingestion pipeline in `/plan-and-analyze` picks it up automatically.
 
