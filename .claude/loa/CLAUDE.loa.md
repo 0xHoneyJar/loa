@@ -84,7 +84,7 @@ beads:
 | Zone | Path | Permission |
 |------|------|------------|
 | System | `.claude/` | NEVER edit |
-| State | `grimoires/`, `.beads/` | Read/Write |
+| State | `grimoires/`, `.beads/`, `.ck/`, `.run/` | Read/Write |
 | App | `src/`, `lib/`, `app/` | Confirm writes |
 
 **Critical**: Never edit `.claude/` - use `.claude/overrides/` or `.loa.config.yaml`.
@@ -369,6 +369,19 @@ Cultural and philosophical context in `.claude/data/lore/`:
 | Neuromancer | Concepts, Mappings | Gibson's Sprawl trilogy mappings |
 
 Skills query lore at invocation time via `index.yaml`. Use `short` fields inline, `context` for teaching moments.
+
+### Bridge Constraints
+
+| Rule | Why |
+|------|-----|
+<!-- @constraint-generated: start bridge_constraints | hash:bridge-iter3 -->
+<!-- DO NOT EDIT — generated from .claude/data/constraints.json -->
+| ALWAYS use `/run sprint-plan` (not direct `/implement`) within bridge iterations | Bridge iterations must inherit the implement→review→audit cycle with circuit breaker protection |
+| ALWAYS post Bridgebuilder review as PR comment after each bridge iteration | GitHub trail provides auditable history of iterative improvement decisions |
+| ALWAYS ensure Grounded Truth claims cite `file:line` source references | Ungrounded claims in GT files propagate misinformation across sessions and agents |
+| ALWAYS use YAML format for lore entries with `id`, `term`, `short`, `context`, `source`, `tags` fields | Consistent schema enables programmatic lore queries and cross-skill integration |
+| ALWAYS include source bridge iteration and PR in vision entries | Vision entries without provenance cannot be traced back to the context that inspired them |
+<!-- @constraint-generated: end bridge_constraints -->
 
 ### Configuration
 

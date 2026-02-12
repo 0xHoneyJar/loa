@@ -102,19 +102,17 @@ cmd_comment() {
 
   # Build comment with dedup marker
   local marker="<!-- bridge-iteration: ${bridge_id}:${iteration} -->"
-  local body
-  body=$(cat <<EOF
-${marker}
+  local review_content
+  review_content=$(cat "$review_body")
+  local body="${marker}
 ## Bridge Review — Iteration ${iteration}
 
 **Bridge ID**: \`${bridge_id}\`
 
-$(cat "$review_body")
+${review_content}
 
 ---
-*Bridge iteration ${iteration} of ${bridge_id}*
-EOF
-)
+*Bridge iteration ${iteration} of ${bridge_id}*"
 
   # Check for existing comment with this marker to avoid duplicates
   local existing
@@ -166,7 +164,8 @@ cmd_update_pr() {
   depth=$(jq '.config.depth' "$state_file")
   state=$(jq -r '.state' "$state_file")
 
-  local table_header="## Bridge Loop Summary\n\n| Iter | State | Score | Visions | Source |\n|------|-------|-------|---------|--------|"
+  local nl=$'\n'
+  local table_header="## Bridge Loop Summary${nl}${nl}| Iter | State | Score | Visions | Source |${nl}|------|-------|-------|---------|--------|"
   local table_rows=""
 
   local iter_count
@@ -177,8 +176,8 @@ cmd_update_pr() {
     local iter_num iter_state source
     iter_num=$(jq ".iterations[$i].iteration" "$state_file")
     iter_state=$(jq -r ".iterations[$i].state" "$state_file")
-    source=$(jq -r ".iterations[$i].source // \"existing\"" "$state_file")
-    table_rows="${table_rows}\n| ${iter_num} | ${iter_state} | — | — | ${source} |"
+    source=$(jq -r ".iterations[$i].sprint_plan_source // \"existing\"" "$state_file")
+    table_rows="${table_rows}${nl}| ${iter_num} | ${iter_state} | — | — | ${source} |"
   done
 
   # Build flatline info
@@ -186,7 +185,7 @@ cmd_update_pr() {
   local flatline_status
   flatline_status=$(jq -r '.flatline.consecutive_below_threshold // 0' "$state_file")
   if [[ "$flatline_status" -gt 0 ]]; then
-    flatline_info="\n\n**Flatline**: ${flatline_status} consecutive iterations below threshold"
+    flatline_info="${nl}${nl}**Flatline**: ${flatline_status} consecutive iterations below threshold"
   fi
 
   # Metrics
@@ -196,25 +195,29 @@ cmd_update_pr() {
   total_files=$(jq '.metrics.total_files_changed // 0' "$state_file")
   total_findings=$(jq '.metrics.total_findings_addressed // 0' "$state_file")
   total_visions=$(jq '.metrics.total_visions_captured // 0' "$state_file")
-  metrics_info="\n\n**Metrics**: ${total_sprints} sprints, ${total_files} files changed, ${total_findings} findings addressed, ${total_visions} visions captured"
+  metrics_info="${nl}${nl}**Metrics**: ${total_sprints} sprints, ${total_files} files changed, ${total_findings} findings addressed, ${total_visions} visions captured"
 
   local body
-  body="${table_header}${table_rows}${flatline_info}${metrics_info}\n\n**Bridge ID**: \`${bridge_id}\` | **State**: ${state} | **Depth**: ${depth}"
+  body="${table_header}${table_rows}${flatline_info}${metrics_info}${nl}${nl}**Bridge ID**: \`${bridge_id}\` | **State**: ${state} | **Depth**: ${depth}${nl}<!-- bridge-summary-end -->"
 
   # Get current PR body and append/update bridge section
   local current_body
   current_body=$(gh pr view "$pr" --json body --jq '.body' 2>/dev/null || echo "")
 
-  # Remove old bridge summary if present
+  # Remove old bridge summary if present (between markers)
   local new_body
   if echo "$current_body" | grep -q "## Bridge Loop Summary"; then
-    new_body=$(echo "$current_body" | sed '/## Bridge Loop Summary/,$d')
+    if echo "$current_body" | grep -q "<!-- bridge-summary-end -->"; then
+      new_body=$(echo "$current_body" | sed '/## Bridge Loop Summary/,/<!-- bridge-summary-end -->/d')
+    else
+      new_body=$(echo "$current_body" | sed '/## Bridge Loop Summary/,$d')
+    fi
     new_body="${new_body}${body}"
   else
-    new_body="${current_body}\n\n---\n\n${body}"
+    new_body="${current_body}${nl}${nl}---${nl}${nl}${body}"
   fi
 
-  echo -e "$new_body" | gh pr edit "$pr" --body-file - 2>/dev/null || {
+  printf '%s' "$new_body" | gh pr edit "$pr" --body-file - 2>/dev/null || {
     echo "WARNING: Failed to update PR #$pr body" >&2
     return 0
   }

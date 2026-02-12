@@ -35,22 +35,42 @@ OUTPUT_DIR=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --findings)
+      if [[ -z "${2:-}" ]]; then
+        echo "ERROR: --findings requires a value" >&2
+        exit 2
+      fi
       FINDINGS_FILE="$2"
       shift 2
       ;;
     --bridge-id)
+      if [[ -z "${2:-}" ]]; then
+        echo "ERROR: --bridge-id requires a value" >&2
+        exit 2
+      fi
       BRIDGE_ID="$2"
       shift 2
       ;;
     --iteration)
+      if [[ -z "${2:-}" ]]; then
+        echo "ERROR: --iteration requires a value" >&2
+        exit 2
+      fi
       ITERATION="$2"
       shift 2
       ;;
     --pr)
+      if [[ -z "${2:-}" ]]; then
+        echo "ERROR: --pr requires a value" >&2
+        exit 2
+      fi
       PR_NUMBER="$2"
       shift 2
       ;;
     --output-dir)
+      if [[ -z "${2:-}" ]]; then
+        echo "ERROR: --output-dir requires a value" >&2
+        exit 2
+      fi
       OUTPUT_DIR="$2"
       shift 2
       ;;
@@ -162,8 +182,10 @@ if [[ -f "$OUTPUT_DIR/index.md" ]]; then
     if grep -q "^| $vision_id " "$OUTPUT_DIR/index.md" 2>/dev/null; then
       : # Already exists, skip
     else
+      # Sanitize title for sed metacharacters
+      safe_title=$(printf '%s' "$title" | sed 's/[\\/&]/\\\\&/g')
       # Append to table (before Statistics section) — portable sed (no -i)
-      sed "/^## Statistics/i | $vision_id | $title | Bridge iter $ITERATION, PR #${PR_NUMBER:-?} | Captured | [architecture] |" "$OUTPUT_DIR/index.md" > "$OUTPUT_DIR/index.md.tmp" && mv "$OUTPUT_DIR/index.md.tmp" "$OUTPUT_DIR/index.md"
+      sed "/^## Statistics/i | $vision_id | $safe_title | Bridge iter $ITERATION, PR #${PR_NUMBER:-?} | Captured | [architecture] |" "$OUTPUT_DIR/index.md" > "$OUTPUT_DIR/index.md.tmp" && mv "$OUTPUT_DIR/index.md.tmp" "$OUTPUT_DIR/index.md"
     fi
 
     local_num=$((local_num + 1))

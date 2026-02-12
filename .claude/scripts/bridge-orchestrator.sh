@@ -40,6 +40,11 @@ CONSECUTIVE_FLATLINE=2
 PER_ITERATION_TIMEOUT=14400   # 4 hours in seconds
 TOTAL_TIMEOUT=86400            # 24 hours in seconds
 
+# CLI-explicit tracking (for CLI > config precedence)
+CLI_DEPTH=""
+CLI_PER_SPRINT=""
+CLI_FLATLINE_THRESHOLD=""
+
 # =============================================================================
 # Usage
 # =============================================================================
@@ -74,10 +79,12 @@ while [[ $# -gt 0 ]]; do
         echo "ERROR: --depth requires a value" >&2
         exit 2
       fi
+      CLI_DEPTH="$2"
       DEPTH="$2"
       shift 2
       ;;
     --per-sprint)
+      CLI_PER_SPRINT=true
       PER_SPRINT=true
       shift
       ;;
@@ -116,9 +123,16 @@ load_bridge_config() {
       exit 2
     fi
 
-    DEPTH=$(yq ".run_bridge.defaults.depth // $DEPTH" "$CONFIG_FILE" 2>/dev/null)
-    PER_SPRINT=$(yq ".run_bridge.defaults.per_sprint // $PER_SPRINT" "$CONFIG_FILE" 2>/dev/null)
-    FLATLINE_THRESHOLD=$(yq ".run_bridge.defaults.flatline_threshold // $FLATLINE_THRESHOLD" "$CONFIG_FILE" 2>/dev/null)
+    # CLI > config > default precedence
+    if [[ -z "$CLI_DEPTH" ]]; then
+      DEPTH=$(yq ".run_bridge.defaults.depth // $DEPTH" "$CONFIG_FILE" 2>/dev/null)
+    fi
+    if [[ -z "$CLI_PER_SPRINT" ]]; then
+      PER_SPRINT=$(yq ".run_bridge.defaults.per_sprint // $PER_SPRINT" "$CONFIG_FILE" 2>/dev/null)
+    fi
+    if [[ -z "$CLI_FLATLINE_THRESHOLD" ]]; then
+      FLATLINE_THRESHOLD=$(yq ".run_bridge.defaults.flatline_threshold // $FLATLINE_THRESHOLD" "$CONFIG_FILE" 2>/dev/null)
+    fi
     CONSECUTIVE_FLATLINE=$(yq ".run_bridge.defaults.consecutive_flatline // $CONSECUTIVE_FLATLINE" "$CONFIG_FILE" 2>/dev/null)
 
     local per_iter_hours total_hours
@@ -171,8 +185,8 @@ preflight() {
     echo "ERROR: --depth must be a positive integer, got: $DEPTH" >&2
     exit 2
   fi
-  if [[ "$DEPTH" -lt 1 ]] || [[ "$DEPTH" -gt 10 ]]; then
-    echo "ERROR: --depth must be between 1 and 10, got: $DEPTH" >&2
+  if [[ "$DEPTH" -lt 1 ]] || [[ "$DEPTH" -gt 5 ]]; then
+    echo "ERROR: --depth must be between 1 and 5, got: $DEPTH" >&2
     exit 2
   fi
 

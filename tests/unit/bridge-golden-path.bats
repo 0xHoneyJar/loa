@@ -77,8 +77,15 @@ EOF
     skip_if_deps_missing
     cat > "$TEST_TMPDIR/.run/bridge-state.json" <<'EOF'
 {
+    "schema_version": 1,
     "state": "HALTED",
-    "bridge_id": "bridge-test-456"
+    "bridge_id": "bridge-test-456",
+    "config": {"depth": 3, "mode": "full", "flatline_threshold": 0.05, "per_sprint": false, "branch": "feature/test"},
+    "timestamps": {"started": "2026-01-01T00:00:00Z", "last_activity": "2026-01-01T01:00:00Z"},
+    "iterations": [{"iteration": 1, "state": "completed", "sprint_plan_source": "existing", "sprints_executed": 2, "bridgebuilder": {"total_findings": 10, "by_severity": {"critical": 1, "high": 2, "medium": 3, "low": 2, "vision": 2}, "severity_weighted_score": 26, "pr_comment_url": null}, "visions_captured": 0, "started_at": "2026-01-01T00:00:00Z"}],
+    "flatline": {"initial_score": 26, "last_score": 26, "consecutive_below_threshold": 0},
+    "metrics": {"total_sprints_executed": 2, "total_files_changed": 10, "total_findings_addressed": 0, "total_visions_captured": 0},
+    "finalization": {"ground_truth_updated": false, "rtfm_passed": false, "pr_url": null}
 }
 EOF
 
@@ -92,8 +99,15 @@ EOF
     skip_if_deps_missing
     cat > "$TEST_TMPDIR/.run/bridge-state.json" <<'EOF'
 {
+    "schema_version": 1,
     "state": "JACKED_OUT",
-    "bridge_id": "bridge-test-789"
+    "bridge_id": "bridge-test-789",
+    "config": {"depth": 3, "mode": "full", "flatline_threshold": 0.05, "per_sprint": false, "branch": "feature/test"},
+    "timestamps": {"started": "2026-01-01T00:00:00Z", "last_activity": "2026-01-01T02:00:00Z"},
+    "iterations": [{"iteration": 1, "state": "completed", "sprint_plan_source": "existing", "sprints_executed": 2, "bridgebuilder": {"total_findings": 5, "by_severity": {"critical": 0, "high": 1, "medium": 2, "low": 1, "vision": 1}, "severity_weighted_score": 12, "pr_comment_url": null}, "visions_captured": 0, "started_at": "2026-01-01T00:00:00Z"}],
+    "flatline": {"initial_score": 12, "last_score": 1, "consecutive_below_threshold": 2},
+    "metrics": {"total_sprints_executed": 2, "total_files_changed": 8, "total_findings_addressed": 4, "total_visions_captured": 0},
+    "finalization": {"ground_truth_updated": true, "rtfm_passed": true, "pr_url": "https://github.com/test/repo/pull/1"}
 }
 EOF
 
@@ -144,10 +158,15 @@ EOF
     skip_if_deps_missing
     cat > "$TEST_TMPDIR/.run/bridge-state.json" <<'EOF'
 {
+    "schema_version": 1,
     "state": "HALTED",
     "bridge_id": "bridge-test-p2",
-    "config": {"depth": 3},
-    "iterations": [{"iteration": 1, "state": "completed"}]
+    "config": {"depth": 3, "mode": "full", "flatline_threshold": 0.05, "per_sprint": false, "branch": "feature/test"},
+    "timestamps": {"started": "2026-01-01T00:00:00Z", "last_activity": "2026-01-01T01:30:00Z"},
+    "iterations": [{"iteration": 1, "state": "completed", "sprint_plan_source": "existing", "sprints_executed": 2, "bridgebuilder": {"total_findings": 8, "by_severity": {"critical": 0, "high": 2, "medium": 3, "low": 2, "vision": 1}, "severity_weighted_score": 18, "pr_comment_url": null}, "visions_captured": 0, "started_at": "2026-01-01T00:00:00Z"}],
+    "flatline": {"initial_score": 18, "last_score": 18, "consecutive_below_threshold": 0},
+    "metrics": {"total_sprints_executed": 2, "total_files_changed": 10, "total_findings_addressed": 0, "total_visions_captured": 0},
+    "finalization": {"ground_truth_updated": false, "rtfm_passed": false, "pr_url": null}
 }
 EOF
 
@@ -162,9 +181,15 @@ EOF
     skip_if_deps_missing
     cat > "$TEST_TMPDIR/.run/bridge-state.json" <<'EOF'
 {
+    "schema_version": 1,
     "state": "JACKED_OUT",
     "bridge_id": "bridge-test-p3",
-    "config": {"depth": 3}
+    "config": {"depth": 3, "mode": "full", "flatline_threshold": 0.05, "per_sprint": false, "branch": "feature/test"},
+    "timestamps": {"started": "2026-01-01T00:00:00Z", "last_activity": "2026-01-01T02:00:00Z"},
+    "iterations": [{"iteration": 1, "state": "completed", "sprint_plan_source": "existing", "sprints_executed": 2, "bridgebuilder": {"total_findings": 3, "by_severity": {"critical": 0, "high": 0, "medium": 2, "low": 1, "vision": 0}, "severity_weighted_score": 5, "pr_comment_url": null}, "visions_captured": 0, "started_at": "2026-01-01T00:00:00Z"}],
+    "flatline": {"initial_score": 5, "last_score": 0, "consecutive_below_threshold": 2},
+    "metrics": {"total_sprints_executed": 2, "total_files_changed": 5, "total_findings_addressed": 3, "total_visions_captured": 0},
+    "finalization": {"ground_truth_updated": true, "rtfm_passed": true, "pr_url": null}
 }
 EOF
 

@@ -480,3 +480,74 @@ EOF
     # Verify no .tmp files remain
     [ ! -f "$TEST_TMPDIR/.run/bridge-state.json.tmp" ]
 }
+
+# =============================================================================
+# last_score tracking (iteration 3 test addition)
+# =============================================================================
+
+@test "bridge-state: update_flatline sets last_score on iteration 1" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-ls1" 3
+    update_flatline 15.5 1
+
+    local last_score
+    last_score=$(jq '.flatline.last_score' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$last_score" = "15.5" ]
+}
+
+@test "bridge-state: update_flatline updates last_score on subsequent iterations" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-ls2" 3 false 0.05
+    update_flatline 100 1
+    update_flatline 50 2
+
+    local last_score
+    last_score=$(jq '.flatline.last_score' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$last_score" = "50" ]
+}
+
+@test "bridge-state: update_flatline tracks last_score through below-threshold" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-ls3" 3 false 0.05
+    update_flatline 100 1
+    update_flatline 3 2    # Below threshold
+
+    local last_score
+    last_score=$(jq '.flatline.last_score' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$last_score" = "3" ]
+}
+
+# =============================================================================
+# get_current_iteration (iteration 3 test addition)
+# =============================================================================
+
+@test "bridge-state: get_current_iteration returns 0 with no iterations" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-ci1" 3
+    local count
+    count=$(get_current_iteration)
+    [ "$count" = "0" ]
+}
+
+@test "bridge-state: get_current_iteration returns count after iterations" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-ci2" 3
+    update_bridge_state "JACK_IN"
+    update_bridge_state "ITERATING"
+    update_iteration 1 "completed" "existing"
+    update_iteration 2 "in_progress" "findings"
+
+    local count
+    count=$(get_current_iteration)
+    [ "$count" = "2" ]
+}

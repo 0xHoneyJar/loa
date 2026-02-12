@@ -40,10 +40,18 @@ OUTPUT_FILE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --input)
+      if [[ -z "${2:-}" ]]; then
+        echo "ERROR: --input requires a value" >&2
+        exit 2
+      fi
       INPUT_FILE="$2"
       shift 2
       ;;
     --output)
+      if [[ -z "${2:-}" ]]; then
+        echo "ERROR: --output requires a value" >&2
+        exit 2
+      fi
       OUTPUT_FILE="$2"
       shift 2
       ;;
@@ -105,7 +113,8 @@ extract_findings_block() {
 # Parse individual findings from the extracted block
 parse_findings() {
   local block="$1"
-  local findings="[]"
+  local tmp_findings
+  tmp_findings=$(mktemp)
   local current_id=""
   local current_title=""
   local current_severity=""
@@ -119,7 +128,6 @@ parse_findings() {
   flush_finding() {
     if [[ -n "$current_id" ]]; then
       local weight=${SEVERITY_WEIGHTS[${current_severity^^}]:-0}
-      # Escape strings for JSON
       # Clean values (trim newlines and trailing whitespace)
       # Note: jq --arg handles JSON string escaping automatically — no manual sed needed
       local esc_title esc_desc esc_sug esc_file esc_cat esc_pot
@@ -130,8 +138,8 @@ parse_findings() {
       esc_cat=$(echo "$current_category" | tr -d '\n')
       esc_pot=$(echo "$current_potential" | tr -d '\n' | sed 's/[[:space:]]*$//')
 
-      local finding_json
-      finding_json=$(jq -n \
+      # Append individual finding JSON to temp file (O(1) per finding)
+      jq -n -c \
         --arg id "$current_id" \
         --arg title "$esc_title" \
         --arg severity "${current_severity^^}" \
@@ -141,9 +149,8 @@ parse_findings() {
         --arg suggestion "$esc_sug" \
         --arg potential "$esc_pot" \
         --argjson weight "$weight" \
-        '{id: $id, title: $title, severity: $severity, category: $category, file: $file, description: $description, suggestion: $suggestion, potential: $potential, weight: $weight}')
-
-      findings=$(echo "$findings" | jq --argjson f "$finding_json" '. + [$f]')
+        '{id: $id, title: $title, severity: $severity, category: $category, file: $file, description: $description, suggestion: $suggestion, potential: $potential, weight: $weight}' \
+        >> "$tmp_findings"
     fi
 
     current_id=""
@@ -191,6 +198,15 @@ parse_findings() {
 
   # Flush last finding
   flush_finding
+
+  # Slurp all findings into a JSON array in a single pass (O(n) total)
+  local findings
+  if [[ -s "$tmp_findings" ]]; then
+    findings=$(jq -s '.' "$tmp_findings")
+  else
+    findings="[]"
+  fi
+  rm -f "$tmp_findings"
 
   echo "$findings"
 }
