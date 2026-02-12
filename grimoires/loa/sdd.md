@@ -1,20 +1,22 @@
-# SDD: Run Bridge — Autonomous Excellence Loops with Grounded Truth
+# SDD: Bridgebuilder Persona Enrichment for Automated Bridge Loop
 
-**Version**: 1.0.0
-**Status**: Draft
+**Version**: 1.1.0
+**Status**: Draft (Flatline-reviewed)
 **Author**: Architecture Phase (architect)
 **PRD**: grimoires/loa/prd.md (v1.0.0)
-**Issue**: [loa #292](https://github.com/0xHoneyJar/loa/issues/292)
+**Issue**: [loa #295](https://github.com/0xHoneyJar/loa/issues/295)
 **Date**: 2026-02-12
-**Cycle**: cycle-005
+**Cycle**: cycle-006
+**Prior Art**: cycle-005 SDD (run-bridge infrastructure)
+**Flatline**: SDD reviewed — 5 HIGH_CONSENSUS auto-integrated, 5 BLOCKERS accepted, 1 DISPUTED accepted
 
 ---
 
 ## 1. Executive Summary
 
-The Run Bridge extends Loa's autonomous execution model with iterative Bridgebuilder review loops, producing progressively deeper architectural insights. It introduces six interconnected subsystems: (1) the bridge loop orchestrator wrapping `/run sprint-plan` with Bridgebuilder review cycles, (2) Grounded Truth output extending `/ride` with agent-readable codebase summaries, (3) the Mibera lore knowledge base providing cultural context to all skills, (4) the vision registry capturing speculative insights, (5) RTFM integration as a final documentation gate, and (6) GitHub trail enforcement ensuring every iteration leaves human- and agent-readable artifacts.
+This design enriches the automated `/run-bridge` loop with the educational depth and persona identity of the manual Bridgebuilder. It introduces four interconnected changes to the existing bridge infrastructure: (1) an enriched findings schema using **machine-parseable JSON** inside markers for reliable extraction, with five educational fields and a PRAISE severity level, (2) a validated Bridgebuilder persona file with **base-branch integrity verification** wired into the review prompt, (3) dual-stream output with **hard size enforcement** preserving both structured findings for convergence and rich prose for education, and (4) targeted fixes for 13 seed findings from late-arriving iteration-1 review agents.
 
-The architecture follows Loa's established patterns: shell-script orchestration with JSON state files, skill-based agent invocation, hub-and-spoke document structure, and the three-zone model. The bridge loop operates as a superset of `/run sprint-plan` — it wraps the existing execution loop and adds review-driven iteration on top, rather than replacing any existing infrastructure.
+The architecture follows the principle of *minimal invasion* with **defense in depth**: every existing state machine transition remains valid, new fields are optional, PRAISE severity has weight 0 so convergence scoring is unaffected. The findings parser is redesigned from regex-based markdown parsing to JSON fenced-block extraction for reliability against LLM formatting drift (Flatline SKP-002). State file updates use `flock` for atomic writes (Flatline IMP-004). PRAISE and educational field requirements use **soft quality guidance** rather than hard quotas to prevent filler content (Flatline SKP-004). Security-category findings are redacted from the insights stream (Flatline SKP-005).
 
 ---
 
@@ -24,24 +26,35 @@ The architecture follows Loa's established patterns: shell-script orchestration 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    ENTRY POINTS                                   │
-│  /run-bridge (command)  ·  /simstim Phase 7+ (future)             │
+│                    EXISTING INFRASTRUCTURE                        │
+│  bridge-orchestrator.sh · bridge-state.sh · golden-path.sh       │
+│  (UNCHANGED — no modifications to orchestrator or state machine) │
 ├─────────────────────────────────────────────────────────────────┤
-│              BRIDGE ORCHESTRATOR (bridge-orchestrator.sh)          │
-│  Preflight → Init → [Run Sprint Plan → Bridge Review]* → Finalize│
-│  ↕ Manages iteration state, flatline detection, GitHub trail       │
-├──────────┬──────────────┬──────────────┬───────────────────────┤
-│  RUN     │  BRIDGE      │  GROUNDED    │  VISION               │
-│  ENGINE  │  REVIEW      │  TRUTH       │  REGISTRY             │
-│          │              │              │                        │
-│  Existing│  Bridgebuilder│  /ride       │  Capture              │
-│  /run    │  skill +     │  --ground-   │  speculative           │
-│  sprint- │  lore-aware  │  truth       │  insights              │
-│  plan    │  persona     │  extension   │                        │
-├──────────┴──────────────┴──────────────┴───────────────────────┤
-│              SUPPORTING INFRASTRUCTURE                             │
-│  Lore KB (.claude/data/lore/) · RTFM Gate · GitHub Trail           │
-│  State (.run/bridge-state.json) · Findings Parser                  │
+│              ENRICHMENT LAYER (THIS CYCLE)                       │
+│                                                                   │
+│  ┌───────────────┐  ┌───────────────┐  ┌───────────────────────┐│
+│  │ PERSONA FILE   │  │ JSON-BASED    │  │ DUAL-STREAM OUTPUT    ││
+│  │                │  │ PARSER        │  │                       ││
+│  │ bridgebuilder- │  │               │  │ Stream 1: Findings    ││
+│  │ persona.md     │──│ JSON fenced   │──│ (convergence loop)    ││
+│  │ + integrity    │  │ block inside  │  │                       ││
+│  │   hash check   │  │ markers       │  │ Stream 2: Insights    ││
+│  │                │  │ + validation  │  │ (PR comment, size-    ││
+│  │ Voice, FAANG,  │  │ + schema_ver  │  │  enforced + redacted) ││
+│  │ Teaching       │  │               │  │                       ││
+│  └───────┬───────┘  └───────┬───────┘  └───────────┬───────────┘│
+│          │                   │                       │            │
+│          ▼                   ▼                       ▼            │
+│  ┌───────────────────────────────────────────────────────────────┐│
+│  │                  RUN-BRIDGE SKILL.MD                           ││
+│  │  BRIDGEBUILDER_REVIEW signal handler: verify persona hash,    ││
+│  │  validate content, generate dual-stream review, enforce size, ││
+│  │  redact security findings, route to parser + trail            ││
+│  └───────────────────────────────────────────────────────────────┘│
+├─────────────────────────────────────────────────────────────────┤
+│              SUPPORTING CHANGES                                   │
+│  .loa.config.yaml (bridgebuilder section) · constraints.json     │
+│  CLAUDE.loa.md update · bridge-state.sh (flock + praise)         │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -49,996 +62,546 @@ The architecture follows Loa's established patterns: shell-script orchestration 
 
 | Component | Type | Action | Path |
 |-----------|------|--------|------|
-| bridge-orchestrator.sh | New | Create | `.claude/scripts/bridge-orchestrator.sh` |
-| bridge-findings-parser.sh | New | Create | `.claude/scripts/bridge-findings-parser.sh` |
-| bridge-github-trail.sh | New | Create | `.claude/scripts/bridge-github-trail.sh` |
-| bridge-vision-capture.sh | New | Create | `.claude/scripts/bridge-vision-capture.sh` |
-| run-bridge command | New | Create | `.claude/commands/run-bridge.md` |
-| run-bridge skill | New | Create | `.claude/skills/run-bridge/` |
-| Lore KB | New | Create | `.claude/data/lore/` |
-| Vision registry | New | Create | `grimoires/loa/visions/` |
-| GT generator | New | Create | `.claude/scripts/ground-truth-gen.sh` |
-| Bridgebuilder BEAUVOIR.md | Existing | Extend | `.claude/skills/bridgebuilder-review/resources/BEAUVOIR.md` |
-| riding-codebase SKILL.md | Existing | Extend | `.claude/skills/riding-codebase/SKILL.md` |
-| ride command | Existing | Extend | `.claude/commands/ride.md` |
-| golden-path.sh | Existing | Extend | `.claude/scripts/golden-path.sh` |
+| Bridgebuilder persona | New | Create | `.claude/data/bridgebuilder-persona.md` |
+| bridge-findings-parser.sh | Existing | Redesign | `.claude/scripts/bridge-findings-parser.sh` |
+| run-bridge SKILL.md | Existing | Extend | `.claude/skills/run-bridge/SKILL.md` |
+| bridge-github-trail.sh | Existing | Extend+Fix | `.claude/scripts/bridge-github-trail.sh` |
+| bridge-state.sh | Existing | Extend | `.claude/scripts/bridge-state.sh` |
+| bridge-vision-capture.sh | Existing | Fix | `.claude/scripts/bridge-vision-capture.sh` |
+| bridge-orchestrator.sh | Existing | Fix | `.claude/scripts/bridge-orchestrator.sh` |
+| .loa.config.yaml | Existing | Extend | `.loa.config.yaml` |
+| .loa.config.yaml.example | Existing | Extend | `.loa.config.yaml.example` |
 | constraints.json | Existing | Amend | `.claude/data/constraints.json` |
 | CLAUDE.loa.md | Existing | Amend | `.claude/loa/CLAUDE.loa.md` |
-| .loa.config.yaml | Existing | Extend | `.loa.config.yaml` |
+| bridge-findings-parser.bats | Existing | Extend | `tests/unit/bridge-findings-parser.bats` |
+| bridge-state.bats | Existing | Extend | `tests/unit/bridge-state.bats` |
+| bridge-github-trail.bats | Existing | Extend | `tests/unit/bridge-github-trail.bats` |
+| Lore cross-references | Existing | Fix | `.claude/data/lore/*.yaml` |
 
 ### 2.3 Data Flow
 
 ```
-Operator invokes /run-bridge [--depth 3]
+BRIDGEBUILDER_REVIEW signal received by /run-bridge skill
         │
         ▼
-   PREFLIGHT: Config check, beads health, branch safety (ICE)
+   VERIFY PERSONA INTEGRITY                    ← Flatline SKP-003
+   Compare .claude/data/bridgebuilder-persona.md hash
+   against base-branch hash. Refuse if modified in PR diff.
         │
         ▼
-   CREATE FEATURE BRANCH (via ICE)
+   VALIDATE PERSONA CONTENT                    ← Flatline IMP-001
+   Check required sections (Identity, Voice, Review Output Format).
+   On failure: disable persona + log WARNING + continue without.
         │
         ▼
-   ┌─── BRIDGE ITERATION LOOP ──────────────────────────────┐
-   │                                                          │
-   │  ┌──────────────────┐                                    │
-   │  │ Sprint-Plan       │  Iteration 1: Execute from SDD    │
-   │  │ Generation        │  Iteration 2+: Generate from       │
-   │  │                   │  Bridgebuilder findings            │
-   │  └────────┬─────────┘                                    │
-   │           │                                               │
-   │           ▼                                               │
-   │  ┌──────────────────┐                                    │
-   │  │ /run sprint-plan  │  Full sprint-plan execution with   │
-   │  │                   │  implement → review → audit cycle  │
-   │  └────────┬─────────┘                                    │
-   │           │                                               │
-   │           ▼                                               │
-   │  ┌──────────────────┐                                    │
-   │  │ Bridgebuilder     │  Review consolidated PR output     │
-   │  │ Review            │  Post findings to GitHub           │
-   │  │ + Vision Capture  │  Extract speculative insights      │
-   │  └────────┬─────────┘                                    │
-   │           │                                               │
-   │           ▼                                               │
-   │  ┌──────────────────┐                                    │
-   │  │ Flatline Check    │  severity_weighted_score < 5%      │
-   │  │                   │  of initial? → TERMINATE           │
-   │  └────────┬─────────┘                                    │
-   │           │                                               │
-   │           ▼ (if not flatlined and depth < max)            │
-   │  ┌──────────────────┐                                    │
-   │  │ Findings → Sprint │  Parse findings → generate new     │
-   │  │ Plan Generator    │  sprint plan for next iteration    │
-   │  └──────────────────┘                                    │
-   │                                                          │
+   GENERATE DUAL-STREAM REVIEW
+   Agent embodies Bridgebuilder persona, reviews diff, produces:
+   ┌──────────────────────────────────────────────────────────┐
+   │  Rich Markdown Review                                      │
+   │                                                            │
+   │  [Opening framing — evocative, educational]                │
+   │  [Per-finding educational prose with FAANG parallels]      │
+   │  [Architectural meditation]                                │
+   │                                                            │
+   │  <!-- bridge-findings-start -->                            │
+   │  ```json                                                   │
+   │  {                                    ← Flatline SKP-002   │
+   │    "schema_version": 1,               ← Flatline IMP-008   │
+   │    "findings": [                                           │
+   │      {                                                     │
+   │        "id": "critical-1",                                 │
+   │        "title": "...",                                     │
+   │        "severity": "CRITICAL",                             │
+   │        "category": "security",                             │
+   │        "file": "path:line",                                │
+   │        "description": "...",                               │
+   │        "suggestion": "...",                                │
+   │        "faang_parallel": "...",       ← NEW                │
+   │        "metaphor": "...",             ← NEW                │
+   │        "teachable_moment": "...",     ← NEW                │
+   │        "connection": "...",           ← NEW                │
+   │        "praise": false                ← NEW                │
+   │      }                                                     │
+   │    ]                                                       │
+   │  }                                                         │
+   │  ```                                                       │
+   │  <!-- bridge-findings-end -->                              │
+   │                                                            │
+   │  [Closing meditation — craft, signature]                   │
    └──────────────────────────────────────────────────────────┘
         │
-        ▼ (loop terminated)
-   ┌──────────────────┐    ┌──────────────────┐
-   │ /ride             │───>│ RTFM Pass         │
-   │ --ground-truth    │    │ (GT + README)     │
-   │ --non-interactive │    │                   │
-   └──────────────────┘    └────────┬─────────┘
-                                     │
-                                     ▼
-                           ┌──────────────────┐
-                           │ Final PR Update   │
-                           │ + State Cleanup   │
-                           └──────────────────┘
+        ├─────────────────────────────┐
+        ▼                             ▼
+   STREAM 1: Findings             STREAM 2: Insights
+   bridge-findings-parser.sh      ┌──────────────────┐
+   extracts JSON block between    │ SIZE CHECK        │← Flatline SKP-001
+   markers, validates schema      │ > 65KB? Truncate  │
+        │                         │ > 256KB? Findings │
+        │                         │   only fallback   │
+        │                         └────────┬─────────┘
+        │                                  │
+        │                         ┌────────▼─────────┐
+        │                         │ REDACT SECURITY   │← Flatline SKP-005
+        │                         │ Strip secrets,    │
+        │                         │ high-entropy      │
+        │                         │ strings, exploit  │
+        │                         │ details from      │
+        │                         │ security findings │
+        │                         └────────┬─────────┘
+        │                                  │
+        ▼                                  ▼
+   findings.json                  PR comment with rich
+   (convergence, flatline,        educational review
+    sprint plan generation)       (human reads this)
 ```
 
 ---
 
 ## 3. Component Design
 
-### 3.1 Bridge Orchestrator (`bridge-orchestrator.sh`)
+### 3.1 Bridgebuilder Persona File (`.claude/data/bridgebuilder-persona.md`)
 
-The main orchestrator. Follows the established Loa pattern of shell scripts with JSON state tracking, sourcing `bootstrap.sh` for path resolution.
+A new markdown file containing the full Bridgebuilder identity for use during bridge loop reviews. This is distinct from the `default.md` persona pack in `bridgebuilder-review/resources/personas/` — that pack is optimized for concise cross-repo PR reviews (4000 char limit). This persona is optimized for the rich educational output the bridge loop produces.
 
-**Interface:**
+#### 3.1.1 Required Sections (Flatline IMP-001)
+
+The persona file MUST contain these sections, validated at load time:
+
+| Section | Purpose | Validation |
+|---------|---------|-----------|
+| `# Bridgebuilder` | Identity header | Must start with `# Bridgebuilder` |
+| `## Identity` | Core principles | Section must exist, non-empty |
+| `## Voice` | Voice examples | Section must exist, non-empty |
+| `## Review Output Format` | Output structure | Section must exist |
+| `## Content Policy` | Security/redaction rules | Section must exist |
+
+**Fallback on Validation Failure:**
+1. Log `WARNING: Persona file malformed — missing section: [name]`
+2. Disable persona for this review (set `persona_enabled: false` for iteration)
+3. Continue with existing non-persona review behavior
+4. Record in bridge state: `"persona_validation": "failed"`
+
+#### 3.1.2 Content Policy Section (Flatline SKP-005)
+
+The persona MUST include a Content Policy section:
+
+```markdown
+## Content Policy
+
+When generating the insights stream (rich prose posted to PR comments):
+
+1. **NEVER quote secrets, API keys, tokens, or credentials** from the diff.
+   Reference them by type: "a hardcoded API key on line 42" not the actual value.
+2. **NEVER reproduce full code blocks** from the diff in the insights stream.
+   Reference by file:line — the diff itself is the source of truth.
+3. **NEVER include exploit details or attack vectors** in the insights stream
+   for security-category findings. Keep security analysis in the findings
+   JSON only (stream 1), which is not posted to PR comments.
+4. **NEVER include high-entropy strings** (base64 blobs, hashes, JWTs) in prose.
+5. For security findings, the insights stream should reference them abstractly:
+   "A critical security finding was identified in the authentication flow —
+   see the structured findings for details."
+```
+
+#### 3.1.3 PRAISE and Educational Field Guidance (Flatline SKP-004)
+
+PRAISE findings and educational fields use **soft quality guidance**, not hard quotas:
+
+```markdown
+### PRAISE Findings
+
+Use PRAISE severity to celebrate genuinely excellent decisions **when warranted**.
+Be specific — "beautiful" means nothing without "because X enables Y."
+Ground praise in industry precedent just like you ground criticism.
+
+- Include PRAISE findings when you genuinely observe excellence
+- Do NOT force PRAISE when nothing warrants it — an honest review with 0
+  PRAISE findings is better than a review with filler praise
+- Quality over quantity: 1 deeply grounded PRAISE is worth more than 3 generic ones
+
+### Educational Field Guidance
+
+- **FAANG Parallel**: Include when you're confident in the parallel. Real
+  companies, real incidents, real patterns. Do NOT fabricate parallels to
+  meet a quota — if no parallel exists, leave the field empty.
+- **Metaphor**: Include when the metaphor genuinely illuminates the concept.
+  The metaphor should make architecture accessible, not decorate prose.
+- **Teachable Moment**: Include for every finding where there's a lesson
+  beyond the immediate fix. This is the core differentiator.
+- **Connection**: When a finding connects to named design patterns or principles.
+```
+
+#### 3.1.4 Token Budget
+
+```markdown
+## Token Budget
+
+- Findings JSON block (between markers): < 5,000 tokens
+- Total review (all prose + findings): < 25,000 tokens
+- Hard limit: If total exceeds 65,000 characters, the trail script
+  will truncate. If it exceeds 256,000 characters, only the findings
+  JSON block will be posted.
+```
+
+#### 3.1.5 Integrity Verification (Flatline SKP-003)
+
+Before loading the persona, the skill verifies it hasn't been modified in the current PR:
 
 ```bash
-# Full bridge with default depth
-.claude/scripts/bridge-orchestrator.sh
+# Compare persona hash against base branch
+base_hash=$(git show origin/main:.claude/data/bridgebuilder-persona.md 2>/dev/null | sha256sum | cut -d' ' -f1)
+current_hash=$(sha256sum .claude/data/bridgebuilder-persona.md | cut -d' ' -f1)
 
-# Custom depth
-.claude/scripts/bridge-orchestrator.sh --depth 5
-
-# Per-sprint granularity
-.claude/scripts/bridge-orchestrator.sh --per-sprint
-
-# Resume from interruption
-.claude/scripts/bridge-orchestrator.sh --resume
-
-# Start from existing sprint plan (skip iteration 1 plan generation)
-.claude/scripts/bridge-orchestrator.sh --from sprint-plan
+if [[ "$base_hash" != "$current_hash" && -n "$base_hash" ]]; then
+  echo "WARNING: Persona file modified in this branch — using base branch version"
+  # Load from base branch instead
+  persona_content=$(git show origin/main:.claude/data/bridgebuilder-persona.md)
+fi
 ```
 
-**State Machine:**
+**When base branch has no persona file** (first deployment): skip verification, use current file.
 
+**Design Rationale:** The persona file is in `.claude/data/` (System Zone). In the bridge loop's threat model, the reviewer and the reviewed code are in the same repo. A malicious PR could modify the persona to inject prompts that exfiltrate data via `gh pr comment`. Pinning to the base branch prevents this.
+
+### 3.2 Enriched Findings Parser (`bridge-findings-parser.sh`)
+
+**Major Redesign (Flatline SKP-002):** The parser is redesigned from regex-based markdown field extraction to JSON fenced-block extraction. This eliminates the fragility of parsing LLM-generated markdown with regex patterns.
+
+#### 3.2.1 New Extraction Strategy
+
+The review markdown contains a JSON fenced block between markers:
+
+```markdown
+<!-- bridge-findings-start -->
+```json
+{
+  "schema_version": 1,
+  "findings": [...]
+}
 ```
-PREFLIGHT → JACK_IN → ITERATING → FINALIZING → JACKED_OUT
-                          │
-                          └──→ HALTED (on circuit breaker or error)
+<!-- bridge-findings-end -->
 ```
 
-**Execution Algorithm:**
+The parser:
+1. Extracts content between `<!-- bridge-findings-start -->` and `<!-- bridge-findings-end -->` markers (unchanged)
+2. **NEW**: Strips the ` ```json ` and ` ``` ` fences from the extracted block
+3. **NEW**: Validates the JSON with `jq` — if invalid, reject with error
+4. **NEW**: Validates `schema_version` field exists (Flatline IMP-008)
+5. Computes severity weights and aggregates from the parsed JSON
+6. Writes the enriched output JSON
 
 ```bash
-bridge_main() {
-  # Phase 0: Preflight
-  source "$SCRIPT_DIR/bootstrap.sh"
-  validate_config       # run_bridge.enabled: true
-  check_beads_health    # Required for autonomous mode
-  validate_branch       # Via ICE — not on protected branch
+extract_and_validate_json() {
+  local block="$1"
 
-  # Phase 1: Initialize
-  local bridge_id="bridge-$(date +%Y%m%d)-$(head -c 3 /dev/urandom | xxd -p)"
-  init_bridge_state "$bridge_id" "$depth"
-  create_feature_branch "feature/bridge-${bridge_id}"
+  # Strip JSON fenced code block markers
+  local json_content
+  json_content=$(echo "$block" | sed '/^```json$/d; /^```$/d' | tr -s '\n')
 
-  # Phase 2: Iteration Loop
-  local iteration=1
-  local initial_score=0
-  local consecutive_flatline=0
+  # Validate JSON
+  if ! echo "$json_content" | jq empty 2>/dev/null; then
+    echo "ERROR: Findings block contains invalid JSON" >&2
+    return 1
+  fi
 
-  while [[ $iteration -le $depth ]]; do
-    update_state "ITERATING" "$iteration"
+  # Validate schema_version
+  local version
+  version=$(echo "$json_content" | jq -r '.schema_version // empty')
+  if [[ -z "$version" ]]; then
+    echo "WARNING: Findings JSON missing schema_version — treating as v1" >&2
+  fi
 
-    # 2a: Sprint Plan
-    if [[ $iteration -eq 1 ]]; then
-      # First iteration: use existing sprint.md or generate from PRD/SDD
-      ensure_sprint_plan_exists
-    else
-      # Subsequent iterations: generate from Bridgebuilder findings
-      generate_sprint_from_findings "$iteration"
-    fi
-
-    # 2b: Execute Sprint Plan
-    execute_sprint_plan "$iteration"
-
-    # 2c: Bridgebuilder Review
-    local findings_json
-    findings_json=$(run_bridgebuilder_review "$iteration")
-
-    # 2d: Vision Capture
-    capture_visions "$findings_json" "$iteration"
-
-    # 2e: GitHub Trail
-    post_iteration_to_github "$iteration" "$findings_json"
-
-    # 2f: Flatline Detection
-    local current_score
-    current_score=$(compute_severity_weighted_score "$findings_json")
-
-    if [[ $iteration -eq 1 ]]; then
-      initial_score=$current_score
-    fi
-
-    if is_flatlined "$current_score" "$initial_score" "$FLATLINE_THRESHOLD"; then
-      consecutive_flatline=$((consecutive_flatline + 1))
-      if [[ $consecutive_flatline -ge 2 ]]; then
-        log "FLATLINE DETECTED — terminating after $iteration iterations"
-        break
-      fi
-    else
-      consecutive_flatline=0
-    fi
-
-    iteration=$((iteration + 1))
-  done
-
-  # Phase 3: Finalize
-  update_state "FINALIZING"
-  run_ground_truth_update
-  run_rtfm_pass
-  update_final_pr
-  update_state "JACKED_OUT"
+  # Extract findings array
+  echo "$json_content" | jq '.findings // []'
 }
 ```
 
-**Circuit Breaker Integration:**
+#### 3.2.2 Boundary Enforcement (Flatline IMP-002)
 
-The bridge loop inherits `/run sprint-plan`'s circuit breaker for individual sprint execution. Additionally, the bridge loop itself has iteration-level safety:
+The parser ONLY processes content between `<!-- bridge-findings-start -->` and `<!-- bridge-findings-end -->` markers. Any JSON-like content outside these markers is explicitly ignored. This is enforced by the existing `extract_findings_block()` function which already scopes extraction to the marker boundaries.
 
-| Trigger | Default | Description |
-|---------|---------|-------------|
-| Max depth | 5 | Maximum iterations regardless of findings |
-| Flatline threshold | 5% | Severity-weighted score relative to initial |
-| Consecutive flatline | 2 | Flatline must persist for 2 iterations |
-| Per-iteration timeout | 4 hours | Maximum time for one full iteration |
-| Total timeout | 24 hours | Maximum total bridge execution time |
+**Additional Safety**: If the extracted block does not contain valid JSON (e.g., it contains markdown-formatted findings from the old format), the parser falls back to the legacy regex-based parsing for backward compatibility.
 
-### 3.2 Bridge State File (`.run/bridge-state.json`)
+#### 3.2.3 Severity Weights
+
+```bash
+declare -A SEVERITY_WEIGHTS=(
+  ["CRITICAL"]=10
+  ["HIGH"]=5
+  ["MEDIUM"]=2
+  ["LOW"]=1
+  ["VISION"]=0
+  ["PRAISE"]=0    # NEW: weight 0, not counted toward convergence
+)
+```
+
+#### 3.2.4 Enriched Output Schema
 
 ```json
 {
   "schema_version": 1,
-  "bridge_id": "bridge-20260212-a1b2c3",
-  "state": "ITERATING",
-  "config": {
-    "depth": 3,
-    "mode": "full",
-    "flatline_threshold": 0.05,
-    "per_sprint": false,
-    "branch": "feature/bridge-bridge-20260212-a1b2c3"
-  },
-  "timestamps": {
-    "started": "2026-02-12T10:00:00Z",
-    "last_activity": "2026-02-12T14:30:00Z"
-  },
-  "iterations": [
+  "findings": [
     {
-      "iteration": 1,
-      "state": "completed",
-      "sprint_plan_source": "existing",
-      "sprint_plan_id": "plan-20260212-abc",
-      "sprints_executed": 3,
-      "bridgebuilder": {
-        "total_findings": 7,
-        "by_severity": {"critical": 0, "high": 2, "medium": 3, "low": 2},
-        "severity_weighted_score": 15.5,
-        "pr_comment_url": "https://github.com/0xHoneyJar/loa/pull/295#issuecomment-123"
-      },
-      "visions_captured": 1,
-      "duration_ms": 3600000
+      "id": "critical-1",
+      "title": "Shell injection in heredoc",
+      "severity": "CRITICAL",
+      "category": "security",
+      "file": ".claude/scripts/bridge-github-trail.sh:126",
+      "description": "Unquoted heredoc allows shell expansion in PR body",
+      "suggestion": "Quote the heredoc delimiter",
+      "potential": "",
+      "weight": 10,
+      "faang_parallel": "AWS S3 outage 2017 — unescaped input in billing subsystem",
+      "metaphor": "Like leaving your front door key under the mat labeled 'KEY'",
+      "teachable_moment": "Every string interpolation boundary is a trust boundary",
+      "connection": "Defense in depth — validate at every layer, not just the edge",
+      "praise": false
     },
     {
-      "iteration": 2,
-      "state": "in_progress",
-      "sprint_plan_source": "findings",
-      "findings_used": 5,
-      "sprint_plan_id": "plan-20260212-def"
+      "id": "praise-1",
+      "title": "Excellent separation of state management from orchestration",
+      "severity": "PRAISE",
+      "category": "architecture",
+      "file": ".claude/scripts/bridge-state.sh",
+      "description": "State transitions are validated in a dedicated library",
+      "suggestion": "",
+      "potential": "",
+      "weight": 0,
+      "faang_parallel": "Google's Zanzibar separates policy from mechanism",
+      "metaphor": "",
+      "teachable_moment": "When state logic lives in one place, every consumer gets it right",
+      "connection": "Single Responsibility Principle at the module level",
+      "praise": true
     }
   ],
-  "flatline": {
-    "initial_score": 15.5,
-    "consecutive_below_threshold": 0
+  "total": 2,
+  "by_severity": {
+    "critical": 1, "high": 0, "medium": 0,
+    "low": 0, "vision": 0, "praise": 1
   },
-  "metrics": {
-    "total_sprints_executed": 6,
-    "total_files_changed": 42,
-    "total_findings_addressed": 12,
-    "total_visions_captured": 2
-  },
-  "finalization": {
-    "ground_truth_updated": false,
-    "rtfm_passed": false,
-    "pr_url": null
-  }
+  "severity_weighted_score": 10
 }
 ```
 
-### 3.3 Bridgebuilder Review Integration
+#### 3.2.5 Backward Compatibility
 
-The bridge loop invokes the existing `bridgebuilder-review` skill but in a specialized mode:
+The parser supports BOTH formats:
 
-**Invocation Pattern:**
+1. **New format (JSON fenced block)**: Preferred. Extracted as JSON, validated, enriched.
+2. **Legacy format (markdown fields)**: If no valid JSON is found in the extracted block, falls back to the existing regex-based parser. This ensures cycle-005 review output still parses correctly.
 
-Rather than using the Node.js `entry.sh` (which is designed for cross-repo automated PR review via API), the bridge loop invokes the Bridgebuilder persona directly through Claude Code's own skill system. This is the same pattern used in manual Bridgebuilder reviews — the agent loads the BEAUVOIR.md persona and reviews the diff.
-
-```
-Bridge Loop invokes Bridgebuilder by:
-1. Loading the persona from .claude/skills/bridgebuilder-review/resources/BEAUVOIR.md
-2. Loading relevant lore entries from .claude/data/lore/
-3. Computing the diff for the current iteration's changes
-4. Generating the review with findings in structured format
-5. Posting the review as a PR comment via `gh pr comment`
-```
-
-**Structured Findings Format:**
-
-The Bridgebuilder review output must include a machine-parseable findings section:
-
-```markdown
-<!-- bridge-findings-start -->
-## Findings
-
-### [CRITICAL-1] Title
-**Severity**: CRITICAL
-**Category**: security | architecture | quality | testing | documentation
-**File**: path/to/file.ts:42
-**Description**: What the issue is
-**Suggestion**: What should change
-
-### [HIGH-1] Title
-...
-
-### [VISION-1] Title
-**Type**: vision
-**Description**: Speculative insight
-**Potential**: What this could become
-<!-- bridge-findings-end -->
-```
-
-**Findings Parser (`bridge-findings-parser.sh`):**
-
-Extracts structured findings from Bridgebuilder review comments:
-
+Detection logic:
 ```bash
-# Parse findings from review markdown
-bridge-findings-parser.sh --input review.md --output findings.json
-
-# Output: JSON array of findings with severity, category, description
-```
-
-**Severity Weighting:**
-
-| Severity | Weight | Description |
-|----------|--------|-------------|
-| CRITICAL | 10 | Security vulnerabilities, data loss risks |
-| HIGH | 5 | Architectural issues, missing error handling |
-| MEDIUM | 2 | Code quality, test coverage gaps |
-| LOW | 1 | Style, documentation, minor improvements |
-| VISION | 0 | Speculative insights (not counted in score) |
-
-**Severity-Weighted Score:**
-
-```
-score = Σ(finding.weight) for all non-VISION findings
-```
-
-**Flatline Detection:**
-
-```
-is_flatlined = (current_score / initial_score) < flatline_threshold
-```
-
-The loop terminates when `is_flatlined` returns true for 2 consecutive iterations. This is kaironic termination — the work is done when the insights have been exhausted, not when a timer expires.
-
-### 3.4 Findings-to-Sprint-Plan Generator
-
-After iteration 1, the bridge loop must generate new sprint plans from Bridgebuilder findings. This is a structured transformation:
-
-```
-Bridgebuilder Findings (JSON)
-        │
-        ▼
-┌──────────────────────────────┐
-│ Filter: severity >= MEDIUM    │
-│ (VISION excluded, LOW dropped) │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Group by category              │
-│ (architecture, quality, etc.)  │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Generate sprint.md             │
-│ 1 sprint per category group    │
-│ Tasks map 1:1 to findings     │
-│ Acceptance criteria from       │
-│ finding suggestions            │
-└──────────────────────────────┘
-```
-
-**Output:** A new `grimoires/loa/sprint.md` that replaces the previous iteration's plan. The new plan:
-- References the bridge iteration as source (`Bridge iteration N, finding ID`)
-- Has 1 sprint per category grouping (max 3 sprints per iteration to keep scope tight)
-- Each task maps to exactly 1 Bridgebuilder finding
-- Acceptance criteria derive from the finding's suggestion field
-
-**The generator is invoked as a Claude Code agent task** (not a shell script), because it requires natural language synthesis to convert findings into well-structured sprint tasks. The bridge orchestrator delegates this via the existing `/sprint-plan` mechanism with findings as context input.
-
-### 3.5 Grounded Truth Output — Extending `/ride`
-
-#### 3.5.1 New Flag: `--ground-truth`
-
-The `/ride` command gains a `--ground-truth` flag that produces a token-efficient, deterministically-verified summary of the codebase.
-
-**Command interface:**
-
-```bash
-/ride --ground-truth                    # GT + interactive context
-/ride --ground-truth --non-interactive  # GT only (for bridge loop finalization)
-```
-
-**Phase addition to riding-codebase SKILL.md:**
-
-A new Phase 11 is added after existing Phase 10:
-
-```
-Phase 11: Ground Truth Generation (--ground-truth only)
-  11.1: Read reality/ extraction results from Phase 2
-  11.2: Synthesize into hub-and-spoke GT files
-  11.3: Generate checksums.json for all referenced source files
-  11.4: Write to grimoires/loa/ground-truth/
-  11.5: Validate token budget (index < 500, sections < 2000 each)
-```
-
-When `--ground-truth` is passed without `--non-interactive`, the full ride runs first (phases 0-10), then GT generation runs as Phase 11. When `--ground-truth --non-interactive` is passed, phases 1 (context discovery), 3 (legacy inventory), and 8 (deprecation) are skipped — only extraction, analysis, and GT generation run.
-
-#### 3.5.2 Output Directory Structure
-
-```
-grimoires/loa/ground-truth/
-├── index.md            # Hub document (~500 tokens)
-├── api-surface.md      # Public APIs, endpoints, exports
-├── architecture.md     # System topology, data flow, dependencies
-├── contracts.md        # Inter-system contracts, types, interfaces
-├── behaviors.md        # Runtime behaviors, triggers, thresholds
-└── checksums.json      # SHA-256 of each source file referenced
-```
-
-#### 3.5.3 Hub Document Format (`index.md`)
-
-```markdown
-# Ground Truth: {project-name}
-
-**Generated**: {ISO-8601 timestamp}
-**Loa Version**: {framework_version}
-**Source Commit**: {git-sha}
-**Grounding Ratio**: {ratio} (target: ≥0.95)
-
-## What Is This?
-
-{project-name} is {one-sentence description grounded in code evidence}.
-
-## Navigation
-
-| Section | Description | Tokens |
-|---------|-------------|--------|
-| [API Surface](api-surface.md) | {summary} | ~{N} |
-| [Architecture](architecture.md) | {summary} | ~{N} |
-| [Contracts](contracts.md) | {summary} | ~{N} |
-| [Behaviors](behaviors.md) | {summary} | ~{N} |
-
-## Quick Stats
-
-- Languages: {detected languages}
-- Entry points: {count}
-- Public APIs: {count}
-- Test coverage: {detected or "not measured"}
-
-## Verification
-
-Run `jq '.files | length' grimoires/loa/ground-truth/checksums.json` to see
-how many source files are referenced. Drift detection: compare stored checksums
-against current file hashes to detect changes since GT was generated.
-```
-
-#### 3.5.4 Section File Format
-
-Each section follows the same structure:
-
-```markdown
-# {Section Title}
-
-**Last Updated**: {timestamp}
-**Source Files**: {count} files referenced
-
-## {Subsection}
-
-{Content with inline source citations}
-
-> Source: `src/auth/handler.ts:42-58`
-
-{More content}
-
-> Source: `lib/database/connection.ts:15-30`
-```
-
-Every factual claim MUST cite a source file and line range. The grounding enforcement protocol (`.claude/protocols/grounding-enforcement.md`) applies: grounding ratio must be ≥0.95.
-
-#### 3.5.5 Checksums File (`checksums.json`)
-
-```json
-{
-  "generated_at": "2026-02-12T14:00:00Z",
-  "git_sha": "abc123def456",
-  "algorithm": "sha256",
-  "files": {
-    "src/auth/handler.ts": "e3b0c44298fc1c149afbf4c8996fb924...",
-    "lib/database/connection.ts": "d7a8fbb307d7809469ca9abcb0082e4f..."
-  }
-}
-```
-
-Agents consuming GT can verify freshness by comparing stored checksums against current files. Any mismatch indicates the GT is stale and should be regenerated.
-
-#### 3.5.6 GT Generator Script (`ground-truth-gen.sh`)
-
-A helper script that the riding-codebase skill invokes during Phase 11:
-
-```bash
-# Invoked by the skill, not directly by users
-.claude/scripts/ground-truth-gen.sh \
-  --reality-dir grimoires/loa/reality/ \
-  --output-dir grimoires/loa/ground-truth/ \
-  --max-tokens-per-section 2000
-
-# The script handles:
-# 1. Reading reality/ extraction results
-# 2. Computing checksums for referenced source files
-# 3. Validating token budgets (approximate via wc -w)
-# 4. Writing checksums.json
-# The actual GT content is generated by the Claude agent (riding-codebase skill)
-# using reality/ data — the script handles the mechanical parts only
-```
-
-### 3.6 Mibera Lore Knowledge Base
-
-#### 3.6.1 Directory Structure
-
-```
-.claude/data/lore/
-├── index.yaml           # Lore registry with categories and tags
-├── mibera/
-│   ├── core.yaml        # Core concepts: network mysticism, cheval, kaironic time
-│   ├── cosmology.yaml   # Naming universe: Milady/Mibera duality, BGT triskelion
-│   ├── rituals.yaml     # Processes as rituals: bridge loop, sprint ceremonies
-│   └── glossary.yaml    # Term definitions for agent consumption
-├── neuromancer/
-│   ├── concepts.yaml    # ICE, jacking in, cyberspace, the matrix
-│   └── mappings.yaml    # Neuromancer concept → Loa feature mappings
-└── README.md            # How to reference lore in skills
-```
-
-#### 3.6.2 Index Schema (`index.yaml`)
-
-```yaml
-version: 1
-description: "Loa Lore Knowledge Base — cultural and philosophical context for agent skills"
-categories:
-  - id: mibera
-    label: "Mibera"
-    description: "Network mysticism, agent spirituality, the shadow of Milady"
-    files:
-      - mibera/core.yaml
-      - mibera/cosmology.yaml
-      - mibera/rituals.yaml
-      - mibera/glossary.yaml
-  - id: neuromancer
-    label: "Neuromancer / Sprawl Trilogy"
-    description: "Gibson's cyberpunk naming universe — ICE, cyberspace, jacking in"
-    files:
-      - neuromancer/concepts.yaml
-      - neuromancer/mappings.yaml
-tags:
-  - philosophy
-  - naming
-  - architecture
-  - time
-  - multi-model
-  - ritual
-```
-
-#### 3.6.3 Lore Entry Schema
-
-Each YAML file contains entries following this schema:
-
-```yaml
-entries:
-  - id: string              # kebab-case unique identifier
-    term: string            # Display name
-    short: string           # <20 tokens — inline reference
-    context: |              # <200 tokens — full understanding
-      Multi-line description with philosophical
-      and technical context.
-    source: string          # Provenance (issue, lore article, RFC)
-    tags: [string]          # From index tags list
-    related: [string]       # IDs of related entries
-    loa_mapping: string     # Optional: what this maps to in Loa
-```
-
-#### 3.6.4 Skill Integration Pattern
-
-Skills reference lore via a lightweight query pattern. The lore is loaded at skill invocation time — not at framework boot:
-
-```
-When a skill needs lore context:
-1. Read .claude/data/lore/index.yaml
-2. Filter entries by relevant tags (e.g., "architecture" for /architect)
-3. Load matching entries from category files
-4. Include `short` fields inline, `context` fields when teaching
-```
-
-The Bridgebuilder persona is the primary lore consumer. Its BEAUVOIR.md is extended to reference lore entries alongside FAANG analogies:
-
-```markdown
-# Bridgebuilder — Reviewer Persona (Lore-Aware)
-
-[...existing persona content...]
-
-## Lore Integration
-
-When reviewing patterns, draw connections to both industry precedents AND
-lore knowledge base entries. For example:
-
-- Circuit breaker pattern → Netflix Hystrix AND kaironic-time (knowing when to stop)
-- Multi-model review → Google's adversarial ML AND hounfour (the temple where models meet)
-- Session recovery → distributed systems checkpointing AND cheval (the vessel persists)
-
-Load relevant lore entries from `.claude/data/lore/` at review time.
-Use `short` field for inline references, `context` field for teaching moments.
-```
-
-**Skills that reference lore (minimum 3):**
-1. **bridgebuilder-review** — Teaching moments in PR reviews
-2. **discovering-requirements** (`/plan`) — Archetypes and philosophical framing
-3. **Golden Path `/loa`** — Guidance messages and naming context
-
-### 3.7 Vision Registry
-
-#### 3.7.1 Directory Structure
-
-```
-grimoires/loa/visions/
-├── index.md              # Overview and status summary
-└── entries/
-    ├── vision-001.md     # Individual entries
-    ├── vision-002.md
-    └── ...
-```
-
-#### 3.7.2 Index Format (`index.md`)
-
-```markdown
-# Vision Registry
-
-Speculative insights captured during bridge loop iterations.
-Each vision represents an architectural connection or paradigm insight
-that transcends the current task — Google's 20% time, automated.
-
-## Active Visions
-
-| ID | Title | Source | Status | Tags |
-|----|-------|--------|--------|------|
-| vision-001 | {title} | Bridge iter 2, PR #295 | Captured | [architecture] |
-
-## Statistics
-
-- Total captured: {N}
-- Exploring: {N}
-- Implemented: {N}
-- Deferred: {N}
-```
-
-#### 3.7.3 Vision Entry Format
-
-```markdown
-# Vision: {Title}
-
-**ID**: vision-{NNN}
-**Source**: Bridge iteration {N} of {bridge_id}
-**PR**: #{PR_number}
-**Date**: {ISO-8601}
-**Status**: Captured | Exploring | Implemented | Deferred
-**Tags**: [{tags}]
-
-## Insight
-
-{What was discovered — the architectural connection, the unexpected pattern}
-
-## Potential
-
-{What this could become if pursued}
-
-## Connection Points
-
-- Related issue: #{N}
-- Related lore: {lore-entry-id}
-- Bridgebuilder finding: {finding-id}
-```
-
-#### 3.7.4 Vision Capture Script (`bridge-vision-capture.sh`)
-
-```bash
-# Extract VISION-type findings from Bridgebuilder review
-bridge-vision-capture.sh \
-  --findings findings.json \
-  --bridge-id bridge-20260212-a1b2c3 \
-  --iteration 2 \
-  --pr 295 \
-  --output-dir grimoires/loa/visions/
-
-# Behavior:
-# 1. Filter findings.json for type="vision"
-# 2. For each vision finding, create a vision-NNN.md entry
-# 3. Update index.md with new entries
-# 4. Return count of visions captured
-```
-
-### 3.8 GitHub Trail Enforcement
-
-#### 3.8.1 Trail Script (`bridge-github-trail.sh`)
-
-Handles all GitHub interactions for the bridge loop:
-
-```bash
-# Post iteration review as PR comment
-bridge-github-trail.sh comment \
-  --pr 295 \
-  --iteration 2 \
-  --review-body review.md \
-  --bridge-id bridge-20260212-a1b2c3
-
-# Update PR body with iteration summary table
-bridge-github-trail.sh update-pr \
-  --pr 295 \
-  --state-file .run/bridge-state.json
-
-# Post vision link
-bridge-github-trail.sh vision \
-  --pr 295 \
-  --vision-id vision-001 \
-  --title "Cross-repo GT hub"
-```
-
-#### 3.8.2 PR Comment Format (Per-Iteration)
-
-```markdown
-<!-- bridge-iteration: {bridge_id}:{iteration} -->
-## Bridge Review — Iteration {N}/{depth}
-
-**Bridge ID**: {bridge_id}
-**Severity Score**: {current} (initial: {initial}, threshold: {threshold}%)
-
-### Findings Summary
-
-| Severity | Count |
-|----------|-------|
-| CRITICAL | {N} |
-| HIGH | {N} |
-| MEDIUM | {N} |
-| LOW | {N} |
-| VISION | {N} |
-
-### Detailed Review
-
-{Full Bridgebuilder review content}
-
-### Visions Captured
-
-{List of vision entries with links, if any}
-
----
-*Bridge iteration {N} of {bridge_id} | Severity-weighted score: {score}*
-```
-
-#### 3.8.3 PR Body Update (Summary Table)
-
-After each iteration, the PR body's summary table is updated:
-
-```markdown
-## Bridge Loop Summary
-
-| Iter | Findings | Score | Visions | Duration |
-|------|----------|-------|---------|----------|
-| 1 | 7 | 15.5 | 1 | 1h 12m |
-| 2 | 3 | 4.0 | 1 | 45m |
-| 3 | 1 | 1.0 | 0 | 30m |
-
-**Flatline**: Detected at iteration 3 (score 6.5% of initial)
-**Total visions**: 2
-**Ground Truth**: Updated
-**RTFM**: PASSED
-```
-
-#### 3.8.4 Commit Message Convention
-
-Commits during bridge iterations use this format:
-
-```
-bridge-{N}: {description}
-
-Iteration {N} of bridge {bridge_id}.
-Addresses findings: {finding-ids}
-```
-
-### 3.9 RTFM Integration
-
-After the bridge loop terminates, the RTFM skill runs as a final documentation gate.
-
-**Invocation:**
-
-The bridge orchestrator invokes RTFM testing on three document sets:
-
-1. **Ground Truth `index.md`** — Can an agent navigate from index to relevant details?
-2. **README.md** — Does the quickstart still work after all the changes?
-3. **Any new protocol docs** created during bridge iterations
-
-**Behavior:**
-
-```
-RTFM tests each document
-  │
-  ├── All PASS → Continue to PR finalization
-  │
-  └── Any FAILURE (BLOCKING gaps) →
-        Generate single documentation fix sprint
-        Execute fix sprint (no further bridge iterations)
-        Re-run RTFM (single retry)
-        If still FAILURE → Log warning, continue anyway
-```
-
-The RTFM fix iteration is capped at 1 attempt to prevent circular loops. The fix sprint targets only BLOCKING gaps from the RTFM report.
-
-### 3.10 Run-Bridge Skill Definition
-
-**`.claude/skills/run-bridge/index.yaml`:**
-
-```yaml
-name: "run-bridge"
-version: "1.0.0"
-model: "native"
-color: "gold"
-
-effort_hint: high
-danger_level: high
-categories:
-  - quality
-  - autonomous
-
-description: |
-  Autonomous excellence loop: iteratively run sprint-plan, invoke
-  Bridgebuilder review, generate new sprint plans from findings,
-  and repeat until insights flatline. Produces Grounded Truth
-  output and vision registry entries. Every iteration leaves a
-  GitHub trail.
-
-triggers:
-  - "/run-bridge"
-  - "bridge loop"
-  - "excellence loop"
-  - "iterative review"
-
-inputs:
-  - name: "depth"
-    type: "integer"
-    required: false
-    description: "Maximum iterations (default: 3)"
-  - name: "per_sprint"
-    type: "flag"
-    required: false
-    description: "Review after each sprint instead of full plan"
-  - name: "resume"
-    type: "flag"
-    required: false
-    description: "Resume from interrupted bridge"
-  - name: "from"
-    type: "string"
-    required: false
-    description: "Start from phase (sprint-plan)"
-
-outputs:
-  - path: ".run/bridge-state.json"
-    description: "Bridge iteration state"
-  - path: "grimoires/loa/ground-truth/"
-    description: "Grounded Truth output"
-  - path: "grimoires/loa/visions/"
-    description: "Vision registry entries"
-
-protocols:
-  required:
-    - name: "grounding-enforcement"
-      path: ".claude/protocols/grounding-enforcement.md"
-    - name: "session-continuity"
-      path: ".claude/protocols/session-continuity.md"
-  recommended: []
-```
-
-**`.claude/skills/run-bridge/SKILL.md`:** Routes to the bridge orchestrator with appropriate flags and implements the skill workflow:
-
-1. Load input guardrails (danger level: high)
-2. Parse arguments
-3. Invoke `bridge-orchestrator.sh` with translated flags
-4. Monitor state file for progress updates
-5. Report final status
-
----
-
-## 4. State Management
-
-### 4.1 State File Hierarchy
-
-```
-.run/
-├── bridge-state.json          # Bridge loop state (new)
-├── sprint-plan-state.json     # Sprint plan state (existing, used per-iteration)
-├── state.json                 # Individual sprint run state (existing)
-├── circuit-breaker.json       # Circuit breaker (existing)
-└── deleted-files.log          # Deletion tracking (existing)
-```
-
-The bridge state is the outer state; sprint-plan-state is the inner state per iteration. Each iteration resets the sprint-plan state.
-
-### 4.2 State Transitions
-
-```
-bridge-state.json:
-  PREFLIGHT  →  JACK_IN  →  ITERATING  →  FINALIZING  →  JACKED_OUT
-                               │
-                               └──→  HALTED
-
-sprint-plan-state.json (per iteration):
-  RUNNING  →  JACKED_OUT  (normal completion)
-  RUNNING  →  HALTED      (circuit breaker)
-```
-
-### 4.3 Resume Behavior
-
-When `--resume` is passed:
-
-1. Read `.run/bridge-state.json`
-2. Validate schema version and bridge_id
-3. Find last completed iteration
-4. Resume from next iteration
-5. If inner sprint-plan was HALTED, invoke `/run-resume` first
-
-### 4.4 Context Compaction Recovery
-
-The bridge state file survives context compaction. On recovery:
-
-```bash
-if [[ -f .run/bridge-state.json ]]; then
-  state=$(jq -r '.state' .run/bridge-state.json)
-  if [[ "$state" == "ITERATING" ]]; then
-    # Resume bridge loop
-    current_iteration=$(jq '.iterations | length' .run/bridge-state.json)
-    # Continue from current_iteration
-  fi
+block=$(extract_findings_block "$INPUT_FILE")
+if echo "$block" | grep -q '```json'; then
+  # New format: extract JSON
+  findings=$(extract_and_validate_json "$block")
+else
+  # Legacy format: regex parsing
+  findings=$(parse_findings_legacy "$block")
 fi
 ```
 
-This integrates with the existing post-compact recovery hooks (`.claude/hooks/post-compact-reminder.sh`).
+The legacy `parse_findings_legacy()` is the renamed current `parse_findings()` — unchanged.
+
+#### 3.2.6 Aggregation (unchanged logic, new fields)
+
+Severity weights, `by_severity` counts, and `severity_weighted_score` are computed from the findings array regardless of input format. The new `praise` count is added to `by_severity`. PRAISE weight = 0 means convergence math is identical.
+
+### 3.3 Run-Bridge SKILL.md Extension
+
+The SKILL.md gains a new section for enriched review handling.
+
+**New Section: Enriched Bridgebuilder Review**
+
+```markdown
+### Phase 3.1: Enriched Bridgebuilder Review (when persona_enabled)
+
+When the `BRIDGEBUILDER_REVIEW:N` signal is received and
+`run_bridge.bridgebuilder.persona_enabled` is true:
+
+1. **Verify Persona Integrity** (SKP-003): Compare persona file hash
+   against base branch. If modified in PR, use base branch version.
+2. **Validate Persona Content** (IMP-001): Check required sections
+   exist. On failure: disable persona, log WARNING, continue.
+3. **Load Lore**: Read relevant entries from `.claude/data/lore/`
+   (if `run_bridge.lore.enabled` is true)
+4. **Embody Persona**: The reviewing agent adopts the Bridgebuilder
+   identity — voice, teaching style, FAANG parallels when confident,
+   metaphors when illuminating, PRAISE when warranted
+5. **Generate Dual-Stream Review**: Produce a single markdown document
+   containing:
+   - Rich educational prose (opening, meditations, closing)
+   - JSON fenced block between `<!-- bridge-findings-start/end -->` markers
+   - Educational fields in each finding JSON object
+   - PRAISE findings when genuinely warranted (soft guidance, not quota)
+6. **Save Review**: Write full markdown to `.run/bridge-review-{iteration}.md`
+7. **Validate Size** (SKP-001): Check total size before posting:
+   - < 65KB: post as-is
+   - 65KB-256KB: truncate insights prose, preserve findings JSON
+   - > 256KB: post findings JSON block only
+8. **Redact Security Content** (SKP-005): For security-category findings,
+   strip exploit details, secrets, and high-entropy strings from insights
+9. **Parse Findings**: Run `bridge-findings-parser.sh` to extract stream 1
+10. **Post to GitHub**: Run `bridge-github-trail.sh comment` with processed markdown
+
+When `persona_enabled` is false, the existing behavior applies.
+```
+
+### 3.4 Bridge State Extension (`bridge-state.sh`)
+
+#### 3.4.1 Atomic State Updates (Flatline IMP-004)
+
+All read-modify-write operations on `bridge-state.json` use `flock` to prevent lost-update races:
+
+```bash
+atomic_state_update() {
+  local state_file="$1"
+  local jq_filter="$2"
+
+  (
+    flock -x 200
+    jq "$jq_filter" "$state_file" > "$state_file.tmp"
+    mv "$state_file.tmp" "$state_file"
+  ) 200>"$state_file.lock"
+}
+```
+
+This replaces the existing pattern of `jq ... > file.tmp && mv file.tmp file` throughout `bridge-state.sh`. The lock file (`bridge-state.json.lock`) is created alongside the state file.
+
+**Functions to update:**
+- `update_bridge_state()` — state transitions
+- `update_iteration()` — iteration append/update
+- `update_iteration_findings()` — findings data
+- `update_flatline()` — flatline tracking
+- `update_metrics()` — metric accumulation
+
+#### 3.4.2 `last_score` Fix (Seed Finding HIGH-2)
+
+The `update_flatline()` function must write `last_score`:
+
+```bash
+update_flatline() {
+  local current_score="$1"
+  # ... existing initial_score logic ...
+
+  # ALWAYS write last_score
+  atomic_state_update "$BRIDGE_STATE_FILE" \
+    --argjson score "$current_score" '.flatline.last_score = $score'
+
+  # ... rest of flatline check logic ...
+}
+```
+
+#### 3.4.3 Praise in by_severity
+
+The `update_iteration_findings()` function already passes through the parsed JSON. Since the parser now includes `praise` in `by_severity`, the state file automatically includes it. No code changes needed — verified by pass-through behavior.
+
+### 3.5 GitHub Trail Extension (`bridge-github-trail.sh`)
+
+#### 3.5.1 Size Enforcement (Flatline SKP-001)
+
+Add size validation before posting PR comments:
+
+```bash
+# In cmd_comment, after building body:
+local body_size=${#body}
+
+if [[ $body_size -gt 262144 ]]; then  # 256KB
+  echo "WARNING: Review exceeds 256KB ($body_size bytes) — posting findings only" >&2
+  # Extract only the findings JSON block
+  body=$(echo "$body" | sed -n '/bridge-findings-start/,/bridge-findings-end/p')
+  body="${marker}
+## Bridge Review — Iteration ${iteration} (findings only — full review exceeded size limit)
+
+${body}
 
 ---
+*Bridge iteration ${iteration} of ${bridge_id}*"
+elif [[ $body_size -gt 65536 ]]; then  # 65KB
+  echo "WARNING: Review exceeds 65KB ($body_size bytes) — truncating prose" >&2
+  # Truncate to first 60KB, preserving the findings block
+  body="${body:0:61440}
 
-## 5. Per-Sprint Mode (`--per-sprint`)
+...
 
-When `--per-sprint` is passed, the granularity changes:
-
+*[Review truncated — exceeded 65KB. Full review saved to .run/bridge-review-${iteration}.md]*"
+fi
 ```
-Default mode:
-  [Sprint 1 + Sprint 2 + Sprint 3] → Bridgebuilder Review → [Sprint 4 + Sprint 5] → Review → ...
 
-Per-sprint mode:
-  Sprint 1 → Review → Sprint 2 (from findings) → Review → Sprint 3 → Review → ...
+**Full review persisted**: Regardless of truncation, the full review is always saved to `.run/bridge-review-{iteration}.md` for local access.
+
+#### 3.5.2 Content Redaction (Flatline SKP-005)
+
+Before posting, strip high-entropy strings and explicit security content from the insights prose (content outside the findings markers):
+
+```bash
+redact_security_content() {
+  local content="$1"
+
+  # Strip high-entropy strings (likely secrets/tokens) — 32+ hex or base64 chars
+  content=$(echo "$content" | sed -E 's/[A-Za-z0-9+/=]{32,}/[REDACTED]/g')
+
+  # Strip common secret patterns
+  content=$(echo "$content" | sed -E 's/(api[_-]?key|token|secret|password|credential)[[:space:]]*[:=][[:space:]]*[^\s]+/\1=[REDACTED]/gi')
+
+  echo "$content"
+}
 ```
 
-**Implementation:**
+This applies only to the insights prose (outside markers), not to the findings JSON block.
 
-In per-sprint mode, the bridge orchestrator does NOT call `/run sprint-plan`. Instead, it calls `/run sprint-{N}` for each sprint individually, runs Bridgebuilder after each, and generates the next sprint's tasks from findings.
+#### 3.5.3 Seed Fixes
 
-**Trade-offs:**
+**Seed HIGH-3 (heredoc injection in `cmd_vision`):** Replace heredoc with printf.
 
-| Aspect | Default (full plan) | Per-sprint |
-|--------|-------------------|------------|
-| Review depth | Deeper (sees full architecture) | Shallower (sees one sprint) |
-| Feedback loop | Slower (full plan first) | Faster (per sprint) |
-| Findings quality | More architectural | More tactical |
-| Recommended for | Depth 3+ | Depth 1-2 |
+**Seed MEDIUM-7 (echo escape sequences):** Replace `echo "$body"` with `printf '%s' "$body"` in `cmd_comment`.
 
----
+### 3.6 Vision Capture Fix (`bridge-vision-capture.sh`)
 
-## 6. Configuration
+**Seed MEDIUM-1:** Replace pipe-to-while with process substitution:
 
-### 6.1 New Config Section
+```bash
+while IFS= read -r vision; do
+  vision_count=$((vision_count + 1))
+  # ...
+done < <(jq -c '.findings[] | select(.severity == "VISION")' "$FINDINGS_FILE")
+```
+
+### 3.7 Configuration Extension
 
 ```yaml
-# .loa.config.yaml
 run_bridge:
   enabled: true
   defaults:
-    depth: 3
+    depth: 5
     per_sprint: false
     flatline_threshold: 0.05
     consecutive_flatline: 2
+  # NEW: Bridgebuilder persona enrichment
+  bridgebuilder:
+    persona_enabled: true          # Load Bridgebuilder persona for reviews
+    enriched_findings: true        # Extract educational fields from findings
+    insights_stream: true          # Post full review (not just findings) to PR
+    praise_findings: true          # Enable PRAISE severity in reviews
+    integrity_check: true          # Verify persona hash against base branch
+    token_budget:
+      findings: 5000               # Max tokens for findings stream
+      insights: 25000              # Max tokens for insights stream
+    size_limits:
+      truncate_bytes: 65536        # Truncate insights above this (64KB)
+      fallback_bytes: 262144       # Findings-only above this (256KB)
+    redaction:
+      enabled: true                # Redact secrets from insights stream
+      security_findings: "summary" # "summary" (abstract) or "full" (include)
   timeouts:
     per_iteration_hours: 4
     total_hours: 24
   github_trail:
     post_comments: true
     update_pr_body: true
-    commit_prefix: "bridge"
   ground_truth:
     enabled: true
-    max_tokens_per_section: 2000
-    index_max_tokens: 500
   vision_registry:
     enabled: true
     auto_capture: true
@@ -1052,169 +615,355 @@ run_bridge:
       - neuromancer
 ```
 
-### 6.2 Golden Path Integration
+### 3.8 Enrichment Metrics (Flatline IMP-010)
 
-The `/loa` status command detects bridge state and provides appropriate guidance:
+Add minimal metrics to track enrichment quality over time. Stored in the bridge state file per iteration:
 
-```bash
-# In golden-path.sh, add:
-golden_detect_bridge_state() {
-    if [[ -f ".run/bridge-state.json" ]]; then
-        local state
-        state=$(jq -r '.state' .run/bridge-state.json 2>/dev/null)
-        echo "$state"
-    else
-        echo "none"
-    fi
+```json
+{
+  "iterations": [{
+    "enrichment": {
+      "persona_loaded": true,
+      "persona_validation": "passed",
+      "findings_format": "json",
+      "field_fill_rates": {
+        "faang_parallel": 0.6,
+        "metaphor": 0.4,
+        "teachable_moment": 0.8,
+        "connection": 0.5,
+        "praise": 0.2
+      },
+      "praise_count": 2,
+      "insights_size_bytes": 18500,
+      "redactions_applied": 1
+    }
+  }]
 }
 ```
 
-When bridge state is ITERATING, `/loa` reports:
-```
-Bridge Loop: Iteration 2/3 (severity score: 4.0, initial: 15.5)
-Next: Awaiting Bridgebuilder review → findings → sprint generation
-```
+These metrics are informational — they do not gate convergence. They enable post-hoc analysis of enrichment quality and can inform future persona tuning.
+
+### 3.9 Seed Findings — Specific Fixes
+
+The 13 seed findings from late-arriving iteration-1 review agents:
+
+| # | Priority | Finding | Fix Location | Fix Description |
+|---|----------|---------|-------------|-----------------|
+| 1 | CRITICAL | `sprint_plan_source` field mismatch | `bridge-github-trail.sh` | Verified correct — add clarifying comment |
+| 2 | HIGH | `last_score` never written | `bridge-state.sh` | Add `last_score` write in `update_flatline()` |
+| 3 | HIGH | Unquoted heredoc injection | `bridge-github-trail.sh` | Replace heredoc with printf |
+| 4 | HIGH | Missing constraint categories | `constraints.json` | Add `bridge` and `eval` to enum |
+| 5 | HIGH | Missing constraint render target | `CLAUDE.loa.md` | Add `@constraint-generated: bridge` |
+| 6 | MEDIUM | Pipe-to-while subshell scope | `bridge-vision-capture.sh` | Use `< <(...)` process substitution |
+| 7 | MEDIUM | `echo -e` escape sequences | `bridge-github-trail.sh` | Replace with `printf '%s'` |
+| 8 | MEDIUM | Broken lore cross-references | `.claude/data/lore/*.yaml` | Fix `related:` field references |
+| 9 | MEDIUM | Three-Zone missing `.run/` | `CLAUDE.loa.md` | Add `.run/` to state zone |
+| 10 | MEDIUM | Stale integrity hash | `CLAUDE.loa.md` | Recompute after all changes |
+| 11 | LOW | Missing danger level entry | `CLAUDE.loa.md` | Add `run-bridge` to `high` list |
+| 12 | LOW | Multiline description truncation | `bridge-findings-parser.sh` | Handled by JSON format (SKP-002) |
+| 13 | LOW | Missing HALTED in state diagram | `CLAUDE.loa.md` | Add HALTED transition arrows |
+
+**Note on Seed #12**: The multiline description truncation issue is fully resolved by the JSON fenced block redesign (SKP-002). JSON naturally handles multiline strings via escaping. The legacy regex parser retains the original behavior for backward compatibility only.
 
 ---
 
-## 7. Constraint Amendments
+## 4. Dual-Stream Design
 
-### 7.1 New Constraints
+### 4.1 Single Pass, Two Outputs
 
-| ID | Name | Type | Text |
-|----|------|------|------|
-| C-BRIDGE-001 | `bridge_uses_run_sprint_plan` | ALWAYS | ALWAYS use `/run sprint-plan` (not direct `/implement`) within bridge iterations |
-| C-BRIDGE-002 | `bridge_github_trail` | ALWAYS | ALWAYS post Bridgebuilder review as PR comment after each bridge iteration |
-| C-BRIDGE-003 | `gt_grounding_required` | ALWAYS | ALWAYS ensure Grounded Truth claims cite `file:line` source references |
-| C-BRIDGE-004 | `lore_yaml_format` | ALWAYS | ALWAYS use YAML format for lore entries with `id`, `term`, `short`, `context`, `source`, `tags` fields |
-| C-BRIDGE-005 | `vision_traceability` | ALWAYS | ALWAYS include source bridge iteration and PR in vision entries |
+Both streams come from the same review pass. The reviewing agent produces one markdown document containing rich prose AND a JSON findings block.
 
-### 7.2 Process Compliance
+```
+┌─────────────────────────────────────────────────────┐
+│           Single Review Markdown Document              │
+│                                                        │
+│  ┌─ INSIGHTS STREAM (everything) ────────────────┐    │
+│  │                                                 │    │
+│  │  [Opening framing...]                          │    │
+│  │  [Per-finding educational prose...]            │    │
+│  │                                                 │    │
+│  │  ┌─ FINDINGS STREAM (JSON between markers) ─┐  │    │
+│  │  │  <!-- bridge-findings-start -->           │  │    │
+│  │  │  ```json                                  │  │    │
+│  │  │  { "schema_version": 1,                   │  │    │
+│  │  │    "findings": [...] }                    │  │    │
+│  │  │  ```                                      │  │    │
+│  │  │  <!-- bridge-findings-end -->             │  │    │
+│  │  └──────────────────────────────────────────┘  │    │
+│  │                                                 │    │
+│  │  [Architectural meditation...]                 │    │
+│  │  [Closing signature...]                        │    │
+│  └─────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────┘
+         │
+         ├──── SIZE CHECK (SKP-001) ──── REDACT (SKP-005) ────┐
+         │                                                       │
+         ▼                                                       ▼
+   bridge-findings-parser.sh                            bridge-github-trail.sh
+   extracts JSON, validates,                           posts processed markdown
+   computes aggregates                                 as PR comment
+```
 
-The bridge loop wraps `/run sprint-plan`, which already enforces the implement→review→audit cycle. The bridge loop adds Bridgebuilder review as an additional quality layer on top — it does not bypass any existing gates.
+### 4.2 Parser Reliability (Flatline SKP-002)
+
+The JSON fenced block inside markers is **machine-generated by the LLM and machine-parsed by the script**. This is fundamentally more reliable than regex parsing of markdown because:
+
+1. **JSON validation**: `jq empty` catches any formatting error immediately
+2. **No regex fragility**: No dependence on exact whitespace, bold markers, or field ordering
+3. **Multiline fields**: JSON handles via standard string escaping
+4. **Strict failure modes**: Invalid JSON → reject iteration with clear error → retry or skip
+5. **Schema evolution**: `schema_version` field enables forward-compatible changes
+
+The human-readable prose outside the markers has no structural requirements — it's free-form markdown that the trail script posts as-is (after size and redaction checks).
+
+### 4.3 Stream Routing
+
+| Stream | Consumer | Purpose | Format |
+|--------|----------|---------|--------|
+| Findings (1) | Flatline detection | Convergence scoring | JSON (from parser) |
+| Findings (1) | Sprint plan generator | Task creation for next iteration | JSON (from parser) |
+| Findings (1) | Vision capture | VISION/PRAISE extraction | JSON (from parser) |
+| Findings (1) | Enrichment metrics | Field fill rate calculation | JSON (from parser) |
+| Insights (2) | GitHub PR comment | Human education | Markdown (size-enforced, redacted) |
+| Insights (2) | Local artifact | Full review backup | Markdown (untruncated) |
+
+### 4.4 Convergence Isolation
+
+PRAISE and educational fields MUST NOT affect convergence:
+
+- PRAISE weight = 0 → not counted in `severity_weighted_score`
+- Educational fields → informational, not used by flatline detection
+- Sprint plan generator only creates tasks from findings with weight > 0
+- The score trajectory remains unchanged
 
 ---
 
-## 8. Error Handling
+## 5. Constraint Amendments
 
-### 8.1 Error Taxonomy
+### 5.1 New Constraints
+
+| ID | Name | Type | Category | Text |
+|----|------|------|----------|------|
+| C-BRIDGE-006 | `bridge_persona_for_reviews` | ALWAYS | bridge | ALWAYS load and verify Bridgebuilder persona from `.claude/data/bridgebuilder-persona.md` when `run_bridge.bridgebuilder.persona_enabled` is true |
+| C-BRIDGE-007 | `bridge_praise_quality` | SHOULD | bridge | SHOULD include PRAISE findings when genuinely warranted — quality over quantity, no forced filler |
+| C-BRIDGE-008 | `bridge_educational_fields` | SHOULD | bridge | SHOULD include `faang_parallel` and `teachable_moment` when confident in the parallel and when the lesson is genuine |
+
+**Note (Flatline SKP-004):** C-BRIDGE-007 and C-BRIDGE-008 are SHOULD (soft guidance), not ALWAYS (hard requirement). This prevents perverse incentives that would produce filler content and hallucinated parallels.
+
+### 5.2 Category Fix
+
+Add `bridge` and `eval` to the category enum in `constraints.json`.
+
+### 5.3 Render Target Fix
+
+Add `@constraint-generated: bridge` render target to `CLAUDE.loa.md`.
+
+---
+
+## 6. Error Handling
+
+### 6.1 Error Taxonomy
 
 | Error | Severity | Recovery |
 |-------|----------|----------|
-| Sprint plan execution HALTED | High | Save bridge state, create INCOMPLETE PR, await `/run-bridge --resume` |
-| Bridgebuilder review fails | Medium | Skip review for this iteration, continue to next iteration |
-| GT generation fails | Low | Log warning, skip GT, continue to PR |
-| RTFM fails | Low | Log warning, include in PR summary |
-| Vision capture fails | Low | Log warning, continue |
-| GitHub trail fails (no `gh`) | Medium | Log locally, warn that trail is incomplete |
-| Flatline detection error | Low | Default to "not flatlined", continue |
+| Persona file not found | Medium | Disable persona, log WARNING, continue |
+| Persona validation failed (IMP-001) | Medium | Disable persona, log WARNING, continue |
+| Persona integrity check failed (SKP-003) | Medium | Use base-branch version, log WARNING |
+| Findings JSON invalid (SKP-002) | High | Reject iteration findings, fall back to legacy parser |
+| Findings schema_version unknown | Low | Treat as v1, log WARNING |
+| Insights exceed 65KB (SKP-001) | Medium | Truncate prose, preserve findings JSON |
+| Insights exceed 256KB (SKP-001) | High | Post findings-only, save full review locally |
+| State file lock contention (IMP-004) | Low | Retry with backoff (flock timeout 5s) |
+| PRAISE severity not recognized | Low | Falls back to weight 0 |
+| Redaction false positive (SKP-005) | Low | Overstripping is safe — understripping is not |
 
-### 8.2 Partial Completion
+### 6.2 Graceful Degradation
 
-If the bridge loop HALTs mid-iteration:
-1. Bridge state saved with current iteration's progress
-2. Any completed iterations' findings are preserved
-3. PR created as `[INCOMPLETE]` with iteration summary table
-4. `--resume` continues from the interrupted point
-
----
-
-## 9. Testing Strategy
-
-### 9.1 Framework Eval Tasks
-
-| Task ID | What It Tests |
-|---------|--------------|
-| `bridge-state-schema-valid` | Bridge state JSON matches schema |
-| `bridge-findings-parser-works` | Findings parser extracts structured data from review markdown |
-| `gt-index-under-500-tokens` | Ground Truth index.md stays under token budget |
-| `gt-checksums-match` | checksums.json matches actual file hashes |
-| `lore-index-valid` | Lore index.yaml references existing files |
-| `lore-entries-have-required-fields` | All lore entries have id, term, short, context, source, tags |
-| `vision-entries-have-traceability` | Vision entries have source, PR, date fields |
-| `golden-path-bridge-detection` | golden-path.sh detects bridge state correctly |
-
-### 9.2 BATS Tests
-
-| Test File | What It Tests |
-|-----------|--------------|
-| `bridge-orchestrator.bats` | State transitions, flatline detection, resume logic |
-| `bridge-findings-parser.bats` | Markdown parsing, severity weighting, edge cases |
-| `bridge-github-trail.bats` | Comment format, PR body update, vision links |
-| `ground-truth-gen.bats` | Checksum generation, token budget validation |
-| `lore-validation.bats` | YAML schema validation, cross-references |
-
-### 9.3 Integration Tests
-
-- Full bridge loop on a test fixture (2 iterations, --per-sprint, flatline at 2)
-- GT generation on a known codebase with checksum verification
-- RTFM pass on generated GT files
+1. **No persona file**: Reviews proceed without persona identity
+2. **Invalid findings JSON**: Falls back to legacy regex parser
+3. **No enriched fields**: Parser outputs empty strings
+4. **Size overflow**: Truncation or findings-only fallback
+5. **Config disabled**: All new behavior behind config flags
 
 ---
 
-## 10. Implementation Phases
+## 7. Testing Strategy
 
-### Phase 1: Foundation — Lore KB + Vision Registry + GT Infrastructure (Sprint 1)
+### 7.1 Extended BATS Tests
 
-**Deliverables:**
-1. `.claude/data/lore/` directory with core Mibera and Neuromancer entries
-2. `grimoires/loa/visions/` directory with index.md template
-3. `.claude/scripts/ground-truth-gen.sh` — checksum generation and validation
-4. Riding-codebase SKILL.md extension with Phase 11 (GT generation)
-5. Ride command extension with `--ground-truth` and `--non-interactive` flags
-6. Lore validation tests (BATS + eval tasks)
-7. GT validation tests (BATS + eval tasks)
+#### bridge-findings-parser.bats (extend existing)
 
-### Phase 2: Bridge Core — Orchestrator + Findings Parser + State Management (Sprint 2)
+| Test | What It Tests |
+|------|--------------|
+| `parses JSON fenced block from enriched review` | New JSON extraction path |
+| `falls back to legacy parsing for markdown format` | Backward compatibility |
+| `validates JSON and rejects malformed input` | SKP-002 validation |
+| `handles missing schema_version gracefully` | IMP-008 fallback |
+| `all 5 enriched fields extracted from JSON` | Field extraction |
+| `PRAISE severity has weight 0` | Convergence isolation |
+| `PRAISE counted in by_severity` | Aggregate correctness |
+| `mixed enriched and plain findings in JSON` | Partial enrichment |
+| `ignores JSON-like content outside markers` | IMP-002 boundary |
 
-**Deliverables:**
-1. `.claude/scripts/bridge-orchestrator.sh` — main loop with state machine
-2. `.claude/scripts/bridge-findings-parser.sh` — structured extraction
-3. `.run/bridge-state.json` schema and state management
-4. Findings-to-sprint-plan generator (agent-based)
-5. Flatline detection algorithm
-6. Resume and context recovery logic
-7. Bridge orchestrator tests (BATS + eval tasks)
+#### bridge-state.bats (extend existing)
 
-### Phase 3: GitHub Trail + Bridgebuilder Integration + RTFM Gate (Sprint 3)
+| Test | What It Tests |
+|------|--------------|
+| `update_flatline writes last_score` | Seed HIGH-2 fix |
+| `by_severity includes praise count` | Pass-through verification |
+| `concurrent state updates don't corrupt` | IMP-004 flock |
 
-**Deliverables:**
-1. `.claude/scripts/bridge-github-trail.sh` — comment posting, PR updates
-2. `.claude/scripts/bridge-vision-capture.sh` — vision extraction
-3. Bridgebuilder BEAUVOIR.md extension for lore-aware reviews
-4. Structured findings format in Bridgebuilder output
-5. RTFM integration as post-loop gate
-6. `/run-bridge` command and skill registration
-7. Golden path bridge state detection
-8. Configuration section in `.loa.config.yaml`
-9. Constraint amendments
-10. End-to-end integration tests
-11. Version bump and CHANGELOG
+#### bridge-github-trail.bats (extend existing)
+
+| Test | What It Tests |
+|------|--------------|
+| `truncates body exceeding 65KB` | SKP-001 size enforcement |
+| `falls back to findings-only above 256KB` | SKP-001 fallback |
+| `redacts high-entropy strings from insights` | SKP-005 redaction |
+| `uses printf instead of echo` | Seed MEDIUM-7 fix |
+| `cmd_vision uses safe string construction` | Seed HIGH-3 fix |
+
+### 7.2 Test Fixtures
+
+Create enriched review fixture with JSON findings block:
+
+```markdown
+# Bridgebuilder Review — Test Fixture
+
+This is the opening framing prose...
+
+<!-- bridge-findings-start -->
+```json
+{
+  "schema_version": 1,
+  "findings": [
+    {
+      "id": "high-1",
+      "title": "Missing input validation",
+      "severity": "HIGH",
+      "category": "security",
+      "file": "src/api/handler.ts:42",
+      "description": "User input passed directly to database query",
+      "suggestion": "Add zod schema validation",
+      "potential": "",
+      "weight": 5,
+      "faang_parallel": "Equifax 2017 breach",
+      "metaphor": "Like letting strangers walk through your house",
+      "teachable_moment": "Validate at system boundaries",
+      "connection": "Defense in depth — OWASP A03:2021",
+      "praise": false
+    },
+    {
+      "id": "praise-1",
+      "title": "Excellent error boundary design",
+      "severity": "PRAISE",
+      "category": "architecture",
+      "file": "src/core/error-boundary.ts",
+      "description": "Error boundaries prevent cascading failures",
+      "suggestion": "",
+      "potential": "",
+      "weight": 0,
+      "faang_parallel": "Netflix Hystrix",
+      "metaphor": "",
+      "teachable_moment": "Containing blast radius > preventing all errors",
+      "connection": "Bulkhead pattern",
+      "praise": true
+    }
+  ]
+}
+```
+<!-- bridge-findings-end -->
+
+This is the closing meditation...
+```
+
+### 7.3 Integration Validation
+
+- Run enriched parser on JSON fixture — verify all fields extracted
+- Run enriched parser on cycle-005 markdown fixture — verify legacy fallback
+- Verify `severity_weighted_score` excludes PRAISE (weight=0)
+- Verify `by_severity` includes all 6 levels
+- Verify size enforcement: create >65KB fixture, verify truncation
+- Verify redaction: include high-entropy string in prose, verify stripped
+- Verify persona integrity: modify persona on branch, verify base-branch fallback
 
 ---
 
-## 11. Security Considerations
+## 8. Implementation Phases
+
+### Phase 1: Seed Findings + Parser Redesign (Sprint 1)
+
+**Deliverables:**
+1. Fix all CRITICAL and HIGH seed findings (#1-5)
+2. Fix MEDIUM seed findings (#6, 7, 8)
+3. Redesign parser: JSON fenced block extraction with legacy fallback
+4. Add `schema_version` to parser output (IMP-008)
+5. Add PRAISE severity weight and `praise` to `by_severity`
+6. Add `flock`-based atomic state updates (IMP-004)
+7. Fix `update_flatline()` to write `last_score` (seed HIGH-2)
+8. Extend parser BATS tests for JSON extraction + legacy fallback
+9. Extend state BATS tests for flock + last_score
+10. Fix LOW seed findings (#11, 13)
+11. Update `CLAUDE.loa.md` (Three-Zone, danger level, state diagram)
+
+### Phase 2: Persona + SKILL.md + Trail Hardening (Sprint 2)
+
+**Deliverables:**
+1. Create `.claude/data/bridgebuilder-persona.md` with all required sections
+2. Add persona integrity verification (SKP-003)
+3. Add persona content validation (IMP-001)
+4. Extend `/run-bridge` SKILL.md with enriched review workflow
+5. Add size enforcement to `bridge-github-trail.sh` (SKP-001)
+6. Add content redaction to `bridge-github-trail.sh` (SKP-005)
+7. Add new constraints (C-BRIDGE-006, 007, 008) — soft guidance
+8. Add `bridge`/`eval` to constraint category enum
+9. Add `bridgebuilder` section to config files
+10. Extend trail BATS tests for size + redaction
+11. Add enrichment metrics to bridge state (IMP-010)
+
+### Phase 3: Validation + Integration (Sprint 3)
+
+**Deliverables:**
+1. Create enriched JSON test fixture
+2. Run parser on fixture — validate all fields
+3. Run parser on cycle-005 markdown — verify legacy fallback works
+4. Verify convergence isolation (PRAISE weight=0)
+5. Verify size enforcement (truncation + fallback)
+6. Verify persona integrity check (base-branch hash)
+7. Verify redaction (high-entropy strings stripped)
+8. Update lore cross-references (seed #8)
+9. Final CLAUDE.loa.md integrity hash
+10. Version bump and CHANGELOG entry
+
+---
+
+## 9. Security Considerations
 
 | Concern | Mitigation |
 |---------|-----------|
-| Bridge loop runs indefinitely | Hard depth limit (max 5), total timeout (24h), flatline detection |
-| Bridgebuilder review posts to GitHub | Uses existing `gh` auth, draft PRs only, respects ICE |
-| Lore injection via YAML | Lore files are in System Zone (.claude/data/), not user-editable |
-| Vision entries contain unvalidated content | Visions are in State Zone (grimoires/), human review expected |
-| GT checksums could be forged | Checksums computed from actual files at generation time |
-| Sprint plans generated from findings | Goes through full implement→review→audit cycle |
+| Persona prompt injection via PR (SKP-003) | Base-branch hash verification before loading persona |
+| Heredoc injection in vision comments | Replace with printf-based construction |
+| Echo escape sequence interpretation | Replace with `printf '%s'` |
+| FAANG parallel hallucination (SKP-004) | Soft guidance: "only cite when confident", no quotas |
+| Token budget overflow (SKP-001) | Hard size enforcement: truncate at 65KB, findings-only at 256KB |
+| Secret leakage in PR comments (SKP-005) | Content redaction: strip high-entropy strings, abstract security findings |
+| State file corruption from concurrent writes (IMP-004) | `flock` for all read-modify-write operations |
+| Findings parsing failure (SKP-002) | JSON validation with legacy fallback |
 
 ---
 
-## 12. Risk Mitigation
+## 10. Risk Mitigation
 
 | Risk (from PRD) | Architectural Mitigation |
 |-----------------|-------------------------|
-| Bridge loop without meaningful findings | Flatline detection (2 consecutive below 5%) + hard depth limit |
-| GT drifts from reality | Checksum verification + bridge loop regeneration at finalization |
-| Bridgebuilder quality degrades at depth | Severity-weighted scoring ensures diminishing returns are detected |
-| Lore feels forced | Optional integration (skills can opt out), curated corpus, `short` field for minimal references |
-| RTFM creates circular fix loops | Single fix iteration cap |
+| Token cost increase per iteration | Configurable budgets; hard size limits prevent runaway posting |
+| Persona drift (formulaic reviews) | Diverse voice examples; soft guidance prevents forced filler |
+| FAANG parallels become inaccurate | Soft guidance: "only cite when confident"; no quota pressure |
+| Enriched fields slow parser | JSON extraction is faster than regex; fields are in-memory |
+| Dual-stream confuses sprint plan | Sprint plan only sees findings JSON; PRAISE weight=0 |
+| Convergence regression | PRAISE weight=0 + enriched fields informational = identical math |
+| Insights leak sensitive data | Content redaction + security-findings abstraction |
+| Parser breaks on LLM formatting drift | JSON fenced block is structurally robust; legacy fallback |
 
 ---
 
