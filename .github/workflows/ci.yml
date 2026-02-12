@@ -97,6 +97,21 @@ jobs:
           echo "WARNING: Template guard bypassed via [skip-template-guard] in commit message"
           echo "This should only be used for exceptional circumstances!"
 
+  # =============================================================================
+  # FIXTURE SYNC - Ensures eval fixtures match source files
+  # =============================================================================
+  fixture-sync:
+    name: Fixture Sync Check
+    needs: template-guard
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Check fixture drift
+        run: bash evals/fixtures/sync-fixtures.sh --check
+
   validate:
     name: Validate Framework Files
     needs: template-guard
