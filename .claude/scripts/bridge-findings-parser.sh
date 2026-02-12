@@ -207,7 +207,7 @@ parse_findings() {
   else
     findings="[]"
   fi
-  rm -f "$tmp_findings"
+  # Cleanup handled by trap EXIT — no explicit rm needed
 
   echo "$findings"
 }
