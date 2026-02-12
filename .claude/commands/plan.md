@@ -52,7 +52,43 @@ LOA-E001: Missing prerequisite
   Run /plan first (or /plan --from discovery).
 ```
 
-### 3. Route to Truename
+### 3. Archetype Selection (First-Time Projects Only)
+
+Before routing to discovery, check if this is a first-time project:
+
+1. Does `grimoires/loa/prd.md` exist? → If yes, **SKIP** archetypes.
+2. Does `grimoires/loa/ledger.json` have any completed cycles? → If yes, **SKIP**.
+3. If both conditions indicate a fresh project, list archetypes from `.claude/data/archetypes/`:
+
+```bash
+for f in .claude/data/archetypes/*.yaml; do
+  name=$(yq '.name' "$f")
+  desc=$(yq '.description' "$f")
+  echo "$name: $desc"
+done
+```
+
+Present via AskUserQuestion:
+```yaml
+question: "What type of project are you building?"
+header: "Archetype"
+options:
+  - label: "REST API"
+    description: "Backend API service with auth, CRUD, and docs"
+  - label: "CLI Tool"
+    description: "Command-line app with argument parsing"
+  - label: "Library / Package"
+    description: "Reusable library with public API"
+  - label: "Full-Stack App"
+    description: "Web app with frontend, backend, and database"
+multiSelect: false
+```
+
+The user can select "Other" to skip and start from a blank slate.
+
+On selection: read the archetype YAML, format its `context` fields into Markdown, and write to `grimoires/loa/context/archetype.md`. The context ingestion pipeline in `/plan-and-analyze` picks it up automatically.
+
+### 4. Route to Truename
 
 Based on detected (or overridden) phase:
 
@@ -63,7 +99,7 @@ Based on detected (or overridden) phase:
 | `sprint_planning` | Execute `/sprint-plan` |
 | `complete` | Show: "Planning complete. All artifacts exist. Next: /build" |
 
-### 4. Chain Phases
+### 5. Chain Phases
 
 After each phase completes successfully, check if the next phase should run:
 

@@ -1,0 +1,25 @@
+name: "Library / Package"
+description: "Reusable library with public API, documentation, and versioning"
+tags: ["library", "package", "api"]
+context:
+  vision: |
+    A well-documented, reusable library with a stable public API.
+  technical:
+    - "Clear public API with minimal surface area"
+    - "Semantic versioning with changelog"
+    - "Type definitions / type annotations"
+    - "Zero or minimal runtime dependencies"
+    - "Tree-shakeable / modular exports"
+  non_functional:
+    - "Bundle size < 50KB minified (if JS/TS)"
+    - "No side effects on import"
+    - "Compatible with major runtimes (Node, Deno, browser)"
+    - "API documentation generated from source"
+  testing:
+    - "Unit tests for all public API methods"
+    - "Edge case and error path coverage"
+    - "Compatibility tests across target runtimes"
+  risks:
+    - "Breaking changes without major version bump"
+    - "Prototype pollution (if JS)"
+    - "Dependency supply chain attacks"

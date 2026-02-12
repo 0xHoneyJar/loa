@@ -3,8 +3,13 @@ suite: framework
 model_version: "unknown"
 recorded_at: "2026-02-12"
 recorded_from_run: "unknown"
-update_reason: "Add mount verification eval tasks for Sprint 2"
+update_reason: "Add setup wizard and archetype eval tasks for Sprint 3"
 tasks:
+  archetype-schema:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
   config-has-run-mode:
     pass_rate: 1
     trials: 1
@@ -116,6 +121,11 @@ tasks:
     mean_score: 100
     status: active
   quality-skill-index:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  setup-check-nfr8:
     pass_rate: 1
     trials: 1
     mean_score: 100

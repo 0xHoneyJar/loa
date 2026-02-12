@@ -1,0 +1,25 @@
+name: "CLI Tool"
+description: "Command-line application with argument parsing and structured output"
+tags: ["cli", "terminal", "args"]
+context:
+  vision: |
+    A robust CLI tool with intuitive argument handling and helpful output.
+  technical:
+    - "Argument parsing with subcommands and flags"
+    - "Structured output (JSON, table, plain text)"
+    - "Configuration file support (YAML or TOML)"
+    - "Exit codes following Unix conventions"
+    - "Shell completion generation"
+  non_functional:
+    - "Startup time < 100ms for simple operations"
+    - "Graceful handling of Ctrl+C (SIGINT)"
+    - "Useful --help output at every level"
+    - "No-color mode for piped/CI output"
+  testing:
+    - "Argument parsing edge cases"
+    - "Exit code verification for each error type"
+    - "Output format validation (JSON schema)"
+  risks:
+    - "Shell injection via unsanitized arguments"
+    - "Path traversal through user-provided paths"
+    - "Sensitive data in verbose/debug output"

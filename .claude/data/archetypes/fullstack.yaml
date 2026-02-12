@@ -1,0 +1,25 @@
+name: "Full-Stack App"
+description: "Web application with frontend UI, backend API, and database"
+tags: ["fullstack", "frontend", "backend"]
+context:
+  vision: |
+    A full-stack web application with modern frontend and robust backend.
+  technical:
+    - "Frontend: component-based UI with state management"
+    - "Backend: API layer with authentication middleware"
+    - "Database: ORM/query builder with migrations"
+    - "Shared types between frontend and backend"
+    - "Environment-based configuration (dev, staging, prod)"
+  non_functional:
+    - "First contentful paint < 1.5s"
+    - "API response time < 200ms p95"
+    - "Responsive design (mobile, tablet, desktop)"
+    - "Accessibility: WCAG 2.1 AA compliance"
+  testing:
+    - "Component tests for UI elements"
+    - "API integration tests"
+    - "End-to-end tests for critical user flows"
+  risks:
+    - "XSS through unsanitized user content"
+    - "CSRF on state-changing endpoints"
+    - "Insecure direct object references (IDOR)"
