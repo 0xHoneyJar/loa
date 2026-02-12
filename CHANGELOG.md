@@ -5,6 +5,29 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.1] - 2026-02-12
+
+### Why This Release
+
+Quality hardening pass for the Onboarding UX release. Fixes CI failures, adds missing test coverage, formalizes schemas, and documents lifecycle protocols — all traced to Bridgebuilder architectural review findings on PR #291.
+
+### Fixed
+
+- **Template Protection CI** — removed 37 forbidden state files (`.run/`, `.beads/`, `.ck/`) from git tracking that accumulated during previous development cycles
+- **Fixture sync CI integration** — new `fixture-sync` CI job runs `sync-fixtures.sh --check` on every PR to catch drift before merge
+
+### Added
+
+- **Bug-specific journey bar** — `golden_format_bug_journey()` renders bug lifecycle visualization: `/triage ━━━ /fix ●━━━ /review ━━━ /close`
+- **JSON output mode** — `golden_menu_options --json` produces machine-readable output for tooling integration
+- **Archetype risk seeding** — `/plan` now seeds `NOTES.md ## Known Risks` from selected archetype's `context.risks`
+- **Archetype schema validation** — `schema.yaml` defines required archetype fields; `sync-fixtures.sh --check` validates all archetypes
+- **Auto-discovery of sync targets** — `sync-fixtures.sh` scans eval task YAML files to auto-populate fixture sync map
+- **BATS unit test suite** — 33 tests covering `golden-path.sh` state detection, menu options, journey visualization, pipe sanitization, and bug transitions
+- **Sprint completion protocol** — `.claude/protocols/sprint-completion.md` documents the implement → review → audit → COMPLETED lifecycle
+- **Bug lifecycle protocol** — `.claude/protocols/bug-lifecycle.md` documents the full bug state machine with transitions and TOCTOU-safe verification
+- 2 new framework eval tasks: `golden-bug-journey`, `golden-menu-json`
+
 ## [1.34.0] - 2026-02-12
 
 ### Why This Release

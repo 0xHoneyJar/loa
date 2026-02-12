@@ -1,0 +1,27 @@
+# Archetype Schema Definition
+# All archetype YAML files in this directory must conform to this schema.
+# Validated by evals/fixtures/sync-fixtures.sh --check
+#
+# Required fields:
+#   name:        String — display name for AskUserQuestion (max 30 chars)
+#   description: String — one-line explanation for option description
+#   tags:        List   — category tags for filtering
+#   context:     Map    — domain knowledge seeded into PRD discovery
+#     vision:        String — high-level project vision
+#     technical:     String or List — technical patterns and constraints
+#     non_functional: String or List — performance, security, operational requirements
+#     testing:       String or List — test strategy and priorities
+#     risks:         String or List — domain-specific risks and concerns
+
+required_fields:
+  - name
+  - description
+  - tags
+  - context
+
+required_context_fields:
+  - vision
+  - technical
+  - non_functional
+  - testing
+  - risks
