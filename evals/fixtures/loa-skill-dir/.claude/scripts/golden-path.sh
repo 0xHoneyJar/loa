@@ -434,6 +434,8 @@ golden_menu_options() {
                 if [[ ${#bug_title} -gt 40 ]]; then
                     bug_title="${bug_title:0:37}..."
                 fi
+                # Sanitize pipe chars to prevent delimiter collision
+                bug_title="${bug_title//|/-}"
             else
                 bug_title="Active bug"
             fi

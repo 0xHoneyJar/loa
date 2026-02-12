@@ -44,9 +44,13 @@ fi
 
 # Step 4: Configuration status
 if [[ -f ".loa.config.yaml" ]]; then
-  flatline=$(yq '.flatline_protocol.enabled // false' .loa.config.yaml 2>/dev/null || echo "unknown")
-  memory=$(yq '.memory.enabled // true' .loa.config.yaml 2>/dev/null || echo "unknown")
-  enhance=$(yq '.prompt_enhancement.invisible_mode.enabled // true' .loa.config.yaml 2>/dev/null || echo "unknown")
+  flatline=$(yq '.flatline_protocol.enabled // false' .loa.config.yaml 2>/dev/null)
+  memory=$(yq '.memory.enabled // true' .loa.config.yaml 2>/dev/null)
+  enhance=$(yq '.prompt_enhancement.invisible_mode.enabled // true' .loa.config.yaml 2>/dev/null)
+  # Ensure values are valid JSON booleans (--argjson requires valid JSON)
+  case "$flatline" in true|false) ;; *) flatline="false" ;; esac
+  case "$memory" in true|false) ;; *) memory="true" ;; esac
+  case "$enhance" in true|false) ;; *) enhance="true" ;; esac
   jq -n \
     --argjson flatline "${flatline}" \
     --argjson memory "${memory}" \
