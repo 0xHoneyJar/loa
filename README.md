@@ -116,6 +116,7 @@ Seventeen specialized skills that ride alongside you:
 | translating-for-executives | Developer Relations |
 | enhancing-prompts | Prompt Engineer |
 | run-mode | Autonomous Executor |
+| run-bridge | Excellence Loop Operator |
 | simstim-workflow | HITL Orchestrator |
 | riding-codebase | Codebase Analyst |
 | continuous-learning | Learning Extractor |
@@ -153,6 +154,10 @@ Loa uses a **three-zone model** inspired by AWS Projen and Google's ADK:
 | **Cross-Platform Compat** | Shell scripting protocol for macOS + Linux | [Scripts](.claude/scripts/compat/) |
 | **Prompt Enhancement** | PTCF-based prompt analysis and improvement | [CHANGELOG.md](CHANGELOG.md) |
 | **Run Mode** | Autonomous sprint execution with draft PRs | [CLAUDE.md](CLAUDE.md#run-mode) |
+| **Run Bridge** | Iterative excellence loop with Bridgebuilder review and flatline detection | [CLAUDE.md](CLAUDE.md#run-bridge) |
+| **Lore Knowledge Base** | Cultural/philosophical context for agent skills (Mibera + Neuromancer) | [Data](.claude/data/lore/) |
+| **Vision Registry** | Speculative insight capture from bridge iterations | [Visions](grimoires/loa/visions/) |
+| **Grounded Truth** | Checksum-verified codebase summaries extending `/ride` | [Script](.claude/scripts/ground-truth-gen.sh) |
 | **Simstim** | HITL accelerated development (PRD -> SDD -> Sprint -> Run) | [Command](.claude/commands/simstim.md) |
 | **Compound Learning** | Cross-session pattern detection + feedback loop | [CHANGELOG.md](CHANGELOG.md) |
 | **Construct Manifest Standard** | Event-driven contracts with schema validation | [CHANGELOG.md](CHANGELOG.md) |

@@ -1,0 +1,192 @@
+#!/usr/bin/env bats
+# Unit tests for golden-path.sh bridge state detection
+# Sprint 3: Integration — bridge state in golden path
+
+setup() {
+    BATS_TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+    PROJECT_ROOT="$(cd "$BATS_TEST_DIR/../.." && pwd)"
+
+    export BATS_TMPDIR="${BATS_TMPDIR:-/tmp}"
+    export TEST_TMPDIR="$BATS_TMPDIR/golden-bridge-test-$$"
+    mkdir -p "$TEST_TMPDIR/.claude/scripts" "$TEST_TMPDIR/.run"
+    mkdir -p "$TEST_TMPDIR/grimoires/loa"
+
+    # Copy required scripts
+    cp "$PROJECT_ROOT/.claude/scripts/bootstrap.sh" "$TEST_TMPDIR/.claude/scripts/"
+    cp "$PROJECT_ROOT/.claude/scripts/golden-path.sh" "$TEST_TMPDIR/.claude/scripts/"
+    if [[ -f "$PROJECT_ROOT/.claude/scripts/path-lib.sh" ]]; then
+        cp "$PROJECT_ROOT/.claude/scripts/path-lib.sh" "$TEST_TMPDIR/.claude/scripts/"
+    fi
+
+    # Initialize git repo for bootstrap
+    cd "$TEST_TMPDIR"
+    git init -q
+    git add -A 2>/dev/null || true
+    git commit -q -m "init" --allow-empty
+
+    export PROJECT_ROOT="$TEST_TMPDIR"
+}
+
+teardown() {
+    cd /
+    if [[ -d "$TEST_TMPDIR" ]]; then
+        rm -rf "$TEST_TMPDIR"
+    fi
+}
+
+skip_if_deps_missing() {
+    if ! command -v jq &>/dev/null; then
+        skip "jq not installed"
+    fi
+}
+
+# =============================================================================
+# Bridge State Detection
+# =============================================================================
+
+@test "golden-path: detect_bridge_state returns none when no state file" {
+    source "$TEST_TMPDIR/.claude/scripts/golden-path.sh"
+    local state
+    state=$(golden_detect_bridge_state)
+    [ "$state" = "none" ]
+}
+
+@test "golden-path: detect_bridge_state returns ITERATING" {
+    skip_if_deps_missing
+    cat > "$TEST_TMPDIR/.run/bridge-state.json" <<'EOF'
+{
+    "state": "ITERATING",
+    "bridge_id": "bridge-test-123",
+    "config": {"depth": 3},
+    "iterations": [{"iteration": 1, "state": "completed"}],
+    "flatline": {"initial_score": 15.5, "last_score": 4.0}
+}
+EOF
+
+    source "$TEST_TMPDIR/.claude/scripts/golden-path.sh"
+    local state
+    state=$(golden_detect_bridge_state)
+    [ "$state" = "ITERATING" ]
+}
+
+@test "golden-path: detect_bridge_state returns HALTED" {
+    skip_if_deps_missing
+    cat > "$TEST_TMPDIR/.run/bridge-state.json" <<'EOF'
+{
+    "state": "HALTED",
+    "bridge_id": "bridge-test-456"
+}
+EOF
+
+    source "$TEST_TMPDIR/.claude/scripts/golden-path.sh"
+    local state
+    state=$(golden_detect_bridge_state)
+    [ "$state" = "HALTED" ]
+}
+
+@test "golden-path: detect_bridge_state returns JACKED_OUT" {
+    skip_if_deps_missing
+    cat > "$TEST_TMPDIR/.run/bridge-state.json" <<'EOF'
+{
+    "state": "JACKED_OUT",
+    "bridge_id": "bridge-test-789"
+}
+EOF
+
+    source "$TEST_TMPDIR/.claude/scripts/golden-path.sh"
+    local state
+    state=$(golden_detect_bridge_state)
+    [ "$state" = "JACKED_OUT" ]
+}
+
+# =============================================================================
+# Bridge Progress Display
+# =============================================================================
+
+@test "golden-path: bridge_progress returns empty for missing state" {
+    source "$TEST_TMPDIR/.claude/scripts/golden-path.sh"
+    local progress
+    progress=$(golden_bridge_progress)
+    [ -z "$progress" ]
+}
+
+@test "golden-path: bridge_progress shows iteration for ITERATING state" {
+    skip_if_deps_missing
+    cat > "$TEST_TMPDIR/.run/bridge-state.json" <<'EOF'
+{
+    "state": "ITERATING",
+    "bridge_id": "bridge-test-p1",
+    "config": {"depth": 3},
+    "iterations": [
+        {"iteration": 1, "state": "completed"},
+        {"iteration": 2, "state": "in_progress"}
+    ],
+    "flatline": {"initial_score": 15.5, "last_score": 4.0}
+}
+EOF
+
+    source "$TEST_TMPDIR/.claude/scripts/golden-path.sh"
+    local progress
+    progress=$(golden_bridge_progress)
+    [[ "$progress" == *"Iteration 2/3"* ]]
+    [[ "$progress" == *"score"* ]]
+}
+
+@test "golden-path: bridge_progress shows resume for HALTED state" {
+    skip_if_deps_missing
+    cat > "$TEST_TMPDIR/.run/bridge-state.json" <<'EOF'
+{
+    "state": "HALTED",
+    "bridge_id": "bridge-test-p2",
+    "config": {"depth": 3},
+    "iterations": [{"iteration": 1, "state": "completed"}]
+}
+EOF
+
+    source "$TEST_TMPDIR/.claude/scripts/golden-path.sh"
+    local progress
+    progress=$(golden_bridge_progress)
+    [[ "$progress" == *"HALTED"* ]]
+    [[ "$progress" == *"resume"* ]]
+}
+
+@test "golden-path: bridge_progress returns empty for JACKED_OUT" {
+    skip_if_deps_missing
+    cat > "$TEST_TMPDIR/.run/bridge-state.json" <<'EOF'
+{
+    "state": "JACKED_OUT",
+    "bridge_id": "bridge-test-p3",
+    "config": {"depth": 3}
+}
+EOF
+
+    source "$TEST_TMPDIR/.claude/scripts/golden-path.sh"
+    local progress
+    progress=$(golden_bridge_progress)
+    [ -z "$progress" ]
+}
+
+# =============================================================================
+# Existing Golden Path Tests Regression
+# =============================================================================
+
+@test "golden-path: detect_plan_phase works with bridge additions" {
+    source "$TEST_TMPDIR/.claude/scripts/golden-path.sh"
+    local phase
+    phase=$(golden_detect_plan_phase)
+    [ "$phase" = "discovery" ]
+}
+
+@test "golden-path: detect_sprint returns empty with no sprint file" {
+    source "$TEST_TMPDIR/.claude/scripts/golden-path.sh"
+    local sprint
+    sprint=$(golden_detect_sprint)
+    [ -z "$sprint" ]
+}
+
+@test "golden-path: suggest_command returns /plan for initial state" {
+    source "$TEST_TMPDIR/.claude/scripts/golden-path.sh"
+    local cmd
+    cmd=$(golden_suggest_command)
+    [ "$cmd" = "/plan" ]
+}

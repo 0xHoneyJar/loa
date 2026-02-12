@@ -1218,6 +1218,70 @@ post_pr_validation:
     mode: "autonomous"
 
 # =============================================================================
+# Run Bridge — Autonomous Excellence Loop (v1.34.0)
+# =============================================================================
+# Iterative sprint-plan → Bridgebuilder review → findings → repeat loop.
+# Each iteration leaves a GitHub trail and captures visions.
+run_bridge:
+  # Master toggle — must be true to use /run-bridge
+  enabled: false
+
+  # Default parameters
+  defaults:
+    # Maximum bridge iterations (1-5)
+    depth: 3
+    # Review after each sprint vs full plan
+    per_sprint: false
+    # Flatline threshold: ratio of current/initial score below which to count as "flat"
+    flatline_threshold: 0.05
+    # How many consecutive below-threshold iterations before stopping
+    consecutive_flatline: 2
+
+  # Timeout limits
+  timeouts:
+    # Maximum hours per bridge iteration
+    per_iteration_hours: 4
+    # Maximum total hours for entire bridge run
+    total_hours: 24
+
+  # GitHub trail configuration
+  github_trail:
+    # Post Bridgebuilder review as PR comment after each iteration
+    post_comments: true
+    # Update PR body with iteration summary table
+    update_pr_body: true
+    # Commit message prefix for bridge iteration commits
+    commit_prefix: "bridge"
+
+  # Ground Truth generation
+  ground_truth:
+    enabled: true
+    # Max tokens per GT section file
+    max_tokens_per_section: 2000
+    # Max tokens for GT index file
+    index_max_tokens: 500
+
+  # Vision Registry
+  vision_registry:
+    enabled: true
+    # Auto-capture VISION findings from Bridgebuilder reviews
+    auto_capture: true
+
+  # RTFM documentation gate (runs after loop termination)
+  rtfm:
+    enabled: true
+    # Maximum fix iterations on RTFM failure (capped to prevent loops)
+    max_fix_iterations: 1
+
+  # Lore integration
+  lore:
+    enabled: true
+    # Which lore categories to load for bridge context
+    categories:
+      - mibera
+      - neuromancer
+
+# =============================================================================
 # Bridgebuilder — Autonomous PR Review
 # =============================================================================
 # Configuration for the /bridgebuilder skill. All fields have sensible defaults.

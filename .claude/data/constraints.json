@@ -823,6 +823,131 @@
         }
       ],
       "severity": "medium"
+    },
+    {
+      "id": "C-BRIDGE-001",
+      "name": "bridge_uses_run_sprint_plan",
+      "category": "bridge",
+      "rule_type": "ALWAYS",
+      "text": "use `/run sprint-plan` (not direct `/implement`) within bridge iterations",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS use `/run sprint-plan` (not direct `/implement`) within bridge iterations",
+        "skill-md": "DO use `/run sprint-plan` within bridge iterations, never direct `/implement`"
+      },
+      "why": "Bridge iterations must inherit the implement→review→audit cycle with circuit breaker protection",
+      "order": 0,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "bridge_constraints",
+          "render_as": "table_row"
+        },
+        {
+          "target": "skill-md",
+          "skills": ["run-bridge"],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "critical"
+    },
+    {
+      "id": "C-BRIDGE-002",
+      "name": "bridge_github_trail",
+      "category": "bridge",
+      "rule_type": "ALWAYS",
+      "text": "post Bridgebuilder review as PR comment after each bridge iteration",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS post Bridgebuilder review as PR comment after each bridge iteration",
+        "skill-md": "DO post Bridgebuilder review as PR comment after each bridge iteration"
+      },
+      "why": "GitHub trail provides auditable history of iterative improvement decisions",
+      "order": 1,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "bridge_constraints",
+          "render_as": "table_row"
+        },
+        {
+          "target": "skill-md",
+          "skills": ["run-bridge"],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-BRIDGE-003",
+      "name": "gt_grounding_required",
+      "category": "bridge",
+      "rule_type": "ALWAYS",
+      "text": "ensure Grounded Truth claims cite `file:line` source references",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS ensure Grounded Truth claims cite `file:line` source references",
+        "skill-md": "DO ensure all GT claims cite `file:line` source references"
+      },
+      "why": "Ungrounded claims in GT files propagate misinformation across sessions and agents",
+      "order": 2,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "bridge_constraints",
+          "render_as": "table_row"
+        },
+        {
+          "target": "skill-md",
+          "skills": ["run-bridge", "riding-codebase"],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-BRIDGE-004",
+      "name": "lore_yaml_format",
+      "category": "bridge",
+      "rule_type": "ALWAYS",
+      "text": "use YAML format for lore entries with `id`, `term`, `short`, `context`, `source`, `tags` fields",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS use YAML format for lore entries with `id`, `term`, `short`, `context`, `source`, `tags` fields",
+        "skill-md": "DO use YAML format with required schema fields for all lore entries"
+      },
+      "why": "Consistent schema enables programmatic lore queries and cross-skill integration",
+      "order": 3,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "bridge_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "medium"
+    },
+    {
+      "id": "C-BRIDGE-005",
+      "name": "vision_traceability",
+      "category": "bridge",
+      "rule_type": "ALWAYS",
+      "text": "include source bridge iteration and PR in vision entries",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS include source bridge iteration and PR in vision entries",
+        "skill-md": "DO include source bridge iteration and PR in every vision entry"
+      },
+      "why": "Vision entries without provenance cannot be traced back to the context that inspired them",
+      "order": 4,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "bridge_constraints",
+          "render_as": "table_row"
+        },
+        {
+          "target": "skill-md",
+          "skills": ["run-bridge"],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "medium"
     }
   ]
 }

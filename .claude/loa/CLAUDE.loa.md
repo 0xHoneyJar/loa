@@ -154,6 +154,8 @@ paths:
 
 **Run Mode**: `/run sprint-N`, `/run sprint-plan`, `/run-status`, `/run-halt`, `/run-resume`
 
+**Run Bridge**: `/run-bridge`, `/run-bridge --depth N`, `/run-bridge --resume`
+
 ## Key Protocols
 
 - **Memory**: Maintain `grimoires/loa/NOTES.md`
@@ -311,6 +313,71 @@ simstim:
 ```
 
 Requires beads_rust (`br`). See: https://github.com/Dicklesworthstone/beads_rust
+
+## Run Bridge — Autonomous Excellence Loop (v1.34.0)
+
+Iterative improvement loop: execute sprint plan, invoke Bridgebuilder review, parse findings, generate new sprint plans from findings, repeat until insights flatline.
+
+### How It Works
+
+```
+PREFLIGHT → JACK_IN → ITERATING ↔ ITERATING → FINALIZING → JACKED_OUT
+```
+
+Each iteration: Run sprint-plan → Bridgebuilder review → Parse findings → Flatline check → GitHub trail → Vision capture. Loop terminates when severity-weighted score drops below threshold for consecutive iterations (kaironic termination).
+
+### Usage
+
+```bash
+/run-bridge                    # Default: 3 iterations
+/run-bridge --depth 5          # Up to 5 iterations
+/run-bridge --per-sprint       # Per-sprint review granularity
+/run-bridge --resume           # Resume interrupted bridge
+```
+
+### Bridge State Recovery
+
+Check `.run/bridge-state.json`:
+
+| State | Meaning | Action |
+|-------|---------|--------|
+| `ITERATING` | Active bridge loop | Continue autonomously |
+| `HALTED` | Stopped due to error | Await `/run-bridge --resume` |
+| `FINALIZING` | Post-loop GT + RTFM | Continue autonomously |
+| `JACKED_OUT` | Completed | No action |
+
+### Key Components
+
+| Component | Script |
+|-----------|--------|
+| Orchestrator | `bridge-orchestrator.sh` |
+| State Machine | `bridge-state.sh` |
+| Findings Parser | `bridge-findings-parser.sh` |
+| Vision Capture | `bridge-vision-capture.sh` |
+| GitHub Trail | `bridge-github-trail.sh` |
+| Ground Truth | `ground-truth-gen.sh` |
+
+### Lore Knowledge Base
+
+Cultural and philosophical context in `.claude/data/lore/`:
+
+| Category | Entries | Description |
+|----------|---------|-------------|
+| Mibera | Core, Cosmology, Rituals, Glossary | Mibera network mysticism framework |
+| Neuromancer | Concepts, Mappings | Gibson's Sprawl trilogy mappings |
+
+Skills query lore at invocation time via `index.yaml`. Use `short` fields inline, `context` for teaching moments.
+
+### Configuration
+
+```yaml
+run_bridge:
+  enabled: true
+  defaults:
+    depth: 3
+    flatline_threshold: 0.05
+    consecutive_flatline: 2
+```
 
 ## Persistent Memory (v1.28.0)
 

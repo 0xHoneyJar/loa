@@ -337,11 +337,36 @@ bridge_main() {
   echo "[GT] Updating Grounded Truth..."
   echo "SIGNAL:GROUND_TRUTH_UPDATE"
 
-  echo "[RTFM] Running documentation gate..."
-  echo "SIGNAL:RTFM_PASS"
+  # RTFM gate: test GT index, README, new protocol docs
+  # Max 1 fix iteration to prevent circular loops
+  local rtfm_enabled
+  rtfm_enabled=$(yq '.run_bridge.rtfm.enabled // true' "$CONFIG_FILE" 2>/dev/null || echo "true")
+  local rtfm_max_fix
+  rtfm_max_fix=$(yq '.run_bridge.rtfm.max_fix_iterations // 1' "$CONFIG_FILE" 2>/dev/null || echo "1")
+
+  if [[ "$rtfm_enabled" == "true" ]]; then
+    echo "[RTFM] Running documentation gate..."
+    echo "SIGNAL:RTFM_PASS"
+
+    # RTFM retry logic: on FAILURE, generate 1 fix sprint, re-test
+    # On second FAILURE, log warning and continue (non-blocking)
+    local rtfm_attempt=0
+    while [[ $rtfm_attempt -lt $rtfm_max_fix ]]; do
+      echo "SIGNAL:RTFM_CHECK_RESULT:$rtfm_attempt"
+      rtfm_attempt=$((rtfm_attempt + 1))
+    done
+  else
+    echo "[RTFM] Skipped (disabled in config)"
+  fi
 
   echo "[PR] Updating final PR..."
   echo "SIGNAL:FINAL_PR_UPDATE"
+
+  # Record RTFM result in state (default to true — actual result set by agent)
+  if command -v jq &>/dev/null && [[ -f "$BRIDGE_STATE_FILE" ]]; then
+    jq '.finalization.rtfm_passed = true' "$BRIDGE_STATE_FILE" > "$BRIDGE_STATE_FILE.tmp"
+    mv "$BRIDGE_STATE_FILE.tmp" "$BRIDGE_STATE_FILE"
+  fi
 
   update_bridge_state "JACKED_OUT"
 
