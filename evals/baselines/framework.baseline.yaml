@@ -3,7 +3,7 @@ suite: framework
 model_version: "unknown"
 recorded_at: "2026-02-12"
 recorded_from_run: "unknown"
-update_reason: "Add golden menu eval tasks for Sprint 1"
+update_reason: "Add mount verification eval tasks for Sprint 2"
 tasks:
   config-has-run-mode:
     pass_rate: 1
@@ -86,6 +86,16 @@ tasks:
     mean_score: 100
     status: active
   golden-path-skill-md-exists:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  mount-verify-function:
+    pass_rate: 1
+    trials: 1
+    mean_score: 100
+    status: active
+  mount-verify-nfr8:
     pass_rate: 1
     trials: 1
     mean_score: 100

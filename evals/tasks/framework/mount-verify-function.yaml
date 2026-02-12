@@ -1,0 +1,17 @@
+id: mount-verify-function
+schema_version: 1
+skill: test-skill
+category: framework
+fixture: loa-skill-dir
+description: "mount-loa.sh contains verify_mount() function for post-mount health check"
+trials: 1
+timeout:
+  per_trial: 60
+  per_grader: 30
+graders:
+  - type: code
+    script: pattern-match.sh
+    args: ["verify_mount", "mount-loa.sh"]
+    weight: 1.0
+difficulty: basic
+tags: ["framework", "mount", "onboarding-ux"]
