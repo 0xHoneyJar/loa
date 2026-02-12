@@ -126,6 +126,16 @@ The user can select "Other" to skip and start from a blank slate. If no archetyp
 
 On selection: read the archetype YAML, format its `context` fields into Markdown, and write to `grimoires/loa/context/archetype.md`. The context ingestion pipeline in `/plan-and-analyze` picks it up automatically.
 
+**Risk Seeding**: After writing `archetype.md`, also seed `grimoires/loa/NOTES.md` with domain-specific risks from the archetype:
+
+1. Extract `context.risks` from the selected archetype YAML
+2. If `grimoires/loa/NOTES.md` does not exist, create it with a `## Known Risks` section
+3. If `grimoires/loa/NOTES.md` exists but has no `## Known Risks` section, append it
+4. If `## Known Risks` already has content, **skip** (don't duplicate on re-selection)
+5. Each risk becomes a bullet point: `- **[Archetype: {name}]**: {risk}`
+
+This ensures domain knowledge persists across sessions. A developer starting sprint-3 of a REST API project sees OWASP risks in NOTES.md even if archetype selection happened weeks ago.
+
 ### 5. Route to Truename
 
 Based on detected (or overridden) phase:
