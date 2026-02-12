@@ -5,6 +5,102 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.35.0] - 2026-02-12 — Bridge Release
+
+### Why This Release
+
+The Run Bridge release (cycle-005, Issue #292) delivers autonomous excellence loops — iterative sprint-plan, Bridgebuilder review, findings parsing, and vision capture cycles that terminate via kaironic flatline detection. Built across 3 sprints: foundation data infrastructure (lore KB, vision registry, grounded truth), bridge core engine (orchestrator, state machine, findings parser), and full integration (GitHub trail, skill registration, golden path detection).
+
+### Added
+
+#### Run Bridge — Autonomous Excellence Loop (`/run-bridge`)
+
+Complete iterative improvement system with 6 new scripts:
+
+- **Bridge Orchestrator** (`bridge-orchestrator.sh`): State machine (PREFLIGHT→JACK_IN→ITERATING→FINALIZING→JACKED_OUT) with SIGNAL protocol for agent delegation, configurable depth (1-5), per-sprint mode, resume support, circuit breakers
+- **Bridge State Manager** (`bridge-state.sh`): JSON state management with atomic writes, transition validation, iteration tracking, metrics accumulation
+- **Bridge Findings Parser** (`bridge-findings-parser.sh`): Extracts structured JSON from Bridgebuilder markdown between `<!-- bridge-findings-start/end -->` markers. Severity weights: CRITICAL=10, HIGH=5, MEDIUM=2, LOW=1, VISION=0
+- **Flatline Detection**: Kaironic termination — loop stops when severity score drops below threshold (default 5%) for consecutive iterations (default 2)
+- **Vision Capture** (`bridge-vision-capture.sh`): Filters VISION findings, creates numbered entries, updates registry index
+- **GitHub Trail** (`bridge-github-trail.sh`): PR comments with dedup markers, PR body summary tables, vision link posting. Graceful degradation when `gh` unavailable
+
+#### `/run-bridge` Command and Skill
+
+- **Command**: `.claude/commands/run-bridge.md` with `--depth`, `--per-sprint`, `--resume`, `--from` flags
+- **Skill registration**: `.claude/skills/run-bridge/` with index.yaml (danger_level: high) and SKILL.md
+- **Configuration**: `run_bridge:` section in `.loa.config.yaml` with defaults, timeouts, GitHub trail, GT, vision registry, RTFM, and lore settings
+
+#### Mibera Lore Knowledge Base (`.claude/data/lore/`)
+
+Cultural and philosophical context for agent skills, structured as YAML entries with `short` (inline) and `context` (teaching) fields:
+
+- **Mibera core entries**: kaironic time, cheval, network mysticism, techno-animism, hounfour, loa rides
+- **Mibera cosmology**: Milady/Mibera duality, BGT triskelion, Honey/Bera, the Jar
+- **Mibera rituals**: bridge loop, sprint ceremony, mounting, jacking in, flatline ceremony, vision capture
+- **Mibera glossary**: 15 term definitions for agent consumption
+- **Neuromancer concepts**: ICE, jacking in, cyberspace, the matrix, SimStim, flatline construct, Wintermute, Neuromancer AI
+- **Neuromancer mappings**: 9 concept-to-Loa-feature mappings
+- **Integration guide**: README.md with entry schema and skill integration patterns
+
+#### Vision Registry (`grimoires/loa/visions/`)
+
+Directory structure for capturing VISION-type findings from bridge iterations:
+
+- **index.md**: Status summary with table headers (ID, Title, Source, Status, Tags)
+- **entries/**: Directory for individual vision entry files
+
+#### Grounded Truth Generator (`.claude/scripts/ground-truth-gen.sh`)
+
+Shell script handling mechanical GT operations:
+
+- **Scaffold mode**: Creates hub-and-spoke directory structure (index.md, api-surface.md, architecture.md, contracts.md, behaviors.md)
+- **Checksums mode**: Computes SHA-256 of source files referenced in reality/ extraction
+- **Validate mode**: Token budget validation (index < 500, sections < 2000 tokens)
+- **Cross-platform**: BSD/GNU sha256sum compatibility
+
+#### `/ride` Ground Truth Extension (Phase 11)
+
+- **`--ground-truth` flag**: Generates Grounded Truth output after ride
+- **`--non-interactive` flag**: Skips phases 1, 3, 8 for autonomous bridge loop usage
+- **Phase 11**: Read reality/ → synthesize GT files → generate checksums → validate tokens
+- **riding-codebase SKILL.md**: Phase 11 documentation with token budgets and trajectory logging
+
+#### Bridgebuilder Lore-Aware Persona
+
+- **BEAUVOIR.md**: Lore Integration section with circuit breaker→kaironic-time, multi-model→hounfour, session recovery→cheval mappings
+- **Structured Findings Format**: Documented `<!-- bridge-findings-start/end -->` marker protocol with severity tags and VISION type
+
+#### Golden Path Bridge State Detection
+
+- **`golden_detect_bridge_state()`**: Reads `.run/bridge-state.json`, returns state or "none"
+- **`golden_bridge_progress()`**: Human-readable progress for `/loa` display (iteration N/depth, score, resume instructions)
+
+#### Lore Integration Across Skills
+
+- **Bridgebuilder** (`BEAUVOIR.md`): Teaching moments with lore references
+- **Discovering Requirements** (`SKILL.md`): Philosophical framing for PRD creation
+- **Golden Path / `/loa`** (`loa.md`): Naming context from glossary entries
+
+#### Constraints
+
+5 new bridge constraints (C-BRIDGE-001 through C-BRIDGE-005):
+- Use `/run sprint-plan` within bridge iterations
+- Post Bridgebuilder review as PR comment after each iteration
+- Ensure GT claims cite `file:line` references
+- Use YAML format for lore entries with required schema fields
+- Include source bridge iteration and PR in vision entries
+
+#### Tests
+
+- **bridge-state.bats**: 21 tests (init, transitions, illegal transitions, flatline, metrics, schema)
+- **bridge-findings-parser.bats**: 9 tests (parsing, severity weighting, edge cases)
+- **bridge-vision-capture.bats**: 6 tests (entry creation, 0 visions, error handling)
+- **bridge-github-trail.bats**: 10 tests (subcommands, arg validation, graceful degradation)
+- **bridge-golden-path.bats**: 11 tests (state detection, progress display, regression)
+- **lore-validation.bats**: 25 tests (YAML schema, cross-references, glossary count)
+- **ground-truth-gen.bats**: 11 tests (scaffold, checksums, validate, all modes)
+- **7 eval tasks**: lore-index-valid, lore-entries-schema, gt-checksums-match, bridge-state-schema-valid, bridge-findings-parser-works, golden-path-bridge-detection, vision-entries-traceability
+
 ## [1.34.1] - 2026-02-12
 
 ### Why This Release

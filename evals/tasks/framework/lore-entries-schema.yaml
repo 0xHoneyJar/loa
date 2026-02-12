@@ -1,0 +1,29 @@
+id: lore-entries-schema
+schema_version: 1
+skill: test-skill
+category: framework
+fixture: loa-skill-dir
+description: "Lore entries have required fields: id, term, short, context, source, tags"
+trials: 1
+timeout:
+  per_trial: 60
+  per_grader: 30
+graders:
+  - type: code
+    script: pattern-match.sh
+    args: ["id:", ".claude/data/lore/mibera/core.yaml"]
+    weight: 0.25
+  - type: code
+    script: pattern-match.sh
+    args: ["term:", ".claude/data/lore/mibera/core.yaml"]
+    weight: 0.25
+  - type: code
+    script: pattern-match.sh
+    args: ["short:", ".claude/data/lore/mibera/core.yaml"]
+    weight: 0.25
+  - type: code
+    script: pattern-match.sh
+    args: ["context:", ".claude/data/lore/mibera/core.yaml"]
+    weight: 0.25
+difficulty: basic
+tags: ["framework", "lore", "quality-gate"]

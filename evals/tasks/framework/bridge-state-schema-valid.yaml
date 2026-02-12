@@ -1,0 +1,21 @@
+id: bridge-state-schema-valid
+schema_version: 1
+skill: test-skill
+category: framework
+fixture: loa-skill-dir
+description: "Bridge state management script exists and sources bootstrap"
+trials: 1
+timeout:
+  per_trial: 60
+  per_grader: 30
+graders:
+  - type: code
+    script: file-exists.sh
+    args: [".claude/scripts/bridge-state.sh"]
+    weight: 0.5
+  - type: code
+    script: pattern-match.sh
+    args: ["init_bridge_state", ".claude/scripts/bridge-state.sh"]
+    weight: 0.5
+difficulty: basic
+tags: ["framework", "bridge", "quality-gate"]

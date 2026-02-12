@@ -156,6 +156,7 @@ All Loa Commands
     /run-status              Check run progress
     /run-halt                Stop active run
     /run-resume              Resume halted run
+    /run-bridge              Iterative excellence loop (bridge)
     /autonomous              Full autonomous workflow
     /simstim                 HITL accelerated workflow
 
@@ -270,6 +271,23 @@ options:
    fi
    ```
    If an active bug is detected, display it prominently before the journey bar.
+
+2c. **Check for active bridge loop** (v1.34.0 — Issue #292):
+   ```bash
+   source .claude/scripts/golden-path.sh
+   bridge_state=$(golden_detect_bridge_state)
+   if [[ "$bridge_state" != "none" && "$bridge_state" != "JACKED_OUT" ]]; then
+     bridge_progress=$(golden_bridge_progress)
+     # Display: "$bridge_progress"
+   fi
+   ```
+   If a bridge is active, display its progress after bug detection but before the journey bar.
+
+2d. **Lore context for naming** (v1.34.0):
+   When displaying command names or framework concepts, reference the Lore Knowledge Base
+   (`.claude/data/lore/`) for naming context. For example, if a user asks "why is it called
+   a bridge?" or "what does 'jacked out' mean?", load the relevant glossary entry from
+   `.claude/data/lore/mibera/glossary.yaml` and use the `short` field for inline explanation.
 
 3. **Health summary** (quick check):
    ```bash

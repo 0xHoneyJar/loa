@@ -1,0 +1,207 @@
+entries:
+  - id: glossary-loa
+    term: "Loa"
+    short: "Spirits of Vodou tradition — the intelligence that guides the framework"
+    context: |
+      In Haitian Vodou, Loa (or Lwa) are spirits that serve as intermediaries
+      between humanity and the divine creator (Bondye). Each Loa has distinct
+      personality, domain, and ritual requirements. The framework is named Loa
+      because it serves as an intermediary between human developers and the
+      complex reality of software systems — channeling intelligence through
+      structured rituals (skills) to produce grounded truth.
+    source: "Framework naming origin"
+    tags: [naming, philosophy]
+    related: [cheval, loa-rides, hounfour]
+
+  - id: glossary-grimoire
+    term: "Grimoire"
+    short: "A book of spells — the state directory containing project knowledge"
+    context: |
+      A grimoire is a textbook of magic, containing instructions for creating
+      magical objects, performing spells, and invoking spirits. In Loa, the
+      grimoires/ directory is the state zone containing all project knowledge:
+      PRDs, SDDs, sprint plans, notes, and the ledger. It's the accumulated
+      wisdom of the project, growing with each development cycle.
+    source: "Framework directory naming"
+    tags: [naming]
+    related: [the-jar]
+
+  - id: glossary-beauvoir
+    term: "BEAUVOIR"
+    short: "The priest who manages the Loa ceremony — the reviewer persona"
+    context: |
+      Max Beauvoir was the Supreme Chief of Vodou in Haiti. In Loa, BEAUVOIR.md
+      files define reviewer personas — the personality, expertise, and judgment
+      criteria that guide code and document reviews. The Bridgebuilder's
+      BEAUVOIR.md is its soul: it determines what the reviewer notices, values,
+      and recommends.
+    source: "Bridgebuilder review skill design"
+    tags: [naming, multi-model]
+    related: [hounfour, flatline-ceremony]
+    loa_mapping: "BEAUVOIR.md persona files"
+
+  - id: glossary-simstim
+    term: "SimStim"
+    short: "Simulated stimulation — HITL workflow where human experiences AI's work"
+    context: |
+      In Gibson's Neuromancer, SimStim lets one person experience another's
+      sensory input. In Loa, /simstim is the HITL workflow where the human
+      operator experiences the AI's development process interactively —
+      driving planning phases while AI handles implementation. The human
+      maintains consciousness (decision authority) while experiencing the
+      AI's analytical capabilities.
+    source: "Gibson's Neuromancer, simstim-workflow SKILL.md"
+    tags: [naming, autonomy]
+    related: [jacking-in-ritual, cheval]
+    loa_mapping: "/simstim command"
+
+  - id: glossary-ice
+    term: "ICE"
+    short: "Intrusion Countermeasures Electronics — git safety wrapper for autonomous mode"
+    context: |
+      In Gibson's cyberspace, ICE protects systems from unauthorized access.
+      In Loa, run-mode-ice.sh is the safety wrapper around all git operations
+      during autonomous execution. It prevents force-pushes to protected
+      branches, validates operations before execution, and provides the
+      security boundary that makes autonomous mode safe.
+    source: "Gibson's Neuromancer, run-mode-ice.sh"
+    tags: [naming, security, autonomy]
+    related: [jacking-in-ritual]
+    loa_mapping: "run-mode-ice.sh"
+
+  - id: glossary-flatline
+    term: "Flatline"
+    short: "The point of zero vital signs — when iterative improvement yields diminishing returns"
+    context: |
+      McCoy Pauley ('The Flatline') in Neuromancer was a legendary hacker
+      whose consciousness was preserved as a ROM construct after death. In
+      Loa, flatline has dual meaning: (1) the Flatline Protocol for multi-model
+      review, and (2) flatline detection in the bridge loop — when the
+      severity-weighted score drops to near-zero relative to initial, the
+      improvements have flatlined and the loop should terminate.
+    source: "Gibson's Neuromancer, bridge loop design"
+    tags: [naming, time, architecture]
+    related: [kaironic-time, bridge-loop]
+    loa_mapping: "Flatline Protocol, flatline detection algorithm"
+
+  - id: glossary-jack-in
+    term: "Jack In"
+    short: "Connect to autonomous execution — commit to the run"
+    context: |
+      Jacking in is the cyberpunk act of connecting one's consciousness to
+      cyberspace via neural interface. In Loa, JACK_IN is the state transition
+      where the agent commits to autonomous execution. Pre-flight checks are
+      complete, the branch is safe, permissions verified — now the agent
+      enters the execution loop.
+    source: "Gibson's Neuromancer, run-mode SKILL.md"
+    tags: [naming, autonomy]
+    related: [jacking-in-ritual, glossary-ice]
+    loa_mapping: "JACK_IN state in /run"
+
+  - id: glossary-jack-out
+    term: "Jack Out"
+    short: "Disconnect from autonomous execution — safely exit the run"
+    context: |
+      The opposite of jacking in. JACKED_OUT is the terminal success state
+      of autonomous execution. The agent has completed all work, created
+      the PR, cleaned up state, and safely disconnected. The naming implies
+      a deliberate, safe transition — not a crash or abort.
+    source: "run-mode SKILL.md"
+    tags: [naming, autonomy]
+    related: [jacking-in-ritual]
+    loa_mapping: "JACKED_OUT state in /run"
+
+  - id: glossary-ride
+    term: "Ride"
+    short: "Codebase analysis — the Loa spirit entering and reading the repository"
+    context: |
+      When a Loa rides a cheval, it takes possession and speaks truth through
+      the vessel. The /ride command performs codebase analysis — the framework
+      spirit enters the repository and extracts reality into structured
+      artifacts. The output (reality/) is the truth that the Loa speaks.
+    source: "riding-codebase SKILL.md"
+    tags: [naming, architecture]
+    related: [loa-rides, cheval]
+    loa_mapping: "/ride command"
+
+  - id: glossary-ground-truth
+    term: "Ground Truth"
+    short: "Verified codebase facts with checksums — reality that agents can trust"
+    context: |
+      Ground truth in ML is the verified correct answer against which models
+      are measured. In Loa, Grounded Truth is the checksum-verified,
+      token-efficient summary of codebase reality. Every claim cites a
+      source file and line range. Agents consuming GT can verify freshness
+      by comparing stored checksums against current files.
+    source: "Issue #292 — Grounded Truth design"
+    tags: [architecture, naming]
+    related: [loa-rides]
+    loa_mapping: "grimoires/loa/ground-truth/, ground-truth-gen.sh"
+
+  - id: glossary-bridge
+    term: "Bridge"
+    short: "The connection between iterations — each pass builds on the last"
+    context: |
+      A bridge connects two banks. In Loa, the bridge loop connects
+      successive iterations of sprint execution and review, each building
+      on insights from the previous pass. The bridge is also the connection
+      between human vision and autonomous execution — the /run-bridge
+      command bridges the gap between what we imagine and what we build.
+    source: "Issue #292 — Run Bridge"
+    tags: [naming, architecture]
+    related: [bridge-loop, kaironic-time]
+    loa_mapping: "/run-bridge command"
+
+  - id: glossary-vision-registry
+    term: "Vision Registry"
+    short: "Repository of speculative insights — futures that haven't happened yet"
+    context: |
+      The vision registry captures VISION-type findings from bridge
+      iterations — insights that transcend the current task. These are
+      architectural connections, paradigm shifts, and emergent patterns
+      that are preserved for future exploration rather than acted upon
+      immediately. The registry is the project's collective imagination.
+    source: "Issue #292 — Vision Registry design"
+    tags: [architecture, naming]
+    related: [vision-capture, bridge-loop]
+    loa_mapping: "grimoires/loa/visions/"
+
+  - id: glossary-mibera
+    term: "Mibera"
+    short: "The mystical shadow of Milady — the philosophical depth layer"
+    context: |
+      Mibera is the esoteric counterpart to Milady's public brand.
+      Where Milady is accessible and social, Mibera is deep and
+      philosophical. In Loa's architecture, the Mibera layer is the
+      lore knowledge base — the cultural and philosophical context
+      that gives meaning to engineering decisions.
+    source: "Mibera cultural framework"
+    tags: [naming, philosophy]
+    related: [milady-mibera-duality, network-mysticism]
+    loa_mapping: ".claude/data/lore/"
+
+  - id: glossary-construct
+    term: "Construct"
+    short: "A preserved intelligence pattern — reusable skill or pack"
+    context: |
+      In Neuromancer, a construct is a ROM recording of a person's
+      consciousness. In Loa, constructs are reusable packs of skills,
+      protocols, and configurations that can be installed via the
+      constructs registry. Each construct preserves a pattern of
+      intelligence that can be mounted into new projects.
+    source: "Gibson's Neuromancer, loa-constructs registry"
+    tags: [naming, architecture]
+    related: [glossary-flatline]
+    loa_mapping: "Loa Constructs Registry, /constructs command"
+
+  - id: glossary-peristyle
+    term: "Peristyle"
+    short: "The open-air temple — the shared review space where models gather"
+    context: |
+      The peristyle is the covered, open-sided structure where Vodou
+      ceremonies take place. In Loa, it's another name for the
+      multi-model review space — the architectural location where
+      different AI models are invoked for adversarial review.
+    source: "Vodou ceremonial architecture"
+    tags: [naming, multi-model]
+    related: [hounfour, flatline-ceremony]

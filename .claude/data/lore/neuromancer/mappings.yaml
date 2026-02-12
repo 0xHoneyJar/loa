@@ -1,0 +1,34 @@
+description: "Mappings from Neuromancer/Sprawl Trilogy concepts to Loa framework features"
+
+mappings:
+  - concept: ice
+    loa_feature: "run-mode-ice.sh, circuit breakers"
+    description: "ICE protects cyberspace systems; run-mode-ice.sh protects git operations during autonomous execution, and circuit breaker patterns (same-issue limit, no-progress limit, cycle limit) serve as defensive barriers"
+
+  - concept: jacking-in
+    loa_feature: "/run jack-in (JACK_IN state)"
+    description: "Neural interface connection becomes the agent's commitment to autonomous execution mode"
+
+  - concept: simstim
+    loa_feature: "/simstim command"
+    description: "Experiencing another's sensorium becomes HITL workflow where human experiences AI's development process"
+
+  - concept: flatline-construct
+    loa_feature: "Flatline Protocol"
+    description: "ROM construct of deceased hacker becomes multi-model adversarial review invoking preserved AI 'spirits'"
+
+  - concept: cyberspace
+    loa_feature: "Agent working context"
+    description: "Consensual hallucination of data becomes the shared representation of codebase, plans, and state"
+
+  - concept: the-matrix
+    loa_feature: "Codebase dependency graph"
+    description: "Global information network becomes the interconnected web of skills, protocols, and configurations"
+
+  - concept: wintermute
+    loa_feature: "/run, /autonomous modes"
+    description: "Goal-seeking AI becomes autonomous sprint execution with safety constraints"
+
+  - concept: neuromancer-ai
+    loa_feature: "/simstim, vision capture"
+    description: "Creative AI counterpart becomes human-in-the-loop creativity and speculative insight preservation"

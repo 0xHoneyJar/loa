@@ -1,0 +1,366 @@
+#!/usr/bin/env bash
+# bridge-state.sh - Bridge loop state management
+# Version: 1.0.0
+#
+# Manages the bridge state file (.run/bridge-state.json) with schema
+# validation, state transitions, iteration tracking, flatline detection,
+# and metrics accumulation.
+#
+# Usage:
+#   source "$SCRIPT_DIR/bridge-state.sh"
+#
+# Functions:
+#   init_bridge_state       - Create initial state file
+#   update_bridge_state     - Transition to new state
+#   update_iteration        - Append iteration data
+#   read_bridge_state       - Read and validate state file
+#   update_flatline         - Track consecutive flatline count
+#   update_metrics          - Accumulate totals
+#   is_flatlined            - Check flatline termination condition
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/bootstrap.sh"
+
+BRIDGE_STATE_FILE="${PROJECT_ROOT}/.run/bridge-state.json"
+BRIDGE_SCHEMA_VERSION=1
+
+# =============================================================================
+# Valid State Transitions
+# =============================================================================
+
+# Map of valid transitions: from_state -> space-separated to_states
+declare -A VALID_TRANSITIONS=(
+  ["PREFLIGHT"]="JACK_IN"
+  ["JACK_IN"]="ITERATING HALTED"
+  ["ITERATING"]="ITERATING FINALIZING HALTED"
+  ["FINALIZING"]="JACKED_OUT HALTED"
+  ["HALTED"]="ITERATING JACKED_OUT"
+)
+
+# =============================================================================
+# State Management Functions
+# =============================================================================
+
+init_bridge_state() {
+  local bridge_id="$1"
+  local depth="${2:-3}"
+  local per_sprint="${3:-false}"
+  local flatline_threshold="${4:-0.05}"
+  local branch="${5:-}"
+
+  mkdir -p "$(dirname "$BRIDGE_STATE_FILE")"
+
+  local now
+  now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+  jq -n \
+    --argjson schema_version "$BRIDGE_SCHEMA_VERSION" \
+    --arg bridge_id "$bridge_id" \
+    --argjson depth "$depth" \
+    --argjson flatline_threshold "$flatline_threshold" \
+    --argjson per_sprint "$per_sprint" \
+    --arg branch "$branch" \
+    --arg now "$now" \
+    '{
+      schema_version: $schema_version,
+      bridge_id: $bridge_id,
+      state: "PREFLIGHT",
+      config: {
+        depth: $depth,
+        mode: "full",
+        flatline_threshold: $flatline_threshold,
+        per_sprint: $per_sprint,
+        branch: $branch
+      },
+      timestamps: {
+        started: $now,
+        last_activity: $now
+      },
+      iterations: [],
+      flatline: {
+        initial_score: 0,
+        last_score: 0,
+        consecutive_below_threshold: 0
+      },
+      metrics: {
+        total_sprints_executed: 0,
+        total_files_changed: 0,
+        total_findings_addressed: 0,
+        total_visions_captured: 0
+      },
+      finalization: {
+        ground_truth_updated: false,
+        rtfm_passed: false,
+        pr_url: null
+      }
+    }' > "${BRIDGE_STATE_FILE}.tmp"
+  mv "${BRIDGE_STATE_FILE}.tmp" "$BRIDGE_STATE_FILE"
+  echo "Bridge state initialized: $bridge_id"
+}
+
+update_bridge_state() {
+  local new_state="$1"
+
+  if [[ ! -f "$BRIDGE_STATE_FILE" ]]; then
+    echo "ERROR: Bridge state file not found: $BRIDGE_STATE_FILE" >&2
+    return 1
+  fi
+
+  local current_state
+  current_state=$(jq -r '.state' "$BRIDGE_STATE_FILE")
+
+  # Validate transition
+  local valid_targets="${VALID_TRANSITIONS[$current_state]:-}"
+  if [[ -z "$valid_targets" ]]; then
+    echo "ERROR: No transitions defined from state: $current_state" >&2
+    return 1
+  fi
+
+  local is_valid=false
+  for target in $valid_targets; do
+    if [[ "$target" == "$new_state" ]]; then
+      is_valid=true
+      break
+    fi
+  done
+
+  if [[ "$is_valid" != "true" ]]; then
+    echo "ERROR: Invalid transition: $current_state → $new_state (valid: $valid_targets)" >&2
+    return 1
+  fi
+
+  local now
+  now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+  jq --arg state "$new_state" --arg now "$now" '
+    .state = $state |
+    .timestamps.last_activity = $now
+  ' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
+  mv "${BRIDGE_STATE_FILE}.tmp" "$BRIDGE_STATE_FILE"
+}
+
+update_iteration() {
+  local iteration="$1"
+  local state="$2"
+  local sprint_plan_source="${3:-existing}"
+
+  if [[ ! -f "$BRIDGE_STATE_FILE" ]]; then
+    echo "ERROR: Bridge state file not found" >&2
+    return 1
+  fi
+
+  local now
+  now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+  # Check if iteration already exists
+  local existing
+  existing=$(jq --argjson iter "$iteration" '.iterations[] | select(.iteration == $iter) | .iteration' "$BRIDGE_STATE_FILE" 2>/dev/null || echo "")
+
+  if [[ -n "$existing" ]]; then
+    # Update existing iteration
+    jq --argjson iter "$iteration" --arg state "$state" --arg now "$now" '
+      .iterations |= map(
+        if .iteration == $iter then
+          .state = $state |
+          .updated_at = $now
+        else . end
+      ) |
+      .timestamps.last_activity = $now
+    ' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
+  else
+    # Append new iteration
+    jq --argjson iter "$iteration" --arg state "$state" --arg source "$sprint_plan_source" --arg now "$now" '
+      .iterations += [{
+        "iteration": $iter,
+        "state": $state,
+        "sprint_plan_source": $source,
+        "sprints_executed": 0,
+        "bridgebuilder": {
+          "total_findings": 0,
+          "by_severity": {"critical": 0, "high": 0, "medium": 0, "low": 0, "vision": 0},
+          "severity_weighted_score": 0,
+          "pr_comment_url": null
+        },
+        "visions_captured": 0,
+        "started_at": $now
+      }] |
+      .timestamps.last_activity = $now
+    ' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
+  fi
+  mv "${BRIDGE_STATE_FILE}.tmp" "$BRIDGE_STATE_FILE"
+}
+
+update_iteration_findings() {
+  local iteration="$1"
+  local findings_json="$2"
+
+  if [[ ! -f "$BRIDGE_STATE_FILE" ]] || [[ ! -f "$findings_json" ]]; then
+    echo "ERROR: Missing state file or findings file" >&2
+    return 1
+  fi
+
+  local total by_critical by_high by_medium by_low by_vision score
+  total=$(jq '.total // 0' "$findings_json")
+  by_critical=$(jq '.by_severity.critical // 0' "$findings_json")
+  by_high=$(jq '.by_severity.high // 0' "$findings_json")
+  by_medium=$(jq '.by_severity.medium // 0' "$findings_json")
+  by_low=$(jq '.by_severity.low // 0' "$findings_json")
+  by_vision=$(jq '.by_severity.vision // 0' "$findings_json")
+  score=$(jq '.severity_weighted_score // 0' "$findings_json")
+
+  jq --argjson iter "$iteration" \
+     --argjson total "$total" \
+     --argjson critical "$by_critical" \
+     --argjson high "$by_high" \
+     --argjson medium "$by_medium" \
+     --argjson low "$by_low" \
+     --argjson vision "$by_vision" \
+     --argjson score "$score" '
+    .iterations |= map(
+      if .iteration == $iter then
+        .bridgebuilder.total_findings = $total |
+        .bridgebuilder.by_severity.critical = $critical |
+        .bridgebuilder.by_severity.high = $high |
+        .bridgebuilder.by_severity.medium = $medium |
+        .bridgebuilder.by_severity.low = $low |
+        .bridgebuilder.by_severity.vision = $vision |
+        .bridgebuilder.severity_weighted_score = $score
+      else . end
+    )
+  ' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
+  mv "${BRIDGE_STATE_FILE}.tmp" "$BRIDGE_STATE_FILE"
+}
+
+read_bridge_state() {
+  if [[ ! -f "$BRIDGE_STATE_FILE" ]]; then
+    echo "ERROR: Bridge state file not found: $BRIDGE_STATE_FILE" >&2
+    return 1
+  fi
+
+  # Validate schema version
+  local schema_version
+  schema_version=$(jq -r '.schema_version // 0' "$BRIDGE_STATE_FILE")
+  if [[ "$schema_version" -ne "$BRIDGE_SCHEMA_VERSION" ]]; then
+    echo "ERROR: Schema version mismatch (expected $BRIDGE_SCHEMA_VERSION, got $schema_version)" >&2
+    return 1
+  fi
+
+  # Return the full state
+  jq '.' "$BRIDGE_STATE_FILE"
+}
+
+update_flatline() {
+  local current_score="$1"
+  local iteration="$2"
+
+  if [[ ! -f "$BRIDGE_STATE_FILE" ]]; then
+    echo "ERROR: Bridge state file not found" >&2
+    return 1
+  fi
+
+  local initial_score
+  initial_score=$(jq '.flatline.initial_score' "$BRIDGE_STATE_FILE")
+  local threshold
+  threshold=$(jq '.config.flatline_threshold' "$BRIDGE_STATE_FILE")
+
+  # Set initial score on first iteration
+  if [[ "$iteration" -eq 1 ]]; then
+    jq --argjson score "$current_score" '
+      .flatline.initial_score = $score |
+      .flatline.last_score = $score |
+      .flatline.consecutive_below_threshold = 0
+    ' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
+    mv "${BRIDGE_STATE_FILE}.tmp" "$BRIDGE_STATE_FILE"
+    return
+  fi
+
+  # Check if below threshold
+  local is_below
+  if [[ "$initial_score" == "0" ]] || [[ "$initial_score" == "0.0" ]]; then
+    # No findings initially → immediate flatline
+    is_below="true"
+  else
+    is_below=$(echo "$current_score $initial_score $threshold" | awk '{
+      if ($2 == 0) print "true"
+      else if ($1 / $2 < $3) print "true"
+      else print "false"
+    }')
+  fi
+
+  if [[ "$is_below" == "true" ]]; then
+    jq --argjson score "$current_score" '
+      .flatline.last_score = $score |
+      .flatline.consecutive_below_threshold += 1
+    ' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
+  else
+    jq --argjson score "$current_score" '
+      .flatline.last_score = $score |
+      .flatline.consecutive_below_threshold = 0
+    ' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
+  fi
+  mv "${BRIDGE_STATE_FILE}.tmp" "$BRIDGE_STATE_FILE"
+}
+
+is_flatlined() {
+  local consecutive_required="${1:-2}"
+
+  if [[ ! -f "$BRIDGE_STATE_FILE" ]]; then
+    echo "false"
+    return
+  fi
+
+  local consecutive
+  consecutive=$(jq '.flatline.consecutive_below_threshold' "$BRIDGE_STATE_FILE")
+
+  if [[ "$consecutive" -ge "$consecutive_required" ]]; then
+    echo "true"
+  else
+    echo "false"
+  fi
+}
+
+update_metrics() {
+  local sprints="${1:-0}"
+  local files="${2:-0}"
+  local findings="${3:-0}"
+  local visions="${4:-0}"
+
+  if [[ ! -f "$BRIDGE_STATE_FILE" ]]; then
+    echo "ERROR: Bridge state file not found" >&2
+    return 1
+  fi
+
+  jq --argjson s "$sprints" --argjson f "$files" --argjson fi "$findings" --argjson v "$visions" '
+    .metrics.total_sprints_executed += $s |
+    .metrics.total_files_changed += $f |
+    .metrics.total_findings_addressed += $fi |
+    .metrics.total_visions_captured += $v
+  ' "$BRIDGE_STATE_FILE" > "${BRIDGE_STATE_FILE}.tmp"
+  mv "${BRIDGE_STATE_FILE}.tmp" "$BRIDGE_STATE_FILE"
+}
+
+get_bridge_id() {
+  if [[ -f "$BRIDGE_STATE_FILE" ]]; then
+    jq -r '.bridge_id' "$BRIDGE_STATE_FILE"
+  else
+    echo ""
+  fi
+}
+
+get_bridge_state() {
+  if [[ -f "$BRIDGE_STATE_FILE" ]]; then
+    jq -r '.state' "$BRIDGE_STATE_FILE"
+  else
+    echo "none"
+  fi
+}
+
+get_current_iteration() {
+  if [[ -f "$BRIDGE_STATE_FILE" ]]; then
+    jq '.iterations | length' "$BRIDGE_STATE_FILE"
+  else
+    echo "0"
+  fi
+}

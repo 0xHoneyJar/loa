@@ -1,31 +1,37 @@
 {
-  "plan_id": "plan-20260211-evalsandbox",
-  "branch": "feature/eval-sandbox-277",
-  "state": "JACKED_OUT",
+  "plan_id": "plan-20260212-bridge-iter2",
+  "branch": "feature/run-bridge-cycle-005",
+  "state": "RUNNING",
   "timestamps": {
-    "started": "2026-02-11T16:00:00Z",
-    "last_activity": "2026-02-11T20:30:00Z",
-    "completed": "2026-02-11T20:30:00Z"
+    "started": "2026-02-12T05:39:33Z",
+    "last_activity": "2026-02-12T05:39:33Z"
   },
   "sprints": {
-    "total": 3,
-    "completed": 3,
-    "current": null,
+    "total": 2,
+    "completed": 0,
+    "current": "sprint-1",
     "list": [
-      {"id": "sprint-1", "status": "completed", "cycles": 1, "files_changed": 57},
-      {"id": "sprint-2", "status": "completed", "cycles": 1, "files_changed": 42},
-      {"id": "sprint-3", "status": "completed", "cycles": 1, "files_changed": 11}
+      {
+        "id": "sprint-1",
+        "status": "pending",
+        "cycles": 0
+      },
+      {
+        "id": "sprint-2",
+        "status": "pending",
+        "cycles": 0
+      }
     ]
   },
   "options": {
-    "from": 3,
+    "from": 1,
     "to": 3,
     "max_cycles": 20,
     "timeout_hours": 8
   },
   "metrics": {
     "total_cycles": 3,
-    "total_files_changed": 110,
-    "total_findings_fixed": 8
+    "total_files_changed": 54,
+    "total_findings_fixed": 0
   }
 }

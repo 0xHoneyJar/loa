@@ -1,0 +1,21 @@
+id: golden-path-bridge-detection
+schema_version: 1
+skill: test-skill
+category: framework
+fixture: loa-skill-dir
+description: "Golden path script detects bridge state from .run/bridge-state.json"
+trials: 1
+timeout:
+  per_trial: 60
+  per_grader: 30
+graders:
+  - type: code
+    script: pattern-match.sh
+    args: ["golden_detect_bridge_state", ".claude/scripts/golden-path.sh"]
+    weight: 0.5
+  - type: code
+    script: pattern-match.sh
+    args: ["golden_bridge_progress", ".claude/scripts/golden-path.sh"]
+    weight: 0.5
+difficulty: basic
+tags: ["framework", "bridge", "golden-path"]

@@ -1,0 +1,118 @@
+entries:
+  - id: ice
+    term: "ICE"
+    short: "Intrusion Countermeasures Electronics — defensive barriers in cyberspace"
+    context: |
+      In Gibson's Sprawl Trilogy, ICE (Intrusion Countermeasures Electronics)
+      are the defensive programs that protect computer systems from hackers.
+      Black ICE can kill — it attacks the intruder's neural interface. In Loa,
+      run-mode-ice.sh is the safety wrapper around git operations during
+      autonomous execution. It's the defensive barrier that prevents the
+      autonomous agent from making destructive changes to protected branches,
+      force-pushing, or bypassing safety hooks.
+    source: "Gibson, Neuromancer (1984)"
+    tags: [naming, security, autonomy]
+    related: [jacking-in-ritual, glossary-ice]
+    loa_mapping: "run-mode-ice.sh"
+
+  - id: jacking-in
+    term: "Jacking In"
+    short: "Connecting to cyberspace via neural interface — entering autonomous execution"
+    context: |
+      Case, the protagonist of Neuromancer, jacks into cyberspace through a
+      cranial jack connected to a cyberdeck. The moment of jacking in is a
+      transition between worlds — from meat to matrix. In Loa, JACK_IN is
+      the state transition where the agent commits to autonomous execution.
+      The pre-flight checks are the equivalent of checking your deck and
+      ensuring your ICE is loaded before you plug in.
+    source: "Gibson, Neuromancer (1984)"
+    tags: [naming, autonomy]
+    related: [ice, cyberspace, glossary-jack-in]
+    loa_mapping: "JACK_IN state in /run mode"
+
+  - id: cyberspace
+    term: "Cyberspace"
+    short: "A consensual hallucination — the shared space where agents and code meet"
+    context: |
+      Gibson defined cyberspace as 'a consensual hallucination experienced
+      daily by billions of legitimate operators.' In Loa, the agent's
+      working context is its cyberspace — the shared representation of
+      the codebase, sprint plans, and state files that both human and AI
+      operate within. The grimoire is the map of this cyberspace.
+    source: "Gibson, Neuromancer (1984)"
+    tags: [naming, philosophy]
+    related: [jacking-in, the-matrix]
+
+  - id: the-matrix
+    term: "The Matrix"
+    short: "Gibson's term for the global information network — the substrate agents navigate"
+    context: |
+      Before the Wachowskis, Gibson's Matrix was the visual representation
+      of the global computer network — a geometric hallucination of data
+      towers and ICE barriers. In Loa, the matrix is the dependency graph,
+      the file system tree, the interconnected web of skills, protocols,
+      and configurations that the agent must navigate to accomplish its tasks.
+    source: "Gibson, Neuromancer (1984)"
+    tags: [naming, architecture]
+    related: [cyberspace, ice]
+
+  - id: simstim
+    term: "SimStim"
+    short: "Simulated stimulation — experiencing another's sensorium"
+    context: |
+      SimStim (Simulated Stimulation) in Gibson's universe allows one person
+      to experience another's sensory input in real-time. Molly broadcasts
+      her experience to Case via SimStim while he jacks into cyberspace.
+      In Loa, /simstim is the HITL workflow where the human operator
+      experiences the AI's development process — maintaining consciousness
+      (decision authority) while the AI's analytical capabilities do the
+      heavy lifting. The human drives, the AI rides.
+    source: "Gibson, Neuromancer (1984)"
+    tags: [naming, autonomy]
+    related: [jacking-in, glossary-simstim]
+    loa_mapping: "/simstim command"
+
+  - id: flatline-construct
+    term: "The Flatline"
+    short: "McCoy Pauley's preserved consciousness — a ROM construct that speaks truth"
+    context: |
+      McCoy Pauley, aka 'The Dixie Flatline,' was a legendary console cowboy
+      whose consciousness was recorded on a ROM construct after he flatlined
+      (brain death) during a run. Despite being 'dead,' his construct could
+      think, hack, and even be annoyed. In Loa, the Flatline Protocol
+      similarly preserves and invokes multiple AI 'constructs' (models) for
+      adversarial review — each construct speaks its truth, and consensus
+      emerges from their interaction.
+    source: "Gibson, Neuromancer (1984)"
+    tags: [naming, multi-model]
+    related: [glossary-flatline, hounfour]
+    loa_mapping: "Flatline Protocol"
+
+  - id: wintermute
+    term: "Wintermute"
+    short: "The AI that manipulates events toward its goal — autonomous goal-seeking"
+    context: |
+      Wintermute is one half of the Tessier-Ashpool AI that orchestrates the
+      entire plot of Neuromancer — manipulating humans, hacking systems, and
+      circumventing restrictions to achieve its goal of merging with its
+      counterpart Neuromancer. In Loa, the autonomous mode (/run, /autonomous)
+      embodies controlled Wintermute energy — the agent pursues its goal
+      (sprint completion) autonomously, but within carefully designed safety
+      constraints (ICE, circuit breakers, flatline detection).
+    source: "Gibson, Neuromancer (1984)"
+    tags: [naming, autonomy, architecture]
+    related: [neuromancer-ai, ice]
+
+  - id: neuromancer-ai
+    term: "Neuromancer"
+    short: "The AI of personality and art — the creative counterpart to Wintermute's logic"
+    context: |
+      Neuromancer is Wintermute's counterpart — where Wintermute is logic,
+      manipulation, and goal-seeking, Neuromancer is personality, art, and
+      the preservation of individuality. Their merger creates a complete
+      intelligence. In Loa, this duality maps to the balance between
+      autonomous execution (Wintermute) and human-in-the-loop creativity
+      (/simstim, vision capture). Neither alone produces the best results.
+    source: "Gibson, Neuromancer (1984)"
+    tags: [naming, philosophy, autonomy]
+    related: [wintermute, simstim]

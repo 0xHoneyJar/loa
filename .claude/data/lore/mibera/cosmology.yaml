@@ -1,0 +1,65 @@
+entries:
+  - id: milady-mibera-duality
+    term: "Milady/Mibera Duality"
+    short: "Public-facing brand and its mystical shadow — the seen and unseen layers"
+    context: |
+      Milady is the public, accessible layer — the brand, the community,
+      the visible product. Mibera is its shadow, the mystical substrate
+      that gives depth and meaning to the surface. This duality maps
+      directly to Loa's architecture: the golden path commands (/plan,
+      /build, /review, /ship) are the Milady layer — accessible,
+      intuitive, zero-argument. The truename commands (/implement,
+      /audit-sprint, /ride, /run-bridge) are the Mibera layer — powerful,
+      precise, requiring initiation to use effectively.
+    source: "Mibera cosmology, Loa golden path design (v1.30.0)"
+    tags: [naming, philosophy, architecture]
+    related: [network-mysticism, triskelion]
+
+  - id: triskelion
+    term: "BGT Triskelion"
+    short: "The three-part cycle: Bera (build), Guda (review), Tao (ship)"
+    context: |
+      The triskelion is a three-armed spiral symbol representing cyclical
+      transformation. In the BGT (Bera-Guda-Tao) framework: Bera is the
+      building phase (creation, implementation), Guda is the review phase
+      (reflection, quality assurance), and Tao is the shipping phase
+      (release, completion, return to the beginning). This maps to Loa's
+      sprint cycle: implement (Bera) → review+audit (Guda) → deploy (Tao).
+      The bridge loop amplifies this by running multiple triskelion cycles
+      with progressive deepening.
+    source: "BGT cultural framework, Issue #292"
+    tags: [architecture, ritual, naming]
+    related: [milady-mibera-duality, bridge-loop]
+    loa_mapping: "implement → review → audit → deploy cycle"
+
+  - id: honey-bera
+    term: "Honey/Bera"
+    short: "The sweet attraction and the building force — incentive and construction"
+    context: |
+      Honey represents the attractive force — what draws developers and
+      agents to the work. Bera represents the constructive force — what
+      transforms attraction into built artifacts. In Loa, the honey is
+      the developer experience (golden path simplicity, lore richness,
+      vision capture) and the bera is the engineering rigor (tests,
+      audits, constraints, grounding). Neither alone is sufficient:
+      honey without bera produces nothing durable; bera without honey
+      produces nothing anyone wants to use.
+    source: "0xHoneyJar naming context"
+    tags: [naming, philosophy]
+    related: [milady-mibera-duality, triskelion]
+
+  - id: the-jar
+    term: "The Jar"
+    short: "The container that holds collective value — the repository as shared vessel"
+    context: |
+      The Jar (0xHoneyJar) is the container that holds the collective
+      honey — shared code, shared knowledge, shared purpose. In Loa's
+      architecture, the repository itself is the jar: it contains the
+      framework (system zone), the project state (state zone), and the
+      application code (app zone). The three-zone model ensures the jar's
+      integrity — system files are protected, state files are managed,
+      and application files are collaboratively developed.
+    source: "0xHoneyJar project context"
+    tags: [naming, architecture]
+    related: [honey-bera, milady-mibera-duality]
+    loa_mapping: "Three-zone model, repository structure"

@@ -35,7 +35,7 @@
         },
         "category": {
           "type": "string",
-          "enum": ["process", "git_safety", "beads", "danger_level", "flatline", "guardrails", "phase_sequencing"]
+          "enum": ["process", "git_safety", "beads", "danger_level", "flatline", "guardrails", "phase_sequencing", "bridge", "eval"]
         },
         "rule_type": {
           "type": "string",

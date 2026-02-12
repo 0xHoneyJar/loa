@@ -1,0 +1,97 @@
+entries:
+  - id: bridge-loop
+    term: "Bridge Loop"
+    short: "Iterative refinement ceremony — each pass deepens architectural understanding"
+    context: |
+      The bridge loop is Loa's highest-order refinement ritual. Like a
+      meditation practice that deepens with each sitting, each bridge
+      iteration produces progressively subtler insights. The first pass
+      catches structural issues; the second catches architectural nuance;
+      the third catches design philosophy gaps. The loop terminates via
+      kaironic detection — when the insights flatline, the ceremony is
+      complete. This mirrors the Vodou practice of repeated invocations
+      that deepen the connection between practitioner and spirit.
+    source: "Issue #292 — Run Bridge design"
+    tags: [ritual, architecture, time]
+    related: [kaironic-time, glossary-flatline, triskelion]
+    loa_mapping: "/run-bridge command, bridge-orchestrator.sh"
+
+  - id: sprint-ceremony
+    term: "Sprint Ceremony"
+    short: "The implement-review-audit cycle as a purification ritual"
+    context: |
+      Each sprint in Loa follows the triskelion pattern: implement (create),
+      review (examine), audit (purify). This three-phase cycle is treated
+      as a ceremony — skipping any phase breaks the ritual's integrity.
+      The process compliance rules enforce this: NEVER skip review, NEVER
+      skip audit, ALWAYS complete the full cycle. This isn't bureaucratic
+      overhead — it's the recognition that quality emerges from disciplined
+      repetition of a proven pattern.
+    source: "Process compliance rules, CLAUDE.loa.md"
+    tags: [ritual, architecture]
+    related: [triskelion, bridge-loop]
+    loa_mapping: "implement → review-sprint → audit-sprint cycle"
+
+  - id: mounting
+    term: "Mounting"
+    short: "Framework installation as spirit possession — Loa enters the repository"
+    context: |
+      The /mount command installs Loa framework onto a repository. The
+      naming is deliberate: the Loa spirit mounts (possesses) the
+      repository, establishing the system zone (.claude/), preparing
+      the state zone (grimoires/), and setting up integrity verification.
+      Just as a Loa spirit must properly mount the cheval for the ceremony
+      to proceed, the framework must properly install for the workflow
+      to function.
+    source: "mount skill, SKILL.md"
+    tags: [ritual, naming]
+    related: [cheval, loa-rides]
+    loa_mapping: "/mount command"
+
+  - id: jacking-in-ritual
+    term: "Jacking In"
+    short: "The transition from preparation to autonomous execution — crossing the threshold"
+    context: |
+      Jacking in (from Neuromancer) is the moment of commitment — when the
+      operator connects to cyberspace and leaves the physical world behind.
+      In Loa, JACK_IN is the state transition from preflight to active
+      execution in /run mode. The operator has verified the environment,
+      confirmed the plan, and now commits to autonomous execution. The
+      ritual quality of this transition is important: it's a deliberate
+      act, not an accidental drift into automation.
+    source: "run-mode SKILL.md, Gibson's Neuromancer"
+    tags: [ritual, naming, autonomy]
+    related: [glossary-simstim, glossary-ice]
+    loa_mapping: "JACK_IN state in run-mode state machine"
+
+  - id: flatline-ceremony
+    term: "Flatline Ceremony"
+    short: "Multi-model adversarial review as collective spirit consultation"
+    context: |
+      The Flatline Protocol invokes multiple AI models to review planning
+      documents — like summoning multiple Loa spirits for counsel. The
+      cross-scoring phase (each model evaluating the other's suggestions)
+      creates a dialectic that neither model alone could produce. The
+      ceremony's output is consensus: HIGH_CONSENSUS findings are the
+      collective wisdom, DISPUTED findings are the unresolved tensions,
+      BLOCKERS are the warnings that must be heeded.
+    source: "Flatline Protocol design, CLAUDE.loa.md"
+    tags: [ritual, multi-model]
+    related: [hounfour, glossary-flatline]
+    loa_mapping: "Flatline Protocol, flatline-orchestrator.sh"
+
+  - id: vision-capture
+    term: "Vision Capture"
+    short: "Preserving speculative insights — the 20% time of autonomous agents"
+    context: |
+      During bridge iterations, the Bridgebuilder sometimes surfaces
+      insights that transcend the current task — architectural connections,
+      paradigm shifts, emergent patterns. These VISION-type findings are
+      captured in the vision registry rather than acted upon immediately.
+      This mirrors Google's 20% time philosophy but automated: the agent
+      recognizes when an insight has future value and preserves it for
+      later exploration, rather than forcing it into the current sprint.
+    source: "Issue #292 — Vision Registry design"
+    tags: [ritual, architecture]
+    related: [bridge-loop, kaironic-time]
+    loa_mapping: "Vision registry, bridge-vision-capture.sh"

@@ -1,4 +1,4 @@
-<!-- @loa-managed: true | version: 1.34.1 | hash: 4f5b1b47bbe5ac0fd924653f493dcb3688d8f2089c0bcc9dd5e08717d310ece4PLACEHOLDER -->
+<!-- @loa-managed: true | version: 1.35.0 | hash: 4f5b1b47bbe5ac0fd924653f493dcb3688d8f2089c0bcc9dd5e08717d310ece4PLACEHOLDER -->
 <!-- WARNING: This file is managed by the Loa Framework. Do not edit directly. -->
 
 # Loa Framework Instructions
@@ -84,7 +84,7 @@ beads:
 | Zone | Path | Permission |
 |------|------|------------|
 | System | `.claude/` | NEVER edit |
-| State | `grimoires/`, `.beads/` | Read/Write |
+| State | `grimoires/`, `.beads/`, `.ck/`, `.run/` | Read/Write |
 | App | `src/`, `lib/`, `app/` | Confirm writes |
 
 **Critical**: Never edit `.claude/` - use `.claude/overrides/` or `.loa.config.yaml`.
@@ -153,6 +153,8 @@ paths:
 **Ad-hoc**: `/audit`, `/bug`, `/translate`, `/validate`, `/feedback`, `/compound`, `/enhance`, `/flatline-review`, `/update-loa`, `/loa`
 
 **Run Mode**: `/run sprint-N`, `/run sprint-plan`, `/run-status`, `/run-halt`, `/run-resume`
+
+**Run Bridge**: `/run-bridge`, `/run-bridge --depth N`, `/run-bridge --resume`
 
 ## Key Protocols
 
@@ -263,8 +265,9 @@ Loa provides automatic context recovery after compaction via Claude Code hooks.
 When compaction is detected, you will see a recovery reminder instructing you to:
 1. Re-read this file (CLAUDE.md) for conventions
 2. Check `.run/sprint-plan-state.json` - resume if `state=RUNNING`
-3. Check `.run/simstim-state.json` - resume from last phase
-4. Review `grimoires/loa/NOTES.md` for learnings
+3. Check `.run/bridge-state.json` - resume if `state=ITERATING` or `state=FINALIZING`
+4. Check `.run/simstim-state.json` - resume from last phase
+5. Review `grimoires/loa/NOTES.md` for learnings
 
 ### Installation
 
@@ -311,6 +314,85 @@ simstim:
 ```
 
 Requires beads_rust (`br`). See: https://github.com/Dicklesworthstone/beads_rust
+
+## Run Bridge — Autonomous Excellence Loop (v1.34.0)
+
+Iterative improvement loop: execute sprint plan, invoke Bridgebuilder review, parse findings, generate new sprint plans from findings, repeat until insights flatline.
+
+### How It Works
+
+```
+PREFLIGHT → JACK_IN → ITERATING ↔ ITERATING → FINALIZING → JACKED_OUT
+```
+
+Each iteration: Run sprint-plan → Bridgebuilder review → Parse findings → Flatline check → GitHub trail → Vision capture. Loop terminates when severity-weighted score drops below threshold for consecutive iterations (kaironic termination).
+
+### Usage
+
+```bash
+/run-bridge                    # Default: 3 iterations
+/run-bridge --depth 5          # Up to 5 iterations
+/run-bridge --per-sprint       # Per-sprint review granularity
+/run-bridge --resume           # Resume interrupted bridge
+/run-bridge --from sprint-plan # Start from existing sprint plan
+```
+
+### Bridge State Recovery
+
+Check `.run/bridge-state.json`:
+
+| State | Meaning | Action |
+|-------|---------|--------|
+| `ITERATING` | Active bridge loop | Continue autonomously |
+| `HALTED` | Stopped due to error | Await `/run-bridge --resume` |
+| `FINALIZING` | Post-loop GT + RTFM | Continue autonomously |
+| `JACKED_OUT` | Completed | No action |
+
+### Key Components
+
+| Component | Script |
+|-----------|--------|
+| Orchestrator | `bridge-orchestrator.sh` |
+| State Machine | `bridge-state.sh` |
+| Findings Parser | `bridge-findings-parser.sh` |
+| Vision Capture | `bridge-vision-capture.sh` |
+| GitHub Trail | `bridge-github-trail.sh` |
+| Ground Truth | `ground-truth-gen.sh` |
+
+### Lore Knowledge Base
+
+Cultural and philosophical context in `.claude/data/lore/`:
+
+| Category | Entries | Description |
+|----------|---------|-------------|
+| Mibera | Core, Cosmology, Rituals, Glossary | Mibera network mysticism framework |
+| Neuromancer | Concepts, Mappings | Gibson's Sprawl trilogy mappings |
+
+Skills query lore at invocation time via `index.yaml`. Use `short` fields inline, `context` for teaching moments.
+
+### Bridge Constraints
+
+| Rule | Why |
+|------|-----|
+<!-- @constraint-generated: start bridge_constraints | hash:bridge-iter3 -->
+<!-- DO NOT EDIT — generated from .claude/data/constraints.json -->
+| ALWAYS use `/run sprint-plan` (not direct `/implement`) within bridge iterations | Bridge iterations must inherit the implement→review→audit cycle with circuit breaker protection |
+| ALWAYS post Bridgebuilder review as PR comment after each bridge iteration | GitHub trail provides auditable history of iterative improvement decisions |
+| ALWAYS ensure Grounded Truth claims cite `file:line` source references | Ungrounded claims in GT files propagate misinformation across sessions and agents |
+| ALWAYS use YAML format for lore entries with `id`, `term`, `short`, `context`, `source`, `tags` fields | Consistent schema enables programmatic lore queries and cross-skill integration |
+| ALWAYS include source bridge iteration and PR in vision entries | Vision entries without provenance cannot be traced back to the context that inspired them |
+<!-- @constraint-generated: end bridge_constraints -->
+
+### Configuration
+
+```yaml
+run_bridge:
+  enabled: true
+  defaults:
+    depth: 3
+    flatline_threshold: 0.05
+    consecutive_flatline: 2
+```
 
 ## Persistent Memory (v1.28.0)
 
@@ -431,7 +513,7 @@ Pre-execution validation for skill invocations based on OpenAI's "A Practical Gu
 **Skills by danger level** (synced with index.yaml 2026-02-06):
 - `safe`: continuous-learning, enhancing-prompts, flatline-knowledge, mounting-framework, translating-for-executives, browsing-constructs
 - `moderate`: bug-triaging, discovering-requirements, designing-architecture, planning-sprints, implementing-tasks, reviewing-code, riding-codebase, simstim-workflow
-- `high`: auditing-security, deploying-infrastructure, run-mode
+- `high`: auditing-security, deploying-infrastructure, run-mode, run-bridge
 - `critical`: autonomous-agent
 
 ### Run Mode Integration

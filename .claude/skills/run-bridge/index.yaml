@@ -1,0 +1,96 @@
+# Run Bridge Skill
+# Autonomous excellence loop: iterative sprint-plan → Bridgebuilder review cycles
+name: run-bridge
+version: "1.0.0"
+description: "Autonomous excellence loop with iterative Bridgebuilder review, grounded truth, and vision capture"
+
+effort_hint: high
+danger_level: high
+categories:
+  - quality
+  - autonomous
+
+inputExamples:
+  - input:
+      depth: 3
+    description: "Run bridge with 3 iterations"
+  - input:
+      per_sprint: true
+    description: "Per-sprint review granularity"
+  - input:
+      resume: true
+    description: "Resume interrupted bridge"
+  - input:
+      depth: 2
+      from: "sprint-plan"
+    description: "2 iterations starting from existing sprint plan"
+
+triggers:
+  commands:
+    - "/run-bridge"
+  patterns:
+    - "bridge loop"
+    - "excellence loop"
+    - "iterative review"
+
+inputs:
+  - name: depth
+    type: integer
+    required: false
+    default: 3
+    description: "Maximum iterations (hard limit 5)"
+  - name: per_sprint
+    type: boolean
+    required: false
+    default: false
+    description: "Review after each sprint instead of full plan"
+  - name: resume
+    type: boolean
+    required: false
+    default: false
+    description: "Resume from interrupted bridge"
+  - name: from
+    type: string
+    required: false
+    description: "Start from phase (sprint-plan)"
+
+outputs:
+  - name: bridge_state
+    path: ".run/bridge-state.json"
+    description: "Bridge iteration state"
+  - name: ground_truth
+    path: "grimoires/loa/ground-truth/"
+    description: "Grounded Truth output"
+  - name: visions
+    path: "grimoires/loa/visions/"
+    description: "Vision registry entries"
+
+protocols:
+  required:
+    - name: grounding-enforcement
+      path: ".claude/protocols/grounding-enforcement.md"
+    - name: session-continuity
+      path: ".claude/protocols/session-continuity.md"
+
+scripts:
+  - bridge-orchestrator.sh
+  - bridge-state.sh
+  - bridge-findings-parser.sh
+  - bridge-vision-capture.sh
+  - bridge-github-trail.sh
+  - ground-truth-gen.sh
+
+config_section: run_bridge
+
+safety:
+  requires_opt_in: true
+  opt_in_config: "run_bridge.enabled"
+  protected_branches:
+    - main
+    - master
+    - staging
+    - production
+  blocked_operations:
+    - merge
+    - force_push
+    - branch_delete
