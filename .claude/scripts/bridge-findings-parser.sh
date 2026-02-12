@@ -115,6 +115,7 @@ parse_findings() {
   local block="$1"
   local tmp_findings
   tmp_findings=$(mktemp)
+  trap "rm -f '$tmp_findings'" EXIT
   local current_id=""
   local current_title=""
   local current_severity=""

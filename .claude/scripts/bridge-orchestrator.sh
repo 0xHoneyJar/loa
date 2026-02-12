@@ -252,6 +252,11 @@ bridge_main() {
 
     local bridge_id
     bridge_id="bridge-$(date +%Y%m%d)-$(head -c 3 /dev/urandom | xxd -p)"
+    # Validate generated bridge_id format
+    if [[ ! "$bridge_id" =~ ^bridge-[0-9]{8}-[0-9a-f]{6}$ ]]; then
+      echo "ERROR: Generated invalid bridge_id: $bridge_id" >&2
+      exit 1
+    fi
     local branch
     branch=$(git branch --show-current 2>/dev/null || echo "unknown")
 

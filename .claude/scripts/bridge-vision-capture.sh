@@ -182,10 +182,13 @@ if [[ -f "$OUTPUT_DIR/index.md" ]]; then
     if grep -q "^| $vision_id " "$OUTPUT_DIR/index.md" 2>/dev/null; then
       : # Already exists, skip
     else
-      # Sanitize title for sed metacharacters
+      # Sanitize all sed-interpolated variables for metacharacters
       safe_title=$(printf '%s' "$title" | sed 's/[\\/&]/\\\\&/g')
+      safe_iteration=$(printf '%s' "$ITERATION" | sed 's/[\\/&]/\\\\&/g')
+      safe_bridge_id=$(printf '%s' "$BRIDGE_ID" | sed 's/[\\/&]/\\\\&/g')
+      safe_pr=$(printf '%s' "${PR_NUMBER:-?}" | sed 's/[\\/&]/\\\\&/g')
       # Append to table (before Statistics section) — portable sed (no -i)
-      sed "/^## Statistics/i | $vision_id | $safe_title | Bridge iter $ITERATION, PR #${PR_NUMBER:-?} | Captured | [architecture] |" "$OUTPUT_DIR/index.md" > "$OUTPUT_DIR/index.md.tmp" && mv "$OUTPUT_DIR/index.md.tmp" "$OUTPUT_DIR/index.md"
+      sed "/^## Statistics/i | $vision_id | $safe_title | Bridge iter $safe_iteration, PR #$safe_pr | Captured | [architecture] |" "$OUTPUT_DIR/index.md" > "$OUTPUT_DIR/index.md.tmp" && mv "$OUTPUT_DIR/index.md.tmp" "$OUTPUT_DIR/index.md"
     fi
 
     local_num=$((local_num + 1))

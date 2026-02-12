@@ -126,7 +126,7 @@ skip_if_deps_missing() {
 # Resume Logic
 # =============================================================================
 
-@test "orchestrator: resume from HALTED returns correct iteration" {
+@test "orchestrator: state file records iteration count after HALTED" {
     skip_if_deps_missing
     # Set up a HALTED bridge state with 2 completed iterations
     source "$TEST_TMPDIR/.claude/scripts/bootstrap.sh"
@@ -138,17 +138,12 @@ skip_if_deps_missing() {
     update_iteration 2 "completed" "findings"
     update_bridge_state "HALTED"
 
-    # Run handle_resume by sourcing and calling directly
-    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
-    local result
-    result=$(
-        source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
-        BRIDGE_STATE_FILE="$TEST_TMPDIR/.run/bridge-state.json"
-        state=$(jq -r '.state' "$BRIDGE_STATE_FILE")
-        last_iteration=$(jq '.iterations | length' "$BRIDGE_STATE_FILE")
-        echo "$last_iteration"
-    )
-    [ "$result" = "2" ]
+    # Verify state file records correct iteration count and HALTED state
+    local state iteration_count
+    state=$(jq -r '.state' "$TEST_TMPDIR/.run/bridge-state.json")
+    iteration_count=$(jq '.iterations | length' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$state" = "HALTED" ]
+    [ "$iteration_count" = "2" ]
 }
 
 @test "orchestrator: resume without state file exits 1" {
