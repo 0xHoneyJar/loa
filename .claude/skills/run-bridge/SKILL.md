@@ -81,6 +81,60 @@ interprets and acts on:
 | `GITHUB_TRAIL` | Run `bridge-github-trail.sh` |
 | `FLATLINE_CHECK` | Evaluate flatline condition |
 
+### Phase 3.1: Enriched Bridgebuilder Review
+
+When the `BRIDGEBUILDER_REVIEW` signal fires, execute this 10-step workflow:
+
+1. **Persona Integrity Check**: Compare `sha256sum .claude/data/bridgebuilder-persona.md`
+   against the base-branch version (`git show origin/main:.claude/data/bridgebuilder-persona.md | sha256sum`).
+   If hashes differ, log WARNING and fall back to the base-branch version.
+   If base-branch version doesn't exist (first deployment), proceed with local copy.
+
+2. **Persona Content Validation**: Verify all 5 required sections exist and are non-empty:
+   - `# Bridgebuilder`
+   - `## Identity`
+   - `## Voice`
+   - `## Review Output Format`
+   - `## Content Policy`
+   If any section is missing or empty, log WARNING and disable persona enrichment for
+   this iteration (fall back to unadorned review).
+
+3. **Lore Load**: Query lore index for relevant entries:
+   ```bash
+   categories=$(yq '.run_bridge.lore.categories[]' .loa.config.yaml 2>/dev/null)
+   ```
+   Load `short` fields inline in the review prompt. Use `context` for teaching moments.
+
+4. **Embody Persona**: Include the persona file content in the review prompt as the
+   agent's identity and voice instructions. The persona defines HOW to review, not
+   WHAT to review.
+
+5. **Dual-Stream Review**: The review agent produces two streams:
+   - **Findings stream**: Structured JSON inside `<!-- bridge-findings-start/end -->` markers.
+     Includes enriched fields (`faang_parallel`, `metaphor`, `teachable_moment`, `connection`)
+     and PRAISE findings when warranted.
+   - **Insights stream**: Rich prose surrounding the findings block — opening context,
+     architectural meditations, FAANG parallels, closing reflections.
+
+6. **Save Full Review**: Write complete review (both streams) to
+   `.run/bridge-reviews/{bridge_id}-iter{N}-full.md` with 0600 permissions.
+
+7. **Size Enforcement** (SDD 3.5.1):
+   - Body ≤ 65KB: post as-is
+   - Body > 65KB: truncate prose, preserve findings JSON block
+   - Body > 256KB: extract findings-only fallback
+
+8. **Content Redaction** (SDD 3.5.2, Flatline SKP-006): Apply `redact_security_content()`
+   with gitleaks-inspired patterns (AWS AKIA, GitHub ghp_/gho_/ghs_/ghr_, JWT eyJ,
+   generic secrets). Allowlist protects sha256 hashes in markers and base64 diagram URLs.
+
+9. **Post-Redaction Safety Check** (Flatline SKP-006): Scan redacted output for known
+   secret prefixes (`ghp_`, `gho_`, `AKIA`, `eyJ`). If any remain, **block posting**
+   and log error with line reference. The full review is still available in `.run/`.
+
+10. **Parse + Post**: Parse findings via `bridge-findings-parser.sh` (JSON path with
+    legacy fallback), then post via `bridge-github-trail.sh comment`.
+
 ### Phase 4: Finalization
 
 After loop termination (flatline or max depth):

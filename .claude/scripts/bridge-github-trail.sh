@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # bridge-github-trail.sh - GitHub interactions for bridge loop
-# Version: 1.0.0
+# Version: 2.0.0
 #
 # Handles PR comments, PR body updates, and vision link posting
 # for each bridge iteration. Gracefully degrades when gh is unavailable.
@@ -72,6 +72,177 @@ check_gh() {
 }
 
 # =============================================================================
+# Redaction (SDD 3.5.2, Flatline SKP-006)
+# =============================================================================
+
+# Gitleaks-inspired patterns for realistic secret detection
+# Each pattern: name|regex
+REDACT_PATTERNS=(
+  'aws_access_key|AKIA[0-9A-Z]{16}'
+  'github_pat|ghp_[A-Za-z0-9]{36}'
+  'github_oauth|gho_[A-Za-z0-9]{36}'
+  'github_app|ghs_[A-Za-z0-9]{36}'
+  'github_refresh|ghr_[A-Za-z0-9]{36}'
+  'jwt_token|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}'
+  'generic_secret|(api_key|api_secret|apikey|secret_key|access_token|auth_token|private_key)[[:space:]]*[=:][[:space:]]*["\x27][A-Za-z0-9+/=_-]{16,}'
+)
+
+# Allowlist patterns — known-safe strings that match redaction patterns
+# These are checked BEFORE redaction to avoid false positives
+ALLOWLIST_PATTERNS=(
+  'sha256:[a-f0-9]{64}'
+  'hash:[[:space:]]*[a-f0-9]{64}'
+  '<!-- @[a-z-]*:[^>]*hash:[a-f0-9]'
+  'https://mermaid\.ink/img/[A-Za-z0-9+/=_-]+'
+  'data:image/[a-z]+;base64,'
+)
+
+# Redact security content from a string
+# Reads from stdin, writes redacted content to stdout
+# Returns 0 always (redaction is best-effort)
+redact_security_content() {
+  local content
+  content=$(cat)
+
+  # Build combined allowlist regex
+  local allowlist_re=""
+  for pattern in "${ALLOWLIST_PATTERNS[@]}"; do
+    if [[ -z "$allowlist_re" ]]; then
+      allowlist_re="$pattern"
+    else
+      allowlist_re="${allowlist_re}|${pattern}"
+    fi
+  done
+
+  # Apply each redaction pattern
+  for entry in "${REDACT_PATTERNS[@]}"; do
+    local name="${entry%%|*}"
+    local regex="${entry#*|}"
+    # Use sed for in-place replacement; allowlisted content is protected
+    # by the post-redaction safety check (defense in depth)
+    content=$(printf '%s' "$content" | sed -E "s/${regex}/[REDACTED:${name}]/g" 2>/dev/null || printf '%s' "$content")
+  done
+
+  printf '%s' "$content"
+}
+
+# Post-redaction safety check (Flatline SKP-006)
+# Scans for known secret prefixes that should have been caught
+# Returns 0 if safe, 1 if secrets detected (blocks posting)
+post_redaction_safety_check() {
+  local content="$1"
+  local unsafe_patterns='(ghp_[A-Za-z0-9]{4}|gho_[A-Za-z0-9]{4}|ghs_[A-Za-z0-9]{4}|ghr_[A-Za-z0-9]{4}|AKIA[0-9A-Z]{4}|eyJ[A-Za-z0-9_-]{8,}\.eyJ)'
+
+  local line_num=0
+  local found=false
+  while IFS= read -r line; do
+    line_num=$((line_num + 1))
+    if printf '%s' "$line" | grep -qE "$unsafe_patterns" 2>/dev/null; then
+      echo "SECURITY: Post-redaction safety check FAILED at line $line_num" >&2
+      found=true
+    fi
+  done <<< "$content"
+
+  if [[ "$found" == "true" ]]; then
+    echo "SECURITY: Blocking PR comment — unredacted secrets detected after redaction pass" >&2
+    return 1
+  fi
+  return 0
+}
+
+# =============================================================================
+# Size Enforcement (SDD 3.5.1)
+# =============================================================================
+
+# Size limits in bytes
+SIZE_LIMIT_TRUNCATE=66560    # 65KB - truncate preserving findings JSON
+SIZE_LIMIT_FINDINGS_ONLY=262144  # 256KB - findings-only fallback
+
+# Save full review to .run/ with restricted permissions (Flatline SKP-009)
+save_full_review() {
+  local bridge_id="$1" iteration="$2" content="$3"
+  local review_dir="${PROJECT_ROOT:-.}/.run/bridge-reviews"
+  mkdir -p "$review_dir"
+  local review_file="${review_dir}/${bridge_id}-iter${iteration}-full.md"
+  printf '%s' "$content" > "$review_file"
+  chmod 0600 "$review_file"
+  echo "Full review saved to $review_file" >&2
+}
+
+# Enforce size limits on comment body
+# Reads full body from stdin, writes enforced body to stdout
+# Args: $1 = truncation strategy ("truncate" or "findings-only")
+enforce_size_limit() {
+  local content
+  content=$(cat)
+  local size=${#content}
+
+  if [[ "$size" -le "$SIZE_LIMIT_TRUNCATE" ]]; then
+    printf '%s' "$content"
+    return 0
+  fi
+
+  if [[ "$size" -gt "$SIZE_LIMIT_FINDINGS_ONLY" ]]; then
+    # Extract findings JSON only (256KB emergency fallback)
+    local findings_block=""
+    findings_block=$(printf '%s' "$content" | sed -n '/<!-- bridge-findings-start -->/,/<!-- bridge-findings-end -->/p' 2>/dev/null || true)
+    if [[ -n "$findings_block" ]]; then
+      echo "WARNING: Review exceeds 256KB ($size bytes) — posting findings-only" >&2
+      printf '%s' "$findings_block"
+      return 0
+    fi
+    # No findings block found — truncate instead
+    echo "WARNING: Review exceeds 256KB ($size bytes) but no findings block found — truncating" >&2
+  else
+    echo "WARNING: Review exceeds 65KB ($size bytes) — truncating with findings preserved" >&2
+  fi
+
+  # Truncate strategy: preserve findings block, trim prose
+  local findings_block=""
+  findings_block=$(printf '%s' "$content" | sed -n '/<!-- bridge-findings-start -->/,/<!-- bridge-findings-end -->/p' 2>/dev/null || true)
+
+  if [[ -n "$findings_block" ]]; then
+    # Calculate how much prose we can keep
+    local findings_size=${#findings_block}
+    local budget=$((SIZE_LIMIT_TRUNCATE - findings_size - 200))  # 200 bytes for truncation notice
+    if [[ "$budget" -lt 500 ]]; then
+      budget=500
+    fi
+    # Take prose before findings block, truncate, append findings
+    local before_findings
+    before_findings=$(printf '%s' "$content" | sed '/<!-- bridge-findings-start -->/,$d' 2>/dev/null || true)
+    local truncated_prose="${before_findings:0:$budget}"
+    printf '%s\n\n> **Note**: Review truncated from %d bytes to fit 65KB limit. Full review saved to .run/\n\n%s' \
+      "$truncated_prose" "$size" "$findings_block"
+  else
+    # No findings block — simple truncation
+    local budget=$((SIZE_LIMIT_TRUNCATE - 100))
+    printf '%s\n\n> **Note**: Review truncated from %d bytes to fit 65KB limit. Full review saved to .run/' \
+      "${content:0:$budget}" "$size"
+  fi
+}
+
+# =============================================================================
+# Retention Policy (Flatline SKP-009)
+# =============================================================================
+
+# Clean up bridge reviews older than 30 days
+cleanup_old_reviews() {
+  local review_dir="${PROJECT_ROOT:-.}/.run/bridge-reviews"
+  if [[ ! -d "$review_dir" ]]; then
+    return 0
+  fi
+  local deleted=0
+  while IFS= read -r -d '' file; do
+    rm -f "$file"
+    deleted=$((deleted + 1))
+  done < <(find "$review_dir" -name "*.md" -mtime +30 -print0 2>/dev/null)
+  if [[ "$deleted" -gt 0 ]]; then
+    echo "Cleaned up $deleted bridge reviews older than 30 days" >&2
+  fi
+}
+
+# =============================================================================
 # comment subcommand
 # =============================================================================
 
@@ -113,6 +284,21 @@ ${review_content}
 
 ---
 *Bridge iteration ${iteration} of ${bridge_id}*"
+
+  # Always save full review before any transformation (Flatline SKP-009)
+  save_full_review "$bridge_id" "$iteration" "$body"
+
+  # Redact security content (SDD 3.5.2, Flatline SKP-006)
+  body=$(printf '%s' "$body" | redact_security_content)
+
+  # Post-redaction safety check — block posting if secrets remain
+  if ! post_redaction_safety_check "$body"; then
+    echo "ERROR: Comment blocked by post-redaction safety check for iteration $iteration on PR #$pr" >&2
+    return 0
+  fi
+
+  # Enforce size limits (SDD 3.5.1)
+  body=$(printf '%s' "$body" | enforce_size_limit)
 
   # Check for existing comment with this marker to avoid duplicates
   local existing

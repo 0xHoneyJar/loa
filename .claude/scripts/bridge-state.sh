@@ -250,6 +250,15 @@ update_iteration() {
           "severity_weighted_score": 0,
           "pr_comment_url": null
         },
+        "enrichment": {
+          "persona_loaded": false,
+          "persona_validation": "pending",
+          "findings_format": "unknown",
+          "field_fill_rates": {"faang_parallel": 0, "metaphor": 0, "teachable_moment": 0, "connection": 0},
+          "praise_count": 0,
+          "insights_size_bytes": 0,
+          "redactions_applied": 0
+        },
         "visions_captured": 0,
         "started_at": $now
       }] |
@@ -299,6 +308,27 @@ update_iteration_findings() {
     --argjson vision "$by_vision" \
     --argjson praise "$by_praise" \
     --argjson score "$score"
+}
+
+update_iteration_enrichment() {
+  local iteration="$1"
+  local enrichment_json="$2"
+
+  if [[ ! -f "$BRIDGE_STATE_FILE" ]]; then
+    echo "ERROR: Bridge state file not found" >&2
+    return 1
+  fi
+
+  # enrichment_json should contain: persona_loaded, persona_validation,
+  # findings_format, field_fill_rates, praise_count, insights_size_bytes,
+  # redactions_applied
+  atomic_state_update \
+    '.iterations |= map(
+      if .iteration == $iter then
+        .enrichment = ($enrich | fromjson)
+      else . end
+    )' \
+    --argjson iter "$iteration" --arg enrich "$enrichment_json"
 }
 
 read_bridge_state() {

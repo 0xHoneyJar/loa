@@ -948,6 +948,74 @@
         }
       ],
       "severity": "medium"
+    },
+    {
+      "id": "C-BRIDGE-006",
+      "name": "load_persona",
+      "category": "bridge",
+      "rule_type": "ALWAYS",
+      "text": "load and validate bridgebuilder-persona.md before enriched review iterations",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS load and validate bridgebuilder-persona.md before enriched review iterations",
+        "skill-md": "DO load and validate persona file (integrity + content check) before every review iteration"
+      },
+      "why": "Persona-less reviews produce convergence-only output without educational depth",
+      "order": 5,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "bridge_constraints",
+          "render_as": "table_row"
+        },
+        {
+          "target": "skill-md",
+          "skills": ["run-bridge"],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-BRIDGE-007",
+      "name": "praise_quality",
+      "category": "bridge",
+      "rule_type": "SHOULD",
+      "text": "include PRAISE findings only when warranted by genuinely good engineering decisions",
+      "text_variants": {
+        "claude-loa-md": "SHOULD include PRAISE findings only when warranted by genuinely good engineering decisions",
+        "skill-md": "SHOULD include PRAISE findings — authentic recognition is more valuable than formulaic praise"
+      },
+      "why": "Forced praise dilutes the signal; authentic recognition of quality reinforces good patterns",
+      "order": 6,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "bridge_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "low"
+    },
+    {
+      "id": "C-BRIDGE-008",
+      "name": "educational_fields",
+      "category": "bridge",
+      "rule_type": "SHOULD",
+      "text": "populate educational fields (faang_parallel, metaphor, teachable_moment) only with confident, specific insights",
+      "text_variants": {
+        "claude-loa-md": "SHOULD populate educational fields (faang_parallel, metaphor, teachable_moment) only with confident, specific insights",
+        "skill-md": "SHOULD populate enriched fields — an empty field is better than a formulaic one"
+      },
+      "why": "Generic educational content wastes reviewer attention; depth over coverage",
+      "order": 7,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "bridge_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "low"
     }
   ]
 }

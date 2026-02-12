@@ -1281,6 +1281,41 @@ run_bridge:
       - mibera
       - neuromancer
 
+  # Bridgebuilder persona enrichment (v1.35.0)
+  bridgebuilder:
+    # Enable persona-driven enriched reviews
+    persona_enabled: true
+    # Path to persona definition file
+    persona_path: .claude/data/bridgebuilder-persona.md
+    # Include enriched fields (faang_parallel, metaphor, teachable_moment, connection)
+    enriched_findings: true
+    # Generate insights stream (rich prose surrounding findings)
+    insights_stream: true
+    # Include PRAISE severity findings for good engineering decisions
+    praise_findings: true
+    # Verify persona file integrity against base branch
+    integrity_check: true
+    # Token budget for review output
+    token_budget:
+      # Maximum tokens for findings JSON stream
+      findings_tokens: 5000
+      # Maximum tokens for insights prose stream
+      insights_tokens: 25000
+      # Maximum total tokens (both streams)
+      total_tokens: 30000
+    # Size limits for PR comments
+    size_limits:
+      # Truncate preserving findings JSON (65KB)
+      truncate_bytes: 66560
+      # Findings-only emergency fallback (256KB)
+      findings_only_bytes: 262144
+    # Security content redaction
+    redaction:
+      # Enable gitleaks-inspired pattern redaction
+      enabled: true
+      # Block posting if secrets remain after redaction
+      post_redaction_safety: true
+
 # =============================================================================
 # Bridgebuilder — Autonomous PR Review
 # =============================================================================
