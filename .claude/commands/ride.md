@@ -36,6 +36,14 @@ arguments:
     type: "flag"
     required: false
     description: "Reset System Zone from upstream if integrity check fails"
+  - name: "ground-truth"
+    type: "flag"
+    required: false
+    description: "Generate Grounded Truth output after ride (Phase 11)"
+  - name: "non-interactive"
+    type: "flag"
+    required: false
+    description: "Skip interactive phases (1, 3, 8) — for autonomous bridge loop usage"
 
 agent: "riding-codebase"
 agent_path: "skills/riding-codebase/"
@@ -92,6 +100,12 @@ outputs:
   - path: "grimoires/loa/trajectory-audit.md"
     type: "file"
     description: "Self-audit of reasoning quality"
+  - path: "grimoires/loa/ground-truth/"
+    type: "directory"
+    description: "Grounded Truth output (--ground-truth only)"
+  - path: "grimoires/loa/ground-truth/checksums.json"
+    type: "file"
+    description: "SHA-256 checksums of referenced source files"
 
 mode:
   default: "foreground"
@@ -114,6 +128,8 @@ Analyze an existing codebase to generate evidence-grounded documentation. Extrac
 /ride --phase extraction
 /ride --reconstruct-changelog
 /ride --interactive
+/ride --ground-truth
+/ride --ground-truth --non-interactive
 ```
 
 ## Agent
@@ -153,6 +169,7 @@ See: `skills/riding-codebase/SKILL.md` for full workflow details.
 | 8 | Legacy Deprecation | Deprecation notices |
 | 9 | Trajectory Self-Audit | `trajectory-audit.md` |
 | 10 | Maintenance Handoff | Drift detection installed |
+| 11 | Ground Truth Generation | `ground-truth/` (--ground-truth only) |
 
 ## Arguments
 
@@ -165,6 +182,8 @@ See: `skills/riding-codebase/SKILL.md` for full workflow details.
 | `--reconstruct-changelog` | Generate CHANGELOG from git | No |
 | `--interactive` | Force interactive context discovery | No |
 | `--force-restore` | Reset System Zone if integrity fails | No |
+| `--ground-truth` | Generate Grounded Truth output (Phase 11) | No |
+| `--non-interactive` | Skip interactive phases (1, 3, 8) — for bridge loop | No |
 
 ## Zone Compliance
 
@@ -264,6 +283,13 @@ All outputs go to **State Zone** in the **target repo**:
 | "System Zone missing" | No `.claude/` | Run `/mount` first |
 | "System Zone integrity violation" | Files modified | Use `--force-restore` or move changes to overrides |
 | "Target is not a git repository" | Invalid target path | Verify target path |
+
+### Phase 11: Ground Truth Generation (--ground-truth only)
+- Read reality/ extraction results
+- Synthesize into token-efficient hub-and-spoke GT files
+- Generate checksums.json for all referenced source files
+- Validate token budgets (index < 500, sections < 2000 each)
+- When `--non-interactive`: phases 1, 3, 8 are skipped
 
 ## Post-Ride
 

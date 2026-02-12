@@ -538,6 +538,63 @@ Next Steps:
 
 ---
 
+## Phase 11: Ground Truth Generation (`--ground-truth` only)
+
+This phase runs only when the `--ground-truth` flag is passed. It produces a token-efficient, deterministically-verified codebase summary for agent consumption.
+
+When `--ground-truth --non-interactive` is passed, phases 1 (Interactive Context Discovery), 3 (Legacy Doc Inventory), and 8 (Legacy Deprecation) are skipped — only extraction, analysis, and GT generation run.
+
+### 11.1 Read Reality Extraction Results
+
+Read the reality/ files generated in Phase 2 and Phase 6.5. These contain the code truth that GT will summarize.
+
+### 11.2 Synthesize GT Files
+
+Generate hub-and-spoke Ground Truth files:
+
+| File | Purpose | Token Budget |
+|------|---------|-------------|
+| `index.md` | Hub document with navigation and quick stats | ~500 |
+| `api-surface.md` | Public APIs, endpoints, exports | ~2000 |
+| `architecture.md` | System topology, data flow, dependencies | ~2000 |
+| `contracts.md` | Inter-system contracts, types, interfaces | ~2000 |
+| `behaviors.md` | Runtime behaviors, triggers, thresholds | ~2000 |
+
+Every factual claim MUST cite a source file and line range (`file:line`). The grounding ratio must be >= 0.95.
+
+### 11.3 Generate Checksums
+
+Invoke `ground-truth-gen.sh` for mechanical operations:
+
+```bash
+.claude/scripts/ground-truth-gen.sh \
+  --reality-dir grimoires/loa/reality/ \
+  --output-dir grimoires/loa/ground-truth/ \
+  --max-tokens-per-section 2000 \
+  --mode checksums
+```
+
+This produces `checksums.json` with SHA-256 hashes of all referenced source files.
+
+### 11.4 Validate Token Budget
+
+```bash
+.claude/scripts/ground-truth-gen.sh \
+  --output-dir grimoires/loa/ground-truth/ \
+  --max-tokens-per-section 2000 \
+  --mode validate
+```
+
+If any section exceeds its token budget, trim content (prioritize most-referenced APIs/components) and re-validate.
+
+### 11.5 Log to Trajectory
+
+```json
+{"phase": 11, "action": "ground_truth_generation", "status": "complete", "details": {"files": 5, "total_tokens": N, "checksums_count": N, "within_budget": true}}
+```
+
+---
+
 ## Uncertainty Protocol
 
 If code behavior is ambiguous:
@@ -583,3 +640,4 @@ Each phase appends a JSON line:
 | 8 | `legacy_deprecation` | `files_marked` |
 | 9 | `self_audit` | `quality_score`, `assumptions`, `output` |
 | 10 | `handoff` | `total_duration_minutes` |
+| 11 | `ground_truth_generation` | `files`, `total_tokens`, `checksums_count`, `within_budget` |

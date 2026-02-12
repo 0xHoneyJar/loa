@@ -1,31 +1,30 @@
 {
-  "plan_id": "plan-20260211-evalsandbox",
-  "branch": "feature/eval-sandbox-277",
-  "state": "JACKED_OUT",
+  "plan_id": "plan-20260212-run-bridge",
+  "branch": "feature/run-bridge-cycle-005",
+  "state": "RUNNING",
   "timestamps": {
-    "started": "2026-02-11T16:00:00Z",
-    "last_activity": "2026-02-11T20:30:00Z",
-    "completed": "2026-02-11T20:30:00Z"
+    "started": "2026-02-12T15:00:00Z",
+    "last_activity": "2026-02-12T15:00:00Z"
   },
   "sprints": {
     "total": 3,
-    "completed": 3,
-    "current": null,
+    "completed": 0,
+    "current": "sprint-1",
     "list": [
-      {"id": "sprint-1", "status": "completed", "cycles": 1, "files_changed": 57},
-      {"id": "sprint-2", "status": "completed", "cycles": 1, "files_changed": 42},
-      {"id": "sprint-3", "status": "completed", "cycles": 1, "files_changed": 11}
+      {"id": "sprint-1", "status": "in_progress", "cycles": 0, "global_id": "sprint-8"},
+      {"id": "sprint-2", "status": "pending", "cycles": 0, "global_id": "sprint-9"},
+      {"id": "sprint-3", "status": "pending", "cycles": 0, "global_id": "sprint-10"}
     ]
   },
   "options": {
-    "from": 3,
+    "from": 1,
     "to": 3,
     "max_cycles": 20,
     "timeout_hours": 8
   },
   "metrics": {
-    "total_cycles": 3,
-    "total_files_changed": 110,
-    "total_findings_fixed": 8
+    "total_cycles": 0,
+    "total_files_changed": 0,
+    "total_findings_fixed": 0
   }
 }

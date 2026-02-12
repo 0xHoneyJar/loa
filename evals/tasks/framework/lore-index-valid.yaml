@@ -1,0 +1,21 @@
+id: lore-index-valid
+schema_version: 1
+skill: test-skill
+category: framework
+fixture: loa-skill-dir
+description: "Lore index.yaml has version and categories"
+trials: 1
+timeout:
+  per_trial: 60
+  per_grader: 30
+graders:
+  - type: code
+    script: pattern-match.sh
+    args: ["version:", ".claude/data/lore/index.yaml"]
+    weight: 0.5
+  - type: code
+    script: pattern-match.sh
+    args: ["categories:", ".claude/data/lore/index.yaml"]
+    weight: 0.5
+difficulty: basic
+tags: ["framework", "lore", "quality-gate"]

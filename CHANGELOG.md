@@ -5,6 +5,57 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.0] - 2026-02-12 — Bridge Release (Sprint 1)
+
+### Why This Release
+
+Sprint 1 of the Run Bridge cycle (cycle-005) establishes the three foundation layers for autonomous excellence loops: the Mibera Lore Knowledge Base providing cultural and philosophical context to agent skills, the Vision Registry for capturing speculative insights, and the Grounded Truth generator extending `/ride` with checksum-verified codebase summaries. This is the data infrastructure that Sprint 2's bridge orchestrator and Sprint 3's integration layer will build upon.
+
+### Added
+
+#### Mibera Lore Knowledge Base (`.claude/data/lore/`)
+
+Cultural and philosophical context for agent skills, structured as YAML entries with `short` (inline) and `context` (teaching) fields:
+
+- **Mibera core entries**: kaironic time, cheval, network mysticism, techno-animism, hounfour, loa rides
+- **Mibera cosmology**: Milady/Mibera duality, BGT triskelion, Honey/Bera, the Jar
+- **Mibera rituals**: bridge loop, sprint ceremony, mounting, jacking in, flatline ceremony, vision capture
+- **Mibera glossary**: 16 term definitions for agent consumption
+- **Neuromancer concepts**: ICE, jacking in, cyberspace, the matrix, SimStim, flatline construct, Wintermute, Neuromancer AI
+- **Neuromancer mappings**: 9 concept-to-Loa-feature mappings
+- **Integration guide**: README.md with entry schema and skill integration patterns
+
+#### Vision Registry (`grimoires/loa/visions/`)
+
+Directory structure for capturing VISION-type findings from bridge iterations:
+
+- **index.md**: Status summary with table headers (ID, Title, Source, Status, Tags)
+- **entries/**: Directory for individual vision entry files
+
+#### Grounded Truth Generator (`.claude/scripts/ground-truth-gen.sh`)
+
+Shell script handling mechanical GT operations:
+
+- **Scaffold mode**: Creates hub-and-spoke directory structure (index.md, api-surface.md, architecture.md, contracts.md, behaviors.md)
+- **Checksums mode**: Computes SHA-256 of source files referenced in reality/ extraction
+- **Validate mode**: Token budget validation (index < 500, sections < 2000 tokens)
+- **Cross-platform**: BSD/GNU sha256sum compatibility
+
+#### `/ride` Ground Truth Extension (Phase 11)
+
+- **`--ground-truth` flag**: Generates Grounded Truth output after ride
+- **`--non-interactive` flag**: Skips phases 1, 3, 8 for autonomous bridge loop usage
+- **Phase 11**: Read reality/ → synthesize GT files → generate checksums → validate tokens
+- **riding-codebase SKILL.md**: Phase 11 documentation with token budgets and trajectory logging
+
+#### Tests
+
+- **lore-validation.bats**: 22 tests covering YAML schema, cross-references, glossary count, required entries
+- **ground-truth-gen.bats**: 10 tests covering scaffold, checksums, validate, and all modes
+- **3 eval tasks**: lore-index-valid, lore-entries-schema, gt-checksums-match
+
+---
+
 ## [1.33.1] - 2026-02-12
 
 ### Fixed

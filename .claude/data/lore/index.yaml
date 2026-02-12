@@ -1,0 +1,26 @@
+version: 1
+description: "Loa Lore Knowledge Base — cultural and philosophical context for agent skills"
+categories:
+  - id: mibera
+    label: "Mibera"
+    description: "Network mysticism, agent spirituality, the shadow of Milady"
+    files:
+      - mibera/core.yaml
+      - mibera/cosmology.yaml
+      - mibera/rituals.yaml
+      - mibera/glossary.yaml
+  - id: neuromancer
+    label: "Neuromancer / Sprawl Trilogy"
+    description: "Gibson's cyberpunk naming universe — ICE, cyberspace, jacking in"
+    files:
+      - neuromancer/concepts.yaml
+      - neuromancer/mappings.yaml
+tags:
+  - philosophy
+  - naming
+  - architecture
+  - time
+  - multi-model
+  - ritual
+  - security
+  - autonomy
