@@ -5,6 +5,37 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.35.1] - 2026-02-12 — Bridgebuilder Enrichment
+
+### Why This Release
+
+The Bridgebuilder Enrichment release (cycle-006, Issue #295) transforms automated bridge reviews from convergence-only checklists into educational experiences. The manual Bridgebuilder produces reviews that teach — FAANG parallels, metaphors, teachable moments. The automated bridge now supports the same richness through enriched findings schema, PRAISE severity, persona-driven review, and dual-stream output.
+
+### Added
+
+- **Bridgebuilder Persona** (`.claude/data/bridgebuilder-persona.md`): Identity, Voice (6 examples from manual reviews), Review Output Format (dual-stream), Content Policy (5 NEVER rules), PRAISE/Educational guidance, Token Budget
+- **PRAISE Severity**: Weight 0, excluded from convergence score, celebrates good engineering decisions
+- **Enriched Findings Fields**: `faang_parallel`, `metaphor`, `teachable_moment`, `connection`, `praise` in bridge-findings-parser.sh and JSON schema
+- **JSON Fenced Block Parser**: Structured JSON inside `<!-- bridge-findings-start/end -->` markers with strict grammar enforcement (exit code 3 on violations)
+- **Legacy Parser Fallback**: Backward-compatible regex parsing when no JSON fence detected
+- **Atomic State Updates**: `flock`-based locking with write-to-temp + atomic `mv` for crash safety in bridge-state.sh
+- **Content Redaction**: `redact_security_content()` with gitleaks-inspired patterns (AWS AKIA, GitHub ghp_/gho_/ghs_/ghr_, JWT eyJ, generic secrets) and allowlist
+- **Post-Redaction Safety Check**: Blocks PR comment posting if secret prefixes remain after redaction
+- **Size Enforcement**: 65KB truncation preserving findings JSON, 256KB findings-only fallback
+- **Phase 3.1 Enriched Review Workflow**: 10-step process in SKILL.md (integrity check, validation, lore load, embody persona, dual-stream, save, size check, redact, safety check, parse+post)
+- **Enrichment Metrics**: Per-iteration tracking of persona_loaded, findings_format, field_fill_rates, praise_count, insights_size_bytes, redactions_applied
+- **Constraints**: C-BRIDGE-006 (ALWAYS load persona), C-BRIDGE-007 (SHOULD praise quality), C-BRIDGE-008 (SHOULD educational fields)
+- **Configuration**: `run_bridge.bridgebuilder` section with persona, size, redaction settings
+- **Formal JSON Schema**: `tests/fixtures/bridge-findings.schema.json` with all severity levels and enriched fields
+- **Test Fixtures**: `enriched-bridge-review.md` (5 findings, PRAISE, full enrichment) and `legacy-bridge-review.md` (4 findings, markdown format)
+- **99 BATS Tests**: 31 parser + 42 state + 26 trail covering JSON extraction, enriched fields, PRAISE, strict grammar, flock, crash safety, redaction, size enforcement, post-redaction safety
+
+### Changed
+
+- **bridge-findings-parser.sh**: Rewritten v2.0.0 — JSON extraction with legacy fallback, strict grammar, PRAISE in SEVERITY_WEIGHTS
+- **bridge-state.sh**: Rewritten v2.0.0 — `atomic_state_update()` wrapping all RMW functions, enrichment metrics in iteration template
+- **bridge-github-trail.sh**: Updated v2.0.0 — redaction, size enforcement, post-redaction safety, retention cleanup, printf fixes
+
 ## [1.35.0] - 2026-02-12 — Bridge Release
 
 ### Why This Release

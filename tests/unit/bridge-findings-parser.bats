@@ -630,3 +630,185 @@ EOF
     [ "$schema_version" = "1" ]
     [ "$praise" = "0" ]
 }
+
+# =============================================================================
+# Sprint 3: Fixture-Based Integration Tests
+# =============================================================================
+
+@test "fixture-enriched: parser extracts all fields from enriched fixture" {
+    skip_if_deps_missing
+
+    local fixture="$BATS_TEST_DIR/../../tests/fixtures/enriched-bridge-review.md"
+    [ -f "$fixture" ] || skip "Enriched fixture not found"
+
+    "$SCRIPT" --input "$fixture" --output "$TEST_TMPDIR/findings.json"
+
+    # Check all 5 findings extracted
+    local total
+    total=$(jq '.total' "$TEST_TMPDIR/findings.json")
+    [ "$total" = "5" ]
+
+    # Check enriched fields on critical-1
+    local faang metaphor teachable
+    faang=$(jq -r '.findings[0].faang_parallel' "$TEST_TMPDIR/findings.json")
+    metaphor=$(jq -r '.findings[0].metaphor' "$TEST_TMPDIR/findings.json")
+    teachable=$(jq -r '.findings[0].teachable_moment' "$TEST_TMPDIR/findings.json")
+    [[ "$faang" == *"Borg"* ]]
+    [[ "$metaphor" == *"surgeon"* ]]
+    [[ "$teachable" == *"rollback"* ]]
+
+    # Check connection field on high-1
+    local connection
+    connection=$(jq -r '.findings[1].connection' "$TEST_TMPDIR/findings.json")
+    [[ "$connection" == *"parse"* ]]
+}
+
+@test "fixture-enriched: PRAISE findings counted correctly" {
+    skip_if_deps_missing
+
+    local fixture="$BATS_TEST_DIR/../../tests/fixtures/enriched-bridge-review.md"
+    [ -f "$fixture" ] || skip "Enriched fixture not found"
+
+    "$SCRIPT" --input "$fixture" --output "$TEST_TMPDIR/findings.json"
+
+    local praise_count
+    praise_count=$(jq '.by_severity.praise' "$TEST_TMPDIR/findings.json")
+    [ "$praise_count" = "2" ]
+
+    # Verify praise boolean on praise-1
+    local praise_flag
+    praise_flag=$(jq '.findings[3].praise' "$TEST_TMPDIR/findings.json")
+    [ "$praise_flag" = "true" ]
+}
+
+@test "fixture-enriched: severity_weighted_score correct (CRITICAL=10, HIGH=5, MEDIUM=2, PRAISE=0)" {
+    skip_if_deps_missing
+
+    local fixture="$BATS_TEST_DIR/../../tests/fixtures/enriched-bridge-review.md"
+    [ -f "$fixture" ] || skip "Enriched fixture not found"
+
+    "$SCRIPT" --input "$fixture" --output "$TEST_TMPDIR/findings.json"
+
+    # CRITICAL(10) + HIGH(5) + MEDIUM(2) + PRAISE(0) + PRAISE(0) = 17
+    local score
+    score=$(jq '.severity_weighted_score' "$TEST_TMPDIR/findings.json")
+    [ "$score" = "17" ]
+}
+
+@test "fixture-enriched: by_severity includes all 6 levels" {
+    skip_if_deps_missing
+
+    local fixture="$BATS_TEST_DIR/../../tests/fixtures/enriched-bridge-review.md"
+    [ -f "$fixture" ] || skip "Enriched fixture not found"
+
+    "$SCRIPT" --input "$fixture" --output "$TEST_TMPDIR/findings.json"
+
+    # Check all 6 severity levels exist
+    local critical high medium low vision praise
+    critical=$(jq '.by_severity.critical' "$TEST_TMPDIR/findings.json")
+    high=$(jq '.by_severity.high' "$TEST_TMPDIR/findings.json")
+    medium=$(jq '.by_severity.medium' "$TEST_TMPDIR/findings.json")
+    low=$(jq '.by_severity.low' "$TEST_TMPDIR/findings.json")
+    vision=$(jq '.by_severity.vision' "$TEST_TMPDIR/findings.json")
+    praise=$(jq '.by_severity.praise' "$TEST_TMPDIR/findings.json")
+
+    [ "$critical" = "1" ]
+    [ "$high" = "1" ]
+    [ "$medium" = "1" ]
+    [ "$low" = "0" ]
+    [ "$vision" = "0" ]
+    [ "$praise" = "2" ]
+}
+
+@test "fixture-legacy: parser handles legacy markdown format" {
+    skip_if_deps_missing
+
+    local fixture="$BATS_TEST_DIR/../../tests/fixtures/legacy-bridge-review.md"
+    [ -f "$fixture" ] || skip "Legacy fixture not found"
+
+    "$SCRIPT" --input "$fixture" --output "$TEST_TMPDIR/findings.json"
+
+    local total
+    total=$(jq '.total' "$TEST_TMPDIR/findings.json")
+    [ "$total" = "4" ]
+
+    # Contract test: verify exact severity breakdown
+    local high medium low vision
+    high=$(jq '.by_severity.high' "$TEST_TMPDIR/findings.json")
+    medium=$(jq '.by_severity.medium' "$TEST_TMPDIR/findings.json")
+    low=$(jq '.by_severity.low' "$TEST_TMPDIR/findings.json")
+    vision=$(jq '.by_severity.vision' "$TEST_TMPDIR/findings.json")
+
+    [ "$high" = "1" ]
+    [ "$medium" = "1" ]
+    [ "$low" = "1" ]
+    [ "$vision" = "1" ]
+}
+
+@test "fixture-legacy: severity_weighted_score correct (HIGH=5, MEDIUM=2, LOW=1, VISION=0)" {
+    skip_if_deps_missing
+
+    local fixture="$BATS_TEST_DIR/../../tests/fixtures/legacy-bridge-review.md"
+    [ -f "$fixture" ] || skip "Legacy fixture not found"
+
+    "$SCRIPT" --input "$fixture" --output "$TEST_TMPDIR/findings.json"
+
+    # HIGH(5) + MEDIUM(2) + LOW(1) + VISION(0) = 8
+    local score
+    score=$(jq '.severity_weighted_score' "$TEST_TMPDIR/findings.json")
+    [ "$score" = "8" ]
+}
+
+@test "fixture-legacy: schema_version and praise present" {
+    skip_if_deps_missing
+
+    local fixture="$BATS_TEST_DIR/../../tests/fixtures/legacy-bridge-review.md"
+    [ -f "$fixture" ] || skip "Legacy fixture not found"
+
+    "$SCRIPT" --input "$fixture" --output "$TEST_TMPDIR/findings.json"
+
+    local schema_version praise
+    schema_version=$(jq '.schema_version' "$TEST_TMPDIR/findings.json")
+    praise=$(jq '.by_severity.praise' "$TEST_TMPDIR/findings.json")
+    [ "$schema_version" = "1" ]
+    [ "$praise" = "0" ]
+}
+
+@test "convergence-isolation: PRAISE does not affect severity_weighted_score" {
+    skip_if_deps_missing
+
+    # Fixture has: CRITICAL(10) + 2x PRAISE(0) = should be 10
+    # If PRAISE were counted, score would be > 10
+    local fixture="$BATS_TEST_DIR/../../tests/fixtures/enriched-bridge-review.md"
+    [ -f "$fixture" ] || skip "Enriched fixture not found"
+
+    "$SCRIPT" --input "$fixture" --output "$TEST_TMPDIR/findings.json"
+
+    local score praise_count
+    score=$(jq '.severity_weighted_score' "$TEST_TMPDIR/findings.json")
+    praise_count=$(jq '.by_severity.praise' "$TEST_TMPDIR/findings.json")
+
+    # Score should include CRITICAL+HIGH+MEDIUM but NOT PRAISE
+    [ "$praise_count" = "2" ]
+    # CRITICAL(10) + HIGH(5) + MEDIUM(2) = 17 (not 17+anything from PRAISE)
+    [ "$score" = "17" ]
+}
+
+# =============================================================================
+# Sprint 3: Performance Sanity Check
+# =============================================================================
+
+@test "performance: parser completes in <5s for enriched fixture" {
+    skip_if_deps_missing
+
+    local fixture="$BATS_TEST_DIR/../../tests/fixtures/enriched-bridge-review.md"
+    [ -f "$fixture" ] || skip "Enriched fixture not found"
+
+    local start end elapsed
+    start=$(date +%s)
+    "$SCRIPT" --input "$fixture" --output "$TEST_TMPDIR/findings.json"
+    end=$(date +%s)
+    elapsed=$((end - start))
+
+    [ "$elapsed" -lt 5 ]
+}

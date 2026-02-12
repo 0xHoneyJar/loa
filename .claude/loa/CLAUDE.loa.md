@@ -1,4 +1,4 @@
-<!-- @loa-managed: true | version: 1.35.0 | hash: 4f5b1b47bbe5ac0fd924653f493dcb3688d8f2089c0bcc9dd5e08717d310ece4PLACEHOLDER -->
+<!-- @loa-managed: true | version: 1.35.0 | hash: f2c04762c9fdbc4f117017d5ac61571112a0536dd55612b73e84bd3ba774df61 -->
 <!-- WARNING: This file is managed by the Loa Framework. Do not edit directly. -->
 
 # Loa Framework Instructions
@@ -315,7 +315,7 @@ simstim:
 
 Requires beads_rust (`br`). See: https://github.com/Dicklesworthstone/beads_rust
 
-## Run Bridge — Autonomous Excellence Loop (v1.34.0)
+## Run Bridge — Autonomous Excellence Loop (v1.35.0)
 
 Iterative improvement loop: execute sprint plan, invoke Bridgebuilder review, parse findings, generate new sprint plans from findings, repeat until insights flatline.
 
