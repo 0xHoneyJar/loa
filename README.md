@@ -6,12 +6,12 @@ Power user interface: 47 slash commands (truenames).
 Architecture: Three-zone model (System: .claude/, State: grimoires/ + .beads/, App: src/).
 Configuration: .loa.config.yaml (user-owned, never modified by framework).
 Health check: /loa doctor
-Version: 1.33.1
+Version: 1.34.0
 -->
 
-[![Version](https://img.shields.io/badge/version-1.33.1-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.34.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
-[![Release](https://img.shields.io/badge/release-Garde%20Release-purple.svg)](CHANGELOG.md#1331---2026-02-12)
+[![Release](https://img.shields.io/badge/release-Onboarding%20UX-purple.svg)](CHANGELOG.md#1340---2026-02-12)
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
 
