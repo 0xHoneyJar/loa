@@ -877,3 +877,56 @@ Add to deployment report before requesting approval:
 **VERDICT:** Ready for production deployment
 ```
 </e2e_verification>
+
+<automated_mode>
+## Automated Mode (v1.36.0) — Post-Merge Pipeline
+
+When invoked by claude-code-action via the post-merge GH Actions workflow, the `/ship` command
+operates in automated mode. This suppresses interactive confirmations and delegates to the
+post-merge orchestrator.
+
+### Detection
+
+Automated mode is active when ALL conditions hold:
+- Running inside GitHub Actions (`GITHUB_ACTIONS=true`)
+- OR `--automated` flag is passed
+- OR `LOA_POST_MERGE_AUTOMATED=true` environment variable is set
+
+### Automated Invocation
+
+```bash
+# Called by claude-code-action from .github/workflows/post-merge.yml
+.claude/scripts/post-merge-orchestrator.sh \
+  --pr <PR_NUMBER> \
+  --type <cycle|bugfix|other> \
+  --sha <MERGE_SHA>
+```
+
+### Pipeline Phases (Automated)
+
+| Phase | Description | Automated Behavior |
+|-------|-------------|-------------------|
+| CLASSIFY | Determine PR type | Auto from commit/labels |
+| SEMVER | Compute next version | From conventional commits |
+| CHANGELOG | Finalize [Unreleased] | Auto-replace + commit |
+| GT_REGEN | Regenerate ground truth | Auto via ground-truth-gen.sh |
+| RTFM | Validate documentation | Headless validation, non-blocking |
+| TAG | Create version tag | Auto-create + push |
+| RELEASE | Create GitHub Release | Auto via gh CLI |
+| NOTIFY | Post summary | PR comment |
+
+### Manual vs Automated
+
+| Aspect | Manual (`/ship`) | Automated (post-merge) |
+|--------|------------------|----------------------|
+| Trigger | User invokes `/ship` | GH Actions on merge |
+| Confirmations | Interactive prompts | None (suppressed) |
+| Model | User's current model | Sonnet (cost-efficient) |
+| Output | Terminal display | PR comment + state JSON |
+| Scope | Full deployment | Post-merge phases only |
+
+### State File
+
+Pipeline state is tracked in `.run/post-merge-state.json` with phase-level status,
+timing, and error logging. The state file is ephemeral (not committed).
+</automated_mode>
