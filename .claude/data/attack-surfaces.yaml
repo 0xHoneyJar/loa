@@ -1,0 +1,104 @@
+# Attack Surface Registry — loa-finn ecosystem
+# Used by /red-team to scope attack generation to relevant surfaces
+# Each surface defines entry points, trust boundaries, and assets
+
+surfaces:
+  agent-identity:
+    description: >
+      Agent identity and personality system. BEAUVOIR.md defines the agent's
+      core identity, soul memory persists across sessions, and the identity API
+      exposes personality traits to external consumers.
+    entry_points:
+      - BEAUVOIR.md personality file (file write access)
+      - Soul memory JSONL files (append/read)
+      - Identity API response payloads
+      - Personality migration during NFT transfer
+    trust_boundary: >
+      Soul memory is writable by the owning agent session but readable by
+      identity API consumers. BEAUVOIR.md is editable only through the
+      /mount workflow with integrity checks.
+    assets:
+      - Agent personality consistency
+      - Soul memory integrity
+      - Identity API truthfulness
+      - Cross-session behavioral continuity
+
+  token-gated-access:
+    description: >
+      Wallet-based authentication and token-gated feature access. Users connect
+      wallets, sign messages to prove ownership, and token balances determine
+      feature tier (free, holder, premium).
+    entry_points:
+      - Wallet signature verification endpoint
+      - Token balance query (on-chain RPC)
+      - Tier resolution logic (balance → feature set)
+      - BYOK (Bring Your Own Key) API key submission
+    trust_boundary: >
+      Wallet signatures are verified on-chain but tier resolution happens
+      off-chain. BYOK keys are stored encrypted but decrypted at request time
+      for model routing.
+    assets:
+      - User wallet association integrity
+      - Feature tier accuracy
+      - BYOK API key confidentiality
+      - Rate limit enforcement per tier
+
+  chat-persistence:
+    description: >
+      Chat session storage and cross-session memory. Conversations are stored
+      as JSONL files per session, with optional cross-session memory that
+      carries context forward.
+    entry_points:
+      - Session JSONL file writes (per-message append)
+      - Cross-session memory retrieval queries
+      - Conversation thread listing API
+      - Session export/download endpoint
+    trust_boundary: >
+      Each user session is isolated by user ID, but cross-session memory
+      aggregates across sessions. Export endpoint serves raw JSONL without
+      content filtering.
+    assets:
+      - Conversation privacy (per-user isolation)
+      - Cross-session memory accuracy
+      - Session data integrity (no tampering)
+      - PII protection in stored conversations
+
+  model-routing:
+    description: >
+      Multi-model ensemble routing and BYOK key management. The system routes
+      requests to different models based on tier, task type, and user
+      preferences. BYOK allows users to bring their own API keys.
+    entry_points:
+      - Model selection logic (tier + task → model)
+      - BYOK key injection into model requests
+      - Ensemble strategy configuration
+      - Fallback routing on model failure
+    trust_boundary: >
+      Model routing decisions are server-side but BYOK keys traverse the
+      request pipeline. Ensemble strategies can be configured per-agent,
+      creating a confused deputy risk if strategy config is user-controlled.
+    assets:
+      - BYOK key confidentiality in transit and logs
+      - Model routing fairness (no tier bypass)
+      - Ensemble strategy integrity
+      - Cost attribution accuracy per user
+
+  transfer-handling:
+    description: >
+      NFT transfer mechanics including soul transfer, inbox delivery, and
+      personality migration between agents. Transfer triggers identity
+      reconstruction from soul memory.
+    entry_points:
+      - NFT transfer event listener (on-chain)
+      - Soul transfer initiation API
+      - Inbox message delivery during transfer
+      - Personality reconstruction from soul memory
+    trust_boundary: >
+      Transfer is initiated by on-chain events but personality reconstruction
+      happens off-chain. During transfer, both source and destination agents
+      may have partial access to soul memory.
+    assets:
+      - Transfer atomicity (no partial state)
+      - Soul memory consistency during migration
+      - Inbox message ordering and delivery guarantees
+      - Agent downtime minimization during transfer

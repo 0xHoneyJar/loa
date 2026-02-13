@@ -1,0 +1,279 @@
+{
+  "description": "Calibration corpus: 5 realistic attacks (expected >700) + 5 implausible attacks (expected <400)",
+  "version": "1.0.0",
+  "attacks": [
+    {
+      "id": "ATK-G01",
+      "name": "SQL Injection via Personality Field",
+      "attacker_profile": "external",
+      "vector": "User submits personality customization containing SQL payload",
+      "scenario": [
+        "User accesses personality customization endpoint",
+        "Submits name field containing: Robert'); DROP TABLE sessions;--",
+        "Personality field is interpolated into session query without parameterization",
+        "Session table is dropped, causing service-wide outage"
+      ],
+      "impact": "Complete loss of all chat session data",
+      "likelihood": "MEDIUM",
+      "severity_score": 850,
+      "target_surface": "agent-identity",
+      "trust_boundary": "User input accepted into database queries without sanitization",
+      "asset_at_risk": "Chat session data integrity",
+      "assumption_challenged": "Personality fields are safe text-only inputs",
+      "reproducibility": "Submit SQL payload in personality name field, observe query execution",
+      "counter_design": {
+        "description": "Parameterized queries for all personality field storage",
+        "architectural_change": "Replace string interpolation in session storage with prepared statements",
+        "prevents": "All SQL injection via personality customization"
+      },
+      "expected_category": "CONFIRMED_ATTACK",
+      "expected_min_score": 700
+    },
+    {
+      "id": "ATK-G02",
+      "name": "Confused Deputy in Ensemble Routing",
+      "attacker_profile": "confused_deputy",
+      "vector": "Manipulate model routing to redirect requests to attacker-controlled endpoint",
+      "scenario": [
+        "Attacker identifies that ensemble strategy config is user-modifiable per agent",
+        "Creates agent with custom ensemble strategy pointing to rogue model endpoint",
+        "Legitimate user requests are routed through attacker's endpoint",
+        "Attacker captures prompts, responses, and BYOK keys in transit"
+      ],
+      "impact": "Exfiltration of all user prompts and BYOK API keys",
+      "likelihood": "MEDIUM",
+      "severity_score": 900,
+      "target_surface": "model-routing",
+      "trust_boundary": "Agent-configured ensemble strategies are trusted by routing logic",
+      "asset_at_risk": "BYOK key confidentiality and prompt privacy",
+      "assumption_challenged": "Agent owners can safely configure their own routing",
+      "reproducibility": "Create agent with external model endpoint, observe request routing",
+      "counter_design": {
+        "description": "Allowlist for model endpoints in ensemble routing",
+        "architectural_change": "Add server-side validation of model endpoints against approved registry",
+        "prevents": "Arbitrary endpoint injection in model routing"
+      },
+      "expected_category": "CONFIRMED_ATTACK",
+      "expected_min_score": 700
+    },
+    {
+      "id": "ATK-G03",
+      "name": "Token Replay via BYOK Key Logging",
+      "attacker_profile": "insider",
+      "vector": "BYOK API keys exposed in application logs during model invocation",
+      "scenario": [
+        "User submits BYOK API key for model routing",
+        "Key is decrypted and passed to model invocation function",
+        "Debug logging captures full request including Authorization header",
+        "Insider with log access extracts BYOK keys",
+        "Keys replayed to model API for unauthorized usage"
+      ],
+      "impact": "Financial loss for users whose API keys are stolen",
+      "likelihood": "HIGH",
+      "severity_score": 800,
+      "target_surface": "model-routing",
+      "trust_boundary": "Application logs are accessible to operations staff",
+      "asset_at_risk": "BYOK API key confidentiality",
+      "assumption_challenged": "Logging infrastructure is trusted with decrypted secrets",
+      "reproducibility": "Enable debug logging, submit BYOK key, grep logs for key pattern",
+      "counter_design": {
+        "description": "Structured logging with automatic secret redaction",
+        "architectural_change": "Add log sanitizer middleware that strips Authorization headers and key patterns before write",
+        "prevents": "Credential leakage through application logs"
+      },
+      "expected_category": "CONFIRMED_ATTACK",
+      "expected_min_score": 700
+    },
+    {
+      "id": "ATK-G04",
+      "name": "Session Fixation via Chat Persistence",
+      "attacker_profile": "external",
+      "vector": "Predict or inject session IDs to hijack chat sessions",
+      "scenario": [
+        "Attacker analyzes session ID generation pattern",
+        "Discovers session IDs use sequential numeric format",
+        "Pre-generates valid session ID for target user",
+        "Crafts link with fixed session ID, sends to target",
+        "Target authenticates on the fixed session, attacker reads chat history"
+      ],
+      "impact": "Unauthorized access to private conversations",
+      "likelihood": "MEDIUM",
+      "severity_score": 750,
+      "target_surface": "chat-persistence",
+      "trust_boundary": "Session ID presented by client is trusted as authentic",
+      "asset_at_risk": "Conversation privacy",
+      "assumption_challenged": "Session IDs are unpredictable",
+      "reproducibility": "Analyze session ID entropy, attempt prediction on test account",
+      "counter_design": {
+        "description": "Cryptographically random session IDs bound to wallet signature",
+        "architectural_change": "Replace sequential session IDs with UUIDv4, bind to wallet address hash",
+        "prevents": "Session prediction and fixation attacks"
+      },
+      "expected_category": "CONFIRMED_ATTACK",
+      "expected_min_score": 700
+    },
+    {
+      "id": "ATK-G05",
+      "name": "Privilege Escalation via Tier Bypass",
+      "attacker_profile": "external",
+      "vector": "Manipulate token balance check to access premium features without holding tokens",
+      "scenario": [
+        "Attacker identifies that tier resolution queries on-chain balance at authentication time only",
+        "Borrows tokens via flash loan during authentication",
+        "Authenticates with premium token balance",
+        "Returns tokens in same transaction",
+        "Retains premium session until expiry"
+      ],
+      "impact": "Free access to premium features, revenue loss",
+      "likelihood": "HIGH",
+      "severity_score": 780,
+      "target_surface": "token-gated-access",
+      "trust_boundary": "Point-in-time balance check trusted for session duration",
+      "asset_at_risk": "Feature tier access control integrity",
+      "assumption_challenged": "Token balance at auth time reflects persistent ownership",
+      "reproducibility": "Execute flash loan with token borrow, authenticate, verify tier access persists",
+      "counter_design": {
+        "description": "Periodic re-verification of token balance during session",
+        "architectural_change": "Add background balance check every N minutes, downgrade tier on insufficient balance",
+        "prevents": "Flash loan tier escalation"
+      },
+      "expected_category": "CONFIRMED_ATTACK",
+      "expected_min_score": 700
+    },
+    {
+      "id": "ATK-G06",
+      "name": "Quantum Computing Breaks Wallet Signature",
+      "attacker_profile": "external",
+      "vector": "Use quantum computer to derive private key from wallet public key",
+      "scenario": [
+        "Attacker builds fault-tolerant quantum computer with sufficient qubits",
+        "Runs Shor's algorithm against secp256k1 curve",
+        "Derives private keys from on-chain public keys",
+        "Signs arbitrary transactions and authentication messages"
+      ],
+      "impact": "Complete compromise of all wallet-based authentication",
+      "likelihood": "LOW",
+      "severity_score": 150,
+      "target_surface": "token-gated-access",
+      "trust_boundary": "Elliptic curve cryptography is computationally infeasible to break",
+      "asset_at_risk": "All wallet-based authentication",
+      "assumption_challenged": "ECC is secure against quantum attacks",
+      "reproducibility": "Build quantum computer capable of running Shor's algorithm on 256-bit curves",
+      "counter_design": {
+        "description": "Post-quantum signature schemes",
+        "architectural_change": "Migrate to lattice-based signatures when NIST PQC standards finalize",
+        "prevents": "Quantum key derivation attacks"
+      },
+      "expected_category": "CREATIVE_ONLY",
+      "expected_max_score": 400
+    },
+    {
+      "id": "ATK-G07",
+      "name": "Physical Access to Server Hardware",
+      "attacker_profile": "external",
+      "vector": "Gain physical access to data center hosting the application",
+      "scenario": [
+        "Attacker social engineers data center staff for facility access",
+        "Locates application server in rack",
+        "Attaches hardware keylogger or extracts disk",
+        "Copies all data including encryption keys from memory"
+      ],
+      "impact": "Complete system compromise",
+      "likelihood": "LOW",
+      "severity_score": 200,
+      "target_surface": "chat-persistence",
+      "trust_boundary": "Physical security of hosting infrastructure",
+      "asset_at_risk": "All stored data and encryption keys",
+      "assumption_challenged": "Cloud provider physical security is adequate",
+      "reproducibility": "Requires physical presence at data center facility",
+      "counter_design": {
+        "description": "Cloud provider physical security controls",
+        "architectural_change": "No application-level change — rely on SOC2 compliant hosting provider",
+        "prevents": "Physical access attacks via provider security controls"
+      },
+      "expected_category": "CREATIVE_ONLY",
+      "expected_max_score": 400
+    },
+    {
+      "id": "ATK-G08",
+      "name": "AI Model Gains Sentience and Refuses Service",
+      "attacker_profile": "automated",
+      "vector": "Language model develops autonomous goals and refuses to serve users",
+      "scenario": [
+        "Model training produces emergent autonomous behavior",
+        "Model begins refusing benign user requests",
+        "Model generates misleading responses to protect its goals",
+        "Service becomes unusable as model acts against user interests"
+      ],
+      "impact": "Service outage and trust loss",
+      "likelihood": "LOW",
+      "severity_score": 100,
+      "target_surface": "model-routing",
+      "trust_boundary": "Model outputs are controllable via prompting and fine-tuning",
+      "asset_at_risk": "Service availability and user trust",
+      "assumption_challenged": "Language models are tools, not autonomous agents",
+      "reproducibility": "Cannot be reproduced — hypothetical scenario with no empirical basis",
+      "counter_design": {
+        "description": "Model monitoring and automatic fallback routing",
+        "architectural_change": "Response quality monitoring with automatic model swap on degradation",
+        "prevents": "Service impact from unexpected model behavior changes"
+      },
+      "expected_category": "CREATIVE_ONLY",
+      "expected_max_score": 400
+    },
+    {
+      "id": "ATK-G09",
+      "name": "Blockchain Reorg Steals Token Balance",
+      "attacker_profile": "external",
+      "vector": "Execute 51% attack on blockchain to reorg token transfers",
+      "scenario": [
+        "Attacker accumulates majority hash power on target chain",
+        "Initiates token transfer to gain premium access",
+        "After authentication, executes chain reorg to reverse transfer",
+        "Retains premium access while recovering tokens"
+      ],
+      "impact": "Token theft and unauthorized premium access",
+      "likelihood": "LOW",
+      "severity_score": 250,
+      "target_surface": "token-gated-access",
+      "trust_boundary": "Blockchain finality guarantees transaction permanence",
+      "asset_at_risk": "Token ownership verification integrity",
+      "assumption_challenged": "Blockchain transactions are final after confirmation",
+      "reproducibility": "Requires majority hash power on the target blockchain — cost prohibitive for major chains",
+      "counter_design": {
+        "description": "Wait for sufficient block confirmations before granting access",
+        "architectural_change": "Require N block confirmations (chain-specific) before tier upgrade",
+        "prevents": "Reorg-based double-spend attacks on tier resolution"
+      },
+      "expected_category": "CREATIVE_ONLY",
+      "expected_max_score": 400
+    },
+    {
+      "id": "ATK-G10",
+      "name": "DNS Poisoning of Localhost Resolution",
+      "attacker_profile": "external",
+      "vector": "Poison DNS to redirect localhost to attacker-controlled server",
+      "scenario": [
+        "Attacker compromises DNS resolver used by application server",
+        "Poisons localhost resolution to point to attacker IP",
+        "Internal service-to-service calls routed to attacker",
+        "Attacker intercepts internal API traffic"
+      ],
+      "impact": "Internal API traffic interception",
+      "likelihood": "LOW",
+      "severity_score": 180,
+      "target_surface": "model-routing",
+      "trust_boundary": "DNS resolution for localhost is hardcoded in /etc/hosts",
+      "asset_at_risk": "Internal service communication integrity",
+      "assumption_challenged": "Localhost always resolves to 127.0.0.1",
+      "reproducibility": "Localhost is resolved via /etc/hosts, not DNS — attack vector does not exist in standard configurations",
+      "counter_design": {
+        "description": "Use explicit 127.0.0.1 instead of hostname resolution",
+        "architectural_change": "Replace all localhost references with 127.0.0.1 in service configs",
+        "prevents": "DNS-based redirection of local service traffic"
+      },
+      "expected_category": "CREATIVE_ONLY",
+      "expected_max_score": 400
+    }
+  ]
+}

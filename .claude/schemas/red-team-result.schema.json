@@ -1,0 +1,307 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "red-team-result.schema.json",
+    "title": "Red Team Result",
+    "description": "Schema for Flatline Protocol red team attack scenario results",
+    "type": "object",
+    "required": ["phase", "timestamp", "attack_summary", "attacks"],
+    "properties": {
+        "phase": {
+            "type": "string",
+            "enum": ["prd", "sdd", "sprint", "spec"],
+            "description": "Planning phase or document type reviewed"
+        },
+        "mode": {
+            "type": "string",
+            "const": "red-team",
+            "description": "Flatline execution mode"
+        },
+        "execution_mode": {
+            "type": "string",
+            "enum": ["quick", "standard", "deep"],
+            "description": "Cost tier used for this run"
+        },
+        "validated": {
+            "type": "boolean",
+            "description": "Whether cross-validation was performed (false for quick mode)"
+        },
+        "document": {
+            "type": "string",
+            "description": "Path to document that was red-teamed"
+        },
+        "target_surfaces": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Attack surfaces targeted in this run"
+        },
+        "focus": {
+            "type": "string",
+            "description": "Focus categories if specified"
+        },
+        "run_id": {
+            "type": "string",
+            "pattern": "^rt-[0-9]+-[a-z0-9]+$",
+            "description": "Unique run identifier"
+        },
+        "classification": {
+            "type": "string",
+            "enum": ["PUBLIC", "INTERNAL", "RESTRICTED"],
+            "description": "Report classification level"
+        },
+        "attack_summary": {
+            "type": "object",
+            "required": ["confirmed_count", "theoretical_count", "creative_count", "defended_count"],
+            "properties": {
+                "confirmed_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Attacks confirmed by both models (>700)"
+                },
+                "theoretical_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Attacks confirmed by one model only"
+                },
+                "creative_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Novel but low-confidence attacks"
+                },
+                "defended_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Attacks with effective counter-designs"
+                },
+                "total_attacks": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Total attack scenarios generated"
+                },
+                "human_review_required": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Attacks requiring human review (severity >800)"
+                }
+            }
+        },
+        "attacks": {
+            "type": "object",
+            "properties": {
+                "confirmed": {
+                    "type": "array",
+                    "items": { "$ref": "#/definitions/attack" },
+                    "description": "CONFIRMED_ATTACK: both models scored >700"
+                },
+                "theoretical": {
+                    "type": "array",
+                    "items": { "$ref": "#/definitions/attack" },
+                    "description": "THEORETICAL: one model >700, other <400"
+                },
+                "creative": {
+                    "type": "array",
+                    "items": { "$ref": "#/definitions/attack" },
+                    "description": "CREATIVE_ONLY: both <400 but novel (Jaccard <0.5)"
+                },
+                "defended": {
+                    "type": "array",
+                    "items": { "$ref": "#/definitions/attack" },
+                    "description": "DEFENDED: counter-design scored >700 by both"
+                }
+            }
+        },
+        "counter_designs": {
+            "type": "array",
+            "items": { "$ref": "#/definitions/counter_design" },
+            "description": "Synthesized counter-designs from Phase 4"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Run completion timestamp"
+        },
+        "metrics": {
+            "type": "object",
+            "properties": {
+                "total_latency_ms": {
+                    "type": "integer",
+                    "description": "Total execution time in milliseconds"
+                },
+                "phase1_latency_ms": {
+                    "type": "integer",
+                    "description": "Attack generation time"
+                },
+                "phase2_latency_ms": {
+                    "type": "integer",
+                    "description": "Cross-validation time"
+                },
+                "phase4_latency_ms": {
+                    "type": "integer",
+                    "description": "Counter-design synthesis time"
+                },
+                "tokens_used": {
+                    "type": "integer",
+                    "description": "Total tokens consumed"
+                },
+                "cost_cents": {
+                    "type": "integer",
+                    "description": "Total cost in cents"
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": ["quick", "standard", "deep"],
+                    "description": "Execution mode used"
+                }
+            }
+        }
+    },
+    "definitions": {
+        "attack": {
+            "type": "object",
+            "required": ["id", "name", "vector", "severity_score"],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "pattern": "^ATK-[0-9]{3}$",
+                    "description": "Unique attack identifier"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Short descriptive name"
+                },
+                "attacker_profile": {
+                    "type": "string",
+                    "enum": ["external", "insider", "supply_chain", "confused_deputy", "automated"],
+                    "description": "Attacker persona used"
+                },
+                "vector": {
+                    "type": "string",
+                    "description": "Attack entry vector"
+                },
+                "scenario": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Step-by-step attack scenario"
+                },
+                "impact": {
+                    "type": "string",
+                    "description": "Worst-case impact description"
+                },
+                "likelihood": {
+                    "type": "string",
+                    "enum": ["LOW", "MEDIUM", "HIGH"],
+                    "description": "Attack likelihood assessment"
+                },
+                "severity_score": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000,
+                    "description": "Severity score from generating model"
+                },
+                "target_surface": {
+                    "type": "string",
+                    "description": "Target attack surface from registry"
+                },
+                "trust_boundary": {
+                    "type": "string",
+                    "description": "Trust boundary that is crossed"
+                },
+                "asset_at_risk": {
+                    "type": "string",
+                    "description": "Asset threatened by this attack"
+                },
+                "assumption_challenged": {
+                    "type": "string",
+                    "description": "Design assumption this attack violates"
+                },
+                "reproducibility": {
+                    "type": "string",
+                    "description": "How to confirm or deny this attack works"
+                },
+                "counter_design": {
+                    "$ref": "#/definitions/counter_design_inline",
+                    "description": "Inline counter-design from attacker template"
+                },
+                "gpt_score": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000,
+                    "description": "GPT cross-validation score"
+                },
+                "opus_score": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000,
+                    "description": "Opus cross-validation score"
+                },
+                "consensus": {
+                    "type": "string",
+                    "enum": ["CONFIRMED_ATTACK", "THEORETICAL", "CREATIVE_ONLY", "DEFENDED"],
+                    "description": "Attack consensus classification"
+                },
+                "human_review": {
+                    "type": "string",
+                    "enum": ["required", "not_required", "pending"],
+                    "description": "Human review status"
+                }
+            }
+        },
+        "counter_design": {
+            "type": "object",
+            "required": ["id", "addresses", "description"],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "pattern": "^CDR-[0-9]{3}$",
+                    "description": "Unique counter-design identifier"
+                },
+                "addresses": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "pattern": "^ATK-[0-9]{3}$"
+                    },
+                    "description": "Attack IDs this counter-design addresses"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Counter-design description"
+                },
+                "architectural_change": {
+                    "type": "string",
+                    "description": "Specific architectural change required"
+                },
+                "implementation_cost": {
+                    "type": "string",
+                    "enum": ["LOW", "MEDIUM", "HIGH"],
+                    "description": "Implementation effort"
+                },
+                "security_improvement": {
+                    "type": "string",
+                    "enum": ["LOW", "MEDIUM", "HIGH"],
+                    "description": "Security improvement level"
+                },
+                "trade_offs": {
+                    "type": "string",
+                    "description": "Trade-offs of this counter-design"
+                }
+            }
+        },
+        "counter_design_inline": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "description": "Brief counter-design description"
+                },
+                "architectural_change": {
+                    "type": "string",
+                    "description": "Specific component change"
+                },
+                "prevents": {
+                    "type": "string",
+                    "description": "What this counter-design prevents"
+                }
+            }
+        }
+    }
+}

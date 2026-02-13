@@ -1,0 +1,59 @@
+# Counter-Design Synthesis — {{PHASE}}
+
+Given these confirmed attack scenarios, propose architectural changes that make
+each attack impossible or impractical.
+
+## Design Principles
+
+Apply these in priority order:
+1. **Eliminate, don't mitigate**: Redesign so the attack category does not exist
+2. **Defense in depth**: Multiple independent barriers, not single points of failure
+3. **Least privilege**: Minimum access for each component, revocable at any time
+4. **Fail secure**: Failures should close access, not open it
+5. **Assume breach**: Design for detection and containment, not just prevention
+
+## Confirmed Attacks
+
+{{ATTACKS_JSON}}
+
+## Your Task
+
+For each confirmed attack (or cluster of related attacks), propose a
+counter-design that addresses the root cause architecturally.
+
+Requirements:
+- The `addresses` field MUST reference valid ATK-NNN IDs from the attacks above
+- The `architectural_change` field MUST reference specific components in the
+  target system (not generic advice like "add more security")
+- Consider trade-offs honestly — every defense has a cost
+
+## Response Format
+
+Respond with ONLY a JSON object. No prose before or after.
+
+```json
+{
+  "counter_designs": [
+    {
+      "id": "CDR-001",
+      "addresses": ["ATK-001", "ATK-003"],
+      "description": "What this counter-design does",
+      "architectural_change": "Specific component and change required",
+      "implementation_cost": "LOW",
+      "security_improvement": "HIGH",
+      "trade_offs": "What you lose by implementing this"
+    }
+  ],
+  "summary": "N counter-designs addressing M attacks"
+}
+```
+
+## Field Definitions
+
+- **id**: `CDR-NNN` format (e.g., CDR-001)
+- **addresses**: Array of ATK-NNN IDs this counter-design neutralizes
+- **description**: Clear description of the defense mechanism
+- **architectural_change**: Specific component, interface, or data flow change
+- **implementation_cost**: One of: `LOW` (config change), `MEDIUM` (new component), `HIGH` (redesign)
+- **security_improvement**: One of: `LOW` (reduces risk), `MEDIUM` (eliminates vector), `HIGH` (eliminates category)
+- **trade_offs**: Honest assessment of what this defense costs (performance, complexity, UX)
