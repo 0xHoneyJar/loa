@@ -84,41 +84,51 @@ atomic_state_update() {
 
 # Initialize state file
 init_state() {
-  local pm_id="pm-$(date +%Y%m%d)-$(openssl rand -hex 3 2>/dev/null || printf '%06x' $RANDOM)"
+  local rand_hex
+  rand_hex=$(openssl rand -hex 3 2>/dev/null || head -c 3 /dev/urandom 2>/dev/null | xxd -p 2>/dev/null || printf '%06x' $((RANDOM * RANDOM)))
+  local pm_id="pm-$(date +%Y%m%d)-${rand_hex}"
+  local now
+  now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
   mkdir -p "$(dirname "$STATE_FILE")"
-  cat > "$STATE_FILE" <<INIT_EOF
-{
-  "schema_version": 1,
-  "post_merge_id": "${pm_id}",
-  "pr_number": ${PR_NUMBER},
-  "pr_type": "${PR_TYPE}",
-  "merge_sha": "${MERGE_SHA}",
-  "state": "RUNNING",
-  "timestamps": {
-    "started": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-    "last_activity": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-    "completed": null
-  },
-  "phases": {
-    "classify": {"status": "pending", "result": null},
-    "semver": {"status": "pending", "result": null},
-    "changelog": {"status": "pending", "result": null},
-    "gt_regen": {"status": "pending", "result": null},
-    "rtfm": {"status": "pending", "result": null},
-    "tag": {"status": "pending", "result": null},
-    "release": {"status": "pending", "result": null},
-    "notify": {"status": "pending", "result": null}
-  },
-  "errors": [],
-  "metrics": {
-    "duration_seconds": null,
-    "phases_completed": 0,
-    "phases_failed": 0,
-    "phases_skipped": 0
-  }
-}
-INIT_EOF
+
+  # Use jq for safe JSON construction (no shell injection via variables)
+  jq -n \
+    --arg pm_id "$pm_id" \
+    --argjson pr_number "$PR_NUMBER" \
+    --arg pr_type "$PR_TYPE" \
+    --arg merge_sha "$MERGE_SHA" \
+    --arg now "$now" \
+    '{
+      schema_version: 1,
+      post_merge_id: $pm_id,
+      pr_number: $pr_number,
+      pr_type: $pr_type,
+      merge_sha: $merge_sha,
+      state: "RUNNING",
+      timestamps: {
+        started: $now,
+        last_activity: $now,
+        completed: null
+      },
+      phases: {
+        classify: {status: "pending", result: null},
+        semver: {status: "pending", result: null},
+        changelog: {status: "pending", result: null},
+        gt_regen: {status: "pending", result: null},
+        rtfm: {status: "pending", result: null},
+        tag: {status: "pending", result: null},
+        release: {status: "pending", result: null},
+        notify: {status: "pending", result: null}
+      },
+      errors: [],
+      metrics: {
+        duration_seconds: null,
+        phases_completed: 0,
+        phases_failed: 0,
+        phases_skipped: 0
+      }
+    }' > "$STATE_FILE"
 }
 
 # Update a phase status and optional result
@@ -362,7 +372,10 @@ phase_gt_regen() {
     return 0
   fi
 
-  if "$gt_script" --mode checksums 2>/dev/null; then
+  local gt_exit=0
+  "$gt_script" --mode checksums 2>/dev/null || gt_exit=$?
+
+  if [[ "$gt_exit" -eq 0 ]]; then
     # Commit if there are changes
     git -C "$PROJECT_ROOT" add grimoires/loa/ground-truth/ 2>/dev/null || true
     if ! git -C "$PROJECT_ROOT" diff --cached --quiet 2>/dev/null; then
@@ -372,11 +385,10 @@ phase_gt_regen() {
     increment_metric "phases_completed"
     echo "[GT_REGEN] Ground truth checksums updated"
   else
-    local exit_code=$?
-    update_phase "gt_regen" "failed" "{\"exit_code\": $exit_code}"
-    log_error "gt_regen" "ground-truth-gen.sh failed with exit code $exit_code"
+    update_phase "gt_regen" "failed" "{\"exit_code\": $gt_exit}"
+    log_error "gt_regen" "ground-truth-gen.sh failed with exit code $gt_exit"
     increment_metric "phases_failed"
-    echo "[GT_REGEN] Failed — exit code $exit_code"
+    echo "[GT_REGEN] Failed — exit code $gt_exit"
   fi
 }
 
@@ -787,6 +799,18 @@ main() {
     cycle|bugfix|other) ;;
     *) echo "ERROR: Invalid --type: ${PR_TYPE} (expected cycle|bugfix|other)" >&2; exit 1 ;;
   esac
+
+  # Validate PR number is numeric (H-04)
+  if ! [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+    echo "ERROR: --pr must be a number" >&2
+    exit 1
+  fi
+
+  # Validate SHA is hex hash (H-05)
+  if ! [[ "$MERGE_SHA" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
+    echo "ERROR: --sha must be a valid git commit hash" >&2
+    exit 1
+  fi
 
   # Initialize state
   init_state

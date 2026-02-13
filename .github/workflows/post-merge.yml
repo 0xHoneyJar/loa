@@ -37,8 +37,9 @@ jobs:
         id: classify
         env:
           GH_TOKEN: ${{ github.token }}
+          MERGE_SHA: ${{ github.sha }}
         run: |
-          MERGE_MSG=$(git log -1 --format='%s' "${{ github.sha }}")
+          MERGE_MSG=$(git log -1 --format='%s' "$MERGE_SHA")
           echo "Merge message: $MERGE_MSG"
 
           # Extract PR number from merge commit message
@@ -155,8 +156,10 @@ jobs:
 
       - name: Check API key
         id: check-key
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          if [[ -z "${{ secrets.ANTHROPIC_API_KEY }}" ]]; then
+          if [[ -z "$ANTHROPIC_API_KEY" ]]; then
             echo "ANTHROPIC_API_KEY not set — falling back to shell-only"
             echo "has_key=false" >> "$GITHUB_OUTPUT"
           else
@@ -167,18 +170,24 @@ jobs:
         if: steps.check-key.outputs.has_key != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          PM_PR_NUMBER: ${{ needs.classify.outputs.pr_number }}
+          PM_MERGE_SHA: ${{ github.sha }}
         run: |
           echo "Running shell-only pipeline (no ANTHROPIC_API_KEY)"
           chmod +x .claude/scripts/post-merge-orchestrator.sh .claude/scripts/semver-bump.sh .claude/scripts/release-notes-gen.sh .claude/scripts/bootstrap.sh
           .claude/scripts/post-merge-orchestrator.sh \
-            --pr "${{ needs.classify.outputs.pr_number }}" \
+            --pr "$PM_PR_NUMBER" \
             --type cycle \
-            --sha "${{ github.sha }}" \
+            --sha "$PM_MERGE_SHA" \
             --skip-rtfm || true
 
       - name: Claude Code Action
         if: steps.check-key.outputs.has_key == 'true'
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@47635634fd56ccbdfc300003e8753607c2c135d3 # v1
+        env:
+          PM_PR_NUMBER: ${{ needs.classify.outputs.pr_number }}
+          PM_PR_TYPE: ${{ needs.classify.outputs.pr_type }}
+          PM_MERGE_SHA: ${{ github.sha }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           model: claude-sonnet-4-5-20250929
@@ -188,16 +197,16 @@ jobs:
             You are running the Loa post-merge automation pipeline.
 
             Context:
-            - PR: #${{ needs.classify.outputs.pr_number }}
-            - Type: ${{ needs.classify.outputs.pr_type }}
-            - Merge SHA: ${{ github.sha }}
+            - PR number is in env var PM_PR_NUMBER
+            - PR type is in env var PM_PR_TYPE
+            - Merge SHA is in env var PM_MERGE_SHA
 
             Execute the pipeline:
             ```bash
             .claude/scripts/post-merge-orchestrator.sh \
-              --pr ${{ needs.classify.outputs.pr_number }} \
-              --type ${{ needs.classify.outputs.pr_type }} \
-              --sha ${{ github.sha }}
+              --pr "$PM_PR_NUMBER" \
+              --type "$PM_PR_TYPE" \
+              --sha "$PM_MERGE_SHA"
             ```
 
             If any phase fails, continue with the remaining phases.

@@ -234,11 +234,13 @@ main() {
 
   # Parse commits and determine bump (use fd 3 for commits JSON)
   local commits_json bump
+  local tmpfile
+  tmpfile=$(mktemp /tmp/semver-commits-XXXXXXXXXX.json)
   exec 3>&1
-  bump=$(parse_commits "$tag_ref" 3>/tmp/semver-commits-$$.json)
+  bump=$(parse_commits "$tag_ref" 3>"$tmpfile")
   exec 3>&-
-  commits_json=$(cat /tmp/semver-commits-$$.json 2>/dev/null || echo "[]")
-  rm -f /tmp/semver-commits-$$.json
+  commits_json=$(cat "$tmpfile" 2>/dev/null || echo "[]")
+  rm -f "$tmpfile"
 
   # Calculate next version
   local next
