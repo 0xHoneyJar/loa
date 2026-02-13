@@ -215,7 +215,7 @@ phase_classify() {
 
   # Auto-classify from merge commit
   local pr_number
-  pr_number=$(git -C "$PROJECT_ROOT" log -1 --format='%s' "$MERGE_SHA" 2>/dev/null | grep -oP '#\K[0-9]+' | head -1 || echo "")
+  pr_number=$(git -C "$PROJECT_ROOT" log -1 --format='%s' "$MERGE_SHA" 2>/dev/null | grep -o '#[0-9][0-9]*' | head -1 | tr -d '#' || echo "")
 
   if [[ -z "$pr_number" ]]; then
     update_phase "classify" "skipped" '{"reason": "no PR found in commit message"}'
@@ -334,7 +334,14 @@ phase_changelog() {
   # Replace [Unreleased] with versioned header
   local date_str
   date_str=$(date +%Y-%m-%d)
-  sed -i "s/## \[Unreleased\]/## [Unreleased]\n\n## [${version}] - ${date_str}/" "$changelog"
+  # Portable sed -i (GNU uses -i, macOS/BSD uses -i '')
+  if sed --version 2>/dev/null | grep -q GNU; then
+    sed -i "s/## \[Unreleased\]/## [Unreleased]\n\n## [${version}] - ${date_str}/" "$changelog"
+  else
+    sed -i '' "s/## \[Unreleased\]/## [Unreleased]\\
+\\
+## [${version}] - ${date_str}/" "$changelog"
+  fi
 
   # Commit the change
   git -C "$PROJECT_ROOT" add "$changelog"
@@ -438,8 +445,10 @@ phase_rtfm() {
   if [[ -f "$gt_index" ]]; then
     docs_checked=$((docs_checked + 1))
     # Basic staleness check: GT should reference recent files
-    local gt_age
-    gt_age=$(( $(date +%s) - $(stat -c %Y "$gt_index" 2>/dev/null || echo "0") ))
+    # Use portable file age detection (stat -c is Linux-only, stat -f is macOS)
+    local gt_mtime gt_age
+    gt_mtime=$(stat -c %Y "$gt_index" 2>/dev/null || stat -f %m "$gt_index" 2>/dev/null || echo "0")
+    gt_age=$(( $(date +%s) - gt_mtime ))
     if [[ "$gt_age" -gt 604800 ]]; then  # > 7 days old
       gaps+=("{\"doc\": \"ground-truth/index.md\", \"type\": \"STALE_DOC\", \"severity\": \"MINOR\", \"detail\": \"GT index older than 7 days\"}")
       gap_count=$((gap_count + 1))
@@ -689,20 +698,33 @@ archive_cycle_in_ledger() {
     return 0
   fi
 
-  # Archive the cycle
+  # Archive the cycle (with flock for concurrent safety)
   local now
   now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  local ledger_lock="${ledger}.lock"
 
-  jq --arg cycle "$active_cycle" --arg now "$now" '
-    .cycles = [.cycles[] |
-      if .id == $cycle then
-        .status = "archived" | .archived_at = $now
-      else . end
-    ]
-  ' "$ledger" > "${ledger}.tmp"
+  (
+    flock -w 5 200 || { echo "[LEDGER] Lock timeout — skipping" >&2; return 1; }
 
-  if [[ -s "${ledger}.tmp" ]]; then
-    mv "${ledger}.tmp" "$ledger"
+    jq --arg cycle "$active_cycle" --arg now "$now" '
+      .cycles = [.cycles[] |
+        if .id == $cycle then
+          .status = "archived" | .archived_at = $now
+        else . end
+      ]
+    ' "$ledger" > "${ledger}.tmp"
+
+    if [[ -s "${ledger}.tmp" ]]; then
+      mv "${ledger}.tmp" "$ledger"
+    else
+      rm -f "${ledger}.tmp"
+      echo "[LEDGER] Failed to update ledger — skipping"
+      return 1
+    fi
+  ) 200>"$ledger_lock"
+
+  local flock_exit=$?
+  if [[ "$flock_exit" -eq 0 ]]; then
     echo "[LEDGER] Archived cycle ${active_cycle}"
 
     # Commit the ledger change
@@ -711,7 +733,6 @@ archive_cycle_in_ledger() {
       git -C "$PROJECT_ROOT" commit -m "chore(ledger): archive ${active_cycle} after merge" --quiet 2>/dev/null || true
     fi
   else
-    rm -f "${ledger}.tmp"
     echo "[LEDGER] Failed to update ledger — skipping"
   fi
 }

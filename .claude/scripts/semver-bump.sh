@@ -67,7 +67,7 @@ get_version_from_changelog() {
   local changelog="${PROJECT_ROOT}/CHANGELOG.md"
   if [[ -f "$changelog" ]]; then
     local version
-    version=$(grep -oP '## \[\K[0-9]+\.[0-9]+\.[0-9]+' "$changelog" | head -1)
+    version=$(grep -o '## \[[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\]' "$changelog" | head -1 | sed 's/## \[//;s/\]//')
     if [[ -n "$version" ]]; then
       echo "$version"
       return 0
@@ -79,6 +79,11 @@ get_version_from_changelog() {
 # Bump a version string by type
 bump_version() {
   local current="$1" bump="$2"
+  # Validate version format (M-05)
+  if ! [[ "$current" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "ERROR: Invalid version format: $current" >&2
+    return 1
+  fi
   IFS='.' read -r major minor patch <<< "$current"
   case "$bump" in
     major) echo "$((major + 1)).0.0" ;;
@@ -232,15 +237,20 @@ main() {
     exit 1
   fi
 
-  # Parse commits and determine bump (use fd 3 for commits JSON)
+  # Parse commits and determine bump
   local commits_json bump
-  local tmpfile
-  tmpfile=$(mktemp /tmp/semver-commits-XXXXXXXXXX.json)
-  exec 3>&1
-  bump=$(parse_commits "$tag_ref" 3>"$tmpfile")
-  exec 3>&-
-  commits_json=$(cat "$tmpfile" 2>/dev/null || echo "[]")
-  rm -f "$tmpfile"
+  local tmpfile_commits tmpfile_bump
+  tmpfile_commits=$(mktemp /tmp/semver-commits-XXXXXXXXXX.json)
+  tmpfile_bump=$(mktemp /tmp/semver-bump-XXXXXXXXXX.txt)
+
+  # parse_commits writes commits JSON to fd 3, bump type to stdout
+  # Redirect fd 3 to tmpfile_commits, stdout to tmpfile_bump
+  ( parse_commits "$tag_ref" 3>"$tmpfile_commits" ) > "$tmpfile_bump"
+
+  bump=$(cat "$tmpfile_bump" 2>/dev/null || echo "patch")
+  bump="${bump%$'\n'}"  # Trim trailing newline
+  commits_json=$(cat "$tmpfile_commits" 2>/dev/null || echo "[]")
+  rm -f "$tmpfile_commits" "$tmpfile_bump"
 
   # Calculate next version
   local next
