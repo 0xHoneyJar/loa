@@ -239,9 +239,13 @@ main() {
 
   # Parse commits and determine bump
   local commits_json bump
+  local tmpdir="${TMPDIR:-/tmp}"
   local tmpfile_commits tmpfile_bump
-  tmpfile_commits=$(mktemp /tmp/semver-commits-XXXXXXXXXX.json)
-  tmpfile_bump=$(mktemp /tmp/semver-bump-XXXXXXXXXX.txt)
+  tmpfile_commits=$(mktemp "${tmpdir}/semver-commits-XXXXXXXXXX.json")
+  tmpfile_bump=$(mktemp "${tmpdir}/semver-bump-XXXXXXXXXX.txt")
+
+  # Ensure cleanup on exit or error
+  trap 'rm -f "$tmpfile_commits" "$tmpfile_bump"' EXIT
 
   # parse_commits writes commits JSON to fd 3, bump type to stdout
   # Redirect fd 3 to tmpfile_commits, stdout to tmpfile_bump
@@ -251,6 +255,7 @@ main() {
   bump="${bump%$'\n'}"  # Trim trailing newline
   commits_json=$(cat "$tmpfile_commits" 2>/dev/null || echo "[]")
   rm -f "$tmpfile_commits" "$tmpfile_bump"
+  trap - EXIT
 
   # Calculate next version
   local next

@@ -251,7 +251,9 @@ phase_classify() {
     update_phase "classify" "completed" "$result"
   else
     PR_TYPE="other"
-    update_phase "classify" "completed" "{\"pr_number\": $PR_NUMBER, \"pr_type\": \"$PR_TYPE\"}"
+    local result
+    result=$(jq -n --argjson pr "$PR_NUMBER" --arg type "$PR_TYPE" '{pr_number: $pr, pr_type: $type, title: ""}')
+    update_phase "classify" "completed" "$result"
   fi
 
   increment_metric "phases_completed"
@@ -449,7 +451,8 @@ phase_rtfm() {
     local gt_mtime gt_age
     gt_mtime=$(stat -c %Y "$gt_index" 2>/dev/null || stat -f %m "$gt_index" 2>/dev/null || echo "0")
     gt_age=$(( $(date +%s) - gt_mtime ))
-    if [[ "$gt_age" -gt 604800 ]]; then  # > 7 days old
+    local gt_staleness_threshold=604800  # 7 days in seconds
+    if [[ "$gt_age" -gt "$gt_staleness_threshold" ]]; then
       gaps+=("{\"doc\": \"ground-truth/index.md\", \"type\": \"STALE_DOC\", \"severity\": \"MINOR\", \"detail\": \"GT index older than 7 days\"}")
       gap_count=$((gap_count + 1))
     fi
@@ -689,22 +692,21 @@ archive_cycle_in_ledger() {
     return 0
   fi
 
-  # Find the active cycle
-  local active_cycle
-  active_cycle=$(jq -r '.cycles[] | select(.status == "active") | .id' "$ledger" 2>/dev/null || echo "")
-
-  if [[ -z "$active_cycle" ]]; then
-    echo "[LEDGER] No active cycle found — skipping"
-    return 0
-  fi
-
   # Archive the cycle (with flock for concurrent safety)
   local now
   now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   local ledger_lock="${ledger}.lock"
+  local active_cycle=""
 
   (
     flock -w 5 200 || { echo "[LEDGER] Lock timeout — skipping" >&2; return 1; }
+
+    # Find active cycle inside lock to prevent race condition
+    active_cycle=$(jq -r '.cycles[] | select(.status == "active") | .id' "$ledger" 2>/dev/null || echo "")
+    if [[ -z "$active_cycle" ]]; then
+      echo "[LEDGER] No active cycle found — skipping"
+      return 0
+    fi
 
     jq --arg cycle "$active_cycle" --arg now "$now" '
       .cycles = [.cycles[] |

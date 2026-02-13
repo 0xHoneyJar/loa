@@ -232,7 +232,9 @@ jobs:
             --arg pr "${{ needs.classify.outputs.pr_number }}" \
             --arg type "${{ needs.classify.outputs.pr_type }}" \
             --arg run "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --arg simple "${{ needs.simple-release.result }}" \
+            --arg full "${{ needs.full-pipeline.result }}" \
             '{
-              content: "⚠️ Post-merge pipeline failed for PR #\($pr) (\($type))\nRun: \($run)"
+              content: "⚠️ Post-merge pipeline failed for PR #\($pr) (\($type))\nSimple: \($simple) | Full: \($full)\nRun: \($run)"
             }')
           curl -s -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL" || true
