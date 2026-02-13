@@ -1,18 +1,19 @@
 {
   "plan_id": "plan-20260213-cycle010-bridgebuilder-filtering",
   "branch": "feature/cycle-010-bridgebuilder-filtering",
-  "state": "RUNNING",
+  "state": "JACKED_OUT",
   "timestamps": {
     "started": "2026-02-13T09:15:00Z",
-    "last_activity": "2026-02-13T09:15:00Z"
+    "last_activity": "2026-02-13T09:30:00Z",
+    "completed": "2026-02-13T09:30:00Z"
   },
   "sprints": {
     "total": 2,
-    "completed": 0,
-    "current": "sprint-1",
+    "completed": 2,
+    "current": null,
     "list": [
-      {"id": "sprint-1", "status": "in_progress", "cycles": 0},
-      {"id": "sprint-2", "status": "pending", "cycles": 0}
+      {"id": "sprint-1", "status": "completed", "cycles": 1, "global_id": "sprint-72", "files_changed": 2},
+      {"id": "sprint-2", "status": "completed", "cycles": 1, "global_id": "sprint-73", "files_changed": 31}
     ]
   },
   "options": {
@@ -22,8 +23,8 @@
     "timeout_hours": 8
   },
   "metrics": {
-    "total_cycles": 0,
-    "total_files_changed": 0,
-    "total_findings_fixed": 0
+    "total_cycles": 2,
+    "total_files_changed": 33,
+    "total_findings_fixed": 3
   }
 }

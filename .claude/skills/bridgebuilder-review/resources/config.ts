@@ -262,6 +262,10 @@ async function loadYamlConfig(): Promise<YamlConfig> {
 /**
  * Resolve repoRoot: CLI > env > git auto-detect > undefined.
  * Called once per resolveConfig() invocation (Bug 3 fix — issue #309).
+ *
+ * Note: uses execSync intentionally (not execFile/await) because this is called
+ * once at startup and the calling chain (resolveConfig → truncateFiles) is the
+ * only consumer. Matches the sync I/O precedent in truncation.ts:215.
  */
 export function resolveRepoRoot(cli: CLIArgs, env: EnvVars): string | undefined {
   if (cli.repoRoot) return cli.repoRoot;

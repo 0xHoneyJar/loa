@@ -169,7 +169,7 @@ export const LOA_EXCLUDE_PATTERNS = [
   "PROCESS.md",
   "BUTTERFREEZONE.md",
   "INSTALLATION.md",
-  "NOTES.md",
+  "grimoires/**/NOTES.md",
 ];
 
 /**

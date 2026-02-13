@@ -423,6 +423,33 @@ describe("isLoaSystemZone", () => {
   });
 });
 
+// --- Dual-list sync assertion (medium-1 fix — bridge iter-1) ---
+
+describe("LOA_SYSTEM_ZONE_PREFIXES / LOA_EXCLUDE_PATTERNS sync", () => {
+  it("every system zone prefix has a corresponding exclude pattern", () => {
+    // isLoaSystemZone prefixes: .claude/, grimoires/, .beads/, evals/, .run/, .flatline/
+    // Each should have a glob entry in LOA_EXCLUDE_PATTERNS (e.g., ".claude/**")
+    const systemZonePaths = [
+      ".claude/test",
+      "grimoires/test",
+      ".beads/test",
+      "evals/test",
+      ".run/test",
+      ".flatline/test",
+    ];
+    for (const path of systemZonePaths) {
+      assert.ok(
+        isLoaSystemZone(path),
+        `${path} should be detected as system zone`,
+      );
+      assert.ok(
+        matchesExcludePattern(path, LOA_EXCLUDE_PATTERNS),
+        `${path} should also match LOA_EXCLUDE_PATTERNS — lists are out of sync`,
+      );
+    }
+  });
+});
+
 // --- LOA_EXCLUDE_PATTERNS: new patterns (Bug 1 fix — issue #309) ---
 
 describe("LOA_EXCLUDE_PATTERNS — expanded patterns", () => {
@@ -445,7 +472,12 @@ describe("LOA_EXCLUDE_PATTERNS — expanded patterns", () => {
     assert.ok(matchesExcludePattern("PROCESS.md", LOA_EXCLUDE_PATTERNS));
     assert.ok(matchesExcludePattern("BUTTERFREEZONE.md", LOA_EXCLUDE_PATTERNS));
     assert.ok(matchesExcludePattern("INSTALLATION.md", LOA_EXCLUDE_PATTERNS));
-    assert.ok(matchesExcludePattern("NOTES.md", LOA_EXCLUDE_PATTERNS));
+    assert.ok(matchesExcludePattern("grimoires/loa/NOTES.md", LOA_EXCLUDE_PATTERNS));
+  });
+
+  it("does NOT match root-level NOTES.md (low-1 fix — bridge iter-1)", () => {
+    // NOTES.md is now qualified to grimoires/**/NOTES.md to avoid false-positives
+    assert.ok(!matchesExcludePattern("NOTES.md", LOA_EXCLUDE_PATTERNS));
   });
 
   it("does NOT match application paths", () => {

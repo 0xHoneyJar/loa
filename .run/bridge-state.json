@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "bridge_id": "bridge-20260213-c010bf",
+  "state": "ITERATING",
+  "config": {
+    "depth": 3,
+    "mode": "full",
+    "flatline_threshold": 0.05,
+    "per_sprint": false,
+    "branch": "feature/cycle-010-bridgebuilder-filtering"
+  },
+  "timestamps": {
+    "started": "2026-02-13T09:35:00Z",
+    "last_activity": "2026-02-13T10:05:00Z"
+  },
+  "iterations": [
+    {
+      "iteration": 1,
+      "review_comment_url": "https://github.com/0xHoneyJar/loa/pull/313#issuecomment-3895555719",
+      "review_file": ".run/bridge-reviews/bridge-20260213-c010bf-iter1-full.md",
+      "findings": {
+        "total": 6,
+        "by_severity": {
+          "MEDIUM": 2,
+          "LOW": 2,
+          "PRAISE": 2
+        },
+        "score": 0.32,
+        "actionable": ["medium-1", "medium-2", "low-1", "low-2"]
+      },
+      "sprint_generated": true,
+      "timestamp": "2026-02-13T10:05:00Z"
+    }
+  ],
+  "flatline": {
+    "initial_score": 0.32,
+    "last_score": 0.32,
+    "consecutive_below_threshold": 0
+  },
+  "metrics": {
+    "total_sprints_executed": 2,
+    "total_files_changed": 33,
+    "total_findings_addressed": 0,
+    "total_visions_captured": 0
+  },
+  "finalization": {
+    "ground_truth_updated": false,
+    "rtfm_passed": false,
+    "pr_url": "https://github.com/0xHoneyJar/loa/pull/313"
+  }
+}

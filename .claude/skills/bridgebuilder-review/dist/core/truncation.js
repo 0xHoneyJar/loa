@@ -146,7 +146,7 @@ export const LOA_EXCLUDE_PATTERNS = [
     "PROCESS.md",
     "BUTTERFREEZONE.md",
     "INSTALLATION.md",
-    "NOTES.md",
+    "grimoires/**/NOTES.md",
 ];
 /**
  * Load .reviewignore patterns from repo root and merge with LOA_EXCLUDE_PATTERNS.
