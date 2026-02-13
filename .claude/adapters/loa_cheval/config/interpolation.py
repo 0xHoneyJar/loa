@@ -15,14 +15,10 @@ import functools
 import os
 import re
 import stat
-import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 from loa_cheval.types import ConfigError
-
-# Lock for thread-safe credential provider initialization
-_credential_lock = threading.Lock()
 
 # Core allowlist — always applied
 _CORE_ENV_PATTERNS = [
