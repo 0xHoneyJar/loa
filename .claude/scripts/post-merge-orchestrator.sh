@@ -1,0 +1,661 @@
+#!/usr/bin/env bash
+# post-merge-orchestrator.sh - Post-merge automation pipeline
+# Version: 1.0.0
+#
+# Orchestrates post-merge phases: classify → semver → changelog →
+# gt_regen → rtfm → tag → release → notify.
+#
+# Usage:
+#   .claude/scripts/post-merge-orchestrator.sh \
+#     --pr <number> --type <cycle|bugfix|other> --sha <commit> \
+#     [--dry-run] [--skip-gt] [--skip-rtfm]
+#
+# Exit Codes:
+#   0 - All phases completed (some may have failed non-fatally)
+#   1 - Invalid arguments
+#   2 - Fatal error (state file corruption, missing dependencies)
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/bootstrap.sh"
+
+# =============================================================================
+# Configuration
+# =============================================================================
+
+STATE_FILE="${PROJECT_ROOT}/.run/post-merge-state.json"
+STATE_LOCK="${PROJECT_ROOT}/.run/post-merge-state.lock"
+
+PR_NUMBER=""
+PR_TYPE=""
+MERGE_SHA=""
+DRY_RUN=false
+SKIP_GT=false
+SKIP_RTFM=false
+
+# Phase matrix: which phases run for each PR type
+declare -A CYCLE_PHASES=( [classify]=1 [semver]=1 [changelog]=1 [gt_regen]=1 [rtfm]=1 [tag]=1 [release]=1 [notify]=1 )
+declare -A BUGFIX_PHASES=( [classify]=1 [semver]=1 [tag]=1 [notify]=1 )
+declare -A OTHER_PHASES=( [classify]=1 [semver]=1 [tag]=1 [notify]=1 )
+
+# Ordered phase list
+PHASE_ORDER=(classify semver changelog gt_regen rtfm tag release notify)
+
+# =============================================================================
+# Usage
+# =============================================================================
+
+usage() {
+  cat <<'USAGE'
+Usage: post-merge-orchestrator.sh [OPTIONS]
+
+Options:
+  --pr NUMBER          Source PR number (required)
+  --type TYPE          PR type: cycle|bugfix|other (required)
+  --sha COMMIT         Merge commit SHA (required)
+  --dry-run            Validate without executing side effects
+  --skip-gt            Skip ground truth regeneration
+  --skip-rtfm          Skip RTFM validation
+  --help               Show this help
+USAGE
+}
+
+# =============================================================================
+# State Management
+# =============================================================================
+
+# Atomic state update using flock
+atomic_state_update() {
+  local jq_expr="$1"
+  shift
+  (
+    flock -w 5 200 || { echo "ERROR: Lock timeout on state file" >&2; return 1; }
+    local tmp="${STATE_FILE}.tmp.$$"
+    if jq "$jq_expr" "$@" "$STATE_FILE" > "$tmp" 2>/dev/null; then
+      mv "$tmp" "$STATE_FILE"
+    else
+      rm -f "$tmp"
+      echo "ERROR: jq update failed" >&2
+      return 1
+    fi
+  ) 200>"$STATE_LOCK"
+}
+
+# Initialize state file
+init_state() {
+  local pm_id="pm-$(date +%Y%m%d)-$(openssl rand -hex 3 2>/dev/null || printf '%06x' $RANDOM)"
+
+  mkdir -p "$(dirname "$STATE_FILE")"
+  cat > "$STATE_FILE" <<INIT_EOF
+{
+  "schema_version": 1,
+  "post_merge_id": "${pm_id}",
+  "pr_number": ${PR_NUMBER},
+  "pr_type": "${PR_TYPE}",
+  "merge_sha": "${MERGE_SHA}",
+  "state": "RUNNING",
+  "timestamps": {
+    "started": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+    "last_activity": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+    "completed": null
+  },
+  "phases": {
+    "classify": {"status": "pending", "result": null},
+    "semver": {"status": "pending", "result": null},
+    "changelog": {"status": "pending", "result": null},
+    "gt_regen": {"status": "pending", "result": null},
+    "rtfm": {"status": "pending", "result": null},
+    "tag": {"status": "pending", "result": null},
+    "release": {"status": "pending", "result": null},
+    "notify": {"status": "pending", "result": null}
+  },
+  "errors": [],
+  "metrics": {
+    "duration_seconds": null,
+    "phases_completed": 0,
+    "phases_failed": 0,
+    "phases_skipped": 0
+  }
+}
+INIT_EOF
+}
+
+# Update a phase status and optional result
+update_phase() {
+  local phase="$1" status="$2" result="${3:-null}"
+
+  atomic_state_update \
+    --arg phase "$phase" \
+    --arg status "$status" \
+    --argjson result "$result" \
+    '.phases[$phase].status = $status | .phases[$phase].result = $result | .timestamps.last_activity = (now | strftime("%Y-%m-%dT%H:%M:%SZ"))'
+}
+
+# Increment a metric counter
+increment_metric() {
+  local field="$1"
+  atomic_state_update --arg f "$field" '.metrics[$f] = (.metrics[$f] + 1)'
+}
+
+# Add an error to the errors array
+log_error() {
+  local phase="$1" message="$2"
+  atomic_state_update \
+    --arg phase "$phase" \
+    --arg msg "$message" \
+    '.errors += [{"phase": $phase, "message": $msg, "timestamp": (now | strftime("%Y-%m-%dT%H:%M:%SZ"))}]'
+}
+
+# =============================================================================
+# Phase Helpers
+# =============================================================================
+
+# Check if a phase should run for the current PR type
+should_run_phase() {
+  local phase="$1"
+  case "$PR_TYPE" in
+    cycle)  [[ -n "${CYCLE_PHASES[$phase]:-}" ]] ;;
+    bugfix) [[ -n "${BUGFIX_PHASES[$phase]:-}" ]] ;;
+    *)      [[ -n "${OTHER_PHASES[$phase]:-}" ]] ;;
+  esac
+}
+
+# Check if gh CLI is available
+check_gh() {
+  if ! command -v gh &>/dev/null; then
+    echo "WARNING: gh CLI not available — skipping GitHub operations" >&2
+    return 1
+  fi
+  return 0
+}
+
+# Read a field from the state file
+read_state() {
+  local field="$1"
+  jq -r "$field" "$STATE_FILE" 2>/dev/null
+}
+
+# =============================================================================
+# Phase Implementations
+# =============================================================================
+
+phase_classify() {
+  update_phase "classify" "in_progress"
+
+  if [[ -n "$PR_TYPE" && -n "$PR_NUMBER" ]]; then
+    # Type was provided via CLI — just record it
+    local title=""
+    if check_gh 2>/dev/null; then
+      title=$(gh pr view "$PR_NUMBER" --json title --jq '.title' 2>/dev/null || echo "")
+    fi
+
+    local result
+    result=$(jq -n \
+      --argjson pr "$PR_NUMBER" \
+      --arg type "$PR_TYPE" \
+      --arg title "$title" \
+      '{pr_number: $pr, pr_type: $type, title: $title}')
+
+    update_phase "classify" "completed" "$result"
+    increment_metric "phases_completed"
+    echo "[CLASSIFY] PR #${PR_NUMBER} classified as: ${PR_TYPE}"
+    return 0
+  fi
+
+  # Auto-classify from merge commit
+  local pr_number
+  pr_number=$(git -C "$PROJECT_ROOT" log -1 --format='%s' "$MERGE_SHA" 2>/dev/null | grep -oP '#\K[0-9]+' | head -1 || echo "")
+
+  if [[ -z "$pr_number" ]]; then
+    update_phase "classify" "skipped" '{"reason": "no PR found in commit message"}'
+    increment_metric "phases_skipped"
+    echo "[CLASSIFY] No PR found in commit message — skipped"
+    return 0
+  fi
+
+  PR_NUMBER="$pr_number"
+
+  if check_gh 2>/dev/null; then
+    local pr_json title labels
+    pr_json=$(gh pr view "$pr_number" --json title,labels 2>/dev/null || echo '{}')
+    title=$(echo "$pr_json" | jq -r '.title // ""')
+    labels=$(echo "$pr_json" | jq -r '[.labels[]?.name] | join(",")' 2>/dev/null || echo "")
+
+    if echo "$labels" | grep -q "cycle"; then
+      PR_TYPE="cycle"
+    elif echo "$title" | grep -qE "^(Run Mode|Sprint Plan|feat\(sprint)"; then
+      PR_TYPE="cycle"
+    elif echo "$title" | grep -qE "^fix"; then
+      PR_TYPE="bugfix"
+    else
+      PR_TYPE="other"
+    fi
+
+    local result
+    result=$(jq -n \
+      --argjson pr "$PR_NUMBER" \
+      --arg type "$PR_TYPE" \
+      --arg title "$title" \
+      '{pr_number: $pr, pr_type: $type, title: $title}')
+    update_phase "classify" "completed" "$result"
+  else
+    PR_TYPE="other"
+    update_phase "classify" "completed" "{\"pr_number\": $PR_NUMBER, \"pr_type\": \"$PR_TYPE\"}"
+  fi
+
+  increment_metric "phases_completed"
+  echo "[CLASSIFY] PR #${PR_NUMBER} classified as: ${PR_TYPE}"
+}
+
+phase_semver() {
+  update_phase "semver" "in_progress"
+
+  local semver_script="${SCRIPT_DIR}/semver-bump.sh"
+  if [[ ! -f "$semver_script" ]]; then
+    update_phase "semver" "failed" '{"reason": "semver-bump.sh not found"}'
+    log_error "semver" "semver-bump.sh not found"
+    increment_metric "phases_failed"
+    return 1
+  fi
+
+  local result
+  if result=$("$semver_script" 2>/dev/null); then
+    update_phase "semver" "completed" "$result"
+    increment_metric "phases_completed"
+    local current next bump
+    current=$(echo "$result" | jq -r '.current')
+    next=$(echo "$result" | jq -r '.next')
+    bump=$(echo "$result" | jq -r '.bump')
+    echo "[SEMVER] ${current} → ${next} (${bump})"
+  else
+    update_phase "semver" "failed" '{"reason": "semver calculation failed"}'
+    log_error "semver" "semver-bump.sh failed with exit code $?"
+    increment_metric "phases_failed"
+    echo "[SEMVER] Failed — semver calculation error"
+    return 1
+  fi
+}
+
+phase_changelog() {
+  update_phase "changelog" "in_progress"
+
+  local changelog="${PROJECT_ROOT}/CHANGELOG.md"
+  if [[ ! -f "$changelog" ]]; then
+    update_phase "changelog" "skipped" '{"reason": "CHANGELOG.md not found"}'
+    increment_metric "phases_skipped"
+    echo "[CHANGELOG] No CHANGELOG.md found — skipped"
+    return 0
+  fi
+
+  # Get version from semver phase result
+  local version
+  version=$(read_state '.phases.semver.result.next // empty')
+  if [[ -z "$version" ]]; then
+    update_phase "changelog" "skipped" '{"reason": "no version from semver phase"}'
+    increment_metric "phases_skipped"
+    echo "[CHANGELOG] No version available — skipped"
+    return 0
+  fi
+
+  # Check if [Unreleased] section exists
+  if ! grep -q '## \[Unreleased\]' "$changelog"; then
+    update_phase "changelog" "skipped" '{"reason": "no [Unreleased] section"}'
+    increment_metric "phases_skipped"
+    echo "[CHANGELOG] No [Unreleased] section — skipped"
+    return 0
+  fi
+
+  # Check if version already exists
+  if grep -q "## \[${version}\]" "$changelog"; then
+    update_phase "changelog" "skipped" '{"reason": "version already in CHANGELOG"}'
+    increment_metric "phases_skipped"
+    echo "[CHANGELOG] Version ${version} already exists — skipped"
+    return 0
+  fi
+
+  if [[ "$DRY_RUN" == true ]]; then
+    echo "[CHANGELOG] Would finalize v${version} (dry-run)"
+    update_phase "changelog" "completed" '{"dry_run": true}'
+    increment_metric "phases_completed"
+    return 0
+  fi
+
+  # Replace [Unreleased] with versioned header
+  local date_str
+  date_str=$(date +%Y-%m-%d)
+  sed -i "s/## \[Unreleased\]/## [Unreleased]\n\n## [${version}] - ${date_str}/" "$changelog"
+
+  # Commit the change
+  git -C "$PROJECT_ROOT" add "$changelog"
+  if ! git -C "$PROJECT_ROOT" diff --cached --quiet; then
+    git -C "$PROJECT_ROOT" commit -m "chore(release): v${version} — finalize CHANGELOG"
+  fi
+
+  update_phase "changelog" "completed"
+  increment_metric "phases_completed"
+  echo "[CHANGELOG] Finalized v${version}"
+}
+
+phase_gt_regen() {
+  update_phase "gt_regen" "in_progress"
+
+  if [[ "$SKIP_GT" == true ]]; then
+    update_phase "gt_regen" "skipped" '{"reason": "skipped via --skip-gt"}'
+    increment_metric "phases_skipped"
+    echo "[GT_REGEN] Skipped via --skip-gt"
+    return 0
+  fi
+
+  local gt_script="${SCRIPT_DIR}/ground-truth-gen.sh"
+  if [[ ! -f "$gt_script" ]]; then
+    update_phase "gt_regen" "skipped" '{"reason": "ground-truth-gen.sh not found"}'
+    increment_metric "phases_skipped"
+    echo "[GT_REGEN] ground-truth-gen.sh not found — skipped"
+    return 0
+  fi
+
+  if [[ "$DRY_RUN" == true ]]; then
+    echo "[GT_REGEN] Would regenerate ground truth (dry-run)"
+    update_phase "gt_regen" "completed" '{"dry_run": true}'
+    increment_metric "phases_completed"
+    return 0
+  fi
+
+  if "$gt_script" --mode checksums 2>/dev/null; then
+    # Commit if there are changes
+    git -C "$PROJECT_ROOT" add grimoires/loa/ground-truth/ 2>/dev/null || true
+    if ! git -C "$PROJECT_ROOT" diff --cached --quiet 2>/dev/null; then
+      git -C "$PROJECT_ROOT" commit -m "chore(gt): regenerate ground truth checksums"
+    fi
+    update_phase "gt_regen" "completed"
+    increment_metric "phases_completed"
+    echo "[GT_REGEN] Ground truth checksums updated"
+  else
+    local exit_code=$?
+    update_phase "gt_regen" "failed" "{\"exit_code\": $exit_code}"
+    log_error "gt_regen" "ground-truth-gen.sh failed with exit code $exit_code"
+    increment_metric "phases_failed"
+    echo "[GT_REGEN] Failed — exit code $exit_code"
+  fi
+}
+
+phase_rtfm() {
+  update_phase "rtfm" "in_progress"
+
+  if [[ "$SKIP_RTFM" == true ]]; then
+    update_phase "rtfm" "skipped" '{"reason": "skipped via --skip-rtfm"}'
+    increment_metric "phases_skipped"
+    echo "[RTFM] Skipped via --skip-rtfm"
+    return 0
+  fi
+
+  if [[ "$DRY_RUN" == true ]]; then
+    echo "[RTFM] Would run RTFM validation (dry-run)"
+    update_phase "rtfm" "completed" '{"dry_run": true}'
+    increment_metric "phases_completed"
+    return 0
+  fi
+
+  # Placeholder — full RTFM integration in Sprint 3
+  echo "[RTFM] RTFM validation placeholder (full implementation in Sprint 3)"
+  update_phase "rtfm" "skipped" '{"reason": "placeholder — full implementation pending"}'
+  increment_metric "phases_skipped"
+}
+
+phase_tag() {
+  update_phase "tag" "in_progress"
+
+  local version
+  version=$(read_state '.phases.semver.result.next // empty')
+  if [[ -z "$version" ]]; then
+    update_phase "tag" "skipped" '{"reason": "no version from semver phase"}'
+    increment_metric "phases_skipped"
+    echo "[TAG] No version available — skipped"
+    return 0
+  fi
+
+  local tag="v${version}"
+
+  # Idempotency: check if tag already exists
+  if git -C "$PROJECT_ROOT" tag -l "$tag" | grep -q "$tag"; then
+    update_phase "tag" "skipped" "{\"reason\": \"tag ${tag} already exists\"}"
+    increment_metric "phases_skipped"
+    echo "[TAG] Tag ${tag} already exists — skipped"
+    return 0
+  fi
+
+  if [[ "$DRY_RUN" == true ]]; then
+    echo "[TAG] Would create tag ${tag} (dry-run)"
+    update_phase "tag" "completed" "{\"tag\": \"${tag}\", \"dry_run\": true}"
+    increment_metric "phases_completed"
+    return 0
+  fi
+
+  # Create annotated tag
+  git -C "$PROJECT_ROOT" tag -a "$tag" -m "Release ${tag}"
+
+  # Push tag
+  if git -C "$PROJECT_ROOT" push origin "$tag" 2>/dev/null; then
+    update_phase "tag" "completed" "{\"tag\": \"${tag}\"}"
+    increment_metric "phases_completed"
+    echo "[TAG] Created and pushed ${tag}"
+  else
+    # Tag created locally but push failed — still report success
+    update_phase "tag" "completed" "{\"tag\": \"${tag}\", \"pushed\": false}"
+    increment_metric "phases_completed"
+    echo "[TAG] Created ${tag} (push to remote failed)"
+  fi
+}
+
+phase_release() {
+  update_phase "release" "in_progress"
+
+  local version
+  version=$(read_state '.phases.semver.result.next // empty')
+  if [[ -z "$version" ]]; then
+    update_phase "release" "skipped" '{"reason": "no version from semver phase"}'
+    increment_metric "phases_skipped"
+    echo "[RELEASE] No version available — skipped"
+    return 0
+  fi
+
+  local tag="v${version}"
+
+  if ! check_gh 2>/dev/null; then
+    update_phase "release" "skipped" '{"reason": "gh CLI not available"}'
+    increment_metric "phases_skipped"
+    echo "[RELEASE] gh CLI not available — skipped"
+    return 0
+  fi
+
+  # Idempotency: check if release already exists
+  if gh release view "$tag" &>/dev/null; then
+    update_phase "release" "skipped" "{\"reason\": \"release ${tag} already exists\"}"
+    increment_metric "phases_skipped"
+    echo "[RELEASE] Release ${tag} already exists — skipped"
+    return 0
+  fi
+
+  if [[ "$DRY_RUN" == true ]]; then
+    echo "[RELEASE] Would create GitHub Release ${tag} (dry-run)"
+    update_phase "release" "completed" "{\"tag\": \"${tag}\", \"dry_run\": true}"
+    increment_metric "phases_completed"
+    return 0
+  fi
+
+  # Generate release notes
+  local notes_script="${SCRIPT_DIR}/release-notes-gen.sh"
+  local notes=""
+  if [[ -f "$notes_script" ]]; then
+    notes=$("$notes_script" --version "$version" --pr "$PR_NUMBER" --type "$PR_TYPE" 2>/dev/null || echo "Release ${tag}")
+  else
+    notes="Release ${tag}"
+  fi
+
+  # Create release
+  if gh release create "$tag" --title "${tag}" --notes "$notes" --verify-tag 2>/dev/null; then
+    update_phase "release" "completed" "{\"tag\": \"${tag}\"}"
+    increment_metric "phases_completed"
+    echo "[RELEASE] Created GitHub Release ${tag}"
+  else
+    update_phase "release" "failed" '{"reason": "gh release create failed"}'
+    log_error "release" "gh release create failed"
+    increment_metric "phases_failed"
+    echo "[RELEASE] Failed to create GitHub Release"
+  fi
+}
+
+phase_notify() {
+  update_phase "notify" "in_progress"
+
+  # Build summary table from state
+  local summary=""
+  summary+="## Post-Merge Pipeline Results\n\n"
+  summary+="| Phase | Status | Details |\n"
+  summary+="|-------|--------|--------|\n"
+
+  for phase in "${PHASE_ORDER[@]}"; do
+    local status result_str
+    status=$(read_state ".phases.${phase}.status // \"pending\"")
+    local icon="⏳"
+    case "$status" in
+      completed) icon="✅" ;;
+      failed)    icon="❌" ;;
+      skipped)   icon="⊘" ;;
+      pending)   icon="⏳" ;;
+    esac
+
+    # Extract a detail string from the result
+    result_str=""
+    case "$phase" in
+      classify) result_str=$(read_state '.phases.classify.result.pr_type // ""') ;;
+      semver)
+        local curr next bump
+        curr=$(read_state '.phases.semver.result.current // ""')
+        next=$(read_state '.phases.semver.result.next // ""')
+        bump=$(read_state '.phases.semver.result.bump // ""')
+        [[ -n "$curr" ]] && result_str="${curr} → ${next} (${bump})"
+        ;;
+      tag) result_str=$(read_state '.phases.tag.result.tag // ""') ;;
+      *) result_str=$(read_state ".phases.${phase}.result.reason // \"\"") ;;
+    esac
+
+    summary+="| ${phase} | ${icon} ${status} | ${result_str} |\n"
+  done
+
+  # Add timing
+  local started
+  started=$(read_state '.timestamps.started // ""')
+  if [[ -n "$started" ]]; then
+    summary+="\n_Started: ${started}_\n"
+  fi
+
+  if [[ "$DRY_RUN" == true ]]; then
+    printf '%b' "$summary"
+    echo "[NOTIFY] Would post summary (dry-run)"
+    update_phase "notify" "completed" '{"dry_run": true}'
+    increment_metric "phases_completed"
+    return 0
+  fi
+
+  # Post as PR comment if gh is available
+  if check_gh 2>/dev/null && [[ -n "$PR_NUMBER" ]]; then
+    printf '%b' "$summary" | gh pr comment "$PR_NUMBER" --body-file - 2>/dev/null || true
+    echo "[NOTIFY] Posted summary to PR #${PR_NUMBER}"
+  else
+    printf '%b' "$summary"
+    echo "[NOTIFY] Summary displayed (gh not available for PR comment)"
+  fi
+
+  update_phase "notify" "completed"
+  increment_metric "phases_completed"
+}
+
+# =============================================================================
+# Orchestration
+# =============================================================================
+
+run_pipeline() {
+  echo ""
+  echo "════════════════════════════════════════════════════════════"
+  echo "  Post-Merge Pipeline"
+  echo "  PR: #${PR_NUMBER}  Type: ${PR_TYPE}  SHA: ${MERGE_SHA:0:8}"
+  [[ "$DRY_RUN" == true ]] && echo "  MODE: DRY RUN"
+  echo "════════════════════════════════════════════════════════════"
+  echo ""
+
+  for phase in "${PHASE_ORDER[@]}"; do
+    if should_run_phase "$phase"; then
+      # Run the phase function
+      "phase_${phase}" || true  # Don't let phase failure stop the pipeline
+    else
+      update_phase "$phase" "skipped" '{"reason": "not in phase matrix for this PR type"}'
+      increment_metric "phases_skipped"
+    fi
+  done
+
+  # Finalize state
+  local completed failed skipped
+  completed=$(read_state '.metrics.phases_completed // 0')
+  failed=$(read_state '.metrics.phases_failed // 0')
+  skipped=$(read_state '.metrics.phases_skipped // 0')
+
+  atomic_state_update '.state = "DONE" | .timestamps.completed = (now | strftime("%Y-%m-%dT%H:%M:%SZ"))'
+
+  echo ""
+  echo "════════════════════════════════════════════════════════════"
+  echo "  Pipeline Complete"
+  echo "  Completed: ${completed}  Failed: ${failed}  Skipped: ${skipped}"
+  echo "════════════════════════════════════════════════════════════"
+
+  # Output state file as structured result
+  cat "$STATE_FILE"
+}
+
+# =============================================================================
+# Main
+# =============================================================================
+
+main() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --pr) PR_NUMBER="$2"; shift 2 ;;
+      --type) PR_TYPE="$2"; shift 2 ;;
+      --sha) MERGE_SHA="$2"; shift 2 ;;
+      --dry-run) DRY_RUN=true; shift ;;
+      --skip-gt) SKIP_GT=true; shift ;;
+      --skip-rtfm) SKIP_RTFM=true; shift ;;
+      --help|-h) usage; exit 0 ;;
+      *) echo "ERROR: Unknown argument: $1" >&2; usage; exit 1 ;;
+    esac
+  done
+
+  # Validate required arguments
+  if [[ -z "$PR_NUMBER" ]]; then
+    echo "ERROR: --pr is required" >&2
+    exit 1
+  fi
+  if [[ -z "$PR_TYPE" ]]; then
+    echo "ERROR: --type is required" >&2
+    exit 1
+  fi
+  if [[ -z "$MERGE_SHA" ]]; then
+    echo "ERROR: --sha is required" >&2
+    exit 1
+  fi
+
+  # Validate PR type
+  case "$PR_TYPE" in
+    cycle|bugfix|other) ;;
+    *) echo "ERROR: Invalid --type: ${PR_TYPE} (expected cycle|bugfix|other)" >&2; exit 1 ;;
+  esac
+
+  # Initialize state
+  init_state
+
+  # Run pipeline
+  run_pipeline
+}
+
+main "$@"
