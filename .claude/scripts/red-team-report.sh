@@ -150,7 +150,7 @@ ${header}
 
 ## Confirmed Attacks
 
-$(jq -r '
+$(result=$(jq -r '
 (.attacks.confirmed // [])[] |
 "### \(.id): \(.name)\n\n" +
 "- **Profile**: \(.attacker_profile // "unknown")\n" +
@@ -163,47 +163,47 @@ $(jq -r '
 "- **Assumption Challenged**: \(.assumption_challenged // "none")\n" +
 "- **GPT Score**: \(.gpt_score // 0) | **Opus Score**: \(.opus_score // 0)\n\n" +
 "**Scenario**:\n" +
-([.scenario[]? | "1. \(.)"] | join("\n")) +
+([.scenario[]? | . ] | to_entries | map("\(.key + 1). \(.value)") | join("\n")) +
 "\n\n**Impact**: \(.impact // "unknown")\n\n" +
 "**Reproducibility**: \(.reproducibility // "unknown")\n\n---\n"
-' "$input" 2>/dev/null || echo "_No confirmed attacks._")
+' "$input" 2>/dev/null); [[ -n "$result" ]] && echo "$result" || echo "_No confirmed attacks._")
 
 ## Theoretical Attacks
 
-$(jq -r '
+$(result=$(jq -r '
 (.attacks.theoretical // [])[] |
 "### \(.id): \(.name)\n" +
 "- **Severity**: \(.severity_score // 0)/1000 | **Consensus**: THEORETICAL\n" +
 "- **Vector**: \(.vector // "unknown")\n\n"
-' "$input" 2>/dev/null || echo "_No theoretical attacks._")
+' "$input" 2>/dev/null); [[ -n "$result" ]] && echo "$result" || echo "_No theoretical attacks._")
 
 ## Creative/Novel Attacks
 
-$(jq -r '
+$(result=$(jq -r '
 (.attacks.creative // [])[] |
 "### \(.id): \(.name)\n" +
 "- **Severity**: \(.severity_score // 0)/1000 | **Consensus**: CREATIVE_ONLY\n" +
 "- **Vector**: \(.vector // "unknown")\n\n"
-' "$input" 2>/dev/null || echo "_No creative attacks._")
+' "$input" 2>/dev/null); [[ -n "$result" ]] && echo "$result" || echo "_No creative attacks._")
 
 ## Defended Attacks
 
-$(jq -r '
+$(result=$(jq -r '
 (.attacks.defended // [])[] |
 "### \(.id): \(.name) ✓\n" +
 "- **Counter-design addresses this attack**\n\n"
-' "$input" 2>/dev/null || echo "_No defended attacks._")
+' "$input" 2>/dev/null); [[ -n "$result" ]] && echo "$result" || echo "_No defended attacks._")
 
 ## Counter-Designs
 
-$(jq -r '
+$(result=$(jq -r '
 (.counter_designs // [])[] |
 "### \(.id): \(.description)\n" +
 "- **Addresses**: \(.addresses | join(", "))\n" +
 "- **Architectural Change**: \(.architectural_change // "none")\n" +
 "- **Cost**: \(.implementation_cost // "unknown") | **Improvement**: \(.security_improvement // "unknown")\n" +
 "- **Trade-offs**: \(.trade_offs // "none")\n\n"
-' "$input" 2>/dev/null || echo "_No counter-designs generated._")
+' "$input" 2>/dev/null); [[ -n "$result" ]] && echo "$result" || echo "_No counter-designs generated._")
 
 ## Metrics
 

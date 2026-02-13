@@ -101,7 +101,7 @@ render_attack_template() {
 
     # For large content blocks, use file-based replacement via awk to avoid shell escaping
     local tmpwork
-    tmpwork=$(mktemp)
+    tmpwork=$(mktemp -p "$TEMP_DIR")
 
     # Replace {{SURFACE_CONTEXT}} with file content
     awk -v marker="{{SURFACE_CONTEXT}}" -v file="$surface_context_file" '
@@ -135,7 +135,7 @@ render_counter_template() {
 
     # Replace {{ATTACKS_JSON}} with file content via awk
     local tmpwork
-    tmpwork=$(mktemp)
+    tmpwork=$(mktemp -p "$TEMP_DIR")
     awk -v marker="{{ATTACKS_JSON}}" -v file="$attacks_json_file" '
         index($0, marker) { while ((getline line < file) > 0) print line; close(file); next }
         { print }
@@ -325,7 +325,7 @@ main() {
     local budget=200000
     local focus=""
     local surface=""
-    local json_output=false
+    # json_output removed: pipeline always outputs JSON (callers expect it)
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -339,7 +339,7 @@ main() {
             --budget)        budget="$2"; shift 2 ;;
             --focus)         focus="$2"; shift 2 ;;
             --surface)       surface="$2"; shift 2 ;;
-            --json)          json_output=true; shift ;;
+            --json)          shift ;;  # Accepted for compat; pipeline always outputs JSON
             *)               error "Unknown option: $1"; exit 1 ;;
         esac
     done

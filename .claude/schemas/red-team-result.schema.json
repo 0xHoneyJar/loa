@@ -8,7 +8,7 @@
     "properties": {
         "phase": {
             "type": "string",
-            "enum": ["prd", "sdd", "sprint", "spec"],
+            "enum": ["prd", "sdd", "sprint", "beads", "spec"],
             "description": "Planning phase or document type reviewed"
         },
         "mode": {
