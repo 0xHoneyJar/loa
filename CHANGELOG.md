@@ -5,6 +5,63 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.38.0] — 2026-02-14 — Adversarial Hardening Release
+
+### Why This Release
+
+Six cycles of concurrent engineering since v1.33.1 — spanning autonomous excellence loops, agent-grounded documentation, safety infrastructure, generative adversarial security design, and CI pipeline fixes — consolidated into a single release. Covers cycles 005 through 012, 10 merged PRs, and the transition from manual bridge reviews to autonomous red team pipelines.
+
+### Added
+
+#### Flatline Red Team — Generative Adversarial Security Design (#317, Cycle 012)
+
+Complete red team pipeline for adversarial security analysis of design documents:
+
+- **Red Team Pipeline** (`red-team-pipeline.sh`): 5-phase pipeline (sanitize → attack generation → cross-validation → consensus → counter-design) with per-phase timing metrics, budget enforcement, and inter-model safety envelope
+- **Scoring Engine** (`scoring-engine.sh`): Multi-model consensus scoring with 4 categories — CONFIRMED_ATTACK (both >700), THEORETICAL (one >700, other ≤700), CREATIVE_ONLY (neither >700), DEFENDED (with counter-design). Configurable thresholds via `.loa.config.yaml`
+- **Model Adapter** (`red-team-model-adapter.sh`): Mock/live abstraction for multi-model invocation with `--role attacker|defender|evaluator`, `--budget`, `--timeout` flags. Mock mode loads fixtures, live mode reserved for Hounfour integration
+- **Golden Set** (`red-team-golden-set.json`): 33-entry calibration corpus across all 4 consensus categories, 5 attacker profiles (external, insider, supply_chain, confused_deputy, automated), 5 attack surfaces, and 8 compositional vulnerability entries
+- **Input Sanitizer** (`red-team-sanitizer.sh`): Multi-pass sanitization with UTF-8 normalization, secret scanning, injection pattern detection, and `--inter-model` lightweight mode for between-phase safety
+- **Report Generator** (`red-team-report.sh`): Markdown report with executive summary, per-attack details, counter-designs, and metrics
+- **Retention Policy** (`red-team-retention.sh`): Configurable retention with age/count-based cleanup
+- **Attack Surfaces Registry** (`attack-surfaces.yaml`): 5 Loa-specific surfaces (agent-identity, token-gated-access, prompt-pipeline, config-as-code, multi-model-consensus) with graceful degradation for non-Loa projects
+- **Model Permissions** (`model-permissions.yaml`): Per-model capability constraints for 5 models
+- **Red Team Schema** (`red-team-result.schema.json`): JSON Schema for pipeline output validation
+- **Fixtures**: 5 response fixtures (2 attacker, 2 evaluator, 1 defender) for end-to-end mock testing
+- **`/red-team` Skill**: Command and skill registration with danger_level: high
+- 45 tests (33 scoring engine + 7 sanitizer + 5 model adapter)
+- 6 sprints (global 79-84), 3 bridge iterations achieving flatline (23 → 1.1 → 0.4)
+
+#### Harness Engineering — Safety Hooks, Deny Rules, Token Optimization (#315, Cycle 011)
+
+Production safety infrastructure for autonomous agent operation:
+
+- **Safety Hooks**: PreToolUse:Bash hook (`block-destructive-bash.sh`) blocks `rm -rf`, `git push --force`, `git reset --hard`, `git clean -f` with safer alternative suggestions
+- **Deny Rules**: Template credential deny rules (SSH, AWS, Kube, GPG, npm, pypi, git, gh) with merge installer script (`install-deny-rules.sh`)
+- **Stop Guard** (`run-mode-stop-guard.sh`): Stop hook detects active autonomous runs and injects context reminder
+- **Audit Logger** (`mutation-logger.sh`): PostToolUse:Bash JSONL logger for mutating commands with 10MB auto-rotation
+- **CLAUDE.md Optimization**: 757 → 244 lines (68% reduction), 3433 → 1554 words (55% reduction), 6 reference files extracted to `.claude/loa/reference/`
+- **Invariant Linter** (`lint-invariants.sh`): 9 structural invariants validated mechanically — system zone integrity, managed headers, constraints sync, required files, hooks, safety hook tests, deny rules
+- **Token Budget Measurement** (`measure-token-budget.sh`): Shows 71% of tokens are demand-loaded via skill invocation
+- 45 safety hook tests + 13 linter self-tests
+
+#### BUTTERFREEZONE — Agent-Grounded README Standard (#311, Cycle 009)
+
+Machine-generated, provenance-tagged README with ground truth anchoring:
+
+- **Generator** (`butterfreezone-gen.sh`, ~1230 lines): 3-tier input detection (reality files → static analysis → bootstrap), 8 section extractors with provenance tagging (CODE-FACTUAL, DERIVED, OPERATIONAL), advisory checksums (per-section SHA-256), word-count budget enforcement (3200 total, 800/section), security redaction, manual section preservation via sentinels, atomic writes with flock
+- **Validator** (`butterfreezone-validate.sh`): 7 validation checks (existence, AGENT-CONTEXT, provenance, references, word budget, ground-truth-meta, freshness) with `--strict`/`--json`/`--quiet` modes
+- **Bridge Integration**: BUTTERFREEZONE_GEN hook in bridge orchestrator FINALIZING phase (non-blocking)
+- **`/butterfreezone` Skill**: danger_level: safe
+- 3 lore glossary entries: butterfreezone, lobster, grounding-ritual
+- 41 BATS tests (28 gen + 13 validate)
+
+### Fixed
+
+- **Flatline Model Validation** (#308): `validate_model()` rejects invalid model names (agent aliases like `reviewer`) before API calls with actionable error messages; timeout raised 60s → 120s for Opus; stderr captured to temp files instead of `/dev/null`; 2s stagger between review and skeptic waves to avoid rate-limit contention; 13 BATS tests
+- **Bridgebuilder Filtering Gaps** (#313): 7 new `LOA_EXCLUDE_PATTERNS` entries (`evals/**`, `.run/**`, `.flatline/**`, `PROCESS.md`, `BUTTERFREEZONE.md`, `INSTALLATION.md`, `grimoires/**/NOTES.md`); new `isLoaSystemZone()` function demotes framework file security findings to tier2; `resolveRepoRoot()` with CLI > env > git auto-detect precedence; 332 tests passing
+- **Post-Merge Pipeline** (#318): Added git identity config to GitHub Actions workflow (fixed `fatal: empty ident name` that caused all 7 post-merge runs to fail); extended cycle classification regex to match `feat(cycle-...)` commits; fixed Discord webhook secret name to match repo configuration (`MELANGE_DISCORD_WEBHOOK`)
+
 ## [1.37.0] — DX Hardening (Cycle 008)
 
 ### Why This Release
