@@ -918,9 +918,14 @@ enforce_total_budget() {
         local reduced_budget=$((budget / 2))
         (( reduced_budget < 20 )) && reduced_budget=20
 
-        # Extract the section content between this header and the next ## or ground-truth-meta
+        # Extract section content between this header and the next ## or ground-truth-meta
         local section_content
-        section_content=$(echo "$result" | sed -n "/^${header}$/,/^## \|^<!-- ground-truth-meta/{ /^## \|^<!-- ground-truth-meta/!p; /^${header}$/p; }" 2>/dev/null) || true
+        section_content=$(echo "$result" | awk -v hdr="$header" '
+            BEGIN { in_section=0 }
+            $0 == hdr { in_section=1; print; next }
+            in_section && (/^## / || /^<!-- ground-truth-meta/) { exit }
+            in_section { print }
+        ' 2>/dev/null) || true
 
         if [[ -n "$section_content" ]]; then
             local truncated
@@ -1050,7 +1055,12 @@ extract_section_content() {
     if [[ "$section" == "agent_context" ]]; then
         echo "$document" | sed -n '/<!-- AGENT-CONTEXT/,/-->/p'
     else
-        echo "$document" | sed -n "/${header}/,/^## \|^<!-- ground-truth-meta/p" | head -n -1
+        echo "$document" | awk -v hdr="$header" '
+            BEGIN { in_section=0 }
+            $0 ~ hdr { in_section=1; print; next }
+            in_section && (/^## / || /^<!-- ground-truth-meta/) { exit }
+            in_section { print }
+        '
     fi
 }
 

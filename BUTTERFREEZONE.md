@@ -135,8 +135,8 @@ claude
 /ship      # Deploy and archive
 ```
 <!-- ground-truth-meta
-head_sha: 88efb8692faea5c0d3a18c5b0c275d258093875b
-generated_at: 2026-02-13T06:53:49Z
+head_sha: 2749dc604d152157d08091930224942f20ca5040
+generated_at: 2026-02-13T07:21:15Z
 generator: butterfreezone-gen v1.0.0
 sections:
   agent_context: b09a6c0215127e4e9e31487cadb96d5d1c659ce8257abbae9662592779dde922
@@ -144,5 +144,5 @@ sections:
   architecture: a5ffce49636c71a93df41e9cb65f1bf394cce17d65413c45607d64e248f908f7
   interfaces: 23e92915acfd2a5fa593f1d7053d04ef25df2a6ed03b76aa70588791003fb6b1
   module_map: f60fed6f0ce0317f86e7143e97ae9f27fe9ed6e2dd104fa433afa969e5d78691
-  quick_start: 6e53606a9d320d2874cc4165b73d252ad1d26b044ef5dfea329e433e50548ca9
+  quick_start: a6405f431b837c85a4beb869478df1e6a43f256f4d76b31927744707468cf68f
 -->
