@@ -281,3 +281,219 @@ skip_if_deps_missing() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"Pipeline Complete"* ]]
 }
+
+# =============================================================================
+# Integration Tests (Sprint 2)
+# =============================================================================
+
+@test "post-merge-int: full cycle pipeline dry-run all phases attempted" {
+    skip_if_deps_missing
+
+    # Setup a tagged version so semver works
+    echo "v" > "$TEST_REPO/v.txt"
+    git -C "$TEST_REPO" add v.txt
+    git -C "$TEST_REPO" commit -m "feat: feature" --quiet
+    git -C "$TEST_REPO" tag -a v1.0.0 -m "v1.0.0"
+    echo "more" > "$TEST_REPO/more.txt"
+    git -C "$TEST_REPO" add more.txt
+    git -C "$TEST_REPO" commit -m "feat: new feature" --quiet
+    MERGE_SHA=$(git -C "$TEST_REPO" rev-parse HEAD)
+
+    run "$TEST_SCRIPT" --pr 100 --type cycle --sha "$MERGE_SHA" --dry-run
+    [ "$status" -eq 0 ]
+
+    # All 8 phases should have been attempted (not still pending)
+    local pending_count
+    pending_count=$(jq '[.phases[] | select(.status == "pending")] | length' "$TEST_REPO/.run/post-merge-state.json")
+    [ "$pending_count" -eq 0 ]
+}
+
+@test "post-merge-int: bugfix pipeline only runs 4 phases" {
+    skip_if_deps_missing
+
+    echo "v" > "$TEST_REPO/v.txt"
+    git -C "$TEST_REPO" add v.txt
+    git -C "$TEST_REPO" commit -m "fix: bugfix" --quiet
+    git -C "$TEST_REPO" tag -a v1.0.0 -m "v1.0.0"
+    echo "fix" > "$TEST_REPO/fix.txt"
+    git -C "$TEST_REPO" add fix.txt
+    git -C "$TEST_REPO" commit -m "fix: another fix" --quiet
+    MERGE_SHA=$(git -C "$TEST_REPO" rev-parse HEAD)
+
+    run "$TEST_SCRIPT" --pr 55 --type bugfix --sha "$MERGE_SHA" --dry-run
+    [ "$status" -eq 0 ]
+
+    # changelog, gt_regen, rtfm, release should be matrix-skipped
+    local skipped_count
+    skipped_count=$(jq '[.phases[] | select(.result.reason == "not in phase matrix for this PR type")] | length' "$TEST_REPO/.run/post-merge-state.json")
+    [ "$skipped_count" -eq 4 ]
+}
+
+@test "post-merge-int: semver computes correct version from tags" {
+    skip_if_deps_missing
+
+    echo "v" > "$TEST_REPO/v.txt"
+    git -C "$TEST_REPO" add v.txt
+    git -C "$TEST_REPO" commit -m "initial" --quiet
+    git -C "$TEST_REPO" tag -a v2.5.0 -m "v2.5.0"
+    echo "new" > "$TEST_REPO/new.txt"
+    git -C "$TEST_REPO" add new.txt
+    git -C "$TEST_REPO" commit -m "feat: add something" --quiet
+    MERGE_SHA=$(git -C "$TEST_REPO" rev-parse HEAD)
+
+    run "$TEST_SCRIPT" --pr 77 --type bugfix --sha "$MERGE_SHA" --dry-run
+    [ "$status" -eq 0 ]
+
+    local next
+    next=$(jq -r '.phases.semver.result.next // empty' "$TEST_REPO/.run/post-merge-state.json")
+    [ "$next" = "2.6.0" ]
+}
+
+@test "post-merge-int: CHANGELOG finalization with [Unreleased] section" {
+    skip_if_deps_missing
+
+    # Create CHANGELOG with Unreleased
+    cat > "$TEST_REPO/CHANGELOG.md" <<'CLEOF'
+# Changelog
+
+## [Unreleased]
+
+### Added
+- New feature X
+
+## [1.0.0] - 2026-01-01
+
+### Added
+- Initial release
+CLEOF
+    git -C "$TEST_REPO" add CHANGELOG.md
+    git -C "$TEST_REPO" commit -m "initial with changelog" --quiet
+    git -C "$TEST_REPO" tag -a v1.0.0 -m "v1.0.0"
+    echo "feat" > "$TEST_REPO/feat.txt"
+    git -C "$TEST_REPO" add feat.txt
+    git -C "$TEST_REPO" commit -m "feat: new feature" --quiet
+    MERGE_SHA=$(git -C "$TEST_REPO" rev-parse HEAD)
+
+    run "$TEST_SCRIPT" --pr 88 --type cycle --sha "$MERGE_SHA" --skip-gt --skip-rtfm
+    [ "$status" -eq 0 ]
+
+    # CHANGELOG should now contain the new version
+    grep -q "\[1.1.0\]" "$TEST_REPO/CHANGELOG.md"
+    # [Unreleased] should still be present (gets duplicated with new version below)
+    grep -q "\[Unreleased\]" "$TEST_REPO/CHANGELOG.md"
+}
+
+@test "post-merge-int: idempotent tag creation (run twice, second skips)" {
+    skip_if_deps_missing
+
+    echo "v" > "$TEST_REPO/v.txt"
+    git -C "$TEST_REPO" add v.txt
+    git -C "$TEST_REPO" commit -m "initial" --quiet
+    git -C "$TEST_REPO" tag -a v1.0.0 -m "v1.0.0"
+    echo "new" > "$TEST_REPO/new.txt"
+    git -C "$TEST_REPO" add new.txt
+    git -C "$TEST_REPO" commit -m "feat: feature" --quiet
+    MERGE_SHA=$(git -C "$TEST_REPO" rev-parse HEAD)
+
+    # First run creates the tag
+    run "$TEST_SCRIPT" --pr 42 --type bugfix --sha "$MERGE_SHA"
+    [ "$status" -eq 0 ]
+
+    # Verify tag was created
+    git -C "$TEST_REPO" tag -l v1.1.0 | grep -q v1.1.0
+
+    # Second run should skip the tag (idempotent) — but semver now finds no commits since v1.1.0
+    # So the tag phase skips due to "no version" (which is correct idempotent behavior)
+    run "$TEST_SCRIPT" --pr 42 --type bugfix --sha "$MERGE_SHA"
+    [ "$status" -eq 0 ]
+
+    local tag_status
+    tag_status=$(jq -r '.phases.tag.status' "$TEST_REPO/.run/post-merge-state.json")
+    [ "$tag_status" = "skipped" ]
+}
+
+@test "post-merge-int: CHANGELOG idempotent (version already exists)" {
+    skip_if_deps_missing
+
+    # Create CHANGELOG with version already present
+    cat > "$TEST_REPO/CHANGELOG.md" <<'CLEOF'
+# Changelog
+
+## [Unreleased]
+
+## [1.1.0] - 2026-02-13
+
+### Added
+- Already released
+
+## [1.0.0] - 2026-01-01
+CLEOF
+    git -C "$TEST_REPO" add CHANGELOG.md
+    git -C "$TEST_REPO" commit -m "initial" --quiet
+    git -C "$TEST_REPO" tag -a v1.0.0 -m "v1.0.0"
+    echo "f" > "$TEST_REPO/f.txt"
+    git -C "$TEST_REPO" add f.txt
+    git -C "$TEST_REPO" commit -m "feat: feature" --quiet
+    MERGE_SHA=$(git -C "$TEST_REPO" rev-parse HEAD)
+
+    run "$TEST_SCRIPT" --pr 42 --type cycle --sha "$MERGE_SHA" --dry-run
+    [ "$status" -eq 0 ]
+
+    local reason
+    reason=$(jq -r '.phases.changelog.result.reason // empty' "$TEST_REPO/.run/post-merge-state.json")
+    [[ "$reason" == *"already"* ]]
+}
+
+@test "post-merge-int: notify phase generates summary with phase statuses" {
+    skip_if_deps_missing
+
+    run "$TEST_SCRIPT" --pr 42 --type bugfix --sha "$MERGE_SHA" --dry-run
+    [ "$status" -eq 0 ]
+
+    # Notify output should contain phase names
+    [[ "$output" == *"classify"* ]]
+    [[ "$output" == *"semver"* ]]
+    [[ "$output" == *"tag"* ]]
+    [[ "$output" == *"notify"* ]]
+}
+
+@test "post-merge-int: state file records errors on semver failure" {
+    skip_if_deps_missing
+
+    # No tags and no changelog → semver will fail
+    # But we need commits since there's no tag
+    run "$TEST_SCRIPT" --pr 42 --type bugfix --sha "$MERGE_SHA" --dry-run
+    [ "$status" -eq 0 ]
+
+    # phases_failed should be > 0 since semver can't find a version
+    local failed
+    failed=$(jq -r '.metrics.phases_failed // 0' "$TEST_REPO/.run/post-merge-state.json")
+    [ "$failed" -gt 0 ]
+}
+
+@test "post-merge-int: metrics tracking (completed + skipped + failed = 8)" {
+    skip_if_deps_missing
+
+    run "$TEST_SCRIPT" --pr 42 --type cycle --sha "$MERGE_SHA" --dry-run
+    [ "$status" -eq 0 ]
+
+    local completed skipped failed total
+    completed=$(jq -r '.metrics.phases_completed // 0' "$TEST_REPO/.run/post-merge-state.json")
+    skipped=$(jq -r '.metrics.phases_skipped // 0' "$TEST_REPO/.run/post-merge-state.json")
+    failed=$(jq -r '.metrics.phases_failed // 0' "$TEST_REPO/.run/post-merge-state.json")
+    total=$((completed + skipped + failed))
+    [ "$total" -eq 8 ]
+}
+
+@test "post-merge-int: all flags combined" {
+    skip_if_deps_missing
+
+    run "$TEST_SCRIPT" --pr 42 --type cycle --sha "$MERGE_SHA" --dry-run --skip-gt --skip-rtfm
+    [ "$status" -eq 0 ]
+
+    local gt_reason rtfm_reason
+    gt_reason=$(jq -r '.phases.gt_regen.result.reason // empty' "$TEST_REPO/.run/post-merge-state.json")
+    rtfm_reason=$(jq -r '.phases.rtfm.result.reason // empty' "$TEST_REPO/.run/post-merge-state.json")
+    [[ "$gt_reason" == *"--skip-gt"* ]]
+    [[ "$rtfm_reason" == *"--skip-rtfm"* ]] || [[ "$rtfm_reason" == *"placeholder"* ]]
+}

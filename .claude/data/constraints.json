@@ -1016,6 +1016,106 @@
         }
       ],
       "severity": "low"
+    },
+    {
+      "id": "C-MERGE-001",
+      "name": "always_shell_orchestrator",
+      "category": "merge",
+      "rule_type": "ALWAYS",
+      "text": "use `post-merge-orchestrator.sh` for pipeline execution, not ad-hoc commands",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS use `post-merge-orchestrator.sh` for pipeline execution, not ad-hoc commands"
+      },
+      "why": "Orchestrator provides state tracking, idempotency, and audit trail",
+      "order": 0,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "merge_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-MERGE-002",
+      "name": "never_tag_without_semver",
+      "category": "merge",
+      "rule_type": "NEVER",
+      "text": "create tags manually — always use semver-bump.sh for version computation",
+      "text_variants": {
+        "claude-loa-md": "NEVER create tags manually — always use semver-bump.sh for version computation"
+      },
+      "why": "Manual tags bypass conventional commit parsing and may produce incorrect versions",
+      "order": 1,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "merge_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-MERGE-003",
+      "name": "rtfm_gaps_not_blocking",
+      "category": "merge",
+      "rule_type": "MUST",
+      "text": "log RTFM gaps but MUST NOT block the pipeline on documentation drift",
+      "text_variants": {
+        "claude-loa-md": "RTFM gaps MUST be logged but MUST NOT block the pipeline"
+      },
+      "why": "Documentation drift is informational, not a release blocker",
+      "order": 2,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "merge_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "medium"
+    },
+    {
+      "id": "C-MERGE-004",
+      "name": "always_idempotent_phases",
+      "category": "merge",
+      "rule_type": "ALWAYS",
+      "text": "check for existing work before acting (tag exists, release exists, CHANGELOG version present)",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS check for existing work before acting — all phases must be idempotent"
+      },
+      "why": "Retries and re-runs must not produce duplicate tags, releases, or CHANGELOG entries",
+      "order": 3,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "merge_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "C-MERGE-005",
+      "name": "cycle_only_full_pipeline",
+      "category": "merge",
+      "rule_type": "MUST",
+      "text": "only run full pipeline (CHANGELOG, GT, RTFM, Release) for cycle-type PRs",
+      "text_variants": {
+        "claude-loa-md": "Full pipeline (CHANGELOG, GT, RTFM, Release) MUST only run for cycle-type PRs"
+      },
+      "why": "Bugfix and other PRs get patch bump + tag only to avoid unnecessary processing",
+      "order": 4,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "merge_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "medium"
     }
   ]
 }

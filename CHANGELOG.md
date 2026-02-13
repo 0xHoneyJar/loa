@@ -5,6 +5,25 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.36.0] - 2026-02-13 — Post-Merge Automation Pipeline
+
+### Why This Release
+
+Automates the entire post-merge lifecycle: when a PR merges to main, a GitHub Actions workflow classifies the PR type (cycle/bugfix/other), computes the next semver from conventional commits, finalizes the CHANGELOG, creates tags and releases, and posts a summary. Cycle PRs get the full 8-phase pipeline via claude-code-action; bugfix/other PRs get lightweight tag-only processing. Closes #298.
+
+### Added
+
+- **Post-Merge Orchestrator** (`.claude/scripts/post-merge-orchestrator.sh`): 8-phase pipeline with atomic state updates, phase matrix, dry-run mode, and idempotent phases
+- **Semver Bump Script** (`.claude/scripts/semver-bump.sh`): Conventional commit parser — feat→minor, fix→patch, BREAKING→major, outputs JSON
+- **Release Notes Generator** (`.claude/scripts/release-notes-gen.sh`): CHANGELOG extraction with cycle/bugfix/other templates
+- **GitHub Actions Workflow** (`.github/workflows/post-merge.yml`): 4-job workflow (classify → simple-release/full-pipeline → notify)
+- **claude-code-action Integration**: Sonnet model, 15 max turns, tool allowlist for cycle PRs
+- **Shell-Only Fallback**: Pipeline runs without ANTHROPIC_API_KEY for cycle PRs
+- **Discord Notification**: Webhook alert on pipeline failure
+- **Post-Merge Config**: `post_merge:` section in `.loa.config.yaml`
+- **Constraints**: C-MERGE-001 through C-MERGE-005 (orchestrator-only, no manual tags, RTFM non-blocking, idempotent phases, cycle-only full pipeline)
+- **61 BATS Tests**: 22 semver + 15 release-notes + 24 orchestrator
+
 ## [1.35.1] - 2026-02-12 — Bridgebuilder Enrichment
 
 ### Why This Release

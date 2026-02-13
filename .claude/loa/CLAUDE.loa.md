@@ -1,4 +1,4 @@
-<!-- @loa-managed: true | version: 1.35.0 | hash: f2c04762c9fdbc4f117017d5ac61571112a0536dd55612b73e84bd3ba774df61 -->
+<!-- @loa-managed: true | version: 1.36.0 | hash: f2c04762c9fdbc4f117017d5ac61571112a0536dd55612b73e84bd3ba774df61PLACEHOLDER -->
 <!-- WARNING: This file is managed by the Loa Framework. Do not edit directly. -->
 
 # Loa Framework Instructions
@@ -664,6 +664,59 @@ python3 .claude/skills/flatline-knowledge/resources/notebooklm-query.py --setup-
 ```
 
 **Protocol**: `.claude/protocols/flatline-protocol.md`
+
+## Post-Merge Automation (v1.36.0)
+
+Automated pipeline triggered when PRs merge to main. 3-layer architecture: GH Actions → claude-code-action → shell orchestrator.
+
+### Architecture
+
+| Layer | Component | Purpose |
+|-------|-----------|---------|
+| Trigger | `.github/workflows/post-merge.yml` | Detect merge, classify PR, route |
+| Orchestration | `anthropics/claude-code-action@v1` | AI-driven pipeline for cycle PRs |
+| Execution | `.claude/scripts/post-merge-orchestrator.sh` | 8-phase state machine |
+
+### Phase Matrix
+
+| Phase | Cycle | Bugfix | Other |
+|-------|-------|--------|-------|
+| CLASSIFY | Yes | Yes | Yes |
+| SEMVER | Yes | Yes | Yes |
+| CHANGELOG | Yes | - | - |
+| GT_REGEN | Yes | - | - |
+| RTFM | Yes | - | - |
+| TAG | Yes | Yes | Yes |
+| RELEASE | Yes | - | - |
+| NOTIFY | Yes | Yes | Yes |
+
+### Key Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `semver-bump.sh` | Conventional commit parser → JSON |
+| `release-notes-gen.sh` | CHANGELOG extraction + templates |
+| `post-merge-orchestrator.sh` | 8-phase pipeline with state tracking |
+
+### Merge Constraints
+
+| Rule | Why |
+|------|-----|
+<!-- @constraint-generated: start merge_constraints | hash:c007-post-merge -->
+<!-- DO NOT EDIT — generated from .claude/data/constraints.json -->
+| ALWAYS use `post-merge-orchestrator.sh` for pipeline execution, not ad-hoc commands | Orchestrator provides state tracking, idempotency, and audit trail |
+| NEVER create tags manually — always use semver-bump.sh for version computation | Manual tags bypass conventional commit parsing and may produce incorrect versions |
+| RTFM gaps MUST be logged but MUST NOT block the pipeline | Documentation drift is informational, not a release blocker |
+| ALWAYS check for existing work before acting — all phases must be idempotent | Retries and re-runs must not produce duplicate tags, releases, or CHANGELOG entries |
+| Full pipeline (CHANGELOG, GT, RTFM, Release) MUST only run for cycle-type PRs | Bugfix and other PRs get patch bump + tag only to avoid unnecessary processing |
+<!-- @constraint-generated: end merge_constraints -->
+
+### Configuration
+
+```yaml
+post_merge:
+  enabled: true
+```
 
 ## Conventions
 

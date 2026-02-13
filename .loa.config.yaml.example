@@ -1317,6 +1317,48 @@ run_bridge:
       post_redaction_safety: true
 
 # =============================================================================
+# Post-Merge Automation Pipeline (v1.36.0)
+# =============================================================================
+# Automated post-merge pipeline triggered on push to main.
+# 3-layer architecture: GH Actions → claude-code-action → shell orchestrator.
+post_merge:
+  # Master toggle — must be true for GH Actions workflow to process merges
+  enabled: false
+
+  # Phase matrix for each PR type
+  # cycle: all 8 phases (classify, semver, changelog, gt_regen, rtfm, tag, release, notify)
+  # bugfix: 4 phases (classify, semver, tag, notify)
+  # other: 4 phases (classify, semver, tag, notify)
+
+  # claude-code-action configuration
+  claude_code_action:
+    # Model for cycle pipeline execution
+    model: "claude-sonnet-4-5-20250929"
+    # Maximum conversation turns
+    max_turns: 15
+    # Tool allowlist
+    allowed_tools: "Bash(bash),Read,Write,Glob,Grep"
+
+  # Timeouts
+  timeouts:
+    # Full pipeline timeout in minutes (GH Actions job timeout)
+    full_pipeline_minutes: 30
+
+  # Phase-specific options
+  phases:
+    # Skip ground truth regeneration
+    skip_gt: false
+    # Skip RTFM validation
+    skip_rtfm: false
+
+  # Notification
+  notify:
+    # Post pipeline summary as PR comment
+    pr_comment: true
+    # Discord notification on failure (requires DISCORD_WEBHOOK_URL secret)
+    discord_on_failure: true
+
+# =============================================================================
 # Bridgebuilder — Autonomous PR Review
 # =============================================================================
 # Configuration for the /bridgebuilder skill. All fields have sensible defaults.
