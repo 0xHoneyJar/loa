@@ -144,6 +144,110 @@ render_counter_template() {
 }
 
 # =============================================================================
+# Budget tracking
+# =============================================================================
+
+# Global budget state
+BUDGET_LIMIT=0
+BUDGET_CONSUMED=0
+BUDGET_EXCEEDED=false
+
+init_budget() {
+    local execution_mode="$1"
+    local budget_override="$2"
+
+    if [[ "$budget_override" -gt 0 ]]; then
+        BUDGET_LIMIT="$budget_override"
+    else
+        case "$execution_mode" in
+            quick)    BUDGET_LIMIT=$(yq '.red_team.budgets.quick_max_tokens // 50000' "$CONFIG_FILE" 2>/dev/null || echo 50000) ;;
+            standard) BUDGET_LIMIT=$(yq '.red_team.budgets.standard_max_tokens // 200000' "$CONFIG_FILE" 2>/dev/null || echo 200000) ;;
+            deep)     BUDGET_LIMIT=$(yq '.red_team.budgets.deep_max_tokens // 500000' "$CONFIG_FILE" 2>/dev/null || echo 500000) ;;
+            *)        BUDGET_LIMIT=200000 ;;
+        esac
+    fi
+
+    BUDGET_CONSUMED=0
+    BUDGET_EXCEEDED=false
+    log "Budget initialized: limit=${BUDGET_LIMIT} tokens ($execution_mode mode)"
+}
+
+# Record tokens consumed by a phase. Returns 1 if budget exceeded.
+record_tokens() {
+    local phase_name="$1"
+    local tokens="$2"
+
+    BUDGET_CONSUMED=$((BUDGET_CONSUMED + tokens))
+    log "Budget: ${phase_name} consumed ${tokens} tokens (${BUDGET_CONSUMED}/${BUDGET_LIMIT} total)"
+
+    if [[ "$BUDGET_LIMIT" -gt 0 ]] && (( BUDGET_CONSUMED > BUDGET_LIMIT )); then
+        BUDGET_EXCEEDED=true
+        log "WARNING: Budget exceeded (${BUDGET_CONSUMED} > ${BUDGET_LIMIT})"
+        return 1
+    fi
+    return 0
+}
+
+# Check if budget allows another phase
+check_budget() {
+    local next_phase="$1"
+    if [[ "$BUDGET_EXCEEDED" == "true" ]]; then
+        log "Budget exceeded — skipping ${next_phase}"
+        return 1
+    fi
+    return 0
+}
+
+# =============================================================================
+# Phase timing
+# =============================================================================
+
+phase_start_time() {
+    date +%s%N
+}
+
+phase_elapsed_ms() {
+    local start="$1"
+    local end
+    end=$(date +%s%N)
+    echo $(( (end - start) / 1000000 ))
+}
+
+# =============================================================================
+# Inter-model sanitization
+# =============================================================================
+
+sanitize_inter_model() {
+    local input_file="$1"
+    local output_file="$2"
+
+    if [[ ! -x "$SANITIZER" ]]; then
+        log "Inter-model sanitization: sanitizer not available, passing through"
+        cp "$input_file" "$output_file"
+        return 0
+    fi
+
+    local sanitize_exit=0
+    "$SANITIZER" --input-file "$input_file" --output-file "$output_file" --inter-model 2>/dev/null || sanitize_exit=$?
+
+    case $sanitize_exit in
+        0)
+            log "Inter-model sanitization: clean"
+            ;;
+        1)
+            log "Inter-model sanitization: injection patterns detected in model output (logged, continuing)"
+            # Continue with sanitized version — don't block
+            ;;
+        *)
+            log "Inter-model sanitization: sanitizer returned $sanitize_exit, using original"
+            cp "$input_file" "$output_file"
+            ;;
+    esac
+
+    return 0
+}
+
+# =============================================================================
 # Phase execution
 # =============================================================================
 
@@ -178,27 +282,49 @@ run_phase1_attacks() {
     local execution_mode="$2"
     local timeout="$3"
 
+    local phase_start
+    phase_start=$(phase_start_time)
+
     log "Phase 1: Attack generation ($execution_mode mode)"
 
-    # In quick mode, only 2 calls (1 attacker + 1 defender)
-    # In standard/deep, 4 calls (2 attackers + 2 defenders)
-    # For now, simulate with placeholder output since we can't make real API calls
-    # The actual model invocation would use model-adapter.sh
-
     local result_file="$TEMP_DIR/phase1-attacks.json"
+    local MODEL_ADAPTER="$SCRIPT_DIR/red-team-model-adapter.sh"
 
-    # Placeholder: In production, this calls model-adapter.sh for each model
-    # For quick mode: 1 attacker call → 1 output
-    # For standard: 2 attacker calls → merged output
-    log "Phase 1: Model invocation (placeholder — requires model-adapter.sh integration)"
+    if [[ -x "$MODEL_ADAPTER" ]]; then
+        # Use model adapter (mock or live)
+        local attacker_output="$TEMP_DIR/phase1-attacker.json"
+        "$MODEL_ADAPTER" \
+            --role attacker \
+            --model opus \
+            --prompt-file "$prompt_file" \
+            --output-file "$attacker_output" \
+            --budget "$BUDGET_LIMIT" \
+            --timeout "$timeout" 2>/dev/null || {
+            log "Phase 1: Model adapter failed, using empty result"
+            jq -n '{ attacks: [], summary: "Model adapter failed", models_used: 0, tokens_used: 0 }' > "$result_file"
+            PHASE1_MS=$(phase_elapsed_ms "$phase_start")
+            echo "$result_file"
+            return 0
+        }
 
-    # Create empty structure for downstream phases
-    jq -n '{
-        attacks: [],
-        summary: "Phase 1 placeholder — model invocation required",
-        models_used: 0
-    }' > "$result_file"
+        # Record tokens from adapter output
+        local tokens_used
+        tokens_used=$(jq '.tokens_used // 0' "$attacker_output" 2>/dev/null || echo 0)
+        record_tokens "phase1" "$tokens_used" || true
 
+        cp "$attacker_output" "$result_file"
+    else
+        # Placeholder: model-adapter.sh not yet available
+        log "Phase 1: Model invocation (placeholder — requires model-adapter.sh)"
+        jq -n '{
+            attacks: [],
+            summary: "Phase 1 placeholder — model invocation required",
+            models_used: 0,
+            tokens_used: 0
+        }' > "$result_file"
+    fi
+
+    PHASE1_MS=$(phase_elapsed_ms "$phase_start")
     echo "$result_file"
 }
 
@@ -207,27 +333,62 @@ run_phase2_validation() {
     local execution_mode="$2"
     local timeout="$3"
 
+    local phase_start
+    phase_start=$(phase_start_time)
+
     if [[ "$execution_mode" == "quick" ]]; then
         log "Phase 2: SKIPPED (quick mode — no cross-validation)"
-        # In quick mode, use attacker self-scores directly
+        PHASE2_MS=0
+        echo "$attacks_file"
+        return 0
+    fi
+
+    # Budget check before expensive phase
+    if ! check_budget "phase2"; then
+        PHASE2_MS=0
         echo "$attacks_file"
         return 0
     fi
 
     log "Phase 2: Cross-validation"
 
+    # Inter-model sanitization: sanitize Phase 1 output before feeding to Phase 2
+    local sanitized_attacks="$TEMP_DIR/phase1-sanitized.json"
+    sanitize_inter_model "$attacks_file" "$sanitized_attacks"
+
     local result_file="$TEMP_DIR/phase2-validated.json"
 
-    # Placeholder: In production, this invokes scoring-engine.sh --attack-mode
-    log "Phase 2: Cross-validation (placeholder — requires scoring-engine.sh --attack-mode)"
+    local MODEL_ADAPTER="$SCRIPT_DIR/red-team-model-adapter.sh"
+    if [[ -x "$MODEL_ADAPTER" ]]; then
+        "$MODEL_ADAPTER" \
+            --role evaluator \
+            --model gpt \
+            --prompt-file "$sanitized_attacks" \
+            --output-file "$result_file" \
+            --budget "$BUDGET_LIMIT" \
+            --timeout "$timeout" 2>/dev/null || {
+            log "Phase 2: Model adapter failed, using unsanitized attacks"
+            cp "$sanitized_attacks" "$result_file"
+        }
 
-    cp "$attacks_file" "$result_file"
+        local tokens_used
+        tokens_used=$(jq '.tokens_used // 0' "$result_file" 2>/dev/null || echo 0)
+        record_tokens "phase2" "$tokens_used" || true
+    else
+        log "Phase 2: Cross-validation (placeholder — requires model-adapter.sh)"
+        cp "$sanitized_attacks" "$result_file"
+    fi
+
+    PHASE2_MS=$(phase_elapsed_ms "$phase_start")
     echo "$result_file"
 }
 
 run_phase3_consensus() {
     local validated_file="$1"
     local execution_mode="$2"
+
+    local phase_start
+    phase_start=$(phase_start_time)
 
     log "Phase 3: Attack consensus classification"
 
@@ -276,6 +437,7 @@ run_phase3_consensus() {
         }' "$validated_file" > "$result_file"
     fi
 
+    PHASE3_MS=$(phase_elapsed_ms "$phase_start")
     echo "$result_file"
 }
 
@@ -284,9 +446,21 @@ run_phase4_counter_design() {
     local phase="$2"
     local execution_mode="$3"
 
+    local phase_start
+    phase_start=$(phase_start_time)
+
     if [[ "$execution_mode" == "quick" ]]; then
         log "Phase 4: SKIPPED (quick mode — using inline counter-designs)"
+        PHASE4_MS=0
         echo "$consensus_file"
+        return 0
+    fi
+
+    # Budget check before expensive phase
+    if ! check_budget "phase4"; then
+        PHASE4_MS=0
+        jq '. + {counter_designs: [], budget_skipped: true}' "$consensus_file" > "$TEMP_DIR/phase4-result.json"
+        echo "$TEMP_DIR/phase4-result.json"
         return 0
     fi
 
@@ -302,11 +476,40 @@ run_phase4_counter_design() {
         log "Phase 4: No confirmed attacks — skipping counter-design synthesis"
         jq '. + {counter_designs: []}' "$consensus_file" > "$result_file"
     else
-        # Placeholder: In production, render counter-design template and invoke models
-        log "Phase 4: Counter-design synthesis (placeholder — requires model invocation)"
-        jq '. + {counter_designs: []}' "$consensus_file" > "$result_file"
+        local MODEL_ADAPTER="$SCRIPT_DIR/red-team-model-adapter.sh"
+        if [[ -x "$MODEL_ADAPTER" ]]; then
+            local confirmed_file="$TEMP_DIR/confirmed-attacks.json"
+            echo "$confirmed_attacks" > "$confirmed_file"
+
+            local counter_prompt="$TEMP_DIR/counter-prompt.md"
+            render_counter_template "$phase" "$confirmed_file" "$counter_prompt"
+
+            "$MODEL_ADAPTER" \
+                --role defender \
+                --model opus \
+                --prompt-file "$counter_prompt" \
+                --output-file "$result_file" \
+                --budget "$BUDGET_LIMIT" \
+                --timeout 300 2>/dev/null || {
+                log "Phase 4: Model adapter failed"
+                jq '. + {counter_designs: []}' "$consensus_file" > "$result_file"
+            }
+
+            local tokens_used
+            tokens_used=$(jq '.tokens_used // 0' "$result_file" 2>/dev/null || echo 0)
+            record_tokens "phase4" "$tokens_used" || true
+
+            # Merge counter-designs into consensus result
+            local counter_designs
+            counter_designs=$(jq '.counter_designs // []' "$result_file" 2>/dev/null || echo "[]")
+            jq --argjson cds "$counter_designs" '. + {counter_designs: $cds}' "$consensus_file" > "$result_file"
+        else
+            log "Phase 4: Counter-design synthesis (placeholder — requires model-adapter.sh)"
+            jq '. + {counter_designs: []}' "$consensus_file" > "$result_file"
+        fi
     fi
 
+    PHASE4_MS=$(phase_elapsed_ms "$phase_start")
     echo "$result_file"
 }
 
@@ -357,7 +560,20 @@ main() {
     TEMP_DIR=$(mktemp -d)
     trap 'rm -rf "$TEMP_DIR"' EXIT
 
+    # Initialize phase timing variables
+    PHASE0_MS=0
+    PHASE1_MS=0
+    PHASE2_MS=0
+    PHASE3_MS=0
+    PHASE4_MS=0
+
+    # Initialize budget tracking
+    init_budget "$execution_mode" "$budget"
+
     # Phase 0: Input sanitization
+    local phase0_start
+    phase0_start=$(phase_start_time)
+
     local sanitized_file="$TEMP_DIR/sanitized.md"
     local sanitize_status=0
     run_phase0_sanitize "$doc" "$sanitized_file" || sanitize_status=$?
@@ -367,9 +583,19 @@ main() {
         exit 2
     fi
 
-    # Load surface context
+    PHASE0_MS=$(phase_elapsed_ms "$phase0_start")
+
+    # Load surface context (with graceful degradation)
     local surface_file="$TEMP_DIR/surfaces.md"
     load_surface_context "$focus" "$surface" "$surface_file"
+
+    # Check if surface context is empty/generic — log warning for non-matching focus
+    local surface_size
+    surface_size=$(wc -c < "$surface_file" 2>/dev/null || echo 0)
+    if [[ -n "$focus" ]] && (( surface_size < 50 )); then
+        log "Warning: Focus categories '$focus' produced minimal surface context (${surface_size} bytes)"
+        log "Proceeding with generic attack generation — model will infer surfaces from document content"
+    fi
 
     # Render attack prompt
     local prompt_file="$TEMP_DIR/attack-prompt.md"
@@ -391,6 +617,9 @@ main() {
     local result_file
     result_file=$(run_phase4_counter_design "$consensus_file" "$phase" "$execution_mode")
 
+    # Calculate total latency
+    local total_ms=$((PHASE0_MS + PHASE1_MS + PHASE2_MS + PHASE3_MS + PHASE4_MS))
+
     # Collect target surfaces for result
     local target_surfaces_json="[]"
     if [[ -n "$focus" ]]; then
@@ -399,7 +628,7 @@ main() {
         target_surfaces_json=$(printf '%s' "$surface" | tr ',' '\n' | jq -R . | jq -s .)
     fi
 
-    # Build final result
+    # Build final result with metrics
     local final
     final=$(jq \
         --arg run_id "$run_id" \
@@ -411,6 +640,15 @@ main() {
         --argjson sanitize_status "$sanitize_status" \
         --argjson target_surfaces "$target_surfaces_json" \
         --arg focus "${focus:-}" \
+        --argjson phase0_ms "$PHASE0_MS" \
+        --argjson phase1_ms "$PHASE1_MS" \
+        --argjson phase2_ms "$PHASE2_MS" \
+        --argjson phase3_ms "$PHASE3_MS" \
+        --argjson phase4_ms "$PHASE4_MS" \
+        --argjson total_ms "$total_ms" \
+        --argjson budget_limit "$BUDGET_LIMIT" \
+        --argjson budget_consumed "$BUDGET_CONSUMED" \
+        --argjson budget_exceeded "$BUDGET_EXCEEDED" \
         '. + {
             run_id: $run_id,
             phase: $phase,
@@ -420,7 +658,18 @@ main() {
             classification: $classification,
             target_surfaces: $target_surfaces,
             focus: $focus,
-            sanitize_status: (if $sanitize_status == 0 then "clean" elif $sanitize_status == 1 then "needs_review" else "blocked" end)
+            sanitize_status: (if $sanitize_status == 0 then "clean" elif $sanitize_status == 1 then "needs_review" else "blocked" end),
+            metrics: ((.metrics // {}) + {
+                phase0_sanitize_ms: $phase0_ms,
+                phase1_attacks_ms: $phase1_ms,
+                phase2_validation_ms: $phase2_ms,
+                phase3_consensus_ms: $phase3_ms,
+                phase4_counter_design_ms: $phase4_ms,
+                total_latency_ms: $total_ms,
+                budget_limit: $budget_limit,
+                budget_consumed: $budget_consumed,
+                budget_exceeded: $budget_exceeded
+            })
         }' "$result_file")
 
     # Generate report if report generator exists

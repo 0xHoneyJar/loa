@@ -69,6 +69,7 @@ Usage: red-team-sanitizer.sh [OPTIONS] --input-file <path> --output-file <path>
 Options:
   --input-file PATH    Input document to sanitize (required)
   --output-file PATH   Output path for sanitized content (required)
+  --inter-model        Lightweight mode for inter-model sanitization (injection only)
   --self-test          Run built-in test cases
   --verbose            Enable verbose logging
   -h, --help           Show this help
@@ -366,11 +367,13 @@ main() {
   local output_file=""
   local verbose=false
   local self_test=false
+  local inter_model=false
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --input-file)  input_file="$2"; shift 2 ;;
       --output-file) output_file="$2"; shift 2 ;;
+      --inter-model) inter_model=true; shift ;;
       --verbose)     verbose=true; shift ;;
       --self-test)   self_test=true; shift ;;
       -h|--help)     usage; exit 0 ;;
@@ -399,6 +402,22 @@ main() {
   trap 'rm -rf "$tmpdir"' EXIT
 
   local exit_code=0
+
+  # Inter-model mode: lightweight sanitization for model-to-model output
+  # Skips UTF-8 validation and secret scanning, focuses on injection detection
+  if [[ "$inter_model" == "true" ]]; then
+    [[ "$verbose" == "true" ]] && log "Inter-model mode: injection detection only"
+
+    if ! detect_injection "$input_file"; then
+      log "INTER-MODEL: Injection patterns detected in model output — flagged"
+      exit_code=1
+    fi
+
+    # Copy input to output (preserve content, just flag issues)
+    cp "$input_file" "$output_file"
+    [[ "$verbose" == "true" ]] && log "Inter-model sanitization complete (exit=$exit_code)"
+    exit $exit_code
+  fi
 
   # Step 1: UTF-8 validation
   [[ "$verbose" == "true" ]] && log "Pass 0: UTF-8 validation"
