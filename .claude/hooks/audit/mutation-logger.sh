@@ -21,7 +21,8 @@ if [[ -z "$command" ]]; then
 fi
 
 # Only log mutating commands (skip read-only operations)
-if echo "$command" | grep -qEi '^\s*(git\s|npm\s|pip\s|cargo\s|rm\s|mv\s|cp\s|mkdir\s|chmod\s|chown\s|docker\s|kubectl\s|make\s|yarn\s|pnpm\s|npx\s)'; then
+# Handles: direct commands, prefixed (sudo, env, command), and chained (&&, ;, |)
+if echo "$command" | grep -qEi '(^|&&|;|\|)\s*(sudo\s+)?(env\s+[^ ]+\s+)?(command\s+)?(git|npm|pip|cargo|rm|mv|cp|mkdir|chmod|chown|docker|kubectl|make|yarn|pnpm|npx)\s'; then
   # Create .run directory if needed
   mkdir -p .run 2>/dev/null || true
 

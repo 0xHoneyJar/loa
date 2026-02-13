@@ -125,15 +125,27 @@ Install: `bash .claude/scripts/install-deny-rules.sh --auto`
 
 ## Files
 
+### Active (registered in settings.hooks.json)
+
+| Path | Event | Purpose |
+|------|-------|---------|
+| `pre-compact-marker.sh` | PreCompact | Creates marker before compaction |
+| `post-compact-reminder.sh` | UserPromptSubmit | Injects reminder after compaction |
+| `safety/block-destructive-bash.sh` | PreToolUse:Bash | Destructive command blocker |
+| `safety/run-mode-stop-guard.sh` | Stop | Premature exit guard |
+| `audit/mutation-logger.sh` | PostToolUse:Bash | Mutation audit logger |
+
+### Optional (separate installation)
+
+| Path | Event | Purpose |
+|------|-------|---------|
+| `memory-writer.sh` | PostToolUse | Memory observation capture (requires memory config) |
+| `memory-inject.sh` | UserPromptSubmit | Memory injection on prompt (requires memory config) |
+
+### Configuration
+
 | Path | Purpose |
 |------|---------|
-| `pre-compact-marker.sh` | Creates marker before compaction |
-| `post-compact-reminder.sh` | Injects reminder after compaction |
-| `memory-writer.sh` | Memory observation capture hook |
-| `memory-inject.sh` | Memory injection on prompt |
-| `safety/block-destructive-bash.sh` | Destructive command blocker |
-| `safety/run-mode-stop-guard.sh` | Premature exit guard |
-| `audit/mutation-logger.sh` | Mutation audit logger |
 | `settings.hooks.json` | Hook configuration template |
 | `settings.deny.json` | Deny rules template |
 | `README.md` | This documentation |

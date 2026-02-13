@@ -62,7 +62,7 @@ report() {
   esac
 
   if [[ "$JSON_OUTPUT" == "true" ]]; then
-    RESULTS+=("{\"level\":\"$level\",\"name\":\"$name\",\"message\":\"$message\"}")
+    RESULTS+=("$(jq -cn --arg l "$level" --arg n "$name" --arg m "$message" '{level:$l,name:$n,message:$m}')")
   else
     local symbol
     case "$level" in

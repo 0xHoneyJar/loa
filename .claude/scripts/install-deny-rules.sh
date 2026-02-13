@@ -152,32 +152,21 @@ if [[ ! -f "$SETTINGS" ]]; then
   added=$(jq '.permissions.deny | length' "$SETTINGS")
   echo "Created $SETTINGS with $added deny rules."
 else
-  # Merge: add rules that don't already exist
+  # Merge: add rules that don't already exist (single jq pass)
   template_rules="$DENY_TEMPLATE"
-  added=$(jq --slurpfile new "$template_rules" '
-    .permissions.deny //= [] |
-    .permissions.deny as $existing |
-    ($new[0].permissions.deny | map(select(. as $r | $existing | index($r) | not))) as $to_add |
-    .permissions.deny += $to_add |
-    ($to_add | length)
-  ' "$SETTINGS")
-
-  # Actually write the merged file
   jq --slurpfile new "$template_rules" '
     .permissions.deny //= [] |
     .permissions.deny as $existing |
     ($new[0].permissions.deny | map(select(. as $r | $existing | index($r) | not))) as $to_add |
     .permissions.deny += $to_add
   ' "$SETTINGS" > "${SETTINGS}.tmp"
+
+  # Count additions by comparing backup to merged result
+  added=$(jq -r '.permissions.deny | length' "${SETTINGS}.tmp")
+  existing=$(jq -r '.permissions.deny // [] | length' "${SETTINGS}.bak")
+  added=$((added - existing))
+
   mv "${SETTINGS}.tmp" "$SETTINGS"
-
-  # Count what was added
-  added=$(jq --slurpfile new "$template_rules" '
-    .permissions.deny //= [] |
-    .permissions.deny as $existing |
-    [$new[0].permissions.deny[] | select(. as $r | $existing | index($r) | not)] | length
-  ' "${SETTINGS}.bak")
-
   echo "Added $added new deny rule(s) to $SETTINGS."
 fi
 
