@@ -13,6 +13,7 @@ import {
   getSecurityCategory,
   matchesExcludePattern,
   SECURITY_PATTERNS,
+  isLoaSystemZone,
 } from "../core/truncation.js";
 import type { PullRequestFile } from "../ports/git-provider.js";
 
@@ -119,9 +120,16 @@ describe("detectLoa", () => {
 // --- classifyLoaFile ---
 
 describe("classifyLoaFile", () => {
-  it("classifies security files as exception (never excluded)", () => {
-    assert.equal(classifyLoaFile(".claude/scripts/auth/login.sh"), "exception");
-    assert.equal(classifyLoaFile("grimoires/loa/crypto/keys.ts"), "exception");
+  it("classifies security files in system zones as tier2 (Bug 2 fix)", () => {
+    assert.equal(classifyLoaFile(".claude/scripts/auth/login.sh"), "tier2");
+    assert.equal(classifyLoaFile("grimoires/loa/crypto/keys.ts"), "tier2");
+  });
+
+  it("classifies security files outside system zones as exception", () => {
+    assert.equal(classifyLoaFile("src/auth/login.ts"), "exception");
+    assert.equal(classifyLoaFile("lib/crypto/keys.ts"), "exception");
+    assert.equal(classifyLoaFile("SECURITY.md"), "exception");
+    assert.equal(classifyLoaFile("CODEOWNERS"), "exception");
   });
 
   it("classifies .md files under Loa paths as tier1", () => {
@@ -244,13 +252,22 @@ describe("applyLoaTierExclusion", () => {
     assert.equal(result.tier2Summary.length, 1);
   });
 
-  it("passes through security files even under Loa paths", () => {
+  it("demotes security files under Loa system zones to tier2 (Bug 2 fix)", () => {
     const files = [file(".claude/scripts/auth/login.sh", 10, 0)];
     const result = applyLoaTierExclusion(files, LOA_EXCLUDE_PATTERNS);
 
-    // auth/ matches SECURITY_PATTERNS → exception → passthrough
+    // auth/ matches SECURITY_PATTERNS, but .claude/ is a system zone → tier2 (not exception/passthrough)
+    assert.equal(result.passthrough.length, 0);
+    assert.equal(result.tier2Summary.length, 1);
+    assert.equal(result.tier2Summary[0].filename, ".claude/scripts/auth/login.sh");
+  });
+
+  it("passes through security files outside Loa system zones", () => {
+    // src/auth/ is NOT in LOA_EXCLUDE_PATTERNS, so it passes through normally
+    const files = [file("src/auth/login.ts", 10, 0)];
+    const result = applyLoaTierExclusion(files, LOA_EXCLUDE_PATTERNS);
+
     assert.equal(result.passthrough.length, 1);
-    assert.equal(result.tier1Excluded.length, 0);
   });
 
   it("tracks bytesSaved from excluded files", () => {
@@ -370,6 +387,103 @@ describe("LOA_EXCLUDE_PATTERNS", () => {
     assert.ok(!matchesExcludePattern("src/app.ts", LOA_EXCLUDE_PATTERNS));
     assert.ok(!matchesExcludePattern("lib/utils.ts", LOA_EXCLUDE_PATTERNS));
     assert.ok(!matchesExcludePattern("package.json", LOA_EXCLUDE_PATTERNS));
+  });
+});
+
+// --- isLoaSystemZone (Bug 2 fix — issue #309) ---
+
+describe("isLoaSystemZone", () => {
+  it("returns true for .claude/ paths", () => {
+    assert.ok(isLoaSystemZone(".claude/scripts/setup.sh"));
+    assert.ok(isLoaSystemZone(".claude/protocols/security-hardening.md"));
+  });
+
+  it("returns true for grimoires/ paths", () => {
+    assert.ok(isLoaSystemZone("grimoires/loa/prd.md"));
+    assert.ok(isLoaSystemZone("grimoires/loa/security-notes.md"));
+  });
+
+  it("returns true for other system zones", () => {
+    assert.ok(isLoaSystemZone(".beads/state.json"));
+    assert.ok(isLoaSystemZone("evals/suites/basic.ts"));
+    assert.ok(isLoaSystemZone(".run/sprint-plan-state.json"));
+    assert.ok(isLoaSystemZone(".flatline/runs/abc.json"));
+  });
+
+  it("returns false for application paths", () => {
+    assert.ok(!isLoaSystemZone("src/auth/login.ts"));
+    assert.ok(!isLoaSystemZone("lib/crypto/keys.ts"));
+    assert.ok(!isLoaSystemZone("app/page.tsx"));
+  });
+
+  it("returns false for root-level files", () => {
+    assert.ok(!isLoaSystemZone("SECURITY.md"));
+    assert.ok(!isLoaSystemZone("CODEOWNERS"));
+    assert.ok(!isLoaSystemZone("package.json"));
+  });
+});
+
+// --- LOA_EXCLUDE_PATTERNS: new patterns (Bug 1 fix — issue #309) ---
+
+describe("LOA_EXCLUDE_PATTERNS — expanded patterns", () => {
+  it("matches evals/ paths", () => {
+    assert.ok(matchesExcludePattern("evals/suites/basic.ts", LOA_EXCLUDE_PATTERNS));
+    assert.ok(matchesExcludePattern("evals/fixtures/repo/src/index.ts", LOA_EXCLUDE_PATTERNS));
+  });
+
+  it("matches .run/ paths", () => {
+    assert.ok(matchesExcludePattern(".run/sprint-plan-state.json", LOA_EXCLUDE_PATTERNS));
+    assert.ok(matchesExcludePattern(".run/bridge-state.json", LOA_EXCLUDE_PATTERNS));
+  });
+
+  it("matches .flatline/ paths", () => {
+    assert.ok(matchesExcludePattern(".flatline/runs/abc.json", LOA_EXCLUDE_PATTERNS));
+    assert.ok(matchesExcludePattern(".flatline/snapshots/snap.json", LOA_EXCLUDE_PATTERNS));
+  });
+
+  it("matches Loa doc files", () => {
+    assert.ok(matchesExcludePattern("PROCESS.md", LOA_EXCLUDE_PATTERNS));
+    assert.ok(matchesExcludePattern("BUTTERFREEZONE.md", LOA_EXCLUDE_PATTERNS));
+    assert.ok(matchesExcludePattern("INSTALLATION.md", LOA_EXCLUDE_PATTERNS));
+    assert.ok(matchesExcludePattern("NOTES.md", LOA_EXCLUDE_PATTERNS));
+  });
+
+  it("does NOT match application paths", () => {
+    assert.ok(!matchesExcludePattern("src/index.ts", LOA_EXCLUDE_PATTERNS));
+    assert.ok(!matchesExcludePattern("tests/unit/foo.test.ts", LOA_EXCLUDE_PATTERNS));
+    assert.ok(!matchesExcludePattern("app/page.tsx", LOA_EXCLUDE_PATTERNS));
+  });
+});
+
+// --- classifyLoaFile: system zone demotion (Bug 2 fix — issue #309) ---
+
+describe("classifyLoaFile — system zone demotion", () => {
+  it("demotes .claude/protocols/security-hardening.md to tier2", () => {
+    assert.equal(classifyLoaFile(".claude/protocols/security-hardening.md"), "tier2");
+  });
+
+  it("demotes .claude/scripts/detect-secrets.sh to tier2", () => {
+    assert.equal(classifyLoaFile(".claude/scripts/detect-secrets.sh"), "tier2");
+  });
+
+  it("demotes .claude/adapters/crypto-utils.ts to tier2", () => {
+    assert.equal(classifyLoaFile(".claude/adapters/crypto-utils.ts"), "tier2");
+  });
+
+  it("demotes grimoires/loa/security-notes.md to tier2", () => {
+    assert.equal(classifyLoaFile("grimoires/loa/security-notes.md"), "tier2");
+  });
+
+  it("keeps src/security/middleware.ts as exception", () => {
+    assert.equal(classifyLoaFile("src/security/middleware.ts"), "exception");
+  });
+
+  it("keeps lib/auth/oauth.ts as exception", () => {
+    assert.equal(classifyLoaFile("lib/auth/oauth.ts"), "exception");
+  });
+
+  it("keeps root SECURITY.md as exception", () => {
+    assert.equal(classifyLoaFile("SECURITY.md"), "exception");
   });
 });
 

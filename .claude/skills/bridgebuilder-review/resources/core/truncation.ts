@@ -154,12 +154,22 @@ export function matchesExcludePattern(
 /** Default Loa framework exclude patterns.
  * Use ** for recursive directory matching (BB-F4). */
 export const LOA_EXCLUDE_PATTERNS = [
+  // Core framework (existing)
   ".claude/**",
   "grimoires/**",
   ".beads/**",
   ".loa-version.json",
   ".loa.config.yaml",
   ".loa.config.yaml.example",
+  // State & runtime (Bug 1 — issue #309)
+  "evals/**",
+  ".run/**",
+  ".flatline/**",
+  // Docs & config (Bug 1 — issue #309)
+  "PROCESS.md",
+  "BUTTERFREEZONE.md",
+  "INSTALLATION.md",
+  "NOTES.md",
 ];
 
 /**
@@ -256,6 +266,24 @@ export function detectLoa(
   }
 }
 
+// --- Loa System Zone Detection (Bug 2 fix — issue #309) ---
+
+/** Paths that are definitively Loa framework system zones.
+ * Security pattern matches in these zones get demoted to tier2 (summary)
+ * instead of exception (full diff) to prevent framework file leakage. */
+const LOA_SYSTEM_ZONE_PREFIXES = [
+  ".claude/",
+  "grimoires/",
+  ".beads/",
+  "evals/",
+  ".run/",
+  ".flatline/",
+];
+
+export function isLoaSystemZone(filename: string): boolean {
+  return LOA_SYSTEM_ZONE_PREFIXES.some(prefix => filename.startsWith(prefix));
+}
+
 // --- Two-Tier Loa Exclusion (Task 1.3 — SDD Section 3.2) ---
 
 /** Tier 1 extensions: content-excluded (stats only). */
@@ -284,8 +312,12 @@ const TIER2_MIN_PATHS = [
 export type LoaTier = "tier1" | "tier2" | "exception";
 
 export function classifyLoaFile(filename: string): LoaTier {
-  // Exception: SECURITY_PATTERNS match → full diff, never excluded
+  // Security pattern match: full diff for app code, but demoted to tier2
+  // for Loa system zone files (Bug 2 fix — issue #309)
   if (isHighRisk(filename)) {
+    if (isLoaSystemZone(filename)) {
+      return "tier2";
+    }
     return "exception";
   }
 
