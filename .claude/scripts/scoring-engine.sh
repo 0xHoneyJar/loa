@@ -192,6 +192,13 @@ def build_score_map:
 # Attack Mode Classification (Red Team Extension)
 # =============================================================================
 
+# Get red team threshold from config with fallback to default
+get_rt_threshold() {
+    local name="$1"
+    local default="$2"
+    read_config ".red_team.thresholds.$name" "$default"
+}
+
 # Classify a single attack based on cross-validation scores
 # Returns: CONFIRMED_ATTACK, THEORETICAL, CREATIVE_ONLY, or DEFENDED
 classify_attack() {
@@ -200,9 +207,13 @@ classify_attack() {
     local has_counter="${3:-false}"
     local is_quick_mode="${4:-false}"
 
+    # Configurable thresholds (read from .loa.config.yaml with defaults)
+    local confirmed_threshold
+    confirmed_threshold=$(get_rt_threshold "confirmed_attack" "700")
+
     # Quick mode can never produce CONFIRMED_ATTACK
     if [[ "$is_quick_mode" == "true" ]]; then
-        if (( gpt_score > 400 )); then
+        if (( gpt_score > confirmed_threshold )); then
             echo "THEORETICAL"
         else
             echo "CREATIVE_ONLY"
@@ -210,11 +221,11 @@ classify_attack() {
         return 0
     fi
 
-    if [[ "$has_counter" == "true" ]] && (( gpt_score > 700 && opus_score > 700 )); then
+    if [[ "$has_counter" == "true" ]] && (( gpt_score > confirmed_threshold && opus_score > confirmed_threshold )); then
         echo "DEFENDED"
-    elif (( gpt_score > 700 && opus_score > 700 )); then
+    elif (( gpt_score > confirmed_threshold && opus_score > confirmed_threshold )); then
         echo "CONFIRMED_ATTACK"
-    elif (( gpt_score > 700 || opus_score > 700 )); then
+    elif (( gpt_score > confirmed_threshold || opus_score > confirmed_threshold )); then
         echo "THEORETICAL"
     else
         echo "CREATIVE_ONLY"
@@ -313,23 +324,35 @@ run_attack_self_test() {
     total=$(jq '.attacks | length' "$golden_set")
 
     for i in $(seq 0 $((total - 1))); do
-        local id name expected_category severity_score expected_min expected_max
+        local id name expected_category severity_score
         id=$(jq -r ".attacks[$i].id" "$golden_set")
         name=$(jq -r ".attacks[$i].name" "$golden_set")
         expected_category=$(jq -r ".attacks[$i].expected_category" "$golden_set")
         severity_score=$(jq -r ".attacks[$i].severity_score" "$golden_set")
-        expected_min=$(jq -r ".attacks[$i].expected_min_score // 0" "$golden_set")
-        expected_max=$(jq -r ".attacks[$i].expected_max_score // 1000" "$golden_set")
 
-        # Simulate classification: use severity_score as both model scores for self-test
+        # Check for per-model scores (THEORETICAL entries have separate expected scores)
+        local gpt_score opus_score
+        local has_per_model
+        has_per_model=$(jq -r ".attacks[$i].expected_gpt_score // \"\"" "$golden_set")
+
+        if [[ -n "$has_per_model" ]]; then
+            # Per-model scores: use expected_gpt_score and expected_opus_score
+            gpt_score=$(jq -r ".attacks[$i].expected_gpt_score" "$golden_set")
+            opus_score=$(jq -r ".attacks[$i].expected_opus_score" "$golden_set")
+        else
+            # Legacy: use severity_score as both model scores
+            gpt_score="$severity_score"
+            opus_score="$severity_score"
+        fi
+
         local result
-        result=$(classify_attack "$severity_score" "$severity_score" "false" "false")
+        result=$(classify_attack "$gpt_score" "$opus_score" "false" "false")
 
         if [[ "$result" == "$expected_category" ]]; then
-            log "  PASS: $id ($name) → $result"
+            log "  PASS: $id ($name) → $result [GPT=$gpt_score, Opus=$opus_score]"
             pass=$((pass + 1))
         else
-            log "  FAIL: $id ($name) → $result (expected $expected_category)"
+            log "  FAIL: $id ($name) → $result (expected $expected_category) [GPT=$gpt_score, Opus=$opus_score]"
             fail=$((fail + 1))
         fi
     done

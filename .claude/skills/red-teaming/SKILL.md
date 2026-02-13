@@ -54,9 +54,16 @@ Use the Flatline Protocol's red team mode to generate creative attack scenarios 
 | Category | Criteria | Meaning |
 |----------|----------|---------|
 | CONFIRMED_ATTACK | Both models score >700 | Attack is realistic and should be addressed |
-| THEORETICAL | One model >700, other <400 | Plausible but unconfirmed |
-| CREATIVE_ONLY | Both <400 but novel | Interesting but unlikely |
-| DEFENDED | Counter-design >700 from both | Attack already has effective defense |
+| THEORETICAL | One model >700, other ≤700 | Plausible but models disagree |
+| CREATIVE_ONLY | Neither model scores >700 | Novel but neither model finds it convincing |
+| DEFENDED | Counter-design >700 from both models | Attack already has effective defense |
+
+**Score Examples**:
+- GPT=850, Opus=900 → CONFIRMED_ATTACK (both >700)
+- GPT=800, Opus=400 → THEORETICAL (one >700, other ≤700)
+- GPT=650, Opus=750 → THEORETICAL (Opus >700, GPT ≤700)
+- GPT=500, Opus=600 → CREATIVE_ONLY (neither >700)
+- GPT=300, Opus=200 → CREATIVE_ONLY (neither >700)
 
 ## Human Validation Gate
 

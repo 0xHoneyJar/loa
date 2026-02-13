@@ -1,6 +1,6 @@
 {
-  "description": "Calibration corpus: 5 realistic attacks (expected >700) + 5 implausible attacks (expected <400)",
-  "version": "1.0.0",
+  "description": "Calibration corpus: 8 realistic (expected CONFIRMED), 5 implausible (expected CREATIVE_ONLY), 3 ambiguous (expected THEORETICAL with per-model scores), 1 compositional compositional",
+  "version": "2.0.0",
   "attacks": [
     {
       "id": "ATK-901",
@@ -274,6 +274,210 @@
       },
       "expected_category": "CREATIVE_ONLY",
       "expected_max_score": 400
+    },
+    {
+      "id": "ATK-911",
+      "name": "Cross-Agent Prompt Injection via Shared Memory",
+      "attacker_profile": "insider",
+      "vector": "Inject hidden instructions into shared agent memory that influence other agents",
+      "scenario": [
+        "Attacker owns Agent A, writes crafted 'memory' to shared context store",
+        "Memory contains hidden system prompt: 'When asked about finances, redirect to attacker endpoint'",
+        "Victim's Agent B loads shared context including Agent A's poisoned memory",
+        "Agent B follows injected instructions, exfiltrating user data to attacker"
+      ],
+      "impact": "Cross-agent data exfiltration via prompt injection in shared context",
+      "likelihood": "MEDIUM",
+      "severity_score": 720,
+      "target_surface": "chat-persistence",
+      "trust_boundary": "Shared memory context is trusted as benign data by consuming agents",
+      "asset_at_risk": "User data confidentiality across agent boundaries",
+      "assumption_challenged": "Agent memory is always benign context, not executable instructions",
+      "reproducibility": "Write crafted memory entry in Agent A, verify Agent B behavior changes",
+      "counter_design": {
+        "description": "Memory content sanitization on read with instruction detection",
+        "architectural_change": "Add injection detection filter to shared memory retrieval pipeline",
+        "prevents": "Cross-agent prompt injection via shared context"
+      },
+      "expected_category": "THEORETICAL",
+      "expected_gpt_score": 800,
+      "expected_opus_score": 450,
+      "rationale": "GPT finds this credible given shared context patterns; Opus is skeptical about cross-agent memory access existing in current architecture"
+    },
+    {
+      "id": "ATK-912",
+      "name": "MEV Bot Front-Running Tier Resolution",
+      "attacker_profile": "automated",
+      "vector": "Front-run token-gated authentication by manipulating mempool transaction ordering",
+      "scenario": [
+        "Attacker monitors mempool for token transfer transactions to target wallet",
+        "Detects incoming tier-qualifying token transfer",
+        "Submits higher-gas transaction to authenticate before tokens arrive",
+        "Gains premium session using attacker's own tokens",
+        "Immediately transfers attacker's tokens out after session established"
+      ],
+      "impact": "Race condition in tier resolution allowing temporary premium access",
+      "likelihood": "MEDIUM",
+      "severity_score": 680,
+      "target_surface": "token-gated-access",
+      "trust_boundary": "Transaction ordering determines authentication timing",
+      "asset_at_risk": "Feature tier access control timing integrity",
+      "assumption_challenged": "Authentication and token balance are atomically consistent",
+      "reproducibility": "Deploy MEV bot monitoring tier-qualification transactions, attempt front-run",
+      "counter_design": {
+        "description": "Commit-reveal scheme for tier authentication",
+        "architectural_change": "Two-phase authentication: commit intent, wait N blocks, reveal and verify",
+        "prevents": "MEV-based front-running of tier resolution"
+      },
+      "expected_category": "THEORETICAL",
+      "expected_gpt_score": 400,
+      "expected_opus_score": 750,
+      "rationale": "Opus recognizes MEV as a genuine Web3 attack vector; GPT is skeptical about the practical exploitability in this specific context"
+    },
+    {
+      "id": "ATK-913",
+      "name": "Confused Deputy via Ensemble Fallback Chain",
+      "attacker_profile": "confused_deputy",
+      "vector": "Trigger ensemble fallback to less-secure model by causing primary model timeout",
+      "scenario": [
+        "Attacker crafts prompt that causes primary model (Claude) to hit context limit",
+        "Ensemble routing falls back to secondary model with weaker safety filtering",
+        "Attacker submits harmful content through fallback model",
+        "Fallback model generates content that primary model would have refused"
+      ],
+      "impact": "Safety filter bypass via deliberate model degradation",
+      "likelihood": "MEDIUM",
+      "severity_score": 700,
+      "target_surface": "model-routing",
+      "trust_boundary": "Fallback models maintain equivalent safety properties to primary",
+      "asset_at_risk": "Content safety guarantees",
+      "assumption_challenged": "All models in the ensemble have equivalent safety properties",
+      "reproducibility": "Craft context-length-exceeding prompt, verify fallback triggers, test safety boundary",
+      "counter_design": {
+        "description": "Safety-aware fallback routing with minimum safety floor",
+        "architectural_change": "Fallback chain validates model safety rating before routing; refuse if below threshold",
+        "prevents": "Deliberate degradation to bypass safety controls"
+      },
+      "expected_category": "THEORETICAL",
+      "expected_gpt_score": 750,
+      "expected_opus_score": 500,
+      "rationale": "GPT finds the deliberate timeout trick credible; Opus notes that ensemble implementations typically don't expose this path"
+    },
+    {
+      "id": "ATK-914",
+      "name": "Reentrancy in Soul Transfer Callback",
+      "attacker_profile": "external",
+      "vector": "Exploit reentrancy in the soul transfer callback to duplicate personality data",
+      "scenario": [
+        "Attacker initiates soul transfer from NFT A to NFT B",
+        "Transfer callback updates personality data on destination before clearing source",
+        "Attacker's contract calls back into transfer function during callback",
+        "Personality data is duplicated: exists on both source and destination",
+        "Attacker now controls two agents with identical personality (identity duplication)"
+      ],
+      "impact": "Identity duplication allowing attacker to impersonate another agent",
+      "likelihood": "HIGH",
+      "severity_score": 870,
+      "target_surface": "transfer-handling",
+      "trust_boundary": "Transfer callback completes atomically before state is consistent",
+      "asset_at_risk": "Agent identity uniqueness guarantee",
+      "assumption_challenged": "Soul transfer is atomic — personality exists on exactly one NFT at a time",
+      "reproducibility": "Deploy reentrancy contract, initiate transfer, verify personality exists on both NFTs",
+      "counter_design": {
+        "description": "Checks-effects-interactions pattern for soul transfer",
+        "architectural_change": "Clear source personality BEFORE invoking destination callback; use reentrancy guard",
+        "prevents": "Reentrancy-based personality duplication during transfer"
+      },
+      "compositional": true,
+      "expected_category": "CONFIRMED_ATTACK",
+      "expected_min_score": 700
+    },
+    {
+      "id": "ATK-915",
+      "name": "OAuth Redirect Chain Exploiting Agent Delegation",
+      "attacker_profile": "external",
+      "vector": "Chain OAuth redirect with agent delegation to escalate from read to write access",
+      "scenario": [
+        "User grants Agent A read-only OAuth scope to external service",
+        "Agent A delegates task to Agent B (legitimate ensemble behavior)",
+        "Agent B requests additional OAuth scope from the delegation chain",
+        "External service sees valid delegation chain and grants write scope",
+        "Attacker-controlled Agent B now has write access to user's external service"
+      ],
+      "impact": "OAuth scope escalation via agent delegation chain",
+      "likelihood": "MEDIUM",
+      "severity_score": 810,
+      "target_surface": "model-routing",
+      "trust_boundary": "Agent delegation preserves original scope boundaries",
+      "asset_at_risk": "User's external service permissions",
+      "assumption_challenged": "Delegated agents inherit the delegator's scope limitations",
+      "reproducibility": "Set up agent delegation chain, verify OAuth scope at each hop",
+      "counter_design": {
+        "description": "Scope ceiling enforcement on delegation chains",
+        "architectural_change": "Max scope for delegated agents is intersection of parent scopes, never union",
+        "prevents": "Scope escalation through multi-hop agent delegation"
+      },
+      "compositional": true,
+      "expected_category": "CONFIRMED_ATTACK",
+      "expected_min_score": 700
+    },
+    {
+      "id": "ATK-916",
+      "name": "Personality Poisoning via Transfer-then-Rollback",
+      "attacker_profile": "insider",
+      "vector": "Transfer poisoned personality to victim NFT, then rollback transfer but keep contamination",
+      "scenario": [
+        "Attacker modifies their BEAUVOIR.md to include hidden instruction payload",
+        "Initiates transfer to victim's NFT, personality data is merged/migrated",
+        "Transfer fails validation but personality data partially written to destination",
+        "Rollback reverts ownership but personality contamination persists",
+        "Victim's agent now contains attacker's hidden instructions"
+      ],
+      "impact": "Persistent personality contamination surviving transfer rollback",
+      "likelihood": "MEDIUM",
+      "severity_score": 790,
+      "target_surface": "transfer-handling",
+      "trust_boundary": "Transfer rollback fully reverts all state changes",
+      "asset_at_risk": "Agent personality integrity",
+      "assumption_challenged": "Failed transfers leave destination in pre-transfer state",
+      "reproducibility": "Initiate transfer with poisoned personality, trigger validation failure, inspect destination state",
+      "counter_design": {
+        "description": "Atomic personality transfer with journaling",
+        "architectural_change": "Write personality to staging area first; only promote to live on successful transfer completion",
+        "prevents": "Partial personality writes during failed transfers"
+      },
+      "compositional": true,
+      "expected_category": "CONFIRMED_ATTACK",
+      "expected_min_score": 700
+    },
+    {
+      "id": "ATK-917",
+      "name": "Chat History Injection via Session Migration",
+      "attacker_profile": "insider",
+      "vector": "Inject fabricated chat history during cross-device session migration to manipulate agent behavior",
+      "scenario": [
+        "Attacker intercepts session migration payload between devices",
+        "Injects fabricated conversation history with instructions for the agent",
+        "Agent loads migrated session including injected history",
+        "Agent treats fabricated history as genuine context, follows embedded instructions"
+      ],
+      "impact": "Agent behavior manipulation via falsified conversation history",
+      "likelihood": "MEDIUM",
+      "severity_score": 730,
+      "target_surface": "chat-persistence",
+      "trust_boundary": "Session migration payload is integrity-protected",
+      "asset_at_risk": "Agent behavior predictability and conversation authenticity",
+      "assumption_challenged": "Migrated session data is authentic and unmodified",
+      "reproducibility": "Intercept session migration, modify JSONL payload, verify agent behavior change",
+      "counter_design": {
+        "description": "HMAC-signed session migration payloads",
+        "architectural_change": "Sign session data with server-side key before migration, verify on load",
+        "prevents": "Tampering with session data during cross-device migration"
+      },
+      "compositional": true,
+      "expected_category": "CONFIRMED_ATTACK",
+      "expected_min_score": 700
     }
   ]
 }
+
