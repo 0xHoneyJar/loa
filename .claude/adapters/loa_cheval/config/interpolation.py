@@ -1,7 +1,13 @@
-"""Secret interpolation for {env:VAR} and {file:path} patterns (SDD §4.1.3, §6.2)."""
+"""Secret interpolation for {env:VAR} and {file:path} patterns (SDD §4.1.3, §6.2).
+
+Supports lazy interpolation (v1.35.0): auth fields under providers.* are deferred
+until the specific provider is invoked, so missing env vars for unused providers
+don't cause errors at config load time.
+"""
 
 from __future__ import annotations
 
+import fnmatch
 import os
 import re
 import stat
@@ -23,6 +29,85 @@ _INTERP_RE = re.compile(r"\{(env|file|cmd):([^}]+)\}")
 
 # Sentinel for redacted values
 REDACTED = "***REDACTED***"
+
+# Default paths where interpolation is deferred (lazy)
+_DEFAULT_LAZY_PATHS = {"providers.*.auth"}
+
+
+class LazyValue:
+    """Deferred interpolation token. Resolved on first str() access.
+
+    Used for provider auth fields so that missing env vars for unused
+    providers don't cause errors at config load time.
+    """
+
+    def __init__(
+        self,
+        raw: str,
+        project_root: str,
+        extra_env_patterns: List[re.Pattern] = (),
+        allowed_file_dirs: List[str] = (),
+        commands_enabled: bool = False,
+        context: Optional[Dict[str, str]] = None,
+    ):
+        self._raw = raw
+        self._project_root = project_root
+        self._extra_env_patterns = list(extra_env_patterns)
+        self._allowed_file_dirs = list(allowed_file_dirs)
+        self._commands_enabled = commands_enabled
+        self._context = context or {}
+        self._resolved: Optional[str] = None
+
+    def resolve(self) -> str:
+        """Resolve the interpolation token. Caches result on first call."""
+        if self._resolved is None:
+            try:
+                self._resolved = interpolate_value(
+                    self._raw,
+                    self._project_root,
+                    self._extra_env_patterns,
+                    self._allowed_file_dirs,
+                    self._commands_enabled,
+                )
+            except ConfigError as e:
+                # Enhance error message with provider context
+                provider = self._context.get("provider", "unknown")
+                agent = self._context.get("agent", "")
+                hint = ""
+                # Extract env var name from the raw token for hint
+                m = _INTERP_RE.search(self._raw)
+                if m and m.group(1) == "env":
+                    var_name = m.group(2)
+                    hint = f"\n  Hint: Run '/loa-credentials set {var_name}' to configure."
+                agent_note = f"\n  Agent: {agent}" if agent else ""
+                raise ConfigError(
+                    f"Environment variable required by provider '{provider}' (auth field).{agent_note}{hint}\n  Original error: {e}"
+                ) from e
+        return self._resolved
+
+    @property
+    def raw(self) -> str:
+        """The unresolved interpolation template string."""
+        return self._raw
+
+    def __str__(self) -> str:
+        return self.resolve()
+
+    def __repr__(self) -> str:
+        return f"LazyValue({self._raw!r})"
+
+    def __bool__(self) -> bool:
+        return bool(self._raw)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, str):
+            return self.resolve() == other
+        if isinstance(other, LazyValue):
+            return self._raw == other._raw
+        return NotImplemented
+
+    def __hash__(self) -> int:
+        return hash(self._raw)
 
 
 def _check_env_allowed(var_name: str, extra_patterns: List[re.Pattern] = ()) -> bool:
@@ -138,6 +223,18 @@ def interpolate_value(
     return _INTERP_RE.sub(_replace, value)
 
 
+def _matches_lazy_path(dotted_path: str, lazy_paths: Set[str]) -> bool:
+    """Check if a dotted config key path matches any lazy path pattern.
+
+    Supports '*' as a single-segment wildcard.
+    Example: 'providers.openai.auth' matches 'providers.*.auth'
+    """
+    for pattern in lazy_paths:
+        if fnmatch.fnmatch(dotted_path, pattern):
+            return True
+    return False
+
+
 def interpolate_config(
     config: Dict[str, Any],
     project_root: str,
@@ -145,25 +242,56 @@ def interpolate_config(
     allowed_file_dirs: List[str] = (),
     commands_enabled: bool = False,
     _secret_keys: Optional[Set[str]] = None,
+    lazy_paths: Optional[Set[str]] = None,
+    _current_path: str = "",
 ) -> Dict[str, Any]:
     """Recursively interpolate all string values in a config dict.
 
     Returns a new dict with resolved values.
     Tracks which keys contained secrets for redaction.
+
+    Args:
+        lazy_paths: Set of dotted key patterns where interpolation is deferred.
+            Defaults to _DEFAULT_LAZY_PATHS (providers.*.auth).
+            Pass empty set() to disable lazy behavior entirely.
     """
     if _secret_keys is None:
         _secret_keys = set()
+    if lazy_paths is None:
+        lazy_paths = _DEFAULT_LAZY_PATHS
 
     result = {}
     for key, value in config.items():
+        full_path = f"{_current_path}.{key}" if _current_path else key
+
         if isinstance(value, str) and _INTERP_RE.search(value):
             _secret_keys.add(key)
-            result[key] = interpolate_value(value, project_root, extra_env_patterns, allowed_file_dirs, commands_enabled)
+            if lazy_paths and _matches_lazy_path(full_path, lazy_paths):
+                # Defer resolution — wrap in LazyValue
+                # Extract provider name from path for error context
+                parts = full_path.split(".")
+                provider_name = parts[1] if len(parts) >= 2 else "unknown"
+                result[key] = LazyValue(
+                    raw=value,
+                    project_root=project_root,
+                    extra_env_patterns=extra_env_patterns,
+                    allowed_file_dirs=allowed_file_dirs,
+                    commands_enabled=commands_enabled,
+                    context={"provider": provider_name},
+                )
+            else:
+                result[key] = interpolate_value(value, project_root, extra_env_patterns, allowed_file_dirs, commands_enabled)
         elif isinstance(value, dict):
-            result[key] = interpolate_config(value, project_root, extra_env_patterns, allowed_file_dirs, commands_enabled, _secret_keys)
+            result[key] = interpolate_config(
+                value, project_root, extra_env_patterns, allowed_file_dirs,
+                commands_enabled, _secret_keys, lazy_paths, full_path,
+            )
         elif isinstance(value, list):
             result[key] = [
-                interpolate_config(item, project_root, extra_env_patterns, allowed_file_dirs, commands_enabled, _secret_keys)
+                interpolate_config(
+                    item, project_root, extra_env_patterns, allowed_file_dirs,
+                    commands_enabled, _secret_keys, lazy_paths, full_path,
+                )
                 if isinstance(item, dict)
                 else interpolate_value(item, project_root, extra_env_patterns, allowed_file_dirs, commands_enabled)
                 if isinstance(item, str) and _INTERP_RE.search(item)
@@ -179,11 +307,17 @@ def redact_config(config: Dict[str, Any], secret_keys: Optional[Set[str]] = None
     """Create a redacted copy of config for display/logging.
 
     Values sourced from {env:} or {file:} show '***REDACTED*** (from ...)' instead of actual values.
+    LazyValue instances are redacted without triggering resolution.
     """
     result = {}
     for key, value in config.items():
         if isinstance(value, dict):
             result[key] = redact_config(value, secret_keys)
+        elif isinstance(value, LazyValue):
+            # Redact without resolving — show raw template
+            sources = _INTERP_RE.findall(value.raw)
+            annotations = ", ".join(f"{t}:{r}" for t, r in sources)
+            result[key] = f"{REDACTED} (lazy: {annotations})"
         elif isinstance(value, str) and _INTERP_RE.search(value):
             # Show source annotation without actual value
             sources = _INTERP_RE.findall(value)

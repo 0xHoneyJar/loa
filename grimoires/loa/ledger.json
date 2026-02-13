@@ -68,18 +68,32 @@
       "id": "cycle-007",
       "label": "Post-Merge Automation — Docs, GT, RTFM, Semver, Release",
       "type": "feature",
-      "status": "active",
+      "status": "archived",
       "source_issue": "https://github.com/0xHoneyJar/loa/issues/298",
       "created_at": "2026-02-13T12:00:00Z",
-      "sprints": [],
+      "archived_at": "2026-02-13T17:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-13-post-merge-automation",
+      "sprints": ["sprint-1", "sprint-2", "sprint-3"],
+      "prd": "grimoires/loa/archive/2026-02-13-post-merge-automation/prd.md",
+      "sdd": "grimoires/loa/archive/2026-02-13-post-merge-automation/sdd.md",
+      "sprint_plan": "grimoires/loa/archive/2026-02-13-post-merge-automation/sprint.md"
+    },
+    {
+      "id": "cycle-008",
+      "label": "DX Hardening — Secrets, Mount Hygiene, Review Scope",
+      "type": "feature",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/300",
+      "created_at": "2026-02-13T17:30:00Z",
+      "sprints": ["sprint-1", "sprint-2", "sprint-3"],
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "sprint_plan": "grimoires/loa/sprint.md"
     }
   ],
-  "active_cycle": "cycle-007",
+  "active_cycle": "cycle-008",
   "active_bugfix": null,
-  "global_sprint_counter": 13,
+  "global_sprint_counter": 16,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260212-i288-991113",

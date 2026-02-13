@@ -1,314 +1,293 @@
-# PRD: Post-Merge Automation Pipeline
+# PRD: DX Hardening — Secrets Management, Mount Hygiene, Review Scope
 
 **Version**: 1.0.0
 **Status**: Draft
 **Author**: Discovery Phase (plan-and-analyze)
-**Source Issue**: https://github.com/0xHoneyJar/loa/issues/298
-**Cycle**: cycle-007
-
----
+**Cycle**: cycle-008
+**Issues**: #300, #299, #303
 
 ## 1. Problem Statement
 
-After a PR merges to `main`, the maintainer must manually execute 6 sequential steps:
+Three user-facing DX issues compound to degrade the experience for developers adopting Loa on new projects:
 
-1. Update documentation if relevant changes landed
-2. Regenerate Grounded Truth (checksums, scaffolding)
-3. Run RTFM validation (zero-context doc testing)
-4. Bump semver version in CHANGELOG, README, and package files
-5. Create a git tag
-6. Create a GitHub Release with release notes (for cycle completions)
+1. **Secrets Management Gap (#300)**: cheval.py eagerly resolves ALL `{env:*}` config interpolations at load time, even for providers not needed by the current operation. A GPT review (`/gpt-review`) fails if `ANTHROPIC_API_KEY` is missing, even though only `OPENAI_API_KEY` is needed. Beyond the bug, there is no centralized credential management — users must manually export env vars, with no validation, no secure storage, and no integration path to future platform infrastructure (indra/arrakis).
 
-This is tedious, error-prone, and blocks the next development cycle. The individual tools exist (`ground-truth-gen.sh`, RTFM skill, version consistency checks in CI) but nothing orchestrates them automatically on merge.
+2. **Mount Hygiene (#299)**: `mount-loa.sh:380-389` runs `git checkout "$LOA_REMOTE_NAME/$LOA_BRANCH" -- grimoires/loa` which copies the framework's own development cycle artifacts (PRD, SDD, sprint.md, ledger.json referencing upstream issues) into fresh user projects. This causes `/plan` to report "planning complete" and `/build` to attempt implementing Loa's own framework tasks.
 
-> Sources: Issue #298 body, Phase 1 interview Q1 ("atm am needing to do this manually but would rather it be a thing which happens automatically upon merge")
+3. **Review Scope (#303)**: Review tools (Bridgebuilder, `/gpt-review`, `/audit-sprint`) process system zone files (`.claude/`, Loa framework code) alongside user application code. While Bridgebuilder has a Loa-aware filtering system (`truncation.ts:156-163`), it may not be enabled or working correctly for all review paths. GPT review and audit-sprint lack equivalent filtering. This wastes significant tokens on code the user doesn't own.
 
-## 2. Vision & Goals
+> Sources: Issue #300 (feedback submission), Issue #299 (feedback submission), Issue #303 (feedback submission), hive credential pattern analysis
 
-### Vision
+## 2. Goals & Success Metrics
 
-Every merge to `main` triggers an automated pipeline that handles the mechanical post-merge lifecycle — documentation, truth generation, validation, versioning, and release — so the maintainer can focus on the next cycle.
+### Primary Goals
 
-### Goals
+| Goal | Metric | Target |
+|------|--------|--------|
+| Credential management works out of the box | `/gpt-review` succeeds with only the needed API key set | 100% |
+| Fresh mounts start clean | `/plan` on freshly mounted project says "no PRD found" | 100% |
+| Review tools focus on user code | System zone files excluded from review diff | >95% token reduction on framework files |
 
-| Goal | Success Metric | Priority |
-|------|----------------|----------|
-| G1: Zero manual post-merge steps for routine merges | 0 manual commands after PR merge | P0 |
-| G2: Automated semver from conventional commits | Correct version bump in 100% of merges | P0 |
-| G3: Grounded Truth always current after merge | GT checksums updated within 5 min of merge | P0 |
-| G4: RTFM validation catches doc regressions | Zero false-negative doc gaps post-merge | P1 |
-| G5: GitHub Releases for cycle completions | Release created with notes for every cycle PR | P1 |
-| G6: Non-cycle PRs get patch bump + tag | Consistent version progression across all merges | P2 |
+### Secondary Goals
 
-### Non-Goals
+| Goal | Metric |
+|------|--------|
+| Credential interface ready for indra/arrakis integration | Provider abstraction supports pluggable backends |
+| User can customize review exclusions | `.reviewignore` file respected by all review tools |
+| Zero regression in existing workflows | All existing tests pass |
 
-- Automating pre-merge review (already handled by Bridgebuilder, Flatline, post-PR validation)
-- Replacing the `/ship` command for manual deploys
-- Auto-merging PRs (merge remains a human decision)
-- Automating infrastructure deployment (that's `/deploy-production`)
+## 3. User & Stakeholder Context
 
-## 3. Users & Stakeholders
+### Primary Persona: Downstream Developer
 
-### Primary User: Maintainer (@janitooor)
+A developer who has installed Loa via `/mount` onto their own project repo. They:
+- Expect `/plan` to start fresh discovery for THEIR project
+- Expect review tools to review THEIR code changes, not Loa framework internals
+- Want to supply API keys once and have them work across all tools
+- May not be deeply familiar with Loa internals or the Three-Zone Model
 
-- **Context**: Solo maintainer of Loa framework
-- **Pain point**: 6-step manual post-merge ritual after every PR
-- **Desired outcome**: Merge PR → walk away → everything happens
+### Secondary Persona: Power User / Framework Developer
 
-### Secondary User: AI Operators (Clawdbot, future agents)
-
-- **Context**: Autonomous agents that complete cycles and create PRs
-- **Pain point**: Cannot trigger post-merge steps; must leave instructions for human
-- **Desired outcome**: Cycle completion triggers full pipeline without human involvement
+A developer who works on Loa itself or customizes it extensively. They:
+- May want to review system zone changes in Loa's own PRs
+- Need the ability to override exclusion defaults
+- May integrate with indra/arrakis platform infrastructure
 
 ## 4. Functional Requirements
 
-### FR-1: GitHub Action Trigger (P0)
+### FR-1: Lazy Config Interpolation (Fix #300 Root Cause)
 
-**What**: A GitHub Actions workflow that fires on push to `main` (merge event).
+**Current behavior**: `interpolation.py:112-138` uses `_INTERP_RE.sub(_replace, value)` which eagerly resolves ALL `{env:*}` tokens at config load time.
 
-**Behavior**:
-- Triggers on `push` to `main` branch only
-- Detects merge commit vs direct push (only processes merge commits)
-- Extracts source PR number from merge commit message
-- Classifies PR type: `cycle-completion` vs `bugfix` vs `other`
-- Routes to appropriate pipeline tier
+**Required behavior**: Only resolve `{env:*}` tokens for the provider/agent actually being invoked. Two-phase interpolation:
+1. **Phase 1 (load time)**: Parse config but leave `{env:*}` tokens as-is
+2. **Phase 2 (invocation time)**: Resolve only the tokens needed for the resolved provider
 
-**Classification Logic**:
-- `cycle-completion`: PR title matches `/^(Run Mode|Sprint Plan|feat\(sprint)/` OR PR has `cycle` label OR CHANGELOG contains `[Unreleased]` section with `### Added` entries
-- `bugfix`: PR title matches `/^fix/` OR has `bugfix` label
-- `other`: Everything else (docs, chore, refactor)
+**Acceptance criteria**:
+- `model-invoke --agent gpt-reviewer` succeeds with only `OPENAI_API_KEY` set (no `ANTHROPIC_API_KEY`)
+- `model-invoke --agent opus` succeeds with only `ANTHROPIC_API_KEY` set
+- `--dry-run` mode does NOT require any API keys
+- Existing tests in `tests/test_config.py` updated to cover lazy resolution
+- Error messages clearly state WHICH key is missing for WHICH provider
 
-**Acceptance Criteria**:
-- [ ] Workflow triggers on push to main
-- [ ] Correctly classifies PR type in >95% of cases
-- [ ] Skips non-merge pushes (direct commits, force-pushes)
-- [ ] Logs classification decision for debugging
+### FR-2: Credential Management Command (`/loa-credentials`)
 
-### FR-2: Claude Code Action Integration (P0)
+A new skill that provides interactive credential setup, validation, and secure local storage.
 
-**What**: Set up `anthropics/claude-code-action` as the execution bridge between GH Actions and Loa.
+**Subcommands**:
 
-**Behavior**:
-- GH Action step invokes claude-code-action with appropriate prompt
-- Prompt includes: PR type, PR number, merge commit SHA, files changed
-- Claude Code runs the `/ship` skill (FR-5) with context
-- Output captured and posted as PR comment or GH Actions summary
+| Command | Description |
+|---------|-------------|
+| `/loa-credentials` | Interactive setup wizard — prompts for each missing key |
+| `/loa-credentials status` | Show which credentials are configured, which are missing |
+| `/loa-credentials set <name>` | Set a specific credential (prompted, not in command args) |
+| `/loa-credentials test` | Health-check all configured credentials against their APIs |
 
-**Acceptance Criteria**:
-- [ ] claude-code-action configured in `.github/workflows/`
-- [ ] API key stored as repository secret (`ANTHROPIC_API_KEY`)
-- [ ] Prompt template tested with mock merge events
-- [ ] Timeout configured (30 min max)
-- [ ] Cost guard: single invocation per merge (no retry loops)
-
-### FR-3: Conventional Commit Semver Parser (P0)
-
-**What**: Parse commit messages between the last tag and HEAD to determine semver bump.
-
-**Behavior**:
-- Scans all commits in the merge (between previous tag and HEAD)
-- Applies conventional commit rules:
-  - `feat(...)` or `feat:` → **minor** bump
-  - `fix(...)` or `fix:` → **patch** bump
-  - `BREAKING CHANGE:` in body or `!` after type → **major** bump
-  - `chore`, `docs`, `refactor`, `test`, `ci` → **patch** bump (still bumps, keeps versions ticking)
-- Highest-priority bump wins (major > minor > patch)
-- Generates next version string from current tag
-
-**Acceptance Criteria**:
-- [ ] Shell script: `.claude/scripts/semver-bump.sh`
-- [ ] Reads current version from latest git tag (`v*.*.*`)
-- [ ] Falls back to CHANGELOG version if no tags exist
-- [ ] Outputs: `{"current": "1.35.1", "next": "1.36.0", "bump": "minor", "commits": [...]}`
-- [ ] Unit tests in `tests/unit/semver-bump.bats`
-
-### FR-4: Post-Merge Pipeline Orchestrator (P0)
-
-**What**: Shell script that orchestrates the post-merge phases in sequence.
-
-**Pipeline Phases**:
+**Storage architecture** (inspired by hive pattern, simplified):
 
 ```
-CLASSIFY → SEMVER → CHANGELOG → GT_REGEN → RTFM → TAG → RELEASE → NOTIFY
+~/.loa/credentials/
+├── store.json.enc    # Fernet-encrypted credential store
+└── .key              # Encryption key (0600 permissions)
 ```
 
-| Phase | Description | Cycle PR | Bugfix PR | Other PR |
-|-------|-------------|----------|-----------|----------|
-| CLASSIFY | Determine PR type | Yes | Yes | Yes |
-| SEMVER | Compute next version | Yes | Yes | Yes |
-| CHANGELOG | Finalize `[Unreleased]` → version header | Yes | Yes | Skip |
-| GT_REGEN | Run `ground-truth-gen.sh --mode all` | Yes | Skip | Skip |
-| RTFM | Run RTFM validation on updated docs | Yes | Skip | Skip |
-| TAG | Create + push `v{version}` tag | Yes | Yes | Yes |
-| RELEASE | Create GitHub Release with notes | Yes | Skip | Skip |
-| NOTIFY | Post summary to PR / Discord | Yes | Yes | Yes |
+**Retrieval priority** (CompositeStorage pattern from hive):
+1. Process environment variable (highest priority — CI/CD, explicit export)
+2. Encrypted local store (`~/.loa/credentials/`)
+3. `.env.local` in project root (convenience for local dev)
 
-**Acceptance Criteria**:
-- [ ] Script: `.claude/scripts/post-merge-orchestrator.sh`
-- [ ] State file: `.run/post-merge-state.json`
-- [ ] Each phase is idempotent (safe to re-run)
-- [ ] Failed phase halts pipeline with clear error
-- [ ] Dry-run mode for testing (`--dry-run`)
-- [ ] Emits structured JSON summary on completion
+**Provider abstraction**:
+```python
+class CredentialProvider(ABC):
+    @abstractmethod
+    def get(self, credential_id: str) -> str | None: ...
+    @abstractmethod
+    def set(self, credential_id: str, value: str) -> None: ...
+    @abstractmethod
+    def health_check(self, credential_id: str) -> bool: ...
+```
 
-### FR-5: Enhanced `/ship` Skill (P1)
+Concrete implementations:
+- `EnvProvider` — reads from `os.environ`
+- `EncryptedFileProvider` — reads from `~/.loa/credentials/store.json.enc`
+- `DotenvProvider` — reads from `.env.local`
+- (Future) `IndraProvider` — delegates to indra/arrakis platform
 
-**What**: Extend the existing `/ship` golden path command to serve as both manual and automated entry point.
+**Integration with cheval.py**:
+- `interpolation.py` uses the credential provider chain instead of raw `os.environ.get()`
+- Allowlist (`_ENV_ALLOWLIST`) still applies for security
+- Template syntax unchanged: `{env:OPENAI_API_KEY}` — but resolution goes through provider chain
 
-**Behavior**:
-- Manual mode: User runs `/ship` interactively after merge
-- Automated mode: claude-code-action invokes `/ship --automated --pr <number> --sha <commit>`
-- Both modes invoke `post-merge-orchestrator.sh`
-- Automated mode skips confirmations, posts results as PR comment
+**Acceptance criteria**:
+- `/loa-credentials` prompts for OPENAI_API_KEY, ANTHROPIC_API_KEY
+- `/loa-credentials status` shows green/red per credential
+- `/loa-credentials test` validates keys against actual API endpoints
+- Encrypted store created at `~/.loa/credentials/` with 0600 permissions
+- cheval.py resolves credentials from the provider chain
+- Plain text secrets never appear in command output or logs
 
-**Acceptance Criteria**:
-- [ ] `/ship` detects whether invoked manually or via CI
-- [ ] `--automated` flag suppresses interactive prompts
-- [ ] Posts summary to merged PR as comment
-- [ ] Archives cycle if PR was cycle-completion type
+### FR-3: Clean Mount Grimoire Initialization (#299)
 
-### FR-6: RTFM Post-Merge Gate (P1)
+**Current behavior**: `mount-loa.sh:382` runs `git checkout "$LOA_REMOTE_NAME/$LOA_BRANCH" -- grimoires/loa` which pulls all grimoire content from upstream, including framework development artifacts.
 
-**What**: Run RTFM validation after GT regeneration to catch documentation regressions.
+**Required behavior**: Mount initializes a clean grimoire template without upstream development state.
 
-**Behavior**:
-- Invokes RTFM testing on: `README.md`, `INSTALLATION.md`, GT `index.md`
-- If critical gaps found: logs warning, continues (does not block tag/release)
-- Gap report saved to `.run/post-merge-rtfm-report.json`
-- Summary included in release notes
+**Implementation**:
+1. After `git checkout`, remove framework development artifacts:
+   - `grimoires/loa/prd.md`
+   - `grimoires/loa/sdd.md`
+   - `grimoires/loa/sprint.md`
+   - `grimoires/loa/ledger.json`
+   - `grimoires/loa/a2a/` (entire directory contents except template README)
+   - `grimoires/loa/archive/` (entire directory)
+2. Initialize a clean `ledger.json` with `{"version": "1.0.0", "cycles": [], "active_cycle": null, ...}`
+3. Preserve structural files: `grimoires/loa/context/README.md`, `grimoires/loa/NOTES.md` (template), `grimoires/loa/BEAUVOIR.md` (if exists)
 
-**Acceptance Criteria**:
-- [ ] RTFM runs in headless mode (no user prompts)
-- [ ] Critical gaps logged but don't block release
-- [ ] Gap count included in post-merge summary
+**Acceptance criteria**:
+- Fresh mount on new project: `grimoires/loa/prd.md` does NOT exist
+- Fresh mount: `grimoires/loa/ledger.json` has empty cycles array
+- Fresh mount: `/plan` starts discovery from scratch
+- Remount (`--force`): existing user artifacts are preserved (not overwritten)
+- Context files placed by user before mount are NOT deleted
 
-### FR-7: Release Notes Generation (P1)
+### FR-4: Review Scope Filtering with `.reviewignore` (#303)
 
-**What**: Auto-generate release notes from CHANGELOG and commit history.
+**Current state**: Bridgebuilder has `LOA_EXCLUDE_PATTERNS` in `truncation.ts:156-163` that excludes `.claude/**`, `grimoires/**`, `.beads/**`. But:
+- GPT review (`/gpt-review`) does not use this filtering
+- Audit-sprint does not use this filtering
+- Users cannot customize the exclusion patterns
 
-**Behavior**:
-- For cycle completions: extract CHANGELOG section for this version
-- Append: sprint summary table, files changed, test results
-- For bugfixes: minimal "Bug fix release" template
-- Include link to source PR
+**Required behavior**: Layered review scope filtering.
 
-**Acceptance Criteria**:
-- [ ] Script: `.claude/scripts/release-notes-gen.sh`
-- [ ] Extracts correct CHANGELOG section
-- [ ] Handles missing CHANGELOG gracefully
-- [ ] Output format matches existing release style
+**Layer 1 — Auto-detected zone filtering (sane defaults)**:
+- All review tools detect Three-Zone Model via `.loa-version.json`
+- System zone (`.claude/`) excluded by default
+- State zone (`grimoires/`, `.beads/`) excluded unless user-modified in the PR
+- App zone always included
 
-### FR-8: CHANGELOG Finalization (P2)
+**Layer 2 — `.reviewignore` file (user customization)**:
+- New file at project root: `.reviewignore`
+- Gitignore-style glob patterns
+- Auto-populated by `/mount` with sane defaults
+- Users can add/remove patterns
+- All review tools read this file
 
-**What**: Automatically convert `[Unreleased]` section to versioned entry on merge.
+**Template `.reviewignore`**:
+```gitignore
+# Framework-managed (auto-generated by Loa)
+.claude/
+grimoires/loa/a2a/
+grimoires/loa/archive/
+.beads/
+.run/
 
-**Behavior**:
-- Detects `## [Unreleased]` section in CHANGELOG.md
-- Replaces with `## [version] - date — PR Title`
-- Adds empty `## [Unreleased]` section above
-- Commits the CHANGELOG update
+# User additions below
+```
 
-**Acceptance Criteria**:
-- [ ] Only modifies CHANGELOG if `[Unreleased]` section exists
-- [ ] Date format: YYYY-MM-DD
-- [ ] Version comes from FR-3 semver calculation
-- [ ] Committed with conventional prefix: `chore(release): v{version}`
+**Review tool integration**:
+- `bridge-github-trail.sh` → already has Loa filtering; ensure it's enabled by default
+- `gpt-review-api.sh` → add file filtering before building review prompt
+- `audit-sprint` skill → add zone-aware diff scoping
+- Shared utility: `.claude/scripts/review-scope.sh` that reads `.reviewignore` + zone detection, outputs filtered file list
+
+**Acceptance criteria**:
+- Bridgebuilder review on Loa-mounted repo excludes `.claude/` files from diff
+- `/gpt-review` on Loa-mounted repo excludes `.claude/` files
+- `/audit-sprint` focuses on app zone code
+- `.reviewignore` patterns respected by all three tools
+- Users can add custom patterns (e.g., `vendor/`, `generated/`)
+- Override: `--no-reviewignore` flag to review everything (power user)
 
 ## 5. Technical & Non-Functional Requirements
 
-### NFR-1: Idempotency
+### Security
 
-Every pipeline phase must be safe to re-run. If the workflow fails mid-pipeline, re-running from the beginning must not create duplicate tags, releases, or commits.
+- Encrypted credential store uses Fernet (AES-128-CBC + HMAC) — same as hive pattern
+- Encryption key file has 0600 permissions, never committed to git
+- Credential values use redaction in any log/output context
+- `.env.local` added to `.gitignore` template during mount
+- `_ENV_ALLOWLIST` in interpolation.py enforced for all resolution paths
 
-### NFR-2: Cost Control
+### Portability
 
-Claude Code invocation via claude-code-action must be bounded:
-- Max 1 invocation per merge event
-- 30-minute timeout
-- No retry loops (fail once → notify, let human investigate)
-- Estimated cost per invocation: <$5 (Haiku for simple tasks, Sonnet for GT/RTFM)
+- Credential storage at `~/.loa/credentials/` works on Linux and macOS
+- Python `cryptography` package required (add to cheval.py dependencies)
+- `.reviewignore` uses gitignore-compatible glob syntax (implemented via `fnmatch` or `pathspec`)
 
-### NFR-3: Security
+### Performance
 
-- `ANTHROPIC_API_KEY` stored as GitHub repository secret
-- Pipeline runs with minimal permissions (contents: write, pull-requests: write)
-- No secrets logged to workflow output
-- Tag signing optional (not in MVP scope)
+- Lazy interpolation should NOT add measurable latency (deferred string substitution)
+- Review scope filtering runs before diff construction (token savings upstream of LLM call)
 
-### NFR-4: Observability
+### Backward Compatibility
 
-- Each phase logs structured JSON to workflow output
-- Final summary posted as PR comment
-- Discord notification on failure (uses existing `DISCORD_WEBHOOK_URL` secret)
-
-### NFR-5: Graceful Degradation
-
-If claude-code-action is unavailable or times out:
-- Semver + tag still happen (pure shell, no AI needed)
-- GT + RTFM + release notes are skipped (require AI)
-- Manual `/ship` remains available as fallback
+- Existing `{env:*}` interpolation syntax unchanged
+- Users who set all env vars see no behavior change
+- `.reviewignore` is additive — repos without it use zone auto-detection defaults
+- Mount script change only affects NEW mounts (existing repos unaffected)
 
 ## 6. Scope & Prioritization
 
-### MVP (Sprint 1-2)
+### MVP (This Cycle)
 
-| Feature | Priority | Description |
-|---------|----------|-------------|
-| GH Action trigger | P0 | Workflow file with merge detection + PR classification |
-| Semver parser | P0 | Conventional commit → version bump script |
-| Pipeline orchestrator | P0 | Shell script coordinating phases |
-| Git tag creation | P0 | Automated tagging from computed version |
-| claude-code-action setup | P0 | CI integration with Claude Code |
+| Priority | Feature | Issue |
+|----------|---------|-------|
+| P0 | Lazy config interpolation fix | #300 |
+| P0 | Clean mount grimoire initialization | #299 |
+| P1 | `.reviewignore` + shared review scope utility | #303 |
+| P1 | `/loa-credentials` command (basic: set, status, test) | #300 |
+| P1 | GPT review and audit-sprint scope filtering | #303 |
 
-### Phase 2 (Sprint 3)
+### Future (Not This Cycle)
 
-| Feature | Priority | Description |
-|---------|----------|-------------|
-| `/ship` enhancement | P1 | Dual-mode manual/automated skill |
-| GT regeneration | P1 | Post-merge ground truth update |
-| RTFM validation | P1 | Post-merge doc regression check |
-| Release notes gen | P1 | Auto-generated from CHANGELOG + commits |
-| GitHub Release creation | P1 | Automated release for cycle PRs |
+| Feature | Dependency |
+|---------|------------|
+| IndraProvider for credential chain | indra/arrakis platform launch |
+| macOS Keychain / Linux secret-tool integration | User demand signal |
+| OAuth2 provider flow (like hive) | Platform integration |
+| Artifact externalization (`~/.loa/projects/<repo>/`) | Larger architectural decision |
+| `.reviewignore` IDE plugin integration | Community contribution |
 
-### Future (Out of Scope)
+### Out of Scope
 
-- Tag signing with GPG
-- Automated deployment triggers
-- Cross-repo release coordination
-- Release approval gates
-- Automated rollback on RTFM failure
+- HashiCorp Vault integration (enterprise feature)
+- Full hive-style multi-tier OAuth2 system
+- Automated cleanup of already-committed artifacts in git history
+- Review tool changes for non-Loa repos
 
 ## 7. Risks & Dependencies
 
-### Risks
+### Technical Risks
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| claude-code-action reliability | Pipeline stalls if Claude unavailable | Graceful degradation: shell-only phases still work |
-| Cost runaway | Unexpected API costs | Hard timeout + single invocation + Haiku default |
-| CHANGELOG format drift | Semver parser breaks | Strict format validation in CI |
-| Race conditions | Two PRs merge simultaneously | GH Actions concurrency group on main |
-| Tag conflicts | Version already exists | Check before creating, append `.1` suffix if needed |
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Lazy interpolation breaks edge cases in routing chains | Medium | High | Comprehensive test coverage of fallback/downgrade chains |
+| `.reviewignore` glob syntax incompatible across tools | Low | Medium | Use shared utility, standardize on gitignore spec |
+| Fernet encryption key management UX friction | Medium | Medium | Auto-generate on first `/loa-credentials` run, clear instructions |
 
 ### Dependencies
 
-| Dependency | Status | Owner |
-|------------|--------|-------|
-| `anthropics/claude-code-action` | Available on GH Marketplace | Anthropic |
-| `ANTHROPIC_API_KEY` secret | Needs setup | @janitooor |
-| Existing `ground-truth-gen.sh` | Working | Loa framework |
-| Existing RTFM skill | Working | Loa framework |
-| Conventional commit discipline | In use (commit prefixes) | Team convention |
+| Dependency | Status | Risk |
+|------------|--------|------|
+| `cryptography` Python package for Fernet | Available via pip | Low — well-maintained |
+| cheval.py test suite | Exists (`tests/test_config.py`) | Low |
+| Bridgebuilder truncation.ts | Already has Loa filtering | Low — extend existing |
+| indra/arrakis platform | Not yet available | None — designed as future provider |
 
-## 8. Success Criteria
+## Appendix A: Hive Credential Pattern Reference
 
-**Cycle-007 is complete when:**
+The hive credential system (`adenhq/hive`) provides the architectural inspiration for FR-2. Key patterns adopted:
 
-1. Merging a cycle-completion PR to main triggers the full pipeline automatically
-2. Merging a bugfix PR creates a patch bump + tag with no manual steps
-3. The semver parser correctly handles feat/fix/breaking commit prefixes
-4. GT is regenerated and RTFM runs on cycle-completion merges
-5. A GitHub Release is created with auto-generated notes for cycle PRs
-6. The entire pipeline completes in <10 minutes for typical merges
-7. Failures are clearly reported via PR comment and Discord notification
+| Hive Pattern | Loa Adaptation |
+|-------------|----------------|
+| `CredentialStore` central facade | `/loa-credentials` command + provider chain |
+| `CompositeStorage` (encrypted → env fallback) | Env → encrypted store → .env.local chain |
+| `CredentialUsageSpec` template resolution | Lazy `{env:*}` interpolation via provider chain |
+| `SecretStr` for safe logging | Redaction in cheval.py output |
+| `EncryptedFileStorage` with Fernet | `~/.loa/credentials/store.json.enc` |
+| Interactive `/hive-credentials` skill | Interactive `/loa-credentials` skill |
+
+Patterns NOT adopted (future):
+- OAuth2 provider flows → wait for indra/arrakis
+- HashiCorp Vault backend → enterprise scope
+- Server-synced credential cache → platform dependency

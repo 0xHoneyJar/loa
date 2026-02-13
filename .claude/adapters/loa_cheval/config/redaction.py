@@ -125,7 +125,13 @@ def redact_headers(headers: Dict[str, str]) -> Dict[str, str]:
 
 
 def redact_config_value(key: str, value: Any) -> Any:
-    """Redact a config value if it appears to be sensitive."""
+    """Redact a config value if it appears to be sensitive.
+
+    Handles LazyValue instances without triggering resolution.
+    """
+    # Handle LazyValue without importing (avoid circular import)
+    if hasattr(value, "raw") and hasattr(value, "resolve"):
+        return f"{REDACTED} (lazy: {value.raw})"
     if isinstance(value, str):
         # Check if the key name suggests sensitivity
         if _SENSITIVE_KEY_PATTERNS.search(key):

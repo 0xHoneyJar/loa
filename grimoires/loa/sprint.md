@@ -1,7 +1,7 @@
-# Sprint Plan: Post-Merge Automation Pipeline
+# Sprint Plan: DX Hardening — Secrets, Mount Hygiene, Review Scope
 
-**Cycle**: cycle-007
-**Issue**: https://github.com/0xHoneyJar/loa/issues/298
+**Cycle**: cycle-008
+**Issue**: https://github.com/0xHoneyJar/loa/issues/300
 **PRD**: `grimoires/loa/prd.md`
 **SDD**: `grimoires/loa/sdd.md`
 
@@ -12,309 +12,427 @@
 | Metric | Value |
 |--------|-------|
 | **Total Sprints** | 3 |
-| **Total Tasks** | 22 |
-| **Estimated Effort** | Medium (shell scripts + GH workflow + config) |
-| **Dependencies** | `ANTHROPIC_API_KEY` repo secret (for Sprint 3) |
+| **Total Tasks** | 21 |
+| **Estimated Effort** | Medium (Python + shell + TypeScript) |
+| **Dependencies** | `cryptography` Python package (Sprint 2) |
 
 ---
 
-## Sprint 1: Foundation — Semver Parser & Orchestrator Shell
+## Sprint 1: Lazy Interpolation + Mount Hygiene (FR-1, FR-3)
 
-**Goal**: Build the core shell infrastructure: semver parser, orchestrator skeleton, state management.
+**Goal**: Fix the root cause of #300 (eager interpolation) and clean up mount hygiene for #299. These are the two P0 items with no external dependencies.
 
-### Task 1.1: Semver Bump Script
+### Task 1.1: LazyValue Class in interpolation.py
 
-**File**: `.claude/scripts/semver-bump.sh`
+**File**: `.claude/adapters/loa_cheval/config/interpolation.py`
 
-**Description**: Create the conventional commit semver parser that reads git tag history and commit messages to compute the next version.
-
-**Acceptance Criteria**:
-- [ ] Reads current version from latest `v*.*.*` git tag
-- [ ] Falls back to CHANGELOG.md version header if no tags exist
-- [ ] Parses conventional commit prefixes: feat→minor, fix→patch, chore→patch
-- [ ] Detects BREAKING CHANGE in commit body → major bump
-- [ ] Detects `!` suffix (e.g., `feat!:`) → major bump
-- [ ] Highest-priority bump wins (major > minor > patch)
-- [ ] Outputs JSON: `{"current", "next", "bump", "commits"}`
-- [ ] Exits with error if no commits since last tag
-- [ ] Script is executable and sources bootstrap.sh
-
-### Task 1.2: Semver Bump Tests
-
-**File**: `tests/unit/semver-bump.bats`
-
-**Description**: Comprehensive BATS tests for the semver parser.
+**Description**: Create the `LazyValue` wrapper class that defers `{env:*}` token resolution until first `str()` access. Insert after `REDACTED` constant (line 25).
 
 **Acceptance Criteria**:
-- [ ] Tests feat → minor bump
-- [ ] Tests fix → patch bump
-- [ ] Tests BREAKING CHANGE → major bump
-- [ ] Tests `!` suffix → major bump
-- [ ] Tests mixed commits (feat + fix) → minor wins
-- [ ] Tests no tags fallback to CHANGELOG
-- [ ] Tests no commits since tag → error
-- [ ] Tests JSON output structure
+- [ ] `LazyValue.__init__()` stores raw string and interpolation context
+- [ ] `LazyValue.resolve()` calls `interpolate_value()` on first access, caches result
+- [ ] `LazyValue.__str__()` triggers resolution
+- [ ] `LazyValue.__repr__()` shows raw token, NOT resolved value
+- [ ] `LazyValue.__bool__()` returns `True` if raw string is truthy
+- [ ] `LazyValue.__eq__()` supports comparison with `str` and other `LazyValue`
+- [ ] `LazyValue.raw` property exposes unresolved template string
+- [ ] Resolution errors include provider context (which key, which provider, which agent)
+
+### Task 1.2: Modify interpolate_config() for Lazy Paths
+
+**File**: `.claude/adapters/loa_cheval/config/interpolation.py`
+
+**Description**: Add `lazy_paths` parameter to `interpolate_config()`. When the current dotted key path matches a lazy path pattern (e.g., `providers.*.auth`), wrap the value in `LazyValue` instead of resolving it immediately.
+
+**Acceptance Criteria**:
+- [ ] `_DEFAULT_LAZY_PATHS = {"providers.*.auth"}` constant defined
+- [ ] `interpolate_config()` accepts optional `lazy_paths` parameter (defaults to `_DEFAULT_LAZY_PATHS`)
+- [ ] Recursive traversal tracks current dotted path (e.g., `providers.openai.auth`)
+- [ ] Path matching supports `*` wildcard for dict key segments
+- [ ] Non-matching paths still resolve eagerly (no behavior change)
+- [ ] `_secret_keys` tracking still works for lazy paths (key is marked secret)
+- [ ] `lazy_paths=set()` disables all lazy behavior (backward compatible)
+
+### Task 1.3: Redaction Support for LazyValue
+
+**Files**: `.claude/adapters/loa_cheval/config/interpolation.py`, `.claude/adapters/loa_cheval/config/redaction.py`
+
+**Description**: Update `redact_config()` in interpolation.py and `redact_config_value()` in redaction.py to handle `LazyValue` instances without triggering resolution.
+
+**Acceptance Criteria**:
+- [ ] `redact_config()` detects `isinstance(value, LazyValue)` and returns `"***REDACTED*** (lazy: {raw})"` format
+- [ ] `redact_config_value()` handles `LazyValue` similarly
+- [ ] `redact_string()` handles `LazyValue` by operating on `raw` property
+- [ ] `--dry-run` mode does NOT resolve any lazy values
+- [ ] `cmd_print_config()` shows redacted lazy values with `(lazy)` marker
+
+### Task 1.4: ProviderConfig Type Update
+
+**File**: `.claude/adapters/loa_cheval/types.py`
+
+**Description**: Update `ProviderConfig.auth` type hint to accept `str | LazyValue`. Import `LazyValue` with a conditional to avoid circular imports.
+
+**Acceptance Criteria**:
+- [ ] `ProviderConfig.auth` type hint updated to `str | Any` (or `Union[str, LazyValue]` with TYPE_CHECKING import)
+- [ ] Existing code that reads `config.auth` as string works unchanged (via `LazyValue.__str__()`)
+- [ ] No circular import issues
+
+### Task 1.5: Loader Integration
+
+**File**: `.claude/adapters/loa_cheval/config/loader.py`
+
+**Description**: Pass `lazy_paths` parameter through `load_config()` to `interpolate_config()` at line 168.
+
+**Acceptance Criteria**:
+- [ ] `load_config()` passes `lazy_paths=_DEFAULT_LAZY_PATHS` to `interpolate_config()`
+- [ ] `get_config()` caching works correctly with lazy values (cache stores LazyValues, not resolved strings)
+- [ ] `get_effective_config_display()` uses redacted output for lazy values
+
+### Task 1.6: Error Context Enhancement
+
+**File**: `.claude/adapters/loa_cheval/config/interpolation.py`
+
+**Description**: When `LazyValue.resolve()` fails (missing env var), produce an error message that includes the provider name, agent name, and a hint about `/loa-credentials`.
+
+**Acceptance Criteria**:
+- [ ] `LazyValue` accepts optional `context` dict (provider_name, agent_name)
+- [ ] `ConfigError` message includes: which env var, which provider, which agent
+- [ ] Error includes hint: `Run '/loa-credentials set <VAR>' to configure`
+- [ ] Error message does NOT leak the expected value
+
+### Task 1.7: Lazy Interpolation Tests
+
+**File**: `.claude/adapters/tests/test_config.py`
+
+**Description**: Add comprehensive tests for the `LazyValue` class and lazy interpolation behavior.
+
+**Acceptance Criteria**:
+- [ ] Test `LazyValue.__str__()` triggers resolution
+- [ ] Test `LazyValue.__repr__()` shows raw token
+- [ ] Test `LazyValue` caches resolved value (second call doesn't re-resolve)
+- [ ] Test `LazyValue.__eq__()` with str and LazyValue
+- [ ] Test `interpolate_config()` with `lazy_paths={"providers.*.auth"}` wraps auth fields
+- [ ] Test eager fields (endpoints, aliases) still resolve immediately
+- [ ] Test `lazy_paths=set()` disables lazy behavior
+- [ ] Test missing env var in lazy path produces contextual error
+- [ ] Test `redact_config()` handles LazyValue without resolving
+- [ ] Test `model-invoke --dry-run` succeeds without any API keys set
+- [ ] Test mixed lazy/eager config (some providers lazy, others resolved)
 - [ ] Minimum 15 test cases
 
-### Task 1.3: Release Notes Generator
+### Task 1.8: Clean Grimoire State Function
 
-**File**: `.claude/scripts/release-notes-gen.sh`
+**File**: `.claude/scripts/mount-loa.sh`
 
-**Description**: Extract release notes from CHANGELOG.md for a given version, or generate minimal notes for bugfix releases.
-
-**Acceptance Criteria**:
-- [ ] Extracts CHANGELOG section between version headers
-- [ ] Handles missing `[Unreleased]` section gracefully
-- [ ] Includes PR link in output
-- [ ] Cycle template: full CHANGELOG section + source info
-- [ ] Bugfix template: minimal "Bug fix release" + PR link
-- [ ] Outputs markdown to stdout
-- [ ] Script is executable and sources bootstrap.sh
-
-### Task 1.4: Release Notes Tests
-
-**File**: `tests/unit/release-notes-gen.bats`
-
-**Description**: BATS tests for release notes generation.
+**Description**: Add `clean_grimoire_state()` function that removes framework development artifacts from `grimoires/loa/` after the git checkout. Insert after line 389 (after grimoire sync in `sync_zones()`).
 
 **Acceptance Criteria**:
-- [ ] Tests cycle release extraction from CHANGELOG
-- [ ] Tests bugfix template generation
-- [ ] Tests missing CHANGELOG handling
-- [ ] Tests version not found in CHANGELOG
-- [ ] Minimum 8 test cases
+- [ ] Removes: `prd.md`, `sdd.md`, `sprint.md`, `BEAUVOIR.md`, `SOUL.md` from `grimoires/loa/`
+- [ ] Removes contents of `a2a/` and `archive/` directories (not the dirs themselves)
+- [ ] Preserves directory structure: `a2a/trajectory/`, `archive/`, `context/`, `memory/`
+- [ ] Initializes clean `ledger.json` with empty cycles, `global_sprint_counter: 0`
+- [ ] Creates `NOTES.md` template if not present
+- [ ] Does NOT remove user-placed files in `context/` (remount with `--force` safety)
+- [ ] Called after `git checkout ... -- grimoires/loa` in `sync_zones()`
+- [ ] Logged: "Grimoire state cleaned — ready for /plan-and-analyze"
 
-### Task 1.5: Post-Merge Orchestrator Skeleton
+### Task 1.9: Mount Hygiene Tests
 
-**File**: `.claude/scripts/post-merge-orchestrator.sh`
+**File**: `tests/unit/mount-clean.bats`
 
-**Description**: Create the orchestrator with argument parsing, state initialization, phase matrix, and phase dispatch loop.
-
-**Acceptance Criteria**:
-- [ ] Accepts `--pr`, `--type`, `--sha`, `--dry-run`, `--skip-gt`, `--skip-rtfm` flags
-- [ ] Initializes state file at `.run/post-merge-state.json`
-- [ ] Phase matrix: cycle runs all 8, bugfix runs 4, other runs 4
-- [ ] Sequential phase dispatch with per-phase error capture
-- [ ] Atomic state updates using flock pattern from bridge-state.sh
-- [ ] Dry-run mode logs phases without executing side effects
-- [ ] Graceful `gh` CLI detection (skip GitHub ops if unavailable)
-- [ ] Script is executable and sources bootstrap.sh
-
-### Task 1.6: Post-Merge Orchestrator Tests
-
-**File**: `tests/unit/post-merge-orchestrator.bats`
-
-**Description**: BATS tests for the orchestrator.
+**Description**: BATS tests for the clean grimoire state functionality.
 
 **Acceptance Criteria**:
-- [ ] Tests argument parsing for all flags
-- [ ] Tests phase matrix for cycle, bugfix, other types
-- [ ] Tests state file initialization
-- [ ] Tests dry-run mode
-- [ ] Tests graceful degradation when gh is unavailable
-- [ ] Minimum 12 test cases
+- [ ] Test artifact removal: prd.md, sdd.md, sprint.md removed
+- [ ] Test directory preservation: a2a/, archive/, context/ exist after clean
+- [ ] Test clean ledger.json initialization (empty cycles, counter 0)
+- [ ] Test NOTES.md template creation
+- [ ] Test user files in context/ are preserved
+- [ ] Test idempotent: running twice produces same result
+- [ ] Test --force remount does not delete user context files
+- [ ] Minimum 10 test cases
 
-### Task 1.7: Orchestrator Phase Implementations
+### Task 1.10: CHANGELOG and Version Bump
 
-**File**: `.claude/scripts/post-merge-orchestrator.sh` (continued)
+**Files**: `CHANGELOG.md`, `.loa-version.json`
 
-**Description**: Implement all 8 phase functions within the orchestrator.
+**Description**: Add changelog entry for Sprint 1 changes. Bump patch version.
 
 **Acceptance Criteria**:
-- [ ] `phase_classify()`: Extracts PR number from commit, fetches PR metadata via gh, classifies type
-- [ ] `phase_semver()`: Delegates to semver-bump.sh, stores result in state
-- [ ] `phase_changelog()`: Replaces `[Unreleased]` with versioned header, idempotent
-- [ ] `phase_gt_regen()`: Invokes ground-truth-gen.sh --mode checksums, commits if changes
-- [ ] `phase_rtfm()`: Placeholder that logs "RTFM validation" (full implementation in Sprint 3)
-- [ ] `phase_tag()`: Creates and pushes annotated tag, idempotent
-- [ ] `phase_release()`: Creates GitHub Release via gh, idempotent
-- [ ] `phase_notify()`: Posts summary table to PR comment
+- [ ] CHANGELOG has entry under `[Unreleased]` for lazy interpolation fix
+- [ ] CHANGELOG has entry for mount hygiene cleanup
+- [ ] References issues #300 and #299
+- [ ] `.loa-version.json` version bumped
 
 ---
 
-## Sprint 2: GitHub Actions Workflow & Integration
+## Sprint 2: Credential Management (FR-2)
 
-**Goal**: Create the GH Actions workflow, wire claude-code-action, update Loa config and docs.
+**Goal**: Build the credential provider chain and `/loa-credentials` skill. Depends on Sprint 1 for `LazyValue` and the modified interpolation pipeline.
 
-### Task 2.1: Post-Merge Workflow
+### Task 2.1: Credential Provider Interface and Implementations
 
-**File**: `.github/workflows/post-merge.yml`
+**Files**: `.claude/adapters/loa_cheval/credentials/__init__.py`, `.claude/adapters/loa_cheval/credentials/providers.py`
 
-**Description**: GitHub Actions workflow that triggers on push to main, classifies the PR, and dispatches to the appropriate pipeline tier.
-
-**Acceptance Criteria**:
-- [ ] Triggers on `push` to `main` branch only
-- [ ] Concurrency group prevents parallel runs
-- [ ] `classify` job: extracts PR number, classifies type, outputs pr_number + pr_type
-- [ ] `simple-release` job: runs for bugfix/other, executes semver + tag in shell
-- [ ] `full-pipeline` job: runs for cycle PRs, invokes claude-code-action
-- [ ] `notify` job: posts results, sends Discord notification on failure
-- [ ] 30-minute timeout on full-pipeline job
-- [ ] Proper permissions block (contents:write, pull-requests:write, id-token:write, actions:read)
-
-### Task 2.2: claude-code-action Configuration
-
-**File**: `.github/workflows/post-merge.yml` (full-pipeline job)
-
-**Description**: Configure the claude-code-action step with proper prompt, model, tool allowlist, and timeout.
+**Description**: Create the credential provider module with `CredentialProvider` ABC, `EnvProvider`, `DotenvProvider`, and `CompositeProvider`.
 
 **Acceptance Criteria**:
-- [ ] Uses `anthropics/claude-code-action@v1`
-- [ ] Prompt includes PR number, type, merge SHA
-- [ ] Model: `claude-sonnet-4-5-20250929` (cost-efficient)
-- [ ] `--max-turns 15` to limit conversation depth
-- [ ] Tool allowlist: `Bash(bash),Read,Write,Glob,Grep`
-- [ ] Reads `ANTHROPIC_API_KEY` from repository secrets
-- [ ] Structured output captures pipeline result JSON
+- [ ] `CredentialProvider` ABC with `get(credential_id) -> str | None`
+- [ ] `EnvProvider` reads from `os.environ`
+- [ ] `DotenvProvider` reads from `.env.local` in project root (parses `KEY=VALUE` lines)
+- [ ] `CompositeProvider` chains providers in priority order (env → encrypted → dotenv)
+- [ ] `get_credential_provider(project_root)` factory function returns configured `CompositeProvider`
+- [ ] `__init__.py` exports public API: `get_credential_provider`, `CredentialProvider`
+- [ ] Providers are stateless and cheap to instantiate
 
-### Task 2.3: Config & Constraints Update
+### Task 2.2: Encrypted File Store
 
-**Files**: `.loa.config.yaml.example`, `.claude/data/constraints.json`
+**File**: `.claude/adapters/loa_cheval/credentials/store.py`
 
-**Description**: Add `post_merge:` configuration section and C-MERGE constraints.
-
-**Acceptance Criteria**:
-- [ ] `.loa.config.yaml.example` has `post_merge:` section with all options
-- [ ] `constraints.json` has C-MERGE-001 through C-MERGE-005
-- [ ] Constraint hash updated
-- [ ] Config example has comments explaining each option
-
-### Task 2.4: CLAUDE.loa.md Update
-
-**File**: `.claude/loa/CLAUDE.loa.md`
-
-**Description**: Add Post-Merge Automation section to framework instructions.
+**Description**: Fernet-encrypted credential storage at `~/.loa/credentials/`.
 
 **Acceptance Criteria**:
-- [ ] New section: "Post-Merge Automation (v1.36.0)"
-- [ ] Documents the 3-layer architecture
-- [ ] Documents phase matrix for each PR type
-- [ ] References configuration options
-- [ ] Constraint-generated block for C-MERGE rules
+- [ ] `EncryptedStore` class with `get()`, `set()`, `delete()`, `list_keys()` methods
+- [ ] Auto-creates `~/.loa/credentials/` directory with 0700 permissions
+- [ ] Auto-generates Fernet key on first use, stored at `.key` with 0600 permissions
+- [ ] `store.json.enc` encrypted with Fernet (AES-128-CBC + HMAC)
+- [ ] `store.json.enc` has 0600 permissions
+- [ ] Graceful handling of corrupted store (re-initialize with warning)
+- [ ] `EncryptedFileProvider(CredentialProvider)` wraps `EncryptedStore` for chain integration
+- [ ] `cryptography` package imported with helpful error if missing
 
-### Task 2.5: CHANGELOG & Version Bump
+### Task 2.3: Credential Health Checks
+
+**File**: `.claude/adapters/loa_cheval/credentials/health.py`
+
+**Description**: API key health checking against provider endpoints.
+
+**Acceptance Criteria**:
+- [ ] `HEALTH_CHECKS` dict maps credential IDs to check configs (URL, header, expected status)
+- [ ] `check_credential(credential_id, value) -> HealthResult` performs HTTP check
+- [ ] `check_all(provider) -> list[HealthResult]` checks all configured credentials
+- [ ] `HealthResult` namedtuple with `credential_id`, `status` (ok/error/missing), `message`
+- [ ] Timeout of 10s per check
+- [ ] Does NOT log or print credential values
+
+### Task 2.4: Interpolation Integration
+
+**File**: `.claude/adapters/loa_cheval/config/interpolation.py`
+
+**Description**: Modify `_resolve_env()` (within `interpolate_value()`) to use the credential provider chain instead of raw `os.environ.get()`.
+
+**Acceptance Criteria**:
+- [ ] `_resolve_env()` calls `credential_provider.get(var_name)` first
+- [ ] Falls back to `os.environ.get(var_name)` if provider returns None
+- [ ] `_ENV_ALLOWLIST` check still enforced BEFORE provider lookup
+- [ ] `LazyValue` resolution path uses the same provider chain
+- [ ] No behavior change when credential provider module is not available (graceful import)
+
+### Task 2.5: /loa-credentials Skill
+
+**Files**: `.claude/skills/managing-credentials/SKILL.md`, `.claude/skills/managing-credentials/index.yaml`
+
+**Description**: Create the `/loa-credentials` skill with interactive credential management.
+
+**Acceptance Criteria**:
+- [ ] SKILL.md defines skill workflow for `status`, `set <NAME>`, `test` subcommands
+- [ ] Default invocation (no args): interactive wizard detecting missing keys
+- [ ] `status`: table showing each known credential with configured/missing/valid status
+- [ ] `set <NAME>`: prompts for value via AskUserQuestion (never in command args)
+- [ ] `test`: runs health checks on all configured credentials
+- [ ] index.yaml registered with danger_level: `safe`
+- [ ] Skill invokes Python helpers via `python3 -c` or `python3 -m loa_cheval.credentials`
+- [ ] Clear output formatting with green/red status indicators
+
+### Task 2.6: .env.local Gitignore Integration
+
+**File**: `.claude/scripts/mount-loa.sh`
+
+**Description**: Add `.env.local` to `.gitignore` template during mount.
+
+**Acceptance Criteria**:
+- [ ] `.env.local` line added to `.gitignore` if not already present
+- [ ] Added during `root_file_sync()` or equivalent mount phase
+- [ ] Idempotent: running mount twice doesn't duplicate the line
+
+### Task 2.7: Credential Provider Tests
+
+**File**: `.claude/adapters/tests/test_credentials.py`
+
+**Description**: Comprehensive tests for the credential provider chain.
+
+**Acceptance Criteria**:
+- [ ] Test `EnvProvider` reads from os.environ
+- [ ] Test `DotenvProvider` reads from .env.local file
+- [ ] Test `EncryptedFileProvider` read/write cycle
+- [ ] Test `CompositeProvider` priority chain (env wins over encrypted)
+- [ ] Test encrypted store file permissions (0600)
+- [ ] Test encrypted store directory permissions (0700)
+- [ ] Test corrupted store recovery
+- [ ] Test health check with mocked HTTP responses
+- [ ] Test `get_credential_provider()` factory
+- [ ] Test integration with `interpolate_value()` via provider chain
+- [ ] Minimum 15 test cases
+
+### Task 2.8: CHANGELOG Update
+
+**File**: `CHANGELOG.md`
+
+**Description**: Add changelog entries for credential management features.
+
+**Acceptance Criteria**:
+- [ ] Entry for `/loa-credentials` command
+- [ ] Entry for encrypted credential store
+- [ ] Entry for credential provider chain integration
+- [ ] References issue #300
+
+---
+
+## Sprint 3: Review Scope Filtering (FR-4)
+
+**Goal**: Implement `.reviewignore` and shared review scope utility. Integrate with all review tools. Independent of Sprints 1-2.
+
+### Task 3.1: review-scope.sh Shared Utility
+
+**File**: `.claude/scripts/review-scope.sh`
+
+**Description**: Create the shared review scope filtering utility that reads `.loa-version.json` for zone detection and `.reviewignore` for user patterns.
+
+**Acceptance Criteria**:
+- [ ] `detect_zones()` reads `.loa-version.json` for system/state/app zone definitions
+- [ ] `load_reviewignore()` parses `.reviewignore` (gitignore-style: comments, blank lines, globs)
+- [ ] `is_excluded()` checks file against zone exclusions + .reviewignore patterns
+- [ ] `filter_files()` reads stdin, outputs only non-excluded files to stdout
+- [ ] `--no-reviewignore` flag bypasses .reviewignore patterns (power user)
+- [ ] `--diff-files FILE` reads file list from file instead of stdin
+- [ ] Graceful when `.loa-version.json` missing (pass everything through)
+- [ ] Graceful when `.reviewignore` missing (zone detection only)
+- [ ] Script is executable and sources bootstrap.sh
+
+### Task 3.2: .reviewignore Template
+
+**File**: `.reviewignore` (project root)
+
+**Description**: Create the default `.reviewignore` template with sane defaults for Loa-mounted projects.
+
+**Acceptance Criteria**:
+- [ ] Excludes: `.claude/`, `grimoires/loa/a2a/`, `grimoires/loa/archive/`, `.beads/`, `.run/`
+- [ ] Excludes: `.loa-version.json`, `.loa.config.yaml.example`
+- [ ] Has comment section for user additions
+- [ ] Gitignore-compatible syntax (validated against common glob implementations)
+
+### Task 3.3: Mount Integration for .reviewignore
+
+**File**: `.claude/scripts/mount-loa.sh`
+
+**Description**: Create `.reviewignore` during mount if it doesn't exist.
+
+**Acceptance Criteria**:
+- [ ] `create_reviewignore()` function creates template at project root
+- [ ] Only creates if file doesn't already exist (preserves user edits)
+- [ ] Called during `root_file_sync()` or `sync_zones()`
+- [ ] Logged: "Created .reviewignore"
+
+### Task 3.4: lib-content.sh Integration
+
+**File**: `.claude/scripts/lib-content.sh`
+
+**Description**: Integrate review-scope.sh into `prepare_content()` to filter diff files before priority-based truncation.
+
+**Acceptance Criteria**:
+- [ ] `prepare_content()` pipes diff file list through `review-scope.sh` before priority sorting
+- [ ] Excluded files are counted and reported in the summary section
+- [ ] `file_priority()` returns `-1` for review-scope-excluded files as a fallback
+- [ ] Token budget is applied AFTER scope filtering (more tokens for in-scope files)
+- [ ] Backward compatible: no `.reviewignore` → no filtering (existing behavior)
+
+### Task 3.5: GPT Review Integration
+
+**File**: `.claude/scripts/gpt-review-api.sh`
+
+**Description**: Integrate review scope filtering into GPT review content preparation.
+
+**Acceptance Criteria**:
+- [ ] Content is filtered through `review-scope.sh` before building review prompt
+- [ ] System zone changes detected by `detect_system_zone_changes()` still reported as info
+- [ ] `--no-reviewignore` flag passthrough supported
+- [ ] Filtered file count logged for debugging
+
+### Task 3.6: Bridgebuilder Integration
+
+**File**: `.claude/skills/bridgebuilder-review/resources/core/truncation.ts`
+
+**Description**: Add `.reviewignore` reading support to Bridgebuilder's truncation pipeline.
+
+**Acceptance Criteria**:
+- [ ] `loadReviewIgnore()` function reads `.reviewignore` from repo root
+- [ ] Patterns merged with existing `LOA_EXCLUDE_PATTERNS`
+- [ ] Applied in `truncateFiles()` Step 0 (Loa-aware filtering), before Step 1 (user patterns)
+- [ ] `.reviewignore` patterns use same matching as gitignore (directory trailing `/`, glob `*`)
+- [ ] Graceful when file missing (existing LOA_EXCLUDE_PATTERNS still apply)
+
+### Task 3.7: Audit-Sprint Zone Awareness
+
+**File**: `.claude/skills/auditing-security/SKILL.md`
+
+**Description**: Add zone-awareness instruction to the audit skill so it focuses on app zone code.
+
+**Acceptance Criteria**:
+- [ ] Instruction added: "When reviewing Loa-mounted projects, focus audit on app zone files"
+- [ ] References `review-scope.sh` for determining which files are in scope
+- [ ] `.reviewignore` patterns respected when selecting audit targets
+- [ ] Override instruction: `--no-reviewignore` to audit everything
+
+### Task 3.8: Review Scope Tests
+
+**File**: `tests/unit/review-scope.bats`
+
+**Description**: Comprehensive BATS tests for the review scope filtering utility.
+
+**Acceptance Criteria**:
+- [ ] Test zone detection from `.loa-version.json`
+- [ ] Test `.reviewignore` parsing: comments, blank lines, glob patterns, directory patterns
+- [ ] Test system zone exclusion (`.claude/` always excluded)
+- [ ] Test state zone exclusion (`.beads/`, `.run/`)
+- [ ] Test app zone passthrough (everything else passes)
+- [ ] Test `--no-reviewignore` bypasses custom patterns
+- [ ] Test missing `.loa-version.json` (pass everything through)
+- [ ] Test missing `.reviewignore` (zone detection only)
+- [ ] Test combined zone + .reviewignore filtering
+- [ ] Test piping diff file list through filter
+- [ ] Minimum 12 test cases
+
+### Task 3.9: CHANGELOG and Final Version Bump
 
 **Files**: `CHANGELOG.md`, `README.md`, `.loa-version.json`
 
-**Description**: Add v1.36.0 changelog entry and bump version references.
+**Description**: Add changelog entries for review scope features and finalize version bump.
 
 **Acceptance Criteria**:
-- [ ] CHANGELOG has `## [1.36.0]` entry with all changes
+- [ ] CHANGELOG has `## [1.35.0]` entry with all Sprint 1-3 changes
+- [ ] Finalize `[Unreleased]` section into versioned header
 - [ ] README version badge updated
-- [ ] `.loa-version.json` version updated
-- [ ] Why This Release section explains issue #298
-
-### Task 2.6: Integration Tests
-
-**File**: `tests/unit/post-merge-orchestrator.bats` (extended)
-
-**Description**: Add integration-level tests that exercise the full orchestrator flow with mocked external commands.
-
-**Acceptance Criteria**:
-- [ ] Tests full cycle pipeline (all 8 phases mock-executed)
-- [ ] Tests bugfix pipeline (4 phases)
-- [ ] Tests idempotency (run twice, no duplicate tags/releases)
-- [ ] Tests CHANGELOG finalization
-- [ ] Tests notify phase generates correct summary table
-- [ ] Minimum 10 additional test cases
-
----
-
-## Sprint 3: Ship Skill Enhancement & E2E Wiring
-
-**Goal**: Wire the `/ship` skill for dual-mode operation, add RTFM integration, and validate E2E flow.
-
-### Task 3.1: Ship Skill Enhancement
-
-**File**: `.claude/skills/deploying-infrastructure/SKILL.md` (or new ship skill file)
-
-**Description**: Extend `/ship` to support automated mode (invoked by claude-code-action) and manual mode (invoked by user).
-
-**Acceptance Criteria**:
-- [ ] Manual mode: interactive confirmations, shows progress
-- [ ] Automated mode: `--automated --pr N --sha S` suppresses prompts
-- [ ] Both modes delegate to `post-merge-orchestrator.sh`
-- [ ] Automated mode posts results as PR comment
-- [ ] Manual mode displays results in terminal
-
-### Task 3.2: RTFM Phase Integration
-
-**File**: `.claude/scripts/post-merge-orchestrator.sh` (phase_rtfm)
-
-**Description**: Replace the RTFM placeholder with actual RTFM validation invocation.
-
-**Acceptance Criteria**:
-- [ ] Invokes RTFM testing on README.md and GT index.md
-- [ ] Runs in headless mode (no user prompts)
-- [ ] Gap report saved to `.run/post-merge-rtfm-report.json`
-- [ ] Gaps are logged but don't block the pipeline (per C-MERGE-003)
-- [ ] Gap count included in NOTIFY phase summary
-
-### Task 3.3: Discord Notification
-
-**File**: `.github/workflows/post-merge.yml` (notify job)
-
-**Description**: Add Discord webhook notification on pipeline failure.
-
-**Acceptance Criteria**:
-- [ ] Posts to Discord only on failure (not success)
-- [ ] Uses existing `DISCORD_WEBHOOK_URL` secret
-- [ ] Message includes: PR number, failed phase, error summary
-- [ ] Gracefully skips if `DISCORD_WEBHOOK_URL` is not set
-
-### Task 3.4: Ledger & Cycle Integration
-
-**File**: `.claude/scripts/post-merge-orchestrator.sh` (phase_classify enhancement)
-
-**Description**: When a cycle-completion PR merges, automatically archive the cycle in the Sprint Ledger.
-
-**Acceptance Criteria**:
-- [ ] Detects cycle ID from PR body or commit messages
-- [ ] Archives the cycle in `grimoires/loa/ledger.json`
-- [ ] Moves planning artifacts to archive directory
-- [ ] Only runs for cycle-type PRs
-
-### Task 3.5: E2E Validation
-
-**Description**: Manual validation of the complete pipeline with a test merge.
-
-**Acceptance Criteria**:
-- [ ] Create test PR with conventional commits
-- [ ] Merge to main
-- [ ] Verify: semver computed correctly
-- [ ] Verify: CHANGELOG finalized
-- [ ] Verify: tag created
-- [ ] Verify: (if cycle) GT regenerated, release created
-- [ ] Verify: PR comment posted with summary
-
-### Task 3.6: Constraint Registry Update
-
-**File**: `.claude/data/constraints.json`
-
-**Description**: Generate constraint blocks in CLAUDE.loa.md from the new C-MERGE constraints.
-
-**Acceptance Criteria**:
-- [ ] `@constraint-generated` blocks rendered in CLAUDE.loa.md
-- [ ] Constraint hash matches registry
-- [ ] All 5 C-MERGE constraints present
+- [ ] `.loa-version.json` version set to `1.35.0`
+- [ ] Why This Release section explains issues #300, #299, #303
 
 ---
 
 ## Sprint Dependencies
 
 ```
-Sprint 1 (Foundation) → Sprint 2 (Integration) → Sprint 3 (Enhancement)
+Sprint 1 (Lazy Interp + Mount) ──→ Sprint 2 (Credentials)
+                                       │
+Sprint 3 (Review Scope) ─── independent ┘
 ```
 
-Sprint 2 depends on Sprint 1 (orchestrator must exist before workflow references it).
-Sprint 3 depends on Sprint 2 (ship skill needs workflow, RTFM needs orchestrator phases).
+Sprint 2 depends on Sprint 1 (credential provider chain integrates with `LazyValue` + modified `interpolate_value()`). Sprint 3 is fully independent and could run in parallel with Sprint 2.
 
 ## Risk Mitigation
 
 | Risk | Sprint | Mitigation |
 |------|--------|------------|
-| claude-code-action not available | 2 | Shell-only fallback in simple-release job |
-| `ANTHROPIC_API_KEY` not set | 2-3 | full-pipeline job checks secret existence, skips gracefully |
-| CHANGELOG format varies | 1 | Parser handles multiple header formats |
-| No git tags exist yet | 1 | Fallback to CHANGELOG version |
-| Concurrent merges | 2 | Concurrency group in workflow |
+| LazyValue breaks existing config loading | 1 | Comprehensive backward compat tests; `lazy_paths=set()` escape hatch |
+| `cryptography` package not available | 2 | Graceful import with clear error message; env-only fallback |
+| `.reviewignore` glob syntax inconsistency | 3 | Use bash `[[ == $pattern ]]` matching; test against gitignore spec |
+| Bridgebuilder TypeScript changes conflict | 3 | Merge with existing LOA_EXCLUDE_PATTERNS; don't replace |
+| Mount cleanup too aggressive | 1 | Preserve user files in `context/`; only remove known artifacts |

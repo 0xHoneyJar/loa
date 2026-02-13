@@ -21,9 +21,13 @@ from loa_cheval.config.loader import (
 )
 from loa_cheval.config.interpolation import (
     _check_env_allowed,
+    _matches_lazy_path,
+    interpolate_config,
     interpolate_value,
     redact_config,
+    LazyValue,
     REDACTED,
+    _DEFAULT_LAZY_PATHS,
 )
 from loa_cheval.types import ConfigError
 
@@ -177,3 +181,226 @@ class TestRedaction:
         result = redact_config(config)
         assert REDACTED in result["auth"]
         assert "OPENAI_API_KEY" in result["auth"]
+
+
+# === LazyValue Tests (v1.35.0, FR-1) ===
+
+
+class TestLazyValue:
+    def test_str_triggers_resolution(self):
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test123"}):
+            lazy = LazyValue("{env:OPENAI_API_KEY}", "/tmp")
+            assert str(lazy) == "sk-test123"
+
+    def test_repr_shows_raw_token(self):
+        lazy = LazyValue("{env:OPENAI_API_KEY}", "/tmp")
+        assert repr(lazy) == "LazyValue('{env:OPENAI_API_KEY}')"
+
+    def test_resolve_caches_result(self):
+        """Second call should return cached value, not re-resolve."""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-first"}):
+            lazy = LazyValue("{env:OPENAI_API_KEY}", "/tmp")
+            first = lazy.resolve()
+
+        # Even after env var changes, cached value is returned
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-second"}):
+            second = lazy.resolve()
+
+        assert first == second == "sk-first"
+
+    def test_raw_property(self):
+        lazy = LazyValue("{env:OPENAI_API_KEY}", "/tmp")
+        assert lazy.raw == "{env:OPENAI_API_KEY}"
+
+    def test_bool_truthy(self):
+        lazy = LazyValue("{env:OPENAI_API_KEY}", "/tmp")
+        assert bool(lazy) is True
+
+    def test_bool_falsy(self):
+        lazy = LazyValue("", "/tmp")
+        assert bool(lazy) is False
+
+    def test_eq_with_string(self):
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test123"}):
+            lazy = LazyValue("{env:OPENAI_API_KEY}", "/tmp")
+            assert lazy == "sk-test123"
+
+    def test_eq_with_lazy_value(self):
+        lazy1 = LazyValue("{env:OPENAI_API_KEY}", "/tmp")
+        lazy2 = LazyValue("{env:OPENAI_API_KEY}", "/tmp")
+        lazy3 = LazyValue("{env:ANTHROPIC_API_KEY}", "/tmp")
+        assert lazy1 == lazy2
+        assert lazy1 != lazy3
+
+    def test_hash(self):
+        lazy1 = LazyValue("{env:OPENAI_API_KEY}", "/tmp")
+        lazy2 = LazyValue("{env:OPENAI_API_KEY}", "/tmp")
+        assert hash(lazy1) == hash(lazy2)
+
+    def test_missing_env_error_with_context(self):
+        with patch.dict(os.environ, {}, clear=True):
+            lazy = LazyValue(
+                "{env:OPENAI_API_KEY}", "/tmp",
+                context={"provider": "openai", "agent": "gpt-reviewer"},
+            )
+            with pytest.raises(ConfigError, match="provider 'openai'"):
+                lazy.resolve()
+
+    def test_missing_env_error_includes_hint(self):
+        with patch.dict(os.environ, {}, clear=True):
+            lazy = LazyValue(
+                "{env:OPENAI_API_KEY}", "/tmp",
+                context={"provider": "openai"},
+            )
+            with pytest.raises(ConfigError, match="/loa-credentials set OPENAI_API_KEY"):
+                lazy.resolve()
+
+
+class TestLazyPathMatching:
+    def test_exact_match(self):
+        assert _matches_lazy_path("providers.openai.auth", {"providers.*.auth"}) is True
+
+    def test_no_match(self):
+        assert _matches_lazy_path("providers.openai.endpoint", {"providers.*.auth"}) is False
+
+    def test_wildcard_matches_any_provider(self):
+        assert _matches_lazy_path("providers.anthropic.auth", {"providers.*.auth"}) is True
+        assert _matches_lazy_path("providers.moonshot.auth", {"providers.*.auth"}) is True
+
+    def test_non_provider_key(self):
+        assert _matches_lazy_path("aliases.opus", {"providers.*.auth"}) is False
+
+    def test_empty_lazy_paths(self):
+        assert _matches_lazy_path("providers.openai.auth", set()) is False
+
+
+class TestLazyInterpolation:
+    def test_auth_fields_become_lazy(self):
+        config = {
+            "providers": {
+                "openai": {
+                    "endpoint": "https://api.openai.com/v1",
+                    "auth": "{env:OPENAI_API_KEY}",
+                },
+            },
+        }
+        with patch.dict(os.environ, {}, clear=True):
+            # Should NOT raise — auth is lazy
+            result = interpolate_config(config, "/tmp")
+            assert isinstance(result["providers"]["openai"]["auth"], LazyValue)
+            # Endpoint is NOT lazy — but doesn't contain interpolation tokens here
+            assert result["providers"]["openai"]["endpoint"] == "https://api.openai.com/v1"
+
+    def test_lazy_auth_resolves_on_str(self):
+        config = {
+            "providers": {
+                "openai": {
+                    "auth": "{env:OPENAI_API_KEY}",
+                },
+            },
+        }
+        with patch.dict(os.environ, {}, clear=True):
+            result = interpolate_config(config, "/tmp")
+            lazy_auth = result["providers"]["openai"]["auth"]
+            assert isinstance(lazy_auth, LazyValue)
+
+        # Now set the env var and resolve
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test123"}):
+            assert str(lazy_auth) == "sk-test123"
+
+    def test_non_auth_fields_resolve_eagerly(self):
+        config = {
+            "providers": {
+                "openai": {
+                    "endpoint": "{env:LOA_OPENAI_ENDPOINT}",
+                    "auth": "{env:OPENAI_API_KEY}",
+                },
+            },
+        }
+        with patch.dict(os.environ, {"LOA_OPENAI_ENDPOINT": "https://custom.api.com"}, clear=True):
+            result = interpolate_config(config, "/tmp")
+            # endpoint resolves eagerly
+            assert result["providers"]["openai"]["endpoint"] == "https://custom.api.com"
+            # auth is lazy
+            assert isinstance(result["providers"]["openai"]["auth"], LazyValue)
+
+    def test_multiple_providers_independent(self):
+        """Missing env for one provider should not affect another."""
+        config = {
+            "providers": {
+                "openai": {"auth": "{env:OPENAI_API_KEY}"},
+                "anthropic": {"auth": "{env:ANTHROPIC_API_KEY}"},
+            },
+        }
+        with patch.dict(os.environ, {}, clear=True):
+            result = interpolate_config(config, "/tmp")
+            assert isinstance(result["providers"]["openai"]["auth"], LazyValue)
+            assert isinstance(result["providers"]["anthropic"]["auth"], LazyValue)
+
+        # Only set openai key — anthropic stays unresolvable
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-oai"}):
+            assert str(result["providers"]["openai"]["auth"]) == "sk-oai"
+
+        with patch.dict(os.environ, {}, clear=True):
+            with pytest.raises(ConfigError):
+                str(result["providers"]["anthropic"]["auth"])
+
+    def test_lazy_disabled_with_empty_set(self):
+        config = {
+            "providers": {
+                "openai": {"auth": "{env:OPENAI_API_KEY}"},
+            },
+        }
+        with patch.dict(os.environ, {}, clear=True):
+            with pytest.raises(ConfigError, match="not set"):
+                interpolate_config(config, "/tmp", lazy_paths=set())
+
+    def test_lazy_config_with_all_env_set(self):
+        """When all env vars are set, lazy behavior is invisible."""
+        config = {
+            "providers": {
+                "openai": {"auth": "{env:OPENAI_API_KEY}"},
+            },
+        }
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}):
+            result = interpolate_config(config, "/tmp")
+            # auth is LazyValue but resolves transparently
+            assert str(result["providers"]["openai"]["auth"]) == "sk-test"
+
+    def test_secret_keys_tracked_for_lazy_paths(self):
+        config = {
+            "providers": {
+                "openai": {"auth": "{env:OPENAI_API_KEY}"},
+            },
+        }
+        secret_keys = set()
+        with patch.dict(os.environ, {}, clear=True):
+            interpolate_config(config, "/tmp", _secret_keys=secret_keys)
+            assert "auth" in secret_keys
+
+
+class TestLazyRedaction:
+    def test_redact_config_handles_lazy_value(self):
+        lazy = LazyValue("{env:OPENAI_API_KEY}", "/tmp")
+        config = {"providers": {"openai": {"auth": lazy, "name": "openai"}}}
+        result = redact_config(config)
+        assert REDACTED in result["providers"]["openai"]["auth"]
+        assert "lazy" in result["providers"]["openai"]["auth"]
+        assert "OPENAI_API_KEY" in result["providers"]["openai"]["auth"]
+        assert result["providers"]["openai"]["name"] == "openai"
+
+    def test_redact_does_not_resolve_lazy(self):
+        """Redacting a LazyValue with missing env var should NOT raise."""
+        with patch.dict(os.environ, {}, clear=True):
+            lazy = LazyValue("{env:OPENAI_API_KEY}", "/tmp")
+            config = {"auth": lazy}
+            # Should not raise — redaction reads .raw, not .resolve()
+            result = redact_config(config)
+            assert REDACTED in result["auth"]
+
+    def test_redact_config_value_handles_lazy(self):
+        from loa_cheval.config.redaction import redact_config_value
+        lazy = LazyValue("{env:OPENAI_API_KEY}", "/tmp")
+        result = redact_config_value("auth", lazy)
+        assert REDACTED in result
+        assert "lazy" in result

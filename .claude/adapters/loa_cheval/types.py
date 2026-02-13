@@ -80,7 +80,7 @@ class ProviderConfig:
     name: str
     type: str  # "openai" | "anthropic" | "openai_compat"
     endpoint: str
-    auth: str  # Interpolation string: "{env:VAR}" or "{file:path}"
+    auth: Any  # str or LazyValue — resolved to str via str() when accessed
     models: Dict[str, ModelConfig] = field(default_factory=dict)
     connect_timeout: float = 10.0  # seconds
     read_timeout: float = 120.0
