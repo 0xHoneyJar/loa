@@ -152,7 +152,8 @@ check_constraint_blocks() {
   fi
 
   local block_count
-  block_count=$(grep -c '@constraint-generated: start' "$file" || echo "0")
+  block_count=$(grep -c '@constraint-generated: start' "$file" 2>/dev/null || true)
+  [[ -z "$block_count" ]] && block_count=0
 
   if [[ "$block_count" -ge 3 ]]; then
     report "PASS" "constraint-blocks" "$block_count constraint-generated blocks found"
@@ -164,8 +165,10 @@ check_constraint_blocks() {
 
   # Check start/end pairs match
   local start_count end_count
-  start_count=$(grep -c '@constraint-generated: start' "$file" || echo "0")
-  end_count=$(grep -c '@constraint-generated: end' "$file" || echo "0")
+  start_count=$(grep -c '@constraint-generated: start' "$file" 2>/dev/null || true)
+  end_count=$(grep -c '@constraint-generated: end' "$file" 2>/dev/null || true)
+  [[ -z "$start_count" ]] && start_count=0
+  [[ -z "$end_count" ]] && end_count=0
 
   if [[ "$start_count" -ne "$end_count" ]]; then
     report "ERROR" "constraint-blocks" "Mismatched start/end pairs: $start_count starts, $end_count ends"
@@ -247,6 +250,47 @@ check_hooks_json() {
   fi
 }
 
+# ---------------------------------------------------------------------------
+# Invariant 8: Safety hook tests pass
+# ---------------------------------------------------------------------------
+check_safety_hook_tests() {
+  local test_script=".claude/scripts/test-safety-hooks.sh"
+
+  if [[ ! -f "$test_script" ]]; then
+    report "WARN" "safety-hook-tests" "Test script not found at $test_script — skipping"
+    return
+  fi
+
+  if bash "$test_script" >/dev/null 2>&1; then
+    report "PASS" "safety-hook-tests" "All safety hook tests pass"
+  else
+    report "ERROR" "safety-hook-tests" "Safety hook tests failed — run: bash $test_script"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Invariant 9: Deny rules active (advisory — WARN, not ERROR)
+# ---------------------------------------------------------------------------
+check_deny_rules_active() {
+  local verify_script=".claude/scripts/verify-deny-rules.sh"
+
+  if [[ ! -f "$verify_script" ]]; then
+    report "WARN" "deny-rules-active" "Verify script not found at $verify_script — skipping"
+    return
+  fi
+
+  if [[ ! -f "$HOME/.claude/settings.json" ]]; then
+    report "WARN" "deny-rules-active" "~/.claude/settings.json not found — deny rules not installed"
+    return
+  fi
+
+  if bash "$verify_script" >/dev/null 2>&1; then
+    report "PASS" "deny-rules-active" "All deny rules active"
+  else
+    report "WARN" "deny-rules-active" "Some deny rules missing — run: bash .claude/scripts/install-deny-rules.sh --auto"
+  fi
+}
+
 # ===========================================================================
 # Run all checks
 # ===========================================================================
@@ -264,6 +308,8 @@ check_constraint_blocks
 check_required_files
 check_hook_executables
 check_hooks_json
+check_safety_hook_tests
+check_deny_rules_active
 
 # ---------------------------------------------------------------------------
 # Output

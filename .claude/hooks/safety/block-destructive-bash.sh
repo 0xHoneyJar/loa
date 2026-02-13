@@ -8,6 +8,25 @@
 # IMPORTANT: No set -euo pipefail — this hook must never fail closed.
 # A grep or jq failure must result in exit 0 (allow), not an error.
 #
+# WHY fail-open (not fail-closed): A safety hook that crashes or encounters
+# a parse error must NOT block the agent from operating. The alternative —
+# fail-closed — would make jq/grep bugs into denial-of-service attacks
+# against the agent. Fail-open with logging is the standard pattern for
+# inline security hooks (cf. ModSecurity DetectionOnly mode).
+# (Source: bridge-20260213-c011he iter-1 HIGH-1 fix)
+#
+# WHY ERE not PCRE: grep -P (PCRE) is a GNU extension not available on
+# macOS/BSD or minimal containers. grep -E (Extended Regex) is POSIX and
+# universally available. The patterns are slightly more verbose but the
+# portability guarantee is non-negotiable for a safety-critical hook.
+# (Source: bridge-20260213-c011he iter-1 HIGH-1 fix)
+#
+# WHY single script for all patterns: Consolidating all destructive command
+# patterns into one hook reduces the PreToolUse:Bash execution cost to a
+# single script invocation. Multiple hooks would each read stdin, parse JSON,
+# and run regex — multiplying latency per command. A single check_and_block()
+# helper with sequential patterns is simpler and faster.
+#
 # Registered in settings.hooks.json as PreToolUse matcher: "Bash"
 # Part of Loa Harness Engineering (cycle-011, issue #297)
 # Source: Trail of Bits claude-code-config safety patterns
@@ -55,7 +74,7 @@ check_and_block \
   '(^|/|;|&&|\|)\s*(sudo\s+)?git\s+push\s+.*--force($|[^-])' \
   "git push --force detected. Use --force-with-lease for safer force push, or push to a feature branch."
 check_and_block \
-  '(^|/|;|&&|\|)\s*(sudo\s+)?git\s+push\s+.*\s-f($|\s)' \
+  '(^|/|;|&&|\|)\s*(sudo\s+)?git\s+push\s+.*-f($|\s)' \
   "git push -f detected. Use --force-with-lease for safer force push, or push to a feature branch."
 
 # ---------------------------------------------------------------------------

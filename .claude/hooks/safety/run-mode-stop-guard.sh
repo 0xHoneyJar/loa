@@ -5,17 +5,32 @@
 # Detects active autonomous runs and injects context reminder before stopping.
 # Uses stdout JSON decision field (soft block, not hard block).
 #
+# WHY soft block (JSON decision) not hard block (exit 2): A hard block on
+# the Stop event would make it impossible to gracefully halt a malfunctioning
+# agent. The soft block provides context ("Run mode is active") and lets the
+# agent decide whether to continue or stop. This preserves the human's ability
+# to Ctrl+C as the ultimate override — the agent can be informed, but never
+# trapped. (cf. Unix SIGTERM vs SIGKILL: always leave an escape hatch)
+#
+# WHY no set -euo pipefail: Same rationale as block-destructive-bash.sh —
+# if jq fails to parse the state file (corrupted JSON, missing field), the
+# hook must exit 0 (allow stop), not crash. A crashing stop guard would
+# prevent the agent from ever stopping, which is worse than the risk it
+# prevents. (Source: bridge-20260213-c011he iter-1 HIGH-1 principle)
+#
+# WHY check multiple state files: Each autonomous mode (sprint-plan, bridge,
+# simstim) has its own state file. We check all three because they can be
+# active independently. The first match triggers the soft block with
+# mode-specific context.
+#
 # Checks:
 #   1. .run/sprint-plan-state.json — state=RUNNING
 #   2. .run/bridge-state.json — state=ITERATING or FINALIZING
+#   3. .run/simstim-state.json — state=RUNNING, phase=implementation
 #
 # Registered in settings.hooks.json as Stop matcher: ""
 # Part of Loa Harness Engineering (cycle-011, issue #297)
 # Source: Trail of Bits Stop hook pattern
-# =============================================================================
-
-# Note: No set -euo pipefail — this hook must never cause a hard failure.
-# Missing files and parse errors should result in exit 0 (allow stop).
 
 # ---------------------------------------------------------------------------
 # Check sprint-plan state

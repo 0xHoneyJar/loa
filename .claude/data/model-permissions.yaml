@@ -1,0 +1,97 @@
+# =============================================================================
+# Per-Model Capability Constraints (Hounfour Readiness)
+# =============================================================================
+# These are NOT enforced yet — they define the TARGET permission landscape
+# for when the Hounfour multi-model orchestrator is live.
+#
+# The constraint-generated block pattern could later render these into
+# CLAUDE.loa.md, making model permissions visible alongside behavioral
+# constraints.
+#
+# See: https://github.com/0xHoneyJar/loa-finn/issues/31 (Hounfour RFC)
+# Source: Bridgebuilder Deep Review Horizon 2
+# Part of Loa Harness Engineering (cycle-011, issue #297)
+# =============================================================================
+
+model_permissions:
+  # -------------------------------------------------------------------------
+  # Claude Code Session — Native runtime with full tool access
+  # -------------------------------------------------------------------------
+  claude-code:session:
+    trust_level: high
+    execution_mode: native_runtime
+    capabilities:
+      file_read: true
+      file_write: true
+      command_execution: true
+      network_access: true
+    notes: >
+      Primary agent. Runs natively in Claude Code with direct tool access.
+      Subject to hook-layer safety (block-destructive-bash.sh) and deny
+      rules (settings.deny.json). Full autonomy within safety boundaries.
+
+  # -------------------------------------------------------------------------
+  # OpenAI GPT-5.2 — Remote model, review-only
+  # -------------------------------------------------------------------------
+  openai:gpt-5.2:
+    trust_level: medium
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      Used for Flatline Protocol adversarial review and Bridgebuilder
+      cross-model scoring. Read-only: receives document content via API,
+      returns structured feedback. No tool access.
+
+  # -------------------------------------------------------------------------
+  # Moonshot Kimi-K2-Thinking — Remote model, analysis-only
+  # -------------------------------------------------------------------------
+  moonshot:kimi-k2-thinking:
+    trust_level: medium
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      Deep reasoning model for architectural analysis. Thinking trace
+      normalization required (Hounfour Cheval adapter). No tool access.
+
+  # -------------------------------------------------------------------------
+  # Qwen3-Coder-Next — Local model, sandboxed write
+  # -------------------------------------------------------------------------
+  qwen-local:qwen3-coder-next:
+    trust_level: medium
+    execution_mode: remote_model
+    capabilities:
+      file_read: true
+      file_write: true
+      command_execution: false
+      network_access: false
+    notes: >
+      Local code generation model. Can read and write files but cannot
+      execute commands or access network. All writes subject to the same
+      hook-layer safety as Claude Code session. DeltaNet/Attention hybrid
+      architecture handles sequential state differently — may need
+      different context engineering for optimal performance.
+
+  # -------------------------------------------------------------------------
+  # Claude Opus 4.6 — Remote model, review and generation
+  # -------------------------------------------------------------------------
+  anthropic:claude-opus-4-6:
+    trust_level: high
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      Used for Flatline Protocol primary review. Receives documents via
+      API, returns structured analysis. Higher trust level than other
+      remote models due to Anthropic's safety training, but still no
+      direct tool access when used as a remote model.

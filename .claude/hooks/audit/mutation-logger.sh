@@ -5,6 +5,26 @@
 # Appends JSONL entries for mutating shell commands to .run/audit.jsonl.
 # Non-blocking: always exits 0. Failures are silently ignored.
 #
+# WHY JSONL not structured JSON: JSONL (one JSON object per line) supports
+# append-only writes without needing to maintain array structure. This is
+# critical for a PostToolUse hook that fires on every command — we can't
+# afford to read-modify-write a JSON array on every invocation. JSONL also
+# enables simple `tail -f` monitoring and `grep` filtering. The format is
+# standard for log pipelines (Elasticsearch, Datadog, CloudWatch Logs).
+#
+# WHY 10MB rotation threshold: Prevents unbounded log growth during long
+# autonomous runs (overnight /run sprint-plan). 10MB holds ~50K entries at
+# ~200 bytes per entry, which covers ~24hrs of active agent use. The tail
+# -n 1000 rotation keeps the most recent entries for post-mortem analysis.
+# (cf. logrotate size-based rotation)
+#
+# WHY these specific commands: The grep pattern matches commands that modify
+# state (git, npm, rm, mv, etc.) and skips read-only commands (cat, ls, grep).
+# Logging every command would create noise; logging only mutations creates
+# an actionable audit trail. The sudo/env/command prefix detection ensures
+# we catch mutations regardless of how they're invoked.
+# (Source: bridge-20260213-c011he iter-1 MEDIUM-2 fix)
+#
 # Registered in settings.hooks.json as PostToolUse matcher: "Bash"
 # Part of Loa Harness Engineering (cycle-011, issue #297)
 # Source: Trail of Bits PostToolUse audit pattern
@@ -27,12 +47,20 @@ if echo "$command" | grep -qEi '(^|&&|;|\|)\s*(sudo\s+)?(env\s+[^ ]+\s+)?(comman
   mkdir -p .run 2>/dev/null || true
 
   # Append JSONL entry (compact, one JSON object per line)
+  # Extended schema includes Hounfour-ready fields (empty string when not set).
+  # Populated from environment variables if present:
+  #   LOA_CURRENT_MODEL, LOA_CURRENT_PROVIDER, LOA_TRACE_ID
+  # This follows the OpenTelemetry principle: define the trace schema before
+  # the instrumentation exists.
   jq -cn \
     --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --arg cmd "$command" \
     --arg exit_code "$exit_code" \
     --arg cwd "$(pwd)" \
-    '{ts: $ts, tool: "Bash", command: $cmd, exit_code: ($exit_code | tonumber), cwd: $cwd}' \
+    --arg model "${LOA_CURRENT_MODEL:-}" \
+    --arg provider "${LOA_CURRENT_PROVIDER:-}" \
+    --arg trace_id "${LOA_TRACE_ID:-}" \
+    '{ts: $ts, tool: "Bash", command: $cmd, exit_code: ($exit_code | tonumber), cwd: $cwd, model: $model, provider: $provider, trace_id: $trace_id}' \
     >> .run/audit.jsonl 2>/dev/null || true
 
   # Log rotation: if file exceeds 10MB, keep last 1000 entries
