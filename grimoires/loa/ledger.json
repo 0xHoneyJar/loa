@@ -124,18 +124,32 @@
       "id": "cycle-011",
       "label": "Harness Engineering Lit Review — Trail of Bits + OpenAI Adaptations",
       "type": "feature",
-      "status": "active",
+      "status": "archived",
       "source_issue": "https://github.com/0xHoneyJar/loa/issues/297",
       "created_at": "2026-02-13T11:00:00Z",
+      "archived_at": "2026-02-13T10:30:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-13-harness-engineering",
       "sprints": ["sprint-74", "sprint-75", "sprint-76", "sprint-77", "sprint-78"],
+      "prd": "grimoires/loa/archive/2026-02-13-harness-engineering/prd.md",
+      "sdd": "grimoires/loa/archive/2026-02-13-harness-engineering/sdd.md",
+      "sprint_plan": "grimoires/loa/archive/2026-02-13-harness-engineering/sprint.md"
+    },
+    {
+      "id": "cycle-012",
+      "label": "Flatline Red Team — Generative Adversarial Security Design",
+      "type": "feature",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/312",
+      "created_at": "2026-02-13T18:00:00Z",
+      "sprints": ["sprint-79", "sprint-80", "sprint-81"],
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "sprint_plan": "grimoires/loa/sprint.md"
     }
   ],
-  "active_cycle": "cycle-011",
+  "active_cycle": "cycle-012",
   "active_bugfix": null,
-  "global_sprint_counter": 78,
+  "global_sprint_counter": 81,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260212-i288-991113",

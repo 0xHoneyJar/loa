@@ -1,23 +1,24 @@
 {
-  "plan_id": "plan-20260213-cycle011-bridge-005",
-  "branch": "feature/cycle-011-harness-engineering",
+  "plan_id": "plan-20260213-cycle012-redteam",
+  "branch": "feature/cycle-012-flatline-red-team",
   "state": "RUNNING",
   "timestamps": {
-    "started": "2026-02-13T09:45:43Z",
-    "last_activity": "2026-02-13T09:45:43Z"
+    "started": "2026-02-13T20:00:00Z",
+    "last_activity": "2026-02-13T20:00:00Z"
   },
   "sprints": {
-    "total": 2,
+    "total": 3,
     "completed": 0,
-    "current": "sprint-5",
+    "current": "sprint-1",
     "list": [
-      {"id": "sprint-5", "status": "pending", "cycles": 0, "global_id": "sprint-77"},
-      {"id": "sprint-6", "status": "pending", "cycles": 0, "global_id": "sprint-78"}
+      {"id": "sprint-1", "status": "in_progress", "cycles": 0, "global_id": "sprint-79"},
+      {"id": "sprint-2", "status": "pending", "cycles": 0, "global_id": "sprint-80"},
+      {"id": "sprint-3", "status": "pending", "cycles": 0, "global_id": "sprint-81"}
     ]
   },
   "options": {
-    "from": 5,
-    "to": 6,
+    "from": 1,
+    "to": 3,
     "max_cycles": 20,
     "timeout_hours": 8
   },

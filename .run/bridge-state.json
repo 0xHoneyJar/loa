@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
-  "bridge_id": "bridge-20260213-c011he-005",
+  "bridge_id": "bridge-20260213-c012rt",
   "state": "ITERATING",
   "config": {
     "depth": 5,
     "mode": "full",
     "flatline_threshold": 0.05,
     "per_sprint": false,
-    "branch": "feature/cycle-011-harness-engineering",
-    "pr_number": 315
+    "branch": "feature/cycle-012-flatline-red-team",
+    "pr_number": null
   },
   "timestamps": {
-    "started": "2026-02-13T09:45:43Z",
-    "last_activity": "2026-02-13T09:45:43Z"
+    "started": "2026-02-13T20:15:00Z",
+    "last_activity": "2026-02-13T20:15:00Z"
   },
   "iterations": [],
   "flatline": {
@@ -27,5 +27,5 @@
     "total_findings_addressed": 0,
     "total_visions_captured": 0
   },
-  "previous_bridge": "bridge-20260213-c011he"
+  "previous_bridge": "bridge-20260213-c011he-005"
 }
