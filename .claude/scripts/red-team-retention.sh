@@ -111,7 +111,7 @@ purge_expired() {
         local age_days=$((age / 86400))
 
         if (( age > max_age_seconds )); then
-            local base="${result_file%.json}"
+            local base="${result_file%-result.json}"
 
             if [[ "$dry_run" == "true" ]]; then
                 log "WOULD PURGE: $run_id ($classification, ${age_days}d old, limit ${max_age_days}d)"

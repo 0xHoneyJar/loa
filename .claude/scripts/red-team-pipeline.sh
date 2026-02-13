@@ -403,6 +403,8 @@ main() {
     local final
     final=$(jq \
         --arg run_id "$run_id" \
+        --arg phase "$phase" \
+        --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
         --arg exec_mode "$execution_mode" \
         --argjson depth "$depth" \
         --arg classification "INTERNAL" \
@@ -411,6 +413,8 @@ main() {
         --arg focus "${focus:-}" \
         '. + {
             run_id: $run_id,
+            phase: $phase,
+            timestamp: $timestamp,
             execution_mode: $exec_mode,
             depth: $depth,
             classification: $classification,

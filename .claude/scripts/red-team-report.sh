@@ -247,10 +247,10 @@ ${header}
 
 ## Recommended Counter-Designs
 
-$(jq -r '
+$(result=$(jq -r '
 (.counter_designs // [])[] |
 "- **\(.id)**: \(.description) (addresses \(.addresses | join(", "))) — Cost: \(.implementation_cost // "unknown")"
-' "$input" 2>/dev/null || echo "_No counter-designs available._")
+' "$input" 2>/dev/null); [[ -n "$result" ]] && echo "$result" || echo "_No counter-designs available._")
 
 SUMMARY
 }
