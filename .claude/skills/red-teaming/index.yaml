@@ -1,0 +1,92 @@
+name: "red-teaming"
+version: "1.0.0"
+model: "opus"
+color: "red"
+
+effort_hint: high
+danger_level: high
+categories:
+  - security
+
+description: |
+  Generative adversarial security design using the Flatline Protocol's red team mode.
+  Analyzes design documents (PRD, SDD, sprint plans, spec fragments) to generate
+  creative attack scenarios and architectural counter-designs. Uses multi-model
+  adversarial generation with 4 consensus categories: CONFIRMED_ATTACK, THEORETICAL,
+  CREATIVE_ONLY, DEFENDED.
+
+triggers:
+  - "/red-team"
+  - "red team this document"
+  - "attack scenario generation"
+  - "security red team"
+  - "adversarial review"
+
+inputs:
+  - name: "document"
+    type: "string"
+    required: true
+    description: "Path to document to red-team, or use --spec for inline text"
+  - name: "spec"
+    type: "string"
+    required: false
+    description: "Inline spec fragment text (creates temp document)"
+  - name: "focus"
+    type: "string"
+    required: false
+    description: "Comma-separated attack surface categories to focus on"
+  - name: "section"
+    type: "string"
+    required: false
+    description: "Specific section of the document to focus on"
+  - name: "depth"
+    type: "integer"
+    required: false
+    default: 1
+    description: "Number of attack-counter_design iterations"
+  - name: "mode"
+    type: "enum"
+    values: ["quick", "standard", "deep"]
+    required: false
+    default: "standard"
+    description: "Execution mode (cost tier)"
+
+inputExamples:
+  - input:
+      document: "grimoires/loa/sdd.md"
+    description: "Red team the SDD with standard mode"
+  - input:
+      document: "grimoires/loa/sdd.md"
+      focus: "auth,identity"
+      mode: "quick"
+    description: "Quick red team focused on auth and identity surfaces"
+  - input:
+      spec: "Users authenticate via wallet signature and receive a JWT token"
+      mode: "standard"
+    description: "Red team an inline spec fragment"
+
+outputs:
+  - path: ".run/red-team/rt-{run_id}-result.json"
+    description: "Full attack results in JSON"
+    format: detailed
+  - path: ".run/red-team/rt-{run_id}-report.md"
+    description: "Full report with all attack details (0600 permissions)"
+    format: detailed
+  - path: ".run/red-team/rt-{run_id}-summary.md"
+    description: "Safe summary with counts and counter-design recommendations"
+    format: summary
+
+config_section: red_team
+safety:
+  requires_opt_in: true
+  opt_in_config: "red_team.enabled"
+
+protocols:
+  required:
+    - name: "input-guardrails"
+      path: ".claude/protocols/input-guardrails.md"
+      purpose: "Pre-execution input validation and sanitization"
+  recommended:
+    - name: "danger-level"
+      path: ".claude/protocols/danger-level.md"
+      purpose: "High danger level enforcement"
