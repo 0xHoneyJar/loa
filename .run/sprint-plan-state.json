@@ -1,19 +1,19 @@
 {
-  "plan_id": "plan-20260212-cycle006-bridgebuilder",
-  "branch": "feature/cycle-006-bridgebuilder-enrichment",
-  "state": "RUNNING",
+  "plan_id": "plan-20260213-cycle008-dx-hardening",
+  "branch": "feature/cycle-008-dx-hardening",
+  "state": "JACKED_OUT",
   "timestamps": {
-    "started": "2026-02-12T15:10:00Z",
-    "last_activity": "2026-02-12T20:20:00Z"
+    "started": "2026-02-13T18:15:00Z",
+    "last_activity": "2026-02-13T21:00:00Z"
   },
   "sprints": {
     "total": 3,
-    "completed": 1,
-    "current": "sprint-2",
+    "completed": 3,
+    "current": null,
     "list": [
-      {"id": "sprint-1", "status": "completed", "cycles": 1, "files_changed": 7},
-      {"id": "sprint-2", "status": "in_progress", "cycles": 0},
-      {"id": "sprint-3", "status": "pending", "cycles": 0}
+      {"id": "sprint-1", "status": "completed", "cycles": 1, "files_changed": 13},
+      {"id": "sprint-2", "status": "completed", "cycles": 1, "files_changed": 9},
+      {"id": "sprint-3", "status": "completed", "cycles": 1, "files_changed": 8}
     ]
   },
   "options": {
@@ -23,8 +23,8 @@
     "timeout_hours": 8
   },
   "metrics": {
-    "total_cycles": 1,
-    "total_files_changed": 7,
-    "total_findings_fixed": 13
+    "total_cycles": 3,
+    "total_files_changed": 30,
+    "total_findings_fixed": 0
   }
 }

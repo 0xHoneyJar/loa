@@ -82,18 +82,32 @@
       "id": "cycle-008",
       "label": "DX Hardening — Secrets, Mount Hygiene, Review Scope",
       "type": "feature",
-      "status": "active",
+      "status": "archived",
       "source_issue": "https://github.com/0xHoneyJar/loa/issues/300",
       "created_at": "2026-02-13T17:30:00Z",
+      "archived_at": "2026-02-13T04:25:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-13-dx-hardening",
       "sprints": ["sprint-1", "sprint-2", "sprint-3"],
+      "prd": "grimoires/loa/archive/2026-02-13-dx-hardening/prd.md",
+      "sdd": "grimoires/loa/archive/2026-02-13-dx-hardening/sdd.md",
+      "sprint_plan": "grimoires/loa/archive/2026-02-13-dx-hardening/sprint.md"
+    },
+    {
+      "id": "cycle-009",
+      "label": "BUTTERFREEZONE — Agent-Grounded README Standard",
+      "type": "feature",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/304",
+      "created_at": "2026-02-13T05:00:00Z",
+      "sprints": ["sprint-18", "sprint-19", "sprint-20"],
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "sprint_plan": "grimoires/loa/sprint.md"
     }
   ],
-  "active_cycle": "cycle-008",
+  "active_cycle": "cycle-009",
   "active_bugfix": null,
-  "global_sprint_counter": 16,
+  "global_sprint_counter": 20,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260212-i288-991113",
@@ -107,6 +121,19 @@
       "sprints": ["sprint-bug-7"],
       "triage": "grimoires/loa/a2a/bug-20260212-i288-991113/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260212-i288-991113/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260213-i305-flatline",
+      "label": "Bug Fix — Flatline Protocol invalid model name + orchestrator hardening",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/305",
+      "created_at": "2026-02-13T04:30:00Z",
+      "completed_at": "2026-02-13T04:55:00Z",
+      "pr": "https://github.com/0xHoneyJar/loa/pull/308",
+      "sprints": ["sprint-bug-17"],
+      "triage": "grimoires/loa/a2a/bug-20260213-i305-flatline/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260213-i305-flatline/sprint.md"
     }
   ]
 }

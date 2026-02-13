@@ -1,293 +1,560 @@
-# PRD: DX Hardening — Secrets Management, Mount Hygiene, Review Scope
+# PRD: BUTTERFREEZONE — Agent-Grounded README Standard
 
-**Version**: 1.0.0
-**Status**: Draft
+**Version**: 1.1.0
+**Status**: Draft (Flatline-reviewed)
 **Author**: Discovery Phase (plan-and-analyze)
-**Cycle**: cycle-008
-**Issues**: #300, #299, #303
+**Source Issue**: [#304](https://github.com/0xHoneyJar/loa/issues/304)
+**Cycle**: cycle-009
+
+> Sources: Issue #304, loa-finn README reference, Issue #292 (Run Bridge RFC), Issue #281 (cross-repo context), Issue #81 (feedback routing), Issue #43 (ecosystem mapping), Issue #247 (cultural framework), loa-finn#31 (Hounfour RFC)
+
+---
 
 ## 1. Problem Statement
 
-Three user-facing DX issues compound to degrade the experience for developers adopting Loa on new projects:
+Agents reading codebases lack a standardized, token-efficient, truth-grounded entry point. Human READMEs are optimized for human consumption — they include marketing language, badges, narrative exposition, and installation instructions that waste agent context windows. Meanwhile, the ground truth about what code actually does lives scattered across source files.
 
-1. **Secrets Management Gap (#300)**: cheval.py eagerly resolves ALL `{env:*}` config interpolations at load time, even for providers not needed by the current operation. A GPT review (`/gpt-review`) fails if `ANTHROPIC_API_KEY` is missing, even though only `OPENAI_API_KEY` is needed. Beyond the bug, there is no centralized credential management — users must manually export env vars, with no validation, no secure storage, and no integration path to future platform infrastructure (indra/arrakis).
+Loa already has Ground Truth infrastructure (`ground-truth-gen.sh`, `/ride`, reality files) but no standard output document that serves as the **agent-API for a codebase**. The loa-finn project pioneered a provenance-tagged README format with `AGENT-CONTEXT` metadata and `ground-truth-meta` checksums, but this is a one-off implementation not available to other Loa-managed codebases.
 
-2. **Mount Hygiene (#299)**: `mount-loa.sh:380-389` runs `git checkout "$LOA_REMOTE_NAME/$LOA_BRANCH" -- grimoires/loa` which copies the framework's own development cycle artifacts (PRD, SDD, sprint.md, ledger.json referencing upstream issues) into fresh user projects. This causes `/plan` to report "planning complete" and `/build` to attempt implementing Loa's own framework tasks.
+Cross-repo context gaps (Issue #281) compound the problem — agents make confident claims about related codebases they can't read. A standardized agent-facing document at each repo's root would provide the topology and capability surface needed for multi-repo reasoning.
 
-3. **Review Scope (#303)**: Review tools (Bridgebuilder, `/gpt-review`, `/audit-sprint`) process system zone files (`.claude/`, Loa framework code) alongside user application code. While Bridgebuilder has a Loa-aware filtering system (`truncation.ts:156-163`), it may not be enabled or working correctly for all review paths. GPT review and audit-sprint lack equivalent filtering. This wastes significant tokens on code the user doesn't own.
+> Source: Issue #304 — "purely about capability and deterministically evaluated to be rooted in code"
 
-> Sources: Issue #300 (feedback submission), Issue #299 (feedback submission), Issue #303 (feedback submission), hive credential pattern analysis
+---
 
-## 2. Goals & Success Metrics
+## 2. Vision & Mission
+
+**Vision**: Every Loa-managed codebase maintains a `BUTTERFREEZONE.md` — a provenance-tagged, checksum-verified, token-efficient document that agents can trust as ground truth about the codebase's capabilities, interfaces, and architecture.
+
+**Mission**: Build an on-by-default skill that generates and maintains `BUTTERFREEZONE.md` at the end of autonomous workflows, ensuring the document stays synchronized with code reality through deterministic evaluation.
+
+**Why "BUTTERFREEZONE"**: A playful insider reference to the OpenClaws movement — agents are lobsters who don't like butter. The name signals: *this document is stripped of hype, marketing butter, and ungrounded claims. Only verified capability lives here.*
+
+> Source: Issue #304 — "BUTTERFREEZONE is a reference to openclaws agents being lobsters who don't like butter"
+
+---
+
+## 3. Goals & Success Metrics
 
 ### Primary Goals
 
 | Goal | Metric | Target |
 |------|--------|--------|
-| Credential management works out of the box | `/gpt-review` succeeds with only the needed API key set | 100% |
-| Fresh mounts start clean | `/plan` on freshly mounted project says "no PRD found" | 100% |
-| Review tools focus on user code | System zone files excluded from review diff | >95% token reduction on framework files |
+| G1: Agent trust | Provenance coverage | 100% of sections have provenance tags |
+| G2: Token efficiency | Document size | < 800 words (index) + < 3200 words (full) — approx 2000+8000 tokens using ~2.5 words/token heuristic |
+| G3: Truth grounding | Reference verification | All factual claims cite `file:symbol` or `file:line` with advisory checksums |
+| G4: Freshness | Staleness detection | Auto-regenerated within 1 workflow of code changes |
+| G5: Ecosystem adoption | On-by-default | Generated for all Loa codebases unless explicitly opted out |
 
 ### Secondary Goals
 
-| Goal | Metric |
-|------|--------|
-| Credential interface ready for indra/arrakis integration | Provider abstraction supports pluggable backends |
-| User can customize review exclusions | `.reviewignore` file respected by all review tools |
-| Zero regression in existing workflows | All existing tests pass |
+| Goal | Metric | Target |
+|------|--------|--------|
+| G6: Cross-repo routing | Topology section | Each BUTTERFREEZONE.md lists related repos with capability summaries |
+| G7: Deterministic eval | RTFM pass rate | 100% of claims pass RTFM validation — stable sort, canonical formatting, timestamp excluded from checksums |
+| G8: Lore integration | Cultural enrichment | Lore entries for butterfreezone/lobster concepts |
 
-## 3. User & Stakeholder Context
+---
 
-### Primary Persona: Downstream Developer
+## 4. User & Stakeholder Context
 
-A developer who has installed Loa via `/mount` onto their own project repo. They:
-- Expect `/plan` to start fresh discovery for THEIR project
-- Expect review tools to review THEIR code changes, not Loa framework internals
-- Want to supply API keys once and have them work across all tools
-- May not be deeply familiar with Loa internals or the Three-Zone Model
+### Primary Consumer: AI Agents
 
-### Secondary Persona: Power User / Framework Developer
+Agents are the primary reader of BUTTERFREEZONE.md. They need:
+- **Fast orientation**: What does this codebase do? What are its interfaces?
+- **Trust signals**: Which claims are code-verified vs. derived vs. operational?
+- **Token budget**: Minimal tokens to understand capability surface
+- **Navigation**: Where to look for specific functionality
 
-A developer who works on Loa itself or customizes it extensively. They:
-- May want to review system zone changes in Loa's own PRs
-- Need the ability to override exclusion defaults
-- May integrate with indra/arrakis platform infrastructure
+### Secondary Consumer: Human Developers
 
-## 4. Functional Requirements
+Developers benefit from:
+- **Honest capability listing**: No marketing, just what the code does
+- **Architecture overview**: Grounded in actual file structure
+- **Cross-repo context**: Understanding ecosystem relationships
 
-### FR-1: Lazy Config Interpolation (Fix #300 Root Cause)
+### Stakeholders
 
-**Current behavior**: `interpolation.py:112-138` uses `_INTERP_RE.sub(_replace, value)` which eagerly resolves ALL `{env:*}` tokens at config load time.
+| Stakeholder | Interest |
+|-------------|----------|
+| Loa framework users | Automatic, maintained documentation |
+| Multi-repo operators | Cross-repo agent routing and context |
+| CI/CD pipelines | Deterministic validation of documentation |
+| OpenClaws community | Standard adoption across agent-driven projects |
 
-**Required behavior**: Only resolve `{env:*}` tokens for the provider/agent actually being invoked. Two-phase interpolation:
-1. **Phase 1 (load time)**: Parse config but leave `{env:*}` tokens as-is
-2. **Phase 2 (invocation time)**: Resolve only the tokens needed for the resolved provider
+---
 
-**Acceptance criteria**:
-- `model-invoke --agent gpt-reviewer` succeeds with only `OPENAI_API_KEY` set (no `ANTHROPIC_API_KEY`)
-- `model-invoke --agent opus` succeeds with only `ANTHROPIC_API_KEY` set
-- `--dry-run` mode does NOT require any API keys
-- Existing tests in `tests/test_config.py` updated to cover lazy resolution
-- Error messages clearly state WHICH key is missing for WHICH provider
+## 5. Functional Requirements
 
-### FR-2: Credential Management Command (`/loa-credentials`)
+### FR-1: BUTTERFREEZONE.md Document Format
 
-A new skill that provides interactive credential setup, validation, and secure local storage.
+The generated document follows the loa-finn README pattern with these sections:
 
-**Subcommands**:
+```markdown
+<!-- AGENT-CONTEXT
+name: {project-name}
+type: {library|service|framework|cli|...}
+purpose: {one-line purpose}
+key_files: [{critical file paths}]
+interfaces: [{public API surface}]
+dependencies: [{runtime dependencies}]
+version: {semver}
+trust_level: {grounded|derived|operational}
+model_hints: {relevant model config}
+-->
 
-| Command | Description |
-|---------|-------------|
-| `/loa-credentials` | Interactive setup wizard — prompts for each missing key |
-| `/loa-credentials status` | Show which credentials are configured, which are missing |
-| `/loa-credentials set <name>` | Set a specific credential (prompted, not in command args) |
-| `/loa-credentials test` | Health-check all configured credentials against their APIs |
+# {Project Name}
 
-**Storage architecture** (inspired by hive pattern, simplified):
+<!-- provenance: CODE-FACTUAL -->
+{Capability description grounded in source code analysis}
 
-```
-~/.loa/credentials/
-├── store.json.enc    # Fernet-encrypted credential store
-└── .key              # Encryption key (0600 permissions)
-```
+## Key Capabilities
+<!-- provenance: CODE-FACTUAL -->
+{Bullet list with source file:line references}
 
-**Retrieval priority** (CompositeStorage pattern from hive):
-1. Process environment variable (highest priority — CI/CD, explicit export)
-2. Encrypted local store (`~/.loa/credentials/`)
-3. `.env.local` in project root (convenience for local dev)
+## Architecture
+<!-- provenance: DERIVED -->
+{High-level architecture from code structure analysis}
 
-**Provider abstraction**:
-```python
-class CredentialProvider(ABC):
-    @abstractmethod
-    def get(self, credential_id: str) -> str | None: ...
-    @abstractmethod
-    def set(self, credential_id: str, value: str) -> None: ...
-    @abstractmethod
-    def health_check(self, credential_id: str) -> bool: ...
-```
+## Interfaces
+<!-- provenance: CODE-FACTUAL -->
+{Public API surface, endpoints, exports}
 
-Concrete implementations:
-- `EnvProvider` — reads from `os.environ`
-- `EncryptedFileProvider` — reads from `~/.loa/credentials/store.json.enc`
-- `DotenvProvider` — reads from `.env.local`
-- (Future) `IndraProvider` — delegates to indra/arrakis platform
+## Module Map
+<!-- provenance: CODE-FACTUAL -->
+{Table: Module | Purpose | Key Files}
 
-**Integration with cheval.py**:
-- `interpolation.py` uses the credential provider chain instead of raw `os.environ.get()`
-- Allowlist (`_ENV_ALLOWLIST`) still applies for security
-- Template syntax unchanged: `{env:OPENAI_API_KEY}` — but resolution goes through provider chain
+## Ecosystem
+<!-- provenance: OPERATIONAL -->
+{Related repositories, cross-repo dependencies, topology}
 
-**Acceptance criteria**:
-- `/loa-credentials` prompts for OPENAI_API_KEY, ANTHROPIC_API_KEY
-- `/loa-credentials status` shows green/red per credential
-- `/loa-credentials test` validates keys against actual API endpoints
-- Encrypted store created at `~/.loa/credentials/` with 0600 permissions
-- cheval.py resolves credentials from the provider chain
-- Plain text secrets never appear in command output or logs
+## Known Limitations
+<!-- provenance: CODE-FACTUAL -->
+{Architectural constraints with file references}
 
-### FR-3: Clean Mount Grimoire Initialization (#299)
+## Quick Start
+<!-- provenance: OPERATIONAL -->
+{Minimal operational instructions}
 
-**Current behavior**: `mount-loa.sh:382` runs `git checkout "$LOA_REMOTE_NAME/$LOA_BRANCH" -- grimoires/loa` which pulls all grimoire content from upstream, including framework development artifacts.
-
-**Required behavior**: Mount initializes a clean grimoire template without upstream development state.
-
-**Implementation**:
-1. After `git checkout`, remove framework development artifacts:
-   - `grimoires/loa/prd.md`
-   - `grimoires/loa/sdd.md`
-   - `grimoires/loa/sprint.md`
-   - `grimoires/loa/ledger.json`
-   - `grimoires/loa/a2a/` (entire directory contents except template README)
-   - `grimoires/loa/archive/` (entire directory)
-2. Initialize a clean `ledger.json` with `{"version": "1.0.0", "cycles": [], "active_cycle": null, ...}`
-3. Preserve structural files: `grimoires/loa/context/README.md`, `grimoires/loa/NOTES.md` (template), `grimoires/loa/BEAUVOIR.md` (if exists)
-
-**Acceptance criteria**:
-- Fresh mount on new project: `grimoires/loa/prd.md` does NOT exist
-- Fresh mount: `grimoires/loa/ledger.json` has empty cycles array
-- Fresh mount: `/plan` starts discovery from scratch
-- Remount (`--force`): existing user artifacts are preserved (not overwritten)
-- Context files placed by user before mount are NOT deleted
-
-### FR-4: Review Scope Filtering with `.reviewignore` (#303)
-
-**Current state**: Bridgebuilder has `LOA_EXCLUDE_PATTERNS` in `truncation.ts:156-163` that excludes `.claude/**`, `grimoires/**`, `.beads/**`. But:
-- GPT review (`/gpt-review`) does not use this filtering
-- Audit-sprint does not use this filtering
-- Users cannot customize the exclusion patterns
-
-**Required behavior**: Layered review scope filtering.
-
-**Layer 1 — Auto-detected zone filtering (sane defaults)**:
-- All review tools detect Three-Zone Model via `.loa-version.json`
-- System zone (`.claude/`) excluded by default
-- State zone (`grimoires/`, `.beads/`) excluded unless user-modified in the PR
-- App zone always included
-
-**Layer 2 — `.reviewignore` file (user customization)**:
-- New file at project root: `.reviewignore`
-- Gitignore-style glob patterns
-- Auto-populated by `/mount` with sane defaults
-- Users can add/remove patterns
-- All review tools read this file
-
-**Template `.reviewignore`**:
-```gitignore
-# Framework-managed (auto-generated by Loa)
-.claude/
-grimoires/loa/a2a/
-grimoires/loa/archive/
-.beads/
-.run/
-
-# User additions below
+<!-- ground-truth-meta
+head_sha: {git HEAD sha}
+generated_at: {ISO timestamp}
+generator: butterfreezone-gen v{version}
+sections:
+  agent_context: {sha256}
+  capabilities: {sha256}
+  architecture: {sha256}
+  interfaces: {sha256}
+  module_map: {sha256}
+  ecosystem: {sha256}
+  limitations: {sha256}
+  quick_start: {sha256}
+-->
 ```
 
-**Review tool integration**:
-- `bridge-github-trail.sh` → already has Loa filtering; ensure it's enabled by default
-- `gpt-review-api.sh` → add file filtering before building review prompt
-- `audit-sprint` skill → add zone-aware diff scoping
-- Shared utility: `.claude/scripts/review-scope.sh` that reads `.reviewignore` + zone detection, outputs filtered file list
+**Acceptance Criteria**:
+- AC-1.1: Every section tagged with provenance (`CODE-FACTUAL`, `DERIVED`, `OPERATIONAL`, `EXTERNAL-REFERENCE`)
+- AC-1.2: `AGENT-CONTEXT` metadata block at document top
+- AC-1.3: `ground-truth-meta` checksums at document bottom (advisory, `generated_at` excluded from checksum inputs)
+- AC-1.4: All `CODE-FACTUAL` claims cite references using `file:symbol` (preferred, stable across refactors) or `file:line` (fallback, best-effort display). References are relative to repo root.
+- AC-1.5: Total document < 3,200 words (~8,000 tokens). Measurement uses word count (model-agnostic, `wc -w` equivalent).
+- AC-1.6: Index section (AGENT-CONTEXT + first paragraph) < 800 words (~2,000 tokens)
+- AC-1.7: `CODE-FACTUAL` sections with `file:symbol` refs validated by checking symbol exists in file (grep). `file:line` refs validated by checking file exists (line may drift — advisory).
 
-**Acceptance criteria**:
-- Bridgebuilder review on Loa-mounted repo excludes `.claude/` files from diff
-- `/gpt-review` on Loa-mounted repo excludes `.claude/` files
-- `/audit-sprint` focuses on app zone code
-- `.reviewignore` patterns respected by all three tools
-- Users can add custom patterns (e.g., `vendor/`, `generated/`)
-- Override: `--no-reviewignore` flag to review everything (power user)
+> **Flatline IMP-002/IMP-004 integration**: Token budgets use word-count approximation (model-agnostic). Citations use symbol-level references as primary, line numbers as best-effort display. This resolves tokenizer dependency and line-number fragility concerns.
 
-## 5. Technical & Non-Functional Requirements
+### FR-2: Provenance Tagging System
 
-### Security
+Each content block carries a provenance tag indicating trust level:
 
-- Encrypted credential store uses Fernet (AES-128-CBC + HMAC) — same as hive pattern
-- Encryption key file has 0600 permissions, never committed to git
-- Credential values use redaction in any log/output context
-- `.env.local` added to `.gitignore` template during mount
-- `_ENV_ALLOWLIST` in interpolation.py enforced for all resolution paths
+| Tag | Meaning | Verification |
+|-----|---------|-------------|
+| `CODE-FACTUAL` | Directly verified from source code | `file:symbol` or `file:line` reference; checksums are advisory (staleness signal, not hard gate) |
+| `DERIVED` | Inferred from code structure analysis | Cites analysis method and source files |
+| `OPERATIONAL` | Runtime/deployment information | May change without code changes |
+| `EXTERNAL-REFERENCE` | References external documentation | URL with access timestamp |
 
-### Portability
+**Acceptance Criteria**:
+- AC-2.1: Parser can extract provenance tags from BUTTERFREEZONE.md
+- AC-2.2: RTFM validation checks provenance tags exist for all sections
+- AC-2.3: `CODE-FACTUAL` sections fail validation if cited files are missing. Checksum mismatch triggers staleness warning (not hard failure) since checksums are advisory.
 
-- Credential storage at `~/.loa/credentials/` works on Linux and macOS
-- Python `cryptography` package required (add to cheval.py dependencies)
-- `.reviewignore` uses gitignore-compatible glob syntax (implemented via `fnmatch` or `pathspec`)
+> **Flatline SKP-002 resolution**: Checksums serve as staleness signals, not hard gates. Symbol-level references (`file:function_name`) are resilient to line number churn from formatting/refactoring. Regeneration on next workflow run fixes drift automatically.
 
-### Performance
+### FR-3: Generation Skill (`butterfreezone-gen`)
 
-- Lazy interpolation should NOT add measurable latency (deferred string substitution)
-- Review scope filtering runs before diff construction (token savings upstream of LLM call)
+A new skill that generates/regenerates `BUTTERFREEZONE.md`:
 
-### Backward Compatibility
+**Inputs** (tiered — uses best available):
+- **Tier 1 (preferred)**: Reality files from `/ride` (`grimoires/loa/reality/`)
+- **Tier 2 (fallback)**: Direct codebase scan — file structure, package.json/Cargo.toml/pyproject.toml, export analysis, README.md extraction
+- **Tier 3 (bootstrap)**: Minimal stub with `AGENT-CONTEXT` from config and directory listing only (tagged `DERIVED`, no `CODE-FACTUAL` claims)
+- Existing `BUTTERFREEZONE.md` (for incremental update / manual section preservation)
+- `.loa.config.yaml` configuration
 
-- Existing `{env:*}` interpolation syntax unchanged
-- Users who set all env vars see no behavior change
-- `.reviewignore` is additive — repos without it use zone auto-detection defaults
-- Mount script change only affects NEW mounts (existing repos unaffected)
+**Extraction Methodology**: Content extraction is **LLM-driven** — the `riding-codebase` skill generates reality files which BUTTERFREEZONE.md consumes. When reality files are unavailable, the Tier 2 fallback uses **static analysis** (file tree, dependency manifests, exported symbols via language-specific tooling like `grep -r "^export"`, `grep -r "^pub fn"`, endpoint route patterns). No hallucinated claims — Tier 2 sections are tagged `DERIVED` with explicit "source: file-scan" markers.
 
-## 6. Scope & Prioritization
+**Process**:
+1. **Input detection**: Check for reality files → direct scan → bootstrap stub (tiered fallback)
+2. Extract capability surface from reality files OR dependency manifests
+3. Map modules to purpose from code structure (directory tree + naming conventions)
+4. Identify public interfaces (exports, endpoints, CLI commands) via static patterns
+5. Detect ecosystem relationships (package.json deps, imports, config refs)
+6. Apply provenance tags based on evidence strength (Tier 1 → `CODE-FACTUAL`, Tier 2 → `DERIVED`, Tier 3 → `OPERATIONAL`)
+7. **Merge with existing**: Preserve manually-added `OPERATIONAL` sections using `<!-- manual-start -->` / `<!-- manual-end -->` sentinel markers
+8. Enforce word-count budgets per-section (truncate with priority: security/auth > interfaces > capabilities > architecture > module map > ecosystem > quick start)
+9. Generate `ground-truth-meta` checksums (per-section SHA-256, `generated_at` excluded from checksum)
+10. Validate against RTFM rules
+11. Atomic write: Write to `.butterfreezone.tmp` then `mv` to `BUTTERFREEZONE.md`
+
+> **Flatline SKP-001 resolution**: /ride is NOT required for MVP. Tiered input with direct-scan fallback ensures generation works on any repo, even those where /ride has never run. Bootstrap stub (Tier 3) ensures BUTTERFREEZONE.md always exists, even if minimal.
+
+> **Flatline SKP-005 resolution**: Extraction methodology is explicitly tiered — LLM-driven via reality files when available, static analysis via file patterns when not. No hallucinated claims; evidence tier determines provenance tag.
+
+> **Flatline IMP-003 resolution**: Atomic writes prevent partial-write corruption. Per-step status tracked internally. Consumers detect failed/missing sections via provenance tags and ground-truth-meta (missing section = missing checksum entry).
+
+**Acceptance Criteria**:
+- AC-3.1: `butterfreezone-gen` can be invoked standalone: `/butterfreezone`
+- AC-3.2: Incremental updates preserve manually-added `OPERATIONAL` sections via sentinel markers (`<!-- manual-start -->` / `<!-- manual-end -->`)
+- AC-3.3: Tiered input detection: reality files → direct scan → bootstrap stub
+- AC-3.4: Word-count budget enforced per-section and total (truncation follows priority order)
+- AC-3.5: Generated document passes RTFM validation
+- AC-3.6: Atomic write prevents partial-write corruption
+- AC-3.7: Bootstrap stub generated for repos with no reality files or source analysis available
+
+### FR-4: Autonomous Workflow Integration (On-by-Default)
+
+BUTTERFREEZONE generation hooks into autonomous workflows with phased rollout:
+
+**MVP hooks** (this cycle):
+
+| Workflow | Hook Point | Trigger |
+|----------|-----------|---------|
+| `/run-bridge` | FINALIZING phase (after GT update) | On-by-default |
+| `/butterfreezone` | Standalone invocation | Manual |
+
+**Phase 2 hooks** (next cycle, after stability proven):
+
+| Workflow | Hook Point | Trigger |
+|----------|-----------|---------|
+| `/run sprint-plan` | After consolidated PR creation | On-by-default |
+| Post-merge CI | `gt_regen` phase in post-merge-orchestrator | On-by-default |
+| `/ship` | Before archive | On-by-default |
+
+**Future hooks** (after cross-workflow stability):
+
+| Workflow | Hook Point | Trigger |
+|----------|-----------|---------|
+| `/autonomous` | Post-completion | On-by-default |
+| `/ride` | After reality generation | On-by-default |
+
+> **Flatline SKP-004 resolution**: MVP starts with a single autonomous hook (`/run-bridge` FINALIZING) plus standalone invocation. This limits blast radius while proving stability. Expansion to other workflows follows in subsequent cycles after the generator has been battle-tested.
+
+**Acceptance Criteria**:
+- AC-4.1: BUTTERFREEZONE.md regenerated at end of `/run-bridge` FINALIZING phase
+- AC-4.2: Opt-out via config: `butterfreezone.enabled: false`
+- AC-4.3: No regeneration if code hasn't changed since last generation (HEAD SHA check)
+- AC-4.4: Regeneration failure is non-blocking (warning logged to stderr, workflow continues)
+- AC-4.5: Regeneration adds BUTTERFREEZONE.md to the PR diff when running in PR context
+- AC-4.6: Generation failures logged with structured output for monitoring (not silently swallowed)
+
+### FR-5: RTFM Validation Extension
+
+Extend RTFM validation to cover BUTTERFREEZONE.md:
+
+| Check | Rule |
+|-------|------|
+| Existence | `BUTTERFREEZONE.md` exists in project root |
+| Freshness | `generated_at` within configured staleness window |
+| Provenance | All sections have valid provenance tags |
+| Checksums | `ground-truth-meta` per-section checksums match (advisory — mismatch = staleness warning, not hard failure) |
+| References | All `file:symbol` citations resolve (symbol grep in file). `file:line` refs check file exists only. |
+| Word budget | Document within configured word-count limits |
+
+**Acceptance Criteria**:
+- AC-5.1: RTFM includes BUTTERFREEZONE checks by default
+- AC-5.2: Stale BUTTERFREEZONE.md (checksum mismatch or age > staleness window) triggers warning (not failure)
+- AC-5.3: Missing file references (file doesn't exist) trigger failure
+- AC-5.4: Missing symbol references (symbol not found in file) trigger warning
+- AC-5.5: Missing provenance tags trigger failure
+
+### FR-6: Cross-Repo Ecosystem Section
+
+The `Ecosystem` section of BUTTERFREEZONE.md provides agent routing context:
+
+```markdown
+## Ecosystem
+<!-- provenance: OPERATIONAL -->
+
+| Repo | Type | Relationship | Capabilities |
+|------|------|-------------|-------------|
+| loa-finn | service | downstream consumer | OpenCode server runtime, persistent sessions |
+| mibera-contracts | contracts | dependency | On-chain vault, loan, rebate logic |
+| mibera-interface | frontend | sibling | React UI consuming contracts |
+```
+
+**Acceptance Criteria**:
+- AC-6.1: Ecosystem section auto-populated from detected dependencies
+- AC-6.2: Manual entries preserved across regeneration
+- AC-6.3: Cross-repo BUTTERFREEZONE.md references use consistent naming
+
+### FR-7: Lore Integration
+
+Add BUTTERFREEZONE concepts to the Mibera lore knowledge base:
+
+| Entry | Category | Content |
+|-------|----------|---------|
+| `butterfreezone` | mibera/glossary | "The zone where only truth survives — no butter, no hype" |
+| `lobster` | mibera/glossary | "Agent that rejects marketing butter — demands code-grounded facts" |
+| `grounding` | mibera/rituals | "The ritual of binding claims to checksums — truth made verifiable" |
+
+**Acceptance Criteria**:
+- AC-7.1: Lore entries added to `.claude/data/lore/mibera/glossary.yaml`
+- AC-7.2: Bridgebuilder persona can reference BUTTERFREEZONE lore in reviews
+- AC-7.3: Teaching moments in reviews can cite lobster/butter metaphors
+
+---
+
+## 6. Technical & Non-Functional Requirements
+
+### NFR-1: Size Efficiency (Word-Count Based)
+
+Budgets use word count (`wc -w` equivalent) — model-agnostic, deterministic, enforceable in shell.
+Approximate token equivalence: 1 word ≈ 2.5 tokens (conservative heuristic).
+
+| Section | Word Budget | ~Token Equiv |
+|---------|------------|-------------|
+| AGENT-CONTEXT metadata | 80 words | ~200 tokens |
+| Index (first paragraph) | 120 words | ~300 tokens |
+| Key Capabilities | 600 words | ~1,500 tokens |
+| Architecture | 400 words | ~1,000 tokens |
+| Interfaces | 800 words | ~2,000 tokens |
+| Module Map | 600 words | ~1,500 tokens |
+| Ecosystem | 200 words | ~500 tokens |
+| Known Limitations | 200 words | ~500 tokens |
+| Quick Start | 200 words | ~500 tokens |
+| **Total** | **3,200 words max** | **~8,000 tokens** |
+
+For large codebases (monorepos, >100 modules), the generator may produce a hierarchical output: `BUTTERFREEZONE.md` (index, ~800 words) + `BUTTERFREEZONE-detail.md` (full sections, up to 6,400 words). Agents read the index first and fetch detail on demand.
+
+> **Flatline IMP-002/SKP-003 resolution**: Word count replaces token count. Model-agnostic, deterministic, enforceable via `wc -w` in shell scripts. No tokenizer dependency.
+
+### NFR-2: Generation Performance
+
+- Full generation: < 60 seconds on a typical codebase
+- Incremental update: < 15 seconds when only checksums change
+- Staleness check: < 2 seconds
+
+### NFR-3: Backward Compatibility
+
+- Existing codebases with a human README.md are unaffected
+- BUTTERFREEZONE.md is a separate file, not a replacement for README.md
+- Opt-out is a single config flag
+
+### NFR-4: Determinism
+
+Two runs of `butterfreezone-gen` on the same commit with the same config MUST produce identical output (excluding `generated_at` timestamp):
+
+- Stable sort: modules, capabilities, interfaces sorted alphabetically
+- Canonical markdown: consistent heading levels, list formatting, table alignment
+- Locale/timezone normalization: all timestamps in UTC ISO-8601
+- `generated_at` excluded from per-section checksum inputs
+- Truncation algorithm: deterministic priority ordering (security > interfaces > capabilities > ...)
+- No LLM involvement in `CODE-FACTUAL` sections when using Tier 2 (static analysis) — only Tier 1 (reality files from /ride) may contain LLM-derived content
+
+> **Flatline SKP-determinism resolution**: Determinism guaranteed for Tier 2/3 generation (pure static analysis). Tier 1 (reality files) may have LLM-derived content but is pre-computed and cached, so BUTTERFREEZONE.md generation itself is deterministic given fixed inputs.
+
+### NFR-5: Security
+
+- No secrets, API keys, or credentials in BUTTERFREEZONE.md
+- Same security redaction as Bridgebuilder reviews (gitleaks patterns)
+- `file:line` references must not expose sensitive file contents
+
+---
+
+## 7. Scope & Prioritization
 
 ### MVP (This Cycle)
 
-| Priority | Feature | Issue |
-|----------|---------|-------|
-| P0 | Lazy config interpolation fix | #300 |
-| P0 | Clean mount grimoire initialization | #299 |
-| P1 | `.reviewignore` + shared review scope utility | #303 |
-| P1 | `/loa-credentials` command (basic: set, status, test) | #300 |
-| P1 | GPT review and audit-sprint scope filtering | #303 |
+| Priority | Feature | Rationale |
+|----------|---------|-----------|
+| P0 | BUTTERFREEZONE.md format specification | Foundation for everything |
+| P0 | `butterfreezone-gen.sh` generation script | Mechanical generation |
+| P0 | `/butterfreezone` skill for standalone invocation | Developer-facing command |
+| P0 | `/run-bridge` FINALIZING hook (single MVP hook) | Proves stability before wider rollout |
+| P1 | RTFM validation extension | Quality gate |
+| P1 | Lore entries | Cultural integration |
 
-### Future (Not This Cycle)
+### Future Scope (Not This Cycle)
 
-| Feature | Dependency |
-|---------|------------|
-| IndraProvider for credential chain | indra/arrakis platform launch |
-| macOS Keychain / Linux secret-tool integration | User demand signal |
-| OAuth2 provider flow (like hive) | Platform integration |
-| Artifact externalization (`~/.loa/projects/<repo>/`) | Larger architectural decision |
-| `.reviewignore` IDE plugin integration | Community contribution |
+| Feature | Rationale |
+|---------|-----------|
+| Additional workflow hooks (/run sprint-plan, post-merge CI, /ship) | Phase 2 after MVP stability proven |
+| Cross-repo BUTTERFREEZONE federation | Requires topology infrastructure (#43) |
+| `/ride` integration for initial generation | Depends on ride modernization |
+| BUTTERFREEZONE diff in PR comments | Enhancement after base is stable |
+| NotebookLM knowledge tier for BUTTERFREEZONE | Optional quality enrichment |
+| BUTTERFREEZONE as llms.txt hub spoke | Aligns with reality skill pattern |
+| Hierarchical output for monorepos | BUTTERFREEZONE.md index + BUTTERFREEZONE-detail.md |
 
-### Out of Scope
+### Explicitly Out of Scope
 
-- HashiCorp Vault integration (enterprise feature)
-- Full hive-style multi-tier OAuth2 system
-- Automated cleanup of already-committed artifacts in git history
-- Review tool changes for non-Loa repos
+- Replacing README.md (BUTTERFREEZONE.md is additive)
+- Cross-repo fetching (agents read local BUTTERFREEZONE.md only in MVP)
+- Interactive generation (fully autonomous, no user prompts)
+- Translating BUTTERFREEZONE to natural language (that's `/translate`)
 
-## 7. Risks & Dependencies
+---
+
+## 8. Risks & Dependencies
 
 ### Technical Risks
 
 | Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| Lazy interpolation breaks edge cases in routing chains | Medium | High | Comprehensive test coverage of fallback/downgrade chains |
-| `.reviewignore` glob syntax incompatible across tools | Low | Medium | Use shared utility, standardize on gitignore spec |
-| Fernet encryption key management UX friction | Medium | Medium | Auto-generate on first `/loa-credentials` run, clear instructions |
+|------|-----------|--------|------------|
+| Word budget exceeded for large codebases | Medium | Low | Per-section truncation with priority ordering; hierarchical output for monorepos |
+| No /ride reality files on first run | High | Medium | Tiered fallback: direct scan (Tier 2) or bootstrap stub (Tier 3) |
+| RTFM validation too strict blocks autonomous workflows | Low | High | Non-blocking mode; checksums advisory, not hard gates |
+| File:symbol references break on refactors | Medium | Low | Advisory checksums detect staleness; regeneration on next workflow fixes |
+| Generator bug corrupts multiple workflows | Low | High | MVP limited to single hook point (/run-bridge); structured failure logging |
+| Non-deterministic output causes CI flapping | Low | Medium | Stable sorts, canonical formatting, timestamp excluded from checksums |
 
 ### Dependencies
 
 | Dependency | Status | Risk |
 |------------|--------|------|
-| `cryptography` Python package for Fernet | Available via pip | Low — well-maintained |
-| cheval.py test suite | Exists (`tests/test_config.py`) | Low |
-| Bridgebuilder truncation.ts | Already has Loa filtering | Low — extend existing |
-| indra/arrakis platform | Not yet available | None — designed as future provider |
+| Ground Truth infrastructure (`ground-truth-gen.sh`) | Exists (scaffolded) | Low |
+| Bridge orchestrator FINALIZING phase | Exists (v1.34.0) | Low |
+| RTFM validation scripts | Exist | Low |
+| Post-merge orchestrator | Exists (v1.33.0) | Low |
+| `/ride` analysis | Exists | Low — can use cached reality |
+| Lore knowledge base | Exists | Low |
 
-## Appendix A: Hive Credential Pattern Reference
+### External Dependencies
 
-The hive credential system (`adenhq/hive`) provides the architectural inspiration for FR-2. Key patterns adopted:
+| Dependency | Status |
+|------------|--------|
+| loa-finn README as format reference | Available (read-only reference) |
+| OpenClaws cultural context | Informational only, no code dependency |
 
-| Hive Pattern | Loa Adaptation |
-|-------------|----------------|
-| `CredentialStore` central facade | `/loa-credentials` command + provider chain |
-| `CompositeStorage` (encrypted → env fallback) | Env → encrypted store → .env.local chain |
-| `CredentialUsageSpec` template resolution | Lazy `{env:*}` interpolation via provider chain |
-| `SecretStr` for safe logging | Redaction in cheval.py output |
-| `EncryptedFileStorage` with Fernet | `~/.loa/credentials/store.json.enc` |
-| Interactive `/hive-credentials` skill | Interactive `/loa-credentials` skill |
+---
 
-Patterns NOT adopted (future):
-- OAuth2 provider flows → wait for indra/arrakis
-- HashiCorp Vault backend → enterprise scope
-- Server-synced credential cache → platform dependency
+## 9. Architecture Hints
+
+### Generation Pipeline
+
+```
+Input Detection (tiered):
+  Tier 1: reality/ files exist? → Use them (CODE-FACTUAL)
+  Tier 2: package.json/Cargo.toml/source files? → Direct scan (DERIVED)
+  Tier 3: Nothing useful? → Bootstrap stub (OPERATIONAL)
+    ↓
+butterfreezone-gen.sh
+    ├── Detect input tier
+    ├── Extract AGENT-CONTEXT from manifests / config
+    ├── Extract capabilities (reality OR static grep patterns)
+    ├── Extract architecture from directory structure
+    ├── Extract interfaces (exports, routes, CLI commands)
+    ├── Build module map (directory tree + naming conventions)
+    ├── Detect ecosystem (deps, imports, config refs)
+    ├── Apply provenance tags (tier determines tag)
+    ├── Merge with existing manual sections (sentinel markers)
+    ├── Enforce word-count budgets (wc -w, priority truncation)
+    ├── Deterministic sort (alphabetical modules, stable formatting)
+    ├── Generate ground-truth-meta checksums (exclude generated_at)
+    ├── Security redaction (gitleaks patterns)
+    └── Atomic write (.butterfreezone.tmp → BUTTERFREEZONE.md)
+    ↓
+RTFM validation (advisory checksums)
+    ↓
+Commit (if in autonomous workflow)
+```
+
+### Hook Integration Points (MVP)
+
+```
+bridge-orchestrator.sh FINALIZING phase:
+  existing: GROUND_TRUTH_UPDATE → RTFM_GATE → FINAL_PR_UPDATE
+  new:      GROUND_TRUTH_UPDATE → BUTTERFREEZONE_GEN → RTFM_GATE → FINAL_PR_UPDATE
+```
+
+Phase 2 hooks (future):
+```
+post-merge-orchestrator.sh:  gt_regen → butterfreezone_gen → rtfm → tag → release
+run-sprint-plan:             create_plan_pr → butterfreezone_gen → cleanup_context
+```
+
+### Config Schema Addition
+
+```yaml
+butterfreezone:
+  enabled: true                    # On by default
+  output_path: BUTTERFREEZONE.md   # Project root
+  word_budget:
+    total: 3200                    # ~8000 tokens
+    per_section: 800               # ~2000 tokens
+  staleness_days: 7
+  hooks:
+    run_bridge: true               # MVP: only hook enabled
+    run_sprint_plan: false         # Phase 2
+    post_merge: false              # Phase 2
+    ride: false                    # Future
+    ship: false                    # Phase 2
+  rtfm:
+    check_enabled: true
+    strict_mode: false             # Advisory checksums, not hard gates
+  ecosystem:
+    auto_detect: true
+    manual_entries: []
+  manual_sections:
+    sentinel_start: "<!-- manual-start -->"
+    sentinel_end: "<!-- manual-end -->"
+```
+
+---
+
+## 10. Open Questions (Resolved)
+
+| Question | Resolution |
+|----------|-----------|
+| Should BUTTERFREEZONE.md replace README.md? | No — additive, separate file |
+| Where does BUTTERFREEZONE.md live? | Project root (same level as README.md) |
+| Is generation blocking or non-blocking? | Non-blocking — failures log warnings |
+| Default on or off? | On by default, opt-out via config |
+| Should it hook into /ride? | Yes, in future scope (not MVP) |
+
+---
+
+---
+
+## Appendix A: Flatline Review Integration Log
+
+**Flatline Run**: simstim-20260213-c009bfz, Phase 2
+**Cost**: ~39 cents (3/4 Phase 1 calls, 2/2 Phase 2 calls)
+**Model Agreement**: 100%
+
+### HIGH_CONSENSUS (5 — auto-integrated)
+
+| ID | Finding | Score | Resolution |
+|----|---------|-------|-----------|
+| IMP-001 | Bootstrap/cold-start behavior for repos without reality files | 885 | Added tiered input (Tier 1/2/3) to FR-3 |
+| IMP-002 | Define tokenizer for token budget enforcement | 860 | Switched to word-count (wc -w) in NFR-1 |
+| IMP-003 | Partial-write semantics and failure detection | 765 | Added atomic write + per-step status to FR-3 |
+| IMP-004 | Precise file:line citation format | 840 | Added file:symbol primary + file:line fallback to FR-1 |
+| IMP-008 | Manual OPERATIONAL section preservation | 740 | Added sentinel markers to FR-3 |
+
+### BLOCKERS (7 — resolved with rationale)
+
+| ID | Concern | Score | Resolution |
+|----|---------|-------|-----------|
+| SKP-001 | /ride circular dependency | 850 | Tiered input removes /ride dependency from MVP |
+| SKP-002 | Checksum/file:line fragility | 820 | Advisory checksums + symbol-level refs |
+| SKP-determinism | Non-deterministic output | 900 | NFR-4 determinism requirements added |
+| SKP-003 | Token counting in shell | 750 | Word count (wc -w) replaces token count |
+| SKP-004 | Blast radius of 6+ hooks | 720 | MVP limited to single hook (/run-bridge) |
+| SKP-005 | Extraction methodology unspecified | 710 | Explicit tiered methodology in FR-3 |
+| SKP-token-realism | Token budgets unrealistic for large repos | 760 | Hierarchical output option for monorepos |
+
+---
+
+*PRD generated for cycle-009 (Flatline-reviewed). Next: `/architect` for SDD.*

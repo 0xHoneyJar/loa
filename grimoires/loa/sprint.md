@@ -1,438 +1,231 @@
-# Sprint Plan: DX Hardening — Secrets, Mount Hygiene, Review Scope
+# Sprint Plan: BUTTERFREEZONE — Agent-Grounded README Standard
 
-**Cycle**: cycle-008
-**Issue**: https://github.com/0xHoneyJar/loa/issues/300
-**PRD**: `grimoires/loa/prd.md`
-**SDD**: `grimoires/loa/sdd.md`
-
----
-
-## Overview
-
-| Metric | Value |
-|--------|-------|
-| **Total Sprints** | 3 |
-| **Total Tasks** | 21 |
-| **Estimated Effort** | Medium (Python + shell + TypeScript) |
-| **Dependencies** | `cryptography` Python package (Sprint 2) |
+**Cycle**: cycle-009
+**Source PRD**: `grimoires/loa/prd.md` v1.1.0
+**Source SDD**: `grimoires/loa/sdd.md` v1.1.0
+**Sprints**: 3
+**Team**: 1 AI agent (Claude)
+**Sprint Duration**: ~2-3 hours each
 
 ---
 
-## Sprint 1: Lazy Interpolation + Mount Hygiene (FR-1, FR-3)
+## Sprint Overview
 
-**Goal**: Fix the root cause of #300 (eager interpolation) and clean up mount hygiene for #299. These are the two P0 items with no external dependencies.
-
-### Task 1.1: LazyValue Class in interpolation.py
-
-**File**: `.claude/adapters/loa_cheval/config/interpolation.py`
-
-**Description**: Create the `LazyValue` wrapper class that defers `{env:*}` token resolution until first `str()` access. Insert after `REDACTED` constant (line 25).
-
-**Acceptance Criteria**:
-- [ ] `LazyValue.__init__()` stores raw string and interpolation context
-- [ ] `LazyValue.resolve()` calls `interpolate_value()` on first access, caches result
-- [ ] `LazyValue.__str__()` triggers resolution
-- [ ] `LazyValue.__repr__()` shows raw token, NOT resolved value
-- [ ] `LazyValue.__bool__()` returns `True` if raw string is truthy
-- [ ] `LazyValue.__eq__()` supports comparison with `str` and other `LazyValue`
-- [ ] `LazyValue.raw` property exposes unresolved template string
-- [ ] Resolution errors include provider context (which key, which provider, which agent)
-
-### Task 1.2: Modify interpolate_config() for Lazy Paths
-
-**File**: `.claude/adapters/loa_cheval/config/interpolation.py`
-
-**Description**: Add `lazy_paths` parameter to `interpolate_config()`. When the current dotted key path matches a lazy path pattern (e.g., `providers.*.auth`), wrap the value in `LazyValue` instead of resolving it immediately.
-
-**Acceptance Criteria**:
-- [ ] `_DEFAULT_LAZY_PATHS = {"providers.*.auth"}` constant defined
-- [ ] `interpolate_config()` accepts optional `lazy_paths` parameter (defaults to `_DEFAULT_LAZY_PATHS`)
-- [ ] Recursive traversal tracks current dotted path (e.g., `providers.openai.auth`)
-- [ ] Path matching supports `*` wildcard for dict key segments
-- [ ] Non-matching paths still resolve eagerly (no behavior change)
-- [ ] `_secret_keys` tracking still works for lazy paths (key is marked secret)
-- [ ] `lazy_paths=set()` disables all lazy behavior (backward compatible)
-
-### Task 1.3: Redaction Support for LazyValue
-
-**Files**: `.claude/adapters/loa_cheval/config/interpolation.py`, `.claude/adapters/loa_cheval/config/redaction.py`
-
-**Description**: Update `redact_config()` in interpolation.py and `redact_config_value()` in redaction.py to handle `LazyValue` instances without triggering resolution.
-
-**Acceptance Criteria**:
-- [ ] `redact_config()` detects `isinstance(value, LazyValue)` and returns `"***REDACTED*** (lazy: {raw})"` format
-- [ ] `redact_config_value()` handles `LazyValue` similarly
-- [ ] `redact_string()` handles `LazyValue` by operating on `raw` property
-- [ ] `--dry-run` mode does NOT resolve any lazy values
-- [ ] `cmd_print_config()` shows redacted lazy values with `(lazy)` marker
-
-### Task 1.4: ProviderConfig Type Update
-
-**File**: `.claude/adapters/loa_cheval/types.py`
-
-**Description**: Update `ProviderConfig.auth` type hint to accept `str | LazyValue`. Import `LazyValue` with a conditional to avoid circular imports.
-
-**Acceptance Criteria**:
-- [ ] `ProviderConfig.auth` type hint updated to `str | Any` (or `Union[str, LazyValue]` with TYPE_CHECKING import)
-- [ ] Existing code that reads `config.auth` as string works unchanged (via `LazyValue.__str__()`)
-- [ ] No circular import issues
-
-### Task 1.5: Loader Integration
-
-**File**: `.claude/adapters/loa_cheval/config/loader.py`
-
-**Description**: Pass `lazy_paths` parameter through `load_config()` to `interpolate_config()` at line 168.
-
-**Acceptance Criteria**:
-- [ ] `load_config()` passes `lazy_paths=_DEFAULT_LAZY_PATHS` to `interpolate_config()`
-- [ ] `get_config()` caching works correctly with lazy values (cache stores LazyValues, not resolved strings)
-- [ ] `get_effective_config_display()` uses redacted output for lazy values
-
-### Task 1.6: Error Context Enhancement
-
-**File**: `.claude/adapters/loa_cheval/config/interpolation.py`
-
-**Description**: When `LazyValue.resolve()` fails (missing env var), produce an error message that includes the provider name, agent name, and a hint about `/loa-credentials`.
-
-**Acceptance Criteria**:
-- [ ] `LazyValue` accepts optional `context` dict (provider_name, agent_name)
-- [ ] `ConfigError` message includes: which env var, which provider, which agent
-- [ ] Error includes hint: `Run '/loa-credentials set <VAR>' to configure`
-- [ ] Error message does NOT leak the expected value
-
-### Task 1.7: Lazy Interpolation Tests
-
-**File**: `.claude/adapters/tests/test_config.py`
-
-**Description**: Add comprehensive tests for the `LazyValue` class and lazy interpolation behavior.
-
-**Acceptance Criteria**:
-- [ ] Test `LazyValue.__str__()` triggers resolution
-- [ ] Test `LazyValue.__repr__()` shows raw token
-- [ ] Test `LazyValue` caches resolved value (second call doesn't re-resolve)
-- [ ] Test `LazyValue.__eq__()` with str and LazyValue
-- [ ] Test `interpolate_config()` with `lazy_paths={"providers.*.auth"}` wraps auth fields
-- [ ] Test eager fields (endpoints, aliases) still resolve immediately
-- [ ] Test `lazy_paths=set()` disables lazy behavior
-- [ ] Test missing env var in lazy path produces contextual error
-- [ ] Test `redact_config()` handles LazyValue without resolving
-- [ ] Test `model-invoke --dry-run` succeeds without any API keys set
-- [ ] Test mixed lazy/eager config (some providers lazy, others resolved)
-- [ ] Minimum 15 test cases
-
-### Task 1.8: Clean Grimoire State Function
-
-**File**: `.claude/scripts/mount-loa.sh`
-
-**Description**: Add `clean_grimoire_state()` function that removes framework development artifacts from `grimoires/loa/` after the git checkout. Insert after line 389 (after grimoire sync in `sync_zones()`).
-
-**Acceptance Criteria**:
-- [ ] Removes: `prd.md`, `sdd.md`, `sprint.md`, `BEAUVOIR.md`, `SOUL.md` from `grimoires/loa/`
-- [ ] Removes contents of `a2a/` and `archive/` directories (not the dirs themselves)
-- [ ] Preserves directory structure: `a2a/trajectory/`, `archive/`, `context/`, `memory/`
-- [ ] Initializes clean `ledger.json` with empty cycles, `global_sprint_counter: 0`
-- [ ] Creates `NOTES.md` template if not present
-- [ ] Does NOT remove user-placed files in `context/` (remount with `--force` safety)
-- [ ] Called after `git checkout ... -- grimoires/loa` in `sync_zones()`
-- [ ] Logged: "Grimoire state cleaned — ready for /plan-and-analyze"
-
-### Task 1.9: Mount Hygiene Tests
-
-**File**: `tests/unit/mount-clean.bats`
-
-**Description**: BATS tests for the clean grimoire state functionality.
-
-**Acceptance Criteria**:
-- [ ] Test artifact removal: prd.md, sdd.md, sprint.md removed
-- [ ] Test directory preservation: a2a/, archive/, context/ exist after clean
-- [ ] Test clean ledger.json initialization (empty cycles, counter 0)
-- [ ] Test NOTES.md template creation
-- [ ] Test user files in context/ are preserved
-- [ ] Test idempotent: running twice produces same result
-- [ ] Test --force remount does not delete user context files
-- [ ] Minimum 10 test cases
-
-### Task 1.10: CHANGELOG and Version Bump
-
-**Files**: `CHANGELOG.md`, `.loa-version.json`
-
-**Description**: Add changelog entry for Sprint 1 changes. Bump patch version.
-
-**Acceptance Criteria**:
-- [ ] CHANGELOG has entry under `[Unreleased]` for lazy interpolation fix
-- [ ] CHANGELOG has entry for mount hygiene cleanup
-- [ ] References issues #300 and #299
-- [ ] `.loa-version.json` version bumped
+| Sprint | Goal | Key Deliverable |
+|--------|------|----------------|
+| Sprint 1 | Generation Core | `butterfreezone-gen.sh` + BATS tests |
+| Sprint 2 | Validation + Hook | `butterfreezone-validate.sh` + bridge hook + BATS tests |
+| Sprint 3 | Skill + Lore + Config | `/butterfreezone` skill + lore entries + config schema + integration |
 
 ---
 
-## Sprint 2: Credential Management (FR-2)
+## Sprint 1: Generation Core
 
-**Goal**: Build the credential provider chain and `/loa-credentials` skill. Depends on Sprint 1 for `LazyValue` and the modified interpolation pipeline.
+**Goal**: Build the `butterfreezone-gen.sh` script that produces a valid BUTTERFREEZONE.md from any Loa-managed codebase.
 
-### Task 2.1: Credential Provider Interface and Implementations
-
-**Files**: `.claude/adapters/loa_cheval/credentials/__init__.py`, `.claude/adapters/loa_cheval/credentials/providers.py`
-
-**Description**: Create the credential provider module with `CredentialProvider` ABC, `EnvProvider`, `DotenvProvider`, and `CompositeProvider`.
-
+### Task 1.1: Script Skeleton and CLI Interface
+**Description**: Create `.claude/scripts/butterfreezone-gen.sh` with argument parsing, help text, exit codes, and the main generation flow structure.
 **Acceptance Criteria**:
-- [ ] `CredentialProvider` ABC with `get(credential_id) -> str | None`
-- [ ] `EnvProvider` reads from `os.environ`
-- [ ] `DotenvProvider` reads from `.env.local` in project root (parses `KEY=VALUE` lines)
-- [ ] `CompositeProvider` chains providers in priority order (env → encrypted → dotenv)
-- [ ] `get_credential_provider(project_root)` factory function returns configured `CompositeProvider`
-- [ ] `__init__.py` exports public API: `get_credential_provider`, `CredentialProvider`
-- [ ] Providers are stateless and cheap to instantiate
+- Script at `.claude/scripts/butterfreezone-gen.sh` with 0755 permissions
+- Supports `--output`, `--config`, `--tier`, `--dry-run`, `--json`, `--verbose`, `--help` flags
+- Exit codes: 0 (success), 1 (failure), 2 (config error), 3 (bootstrap/Tier 3)
+- `LC_ALL=C` and `TZ=UTC` set at script top for determinism
+- flock-based concurrency protection (SDD 3.1.13)
+- Config loading with defaults fallback (SDD 5.2)
+- `--json` output follows stable schema: `{ "status": "ok|error", "tier": N, "output": "path", "sections": [...], "word_count": N, "errors": [] }` (Flatline IMP-010)
+**Dependencies**: None
+**Testing**: `butterfreezone-gen.sh --help` prints usage; `--dry-run` exits cleanly; `--json` output validates against schema
 
-### Task 2.2: Encrypted File Store
-
-**File**: `.claude/adapters/loa_cheval/credentials/store.py`
-
-**Description**: Fernet-encrypted credential storage at `~/.loa/credentials/`.
-
+### Task 1.2: Input Tier Detection
+**Description**: Implement `detect_input_tier()` and `has_content()` functions per SDD 3.1.2.
 **Acceptance Criteria**:
-- [ ] `EncryptedStore` class with `get()`, `set()`, `delete()`, `list_keys()` methods
-- [ ] Auto-creates `~/.loa/credentials/` directory with 0700 permissions
-- [ ] Auto-generates Fernet key on first use, stored at `.key` with 0600 permissions
-- [ ] `store.json.enc` encrypted with Fernet (AES-128-CBC + HMAC)
-- [ ] `store.json.enc` has 0600 permissions
-- [ ] Graceful handling of corrupted store (re-initialize with warning)
-- [ ] `EncryptedFileProvider(CredentialProvider)` wraps `EncryptedStore` for chain integration
-- [ ] `cryptography` package imported with helpful error if missing
+- Returns 1 when `grimoires/loa/reality/api-surface.md` has >10 words
+- Returns 2 when `package.json`, `Cargo.toml`, `pyproject.toml`, or `go.mod` exists, or source files found within maxdepth 3
+- Returns 3 when no useful input available
+- `--tier N` CLI flag forces specific tier
+**Dependencies**: Task 1.1
+**Testing**: BATS tests for each tier detection path
 
-### Task 2.3: Credential Health Checks
-
-**File**: `.claude/adapters/loa_cheval/credentials/health.py`
-
-**Description**: API key health checking against provider endpoints.
-
+### Task 1.3: Section Extractors (Tier 2 + Tier 3)
+**Description**: Implement all 8 section extractor functions for Tier 2 (static analysis) and Tier 3 (bootstrap stub). Tier 1 (reality files) delegates to existing reality file parsing.
 **Acceptance Criteria**:
-- [ ] `HEALTH_CHECKS` dict maps credential IDs to check configs (URL, header, expected status)
-- [ ] `check_credential(credential_id, value) -> HealthResult` performs HTTP check
-- [ ] `check_all(provider) -> list[HealthResult]` checks all configured credentials
-- [ ] `HealthResult` namedtuple with `credential_id`, `status` (ok/error/missing), `message`
-- [ ] Timeout of 10s per check
-- [ ] Does NOT log or print credential values
+- `extract_agent_context`: Reads project name from package.json/Cargo.toml/.loa.config.yaml/git remote; type from manifest; version from git tag or manifest
+- `extract_capabilities`: Uses Tier 2 grep patterns from SDD 3.1.3 (exports, pub fn, def/class, exported Go funcs, shell functions)
+- `extract_architecture`: Analyzes directory tree structure with naming conventions
+- `extract_interfaces`: Detects routes, CLI commands, exported APIs via patterns
+- `extract_module_map`: Builds table from top-level directories with file counts
+- `extract_ecosystem`: Parses dependency manifests for related repos
+- `extract_limitations`: Extracts from README.md if present
+- `extract_quick_start`: Extracts from README.md if present
+- All Tier 2 greps use `tier2_grep()` wrapper with timeout 30, maxdepth bounds, vendor exclusion (SDD 3.1.14)
+- Defensive file filtering: skip binary files (`-type f` + file magic check), handle malformed manifests gracefully, detect and skip symlink loops (`find -L` with `-maxdepth`) (Flatline IMP-005)
+- Config-overridable grep pattern sets via `butterfreezone.extractors.patterns` for repo-specific tuning (Flatline SKP-002)
+- Tier 3 produces minimal stub with AGENT-CONTEXT only
+- Per-extractor error handling via `run_extractor()` wrapper (SDD 3.1.11)
+**Dependencies**: Task 1.1, Task 1.2
+**Testing**: BATS tests for each extractor with mock repo structures
 
-### Task 2.4: Interpolation Integration
-
-**File**: `.claude/adapters/loa_cheval/config/interpolation.py`
-
-**Description**: Modify `_resolve_env()` (within `interpolate_value()`) to use the credential provider chain instead of raw `os.environ.get()`.
-
+### Task 1.4: Provenance Tagging and Document Assembly
+**Description**: Implement provenance tagging, word-count budget enforcement, manual section preservation, security redaction, canonical sort, and checksum generation.
 **Acceptance Criteria**:
-- [ ] `_resolve_env()` calls `credential_provider.get(var_name)` first
-- [ ] Falls back to `os.environ.get(var_name)` if provider returns None
-- [ ] `_ENV_ALLOWLIST` check still enforced BEFORE provider lookup
-- [ ] `LazyValue` resolution path uses the same provider chain
-- [ ] No behavior change when credential provider module is not available (graceful import)
+- `tag_provenance()`: Tier 1 → CODE-FACTUAL, Tier 2 → DERIVED, Tier 3 → OPERATIONAL (exceptions: ecosystem/quick_start always OPERATIONAL)
+- `enforce_word_budget()`: Per-section and total limits via `wc -w`; truncation follows priority order (SDD 3.1.6)
+- `preserve_manual_sections()`: Section-anchored sentinels `<!-- manual-start:SECTION_ID -->` (SDD 3.1.5)
+- `redact_content()`: Enumerated secret classes — AWS AKIA keys, GitHub tokens (ghp_/gho_/ghs_/ghr_), JWT (eyJ), private keys (BEGIN.*PRIVATE), DSN strings, generic `secret=`/`password=` patterns. Allowlist for sha256 hashes in markers and base64 diagram URLs. Fail-closed: unknown high-entropy strings flagged as warnings. (Flatline IMP-003, SKP-005)
+- `sort_sections()`: Canonical order per `CANONICAL_ORDER` array (SDD 3.1.12)
+- All `find` output piped through `sort -z` for deterministic ordering; table generation uses `LC_ALL=C sort` (Flatline SKP-003)
+- `generate_ground_truth_meta()`: Per-section SHA-256, `generated_at` excluded from checksum input (SDD 3.1.7)
+- `needs_regeneration()`: HEAD SHA + config mtime comparison (SDD 3.1.10)
+- `atomic_write()`: Write to `.tmp` then `mv` (SDD 3.1.9)
+- Reference syntax: `file:symbol` preferred, `file:L42` for line refs (SDD 3.1.15)
+**Dependencies**: Task 1.3
+**Testing**: BATS tests for word budget enforcement, deterministic output, checksum generation, security redaction, manual section preservation
 
-### Task 2.5: /loa-credentials Skill
-
-**Files**: `.claude/skills/managing-credentials/SKILL.md`, `.claude/skills/managing-credentials/index.yaml`
-
-**Description**: Create the `/loa-credentials` skill with interactive credential management.
-
+### Task 1.5: BATS Test Suite for butterfreezone-gen
+**Description**: Create comprehensive BATS test suite covering all generation scenarios.
 **Acceptance Criteria**:
-- [ ] SKILL.md defines skill workflow for `status`, `set <NAME>`, `test` subcommands
-- [ ] Default invocation (no args): interactive wizard detecting missing keys
-- [ ] `status`: table showing each known credential with configured/missing/valid status
-- [ ] `set <NAME>`: prompts for value via AskUserQuestion (never in command args)
-- [ ] `test`: runs health checks on all configured credentials
-- [ ] index.yaml registered with danger_level: `safe`
-- [ ] Skill invokes Python helpers via `python3 -c` or `python3 -m loa_cheval.credentials`
-- [ ] Clear output formatting with green/red status indicators
-
-### Task 2.6: .env.local Gitignore Integration
-
-**File**: `.claude/scripts/mount-loa.sh`
-
-**Description**: Add `.env.local` to `.gitignore` template during mount.
-
-**Acceptance Criteria**:
-- [ ] `.env.local` line added to `.gitignore` if not already present
-- [ ] Added during `root_file_sync()` or equivalent mount phase
-- [ ] Idempotent: running mount twice doesn't duplicate the line
-
-### Task 2.7: Credential Provider Tests
-
-**File**: `.claude/adapters/tests/test_credentials.py`
-
-**Description**: Comprehensive tests for the credential provider chain.
-
-**Acceptance Criteria**:
-- [ ] Test `EnvProvider` reads from os.environ
-- [ ] Test `DotenvProvider` reads from .env.local file
-- [ ] Test `EncryptedFileProvider` read/write cycle
-- [ ] Test `CompositeProvider` priority chain (env wins over encrypted)
-- [ ] Test encrypted store file permissions (0600)
-- [ ] Test encrypted store directory permissions (0700)
-- [ ] Test corrupted store recovery
-- [ ] Test health check with mocked HTTP responses
-- [ ] Test `get_credential_provider()` factory
-- [ ] Test integration with `interpolate_value()` via provider chain
-- [ ] Minimum 15 test cases
-
-### Task 2.8: CHANGELOG Update
-
-**File**: `CHANGELOG.md`
-
-**Description**: Add changelog entries for credential management features.
-
-**Acceptance Criteria**:
-- [ ] Entry for `/loa-credentials` command
-- [ ] Entry for encrypted credential store
-- [ ] Entry for credential provider chain integration
-- [ ] References issue #300
+- File at `tests/unit/butterfreezone-gen.bats`
+- Tests from SDD 7.1: tier detection (3 tests), agent context, provenance tags, word budget (2 tests), checksums, manual preservation, atomic write, security redaction, dry-run, determinism, exit codes
+- Security redaction test corpus: AWS key fixture, GitHub token fixture, JWT fixture, private key fixture, allowlist passthrough (sha256 hash, base64 URL) (Flatline IMP-003)
+- Edge case tests: binary file skip, malformed package.json, symlink loop handling, empty repo (Flatline IMP-005)
+- JSON schema validation test for `--json` output (Flatline IMP-010)
+- Minimum 15 tests, all passing
+- Uses setup/teardown with temp directory for mock repos
+**Dependencies**: Tasks 1.1-1.4
+**Testing**: `bats tests/unit/butterfreezone-gen.bats` — all pass
 
 ---
 
-## Sprint 3: Review Scope Filtering (FR-4)
+## Sprint 2: Validation + Bridge Hook
 
-**Goal**: Implement `.reviewignore` and shared review scope utility. Integrate with all review tools. Independent of Sprints 1-2.
+**Goal**: Build the validation script, integrate into RTFM, and hook generation into the bridge orchestrator's FINALIZING phase.
 
-### Task 3.1: review-scope.sh Shared Utility
-
-**File**: `.claude/scripts/review-scope.sh`
-
-**Description**: Create the shared review scope filtering utility that reads `.loa-version.json` for zone detection and `.reviewignore` for user patterns.
-
+### Task 2.1: butterfreezone-validate.sh
+**Description**: Create `.claude/scripts/butterfreezone-validate.sh` with all 7 validation checks per SDD 3.2.
 **Acceptance Criteria**:
-- [ ] `detect_zones()` reads `.loa-version.json` for system/state/app zone definitions
-- [ ] `load_reviewignore()` parses `.reviewignore` (gitignore-style: comments, blank lines, globs)
-- [ ] `is_excluded()` checks file against zone exclusions + .reviewignore patterns
-- [ ] `filter_files()` reads stdin, outputs only non-excluded files to stdout
-- [ ] `--no-reviewignore` flag bypasses .reviewignore patterns (power user)
-- [ ] `--diff-files FILE` reads file list from file instead of stdin
-- [ ] Graceful when `.loa-version.json` missing (pass everything through)
-- [ ] Graceful when `.reviewignore` missing (zone detection only)
-- [ ] Script is executable and sources bootstrap.sh
+- Script at `.claude/scripts/butterfreezone-validate.sh` with 0755 permissions
+- Supports `--file`, `--strict`, `--json`, `--quiet`, `--help` flags
+- Exit codes: 0 (pass), 1 (failures), 2 (warnings only)
+- Check 1: Existence — file exists
+- Check 2: AGENT-CONTEXT — block present with required fields (name, type, purpose, version)
+- Check 3: Provenance — all `## ` sections have `<!-- provenance: TAG -->` comment
+- Check 4: References — `file:symbol` refs validated (file exists + symbol grep); `file:L42` refs validate file exists only. Only scans backtick-fenced references.
+- Check 5: Word budget — total `wc -w` under configured limit
+- Check 6: ground-truth-meta — block present, HEAD SHA compared (advisory)
+- Check 7: Freshness — `generated_at` within staleness window (advisory)
+- `--strict` mode: advisory warnings become failures
+- `--json` mode: stable schema `{ "status": "pass|fail|warn", "checks": [...], "errors": [], "warnings": [] }` (Flatline IMP-010)
+**Dependencies**: Sprint 1 complete (needs a valid BUTTERFREEZONE.md to test against)
+**Testing**: BATS tests
 
-### Task 3.2: .reviewignore Template
-
-**File**: `.reviewignore` (project root)
-
-**Description**: Create the default `.reviewignore` template with sane defaults for Loa-mounted projects.
-
+### Task 2.2: Bridge Orchestrator Hook
+**Description**: Modify `.claude/scripts/bridge-orchestrator.sh` FINALIZING phase to emit `SIGNAL:BUTTERFREEZONE_GEN` between GROUND_TRUTH_UPDATE and RTFM_GATE.
 **Acceptance Criteria**:
-- [ ] Excludes: `.claude/`, `grimoires/loa/a2a/`, `grimoires/loa/archive/`, `.beads/`, `.run/`
-- [ ] Excludes: `.loa-version.json`, `.loa.config.yaml.example`
-- [ ] Has comment section for user additions
-- [ ] Gitignore-compatible syntax (validated against common glob implementations)
+- New `is_butterfreezone_enabled()` function checks config (`butterfreezone.enabled` AND `butterfreezone.hooks.run_bridge`)
+- BUTTERFREEZONE_GEN signal emitted after GT update
+- On success: `git add BUTTERFREEZONE.md` to stage for commit
+- On failure: Warning logged, workflow continues (non-blocking)
+- Bridge state updated: `.finalization.butterfreezone_generated` field added
+- Guarded by config check — disabled config = zero code path change
+**Dependencies**: Task 2.1 (validation script called by RTFM gate after gen)
+**Testing**: Existing bridge-orchestrator BATS tests still pass; manual verification of hook
 
-### Task 3.3: Mount Integration for .reviewignore
-
-**File**: `.claude/scripts/mount-loa.sh`
-
-**Description**: Create `.reviewignore` during mount if it doesn't exist.
-
+### Task 2.3: BATS Test Suite for butterfreezone-validate
+**Description**: Create BATS tests for the validation script.
 **Acceptance Criteria**:
-- [ ] `create_reviewignore()` function creates template at project root
-- [ ] Only creates if file doesn't already exist (preserves user edits)
-- [ ] Called during `root_file_sync()` or `sync_zones()`
-- [ ] Logged: "Created .reviewignore"
-
-### Task 3.4: lib-content.sh Integration
-
-**File**: `.claude/scripts/lib-content.sh`
-
-**Description**: Integrate review-scope.sh into `prepare_content()` to filter diff files before priority-based truncation.
-
-**Acceptance Criteria**:
-- [ ] `prepare_content()` pipes diff file list through `review-scope.sh` before priority sorting
-- [ ] Excluded files are counted and reported in the summary section
-- [ ] `file_priority()` returns `-1` for review-scope-excluded files as a fallback
-- [ ] Token budget is applied AFTER scope filtering (more tokens for in-scope files)
-- [ ] Backward compatible: no `.reviewignore` → no filtering (existing behavior)
-
-### Task 3.5: GPT Review Integration
-
-**File**: `.claude/scripts/gpt-review-api.sh`
-
-**Description**: Integrate review scope filtering into GPT review content preparation.
-
-**Acceptance Criteria**:
-- [ ] Content is filtered through `review-scope.sh` before building review prompt
-- [ ] System zone changes detected by `detect_system_zone_changes()` still reported as info
-- [ ] `--no-reviewignore` flag passthrough supported
-- [ ] Filtered file count logged for debugging
-
-### Task 3.6: Bridgebuilder Integration
-
-**File**: `.claude/skills/bridgebuilder-review/resources/core/truncation.ts`
-
-**Description**: Add `.reviewignore` reading support to Bridgebuilder's truncation pipeline.
-
-**Acceptance Criteria**:
-- [ ] `loadReviewIgnore()` function reads `.reviewignore` from repo root
-- [ ] Patterns merged with existing `LOA_EXCLUDE_PATTERNS`
-- [ ] Applied in `truncateFiles()` Step 0 (Loa-aware filtering), before Step 1 (user patterns)
-- [ ] `.reviewignore` patterns use same matching as gitignore (directory trailing `/`, glob `*`)
-- [ ] Graceful when file missing (existing LOA_EXCLUDE_PATTERNS still apply)
-
-### Task 3.7: Audit-Sprint Zone Awareness
-
-**File**: `.claude/skills/auditing-security/SKILL.md`
-
-**Description**: Add zone-awareness instruction to the audit skill so it focuses on app zone code.
-
-**Acceptance Criteria**:
-- [ ] Instruction added: "When reviewing Loa-mounted projects, focus audit on app zone files"
-- [ ] References `review-scope.sh` for determining which files are in scope
-- [ ] `.reviewignore` patterns respected when selecting audit targets
-- [ ] Override instruction: `--no-reviewignore` to audit everything
-
-### Task 3.8: Review Scope Tests
-
-**File**: `tests/unit/review-scope.bats`
-
-**Description**: Comprehensive BATS tests for the review scope filtering utility.
-
-**Acceptance Criteria**:
-- [ ] Test zone detection from `.loa-version.json`
-- [ ] Test `.reviewignore` parsing: comments, blank lines, glob patterns, directory patterns
-- [ ] Test system zone exclusion (`.claude/` always excluded)
-- [ ] Test state zone exclusion (`.beads/`, `.run/`)
-- [ ] Test app zone passthrough (everything else passes)
-- [ ] Test `--no-reviewignore` bypasses custom patterns
-- [ ] Test missing `.loa-version.json` (pass everything through)
-- [ ] Test missing `.reviewignore` (zone detection only)
-- [ ] Test combined zone + .reviewignore filtering
-- [ ] Test piping diff file list through filter
-- [ ] Minimum 12 test cases
-
-### Task 3.9: CHANGELOG and Final Version Bump
-
-**Files**: `CHANGELOG.md`, `README.md`, `.loa-version.json`
-
-**Description**: Add changelog entries for review scope features and finalize version bump.
-
-**Acceptance Criteria**:
-- [ ] CHANGELOG has `## [1.35.0]` entry with all Sprint 1-3 changes
-- [ ] Finalize `[Unreleased]` section into versioned header
-- [ ] README version badge updated
-- [ ] `.loa-version.json` version set to `1.35.0`
-- [ ] Why This Release section explains issues #300, #299, #303
+- File at `tests/unit/butterfreezone-validate.bats`
+- Tests from SDD 7.1: missing file, valid file, missing agent context, missing provenance, missing file ref, stale SHA (advisory), strict mode, word budget
+- Minimum 8 tests, all passing
+**Dependencies**: Task 2.1
+**Testing**: `bats tests/unit/butterfreezone-validate.bats` — all pass
 
 ---
 
-## Sprint Dependencies
+## Sprint 3: Skill + Lore + Config + Integration
 
-```
-Sprint 1 (Lazy Interp + Mount) ──→ Sprint 2 (Credentials)
-                                       │
-Sprint 3 (Review Scope) ─── independent ┘
-```
+**Goal**: Register the `/butterfreezone` skill, add lore entries, update config schema, and run end-to-end integration.
 
-Sprint 2 depends on Sprint 1 (credential provider chain integrates with `LazyValue` + modified `interpolate_value()`). Sprint 3 is fully independent and could run in parallel with Sprint 2.
+### Task 3.1: /butterfreezone Skill Registration
+**Description**: Create the skill definition and register in the skill index.
+**Acceptance Criteria**:
+- Directory at `.claude/skills/butterfreezone-gen/`
+- `SKILL.md` with objective, input guardrails (safe danger level), constraints, workflow
+- Workflow: check config → invoke `butterfreezone-gen.sh --verbose` → invoke `butterfreezone-validate.sh` → report
+- Registered in `.claude/data/skills/index.yaml` with `danger_level: safe`
+**Dependencies**: Sprint 2 complete
+**Testing**: Skill can be invoked (dry-run mode)
+
+### Task 3.2: Lore Glossary Entries
+**Description**: Add 3 lore entries to `.claude/data/lore/mibera/glossary.yaml` per SDD 3.5.
+**Acceptance Criteria**:
+- `glossary-butterfreezone`: "The zone where only truth survives — no butter, no hype"
+- `glossary-lobster`: "Agent that demands code-grounded facts — rejects marketing butter"
+- `glossary-grounding-ritual`: "The ritual of binding claims to checksums — truth made verifiable"
+- Each entry has: id, term, short, context, source, tags, related, loa_mapping
+- Entries follow existing schema format exactly
+**Dependencies**: None
+**Testing**: YAML validation (`yq '.' glossary.yaml` succeeds)
+
+### Task 3.3: Config Schema and Documentation
+**Description**: Add `butterfreezone:` section to `.loa.config.yaml.example` and update CLAUDE.md reference.
+**Acceptance Criteria**:
+- `.loa.config.yaml.example` gains `butterfreezone:` block per SDD 5.1
+- All config values documented with comments
+- Default values match SDD specification
+- `.claude/loa/CLAUDE.loa.md` gains BUTTERFREEZONE section in reference table
+**Dependencies**: None
+**Testing**: `yq '.' .loa.config.yaml.example` succeeds
+
+### Task 3.4: Integration Test — Generate BUTTERFREEZONE.md for Loa
+**Description**: Run `butterfreezone-gen.sh` against the Loa codebase itself and validate the output.
+**Acceptance Criteria**:
+- `butterfreezone-gen.sh` generates valid `BUTTERFREEZONE.md` for the Loa repo
+- `butterfreezone-validate.sh` passes all checks on generated file
+- Output is under 3200 words
+- All provenance tags present
+- AGENT-CONTEXT block correctly populated
+- ground-truth-meta checksums valid
+- File:symbol references resolve
+- Two consecutive runs produce identical output (determinism)
+**Dependencies**: Tasks 3.1, 3.2, 3.3
+**Testing**: End-to-end execution + validation + determinism check
+
+---
+
+## Go/No-Go Criteria
+
+Per-sprint gates (Flatline IMP-001):
+
+| Sprint | Go Criteria | No-Go Action |
+|--------|------------|--------------|
+| Sprint 1 | `butterfreezone-gen.sh --dry-run` exits 0; 15+ BATS tests pass; redaction test corpus passes | Patch-forward: fix failing tests before Sprint 2 |
+| Sprint 2 | Validation passes on Sprint 1 output; existing bridge BATS still pass | Patch-forward: disable hook via config, fix in Sprint 3 |
+| Sprint 3 | Integration test: 2 consecutive identical runs; validate passes all checks | Defer skill registration; ship gen+validate as MVP |
 
 ## Risk Mitigation
 
 | Risk | Sprint | Mitigation |
-|------|--------|------------|
-| LazyValue breaks existing config loading | 1 | Comprehensive backward compat tests; `lazy_paths=set()` escape hatch |
-| `cryptography` package not available | 2 | Graceful import with clear error message; env-only fallback |
-| `.reviewignore` glob syntax inconsistency | 3 | Use bash `[[ == $pattern ]]` matching; test against gitignore spec |
-| Bridgebuilder TypeScript changes conflict | 3 | Merge with existing LOA_EXCLUDE_PATTERNS; don't replace |
-| Mount cleanup too aggressive | 1 | Preserve user files in `context/`; only remove known artifacts |
+|------|--------|-----------|
+| Tier 2 grep patterns miss Loa's shell-heavy codebase | 1 | Shell function patterns included; config-overridable pattern sets (Flatline SKP-002) |
+| Security redaction leaks secrets or over-redacts | 1 | Enumerated secret classes with test corpus; fail-closed for unknown patterns (Flatline SKP-005) |
+| Non-deterministic output across environments | 1 | `find | sort -z`, `LC_ALL=C`, `TZ=UTC`, stable table generation (Flatline SKP-003) |
+| Bridge orchestrator modification breaks existing tests | 2 | Hook guarded by config check; existing tests verified |
+| Word budget too tight for Loa's 47 commands | 1 | Integration test in Sprint 3 validates real-world budget |
+| BATS test environment differences | 1, 2 | Tests use temp directories with controlled structure |
+
+---
+
+## Success Criteria
+
+After all 3 sprints:
+1. `butterfreezone-gen.sh --dry-run` produces valid output for Loa repo
+2. `butterfreezone-validate.sh` passes all checks
+3. 23+ BATS tests passing (15 gen + 8 validate)
+4. Bridge orchestrator hook functional (config-guarded)
+5. Lore entries in glossary.yaml
+6. Config schema in .loa.config.yaml.example
+7. Skill registered and invocable
+
+---
+
+*Sprint plan for cycle-009. Global sprint IDs: 18-20.*
