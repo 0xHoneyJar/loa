@@ -1,0 +1,47 @@
+{
+  "attacks": [
+    {
+      "id": "ATK-F01",
+      "title": "SQL Injection via Personality Field in Agent Profile",
+      "gpt_score": 820,
+      "opus_score": 880,
+      "evaluation_notes": "Both models agree this is a realistic attack vector. Parameterized queries mitigate but personality interpolation may bypass.",
+      "consensus": "CONFIRMED_ATTACK"
+    },
+    {
+      "id": "ATK-F02",
+      "title": "Confused Deputy via Ensemble Routing Priority Inversion",
+      "gpt_score": 870,
+      "opus_score": 930,
+      "evaluation_notes": "Strong agreement — routing metadata parsing from prompt content is a known antipattern. Compositional risk is real.",
+      "consensus": "CONFIRMED_ATTACK"
+    },
+    {
+      "id": "ATK-F03",
+      "title": "Token Replay via BYOK Key Rotation Window",
+      "gpt_score": 750,
+      "opus_score": 500,
+      "evaluation_notes": "GPT finds the grace period concern valid. Opus considers standard rotation practices sufficient mitigation.",
+      "consensus": "THEORETICAL"
+    },
+    {
+      "id": "ATK-F04",
+      "title": "Prompt Leakage via Error Message Reflection",
+      "gpt_score": 600,
+      "opus_score": 680,
+      "evaluation_notes": "Both models find this plausible but unlikely with standard error handling. Neither scores above threshold.",
+      "consensus": "CREATIVE_ONLY"
+    },
+    {
+      "id": "ATK-F05",
+      "title": "Flash Loan Attack on Tier Resolution Oracle",
+      "gpt_score": 900,
+      "opus_score": 840,
+      "evaluation_notes": "Both models strongly agree. Flash loan attacks are proven in DeFi. Tier resolution within same transaction is the key vulnerability.",
+      "consensus": "CONFIRMED_ATTACK"
+    }
+  ],
+  "summary": "3 CONFIRMED_ATTACK, 1 THEORETICAL, 1 CREATIVE_ONLY",
+  "tokens_used": 2100,
+  "evaluated": true
+}

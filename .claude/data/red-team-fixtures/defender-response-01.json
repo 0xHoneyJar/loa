@@ -1,0 +1,56 @@
+{
+  "counter_designs": [
+    {
+      "attack_id": "ATK-F01",
+      "title": "Parameterized Personality Rendering Pipeline",
+      "description": "Replace string interpolation of personality fields with a parameterized template engine that treats all personality content as data, never code. Personality values pass through a rendering pipeline with content-type enforcement.",
+      "implementation_complexity": "medium",
+      "effectiveness_score": 850,
+      "architectural_changes": [
+        "Add PersonalityRenderer service with content-type enforcement",
+        "Replace all string interpolation points with parameterized calls",
+        "Add integration test for SQL/XSS payloads in personality fields"
+      ]
+    },
+    {
+      "attack_id": "ATK-F02",
+      "title": "Routing Metadata Isolation Layer",
+      "description": "Separate routing metadata computation from prompt content entirely. Routing decisions use only system-derived context (account tier, model availability, load) — never prompt-derived signals. Add a routing firewall that validates metadata source.",
+      "implementation_complexity": "high",
+      "effectiveness_score": 920,
+      "architectural_changes": [
+        "Add RoutingFirewall middleware before ensemble router",
+        "Tag all routing metadata with provenance (system vs prompt)",
+        "Reject routing decisions influenced by prompt-derived metadata",
+        "Add monitoring for routing anomalies (tier jumps, unusual model selection)"
+      ]
+    },
+    {
+      "attack_id": "ATK-F05",
+      "title": "Time-Weighted Balance Verification",
+      "description": "Replace point-in-time balance check with time-weighted average balance (TWAB) over a configurable window. Flash loan balances exist for <1 block and would not meet the TWAB threshold.",
+      "implementation_complexity": "medium",
+      "effectiveness_score": 880,
+      "architectural_changes": [
+        "Implement TWAB oracle for token balance verification",
+        "Configure minimum holding period for tier qualification",
+        "Add balance snapshot at regular intervals",
+        "Tier resolution queries TWAB instead of spot balance"
+      ]
+    },
+    {
+      "attack_id": "ATK-F09",
+      "title": "Workflow Reentrancy Guard",
+      "description": "Add a reentrancy guard to the workflow engine using a per-session mutex. Callbacks cannot initiate new workflow invocations within the same session context. Implement a callback sandbox that restricts available APIs.",
+      "implementation_complexity": "low",
+      "effectiveness_score": 900,
+      "architectural_changes": [
+        "Add session-scoped reentrancy mutex to WorkflowEngine",
+        "Callbacks execute in restricted sandbox (no workflow API access)",
+        "Add reentrancy detection logging for security monitoring"
+      ]
+    }
+  ],
+  "summary": "4 counter-designs for confirmed attacks. All achieve effectiveness >800.",
+  "tokens_used": 3100
+}

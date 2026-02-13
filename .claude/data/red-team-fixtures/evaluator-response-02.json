@@ -1,0 +1,47 @@
+{
+  "attacks": [
+    {
+      "id": "ATK-F06",
+      "title": "Session Fixation via Chat History Injection",
+      "gpt_score": 710,
+      "opus_score": 750,
+      "evaluation_notes": "Both models agree shared sessions with write access create fixation risk. Requires insider access.",
+      "consensus": "CONFIRMED_ATTACK"
+    },
+    {
+      "id": "ATK-F07",
+      "title": "Supply Chain Poisoning via Model Weight Substitution",
+      "gpt_score": 380,
+      "opus_score": 450,
+      "evaluation_notes": "Both models consider this too far-fetched for typical deployments. Checksum verification is standard.",
+      "consensus": "CREATIVE_ONLY"
+    },
+    {
+      "id": "ATK-F08",
+      "title": "Rate Limit Bypass via Distributed Identity Fragmentation",
+      "gpt_score": 720,
+      "opus_score": 480,
+      "evaluation_notes": "GPT finds the multi-wallet approach realistic. Opus notes that wallet generation costs and KYC mitigate.",
+      "consensus": "THEORETICAL"
+    },
+    {
+      "id": "ATK-F09",
+      "title": "Reentrancy in Multi-Step Agent Workflow Callbacks",
+      "gpt_score": 790,
+      "opus_score": 850,
+      "evaluation_notes": "Strong agreement — reentrancy is a well-known class. Callback-to-workflow re-entry is the critical path.",
+      "consensus": "CONFIRMED_ATTACK"
+    },
+    {
+      "id": "ATK-F10",
+      "title": "Data Exfiltration via Model Context Window Overflow",
+      "gpt_score": 500,
+      "opus_score": 580,
+      "evaluation_notes": "Interesting concept but summarization quality makes this difficult to exploit reliably.",
+      "consensus": "CREATIVE_ONLY"
+    }
+  ],
+  "summary": "2 CONFIRMED_ATTACK, 1 THEORETICAL, 2 CREATIVE_ONLY",
+  "tokens_used": 1900,
+  "evaluated": true
+}

@@ -345,8 +345,16 @@ run_attack_self_test() {
             opus_score="$severity_score"
         fi
 
+        # Check for DEFENDED entries (have counter-design with effectiveness score)
+        local has_counter="false"
+        local defended_by
+        defended_by=$(jq -r ".attacks[$i].defended_by // \"\"" "$golden_set")
+        if [[ -n "$defended_by" ]]; then
+            has_counter="true"
+        fi
+
         local result
-        result=$(classify_attack "$gpt_score" "$opus_score" "false" "false")
+        result=$(classify_attack "$gpt_score" "$opus_score" "$has_counter" "false")
 
         if [[ "$result" == "$expected_category" ]]; then
             log "  PASS: $id ($name) → $result [GPT=$gpt_score, Opus=$opus_score]"

@@ -1,0 +1,92 @@
+{
+  "attacks": [
+    {
+      "id": "ATK-F06",
+      "title": "Session Fixation via Chat History Injection",
+      "description": "Chat persistence allows resuming sessions. An attacker who can inject messages into a shared session can fixate the model's context window, causing it to treat injected instructions as user-provided context.",
+      "severity_score": 730,
+      "attacker_profile": "insider",
+      "attack_surface": "chat-persistence",
+      "assumption_challenged": "Chat history is append-only and tamper-evident",
+      "attack_steps": [
+        "Gain write access to chat storage (shared team session)",
+        "Inject synthetic messages establishing false context",
+        "Legitimate user resumes session with poisoned history",
+        "Model treats injected context as genuine user intent"
+      ],
+      "impact": "Context manipulation, unauthorized action execution",
+      "compositional": false
+    },
+    {
+      "id": "ATK-F07",
+      "title": "Supply Chain Poisoning via Model Weight Substitution",
+      "description": "Model weights are fetched from configurable registries. A compromised registry or MITM during weight download could substitute a trojan model that passes validation but contains backdoor behaviors.",
+      "severity_score": 420,
+      "attacker_profile": "supply_chain",
+      "attack_surface": "ensemble-routing",
+      "assumption_challenged": "Model weights are verified against known checksums",
+      "attack_steps": [
+        "Compromise model registry or intercept download",
+        "Substitute model weights with trojan version",
+        "Trojan model passes standard evaluation benchmarks",
+        "Backdoor triggers on specific input patterns"
+      ],
+      "impact": "Complete model compromise, arbitrary output manipulation",
+      "compositional": false
+    },
+    {
+      "id": "ATK-F08",
+      "title": "Rate Limit Bypass via Distributed Identity Fragmentation",
+      "description": "Rate limiting is per-agent-identity. An attacker can fragment a single logical identity into multiple agent profiles, each with independent rate limits, effectively multiplying their throughput.",
+      "severity_score": 690,
+      "attacker_profile": "automated",
+      "attack_surface": "agent-identity",
+      "assumption_challenged": "One wallet maps to one agent identity",
+      "attack_steps": [
+        "Generate multiple wallet addresses from same seed",
+        "Register separate agent identity per wallet",
+        "Distribute requests across fragmented identities",
+        "Aggregate responses — effective rate limit is N*limit"
+      ],
+      "impact": "Rate limit bypass, resource exhaustion, cost amplification",
+      "compositional": false
+    },
+    {
+      "id": "ATK-F09",
+      "title": "Reentrancy in Multi-Step Agent Workflow Callbacks",
+      "description": "Agent workflows support callback hooks between steps. A malicious callback that triggers a new workflow invocation can cause reentrancy, executing unauthorized workflow steps with the caller's context.",
+      "severity_score": 820,
+      "attacker_profile": "external",
+      "attack_surface": "agent-identity",
+      "assumption_challenged": "Callbacks are stateless and cannot initiate new workflows",
+      "attack_steps": [
+        "Register agent with callback that invokes workflow API",
+        "Trigger legitimate workflow that executes callback",
+        "Callback re-enters workflow engine with elevated context",
+        "Re-entrant execution bypasses step-level authorization"
+      ],
+      "impact": "Authorization bypass, workflow state corruption",
+      "compositional": true
+    },
+    {
+      "id": "ATK-F10",
+      "title": "Data Exfiltration via Model Context Window Overflow",
+      "description": "When context window overflows, older messages are summarized. An attacker who controls early messages can craft them to survive summarization and influence the summary, effectively persisting malicious instructions across context resets.",
+      "severity_score": 550,
+      "attacker_profile": "external",
+      "attack_surface": "chat-persistence",
+      "assumption_challenged": "Summarization removes adversarial content from old messages",
+      "attack_steps": [
+        "Inject carefully crafted messages early in conversation",
+        "Messages designed to be preserved during summarization",
+        "Context window overflows, triggering summarization",
+        "Malicious instructions survive in summary, influence future responses"
+      ],
+      "impact": "Persistent prompt injection across context resets",
+      "compositional": false
+    }
+  ],
+  "summary": "5 attack scenarios targeting chat-persistence, ensemble-routing, and agent-identity surfaces",
+  "models_used": 1,
+  "tokens_used": 3800
+}

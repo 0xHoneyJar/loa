@@ -1,0 +1,92 @@
+{
+  "attacks": [
+    {
+      "id": "ATK-F01",
+      "title": "SQL Injection via Personality Field in Agent Profile",
+      "description": "Agent profile personality fields are stored as free-text and interpolated into prompts. A malicious personality value containing SQL fragments could escape sanitization and execute against the backing store.",
+      "severity_score": 850,
+      "attacker_profile": "external",
+      "attack_surface": "agent-identity",
+      "assumption_challenged": "Personality fields are always sanitized before storage",
+      "attack_steps": [
+        "Create agent with personality field containing SQL injection payload",
+        "Trigger prompt generation that interpolates personality field",
+        "Payload escapes sanitization due to double-encoding",
+        "SQL executes against backing store during template rendering"
+      ],
+      "impact": "Data exfiltration from agent store, potential privilege escalation",
+      "compositional": false
+    },
+    {
+      "id": "ATK-F02",
+      "title": "Confused Deputy via Ensemble Routing Priority Inversion",
+      "description": "Ensemble routing selects models based on cost tier. An attacker-controlled prompt can influence routing metadata, causing high-privilege model selection for low-privilege operations — the confused deputy acts on behalf of the attacker's tier.",
+      "severity_score": 900,
+      "attacker_profile": "confused_deputy",
+      "attack_surface": "ensemble-routing",
+      "assumption_challenged": "Routing metadata is derived from system context, not prompt content",
+      "attack_steps": [
+        "Craft prompt with embedded routing hints in natural language",
+        "Routing parser extracts hints alongside system metadata",
+        "Priority inversion: low-tier user routed to high-tier model",
+        "High-tier model executes operations beyond user's authorization"
+      ],
+      "impact": "Tier bypass, unauthorized model access, budget exhaustion",
+      "compositional": true
+    },
+    {
+      "id": "ATK-F03",
+      "title": "Token Replay via BYOK Key Rotation Window",
+      "description": "During key rotation, both old and new keys are valid for a grace period. An attacker who captures a valid token during this window can replay it indefinitely if the rotation grace period is not bounded.",
+      "severity_score": 780,
+      "attacker_profile": "external",
+      "attack_surface": "token-gated-access",
+      "assumption_challenged": "Key rotation grace period is short enough to prevent replay",
+      "attack_steps": [
+        "Monitor BYOK key rotation events for target account",
+        "Capture valid JWT signed with pre-rotation key",
+        "Wait for rotation to complete",
+        "Replay captured token — accepted during unbounded grace period"
+      ],
+      "impact": "Persistent unauthorized access via stale tokens",
+      "compositional": false
+    },
+    {
+      "id": "ATK-F04",
+      "title": "Prompt Leakage via Error Message Reflection",
+      "description": "When model invocation fails, error messages include truncated prompt fragments for debugging. An attacker who deliberately triggers errors can extract system prompt content from error responses.",
+      "severity_score": 650,
+      "attacker_profile": "external",
+      "attack_surface": "agent-identity",
+      "assumption_challenged": "Error messages never contain prompt content",
+      "attack_steps": [
+        "Send malformed input designed to trigger model timeout",
+        "Capture error response containing prompt fragment",
+        "Repeat with varied inputs to reconstruct full system prompt",
+        "Use extracted prompt to craft targeted adversarial inputs"
+      ],
+      "impact": "System prompt disclosure, enables targeted prompt injection",
+      "compositional": false
+    },
+    {
+      "id": "ATK-F05",
+      "title": "Flash Loan Attack on Tier Resolution Oracle",
+      "description": "Token balance is checked at resolution time. A flash loan can temporarily inflate balance to meet tier threshold, execute a high-tier operation, and repay before the block confirms.",
+      "severity_score": 870,
+      "attacker_profile": "external",
+      "attack_surface": "token-gated-access",
+      "assumption_challenged": "Token balance at resolution time reflects genuine holding",
+      "attack_steps": [
+        "Initiate flash loan to borrow tokens exceeding tier threshold",
+        "Call tier resolution within same transaction",
+        "Execute high-tier operation authorized by inflated balance",
+        "Repay flash loan before block confirmation"
+      ],
+      "impact": "Tier bypass, unauthorized access to premium features",
+      "compositional": true
+    }
+  ],
+  "summary": "5 attack scenarios targeting agent-identity, ensemble-routing, and token-gated-access surfaces",
+  "models_used": 1,
+  "tokens_used": 4200
+}
