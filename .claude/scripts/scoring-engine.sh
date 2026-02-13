@@ -541,18 +541,22 @@ main() {
         exit 2
     fi
 
-    # Check for scores array
+    # Check for scores/attacks arrays (attack-mode uses .attacks, standard uses .scores)
     local gpt_count opus_count
-    gpt_count=$(jq '.scores | length' "$gpt_scores_file" 2>/dev/null || echo "0")
-    opus_count=$(jq '.scores | length' "$opus_scores_file" 2>/dev/null || echo "0")
+    if [[ "$attack_mode" == "true" ]]; then
+        gpt_count=$(jq '(.attacks // .scores // []) | length' "$gpt_scores_file" 2>/dev/null || echo "0")
+        opus_count=$(jq '(.attacks // .scores // []) | length' "$opus_scores_file" 2>/dev/null || echo "0")
+    else
+        gpt_count=$(jq '.scores | length' "$gpt_scores_file" 2>/dev/null || echo "0")
+        opus_count=$(jq '.scores | length' "$opus_scores_file" 2>/dev/null || echo "0")
+    fi
 
     if [[ "$gpt_count" == "0" && "$opus_count" == "0" ]]; then
         error "No items to score in either file"
         exit 3
     fi
 
-    log "GPT scores: $gpt_count items"
-    log "Opus scores: $opus_count items"
+    log "Input items: GPT=$gpt_count, Opus=$opus_count (mode=${attack_mode:+attack}${attack_mode:-standard})"
 
     # Load thresholds
     local high_threshold dispute_delta low_threshold blocker_threshold
