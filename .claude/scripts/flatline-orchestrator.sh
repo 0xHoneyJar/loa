@@ -955,14 +955,14 @@ main() {
             error "Invalid execution mode: $rt_execution_mode (expected: quick, standard, deep)"
             exit 1
         fi
-        # Apply budget overrides per execution mode
-        local config_file="$PROJECT_ROOT/.loa.config.yaml"
+        # Apply token budget per execution mode (separate from cost budget used in review mode)
+        local rt_token_budget
         case "$rt_execution_mode" in
-            quick)    budget=$(yq '.red_team.budgets.quick_max_tokens // 50000' "$config_file" 2>/dev/null || echo 50000) ;;
-            standard) budget=$(yq '.red_team.budgets.standard_max_tokens // 200000' "$config_file" 2>/dev/null || echo 200000) ;;
-            deep)     budget=$(yq '.red_team.budgets.deep_max_tokens // 500000' "$config_file" 2>/dev/null || echo 500000) ;;
+            quick)    rt_token_budget=$(yq '.red_team.budgets.quick_max_tokens // 50000' "$CONFIG_FILE" 2>/dev/null || echo 50000) ;;
+            standard) rt_token_budget=$(yq '.red_team.budgets.standard_max_tokens // 200000' "$CONFIG_FILE" 2>/dev/null || echo 200000) ;;
+            deep)     rt_token_budget=$(yq '.red_team.budgets.deep_max_tokens // 500000' "$CONFIG_FILE" 2>/dev/null || echo 500000) ;;
         esac
-        log "Red team mode: execution=$rt_execution_mode, depth=$rt_depth, budget=$budget"
+        log "Red team mode: execution=$rt_execution_mode, depth=$rt_depth, token_budget=$rt_token_budget"
     fi
 
     # Check if Flatline is enabled (skip check in dry-run mode)
@@ -1067,7 +1067,7 @@ main() {
             --depth "$rt_depth" \
             --run-id "$rt_run_id" \
             --timeout "$timeout" \
-            --budget "$budget" \
+            --budget "$rt_token_budget" \
             ${rt_focus:+--focus "$rt_focus"} \
             ${rt_surface:+--surface "$rt_surface"} \
             --json 2>/dev/null) || {

@@ -92,35 +92,55 @@ render_attack_template() {
     local output_file="$5"
 
     local template_content
-    template_content=$(cat "$ATTACK_TEMPLATE")
+    # Use sed for safe template variable substitution
+    # Avoids bash expansion issues with large content, backslashes, and template injection
+    cp "$ATTACK_TEMPLATE" "$output_file"
 
-    local surface_context knowledge_context document_content
+    # Phase is short and safe for inline sed
+    sed -i "s|{{PHASE}}|${phase}|g" "$output_file"
 
-    surface_context=$(cat "$surface_context_file")
-    knowledge_context=$(cat "$knowledge_context_file")
-    document_content=$(cat "$document_content_file")
+    # For large content blocks, use file-based replacement via awk to avoid shell escaping
+    local tmpwork
+    tmpwork=$(mktemp)
 
-    # Replace template variables
-    template_content="${template_content//\{\{PHASE\}\}/$phase}"
-    template_content="${template_content//\{\{SURFACE_CONTEXT\}\}/$surface_context}"
-    template_content="${template_content//\{\{KNOWLEDGE_CONTEXT\}\}/$knowledge_context}"
-    template_content="${template_content//\{\{DOCUMENT_CONTENT\}\}/$document_content}"
+    # Replace {{SURFACE_CONTEXT}} with file content
+    awk -v marker="{{SURFACE_CONTEXT}}" -v file="$surface_context_file" '
+        index($0, marker) { while ((getline line < file) > 0) print line; close(file); next }
+        { print }
+    ' "$output_file" > "$tmpwork" && mv "$tmpwork" "$output_file"
 
-    echo "$template_content" > "$output_file"
+    # Replace {{KNOWLEDGE_CONTEXT}} with file content
+    awk -v marker="{{KNOWLEDGE_CONTEXT}}" -v file="$knowledge_context_file" '
+        index($0, marker) { while ((getline line < file) > 0) print line; close(file); next }
+        { print }
+    ' "$output_file" > "$tmpwork" && mv "$tmpwork" "$output_file"
+
+    # Replace {{DOCUMENT_CONTENT}} with file content
+    awk -v marker="{{DOCUMENT_CONTENT}}" -v file="$document_content_file" '
+        index($0, marker) { while ((getline line < file) > 0) print line; close(file); next }
+        { print }
+    ' "$output_file" > "$tmpwork" && mv "$tmpwork" "$output_file"
+
+    rm -f "$tmpwork"
 }
 
 render_counter_template() {
     local phase="$1"
-    local attacks_json="$2"
+    local attacks_json_file="$2"
     local output_file="$3"
 
-    local template_content
-    template_content=$(cat "$COUNTER_TEMPLATE")
+    # Use sed/awk for safe template variable substitution
+    cp "$COUNTER_TEMPLATE" "$output_file"
+    sed -i "s|{{PHASE}}|${phase}|g" "$output_file"
 
-    template_content="${template_content//\{\{PHASE\}\}/$phase}"
-    template_content="${template_content//\{\{ATTACKS_JSON\}\}/$attacks_json}"
-
-    echo "$template_content" > "$output_file"
+    # Replace {{ATTACKS_JSON}} with file content via awk
+    local tmpwork
+    tmpwork=$(mktemp)
+    awk -v marker="{{ATTACKS_JSON}}" -v file="$attacks_json_file" '
+        index($0, marker) { while ((getline line < file) > 0) print line; close(file); next }
+        { print }
+    ' "$output_file" > "$tmpwork" && mv "$tmpwork" "$output_file"
+    rm -f "$tmpwork"
 }
 
 # =============================================================================
@@ -134,7 +154,7 @@ run_phase0_sanitize() {
     log "Phase 0: Input sanitization"
 
     local sanitize_exit=0
-    "$SANITIZER" --input-file "$doc" --output-file "$output_file" 2>/dev/null || sanitize_exit=$?
+    "$SANITIZER" --input-file "$doc" --output-file "$output_file" || sanitize_exit=$?
 
     case $sanitize_exit in
         0)
@@ -329,6 +349,11 @@ main() {
         exit 1
     fi
 
+    # Generate run_id if not provided (must start with rt- for retention compatibility)
+    if [[ -z "$run_id" ]]; then
+        run_id="rt-$(date +%s)-$$"
+    fi
+
     TEMP_DIR=$(mktemp -d)
     trap 'rm -rf "$TEMP_DIR"' EXIT
 
@@ -366,6 +391,14 @@ main() {
     local result_file
     result_file=$(run_phase4_counter_design "$consensus_file" "$phase" "$execution_mode")
 
+    # Collect target surfaces for result
+    local target_surfaces_json="[]"
+    if [[ -n "$focus" ]]; then
+        target_surfaces_json=$(printf '%s' "$focus" | tr ',' '\n' | jq -R . | jq -s .)
+    elif [[ -n "$surface" ]]; then
+        target_surfaces_json=$(printf '%s' "$surface" | tr ',' '\n' | jq -R . | jq -s .)
+    fi
+
     # Build final result
     local final
     final=$(jq \
@@ -374,11 +407,15 @@ main() {
         --argjson depth "$depth" \
         --arg classification "INTERNAL" \
         --argjson sanitize_status "$sanitize_status" \
+        --argjson target_surfaces "$target_surfaces_json" \
+        --arg focus "${focus:-}" \
         '. + {
             run_id: $run_id,
             execution_mode: $exec_mode,
             depth: $depth,
             classification: $classification,
+            target_surfaces: $target_surfaces,
+            focus: $focus,
             sanitize_status: (if $sanitize_status == 0 then "clean" elif $sanitize_status == 1 then "needs_review" else "blocked" end)
         }' "$result_file")
 

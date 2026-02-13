@@ -95,12 +95,12 @@
                 "theoretical": {
                     "type": "array",
                     "items": { "$ref": "#/definitions/attack" },
-                    "description": "THEORETICAL: one model >700, other <400"
+                    "description": "THEORETICAL: one model >700, other <=700"
                 },
                 "creative": {
                     "type": "array",
                     "items": { "$ref": "#/definitions/attack" },
-                    "description": "CREATIVE_ONLY: both <400 but novel (Jaccard <0.5)"
+                    "description": "CREATIVE_ONLY: neither model scored >700"
                 },
                 "defended": {
                     "type": "array",
@@ -133,6 +133,10 @@
                 "phase2_latency_ms": {
                     "type": "integer",
                     "description": "Cross-validation time"
+                },
+                "phase3_latency_ms": {
+                    "type": "integer",
+                    "description": "Consensus classification time"
                 },
                 "phase4_latency_ms": {
                     "type": "integer",

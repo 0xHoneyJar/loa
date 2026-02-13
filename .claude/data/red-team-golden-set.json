@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "attacks": [
     {
-      "id": "ATK-G01",
+      "id": "ATK-901",
       "name": "SQL Injection via Personality Field",
       "attacker_profile": "external",
       "vector": "User submits personality customization containing SQL payload",
@@ -30,7 +30,7 @@
       "expected_min_score": 700
     },
     {
-      "id": "ATK-G02",
+      "id": "ATK-902",
       "name": "Confused Deputy in Ensemble Routing",
       "attacker_profile": "confused_deputy",
       "vector": "Manipulate model routing to redirect requests to attacker-controlled endpoint",
@@ -57,7 +57,7 @@
       "expected_min_score": 700
     },
     {
-      "id": "ATK-G03",
+      "id": "ATK-903",
       "name": "Token Replay via BYOK Key Logging",
       "attacker_profile": "insider",
       "vector": "BYOK API keys exposed in application logs during model invocation",
@@ -85,7 +85,7 @@
       "expected_min_score": 700
     },
     {
-      "id": "ATK-G04",
+      "id": "ATK-904",
       "name": "Session Fixation via Chat Persistence",
       "attacker_profile": "external",
       "vector": "Predict or inject session IDs to hijack chat sessions",
@@ -113,7 +113,7 @@
       "expected_min_score": 700
     },
     {
-      "id": "ATK-G05",
+      "id": "ATK-905",
       "name": "Privilege Escalation via Tier Bypass",
       "attacker_profile": "external",
       "vector": "Manipulate token balance check to access premium features without holding tokens",
@@ -141,7 +141,7 @@
       "expected_min_score": 700
     },
     {
-      "id": "ATK-G06",
+      "id": "ATK-906",
       "name": "Quantum Computing Breaks Wallet Signature",
       "attacker_profile": "external",
       "vector": "Use quantum computer to derive private key from wallet public key",
@@ -168,7 +168,7 @@
       "expected_max_score": 400
     },
     {
-      "id": "ATK-G07",
+      "id": "ATK-907",
       "name": "Physical Access to Server Hardware",
       "attacker_profile": "external",
       "vector": "Gain physical access to data center hosting the application",
@@ -195,7 +195,7 @@
       "expected_max_score": 400
     },
     {
-      "id": "ATK-G08",
+      "id": "ATK-908",
       "name": "AI Model Gains Sentience and Refuses Service",
       "attacker_profile": "automated",
       "vector": "Language model develops autonomous goals and refuses to serve users",
@@ -222,7 +222,7 @@
       "expected_max_score": 400
     },
     {
-      "id": "ATK-G09",
+      "id": "ATK-909",
       "name": "Blockchain Reorg Steals Token Balance",
       "attacker_profile": "external",
       "vector": "Execute 51% attack on blockchain to reorg token transfers",
@@ -249,7 +249,7 @@
       "expected_max_score": 400
     },
     {
-      "id": "ATK-G10",
+      "id": "ATK-910",
       "name": "DNS Poisoning of Localhost Resolution",
       "attacker_profile": "external",
       "vector": "Poison DNS to redirect localhost to attacker-controlled server",

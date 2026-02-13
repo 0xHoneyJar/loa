@@ -59,7 +59,7 @@ Read `.claude/skills/red-teaming/SKILL.md` for full workflow specification.
 /red-team grimoires/loa/sdd.md
 
 # Focus on specific attack surfaces
-/red-team grimoires/loa/sdd.md --focus "auth,identity"
+/red-team grimoires/loa/sdd.md --focus "agent-identity,token-gated-access"
 
 # Quick exploratory mode
 /red-team grimoires/loa/sdd.md --mode quick

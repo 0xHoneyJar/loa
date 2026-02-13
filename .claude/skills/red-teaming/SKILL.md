@@ -8,7 +8,7 @@ Use the Flatline Protocol's red team mode to generate creative attack scenarios 
 
 ```bash
 /red-team grimoires/loa/sdd.md
-/red-team grimoires/loa/sdd.md --focus "auth,identity"
+/red-team grimoires/loa/sdd.md --focus "agent-identity,token-gated-access"
 /red-team grimoires/loa/sdd.md --mode quick
 /red-team grimoires/loa/sdd.md --depth 2 --mode deep
 /red-team --spec "Users authenticate via wallet signature and receive a JWT"
