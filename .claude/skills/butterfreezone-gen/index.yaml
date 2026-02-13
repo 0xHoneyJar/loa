@@ -1,0 +1,52 @@
+name: "butterfreezone-gen"
+version: "1.0.0"
+model: "sonnet"
+color: "green"
+
+effort_hint: low
+danger_level: safe
+categories:
+  - quality
+  - documentation
+
+description: |
+  Generate and validate BUTTERFREEZONE.md — the agent-grounded README.
+  Invokes butterfreezone-gen.sh for generation and butterfreezone-validate.sh
+  for structural validation. The zone where only truth survives.
+
+triggers:
+  - "/butterfreezone"
+  - "generate butterfreezone"
+  - "validate butterfreezone"
+  - "agent readme"
+  - "grounded readme"
+
+examples:
+  - context: "User wants to generate or regenerate BUTTERFREEZONE.md"
+    user_says: "/butterfreezone"
+    agent_action: "Check config, generate BUTTERFREEZONE.md, validate output"
+  - context: "User wants to validate existing BUTTERFREEZONE.md"
+    user_says: "/butterfreezone --validate-only"
+    agent_action: "Run butterfreezone-validate.sh on existing file"
+  - context: "User wants a dry run to preview output"
+    user_says: "/butterfreezone --dry-run"
+    agent_action: "Generate to stdout without writing file"
+
+inputs:
+  - name: "validate-only"
+    type: "boolean"
+    required: false
+    description: "Only validate existing file, don't regenerate"
+  - name: "dry-run"
+    type: "boolean"
+    required: false
+    description: "Preview output without writing file"
+  - name: "strict"
+    type: "boolean"
+    required: false
+    description: "Use strict validation (warnings become failures)"
+
+outputs:
+  - path: "BUTTERFREEZONE.md"
+    description: "Agent-grounded README with provenance tags and checksums"
+    format: markdown

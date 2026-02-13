@@ -194,6 +194,51 @@ entries:
     related: [glossary-flatline]
     loa_mapping: "Loa Constructs Registry, /constructs command"
 
+  - id: glossary-butterfreezone
+    term: "BUTTERFREEZONE"
+    short: "The zone where only truth survives — no butter, no hype"
+    context: |
+      BUTTERFREEZONE.md is the agent-grounded README: every claim cites code,
+      every section carries provenance, every regeneration is checksum-verified.
+      The name is a declaration: this is a zone free of marketing butter.
+      Agents consuming BUTTERFREEZONE.md can trust that what they read maps
+      to what exists. The lobster demands it.
+    source: "Issue #304 — BUTTERFREEZONE design"
+    tags: [naming, architecture]
+    related: [glossary-ground-truth, glossary-lobster, glossary-grounding-ritual]
+    loa_mapping: "BUTTERFREEZONE.md, butterfreezone-gen.sh, butterfreezone-validate.sh"
+
+  - id: glossary-lobster
+    term: "Lobster"
+    short: "Agent that demands code-grounded facts — rejects marketing butter"
+    context: |
+      The lobster is the spirit of rigorous verification. It demands that
+      every claim in documentation be traceable to source code. When the
+      lobster reviews a README, it asks: "Where is the code that proves this?"
+      BUTTERFREEZONE.md was designed for the lobster — provenance tags trace
+      every section to its source, checksums verify freshness, and file:symbol
+      references create auditable links from claims to code.
+    source: "BUTTERFREEZONE naming origin"
+    tags: [naming, philosophy]
+    related: [glossary-butterfreezone, glossary-ground-truth]
+    loa_mapping: "butterfreezone-validate.sh reference checking"
+
+  - id: glossary-grounding-ritual
+    term: "Grounding Ritual"
+    short: "The ritual of binding claims to checksums — truth made verifiable"
+    context: |
+      A grounding ritual binds the ethereal to the physical. In Loa, the
+      grounding ritual is the process of generating BUTTERFREEZONE.md:
+      scanning code, extracting capabilities, computing checksums, and
+      attaching provenance tags. The result is documentation where every
+      claim is grounded in verifiable code truth. The ground-truth-meta
+      block is the seal of the ritual — proof that grounding was performed
+      at a specific commit.
+    source: "BUTTERFREEZONE generation workflow"
+    tags: [ritual, architecture]
+    related: [glossary-butterfreezone, glossary-ground-truth, glossary-ride]
+    loa_mapping: "butterfreezone-gen.sh generate_ground_truth_meta()"
+
   - id: glossary-peristyle
     term: "Peristyle"
     short: "The open-air temple — the shared review space where models gather"

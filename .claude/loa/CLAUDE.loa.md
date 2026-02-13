@@ -398,6 +398,38 @@ run_bridge:
     consecutive_flatline: 2
 ```
 
+## BUTTERFREEZONE — Agent-Grounded README (v1.35.0)
+
+Token-efficient, provenance-tagged project summary for AI agent consumption. Every claim cites code.
+
+### Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `butterfreezone-gen.sh` | Generate BUTTERFREEZONE.md from codebase analysis |
+| `butterfreezone-validate.sh` | Validate structure, provenance, references, freshness |
+
+### Skill
+
+`/butterfreezone` — Generate and validate BUTTERFREEZONE.md (danger_level: safe)
+
+### Configuration
+
+```yaml
+butterfreezone:
+  enabled: true
+  word_budget:
+    total: 3200
+    per_section: 800
+  staleness_days: 7
+  hooks:
+    run_bridge: true
+```
+
+### Bridge Integration
+
+Automatically regenerates in bridge FINALIZING phase (between Ground Truth update and RTFM gate). Non-blocking: warns on failure.
+
 ## Persistent Memory (v1.28.0)
 
 Session-spanning observation storage with progressive disclosure for cross-session recall.

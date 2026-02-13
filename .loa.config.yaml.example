@@ -411,6 +411,37 @@ run_mode:
     create_draft_pr: true
 
 # -----------------------------------------------------------------------------
+# BUTTERFREEZONE — Agent-Grounded README (v1.35.0)
+# -----------------------------------------------------------------------------
+# Generates BUTTERFREEZONE.md: a provenance-tagged, checksum-verified,
+# token-efficient project summary for AI agent consumption.
+# "The zone where only truth survives — no butter, no hype."
+butterfreezone:
+  enabled: true                         # On by default, opt-out via false
+  output_path: BUTTERFREEZONE.md        # Relative to repo root
+  word_budget:
+    total: 3200                         # ~8000 tokens (model-agnostic)
+    per_section: 800                    # ~2000 tokens per section
+  staleness_days: 7                     # Advisory freshness window
+  hooks:
+    run_bridge: true                    # Regenerate in bridge FINALIZING phase
+    run_sprint_plan: false              # Phase 2: regenerate after sprint plan
+    post_merge: false                   # Phase 2: regenerate on merge to main
+    ride: false                         # Future: regenerate after /ride
+    ship: false                         # Phase 2: regenerate on /ship
+  rtfm:
+    check_enabled: true                 # Include in RTFM validation
+    strict_mode: false                  # false=advisory warnings, true=hard gate
+  ecosystem:
+    auto_detect: true                   # Scan deps for related repos
+    manual_entries: []                  # User-defined ecosystem entries
+  manual_sections:
+    sentinel_start: "<!-- manual-start -->"
+    sentinel_end: "<!-- manual-end -->"
+  security:
+    redaction_enabled: true             # Gitleaks-pattern secret redaction
+
+# -----------------------------------------------------------------------------
 # Beads-First Infrastructure (v1.29.0)
 # -----------------------------------------------------------------------------
 # Task tracking via beads_rust (br) is the EXPECTED DEFAULT.
