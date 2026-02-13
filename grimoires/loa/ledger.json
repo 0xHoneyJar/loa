@@ -96,18 +96,32 @@
       "id": "cycle-009",
       "label": "BUTTERFREEZONE — Agent-Grounded README Standard",
       "type": "feature",
-      "status": "active",
+      "status": "archived",
       "source_issue": "https://github.com/0xHoneyJar/loa/issues/304",
       "created_at": "2026-02-13T05:00:00Z",
+      "archived_at": "2026-02-13T08:30:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-13-butterfreezone",
       "sprints": ["sprint-69", "sprint-70", "sprint-71"],
+      "prd": "grimoires/loa/archive/2026-02-13-butterfreezone/prd.md",
+      "sdd": "grimoires/loa/archive/2026-02-13-butterfreezone/sdd.md",
+      "sprint_plan": "grimoires/loa/archive/2026-02-13-butterfreezone/sprint.md"
+    },
+    {
+      "id": "cycle-010",
+      "label": "Bridgebuilder Loa-Aware Filtering — 3 Leakage Gaps",
+      "type": "feature",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/309",
+      "created_at": "2026-02-13T09:00:00Z",
+      "sprints": ["sprint-72", "sprint-73"],
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "sprint_plan": "grimoires/loa/sprint.md"
     }
   ],
-  "active_cycle": "cycle-009",
+  "active_cycle": "cycle-010",
   "active_bugfix": null,
-  "global_sprint_counter": 71,
+  "global_sprint_counter": 73,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260212-i288-991113",
