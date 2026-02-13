@@ -163,6 +163,40 @@ export const LOA_EXCLUDE_PATTERNS = [
 ];
 
 /**
+ * Load .reviewignore patterns from repo root and merge with LOA_EXCLUDE_PATTERNS.
+ * Returns combined patterns array. Graceful when file missing (returns LOA patterns only).
+ */
+export function loadReviewIgnore(repoRoot?: string): string[] {
+  const root = repoRoot ?? process.cwd();
+  const reviewignorePath = require("path").join(root, ".reviewignore");
+
+  const basePatterns = [...LOA_EXCLUDE_PATTERNS];
+
+  try {
+    const fs = require("fs");
+    if (!fs.existsSync(reviewignorePath)) {
+      return basePatterns;
+    }
+    const content: string = fs.readFileSync(reviewignorePath, "utf-8");
+    for (const rawLine of content.split("\n")) {
+      const line = rawLine.trim();
+      // Skip blank lines and comments
+      if (!line || line.startsWith("#")) continue;
+      // Normalize directory patterns: "dir/" → "dir/**"
+      const pattern = line.endsWith("/") ? `${line}**` : line;
+      // Avoid duplicates
+      if (!basePatterns.includes(pattern)) {
+        basePatterns.push(pattern);
+      }
+    }
+  } catch {
+    // Graceful: return base patterns on any error
+  }
+
+  return basePatterns;
+}
+
+/**
  * Detect if repo is Loa-mounted by reading .loa-version.json.
  * Resolves paths against repoRoot (git root), NOT cwd (SKP-001, IMP-004).
  *
@@ -793,6 +827,7 @@ export function truncateFiles(
   const patterns = config.excludePatterns ?? [];
 
   // Step 0: Loa-aware filtering (prepended, not replacing user patterns)
+  // Load .reviewignore and merge with LOA_EXCLUDE_PATTERNS (#303)
   const loaDetection = detectLoa(config);
   let loaBanner: string | undefined;
   let loaStats: { filesExcluded: number; bytesSaved: number } | undefined;
@@ -801,7 +836,8 @@ export function truncateFiles(
 
   let afterLoa = files;
   if (loaDetection.isLoa) {
-    const tierResult = applyLoaTierExclusion(files, LOA_EXCLUDE_PATTERNS);
+    const effectivePatterns = loadReviewIgnore(config.repoRoot);
+    const tierResult = applyLoaTierExclusion(files, effectivePatterns);
     afterLoa = tierResult.passthrough;
 
     // Collect Loa excluded entries

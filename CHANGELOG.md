@@ -5,7 +5,7 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — DX Hardening (Cycle 008)
+## [1.37.0] — DX Hardening (Cycle 008)
 
 ### Why This Release
 
@@ -26,6 +26,13 @@ Addresses three compounding DX pain points: eager secret resolution crashes conf
 - **Credential Health Checks** (`credentials/health.py`): HTTP validation against OpenAI, Anthropic, Moonshot endpoints with configurable timeouts
 - **`/loa-credentials` Skill**: Interactive credential management — `status`, `set`, `test`, `delete` subcommands with `AskUserQuestion` for secure input
 - **31 Credential Tests**: EnvProvider, DotenvProvider, CompositeProvider, EncryptedStore (conditional), EncryptedFileProvider, factory, health checks, interpolation integration
+- **Review Scope Utility** (`review-scope.sh`): Shared script for zone detection + `.reviewignore` pattern matching — `detect_zones()`, `load_reviewignore()`, `is_excluded()`, `filter_files()` (FR-4, #303)
+- **`.reviewignore` Template**: Gitignore-style review exclusion patterns — system zone, state zone, generated files, vendor deps
+- **Mount `.reviewignore` Creation**: `create_reviewignore()` creates template during mount if not present
+- **lib-content.sh Scope Integration**: `prepare_content()` excludes out-of-scope files before priority-based truncation
+- **Bridgebuilder `.reviewignore` Support**: `loadReviewIgnore()` merges `.reviewignore` patterns with `LOA_EXCLUDE_PATTERNS` in truncation pipeline
+- **Audit-Sprint Zone Awareness**: Security audit skill instructions updated to focus on app zone files with `.reviewignore` support
+- **19 Review Scope BATS Tests**: Zone detection, `.reviewignore` parsing, glob/directory patterns, `--no-reviewignore` bypass, filter pipeline, combined filtering
 
 ### Changed
 

@@ -391,6 +391,9 @@ sync_zones() {
   # Clean framework development artifacts from grimoire (FR-3, #299)
   clean_grimoire_state
 
+  # Create .reviewignore template for review scope filtering (FR-4, #303)
+  create_reviewignore
+
   mkdir -p .beads
   touch .beads/.gitkeep
 
@@ -457,6 +460,52 @@ NOTES_EOF
   fi
 
   log "Grimoire state cleaned — ready for /plan-and-analyze"
+}
+
+# === Review Scope Initialization ===
+
+create_reviewignore() {
+  if [[ -f ".reviewignore" ]]; then
+    return 0  # Preserve user edits
+  fi
+
+  cat > ".reviewignore" << 'REVIEWIGNORE_EOF'
+# .reviewignore — Review scope exclusion patterns
+# Gitignore-style syntax. Files matching these patterns are excluded from
+# code reviews, audits, and Bridgebuilder analysis.
+#
+# Zone-based exclusions (from .loa-version.json) are always applied:
+#   - System zone (.claude/) — framework internals
+#   - State zone (grimoires/, .beads/, .ck/, .run/) — agent state
+#
+# Add project-specific patterns below.
+
+# Loa framework files (always excluded via zone detection, listed for clarity)
+.claude/
+grimoires/loa/a2a/
+grimoires/loa/archive/
+.beads/
+.run/
+
+# Framework config (not user code)
+.loa-version.json
+.loa.config.yaml.example
+
+# Generated files
+*.min.js
+*.min.css
+*.map
+
+# Vendored dependencies
+vendor/
+node_modules/
+
+# =============================================================================
+# Project-specific exclusions — add your patterns below
+# =============================================================================
+REVIEWIGNORE_EOF
+
+  log "Created .reviewignore"
 }
 
 # === Root File Sync (CLAUDE.md, PROCESS.md) ===

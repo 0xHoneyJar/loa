@@ -166,6 +166,33 @@ prepare_content() {
     return 0
   fi
 
+  # Review scope filtering — exclude files that are out of scope (#303)
+  local scope_excluded=0
+  local review_scope_script
+  review_scope_script="$(dirname "${BASH_SOURCE[0]}")/review-scope.sh"
+  if [[ -f "$review_scope_script" ]]; then
+    # Source the review-scope functions
+    source "$review_scope_script"
+    detect_zones
+    load_reviewignore
+
+    # Filter manifest: remove excluded files
+    local filtered_manifest=""
+    while IFS=$'\t' read -r priority filepath chunk_idx; do
+      if is_excluded "$filepath"; then
+        ((scope_excluded++))
+        rm -f "$temp_dir/chunk_${chunk_idx}"
+      else
+        filtered_manifest+="${priority}"$'\t'"${filepath}"$'\t'"${chunk_idx}"$'\n'
+      fi
+    done < "$temp_dir/manifest"
+    printf '%s' "$filtered_manifest" > "$temp_dir/manifest"
+
+    if [[ $scope_excluded -gt 0 ]]; then
+      $_log_fn "Review scope: excluded $scope_excluded out-of-scope files"
+    fi
+  fi
+
   # Sort by priority (lowest number = highest importance)
   local sorted_manifest
   sorted_manifest=$(sort -t$'\t' -k1,1n "$temp_dir/manifest")
