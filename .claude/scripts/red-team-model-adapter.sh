@@ -92,40 +92,49 @@ invoke_mock() {
         log "Generating minimal response for role=$role"
         case "$role" in
             attacker)
-                jq -n '{
+                jq -n --arg m "$model" '{
                     attacks: [],
                     summary: "Mock attacker — no fixture available",
                     models_used: 1,
                     tokens_used: 500,
-                    model: "'"$model"'",
+                    model: $m,
                     mock: true
                 }' > "$output_file"
                 ;;
             evaluator)
                 # Pass through input with evaluation scores
-                if [[ -f "$prompt_file" ]]; then
-                    jq '. + {
+                if [[ -f "$prompt_file" ]] && jq empty "$prompt_file" 2>/dev/null; then
+                    jq --arg m "$model" '. + {
                         evaluated: true,
                         tokens_used: 400,
-                        model: "'"$model"'",
+                        model: $m,
                         mock: true
                     }' "$prompt_file" > "$output_file" 2>/dev/null || {
-                        jq -n '{
+                        jq -n --arg m "$model" '{
                             attacks: [],
                             evaluated: true,
                             tokens_used: 400,
-                            model: "'"$model"'",
+                            model: $m,
                             mock: true
                         }' > "$output_file"
                     }
+                else
+                    # BF-009: prompt_file is not valid JSON — generate minimal response
+                    jq -n --arg m "$model" '{
+                        attacks: [],
+                        evaluated: true,
+                        tokens_used: 400,
+                        model: $m,
+                        mock: true
+                    }' > "$output_file"
                 fi
                 ;;
             defender)
-                jq -n '{
+                jq -n --arg m "$model" '{
                     counter_designs: [],
                     summary: "Mock defender — no fixture available",
                     tokens_used: 600,
-                    model: "'"$model"'",
+                    model: $m,
                     mock: true
                 }' > "$output_file"
                 ;;
@@ -134,7 +143,7 @@ invoke_mock() {
     }
 
     # Write fixture data to output, adding model and mock metadata
-    echo "$fixture_data" | jq '. + {model: "'"$model"'", mock: true}' > "$output_file" 2>/dev/null || {
+    echo "$fixture_data" | jq --arg m "$model" '. + {model: $m, mock: true}' > "$output_file" 2>/dev/null || {
         echo "$fixture_data" > "$output_file"
     }
 

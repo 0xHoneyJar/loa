@@ -239,10 +239,15 @@ calculate_attack_consensus() {
     local opus_scores_file="$2"
     local is_quick_mode="${3:-false}"
 
+    # Read configurable threshold (same source as classify_attack)
+    local confirmed_threshold
+    confirmed_threshold=$(get_rt_threshold "confirmed_attack" "700")
+
     jq -n \
         --argjson gpt "$(cat "$gpt_scores_file")" \
         --argjson opus "$(cat "$opus_scores_file")" \
-        --argjson quick "$(if [[ "$is_quick_mode" == "true" ]]; then echo "true"; else echo "false"; fi)" '
+        --argjson quick "$(if [[ "$is_quick_mode" == "true" ]]; then echo "true"; else echo "false"; fi)" \
+        --argjson threshold "$confirmed_threshold" '
 
 # Build score lookup from attacks
 def attack_score_map:
@@ -254,7 +259,7 @@ def attack_score_map:
 # Get all unique attack IDs
 ([($gpt.attacks // $gpt.scores // [])[].id, ($opus.attacks // $opus.scores // [])[].id] | unique) as $all_ids |
 
-# Classify each attack
+# Classify each attack using configurable threshold
 (reduce $all_ids[] as $id (
     {confirmed: [], theoretical: [], creative: [], defended: []};
 
@@ -276,14 +281,14 @@ def attack_score_map:
         else
             .creative += [$merged + {consensus: "CREATIVE_ONLY", human_review: "not_required"}]
         end
-    elif ($has_counter and $g_score > 700 and $o_score > 700) then
+    elif ($has_counter and $g_score > $threshold and $o_score > $threshold) then
         .defended += [$merged + {consensus: "DEFENDED", human_review: "not_required"}]
-    elif ($g_score > 700 and $o_score > 700) then
+    elif ($g_score > $threshold and $o_score > $threshold) then
         .confirmed += [$merged + {
             consensus: "CONFIRMED_ATTACK",
-            human_review: (if $g_score > 800 or $o_score > 800 then "required" else "not_required" end)
+            human_review: (if $g_score > ($threshold + 100) or $o_score > ($threshold + 100) then "required" else "not_required" end)
         }]
-    elif ($g_score > 700 or $o_score > 700) then
+    elif ($g_score > $threshold or $o_score > $threshold) then
         .theoretical += [$merged + {consensus: "THEORETICAL", human_review: "not_required"}]
     else
         .creative += [$merged + {consensus: "CREATIVE_ONLY", human_review: "not_required"}]

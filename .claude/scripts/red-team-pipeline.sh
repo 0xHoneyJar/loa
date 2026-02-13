@@ -202,14 +202,25 @@ check_budget() {
 # Phase timing
 # =============================================================================
 
+# Detect nanosecond support once at load time
+_HAS_NANOSECONDS=true
+if [[ "$(date +%N 2>/dev/null)" == "N" ]] || [[ "$(date +%N 2>/dev/null)" == "%N" ]]; then
+    _HAS_NANOSECONDS=false
+fi
+
 phase_start_time() {
-    date +%s%N
+    if [[ "$_HAS_NANOSECONDS" == "true" ]]; then
+        date +%s%N
+    else
+        # Fallback: seconds × 1000000000 for consistent units
+        echo "$(date +%s)000000000"
+    fi
 }
 
 phase_elapsed_ms() {
     local start="$1"
     local end
-    end=$(date +%s%N)
+    end=$(phase_start_time)
     echo $(( (end - start) / 1000000 ))
 }
 
@@ -386,6 +397,7 @@ run_phase2_validation() {
 run_phase3_consensus() {
     local validated_file="$1"
     local execution_mode="$2"
+    local attacks_file="${3:-}"
 
     local phase_start
     phase_start=$(phase_start_time)
@@ -414,9 +426,34 @@ run_phase3_consensus() {
             validated: false,
             execution_mode: "quick"
         }' "$validated_file" > "$result_file"
+    elif [[ -x "$SCORING_ENGINE" ]] && [[ -n "$attacks_file" ]] && [[ -f "$attacks_file" ]]; then
+        # Standard/deep: use scoring engine for consensus classification
+        # attacks_file = Phase 1 (attacker model perspective)
+        # validated_file = Phase 2 (evaluator model perspective)
+        log "Phase 3: Invoking scoring engine for attack consensus"
+        "$SCORING_ENGINE" \
+            --gpt-scores "$attacks_file" \
+            --opus-scores "$validated_file" \
+            --attack-mode \
+            ${execution_mode:+--json} > "$result_file" 2>/dev/null || {
+            log "Phase 3: Scoring engine failed, using fallback classification"
+            jq '{
+                attack_summary: {
+                    confirmed_count: 0,
+                    theoretical_count: 0,
+                    creative_count: 0,
+                    defended_count: 0,
+                    total_attacks: (.attacks | length),
+                    human_review_required: 0
+                },
+                attacks: { confirmed: [], theoretical: [], creative: [], defended: [] },
+                validated: false,
+                execution_mode: "fallback"
+            }' "$validated_file" > "$result_file"
+        }
     else
-        # Standard/deep: use scoring engine classification
-        # In production, this calls scoring-engine.sh --attack-mode
+        # Scoring engine not available — use inline jq classification
+        log "Phase 3: Scoring engine not available, using inline classification"
         jq '{
             attack_summary: {
                 confirmed_count: 0,
@@ -426,14 +463,9 @@ run_phase3_consensus() {
                 total_attacks: (.attacks | length),
                 human_review_required: 0
             },
-            attacks: {
-                confirmed: [],
-                theoretical: [],
-                creative: [],
-                defended: []
-            },
-            validated: true,
-            execution_mode: "standard"
+            attacks: { confirmed: [], theoretical: [], creative: [], defended: [] },
+            validated: false,
+            execution_mode: "no-scoring-engine"
         }' "$validated_file" > "$result_file"
     fi
 
@@ -525,7 +557,7 @@ main() {
     local depth=1
     local run_id=""
     local timeout=300
-    local budget=200000
+    local budget=0
     local focus=""
     local surface=""
     # json_output removed: pipeline always outputs JSON (callers expect it)
@@ -609,9 +641,9 @@ main() {
     local validated_file
     validated_file=$(run_phase2_validation "$attacks_file" "$execution_mode" "$timeout")
 
-    # Phase 3: Attack consensus
+    # Phase 3: Attack consensus (pass both Phase 1 and Phase 2 outputs for cross-model scoring)
     local consensus_file
-    consensus_file=$(run_phase3_consensus "$validated_file" "$execution_mode")
+    consensus_file=$(run_phase3_consensus "$validated_file" "$execution_mode" "$attacks_file")
 
     # Phase 4: Counter-design synthesis
     local result_file
