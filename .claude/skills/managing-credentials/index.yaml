@@ -1,0 +1,73 @@
+name: "managing-credentials"
+version: "1.0.0"
+model: "sonnet"
+color: "green"
+
+effort_hint: low
+danger_level: safe
+categories:
+  - operations
+  - configuration
+
+inputExamples:
+  - input:
+      subcommand: "status"
+    description: "Show credential status for all configured providers"
+  - input:
+      subcommand: "set"
+      credential_id: "OPENAI_API_KEY"
+    description: "Set a specific credential"
+  - input:
+      subcommand: "test"
+    description: "Test all configured credentials against provider endpoints"
+
+description: |
+  Manage API credentials for Loa's multi-model provider system.
+  Supports environment variables, encrypted file storage, and .env.local.
+  "Your keys, your control."
+
+triggers:
+  - "/loa-credentials"
+  - "manage credentials"
+  - "set api key"
+  - "configure openai key"
+  - "credential status"
+
+examples:
+  - context: "User wants to see which API keys are configured"
+    user_says: "/loa-credentials"
+    agent_action: "Show credential status table for all known providers"
+  - context: "User needs to set an OpenAI key"
+    user_says: "/loa-credentials set OPENAI_API_KEY"
+    agent_action: "Prompt user for the key value via AskUserQuestion, then store it"
+  - context: "User wants to verify their keys work"
+    user_says: "/loa-credentials test"
+    agent_action: "Run health checks against provider endpoints"
+
+zones:
+  system:
+    path: ".claude"
+    permission: "none"
+  state:
+    paths: ["grimoires/loa"]
+    permission: "read"
+  app:
+    paths: ["src", "lib", "app"]
+    permission: "none"
+
+dependencies: []
+
+inputs:
+  - name: "subcommand"
+    type: "string"
+    required: false
+    default: "status"
+    description: "Subcommand: status, set, test, delete"
+  - name: "credential_id"
+    type: "string"
+    required: false
+    description: "Credential ID (e.g., OPENAI_API_KEY)"
+
+outputs:
+  - path: "~/.loa/credentials/"
+    description: "Encrypted credential store (user home)"

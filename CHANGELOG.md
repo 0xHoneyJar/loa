@@ -21,6 +21,11 @@ Addresses three compounding DX pain points: eager secret resolution crashes conf
 - **NOTES.md Template**: Creates `## Learnings / ## Blockers / ## Observations` template if missing during mount
 - **52 Python Tests**: 26 original + 26 new covering LazyValue, lazy path matching, lazy interpolation, lazy redaction
 - **13 BATS Tests**: Mount hygiene — artifact removal, directory preservation, clean ledger, NOTES.md, context preservation, idempotency
+- **Credential Provider Chain** (`credentials/providers.py`): Layered resolution — env vars → encrypted store → `.env.local` (FR-2, #300)
+- **Encrypted Credential Store** (`credentials/store.py`): Fernet-encrypted `~/.loa/credentials/store.json.enc` with auto-generated key, 0600/0700 permissions, corrupt store recovery
+- **Credential Health Checks** (`credentials/health.py`): HTTP validation against OpenAI, Anthropic, Moonshot endpoints with configurable timeouts
+- **`/loa-credentials` Skill**: Interactive credential management — `status`, `set`, `test`, `delete` subcommands with `AskUserQuestion` for secure input
+- **31 Credential Tests**: EnvProvider, DotenvProvider, CompositeProvider, EncryptedStore (conditional), EncryptedFileProvider, factory, health checks, interpolation integration
 
 ### Changed
 
@@ -28,6 +33,7 @@ Addresses three compounding DX pain points: eager secret resolution crashes conf
 - `interpolate_config()` accepts `lazy_paths` and `_current_path` parameters
 - `redact_config()` handles `LazyValue` without triggering resolution
 - `redact_config_value()` uses duck-typing for `LazyValue` detection (no import needed)
+- `interpolate_value()` resolves `{env:VAR}` through credential provider chain (env → encrypted → dotenv) instead of `os.environ` alone
 - `loader.py` passes `lazy_paths=_DEFAULT_LAZY_PATHS` to interpolation pipeline
 
 ## [1.36.0] - 2026-02-13 — Post-Merge Automation Pipeline

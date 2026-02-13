@@ -3,6 +3,9 @@
 Supports lazy interpolation (v1.35.0): auth fields under providers.* are deferred
 until the specific provider is invoked, so missing env vars for unused providers
 don't cause errors at config load time.
+
+Supports credential provider chain (v1.37.0): env var resolution falls through to
+encrypted store and .env.local when the variable is not in os.environ.
 """
 
 from __future__ import annotations
@@ -15,6 +18,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 from loa_cheval.types import ConfigError
+
+# Credential provider (lazily initialized)
+_credential_provider = None
+_credential_provider_initialized = False
 
 # Core allowlist — always applied
 _CORE_ENV_PATTERNS = [
@@ -179,6 +186,47 @@ def _check_file_allowed(
     return str(resolved)
 
 
+def _get_credential_provider(project_root: str):
+    """Get the credential provider chain (lazily initialized)."""
+    global _credential_provider, _credential_provider_initialized
+    if not _credential_provider_initialized:
+        _credential_provider_initialized = True
+        try:
+            from loa_cheval.credentials.providers import get_credential_provider
+            _credential_provider = get_credential_provider(project_root)
+        except Exception:
+            _credential_provider = None
+    return _credential_provider
+
+
+def _reset_credential_provider():
+    """Reset credential provider cache. Used for testing."""
+    global _credential_provider, _credential_provider_initialized
+    _credential_provider = None
+    _credential_provider_initialized = False
+
+
+def _resolve_env(var_name: str, project_root: str) -> Optional[str]:
+    """Resolve an environment variable through the credential provider chain.
+
+    Priority: os.environ → encrypted store → .env.local
+    Falls back to os.environ alone if credential module unavailable.
+    """
+    # Direct env var check first (fastest path)
+    val = os.environ.get(var_name)
+    if val is not None:
+        return val
+
+    # Try credential provider chain (encrypted store, dotenv)
+    provider = _get_credential_provider(project_root)
+    if provider is not None:
+        val = provider.get(var_name)
+        if val is not None:
+            return val
+
+    return None
+
+
 def interpolate_value(
     value: str,
     project_root: str,
@@ -189,7 +237,7 @@ def interpolate_value(
     """Resolve interpolation tokens in a string value.
 
     Supports:
-      {env:VAR_NAME} — read from environment (allowlisted)
+      {env:VAR_NAME} — read from credential chain: env → encrypted → .env.local
       {file:/path}   — read from file (restricted directories)
       {cmd:command}   — execute command (disabled by default)
     """
@@ -204,7 +252,7 @@ def interpolate_value(
                     f"Environment variable '{source_ref}' is not in the allowlist. "
                     f"Allowed: ^LOA_.*, ^OPENAI_API_KEY$, ^ANTHROPIC_API_KEY$, ^MOONSHOT_API_KEY$"
                 )
-            val = os.environ.get(source_ref)
+            val = _resolve_env(source_ref, project_root)
             if val is None:
                 raise ConfigError(f"Environment variable '{source_ref}' is not set")
             return val
