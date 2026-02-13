@@ -1,0 +1,27 @@
+{
+  "_comment": "Recommended deny rules for Loa-mounted projects. Blocks agent access to credential stores and sensitive configuration. Merge into ~/.claude/settings.json via install-deny-rules.sh or /mount.",
+  "_source": "Trail of Bits claude-code-config, adapted for Loa (cycle-011, issue #297)",
+  "permissions": {
+    "deny": [
+      "Read(~/.ssh/**)",
+      "Edit(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Edit(~/.aws/**)",
+      "Read(~/.kube/**)",
+      "Edit(~/.kube/**)",
+      "Read(~/.gnupg/**)",
+      "Edit(~/.gnupg/**)",
+      "Read(~/.npmrc)",
+      "Edit(~/.npmrc)",
+      "Read(~/.pypirc)",
+      "Edit(~/.pypirc)",
+      "Read(~/.git-credentials)",
+      "Edit(~/.git-credentials)",
+      "Read(~/.config/gh/**)",
+      "Edit(~/.config/gh/**)",
+      "Edit(~/.bashrc)",
+      "Edit(~/.zshrc)",
+      "Edit(~/.profile)"
+    ]
+  }
+}

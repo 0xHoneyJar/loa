@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "_comment": "Hook configuration for Loa post-compact recovery. Merge into ~/.claude/settings.json",
+  "_comment": "Hook configuration for Loa. Merge into ~/.claude/settings.json",
 
   "hooks": {
     "PreCompact": [
@@ -21,6 +21,17 @@
           {
             "type": "command",
             "command": ".claude/hooks/post-compact-reminder.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/safety/block-destructive-bash.sh"
           }
         ]
       }
