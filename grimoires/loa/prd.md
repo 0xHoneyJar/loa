@@ -1,304 +1,202 @@
-# PRD: Bridgebuilder Loa-Aware Filtering — 3 Leakage Gaps
+# PRD: Harness Engineering Lit Review — Trail of Bits + OpenAI Adaptations
 
-> Source: [#309](https://github.com/0xHoneyJar/loa/issues/309) — Bridgebuilder: Loa-aware filtering has 3 gaps causing framework file leakage
-> Author: @zkSoju (report), @janitooor (prioritization)
-> Cycle: cycle-010
+> Source: [#297](https://github.com/0xHoneyJar/loa/issues/297) — Trail of Bits and OpenAI harness engineering lit review
+> Author: Literature review + gap analysis
+> Cycle: cycle-011
 
 ## 1. Problem Statement
 
-The Bridgebuilder's Loa-aware filtering system (`detectLoa()`, `applyLoaTierExclusion()`, `LOA_EXCLUDE_PATTERNS`) was implemented in a prior cycle to prevent ~80% token waste on framework files. However, three gaps cause framework files to leak through the filter, wasting review tokens on system zone files (`.claude/`, `evals/`, `grimoires/`) instead of application code.
+Issue #297 asks: "check to see if there is anything that loa can learn from, adopt, adapt, or tweak our current harness" based on two external sources:
 
-**Discovered while**: Running `/bridgebuilder-review` on `0xHoneyJar/midi-interface` PR #49 — the review posted `REQUEST_CHANGES` with findings almost entirely about Loa framework files rather than the actual application code changes.
+1. **[Trail of Bits — claude-code-config](https://github.com/trailofbits/claude-code-config)**: Opinionated defaults, sandboxing, hooks, deny rules, and workflow patterns for Claude Code in professional environments.
+2. **[OpenAI — Harness Engineering](https://openai.com/index/harness-engineering/)**: How OpenAI built an internal product with zero manually-written code using Codex agents across 1M lines and 1,500 PRs.
 
-> Sources: Issue #309 body, Issue #303 (prior partial fix)
+Loa already implements many patterns these sources describe (structured memory, architectural constraints, quality gates, autonomous execution), but gaps exist in **safety hooks**, **deny rules**, **premature-exit detection**, **CLAUDE.md token efficiency**, and **mechanical invariant enforcement**.
 
-## 2. Root Cause Analysis
+> Sources: Issue #297 body, Trail of Bits README, OpenAI harness engineering blog, OpenAI AGENTS.md documentation
 
-All code is in `.claude/skills/bridgebuilder-review/resources/core/truncation.ts`.
+## 2. Literature Review Summary
 
-### Bug 1: Missing Paths in `LOA_EXCLUDE_PATTERNS`
+### 2.1 Trail of Bits — Key Patterns
 
-**Location**: `truncation.ts:156-163`
+| Pattern | Description | Loa Status |
+|---------|-------------|------------|
+| **3-Layer Sandboxing** | `/sandbox` + deny rules + devcontainer | No sandboxing guidance |
+| **PreToolUse Safety Hooks** | Block `rm -rf`, force-push, push to main | Loa has ICE but not hook-based |
+| **Deny Rules** | Block reads/writes to `.ssh`, `.aws`, `.kube`, credentials | Not implemented |
+| **Stop Hook** | Detect premature exit rationalizations | Not implemented |
+| **Visual Status Line** | Context %, cost, model, branch, cache hit % | Not implemented |
+| **PostToolUse Audit Log** | Timestamp, action, command, exit status | Partial (trajectory, but not tool-level) |
+| **Toolchain Enforcement** | Hooks enforce correct package manager, linters | Not hook-based |
+| **CLAUDE.md Conciseness** | "Only unexpected things"; layered global + project | Loa's is 757 lines (could optimize) |
+| **`cleanupPeriodDays: 365`** | Keep conversation history longer for `/insights` | Not configured |
+| **Function Length Limits** | <50 lines (Python), <80 (JS/TS), complexity <5 | Not enforced |
 
-The `LOA_EXCLUDE_PATTERNS` array excludes `.claude/**`, `grimoires/**`, `.beads/**`, and 3 config files, but is missing several Loa-managed paths:
+### 2.2 OpenAI Harness Engineering — Key Patterns
 
-| Path | Status | Impact |
-|------|--------|--------|
-| `evals/**` | **MISSING** | Eval suites (~1000 files) pass through unfiltered |
-| `.run/**` | **MISSING** | Bridge state, sprint-plan state leak into reviews |
-| `tests/**` | **Consider** | Loa test suites may confuse app-code reviews |
-| `skills/**` | **Consider** | Loa skills directory (if present at root) |
-| `PROCESS.md` | **MISSING** | Loa workflow docs pass through |
-| `BUTTERFREEZONE.md` | **MISSING** | Agent-grounded README treated as app code |
-| `INSTALLATION.md` | **MISSING** | Loa installation docs |
+| Pattern | Description | Loa Status |
+|---------|-------------|------------|
+| **AGENTS.md as Map** | ~100 lines, pointers to deeper sources | Loa uses @import but still large |
+| **Architectural Invariants** | Custom linters enforce dependency directions, naming, file size | constraints.json exists but limited |
+| **Repository-Local Context** | All context legible to agents within repo | Loa does this well (grimoire) |
+| **Depth-First Building** | Break goals into building blocks | Loa does this (sprint decomposition) |
+| **Continuous Refactoring** | Automated refactoring PRs, reviewed in <1 min | Not implemented |
+| **Mechanical Enforcement** | Golden principles enforced by linters/tests | Partial (constraints.json) |
+| **Automerge Refactoring** | Low-risk PRs merged automatically | Not implemented |
 
-**Current patterns** (truncation.ts:156-163):
-```typescript
-export const LOA_EXCLUDE_PATTERNS = [
-  ".claude/**",
-  "grimoires/**",
-  ".beads/**",
-  ".loa-version.json",
-  ".loa.config.yaml",
-  ".loa.config.yaml.example",
-];
-```
+### 2.3 Shared Insights (Both Sources)
 
-### Bug 2: Security Pattern Exceptions Bypass Loa Exclusion
+| Insight | Detail |
+|---------|--------|
+| **Hooks > System Prompt** | Blocking at decision points is more reliable than instructions alone |
+| **Context is a Resource** | Monitor and manage actively; split when approaching limits |
+| **Documentation = Map** | Point to sources of truth, don't replicate them |
+| **Enforce Mechanically** | Rules without enforcement become suggestions |
+| **Audit Everything** | Log mutations for post-session review |
 
-**Location**: `truncation.ts:286-310` — `classifyLoaFile()`
+## 3. Gap Analysis — What Loa Should Adopt
 
-Files matched by `LOA_EXCLUDE_PATTERNS` can be immediately un-excluded if they also match a `SECURITY_PATTERNS` regex. The security check runs FIRST in `classifyLoaFile()`, returning `"exception"` before tier classification.
+### Priority 1: ADOPT — Safety Hooks (High Impact, Low Effort)
 
-**Problematic pattern-to-file matches**:
+**Source**: Trail of Bits `hooks/` directory
 
-| Security Pattern | Intended Target | Loa Files Leaked |
-|-----------------|----------------|------------------|
-| `/(?:^|\/)security/i` | App security modules | `.claude/protocols/security-hardening.md`, audit skill files |
-| `/(?:^|\/)secret/i` | App secret management | `.claude/scripts/detect-secrets.sh` |
-| `/(?:^|\/)\.github\/workflows\//i` | App CI/CD pipelines | Loa automation workflows (`daily-synthesis.yml`) |
-| `/(?:^|\/)\.env/i` | App environment files | `.env.example` templates under `.claude/` |
-| `/(?:^|\/)Makefile/i` | App build systems | Any Makefile under Loa paths |
-| `/(?:^|\/)crypto/i` | App crypto operations | Any Loa path containing "crypto" |
+Loa has hook infrastructure (`.claude/hooks/`) but only uses it for post-compact recovery and memory. Trail of Bits uses hooks for safety:
 
-**Current flow** (truncation.ts:286-290):
-```typescript
-export function classifyLoaFile(filename: string): LoaTier {
-  if (isHighRisk(filename)) {
-    return "exception";  // Bypasses Loa exclusion entirely
+| Hook | Event | Purpose |
+|------|-------|---------|
+| `block-rm-rf.sh` | `PreToolUse:Bash` | Block `rm -rf` — suggest `trash` instead |
+| `block-force-push.sh` | `PreToolUse:Bash` | Block `git push --force` to main/master |
+| `block-reset-hard.sh` | `PreToolUse:Bash` | Block `git reset --hard` without confirmation |
+| `audit-mutations.sh` | `PostToolUse:Bash` | Log destructive commands to `.run/audit.jsonl` |
+
+**Why**: Loa's `run-mode-ice.sh` provides some protection during autonomous mode, but hooks provide defense-in-depth that works in ALL modes (interactive, autonomous, simstim). Hooks are structured prompt injection at decision points — more reliable than system prompt instructions.
+
+**Loa adaptation**: Add to `.claude/hooks/` and reference from `settings.hooks.json`. Users opt-in during `/mount` or `/loa setup`.
+
+### Priority 2: ADOPT — Deny Rules for Sensitive Files (High Impact, Low Effort)
+
+**Source**: Trail of Bits `settings.json`
+
+Block agent access to credential stores and sensitive configuration:
+
+```json
+{
+  "permissions": {
+    "deny": [
+      "Read(~/.ssh/**)", "Edit(~/.ssh/**)",
+      "Read(~/.aws/**)", "Edit(~/.aws/**)",
+      "Read(~/.kube/**)", "Edit(~/.kube/**)",
+      "Read(~/.gnupg/**)", "Edit(~/.gnupg/**)",
+      "Read(~/.npmrc)", "Edit(~/.npmrc)",
+      "Read(~/.git-credentials)", "Edit(~/.git-credentials)",
+      "Edit(~/.bashrc)", "Edit(~/.zshrc)"
+    ]
   }
-  // ... tier classification never reached
 }
 ```
 
-**Design tension**: Security files genuinely should be reviewed even under Loa paths (e.g., `.github/workflows/` with secret access). The fix must distinguish between "security-relevant app files under Loa paths" (rare, should review) and "Loa framework files that happen to match security patterns" (common, should exclude).
+**Why**: Loa agents operate in autonomous mode for extended periods. A single hallucinated `cat ~/.ssh/id_rsa` could expose private keys. Deny rules are the ultimate backstop — they operate at the Claude Code platform level, not the prompt level.
 
-### Bug 3: `repoRoot` Never Populated in Config
+**Loa adaptation**: Ship recommended deny rules in `.claude/hooks/settings.hooks.json` (or a new `settings.deny.json`). `/mount` and `/loa setup` offer to install them.
 
-**Location**: `config.ts` — `resolveConfig()` function
+### Priority 3: ADAPT — Stop Hook for Premature Exit Detection (Medium Impact, Medium Effort)
 
-The `BridgebuilderConfig` type declares `repoRoot?: string` (types.ts:23), but `resolveConfig()` never sets it. Neither `CLIArgs` nor `EnvVars` interfaces include `repoRoot`. The `DEFAULTS` object omits it entirely.
+**Source**: Trail of Bits Stop hook pattern
 
-**Effect**: `detectLoa()` and `loadReviewIgnore()` always fall back to `process.cwd()`:
-```typescript
-const root = config.repoRoot ?? process.cwd();
-if (!config.repoRoot) {
-  process.stderr.write("[bridgebuilder] WARN: repoRoot not set...\n");
-}
+Add a `Stop` hook that detects when the agent rationalizes incomplete work:
+
+```bash
+# Patterns to detect:
+# "I'll defer to a follow-up"
+# "This can be addressed in a future sprint"
+# "The remaining work is minimal"
+# etc.
 ```
 
-This warning fires on every run. In multi-repo or nested-repo scenarios, `cwd()` may differ from the actual repo root, causing Loa detection to fail silently.
+**Why**: In `/run sprint-plan` and `/run-bridge`, the agent sometimes declares completion when work is partially done. A Stop hook could inject a reminder: "Check your acceptance criteria before stopping."
 
-> Sources: truncation.ts:156-163, truncation.ts:286-310, config.ts:262-397, types.ts:23
+**Loa adaptation**: The hook checks `.run/sprint-plan-state.json` — if state is `RUNNING` and current sprint is not null, inject a reminder to verify completion before allowing stop.
 
-## 3. Goals & Success Metrics
+### Priority 4: ADAPT — CLAUDE.md Token Optimization (Medium Impact, Medium Effort)
 
-### Goals
+**Source**: Both — Trail of Bits "only unexpected things", OpenAI "navigable map ~100 lines"
 
-1. **Eliminate framework file leakage** — Loa-managed files must not appear as review targets
-2. **Preserve security review for genuine app security files** — Don't over-exclude
-3. **Resolve repoRoot fragility** — Auto-detect repo root, eliminate warning noise
-4. **Maintain backward compatibility** — Existing `.reviewignore` files continue to work
+Loa's `CLAUDE.loa.md` is 757 lines. Trail of Bits and OpenAI both emphasize conciseness:
 
-### Success Metrics
+> *"You want to put things that are 'unexpected', surprising or otherwise unknowable to the AI model."* — OpenAI community
+
+> *"Documentation should function as a navigable map rather than a manual."* — OpenAI harness engineering
+
+**Current structure**: CLAUDE.loa.md contains full protocol descriptions, configuration examples, and detailed explanations that could live in reference files.
+
+**Proposal**: Reduce CLAUDE.loa.md to ~200-300 lines by:
+1. Moving detailed config examples to `.claude/loa/reference/`
+2. Converting verbose protocol descriptions to "see: `.claude/protocols/X.md`" pointers
+3. Keeping only: constraints, zone model, workflow commands, and "unexpected" rules
+4. Measuring token impact before/after
+
+### Priority 5: ADAPT — PostToolUse Audit Logging (Medium Impact, Low Effort)
+
+**Source**: Trail of Bits `PostToolUse` hooks
+
+Log tool mutations to `.run/audit.jsonl` for post-session review:
+
+```json
+{"ts":"2026-02-13T10:05:00Z","tool":"Bash","command":"git push","exit":0,"cwd":"/home/user/repo"}
+{"ts":"2026-02-13T10:05:01Z","tool":"Write","file":"src/auth.ts","bytes":1234}
+```
+
+**Why**: Loa has trajectory files but they track skill-level events, not individual tool calls. During autonomous mode, knowing exactly what commands ran and what files were written provides an audit trail for post-session review.
+
+**Loa adaptation**: Add `PostToolUse:Bash` and `PostToolUse:Write` hooks that append to `.run/audit.jsonl`. Readable via `/run-status` or post-session review.
+
+### Priority 6: TWEAK — Mechanical Invariant Enforcement (Low Impact, High Effort)
+
+**Source**: OpenAI's architectural invariants + custom linters
+
+Loa has `constraints.json` and NEVER/ALWAYS rules in CLAUDE.md, but these are prompt-level only. OpenAI enforces invariants with custom linters and structural tests.
+
+**Proposal**: Add a `.claude/scripts/lint-invariants.sh` that mechanically validates:
+- No application code outside of `/implement` skill invocation directories
+- No `.claude/` files modified (except overrides)
+- constraint.json rules have corresponding test coverage
+- CLAUDE.loa.md hash matches expected (integrity check already exists)
+
+**Why**: Rules without mechanical enforcement become suggestions. This is the "golden principles" pattern from OpenAI — opinionated rules enforced by tools, not just instructions.
+
+## 4. Out of Scope
+
+| Item | Reason |
+|------|--------|
+| **Sandboxing guidance** | Platform-level concern; Loa is a framework, not a runtime |
+| **Local model support** | Interesting but orthogonal to harness improvements |
+| **MCP server recommendations** | Already covered by Loa's existing MCP patterns |
+| **Automerge for refactoring** | Requires CI/CD integration beyond Loa's scope |
+| **Continuous automated refactoring** | Novel concept but too large for one cycle |
+| **Function length/complexity limits** | Project-specific; should be in project CLAUDE.md not framework |
+
+## 5. Success Metrics
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
-| Framework files in review | 0 | Run on midi-interface PR #49, count `.claude/` / `evals/` / `grimoires/` findings |
-| Security file coverage | 100% of genuine app security files | Run on a PR with `.github/workflows/` and `auth/` changes |
-| repoRoot warning | 0 occurrences | Check stderr output across 10 review runs |
-| Existing test suite | All passing | `npm test` in bridgebuilder-review |
-| Token savings | >60% reduction vs unfiltered | Compare token count with/without fix on a Loa-mounted repo |
+| Safety hooks installed | 4 hooks shipping in `.claude/hooks/` | File count |
+| Deny rules template | 1 settings template with recommended rules | File exists |
+| CLAUDE.loa.md token reduction | 30-50% fewer tokens | `wc -w` before/after |
+| Audit log coverage | Bash + Write mutations logged | Hook fires on tool use |
+| Stop hook prevents premature exits | Tested in /run mode | Manual validation |
 
-## 4. User & Stakeholder Context
+## 6. Risks
 
-### Primary Persona: Loa-Mounted Repo Developer
+| Risk | Mitigation |
+|------|------------|
+| Hooks slow down interactive mode | Hooks are lightweight shell scripts (<10ms); benchmark before shipping |
+| Deny rules block legitimate operations | Ship as recommended, not required; `/loa setup` asks before installing |
+| CLAUDE.md optimization loses critical context | Measure token impact; keep all content accessible via reference files |
+| Stop hook false positives | Only activate when `.run/sprint-plan-state.json` state=RUNNING |
 
-A developer using the Bridgebuilder to review PRs on a Loa-mounted repository. They expect reviews to focus on their application code changes, not on Loa framework internals. Currently ~80% of review tokens are wasted on framework files.
+## 7. References
 
-### Secondary Persona: Cross-Repo Reviewer
-
-A developer running Bridgebuilder across multiple repos (some Loa-mounted, some not). They need Loa detection to work reliably regardless of working directory.
-
-> Sources: Issue #309 reproduction steps, Issue #303 original report
-
-## 5. Functional Requirements
-
-### FR-1: Expand `LOA_EXCLUDE_PATTERNS`
-
-Add missing Loa-managed paths to the exclusion array:
-
-```typescript
-export const LOA_EXCLUDE_PATTERNS = [
-  // Existing
-  ".claude/**",
-  "grimoires/**",
-  ".beads/**",
-  ".loa-version.json",
-  ".loa.config.yaml",
-  ".loa.config.yaml.example",
-  // New — Bug 1 fix
-  "evals/**",
-  ".run/**",
-  "tests/**",
-  "skills/**",
-  "PROCESS.md",
-  "BUTTERFREEZONE.md",
-  "INSTALLATION.md",
-  "NOTES.md",
-  ".flatline/**",
-];
-```
-
-**Acceptance Criteria**:
-- All listed paths are excluded when Loa is detected
-- Files not under these paths pass through unchanged
-- `.reviewignore` patterns merge correctly with expanded set
-- No duplicate patterns in merged set
-
-### FR-2: Fix Security-Loa Precedence in `classifyLoaFile()`
-
-Redesign the classification to prevent security patterns from overriding Loa exclusion for framework files. Two approaches (choose in SDD):
-
-**Option A — Loa-Path Guard Before Security Check**:
-```typescript
-export function classifyLoaFile(filename: string): LoaTier {
-  // If file is under a known Loa system zone, never promote to exception
-  // unless it's in an explicitly allowed exception path
-  if (isLoaSystemZone(filename) && !isLoaSecurityException(filename)) {
-    // Apply tier classification, skip security promotion
-  }
-  // ... existing logic for non-system-zone files
-}
-```
-
-**Option B — Tier 2 for Loa Security Matches**:
-Instead of full passthrough (`"exception"`), demote Loa security matches to Tier 2 (summary-only):
-```typescript
-if (isHighRisk(filename) && isUnderLoaPath(filename)) {
-  return "tier2";  // Summary instead of full diff
-}
-```
-
-**Acceptance Criteria**:
-- `.claude/protocols/security-hardening.md` is NOT promoted to exception
-- `.claude/scripts/detect-secrets.sh` is NOT promoted to exception
-- App-level `src/auth/login.ts` IS still promoted to exception (unchanged behavior)
-- `.github/workflows/deploy.yml` (NOT under `.claude/`) IS still promoted to exception
-- Loa workflows like `.claude/` prefixed workflow references are excluded
-
-### FR-3: Auto-Resolve `repoRoot` in Config
-
-Populate `repoRoot` in `resolveConfig()` using git:
-
-```typescript
-// In resolveConfig():
-const repoRoot = resolveRepoRoot(cliArgs, envVars);
-// ...
-return { ...config, repoRoot };
-
-function resolveRepoRoot(cli: CLIArgs, env: EnvVars): string | undefined {
-  // 1. CLI flag (highest priority)
-  if (cli.repoRoot) return cli.repoRoot;
-  // 2. Environment variable
-  if (env.BRIDGEBUILDER_REPO_ROOT) return env.BRIDGEBUILDER_REPO_ROOT;
-  // 3. Git auto-detection
-  try {
-    return execSync("git rev-parse --show-toplevel", { encoding: "utf-8" }).trim();
-  } catch {
-    return undefined; // Not a git repo — fall back to cwd
-  }
-}
-```
-
-**Acceptance Criteria**:
-- `repoRoot` is set automatically when running inside a git repo
-- Warning message no longer fires in normal operation
-- CLI override (`--repo-root`) takes precedence
-- Environment variable (`BRIDGEBUILDER_REPO_ROOT`) takes precedence over git detection
-- Non-git-repo scenario falls back to `cwd()` gracefully (with warning)
-
-### FR-4: Test Coverage for All Fixes
-
-Each fix must have corresponding test cases:
-
-| Fix | Test Cases Required |
-|-----|-------------------|
-| FR-1 | `evals/suites/foo.ts` excluded, `.run/state.json` excluded, `PROCESS.md` excluded |
-| FR-2 | `.claude/protocols/security-hardening.md` → tier1/tier2 (not exception), `src/auth/login.ts` → exception (unchanged) |
-| FR-3 | `repoRoot` resolved from git, CLI override, env override, non-git fallback |
-
-**Acceptance Criteria**:
-- All existing 432+ tests continue to pass
-- New tests cover every added pattern and every security-Loa interaction
-- Integration test: run Bridgebuilder on a mock Loa-mounted repo and verify zero framework file findings
-
-## 6. Technical & Non-Functional Requirements
-
-### NFR-1: Performance
-
-- Pattern matching must remain O(n) per file (no regex compilation per-call)
-- `repoRoot` detection must cache result (one `execSync` per review run, not per file)
-
-### NFR-2: Backward Compatibility
-
-- Existing `.reviewignore` files continue to work
-- Non-Loa repos are completely unaffected
-- `loaAware: false` config override still disables all Loa filtering
-
-### NFR-3: Zone Definition — System Zone
-
-The code currently doesn't define what constitutes a "Loa system zone" explicitly. This needs a clear definition:
-
-```
-System Zone: .claude/**, grimoires/**, .beads/**, evals/**, .run/**, tests/**, skills/**
-Config Zone: .loa-version.json, .loa.config.yaml, .loa.config.yaml.example, PROCESS.md, BUTTERFREEZONE.md, INSTALLATION.md, NOTES.md
-```
-
-Files in the System Zone are always excluded (Tier 1/2). Files in Config Zone are always excluded (Tier 1). The distinction helps with future extensibility.
-
-## 7. Scope & Prioritization
-
-### In Scope (This Cycle)
-
-1. Expand `LOA_EXCLUDE_PATTERNS` with missing paths (Bug 1)
-2. Fix security-Loa precedence in `classifyLoaFile()` (Bug 2)
-3. Auto-resolve `repoRoot` in `resolveConfig()` (Bug 3)
-4. Add CLI `--repo-root` flag and `BRIDGEBUILDER_REPO_ROOT` env var
-5. Test coverage for all fixes
-6. Rebuild dist/ artifacts
-
-### Out of Scope
-
-- `.reviewignore` UI/editor support
-- Custom per-repo zone definitions
-- Bridgebuilder persona changes
-- Review output format changes
-- Performance optimization beyond caching
-
-## 8. Risks & Dependencies
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| Over-excluding — hiding app files that happen to be under `tests/` or `skills/` | Medium | Medium | Only exclude when Loa is detected; `tests/` exclusion is Loa-specific |
-| Under-excluding — missing a Loa path we don't know about yet | Low | Low | `.reviewignore` provides user-level escape hatch |
-| `git rev-parse` failure in CI environments | Low | Low | Graceful fallback to `cwd()` with warning |
-| Security file review loss — genuine security files under Loa paths not reviewed | Medium | High | Tier 2 approach (summary-only) instead of full exclusion |
-
-### Dependencies
-
-- Node.js `child_process.execSync` for `git rev-parse` (already available)
-- Existing test infrastructure (`vitest` + test fixtures)
-- No external dependencies added
-
-## 9. File Map
-
-| File | Change Type | Description |
-|------|-------------|-------------|
-| `.claude/skills/bridgebuilder-review/resources/core/truncation.ts` | Modify | FR-1 (patterns), FR-2 (classifyLoaFile) |
-| `.claude/skills/bridgebuilder-review/resources/config.ts` | Modify | FR-3 (repoRoot resolution) |
-| `.claude/skills/bridgebuilder-review/resources/core/types.ts` | Modify | Add CLIArgs.repoRoot, EnvVars.BRIDGEBUILDER_REPO_ROOT |
-| `.claude/skills/bridgebuilder-review/resources/__tests__/truncation.test.ts` | Modify | FR-1 + FR-2 test cases |
-| `.claude/skills/bridgebuilder-review/resources/__tests__/loa-detection.test.ts` | Modify | FR-2 + FR-3 test cases |
-| `.claude/skills/bridgebuilder-review/resources/__tests__/config.test.ts` | Modify | FR-3 config resolution tests |
-| `.claude/skills/bridgebuilder-review/dist/**` | Rebuild | Compiled output |
+- [Trail of Bits — claude-code-config](https://github.com/trailofbits/claude-code-config) — Opinionated Claude Code defaults
+- [OpenAI — Harness Engineering](https://openai.com/index/harness-engineering/) — Agent-first development with Codex
+- [OpenAI — AGENTS.md Custom Instructions](https://developers.openai.com/codex/guides/agents-md/) — Hierarchical agent configuration
+- [Parallel.ai — What is an Agent Harness](https://parallel.ai/articles/what-is-an-agent-harness) — Formal definition and components
