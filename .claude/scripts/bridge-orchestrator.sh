@@ -238,6 +238,18 @@ handle_resume() {
 }
 
 # =============================================================================
+# BUTTERFREEZONE Hook (SDD 3.4.2)
+# =============================================================================
+
+is_butterfreezone_enabled() {
+  local enabled
+  enabled=$(yq '.butterfreezone.enabled // true' "$CONFIG_FILE" 2>/dev/null || echo "true")
+  local hook_enabled
+  hook_enabled=$(yq '.butterfreezone.hooks.run_bridge // true' "$CONFIG_FILE" 2>/dev/null || echo "true")
+  [[ "$enabled" == "true" ]] && [[ "$hook_enabled" == "true" ]]
+}
+
+# =============================================================================
 # Core Loop
 # =============================================================================
 
@@ -369,6 +381,28 @@ bridge_main() {
 
   echo "[GT] Updating Grounded Truth..."
   echo "SIGNAL:GROUND_TRUTH_UPDATE"
+
+  # BUTTERFREEZONE generation (SDD 3.4) — between GT update and RTFM gate
+  if is_butterfreezone_enabled; then
+    echo "[BUTTERFREEZONE] Regenerating agent-grounded README..."
+    echo "SIGNAL:BUTTERFREEZONE_GEN"
+    local butterfreezone_gen_exit=0
+    .claude/scripts/butterfreezone-gen.sh --json 2>/dev/null || butterfreezone_gen_exit=$?
+
+    if [[ $butterfreezone_gen_exit -eq 0 ]]; then
+      echo "[BUTTERFREEZONE] BUTTERFREEZONE.md regenerated"
+      git add BUTTERFREEZONE.md 2>/dev/null || true
+    else
+      echo "[BUTTERFREEZONE] WARNING: Generation failed (exit $butterfreezone_gen_exit) — non-blocking"
+    fi
+
+    # Update bridge state
+    if command -v jq &>/dev/null && [[ -f "$BRIDGE_STATE_FILE" ]]; then
+      jq --argjson val "$([ $butterfreezone_gen_exit -eq 0 ] && echo true || echo false)" \
+        '.finalization.butterfreezone_generated = $val' "$BRIDGE_STATE_FILE" > "$BRIDGE_STATE_FILE.tmp"
+      mv "$BRIDGE_STATE_FILE.tmp" "$BRIDGE_STATE_FILE"
+    fi
+  fi
 
   # RTFM gate: test GT index, README, new protocol docs
   # Max 1 fix iteration to prevent circular loops
