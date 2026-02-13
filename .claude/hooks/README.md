@@ -2,11 +2,7 @@
 
 This directory contains Claude Code hooks for the Loa framework.
 
-## Post-Compact Recovery Hooks
-
-These hooks ensure Claude recovers context after compaction events.
-
-### Installation
+## Installation
 
 **Option 1: Automatic (via /mount)**
 
@@ -14,38 +10,21 @@ The `/mount` command will offer to install hooks during framework setup.
 
 **Option 2: Manual**
 
-Add the following to your `~/.claude/settings.json`:
+Merge `settings.hooks.json` into your `~/.claude/settings.json`. The template includes all hook registrations.
 
-```json
-{
-  "hooks": {
-    "PreCompact": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/pre-compact-marker.sh"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/post-compact-reminder.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+## Hook Registry
 
-### How It Works
+| Event | Matcher | Script | Purpose |
+|-------|---------|--------|---------|
+| PreCompact | (all) | `pre-compact-marker.sh` | Save state before compaction |
+| UserPromptSubmit | (all) | `post-compact-reminder.sh` | Inject recovery after compaction |
+| PreToolUse | Bash | `safety/block-destructive-bash.sh` | Block destructive commands |
+| PostToolUse | Bash | `audit/mutation-logger.sh` | Log mutating commands |
+| Stop | (all) | `safety/run-mode-stop-guard.sh` | Guard against premature exit |
+
+## Post-Compact Recovery Hooks
+
+Context recovery after compaction events.
 
 1. **PreCompact** (`pre-compact-marker.sh`):
    - Runs before context compaction
@@ -58,30 +37,103 @@ Add the following to your `~/.claude/settings.json`:
    - If found: injects recovery reminder into context, deletes marker
    - One-shot delivery (won't repeat)
 
-### Recovery Instructions
+## Safety Hooks (v1.37.0)
 
-When compaction is detected, Claude is reminded to:
+Defense-in-depth via Claude Code hooks. Active in ALL modes.
 
-1. Re-read CLAUDE.md for project conventions
-2. Check `.run/sprint-plan-state.json` for active run mode
-3. Check `.run/simstim-state.json` for active simstim
-4. Review `grimoires/loa/NOTES.md` for learnings
+### PreToolUse:Bash — Destructive Command Blocking
 
-### Troubleshooting
+**Script**: `safety/block-destructive-bash.sh`
+
+Blocks dangerous patterns and suggests safer alternatives:
+
+| Pattern | Blocked | Suggested Alternative |
+|---------|---------|----------------------|
+| `rm -rf` | Yes | Use `trash` or remove individually |
+| `git push --force` | Yes | Use `--force-with-lease` |
+| `git reset --hard` | Yes | Use `git stash` |
+| `git clean -f` (no `-n`) | Yes | Run with `-n` first to preview |
+
+Does NOT block: `rm file.txt`, `git push origin feature`, `git reset HEAD`, `git clean -nd`, `git push --force-with-lease`.
+
+### Stop — Run Mode Guard
+
+**Script**: `safety/run-mode-stop-guard.sh`
+
+Checks for active autonomous runs before allowing stop:
+- `.run/sprint-plan-state.json` (state=RUNNING)
+- `.run/bridge-state.json` (state=ITERATING/FINALIZING)
+- `.run/simstim-state.json` (state=RUNNING, phase=implementation)
+
+Uses JSON `decision` field for soft block (context injection, not hard block).
+
+### PostToolUse:Bash — Audit Logger
+
+**Script**: `audit/mutation-logger.sh`
+
+Logs mutating shell commands to `.run/audit.jsonl` in compact JSONL format:
+
+```jsonl
+{"ts":"2026-02-13T10:05:00Z","tool":"Bash","command":"git push","exit_code":0,"cwd":"/home/user/repo"}
+```
+
+Only logs: git, npm, pip, cargo, rm, mv, cp, mkdir, chmod, chown, docker, kubectl, make, yarn, pnpm, npx.
+
+Auto-rotates at 10MB (keeps last 1000 entries).
+
+## Deny Rules
+
+**Template**: `settings.deny.json`
+**Installer**: `.claude/scripts/install-deny-rules.sh`
+
+Blocks agent access to credential stores at the Claude Code platform level:
+
+| Path | Read | Edit |
+|------|------|------|
+| `~/.ssh/**` | Blocked | Blocked |
+| `~/.aws/**` | Blocked | Blocked |
+| `~/.kube/**` | Blocked | Blocked |
+| `~/.gnupg/**` | Blocked | Blocked |
+| `~/.npmrc` | Blocked | Blocked |
+| `~/.pypirc` | Blocked | Blocked |
+| `~/.git-credentials` | Blocked | Blocked |
+| `~/.config/gh/**` | Blocked | Blocked |
+| `~/.bashrc` | Allowed | Blocked |
+| `~/.zshrc` | Allowed | Blocked |
+| `~/.profile` | Allowed | Blocked |
+
+Install: `bash .claude/scripts/install-deny-rules.sh --auto`
+
+## Troubleshooting
 
 **Hooks not firing?**
 - Verify hooks are registered in `~/.claude/settings.json`
-- Check scripts are executable: `chmod +x .claude/hooks/*.sh`
-- Ensure PROJECT_ROOT is set or scripts are run from project root
+- Check scripts are executable: `chmod +x .claude/hooks/**/*.sh`
+- Ensure scripts are run from project root
+
+**Safety hook false positive?**
+- The hook blocks `rm -rf` but allows `rm file.txt` — check your command
+- `git push --force-with-lease` is explicitly allowed
+- File an issue if a legitimate command is blocked
 
 **Recovery message appearing incorrectly?**
 - Delete stale markers: `rm -f .run/compact-pending ~/.local/state/loa-compact/compact-pending`
 
-### Files
+**Audit log too large?**
+- Auto-rotates at 10MB
+- Manually clear: `> .run/audit.jsonl`
 
-| File | Purpose |
+## Files
+
+| Path | Purpose |
 |------|---------|
 | `pre-compact-marker.sh` | Creates marker before compaction |
 | `post-compact-reminder.sh` | Injects reminder after compaction |
+| `memory-writer.sh` | Memory observation capture hook |
+| `memory-inject.sh` | Memory injection on prompt |
+| `safety/block-destructive-bash.sh` | Destructive command blocker |
+| `safety/run-mode-stop-guard.sh` | Premature exit guard |
+| `audit/mutation-logger.sh` | Mutation audit logger |
 | `settings.hooks.json` | Hook configuration template |
+| `settings.deny.json` | Deny rules template |
 | `README.md` | This documentation |

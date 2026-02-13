@@ -1390,6 +1390,44 @@ post_merge:
     discord_on_failure: true
 
 # =============================================================================
+# Harness Engineering — Safety Hooks, Deny Rules, Audit (v1.37.0)
+# =============================================================================
+# Defense-in-depth configuration for agent safety. Hooks operate at the Claude
+# Code platform level, providing protection across all modes (interactive,
+# autonomous, simstim). Source: Trail of Bits + OpenAI harness patterns.
+harness:
+  # Safety hooks — PreToolUse:Bash destructive command blocking
+  safety_hooks:
+    enabled: true                         # Master toggle for safety hook
+    # Individual pattern toggles (all true by default)
+    block_rm_rf: true                     # Block rm -rf (suggest trash)
+    block_force_push: true                # Block git push --force (suggest --force-with-lease)
+    block_reset_hard: true                # Block git reset --hard (suggest git stash)
+    block_git_clean: true                 # Block git clean -f without -n dry-run
+
+  # Deny rules — platform-level file access blocking
+  deny_rules:
+    # Auto-install during /mount (blocks ~/.ssh, ~/.aws, ~/.kube, etc.)
+    auto_install: true                    # Set false to skip during /mount
+    # Template: .claude/hooks/settings.deny.json
+    # Installer: .claude/scripts/install-deny-rules.sh
+
+  # Audit logging — PostToolUse:Bash mutation logger
+  audit_logging:
+    enabled: true                         # Log mutating commands to .run/audit.jsonl
+    max_file_size_mb: 10                  # Rotate when audit log exceeds this size
+
+  # Stop guard — prevent premature exit during autonomous runs
+  stop_guard:
+    enabled: true                         # Check for active /run, /run-bridge, /simstim
+
+  # Invariant linter — mechanical validation of Loa structure
+  invariant_linting:
+    enabled: true                         # Enable lint-invariants.sh
+    on_mount: true                        # Run after /mount
+    on_run_preflight: true                # Run during /run preflight
+
+# =============================================================================
 # Bridgebuilder — Autonomous PR Review
 # =============================================================================
 # Configuration for the /bridgebuilder skill. All fields have sensible defaults.
