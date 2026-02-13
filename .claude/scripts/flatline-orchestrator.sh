@@ -766,6 +766,7 @@ Required:
   --phase <type>         Phase type: prd, sdd, sprint, beads
 
 Options:
+  --mode <type>          Mode: review (default), red-team
   --domain <text>        Domain for knowledge retrieval (auto-extracted if not provided)
   --dry-run              Validate without executing reviews
   --skip-knowledge       Skip knowledge retrieval
@@ -774,6 +775,12 @@ Options:
   --budget <cents>       Cost budget in cents (default: 300 = \$3.00)
   --json                 Output as JSON
   -h, --help             Show this help
+
+Red Team Options (--mode red-team):
+  --focus <categories>   Comma-separated attack surface categories
+  --surface <name>       Target specific surface from registry
+  --depth <N>            Attack-counter_design iterations (default: 1)
+  --execution-mode <m>   Cost tier: quick, standard (default), deep
 
 State Machine:
   INIT -> KNOWLEDGE -> PHASE1 -> PHASE2 -> CONSENSUS -> DONE
@@ -789,6 +796,7 @@ Exit codes:
 
 Example:
   flatline-orchestrator.sh --doc grimoires/loa/prd.md --phase prd --json
+  flatline-orchestrator.sh --doc grimoires/loa/sdd.md --phase sdd --mode red-team --json
 EOF
 }
 
@@ -810,6 +818,11 @@ main() {
     local json_output=false
     local mode_flag=""
     local run_id=""
+    local orchestrator_mode="review"
+    local rt_focus=""
+    local rt_surface=""
+    local rt_depth=1
+    local rt_execution_mode="standard"
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -824,6 +837,26 @@ main() {
                 ;;
             --domain)
                 domain="$2"
+                shift 2
+                ;;
+            --mode)
+                orchestrator_mode="$2"
+                shift 2
+                ;;
+            --focus)
+                rt_focus="$2"
+                shift 2
+                ;;
+            --surface)
+                rt_surface="$2"
+                shift 2
+                ;;
+            --depth)
+                rt_depth="$2"
+                shift 2
+                ;;
+            --execution-mode)
+                rt_execution_mode="$2"
                 shift 2
                 ;;
             --interactive)
@@ -905,9 +938,31 @@ main() {
         exit 1
     fi
 
-    if [[ "$phase" != "prd" && "$phase" != "sdd" && "$phase" != "sprint" && "$phase" != "beads" ]]; then
-        error "Invalid phase: $phase (expected: prd, sdd, sprint, beads)"
+    if [[ "$phase" != "prd" && "$phase" != "sdd" && "$phase" != "sprint" && "$phase" != "beads" && "$phase" != "spec" ]]; then
+        error "Invalid phase: $phase (expected: prd, sdd, sprint, beads, spec)"
         exit 1
+    fi
+
+    # Validate orchestrator mode
+    if [[ "$orchestrator_mode" != "review" && "$orchestrator_mode" != "red-team" ]]; then
+        error "Invalid mode: $orchestrator_mode (expected: review, red-team)"
+        exit 1
+    fi
+
+    # Validate red-team execution mode
+    if [[ "$orchestrator_mode" == "red-team" ]]; then
+        if [[ "$rt_execution_mode" != "quick" && "$rt_execution_mode" != "standard" && "$rt_execution_mode" != "deep" ]]; then
+            error "Invalid execution mode: $rt_execution_mode (expected: quick, standard, deep)"
+            exit 1
+        fi
+        # Apply budget overrides per execution mode
+        local config_file="$PROJECT_ROOT/.loa.config.yaml"
+        case "$rt_execution_mode" in
+            quick)    budget=$(yq '.red_team.budgets.quick_max_tokens // 50000' "$config_file" 2>/dev/null || echo 50000) ;;
+            standard) budget=$(yq '.red_team.budgets.standard_max_tokens // 200000' "$config_file" 2>/dev/null || echo 200000) ;;
+            deep)     budget=$(yq '.red_team.budgets.deep_max_tokens // 500000' "$config_file" 2>/dev/null || echo 500000) ;;
+        esac
+        log "Red team mode: execution=$rt_execution_mode, depth=$rt_depth, budget=$budget"
     fi
 
     # Check if Flatline is enabled (skip check in dry-run mode)
@@ -992,7 +1047,79 @@ main() {
         echo "" > "$context_file"
     fi
 
-    # Phase 1: Independent Reviews
+    # Mode dispatch: red-team mode uses separate pipeline
+    if [[ "$orchestrator_mode" == "red-team" ]]; then
+        local rt_pipeline="$SCRIPT_DIR/red-team-pipeline.sh"
+        if [[ ! -x "$rt_pipeline" ]]; then
+            error "Red team pipeline not found: $rt_pipeline"
+            exit 1
+        fi
+
+        local rt_run_id
+        rt_run_id="rt-$(date +%s)-$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+
+        local rt_result
+        rt_result=$("$rt_pipeline" \
+            --doc "$doc" \
+            --phase "$phase" \
+            --context-file "$context_file" \
+            --execution-mode "$rt_execution_mode" \
+            --depth "$rt_depth" \
+            --run-id "$rt_run_id" \
+            --timeout "$timeout" \
+            --budget "$budget" \
+            ${rt_focus:+--focus "$rt_focus"} \
+            ${rt_surface:+--surface "$rt_surface"} \
+            --json 2>/dev/null) || {
+            local rt_exit=$?
+            error "Red team pipeline failed (exit $rt_exit)"
+            exit $rt_exit
+        }
+
+        set_state "DONE"
+
+        # Add metadata to result
+        local end_time
+        end_time=$(date +%s)
+        local total_latency_ms=$(( (end_time - START_TIME) * 1000 ))
+
+        local final_result
+        final_result=$(echo "$rt_result" | jq \
+            --arg phase "$phase" \
+            --arg doc "$doc" \
+            --arg domain "$domain" \
+            --arg mode "$execution_mode" \
+            --arg mode_reason "$mode_reason" \
+            --arg run_id "$rt_run_id" \
+            --arg orch_mode "red-team" \
+            --arg exec_mode "$rt_execution_mode" \
+            --argjson latency_ms "$total_latency_ms" \
+            --argjson cost_cents "$TOTAL_COST" \
+            --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '. + {
+                phase: $phase,
+                document: $doc,
+                mode: $orch_mode,
+                execution_mode: $exec_mode,
+                execution: {
+                    mode: $mode,
+                    mode_reason: $mode_reason,
+                    run_id: $run_id
+                },
+                timestamp: $timestamp,
+                metrics: (.metrics // {}) + {
+                    total_latency_ms: $latency_ms,
+                    cost_cents: $cost_cents
+                }
+            }')
+
+        log_trajectory "complete" "$final_result"
+        echo "$final_result" | jq .
+        log "Red team complete. Run ID: $rt_run_id, Cost: $TOTAL_COST cents"
+        exit 0
+    fi
+
+    # Phase 1: Independent Reviews (review mode)
     local phase1_output
     phase1_output=$(run_phase1 "$doc" "$phase" "$context_file" "$DEFAULT_MODEL_TIMEOUT" "$budget")
 

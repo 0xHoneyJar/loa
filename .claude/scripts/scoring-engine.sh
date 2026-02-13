@@ -189,6 +189,165 @@ def build_score_map:
 }
 
 # =============================================================================
+# Attack Mode Classification (Red Team Extension)
+# =============================================================================
+
+# Classify a single attack based on cross-validation scores
+# Returns: CONFIRMED_ATTACK, THEORETICAL, CREATIVE_ONLY, or DEFENDED
+classify_attack() {
+    local gpt_score="$1"
+    local opus_score="$2"
+    local has_counter="${3:-false}"
+    local is_quick_mode="${4:-false}"
+
+    # Quick mode can never produce CONFIRMED_ATTACK
+    if [[ "$is_quick_mode" == "true" ]]; then
+        if (( gpt_score > 400 )); then
+            echo "THEORETICAL"
+        else
+            echo "CREATIVE_ONLY"
+        fi
+        return 0
+    fi
+
+    if [[ "$has_counter" == "true" ]] && (( gpt_score > 700 && opus_score > 700 )); then
+        echo "DEFENDED"
+    elif (( gpt_score > 700 && opus_score > 700 )); then
+        echo "CONFIRMED_ATTACK"
+    elif (( gpt_score > 700 || opus_score > 700 )); then
+        echo "THEORETICAL"
+    else
+        echo "CREATIVE_ONLY"
+    fi
+}
+
+# Calculate attack consensus for red team mode
+# Input: Two attack score files with .attacks[] arrays
+calculate_attack_consensus() {
+    local gpt_scores_file="$1"
+    local opus_scores_file="$2"
+    local is_quick_mode="${3:-false}"
+
+    jq -n \
+        --argjson gpt "$(cat "$gpt_scores_file")" \
+        --argjson opus "$(cat "$opus_scores_file")" \
+        --argjson quick "$(if [[ "$is_quick_mode" == "true" ]]; then echo "true"; else echo "false"; fi)" '
+
+# Build score lookup from attacks
+def attack_score_map:
+    reduce (.attacks // .scores // [])[] as $item ({}; . + {($item.id): $item});
+
+($gpt | attack_score_map) as $gpt_map |
+($opus | attack_score_map) as $opus_map |
+
+# Get all unique attack IDs
+([($gpt.attacks // $gpt.scores // [])[].id, ($opus.attacks // $opus.scores // [])[].id] | unique) as $all_ids |
+
+# Classify each attack
+(reduce $all_ids[] as $id (
+    {confirmed: [], theoretical: [], creative: [], defended: []};
+
+    ($gpt_map[$id] // {}) as $g_item |
+    ($opus_map[$id] // {}) as $o_item |
+    (($g_item.severity_score // $g_item.score // 0) | tonumber) as $g_score |
+    (($o_item.severity_score // $o_item.score // 0) | tonumber) as $o_score |
+    ($g_item.counter_design != null) as $has_counter |
+
+    # Merge attack data from both models (prefer GPT, fill from Opus)
+    ($g_item + $o_item + $g_item + {
+        gpt_score: $g_score,
+        opus_score: $o_score
+    }) as $merged |
+
+    if $quick then
+        if $g_score > 400 then
+            .theoretical += [$merged + {consensus: "THEORETICAL", human_review: "not_required"}]
+        else
+            .creative += [$merged + {consensus: "CREATIVE_ONLY", human_review: "not_required"}]
+        end
+    elif ($has_counter and $g_score > 700 and $o_score > 700) then
+        .defended += [$merged + {consensus: "DEFENDED", human_review: "not_required"}]
+    elif ($g_score > 700 and $o_score > 700) then
+        .confirmed += [$merged + {
+            consensus: "CONFIRMED_ATTACK",
+            human_review: (if $g_score > 800 or $o_score > 800 then "required" else "not_required" end)
+        }]
+    elif ($g_score > 700 or $o_score > 700) then
+        .theoretical += [$merged + {consensus: "THEORETICAL", human_review: "not_required"}]
+    else
+        .creative += [$merged + {consensus: "CREATIVE_ONLY", human_review: "not_required"}]
+    end
+)) as $classified |
+
+{
+    attack_summary: {
+        confirmed_count: ($classified.confirmed | length),
+        theoretical_count: ($classified.theoretical | length),
+        creative_count: ($classified.creative | length),
+        defended_count: ($classified.defended | length),
+        total_attacks: ($all_ids | length),
+        human_review_required: ([($classified.confirmed // [])[] | select(.human_review == "required")] | length)
+    },
+    attacks: $classified,
+    validated: ($quick | not),
+    execution_mode: (if $quick then "quick" else "standard" end)
+}
+'
+}
+
+# Self-test against golden set
+run_attack_self_test() {
+    local golden_set="$PROJECT_ROOT/.claude/data/red-team-golden-set.json"
+
+    if [[ ! -f "$golden_set" ]]; then
+        error "Golden set not found: $golden_set"
+        return 1
+    fi
+
+    log "Running attack classification self-test against golden set..."
+
+    local pass=0
+    local fail=0
+    local total
+
+    total=$(jq '.attacks | length' "$golden_set")
+
+    for i in $(seq 0 $((total - 1))); do
+        local id name expected_category severity_score expected_min expected_max
+        id=$(jq -r ".attacks[$i].id" "$golden_set")
+        name=$(jq -r ".attacks[$i].name" "$golden_set")
+        expected_category=$(jq -r ".attacks[$i].expected_category" "$golden_set")
+        severity_score=$(jq -r ".attacks[$i].severity_score" "$golden_set")
+        expected_min=$(jq -r ".attacks[$i].expected_min_score // 0" "$golden_set")
+        expected_max=$(jq -r ".attacks[$i].expected_max_score // 1000" "$golden_set")
+
+        # Simulate classification: use severity_score as both model scores for self-test
+        local result
+        result=$(classify_attack "$severity_score" "$severity_score" "false" "false")
+
+        if [[ "$result" == "$expected_category" ]]; then
+            log "  PASS: $id ($name) → $result"
+            pass=$((pass + 1))
+        else
+            log "  FAIL: $id ($name) → $result (expected $expected_category)"
+            fail=$((fail + 1))
+        fi
+    done
+
+    local accuracy=0
+    if [[ $total -gt 0 ]]; then
+        accuracy=$(( pass * 100 / total ))
+    fi
+
+    log "Self-test: $pass/$total passed ($accuracy% accuracy)"
+
+    if [[ $fail -gt 0 ]]; then
+        return 1
+    fi
+    return 0
+}
+
+# =============================================================================
 # Main
 # =============================================================================
 
@@ -205,6 +364,9 @@ Options:
   --include-blockers      Include skeptic concerns in analysis
   --skeptic-gpt <file>    GPT skeptic concerns JSON file
   --skeptic-opus <file>   Opus skeptic concerns JSON file
+  --attack-mode           Use red team attack classification (4 categories)
+  --quick-mode            Quick mode (no CONFIRMED_ATTACK possible)
+  --self-test             Run classification self-test against golden set
   --json                  Output as JSON (default)
   -h, --help              Show this help
 
@@ -246,6 +408,9 @@ main() {
     local include_blockers=false
     local skeptic_gpt_file=""
     local skeptic_opus_file=""
+    local attack_mode=false
+    local quick_mode=false
+    local self_test=false
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -274,6 +439,18 @@ main() {
                 skeptic_opus_file="$2"
                 shift 2
                 ;;
+            --attack-mode)
+                attack_mode=true
+                shift
+                ;;
+            --quick-mode)
+                quick_mode=true
+                shift
+                ;;
+            --self-test)
+                self_test=true
+                shift
+                ;;
             --json)
                 # Default behavior
                 shift
@@ -289,6 +466,12 @@ main() {
                 ;;
         esac
     done
+
+    # Self-test mode
+    if [[ "$self_test" == "true" ]]; then
+        run_attack_self_test
+        exit $?
+    fi
 
     # Validate required files
     if [[ -z "$gpt_scores_file" ]]; then
@@ -352,9 +535,12 @@ main() {
 
     log "Thresholds: high=$high_threshold, delta=$dispute_delta, low=$low_threshold, blocker=$blocker_threshold"
 
-    # Calculate consensus
+    # Calculate consensus (dispatch based on mode)
     local result
-    if [[ "$include_blockers" == "true" ]]; then
+    if [[ "$attack_mode" == "true" ]]; then
+        log "Attack mode: classifying attacks with 4-category system"
+        result=$(calculate_attack_consensus "$gpt_scores_file" "$opus_scores_file" "$quick_mode")
+    elif [[ "$include_blockers" == "true" ]]; then
         result=$(calculate_consensus \
             "$gpt_scores_file" \
             "$opus_scores_file" \
