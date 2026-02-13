@@ -16,7 +16,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from loa_cheval.config.interpolation import interpolate_config, redact_config, _DEFAULT_LAZY_PATHS
+from loa_cheval.config.interpolation import interpolate_config, redact_config
 from loa_cheval.types import ConfigError
 
 # Try yaml import — pyyaml optional, yq fallback
@@ -171,7 +171,6 @@ def load_config(
             extra_env_patterns=extra_env_patterns,
             allowed_file_dirs=allowed_file_dirs,
             commands_enabled=commands_enabled,
-            lazy_paths=_DEFAULT_LAZY_PATHS,
         )
     except ConfigError:
         raise

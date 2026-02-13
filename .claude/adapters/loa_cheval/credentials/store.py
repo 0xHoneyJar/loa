@@ -9,10 +9,13 @@ Requires: pip install cryptography
 from __future__ import annotations
 
 import json
+import logging
 import os
 import stat
 from pathlib import Path
 from typing import Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 from loa_cheval.credentials.providers import CredentialProvider
 
@@ -80,8 +83,13 @@ class EncryptedStore:
             encrypted = self._store_path.read_bytes()
             decrypted = fernet.decrypt(encrypted)
             self._cache = json.loads(decrypted)
-        except Exception:
-            # Corrupt store — re-initialize
+        except Exception as e:
+            # Log the failure so users can diagnose credential loss
+            logger.warning(
+                "Encrypted credential store at %s could not be decrypted (%s: %s). "
+                "Treating as empty. Run '/loa-credentials status' for recovery guidance.",
+                self._store_path, type(e).__name__, e,
+            )
             self._cache = {}
 
         return self._cache

@@ -35,11 +35,12 @@ HEALTH_CHECKS: Dict[str, dict] = {
         "header": "x-api-key",
         "header_prefix": "",
         "method": "POST",
-        "body": json.dumps({"model": "claude-sonnet-4-5-20250929", "max_tokens": 1, "messages": [{"role": "user", "content": "hi"}]}),
+        # Deliberately malformed body (missing required 'model' field) to get 400
+        # without generating a real completion. 401 = bad key, 400 = key is valid.
+        "body": json.dumps({"max_tokens": 1, "messages": [{"role": "user", "content": "ping"}]}),
         "content_type": "application/json",
         "extra_headers": {"anthropic-version": "2023-06-01"},
-        # 401 = bad key, 200/400 = key is valid (even if request is malformed)
-        "expected_status": [200, 400],
+        "expected_status": [400],
         "description": "Anthropic API",
     },
     "MOONSHOT_API_KEY": {

@@ -50,14 +50,24 @@ class DotenvProvider(CredentialProvider):
 
     def __init__(self, project_root: str):
         self._cache: Optional[Dict[str, str]] = None
+        self._cache_mtime: float = 0.0
         self._path = Path(project_root) / ".env.local"
 
     def _load(self) -> Dict[str, str]:
-        if self._cache is not None:
+        if not self._path.is_file():
+            self._cache = {}
+            self._cache_mtime = 0.0
+            return self._cache
+        # Invalidate cache if file has been modified
+        try:
+            current_mtime = self._path.stat().st_mtime
+        except OSError:
+            self._cache = {}
+            return self._cache
+        if self._cache is not None and current_mtime == self._cache_mtime:
             return self._cache
         self._cache = {}
-        if not self._path.is_file():
-            return self._cache
+        self._cache_mtime = current_mtime
         for line in self._path.read_text().splitlines():
             line = line.strip()
             if not line or line.startswith("#"):

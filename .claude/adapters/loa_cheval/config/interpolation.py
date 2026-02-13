@@ -11,17 +11,18 @@ encrypted store and .env.local when the variable is not in os.environ.
 from __future__ import annotations
 
 import fnmatch
+import functools
 import os
 import re
 import stat
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 from loa_cheval.types import ConfigError
 
-# Credential provider (lazily initialized)
-_credential_provider = None
-_credential_provider_initialized = False
+# Lock for thread-safe credential provider initialization
+_credential_lock = threading.Lock()
 
 # Core allowlist — always applied
 _CORE_ENV_PATTERNS = [
@@ -107,6 +108,11 @@ class LazyValue:
         return bool(self._raw)
 
     def __eq__(self, other: object) -> bool:
+        """Compare LazyValue with another value.
+
+        - vs str: resolves this LazyValue and compares resolved value.
+        - vs LazyValue: compares raw templates (avoids triggering resolution).
+        """
         if isinstance(other, str):
             return self.resolve() == other
         if isinstance(other, LazyValue):
@@ -186,24 +192,23 @@ def _check_file_allowed(
     return str(resolved)
 
 
+@functools.lru_cache(maxsize=1)
 def _get_credential_provider(project_root: str):
-    """Get the credential provider chain (lazily initialized)."""
-    global _credential_provider, _credential_provider_initialized
-    if not _credential_provider_initialized:
-        _credential_provider_initialized = True
-        try:
-            from loa_cheval.credentials.providers import get_credential_provider
-            _credential_provider = get_credential_provider(project_root)
-        except Exception:
-            _credential_provider = None
-    return _credential_provider
+    """Get the credential provider chain (lazily initialized, thread-safe).
+
+    Uses lru_cache(maxsize=1) for thread-safe singleton initialization
+    without explicit global mutable state.
+    """
+    try:
+        from loa_cheval.credentials.providers import get_credential_provider
+        return get_credential_provider(project_root)
+    except Exception:
+        return None
 
 
 def _reset_credential_provider():
     """Reset credential provider cache. Used for testing."""
-    global _credential_provider, _credential_provider_initialized
-    _credential_provider = None
-    _credential_provider_initialized = False
+    _get_credential_provider.cache_clear()
 
 
 def _resolve_env(var_name: str, project_root: str) -> Optional[str]:

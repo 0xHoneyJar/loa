@@ -321,55 +321,36 @@ class TestInterpolationWithCredentialChain:
         dotenv = tmp_path / ".env.local"
         dotenv.write_text("OPENAI_API_KEY=sk-dotenv-val\n")
 
-        with patch.dict(os.environ, {}, clear=True):
-            # Manually set up the credential provider for this test
-            from loa_cheval.config import interpolation
-            from loa_cheval.credentials.providers import CompositeProvider, EnvProvider, DotenvProvider
-            interpolation._credential_provider = CompositeProvider([
-                EnvProvider(),
-                DotenvProvider(str(tmp_path)),
-            ])
-            interpolation._credential_provider_initialized = True
-
-            try:
-                result = interpolate_value("{env:OPENAI_API_KEY}", str(tmp_path))
-                assert result == "sk-dotenv-val"
-            finally:
-                _reset_credential_provider()
+        test_provider = CompositeProvider([
+            EnvProvider(),
+            DotenvProvider(str(tmp_path)),
+        ])
+        with patch.dict(os.environ, {}, clear=True), \
+             patch("loa_cheval.config.interpolation._get_credential_provider", return_value=test_provider):
+            result = interpolate_value("{env:OPENAI_API_KEY}", str(tmp_path))
+            assert result == "sk-dotenv-val"
 
     def test_env_wins_over_dotenv(self, tmp_path):
         """Env var has higher priority than .env.local."""
         dotenv = tmp_path / ".env.local"
         dotenv.write_text("OPENAI_API_KEY=sk-dotenv-val\n")
 
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-env-val"}):
-            from loa_cheval.config import interpolation
-            from loa_cheval.credentials.providers import CompositeProvider, EnvProvider, DotenvProvider
-            interpolation._credential_provider = CompositeProvider([
-                EnvProvider(),
-                DotenvProvider(str(tmp_path)),
-            ])
-            interpolation._credential_provider_initialized = True
-
-            try:
-                result = interpolate_value("{env:OPENAI_API_KEY}", str(tmp_path))
-                assert result == "sk-env-val"
-            finally:
-                _reset_credential_provider()
+        test_provider = CompositeProvider([
+            EnvProvider(),
+            DotenvProvider(str(tmp_path)),
+        ])
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-env-val"}), \
+             patch("loa_cheval.config.interpolation._get_credential_provider", return_value=test_provider):
+            result = interpolate_value("{env:OPENAI_API_KEY}", str(tmp_path))
+            assert result == "sk-env-val"
 
     def test_missing_everywhere_raises(self, tmp_path):
         """When credential is not in any provider, raises ConfigError."""
-        with patch.dict(os.environ, {}, clear=True):
-            from loa_cheval.config import interpolation
-            from loa_cheval.credentials.providers import CompositeProvider, EnvProvider, DotenvProvider
-            interpolation._credential_provider = CompositeProvider([
-                EnvProvider(),
-                DotenvProvider(str(tmp_path)),
-            ])
-            interpolation._credential_provider_initialized = True
-
-            try:
-                with pytest.raises(ConfigError, match="not set"):
-                    interpolate_value("{env:OPENAI_API_KEY}", str(tmp_path))
-            finally:
-                _reset_credential_provider()
+        test_provider = CompositeProvider([
+            EnvProvider(),
+            DotenvProvider(str(tmp_path)),
+        ])
+        with patch.dict(os.environ, {}, clear=True), \
+             patch("loa_cheval.config.interpolation._get_credential_provider", return_value=test_provider):
+            with pytest.raises(ConfigError, match="not set"):
+                interpolate_value("{env:OPENAI_API_KEY}", str(tmp_path))
