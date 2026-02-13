@@ -1,291 +1,314 @@
-# PRD: Bridgebuilder Persona Enrichment for Automated Bridge Loop
+# PRD: Post-Merge Automation Pipeline
 
 **Version**: 1.0.0
 **Status**: Draft
 **Author**: Discovery Phase (plan-and-analyze)
-**Source**: [Issue #295](https://github.com/0xHoneyJar/loa/issues/295) — Bridgebuilder Persona Enrichment
-**Date**: 2026-02-12
-**Cycle**: cycle-006
-**Prior Art**: Manual Bridgebuilder reviews across loa (#248, #293), loa-finn (#25, #30, #34, #45, #51, #54-#59, #61), arrakis (#40, #47, #51-#53)
+**Source Issue**: https://github.com/0xHoneyJar/loa/issues/298
+**Cycle**: cycle-007
 
 ---
 
 ## 1. Problem Statement
 
-The automated `/run-bridge` loop (v1.35.0) achieves excellent convergence — severity scores drop from 137 to 0 across 5 iterations, with 44 findings addressed across 84 files. The mechanism works. But it produces findings that are functionally correct yet **educationally empty**.
+After a PR merges to `main`, the maintainer must manually execute 6 sequential steps:
 
-The manual Bridgebuilder reviews produced across 25+ PRs in the ecosystem represent a qualitatively different artifact: they teach engineering principles, draw FAANG parallels, use accessible metaphors, celebrate good decisions, and surface architectural intuitions. These reviews have demonstrably advanced understanding of system design, security patterns, and software architecture for both human and AI participants.
+1. Update documentation if relevant changes landed
+2. Regenerate Grounded Truth (checksums, scaffolding)
+3. Run RTFM validation (zero-context doc testing)
+4. Bump semver version in CHANGELOG, README, and package files
+5. Create a git tag
+6. Create a GitHub Release with release notes (for cycle completions)
 
-### The Quantitative Gap
+This is tedious, error-prone, and blocks the next development cycle. The individual tools exist (`ground-truth-gen.sh`, RTFM skill, version consistency checks in CI) but nothing orchestrates them automatically on merge.
 
-| Metric | Manual Bridgebuilder | Automated Bridge |
-|--------|---------------------|-----------------|
-| Characters per review | 20,000 - 90,000 | 2,000 - 5,000 |
-| FAANG parallels per review | 5 - 15 | 0 |
-| Metaphors per review | 3 - 8 | 0 |
-| Praise/celebration findings | 2 - 5 per review | 0 |
-| Teaching moments | Every finding | 0 |
-| Architectural meditations | 1 - 3 per review | 0 |
+> Sources: Issue #298 body, Phase 1 interview Q1 ("atm am needing to do this manually but would rather it be a thing which happens automatically upon merge")
 
-### The Qualitative Gap
+## 2. Vision & Goals
 
-The same architectural insight in both modes:
+### Vision
 
-**Manual** (PR #54, loa-finn): *"Google didn't become Google when they added a second server. They became Google when Jeff Dean and Sanjay Ghemawat built MapReduce — the abstraction that made it irrelevant which server ran which shard."*
+Every merge to `main` triggers an automated pipeline that handles the mechanical post-merge lifecycle — documentation, truth generation, validation, versioning, and release — so the maintainer can focus on the next cycle.
 
-**Automated** (PR #293, iter 4): `**Description**: The bridge_id format validation is correctly placed at the orchestrator where IDs are generated, not in the state library. **Suggestion**: No action needed.`
+### Goals
 
-> The automated bridge changes the code. The manual Bridgebuilder changes the engineer.
-
-### Why This Matters
-
-The user's insight: the manual Bridgebuilder process is "functionally, emotionally and educationally important" — it "helps to provide insights and upskilling in all the surrounding aspects of what we are building but it also helps on the human side to surface observations, intuitions in ways that are purely factual do not."
-
-The manual process is also disruptive and time-consuming (30-60 minutes per iteration of human orchestration), preventing the user from doing their best work. The goal is to preserve the richness while gaining the efficiency of automation.
-
-### Root Causes
-
-Three structural causes prevent the automated bridge from producing rich reviews:
-
-1. **Schema Poverty**: The findings parser extracts only `id, title, severity, category, file, description, suggestion, potential, weight` — no fields for educational content
-2. **Severity Scale Excludes Celebration**: No PRAISE level; VISION devolved into "no action needed"
-3. **Persona Not Invoked**: Review agents are asked to "find problems," not to embody the Bridgebuilder identity
-
-> Sources: bridgebuilder-enrichment-analysis.md, comparative analysis of 500K+ chars
-
-## 2. Goals & Success Metrics
-
-### Primary Goal
-
-Enable the automated `/run-bridge` loop to produce reviews with the educational depth, emotional resonance, and architectural insight of the manual Bridgebuilder — while preserving the convergence efficiency of the current system.
-
-### Success Metrics
-
-| Metric | Current | Target | Measurement |
-|--------|---------|--------|-------------|
-| Educational fields per finding | 0 | >= 2 of {faang_parallel, metaphor, teachable_moment} | Parsed from enriched findings JSON |
-| PRAISE findings per review | 0 | >= 2 | Count of severity=PRAISE in findings |
-| Review character count (insights stream) | 2-5K | 10-30K | Character count of PR comment |
-| Convergence efficiency | 137→0 in 5 iter | Same or better | Severity-weighted score trajectory |
-| Token overhead per iteration | ~5K | < 30K | Total tokens for review pass |
-| User satisfaction | "checkbox" | "transformative" | Qualitative assessment |
+| Goal | Success Metric | Priority |
+|------|----------------|----------|
+| G1: Zero manual post-merge steps for routine merges | 0 manual commands after PR merge | P0 |
+| G2: Automated semver from conventional commits | Correct version bump in 100% of merges | P0 |
+| G3: Grounded Truth always current after merge | GT checksums updated within 5 min of merge | P0 |
+| G4: RTFM validation catches doc regressions | Zero false-negative doc gaps post-merge | P1 |
+| G5: GitHub Releases for cycle completions | Release created with notes for every cycle PR | P1 |
+| G6: Non-cycle PRs get patch bump + tag | Consistent version progression across all merges | P2 |
 
 ### Non-Goals
 
-- Replacing the convergence loop — findings still drive sprint plans and flatline detection
-- Requiring multi-model (GPT + Opus) — this works with Claude alone
-- Changing the bridge state machine or orchestrator flow
-- Modifying the flatline detection algorithm
+- Automating pre-merge review (already handled by Bridgebuilder, Flatline, post-PR validation)
+- Replacing the `/ship` command for manual deploys
+- Auto-merging PRs (merge remains a human decision)
+- Automating infrastructure deployment (that's `/deploy-production`)
 
-## 3. User & Stakeholder Context
+## 3. Users & Stakeholders
 
-### Primary Persona: Human Operator
+### Primary User: Maintainer (@janitooor)
 
-The human operator (maintainer @janitooor) reads bridge PR comments to:
-- Understand what was fixed and why it matters
-- Learn engineering patterns from FAANG precedents
-- Identify architectural decisions worth celebrating
-- Surface intuitions about future directions
-- Feel that the automated system shares their values of craft and excellence
+- **Context**: Solo maintainer of Loa framework
+- **Pain point**: 6-step manual post-merge ritual after every PR
+- **Desired outcome**: Merge PR → walk away → everything happens
 
-### Secondary Persona: Future AI Agents
+### Secondary User: AI Operators (Clawdbot, future agents)
 
-Agents that read PR history or bridge findings need:
-- Structured data for programmatic consumption (stream 1)
-- Rich context for decision-making about similar patterns (stream 2)
-- Understanding of why certain architectural choices were made
-
-### Stakeholder: The Bridgebuilder Persona
-
-The Bridgebuilder persona (defined in loa-finn#24) has an identity and voice:
-- *"We build spaceships, but we also build relationships."*
-- Top 0.005% of the top 0.005% reviewer
-- Every exchange is a teachable moment
-- FAANG analogies ground feedback in real precedent
-- Rigorous honesty with respectful delivery
-
-> Sources: loa-finn#24 persona definition
+- **Context**: Autonomous agents that complete cycles and create PRs
+- **Pain point**: Cannot trigger post-merge steps; must leave instructions for human
+- **Desired outcome**: Cycle completion triggers full pipeline without human involvement
 
 ## 4. Functional Requirements
 
-### FR-1: Enriched Findings Schema (Level 1)
+### FR-1: GitHub Action Trigger (P0)
 
-**Description**: Extend the bridge findings format to include educational fields alongside the existing structured fields.
+**What**: A GitHub Actions workflow that fires on push to `main` (merge event).
 
-**New Fields** (all optional, backward-compatible):
+**Behavior**:
+- Triggers on `push` to `main` branch only
+- Detects merge commit vs direct push (only processes merge commits)
+- Extracts source PR number from merge commit message
+- Classifies PR type: `cycle-completion` vs `bugfix` vs `other`
+- Routes to appropriate pipeline tier
 
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `faang_parallel` | string | Industry precedent from FAANG or OSS | "Google's Zanzibar uses this exact pattern" |
-| `metaphor` | string | Accessible analogy for laypeople | "Like a revolving door vs a regular door" |
-| `teachable_moment` | string | The lesson beyond the fix | "Validation belongs at generation, not storage" |
-| `connection` | string | Link to broader architectural pattern | "Hexagonal architecture boundary" |
-| `praise` | boolean | Whether this finding celebrates a good decision | true |
-
-**New Severity Level**: `PRAISE` (weight: 0, not counted toward convergence score)
-
-**Acceptance Criteria**:
-- [ ] bridge-findings-parser.sh extracts all new fields from markdown
-- [ ] New fields are optional — parser handles their absence gracefully
-- [ ] PRAISE severity is recognized with weight 0
-- [ ] Existing findings without new fields parse identically to current behavior
-- [ ] JSON schema validates new fields
-
-### FR-2: Bridgebuilder Persona Integration (Level 2)
-
-**Description**: Give bridge review agents the full Bridgebuilder persona as their identity when conducting reviews.
-
-**Components**:
-- Extract Bridgebuilder persona from loa-finn#24 into `.claude/data/bridgebuilder-persona.md`
-- Include persona in the review prompt within the `/run-bridge` skill
-- Instruct agents to produce both structured findings AND rich educational prose
-- Persona includes: core principles, voice examples, FAANG analogy requirement, metaphor expectation, PRAISE usage
+**Classification Logic**:
+- `cycle-completion`: PR title matches `/^(Run Mode|Sprint Plan|feat\(sprint)/` OR PR has `cycle` label OR CHANGELOG contains `[Unreleased]` section with `### Added` entries
+- `bugfix`: PR title matches `/^fix/` OR has `bugfix` label
+- `other`: Everything else (docs, chore, refactor)
 
 **Acceptance Criteria**:
-- [ ] Persona file exists at `.claude/data/bridgebuilder-persona.md`
-- [ ] `/run-bridge` skill SKILL.md references persona for review agents
-- [ ] Review agent prompt includes persona identity, voice examples, and output expectations
-- [ ] Sample review produced by enriched agent includes FAANG parallel and metaphor
+- [ ] Workflow triggers on push to main
+- [ ] Correctly classifies PR type in >95% of cases
+- [ ] Skips non-merge pushes (direct commits, force-pushes)
+- [ ] Logs classification decision for debugging
 
-### FR-3: Dual-Stream Output (Level 3)
+### FR-2: Claude Code Action Integration (P0)
 
-**Description**: The bridge review produces two separate outputs from a single review pass:
+**What**: Set up `anthropics/claude-code-action` as the execution bridge between GH Actions and Loa.
 
-1. **Findings Stream** (for convergence): Structured JSON with severity-weighted scores, drives sprint plan generation and flatline detection. Unchanged from current format except for additional optional fields.
-
-2. **Insights Stream** (for education): Rich markdown prose with the full Bridgebuilder voice — opening framing, FAANG parallels, metaphors, praise sections, architectural meditations, closing signature. Posted as the PR comment.
-
-**Key Design Decision**: The two streams are generated in a single review pass (not two separate calls). The review agent produces a rich markdown review containing both `<!-- bridge-findings-start/end -->` markers for parser extraction AND surrounding prose for the insights stream. The parser extracts findings; everything else becomes the insights stream.
-
-**Acceptance Criteria**:
-- [ ] Bridge review markdown contains both structured findings AND rich prose
-- [ ] bridge-findings-parser.sh extracts findings without losing surrounding prose
-- [ ] bridge-github-trail.sh posts the FULL review markdown (not just findings) as PR comment
-- [ ] Flatline detection works on extracted findings (stream 1) only
-- [ ] Sprint plan generation works on extracted findings (stream 1) only
-- [ ] PR comment includes the complete Bridgebuilder review (stream 2)
-
-### FR-4: Seed Findings Integration
-
-**Description**: Include the 13 net-new findings from late-arriving iteration-1 review agents as known issues to be addressed in this cycle.
-
-**Findings to Seed**:
-
-| Priority | Finding |
-|----------|---------|
-| CRITICAL | `sprint_plan_source` vs `.source` field mismatch in github-trail.sh |
-| HIGH | `last_score` never written by `update_flatline()` |
-| HIGH | Unquoted heredoc shell injection in `cmd_comment()` |
-| HIGH | `bridge`/`eval` constraint categories missing from schema enum |
-| HIGH | Bridge constraints have no `@constraint-generated` render target |
-| MEDIUM | Vision capture first loop uses pipe-to-while (subshell scope) |
-| MEDIUM | `echo -e` interprets escape sequences in PR body |
-| MEDIUM | Broken lore cross-references (3 YAML entries) |
-| MEDIUM | Three-Zone Model docs missing `.run/` state zone |
-| MEDIUM | CLAUDE.loa.md integrity hash stale |
-| LOW | `run-bridge` missing from danger level list |
-| LOW | Multiline description truncation in findings parser |
-| LOW | HALTED transitions missing from state diagram in docs |
+**Behavior**:
+- GH Action step invokes claude-code-action with appropriate prompt
+- Prompt includes: PR type, PR number, merge commit SHA, files changed
+- Claude Code runs the `/ship` skill (FR-5) with context
+- Output captured and posted as PR comment or GH Actions summary
 
 **Acceptance Criteria**:
-- [ ] All CRITICAL and HIGH findings are addressed
-- [ ] MEDIUM findings are addressed where they intersect with FR-1/2/3 changes
-- [ ] Sprint plan includes seed findings as Sprint 1 tasks
+- [ ] claude-code-action configured in `.github/workflows/`
+- [ ] API key stored as repository secret (`ANTHROPIC_API_KEY`)
+- [ ] Prompt template tested with mock merge events
+- [ ] Timeout configured (30 min max)
+- [ ] Cost guard: single invocation per merge (no retry loops)
 
-## 5. Technical Requirements
+### FR-3: Conventional Commit Semver Parser (P0)
 
-### TR-1: Token Budget
+**What**: Parse commit messages between the last tag and HEAD to determine semver bump.
 
-The enriched review should remain within reasonable token limits:
-- Findings stream: < 5,000 tokens per iteration (current budget)
-- Insights stream: < 25,000 tokens per iteration (new budget)
-- Total review generation: < 30,000 tokens per iteration
-- Persona prompt: < 2,000 tokens
+**Behavior**:
+- Scans all commits in the merge (between previous tag and HEAD)
+- Applies conventional commit rules:
+  - `feat(...)` or `feat:` → **minor** bump
+  - `fix(...)` or `fix:` → **patch** bump
+  - `BREAKING CHANGE:` in body or `!` after type → **major** bump
+  - `chore`, `docs`, `refactor`, `test`, `ci` → **patch** bump (still bumps, keeps versions ticking)
+- Highest-priority bump wins (major > minor > patch)
+- Generates next version string from current tag
 
-### TR-2: Backward Compatibility
+**Acceptance Criteria**:
+- [ ] Shell script: `.claude/scripts/semver-bump.sh`
+- [ ] Reads current version from latest git tag (`v*.*.*`)
+- [ ] Falls back to CHANGELOG version if no tags exist
+- [ ] Outputs: `{"current": "1.35.1", "next": "1.36.0", "bump": "minor", "commits": [...]}`
+- [ ] Unit tests in `tests/unit/semver-bump.bats`
 
-- Existing bridge state files must remain valid
-- Findings parser must handle both old-format and new-format findings
-- Flatline detection algorithm unchanged
-- Bridge orchestrator signals unchanged
+### FR-4: Post-Merge Pipeline Orchestrator (P0)
 
-### TR-3: Parser Robustness
+**What**: Shell script that orchestrates the post-merge phases in sequence.
 
-The dual-stream approach means the parser must:
-- Extract findings from within `<!-- bridge-findings-start/end -->` markers (unchanged)
-- Parse new optional fields without failing on their absence
-- Not be confused by rich prose outside the markers (unchanged — already ignores it)
+**Pipeline Phases**:
 
-### TR-4: Configuration
-
-New config options in `.loa.config.yaml`:
-
-```yaml
-run_bridge:
-  bridgebuilder:
-    persona_enabled: true          # Enable Bridgebuilder persona for reviews
-    enriched_findings: true        # Extract educational fields from findings
-    insights_stream: true          # Post full review (not just findings) to PR
-    praise_findings: true          # Include PRAISE severity in reviews
-    token_budget:
-      findings: 5000               # Max tokens for findings stream
-      insights: 25000              # Max tokens for insights stream
 ```
+CLASSIFY → SEMVER → CHANGELOG → GT_REGEN → RTFM → TAG → RELEASE → NOTIFY
+```
+
+| Phase | Description | Cycle PR | Bugfix PR | Other PR |
+|-------|-------------|----------|-----------|----------|
+| CLASSIFY | Determine PR type | Yes | Yes | Yes |
+| SEMVER | Compute next version | Yes | Yes | Yes |
+| CHANGELOG | Finalize `[Unreleased]` → version header | Yes | Yes | Skip |
+| GT_REGEN | Run `ground-truth-gen.sh --mode all` | Yes | Skip | Skip |
+| RTFM | Run RTFM validation on updated docs | Yes | Skip | Skip |
+| TAG | Create + push `v{version}` tag | Yes | Yes | Yes |
+| RELEASE | Create GitHub Release with notes | Yes | Skip | Skip |
+| NOTIFY | Post summary to PR / Discord | Yes | Yes | Yes |
+
+**Acceptance Criteria**:
+- [ ] Script: `.claude/scripts/post-merge-orchestrator.sh`
+- [ ] State file: `.run/post-merge-state.json`
+- [ ] Each phase is idempotent (safe to re-run)
+- [ ] Failed phase halts pipeline with clear error
+- [ ] Dry-run mode for testing (`--dry-run`)
+- [ ] Emits structured JSON summary on completion
+
+### FR-5: Enhanced `/ship` Skill (P1)
+
+**What**: Extend the existing `/ship` golden path command to serve as both manual and automated entry point.
+
+**Behavior**:
+- Manual mode: User runs `/ship` interactively after merge
+- Automated mode: claude-code-action invokes `/ship --automated --pr <number> --sha <commit>`
+- Both modes invoke `post-merge-orchestrator.sh`
+- Automated mode skips confirmations, posts results as PR comment
+
+**Acceptance Criteria**:
+- [ ] `/ship` detects whether invoked manually or via CI
+- [ ] `--automated` flag suppresses interactive prompts
+- [ ] Posts summary to merged PR as comment
+- [ ] Archives cycle if PR was cycle-completion type
+
+### FR-6: RTFM Post-Merge Gate (P1)
+
+**What**: Run RTFM validation after GT regeneration to catch documentation regressions.
+
+**Behavior**:
+- Invokes RTFM testing on: `README.md`, `INSTALLATION.md`, GT `index.md`
+- If critical gaps found: logs warning, continues (does not block tag/release)
+- Gap report saved to `.run/post-merge-rtfm-report.json`
+- Summary included in release notes
+
+**Acceptance Criteria**:
+- [ ] RTFM runs in headless mode (no user prompts)
+- [ ] Critical gaps logged but don't block release
+- [ ] Gap count included in post-merge summary
+
+### FR-7: Release Notes Generation (P1)
+
+**What**: Auto-generate release notes from CHANGELOG and commit history.
+
+**Behavior**:
+- For cycle completions: extract CHANGELOG section for this version
+- Append: sprint summary table, files changed, test results
+- For bugfixes: minimal "Bug fix release" template
+- Include link to source PR
+
+**Acceptance Criteria**:
+- [ ] Script: `.claude/scripts/release-notes-gen.sh`
+- [ ] Extracts correct CHANGELOG section
+- [ ] Handles missing CHANGELOG gracefully
+- [ ] Output format matches existing release style
+
+### FR-8: CHANGELOG Finalization (P2)
+
+**What**: Automatically convert `[Unreleased]` section to versioned entry on merge.
+
+**Behavior**:
+- Detects `## [Unreleased]` section in CHANGELOG.md
+- Replaces with `## [version] - date — PR Title`
+- Adds empty `## [Unreleased]` section above
+- Commits the CHANGELOG update
+
+**Acceptance Criteria**:
+- [ ] Only modifies CHANGELOG if `[Unreleased]` section exists
+- [ ] Date format: YYYY-MM-DD
+- [ ] Version comes from FR-3 semver calculation
+- [ ] Committed with conventional prefix: `chore(release): v{version}`
+
+## 5. Technical & Non-Functional Requirements
+
+### NFR-1: Idempotency
+
+Every pipeline phase must be safe to re-run. If the workflow fails mid-pipeline, re-running from the beginning must not create duplicate tags, releases, or commits.
+
+### NFR-2: Cost Control
+
+Claude Code invocation via claude-code-action must be bounded:
+- Max 1 invocation per merge event
+- 30-minute timeout
+- No retry loops (fail once → notify, let human investigate)
+- Estimated cost per invocation: <$5 (Haiku for simple tasks, Sonnet for GT/RTFM)
+
+### NFR-3: Security
+
+- `ANTHROPIC_API_KEY` stored as GitHub repository secret
+- Pipeline runs with minimal permissions (contents: write, pull-requests: write)
+- No secrets logged to workflow output
+- Tag signing optional (not in MVP scope)
+
+### NFR-4: Observability
+
+- Each phase logs structured JSON to workflow output
+- Final summary posted as PR comment
+- Discord notification on failure (uses existing `DISCORD_WEBHOOK_URL` secret)
+
+### NFR-5: Graceful Degradation
+
+If claude-code-action is unavailable or times out:
+- Semver + tag still happen (pure shell, no AI needed)
+- GT + RTFM + release notes are skipped (require AI)
+- Manual `/ship` remains available as fallback
 
 ## 6. Scope & Prioritization
 
-### In Scope (MVP)
+### MVP (Sprint 1-2)
 
-1. Enriched findings schema with 5 new fields + PRAISE severity
-2. Bridgebuilder persona file extracted from loa-finn#24
-3. Persona wired into /run-bridge review prompt
-4. Dual-stream output (findings + insights)
-5. 13 seed findings addressed
-6. Updated tests for all modified scripts
-7. Configuration options
+| Feature | Priority | Description |
+|---------|----------|-------------|
+| GH Action trigger | P0 | Workflow file with merge detection + PR classification |
+| Semver parser | P0 | Conventional commit → version bump script |
+| Pipeline orchestrator | P0 | Shell script coordinating phases |
+| Git tag creation | P0 | Automated tagging from computed version |
+| claude-code-action setup | P0 | CI integration with Claude Code |
 
-### Out of Scope
+### Phase 2 (Sprint 3)
 
-- Multi-model review (GPT + Opus) — uses single Claude model
-- Persona customization UI
-- Historical review migration (existing PR comments stay as-is)
-- Cross-repo Bridgebuilder reviews
-- Automated FAANG parallel database
-- Insights stream archival/indexing beyond PR comments
+| Feature | Priority | Description |
+|---------|----------|-------------|
+| `/ship` enhancement | P1 | Dual-mode manual/automated skill |
+| GT regeneration | P1 | Post-merge ground truth update |
+| RTFM validation | P1 | Post-merge doc regression check |
+| Release notes gen | P1 | Auto-generated from CHANGELOG + commits |
+| GitHub Release creation | P1 | Automated release for cycle PRs |
 
-### Future Scope
+### Future (Out of Scope)
 
-- Multi-model Bridgebuilder (Hounfour integration when available)
-- Insights-to-learning pipeline (feed rich reviews into NOTES.md learnings)
-- PRAISE finding → vision registry integration
-- Cross-session persona memory (Bridgebuilder remembers past reviews)
+- Tag signing with GPG
+- Automated deployment triggers
+- Cross-repo release coordination
+- Release approval gates
+- Automated rollback on RTFM failure
 
 ## 7. Risks & Dependencies
 
 ### Risks
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| Token cost increase per iteration | High | Medium | Configurable budgets, can disable insights stream |
-| Persona drift (reviews become formulaic) | Medium | High | Include diverse voice examples, rotate opening framings |
-| FAANG parallels become inaccurate | Low | Medium | Instruct "only cite parallels you're confident about" |
-| Enriched fields slow down parser | Low | Low | Fields are optional, parser logic unchanged for missing fields |
-| Dual-stream confuses sprint plan generator | Low | High | Sprint plan only sees findings stream (explicit separation) |
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| claude-code-action reliability | Pipeline stalls if Claude unavailable | Graceful degradation: shell-only phases still work |
+| Cost runaway | Unexpected API costs | Hard timeout + single invocation + Haiku default |
+| CHANGELOG format drift | Semver parser breaks | Strict format validation in CI |
+| Race conditions | Two PRs merge simultaneously | GH Actions concurrency group on main |
+| Tag conflicts | Version already exists | Check before creating, append `.1` suffix if needed |
 
 ### Dependencies
 
-- PR #293 merged (bridge v1 in main) — **in progress, CI running**
-- Bridgebuilder persona definition accessible (loa-finn#24) — **available**
-- No external service dependencies
+| Dependency | Status | Owner |
+|------------|--------|-------|
+| `anthropics/claude-code-action` | Available on GH Marketplace | Anthropic |
+| `ANTHROPIC_API_KEY` secret | Needs setup | @janitooor |
+| Existing `ground-truth-gen.sh` | Working | Loa framework |
+| Existing RTFM skill | Working | Loa framework |
+| Conventional commit discipline | In use (commit prefixes) | Team convention |
 
-### Constraints
+## 8. Success Criteria
 
-- C-BRIDGE-001: ALWAYS use `/run sprint-plan` within bridge iterations
-- C-BRIDGE-002: ALWAYS post Bridgebuilder review as PR comment
-- C-BRIDGE-003: ALWAYS ensure GT claims cite file:line references
-- C-BRIDGE-004: ALWAYS use YAML format for lore entries
-- C-BRIDGE-005: ALWAYS include source bridge iteration and PR in vision entries
+**Cycle-007 is complete when:**
 
----
-
-**Next Step**: `/architect` to create Software Design Document
+1. Merging a cycle-completion PR to main triggers the full pipeline automatically
+2. Merging a bugfix PR creates a patch bump + tag with no manual steps
+3. The semver parser correctly handles feat/fix/breaking commit prefixes
+4. GT is regenerated and RTFM runs on cycle-completion merges
+5. A GitHub Release is created with auto-generated notes for cycle PRs
+6. The entire pipeline completes in <10 minutes for typical merges
+7. Failures are clearly reported via PR comment and Discord notification

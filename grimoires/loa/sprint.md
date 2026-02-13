@@ -1,450 +1,320 @@
-# Sprint Plan: Bridgebuilder Persona Enrichment for Automated Bridge Loop
+# Sprint Plan: Post-Merge Automation Pipeline
 
-**Version:** 1.1 (Flatline-reviewed)
-**Date:** 2026-02-12
-**Author:** Sprint Planner Agent
-**PRD Reference:** grimoires/loa/prd.md (v1.0.0)
-**SDD Reference:** grimoires/loa/sdd.md (v1.1.0, Flatline-reviewed)
-**Cycle:** cycle-006
-**Issue:** [loa #295](https://github.com/0xHoneyJar/loa/issues/295)
-**Flatline:** Sprint plan reviewed — 2 HIGH_CONSENSUS auto-integrated, 6 BLOCKERS accepted, 3 DISPUTED accepted
+**Cycle**: cycle-007
+**Issue**: https://github.com/0xHoneyJar/loa/issues/298
+**PRD**: `grimoires/loa/prd.md`
+**SDD**: `grimoires/loa/sdd.md`
 
 ---
 
-## Executive Summary
+## Overview
 
-Enrich the automated `/run-bridge` loop with Bridgebuilder persona depth: JSON-based findings parser with formal schema, PRAISE severity, educational fields, persona file with integrity verification, dual-stream output (findings for convergence + insights for education), and 13 seed finding fixes. Three sprints build incrementally: foundation fixes and parser redesign, then persona and trail hardening, then validation and integration testing.
-
-**Total Sprints:** 3
-**Sprint Duration:** 2.5 days each
-**Total Files Modified:** ~15 (scripts, tests, config, constraints, docs)
-**Regression Gate:** All existing BATS tests must pass at end of each sprint — any regression is a stop-ship (Flatline SKP-001)
-
----
-
-## Sprint Overview
-
-| Sprint | Theme | Key Deliverables | Dependencies |
-|--------|-------|------------------|--------------|
-| 1 | Seed Fixes + Parser Redesign | 13 seed fixes, JSON parser, formal schema, PRAISE severity, flock state, tests | None |
-| 2 | Persona + Trail Hardening | Persona file, integrity check, SKILL.md enrichment, size enforcement, threat-modeled redaction, .run/ security, config | Sprint 1 |
-| 3 | Validation + Integration | E2E test fixtures, legacy fallback, convergence isolation, lore fixes, version bump | Sprint 2 |
+| Metric | Value |
+|--------|-------|
+| **Total Sprints** | 3 |
+| **Total Tasks** | 22 |
+| **Estimated Effort** | Medium (shell scripts + GH workflow + config) |
+| **Dependencies** | `ANTHROPIC_API_KEY` repo secret (for Sprint 3) |
 
 ---
 
-## Sprint 1: Seed Fixes + Parser Redesign
+## Sprint 1: Foundation — Semver Parser & Orchestrator Shell
 
-**Duration:** 2.5 days
+**Goal**: Build the core shell infrastructure: semver parser, orchestrator skeleton, state management.
 
-### Sprint Goal
+### Task 1.1: Semver Bump Script
 
-Fix all 13 seed findings from late-arriving iteration-1 review agents and redesign the findings parser from regex-based markdown extraction to JSON fenced-block extraction with formal schema validation, strict grammar enforcement, and legacy fallback.
+**File**: `.claude/scripts/semver-bump.sh`
 
-### Deliverables
+**Description**: Create the conventional commit semver parser that reads git tag history and commit messages to compute the next version.
 
-- [ ] All CRITICAL and HIGH seed findings (#1-5) resolved
-- [ ] All MEDIUM seed findings (#6, 7, 8) resolved
-- [ ] Findings parser redesigned to extract JSON fenced blocks between markers
-- [ ] Formal JSON Schema for enriched findings created and validated
-- [ ] PRAISE severity level (weight=0) recognized by parser and state
-- [ ] Atomic state updates via `flock` in `bridge-state.sh` with crash safety
-- [ ] `update_flatline()` writes `last_score` to state
-- [ ] LOW seed findings (#11, 12, 13) resolved
-- [ ] `CLAUDE.loa.md` updated (Three-Zone, danger level, state diagram)
-- [ ] Extended BATS tests for parser, state, and edge cases
-- [ ] All existing tests still pass (regression gate)
+**Acceptance Criteria**:
+- [ ] Reads current version from latest `v*.*.*` git tag
+- [ ] Falls back to CHANGELOG.md version header if no tags exist
+- [ ] Parses conventional commit prefixes: feat→minor, fix→patch, chore→patch
+- [ ] Detects BREAKING CHANGE in commit body → major bump
+- [ ] Detects `!` suffix (e.g., `feat!:`) → major bump
+- [ ] Highest-priority bump wins (major > minor > patch)
+- [ ] Outputs JSON: `{"current", "next", "bump", "commits"}`
+- [ ] Exits with error if no commits since last tag
+- [ ] Script is executable and sources bootstrap.sh
 
-### Acceptance Criteria
+### Task 1.2: Semver Bump Tests
 
-- [ ] `bridge-findings-parser.sh` extracts enriched findings from JSON fenced block inside `<!-- bridge-findings-start/end -->` markers
-- [ ] Parser enforces **strict grammar**: exactly one findings block per review, markers + JSON fence + schema_version required; fail closed with explicit error on violations (Flatline SKP-002)
-- [ ] Parser validates JSON with `jq` and validates against formal JSON Schema (Flatline IMP-003)
-- [ ] Parser checks `schema_version` field — warns on unknown version, treats as v1 (SDD 3.2.1, IMP-008)
-- [ ] JSON Schema at `tests/fixtures/bridge-findings.schema.json` defines: required fields (id, title, severity, category, file, description, suggestion), optional fields (faang_parallel, metaphor, teachable_moment, connection, praise, potential, weight), severity enum (CRITICAL, HIGH, MEDIUM, LOW, VISION, PRAISE), schema_version as integer (Flatline IMP-003, SKP-003)
-- [ ] Parser computes `by_severity` including `praise` count (SDD 3.2.6)
-- [ ] `SEVERITY_WEIGHTS["PRAISE"]=0` — PRAISE does not affect `severity_weighted_score`
-- [ ] `bridge-state.sh` uses `flock`-based `atomic_state_update()` for all read-modify-write operations (SDD 3.4.1, IMP-004)
-- [ ] `atomic_state_update()` hard-fails with clear error message if `flock` is unavailable — no silent non-atomic fallback (Flatline IMP-002)
-- [ ] `atomic_state_update()` uses write-to-temp + `mv` (atomic rename) with stale-lock detection (5s timeout on flock, error + cleanup on stale lock) (Flatline SKP-004)
-- [ ] `update_flatline()` writes `last_score` to bridge state JSON (SDD 3.4.2, seed HIGH-2)
-- [ ] `bridge-github-trail.sh` `cmd_vision` uses printf instead of heredoc (seed HIGH-3)
-- [ ] `bridge-github-trail.sh` `cmd_comment` uses `printf '%s'` instead of `echo` (seed MEDIUM-7)
-- [ ] `bridge-vision-capture.sh` uses process substitution instead of pipe-to-while (seed MEDIUM-1)
-- [ ] `constraints.json` has `bridge` and `eval` in category enum (seed HIGH-4)
-- [ ] `CLAUDE.loa.md` includes `.run/` in state zone, `run-bridge` in danger level list, HALTED in state diagram (seeds #9, 11, 13)
-- [ ] All existing BATS tests pass, new tests added for JSON extraction, schema validation, edge cases (nested fences, multiple blocks, truncated output), flock safety
+**File**: `tests/unit/semver-bump.bats`
 
-### Technical Tasks
+**Description**: Comprehensive BATS tests for the semver parser.
 
-- [ ] Task 1.1: Add `extract_and_validate_json()` function to `bridge-findings-parser.sh` — JSON fenced block extraction with **strict grammar**: exactly one findings block, markers required, JSON fence required, fail closed with error code on violations (SDD 3.2.1, Flatline SKP-002) → **[G-1, G-4]**
-- [ ] Task 1.2: Rename current `parse_findings()` to `parse_findings_legacy()` and add detection logic — if JSON fenced block detected use new path, else legacy fallback (SDD 3.2.5) → **[G-4]**
-- [ ] Task 1.3: Add `PRAISE` to `SEVERITY_WEIGHTS` array with weight 0 and add `praise` to `by_severity` output (SDD 3.2.3, 3.2.6) → **[G-2, G-4]**
-- [ ] Task 1.4: Add `schema_version` field to parser output JSON (SDD 3.2.4, IMP-008) → **[G-1]**
-- [ ] Task 1.5: Add 5 enriched field passthrough (`faang_parallel`, `metaphor`, `teachable_moment`, `connection`, `praise`) to JSON extraction path (SDD 3.2.4) → **[G-1]**
-- [ ] Task 1.6: Implement `atomic_state_update()` function with `flock` in `bridge-state.sh` — hard-fail with clear error if flock unavailable, write-to-temp + atomic rename, stale-lock handling (5s flock timeout, cleanup on stale), never silently fall back to non-atomic (SDD 3.4.1, IMP-004, Flatline IMP-002, SKP-004) → **[G-4]**
-- [ ] Task 1.7: Wrap all 5 read-modify-write functions in `bridge-state.sh` with `atomic_state_update()` (SDD 3.4.1) → **[G-4]**
-- [ ] Task 1.8: Fix `update_flatline()` to write `last_score` (SDD 3.4.2, seed HIGH-2) → **[G-4]**
-- [ ] Task 1.9: Fix `cmd_vision` in `bridge-github-trail.sh` — replace heredoc with printf (seed HIGH-3, SDD 3.5.3) → **[G-4]**
-- [ ] Task 1.10: Fix `cmd_comment` in `bridge-github-trail.sh` — replace `echo "$body"` with `printf '%s' "$body"` (seed MEDIUM-7, SDD 3.5.3) → **[G-4]**
-- [ ] Task 1.11: Fix `bridge-vision-capture.sh` — replace pipe-to-while with process substitution `< <(...)` (seed MEDIUM-1, SDD 3.6) → **[G-4]**
-- [ ] Task 1.12: Add `bridge` and `eval` to category enum in `.claude/data/constraints.json` (seed HIGH-4, SDD 5.2) → **[G-4]**
-- [ ] Task 1.13: Add `@constraint-generated: bridge` render target to `CLAUDE.loa.md` (seed HIGH-5, SDD 5.3) → **[G-4]**
-- [ ] Task 1.14: Update `CLAUDE.loa.md` — add `.run/` to Three-Zone state paths, add `run-bridge` to `high` danger level list, add HALTED transitions to state diagram (seeds #9, 11, 13, SDD 3.9) → **[G-4]**
-- [ ] Task 1.15: Seed CRITICAL-1 — verify `sprint_plan_source` field usage in `bridge-github-trail.sh` and add clarifying comment (SDD 3.9 #1) → **[G-4]**
-- [ ] Task 1.16: Create formal JSON Schema at `tests/fixtures/bridge-findings.schema.json` — required/optional fields, types, severity enum (CRITICAL|HIGH|MEDIUM|LOW|VISION|PRAISE), enriched field types (string|null), schema_version as integer, backward compatibility policy documented in schema description (Flatline IMP-003, SKP-003) → **[G-1, G-4]**
-- [ ] Task 1.17: Extend `bridge-findings-parser.bats` — add tests for: JSON extraction, legacy fallback, invalid JSON rejection, missing schema_version, enriched field extraction, PRAISE weight 0, PRAISE in by_severity, boundary enforcement, **schema validation against JSON Schema**, **edge cases: nested fences, multiple findings blocks, truncated output, marker absence** (SDD 7.1, Flatline SKP-002) → **[G-1, G-4]**
-- [ ] Task 1.18: Extend `bridge-state.bats` — add tests for `last_score` write, praise in by_severity, concurrent flock safety, **flock hard-fail on unsupported platform**, **crash-safety (interrupted write recovery)**, **stale-lock detection** (SDD 7.1, Flatline SKP-004) → **[G-4]**
+**Acceptance Criteria**:
+- [ ] Tests feat → minor bump
+- [ ] Tests fix → patch bump
+- [ ] Tests BREAKING CHANGE → major bump
+- [ ] Tests `!` suffix → major bump
+- [ ] Tests mixed commits (feat + fix) → minor wins
+- [ ] Tests no tags fallback to CHANGELOG
+- [ ] Tests no commits since tag → error
+- [ ] Tests JSON output structure
+- [ ] Minimum 15 test cases
 
-### Definition of Done (Flatline IMP-009)
+### Task 1.3: Release Notes Generator
 
-- [ ] All deliverables checked off
-- [ ] All acceptance criteria verified
-- [ ] All existing BATS tests pass (0 regressions)
-- [ ] New BATS tests added and passing
-- [ ] No uncommitted changes or TODO markers in modified files
+**File**: `.claude/scripts/release-notes-gen.sh`
 
-### Dependencies
+**Description**: Extract release notes from CHANGELOG.md for a given version, or generate minimal notes for bugfix releases.
 
-- None (first sprint, builds on existing cycle-005 infrastructure)
+**Acceptance Criteria**:
+- [ ] Extracts CHANGELOG section between version headers
+- [ ] Handles missing `[Unreleased]` section gracefully
+- [ ] Includes PR link in output
+- [ ] Cycle template: full CHANGELOG section + source info
+- [ ] Bugfix template: minimal "Bug fix release" + PR link
+- [ ] Outputs markdown to stdout
+- [ ] Script is executable and sources bootstrap.sh
 
-### Risks & Mitigation
+### Task 1.4: Release Notes Tests
 
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| JSON parser breaks legacy review output | Med | High | Legacy fallback path preserves exact current behavior (SDD 3.2.5) |
-| `flock` not available on all platforms | Low | Med | Hard-fail with clear error if unavailable — never silently degrade (Flatline IMP-002) |
-| Seed fixes create merge conflicts with cycle-005 | Low | Med | Working on feature branch, clean rebase before merge |
-| Nested fences or multiple JSON blocks confuse parser | Med | Med | Strict grammar: exactly one block, fail closed on violations (Flatline SKP-002) |
-| State corruption from interrupted writes | Low | High | Write-to-temp + atomic `mv`; crash-safety tests; stale-lock cleanup (Flatline SKP-004) |
+**File**: `tests/unit/release-notes-gen.bats`
 
-### Success Metrics
+**Description**: BATS tests for release notes generation.
 
-- All 13 seed findings resolved
-- Parser correctly extracts JSON fenced block with all 5 enriched fields + PRAISE
-- Parser falls back to legacy regex for old-format findings
-- `severity_weighted_score` unchanged for identical findings (PRAISE = 0)
-- All existing + new BATS tests pass (target: 35+ tests across 3 test files)
-- Parser handles edge cases: nested fences, multiple blocks, truncated output (all fail closed)
+**Acceptance Criteria**:
+- [ ] Tests cycle release extraction from CHANGELOG
+- [ ] Tests bugfix template generation
+- [ ] Tests missing CHANGELOG handling
+- [ ] Tests version not found in CHANGELOG
+- [ ] Minimum 8 test cases
 
----
+### Task 1.5: Post-Merge Orchestrator Skeleton
 
-## Sprint 2: Persona + Trail Hardening
+**File**: `.claude/scripts/post-merge-orchestrator.sh`
 
-**Duration:** 2.5 days
+**Description**: Create the orchestrator with argument parsing, state initialization, phase matrix, and phase dispatch loop.
 
-### Sprint Goal
+**Acceptance Criteria**:
+- [ ] Accepts `--pr`, `--type`, `--sha`, `--dry-run`, `--skip-gt`, `--skip-rtfm` flags
+- [ ] Initializes state file at `.run/post-merge-state.json`
+- [ ] Phase matrix: cycle runs all 8, bugfix runs 4, other runs 4
+- [ ] Sequential phase dispatch with per-phase error capture
+- [ ] Atomic state updates using flock pattern from bridge-state.sh
+- [ ] Dry-run mode logs phases without executing side effects
+- [ ] Graceful `gh` CLI detection (skip GitHub ops if unavailable)
+- [ ] Script is executable and sources bootstrap.sh
 
-Create the Bridgebuilder persona file with integrity verification, extend the `/run-bridge` SKILL.md with enriched review workflow, add size enforcement and threat-modeled content redaction to the GitHub trail, secure the `.run/` local artifact storage, add new constraints and configuration.
+### Task 1.6: Post-Merge Orchestrator Tests
 
-### Deliverables
+**File**: `tests/unit/post-merge-orchestrator.bats`
 
-- [ ] `.claude/data/bridgebuilder-persona.md` created with all 5 required sections
-- [ ] Persona integrity verification (base-branch hash comparison) implemented
-- [ ] Persona content validation (required section check) implemented
-- [ ] `/run-bridge` SKILL.md extended with Phase 3.1 enriched review workflow
-- [ ] Size enforcement added to `bridge-github-trail.sh` (65KB truncate, 256KB findings-only)
-- [ ] Threat-modeled content redaction added to `bridge-github-trail.sh` with gitleaks-like patterns
-- [ ] `.run/` security boundary: gitignore verified, retention policy, post-redaction safety check
-- [ ] 3 new constraints (C-BRIDGE-006, 007, 008) added to `constraints.json`
-- [ ] `bridgebuilder` config section added to `.loa.config.yaml` and `.loa.config.yaml.example`
-- [ ] Enrichment metrics schema added to `bridge-state.sh`
-- [ ] Extended BATS tests for trail size enforcement, redaction, and realistic token patterns
-- [ ] All tests pass (regression gate)
+**Description**: BATS tests for the orchestrator.
 
-### Acceptance Criteria
+**Acceptance Criteria**:
+- [ ] Tests argument parsing for all flags
+- [ ] Tests phase matrix for cycle, bugfix, other types
+- [ ] Tests state file initialization
+- [ ] Tests dry-run mode
+- [ ] Tests graceful degradation when gh is unavailable
+- [ ] Minimum 12 test cases
 
-- [ ] Persona file exists at `.claude/data/bridgebuilder-persona.md` with sections: `# Bridgebuilder`, `## Identity`, `## Voice`, `## Review Output Format`, `## Content Policy` (SDD 3.1.1, IMP-001)
-- [ ] Content Policy section includes all 5 NEVER rules for security content (SDD 3.1.2, SKP-005)
-- [ ] PRAISE and educational field guidance uses soft language ("when warranted", "when confident") not hard quotas (SDD 3.1.3, SKP-004)
-- [ ] Token budget section specifies <5K findings, <25K total, hard limits at 65KB/256KB (SDD 3.1.4, SKP-001)
-- [ ] Persona integrity check compares hash against `origin/main` and falls back to base-branch version if modified (SDD 3.1.5, SKP-003)
-- [ ] Persona validation checks required sections at load time, disables persona on failure (SDD 3.1.1, IMP-001)
-- [ ] SKILL.md Phase 3.1 documents: integrity check → validation → lore load → embody persona → dual-stream → save → size check → redact → **post-redaction safety check** → parse → post (SDD 3.3, Flatline SKP-006)
-- [ ] `bridge-github-trail.sh` truncates body >65KB preserving findings JSON (SDD 3.5.1)
-- [ ] `bridge-github-trail.sh` posts findings-only for body >256KB (SDD 3.5.1)
-- [ ] `redact_security_content()` uses **gitleaks-inspired patterns** for realistic token detection: AWS keys (`AKIA...`), GitHub tokens (`ghp_...`, `gho_...`), JWTs (`eyJ...`), generic high-entropy 32+ char strings — with allowlist for known-safe patterns (sha256 hashes in markers, base64 encoded diagram URLs) (Flatline SKP-006)
-- [ ] Post-redaction safety check: if any pattern matching `(ghp_|gho_|AKIA|eyJ[A-Za-z0-9])` remains in output, **block posting** and log error (Flatline SKP-006)
-- [ ] `.run/` directory is in `.gitignore`, full reviews saved with 0600 permissions, retention policy: reviews older than 30 days auto-cleaned (Flatline SKP-009)
-- [ ] C-BRIDGE-006 is ALWAYS, C-BRIDGE-007 and C-BRIDGE-008 are SHOULD (SDD 5.1, SKP-004)
-- [ ] `.loa.config.yaml` has `run_bridge.bridgebuilder` section with persona, size, redaction settings (SDD 3.7)
-- [ ] Bridge state includes `enrichment` object per iteration (SDD 3.8, IMP-010)
-- [ ] Trail BATS tests cover size enforcement (65KB, 256KB), **realistic secret patterns (AWS, GitHub, JWT)**, and **post-redaction safety check** (SDD 7.1, Flatline SKP-006)
+### Task 1.7: Orchestrator Phase Implementations
 
-### Technical Tasks
+**File**: `.claude/scripts/post-merge-orchestrator.sh` (continued)
 
-- [ ] Task 2.1: Create `.claude/data/bridgebuilder-persona.md` — extract persona from loa-finn#24, include Identity, Voice (6+ examples), Review Output Format (dual-stream instructions), Content Policy (5 NEVER rules), PRAISE Guidance (soft), Educational Field Guidance (soft), Token Budget (SDD 3.1) → **[G-1, G-2, G-3, G-6]**
-- [ ] Task 2.2: Implement persona integrity verification in SKILL.md — `git show origin/main:...` hash comparison, fallback to base-branch version, skip on first deployment (SDD 3.1.5, SKP-003) → **[G-4]**
-- [ ] Task 2.3: Implement persona content validation — check 5 required sections exist and are non-empty, disable persona + log WARNING on failure (SDD 3.1.1, IMP-001) → **[G-4]**
-- [ ] Task 2.4: Extend `/run-bridge` SKILL.md Phase 3 with enriched review handling — add Phase 3.1 section with 10-step workflow for enriched Bridgebuilder review, including **post-redaction safety check step** (SDD 3.3, Flatline SKP-006) → **[G-1, G-2, G-3, G-5]**
-- [ ] Task 2.5: Implement `redact_security_content()` in `bridge-github-trail.sh` — **threat-modeled redaction** with gitleaks-inspired patterns: AWS keys (AKIA prefix), GitHub tokens (ghp_/gho_ prefix), JWTs (eyJ prefix), generic high-entropy 32+ chars, common secret patterns (api_key, token, etc.), **with allowlist** for known-safe patterns (sha256 in markers, base64 diagram URLs) (SDD 3.5.2, SKP-005, Flatline SKP-006) → **[G-4]**
-- [ ] Task 2.6: Implement size enforcement in `bridge-github-trail.sh` `cmd_comment` — 65KB truncation preserving findings JSON, 256KB findings-only fallback, always save full review to `.run/` **with 0600 permissions** (SDD 3.5.1, SKP-001, Flatline SKP-009) → **[G-3, G-5]**
-- [ ] Task 2.7: Add C-BRIDGE-006 (ALWAYS: load persona), C-BRIDGE-007 (SHOULD: praise quality), C-BRIDGE-008 (SHOULD: educational fields) to `constraints.json` (SDD 5.1) → **[G-1, G-2]**
-- [ ] Task 2.8: Add `run_bridge.bridgebuilder` section to `.loa.config.yaml` and `.loa.config.yaml.example` — persona_enabled, enriched_findings, insights_stream, praise_findings, integrity_check, token_budget, size_limits, redaction (SDD 3.7) → **[G-5]**
-- [ ] Task 2.9: Add `enrichment` metrics tracking to bridge state per iteration — persona_loaded, persona_validation, findings_format, field_fill_rates, praise_count, insights_size_bytes, redactions_applied (SDD 3.8, IMP-010) → **[G-1]**
-- [ ] Task 2.10: Implement post-redaction safety check — scan output for known secret prefixes (ghp_, gho_, AKIA, eyJ); if found, block posting and log error with line reference (Flatline SKP-006) → **[G-4]**
-- [ ] Task 2.11: Secure `.run/` local artifacts — verify `.run/` is in `.gitignore`, saved reviews use 0600 permissions, add 30-day retention cleanup to bridge finalization (Flatline SKP-009) → **[G-4]**
-- [ ] Task 2.12: Extend `bridge-github-trail.bats` — add tests for 65KB truncation, 256KB findings-only fallback, **realistic secret patterns (AWS AKIA..., GitHub ghp_..., JWT eyJ...)**, **allowlist exclusions**, **post-redaction safety check**, printf usage (SDD 7.1, Flatline SKP-006) → **[G-4]**
+**Description**: Implement all 8 phase functions within the orchestrator.
 
-### Definition of Done (Flatline IMP-009)
-
-- [ ] All deliverables checked off
-- [ ] All acceptance criteria verified
-- [ ] All existing BATS tests pass (0 regressions)
-- [ ] New BATS tests added and passing
-- [ ] No uncommitted changes or TODO markers in modified files
-
-### Dependencies
-
-- Sprint 1: Parser redesign (JSON extraction path), JSON Schema, PRAISE severity, flock state updates, seed fixes
-
-### Risks & Mitigation
-
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| Persona content too generic/formulaic | Med | High | Include diverse voice examples from 25+ actual Bridgebuilder reviews (loa-finn corpus) |
-| Size enforcement breaks existing comments | Low | Med | Only triggers above 65KB; current comments are 2-5KB |
-| Redaction misses real secrets (false negative) | Med | High | Post-redaction safety check blocks posting if known prefixes detected; gitleaks-inspired patterns for common providers (Flatline SKP-006) |
-| Redaction strips legitimate content (false positive) | Med | Low | Allowlist for known-safe patterns; overstripping is safe direction (SDD 6.1) |
-| `.run/` artifacts leaked via git | Low | Med | Verify `.gitignore` includes `.run/`, 0600 permissions, retention cleanup (Flatline SKP-009) |
-
-### Success Metrics
-
-- Persona file contains all 5 required sections with diverse voice examples
-- Persona integrity check blocks modified persona, allows unmodified
-- Size enforcement correctly truncates >65KB and falls back >256KB
-- Redaction strips realistic AWS/GitHub/JWT tokens from test fixture
-- Post-redaction safety check blocks posting with unredacted secrets
-- `.run/` is gitignored, reviews saved with restricted permissions
-- All existing + new BATS tests pass
+**Acceptance Criteria**:
+- [ ] `phase_classify()`: Extracts PR number from commit, fetches PR metadata via gh, classifies type
+- [ ] `phase_semver()`: Delegates to semver-bump.sh, stores result in state
+- [ ] `phase_changelog()`: Replaces `[Unreleased]` with versioned header, idempotent
+- [ ] `phase_gt_regen()`: Invokes ground-truth-gen.sh --mode checksums, commits if changes
+- [ ] `phase_rtfm()`: Placeholder that logs "RTFM validation" (full implementation in Sprint 3)
+- [ ] `phase_tag()`: Creates and pushes annotated tag, idempotent
+- [ ] `phase_release()`: Creates GitHub Release via gh, idempotent
+- [ ] `phase_notify()`: Posts summary table to PR comment
 
 ---
 
-## Sprint 3: Validation + Integration
+## Sprint 2: GitHub Actions Workflow & Integration
 
-**Duration:** 2.5 days
+**Goal**: Create the GH Actions workflow, wire claude-code-action, update Loa config and docs.
 
-### Sprint Goal
+### Task 2.1: Post-Merge Workflow
 
-Create comprehensive test fixtures, validate end-to-end enrichment pipeline (JSON parsing, legacy fallback, convergence isolation, size enforcement, persona integrity, redaction), fix lore cross-references, and finalize documentation with version bump.
+**File**: `.github/workflows/post-merge.yml`
 
-### Deliverables
+**Description**: GitHub Actions workflow that triggers on push to main, classifies the PR, and dispatches to the appropriate pipeline tier.
 
-- [ ] Enriched JSON test fixture created (SDD 7.2)
-- [ ] Full integration validation against JSON and legacy fixtures
-- [ ] Convergence isolation verified (PRAISE weight=0, score unaffected)
-- [ ] Size enforcement verified (65KB truncation, 256KB fallback)
-- [ ] Persona integrity verified (base-branch hash comparison)
-- [ ] Content redaction verified (realistic tokens stripped, safety check blocks leaks)
-- [ ] Broken lore cross-references fixed (seed MEDIUM-8)
-- [ ] `CLAUDE.loa.md` stale integrity hash recomputed (seed MEDIUM-10)
-- [ ] Version bump and CHANGELOG entry
-- [ ] E2E Goal Validation
+**Acceptance Criteria**:
+- [ ] Triggers on `push` to `main` branch only
+- [ ] Concurrency group prevents parallel runs
+- [ ] `classify` job: extracts PR number, classifies type, outputs pr_number + pr_type
+- [ ] `simple-release` job: runs for bugfix/other, executes semver + tag in shell
+- [ ] `full-pipeline` job: runs for cycle PRs, invokes claude-code-action
+- [ ] `notify` job: posts results, sends Discord notification on failure
+- [ ] 30-minute timeout on full-pipeline job
+- [ ] Proper permissions block (contents:write, pull-requests:write, id-token:write, actions:read)
 
-### Acceptance Criteria
+### Task 2.2: claude-code-action Configuration
 
-- [ ] JSON test fixture matches SDD 7.2 format — enriched findings with all 5 new fields + PRAISE finding
-- [ ] Parser extracts all fields from JSON fixture: `faang_parallel`, `metaphor`, `teachable_moment`, `connection`, `praise` (FR-1)
-- [ ] Parser falls back to legacy regex for cycle-005 markdown fixture and produces identical output (SDD 3.2.5)
-- [ ] `severity_weighted_score` excludes PRAISE (weight=0) — verified with fixture containing CRITICAL(10) + 2x PRAISE(0), expected score = 10, NOT 10 (which is already correct) but importantly NOT 20 or any value that includes PRAISE weight (Flatline IMP-010)
-- [ ] `by_severity` includes all 6 levels: critical, high, medium, low, vision, praise (FR-1)
-- [ ] Lore YAML cross-references resolve correctly (seed MEDIUM-8)
-- [ ] `CLAUDE.loa.md` integrity hash is current after all changes (seed MEDIUM-10)
-- [ ] Version bumped to v1.35.0 (or as appropriate)
+**File**: `.github/workflows/post-merge.yml` (full-pipeline job)
 
-### Technical Tasks
+**Description**: Configure the claude-code-action step with proper prompt, model, tool allowlist, and timeout.
 
-- [ ] Task 3.1: Create enriched JSON test fixture at `tests/fixtures/enriched-bridge-review.md` — full Bridgebuilder review with opening prose, JSON fenced block with mixed enriched+plain findings and PRAISE finding, closing meditation (SDD 7.2) → **[G-1, G-2]**
-- [ ] Task 3.2: Create legacy markdown test fixture at `tests/fixtures/legacy-bridge-review.md` — cycle-005 format with markdown field-based findings, no JSON block (SDD 3.2.5) → **[G-4]**
-- [ ] Task 3.3: Validate parser on enriched fixture — all 5 educational fields extracted, PRAISE counted, severity_weighted_score correct (SDD 7.3) → **[G-1, G-4]**
-- [ ] Task 3.4: Validate parser on legacy fixture — identical output to current parser behavior, **contract test: pin exact output for known input** (SDD 7.3, Flatline SKP-003) → **[G-4]**
-- [ ] Task 3.5: Validate convergence isolation — create fixture with CRITICAL(weight=10) + 2x PRAISE(weight=0), verify `severity_weighted_score` = 10 (not 20, which would indicate PRAISE being counted); verify PRAISE excluded from sprint plan task generation (SDD 4.4, Flatline IMP-010) → **[G-4]**
-- [ ] Task 3.6: Validate size enforcement — create >65KB fixture, verify truncation preserves findings JSON; create >256KB fixture, verify findings-only fallback (SDD 7.3) → **[G-3, G-5]**
-- [ ] Task 3.7: Validate persona integrity — modify persona on branch, verify base-branch version loaded (SDD 7.3) → **[G-4]**
-- [ ] Task 3.8: Validate redaction — include realistic tokens (AWS AKIA..., GitHub ghp_..., JWT eyJ...) in test prose, verify all replaced with `[REDACTED]`; verify post-redaction safety check catches any missed tokens (SDD 7.3, Flatline SKP-006) → **[G-4]**
-- [ ] Task 3.9: Fix broken lore cross-references in `.claude/data/lore/*.yaml` — verify `related:` fields reference valid entries (seed MEDIUM-8, SDD 3.9 #8) → **[G-4]**
-- [ ] Task 3.10: Recompute `CLAUDE.loa.md` integrity hash after all changes (seed MEDIUM-10, SDD 3.9 #10) → **[G-4]**
-- [ ] Task 3.11: Version bump — update version references, add CHANGELOG entry for v1.35.0 (SDD 3.9) → **[G-4]**
-- [ ] Task 3.12: Parser performance sanity check — verify parser completes in <5s for a 50KB review with 20 findings on local machine (Flatline IMP-004) → **[G-4]**
+**Acceptance Criteria**:
+- [ ] Uses `anthropics/claude-code-action@v1`
+- [ ] Prompt includes PR number, type, merge SHA
+- [ ] Model: `claude-sonnet-4-5-20250929` (cost-efficient)
+- [ ] `--max-turns 15` to limit conversation depth
+- [ ] Tool allowlist: `Bash(bash),Read,Write,Glob,Grep`
+- [ ] Reads `ANTHROPIC_API_KEY` from repository secrets
+- [ ] Structured output captures pipeline result JSON
 
-### Task 3.E2E: End-to-End Goal Validation
+### Task 2.3: Config & Constraints Update
 
-**Priority:** P0 (Must Complete)
-**Goal Contribution:** All goals (G-1, G-2, G-3, G-4, G-5, G-6)
+**Files**: `.loa.config.yaml.example`, `.claude/data/constraints.json`
 
-**Description:**
-Validate that all PRD goals are achieved through the complete implementation.
+**Description**: Add `post_merge:` configuration section and C-MERGE constraints.
 
-**Validation Steps:**
+**Acceptance Criteria**:
+- [ ] `.loa.config.yaml.example` has `post_merge:` section with all options
+- [ ] `constraints.json` has C-MERGE-001 through C-MERGE-005
+- [ ] Constraint hash updated
+- [ ] Config example has comments explaining each option
 
-| Goal ID | Goal | Validation Action | Expected Result |
-|---------|------|-------------------|-----------------|
-| G-1 | Educational fields per finding >= 2 | Parse enriched fixture, check field fill rates | >= 2 of {faang_parallel, metaphor, teachable_moment} per finding |
-| G-2 | PRAISE findings per review >= 2 | Parse enriched fixture, count PRAISE severity | >= 2 PRAISE findings in fixture |
-| G-3 | Review character count 10-30K | Measure enriched fixture prose length | 10,000-30,000 characters |
-| G-4 | Convergence efficiency unchanged | Verify: PRAISE weight=0, score excludes PRAISE, sprint plan skips PRAISE tasks | `severity_weighted_score` with PRAISE = score without PRAISE |
-| G-5 | Token overhead < 30K | Check config token_budget.findings + insights | findings: 5000 + insights: 25000 = 30000 max |
-| G-6 | User satisfaction "transformative" | Review persona voice examples and dual-stream output | Qualitative — persona has rich voice, diverse examples |
+### Task 2.4: CLAUDE.loa.md Update
 
-**Acceptance Criteria:**
-- [ ] Each goal validated with documented evidence
-- [ ] All BATS tests pass (parser, state, trail)
-- [ ] No regressions in existing bridge functionality
-- [ ] Parser performance sanity check passes (<5s for 50KB/20 findings)
+**File**: `.claude/loa/CLAUDE.loa.md`
 
-### Definition of Done (Flatline IMP-009)
+**Description**: Add Post-Merge Automation section to framework instructions.
 
-- [ ] All deliverables checked off
-- [ ] All acceptance criteria verified
-- [ ] All existing BATS tests pass (0 regressions)
-- [ ] New BATS tests added and passing
-- [ ] E2E validation table — all rows pass
-- [ ] No uncommitted changes or TODO markers in modified files
+**Acceptance Criteria**:
+- [ ] New section: "Post-Merge Automation (v1.36.0)"
+- [ ] Documents the 3-layer architecture
+- [ ] Documents phase matrix for each PR type
+- [ ] References configuration options
+- [ ] Constraint-generated block for C-MERGE rules
 
-### Dependencies
+### Task 2.5: CHANGELOG & Version Bump
 
-- Sprint 2: Persona file, SKILL.md, size enforcement, redaction, constraints, config
+**Files**: `CHANGELOG.md`, `README.md`, `.loa-version.json`
 
-### Risks & Mitigation
+**Description**: Add v1.36.0 changelog entry and bump version references.
 
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| Lore cross-references entangled with other fixes | Low | Low | Isolate lore fixes to dedicated commit |
-| Integrity hash recomputation invalidates other checks | Low | Med | Recompute as final task after all other changes |
-| Version bump conflicts with concurrent PRs | Low | Low | Use feature branch, merge after approval |
+**Acceptance Criteria**:
+- [ ] CHANGELOG has `## [1.36.0]` entry with all changes
+- [ ] README version badge updated
+- [ ] `.loa-version.json` version updated
+- [ ] Why This Release section explains issue #298
 
-### Success Metrics
+### Task 2.6: Integration Tests
 
-- All BATS tests pass (target: 45+ tests across 3 test files)
-- JSON and legacy fixtures both parse correctly
-- Convergence isolation proven: PRAISE weight=0, score excludes PRAISE
-- Lore references resolve correctly
-- E2E validation table all rows pass
-- Parser performance <5s on reference workload
+**File**: `tests/unit/post-merge-orchestrator.bats` (extended)
+
+**Description**: Add integration-level tests that exercise the full orchestrator flow with mocked external commands.
+
+**Acceptance Criteria**:
+- [ ] Tests full cycle pipeline (all 8 phases mock-executed)
+- [ ] Tests bugfix pipeline (4 phases)
+- [ ] Tests idempotency (run twice, no duplicate tags/releases)
+- [ ] Tests CHANGELOG finalization
+- [ ] Tests notify phase generates correct summary table
+- [ ] Minimum 10 additional test cases
 
 ---
 
-## Risk Register
+## Sprint 3: Ship Skill Enhancement & E2E Wiring
 
-| ID | Risk | Sprint | Probability | Impact | Mitigation | Owner |
-|----|------|--------|-------------|--------|------------|-------|
-| R1 | JSON parser breaks legacy output | 1 | Med | High | Legacy fallback preserves current behavior | Agent |
-| R2 | Persona becomes formulaic | 2 | Med | High | Diverse voice examples from 25+ reviews | Agent |
-| R3 | Size enforcement breaks existing comments | 2 | Low | Med | Only triggers above 65KB (current: 2-5KB) | Agent |
-| R4 | Redaction overstrips content | 2 | Med | Low | Allowlist + safe direction (overstrip > understrip) | Agent |
-| R5 | Convergence regression from PRAISE | 1-3 | Low | High | Weight=0, verified in tests | Agent |
-| R6 | flock unavailable on platform | 1 | Low | Med | Hard-fail, no silent degradation (Flatline IMP-002) | Agent |
-| R7 | Sprint timeline aggressive for scope | 1-3 | Med | Med | Regression gate per sprint; stop-ship on test failure (Flatline SKP-001) | Agent |
-| R8 | Nested fences/multiple blocks confuse parser | 1 | Med | Med | Strict grammar: exactly one block, fail closed (Flatline SKP-002) | Agent |
-| R9 | State corruption from interrupted writes | 1 | Low | High | Write-to-temp + atomic mv; crash-safety tests (Flatline SKP-004) | Agent |
-| R10 | Redaction misses real secrets | 2 | Med | High | Post-redaction safety check blocks posting (Flatline SKP-006) | Agent |
-| R11 | `.run/` artifacts leaked via git | 2 | Low | Med | Verify gitignore, 0600 permissions, retention cleanup (Flatline SKP-009) | Agent |
+**Goal**: Wire the `/ship` skill for dual-mode operation, add RTFM integration, and validate E2E flow.
+
+### Task 3.1: Ship Skill Enhancement
+
+**File**: `.claude/skills/deploying-infrastructure/SKILL.md` (or new ship skill file)
+
+**Description**: Extend `/ship` to support automated mode (invoked by claude-code-action) and manual mode (invoked by user).
+
+**Acceptance Criteria**:
+- [ ] Manual mode: interactive confirmations, shows progress
+- [ ] Automated mode: `--automated --pr N --sha S` suppresses prompts
+- [ ] Both modes delegate to `post-merge-orchestrator.sh`
+- [ ] Automated mode posts results as PR comment
+- [ ] Manual mode displays results in terminal
+
+### Task 3.2: RTFM Phase Integration
+
+**File**: `.claude/scripts/post-merge-orchestrator.sh` (phase_rtfm)
+
+**Description**: Replace the RTFM placeholder with actual RTFM validation invocation.
+
+**Acceptance Criteria**:
+- [ ] Invokes RTFM testing on README.md and GT index.md
+- [ ] Runs in headless mode (no user prompts)
+- [ ] Gap report saved to `.run/post-merge-rtfm-report.json`
+- [ ] Gaps are logged but don't block the pipeline (per C-MERGE-003)
+- [ ] Gap count included in NOTIFY phase summary
+
+### Task 3.3: Discord Notification
+
+**File**: `.github/workflows/post-merge.yml` (notify job)
+
+**Description**: Add Discord webhook notification on pipeline failure.
+
+**Acceptance Criteria**:
+- [ ] Posts to Discord only on failure (not success)
+- [ ] Uses existing `DISCORD_WEBHOOK_URL` secret
+- [ ] Message includes: PR number, failed phase, error summary
+- [ ] Gracefully skips if `DISCORD_WEBHOOK_URL` is not set
+
+### Task 3.4: Ledger & Cycle Integration
+
+**File**: `.claude/scripts/post-merge-orchestrator.sh` (phase_classify enhancement)
+
+**Description**: When a cycle-completion PR merges, automatically archive the cycle in the Sprint Ledger.
+
+**Acceptance Criteria**:
+- [ ] Detects cycle ID from PR body or commit messages
+- [ ] Archives the cycle in `grimoires/loa/ledger.json`
+- [ ] Moves planning artifacts to archive directory
+- [ ] Only runs for cycle-type PRs
+
+### Task 3.5: E2E Validation
+
+**Description**: Manual validation of the complete pipeline with a test merge.
+
+**Acceptance Criteria**:
+- [ ] Create test PR with conventional commits
+- [ ] Merge to main
+- [ ] Verify: semver computed correctly
+- [ ] Verify: CHANGELOG finalized
+- [ ] Verify: tag created
+- [ ] Verify: (if cycle) GT regenerated, release created
+- [ ] Verify: PR comment posted with summary
+
+### Task 3.6: Constraint Registry Update
+
+**File**: `.claude/data/constraints.json`
+
+**Description**: Generate constraint blocks in CLAUDE.loa.md from the new C-MERGE constraints.
+
+**Acceptance Criteria**:
+- [ ] `@constraint-generated` blocks rendered in CLAUDE.loa.md
+- [ ] Constraint hash matches registry
+- [ ] All 5 C-MERGE constraints present
 
 ---
 
-## Success Metrics Summary
-
-| Metric | Target | Measurement Method | Sprint |
-|--------|--------|-------------------|--------|
-| Seed findings resolved | 13/13 | Count of fixes in code | 1 |
-| Parser extracts JSON fenced block | Yes | BATS test | 1 |
-| Parser legacy fallback works | Yes | BATS test + contract test | 1, 3 |
-| Formal JSON Schema exists | Yes | Schema file + validation tests | 1 |
-| PRAISE weight = 0 | Verified | BATS test | 1 |
-| flock atomic updates | All 5 functions | BATS test | 1 |
-| flock crash safety | Verified | BATS test (interrupted write) | 1 |
-| Persona has 5 required sections | Yes | Validation function | 2 |
-| Persona integrity blocks modified file | Yes | BATS test | 2 |
-| Size enforcement truncates >65KB | Yes | BATS test | 2 |
-| Size enforcement findings-only >256KB | Yes | BATS test | 2 |
-| Redaction strips realistic secrets | Yes | BATS test (AWS/GitHub/JWT) | 2 |
-| Post-redaction safety check works | Yes | BATS test | 2 |
-| `.run/` secured | Yes | gitignore + permissions check | 2 |
-| All BATS tests pass | 45+ | Test runner | 3 |
-| E2E goals validated | 6/6 | Validation table | 3 |
-| Parser performance | <5s for 50KB/20 findings | Local timing | 3 |
-
----
-
-## Dependencies Map
+## Sprint Dependencies
 
 ```
-Sprint 1 ──────────────▶ Sprint 2 ──────────────▶ Sprint 3
-   │                        │                        │
-   ├─ Parser redesign       ├─ Persona file          ├─ Integration tests
-   ├─ JSON Schema           ├─ Integrity check       ├─ Legacy contract tests
-   ├─ PRAISE severity       ├─ SKILL.md enrichment   ├─ Convergence proof
-   ├─ flock state + crash   ├─ Size enforcement      ├─ Lore fixes
-   ├─ 13 seed fixes         ├─ Threat-modeled redact ├─ Performance sanity
-   └─ CLAUDE.loa.md         ├─ .run/ security        ├─ Version bump
-                            ├─ Constraints           └─ E2E validation
-                            └─ Config
+Sprint 1 (Foundation) → Sprint 2 (Integration) → Sprint 3 (Enhancement)
 ```
 
----
+Sprint 2 depends on Sprint 1 (orchestrator must exist before workflow references it).
+Sprint 3 depends on Sprint 2 (ship skill needs workflow, RTFM needs orchestrator phases).
 
-## Appendix
+## Risk Mitigation
 
-### A. PRD Feature Mapping
-
-| PRD Feature | Sprint | Status |
-|-------------|--------|--------|
-| FR-1: Enriched Findings Schema | Sprint 1 (parser, schema), Sprint 2 (constraints), Sprint 3 (validation) | Planned |
-| FR-2: Bridgebuilder Persona Integration | Sprint 2 (persona, SKILL.md, integrity) | Planned |
-| FR-3: Dual-Stream Output | Sprint 2 (trail, size, redaction), Sprint 3 (validation) | Planned |
-| FR-4: Seed Findings Integration | Sprint 1 (all 13 fixes) | Planned |
-
-### B. SDD Component Mapping
-
-| SDD Component | Sprint | Status |
-|---------------|--------|--------|
-| 3.1 Bridgebuilder Persona File | Sprint 2 | Planned |
-| 3.2 Enriched Findings Parser | Sprint 1 | Planned |
-| 3.3 Run-Bridge SKILL.md Extension | Sprint 2 | Planned |
-| 3.4 Bridge State Extension | Sprint 1 | Planned |
-| 3.5 GitHub Trail Extension | Sprint 1 (seed fixes), Sprint 2 (size, redaction, .run/) | Planned |
-| 3.6 Vision Capture Fix | Sprint 1 | Planned |
-| 3.7 Configuration Extension | Sprint 2 | Planned |
-| 3.8 Enrichment Metrics | Sprint 2 | Planned |
-| 3.9 Seed Findings | Sprint 1 (all), Sprint 3 (lore, hash) | Planned |
-
-### C. PRD Goal Mapping
-
-| Goal ID | Goal Description | Contributing Tasks | Validation Task |
-|---------|------------------|-------------------|-----------------|
-| G-1 | Educational fields per finding >= 2 of {faang_parallel, metaphor, teachable_moment} | Sprint 1: 1.4, 1.5, 1.16; Sprint 2: 2.1, 2.4, 2.7, 2.9; Sprint 3: 3.1, 3.3 | Sprint 3: Task 3.E2E |
-| G-2 | PRAISE findings per review >= 2 | Sprint 1: 1.3; Sprint 2: 2.1, 2.7; Sprint 3: 3.1 | Sprint 3: Task 3.E2E |
-| G-3 | Review character count (insights stream) 10-30K | Sprint 2: 2.4, 2.6; Sprint 3: 3.6 | Sprint 3: Task 3.E2E |
-| G-4 | Convergence efficiency same or better | Sprint 1: 1.1-1.18; Sprint 2: 2.2, 2.3, 2.5, 2.10-2.12; Sprint 3: 3.2, 3.4, 3.5, 3.7-3.12 | Sprint 3: Task 3.E2E |
-| G-5 | Token overhead per iteration < 30K | Sprint 2: 2.4, 2.6, 2.8 | Sprint 3: Task 3.E2E |
-| G-6 | User satisfaction "transformative" | Sprint 2: 2.1 (persona quality) | Sprint 3: Task 3.E2E |
-
-**Goal Coverage Check:**
-- [x] All PRD goals have at least one contributing task
-- [x] All goals have a validation task in final sprint (Task 3.E2E)
-- [x] No orphan tasks (all tasks annotated with goal contributions)
-
-**Per-Sprint Goal Contribution:**
-
-Sprint 1: G-1 (partial: parser + schema + fields), G-2 (partial: PRAISE severity), G-4 (foundation: parser, state, seeds, crash safety)
-Sprint 2: G-1 (complete: persona + constraints), G-2 (complete: persona guidance), G-3 (complete: dual-stream), G-5 (complete: config budgets), G-6 (complete: persona quality)
-Sprint 3: G-4 (complete: E2E validation + convergence proof + performance), all goals validated
-
-### D. Flatline Integration Log
-
-| Finding | Score | Category | Integration |
-|---------|-------|----------|-------------|
-| IMP-002 | 830 | HIGH_CONSENSUS | flock hard-fail, no silent fallback → Sprint 1 Task 1.6, Risk R6 |
-| IMP-003 | 780 | HIGH_CONSENSUS | Formal JSON Schema → Sprint 1 Task 1.16, AC |
-| IMP-004 | 695 | DISPUTED | Parser perf sanity check → Sprint 3 Task 3.12 |
-| IMP-009 | 595 | DISPUTED | Definition of Done per sprint → All sprints |
-| IMP-010 | 675 | DISPUTED | Fix Task 3.5 test description → Sprint 3 Task 3.5 |
-| SKP-001 | 930 | BLOCKER | Regression gate per sprint, stop-ship → Executive Summary, Risk R7 |
-| SKP-002 | 760 | BLOCKER | Strict grammar, edge case tests → Sprint 1 Tasks 1.1, 1.17, Risk R8 |
-| SKP-003 | 720 | BLOCKER | Schema versioning + contract tests → Sprint 1 Task 1.16, Sprint 3 Task 3.4 |
-| SKP-004 | 880 | BLOCKER | Crash safety, stale-lock handling → Sprint 1 Tasks 1.6, 1.18, Risk R9 |
-| SKP-006 | 910 | BLOCKER | Threat-modeled redaction, post-redaction check → Sprint 2 Tasks 2.5, 2.10, 2.12, Risk R10 |
-| SKP-009 | 740 | BLOCKER | .run/ security boundary → Sprint 2 Task 2.11, Risk R11 |
-
----
-
-*Generated by Sprint Planner Agent — Cycle 006 (Flatline-reviewed)*
+| Risk | Sprint | Mitigation |
+|------|--------|------------|
+| claude-code-action not available | 2 | Shell-only fallback in simple-release job |
+| `ANTHROPIC_API_KEY` not set | 2-3 | full-pipeline job checks secret existence, skips gracefully |
+| CHANGELOG format varies | 1 | Parser handles multiple header formats |
+| No git tags exist yet | 1 | Fallback to CHANGELOG version |
+| Concurrent merges | 2 | Concurrency group in workflow |

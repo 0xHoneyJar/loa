@@ -55,16 +55,29 @@
       "id": "cycle-006",
       "label": "Bridgebuilder Persona Enrichment for Automated Bridge Loop",
       "type": "feature",
-      "status": "active",
+      "status": "archived",
       "source_issue": "https://github.com/0xHoneyJar/loa/issues/295",
       "created_at": "2026-02-12T08:00:00Z",
+      "archived_at": "2026-02-13T12:00:00Z",
       "sprints": ["sprint-1", "sprint-2", "sprint-3"],
+      "prd": "grimoires/loa/a2a/cycle-006-archive/prd.md",
+      "sdd": "grimoires/loa/a2a/cycle-006-archive/sdd.md",
+      "sprint_plan": "grimoires/loa/a2a/cycle-006-archive/sprint.md"
+    },
+    {
+      "id": "cycle-007",
+      "label": "Post-Merge Automation — Docs, GT, RTFM, Semver, Release",
+      "type": "feature",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/298",
+      "created_at": "2026-02-13T12:00:00Z",
+      "sprints": [],
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "sprint_plan": "grimoires/loa/sprint.md"
     }
   ],
-  "active_cycle": "cycle-006",
+  "active_cycle": "cycle-007",
   "active_bugfix": null,
   "global_sprint_counter": 13,
   "bugfix_cycles": [
