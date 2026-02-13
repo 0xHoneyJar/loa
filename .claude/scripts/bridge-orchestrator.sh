@@ -387,14 +387,22 @@ bridge_main() {
     echo "[BUTTERFREEZONE] Regenerating agent-grounded README..."
     echo "SIGNAL:BUTTERFREEZONE_GEN"
     local butterfreezone_gen_exit=0
-    .claude/scripts/butterfreezone-gen.sh --json 2>/dev/null || butterfreezone_gen_exit=$?
+    local bfz_stderr_file
+    bfz_stderr_file=$(mktemp "${TMPDIR:-/tmp}/bfz-stderr.XXXXXX")
+    .claude/scripts/butterfreezone-gen.sh --json 2>"$bfz_stderr_file" || butterfreezone_gen_exit=$?
 
     if [[ $butterfreezone_gen_exit -eq 0 ]]; then
       echo "[BUTTERFREEZONE] BUTTERFREEZONE.md regenerated"
       git add BUTTERFREEZONE.md 2>/dev/null || true
     else
       echo "[BUTTERFREEZONE] WARNING: Generation failed (exit $butterfreezone_gen_exit) — non-blocking"
+      # Surface security-related failures (redaction check, etc.)
+      if grep -qi "secret\|redact\|BLOCKING\|credential" "$bfz_stderr_file" 2>/dev/null; then
+        echo "[BUTTERFREEZONE] SECURITY: stderr contains security-related messages:"
+        cat "$bfz_stderr_file" >&2
+      fi
     fi
+    rm -f "$bfz_stderr_file"
 
     # Update bridge state
     if command -v jq &>/dev/null && [[ -f "$BRIDGE_STATE_FILE" ]]; then

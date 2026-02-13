@@ -42,7 +42,7 @@ CHECKS=()
 
 log_pass() {
     PASSES=$((PASSES + 1))
-    CHECKS+=("{\"name\": \"$1\", \"status\": \"pass\"}")
+    CHECKS+=("$(jq -nc --arg name "$1" --arg status "pass" '{name: $name, status: $status}')")
     [[ "$QUIET" == "true" ]] && return 0
     echo "  PASS: $2"
 }
@@ -51,9 +51,9 @@ log_fail() {
     FAILURES=$((FAILURES + 1))
     local detail="${3:-}"
     if [[ -n "$detail" ]]; then
-        CHECKS+=("{\"name\": \"$1\", \"status\": \"fail\", \"detail\": \"$detail\"}")
+        CHECKS+=("$(jq -nc --arg name "$1" --arg status "fail" --arg detail "$detail" '{name: $name, status: $status, detail: $detail}')")
     else
-        CHECKS+=("{\"name\": \"$1\", \"status\": \"fail\"}")
+        CHECKS+=("$(jq -nc --arg name "$1" --arg status "fail" '{name: $name, status: $status}')")
     fi
     [[ "$QUIET" == "true" ]] && return 0
     echo "  FAIL: $2"
@@ -67,9 +67,9 @@ log_warn() {
     WARNINGS=$((WARNINGS + 1))
     local detail="${3:-}"
     if [[ -n "$detail" ]]; then
-        CHECKS+=("{\"name\": \"$1\", \"status\": \"warn\", \"detail\": \"$detail\"}")
+        CHECKS+=("$(jq -nc --arg name "$1" --arg status "warn" --arg detail "$detail" '{name: $name, status: $status, detail: $detail}')")
     else
-        CHECKS+=("{\"name\": \"$1\", \"status\": \"warn\"}")
+        CHECKS+=("$(jq -nc --arg name "$1" --arg status "warn" '{name: $name, status: $status}')")
     fi
     [[ "$QUIET" == "true" ]] && return 0
     echo "  WARN: $2"
@@ -265,7 +265,7 @@ validate_references() {
         log_pass "references" "All file references valid ($checked checked)"
     fi
 
-    return "$failures"
+    return $(( failures > 0 ? 1 : 0 ))
 }
 
 # Check 5: Word budget

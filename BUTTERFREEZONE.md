@@ -110,7 +110,7 @@ Directory structure:
 |--------|-------|---------|
 | `docs/` | 4 | Documentation |
 | `evals/` | 998 |  |
-| `grimoires/` | 488 | Loa state files |
+| `grimoires/` | 489 | Loa state files |
 | `skills/` | 5112 |  |
 | `tests/` | 142 | Test suites |
 
@@ -135,14 +135,14 @@ claude
 /ship      # Deploy and archive
 ```
 <!-- ground-truth-meta
-head_sha: 41d32d35b693c0947ca707633191e08a632a0d49
-generated_at: 2026-02-13T06:33:09Z
+head_sha: 88efb8692faea5c0d3a18c5b0c275d258093875b
+generated_at: 2026-02-13T06:53:49Z
 generator: butterfreezone-gen v1.0.0
 sections:
   agent_context: b09a6c0215127e4e9e31487cadb96d5d1c659ce8257abbae9662592779dde922
   capabilities: fb6ef381fb7c2032e949e99a675dae0b4d58aabe935aec3c9c48c362594e9ca7
   architecture: a5ffce49636c71a93df41e9cb65f1bf394cce17d65413c45607d64e248f908f7
   interfaces: 23e92915acfd2a5fa593f1d7053d04ef25df2a6ed03b76aa70588791003fb6b1
-  module_map: 401e5a8062fd4957af04024e7b0c55986fba37d39f037362335ac732e3b4b35c
+  module_map: f60fed6f0ce0317f86e7143e97ae9f27fe9ed6e2dd104fa433afa969e5d78691
   quick_start: 6e53606a9d320d2874cc4165b73d252ad1d26b044ef5dfea329e433e50548ca9
 -->

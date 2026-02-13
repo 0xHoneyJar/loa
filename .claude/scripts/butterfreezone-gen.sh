@@ -886,24 +886,78 @@ enforce_total_budget() {
     local total_words
     total_words=$(echo "$document" | wc -w | tr -d ' ')
 
-    if (( total_words > TOTAL_BUDGET )); then
-        log_warn "Total word count $total_words exceeds budget $TOTAL_BUDGET — truncating low-priority sections"
-        # Truncate in priority order (lowest priority first)
-        local result="$document"
-        for section in "${TRUNCATION_PRIORITY[@]}"; do
-            total_words=$(echo "$result" | wc -w | tr -d ' ')
-            if (( total_words <= TOTAL_BUDGET )); then
-                break
-            fi
-            # Find and truncate this section
-            local budget="${WORD_BUDGETS[$section]:-200}"
-            local reduced_budget=$((budget / 2))
-            log_warn "Reducing $section budget to $reduced_budget words"
-        done
-        echo "$result"
-    else
+    if (( total_words <= TOTAL_BUDGET )); then
         echo "$document"
+        return
     fi
+
+    log_warn "Total word count $total_words exceeds budget $TOTAL_BUDGET — truncating low-priority sections"
+
+    # Map section keys to markdown headers for extraction
+    declare -A SECTION_HEADER_MAP=(
+        [capabilities]="## Key Capabilities"
+        [architecture]="## Architecture"
+        [interfaces]="## Interfaces"
+        [module_map]="## Module Map"
+        [ecosystem]="## Ecosystem"
+        [limitations]="## Limitations"
+        [quick_start]="## Quick Start"
+    )
+
+    local result="$document"
+    for section in "${TRUNCATION_PRIORITY[@]}"; do
+        total_words=$(echo "$result" | wc -w | tr -d ' ')
+        if (( total_words <= TOTAL_BUDGET )); then
+            break
+        fi
+
+        local header="${SECTION_HEADER_MAP[$section]:-}"
+        [[ -z "$header" ]] && continue
+
+        local budget="${WORD_BUDGETS[$section]:-200}"
+        local reduced_budget=$((budget / 2))
+        (( reduced_budget < 20 )) && reduced_budget=20
+
+        # Extract the section content between this header and the next ## or ground-truth-meta
+        local section_content
+        section_content=$(echo "$result" | sed -n "/^${header}$/,/^## \|^<!-- ground-truth-meta/{ /^## \|^<!-- ground-truth-meta/!p; /^${header}$/p; }" 2>/dev/null) || true
+
+        if [[ -n "$section_content" ]]; then
+            local truncated
+            truncated=$(echo "$section_content" | head_by_words "$reduced_budget")
+
+            # Only replace if we actually reduced content
+            if [[ "$truncated" != "$section_content" ]]; then
+                # Build replacement: header + provenance + truncated body
+                local header_line provenance_line body_lines
+                header_line=$(echo "$section_content" | head -1)
+                provenance_line=$(echo "$section_content" | grep "<!-- provenance:" 2>/dev/null | head -1) || true
+                body_lines=$(echo "$truncated" | tail -n +2)
+                if [[ -n "$provenance_line" ]]; then
+                    body_lines=$(echo "$truncated" | grep -v "<!-- provenance:" 2>/dev/null | tail -n +2) || true
+                fi
+
+                local replacement="${header_line}
+${provenance_line}
+${body_lines}"
+
+                # Use awk for safe multi-line replacement
+                result=$(echo "$result" | awk -v hdr="$header" -v repl="$replacement" '
+                    BEGIN { in_section=0; printed=0 }
+                    /^## / || /^<!-- ground-truth-meta/ {
+                        if (in_section && !printed) { printf "%s\n", repl; printed=1 }
+                        in_section=0
+                    }
+                    $0 == hdr { in_section=1; next }
+                    !in_section { print; next }
+                    END { if (in_section && !printed) printf "%s\n", repl }
+                ')
+
+                log_warn "Reduced $section from $(echo "$section_content" | wc -w | tr -d ' ') to ~$reduced_budget words"
+            fi
+        fi
+    done
+    echo "$result"
 }
 
 # =============================================================================
