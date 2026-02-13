@@ -185,8 +185,9 @@ get_model_secondary() {
     read_config '.flatline_protocol.models.secondary' 'gpt-5.2'
 }
 
-# Valid model names accepted by model-adapter.sh.legacy MODEL_PROVIDERS registry
-VALID_FLATLINE_MODELS="opus gpt-5.2 gpt-5.2-codex gpt-5.3-codex claude-opus-4.6 claude-opus-4.5 gemini-2.0"
+# Valid model names accepted by model-adapter.sh.legacy MODEL_PROVIDERS registry.
+# Keep in sync with MODEL_PROVIDERS in model-adapter.sh.legacy (line ~69).
+VALID_FLATLINE_MODELS=(opus gpt-5.2 gpt-5.2-codex gpt-5.3-codex claude-opus-4.6 claude-opus-4.5 gemini-2.0)
 
 validate_model() {
     local model="$1"
@@ -194,12 +195,12 @@ validate_model() {
 
     if [[ -z "$model" ]]; then
         error "Flatline model '$config_key' is empty. Set flatline_protocol.models.$config_key in .loa.config.yaml"
-        error "Valid models: $VALID_FLATLINE_MODELS"
+        error "Valid models: ${VALID_FLATLINE_MODELS[*]}"
         return 1
     fi
 
     local valid=false
-    for valid_model in $VALID_FLATLINE_MODELS; do
+    for valid_model in "${VALID_FLATLINE_MODELS[@]}"; do
         if [[ "$model" == "$valid_model" ]]; then
             valid=true
             break
@@ -208,7 +209,7 @@ validate_model() {
 
     if [[ "$valid" != "true" ]]; then
         error "Unknown flatline model: '$model' (from flatline_protocol.models.$config_key in .loa.config.yaml)"
-        error "Valid models: $VALID_FLATLINE_MODELS"
+        error "Valid models: ${VALID_FLATLINE_MODELS[*]}"
         error "Note: '$model' may be an agent alias, not a model name. Check .claude/defaults/model-config.yaml for alias mappings."
         return 1
     fi

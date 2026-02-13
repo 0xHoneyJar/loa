@@ -6,6 +6,13 @@ setup() {
     BATS_TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$BATS_TEST_DIR/../.." && pwd)"
     ORCHESTRATOR="$PROJECT_ROOT/.claude/scripts/flatline-orchestrator.sh"
+
+    # Load validation function and model list from orchestrator (once per test).
+    # Uses awk for robust multi-line extraction instead of fragile sed patterns.
+    eval "$(awk '/^VALID_FLATLINE_MODELS=/{found=1} found{print} found && /^\)/{exit}' "$ORCHESTRATOR")"
+    eval "$(awk '/^validate_model\(\)/{found=1} found{print; if(/^}/)exit}' "$ORCHESTRATOR")"
+    # Stub the error() function (defined elsewhere in the orchestrator)
+    error() { echo "ERROR: $*" >&2; }
 }
 
 # =============================================================================
@@ -13,46 +20,26 @@ setup() {
 # =============================================================================
 
 @test "validate_model accepts 'opus'" {
-    eval "$(sed -n '/^VALID_FLATLINE_MODELS=/,/^}/p' "$ORCHESTRATOR" | head -30)"
-    eval "$(sed -n '/^validate_model()/,/^}/p' "$ORCHESTRATOR")"
-    error() { echo "ERROR: $*" >&2; }
-
     run validate_model "opus" "primary"
     [ "$status" -eq 0 ]
 }
 
 @test "validate_model accepts 'gpt-5.2'" {
-    eval "$(sed -n '/^VALID_FLATLINE_MODELS=/,/^}/p' "$ORCHESTRATOR" | head -30)"
-    eval "$(sed -n '/^validate_model()/,/^}/p' "$ORCHESTRATOR")"
-    error() { echo "ERROR: $*" >&2; }
-
     run validate_model "gpt-5.2" "secondary"
     [ "$status" -eq 0 ]
 }
 
 @test "validate_model accepts 'claude-opus-4.6'" {
-    eval "$(sed -n '/^VALID_FLATLINE_MODELS=/,/^}/p' "$ORCHESTRATOR" | head -30)"
-    eval "$(sed -n '/^validate_model()/,/^}/p' "$ORCHESTRATOR")"
-    error() { echo "ERROR: $*" >&2; }
-
     run validate_model "claude-opus-4.6" "primary"
     [ "$status" -eq 0 ]
 }
 
 @test "validate_model accepts 'gemini-2.0'" {
-    eval "$(sed -n '/^VALID_FLATLINE_MODELS=/,/^}/p' "$ORCHESTRATOR" | head -30)"
-    eval "$(sed -n '/^validate_model()/,/^}/p' "$ORCHESTRATOR")"
-    error() { echo "ERROR: $*" >&2; }
-
     run validate_model "gemini-2.0" "primary"
     [ "$status" -eq 0 ]
 }
 
 @test "validate_model rejects 'reviewer' with actionable error" {
-    eval "$(sed -n '/^VALID_FLATLINE_MODELS=/,/^}/p' "$ORCHESTRATOR" | head -30)"
-    eval "$(sed -n '/^validate_model()/,/^}/p' "$ORCHESTRATOR")"
-    error() { echo "ERROR: $*" >&2; }
-
     run validate_model "reviewer" "secondary"
     [ "$status" -eq 1 ]
     [[ "$output" == *"Unknown flatline model"* ]]
@@ -62,40 +49,24 @@ setup() {
 }
 
 @test "validate_model rejects 'skeptic'" {
-    eval "$(sed -n '/^VALID_FLATLINE_MODELS=/,/^}/p' "$ORCHESTRATOR" | head -30)"
-    eval "$(sed -n '/^validate_model()/,/^}/p' "$ORCHESTRATOR")"
-    error() { echo "ERROR: $*" >&2; }
-
     run validate_model "skeptic" "secondary"
     [ "$status" -eq 1 ]
     [[ "$output" == *"Unknown flatline model"* ]]
 }
 
 @test "validate_model rejects empty string" {
-    eval "$(sed -n '/^VALID_FLATLINE_MODELS=/,/^}/p' "$ORCHESTRATOR" | head -30)"
-    eval "$(sed -n '/^validate_model()/,/^}/p' "$ORCHESTRATOR")"
-    error() { echo "ERROR: $*" >&2; }
-
     run validate_model "" "primary"
     [ "$status" -eq 1 ]
     [[ "$output" == *"empty"* ]]
 }
 
 @test "validate_model rejects 'nonexistent'" {
-    eval "$(sed -n '/^VALID_FLATLINE_MODELS=/,/^}/p' "$ORCHESTRATOR" | head -30)"
-    eval "$(sed -n '/^validate_model()/,/^}/p' "$ORCHESTRATOR")"
-    error() { echo "ERROR: $*" >&2; }
-
     run validate_model "nonexistent" "secondary"
     [ "$status" -eq 1 ]
     [[ "$output" == *"Unknown flatline model"* ]]
 }
 
 @test "error message includes valid model list" {
-    eval "$(sed -n '/^VALID_FLATLINE_MODELS=/,/^}/p' "$ORCHESTRATOR" | head -30)"
-    eval "$(sed -n '/^validate_model()/,/^}/p' "$ORCHESTRATOR")"
-    error() { echo "ERROR: $*" >&2; }
-
     run validate_model "reviewer" "secondary"
     [[ "$output" == *"opus"* ]]
     [[ "$output" == *"gpt-5.2"* ]]
@@ -116,7 +87,6 @@ setup() {
 # =============================================================================
 
 @test "Phase 1 call_model lines do not redirect stderr to /dev/null" {
-    # Count occurrences of 2>/dev/null in call_model lines within run_phase1
     local devnull_count
     devnull_count=$(sed -n '/^run_phase1/,/^}/p' "$ORCHESTRATOR" | grep 'call_model' | grep -c '2>/dev/null' || true)
     [ "$devnull_count" -eq 0 ]
