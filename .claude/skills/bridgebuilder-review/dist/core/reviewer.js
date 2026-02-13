@@ -130,8 +130,43 @@ export class ReviewPipeline {
             if (!claimed) {
                 return this.skipResult(item, "claim_failed");
             }
+            // Step 3.5: Incremental review detection (V3-1)
+            let incrementalBanner;
+            let effectiveItem = item;
+            if (!this.config.forceFullReview) {
+                const lastSha = await this.context.getLastReviewedSha(item);
+                if (lastSha && lastSha !== pr.headSha) {
+                    try {
+                        const compare = await this.git.getCommitDiff(owner, repo, lastSha, pr.headSha);
+                        if (compare.filesChanged.length > 0) {
+                            const deltaFiles = item.files.filter((f) => compare.filesChanged.includes(f.filename));
+                            if (deltaFiles.length > 0 && deltaFiles.length < item.files.length) {
+                                effectiveItem = { ...item, files: deltaFiles };
+                                incrementalBanner = `[Incremental: reviewing ${deltaFiles.length} files changed since ${lastSha.slice(0, 7)}]`;
+                                this.logger.info("Incremental review mode", {
+                                    owner,
+                                    repo,
+                                    pr: pr.number,
+                                    lastSha: lastSha.slice(0, 7),
+                                    totalFiles: item.files.length,
+                                    deltaFiles: deltaFiles.length,
+                                });
+                            }
+                        }
+                    }
+                    catch {
+                        // Force push or deleted SHA — fall back to full review
+                        this.logger.warn("Incremental diff failed (force push?), falling back to full review", {
+                            owner,
+                            repo,
+                            pr: pr.number,
+                            lastSha: lastSha.slice(0, 7),
+                        });
+                    }
+                }
+            }
             // Step 4: Build prompt (includes truncation + Loa filtering)
-            const { systemPrompt, userPrompt, allExcluded, loaBanner } = this.template.buildPromptWithMeta(item, this.persona);
+            const { systemPrompt, userPrompt, allExcluded, loaBanner } = this.template.buildPromptWithMeta(effectiveItem, this.persona);
             // Step 4a: Handle all-files-excluded by Loa filtering (IMP-004)
             if (allExcluded) {
                 this.logger.info("All files excluded by Loa filtering", {
@@ -151,10 +186,14 @@ export class ReviewPipeline {
                 }
                 return this.skipResult(item, "all_files_excluded");
             }
+            // Step 4.5: Inject incremental review banner if applicable (V3-1)
+            const finalUserPrompt0 = incrementalBanner
+                ? `${incrementalBanner}\n\n${userPrompt}`
+                : userPrompt;
             // Step 5: Token estimation guard with progressive truncation.
             const { coefficient } = getTokenBudget(this.config.model);
             const systemTokens = Math.ceil(systemPrompt.length * coefficient);
-            const userTokens = Math.ceil(userPrompt.length * coefficient);
+            const userTokens = Math.ceil(finalUserPrompt0.length * coefficient);
             const estimatedTokens = systemTokens + userTokens;
             // Pre-flight prompt size report (SKP-004: component breakdown)
             this.logger.info("Prompt estimate", {
@@ -168,7 +207,9 @@ export class ReviewPipeline {
                 model: this.config.model,
             });
             let finalSystemPrompt = systemPrompt;
-            let finalUserPrompt = userPrompt;
+            let finalUserPrompt = finalUserPrompt0;
+            let finalEstimatedTokens = estimatedTokens;
+            let truncationLevel;
             if (estimatedTokens > this.config.maxInputTokens) {
                 // Progressive truncation (replaces hard skip)
                 this.logger.info("Token budget exceeded, attempting progressive truncation", {
@@ -178,7 +219,7 @@ export class ReviewPipeline {
                     estimatedTokens,
                     budget: this.config.maxInputTokens,
                 });
-                const truncResult = progressiveTruncate(item.files, this.config.maxInputTokens, this.config.model, systemPrompt.length, 
+                const truncResult = progressiveTruncate(effectiveItem.files, this.config.maxInputTokens, this.config.model, systemPrompt.length, 
                 // Metadata estimate: PR header, format instructions (~2000 chars)
                 2000);
                 if (!truncResult.success) {
@@ -195,6 +236,8 @@ export class ReviewPipeline {
                 const truncatedPrompt = this.template.buildPromptFromTruncation(item, this.persona, truncResult, loaBanner);
                 finalSystemPrompt = truncatedPrompt.systemPrompt;
                 finalUserPrompt = truncatedPrompt.userPrompt;
+                finalEstimatedTokens = truncResult.tokenEstimate?.total ?? estimatedTokens;
+                truncationLevel = truncResult.level;
                 this.logger.info("Progressive truncation succeeded", {
                     owner,
                     repo,
@@ -223,7 +266,7 @@ export class ReviewPipeline {
                         pr: pr.number,
                     });
                     const retryBudget = Math.floor(this.config.maxInputTokens * 0.85);
-                    const retryResult = progressiveTruncate(item.files, retryBudget, this.config.model, finalSystemPrompt.length, 2000);
+                    const retryResult = progressiveTruncate(effectiveItem.files, retryBudget, this.config.model, finalSystemPrompt.length, 2000);
                     if (!retryResult.success) {
                         return this.skipResult(item, "prompt_too_large_after_truncation");
                     }
@@ -244,6 +287,19 @@ export class ReviewPipeline {
                 else {
                     throw llmErr; // Re-throw non-token errors
                 }
+            }
+            // Step 6b: Token calibration logging (BB-F1)
+            // Log estimated vs actual tokens for coefficient tuning over time.
+            if (response.inputTokens > 0) {
+                const ratio = +(response.inputTokens / finalEstimatedTokens).toFixed(3);
+                this.logger.info("calibration", {
+                    phase: "calibration",
+                    estimatedTokens: finalEstimatedTokens,
+                    actualInputTokens: response.inputTokens,
+                    ratio,
+                    model: this.config.model,
+                    truncationLevel: truncationLevel ?? null,
+                });
             }
             // Step 7: Validate structured output
             if (!isValidResponse(response.content)) {

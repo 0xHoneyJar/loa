@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import path from "node:path";
 // --- Security Patterns Registry (Task 1.1 — SDD Section 3.6) ---
 export const SECURITY_PATTERNS = [
     // Authentication & Authorization
@@ -56,43 +57,136 @@ export function getSecurityCategory(filename) {
     return match?.category;
 }
 // --- Pattern Matching (SDD Section 3.8) ---
+/** Detect if Node 22+ path.matchesGlob is available (BB-F4). */
+const hasNativeGlob = typeof path.matchesGlob === "function";
+/**
+ * Simple glob matcher fallback for Node <22.
+ * Supports: `*.ext`, `prefix*`, `prefix*suffix`, exact match, substring match,
+ * `?` single character wildcards, and `**` recursive directory matching.
+ */
+function simplifiedGlobMatch(filename, pattern) {
+    // Handle ** recursive patterns: src/**/*.ts
+    if (pattern.includes("**")) {
+        // Convert glob to regex: ** matches any number of path segments
+        const escaped = pattern
+            .split("**")
+            .map((part) => part
+            .split("*")
+            .map((seg) => seg.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\?/g, "[^/]"))
+            .join("[^/]*"))
+            .join(".*");
+        return new RegExp(`^${escaped}$`).test(filename);
+    }
+    // Handle ? single character wildcard (matches any char except /)
+    if (pattern.includes("?")) {
+        const escaped = pattern
+            .split("*")
+            .map((part) => part.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\?/g, "[^/]"))
+            .join("[^/]*");
+        return new RegExp(`^${escaped}$`).test(filename);
+    }
+    // Original simplified matching for basic patterns
+    if (pattern.startsWith("*")) {
+        const suffix = pattern.slice(1);
+        if (filename.endsWith(suffix))
+            return true;
+    }
+    else if (pattern.endsWith("*")) {
+        const prefix = pattern.slice(0, -1);
+        if (filename.startsWith(prefix))
+            return true;
+    }
+    else if (pattern.includes("*")) {
+        const [before, after] = pattern.split("*", 2);
+        if (filename.startsWith(before) && filename.endsWith(after))
+            return true;
+    }
+    else {
+        if (filename === pattern || filename.includes(pattern))
+            return true;
+    }
+    return false;
+}
 export function matchesExcludePattern(filename, patterns) {
     for (const pattern of patterns) {
-        if (pattern.startsWith("*")) {
-            const suffix = pattern.slice(1);
-            if (filename.endsWith(suffix))
+        if (hasNativeGlob) {
+            // Node 22+: use native path.matchesGlob() for full glob support
+            if (path.matchesGlob(filename, pattern)) {
                 return true;
-        }
-        else if (pattern.endsWith("*")) {
-            const prefix = pattern.slice(0, -1);
-            if (filename.startsWith(prefix))
-                return true;
-        }
-        else if (pattern.includes("*")) {
-            const [before, after] = pattern.split("*", 2);
-            if (filename.startsWith(before) && filename.endsWith(after))
-                return true;
+            }
+            // Fallback to simplified match for non-glob patterns (exact/substring)
+            if (!pattern.includes("*") && !pattern.includes("?")) {
+                if (filename === pattern || filename.includes(pattern))
+                    return true;
+            }
         }
         else {
-            if (filename === pattern || filename.includes(pattern))
+            if (simplifiedGlobMatch(filename, pattern))
                 return true;
         }
     }
     return false;
 }
 // --- Loa Detection (Task 1.2 — SDD Section 3.1) ---
-/** Default Loa framework exclude patterns. */
+/** Default Loa framework exclude patterns.
+ * Use ** for recursive directory matching (BB-F4). */
 export const LOA_EXCLUDE_PATTERNS = [
-    ".claude/*",
-    "grimoires/*",
-    ".beads/*",
+    // Core framework (existing)
+    ".claude/**",
+    "grimoires/**",
+    ".beads/**",
     ".loa-version.json",
     ".loa.config.yaml",
     ".loa.config.yaml.example",
+    // State & runtime (Bug 1 — issue #309)
+    "evals/**",
+    ".run/**",
+    ".flatline/**",
+    // Docs & config (Bug 1 — issue #309)
+    "PROCESS.md",
+    "BUTTERFREEZONE.md",
+    "INSTALLATION.md",
+    "NOTES.md",
 ];
+/**
+ * Load .reviewignore patterns from repo root and merge with LOA_EXCLUDE_PATTERNS.
+ * Returns combined patterns array. Graceful when file missing (returns LOA patterns only).
+ */
+export function loadReviewIgnore(repoRoot) {
+    const root = repoRoot ?? process.cwd();
+    const reviewignorePath = require("path").join(root, ".reviewignore");
+    const basePatterns = [...LOA_EXCLUDE_PATTERNS];
+    try {
+        const fs = require("fs");
+        if (!fs.existsSync(reviewignorePath)) {
+            return basePatterns;
+        }
+        const content = fs.readFileSync(reviewignorePath, "utf-8");
+        for (const rawLine of content.split("\n")) {
+            const line = rawLine.trim();
+            // Skip blank lines and comments
+            if (!line || line.startsWith("#"))
+                continue;
+            // Normalize directory patterns: "dir/" → "dir/**"
+            const pattern = line.endsWith("/") ? `${line}**` : line;
+            // Avoid duplicates
+            if (!basePatterns.includes(pattern)) {
+                basePatterns.push(pattern);
+            }
+        }
+    }
+    catch {
+        // Graceful: return base patterns on any error
+    }
+    return basePatterns;
+}
 /**
  * Detect if repo is Loa-mounted by reading .loa-version.json.
  * Resolves paths against repoRoot (git root), NOT cwd (SKP-001, IMP-004).
+ *
+ * Decision: sync I/O (existsSync/readFileSync) is intentional here.
+ * truncateFiles() — the only caller — is synchronous (SDD §3.1), so async
+ * would require a cascading refactor for zero runtime benefit.
  */
 export function detectLoa(config) {
     // Config override takes precedence
@@ -130,6 +224,21 @@ export function detectLoa(config) {
         return { isLoa: false, source: "file" };
     }
 }
+// --- Loa System Zone Detection (Bug 2 fix — issue #309) ---
+/** Paths that are definitively Loa framework system zones.
+ * Security pattern matches in these zones get demoted to tier2 (summary)
+ * instead of exception (full diff) to prevent framework file leakage. */
+const LOA_SYSTEM_ZONE_PREFIXES = [
+    ".claude/",
+    "grimoires/",
+    ".beads/",
+    "evals/",
+    ".run/",
+    ".flatline/",
+];
+export function isLoaSystemZone(filename) {
+    return LOA_SYSTEM_ZONE_PREFIXES.some(prefix => filename.startsWith(prefix));
+}
 // --- Two-Tier Loa Exclusion (Task 1.3 — SDD Section 3.2) ---
 /** Tier 1 extensions: content-excluded (stats only). */
 const TIER1_EXTENSIONS = new Set([
@@ -148,19 +257,17 @@ const TIER2_MIN_PATHS = [
     /(?:^|\/)deploy\//i,
     /(?:^|\/)k8s\//i,
 ];
-/** Files that should be Tier 2 despite .md extension (SKP-002). */
-const TIER2_FILENAMES = new Set(["SECURITY.md", "CODEOWNERS"]);
 export function classifyLoaFile(filename) {
-    // Exception: SECURITY_PATTERNS match → full diff, never excluded
+    // Security pattern match: full diff for app code, but demoted to tier2
+    // for Loa system zone files (Bug 2 fix — issue #309)
     if (isHighRisk(filename)) {
+        if (isLoaSystemZone(filename)) {
+            return "tier2";
+        }
         return "exception";
     }
     const basename = filename.split("/").pop() ?? "";
     const ext = basename.includes(".") ? "." + basename.split(".").pop().toLowerCase() : "";
-    // SKP-002: specific filenames override extension-based classification
-    if (TIER2_FILENAMES.has(basename)) {
-        return "tier2";
-    }
     // SKP-002: path-based heuristics → Tier 2 minimum
     if (TIER2_MIN_PATHS.some((p) => p.test(filename))) {
         return "tier2";
@@ -233,6 +340,10 @@ export function applyLoaTierExclusion(files, loaPatterns) {
     return { passthrough, tier1Excluded, tier2Summary, bytesSaved };
 }
 // --- Token Budget Constants (IMP-001) ---
+// Coefficients are chars-per-token ratios: 0.25 ≈ 4 chars/token (cl100k_base
+// average for English prose + code). GPT-5.2 uses 0.23 per OpenAI's tokenizer
+// calibration. These are intentionally conservative (over-estimate) to leave
+// headroom and avoid context-window overflows at runtime.
 export const TOKEN_BUDGETS = {
     "claude-sonnet-4-5-20250929": { maxInput: 200_000, maxOutput: 8_192, coefficient: 0.25 },
     "claude-opus-4-6": { maxInput: 200_000, maxOutput: 8_192, coefficient: 0.25 },
@@ -390,6 +501,11 @@ function getFilePriority(file, allFiles) {
     return 1; // Priority 4 (lowest)
 }
 // --- Truncation Level Disclaimers ---
+// Context reduction spans Level 1 → Level 2:
+//   Level 1 uses full patches which include default git context (3 lines around changes).
+//   Level 2 reduces context: first to 1 line, then to 0 lines.
+//   The "3→1→0" reduction in the PR description spans Level 1 → Level 2 sub-steps.
+//   Level 3 drops diff content entirely, showing stats-only.
 const LEVEL_DISCLAIMERS = {
     1: "[Partial Review: {n} low-priority files excluded]",
     2: "[Partial Review: patches truncated to changed hunks]",
@@ -448,6 +564,9 @@ export function progressiveTruncate(files, budgetTokens, model, systemPromptLen,
         }
     }
     // --- Level 2: Hunk-based truncation with context reduction ---
+    // Level 1 uses full patches which include default git context (3 lines).
+    // Level 2 reduces: context=1, then context=0. The "3→1→0" reduction
+    // spans Level 1 → Level 2.
     for (const contextLines of [1, 0]) {
         const included = [];
         const excluded = [];
@@ -574,6 +693,7 @@ function patchBytes(file) {
 export function truncateFiles(files, config) {
     const patterns = config.excludePatterns ?? [];
     // Step 0: Loa-aware filtering (prepended, not replacing user patterns)
+    // Load .reviewignore and merge with LOA_EXCLUDE_PATTERNS (#303)
     const loaDetection = detectLoa(config);
     let loaBanner;
     let loaStats;
@@ -581,7 +701,8 @@ export function truncateFiles(files, config) {
     const loaExcludedEntries = [];
     let afterLoa = files;
     if (loaDetection.isLoa) {
-        const tierResult = applyLoaTierExclusion(files, LOA_EXCLUDE_PATTERNS);
+        const effectivePatterns = loadReviewIgnore(config.repoRoot);
+        const tierResult = applyLoaTierExclusion(files, effectivePatterns);
         afterLoa = tierResult.passthrough;
         // Collect Loa excluded entries
         for (const entry of tierResult.tier1Excluded) {

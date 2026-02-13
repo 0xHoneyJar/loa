@@ -12,7 +12,7 @@ export interface BridgebuilderConfig {
     maxOutputTokens: number;
     dimensions: string[];
     reviewMarker: string;
-    personaPath: string;
+    repoOverridePath: string;
     dryRun: boolean;
     excludePatterns: string[];
     sanitizerMode: "default" | "strict";
@@ -27,6 +27,8 @@ export interface BridgebuilderConfig {
     persona?: string;
     /** Custom persona file path. */
     personaFilePath?: string;
+    /** Force full review even when incremental context is available (V3-1). */
+    forceFullReview?: boolean;
 }
 export interface ReviewItem {
     owner: string;

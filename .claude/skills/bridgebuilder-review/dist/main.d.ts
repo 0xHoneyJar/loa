@@ -1,5 +1,13 @@
 import type { BridgebuilderConfig } from "./core/types.js";
 /**
+ * Parse optional YAML frontmatter from persona content (V3-2).
+ * Returns the model override (if any) and the content without frontmatter.
+ */
+export declare function parsePersonaFrontmatter(raw: string): {
+    content: string;
+    model?: string;
+};
+/**
  * Discover available persona packs from the personas/ directory.
  * Returns pack names (e.g., ["default", "security", "dx", "architecture", "quick"]).
  */
@@ -19,5 +27,6 @@ export declare function loadPersona(config: BridgebuilderConfig, logger?: {
 }): Promise<{
     content: string;
     source: string;
+    model?: string;
 }>;
 //# sourceMappingURL=main.d.ts.map

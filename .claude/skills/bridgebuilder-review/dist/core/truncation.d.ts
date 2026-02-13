@@ -4,13 +4,24 @@ export declare const SECURITY_PATTERNS: SecurityPatternEntry[];
 export declare function isHighRisk(filename: string): boolean;
 export declare function getSecurityCategory(filename: string): string | undefined;
 export declare function matchesExcludePattern(filename: string, patterns: string[]): boolean;
-/** Default Loa framework exclude patterns. */
+/** Default Loa framework exclude patterns.
+ * Use ** for recursive directory matching (BB-F4). */
 export declare const LOA_EXCLUDE_PATTERNS: string[];
+/**
+ * Load .reviewignore patterns from repo root and merge with LOA_EXCLUDE_PATTERNS.
+ * Returns combined patterns array. Graceful when file missing (returns LOA patterns only).
+ */
+export declare function loadReviewIgnore(repoRoot?: string): string[];
 /**
  * Detect if repo is Loa-mounted by reading .loa-version.json.
  * Resolves paths against repoRoot (git root), NOT cwd (SKP-001, IMP-004).
+ *
+ * Decision: sync I/O (existsSync/readFileSync) is intentional here.
+ * truncateFiles() — the only caller — is synchronous (SDD §3.1), so async
+ * would require a cascading refactor for zero runtime benefit.
  */
 export declare function detectLoa(config: Pick<BridgebuilderConfig, "loaAware" | "repoRoot">): LoaDetectionResult;
+export declare function isLoaSystemZone(filename: string): boolean;
 export type LoaTier = "tier1" | "tier2" | "exception";
 export declare function classifyLoaFile(filename: string): LoaTier;
 /** Extract the first hunk from a unified diff patch. */

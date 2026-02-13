@@ -37,12 +37,21 @@ export class BridgebuilderContext {
         return this.store.claimReview(item.owner, item.repo, item.pr.number);
     }
     /**
-     * Finalize a review: persist hash and result.
+     * Finalize a review: persist hash, headSha, and result.
      * Stores the current hash so hasChanged() returns false next time.
+     * Stores headSha for incremental review on next run (V3-1).
      */
     async finalizeReview(item, result) {
         await this.store.setLastHash(item.owner, item.repo, item.pr.number, item.hash);
+        await this.store.setLastReviewedSha(item.owner, item.repo, item.pr.number, item.pr.headSha);
         await this.store.finalizeReview(item.owner, item.repo, item.pr.number, result);
+    }
+    /**
+     * Get the head SHA from the last completed review (V3-1 incremental).
+     * Returns null if never reviewed or not persisted.
+     */
+    async getLastReviewedSha(item) {
+        return this.store.getLastReviewedSha(item.owner, item.repo, item.pr.number);
     }
 }
 //# sourceMappingURL=context.js.map

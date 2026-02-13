@@ -10,6 +10,8 @@ export interface CLIArgs {
     model?: string;
     persona?: string;
     exclude?: string[];
+    forceFullReview?: boolean;
+    repoRoot?: string;
 }
 export interface YamlConfig {
     enabled?: boolean;
@@ -33,11 +35,17 @@ export interface EnvVars {
     BRIDGEBUILDER_REPOS?: string;
     BRIDGEBUILDER_MODEL?: string;
     BRIDGEBUILDER_DRY_RUN?: string;
+    BRIDGEBUILDER_REPO_ROOT?: string;
 }
 /**
  * Parse CLI arguments from process.argv.
  */
 export declare function parseCLIArgs(argv: string[]): CLIArgs;
+/**
+ * Resolve repoRoot: CLI > env > git auto-detect > undefined.
+ * Called once per resolveConfig() invocation (Bug 3 fix — issue #309).
+ */
+export declare function resolveRepoRoot(cli: CLIArgs, env: EnvVars): string | undefined;
 /**
  * Resolve config using 5-level precedence: CLI > env > yaml > auto-detect > defaults.
  * Returns config and provenance (where each key value came from).

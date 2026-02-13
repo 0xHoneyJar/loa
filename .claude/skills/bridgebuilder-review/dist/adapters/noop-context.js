@@ -23,5 +23,15 @@ export class NoOpContextStore {
     async finalizeReview(_owner, _repo, _prNumber, _result) {
         // No-op: local mode does not persist review records
     }
+    async getLastReviewedSha(_owner, _repo, _prNumber) {
+        // Always null: no persistent state in local mode.
+        // This means incremental review (V3-1) is dormant in local mode — every run
+        // does a full review. To activate incremental diffs, swap to a persistent
+        // IContextStore (e.g. R2 or SQLite) that tracks the last-reviewed headSha.
+        return null;
+    }
+    async setLastReviewedSha(_owner, _repo, _prNumber, _sha) {
+        // No-op: local mode does not persist reviewed SHA
+    }
 }
 //# sourceMappingURL=noop-context.js.map

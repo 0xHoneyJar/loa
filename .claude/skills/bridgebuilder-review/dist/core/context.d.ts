@@ -28,9 +28,15 @@ export declare class BridgebuilderContext {
      */
     claimReview(item: ReviewItem): Promise<boolean>;
     /**
-     * Finalize a review: persist hash and result.
+     * Finalize a review: persist hash, headSha, and result.
      * Stores the current hash so hasChanged() returns false next time.
+     * Stores headSha for incremental review on next run (V3-1).
      */
     finalizeReview(item: ReviewItem, result: ReviewResult): Promise<void>;
+    /**
+     * Get the head SHA from the last completed review (V3-1 incremental).
+     * Returns null if never reviewed or not persisted.
+     */
+    getLastReviewedSha(item: ReviewItem): Promise<string | null>;
 }
 //# sourceMappingURL=context.d.ts.map

@@ -37,11 +37,18 @@ export declare class GitProviderError extends Error {
     readonly code: GitProviderErrorCode;
     constructor(code: GitProviderErrorCode, message: string);
 }
+/** Result of comparing two commits (V3-1 incremental review). */
+export interface CommitCompareResult {
+    filesChanged: string[];
+    totalCommits: number;
+}
 export interface IGitProvider {
     listOpenPRs(owner: string, repo: string): Promise<PullRequest[]>;
     getPRFiles(owner: string, repo: string, prNumber: number): Promise<PullRequestFile[]>;
     getPRReviews(owner: string, repo: string, prNumber: number): Promise<PRReview[]>;
     preflight(): Promise<PreflightResult>;
     preflightRepo(owner: string, repo: string): Promise<RepoPreflightResult>;
+    /** Compare two commits and return changed filenames (V3-1 incremental). */
+    getCommitDiff(owner: string, repo: string, base: string, head: string): Promise<CommitCompareResult>;
 }
 //# sourceMappingURL=git-provider.d.ts.map

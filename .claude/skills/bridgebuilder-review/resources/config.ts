@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, execSync } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile } from "node:fs/promises";
 import type { BridgebuilderConfig } from "./core/types.js";
@@ -35,6 +35,7 @@ export interface CLIArgs {
   persona?: string;
   exclude?: string[];
   forceFullReview?: boolean;
+  repoRoot?: string;
 }
 
 export interface YamlConfig {
@@ -60,6 +61,7 @@ export interface EnvVars {
   BRIDGEBUILDER_REPOS?: string;
   BRIDGEBUILDER_MODEL?: string;
   BRIDGEBUILDER_DRY_RUN?: string;
+  BRIDGEBUILDER_REPO_ROOT?: string;
 }
 
 /**
@@ -110,6 +112,8 @@ export function parseCLIArgs(argv: string[]): CLIArgs {
       args.exclude.push(argv[++i]);
     } else if (arg === "--force-full-review") {
       args.forceFullReview = true;
+    } else if (arg === "--repo-root" && i + 1 < argv.length) {
+      args.repoRoot = argv[++i];
     }
   }
 
@@ -256,6 +260,25 @@ async function loadYamlConfig(): Promise<YamlConfig> {
 }
 
 /**
+ * Resolve repoRoot: CLI > env > git auto-detect > undefined.
+ * Called once per resolveConfig() invocation (Bug 3 fix — issue #309).
+ */
+export function resolveRepoRoot(cli: CLIArgs, env: EnvVars): string | undefined {
+  if (cli.repoRoot) return cli.repoRoot;
+  if (env.BRIDGEBUILDER_REPO_ROOT) return env.BRIDGEBUILDER_REPO_ROOT;
+
+  try {
+    return execSync("git rev-parse --show-toplevel", {
+      encoding: "utf-8",
+      timeout: 5_000,
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Resolve config using 5-level precedence: CLI > env > yaml > auto-detect > defaults.
  * Returns config and provenance (where each key value came from).
  */
@@ -350,9 +373,13 @@ export async function resolveConfig(
       ? "yaml"
       : "default";
 
+  // Resolve repoRoot: CLI > env > git auto-detect (Bug 3 fix — issue #309)
+  const repoRoot = resolveRepoRoot(cliArgs, env);
+
   // Resolve remaining fields: CLI > env > yaml > defaults
   const config: BridgebuilderConfig = {
     repos,
+    repoRoot,
     model:
       cliArgs.model ?? env.BRIDGEBUILDER_MODEL ?? yaml.model ?? DEFAULTS.model,
     maxPrs: yaml.max_prs ?? DEFAULTS.maxPrs,

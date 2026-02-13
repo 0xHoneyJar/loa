@@ -5,6 +5,7 @@ import {
   resolveConfig,
   resolveRepos,
   formatEffectiveConfig,
+  resolveRepoRoot,
 } from "../config.js";
 import type { CLIArgs, EnvVars, YamlConfig } from "../config.js";
 
@@ -475,5 +476,72 @@ describe("resolveConfig loaAware", () => {
       { enabled: true, repos: ["test/repo"] },
     );
     assert.equal(config.loaAware, undefined);
+  });
+});
+
+// --- repoRoot resolution (Bug 3 fix — issue #309) ---
+
+describe("parseCLIArgs --repo-root flag", () => {
+  it("parses --repo-root flag", () => {
+    const args = parseCLIArgs(["--repo-root", "/custom/path"]);
+    assert.equal(args.repoRoot, "/custom/path");
+  });
+
+  it("parses --repo-root with other flags", () => {
+    const args = parseCLIArgs(["--dry-run", "--repo-root", "/opt/repo", "--repo", "a/b"]);
+    assert.equal(args.repoRoot, "/opt/repo");
+    assert.equal(args.dryRun, true);
+    assert.deepEqual(args.repos, ["a/b"]);
+  });
+});
+
+describe("resolveRepoRoot", () => {
+  it("CLI repoRoot takes highest precedence", () => {
+    const result = resolveRepoRoot(
+      { repoRoot: "/cli/path" },
+      { BRIDGEBUILDER_REPO_ROOT: "/env/path" },
+    );
+    assert.equal(result, "/cli/path");
+  });
+
+  it("env BRIDGEBUILDER_REPO_ROOT used when CLI absent", () => {
+    const result = resolveRepoRoot({}, { BRIDGEBUILDER_REPO_ROOT: "/env/path" });
+    assert.equal(result, "/env/path");
+  });
+
+  it("falls back to git auto-detect when no CLI or env", () => {
+    const result = resolveRepoRoot({}, {});
+    // We're in a git repo, so this should return a path
+    assert.ok(result !== undefined, "Should auto-detect git root");
+    assert.ok(result!.length > 0, "Path should not be empty");
+  });
+
+  it("CLI > env precedence", () => {
+    const result = resolveRepoRoot(
+      { repoRoot: "/cli" },
+      { BRIDGEBUILDER_REPO_ROOT: "/env" },
+    );
+    assert.equal(result, "/cli");
+  });
+});
+
+describe("resolveConfig repoRoot integration", () => {
+  it("config includes repoRoot from resolveRepoRoot", async () => {
+    const { config } = await resolve(
+      { repoRoot: "/explicit/root" },
+      {},
+      { enabled: true, repos: ["test/repo"] },
+    );
+    assert.equal(config.repoRoot, "/explicit/root");
+  });
+
+  it("config includes auto-detected repoRoot when no override", async () => {
+    const { config } = await resolve(
+      {},
+      {},
+      { enabled: true, repos: ["test/repo"] },
+    );
+    // In a git repo, should auto-detect
+    assert.ok(config.repoRoot !== undefined, "Should auto-detect repoRoot");
   });
 });

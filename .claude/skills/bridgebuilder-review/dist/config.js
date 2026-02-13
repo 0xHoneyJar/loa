@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, execSync } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile } from "node:fs/promises";
 const execFileAsync = promisify(execFile);
@@ -13,7 +13,7 @@ const DEFAULTS = {
     maxOutputTokens: 16_000,
     dimensions: ["security", "quality", "test-coverage"],
     reviewMarker: "bridgebuilder-review",
-    personaPath: "grimoires/bridgebuilder/BEAUVOIR.md",
+    repoOverridePath: "grimoires/bridgebuilder/BEAUVOIR.md",
     dryRun: false,
     excludePatterns: [],
     sanitizerMode: "default",
@@ -73,6 +73,12 @@ export function parseCLIArgs(argv) {
         else if (arg === "--exclude" && i + 1 < argv.length) {
             args.exclude = args.exclude ?? [];
             args.exclude.push(argv[++i]);
+        }
+        else if (arg === "--force-full-review") {
+            args.forceFullReview = true;
+        }
+        else if (arg === "--repo-root" && i + 1 < argv.length) {
+            args.repoRoot = argv[++i];
         }
     }
     return args;
@@ -210,6 +216,26 @@ async function loadYamlConfig() {
     }
 }
 /**
+ * Resolve repoRoot: CLI > env > git auto-detect > undefined.
+ * Called once per resolveConfig() invocation (Bug 3 fix — issue #309).
+ */
+export function resolveRepoRoot(cli, env) {
+    if (cli.repoRoot)
+        return cli.repoRoot;
+    if (env.BRIDGEBUILDER_REPO_ROOT)
+        return env.BRIDGEBUILDER_REPO_ROOT;
+    try {
+        return execSync("git rev-parse --show-toplevel", {
+            encoding: "utf-8",
+            timeout: 5_000,
+            stdio: ["pipe", "pipe", "pipe"],
+        }).trim();
+    }
+    catch {
+        return undefined;
+    }
+}
+/**
  * Resolve config using 5-level precedence: CLI > env > yaml > auto-detect > defaults.
  * Returns config and provenance (where each key value came from).
  */
@@ -287,9 +313,12 @@ export async function resolveConfig(cliArgs, env, yamlConfig) {
         : yaml.max_diff_bytes != null
             ? "yaml"
             : "default";
+    // Resolve repoRoot: CLI > env > git auto-detect (Bug 3 fix — issue #309)
+    const repoRoot = resolveRepoRoot(cliArgs, env);
     // Resolve remaining fields: CLI > env > yaml > defaults
     const config = {
         repos,
+        repoRoot,
         model: cliArgs.model ?? env.BRIDGEBUILDER_MODEL ?? yaml.model ?? DEFAULTS.model,
         maxPrs: yaml.max_prs ?? DEFAULTS.maxPrs,
         maxFilesPerPr: yaml.max_files_per_pr ?? DEFAULTS.maxFilesPerPr,
@@ -298,7 +327,7 @@ export async function resolveConfig(cliArgs, env, yamlConfig) {
         maxOutputTokens: cliArgs.maxOutputTokens ?? yaml.max_output_tokens ?? DEFAULTS.maxOutputTokens,
         dimensions: yaml.dimensions ?? DEFAULTS.dimensions,
         reviewMarker: yaml.review_marker ?? DEFAULTS.reviewMarker,
-        personaPath: yaml.persona_path ?? DEFAULTS.personaPath,
+        repoOverridePath: yaml.persona_path ?? DEFAULTS.repoOverridePath,
         dryRun: cliArgs.dryRun ??
             (env.BRIDGEBUILDER_DRY_RUN === "true" ? true : undefined) ??
             DEFAULTS.dryRun,
@@ -316,6 +345,7 @@ export async function resolveConfig(cliArgs, env, yamlConfig) {
         ...(yaml.persona_path != null
             ? { personaFilePath: yaml.persona_path }
             : {}),
+        ...(cliArgs.forceFullReview ? { forceFullReview: true } : {}),
     };
     const provenance = {
         repos: reposSource,

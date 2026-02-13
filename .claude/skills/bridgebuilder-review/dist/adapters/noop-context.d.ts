@@ -6,5 +6,7 @@ export declare class NoOpContextStore implements IContextStore {
     setLastHash(_owner: string, _repo: string, _prNumber: number, _hash: string): Promise<void>;
     claimReview(_owner: string, _repo: string, _prNumber: number): Promise<boolean>;
     finalizeReview(_owner: string, _repo: string, _prNumber: number, _result: ReviewResult): Promise<void>;
+    getLastReviewedSha(_owner: string, _repo: string, _prNumber: number): Promise<string | null>;
+    setLastReviewedSha(_owner: string, _repo: string, _prNumber: number, _sha: string): Promise<void>;
 }
 //# sourceMappingURL=noop-context.d.ts.map
