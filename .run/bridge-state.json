@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "bridge_id": "bridge-20260213-c010bf",
-  "state": "ITERATING",
+  "state": "JACKED_OUT",
   "config": {
     "depth": 3,
     "mode": "full",
@@ -11,7 +11,8 @@
   },
   "timestamps": {
     "started": "2026-02-13T09:35:00Z",
-    "last_activity": "2026-02-13T10:05:00Z"
+    "last_activity": "2026-02-13T10:35:00Z",
+    "completed": "2026-02-13T10:35:00Z"
   },
   "iterations": [
     {
@@ -20,27 +21,50 @@
       "review_file": ".run/bridge-reviews/bridge-20260213-c010bf-iter1-full.md",
       "findings": {
         "total": 6,
-        "by_severity": {
-          "MEDIUM": 2,
-          "LOW": 2,
-          "PRAISE": 2
-        },
+        "by_severity": { "MEDIUM": 2, "LOW": 2, "PRAISE": 2 },
         "score": 0.32,
         "actionable": ["medium-1", "medium-2", "low-1", "low-2"]
       },
       "sprint_generated": true,
       "timestamp": "2026-02-13T10:05:00Z"
+    },
+    {
+      "iteration": 2,
+      "review_comment_url": "https://github.com/0xHoneyJar/loa/pull/313#issuecomment-3895578798",
+      "review_file": ".run/bridge-reviews/bridge-20260213-c010bf-iter2-full.md",
+      "findings": {
+        "total": 4,
+        "by_severity": { "LOW": 1, "PRAISE": 3 },
+        "score": 0.05,
+        "actionable": []
+      },
+      "sprint_generated": false,
+      "timestamp": "2026-02-13T10:20:00Z"
+    },
+    {
+      "iteration": 3,
+      "review_comment_url": "https://github.com/0xHoneyJar/loa/pull/313#issuecomment-3895581378",
+      "review_file": ".run/bridge-reviews/bridge-20260213-c010bf-iter3-full.md",
+      "findings": {
+        "total": 1,
+        "by_severity": { "PRAISE": 1 },
+        "score": 0.00,
+        "actionable": []
+      },
+      "sprint_generated": false,
+      "timestamp": "2026-02-13T10:30:00Z"
     }
   ],
   "flatline": {
     "initial_score": 0.32,
-    "last_score": 0.32,
-    "consecutive_below_threshold": 0
+    "last_score": 0.00,
+    "consecutive_below_threshold": 2,
+    "flatlined": true
   },
   "metrics": {
-    "total_sprints_executed": 2,
-    "total_files_changed": 33,
-    "total_findings_addressed": 0,
+    "total_sprints_executed": 3,
+    "total_files_changed": 45,
+    "total_findings_addressed": 4,
     "total_visions_captured": 0
   },
   "finalization": {
