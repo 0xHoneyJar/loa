@@ -60,7 +60,7 @@ NOTEBOOKLM_QUERY="$PROJECT_ROOT/.claude/skills/flatline-knowledge/resources/note
 # Default configuration
 DEFAULT_TIMEOUT=300
 DEFAULT_BUDGET=300  # cents ($3.00)
-DEFAULT_MODEL_TIMEOUT=60
+DEFAULT_MODEL_TIMEOUT=120
 
 # State tracking
 STATE="INIT"
@@ -183,6 +183,37 @@ get_model_primary() {
 
 get_model_secondary() {
     read_config '.flatline_protocol.models.secondary' 'gpt-5.2'
+}
+
+# Valid model names accepted by model-adapter.sh.legacy MODEL_PROVIDERS registry
+VALID_FLATLINE_MODELS="opus gpt-5.2 gpt-5.2-codex gpt-5.3-codex claude-opus-4.6 claude-opus-4.5 gemini-2.0"
+
+validate_model() {
+    local model="$1"
+    local config_key="$2"  # e.g., "primary" or "secondary"
+
+    if [[ -z "$model" ]]; then
+        error "Flatline model '$config_key' is empty. Set flatline_protocol.models.$config_key in .loa.config.yaml"
+        error "Valid models: $VALID_FLATLINE_MODELS"
+        return 1
+    fi
+
+    local valid=false
+    for valid_model in $VALID_FLATLINE_MODELS; do
+        if [[ "$model" == "$valid_model" ]]; then
+            valid=true
+            break
+        fi
+    done
+
+    if [[ "$valid" != "true" ]]; then
+        error "Unknown flatline model: '$model' (from flatline_protocol.models.$config_key in .loa.config.yaml)"
+        error "Valid models: $VALID_FLATLINE_MODELS"
+        error "Note: '$model' may be an agent alias, not a model name. Check .claude/defaults/model-config.yaml for alias mappings."
+        return 1
+    fi
+
+    return 0
 }
 
 is_notebooklm_enabled() {
@@ -501,59 +532,96 @@ run_phase1() {
     primary_model=$(get_model_primary)
     secondary_model=$(get_model_secondary)
 
+    # Validate model names before making any API calls
+    if ! validate_model "$primary_model" "primary"; then
+        return 3
+    fi
+    if ! validate_model "$secondary_model" "secondary"; then
+        return 3
+    fi
+
     # Create output files
     local gpt_review_file="$TEMP_DIR/gpt-review.json"
     local opus_review_file="$TEMP_DIR/opus-review.json"
     local gpt_skeptic_file="$TEMP_DIR/gpt-skeptic.json"
     local opus_skeptic_file="$TEMP_DIR/opus-skeptic.json"
 
-    # Run 4 parallel API calls
-    # Note: stderr goes to /dev/null to avoid mixing log messages with JSON output
-    local pids=()
+    # Stderr capture files for diagnosis on failure
+    local gpt_review_stderr="$TEMP_DIR/gpt-review-stderr.log"
+    local opus_review_stderr="$TEMP_DIR/opus-review-stderr.log"
+    local gpt_skeptic_stderr="$TEMP_DIR/gpt-skeptic-stderr.log"
+    local opus_skeptic_stderr="$TEMP_DIR/opus-skeptic-stderr.log"
 
-    # GPT review
+    # Run 4 parallel API calls with stagger to avoid same-provider rate-limit contention.
+    # Review calls launch first, then skeptic calls after a 2s delay.
+    # Both providers overlap (GPT + Opus run concurrently).
+    local pids=()
+    local pid_labels=()
+
+    # Wave 1: Review calls (GPT + Opus concurrently)
     {
         call_model "$secondary_model" review "$doc" "$phase" "$context_file" "$timeout" \
-            > "$gpt_review_file" 2>/dev/null
+            > "$gpt_review_file" 2>"$gpt_review_stderr"
     } &
     pids+=($!)
+    pid_labels+=("gpt-review")
 
-    # Opus review
     {
         call_model "$primary_model" review "$doc" "$phase" "$context_file" "$timeout" \
-            > "$opus_review_file" 2>/dev/null
+            > "$opus_review_file" 2>"$opus_review_stderr"
     } &
     pids+=($!)
+    pid_labels+=("opus-review")
 
-    # GPT skeptic
+    # Stagger: 2s delay before skeptic calls to avoid rate-limit contention
+    sleep 2
+
+    # Wave 2: Skeptic calls (GPT + Opus concurrently)
     {
         call_model "$secondary_model" skeptic "$doc" "$phase" "$context_file" "$timeout" \
-            > "$gpt_skeptic_file" 2>/dev/null
+            > "$gpt_skeptic_file" 2>"$gpt_skeptic_stderr"
     } &
     pids+=($!)
+    pid_labels+=("gpt-skeptic")
 
-    # Opus skeptic
     {
         call_model "$primary_model" skeptic "$doc" "$phase" "$context_file" "$timeout" \
-            > "$opus_skeptic_file" 2>/dev/null
+            > "$opus_skeptic_file" 2>"$opus_skeptic_stderr"
     } &
     pids+=($!)
+    pid_labels+=("opus-skeptic")
 
-    # Wait for all processes
+    # Wait for all processes and track failures
     local failed=0
-    for pid in "${pids[@]}"; do
-        if ! wait "$pid"; then
+    local failed_labels=()
+    for i in "${!pids[@]}"; do
+        if ! wait "${pids[$i]}"; then
             ((failed++))
+            failed_labels+=("${pid_labels[$i]}")
         fi
     done
 
     if [[ $failed -eq 4 ]]; then
         error "All Phase 1 model calls failed"
+        # Log stderr from all failed calls for diagnosis
+        for label in "${failed_labels[@]}"; do
+            local stderr_file="$TEMP_DIR/${label}-stderr.log"
+            if [[ -s "$stderr_file" ]]; then
+                log "  $label stderr: $(head -5 "$stderr_file")"
+            fi
+        done
         return 3
     fi
 
     if [[ $failed -gt 0 ]]; then
         log "Warning: $failed of 4 Phase 1 calls failed (degraded mode)"
+        # Log stderr from failed calls for diagnosis
+        for label in "${failed_labels[@]}"; do
+            local stderr_file="$TEMP_DIR/${label}-stderr.log"
+            if [[ -s "$stderr_file" ]]; then
+                log "  $label stderr: $(head -5 "$stderr_file")"
+            fi
+        done
     fi
 
     # Aggregate costs
