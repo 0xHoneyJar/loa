@@ -152,18 +152,32 @@
       "id": "cycle-013",
       "label": "Hounfour Hardening — Model Invocation Pipeline Fixes",
       "type": "feature",
-      "status": "active",
+      "status": "archived",
       "source_issue": "https://github.com/0xHoneyJar/loa/issues/320",
       "created_at": "2026-02-14T06:50:00Z",
+      "archived_at": "2026-02-14T14:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-14-hounfour-hardening",
       "sprints": ["sprint-85", "sprint-86", "sprint-87", "sprint-88", "sprint-89", "sprint-90"],
+      "prd": "grimoires/loa/archive/2026-02-14-hounfour-hardening/prd.md",
+      "sdd": "grimoires/loa/archive/2026-02-14-hounfour-hardening/sdd.md",
+      "sprint_plan": "grimoires/loa/archive/2026-02-14-hounfour-hardening/sprint.md"
+    },
+    {
+      "id": "cycle-014",
+      "label": "Environment Design for Agent Flourishing — Trajectory, Lore, Visions",
+      "type": "feature",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/325",
+      "created_at": "2026-02-14T14:00:00Z",
+      "sprints": ["sprint-91", "sprint-92", "sprint-93"],
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "sprint_plan": "grimoires/loa/sprint.md"
     }
   ],
-  "active_cycle": "cycle-013",
+  "active_cycle": "cycle-014",
   "active_bugfix": null,
-  "global_sprint_counter": 90,
+  "global_sprint_counter": 93,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260212-i288-991113",

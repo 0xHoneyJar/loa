@@ -33,9 +33,10 @@ usage() {
 Usage: bridge-github-trail.sh <subcommand> [OPTIONS]
 
 Subcommands:
-  comment     Post Bridgebuilder review as PR comment
-  update-pr   Update PR body with iteration summary table
-  vision      Post vision link as PR comment
+  comment        Post Bridgebuilder review as PR comment
+  update-pr      Update PR body with iteration summary table
+  vision         Post vision link as PR comment
+  vision-sprint  Post architectural proposals from vision sprint
 
 Options (comment):
   --pr N              PR number (required)
@@ -469,6 +470,64 @@ cmd_vision() {
 }
 
 # =============================================================================
+# vision-sprint subcommand (v1.39.0)
+# =============================================================================
+
+cmd_vision_sprint() {
+  local pr="" bridge_id="" proposal_file="" repo=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --pr) pr="$2"; shift 2 ;;
+      --bridge-id) bridge_id="$2"; shift 2 ;;
+      --proposal-file) proposal_file="$2"; shift 2 ;;
+      --repo) repo="$2"; shift 2 ;;
+      *) echo "ERROR: Unknown argument: $1" >&2; exit 2 ;;
+    esac
+  done
+
+  if [[ -z "$pr" || -z "$bridge_id" || -z "$proposal_file" ]]; then
+    echo "ERROR: vision-sprint requires --pr, --bridge-id, --proposal-file" >&2
+    exit 2
+  fi
+
+  if [[ ! -f "$proposal_file" ]]; then
+    echo "WARNING: Proposal file not found: $proposal_file" >&2
+    return 0
+  fi
+
+  check_gh || return 0
+
+  # Read proposal content with size enforcement (32KB max)
+  local proposal_content
+  proposal_content=$(head -c 32768 "$proposal_file")
+
+  local marker="<!-- bridge-vision-sprint: ${bridge_id} -->"
+  local body
+  body=$(printf '%s\n## Vision Sprint — Architectural Proposals\n\n**Bridge**: `%s`\n**Source**: Post-flatline exploration of captured visions\n\n---\n\n%s\n\n---\n\n> This vision sprint was generated after bridge convergence. Proposals are architectural sketches, not implementation commitments.' \
+    "$marker" "$bridge_id" "$proposal_content")
+
+  local repo_flag=()
+  [[ -n "${repo:-}" ]] && repo_flag=(--repo "$repo")
+
+  # Check for existing vision sprint comment
+  local existing
+  existing=$(gh pr view "$pr" "${repo_flag[@]}" --json comments --jq "[.comments[].body | select(contains(\"$marker\"))] | length" 2>/dev/null || echo "0")
+
+  if [[ "$existing" -gt 0 ]]; then
+    echo "Skipping: vision sprint comment already exists on PR #$pr"
+    return 0
+  fi
+
+  printf '%s' "$body" | gh pr comment "$pr" "${repo_flag[@]}" --body-file - 2>/dev/null || {
+    echo "WARNING: Failed to post vision sprint to PR #$pr" >&2
+    return 0
+  }
+
+  echo "Posted vision sprint proposals to PR #$pr"
+}
+
+# =============================================================================
 # Main dispatch
 # =============================================================================
 
@@ -477,9 +536,10 @@ if [[ $# -eq 0 ]]; then
 fi
 
 case "$1" in
-  comment)    shift; cmd_comment "$@" ;;
-  update-pr)  shift; cmd_update_pr "$@" ;;
-  vision)     shift; cmd_vision "$@" ;;
-  --help)     usage 0 ;;
-  *)          echo "ERROR: Unknown subcommand: $1" >&2; usage 2 ;;
+  comment)        shift; cmd_comment "$@" ;;
+  update-pr)      shift; cmd_update_pr "$@" ;;
+  vision)         shift; cmd_vision "$@" ;;
+  vision-sprint)  shift; cmd_vision_sprint "$@" ;;
+  --help)         usage 0 ;;
+  *)              echo "ERROR: Unknown subcommand: $1" >&2; usage 2 ;;
 esac

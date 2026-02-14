@@ -381,6 +381,38 @@ bridge_main() {
     iteration=$((iteration + 1))
   done
 
+  # Vision Sprint (v1.39.0 — Dedicated Exploration Time)
+  # After flatline convergence, optionally run a vision sprint to explore
+  # captured visions from the registry. Output is architectural proposals, not code.
+  local vision_sprint_enabled
+  vision_sprint_enabled=$(yq '.run_bridge.vision_sprint.enabled // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+
+  if [[ "$vision_sprint_enabled" == "true" ]]; then
+    local vision_timeout
+    vision_timeout=$(yq '.run_bridge.vision_sprint.timeout_minutes // 10' "$CONFIG_FILE" 2>/dev/null || echo "10")
+
+    echo ""
+    echo "═══════════════════════════════════════════════════"
+    echo "  EXPLORING — Vision Sprint"
+    echo "═══════════════════════════════════════════════════"
+
+    update_bridge_state "EXPLORING"
+    echo "SIGNAL:VISION_SPRINT"
+
+    # The vision sprint signal is handled by the skill layer (run-bridge).
+    # It reads the vision registry, generates architectural proposals,
+    # and saves them to .run/bridge-reviews/{bridge_id}-vision-sprint.md.
+    # Time-bounded by the configured timeout.
+    echo "[VISION SPRINT] Reviewing captured visions (timeout: ${vision_timeout}m)..."
+    echo "SIGNAL:VISION_SPRINT_TIMEOUT:${vision_timeout}"
+
+    # Record in bridge state
+    if command -v jq &>/dev/null && [[ -f "$BRIDGE_STATE_FILE" ]]; then
+      jq '.finalization.vision_sprint = true' "$BRIDGE_STATE_FILE" > "$BRIDGE_STATE_FILE.tmp"
+      mv "$BRIDGE_STATE_FILE.tmp" "$BRIDGE_STATE_FILE"
+    fi
+  fi
+
   # Finalization
   echo ""
   echo "═══════════════════════════════════════════════════"
@@ -420,6 +452,36 @@ bridge_main() {
         '.finalization.butterfreezone_generated = $val' "$BRIDGE_STATE_FILE" > "$BRIDGE_STATE_FILE.tmp"
       mv "$BRIDGE_STATE_FILE.tmp" "$BRIDGE_STATE_FILE"
     fi
+  fi
+
+  # Lore Discovery (v1.39.0 — Bidirectional Lore)
+  # Extract patterns from bridge reviews for the discovered-patterns lore category
+  local lore_discovery_enabled
+  lore_discovery_enabled=$(yq '.run_bridge.lore_discovery.enabled // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+
+  if [[ "$lore_discovery_enabled" == "true" ]]; then
+    echo "[LORE] Running pattern discovery..."
+    echo "SIGNAL:LORE_DISCOVERY"
+
+    local lore_candidates=0
+    if [[ -x ".claude/scripts/lore-discover.sh" ]]; then
+      local lore_output
+      lore_output=$(.claude/scripts/lore-discover.sh --bridge-id "$BRIDGE_ID" 2>/dev/null) || true
+      lore_candidates=$(echo "$lore_output" | grep -o '[0-9]*' | head -1) || lore_candidates=0
+      echo "[LORE] Discovered $lore_candidates candidate patterns"
+    else
+      echo "[LORE] lore-discover.sh not found — skipping"
+    fi
+
+    # Record in bridge state
+    if command -v jq &>/dev/null && [[ -f "$BRIDGE_STATE_FILE" ]]; then
+      jq --argjson candidates "${lore_candidates:-0}" \
+        '.finalization.lore_discovery = {candidates: $candidates}' \
+        "$BRIDGE_STATE_FILE" > "$BRIDGE_STATE_FILE.tmp"
+      mv "$BRIDGE_STATE_FILE.tmp" "$BRIDGE_STATE_FILE"
+    fi
+  else
+    echo "[LORE] Skipped (disabled in config — set run_bridge.lore_discovery.enabled: true to enable)"
   fi
 
   # RTFM gate: test GT index, README, new protocol docs

@@ -23,6 +23,63 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/bootstrap.sh"
 
 # =============================================================================
+# Status Transition Mode (v1.39.0 — Vision Lifecycle)
+# =============================================================================
+
+# Update vision status in index.md
+# Usage: update_vision_status <vision_id> <new_status> <output_dir>
+# Valid transitions: Captured→Exploring, Exploring→Proposed, Proposed→Implemented/Deferred
+update_vision_status() {
+  local vid="$1"
+  local new_status="$2"
+  local visions_dir="$3"
+  local index_file="$visions_dir/index.md"
+
+  if [[ ! -f "$index_file" ]]; then
+    echo "ERROR: Vision index not found: $index_file" >&2
+    return 1
+  fi
+
+  case "$new_status" in
+    Captured|Exploring|Proposed|Implemented|Deferred) ;;
+    *) echo "ERROR: Invalid status: $new_status" >&2; return 1 ;;
+  esac
+
+  local safe_vid safe_status
+  safe_vid=$(printf '%s' "$vid" | sed 's/[\\/&]/\\\\&/g')
+  safe_status=$(printf '%s' "$new_status" | sed 's/[\\/&]/\\\\&/g')
+
+  if grep -q "^| $vid " "$index_file" 2>/dev/null; then
+    # Match columns by counting pipes: | ID | Title | Source | STATUS | Tags |
+    # Use [^|]* to stay within column boundaries (non-greedy per-column)
+    sed "s/^\(| $safe_vid [^|]*|[^|]*|[^|]*| \)[A-Za-z]* \(|.*\)/\1$safe_status \2/" "$index_file" > "$index_file.tmp" && mv "$index_file.tmp" "$index_file"
+    echo "Updated $vid status to $new_status"
+  else
+    echo "WARNING: Vision $vid not found in index" >&2
+    return 1
+  fi
+
+  local entry_file="$visions_dir/entries/${vid}.md"
+  if [[ -f "$entry_file" ]]; then
+    sed "s/^\*\*Status\*\*: .*/\*\*Status\*\*: $safe_status/" "$entry_file" > "$entry_file.tmp" && mv "$entry_file.tmp" "$entry_file"
+  fi
+}
+
+# Early exit for status update mode
+if [[ "${1:-}" == "--update-status" ]]; then
+  shift
+  us_vid="${1:-}"
+  us_status="${2:-}"
+  us_dir="${3:-${PROJECT_ROOT}/grimoires/loa/visions}"
+  if [[ -z "$us_vid" || -z "$us_status" ]]; then
+    echo "Usage: bridge-vision-capture.sh --update-status <vision-id> <new-status> [visions-dir]" >&2
+    exit 2
+  fi
+  update_vision_status "$us_vid" "$us_status" "$us_dir"
+  exit $?
+fi
+
+# =============================================================================
 # Arguments
 # =============================================================================
 
