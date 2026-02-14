@@ -1,0 +1,12 @@
+{
+  "generated_at": "2026-02-14T08:46:41Z",
+  "git_sha": "72434c26d1b4f9cd1ac5f7dcc95b747ab746e13b",
+  "algorithm": "sha256",
+  "files": {
+    "grimoires/loa/ground-truth/architecture.md": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "grimoires/loa/ground-truth/behaviors.md": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "grimoires/loa/ground-truth/api-surface.md": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "grimoires/loa/ground-truth/index.md": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "grimoires/loa/ground-truth/contracts.md": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}
