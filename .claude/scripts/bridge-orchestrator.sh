@@ -44,6 +44,7 @@ TOTAL_TIMEOUT=86400            # 24 hours in seconds
 CLI_DEPTH=""
 CLI_PER_SPRINT=""
 CLI_FLATLINE_THRESHOLD=""
+BRIDGE_REPO=""
 
 # =============================================================================
 # Usage
@@ -58,6 +59,7 @@ Options:
   --per-sprint       Review after each sprint instead of full plan
   --resume           Resume from interrupted bridge
   --from PHASE       Start from phase (sprint-plan)
+  --repo OWNER/REPO  Target repository for gh commands
   --help             Show help
 
 Exit Codes:
@@ -98,6 +100,14 @@ while [[ $# -gt 0 ]]; do
         exit 2
       fi
       FROM_PHASE="$2"
+      shift 2
+      ;;
+    --repo)
+      if [[ -z "${2:-}" ]]; then
+        echo "ERROR: --repo requires a value (owner/repo)" >&2
+        exit 2
+      fi
+      BRIDGE_REPO="$2"
       shift 2
       ;;
     --help)
@@ -272,7 +282,7 @@ bridge_main() {
     local branch
     branch=$(git branch --show-current 2>/dev/null || echo "unknown")
 
-    init_bridge_state "$bridge_id" "$DEPTH" "$PER_SPRINT" "$FLATLINE_THRESHOLD" "$branch"
+    init_bridge_state "$bridge_id" "$DEPTH" "$PER_SPRINT" "$FLATLINE_THRESHOLD" "$branch" "$BRIDGE_REPO"
     update_bridge_state "JACK_IN"
 
     echo ""

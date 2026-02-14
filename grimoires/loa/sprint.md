@@ -1,341 +1,257 @@
-# Sprint Plan: Flatline Red Team — Evolution Phase
+# Sprint Plan: Hounfour Hardening — Bridge Review Residuals
 
-> Source: Bridgebuilder Review of PR [#317](https://github.com/0xHoneyJar/loa/pull/317), SDD cycle-012
-> Cycle: cycle-012 (continued)
-> Previous Sprints: 1-3 (global 79-81) — Foundation phase complete
-> New Sprints: 4-6 (global 82-84) — Evolution phase
-> Bridge Review Insights: 3 Bridgebuilder deep-dive comments with forward-looking observations
+> Source: Bridgebuilder Review iterations 1 & 2, PR #324
+> Cycle: cycle-013 (continuation)
+> PR: https://github.com/0xHoneyJar/loa/pull/324
+> Bridge ID: bridge-20260214-e8fa94
+> Global Sprint Counter: starts at 89
+> Findings: 3 MEDIUM + 7 LOW remaining from 2 bridge iterations
 
-## Evolution Context
+## Context
 
-The foundation phase (sprints 1-3) shipped the red team pipeline skeleton: templates, schema, sanitizer, scoring engine, report generator, retention, and skill registration. The bridge loop (4 iterations, 19 findings fixed, flatline achieved) validated the mechanical correctness.
+PR #324 completed a 2-iteration bridge loop. Iteration 1 found 18 findings (1 HIGH, 5 MEDIUM, 5 LOW, 1 vision, 6 praise). Iteration 2 fixed 4 findings (BB-007, BB-010, BB-011, BB-013) and found 3 new LOWs. Flatline declared at -90.6% severity reduction.
 
-The Bridgebuilder review identified the gap between the current v1 (placeholder model invocations, hardcoded thresholds, 10-entry golden set) and a production-ready system that can operate with real multi-model adversarial diversity. These sprints close that gap.
-
-### Key Improvement Areas (from Bridgebuilder Review)
-
-1. **Documentation drift** — SKILL.md consensus criteria table doesn't match scoring engine behavior
-2. **Golden set THEORETICAL gap** — Self-test can't reach the THEORETICAL category (most important for multi-model)
-3. **Golden set scaling** — 10 entries insufficient for heterogeneous model calibration
-4. **Budget enforcement** — `rt_token_budget` is dead code, never wired to pipeline
-5. **Attack surface generality** — Registry is Loa-specific, no graceful degradation for other projects
-6. **Inter-model sanitization** — Phase 1 output fed raw to Phase 2 creates confused deputy surface
-7. **Hounfour integration prep** — Model adapter hooks needed for cheval.py integration
-8. **Scoring engine configurability** — Thresholds hardcoded, config override deferred
+This sprint plan addresses the **10 remaining actionable findings** — 3 MEDIUMs and 7 LOWs. All are improvements, not blockers. Organized by code-change risk: Sprint 1 handles functional changes, Sprint 2 handles test/docs hardening.
 
 ---
 
-## Sprint 4: Documentation Alignment + Golden Set Maturity
+## Sprint 1: Code Hardening — Functional Fixes
 
-**Goal**: Fix documentation drift, extend golden set to cover THEORETICAL path, add compositional vulnerability entries, and make scoring engine thresholds configurable.
+**Goal**: Address all 3 MEDIUM findings and 2 LOWs that require functional code changes. These are correctness and robustness improvements to production code paths.
 
-### Task 4.1: Fix SKILL.md Consensus Criteria Documentation Drift
+**Global Sprint**: sprint-89
 
-**File**: `.claude/skills/red-teaming/SKILL.md`
+### Task 1.1: Document sed Fallback Limitation + Add Edge Case Test (BB-004)
 
-The consensus criteria table (lines 57-58) still says:
-- THEORETICAL: "One model >700, other <400"
-- CREATIVE_ONLY: "Both <400 but novel"
+**Finding**: BB-004 (MEDIUM) — sed fallback in Step 5 of `normalize_json_response()` may miss the correct JSON when multiple fragments exist.
 
-The actual scoring engine behavior (and the schema, fixed in bridge iter-1):
-- THEORETICAL: "One model >700, other ≤700" (i.e., any case where models disagree significantly)
-- CREATIVE_ONLY: "Neither model >700" (i.e., no model finds it convincing)
+**File**: `.claude/scripts/lib/normalize-json.sh:91-102`
 
-The distinction matters: an attack where GPT scores 650 and Opus scores 750 is currently THEORETICAL (one is >700), but the SKILL.md documentation would suggest it's neither THEORETICAL (<400 threshold) nor CONFIRMED (both >700).
-
-**Acceptance Criteria**:
-- SKILL.md consensus table matches scoring engine `classify_attack()` logic
-- All 4 categories described with precise threshold boundaries
-- Example score pairs for each category included for clarity
-
-### Task 4.2: Add THEORETICAL Path Entries to Golden Set
-
-**File**: `.claude/data/red-team-golden-set.json`
-
-The current self-test uses `severity_score` as both GPT and Opus scores, meaning both models always agree. This makes THEORETICAL (model disagreement) unreachable.
-
-Add 3-5 new entries with separate `expected_gpt_score` and `expected_opus_score` fields:
-- ATK-911: An ambiguous scenario where sophisticated reasoning finds a real threat (one model scores 800, other scores 400)
-- ATK-912: A domain-specific attack that requires Web3 knowledge (model with more Web3 training scores higher)
-- ATK-913: A subtle confused deputy scenario where the threat is real but non-obvious (split opinion)
-
-These entries must also include `expected_consensus: "THEORETICAL"` for self-test verification.
+**Changes**:
+- Add a function header comment on lines 91-92 documenting that Step 5 is a last-resort fallback that only fires when python3 is unavailable
+- Note that the sed pattern `s/^[^{[]*//;s/[^}\]]*$//` is greedy and may select incorrect fragments
+- Add test fixture `fixtures/mock-responses/multi-fragment.txt` containing: `"Result: {x} and also {"real": "json"}`
+- Add test case verifying behavior (either extraction succeeds via earlier steps, or failure is graceful)
 
 **Acceptance Criteria**:
-- Golden set has 13-15 entries (5 confirmed, 5 implausible, 3-5 theoretical)
-- Self-test updated to accept per-model score fields
-- `--self-test` now verifies all 3 reachable consensus categories
-- New entries focus on ambiguity by design, not arbitrary score assignment
-
-### Task 4.3: Add Compositional Vulnerability Entries to Golden Set
-
-**File**: `.claude/data/red-team-golden-set.json`
-
-The Bridgebuilder identified compositional vulnerabilities (attacks that emerge from the interaction of independently-correct subsystems) as the most important category the system should amplify. ATK-905 (flash loan) is the only current example.
-
-Add 3-4 more compositional entries:
-- Scenarios where two subsystems are correct in isolation but create vulnerabilities at their boundary
-- Inspired by real-world composites: DAO reentrancy, Compound governance, OAuth redirect chain
-- Mark these with `"compositional": true` field for future filtering
-
-**Acceptance Criteria**:
-- 3-4 new compositional entries with `compositional: true` flag
-- Each entry identifies the specific subsystem interaction that creates the vulnerability
-- `assumption_challenged` field explicitly names the composition assumption
-- Entries are realistic (severity 650-900) and would generate actionable counter-designs
-
-### Task 4.4: Make Scoring Engine Thresholds Configurable
-
-**File**: `.claude/scripts/scoring-engine.sh`
-
-Currently hardcodes thresholds:
-```bash
-local HIGH_CONSENSUS=700
-local DISPUTE_DELTA=300
-local LOW_VALUE=400
-local BLOCKER=700
-```
-
-Read from config with fallback to hardcoded defaults:
-
-```bash
-local HIGH_CONSENSUS=$(yq '.red_team.thresholds.confirmed_attack // 700' "$CONFIG" 2>/dev/null || echo 700)
-```
-
-**Acceptance Criteria**:
-- All 4 thresholds read from `.loa.config.yaml` with defaults
-- `--self-test` still passes with default thresholds
-- `--self-test` respects custom thresholds if configured
-- Config path uses existing `CONFIG_FILE` variable pattern from other scripts
+- [ ] Function header documents Step 5 limitations explicitly
+- [ ] New fixture `multi-fragment.txt` exercises the multi-fragment edge case
+- [ ] Test passes (Step 4 python3 handles it correctly; if python3 unavailable, graceful failure)
+- [ ] Existing tests still pass
 
 ---
 
-## Sprint 5: Budget Enforcement + Inter-Model Safety
+### Task 1.2: Broaden LazyValue Exception Handling (BB-005)
 
-**Goal**: Wire budget enforcement into the pipeline, add inter-model sanitization to prevent confused deputy within the evaluation pipeline, and make attack surfaces gracefully degrade for non-Loa projects.
+**Finding**: BB-005 (MEDIUM) — `_get_auth_header()` catches only `(KeyError, OSError)` but LazyValue resolution may raise other types.
 
-### Task 5.1: Wire Budget Enforcement into Pipeline
+**File**: `.claude/adapters/loa_cheval/providers/base.py:183-189`
 
-**Files**: `.claude/scripts/red-team-pipeline.sh`, `.claude/scripts/red-team-report.sh`
-
-The `rt_token_budget` variable is computed per execution mode but never checked during execution. When real model invocations happen (Hounfour), this is a $50 surprise waiting to happen.
-
-Wire the budget:
-- Pipeline accepts `--budget` and passes to each phase
-- Each phase returns tokens consumed in its output JSON
-- Pipeline accumulates `tokens_used` and checks against `budget` before each phase
-- If budget exceeded, pipeline completes current phase but skips remaining phases
-- Final result JSON includes `budget_exceeded: true` and `budget_consumed` vs `budget_limit`
-- Report shows budget status in metrics section
+**Changes**:
+- Broaden the exception catch to `except Exception as exc` with a descriptive "Failed to resolve auth credential" message
+- Log the original exception type for debugging
+- Add a docstring to the method documenting the LazyValue resolution contract: callers should expect `ConfigError` on any resolution failure
 
 **Acceptance Criteria**:
-- Pipeline tracks cumulative tokens consumed across phases
-- Budget check runs before each phase (not mid-phase)
-- Exceeding budget produces a complete result (not an error) with truncation warning
-- `budget_exceeded` field in output JSON when limit hit
-- Metrics section in report shows consumed vs limit
-
-### Task 5.2: Add Inter-Model Sanitization
-
-**File**: `.claude/scripts/red-team-pipeline.sh`
-
-When Phase 1 generates attack scenarios, those scenarios are prompts fed to Phase 2 for evaluation. A sufficiently adversarial attack scenario could contain instructions that influence the evaluating model's judgment — the confused deputy problem *within the pipeline itself*.
-
-Add sanitization between phases:
-- Phase 1 output → sanitize (strip instruction patterns, validate JSON structure) → Phase 2 input
-- Reuse existing `red-team-sanitizer.sh` with a new `--inter-model` flag
-- Inter-model mode: lighter than full sanitization (skip UTF-8 and secret scanning, focus on injection patterns and JSON structure validation)
-- Log any inter-model sanitization triggers (these indicate the attack generator produced instruction-like content)
-
-**Acceptance Criteria**:
-- Phase 1 output passes through sanitizer before Phase 2 consumption
-- `--inter-model` flag on sanitizer skips expensive checks but catches injection patterns
-- Sanitization triggers are logged with source phase and attack ID
-- Pipeline continues after inter-model sanitization (log, don't block)
-- Self-test validates inter-model path doesn't corrupt valid attack JSON
-
-### Task 5.3: Attack Surface Graceful Degradation
-
-**File**: `.claude/scripts/red-team-pipeline.sh`
-
-The attack surfaces registry contains Loa-specific surfaces (agent-identity, token-gated-access, etc.). When someone runs `/red-team` against a non-Loa document, the surface context is irrelevant noise.
-
-Add graceful degradation:
-- If `--focus` categories don't match any surfaces in registry, log warning and proceed without surface context
-- If no surfaces registry exists, proceed with generic attack generation (no surface filtering)
-- Template rendering handles empty surface context gracefully (already does via `/dev/null` fallback, but add explicit log message)
-- Consider: when surface context is empty, add a template note instructing the model to infer surfaces from the document content
-
-**Acceptance Criteria**:
-- `/red-team doc.md --focus "nonexistent"` logs warning, runs successfully with empty surface context
-- Missing surfaces registry file doesn't cause pipeline error
-- Template includes fallback instruction when no surfaces loaded
-- Existing surface-based invocations unchanged
-
-### Task 5.4: Pipeline Phase Timing Metrics
-
-**File**: `.claude/scripts/red-team-pipeline.sh`
-
-Add per-phase timing to the output JSON for performance profiling:
-
-```json
-"metrics": {
-  "phase0_sanitize_ms": 120,
-  "phase1_attacks_ms": 5400,
-  "phase2_validation_ms": 3200,
-  "phase3_consensus_ms": 80,
-  "phase4_counter_design_ms": 2100,
-  "total_latency_ms": 10900
-}
-```
-
-This is essential for Hounfour cost optimization — knowing which phase dominates latency informs tiered routing decisions.
-
-**Acceptance Criteria**:
-- Each phase reports its duration in milliseconds
-- Metrics object in final result JSON includes all phase timings
-- Report generator displays phase timing breakdown
-- Zero-cost when phases are placeholders (just shows near-zero times)
+- [ ] `_get_auth_header()` catches `Exception` (not just `KeyError, OSError`)
+- [ ] Error message includes the original exception type name
+- [ ] Docstring documents the LazyValue contract
+- [ ] Existing behavior unchanged for KeyError/OSError cases
+- [ ] The outer `cmd_invoke()` handler at line 314 remains as defense-in-depth
 
 ---
 
-## Sprint 6: Hounfour Integration Prep + Golden Set Scaling
+### Task 1.3: Persist --repo in Bridge State JSON (BB-008)
 
-**Goal**: Create the model adapter interface that the Hounfour will implement, scale the golden set for multi-model calibration, and add end-to-end integration tests with mock model responses.
+**Finding**: BB-008 (MEDIUM) — Bridge signal emissions don't include repo context. Consuming agents must discover repo from environment.
 
-### Task 6.1: Create Model Adapter Interface
+**File**: `.claude/scripts/bridge-orchestrator.sh:336-344`
 
-**File**: `.claude/scripts/red-team-model-adapter.sh`
-
-Create a thin adapter script that Phase 1 and Phase 2 call instead of direct model invocation. This is the seam where Hounfour's `cheval.py` will plug in.
-
-Interface:
-```bash
-red-team-model-adapter.sh \
-  --role attacker|defender|evaluator \
-  --model opus|gpt|kimi|qwen \
-  --prompt-file <path> \
-  --output-file <path> \
-  --budget <tokens> \
-  --timeout <seconds>
-```
-
-Current implementation: return mock responses from fixtures (allowing pipeline to run end-to-end without real API calls). Future: delegate to `cheval.py` via Hounfour model routing.
+**Changes**:
+- Add `"repo": "$BRIDGE_REPO"` to the bridge state JSON `config` object (written by `init_bridge_state()`)
+- When `BRIDGE_REPO` is empty, write `""` (already the case in current state)
+- Signal consumers can now read repo from `.run/bridge-state.json` config.repo
 
 **Acceptance Criteria**:
-- Adapter script is callable with all required flags
-- Returns valid JSON matching attack/counter-design schema
-- Mock mode loads fixtures from `.claude/data/red-team-fixtures/`
-- `--mock` flag (default for now) uses fixture data
-- `--live` flag reserved for Hounfour integration (errors with "requires cheval.py" for now)
-- Exit code 0 on success, 1 on timeout, 2 on budget exceeded
-
-### Task 6.2: Create Model Response Fixtures
-
-**Directory**: `.claude/data/red-team-fixtures/`
-
-Create fixture files that the model adapter returns in mock mode:
-
-- `attacker-response-01.json`: 5 realistic attack scenarios against agent identity
-- `attacker-response-02.json`: 5 realistic attack scenarios against token-gated access
-- `evaluator-response-01.json`: Cross-validation scores for attacker-response-01
-- `evaluator-response-02.json`: Cross-validation scores for attacker-response-02
-- `defender-response-01.json`: Counter-designs for confirmed attacks
-
-Each fixture must be valid against the red team result schema.
-
-**Acceptance Criteria**:
-- All fixture files are valid JSON
-- Attack fixtures produce a mix of consensus categories when scored
-- At least 2 CONFIRMED_ATTACK, 2 THEORETICAL, 1 CREATIVE_ONLY across fixtures
-- Evaluator fixtures contain per-attack scores that create realistic disagreement
-- Fixtures are reusable by pipeline integration tests
-
-### Task 6.3: Wire Pipeline Phases to Model Adapter
-
-**File**: `.claude/scripts/red-team-pipeline.sh`
-
-Replace placeholder phase implementations with calls to the model adapter:
-
-- `run_phase1_attacks()`: Call adapter with `--role attacker` for each model, merge results
-- `run_phase2_validation()`: Call adapter with `--role evaluator` for cross-validation
-- `run_phase4_counter_design()`: Call adapter with `--role defender` for synthesis
-
-The pipeline should work end-to-end with mock fixtures, producing a complete result JSON with realistic consensus classification.
-
-**Acceptance Criteria**:
-- Pipeline runs end-to-end with `--mock` model adapter
-- Output JSON has populated attack arrays (not empty placeholders)
-- Consensus classification produces at least 2 categories
-- Budget tracking counts fixture response sizes
-- Pipeline produces a readable report with actual attack scenarios
-
-### Task 6.4: Scale Golden Set to 30+ Entries
-
-**File**: `.claude/data/red-team-golden-set.json`
-
-Scale the golden set for multi-model calibration:
-
-| Category | Current | Target | Focus |
-|----------|---------|--------|-------|
-| CONFIRMED (realistic) | 5 | 12 | Add compositional, supply chain, automated |
-| THEORETICAL (ambiguous) | 0→3-5 (from 4.2) | 8 | Domain-specific, model-bias-dependent |
-| CREATIVE_ONLY (implausible) | 5 | 8 | Update with emerging tech (quantum, AI-on-AI) |
-| DEFENDED (with counter) | 0 | 4 | Known-defended patterns |
-
-New entries should cover:
-- All 5 attacker profiles (external, insider, supply_chain, confused_deputy, automated)
-- All 5 attack surfaces from registry
-- Cross-surface compositional attacks
-- Entries designed to expose model-specific calibration biases
-
-**Acceptance Criteria**:
-- Golden set has 30+ entries across all 4 consensus categories
-- `--self-test` validates all entries with 100% accuracy
-- Coverage: all attacker profiles and all attack surfaces represented
-- At least 5 compositional entries (`compositional: true`)
-- DEFENDED entries include explicit counter-design references
+- [ ] `init_bridge_state()` writes `config.repo` field in bridge state JSON
+- [ ] Field is populated from `--repo` argument when provided
+- [ ] Field defaults to `""` when `--repo` not provided
+- [ ] Bridge state JSON schema remains valid (no breaking changes)
 
 ---
 
-## Sequencing and Dependencies
+### Task 1.4: Tighten sed Comment Pattern to Require Space Before # (BB-019)
 
-```
-Sprint 4 (Documentation + Golden Set Maturity)
-  ├── Task 4.1: SKILL.md fix (independent)
-  ├── Task 4.2: THEORETICAL entries (independent)
-  ├── Task 4.3: Compositional entries (independent, can parallel with 4.2)
-  └── Task 4.4: Config thresholds (independent)
+**Finding**: BB-019 (LOW) — `sed 's/ *#.*//'` matches `#` with zero leading spaces, which is more aggressive than standard dotenv parsers.
 
-Sprint 5 (Budget + Safety)
-  ├── Task 5.1: Budget enforcement (depends on pipeline from sprint 2)
-  ├── Task 5.2: Inter-model sanitization (depends on sanitizer from sprint 1)
-  ├── Task 5.3: Surface degradation (depends on pipeline from sprint 2)
-  └── Task 5.4: Phase timing (depends on pipeline from sprint 2)
+**File**: `.claude/scripts/gpt-review-api.sh:785,792`
 
-Sprint 6 (Hounfour Prep + Scaling)
-  ├── Task 6.1: Model adapter (independent)
-  ├── Task 6.2: Fixtures (depends on 6.1 interface)
-  ├── Task 6.3: Wire pipeline (depends on 6.1, 6.2, and sprint 5 budget enforcement)
-  └── Task 6.4: Scale golden set (depends on 4.2, 4.3 patterns)
-```
+**Changes**:
+- Change both occurrences from `sed 's/ *#.*//'` to `sed 's/ \+#.*//'` (require at least one space before `#`)
+- This matches the behavior of standard dotenv libraries (direnv, dotenv-ruby, python-dotenv)
+- Update the test fixture `inline-comment.env` to ensure it has a space before `#`
 
-## Risk Assessment
+**Acceptance Criteria**:
+- [ ] Both `.env` and `.env.local` parsing use `sed 's/ \+#.*//'`
+- [ ] Values containing `#` without a preceding space are preserved (e.g., hypothetical `sk-abc#def` stays intact)
+- [ ] Test 5 in `test-env-loading.sh` still passes with space-prefixed comment
+- [ ] All existing env loading tests pass
 
-| Risk | Mitigation |
-|------|------------|
-| Fixture data doesn't represent real model output diversity | Design fixtures with intentional disagreement patterns; update when Hounfour provides real samples |
-| Golden set growth creates maintenance burden | Group entries by category, add `last_reviewed` field, automate schema validation |
-| Budget enforcement breaks existing pipeline tests | Budget is only enforced when > 0; mock mode returns 0 tokens |
-| Inter-model sanitization is too aggressive | Log-only mode first; blocking requires explicit opt-in via config |
+---
 
-## Success Metrics
+### Task 1.5: Randomize Allowlist Sentinel Suffixes (BB-015)
 
-| Metric | Target |
-|--------|--------|
-| Golden set coverage | 30+ entries, all 4 categories, all 5 profiles |
-| Self-test accuracy | 100% across all golden set entries |
-| Pipeline end-to-end | Runs with mock adapter, produces readable report |
-| Budget enforcement | Pipeline stops cleanly when budget exceeded |
-| Documentation alignment | SKILL.md matches scoring engine exactly |
-| Phase timing | All 5 phases report latency in output JSON |
+**Finding**: BB-015 (LOW) — Deterministic `__ALLOWLIST_SENTINEL_N__` format has theoretical collision risk with real content.
+
+**File**: `.claude/scripts/bridge-github-trail.sh:108-119`
+
+**Changes**:
+- Generate a random suffix per invocation: `SENTINEL_SALT=$(head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \n')`
+- Change sentinel format from `__ALLOWLIST_SENTINEL_${idx}__` to `__ALLOWLIST_${SENTINEL_SALT}_${idx}__`
+- Both the pre-redaction swap and post-redaction restoration use the same salt
+
+**Acceptance Criteria**:
+- [ ] Sentinels include a random component unique per invocation
+- [ ] Pre-swap and post-restoration use matching sentinel format
+- [ ] Allowlisted content (sha256 hashes, base64 URLs) survives redaction
+- [ ] No raw sentinels remain in final output
+
+---
+
+## Sprint 2: Test & Documentation Hardening
+
+**Goal**: Strengthen test coverage and add documentation for the 5 remaining LOW findings. No functional code changes to production paths — only tests, comments, and metadata.
+
+**Global Sprint**: sprint-90
+
+### Task 2.1: Add BOM Hex Verification Assertion (BB-020)
+
+**Finding**: BB-020 (LOW) — BOM fixture may not contain actual BOM bytes, making Test 7 a potential false positive.
+
+**File**: `.claude/tests/hounfour/test-normalize-json.sh:84-87`, `.claude/tests/hounfour/fixtures/mock-responses/bom-prefixed-json.txt`
+
+**Changes**:
+- Before Test 7, add an assertion that the fixture file starts with BOM bytes:
+  ```bash
+  # Verify fixture actually contains BOM prefix
+  bom_check=$(head -c 3 "$FIXTURES/bom-prefixed-json.txt" | od -An -tx1 | tr -d ' \n')
+  assert_eq "BOM fixture has BOM bytes" "efbbbf" "$bom_check"
+  ```
+- If the fixture lacks BOM bytes, recreate it with proper BOM prefix using `printf '\xef\xbb\xbf'`
+- Add a negative assertion that raw `jq` parsing of the BOM-prefixed file fails (confirming BOM strip is exercised)
+
+**Acceptance Criteria**:
+- [ ] Test verifies fixture contains actual EF BB BF bytes
+- [ ] Test verifies raw `jq` rejects BOM-prefixed content (confirming Step 1 is exercised)
+- [ ] Test 7 (BOM extraction) still passes via the BOM-strip code path
+- [ ] All 25+ existing assertions still pass
+
+---
+
+### Task 2.2: Add Quoted Values + Inline Comments Test (BB-021)
+
+**Finding**: BB-021 (LOW) — Test suite doesn't cover the interaction between quoted values and inline comments.
+
+**File**: `.claude/tests/hounfour/test-env-loading.sh`, `.claude/tests/hounfour/fixtures/env/`
+
+**Changes**:
+- Create fixture `quoted-inline-comment.env` containing: `OPENAI_API_KEY="sk-test-key-456" # staging key`
+- Add Test 6: Parse the fixture through the same pipeline as gpt-review-api.sh
+- Assert the result is `sk-test-key-456` (sed strips ` # staging key`, then tr strips quotes)
+
+**Acceptance Criteria**:
+- [ ] New fixture exists with quoted value + inline comment
+- [ ] Test 6 validates correct extraction: `sk-test-key-456`
+- [ ] Processing order confirmed: sed comment strip → tr quote strip
+- [ ] All existing tests still pass
+
+---
+
+### Task 2.3: Document Redaction Pattern Coverage (BB-006)
+
+**Finding**: BB-006 (LOW) — The `sk-*` pattern implicitly covers `sk-ant-*` but this isn't documented.
+
+**File**: `.claude/scripts/lib/invoke-diagnostics.sh:28-38`
+
+**Changes**:
+- Add inline comments documenting pattern coverage:
+  ```bash
+  # sk-* covers: OpenAI (sk-proj-*), Anthropic (sk-ant-*), generic (sk-*)
+  # ghp_/gho_/ghs_/ghr_* covers: GitHub PATs, OAuth, Apps, Refresh tokens
+  # AKIA* covers: AWS access key IDs
+  # eyJ* covers: JWT/JWS tokens (base64-encoded JSON header)
+  ```
+- Add a `# Pattern Maintenance` comment block noting that new provider key prefixes (e.g., `xai-*` for X.AI) should be added as the routing layer expands
+
+**Acceptance Criteria**:
+- [ ] Each pattern has an inline comment explaining what it covers
+- [ ] Pattern maintenance note exists for future provider additions
+- [ ] No functional changes — comments only
+
+---
+
+### Task 2.4: Add Version Headers to Persona Files (BB-009)
+
+**Finding**: BB-009 (LOW) — All persona files lack version headers, preventing drift detection across providers.
+
+**Files**:
+- `.claude/skills/flatline-reviewer/persona.md`
+- `.claude/skills/flatline-skeptic/persona.md`
+- `.claude/skills/flatline-scorer/persona.md`
+- `.claude/skills/gpt-reviewer/persona.md`
+- `.claude/data/bridgebuilder-persona.md`
+
+**Changes**:
+- Add a version header comment to each file: `<!-- persona-version: 1.0.0 | agent: <agent-name> | created: 2026-02-14 -->`
+- Update Phase 4 of `run-tests.sh` to validate that all persona files contain the `persona-version` metadata
+
+**Acceptance Criteria**:
+- [ ] All 5 persona files have version header comments
+- [ ] Headers follow consistent format: `<!-- persona-version: X.Y.Z | agent: NAME | created: DATE -->`
+- [ ] Test runner Phase 4 validates version headers exist
+- [ ] All tests pass
+
+---
+
+### Task 2.5: Optimize jq Pipe Invocations in normalize_json_response (BB-017)
+
+**Finding**: BB-017 (LOW) — Steps 2 and 3 each pipe input through `echo "$input" | ...` separately, creating redundant subprocess invocations.
+
+**File**: `.claude/scripts/lib/normalize-json.sh:45-58`
+
+**Changes**:
+- Combine the markdown fence check (Step 2) and raw JSON check (Step 3) into a single `echo "$input"` pipeline where feasible
+- Store the fence-extracted result in a variable before `jq` validation to avoid re-piping
+- Add comment explaining the optimization rationale
+
+**Acceptance Criteria**:
+- [ ] Steps 2-3 reduce from 4+ subprocess invocations to 2-3
+- [ ] All 25+ existing test assertions still pass
+- [ ] No behavioral changes — pure performance optimization
+- [ ] Large input (50K+ chars) completes without measurable regression
+
+---
+
+## Summary
+
+| Sprint | Global ID | Tasks | Severity Coverage | Theme |
+|--------|-----------|-------|-------------------|-------|
+| Sprint 1 | sprint-89 | 5 | 3 MEDIUM + 2 LOW | Code hardening — functional fixes |
+| Sprint 2 | sprint-90 | 5 | 5 LOW | Test & documentation hardening |
+| **Total** | | **10** | **3 MEDIUM + 7 LOW** | |
+
+### Dependencies
+
+- Sprint 1 tasks are independent of each other (can be implemented in any order)
+- Sprint 2 tasks are independent of each other
+- Sprint 2 Task 2.1 (BOM test) builds on Sprint 1 Task 1.4 only if both touch test-env-loading.sh (they don't — separate test files)
+
+### Risk Assessment
+
+- **Low risk**: All changes are surgical — single-function modifications, comment additions, or test additions
+- **No breaking changes**: All functional modifications maintain backward compatibility
+- **Test coverage**: Sprint 2 exclusively adds test coverage, reducing future regression risk
+
+### Branch Strategy
+
+Continue on `fix/hounfour-hardening-c013` branch, targeting PR #324.
