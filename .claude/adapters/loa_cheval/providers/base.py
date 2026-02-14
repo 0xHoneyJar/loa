@@ -174,6 +174,13 @@ class ProviderAdapter(ABC):
 
         Handles LazyValue resolution: str(LazyValue) calls resolve() which
         triggers env var lookup via the credential provider chain.
+
+        LazyValue contract: callers should expect ConfigError on any resolution
+        failure. All exceptions during str() conversion (KeyError for missing
+        env vars, OSError for file-based credentials, ValueError for malformed
+        credentials, RuntimeError from provider chains) are caught and wrapped
+        in ConfigError with the original exception type for debugging.
+        The outer cmd_invoke() handler remains as defense-in-depth.
         """
         auth = self.config.auth
         if auth is None:
@@ -183,9 +190,10 @@ class ProviderAdapter(ABC):
         if not isinstance(auth, str):
             try:
                 auth = str(auth)
-            except (KeyError, OSError) as exc:
+            except Exception as exc:
                 raise ConfigError(
-                    f"Failed to resolve API key for provider '{self.provider}': {exc}."
+                    f"Failed to resolve API key for provider '{self.provider}' "
+                    f"({type(exc).__name__}): {exc}."
                 ) from exc
         if not auth or not auth.strip():
             raise ConfigError(

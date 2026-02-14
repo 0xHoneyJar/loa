@@ -41,19 +41,23 @@ normalize_json_response() {
   input="${input#$'\xef\xbb\xbf'}"
 
   # Step 2: Strip markdown fences (```json ... ```)
+  # Optimization (BB-017): store fence-extracted content to avoid re-piping
   local stripped
   stripped=$(echo "$input" | sed -n '/^```[jJ][sS][oO][nN]\?[[:space:]]*$/,/^```[[:space:]]*$/{/^```/d;p}')
   if [[ -n "$stripped" ]]; then
-    # Validate the fenced content is actual JSON
-    if echo "$stripped" | jq empty 2>/dev/null; then
-      echo "$stripped" | jq '.'
+    # Validate and format in single jq invocation
+    local fenced_result
+    if fenced_result=$(echo "$stripped" | jq '.' 2>/dev/null); then
+      echo "$fenced_result"
       return 0
     fi
   fi
 
   # Step 3: Try raw input as valid JSON directly
-  if echo "$input" | jq empty 2>/dev/null; then
-    echo "$input" | jq '.'
+  # Optimization (BB-017): single jq invocation for validate + format
+  local raw_result
+  if raw_result=$(echo "$input" | jq '.' 2>/dev/null); then
+    echo "$raw_result"
     return 0
   fi
 
@@ -88,6 +92,13 @@ sys.exit(1)
   fi
 
   # Step 5: jq-only fallback — try stripping common prose prefixes
+  # NOTE: This is a last-resort path that only fires when python3 is unavailable.
+  # The sed pattern is greedy: it strips everything before the first { or [ and
+  # after the last } or ]. This means inputs with multiple JSON-like fragments
+  # (e.g., "Result: {x} and also {"real": "json"}") may select the wrong fragment.
+  # Step 4 (python3 raw_decode) handles this case correctly. The sed fallback
+  # trades precision for universality — it works without python3 but may fail
+  # on ambiguous inputs. The jq validation below catches invalid extractions.
   local patterns=(
     's/^[^{[]*//;s/[^}\]]*$//'  # Strip everything before first { or [ and after last } or ]
   )

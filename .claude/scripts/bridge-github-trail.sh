@@ -106,12 +106,15 @@ redact_security_content() {
   content="${content%x}"
 
   # Protect allowlisted content with sentinel tokens before redaction
+  # Use random salt to prevent collision with real content (BB-015)
+  local sentinel_salt
+  sentinel_salt=$(head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \n')
   local sentinel_idx=0
   declare -A sentinel_map
   for pattern in "${ALLOWLIST_PATTERNS[@]}"; do
     while IFS= read -r match; do
       if [[ -n "$match" ]]; then
-        local sentinel="__ALLOWLIST_SENTINEL_${sentinel_idx}__"
+        local sentinel="__ALLOWLIST_${sentinel_salt}_${sentinel_idx}__"
         sentinel_map["$sentinel"]="$match"
         content="${content//$match/$sentinel}"
         sentinel_idx=$((sentinel_idx + 1))

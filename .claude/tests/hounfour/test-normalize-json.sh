@@ -81,15 +81,40 @@ else
   FAIL=$((FAIL + 1))
 fi
 
-# Test 7: BOM-prefixed JSON extraction
+# Test 7: BOM fixture verification — confirm actual BOM bytes exist (BB-020)
+bom_check=$(head -c 3 "$FIXTURES/bom-prefixed-json.txt" | od -An -tx1 | tr -d ' \n')
+assert_eq "BOM fixture has BOM bytes" "efbbbf" "$bom_check"
+
+# Test 7b: Verify BOM is stripped during normalization (first 3 bytes of fixture != first bytes of output)
+raw_first3=$(head -c 3 "$FIXTURES/bom-prefixed-json.txt" | od -An -tx1 | tr -d ' \n')
+result_first=$(normalize_json_response "$(cat "$FIXTURES/bom-prefixed-json.txt")" | head -c 1)
+if [[ "$raw_first3" == "efbbbf" ]] && [[ "$result_first" == "{" ]]; then
+  echo "  PASS: BOM stripped — raw starts with BOM, output starts with {"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: BOM stripping verification"
+  FAIL=$((FAIL + 1))
+fi
+
+# Test 7c: BOM-prefixed JSON extraction via normalize (exercises Step 1)
 result=$(normalize_json_response "$(cat "$FIXTURES/bom-prefixed-json.txt")")
 key=$(echo "$result" | jq -r '.improvements[0].id')
 assert_eq "BOM-prefixed JSON extraction" "IMP-001" "$key"
 
-# Test 8: Malformed JSON → exit 1
+# Test 8: Multi-fragment JSON extraction (BB-004 — exercises Step 4 python3 path)
+result=$(normalize_json_response "$(cat "$FIXTURES/multi-fragment.txt")" 2>/dev/null) || true
+if echo "$result" | jq empty 2>/dev/null; then
+  echo "  PASS: Multi-fragment — valid JSON extracted"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: Multi-fragment — no valid JSON extracted"
+  FAIL=$((FAIL + 1))
+fi
+
+# Test 9: Malformed JSON → exit 1
 assert_exit "Malformed JSON rejected" 1 normalize_json_response "$(cat "$FIXTURES/malformed.txt")"
 
-# Test 9: Empty input → exit 1
+# Test 10: Empty input → exit 1
 assert_exit "Empty input rejected" 1 normalize_json_response ""
 
 echo ""

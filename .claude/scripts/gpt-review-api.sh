@@ -782,14 +782,14 @@ EOF
 
     # Check .env first — tail -1 ensures last value wins (dedup)
     if [[ -f ".env" ]]; then
-      env_key=$(grep -E "^OPENAI_API_KEY=" .env 2>/dev/null | tail -1 | cut -d'=' -f2- | sed 's/ *#.*//' | tr -d '"' | tr -d "'" || true)
+      env_key=$(grep -E "^OPENAI_API_KEY=" .env 2>/dev/null | tail -1 | cut -d'=' -f2- | sed 's/ \+#.*//' | tr -d '"' | tr -d "'" || true)
       [[ -n "$env_key" ]] && env_source=".env"
     fi
 
     # Check .env.local (overrides .env) — tail -1 for dedup
     if [[ -f ".env.local" ]]; then
       local local_key
-      local_key=$(grep -E "^OPENAI_API_KEY=" .env.local 2>/dev/null | tail -1 | cut -d'=' -f2- | sed 's/ *#.*//' | tr -d '"' | tr -d "'" || true)
+      local_key=$(grep -E "^OPENAI_API_KEY=" .env.local 2>/dev/null | tail -1 | cut -d'=' -f2- | sed 's/ \+#.*//' | tr -d '"' | tr -d "'" || true)
       if [[ -n "$local_key" ]]; then
         env_key="$local_key"
         env_source=".env.local"

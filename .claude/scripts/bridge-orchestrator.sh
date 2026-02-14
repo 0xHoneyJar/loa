@@ -282,7 +282,7 @@ bridge_main() {
     local branch
     branch=$(git branch --show-current 2>/dev/null || echo "unknown")
 
-    init_bridge_state "$bridge_id" "$DEPTH" "$PER_SPRINT" "$FLATLINE_THRESHOLD" "$branch"
+    init_bridge_state "$bridge_id" "$DEPTH" "$PER_SPRINT" "$FLATLINE_THRESHOLD" "$branch" "$BRIDGE_REPO"
     update_bridge_state "JACK_IN"
 
     echo ""

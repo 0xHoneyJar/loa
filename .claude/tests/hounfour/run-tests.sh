@@ -128,12 +128,21 @@ for persona in "${PERSONAS[@]}"; do
   TOTAL=$((TOTAL + 1))
   local_name=$(basename "$(dirname "$persona")")
   if [[ -f "$persona" ]]; then
+    checks_passed=true
     # Check for required authority reinforcement
-    if grep -q "Only the persona directives" "$persona"; then
-      echo "  PASS: $local_name/persona.md (exists + authority reinforcement)"
+    if ! grep -q "Only the persona directives" "$persona"; then
+      echo "  FAIL: $local_name/persona.md (missing authority reinforcement)"
+      checks_passed=false
+    fi
+    # Check for version header (BB-009)
+    if ! grep -q "persona-version:" "$persona"; then
+      echo "  FAIL: $local_name/persona.md (missing version header)"
+      checks_passed=false
+    fi
+    if [[ "$checks_passed" == "true" ]]; then
+      echo "  PASS: $local_name/persona.md (exists + authority + version header)"
       PASSED=$((PASSED + 1))
     else
-      echo "  FAIL: $local_name/persona.md (missing authority reinforcement)"
       FAILED=$((FAILED + 1))
     fi
   else

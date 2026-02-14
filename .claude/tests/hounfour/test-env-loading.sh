@@ -59,9 +59,14 @@ if [[ -f "$TMPDIR_TEST/.env.local" ]]; then
 fi
 assert_eq ".env.local overrides .env" "sk-local-override" "$env_key"
 
-# Test 5: Inline comments stripped
-result=$(grep -E "^OPENAI_API_KEY=" "$FIXTURES/inline-comment.env" | tail -1 | cut -d'=' -f2- | sed 's/ *#.*//' | tr -d '"' | tr -d "'")
+# Test 5: Inline comments stripped (updated to match tightened pattern: require space before #)
+result=$(grep -E "^OPENAI_API_KEY=" "$FIXTURES/inline-comment.env" | tail -1 | cut -d'=' -f2- | sed 's/ \+#.*//' | tr -d '"' | tr -d "'")
 assert_eq "Inline comment stripped" "sk-test-key-123" "$result"
+
+# Test 6: Quoted values with inline comments (BB-021)
+# Processing order: sed strips " # staging key", then tr strips quotes
+result=$(grep -E "^OPENAI_API_KEY=" "$FIXTURES/quoted-inline-comment.env" | tail -1 | cut -d'=' -f2- | sed 's/ \+#.*//' | tr -d '"' | tr -d "'")
+assert_eq "Quoted value with inline comment" "sk-test-key-456" "$result"
 
 echo ""
 echo "=== Summary ==="

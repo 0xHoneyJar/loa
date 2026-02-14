@@ -26,6 +26,19 @@ set -euo pipefail
 # AKIA* (AWS), eyJ* (JWT).
 
 redact_secrets() {
+  # Pattern coverage:
+  #   sk-*     — OpenAI (sk-proj-*), Anthropic (sk-ant-*), generic (sk-*)
+  #   ghp_*    — GitHub Personal Access Tokens
+  #   gho_*    — GitHub OAuth tokens
+  #   ghs_*    — GitHub App installation tokens
+  #   ghr_*    — GitHub Refresh tokens
+  #   Bearer   — OAuth/JWT Bearer tokens in headers
+  #   Authorization — Full Authorization header values
+  #   AKIA*    — AWS IAM access key IDs
+  #   eyJ*     — JWT/JWS tokens (base64-encoded JSON header starting with {"...)
+  #
+  # Pattern Maintenance: When new model providers are added to the Hounfour
+  # routing layer, add their key prefixes here (e.g., xai-* for X.AI).
   sed -E \
     -e 's/sk-[A-Za-z0-9_-]{20,}/sk-***REDACTED***/g' \
     -e 's/ghp_[A-Za-z0-9]{36}/ghp_***REDACTED***/g' \
