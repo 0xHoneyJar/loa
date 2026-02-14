@@ -15,6 +15,12 @@ categories:
     files:
       - neuromancer/concepts.yaml
       - neuromancer/mappings.yaml
+  - id: discovered
+    label: "Discovered Patterns"
+    description: "Patterns auto-extracted from bridge reviews — bidirectional lore flowing back from agent work"
+    files:
+      - discovered/patterns.yaml
+      - discovered/visions.yaml
 tags:
   - philosophy
   - naming
@@ -24,3 +30,4 @@ tags:
   - ritual
   - security
   - autonomy
+  - discovered
