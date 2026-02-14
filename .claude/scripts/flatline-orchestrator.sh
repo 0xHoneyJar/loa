@@ -47,6 +47,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/bootstrap.sh"
 source "$SCRIPT_DIR/lib/normalize-json.sh"
+source "$SCRIPT_DIR/lib/invoke-diagnostics.sh"
 
 # Note: bootstrap.sh already handles PROJECT_ROOT canonicalization via realpath
 TRAJECTORY_DIR=$(get_trajectory_dir)
@@ -307,12 +308,20 @@ call_model() {
             args+=(--system "$context")
         fi
 
+        # Per-invocation diagnostic log (unique suffix for parallel calls)
+        local invoke_log
+        invoke_log=$(setup_invoke_log "flatline-${mode}-${model}")
+
         local result exit_code=0
-        result=$("$MODEL_INVOKE" "${args[@]}" 2>/dev/null) || exit_code=$?
+        result=$("$MODEL_INVOKE" "${args[@]}" 2> >(redact_secrets >> "$invoke_log")) || exit_code=$?
 
         if [[ $exit_code -ne 0 ]]; then
+            log_invoke_failure "$exit_code" "$invoke_log" "$timeout"
             return $exit_code
         fi
+
+        # Clean up on success
+        cleanup_invoke_log "$invoke_log"
 
         # Translate output to legacy format for downstream compatibility
         echo "$result" | jq \
