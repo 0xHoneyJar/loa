@@ -1,0 +1,3 @@
+This is not valid JSON at all. The model returned prose instead of structured output.
+{broken json here
+missing closing brace

@@ -1,0 +1,1 @@
+{"improvements": [{"id": "IMP-001", "description": "Fix template literal ${var} handling in JSX", "rationale": "Template with {braces} breaks parser", "location": "src/App.tsx:42", "priority": "HIGH", "confidence": 0.9}], "summary": "1 improvement with nested {braces}"}

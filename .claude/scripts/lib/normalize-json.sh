@@ -177,7 +177,7 @@ validate_agent_response() {
 
   case "$agent" in
     flatline-reviewer)
-      validate_json_field "$json" "improvements" "array" || ((errors++))
+      validate_json_field "$json" "improvements" "array" || errors=$((errors + 1))
       # Validate each improvement has required fields
       local count
       count=$(echo "$json" | jq '.improvements | length' 2>/dev/null || echo "0")
@@ -187,14 +187,14 @@ validate_agent_response() {
         for field in id description priority; do
           echo "$item" | jq -e ".$field" &>/dev/null || {
             echo "ERROR: improvements[$i] missing required field: $field" >&2
-            ((errors++))
+            errors=$((errors + 1))
           }
         done
       done
       ;;
 
     flatline-skeptic)
-      validate_json_field "$json" "concerns" "array" || ((errors++))
+      validate_json_field "$json" "concerns" "array" || errors=$((errors + 1))
       local count
       count=$(echo "$json" | jq '.concerns | length' 2>/dev/null || echo "0")
       for ((i = 0; i < count; i++)); do
@@ -203,7 +203,7 @@ validate_agent_response() {
         for field in id concern severity severity_score; do
           echo "$item" | jq -e ".$field" &>/dev/null || {
             echo "ERROR: concerns[$i] missing required field: $field" >&2
-            ((errors++))
+            errors=$((errors + 1))
           }
         done
         # Validate severity_score is integer 0-1000
@@ -211,13 +211,13 @@ validate_agent_response() {
         score=$(echo "$item" | jq '.severity_score // -1' 2>/dev/null)
         if [[ "$score" -lt 0 ]] || [[ "$score" -gt 1000 ]] 2>/dev/null; then
           echo "ERROR: concerns[$i].severity_score out of range (0-1000): $score" >&2
-          ((errors++))
+          errors=$((errors + 1))
         fi
       done
       ;;
 
     flatline-scorer)
-      validate_json_field "$json" "scores" "array" || ((errors++))
+      validate_json_field "$json" "scores" "array" || errors=$((errors + 1))
       local count
       count=$(echo "$json" | jq '.scores | length' 2>/dev/null || echo "0")
       for ((i = 0; i < count; i++)); do
@@ -226,14 +226,14 @@ validate_agent_response() {
         for field in id score; do
           echo "$item" | jq -e ".$field" &>/dev/null || {
             echo "ERROR: scores[$i] missing required field: $field" >&2
-            ((errors++))
+            errors=$((errors + 1))
           }
         done
       done
       ;;
 
     gpt-reviewer)
-      validate_json_field "$json" "verdict" "string" || ((errors++))
+      validate_json_field "$json" "verdict" "string" || errors=$((errors + 1))
       # Validate verdict enum
       local verdict
       verdict=$(echo "$json" | jq -r '.verdict // ""' 2>/dev/null)
@@ -241,7 +241,7 @@ validate_agent_response() {
         APPROVED|CHANGES_REQUIRED|DECISION_NEEDED|SKIPPED) ;;
         *)
           echo "ERROR: invalid verdict value: '$verdict' (expected APPROVED|CHANGES_REQUIRED|DECISION_NEEDED|SKIPPED)" >&2
-          ((errors++))
+          errors=$((errors + 1))
           ;;
       esac
       ;;
