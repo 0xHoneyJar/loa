@@ -59,6 +59,10 @@ if [[ -f "$TMPDIR_TEST/.env.local" ]]; then
 fi
 assert_eq ".env.local overrides .env" "sk-local-override" "$env_key"
 
+# Test 5: Inline comments stripped
+result=$(grep -E "^OPENAI_API_KEY=" "$FIXTURES/inline-comment.env" | tail -1 | cut -d'=' -f2- | sed 's/ *#.*//' | tr -d '"' | tr -d "'")
+assert_eq "Inline comment stripped" "sk-test-key-123" "$result"
+
 echo ""
 echo "=== Summary ==="
 echo "Passed: $PASS"

@@ -313,7 +313,13 @@ call_model() {
         invoke_log=$(setup_invoke_log "flatline-${mode}-${model}")
 
         local result exit_code=0
-        result=$("$MODEL_INVOKE" "${args[@]}" 2> >(redact_secrets >> "$invoke_log")) || exit_code=$?
+        # Synchronous stderr capture — avoids process substitution race condition
+        # where >(redact_secrets) may not finish writing before log is read
+        result=$("$MODEL_INVOKE" "${args[@]}" 2>"${invoke_log}.raw") || exit_code=$?
+        if [[ -s "${invoke_log}.raw" ]]; then
+            redact_secrets < "${invoke_log}.raw" >> "$invoke_log"
+        fi
+        rm -f "${invoke_log}.raw"
 
         if [[ $exit_code -ne 0 ]]; then
             log_invoke_failure "$exit_code" "$invoke_log" "$timeout"

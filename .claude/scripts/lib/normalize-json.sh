@@ -208,7 +208,7 @@ validate_agent_response() {
         done
         # Validate severity_score is integer 0-1000
         local score
-        score=$(echo "$item" | jq '.severity_score // -1' 2>/dev/null)
+        score=$(echo "$item" | jq '.severity_score // -1 | floor' 2>/dev/null)
         if [[ "$score" -lt 0 ]] || [[ "$score" -gt 1000 ]] 2>/dev/null; then
           echo "ERROR: concerns[$i].severity_score out of range (0-1000): $score" >&2
           errors=$((errors + 1))

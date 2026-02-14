@@ -81,10 +81,15 @@ else
   FAIL=$((FAIL + 1))
 fi
 
-# Test 7: Malformed JSON → exit 1
+# Test 7: BOM-prefixed JSON extraction
+result=$(normalize_json_response "$(cat "$FIXTURES/bom-prefixed-json.txt")")
+key=$(echo "$result" | jq -r '.improvements[0].id')
+assert_eq "BOM-prefixed JSON extraction" "IMP-001" "$key"
+
+# Test 8: Malformed JSON → exit 1
 assert_exit "Malformed JSON rejected" 1 normalize_json_response "$(cat "$FIXTURES/malformed.txt")"
 
-# Test 8: Empty input → exit 1
+# Test 9: Empty input → exit 1
 assert_exit "Empty input rejected" 1 normalize_json_response ""
 
 echo ""
