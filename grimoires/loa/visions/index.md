@@ -4,6 +4,21 @@ Speculative insights captured during bridge loop iterations.
 Each vision represents an architectural connection or paradigm insight
 that transcends the current task — Google's 20% time, automated.
 
+## Status Lifecycle
+
+```
+Captured → Exploring → Proposed → Implemented
+                                → Deferred
+```
+
+| Status | Meaning |
+|--------|---------|
+| **Captured** | Raw insight from bridge review, not yet explored |
+| **Exploring** | Under active investigation in a vision sprint |
+| **Proposed** | Architectural proposal generated, awaiting cycle allocation |
+| **Implemented** | Built into the codebase (with cycle reference) |
+| **Deferred** | Reviewed but not prioritized for current roadmap |
+
 ## Active Visions
 
 | ID | Title | Source | Status | Tags |
@@ -16,5 +31,6 @@ that transcends the current task — Google's 20% time, automated.
 
 - Total captured: 3
 - Exploring: 0
+- Proposed: 0
 - Implemented: 0
-- Deferred: 3
+- Deferred: 0

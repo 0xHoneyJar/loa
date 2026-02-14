@@ -381,6 +381,38 @@ bridge_main() {
     iteration=$((iteration + 1))
   done
 
+  # Vision Sprint (v1.39.0 — Dedicated Exploration Time)
+  # After flatline convergence, optionally run a vision sprint to explore
+  # captured visions from the registry. Output is architectural proposals, not code.
+  local vision_sprint_enabled
+  vision_sprint_enabled=$(yq '.run_bridge.vision_sprint.enabled // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+
+  if [[ "$vision_sprint_enabled" == "true" ]]; then
+    local vision_timeout
+    vision_timeout=$(yq '.run_bridge.vision_sprint.timeout_minutes // 10' "$CONFIG_FILE" 2>/dev/null || echo "10")
+
+    echo ""
+    echo "═══════════════════════════════════════════════════"
+    echo "  EXPLORING — Vision Sprint"
+    echo "═══════════════════════════════════════════════════"
+
+    update_bridge_state "EXPLORING"
+    echo "SIGNAL:VISION_SPRINT"
+
+    # The vision sprint signal is handled by the skill layer (run-bridge).
+    # It reads the vision registry, generates architectural proposals,
+    # and saves them to .run/bridge-reviews/{bridge_id}-vision-sprint.md.
+    # Time-bounded by the configured timeout.
+    echo "[VISION SPRINT] Reviewing captured visions (timeout: ${vision_timeout}m)..."
+    echo "SIGNAL:VISION_SPRINT_TIMEOUT:${vision_timeout}"
+
+    # Record in bridge state
+    if command -v jq &>/dev/null && [[ -f "$BRIDGE_STATE_FILE" ]]; then
+      jq '.finalization.vision_sprint = true' "$BRIDGE_STATE_FILE" > "$BRIDGE_STATE_FILE.tmp"
+      mv "$BRIDGE_STATE_FILE.tmp" "$BRIDGE_STATE_FILE"
+    fi
+  fi
+
   # Finalization
   echo ""
   echo "═══════════════════════════════════════════════════"
