@@ -96,6 +96,7 @@ Directory structure:
 - `/managing-credentials`
 - `/mounting-framework`
 - `/planning-sprints`
+- `/red-teaming`
 - `/reviewing-code`
 - `/riding-codebase`
 - `/rtfm-testing`
@@ -110,7 +111,7 @@ Directory structure:
 |--------|-------|---------|
 | `docs/` | 4 | Documentation |
 | `evals/` | 998 |  |
-| `grimoires/` | 489 | Loa state files |
+| `grimoires/` | 507 | Loa state files |
 | `skills/` | 5112 |  |
 | `tests/` | 142 | Test suites |
 
@@ -135,14 +136,14 @@ claude
 /ship      # Deploy and archive
 ```
 <!-- ground-truth-meta
-head_sha: 4ac1d63aa167366fe7f70e9319d50c25e83d48f3
-generated_at: 2026-02-13T07:22:54Z
+head_sha: f06d82ca042284aee9db1f322bf55097569c3e8a
+generated_at: 2026-02-14T07:59:13Z
 generator: butterfreezone-gen v1.0.0
 sections:
   agent_context: b09a6c0215127e4e9e31487cadb96d5d1c659ce8257abbae9662592779dde922
   capabilities: fb6ef381fb7c2032e949e99a675dae0b4d58aabe935aec3c9c48c362594e9ca7
   architecture: a5ffce49636c71a93df41e9cb65f1bf394cce17d65413c45607d64e248f908f7
-  interfaces: 23e92915acfd2a5fa593f1d7053d04ef25df2a6ed03b76aa70588791003fb6b1
-  module_map: f60fed6f0ce0317f86e7143e97ae9f27fe9ed6e2dd104fa433afa969e5d78691
+  interfaces: aa96896415f978210012c6509d683794f25009fa1f463eeafcdb148c1d4850ed
+  module_map: acef6303bdf1c75f11c8b9a3e409d59576b5385e670fbc1c9f820045d2396c87
   quick_start: a6405f431b837c85a4beb869478df1e6a43f256f4d76b31927744707468cf68f
 -->
