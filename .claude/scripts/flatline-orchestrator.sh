@@ -46,6 +46,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/bootstrap.sh"
+source "$SCRIPT_DIR/lib/normalize-json.sh"
 
 # Note: bootstrap.sh already handles PROJECT_ROOT canonicalization via realpath
 TRAJECTORY_DIR=$(get_trajectory_dir)
@@ -98,9 +99,11 @@ strip_markdown_json() {
 }
 
 # Extract and parse JSON content from model response
+# Uses centralized normalize_json_response() from lib/normalize-json.sh
 extract_json_content() {
     local file="$1"
     local default="$2"
+    local agent="${3:-}"
 
     if [[ ! -f "$file" ]]; then
         echo "$default"
@@ -115,15 +118,22 @@ extract_json_content() {
         return
     fi
 
-    # Strip markdown code blocks if present
-    content=$(strip_markdown_json "$content")
-
-    # Validate it's proper JSON
-    if echo "$content" | jq '.' >/dev/null 2>&1; then
-        echo "$content"
-    else
+    # Normalize via centralized library (handles BOM, fences, prose wrapping)
+    local normalized
+    normalized=$(normalize_json_response "$content" 2>/dev/null) || {
+        log "WARNING: JSON normalization failed for $file — using default"
         echo "$default"
+        return
+    }
+
+    # Per-agent schema validation if agent specified
+    if [[ -n "$agent" ]]; then
+        if ! validate_agent_response "$normalized" "$agent" 2>/dev/null; then
+            log "WARNING: Schema validation failed for agent '$agent' in $file"
+        fi
     fi
+
+    echo "$normalized"
 }
 
 # Log to trajectory
