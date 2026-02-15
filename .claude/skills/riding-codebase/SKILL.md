@@ -670,18 +670,23 @@ If any section exceeds its token budget, trim content (prioritize most-reference
 {"phase": 12, "action": "gap_tracker", "status": "skipped", "details": {"reason": "ENRICH_GAPS not set"}}
 ```
 
-### 12.1 Load Existing Gaps
+### 12.1 Load Existing Gaps and Generate Session Hash
 
-Read `grimoires/loa/gaps.md` if it exists. Extract the highest `GAP-NNN` ID to determine the next available ID. If file doesn't exist, start at `GAP-001`.
+Read `grimoires/loa/gaps.md` if it exists. Extract the highest `GAP-NNN` numeric ID to determine the next available ID. If file doesn't exist, start at `GAP-001`. Generate a session-scoped hash to prevent concurrent ID collisions.
 
 ```bash
-# Extract highest gap ID
+# Extract highest gap ID (handles both GAP-NNN and GAP-NNN-HASH formats)
 NEXT_GAP_ID=1
 if [[ -f grimoires/loa/gaps.md ]]; then
   HIGHEST=$(grep -oP 'GAP-\K[0-9]+' grimoires/loa/gaps.md | sort -n | tail -1)
   NEXT_GAP_ID=$((HIGHEST + 1))
 fi
+
+# Generate 4-character session hash for concurrent safety
+SESSION_HASH=$(date +%s%N | sha256sum | head -c 4)
 ```
+
+**Gap ID format**: `GAP-{NNN}-{SESSION_HASH}` (e.g., `GAP-005-a3f2`). The session hash ensures that concurrent `/ride --with-gaps` sessions produce unique IDs even if they read the same highest NNN value before either writes. Existing `GAP-NNN` entries (without hash) remain valid — the numeric extraction regex accepts both formats.
 
 ### 12.2 Collect Gap Sources
 
@@ -712,7 +717,7 @@ Write `grimoires/loa/gaps.md` with the following schema. If the file already exi
 
 ## Open Gaps
 
-### GAP-NNN: [Short description]
+### GAP-NNN-HASH: [Short description]
 - **Type**: Fact | Data | Interview | Context | Technical
 - **Priority**: P0 | P1 | P2
 - **Source**: /ride Phase N, [artifact or file:line]
@@ -754,15 +759,16 @@ After writing, verify with `Glob` pattern `grimoires/loa/gaps.md` — must retur
 
 | Rule | Description |
 |------|-------------|
-| Agents MAY create gaps | Append to Open Gaps section with next monotonic ID |
+| Agents MAY create gaps | Append to Open Gaps section with next monotonic ID + session hash |
 | Agents MUST NOT resolve gaps | Only humans move gaps to Resolved section |
-| IDs are monotonically increasing | Never reuse a GAP-NNN ID, even if gap is resolved |
+| IDs are session-scoped | Format: `GAP-{NNN}-{HASH}`. NNN is monotonically increasing; HASH is per-session for concurrent safety |
+| Backward compatible | Existing `GAP-NNN` entries (no hash) remain valid and parseable |
 | Append-only for new gaps | Subsequent /ride runs append, never overwrite existing entries |
 | Check before assuming | Agents SHOULD read gap tracker before making assumptions about unknown context |
 
 Log phase completion to trajectory:
 ```json
-{"phase": 12, "action": "gap_tracker", "status": "complete", "details": {"new_gaps": N, "total_open": N, "highest_id": "GAP-NNN", "threshold_status": "ok|warning|exceeded"}}
+{"phase": 12, "action": "gap_tracker", "status": "complete", "details": {"new_gaps": N, "total_open": N, "highest_id": "GAP-NNN-HASH", "session_hash": "HASH", "threshold_status": "ok|warning|exceeded"}}
 ```
 
 ---
@@ -802,10 +808,12 @@ For each `.md` file found in ADR directories, extract:
 | **Title** | First `#` heading or filename |
 | **Status** | Line matching `Status:` or `## Status` section (Accepted, Deprecated, Superseded, Proposed) |
 | **Date** | Line matching `Date:`, `Decided:`, or parsed from filename (NNNN-NN-NN pattern) |
-| **Decision** | First paragraph after `## Decision` or `## Context and Decision` heading |
-| **Rejected alternatives** | Content under `## Options Considered`, `## Alternatives`, or `## Rejected` |
-| **Consequences** | Content under `## Consequences` or `## Impact` |
+| **Decision** | First paragraph after `## Decision`, `## Context and Decision`, or `## Decision Outcome` (MADR) heading |
+| **Rejected alternatives** | Content under `## Options Considered`, `## Alternatives`, `## Rejected`, `## Considered Options` (MADR), or `## Pros and Cons of the Options` (MADR) |
+| **Consequences** | Content under `## Consequences`, `## Impact`, or `## Positive/Negative Consequences` (MADR) |
 | **Reversal conditions** | Sentences containing "revisit when", "reconsider if", "reverse when", "sunset" |
+
+**Heading matching**: Case-insensitive. Accept both `##` and `###` heading levels. MADR variants (marked above) follow the [Markdown Architectural Decision Records](https://adr.github.io/madr/) standard.
 
 ### 13.3 Staleness Computation
 
@@ -852,7 +860,7 @@ If no ADR directories or files are found:
 
 - If Phase 12 ran (gap tracker available): Create a gap entry:
   ```
-  GAP-NNN: No ADR/decision records found
+  GAP-NNN-HASH: No ADR/decision records found
   Type: Context
   Priority: P1
   Source: /ride Phase 13, decision archaeology scan
@@ -887,9 +895,12 @@ Log phase completion:
 
 Scan source code for domain-specific vocabulary from these categories (in priority order):
 
+If `tsconfig.json` exists at the project root, include TypeScript-enhanced patterns (marked with † below). Otherwise, use base patterns only.
+
 | Category | Detection Pattern | Example |
 |----------|------------------|---------|
 | Type names & enums | `type\s+\w+`, `enum\s+\w+`, `interface\s+\w+` | `type FinnNFT`, `enum PoolStatus` |
+| Type names (TS-enhanced †) | `type\s+\w+<` (generics), `as const` assertions, `satisfies\s+\w+`, `.d.ts` file exports | `type Pool<T>`, `const ROLES = {...} as const` |
 | Database models | `@Entity`, `model\s+\w+`, `CREATE TABLE`, schema definitions | `model CreditBalance` |
 | Constants | `const\s+[A-Z_]+`, exported configuration keys | `MAX_RETRY_COUNT` |
 | Component names | Domain-prefixed components, module names | `HounfourRouter`, `BridgebuilderReview` |
