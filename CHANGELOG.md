@@ -5,6 +5,21 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.42.0] — 2026-02-15 — Ride Enrichment — Gap Tracking & Decision Archaeology
+
+
+- **Gap Tracker** (Phase 12): Persistent, structured unknowns tracking with monotonic GAP-NNN IDs. Agents create gaps, only humans resolve them. Append-only design prevents corruption across sessions.
+- **Decision Archaeology** (Phase 13): Scans 5 ADR directory patterns, parses metadata (title, status, date, rejected alternatives, consequences, reversal conditions), flags stale decisions.
+- **Domain Terminology** (Phase 14): Extracts project-specific vocabulary from types, enums, constants, components, and definitional comments.
+- **Configurable depth**: `--with-gaps`, `--with-decisions`, `--with-terms`, `--enriched` flags. No flags = standard /ride unchanged (backward compatible).
+
+### Added
+
+- **cycle-018**: Ride Enrichment — Gap Tracking & Decision Archaeology (#338)
+
+_Source: PR #338_
+
+
 ## [1.39.1] — 2026-02-15 — Collateral Deletion Safeguard + CI Hardening
 
 ### Fixed
