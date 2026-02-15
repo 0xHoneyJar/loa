@@ -1412,6 +1412,28 @@ run_bridge:
       post_redaction_safety: true
 
 # =============================================================================
+# Agent Teams Compatibility (v1.39.0)
+# =============================================================================
+# Experimental: Requires CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+# Enables multi-agent orchestration with Loa's workflow.
+# See: .claude/loa/reference/agent-teams-reference.md
+agent_teams:
+  # Detection mode: auto (use if available), true (require), false (disable)
+  enabled: auto
+
+  # Beads access model: lead_only (recommended) or distributed (future)
+  # lead_only: Only the team lead runs br commands; teammates report via SendMessage
+  # distributed: All teammates can run br (requires SQLite WAL mode — not yet supported)
+  beads_access: lead_only
+
+  # State file behavior when Agent Teams is active
+  state_files:
+    # Use teammate-scoped state files (.run/*.{name}.json)
+    scoped: true
+    # Lead merges teammate state into canonical files on TeamDelete
+    merge_on_shutdown: true
+
+# =============================================================================
 # Post-Merge Automation Pipeline (v1.36.0)
 # =============================================================================
 # Automated post-merge pipeline triggered on push to main.

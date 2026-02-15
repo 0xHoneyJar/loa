@@ -50,6 +50,7 @@ if echo "$command" | grep -qEi '(^|&&|;|\|)\s*(sudo\s+)?(env\s+[^ ]+\s+)?(comman
   # Extended schema includes Hounfour-ready fields (empty string when not set).
   # Populated from environment variables if present:
   #   LOA_CURRENT_MODEL, LOA_CURRENT_PROVIDER, LOA_TRACE_ID
+  #   LOA_TEAM_ID, LOA_TEAM_MEMBER (Agent Teams identity, v1.39.0)
   # This follows the OpenTelemetry principle: define the trace schema before
   # the instrumentation exists.
   jq -cn \
@@ -60,7 +61,9 @@ if echo "$command" | grep -qEi '(^|&&|;|\|)\s*(sudo\s+)?(env\s+[^ ]+\s+)?(comman
     --arg model "${LOA_CURRENT_MODEL:-}" \
     --arg provider "${LOA_CURRENT_PROVIDER:-}" \
     --arg trace_id "${LOA_TRACE_ID:-}" \
-    '{ts: $ts, tool: "Bash", command: $cmd, exit_code: ($exit_code | tonumber), cwd: $cwd, model: $model, provider: $provider, trace_id: $trace_id}' \
+    --arg team_id "${LOA_TEAM_ID:-}" \
+    --arg team_member "${LOA_TEAM_MEMBER:-}" \
+    '{ts: $ts, tool: "Bash", command: $cmd, exit_code: ($exit_code | tonumber), cwd: $cwd, model: $model, provider: $provider, trace_id: $trace_id, team_id: $team_id, team_member: $team_member}' \
     >> .run/audit.jsonl 2>/dev/null || true
 
   # Log rotation: if file exceeds 10MB, keep last 1000 entries
