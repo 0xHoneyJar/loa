@@ -5,6 +5,20 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.41.0] — 2026-02-15 — BUTTERFREEZONE Excellence — Agent-API Interface Standard
+
+
+Cycle-017: BUTTERFREEZONE Excellence — Agent-API Interface Standard
+
+Upgrades the BUTTERFREEZONE generator to a full cross-repo agent legibility system. Addresses #316 (output quality) and #43 (cross-repo agent legibility).
+
+### Added
+
+- **cycle-017**: BUTTERFREEZONE Excellence — Agent-API Interface Standard (#336)
+
+_Source: PR #336_
+
+
 ## [1.39.1] — 2026-02-15 — Collateral Deletion Safeguard + CI Hardening
 
 ### Fixed
