@@ -44,6 +44,7 @@ TOTAL_TIMEOUT=86400            # 24 hours in seconds
 CLI_DEPTH=""
 CLI_PER_SPRINT=""
 CLI_FLATLINE_THRESHOLD=""
+BRIDGE_REPO=""
 
 # =============================================================================
 # Usage
@@ -58,6 +59,7 @@ Options:
   --per-sprint       Review after each sprint instead of full plan
   --resume           Resume from interrupted bridge
   --from PHASE       Start from phase (sprint-plan)
+  --repo OWNER/REPO  Target repository for gh commands
   --help             Show help
 
 Exit Codes:
@@ -98,6 +100,14 @@ while [[ $# -gt 0 ]]; do
         exit 2
       fi
       FROM_PHASE="$2"
+      shift 2
+      ;;
+    --repo)
+      if [[ -z "${2:-}" ]]; then
+        echo "ERROR: --repo requires a value (owner/repo)" >&2
+        exit 2
+      fi
+      BRIDGE_REPO="$2"
       shift 2
       ;;
     --help)
@@ -230,6 +240,19 @@ handle_resume() {
       echo "Continuing from iteration $last_iteration" >&2
       echo "$last_iteration"
       ;;
+    EXPLORING)
+      # Convergence was already achieved when EXPLORING starts.
+      # Safest recovery: skip exploration, proceed to finalization.
+      echo "Convergence was achieved. Skipping exploration, proceeding to finalization." >&2
+      update_bridge_state "FINALIZING"
+      if command -v jq &>/dev/null && [[ -f "$BRIDGE_STATE_FILE" ]]; then
+        jq '.finalization.vision_sprint_skipped = "resumed"' "$BRIDGE_STATE_FILE" > "$BRIDGE_STATE_FILE.tmp"
+        mv "$BRIDGE_STATE_FILE.tmp" "$BRIDGE_STATE_FILE"
+      fi
+      # Return DEPTH so the caller computes iteration = DEPTH+1, which exceeds
+      # the while loop condition (iteration <= DEPTH), skipping directly to finalization.
+      echo "$DEPTH"
+      ;;
     *)
       echo "ERROR: Cannot resume from state: $state" >&2
       exit 1
@@ -272,7 +295,7 @@ bridge_main() {
     local branch
     branch=$(git branch --show-current 2>/dev/null || echo "unknown")
 
-    init_bridge_state "$bridge_id" "$DEPTH" "$PER_SPRINT" "$FLATLINE_THRESHOLD" "$branch"
+    init_bridge_state "$bridge_id" "$DEPTH" "$PER_SPRINT" "$FLATLINE_THRESHOLD" "$branch" "$BRIDGE_REPO"
     update_bridge_state "JACK_IN"
 
     echo ""
@@ -371,6 +394,65 @@ bridge_main() {
     iteration=$((iteration + 1))
   done
 
+  # Vision Sprint (v1.39.0 — Dedicated Exploration Time)
+  # After flatline convergence, optionally run a vision sprint to explore
+  # captured visions from the registry. Output is architectural proposals, not code.
+  local vision_sprint_enabled
+  vision_sprint_enabled=$(yq '.run_bridge.vision_sprint.enabled // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+
+  if [[ "$vision_sprint_enabled" == "true" ]]; then
+    local vision_timeout
+    vision_timeout=$(yq '.run_bridge.vision_sprint.timeout_minutes // 10' "$CONFIG_FILE" 2>/dev/null || echo "10")
+
+    echo ""
+    echo "═══════════════════════════════════════════════════"
+    echo "  EXPLORING — Vision Sprint"
+    echo "═══════════════════════════════════════════════════"
+
+    update_bridge_state "EXPLORING"
+
+    # The vision sprint signal is handled by the skill layer (run-bridge).
+    # It reads the vision registry, generates architectural proposals,
+    # and saves them to .run/bridge-reviews/{bridge_id}-vision-sprint.md.
+    #
+    # Defense-in-depth: wrap the vision sprint phase in a hard timeout.
+    # The skill layer reads SIGNAL lines and performs the actual work. We emit the
+    # signals, then block on a sentinel file that the skill layer writes on completion.
+    # The timeout wraps the WAIT, not the echo — this is what actually enforces the bound.
+    echo "[VISION SPRINT] Reviewing captured visions (hard timeout: ${vision_timeout}m)..."
+
+    local vision_sentinel="${PROJECT_ROOT}/.run/vision-sprint-done"
+    rm -f "$vision_sentinel"
+
+    # Emit signals for the skill layer to act on.
+    # CONTRACT: The skill layer MUST touch $vision_sentinel when vision sprint
+    # completes (success or failure). If this contract is not honored, the
+    # orchestrator's timeout will fire as a safety net.
+    echo "SIGNAL:VISION_SPRINT"
+    echo "SIGNAL:VISION_SPRINT_TIMEOUT:${vision_timeout}"
+    echo "SIGNAL:VISION_SPRINT_SENTINEL:${vision_sentinel}"
+
+    # Block until the skill layer writes the sentinel, bounded by hard timeout.
+    # Uses env var to avoid word-splitting issues with paths containing spaces.
+    local vision_timed_out=false
+    if ! VISION_SENTINEL="$vision_sentinel" timeout --signal=TERM "$((vision_timeout * 60))" \
+      bash -c 'while [[ ! -f "$VISION_SENTINEL" ]]; do sleep 2; done'; then
+      echo "WARNING: Vision sprint timed out after ${vision_timeout}m — proceeding to finalization"
+      vision_timed_out=true
+    fi
+    rm -f "$vision_sentinel"
+
+    # Record in bridge state
+    if command -v jq &>/dev/null && [[ -f "$BRIDGE_STATE_FILE" ]]; then
+      if [[ "$vision_timed_out" == "true" ]]; then
+        jq '.finalization.vision_sprint = true | .finalization.vision_sprint_timeout = true' "$BRIDGE_STATE_FILE" > "$BRIDGE_STATE_FILE.tmp"
+      else
+        jq '.finalization.vision_sprint = true | .finalization.vision_sprint_timeout = false' "$BRIDGE_STATE_FILE" > "$BRIDGE_STATE_FILE.tmp"
+      fi
+      mv "$BRIDGE_STATE_FILE.tmp" "$BRIDGE_STATE_FILE"
+    fi
+  fi
+
   # Finalization
   echo ""
   echo "═══════════════════════════════════════════════════"
@@ -410,6 +492,36 @@ bridge_main() {
         '.finalization.butterfreezone_generated = $val' "$BRIDGE_STATE_FILE" > "$BRIDGE_STATE_FILE.tmp"
       mv "$BRIDGE_STATE_FILE.tmp" "$BRIDGE_STATE_FILE"
     fi
+  fi
+
+  # Lore Discovery (v1.39.0 — Bidirectional Lore)
+  # Extract patterns from bridge reviews for the discovered-patterns lore category
+  local lore_discovery_enabled
+  lore_discovery_enabled=$(yq '.run_bridge.lore_discovery.enabled // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+
+  if [[ "$lore_discovery_enabled" == "true" ]]; then
+    echo "[LORE] Running pattern discovery..."
+    echo "SIGNAL:LORE_DISCOVERY"
+
+    local lore_candidates=0
+    if [[ -x ".claude/scripts/lore-discover.sh" ]]; then
+      local lore_output
+      lore_output=$(.claude/scripts/lore-discover.sh --bridge-id "$BRIDGE_ID" 2>/dev/null) || true
+      lore_candidates=$(echo "$lore_output" | grep -o '[0-9]*' | head -1) || lore_candidates=0
+      echo "[LORE] Discovered $lore_candidates candidate patterns"
+    else
+      echo "[LORE] lore-discover.sh not found — skipping"
+    fi
+
+    # Record in bridge state
+    if command -v jq &>/dev/null && [[ -f "$BRIDGE_STATE_FILE" ]]; then
+      jq --argjson candidates "${lore_candidates:-0}" \
+        '.finalization.lore_discovery = {candidates: $candidates}' \
+        "$BRIDGE_STATE_FILE" > "$BRIDGE_STATE_FILE.tmp"
+      mv "$BRIDGE_STATE_FILE.tmp" "$BRIDGE_STATE_FILE"
+    fi
+  else
+    echo "[LORE] Skipped (disabled in config — set run_bridge.lore_discovery.enabled: true to enable)"
   fi
 
   # RTFM gate: test GT index, README, new protocol docs

@@ -80,6 +80,7 @@ interprets and acts on:
 | `VISION_CAPTURE` | Run `bridge-vision-capture.sh` |
 | `GITHUB_TRAIL` | Run `bridge-github-trail.sh` |
 | `FLATLINE_CHECK` | Evaluate flatline condition |
+| `LORE_DISCOVERY` | Run `lore-discover.sh` to extract patterns from bridge reviews (v1.39.0) |
 
 ### Phase 3.1: Enriched Bridgebuilder Review
 

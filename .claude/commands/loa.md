@@ -25,10 +25,11 @@ Show current workflow state, health, progress, and suggest the next command. The
 ## Workflow
 
 1. **Detect State**: Run `.claude/scripts/loa-status.sh` and `.claude/scripts/golden-path.sh` to determine workflow state
-2. **Health Summary**: Show one-line system health (from `/loa doctor` quick check)
-3. **Journey Bar**: Show golden path progress visualization
-4. **Suggest Command**: Present the recommended **golden command** (not truename)
-5. **Prompt User**: Ask user to proceed or explore
+2. **Trajectory Narrative**: Display project trajectory from `golden_trajectory()` — cycle history, current frontier, open visions (v1.39.0)
+3. **Health Summary**: Show one-line system health (from `/loa doctor` quick check)
+4. **Journey Bar**: Show golden path progress visualization
+5. **Suggest Command**: Present the recommended **golden command** (not truename)
+6. **Prompt User**: Ask user to proceed or explore
 
 ## Golden Path Integration (v1.30.0)
 
@@ -49,6 +50,14 @@ The `/loa` command now suggests **golden commands** instead of truenames:
 
 ```
   Loa — Agent-Driven Development
+
+  ## Trajectory
+  This is cycle 14 of the Loa framework. Across 12 prior cycles and 93 sprints
+  since 2026-02-11, the codebase has evolved through iterative bridge loops with
+  adversarial review, persona-driven identity, and autonomous convergence.
+
+  Current frontier: Environment Design for Agent Flourishing
+  Open visions (3): Pluggable credential registry, Context Isolation, ...
 
   Health: ✓ All systems operational
   State:  Building (implementing sprint-2)
@@ -244,6 +253,20 @@ options:
 ```
 
 ## Implementation Notes
+
+0. **Generate trajectory narrative** (v1.39.0 — before all other output):
+   ```bash
+   source .claude/scripts/golden-path.sh
+   trajectory=$(golden_trajectory)
+   # Display trajectory output as the opening section
+   # If empty, skip silently (graceful degradation)
+   ```
+   The trajectory provides continuity of purpose — agents and humans see where the project
+   has been, what it has learned, and what it is becoming. Displayed once per session,
+   before the health summary.
+
+   Config toggle: `golden_path.show_trajectory: true` (default: true)
+   To disable: set `golden_path.show_trajectory: false` in `.loa.config.yaml`
 
 1. **Run loa-status.sh** for version and state info:
    ```bash
@@ -450,4 +473,7 @@ guided_workflow:
   show_progress_bar: true    # Display visual progress
   show_alternatives: true    # Show alternative commands on 'n'
   golden_path: true          # Use golden command suggestions (default: true)
+
+golden_path:
+  show_trajectory: true      # Display trajectory narrative in /loa (v1.39.0)
 ```

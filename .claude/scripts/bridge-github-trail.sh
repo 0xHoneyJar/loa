@@ -33,9 +33,10 @@ usage() {
 Usage: bridge-github-trail.sh <subcommand> [OPTIONS]
 
 Subcommands:
-  comment     Post Bridgebuilder review as PR comment
-  update-pr   Update PR body with iteration summary table
-  vision      Post vision link as PR comment
+  comment        Post Bridgebuilder review as PR comment
+  update-pr      Update PR body with iteration summary table
+  vision         Post vision link as PR comment
+  vision-sprint  Post architectural proposals from vision sprint
 
 Options (comment):
   --pr N              PR number (required)
@@ -106,12 +107,15 @@ redact_security_content() {
   content="${content%x}"
 
   # Protect allowlisted content with sentinel tokens before redaction
+  # Use random salt to prevent collision with real content (BB-015)
+  local sentinel_salt
+  sentinel_salt=$(head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \n')
   local sentinel_idx=0
   declare -A sentinel_map
   for pattern in "${ALLOWLIST_PATTERNS[@]}"; do
     while IFS= read -r match; do
       if [[ -n "$match" ]]; then
-        local sentinel="__ALLOWLIST_SENTINEL_${sentinel_idx}__"
+        local sentinel="__ALLOWLIST_${sentinel_salt}_${sentinel_idx}__"
         sentinel_map["$sentinel"]="$match"
         content="${content//$match/$sentinel}"
         sentinel_idx=$((sentinel_idx + 1))
@@ -259,7 +263,7 @@ cleanup_old_reviews() {
 # =============================================================================
 
 cmd_comment() {
-  local pr="" iteration="" review_body="" bridge_id=""
+  local pr="" iteration="" review_body="" bridge_id="" repo=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -267,6 +271,7 @@ cmd_comment() {
       --iteration) iteration="$2"; shift 2 ;;
       --review-body) review_body="$2"; shift 2 ;;
       --bridge-id) bridge_id="$2"; shift 2 ;;
+      --repo) repo="$2"; shift 2 ;;
       *) echo "ERROR: Unknown argument: $1" >&2; exit 2 ;;
     esac
   done
@@ -315,14 +320,17 @@ ${review_content}
 
   # Check for existing comment with this marker to avoid duplicates
   local existing
-  existing=$(gh pr view "$pr" --json comments --jq "[.comments[].body | select(contains(\"$marker\"))] | length" 2>/dev/null || echo "0")
+  local repo_flag=()
+  [[ -n "${repo:-}" ]] && repo_flag=(--repo "$repo")
+
+  existing=$(gh pr view "$pr" "${repo_flag[@]}" --json comments --jq "[.comments[].body | select(contains(\"$marker\"))] | length" 2>/dev/null || echo "0")
 
   if [[ "$existing" -gt 0 ]]; then
     echo "Skipping: comment for iteration $iteration already exists on PR #$pr"
     return 0
   fi
 
-  printf '%s' "$body" | gh pr comment "$pr" --body-file - 2>/dev/null || {
+  printf '%s' "$body" | gh pr comment "$pr" "${repo_flag[@]}" --body-file - 2>/dev/null || {
     echo "WARNING: Failed to post comment to PR #$pr" >&2
     return 0
   }
@@ -335,12 +343,13 @@ ${review_content}
 # =============================================================================
 
 cmd_update_pr() {
-  local pr="" state_file=""
+  local pr="" state_file="" repo=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --pr) pr="$2"; shift 2 ;;
       --state-file) state_file="$2"; shift 2 ;;
+      --repo) repo="$2"; shift 2 ;;
       *) echo "ERROR: Unknown argument: $1" >&2; exit 2 ;;
     esac
   done
@@ -391,8 +400,10 @@ cmd_update_pr() {
     "$body" "$bridge_id" "$state" "$depth")
 
   # Get current PR body and append/update bridge section
+  local repo_flag=()
+  [[ -n "${repo:-}" ]] && repo_flag=(--repo "$repo")
   local current_body
-  current_body=$(gh pr view "$pr" --json body --jq '.body' 2>/dev/null || echo "")
+  current_body=$(gh pr view "$pr" "${repo_flag[@]}" --json body --jq '.body' 2>/dev/null || echo "")
 
   # Remove old bridge summary if present (between markers)
   local new_body
@@ -407,7 +418,7 @@ cmd_update_pr() {
     new_body=$(printf '%s\n\n---\n\n%s' "$current_body" "$body")
   fi
 
-  printf '%s' "$new_body" | gh pr edit "$pr" --body-file - 2>/dev/null || {
+  printf '%s' "$new_body" | gh pr edit "$pr" "${repo_flag[@]}" --body-file - 2>/dev/null || {
     echo "WARNING: Failed to update PR #$pr body" >&2
     return 0
   }
@@ -420,13 +431,14 @@ cmd_update_pr() {
 # =============================================================================
 
 cmd_vision() {
-  local pr="" vision_id="" title=""
+  local pr="" vision_id="" title="" repo=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --pr) pr="$2"; shift 2 ;;
       --vision-id) vision_id="$2"; shift 2 ;;
       --title) title="$2"; shift 2 ;;
+      --repo) repo="$2"; shift 2 ;;
       *) echo "ERROR: Unknown argument: $1" >&2; exit 2 ;;
     esac
   done
@@ -446,12 +458,73 @@ cmd_vision() {
     "**Entry**: \`grimoires/loa/visions/entries/${vision_id}.md\`" \
     "> This vision was captured during a bridge iteration. See the vision registry for details.")
 
-  printf '%s' "$body" | gh pr comment "$pr" --body-file - 2>/dev/null || {
+  local repo_flag=()
+  [[ -n "${repo:-}" ]] && repo_flag=(--repo "$repo")
+
+  printf '%s' "$body" | gh pr comment "$pr" "${repo_flag[@]}" --body-file - 2>/dev/null || {
     echo "WARNING: Failed to post vision link to PR #$pr" >&2
     return 0
   }
 
   echo "Posted vision link for ${vision_id} to PR #$pr"
+}
+
+# =============================================================================
+# vision-sprint subcommand (v1.39.0)
+# =============================================================================
+
+cmd_vision_sprint() {
+  local pr="" bridge_id="" proposal_file="" repo=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --pr) pr="$2"; shift 2 ;;
+      --bridge-id) bridge_id="$2"; shift 2 ;;
+      --proposal-file) proposal_file="$2"; shift 2 ;;
+      --repo) repo="$2"; shift 2 ;;
+      *) echo "ERROR: Unknown argument: $1" >&2; exit 2 ;;
+    esac
+  done
+
+  if [[ -z "$pr" || -z "$bridge_id" || -z "$proposal_file" ]]; then
+    echo "ERROR: vision-sprint requires --pr, --bridge-id, --proposal-file" >&2
+    exit 2
+  fi
+
+  if [[ ! -f "$proposal_file" ]]; then
+    echo "WARNING: Proposal file not found: $proposal_file" >&2
+    return 0
+  fi
+
+  check_gh || return 0
+
+  # Read proposal content with size enforcement (32KB max)
+  local proposal_content
+  proposal_content=$(head -c 32768 "$proposal_file")
+
+  local marker="<!-- bridge-vision-sprint: ${bridge_id} -->"
+  local body
+  body=$(printf '%s\n## Vision Sprint — Architectural Proposals\n\n**Bridge**: `%s`\n**Source**: Post-flatline exploration of captured visions\n\n---\n\n%s\n\n---\n\n> This vision sprint was generated after bridge convergence. Proposals are architectural sketches, not implementation commitments.' \
+    "$marker" "$bridge_id" "$proposal_content")
+
+  local repo_flag=()
+  [[ -n "${repo:-}" ]] && repo_flag=(--repo "$repo")
+
+  # Check for existing vision sprint comment
+  local existing
+  existing=$(gh pr view "$pr" "${repo_flag[@]}" --json comments --jq "[.comments[].body | select(contains(\"$marker\"))] | length" 2>/dev/null || echo "0")
+
+  if [[ "$existing" -gt 0 ]]; then
+    echo "Skipping: vision sprint comment already exists on PR #$pr"
+    return 0
+  fi
+
+  printf '%s' "$body" | gh pr comment "$pr" "${repo_flag[@]}" --body-file - 2>/dev/null || {
+    echo "WARNING: Failed to post vision sprint to PR #$pr" >&2
+    return 0
+  }
+
+  echo "Posted vision sprint proposals to PR #$pr"
 }
 
 # =============================================================================
@@ -463,9 +536,10 @@ if [[ $# -eq 0 ]]; then
 fi
 
 case "$1" in
-  comment)    shift; cmd_comment "$@" ;;
-  update-pr)  shift; cmd_update_pr "$@" ;;
-  vision)     shift; cmd_vision "$@" ;;
-  --help)     usage 0 ;;
-  *)          echo "ERROR: Unknown subcommand: $1" >&2; usage 2 ;;
+  comment)        shift; cmd_comment "$@" ;;
+  update-pr)      shift; cmd_update_pr "$@" ;;
+  vision)         shift; cmd_vision "$@" ;;
+  vision-sprint)  shift; cmd_vision_sprint "$@" ;;
+  --help)         usage 0 ;;
+  *)              echo "ERROR: Unknown subcommand: $1" >&2; usage 2 ;;
 esac

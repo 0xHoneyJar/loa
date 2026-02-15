@@ -378,6 +378,32 @@ golden_format_bug_journey() {
 }
 
 # ─────────────────────────────────────────────────────────────
+# Trajectory Narrative (v1.39.0 — Environment Design)
+# ─────────────────────────────────────────────────────────────
+
+# Generate trajectory narrative for session startup.
+# Returns prose summary of project history, current frontier, and open visions.
+# Falls back gracefully if trajectory-gen.sh is unavailable.
+golden_trajectory() {
+    local mode="${1:---prose}"  # --prose (default) | --condensed | --json
+    local script="${SCRIPT_DIR}/trajectory-gen.sh"
+
+    if [[ ! -x "$script" ]]; then
+        return 0  # Silent fallback — trajectory is optional
+    fi
+
+    local flag=""
+    case "$mode" in
+        --condensed) flag="--condensed" ;;
+        --json) flag="--json" ;;
+        *) flag="" ;;
+    esac
+
+    # Time-bounded: 2-second timeout
+    timeout 2 "$script" $flag 2>/dev/null || return 0
+}
+
+# ─────────────────────────────────────────────────────────────
 # Workflow State Detection (v1.34.0 — Onboarding UX)
 # ─────────────────────────────────────────────────────────────
 

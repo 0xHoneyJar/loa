@@ -1,0 +1,5 @@
+Here is my analysis of the document:
+
+{"improvements": [{"id": "IMP-001", "description": "Add input validation", "rationale": "Prevents invalid data", "location": "Section 3.2", "priority": "HIGH", "confidence": 0.85}], "summary": "1 improvement identified, 1 HIGH priority"}
+
+I hope this helps with your review process.

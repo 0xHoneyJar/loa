@@ -141,6 +141,22 @@ cat <<'REMINDER'
 ## Step 4: Review Project Memory
 Scan `grimoires/loa/NOTES.md` for project-specific learnings and patterns.
 
+REMINDER
+
+# Step 5: Trajectory context (v1.39.0 — Environment Design)
+TRAJECTORY_SCRIPT="${PROJECT_ROOT}/.claude/scripts/trajectory-gen.sh"
+if [[ -x "$TRAJECTORY_SCRIPT" ]]; then
+    trajectory_output=$(timeout 2 "$TRAJECTORY_SCRIPT" --condensed 2>/dev/null) || trajectory_output=""
+    if [[ -n "$trajectory_output" ]]; then
+        cat <<EOF
+## Step 5: Trajectory Context
+$trajectory_output
+
+EOF
+    fi
+fi
+
+cat <<'REMINDER'
 ════════════════════════════════════════════════════════════════════
  DO NOT proceed with user's request until recovery steps are complete
 ════════════════════════════════════════════════════════════════════
