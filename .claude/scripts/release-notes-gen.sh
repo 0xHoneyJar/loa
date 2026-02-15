@@ -151,7 +151,7 @@ generate_from_pr_metadata() {
 
   # Extract ## Summary from PR body
   local summary
-  summary=$(printf '%s' "$body" | sed -n '/^## Summary/,/^## /p' | sed '1d;$d')
+  summary=$(printf '%s\n' "$body" | awk '/^## Summary/{f=1;next} /^## /{f=0} f')
   if [[ -n "$summary" ]]; then
     echo "$summary"
     echo ""
@@ -286,7 +286,7 @@ generate_bugfix_notes() {
   # Extract ## Summary from PR body for richer description
   if [[ -n "$pr_body" ]]; then
     local summary
-    summary=$(printf '%s' "$pr_body" | sed -n '/^## Summary/,/^## /p' | sed '1d;$d')
+    summary=$(printf '%s\n' "$pr_body" | awk '/^## Summary/{f=1;next} /^## /{f=0} f')
     if [[ -n "$summary" ]]; then
       echo "$summary"
       echo ""
@@ -307,12 +307,17 @@ generate_other_notes() {
   printf '## Release v%s\n\n' "$version"
 
   local changelog_content
+  # Same multi-tier fallback as cycle notes
   if changelog_content=$(extract_changelog_section "$version"); then
     echo "$changelog_content"
+  elif generate_from_pr_metadata "$version" "$pr_number" 2>/dev/null; then
+    : # output already printed
   else
-    echo "Maintenance release."
+    generate_from_commits "$version"
   fi
 
+  echo ""
+  echo "### Source"
   echo ""
   printf -- '- PR: #%s\n' "$pr_number"
   echo ""

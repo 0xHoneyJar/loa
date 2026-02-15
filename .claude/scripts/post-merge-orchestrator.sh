@@ -36,7 +36,7 @@ SKIP_RTFM=false
 
 # Phase matrix: which phases run for each PR type
 declare -A CYCLE_PHASES=( [classify]=1 [semver]=1 [changelog]=1 [gt_regen]=1 [rtfm]=1 [tag]=1 [release]=1 [notify]=1 )
-declare -A BUGFIX_PHASES=( [classify]=1 [semver]=1 [tag]=1 [notify]=1 )
+declare -A BUGFIX_PHASES=( [classify]=1 [semver]=1 [changelog]=1 [tag]=1 [release]=1 [notify]=1 )
 declare -A OTHER_PHASES=( [classify]=1 [semver]=1 [tag]=1 [notify]=1 )
 
 # Ordered phase list
@@ -301,22 +301,32 @@ auto_generate_changelog_entry() {
   local date_str
   date_str=$(date +%Y-%m-%d)
 
-  # 1. Get PR metadata (if gh available)
-  local pr_title="" pr_body="" pr_labels=""
+  # 1. Get PR metadata (single API call for efficiency)
+  local pr_title="" pr_body=""
   if [[ -n "${PR_NUMBER:-}" ]] && check_gh 2>/dev/null; then
-    pr_title=$(gh pr view "$PR_NUMBER" --json title --jq '.title' 2>/dev/null || true)
-    pr_body=$(gh pr view "$PR_NUMBER" --json body --jq '.body' 2>/dev/null || true)
-    pr_labels=$(gh pr view "$PR_NUMBER" --json labels --jq '[.labels[].name] | join(",")' 2>/dev/null || true)
+    local pr_json
+    pr_json=$(gh pr view "$PR_NUMBER" --json title,body 2>/dev/null || true)
+    if [[ -n "$pr_json" ]]; then
+      pr_title=$(echo "$pr_json" | jq -r '.title // ""')
+      pr_body=$(echo "$pr_json" | jq -r '.body // ""')
+    fi
   fi
 
   # 2. Get conventional commits since previous tag
+  # Use grep -A1 to find the tag BEFORE the current version (not just head -1)
   local prev_tag
-  prev_tag=$(git -C "$PROJECT_ROOT" tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)
+  prev_tag=$(git -C "$PROJECT_ROOT" tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | \
+    grep -v "^v${version}$" | head -1)
   local range="${prev_tag:+${prev_tag}..HEAD}"
 
   local feat_commits fix_commits
-  feat_commits=$(git -C "$PROJECT_ROOT" log ${range} --format='%s' 2>/dev/null | grep -E '^feat' || true)
-  fix_commits=$(git -C "$PROJECT_ROOT" log ${range} --format='%s' 2>/dev/null | grep -E '^fix' || true)
+  if [[ -n "$range" ]]; then
+    feat_commits=$(git -C "$PROJECT_ROOT" log "$range" --format='%s' 2>/dev/null | grep -E '^feat' || true)
+    fix_commits=$(git -C "$PROJECT_ROOT" log "$range" --format='%s' 2>/dev/null | grep -E '^fix' || true)
+  else
+    feat_commits=$(git -C "$PROJECT_ROOT" log --format='%s' 2>/dev/null | grep -E '^feat' || true)
+    fix_commits=$(git -C "$PROJECT_ROOT" log --format='%s' 2>/dev/null | grep -E '^fix' || true)
+  fi
 
   # 3. Extract subtitle from PR title
   local subtitle=""
@@ -336,11 +346,11 @@ auto_generate_changelog_entry() {
   # 4. Extract summary from PR body (## Summary section or first paragraph)
   local summary=""
   if [[ -n "$pr_body" ]]; then
-    # Try ## Summary section first
-    summary=$(printf '%s' "$pr_body" | sed -n '/^## Summary/,/^## /p' | sed '1d;$d' | head -5)
+    # Try ## Summary section first (awk handles last-section case correctly)
+    summary=$(printf '%s\n' "$pr_body" | awk '/^## Summary/{f=1;next} /^## /{f=0} f' | head -5)
     if [[ -z "$summary" ]]; then
       # Fall back to first non-empty paragraph
-      summary=$(printf '%s' "$pr_body" | sed '/^$/q' | head -5)
+      summary=$(printf '%s\n' "$pr_body" | awk 'NF{p=1} p && !NF{exit} p' | head -5)
     fi
   fi
 
@@ -462,7 +472,7 @@ phase_changelog() {
     tmpfile=$(mktemp)
     sed "s/## \[Unreleased\]/## [Unreleased]\\
 \\
-## [${version}] - ${date_str}/" "$changelog" > "$tmpfile" && mv "$tmpfile" "$changelog"
+## [${version}] — ${date_str}/" "$changelog" > "$tmpfile" && mv "$tmpfile" "$changelog"
 
     git -C "$PROJECT_ROOT" add "$changelog"
     if ! git -C "$PROJECT_ROOT" diff --cached --quiet; then
