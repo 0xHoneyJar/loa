@@ -439,7 +439,7 @@ extract_project_description() {
             /^#/{next}
             /^\[!\[/{next}
             /^>/{next}
-            /<!--/{skip=1} /-->/{skip=0; next}
+            /<!--/{skip=1; next} /-->/{skip=0; next}
             skip{next}
             /^[[:space:]]*$/{if(found) exit; next}
             {found=1; printf "%s ", $0}
@@ -791,17 +791,16 @@ extract_capabilities() {
                 [[ -z "$sym" ]] && continue
 
                 # Extract doc comment or synthesize from name
-                local desc=""
-                desc=$(extract_doc_comment "$file" "$line")
+                local doc_comment=""
+                doc_comment=$(extract_doc_comment "$file" "$line")
+                local desc="$doc_comment"
                 if [[ -z "$desc" ]]; then
                     desc=$(describe_from_name "$sym")
                 fi
 
-                # Determine score for ranking: documented=3, undocumented=2
+                # Score: documented=3, undocumented=2 (reuse cached doc_comment)
                 local score=2
-                local orig_desc
-                orig_desc=$(extract_doc_comment "$file" "$line")
-                [[ -n "$orig_desc" ]] && score=3
+                [[ -n "$doc_comment" ]] && score=3
 
                 # Get parent directory for grouping
                 local parent_dir
