@@ -5,6 +5,41 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.39.1] — 2026-02-15 — Collateral Deletion Safeguard + CI Hardening
+
+### Fixed
+
+- **update-loa**: Collateral deletion safeguard — `/update-loa` merge could destroy 933+ downstream project files when upstream deletes framework files. Added `--no-commit` merge + framework zone allowlist in new Phase 5.3 (#330, #331)
+- **CI**: Cross-platform `sed` portability — replace bare `sed -i` with temp-file-and-mv pattern in `post-merge-orchestrator.sh` and `red-team-pipeline.sh` (macOS compatibility)
+- **CI**: Constraint registry validation — add `eval`, `bridge`, `merge` categories; `SHOULD` rule type; missing E115/E116 error codes
+- **CI**: Internal link checker — strip `#anchor` fragments before file existence check
+
+### Added
+
+- **cycle-015**: Platform Hardening — portable locking, model catalog expansion (Gemini 3 models), BUTTERFREEZONE narrative quality, construct sync
+
+_Source: PR #330_
+
+## [1.39.0] — 2026-02-15 — Environment Design for Agent Flourishing
+
+Four interconnected environment design advances that transform the framework from a tool that executes tasks into a system that develops self-knowledge, architectural memory, and speculative depth.
+
+### Added
+
+- **cycle-014**: Environment Design for Agent Flourishing — trajectory narrative + session awakening, bidirectional lore + discovery pipeline, vision sprints + speculation channel, hardening for all Bridgebuilder findings, speculation primitives with state recovery + model attribution (#326)
+- 5 sprints (global 91-95), 3 bridge iterations converging to 0 findings
+- 26 files changed, 9 findings addressed, 39/39 evals passing
+
+_Source: PR #326_
+
+## [1.38.1] — 2026-02-14 — Hounfour Hardening — Model Invocation Pipeline Fixes
+
+### Fixed
+
+- **cycle-013**: Hounfour Hardening — model invocation pipeline fixes including model validation, invocation fallbacks, and pipeline resilience (#320, #321, #294)
+
+_Source: PR #320_
+
 ## [1.38.0] — 2026-02-14 — Adversarial Hardening Release
 
 ### Why This Release
