@@ -33,6 +33,7 @@ MEMORY_DIR="${PROJECT_ROOT}/grimoires/loa/memory"
 OBSERVATIONS_FILE="${MEMORY_DIR}/observations.jsonl"
 VISIONS_INDEX="${PROJECT_ROOT}/grimoires/loa/visions/index.md"
 GT_INDEX="${PROJECT_ROOT}/grimoires/loa/ground-truth/index.md"
+DISCOVERED_PATTERNS="${PROJECT_ROOT}/.claude/data/lore/discovered/patterns.yaml"
 
 OUTPUT_MODE="prose"  # prose | json | condensed
 
@@ -130,6 +131,52 @@ extract_visions() {
         '{total:$total,captured:$captured,exploring:$exploring,implemented:$implemented,titles:($titles | split("\n")),last_updated:(if $last_updated == "" then null else $last_updated end)}'
 }
 
+# Extract discovered lore patterns summary
+extract_lore() {
+    if [[ ! -f "$DISCOVERED_PATTERNS" ]]; then
+        echo '{"discovered_count":0,"latest_bridge":null,"pattern_names":[]}'
+        return
+    fi
+
+    # Count entries (lines starting with "  - id:")
+    local count
+    count=$(grep -c '^ *- id:' "$DISCOVERED_PATTERNS" 2>/dev/null) || count=0
+
+    # Extract the latest bridge source (from the last entry's source field)
+    local latest_bridge
+    latest_bridge=$(grep '^ *source:' "$DISCOVERED_PATTERNS" 2>/dev/null | tail -1 | sed 's/.*source: *"\?\([^"]*\)"\?/\1/' | grep -oP 'bridge-[^ ,"]*' || true)
+
+    # Extract top pattern names (from term fields)
+    local names
+    names=$(grep '^ *term:' "$DISCOVERED_PATTERNS" 2>/dev/null | sed 's/.*term: *"\?\([^"]*\)"\?/\1/' | head -3)
+
+    # Check for high-revisitation visions (ref > 3)
+    local high_revisit=""
+    if [[ -f "$VISIONS_INDEX" ]] && grep -q "| Refs |" "$VISIONS_INDEX" 2>/dev/null; then
+        high_revisit=$(grep "^| vision-" "$VISIONS_INDEX" 2>/dev/null | while IFS= read -r line; do
+            local refs
+            refs=$(echo "$line" | sed 's/.*| \([0-9]*\) |$/\1/' || echo "0")
+            if [[ "$refs" =~ ^[0-9]+$ ]] && [[ "$refs" -gt 3 ]]; then
+                local vid
+                vid=$(echo "$line" | sed 's/^| \([^ ]*\) .*/\1/')
+                echo "$vid"
+            fi
+        done)
+    fi
+
+    jq -n \
+        --argjson count "$count" \
+        --arg bridge "${latest_bridge:-}" \
+        --arg names "${names:-}" \
+        --arg high_revisit "${high_revisit:-}" \
+        '{
+            discovered_count: $count,
+            latest_bridge: (if $bridge == "" then null else $bridge end),
+            pattern_names: (if $names == "" then [] else ($names | split("\n") | map(select(length > 0))) end),
+            high_revisit_visions: (if $high_revisit == "" then [] else ($high_revisit | split("\n") | map(select(length > 0))) end)
+        }'
+}
+
 # ─────────────────────────────────────────────────────────
 # Freshness Helpers
 # ─────────────────────────────────────────────────────────
@@ -186,11 +233,12 @@ is_stale() {
 # ─────────────────────────────────────────────────────────
 
 generate_prose() {
-    local ledger memory visions
+    local ledger memory visions lore
 
     ledger=$(extract_ledger)
     memory=$(extract_memory)
     visions=$(extract_visions)
+    lore=$(extract_lore)
 
     local total_cycles archived active_cycle active_label total_sprints first_date
     total_cycles=$(echo "$ledger" | jq -r '.total_cycles')
@@ -248,6 +296,38 @@ generate_prose() {
         echo "${vision_header}:"
         echo "$visions" | jq -r '.titles[] | select(length > 0) | "- \(.)"' 2>/dev/null
     fi
+
+    # Discovered lore section
+    local lore_count lore_bridge lore_names
+    lore_count=$(echo "$lore" | jq -r '.discovered_count')
+    lore_bridge=$(echo "$lore" | jq -r '.latest_bridge // empty')
+    if [[ "$lore_count" -gt 0 ]]; then
+        echo ""
+        local lore_header="**Discovered patterns** (${lore_count} total"
+        if [[ -n "$lore_bridge" ]]; then
+            lore_header="${lore_header}, latest from ${lore_bridge})"
+        else
+            lore_header="${lore_header})"
+        fi
+        lore_names=$(echo "$lore" | jq -r '.pattern_names[] | select(length > 0)' 2>/dev/null | head -2)
+        echo "${lore_header}:"
+        if [[ -n "$lore_names" ]]; then
+            echo "$lore_names" | while IFS= read -r name; do
+                echo "- $name"
+            done
+        fi
+
+        # Highlight high-revisitation visions
+        local high_revisit
+        high_revisit=$(echo "$lore" | jq -r '.high_revisit_visions[] | select(length > 0)' 2>/dev/null)
+        if [[ -n "$high_revisit" ]]; then
+            echo ""
+            echo "**High-revisitation visions** (candidates for lore elevation):"
+            echo "$high_revisit" | while IFS= read -r vid; do
+                echo "- $vid"
+            done
+        fi
+    fi
 }
 
 generate_condensed() {
@@ -278,7 +358,15 @@ generate_condensed() {
     if is_stale "$ledger_ts" 7 2>/dev/null; then stale_sources="${stale_sources}ledger,"; fi
     stale_sources="${stale_sources%,}"  # trim trailing comma
 
+    # Include lore pattern count
+    local lore lore_count
+    lore=$(extract_lore)
+    lore_count=$(echo "$lore" | jq -r '.discovered_count')
+
     local output="Trajectory: Cycle ${cycle_num}, ${total_sprints} sprints completed. Current: ${active_label}. ${vision_total} open visions."
+    if [[ "$lore_count" -gt 0 ]]; then
+        output="${output} ${lore_count} patterns discovered."
+    fi
     if [[ -n "$stale_sources" ]]; then
         output="${output} (stale: ${stale_sources})"
     fi
@@ -286,11 +374,12 @@ generate_condensed() {
 }
 
 generate_json() {
-    local ledger memory visions
+    local ledger memory visions lore
 
     ledger=$(extract_ledger)
     memory=$(extract_memory)
     visions=$(extract_visions)
+    lore=$(extract_lore)
 
     # Compute freshness metadata
     local memory_ts vision_ts ledger_mtime
@@ -304,6 +393,7 @@ generate_json() {
         --argjson ledger "$ledger" \
         --argjson memory_obs "$(echo "$memory" | jq '.observations')" \
         --argjson visions "$visions" \
+        --argjson lore "$lore" \
         --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
         --arg memory_last "${memory_ts:-}" \
         --arg visions_last "${vision_ts:-}" \
@@ -313,6 +403,7 @@ generate_json() {
             ledger: $ledger,
             recent_memory: $memory_obs,
             visions: $visions,
+            lore: $lore,
             freshness: {
                 memory_last_updated: (if $memory_last == "" then null else $memory_last end),
                 visions_last_updated: (if $visions_last == "" then null else $visions_last end),

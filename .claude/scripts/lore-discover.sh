@@ -115,9 +115,12 @@ extract_praise_patterns() {
 
         # Extract PRAISE findings
         jq -r '.findings[]? | select(.severity == "PRAISE") | @json' "$file" 2>/dev/null | while IFS= read -r finding; do
-            local title category
+            local title category source_model
             title=$(echo "$finding" | jq -r '.title // ""')
             category=$(echo "$finding" | jq -r '.category // "architecture"')
+            # Extract source model from finding metadata if available
+            source_model=$(echo "$finding" | jq -r '.source_model // .model // empty' 2>/dev/null || true)
+            source_model="${source_model:-unknown}"
 
             if [[ -z "$title" ]]; then
                 continue
@@ -133,6 +136,7 @@ extract_praise_patterns() {
             echo "      Discovered as a PRAISE finding during bridge review."
             echo "      Source bridge: $bridge_id_from_file"
             echo "    source: \"Bridge review $bridge_id_from_file\""
+            echo "    source_model: \"$source_model\""
             echo "    tags: $(map_tags "$category" "PRAISE")"
             echo ""
         done

@@ -21,11 +21,11 @@ Captured → Exploring → Proposed → Implemented
 
 ## Active Visions
 
-| ID | Title | Source | Status | Tags |
-|----|-------|--------|--------|------|
-| vision-001 | Pluggable credential provider registry | bridge-20260213-8d24fa / PR #306 | Captured | architecture |
-| vision-002 | Bash Template Rendering Anti-Pattern | bridge-20260213-c012rt / PR #317 | Captured | security, bash |
-| vision-003 | Context Isolation as Prompt Injection Defense | bridge-20260214-e8fa94 / PR #324 | Captured | security, prompt-engineering |
+| ID | Title | Source | Status | Tags | Refs |
+|----|-------|--------|--------|------|------|
+| vision-001 | Pluggable credential provider registry | bridge-20260213-8d24fa / PR #306 | Captured | architecture | 0 |
+| vision-002 | Bash Template Rendering Anti-Pattern | bridge-20260213-c012rt / PR #317 | Captured | security, bash | 0 |
+| vision-003 | Context Isolation as Prompt Injection Defense | bridge-20260214-e8fa94 / PR #324 | Captured | security, prompt-engineering | 0 |
 
 ## Statistics
 

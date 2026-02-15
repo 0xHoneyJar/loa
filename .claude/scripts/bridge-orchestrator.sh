@@ -240,6 +240,18 @@ handle_resume() {
       echo "Continuing from iteration $last_iteration" >&2
       echo "$last_iteration"
       ;;
+    EXPLORING)
+      # Convergence was already achieved when EXPLORING starts.
+      # Safest recovery: skip exploration, proceed to finalization.
+      echo "Convergence was achieved. Skipping exploration, proceeding to finalization." >&2
+      update_bridge_state "FINALIZING"
+      if command -v jq &>/dev/null && [[ -f "$BRIDGE_STATE_FILE" ]]; then
+        jq '.finalization.vision_sprint_skipped = "resumed"' "$BRIDGE_STATE_FILE" > "$BRIDGE_STATE_FILE.tmp"
+        mv "$BRIDGE_STATE_FILE.tmp" "$BRIDGE_STATE_FILE"
+      fi
+      # Return max depth to skip the iteration loop entirely
+      echo "$DEPTH"
+      ;;
     *)
       echo "ERROR: Cannot resume from state: $state" >&2
       exit 1
