@@ -35,6 +35,8 @@ Every BUTTERFREEZONE.md MUST contain:
 
 Optional sections: Ecosystem, Known Limitations, Quick Start.
 
+**Validator enforcement**: `butterfreezone-validate.sh` rejects any BUTTERFREEZONE.md containing the literal string "No description available" in any section (required or optional). Descriptions in required sections must be substantive — truncated fragments or stubs cause validation failure.
+
 #### Provenance Tags
 
 Every section MUST include a provenance tag:

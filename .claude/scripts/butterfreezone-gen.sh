@@ -443,7 +443,7 @@ extract_project_description() {
             skip{next}
             /^[[:space:]]*$/{if(found) exit; next}
             {found=1; printf "%s ", $0}
-        ' README.md 2>/dev/null | sed 's/ *$//' | head -c 200) || true
+        ' README.md 2>/dev/null | sed 's/ *$//' | cut -c1-220 | sed 's/ [^ ]*$//') || true
     fi
 
     # Strategy 3: README "What Is This?" or "Overview" section
@@ -453,7 +453,7 @@ extract_project_description() {
             f && /^##/{exit}
             f && /^[[:space:]]*$/{next}
             f {print; exit}
-        ' README.md 2>/dev/null | head -c 200) || true
+        ' README.md 2>/dev/null | cut -c1-220 | sed 's/ [^ ]*$//') || true
     fi
 
     # Strategy 4: Existing BUTTERFREEZONE AGENT-CONTEXT purpose
@@ -511,7 +511,7 @@ infer_module_purpose() {
             /^#/{next}
             /^[[:space:]]*$/{next}
             {print; exit}
-        ' "${dir}/README.md" 2>/dev/null | head -c 80) || true
+        ' "${dir}/README.md" 2>/dev/null | cut -c1-140 | sed 's/ [^ ]*$//') || true
     fi
 
     # Strategy 2: Directory name convention map
@@ -1237,10 +1237,20 @@ extract_limitations() {
     if [[ -z "$limits" ]]; then
         local inferred=""
 
-        # No tests
-        local test_count
-        test_count=$(find . -maxdepth 3 \( -name "*.test.*" -o -name "*.spec.*" -o -name "*_test.*" \) 2>/dev/null | wc -l)
-        (( test_count == 0 )) && inferred="${inferred}- No automated tests detected\n"
+        # No tests — check standard test directories first, then filename patterns
+        local has_test_dir=false
+        local td
+        for td in tests test spec __tests__ e2e; do
+            if [[ -d "$td" ]] && [[ -n "$(find "$td" -maxdepth 2 -type f 2>/dev/null | head -1)" ]]; then
+                has_test_dir=true
+                break
+            fi
+        done
+        if [[ "$has_test_dir" == "false" ]]; then
+            local test_count
+            test_count=$(find . -maxdepth 3 \( -name "*.test.*" -o -name "*.spec.*" -o -name "*_test.*" \) 2>/dev/null | wc -l)
+            (( test_count == 0 )) && inferred="${inferred}- No automated tests detected\n"
+        fi
 
         # No CI
         [[ ! -d ".github/workflows" ]] && [[ ! -f ".gitlab-ci.yml" ]] && \

@@ -1,7 +1,7 @@
 <!-- AGENT-CONTEXT
 name: loa
 type: framework
-purpose: Loa is an agent-driven development framework for [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (Anthropic's official CLI). It adds 17 specialized AI agents, quality gates, per
+purpose: Loa is an agent-driven development framework for [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (Anthropic's official CLI). It adds 17 specialized AI agents, quality gates, persistent memory, and
 key_files: [CLAUDE.md, .claude/loa/CLAUDE.loa.md, .loa.config.yaml, .claude/scripts/, .claude/skills/]
 interfaces: [/auditing-security, /autonomous-agent, /bridgebuilder-review, /browsing-constructs, /bug-triaging]
 dependencies: [git, jq, yq]
@@ -12,7 +12,7 @@ trust_level: grounded
 # loa
 
 <!-- provenance: DERIVED -->
-Loa is an agent-driven development framework for [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (Anthropic's official CLI). It adds 17 specialized AI agents, quality gates, per
+Loa is an agent-driven development framework for [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (Anthropic's official CLI). It adds 17 specialized AI agents, quality gates, persistent memory, and
 
 The framework provides 29 specialized skills, built with TypeScript/JavaScript, Python, Shell.
 
@@ -126,14 +126,10 @@ Directory structure:
 | Module | Files | Purpose | Documentation |
 |--------|-------|---------|---------------|
 | `docs/` | 4 | Documentation | \u2014 |
-| `evals/` | 1269 | Benchmarking and regression framework for the Loa agent development system. Ensu | [evals/README.md](evals/README.md) |
-| `grimoires/` | 520 | Home to all grimoire directories for the Loa framework. | [grimoires/README.md](grimoires/README.md) |
+| `evals/` | 1269 | Benchmarking and regression framework for the Loa agent development system. Ensures framework changes don't degrade agent behavior through | [evals/README.md](evals/README.md) |
+| `grimoires/` | 520 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
 | `skills/` | 5112 | Specialized agent skills | \u2014 |
 | `tests/` | 142 | Test suites | \u2014 |
-
-## Known Limitations
-<!-- provenance: DERIVED -->
-- No automated tests detected
 
 ## Quick Start
 <!-- provenance: OPERATIONAL -->
@@ -157,15 +153,14 @@ claude
 
 After install, you should see a `.claude/` directory, `grimoires/loa/`, and `.loa.config.yaml` in your repo. Run `/loa doctor` inside Claude Code to verify everything is healthy.
 <!-- ground-truth-meta
-head_sha: b90966a7711bbb7f298c239db7ef6639e5115a01
-generated_at: 2026-02-15T06:44:32Z
+head_sha: c3400d66541ca5b0cc3ae258cd085b154aae279b
+generated_at: 2026-02-15T06:58:12Z
 generator: butterfreezone-gen v1.0.0
 sections:
-  agent_context: f8840fe60473b63400f7662868cca556490e463d25a34284e9c3b9576850e7af
+  agent_context: 05d22ec9a2535fb4a96dd277cbb9df8c037c1c2a82406235c3398be11f0505dc
   capabilities: 7ac5066c6290b2bd238aba0cebe80e6c24d2c32ecc6b066842a065eb8c2300c1
   architecture: 116f3296a49700fbee5e9cb0492e4f9aee0f9452b5c051a942ee4429278ab8d3
   interfaces: c0d2732b6ab7745352bd781f56f44f32b2f8f2cacef7234ceed3e8f09796c0f4
-  module_map: cf0ac9fba34a290fe05c070b0ed173b88e29186b42830abd1aad63fc4f24b257
-  limitations: 05e0fbb2794ed0ae75222e277e1fe2eb457a5b671bc8f5be406bf6d879746dad
+  module_map: 5a2ebd1d122c8d77e7954104a525e065e1fa0898c29eec4f256e29fc1a57defe
   quick_start: 3c38dc53bf2ec73cbbb5c372af747ffa7894538d360b1182566647c2940c58c7
 -->
