@@ -19,9 +19,12 @@
 
 set -euo pipefail
 
-SCRIPT_VERSION="1.0.0"
+SCRIPT_VERSION="1.1.0"
+SCHEMA_VERSION="1.0"
 FORMAT="json"
 OUTPUT=""
+NO_CACHE="false"
+CACHE_TTL="3600"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -32,6 +35,23 @@ while [[ $# -gt 0 ]]; do
         --format)
             [[ $# -lt 2 ]] && { echo "ERROR: --format requires a value" >&2; exit 1; }
             FORMAT="$2"; shift 2 ;;
+        --no-cache)
+            NO_CACHE="true"; shift ;;
+        --cache-ttl)
+            [[ $# -lt 2 ]] && { echo "ERROR: --cache-ttl requires a value" >&2; exit 1; }
+            CACHE_TTL="$2"; shift 2 ;;
+        --schema)
+            cat <<'SCHEMA'
+BUTTERFREEZONE Mesh Schema v1.0
+
+Nodes: { repo, name, type, purpose, version, interfaces }
+Edges: { from, to, role, interface, protocol }
+
+Forward compatibility: consumers MUST ignore unknown fields.
+Planned v1.1 additions: nodes.capabilities, nodes.trust_level, edges.trust_level
+SCHEMA
+            exit 0
+            ;;
         --help|-h)
             sed -n '2,/^$/p' "$0" | sed 's/^# //;s/^#//' | head -20
             exit 0
@@ -41,8 +61,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Validate format
-if [[ "$FORMAT" != "json" && "$FORMAT" != "markdown" ]]; then
-    echo "ERROR: --format must be 'json' or 'markdown'" >&2
+if [[ "$FORMAT" != "json" && "$FORMAT" != "markdown" && "$FORMAT" != "mermaid" ]]; then
+    echo "ERROR: --format must be 'json', 'markdown', or 'mermaid'" >&2
     exit 1
 fi
 
@@ -136,6 +156,45 @@ fetch_remote_bfz() {
     echo "$response" | jq -r '.content' | base64 -d 2>/dev/null || true
 }
 
+# Fetch with caching support (sprint-112, Task 7.2)
+fetch_remote_bfz_cached() {
+    local repo="$1"
+    local cache_dir=".run/mesh-cache"
+    local cache_key="${repo//\//_}.json"
+    local cache_file="${cache_dir}/${cache_key}"
+
+    mkdir -p "$cache_dir" 2>/dev/null || true
+
+    # Check cache
+    if [[ "$NO_CACHE" != "true" && -f "$cache_file" ]]; then
+        local fetched_at now age
+        fetched_at=$(jq -r '.fetched_at' "$cache_file" 2>/dev/null) || fetched_at=0
+        now=$(date +%s)
+        age=$((now - fetched_at))
+
+        if [[ "$age" -lt "$CACHE_TTL" ]]; then
+            echo "Using cached: ${repo} (${age}s old)" >&2
+            jq -r '.content' "$cache_file" 2>/dev/null
+            return 0
+        fi
+    fi
+
+    # Fetch fresh
+    local content
+    content=$(fetch_remote_bfz "$repo")
+
+    # Cache result
+    if [[ -n "$content" ]]; then
+        jq -n \
+            --arg content "$content" \
+            --argjson fetched_at "$(date +%s)" \
+            '{fetched_at: $fetched_at, content: $content}' \
+            > "$cache_file" 2>/dev/null || true
+    fi
+
+    echo "$content"
+}
+
 # Process a single ecosystem entry: fetch remote BFZ, add node and edge to mesh
 process_ecosystem_entry() {
     local entry_repo="$1"
@@ -146,7 +205,7 @@ process_ecosystem_entry() {
 
     echo "Fetching: ${entry_repo}..." >&2
     local remote_content
-    remote_content=$(fetch_remote_bfz "$entry_repo")
+    remote_content=$(fetch_remote_bfz_cached "$entry_repo")
 
     local r_name="" r_type="" r_purpose="" r_version="" r_interfaces=""
     if [[ -n "$remote_content" ]]; then
@@ -248,12 +307,14 @@ main() {
     if [[ "$FORMAT" == "json" ]]; then
         local mesh
         mesh=$(jq -n \
-            --arg version "$SCRIPT_VERSION" \
+            --arg schema_version "$SCHEMA_VERSION" \
+            --arg mesh_version "$SCRIPT_VERSION" \
             --arg generated_at "$generated_at" \
             --arg root_repo "$local_repo" \
+            --arg schema_contract "Consumers MUST ignore unknown fields for forward compatibility" \
             --argjson nodes "$nodes_json" \
             --argjson edges "$edges_json" \
-            '{mesh_version: $version, generated_at: $generated_at, root_repo: $root_repo, nodes: $nodes, edges: $edges}')
+            '{schema_version: $schema_version, mesh_version: $mesh_version, generated_at: $generated_at, root_repo: $root_repo, schema_contract: $schema_contract, nodes: $nodes, edges: $edges}')
 
         if [[ -n "$OUTPUT" ]]; then
             echo "$mesh" > "$OUTPUT"
@@ -264,7 +325,7 @@ main() {
     elif [[ "$FORMAT" == "markdown" ]]; then
         local md
         md="# BUTTERFREEZONE Mesh — ${local_name}\n\n"
-        md="${md}Generated: ${generated_at}\n\n"
+        md="${md}Generated: ${generated_at} | Schema: v${SCHEMA_VERSION}\n\n"
         md="${md}## Nodes\n\n"
         md="${md}| Repo | Name | Type | Version | Purpose |\n"
         md="${md}|------|------|------|---------|--------|\n"
@@ -279,6 +340,44 @@ main() {
             echo "Mesh written to: $OUTPUT" >&2
         else
             printf '%b' "$md"
+        fi
+    elif [[ "$FORMAT" == "mermaid" ]]; then
+        local mermaid="graph LR\n"
+
+        # Add nodes
+        local node_count
+        node_count=$(echo "$nodes_json" | jq 'length')
+        local i
+        for ((i=0; i<node_count; i++)); do
+            local node_name node_type
+            node_name=$(echo "$nodes_json" | jq -r ".[$i].name")
+            node_type=$(echo "$nodes_json" | jq -r ".[$i].type")
+            # Sanitize for Mermaid (remove special chars)
+            local safe_name="${node_name//[^a-zA-Z0-9_-]/}"
+            mermaid="${mermaid}    ${safe_name}[\"${node_name}<br/>${node_type}\"]\n"
+        done
+
+        # Add edges
+        local edge_count
+        edge_count=$(echo "$edges_json" | jq 'length')
+        for ((i=0; i<edge_count; i++)); do
+            local from_repo to_repo role
+            from_repo=$(echo "$edges_json" | jq -r ".[$i].from")
+            to_repo=$(echo "$edges_json" | jq -r ".[$i].to")
+            role=$(echo "$edges_json" | jq -r ".[$i].role")
+            local from_name to_name
+            from_name=$(basename "$from_repo")
+            to_name=$(basename "$to_repo")
+            local safe_from="${from_name//[^a-zA-Z0-9_-]/}"
+            local safe_to="${to_name//[^a-zA-Z0-9_-]/}"
+            mermaid="${mermaid}    ${safe_from} -->|${role}| ${safe_to}\n"
+        done
+
+        if [[ -n "$OUTPUT" ]]; then
+            printf '%b' "$mermaid" > "$OUTPUT"
+            echo "Mermaid diagram written to: $OUTPUT" >&2
+        else
+            printf '%b' "$mermaid"
         fi
     fi
 }

@@ -171,6 +171,11 @@ The project defines 1 specialized agent persona.
 **Principles**: Think Before Coding — plan and analyze before implementing, Simplicity First — minimum complexity for the current task, Surgical Changes — minimal diff, maximum impact, Goal-Driven — every action traces to acceptance criteria.
 
 **Methodology**: Agent-driven development with iterative excellence loops (Simstim, Run Bridge, Flatline Protocol).
+**Creative Methodology**: Creative methodology drawing from cyberpunk fiction, free jazz improvisation, and temporary autonomous zones.
+
+**Influences**: Neuromancer (Gibson) — Simstim as shared consciousness metaphor, Flatline Protocol — adversarial multi-model review as creative tension, TAZ (Hakim Bey) — temporary spaces for autonomous agent exploration.
+
+**Knowledge Production**: Knowledge production through collective inquiry — Flatline as multi-model study group.
 
 ## Quick Start
 <!-- provenance: OPERATIONAL -->
@@ -194,8 +199,8 @@ claude
 
 After install, you should see a `.claude/` directory, `grimoires/loa/`, and `.loa.config.yaml` in your repo. Run `/loa doctor` inside Claude Code to verify everything is healthy.
 <!-- ground-truth-meta
-head_sha: 0116513c393ddf8d3eba7845d952f66168882e75
-generated_at: 2026-02-15T07:48:52Z
+head_sha: e87a55646e349df0d3a2c9e8375841b043a2a7dd
+generated_at: 2026-02-15T08:25:47Z
 generator: butterfreezone-gen v1.0.0
 sections:
   agent_context: af8500fa2a5721748f12c7d393435d8c2bc8796e71fae4a05381e80cd776355d
@@ -205,6 +210,6 @@ sections:
   module_map: 5a2ebd1d122c8d77e7954104a525e065e1fa0898c29eec4f256e29fc1a57defe
   verification: c6b80f663abb09ea954a8c4fefc3564edc5b9e4cf49968f5cd335de22eebd0f4
   agents: ca263d1e05fd123434a21ef574fc8d76b559d22060719640a1f060527ef6a0b6
-  culture: 7ba7f74fdcaa87b6c37eabeeea3f37ce2c89b034cad4a5cae1d44bdef5de68ce
+  culture: f73380f93bb4fadf36ccc10d60fc57555914363fc90e4f15b4dc4eb92bd1640f
   quick_start: 3c38dc53bf2ec73cbbb5c372af747ffa7894538d360b1182566647c2940c58c7
 -->

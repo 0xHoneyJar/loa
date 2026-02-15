@@ -704,24 +704,44 @@ extract_agent_context() {
     fi
 
     # Capability requirements: inferred from SKILL.md files (SDD cycle-017)
+    # Section IX fix: negative-keyword filtering to reduce false positives
     local cap_req_block=""
     if [[ -d ".claude/skills" ]]; then
         local -A cap_hits=()
         local skill_dirs
         skill_dirs=$(find .claude/skills -maxdepth 1 -type d 2>/dev/null | sort | tail -n +2 | head -10)
+
+        # Negative context patterns — lines containing these are excluded from capability matching
+        local neg_pattern="(not|never|without|no |disable|readonly|read-only|doesn.t|won.t|cannot|don.t)"
+
         while IFS= read -r sd; do
             [[ -z "$sd" ]] && continue
             local sm="${sd}/SKILL.md"
             [[ ! -f "$sm" ]] && continue
             local sc
             sc=$(cat "$sm" 2>/dev/null) || continue
-            grep -qiE 'read|codebase|source file' <<< "$sc" && cap_hits[fs_read]=$(( ${cap_hits[fs_read]:-0} + 1 ))
-            grep -qiE 'write|create|generate' <<< "$sc" && cap_hits[fs_write]=$(( ${cap_hits[fs_write]:-0} + 1 ))
-            grep -qiE '\bgit\b|diff|log|branch' <<< "$sc" && cap_hits[git]=$(( ${cap_hits[git]:-0} + 1 ))
-            grep -qiE 'commit|push' <<< "$sc" && cap_hits[git_write]=$(( ${cap_hits[git_write]:-0} + 1 ))
-            grep -qiE '\bPR\b|issue|gh ' <<< "$sc" && cap_hits[gh_api]=$(( ${cap_hits[gh_api]:-0} + 1 ))
-            grep -qiE 'bash|shell|execute|\brun\b' <<< "$sc" && cap_hits[shell]=$(( ${cap_hits[shell]:-0} + 1 ))
+
+            # Filter: only count lines that match keyword AND lack negative context
+            local positive_lines
+            positive_lines=$(grep -iE 'read|codebase|source file' <<< "$sc" 2>/dev/null | grep -cviE "$neg_pattern" 2>/dev/null) || positive_lines=0
+            (( positive_lines > 0 )) && cap_hits[fs_read]=$(( ${cap_hits[fs_read]:-0} + 1 ))
+
+            positive_lines=$(grep -iE 'write|create|generate' <<< "$sc" 2>/dev/null | grep -cviE "$neg_pattern" 2>/dev/null) || positive_lines=0
+            (( positive_lines > 0 )) && cap_hits[fs_write]=$(( ${cap_hits[fs_write]:-0} + 1 ))
+
+            positive_lines=$(grep -iE '\bgit\b|diff|log|branch' <<< "$sc" 2>/dev/null | grep -cviE "$neg_pattern" 2>/dev/null) || positive_lines=0
+            (( positive_lines > 0 )) && cap_hits[git]=$(( ${cap_hits[git]:-0} + 1 ))
+
+            positive_lines=$(grep -iE 'commit|push' <<< "$sc" 2>/dev/null | grep -cviE "$neg_pattern" 2>/dev/null) || positive_lines=0
+            (( positive_lines > 0 )) && cap_hits[git_write]=$(( ${cap_hits[git_write]:-0} + 1 ))
+
+            positive_lines=$(grep -iE '\bPR\b|issue|gh ' <<< "$sc" 2>/dev/null | grep -cviE "$neg_pattern" 2>/dev/null) || positive_lines=0
+            (( positive_lines > 0 )) && cap_hits[gh_api]=$(( ${cap_hits[gh_api]:-0} + 1 ))
+
+            positive_lines=$(grep -iE 'bash|shell|execute|\brun\b' <<< "$sc" 2>/dev/null | grep -cviE "$neg_pattern" 2>/dev/null) || positive_lines=0
+            (( positive_lines > 0 )) && cap_hits[shell]=$(( ${cap_hits[shell]:-0} + 1 ))
         done <<< "$skill_dirs"
+
         local cap_entries=""
         (( ${cap_hits[fs_read]:-0} >= 2 )) && cap_entries="${cap_entries}"$'\n'"  - filesystem: read"
         (( ${cap_hits[fs_write]:-0} >= 2 )) && cap_entries="${cap_entries}"$'\n'"  - filesystem: write"
@@ -732,6 +752,26 @@ extract_agent_context() {
         fi
         (( ${cap_hits[shell]:-0} >= 2 )) && cap_entries="${cap_entries}"$'\n'"  - shell: execute"
         (( ${cap_hits[gh_api]:-0} >= 2 )) && cap_entries="${cap_entries}"$'\n'"  - github_api: read_write"
+
+        # Config overrides: suppress false positives, add forced capabilities
+        if [[ -f "$CONFIG_FILE" ]] && command -v yq &>/dev/null; then
+            local suppress_count
+            suppress_count=$(yq '.butterfreezone.capability_overrides.suppress | length // 0' "$CONFIG_FILE" 2>/dev/null) || suppress_count=0
+            for ((si=0; si<suppress_count; si++)); do
+                local sup
+                sup=$(yq ".butterfreezone.capability_overrides.suppress[$si]" "$CONFIG_FILE" 2>/dev/null) || continue
+                [[ -n "$sup" && "$sup" != "null" ]] && cap_entries=$(echo "$cap_entries" | grep -v "$sup" 2>/dev/null) || true
+            done
+
+            local add_count
+            add_count=$(yq '.butterfreezone.capability_overrides.add | length // 0' "$CONFIG_FILE" 2>/dev/null) || add_count=0
+            for ((ai=0; ai<add_count; ai++)); do
+                local add_cap
+                add_cap=$(yq ".butterfreezone.capability_overrides.add[$ai]" "$CONFIG_FILE" 2>/dev/null) || continue
+                [[ -n "$add_cap" && "$add_cap" != "null" ]] && cap_entries="${cap_entries}"$'\n'"  - ${add_cap}"
+            done
+        fi
+
         [[ -n "$cap_entries" ]] && cap_req_block=$'\n'"capability_requirements:${cap_entries}"
     fi
 
@@ -1570,6 +1610,50 @@ ${culture_body}
 EOF
 }
 
+# Generative culture: creative methodology references (sprint-110, #247)
+extract_generative_culture() {
+    if [[ ! -f ".loa.config.yaml" ]] || ! command -v yq &>/dev/null; then
+        return 0
+    fi
+
+    local has_gen
+    has_gen=$(yq '.butterfreezone.culture.generative // null' .loa.config.yaml 2>/dev/null) || true
+    [[ -z "$has_gen" || "$has_gen" == "null" ]] && return 0
+
+    local gen_desc
+    gen_desc=$(yq '.butterfreezone.culture.generative.description // ""' .loa.config.yaml 2>/dev/null) || true
+
+    local ref_count
+    ref_count=$(yq '.butterfreezone.culture.generative.references | length // 0' .loa.config.yaml 2>/dev/null) || ref_count=0
+
+    local study_groups
+    study_groups=$(yq '.butterfreezone.culture.generative.study_groups // ""' .loa.config.yaml 2>/dev/null) || true
+
+    # Only emit if there's actual content
+    [[ -z "$gen_desc" && "$ref_count" -eq 0 && -z "$study_groups" ]] && return 0
+
+    local gen_body=""
+    [[ -n "$gen_desc" && "$gen_desc" != "null" ]] && gen_body="**Creative Methodology**: ${gen_desc}."$'\n\n'
+
+    if (( ref_count > 0 )); then
+        local refs_text=""
+        local i
+        for ((i=0; i<ref_count; i++)); do
+            local r
+            r=$(yq ".butterfreezone.culture.generative.references[$i]" .loa.config.yaml 2>/dev/null) || true
+            [[ -n "$r" && "$r" != "null" ]] && refs_text="${refs_text}${refs_text:+, }${r}"
+        done
+        [[ -n "$refs_text" ]] && gen_body="${gen_body}**Influences**: ${refs_text}."$'\n\n'
+    fi
+
+    [[ -n "$study_groups" && "$study_groups" != "null" ]] && gen_body="${gen_body}**Knowledge Production**: ${study_groups}."
+
+    [[ -z "$gen_body" ]] && return 0
+
+    # Emit as continuation of Culture section (no separate ## heading)
+    printf '%s' "$gen_body"
+}
+
 # =============================================================================
 # Provenance Tagging (Task 1.4 / SDD 3.1.4)
 # =============================================================================
@@ -2011,6 +2095,12 @@ UPTODATE
         agents_sec=$(extract_persona_agents "$tier") || true
         eco=$(run_extractor "ecosystem" "$tier")
         culture_sec=$(extract_culture "$tier") || true
+        # Append generative culture if present (sprint-110, #247)
+        local gen_culture
+        gen_culture=$(extract_generative_culture) || true
+        if [[ -n "$gen_culture" && -n "$culture_sec" ]]; then
+            culture_sec="${culture_sec}"$'\n'"${gen_culture}"
+        fi
         limits=$(run_extractor "limitations" "$tier")
         qs=$(run_extractor "quick_start" "$tier")
     fi

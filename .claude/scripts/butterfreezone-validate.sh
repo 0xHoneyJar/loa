@@ -30,6 +30,7 @@ CONFIG_FILE=".loa.config.yaml"
 STRICT="false"
 JSON_OUT="false"
 QUIET="false"
+LIVE_CHECK="false"
 
 FAILURES=0
 WARNINGS=0
@@ -121,6 +122,10 @@ parse_args() {
                 ;;
             --quiet)
                 QUIET="true"
+                shift
+                ;;
+            --live)
+                LIVE_CHECK="true"
                 shift
                 ;;
             --help)
@@ -562,6 +567,77 @@ validate_verification_section() {
     fi
 }
 
+# Ecosystem staleness detection (sprint-110, Section IX Criticism 1)
+validate_ecosystem_staleness() {
+    local config=".loa.config.yaml"
+    [[ ! -f "$config" ]] && return 0
+    ! command -v yq &>/dev/null && return 0
+
+    local config_count bfz_count
+    config_count=$(yq '.butterfreezone.ecosystem | length' "$config" 2>/dev/null) || config_count=0
+    bfz_count=$(sed -n '/<!-- AGENT-CONTEXT/,/-->/p' "$FILE" 2>/dev/null | \
+        grep -c '^\s*- repo:') || bfz_count=0
+
+    if [[ "$config_count" -gt 0 && "$bfz_count" -eq 0 ]]; then
+        log_warn "eco_stale" "Config has $config_count ecosystem entries but AGENT-CONTEXT has none (stale generation)" "stale"
+    elif [[ "$config_count" -eq 0 && "$bfz_count" -gt 0 ]]; then
+        log_warn "eco_stale" "AGENT-CONTEXT has ecosystem entries but config has none (orphaned)" "orphaned"
+    elif [[ "$config_count" -ne "$bfz_count" ]]; then
+        log_warn "eco_stale" "Config has $config_count ecosystem entries but AGENT-CONTEXT has $bfz_count (count mismatch)" "mismatch"
+    elif [[ "$config_count" -gt 0 ]]; then
+        # Check specific repo slugs match
+        local config_repos bfz_repos
+        config_repos=$(yq '.butterfreezone.ecosystem[].repo' "$config" 2>/dev/null | sort)
+        bfz_repos=$(sed -n '/<!-- AGENT-CONTEXT/,/-->/p' "$FILE" 2>/dev/null | \
+            grep '^\s*- repo:' | sed 's/.*repo: *//' | sort)
+        if [[ "$config_repos" != "$bfz_repos" ]]; then
+            log_warn "eco_stale" "Ecosystem repo slugs differ between config and AGENT-CONTEXT" "slug_drift"
+        else
+            log_pass "eco_stale" "Ecosystem entries match config ($config_count entries, slugs verified)"
+        fi
+    fi
+}
+
+# Live ecosystem verification (sprint-112, Task 7.1)
+validate_ecosystem_live() {
+    [[ "$LIVE_CHECK" != "true" ]] && return 0
+
+    if ! command -v gh &>/dev/null || ! gh auth status &>/dev/null 2>&1; then
+        log_warn "eco_live" "gh not authenticated — skipping live ecosystem check" "no_auth"
+        return 0
+    fi
+
+    local eco_repos
+    eco_repos=$(sed -n '/<!-- AGENT-CONTEXT/,/-->/p' "$FILE" 2>/dev/null | \
+        grep '^\s*- repo:' | sed 's/.*repo: *//') || true
+
+    [[ -z "$eco_repos" ]] && return 0
+
+    local total=0 found=0 missing=0 no_bfz=0
+    while IFS= read -r repo; do
+        [[ -z "$repo" ]] && continue
+        total=$((total + 1))
+
+        if ! gh repo view "$repo" &>/dev/null 2>&1; then
+            log_warn "eco_live" "Ecosystem repo not found: $repo" "missing_repo"
+            missing=$((missing + 1))
+            continue
+        fi
+
+        if ! gh api "repos/${repo}/contents/BUTTERFREEZONE.md" &>/dev/null 2>&1; then
+            log_warn "eco_live" "No BUTTERFREEZONE.md in: $repo" "no_bfz"
+            no_bfz=$((no_bfz + 1))
+            continue
+        fi
+
+        found=$((found + 1))
+    done <<< "$eco_repos"
+
+    if [[ "$missing" -eq 0 && "$no_bfz" -eq 0 && "$total" -gt 0 ]]; then
+        log_pass "eco_live" "All $total ecosystem repos verified with BUTTERFREEZONE.md"
+    fi
+}
+
 # =============================================================================
 # Main
 # =============================================================================
@@ -588,6 +664,8 @@ main() {
         validate_module_purposes || true
         validate_no_description_available || true
         validate_ecosystem || true
+        validate_ecosystem_staleness || true
+        validate_ecosystem_live || true
         validate_capability_requirements || true
         validate_verification_section || true
         validate_meta || true
