@@ -20,12 +20,13 @@ ecosystem:
     protocol: loa-hounfour@4.6.0
 capability_requirements:
   - filesystem: read
-  - filesystem: write
+  - filesystem: write (scope: state)
+  - filesystem: write (scope: app)
   - git: read_write
   - shell: execute
-  - github_api: read_write
+  - github_api: read_write (scope: external)
 version: v1.39.1
-trust_level: grounded
+trust_level: L2-verified
 -->
 
 # loa
@@ -144,7 +145,7 @@ Directory structure:
 <!-- provenance: DERIVED -->
 | Module | Files | Purpose | Documentation |
 |--------|-------|---------|---------------|
-| `docs/` | 4 | Documentation | \u2014 |
+| `docs/` | 5 | Documentation | \u2014 |
 | `evals/` | 1269 | Benchmarking and regression framework for the Loa agent development system. Ensures framework changes don't degrade agent behavior through | [evals/README.md](evals/README.md) |
 | `grimoires/` | 520 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
 | `skills/` | 5112 | Specialized agent skills | \u2014 |
@@ -152,6 +153,7 @@ Directory structure:
 
 ## Verification
 <!-- provenance: CODE-FACTUAL -->
+- Trust Level: **L2 — CI Verified**
 - 142 test files across 1 suite
 - CI/CD: GitHub Actions (10 workflows)
 - Security: SECURITY.md present
@@ -199,16 +201,16 @@ claude
 
 After install, you should see a `.claude/` directory, `grimoires/loa/`, and `.loa.config.yaml` in your repo. Run `/loa doctor` inside Claude Code to verify everything is healthy.
 <!-- ground-truth-meta
-head_sha: e87a55646e349df0d3a2c9e8375841b043a2a7dd
-generated_at: 2026-02-15T08:25:47Z
+head_sha: fd4bdced02d5393b993d02e4f5c6f16620f1b5d4
+generated_at: 2026-02-15T08:37:06Z
 generator: butterfreezone-gen v1.0.0
 sections:
-  agent_context: af8500fa2a5721748f12c7d393435d8c2bc8796e71fae4a05381e80cd776355d
+  agent_context: f0e46136a9fb44f42e69230a4159e0574f17456c5d83430fe90352f9cce30a92
   capabilities: 7ac5066c6290b2bd238aba0cebe80e6c24d2c32ecc6b066842a065eb8c2300c1
   architecture: 116f3296a49700fbee5e9cb0492e4f9aee0f9452b5c051a942ee4429278ab8d3
   interfaces: c0d2732b6ab7745352bd781f56f44f32b2f8f2cacef7234ceed3e8f09796c0f4
-  module_map: 5a2ebd1d122c8d77e7954104a525e065e1fa0898c29eec4f256e29fc1a57defe
-  verification: c6b80f663abb09ea954a8c4fefc3564edc5b9e4cf49968f5cd335de22eebd0f4
+  module_map: 8bd576bd1f9ce9c4e6877c9f054bf094f3a36de9a07926dfe0b9d079d84862ac
+  verification: 9de40736bfd7817383734eeb1567bc9dbf6687f6b50cf8fc5b8068994053476b
   agents: ca263d1e05fd123434a21ef574fc8d76b559d22060719640a1f060527ef6a0b6
   culture: f73380f93bb4fadf36ccc10d60fc57555914363fc90e4f15b4dc4eb92bd1640f
   quick_start: 3c38dc53bf2ec73cbbb5c372af747ffa7894538d360b1182566647c2940c58c7

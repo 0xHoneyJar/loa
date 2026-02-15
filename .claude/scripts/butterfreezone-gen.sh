@@ -588,6 +588,48 @@ infer_module_purpose() {
     echo "$purpose"
 }
 
+# Compute trust level tag for AGENT-CONTEXT (L1-L4)
+# Returns machine-readable tag like "L2-verified" or "grounded" as fallback
+compute_trust_level_tag() {
+    local test_count=0 has_ci="false" has_property="false" has_formal="false"
+
+    # Count test files
+    test_count=$(find . -maxdepth 4 \( -name "*.test.*" -o -name "*.spec.*" -o -name "test_*" -o -name "*_test.*" \) 2>/dev/null | wc -l) || test_count=0
+
+    # CI detection
+    [[ -d ".github/workflows" ]] && has_ci="true"
+    [[ -f ".gitlab-ci.yml" ]] && has_ci="true"
+    [[ -f "Jenkinsfile" ]] && has_ci="true"
+
+    # Property-based test detection
+    for dep_file in package.json requirements.txt Cargo.toml; do
+        if [[ -f "$dep_file" ]] && grep -qiE 'fast-check|hypothesis|proptest|quickcheck|jqwik' "$dep_file" 2>/dev/null; then
+            has_property="true"; break
+        fi
+    done
+
+    # Formal verification detection
+    for dep_file in package.json requirements.txt Cargo.toml; do
+        if [[ -f "$dep_file" ]] && grep -qiE 'safety_properties|liveness_properties|temporal_logic|model_check|formal_verification' "$dep_file" 2>/dev/null; then
+            has_formal="true"; break
+        fi
+    done
+
+    local level=0
+    (( test_count > 0 )) && level=1
+    [[ $level -ge 1 && "$has_ci" == "true" ]] && level=2
+    [[ $level -ge 2 && "$has_property" == "true" ]] && level=3
+    [[ $level -ge 3 && "$has_formal" == "true" ]] && level=4
+
+    case $level in
+        1) echo "L1-tests-present" ;;
+        2) echo "L2-verified" ;;
+        3) echo "L3-hardened" ;;
+        4) echo "L4-proven" ;;
+        *) echo "grounded" ;;
+    esac
+}
+
 # =============================================================================
 # Section Extractors (Task 1.3 / SDD 3.1.3)
 # =============================================================================
@@ -705,14 +747,20 @@ extract_agent_context() {
 
     # Capability requirements: inferred from SKILL.md files (SDD cycle-017)
     # Section IX fix: negative-keyword filtering to reduce false positives
+    # Sprint-111: scoped capabilities with Three-Zone awareness
     local cap_req_block=""
     if [[ -d ".claude/skills" ]]; then
         local -A cap_hits=()
+        # Zone-scoped counters: track which zones each capability touches
+        local -A zone_state_write=() zone_app_write=()
         local skill_dirs
         skill_dirs=$(find .claude/skills -maxdepth 1 -type d 2>/dev/null | sort | tail -n +2 | head -10)
 
         # Negative context patterns — lines containing these are excluded from capability matching
         local neg_pattern="(not|never|without|no |disable|readonly|read-only|doesn.t|won.t|cannot|don.t)"
+        # Zone detection patterns (Three-Zone Model)
+        local state_pattern="grimoire|sprint\.md|prd\.md|sdd\.md|\.run/|\.beads|ledger|NOTES\.md|a2a/"
+        local app_pattern="src/|lib/|app/|application code|source code|implementation"
 
         while IFS= read -r sd; do
             [[ -z "$sd" ]] && continue
@@ -727,7 +775,16 @@ extract_agent_context() {
             (( positive_lines > 0 )) && cap_hits[fs_read]=$(( ${cap_hits[fs_read]:-0} + 1 ))
 
             positive_lines=$(grep -iE 'write|create|generate' <<< "$sc" 2>/dev/null | grep -cviE "$neg_pattern" 2>/dev/null) || positive_lines=0
-            (( positive_lines > 0 )) && cap_hits[fs_write]=$(( ${cap_hits[fs_write]:-0} + 1 ))
+            if (( positive_lines > 0 )); then
+                cap_hits[fs_write]=$(( ${cap_hits[fs_write]:-0} + 1 ))
+                # Detect zone scope for writes
+                if grep -qiE "$state_pattern" <<< "$sc" 2>/dev/null; then
+                    zone_state_write[$(basename "$sd")]=1
+                fi
+                if grep -qiE "$app_pattern" <<< "$sc" 2>/dev/null; then
+                    zone_app_write[$(basename "$sd")]=1
+                fi
+            fi
 
             positive_lines=$(grep -iE '\bgit\b|diff|log|branch' <<< "$sc" 2>/dev/null | grep -cviE "$neg_pattern" 2>/dev/null) || positive_lines=0
             (( positive_lines > 0 )) && cap_hits[git]=$(( ${cap_hits[git]:-0} + 1 ))
@@ -744,14 +801,30 @@ extract_agent_context() {
 
         local cap_entries=""
         (( ${cap_hits[fs_read]:-0} >= 2 )) && cap_entries="${cap_entries}"$'\n'"  - filesystem: read"
-        (( ${cap_hits[fs_write]:-0} >= 2 )) && cap_entries="${cap_entries}"$'\n'"  - filesystem: write"
+
+        # Scoped filesystem writes: emit per-zone when detectable
+        if (( ${cap_hits[fs_write]:-0} >= 2 )); then
+            local state_count=${#zone_state_write[@]}
+            local app_count=${#zone_app_write[@]}
+            if (( state_count >= 2 && app_count >= 2 )); then
+                cap_entries="${cap_entries}"$'\n'"  - filesystem: write (scope: state)"
+                cap_entries="${cap_entries}"$'\n'"  - filesystem: write (scope: app)"
+            elif (( state_count >= 2 )); then
+                cap_entries="${cap_entries}"$'\n'"  - filesystem: write (scope: state)"
+            elif (( app_count >= 2 )); then
+                cap_entries="${cap_entries}"$'\n'"  - filesystem: write (scope: app)"
+            else
+                cap_entries="${cap_entries}"$'\n'"  - filesystem: write"
+            fi
+        fi
+
         if (( ${cap_hits[git_write]:-0} >= 2 )); then
             cap_entries="${cap_entries}"$'\n'"  - git: read_write"
         elif (( ${cap_hits[git]:-0} >= 2 )); then
             cap_entries="${cap_entries}"$'\n'"  - git: read"
         fi
         (( ${cap_hits[shell]:-0} >= 2 )) && cap_entries="${cap_entries}"$'\n'"  - shell: execute"
-        (( ${cap_hits[gh_api]:-0} >= 2 )) && cap_entries="${cap_entries}"$'\n'"  - github_api: read_write"
+        (( ${cap_hits[gh_api]:-0} >= 2 )) && cap_entries="${cap_entries}"$'\n'"  - github_api: read_write (scope: external)"
 
         # Config overrides: suppress false positives, add forced capabilities
         if [[ -f "$CONFIG_FILE" ]] && command -v yq &>/dev/null; then
@@ -775,6 +848,9 @@ extract_agent_context() {
         [[ -n "$cap_entries" ]] && cap_req_block=$'\n'"capability_requirements:${cap_entries}"
     fi
 
+    local trust_tag
+    trust_tag=$(compute_trust_level_tag)
+
     cat <<EOF
 <!-- AGENT-CONTEXT
 name: ${name}
@@ -784,7 +860,7 @@ key_files: ${key_files}
 interfaces: ${interfaces}
 dependencies: ${deps}${ecosystem_block}${cap_req_block}
 version: ${version}
-trust_level: grounded
+trust_level: ${trust_tag}
 -->
 EOF
 }
@@ -1510,11 +1586,54 @@ extract_verification() {
     [[ -f "SECURITY.md" ]] && sec_info="${sec_info}${sec_info:+, }SECURITY.md present"
     [[ -n "$sec_info" ]] && signals="${signals}- Security: ${sec_info}\n"
 
+    # Property-based test detection (L3)
+    local has_property_tests="false"
+    for dep_file in package.json requirements.txt Cargo.toml go.mod pyproject.toml; do
+        if [[ -f "$dep_file" ]] && grep -qiE 'fast-check|hypothesis|proptest|quickcheck|jqwik' "$dep_file" 2>/dev/null; then
+            has_property_tests="true"
+            break
+        fi
+    done
+    # Also check for property test files
+    if [[ "$has_property_tests" != "true" ]]; then
+        local prop_files
+        prop_files=$(find . -maxdepth 3 \( -name "*.property.*" -o -name "*property_test*" -o -name "*prop_test*" \) 2>/dev/null | head -1)
+        [[ -n "$prop_files" ]] && has_property_tests="true"
+    fi
+
+    # Formal verification detection (L4)
+    local has_formal="false"
+    if find . -maxdepth 3 \( -name "*.property.ts" -o -name "*.property.py" \) 2>/dev/null | grep -q .; then
+        has_formal="true"
+    fi
+    for dep_file in package.json requirements.txt Cargo.toml; do
+        if [[ -f "$dep_file" ]] && grep -qiE 'safety_properties|liveness_properties|temporal_logic|model_check|formal_verification' "$dep_file" 2>/dev/null; then
+            has_formal="true"
+            break
+        fi
+    done
+
     [[ -z "$signals" ]] && return 0
+
+    # Compute trust level (L1-L4)
+    local trust_level=0 trust_name="none"
+    if (( test_file_count > 0 )); then
+        trust_level=1; trust_name="L1 — Tests Present"
+    fi
+    if (( trust_level >= 1 )) && [[ -n "$ci_info" ]]; then
+        trust_level=2; trust_name="L2 — CI Verified"
+    fi
+    if (( trust_level >= 2 )) && [[ "$has_property_tests" == "true" ]]; then
+        trust_level=3; trust_name="L3 — Property-Based"
+    fi
+    if (( trust_level >= 3 )) && [[ "$has_formal" == "true" ]]; then
+        trust_level=4; trust_name="L4 — Formal"
+    fi
 
     cat <<EOF
 ## Verification
 <!-- provenance: CODE-FACTUAL -->
+- Trust Level: **${trust_name}**
 $(printf '%b' "$signals")
 EOF
 }

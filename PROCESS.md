@@ -88,10 +88,61 @@ The `capability_requirements` field bridges BUTTERFREEZONE to Hounfour pool rout
 | `shell: execute` | Runs shell commands |
 | `github_api: read_write` | Reads/writes GitHub API (PRs, issues, comments) |
 | `network: read` | Fetches URLs or calls external APIs |
+| `model: invoke` | Invokes LLM model inference |
+
+#### Scoped Capabilities
+
+Capabilities may include a `(scope: ...)` annotation that connects them to the Three-Zone Model. Scoped capabilities declare not just WHAT a skill needs, but WHERE it operates.
+
+| Scope | Zone | Path Pattern | Example |
+|-------|------|-------------|---------|
+| `system` | System | `.claude/` | `filesystem: read (scope: system)` |
+| `state` | State | `grimoires/`, `.beads/`, `.ck/`, `.run/` | `filesystem: write (scope: state)` |
+| `app` | App | `src/`, `lib/`, `app/` | `filesystem: write (scope: app)` |
+| `external` | — | GitHub API, network, model APIs | `github_api: read_write (scope: external)` |
+
+**Backward compatibility**: Consumers that don't understand `(scope: ...)` can strip the parenthetical and get the flat capability. The formal schema is defined in [`docs/architecture/capability-schema.md`](docs/architecture/capability-schema.md).
+
+#### Trust Gradient (L1-L4)
+
+The `trust_level` AGENT-CONTEXT field reports the verification depth of a repository. Trust levels are monotonic — each level requires all criteria from the previous level.
+
+| Level | Name | Criteria | Hounfour Trust |
+|-------|------|----------|---------------|
+| L1 | Tests Present | ≥1 test file exists | `basic` |
+| L2 | CI Verified | Tests + CI pipeline configured | `verified` |
+| L3 | Property-Based | L2 + property-based tests (fast-check, hypothesis, proptest) | `hardened` |
+| L4 | Formal | L3 + formal temporal properties or safety/liveness proofs | `proven` |
+
+Trust level gates pool access in Hounfour: L1 repos get `cheap` and `fast_code` pools; L4 repos get full access including `architect` pools.
+
+#### Permission Scape
+
+The Permission Scape is the cross-repo flow where BUTTERFREEZONE declares needs, Hounfour provides trust-verified pools, and arrakis maps pool usage to costs:
+
+```
+BUTTERFREEZONE.md (any Loa repo)
+  │  capability_requirements: [filesystem: write (scope: state), model: invoke (scope: reviewer)]
+  │  trust_level: L2-verified
+  │
+  ├─→ loa-finn (pool routing)
+  │     Reads capabilities → extracts model scopes → routes to pool
+  │     Checks trust_level ≥ L2 → grants [cheap, fast_code, reviewer]
+  │
+  ├─→ loa-hounfour (trust classification)
+  │     Maps L2 → hounfour_trust: "verified"
+  │     Applies trust-appropriate safety constraints
+  │
+  └─→ arrakis (billing)
+        Reads capabilities → sums billing_weight per capability
+        Maps to cost tiers: 0 (free), 1 (metered), 3 (premium)
+```
+
+See [`docs/architecture/capability-schema.md`](docs/architecture/capability-schema.md) for the full formal schema definition.
 
 #### Verification Section
 
-The optional `## Verification` section provides trust signals beyond the version number (provenance: `CODE-FACTUAL`). Includes: test file count, CI/CD presence, type safety, linting, security scanning. Omitted when no verification signals exist.
+The optional `## Verification` section provides trust signals beyond the version number (provenance: `CODE-FACTUAL`). Includes: test file count, CI/CD presence, type safety, linting, security scanning, and Trust Level (L1-L4). Omitted when no verification signals exist.
 
 #### Versioning Contract
 

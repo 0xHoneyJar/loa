@@ -1,0 +1,175 @@
+# BUTTERFREEZONE Capability Schema v1.0
+
+> **Defined in**: `0xHoneyJar/loa`
+> **Consumed by**: loa-finn (pool routing), arrakis (billing), loa-hounfour (trust classification)
+> **Related**: [RFC #31 §5.2](https://github.com/0xHoneyJar/loa-finn/issues/31), [arrakis #62](https://github.com/0xHoneyJar/arrakis/issues/62), [loa-hounfour PR #2](https://github.com/0xHoneyJar/loa-hounfour/pull/2), [loa #43](https://github.com/0xHoneyJar/loa/issues/43)
+
+## Overview
+
+This document defines the formal schema for BUTTERFREEZONE `capability_requirements` and `trust_level` fields. It serves as the interface contract between Loa (which generates BUTTERFREEZONE.md files) and downstream consumers that route, gate, and bill based on declared capabilities.
+
+**Permission Scape flow**:
+```
+BUTTERFREEZONE declares needs → Hounfour provides trust-verified pools → arrakis maps pool usage to costs
+```
+
+## Capability Vocabulary
+
+Each capability has actions, scopes, a Hounfour pool routing hint, and a billing weight for arrakis cost mapping.
+
+```yaml
+capability_vocabulary:
+  filesystem:
+    actions: [read, write]
+    scopes: [system, state, app]
+    scope_mapping:
+      system: ".claude/"
+      state: "grimoires/, .beads/, .ck/, .run/"
+      app: "src/, lib/, app/"
+    hounfour_pool_hint: null  # filesystem ops don't require specific model pools
+    billing_weight: 0  # no API cost for local filesystem
+
+  git:
+    actions: [read, write, read_write]
+    scopes: [local, remote]
+    hounfour_pool_hint: null
+    billing_weight: 0
+
+  github_api:
+    actions: [read, write, read_write]
+    scopes: [external]
+    hounfour_pool_hint: null
+    billing_weight: 1  # GitHub API calls have rate limits
+
+  shell:
+    actions: [execute]
+    scopes: [local]
+    hounfour_pool_hint: null
+    billing_weight: 0
+
+  network:
+    actions: [read, write]
+    scopes: [external]
+    hounfour_pool_hint: null
+    billing_weight: 1  # external HTTP calls
+
+  model:
+    actions: [invoke]
+    scopes: [cheap, fast_code, reviewer, reasoning, architect]
+    hounfour_pool_hint: "{scope}"  # scope IS the pool name
+    billing_weight: 3  # model invocations are the primary cost driver
+```
+
+### Scope-to-Zone Mapping
+
+Scopes align with the Three-Zone Model defined in PROCESS.md:
+
+| Scope | Zone | Path Pattern | Permission Level |
+|-------|------|-------------|------------------|
+| `system` | System | `.claude/` | NEVER write (framework-managed) |
+| `state` | State | `grimoires/`, `.beads/`, `.ck/`, `.run/` | Read/Write |
+| `app` | App | `src/`, `lib/`, `app/` | Read (write requires confirmation) |
+| `external` | — | GitHub API, network, model APIs | Rate-limited |
+| `local` | — | git, shell | No API cost |
+
+### BUTTERFREEZONE Syntax
+
+Capabilities appear in the AGENT-CONTEXT block with optional scope annotation:
+
+```yaml
+capability_requirements:
+  - filesystem: read
+  - filesystem: write (scope: state)
+  - filesystem: write (scope: app)
+  - git: read_write
+  - shell: execute
+  - github_api: read_write (scope: external)
+```
+
+**Backward compatibility**: Consumers that don't understand `(scope: ...)` can strip the parenthetical with a regex (`s/ \(scope:.*\)//`) and get the flat capability.
+
+## Trust Gradient
+
+Trust levels are monotonic (L1 → L2 → L3 → L4) and gate pool access in Hounfour.
+
+```yaml
+trust_gradient:
+  L1:
+    name: "Tests Present"
+    criteria: "≥1 test file exists"
+    hounfour_trust: "basic"
+    min_pool_access: [cheap, fast_code]
+
+  L2:
+    name: "CI Verified"
+    criteria: "Tests + CI pipeline configured + passing"
+    hounfour_trust: "verified"
+    min_pool_access: [cheap, fast_code, reviewer]
+
+  L3:
+    name: "Property-Based"
+    criteria: "L2 + property-based/behavioral tests (fast-check, hypothesis, proptest, quickcheck)"
+    hounfour_trust: "hardened"
+    min_pool_access: [cheap, fast_code, reviewer, reasoning]
+
+  L4:
+    name: "Formal"
+    criteria: "L3 + formal temporal properties or safety/liveness proofs"
+    hounfour_trust: "proven"
+    min_pool_access: [cheap, fast_code, reviewer, reasoning, architect]
+```
+
+### BUTTERFREEZONE Trust Level Syntax
+
+Trust level appears in the AGENT-CONTEXT block:
+
+```yaml
+trust_level: L2-verified
+```
+
+And in the `## Verification` section:
+
+```markdown
+## Verification
+<!-- provenance: CODE-FACTUAL -->
+- Trust Level: **L2 — CI Verified**
+- 142 test files across 1 suite
+- CI/CD: GitHub Actions (10 workflows)
+```
+
+## Cross-Repo Consumption Pattern
+
+```
+1. BUTTERFREEZONE.md (any Loa repo)
+   ├── capability_requirements: [filesystem: write (scope: state), model: invoke (scope: reviewer)]
+   └── trust_level: L2-verified
+
+2. loa-finn (pool routing)
+   ├── Reads capability_requirements from BUTTERFREEZONE.md
+   ├── Extracts model scopes → required pools: [reviewer]
+   └── Checks trust_level ≥ L2 → grants access to [cheap, fast_code, reviewer]
+
+3. loa-hounfour (trust classification)
+   ├── Reads trust_level from BUTTERFREEZONE.md
+   ├── Maps L2 → hounfour_trust: "verified"
+   └── Applies trust-appropriate safety constraints
+
+4. arrakis (billing)
+   ├── Reads capability_requirements from BUTTERFREEZONE.md
+   ├── Sums billing_weight per capability used
+   └── Maps to cost tiers: 0 (free), 1 (metered), 3 (premium)
+```
+
+## Schema Versioning
+
+This schema follows the same forward-compatibility contract as the mesh schema:
+
+- **Schema version**: `1.0`
+- **Consumers MUST ignore unknown fields** (forward compatibility)
+- Planned additions for v1.1: `model` capability scopes for fine-grained pool selection, `billing_tier` per-skill aggregation
+
+## Related Documents
+
+- [PROCESS.md](../../PROCESS.md) — BUTTERFREEZONE standard and Three-Zone Model
+- [Separation of Concerns](separation-of-concerns.md) — Three-Layer Model
+- [Decision Lineage](decision-lineage.md) — Architectural decision records
