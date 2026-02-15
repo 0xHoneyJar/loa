@@ -841,6 +841,7 @@ run_consensus() {
     local tertiary_scores_gpt="${6:-}"
     local gpt_scores_tertiary="${7:-}"
     local opus_scores_tertiary="${8:-}"
+    local tertiary_skeptic_file="${9:-}"
 
     set_state "CONSENSUS"
     log "Calculating consensus"
@@ -860,7 +861,7 @@ run_consensus() {
     extract_json_content "$gpt_skeptic_file" '{"concerns":[]}' > "$gpt_skeptic_prepared"
     extract_json_content "$opus_skeptic_file" '{"concerns":[]}' > "$opus_skeptic_prepared"
 
-    # FR-3: Prepare tertiary scoring files when available
+    # FR-3: Prepare tertiary scoring and skeptic files when available
     local tertiary_args=()
     if [[ -n "$tertiary_scores_opus" && -s "$tertiary_scores_opus" ]]; then
         local tertiary_scores_opus_prepared="$TEMP_DIR/tertiary-scores-opus-prepared.json"
@@ -882,6 +883,15 @@ run_consensus() {
         log "Including tertiary model scores in consensus (3-model mode)"
     fi
 
+    # FR-3: Prepare tertiary skeptic file when available
+    local tertiary_skeptic_args=()
+    if [[ -n "$tertiary_skeptic_file" && -s "$tertiary_skeptic_file" ]]; then
+        local tertiary_skeptic_prepared="$TEMP_DIR/tertiary-skeptic-prepared.json"
+        extract_json_content "$tertiary_skeptic_file" '{"concerns":[]}' > "$tertiary_skeptic_prepared"
+        tertiary_skeptic_args=(--skeptic-tertiary "$tertiary_skeptic_prepared")
+        log "Including tertiary model skeptic concerns in consensus"
+    fi
+
     # Run scoring engine
     "$SCORING_ENGINE" \
         --gpt-scores "$gpt_scores_prepared" \
@@ -890,6 +900,7 @@ run_consensus() {
         --skeptic-gpt "$gpt_skeptic_prepared" \
         --skeptic-opus "$opus_skeptic_prepared" \
         "${tertiary_args[@]}" \
+        "${tertiary_skeptic_args[@]}" \
         --json
 }
 
@@ -1299,7 +1310,8 @@ main() {
     local result
     if [[ "$skip_consensus" != "true" && -n "$gpt_scores_file" && -n "$opus_scores_file" ]]; then
         result=$(run_consensus "$gpt_scores_file" "$opus_scores_file" "$gpt_skeptic_file" "$opus_skeptic_file" \
-            "$tertiary_scores_opus" "$tertiary_scores_gpt" "$gpt_scores_tertiary" "$opus_scores_tertiary")
+            "$tertiary_scores_opus" "$tertiary_scores_gpt" "$gpt_scores_tertiary" "$opus_scores_tertiary" \
+            "$tertiary_skeptic_file")
     else
         # Return raw reviews without consensus
         result=$(jq -n \

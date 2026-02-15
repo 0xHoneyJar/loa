@@ -15,6 +15,7 @@
 #   --include-blockers      Include skeptic concerns in analysis
 #   --skeptic-gpt <file>    GPT skeptic concerns JSON file
 #   --skeptic-opus <file>   Opus skeptic concerns JSON file
+#   --skeptic-tertiary <file> Tertiary model skeptic concerns JSON file (optional)
 #   --json                  Output as JSON (default)
 #
 # Thresholds (defaults from .loa.config.yaml or built-in):
@@ -93,6 +94,7 @@ calculate_consensus() {
     local blocker_threshold="$6"
     local skeptic_gpt_file="${7:-}"
     local skeptic_opus_file="${8:-}"
+    local skeptic_tertiary_file="${9:-}"
 
     # Parse input files
     local gpt_scores opus_scores
@@ -108,7 +110,8 @@ calculate_consensus() {
         --argjson low "$low_threshold" \
         --argjson blocker "$blocker_threshold" \
         --slurpfile skeptic_gpt <(if [[ -n "$skeptic_gpt_file" && -f "$skeptic_gpt_file" ]]; then cat "$skeptic_gpt_file"; else echo '{"concerns":[]}'; fi) \
-        --slurpfile skeptic_opus <(if [[ -n "$skeptic_opus_file" && -f "$skeptic_opus_file" ]]; then cat "$skeptic_opus_file"; else echo '{"concerns":[]}'; fi) '
+        --slurpfile skeptic_opus <(if [[ -n "$skeptic_opus_file" && -f "$skeptic_opus_file" ]]; then cat "$skeptic_opus_file"; else echo '{"concerns":[]}'; fi) \
+        --slurpfile skeptic_tertiary <(if [[ -n "$skeptic_tertiary_file" && -f "$skeptic_tertiary_file" ]]; then cat "$skeptic_tertiary_file"; else echo '{"concerns":[]}'; fi) '
 # Build lookup maps from scores
 def build_score_map:
     reduce .scores[] as $item ({}; . + {($item.id): $item.score});
@@ -158,11 +161,12 @@ def build_score_map:
     end
 )) as $classified |
 
-# Process skeptic concerns for blockers
+# Process skeptic concerns for blockers (2 or 3 sources)
 (
     [
         ($skeptic_gpt[0].concerns // [])[] | . + {source: "gpt_skeptic"},
-        ($skeptic_opus[0].concerns // [])[] | . + {source: "opus_skeptic"}
+        ($skeptic_opus[0].concerns // [])[] | . + {source: "opus_skeptic"},
+        ($skeptic_tertiary[0].concerns // [])[] | . + {source: "tertiary_skeptic"}
     ] | map(select(.severity_score > $blocker))
 ) as $blockers |
 
@@ -400,6 +404,7 @@ Options:
   --include-blockers      Include skeptic concerns in analysis
   --skeptic-gpt <file>    GPT skeptic concerns JSON file
   --skeptic-opus <file>   Opus skeptic concerns JSON file
+  --skeptic-tertiary <file> Tertiary model skeptic concerns (optional, 3-model mode)
   --attack-mode           Use red team attack classification (4 categories)
   --quick-mode            Quick mode (no CONFIRMED_ATTACK possible)
   --self-test             Run classification self-test against golden set
@@ -444,6 +449,7 @@ main() {
     local include_blockers=false
     local skeptic_gpt_file=""
     local skeptic_opus_file=""
+    local skeptic_tertiary_file=""
     local attack_mode=false
     local quick_mode=false
     local self_test=false
@@ -473,6 +479,10 @@ main() {
                 ;;
             --skeptic-opus)
                 skeptic_opus_file="$2"
+                shift 2
+                ;;
+            --skeptic-tertiary)
+                skeptic_tertiary_file="$2"
                 shift 2
                 ;;
             --attack-mode)
@@ -589,7 +599,8 @@ main() {
             "$low_threshold" \
             "$blocker_threshold" \
             "$skeptic_gpt_file" \
-            "$skeptic_opus_file")
+            "$skeptic_opus_file" \
+            "$skeptic_tertiary_file")
     else
         result=$(calculate_consensus \
             "$gpt_scores_file" \
