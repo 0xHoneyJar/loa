@@ -336,7 +336,7 @@ phase_changelog() {
   # Replace [Unreleased] with versioned header
   local date_str
   date_str=$(date +%Y-%m-%d)
-  # Portable sed via temp-file-and-mv (avoids sed -i GNU/BSD portability issue)
+  # Portable sed via temp-file-and-mv (avoids in-place GNU/BSD portability issue)
   local tmpfile
   tmpfile=$(mktemp)
   sed "s/## \[Unreleased\]/## [Unreleased]\\
