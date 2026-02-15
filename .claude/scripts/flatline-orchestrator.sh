@@ -688,9 +688,11 @@ run_phase1() {
     echo "$opus_review_file"
     echo "$gpt_skeptic_file"
     echo "$opus_skeptic_file"
-    # FR-3: Output tertiary file paths when configured (empty string if not)
-    echo "${tertiary_review_file:-}"
-    echo "${tertiary_skeptic_file:-}"
+    # FR-3: Output tertiary file paths only when configured (avoids empty paths)
+    if [[ "$has_tertiary" == "true" ]]; then
+        echo "$tertiary_review_file"
+        echo "$tertiary_skeptic_file"
+    fi
 }
 
 # =============================================================================
@@ -816,6 +818,13 @@ run_phase2() {
 
     echo "$gpt_scores_file"
     echo "$opus_scores_file"
+    # FR-3: Output tertiary scoring files when configured (consumed by consensus)
+    if [[ "$has_tertiary" == "true" ]]; then
+        echo "$tertiary_scores_opus_file"
+        echo "$tertiary_scores_gpt_file"
+        echo "$gpt_scores_tertiary_file"
+        echo "$opus_scores_tertiary_file"
+    fi
 }
 
 # =============================================================================
@@ -827,6 +836,11 @@ run_consensus() {
     local opus_scores_file="$2"
     local gpt_skeptic_file="$3"
     local opus_skeptic_file="$4"
+    # FR-3: Optional tertiary scoring files for 3-model consensus
+    local tertiary_scores_opus="${5:-}"
+    local tertiary_scores_gpt="${6:-}"
+    local gpt_scores_tertiary="${7:-}"
+    local opus_scores_tertiary="${8:-}"
 
     set_state "CONSENSUS"
     log "Calculating consensus"
@@ -846,6 +860,28 @@ run_consensus() {
     extract_json_content "$gpt_skeptic_file" '{"concerns":[]}' > "$gpt_skeptic_prepared"
     extract_json_content "$opus_skeptic_file" '{"concerns":[]}' > "$opus_skeptic_prepared"
 
+    # FR-3: Prepare tertiary scoring files when available
+    local tertiary_args=()
+    if [[ -n "$tertiary_scores_opus" && -s "$tertiary_scores_opus" ]]; then
+        local tertiary_scores_opus_prepared="$TEMP_DIR/tertiary-scores-opus-prepared.json"
+        local tertiary_scores_gpt_prepared="$TEMP_DIR/tertiary-scores-gpt-prepared.json"
+        local gpt_scores_tertiary_prepared="$TEMP_DIR/gpt-scores-tertiary-prepared.json"
+        local opus_scores_tertiary_prepared="$TEMP_DIR/opus-scores-tertiary-prepared.json"
+
+        extract_json_content "$tertiary_scores_opus" '{"scores":[]}' > "$tertiary_scores_opus_prepared"
+        extract_json_content "$tertiary_scores_gpt" '{"scores":[]}' > "$tertiary_scores_gpt_prepared"
+        extract_json_content "$gpt_scores_tertiary" '{"scores":[]}' > "$gpt_scores_tertiary_prepared"
+        extract_json_content "$opus_scores_tertiary" '{"scores":[]}' > "$opus_scores_tertiary_prepared"
+
+        tertiary_args=(
+            --tertiary-scores-opus "$tertiary_scores_opus_prepared"
+            --tertiary-scores-gpt "$tertiary_scores_gpt_prepared"
+            --gpt-scores-tertiary "$gpt_scores_tertiary_prepared"
+            --opus-scores-tertiary "$opus_scores_tertiary_prepared"
+        )
+        log "Including tertiary model scores in consensus (3-model mode)"
+    fi
+
     # Run scoring engine
     "$SCORING_ENGINE" \
         --gpt-scores "$gpt_scores_prepared" \
@@ -853,6 +889,7 @@ run_consensus() {
         --include-blockers \
         --skeptic-gpt "$gpt_skeptic_prepared" \
         --skeptic-opus "$opus_skeptic_prepared" \
+        "${tertiary_args[@]}" \
         --json
 }
 
@@ -1227,10 +1264,14 @@ main() {
     phase1_output=$(run_phase1 "$doc" "$phase" "$context_file" "$DEFAULT_MODEL_TIMEOUT" "$budget")
 
     local gpt_review_file opus_review_file gpt_skeptic_file opus_skeptic_file
+    local tertiary_review_file="" tertiary_skeptic_file=""
     gpt_review_file=$(echo "$phase1_output" | sed -n '1p')
     opus_review_file=$(echo "$phase1_output" | sed -n '2p')
     gpt_skeptic_file=$(echo "$phase1_output" | sed -n '3p')
     opus_skeptic_file=$(echo "$phase1_output" | sed -n '4p')
+    # FR-3: Tertiary paths are lines 5-6 when present
+    tertiary_review_file=$(echo "$phase1_output" | sed -n '5p')
+    tertiary_skeptic_file=$(echo "$phase1_output" | sed -n '6p')
 
     # Check budget before Phase 2
     if ! check_budget 100 "$budget"; then
@@ -1240,18 +1281,25 @@ main() {
 
     # Phase 2: Cross-Scoring (unless skipped)
     local gpt_scores_file="" opus_scores_file=""
+    local tertiary_scores_opus="" tertiary_scores_gpt="" gpt_scores_tertiary="" opus_scores_tertiary=""
     if [[ "$skip_consensus" != "true" ]]; then
         local phase2_output
-        phase2_output=$(run_phase2 "$gpt_review_file" "$opus_review_file" "$phase" "$DEFAULT_MODEL_TIMEOUT")
+        phase2_output=$(run_phase2 "$gpt_review_file" "$opus_review_file" "$phase" "$DEFAULT_MODEL_TIMEOUT" "$tertiary_review_file")
 
         gpt_scores_file=$(echo "$phase2_output" | sed -n '1p')
         opus_scores_file=$(echo "$phase2_output" | sed -n '2p')
+        # FR-3: Tertiary scoring files are lines 3-6 when present
+        tertiary_scores_opus=$(echo "$phase2_output" | sed -n '3p')
+        tertiary_scores_gpt=$(echo "$phase2_output" | sed -n '4p')
+        gpt_scores_tertiary=$(echo "$phase2_output" | sed -n '5p')
+        opus_scores_tertiary=$(echo "$phase2_output" | sed -n '6p')
     fi
 
     # Phase 3: Consensus Calculation
     local result
     if [[ "$skip_consensus" != "true" && -n "$gpt_scores_file" && -n "$opus_scores_file" ]]; then
-        result=$(run_consensus "$gpt_scores_file" "$opus_scores_file" "$gpt_skeptic_file" "$opus_skeptic_file")
+        result=$(run_consensus "$gpt_scores_file" "$opus_scores_file" "$gpt_skeptic_file" "$opus_skeptic_file" \
+            "$tertiary_scores_opus" "$tertiary_scores_gpt" "$gpt_scores_tertiary" "$opus_scores_tertiary")
     else
         # Return raw reviews without consensus
         result=$(jq -n \

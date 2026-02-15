@@ -912,11 +912,12 @@ EOF
   # FR-2: Runtime fallback — if model-invoke fails, fall back to direct curl
   local response
   if is_flatline_routing_enabled && [[ -x "$MODEL_INVOKE" ]]; then
-    response=$(call_api_via_model_invoke "$model" "$system_prompt" "$user_prompt" "$timeout") || {
-      local mi_exit=$?
+    local mi_exit=0
+    response=$(call_api_via_model_invoke "$model" "$system_prompt" "$user_prompt" "$timeout") || mi_exit=$?
+    if [[ $mi_exit -ne 0 ]]; then
       log "WARNING: model-invoke failed (exit $mi_exit), falling back to direct API call"
       response=$(call_api "$model" "$system_prompt" "$user_prompt" "$timeout")
-    }
+    fi
   else
     response=$(call_api "$model" "$system_prompt" "$user_prompt" "$timeout")
   fi

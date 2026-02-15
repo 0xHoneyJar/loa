@@ -68,6 +68,10 @@ sync_pack() {
                 local now
                 now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
                 local tmp="${META_FILE}.tmp.$$"
+                # Version "synced" is a sentinel indicating the skill was
+                # discovered via pack manifest sync rather than explicit install.
+                # Actual version tracking requires the pack manifest to declare
+                # per-skill versions (not yet supported in pack schema v1).
                 if jq --arg path "$skill_path" \
                        --arg pack "$pack_name" \
                        --arg now "$now" \

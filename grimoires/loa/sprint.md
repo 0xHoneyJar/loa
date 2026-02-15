@@ -243,15 +243,232 @@
 
 ---
 
+## Sprint 4: Bridgebuilder Review Fixes (PR #330 findings)
+
+> **Goal**: Address all 9 findings from Bridgebuilder review — 1 HIGH, 3 MEDIUM, 5 LOW
+> **Global ID**: sprint-99
+> **Source**: [Bridgebuilder Review on PR #330](https://github.com/0xHoneyJar/loa/pull/330#issuecomment-3903185016)
+> **Scope**: Correctness, portability, and architecture fixes across all 3 implementation sprints
+
+### Task 4.1: Phase 2 Tertiary Scoring Output + Consensus Integration (HIGH)
+
+**Files**: `.claude/scripts/flatline-orchestrator.sh` (Phase 1 output, Phase 2 output, Phase 3 consensus)
+
+**Finding**: Phase 2 computes 6 tertiary scoring files but only returns 2 file paths. Phase 3 consensus never sees the tertiary cross-validation results. The cost is incurred but the value is discarded.
+
+**Work**:
+1. **Phase 1 output** (line ~691): Only output tertiary file paths when `has_tertiary=true`:
+   ```bash
+   if [[ "$has_tertiary" == "true" ]]; then
+       echo "$tertiary_review_file"
+       echo "$tertiary_skeptic_file"
+   fi
+   ```
+2. **Phase 2 output** (line ~817): Output all 6 scoring file paths when tertiary is active:
+   ```bash
+   echo "$gpt_scores_file"
+   echo "$opus_scores_file"
+   if [[ "$has_tertiary" == "true" ]]; then
+       echo "$tertiary_scores_opus_file"
+       echo "$tertiary_scores_gpt_file"
+       echo "$gpt_scores_tertiary_file"
+       echo "$opus_scores_tertiary_file"
+   fi
+   ```
+3. **Main orchestrator**: Update Phase 2 caller to detect 4-line vs 6-line Phase 1 output, and Phase 3 caller to detect 2-line vs 6-line Phase 2 output
+4. **Phase 3 consensus** (`run_consensus()`): Accept optional tertiary scoring files and merge them into consensus. When tertiary scores exist, each improvement gets 3 scores instead of 2 — adjust thresholds proportionally (e.g., HIGH_CONSENSUS requires 2/3 models >700)
+
+**Acceptance Criteria**:
+- [ ] Phase 1 only outputs tertiary paths when tertiary is configured
+- [ ] Phase 2 returns all scoring file paths (2 or 6 depending on config)
+- [ ] Phase 3 consensus incorporates tertiary scores when present
+- [ ] 2-model mode unchanged (4 Phase 1 → 2 Phase 2 → consensus with 2 scores)
+- [ ] 3-model mode works end-to-end (6 Phase 1 → 6 Phase 2 → consensus with 3 scores)
+- [ ] `bash -n` passes
+
+### Task 4.2: Atomic Lock Recovery in mkdir Strategy (MEDIUM + LOW)
+
+**File**: `.claude/scripts/bridge-state.sh:75-120`
+
+**Findings**:
+- **TOCTOU window** (med-1): After `rm -rf "$lock_dir"`, another process can grab the lock before we retry `mkdir` in the next loop iteration
+- **PID file write gap** (low-1): If process crashes between `mkdir` and `echo $$ > pid`, stale detection can't identify the holder
+
+**Work**:
+1. After `rm -rf` for stale lock, immediately attempt `mkdir` + PID write before `continue`:
+   ```bash
+   if [[ -n "$holder_pid" ]] && ! kill -0 "$holder_pid" 2>/dev/null; then
+       echo "WARNING: Removing stale lock (PID $holder_pid no longer running)" >&2
+       rm -rf "$lock_dir"
+       if mkdir "$lock_dir" 2>/dev/null; then
+           echo $$ > "$lock_dir/pid"
+           return 0
+       fi
+       continue
+   fi
+   ```
+2. Apply same pattern to age-based stale detection block
+3. Ensure PID write immediately follows successful mkdir (already the case for non-recovery path, but make explicit)
+
+**Acceptance Criteria**:
+- [ ] After stale lock cleanup, immediately claim instead of re-entering loop
+- [ ] No TOCTOU window between `rm -rf` and next `mkdir`
+- [ ] Both PID-based and age-based recovery paths use atomic cleanup-and-acquire
+- [ ] `bash -n` passes
+
+### Task 4.3: Fix Flatline Check Unused Window Parameter (MEDIUM)
+
+**File**: `.claude/scripts/bridge-flatline-check.sh`
+
+**Finding**: Usage docs describe a `[window]` parameter ($1) but only `$2` (threshold) is read. The window is already computed by `bridge-state.sh` and stored in state — this script is a reader, not a computer.
+
+**Work**:
+1. Remove window parameter from usage comments (lines 12-14)
+2. Change `THRESHOLD="${2:-0.05}"` to `THRESHOLD="${1:-0.05}"` (threshold becomes first and only positional arg)
+3. Update usage to:
+   ```
+   # Usage:
+   #   bridge-flatline-check.sh [threshold]
+   #   bridge-flatline-check.sh          # default: 0.05
+   #   bridge-flatline-check.sh 0.10     # custom: 10% threshold
+   ```
+
+**Acceptance Criteria**:
+- [ ] Usage docs match actual behavior
+- [ ] `bridge-flatline-check.sh 0.10` sets threshold to 0.10
+- [ ] No unused positional args
+- [ ] `bash -n` passes
+
+### Task 4.4: Replace `echo -e` with `printf` in Mermaid Generation (MEDIUM)
+
+**File**: `.claude/scripts/butterfreezone-gen.sh:629-660`
+
+**Finding**: `echo -e` is a bashism. POSIX `echo` does not define `-e` behavior. On some macOS configurations, `echo -e` outputs literal `-e`. Ironic in a portability-focused PR.
+
+**Work**:
+1. Replace Mermaid string building to use `printf` instead of `echo -e`:
+   ```bash
+   # Build mermaid as actual multi-line string using printf
+   mermaid=$(printf '```mermaid\ngraph TD')
+   # ... in loop ...
+   mermaid=$(printf '%s\n    %s[%s]' "$mermaid" "$id" "$dir")
+   ```
+2. Replace output:
+   ```bash
+   $(if [[ -n "$mermaid" ]]; then printf '%s\n' "$mermaid"; echo; fi)
+   ```
+3. Check for any other `echo -e` usage in the file and replace
+
+**Acceptance Criteria**:
+- [ ] No `echo -e` in `butterfreezone-gen.sh`
+- [ ] Mermaid block renders correctly (test with actual output)
+- [ ] `bash -n` passes
+
+### Task 4.5: Explicit Exit Code Capture in model-invoke Fallback (LOW)
+
+**File**: `.claude/scripts/gpt-review-api.sh:827-832`
+
+**Finding**: `$?` inside `|| { }` block could be fragile across shells. Explicit capture is more portable.
+
+**Work**:
+1. Refactor from:
+   ```bash
+   response=$(call_api_via_model_invoke ...) || {
+       local mi_exit=$?
+       log "WARNING: model-invoke failed (exit $mi_exit)..."
+       response=$(call_api ...)
+   }
+   ```
+   To:
+   ```bash
+   local mi_exit=0
+   response=$(call_api_via_model_invoke ...) || mi_exit=$?
+   if [[ $mi_exit -ne 0 ]]; then
+       log "WARNING: model-invoke failed (exit $mi_exit), falling back to direct API call"
+       response=$(call_api "$model" "$system_prompt" "$user_prompt" "$timeout")
+   fi
+   ```
+
+**Acceptance Criteria**:
+- [ ] Exit code captured explicitly before any other statement
+- [ ] Fallback behavior unchanged
+- [ ] `bash -n` passes
+
+### Task 4.6: Scope Architecture Diagram Validation to Section (LOW)
+
+**File**: `.claude/scripts/butterfreezone-validate.sh:507-518`
+
+**Finding**: The validation checks for mermaid/code blocks anywhere in the file. A code block in Quick Start satisfies the Architecture diagram check.
+
+**Work**:
+1. Extract Architecture section content before checking for diagrams:
+   ```bash
+   validate_architecture_diagram() {
+       if ! grep -q "^## Architecture" "$FILE" 2>/dev/null; then
+           log_warn "arch_section" "Missing Architecture section" "section missing"
+           return 0
+       fi
+
+       # Extract Architecture section only (between ## Architecture and next ## heading)
+       local arch_content
+       arch_content=$(sed -n '/^## Architecture/,/^## /p' "$FILE" | sed '$ d')
+       if echo "$arch_content" | grep -q "mermaid"; then
+           log_pass "arch_diagram" "Architecture section contains Mermaid diagram"
+       elif echo "$arch_content" | grep -q '```'; then
+           log_pass "arch_diagram" "Architecture section contains code block diagram"
+       else
+           log_warn "arch_diagram" "Architecture section missing diagram (mermaid or code block)" "diagram missing"
+       fi
+   }
+   ```
+
+**Acceptance Criteria**:
+- [ ] Architecture diagram check only looks at Architecture section
+- [ ] Code blocks in other sections don't trigger false pass
+- [ ] `bash -n` passes
+
+### Task 4.7: Document Construct Sync Version Limitation (LOW)
+
+**File**: `.claude/scripts/sync-constructs.sh`
+
+**Finding**: Registered skills get `"version": "synced"` — a sentinel that doesn't track real versions. On subsequent pack updates, the version won't update because the script only checks existence.
+
+**Work**:
+1. Add comment documenting the limitation:
+   ```bash
+   # NOTE: Version tracking is existence-only (v1).
+   # Registered skills get version "synced" — a sentinel.
+   # Future: compare manifest version against registered version
+   # for construct update detection.
+   ```
+2. Add version comparison TODO in the `if [[ -z "$registered" ]]` block:
+   ```bash
+   if [[ -z "$registered" ]]; then
+       # New skill — register it
+       ...
+   # else
+   #   TODO: Compare manifest version against registered version
+   #   for construct update detection (v2)
+   fi
+   ```
+
+**Acceptance Criteria**:
+- [ ] Limitation documented in code comments
+- [ ] No functional change
+- [ ] Future upgrade path clear
+
+---
+
 ## Sprint Summary
 
-| Sprint | Global ID | Tasks | FRs Covered | Priority |
-|--------|-----------|-------|-------------|----------|
+| Sprint | Global ID | Tasks | Scope | Priority |
+|--------|-----------|-------|-------|----------|
 | Sprint 1 | sprint-96 | 4 tasks | FR-1, FR-2, FR-7 | HIGH |
 | Sprint 2 | sprint-97 | 5 tasks | FR-3, FR-4, FR-6 | MEDIUM |
 | Sprint 3 | sprint-98 | 4 tasks | FR-5 | MEDIUM |
+| Sprint 4 | sprint-99 | 7 tasks | Bridgebuilder review fixes | HIGH (blocking) |
 
-**Total**: 13 tasks across 3 sprints covering all 7 functional requirements.
+**Total**: 20 tasks across 4 sprints. Sprint 4 addresses all 9 Bridgebuilder findings (1 HIGH, 3 MEDIUM, 5 LOW).
 
 ## Close Actions (Post-Implementation)
 
@@ -260,3 +477,4 @@ After all sprints complete:
 2. Close #321 with note: "All 3 bugs fixed in cycle-013 (env dedup, fences, gpt-reviewer persona)"
 3. Update #328 noting items 1, 3, 5 fixed; item 2 deferred to RFC; item 4 already done
 4. Close #327, #323, #322, #316 with PR reference
+5. Reply to Bridgebuilder review on PR #330 with resolution status for each finding

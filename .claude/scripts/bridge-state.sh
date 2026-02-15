@@ -74,7 +74,11 @@ _acquire_lock_mkdir() {
     if [[ -n "$holder_pid" ]] && ! kill -0 "$holder_pid" 2>/dev/null; then
       echo "WARNING: Removing stale lock (PID $holder_pid no longer running)" >&2
       rm -rf "$lock_dir"
-      continue
+      # Immediately attempt mkdir after cleanup to close TOCTOU window
+      if mkdir "$lock_dir" 2>/dev/null; then
+        break
+      fi
+      # Another process grabbed it — fall through to retry loop
     fi
 
     # Age-based stale detection: lock older than 30s
@@ -86,7 +90,11 @@ _acquire_lock_mkdir() {
       if (( lock_age > 30 )); then
         echo "WARNING: Removing aged lock (${lock_age}s old)" >&2
         rm -rf "$lock_dir"
-        continue
+        # Immediately attempt mkdir after cleanup to close TOCTOU window
+        if mkdir "$lock_dir" 2>/dev/null; then
+          break
+        fi
+        # Another process grabbed it — fall through to retry loop
       fi
     fi
 
@@ -98,8 +106,10 @@ _acquire_lock_mkdir() {
     fi
   done
 
-  # Write our PID for stale detection
-  echo $$ > "$lock_dir/pid"
+  # Write our PID atomically for stale detection (write to temp + rename)
+  local pid_tmp="$lock_dir/pid.$$"
+  echo $$ > "$pid_tmp"
+  mv "$pid_tmp" "$lock_dir/pid"
 }
 
 _release_lock_mkdir() {

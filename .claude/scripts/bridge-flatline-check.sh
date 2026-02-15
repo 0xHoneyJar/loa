@@ -9,9 +9,9 @@
 # Stdout: JSON summary
 #
 # Usage:
-#   bridge-flatline-check.sh [window] [threshold]
-#   bridge-flatline-check.sh          # defaults: window=3, threshold=0.05
-#   bridge-flatline-check.sh 5 0.10   # custom: 5 iterations, 10% threshold
+#   bridge-flatline-check.sh [threshold]
+#   bridge-flatline-check.sh          # default threshold: 0.05
+#   bridge-flatline-check.sh 0.10     # custom: 10% threshold
 
 set -euo pipefail
 
@@ -19,7 +19,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/bootstrap.sh"
 
 BRIDGE_STATE="${PROJECT_ROOT}/.run/bridge-state.json"
-THRESHOLD="${2:-0.05}"
+THRESHOLD="${1:-0.05}"
 
 main() {
   if [[ ! -f "$BRIDGE_STATE" ]]; then

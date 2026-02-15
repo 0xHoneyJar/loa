@@ -301,7 +301,11 @@ validate_architecture_diagram() {
         return 0
     fi
 
-    if grep -q "mermaid" "$FILE" 2>/dev/null || grep -q '```' "$FILE" 2>/dev/null; then
+    # Extract only the Architecture section content (between ## Architecture and next ##)
+    local arch_content
+    arch_content=$(sed -n '/^## Architecture/,/^## /p' "$FILE" 2>/dev/null | sed '$d') || true
+
+    if echo "$arch_content" | grep -q "mermaid" 2>/dev/null || echo "$arch_content" | grep -q '```' 2>/dev/null; then
         log_pass "arch_diagram" "Architecture section contains diagram"
     else
         log_warn "arch_diagram" "Architecture section missing diagram (mermaid or code block)" "diagram missing"

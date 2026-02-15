@@ -562,7 +562,7 @@ extract_capabilities() {
         [[ -n "$sh_funcs" ]] && found="${found}${sh_funcs}\n"
 
         if [[ -n "$found" ]]; then
-            caps=$(echo -e "$found" | while IFS=: read -r file line content; do
+            caps=$(printf '%b' "$found" | while IFS=: read -r file line content; do
                 [[ -z "$content" ]] && continue
                 local sym
                 sym=$(echo "$content" | sed 's/^export //;s/^pub //;s/(.*//;s/ {.*//;s/^function //;s/^const //;s/^class //;s/^def //;s/^fn //;s/^struct //;s/^enum //;s/^trait //;s/^func //' | tr -d ' ' | head -c 60)
@@ -626,7 +626,7 @@ extract_architecture() {
         2>/dev/null | sed 's|^\./||' | sort | head -8) || true
 
     if [[ -n "$top_dirs" ]]; then
-        mermaid='```mermaid\ngraph TD'
+        mermaid=$'```mermaid\ngraph TD'
         local idx=0
         local ids=()
         while IFS= read -r dir; do
@@ -634,18 +634,18 @@ extract_architecture() {
             local id
             id=$(echo "$dir" | tr -cs '[:alnum:]' '_' | sed 's/_$//')
             ids+=("$id")
-            mermaid="${mermaid}\n    ${id}[${dir}]"
+            mermaid="${mermaid}"$'\n'"    ${id}[${dir}]"
             ((idx++))
         done <<< "$top_dirs"
 
         # Connect major components to a central node if >2 dirs
         if [[ ${#ids[@]} -gt 2 ]]; then
-            mermaid="${mermaid}\n    Root[Project Root]"
+            mermaid="${mermaid}"$'\n'"    Root[Project Root]"
             for id in "${ids[@]}"; do
-                mermaid="${mermaid}\n    Root --> ${id}"
+                mermaid="${mermaid}"$'\n'"    Root --> ${id}"
             done
         fi
-        mermaid="${mermaid}\n\`\`\`"
+        mermaid="${mermaid}"$'\n```'
     fi
 
     # Generate narrative description
@@ -678,9 +678,9 @@ extract_architecture() {
 
         if [[ -n "$tree" ]]; then
             arch="Directory structure:"
-            arch="${arch}\n\`\`\`"
-            arch="${arch}\n${tree}"
-            arch="${arch}\n\`\`\`"
+            arch="${arch}"$'\n```'
+            arch="${arch}"$'\n'"${tree}"
+            arch="${arch}"$'\n```'
         fi
     fi
 
@@ -691,9 +691,9 @@ extract_architecture() {
     cat <<EOF
 ## Architecture
 <!-- provenance: ${provenance} -->
-$(if [[ -n "$mermaid" ]]; then echo -e "$mermaid"; echo; fi)
-$(if [[ -n "$narrative" ]]; then echo "$narrative"; echo; fi)
-$(if [[ -n "$arch" ]]; then echo -e "$arch"; fi)
+$(if [[ -n "$mermaid" ]]; then printf '%s\n\n' "$mermaid"; fi)
+$(if [[ -n "$narrative" ]]; then printf '%s\n\n' "$narrative"; fi)
+$(if [[ -n "$arch" ]]; then printf '%s\n' "$arch"; fi)
 EOF
 }
 
@@ -749,7 +749,7 @@ extract_interfaces() {
             [[ -n "$skills" ]] && found="${found}### Skill Commands\n${skills}\n\n"
         fi
 
-        ifaces=$(echo -e "$found")
+        ifaces=$(printf '%b' "$found")
     fi
 
     if [[ -z "$ifaces" ]]; then
@@ -814,7 +814,7 @@ extract_module_map() {
     cat <<EOF
 ## Module Map
 <!-- provenance: ${provenance} -->
-$(echo -e "$table")
+$(printf '%b' "$table")
 EOF
 }
 
@@ -855,7 +855,7 @@ extract_ecosystem() {
     cat <<EOF
 ## Ecosystem
 <!-- provenance: ${provenance} -->
-$(echo -e "$eco")
+$(printf '%b' "$eco")
 EOF
 }
 
@@ -925,7 +925,7 @@ extract_quick_start() {
         elif [[ -f "Cargo.toml" ]]; then
             cmds="Get started:\n\n\`\`\`bash\ncargo build\ncargo test\n\`\`\`"
         fi
-        [[ -n "$cmds" ]] && qs=$(echo -e "$cmds")
+        [[ -n "$cmds" ]] && qs=$(printf '%b' "$cmds")
     fi
 
     if [[ -z "$qs" ]]; then
