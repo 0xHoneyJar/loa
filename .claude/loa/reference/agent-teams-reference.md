@@ -170,10 +170,12 @@ The `team-role-guard.sh` hook provides defense-in-depth enforcement of C-TEAM co
 | Pattern | Constraint | Rationale |
 |---------|-----------|-----------|
 | `br ` commands | C-TEAM-002 | Beads serialization through lead |
-| Overwrite (`>`) to `.run/*.json` | C-TEAM-003 | State file ownership |
+| Overwrite (`>`), `cp`/`mv`, `tee` to `.run/*.json` | C-TEAM-003 | State file ownership |
 | `git commit`, `git push` | C-TEAM-004 | Git working tree serialization |
 
 **Allowed for teammates**: `>>` append to any file (POSIX atomic), `git status/diff/log` (read-only), all non-git/non-br commands.
+
+**Known limitation**: The hook covers Bash tool only. The Write tool can still overwrite `.run/*.json` — teammates must rely on CLAUDE.md constraints for Write tool compliance. A PreToolUse:Write hook is planned for a future iteration.
 
 ## Quality Gate Preservation
 

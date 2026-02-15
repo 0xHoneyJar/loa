@@ -60,25 +60,30 @@ check_and_block() {
 # ---------------------------------------------------------------------------
 # C-TEAM-002: Block beads (br) commands
 # Matches: br close, br update, br sync, br ready, br create, etc.
+# Includes /path/to/br and sudo br for consistency with git patterns.
 # ---------------------------------------------------------------------------
 check_and_block \
-  '(^|;|&&|\|)\s*br\s' \
+  '(^|/|;|&&|\|)\s*(sudo\s+)?br\s' \
   "Beads (br) commands are lead-only in Agent Teams mode (C-TEAM-002). Report task status to the lead via SendMessage."
 
 # ---------------------------------------------------------------------------
 # C-TEAM-003: Block writes to .run/ state files
-# Matches: overwrite (>) to .run/*.json, cp/mv to .run/*.json
+# Matches: overwrite (>) to .run/*.json, cp/mv to .run/*.json, tee to .run/*.json
 # Does NOT match: append (>>) to any .run/ file (append-only is safe)
 # Does NOT match: reads (cat .run/state.json without redirect)
-# The [^>] before > ensures >> (append) is not matched.
+# (^|[^>]) anchors at start-of-line AND excludes >> (append).
 # ---------------------------------------------------------------------------
 check_and_block \
-  '[^>]>\s*\.run/[^/]*\.json' \
+  '(^|[^>])>\s*\.run/[^/]*\.json' \
   "Writing to .run/ state files is lead-only in Agent Teams mode (C-TEAM-003). Report status to the lead via SendMessage."
 
 check_and_block \
   '(cp|mv)\s+.*\s+\.run/[^/]*\.json' \
   "Writing to .run/ state files is lead-only in Agent Teams mode (C-TEAM-003). Report status to the lead via SendMessage."
+
+check_and_block \
+  'tee\s+(-[^a]\S*\s+)*\.run/[^/]*\.json' \
+  "Writing to .run/ state files via tee is lead-only in Agent Teams mode (C-TEAM-003). Report status to the lead via SendMessage."
 
 # ---------------------------------------------------------------------------
 # C-TEAM-004: Block git commit and push
