@@ -1,4 +1,4 @@
-<!-- @loa-managed: true | version: 1.37.0 | hash: PLACEHOLDER -->
+<!-- @loa-managed: true | version: 1.37.0 | hash: c7b53a0ffac7360c96cd5696af08ba0ee502123383a39b247aae036202f83af1PLACEHOLDER -->
 <!-- WARNING: This file is managed by the Loa Framework. Do not edit directly. -->
 
 # Loa Framework Instructions
@@ -105,7 +105,7 @@ Grimoire and state file locations configurable via `.loa.config.yaml`. Overrides
 
 | Rule | Why |
 |------|-----|
-<!-- @constraint-generated: start process_compliance_never | hash:updated-bug-mode-278 -->
+<!-- @constraint-generated: start process_compliance_never | hash:50ab7ca1149790d7 -->
 <!-- DO NOT EDIT — generated from .claude/data/constraints.json -->
 | NEVER write application code outside of `/implement` skill invocation | Code written outside `/implement` bypasses review and audit gates |
 | NEVER use Claude's `TaskCreate`/`TaskUpdate` for sprint task tracking when beads (`br`) is available | Beads is the single source of truth for task lifecycle; TaskCreate is for session progress display only |
@@ -117,13 +117,13 @@ Grimoire and state file locations configurable via `.loa.config.yaml`. Overrides
 
 | Rule | Why |
 |------|-----|
-<!-- @constraint-generated: start process_compliance_always | hash:updated-bug-mode-278 -->
+<!-- @constraint-generated: start process_compliance_always | hash:68a1c1c0eedf5225 -->
 <!-- DO NOT EDIT — generated from .claude/data/constraints.json -->
 | ALWAYS use `/run sprint-plan`, `/run sprint-N`, or `/bug` for implementation | Ensures review+audit cycle with circuit breaker protection. `/bug` enforces the same cycle for bug fixes. |
 | ALWAYS create beads tasks from sprint plan before implementation (if beads available) | Tasks without beads tracking are invisible to cross-session recovery |
 | ALWAYS complete the full implement → review → audit cycle | Partial cycles leave unreviewed code in the codebase |
 | ALWAYS check for existing sprint plan before writing code | Prevents ad-hoc implementation without requirements traceability |
-| ALWAYS validate bug eligibility before `/bug` implementation | Prevents feature work from bypassing PRD/SDD gates via `/bug` |
+| ALWAYS validate bug eligibility before `/bug` implementation | Prevents feature work from bypassing PRD/SDD gates via `/bug`. Must reference observed failure, regression, or stack trace. |
 <!-- @constraint-generated: end process_compliance_always -->
 ### Task Tracking Hierarchy
 
@@ -165,13 +165,16 @@ Iterative improvement loop with kaironic termination. Check `.run/bridge-state.j
 
 | Rule | Why |
 |------|-----|
-<!-- @constraint-generated: start bridge_constraints | hash:bridge-iter3 -->
+<!-- @constraint-generated: start bridge_constraints | hash:b275e2abcc060ceb -->
 <!-- DO NOT EDIT — generated from .claude/data/constraints.json -->
 | ALWAYS use `/run sprint-plan` (not direct `/implement`) within bridge iterations | Bridge iterations must inherit the implement→review→audit cycle with circuit breaker protection |
 | ALWAYS post Bridgebuilder review as PR comment after each bridge iteration | GitHub trail provides auditable history of iterative improvement decisions |
 | ALWAYS ensure Grounded Truth claims cite `file:line` source references | Ungrounded claims in GT files propagate misinformation across sessions and agents |
 | ALWAYS use YAML format for lore entries with `id`, `term`, `short`, `context`, `source`, `tags` fields | Consistent schema enables programmatic lore queries and cross-skill integration |
 | ALWAYS include source bridge iteration and PR in vision entries | Vision entries without provenance cannot be traced back to the context that inspired them |
+| ALWAYS load and validate bridgebuilder-persona.md before enriched review iterations | Persona-less reviews produce convergence-only output without educational depth |
+| SHOULD include PRAISE findings only when warranted by genuinely good engineering decisions | Forced praise dilutes the signal; authentic recognition of quality reinforces good patterns |
+| SHOULD populate educational fields (faang_parallel, metaphor, teachable_moment) only with confident, specific insights | Generic educational content wastes reviewer attention; depth over coverage |
 <!-- @constraint-generated: end bridge_constraints -->
 
 **Reference**: `.claude/loa/reference/run-bridge-reference.md`
@@ -214,7 +217,7 @@ Automated pipeline on merge to main: classify → semver → changelog → GT �
 
 | Rule | Why |
 |------|-----|
-<!-- @constraint-generated: start merge_constraints | hash:c007-post-merge -->
+<!-- @constraint-generated: start merge_constraints | hash:a4e518ce81f64b8d -->
 <!-- DO NOT EDIT — generated from .claude/data/constraints.json -->
 | ALWAYS use `post-merge-orchestrator.sh` for pipeline execution, not ad-hoc commands | Orchestrator provides state tracking, idempotency, and audit trail |
 | NEVER create tags manually — always use semver-bump.sh for version computation | Manual tags bypass conventional commit parsing and may produce incorrect versions |

@@ -203,6 +203,20 @@
     "fix": "Use br create, br update, and br list for sprint tasks. TaskCreate is for session progress display only."
   },
   {
+    "code": "E115",
+    "name": "no_skip_to_implementation",
+    "category": "workflow",
+    "what": "Skipped from sprint plan directly to implementation without /run sprint-plan, /run sprint-N, or /bug triage.",
+    "fix": "Use /run sprint-plan or /run sprint-N to execute sprints with the implement→review→audit cycle."
+  },
+  {
+    "code": "E116",
+    "name": "always_complete_full_cycle",
+    "category": "workflow",
+    "what": "The full implement → review → audit cycle was not completed.",
+    "fix": "Always complete /implement, /review-sprint, and /audit-sprint for each sprint."
+  },
+  {
     "code": "E201",
     "name": "beads_not_installed",
     "category": "beads",
