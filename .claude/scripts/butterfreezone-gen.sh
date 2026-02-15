@@ -715,12 +715,12 @@ extract_agent_context() {
             [[ ! -f "$sm" ]] && continue
             local sc
             sc=$(cat "$sm" 2>/dev/null) || continue
-            echo "$sc" | grep -ciE 'read|codebase|source file' >/dev/null 2>&1 && cap_hits[fs_read]=$(( ${cap_hits[fs_read]:-0} + 1 ))
-            echo "$sc" | grep -ciE 'write|create|generate' >/dev/null 2>&1 && cap_hits[fs_write]=$(( ${cap_hits[fs_write]:-0} + 1 ))
-            echo "$sc" | grep -ciE '\bgit\b|diff|log|branch' >/dev/null 2>&1 && cap_hits[git]=$(( ${cap_hits[git]:-0} + 1 ))
-            echo "$sc" | grep -ciE 'commit|push' >/dev/null 2>&1 && cap_hits[git_write]=$(( ${cap_hits[git_write]:-0} + 1 ))
-            echo "$sc" | grep -ciE '\bPR\b|issue|gh ' >/dev/null 2>&1 && cap_hits[gh_api]=$(( ${cap_hits[gh_api]:-0} + 1 ))
-            echo "$sc" | grep -ciE 'bash|shell|execute|\brun\b' >/dev/null 2>&1 && cap_hits[shell]=$(( ${cap_hits[shell]:-0} + 1 ))
+            grep -qiE 'read|codebase|source file' <<< "$sc" && cap_hits[fs_read]=$(( ${cap_hits[fs_read]:-0} + 1 ))
+            grep -qiE 'write|create|generate' <<< "$sc" && cap_hits[fs_write]=$(( ${cap_hits[fs_write]:-0} + 1 ))
+            grep -qiE '\bgit\b|diff|log|branch' <<< "$sc" && cap_hits[git]=$(( ${cap_hits[git]:-0} + 1 ))
+            grep -qiE 'commit|push' <<< "$sc" && cap_hits[git_write]=$(( ${cap_hits[git_write]:-0} + 1 ))
+            grep -qiE '\bPR\b|issue|gh ' <<< "$sc" && cap_hits[gh_api]=$(( ${cap_hits[gh_api]:-0} + 1 ))
+            grep -qiE 'bash|shell|execute|\brun\b' <<< "$sc" && cap_hits[shell]=$(( ${cap_hits[shell]:-0} + 1 ))
         done <<< "$skill_dirs"
         local cap_entries=""
         (( ${cap_hits[fs_read]:-0} >= 2 )) && cap_entries="${cap_entries}"$'\n'"  - filesystem: read"
@@ -1432,7 +1432,9 @@ extract_verification() {
     test_file_count=$((test_file_count + named_tests))
 
     if (( test_file_count > 0 )); then
-        signals="${signals}- ${test_file_count} test files across ${test_suite_count} suites\n"
+        local suite_label="suite"
+        (( test_suite_count > 1 )) && suite_label="suites"
+        signals="${signals}- ${test_file_count} test files across ${test_suite_count} ${suite_label}\n"
     fi
 
     # CI presence
@@ -1535,7 +1537,7 @@ extract_culture() {
     has_culture=$(yq '.butterfreezone.culture // null' .loa.config.yaml 2>/dev/null) || true
     [[ -z "$has_culture" || "$has_culture" == "null" ]] && return 0
 
-    local naming principles methodology
+    local naming methodology
     naming=$(yq '.butterfreezone.culture.naming_etymology // ""' .loa.config.yaml 2>/dev/null) || true
     methodology=$(yq '.butterfreezone.culture.methodology // ""' .loa.config.yaml 2>/dev/null) || true
 

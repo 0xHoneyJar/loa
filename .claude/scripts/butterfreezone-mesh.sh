@@ -26,8 +26,12 @@ OUTPUT=""
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --output) OUTPUT="$2"; shift 2 ;;
-        --format) FORMAT="$2"; shift 2 ;;
+        --output)
+            [[ $# -lt 2 ]] && { echo "ERROR: --output requires a value" >&2; exit 1; }
+            OUTPUT="$2"; shift 2 ;;
+        --format)
+            [[ $# -lt 2 ]] && { echo "ERROR: --format requires a value" >&2; exit 1; }
+            FORMAT="$2"; shift 2 ;;
         --help|-h)
             sed -n '2,/^$/p' "$0" | sed 's/^# //;s/^#//' | head -20
             exit 0
@@ -35,6 +39,12 @@ while [[ $# -gt 0 ]]; do
         *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac
 done
+
+# Validate format
+if [[ "$FORMAT" != "json" && "$FORMAT" != "markdown" ]]; then
+    echo "ERROR: --format must be 'json' or 'markdown'" >&2
+    exit 1
+fi
 
 # Validate dependencies
 for cmd in gh jq sed awk; do
@@ -57,21 +67,22 @@ if [[ ! -f "$BFZ" ]]; then
     exit 1
 fi
 
-# Parse local AGENT-CONTEXT
+# =============================================================================
+# Helper Functions
+# =============================================================================
+
 parse_agent_context() {
     local file="$1"
     sed -n '/<!-- AGENT-CONTEXT/,/-->/p' "$file" 2>/dev/null | \
         grep -v '^\s*<!--' | grep -v '^\s*-->' | grep -v '^\s*$'
 }
 
-# Extract simple field from AGENT-CONTEXT block
 get_field() {
     local block="$1"
     local field="$2"
     echo "$block" | grep "^${field}:" | sed "s/^${field}: *//" | head -1
 }
 
-# Parse ecosystem entries from AGENT-CONTEXT
 parse_ecosystem() {
     local block="$1"
     local in_eco=false
@@ -83,7 +94,6 @@ parse_ecosystem() {
             continue
         fi
         if [[ "$in_eco" == true ]]; then
-            # Exit on next top-level field
             if [[ "$line" =~ ^[a-z] && ! "$line" =~ ^[[:space:]] ]]; then
                 break
             fi
@@ -94,169 +104,183 @@ parse_ecosystem() {
     echo "$entries"
 }
 
-# Fetch remote BUTTERFREEZONE.md content
+# Fetch remote BUTTERFREEZONE.md content (HIGH-1 fix: check encoding field)
 fetch_remote_bfz() {
     local repo="$1"
-    local content
-    content=$(gh api "repos/${repo}/contents/BUTTERFREEZONE.md" --jq '.content' 2>/dev/null) || true
 
-    if [[ -z "$content" || "$content" == "null" ]]; then
-        echo "" >&2
+    # Validate repo slug format (owner/name)
+    if [[ ! "$repo" =~ ^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$ ]]; then
+        echo "WARN: Invalid repo slug: ${repo}" >&2
+        return 0
+    fi
+
+    local response
+    response=$(gh api "repos/${repo}/contents/BUTTERFREEZONE.md" 2>/dev/null) || {
+        echo "WARN: Failed to fetch from ${repo}" >&2
+        return 0
+    }
+
+    if [[ -z "$response" || "$response" == "null" ]]; then
         echo "WARN: No BUTTERFREEZONE.md found in ${repo}" >&2
         return 0
     fi
 
-    # GitHub API returns base64 content
-    echo "$content" | base64 -d 2>/dev/null || true
+    # Check encoding — GitHub returns 'base64' for files <=1MB, 'none' for larger
+    local encoding
+    encoding=$(echo "$response" | jq -r '.encoding // ""') || true
+    if [[ "$encoding" != "base64" ]]; then
+        echo "WARN: ${repo} BUTTERFREEZONE.md too large or unexpected encoding: ${encoding}" >&2
+        return 0
+    fi
+
+    echo "$response" | jq -r '.content' | base64 -d 2>/dev/null || true
 }
 
-# Build mesh
-local_block=$(parse_agent_context "$BFZ")
-local_name=$(get_field "$local_block" "name")
-local_type=$(get_field "$local_block" "type")
-local_purpose=$(get_field "$local_block" "purpose")
-local_version=$(get_field "$local_block" "version")
-local_interfaces=$(get_field "$local_block" "interfaces")
+# Process a single ecosystem entry: fetch remote BFZ, add node and edge to mesh
+process_ecosystem_entry() {
+    local entry_repo="$1"
+    local entry_role="$2"
+    local entry_iface="$3"
+    local entry_proto="$4"
+    local from_repo="$5"
 
-# Get repo slug from git remote
-local_repo=$(git remote get-url origin 2>/dev/null | sed 's|.*github\.com[:/]||;s|\.git$||') || local_repo="unknown"
+    echo "Fetching: ${entry_repo}..." >&2
+    local remote_content
+    remote_content=$(fetch_remote_bfz "$entry_repo")
 
-eco_entries=$(parse_ecosystem "$local_block")
-
-# Build nodes array starting with local
-nodes_json="[$(jq -n \
-    --arg repo "$local_repo" \
-    --arg name "$local_name" \
-    --arg type "$local_type" \
-    --arg purpose "$local_purpose" \
-    --arg version "$local_version" \
-    --arg interfaces "$local_interfaces" \
-    '{repo: $repo, name: $name, type: $type, purpose: $purpose, version: $version, interfaces: $interfaces}'
-)]"
-
-edges_json="[]"
-
-# Process ecosystem entries
-current_repo="" current_role="" current_iface="" current_proto=""
-while IFS= read -r line; do
-    [[ -z "$line" ]] && continue
-
-    if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*repo:[[:space:]]*(.*) ]]; then
-        # Save previous entry
-        if [[ -n "$current_repo" ]]; then
-            # Fetch remote BUTTERFREEZONE
-            echo "Fetching: ${current_repo}..." >&2
-            remote_content=$(fetch_remote_bfz "$current_repo")
-            remote_name="" remote_type="" remote_purpose="" remote_version="" remote_interfaces=""
-            if [[ -n "$remote_content" ]]; then
-                remote_block=$(echo "$remote_content" | sed -n '/<!-- AGENT-CONTEXT/,/-->/p' | \
-                    grep -v '^\s*<!--' | grep -v '^\s*-->' | grep -v '^\s*$')
-                remote_name=$(echo "$remote_block" | grep "^name:" | sed 's/^name: *//' | head -1)
-                remote_type=$(echo "$remote_block" | grep "^type:" | sed 's/^type: *//' | head -1)
-                remote_purpose=$(echo "$remote_block" | grep "^purpose:" | sed 's/^purpose: *//' | head -1)
-                remote_version=$(echo "$remote_block" | grep "^version:" | sed 's/^version: *//' | head -1)
-                remote_interfaces=$(echo "$remote_block" | grep "^interfaces:" | sed 's/^interfaces: *//' | head -1)
-            fi
-
-            node_json=$(jq -n \
-                --arg repo "$current_repo" \
-                --arg name "${remote_name:-$(basename "$current_repo")}" \
-                --arg type "${remote_type:-unknown}" \
-                --arg purpose "${remote_purpose:-}" \
-                --arg version "${remote_version:-unknown}" \
-                --arg interfaces "${remote_interfaces:-}" \
-                '{repo: $repo, name: $name, type: $type, purpose: $purpose, version: $version, interfaces: $interfaces}')
-            nodes_json=$(echo "$nodes_json" | jq ". + [$node_json]")
-
-            edge_json=$(jq -n \
-                --arg from "$local_repo" \
-                --arg to "$current_repo" \
-                --arg role "$current_role" \
-                --arg interface "$current_iface" \
-                --arg protocol "$current_proto" \
-                '{from: $from, to: $to, role: $role, interface: $interface, protocol: $protocol}')
-            edges_json=$(echo "$edges_json" | jq ". + [$edge_json]")
-        fi
-
-        current_repo="${BASH_REMATCH[1]}"
-        current_role="" current_iface="" current_proto=""
-    elif [[ "$line" =~ ^[[:space:]]*role:[[:space:]]*(.*) ]]; then
-        current_role="${BASH_REMATCH[1]}"
-    elif [[ "$line" =~ ^[[:space:]]*interface:[[:space:]]*(.*) ]]; then
-        current_iface="${BASH_REMATCH[1]}"
-    elif [[ "$line" =~ ^[[:space:]]*protocol:[[:space:]]*(.*) ]]; then
-        current_proto="${BASH_REMATCH[1]}"
-    fi
-done <<< "$eco_entries"
-
-# Process last entry
-if [[ -n "$current_repo" ]]; then
-    echo "Fetching: ${current_repo}..." >&2
-    remote_content=$(fetch_remote_bfz "$current_repo")
-    remote_name="" remote_type="" remote_purpose="" remote_version="" remote_interfaces=""
+    local r_name="" r_type="" r_purpose="" r_version="" r_interfaces=""
     if [[ -n "$remote_content" ]]; then
+        local remote_block
         remote_block=$(echo "$remote_content" | sed -n '/<!-- AGENT-CONTEXT/,/-->/p' | \
             grep -v '^\s*<!--' | grep -v '^\s*-->' | grep -v '^\s*$')
-        remote_name=$(echo "$remote_block" | grep "^name:" | sed 's/^name: *//' | head -1)
-        remote_type=$(echo "$remote_block" | grep "^type:" | sed 's/^type: *//' | head -1)
-        remote_purpose=$(echo "$remote_block" | grep "^purpose:" | sed 's/^purpose: *//' | head -1)
-        remote_version=$(echo "$remote_block" | grep "^version:" | sed 's/^version: *//' | head -1)
-        remote_interfaces=$(echo "$remote_block" | grep "^interfaces:" | sed 's/^interfaces: *//' | head -1)
+        r_name=$(echo "$remote_block" | grep "^name:" | sed 's/^name: *//' | head -1)
+        r_type=$(echo "$remote_block" | grep "^type:" | sed 's/^type: *//' | head -1)
+        r_purpose=$(echo "$remote_block" | grep "^purpose:" | sed 's/^purpose: *//' | head -1)
+        r_version=$(echo "$remote_block" | grep "^version:" | sed 's/^version: *//' | head -1)
+        r_interfaces=$(echo "$remote_block" | grep "^interfaces:" | sed 's/^interfaces: *//' | head -1)
     fi
 
+    local node_json
     node_json=$(jq -n \
-        --arg repo "$current_repo" \
-        --arg name "${remote_name:-$(basename "$current_repo")}" \
-        --arg type "${remote_type:-unknown}" \
-        --arg purpose "${remote_purpose:-}" \
-        --arg version "${remote_version:-unknown}" \
-        --arg interfaces "${remote_interfaces:-}" \
+        --arg repo "$entry_repo" \
+        --arg name "${r_name:-$(basename "$entry_repo")}" \
+        --arg type "${r_type:-unknown}" \
+        --arg purpose "${r_purpose:-}" \
+        --arg version "${r_version:-unknown}" \
+        --arg interfaces "${r_interfaces:-}" \
         '{repo: $repo, name: $name, type: $type, purpose: $purpose, version: $version, interfaces: $interfaces}')
     nodes_json=$(echo "$nodes_json" | jq ". + [$node_json]")
 
+    local edge_json
     edge_json=$(jq -n \
-        --arg from "$local_repo" \
-        --arg to "$current_repo" \
-        --arg role "$current_role" \
-        --arg interface "$current_iface" \
-        --arg protocol "$current_proto" \
+        --arg from "$from_repo" \
+        --arg to "$entry_repo" \
+        --arg role "$entry_role" \
+        --arg interface "$entry_iface" \
+        --arg protocol "$entry_proto" \
         '{from: $from, to: $to, role: $role, interface: $interface, protocol: $protocol}')
     edges_json=$(echo "$edges_json" | jq ". + [$edge_json]")
-fi
+}
 
-generated_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+# =============================================================================
+# Main
+# =============================================================================
 
-if [[ "$FORMAT" == "json" ]]; then
-    mesh=$(jq -n \
-        --arg version "$SCRIPT_VERSION" \
-        --arg generated_at "$generated_at" \
-        --arg root_repo "$local_repo" \
-        --argjson nodes "$nodes_json" \
-        --argjson edges "$edges_json" \
-        '{mesh_version: $version, generated_at: $generated_at, root_repo: $root_repo, nodes: $nodes, edges: $edges}')
+main() {
+    local local_block
+    local_block=$(parse_agent_context "$BFZ")
+    local local_name local_type local_purpose local_version local_interfaces
+    local_name=$(get_field "$local_block" "name")
+    local_type=$(get_field "$local_block" "type")
+    local_purpose=$(get_field "$local_block" "purpose")
+    local_version=$(get_field "$local_block" "version")
+    local_interfaces=$(get_field "$local_block" "interfaces")
 
-    if [[ -n "$OUTPUT" ]]; then
-        echo "$mesh" > "$OUTPUT"
-        echo "Mesh written to: $OUTPUT" >&2
-    else
-        echo "$mesh"
+    # Get repo slug from git remote (sanitize query params)
+    local local_repo
+    local_repo=$(git remote get-url origin 2>/dev/null | sed 's|.*github\.com[:/]||;s|\.git.*||') || local_repo="unknown"
+
+    local eco_entries
+    eco_entries=$(parse_ecosystem "$local_block")
+
+    # Build nodes array starting with local
+    nodes_json="[$(jq -n \
+        --arg repo "$local_repo" \
+        --arg name "$local_name" \
+        --arg type "$local_type" \
+        --arg purpose "$local_purpose" \
+        --arg version "$local_version" \
+        --arg interfaces "$local_interfaces" \
+        '{repo: $repo, name: $name, type: $type, purpose: $purpose, version: $version, interfaces: $interfaces}'
+    )]"
+
+    edges_json="[]"
+
+    # Process ecosystem entries
+    local current_repo="" current_role="" current_iface="" current_proto=""
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+
+        if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*repo:[[:space:]]*(.*) ]]; then
+            # Process previous entry if exists
+            if [[ -n "$current_repo" ]]; then
+                process_ecosystem_entry "$current_repo" "$current_role" "$current_iface" "$current_proto" "$local_repo"
+            fi
+            current_repo="${BASH_REMATCH[1]}"
+            current_role="" current_iface="" current_proto=""
+        elif [[ "$line" =~ ^[[:space:]]*role:[[:space:]]*(.*) ]]; then
+            current_role="${BASH_REMATCH[1]}"
+        elif [[ "$line" =~ ^[[:space:]]*interface:[[:space:]]*(.*) ]]; then
+            current_iface="${BASH_REMATCH[1]}"
+        elif [[ "$line" =~ ^[[:space:]]*protocol:[[:space:]]*(.*) ]]; then
+            current_proto="${BASH_REMATCH[1]}"
+        fi
+    done <<< "$eco_entries"
+
+    # Process last entry
+    if [[ -n "$current_repo" ]]; then
+        process_ecosystem_entry "$current_repo" "$current_role" "$current_iface" "$current_proto" "$local_repo"
     fi
-elif [[ "$FORMAT" == "markdown" ]]; then
-    md="# BUTTERFREEZONE Mesh — ${local_name}\n\n"
-    md="${md}Generated: ${generated_at}\n\n"
-    md="${md}## Nodes\n\n"
-    md="${md}| Repo | Name | Type | Version | Purpose |\n"
-    md="${md}|------|------|------|---------|--------|\n"
-    md="${md}$(echo "$nodes_json" | jq -r '.[] | "| \(.repo) | \(.name) | \(.type) | \(.version) | \(.purpose[:80]) |"')\n\n"
-    md="${md}## Edges\n\n"
-    md="${md}| From | To | Role | Interface | Protocol |\n"
-    md="${md}|------|-----|------|-----------|----------|\n"
-    md="${md}$(echo "$edges_json" | jq -r '.[] | "| \(.from) | \(.to) | \(.role) | \(.interface) | \(.protocol) |"')\n"
 
-    if [[ -n "$OUTPUT" ]]; then
-        printf '%b' "$md" > "$OUTPUT"
-        echo "Mesh written to: $OUTPUT" >&2
-    else
-        printf '%b' "$md"
+    local generated_at
+    generated_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    if [[ "$FORMAT" == "json" ]]; then
+        local mesh
+        mesh=$(jq -n \
+            --arg version "$SCRIPT_VERSION" \
+            --arg generated_at "$generated_at" \
+            --arg root_repo "$local_repo" \
+            --argjson nodes "$nodes_json" \
+            --argjson edges "$edges_json" \
+            '{mesh_version: $version, generated_at: $generated_at, root_repo: $root_repo, nodes: $nodes, edges: $edges}')
+
+        if [[ -n "$OUTPUT" ]]; then
+            echo "$mesh" > "$OUTPUT"
+            echo "Mesh written to: $OUTPUT" >&2
+        else
+            echo "$mesh"
+        fi
+    elif [[ "$FORMAT" == "markdown" ]]; then
+        local md
+        md="# BUTTERFREEZONE Mesh — ${local_name}\n\n"
+        md="${md}Generated: ${generated_at}\n\n"
+        md="${md}## Nodes\n\n"
+        md="${md}| Repo | Name | Type | Version | Purpose |\n"
+        md="${md}|------|------|------|---------|--------|\n"
+        md="${md}$(echo "$nodes_json" | jq -r '.[] | "| \(.repo) | \(.name) | \(.type) | \(.version) | \(.purpose[:80] | gsub("\\|"; "\\\\|")) |"')\n\n"
+        md="${md}## Edges\n\n"
+        md="${md}| From | To | Role | Interface | Protocol |\n"
+        md="${md}|------|-----|------|-----------|----------|\n"
+        md="${md}$(echo "$edges_json" | jq -r '.[] | "| \(.from) | \(.to) | \(.role) | \(.interface) | \(.protocol) |"')\n"
+
+        if [[ -n "$OUTPUT" ]]; then
+            printf '%b' "$md" > "$OUTPUT"
+            echo "Mesh written to: $OUTPUT" >&2
+        else
+            printf '%b' "$md"
+        fi
     fi
-fi
+}
+
+main

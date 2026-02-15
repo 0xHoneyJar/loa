@@ -152,7 +152,7 @@ Directory structure:
 
 ## Verification
 <!-- provenance: CODE-FACTUAL -->
-- 142 test files across 1 suites
+- 142 test files across 1 suite
 - CI/CD: GitHub Actions (10 workflows)
 - Security: SECURITY.md present
 
@@ -194,8 +194,8 @@ claude
 
 After install, you should see a `.claude/` directory, `grimoires/loa/`, and `.loa.config.yaml` in your repo. Run `/loa doctor` inside Claude Code to verify everything is healthy.
 <!-- ground-truth-meta
-head_sha: 51c7b4ad1481f7ddfbe778681e1f41f86b2c81f0
-generated_at: 2026-02-15T07:40:46Z
+head_sha: 0116513c393ddf8d3eba7845d952f66168882e75
+generated_at: 2026-02-15T07:48:52Z
 generator: butterfreezone-gen v1.0.0
 sections:
   agent_context: af8500fa2a5721748f12c7d393435d8c2bc8796e71fae4a05381e80cd776355d
@@ -203,7 +203,7 @@ sections:
   architecture: 116f3296a49700fbee5e9cb0492e4f9aee0f9452b5c051a942ee4429278ab8d3
   interfaces: c0d2732b6ab7745352bd781f56f44f32b2f8f2cacef7234ceed3e8f09796c0f4
   module_map: 5a2ebd1d122c8d77e7954104a525e065e1fa0898c29eec4f256e29fc1a57defe
-  verification: 0d45b7f3a0dc01a989f3050065f59a2edfde1f8d499b96521ca98708a798ebe2
+  verification: c6b80f663abb09ea954a8c4fefc3564edc5b9e4cf49968f5cd335de22eebd0f4
   agents: ca263d1e05fd123434a21ef574fc8d76b559d22060719640a1f060527ef6a0b6
   culture: 7ba7f74fdcaa87b6c37eabeeea3f37ce2c89b034cad4a5cae1d44bdef5de68ce
   quick_start: 3c38dc53bf2ec73cbbb5c372af747ffa7894538d360b1182566647c2940c58c7
