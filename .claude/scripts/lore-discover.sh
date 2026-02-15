@@ -126,12 +126,14 @@ extract_praise_patterns() {
                 continue
             fi
 
-            local entry_id
+            local entry_id safe_title
             entry_id=$(slugify "$title")
+            # Escape double quotes in title to prevent YAML corruption
+            safe_title=$(echo "$title" | sed 's/"/\\"/g' | head -c 60)
 
             echo "  - id: $entry_id"
-            echo "    term: \"$(echo "$title" | head -c 60)\""
-            echo "    short: \"Validated practice: $title\""
+            echo "    term: \"$safe_title\""
+            echo "    short: \"Validated practice: $safe_title\""
             echo "    context: |"
             echo "      Discovered as a PRAISE finding during bridge review."
             echo "      Source bridge: $bridge_id_from_file"
@@ -277,6 +279,60 @@ ${line}"
 }
 
 # ─────────────────────────────────────────────────────────
+# Append with Deduplication (default write mode)
+# ─────────────────────────────────────────────────────────
+
+# Append new lore entries to the output file, skipping duplicates by ID.
+# Args: $1 = full generated output, $2 = candidate count from generation
+append_with_dedup() {
+    local output="$1"
+    local candidate_count="$2"
+
+    mkdir -p "$(dirname "$OUTPUT_FILE")"
+
+    if [[ ! -f "$OUTPUT_FILE" ]] || [[ ! -s "$OUTPUT_FILE" ]]; then
+        # No existing file — write fresh
+        echo "$output" > "$OUTPUT_FILE"
+        echo "$candidate_count new, 0 duplicates skipped, $candidate_count total"
+        return
+    fi
+
+    # Extract existing entry IDs and count
+    local existing_ids existing_count
+    existing_ids=$(get_existing_ids)
+    existing_count=$(echo "$existing_ids" | grep -c . 2>/dev/null || echo "0")
+
+    # Extract just the entries portion from new output
+    local new_entries
+    new_entries=$(echo "$output" | sed -n '/^entries:/,$ p' | tail -n +2)
+
+    if [[ -z "$new_entries" ]]; then
+        echo "0 new, 0 duplicates skipped, $existing_count total"
+        return
+    fi
+
+    # Run dedup and capture both output and stats
+    local deduped_entries dedup_stderr stats
+    dedup_stderr=$(mktemp)
+    deduped_entries=$(echo "$new_entries" | dedup_entries "$existing_ids" 2>"$dedup_stderr")
+    stats=$(cat "$dedup_stderr")
+    rm -f "$dedup_stderr"
+
+    local new_count dup_count
+    new_count=$(echo "$stats" | grep -oP 'NEW:\K[0-9]+' || echo "0")
+    dup_count=$(echo "$stats" | grep -oP 'DUP:\K[0-9]+' || echo "0")
+
+    if [[ "$new_count" -gt 0 && -n "$deduped_entries" ]]; then
+        # Append new entries to existing file
+        echo "" >> "$OUTPUT_FILE"
+        echo "$deduped_entries" >> "$OUTPUT_FILE"
+    fi
+
+    local total_count=$((existing_count + new_count))
+    echo "$new_count new, $dup_count duplicates skipped, $total_count total"
+}
+
+# ─────────────────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────────────────
 
@@ -305,45 +361,5 @@ elif [[ "$OVERWRITE" == "true" ]]; then
     echo "Wrote $candidate_count lore candidates to $OUTPUT_FILE (overwrite mode)"
 else
     # Append-with-dedup (default): preserve existing entries, add only new ones
-    mkdir -p "$(dirname "$OUTPUT_FILE")"
-
-    if [[ ! -f "$OUTPUT_FILE" ]] || [[ ! -s "$OUTPUT_FILE" ]]; then
-        # No existing file — write fresh
-        echo "$output" > "$OUTPUT_FILE"
-        echo "$candidate_count new, 0 duplicates skipped, $candidate_count total"
-    else
-        # Extract only the new entry lines (skip header/comments from generated output)
-        local existing_ids new_entries dedup_stats
-        existing_ids=$(get_existing_ids)
-        local existing_count
-        existing_count=$(echo "$existing_ids" | grep -c . 2>/dev/null || echo "0")
-
-        # Extract just the entries portion from new output (lines starting with "  - id:" and their continuations)
-        new_entries=$(echo "$output" | sed -n '/^entries:/,$ p' | tail -n +2)
-
-        if [[ -z "$new_entries" ]]; then
-            echo "0 new, 0 duplicates skipped, $existing_count total"
-        else
-            # Run dedup and capture both output and stats
-            local deduped_entries dedup_stderr
-            dedup_stderr=$(mktemp)
-            deduped_entries=$(echo "$new_entries" | dedup_entries "$existing_ids" 2>"$dedup_stderr")
-            local stats
-            stats=$(cat "$dedup_stderr")
-            rm -f "$dedup_stderr"
-
-            local new_count dup_count
-            new_count=$(echo "$stats" | grep -oP 'NEW:\K[0-9]+' || echo "0")
-            dup_count=$(echo "$stats" | grep -oP 'DUP:\K[0-9]+' || echo "0")
-
-            if [[ "$new_count" -gt 0 && -n "$deduped_entries" ]]; then
-                # Append new entries to existing file (before any trailing comments)
-                echo "" >> "$OUTPUT_FILE"
-                echo "$deduped_entries" >> "$OUTPUT_FILE"
-            fi
-
-            local total_count=$((existing_count + new_count))
-            echo "$new_count new, $dup_count duplicates skipped, $total_count total"
-        fi
-    fi
+    append_with_dedup "$output" "$candidate_count"
 fi

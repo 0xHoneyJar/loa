@@ -115,10 +115,11 @@ extract_visions() {
     local titles
     titles=$(grep "^| vision-" "$VISIONS_INDEX" 2>/dev/null | sed 's/^| [^ ]* | \([^|]*\) |.*/\1/' | sed 's/^ *//;s/ *$//' | head -5)
 
-    # Get modification time of the index as freshness proxy
+    # Get modification time of the index as freshness proxy (always ISO format)
     local visions_mtime=""
     if [[ -f "$VISIONS_INDEX" ]]; then
-        visions_mtime=$(date -r "$VISIONS_INDEX" -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || stat -c %Y "$VISIONS_INDEX" 2>/dev/null || true)
+        visions_mtime=$(date -r "$VISIONS_INDEX" -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
+            date -u -d @"$(stat -c %Y "$VISIONS_INDEX" 2>/dev/null)" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)
     fi
 
     jq -n \

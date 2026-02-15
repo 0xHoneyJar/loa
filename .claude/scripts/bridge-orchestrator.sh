@@ -249,7 +249,8 @@ handle_resume() {
         jq '.finalization.vision_sprint_skipped = "resumed"' "$BRIDGE_STATE_FILE" > "$BRIDGE_STATE_FILE.tmp"
         mv "$BRIDGE_STATE_FILE.tmp" "$BRIDGE_STATE_FILE"
       fi
-      # Return max depth to skip the iteration loop entirely
+      # Return DEPTH so the caller computes iteration = DEPTH+1, which exceeds
+      # the while loop condition (iteration <= DEPTH), skipping directly to finalization.
       echo "$DEPTH"
       ;;
     *)
@@ -414,19 +415,31 @@ bridge_main() {
     # It reads the vision registry, generates architectural proposals,
     # and saves them to .run/bridge-reviews/{bridge_id}-vision-sprint.md.
     #
-    # Defense-in-depth: wrap the entire vision sprint phase in a hard timeout
-    # at the orchestrator level. The skill layer handles its own graceful timeout
-    # within this outer boundary. On timeout, SIGTERM allows cleanup.
+    # Defense-in-depth: wrap the vision sprint phase in a hard timeout.
+    # The skill layer reads SIGNAL lines and performs the actual work. We emit the
+    # signals, then block on a sentinel file that the skill layer writes on completion.
+    # The timeout wraps the WAIT, not the echo — this is what actually enforces the bound.
     echo "[VISION SPRINT] Reviewing captured visions (hard timeout: ${vision_timeout}m)..."
 
+    local vision_sentinel="${PROJECT_ROOT}/.run/vision-sprint-done"
+    rm -f "$vision_sentinel"
+
+    # Emit signals for the skill layer to act on
+    echo "SIGNAL:VISION_SPRINT"
+    echo "SIGNAL:VISION_SPRINT_TIMEOUT:${vision_timeout}"
+
+    # Block until the skill layer writes the sentinel, bounded by hard timeout.
+    # The skill layer must: touch .run/vision-sprint-done when it finishes.
+    # If the skill layer doesn't write the sentinel (crash, etc.), timeout fires.
     local vision_timed_out=false
     if ! timeout --signal=TERM "$((vision_timeout * 60))" bash -c '
-      echo "SIGNAL:VISION_SPRINT"
-      echo "SIGNAL:VISION_SPRINT_TIMEOUT:'"${vision_timeout}"'"
+      sentinel="'"$vision_sentinel"'"
+      while [[ ! -f "$sentinel" ]]; do sleep 2; done
     '; then
       echo "WARNING: Vision sprint timed out after ${vision_timeout}m — proceeding to finalization"
       vision_timed_out=true
     fi
+    rm -f "$vision_sentinel"
 
     # Record in bridge state
     if command -v jq &>/dev/null && [[ -f "$BRIDGE_STATE_FILE" ]]; then
