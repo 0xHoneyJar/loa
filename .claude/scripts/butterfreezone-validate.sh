@@ -644,6 +644,62 @@ validate_ecosystem_live() {
     fi
 }
 
+# Protocol version staleness advisory (sprint-113, Task 8.2)
+# Compares declared protocol versions against published npm package versions.
+# Advisory only — WARN on mismatch, graceful skip when offline.
+validate_protocol_version() {
+    [[ "$LIVE_CHECK" != "true" ]] && return 0
+
+    local config=".loa.config.yaml"
+    [[ ! -f "$config" ]] && return 0
+    ! command -v yq &>/dev/null && return 0
+
+    local eco_count
+    eco_count=$(yq '.butterfreezone.ecosystem | length' "$config" 2>/dev/null) || eco_count=0
+    [[ "$eco_count" -eq 0 ]] && return 0
+
+    local i=0 checked=0 stale=0
+    while [[ $i -lt $eco_count ]]; do
+        local protocol
+        protocol=$(yq ".butterfreezone.ecosystem[$i].protocol // \"\"" "$config" 2>/dev/null) || protocol=""
+        i=$((i + 1))
+        [[ -z "$protocol" ]] && continue
+
+        # Parse protocol: "pkg-name@version" → package name and declared version
+        local pkg_name declared_version
+        pkg_name=$(echo "$protocol" | sed 's/@[^@]*$//')
+        declared_version=$(echo "$protocol" | grep -o '@[^@]*$' | sed 's/@//')
+        [[ -z "$pkg_name" || -z "$declared_version" ]] && continue
+
+        # Try npm view first (most reliable for npm packages)
+        local live_version=""
+        if command -v npm &>/dev/null; then
+            live_version=$(npm view "@0xhoneyjar/${pkg_name}" version 2>/dev/null) || live_version=""
+        fi
+
+        # Fallback: check GitHub releases via gh api
+        if [[ -z "$live_version" ]] && command -v gh &>/dev/null; then
+            live_version=$(gh api "repos/0xHoneyJar/${pkg_name}/releases/latest" --jq '.tag_name' 2>/dev/null | sed 's/^v//') || live_version=""
+        fi
+
+        # No live version available — skip gracefully
+        [[ -z "$live_version" ]] && continue
+
+        checked=$((checked + 1))
+        if [[ "$declared_version" != "$live_version" ]]; then
+            stale=$((stale + 1))
+            # Always advisory — WARN not FAIL, even in strict mode
+            WARNINGS=$((WARNINGS + 1))
+            CHECKS+=("$(jq -nc --arg name "proto_version" --arg status "warn" --arg detail "stale:${pkg_name}@${declared_version}->$live_version" '{name: $name, status: $status, detail: $detail}')")
+            [[ "$QUIET" != "true" ]] && echo "  WARN: Protocol version drift: ${pkg_name}@${declared_version} declared, ${live_version} published"
+        fi
+    done
+
+    if [[ "$checked" -gt 0 && "$stale" -eq 0 ]]; then
+        log_pass "proto_version" "All $checked protocol versions match published ($eco_count ecosystem entries)"
+    fi
+}
+
 # =============================================================================
 # Main
 # =============================================================================
@@ -672,6 +728,7 @@ main() {
         validate_ecosystem || true
         validate_ecosystem_staleness || true
         validate_ecosystem_live || true
+        validate_protocol_version || true
         validate_capability_requirements || true
         validate_verification_section || true
         validate_meta || true

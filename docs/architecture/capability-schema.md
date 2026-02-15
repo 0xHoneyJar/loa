@@ -4,6 +4,15 @@
 > **Consumed by**: loa-finn (pool routing), arrakis (billing), loa-hounfour (trust classification)
 > **Related**: [RFC #31 §5.2](https://github.com/0xHoneyJar/loa-finn/issues/31), [arrakis #62](https://github.com/0xHoneyJar/arrakis/issues/62), [loa-hounfour PR #2](https://github.com/0xHoneyJar/loa-hounfour/pull/2), [loa #43](https://github.com/0xHoneyJar/loa/issues/43)
 
+## Agent-API Interface Standard
+
+BUTTERFREEZONE.md is the canonical agent-facing project interface for any Loa-managed codebase. It is the standard that addresses two long-standing needs:
+
+- **Cross-repo agent legibility** ([#43](https://github.com/0xHoneyJar/loa/issues/43)): Agents traversing multi-repo ecosystems need a consistent interface to discover capabilities, trust levels, and relationships without reading entire codebases.
+- **Human + agent readability** ([#316](https://github.com/0xHoneyJar/loa/issues/316)): The interface must be useful at a glance to both humans and agents — not just a list, but a structured narrative with provenance tags, architecture diagrams, and verification signals.
+
+Every repository in the ecosystem SHOULD publish `BUTTERFREEZONE.md` at its root. The `AGENT-CONTEXT` YAML block is the structured data contract; the Markdown body provides human-readable context. The `butterfreezone-mesh.sh` script enables cross-repo capability discovery by fetching and aggregating AGENT-CONTEXT blocks across the ecosystem graph.
+
 ## Overview
 
 This document defines the formal schema for BUTTERFREEZONE `capability_requirements` and `trust_level` fields. It serves as the interface contract between Loa (which generates BUTTERFREEZONE.md files) and downstream consumers that route, gate, and bill based on declared capabilities.

@@ -463,6 +463,27 @@ butterfreezone:
   manual_sections:
     sentinel_start: "<!-- manual-start -->"
     sentinel_end: "<!-- manual-end -->"
+  # Capability overrides — manual adjustments to inferred capabilities (v1.40.0)
+  # The generator infers capabilities from SKILL.md keyword analysis. These
+  # overrides let you suppress false positives or add capabilities the
+  # inference engine cannot detect.
+  capability_overrides:
+    # Suppress: list of strings to remove from inferred capabilities.
+    # Uses grep -Fv (fixed-string, case-sensitive, substring match).
+    # A value of "ci" removes ANY capability line containing "ci"
+    # (e.g., "ci-deploy" but also "specificity-analysis").
+    # Values are NOT regexes — special characters are treated literally.
+    suppress: []
+    # Examples:
+    #   suppress:
+    #     - "network: read"           # Remove inferred network read capability
+    #     - "model: invoke"           # Remove inferred model invocation
+    #
+    # Add: list of capability strings to force-include.
+    # add: []
+    # Examples:
+    #   add:
+    #     - "filesystem: write (scope: app)"
   security:
     redaction_enabled: true             # Gitleaks-pattern secret redaction
 
