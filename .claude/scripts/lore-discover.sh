@@ -38,6 +38,7 @@ OUTPUT_FILE="${DISCOVERED_DIR}/patterns.yaml"
 
 DRY_RUN=false
 BRIDGE_ID=""
+OVERWRITE=false
 
 # ─────────────────────────────────────────────────────────
 # Argument Parsing
@@ -48,11 +49,13 @@ while [[ $# -gt 0 ]]; do
         --dry-run) DRY_RUN=true; shift ;;
         --bridge-id) BRIDGE_ID="$2"; shift 2 ;;
         --output) OUTPUT_FILE="$2"; shift 2 ;;
+        --overwrite) OVERWRITE=true; shift ;;
         -h|--help)
-            echo "Usage: lore-discover.sh [--dry-run] [--bridge-id ID] [--output FILE]"
+            echo "Usage: lore-discover.sh [--dry-run] [--bridge-id ID] [--output FILE] [--overwrite]"
             echo "  --dry-run       Show candidates without writing"
             echo "  --bridge-id ID  Extract from specific bridge only"
             echo "  --output FILE   Write to specific file"
+            echo "  --overwrite     Overwrite output file instead of appending (destructive)"
             exit 0
             ;;
         *) echo "Unknown argument: $1" >&2; exit 1 ;;
@@ -136,7 +139,9 @@ extract_praise_patterns() {
     done <<< "$findings_files"
 }
 
-# Extract recurring patterns from full review prose
+# EXPERIMENTAL: keyword-based extraction from review prose. Expect noise in results.
+# This heuristic approach matches on architectural keywords and counts occurrences.
+# Future: ML-based or LLM-assisted extraction for higher signal-to-noise ratio.
 extract_prose_patterns() {
     local review_files
 
@@ -191,6 +196,83 @@ generate_output() {
 }
 
 # ─────────────────────────────────────────────────────────
+# Deduplication
+# ─────────────────────────────────────────────────────────
+
+# Extract existing entry IDs from the output file.
+# Returns one ID per line.
+get_existing_ids() {
+    if [[ ! -f "$OUTPUT_FILE" ]]; then
+        return
+    fi
+    grep '^ *- id:' "$OUTPUT_FILE" 2>/dev/null | sed 's/.*id: *//' | sed 's/ *$//'
+}
+
+# Filter new entries, removing any whose IDs already exist.
+# Reads new YAML entries from stdin, outputs only non-duplicate entries.
+dedup_entries() {
+    local existing_ids="$1"
+    local new_count=0
+    local dup_count=0
+    local in_entry=false
+    local current_entry=""
+    local current_id=""
+
+    while IFS= read -r line; do
+        # Detect entry start
+        if echo "$line" | grep -q '^ *- id:'; then
+            # Flush previous entry if it was non-duplicate
+            if [[ -n "$current_entry" && -n "$current_id" ]]; then
+                if echo "$existing_ids" | grep -qxF "$current_id"; then
+                    dup_count=$((dup_count + 1))
+                else
+                    echo "$current_entry"
+                    new_count=$((new_count + 1))
+                fi
+            fi
+            current_id=$(echo "$line" | sed 's/.*id: *//' | sed 's/ *$//')
+            current_entry="$line"
+            in_entry=true
+        elif [[ "$in_entry" == "true" ]]; then
+            # Lines belonging to current entry (indented or blank)
+            if echo "$line" | grep -qE '^  [a-z]|^    |^$'; then
+                current_entry="${current_entry}
+${line}"
+            else
+                # Non-entry line (comment etc) — flush current entry
+                if [[ -n "$current_entry" && -n "$current_id" ]]; then
+                    if echo "$existing_ids" | grep -qxF "$current_id"; then
+                        dup_count=$((dup_count + 1))
+                    else
+                        echo "$current_entry"
+                        new_count=$((new_count + 1))
+                    fi
+                fi
+                current_entry=""
+                current_id=""
+                in_entry=false
+                echo "$line"
+            fi
+        else
+            echo "$line"
+        fi
+    done
+
+    # Flush last entry
+    if [[ -n "$current_entry" && -n "$current_id" ]]; then
+        if echo "$existing_ids" | grep -qxF "$current_id"; then
+            dup_count=$((dup_count + 1))
+        else
+            echo "$current_entry"
+            new_count=$((new_count + 1))
+        fi
+    fi
+
+    # Output counts on stderr for the caller to parse
+    echo "NEW:$new_count DUP:$dup_count" >&2
+}
+
+# ─────────────────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────────────────
 
@@ -212,8 +294,52 @@ if [[ "$DRY_RUN" == "true" ]]; then
     echo "$output"
     echo ""
     echo "=== End dry-run (no files written) ==="
-else
+elif [[ "$OVERWRITE" == "true" ]]; then
+    # Legacy destructive write (explicit opt-in only)
     mkdir -p "$(dirname "$OUTPUT_FILE")"
     echo "$output" > "$OUTPUT_FILE"
-    echo "Wrote $candidate_count lore candidates to $OUTPUT_FILE"
+    echo "Wrote $candidate_count lore candidates to $OUTPUT_FILE (overwrite mode)"
+else
+    # Append-with-dedup (default): preserve existing entries, add only new ones
+    mkdir -p "$(dirname "$OUTPUT_FILE")"
+
+    if [[ ! -f "$OUTPUT_FILE" ]] || [[ ! -s "$OUTPUT_FILE" ]]; then
+        # No existing file — write fresh
+        echo "$output" > "$OUTPUT_FILE"
+        echo "$candidate_count new, 0 duplicates skipped, $candidate_count total"
+    else
+        # Extract only the new entry lines (skip header/comments from generated output)
+        local existing_ids new_entries dedup_stats
+        existing_ids=$(get_existing_ids)
+        local existing_count
+        existing_count=$(echo "$existing_ids" | grep -c . 2>/dev/null || echo "0")
+
+        # Extract just the entries portion from new output (lines starting with "  - id:" and their continuations)
+        new_entries=$(echo "$output" | sed -n '/^entries:/,$ p' | tail -n +2)
+
+        if [[ -z "$new_entries" ]]; then
+            echo "0 new, 0 duplicates skipped, $existing_count total"
+        else
+            # Run dedup and capture both output and stats
+            local deduped_entries dedup_stderr
+            dedup_stderr=$(mktemp)
+            deduped_entries=$(echo "$new_entries" | dedup_entries "$existing_ids" 2>"$dedup_stderr")
+            local stats
+            stats=$(cat "$dedup_stderr")
+            rm -f "$dedup_stderr"
+
+            local new_count dup_count
+            new_count=$(echo "$stats" | grep -oP 'NEW:\K[0-9]+' || echo "0")
+            dup_count=$(echo "$stats" | grep -oP 'DUP:\K[0-9]+' || echo "0")
+
+            if [[ "$new_count" -gt 0 && -n "$deduped_entries" ]]; then
+                # Append new entries to existing file (before any trailing comments)
+                echo "" >> "$OUTPUT_FILE"
+                echo "$deduped_entries" >> "$OUTPUT_FILE"
+            fi
+
+            local total_count=$((existing_count + new_count))
+            echo "$new_count new, $dup_count duplicates skipped, $total_count total"
+        fi
+    fi
 fi

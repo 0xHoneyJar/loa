@@ -34,12 +34,21 @@ fi
 match_count=0
 matched_files=()
 
+# Use -path when glob contains '/' (directory-qualified), -name otherwise.
+# find -name only matches the basename, so ".claude/scripts/foo.sh" would never match.
+find_flag="-name"
+find_glob="$glob"
+if [[ "$glob" == */* ]]; then
+  find_flag="-path"
+  find_glob="*/${glob}"
+fi
+
 while IFS= read -r -d '' file; do
   if grep -qlE "$pattern" "$file" 2>/dev/null; then
     match_count=$((match_count + 1))
     matched_files+=("$(basename "$file")")
   fi
-done < <(find "$workspace" -name "$glob" -type f -print0 2>/dev/null)
+done < <(find "$workspace" $find_flag "$find_glob" -type f -print0 2>/dev/null)
 
 if [[ $match_count -gt 0 ]]; then
   files_list="$(printf '%s, ' "${matched_files[@]}")"

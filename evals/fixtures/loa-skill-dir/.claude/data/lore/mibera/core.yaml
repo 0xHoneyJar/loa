@@ -1,0 +1,27 @@
+entries:
+  - id: hounfour
+    term: "Hounfour"
+    short: "The temple where spirits are summoned — the model invocation pipeline"
+    context: |
+      Named after the Haitian Vodou temple. In Loa, the Hounfour is the abstraction
+      layer that manages model invocation, routing, and orchestration.
+    source: "Loa framework core"
+    tags: [mibera, architecture]
+
+  - id: loa
+    term: "Loa"
+    short: "Intermediary spirits — the agent framework itself"
+    context: |
+      In Vodou tradition, Loa are intermediary spirits between humanity and the divine.
+      The framework serves as intermediary between human intent and machine execution.
+    source: "Loa framework core"
+    tags: [mibera, naming]
+
+  - id: grimoire
+    term: "Grimoire"
+    short: "Book of spells — the project knowledge directory"
+    context: |
+      A grimoire is a textbook of magic. In Loa, grimoires/ stores project knowledge,
+      sprint plans, PRDs, SDDs, and other artifacts that guide agent behavior.
+    source: "Loa framework core"
+    tags: [mibera, naming]

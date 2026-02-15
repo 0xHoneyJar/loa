@@ -397,18 +397,32 @@ bridge_main() {
     echo "═══════════════════════════════════════════════════"
 
     update_bridge_state "EXPLORING"
-    echo "SIGNAL:VISION_SPRINT"
 
     # The vision sprint signal is handled by the skill layer (run-bridge).
     # It reads the vision registry, generates architectural proposals,
     # and saves them to .run/bridge-reviews/{bridge_id}-vision-sprint.md.
-    # Time-bounded by the configured timeout.
-    echo "[VISION SPRINT] Reviewing captured visions (timeout: ${vision_timeout}m)..."
-    echo "SIGNAL:VISION_SPRINT_TIMEOUT:${vision_timeout}"
+    #
+    # Defense-in-depth: wrap the entire vision sprint phase in a hard timeout
+    # at the orchestrator level. The skill layer handles its own graceful timeout
+    # within this outer boundary. On timeout, SIGTERM allows cleanup.
+    echo "[VISION SPRINT] Reviewing captured visions (hard timeout: ${vision_timeout}m)..."
+
+    local vision_timed_out=false
+    if ! timeout --signal=TERM "$((vision_timeout * 60))" bash -c '
+      echo "SIGNAL:VISION_SPRINT"
+      echo "SIGNAL:VISION_SPRINT_TIMEOUT:'"${vision_timeout}"'"
+    '; then
+      echo "WARNING: Vision sprint timed out after ${vision_timeout}m — proceeding to finalization"
+      vision_timed_out=true
+    fi
 
     # Record in bridge state
     if command -v jq &>/dev/null && [[ -f "$BRIDGE_STATE_FILE" ]]; then
-      jq '.finalization.vision_sprint = true' "$BRIDGE_STATE_FILE" > "$BRIDGE_STATE_FILE.tmp"
+      if [[ "$vision_timed_out" == "true" ]]; then
+        jq '.finalization.vision_sprint = true | .finalization.vision_sprint_timeout = true' "$BRIDGE_STATE_FILE" > "$BRIDGE_STATE_FILE.tmp"
+      else
+        jq '.finalization.vision_sprint = true | .finalization.vision_sprint_timeout = false' "$BRIDGE_STATE_FILE" > "$BRIDGE_STATE_FILE.tmp"
+      fi
       mv "$BRIDGE_STATE_FILE.tmp" "$BRIDGE_STATE_FILE"
     fi
   fi
