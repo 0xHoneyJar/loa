@@ -614,7 +614,7 @@ validate_ecosystem_live() {
     [[ -z "$eco_repos" ]] && return 0
 
     local total=0 found=0 missing=0 no_bfz=0
-    while IFS= read -r repo; do
+    while IFS= read -r repo <&3; do
         [[ -z "$repo" ]] && continue
         total=$((total + 1))
 
@@ -637,7 +637,7 @@ validate_ecosystem_live() {
         fi
 
         found=$((found + 1))
-    done <<< "$eco_repos"
+    done 3<<< "$eco_repos"
 
     if [[ "$missing" -eq 0 && "$no_bfz" -eq 0 && "$total" -gt 0 ]]; then
         log_pass "eco_live" "All $total ecosystem repos verified with BUTTERFREEZONE.md"

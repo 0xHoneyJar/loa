@@ -183,13 +183,14 @@ fetch_remote_bfz_cached() {
     local content
     content=$(fetch_remote_bfz "$repo")
 
-    # Cache result
+    # Cache result (atomic write-then-rename to prevent concurrent corruption)
     if [[ -n "$content" ]]; then
+        local tmp_file="${cache_file}.$$"
         jq -n \
             --arg content "$content" \
             --argjson fetched_at "$(date +%s)" \
             '{fetched_at: $fetched_at, content: $content}' \
-            > "$cache_file" 2>/dev/null || true
+            > "$tmp_file" 2>/dev/null && mv "$tmp_file" "$cache_file" || rm -f "$tmp_file"
     fi
 
     echo "$content"

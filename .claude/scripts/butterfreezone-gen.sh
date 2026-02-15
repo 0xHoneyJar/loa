@@ -601,15 +601,15 @@ compute_trust_level_tag() {
     [[ -f ".gitlab-ci.yml" ]] && has_ci="true"
     [[ -f "Jenkinsfile" ]] && has_ci="true"
 
-    # Property-based test detection
-    for dep_file in package.json requirements.txt Cargo.toml; do
+    # Property-based test detection (check all 5 dep files)
+    for dep_file in package.json requirements.txt Cargo.toml go.mod pyproject.toml; do
         if [[ -f "$dep_file" ]] && grep -qiE 'fast-check|hypothesis|proptest|quickcheck|jqwik' "$dep_file" 2>/dev/null; then
             has_property="true"; break
         fi
     done
 
-    # Formal verification detection
-    for dep_file in package.json requirements.txt Cargo.toml; do
+    # Formal verification detection — strictly formal proofs, NOT property tests
+    for dep_file in package.json requirements.txt Cargo.toml go.mod pyproject.toml; do
         if [[ -f "$dep_file" ]] && grep -qiE 'safety_properties|liveness_properties|temporal_logic|model_check|formal_verification' "$dep_file" 2>/dev/null; then
             has_formal="true"; break
         fi
@@ -833,7 +833,7 @@ extract_agent_context() {
             for ((si=0; si<suppress_count; si++)); do
                 local sup
                 sup=$(yq ".butterfreezone.capability_overrides.suppress[$si]" "$CONFIG_FILE" 2>/dev/null) || continue
-                [[ -n "$sup" && "$sup" != "null" ]] && cap_entries=$(echo "$cap_entries" | grep -v "$sup" 2>/dev/null) || true
+                [[ -n "$sup" && "$sup" != "null" ]] && cap_entries=$(echo "$cap_entries" | grep -Fv "$sup" 2>/dev/null) || true
             done
 
             local add_count
@@ -1601,12 +1601,12 @@ extract_verification() {
         [[ -n "$prop_files" ]] && has_property_tests="true"
     fi
 
-    # Formal verification detection (L4)
+    # Formal verification detection (L4) — strictly formal proofs, NOT property tests
     local has_formal="false"
-    if find . -maxdepth 3 \( -name "*.property.ts" -o -name "*.property.py" \) 2>/dev/null | grep -q .; then
+    if find . -maxdepth 3 \( -name "*.tla" -o -name "*.v" -o -name "*.dfy" -o -name "*.spec.formal.*" \) 2>/dev/null | grep -q .; then
         has_formal="true"
     fi
-    for dep_file in package.json requirements.txt Cargo.toml; do
+    for dep_file in package.json requirements.txt Cargo.toml go.mod pyproject.toml; do
         if [[ -f "$dep_file" ]] && grep -qiE 'safety_properties|liveness_properties|temporal_logic|model_check|formal_verification' "$dep_file" 2>/dev/null; then
             has_formal="true"
             break
@@ -1615,20 +1615,16 @@ extract_verification() {
 
     [[ -z "$signals" ]] && return 0
 
-    # Compute trust level (L1-L4)
-    local trust_level=0 trust_name="none"
-    if (( test_file_count > 0 )); then
-        trust_level=1; trust_name="L1 — Tests Present"
-    fi
-    if (( trust_level >= 1 )) && [[ -n "$ci_info" ]]; then
-        trust_level=2; trust_name="L2 — CI Verified"
-    fi
-    if (( trust_level >= 2 )) && [[ "$has_property_tests" == "true" ]]; then
-        trust_level=3; trust_name="L3 — Property-Based"
-    fi
-    if (( trust_level >= 3 )) && [[ "$has_formal" == "true" ]]; then
-        trust_level=4; trust_name="L4 — Formal"
-    fi
+    # Compute trust level — derive human-readable name from compute_trust_level_tag()
+    local trust_tag trust_name
+    trust_tag=$(compute_trust_level_tag)
+    case "$trust_tag" in
+        L1-tests-present) trust_name="L1 — Tests Present" ;;
+        L2-verified)      trust_name="L2 — CI Verified" ;;
+        L3-hardened)      trust_name="L3 — Property-Based" ;;
+        L4-proven)        trust_name="L4 — Formal" ;;
+        *)                trust_name="none" ;;
+    esac
 
     cat <<EOF
 ## Verification

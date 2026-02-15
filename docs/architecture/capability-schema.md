@@ -102,7 +102,7 @@ trust_gradient:
 
   L2:
     name: "CI Verified"
-    criteria: "Tests + CI pipeline configured + passing"
+    criteria: "Tests + CI pipeline configured"
     hounfour_trust: "verified"
     min_pool_access: [cheap, fast_code, reviewer]
 
