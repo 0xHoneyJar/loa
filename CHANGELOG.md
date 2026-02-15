@@ -5,6 +5,21 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.40.0] — 2026-02-15 — Release Automation Excellence — CHANGELOG Generation & Release Quality
+
+
+- **FR-1**: CHANGELOG auto-generation — `auto_generate_changelog_entry()` generates Keep a Changelog entries from PR metadata + conventional commits when `[Unreleased]` section is absent
+- **FR-2**: Rich release notes — 3-tier fallback (CHANGELOG → PR metadata → git log) eliminates "No CHANGELOG section found" stubs
+- **FR-3**: Backfill — v1.38.1 release created, v1.39.0 notes updated, CHANGELOG entries added for v1.38.1/v1.39.0/v1.39.1
+- **FR-4**: Release title quality — extracts subtitle from PR title for descriptive release names
+
+### Added
+
+- **cycle-016**: Release Automation Excellence — CHANGELOG Generation & Release Quality (#334)
+
+_Source: PR #334_
+
+
 ## [1.39.1] — 2026-02-15 — Collateral Deletion Safeguard + CI Hardening
 
 ### Fixed
