@@ -212,11 +212,11 @@ process_ecosystem_entry() {
         local remote_block
         remote_block=$(echo "$remote_content" | sed -n '/<!-- AGENT-CONTEXT/,/-->/p' | \
             grep -v '^\s*<!--' | grep -v '^\s*-->' | grep -v '^\s*$')
-        r_name=$(echo "$remote_block" | grep "^name:" | sed 's/^name: *//' | head -1)
-        r_type=$(echo "$remote_block" | grep "^type:" | sed 's/^type: *//' | head -1)
-        r_purpose=$(echo "$remote_block" | grep "^purpose:" | sed 's/^purpose: *//' | head -1)
-        r_version=$(echo "$remote_block" | grep "^version:" | sed 's/^version: *//' | head -1)
-        r_interfaces=$(echo "$remote_block" | grep "^interfaces:" | sed 's/^interfaces: *//' | head -1)
+        r_name=$(echo "$remote_block" | grep "^name:" | sed 's/^name: *//' | head -1) || true
+        r_type=$(echo "$remote_block" | grep "^type:" | sed 's/^type: *//' | head -1) || true
+        r_purpose=$(echo "$remote_block" | grep "^purpose:" | sed 's/^purpose: *//' | head -1) || true
+        r_version=$(echo "$remote_block" | grep "^version:" | sed 's/^version: *//' | head -1) || true
+        r_interfaces=$(echo "$remote_block" | grep "^interfaces:" | sed 's/^interfaces: *//' | head -1) || true
     fi
 
     local node_json
@@ -275,9 +275,9 @@ main() {
 
     edges_json="[]"
 
-    # Process ecosystem entries
+    # Process ecosystem entries (use fd 3 to prevent inner commands from consuming stdin)
     local current_repo="" current_role="" current_iface="" current_proto=""
-    while IFS= read -r line; do
+    while IFS= read -r line <&3; do
         [[ -z "$line" ]] && continue
 
         if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*repo:[[:space:]]*(.*) ]]; then
@@ -294,7 +294,7 @@ main() {
         elif [[ "$line" =~ ^[[:space:]]*protocol:[[:space:]]*(.*) ]]; then
             current_proto="${BASH_REMATCH[1]}"
         fi
-    done <<< "$eco_entries"
+    done 3<<< "$eco_entries"
 
     # Process last entry
     if [[ -n "$current_repo" ]]; then

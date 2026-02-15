@@ -619,13 +619,19 @@ validate_ecosystem_live() {
         total=$((total + 1))
 
         if ! gh repo view "$repo" &>/dev/null 2>&1; then
-            log_warn "eco_live" "Ecosystem repo not found: $repo" "missing_repo"
+            # Live checks are always advisory (WARN not FAIL, even in strict mode)
+            WARNINGS=$((WARNINGS + 1))
+            CHECKS+=("$(jq -nc --arg name "eco_live" --arg status "warn" --arg detail "missing_repo" '{name: $name, status: $status, detail: $detail}')")
+            [[ "$QUIET" != "true" ]] && echo "  WARN: Ecosystem repo not found: $repo"
             missing=$((missing + 1))
             continue
         fi
 
         if ! gh api "repos/${repo}/contents/BUTTERFREEZONE.md" &>/dev/null 2>&1; then
-            log_warn "eco_live" "No BUTTERFREEZONE.md in: $repo" "no_bfz"
+            # Live checks are always advisory (WARN not FAIL, even in strict mode)
+            WARNINGS=$((WARNINGS + 1))
+            CHECKS+=("$(jq -nc --arg name "eco_live" --arg status "warn" --arg detail "no_bfz" '{name: $name, status: $status, detail: $detail}')")
+            [[ "$QUIET" != "true" ]] && echo "  WARN: No BUTTERFREEZONE.md in: $repo"
             no_bfz=$((no_bfz + 1))
             continue
         fi

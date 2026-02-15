@@ -201,8 +201,8 @@ claude
 
 After install, you should see a `.claude/` directory, `grimoires/loa/`, and `.loa.config.yaml` in your repo. Run `/loa doctor` inside Claude Code to verify everything is healthy.
 <!-- ground-truth-meta
-head_sha: fd4bdced02d5393b993d02e4f5c6f16620f1b5d4
-generated_at: 2026-02-15T08:37:06Z
+head_sha: 7030b725db59f4397cb3cb25b2dc5abf92988005
+generated_at: 2026-02-15T08:49:54Z
 generator: butterfreezone-gen v1.0.0
 sections:
   agent_context: f0e46136a9fb44f42e69230a4159e0574f17456c5d83430fe90352f9cce30a92
