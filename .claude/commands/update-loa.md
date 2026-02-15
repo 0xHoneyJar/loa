@@ -1,6 +1,6 @@
 ---
 name: "update-loa"
-version: "1.2.0"
+version: "1.3.0"
 description: |
   Pull latest Loa framework updates from upstream repository.
   Fetches, previews, confirms, and merges with conflict guidance.
@@ -184,38 +184,92 @@ git fetch loa main
 
 Ask for confirmation before merging. Note which files will be updated vs preserved.
 
-### Phase 5: Merge Updates
+### Phase 5: Merge Updates (with --no-commit)
 
 ```bash
-git merge loa/main -m "chore: update Loa framework"
+git merge loa/main --no-commit
 ```
 
-### Phase 5.5: Revert Protected Paths
+> **IMPORTANT**: The `--no-commit` flag stages the merge without committing, allowing
+> Phases 5.3 and 5.5 to inspect and fix collateral damage before the commit is created.
+> HEAD still points to the pre-merge branch tip during these phases.
 
-After the merge succeeds, check for and revert any changes to protected paths that should not propagate to downstream projects:
+### Phase 5.3: Collateral Deletion Safeguard (v1.3.0)
+
+After the merge is staged but before committing, scan for files being deleted that are **outside** the Loa framework zone. These deletions are collateral damage from upstream cleanup and must not propagate to downstream projects.
 
 ```bash
-# Check if .github/workflows/ was modified by the merge
-workflow_changes=$(git diff HEAD~1 --name-only -- '.github/workflows/')
-if [[ -n "$workflow_changes" ]]; then
-  echo "$workflow_changes" | while read -r f; do
-    if git show "HEAD~1:$f" >/dev/null 2>&1; then
-      # File existed before merge — restore pre-merge version
-      git checkout HEAD~1 -- "$f"
-    else
-      # New file from upstream — remove it
-      git rm -f "$f"
-    fi
-  done
-  git commit --amend --no-edit
+# Identify files staged for deletion by the merge
+deleted_files=$(git diff --cached --diff-filter=D --name-only)
+restored_count=0
+
+if [[ -n "$deleted_files" ]]; then
+  while IFS= read -r file; do
+    case "$file" in
+      # Framework zone — upstream deletions are intentional, allow them
+      .claude/*) ;;
+      .loa-version.json) ;;
+      CLAUDE.md) ;;
+      PROCESS.md) ;;
+      .gitattributes) ;;
+      INSTALLATION.md) ;;
+      .loa.config.yaml.example) ;;
+      # Everything else — non-framework file, restore from pre-merge state
+      *)
+        git checkout HEAD -- "$file" 2>/dev/null && ((restored_count++)) || true
+        ;;
+    esac
+  done <<< "$deleted_files"
+
+  if [[ $restored_count -gt 0 ]]; then
+    echo "Safeguard: restored $restored_count non-framework files that would have been deleted by upstream merge"
+  fi
 fi
 ```
 
-> **Why?** GitHub requires the `workflow` OAuth scope to push changes to `.github/workflows/`. Most downstream users don't have this scope. The `.gitattributes` `merge=ours` rule protects existing workflow files, but new workflow files added upstream still propagate via merge. This step catches both cases.
+> **Why?** When upstream performs cleanup (removing template/example files), `git merge`
+> propagates those deletions to downstream projects that share git history. This safeguard
+> uses an allowlist of framework-managed paths — only deletions within the framework zone
+> are permitted. All other files are restored from HEAD (pre-merge state), preserving
+> downstream application code, configurations, and documentation.
+>
+> **Fixes**: [#331](https://github.com/0xHoneyJar/loa/issues/331) — cycle-014 merge
+> deleting 933 downstream project files.
 
-### Phase 5.6: Sync Constructs
+### Phase 5.5: Revert Protected Paths
 
-After the merge, sync construct pack skills to ensure newly added skills in pack updates are registered:
+Check for and revert any changes to protected paths that should not propagate to downstream projects. Since the merge is not yet committed (`--no-commit`), use `git diff --cached` and restore from `HEAD`:
+
+```bash
+# Check if .github/workflows/ has staged changes from the merge
+workflow_changes=$(git diff --cached --name-only -- '.github/workflows/')
+if [[ -n "$workflow_changes" ]]; then
+  echo "$workflow_changes" | while read -r f; do
+    if git show "HEAD:$f" >/dev/null 2>&1; then
+      # File existed before merge — restore pre-merge version
+      git checkout HEAD -- "$f"
+    else
+      # New file from upstream — unstage and remove
+      git rm -f --cached "$f" 2>/dev/null || true
+      rm -f "$f" 2>/dev/null || true
+    fi
+  done
+fi
+```
+
+> **Why?** GitHub requires the `workflow` OAuth scope to push changes to `.github/workflows/`. Most downstream users don't have this scope. The `.gitattributes` `merge=ours` rule protects existing workflow files, but new workflow files added upstream still propagate via merge. This step catches both cases. (Defense-in-depth: Phase 5.3 already handles workflow file deletions, but this phase additionally catches new and modified workflow files.)
+
+### Phase 5.7: Commit the Safeguarded Merge
+
+After all safeguards have run, create the merge commit:
+
+```bash
+git commit -m "chore: update Loa framework"
+```
+
+### Phase 5.8: Sync Constructs
+
+After the merge commit, sync construct pack skills to ensure newly added skills in pack updates are registered:
 
 ```bash
 if [[ -x ".claude/scripts/sync-constructs.sh" ]]; then
@@ -251,15 +305,16 @@ fi
 | `.claude/scripts/` | Updated to latest Loa versions |
 | `CLAUDE.md` | Standard merge (may conflict) |
 | `PROCESS.md` | Standard merge (may conflict) |
-| `app/` | Preserved (your code) |
-| `grimoires/loa/prd.md` | Preserved (your docs) |
-| `grimoires/loa/sdd.md` | Preserved (your docs) |
-| `grimoires/loa/analytics/` | Preserved (your data) |
+| `app/` | **Auto-preserved** via Phase 5.3 collateral deletion safeguard |
+| `grimoires/loa/prd.md` | **Auto-preserved** via Phase 5.3 collateral deletion safeguard |
+| `grimoires/loa/sdd.md` | **Auto-preserved** via Phase 5.3 collateral deletion safeguard |
+| `grimoires/loa/analytics/` | **Auto-preserved** via Phase 5.3 collateral deletion safeguard |
+| All non-framework files | **Auto-preserved** via Phase 5.3 collateral deletion safeguard |
 | `.github/workflows/` | **Auto-preserved** via `.gitattributes` + Phase 5.5 revert |
 | `CHANGELOG.md` | **Auto-preserved** via `.gitattributes` (merge=ours) |
 | `README.md` | **Auto-preserved** via `.gitattributes` (merge=ours) |
 
-> **Note**: README.md, CHANGELOG.md, and `.github/workflows/` files are automatically preserved during merges thanks to `.gitattributes`. New workflow files added upstream are reverted in Phase 5.5. The pre-flight check ensures the `merge.ours.driver` is configured.
+> **Note**: All non-framework files are protected by the Phase 5.3 collateral deletion safeguard (v1.3.0). README.md, CHANGELOG.md, and `.github/workflows/` files have additional protection via `.gitattributes` merge=ours and Phase 5.5 revert. The pre-flight check ensures the `merge.ours.driver` is configured.
 
 ## Conflict Resolution
 
@@ -305,6 +360,7 @@ git commit -m "chore: update Loa framework (conflicts resolved)"
 | "Branch not found" | Remote branch doesn't exist | Check available branches with `git branch -r \| grep loa/` |
 | "Invalid branch name" | Branch contains invalid characters | Only use alphanumeric, dash, underscore, slash, dot |
 | "State file corrupt" | Invalid JSON in branch-testing.json | State auto-cleared, continue normally |
+| "Safeguard: restored N files" | Upstream cleanup deleted non-framework files | Normal — safeguard working as intended |
 
 ### Branch Testing Errors
 

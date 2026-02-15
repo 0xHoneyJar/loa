@@ -1,0 +1,18 @@
+{
+  "bug_id": "20260215-i331-merge-delete",
+  "issue": 331,
+  "title": "cycle-014 merge deletes 933 downstream project files",
+  "severity": "CRITICAL",
+  "state": "TRIAGED",
+  "sprint": "sprint-bug-331",
+  "global_sprint_id": 100,
+  "timestamps": {
+    "reported": "2026-02-15T00:00:00Z",
+    "triaged": "2026-02-15T17:00:00Z"
+  },
+  "root_cause": "update-loa uses git merge loa/main which propagates upstream file deletions. Only README.md, CHANGELOG.md, .github/workflows/ protected via .gitattributes merge=ours. All other downstream files (app/, src/, grimoires/) are unprotected.",
+  "fix_files": [
+    ".claude/commands/update-loa.md",
+    ".gitattributes"
+  ]
+}
