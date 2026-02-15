@@ -121,6 +121,8 @@ extract_praise_patterns() {
             # Extract source model from finding metadata if available
             source_model=$(echo "$finding" | jq -r '.source_model // .model // empty' 2>/dev/null || true)
             source_model="${source_model:-unknown}"
+            # Escape double quotes in source_model to prevent YAML corruption
+            source_model=$(echo "$source_model" | sed 's/"/\\"/g')
 
             if [[ -z "$title" ]]; then
                 continue

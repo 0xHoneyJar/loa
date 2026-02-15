@@ -424,18 +424,19 @@ bridge_main() {
     local vision_sentinel="${PROJECT_ROOT}/.run/vision-sprint-done"
     rm -f "$vision_sentinel"
 
-    # Emit signals for the skill layer to act on
+    # Emit signals for the skill layer to act on.
+    # CONTRACT: The skill layer MUST touch $vision_sentinel when vision sprint
+    # completes (success or failure). If this contract is not honored, the
+    # orchestrator's timeout will fire as a safety net.
     echo "SIGNAL:VISION_SPRINT"
     echo "SIGNAL:VISION_SPRINT_TIMEOUT:${vision_timeout}"
+    echo "SIGNAL:VISION_SPRINT_SENTINEL:${vision_sentinel}"
 
     # Block until the skill layer writes the sentinel, bounded by hard timeout.
-    # The skill layer must: touch .run/vision-sprint-done when it finishes.
-    # If the skill layer doesn't write the sentinel (crash, etc.), timeout fires.
+    # Uses env var to avoid word-splitting issues with paths containing spaces.
     local vision_timed_out=false
-    if ! timeout --signal=TERM "$((vision_timeout * 60))" bash -c '
-      sentinel="'"$vision_sentinel"'"
-      while [[ ! -f "$sentinel" ]]; do sleep 2; done
-    '; then
+    if ! VISION_SENTINEL="$vision_sentinel" timeout --signal=TERM "$((vision_timeout * 60))" \
+      bash -c 'while [[ ! -f "$VISION_SENTINEL" ]]; do sleep 2; done'; then
       echo "WARNING: Vision sprint timed out after ${vision_timeout}m — proceeding to finalization"
       vision_timed_out=true
     fi
