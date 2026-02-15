@@ -57,19 +57,19 @@ CANONICAL_ORDER=(
     "quick_start"
 )
 
-# Word budgets (SDD 3.1.6)
+# Word budgets (SDD 3.1.6, FR-5: increased for narrative prose)
 declare -A WORD_BUDGETS=(
     [agent_context]=80
-    [header]=120
-    [capabilities]=600
-    [architecture]=400
-    [interfaces]=800
-    [module_map]=600
+    [header]=200
+    [capabilities]=800
+    [architecture]=600
+    [interfaces]=600
+    [module_map]=400
     [ecosystem]=200
     [limitations]=200
-    [quick_start]=200
+    [quick_start]=300
 )
-TOTAL_BUDGET=3200
+TOTAL_BUDGET=3400
 
 # Truncation priority (higher = truncated last)
 TRUNCATION_PRIORITY=(
@@ -476,11 +476,34 @@ extract_header() {
     local provenance
     provenance=$(tag_provenance "$tier" "header")
 
+    # FR-5: Build narrative summary from available context
+    local summary=""
+    if [[ "$tier" -le 2 ]]; then
+        local lang_count=0
+        local langs=""
+        [[ -n "$(find . -maxdepth 3 -name '*.ts' -o -name '*.js' 2>/dev/null | head -1)" ]] && { langs="${langs}TypeScript/JavaScript, "; ((lang_count++)); }
+        [[ -n "$(find . -maxdepth 3 -name '*.py' 2>/dev/null | head -1)" ]] && { langs="${langs}Python, "; ((lang_count++)); }
+        [[ -n "$(find . -maxdepth 3 -name '*.rs' 2>/dev/null | head -1)" ]] && { langs="${langs}Rust, "; ((lang_count++)); }
+        [[ -n "$(find . -maxdepth 3 -name '*.go' 2>/dev/null | head -1)" ]] && { langs="${langs}Go, "; ((lang_count++)); }
+        [[ -n "$(find . -maxdepth 3 -name '*.sh' 2>/dev/null | head -1)" ]] && { langs="${langs}Shell, "; ((lang_count++)); }
+        langs=$(echo "$langs" | sed 's/, $//')
+
+        if [[ -n "$langs" ]]; then
+            summary="Built with ${langs}."
+            if [[ -f "package.json" ]] && command -v jq &>/dev/null; then
+                local dep_count
+                dep_count=$(jq -r '(.dependencies // {}) | keys | length' package.json 2>/dev/null) || dep_count=0
+                [[ "$dep_count" -gt 0 ]] && summary="${summary} The project has ${dep_count} direct dependencies."
+            fi
+        fi
+    fi
+
     cat <<EOF
 # ${name}
 
 <!-- provenance: ${provenance} -->
 ${desc}
+$(if [[ -n "$summary" ]]; then echo; echo "$summary"; fi)
 EOF
 }
 
@@ -552,9 +575,18 @@ extract_capabilities() {
         return 0
     fi
 
+    # FR-5: Add narrative preamble for capabilities
+    local cap_count
+    cap_count=$(echo "$caps" | wc -l)
+    local preamble=""
+    if [[ "$cap_count" -gt 0 ]]; then
+        preamble="The project exposes ${cap_count} key symbols across its public API surface. Below are the primary entry points and their locations."
+    fi
+
     cat <<EOF
 ## Key Capabilities
 <!-- provenance: ${provenance} -->
+$(if [[ -n "$preamble" ]]; then echo "$preamble"; echo; fi)
 ${caps}
 EOF
 }
@@ -569,6 +601,8 @@ extract_architecture() {
     local provenance
     provenance=$(tag_provenance "$tier" "architecture")
     local arch=""
+    local mermaid=""
+    local narrative=""
 
     if [[ "$tier" -eq 1 ]]; then
         local grimoire_dir
@@ -576,6 +610,54 @@ extract_architecture() {
         if [[ -f "${grimoire_dir}/reality/architecture.md" ]]; then
             arch=$(head -30 "${grimoire_dir}/reality/architecture.md" 2>/dev/null) || true
         fi
+    fi
+
+    # Generate Mermaid component diagram from top-level directories
+    local top_dirs
+    top_dirs=$(find . -maxdepth 1 -type d \
+        -not -path "." \
+        -not -path "*/\.*" \
+        -not -name "node_modules" \
+        -not -name "vendor" \
+        -not -name "target" \
+        -not -name "dist" \
+        -not -name "build" \
+        -not -name "__pycache__" \
+        2>/dev/null | sed 's|^\./||' | sort | head -8) || true
+
+    if [[ -n "$top_dirs" ]]; then
+        mermaid='```mermaid\ngraph TD'
+        local idx=0
+        local ids=()
+        while IFS= read -r dir; do
+            [[ -z "$dir" ]] && continue
+            local id
+            id=$(echo "$dir" | tr -cs '[:alnum:]' '_' | sed 's/_$//')
+            ids+=("$id")
+            mermaid="${mermaid}\n    ${id}[${dir}]"
+            ((idx++))
+        done <<< "$top_dirs"
+
+        # Connect major components to a central node if >2 dirs
+        if [[ ${#ids[@]} -gt 2 ]]; then
+            mermaid="${mermaid}\n    Root[Project Root]"
+            for id in "${ids[@]}"; do
+                mermaid="${mermaid}\n    Root --> ${id}"
+            done
+        fi
+        mermaid="${mermaid}\n\`\`\`"
+    fi
+
+    # Generate narrative description
+    local dir_count
+    dir_count=$(find . -maxdepth 1 -type d -not -path "." -not -path "*/\.*" 2>/dev/null | wc -l)
+    local file_count
+    file_count=$(find . -maxdepth 1 -type f -not -name ".*" 2>/dev/null | wc -l)
+
+    if [[ -n "$top_dirs" ]]; then
+        local key_dirs
+        key_dirs=$(echo "$top_dirs" | head -4 | tr '\n' ', ' | sed 's/,$//')
+        narrative="The project is organized into ${dir_count} top-level directories. Key components include ${key_dirs}."
     fi
 
     if [[ -z "$arch" ]]; then
@@ -602,14 +684,16 @@ extract_architecture() {
         fi
     fi
 
-    if [[ -z "$arch" ]]; then
+    if [[ -z "$arch" && -z "$mermaid" ]]; then
         return 0
     fi
 
     cat <<EOF
 ## Architecture
 <!-- provenance: ${provenance} -->
-$(echo -e "$arch")
+$(if [[ -n "$mermaid" ]]; then echo -e "$mermaid"; echo; fi)
+$(if [[ -n "$narrative" ]]; then echo "$narrative"; echo; fi)
+$(if [[ -n "$arch" ]]; then echo -e "$arch"; fi)
 EOF
 }
 
@@ -825,6 +909,23 @@ extract_quick_start() {
         # Extract getting started / quick start / installation section
         qs=$(sed -n '/^##.*[Gg]etting [Ss]tarted\|^##.*[Qq]uick [Ss]tart\|^##.*[Ii]nstall/,/^## /p' \
             README.md 2>/dev/null | head -20 | sed '$d') || true
+    fi
+
+    # FR-5: Extract actual commands from package.json scripts or Makefile
+    if [[ -z "$qs" ]]; then
+        local cmds=""
+        if [[ -f "package.json" ]] && command -v jq &>/dev/null; then
+            local scripts
+            scripts=$(jq -r '.scripts // {} | to_entries[] | select(.key | test("start|dev|build|test|install")) | "- `npm run \(.key)` — \(.value | split(" ") | .[0])"' package.json 2>/dev/null | head -5) || true
+            [[ -n "$scripts" ]] && cmds="Available commands:\n\n${scripts}"
+        elif [[ -f "Makefile" ]]; then
+            local targets
+            targets=$(grep -E '^[a-zA-Z_-]+:' Makefile 2>/dev/null | sed 's/:.*//' | head -5 | awk '{print "- `make " $0 "`"}') || true
+            [[ -n "$targets" ]] && cmds="Available targets:\n\n${targets}"
+        elif [[ -f "Cargo.toml" ]]; then
+            cmds="Get started:\n\n\`\`\`bash\ncargo build\ncargo test\n\`\`\`"
+        fi
+        [[ -n "$cmds" ]] && qs=$(echo -e "$cmds")
     fi
 
     if [[ -z "$qs" ]]; then

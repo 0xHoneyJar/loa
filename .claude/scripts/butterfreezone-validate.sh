@@ -273,12 +273,38 @@ validate_word_budget() {
     local total_words
     total_words=$(wc -w < "$FILE" 2>/dev/null | tr -d ' ')
     local budget
-    budget=$(get_config_value "butterfreezone.word_budget.total" "3200")
+    budget=$(get_config_value "butterfreezone.word_budget.total" "3400")
 
     if (( total_words > budget )); then
         log_warn "word_budget" "Word budget exceeded: $total_words / $budget (advisory)" "exceeded: $total_words > $budget"
     else
         log_pass "word_budget" "Word budget: $total_words / $budget"
+    fi
+}
+
+# Check 5b: Minimum word count (FR-5: narrative quality gate)
+validate_min_words() {
+    local total_words
+    total_words=$(wc -w < "$FILE" 2>/dev/null | tr -d ' ')
+
+    if (( total_words < 500 )); then
+        log_fail "min_words" "Output too sparse: $total_words words (minimum: 500)" "sparse: $total_words < 500"
+    else
+        log_pass "min_words" "Word count sufficient: $total_words (minimum: 500)"
+    fi
+}
+
+# Check 5c: Architecture diagram (FR-5: narrative quality gate)
+validate_architecture_diagram() {
+    if ! grep -q "^## Architecture" "$FILE" 2>/dev/null; then
+        log_warn "arch_section" "Missing Architecture section" "section missing"
+        return 0
+    fi
+
+    if grep -q "mermaid" "$FILE" 2>/dev/null || grep -q '```' "$FILE" 2>/dev/null; then
+        log_pass "arch_diagram" "Architecture section contains diagram"
+    else
+        log_warn "arch_diagram" "Architecture section missing diagram (mermaid or code block)" "diagram missing"
     fi
 }
 
@@ -389,6 +415,8 @@ main() {
         validate_provenance || true
         validate_references || true
         validate_word_budget || true
+        validate_min_words || true
+        validate_architecture_diagram || true
         validate_meta || true
         validate_freshness || true
     fi
