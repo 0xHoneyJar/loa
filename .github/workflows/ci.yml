@@ -236,13 +236,16 @@ jobs:
             # Extract markdown links like [text](file.md) or [text](./path/file.md)
             # Use process substitution to avoid subshell variable scoping bug
             while read -r link; do
-              # Skip external URLs
+              # Skip external URLs and pure anchors
               if [[ "$link" == http* ]] || [[ "$link" == "#"* ]]; then
                 continue
               fi
 
+              # Strip anchor fragment before checking file existence
+              local_path="${link%%#*}"
+
               # Check if file exists
-              if [ ! -f "$link" ] && [ ! -d "$link" ]; then
+              if [ ! -f "$local_path" ] && [ ! -d "$local_path" ]; then
                 echo "Broken link in $mdfile: $link"
                 LINKS_OK=false
               fi

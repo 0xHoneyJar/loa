@@ -151,7 +151,7 @@ Loa uses a **three-zone model** inspired by AWS Projen and Google's ADK:
 | **Persistent Memory** | Session-spanning observations with progressive disclosure | [Scripts](.claude/scripts/memory-query.sh) |
 | **Input Guardrails** | PII filtering, injection detection, danger levels | [Protocol](.claude/protocols/input-guardrails.md) |
 | **Portable Persistence** | WAL-based persistence with circuit breakers | [Lib](.claude/lib/persistence/) |
-| **Cross-Platform Compat** | Shell scripting protocol for macOS + Linux | [Scripts](.claude/scripts/compat/) |
+| **Cross-Platform Compat** | Shell scripting protocol for macOS + Linux | [Scripts](.claude/scripts/compat-lib.sh) |
 | **Prompt Enhancement** | PTCF-based prompt analysis and improvement | [CHANGELOG.md](CHANGELOG.md) |
 | **Run Mode** | Autonomous sprint execution with draft PRs | [CLAUDE.md](CLAUDE.md#run-mode) |
 | **Run Bridge** | Iterative excellence loop with Bridgebuilder review and flatline detection | [CLAUDE.md](CLAUDE.md#run-bridge) |
