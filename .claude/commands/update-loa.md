@@ -193,6 +193,11 @@ git merge loa/main --no-commit
 > **IMPORTANT**: The `--no-commit` flag stages the merge without committing, allowing
 > Phases 5.3 and 5.5 to inspect and fix collateral damage before the commit is created.
 > HEAD still points to the pre-merge branch tip during these phases.
+>
+> **Conflict handling**: If `git merge --no-commit` exits non-zero due to conflicts,
+> resolve conflicts first (see Phase 6), then proceed to Phase 5.3. The safeguard
+> operates on staged deletions (`--diff-filter=D`) which are present even during a
+> conflicted merge state — conflicted files show as "both modified", not as deletions.
 
 ### Phase 5.3: Collateral Deletion Safeguard (v1.3.0)
 
@@ -244,7 +249,7 @@ Check for and revert any changes to protected paths that should not propagate to
 # Check if .github/workflows/ has staged changes from the merge
 workflow_changes=$(git diff --cached --name-only -- '.github/workflows/')
 if [[ -n "$workflow_changes" ]]; then
-  echo "$workflow_changes" | while read -r f; do
+  while IFS= read -r f; do
     if git show "HEAD:$f" >/dev/null 2>&1; then
       # File existed before merge — restore pre-merge version
       git checkout HEAD -- "$f"
@@ -253,7 +258,7 @@ if [[ -n "$workflow_changes" ]]; then
       git rm -f --cached "$f" 2>/dev/null || true
       rm -f "$f" 2>/dev/null || true
     fi
-  done
+  done <<< "$workflow_changes"
 fi
 ```
 
