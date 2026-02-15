@@ -1586,32 +1586,7 @@ extract_verification() {
     [[ -f "SECURITY.md" ]] && sec_info="${sec_info}${sec_info:+, }SECURITY.md present"
     [[ -n "$sec_info" ]] && signals="${signals}- Security: ${sec_info}\n"
 
-    # Property-based test detection (L3)
-    local has_property_tests="false"
-    for dep_file in package.json requirements.txt Cargo.toml go.mod pyproject.toml; do
-        if [[ -f "$dep_file" ]] && grep -qiE 'fast-check|hypothesis|proptest|quickcheck|jqwik' "$dep_file" 2>/dev/null; then
-            has_property_tests="true"
-            break
-        fi
-    done
-    # Also check for property test files
-    if [[ "$has_property_tests" != "true" ]]; then
-        local prop_files
-        prop_files=$(find . -maxdepth 3 \( -name "*.property.*" -o -name "*property_test*" -o -name "*prop_test*" \) 2>/dev/null | head -1)
-        [[ -n "$prop_files" ]] && has_property_tests="true"
-    fi
-
-    # Formal verification detection (L4) — strictly formal proofs, NOT property tests
-    local has_formal="false"
-    if find . -maxdepth 3 \( -name "*.tla" -o -name "*.v" -o -name "*.dfy" -o -name "*.spec.formal.*" \) 2>/dev/null | grep -q .; then
-        has_formal="true"
-    fi
-    for dep_file in package.json requirements.txt Cargo.toml go.mod pyproject.toml; do
-        if [[ -f "$dep_file" ]] && grep -qiE 'safety_properties|liveness_properties|temporal_logic|model_check|formal_verification' "$dep_file" 2>/dev/null; then
-            has_formal="true"
-            break
-        fi
-    done
+    # Trust level detection delegated to compute_trust_level_tag() (single source of truth)
 
     [[ -z "$signals" ]] && return 0
 
