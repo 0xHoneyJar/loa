@@ -1,341 +1,262 @@
-# Sprint Plan: Flatline Red Team — Evolution Phase
+# Sprint Plan: Platform Hardening — Cross-Platform Compatibility, Model Catalog, Quality Gates
 
-> Source: Bridgebuilder Review of PR [#317](https://github.com/0xHoneyJar/loa/pull/317), SDD cycle-012
-> Cycle: cycle-012 (continued)
-> Previous Sprints: 1-3 (global 79-81) — Foundation phase complete
-> New Sprints: 4-6 (global 82-84) — Evolution phase
-> Bridge Review Insights: 3 Bridgebuilder deep-dive comments with forward-looking observations
+> Source: PRD cycle-015, SDD cycle-015
+> Cycle: cycle-015
+> Issues: #328, #327, #323, #322, #316
+> Global Sprint Counter: starts at 96
 
-## Evolution Context
+## Context
 
-The foundation phase (sprints 1-3) shipped the red team pipeline skeleton: templates, schema, sanitizer, scoring engine, report generator, retention, and skill registration. The bridge loop (4 iterations, 19 findings fixed, flatline achieved) validated the mechanical correctness.
-
-The Bridgebuilder review identified the gap between the current v1 (placeholder model invocations, hardcoded thresholds, 10-entry golden set) and a production-ready system that can operate with real multi-model adversarial diversity. These sprints close that gap.
-
-### Key Improvement Areas (from Bridgebuilder Review)
-
-1. **Documentation drift** — SKILL.md consensus criteria table doesn't match scoring engine behavior
-2. **Golden set THEORETICAL gap** — Self-test can't reach the THEORETICAL category (most important for multi-model)
-3. **Golden set scaling** — 10 entries insufficient for heterogeneous model calibration
-4. **Budget enforcement** — `rt_token_budget` is dead code, never wired to pipeline
-5. **Attack surface generality** — Registry is Loa-specific, no graceful degradation for other projects
-6. **Inter-model sanitization** — Phase 1 output fed raw to Phase 2 creates confused deputy surface
-7. **Hounfour integration prep** — Model adapter hooks needed for cheval.py integration
-8. **Scoring engine configurability** — Thresholds hardcoded, config override deferred
+7 functional requirements across 4 domains: platform compatibility, model-invoke resilience, model catalog expansion, and output quality. All FRs are independent (parallelizable within sprints) except FR-7 which depends on FR-1. Grouped by priority into 3 sprints.
 
 ---
 
-## Sprint 4: Documentation Alignment + Golden Set Maturity
+## Sprint 1: Critical Platform Fixes (HIGH priority)
 
-**Goal**: Fix documentation drift, extend golden set to cover THEORETICAL path, add compositional vulnerability entries, and make scoring engine thresholds configurable.
+> **Goal**: macOS users can run bridge, model-invoke failures don't kill reviews
+> **Global ID**: sprint-96
+> **Scope**: FR-1 (portable locking) + FR-2 (model-invoke fallback) + FR-7 (flatline check extraction)
 
-### Task 4.1: Fix SKILL.md Consensus Criteria Documentation Drift
+### Task 1.1: Platform-Aware Locking in `bridge-state.sh`
 
-**File**: `.claude/skills/red-teaming/SKILL.md`
+**File**: `.claude/scripts/bridge-state.sh`
 
-The consensus criteria table (lines 57-58) still says:
-- THEORETICAL: "One model >700, other <400"
-- CREATIVE_ONLY: "Both <400 but novel"
-
-The actual scoring engine behavior (and the schema, fixed in bridge iter-1):
-- THEORETICAL: "One model >700, other ≤700" (i.e., any case where models disagree significantly)
-- CREATIVE_ONLY: "Neither model >700" (i.e., no model finds it convincing)
-
-The distinction matters: an attack where GPT scores 650 and Opus scores 750 is currently THEORETICAL (one is >700), but the SKILL.md documentation would suggest it's neither THEORETICAL (<400 threshold) nor CONFIRMED (both >700).
-
-**Acceptance Criteria**:
-- SKILL.md consensus table matches scoring engine `classify_attack()` logic
-- All 4 categories described with precise threshold boundaries
-- Example score pairs for each category included for clarity
-
-### Task 4.2: Add THEORETICAL Path Entries to Golden Set
-
-**File**: `.claude/data/red-team-golden-set.json`
-
-The current self-test uses `severity_score` as both GPT and Opus scores, meaning both models always agree. This makes THEORETICAL (model disagreement) unreachable.
-
-Add 3-5 new entries with separate `expected_gpt_score` and `expected_opus_score` fields:
-- ATK-911: An ambiguous scenario where sophisticated reasoning finds a real threat (one model scores 800, other scores 400)
-- ATK-912: A domain-specific attack that requires Web3 knowledge (model with more Web3 training scores higher)
-- ATK-913: A subtle confused deputy scenario where the threat is real but non-obvious (split opinion)
-
-These entries must also include `expected_consensus: "THEORETICAL"` for self-test verification.
+**Work**:
+1. Add `_LOCK_STRATEGY` detection at source time (flock vs mkdir)
+2. Create `_acquire_lock_mkdir()` with PID-based stale detection and age-based timeout
+3. Create `_release_lock_mkdir()` cleanup function
+4. Create `_portable_mtime()` wrapper for cross-platform `stat`
+5. Refactor `atomic_state_update()` into strategy dispatch:
+   - `_atomic_state_update_flock()` — existing logic, extracted
+   - `_atomic_state_update_mkdir()` — new, same jq+rename pattern with mkdir lock
+6. Add cleanup trap for mkdir lock on EXIT/INT/TERM
 
 **Acceptance Criteria**:
-- Golden set has 13-15 entries (5 confirmed, 5 implausible, 3-5 theoretical)
-- Self-test updated to accept per-model score fields
-- `--self-test` now verifies all 3 reachable consensus categories
-- New entries focus on ambiguity by design, not arbitrary score assignment
+- [ ] When `flock` unavailable, `atomic_state_update()` succeeds using mkdir strategy
+- [ ] PID-based stale detection removes lock when holding process is dead
+- [ ] Age-based stale detection removes lock older than 30s
+- [ ] Lock timeout works (5s default, fails cleanly on expiry)
+- [ ] All 6 existing callers work without changes
+- [ ] Linux behavior unchanged (still uses flock when available)
 
-### Task 4.3: Add Compositional Vulnerability Entries to Golden Set
+### Task 1.2: model-invoke Runtime Fallback in `gpt-review-api.sh`
 
-**File**: `.claude/data/red-team-golden-set.json`
+**File**: `.claude/scripts/gpt-review-api.sh`
 
-The Bridgebuilder identified compositional vulnerabilities (attacks that emerge from the interaction of independently-correct subsystems) as the most important category the system should amplify. ATK-905 (flash loan) is the only current example.
-
-Add 3-4 more compositional entries:
-- Scenarios where two subsystems are correct in isolation but create vulnerabilities at their boundary
-- Inspired by real-world composites: DAO reentrancy, Compound governance, OAuth redirect chain
-- Mark these with `"compositional": true` field for future filtering
-
-**Acceptance Criteria**:
-- 3-4 new compositional entries with `compositional: true` flag
-- Each entry identifies the specific subsystem interaction that creates the vulnerability
-- `assumption_challenged` field explicitly names the composition assumption
-- Entries are realistic (severity 650-900) and would generate actionable counter-designs
-
-### Task 4.4: Make Scoring Engine Thresholds Configurable
-
-**File**: `.claude/scripts/scoring-engine.sh`
-
-Currently hardcodes thresholds:
-```bash
-local HIGH_CONSENSUS=700
-local DISPUTE_DELTA=300
-local LOW_VALUE=400
-local BLOCKER=700
-```
-
-Read from config with fallback to hardcoded defaults:
-
-```bash
-local HIGH_CONSENSUS=$(yq '.red_team.thresholds.confirmed_attack // 700' "$CONFIG" 2>/dev/null || echo 700)
-```
+**Work**:
+1. In `call_api_via_model_invoke()` (line ~379): Change `exit $exit_code` to `return $exit_code`
+2. At lines 914-920: Wrap model-invoke call with `|| { fallback }` pattern
+3. Fallback logs warning to stderr with exit code, then calls `call_api()` directly
 
 **Acceptance Criteria**:
-- All 4 thresholds read from `.loa.config.yaml` with defaults
-- `--self-test` still passes with default thresholds
-- `--self-test` respects custom thresholds if configured
-- Config path uses existing `CONFIG_FILE` variable pattern from other scripts
+- [ ] When model-invoke returns non-zero, falls back to direct curl
+- [ ] Warning message logged to stderr includes exit code
+- [ ] Direct curl path (call_api) exercised on fallback
+- [ ] Happy path (model-invoke succeeds) unchanged
+
+### Task 1.3: Standalone Flatline Check Script
+
+**File**: New `.claude/scripts/bridge-flatline-check.sh`
+
+**Work**:
+1. Create standalone script that reads `.run/bridge-state.json`
+2. Evaluates `.flatline.flatline_detected` field
+3. Outputs JSON summary on stdout
+4. Exit 0 if flatlined, exit 1 if should continue
+5. Only depends on `bootstrap.sh` — does not source `bridge-state.sh`
+
+**Acceptance Criteria**:
+- [ ] Exit 0 when flatline detected, exit 1 otherwise
+- [ ] JSON summary on stdout with all flatline fields
+- [ ] No state file → exit 1 with explanation JSON
+- [ ] Standalone — no dependency on `bridge-state.sh`
+
+### Task 1.4: Portable Locking in `butterfreezone-gen.sh`
+
+**File**: `.claude/scripts/butterfreezone-gen.sh`
+
+**Work**:
+1. Apply same portable locking pattern from Task 1.1
+2. Replace `flock -n` with `mkdir` attempt when flock unavailable
+3. Non-blocking: single attempt, skip if locked (existing behavior)
+
+**Acceptance Criteria**:
+- [ ] Script runs on macOS without flock
+- [ ] Non-blocking lock behavior preserved
+- [ ] Generation still skipped when another instance running
 
 ---
 
-## Sprint 5: Budget Enforcement + Inter-Model Safety
+## Sprint 2: Model Catalog + Construct Sync (MEDIUM priority)
 
-**Goal**: Wire budget enforcement into the pipeline, add inter-model sanitization to prevent confused deputy within the evaluation pipeline, and make attack surfaces gracefully degrade for non-Loa projects.
+> **Goal**: Gemini 3 models available in Flatline, construct packs stay synced
+> **Global ID**: sprint-97
+> **Scope**: FR-3 (Gemini 3 catalog) + FR-4 (construct sync) + FR-6 (persona path config)
 
-### Task 5.1: Wire Budget Enforcement into Pipeline
+### Task 2.1: Gemini 3 Model Validation
 
-**Files**: `.claude/scripts/red-team-pipeline.sh`, `.claude/scripts/red-team-report.sh`
+**File**: `.claude/scripts/flatline-orchestrator.sh`
 
-The `rt_token_budget` variable is computed per execution mode but never checked during execution. When real model invocations happen (Hounfour), this is a $50 surprise waiting to happen.
-
-Wire the budget:
-- Pipeline accepts `--budget` and passes to each phase
-- Each phase returns tokens consumed in its output JSON
-- Pipeline accumulates `tokens_used` and checks against `budget` before each phase
-- If budget exceeded, pipeline completes current phase but skips remaining phases
-- Final result JSON includes `budget_exceeded: true` and `budget_consumed` vs `budget_limit`
-- Report shows budget status in metrics section
+**Work**:
+1. Add `gemini-3-pro` and `gemini-3-flash` to `VALID_FLATLINE_MODELS` array
+2. Add Google provider routing in `call_model()` for `gemini-3-*` patterns
+3. Ensure `GOOGLE_API_KEY` env var used for authentication
 
 **Acceptance Criteria**:
-- Pipeline tracks cumulative tokens consumed across phases
-- Budget check runs before each phase (not mid-phase)
-- Exceeding budget produces a complete result (not an error) with truncation warning
-- `budget_exceeded` field in output JSON when limit hit
-- Metrics section in report shows consumed vs limit
+- [ ] `validate_model gemini-3-pro` succeeds
+- [ ] `validate_model gemini-3-flash` succeeds
+- [ ] Google API key routing works for Gemini 3 models
 
-### Task 5.2: Add Inter-Model Sanitization
+### Task 2.2: Tertiary Model Support in Flatline
 
-**File**: `.claude/scripts/red-team-pipeline.sh`
+**File**: `.claude/scripts/flatline-orchestrator.sh`
 
-When Phase 1 generates attack scenarios, those scenarios are prompts fed to Phase 2 for evaluation. A sufficiently adversarial attack scenario could contain instructions that influence the evaluating model's judgment — the confused deputy problem *within the pipeline itself*.
-
-Add sanitization between phases:
-- Phase 1 output → sanitize (strip instruction patterns, validate JSON structure) → Phase 2 input
-- Reuse existing `red-team-sanitizer.sh` with a new `--inter-model` flag
-- Inter-model mode: lighter than full sanitization (skip UTF-8 and secret scanning, focus on injection patterns and JSON structure validation)
-- Log any inter-model sanitization triggers (these indicate the attack generator produced instruction-like content)
+**Work**:
+1. Add `get_model_tertiary()` function reading `hounfour.flatline_tertiary_model` config
+2. Modify Phase 1 to conditionally add tertiary review + skeptic calls (6 parallel when configured)
+3. Modify Phase 2 to support 3-way triangular cross-scoring (6 parallel when configured)
+4. Maintain 2-model backward compatibility when tertiary not configured
 
 **Acceptance Criteria**:
-- Phase 1 output passes through sanitizer before Phase 2 consumption
-- `--inter-model` flag on sanitizer skips expensive checks but catches injection patterns
-- Sanitization triggers are logged with source phase and attack ID
-- Pipeline continues after inter-model sanitization (log, don't block)
-- Self-test validates inter-model path doesn't corrupt valid attack JSON
+- [ ] `get_model_tertiary()` returns empty string when not configured
+- [ ] Phase 1 fires 6 parallel calls when tertiary set
+- [ ] Phase 2 fires 6 cross-scores when tertiary set
+- [ ] 2-model config (no tertiary) fires 4+2 calls as before
+- [ ] Cost accumulation works across all 3 models
 
-### Task 5.3: Attack Surface Graceful Degradation
+### Task 2.3: Construct Symlink Sync Script
 
-**File**: `.claude/scripts/red-team-pipeline.sh`
+**File**: New `.claude/scripts/sync-constructs.sh`
 
-The attack surfaces registry contains Loa-specific surfaces (agent-identity, token-gated-access, etc.). When someone runs `/red-team` against a non-Loa document, the surface context is irrelevant noise.
-
-Add graceful degradation:
-- If `--focus` categories don't match any surfaces in registry, log warning and proceed without surface context
-- If no surfaces registry exists, proceed with generic attack generation (no surface filtering)
-- Template rendering handles empty surface context gracefully (already does via `/dev/null` fallback, but add explicit log message)
-- Consider: when surface context is empty, add a template note instructing the model to infer surfaces from the document content
-
-**Acceptance Criteria**:
-- `/red-team doc.md --focus "nonexistent"` logs warning, runs successfully with empty surface context
-- Missing surfaces registry file doesn't cause pipeline error
-- Template includes fallback instruction when no surfaces loaded
-- Existing surface-based invocations unchanged
-
-### Task 5.4: Pipeline Phase Timing Metrics
-
-**File**: `.claude/scripts/red-team-pipeline.sh`
-
-Add per-phase timing to the output JSON for performance profiling:
-
-```json
-"metrics": {
-  "phase0_sanitize_ms": 120,
-  "phase1_attacks_ms": 5400,
-  "phase2_validation_ms": 3200,
-  "phase3_consensus_ms": 80,
-  "phase4_counter_design_ms": 2100,
-  "total_latency_ms": 10900
-}
-```
-
-This is essential for Hounfour cost optimization — knowing which phase dominates latency informs tiered routing decisions.
+**Work**:
+1. Create script that reads each installed pack's `manifest.json`
+2. Compare manifest skills against `.constructs-meta.json` registrations
+3. Register missing skills with `from_pack` provenance
+4. Report what was added on stdout
+5. Idempotent: second run produces no output
 
 **Acceptance Criteria**:
-- Each phase reports its duration in milliseconds
-- Metrics object in final result JSON includes all phase timings
-- Report generator displays phase timing breakdown
-- Zero-cost when phases are placeholders (just shows near-zero times)
+- [ ] Skills in manifest but missing from meta get registered
+- [ ] Running twice produces no output on second run
+- [ ] Missing skill directories logged as warnings
+- [ ] Malformed manifest JSON → skip pack with warning
+
+### Task 2.4: Construct Sync in Update-Loa
+
+**File**: `.claude/commands/update-loa.md`
+
+**Work**:
+1. Add Phase 5.6 after merge: run `sync-constructs.sh`
+2. Report newly synced skills in update output
+
+**Acceptance Criteria**:
+- [ ] `/update-loa` triggers construct sync after merge
+- [ ] Sync output visible in update results
+
+### Task 2.5: Persona Path Config Connection
+
+**File**: `.claude/scripts/bridge-orchestrator.sh` (or equivalent orchestrator script)
+
+**Work**:
+1. Add `get_persona_path()` function reading from config
+2. Replace hardcoded persona path references with function call
+3. Default: `.claude/data/bridgebuilder-persona.md`
+
+**Acceptance Criteria**:
+- [ ] Custom path from config used when set
+- [ ] Default path used when config empty
+- [ ] Persona integrity check uses resolved path
 
 ---
 
-## Sprint 6: Hounfour Integration Prep + Golden Set Scaling
+## Sprint 3: Output Quality (MEDIUM priority)
 
-**Goal**: Create the model adapter interface that the Hounfour will implement, scale the golden set for multi-model calibration, and add end-to-end integration tests with mock model responses.
+> **Goal**: Butterfreezone produces rich, glanceable READMEs
+> **Global ID**: sprint-98
+> **Scope**: FR-5 (butterfreezone quality)
 
-### Task 6.1: Create Model Adapter Interface
+### Task 3.1: Butterfreezone Word Budget Adjustment
 
-**File**: `.claude/scripts/red-team-model-adapter.sh`
+**File**: `.claude/scripts/butterfreezone-gen.sh`
 
-Create a thin adapter script that Phase 1 and Phase 2 call instead of direct model invocation. This is the seam where Hounfour's `cheval.py` will plug in.
-
-Interface:
-```bash
-red-team-model-adapter.sh \
-  --role attacker|defender|evaluator \
-  --model opus|gpt|kimi|qwen \
-  --prompt-file <path> \
-  --output-file <path> \
-  --budget <tokens> \
-  --timeout <seconds>
-```
-
-Current implementation: return mock responses from fixtures (allowing pipeline to run end-to-end without real API calls). Future: delegate to `cheval.py` via Hounfour model routing.
+**Work**:
+1. Increase `header` budget: 120 → 200 words
+2. Increase `capabilities` budget: 600 → 800 words
+3. Increase `architecture` budget: 400 → 600 words
+4. Decrease `interfaces` budget: 800 → 600 words
+5. Decrease `module_map` budget: 600 → 400 words
+6. Increase `quick_start` budget: 200 → 300 words
+7. Update `TOTAL_BUDGET`: 3200 → 3400
 
 **Acceptance Criteria**:
-- Adapter script is callable with all required flags
-- Returns valid JSON matching attack/counter-design schema
-- Mock mode loads fixtures from `.claude/data/red-team-fixtures/`
-- `--mock` flag (default for now) uses fixture data
-- `--live` flag reserved for Hounfour integration (errors with "requires cheval.py" for now)
-- Exit code 0 on success, 1 on timeout, 2 on budget exceeded
+- [ ] Word budgets updated as specified
+- [ ] Total budget enforced at 3400
+- [ ] Truncation priority unchanged
 
-### Task 6.2: Create Model Response Fixtures
+### Task 3.2: Architecture Section Enhancement
 
-**Directory**: `.claude/data/red-team-fixtures/`
+**File**: `.claude/scripts/butterfreezone-gen.sh`
 
-Create fixture files that the model adapter returns in mock mode:
-
-- `attacker-response-01.json`: 5 realistic attack scenarios against agent identity
-- `attacker-response-02.json`: 5 realistic attack scenarios against token-gated access
-- `evaluator-response-01.json`: Cross-validation scores for attacker-response-01
-- `evaluator-response-02.json`: Cross-validation scores for attacker-response-02
-- `defender-response-01.json`: Counter-designs for confirmed attacks
-
-Each fixture must be valid against the red team result schema.
+**Work**:
+1. Modify `extract_architecture()` to generate a Mermaid component diagram
+2. Read top-level directory structure to identify major components
+3. Limit diagram to 8 nodes maximum
+4. Add 2-3 sentences of narrative context after diagram
+5. Preserve directory tree output after narrative
 
 **Acceptance Criteria**:
-- All fixture files are valid JSON
-- Attack fixtures produce a mix of consensus categories when scored
-- At least 2 CONFIRMED_ATTACK, 2 THEORETICAL, 1 CREATIVE_ONLY across fixtures
-- Evaluator fixtures contain per-attack scores that create realistic disagreement
-- Fixtures are reusable by pipeline integration tests
+- [ ] Architecture section contains `mermaid` code block
+- [ ] Diagram has ≤8 nodes
+- [ ] Narrative prose present (not just tree listing)
+- [ ] Provenance tag preserved
 
-### Task 6.3: Wire Pipeline Phases to Model Adapter
+### Task 3.3: Narrative Prose in Key Sections
 
-**File**: `.claude/scripts/red-team-pipeline.sh`
+**File**: `.claude/scripts/butterfreezone-gen.sh`
 
-Replace placeholder phase implementations with calls to the model adapter:
-
-- `run_phase1_attacks()`: Call adapter with `--role attacker` for each model, merge results
-- `run_phase2_validation()`: Call adapter with `--role evaluator` for cross-validation
-- `run_phase4_counter_design()`: Call adapter with `--role defender` for synthesis
-
-The pipeline should work end-to-end with mock fixtures, producing a complete result JSON with realistic consensus classification.
+**Work**:
+1. Modify `extract_header()`: Add 2-3 sentence narrative summary below H1
+2. Modify `extract_capabilities()`: Transform from symbol list to prose with inline references
+3. Modify `extract_quick_start()`: Include actual commands from README/package.json scripts
+4. Add `--narrative` flag (default: true for Tier 1/2)
 
 **Acceptance Criteria**:
-- Pipeline runs end-to-end with `--mock` model adapter
-- Output JSON has populated attack arrays (not empty placeholders)
-- Consensus classification produces at least 2 categories
-- Budget tracking counts fixture response sizes
-- Pipeline produces a readable report with actual attack scenarios
+- [ ] Header section has narrative summary (not just title)
+- [ ] Capabilities section has prose descriptions (not just bullet lists)
+- [ ] Quick start includes actual runnable commands
+- [ ] Total output > 500 words
 
-### Task 6.4: Scale Golden Set to 30+ Entries
+### Task 3.4: Butterfreezone Validation Update
 
-**File**: `.claude/data/red-team-golden-set.json`
+**File**: `.claude/scripts/butterfreezone-validate.sh`
 
-Scale the golden set for multi-model calibration:
-
-| Category | Current | Target | Focus |
-|----------|---------|--------|-------|
-| CONFIRMED (realistic) | 5 | 12 | Add compositional, supply chain, automated |
-| THEORETICAL (ambiguous) | 0→3-5 (from 4.2) | 8 | Domain-specific, model-bias-dependent |
-| CREATIVE_ONLY (implausible) | 5 | 8 | Update with emerging tech (quantum, AI-on-AI) |
-| DEFENDED (with counter) | 0 | 4 | Known-defended patterns |
-
-New entries should cover:
-- All 5 attacker profiles (external, insider, supply_chain, confused_deputy, automated)
-- All 5 attack surfaces from registry
-- Cross-surface compositional attacks
-- Entries designed to expose model-specific calibration biases
+**Work**:
+1. Add word count check: output must be > 500 words
+2. Add architecture diagram check: mermaid marker present
+3. Keep existing provenance and checksum checks
 
 **Acceptance Criteria**:
-- Golden set has 30+ entries across all 4 consensus categories
-- `--self-test` validates all entries with 100% accuracy
-- Coverage: all attacker profiles and all attack surfaces represented
-- At least 5 compositional entries (`compositional: true`)
-- DEFENDED entries include explicit counter-design references
+- [ ] Validation fails if output < 500 words
+- [ ] Validation fails if no architecture diagram
+- [ ] Existing checks still pass
+- [ ] Passes on newly generated output
 
 ---
 
-## Sequencing and Dependencies
+## Sprint Summary
 
-```
-Sprint 4 (Documentation + Golden Set Maturity)
-  ├── Task 4.1: SKILL.md fix (independent)
-  ├── Task 4.2: THEORETICAL entries (independent)
-  ├── Task 4.3: Compositional entries (independent, can parallel with 4.2)
-  └── Task 4.4: Config thresholds (independent)
+| Sprint | Global ID | Tasks | FRs Covered | Priority |
+|--------|-----------|-------|-------------|----------|
+| Sprint 1 | sprint-96 | 4 tasks | FR-1, FR-2, FR-7 | HIGH |
+| Sprint 2 | sprint-97 | 5 tasks | FR-3, FR-4, FR-6 | MEDIUM |
+| Sprint 3 | sprint-98 | 4 tasks | FR-5 | MEDIUM |
 
-Sprint 5 (Budget + Safety)
-  ├── Task 5.1: Budget enforcement (depends on pipeline from sprint 2)
-  ├── Task 5.2: Inter-model sanitization (depends on sanitizer from sprint 1)
-  ├── Task 5.3: Surface degradation (depends on pipeline from sprint 2)
-  └── Task 5.4: Phase timing (depends on pipeline from sprint 2)
+**Total**: 13 tasks across 3 sprints covering all 7 functional requirements.
 
-Sprint 6 (Hounfour Prep + Scaling)
-  ├── Task 6.1: Model adapter (independent)
-  ├── Task 6.2: Fixtures (depends on 6.1 interface)
-  ├── Task 6.3: Wire pipeline (depends on 6.1, 6.2, and sprint 5 budget enforcement)
-  └── Task 6.4: Scale golden set (depends on 4.2, 4.3 patterns)
-```
+## Close Actions (Post-Implementation)
 
-## Risk Assessment
-
-| Risk | Mitigation |
-|------|------------|
-| Fixture data doesn't represent real model output diversity | Design fixtures with intentional disagreement patterns; update when Hounfour provides real samples |
-| Golden set growth creates maintenance burden | Group entries by category, add `last_reviewed` field, automate schema validation |
-| Budget enforcement breaks existing pipeline tests | Budget is only enforced when > 0; mock mode returns 0 tokens |
-| Inter-model sanitization is too aggressive | Log-only mode first; blocking requires explicit opt-in via config |
-
-## Success Metrics
-
-| Metric | Target |
-|--------|--------|
-| Golden set coverage | 30+ entries, all 4 categories, all 5 profiles |
-| Self-test accuracy | 100% across all golden set entries |
-| Pipeline end-to-end | Runs with mock adapter, produces readable report |
-| Budget enforcement | Pipeline stops cleanly when budget exceeded |
-| Documentation alignment | SKILL.md matches scoring engine exactly |
-| Phase timing | All 5 phases report latency in output JSON |
+After all sprints complete:
+1. Close #320 with note: "All 3 bugs fixed in cycle-013 (LazyValue, personas, merge logic)"
+2. Close #321 with note: "All 3 bugs fixed in cycle-013 (env dedup, fences, gpt-reviewer persona)"
+3. Update #328 noting items 1, 3, 5 fixed; item 2 deferred to RFC; item 4 already done
+4. Close #327, #323, #322, #316 with PR reference

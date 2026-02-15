@@ -371,7 +371,7 @@ call_api_via_model_invoke() {
 
   if [[ $exit_code -ne 0 ]]; then
     error "model-invoke failed with exit code $exit_code"
-    exit $exit_code
+    return $exit_code
   fi
 
   # model-invoke returns the raw content text.
@@ -909,9 +909,14 @@ EOF
   user_prompt=$(build_user_prompt "$context_file" "$prepared_content")
 
   # Call API — route through model-invoke or direct curl based on feature flag
+  # FR-2: Runtime fallback — if model-invoke fails, fall back to direct curl
   local response
   if is_flatline_routing_enabled && [[ -x "$MODEL_INVOKE" ]]; then
-    response=$(call_api_via_model_invoke "$model" "$system_prompt" "$user_prompt" "$timeout")
+    response=$(call_api_via_model_invoke "$model" "$system_prompt" "$user_prompt" "$timeout") || {
+      local mi_exit=$?
+      log "WARNING: model-invoke failed (exit $mi_exit), falling back to direct API call"
+      response=$(call_api "$model" "$system_prompt" "$user_prompt" "$timeout")
+    }
   else
     response=$(call_api "$model" "$system_prompt" "$user_prompt" "$timeout")
   fi

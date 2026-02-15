@@ -248,15 +248,30 @@ get_config_value() {
 
 acquire_lock() {
     LOCK_FILE="${OUTPUT}.lock"
-    exec 200>"$LOCK_FILE"
-    if ! flock -n 200; then
-        log_warn "Another butterfreezone-gen process is running — skipping"
-        exit 0
+    if command -v flock &>/dev/null; then
+        # Linux: flock-based non-blocking lock
+        exec 200>"$LOCK_FILE"
+        if ! flock -n 200; then
+            log_warn "Another butterfreezone-gen process is running — skipping"
+            exit 0
+        fi
+    else
+        # macOS/POSIX: mkdir-based non-blocking lock
+        LOCK_DIR="${LOCK_FILE}.d"
+        if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+            log_warn "Another butterfreezone-gen process is running — skipping"
+            exit 0
+        fi
+        echo $$ > "$LOCK_DIR/pid"
     fi
 }
 
 release_lock() {
-    if [[ -n "${LOCK_FILE:-}" ]]; then
+    if [[ -n "${LOCK_DIR:-}" ]]; then
+        # mkdir-based lock cleanup
+        rm -rf "$LOCK_DIR" 2>/dev/null || true
+    elif [[ -n "${LOCK_FILE:-}" ]]; then
+        # flock-based lock cleanup
         flock -u 200 2>/dev/null || true
         rm -f "$LOCK_FILE" 2>/dev/null || true
     fi

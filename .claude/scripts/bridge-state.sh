@@ -6,8 +6,9 @@
 # validation, state transitions, iteration tracking, flatline detection,
 # and metrics accumulation.
 #
-# All read-modify-write operations use flock-based atomic updates to
-# prevent corruption from concurrent access or interrupted writes.
+# All read-modify-write operations use atomic updates to prevent
+# corruption from concurrent access or interrupted writes.
+# Supports flock (Linux) and mkdir-based locking (macOS/POSIX fallback).
 #
 # Usage:
 #   source "$SCRIPT_DIR/bridge-state.sh"
@@ -44,19 +45,81 @@ declare -A VALID_TRANSITIONS=(
 )
 
 # =============================================================================
-# Atomic State Update (flock-based)
+# Platform-Aware Locking (FR-1: macOS + Linux)
+# =============================================================================
+
+# Detect lock strategy once at source time
+if command -v flock &>/dev/null; then
+  _LOCK_STRATEGY="flock"
+else
+  _LOCK_STRATEGY="mkdir"
+fi
+
+# Portable modification time (macOS uses -f %m, Linux uses -c %Y)
+_portable_mtime() {
+  stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0
+}
+
+# mkdir-based lock acquisition (POSIX fallback for macOS)
+_acquire_lock_mkdir() {
+  local lock_dir="${BRIDGE_STATE_LOCK}.d"
+  local timeout="${1:-5}"
+  local attempts=$(( timeout * 5 ))  # poll every 0.2s
+  local elapsed=0
+
+  while ! mkdir "$lock_dir" 2>/dev/null; do
+    # Stale lock detection: check if holding PID still exists
+    local holder_pid
+    holder_pid=$(cat "$lock_dir/pid" 2>/dev/null || echo "")
+    if [[ -n "$holder_pid" ]] && ! kill -0 "$holder_pid" 2>/dev/null; then
+      echo "WARNING: Removing stale lock (PID $holder_pid no longer running)" >&2
+      rm -rf "$lock_dir"
+      continue
+    fi
+
+    # Age-based stale detection: lock older than 30s
+    if [[ -d "$lock_dir" ]]; then
+      local lock_mtime now_epoch lock_age
+      lock_mtime=$(_portable_mtime "$lock_dir")
+      now_epoch=$(date +%s)
+      lock_age=$(( now_epoch - lock_mtime ))
+      if (( lock_age > 30 )); then
+        echo "WARNING: Removing aged lock (${lock_age}s old)" >&2
+        rm -rf "$lock_dir"
+        continue
+      fi
+    fi
+
+    sleep 0.2
+    (( elapsed++ ))
+    if (( elapsed >= attempts )); then
+      echo "ERROR: Lock acquisition timed out after ${timeout}s" >&2
+      return 1
+    fi
+  done
+
+  # Write our PID for stale detection
+  echo $$ > "$lock_dir/pid"
+}
+
+_release_lock_mkdir() {
+  local lock_dir="${BRIDGE_STATE_LOCK}.d"
+  rm -rf "$lock_dir" 2>/dev/null || true
+}
+
+# =============================================================================
+# Atomic State Update (platform-aware)
 # =============================================================================
 
 # Perform an atomic read-modify-write on the bridge state file.
-# Uses flock for mutual exclusion and write-to-temp + mv for crash safety.
+# Uses flock (Linux) or mkdir-based locking (macOS) for mutual exclusion,
+# and write-to-temp + mv for crash safety.
 #
 # Usage:
 #   atomic_state_update <jq_filter> [jq_args...]
 #
 # The jq filter receives the current state and must produce the new state.
 # Additional arguments are passed directly to jq (e.g., --arg, --argjson).
-#
-# Hard-fails if flock is unavailable — never silently degrades.
 atomic_state_update() {
   local jq_filter="$1"
   shift
@@ -66,12 +129,15 @@ atomic_state_update() {
     return 1
   fi
 
-  # Hard-fail if flock is unavailable (Flatline IMP-002)
-  if ! command -v flock &>/dev/null; then
-    echo "ERROR: flock is required for atomic state updates but is not available on this system" >&2
-    echo "ERROR: Cannot proceed without flock — state corruption risk is unacceptable" >&2
-    return 1
-  fi
+  case "$_LOCK_STRATEGY" in
+    flock) _atomic_state_update_flock "$jq_filter" "$@" ;;
+    mkdir) _atomic_state_update_mkdir "$jq_filter" "$@" ;;
+  esac
+}
+
+_atomic_state_update_flock() {
+  local jq_filter="$1"
+  shift
 
   mkdir -p "$(dirname "$BRIDGE_STATE_LOCK")"
 
@@ -106,6 +172,33 @@ atomic_state_update() {
 
   # Release lock
   eval "exec ${lock_fd}>&-"
+}
+
+_atomic_state_update_mkdir() {
+  local jq_filter="$1"
+  shift
+
+  mkdir -p "$(dirname "$BRIDGE_STATE_LOCK")"
+
+  # Acquire mkdir-based lock with 5s timeout
+  if ! _acquire_lock_mkdir 5; then
+    return 1
+  fi
+
+  # Write to temp file + atomic rename (crash safety)
+  local tmp_file="${BRIDGE_STATE_FILE}.tmp.$$"
+  if ! jq "$jq_filter" "$@" "$BRIDGE_STATE_FILE" > "$tmp_file" 2>/dev/null; then
+    rm -f "$tmp_file"
+    _release_lock_mkdir
+    echo "ERROR: jq transformation failed" >&2
+    return 1
+  fi
+
+  # Atomic rename
+  mv "$tmp_file" "$BRIDGE_STATE_FILE"
+
+  # Release lock
+  _release_lock_mkdir
 }
 
 # =============================================================================
