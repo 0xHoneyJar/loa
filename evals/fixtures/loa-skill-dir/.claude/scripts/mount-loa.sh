@@ -388,10 +388,124 @@ sync_zones() {
     log "State Zone already exists, preserving..."
   fi
 
+  # Clean framework development artifacts from grimoire (FR-3, #299)
+  clean_grimoire_state
+
+  # Create .reviewignore template for review scope filtering (FR-4, #303)
+  create_reviewignore
+
   mkdir -p .beads
   touch .beads/.gitkeep
 
   log "Zones synced"
+}
+
+# === Clean Grimoire State (FR-3, #299) ===
+# Removes framework development artifacts from grimoires/loa/ after git checkout.
+# Ensures fresh mounts start clean without upstream cycle artifacts.
+clean_grimoire_state() {
+  local grimoire_dir="${TARGET_DIR:-.}/grimoires/loa"
+
+  if [[ ! -d "$grimoire_dir" ]]; then
+    return 0
+  fi
+
+  log "Cleaning framework development artifacts from grimoire..."
+
+  # Remove framework development artifacts
+  local artifacts=("prd.md" "sdd.md" "sprint.md" "BEAUVOIR.md" "SOUL.md")
+  for artifact in "${artifacts[@]}"; do
+    rm -f "${grimoire_dir}/${artifact}"
+  done
+
+  # Remove framework a2a and archive directory contents (not the dirs themselves)
+  if [[ -d "${grimoire_dir}/a2a" ]]; then
+    # Preserve directory structure, remove content
+    find "${grimoire_dir}/a2a" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + 2>/dev/null || true
+    find "${grimoire_dir}/a2a" -mindepth 1 -maxdepth 1 -type f -exec rm -f {} + 2>/dev/null || true
+  fi
+  if [[ -d "${grimoire_dir}/archive" ]]; then
+    find "${grimoire_dir}/archive" -mindepth 1 -exec rm -rf {} + 2>/dev/null || true
+  fi
+
+  # Preserve directory structure
+  mkdir -p "${grimoire_dir}/a2a/trajectory"
+  mkdir -p "${grimoire_dir}/archive"
+  mkdir -p "${grimoire_dir}/context"
+  mkdir -p "${grimoire_dir}/memory"
+
+  # Initialize clean ledger
+  cat > "${grimoire_dir}/ledger.json" << 'LEDGER_EOF'
+{
+  "version": "1.0.0",
+  "cycles": [],
+  "active_cycle": null,
+  "active_bugfix": null,
+  "global_sprint_counter": 0,
+  "bugfix_cycles": []
+}
+LEDGER_EOF
+
+  # Create NOTES.md template if missing
+  if [[ ! -f "${grimoire_dir}/NOTES.md" ]]; then
+    cat > "${grimoire_dir}/NOTES.md" << 'NOTES_EOF'
+# Project Notes
+
+## Learnings
+
+## Blockers
+
+## Observations
+NOTES_EOF
+  fi
+
+  log "Grimoire state cleaned — ready for /plan-and-analyze"
+}
+
+# === Review Scope Initialization ===
+
+create_reviewignore() {
+  if [[ -f ".reviewignore" ]]; then
+    return 0  # Preserve user edits
+  fi
+
+  cat > ".reviewignore" << 'REVIEWIGNORE_EOF'
+# .reviewignore — Review scope exclusion patterns
+# Gitignore-style syntax. Files matching these patterns are excluded from
+# code reviews, audits, and Bridgebuilder analysis.
+#
+# Zone-based exclusions (from .loa-version.json) are always applied:
+#   - System zone (.claude/) — framework internals
+#   - State zone (grimoires/, .beads/, .ck/, .run/) — agent state
+#
+# Add project-specific patterns below.
+
+# Loa framework files (always excluded via zone detection, listed for clarity)
+.claude/
+grimoires/loa/a2a/
+grimoires/loa/archive/
+.beads/
+.run/
+
+# Framework config (not user code)
+.loa-version.json
+.loa.config.yaml.example
+
+# Generated files
+*.min.js
+*.min.css
+*.map
+
+# Vendored dependencies
+vendor/
+node_modules/
+
+# =============================================================================
+# Project-specific exclusions — add your patterns below
+# =============================================================================
+REVIEWIGNORE_EOF
+
+  log "Created .reviewignore"
 }
 
 # === Root File Sync (CLAUDE.md, PROCESS.md) ===
