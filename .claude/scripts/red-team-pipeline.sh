@@ -96,8 +96,10 @@ render_attack_template() {
     # Avoids bash expansion issues with large content, backslashes, and template injection
     cp "$ATTACK_TEMPLATE" "$output_file"
 
-    # Phase is short and safe for inline sed
-    sed -i "s|{{PHASE}}|${phase}|g" "$output_file"
+    # Phase is short and safe for inline sed (portable: temp-file-and-mv)
+    local tmpphase
+    tmpphase=$(mktemp -p "$TEMP_DIR")
+    sed "s|{{PHASE}}|${phase}|g" "$output_file" > "$tmpphase" && mv "$tmpphase" "$output_file"
 
     # For large content blocks, use file-based replacement via awk to avoid shell escaping
     local tmpwork
@@ -129,9 +131,11 @@ render_counter_template() {
     local attacks_json_file="$2"
     local output_file="$3"
 
-    # Use sed/awk for safe template variable substitution
+    # Use sed/awk for safe template variable substitution (portable: temp-file-and-mv)
     cp "$COUNTER_TEMPLATE" "$output_file"
-    sed -i "s|{{PHASE}}|${phase}|g" "$output_file"
+    local tmpphase2
+    tmpphase2=$(mktemp -p "$TEMP_DIR")
+    sed "s|{{PHASE}}|${phase}|g" "$output_file" > "$tmpphase2" && mv "$tmpphase2" "$output_file"
 
     # Replace {{ATTACKS_JSON}} with file content via awk
     local tmpwork

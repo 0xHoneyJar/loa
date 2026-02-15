@@ -336,14 +336,12 @@ phase_changelog() {
   # Replace [Unreleased] with versioned header
   local date_str
   date_str=$(date +%Y-%m-%d)
-  # Portable sed -i (GNU uses -i, macOS/BSD uses -i '')
-  if sed --version 2>/dev/null | grep -q GNU; then
-    sed -i "s/## \[Unreleased\]/## [Unreleased]\n\n## [${version}] - ${date_str}/" "$changelog"
-  else
-    sed -i '' "s/## \[Unreleased\]/## [Unreleased]\\
+  # Portable sed via temp-file-and-mv (avoids sed -i GNU/BSD portability issue)
+  local tmpfile
+  tmpfile=$(mktemp)
+  sed "s/## \[Unreleased\]/## [Unreleased]\\
 \\
-## [${version}] - ${date_str}/" "$changelog"
-  fi
+## [${version}] - ${date_str}/" "$changelog" > "$tmpfile" && mv "$tmpfile" "$changelog"
 
   # Commit the change
   git -C "$PROJECT_ROOT" add "$changelog"
