@@ -385,9 +385,10 @@ extract_doc_comment() {
                 head -3 | tr '\n' ' ') || true
             ;;
         *.py)
-            # Python: docstring on the line(s) after def/class
+            # Python: docstring on the line(s) after def/class (triple-double or triple-single)
             comment=$(sed -n "$((line_num+1)),$((line_num+5))p" "$file" 2>/dev/null | \
-                sed -n '/"""/,/"""/p' | sed 's/"""//g;s/^[[:space:]]*//' | \
+                sed -n '/"""\|'"'''"'/,/"""\|'"'''"'/p' | \
+                sed "s/\"\"\"//g;s/'''//g;s/^[[:space:]]*//" | \
                 tr '\n' ' ' | sed 's/^ *//;s/ *$//') || true
             ;;
         *.rs)
@@ -438,7 +439,7 @@ extract_project_description() {
             /^#/{next}
             /^\[!\[/{next}
             /^>/{next}
-            /^<!--/{skip=1} /-->/{skip=0; next}
+            /<!--/{skip=1} /-->/{skip=0; next}
             skip{next}
             /^[[:space:]]*$/{if(found) exit; next}
             {found=1; printf "%s ", $0}
@@ -544,7 +545,7 @@ infer_module_purpose() {
     # Strategy 3: Infer from dominant file types
     if [[ -z "$purpose" ]]; then
         local test_files md_files sh_files
-        test_files=$(find "$dir" -maxdepth 2 -name "*.test.*" -o -name "*.spec.*" 2>/dev/null | wc -l | tr -d ' ')
+        test_files=$(find "$dir" -maxdepth 2 \( -name "*.test.*" -o -name "*.spec.*" \) 2>/dev/null | wc -l | tr -d ' ')
         md_files=$(find "$dir" -maxdepth 2 -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
         sh_files=$(find "$dir" -maxdepth 2 -name "*.sh" 2>/dev/null | wc -l | tr -d ' ')
 
@@ -691,7 +692,7 @@ extract_header() {
     if [[ "$tier" -le 2 ]]; then
         local lang_count=0
         local langs="" skill_count=0
-        [[ -n "$(find . -maxdepth 3 -name '*.ts' -o -name '*.js' 2>/dev/null | head -1)" ]] && { langs="${langs}TypeScript/JavaScript, "; ((lang_count++)); }
+        [[ -n "$(find . -maxdepth 3 \( -name '*.ts' -o -name '*.js' \) 2>/dev/null | head -1)" ]] && { langs="${langs}TypeScript/JavaScript, "; ((lang_count++)); }
         [[ -n "$(find . -maxdepth 3 -name '*.py' 2>/dev/null | head -1)" ]] && { langs="${langs}Python, "; ((lang_count++)); }
         [[ -n "$(find . -maxdepth 3 -name '*.rs' 2>/dev/null | head -1)" ]] && { langs="${langs}Rust, "; ((lang_count++)); }
         [[ -n "$(find . -maxdepth 3 -name '*.go' 2>/dev/null | head -1)" ]] && { langs="${langs}Go, "; ((lang_count++)); }
@@ -817,7 +818,7 @@ extract_capabilities() {
                 (( entry_count > 10 )) && use_groups=true
 
                 local current_group=""
-                caps=$(echo "$raw_entries" | while IFS='|' read -r score parent sym desc ref; do
+                caps=$(while IFS='|' read -r score parent sym desc ref; do
                     [[ -z "$sym" ]] && continue
 
                     if [[ "$use_groups" == "true" && "$parent" != "$current_group" ]]; then
@@ -828,7 +829,7 @@ extract_capabilities() {
                     fi
 
                     echo "- **${sym}** — ${desc} (\`${ref}\`)"
-                done)
+                done <<< "$raw_entries")
             fi
         fi
     fi
@@ -1239,7 +1240,7 @@ extract_limitations() {
 
         # No tests
         local test_count
-        test_count=$(find . -maxdepth 3 -name "*.test.*" -o -name "*.spec.*" -o -name "*_test.*" 2>/dev/null | wc -l)
+        test_count=$(find . -maxdepth 3 \( -name "*.test.*" -o -name "*.spec.*" -o -name "*_test.*" \) 2>/dev/null | wc -l)
         (( test_count == 0 )) && inferred="${inferred}- No automated tests detected\n"
 
         # No CI
@@ -1252,7 +1253,7 @@ extract_limitations() {
 
         # Shell-only project
         local has_compiled=false
-        [[ -n "$(find . -maxdepth 3 -name '*.ts' -o -name '*.rs' -o -name '*.go' 2>/dev/null | head -1)" ]] && has_compiled=true
+        [[ -n "$(find . -maxdepth 3 \( -name '*.ts' -o -name '*.rs' -o -name '*.go' \) 2>/dev/null | head -1)" ]] && has_compiled=true
         [[ "$has_compiled" == "false" ]] && \
             inferred="${inferred}- Shell-only project (no type checking)\n"
 
