@@ -1,7 +1,7 @@
 <!-- AGENT-CONTEXT
 name: loa
 type: framework
-purpose: Loa is an agent-driven development framework for [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (Anthropic's official CLI). It adds 17 specialized AI agents, quality gates, persistent memory, and
+purpose: Loa is an agent-driven development framework for [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (Anthropic's official CLI).
 key_files: [CLAUDE.md, .claude/loa/CLAUDE.loa.md, .loa.config.yaml, .claude/scripts/, .claude/skills/]
 interfaces: [/auditing-security, /autonomous-agent, /bridgebuilder-review, /browsing-constructs, /bug-triaging]
 dependencies: [git, jq, yq]
@@ -12,7 +12,7 @@ trust_level: grounded
 # loa
 
 <!-- provenance: DERIVED -->
-Loa is an agent-driven development framework for [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (Anthropic's official CLI). It adds 17 specialized AI agents, quality gates, persistent memory, and
+Loa is an agent-driven development framework for [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (Anthropic's official CLI).
 
 The framework provides 29 specialized skills, built with TypeScript/JavaScript, Python, Shell.
 
@@ -153,11 +153,11 @@ claude
 
 After install, you should see a `.claude/` directory, `grimoires/loa/`, and `.loa.config.yaml` in your repo. Run `/loa doctor` inside Claude Code to verify everything is healthy.
 <!-- ground-truth-meta
-head_sha: c3400d66541ca5b0cc3ae258cd085b154aae279b
-generated_at: 2026-02-15T06:58:12Z
+head_sha: e869a45b32902972ab7deb77addc3fa2c38da47f
+generated_at: 2026-02-15T07:05:27Z
 generator: butterfreezone-gen v1.0.0
 sections:
-  agent_context: 05d22ec9a2535fb4a96dd277cbb9df8c037c1c2a82406235c3398be11f0505dc
+  agent_context: c6bdbe993a27b2bdbe49ee69301838a7dea94d5add0f9bed20a46bdf2f7b5a63
   capabilities: 7ac5066c6290b2bd238aba0cebe80e6c24d2c32ecc6b066842a065eb8c2300c1
   architecture: 116f3296a49700fbee5e9cb0492e4f9aee0f9452b5c051a942ee4429278ab8d3
   interfaces: c0d2732b6ab7745352bd781f56f44f32b2f8f2cacef7234ceed3e8f09796c0f4

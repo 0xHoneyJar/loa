@@ -425,6 +425,9 @@ describe_from_name() {
 
 # Multi-strategy project description extraction (SDD §2.3.1)
 # Shared by extract_header() and extract_agent_context()
+# Note: Truncation assumes prose input (contains spaces). URLs or code paths
+# without spaces would pass through untrimmed. This is acceptable for README
+# paragraph extraction but should be reconsidered if reused for other content.
 extract_project_description() {
     local desc=""
 
@@ -443,7 +446,8 @@ extract_project_description() {
             skip{next}
             /^[[:space:]]*$/{if(found) exit; next}
             {found=1; printf "%s ", $0}
-        ' README.md 2>/dev/null | sed 's/ *$//' | cut -c1-220 | sed 's/ [^ ]*$//') || true
+        ' README.md 2>/dev/null | sed 's/ *$//' | cut -c1-220 | sed 's/ [^ ]*$//' | \
+            awk '{s=$0; if(length(s)>=80 && match(s,/\. [^.]*$/)) s=substr(s,1,RSTART); print s}') || true
     fi
 
     # Strategy 3: README "What Is This?" or "Overview" section
@@ -453,7 +457,8 @@ extract_project_description() {
             f && /^##/{exit}
             f && /^[[:space:]]*$/{next}
             f {print; exit}
-        ' README.md 2>/dev/null | cut -c1-220 | sed 's/ [^ ]*$//') || true
+        ' README.md 2>/dev/null | cut -c1-220 | sed 's/ [^ ]*$//' | \
+            awk '{s=$0; if(length(s)>=80 && match(s,/\. [^.]*$/)) s=substr(s,1,RSTART); print s}') || true
     fi
 
     # Strategy 4: Existing BUTTERFREEZONE AGENT-CONTEXT purpose
