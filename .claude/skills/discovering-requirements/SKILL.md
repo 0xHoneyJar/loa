@@ -300,8 +300,25 @@ ELSE IF codebase_detection.type == "BROWNFIELD":
               - "Re-run /ride for fresh analysis (recommended)"
               - "Proceed with existing analysis (faster)"
     ELSE:
-        → Run /ride (Phase -0.5)
-        → Show progress: "Analyzing codebase structure..."
+        → Present recommendation via AskUserQuestion:
+          questions:
+            - question: "This is a brownfield project with no codebase reality files. How would you like to proceed?"
+              header: "Grounding"
+              options:
+                - label: "Run /ride (Recommended)"
+                  description: "Analyze codebase first to ground PRD in code reality"
+                - label: "Run /ride --enriched"
+                  description: "Full analysis with gap tracking, decision archaeology, and terminology extraction"
+                - label: "Skip grounding"
+                  description: "Proceed without codebase analysis (not recommended for brownfield)"
+              multiSelect: false
+        → If "Run /ride": invoke ride skill (standard mode)
+        → If "Run /ride --enriched": invoke ride skill with --enriched flag
+        → If "Skip grounding":
+            - Log warning to NOTES.md blockers:
+              "- [ ] [BLOCKER] PRD created without codebase grounding — user skipped /ride for brownfield project"
+            - Proceed to Phase -1 without reality context
+            - Add warning banner to generated PRD
 ```
 
 ### Running /ride
@@ -758,7 +775,7 @@ Every claim about existing context must include citation:
 | Reality conflicts with context | Reality wins, flag conflict for user review |
 | Stale reality (>7 days) | Prompt user to refresh or proceed with cached |
 | /ride failed | Log blocker, proceed without grounding (with warning) |
-| Brownfield detected but no reality | Run /ride before Phase -1 |
+| Brownfield detected but no reality | Present 3-option AskUserQuestion: Run /ride, Run /ride --enriched, Skip grounding |
 | Greenfield project | Skip codebase grounding entirely, no message |
 </edge_cases>
 

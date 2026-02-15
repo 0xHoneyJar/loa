@@ -84,6 +84,50 @@ Log staleness check to trajectory:
 
 ---
 
+## Enrichment Flags (Opt-In Depth Control)
+
+Parse the user's invocation text for enrichment flags. These control whether optional Phases 12-14 run after the standard ride.
+
+### Flag Detection
+
+Scan the user's invocation for these flags:
+
+| Flag | Variable | Default | Effect |
+|------|----------|---------|--------|
+| `--with-gaps` | `ENRICH_GAPS` | `false` | Enable Phase 12: Gap Tracker |
+| `--with-decisions` | `ENRICH_DECISIONS` | `false` | Enable Phase 13: Decision Archaeology |
+| `--with-terms` | `ENRICH_TERMS` | `false` | Enable Phase 14: Terminology Extraction |
+| `--enriched` | Sets all three above | `false` | Enable all enrichment phases |
+
+### Parsing Rules
+
+1. If `--enriched` is present, set `ENRICH_GAPS=true`, `ENRICH_DECISIONS=true`, `ENRICH_TERMS=true`
+2. Individual flags can be combined: `--with-gaps --with-decisions`
+3. If NO enrichment flags are present, all variables remain `false` — standard ride proceeds unchanged
+4. Log parsed flags to trajectory:
+```json
+{"phase": "flags", "action": "enrichment_flags_parsed", "status": "complete", "details": {"ENRICH_GAPS": false, "ENRICH_DECISIONS": false, "ENRICH_TERMS": false}}
+```
+
+### Configuration Defaults
+
+Read enrichment thresholds from `.loa.config.yaml` (used by Phases 12-14):
+
+```bash
+# Gap tracker thresholds
+GAP_MAX_OPEN=$(yq eval '.ride.enrichment.gaps.max_open // 200' .loa.config.yaml 2>/dev/null || echo "200")
+GAP_WARN_AT=$(yq eval '.ride.enrichment.gaps.warn_at // 150' .loa.config.yaml 2>/dev/null || echo "150")
+
+# Decision archaeology thresholds
+DECISION_STALE_MONTHS=$(yq eval '.ride.enrichment.decisions.stale_months // 12' .loa.config.yaml 2>/dev/null || echo "12")
+DECISION_EXTRA_PATHS=$(yq eval '.ride.enrichment.decisions.extra_paths // []' .loa.config.yaml 2>/dev/null || echo "[]")
+
+# Terminology thresholds
+TERM_MAX_TERMS=$(yq eval '.ride.enrichment.terminology.max_terms // 50' .loa.config.yaml 2>/dev/null || echo "50")
+```
+
+---
+
 <attention_budget>
 ## Attention Budget
 
@@ -339,6 +383,16 @@ After writing, verify with `Glob` pattern `grimoires/loa/consistency-report.md` 
 | `[INFERRED]` | Logical deduction from multiple sources |
 | `[ASSUMPTION]` | No direct evidence — needs validation |
 
+**Extended Markers** (available when enrichment phases run):
+
+| Marker | When to Use | Example |
+|--------|-------------|---------|
+| `[CLAIMED: source]` | Single-source evidence with attribution | `[CLAIMED: ADR-003 — Dynamic over Privy]` |
+| `[DISPUTED: A vs B]` | Conflicting signals between sources | `[DISPUTED: README says Redis, code uses in-memory]` |
+| `[UNKNOWN: GAP-NNN]` | Linked to gap tracker entry | `[UNKNOWN: GAP-007 — auth session TTL]` |
+
+These extended markers complement (not replace) the standard markers above and the BUTTERFREEZONE provenance tags (`CODE-FACTUAL`, `DERIVED`, `OPERATIONAL`). Use them in reality files (`grimoires/loa/reality/*.md`) and the gap tracker when enrichment phases produce evidence that warrants richer attribution.
+
 ### 6.1 Generate PRD
 
 Create `grimoires/loa/prd.md` with evidence-grounded user types, features, and requirements. Include Source of Truth notice and Document Metadata.
@@ -499,6 +553,14 @@ Before handoff, verify ALL expected artifacts exist on disk using `Glob`.
 | 10 | Reality Meta | `grimoires/loa/reality/.reality-meta.json` |
 | 11 | Legacy Inventory | `grimoires/loa/legacy/INVENTORY.md` |
 
+**Enrichment Artifacts** (check only when corresponding flag was set):
+
+| # | Artifact | Path | Condition |
+|---|----------|------|-----------|
+| 12 | Gap Tracker | `grimoires/loa/gaps.md` | `ENRICH_GAPS == true` |
+| 13 | Decision Archaeology | `grimoires/loa/reality/decisions.md` | `ENRICH_DECISIONS == true` |
+| 14 | Domain Terminology | `grimoires/loa/reality/terminology.md` | `ENRICH_TERMS == true` |
+
 **Procedure**:
 1. For each file, use `Glob` to verify existence
 2. Count: passed / total
@@ -528,12 +590,18 @@ Grimoire Artifacts Created:
 - grimoires/loa/reality/* (Raw extractions + token-optimized files)
 - grimoires/loa/trajectory-audit.md (Self-audit)
 
+Enrichment Outputs (if enabled):
+- grimoires/loa/gaps.md (Gap tracker — if --with-gaps)
+- grimoires/loa/reality/decisions.md (Decision archaeology — if --with-decisions)
+- grimoires/loa/reality/terminology.md (Domain terminology — if --with-terms)
+
 Next Steps:
 1. Review drift-report.md for critical issues
 2. Address governance gaps
 3. /translate-ride for executive communications
 4. Schedule stakeholder PRD review
 5. Run /implement for high-priority drift
+6. Review gaps.md and resolve open gaps (if enrichment ran)
 ```
 
 ---
@@ -595,6 +663,290 @@ If any section exceeds its token budget, trim content (prioritize most-reference
 
 ---
 
+## Phase 12: Gap Tracker Generation (`ENRICH_GAPS` only)
+
+**Skip condition**: If `ENRICH_GAPS == false`, skip this entire phase. Log skip to trajectory:
+```json
+{"phase": 12, "action": "gap_tracker", "status": "skipped", "details": {"reason": "ENRICH_GAPS not set"}}
+```
+
+### 12.1 Load Existing Gaps
+
+Read `grimoires/loa/gaps.md` if it exists. Extract the highest `GAP-NNN` ID to determine the next available ID. If file doesn't exist, start at `GAP-001`.
+
+```bash
+# Extract highest gap ID
+NEXT_GAP_ID=1
+if [[ -f grimoires/loa/gaps.md ]]; then
+  HIGHEST=$(grep -oP 'GAP-\K[0-9]+' grimoires/loa/gaps.md | sort -n | tail -1)
+  NEXT_GAP_ID=$((HIGHEST + 1))
+fi
+```
+
+### 12.2 Collect Gap Sources
+
+Scan the following ride artifacts for unknowns, unresolved items, and missing context:
+
+| Source | What to Look For |
+|--------|-----------------|
+| `grimoires/loa/context/claims-to-verify.md` | Claims with status UNVERIFIED or MISSING |
+| `grimoires/loa/drift-report.md` | Drift items marked HALLUCINATED or GHOST |
+| `grimoires/loa/governance-report.md` | Missing governance artifacts |
+| Interview responses (Phase 1) | Questions the user couldn't answer |
+| `grimoires/loa/reality/hygiene-report.md` | Unexplained code patterns |
+
+For each identified gap, assign:
+- **Type**: `Fact` | `Data` | `Interview` | `Context` | `Technical`
+- **Priority**: `P0` (blocks agent work) | `P1` (degrades agent quality) | `P2` (nice to know)
+- **Source**: Phase and artifact where gap was identified
+
+### 12.3 Write Gap Tracker
+
+Write `grimoires/loa/gaps.md` with the following schema. If the file already exists, **append** new gaps to the `## Open Gaps` section — never overwrite or remove existing entries.
+
+```markdown
+# Gap Tracker
+
+> Auto-generated by /ride --with-gaps. Gaps are NEVER auto-resolved — only humans close them.
+> Generated: YYYY-MM-DD
+
+## Open Gaps
+
+### GAP-NNN: [Short description]
+- **Type**: Fact | Data | Interview | Context | Technical
+- **Priority**: P0 | P1 | P2
+- **Source**: /ride Phase N, [artifact or file:line]
+- **Context**: Why this matters for agent work
+- **Status**: OPEN
+- **Opened**: YYYY-MM-DD
+- **Resolution**: _pending human input_
+
+## Resolved Gaps
+
+_Gaps are moved here by humans only. Agents MUST NOT modify this section._
+```
+
+### 12.4 Gap Count Validation
+
+Check gap counts against configured thresholds:
+
+```
+IF total_open_gaps >= GAP_MAX_OPEN:
+  → Log ERROR to trajectory and NOTES.md:
+    "Gap tracker has N open gaps (max: GAP_MAX_OPEN). Review and resolve gaps before adding more."
+  → Still write the file, but add warning banner
+
+ELSE IF total_open_gaps >= GAP_WARN_AT:
+  → Log WARNING to trajectory:
+    "Gap tracker approaching limit: N/GAP_MAX_OPEN open gaps"
+```
+
+### 12.5 File Persistence Checkpoint (CP-12)
+
+**WRITE TO DISK**: Use the `Write` tool to persist `grimoires/loa/gaps.md`.
+
+After writing, verify with `Glob` pattern `grimoires/loa/gaps.md` — must return 1 match. If missing after Write, retry once. If still missing, log to trajectory:
+```json
+{"phase": 12, "action": "write_failed", "artifact": "gaps.md", "status": "error"}
+```
+
+### Gap Tracker Rules
+
+| Rule | Description |
+|------|-------------|
+| Agents MAY create gaps | Append to Open Gaps section with next monotonic ID |
+| Agents MUST NOT resolve gaps | Only humans move gaps to Resolved section |
+| IDs are monotonically increasing | Never reuse a GAP-NNN ID, even if gap is resolved |
+| Append-only for new gaps | Subsequent /ride runs append, never overwrite existing entries |
+| Check before assuming | Agents SHOULD read gap tracker before making assumptions about unknown context |
+
+Log phase completion to trajectory:
+```json
+{"phase": 12, "action": "gap_tracker", "status": "complete", "details": {"new_gaps": N, "total_open": N, "highest_id": "GAP-NNN", "threshold_status": "ok|warning|exceeded"}}
+```
+
+---
+
+## Phase 13: Decision Archaeology (`ENRICH_DECISIONS` only)
+
+**Skip condition**: If `ENRICH_DECISIONS == false`, skip this entire phase. Log skip to trajectory:
+```json
+{"phase": 13, "action": "decision_archaeology", "status": "skipped", "details": {"reason": "ENRICH_DECISIONS not set"}}
+```
+
+### 13.1 ADR Directory Detection
+
+Search for architectural decision records in these locations (in order):
+
+| Priority | Path Pattern | Convention |
+|----------|-------------|------------|
+| 1 | `docs/decisions/` or `docs/adr/` | Common patterns |
+| 2 | `adr/` | Root-level ADR directory |
+| 3 | `knowledge/decisions/` | Hivemind pattern |
+| 4 | `docs/architecture/decisions/` | Nested architecture pattern |
+| 5 | `.adr-dir` file contents | adr-tools convention (file contains custom path) |
+
+Also check `DECISION_EXTRA_PATHS` from config for additional search locations.
+
+Log which directories were found:
+```json
+{"phase": 13.1, "action": "adr_detection", "dirs_checked": 5, "dirs_found": ["docs/adr/"], "total_adrs": N}
+```
+
+### 13.2 ADR Parsing
+
+For each `.md` file found in ADR directories, extract:
+
+| Field | Detection Strategy |
+|-------|-------------------|
+| **Title** | First `#` heading or filename |
+| **Status** | Line matching `Status:` or `## Status` section (Accepted, Deprecated, Superseded, Proposed) |
+| **Date** | Line matching `Date:`, `Decided:`, or parsed from filename (NNNN-NN-NN pattern) |
+| **Decision** | First paragraph after `## Decision` or `## Context and Decision` heading |
+| **Rejected alternatives** | Content under `## Options Considered`, `## Alternatives`, or `## Rejected` |
+| **Consequences** | Content under `## Consequences` or `## Impact` |
+| **Reversal conditions** | Sentences containing "revisit when", "reconsider if", "reverse when", "sunset" |
+
+### 13.3 Staleness Computation
+
+For each ADR with a detected date:
+
+```
+age_months = (current_date - adr_date) / 30
+IF age_months > DECISION_STALE_MONTHS:
+  → Mark as STALE with warning: "N months old, may not reflect current decisions"
+```
+
+### 13.4 Generate decisions.md
+
+Write `grimoires/loa/reality/decisions.md`:
+
+```markdown
+# Decision Archaeology
+
+> Extracted from N ADR files across M directories.
+> Decisions are claims — verify with HITL before treating as constraints.
+> Generated: YYYY-MM-DD
+
+## Active Decisions
+
+### [ADR Title]
+- **Status**: [Status] ([Date])
+- **File**: [relative/path/to/adr.md]
+- **Decision**: [Summary of decision]
+- **Rejected**: [Alternatives that were NOT chosen]
+- **Constraints for agents**: [What agents should NOT do based on this decision]
+- **Reversal condition**: [If present — when to reconsider]
+
+## Stale Decisions (>DECISION_STALE_MONTHS months, no reconfirmation)
+
+### [ADR Title]
+- **Status**: [Status] ([Date]) — ⚠️ N months old
+- **File**: [relative/path/to/adr.md]
+- **Staleness note**: May not reflect current architecture decisions. Recommend HITL reconfirmation.
+```
+
+### 13.5 No ADRs Found
+
+If no ADR directories or files are found:
+
+- If Phase 12 ran (gap tracker available): Create a gap entry:
+  ```
+  GAP-NNN: No ADR/decision records found
+  Type: Context
+  Priority: P1
+  Source: /ride Phase 13, decision archaeology scan
+  Context: Project has no documented architectural decisions. Future agents will lack trade-off context.
+  ```
+- If Phase 12 did NOT run: Log warning to trajectory and NOTES.md
+
+### 13.6 File Persistence Checkpoint (CP-13)
+
+**WRITE TO DISK**: Use the `Write` tool to persist `grimoires/loa/reality/decisions.md`.
+
+After writing, verify with `Glob` pattern `grimoires/loa/reality/decisions.md` — must return 1 match. If missing after Write, retry once. If still missing, log to trajectory:
+```json
+{"phase": 13, "action": "write_failed", "artifact": "decisions.md", "status": "error"}
+```
+
+Log phase completion:
+```json
+{"phase": 13, "action": "decision_archaeology", "status": "complete", "details": {"adr_dirs_found": N, "adrs_parsed": N, "active": N, "stale": N, "output": "grimoires/loa/reality/decisions.md"}}
+```
+
+---
+
+## Phase 14: Domain Terminology Extraction (`ENRICH_TERMS` only)
+
+**Skip condition**: If `ENRICH_TERMS == false`, skip this entire phase. Log skip to trajectory:
+```json
+{"phase": 14, "action": "terminology_extraction", "status": "skipped", "details": {"reason": "ENRICH_TERMS not set"}}
+```
+
+### 14.1 Term Extraction
+
+Scan source code for domain-specific vocabulary from these categories (in priority order):
+
+| Category | Detection Pattern | Example |
+|----------|------------------|---------|
+| Type names & enums | `type\s+\w+`, `enum\s+\w+`, `interface\s+\w+` | `type FinnNFT`, `enum PoolStatus` |
+| Database models | `@Entity`, `model\s+\w+`, `CREATE TABLE`, schema definitions | `model CreditBalance` |
+| Constants | `const\s+[A-Z_]+`, exported configuration keys | `MAX_RETRY_COUNT` |
+| Component names | Domain-prefixed components, module names | `HounfourRouter`, `BridgebuilderReview` |
+| Definitional comments | Comments containing "i.e.", "a.k.a.", "means", "refers to", "defined as" | `// finnNFT refers to the governance token` |
+
+For each term found:
+- Record the term name
+- Record the source file and line (`file:line`)
+- Extract contextual definition (from comment, type structure, or usage pattern)
+- Track frequency (number of references across codebase)
+
+### 14.2 Deduplication and Ranking
+
+1. Deduplicate terms (case-insensitive match, keep casing from definition site)
+2. Rank by frequency (most-referenced first)
+3. Cap at `TERM_MAX_TERMS` (default: 50)
+4. Group by domain (inferred from file path or module structure)
+
+### 14.3 Generate terminology.md
+
+Write `grimoires/loa/reality/terminology.md`:
+
+```markdown
+# Domain Terminology
+
+> Extracted from source code. N terms identified.
+> Generated: YYYY-MM-DD
+
+## [Domain Group 1]
+
+| Term | Source | Context |
+|------|--------|---------|
+| `TermName` | path/to/file.ts:NN | Brief definition or usage context |
+
+## [Domain Group 2]
+
+| Term | Source | Context |
+|------|--------|---------|
+| `TermName` | path/to/file.ts:NN | Brief definition or usage context |
+```
+
+### 14.4 File Persistence Checkpoint (CP-14)
+
+**WRITE TO DISK**: Use the `Write` tool to persist `grimoires/loa/reality/terminology.md`.
+
+After writing, verify with `Glob` pattern `grimoires/loa/reality/terminology.md` — must return 1 match. If missing after Write, retry once. If still missing, log to trajectory:
+```json
+{"phase": 14, "action": "write_failed", "artifact": "terminology.md", "status": "error"}
+```
+
+Log phase completion:
+```json
+{"phase": 14, "action": "terminology_extraction", "status": "complete", "details": {"terms_extracted": N, "domains": N, "output": "grimoires/loa/reality/terminology.md"}}
+```
+
+---
+
 ## Uncertainty Protocol
 
 If code behavior is ambiguous:
@@ -641,3 +993,6 @@ Each phase appends a JSON line:
 | 9 | `self_audit` | `quality_score`, `assumptions`, `output` |
 | 10 | `handoff` | `total_duration_minutes` |
 | 11 | `ground_truth_generation` | `files`, `total_tokens`, `checksums_count`, `within_budget` |
+| 12 | `gap_tracker` | `new_gaps`, `total_open`, `highest_id`, `threshold_status` |
+| 13 | `decision_archaeology` | `adr_dirs_found`, `adrs_parsed`, `active`, `stale`, `output` |
+| 14 | `terminology_extraction` | `terms_extracted`, `domains`, `output` |
