@@ -254,6 +254,7 @@ When Claude Code Agent Teams (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) is activ
 | MUST restrict planning skills to team lead only — teammates implement, review, and audit only | Planning skills assume single-writer semantics |
 | MUST serialize all beads operations through team lead — teammates report via SendMessage | SQLite single-writer prevents lock contention |
 | MUST only let team lead write to `.run/` state files — teammates report via SendMessage | Read-modify-write pattern prevents lost updates |
+| MUST coordinate git commit/push through team lead — teammates report completed work via SendMessage | Git working tree and index are shared mutable state |
 <!-- @constraint-generated: end agent_teams_constraints -->
 
 ### Task Tracking in Agent Teams Mode

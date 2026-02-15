@@ -88,7 +88,7 @@ Beads (`br`) uses SQLite with single-writer semantics. In Agent Teams mode, ALL 
 
 ### Append-Only Safety
 
-Files that support append-only writes (JSONL, NOTES.md) are naturally safe for concurrent access on POSIX systems. Each write is atomic up to `PIPE_BUF` (typically 4096 bytes). Teammates should keep individual append operations under this limit.
+Files that support append-only writes (JSONL, NOTES.md) are safe for concurrent access **only when using Bash append** (`echo "..." >> file`), which uses POSIX atomic writes up to `PIPE_BUF` (typically 4096 bytes). The Write tool does a full read-modify-write and is NOT safe for concurrent access. Teammates MUST use Bash append for NOTES.md and audit.jsonl, not the Write tool. Keep individual append operations under 4096 bytes.
 
 ## Team Topology Templates
 
@@ -214,6 +214,6 @@ Teammates load CLAUDE.md but may not follow all constraints perfectly. The lead 
 ### State file corruption
 
 If `.run/` state files become inconsistent:
-1. Check which agent last modified the file: `git log -1 -- .run/simstim-state.json`
+1. Check the audit trail for recent state file writes: `grep 'simstim-state' .run/audit.jsonl | tail -5`
 2. Restore from the lead's last known good state
 3. Have teammates re-report their status via SendMessage

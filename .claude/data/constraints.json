@@ -1184,6 +1184,27 @@
       ],
       "severity": "high",
       "source_incident": "#337"
+    },
+    {
+      "id": "C-TEAM-004",
+      "name": "lead_coordinates_git_operations",
+      "category": "agent_teams",
+      "rule_type": "MUST",
+      "text": "coordinate all git commit and push operations through the team lead — teammates MUST NOT commit or push directly to avoid working tree and index race conditions",
+      "text_variants": {
+        "claude-loa-md": "MUST coordinate git commit/push through team lead — teammates report completed work via SendMessage"
+      },
+      "why": "Git's working tree and index are shared mutable state; concurrent commits or pushes cause merge conflicts, index lock failures, and corrupted state",
+      "order": 3,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "agent_teams_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "high",
+      "source_incident": "#337"
     }
   ]
 }

@@ -1421,9 +1421,8 @@ agent_teams:
   # Detection mode: auto (use if available), true (require), false (disable)
   enabled: auto
 
-  # Beads access model: lead_only (recommended) or distributed (future)
-  # lead_only: Only the team lead runs br commands; teammates report via SendMessage
-  # distributed: All teammates can run br (requires SQLite WAL mode — not yet supported)
+  # Beads access model: Only the team lead runs br commands;
+  # teammates report task status via SendMessage
   beads_access: lead_only
 
   # State file behavior when Agent Teams is active
