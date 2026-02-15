@@ -234,6 +234,7 @@ Defense-in-depth via Claude Code hooks. Active in ALL modes (interactive, autono
 | Hook | Event | Purpose |
 |------|-------|---------|
 | `block-destructive-bash.sh` | PreToolUse:Bash | Block `rm -rf`, force-push, reset --hard, clean -f |
+| `team-role-guard.sh` | PreToolUse:Bash | Enforce lead-only ops in Agent Teams (no-op in single-agent) |
 | `run-mode-stop-guard.sh` | Stop | Guard against premature exit during autonomous runs |
 | `mutation-logger.sh` | PostToolUse:Bash | Log mutating commands to `.run/audit.jsonl` |
 

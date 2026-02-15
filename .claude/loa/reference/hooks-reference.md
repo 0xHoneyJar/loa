@@ -44,6 +44,12 @@ Blocks `rm -rf`, `git push --force`, `git reset --hard`, `git clean -f` with act
 
 **Script**: `.claude/hooks/safety/block-destructive-bash.sh`
 
+### PreToolUse:Bash — Team Role Guard (v1.39.0)
+
+Enforces lead-only constraints when `LOA_TEAM_MEMBER` is set (Agent Teams mode). Blocks `br` commands, `.run/*.json` overwrites, and `git commit/push` for teammates. Complete no-op when `LOA_TEAM_MEMBER` is unset. Fail-open design.
+
+**Script**: `.claude/hooks/safety/team-role-guard.sh`
+
 ### Stop — Run Mode Guard
 
 Detects active `/run`, `/run-bridge`, or `/simstim` execution and injects context reminder before stopping.
@@ -72,5 +78,6 @@ See `.claude/hooks/settings.hooks.json` for the complete hook configuration.
 | PreCompact | (all) | `pre-compact-marker.sh` | Save state before compaction |
 | UserPromptSubmit | (all) | `post-compact-reminder.sh` | Inject recovery after compaction |
 | PreToolUse | Bash | `safety/block-destructive-bash.sh` | Block destructive commands |
+| PreToolUse | Bash | `safety/team-role-guard.sh` | Enforce lead-only ops in Agent Teams |
 | PostToolUse | Bash | `audit/mutation-logger.sh` | Log mutating commands |
 | Stop | (all) | `safety/run-mode-stop-guard.sh` | Guard against premature exit |

@@ -156,11 +156,24 @@ Lead (Review Orchestrator)
 Loa's safety hooks are project-scoped (defined in `.claude/hooks/settings.hooks.json`). Teammates working in the same project directory inherit all hooks automatically:
 
 - **block-destructive-bash.sh**: Fires for ALL teammates (PreToolUse:Bash)
+- **team-role-guard.sh**: Blocks lead-only operations for teammates (PreToolUse:Bash). Only active when `LOA_TEAM_MEMBER` is set — no-op in single-agent mode. Fail-open design.
 - **mutation-logger.sh**: Fires for ALL teammates (PostToolUse:Bash)
 - **run-mode-stop-guard.sh**: Fires for ALL teammates (Stop)
 - **Deny rules**: Apply to ALL teammates (`.claude/hooks/settings.deny.json`)
 
 No additional configuration is needed for hook propagation.
+
+### Mechanical Enforcement (team-role-guard.sh)
+
+The `team-role-guard.sh` hook provides defense-in-depth enforcement of C-TEAM constraints. When `LOA_TEAM_MEMBER` is set, it blocks:
+
+| Pattern | Constraint | Rationale |
+|---------|-----------|-----------|
+| `br ` commands | C-TEAM-002 | Beads serialization through lead |
+| Overwrite (`>`) to `.run/*.json` | C-TEAM-003 | State file ownership |
+| `git commit`, `git push` | C-TEAM-004 | Git working tree serialization |
+
+**Allowed for teammates**: `>>` append to any file (POSIX atomic), `git status/diff/log` (read-only), all non-git/non-br commands.
 
 ## Quality Gate Preservation
 
