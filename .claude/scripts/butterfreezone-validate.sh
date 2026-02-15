@@ -184,6 +184,13 @@ validate_agent_context() {
         fi
     done
 
+    # Advisory checks for recommended fields (SDD §3.1.5)
+    for field in interfaces dependencies; do
+        if ! echo "$context_block" | grep -q "^${field}:" 2>/dev/null; then
+            log_warn "agent_context_ext" "AGENT-CONTEXT missing recommended field: $field" "missing: $field"
+        fi
+    done
+
     log_pass "agent_context" "AGENT-CONTEXT block valid (all required fields present)"
     return 0
 }
@@ -338,7 +345,74 @@ validate_meta() {
     return 0
 }
 
-# Check 7: Freshness
+# Check 7a: Architecture narrative (SDD §3.1.4)
+validate_architecture_narrative() {
+    if ! grep -q "^## Architecture" "$FILE" 2>/dev/null; then
+        return 0
+    fi
+
+    local arch_content
+    arch_content=$(sed -n '/^## Architecture/,/^## /p' "$FILE" 2>/dev/null | sed '$d')
+
+    # Count narrative text lines (not code blocks, diagrams, headers, provenance)
+    local narrative_lines
+    narrative_lines=$(echo "$arch_content" | grep -v '^[#|`<]' | grep -v '^\s*$' | \
+        grep -v '^---' | grep -v 'provenance:' | grep -v 'graph TD' | wc -l)
+
+    if (( narrative_lines < 2 )); then
+        log_fail "arch_narrative" "Architecture section lacks narrative (only $narrative_lines text lines)" "sparse"
+    else
+        log_pass "arch_narrative" "Architecture section has narrative ($narrative_lines text lines)"
+    fi
+}
+
+# Check 7b: Capability descriptions (SDD §3.1.1)
+validate_capability_descriptions() {
+    if ! grep -q "^## Key Capabilities" "$FILE" 2>/dev/null; then
+        log_warn "cap_desc" "Missing Key Capabilities section" "section missing"
+        return 0
+    fi
+
+    local bare_caps
+    bare_caps=$(sed -n '/^## Key Capabilities/,/^## /p' "$FILE" 2>/dev/null | \
+        grep -cE '^- `[^`]+`$') || bare_caps=0
+
+    if (( bare_caps > 0 )); then
+        log_fail "cap_desc" "$bare_caps capabilities without descriptions" "bare caps: $bare_caps"
+    else
+        log_pass "cap_desc" "All capabilities have descriptions"
+    fi
+}
+
+# Check 7c: Module map purposes (SDD §3.1.2)
+validate_module_purposes() {
+    if ! grep -q "^## Module Map" "$FILE" 2>/dev/null; then
+        log_warn "mod_purpose" "Missing Module Map section" "section missing"
+        return 0
+    fi
+
+    local empty_purposes
+    empty_purposes=$(sed -n '/^## Module Map/,/^## /p' "$FILE" 2>/dev/null | \
+        grep -E '^\|' | grep -v '^\|[-]' | grep -v '^| Module' | \
+        awk -F'|' '{gsub(/[[:space:]]/,"",$4); if($4=="") print}' | wc -l)
+
+    if (( empty_purposes > 0 )); then
+        log_fail "mod_purpose" "$empty_purposes modules with empty Purpose column" "empty: $empty_purposes"
+    else
+        log_pass "mod_purpose" "All modules have Purpose descriptions"
+    fi
+}
+
+# Check 7d: No stub descriptions (SDD §3.1.3)
+validate_no_description_available() {
+    if grep -q "No description available" "$FILE" 2>/dev/null; then
+        log_fail "no_desc" "Contains 'No description available' — header extraction failed" "found stub"
+    else
+        log_pass "no_desc" "No stub descriptions found"
+    fi
+}
+
+# Check 8: Freshness
 validate_freshness() {
     local generated_at
     generated_at=$(sed -n '/<!-- ground-truth-meta/,/-->/p' "$FILE" 2>/dev/null \
@@ -421,6 +495,10 @@ main() {
         validate_word_budget || true
         validate_min_words || true
         validate_architecture_diagram || true
+        validate_architecture_narrative || true
+        validate_capability_descriptions || true
+        validate_module_purposes || true
+        validate_no_description_available || true
         validate_meta || true
         validate_freshness || true
     fi

@@ -364,6 +364,208 @@ run_extractor() {
 }
 
 # =============================================================================
+# Helper Functions (cycle-017: SDD §2.1, §2.3)
+# =============================================================================
+
+# Extract doc comment preceding a symbol at a given line (SDD §2.1.1)
+extract_doc_comment() {
+    local file="$1"
+    local line_num="$2"
+    local comment=""
+
+    local start=$((line_num - 1))
+    [[ "$start" -lt 1 ]] && return 0
+
+    case "$file" in
+        *.ts|*.js|*.tsx|*.jsx)
+            # JSDoc: /** ... */ block ending on line before function
+            comment=$(sed -n "1,${start}p" "$file" 2>/dev/null | tac 2>/dev/null | \
+                sed -n '/^[[:space:]]*\*\//,/^[[:space:]]*\/\*\*/p' 2>/dev/null | tac 2>/dev/null | \
+                sed 's/^[[:space:]]*\*\/.*//;s/^[[:space:]]*\/\*\*.*//;s/^[[:space:]]*\* *//;/^$/d' | \
+                head -3 | tr '\n' ' ') || true
+            ;;
+        *.py)
+            # Python: docstring on the line(s) after def/class
+            comment=$(sed -n "$((line_num+1)),$((line_num+5))p" "$file" 2>/dev/null | \
+                sed -n '/"""/,/"""/p' | sed 's/"""//g;s/^[[:space:]]*//' | \
+                tr '\n' ' ' | sed 's/^ *//;s/ *$//') || true
+            ;;
+        *.rs)
+            # Rust: /// doc comments above pub item
+            comment=$(sed -n "1,${start}p" "$file" 2>/dev/null | tac 2>/dev/null | \
+                awk '/^[[:space:]]*\/\/\//{gsub(/^[[:space:]]*\/\/\/[[:space:]]?/,""); a=$0 (a?" "a:""); next} {exit} END{print a}') || true
+            ;;
+        *.sh)
+            # Shell: # comments above function (not shebang)
+            comment=$(sed -n "1,${start}p" "$file" 2>/dev/null | tac 2>/dev/null | \
+                awk '/^[[:space:]]*#[^!]/{gsub(/^[[:space:]]*#[[:space:]]?/,""); a=$0 (a?" "a:""); next} {exit} END{print a}') || true
+            ;;
+        *.go)
+            # Go: // comments above func
+            comment=$(sed -n "1,${start}p" "$file" 2>/dev/null | tac 2>/dev/null | \
+                awk '/^[[:space:]]*\/\//{gsub(/^[[:space:]]*\/\/[[:space:]]?/,""); a=$0 (a?" "a:""); next} {exit} END{print a}') || true
+            ;;
+    esac
+
+    # Return first sentence only, max 120 chars
+    echo "$comment" | sed 's/\. .*/./;s/^ *//;s/ *$//' | head -c 120
+}
+
+# Synthesize description from function name (SDD §2.1.2)
+describe_from_name() {
+    local name="$1"
+    echo "$name" | \
+        sed 's/_/ /g' | \
+        sed 's/\([a-z]\)\([A-Z]\)/\1 \2/g' | \
+        tr '[:upper:]' '[:lower:]' | \
+        sed 's/^./\U&/' | \
+        head -c 80
+}
+
+# Multi-strategy project description extraction (SDD §2.3.1)
+# Shared by extract_header() and extract_agent_context()
+extract_project_description() {
+    local desc=""
+
+    # Strategy 1: package.json description
+    if [[ -f "package.json" ]] && command -v jq &>/dev/null; then
+        desc=$(jq -r '.description // ""' package.json 2>/dev/null) || true
+    fi
+
+    # Strategy 2: README.md first real paragraph (skip title, badges, quotes, HTML comments)
+    if [[ -z "$desc" || "$desc" == "null" ]] && [[ -f "README.md" ]]; then
+        desc=$(awk '
+            /^#/{next}
+            /^\[!\[/{next}
+            /^>/{next}
+            /^<!--/{skip=1} /-->/{skip=0; next}
+            skip{next}
+            /^[[:space:]]*$/{if(found) exit; next}
+            {found=1; printf "%s ", $0}
+        ' README.md 2>/dev/null | sed 's/ *$//' | head -c 200) || true
+    fi
+
+    # Strategy 3: README "What Is This?" or "Overview" section
+    if [[ -z "$desc" || "$desc" == "null" ]] && [[ -f "README.md" ]]; then
+        desc=$(awk '
+            /^##[[:space:]]+(What Is This|Overview|About|Introduction)/{f=1; next}
+            f && /^##/{exit}
+            f && /^[[:space:]]*$/{next}
+            f {print; exit}
+        ' README.md 2>/dev/null | head -c 200) || true
+    fi
+
+    # Strategy 4: Existing BUTTERFREEZONE AGENT-CONTEXT purpose
+    if [[ -z "$desc" || "$desc" == "null" ]] && [[ -f "BUTTERFREEZONE.md" ]]; then
+        desc=$(sed -n '/<!-- AGENT-CONTEXT/,/-->/p' BUTTERFREEZONE.md 2>/dev/null | \
+            grep '^purpose:' | sed 's/^purpose: *//' | head -1) || true
+        [[ "$desc" == "No description available" ]] && desc=""
+    fi
+
+    # Strategy 5: Synthesize from project structure
+    if [[ -z "$desc" || "$desc" == "null" ]]; then
+        local name ptype dir_count
+        name=$(basename "$(pwd)")
+        ptype="project"
+        [[ -d ".claude/skills" ]] && ptype="framework"
+        [[ -f "package.json" ]] && ptype="Node.js project"
+        [[ -f "Cargo.toml" ]] && ptype="Rust project"
+        [[ -f "pyproject.toml" ]] && ptype="Python project"
+        dir_count=$(find . -maxdepth 1 -type d -not -path "." -not -path "*/\.*" 2>/dev/null | wc -l | tr -d ' ')
+        desc="${name} is a ${ptype} with ${dir_count} modules."
+    fi
+
+    echo "$desc"
+}
+
+# Detect architectural pattern from directory structure (SDD §2.2.1)
+detect_architecture_pattern() {
+    local pattern="modular"
+
+    if [[ -d ".claude/skills" ]] || [[ -d ".claude/scripts" ]]; then
+        pattern="three-zone framework"
+    elif [[ -d "src/controllers" ]] || [[ -d "src/routes" ]] || [[ -d "app/controllers" ]]; then
+        pattern="layered MVC"
+    elif [[ -d "stages" ]] || [[ -d "pipeline" ]] || [[ -d "steps" ]]; then
+        pattern="pipeline"
+    elif [[ -d "plugins" ]] || [[ -d "extensions" ]]; then
+        pattern="plugin-based"
+    elif [[ -d "packages" ]] || [[ -d "apps" ]]; then
+        pattern="monorepo"
+    fi
+
+    echo "$pattern"
+}
+
+# Infer module purpose from directory (SDD §2.5.1)
+infer_module_purpose() {
+    local dir="$1"
+    local dname
+    dname=$(basename "$dir")
+    local purpose=""
+
+    # Strategy 1: README.md in the directory
+    if [[ -f "${dir}/README.md" ]]; then
+        purpose=$(awk '
+            /^#/{next}
+            /^[[:space:]]*$/{next}
+            {print; exit}
+        ' "${dir}/README.md" 2>/dev/null | head -c 80) || true
+    fi
+
+    # Strategy 2: Directory name convention map
+    if [[ -z "$purpose" ]]; then
+        case "$dname" in
+            src|lib|app) purpose="Source code" ;;
+            tests|test|spec|__tests__) purpose="Test suites" ;;
+            docs|doc|documentation) purpose="Documentation" ;;
+            scripts) purpose="Utility scripts" ;;
+            grimoires) purpose="Loa state and memory files" ;;
+            evals) purpose="Evaluation suites and benchmarks" ;;
+            skills) purpose="Specialized agent skills" ;;
+            .github) purpose="GitHub workflows and CI/CD" ;;
+            fixtures|testdata) purpose="Test fixtures and data" ;;
+            config|configs) purpose="Configuration files" ;;
+            public|static|assets) purpose="Static assets" ;;
+            migrations) purpose="Database migrations" ;;
+            types|typings) purpose="Type definitions" ;;
+            utils|helpers|common) purpose="Shared utilities" ;;
+            api) purpose="API endpoints" ;;
+            models) purpose="Data models" ;;
+            services) purpose="Business logic services" ;;
+            middleware) purpose="Request middleware" ;;
+            hooks) purpose="Lifecycle hooks" ;;
+            components) purpose="UI components" ;;
+            pages|views) purpose="Page/view templates" ;;
+            *) ;;
+        esac
+    fi
+
+    # Strategy 3: Infer from dominant file types
+    if [[ -z "$purpose" ]]; then
+        local test_files md_files sh_files
+        test_files=$(find "$dir" -maxdepth 2 -name "*.test.*" -o -name "*.spec.*" 2>/dev/null | wc -l | tr -d ' ')
+        md_files=$(find "$dir" -maxdepth 2 -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+        sh_files=$(find "$dir" -maxdepth 2 -name "*.sh" 2>/dev/null | wc -l | tr -d ' ')
+
+        if (( test_files > 3 )); then
+            purpose="Test suites"
+        elif (( md_files > 3 )); then
+            purpose="Documentation"
+        elif (( sh_files > 3 )); then
+            purpose="Shell scripts and utilities"
+        fi
+    fi
+
+    # Strategy 4: Capitalize directory name as last resort
+    if [[ -z "$purpose" ]]; then
+        purpose=$(echo "$dname" | sed 's/[-_]/ /g' | sed 's/^./\U&/')
+    fi
+
+    echo "$purpose"
+}
+
+# =============================================================================
 # Section Extractors (Task 1.3 / SDD 3.1.3)
 # =============================================================================
 
@@ -415,32 +617,43 @@ extract_agent_context() {
     fi
     [[ -z "$version" || "$version" == "null" ]] && version="unknown"
 
-    # Purpose: from package description or README first line
-    if [[ -f "package.json" ]] && command -v jq &>/dev/null; then
-        purpose=$(jq -r '.description // ""' package.json 2>/dev/null) || true
-    fi
-    if [[ -z "$purpose" || "$purpose" == "null" ]] && [[ -f "README.md" ]]; then
-        purpose=$(sed -n '2,5p' README.md 2>/dev/null | head -1 | sed 's/^[#> ]*//' | head -c 120) || true
-    fi
-    [[ -z "$purpose" || "$purpose" == "null" ]] && purpose="No description available"
+    # Purpose: use shared multi-strategy extraction (SDD §2.6.2)
+    purpose=$(extract_project_description)
 
     # Key files
     local kf=()
+    [[ -f "CLAUDE.md" ]] && kf+=("CLAUDE.md")
     [[ -f ".claude/loa/CLAUDE.loa.md" ]] && kf+=(".claude/loa/CLAUDE.loa.md")
     [[ -f ".loa.config.yaml" ]] && kf+=(".loa.config.yaml")
     [[ -d ".claude/scripts" ]] && kf+=(".claude/scripts/")
+    [[ -d ".claude/skills" ]] && kf+=(".claude/skills/")
     [[ -f "package.json" ]] && kf+=("package.json")
     [[ -f "Cargo.toml" ]] && kf+=("Cargo.toml")
     [[ -f "pyproject.toml" ]] && kf+=("pyproject.toml")
     [[ -f "go.mod" ]] && kf+=("go.mod")
     key_files=$(printf '%s' "[$(IFS=,; echo "${kf[*]}" | sed 's/,/, /g')]")
 
-    # Dependencies
+    # Interfaces: top 5 skill commands or routes (SDD §2.6.1)
+    local iface_list=()
+    if [[ -d ".claude/skills" ]]; then
+        while IFS= read -r d; do
+            [[ -z "$d" ]] && continue
+            local sname
+            sname=$(basename "$d")
+            iface_list+=("/${sname}")
+            [[ ${#iface_list[@]} -ge 5 ]] && break
+        done < <(find .claude/skills -maxdepth 1 -type d 2>/dev/null | sort | tail -n +2)
+    fi
+    interfaces=$(printf '%s' "[$(IFS=,; echo "${iface_list[*]}" | sed 's/,/, /g')]")
+
+    # Dependencies: runtime requirements
     local dep_list=()
-    command -v bash &>/dev/null && dep_list+=("bash")
+    command -v git &>/dev/null && dep_list+=("git")
     command -v jq &>/dev/null && dep_list+=("jq")
     command -v yq &>/dev/null && dep_list+=("yq")
-    command -v git &>/dev/null && dep_list+=("git")
+    [[ -f "package.json" ]] && dep_list+=("node")
+    [[ -f "Cargo.toml" ]] && dep_list+=("cargo")
+    [[ -f "pyproject.toml" ]] && dep_list+=("python")
     deps=$(printf '%s' "[$(IFS=,; echo "${dep_list[*]}" | sed 's/,/, /g')]")
 
     cat <<EOF
@@ -449,6 +662,8 @@ name: ${name}
 type: ${type}
 purpose: ${purpose}
 key_files: ${key_files}
+interfaces: ${interfaces}
+dependencies: ${deps}
 version: ${version}
 trust_level: grounded
 -->
@@ -464,23 +679,18 @@ extract_header() {
     fi
     [[ -z "$name" || "$name" == "null" ]] && name=$(basename "$(pwd)")
 
+    # Use shared description cascade (SDD §2.3.1)
     local desc=""
-    if [[ -f "package.json" ]] && command -v jq &>/dev/null; then
-        desc=$(jq -r '.description // ""' package.json 2>/dev/null) || true
-    fi
-    if [[ -z "$desc" || "$desc" == "null" ]] && [[ -f "README.md" ]]; then
-        desc=$(sed -n '2,5p' README.md 2>/dev/null | head -1 | sed 's/^[#> ]*//') || true
-    fi
-    [[ -z "$desc" || "$desc" == "null" ]] && desc="No description available"
+    desc=$(extract_project_description)
 
     local provenance
     provenance=$(tag_provenance "$tier" "header")
 
-    # FR-5: Build narrative summary from available context
+    # Build narrative summary (SDD §2.3.3)
     local summary=""
     if [[ "$tier" -le 2 ]]; then
         local lang_count=0
-        local langs=""
+        local langs="" skill_count=0
         [[ -n "$(find . -maxdepth 3 -name '*.ts' -o -name '*.js' 2>/dev/null | head -1)" ]] && { langs="${langs}TypeScript/JavaScript, "; ((lang_count++)); }
         [[ -n "$(find . -maxdepth 3 -name '*.py' 2>/dev/null | head -1)" ]] && { langs="${langs}Python, "; ((lang_count++)); }
         [[ -n "$(find . -maxdepth 3 -name '*.rs' 2>/dev/null | head -1)" ]] && { langs="${langs}Rust, "; ((lang_count++)); }
@@ -488,7 +698,16 @@ extract_header() {
         [[ -n "$(find . -maxdepth 3 -name '*.sh' 2>/dev/null | head -1)" ]] && { langs="${langs}Shell, "; ((lang_count++)); }
         langs=$(echo "$langs" | sed 's/, $//')
 
-        if [[ -n "$langs" ]]; then
+        # Count skills for framework projects
+        if [[ -d ".claude/skills" ]]; then
+            skill_count=$(find .claude/skills -maxdepth 1 -type d 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')
+        fi
+
+        if [[ "$skill_count" -gt 0 ]]; then
+            summary="The framework provides ${skill_count} specialized skills"
+            [[ -n "$langs" ]] && summary="${summary}, built with ${langs}"
+            summary="${summary}."
+        elif [[ -n "$langs" ]]; then
             summary="Built with ${langs}."
             if [[ -f "package.json" ]] && command -v jq &>/dev/null; then
                 local dep_count
@@ -528,7 +747,7 @@ extract_capabilities() {
     fi
 
     if [[ -z "$caps" ]]; then
-        # Tier 2: grep-based extraction
+        # Tier 2: grep-based extraction with rich descriptions (SDD §2.1)
         local found=""
 
         # JavaScript/TypeScript exports
@@ -562,12 +781,55 @@ extract_capabilities() {
         [[ -n "$sh_funcs" ]] && found="${found}${sh_funcs}\n"
 
         if [[ -n "$found" ]]; then
-            caps=$(printf '%b' "$found" | while IFS=: read -r file line content; do
-                [[ -z "$content" ]] && continue
+            # Build rich capability entries with doc comments (SDD §2.1.1-§2.1.4)
+            local raw_entries=""
+            raw_entries=$(printf '%b' "$found" | while IFS=: read -r file line content; do
+                [[ -z "$content" || -z "$file" || -z "$line" ]] && continue
                 local sym
                 sym=$(echo "$content" | sed 's/^export //;s/^pub //;s/(.*//;s/ {.*//;s/^function //;s/^const //;s/^class //;s/^def //;s/^fn //;s/^struct //;s/^enum //;s/^trait //;s/^func //' | tr -d ' ' | head -c 60)
-                [[ -n "$sym" && -n "$file" ]] && echo "- \`${file}:${sym}\`"
-            done | sort -u | head -30)
+                [[ -z "$sym" ]] && continue
+
+                # Extract doc comment or synthesize from name
+                local desc=""
+                desc=$(extract_doc_comment "$file" "$line")
+                if [[ -z "$desc" ]]; then
+                    desc=$(describe_from_name "$sym")
+                fi
+
+                # Determine score for ranking: documented=3, undocumented=2
+                local score=2
+                local orig_desc
+                orig_desc=$(extract_doc_comment "$file" "$line")
+                [[ -n "$orig_desc" ]] && score=3
+
+                # Get parent directory for grouping
+                local parent_dir
+                parent_dir=$(dirname "$file" | sed 's|^\./||')
+
+                echo "${score}|${parent_dir}|${sym}|${desc}|${file}:${line}"
+            done | sort -t'|' -k1,1rn -k2,2 | head -15)
+
+            if [[ -n "$raw_entries" ]]; then
+                # Check if grouping needed (>10 entries)
+                local entry_count
+                entry_count=$(echo "$raw_entries" | wc -l | tr -d ' ')
+                local use_groups=false
+                (( entry_count > 10 )) && use_groups=true
+
+                local current_group=""
+                caps=$(echo "$raw_entries" | while IFS='|' read -r score parent sym desc ref; do
+                    [[ -z "$sym" ]] && continue
+
+                    if [[ "$use_groups" == "true" && "$parent" != "$current_group" ]]; then
+                        current_group="$parent"
+                        echo ""
+                        echo "### ${parent}"
+                        echo ""
+                    fi
+
+                    echo "- **${sym}** — ${desc} (\`${ref}\`)"
+                done)
+            fi
         fi
     fi
 
@@ -575,12 +837,12 @@ extract_capabilities() {
         return 0
     fi
 
-    # FR-5: Add narrative preamble for capabilities
+    # Narrative preamble
     local cap_count
-    cap_count=$(echo "$caps" | wc -l)
+    cap_count=$(echo "$caps" | grep -c '^\- \*\*' || echo 0)
     local preamble=""
     if [[ "$cap_count" -gt 0 ]]; then
-        preamble="The project exposes ${cap_count} key symbols across its public API surface. Below are the primary entry points and their locations."
+        preamble="The project exposes ${cap_count} key entry points across its public API surface."
     fi
 
     cat <<EOF
@@ -648,17 +910,64 @@ extract_architecture() {
         mermaid="${mermaid}"$'\n```'
     fi
 
-    # Generate narrative description
+    # Generate narrative description using architectural pattern detection
     local dir_count
     dir_count=$(find . -maxdepth 1 -type d -not -path "." -not -path "*/\.*" 2>/dev/null | wc -l)
-    local file_count
-    file_count=$(find . -maxdepth 1 -type f -not -name ".*" 2>/dev/null | wc -l)
 
-    if [[ -n "$top_dirs" ]]; then
-        local key_dirs
-        key_dirs=$(echo "$top_dirs" | head -4 | tr '\n' ', ' | sed 's/,$//')
-        narrative="The project is organized into ${dir_count} top-level directories. Key components include ${key_dirs}."
-    fi
+    local pattern
+    pattern=$(detect_architecture_pattern)
+
+    case "$pattern" in
+        "three-zone framework")
+            local skill_count=0
+            if [[ -d ".claude/skills" ]]; then
+                skill_count=$(find .claude/skills -maxdepth 1 -type d 2>/dev/null | tail -n +2 | wc -l)
+            fi
+            narrative="The architecture follows a three-zone model: System (\`.claude/\`) contains framework-managed scripts and skills, State (\`grimoires/\`, \`.beads/\`) holds project-specific artifacts and memory, and App (\`src/\`, \`lib/\`) contains developer-owned application code."
+            if (( skill_count > 0 )); then
+                narrative="${narrative} The framework orchestrates ${skill_count} specialized skills through slash commands."
+            fi
+            ;;
+        "layered MVC")
+            local key_layers=""
+            [[ -d "src/controllers" || -d "app/controllers" ]] && key_layers="${key_layers}controllers, "
+            [[ -d "src/services" || -d "app/services" ]] && key_layers="${key_layers}services, "
+            [[ -d "src/models" || -d "app/models" ]] && key_layers="${key_layers}models, "
+            [[ -d "src/routes" || -d "app/routes" ]] && key_layers="${key_layers}routes, "
+            key_layers=$(echo "$key_layers" | sed 's/, $//')
+            narrative="The project follows a layered MVC architecture with ${dir_count} top-level modules. The application layer is organized into ${key_layers} for clear separation of concerns."
+            ;;
+        "monorepo")
+            local pkg_count=0
+            if [[ -d "packages" ]]; then
+                pkg_count=$(find packages -maxdepth 1 -type d 2>/dev/null | tail -n +2 | wc -l)
+            elif [[ -d "apps" ]]; then
+                pkg_count=$(find apps -maxdepth 1 -type d 2>/dev/null | tail -n +2 | wc -l)
+            fi
+            narrative="The project is organized as a monorepo with ${pkg_count} packages across ${dir_count} top-level directories. Shared code and configurations are managed at the root level."
+            ;;
+        *)
+            # Generic narrative with component purposes
+            if [[ -n "$top_dirs" ]]; then
+                local comp1 comp2 purpose1 purpose2
+                comp1=$(echo "$top_dirs" | head -1)
+                comp2=$(echo "$top_dirs" | sed -n '2p')
+                purpose1=$(infer_module_purpose "./${comp1}")
+                purpose2=""
+                [[ -n "$comp2" ]] && purpose2=$(infer_module_purpose "./${comp2}")
+
+                narrative="The project follows a ${pattern} architecture with ${dir_count} top-level modules."
+                if [[ -n "$comp1" && -n "$purpose1" ]]; then
+                    narrative="${narrative} \`${comp1}/\` handles ${purpose1,,}"
+                    if [[ -n "$comp2" && -n "$purpose2" ]]; then
+                        narrative="${narrative}, while \`${comp2}/\` provides ${purpose2,,}."
+                    else
+                        narrative="${narrative}."
+                    fi
+                fi
+            fi
+            ;;
+    esac
 
     if [[ -z "$arch" ]]; then
         # Tier 2: Directory tree analysis (exclude hidden, vendor, build)
@@ -684,15 +993,16 @@ extract_architecture() {
         fi
     fi
 
-    if [[ -z "$arch" && -z "$mermaid" ]]; then
+    if [[ -z "$arch" && -z "$mermaid" && -z "$narrative" ]]; then
         return 0
     fi
 
+    # Output: narrative FIRST, then diagram, then tree (SDD §2.2.3)
     cat <<EOF
 ## Architecture
 <!-- provenance: ${provenance} -->
-$(if [[ -n "$mermaid" ]]; then printf '%s\n\n' "$mermaid"; fi)
 $(if [[ -n "$narrative" ]]; then printf '%s\n\n' "$narrative"; fi)
+$(if [[ -n "$mermaid" ]]; then printf '%s\n\n' "$mermaid"; fi)
 $(if [[ -n "$arch" ]]; then printf '%s\n' "$arch"; fi)
 EOF
 }
@@ -719,14 +1029,27 @@ extract_interfaces() {
     if [[ -z "$ifaces" ]]; then
         local found=""
 
-        # Express/Fastify routes (exclude test fixtures and grimoires)
+        # Express/Fastify routes — enhanced with method + path extraction (SDD §2.4.2)
         local routes
         routes=$(tier2_grep -E '(app|router)\.(get|post|put|delete|patch)\(' \
             --include="*.ts" --include="*.js" \
             --exclude-dir=tests --exclude-dir=test --exclude-dir=fixtures \
             --exclude-dir=grimoires --exclude-dir=evals \
             2>/dev/null | head -20) || true
-        [[ -n "$routes" ]] && found="${found}### HTTP Routes\n${routes}\n\n"
+        if [[ -n "$routes" ]]; then
+            local formatted_routes=""
+            formatted_routes=$(echo "$routes" | while IFS=: read -r file line content; do
+                local method path
+                method=$(echo "$content" | grep -oE '\.(get|post|put|delete|patch)\(' | \
+                    sed 's/[.(]//g' | tr '[:lower:]' '[:upper:]')
+                path=$(echo "$content" | grep -oE "'[^']+'" | head -1 | tr -d "'")
+                [[ -z "$path" ]] && path=$(echo "$content" | grep -oE '"[^"]+"' | head -1 | tr -d '"')
+                if [[ -n "$method" && -n "$path" ]]; then
+                    echo "- **${method}** \`${path}\` (\`${file}:${line}\`)"
+                fi
+            done | sort -u | head -15) || true
+            [[ -n "$formatted_routes" ]] && found="${found}### HTTP Routes\n\n${formatted_routes}\n\n"
+        fi
 
         # CLI commands (exclude test fixtures)
         local cli
@@ -735,18 +1058,39 @@ extract_interfaces() {
             --exclude-dir=tests --exclude-dir=test --exclude-dir=fixtures \
             --exclude-dir=grimoires --exclude-dir=evals \
             2>/dev/null | head -10) || true
-        [[ -n "$cli" ]] && found="${found}### CLI Commands\n${cli}\n\n"
+        [[ -n "$cli" ]] && found="${found}### CLI Commands\n\n${cli}\n\n"
 
-        # Shell skill commands (Loa specific)
+        # Shell skill commands — enhanced with SKILL.md descriptions (SDD §2.4.1)
         if [[ -d ".claude/skills" ]]; then
-            local skills
-            skills=$(find .claude/skills -maxdepth 1 -type d 2>/dev/null | \
-                sort | tail -n +2 | while read -r d; do
-                    local sname
-                    sname=$(basename "$d")
-                    echo "- \`/${sname}\`"
-                done) || true
-            [[ -n "$skills" ]] && found="${found}### Skill Commands\n${skills}\n\n"
+            local skills=""
+            while IFS= read -r d; do
+                [[ -z "$d" ]] && continue
+                local sname skill_desc heading_desc
+                sname=$(basename "$d")
+
+                # Strategy 1: Extract ## Purpose section first line
+                skill_desc=""
+                if [[ -f "${d}/SKILL.md" ]]; then
+                    skill_desc=$(awk '/^## Purpose/{f=1;next} f && /^##/{exit} f && /^[[:space:]]*$/{next} f{print;exit}' \
+                        "${d}/SKILL.md" 2>/dev/null) || true
+                fi
+
+                # Strategy 2: Extract first heading after YAML frontmatter
+                if [[ -z "$skill_desc" ]] && [[ -f "${d}/SKILL.md" ]]; then
+                    heading_desc=$(awk '/^---/{c++} c==2{p=1} p && /^# /{sub(/^# +/,""); print; exit}' \
+                        "${d}/SKILL.md" 2>/dev/null) || true
+                    [[ -n "$heading_desc" ]] && skill_desc="$heading_desc"
+                fi
+
+                # Strategy 3: Synthesize from directory name
+                if [[ -z "$skill_desc" ]]; then
+                    skill_desc=$(echo "$sname" | sed 's/-/ /g' | sed 's/^./\U&/')
+                fi
+
+                skills="${skills}- **/${sname}** — ${skill_desc}\n"
+            done < <(find .claude/skills -maxdepth 1 -type d 2>/dev/null | sort | tail -n +2)
+
+            [[ -n "$skills" ]] && found="${found}### Skill Commands\n\n$(printf '%b' "$skills")\n\n"
         fi
 
         ifaces=$(printf '%b' "$found")
@@ -768,7 +1112,7 @@ extract_module_map() {
     local provenance
     provenance=$(tag_provenance "$tier" "module_map")
 
-    local table="| Module | Files | Purpose |\n|--------|-------|---------|\n"
+    local table="| Module | Files | Purpose | Documentation |\n|--------|-------|---------|---------------|\n"
     local found_any=false
 
     # Get top-level directories (exclude hidden dirs, vendor, build artifacts)
@@ -792,18 +1136,21 @@ extract_module_map() {
         local count
         count=$(find "$dir" -type f 2>/dev/null | wc -l | tr -d ' ') || true
 
-        local purpose=""
-        case "$dname" in
-            src|lib|app) purpose="Source code" ;;
-            tests|test|spec) purpose="Test suites" ;;
-            docs|doc) purpose="Documentation" ;;
-            scripts) purpose="Utility scripts" ;;
-            grimoires) purpose="Loa state files" ;;
-            .github) purpose="GitHub workflows" ;;
-            *) purpose="" ;;
-        esac
+        # Use multi-strategy purpose inference (SDD §2.5.1)
+        local purpose
+        purpose=$(infer_module_purpose "$dir")
 
-        table="${table}| \`${dname}/\` | ${count} | ${purpose} |\n"
+        # Documentation link detection (SDD §2.5.2)
+        local doc_link="\u2014"
+        if [[ -f "docs/${dname}.md" ]]; then
+            doc_link="[docs/${dname}.md](docs/${dname}.md)"
+        elif [[ -f "docs/modules/${dname}.md" ]]; then
+            doc_link="[docs/modules/${dname}.md](docs/modules/${dname}.md)"
+        elif [[ -f "${dir}/README.md" ]]; then
+            doc_link="[${dname}/README.md](${dname}/README.md)"
+        fi
+
+        table="${table}| \`${dname}/\` | ${count} | ${purpose} | ${doc_link} |\n"
         found_any=true
     done <<< "$dirs"
 
@@ -870,6 +1217,7 @@ extract_limitations() {
     provenance=$(tag_provenance "$tier" "limitations")
     local limits=""
 
+    # Strategy 1: Tier 1 reality files (highest priority)
     if [[ "$tier" -eq 1 ]]; then
         local grimoire_dir
         grimoire_dir=$(get_config_value "paths.grimoire" "grimoires/loa")
@@ -879,9 +1227,36 @@ extract_limitations() {
         fi
     fi
 
+    # Strategy 2: README limitations section (strip matched heading)
     if [[ -z "$limits" ]] && [[ -f "README.md" ]]; then
         limits=$(sed -n '/^##.*[Ll]imit\|^##.*[Cc]aveat\|^##.*[Kk]nown/,/^## /p' \
-            README.md 2>/dev/null | head -20 | sed '$d') || true
+            README.md 2>/dev/null | sed '1d;$d' | head -20) || true
+    fi
+
+    # Strategy 3: Structural inference from project characteristics (SDD §2.7)
+    if [[ -z "$limits" ]]; then
+        local inferred=""
+
+        # No tests
+        local test_count
+        test_count=$(find . -maxdepth 3 -name "*.test.*" -o -name "*.spec.*" -o -name "*_test.*" 2>/dev/null | wc -l)
+        (( test_count == 0 )) && inferred="${inferred}- No automated tests detected\n"
+
+        # No CI
+        [[ ! -d ".github/workflows" ]] && [[ ! -f ".gitlab-ci.yml" ]] && \
+            inferred="${inferred}- No CI/CD configuration detected\n"
+
+        # No documentation directory
+        [[ ! -d "docs" ]] && [[ ! -f "CONTRIBUTING.md" ]] && \
+            inferred="${inferred}- No documentation directory present\n"
+
+        # Shell-only project
+        local has_compiled=false
+        [[ -n "$(find . -maxdepth 3 -name '*.ts' -o -name '*.rs' -o -name '*.go' 2>/dev/null | head -1)" ]] && has_compiled=true
+        [[ "$has_compiled" == "false" ]] && \
+            inferred="${inferred}- Shell-only project (no type checking)\n"
+
+        [[ -n "$inferred" ]] && limits=$(printf '%b' "$inferred")
     fi
 
     if [[ -z "$limits" ]]; then
@@ -906,9 +1281,9 @@ extract_quick_start() {
     local qs=""
 
     if [[ -f "README.md" ]]; then
-        # Extract getting started / quick start / installation section
+        # Extract getting started / quick start / installation section (strip matched heading)
         qs=$(sed -n '/^##.*[Gg]etting [Ss]tarted\|^##.*[Qq]uick [Ss]tart\|^##.*[Ii]nstall/,/^## /p' \
-            README.md 2>/dev/null | head -20 | sed '$d') || true
+            README.md 2>/dev/null | sed '1d;$d' | head -20) || true
     fi
 
     # FR-5: Extract actual commands from package.json scripts or Makefile
