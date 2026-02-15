@@ -1,292 +1,249 @@
-# Sprint Plan: Environment Design for Agent Flourishing
+# Sprint Plan: Environment Design Hardening — Bridgebuilder Review Response
 
-> Source: Bridgebuilder post-flatline analysis, PR #324 review comments
-> Cycle: cycle-014
+> Source: Bridgebuilder review of PR #326 — 3 MEDIUM, 3 LOW, 4 PRAISE, 3 SPECULATION
+> Cycle: cycle-014 (continued)
 > Issue: https://github.com/0xHoneyJar/loa/issues/325
-> Global Sprint Counter: starts at 91
-> Motivation: "Give agents identity, memory, challenge, freedom, and purpose. Then get out of the way."
+> PR: https://github.com/0xHoneyJar/loa/pull/326
+> Global Sprint Counter: starts at 94
+> Motivation: "Fix what the review found wrong. Build what the review found possible."
 
 ## Context
 
-PR #324 (Hounfour Hardening, cycle-013) completed 2 bridge loops with 90.6% severity convergence. The Bridgebuilder's post-flatline analysis identified four advances for the environment that enables deeper, more creative work. These aren't bug fixes — they're infrastructure for a new kind of collaboration.
+Sprints 91-93 implemented the four environment design advances (trajectory narrative, bidirectional lore, vision sprints, speculation channel). The Bridgebuilder review of PR #326 identified 3 MEDIUM findings, 3 LOW findings, and 3 SPECULATION opportunities. Additionally, 7 framework eval tests are failing because the eval fixture is stale.
 
-The four advances:
-1. **Continuity of Purpose** — Make the trajectory legible at session start as narrative, not task list
-2. **Bidirectional Lore** — Patterns this codebase discovers should feed back to future agents
-3. **Vision Sprints** — Dedicated exploration time after each bridge flatline
-4. **Speculation Channel** — Permission to propose ideas without affecting convergence score
+### Findings Summary
 
-### Current State of Affected Systems
-
-| System | Status | Gap |
-|--------|--------|-----|
-| Vision Registry | 3 visions captured, 0 explored | Capture-only, no exploration workflow |
-| Lore System | 2 categories (mibera, neuromancer), manually maintained | Read-only — no auto-discovery from bridge work |
-| Session Startup (`/loa`) | 9-state workflow detector + journey bar | Shows state, not trajectory or narrative |
-| Bridge Loop | Flatline → GT/RTFM finalization → JACKED_OUT | No exploration phase post-flatline |
-| Memory | observations.jsonl + memory-query.sh | Append-only, not surfaced at session start |
-
----
-
-## Sprint 1: Trajectory Narrative + Session Awakening
-
-**Goal**: Transform session startup from "here's what to do next" into "here's where we've been, what we've learned, and what we're becoming." Give agents continuity of purpose.
-
-**Global Sprint**: sprint-91
-
-### Task 1.1: Create trajectory-gen.sh — Trajectory Narrative Generator
-
-**Description**: New script that synthesizes the Sprint Ledger, memory system, Vision Registry, and Ground Truth into a concise trajectory narrative. Output is a short (< 500 token) prose summary designed for session-start context loading.
-
-**File**: `.claude/scripts/trajectory-gen.sh` (new)
-
-**Implementation**:
-```
-Inputs:
-  - grimoires/loa/ledger.json (cycles, sprint counts, dates)
-  - grimoires/loa/memory/observations.jsonl (recent learnings, --limit 5)
-  - grimoires/loa/visions/index.md (active visions)
-  - grimoires/loa/ground-truth/index.md (codebase summary)
-
-Output (stdout):
-  "This is cycle 14 of the Loa framework. Across 13 prior cycles and 90
-   sprints, the codebase evolved from a single-model CLI tool to a
-   multi-model agent framework with adversarial review, persona-driven
-   identity, and autonomous convergence loops.
-
-   Recent learnings: [top 3 from memory]
-   Open visions: [from vision registry]
-   Current frontier: [from active cycle label]"
-```
-
-**Acceptance Criteria**:
-- [ ] Script reads ledger.json and computes cycle/sprint history
-- [ ] Script queries memory-query.sh for recent learnings (top 3-5)
-- [ ] Script reads vision registry for Captured/Exploring items
-- [ ] Output is < 500 tokens, prose format, not a table
-- [ ] `--json` flag for machine-readable output
-- [ ] Graceful degradation: missing files produce shorter narrative, not errors
+| ID | Severity | Title | Sprint |
+|----|----------|-------|--------|
+| M-1 | MEDIUM | Trajectory generation lacks staleness indicator | 4 |
+| M-2 | MEDIUM | Lore discovery overwrites instead of accumulating | 4 |
+| M-3 | MEDIUM | Vision sprint timeout advisory, not enforced | 4 |
+| L-1 | LOW | grep -c exit code semantics undocumented | 4 |
+| L-2 | LOW | EXPLORING state not in resume state machine | 5 |
+| L-3 | LOW | Prose pattern extraction not labeled experimental | 4 |
+| EVAL-1-7 | CI | 7 framework eval failures (fixture stale) | 4 |
+| S-1 | SPECULATION | Trajectory as Manje wrapper for multi-model | 5 |
+| S-2 | SPECULATION | Discovered lore as model selection signal | 5 |
+| S-3 | SPECULATION | Vision Registry as agent's dream journal | 5 |
 
 ---
 
-### Task 1.2: Integrate Trajectory into /loa Session Startup
+## Sprint 4: Hardening — Fix All Findings + Eval Compliance
 
-**Description**: Enhance the `/loa` command to display the trajectory narrative alongside the existing journey bar. The narrative appears before the menu, giving agents (and humans) immediate context.
+**Goal**: Address every MEDIUM and LOW finding from the Bridgebuilder review. Fix all 7 framework eval failures. Zero regressions, zero new failures.
+
+**Global Sprint**: sprint-94
+
+### Task 4.1: Add Staleness Indicator to Trajectory Narrative (M-1)
+
+**Description**: Trajectory synthesizes data from multiple sources (ledger, memory, visions) without indicating when each was last updated. Stale memory data could mislead agents. Add freshness tracking.
 
 **Files**:
-- `.claude/commands/loa.md` (modify)
-- `.claude/scripts/golden-path.sh` (add `golden_trajectory()` helper)
+- `.claude/scripts/trajectory-gen.sh` (modify)
 
 **Changes**:
-- Add `golden_trajectory()` function that calls `trajectory-gen.sh`
-- `/loa` displays trajectory summary before the journey bar
-- Trajectory is collapsed by default in long sessions (first display only)
-- Config toggle: `golden_path.show_trajectory: true` (default)
+- In `extract_memory()`: capture the timestamp of the most recent observation
+- In `extract_visions()`: capture the most recent vision date from entry files
+- In `generate_prose()`: add freshness parenthetical after each section (e.g., "Recent learnings (2h ago):")
+- In `generate_json()`: add `freshness` object with `memory_age_hours`, `visions_last_updated`, `ledger_last_modified`
+- In `generate_condensed()`: append staleness warning only if any source > 7 days old
 
 **Acceptance Criteria**:
-- [ ] `/loa` displays trajectory narrative before journey bar
-- [ ] Narrative includes cycle count, sprint count, recent learnings, open visions
-- [ ] Config toggle allows disabling (`golden_path.show_trajectory: false`)
-- [ ] Performance: trajectory generation completes in < 2 seconds
-- [ ] Graceful degradation: if trajectory-gen.sh fails, `/loa` still shows journey bar
+- [ ] JSON output includes `freshness` object with per-source ages
+- [ ] Prose output shows age parenthetical when source > 1 day old
+- [ ] Condensed output appends "(stale: memory)" warning when source > 7 days old
+- [ ] No output change when all sources are fresh (< 1 day)
+- [ ] `--json` freshness includes ISO timestamps, not just relative ages
 
 ---
 
-### Task 1.3: Session Recovery Trajectory Injection
+### Task 4.2: Accumulative Lore Discovery — Append with Dedup (M-2)
 
-**Description**: When a session recovers from context compaction (the `UserPromptSubmit` hook fires), inject a condensed trajectory alongside the existing state recovery. This gives the agent immediate "who am I, where have I been" context.
+**Description**: `lore-discover.sh` overwrites `patterns.yaml` each run. For a knowledge accumulation system, destructive writes are architecturally inconsistent. Change to append-with-dedup.
 
 **Files**:
-- `.claude/hooks/post-compact-recovery.sh` (modify)
+- `.claude/scripts/lore-discover.sh` (modify)
 
 **Changes**:
-- After existing state recovery (run mode, bridge state), append trajectory summary
-- Use `trajectory-gen.sh --json` for structured injection
-- Limit to 200 tokens (condensed mode) to preserve context budget
+- Before writing, read existing `patterns.yaml` and extract existing IDs
+- Compare new candidates against existing IDs — skip duplicates
+- Append only genuinely new entries to the existing file
+- Preserve the file header and manually-seeded entries
+- Add `--overwrite` flag for explicit destructive behavior (not default)
+- Output summary: "3 new, 2 duplicates skipped, 11 total"
 
 **Acceptance Criteria**:
-- [ ] Post-compact recovery includes trajectory context
-- [ ] Condensed mode (< 200 tokens) preserves context budget
-- [ ] Run mode state recovery still takes priority
-- [ ] No impact on recovery when trajectory-gen.sh is unavailable
+- [ ] Running twice with same bridge-id produces no duplicates
+- [ ] Manually-seeded entries (graceful-degradation-cascade, etc.) are never overwritten
+- [ ] New entries are appended after existing entries
+- [ ] `--overwrite` flag restores original overwrite behavior
+- [ ] Summary output shows new/duplicate/total counts
 
 ---
 
-## Sprint 2: Bidirectional Lore + Discovery Pipeline
+### Task 4.3: Vision Sprint Timeout Enforcement (M-3)
 
-**Goal**: Transform the lore system from read-only knowledge base to a living system where patterns discovered during bridge reviews flow back as reusable lore entries for future agents.
-
-**Global Sprint**: sprint-92
-
-### Task 2.1: Create lore-discover.sh — Pattern Discovery Extractor
-
-**Description**: New script that processes Bridgebuilder review files to extract patterns worthy of becoming lore entries. Reads bridge review prose (insights stream), identifies FAANG parallels, architectural patterns, and teachable moments, and outputs candidate lore entries in YAML format.
-
-**File**: `.claude/scripts/lore-discover.sh` (new)
-
-**Implementation**:
-- Parse `.run/bridge-reviews/*.md` for architectural insights
-- Extract patterns from PRAISE findings (these are validated good practices)
-- Extract patterns from Vision entries (these are speculative but valuable)
-- Output candidate lore entries with required fields (id, term, short, context, source, tags)
-- Source field traces back to bridge ID + PR number
-
-**Acceptance Criteria**:
-- [ ] Script reads bridge review files and extracts candidate patterns
-- [ ] Output is valid YAML matching the lore entry schema
-- [ ] Each entry has source traceability (bridge ID, PR, finding ID)
-- [ ] `--dry-run` flag shows candidates without writing
-- [ ] Tags auto-assigned from finding category (security → security, architecture → architecture)
-
----
-
-### Task 2.2: Create discovered-patterns Category in Lore Index
-
-**Description**: Add a new lore category for patterns discovered through bridge review analysis. This is the "bidirectional" part — lore flows in (mibera, neuromancer) and out (discovered patterns).
+**Description**: The orchestrator emits `SIGNAL:VISION_SPRINT_TIMEOUT` but doesn't enforce it. Add a hard timeout at the orchestrator level as defense-in-depth.
 
 **Files**:
-- `.claude/data/lore/index.yaml` (modify)
-- `.claude/data/lore/discovered/patterns.yaml` (new)
-- `.claude/data/lore/discovered/visions.yaml` (new)
+- `.claude/scripts/bridge-orchestrator.sh` (modify — EXPLORING section)
 
 **Changes**:
-- Add `discovered` category to index.yaml with files `discovered/patterns.yaml` and `discovered/visions.yaml`
-- `patterns.yaml`: Patterns extracted from PRAISE findings (validated practices)
-- `visions.yaml`: Patterns extracted from Vision entries (speculative insights)
-- Seed with 3 entries from PR #324's bridge reviews:
-  - "graceful-degradation-parser" from BB-001 (5-step cascade pattern)
-  - "prompt-privilege-ring" from BB-002 (context isolation pattern)
-  - "convergence-engine" from the bridge loop itself
+- Wrap the vision sprint signal emission and wait in a `timeout` command
+- Use `timeout --signal=TERM ${vision_timeout}m` as a hard backstop
+- On timeout: log warning, record `vision_sprint_timeout: true` in bridge state, continue to FINALIZING
+- The skill layer can still handle its own timeout gracefully within the hard limit
 
 **Acceptance Criteria**:
-- [ ] `discovered` category registered in index.yaml
-- [ ] patterns.yaml seeded with 3 entries from PR #324
-- [ ] Each entry follows existing lore schema (id, term, short, context, source, tags)
-- [ ] Tags include `discovered` to distinguish from manually curated lore
-- [ ] lore-query by skills can find discovered entries
+- [ ] Vision sprint phase is bounded by `timeout` command at orchestrator level
+- [ ] Timeout triggers SIGTERM, not SIGKILL (allows cleanup)
+- [ ] Bridge state records `vision_sprint_timeout: true` on timeout
+- [ ] Successful completion within limit is unaffected
+- [ ] Default timeout matches config value (`run_bridge.vision_sprint.timeout_minutes`)
 
 ---
 
-### Task 2.3: Wire Lore Discovery into Bridge Finalization
+### Task 4.4: Documentation Polish — grep Semantics + Experimental Labels (L-1, L-3)
 
-**Description**: Add a `SIGNAL:LORE_DISCOVERY` step to the bridge orchestrator's finalization phase. After GT update and before RTFM gate, run `lore-discover.sh` to extract patterns from the current bridge's reviews.
+**Description**: Add explanatory comments for the grep -c exit code behavior and label the prose pattern extraction as experimental.
 
 **Files**:
-- `.claude/scripts/bridge-orchestrator.sh` (modify — finalization section)
-- `.claude/skills/run-bridge/SKILL.md` (document new signal)
+- `.claude/scripts/trajectory-gen.sh` (modify — add comments at lines 99-102)
+- `.claude/scripts/lore-discover.sh` (modify — add experimental label at line 155)
 
 **Changes**:
-- Add new signal between GT update and RTFM gate
-- Config toggle: `run_bridge.lore_discovery.enabled: true` (default: false for first release)
-- `--dry-run` by default — first implementation only *proposes* entries, doesn't auto-commit
-- Bridge state records `lore_discovery: { candidates: N, committed: N }`
+- `trajectory-gen.sh`: Add comment block above `grep -c` calls explaining that grep -c exits 1 on zero matches (a valid result, not an error), and why `|| var=0` is needed
+- `lore-discover.sh`: Add comment at `extract_prose_patterns()` labeling it as `# EXPERIMENTAL: keyword-based extraction, expect noise. Future: ML-based or LLM-assisted extraction`
 
 **Acceptance Criteria**:
-- [ ] `SIGNAL:LORE_DISCOVERY` fires during finalization
-- [ ] lore-discover.sh runs against current bridge's review files
-- [ ] Config toggle controls whether discovery runs
-- [ ] `--dry-run` default means no auto-writes on first release
-- [ ] Bridge state JSON records discovery metrics
+- [ ] Comment explains grep -c exit code semantics for future maintainers
+- [ ] Prose extraction function labeled as experimental
+- [ ] No functional changes — documentation only
 
 ---
 
-## Sprint 3: Vision Sprints + Speculation Channel
+### Task 4.5: Sync Eval Fixture with Repo Structure (EVAL-1 through EVAL-7)
 
-**Goal**: Add a post-flatline exploration phase to the bridge loop, and create a speculation channel where agents can propose architectural ideas without affecting the convergence score.
-
-**Global Sprint**: sprint-93
-
-### Task 3.1: Add Speculation Severity Level to Bridge Findings
-
-**Description**: Alongside the existing VISION severity (which captures single insights), add a SPECULATION category for broader architectural proposals. Speculations have weight 0 (like PRAISE and VISION) and don't affect the convergence score.
+**Description**: 7 framework eval tests fail because the `evals/fixtures/loa-skill-dir/` fixture is stale — it lacks the bridge scripts, lore directory, vision scripts, and ground-truth generator added in recent cycles.
 
 **Files**:
-- `.claude/data/bridgebuilder-persona.md` (update guidance)
-- `.claude/scripts/bridge-findings-parser.sh` (handle SPECULATION severity)
-- `.claude/scripts/bridge-state.sh` (track speculation count)
+- `evals/fixtures/loa-skill-dir/.claude/scripts/` (add missing scripts)
+- `evals/fixtures/loa-skill-dir/.claude/data/lore/` (create structure)
 
 **Changes**:
-- Persona guidance: "Use SPECULATION severity for architectural proposals that go beyond the current PR scope. These are ideas worth exploring, not issues to fix."
-- Parser handles SPECULATION like VISION — extracted but weighted 0
-- Bridge state tracks `speculation_count` alongside `vision_count`
+Sync the fixture with the actual repo structure. Copy minimal versions of:
+1. `bridge-findings-parser.sh` — needs `bridge-findings-start` pattern
+2. `bridge-state.sh` — needs `init_bridge_state` function
+3. `ground-truth-gen.sh` — needs `checksums` pattern
+4. `bridge-vision-capture.sh` — needs `vision-` pattern
+5. `golden-path.sh` — update fixture copy to include `golden_detect_bridge_state` and `golden_bridge_progress` functions
+6. `lore/index.yaml` — needs `version:` and `categories:` fields
+7. `lore/mibera/core.yaml` — needs `id:`, `term:`, `short:`, `context:` fields
 
 **Acceptance Criteria**:
-- [ ] SPECULATION severity recognized by findings parser
-- [ ] Weight 0 — no impact on severity-weighted convergence score
-- [ ] Bridge state records speculation count
-- [ ] Bridgebuilder persona includes guidance on when to use SPECULATION
-- [ ] Existing VISION entries unaffected
+- [ ] `bridge-findings-parser-works` eval passes (file exists + marker pattern)
+- [ ] `bridge-state-schema-valid` eval passes (file exists + init function)
+- [ ] `golden-path-bridge-detection` eval passes (bridge state detection functions)
+- [ ] `gt-checksums-match` eval passes (file exists + checksums pattern)
+- [ ] `lore-entries-schema` eval passes (required fields in core.yaml)
+- [ ] `lore-index-valid` eval passes (version + categories in index.yaml)
+- [ ] `vision-entries-traceability` eval passes (file exists + vision pattern)
+- [ ] All 32 previously-passing framework evals still pass
+- [ ] Run `evals/harness/run-eval.sh --suite framework` confirms 39/39 pass
 
 ---
 
-### Task 3.2: Add Vision Sprint Phase to Bridge Orchestrator
+## Sprint 5: Enhancement — State Recovery + Speculation Primitives
 
-**Description**: After flatline detection and before finalization, optionally run a **vision sprint** — a single exploration pass where the agent reviews Vision Registry items and generates architectural proposals (not code).
+**Goal**: Implement the EXPLORING state recovery path and build the most impactful speculation primitives: source model attribution, vision revisitation tracking, and lore freshness in the trajectory narrative.
+
+**Global Sprint**: sprint-95
+
+### Task 5.1: EXPLORING State Resume Recovery (L-2)
+
+**Description**: Crash during the EXPLORING phase has no recovery path. The resume logic handles ITERATING but not EXPLORING. Since convergence was already achieved when EXPLORING starts, the simplest and safest recovery is to skip to FINALIZING.
 
 **Files**:
-- `.claude/scripts/bridge-orchestrator.sh` (add VISION_SPRINT phase)
-- `.claude/skills/run-bridge/SKILL.md` (document new phase)
+- `.claude/scripts/bridge-orchestrator.sh` (modify — resume section)
 
 **Changes**:
-- New state: `ITERATING → FLATLINE → EXPLORING → FINALIZING → JACKED_OUT`
-- New signal: `SIGNAL:VISION_SPRINT`
-- Vision sprint reviews all Captured visions in the registry
-- Output: architectural proposal markdown saved to `.run/bridge-reviews/{bridge_id}-vision-sprint.md`
-- No code changes — proposals only
-- Config: `run_bridge.vision_sprint.enabled: false` (opt-in for first release)
-- Time-bounded: max 10 minutes (configurable)
+- Add `EXPLORING` to the resume state machine
+- On resume from EXPLORING: log "Convergence was achieved. Skipping exploration, proceeding to finalization."
+- Set state to FINALIZING and continue
+- Record `vision_sprint_skipped: "resumed"` in bridge state
 
 **Acceptance Criteria**:
-- [ ] New EXPLORING state in bridge state machine
-- [ ] `SIGNAL:VISION_SPRINT` fires after flatline, before finalization
-- [ ] Vision sprint reads vision registry and generates proposals
-- [ ] Output saved as markdown (not code)
-- [ ] Config toggle: `run_bridge.vision_sprint.enabled`
-- [ ] Time-bounded with configurable timeout
-- [ ] Skipped silently when disabled (default)
+- [ ] `--resume` from EXPLORING state proceeds to FINALIZING
+- [ ] Bridge state records that exploration was skipped due to resume
+- [ ] No data loss — convergence findings from prior iterations are preserved
+- [ ] Log message explains why exploration was skipped
 
 ---
 
-### Task 3.3: Vision Sprint GitHub Trail Integration
+### Task 5.2: Source Model Attribution in Discovered Lore (S-2 Prep)
 
-**Description**: Post vision sprint results as a GitHub PR comment, separate from the convergence review comments. This gives the exploration results visibility without mixing them into the findings trail.
+**Description**: Add `source_model` field to discovered lore entries, recording which model produced the PRAISE finding or insight. This enables future model-affinity routing in the Hounfour.
 
 **Files**:
-- `.claude/scripts/bridge-github-trail.sh` (add `vision-sprint` subcommand)
+- `.claude/scripts/lore-discover.sh` (modify — add source_model extraction)
+- `.claude/data/lore/discovered/patterns.yaml` (modify — add source_model to seeded entries)
 
 **Changes**:
-- New subcommand: `bridge-github-trail.sh vision-sprint --pr N --bridge-id ID --proposal-file FILE`
-- Comment format: separate visual style from findings comments (uses a different header/emoji)
-- Links back to vision registry entries referenced in the proposal
-- Size enforcement: max 32KB (vision sprint proposals should be concise)
+- In `extract_praise_patterns()`: look for model attribution in findings JSON (if present)
+- Add `source_model` field to YAML output: `source_model: "claude-opus-4"` or `source_model: "unknown"`
+- Update the 3 seeded patterns with `source_model: "claude-opus-4"` (they came from the Claude-powered Bridgebuilder)
+- Field is optional — missing model info defaults to `"unknown"`
 
 **Acceptance Criteria**:
-- [ ] `vision-sprint` subcommand posts architectural proposals as PR comment
-- [ ] Visual distinction from findings comments (different header)
-- [ ] Links to vision registry entries
-- [ ] Size enforcement (32KB max)
-- [ ] Graceful degradation when gh unavailable
+- [ ] New lore entries include `source_model` field when model info is available
+- [ ] Seeded patterns have `source_model: "claude-opus-4"`
+- [ ] Missing model info produces `source_model: "unknown"` (not an error)
+- [ ] Field is documented in discovered/patterns.yaml header comment
 
 ---
 
-### Task 3.4: Update Vision Registry Status Lifecycle
+### Task 5.3: Vision Revisitation Frequency Tracking (S-3 Partial)
 
-**Description**: Extend the vision registry to track exploration status. Visions move through: Captured → Exploring → Proposed → Implemented/Deferred.
+**Description**: Track how often visions are referenced in bridge reviews. High-frequency references suggest the vision is becoming a pattern that should be elevated to lore. This is the "spaced repetition for architectural ideas" concept.
 
 **Files**:
-- `grimoires/loa/visions/index.md` (update schema documentation)
-- `.claude/scripts/bridge-vision-capture.sh` (handle status transitions)
+- `.claude/scripts/bridge-vision-capture.sh` (modify — add `--record-reference` mode)
+- `grimoires/loa/visions/index.md` (modify — add Refs column)
 
 **Changes**:
-- Add status transitions: vision sprint moves visions from "Captured" to "Exploring" to "Proposed"
-- Proposals include: architectural sketch, estimated complexity, connection to existing systems
-- When a proposed vision is implemented in a future cycle, status moves to "Implemented" with cycle reference
+- New subcommand: `bridge-vision-capture.sh --record-reference <vision-id> <bridge-id>`
+- Increments a reference counter for the specified vision in index.md
+- Add `| Refs |` column to the Active Visions table
+- When ref count exceeds threshold (default: 3), emit a log suggesting lore elevation
+- Bridge orchestrator can call this after each review iteration when a vision is mentioned
 
 **Acceptance Criteria**:
-- [ ] Vision lifecycle: Captured → Exploring → Proposed → Implemented/Deferred
-- [ ] Vision sprint updates status from Captured to Proposed (with proposal content)
-- [ ] Index.md reflects status changes
-- [ ] Existing visions (001-003) unaffected by schema changes
+- [ ] `--record-reference` increments the ref counter for a vision
+- [ ] Ref count is visible in the Active Visions table
+- [ ] Threshold crossing emits a log message: "vision-001 referenced 4 times — consider elevating to lore"
+- [ ] Existing visions start at ref count 0
+
+---
+
+### Task 5.4: Lore Freshness in Trajectory Narrative
+
+**Description**: Extend the trajectory narrative to include a one-line lore summary: how many discovered patterns exist, when the last one was discovered, and whether any visions have high revisitation counts.
+
+**Files**:
+- `.claude/scripts/trajectory-gen.sh` (modify — add `extract_lore()` function)
+
+**Changes**:
+- New function `extract_lore()`: reads `discovered/patterns.yaml`, counts entries, gets latest source date
+- In prose mode: add "**Discovered patterns** (N total, latest from bridge-YYYYMMDD): [top 2 pattern names]"
+- In JSON mode: add `lore` object with `discovered_count`, `latest_bridge`, `high_revisit_visions[]`
+- In condensed mode: append "N patterns discovered" to the one-liner
+
+**Acceptance Criteria**:
+- [ ] Prose trajectory includes discovered lore summary
+- [ ] JSON trajectory includes lore object
+- [ ] Condensed trajectory appends pattern count
+- [ ] Graceful degradation when no discovered patterns exist
+- [ ] High-revisitation visions (ref > 3) are highlighted
 
 ---
 
@@ -294,52 +251,50 @@ Output (stdout):
 
 | Sprint | Global ID | Tasks | Theme |
 |--------|-----------|-------|-------|
-| Sprint 1 | sprint-91 | 3 | Trajectory narrative + session awakening |
-| Sprint 2 | sprint-92 | 3 | Bidirectional lore + discovery pipeline |
-| Sprint 3 | sprint-93 | 4 | Vision sprints + speculation channel |
-| **Total** | | **10** | Environment design for agent flourishing |
+| Sprint 4 | sprint-94 | 5 | Fix all findings + eval compliance |
+| Sprint 5 | sprint-95 | 4 | State recovery + speculation primitives |
+| **Total** | | **9** | Bridgebuilder review response |
+
+### Relationship to Previous Sprints
+
+```
+Sprint 91-93 (COMPLETED): Build the four environment advances
+  └── Sprint 94 (HARDENING): Fix every finding from Bridgebuilder review
+  └── Sprint 95 (ENHANCEMENT): Build the most impactful speculations
+```
 
 ### Dependencies
 
 ```
-Sprint 1 (Trajectory)
-  └── Task 1.1 → Task 1.2 (trajectory-gen.sh must exist before /loa integration)
-  └── Task 1.1 → Task 1.3 (trajectory-gen.sh must exist before recovery hook)
+Sprint 4 (Hardening) — all tasks independent, can run in any order
+  └── Task 4.1 (staleness) — standalone
+  └── Task 4.2 (accumulative lore) — standalone
+  └── Task 4.3 (timeout enforcement) — standalone
+  └── Task 4.4 (docs) — standalone
+  └── Task 4.5 (eval fixture) — standalone
 
-Sprint 2 (Lore) — independent of Sprint 1
-  └── Task 2.1 → Task 2.3 (lore-discover.sh must exist before orchestrator wiring)
-  └── Task 2.2 (independent — creates the storage target)
-
-Sprint 3 (Vision Sprints) — depends on Sprint 1 (trajectory) and Sprint 2 (lore)
-  └── Task 3.1 (independent — parser changes)
-  └── Task 3.2 → Task 3.3 (orchestrator must have the phase before trail can post)
-  └── Task 3.4 (can run in parallel with 3.2/3.3)
+Sprint 5 (Enhancement) — depends on Sprint 4 completion
+  └── Task 5.1 (EXPLORING recovery) — standalone
+  └── Task 5.2 (source model) — depends on 4.2 (accumulative lore)
+  └── Task 5.3 (revisitation) — standalone
+  └── Task 5.4 (lore in trajectory) — depends on 5.2 (source model) and 5.3 (revisitation)
 ```
+
+### Success Criteria
+
+- [ ] All 3 MEDIUM findings resolved
+- [ ] All 3 LOW findings resolved
+- [ ] Framework eval suite: 39/39 passing (was 32/39)
+- [ ] No regressions in hounfour test suite (15/15)
+- [ ] Source model attribution in discovered lore entries
+- [ ] Vision revisitation tracking operational
+- [ ] Trajectory narrative includes lore freshness
 
 ### Risk Assessment
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Trajectory gen slow on large ledger | Low | Low | jq streaming, cache result |
-| Lore discovery produces low-quality entries | Medium | Low | `--dry-run` default, human review |
-| Vision sprint bloats bridge loop time | Low | Medium | Time-bounded (10min default), opt-in |
-| Speculation channel abused for non-speculative content | Low | None | Weight 0, no convergence impact |
-
-### Branch Strategy
-
-Create new branch `feat/environment-design-c014` from `main` (after PR #324 merge).
-
-### Config Additions
-
-```yaml
-# .loa.config.yaml additions for cycle-014
-golden_path:
-  show_trajectory: true          # Display trajectory narrative in /loa
-
-run_bridge:
-  lore_discovery:
-    enabled: false               # Opt-in for first release (dry-run default)
-  vision_sprint:
-    enabled: false               # Opt-in for first release
-    timeout_minutes: 10          # Max time for exploration phase
-```
+| Eval fixture sync breaks existing tests | Low | Medium | Run full suite before and after |
+| Accumulative lore produces merge conflicts | Low | Low | Per-entry dedup by ID |
+| Vision ref counter regex fails on new table format | Low | Low | Test against all 3 existing visions |
+| Source model field breaks lore schema consumers | Low | Low | Field is optional, defaults to "unknown" |

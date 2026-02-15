@@ -169,7 +169,7 @@
       "status": "active",
       "source_issue": "https://github.com/0xHoneyJar/loa/issues/325",
       "created_at": "2026-02-14T14:00:00Z",
-      "sprints": ["sprint-91", "sprint-92", "sprint-93"],
+      "sprints": ["sprint-91", "sprint-92", "sprint-93", "sprint-94", "sprint-95"],
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "sprint_plan": "grimoires/loa/sprint.md"
@@ -177,7 +177,7 @@
   ],
   "active_cycle": "cycle-014",
   "active_bugfix": null,
-  "global_sprint_counter": 93,
+  "global_sprint_counter": 95,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260212-i288-991113",
