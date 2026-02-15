@@ -432,9 +432,34 @@ butterfreezone:
   rtfm:
     check_enabled: true                 # Include in RTFM validation
     strict_mode: false                  # false=advisory warnings, true=hard gate
-  ecosystem:
-    auto_detect: true                   # Scan deps for related repos
-    manual_entries: []                  # User-defined ecosystem entries
+  ecosystem:                              # Cross-repo discovery graph (v1.40.0)
+    # Each entry declares a related repository with its role and interface.
+    # Agents traverse these links to build a multi-repo capability graph.
+    # Schema per entry:
+    #   repo (required):     GitHub slug — machine-resolvable via gh
+    #   role (required):     semantic relationship (runtime, protocol, distribution, billing, client, library)
+    #   interface (required): integration surface (hounfour-router, npm-package, jwt-auth, etc.)
+    #   protocol (optional): shared contract version from a common package
+    - repo: 0xHoneyJar/loa-finn
+      role: runtime
+      interface: hounfour-router
+      protocol: loa-hounfour@4.6.0
+    - repo: 0xHoneyJar/loa-hounfour
+      role: protocol
+      interface: npm-package
+      protocol: loa-hounfour@4.6.0
+    - repo: 0xHoneyJar/arrakis
+      role: distribution
+      interface: jwt-auth
+      protocol: loa-hounfour@4.6.0
+  culture:                                # Cultural BUTTERFREEZONE (v1.40.0)
+    # Optional section communicating project principles, naming, methodology.
+    # Provenance: OPERATIONAL. Omitted when not configured.
+    naming_etymology: "Vodou terminology as cognitive hooks for framework concepts"
+    principles:
+      - "Think Before Coding — plan and analyze before implementing"
+      - "Simplicity First — minimum complexity for the current task"
+    methodology: "Agent-driven development with iterative excellence loops"
   manual_sections:
     sentinel_start: "<!-- manual-start -->"
     sentinel_end: "<!-- manual-end -->"

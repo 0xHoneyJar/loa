@@ -52,7 +52,10 @@ CANONICAL_ORDER=(
     "architecture"
     "interfaces"
     "module_map"
+    "verification"
+    "agents"
     "ecosystem"
+    "culture"
     "limitations"
     "quick_start"
 )
@@ -543,6 +546,20 @@ infer_module_purpose() {
             hooks) purpose="Lifecycle hooks" ;;
             components) purpose="UI components" ;;
             pages|views) purpose="Page/view templates" ;;
+            billing|payments|pay) purpose="Billing and payment processing" ;;
+            ledger|credits|wallet) purpose="Financial ledger and credit management" ;;
+            auth|authentication|oauth) purpose="Authentication and authorization" ;;
+            themes|sietch) purpose="Theme-based runtime configuration" ;;
+            gateway|gatekeeper) purpose="API gateway and access control" ;;
+            webhooks) purpose="Webhook handlers and event processing" ;;
+            subscriptions|plans|tiers) purpose="Subscription management" ;;
+            crypto|web3|blockchain) purpose="Blockchain and cryptocurrency integration" ;;
+            discord|telegram|slack) purpose="Chat platform integration" ;;
+            sessions|session) purpose="Session management" ;;
+            jobs|workers|queue) purpose="Background job processing" ;;
+            cache|redis) purpose="Caching layer" ;;
+            monitoring|metrics|telemetry) purpose="Observability and monitoring" ;;
+            deploy|infra|terraform) purpose="Infrastructure and deployment" ;;
             *) ;;
         esac
     fi
@@ -662,6 +679,62 @@ extract_agent_context() {
     [[ -f "pyproject.toml" ]] && dep_list+=("python")
     deps=$(printf '%s' "[$(IFS=,; echo "${dep_list[*]}" | sed 's/,/, /g')]")
 
+    # Ecosystem: cross-repo discovery graph from config (SDD cycle-017)
+    local ecosystem_block=""
+    if [[ -f ".loa.config.yaml" ]] && command -v yq &>/dev/null; then
+        local eco_count
+        eco_count=$(yq '.butterfreezone.ecosystem | length // 0' .loa.config.yaml 2>/dev/null) || eco_count=0
+        if [[ "$eco_count" -gt 0 ]]; then
+            ecosystem_block=$'\n'"ecosystem:"
+            local i
+            for ((i=0; i<eco_count; i++)); do
+                local e_repo e_role e_iface e_proto
+                e_repo=$(yq ".butterfreezone.ecosystem[$i].repo // \"\"" .loa.config.yaml 2>/dev/null) || true
+                e_role=$(yq ".butterfreezone.ecosystem[$i].role // \"\"" .loa.config.yaml 2>/dev/null) || true
+                e_iface=$(yq ".butterfreezone.ecosystem[$i].interface // \"\"" .loa.config.yaml 2>/dev/null) || true
+                e_proto=$(yq ".butterfreezone.ecosystem[$i].protocol // \"\"" .loa.config.yaml 2>/dev/null) || true
+                if [[ -n "$e_repo" && -n "$e_role" ]]; then
+                    ecosystem_block="${ecosystem_block}"$'\n'"  - repo: ${e_repo}"
+                    ecosystem_block="${ecosystem_block}"$'\n'"    role: ${e_role}"
+                    [[ -n "$e_iface" ]] && ecosystem_block="${ecosystem_block}"$'\n'"    interface: ${e_iface}"
+                    [[ -n "$e_proto" ]] && ecosystem_block="${ecosystem_block}"$'\n'"    protocol: ${e_proto}"
+                fi
+            done
+        fi
+    fi
+
+    # Capability requirements: inferred from SKILL.md files (SDD cycle-017)
+    local cap_req_block=""
+    if [[ -d ".claude/skills" ]]; then
+        local -A cap_hits=()
+        local skill_dirs
+        skill_dirs=$(find .claude/skills -maxdepth 1 -type d 2>/dev/null | sort | tail -n +2 | head -10)
+        while IFS= read -r sd; do
+            [[ -z "$sd" ]] && continue
+            local sm="${sd}/SKILL.md"
+            [[ ! -f "$sm" ]] && continue
+            local sc
+            sc=$(cat "$sm" 2>/dev/null) || continue
+            echo "$sc" | grep -ciE 'read|codebase|source file' >/dev/null 2>&1 && cap_hits[fs_read]=$(( ${cap_hits[fs_read]:-0} + 1 ))
+            echo "$sc" | grep -ciE 'write|create|generate' >/dev/null 2>&1 && cap_hits[fs_write]=$(( ${cap_hits[fs_write]:-0} + 1 ))
+            echo "$sc" | grep -ciE '\bgit\b|diff|log|branch' >/dev/null 2>&1 && cap_hits[git]=$(( ${cap_hits[git]:-0} + 1 ))
+            echo "$sc" | grep -ciE 'commit|push' >/dev/null 2>&1 && cap_hits[git_write]=$(( ${cap_hits[git_write]:-0} + 1 ))
+            echo "$sc" | grep -ciE '\bPR\b|issue|gh ' >/dev/null 2>&1 && cap_hits[gh_api]=$(( ${cap_hits[gh_api]:-0} + 1 ))
+            echo "$sc" | grep -ciE 'bash|shell|execute|\brun\b' >/dev/null 2>&1 && cap_hits[shell]=$(( ${cap_hits[shell]:-0} + 1 ))
+        done <<< "$skill_dirs"
+        local cap_entries=""
+        (( ${cap_hits[fs_read]:-0} >= 2 )) && cap_entries="${cap_entries}"$'\n'"  - filesystem: read"
+        (( ${cap_hits[fs_write]:-0} >= 2 )) && cap_entries="${cap_entries}"$'\n'"  - filesystem: write"
+        if (( ${cap_hits[git_write]:-0} >= 2 )); then
+            cap_entries="${cap_entries}"$'\n'"  - git: read_write"
+        elif (( ${cap_hits[git]:-0} >= 2 )); then
+            cap_entries="${cap_entries}"$'\n'"  - git: read"
+        fi
+        (( ${cap_hits[shell]:-0} >= 2 )) && cap_entries="${cap_entries}"$'\n'"  - shell: execute"
+        (( ${cap_hits[gh_api]:-0} >= 2 )) && cap_entries="${cap_entries}"$'\n'"  - github_api: read_write"
+        [[ -n "$cap_entries" ]] && cap_req_block=$'\n'"capability_requirements:${cap_entries}"
+    fi
+
     cat <<EOF
 <!-- AGENT-CONTEXT
 name: ${name}
@@ -669,7 +742,7 @@ type: ${type}
 purpose: ${purpose}
 key_files: ${key_files}
 interfaces: ${interfaces}
-dependencies: ${deps}
+dependencies: ${deps}${ecosystem_block}${cap_req_block}
 version: ${version}
 trust_level: grounded
 -->
@@ -1330,6 +1403,172 @@ EOF
 }
 
 # =============================================================================
+# New Extractors — Cross-Repo Agent Legibility (cycle-017)
+# =============================================================================
+
+# Verification section: trust signals beyond version number (SPECULATION-3)
+extract_verification() {
+    local tier="$1"
+    [[ "$tier" -eq 3 ]] && return 0
+
+    local signals=""
+
+    # Test count: check directories + filename patterns
+    local test_file_count=0 test_suite_count=0
+    local td
+    for td in tests test spec __tests__ e2e; do
+        if [[ -d "$td" ]]; then
+            local c
+            c=$(find "$td" -type f 2>/dev/null | wc -l | tr -d ' ')
+            test_file_count=$((test_file_count + c))
+            test_suite_count=$((test_suite_count + 1))
+        fi
+    done
+    # Add named test files outside directories
+    local named_tests
+    named_tests=$(find . -maxdepth 3 \( -name "*.test.*" -o -name "*.spec.*" -o -name "*_test.*" -o -name "*.bats" \) \
+        ! -path "*/tests/*" ! -path "*/test/*" ! -path "*/spec/*" ! -path "*/__tests__/*" ! -path "*/e2e/*" \
+        2>/dev/null | wc -l | tr -d ' ')
+    test_file_count=$((test_file_count + named_tests))
+
+    if (( test_file_count > 0 )); then
+        signals="${signals}- ${test_file_count} test files across ${test_suite_count} suites\n"
+    fi
+
+    # CI presence
+    local ci_info=""
+    if [[ -d ".github/workflows" ]]; then
+        local wf_count
+        wf_count=$(find .github/workflows -name "*.yml" -o -name "*.yaml" 2>/dev/null | wc -l | tr -d ' ')
+        ci_info="GitHub Actions (${wf_count} workflows)"
+    elif [[ -f ".gitlab-ci.yml" ]]; then
+        ci_info="GitLab CI"
+    elif [[ -f "Jenkinsfile" ]]; then
+        ci_info="Jenkins"
+    fi
+    [[ -n "$ci_info" ]] && signals="${signals}- CI/CD: ${ci_info}\n"
+
+    # Type safety
+    local type_info=""
+    [[ -f "tsconfig.json" ]] && type_info="TypeScript"
+    [[ -f "mypy.ini" || -f "pyrightconfig.json" ]] && type_info="Python type checking"
+    [[ -f "rustfmt.toml" || -f "Cargo.toml" ]] && [[ -z "$type_info" ]] && type_info="Rust (type-safe)"
+    [[ -n "$type_info" ]] && signals="${signals}- Type safety: ${type_info}\n"
+
+    # Linter
+    local linter_info=""
+    [[ -n "$(find . -maxdepth 1 -name '.eslintrc*' 2>/dev/null | head -1)" ]] && linter_info="ESLint"
+    [[ -f ".flake8" || -f "setup.cfg" ]] && [[ -z "$linter_info" ]] && linter_info="Flake8"
+    [[ -f "clippy.toml" ]] && [[ -z "$linter_info" ]] && linter_info="Clippy"
+    [[ -n "$linter_info" ]] && signals="${signals}- Linting: ${linter_info} configured\n"
+
+    # Security
+    local sec_info=""
+    [[ -f "gitleaks.toml" || -f ".gitleaks.toml" ]] && sec_info="gitleaks configured"
+    [[ -f "SECURITY.md" ]] && sec_info="${sec_info}${sec_info:+, }SECURITY.md present"
+    [[ -n "$sec_info" ]] && signals="${signals}- Security: ${sec_info}\n"
+
+    [[ -z "$signals" ]] && return 0
+
+    cat <<EOF
+## Verification
+<!-- provenance: CODE-FACTUAL -->
+$(printf '%b' "$signals")
+EOF
+}
+
+# Agents section: self-describing persona metadata (Build Next #3)
+extract_persona_agents() {
+    local tier="$1"
+    [[ "$tier" -eq 3 ]] && return 0
+
+    local persona_files
+    persona_files=$(find .claude/data -maxdepth 1 -name "*-persona.md" 2>/dev/null | sort)
+    [[ -z "$persona_files" ]] && return 0
+
+    local count=0
+    local table="| Agent | Identity | Voice |\n|-------|----------|-------|\n"
+
+    while IFS= read -r pf; do
+        [[ -z "$pf" ]] && continue
+        local agent_name identity voice
+
+        # Extract heading
+        agent_name=$(grep -m1 '^# ' "$pf" 2>/dev/null | sed 's/^# //') || true
+        [[ -z "$agent_name" ]] && agent_name=$(basename "$pf" | sed 's/-persona\.md//' | sed 's/-/ /g;s/^./\U&/')
+
+        # Extract Identity first sentence (sentence boundary, then char safety limit)
+        identity=$(awk '/^## Identity/{f=1;next} f && /^##/{exit} f && /^[[:space:]]*$/{next} f{print;exit}' \
+            "$pf" 2>/dev/null | sed 's/\. .*/\./' | cut -c1-160) || true
+        [[ -z "$identity" ]] && identity="Specialized agent persona"
+
+        # Extract Voice first sentence (sentence boundary, then char safety limit)
+        voice=$(awk '/^## Voice/{f=1;next} f && /^##/{exit} f && /^[[:space:]]*$/{next} f{print;exit}' \
+            "$pf" 2>/dev/null | sed 's/\. .*/\./' | cut -c1-160) || true
+        [[ -z "$voice" ]] && voice="Custom voice profile"
+
+        table="${table}| ${agent_name} | ${identity} | ${voice} |\n"
+        count=$((count + 1))
+    done <<< "$persona_files"
+
+    (( count == 0 )) && return 0
+
+    cat <<EOF
+## Agents
+<!-- provenance: DERIVED -->
+The project defines ${count} specialized agent persona$( (( count > 1 )) && echo "s").
+
+$(printf '%b' "$table")
+EOF
+}
+
+# Culture section: project principles and methodology (Build Next #5, #247)
+extract_culture() {
+    local tier="$1"
+
+    # Source: .loa.config.yaml butterfreezone.culture block
+    if [[ ! -f ".loa.config.yaml" ]] || ! command -v yq &>/dev/null; then
+        return 0
+    fi
+
+    local has_culture
+    has_culture=$(yq '.butterfreezone.culture // null' .loa.config.yaml 2>/dev/null) || true
+    [[ -z "$has_culture" || "$has_culture" == "null" ]] && return 0
+
+    local naming principles methodology
+    naming=$(yq '.butterfreezone.culture.naming_etymology // ""' .loa.config.yaml 2>/dev/null) || true
+    methodology=$(yq '.butterfreezone.culture.methodology // ""' .loa.config.yaml 2>/dev/null) || true
+
+    # Extract principles array
+    local principle_count
+    principle_count=$(yq '.butterfreezone.culture.principles | length // 0' .loa.config.yaml 2>/dev/null) || principle_count=0
+
+    local culture_body=""
+    [[ -n "$naming" && "$naming" != "null" ]] && culture_body="**Naming**: ${naming}."$'\n\n'
+
+    if (( principle_count > 0 )); then
+        local principles_text=""
+        local i
+        for ((i=0; i<principle_count; i++)); do
+            local p
+            p=$(yq ".butterfreezone.culture.principles[$i]" .loa.config.yaml 2>/dev/null) || true
+            [[ -n "$p" && "$p" != "null" ]] && principles_text="${principles_text}${principles_text:+, }${p}"
+        done
+        [[ -n "$principles_text" ]] && culture_body="${culture_body}**Principles**: ${principles_text}."$'\n\n'
+    fi
+
+    [[ -n "$methodology" && "$methodology" != "null" ]] && culture_body="${culture_body}**Methodology**: ${methodology}."
+
+    [[ -z "$culture_body" ]] && return 0
+
+    cat <<EOF
+## Culture
+<!-- provenance: OPERATIONAL -->
+${culture_body}
+EOF
+}
+
+# =============================================================================
 # Provenance Tagging (Task 1.4 / SDD 3.1.4)
 # =============================================================================
 
@@ -1553,7 +1792,10 @@ extract_section_content() {
         architecture) header="## Architecture" ;;
         interfaces) header="## Interfaces" ;;
         module_map) header="## Module Map" ;;
+        verification) header="## Verification" ;;
+        agents) header="## Agents" ;;
         ecosystem) header="## Ecosystem" ;;
+        culture) header="## Culture" ;;
         limitations) header="## Known Limitations" ;;
         quick_start) header="## Quick Start" ;;
     esac
@@ -1579,7 +1821,8 @@ generate_ground_truth_meta() {
 
     local checksums=""
     for section in agent_context capabilities architecture interfaces \
-                   module_map ecosystem limitations quick_start; do
+                   module_map verification agents ecosystem culture \
+                   limitations quick_start; do
         local content
         content=$(extract_section_content "$document" "$section")
         if [[ -n "$content" ]]; then
@@ -1590,11 +1833,31 @@ generate_ground_truth_meta() {
         fi
     done
 
+    # Flatline verification data (cycle-017, Cross-Model Verification Certificates)
+    local flatline_meta=""
+    if [[ -d ".flatline/runs" ]]; then
+        local latest_manifest
+        latest_manifest=$(find .flatline/runs -name "*.json" -type f 2>/dev/null | sort -r | head -1)
+        if [[ -n "$latest_manifest" ]] && command -v jq &>/dev/null; then
+            local fl_status fl_models fl_high fl_run_at
+            fl_status=$(jq -r '.status // "unknown"' "$latest_manifest" 2>/dev/null) || true
+            fl_models=$(jq -r '[.models[]?.name // empty] | join(", ")' "$latest_manifest" 2>/dev/null) || true
+            fl_high=$(jq -r '.metrics.high_consensus // 0' "$latest_manifest" 2>/dev/null) || true
+            fl_run_at=$(jq -r '.completed_at // .started_at // ""' "$latest_manifest" 2>/dev/null) || true
+            if [[ "$fl_status" != "unknown" && "$fl_status" != "null" ]]; then
+                flatline_meta=$'\n'"flatline_verified: true"
+                [[ -n "$fl_models" && "$fl_models" != "null" ]] && flatline_meta="${flatline_meta}"$'\n'"flatline_models: [${fl_models}]"
+                [[ -n "$fl_high" && "$fl_high" != "null" ]] && flatline_meta="${flatline_meta}"$'\n'"flatline_consensus: ${fl_high} HIGH_CONSENSUS"
+                [[ -n "$fl_run_at" && "$fl_run_at" != "null" ]] && flatline_meta="${flatline_meta}"$'\n'"flatline_last_run: ${fl_run_at}"
+            fi
+        fi
+    fi
+
     cat <<EOF
 <!-- ground-truth-meta
 head_sha: ${head_sha}
 generated_at: ${generated_at}
-generator: butterfreezone-gen v${SCRIPT_VERSION}
+generator: butterfreezone-gen v${SCRIPT_VERSION}${flatline_meta}
 sections:${checksums}
 -->
 EOF
@@ -1728,6 +1991,7 @@ UPTODATE
 
     # Build sections
     local agent_ctx="" header="" caps="" arch="" ifaces="" modmap="" eco="" limits="" qs=""
+    local verif="" agents_sec="" culture_sec=""
 
     agent_ctx=$(extract_agent_context "$tier")
     header=$(extract_header "$tier")
@@ -1741,7 +2005,10 @@ UPTODATE
     modmap=$(run_extractor "module_map" "$tier")
 
     if [[ "$tier" -ne 3 ]]; then
+        verif=$(extract_verification "$tier") || true
+        agents_sec=$(extract_persona_agents "$tier") || true
         eco=$(run_extractor "ecosystem" "$tier")
+        culture_sec=$(extract_culture "$tier") || true
         limits=$(run_extractor "limitations" "$tier")
         qs=$(run_extractor "quick_start" "$tier")
     fi
@@ -1757,7 +2024,7 @@ UPTODATE
 
     # Assemble document
     local document
-    document=$(assemble_sections "$agent_ctx" "$header" "$caps" "$arch" "$ifaces" "$modmap" "$eco" "$limits" "$qs")
+    document=$(assemble_sections "$agent_ctx" "$header" "$caps" "$arch" "$ifaces" "$modmap" "$verif" "$agents_sec" "$eco" "$culture_sec" "$limits" "$qs")
 
     # Merge with existing manual sections
     document=$(preserve_manual_sections "$OUTPUT" "$document")

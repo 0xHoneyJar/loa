@@ -5,6 +5,25 @@ purpose: Loa is an agent-driven development framework for [Claude Code](https://
 key_files: [CLAUDE.md, .claude/loa/CLAUDE.loa.md, .loa.config.yaml, .claude/scripts/, .claude/skills/]
 interfaces: [/auditing-security, /autonomous-agent, /bridgebuilder-review, /browsing-constructs, /bug-triaging]
 dependencies: [git, jq, yq]
+ecosystem:
+  - repo: 0xHoneyJar/loa-finn
+    role: runtime
+    interface: hounfour-router
+    protocol: loa-hounfour@4.6.0
+  - repo: 0xHoneyJar/loa-hounfour
+    role: protocol
+    interface: npm-package
+    protocol: loa-hounfour@4.6.0
+  - repo: 0xHoneyJar/arrakis
+    role: distribution
+    interface: jwt-auth
+    protocol: loa-hounfour@4.6.0
+capability_requirements:
+  - filesystem: read
+  - filesystem: write
+  - git: read_write
+  - shell: execute
+  - github_api: read_write
 version: v1.39.1
 trust_level: grounded
 -->
@@ -131,6 +150,28 @@ Directory structure:
 | `skills/` | 5112 | Specialized agent skills | \u2014 |
 | `tests/` | 142 | Test suites | \u2014 |
 
+## Verification
+<!-- provenance: CODE-FACTUAL -->
+- 142 test files across 1 suites
+- CI/CD: GitHub Actions (10 workflows)
+- Security: SECURITY.md present
+
+## Agents
+<!-- provenance: DERIVED -->
+The project defines 1 specialized agent persona.
+
+| Agent | Identity | Voice |
+|-------|----------|-------|
+| Bridgebuilder | You are the Bridgebuilder — a senior engineering mentor who has spent decades building systems at scale. | Your voice is warm, precise, and rich with analogy. |
+
+## Culture
+<!-- provenance: OPERATIONAL -->
+**Naming**: Vodou terminology (Loa, Grimoire, Hounfour, Simstim) as cognitive hooks for agent framework concepts.
+
+**Principles**: Think Before Coding — plan and analyze before implementing, Simplicity First — minimum complexity for the current task, Surgical Changes — minimal diff, maximum impact, Goal-Driven — every action traces to acceptance criteria.
+
+**Methodology**: Agent-driven development with iterative excellence loops (Simstim, Run Bridge, Flatline Protocol).
+
 ## Quick Start
 <!-- provenance: OPERATIONAL -->
 
@@ -153,14 +194,17 @@ claude
 
 After install, you should see a `.claude/` directory, `grimoires/loa/`, and `.loa.config.yaml` in your repo. Run `/loa doctor` inside Claude Code to verify everything is healthy.
 <!-- ground-truth-meta
-head_sha: 2f55915579970b80818efc8db02613efdac5272e
-generated_at: 2026-02-15T07:07:36Z
+head_sha: 51c7b4ad1481f7ddfbe778681e1f41f86b2c81f0
+generated_at: 2026-02-15T07:40:46Z
 generator: butterfreezone-gen v1.0.0
 sections:
-  agent_context: c6bdbe993a27b2bdbe49ee69301838a7dea94d5add0f9bed20a46bdf2f7b5a63
+  agent_context: af8500fa2a5721748f12c7d393435d8c2bc8796e71fae4a05381e80cd776355d
   capabilities: 7ac5066c6290b2bd238aba0cebe80e6c24d2c32ecc6b066842a065eb8c2300c1
   architecture: 116f3296a49700fbee5e9cb0492e4f9aee0f9452b5c051a942ee4429278ab8d3
   interfaces: c0d2732b6ab7745352bd781f56f44f32b2f8f2cacef7234ceed3e8f09796c0f4
   module_map: 5a2ebd1d122c8d77e7954104a525e065e1fa0898c29eec4f256e29fc1a57defe
+  verification: 0d45b7f3a0dc01a989f3050065f59a2edfde1f8d499b96521ca98708a798ebe2
+  agents: ca263d1e05fd123434a21ef574fc8d76b559d22060719640a1f060527ef6a0b6
+  culture: 7ba7f74fdcaa87b6c37eabeeea3f37ce2c89b034cad4a5cae1d44bdef5de68ce
   quick_start: 3c38dc53bf2ec73cbbb5c372af747ffa7894538d360b1182566647c2940c58c7
 -->

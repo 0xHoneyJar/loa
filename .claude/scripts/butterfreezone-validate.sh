@@ -475,6 +475,94 @@ EOF
 }
 
 # =============================================================================
+# Cross-Repo Agent Legibility Validators (cycle-017)
+# =============================================================================
+
+# Advisory: ecosystem field validation
+validate_ecosystem() {
+    local context_block
+    context_block=$(sed -n '/<!-- AGENT-CONTEXT/,/-->/p' "$FILE" 2>/dev/null) || true
+
+    if echo "$context_block" | grep -q "^ecosystem:" 2>/dev/null; then
+        # Check each entry has repo and role
+        local eco_block
+        eco_block=$(echo "$context_block" | sed -n '/^ecosystem:/,/^[a-z]/p' | sed '$d')
+        local repos
+        repos=$(echo "$eco_block" | grep -c '^\s*- repo:' 2>/dev/null) || repos=0
+        local roles
+        roles=$(echo "$eco_block" | grep -c '^\s*role:' 2>/dev/null) || roles=0
+
+        if (( repos > 0 && repos == roles )); then
+            # Validate repo format (owner/name)
+            local bad_repos
+            bad_repos=$(echo "$eco_block" | grep '^\s*- repo:' | grep -cvE '^\s*- repo: [a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+' 2>/dev/null) || bad_repos=0
+            if (( bad_repos > 0 )); then
+                log_warn "ecosystem" "${bad_repos} ecosystem entries with malformed repo slug" "bad repos: ${bad_repos}"
+            else
+                log_pass "ecosystem" "Ecosystem field valid (${repos} entries, all with repo/role)"
+            fi
+        elif (( repos > 0 )); then
+            log_warn "ecosystem" "Ecosystem entries missing role field (repos: ${repos}, roles: ${roles})" "incomplete"
+        fi
+    else
+        # Check if config declares ecosystem but AGENT-CONTEXT doesn't have it
+        if [[ -f ".loa.config.yaml" ]] && command -v yq &>/dev/null; then
+            local config_eco
+            config_eco=$(yq '.butterfreezone.ecosystem | length // 0' .loa.config.yaml 2>/dev/null) || config_eco=0
+            if (( config_eco > 0 )); then
+                log_warn "ecosystem" "Config has ${config_eco} ecosystem entries but AGENT-CONTEXT missing ecosystem field (stale generation?)" "stale"
+            fi
+        fi
+    fi
+}
+
+# Advisory: capability_requirements validation
+validate_capability_requirements() {
+    local context_block
+    context_block=$(sed -n '/<!-- AGENT-CONTEXT/,/-->/p' "$FILE" 2>/dev/null) || true
+
+    if echo "$context_block" | grep -q "^capability_requirements:" 2>/dev/null; then
+        local valid_caps="filesystem|git|shell|github_api|network"
+        local cap_entries
+        cap_entries=$(echo "$context_block" | sed -n '/^capability_requirements:/,/^[a-z]/p' | \
+            grep '^\s*-' | wc -l | tr -d ' ')
+        local bad_caps
+        bad_caps=$(echo "$context_block" | sed -n '/^capability_requirements:/,/^[a-z]/p' | \
+            grep '^\s*-' | grep -cvE "^\s*- (${valid_caps}):" 2>/dev/null) || bad_caps=0
+
+        if (( bad_caps > 0 )); then
+            log_warn "cap_req" "${bad_caps} capability entries with unknown vocabulary" "bad: ${bad_caps}"
+        else
+            log_pass "cap_req" "Capability requirements valid (${cap_entries} entries)"
+        fi
+    fi
+}
+
+# Advisory: verification section validation
+validate_verification_section() {
+    if ! grep -q "^## Verification" "$FILE" 2>/dev/null; then
+        return 0  # Optional section, silent skip
+    fi
+
+    local verif_content
+    verif_content=$(sed -n '/^## Verification/,/^## /p' "$FILE" 2>/dev/null | sed '$d')
+
+    # Check provenance tag
+    if ! echo "$verif_content" | grep -q 'provenance:' 2>/dev/null; then
+        log_warn "verification" "Verification section missing provenance tag" "no provenance"
+    fi
+
+    # Check for at least one metric line
+    local metric_lines
+    metric_lines=$(echo "$verif_content" | grep -c '^-' 2>/dev/null) || metric_lines=0
+    if (( metric_lines == 0 )); then
+        log_warn "verification" "Verification section has no metric lines" "empty"
+    else
+        log_pass "verification" "Verification section valid (${metric_lines} metrics)"
+    fi
+}
+
+# =============================================================================
 # Main
 # =============================================================================
 
@@ -499,6 +587,9 @@ main() {
         validate_capability_descriptions || true
         validate_module_purposes || true
         validate_no_description_available || true
+        validate_ecosystem || true
+        validate_capability_requirements || true
+        validate_verification_section || true
         validate_meta || true
         validate_freshness || true
     fi

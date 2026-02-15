@@ -818,6 +818,10 @@ npx husky add .husky/commit-msg "npx commitlint --edit $1"
 
 Loa's agents focus on design, implementation, and review—not formatting code.
 
+## Generated Files
+
+After installation, Loa generates `BUTTERFREEZONE.md` — the machine-readable agent-API interface for your project. This file provides token-efficient orientation with provenance-tagged content for any agent entering your repository. It is regenerated automatically during `/run-bridge`, post-merge automation, and on-demand via `/butterfreezone`. See [PROCESS.md](PROCESS.md) for the BUTTERFREEZONE standard.
+
 ## Next Steps
 
 After installation, start Claude Code and run these slash commands inside it:
