@@ -213,6 +213,17 @@ fi
 
 > **Why?** GitHub requires the `workflow` OAuth scope to push changes to `.github/workflows/`. Most downstream users don't have this scope. The `.gitattributes` `merge=ours` rule protects existing workflow files, but new workflow files added upstream still propagate via merge. This step catches both cases.
 
+### Phase 5.6: Sync Constructs
+
+After the merge, sync construct pack skills to ensure newly added skills in pack updates are registered:
+
+```bash
+if [[ -x ".claude/scripts/sync-constructs.sh" ]]; then
+  echo "Syncing construct packs..."
+  .claude/scripts/sync-constructs.sh
+fi
+```
+
 ### Phase 6: Handle Merge Result
 
 - **Success**: Show changelog excerpt and next steps

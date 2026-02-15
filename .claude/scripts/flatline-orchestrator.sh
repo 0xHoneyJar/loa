@@ -185,9 +185,15 @@ get_model_secondary() {
     read_config '.flatline_protocol.models.secondary' 'gpt-5.2'
 }
 
+# FR-3: Optional tertiary model for 3-model Flatline (e.g., Gemini 3 Pro)
+# Returns empty string when not configured (2-model mode preserved)
+get_model_tertiary() {
+    read_config '.hounfour.flatline_tertiary_model' ''
+}
+
 # Valid model names accepted by model-adapter.sh.legacy MODEL_PROVIDERS registry.
 # Keep in sync with MODEL_PROVIDERS in model-adapter.sh.legacy (line ~69).
-VALID_FLATLINE_MODELS=(opus gpt-5.2 gpt-5.2-codex gpt-5.3-codex claude-opus-4.6 claude-opus-4.5 gemini-2.0)
+VALID_FLATLINE_MODELS=(opus gpt-5.2 gpt-5.2-codex gpt-5.3-codex claude-opus-4.6 claude-opus-4.5 gemini-2.0 gemini-3-pro gemini-3-flash)
 
 validate_model() {
     local model="$1"
@@ -262,6 +268,8 @@ declare -A MODEL_TO_PROVIDER_ID=(
     ["gpt-5.2-codex"]="openai:gpt-5.2-codex"
     ["opus"]="anthropic:claude-opus-4-6"
     ["claude-opus-4.6"]="anthropic:claude-opus-4-6"
+    ["gemini-3-pro"]="google:gemini-3-pro"
+    ["gemini-3-flash"]="google:gemini-3-flash"
 )
 
 # Unified model call: routes through model-invoke (direct) or model-adapter.sh (legacy)
@@ -541,25 +549,44 @@ run_phase1() {
         return 3
     fi
 
+    # FR-3: Optional tertiary model for 3-model Flatline
+    local tertiary_model
+    tertiary_model=$(get_model_tertiary)
+    local has_tertiary=false
+    if [[ -n "$tertiary_model" ]]; then
+        if ! validate_model "$tertiary_model" "tertiary"; then
+            log "Warning: tertiary model '$tertiary_model' invalid, continuing with 2-model mode"
+            tertiary_model=""
+        else
+            has_tertiary=true
+        fi
+    fi
+
+    local total_calls=4
+    [[ "$has_tertiary" == "true" ]] && total_calls=6
+
     # Create output files
     local gpt_review_file="$TEMP_DIR/gpt-review.json"
     local opus_review_file="$TEMP_DIR/opus-review.json"
     local gpt_skeptic_file="$TEMP_DIR/gpt-skeptic.json"
     local opus_skeptic_file="$TEMP_DIR/opus-skeptic.json"
+    local tertiary_review_file="$TEMP_DIR/tertiary-review.json"
+    local tertiary_skeptic_file="$TEMP_DIR/tertiary-skeptic.json"
 
     # Stderr capture files for diagnosis on failure
     local gpt_review_stderr="$TEMP_DIR/gpt-review-stderr.log"
     local opus_review_stderr="$TEMP_DIR/opus-review-stderr.log"
     local gpt_skeptic_stderr="$TEMP_DIR/gpt-skeptic-stderr.log"
     local opus_skeptic_stderr="$TEMP_DIR/opus-skeptic-stderr.log"
+    local tertiary_review_stderr="$TEMP_DIR/tertiary-review-stderr.log"
+    local tertiary_skeptic_stderr="$TEMP_DIR/tertiary-skeptic-stderr.log"
 
-    # Run 4 parallel API calls with stagger to avoid same-provider rate-limit contention.
+    # Run parallel API calls with stagger to avoid same-provider rate-limit contention.
     # Review calls launch first, then skeptic calls after a 2s delay.
-    # Both providers overlap (GPT + Opus run concurrently).
     local pids=()
     local pid_labels=()
 
-    # Wave 1: Review calls (GPT + Opus concurrently)
+    # Wave 1: Review calls (all models concurrently)
     {
         call_model "$secondary_model" review "$doc" "$phase" "$context_file" "$timeout" \
             > "$gpt_review_file" 2>"$gpt_review_stderr"
@@ -574,10 +601,19 @@ run_phase1() {
     pids+=($!)
     pid_labels+=("opus-review")
 
+    if [[ "$has_tertiary" == "true" ]]; then
+        {
+            call_model "$tertiary_model" review "$doc" "$phase" "$context_file" "$timeout" \
+                > "$tertiary_review_file" 2>"$tertiary_review_stderr"
+        } &
+        pids+=($!)
+        pid_labels+=("tertiary-review")
+    fi
+
     # Stagger: 2s delay before skeptic calls to avoid rate-limit contention
     sleep 2
 
-    # Wave 2: Skeptic calls (GPT + Opus concurrently)
+    # Wave 2: Skeptic calls (all models concurrently)
     {
         call_model "$secondary_model" skeptic "$doc" "$phase" "$context_file" "$timeout" \
             > "$gpt_skeptic_file" 2>"$gpt_skeptic_stderr"
@@ -592,6 +628,15 @@ run_phase1() {
     pids+=($!)
     pid_labels+=("opus-skeptic")
 
+    if [[ "$has_tertiary" == "true" ]]; then
+        {
+            call_model "$tertiary_model" skeptic "$doc" "$phase" "$context_file" "$timeout" \
+                > "$tertiary_skeptic_file" 2>"$tertiary_skeptic_stderr"
+        } &
+        pids+=($!)
+        pid_labels+=("tertiary-skeptic")
+    fi
+
     # Wait for all processes and track failures
     local failed=0
     local failed_labels=()
@@ -602,7 +647,7 @@ run_phase1() {
         fi
     done
 
-    if [[ $failed -eq 4 ]]; then
+    if [[ $failed -eq $total_calls ]]; then
         error "All Phase 1 model calls failed"
         # Log stderr from all failed calls for diagnosis
         for label in "${failed_labels[@]}"; do
@@ -615,7 +660,7 @@ run_phase1() {
     fi
 
     if [[ $failed -gt 0 ]]; then
-        log "Warning: $failed of 4 Phase 1 calls failed (degraded mode)"
+        log "Warning: $failed of $total_calls Phase 1 calls failed (degraded mode)"
         # Log stderr from failed calls for diagnosis
         for label in "${failed_labels[@]}"; do
             local stderr_file="$TEMP_DIR/${label}-stderr.log"
@@ -626,7 +671,9 @@ run_phase1() {
     fi
 
     # Aggregate costs
-    for file in "$gpt_review_file" "$opus_review_file" "$gpt_skeptic_file" "$opus_skeptic_file"; do
+    local cost_files=("$gpt_review_file" "$opus_review_file" "$gpt_skeptic_file" "$opus_skeptic_file")
+    [[ "$has_tertiary" == "true" ]] && cost_files+=("$tertiary_review_file" "$tertiary_skeptic_file")
+    for file in "${cost_files[@]}"; do
         if [[ -f "$file" ]]; then
             local cost
             cost=$(jq -r '.cost_usd // 0' "$file" 2>/dev/null | awk '{printf "%.0f", $1 * 100}')
@@ -634,13 +681,16 @@ run_phase1() {
         fi
     done
 
-    log "Phase 1 complete. Total cost so far: $TOTAL_COST cents"
+    log "Phase 1 complete ($total_calls calls). Total cost so far: $TOTAL_COST cents"
 
     # Output file paths for next phase
     echo "$gpt_review_file"
     echo "$opus_review_file"
     echo "$gpt_skeptic_file"
     echo "$opus_skeptic_file"
+    # FR-3: Output tertiary file paths when configured (empty string if not)
+    echo "${tertiary_review_file:-}"
+    echo "${tertiary_skeptic_file:-}"
 }
 
 # =============================================================================
@@ -652,25 +702,42 @@ run_phase2() {
     local opus_review_file="$2"
     local phase="$3"
     local timeout="$4"
+    local tertiary_review_file="${5:-}"
 
     set_state "PHASE2"
-    log "Starting Phase 2: Cross-scoring (2 parallel calls)"
 
-    local primary_model secondary_model
+    local primary_model secondary_model tertiary_model
     primary_model=$(get_model_primary)
     secondary_model=$(get_model_secondary)
+    tertiary_model=$(get_model_tertiary)
+
+    local has_tertiary=false
+    [[ -n "$tertiary_model" && -n "$tertiary_review_file" && -s "$tertiary_review_file" ]] && has_tertiary=true
+
+    local total_calls=2
+    [[ "$has_tertiary" == "true" ]] && total_calls=6
+
+    log "Starting Phase 2: Cross-scoring ($total_calls parallel calls)"
 
     # Extract items to score
     local gpt_items_file="$TEMP_DIR/gpt-items.json"
     local opus_items_file="$TEMP_DIR/opus-items.json"
+    local tertiary_items_file="$TEMP_DIR/tertiary-items.json"
 
     # Extract improvements from each review (handles markdown-wrapped JSON)
     extract_json_content "$gpt_review_file" '{"improvements":[]}' > "$gpt_items_file"
     extract_json_content "$opus_review_file" '{"improvements":[]}' > "$opus_items_file"
+    if [[ "$has_tertiary" == "true" ]]; then
+        extract_json_content "$tertiary_review_file" '{"improvements":[]}' > "$tertiary_items_file"
+    fi
 
     # Create output files
     local gpt_scores_file="$TEMP_DIR/gpt-scores.json"
     local opus_scores_file="$TEMP_DIR/opus-scores.json"
+    local tertiary_scores_opus_file="$TEMP_DIR/tertiary-scores-opus.json"
+    local tertiary_scores_gpt_file="$TEMP_DIR/tertiary-scores-gpt.json"
+    local gpt_scores_tertiary_file="$TEMP_DIR/gpt-scores-tertiary.json"
+    local opus_scores_tertiary_file="$TEMP_DIR/opus-scores-tertiary.json"
 
     local pids=()
 
@@ -688,6 +755,37 @@ run_phase2() {
     } &
     pids+=($!)
 
+    # FR-3: 3-way triangular cross-scoring when tertiary configured
+    if [[ "$has_tertiary" == "true" ]]; then
+        # Tertiary scores Opus items
+        {
+            call_model "$tertiary_model" score "$opus_items_file" "$phase" "" "$timeout" \
+                > "$tertiary_scores_opus_file" 2>/dev/null
+        } &
+        pids+=($!)
+
+        # Tertiary scores GPT items
+        {
+            call_model "$tertiary_model" score "$gpt_items_file" "$phase" "" "$timeout" \
+                > "$tertiary_scores_gpt_file" 2>/dev/null
+        } &
+        pids+=($!)
+
+        # GPT scores Tertiary items
+        {
+            call_model "$secondary_model" score "$tertiary_items_file" "$phase" "" "$timeout" \
+                > "$gpt_scores_tertiary_file" 2>/dev/null
+        } &
+        pids+=($!)
+
+        # Opus scores Tertiary items
+        {
+            call_model "$primary_model" score "$tertiary_items_file" "$phase" "" "$timeout" \
+                > "$opus_scores_tertiary_file" 2>/dev/null
+        } &
+        pids+=($!)
+    fi
+
     # Wait for all processes
     local failed=0
     for pid in "${pids[@]}"; do
@@ -696,12 +794,17 @@ run_phase2() {
         fi
     done
 
-    if [[ $failed -eq 2 ]]; then
+    if [[ $failed -eq $total_calls ]]; then
         log "Warning: All Phase 2 calls failed - using partial consensus"
     fi
 
     # Aggregate costs
-    for file in "$gpt_scores_file" "$opus_scores_file"; do
+    local cost_files=("$gpt_scores_file" "$opus_scores_file")
+    if [[ "$has_tertiary" == "true" ]]; then
+        cost_files+=("$tertiary_scores_opus_file" "$tertiary_scores_gpt_file"
+                     "$gpt_scores_tertiary_file" "$opus_scores_tertiary_file")
+    fi
+    for file in "${cost_files[@]}"; do
         if [[ -f "$file" ]]; then
             local cost
             cost=$(jq -r '.cost_usd // 0' "$file" 2>/dev/null | awk '{printf "%.0f", $1 * 100}')
@@ -709,7 +812,7 @@ run_phase2() {
         fi
     done
 
-    log "Phase 2 complete. Total cost: $TOTAL_COST cents"
+    log "Phase 2 complete ($total_calls calls). Total cost: $TOTAL_COST cents"
 
     echo "$gpt_scores_file"
     echo "$opus_scores_file"
