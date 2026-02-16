@@ -1,29 +1,144 @@
 {
-  "bridge_id": "bridge-20260216-c020s4",
-  "pr_number": 341,
-  "pr_url": "https://github.com/0xHoneyJar/loa/pull/341",
-  "state": "ITERATING",
-  "branch": "feat/cycle-020-teamcreate-compat",
-  "base_branch": "main",
-  "depth": 5,
-  "current_iteration": 0,
-  "previous_bridge": "bridge-20260216-c020s3",
-  "iterations": [],
+  "schema_version": 1,
+  "bridge_id": "bridge-20260216-07abe1",
+  "state": "JACKED_OUT",
+  "config": {
+    "depth": 3,
+    "mode": "full",
+    "flatline_threshold": 0.05,
+    "per_sprint": false,
+    "branch": "feat/cycle-023-permission-amendment",
+    "repo": ""
+  },
   "timestamps": {
-    "started": "2026-02-16T23:30:00Z",
-    "last_activity": "2026-02-16T23:30:00Z"
+    "started": "2026-02-16T06:52:18Z",
+    "last_activity": "2026-02-16T06:52:22Z"
+  },
+  "iterations": [
+    {
+      "iteration": 1,
+      "state": "completed",
+      "sprint_plan_source": "existing",
+      "sprints_executed": 0,
+      "bridgebuilder": {
+        "total_findings": 0,
+        "by_severity": {
+          "critical": 0,
+          "high": 0,
+          "medium": 0,
+          "low": 0,
+          "vision": 0,
+          "praise": 0
+        },
+        "severity_weighted_score": 0,
+        "pr_comment_url": null
+      },
+      "enrichment": {
+        "persona_loaded": false,
+        "persona_validation": "pending",
+        "findings_format": "unknown",
+        "field_fill_rates": {
+          "faang_parallel": 0,
+          "metaphor": 0,
+          "teachable_moment": 0,
+          "connection": 0
+        },
+        "praise_count": 0,
+        "insights_size_bytes": 0,
+        "redactions_applied": 0
+      },
+      "visions_captured": 0,
+      "started_at": "2026-02-16T06:52:18Z",
+      "updated_at": "2026-02-16T06:52:18Z"
+    },
+    {
+      "iteration": 2,
+      "state": "completed",
+      "sprint_plan_source": "findings",
+      "sprints_executed": 0,
+      "bridgebuilder": {
+        "total_findings": 0,
+        "by_severity": {
+          "critical": 0,
+          "high": 0,
+          "medium": 0,
+          "low": 0,
+          "vision": 0,
+          "praise": 0
+        },
+        "severity_weighted_score": 0,
+        "pr_comment_url": null
+      },
+      "enrichment": {
+        "persona_loaded": false,
+        "persona_validation": "pending",
+        "findings_format": "unknown",
+        "field_fill_rates": {
+          "faang_parallel": 0,
+          "metaphor": 0,
+          "teachable_moment": 0,
+          "connection": 0
+        },
+        "praise_count": 0,
+        "insights_size_bytes": 0,
+        "redactions_applied": 0
+      },
+      "visions_captured": 0,
+      "started_at": "2026-02-16T06:52:18Z",
+      "updated_at": "2026-02-16T06:52:18Z"
+    },
+    {
+      "iteration": 3,
+      "state": "completed",
+      "sprint_plan_source": "findings",
+      "sprints_executed": 0,
+      "bridgebuilder": {
+        "total_findings": 0,
+        "by_severity": {
+          "critical": 0,
+          "high": 0,
+          "medium": 0,
+          "low": 0,
+          "vision": 0,
+          "praise": 0
+        },
+        "severity_weighted_score": 0,
+        "pr_comment_url": null
+      },
+      "enrichment": {
+        "persona_loaded": false,
+        "persona_validation": "pending",
+        "findings_format": "unknown",
+        "field_fill_rates": {
+          "faang_parallel": 0,
+          "metaphor": 0,
+          "teachable_moment": 0,
+          "connection": 0
+        },
+        "praise_count": 0,
+        "insights_size_bytes": 0,
+        "redactions_applied": 0
+      },
+      "visions_captured": 0,
+      "started_at": "2026-02-16T06:52:18Z",
+      "updated_at": "2026-02-16T06:52:18Z"
+    }
+  ],
+  "flatline": {
+    "initial_score": 0,
+    "last_score": 0,
+    "consecutive_below_threshold": 0
   },
   "metrics": {
-    "total_iterations": 0,
-    "total_sprints": 0,
+    "total_sprints_executed": 0,
     "total_files_changed": 0,
     "total_findings_addressed": 0,
     "total_visions_captured": 0
   },
-  "flatline": {
-    "threshold": 0.05,
-    "consecutive_required": 2,
-    "consecutive_count": 0,
-    "detected": false
+  "finalization": {
+    "ground_truth_updated": false,
+    "rtfm_passed": true,
+    "pr_url": null,
+    "butterfreezone_generated": true
   }
 }

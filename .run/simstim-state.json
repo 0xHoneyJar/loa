@@ -1,42 +1,32 @@
 {
-  "simstim_id": "simstim-20260215-c018ride",
+  "simstim_id": "simstim-20260216-c024hygiene",
   "schema_version": 1,
-  "state": "COMPLETE",
-  "phase": "complete",
+  "state": "RUNNING",
+  "phase": "discovery",
   "timestamps": {
-    "started": "2026-02-15T09:35:00Z",
-    "last_activity": "2026-02-15T12:30:00Z"
+    "started": "2026-02-16T10:00:00Z",
+    "last_activity": "2026-02-16T10:15:00Z"
   },
   "phases": {
     "preflight": "completed",
-    "discovery": "skipped",
-    "flatline_prd": "skipped",
+    "discovery": "completed",
+    "flatline_prd": "completed",
     "architecture": "completed",
     "flatline_sdd": "skipped",
     "planning": "completed",
     "flatline_sprint": "skipped",
     "flatline_beads": "skipped",
-    "implementation": "completed",
-    "complete": "completed"
+    "implementation": "in_progress",
+    "complete": "pending"
   },
   "artifacts": {
-    "prd": {
-      "path": "grimoires/loa/prd.md"
-    },
-    "sdd": {
-      "path": "grimoires/loa/sdd.md"
-    },
-    "sprint": {
-      "path": "grimoires/loa/sprint.md"
-    }
+    "prd": { "path": "grimoires/loa/prd.md" }
   },
-  "skip_reasons": {
-    "discovery": "PRD created via /plan-and-analyze from issues #333 and #332",
-    "flatline_prd": "PRD freshly written, grounded in codebase exploration",
-    "flatline_sdd": "flatline-invoke.sh not available",
-    "flatline_sprint": "flatline-invoke.sh not available",
-    "flatline_beads": "beads not initialized for this cycle"
+  "triage": {
+    "fixed_in_cycle": [339, 345, 346],
+    "commented_and_closed": [342, 343, 350, 351],
+    "kept_open": [349]
   },
-  "cycle": "cycle-018",
-  "issues": ["https://github.com/0xHoneyJar/loa/issues/333", "https://github.com/0xHoneyJar/loa/issues/332"]
+  "cycle": "cycle-024",
+  "title": "The Hygiene Sprint"
 }
