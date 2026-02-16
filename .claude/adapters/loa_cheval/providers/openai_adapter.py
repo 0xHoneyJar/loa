@@ -23,7 +23,7 @@ from loa_cheval.types import (
 logger = logging.getLogger("loa_cheval.providers.openai")
 
 # Supported API surface (SDD §4.2.5) — NO streaming, NO JSON mode in MVP
-_SUPPORTED_PARAMS = {"messages", "model", "temperature", "max_tokens", "tools", "tool_choice"}
+_SUPPORTED_PARAMS = {"messages", "model", "temperature", "max_tokens", "max_completion_tokens", "tools", "tool_choice"}
 
 
 class OpenAIAdapter(ProviderAdapter):
@@ -37,11 +37,12 @@ class OpenAIAdapter(ProviderAdapter):
         enforce_context_window(request, model_config)
 
         # Build request body — OpenAI is the canonical format (pass-through)
+        token_key = model_config.token_param  # "max_completion_tokens" for GPT-5.2+
         body: Dict[str, Any] = {
             "model": request.model,
             "messages": request.messages,
             "temperature": request.temperature,
-            "max_tokens": request.max_tokens,
+            token_key: request.max_tokens,
         }
 
         if request.tools:

@@ -93,6 +93,7 @@ class ModelConfig:
 
     capabilities: List[str] = field(default_factory=list)
     context_window: int = 128000
+    token_param: str = "max_tokens"  # Wire name for max output tokens param (e.g., "max_completion_tokens" for GPT-5.2+)
     pricing: Optional[Dict[str, int]] = None  # {input_per_mtok, output_per_mtok} in micro-USD
 
 

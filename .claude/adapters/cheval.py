@@ -159,6 +159,7 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
         models[model_id] = ModelConfig(
             capabilities=model_data.get("capabilities", []),
             context_window=model_data.get("context_window", 128000),
+            token_param=model_data.get("token_param", "max_tokens"),
             pricing=model_data.get("pricing"),
         )
 
