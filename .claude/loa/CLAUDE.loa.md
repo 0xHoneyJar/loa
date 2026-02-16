@@ -235,9 +235,11 @@ Defense-in-depth via Claude Code hooks. Active in ALL modes (interactive, autono
 |------|-------|---------|
 | `block-destructive-bash.sh` | PreToolUse:Bash | Block `rm -rf`, force-push, reset --hard, clean -f |
 | `team-role-guard.sh` | PreToolUse:Bash | Enforce lead-only ops in Agent Teams (no-op in single-agent) |
-| `team-role-guard-write.sh` | PreToolUse:Write/Edit | Block teammate writes to System Zone and state files |
+| `team-role-guard-write.sh` | PreToolUse:Write/Edit | Block teammate writes to System Zone, state files, and append-only files |
+| `team-skill-guard.sh` | PreToolUse:Skill | Block lead-only skill invocations for teammates |
 | `run-mode-stop-guard.sh` | Stop | Guard against premature exit during autonomous runs |
 | `mutation-logger.sh` | PostToolUse:Bash | Log mutating commands to `.run/audit.jsonl` |
+| `write-mutation-logger.sh` | PostToolUse:Write/Edit | Log Write/Edit file modifications to `.run/audit.jsonl` |
 
 **Deny Rules**: `.claude/hooks/settings.deny.json` — blocks agent access to `~/.ssh/`, `~/.aws/`, `~/.kube/`, `~/.gnupg/`, credential stores.
 

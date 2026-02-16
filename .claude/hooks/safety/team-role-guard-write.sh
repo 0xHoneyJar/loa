@@ -6,6 +6,7 @@
 # mode), blocks Write/Edit operations to protected paths:
 #   - .claude/ (System Zone)            → C-TEAM-005
 #   - .run/*.json (top-level state)     → C-TEAM-003
+#   - Append-only files (audit.jsonl, NOTES.md) — must use Bash append (>>)
 #
 # When LOA_TEAM_MEMBER is unset or empty, this hook is a complete no-op.
 # Single-agent mode is unaffected.
@@ -70,6 +71,21 @@ if echo "$file_path" | grep -qE '^\.run/[^/]+\.json$' 2>/dev/null; then
   echo "Teammate '$LOA_TEAM_MEMBER' cannot modify state files. Report status to the lead via SendMessage." >&2
   exit 2
 fi
+
+# ---------------------------------------------------------------------------
+# Append-Only File Protection
+# These files MUST use Bash append (echo >> file) for POSIX atomic writes.
+# The Write tool does full read-modify-write which is NOT concurrent-safe.
+# Block Write/Edit for teammates; they must use Bash append instead.
+# ---------------------------------------------------------------------------
+APPEND_ONLY_FILES=".run/audit.jsonl grimoires/loa/NOTES.md"
+for protected in $APPEND_ONLY_FILES; do
+  if [[ "$file_path" == "$protected" ]]; then
+    echo "BLOCKED [team-role-guard-write]: '$file_path' is append-only. Use Bash: echo \"...\" >> $file_path (POSIX atomic writes)." >&2
+    echo "Teammate '$LOA_TEAM_MEMBER' must NOT use Write/Edit for append-only files — only Bash append (>>)." >&2
+    exit 2
+  fi
+done
 
 # All checks passed — allow the operation
 exit 0

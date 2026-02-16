@@ -56,6 +56,15 @@
             "command": ".claude/hooks/safety/team-role-guard-write.sh"
           }
         ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/safety/team-skill-guard.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -65,6 +74,24 @@
           {
             "type": "command",
             "command": ".claude/hooks/audit/mutation-logger.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/audit/write-mutation-logger.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/audit/write-mutation-logger.sh"
           }
         ]
       }

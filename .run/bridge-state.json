@@ -1,59 +1,29 @@
 {
-  "schema_version": 1,
-  "bridge_id": "bridge-20260215-c017mesh",
-  "state": "JACKED_OUT",
-  "config": {
-    "depth": 5,
-    "mode": "full",
-    "flatline_threshold": 0.05,
-    "per_sprint": false,
-    "branch": "feat/cycle-017-butterfreezone-excellence",
-    "pr_number": 336
-  },
+  "bridge_id": "bridge-20260216-c020s4",
+  "pr_number": 341,
+  "pr_url": "https://github.com/0xHoneyJar/loa/pull/341",
+  "state": "ITERATING",
+  "branch": "feat/cycle-020-teamcreate-compat",
+  "base_branch": "main",
+  "depth": 5,
+  "current_iteration": 0,
+  "previous_bridge": "bridge-20260216-c020s3",
+  "iterations": [],
   "timestamps": {
-    "started": "2026-02-15T19:00:00Z",
-    "last_activity": "2026-02-15T20:15:00Z"
-  },
-  "iterations": [
-    {
-      "iteration": 1,
-      "sprint": "sprint-106-109",
-      "findings": {
-        "high": 1,
-        "medium": 4,
-        "low": 2,
-        "praise": 3,
-        "total_actionable": 7
-      },
-      "files_changed": 9,
-      "convergence_score": 0.06,
-      "review_path": ".run/bridge-reviews/bridge-20260215-c017mesh-iter1-full.md"
-    },
-    {
-      "iteration": 2,
-      "sprint": "findings-fix",
-      "findings": {
-        "high": 0,
-        "medium": 0,
-        "low": 0,
-        "praise": 2,
-        "total_actionable": 0
-      },
-      "files_changed": 3,
-      "convergence_score": 0.00,
-      "review_path": ".run/bridge-reviews/bridge-20260215-c017mesh-iter2-full.md"
-    }
-  ],
-  "flatline": {
-    "initial_score": 0.06,
-    "last_score": 0.00,
-    "consecutive_below_threshold": 2,
-    "flatlined": true
+    "started": "2026-02-16T23:30:00Z",
+    "last_activity": "2026-02-16T23:30:00Z"
   },
   "metrics": {
-    "total_sprints_executed": 5,
-    "total_files_changed": 12,
-    "total_findings_addressed": 7,
+    "total_iterations": 0,
+    "total_sprints": 0,
+    "total_files_changed": 0,
+    "total_findings_addressed": 0,
     "total_visions_captured": 0
+  },
+  "flatline": {
+    "threshold": 0.05,
+    "consecutive_required": 2,
+    "consecutive_count": 0,
+    "detected": false
   }
 }

@@ -107,6 +107,14 @@ check_and_block \
   'sed\s+-[a-zA-Z]*i.*(\S*/)?\.claude/' \
   "In-place editing System Zone (.claude/) files is lead-only in Agent Teams mode (C-TEAM-005). Framework files are read-only for teammates."
 
+check_and_block \
+  'install\s+.*(\S*/)?\.claude/' \
+  "Using 'install' to write to System Zone (.claude/) is lead-only in Agent Teams mode (C-TEAM-005). Framework files are read-only for teammates."
+
+check_and_block \
+  'patch\s+.*(\S*/)?\.claude/' \
+  "Patching System Zone (.claude/) files is lead-only in Agent Teams mode (C-TEAM-005). Framework files are read-only for teammates."
+
 # ---------------------------------------------------------------------------
 # C-TEAM-004: Block git commit and push
 # Matches: git commit, git push

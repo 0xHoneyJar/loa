@@ -159,8 +159,10 @@ Loa's safety hooks are project-scoped (defined in `.claude/hooks/settings.hooks.
 
 - **block-destructive-bash.sh**: Fires for ALL teammates (PreToolUse:Bash)
 - **team-role-guard.sh**: Blocks lead-only operations for teammates (PreToolUse:Bash). Only active when `LOA_TEAM_MEMBER` is set — no-op in single-agent mode. Fail-open design.
-- **team-role-guard-write.sh**: Blocks teammate writes/edits to System Zone (`.claude/`) and state files (`.run/*.json`) (PreToolUse:Write, PreToolUse:Edit). Same activation and fail-open design.
+- **team-role-guard-write.sh**: Blocks teammate writes/edits to System Zone (`.claude/`), state files (`.run/*.json`), and append-only files (PreToolUse:Write, PreToolUse:Edit). Same activation and fail-open design.
+- **team-skill-guard.sh**: Blocks lead-only skill invocations for teammates (PreToolUse:Skill). Blocklist-based — checks `tool_input.skill` against lead-only skills. Same activation and fail-open design.
 - **mutation-logger.sh**: Fires for ALL teammates (PostToolUse:Bash)
+- **write-mutation-logger.sh**: Logs Write/Edit file modifications for ALL teammates (PostToolUse:Write, PostToolUse:Edit)
 - **run-mode-stop-guard.sh**: Fires for ALL teammates (Stop)
 - **Deny rules**: Apply to ALL teammates (`.claude/hooks/settings.deny.json`)
 
@@ -175,7 +177,7 @@ The `team-role-guard.sh` hook provides defense-in-depth enforcement of C-TEAM co
 | `br ` commands | C-TEAM-002 | Beads serialization through lead |
 | Overwrite (`>`), `cp`/`mv`, `tee` to `.run/*.json` | C-TEAM-003 | State file ownership |
 | `git commit`, `git push` | C-TEAM-004 | Git working tree serialization |
-| `cp`/`mv`, redirect (`>`), `tee`, `sed -i` to `.claude/` | C-TEAM-005 | System Zone is read-only |
+| `cp`/`mv`, redirect (`>`), `tee`, `sed -i`, `install`, `patch` to `.claude/` | C-TEAM-005 | System Zone is read-only |
 
 **Allowed for teammates**: `>>` append to any file (POSIX atomic), `git status/diff/log` (read-only), all non-git/non-br commands.
 
@@ -187,10 +189,28 @@ The `team-role-guard-write.sh` hook extends defense-in-depth to the Write and Ed
 |---------|-----------|-----------|
 | Write/Edit to `.claude/*` | C-TEAM-005 | System Zone is lead-only |
 | Write/Edit to `.run/*.json` (top-level) | C-TEAM-003 | State file ownership |
+| Write/Edit to `.run/audit.jsonl` | Append-only | Must use Bash `>>` for POSIX atomic writes |
+| Write/Edit to `grimoires/loa/NOTES.md` | Append-only | Must use Bash `>>` for POSIX atomic writes |
 
-**Allowed for teammates**: Write/Edit to `grimoires/`, `app/`, `.run/bugs/*/` (subdirectories), and all other non-protected paths.
+**Allowed for teammates**: Write/Edit to `grimoires/loa/a2a/`, `app/`, `.run/bugs/*/` (subdirectories), and all other non-protected paths.
 
 **Script**: `.claude/hooks/safety/team-role-guard-write.sh`
+
+### Mechanical Enforcement (team-skill-guard.sh)
+
+The `team-skill-guard.sh` hook enforces the Skill Invocation Matrix mechanically. When `LOA_TEAM_MEMBER` is set, it blocks lead-only skill invocations by matching `tool_input.skill` against a blocklist:
+
+| Blocked Skills | Constraint | Rationale |
+|----------------|-----------|-----------|
+| `/plan-and-analyze`, `/architect`, `/sprint-plan` | C-TEAM-001 | Single PRD/SDD/sprint per cycle |
+| `/simstim`, `/autonomous` | C-TEAM-001 | Orchestration workflows |
+| `/run-sprint-plan`, `/run-bridge`, `/run` | C-TEAM-001 | Run mode orchestration |
+| `/ride`, `/update-loa`, `/ship`, `/deploy-production` | C-TEAM-001 | Framework/infrastructure management |
+| `/mount`, `/loa-eject`, `/loa-setup`, `/plan`, `/archive-cycle` | C-TEAM-001 | Lifecycle management |
+
+**Allowed for teammates**: `/implement`, `/review-sprint`, `/audit-sprint`, `/bug`, `/review`, `/build`, `/feedback`, `/translate`, `/validate`, `/audit`.
+
+**Script**: `.claude/hooks/safety/team-skill-guard.sh`
 
 ## Enforcement Coverage
 
@@ -198,13 +218,22 @@ Systematic inventory of advisory vs. mechanical enforcement for each Agent Teams
 
 | Constraint | Advisory (CLAUDE.md) | Mechanical (Hook) | Tool Coverage | Gaps |
 |-----------|---------------------|-------------------|---------------|------|
-| C-TEAM-001 (planning skills lead-only) | Yes | No | — | Skill invocations are not hookable (see note below) |
-| C-TEAM-002 (beads serialization) | Yes | Yes (Bash) | Bash: `br` commands blocked | Write/Edit: no beads files to protect |
-| C-TEAM-003 (state file ownership) | Yes | Yes (Bash + Write + Edit) | Full coverage | — |
-| C-TEAM-004 (git serialization) | Yes | Yes (Bash) | Bash: `git commit/push` blocked | Git ops only available via Bash |
-| C-TEAM-005 (System Zone readonly) | Yes | Yes (Bash + Write + Edit) | Bash: `cp`/`mv`, redirect, `tee`, `sed -i` to `.claude/`; Write/Edit: `realpath -m` normalization | `install`, `patch` commands (low risk — unusual) |
+| C-TEAM-001 (planning skills lead-only) | Yes | Yes (Skill) | Skill: blocklist-based guard via `team-skill-guard.sh` | — |
+| C-TEAM-002 (beads serialization) | Yes | Yes (Bash) | Bash: `br` commands blocked | Write/Edit: no beads files to protect (not a gap) |
+| C-TEAM-003 (state file ownership) | Yes | Yes (Bash + Write + Edit) | Full coverage. Append-only files also protected from Write/Edit misuse | — |
+| C-TEAM-004 (git serialization) | Yes | Yes (Bash) | Bash: `git commit/push` blocked | Git ops only available via Bash (not a gap) |
+| C-TEAM-005 (System Zone readonly) | Yes | Yes (Bash + Write + Edit) | Bash: `cp`/`mv`, redirect, `tee`, `sed -i`, `install`, `patch`; Write/Edit: `realpath -m` normalization | — |
 
-> **Skill Matrix is advisory only**: The Skill Invocation Matrix (above) is enforced by convention, not hooks. Claude Code's hook system operates at the tool level (`PreToolUse:Bash`, `PreToolUse:Write`, etc.), not the skill level. There is no mechanism to intercept a teammate invoking `/plan-and-analyze`. Enforcement relies on the lead assigning appropriate tasks via `TaskCreate` and the teammate reading CLAUDE.md constraints.
+> **Skill Matrix is mechanically enforced**: The Skill Invocation Matrix is enforced via `PreToolUse:Skill` hook (`team-skill-guard.sh`). Lead-only skills are blocked for teammates by matching `tool_input.skill` against a blocklist. The `Skill` tool is a regular Claude Code tool — `PreToolUse:Skill` hooks fire just like `PreToolUse:Bash`.
+
+### Audit Coverage
+
+| Tool | PreToolUse Guard | PostToolUse Audit | Coverage |
+|------|-----------------|-------------------|----------|
+| Bash | `block-destructive-bash.sh`, `team-role-guard.sh` | `mutation-logger.sh` | Full |
+| Write | `team-role-guard-write.sh` | `write-mutation-logger.sh` | Full |
+| Edit | `team-role-guard-write.sh` | `write-mutation-logger.sh` | Full |
+| Skill | `team-skill-guard.sh` | — | Guard only (skill invocations are not mutations) |
 
 ## Quality Gate Preservation
 
