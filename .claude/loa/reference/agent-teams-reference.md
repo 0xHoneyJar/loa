@@ -37,16 +37,28 @@ agent_teams:
 | `/architect` | Yes | No | Single SDD per cycle |
 | `/sprint-plan` | Yes | No | Single sprint plan per cycle |
 | `/simstim` | Yes | No | Orchestration workflow |
+| `/autonomous` | Yes | No | Orchestration workflow |
 | `/run sprint-plan` | Yes | No | Orchestrates implement calls |
 | `/run-bridge` | Yes | No | Orchestrates review loop |
+| `/run` | Yes | No | Orchestrates sprint execution |
+| `/plan` | Yes | No | Golden path: routes to plan-and-analyze + architect + sprint-plan |
+| `/ship` | Yes | No | Golden path: routes to deploy + archive |
+| `/deploy-production` | Yes | No | Infrastructure management |
+| `/ride` | Yes | No | Single reality output |
+| `/update-loa` | Yes | No | Framework management |
+| `/mount` | Yes | No | Framework installation |
+| `/loa-eject` | Yes | No | Framework removal |
+| `/loa-setup` | Yes | No | Environment setup |
+| `/archive-cycle` | Yes | No | Lifecycle management |
 | `/implement sprint-N` | Yes | Yes | Core parallel work pattern |
 | `/review-sprint sprint-N` | Yes | Yes | Can review another teammate's work |
 | `/audit-sprint sprint-N` | Yes | Yes | Can audit another teammate's work |
 | `/bug` | Yes | Yes | Bug triage is independent |
-| `/ride` | Yes | No | Single reality output |
-| `/update-loa` | Yes | No | Framework management |
+| `/build` | Yes | Yes | Golden path: routes to implement |
+| `/review` | Yes | Yes | Golden path: routes to review + audit |
+| `/feedback` | Yes | Yes | Developer feedback |
 
-**Rule**: If a skill writes to a single shared artifact (PRD, SDD, sprint plan, state files), it is lead-only. If it writes to sprint-scoped directories (`a2a/sprint-N/`), teammates can invoke it.
+**Rule**: If a skill writes to a single shared artifact (PRD, SDD, sprint plan, state files) or manages lifecycle/infrastructure, it is lead-only. If it writes to sprint-scoped directories (`a2a/sprint-N/`), teammates can invoke it. Enforced mechanically by `team-skill-guard.sh` (PreToolUse:Skill).
 
 ## Beads Protocol (Lead-Only)
 
@@ -234,6 +246,7 @@ Systematic inventory of advisory vs. mechanical enforcement for each Agent Teams
 | Write | `team-role-guard-write.sh` | `write-mutation-logger.sh` | Full |
 | Edit | `team-role-guard-write.sh` | `write-mutation-logger.sh` | Full |
 | Skill | `team-skill-guard.sh` | — | Guard only (skill invocations are not mutations) |
+| NotebookEdit | — | — | Not covered (no `.ipynb` in protected zones) |
 
 ## Quality Gate Preservation
 

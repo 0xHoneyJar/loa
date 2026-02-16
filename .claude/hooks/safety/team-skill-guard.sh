@@ -36,6 +36,9 @@ if [[ -z "$skill" ]]; then
   exit 0
 fi
 
+# Strip namespace prefix if present (e.g., "projectSettings:plan-and-analyze" -> "plan-and-analyze")
+skill="${skill##*:}"
+
 # ---------------------------------------------------------------------------
 # C-TEAM-001: Lead-only skill blocklist
 # These skills produce single shared artifacts (PRD, SDD, sprint plan, state
@@ -49,7 +52,7 @@ LEAD_ONLY_SKILLS=(
   "sprint-plan"
   "simstim"
   "autonomous"
-  "run-sprint-plan"
+  "run-sprint-plan"  # belt-and-suspenders: also caught by "run" for /run sprint-plan
   "run-bridge"
   "run"
   "ride"

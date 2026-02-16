@@ -104,7 +104,7 @@ check_and_block \
   "Writing to System Zone (.claude/) via tee is lead-only in Agent Teams mode (C-TEAM-005). Framework files are read-only for teammates."
 
 check_and_block \
-  'sed\s+-[a-zA-Z]*i.*(\S*/)?\.claude/' \
+  'sed\s+(-[a-zA-Z]*i|--in-place).*(\S*/)?\.claude/' \
   "In-place editing System Zone (.claude/) files is lead-only in Agent Teams mode (C-TEAM-005). Framework files are read-only for teammates."
 
 check_and_block \

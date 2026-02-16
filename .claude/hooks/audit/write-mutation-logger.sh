@@ -41,6 +41,9 @@ mkdir -p .run 2>/dev/null
 
 AUDIT_FILE=".run/audit.jsonl"
 
+# Log rotation is handled by mutation-logger.sh (PostToolUse:Bash) which fires
+# more frequently and rotates at 10MB. No separate rotation needed here.
+
 # Append JSONL entry — same format as mutation-logger.sh for compatibility
 jq -cn \
   --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \

@@ -97,7 +97,7 @@ See `.claude/hooks/settings.hooks.json` for the complete hook configuration.
 | UserPromptSubmit | (all) | `post-compact-reminder.sh` | Inject recovery after compaction |
 | PreToolUse | Bash | `safety/block-destructive-bash.sh` | Block destructive commands |
 | PreToolUse | Bash | `safety/team-role-guard.sh` | Enforce lead-only ops in Agent Teams |
-| PreToolUse | Write | `safety/team-role-guard-write.sh` | Block teammate writes to System Zone and state files |
+| PreToolUse | Write | `safety/team-role-guard-write.sh` | Block teammate writes to System Zone, state files, and append-only files |
 | PreToolUse | Edit | `safety/team-role-guard-write.sh` | Block teammate edits to System Zone, state files, and append-only files |
 | PreToolUse | Skill | `safety/team-skill-guard.sh` | Block lead-only skill invocations for teammates |
 | PostToolUse | Bash | `audit/mutation-logger.sh` | Log mutating commands |
