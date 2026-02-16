@@ -246,6 +246,13 @@ call_openai_api() {
     local timeout="$4"
     local api_key="$5"
 
+    # BB-001: Disable xtrace to prevent API key leakage in debug output
+    local prev_xtrace=""
+    if [[ -o xtrace ]]; then
+        prev_xtrace="on"
+        set +x
+    fi
+
     local api_url="https://api.openai.com/v1/chat/completions"
 
     # Escape for JSON
@@ -285,6 +292,12 @@ CURLCFG
         "$api_url")
 
     rm -f "$curl_config"
+
+    # Restore xtrace if it was on
+    if [[ "$prev_xtrace" == "on" ]]; then
+        set -x
+    fi
+
     echo "$response"
 }
 
@@ -295,6 +308,13 @@ call_anthropic_api() {
     local user_prompt="$3"
     local timeout="$4"
     local api_key="$5"
+
+    # BB-001: Disable xtrace to prevent API key leakage in debug output
+    local prev_xtrace=""
+    if [[ -o xtrace ]]; then
+        prev_xtrace="on"
+        set +x
+    fi
 
     local api_url="https://api.anthropic.com/v1/messages"
 
@@ -335,6 +355,12 @@ CURLCFG
         "$api_url")
 
     rm -f "$curl_config"
+
+    # Restore xtrace if it was on
+    if [[ "$prev_xtrace" == "on" ]]; then
+        set -x
+    fi
+
     echo "$response"
 }
 
@@ -383,10 +409,7 @@ EOF
     curl_config=$(mktemp)
     trap "rm -f '$curl_config'" RETURN
     chmod 600 "$curl_config"
-    cat > "$curl_config" <<CURLCFG
-header = "Content-Type: application/json"
-url = "${api_url}?key=${api_key}"
-CURLCFG
+    printf 'header = "Content-Type: application/json"\nurl = "%s?key=%s"\n' "$api_url" "$api_key" > "$curl_config"
 
     response=$(curl -s --max-time "$timeout" \
         --config "$curl_config" \
@@ -533,11 +556,15 @@ call_api_with_retry() {
                 content=$(echo "$response" | jq -r '.content[0].text // empty')
                 ;;
             google)
+                # BB-003: Check promptFeedback.blockReason first (no candidates when prompt itself is blocked)
+                local block_reason
+                block_reason=$(echo "$response" | jq -r '.promptFeedback.blockReason // empty' 2>/dev/null)
+                if [[ -n "$block_reason" ]]; then
+                    log "WARNING: Gemini prompt blocked (blockReason: $block_reason)"
+                    content=""
                 # IMP-003: Check finishReason for blocked responses
-                local finish_reason
-                finish_reason=$(echo "$response" | jq -r '.candidates[0].finishReason // empty' 2>/dev/null)
-                if [[ "$finish_reason" == "SAFETY" || "$finish_reason" == "RECITATION" ]]; then
-                    log "WARNING: Gemini response blocked (finishReason: $finish_reason)"
+                elif [[ "$(echo "$response" | jq -r '.candidates[0].finishReason // empty' 2>/dev/null)" =~ ^(SAFETY|RECITATION)$ ]]; then
+                    log "WARNING: Gemini response blocked (finishReason: ${BASH_REMATCH[0]})"
                     content=""
                 else
                     # IMP-005: Use last text part to handle thinking traces (Gemini 2.5 Pro)

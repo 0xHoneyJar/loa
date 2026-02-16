@@ -111,6 +111,22 @@ run_test_json "gemini-2.5-flash dissent (mock)" \
 run_test_json "gemini-2.5-pro review (mock, multi-part)" \
     bash "$ADAPTER" --model gemini-2.5-pro --mode review --input "$INPUT_FILE"
 
+# BB-007: Test blocked-response fixture (SAFETY finishReason handling)
+total=$((total + 1))
+echo -n "  TEST $total: gemini-2.5-flash blocked response (mock) ... "
+FLATLINE_MOCK_DIR="$PROJECT_ROOT/tests/fixtures/api-responses" \
+    output=$(bash "$ADAPTER" --model gemini-2.5-flash --mode blocked --input "$INPUT_FILE" 2>&1) || true
+# Blocked responses should result in empty content or a warning
+if echo "$output" | grep -q "blocked\|empty\|WARNING" 2>/dev/null || \
+   echo "$output" | jq -e '.content == "" or .content == null' >/dev/null 2>&1; then
+    passed=$((passed + 1))
+    echo "PASS"
+else
+    failed=$((failed + 1))
+    echo "FAIL (blocked response not detected)"
+    echo "    Output: ${output:0:200}"
+fi
+
 unset FLATLINE_MOCK_MODE
 
 echo ""

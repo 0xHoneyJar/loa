@@ -118,6 +118,7 @@ routing:
   fallback:
     openai: [anthropic]           # If OpenAI down, try Anthropic
     anthropic: [openai]           # If Anthropic down, try OpenAI
+    google: [openai]              # If Google down, try OpenAI
   downgrade:
     reviewer: [cheap]             # If budget exceeded, downgrade
 
