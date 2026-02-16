@@ -1,0 +1,24 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Let me analyze the requirements carefully."
+          },
+          {
+            "text": "{\"improvements\":[{\"id\":\"IMP-001\",\"description\":\"Consider implementing connection pooling for database operations\",\"priority\":\"HIGH\",\"confidence\":0.94},{\"id\":\"IMP-002\",\"description\":\"Add structured logging with correlation IDs\",\"priority\":\"MEDIUM\",\"confidence\":0.87},{\"id\":\"IMP-003\",\"description\":\"Implement graceful shutdown handler\",\"priority\":\"MEDIUM\",\"confidence\":0.82}],\"summary\":\"3 improvements identified by Gemini 2.5 Pro\"}"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP"
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1500,
+    "candidatesTokenCount": 620,
+    "totalTokenCount": 2120
+  },
+  "modelVersion": "gemini-2.5-pro"
+}

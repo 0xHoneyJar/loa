@@ -1,0 +1,21 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\"scores\":[{\"id\":\"IMP-001\",\"score\":850,\"evaluation\":\"Strong improvement with clear security benefit\",\"would_integrate\":true},{\"id\":\"IMP-002\",\"score\":550,\"evaluation\":\"Nice to have but not critical\",\"would_integrate\":false}]}"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP"
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 900,
+    "candidatesTokenCount": 280,
+    "totalTokenCount": 1180
+  },
+  "modelVersion": "gemini-2.5-flash"
+}

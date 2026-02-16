@@ -1,0 +1,21 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\"improvements\":[{\"id\":\"IMP-001\",\"description\":\"Add input validation for user-provided paths to prevent path traversal\",\"priority\":\"HIGH\",\"confidence\":0.92},{\"id\":\"IMP-002\",\"description\":\"Add retry logic for transient network failures\",\"priority\":\"MEDIUM\",\"confidence\":0.85},{\"id\":\"IMP-003\",\"description\":\"Document error codes in README\",\"priority\":\"LOW\",\"confidence\":0.78}],\"summary\":\"3 improvements identified\"}"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP"
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1250,
+    "candidatesTokenCount": 480,
+    "totalTokenCount": 1730
+  },
+  "modelVersion": "gemini-2.5-flash"
+}

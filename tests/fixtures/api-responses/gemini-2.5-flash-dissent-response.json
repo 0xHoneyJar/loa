@@ -1,0 +1,21 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\"findings\":[{\"id\":\"DISS-001\",\"severity\":\"BLOCKING\",\"category\":\"null-safety\",\"anchor\":\"src/handler.ts:processRequest\",\"anchor_type\":\"function\",\"scope\":\"diff\",\"description\":\"Unchecked null dereference on user input object\",\"failure_mode\":\"Runtime TypeError when request body is undefined\",\"suggested_fix\":\"Add null check before destructuring\"},{\"id\":\"DISS-002\",\"severity\":\"ADVISORY\",\"category\":\"error-handling\",\"anchor\":\"src/handler.ts:handleError\",\"anchor_type\":\"function\",\"scope\":\"diff\",\"description\":\"Error handler discards original stack trace\",\"failure_mode\":\"Difficult production debugging\",\"suggested_fix\":\"Preserve cause chain with Error.cause\"}]}"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP"
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1400,
+    "candidatesTokenCount": 520,
+    "totalTokenCount": 1920
+  },
+  "modelVersion": "gemini-2.5-flash"
+}
