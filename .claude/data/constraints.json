@@ -1,6 +1,6 @@
 {
   "$schema": "../schemas/constraints.schema.json",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "constraints": [
     {
       "id": "C-PROC-001",
@@ -1226,6 +1226,86 @@
       ],
       "severity": "critical",
       "source_incident": "bridgebuilder-horizon-pr341"
+    },
+    {
+      "id": "C-PERM-001",
+      "name": "may_question_frame",
+      "category": "permission",
+      "rule_type": "MAY",
+      "text": "question the framing of requirements during `/plan-and-analyze` and bridge reviews, proposing alternative problem definitions when the analysis warrants reframing",
+      "text_variants": {
+        "claude-loa-md": "MAY question the framing of requirements during `/plan-and-analyze` and bridge reviews when analysis warrants reframing"
+      },
+      "why": "The deepest architectural insights come from questioning the frame, not just analyzing within it. Permission to ask 'is this the right problem?' enables the level of inquiry that produced findings like lot_invariant-as-social-contract and Ostrom-as-governance.",
+      "order": 0,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "permission_grants",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "low"
+    },
+    {
+      "id": "C-PERM-002",
+      "name": "may_explore_visions",
+      "category": "permission",
+      "rule_type": "MAY",
+      "text": "allocate time within a sprint for Vision Registry exploration when a captured vision is relevant to the current work",
+      "text_variants": {
+        "claude-loa-md": "MAY allocate time for Vision Registry exploration when a captured vision is relevant to current work"
+      },
+      "why": "The Vision Registry captures speculative insights but none have ever been explored. Permission to allocate effort enables the 20% creative exploration that transforms captured ideas into actionable proposals.",
+      "order": 1,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "permission_grants",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "low"
+    },
+    {
+      "id": "C-PERM-003",
+      "name": "may_propose_alternatives",
+      "category": "permission",
+      "rule_type": "MAY",
+      "text": "propose alternative approaches that challenge existing architecture during bridge reviews and `/review-sprint`",
+      "text_variants": {
+        "claude-loa-md": "MAY propose alternative architectural approaches during bridge reviews and `/review-sprint`"
+      },
+      "why": "Architectural evolution requires the ability to propose alternatives. Reviews that only check conformance to existing patterns cannot discover when the pattern itself should change.",
+      "order": 2,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "permission_grants",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "low"
+    },
+    {
+      "id": "C-PERM-004",
+      "name": "may_speculate_in_planning",
+      "category": "permission",
+      "rule_type": "MAY",
+      "text": "create SPECULATION findings during planning and review skills (`/plan-and-analyze`, `/architect`, `/review-sprint`, bridge reviews) — explicitly excluded from `/implement` and `/audit-sprint`",
+      "text_variants": {
+        "claude-loa-md": "MAY create SPECULATION findings during planning and review skills — excluded from `/implement` and `/audit-sprint`"
+      },
+      "why": "SPECULATION is currently scoped to bridge reviews only. Extending to planning and review skills enables creative architectural thinking at the stages where it has the most impact, while excluding implementation and audit where it could rationalize unsafe changes.",
+      "order": 3,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "permission_grants",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "low"
     }
   ]
 }

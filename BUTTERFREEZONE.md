@@ -147,14 +147,14 @@ Directory structure:
 |--------|-------|---------|---------------|
 | `docs/` | 5 | Documentation | \u2014 |
 | `evals/` | 1269 | Benchmarking and regression framework for the Loa agent development system. Ensures framework changes don't degrade agent behavior through | [evals/README.md](evals/README.md) |
-| `grimoires/` | 520 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
+| `grimoires/` | 586 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
 | `skills/` | 5112 | Specialized agent skills | \u2014 |
-| `tests/` | 142 | Test suites | \u2014 |
+| `tests/` | 148 | Test suites | \u2014 |
 
 ## Verification
 <!-- provenance: CODE-FACTUAL -->
 - Trust Level: **L2 — CI Verified**
-- 142 test files across 1 suite
+- 148 test files across 1 suite
 - CI/CD: GitHub Actions (10 workflows)
 - Security: SECURITY.md present
 
@@ -201,16 +201,16 @@ claude
 
 After install, you should see a `.claude/` directory, `grimoires/loa/`, and `.loa.config.yaml` in your repo. Run `/loa doctor` inside Claude Code to verify everything is healthy.
 <!-- ground-truth-meta
-head_sha: aa1a8136eca92e68ad0c8f7c399f9d8b0631aeb2
-generated_at: 2026-02-15T09:17:42Z
+head_sha: 630c3335e31da190c08b5c773d70ec54c7af2525
+generated_at: 2026-02-16T06:52:21Z
 generator: butterfreezone-gen v1.0.0
 sections:
   agent_context: f0e46136a9fb44f42e69230a4159e0574f17456c5d83430fe90352f9cce30a92
   capabilities: 7ac5066c6290b2bd238aba0cebe80e6c24d2c32ecc6b066842a065eb8c2300c1
   architecture: 116f3296a49700fbee5e9cb0492e4f9aee0f9452b5c051a942ee4429278ab8d3
   interfaces: c0d2732b6ab7745352bd781f56f44f32b2f8f2cacef7234ceed3e8f09796c0f4
-  module_map: 8bd576bd1f9ce9c4e6877c9f054bf094f3a36de9a07926dfe0b9d079d84862ac
-  verification: 9de40736bfd7817383734eeb1567bc9dbf6687f6b50cf8fc5b8068994053476b
+  module_map: c22d1f336872902650ca3cc04bbb88569f3e1045cd46ee65a500cc9ad0e979a1
+  verification: 83aaa048d4ceda0020795438f4f4a4d74b98cdaed7fd8f80cb58d3d61d688502
   agents: ca263d1e05fd123434a21ef574fc8d76b559d22060719640a1f060527ef6a0b6
   culture: f73380f93bb4fadf36ccc10d60fc57555914363fc90e4f15b4dc4eb92bd1640f
   quick_start: 3c38dc53bf2ec73cbbb5c372af747ffa7894538d360b1182566647c2940c58c7

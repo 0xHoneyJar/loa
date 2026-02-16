@@ -35,11 +35,11 @@
         },
         "category": {
           "type": "string",
-          "enum": ["process", "git_safety", "beads", "danger_level", "flatline", "guardrails", "phase_sequencing", "bridge", "eval", "merge", "agent_teams"]
+          "enum": ["process", "git_safety", "beads", "danger_level", "flatline", "guardrails", "phase_sequencing", "bridge", "eval", "merge", "agent_teams", "permission"]
         },
         "rule_type": {
           "type": "string",
-          "enum": ["NEVER", "ALWAYS", "WHEN", "MUST", "SHOULD"]
+          "enum": ["NEVER", "ALWAYS", "WHEN", "MUST", "SHOULD", "MAY"]
         },
         "text": {
           "type": "string",
