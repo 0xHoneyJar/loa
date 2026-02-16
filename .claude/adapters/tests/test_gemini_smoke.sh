@@ -111,19 +111,24 @@ run_test_json "gemini-2.5-flash dissent (mock)" \
 run_test_json "gemini-2.5-pro review (mock, multi-part)" \
     bash "$ADAPTER" --model gemini-2.5-pro --mode review --input "$INPUT_FILE"
 
-# BB-007: Test blocked-response fixture (SAFETY finishReason handling)
+# BB-201: Test blocked-response fixture (SAFETY finishReason handling)
+# Use a temp mock dir where the "review" fixture contains blocked-response content
+# so the adapter loads it through normal --mode review path
 total=$((total + 1))
 echo -n "  TEST $total: gemini-2.5-flash blocked response (mock) ... "
-FLATLINE_MOCK_DIR="$PROJECT_ROOT/tests/fixtures/api-responses" \
-    output=$(bash "$ADAPTER" --model gemini-2.5-flash --mode blocked --input "$INPUT_FILE" 2>&1) || true
-# Blocked responses should result in empty content or a warning
-if echo "$output" | grep -q "blocked\|empty\|WARNING" 2>/dev/null || \
-   echo "$output" | jq -e '.content == "" or .content == null' >/dev/null 2>&1; then
+BLOCKED_MOCK_DIR=$(mktemp -d)
+trap "rm -rf '$BLOCKED_MOCK_DIR'" RETURN
+cp "$PROJECT_ROOT/tests/fixtures/api-responses/gemini-2.5-flash-blocked-response.json" \
+   "$BLOCKED_MOCK_DIR/gemini-2.5-flash-review-response.json"
+FLATLINE_MOCK_DIR="$BLOCKED_MOCK_DIR" \
+    output=$(bash "$ADAPTER" --model gemini-2.5-flash --mode review --input "$INPUT_FILE" 2>&1) || true
+# The adapter should detect SAFETY finishReason and return empty content
+if echo "$output" | jq -e '.content == "" or .content == null' >/dev/null 2>&1; then
     passed=$((passed + 1))
     echo "PASS"
 else
     failed=$((failed + 1))
-    echo "FAIL (blocked response not detected)"
+    echo "FAIL (blocked response not detected — content was non-empty)"
     echo "    Output: ${output:0:200}"
 fi
 
