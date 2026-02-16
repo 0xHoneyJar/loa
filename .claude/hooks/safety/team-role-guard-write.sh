@@ -36,7 +36,11 @@ fi
 # Normalize: resolve to repo-relative path
 # Write/Edit tools pass absolute paths (e.g., /home/user/project/.claude/foo)
 # We need repo-relative paths for our prefix checks to work.
-file_path=$(realpath --relative-to=. "$file_path" 2>/dev/null) || true
+# NOTE: -m (canonicalize-missing) resolves paths even when intermediate dirs
+# don't exist. Without -m, Write to .claude/new-dir/file.sh would bypass
+# because realpath fails → empty → fail-open. --relative-to is GNU coreutils;
+# macOS users need `brew install coreutils`. Acceptable: Agent Teams is Linux-first.
+file_path=$(realpath -m --relative-to=. "$file_path" 2>/dev/null) || true
 if [[ -z "$file_path" ]]; then
   exit 0
 fi

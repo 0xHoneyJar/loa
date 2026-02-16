@@ -91,8 +91,20 @@ check_and_block \
 # Does NOT match: reads (cat .claude/...) or other non-mutating operations
 # ---------------------------------------------------------------------------
 check_and_block \
-  '(cp|mv)\s+.*\s+\.claude/' \
+  '(cp|mv)\s+.*\s+(\S*/)?\.claude/' \
   "Writing to System Zone (.claude/) is lead-only in Agent Teams mode (C-TEAM-005). Framework files are read-only for teammates."
+
+check_and_block \
+  '(^|[^>])>\s*(\S*/)?\.claude/' \
+  "Redirect to System Zone (.claude/) is lead-only in Agent Teams mode (C-TEAM-005). Framework files are read-only for teammates."
+
+check_and_block \
+  'tee\s+(-[^a]\S*\s+)*(\S*/)?\.claude/' \
+  "Writing to System Zone (.claude/) via tee is lead-only in Agent Teams mode (C-TEAM-005). Framework files are read-only for teammates."
+
+check_and_block \
+  'sed\s+-[a-zA-Z]*i.*(\S*/)?\.claude/' \
+  "In-place editing System Zone (.claude/) files is lead-only in Agent Teams mode (C-TEAM-005). Framework files are read-only for teammates."
 
 # ---------------------------------------------------------------------------
 # C-TEAM-004: Block git commit and push

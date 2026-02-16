@@ -175,6 +175,7 @@ The `team-role-guard.sh` hook provides defense-in-depth enforcement of C-TEAM co
 | `br ` commands | C-TEAM-002 | Beads serialization through lead |
 | Overwrite (`>`), `cp`/`mv`, `tee` to `.run/*.json` | C-TEAM-003 | State file ownership |
 | `git commit`, `git push` | C-TEAM-004 | Git working tree serialization |
+| `cp`/`mv`, redirect (`>`), `tee`, `sed -i` to `.claude/` | C-TEAM-005 | System Zone is read-only |
 
 **Allowed for teammates**: `>>` append to any file (POSIX atomic), `git status/diff/log` (read-only), all non-git/non-br commands.
 
@@ -201,7 +202,7 @@ Systematic inventory of advisory vs. mechanical enforcement for each Agent Teams
 | C-TEAM-002 (beads serialization) | Yes | Yes (Bash) | Bash: `br` commands blocked | Write/Edit: no beads files to protect |
 | C-TEAM-003 (state file ownership) | Yes | Yes (Bash + Write + Edit) | Full coverage | — |
 | C-TEAM-004 (git serialization) | Yes | Yes (Bash) | Bash: `git commit/push` blocked | Git ops only available via Bash |
-| C-TEAM-005 (System Zone readonly) | Yes | Yes (Bash + Write + Edit) | Bash: `cp`/`mv` to `.claude/` blocked; Write/Edit: prefix check | — |
+| C-TEAM-005 (System Zone readonly) | Yes | Yes (Bash + Write + Edit) | Bash: `cp`/`mv`, redirect, `tee`, `sed -i` to `.claude/`; Write/Edit: `realpath -m` normalization | `install`, `patch` commands (low risk — unusual) |
 
 > **Skill Matrix is advisory only**: The Skill Invocation Matrix (above) is enforced by convention, not hooks. Claude Code's hook system operates at the tool level (`PreToolUse:Bash`, `PreToolUse:Write`, etc.), not the skill level. There is no mechanism to intercept a teammate invoking `/plan-and-analyze`. Enforcement relies on the lead assigning appropriate tasks via `TaskCreate` and the teammate reading CLAUDE.md constraints.
 
