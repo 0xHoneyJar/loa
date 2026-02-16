@@ -103,6 +103,10 @@
           {
             "type": "command",
             "command": ".claude/hooks/safety/run-mode-stop-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/hygiene/settings-cleanup.sh"
           }
         ]
       }
