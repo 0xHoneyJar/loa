@@ -213,7 +213,13 @@ def build_score_map:
         disputed_count: ($classified.disputed | length),
         low_value_count: ($classified.low_value | length),
         blocker_count: ($blockers | length),
-        model_agreement_percent: $agreement_pct
+        model_agreement_percent: $agreement_pct,
+        confidence: (
+            if ($gpt_degraded or $opus_degraded) then "degraded"
+            elif (($gpt.scores | length) == 0 or ($opus.scores | length) == 0) then "single_model"
+            else "full"
+            end
+        )
     },
     high_consensus: $classified.high_consensus,
     disputed: $classified.disputed,

@@ -96,12 +96,12 @@ mv "$tmp_file" "$SETTINGS_FILE"
 
 log "Cleaned $removed_count entries from permissions.allow ($original_count → $filtered_count)"
 
-# Post-cleanup scan: check for remaining suspected secrets
-secret_prefixes=("ghp_" "gho_" "ghs_" "ghr_" "AKIA" "eyJ" "sk-" "xoxb-" "xoxp-" "BEGIN.*PRIVATE")
+# Post-cleanup scan: check for remaining suspected secrets (BB-201: derive from CREDENTIAL_PATTERNS)
+# Uses the same source array as the main filter — single source of truth.
 remaining_suspects=0
-for prefix in "${secret_prefixes[@]}"; do
-    if grep -qE "$prefix" "$SETTINGS_FILE" 2>/dev/null; then
-        log "WARNING: Suspected secret pattern '$prefix' still present after cleanup"
+for pat in "${CREDENTIAL_PATTERNS[@]}"; do
+    if grep -qP "$pat" "$SETTINGS_FILE" 2>/dev/null || grep -qE "$pat" "$SETTINGS_FILE" 2>/dev/null; then
+        log "WARNING: Suspected secret pattern '$pat' still present after cleanup"
         remaining_suspects=$((remaining_suspects + 1))
     fi
 done
