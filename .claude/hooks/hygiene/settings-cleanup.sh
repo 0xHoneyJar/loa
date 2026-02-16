@@ -68,22 +68,17 @@ fi
 
 original_count=$(echo "$allow_array" | jq 'length')
 
-# Build combined credential regex
-combined_pattern=""
-for pat in "${CREDENTIAL_PATTERNS[@]}"; do
-    if [[ -n "$combined_pattern" ]]; then
-        combined_pattern="${combined_pattern}|${pat}"
-    else
-        combined_pattern="$pat"
-    fi
-done
+# Build credential patterns as JSON array (BB-F7: avoid fragile regex concatenation)
+# Each pattern is tested individually via jq's any(), avoiding PCRE dialect issues
+# that arise when concatenating patterns with '|' into a single string.
+pattern_json=$(printf '%s\n' "${CREDENTIAL_PATTERNS[@]}" | jq -R -s 'split("\n") | map(select(length > 0))')
 
 # Filter entries: remove long, multiline, and credential-matching entries, then deduplicate
-filtered=$(echo "$allow_array" | jq --arg cred_pattern "$combined_pattern" '
+filtered=$(echo "$allow_array" | jq --argjson patterns "$pattern_json" '
     map(select(
         (length <= 200) and
         (test("\n") | not) and
-        (test($cred_pattern) | not)
+        (. as $entry | [$patterns[] | . as $pat | ($entry | test($pat))] | any | not)
     )) | unique
 ')
 

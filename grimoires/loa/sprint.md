@@ -1,129 +1,145 @@
-# Sprint Plan: The Hygiene Sprint
+# Sprint Plan: Bridgebuilder Findings — The Hygiene Sprint (Iteration 2)
 
-> Cycle: cycle-024 | Source: SDD (grimoires/loa/sdd.md)
-> Fixes: #339, #345, #346
+> Cycle: cycle-024 | Source: [Bridgebuilder Review of PR #353](https://github.com/0xHoneyJar/loa/pull/353)
+> Previous: Sprints 1-2 committed (adapter fix, scoring engine, cleanup hook)
+> This sprint: Address review findings BB-F3, BB-F5, BB-F7, BB-F8
 
 ## Sprint Structure
 
-2 sprints, 10 tasks total.
+1 sprint, 5 tasks. All changes are refinements to code already committed in Sprints 1-2.
 
 | Sprint | Focus | Files | Est. Lines |
 |--------|-------|-------|------------|
-| Sprint 1 | Adapter fix + Scoring engine | 2 files | ~50 |
-| Sprint 2 | Settings cleanup hook | 2 files | ~85 |
+| Sprint 3 | Bridgebuilder findings: regex safety, confidence signal, decision trails | 3 files | ~35 |
 
 ---
 
-## Sprint 1: Multi-Model Pipeline Fixes
+## Sprint 3: Bridgebuilder Review Findings
 
-**Goal**: Fix the OpenAI adapter parameter mismatch and scoring engine resilience issues so Flatline Protocol works end-to-end.
+**Goal**: Address all actionable findings from the Bridgebuilder review — harden the regex matching in the cleanup hook, add a confidence signal to degraded consensus, and document decision boundaries at critical logic points.
 
-### Task 1.1: OpenAI Adapter — Model-Version-Aware Parameter
+### Task 3.1: Cleanup Hook — Array-Based Credential Pattern Matching (BB-F7)
 
-**File**: `.claude/adapters/loa_cheval/providers/openai_adapter.py`
-
-**Changes**:
-1. Add `_token_limit_key(self, model: str) -> str` method to `OpenAIAdapter` class
-   - Returns `"max_tokens"` for models starting with `gpt-4` or `gpt-3`
-   - Returns `"max_completion_tokens"` for all other models (GPT-5.2+, future)
-2. Replace line 44: `"max_tokens": request.max_tokens` → `self._token_limit_key(request.model): request.max_tokens`
-3. Update `_SUPPORTED_PARAMS` (line 26): add `"max_completion_tokens"` to the set
-
-**Acceptance**: `_token_limit_key("gpt-5.2")` → `"max_completion_tokens"`, `_token_limit_key("gpt-4o")` → `"max_tokens"`
-
-**Closes**: #346
-
-### Task 1.2: Scoring Engine — JSON Validation
-
-**File**: `.claude/scripts/scoring-engine.sh`
+**File**: `.claude/hooks/hygiene/settings-cleanup.sh`
+**Finding**: [BB-F7, Medium, Security] Regex construction fragility — concatenating patterns with `|` is fragile and mixes PCRE (jq) with ERE (grep) dialects.
 
 **Changes**:
-1. Replace `cat` on lines 101-102 with `jq -c '.'` validation wrapper
-2. Add `gpt_degraded` / `opus_degraded` tracking variables
-3. On invalid JSON: set scores to `'{"scores":[]}'`, set degraded flag, log WARNING with filename
-4. Add `validate_scores_structure()` function after JSON parse to verify `.scores` array exists
+1. Replace the `combined_pattern` string concatenation loop (lines 71-79) with a JSON array passed to jq
+2. Use `jq`'s `any()` with pattern array instead of a single concatenated regex string
+3. Align post-cleanup scan (lines 105-111) to use the same pattern source for consistency
 
-**Acceptance**: Feed a non-JSON file as `--gpt-scores` → logs WARNING, continues with opus-only scoring
-
-### Task 1.3: Scoring Engine — Mode Display Fix
-
-**File**: `.claude/scripts/scoring-engine.sh`
-
-**Change**: Replace line 569 bash parameter expansion with explicit conditional:
+**Before** (fragile concatenation):
 ```bash
-local mode_display="standard"
-[[ "$attack_mode" == "true" ]] && mode_display="attack"
-log "Input items: GPT=$gpt_count, Opus=$opus_count (mode=$mode_display)"
+combined_pattern=""
+for pat in "${CREDENTIAL_PATTERNS[@]}"; do
+    combined_pattern="${combined_pattern}|${pat}"
+done
+# ... jq test($cred_pattern) ...
 ```
 
-**Acceptance**: Log shows `mode=standard` (not `mode=attackfalse`)
-
-### Task 1.4: Scoring Engine — Skeptic Deduplication
-
-**File**: `.claude/scripts/scoring-engine.sh`
-
-**Change**: In the jq filter (line 164-170), add `group_by(.concern) | map(.[0])` before the severity filter to deduplicate skeptic concerns from multiple sources.
-
-**Acceptance**: Duplicate SKP-001/SKP-006 entries collapsed to 1 each in output
-
-### Task 1.5: Scoring Engine — Degraded Mode Flag
-
-**File**: `.claude/scripts/scoring-engine.sh`
-
-**Change**: Add `degraded` and `degraded_model` fields to the consensus output JSON when one model's response was invalid.
-
-**Acceptance**: Output includes `"degraded": true, "degraded_model": "gpt"` when GPT file was invalid
-
----
-
-## Sprint 2: Settings Cleanup Hook
-
-**Goal**: Create and register a Stop event hook that automatically cleans `settings.local.json` after each session.
-
-### Task 2.1: Create Cleanup Script
-
-**New file**: `.claude/hooks/hygiene/settings-cleanup.sh`
-
-**Implementation**:
-1. Shebang + fail-open trap (`trap 'exit 0' ERR`)
-2. Settings file path: `.claude/settings.local.json`
-3. Size check: exit early if < 64KB
-4. Parse `.permissions.allow` array with jq
-5. Filter: remove entries > 200 chars, entries with newlines, entries matching credential patterns
-6. Credential patterns (explicit list from SDD §2.3): AWS, GitHub, JWT, DB URLs, bearer tokens, OpenAI/Stripe keys, Slack tokens, PEM blocks
-7. Deduplicate remaining entries
-8. Write to temp file, atomic rename
-9. Post-cleanup scan: grep remaining entries for suspected secret prefixes, log warnings
-10. Log summary to `.run/audit.jsonl`
+**After** (array-based matching):
+```bash
+pattern_json=$(printf '%s\n' "${CREDENTIAL_PATTERNS[@]}" | jq -R -s 'split("\n") | map(select(length > 0))')
+# ... jq with any(patterns[]; test(.)) ...
+```
 
 **Acceptance**:
-- File with AWS key pattern entry → entry removed after hook runs
-- File < 64KB → hook exits immediately
-- Kill jq mid-execution → hook exits 0 (fail-open)
+- Same filtering behavior as before (no functional change)
+- Pattern list is inspectable as JSON array
+- No string concatenation of regex fragments
 
-### Task 2.2: Register Hook
+### Task 3.2: Scoring Engine — Confidence Signal for Degraded Consensus (BB-F5)
 
-**File**: `.claude/hooks/settings.hooks.json`
+**File**: `.claude/scripts/scoring-engine.sh`
+**Finding**: [BB-F5, Praise+Suggestion] When one model is degraded, `model_agreement_percent` is misleading — if GPT is empty, all items come from Opus only, so "agreement" is trivially 100% but meaningless.
 
-**Change**: Add cleanup hook to the existing `Stop` array:
-```json
-{
-  "type": "command",
-  "command": ".claude/hooks/hygiene/settings-cleanup.sh",
-  "async": true
-}
+**Changes**:
+1. Add a `confidence` field to the consensus output JSON: `"full"` | `"degraded"` | `"single_model"`
+2. Logic:
+   - `"full"` — both models produced valid scores
+   - `"degraded"` — one model had invalid JSON but the other had valid `.scores` array
+   - `"single_model"` — one model had valid JSON but produced 0 scored items
+
+**After** (in final output object):
+```jq
+confidence: (
+    if ($gpt_degraded or $opus_degraded) then "degraded"
+    elif (($gpt.scores | length) == 0 or ($opus.scores | length) == 0) then "single_model"
+    else "full"
+    end
+),
 ```
 
-**Acceptance**: Hook appears in Stop array alongside existing `run-mode-stop-guard.sh`
+**Acceptance**:
+- Normal run → `"confidence": "full"`
+- One model invalid JSON → `"confidence": "degraded"`
+- One model valid JSON but empty scores → `"confidence": "single_model"`
 
-### Task 2.3: Verify End-to-End
+### Task 3.3: OpenAI Adapter — Decision Trail Comment (BB-F8a)
+
+**File**: `.claude/adapters/loa_cheval/providers/openai_adapter.py`
+**Finding**: [BB-F8, Low, Documentation] No documentation on when `legacy_prefixes` needs updating, or what happens with hypothetical models like `gpt-4.5-turbo`.
+
+**Change**: Add decision documentation comment to `_token_limit_key`:
+```python
+@staticmethod
+def _token_limit_key(model: str) -> str:
+    """Return the correct token limit parameter for the model.
+
+    GPT-4o and earlier use 'max_tokens'.
+    GPT-5.2+ use 'max_completion_tokens' (OpenAI API deprecation).
+
+    Decision: Prefix matching chosen over version map because all known
+    legacy models start with 'gpt-4' or 'gpt-3'. New model families
+    (GPT-5.x, o1, etc.) default to the current API parameter.
+    Update legacy_prefixes only if OpenAI releases a model with a new
+    prefix that still requires the deprecated 'max_tokens' parameter.
+    """
+```
+
+**Acceptance**: Docstring includes decision rationale and update trigger
+
+### Task 3.4: Scoring Engine — Dedup Decision Trail Comment (BB-F8b)
+
+**File**: `.claude/scripts/scoring-engine.sh`
+**Finding**: [BB-F8, Low, Documentation] + [BB-F3 note] No documentation on why exact-match dedup is used vs fuzzy matching, or when to reconsider.
+
+**Change**: Add comment above the dedup line:
+```bash
+# Deduplicate skeptic concerns by exact .concern text match.
+# Exact match is sufficient because models reviewing the same document typically
+# echo each other's phrasing. If the Hounfour scales to 3+ diverse models with
+# varied prompting, consider fuzzy dedup (e.g., cosine similarity on concern text
+# or a canonical concern ID assigned upstream in the skeptic prompt).
+```
+
+**Acceptance**: Comment explains the decision and documents the reconsideration trigger
+
+### Task 3.5: Verify All Bridgebuilder Findings Addressed
 
 **Verification checklist**:
-1. `openai_adapter.py` — `_token_limit_key` method present and correct
-2. `scoring-engine.sh` — JSON validation, mode display, dedup, degraded flag all working
-3. `settings-cleanup.sh` — executable, fail-open, size threshold, credential patterns
-4. `settings.hooks.json` — cleanup hook registered
-5. No broken imports, no syntax errors in bash scripts
+1. `settings-cleanup.sh` — credential patterns passed as JSON array to jq, no string concatenation
+2. `scoring-engine.sh` — `confidence` field present in consensus output
+3. `openai_adapter.py` — `_token_limit_key` docstring includes decision trail
+4. `scoring-engine.sh` — dedup comment documents exact-match decision
+5. Bash syntax check passes on all modified scripts
+6. Python import check passes on adapter
+7. No functional regressions (existing acceptance criteria still hold)
+
+---
+
+## Bridgebuilder Findings Traceability
+
+| Finding | Severity | Category | Sprint Task | Status |
+|---------|----------|----------|-------------|--------|
+| BB-F1: Protocol version negotiator | Praise | Architecture | Task 3.3 (add decision trail) | Addressed |
+| BB-F2: Byzantine consensus fix | High→Fixed | Correctness | Sprint 1 (already committed) | Done |
+| BB-F3: Skeptic dedup exact-match | Medium | Correctness | Task 3.4 (document decision) | Addressed |
+| BB-F4: Mode display fix | Low | Correctness | Sprint 1 (already committed) | Done |
+| BB-F5: Degraded mode signal | Praise+Suggestion | Architecture | Task 3.2 (add confidence field) | Addressed |
+| BB-F6: Permission GC design | Praise | Security | No change needed | Done |
+| BB-F7: Regex construction fragility | Medium | Security | Task 3.1 (array-based matching) | Addressed |
+| BB-F8: Decision trail gaps | Low | Documentation | Tasks 3.3 + 3.4 | Addressed |
 
 ---
 
@@ -131,5 +147,4 @@ log "Input items: GPT=$gpt_count, Opus=$opus_count (mode=$mode_display)"
 
 | Sprint | Commit Message |
 |--------|---------------|
-| Sprint 1 | `fix(flatline): OpenAI adapter max_completion_tokens + scoring engine resilience (#345, #346)` |
-| Sprint 2 | `fix(hooks): settings.local.json cleanup hook for autonomous runs (#339)` |
+| Sprint 3 | `fix(bridge-review): address Bridgebuilder findings — regex safety, confidence signal, decision trails` |

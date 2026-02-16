@@ -188,6 +188,11 @@ def build_score_map:
 )) as $classified |
 
 # Process skeptic concerns for blockers (2 or 3 sources)
+# Deduplicate by exact .concern text match (BB-F3/BB-F8b).
+# Exact match is sufficient because models reviewing the same document typically
+# echo each other's phrasing. If the Hounfour scales to 3+ diverse models with
+# varied prompting, consider fuzzy dedup (e.g., cosine similarity on concern text
+# or a canonical concern ID assigned upstream in the skeptic prompt).
 (
     [
         ($skeptic_gpt[0].concerns // [])[] | . + {source: "gpt_skeptic"},
@@ -215,7 +220,13 @@ def build_score_map:
     low_value: $classified.low_value,
     blockers: $blockers,
     degraded: (if ($gpt_degraded or $opus_degraded) then true else false end),
-    degraded_model: (if $gpt_degraded then "gpt" elif $opus_degraded then "opus" else null end)
+    degraded_model: (if $gpt_degraded then "gpt" elif $opus_degraded then "opus" else null end),
+    confidence: (
+        if ($gpt_degraded or $opus_degraded) then "degraded"
+        elif (($gpt.scores | length) == 0 or ($opus.scores | length) == 0) then "single_model"
+        else "full"
+        end
+    )
 }
 '
 }

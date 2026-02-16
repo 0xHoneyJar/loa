@@ -127,6 +127,13 @@ class OpenAIAdapter(ProviderAdapter):
 
         GPT-4o and earlier use 'max_tokens'.
         GPT-5.2+ use 'max_completion_tokens' (OpenAI API deprecation).
+
+        Decision: Prefix matching chosen over a version map because all known
+        legacy models start with 'gpt-4' or 'gpt-3'. New model families
+        (GPT-5.x, o1, o3, etc.) default to the current API parameter.
+        Update legacy_prefixes only if OpenAI releases a model with a new
+        prefix that still requires the deprecated 'max_tokens' parameter.
+        See: https://platform.openai.com/docs/api-reference/chat/create
         """
         legacy_prefixes = ("gpt-4", "gpt-3")
         if any(model.startswith(p) for p in legacy_prefixes):
