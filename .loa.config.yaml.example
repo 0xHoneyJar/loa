@@ -586,6 +586,24 @@ hounfour:
             input_per_mtok: 15000000
             output_per_mtok: 60000000
 
+    google:
+      # type: google                    # Provider SDK type
+      # endpoint: "https://generativelanguage.googleapis.com/v1beta"
+      auth: "{env:GOOGLE_API_KEY}"      # Requires GOOGLE_API_KEY environment variable
+      models:
+        gemini-2.5-flash:
+          capabilities: [chat]
+          context_window: 1048576
+          pricing:
+            input_per_mtok: 150000      # $0.15/M tokens (integer micro-USD)
+            output_per_mtok: 600000     # $0.60/M tokens
+        gemini-2.5-pro:
+          capabilities: [chat, thinking_traces]
+          context_window: 1048576
+          pricing:
+            input_per_mtok: 1250000     # $1.25/M tokens
+            output_per_mtok: 10000000   # $10.00/M tokens
+
     anthropic:
       auth: "{env:ANTHROPIC_API_KEY}"
       models:
@@ -601,6 +619,10 @@ hounfour:
           pricing:
             input_per_mtok: 3000000
             output_per_mtok: 15000000
+
+  # Flatline tertiary model — enables 3-model triangular cross-scoring
+  # Requires GOOGLE_API_KEY to be set in environment
+  # flatline_tertiary_model: gemini-2.5-flash
 
   # Aliases — short names mapping to provider:model-id
   aliases:

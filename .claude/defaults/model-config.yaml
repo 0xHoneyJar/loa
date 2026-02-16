@@ -24,6 +24,24 @@ providers:
           input_per_mtok: 15000
           output_per_mtok: 60000
 
+  google:
+    type: google
+    endpoint: "https://generativelanguage.googleapis.com/v1beta"
+    auth: "{env:GOOGLE_API_KEY}"
+    models:
+      gemini-2.5-flash:
+        capabilities: [chat]
+        context_window: 1048576
+        pricing:
+          input_per_mtok: 150000     # $0.15 per million tokens (micro-USD)
+          output_per_mtok: 600000    # $0.60 per million tokens
+      gemini-2.5-pro:
+        capabilities: [chat, thinking_traces]
+        context_window: 1048576
+        pricing:
+          input_per_mtok: 1250000    # $1.25 per million tokens
+          output_per_mtok: 10000000  # $10.00 per million tokens
+
   anthropic:
     type: anthropic
     endpoint: "https://api.anthropic.com/v1"
