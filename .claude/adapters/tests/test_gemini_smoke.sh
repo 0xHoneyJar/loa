@@ -117,7 +117,7 @@ run_test_json "gemini-2.5-pro review (mock, multi-part)" \
 total=$((total + 1))
 echo -n "  TEST $total: gemini-2.5-flash blocked response (mock) ... "
 BLOCKED_MOCK_DIR=$(mktemp -d)
-trap "rm -rf '$BLOCKED_MOCK_DIR'" RETURN
+trap "rm -f '$INPUT_FILE'; rm -rf '$BLOCKED_MOCK_DIR'" EXIT
 cp "$PROJECT_ROOT/tests/fixtures/api-responses/gemini-2.5-flash-blocked-response.json" \
    "$BLOCKED_MOCK_DIR/gemini-2.5-flash-review-response.json"
 FLATLINE_MOCK_DIR="$BLOCKED_MOCK_DIR" \
