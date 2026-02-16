@@ -201,7 +201,7 @@ Systematic inventory of advisory vs. mechanical enforcement for each Agent Teams
 | C-TEAM-002 (beads serialization) | Yes | Yes (Bash) | Bash: `br` commands blocked | Write/Edit: no beads files to protect |
 | C-TEAM-003 (state file ownership) | Yes | Yes (Bash + Write + Edit) | Full coverage | — |
 | C-TEAM-004 (git serialization) | Yes | Yes (Bash) | Bash: `git commit/push` blocked | Git ops only available via Bash |
-| C-TEAM-005 (System Zone readonly) | Yes | Yes (Write + Edit) | Write/Edit to `.claude/` blocked | Bash `cp`/`mv` to `.claude/` not blocked (low risk — unusual path) |
+| C-TEAM-005 (System Zone readonly) | Yes | Yes (Bash + Write + Edit) | Bash: `cp`/`mv` to `.claude/` blocked; Write/Edit: prefix check | — |
 
 > **Skill Matrix is advisory only**: The Skill Invocation Matrix (above) is enforced by convention, not hooks. Claude Code's hook system operates at the tool level (`PreToolUse:Bash`, `PreToolUse:Write`, etc.), not the skill level. There is no mechanism to intercept a teammate invoking `/plan-and-analyze`. Enforcement relies on the lead assigning appropriate tasks via `TaskCreate` and the teammate reading CLAUDE.md constraints.
 

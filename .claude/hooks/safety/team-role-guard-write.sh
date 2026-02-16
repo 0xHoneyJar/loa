@@ -33,7 +33,14 @@ if [[ -z "$file_path" ]]; then
   exit 0
 fi
 
-# Normalize: strip leading ./ if present
+# Normalize: resolve to repo-relative path
+# Write/Edit tools pass absolute paths (e.g., /home/user/project/.claude/foo)
+# We need repo-relative paths for our prefix checks to work.
+file_path=$(realpath --relative-to=. "$file_path" 2>/dev/null) || true
+if [[ -z "$file_path" ]]; then
+  exit 0
+fi
+# Strip leading ./ if realpath produced one
 file_path="${file_path#./}"
 
 # ---------------------------------------------------------------------------

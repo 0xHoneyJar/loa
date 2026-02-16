@@ -86,6 +86,15 @@ check_and_block \
   "Writing to .run/ state files via tee is lead-only in Agent Teams mode (C-TEAM-003). Report status to the lead via SendMessage."
 
 # ---------------------------------------------------------------------------
+# C-TEAM-005: Block cp/mv to System Zone (.claude/)
+# Matches: cp/mv to .claude/ paths
+# Does NOT match: reads (cat .claude/...) or other non-mutating operations
+# ---------------------------------------------------------------------------
+check_and_block \
+  '(cp|mv)\s+.*\s+\.claude/' \
+  "Writing to System Zone (.claude/) is lead-only in Agent Teams mode (C-TEAM-005). Framework files are read-only for teammates."
+
+# ---------------------------------------------------------------------------
 # C-TEAM-004: Block git commit and push
 # Matches: git commit, git push
 # Does NOT match: git status, git diff, git log (read-only operations)
