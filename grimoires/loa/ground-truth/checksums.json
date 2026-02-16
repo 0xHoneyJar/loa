@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-02-16T03:51:13Z",
-  "git_sha": "630c3335e31da190c08b5c773d70ec54c7af2525",
+  "generated_at": "2026-02-16T08:40:27Z",
+  "git_sha": "b5fc065d878f2db5b76dbb77a86c5b9f4010da4d",
   "algorithm": "sha256",
   "files": {
     "grimoires/loa/ground-truth/architecture.md": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
