@@ -39,6 +39,11 @@ fi
 # Strip namespace prefix if present (e.g., "projectSettings:plan-and-analyze" -> "plan-and-analyze")
 skill="${skill##*:}"
 
+# Re-check after stripping (e.g., trailing colon "plan-and-analyze:" -> empty)
+if [[ -z "$skill" ]]; then
+  exit 0
+fi
+
 # ---------------------------------------------------------------------------
 # C-TEAM-001: Lead-only skill blocklist
 # These skills produce single shared artifacts (PRD, SDD, sprint plan, state
@@ -64,6 +69,9 @@ LEAD_ONLY_SKILLS=(
   "loa-setup"
   "plan"
   "archive-cycle"
+  "flatline-review"
+  "constructs"
+  "eval"
 )
 
 for blocked in "${LEAD_ONLY_SKILLS[@]}"; do

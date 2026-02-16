@@ -1127,7 +1127,7 @@
       "name": "lead_only_planning_skills",
       "category": "agent_teams",
       "rule_type": "MUST",
-      "text": "restrict planning skills (`/plan-and-analyze`, `/architect`, `/sprint-plan`, `/simstim`, `/run sprint-plan`, `/run-bridge`) to the team lead — teammates MUST NOT invoke these",
+      "text": "restrict planning, orchestration, deployment, and lifecycle management skills to the team lead — teammates MUST NOT invoke these (see Skill Invocation Matrix for full list; enforced by `team-skill-guard.sh`)",
       "text_variants": {
         "claude-loa-md": "MUST restrict planning skills to team lead only — teammates implement, review, and audit only"
       },

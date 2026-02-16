@@ -57,6 +57,14 @@ agent_teams:
 | `/build` | Yes | Yes | Golden path: routes to implement |
 | `/review` | Yes | Yes | Golden path: routes to review + audit |
 | `/feedback` | Yes | Yes | Developer feedback |
+| `/translate` | Yes | Yes | Documentation translation |
+| `/validate` | Yes | Yes | Validation checks |
+| `/compound` | Yes | Yes | Independent analysis |
+| `/enhance` | Yes | Yes | Prompt enhancement |
+| `/loa` | Yes | Yes | Read-only status check |
+| `/flatline-review` | Yes | No | Multi-model review orchestration |
+| `/constructs` | Yes | No | Framework pack management |
+| `/eval` | Yes | No | Eval runner |
 
 **Rule**: If a skill writes to a single shared artifact (PRD, SDD, sprint plan, state files) or manages lifecycle/infrastructure, it is lead-only. If it writes to sprint-scoped directories (`a2a/sprint-N/`), teammates can invoke it. Enforced mechanically by `team-skill-guard.sh` (PreToolUse:Skill).
 
