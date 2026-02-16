@@ -50,6 +50,12 @@ Enforces lead-only constraints when `LOA_TEAM_MEMBER` is set (Agent Teams mode).
 
 **Script**: `.claude/hooks/safety/team-role-guard.sh`
 
+### PreToolUse:Write/Edit — Team Role Guard (v1.39.0)
+
+Extends defense-in-depth to the Write and Edit tools. When `LOA_TEAM_MEMBER` is set, blocks writes to the System Zone (`.claude/`) and top-level state files (`.run/*.json`). Allows writes to teammate-owned paths (`.run/bugs/*/`, `grimoires/`, `app/`). Complete no-op when `LOA_TEAM_MEMBER` is unset. Fail-open design.
+
+**Script**: `.claude/hooks/safety/team-role-guard-write.sh`
+
 ### Stop — Run Mode Guard
 
 Detects active `/run`, `/run-bridge`, or `/simstim` execution and injects context reminder before stopping.
@@ -79,5 +85,7 @@ See `.claude/hooks/settings.hooks.json` for the complete hook configuration.
 | UserPromptSubmit | (all) | `post-compact-reminder.sh` | Inject recovery after compaction |
 | PreToolUse | Bash | `safety/block-destructive-bash.sh` | Block destructive commands |
 | PreToolUse | Bash | `safety/team-role-guard.sh` | Enforce lead-only ops in Agent Teams |
+| PreToolUse | Write | `safety/team-role-guard-write.sh` | Block teammate writes to System Zone and state files |
+| PreToolUse | Edit | `safety/team-role-guard-write.sh` | Block teammate edits to System Zone and state files |
 | PostToolUse | Bash | `audit/mutation-logger.sh` | Log mutating commands |
 | Stop | (all) | `safety/run-mode-stop-guard.sh` | Guard against premature exit |

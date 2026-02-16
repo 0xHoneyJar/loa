@@ -38,6 +38,24 @@
             "command": ".claude/hooks/safety/team-role-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/safety/team-role-guard-write.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/safety/team-role-guard-write.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [

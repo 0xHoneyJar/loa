@@ -1205,6 +1205,27 @@
       ],
       "severity": "high",
       "source_incident": "#337"
+    },
+    {
+      "id": "C-TEAM-005",
+      "name": "teammate_system_zone_readonly",
+      "category": "agent_teams",
+      "rule_type": "MUST",
+      "text": "teammates MUST NOT modify files in the System Zone (.claude/) — all framework configuration, constraint definitions, hook scripts, and schema files are lead-only",
+      "text_variants": {
+        "claude-loa-md": "MUST NOT modify .claude/ (System Zone) — framework files are lead-only, enforced by PreToolUse:Write/Edit hook"
+      },
+      "why": "System Zone modifications by a teammate could alter constraint definitions, hook behavior, or skill configurations for all agents in the team, breaking the coordination invariants that other C-TEAM constraints depend on",
+      "order": 4,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "agent_teams_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "critical",
+      "source_incident": "bridgebuilder-horizon-pr341"
     }
   ]
 }

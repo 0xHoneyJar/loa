@@ -90,6 +90,8 @@ Beads (`br`) uses SQLite with single-writer semantics. In Agent Teams mode, ALL 
 
 Files that support append-only writes (JSONL, NOTES.md) are safe for concurrent access **only when using Bash append** (`echo "..." >> file`), which uses POSIX atomic writes up to `PIPE_BUF` (typically 4096 bytes). The Write tool does a full read-modify-write and is NOT safe for concurrent access. Teammates MUST use Bash append for NOTES.md and audit.jsonl, not the Write tool. Keep individual append operations under 4096 bytes.
 
+> **Local filesystem assumption**: `PIPE_BUF` atomicity is guaranteed by POSIX for local filesystems only. Network-mounted volumes (NFS, CIFS) and some Docker storage drivers may not preserve atomicity for concurrent appends. If teammates run on separate containers with a shared volume ([loa-finn#31](https://github.com/0xHoneyJar/loa-finn/issues/31) Section 8), use the lead-serialized pattern for all writes — teammates report via `SendMessage` and the lead performs the actual write.
+
 ## Team Topology Templates
 
 ### Template 1: Parallel Sprint Implementation
@@ -157,6 +159,7 @@ Loa's safety hooks are project-scoped (defined in `.claude/hooks/settings.hooks.
 
 - **block-destructive-bash.sh**: Fires for ALL teammates (PreToolUse:Bash)
 - **team-role-guard.sh**: Blocks lead-only operations for teammates (PreToolUse:Bash). Only active when `LOA_TEAM_MEMBER` is set — no-op in single-agent mode. Fail-open design.
+- **team-role-guard-write.sh**: Blocks teammate writes/edits to System Zone (`.claude/`) and state files (`.run/*.json`) (PreToolUse:Write, PreToolUse:Edit). Same activation and fail-open design.
 - **mutation-logger.sh**: Fires for ALL teammates (PostToolUse:Bash)
 - **run-mode-stop-guard.sh**: Fires for ALL teammates (Stop)
 - **Deny rules**: Apply to ALL teammates (`.claude/hooks/settings.deny.json`)
@@ -175,7 +178,32 @@ The `team-role-guard.sh` hook provides defense-in-depth enforcement of C-TEAM co
 
 **Allowed for teammates**: `>>` append to any file (POSIX atomic), `git status/diff/log` (read-only), all non-git/non-br commands.
 
-**Known limitation**: The hook covers Bash tool only. The Write tool can still overwrite `.run/*.json` — teammates must rely on CLAUDE.md constraints for Write tool compliance. A PreToolUse:Write hook is planned for a future iteration.
+### Mechanical Enforcement (team-role-guard-write.sh)
+
+The `team-role-guard-write.sh` hook extends defense-in-depth to the Write and Edit tools. When `LOA_TEAM_MEMBER` is set, it blocks:
+
+| Pattern | Constraint | Rationale |
+|---------|-----------|-----------|
+| Write/Edit to `.claude/*` | C-TEAM-005 | System Zone is lead-only |
+| Write/Edit to `.run/*.json` (top-level) | C-TEAM-003 | State file ownership |
+
+**Allowed for teammates**: Write/Edit to `grimoires/`, `app/`, `.run/bugs/*/` (subdirectories), and all other non-protected paths.
+
+**Script**: `.claude/hooks/safety/team-role-guard-write.sh`
+
+## Enforcement Coverage
+
+Systematic inventory of advisory vs. mechanical enforcement for each Agent Teams constraint. Making the gap visible is honest engineering.
+
+| Constraint | Advisory (CLAUDE.md) | Mechanical (Hook) | Tool Coverage | Gaps |
+|-----------|---------------------|-------------------|---------------|------|
+| C-TEAM-001 (planning skills lead-only) | Yes | No | — | Skill invocations are not hookable (see note below) |
+| C-TEAM-002 (beads serialization) | Yes | Yes (Bash) | Bash: `br` commands blocked | Write/Edit: no beads files to protect |
+| C-TEAM-003 (state file ownership) | Yes | Yes (Bash + Write + Edit) | Full coverage | — |
+| C-TEAM-004 (git serialization) | Yes | Yes (Bash) | Bash: `git commit/push` blocked | Git ops only available via Bash |
+| C-TEAM-005 (System Zone readonly) | Yes | Yes (Write + Edit) | Write/Edit to `.claude/` blocked | Bash `cp`/`mv` to `.claude/` not blocked (low risk — unusual path) |
+
+> **Skill Matrix is advisory only**: The Skill Invocation Matrix (above) is enforced by convention, not hooks. Claude Code's hook system operates at the tool level (`PreToolUse:Bash`, `PreToolUse:Write`, etc.), not the skill level. There is no mechanism to intercept a teammate invoking `/plan-and-analyze`. Enforcement relies on the lead assigning appropriate tasks via `TaskCreate` and the teammate reading CLAUDE.md constraints.
 
 ## Quality Gate Preservation
 

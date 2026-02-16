@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# =============================================================================
+# PreToolUse:Write/Edit Team Role Guard — Enforce System Zone & State Files
+# =============================================================================
+# When LOA_TEAM_MEMBER is set (indicating a teammate context in Agent Teams
+# mode), blocks Write/Edit operations to protected paths:
+#   - .claude/ (System Zone)            → C-TEAM-005
+#   - .run/*.json (top-level state)     → C-TEAM-003
+#
+# When LOA_TEAM_MEMBER is unset or empty, this hook is a complete no-op.
+# Single-agent mode is unaffected.
+#
+# IMPORTANT: No set -euo pipefail — this hook must never fail closed.
+# A jq failure must result in exit 0 (allow), not an error.
+# Fail-open with logging is the standard pattern for inline security hooks.
+#
+# Registered in settings.hooks.json as PreToolUse matcher: "Write", "Edit"
+# Part of Agent Teams Compatibility (cycle-020, issue #337)
+# Source: Bridgebuilder Horizon Review Section VI.1 (PR #341)
+# =============================================================================
+
+# Early exit: if not a teammate, allow everything
+if [[ -z "${LOA_TEAM_MEMBER:-}" ]]; then
+  exit 0
+fi
+
+# Read tool input from stdin (JSON with tool_input.file_path)
+input=$(cat)
+file_path=$(echo "$input" | jq -r '.tool_input.file_path // empty' 2>/dev/null) || true
+
+# If we can't parse the file path, allow (don't block on parse errors)
+if [[ -z "$file_path" ]]; then
+  exit 0
+fi
+
+# Normalize: strip leading ./ if present
+file_path="${file_path#./}"
+
+# ---------------------------------------------------------------------------
+# C-TEAM-005: Block writes to System Zone (.claude/)
+# The System Zone contains constraint definitions, hook scripts, schemas,
+# and framework-managed files. Teammates must not modify these.
+# ---------------------------------------------------------------------------
+if [[ "$file_path" == .claude/* || "$file_path" == ".claude" ]]; then
+  echo "BLOCKED [team-role-guard-write]: System Zone (.claude/) is read-only for teammates (C-TEAM-005)." >&2
+  echo "Teammate '$LOA_TEAM_MEMBER' cannot modify framework files. Report to the team lead via SendMessage." >&2
+  exit 2
+fi
+
+# ---------------------------------------------------------------------------
+# C-TEAM-003: Block writes to .run/ top-level state files
+# Matches: .run/simstim-state.json, .run/bridge-state.json, etc.
+# Does NOT match: .run/bugs/*/state.json (teammate-owned subdirectories)
+# Does NOT match: .run/audit.jsonl (append-only, but Write tool is full replace)
+# Does NOT match: .run/bridge-reviews/*.md (review output files)
+# ---------------------------------------------------------------------------
+if echo "$file_path" | grep -qE '^\.run/[^/]+\.json$' 2>/dev/null; then
+  echo "BLOCKED [team-role-guard-write]: Writing to .run/ state files is lead-only in Agent Teams mode (C-TEAM-003)." >&2
+  echo "Teammate '$LOA_TEAM_MEMBER' cannot modify state files. Report status to the lead via SendMessage." >&2
+  exit 2
+fi
+
+# All checks passed — allow the operation
+exit 0

@@ -235,6 +235,7 @@ Defense-in-depth via Claude Code hooks. Active in ALL modes (interactive, autono
 |------|-------|---------|
 | `block-destructive-bash.sh` | PreToolUse:Bash | Block `rm -rf`, force-push, reset --hard, clean -f |
 | `team-role-guard.sh` | PreToolUse:Bash | Enforce lead-only ops in Agent Teams (no-op in single-agent) |
+| `team-role-guard-write.sh` | PreToolUse:Write/Edit | Block teammate writes to System Zone and state files |
 | `run-mode-stop-guard.sh` | Stop | Guard against premature exit during autonomous runs |
 | `mutation-logger.sh` | PostToolUse:Bash | Log mutating commands to `.run/audit.jsonl` |
 
@@ -256,6 +257,7 @@ When Claude Code Agent Teams (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) is activ
 | MUST serialize all beads operations through team lead — teammates report via SendMessage | SQLite single-writer prevents lock contention |
 | MUST only let team lead write to `.run/` state files — teammates report via SendMessage | Read-modify-write pattern prevents lost updates |
 | MUST coordinate git commit/push through team lead — teammates report completed work via SendMessage | Git working tree and index are shared mutable state |
+| MUST NOT modify .claude/ (System Zone) — framework files are lead-only, enforced by PreToolUse:Write/Edit hook | System Zone changes alter constraints/hooks for all agents |
 <!-- @constraint-generated: end agent_teams_constraints -->
 
 ### Task Tracking in Agent Teams Mode
