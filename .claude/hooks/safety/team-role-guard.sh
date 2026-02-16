@@ -7,6 +7,7 @@
 #   - beads (br) commands          → C-TEAM-002
 #   - .run/ state file writes      → C-TEAM-003
 #   - git commit/push              → C-TEAM-004
+#   - .claude/ mutations           → C-TEAM-005
 #
 # When LOA_TEAM_MEMBER is unset or empty, this hook is a complete no-op.
 # Single-agent mode is unaffected.
@@ -86,9 +87,9 @@ check_and_block \
   "Writing to .run/ state files via tee is lead-only in Agent Teams mode (C-TEAM-003). Report status to the lead via SendMessage."
 
 # ---------------------------------------------------------------------------
-# C-TEAM-005: Block cp/mv to System Zone (.claude/)
-# Matches: cp/mv to .claude/ paths
-# Does NOT match: reads (cat .claude/...) or other non-mutating operations
+# C-TEAM-005: Block mutations to System Zone (.claude/)
+# Matches: cp/mv, redirect (>), tee, sed -i to .claude/ (relative or absolute)
+# Does NOT match: reads (cat .claude/...), append (>> .claude/...)
 # ---------------------------------------------------------------------------
 check_and_block \
   '(cp|mv)\s+.*\s+(\S*/)?\.claude/' \
