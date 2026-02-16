@@ -227,8 +227,9 @@ The `team-skill-guard.sh` hook enforces the Skill Invocation Matrix mechanically
 | `/run-sprint-plan`, `/run-bridge`, `/run` | C-TEAM-001 | Run mode orchestration |
 | `/ride`, `/update-loa`, `/ship`, `/deploy-production` | C-TEAM-001 | Framework/infrastructure management |
 | `/mount`, `/loa-eject`, `/loa-setup`, `/plan`, `/archive-cycle` | C-TEAM-001 | Lifecycle management |
+| `/flatline-review`, `/constructs`, `/eval` | C-TEAM-001 | Multi-model review, framework packs, eval runner |
 
-**Allowed for teammates**: `/implement`, `/review-sprint`, `/audit-sprint`, `/bug`, `/review`, `/build`, `/feedback`, `/translate`, `/validate`, `/audit`.
+**Allowed for teammates**: `/implement`, `/review-sprint`, `/audit-sprint`, `/bug`, `/review`, `/build`, `/feedback`, `/translate`, `/validate`, `/compound`, `/enhance`, `/loa`.
 
 **Script**: `.claude/hooks/safety/team-skill-guard.sh`
 

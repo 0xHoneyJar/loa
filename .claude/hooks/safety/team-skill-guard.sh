@@ -4,11 +4,13 @@
 # =============================================================================
 # When LOA_TEAM_MEMBER is set (indicating a teammate context in Agent Teams
 # mode), blocks skill invocations that are restricted to the team lead:
-#   - /plan-and-analyze, /architect, /sprint-plan   → C-TEAM-001
-#   - /simstim, /autonomous                         → C-TEAM-001
-#   - /run-sprint-plan, /run-bridge, /run           → C-TEAM-001
-#   - /ride, /update-loa, /ship, /deploy-production → C-TEAM-001
-#   - /mount, /loa-eject, /loa-setup, /plan         → C-TEAM-001
+#   - /plan-and-analyze, /architect, /sprint-plan     → C-TEAM-001
+#   - /simstim, /autonomous                           → C-TEAM-001
+#   - /run-sprint-plan, /run-bridge, /run             → C-TEAM-001
+#   - /ride, /update-loa, /ship, /deploy-production   → C-TEAM-001
+#   - /mount, /loa-eject, /loa-setup, /plan           → C-TEAM-001
+#   - /archive-cycle, /flatline-review, /constructs   → C-TEAM-001
+#   - /eval                                           → C-TEAM-001
 #
 # When LOA_TEAM_MEMBER is unset or empty, this hook is a complete no-op.
 # Single-agent mode is unaffected.
