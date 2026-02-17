@@ -229,14 +229,15 @@ show_dry_run_preview() {
       local rel_path="${file#$SYSTEM_DIR/}"
       local staging_file="${staging_dir}/${rel_path}"
 
-      # Skip overrides
+      # Skip overrides and constructs (user-authored, not framework-managed)
       [[ "$rel_path" == overrides/* ]] && continue
+      [[ "$rel_path" == constructs/* ]] && continue
 
       if [[ ! -f "$staging_file" ]]; then
         ((deleted_files++))
         echo -e "  ${RED}- $rel_path${NC}"
       fi
-    done < <(find "$SYSTEM_DIR" -type f ! -path "*/overrides/*" -print0 2>/dev/null | head -100)
+    done < <(find "$SYSTEM_DIR" -type f ! -path "*/overrides/*" ! -path "*/constructs/*" -print0 2>/dev/null | head -100)
   fi
 
   echo ""
@@ -1368,11 +1369,17 @@ EOF
     err "Update failed - restored previous version"
   fi
 
-  # === STAGE 6: Restore Overrides ===
+  # === STAGE 6: Restore User Content ===
   mkdir -p "$SYSTEM_DIR/overrides"
   if [[ -d "$backup_name/overrides" ]]; then
     cp -r "$backup_name/overrides/"* "$SYSTEM_DIR/overrides/" 2>/dev/null || true
     log "Restored user overrides"
+  fi
+
+  # BUG-361: Restore user-installed construct packs (not framework-managed)
+  if [[ -d "$backup_name/constructs" ]]; then
+    cp -r "$backup_name/constructs" "$SYSTEM_DIR/"
+    log "Restored user constructs"
   fi
 
   # === STAGE 7: Update Manifest ===
