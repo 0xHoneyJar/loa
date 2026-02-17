@@ -5,6 +5,20 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.47.0] — 2026-02-17 — Cross-Codebase Feedback Routing + BUG-359 fix
+
+
+- **Cycle-025**: Cross-Codebase Feedback Routing — attribution engine, redaction pipeline, classifier extension, and config defaults
+- **Bridge iterations**: 2 rounds of Bridgebuilder review findings addressed (BB-101 through BB-204)
+- **BUG-359**: Fixed silent YAML/JSON format mismatch in `qmd-sync.sh` that caused 0 collections to be processed
+
+### Added
+
+- **cycle-025**: Cross-Codebase Feedback Routing + BUG-359 fix (#360)
+
+_Source: PR #360_
+
+
 ## [1.39.1] — 2026-02-15 — Collateral Deletion Safeguard + CI Hardening
 
 ### Fixed
