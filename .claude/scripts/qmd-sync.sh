@@ -206,7 +206,7 @@ get_collections() {
         return
     fi
 
-    yq eval '.memory.qmd.collections // []' "$CONFIG_FILE" 2>/dev/null || echo "[]"
+    yq eval -o json '.memory.qmd.collections // []' "$CONFIG_FILE" 2>/dev/null || echo "[]"
 }
 
 # Create a collection
@@ -259,7 +259,18 @@ index_collection() {
         return 1
     fi
 
-    # Find files matching includes
+    # Register collection with QMD if available (BUG-359 fix)
+    # QMD operates at collection level, not per-file
+    local qmd_available=false
+    if check_qmd_available; then
+        qmd_available=true
+        # Register collection (idempotent — QMD ignores if already exists)
+        local first_mask
+        first_mask=$(echo "$includes" | jq -r '.[0] // "*.md"' 2>/dev/null || echo "*.md")
+        "$QMD_BINARY" collection add "$full_path" --name "$name" --mask "**/$first_mask" 2>/dev/null || true
+    fi
+
+    # Find files matching includes and track mtime changes
     local indexed=0
     local skipped=0
 
@@ -283,24 +294,18 @@ index_collection() {
 
             # Check if needs reindex
             if [[ "$force" == "true" ]] || needs_reindex "$real_file" "$name"; then
-                # Index with QMD (if available and enabled)
-                if check_qmd_available; then
-                    if "$QMD_BINARY" index "$real_file" --collection "$collection_dir" 2>/dev/null; then
-                        update_mtime_cache "$real_file" "$name"
-                        ((indexed++))
-                    else
-                        track_failure
-                    fi
-                else
-                    # Fallback: Just track the file for grep-based search
-                    update_mtime_cache "$real_file" "$name"
-                    ((indexed++))
-                fi
+                update_mtime_cache "$real_file" "$name"
+                indexed=$((indexed + 1))
             else
-                ((skipped++))
+                skipped=$((skipped + 1))
             fi
         done < <(find "$full_path" -type f -name "$pattern" -print0 2>/dev/null)
     done < <(echo "$includes" | jq -r '.[]' 2>/dev/null || echo "*.md")
+
+    # Re-index via QMD after tracking changes (BUG-359 fix)
+    if [[ "$qmd_available" == "true" && $indexed -gt 0 ]]; then
+        "$QMD_BINARY" update 2>/dev/null || track_failure
+    fi
 
     log_info "Collection '$name': indexed $indexed files, skipped $skipped unchanged"
     return 0
@@ -325,12 +330,12 @@ query_collection() {
     fi
 
     if check_qmd_available; then
-        # Use QMD for semantic search
+        # Use QMD for semantic search (BUG-359 fix: use name, not dir path)
         "$QMD_BINARY" search "$query" \
-            --collection "$collection_dir" \
-            --top-k "$top_k" \
-            --threshold "$threshold" \
-            --json 2>/dev/null || echo "[]"
+            --collection "$collection" \
+            --limit "$top_k" \
+            --min-score "$threshold" \
+            --format json 2>/dev/null || echo "[]"
     else
         # Fallback: grep-based search
         local cache_file="${collection_dir}/.mtime_cache"
