@@ -36,6 +36,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Require bash 4.0+ (associative arrays)
+# shellcheck source=bash-version-guard.sh
+source "$SCRIPT_DIR/bash-version-guard.sh"
+
 # Source shared library for registry functions
 # shellcheck source=constructs-lib.sh
 source "$SCRIPT_DIR/constructs-lib.sh"
@@ -147,6 +151,24 @@ declare -A CONSTRUCT_VERSIONS
 SKILLS_DIR=$(get_registry_skills_dir)
 PACKS_DIR=$(get_registry_packs_dir)
 
+# --- Portable word-boundary matching (BB-101) ---
+# grep -P (Perl regex \b) is not available on macOS/BSD. Detect and fall back.
+HAS_GREP_P=false
+if printf 'test' | grep -qP '\btest\b' 2>/dev/null; then
+    HAS_GREP_P=true
+fi
+
+# Match a word with word-boundary semantics, case-insensitive
+# Uses grep -P \b when available, falls back to grep -wi (whole-word)
+grep_word_boundary() {
+    local word="$1"
+    if [[ "$HAS_GREP_P" == "true" ]]; then
+        grep -qiP -- "\\b${word}\\b" 2>/dev/null
+    else
+        grep -qwi -- "$word" 2>/dev/null
+    fi
+}
+
 # --- Scoring function ---
 # Signal weights: path_match=1.0, skill_name=0.6, vendor_name=0.4, explicit_mention=1.0
 # Max possible = 3.0
@@ -168,94 +190,72 @@ add_score() {
     fi
 }
 
-# --- Score installed packs ---
+# --- Unified construct scoring function (BB-103: DRY) ---
+# Scores a single construct against all 4 signal types.
+# Args: $1=construct_key $2=construct_type $3=meta_section $4=primary_path $5=alt_path_base
+score_construct() {
+    local c_key="$1"
+    local c_type="$2"
+    local meta_section="$3"
+    local primary_path="$4"
+    local alt_path="$5"
 
-while IFS= read -r pack_key; do
-    [[ -z "$pack_key" ]] && continue
+    local c_vendor c_name
+    c_vendor=$(echo "$c_key" | cut -d'/' -f1)
+    c_name=$(echo "$c_key" | cut -d'/' -f2)
 
-    # Extract vendor and pack name from key (format: "vendor/pack")
-    local_vendor=$(echo "$pack_key" | cut -d'/' -f1)
-    local_pack=$(echo "$pack_key" | cut -d'/' -f2)
-
-    CONSTRUCT_TYPES[$pack_key]="pack"
+    CONSTRUCT_TYPES[$c_key]="$c_type"
 
     # Get version from metadata
-    local_version=$(jq -r ".installed_packs[\"$pack_key\"].version // \"unknown\"" "$META_PATH" 2>/dev/null || echo "unknown")
-    CONSTRUCT_VERSIONS[$pack_key]="$local_version"
+    local c_version
+    c_version=$(jq -r ".${meta_section}[\"$c_key\"].version // \"unknown\"" "$META_PATH" 2>/dev/null || echo "unknown")
+    CONSTRUCT_VERSIONS[$c_key]="$c_version"
 
     # Signal 1: Path match (weight 1.0)
-    # Check if context references construct pack paths
-    pack_path_pattern="${PACKS_DIR}/${local_pack}/"
-    alt_path_pattern=".claude/constructs/packs/${local_pack}/"
-    if printf '%s' "$CONTEXT" | grep -qF -- "$pack_path_pattern" 2>/dev/null || \
-       printf '%s' "$CONTEXT" | grep -qF -- "$alt_path_pattern" 2>/dev/null; then
-        add_score "$pack_key" "1.0" "path_match:${alt_path_pattern}"
+    if printf '%s' "$CONTEXT" | grep -qF -- "$primary_path" 2>/dev/null || \
+       printf '%s' "$CONTEXT" | grep -qF -- "$alt_path" 2>/dev/null; then
+        add_score "$c_key" "1.0" "path_match:${alt_path}"
     fi
 
-    # Signal 2: Skill/pack name match (weight 0.6, word-boundary, min 4 chars)
-    if [[ ${#local_pack} -ge 4 ]]; then
-        if printf '%s' "$CONTEXT" | grep -qiP -- "\\b${local_pack}\\b" 2>/dev/null; then
-            add_score "$pack_key" "0.6" "pack_name:${local_pack}"
+    # Signal 2: Name match (weight 0.6, word-boundary, min 4 chars)
+    if [[ ${#c_name} -ge 4 ]]; then
+        if printf '%s' "$CONTEXT" | grep_word_boundary "$c_name"; then
+            add_score "$c_key" "0.6" "${c_type}_name:${c_name}"
         fi
     fi
 
     # Signal 3: Vendor name match (weight 0.4, word-boundary, min 4 chars)
-    if [[ ${#local_vendor} -ge 4 ]]; then
-        if printf '%s' "$CONTEXT" | grep -qiP -- "\\b${local_vendor}\\b" 2>/dev/null; then
-            add_score "$pack_key" "0.4" "vendor_name:${local_vendor}"
+    if [[ ${#c_vendor} -ge 4 ]]; then
+        if printf '%s' "$CONTEXT" | grep_word_boundary "$c_vendor"; then
+            add_score "$c_key" "0.4" "vendor_name:${c_vendor}"
         fi
     fi
 
     # Signal 4: Explicit mention (weight 1.0)
-    # Match "construct:pack_name" or "pack:pack_name"
-    if printf '%s' "$CONTEXT" | grep -qiE -- "(construct|pack):${local_pack}" 2>/dev/null; then
-        add_score "$pack_key" "1.0" "explicit_mention:${local_pack}"
+    if printf '%s' "$CONTEXT" | grep -qiE -- "(construct|${c_type}):${c_name}" 2>/dev/null; then
+        add_score "$c_key" "1.0" "explicit_mention:${c_name}"
     fi
+}
 
+# --- Score installed packs ---
+
+while IFS= read -r pack_key; do
+    [[ -z "$pack_key" ]] && continue
+    local_name=$(echo "$pack_key" | cut -d'/' -f2)
+    score_construct "$pack_key" "pack" "installed_packs" \
+        "${PACKS_DIR}/${local_name}/" \
+        ".claude/constructs/packs/${local_name}/"
 done <<< "$INSTALLED_PACKS"
 
 # --- Score installed skills ---
 
 while IFS= read -r skill_key; do
     [[ -z "$skill_key" ]] && continue
-
-    # Extract vendor and skill name from key (format: "vendor/skill")
     local_vendor=$(echo "$skill_key" | cut -d'/' -f1)
-    local_skill=$(echo "$skill_key" | cut -d'/' -f2)
-
-    CONSTRUCT_TYPES[$skill_key]="skill"
-
-    # Get version from metadata
-    local_version=$(jq -r ".installed_skills[\"$skill_key\"].version // \"unknown\"" "$META_PATH" 2>/dev/null || echo "unknown")
-    CONSTRUCT_VERSIONS[$skill_key]="$local_version"
-
-    # Signal 1: Path match (weight 1.0)
-    skill_path_pattern="${SKILLS_DIR}/${local_vendor}/${local_skill}/"
-    alt_path_pattern=".claude/constructs/skills/${local_vendor}/${local_skill}/"
-    if printf '%s' "$CONTEXT" | grep -qF -- "$skill_path_pattern" 2>/dev/null || \
-       printf '%s' "$CONTEXT" | grep -qF -- "$alt_path_pattern" 2>/dev/null; then
-        add_score "$skill_key" "1.0" "path_match:${alt_path_pattern}"
-    fi
-
-    # Signal 2: Skill name match (weight 0.6, word-boundary, min 4 chars)
-    if [[ ${#local_skill} -ge 4 ]]; then
-        if printf '%s' "$CONTEXT" | grep -qiP -- "\\b${local_skill}\\b" 2>/dev/null; then
-            add_score "$skill_key" "0.6" "skill_name:${local_skill}"
-        fi
-    fi
-
-    # Signal 3: Vendor name match (weight 0.4, word-boundary, min 4 chars)
-    if [[ ${#local_vendor} -ge 4 ]]; then
-        if printf '%s' "$CONTEXT" | grep -qiP -- "\\b${local_vendor}\\b" 2>/dev/null; then
-            add_score "$skill_key" "0.4" "vendor_name:${local_vendor}"
-        fi
-    fi
-
-    # Signal 4: Explicit mention (weight 1.0)
-    if printf '%s' "$CONTEXT" | grep -qiE -- "(construct|skill):${local_skill}" 2>/dev/null; then
-        add_score "$skill_key" "1.0" "explicit_mention:${local_skill}"
-    fi
-
+    local_name=$(echo "$skill_key" | cut -d'/' -f2)
+    score_construct "$skill_key" "skill" "installed_skills" \
+        "${SKILLS_DIR}/${local_vendor}/${local_name}/" \
+        ".claude/constructs/skills/${local_vendor}/${local_name}/"
 done <<< "$INSTALLED_SKILLS"
 
 # --- Find best match with disambiguation ---
