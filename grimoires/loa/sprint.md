@@ -1,150 +1,173 @@
-# Sprint Plan: Bridgebuilder Findings — The Hygiene Sprint (Iteration 2)
+# Sprint Plan: Cross-Codebase Feedback Routing
 
-> Cycle: cycle-024 | Source: [Bridgebuilder Review of PR #353](https://github.com/0xHoneyJar/loa/pull/353)
-> Previous: Sprints 1-2 committed (adapter fix, scoring engine, cleanup hook)
-> This sprint: Address review findings BB-F3, BB-F5, BB-F7, BB-F8
+> Cycle: cycle-025 | PRD: grimoires/loa/prd.md | SDD: grimoires/loa/sdd.md
+> Source: [#355](https://github.com/0xHoneyJar/loa/issues/355)
+> Sprints: 3 | Estimated: ~470 lines across 6 files
 
-## Sprint Structure
+## Sprint 1: Attribution Engine + Redaction
 
-1 sprint, 5 tasks. All changes are refinements to code already committed in Sprints 1-2.
+**Goal**: Build the core construct attribution and content redaction scripts. These are foundational — everything else depends on them.
 
-| Sprint | Focus | Files | Est. Lines |
-|--------|-------|-------|------------|
-| Sprint 3 | Bridgebuilder findings: regex safety, confidence signal, decision trails | 3 files | ~35 |
+### Task 1.1: Create construct-attribution.sh
 
----
+**File**: `.claude/scripts/construct-attribution.sh`
 
-## Sprint 3: Bridgebuilder Review Findings
+Create the attribution engine that maps feedback text to installed constructs.
 
-**Goal**: Address all actionable findings from the Bridgebuilder review — harden the regex matching in the cleanup hook, add a confidence signal to degraded consensus, and document decision boundaries at critical logic points.
+**Acceptance Criteria**:
+- [ ] Reads installed constructs from `.constructs-meta.json` via `constructs-lib.sh`
+- [ ] Implements weighted signal scoring: path match (1.0), skill name (0.6, word-boundary), vendor name (0.4, word-boundary), explicit mention (1.0)
+- [ ] Names < 4 chars excluded from name matching
+- [ ] Normalizes confidence to 0.0-1.0 (score / 3.0, capped)
+- [ ] Resolves `source_repo` from `manifest.yaml` or `manifest.json`
+- [ ] 3-level trust validation: format check, org-match, repo-exists (non-blocking)
+- [ ] Handles disambiguation: highest confidence wins, `ambiguous: true` when top-2 within 0.1
+- [ ] No-construct fast path: returns `{"attributed": false}` when no constructs installed
+- [ ] Exit codes: 0 (success), 1 (invalid input), 2 (corrupt meta)
+- [ ] Passes `bash -n`
 
-### Task 3.1: Cleanup Hook — Array-Based Credential Pattern Matching (BB-F7)
+### Task 1.2: Create feedback-redaction.sh
 
-**File**: `.claude/hooks/hygiene/settings-cleanup.sh`
-**Finding**: [BB-F7, Medium, Security] Regex construction fragility — concatenating patterns with `|` is fragile and mixes PCRE (jq) with ERE (grep) dialects.
+**File**: `.claude/scripts/feedback-redaction.sh`
 
-**Changes**:
-1. Replace the `combined_pattern` string concatenation loop (lines 71-79) with a JSON array passed to jq
-2. Use `jq`'s `any()` with pattern array instead of a single concatenated regex string
-3. Align post-cleanup scan (lines 105-111) to use the same pattern source for consistency
+Create the content redaction engine for external repo submissions.
 
-**Before** (fragile concatenation):
-```bash
-combined_pattern=""
-for pat in "${CREDENTIAL_PATTERNS[@]}"; do
-    combined_pattern="${combined_pattern}|${pat}"
-done
-# ... jq test($cred_pattern) ...
+**Acceptance Criteria**:
+- [ ] Regex-based first pass: strips AWS keys, GitHub tokens, JWTs, generic secrets, absolute paths, env vars, SSH paths, git credentials
+- [ ] Entropy-based second pass: flags strings >20 chars with Shannon entropy >4.5 bits/char
+- [ ] Allowlist: SHA256 hashes, UUIDs, known URL patterns
+- [ ] User toggles from config: `include_snippets`, `include_file_refs`, `include_environment`
+- [ ] `--preview` flag shows diff of redacted content
+- [ ] Exit codes: 0 (success), 1 (invalid input), 2 (empty output)
+- [ ] Passes `bash -n`
+
+### Task 1.3: Define JSON schema contracts (Flatline IMP-001)
+
+Define the authoritative JSON output schemas for inter-script communication.
+
+**Acceptance Criteria**:
+- [ ] Attribution output schema defined and documented in script header comment
+- [ ] Redaction output schema (stdout text, exit code contract) documented
+- [ ] Classifier extended output schema (with `attribution` field) documented
+- [ ] Ledger entry schema defined with all fields (repo, fingerprint, timestamp, epoch, issue_url, construct, feedback_type)
+
+### Task 1.4: Add new scripts to syntax check list
+
+**File**: `.claude/tests/hounfour/run-tests.sh`
+
+**Acceptance Criteria**:
+- [ ] `construct-attribution.sh` added to `SYNTAX_SCRIPTS` array
+- [ ] `feedback-redaction.sh` added to `SYNTAX_SCRIPTS` array
+- [ ] Both pass Phase 1 syntax check
+
+## Sprint 2: Classifier Extension + Dedup Ledger
+
+**Goal**: Wire attribution into the existing feedback classifier and add the dedup/rate-limit infrastructure.
+
+### Task 2.1: Extend feedback-classifier.sh with construct category
+
+**File**: `.claude/scripts/feedback-classifier.sh`
+
+**Acceptance Criteria**:
+- [ ] New `construct` signal patterns added: `.claude/constructs/` (weight 3), `constructs/skills/` (weight 3), `constructs/packs/` (weight 3)
+- [ ] When construct signals detected: calls `construct-attribution.sh`
+- [ ] If attribution confidence >= threshold (default 0.33): overrides classification to `construct`
+- [ ] Output includes `attribution` object when construct detected
+- [ ] `scores` object includes `construct` key (backward compatible — new field)
+- [ ] All existing 4-category tests still pass (backward compatibility)
+- [ ] When no constructs installed: `construct` score is 0, no attribution object
+
+### Task 2.2: Create feedback-ledger.json management
+
+Implement dedup and rate-limiting logic as functions callable from the feedback command.
+
+**Acceptance Criteria**:
+- [ ] `check_dedup(repo, fingerprint)` — returns existing issue URL if duplicate within 24h window
+- [ ] `check_rate_limit(repo)` — returns warn/block/ok based on 24h count vs configured thresholds
+- [ ] `record_submission(repo, fingerprint, issue_url, construct, feedback_type)` — appends to ledger
+- [ ] Uses portable epoch arithmetic (no GNU `date -d`)
+- [ ] Atomic writes (write-to-tmp + mv)
+- [ ] Creates ledger file if missing
+- [ ] Submissions include both `timestamp` (ISO) and `epoch` (Unix) fields
+
+### Task 2.3: Functional tests for attribution and redaction (Flatline IMP-003)
+
+Add test cases to the Hounfour test suite for the new scripts.
+
+**Acceptance Criteria**:
+- [ ] Attribution test: path-match input → correct construct + confidence
+- [ ] Attribution test: no constructs → `{"attributed": false}`
+- [ ] Attribution test: ambiguous match → `ambiguous: true` with candidates
+- [ ] Redaction test: input with AWS key → key redacted
+- [ ] Redaction test: input with absolute path → path made relative
+- [ ] Redaction test: clean input → passes through unchanged
+- [ ] Classifier test: construct path in context → `classification: "construct"`
+- [ ] Classifier test: no construct path → existing classification (backward compat)
+
+### Task 2.4: Add configuration defaults
+
+**File**: `.loa.config.yaml.example`
+
+**Acceptance Criteria**:
+- [ ] `feedback.routing.construct_routing` section added with all config keys
+- [ ] Sensible defaults documented inline
+- [ ] No changes to existing config structure
+
+## Sprint 3: Feedback Command Integration
+
+**Goal**: Wire everything into the `/feedback` command for the end-to-end user flow.
+
+### Task 3.1: Extend feedback.md Phase 0.5
+
+**File**: `.claude/commands/feedback.md`
+
+**Acceptance Criteria**:
+- [ ] When classifier returns `classification: "construct"`:
+  - [ ] Runs dedup check, shows "Already filed" if duplicate
+  - [ ] Runs rate limit check, shows warning/block as appropriate
+  - [ ] Runs `feedback-redaction.sh --preview` on draft content
+  - [ ] Displays redacted preview to user
+  - [ ] Shows trust warnings prominently if present
+  - [ ] Presents routing options: construct repo / loa / project / clipboard
+- [ ] When user confirms construct repo routing:
+  - [ ] Applies full redaction
+  - [ ] Creates issue via `gh issue create` with structured format
+  - [ ] Records in dedup ledger
+- [ ] When `gh` lacks write access:
+  - [ ] Shows clear error message
+  - [ ] Offers clipboard fallback
+- [ ] All existing non-construct feedback paths unchanged
+
+### Task 3.2: Structured issue format
+
+Embedded in Task 3.1 — the issue body uses the format from SDD section 2.5 (FR-7):
+- `[Loa Feedback]` title prefix
+- Source, Loa version, pack info, severity
+- Redacted description and details
+- No code snippets by default
+- Footer attribution to Loa Framework
+
+### Task 3.3: End-to-end smoke test
+
+Manual verification:
+- [ ] `/feedback` with construct-related context detects construct, shows redacted preview, confirms, files issue
+- [ ] `/feedback` with no construct context uses existing 4-repo routing unchanged
+- [ ] `/feedback` with construct but no `source_repo` falls back to existing routing
+- [ ] `/feedback` with construct but `gh` lacks access offers clipboard fallback
+- [ ] Duplicate submission within 24h blocked with "Already filed"
+
+## Dependencies
+
+```
+Sprint 1 (attribution + redaction) → Sprint 2 (classifier + ledger) → Sprint 3 (command integration)
 ```
 
-**After** (array-based matching):
-```bash
-pattern_json=$(printf '%s\n' "${CREDENTIAL_PATTERNS[@]}" | jq -R -s 'split("\n") | map(select(length > 0))')
-# ... jq with any(patterns[]; test(.)) ...
-```
+All sprints are sequential — each builds on the previous.
 
-**Acceptance**:
-- Same filtering behavior as before (no functional change)
-- Pattern list is inspectable as JSON array
-- No string concatenation of regex fragments
+## Risk Mitigation
 
-### Task 3.2: Scoring Engine — Confidence Signal for Degraded Consensus (BB-F5)
-
-**File**: `.claude/scripts/scoring-engine.sh`
-**Finding**: [BB-F5, Praise+Suggestion] When one model is degraded, `model_agreement_percent` is misleading — if GPT is empty, all items come from Opus only, so "agreement" is trivially 100% but meaningless.
-
-**Changes**:
-1. Add a `confidence` field to the consensus output JSON: `"full"` | `"degraded"` | `"single_model"`
-2. Logic:
-   - `"full"` — both models produced valid scores
-   - `"degraded"` — one model had invalid JSON but the other had valid `.scores` array
-   - `"single_model"` — one model had valid JSON but produced 0 scored items
-
-**After** (in final output object):
-```jq
-confidence: (
-    if ($gpt_degraded or $opus_degraded) then "degraded"
-    elif (($gpt.scores | length) == 0 or ($opus.scores | length) == 0) then "single_model"
-    else "full"
-    end
-),
-```
-
-**Acceptance**:
-- Normal run → `"confidence": "full"`
-- One model invalid JSON → `"confidence": "degraded"`
-- One model valid JSON but empty scores → `"confidence": "single_model"`
-
-### Task 3.3: OpenAI Adapter — Decision Trail Comment (BB-F8a)
-
-**File**: `.claude/adapters/loa_cheval/providers/openai_adapter.py`
-**Finding**: [BB-F8, Low, Documentation] No documentation on when `legacy_prefixes` needs updating, or what happens with hypothetical models like `gpt-4.5-turbo`.
-
-**Change**: Add decision documentation comment to `_token_limit_key`:
-```python
-@staticmethod
-def _token_limit_key(model: str) -> str:
-    """Return the correct token limit parameter for the model.
-
-    GPT-4o and earlier use 'max_tokens'.
-    GPT-5.2+ use 'max_completion_tokens' (OpenAI API deprecation).
-
-    Decision: Prefix matching chosen over version map because all known
-    legacy models start with 'gpt-4' or 'gpt-3'. New model families
-    (GPT-5.x, o1, etc.) default to the current API parameter.
-    Update legacy_prefixes only if OpenAI releases a model with a new
-    prefix that still requires the deprecated 'max_tokens' parameter.
-    """
-```
-
-**Acceptance**: Docstring includes decision rationale and update trigger
-
-### Task 3.4: Scoring Engine — Dedup Decision Trail Comment (BB-F8b)
-
-**File**: `.claude/scripts/scoring-engine.sh`
-**Finding**: [BB-F8, Low, Documentation] + [BB-F3 note] No documentation on why exact-match dedup is used vs fuzzy matching, or when to reconsider.
-
-**Change**: Add comment above the dedup line:
-```bash
-# Deduplicate skeptic concerns by exact .concern text match.
-# Exact match is sufficient because models reviewing the same document typically
-# echo each other's phrasing. If the Hounfour scales to 3+ diverse models with
-# varied prompting, consider fuzzy dedup (e.g., cosine similarity on concern text
-# or a canonical concern ID assigned upstream in the skeptic prompt).
-```
-
-**Acceptance**: Comment explains the decision and documents the reconsideration trigger
-
-### Task 3.5: Verify All Bridgebuilder Findings Addressed
-
-**Verification checklist**:
-1. `settings-cleanup.sh` — credential patterns passed as JSON array to jq, no string concatenation
-2. `scoring-engine.sh` — `confidence` field present in consensus output
-3. `openai_adapter.py` — `_token_limit_key` docstring includes decision trail
-4. `scoring-engine.sh` — dedup comment documents exact-match decision
-5. Bash syntax check passes on all modified scripts
-6. Python import check passes on adapter
-7. No functional regressions (existing acceptance criteria still hold)
-
----
-
-## Bridgebuilder Findings Traceability
-
-| Finding | Severity | Category | Sprint Task | Status |
-|---------|----------|----------|-------------|--------|
-| BB-F1: Protocol version negotiator | Praise | Architecture | Task 3.3 (add decision trail) | Addressed |
-| BB-F2: Byzantine consensus fix | High→Fixed | Correctness | Sprint 1 (already committed) | Done |
-| BB-F3: Skeptic dedup exact-match | Medium | Correctness | Task 3.4 (document decision) | Addressed |
-| BB-F4: Mode display fix | Low | Correctness | Sprint 1 (already committed) | Done |
-| BB-F5: Degraded mode signal | Praise+Suggestion | Architecture | Task 3.2 (add confidence field) | Addressed |
-| BB-F6: Permission GC design | Praise | Security | No change needed | Done |
-| BB-F7: Regex construction fragility | Medium | Security | Task 3.1 (array-based matching) | Addressed |
-| BB-F8: Decision trail gaps | Low | Documentation | Tasks 3.3 + 3.4 | Addressed |
-
----
-
-## Commit Strategy
-
-| Sprint | Commit Message |
-|--------|---------------|
-| Sprint 3 | `fix(bridge-review): address Bridgebuilder findings — regex safety, confidence signal, decision trails` |
+| Risk | Sprint | Mitigation |
+|------|--------|------------|
+| No installed constructs to test with | 1-3 | Create mock construct directory structure for testing |
+| `gh` auth varies by user | 3 | Test with both authenticated and unauthenticated gh |
+| Vendor repos may not exist yet | 3 | Test clipboard fallback path |
