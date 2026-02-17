@@ -49,10 +49,20 @@ assert_not_contains() {
     fi
 }
 
+# --- Cleanup tracking (BB-201: single trap, array-based) ---
+
+CLEANUP_DIRS=()
+cleanup() {
+    for dir in "${CLEANUP_DIRS[@]}"; do
+        rm -rf "$dir"
+    done
+}
+trap cleanup EXIT
+
 # --- Setup mock construct environment ---
 
 MOCK_DIR=$(mktemp -d)
-trap 'rm -rf "$MOCK_DIR"' EXIT
+CLEANUP_DIRS+=("$MOCK_DIR")
 
 # Create mock constructs structure
 mkdir -p "$MOCK_DIR/.claude/constructs/packs/observer"
@@ -101,7 +111,7 @@ echo "--- Attribution Tests ---"
 echo ""
 echo "Test 1: No constructs installed"
 NO_META_DIR=$(mktemp -d)
-trap 'rm -rf "$NO_META_DIR" "$MOCK_DIR"' EXIT
+CLEANUP_DIRS+=("$NO_META_DIR")
 RESULT=$(echo "some feedback about a bug" | \
     bash "$SCRIPTS_DIR/construct-attribution.sh" --context - 2>/dev/null || true)
 ATTRIBUTED=$(echo "$RESULT" | jq -r '.attributed' 2>/dev/null || echo "error")
@@ -149,7 +159,7 @@ echo "Test 5: Disambiguation with vendor-only match"
 
 # Create a second pack from same vendor to trigger ambiguity
 DISAMBIG_DIR=$(mktemp -d)
-trap 'rm -rf "$DISAMBIG_DIR" "$NO_META_DIR" "$MOCK_DIR"' EXIT
+CLEANUP_DIRS+=("$DISAMBIG_DIR")
 mkdir -p "$DISAMBIG_DIR/.claude/constructs/packs/observer"
 mkdir -p "$DISAMBIG_DIR/.claude/constructs/packs/sentinel"
 mkdir -p "$DISAMBIG_DIR/.claude/constructs/skills/artisan/deep-interview"
@@ -220,7 +230,7 @@ echo "--- Trust Validation Tests ---"
 echo ""
 echo "Test 6: Malformed source_repo format"
 TRUST_DIR=$(mktemp -d)
-trap 'rm -rf "$TRUST_DIR" "$DISAMBIG_DIR" "$NO_META_DIR" "$MOCK_DIR"' EXIT
+CLEANUP_DIRS+=("$TRUST_DIR")
 mkdir -p "$TRUST_DIR/.claude/constructs/packs/badrepo"
 cat > "$TRUST_DIR/.claude/constructs/.constructs-meta.json" << 'TRUST_META_EOF'
 {
@@ -255,7 +265,7 @@ assert_eq "malformed repo clears source_repo" "null" "$SOURCE_REPO"
 echo ""
 echo "Test 7: Org mismatch trust warning"
 ORGMIS_DIR=$(mktemp -d)
-trap 'rm -rf "$ORGMIS_DIR" "$TRUST_DIR" "$DISAMBIG_DIR" "$NO_META_DIR" "$MOCK_DIR"' EXIT
+CLEANUP_DIRS+=("$ORGMIS_DIR")
 mkdir -p "$ORGMIS_DIR/.claude/constructs/packs/mismatch"
 cat > "$ORGMIS_DIR/.claude/constructs/.constructs-meta.json" << 'ORGMIS_META_EOF'
 {

@@ -401,37 +401,28 @@ if [[ "$IS_AMBIGUOUS" == "true" ]]; then
     CANDIDATES_JSON+="]"
 fi
 
-# --- Handle null values for JSON ---
+# --- Output JSON (BB-106: use jq for safe JSON construction) ---
 
-SOURCE_REPO_JSON="null"
-if [[ -n "$SOURCE_REPO" ]]; then
-    SOURCE_REPO_JSON="\"$SOURCE_REPO\""
-fi
-
-TRUST_WARNING_JSON="null"
-if [[ -n "$TRUST_WARNING" ]]; then
-    escaped_warning=$(printf '%s' "$TRUST_WARNING" | sed 's/\\/\\\\/g; s/"/\\"/g')
-    TRUST_WARNING_JSON="\"$escaped_warning\""
-fi
-
-VERSION_JSON="null"
-if [[ -n "$CONSTRUCT_VERSION" ]] && [[ "$CONSTRUCT_VERSION" != "unknown" ]]; then
-    VERSION_JSON="\"$CONSTRUCT_VERSION\""
-fi
-
-# --- Output JSON ---
-
-cat << RESULT_EOF
-{
-  "attributed": true,
-  "construct": "$BEST_CONSTRUCT",
-  "construct_type": "$CONSTRUCT_TYPE",
-  "source_repo": $SOURCE_REPO_JSON,
-  "confidence": $CONFIDENCE,
-  "signals": $SIGNALS_JSON,
-  "trust_warning": $TRUST_WARNING_JSON,
-  "version": $VERSION_JSON,
-  "ambiguous": $IS_AMBIGUOUS,
-  "candidates": $CANDIDATES_JSON
-}
-RESULT_EOF
+# Build base JSON with jq to prevent shell expansion issues
+jq --null-input \
+    --arg construct "$BEST_CONSTRUCT" \
+    --arg construct_type "$CONSTRUCT_TYPE" \
+    --arg source_repo "$SOURCE_REPO" \
+    --argjson confidence "$CONFIDENCE" \
+    --argjson signals "$SIGNALS_JSON" \
+    --arg trust_warning "$TRUST_WARNING" \
+    --arg version "$CONSTRUCT_VERSION" \
+    --argjson ambiguous "$IS_AMBIGUOUS" \
+    --argjson candidates "$CANDIDATES_JSON" \
+    '{
+        attributed: true,
+        construct: $construct,
+        construct_type: $construct_type,
+        source_repo: (if $source_repo == "" then null else $source_repo end),
+        confidence: $confidence,
+        signals: $signals,
+        trust_warning: (if $trust_warning == "" then null else $trust_warning end),
+        version: (if $version == "" or $version == "unknown" then null else $version end),
+        ambiguous: $ambiguous,
+        candidates: $candidates
+    }'
