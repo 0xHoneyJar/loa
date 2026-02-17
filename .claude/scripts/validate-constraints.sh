@@ -136,7 +136,7 @@ check_schema_compliance() {
   # Check category enum
   local bad_cats
   bad_cats=$(jq -r '
-    ["process","git_safety","beads","danger_level","flatline","guardrails","phase_sequencing","eval","bridge","merge"] as $valid |
+    ["process","git_safety","beads","danger_level","flatline","guardrails","phase_sequencing","eval","bridge","merge","agent_teams","permission"] as $valid |
     [.constraints[] | select(.category | IN($valid[]) | not) | "\(.id): \(.category)"] | join(", ")
   ' "$REGISTRY")
   if [[ -n "$bad_cats" ]]; then
@@ -147,7 +147,7 @@ check_schema_compliance() {
   # Check rule_type enum
   local bad_types
   bad_types=$(jq -r '
-    ["NEVER","ALWAYS","WHEN","MUST","SHOULD"] as $valid |
+    ["NEVER","ALWAYS","WHEN","MUST","SHOULD","MAY"] as $valid |
     [.constraints[] | select(.rule_type | IN($valid[]) | not) | "\(.id): \(.rule_type)"] | join(", ")
   ' "$REGISTRY")
   if [[ -n "$bad_types" ]]; then

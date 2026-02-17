@@ -204,7 +204,7 @@ get_model_tertiary() {
 
 # Valid model names accepted by model-adapter.sh.legacy MODEL_PROVIDERS registry.
 # Keep in sync with MODEL_PROVIDERS in model-adapter.sh.legacy (line ~69).
-VALID_FLATLINE_MODELS=(opus gpt-5.2 gpt-5.2-codex gpt-5.3-codex claude-opus-4.6 claude-opus-4.5 gemini-2.0 gemini-3-pro gemini-3-flash)
+VALID_FLATLINE_MODELS=(opus gpt-5.2 gpt-5.2-codex gpt-5.3-codex claude-opus-4.6 claude-opus-4.5 gemini-2.0 gemini-2.5-flash gemini-2.5-pro)
 
 validate_model() {
     local model="$1"
@@ -279,8 +279,9 @@ declare -A MODEL_TO_PROVIDER_ID=(
     ["gpt-5.2-codex"]="openai:gpt-5.2-codex"
     ["opus"]="anthropic:claude-opus-4-6"
     ["claude-opus-4.6"]="anthropic:claude-opus-4-6"
-    ["gemini-3-pro"]="google:gemini-3-pro"
-    ["gemini-3-flash"]="google:gemini-3-flash"
+    ["gemini-2.0"]="google:gemini-2.0-flash"
+    ["gemini-2.5-flash"]="google:gemini-2.5-flash"
+    ["gemini-2.5-pro"]="google:gemini-2.5-pro"
 )
 
 # Unified model call: routes through model-invoke (direct) or model-adapter.sh (legacy)

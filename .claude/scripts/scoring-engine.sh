@@ -96,10 +96,34 @@ calculate_consensus() {
     local skeptic_opus_file="${8:-}"
     local skeptic_tertiary_file="${9:-}"
 
-    # Parse input files
+    # Parse and validate input files (Task 1.2: JSON validation before --argjson)
     local gpt_scores opus_scores
-    gpt_scores=$(cat "$gpt_scores_file")
-    opus_scores=$(cat "$opus_scores_file")
+    local gpt_degraded=false opus_degraded=false
+
+    if ! gpt_scores=$(jq -c '.' "$gpt_scores_file" 2>/dev/null); then
+        log "WARNING: GPT scores file contains invalid JSON: $gpt_scores_file"
+        gpt_scores='{"scores":[]}'
+        gpt_degraded=true
+    elif ! jq -e '.scores | type == "array"' "$gpt_scores_file" >/dev/null 2>&1; then
+        log "WARNING: GPT scores file missing .scores array: $gpt_scores_file"
+        gpt_scores='{"scores":[]}'
+        gpt_degraded=true
+    fi
+
+    if ! opus_scores=$(jq -c '.' "$opus_scores_file" 2>/dev/null); then
+        log "WARNING: Opus scores file contains invalid JSON: $opus_scores_file"
+        opus_scores='{"scores":[]}'
+        opus_degraded=true
+    elif ! jq -e '.scores | type == "array"' "$opus_scores_file" >/dev/null 2>&1; then
+        log "WARNING: Opus scores file missing .scores array: $opus_scores_file"
+        opus_scores='{"scores":[]}'
+        opus_degraded=true
+    fi
+
+    if [[ "$gpt_degraded" == "true" && "$opus_degraded" == "true" ]]; then
+        error "Both model score files are invalid — cannot calculate consensus"
+        return 1
+    fi
 
     # Merge and calculate consensus using jq
     jq -n \
@@ -109,6 +133,8 @@ calculate_consensus() {
         --argjson delta "$dispute_delta" \
         --argjson low "$low_threshold" \
         --argjson blocker "$blocker_threshold" \
+        --argjson gpt_degraded "$gpt_degraded" \
+        --argjson opus_degraded "$opus_degraded" \
         --slurpfile skeptic_gpt <(if [[ -n "$skeptic_gpt_file" && -f "$skeptic_gpt_file" ]]; then cat "$skeptic_gpt_file"; else echo '{"concerns":[]}'; fi) \
         --slurpfile skeptic_opus <(if [[ -n "$skeptic_opus_file" && -f "$skeptic_opus_file" ]]; then cat "$skeptic_opus_file"; else echo '{"concerns":[]}'; fi) \
         --slurpfile skeptic_tertiary <(if [[ -n "$skeptic_tertiary_file" && -f "$skeptic_tertiary_file" ]]; then cat "$skeptic_tertiary_file"; else echo '{"concerns":[]}'; fi) '
@@ -162,12 +188,17 @@ def build_score_map:
 )) as $classified |
 
 # Process skeptic concerns for blockers (2 or 3 sources)
+# Deduplicate by exact .concern text match (BB-F3/BB-F8b).
+# Exact match is sufficient because models reviewing the same document typically
+# echo each others phrasing. If the Hounfour scales to 3+ diverse models with
+# varied prompting, consider fuzzy dedup (e.g., cosine similarity on concern text
+# or a canonical concern ID assigned upstream in the skeptic prompt).
 (
     [
         ($skeptic_gpt[0].concerns // [])[] | . + {source: "gpt_skeptic"},
         ($skeptic_opus[0].concerns // [])[] | . + {source: "opus_skeptic"},
         ($skeptic_tertiary[0].concerns // [])[] | . + {source: "tertiary_skeptic"}
-    ] | map(select(.severity_score > $blocker))
+    ] | group_by(.concern) | map(.[0]) | map(select(.severity_score > $blocker))
 ) as $blockers |
 
 # Calculate model agreement percentage
@@ -182,12 +213,26 @@ def build_score_map:
         disputed_count: ($classified.disputed | length),
         low_value_count: ($classified.low_value | length),
         blocker_count: ($blockers | length),
-        model_agreement_percent: $agreement_pct
+        model_agreement_percent: $agreement_pct,
+        confidence: (
+            if ($gpt_degraded or $opus_degraded) then "degraded"
+            elif (($gpt.scores | length) == 0 or ($opus.scores | length) == 0) then "single_model"
+            else "full"
+            end
+        )
     },
     high_consensus: $classified.high_consensus,
     disputed: $classified.disputed,
     low_value: $classified.low_value,
-    blockers: $blockers
+    blockers: $blockers,
+    degraded: (if ($gpt_degraded or $opus_degraded) then true else false end),
+    degraded_model: (if $gpt_degraded then "gpt" elif $opus_degraded then "opus" else null end),
+    confidence: (
+        if ($gpt_degraded or $opus_degraded) then "degraded"
+        elif (($gpt.scores | length) == 0 or ($opus.scores | length) == 0) then "single_model"
+        else "full"
+        end
+    )
 }
 '
 }
@@ -566,7 +611,9 @@ main() {
         exit 3
     fi
 
-    log "Input items: GPT=$gpt_count, Opus=$opus_count (mode=${attack_mode:+attack}${attack_mode:-standard})"
+    local mode_display="standard"
+    [[ "$attack_mode" == "true" ]] && mode_display="attack"
+    log "Input items: GPT=$gpt_count, Opus=$opus_count (mode=$mode_display)"
 
     # Load thresholds
     local high_threshold dispute_delta low_threshold blocker_threshold

@@ -1,0 +1,21 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\"concerns\":[{\"id\":\"SKP-001\",\"concern\":\"Rate limiting strategy may not scale under concurrent usage\",\"severity\":\"MEDIUM\",\"severity_score\":650},{\"id\":\"SKP-002\",\"concern\":\"No circuit breaker pattern for cascading failures\",\"severity\":\"LOW\",\"severity_score\":400}],\"summary\":\"2 concerns identified\"}"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP"
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1100,
+    "candidatesTokenCount": 350,
+    "totalTokenCount": 1450
+  },
+  "modelVersion": "gemini-2.5-flash"
+}

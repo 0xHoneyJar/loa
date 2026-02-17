@@ -176,6 +176,22 @@ class TestFindPricing:
                         }
                     }
                 }
+            },
+            "google": {
+                "models": {
+                    "gemini-2.5-flash": {
+                        "pricing": {
+                            "input_per_mtok": 150_000,
+                            "output_per_mtok": 600_000,
+                        }
+                    },
+                    "gemini-2.5-pro": {
+                        "pricing": {
+                            "input_per_mtok": 1_250_000,
+                            "output_per_mtok": 10_000_000,
+                        }
+                    }
+                }
             }
         }
     }
@@ -185,8 +201,29 @@ class TestFindPricing:
         assert pricing is not None
         assert pricing.input_per_mtok == 10_000_000
 
+    def test_google_found(self):
+        pricing = find_pricing("google", "gemini-2.5-flash", self.CONFIG)
+        assert pricing is not None
+        assert pricing.input_per_mtok == 150_000
+        assert pricing.output_per_mtok == 600_000
+
+    def test_google_cost_calculation(self):
+        pricing = find_pricing("google", "gemini-2.5-flash", self.CONFIG)
+        assert pricing is not None
+        breakdown = calculate_total_cost(
+            input_tokens=10000,
+            output_tokens=2000,
+            reasoning_tokens=0,
+            pricing=pricing,
+        )
+        # 10000 * 150_000 / 1M = 1_500 micro-USD
+        assert breakdown.input_cost_micro == 1_500
+        # 2000 * 600_000 / 1M = 1_200 micro-USD
+        assert breakdown.output_cost_micro == 1_200
+        assert breakdown.total_cost_micro == 2_700
+
     def test_not_found_provider(self):
-        assert find_pricing("google", "gemini", self.CONFIG) is None
+        assert find_pricing("mistral", "mistral-large", self.CONFIG) is None
 
     def test_not_found_model(self):
         assert find_pricing("openai", "gpt-99", self.CONFIG) is None
@@ -269,8 +306,8 @@ class TestCreateLedgerEntry:
         entry = create_ledger_entry(
             trace_id="tr-test",
             agent="unknown-agent",
-            provider="google",
-            model="gemini",
+            provider="mistral",
+            model="mistral-large",
             input_tokens=1000,
             output_tokens=500,
             reasoning_tokens=0,

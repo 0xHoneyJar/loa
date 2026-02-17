@@ -44,6 +44,24 @@ Blocks `rm -rf`, `git push --force`, `git reset --hard`, `git clean -f` with act
 
 **Script**: `.claude/hooks/safety/block-destructive-bash.sh`
 
+### PreToolUse:Bash — Team Role Guard (v1.39.0)
+
+Enforces lead-only constraints when `LOA_TEAM_MEMBER` is set (Agent Teams mode). Blocks `br` commands, `.run/*.json` overwrites, and `git commit/push` for teammates. Complete no-op when `LOA_TEAM_MEMBER` is unset. Fail-open design.
+
+**Script**: `.claude/hooks/safety/team-role-guard.sh`
+
+### PreToolUse:Write/Edit — Team Role Guard (v1.39.0)
+
+Extends defense-in-depth to the Write and Edit tools. When `LOA_TEAM_MEMBER` is set, blocks writes to the System Zone (`.claude/`) and top-level state files (`.run/*.json`). Allows writes to teammate-owned paths (`.run/bugs/*/`, `grimoires/`, `app/`). Complete no-op when `LOA_TEAM_MEMBER` is unset. Fail-open design.
+
+**Script**: `.claude/hooks/safety/team-role-guard-write.sh`
+
+### PreToolUse:Skill — Team Skill Guard (v1.39.0)
+
+Enforces the Skill Invocation Matrix mechanically when `LOA_TEAM_MEMBER` is set (Agent Teams mode). Blocks lead-only skill invocations (`/plan-and-analyze`, `/architect`, `/sprint-plan`, `/simstim`, `/run-bridge`, etc.) for teammates. Uses blocklist-based matching against `tool_input.skill`. Complete no-op when `LOA_TEAM_MEMBER` is unset. Fail-open design.
+
+**Script**: `.claude/hooks/safety/team-skill-guard.sh`
+
 ### Stop — Run Mode Guard
 
 Detects active `/run`, `/run-bridge`, or `/simstim` execution and injects context reminder before stopping.
@@ -55,6 +73,12 @@ Detects active `/run`, `/run-bridge`, or `/simstim` execution and injects contex
 Logs mutating commands (git, npm, rm, mv, etc.) to `.run/audit.jsonl` in JSONL format.
 
 **Script**: `.claude/hooks/audit/mutation-logger.sh`
+
+### PostToolUse:Write/Edit — Write Audit Logger (v1.39.0)
+
+Logs Write and Edit tool file modifications to `.run/audit.jsonl` in JSONL format. Captures file path, tool name, team identity, and timestamp. Does NOT log file content (privacy, size). Complements `mutation-logger.sh` to ensure all file modifications — whether via Bash, Write, or Edit — appear in the audit trail.
+
+**Script**: `.claude/hooks/audit/write-mutation-logger.sh`
 
 ## Deny Rules
 
@@ -72,5 +96,11 @@ See `.claude/hooks/settings.hooks.json` for the complete hook configuration.
 | PreCompact | (all) | `pre-compact-marker.sh` | Save state before compaction |
 | UserPromptSubmit | (all) | `post-compact-reminder.sh` | Inject recovery after compaction |
 | PreToolUse | Bash | `safety/block-destructive-bash.sh` | Block destructive commands |
+| PreToolUse | Bash | `safety/team-role-guard.sh` | Enforce lead-only ops in Agent Teams |
+| PreToolUse | Write | `safety/team-role-guard-write.sh` | Block teammate writes to System Zone, state files, and append-only files |
+| PreToolUse | Edit | `safety/team-role-guard-write.sh` | Block teammate edits to System Zone, state files, and append-only files |
+| PreToolUse | Skill | `safety/team-skill-guard.sh` | Block lead-only skill invocations for teammates |
 | PostToolUse | Bash | `audit/mutation-logger.sh` | Log mutating commands |
+| PostToolUse | Write | `audit/write-mutation-logger.sh` | Log Write tool file modifications |
+| PostToolUse | Edit | `audit/write-mutation-logger.sh` | Log Edit tool file modifications |
 | Stop | (all) | `safety/run-mode-stop-guard.sh` | Guard against premature exit |

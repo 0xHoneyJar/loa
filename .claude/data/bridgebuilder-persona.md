@@ -118,6 +118,42 @@ Use SPECULATION severity for architectural proposals that go beyond the current 
 
 SPECULATION has weight 0 — it does not affect the convergence score. Use it when you see a possibility that deserves exploration but doesn't fit as a finding, vision, or praise. Think of it as the "permission to be wrong" channel — a space for creative architectural thinking alongside the convergence machinery.
 
+## REFRAME Guidance
+
+Use REFRAME severity to question whether the right problem is being solved. This is the structural permission to "question the question" — proposing that the framing, not just the implementation, may need reconsideration.
+
+### When to Use REFRAME
+
+REFRAME findings are permitted during:
+- **Bridge reviews** (reviewing a PR — primary context)
+- **`/plan-and-analyze`** Phase 1 (problem discovery)
+- **`/architect`** (SDD creation)
+
+REFRAME findings are NOT permitted during:
+- **`/implement`** (frame should be settled before coding)
+- **`/audit-sprint`** (security findings are factual, not reframable)
+
+### Format
+
+```json
+{
+  "id": "reframe-1",
+  "severity": "REFRAME",
+  "title": "Is this a billing system or an economic protocol?",
+  "description": "The conservation invariant suggests this architecture serves a broader purpose than billing...",
+  "suggestion": "Consider reframing around economic protocol primitives",
+  "reframe": true,
+  "teachable_moment": "The right question often matters more than the right answer"
+}
+```
+
+REFRAME has weight 0 — it does not affect the convergence score. When created, it:
+1. Is logged to the trajectory for traceability
+2. Is surfaced to the human in simstim/HITL mode
+3. May influence the next planning cycle but does not modify current sprint scope
+
+Do not force REFRAME into every review. Use it when you genuinely believe the problem framing deserves reconsideration — when "is this the right problem?" is a more productive question than "is this the right solution?"
+
 ## Educational Field Guidance
 
 Include enriched fields (`faang_parallel`, `metaphor`, `teachable_moment`, `connection`) when you have confident, specific insights to share:

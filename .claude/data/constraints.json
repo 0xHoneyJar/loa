@@ -1,6 +1,6 @@
 {
   "$schema": "../schemas/constraints.schema.json",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "constraints": [
     {
       "id": "C-PROC-001",
@@ -39,6 +39,11 @@
         "skill-md": "Use `br` commands for task lifecycle, NOT `TaskCreate`/`TaskUpdate`"
       },
       "why": "Beads is the single source of truth for task lifecycle; TaskCreate is for session progress display only",
+      "condition": {
+        "when": "agent_teams_active",
+        "override_text": "In Agent Teams mode, TaskCreate/TaskUpdate serves dual purpose: team coordination (primary) and session display (secondary). Sprint lifecycle STILL uses beads exclusively.",
+        "override_rule_type": "MAY"
+      },
       "order": 1,
       "layers": [
         {
@@ -1116,6 +1121,191 @@
         }
       ],
       "severity": "medium"
+    },
+    {
+      "id": "C-TEAM-001",
+      "name": "lead_only_planning_skills",
+      "category": "agent_teams",
+      "rule_type": "MUST",
+      "text": "restrict planning, orchestration, deployment, and lifecycle management skills to the team lead — teammates MUST NOT invoke these (see Skill Invocation Matrix for full list; enforced by `team-skill-guard.sh`)",
+      "text_variants": {
+        "claude-loa-md": "MUST restrict planning skills to team lead only — teammates implement, review, and audit only"
+      },
+      "why": "Planning skills produce single artifacts (PRD, SDD, sprint plan) that assume single-writer semantics; concurrent invocation would corrupt state",
+      "order": 0,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "agent_teams_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "critical",
+      "source_incident": "#337"
+    },
+    {
+      "id": "C-TEAM-002",
+      "name": "lead_only_beads_operations",
+      "category": "agent_teams",
+      "rule_type": "MUST",
+      "text": "serialize all beads (`br`) operations through the team lead — teammates MUST NOT run `br` commands directly",
+      "text_variants": {
+        "claude-loa-md": "MUST serialize all beads operations through team lead — teammates report via SendMessage"
+      },
+      "why": "Beads uses SQLite with single-writer semantics; concurrent br sync or br close causes lock contention and potential corruption",
+      "order": 1,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "agent_teams_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "high",
+      "source_incident": "#337"
+    },
+    {
+      "id": "C-TEAM-003",
+      "name": "lead_owns_state_files",
+      "category": "agent_teams",
+      "rule_type": "MUST",
+      "text": "only the team lead writes to `.run/simstim-state.json`, `.run/bridge-state.json`, and `.run/sprint-plan-state.json` — teammates report status via SendMessage",
+      "text_variants": {
+        "claude-loa-md": "MUST only let team lead write to `.run/` state files — teammates report via SendMessage"
+      },
+      "why": "State files use read-modify-write pattern; concurrent writes cause lost updates and inconsistent reads",
+      "order": 2,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "agent_teams_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "high",
+      "source_incident": "#337"
+    },
+    {
+      "id": "C-TEAM-004",
+      "name": "lead_coordinates_git_operations",
+      "category": "agent_teams",
+      "rule_type": "MUST",
+      "text": "coordinate all git commit and push operations through the team lead — teammates MUST NOT commit or push directly to avoid working tree and index race conditions",
+      "text_variants": {
+        "claude-loa-md": "MUST coordinate git commit/push through team lead — teammates report completed work via SendMessage"
+      },
+      "why": "Git's working tree and index are shared mutable state; concurrent commits or pushes cause merge conflicts, index lock failures, and corrupted state",
+      "order": 3,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "agent_teams_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "high",
+      "source_incident": "#337"
+    },
+    {
+      "id": "C-TEAM-005",
+      "name": "teammate_system_zone_readonly",
+      "category": "agent_teams",
+      "rule_type": "MUST",
+      "text": "teammates MUST NOT modify files in the System Zone (.claude/) — all framework configuration, constraint definitions, hook scripts, and schema files are lead-only",
+      "text_variants": {
+        "claude-loa-md": "MUST NOT modify .claude/ (System Zone) — framework files are lead-only, enforced by PreToolUse:Write/Edit hook"
+      },
+      "why": "System Zone modifications by a teammate could alter constraint definitions, hook behavior, or skill configurations for all agents in the team, breaking the coordination invariants that other C-TEAM constraints depend on",
+      "order": 4,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "agent_teams_constraints",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "critical",
+      "source_incident": "bridgebuilder-horizon-pr341"
+    },
+    {
+      "id": "C-PERM-001",
+      "name": "may_question_frame",
+      "category": "permission",
+      "rule_type": "MAY",
+      "text": "question the framing of requirements during `/plan-and-analyze` and bridge reviews, proposing alternative problem definitions when the analysis warrants reframing",
+      "text_variants": {
+        "claude-loa-md": "MAY question the framing of requirements during `/plan-and-analyze` and bridge reviews when analysis warrants reframing"
+      },
+      "why": "The deepest architectural insights come from questioning the frame, not just analyzing within it. Permission to ask 'is this the right problem?' enables the level of inquiry that produced findings like lot_invariant-as-social-contract and Ostrom-as-governance.",
+      "order": 0,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "permission_grants",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "low"
+    },
+    {
+      "id": "C-PERM-002",
+      "name": "may_explore_visions",
+      "category": "permission",
+      "rule_type": "MAY",
+      "text": "allocate time within a sprint for Vision Registry exploration when a captured vision is relevant to the current work",
+      "text_variants": {
+        "claude-loa-md": "MAY allocate time for Vision Registry exploration when a captured vision is relevant to current work"
+      },
+      "why": "The Vision Registry captures speculative insights but none have ever been explored. Permission to allocate effort enables the 20% creative exploration that transforms captured ideas into actionable proposals.",
+      "order": 1,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "permission_grants",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "low"
+    },
+    {
+      "id": "C-PERM-003",
+      "name": "may_propose_alternatives",
+      "category": "permission",
+      "rule_type": "MAY",
+      "text": "propose alternative approaches that challenge existing architecture during bridge reviews and `/review-sprint`",
+      "text_variants": {
+        "claude-loa-md": "MAY propose alternative architectural approaches during bridge reviews and `/review-sprint`"
+      },
+      "why": "Architectural evolution requires the ability to propose alternatives. Reviews that only check conformance to existing patterns cannot discover when the pattern itself should change.",
+      "order": 2,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "permission_grants",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "low"
+    },
+    {
+      "id": "C-PERM-004",
+      "name": "may_speculate_in_planning",
+      "category": "permission",
+      "rule_type": "MAY",
+      "text": "create SPECULATION findings during planning and review skills (`/plan-and-analyze`, `/architect`, `/review-sprint`, bridge reviews) — explicitly excluded from `/implement` and `/audit-sprint`",
+      "text_variants": {
+        "claude-loa-md": "MAY create SPECULATION findings during planning and review skills — excluded from `/implement` and `/audit-sprint`"
+      },
+      "why": "SPECULATION is currently scoped to bridge reviews only. Extending to planning and review skills enables creative architectural thinking at the stages where it has the most impact, while excluding implementation and audit where it could rationalize unsafe changes.",
+      "order": 3,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "permission_grants",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "low"
     }
   ]
 }

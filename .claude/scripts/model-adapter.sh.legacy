@@ -14,7 +14,9 @@
 #   gpt-5.3-codex        OpenAI GPT-5.3 Codex
 #   opus                 Claude Opus 4.6 (alias for claude-opus-4.6)
 #   claude-opus-4.6      Claude Opus 4.6
-#   gemini-2.0           Google Gemini 2.0 (future)
+#   gemini-2.5-flash     Google Gemini 2.5 Flash
+#   gemini-2.5-pro       Google Gemini 2.5 Pro
+#   gemini-2.0           Google Gemini 2.0 Flash (backward compat alias)
 #
 # Modes:
 #   review               Generate improvements (10 items)
@@ -34,6 +36,7 @@
 # Environment:
 #   OPENAI_API_KEY       Required for GPT models
 #   ANTHROPIC_API_KEY    Required for Claude models
+#   GOOGLE_API_KEY       Required for Gemini models
 #   FLATLINE_MOCK_MODE   Set to 'true' for testing with fixtures
 #
 # Exit codes:
@@ -74,6 +77,8 @@ declare -A MODEL_PROVIDERS=(
     ["claude-opus-4.6"]="anthropic"
     ["claude-opus-4.5"]="anthropic"    # Backward compat alias → 4.6
     ["gemini-2.0"]="google"
+    ["gemini-2.5-flash"]="google"
+    ["gemini-2.5-pro"]="google"
 )
 
 declare -A MODEL_IDS=(
@@ -84,6 +89,8 @@ declare -A MODEL_IDS=(
     ["claude-opus-4.6"]="claude-opus-4-6"
     ["claude-opus-4.5"]="claude-opus-4-6"              # Alias → current
     ["gemini-2.0"]="gemini-2.0-flash"
+    ["gemini-2.5-flash"]="gemini-2.5-flash"
+    ["gemini-2.5-pro"]="gemini-2.5-pro"
 )
 
 # Cost per 1K tokens (approximate, 2026-02 pricing)
@@ -95,7 +102,9 @@ declare -A COST_INPUT=(
     ["opus"]="0.005"
     ["claude-opus-4.6"]="0.005"
     ["claude-opus-4.5"]="0.005"        # Alias → 4.6 pricing
-    ["gemini-2.0"]="0.005"
+    ["gemini-2.0"]="0.00015"
+    ["gemini-2.5-flash"]="0.00015"
+    ["gemini-2.5-pro"]="0.00125"
 )
 
 declare -A COST_OUTPUT=(
@@ -105,7 +114,9 @@ declare -A COST_OUTPUT=(
     ["opus"]="0.025"
     ["claude-opus-4.6"]="0.025"
     ["claude-opus-4.5"]="0.025"        # Alias → 4.6 pricing
-    ["gemini-2.0"]="0.015"
+    ["gemini-2.0"]="0.0006"
+    ["gemini-2.5-flash"]="0.0006"
+    ["gemini-2.5-pro"]="0.01"
 )
 
 # =============================================================================
@@ -235,6 +246,13 @@ call_openai_api() {
     local timeout="$4"
     local api_key="$5"
 
+    # BB-001: Disable xtrace to prevent API key leakage in debug output
+    local prev_xtrace=""
+    if [[ -o xtrace ]]; then
+        prev_xtrace="on"
+        set +x
+    fi
+
     local api_url="https://api.openai.com/v1/chat/completions"
 
     # Escape for JSON
@@ -274,6 +292,12 @@ CURLCFG
         "$api_url")
 
     rm -f "$curl_config"
+
+    # Restore xtrace if it was on
+    if [[ "$prev_xtrace" == "on" ]]; then
+        set -x
+    fi
+
     echo "$response"
 }
 
@@ -284,6 +308,13 @@ call_anthropic_api() {
     local user_prompt="$3"
     local timeout="$4"
     local api_key="$5"
+
+    # BB-001: Disable xtrace to prevent API key leakage in debug output
+    local prev_xtrace=""
+    if [[ -o xtrace ]]; then
+        prev_xtrace="on"
+        set +x
+    fi
 
     local api_url="https://api.anthropic.com/v1/messages"
 
@@ -324,6 +355,73 @@ CURLCFG
         "$api_url")
 
     rm -f "$curl_config"
+
+    # Restore xtrace if it was on
+    if [[ "$prev_xtrace" == "on" ]]; then
+        set -x
+    fi
+
+    echo "$response"
+}
+
+# Call Google Gemini API
+call_google_api() {
+    local model_id="$1"
+    local system_prompt="$2"
+    local user_prompt="$3"
+    local timeout="$4"
+    local api_key="$5"
+
+    # IMP-001: Disable xtrace to prevent API key leakage in debug output
+    local prev_xtrace=""
+    if [[ -o xtrace ]]; then
+        prev_xtrace="on"
+        set +x
+    fi
+
+    local api_url="https://generativelanguage.googleapis.com/v1beta/models/${model_id}:generateContent"
+
+    # Escape for JSON
+    local escaped_system escaped_user
+    escaped_system=$(printf '%s' "$system_prompt" | jq -Rs .)
+    escaped_user=$(printf '%s' "$user_prompt" | jq -Rs .)
+
+    local payload
+    payload=$(cat <<EOF
+{
+    "contents": [
+        {"role": "user", "parts": [{"text": ${escaped_user}}]}
+    ],
+    "systemInstruction": {"parts": [{"text": ${escaped_system}}]},
+    "generationConfig": {
+        "temperature": 0.3,
+        "maxOutputTokens": 4096,
+        "responseMimeType": "application/json"
+    }
+}
+EOF
+)
+
+    local response
+
+    # Security: Use curl config file with URL directive to keep API key out of argv
+    local curl_config
+    curl_config=$(mktemp)
+    trap "rm -f '$curl_config'" RETURN
+    chmod 600 "$curl_config"
+    printf 'header = "Content-Type: application/json"\nurl = "%s?key=%s"\n' "$api_url" "$api_key" > "$curl_config"
+
+    response=$(curl -s --max-time "$timeout" \
+        --config "$curl_config" \
+        -d "$payload")
+
+    rm -f "$curl_config"
+
+    # Restore xtrace if it was on
+    if [[ "$prev_xtrace" == "on" ]]; then
+        set -x
+    fi
+
     echo "$response"
 }
 
@@ -385,6 +483,24 @@ call_api_with_retry() {
                     return 1
                 }
                 ;;
+            google)
+                response=$(call_google_api "$model_id" "$system_prompt" "$user_prompt" "$timeout" "$api_key" 2>&1) || {
+                    local exit_code=$?
+                    if [[ $exit_code -eq 28 ]]; then
+                        log "Timeout (attempt $attempt)"
+                        if [[ $attempt -lt $max_retries ]]; then
+                            local delay
+                            delay=$(calculate_delay "$attempt" "$RETRY_BASE_DELAY")
+                            log "Retrying in ${delay}s..."
+                            sleep "$delay"
+                            ((attempt++))
+                            continue
+                        fi
+                        return 3
+                    fi
+                    return 1
+                }
+                ;;
             *)
                 error "Unsupported provider: $provider"
                 return 2
@@ -399,6 +515,26 @@ call_api_with_retry() {
         error_msg=$(echo "$response" | jq -r '.error.message // empty' 2>/dev/null)
         if [[ -n "$error_msg" ]]; then
             log "API error: $error_msg"
+
+            # IMP-001: Gemini-specific error status mapping
+            if [[ "$provider" == "google" ]]; then
+                local error_status
+                error_status=$(echo "$response" | jq -r '.error.status // empty' 2>/dev/null)
+                case "$error_status" in
+                    PERMISSION_DENIED)
+                        error "Google API: permission denied (check GOOGLE_API_KEY)"
+                        return 4
+                        ;;
+                    INVALID_ARGUMENT|NOT_FOUND)
+                        error "Google API: invalid request ($error_status)"
+                        return 2
+                        ;;
+                    RESOURCE_EXHAUSTED)
+                        log "Google API: rate limited — will retry"
+                        ;;
+                esac
+            fi
+
             if [[ $attempt -lt $max_retries ]]; then
                 local delay
                 delay=$(calculate_delay "$attempt" "$RETRY_BASE_DELAY")
@@ -418,6 +554,22 @@ call_api_with_retry() {
                 ;;
             anthropic)
                 content=$(echo "$response" | jq -r '.content[0].text // empty')
+                ;;
+            google)
+                # BB-003: Check promptFeedback.blockReason first (no candidates when prompt itself is blocked)
+                local block_reason
+                block_reason=$(echo "$response" | jq -r '.promptFeedback.blockReason // empty' 2>/dev/null)
+                if [[ -n "$block_reason" ]]; then
+                    log "WARNING: Gemini prompt blocked (blockReason: $block_reason)"
+                    content=""
+                # IMP-003: Check finishReason for blocked responses
+                elif [[ "$(echo "$response" | jq -r '.candidates[0].finishReason // empty' 2>/dev/null)" =~ ^(SAFETY|RECITATION)$ ]]; then
+                    log "WARNING: Gemini response blocked (finishReason: ${BASH_REMATCH[0]})"
+                    content=""
+                else
+                    # IMP-005: Use last text part to handle thinking traces (Gemini 2.5 Pro)
+                    content=$(echo "$response" | jq -r '.candidates[0].content.parts | map(select(.text)) | last | .text // empty' 2>/dev/null)
+                fi
                 ;;
         esac
 
@@ -440,6 +592,10 @@ call_api_with_retry() {
             anthropic)
                 tokens_input=$(echo "$response" | jq -r '.usage.input_tokens // 0')
                 tokens_output=$(echo "$response" | jq -r '.usage.output_tokens // 0')
+                ;;
+            google)
+                tokens_input=$(echo "$response" | jq -r '.usageMetadata.promptTokenCount // 0')
+                tokens_output=$(echo "$response" | jq -r '.usageMetadata.candidatesTokenCount // 0')
                 ;;
         esac
 
@@ -600,7 +756,9 @@ Models:
   gpt-5.2, gpt-5.2-codex    OpenAI GPT-5.2 variants
   gpt-5.3-codex             OpenAI GPT-5.3 Codex
   opus, claude-opus-4.6     Claude Opus 4.6 (claude-opus-4.5 also accepted)
-  gemini-2.0                Google Gemini 2.0 (future)
+  gemini-2.5-flash          Google Gemini 2.5 Flash
+  gemini-2.5-pro            Google Gemini 2.5 Pro
+  gemini-2.0                Google Gemini 2.0 Flash (backward compat)
 
 Modes:
   review                    Generate improvements (10 items)
@@ -621,6 +779,7 @@ Options:
 Environment:
   OPENAI_API_KEY            Required for GPT models
   ANTHROPIC_API_KEY         Required for Claude models
+  GOOGLE_API_KEY            Required for Gemini models
   FLATLINE_MOCK_MODE=true   Use mock responses for testing
   FLATLINE_MOCK_DIR=<path>  Custom mock fixtures directory
 

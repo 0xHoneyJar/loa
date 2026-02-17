@@ -35,11 +35,11 @@
         },
         "category": {
           "type": "string",
-          "enum": ["process", "git_safety", "beads", "danger_level", "flatline", "guardrails", "phase_sequencing", "bridge", "eval"]
+          "enum": ["process", "git_safety", "beads", "danger_level", "flatline", "guardrails", "phase_sequencing", "bridge", "eval", "merge", "agent_teams", "permission"]
         },
         "rule_type": {
           "type": "string",
-          "enum": ["NEVER", "ALWAYS", "WHEN", "MUST"]
+          "enum": ["NEVER", "ALWAYS", "WHEN", "MUST", "SHOULD", "MAY"]
         },
         "text": {
           "type": "string",
@@ -81,6 +81,26 @@
         "source_incident": {
           "type": "string",
           "description": "Reference to the incident/PR that motivated this constraint"
+        },
+        "condition": {
+          "type": "object",
+          "description": "Optional runtime condition that modifies constraint behavior when active",
+          "properties": {
+            "when": {
+              "type": "string",
+              "description": "Feature flag or runtime condition name (e.g., agent_teams_active)"
+            },
+            "override_text": {
+              "type": "string",
+              "description": "Alternative constraint text when condition is true"
+            },
+            "override_rule_type": {
+              "type": "string",
+              "enum": ["NEVER", "ALWAYS", "WHEN", "MUST", "MAY"]
+            }
+          },
+          "required": ["when", "override_text"],
+          "additionalProperties": false
         },
         "deprecated": {
           "type": "boolean",

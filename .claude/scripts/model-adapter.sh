@@ -104,6 +104,8 @@ declare -A MODEL_TO_ALIAS=(
     ["claude-opus-4.6"]="anthropic:claude-opus-4-6"
     ["claude-opus-4.5"]="anthropic:claude-opus-4-6"
     ["gemini-2.0"]="google:gemini-2.0-flash"
+    ["gemini-2.5-flash"]="google:gemini-2.5-flash"
+    ["gemini-2.5-pro"]="google:gemini-2.5-pro"
 )
 
 # =============================================================================

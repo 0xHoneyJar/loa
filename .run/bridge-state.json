@@ -1,59 +1,144 @@
 {
   "schema_version": 1,
-  "bridge_id": "bridge-20260215-c017mesh",
+  "bridge_id": "bridge-20260216-07abe1",
   "state": "JACKED_OUT",
   "config": {
-    "depth": 5,
+    "depth": 3,
     "mode": "full",
     "flatline_threshold": 0.05,
     "per_sprint": false,
-    "branch": "feat/cycle-017-butterfreezone-excellence",
-    "pr_number": 336
+    "branch": "feat/cycle-023-permission-amendment",
+    "repo": ""
   },
   "timestamps": {
-    "started": "2026-02-15T19:00:00Z",
-    "last_activity": "2026-02-15T20:15:00Z"
+    "started": "2026-02-16T06:52:18Z",
+    "last_activity": "2026-02-16T06:52:22Z"
   },
   "iterations": [
     {
       "iteration": 1,
-      "sprint": "sprint-106-109",
-      "findings": {
-        "high": 1,
-        "medium": 4,
-        "low": 2,
-        "praise": 3,
-        "total_actionable": 7
+      "state": "completed",
+      "sprint_plan_source": "existing",
+      "sprints_executed": 0,
+      "bridgebuilder": {
+        "total_findings": 0,
+        "by_severity": {
+          "critical": 0,
+          "high": 0,
+          "medium": 0,
+          "low": 0,
+          "vision": 0,
+          "praise": 0
+        },
+        "severity_weighted_score": 0,
+        "pr_comment_url": null
       },
-      "files_changed": 9,
-      "convergence_score": 0.06,
-      "review_path": ".run/bridge-reviews/bridge-20260215-c017mesh-iter1-full.md"
+      "enrichment": {
+        "persona_loaded": false,
+        "persona_validation": "pending",
+        "findings_format": "unknown",
+        "field_fill_rates": {
+          "faang_parallel": 0,
+          "metaphor": 0,
+          "teachable_moment": 0,
+          "connection": 0
+        },
+        "praise_count": 0,
+        "insights_size_bytes": 0,
+        "redactions_applied": 0
+      },
+      "visions_captured": 0,
+      "started_at": "2026-02-16T06:52:18Z",
+      "updated_at": "2026-02-16T06:52:18Z"
     },
     {
       "iteration": 2,
-      "sprint": "findings-fix",
-      "findings": {
-        "high": 0,
-        "medium": 0,
-        "low": 0,
-        "praise": 2,
-        "total_actionable": 0
+      "state": "completed",
+      "sprint_plan_source": "findings",
+      "sprints_executed": 0,
+      "bridgebuilder": {
+        "total_findings": 0,
+        "by_severity": {
+          "critical": 0,
+          "high": 0,
+          "medium": 0,
+          "low": 0,
+          "vision": 0,
+          "praise": 0
+        },
+        "severity_weighted_score": 0,
+        "pr_comment_url": null
       },
-      "files_changed": 3,
-      "convergence_score": 0.00,
-      "review_path": ".run/bridge-reviews/bridge-20260215-c017mesh-iter2-full.md"
+      "enrichment": {
+        "persona_loaded": false,
+        "persona_validation": "pending",
+        "findings_format": "unknown",
+        "field_fill_rates": {
+          "faang_parallel": 0,
+          "metaphor": 0,
+          "teachable_moment": 0,
+          "connection": 0
+        },
+        "praise_count": 0,
+        "insights_size_bytes": 0,
+        "redactions_applied": 0
+      },
+      "visions_captured": 0,
+      "started_at": "2026-02-16T06:52:18Z",
+      "updated_at": "2026-02-16T06:52:18Z"
+    },
+    {
+      "iteration": 3,
+      "state": "completed",
+      "sprint_plan_source": "findings",
+      "sprints_executed": 0,
+      "bridgebuilder": {
+        "total_findings": 0,
+        "by_severity": {
+          "critical": 0,
+          "high": 0,
+          "medium": 0,
+          "low": 0,
+          "vision": 0,
+          "praise": 0
+        },
+        "severity_weighted_score": 0,
+        "pr_comment_url": null
+      },
+      "enrichment": {
+        "persona_loaded": false,
+        "persona_validation": "pending",
+        "findings_format": "unknown",
+        "field_fill_rates": {
+          "faang_parallel": 0,
+          "metaphor": 0,
+          "teachable_moment": 0,
+          "connection": 0
+        },
+        "praise_count": 0,
+        "insights_size_bytes": 0,
+        "redactions_applied": 0
+      },
+      "visions_captured": 0,
+      "started_at": "2026-02-16T06:52:18Z",
+      "updated_at": "2026-02-16T06:52:18Z"
     }
   ],
   "flatline": {
-    "initial_score": 0.06,
-    "last_score": 0.00,
-    "consecutive_below_threshold": 2,
-    "flatlined": true
+    "initial_score": 0,
+    "last_score": 0,
+    "consecutive_below_threshold": 0
   },
   "metrics": {
-    "total_sprints_executed": 5,
-    "total_files_changed": 12,
-    "total_findings_addressed": 7,
+    "total_sprints_executed": 0,
+    "total_files_changed": 0,
+    "total_findings_addressed": 0,
     "total_visions_captured": 0
+  },
+  "finalization": {
+    "ground_truth_updated": false,
+    "rtfm_passed": true,
+    "pr_url": null,
+    "butterfreezone_generated": true
   }
 }
