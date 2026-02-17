@@ -390,6 +390,25 @@ feedback:
     enabled: true           # Enable smart routing
     auto_classify: true     # Auto-detect target repo
     require_confirmation: true  # Always confirm with user
+
+    # Construct routing (v1.40.0 / cycle-025)
+    # Routes feedback about installed construct packs/skills to their source repos.
+    # Requires constructs to declare source_repo in manifest.yaml.
+    construct_routing:
+      enabled: true               # Master toggle for construct feedback routing
+      attribution_threshold: 0.33 # Minimum confidence to suggest construct routing (0.0-1.0)
+      redaction:
+        strip_absolute_paths: true   # Redact /home/user/... paths
+        strip_secrets: true          # Redact AWS keys, tokens, JWTs
+        strip_env_vars: true         # Redact environment variable assignments
+        include_snippets: false      # Code blocks stripped for external repos (default: off)
+        include_file_refs: true      # File references kept but paths made relative
+        include_environment: false   # Environment/system info section stripped (default: off)
+      rate_limits:
+        per_repo_daily: 5           # Warn after N issues to same repo in 24h
+        per_repo_daily_hard: 20     # Block at N issues to same repo in 24h
+        dedup_window_hours: 24      # Fingerprint dedup window in hours
+
   labels:
     graceful_missing: true  # Don't fail on missing labels
 

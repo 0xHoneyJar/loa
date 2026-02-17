@@ -68,6 +68,11 @@ SIGNAL_PATTERNS=(
     "project:app:1"
     "project:deployment:2"
     "project:infra:2"
+
+    # construct signals (cycle-025)
+    "construct:\.claude/constructs/:3"
+    "construct:constructs/skills/:3"
+    "construct:constructs/packs/:3"
 )
 
 usage() {
@@ -152,6 +157,7 @@ SCORES[loa_framework]=0
 SCORES[loa_constructs]=0
 SCORES[forge]=0
 SCORES[project]=0
+SCORES[construct]=0
 
 # Track matched signals
 MATCHED_SIGNALS=()
@@ -209,6 +215,42 @@ if ! [[ "$CONFIDENCE" =~ ^[0-9]*\.?[0-9]+$ ]] || \
     CONFIDENCE="0.50"
 fi
 
+# --- Construct attribution (cycle-025) ---
+# When construct signals detected, run full attribution engine
+ATTRIBUTION_JSON=""
+if [[ "${SCORES[construct]}" -gt 0 ]]; then
+    # Write context to temp file for attribution script
+    ATTR_CONTEXT_FILE=$(mktemp)
+    trap 'rm -f "$ATTR_CONTEXT_FILE"' EXIT
+    printf '%s' "$CONTEXT" > "$ATTR_CONTEXT_FILE"
+
+    # Run attribution engine
+    ATTR_RESULT=""
+    if [[ -x "$SCRIPT_DIR/construct-attribution.sh" ]]; then
+        ATTR_RESULT=$("$SCRIPT_DIR/construct-attribution.sh" --context "$ATTR_CONTEXT_FILE" 2>/dev/null || true)
+    fi
+
+    if [[ -n "$ATTR_RESULT" ]]; then
+        ATTR_ATTRIBUTED=$(echo "$ATTR_RESULT" | jq -r '.attributed // false' 2>/dev/null || echo "false")
+        ATTR_CONFIDENCE=$(echo "$ATTR_RESULT" | jq -r '.confidence // 0' 2>/dev/null || echo "0")
+
+        # Read threshold from config (default 0.33)
+        ATTR_THRESHOLD="0.33"
+        if [[ -f "$CONFIG_FILE" ]] && command -v yq &>/dev/null; then
+            ATTR_THRESHOLD=$(yq '.feedback.routing.construct_routing.attribution_threshold // 0.33' "$CONFIG_FILE" 2>/dev/null || echo "0.33")
+        fi
+
+        # Override classification if attributed with sufficient confidence
+        if [[ "$ATTR_ATTRIBUTED" == "true" ]] && \
+           awk "BEGIN{exit !($ATTR_CONFIDENCE >= $ATTR_THRESHOLD)}" 2>/dev/null; then
+            HIGHEST_CATEGORY="construct"
+            HIGHEST_SCORE=${SCORES[construct]}
+            CONFIDENCE=$(echo "$ATTR_CONFIDENCE" | head -1)
+            ATTRIBUTION_JSON="$ATTR_RESULT"
+        fi
+    fi
+fi
+
 # Map category to repo
 case "$HIGHEST_CATEGORY" in
     loa_framework)
@@ -219,6 +261,17 @@ case "$HIGHEST_CATEGORY" in
         ;;
     forge)
         RECOMMENDED_REPO="0xHoneyJar/forge"
+        ;;
+    construct)
+        # Get repo from attribution result
+        if [[ -n "$ATTRIBUTION_JSON" ]]; then
+            RECOMMENDED_REPO=$(echo "$ATTRIBUTION_JSON" | jq -r '.source_repo // "project-specific"' 2>/dev/null || echo "project-specific")
+            if [[ "$RECOMMENDED_REPO" == "null" ]] || [[ -z "$RECOMMENDED_REPO" ]]; then
+                RECOMMENDED_REPO="project-specific"
+            fi
+        else
+            RECOMMENDED_REPO="project-specific"
+        fi
         ;;
     project|*)
         RECOMMENDED_REPO="project-specific"
@@ -240,6 +293,13 @@ for signal in "${MATCHED_SIGNALS[@]}"; do
 done
 SIGNALS_JSON+="]"
 
+# Build attribution section for output (cycle-025)
+ATTRIBUTION_SECTION=""
+if [[ -n "$ATTRIBUTION_JSON" ]]; then
+    ATTRIBUTION_SECTION=",
+  \"attribution\": $ATTRIBUTION_JSON"
+fi
+
 # Output JSON result
 cat << EOF
 {
@@ -251,7 +311,8 @@ cat << EOF
     "loa_framework": ${SCORES[loa_framework]},
     "loa_constructs": ${SCORES[loa_constructs]},
     "forge": ${SCORES[forge]},
-    "project": ${SCORES[project]}
-  }
+    "project": ${SCORES[project]},
+    "construct": ${SCORES[construct]}
+  }$ATTRIBUTION_SECTION
 }
 EOF

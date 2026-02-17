@@ -155,8 +155,8 @@ apply_redaction 's/github_pat_[A-Za-z0-9_]{22,}/<redacted-github-pat>/g' ""
 # JWT tokens: eyJ followed by base64
 apply_redaction 's/eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)?/<redacted-jwt>/g' ""
 
-# Generic secrets: key=value patterns
-apply_redaction 's/(password|secret|token|api_key|apikey|api-key)[[:space:]]*[=:][[:space:]]*[^[:space:]"]+/\1=<redacted>/gi' ""
+# Generic secrets: key=value patterns (skip already-redacted values starting with <)
+apply_redaction 's/(password|secret|token|api_key|apikey|api-key)[[:space:]]*[=:][[:space:]]*[^<[:space:]"][^[:space:]"]*/\1=<redacted>/gi' ""
 
 # Absolute paths: /home/*, /Users/*, /tmp/*
 apply_redaction 's|/home/[^[:space:]/]+/|<redacted-path>/|g' ""
