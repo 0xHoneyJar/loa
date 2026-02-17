@@ -190,7 +190,7 @@ def build_score_map:
 # Process skeptic concerns for blockers (2 or 3 sources)
 # Deduplicate by exact .concern text match (BB-F3/BB-F8b).
 # Exact match is sufficient because models reviewing the same document typically
-# echo each other's phrasing. If the Hounfour scales to 3+ diverse models with
+# echo each others phrasing. If the Hounfour scales to 3+ diverse models with
 # varied prompting, consider fuzzy dedup (e.g., cosine similarity on concern text
 # or a canonical concern ID assigned upstream in the skeptic prompt).
 (
