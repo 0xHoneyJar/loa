@@ -5,6 +5,21 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.46.0] — 2026-02-17 — cross-codebase feedback routing
+
+
+- Adds ability to route Loa feedback (user /feedback, Bridgebuilder, audit, review) to construct source repos on the constructs network
+- Construct attribution engine identifies when findings originate from installed construct code
+- Content redaction ensures no secrets/sensitive data leak to external repos
+- Trust validation guards against malicious/misconfigured source_repo manifests
+
+### Added
+
+- **cycle-025**: cross-codebase feedback routing (#357)
+
+_Source: PR #357_
+
+
 ## [1.39.1] — 2026-02-15 — Collateral Deletion Safeguard + CI Hardening
 
 ### Fixed
