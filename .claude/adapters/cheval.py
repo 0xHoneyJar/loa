@@ -42,6 +42,7 @@ from loa_cheval.routing.resolver import (
     resolve_execution,
     validate_bindings,
 )
+from loa_cheval.routing.context_filter import audit_filter_context
 from loa_cheval.providers import get_adapter
 from loa_cheval.types import ProviderConfig, ModelConfig
 from loa_cheval.metering.budget import BudgetEnforcer
@@ -291,6 +292,27 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         )
 
     messages.append({"role": "user", "content": input_text})
+
+    # Epistemic context filtering (BB-501: audit mode, Sprint 9)
+    # When context_filtering flag is set, run filter in the configured mode.
+    # "audit" = log only (no message modification), "enforce" = apply filtering.
+    flags = hounfour.get("feature_flags", {})
+    context_filtering_mode = flags.get("context_filtering", False)
+    if context_filtering_mode == "audit":
+        messages = audit_filter_context(
+            messages,
+            resolved.provider,
+            resolved.model_id,
+            is_native_runtime=(resolved.provider == NATIVE_PROVIDER),
+        )
+    elif context_filtering_mode == "enforce":
+        from loa_cheval.routing.context_filter import filter_context, lookup_trust_scopes
+        trust_scopes = lookup_trust_scopes(resolved.provider, resolved.model_id)
+        messages = filter_context(
+            messages,
+            trust_scopes,
+            is_native_runtime=(resolved.provider == NATIVE_PROVIDER),
+        )
 
     # Build request
     request = CompletionRequest(

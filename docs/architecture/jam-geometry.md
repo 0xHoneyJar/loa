@@ -78,20 +78,24 @@ The synthesized review is posted as a single PR comment with:
 
 | Call | Model | Input Tokens | Output Tokens | Cost (micro-USD) |
 |------|-------|-------------|---------------|-------------------|
-| Reviewer 1 | claude-opus-4-6 | ~8,000 | ~2,000 | 90,000 |
+| Reviewer 1 | claude-code:session (native) | N/A | N/A | 0 (unmetered) |
 | Reviewer 2 | gpt-5.2 | ~8,000 | ~2,000 | 140,000 |
 | Reviewer 3 | kimi-k2-thinking | ~8,000 | ~2,000 | ~100,000 |
 | Synthesizer | claude-sonnet-4-6 | ~14,000 | ~1,500 | 64,500 |
-| **Total** | | | | **~394,500** (~$0.39) |
+| **Total** | | | | **~304,500** (~$0.30) |
+
+> Note: Reviewer 1 runs as the native Claude Code session (model: native),
+> which has direct file access and doesn't route through cheval.py. Its cost
+> is unmetered — covered by the Claude Code subscription, not per-token billing.
 
 ### Comparison to Current Seance Geometry
 
 | Geometry | Models | Calls | Estimated Cost | Quality |
 |----------|--------|-------|---------------|---------|
 | Seance (current) | 1 (GPT-5.2) | 1 | ~$0.14 | Single perspective |
-| Jam (proposed) | 3 + synthesizer | 4 | ~$0.39 | Multi-perspective + synthesis |
+| Jam (proposed) | 2 remote + native + synth | 4 | ~$0.30 | Multi-perspective + synthesis |
 
-Cost increase: ~2.8x for multi-perspective coverage. Justified for:
+Cost increase: ~2.1x for multi-perspective coverage. Justified for:
 - Major architectural changes
 - Security-sensitive PRs
 - Bridge iteration final reviews

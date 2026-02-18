@@ -24,9 +24,11 @@ from loa_cheval.routing.circuit_breaker import (
     record_success,
 )
 from loa_cheval.routing.context_filter import (
+    audit_filter_context,
     filter_context,
     filter_message_content,
     get_context_access,
+    lookup_trust_scopes,
 )
 
 __all__ = [
@@ -36,11 +38,13 @@ __all__ = [
     "NATIVE_MODEL",
     "NATIVE_PROVIDER",
     "OPEN",
+    "audit_filter_context",
     "check_state",
     "cleanup_stale_files",
     "filter_context",
     "filter_message_content",
     "get_context_access",
+    "lookup_trust_scopes",
     "record_failure",
     "record_success",
     "resolve_alias",

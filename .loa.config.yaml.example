@@ -591,6 +591,8 @@ hounfour:
     flatline_routing: false   # Route Flatline through Hounfour
     metering: true           # Enable BudgetEnforcer cost tracking
     thinking_traces: true    # Include thinking config in request bodies
+    jam_geometry: false      # Enable Jam multi-model parallel review (opt-in)
+    context_filtering: false # Epistemic context filtering: false | "audit" | "enforce"
 
   # Metering — cost tracking and budget enforcement (SDD §4.3)
   metering:

@@ -14,16 +14,31 @@ Context access dimensions:
 
 When context_access is missing entirely, all dimensions default to "full"
 (backward compatible with pre-v7 model-permissions).
+
+Modes:
+  enforce: Filter messages before sending (default when wired in)
+  audit:   Log what would be filtered but pass messages unmodified
+
+Language limitations (BB-502):
+  Function body redaction (_FUNCTION_BODY_PATTERN) supports Python, JavaScript,
+  and class definitions. Go func, Rust fn, Java methods without 'function'
+  keyword, and arrow functions are not detected. This is best-effort content
+  reduction, not a security boundary.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import re
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("loa_cheval.routing.context_filter")
+
+# Summary truncation limit (BB-505: extracted from hardcoded value)
+ARCHITECTURE_SUMMARY_MAX_CHARS = 500
 
 # Default context_access: all dimensions fully open
 DEFAULT_CONTEXT_ACCESS: Dict[str, str] = {
@@ -47,6 +62,8 @@ _SECURITY_MARKERS = re.compile(
     re.MULTILINE | re.IGNORECASE,
 )
 
+# Note (BB-507): context:\s*['\"] may false-positive on non-lore YAML fields.
+# Acceptable for content reduction (not a security boundary). Tighten if needed.
 _LORE_MARKERS = re.compile(
     r"(?:^#+\s*(?:Lore|Vision|Bridgebuilder|Retrospective)"
     r"|(?:lore_index|vision_registry|institutional knowledge)"
@@ -54,7 +71,9 @@ _LORE_MARKERS = re.compile(
     re.MULTILINE | re.IGNORECASE,
 )
 
-# Patterns for function/method bodies in code
+# Patterns for function/method bodies in code.
+# Language support: Python (def/async def), JavaScript (function), class definitions.
+# Does NOT match: Go func, Rust fn, Java methods, arrow functions (=>) — see BB-502.
 _FUNCTION_BODY_PATTERN = re.compile(
     r"((?:def |async def |function |class )\w+[^{:]*[{:])"  # signature
     r"(.*?)"  # body
@@ -93,7 +112,10 @@ def is_all_full(context_access: Dict[str, str]) -> bool:
 
 
 def _summarize_architecture(text: str) -> str:
-    """Reduce architecture content to headers + first paragraph (≤500 chars)."""
+    """Reduce architecture content to headers + first paragraph.
+
+    Truncates to ARCHITECTURE_SUMMARY_MAX_CHARS total content characters.
+    """
     lines = text.split("\n")
     result: List[str] = []
     chars = 0
@@ -109,7 +131,7 @@ def _summarize_architecture(text: str) -> str:
 
         # Keep first paragraph content after each header
         if in_first_paragraph and line.strip():
-            if chars < 500:
+            if chars < ARCHITECTURE_SUMMARY_MAX_CHARS:
                 result.append(line)
                 chars += len(line)
             else:
@@ -133,7 +155,14 @@ def _redact_function_bodies(text: str) -> str:
 
 
 def _strip_security_content(text: str) -> str:
-    """Remove security-tagged sections from text."""
+    """Remove security-tagged sections from text.
+
+    Scope (BB-503): Detects security content via header-level sections
+    (Security/Audit/Vulnerability/Findings) and inline markers (CVE refs,
+    OWASP keywords). Security discussions embedded in non-security-headed
+    sections without explicit markers may pass through. This is a content
+    reduction heuristic, not a leak-proof security boundary.
+    """
     lines = text.split("\n")
     result: List[str] = []
     in_security_section = False
@@ -307,5 +336,118 @@ def filter_context(
         content = msg.get("content", "")
         if isinstance(content, str) and content:
             msg["content"] = filter_message_content(content, context_access)
+        elif content and not isinstance(content, str):
+            # BB-504: Non-string content (list/dict) bypasses filtering.
+            # Log warning so audit trail captures unfiltered structured content.
+            logger.warning(
+                "context_filter_non_string_passthrough type=%s role=%s",
+                type(content).__name__,
+                msg.get("role", "unknown"),
+            )
 
     return filtered
+
+
+# --- Permissions Loader (BB-501: bridge enforcement to invocation path) ---
+
+_PERMISSIONS_CACHE: Optional[Dict[str, Any]] = None
+
+
+def _load_permissions() -> Dict[str, Any]:
+    """Load model-permissions.yaml with caching."""
+    global _PERMISSIONS_CACHE
+    if _PERMISSIONS_CACHE is not None:
+        return _PERMISSIONS_CACHE
+
+    # Search relative to repo root (adapters dir is .claude/adapters/)
+    adapters_dir = Path(__file__).resolve().parents[2]  # .claude/
+    permissions_path = adapters_dir / "data" / "model-permissions.yaml"
+
+    if not permissions_path.exists():
+        logger.warning("model-permissions.yaml not found at %s", permissions_path)
+        _PERMISSIONS_CACHE = {}
+        return _PERMISSIONS_CACHE
+
+    try:
+        import yaml
+        with open(permissions_path, "r") as f:
+            data = yaml.safe_load(f)
+        _PERMISSIONS_CACHE = data.get("model_permissions", {})
+    except Exception as e:
+        logger.warning("Failed to load model-permissions.yaml: %s", e)
+        _PERMISSIONS_CACHE = {}
+
+    return _PERMISSIONS_CACHE
+
+
+def lookup_trust_scopes(provider: str, model_id: str) -> Optional[Dict[str, Any]]:
+    """Look up trust_scopes for a provider:model_id from model-permissions.yaml.
+
+    Returns None if model not found (defaults to no filtering).
+    """
+    permissions = _load_permissions()
+    model_key = f"{provider}:{model_id}"
+    entry = permissions.get(model_key, {})
+    return entry.get("trust_scopes")
+
+
+def audit_filter_context(
+    messages: List[Dict[str, Any]],
+    provider: str,
+    model_id: str,
+    *,
+    is_native_runtime: bool = False,
+) -> List[Dict[str, Any]]:
+    """Audit-mode context filtering (BB-501, BB-512).
+
+    Runs the full filtering pipeline but only LOGS what would be filtered.
+    Returns the ORIGINAL messages unmodified. This provides visibility into
+    filtering behavior before enforcement is enabled.
+
+    Args:
+        messages: Original message list (not mutated).
+        provider: Resolved provider name.
+        model_id: Resolved model ID.
+        is_native_runtime: If True, skip audit.
+
+    Returns:
+        The original messages (unmodified).
+    """
+    if is_native_runtime:
+        return messages
+
+    trust_scopes = lookup_trust_scopes(provider, model_id)
+    context_access = get_context_access(trust_scopes)
+
+    if is_all_full(context_access):
+        return messages
+
+    filtered_dimensions = {k: v for k, v in context_access.items() if v != "full"}
+
+    # Run filtering on a copy to compute what would change
+    filtered = filter_context(messages, trust_scopes, is_native_runtime=False)
+
+    # Count changes
+    original_chars = sum(
+        len(m.get("content", "")) for m in messages
+        if isinstance(m.get("content"), str)
+    )
+    filtered_chars = sum(
+        len(m.get("content", "")) for m in filtered
+        if isinstance(m.get("content"), str)
+    )
+    chars_removed = original_chars - filtered_chars
+
+    logger.warning(
+        "context_filter_audit model=%s:%s dimensions=%s "
+        "original_chars=%d filtered_chars=%d chars_removed=%d",
+        provider,
+        model_id,
+        filtered_dimensions,
+        original_chars,
+        filtered_chars,
+        chars_removed,
+    )
+
+    # Return ORIGINAL messages unmodified (audit mode)
+    return messages
