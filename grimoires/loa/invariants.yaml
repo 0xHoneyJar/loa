@@ -1,0 +1,126 @@
+# Cross-Repository Invariant Declarations
+# Social contract expressed as verifiable properties (Bridgebuilder Part II)
+#
+# These invariants span the Loa metering pipeline (pricing → budget → ledger)
+# and the Hounfour runtime bridge. Each invariant is verified by specific
+# functions in the codebase, referenced by repo:file:symbol.
+
+schema_version: 1
+protocol: loa-hounfour@7.0.0
+
+invariants:
+  - id: INV-001
+    description: "Conservation — no micro-USD is created or destroyed during cost calculation. The fundamental economic invariant of the metering pipeline."
+    severity: critical
+    category: conservation
+    properties:
+      - "cost_micro * 1_000_000 + remainder == tokens * price_per_million"
+      - "sum(input_costs) == sum(distributed_costs) + sum(remainders)"
+      - "For any (tokens, price) where tokens * price <= MAX_SAFE_PRODUCT: divmod preserves total"
+    verified_in:
+      - repo: loa
+        file: ".claude/adapters/loa_cheval/metering/pricing.py"
+        symbol: "calculate_cost_micro"
+        note: "Integer divmod ensures cost*1M + remainder == tokens*price"
+      - repo: loa
+        file: ".claude/adapters/loa_cheval/metering/pricing.py"
+        symbol: "RemainderAccumulator"
+        note: "Carries sub-micro-USD fractions across requests without loss"
+      - repo: loa
+        file: ".claude/adapters/loa_cheval/metering/pricing.py"
+        symbol: "calculate_total_cost"
+        note: "Sums component costs preserving conservation across input/output/reasoning"
+      - repo: loa
+        file: ".claude/adapters/tests/test_conservation_invariant.py"
+        symbol: "TestConservationPropertyRange"
+        note: "Range-based verification across 156 token/price sample pairs"
+
+  - id: INV-002
+    description: "Non-negative spend — daily_spend >= 0 at all times. The ledger never records negative costs."
+    severity: critical
+    category: bounded
+    properties:
+      - "daily_spend >= 0 at all times"
+      - "read_daily_spend() >= 0 for any valid ledger file"
+      - "No ledger entry has cost_micro_usd < 0"
+    verified_in:
+      - repo: loa
+        file: ".claude/adapters/loa_cheval/metering/budget.py"
+        symbol: "BudgetEnforcer"
+        note: "pre_call_atomic reserves non-negative amounts only"
+      - repo: loa
+        file: ".claude/adapters/loa_cheval/metering/ledger.py"
+        symbol: "update_daily_spend"
+        note: "Adds positive cost to daily counter via flock-protected read-modify-write"
+      - repo: loa
+        file: ".claude/adapters/tests/test_conservation_invariant.py"
+        symbol: "TestDailySpendNonNegative"
+        note: "Verifies initial zero and monotonic increase"
+
+  - id: INV-003
+    description: "Deduplication — interaction_id uniqueness prevents double-counting. Each Deep Research interaction is recorded in the ledger at most once."
+    severity: important
+    category: idempotent
+    properties:
+      - "len(unique(interaction_ids)) == len(ledger_entries_for_interactions)"
+      - "post_call with duplicate interaction_id is a no-op"
+    verified_in:
+      - repo: loa
+        file: ".claude/adapters/loa_cheval/metering/budget.py"
+        symbol: "BudgetEnforcer"
+        note: "post_call tracks seen interaction_ids and skips duplicates"
+      - repo: loa
+        file: ".claude/adapters/loa_cheval/metering/ledger.py"
+        symbol: "record_cost"
+        note: "Delegates to append_ledger which writes atomically"
+      - repo: loa
+        file: ".claude/adapters/tests/test_budget_fallback.py"
+        symbol: "TestAtomicPreCallPostCallZeroCost"
+        note: "Verifies interaction_id deduplication in post_call"
+
+  - id: INV-004
+    description: "Budget monotonicity — daily spend counter only increases within a day, never decremented. Prevents budget evasion through counter manipulation."
+    severity: critical
+    category: monotonicity
+    properties:
+      - "daily_spend(t+1) >= daily_spend(t) within the same calendar day"
+      - "update_daily_spend only adds, never subtracts"
+    verified_in:
+      - repo: loa
+        file: ".claude/adapters/loa_cheval/metering/budget.py"
+        symbol: "BudgetEnforcer"
+        note: "post_call always adds positive cost to daily spend"
+      - repo: loa
+        file: ".claude/adapters/loa_cheval/metering/ledger.py"
+        symbol: "update_daily_spend"
+        note: "Adds entry_cost_micro to existing counter (never subtracts)"
+      - repo: loa
+        file: ".claude/adapters/tests/test_conservation_invariant.py"
+        symbol: "TestDailySpendNonNegative"
+        note: "test_spend_increases_monotonically verifies monotonic increase"
+
+  - id: INV-005
+    description: "Trust boundary — no model exceeds its trust_scopes at runtime. The resolver enforces that agent bindings respect declared trust boundaries."
+    severity: critical
+    category: bounded
+    properties:
+      - "For all agents: resolved_model.trust_scopes <= declared_trust_scopes"
+      - "native_runtime agents cannot be overridden to remote models"
+      - "Capability requirements must be satisfied by the resolved model"
+    verified_in:
+      - repo: loa
+        file: ".claude/adapters/loa_cheval/routing/resolver.py"
+        symbol: "resolve_execution"
+        note: "Checks native_runtime guard and capability requirements"
+      - repo: loa
+        file: ".claude/adapters/loa_cheval/routing/resolver.py"
+        symbol: "validate_bindings"
+        note: "Pre-flight validation that all agent bindings are satisfiable"
+      - repo: loa
+        file: ".claude/data/model-permissions.yaml"
+        symbol: "model_permissions"
+        note: "Declares trust_scopes for all registered models"
+      - repo: loa
+        file: ".claude/adapters/tests/test_trust_scopes.py"
+        symbol: "TestTrustScopesSchema"
+        note: "Validates all models have complete trust_scopes declarations"
