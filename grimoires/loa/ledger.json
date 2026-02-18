@@ -58,19 +58,19 @@
           "local_id": "sprint-1",
           "global_id": "sprint-5",
           "label": "GoogleAdapter — Standard Gemini Models",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "local_id": "sprint-2",
           "global_id": "sprint-6",
           "label": "Deep Research Adapter",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "local_id": "sprint-3",
           "global_id": "sprint-7",
           "label": "Metering Activation + Flatline Routing + Feature Flags",
-          "status": "pending"
+          "status": "completed"
         }
       ]
     }
