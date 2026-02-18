@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "active_cycle": null,
-  "global_sprint_counter": 13,
+  "active_cycle": "cycle-027",
+  "global_sprint_counter": 16,
   "cycles": [
     {
       "id": "cycle-025",
@@ -132,6 +132,35 @@
       "sprints": ["sprint-bug-5"],
       "triage": "grimoires/loa/a2a/bug-20260219-i367-ed7140/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260219-i367-ed7140/sprint.md"
+    },
+    {
+      "id": "cycle-027",
+      "label": "Broader QMD Integration Across Core Skills",
+      "status": "active",
+      "created": "2026-02-19T04:00:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "source_issue": 364,
+      "sprints": [
+        {
+          "local_id": "sprint-1",
+          "global_id": "sprint-14",
+          "label": "Unified Context Query Interface",
+          "status": "pending"
+        },
+        {
+          "local_id": "sprint-2",
+          "global_id": "sprint-15",
+          "label": "Skill Integrations",
+          "status": "pending"
+        },
+        {
+          "local_id": "sprint-3",
+          "global_id": "sprint-16",
+          "label": "Configuration and Validation",
+          "status": "pending"
+        }
+      ]
     }
   ]
 }

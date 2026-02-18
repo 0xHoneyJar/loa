@@ -1,36 +1,36 @@
 {
-  "simstim_id": "simstim-20260218-c026hounfour",
+  "simstim_id": "simstim-20260219-c027qmd",
   "schema_version": 1,
   "state": "RUNNING",
   "phase": "implementation",
   "timestamps": {
-    "started": "2026-02-18T00:00:00Z",
-    "last_activity": "2026-02-18T03:00:00Z"
+    "started": "2026-02-19T04:00:00Z",
+    "last_activity": "2026-02-19T04:30:00Z"
   },
   "phases": {
     "preflight": "completed",
     "discovery": "completed",
-    "flatline_prd": "completed",
+    "flatline_prd": "skipped",
     "architecture": "completed",
-    "flatline_sdd": "completed",
+    "flatline_sdd": "skipped",
     "planning": "completed",
-    "flatline_sprint": "completed",
-    "flatline_beads": "completed",
+    "flatline_sprint": "skipped",
+    "flatline_beads": "skipped",
     "implementation": "in_progress",
     "complete": "pending"
   },
   "artifacts": {
     "prd": {
       "path": "grimoires/loa/prd.md",
-      "checksum": "sha256:2dcf8ef768e2e47679a40e10bf27fb864339b4d332b12ee0b74bcd6eaf7f8151"
+      "checksum": "sha256:f7b31b9a27ba5925c0385a492ff99b59876e6b8624f0aaabb99a5399febd1052"
     },
     "sdd": {
       "path": "grimoires/loa/sdd.md",
-      "checksum": "sha256:250facff14e5031489fb74d7208382a5e9bdbdaee7dd30b0596cf3b659a969a2"
+      "checksum": "sha256:4ef178bd8f92db9e97c21bcf62718ea1861db30911f896f40c55f882304a9086"
     },
     "sprint": {
       "path": "grimoires/loa/sprint.md",
-      "checksum": "sha256:f6c438b63bc29d16aefacbd7c467047c92faf0b3139bdb483bab3ce272932344"
+      "checksum": "sha256:89fbbef408b996f7ffa53a19210ec66964161a72e408433eb3ceb8b19659e27d"
     }
   },
   "flatline_results": {
@@ -66,6 +66,6 @@
       "converge_reason": "most_findings_overlap_sprint"
     }
   },
-  "cycle": "cycle-026",
-  "title": "Hounfour Runtime Bridge — Model-Heterogeneous Agent Routing"
+  "cycle": "cycle-027",
+  "title": "Broader QMD Integration Across Core Skills"
 }
