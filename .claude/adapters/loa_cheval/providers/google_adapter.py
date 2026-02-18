@@ -1,13 +1,17 @@
-"""Google Gemini provider adapter — handles generateContent API (SDD 4.1).
+"""Google Gemini provider adapter — handles generateContent + Interactions API (SDD 4.1).
 
-Supports standard Gemini 2.5/3 models via generateContent endpoint.
-Deep Research (Interactions API) is handled via _complete_deep_research() (Sprint 2).
+Supports:
+  - Standard Gemini 2.5/3 models via generateContent endpoint
+  - Deep Research via Interactions API (blocking-poll and non-blocking modes)
 """
 
 from __future__ import annotations
 
+import json as _json
 import logging
+import os
 import random
+import re
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -115,6 +119,8 @@ class GoogleAdapter(ProviderAdapter):
     def _complete_standard(self, request, model_config):
         # type: (CompletionRequest, Any) -> CompletionResult
         """Standard generateContent flow (SDD 4.1.4)."""
+        from loa_cheval.providers.concurrency import FLockSemaphore
+
         enforce_context_window(request, model_config)
 
         # Translate messages (Task 1.2)
@@ -151,14 +157,15 @@ class GoogleAdapter(ProviderAdapter):
             "models/%s:generateContent" % request.model
         )
 
-        # Call with retry (Flatline IMP-001)
-        start = time.monotonic()
-        status, resp = _call_with_retry(
-            url, headers, body,
-            connect_timeout=self.config.connect_timeout,
-            read_timeout=self.config.read_timeout,
-        )
-        latency_ms = int((time.monotonic() - start) * 1000)
+        # Call with retry + concurrency control (Flatline IMP-001, Task 2.4)
+        with FLockSemaphore("google-standard", max_concurrent=5):
+            start = time.monotonic()
+            status, resp = _call_with_retry(
+                url, headers, body,
+                connect_timeout=self.config.connect_timeout,
+                read_timeout=self.config.read_timeout,
+            )
+            latency_ms = int((time.monotonic() - start) * 1000)
 
         # Error mapping (Task 1.5)
         if status >= 400:
@@ -171,11 +178,224 @@ class GoogleAdapter(ProviderAdapter):
 
     def _complete_deep_research(self, request, model_config):
         # type: (CompletionRequest, Any) -> CompletionResult
-        """Deep Research via Interactions API (Sprint 2 — stub)."""
-        raise InvalidInputError(
-            "Deep Research (api_mode=interactions) is not yet implemented. "
-            "Use a standard Gemini model instead."
+        """Deep Research via Interactions API — blocking-poll (SDD 4.2.1)."""
+        from loa_cheval.providers.concurrency import FLockSemaphore
+
+        extra = getattr(model_config, "extra", None) or {}
+        poll_interval = extra.get("polling_interval_s", 5)
+        max_poll_time = extra.get("max_poll_time_s", 600)
+        store = extra.get("store", False)
+
+        # Concurrency control (Task 2.4)
+        with FLockSemaphore("google-deep-research", max_concurrent=3):
+            # Create interaction
+            interaction = self.create_interaction(
+                request, model_config, store=store,
+            )
+            interaction_id = interaction.get("name", "")
+
+            if not interaction_id:
+                raise InvalidInputError(
+                    "Deep Research createInteraction returned no interaction ID"
+                )
+
+            # Persist metadata for recovery (Flatline SKP-009)
+            _persist_interaction(interaction_id, request.model)
+
+            # Poll until complete
+            start = time.monotonic()
+            result = self.poll_interaction(
+                interaction_id, model_config,
+                poll_interval=poll_interval,
+                timeout=max_poll_time,
+            )
+
+            latency_ms = int((time.monotonic() - start) * 1000)
+
+            # Normalize output
+            normalized = _normalize_citations(result.get("output", ""))
+            content = _json.dumps(normalized)
+
+            # Parse usage
+            usage_meta = result.get("usageMetadata", {})
+            usage = Usage(
+                input_tokens=usage_meta.get("promptTokenCount", 0),
+                output_tokens=usage_meta.get("candidatesTokenCount", 0),
+                reasoning_tokens=0,
+                source="actual" if usage_meta else "estimated",
+            )
+
+            return CompletionResult(
+                content=content,
+                tool_calls=None,
+                thinking=None,
+                usage=usage,
+                model=request.model,
+                latency_ms=latency_ms,
+                provider=self.provider,
+            )
+
+    def create_interaction(self, request, model_config, store=False):
+        # type: (CompletionRequest, Any, bool) -> Dict[str, Any]
+        """Create a Deep Research interaction (non-blocking start)."""
+        auth = self._get_auth_header()
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": auth,
+        }
+
+        # Extract user prompt from messages
+        user_content = ""
+        for msg in request.messages:
+            if msg.get("role") == "user":
+                content = msg.get("content", "")
+                if isinstance(content, str):
+                    user_content = content
+                    break
+
+        body = {
+            "query": user_content,
+            "background": True,
+            "store": store,
+        }
+
+        url = self._build_url(
+            "models/%s:createInteraction" % request.model
         )
+
+        status, resp = _call_with_retry(
+            url, headers, body,
+            connect_timeout=self.config.connect_timeout,
+            read_timeout=self.config.read_timeout,
+        )
+
+        if status >= 400:
+            _raise_for_status(status, resp, self.provider)
+
+        return resp
+
+    def poll_interaction(self, interaction_id, model_config,
+                         poll_interval=5, timeout=600):
+        # type: (str, Any, int, int) -> Dict[str, Any]
+        """Poll a Deep Research interaction until completion."""
+        auth = self._get_auth_header()
+        headers = {
+            "x-goog-api-key": auth,
+        }
+
+        start = time.monotonic()
+        last_log = start
+        attempt = 0
+
+        # Completed state names (case-insensitive, schema-tolerant)
+        completed_states = {"completed", "done", "succeeded"}
+        failed_states = {"failed", "error", "cancelled"}
+
+        while True:
+            elapsed = time.monotonic() - start
+            if elapsed >= timeout:
+                raise TimeoutError(
+                    "Deep Research poll timed out after %ds for %s"
+                    % (timeout, interaction_id)
+                )
+
+            # GET poll request
+            url = self._build_url(interaction_id)
+            try:
+                client = _detect_http_client_for_get()
+                # For polling, we need the full response, not just status
+                poll_status, poll_resp = _poll_get(
+                    url, headers,
+                    connect_timeout=5.0,
+                    read_timeout=30.0,
+                )
+            except Exception as exc:
+                attempt += 1
+                if attempt > _MAX_RETRIES:
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        "Poll failed after %d attempts: %s" % (attempt, exc),
+                    )
+                time.sleep(min(poll_interval * (2 ** attempt), 30))
+                continue
+
+            # Retry on transient errors (Flatline SKP-009)
+            if poll_status in _RETRYABLE_STATUS_CODES:
+                attempt += 1
+                if attempt > _MAX_RETRIES:
+                    _raise_for_status(poll_status, poll_resp, self.provider)
+                delay = min(poll_interval * (2 ** attempt), 30)
+                logger.warning(
+                    "dr_poll_retry attempt=%d status=%d delay=%.1fs",
+                    attempt, poll_status, delay,
+                )
+                time.sleep(delay)
+                continue
+
+            if poll_status >= 400:
+                _raise_for_status(poll_status, poll_resp, self.provider)
+
+            attempt = 0  # Reset on success
+
+            # Schema-tolerant status check (accepts "status" or "state")
+            state = (
+                poll_resp.get("status", "")
+                or poll_resp.get("state", "")
+            ).lower()
+
+            if state in completed_states:
+                return poll_resp
+
+            if state in failed_states:
+                err_msg = _extract_error_message(poll_resp)
+                raise ProviderUnavailableError(
+                    self.provider,
+                    "Deep Research failed: %s" % err_msg,
+                )
+
+            # Unknown status — log warning, continue (Flatline SKP-009)
+            if state and state not in {"processing", "pending", "running", "queued"}:
+                logger.warning(
+                    "dr_unknown_status interaction=%s status=%s",
+                    interaction_id, state,
+                )
+
+            # Progress log every 30s (no prompt content — IMP-009)
+            now = time.monotonic()
+            if now - last_log >= 30:
+                logger.info(
+                    "dr_polling interaction=%s elapsed=%.0fs status=%s",
+                    interaction_id, elapsed, state,
+                )
+                last_log = now
+
+            time.sleep(poll_interval)
+
+    def cancel_interaction(self, interaction_id):
+        # type: (str) -> bool
+        """Best-effort cancellation of a Deep Research interaction.
+
+        Idempotent — cancelling already-cancelled is a no-op (Flatline SKP-009).
+        Returns True if cancellation accepted, False otherwise.
+        """
+        auth = self._get_auth_header()
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": auth,
+        }
+
+        url = self._build_url("%s:cancel" % interaction_id)
+
+        try:
+            status, resp = http_post(
+                url, headers, {},
+                connect_timeout=5.0,
+                read_timeout=10.0,
+            )
+            # 200 = cancelled, 400 = already done (idempotent)
+            return status < 500
+        except Exception:
+            return False
 
 
 # --- Message Translation (Task 1.2) ---
@@ -455,6 +675,135 @@ def _call_with_retry(url, headers, body, connect_timeout=10.0, read_timeout=120.
             time.sleep(delay)
 
     return last_status, last_resp
+
+
+# --- Citation Normalization (Task 2.2) ---
+
+
+def _normalize_citations(raw_output):
+    # type: (str) -> Dict[str, Any]
+    """Extract structured citations from Deep Research output (SDD 4.2.3).
+
+    Never fails — returns raw_output with empty citations on extraction failure.
+    """
+    if not raw_output:
+        return {"summary": "", "claims": [], "citations": [], "raw_output": ""}
+
+    citations = []  # type: List[Dict[str, str]]
+
+    try:
+        # Extract markdown citation references [N]
+        ref_pattern = re.compile(r"\[(\d+)\]")
+        ref_numbers = set(ref_pattern.findall(raw_output))
+
+        # Extract DOI patterns
+        doi_pattern = re.compile(r"10\.\d{4,}/[^\s,)]+")
+        dois = doi_pattern.findall(raw_output)
+
+        # Extract URLs
+        url_pattern = re.compile(
+            r"https?://[^\s<>\"'\]),]+[^\s<>\"'\]),.]"
+        )
+        urls = url_pattern.findall(raw_output)
+
+        for ref in sorted(ref_numbers, key=int):
+            citations.append({"type": "reference", "id": ref})
+
+        for doi in dois:
+            citations.append({"type": "doi", "value": doi})
+
+        for url in urls:
+            citations.append({"type": "url", "value": url})
+
+    except Exception:
+        logger.warning("dr_citation_extraction_failed")
+
+    if not citations:
+        logger.warning("dr_no_citations_extracted")
+
+    return {
+        "summary": raw_output[:500] if len(raw_output) > 500 else raw_output,
+        "claims": [],
+        "citations": citations,
+        "raw_output": raw_output,
+    }
+
+
+# --- Interaction Persistence (Flatline SKP-009) ---
+
+
+_INTERACTIONS_FILE = ".run/.dr-interactions.json"
+
+
+def _persist_interaction(interaction_id, model):
+    # type: (str, str) -> None
+    """Save interaction metadata for crash recovery."""
+    try:
+        data = {}  # type: Dict[str, Any]
+        if os.path.exists(_INTERACTIONS_FILE):
+            with open(_INTERACTIONS_FILE, "r") as f:
+                data = _json.load(f)
+
+        data[interaction_id] = {
+            "model": model,
+            "start_time": time.time(),
+            "pid": os.getpid(),
+        }
+
+        os.makedirs(os.path.dirname(_INTERACTIONS_FILE) or ".", exist_ok=True)
+        with open(_INTERACTIONS_FILE, "w") as f:
+            _json.dump(data, f, indent=2)
+    except Exception:
+        logger.warning("dr_persist_failed interaction=%s", interaction_id)
+
+
+def _load_persisted_interactions():
+    # type: () -> Dict[str, Any]
+    """Load persisted interaction metadata for recovery."""
+    try:
+        if os.path.exists(_INTERACTIONS_FILE):
+            with open(_INTERACTIONS_FILE, "r") as f:
+                return _json.load(f)
+    except Exception:
+        pass
+    return {}
+
+
+# --- Poll GET Helper ---
+
+
+def _poll_get(url, headers, connect_timeout=5.0, read_timeout=30.0):
+    # type: (str, Dict[str, str], float, float) -> Tuple[int, Dict[str, Any]]
+    """HTTP GET that returns (status_code, response_json)."""
+    try:
+        import httpx
+
+        timeout = httpx.Timeout(
+            connect=connect_timeout,
+            read=read_timeout,
+            write=10.0,
+            pool=5.0,
+        )
+        resp = httpx.get(url, headers=headers, timeout=timeout)
+        return resp.status_code, resp.json()
+    except ImportError:
+        pass
+
+    import urllib.request
+    import urllib.error
+
+    req = urllib.request.Request(url, headers=headers, method="GET")
+    total_timeout = connect_timeout + read_timeout
+    try:
+        with urllib.request.urlopen(req, timeout=total_timeout) as resp:
+            body = resp.read().decode("utf-8")
+            return resp.status, _json.loads(body)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8") if e.fp else "{}"
+        try:
+            return e.code, _json.loads(body)
+        except _json.JSONDecodeError:
+            return e.code, {"error": {"message": body}}
 
 
 # --- Health Check Helper ---

@@ -1,0 +1,8 @@
+{
+  "name": "interactions/dr-abc123-def456",
+  "status": "processing",
+  "progress": {
+    "phase": "researching",
+    "percent": 45
+  }
+}

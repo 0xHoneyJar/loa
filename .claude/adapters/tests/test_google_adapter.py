@@ -27,6 +27,7 @@ from loa_cheval.types import (
     ProviderConfig,
     ProviderUnavailableError,
     RateLimitError,
+    Usage,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -549,19 +550,35 @@ class TestGoogleAdapterComplete:
         with pytest.raises(RateLimitError):
             adapter.complete(request)
 
-    def test_deep_research_stub(self):
+    @patch("loa_cheval.providers.google_adapter._poll_get")
+    @patch("loa_cheval.providers.google_adapter.http_post")
+    def test_deep_research_blocking_poll(self, mock_http, mock_poll):
+        """Task 2.1: Full blocking-poll flow."""
+        create_fixture = json.loads((FIXTURES / "gemini-deep-research-create.json").read_text())
+        completed_fixture = json.loads((FIXTURES / "gemini-deep-research-completed.json").read_text())
+
+        mock_http.return_value = (200, create_fixture)
+        mock_poll.return_value = (200, completed_fixture)
+
         config = _make_google_config()
         config.models["deep-research-pro"] = ModelConfig(
             capabilities=["chat", "deep_research"],
             api_mode="interactions",
+            extra={"polling_interval_s": 0.1, "max_poll_time_s": 5, "store": False},
         )
         adapter = GoogleAdapter(config)
         request = CompletionRequest(
-            messages=[{"role": "user", "content": "Research this"}],
+            messages=[{"role": "user", "content": "Research quantum computing advances"}],
             model="deep-research-pro",
         )
-        with pytest.raises(InvalidInputError, match="not yet implemented"):
-            adapter.complete(request)
+        result = adapter.complete(request)
+
+        assert result.provider == "google"
+        # Content is JSON with normalized citations
+        import json as _json
+        parsed = _json.loads(result.content)
+        assert "citations" in parsed
+        assert "raw_output" in parsed
 
 
 # --- Log Redaction Tests (Flatline IMP-009) ---
@@ -606,3 +623,233 @@ class TestRegistration:
         config = _make_google_config()
         adapter = get_adapter(config)
         assert isinstance(adapter, GoogleAdapter)
+
+
+# --- Deep Research Tests (Sprint 2 Task 2.7) ---
+
+
+class TestDeepResearchPoll:
+    """Test Deep Research Interactions API polling."""
+
+    @patch("loa_cheval.providers.google_adapter._poll_get")
+    @patch("loa_cheval.providers.google_adapter.http_post")
+    def test_poll_timeout(self, mock_http, mock_poll):
+        """Forever-pending → TimeoutError."""
+        create_resp = {"name": "interactions/test-123"}
+        mock_http.return_value = (200, create_resp)
+        mock_poll.return_value = (200, {"status": "processing"})
+
+        config = _make_google_config()
+        config.models["deep-research-pro"] = ModelConfig(
+            api_mode="interactions",
+            extra={"polling_interval_s": 0.05, "max_poll_time_s": 0.2},
+        )
+        adapter = GoogleAdapter(config)
+        request = CompletionRequest(
+            messages=[{"role": "user", "content": "test"}],
+            model="deep-research-pro",
+        )
+        with pytest.raises(TimeoutError, match="timed out"):
+            adapter.complete(request)
+
+    @patch("loa_cheval.providers.google_adapter._poll_get")
+    @patch("loa_cheval.providers.google_adapter.http_post")
+    def test_poll_failure(self, mock_http, mock_poll):
+        """Failed status → ProviderUnavailableError."""
+        mock_http.return_value = (200, {"name": "interactions/test-456"})
+        failed_fixture = json.loads((FIXTURES / "gemini-deep-research-failed.json").read_text())
+        mock_poll.return_value = (200, failed_fixture)
+
+        config = _make_google_config()
+        config.models["deep-research-pro"] = ModelConfig(
+            api_mode="interactions",
+            extra={"polling_interval_s": 0.05, "max_poll_time_s": 5},
+        )
+        adapter = GoogleAdapter(config)
+        request = CompletionRequest(
+            messages=[{"role": "user", "content": "test"}],
+            model="deep-research-pro",
+        )
+        with pytest.raises(ProviderUnavailableError, match="failed"):
+            adapter.complete(request)
+
+    @patch("loa_cheval.providers.google_adapter.http_post")
+    def test_store_default_false(self, mock_http):
+        """Verify store: false in request body by default (Flatline SKP-002)."""
+        mock_http.return_value = (200, {"name": "interactions/test-789"})
+
+        config = _make_google_config()
+        config.models["deep-research-pro"] = ModelConfig(
+            api_mode="interactions",
+            extra={"polling_interval_s": 0.05, "max_poll_time_s": 0.1},
+        )
+        adapter = GoogleAdapter(config)
+
+        # Just test create_interaction directly
+        request = CompletionRequest(
+            messages=[{"role": "user", "content": "test"}],
+            model="deep-research-pro",
+        )
+        model_config = config.models["deep-research-pro"]
+        adapter.create_interaction(request, model_config, store=False)
+
+        call_args = mock_http.call_args
+        body = call_args[0][2] if len(call_args[0]) > 2 else call_args[1].get("body", {})
+        assert body.get("store") is False
+
+    @patch("loa_cheval.providers.google_adapter._poll_get")
+    def test_schema_tolerant_status(self, mock_poll):
+        """Both 'status' and 'state' field names accepted."""
+        from loa_cheval.providers.google_adapter import GoogleAdapter as GA
+
+        config = _make_google_config()
+        config.models["dr"] = ModelConfig(
+            api_mode="interactions",
+            extra={"polling_interval_s": 0.05, "max_poll_time_s": 5},
+        )
+        adapter = GA(config)
+
+        # Test with "state" field instead of "status"
+        mock_poll.return_value = (200, {"state": "completed", "output": "result"})
+        result = adapter.poll_interaction(
+            "interactions/test", config.models["dr"],
+            poll_interval=0.05, timeout=2,
+        )
+        assert result.get("state") == "completed"
+
+    @patch("loa_cheval.providers.google_adapter._poll_get")
+    @patch("loa_cheval.providers.google_adapter.time.sleep")
+    def test_poll_retry_on_5xx(self, mock_sleep, mock_poll):
+        """Transient 500 during poll → retry, then complete (Flatline SKP-009)."""
+        config = _make_google_config()
+        config.models["dr"] = ModelConfig(
+            api_mode="interactions",
+            extra={"polling_interval_s": 0.05, "max_poll_time_s": 30},
+        )
+        adapter = GoogleAdapter(config)
+
+        mock_poll.side_effect = [
+            (500, {"error": {"message": "Internal"}}),
+            (200, {"status": "completed", "output": "done"}),
+        ]
+        result = adapter.poll_interaction(
+            "interactions/test", config.models["dr"],
+            poll_interval=0.05, timeout=10,
+        )
+        assert result.get("status") == "completed"
+
+    @patch("loa_cheval.providers.google_adapter._poll_get")
+    @patch("loa_cheval.providers.google_adapter.time.sleep")
+    def test_unknown_status_continues(self, mock_sleep, mock_poll, caplog):
+        """Unknown status string → continue polling (Flatline SKP-009)."""
+        config = _make_google_config()
+        config.models["dr"] = ModelConfig(
+            api_mode="interactions",
+            extra={"polling_interval_s": 0.05, "max_poll_time_s": 5},
+        )
+        adapter = GoogleAdapter(config)
+
+        mock_poll.side_effect = [
+            (200, {"status": "initializing_research_agents"}),
+            (200, {"status": "completed", "output": "done"}),
+        ]
+        with caplog.at_level(logging.WARNING, logger="loa_cheval.providers.google"):
+            result = adapter.poll_interaction(
+                "interactions/test", config.models["dr"],
+                poll_interval=0.05, timeout=5,
+            )
+        assert result.get("status") == "completed"
+        assert "unknown_status" in caplog.text
+
+    @patch("loa_cheval.providers.google_adapter.http_post")
+    def test_cancel_idempotent(self, mock_http):
+        """Cancel already-cancelled → no error (Flatline SKP-009)."""
+        mock_http.return_value = (400, {"error": {"message": "Already completed"}})
+
+        adapter = GoogleAdapter(_make_google_config())
+        result = adapter.cancel_interaction("interactions/test-done")
+        # 400 = already done, still returns True (idempotent)
+        assert result is True
+
+
+# --- Citation Normalization Tests (Task 2.2) ---
+
+
+class TestNormalizeCitations:
+    """Test Deep Research output citation extraction."""
+
+    def test_citations_with_dois(self):
+        text = "See DOI 10.1234/example.2025.001 and 10.5678/paper.v2 for details."
+        from loa_cheval.providers.google_adapter import _normalize_citations
+        result = _normalize_citations(text)
+        dois = [c for c in result["citations"] if c["type"] == "doi"]
+        assert len(dois) == 2
+        assert dois[0]["value"] == "10.1234/example.2025.001"
+
+    def test_citations_with_urls(self):
+        text = "For more info, see https://example.com/paper and http://arxiv.org/abs/1234."
+        from loa_cheval.providers.google_adapter import _normalize_citations
+        result = _normalize_citations(text)
+        urls = [c for c in result["citations"] if c["type"] == "url"]
+        assert len(urls) == 2
+
+    def test_citations_with_references(self):
+        text = "According to [1], the approach works. Also see [2] and [3]."
+        from loa_cheval.providers.google_adapter import _normalize_citations
+        result = _normalize_citations(text)
+        refs = [c for c in result["citations"] if c["type"] == "reference"]
+        assert len(refs) == 3
+
+    def test_empty_citations(self, caplog):
+        text = "Just some plain text without any citations."
+        from loa_cheval.providers.google_adapter import _normalize_citations
+        with caplog.at_level(logging.WARNING, logger="loa_cheval.providers.google"):
+            result = _normalize_citations(text)
+        assert result["citations"] == []
+        assert result["raw_output"] == text
+        assert "no_citations" in caplog.text
+
+    def test_empty_input(self):
+        from loa_cheval.providers.google_adapter import _normalize_citations
+        result = _normalize_citations("")
+        assert result["summary"] == ""
+        assert result["citations"] == []
+
+    def test_completed_fixture_citations(self):
+        """Full fixture extraction."""
+        fixture = json.loads((FIXTURES / "gemini-deep-research-completed.json").read_text())
+        from loa_cheval.providers.google_adapter import _normalize_citations
+        result = _normalize_citations(fixture["output"])
+
+        # Should find references [1], [2], a DOI, and a URL
+        refs = [c for c in result["citations"] if c["type"] == "reference"]
+        dois = [c for c in result["citations"] if c["type"] == "doi"]
+        urls = [c for c in result["citations"] if c["type"] == "url"]
+
+        assert len(refs) >= 1
+        assert len(dois) >= 1
+        assert len(urls) >= 1
+
+
+# --- Interaction Persistence Tests (Flatline SKP-009) ---
+
+
+class TestInteractionPersistence:
+    """Test interaction metadata persistence for crash recovery."""
+
+    def test_persist_and_load(self, tmp_path, monkeypatch):
+        from loa_cheval.providers.google_adapter import (
+            _persist_interaction,
+            _load_persisted_interactions,
+            _INTERACTIONS_FILE,
+        )
+        import loa_cheval.providers.google_adapter as ga_mod
+
+        # Redirect to tmp path
+        test_file = str(tmp_path / ".dr-interactions.json")
+        monkeypatch.setattr(ga_mod, "_INTERACTIONS_FILE", test_file)
+
+        _persist_interaction("interactions/test-1", "gemini-3-pro")
+        data = _load_persisted_interactions()
+        assert "interactions/test-1" in data
+        assert data["interactions/test-1"]["model"] == "gemini-3-pro"

@@ -271,6 +271,23 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         provider_config = _build_provider_config(resolved.provider, hounfour)
         adapter = get_adapter(provider_config)
 
+        # Non-blocking async mode (Task 2.5)
+        if getattr(args, "async_mode", False):
+            if not hasattr(adapter, "create_interaction"):
+                print(_error_json("INVALID_INPUT", f"Provider '{resolved.provider}' does not support --async"), file=sys.stderr)
+                return EXIT_CODES["INVALID_INPUT"]
+
+            model_config = adapter._get_model_config(resolved.model_id)
+            interaction = adapter.create_interaction(request, model_config)
+            output = {
+                "interaction_id": interaction.get("name", ""),
+                "model": resolved.model_id,
+                "provider": resolved.provider,
+                "status": "pending",
+            }
+            print(json.dumps(output), file=sys.stdout)
+            return EXIT_CODES["INTERACTION_PENDING"]
+
         # Import retry logic if available
         try:
             from loa_cheval.providers.retry import invoke_with_retry
@@ -292,12 +309,14 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 },
                 "latency_ms": result.latency_ms,
             }
-            if result.thinking:
+            # Thinking trace policy (Task 2.6, SDD 4.6)
+            if result.thinking and getattr(args, "include_thinking", False):
                 output["thinking"] = result.thinking
             if result.tool_calls:
                 output["tool_calls"] = result.tool_calls
             print(json.dumps(output), file=sys.stdout)
         else:
+            # Text mode: thinking NEVER printed
             print(result.content, file=sys.stdout)
 
         return EXIT_CODES["SUCCESS"]
@@ -357,6 +376,86 @@ def cmd_validate_bindings(args: argparse.Namespace) -> int:
     return EXIT_CODES["SUCCESS"]
 
 
+def cmd_poll(args: argparse.Namespace) -> int:
+    """Poll a Deep Research interaction."""
+    if not args.agent:
+        print(_error_json("INVALID_INPUT", "--poll requires --agent to identify provider"), file=sys.stderr)
+        return EXIT_CODES["INVALID_INPUT"]
+
+    config, _ = load_config(cli_args=vars(args))
+    hounfour = config if "providers" in config else config.get("hounfour", config)
+
+    try:
+        binding, resolved = resolve_execution(args.agent, hounfour, model_override=args.model)
+    except (ConfigError, InvalidInputError) as e:
+        print(_error_json(e.code, str(e)), file=sys.stderr)
+        return EXIT_CODES.get(e.code, 2)
+
+    try:
+        provider_config = _build_provider_config(resolved.provider, hounfour)
+        adapter = get_adapter(provider_config)
+
+        if not hasattr(adapter, "poll_interaction"):
+            print(_error_json("INVALID_INPUT", f"Provider '{resolved.provider}' does not support --poll"), file=sys.stderr)
+            return EXIT_CODES["INVALID_INPUT"]
+
+        model_config = adapter._get_model_config(resolved.model_id)
+        result = adapter.poll_interaction(args.poll_id, model_config, poll_interval=5, timeout=30)
+
+        # Completed — output result
+        output = {"status": "completed", "interaction_id": args.poll_id, "result": result}
+        print(json.dumps(output), file=sys.stdout)
+        return EXIT_CODES["SUCCESS"]
+
+    except TimeoutError:
+        # Still pending
+        output = {"status": "pending", "interaction_id": args.poll_id}
+        print(json.dumps(output), file=sys.stdout)
+        return EXIT_CODES["INTERACTION_PENDING"]
+    except ChevalError as e:
+        print(_error_json(e.code, str(e), retryable=e.retryable), file=sys.stderr)
+        return EXIT_CODES.get(e.code, 1)
+    except Exception as e:
+        print(_error_json("API_ERROR", str(e)), file=sys.stderr)
+        return EXIT_CODES["API_ERROR"]
+
+
+def cmd_cancel(args: argparse.Namespace) -> int:
+    """Cancel a Deep Research interaction."""
+    if not args.agent:
+        print(_error_json("INVALID_INPUT", "--cancel requires --agent to identify provider"), file=sys.stderr)
+        return EXIT_CODES["INVALID_INPUT"]
+
+    config, _ = load_config(cli_args=vars(args))
+    hounfour = config if "providers" in config else config.get("hounfour", config)
+
+    try:
+        binding, resolved = resolve_execution(args.agent, hounfour, model_override=args.model)
+    except (ConfigError, InvalidInputError) as e:
+        print(_error_json(e.code, str(e)), file=sys.stderr)
+        return EXIT_CODES.get(e.code, 2)
+
+    try:
+        provider_config = _build_provider_config(resolved.provider, hounfour)
+        adapter = get_adapter(provider_config)
+
+        if not hasattr(adapter, "cancel_interaction"):
+            print(_error_json("INVALID_INPUT", f"Provider '{resolved.provider}' does not support --cancel"), file=sys.stderr)
+            return EXIT_CODES["INVALID_INPUT"]
+
+        success = adapter.cancel_interaction(args.cancel_id)
+        output = {"cancelled": success, "interaction_id": args.cancel_id}
+        print(json.dumps(output), file=sys.stdout)
+        return EXIT_CODES["SUCCESS"]
+
+    except ChevalError as e:
+        print(_error_json(e.code, str(e), retryable=e.retryable), file=sys.stderr)
+        return EXIT_CODES.get(e.code, 1)
+    except Exception as e:
+        print(_error_json("API_ERROR", str(e)), file=sys.stderr)
+        return EXIT_CODES["API_ERROR"]
+
+
 def main() -> int:
     """CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -374,6 +473,12 @@ def main() -> int:
     parser.add_argument("--output-format", choices=["text", "json"], default="text", dest="output_format", help="Output format")
     parser.add_argument("--json-errors", action="store_true", dest="json_errors", help="JSON error output on stderr (default for programmatic callers)")
     parser.add_argument("--timeout", type=int, help="Request timeout in seconds")
+    parser.add_argument("--include-thinking", action="store_true", dest="include_thinking", help="Include thinking traces in JSON output (SDD 4.6)")
+
+    # Deep Research non-blocking mode (SDD 4.2.2, 4.5)
+    parser.add_argument("--async", action="store_true", dest="async_mode", help="Start Deep Research non-blocking, return interaction ID")
+    parser.add_argument("--poll", metavar="INTERACTION_ID", dest="poll_id", help="Poll Deep Research interaction status")
+    parser.add_argument("--cancel", metavar="INTERACTION_ID", dest="cancel_id", help="Cancel Deep Research interaction")
 
     # Utility commands
     parser.add_argument("--dry-run", action="store_true", dest="dry_run", help="Validate and print resolved model, don't call API")
@@ -387,6 +492,10 @@ def main() -> int:
         return cmd_print_config(args)
     if args.validate_bindings:
         return cmd_validate_bindings(args)
+    if args.poll_id:
+        return cmd_poll(args)
+    if args.cancel_id:
+        return cmd_cancel(args)
 
     return cmd_invoke(args)
 

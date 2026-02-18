@@ -1,0 +1,10 @@
+{
+  "name": "interactions/dr-abc123-def456",
+  "status": "completed",
+  "output": "## Research Summary\n\nBased on analysis of 15 sources, the key findings are:\n\n1. **Finding A**: According to Smith et al. (2025) [1], the approach yields 95% accuracy.\n2. **Finding B**: The DOI 10.1234/example.2025.001 confirms reproducibility.\n3. **Finding C**: See https://example.com/research/paper for details.\n\n## References\n\n[1] Smith, J. et al. \"Title of Paper.\" Journal, 2025.\n[2] Johnson, K. \"Another Paper.\" Conference, 2025.",
+  "usageMetadata": {
+    "promptTokenCount": 150,
+    "candidatesTokenCount": 2500,
+    "totalTokenCount": 2650
+  }
+}
