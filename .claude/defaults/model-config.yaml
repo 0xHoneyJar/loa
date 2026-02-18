@@ -14,12 +14,14 @@ providers:
       gpt-5.2:
         capabilities: [chat, tools, function_calling]
         context_window: 128000
+        token_param: max_completion_tokens
         pricing:
           input_per_mtok: 10000    # $10.00 per million tokens (micro-USD)
           output_per_mtok: 30000   # $30.00 per million tokens
       gpt-5.2-codex:
         capabilities: [chat, tools, function_calling, code]
         context_window: 200000
+        token_param: max_completion_tokens
         pricing:
           input_per_mtok: 15000
           output_per_mtok: 60000
@@ -78,12 +80,14 @@ providers:
       claude-opus-4-6:
         capabilities: [chat, tools, function_calling, thinking_traces]
         context_window: 200000
+        token_param: max_tokens
         pricing:
           input_per_mtok: 5000
           output_per_mtok: 25000
       claude-sonnet-4-6:
         capabilities: [chat, tools, function_calling]
         context_window: 200000
+        token_param: max_tokens
         pricing:
           input_per_mtok: 3000
           output_per_mtok: 15000

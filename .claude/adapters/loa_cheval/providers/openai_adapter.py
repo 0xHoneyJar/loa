@@ -37,7 +37,7 @@ class OpenAIAdapter(ProviderAdapter):
         enforce_context_window(request, model_config)
 
         # Build request body — OpenAI is the canonical format (pass-through)
-        token_key = self._token_limit_key(request.model)
+        token_key = model_config.token_param  # "max_completion_tokens" for GPT-5.2+
         body: Dict[str, Any] = {
             "model": request.model,
             "messages": request.messages,
@@ -120,25 +120,6 @@ class OpenAIAdapter(ProviderAdapter):
             latency_ms=latency_ms,
             provider=self.provider,
         )
-
-    @staticmethod
-    def _token_limit_key(model: str) -> str:
-        """Return the correct token limit parameter for the model.
-
-        GPT-4o and earlier use 'max_tokens'.
-        GPT-5.2+ use 'max_completion_tokens' (OpenAI API deprecation).
-
-        Decision: Prefix matching chosen over a version map because all known
-        legacy models start with 'gpt-4' or 'gpt-3'. New model families
-        (GPT-5.x, o1, o3, etc.) default to the current API parameter.
-        Update legacy_prefixes only if OpenAI releases a model with a new
-        prefix that still requires the deprecated 'max_tokens' parameter.
-        See: https://platform.openai.com/docs/api-reference/chat/create
-        """
-        legacy_prefixes = ("gpt-4", "gpt-3")
-        if any(model.startswith(p) for p in legacy_prefixes):
-            return "max_tokens"
-        return "max_completion_tokens"
 
     def validate_config(self) -> List[str]:
         """Validate OpenAI-specific configuration."""

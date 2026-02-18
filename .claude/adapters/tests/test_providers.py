@@ -218,6 +218,80 @@ class TestToolCallNormalization:
         assert result == '{"key": "value"}'
 
 
+class TestOpenAIRequestBodyConstruction:
+    """Test that token_param from config flows to the wire request body (#346)."""
+
+    def _capture_body(self, token_param="max_completion_tokens"):
+        """Build an adapter with given token_param, mock http_post, return captured body."""
+        config = ProviderConfig(
+            name="openai",
+            type="openai",
+            endpoint="https://api.example.com/v1",
+            auth="test-key",
+            models={
+                "gpt-5.2": ModelConfig(
+                    capabilities=["chat", "tools"],
+                    context_window=128000,
+                    token_param=token_param,
+                ),
+            },
+        )
+        adapter = OpenAIAdapter(config)
+        request = CompletionRequest(
+            messages=[{"role": "user", "content": "Hello"}],
+            model="gpt-5.2",
+            max_tokens=4096,
+        )
+
+        # Mock http_post to capture the body without making a real API call
+        mock_response = {
+            "choices": [{"message": {"content": "ok"}}],
+            "usage": {"prompt_tokens": 5, "completion_tokens": 2},
+            "model": "gpt-5.2",
+        }
+        with patch("loa_cheval.providers.openai_adapter.http_post", return_value=(200, mock_response)) as mock:
+            adapter.complete(request)
+            return mock.call_args[1]["body"]
+
+    def test_gpt52_sends_max_completion_tokens(self):
+        body = self._capture_body("max_completion_tokens")
+        assert "max_completion_tokens" in body
+        assert body["max_completion_tokens"] == 4096
+        assert "max_tokens" not in body
+
+    def test_legacy_model_sends_max_tokens(self):
+        body = self._capture_body("max_tokens")
+        assert "max_tokens" in body
+        assert body["max_tokens"] == 4096
+        assert "max_completion_tokens" not in body
+
+    def test_default_model_config_sends_max_tokens(self):
+        """ModelConfig() without explicit token_param defaults to max_tokens."""
+        config = ProviderConfig(
+            name="openai",
+            type="openai",
+            endpoint="https://api.example.com/v1",
+            auth="test-key",
+            models={"gpt-legacy": ModelConfig()},
+        )
+        adapter = OpenAIAdapter(config)
+        request = CompletionRequest(
+            messages=[{"role": "user", "content": "Hello"}],
+            model="gpt-legacy",
+            max_tokens=2048,
+        )
+        mock_response = {
+            "choices": [{"message": {"content": "ok"}}],
+            "usage": {"prompt_tokens": 5, "completion_tokens": 2},
+            "model": "gpt-legacy",
+        }
+        with patch("loa_cheval.providers.openai_adapter.http_post", return_value=(200, mock_response)) as mock:
+            adapter.complete(request)
+            body = mock.call_args[1]["body"]
+        assert "max_tokens" in body
+        assert body["max_tokens"] == 2048
+
+
 class TestContextWindowEnforcement:
     def test_within_limits(self):
         request = CompletionRequest(
