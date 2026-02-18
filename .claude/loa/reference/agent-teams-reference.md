@@ -173,6 +173,52 @@ Lead (Review Orchestrator)
 
 **When to use**: Complex PRs that benefit from multi-perspective review.
 
+### Template 4: Model-Heterogeneous Expert Swarm
+
+Teammates invoke different models via `cheval.py` for domain-specific expertise.
+
+```
+Lead (Orchestrator — Opus)
+├── Creates team and distributes research tasks
+├── Collects and synthesizes results from all tracks
+├── Manages beads centrally, serializes br operations
+│
+├── Teammate A: Deep Researcher
+│   └── cheval.py --agent deep-researcher --prompt "..." → cited analysis
+├── Teammate B: Deep Thinker (extended reasoning)
+│   └── cheval.py --agent deep-thinker --prompt "..." → reasoned analysis
+├── Teammate C: Fast Thinker (quick iterations)
+│   └── cheval.py --agent fast-thinker --prompt "..." → rapid prototyping
+└── Teammate D: Literature Reviewer
+    └── cheval.py --agent literature-reviewer --prompt "..." → survey
+```
+
+**Agent binding presets** (configured in `model-config.yaml`):
+- `deep-researcher`: Gemini Deep Research Pro (`api_mode: interactions`, per-task pricing)
+- `deep-thinker`: Gemini 3 Pro with `thinkingLevel: high`
+- `fast-thinker`: Gemini 3 Flash with `thinkingLevel: medium`
+- `literature-reviewer`: Gemini 2.5 Pro with `thinkingBudget: -1` (dynamic)
+
+**Cost considerations**:
+- Deep Research uses flat per-task pricing (~$2-5 per query), not per-token
+- Daily budget limits enforced via `BudgetEnforcer` across all teammates
+- `metering.budget.daily_micro_usd` shared across the entire team
+- Monitor with: `cheval.py --print-effective-config | grep metering`
+
+**Environment variables**: Teammates inherit `GOOGLE_API_KEY` from the lead process automatically. No per-teammate key configuration needed.
+
+**Example: MAGI-style construct** (3 parallel research tracks):
+```
+Lead creates 3 research tasks with different angles:
+  Task 1 → Teammate "caspar" (deep-researcher): "Analyze market dynamics..."
+  Task 2 → Teammate "melchior" (deep-thinker): "Reason about technical approach..."
+  Task 3 → Teammate "balthasar" (literature-reviewer): "Survey prior art..."
+Each teammate invokes cheval.py, sends results via SendMessage.
+Lead synthesizes into unified analysis.
+```
+
+**When to use**: Research-heavy tasks where different model strengths (deep research, extended reasoning, speed) map to distinct subtasks.
+
 ## Hook Propagation
 
 Loa's safety hooks are project-scoped (defined in `.claude/hooks/settings.hooks.json`). Teammates working in the same project directory inherit all hooks automatically:

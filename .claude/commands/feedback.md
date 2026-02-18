@@ -1,10 +1,11 @@
 ---
 name: "feedback"
-version: "2.2.0"
+version: "3.0.0"
 description: |
   Submit developer feedback about Loa experience with optional execution traces.
   Creates GitHub Issues with structured format for debugging.
   Smart routing to appropriate ecosystem repo (loa, loa-constructs, forge, project).
+  Construct-aware routing files issues on construct vendor repos with content redaction.
   Open to all users (OSS-friendly).
 
 command_type: "survey"
@@ -81,6 +82,68 @@ questions:
 **Note**: The recommended option appears first with "(Recommended)" suffix per Anthropic best practices (Issue #90).
 
 If `feedback.routing.enabled` is false, skip to Phase 1 (routes to default 0xHoneyJar/loa).
+
+#### Phase 0.5b: Construct Routing (v3.0.0)
+
+When the classifier returns `classification: "construct"`:
+
+1. **Dedup check**: Read `.run/feedback-ledger.json` (create if missing). Calculate fingerprint (`sha256` of redacted body). If same fingerprint + repo exists within `dedup_window_hours` (default 24h):
+   - Show: "This feedback was already filed: {issue_url}"
+   - Offer: [View existing issue] / [File anyway] / [Cancel]
+   - If "File anyway": continue. Otherwise: stop.
+
+2. **Rate limit check**: Count submissions to same repo in last 24h using `epoch` field for portable comparison:
+   ```
+   now_epoch=$(date +%s)
+   cutoff_epoch=$((now_epoch - 86400))
+   count = submissions where repo matches AND epoch > cutoff
+   ```
+   - If count >= `per_repo_daily` (default 5): show warning, require extra confirmation
+   - If count >= `per_repo_daily_hard` (default 20): block with "Rate limit exceeded for {repo}"
+
+3. **Redaction preview**: Run `.claude/scripts/feedback-redaction.sh --preview` on the draft feedback content. Display the redacted preview to user:
+   ```
+   This feedback will be filed on {source_repo} ({construct} v{version}):
+
+   --- Redacted Preview ---
+   {redacted_content}
+   --- End Preview ---
+   ```
+
+4. **Trust warnings**: If `attribution.trust_warning` is non-null, display prominently:
+   ```
+   WARNING: {trust_warning}
+   Please verify this is the correct target repository before submitting.
+   ```
+
+5. **Routing options** via AskUserQuestion:
+   ```yaml
+   questions:
+     - question: "Where should this feedback be submitted?"
+       header: "Route to"
+       options:
+         - label: "{source_repo} (Recommended)"
+           description: "Construct vendor repo - {construct} v{version}"
+         - label: "0xHoneyJar/loa"
+           description: "Core Loa framework instead"
+         - label: "Current project"
+           description: "Your project repo"
+         - label: "Copy to clipboard"
+           description: "Manual submission"
+       multiSelect: false
+   ```
+
+6. **On confirmation** (construct repo selected):
+   - Apply full redaction via `feedback-redaction.sh --input <draft>`
+   - Create issue via `gh issue create` with structured format (see Phase 5b)
+   - Record in dedup ledger (see Phase 5.1)
+
+7. **gh access failure handling**:
+   - If `gh issue create` fails (permission denied, repo not found, issues disabled):
+     - Show: "Cannot file on {source_repo} - {error_reason}"
+     - Offer: [Copy to clipboard] / [Route to loa instead] / [Cancel]
+
+When classifier returns any other classification, continue with existing 4-repo routing unchanged.
 
 ### Phase 1: Survey
 
@@ -165,6 +228,71 @@ Submit to GitHub Issues using graceful label handling:
    - Display manual submission URL for target repo
    - Save to pending-feedback.json as backup
 
+### Phase 5b: Construct Issue Submission (v3.0.0)
+
+When routing to a construct repo (from Phase 0.5b):
+
+1. Apply full redaction: `.claude/scripts/feedback-redaction.sh --input <draft_file>`
+2. Build structured issue body:
+
+```markdown
+## [Loa Feedback] {summary}
+
+**Source**: {feedback_type} (user feedback / audit / review)
+**Loa Version**: {framework_version}
+**Pack**: {vendor}/{pack} v{version}
+**Severity**: {severity_if_applicable}
+
+### Description
+
+{redacted description of the finding}
+
+### Details
+
+{redacted file references, NO code snippets by default}
+
+---
+Filed by [Loa Framework](https://github.com/0xHoneyJar/loa) with user confirmation
+```
+
+3. Create issue:
+   ```bash
+   gh issue create \
+       --repo "{source_repo}" \
+       --title "[Loa Feedback] {summary}" \
+       --body "{structured_body}"
+   ```
+
+4. On success: proceed to Phase 5.1
+5. On failure: offer clipboard fallback (see Phase 0.5b step 7)
+
+### Phase 5.1: Update Dedup Ledger (v3.0.0)
+
+After successful submission to a construct repo:
+
+1. Calculate fingerprint: `sha256sum` of the redacted issue body
+2. Get current epoch: `date +%s`
+3. Read or create `.run/feedback-ledger.json`:
+   ```json
+   {
+     "schema_version": 1,
+     "submissions": []
+   }
+   ```
+4. Append new submission using atomic write (temp file + mv):
+   ```json
+   {
+     "repo": "{source_repo}",
+     "fingerprint": "sha256:{hash}",
+     "timestamp": "{ISO-8601}",
+     "epoch": {unix_timestamp},
+     "issue_url": "{created_issue_url}",
+     "construct": "{vendor/pack}",
+     "feedback_type": "user_feedback"
+   }
+   ```
+5. Write back: `jq` to temp file, then `mv` to `.run/feedback-ledger.json`
+
 ### Phase 6: Update Analytics
 
 - Record submission in `grimoires/loa/analytics/usage.json`
@@ -194,6 +322,7 @@ Feedback is automatically classified and routed to the appropriate ecosystem rep
 | `0xHoneyJar/loa-constructs` | registry, API, install, pack, license | Registry/API issues |
 | `0xHoneyJar/forge` | experimental, sandbox, WIP | Sandbox issues |
 | Current project | application, deployment, no loa keywords | Project-specific |
+| **Construct repo** | `.claude/constructs/`, pack/skill paths, vendor refs | **Construct issues (v3.0.0)** |
 
 ### Configuration
 
@@ -338,6 +467,11 @@ See CLAUDE.md for full configuration options.
 | "gh not available" | CLI not installed | Uses clipboard fallback |
 | "gh not authenticated" | Not logged in | Uses clipboard fallback |
 | "Submission failed" | GitHub API error | Saved to pending-feedback.json |
+| "Cannot file on {repo}" | gh lacks write access to construct repo | Clipboard fallback or route to loa |
+| "Already filed" | Duplicate within dedup window | Shows existing issue URL |
+| "Rate limit exceeded" | Too many issues to same repo | Blocks submission with count |
+| "source_repo format invalid" | Tampered/malformed manifest | Blocks routing, falls back to 4-repo |
+| "Redaction produced empty output" | Input entirely sensitive | Warns user, suggests editing |
 
 ## Privacy
 

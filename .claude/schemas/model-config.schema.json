@@ -75,7 +75,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["openai", "anthropic", "openai_compat"],
+          "enum": ["openai", "anthropic", "openai_compat", "google"],
           "description": "Provider API type"
         },
         "endpoint": {
@@ -225,6 +225,37 @@
         }
       },
       "additionalProperties": true
+    },
+    "contextAccess": {
+      "type": "object",
+      "description": "Epistemic trust scopes — controls what knowledge a model receives (v7.0.0). Optional; defaults to all-full if missing.",
+      "properties": {
+        "architecture": {
+          "type": "string",
+          "enum": ["full", "summary", "none"],
+          "default": "full",
+          "description": "Visibility into SDD, PRD, protocol docs"
+        },
+        "business_logic": {
+          "type": "string",
+          "enum": ["full", "redacted", "none"],
+          "default": "full",
+          "description": "Visibility into implementation code"
+        },
+        "security": {
+          "type": "string",
+          "enum": ["full", "redacted", "none"],
+          "default": "full",
+          "description": "Visibility into audit findings, vulnerability details"
+        },
+        "lore": {
+          "type": "string",
+          "enum": ["full", "summary", "none"],
+          "default": "full",
+          "description": "Visibility into institutional knowledge"
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

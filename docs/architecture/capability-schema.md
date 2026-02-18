@@ -108,25 +108,68 @@ trust_gradient:
     criteria: "≥1 test file exists"
     hounfour_trust: "basic"
     min_pool_access: [cheap, fast_code]
+    trust_scopes:  # v6+ CapabilityScopedTrust
+      data_access: none
+      financial: none
+      delegation: none
+      model_selection: none
+      governance: none
+      external_communication: none
 
   L2:
     name: "CI Verified"
     criteria: "Tests + CI pipeline configured"
     hounfour_trust: "verified"
     min_pool_access: [cheap, fast_code, reviewer]
+    trust_scopes:
+      data_access: medium
+      financial: none
+      delegation: none
+      model_selection: medium
+      governance: none
+      external_communication: none
 
   L3:
     name: "Property-Based"
     criteria: "L2 + property-based/behavioral tests (fast-check, hypothesis, proptest, quickcheck)"
     hounfour_trust: "hardened"
     min_pool_access: [cheap, fast_code, reviewer, reasoning]
+    trust_scopes:
+      data_access: medium
+      financial: medium
+      delegation: medium
+      model_selection: medium
+      governance: none
+      external_communication: medium
 
   L4:
     name: "Formal"
     criteria: "L3 + formal temporal properties or safety/liveness proofs"
     hounfour_trust: "proven"
     min_pool_access: [cheap, fast_code, reviewer, reasoning, architect]
+    trust_scopes:
+      data_access: high
+      financial: high
+      delegation: high
+      model_selection: high
+      governance: medium
+      external_communication: high
 ```
+
+### Trust Scopes (Hounfour v6+)
+
+The `trust_scopes` field provides 6-dimensional trust classification per loa-hounfour v6.0.0 `CapabilityScopedTrust`. Each dimension independently controls a class of operations:
+
+| Dimension | Controls | Example |
+|-----------|----------|---------|
+| `data_access` | Reading/writing persistent state | File I/O, database queries |
+| `financial` | Cost-bearing operations | Model API calls, budget decisions |
+| `delegation` | Spawning sub-agents or tasks | TeamCreate, Task delegation |
+| `model_selection` | Choosing which model to invoke | Routing decisions, fallback chains |
+| `governance` | Protocol-level rule changes | Constraint modification, policy updates |
+| `external_communication` | Outbound network/messaging | GitHub API, Slack, email |
+
+Values are `high`, `medium`, or `none`. The flat `trust_level` (L1-L4) is retained as a backward-compatible summary; `trust_scopes` provides the granular detail that downstream consumers (loa-finn pool routing, arrakis billing tiers) can use for fine-grained gating.
 
 ### BUTTERFREEZONE Trust Level Syntax
 
@@ -177,8 +220,42 @@ This schema follows the same forward-compatibility contract as the mesh schema:
 - **Consumers MUST ignore unknown fields** (forward compatibility)
 - Planned additions for v1.1: `model` capability scopes for fine-grained pool selection, `billing_tier` per-skill aggregation
 
+## Hounfour v7 Type Mapping
+
+Loa doesn't instantiate hounfour protocol types directly — it implements equivalent patterns that correspond to v7.0.0 types. This table documents the structural correspondence:
+
+| Hounfour v7 Type | Loa Pattern | Loa File | Notes |
+|------------------|-------------|----------|-------|
+| `BridgeTransferSaga` | Retry chains with fallback/downgrade | `.claude/adapters/loa_cheval/routing/chains.py` | Garcia-Molina saga pattern: provider failure → fallback → compensating action |
+| `DelegationOutcome` | Flatline consensus scoring | `.claude/scripts/flatline-orchestrator.sh` | Multi-model cross-scoring → HIGH_CONSENSUS / DISPUTED / BLOCKER |
+| `MonetaryPolicy` | `RemainderAccumulator` + `BudgetEnforcer` | `.claude/adapters/loa_cheval/metering/budget.py` | Conservation invariant: total_in == total_distributed + remainder |
+| `PermissionBoundary` | MAY/MUST/NEVER constraint grants | `.claude/data/constraints.json` | Permission scape rendered into CLAUDE.loa.md |
+| `GovernanceProposal` | Flatline scoring with BLOCKER threshold | `.claude/scripts/flatline-orchestrator.sh` | BLOCKER (>700 skeptic score) halts autonomous workflows |
+
+### Conservation Invariant
+
+The `MonetaryPolicy` correspondence is the deepest structural match. The same conservation invariant appears in three codebases:
+
+- **Loa**: `RemainderAccumulator` ensures `total_micro_usd == sum(distributed) + remainder`
+- **loa-hounfour**: `MonetaryPolicy` enforces `total_budget == sum(allocations) + reserve`
+- **arrakis**: `lot_invariant` CHECK constraint ensures `total_value == sum(lot_values)`
+
+This is not coincidental — it's the same pattern (double-entry accounting / conservation law) applied at different scales. See [arrakis #62](https://github.com/0xHoneyJar/arrakis/issues/62) for the billing-side analysis.
+
+## Hounfour Version Lineage
+
+| Version | Codename | Key Additions | Loa Alignment |
+|---------|----------|---------------|---------------|
+| v3.0.0 | Constitutional | `AgentIdentity`, trust levels, basic routing | Original trust_level field |
+| v4.6.0 | Agent Economy | `EconomicPolicy`, pool routing, billing hooks | First ecosystem declarations |
+| v5.0.0 | Multi-Model | Provider registry, adapter pattern, thinking config | loa-finn runtime integration |
+| v6.0.0 | Capability-Scoped Trust | `trust_scopes` (6-dimensional), `CapabilityScopedTrust` | model-permissions.yaml migration |
+| v7.0.0 | Composition-Aware Economic Protocol | `BridgeTransferSaga`, `DelegationOutcome`, `MonetaryPolicy`, `PermissionBoundary`, `GovernanceProposal`, 8 new evaluator builtins (23→31) | Type mapping documented above |
+
 ## Related Documents
 
 - [PROCESS.md](../../PROCESS.md) — BUTTERFREEZONE standard and Three-Zone Model
 - [Separation of Concerns](separation-of-concerns.md) — Three-Layer Model
 - [Decision Lineage](decision-lineage.md) — Architectural decision records
+- [loa-hounfour MIGRATION.md](https://github.com/0xHoneyJar/loa-hounfour/blob/main/MIGRATION.md) — Protocol migration guide
+- [loa-hounfour CHANGELOG.md](https://github.com/0xHoneyJar/loa-hounfour/blob/main/CHANGELOG.md) — Version history

@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loa.dev/schemas/invariants.schema.json",
+  "title": "Cross-Repository Invariant Declarations",
+  "description": "Formal property declarations for invariants spanning Loa, Hounfour, and ecosystem codebases. The social contract expressed as verifiable properties (Bridgebuilder Part II).",
+  "type": "object",
+  "required": ["schema_version", "protocol", "invariants"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version for forward compatibility"
+    },
+    "protocol": {
+      "type": "string",
+      "pattern": "^loa-hounfour@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Ecosystem protocol version for traceability (e.g., loa-hounfour@7.0.0)"
+    },
+    "invariants": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/invariant"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "invariant": {
+      "type": "object",
+      "required": ["id", "description", "severity", "category", "properties", "verified_in"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^INV-[0-9]{3}$",
+          "description": "Unique invariant identifier (e.g., INV-001)"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 10,
+          "description": "Human-readable description of the invariant"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "important", "advisory"],
+          "description": "critical: must never be violated; important: should be verified; advisory: best-effort"
+        },
+        "category": {
+          "type": "string",
+          "enum": ["conservation", "monotonicity", "ordering", "bounded", "idempotent"],
+          "description": "Mathematical category of the invariant property"
+        },
+        "properties": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          },
+          "description": "Formal property expressions (human-readable mathematical statements)"
+        },
+        "verified_in": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/verification_reference"
+          },
+          "description": "Source code locations where this invariant is verified or enforced"
+        }
+      },
+      "additionalProperties": false
+    },
+    "verification_reference": {
+      "type": "object",
+      "required": ["repo", "file", "symbol"],
+      "properties": {
+        "repo": {
+          "type": "string",
+          "description": "Repository name (e.g., loa, hounfour, arrakis)"
+        },
+        "file": {
+          "type": "string",
+          "description": "File path relative to repo root"
+        },
+        "symbol": {
+          "type": "string",
+          "description": "Function, class, or method name that verifies/enforces the invariant"
+        },
+        "note": {
+          "type": "string",
+          "description": "Optional explanation of how this location verifies the invariant"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

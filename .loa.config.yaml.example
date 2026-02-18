@@ -390,6 +390,25 @@ feedback:
     enabled: true           # Enable smart routing
     auto_classify: true     # Auto-detect target repo
     require_confirmation: true  # Always confirm with user
+
+    # Construct routing (v1.40.0 / cycle-025)
+    # Routes feedback about installed construct packs/skills to their source repos.
+    # Requires constructs to declare source_repo in manifest.yaml.
+    construct_routing:
+      enabled: true               # Master toggle for construct feedback routing
+      attribution_threshold: 0.33 # Minimum confidence to suggest construct routing (0.0-1.0)
+      redaction:
+        strip_absolute_paths: true   # Redact /home/user/... paths
+        strip_secrets: true          # Redact AWS keys, tokens, JWTs
+        strip_env_vars: true         # Redact environment variable assignments
+        include_snippets: false      # Code blocks stripped for external repos (default: off)
+        include_file_refs: true      # File references kept but paths made relative
+        include_environment: false   # Environment/system info section stripped (default: off)
+      rate_limits:
+        per_repo_daily: 5           # Warn after N issues to same repo in 24h
+        per_repo_daily_hard: 20     # Block at N issues to same repo in 24h
+        dedup_window_hours: 24      # Fingerprint dedup window in hours
+
   labels:
     graceful_missing: true  # Don't fail on missing labels
 
@@ -559,11 +578,30 @@ beads:
 # only override values you want to change here.
 #
 # Architecture: SDD §4.1.2 (Config Schema), §4.2 (Routing), §4.5 (Metering)
-# Feature flag: hounfour.flatline_routing controls Sprint 2 routing path
+# Feature flags and metering — Hounfour Model-Heterogeneous Agent Routing
 hounfour:
-  # Feature flag — controls whether Flatline uses Hounfour routing (Sprint 2)
+  # Top-level flag — controls whether Flatline uses Hounfour routing
   # or the legacy direct-call path. Set to true when ready to migrate.
   flatline_routing: false
+
+  # Per-subsystem feature flags (all default true — opt-out, not opt-in)
+  feature_flags:
+    google_adapter: true     # Enable Google provider adapter
+    deep_research: true      # Enable Deep Research models (Interactions API)
+    flatline_routing: false   # Route Flatline through Hounfour
+    metering: true           # Enable BudgetEnforcer cost tracking
+    thinking_traces: true    # Include thinking config in request bodies
+    jam_geometry: false      # Enable Jam multi-model parallel review (opt-in)
+    context_filtering: false # Epistemic context filtering: false | "audit" | "enforce"
+
+  # Metering — cost tracking and budget enforcement (SDD §4.3)
+  metering:
+    enabled: true
+    ledger_path: .run/cost-ledger.jsonl      # JSONL append-only cost ledger
+    budget:
+      daily_micro_usd: 500000000             # $500/day (500M micro-USD)
+      warn_at_percent: 80                    # Warn when spending exceeds this %
+      on_exceeded: downgrade                 # block | downgrade | warn
 
   # Provider registry — override endpoints, auth, or add new providers
   # Providers not listed here use system defaults from model-config.yaml

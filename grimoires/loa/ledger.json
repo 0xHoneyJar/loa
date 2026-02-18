@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "active_cycle": "cycle-026",
+  "global_sprint_counter": 13,
+  "cycles": [
+    {
+      "id": "cycle-025",
+      "label": "Cross-Codebase Feedback Routing",
+      "status": "archived",
+      "created": "2026-02-17T12:00:00Z",
+      "archived": "2026-02-17T03:45:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-17-cross-codebase-feedback-routing",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "source_issue": 355,
+      "pr": 360,
+      "sprints": [
+        {
+          "local_id": "sprint-1",
+          "label": "Attribution Engine + Redaction",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-2",
+          "label": "Classifier Extension + Config + Tests",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-3",
+          "label": "Help Text + Flatline Validation + PRD Goals",
+          "status": "completed"
+        }
+      ],
+      "bugs_fixed": ["BUG-359"]
+    },
+    {
+      "id": "cycle-bug-20260217-i361-140a19",
+      "label": "Bug Fix — /update deletes construct pack SKILL.md files",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/361",
+      "completed_at": "2026-02-17T18:35:00Z",
+      "created_at": "2026-02-17T18:00:00Z",
+      "sprints": ["sprint-bug-4"],
+      "triage": "grimoires/loa/a2a/bug-20260217-i361-140a19/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260217-i361-140a19/sprint.md"
+    },
+    {
+      "id": "cycle-026",
+      "label": "Hounfour Runtime Bridge — Model-Heterogeneous Agent Routing",
+      "status": "active",
+      "created": "2026-02-18T00:00:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "source_issue": 365,
+      "sprints": [
+        {
+          "local_id": "sprint-1",
+          "global_id": "sprint-5",
+          "label": "GoogleAdapter — Standard Gemini Models",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-2",
+          "global_id": "sprint-6",
+          "label": "Deep Research Adapter",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-3",
+          "global_id": "sprint-7",
+          "label": "Metering Activation + Flatline Routing + Feature Flags",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-4",
+          "global_id": "sprint-8",
+          "label": "Hounfour v7 Protocol Alignment",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-5",
+          "global_id": "sprint-9",
+          "label": "Bridge Iteration — Metering Correctness and Test Coverage",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-6",
+          "global_id": "sprint-10",
+          "label": "Bridge Iteration 2 — Resilience Hardening and Test Correctness",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-7",
+          "global_id": "sprint-11",
+          "label": "Test Coverage Hardening — Trust Scopes, Multi-Adapter & Invariant Verification",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-8",
+          "global_id": "sprint-12",
+          "label": "Cross-Repository Invariant Infrastructure & Eval Harness Fix",
+          "status": "in_progress"
+        },
+        {
+          "local_id": "sprint-9",
+          "global_id": "sprint-13",
+          "label": "Epistemic Trust Scopes & Jam Geometry Architecture",
+          "status": "pending"
+        }
+      ]
+    }
+  ]
+}

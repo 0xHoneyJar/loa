@@ -44,11 +44,15 @@ def create_ledger_entry(
     sprint_id: Optional[str] = None,
     attempt: int = 1,
     usage_source: str = "actual",
+    interaction_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Create a ledger entry dict matching SDD §4.5.1 format.
 
     Calculates cost from config pricing. If pricing not found,
     sets pricing_source to 'unknown' and cost to 0.
+
+    For Deep Research (pricing_mode="task"), tokens are informational only —
+    cost is the flat per_task_micro_usd.
     """
     pricing = find_pricing(provider, model, config)
 
@@ -58,11 +62,13 @@ def create_ledger_entry(
         )
         cost_micro_usd = breakdown.total_cost_micro
         pricing_source = "config"
+        pricing_mode = pricing.pricing_mode
     else:
         cost_micro_usd = 0
         pricing_source = "unknown"
+        pricing_mode = "token"
 
-    return {
+    entry = {
         "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
         "trace_id": trace_id,
         "request_id": _generate_request_id(),
@@ -76,10 +82,16 @@ def create_ledger_entry(
         "cost_micro_usd": cost_micro_usd,
         "usage_source": usage_source,
         "pricing_source": pricing_source,
+        "pricing_mode": pricing_mode,
         "phase_id": phase_id,
         "sprint_id": sprint_id,
         "attempt": attempt,
     }
+
+    if interaction_id:
+        entry["interaction_id"] = interaction_id
+
+    return entry
 
 
 def append_ledger(entry: Dict[str, Any], ledger_path: str) -> None:

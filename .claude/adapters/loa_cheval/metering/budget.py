@@ -3,14 +3,20 @@
 Implements BudgetHook protocol from retry.py:
 - Pre-call: Check daily spend vs budget, return ALLOW/WARN/DOWNGRADE/BLOCK
 - Post-call: Record cost to ledger and update daily spend counter
+- Atomic pre-call: flock-protected check+reserve (Sprint 3 Task 3.3)
 """
 
 from __future__ import annotations
 
+import fcntl
+import json
 import logging
-from typing import Any, Dict, Optional
+import os
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional, Set
 
 from loa_cheval.metering.ledger import (
+    _daily_spend_path,
     create_ledger_entry,
     read_daily_spend,
     record_cost,
@@ -49,6 +55,7 @@ class BudgetEnforcer:
         self._config = config
         self._trace_id = trace_id or "tr-unknown"
         self._attempt = 0
+        self._seen_interactions: Set[str] = set()
 
         budget = metering.get("budget", {})
         self._daily_limit = budget.get("daily_micro_usd", 500_000_000)
@@ -96,13 +103,92 @@ class BudgetEnforcer:
 
         return ALLOW
 
+    def pre_call_atomic(self, request: CompletionRequest, reservation_micro: int = 0) -> str:
+        """Atomic budget check+reserve (Task 3.3, Flatline SKP-006).
+
+        Locks daily-spend file, reads current spend, checks limit, and writes
+        reservation — all under flock(LOCK_EX). Eliminates check-then-act race.
+
+        Args:
+            request: Completion request (for metadata).
+            reservation_micro: Estimated cost to reserve (0 = check only).
+
+        Returns ALLOW, WARN, DOWNGRADE, or BLOCK.
+        """
+        if not self._enabled:
+            return ALLOW
+
+        self._attempt += 1
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        summary_path = _daily_spend_path(self._ledger_path, today)
+        os.makedirs(os.path.dirname(summary_path) or ".", exist_ok=True)
+
+        fd = os.open(summary_path, os.O_RDWR | os.O_CREAT, 0o644)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+
+            raw = os.read(fd, 4096)
+            if raw:
+                try:
+                    data = json.loads(raw.decode("utf-8"))
+                except json.JSONDecodeError:
+                    data = {"total_micro_usd": 0, "entry_count": 0}
+            else:
+                data = {"total_micro_usd": 0, "entry_count": 0}
+
+            spent = data.get("total_micro_usd", 0)
+
+            if spent >= self._daily_limit:
+                if self._on_exceeded == "block":
+                    logger.warning(
+                        "Budget BLOCK (atomic): spent %d >= limit %d micro-USD",
+                        spent, self._daily_limit,
+                    )
+                    return BLOCK
+                elif self._on_exceeded == "downgrade":
+                    logger.warning(
+                        "Budget DOWNGRADE (atomic): spent %d >= limit %d micro-USD",
+                        spent, self._daily_limit,
+                    )
+                    return DOWNGRADE
+                else:
+                    return WARN
+
+            # Write reservation
+            if reservation_micro > 0:
+                data["date"] = today
+                data["total_micro_usd"] = spent + reservation_micro
+                data["entry_count"] = data.get("entry_count", 0) + 1
+
+                os.lseek(fd, 0, os.SEEK_SET)
+                os.ftruncate(fd, 0)
+                os.write(fd, json.dumps(data).encode("utf-8"))
+
+            warn_threshold = self._daily_limit * self._warn_pct // 100
+            if spent >= warn_threshold:
+                return WARN
+
+            return ALLOW
+        finally:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+            os.close(fd)
+
     def post_call(self, result: CompletionResult) -> None:
         """Post-call cost reconciliation.
 
         Creates ledger entry and updates daily spend counter.
+        Deduplicates by interaction_id for Deep Research (Flatline Beads SKP-002).
         """
         if not self._enabled:
             return
+
+        # Deduplicate Deep Research entries by interaction_id
+        interaction_id = getattr(result, "interaction_id", None)
+        if interaction_id and interaction_id in self._seen_interactions:
+            logger.info("Skipping duplicate cost for interaction %s", interaction_id)
+            return
+        if interaction_id:
+            self._seen_interactions.add(interaction_id)
 
         agent = (result.model if hasattr(result, "model") else "unknown")
         if result.usage:
@@ -118,6 +204,7 @@ class BudgetEnforcer:
                 config=self._config,
                 usage_source=result.usage.source,
                 attempt=self._attempt,
+                interaction_id=interaction_id,
             )
             record_cost(entry, self._ledger_path)
 

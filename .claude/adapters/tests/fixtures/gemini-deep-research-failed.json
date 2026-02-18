@@ -1,0 +1,9 @@
+{
+  "name": "interactions/dr-abc123-def456",
+  "status": "failed",
+  "error": {
+    "code": 500,
+    "message": "Research generation failed due to content policy violation.",
+    "status": "INTERNAL"
+  }
+}

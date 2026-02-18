@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import socket
 import sys
 import time
 from abc import ABC, abstractmethod
@@ -92,6 +93,10 @@ def http_post(
                 return e.code, json.loads(resp_body)
             except json.JSONDecodeError:
                 return e.code, {"error": {"message": resp_body}}
+        except urllib.error.URLError as e:
+            return 503, {"error": {"message": "URLError: %s" % e.reason}}
+        except socket.timeout:
+            return 504, {"error": {"message": "Request timed out"}}
 
 
 # --- Token Estimation ---
