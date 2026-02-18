@@ -1,826 +1,365 @@
 # Sprint Plan: Hounfour Runtime Bridge — Model-Heterogeneous Agent Routing
 
 > Cycle: cycle-026 | PRD: grimoires/loa/prd.md | SDD: grimoires/loa/sdd.md
-> Source: [#365](https://github.com/0xHoneyJar/loa/issues/365)
-> Sprints: 6 | Estimated: ~1550 lines across 14 files (6 new, 8 modified) + bridge iterations
-> Parallelism: Sprints 2 and 3 are independent after Sprint 1 completes; Sprint 4 runs after all
+> Source: [#365](https://github.com/0xHoneyJar/loa/issues/365), [#368](https://github.com/0xHoneyJar/loa/pull/368)
+> Sprints: 9 (6 completed + 3 new) | Phase 2: Bridgebuilder Advances
+> Bridgebuilder Review: [Part I](https://github.com/0xHoneyJar/loa/pull/368#issuecomment-3919141410), [Part II](https://github.com/0xHoneyJar/loa/pull/368#issuecomment-3919146469), [Part III](https://github.com/0xHoneyJar/loa/pull/368#issuecomment-3919161951)
 > Flatline: Reviewed (2 HIGH_CONSENSUS integrated, 1 DISPUTED accepted, 6 BLOCKERS addressed)
+> Phase 1.5 added: 2026-02-18 (Hounfour v7 Protocol Alignment)
 
-## Sprint 1: GoogleAdapter — Standard Gemini Models
+## Completed Sprints (Phase 1 + Phase 1.5 + Bridge Iterations)
 
-**Goal**: Implement the core Google provider adapter for standard Gemini 2.5/3 models. This is foundational — Deep Research and metering both depend on a working adapter with message translation, thinking config, error mapping, and response parsing.
-
-**Global Sprint ID**: sprint-5
-
-### Task 1.1: Create GoogleAdapter skeleton and provider registration
-
-**File**: `.claude/adapters/loa_cheval/providers/google_adapter.py`
-**Also**: `.claude/adapters/loa_cheval/providers/__init__.py`
-
-Implement the `GoogleAdapter` class extending `ProviderAdapter` with all method stubs and register it in the adapter registry.
-
-**Acceptance Criteria**:
-- [ ] `GoogleAdapter` extends `ProviderAdapter` (from `base.py`)
-- [ ] Implements `complete()`, `validate_config()`, `health_check()`
-- [ ] `complete()` branches on `api_mode == "interactions"` (stub for Sprint 2)
-- [ ] `validate_config()` checks `GOOGLE_API_KEY` env var exists
-- [ ] `health_check()` makes a lightweight `models.list` API probe against same base URL used by `generateContent` (Flatline SKP-003: startup self-test)
-- [ ] Centralized `_build_url(path)` method for all endpoint construction — base URL + API version in one place (Flatline SKP-003)
-- [ ] API version pinned to `v1beta` by default, configurable via `model_config.extra.api_version` (Flatline SKP-003)
-- [ ] HTTP client strategy: httpx preferred with `connect_timeout=5s`, `read_timeout=120s`; urllib fallback with same timeouts (Flatline IMP-002)
-- [ ] Registered as `"google": GoogleAdapter` in `_ADAPTER_REGISTRY`
-- [ ] Import path: `from loa_cheval.providers.google_adapter import GoogleAdapter`
-- [ ] Python 3.8 compatible (no walrus operator, no `match`)
-
-### Task 1.2: Implement _translate_messages()
-
-**File**: `.claude/adapters/loa_cheval/providers/google_adapter.py`
-
-Translate OpenAI canonical message format to Gemini format per SDD 4.1.2.
-
-**Acceptance Criteria**:
-- [ ] System messages extracted and concatenated into single `systemInstruction` string
-- [ ] Multiple system messages concatenated with double newline
-- [ ] `"assistant"` role mapped to `"model"` role
-- [ ] `"content": str` converted to `"parts": [{"text": str}]`
-- [ ] Array content blocks (images, tool_calls) raise `InvalidInputError` with descriptive message listing unsupported types (Flatline SKP-002)
-- [ ] Before raising, check `model_config.capabilities` — if google model lacks needed capability, suggest fallback provider in error message (Flatline SKP-002)
-- [ ] Empty content strings skipped (no empty parts sent)
-- [ ] Returns `Tuple[Optional[str], List[Dict]]` — (system_instruction, contents)
-
-### Task 1.3: Implement _build_thinking_config()
-
-**File**: `.claude/adapters/loa_cheval/providers/google_adapter.py`
-
-Build model-aware thinking configuration per SDD 4.1.3.
-
-**Acceptance Criteria**:
-- [ ] Gemini 3 models (`gemini-3-*`): returns `{"thinkingConfig": {"thinkingLevel": level}}`
-- [ ] Gemini 2.5 models (`gemini-2.5-*`): returns `{"thinkingConfig": {"thinkingBudget": budget}}`
-- [ ] `thinking_level` read from `model_config.extra` (default: `"high"`)
-- [ ] `thinking_budget` read from `model_config.extra` (default: `-1` for dynamic)
-- [ ] `thinking_budget: 0` returns `None` (disables thinking)
-- [ ] Other model families return `None`
-
-### Task 1.4: Implement _complete_standard() and _parse_response()
-
-**File**: `.claude/adapters/loa_cheval/providers/google_adapter.py`
-
-Implement the standard `generateContent` flow per SDD 4.1.4 and 4.1.5.
-
-**Acceptance Criteria**:
-- [ ] Builds request body with `contents`, `generationConfig`, optional `systemInstruction`, optional `thinkingConfig`
-- [ ] Auth via `x-goog-api-key` header (default) or query param (legacy), controlled by `auth_mode` in config
-- [ ] URL constructed via `_build_url()` (Flatline SKP-003: centralized endpoint)
-- [ ] Retryable status codes defined: 429, 500, 503 — retry with exponential backoff + jitter (Flatline IMP-001)
-- [ ] Max 3 retries per call, initial backoff 1s, max backoff 8s, jitter 0-500ms (Flatline IMP-001)
-- [ ] `_parse_response()` receives explicit `model_id` parameter (no closure over request)
-- [ ] `finishReason: SAFETY` raises `InvalidInputError` with safety ratings
-- [ ] `finishReason: RECITATION` raises `InvalidInputError`
-- [ ] `finishReason: MAX_TOKENS` logs warning, returns truncated response
-- [ ] Separates thought parts (`"thought": true`) from content parts
-- [ ] Populates `CompletionResult.thinking` from thought parts (or `None`)
-- [ ] Populates `Usage` from `usageMetadata` (promptTokenCount, candidatesTokenCount, thoughtsTokenCount)
-- [ ] `Usage.source` = `"actual"` when usageMetadata present, `"estimated"` otherwise
-- [ ] When `usageMetadata` missing: use conservative estimate based on prompt length + max_tokens, mark `source: "estimated"` (Flatline SKP-007)
-- [ ] When `usageMetadata` partial (e.g., missing `thoughtsTokenCount`): default missing fields to 0 with warning log (Flatline SKP-007)
-- [ ] Schema-tolerant field access: use `.get()` with defaults for all `usageMetadata` fields (Flatline SKP-001)
-- [ ] Empty candidates list raises `InvalidInputError`
-- [ ] Latency measured with `time.monotonic()`
-- [ ] All log messages use structured format `{event, provider, model, latency_ms, ...}` (Flatline IMP-009)
-- [ ] API keys, prompt content, and thinking traces NEVER appear in log output (Flatline IMP-009)
-
-### Task 1.5: Implement error mapping
-
-**File**: `.claude/adapters/loa_cheval/providers/google_adapter.py`
-
-Map Google API HTTP status codes to Hounfour error types per SDD 4.1.6.
-
-**Acceptance Criteria**:
-- [ ] 400 (INVALID_ARGUMENT, FAILED_PRECONDITION) → `InvalidInputError`
-- [ ] 401 (UNAUTHENTICATED) → `ConfigError` (exit code 4)
-- [ ] 403 (PERMISSION_DENIED) → `ProviderUnavailableError`
-- [ ] 404 (NOT_FOUND) → `InvalidInputError`
-- [ ] 429 (RESOURCE_EXHAUSTED) → `RateLimitError`
-- [ ] 500, 503 → `ProviderUnavailableError`
-- [ ] Error response body parsed for `error.message` when available
-- [ ] Unknown status codes fall through to `ProviderUnavailableError`
-
-### Task 1.6: Extend ModelConfig and model-config.yaml
-
-**File**: `.claude/adapters/loa_cheval/types.py`
-**Also**: `.claude/defaults/model-config.yaml`
-
-Add Gemini 3 models, Deep Research config, new aliases, and agent bindings per SDD 4.7 and 5.1.
-
-**Acceptance Criteria**:
-- [ ] `ModelConfig` extended with `api_mode: Optional[str]` and `extra: Optional[Dict[str, Any]]`
-- [ ] Config loader parses `api_mode` and `extra` from YAML into `ModelConfig`
-- [ ] `gemini-3-flash` and `gemini-3-pro` added to `providers.google.models`
-- [ ] `deep-research-pro` added with `api_mode: interactions` and polling config
-- [ ] Aliases added: `deep-thinker`, `fast-thinker`, `researcher`
-- [ ] Agent bindings added: `deep-researcher`, `deep-thinker`, `fast-thinker`, `literature-reviewer`
-- [ ] Placeholder pricing populated for all new models
-- [ ] Existing models/aliases/bindings unchanged (backward compatible)
-
-### Task 1.7: Add --prompt flag to cheval.py
-
-**File**: `.claude/adapters/cheval.py`
-
-Add `--prompt` argument for inline prompt text (alternative to `--input`/stdin).
-
-**Acceptance Criteria**:
-- [ ] `--prompt TEXT` accepted as argument
-- [ ] When `--prompt` provided, overrides `--input` and stdin
-- [ ] Prompt text wrapped as `[{"role": "user", "content": TEXT}]` message list
-- [ ] Works with existing `--agent`, `--output-format`, `--max-tokens` flags
-- [ ] Error if both `--prompt` and `--input` provided (mutually exclusive)
-
-### Task 1.8: Unit tests for GoogleAdapter
-
-**File**: `.claude/adapters/tests/test_google_adapter.py`
-
-Comprehensive unit tests for all GoogleAdapter methods per SDD 8.1.
-
-**Acceptance Criteria**:
-- [ ] `test_translate_messages_basic` — user/assistant to Gemini format
-- [ ] `test_translate_messages_system` — system message to systemInstruction
-- [ ] `test_translate_messages_multiple_system` — multiple system concatenated
-- [ ] `test_translate_messages_unsupported` — array content raises InvalidInputError
-- [ ] `test_translate_messages_empty_content` — empty strings skipped
-- [ ] `test_build_thinking_gemini3` — thinkingLevel for gemini-3-pro
-- [ ] `test_build_thinking_gemini25` — thinkingBudget for gemini-2.5-pro
-- [ ] `test_build_thinking_disabled` — thinkingBudget=0 returns None
-- [ ] `test_build_thinking_other_model` — non-Gemini returns None
-- [ ] `test_parse_response_with_thinking` — thought parts separated
-- [ ] `test_parse_response_no_thinking` — thinking=None when no thought parts
-- [ ] `test_parse_response_safety_block` — SAFETY finishReason raises error
-- [ ] `test_parse_response_recitation` — RECITATION raises error
-- [ ] `test_parse_response_max_tokens` — MAX_TOKENS returns truncated + warning
-- [ ] `test_parse_response_empty_candidates` — raises InvalidInputError
-- [ ] `test_parse_usage_metadata` — all token counts populated
-- [ ] `test_error_mapping_400` — 400 → InvalidInputError
-- [ ] `test_error_mapping_429` — 429 → RateLimitError
-- [ ] `test_error_mapping_500` — 500 → ProviderUnavailableError
-- [ ] `test_validate_config_missing_key` — missing GOOGLE_API_KEY reported
-- [ ] `test_parse_response_missing_usage` — no usageMetadata → conservative estimate with source="estimated" (Flatline SKP-007)
-- [ ] `test_parse_response_partial_usage` — missing thoughtsTokenCount → default 0 (Flatline SKP-007)
-- [ ] `test_parse_response_unknown_finish_reason` — unknown finishReason → log warning, return content (Flatline SKP-001)
-- [ ] `test_retry_on_429` — retries with backoff on 429 (Flatline IMP-001)
-- [ ] `test_retry_on_500` — retries with backoff on 500 (Flatline IMP-001)
-- [ ] `test_no_retry_on_400` — no retry on 400 (non-retryable) (Flatline IMP-001)
-- [ ] `test_translate_messages_capability_check` — array content suggests fallback provider (Flatline SKP-002)
-- [ ] `test_log_redaction` — verify API key and prompt content absent from log output (Flatline IMP-009)
-- [ ] All tests run without live API (mocked HTTP)
-
-### Task 1.9: Mock API response fixtures
-
-**File**: `.claude/adapters/tests/fixtures/gemini-standard-response.json`
-**Also**: `.claude/adapters/tests/fixtures/gemini-thinking-response.json`
-**Also**: `.claude/adapters/tests/fixtures/gemini-safety-block.json`
-**Also**: `.claude/adapters/tests/fixtures/gemini-error-429.json`
-
-**Acceptance Criteria**:
-- [ ] Standard response fixture with content parts and usageMetadata
-- [ ] Thinking response fixture with `"thought": true` parts interleaved
-- [ ] Safety block fixture with SAFETY finishReason and safetyRatings
-- [ ] Rate limit error fixture (429 HTTP status with error body)
-- [ ] All fixtures match actual Gemini API response structure
+### Sprint 1: GoogleAdapter — Standard Gemini Models (sprint-5) [COMPLETED]
+### Sprint 2: Deep Research Adapter (sprint-6) [COMPLETED]
+### Sprint 3: Metering Activation + Flatline Routing + Feature Flags (sprint-7) [COMPLETED]
+### Sprint 4: Hounfour v7 Protocol Alignment (sprint-8) [COMPLETED]
+### Sprint 5: Bridge Iteration 1 — Metering Correctness (sprint-9) [COMPLETED]
+### Sprint 6: Bridge Iteration 2 — Resilience Hardening (sprint-10) [COMPLETED]
 
 ---
 
-## Sprint 2: Deep Research Adapter
+## Phase 2: Bridgebuilder Advances
 
-**Goal**: Extend GoogleAdapter with Deep Research support via the Interactions API. Implement blocking-poll, non-blocking mode, concurrency control, and citation normalization. Depends on Sprint 1 (needs working GoogleAdapter).
+Source: Three-part Bridgebuilder deep review identifying architectural advances beyond code correctness. These sprints implement the concrete proposals from Parts I-III.
 
-**Global Sprint ID**: sprint-6
+---
 
-### Task 2.1: Implement _complete_deep_research() blocking-poll
+## Sprint 7: Test Coverage Hardening — Trust Scopes, Multi-Adapter & Invariant Verification
 
-**File**: `.claude/adapters/loa_cheval/providers/google_adapter.py`
+**Goal**: Fill the test gaps identified in the Bridgebuilder review. The existing test suite (14 Python files, ~4700 lines) is strong on individual components but weak on cross-cutting concerns: trust scopes have zero dedicated tests, budget+fallback integration is partial, multi-flag combinations are untested, and the conservation invariant is verified nowhere. This sprint closes those gaps.
 
-Implement the Interactions API blocking-poll flow per SDD 4.2.1.
+**Global Sprint ID**: sprint-11
 
-**Acceptance Criteria**:
-- [ ] `POST /v1beta/models/{model}:createInteraction` with `background: true`
-- [ ] `store` defaults to `false` (privacy, per Flatline SKP-002)
-- [ ] `store` configurable via `model_config.extra.store`
-- [ ] Extracts `interaction_id` from response `name` field (schema-tolerant parsing)
-- [ ] Polls with exponential backoff: initial_delay → 2x → capped at max_delay
-- [ ] Schema-tolerant status check: accepts `status`, `state` field names; case-insensitive
-- [ ] Completes on `completed`, `done`, `succeeded` states
-- [ ] Fails on `failed`, `error`, `cancelled` states with error message
-- [ ] Progress logged to stderr every 30s (structured format, no prompt content — Flatline IMP-009)
-- [ ] `TimeoutError` raised after configurable timeout (default 600s)
-- [ ] Polling config read from `model_config.extra.polling`
-- [ ] Auth via `x-goog-api-key` header (consistent with standard flow)
-- [ ] Pinned to v1beta API endpoint via `_build_url()` (Flatline IMP-005/SKP-003)
-- [ ] Poll requests retry on transient 429/5xx with backoff before failing (Flatline SKP-009)
-- [ ] Unknown/unexpected status values logged as warning, continue polling (Flatline SKP-009)
-- [ ] Interaction metadata (id, model, start_time) persisted to `.run/.dr-interactions.json` for recovery (Flatline SKP-009)
-- [ ] On process restart, `poll_interaction()` can resume from persisted metadata (Flatline SKP-009)
-- [ ] `interaction_id` used as idempotency key in cost ledger — duplicate entries with same ID are deduplicated (Flatline Beads SKP-002)
+### Task 7.1: Create dedicated trust_scopes test file
 
-### Task 2.2: Implement Deep Research output normalization
+**File**: `.claude/adapters/tests/test_trust_scopes.py` (new)
 
-**File**: `.claude/adapters/loa_cheval/providers/google_adapter.py`
-
-Post-process Deep Research output into structured format per SDD 4.2.3 and PRD SKP-001.
+Trust scopes were migrated in Sprint 4 but have no validation tests. The 6-dimensional model maps directly to Ostrom's governance principles — and governance without enforcement is poetry.
 
 **Acceptance Criteria**:
-- [ ] `_normalize_citations()` extracts markdown citation patterns (`[N]` references)
-- [ ] Extracts DOI patterns (`10.XXXX/...`)
-- [ ] Extracts URLs
-- [ ] Returns structured dict: `{summary, claims, citations, raw_output}`
-- [ ] When extraction yields nothing: returns `raw_output` with `citations: []` and logs warning
-- [ ] Never fails — degraded output (raw_output only) is acceptable
-- [ ] `_parse_deep_research_response()` calls `_normalize_citations()` on raw output
-- [ ] Result returned as `CompletionResult` with normalized content as JSON string
+- [ ] Test `model-permissions.yaml` loads and parses all 6 dimensions for each model entry
+- [ ] Test `claude-code:session` has expected scopes (high data_access, financial, delegation, model_selection; none governance)
+- [ ] Test `openai:gpt-5.2` has all-none scopes (read-only remote model)
+- [ ] Test Google model entries (added Sprint 6) have correct scopes (data_access: none, delegation: limited for deep-research)
+- [ ] Test trust_scopes schema validation: reject unknown dimensions, reject invalid values (not in high/medium/low/none/limited)
+- [ ] Test backward compat: `trust_level` summary field still present alongside `trust_scopes`
+- [ ] Test all entries in model-permissions.yaml are covered (no model has scopes undefined)
+- [ ] Validate Ostrom Principle #1: every registered provider has a trust scope entry (boundary enforcement)
 
-### Task 2.3: Create FLockSemaphore concurrency control
+### Task 7.2: Multi-flag feature flag combination tests
 
-**File**: `.claude/adapters/loa_cheval/providers/concurrency.py` (new)
+**File**: `.claude/adapters/tests/test_feature_flags.py` (new)
 
-Implement file-lock semaphore for limiting concurrent API calls per SDD 4.2.4 / Flatline SKP-005.
-
-**Acceptance Criteria**:
-- [ ] `FLockSemaphore(name, max_concurrent, lock_dir)` constructor
-- [ ] Context-manager protocol (`__enter__`, `__exit__`) for safe acquire/release
-- [ ] `acquire(timeout)` tries each slot with `LOCK_NB`, returns slot index
-- [ ] File descriptor stored in `_held_fd` to prevent GC-induced lock release
-- [ ] PID written to lock file for stale-lock detection
-- [ ] `_check_stale_lock()` removes lock if owning PID no longer exists
-- [ ] `release()` unlocks and closes file descriptor
-- [ ] `TimeoutError` raised when all slots occupied after timeout
-- [ ] Lock files created in `.run/` directory with mode 0o644
-- [ ] `.run/` directory created with `os.makedirs(exist_ok=True)` if missing (Flatline SKP-008)
-- [ ] Lock acquisition logged with slot index and PID (Flatline SKP-008)
-- [ ] Documented: unsupported on NFS/CIFS (flock advisory only); CI containers must use local tmpfs (Flatline SKP-008)
-- [ ] Manual unlock: `rm .run/.semaphore-{name}-*.lock` documented in adapter README (Flatline SKP-008)
-- [ ] Works with Python 3.8+ and POSIX (fcntl)
-
-### Task 2.4: Wire concurrency into GoogleAdapter
-
-**File**: `.claude/adapters/loa_cheval/providers/google_adapter.py`
-
-Use FLockSemaphore to limit concurrent API calls.
+Existing tests check individual flags. The Bridgebuilder review notes that real-world configurations involve multiple flags simultaneously, and the interaction between flags is untested.
 
 **Acceptance Criteria**:
-- [ ] Standard models: `FLockSemaphore("google-standard", max_concurrent=5)`
-- [ ] Deep Research: `FLockSemaphore("google-deep-research", max_concurrent=3)`
-- [ ] Max concurrent values configurable via model-config.yaml `routing.concurrency`
-- [ ] Semaphore acquired before API call, released after (via context manager)
-- [ ] `TimeoutError` from semaphore mapped to exit code 3
+- [ ] Test all-flags-enabled (default) works end-to-end
+- [ ] Test `google_adapter: false` + `deep_research: true` — deep_research should be blocked (parent disabled)
+- [ ] Test `metering: false` + `google_adapter: true` — adapter works, no budget enforcement
+- [ ] Test `thinking_traces: false` + `google_adapter: true` — adapter works, no thinking config in request body
+- [ ] Test `flatline_routing: true` + `google_adapter: false` — Flatline falls back to non-Google providers
+- [ ] Test all-flags-disabled — no external calls, no metering, no thinking
+- [ ] Test flag precedence: config file vs environment variable override
+- [ ] All tests mocked (no live API)
 
-### Task 2.5: Implement non-blocking mode (--async, --poll, --cancel)
+### Task 7.3: Budget + fallback chain integration tests
 
-**File**: `.claude/adapters/cheval.py`
-**Also**: `.claude/adapters/loa_cheval/providers/google_adapter.py`
+**File**: `.claude/adapters/tests/test_budget_fallback.py` (new)
 
-Add non-blocking Deep Research invocation per SDD 4.2.2 and 4.5.
-
-**Acceptance Criteria**:
-- [ ] `--async` flag returns immediately with interaction metadata JSON
-- [ ] Returns exit code 8 (INTERACTION_PENDING) on success
-- [ ] `--poll INTERACTION_ID` checks status, returns result if complete
-- [ ] `--poll` returns exit code 0 if complete, exit code 8 if still pending
-- [ ] `--cancel INTERACTION_ID` sends best-effort cancellation (idempotent — cancelling already-cancelled is no-op, Flatline SKP-009)
-- [ ] Budget reservation created at `create_interaction()` time, reconciled at poll completion (Flatline Beads SKP-002)
-- [ ] Cancel releases budget reservation if interaction not yet completed (Flatline Beads SKP-002)
-- [ ] Both `--poll` and `--cancel` require `--agent` to identify provider
-- [ ] GoogleAdapter gains `create_interaction()`, `poll_interaction()`, `cancel_interaction()` methods
-- [ ] Error handling: invalid interaction ID → exit code 2
-
-### Task 2.6: Add --include-thinking flag
-
-**File**: `.claude/adapters/cheval.py`
-
-Implement thinking trace policy per SDD 4.6 and PRD SKP-004.
+Budget enforcement and fallback routing are tested independently but never together. The Bridgebuilder review identifies this as a critical gap: "What happens when a budget-exceeded model triggers fallback to a cheaper model?"
 
 **Acceptance Criteria**:
-- [ ] `--include-thinking` flag added to argparse
-- [ ] Text output format: thinking NEVER printed regardless of flag
-- [ ] JSON output without `--include-thinking`: `result.thinking` set to `null`
-- [ ] JSON output with `--include-thinking`: `result.thinking` populated
-- [ ] Cost ledger records `tokens_reasoning` count only (never trace content)
-- [ ] No trace content in `.run/audit.jsonl`
+- [ ] Test DOWNGRADE action triggers fallback chain walk
+- [ ] Test fallback candidate satisfies agent requires (native_runtime guard respected during downgrade)
+- [ ] Test downgrade from `google:gemini-3-pro` to `openai:gpt-4o-mini` via configured chain
+- [ ] Test downgrade impossible for `native_runtime: true` agents (cannot leave Claude Code)
+- [ ] Test BLOCK action returns exit code 6 without invoking any provider
+- [ ] Test WARN action allows invocation but logs warning
+- [ ] Test budget check uses daily_micro_usd from config, not hardcoded value
+- [ ] Test atomic pre_call + provider failure + post_call records zero cost (Sprint 5 fix verified end-to-end)
 
-### Task 2.7: Unit tests for Deep Research and concurrency
+### Task 7.4: Conservation invariant property-based tests
+
+**File**: `.claude/adapters/tests/test_conservation_invariant.py` (new)
+
+The Bridgebuilder review identifies the conservation invariant as the most important architectural property in the system. It spans three layers (pricing → budget → ledger) but is tested nowhere as a cross-cutting property. This task implements property-based tests that verify the invariant holds across randomized inputs.
+
+**Acceptance Criteria**:
+- [ ] Property test: for any valid (tokens, price_per_mtok), `cost + remainder == tokens * price_per_mtok`
+- [ ] Property test: `RemainderAccumulator` across N random additions, `sum(yielded_costs) + accumulator.remainder == sum(raw_products)`
+- [ ] Property test: `create_ledger_entry()` + `calculate_total_cost()` round-trip preserves total (no precision loss)
+- [ ] Property test: sequence of `pre_call_atomic()` + `post_call()` never produces negative daily spend
+- [ ] Property test: hybrid pricing mode satisfies `total == token_cost + per_task_cost + remainder_carry`
+- [ ] Uses hypothesis library for property-based testing (add to test requirements if not present)
+- [ ] Minimum 100 examples per property, shrinking enabled for failure reproduction
+- [ ] Document the invariant being tested in each property's docstring (cite Bridgebuilder review Part II)
+
+### Task 7.5: Google adapter recovery and edge case tests
 
 **File**: `.claude/adapters/tests/test_google_adapter.py` (extend)
-**Also**: `.claude/adapters/tests/test_concurrency.py` (new)
+
+Extend the existing Google adapter tests with recovery edge cases identified in the review.
 
 **Acceptance Criteria**:
-- [ ] `test_deep_research_blocking_poll` — mock poll sequence → completed
-- [ ] `test_deep_research_timeout` — mock forever-pending → TimeoutError
-- [ ] `test_deep_research_failure` — mock failed status → ProviderUnavailableError
-- [ ] `test_deep_research_store_default_false` — verify `store: false` in request body
-- [ ] `test_normalize_citations_with_dois` — DOI extraction
-- [ ] `test_normalize_citations_with_urls` — URL extraction
-- [ ] `test_normalize_citations_empty` — no citations → empty list + raw_output
-- [ ] `test_schema_tolerant_status` — "status" and "state" fields both accepted
-- [ ] `test_semaphore_acquire_release` — basic acquire/release cycle
-- [ ] `test_semaphore_max_concurrent` — max slots enforced
-- [ ] `test_semaphore_context_manager` — acquire on enter, release on exit (even on exception)
-- [ ] `test_semaphore_stale_lock` — stale PID lock cleaned up
-- [ ] `test_deep_research_poll_retry_on_5xx` — transient 500 during poll → retry, then complete (Flatline SKP-009)
-- [ ] `test_deep_research_unknown_status` — unknown status string → continue polling (Flatline SKP-009)
-- [ ] `test_deep_research_cancel_idempotent` — cancel already-cancelled → no error (Flatline SKP-009)
-- [ ] `test_deep_research_interaction_persistence` — metadata saved to .run for recovery (Flatline SKP-009)
-- [ ] All unit tests mocked (no live API)
-- [ ] `test_semaphore_real_flock` — integration test using REAL flock on Linux tmpdir (Flatline SKP-008)
-- [ ] `test_semaphore_concurrent_processes` — fork 2 processes competing for 1 slot → one blocks (Flatline SKP-008)
-- [ ] `test_semaphore_crash_recovery` — kill -9 during critical section → stale lock detected and recovered on next acquire (Flatline Beads IMP-004)
-- [ ] `test_budget_dedupe_interaction_id` — duplicate ledger entry with same interaction_id → ignored (Flatline Beads SKP-002)
+- [ ] Test interaction persistence: create_interaction → crash (simulate) → resume polling from persisted state
+- [ ] Test interaction persistence: stale .dr-interactions.json with dead interaction → no hang
+- [ ] Test Deep Research cancellation after completion (idempotent, no error)
+- [ ] Test Deep Research unknown status in poll response → continue polling (not crash)
+- [ ] Test concurrent standard + Deep Research requests share the correct semaphore pools
+- [ ] Test API version override via `model_config.extra.api_version` → URL constructed correctly
+- [ ] Test auth mode: header (default) vs query param (legacy) → correct request format
+- [ ] Test max retries exhausted → final error surfaced (not swallowed by retry loop)
 
-### Task 2.8: Deep Research mock fixtures
+### Task 7.6: Cross-adapter routing integration tests
 
-**File**: `.claude/adapters/tests/fixtures/gemini-deep-research-create.json`
-**Also**: `.claude/adapters/tests/fixtures/gemini-deep-research-pending.json`
-**Also**: `.claude/adapters/tests/fixtures/gemini-deep-research-completed.json`
-**Also**: `.claude/adapters/tests/fixtures/gemini-deep-research-failed.json`
+**File**: `.claude/adapters/tests/test_multi_adapter.py` (new)
+
+Test that routing works correctly when multiple adapters are registered simultaneously.
 
 **Acceptance Criteria**:
-- [ ] Create interaction response with `name` field
-- [ ] Pending poll response with `status: "processing"`
-- [ ] Completed response with `output` containing research text with citations
-- [ ] Failed response with `status: "failed"` and error object
-- [ ] All fixtures match Interactions API response structure
+- [ ] Test agent binding resolution: `deep-researcher` → Google, `reviewing-code` → OpenAI, `native` → Claude Code
+- [ ] Test circuit breaker trip on Google → fallback to OpenAI for agents that don't require Google-specific capabilities
+- [ ] Test `validate_bindings()` catches missing provider for any configured agent
+- [ ] Test alias chain: `deep-thinker` → alias → `google:gemini-3-pro` → GoogleAdapter
+- [ ] Test adapter registry contains all 3 providers (openai, anthropic, google)
+- [ ] All tests mocked
 
 ---
 
-## Sprint 3: Metering Activation + Flatline Routing + Feature Flags
+## Sprint 8: Cross-Repository Invariant Infrastructure & Eval Harness Fix
 
-**Goal**: Wire the BudgetEnforcer in cheval.py, extend pricing for per-task models, activate Flatline routing through Hounfour, and implement granular feature flags. Depends on Sprint 1 (needs working adapter pipeline). Independent of Sprint 2.
+**Goal**: Implement the cross-repository invariant verification infrastructure proposed in Bridgebuilder Part III, and investigate the 50% eval regression pass rate identified in Part I. The invariant system creates formal property declarations that span Loa's `RemainderAccumulator`, hounfour's `MonetaryPolicy`, and arrakis's `lot_invariant` — enabling CI verification across all three codebases.
 
-**Global Sprint ID**: sprint-7
+**Global Sprint ID**: sprint-12
 
-### Task 3.1: Extend PricingEntry for per-task pricing
+### Task 8.1: Create invariants declaration schema
 
-**File**: `.claude/adapters/loa_cheval/metering/pricing.py`
+**File**: `.claude/schemas/invariants.schema.json` (new)
 
-Add per-task pricing support for Deep Research per SDD 4.3.2.
-
-**Acceptance Criteria**:
-- [ ] `PricingEntry` gains `per_task_micro_usd: int = 0` field
-- [ ] `PricingEntry` gains `pricing_mode: str = "token"` field ("token", "task", "hybrid")
-- [ ] `find_pricing()` reads `per_task_micro_usd` and `pricing_mode` from config
-- [ ] `calculate_total_cost()` handles `pricing_mode == "task"`: returns `per_task_micro_usd` as total
-- [ ] `calculate_total_cost()` handles `pricing_mode == "hybrid"`: token cost + per-task sum
-- [ ] Existing token-based pricing unaffected (backward compatible)
-
-### Task 3.2: Wire BudgetEnforcer in cheval.py
-
-**File**: `.claude/adapters/cheval.py`
-
-Replace `NoOpBudgetHook` with real `BudgetEnforcer` per SDD 4.3.1.
+Define the JSON Schema for cross-repository invariant declarations. This is the formal expression of the social contract identified in Bridgebuilder Part II.
 
 **Acceptance Criteria**:
-- [ ] Import `BudgetEnforcer` from `loa_cheval.metering.budget`
-- [ ] Read `metering` config section from Hounfour config
-- [ ] Create `BudgetEnforcer` with ledger path and trace ID
-- [ ] Pass `budget_hook` to `invoke_with_retry()` (or call pre/post directly if retry unavailable)
-- [ ] `BudgetExceededError` mapped to exit code 6
-- [ ] Budget check gated by `hounfour.metering: true` feature flag
-- [ ] When `metering: false`, use `NoOpBudgetHook` (existing behavior)
-- [ ] Log budget decisions (allow/block/downgrade) with structured format (Flatline IMP-009)
-- [ ] Integration test: assert ledger entries correct under missing/partial Usage metadata (Flatline SKP-007)
+- [ ] Schema defines `invariants` array with `id`, `description`, `properties` (string array of formal property expressions), `verified_in` (array of repo+file+function references)
+- [ ] Schema validates `severity` field: `"critical"` (must never be violated), `"important"` (should be verified), `"advisory"` (best-effort)
+- [ ] Schema validates `category` field: `"conservation"`, `"monotonicity"`, `"ordering"`, `"bounded"`, `"idempotent"`
+- [ ] JSON Schema draft 2020-12 compatible
+- [ ] Example invariant validates against schema
 
-### Task 3.3: Implement atomic budget check (Flatline SKP-006)
+### Task 8.2: Declare Hounfour economic invariants
 
-**File**: `.claude/adapters/loa_cheval/metering/budget.py`
+**File**: `grimoires/loa/invariants.yaml` (new)
 
-Replace check-then-act with atomic check+reserve per SDD 4.3.4.
+Declare the invariants identified across the ecosystem. These become the formal social contract.
 
 **Acceptance Criteria**:
-- [ ] `pre_call_atomic()` locks daily-spend file with `fcntl.flock(LOCK_EX)`
-- [ ] Atomically reads current spend, checks limit, writes reservation
-- [ ] Returns `ALLOW`, `BLOCK`, or `DOWNGRADE`
-- [ ] `post_call()` reconciles reservation with actual cost (exactly-once via `interaction_id` dedupe, Flatline Beads SKP-002)
-- [ ] Lock released in `finally` block (never leaked)
-- [ ] Daily spend file path follows `_daily_spend_path()` convention
-- [ ] Creates spend file if missing (first call of the day)
+- [ ] INV-001: Conservation — `sum(input_costs) == sum(distributed_costs) + sum(remainders)`, severity: critical
+  - verified_in: `loa:pricing.py:RemainderAccumulator.add`, `loa:pricing.py:calculate_cost_micro`
+- [ ] INV-002: Non-negative spend — `daily_spend >= 0` at all times, severity: critical
+  - verified_in: `loa:budget.py:pre_call_atomic`, `loa:ledger.py:update_daily_spend`
+- [ ] INV-003: Deduplication — `len(unique(interaction_ids)) == len(ledger_entries_for_interactions)`, severity: important
+  - verified_in: `loa:budget.py:post_call`, `loa:ledger.py:append_ledger`
+- [ ] INV-004: Budget monotonicity — daily spend counter only increases within a day (never decremented), severity: critical
+  - verified_in: `loa:budget.py:post_call`, `loa:ledger.py:update_daily_spend`
+- [ ] INV-005: Trust boundary — no model exceeds its trust_scopes at runtime, severity: critical
+  - verified_in: `loa:resolver.py:resolve_execution`, `loa:model-permissions.yaml`
+- [ ] Cross-repo references annotated with `protocol: loa-hounfour@7.0.0` for ecosystem traceability
+- [ ] YAML validates against schema from Task 8.1
 
-### Task 3.4: Implement TokenBucketLimiter (Flatline IMP-006)
+### Task 8.3: Implement invariant verification script
 
-**File**: `.claude/adapters/loa_cheval/metering/rate_limiter.py` (new)
+**File**: `.claude/scripts/verify-invariants.sh` (new)
 
-Per-provider RPM/TPM rate limiting per SDD 4.3.5.
-
-**Acceptance Criteria**:
-- [ ] `TokenBucketLimiter(rpm, tpm)` constructor with configurable limits
-- [ ] `check(provider, estimated_tokens)` returns True if within limits
-- [ ] `record(provider, tokens_used)` records usage after completion
-- [ ] State stored in `.run/.ratelimit-{provider}.json` (flock-protected, mode 0o600 — Flatline Beads IMP-003)
-- [ ] Token bucket refills based on elapsed time since last check
-- [ ] Default limits: Google 60 RPM / 1M TPM, OpenAI 500 RPM / 2M TPM
-- [ ] Limits configurable via `routing.rate_limits` in model-config.yaml
-
-### Task 3.5: Extend cost ledger for Deep Research entries
-
-**File**: `.claude/adapters/loa_cheval/metering/ledger.py`
-
-Add `pricing_mode` and `interaction_id` fields to ledger entries per SDD 4.3.3.
+Script that reads `invariants.yaml`, locates each `verified_in` reference, and confirms the referenced function/class exists in the codebase.
 
 **Acceptance Criteria**:
-- [ ] Ledger entries gain `pricing_mode` field ("token" or "task")
-- [ ] Ledger entries gain optional `interaction_id` field (for Deep Research)
-- [ ] Deep Research entries: `tokens_in: 0, tokens_out: N, cost_micro_usd: per_task, pricing_mode: "task"`
-- [ ] Existing token-based entries unchanged (backward compatible)
-- [ ] JSONL append with flock still works correctly
+- [ ] Reads `grimoires/loa/invariants.yaml`
+- [ ] For each invariant, for each `verified_in` entry where `repo == "loa"`:
+  - Verify the file exists
+  - Verify the function/class exists in the file (grep for definition)
+  - Report PASS/FAIL per invariant
+- [ ] For cross-repo references (repo != "loa"): report SKIP with note (verified in external CI)
+- [ ] Exit code 0 if all local invariants pass, 1 if any fail
+- [ ] Output format compatible with `butterfreezone-validate.sh` pattern
+- [ ] Integrates with `quality-gates.bats` as an optional check
 
-### Task 3.6: Implement granular feature flags
+### Task 8.4: Add invariant verification to existing test suite
 
-**File**: `.claude/adapters/cheval.py`
-**Also**: `.loa.config.yaml`
+**File**: `tests/unit/invariant-verification.bats` (new)
 
-Replace single `flatline_routing` with per-subsystem flags per SDD 4.4.
-
-**Acceptance Criteria**:
-- [ ] Config section: `hounfour.google_adapter`, `hounfour.deep_research`, `hounfour.flatline_routing`, `hounfour.metering`, `hounfour.thinking_traces`
-- [ ] `google_adapter: false` blocks Google provider with `ConfigError`
-- [ ] `deep_research: false` blocks Deep Research models with `ConfigError`
-- [ ] `metering: false` uses `NoOpBudgetHook`
-- [ ] `thinking_traces: false` suppresses thinking config in request body
-- [ ] Each flag defaults to `true` (opt-out, not opt-in)
-- [ ] `.loa.config.yaml` updated with all flags documented
-- [ ] `.loa.config.yaml.example` updated as well
-
-### Task 3.7: Wire Flatline routing through Hounfour
-
-**File**: `.claude/scripts/flatline-orchestrator.sh`
-
-Route Flatline model calls through `cheval.py` when enabled per SDD 6.1.
+BATS tests that exercise the invariant verification script.
 
 **Acceptance Criteria**:
-- [ ] New `call_model_via_hounfour()` function invokes `cheval.py`
-- [ ] Checks `hounfour.flatline_routing` flag via `yq`
-- [ ] When `true`: uses `call_model_via_hounfour()`
-- [ ] When `false`: uses existing `call_model_legacy()` behavior
-- [ ] Agent bindings for Flatline roles already exist (no config changes needed)
-- [ ] Stderr from cheval.py captured to `${output_file}.err`
-- [ ] Exit code propagated correctly
-- [ ] All 4 parallel Flatline calls (2 reviewers + 2 skeptics) route through Hounfour
+- [ ] Test script finds all declared invariants in valid codebase
+- [ ] Test script detects missing function (simulate by declaring non-existent function reference)
+- [ ] Test script detects missing file
+- [ ] Test script handles empty invariants.yaml gracefully
+- [ ] Test cross-repo references are SKIPped (not FAILed)
+- [ ] Test exit codes: 0 for all-pass, 1 for any-fail
 
-### Task 3.8: Update Agent Teams reference documentation
+### Task 8.5: Investigate eval regression 50% pass rate
 
-**File**: `.claude/loa/reference/agent-teams-reference.md`
+**File**: `.claude/scripts/tests/eval-regression-analysis.sh` (new)
 
-Add Template 4: Model-Heterogeneous Expert Swarm per PRD FR-5.
+The Bridgebuilder review Part I flags that 10 regression eval tasks consistently show 50% pass rate. This is suspicious — "If one trial consistently passes and one consistently fails across all tasks, the signal is in the harness, not the code."
 
 **Acceptance Criteria**:
-- [ ] New "Template 4: Model-Heterogeneous Expert Swarm" topology section
-- [ ] Describes TeamCreate lead + N domain expert teammates pattern
-- [ ] Documents `cheval.py` invocation pattern from teammate Bash
-- [ ] Includes agent binding presets (deep-researcher, deep-thinker, fast-thinker, literature-reviewer)
-- [ ] Cost considerations: per-task Deep Research costs, daily budget limits
-- [ ] Environment variable inheritance note (`GOOGLE_API_KEY` from lead process)
-- [ ] Example: MAGI-style construct with 3 research tracks
+- [ ] Script runs each failing eval task 4 times, recording pass/fail per trial
+- [ ] Output: per-task breakdown showing which trial(s) pass and which fail
+- [ ] If pattern is "trial 1 always passes, trial 2 always fails" → report as HARNESS_BUG
+- [ ] If pattern is truly random 50/50 → report as FLAKY
+- [ ] If pattern is "always fails" → report as REGRESSION
+- [ ] Analysis saved to `.run/eval-regression-analysis.json`
+- [ ] Document findings in NOTES.md
 
-### Task 3.9: Unit tests for metering extensions
-
-**File**: `.claude/adapters/tests/test_pricing_extended.py` (new)
+### Task 8.6: Fix eval harness (conditional on Task 8.5 findings)
 
 **Acceptance Criteria**:
-- [ ] `test_per_task_pricing` — Deep Research → per_task_micro_usd as total
-- [ ] `test_hybrid_pricing` — token cost + per-task cost summed
-- [ ] `test_pricing_mode_detection` — config `pricing_mode` field parsed correctly
-- [ ] `test_budget_atomic_check` — concurrent pre_call_atomic() correctly serialized
-- [ ] `test_budget_reservation_reconcile` — post_call adjusts over/under-estimated reservation
-- [ ] `test_rate_limiter_rpm` — requests within/exceeding RPM limit
-- [ ] `test_rate_limiter_tpm` — tokens within/exceeding TPM limit
-- [ ] `test_rate_limiter_refill` — bucket refills after elapsed time
-- [ ] `test_feature_flag_google_disabled` — google_adapter: false → ConfigError
-- [ ] `test_feature_flag_metering_disabled` — metering: false → NoOpBudgetHook
-- [ ] `test_budget_with_missing_usage` — partial/missing usage → conservative estimate used for budget (Flatline SKP-007)
-- [ ] `test_budget_with_task_pricing` — Deep Research per-task cost correctly deducted from daily budget (Flatline SKP-007)
-
-### Task 3.10: Integration tests (cheval.py end-to-end)
-
-**File**: `.claude/adapters/tests/test_cheval_google.sh`
-
-**Acceptance Criteria**:
-- [ ] `test_dry_run_google` — `--dry-run` resolves google provider correctly
-- [ ] `test_invoke_standard_mock` — mock generateContent → CompletionResult via stdout
-- [ ] `test_invoke_deep_research_mock` — mock Interactions API → poll → result
-- [ ] `test_async_mode` — `--async` returns interaction metadata JSON with exit code 8
-- [ ] `test_budget_enforcement` — BudgetEnforcer blocks when over daily limit
-- [ ] `test_feature_flag_disabled` — `google_adapter: false` → ConfigError exit code
-- [ ] `test_thinking_trace_redaction` — without --include-thinking → thinking is null
-- [ ] `test_prompt_flag` — `--prompt "test"` sends inline prompt correctly
-- [ ] Tests use mock HTTP server or monkeypatched http_post (no live API)
-
-### Task 3.11: Live API smoke tests
-
-**File**: `.claude/adapters/tests/test_google_smoke.sh`
-
-**Acceptance Criteria**:
-- [ ] Skips gracefully if `GOOGLE_API_KEY` not set
-- [ ] Gemini 2.5 Flash: standard completion returns content
-- [ ] Gemini 2.5 Pro: thinking-enabled completion returns content + usage
-- [ ] Gemini 3 Flash: thinkingLevel completion (if available, skip on 404)
-- [ ] Gemini 3 Pro: thinkingLevel:high (if available, skip on 404)
-- [ ] Deep Research: short query with 60s timeout (if available, skip on 404)
-- [ ] Each test validates exit code 0 and non-empty stdout
+- [ ] If HARNESS_BUG: fix the harness to eliminate the systematic trial failure
+- [ ] If FLAKY: add retry logic or increase trial count
+- [ ] If REGRESSION: create bug report for each failing task
+- [ ] After fix: all 10 previously-failing tasks pass at >80% rate
+- [ ] Existing passing tasks remain unaffected
 
 ---
 
----
+## Sprint 9: Epistemic Trust Scopes & Jam Geometry Architecture
 
-## Sprint 4: Hounfour v7 Protocol Alignment
+**Goal**: Implement the epistemic trust scopes proposed in Bridgebuilder Part III (context_access dimension controlling what models *know*), and design the Jam geometry architecture for multi-model parallel review with independent synthesis. The epistemic dimension is the mechanism that makes the Maroon collaboration geometry safe — agents can coordinate through shared state while being protected from each other's sensitive contexts.
 
-**Goal**: Align Loa's type vocabulary, ecosystem declarations, trust model, and documentation with loa-hounfour v7.0.0. The runtime bridge (Sprints 1-3) is operational; this sprint ensures the metadata and type vocabulary match the current protocol version across the ecosystem.
+**Global Sprint ID**: sprint-13
 
-**Global Sprint ID**: sprint-8
+### Task 9.1: Extend trust_scopes schema with epistemic dimension
 
-### Task 4.1: Update ecosystem protocol versions
+**File**: `.claude/data/model-permissions.yaml`, `.claude/schemas/model-config.schema.json`
 
-**File**: `.loa.config.yaml`
-
-Update the 3 `butterfreezone.ecosystem[].protocol` entries to reflect actual pinned versions.
+Add the `context_access` dimension to trust_scopes. This implements Ostrom Principle #1 applied to *knowledge* rather than *action*.
 
 **Acceptance Criteria**:
-- [x] `loa-finn` entry: `protocol: loa-hounfour@5.0.0` (was `@4.6.0`)
-- [x] `loa-hounfour` entry: `protocol: loa-hounfour@7.0.0` (was `@4.6.0`)
-- [x] `arrakis` entry: `protocol: loa-hounfour@7.0.0` (was `@4.6.0`)
-- [x] No other config sections changed
+- [ ] `context_access` added as 7th trust_scopes dimension with sub-fields:
+  - `architecture`: full/summary/none — visibility into SDD, PRD, protocol docs
+  - `business_logic`: full/redacted/none — visibility into implementation code
+  - `security`: full/redacted/none — visibility into audit findings, vulnerability details
+  - `lore`: full/summary/none — visibility into institutional knowledge
+- [ ] `claude-code:session` (native): full/full/full/full (unrestricted — it already has file access)
+- [ ] `openai:gpt-5.2` (remote reviewer): full/redacted/none/full (sees architecture + lore, not security details)
+- [ ] `google:deep-research-pro` (remote research): summary/none/none/summary (minimal context, focused on research task)
+- [ ] `google:gemini-3-pro` (remote reasoning): full/redacted/none/full (architecture-aware reasoning)
+- [ ] Schema JSON updated with `context_access` sub-schema
+- [ ] Backward compatible: `context_access` optional, defaults to all-full if missing
 
-### Task 4.2: Migrate model-permissions.yaml to trust_scopes
+### Task 9.2: Implement epistemic scope filtering in request builder
 
-**File**: `.claude/data/model-permissions.yaml`
+**File**: `.claude/adapters/loa_cheval/routing/context_filter.py` (new)
 
-Replace flat `trust_level: high|medium` with 6-dimensional `trust_scopes` per SDD 11.5.2.
-
-**Acceptance Criteria**:
-- [x] All 5 model entries gain `trust_scopes` with 6 dimensions
-- [x] `claude-code:session`: high data_access, financial, delegation, model_selection, external_communication; none governance
-- [x] `openai:gpt-5.2`: all none (read-only remote model)
-- [x] `moonshot:kimi-k2-thinking`: all none (remote analysis)
-- [x] `qwen-local:qwen3-coder-next`: medium data_access; all others none
-- [x] `anthropic:claude-opus-4-6`: all none (remote model)
-- [x] `trust_level` retained as backward-compatible summary field alongside `trust_scopes`
-- [x] File header updated with "Hounfour v6+ CapabilityScopedTrust vocabulary"
-
-### Task 4.3: Fix provider type enum in schema
-
-**File**: `.claude/schemas/model-config.schema.json`
-
-Add `"google"` to the provider `type` enum.
+When building a request for a remote model, filter the context (system prompt, appended context) based on the model's epistemic trust scopes.
 
 **Acceptance Criteria**:
-- [x] Provider type enum: `["openai", "anthropic", "openai_compat", "google"]`
-- [x] No other schema changes
+- [ ] `filter_context(messages, trust_scopes)` function filters message content based on `context_access` dimensions
+- [ ] `architecture: none` → strip SDD/PRD content from system messages
+- [ ] `architecture: summary` → replace full SDD with executive summary (first 500 chars + section headers)
+- [ ] `business_logic: redacted` → replace function bodies with signatures only (regex-based)
+- [ ] `security: none` → strip security audit findings, vulnerability markers, CVE references
+- [ ] `lore: summary` → include `short` fields only (not `context`)
+- [ ] Filtering is additive: messages not matching any filter category pass through unchanged
+- [ ] Filter applied in `cheval.py` *after* agent binding resolution, *before* adapter.complete()
+- [ ] Log filtered dimensions: `{event: "context_filtered", model: "...", dimensions: {"architecture": "redacted", ...}}`
+- [ ] No filtering for `native_runtime` models (they have file access anyway)
 
-### Task 4.4: Update capability-schema.md with trust_scopes and v7 type mapping
+### Task 9.3: Epistemic trust scopes tests
 
-**File**: `docs/architecture/capability-schema.md`
-
-Three additions:
-1. Update trust gradient to show trust_scopes for each level
-2. Add "Hounfour v7 Type Mapping" section with Loa pattern correspondences
-3. Add "Hounfour Version Lineage" section
-
-**Acceptance Criteria**:
-- [x] Trust gradient section shows 6 trust_scopes dimensions for each L1-L4 level
-- [x] v7 type mapping table with 5 entries: BridgeTransferSaga, DelegationOutcome, MonetaryPolicy, PermissionBoundary, GovernanceProposal
-- [x] Each mapping cites specific Loa file:line and hounfour type
-- [x] Version lineage table: v3.0.0 through v7.0.0 with codenames and key additions
-
-### Task 4.5: Update lore entry for hounfour
-
-**File**: `.claude/data/lore/mibera/core.yaml`
-
-Extend the `hounfour` entry's `context` field with v7 era description.
+**File**: `.claude/adapters/tests/test_epistemic_scopes.py` (new)
 
 **Acceptance Criteria**:
-- [x] Context mentions v7.0.0 "Composition-Aware Economic Protocol"
-- [x] References saga patterns, delegation outcomes, monetary policy
-- [x] `source` field updated to `loa-hounfour@7.0.0`
-- [x] Existing fields (`id`, `term`, `short`, `tags`) unchanged or minimally updated
-- [x] Related entries unchanged
+- [ ] Test full access: all dimensions = full → no filtering applied
+- [ ] Test architecture: none → SDD/PRD content stripped from system messages
+- [ ] Test architecture: summary → truncated to headers + first paragraph
+- [ ] Test business_logic: redacted → function bodies replaced with `[redacted]`
+- [ ] Test security: none → CVE references, audit findings stripped
+- [ ] Test lore: summary → only `short` fields preserved
+- [ ] Test native_runtime models bypass filtering entirely
+- [ ] Test missing context_access → defaults to all-full (backward compat)
+- [ ] Test mixed dimensions: architecture: full + security: none → architecture preserved, security stripped
+- [ ] All tests use fixture messages with identifiable content for each category
 
-### Task 4.6: Regenerate BUTTERFREEZONE.md
+### Task 9.4: Design Jam geometry for multi-model review
 
-Run `butterfreezone-gen.sh` to regenerate the project README from updated sources.
+**File**: `docs/architecture/jam-geometry.md` (new)
 
-**Acceptance Criteria**:
-- [x] BUTTERFREEZONE.md regenerated with updated ecosystem versions
-- [x] `butterfreezone-validate.sh` passes with zero failures and zero `proto_version` warnings
-- [x] AGENT-CONTEXT block reflects current state
-
-### Task 4.7: Validate all existing tests still pass
-
-Run the full test suite to ensure no regressions from documentation/schema changes.
+Design document for the Jam geometry proposal from Bridgebuilder Part III. This is a design artifact, not code — but it needs to be grounded in the existing infrastructure to be implementable.
 
 **Acceptance Criteria**:
-- [x] All adapter tests pass (353+ tests, 0 failures)
-- [x] All bats tests pass (unit + integration)
-- [x] `butterfreezone-validate.sh --strict` passes
-- [x] No new warnings in test output
+- [ ] Document the three-phase workflow: Divergent → Synthesis → Harmony
+- [ ] Divergent phase: Claude, GPT-5.2, Kimi-K2 review the same PR independently (use existing `cheval.py` infrastructure)
+- [ ] Synthesis phase: a *different* model (not one of the reviewers) synthesizes the three reviews
+  - Identify disagreements, consensus findings, and unique insights from each
+  - Synthesizer model selection: lowest trust_scopes model capable of text analysis (cost optimization)
+- [ ] Harmony phase: unified review posted with per-model attribution
+- [ ] Map to existing infrastructure: `ProviderAdapter` for divergent calls, `BudgetEnforcer` for cost tracking, `trust_scopes` for access control
+- [ ] Estimate cost per Jam review (3 divergent + 1 synthesis call, using current pricing)
+- [ ] Compare to current Seance geometry (1 model, 1 review): quality tradeoffs, cost tradeoffs
+- [ ] Reference: Miles Davis's second quintet (freedom within structure), academic peer review (independent reviewers + editor)
+- [ ] Identify prerequisite: epistemic trust scopes (Task 9.1-9.3) — reviewers need appropriate context_access
+- [ ] Identify Phase 0: use existing Flatline Protocol as scaffold (it already does parallel model calls)
 
----
+### Task 9.5: Update model-config.yaml with Jam geometry routing
 
-## Sprint 5: Bridge Iteration — Metering Correctness and Test Coverage
+**File**: `.claude/defaults/model-config.yaml`
 
-**Goal**: Address Bridgebuilder findings from bridge-20260218-1402f0 iteration 1. Fix the cross-process clock bug in rate_limiter.py (BB-401), correct token estimation (BB-404), harden budget fallback (BB-405), clean dead code (BB-403), and add missing test coverage for financial arithmetic (BB-406).
-
-**Global Sprint ID**: sprint-9
-**Source**: Bridge iteration 1 findings (severity score 17.0)
-
-### Task 5.1: Fix time.monotonic() cross-process bug in rate_limiter.py
-
-**File**: `.claude/adapters/loa_cheval/metering/rate_limiter.py`
-**Finding**: BB-401 (HIGH)
-
-Replace `time.monotonic()` with `time.time()` for persisted state. Monotonic clock values are per-process and produce negative elapsed time when read by a different process.
+Add agent bindings for the Jam geometry roles.
 
 **Acceptance Criteria**:
-- [x] `time.monotonic()` replaced with `time.time()` in `_refill()` and `record()` for state persistence
-- [x] In-process interval measurement (if any) continues to use `time.monotonic()`
-- [x] Add cross-process test: subprocess writes state, parent reads and verifies non-negative refill
-- [x] Existing rate limiter tests still pass
+- [ ] `jam-reviewer-claude` agent binding: `model: native`, `requires: {thinking_traces: true}`
+- [ ] `jam-reviewer-gpt` agent binding: `model: reviewer` (openai:gpt-5.2)
+- [ ] `jam-reviewer-kimi` agent binding: `model: reasoning` (moonshot:kimi-k2-thinking)
+- [ ] `jam-synthesizer` agent binding: `model: cheap` (openai:gpt-4o-mini) — lowest cost for text synthesis
+- [ ] Each reviewer has appropriate `context_access` in model-permissions.yaml
+- [ ] Feature flag: `hounfour.feature_flags.jam_geometry: false` (opt-in, not default)
 
-### Task 5.2: Fix token estimation using output content for input estimate
+### Task 9.6: Update BUTTERFREEZONE and Ground Truth
 
-**File**: `.claude/adapters/loa_cheval/providers/google_adapter.py`
-**Finding**: BB-404 (MEDIUM)
-
-When `usageMetadata` is missing, input tokens are estimated from output content. Should estimate from input messages instead.
-
-**Acceptance Criteria**:
-- [x] Input token estimation uses the original input messages (not output content)
-- [x] Output token estimation uses output content (unchanged)
-- [x] Safety-blocked responses: input estimated from messages, output = 0
-- [x] Add test for token estimation with missing usageMetadata
-- [x] Add test for safety-blocked response estimation
-
-### Task 5.3: Fix budget fallback path — ensure post_call on error
-
-**File**: `.claude/adapters/cheval.py`
-**Finding**: BB-405 (MEDIUM)
-
-The ImportError fallback path (when `invoke_with_retry` is unavailable) does `pre_call → complete() → post_call`. If `complete()` raises, `post_call` is never called.
+Run finalization artifacts for the new sprint additions.
 
 **Acceptance Criteria**:
-- [x] Fallback path wrapped in `try/finally` to ensure `post_call` runs on error
-- [x] Failed requests record zero cost (not missing cost)
-- [x] Add test for budget accounting on adapter failure in fallback path
-
-### Task 5.4: Remove dead code in google_adapter.py
-
-**File**: `.claude/adapters/loa_cheval/providers/google_adapter.py`
-**Finding**: BB-403 (LOW)
-
-Remove unused `_detect_http_client_for_get()` call in `poll_interaction()`.
-
-**Acceptance Criteria**:
-- [x] Unused `client = _detect_http_client_for_get()` call removed from `poll_interaction()`
-- [x] `_detect_http_client_for_get()` function definition retained if used by `_poll_get()`, removed otherwise
-- [x] No behavioral change — `_poll_get()` continues to work
-
-### Task 5.5: Add test coverage for RemainderAccumulator and overflow guard
-
-**File**: `.claude/adapters/tests/test_pricing_extended.py`
-**Finding**: BB-406 (MEDIUM)
-
-Add tests for the two untested financial arithmetic features.
-
-**Acceptance Criteria**:
-- [x] Test RemainderAccumulator carry behavior across multiple calls
-- [x] Test RemainderAccumulator with zero remainder (no carry)
-- [x] Test calculate_cost_micro with values near MAX_SAFE_PRODUCT boundary
-- [x] Test calculate_cost_micro with values exceeding MAX_SAFE_PRODUCT
-- [x] All new tests pass alongside existing tests
-
-### Task 5.6: Document rate limiter advisory semantics
-
-**File**: `.claude/adapters/loa_cheval/metering/rate_limiter.py`
-**Finding**: reframe-1 (REFRAME)
-
-Add docstring clarifying that the rate limiter is advisory (optimistic check), not enforcing. Budget enforcement is the hard gate.
-
-**Acceptance Criteria**:
-- [x] Module-level docstring explains advisory vs enforcing semantics
-- [x] `check()` method docstring notes non-atomic read (advisory only)
-- [x] `record()` method docstring notes atomic write
-- [x] Reference to BudgetEnforcer as the enforcing layer
+- [ ] BUTTERFREEZONE.md regenerated with Phase 2 sprint context
+- [ ] `butterfreezone-validate.sh` passes (17/17+ checks)
+- [ ] Ground truth checksums updated
+- [ ] `invariants.yaml` checksummed in ground truth
 
 ---
 
-## Sprint 6: Bridge Iteration 2 — Resilience Hardening and Test Correctness
-
-**Goal**: Address Bridgebuilder iteration 2 findings. Fix the test clock mismatch (BB-204), harden urllib fallback error handling (BB-210), wire interaction_id deduplication (BB-206), narrow exception handling in interaction persistence (BB-209), and add Google model permissions (BB-215).
-
-**Global Sprint ID**: sprint-10
-**Source**: Bridge iteration 2 findings (severity score 14.5)
-
-### Task 6.1: Fix rate limiter refill test clock source
-
-**File**: `.claude/adapters/tests/test_pricing_extended.py`
-**Finding**: BB-204 (HIGH)
-
-Replace `time.monotonic()` with `time.time()` in `test_refill_over_time()`. The test currently passes by coincidence because `time.time() >> time.monotonic()`.
-
-**Acceptance Criteria**:
-- [x] `time.monotonic() - 30` replaced with `time.time() - 30` in test_refill_over_time
-- [x] Test still passes with the correct clock source
-- [x] Grep confirms no remaining `time.monotonic()` usage in test files that interact with persisted state
-
-### Task 6.2: Add URLError and socket.timeout handling to http_post urllib fallback
-
-**File**: `.claude/adapters/loa_cheval/providers/base.py`
-**Finding**: BB-210 (MEDIUM)
-
-The urllib fallback catches HTTPError but not network-level errors. Add catches for URLError and socket.timeout.
-
-**Acceptance Criteria**:
-- [x] `urllib.error.URLError` caught and returns (503, error dict)
-- [x] `socket.timeout` caught and returns (504, error dict)
-- [x] Import `socket` at module level
-- [x] Add test for URLError handling in urllib fallback path
-- [x] Add test for socket.timeout handling in urllib fallback path
-
-### Task 6.3: Wire interaction_id through CompletionResult for budget deduplication
-
-**File**: `.claude/adapters/loa_cheval/types.py`, `.claude/adapters/loa_cheval/providers/google_adapter.py`
-**Finding**: BB-206 (MEDIUM)
-
-Add `interaction_id` field to `CompletionResult` and populate it in `_complete_deep_research()`.
-
-**Acceptance Criteria**:
-- [x] `interaction_id: Optional[str] = None` added to CompletionResult dataclass
-- [x] `_complete_deep_research()` sets interaction_id on the returned CompletionResult
-- [x] BudgetEnforcer.post_call() deduplication now functional (test with duplicate interaction_id)
-- [x] Existing tests still pass
-
-### Task 6.4: Narrow exception handling in _load_persisted_interactions
-
-**File**: `.claude/adapters/loa_cheval/providers/google_adapter.py`
-**Finding**: BB-209 (MEDIUM)
-
-Replace bare `except Exception` with specific exception types.
-
-**Acceptance Criteria**:
-- [x] Exception clause narrowed to `(json.JSONDecodeError, FileNotFoundError, OSError)`
-- [x] Existing tests still pass
-
-### Task 6.5: Add Google model entries to model-permissions.yaml
-
-**File**: `.claude/data/model-permissions.yaml`
-**Finding**: BB-215 (LOW)
-
-Add trust scope entries for Google/Gemini models.
-
-**Acceptance Criteria**:
-- [x] Entries added for `google:gemini-2.5-pro`, `google:gemini-3-pro`, `google:gemini-3-flash`, `google:deep-research-pro`
-- [x] Trust scopes set appropriately (data_access: none, financial: none for standard; delegation: limited for deep-research)
-- [x] YAML validates correctly
-
----
-
-## Dependency Graph
+## Dependency Graph (Phase 2)
 
 ```
-Sprint 1 (GoogleAdapter core)
+Sprint 7 (Test Hardening)
     │
-    ├──── Sprint 2 (Deep Research)     [blocks on Task 1.1-1.5]
+    ├──── Sprint 8 (Invariants + Eval Fix)    [independent of Sprint 7]
     │
-    ├──── Sprint 3 (Metering + Flags)  [blocks on Task 1.1, 1.6, 1.7]
-    │
-    └──── Sprint 4 (v7 Protocol Alignment)  [blocks on Sprints 1-3 complete]
+    └──── Sprint 9 (Epistemic + Jam)          [blocks on Sprint 7 Task 7.1 for trust scope foundation]
 ```
 
-Sprints 2 and 3 are parallelizable after Sprint 1 completes.
-Sprint 4 runs after all Phase 1 work is complete.
+Sprints 7 and 8 are parallelizable.
+Sprint 9 depends on trust scope tests from Sprint 7 (validates the foundation before extending it).
 
-## Risk Assessment
+## Risk Assessment (Phase 2)
 
 | Risk | Sprint | Mitigation |
 |------|--------|------------|
-| Gemini 3 models not yet accessible | S1 | Graceful skip in smoke tests; unit tests mocked |
-| Deep Research API schema evolves during preview | S2 | Schema-tolerant polling, pinned v1beta |
-| flock semantics vary across OS/filesystem | S2, S3 | POSIX standard, tested on Linux |
-| Pricing TBD for Gemini 3 | S3 | Placeholder values, documented as estimated |
-| Flatline orchestrator bash changes break existing flow | S3 | Feature flag guards, existing path preserved |
+| hypothesis library not available in test env | S7 | Fallback to manual property tests with range loops |
+| Eval harness root cause not deterministic | S8 | Document findings even if fix isn't clear-cut |
+| Epistemic filtering too aggressive (strips needed context) | S9 | Default to all-full; filtering is opt-in per model |
+| Jam geometry cost exceeds budget for routine reviews | S9 | Feature flag default=false; cost estimate before activation |
+| Cross-repo invariant references drift | S8 | verify-invariants.sh designed for CI; drift detected on each run |
 
-## Success Criteria
+## Success Criteria (Phase 2)
 
-All PRD success metrics pass:
-
-**Phase 1 (Sprints 1-3)**:
-1. `cheval.py --agent reviewing-code` invokes OpenAI GPT-5.2 (existing, validates routing)
-2. `cheval.py --agent deep-researcher` invokes Gemini Deep Research with cited output
-3. `cheval.py --agent deep-thinker` invokes Gemini 3 Pro with thinking traces
-4. Flatline Protocol routes through Hounfour (all 4 parallel calls)
-5. TeamCreate teammate invokes `cheval.py` successfully
-6. Google adapter handles errors with correct exit codes
-7. All existing tests pass (no regressions)
-8. Metering records cost for all external model calls
-
-**Phase 1.5 (Sprint 4)**:
-9. Ecosystem protocol versions match actual pins (3/3 entries correct)
-10. `model-permissions.yaml` uses 6-dimensional trust_scopes for all 5 models
-11. `model-config.schema.json` validates `"google"` provider type
-12. `butterfreezone-validate.sh` passes with zero proto_version warnings
-13. Hounfour v7 type mapping documented with 5 type correspondences
-14. All existing tests still pass (zero regressions from documentation changes)
+1. Trust scopes have dedicated test coverage (100% of model-permissions entries validated)
+2. Conservation invariant verified by property-based tests across pricing/budget/ledger
+3. Multi-flag feature combinations tested (minimum 6 combination scenarios)
+4. Budget+fallback integration tested end-to-end (DOWNGRADE → chain walk → cheaper model)
+5. Cross-repository invariants declared in formal schema (minimum 5 invariants)
+6. Invariant verification script runs in CI (exit code 0)
+7. Eval regression root cause identified and documented
+8. Epistemic trust scopes implemented with 4 context_access dimensions
+9. Context filtering applied to remote model requests based on epistemic scopes
+10. Jam geometry design document complete with cost analysis and implementation roadmap
+11. All existing tests still pass (zero regressions)

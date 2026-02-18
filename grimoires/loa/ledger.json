@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "active_cycle": "cycle-026",
-  "global_sprint_counter": 10,
+  "global_sprint_counter": 13,
   "cycles": [
     {
       "id": "cycle-025",
@@ -89,6 +89,24 @@
           "global_id": "sprint-10",
           "label": "Bridge Iteration 2 — Resilience Hardening and Test Correctness",
           "status": "completed"
+        },
+        {
+          "local_id": "sprint-7",
+          "global_id": "sprint-11",
+          "label": "Test Coverage Hardening — Trust Scopes, Multi-Adapter & Invariant Verification",
+          "status": "pending"
+        },
+        {
+          "local_id": "sprint-8",
+          "global_id": "sprint-12",
+          "label": "Cross-Repository Invariant Infrastructure & Eval Harness Fix",
+          "status": "pending"
+        },
+        {
+          "local_id": "sprint-9",
+          "global_id": "sprint-13",
+          "label": "Epistemic Trust Scopes & Jam Geometry Architecture",
+          "status": "pending"
         }
       ]
     }

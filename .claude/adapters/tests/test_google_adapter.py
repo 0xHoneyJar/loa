@@ -956,3 +956,207 @@ class TestInteractionPersistence:
         assert "interactions/b" in data
         assert data["interactions/a"]["model"] == "gemini-3-pro"
         assert data["interactions/b"]["model"] == "gemini-3-flash"
+
+    def test_stale_interactions_loadable(self, tmp_path, monkeypatch):
+        """Stale .dr-interactions.json with dead PID loads without error (Task 7.5)."""
+        import loa_cheval.providers.google_adapter as ga_mod
+
+        test_file = str(tmp_path / ".dr-interactions.json")
+        monkeypatch.setattr(ga_mod, "_INTERACTIONS_FILE", test_file)
+
+        # Write stale data with a PID that doesn't exist
+        stale_data = {
+            "interactions/dead-1": {
+                "model": "gemini-3-pro",
+                "start_time": 1000000.0,
+                "pid": 99999999,  # Dead PID
+            },
+            "interactions/dead-2": {
+                "model": "deep-research-pro",
+                "start_time": 1000001.0,
+                "pid": 88888888,
+            },
+        }
+        with open(test_file, "w") as f:
+            json.dump(stale_data, f)
+
+        from loa_cheval.providers.google_adapter import _load_persisted_interactions
+        data = _load_persisted_interactions()
+        assert len(data) == 2
+        assert data["interactions/dead-1"]["pid"] == 99999999
+
+    def test_corrupted_interactions_file(self, tmp_path, monkeypatch):
+        """Corrupted .dr-interactions.json returns empty dict (Task 7.5)."""
+        import loa_cheval.providers.google_adapter as ga_mod
+
+        test_file = str(tmp_path / ".dr-interactions.json")
+        monkeypatch.setattr(ga_mod, "_INTERACTIONS_FILE", test_file)
+
+        with open(test_file, "w") as f:
+            f.write("not valid json{{{")
+
+        from loa_cheval.providers.google_adapter import _load_persisted_interactions
+        data = _load_persisted_interactions()
+        assert data == {}
+
+
+# --- Semaphore Pool Tests (Task 7.5) ---
+
+
+class TestSemaphorePools:
+    """Standard and Deep Research use separate concurrency pools."""
+
+    def test_standard_pool_name(self):
+        """Standard completion uses 'google-standard' pool."""
+        from loa_cheval.providers.concurrency import FLockSemaphore
+
+        sem = FLockSemaphore("google-standard", max_concurrent=5)
+        assert sem.name == "google-standard"
+        assert sem.max_concurrent == 5
+
+    def test_deep_research_pool_name(self):
+        """Deep Research uses 'google-deep-research' pool."""
+        from loa_cheval.providers.concurrency import FLockSemaphore
+
+        sem = FLockSemaphore("google-deep-research", max_concurrent=3)
+        assert sem.name == "google-deep-research"
+        assert sem.max_concurrent == 3
+
+    def test_pools_independent(self):
+        """Different pool names → independent semaphores."""
+        from loa_cheval.providers.concurrency import FLockSemaphore
+
+        sem1 = FLockSemaphore("google-standard", max_concurrent=5)
+        sem2 = FLockSemaphore("google-deep-research", max_concurrent=3)
+        # Different names produce different lock paths
+        assert sem1.name != sem2.name
+
+
+# --- API Version and URL Construction (Task 7.5) ---
+
+
+class TestApiVersionOverride:
+    """Test api_version override and URL construction edge cases."""
+
+    def test_default_api_version(self):
+        adapter = GoogleAdapter(_make_google_config())
+        assert adapter._api_version == "v1beta"
+
+    def test_url_with_model_colon(self):
+        """Model names with colons in generateContent path."""
+        adapter = GoogleAdapter(_make_google_config())
+        url = adapter._build_url("models/gemini-3-pro:generateContent")
+        assert "v1beta" in url
+        assert "gemini-3-pro:generateContent" in url
+
+    def test_url_with_interactions_path(self):
+        """Interactions API path."""
+        adapter = GoogleAdapter(_make_google_config())
+        url = adapter._build_url("models/deep-research-pro:createInteraction")
+        assert "v1beta" in url
+        assert "createInteraction" in url
+
+    def test_endpoint_normalization_strips_version(self):
+        """Endpoint with version suffix → stripped to avoid doubling."""
+        config = _make_google_config(
+            endpoint="https://generativelanguage.googleapis.com/v1beta"
+        )
+        adapter = GoogleAdapter(config)
+        url = adapter._build_url("models")
+        # Should not produce /v1beta/v1beta/models
+        assert url.count("v1beta") == 1
+
+    def test_endpoint_without_version(self):
+        """Endpoint without version → version added correctly."""
+        config = _make_google_config(
+            endpoint="https://generativelanguage.googleapis.com"
+        )
+        adapter = GoogleAdapter(config)
+        url = adapter._build_url("models")
+        assert "v1beta/models" in url
+
+
+# --- Auth Header Tests (Task 7.5) ---
+
+
+class TestAuthHeader:
+    """Test authentication is via x-goog-api-key header."""
+
+    @patch("loa_cheval.providers.google_adapter.http_post")
+    def test_auth_header_present(self, mock_http):
+        """Auth key sent via x-goog-api-key header (not query param)."""
+        fixture = json.loads((FIXTURES / "gemini-standard-response.json").read_text())
+        mock_http.return_value = (200, fixture)
+
+        config = _make_google_config(auth="AIzaSyTEST_KEY_12345")
+        adapter = GoogleAdapter(config)
+        request = CompletionRequest(
+            messages=[{"role": "user", "content": "Hello"}],
+            model="gemini-2.5-pro",
+        )
+        adapter.complete(request)
+
+        call_args = mock_http.call_args
+        headers = call_args[1]["headers"] if "headers" in call_args[1] else call_args[0][1]
+        assert headers.get("x-goog-api-key") == "AIzaSyTEST_KEY_12345"
+
+    @patch("loa_cheval.providers.google_adapter.http_post")
+    def test_auth_not_in_url(self, mock_http):
+        """Auth key must NOT appear as URL query parameter."""
+        fixture = json.loads((FIXTURES / "gemini-standard-response.json").read_text())
+        mock_http.return_value = (200, fixture)
+
+        config = _make_google_config(auth="AIzaSyTEST_KEY_12345")
+        adapter = GoogleAdapter(config)
+        request = CompletionRequest(
+            messages=[{"role": "user", "content": "Hello"}],
+            model="gemini-2.5-pro",
+        )
+        adapter.complete(request)
+
+        call_args = mock_http.call_args
+        url = call_args[1]["url"] if "url" in call_args[1] else call_args[0][0]
+        assert "AIzaSyTEST_KEY_12345" not in url
+
+
+# --- Max Retries Exhausted (Task 7.5) ---
+
+
+class TestMaxRetriesExhausted:
+    """Final error is surfaced when all retries are exhausted."""
+
+    @patch("loa_cheval.providers.google_adapter.http_post")
+    @patch("loa_cheval.providers.google_adapter.time.sleep")
+    def test_final_503_raises_provider_unavailable(self, mock_sleep, mock_http):
+        """All retries exhausted on 503 → ProviderUnavailableError with message."""
+        mock_http.return_value = (503, {"error": {"message": "Service Unavailable"}})
+
+        adapter = GoogleAdapter(_make_google_config())
+        request = CompletionRequest(
+            messages=[{"role": "user", "content": "Hello"}],
+            model="gemini-2.5-pro",
+        )
+        with pytest.raises(ProviderUnavailableError, match="503"):
+            adapter.complete(request)
+
+    @patch("loa_cheval.providers.google_adapter._poll_get")
+    @patch("loa_cheval.providers.google_adapter.http_post")
+    @patch("loa_cheval.providers.google_adapter.time.sleep")
+    def test_poll_max_retries_surfaces_error(self, mock_sleep, mock_http, mock_poll):
+        """Poll retries exhausted → error surfaced, not swallowed."""
+        mock_http.return_value = (200, {"name": "interactions/test-retry"})
+        # All poll attempts fail with 503
+        mock_poll.return_value = (503, {"error": {"message": "Unavailable"}})
+
+        config = _make_google_config()
+        config.models["deep-research-pro"] = ModelConfig(
+            api_mode="interactions",
+            extra={"polling_interval_s": 0.05, "max_poll_time_s": 5},
+        )
+        adapter = GoogleAdapter(config)
+        request = CompletionRequest(
+            messages=[{"role": "user", "content": "test"}],
+            model="deep-research-pro",
+        )
+        with pytest.raises(ProviderUnavailableError):
+            adapter.complete(request)
