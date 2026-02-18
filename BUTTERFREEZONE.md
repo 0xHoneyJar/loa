@@ -42,16 +42,16 @@ The project exposes 15 key entry points across its public API surface.
 
 ### .claude/adapters
 
-- **_build_provider_config** — Build ProviderConfig from merged hounfour config. (`.claude/adapters/cheval.py:151`)
-- **_check_feature_flags** — Check feature flags. (`.claude/adapters/cheval.py:190`)
-- **_error_json** — Format error as JSON for stderr (SDD §4.2.2 Error Taxonomy). (`.claude/adapters/cheval.py:76`)
-- **_load_persona** — Load persona.md for the given agent with optional system merge (SDD §4.3.2). (`.claude/adapters/cheval.py:95`)
-- **cmd_cancel** — Cancel a Deep Research interaction. (`.claude/adapters/cheval.py:486`)
-- **cmd_invoke** — Main invocation: resolve agent → call provider → return response. (`.claude/adapters/cheval.py:209`)
-- **cmd_poll** — Poll a Deep Research interaction. (`.claude/adapters/cheval.py:442`)
-- **cmd_print_config** — Print effective merged config with source annotations. (`.claude/adapters/cheval.py:417`)
-- **cmd_validate_bindings** — Validate all agent bindings. (`.claude/adapters/cheval.py:428`)
-- **main** — CLI entry point. (`.claude/adapters/cheval.py:522`)
+- **_build_provider_config** — Build ProviderConfig from merged hounfour config. (`.claude/adapters/cheval.py:152`)
+- **_check_feature_flags** — Check feature flags. (`.claude/adapters/cheval.py:191`)
+- **_error_json** — Format error as JSON for stderr (SDD §4.2.2 Error Taxonomy). (`.claude/adapters/cheval.py:77`)
+- **_load_persona** — Load persona.md for the given agent with optional system merge (SDD §4.3.2). (`.claude/adapters/cheval.py:96`)
+- **cmd_cancel** — Cancel a Deep Research interaction. (`.claude/adapters/cheval.py:510`)
+- **cmd_invoke** — Main invocation: resolve agent → call provider → return response. (`.claude/adapters/cheval.py:210`)
+- **cmd_poll** — Poll a Deep Research interaction. (`.claude/adapters/cheval.py:466`)
+- **cmd_print_config** — Print effective merged config with source annotations. (`.claude/adapters/cheval.py:441`)
+- **cmd_validate_bindings** — Validate all agent bindings. (`.claude/adapters/cheval.py:452`)
+- **main** — CLI entry point. (`.claude/adapters/cheval.py:546`)
 
 ### .claude/adapters/loa_cheval/config
 
@@ -147,7 +147,7 @@ Directory structure:
 |--------|-------|---------|---------------|
 | `docs/` | 6 | Documentation | \u2014 |
 | `evals/` | 1269 | Benchmarking and regression framework for the Loa agent development system. Ensures framework changes don't degrade agent behavior through | [evals/README.md](evals/README.md) |
-| `grimoires/` | 641 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
+| `grimoires/` | 642 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
 | `skills/` | 5112 | Specialized agent skills | \u2014 |
 | `tests/` | 150 | Test suites | \u2014 |
 
@@ -201,15 +201,15 @@ claude
 
 After install, you should see a `.claude/` directory, `grimoires/loa/`, and `.loa.config.yaml` in your repo. Run `/loa doctor` inside Claude Code to verify everything is healthy.
 <!-- ground-truth-meta
-head_sha: 95f38aa9d0cea768decbeaa8adcf949eb5f0abb1
-generated_at: 2026-02-18T14:17:19Z
+head_sha: 781661db55c0d12218299b7a4b2d7baeb0c7a652
+generated_at: 2026-02-18T21:49:01Z
 generator: butterfreezone-gen v1.0.0
 sections:
   agent_context: f8ea773f457ef2d8e0eec1de6db4e119a00029a333ec868a4ccdc42164eb6ec6
-  capabilities: fe6a352427b8d2f3578a1d7d8c3ed16c970f6ca5efabcbf8b8655f3d7e15d2af
+  capabilities: 555ccb971a852f04bbea1616c518a522b8b4a3b4274c61f0bfcd3ff69437888c
   architecture: 116f3296a49700fbee5e9cb0492e4f9aee0f9452b5c051a942ee4429278ab8d3
   interfaces: c0d2732b6ab7745352bd781f56f44f32b2f8f2cacef7234ceed3e8f09796c0f4
-  module_map: a70f9f33a4d88e9b080d44b9c781cd5bfb94734f970ba50d36cd39577ad8ff56
+  module_map: cc799f95d8ed427e34c433460ae0324fa0460ab18e2f6f7527cc34367173527a
   verification: 3abc915e61bda5da9bf05014f8b02fb439a718a9f3ee58a5ec1dabb62ea75993
   agents: ca263d1e05fd123434a21ef574fc8d76b559d22060719640a1f060527ef6a0b6
   culture: f73380f93bb4fadf36ccc10d60fc57555914363fc90e4f15b4dc4eb92bd1640f
