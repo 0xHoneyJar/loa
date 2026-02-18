@@ -373,8 +373,8 @@ def _load_permissions() -> Dict[str, Any]:
     global _PERMISSIONS_CACHE, _PERMISSIONS_MTIME
 
     # Check file stat for invalidation
-    adapters_dir = Path(__file__).resolve().parents[3]  # .claude/
-    permissions_path = adapters_dir / "data" / "model-permissions.yaml"
+    claude_dir = Path(__file__).resolve().parents[3]  # .claude/
+    permissions_path = claude_dir / "data" / "model-permissions.yaml"
 
     if permissions_path.exists():
         current_mtime = permissions_path.stat().st_mtime
