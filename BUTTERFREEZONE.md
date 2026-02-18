@@ -25,7 +25,7 @@ capability_requirements:
   - git: read_write
   - shell: execute
   - github_api: read_write (scope: external)
-version: v1.39.1
+version: v1.45.2
 trust_level: L2-verified
 -->
 
@@ -147,14 +147,14 @@ Directory structure:
 |--------|-------|---------|---------------|
 | `docs/` | 5 | Documentation | \u2014 |
 | `evals/` | 1269 | Benchmarking and regression framework for the Loa agent development system. Ensures framework changes don't degrade agent behavior through | [evals/README.md](evals/README.md) |
-| `grimoires/` | 586 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
+| `grimoires/` | 613 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
 | `skills/` | 5112 | Specialized agent skills | \u2014 |
-| `tests/` | 148 | Test suites | \u2014 |
+| `tests/` | 149 | Test suites | \u2014 |
 
 ## Verification
 <!-- provenance: CODE-FACTUAL -->
 - Trust Level: **L2 — CI Verified**
-- 148 test files across 1 suite
+- 149 test files across 1 suite
 - CI/CD: GitHub Actions (10 workflows)
 - Security: SECURITY.md present
 
@@ -201,16 +201,16 @@ claude
 
 After install, you should see a `.claude/` directory, `grimoires/loa/`, and `.loa.config.yaml` in your repo. Run `/loa doctor` inside Claude Code to verify everything is healthy.
 <!-- ground-truth-meta
-head_sha: 630c3335e31da190c08b5c773d70ec54c7af2525
-generated_at: 2026-02-16T06:52:21Z
+head_sha: 380cc40d385be398b330c817691a6b66ef263010
+generated_at: 2026-02-18T00:11:04Z
 generator: butterfreezone-gen v1.0.0
 sections:
-  agent_context: f0e46136a9fb44f42e69230a4159e0574f17456c5d83430fe90352f9cce30a92
+  agent_context: c3baf19dece810b624bf1348b63ae55429c79e95f6fe41322745ef7bd9473609
   capabilities: 7ac5066c6290b2bd238aba0cebe80e6c24d2c32ecc6b066842a065eb8c2300c1
   architecture: 116f3296a49700fbee5e9cb0492e4f9aee0f9452b5c051a942ee4429278ab8d3
   interfaces: c0d2732b6ab7745352bd781f56f44f32b2f8f2cacef7234ceed3e8f09796c0f4
-  module_map: c22d1f336872902650ca3cc04bbb88569f3e1045cd46ee65a500cc9ad0e979a1
-  verification: 83aaa048d4ceda0020795438f4f4a4d74b98cdaed7fd8f80cb58d3d61d688502
+  module_map: 0952b104f14818c2695aaa17f3f3b1999da4cda5609da2fbc044a0f83d8e954e
+  verification: daf2e10cceaf0ae2151e62a3699edf842e27e1707c476018406af1fd90b1c5c2
   agents: ca263d1e05fd123434a21ef574fc8d76b559d22060719640a1f060527ef6a0b6
   culture: f73380f93bb4fadf36ccc10d60fc57555914363fc90e4f15b4dc4eb92bd1640f
   quick_start: 3c38dc53bf2ec73cbbb5c372af747ffa7894538d360b1182566647c2940c58c7

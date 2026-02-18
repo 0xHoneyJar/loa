@@ -7,6 +7,7 @@ from typing import Dict, Type
 from loa_cheval.providers.base import ProviderAdapter
 from loa_cheval.providers.openai_adapter import OpenAIAdapter
 from loa_cheval.providers.anthropic_adapter import AnthropicAdapter
+from loa_cheval.providers.google_adapter import GoogleAdapter
 from loa_cheval.types import ConfigError, ProviderConfig
 
 # Provider type → adapter class mapping
@@ -14,6 +15,7 @@ _ADAPTER_REGISTRY: Dict[str, Type[ProviderAdapter]] = {
     "openai": OpenAIAdapter,
     "anthropic": AnthropicAdapter,
     "openai_compat": OpenAIAdapter,  # OpenAI-compatible uses the same adapter
+    "google": GoogleAdapter,
 }
 
 
@@ -25,4 +27,4 @@ def get_adapter(config: ProviderConfig) -> ProviderAdapter:
     return adapter_cls(config)
 
 
-__all__ = ["ProviderAdapter", "OpenAIAdapter", "AnthropicAdapter", "get_adapter"]
+__all__ = ["ProviderAdapter", "OpenAIAdapter", "AnthropicAdapter", "GoogleAdapter", "get_adapter"]

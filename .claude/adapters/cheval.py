@@ -68,6 +68,7 @@ EXIT_CODES = {
     "INVALID_RESPONSE": 5,
     "BUDGET_EXCEEDED": 6,
     "CONTEXT_TOO_LARGE": 7,
+    "INTERACTION_PENDING": 8,
 }
 
 
@@ -160,6 +161,8 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
             capabilities=model_data.get("capabilities", []),
             context_window=model_data.get("context_window", 128000),
             pricing=model_data.get("pricing"),
+            api_mode=model_data.get("api_mode"),
+            extra=model_data.get("extra"),
         )
 
     return ProviderConfig(
@@ -214,9 +217,15 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         print(json.dumps(result, indent=2), file=sys.stdout)
         return EXIT_CODES["SUCCESS"]
 
-    # Load input content
+    # Load input content (--prompt takes priority over --input/stdin)
     input_text = ""
-    if args.input:
+    if args.prompt and args.input:
+        print(_error_json("INVALID_INPUT", "--prompt and --input are mutually exclusive"), file=sys.stderr)
+        return EXIT_CODES["INVALID_INPUT"]
+
+    if args.prompt:
+        input_text = args.prompt
+    elif args.input:
         input_path = Path(args.input)
         if input_path.exists():
             input_text = input_path.read_text()
@@ -227,7 +236,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         input_text = sys.stdin.read()
 
     if not input_text:
-        print(_error_json("INVALID_INPUT", "No input provided. Use --input <file> or pipe to stdin."), file=sys.stderr)
+        print(_error_json("INVALID_INPUT", "No input provided. Use --prompt, --input <file>, or pipe to stdin."), file=sys.stderr)
         return EXIT_CODES["INVALID_INPUT"]
 
     # Build messages
@@ -315,7 +324,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         # Redact sensitive information from unexpected errors
         msg = str(e)
         # Strip potential auth values from error messages
-        for env_key in ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "MOONSHOT_API_KEY"]:
+        for env_key in ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "MOONSHOT_API_KEY", "GOOGLE_API_KEY"]:
             val = os.environ.get(env_key)
             if val and val in msg:
                 msg = msg.replace(val, "***REDACTED***")
@@ -358,6 +367,7 @@ def main() -> int:
     # Main invocation args
     parser.add_argument("--agent", help="Agent name (e.g., reviewing-code)")
     parser.add_argument("--input", help="Path to input file")
+    parser.add_argument("--prompt", help="Inline prompt text (mutually exclusive with --input)")
     parser.add_argument("--system", help="Path to system prompt file (overrides persona.md)")
     parser.add_argument("--model", help="Model override (alias or provider:model-id)")
     parser.add_argument("--max-tokens", type=int, default=4096, dest="max_tokens", help="Maximum output tokens")

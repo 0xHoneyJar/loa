@@ -41,6 +41,34 @@ providers:
         pricing:
           input_per_mtok: 1250000    # $1.25 per million tokens
           output_per_mtok: 10000000  # $10.00 per million tokens
+        extra:
+          thinking_budget: -1        # Dynamic thinking budget
+      gemini-3-flash:
+        capabilities: [chat, thinking_traces]
+        context_window: 2097152
+        pricing:
+          input_per_mtok: 200000     # $0.20 per million tokens
+          output_per_mtok: 800000    # $0.80 per million tokens
+        extra:
+          thinking_level: "medium"
+      gemini-3-pro:
+        capabilities: [chat, thinking_traces]
+        context_window: 2097152
+        pricing:
+          input_per_mtok: 2500000    # $2.50 per million tokens
+          output_per_mtok: 15000000  # $15.00 per million tokens
+        extra:
+          thinking_level: "high"
+      deep-research-pro:
+        capabilities: [chat, thinking_traces, deep_research]
+        context_window: 1048576
+        api_mode: interactions
+        pricing:
+          input_per_mtok: 5000000    # $5.00 per million tokens
+          output_per_mtok: 20000000  # $20.00 per million tokens
+        extra:
+          polling_interval_s: 5
+          max_poll_time_s: 600
 
   anthropic:
     type: anthropic
@@ -68,6 +96,9 @@ aliases:
   reasoning: "openai:gpt-5.2"           # Reasoning/skeptic model
   cheap: "anthropic:claude-sonnet-4-6"  # Budget-conscious model
   opus: "anthropic:claude-opus-4-6"     # High-quality model
+  deep-thinker: "google:gemini-3-pro"   # Deep thinking with Gemini 3
+  fast-thinker: "google:gemini-3-flash" # Fast thinking with Gemini 3
+  researcher: "google:deep-research-pro" # Deep Research model
 
 # Agent bindings (agent name → model + requirements)
 # Conservative profile: maximize quality, most agents on native (PRD FR-4)
@@ -113,6 +144,24 @@ agents:
   gpt-reviewer:
     model: reviewer
     temperature: 0.3
+  deep-researcher:
+    model: researcher
+    temperature: 0.3
+    requires:
+      deep_research: required
+  deep-thinker:
+    model: deep-thinker
+    temperature: 0.4
+    requires:
+      thinking_traces: required
+  fast-thinker:
+    model: fast-thinker
+    temperature: 0.5
+  literature-reviewer:
+    model: researcher
+    temperature: 0.2
+    requires:
+      deep_research: required
 
 # Routing
 routing:

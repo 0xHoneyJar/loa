@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Let me analyze this step by step to find the optimal approach.",
+            "thought": true
+          },
+          {
+            "text": "After careful analysis, the recommended solution is to use a hash map for O(1) lookups."
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "safetyRatings": [
+        {
+          "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+          "probability": "NEGLIGIBLE"
+        }
+      ]
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 100,
+    "candidatesTokenCount": 45,
+    "thoughtsTokenCount": 120,
+    "totalTokenCount": 265
+  },
+  "modelVersion": "gemini-3-pro"
+}
