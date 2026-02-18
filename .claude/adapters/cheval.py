@@ -296,6 +296,8 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     # Epistemic context filtering (BB-501: audit mode, Sprint 9)
     # When context_filtering flag is set, run filter in the configured mode.
     # "audit" = log only (no message modification), "enforce" = apply filtering.
+    # BB-603: Intentionally mixed-type flag (bool false | string "audit"|"enforce").
+    # Other feature flags are bool-only; this uses strings for mode selection.
     flags = hounfour.get("feature_flags", {})
     context_filtering_mode = flags.get("context_filtering", False)
     if context_filtering_mode == "audit":

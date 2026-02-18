@@ -28,6 +28,7 @@ from loa_cheval.routing.context_filter import (
     filter_context,
     filter_message_content,
     get_context_access,
+    invalidate_permissions_cache,
     lookup_trust_scopes,
 )
 
@@ -40,6 +41,7 @@ __all__ = [
     "OPEN",
     "audit_filter_context",
     "check_state",
+    "invalidate_permissions_cache",
     "cleanup_stale_files",
     "filter_context",
     "filter_message_content",

@@ -1,19 +1,26 @@
-"""Tests for epistemic trust scopes and context filtering (Sprint 9, Task 9.3).
+"""Tests for epistemic trust scopes and context filtering (Sprint 9, Task 9.3; BB-602).
 
 Validates that context_filter.py correctly filters message content based on
 the context_access dimension of a model's trust_scopes. Covers all 4 sub-dimensions
 (architecture, business_logic, security, lore), backward compatibility, and
 native_runtime bypass.
+
+BB-602 additions: Tests for audit_filter_context, lookup_trust_scopes,
+invalidate_permissions_cache, and ARCHITECTURE_SUMMARY_MAX_CHARS constant.
 """
 
 import pytest
 
 from loa_cheval.routing.context_filter import (
+    ARCHITECTURE_SUMMARY_MAX_CHARS,
     DEFAULT_CONTEXT_ACCESS,
+    audit_filter_context,
     filter_context,
     filter_message_content,
     get_context_access,
+    invalidate_permissions_cache,
     is_all_full,
+    lookup_trust_scopes,
 )
 
 # ============================================================================
@@ -305,3 +312,110 @@ class TestFilterContext:
         content = result[0]["content"]
         assert "Software Design Document" in content
         assert "CVE-2024-12345" not in content
+
+
+# ============================================================================
+# BB-602: Tests for audit_filter_context, lookup_trust_scopes, and cache
+# ============================================================================
+
+
+class TestArchitectureSummaryConstant:
+    """BB-505: Verify constant is extracted and accessible."""
+
+    def test_constant_exists(self):
+        assert ARCHITECTURE_SUMMARY_MAX_CHARS == 500
+
+    def test_constant_is_integer(self):
+        assert isinstance(ARCHITECTURE_SUMMARY_MAX_CHARS, int)
+
+
+class TestLookupTrustScopes:
+    """BB-602: Verify trust scopes lookup from model-permissions.yaml."""
+
+    def test_lookup_known_model(self):
+        """claude-code:session should return trust_scopes dict."""
+        scopes = lookup_trust_scopes("claude-code", "session")
+        # Should return a dict (model exists in permissions)
+        assert scopes is not None
+        assert isinstance(scopes, dict)
+        assert "data_access" in scopes
+
+    def test_lookup_unknown_model(self):
+        """Unknown model should return None."""
+        scopes = lookup_trust_scopes("nonexistent", "fake-model")
+        assert scopes is None
+
+    def test_lookup_google_model(self):
+        """Google model should have trust_scopes."""
+        scopes = lookup_trust_scopes("google", "gemini-3-pro")
+        assert scopes is not None
+        assert scopes.get("data_access") == "none"
+
+    def test_lookup_returns_context_access(self):
+        """Models with context_access should include it in scopes."""
+        scopes = lookup_trust_scopes("openai", "gpt-5.2")
+        if scopes and "context_access" in scopes:
+            ctx = scopes["context_access"]
+            assert isinstance(ctx, dict)
+
+
+class TestInvalidatePermissionsCache:
+    """BB-601: Verify cache invalidation works."""
+
+    def test_invalidate_and_reload(self):
+        """Cache should reload after invalidation."""
+        # First lookup populates cache
+        scopes1 = lookup_trust_scopes("claude-code", "session")
+        # Invalidate
+        invalidate_permissions_cache()
+        # Second lookup should reload (same result since file unchanged)
+        scopes2 = lookup_trust_scopes("claude-code", "session")
+        assert scopes1 == scopes2
+
+    def test_invalidate_resets_state(self):
+        """After invalidation, a fresh load should succeed."""
+        invalidate_permissions_cache()
+        scopes = lookup_trust_scopes("claude-code", "session")
+        assert scopes is not None
+
+
+class TestAuditFilterContext:
+    """BB-602: Verify audit mode returns original messages unchanged."""
+
+    def test_audit_returns_original_messages(self):
+        """Audit mode must return original messages unmodified."""
+        messages = [
+            {"role": "system", "content": MIXED_CONTENT},
+            {"role": "user", "content": "What is the architecture?"},
+        ]
+        # Use scopes that would trigger filtering
+        result = audit_filter_context(
+            messages, "openai", "gpt-5.2", is_native_runtime=False
+        )
+        # Result should be the exact same list object (audit = no modification)
+        assert result is messages
+
+    def test_audit_skips_native_runtime(self):
+        """Native runtime should be skipped in audit mode too."""
+        messages = [{"role": "user", "content": "test"}]
+        result = audit_filter_context(
+            messages, "claude-code", "session", is_native_runtime=True
+        )
+        assert result is messages
+
+    def test_audit_with_all_full_scopes(self):
+        """Models with all-full context_access should pass through."""
+        messages = [{"role": "user", "content": MIXED_CONTENT}]
+        result = audit_filter_context(
+            messages, "claude-code", "session", is_native_runtime=False
+        )
+        # claude-code:session has all-full context_access, so no filtering
+        assert result is messages
+
+    def test_audit_with_unknown_model(self):
+        """Unknown models default to all-full (no filtering)."""
+        messages = [{"role": "user", "content": "test"}]
+        result = audit_filter_context(
+            messages, "unknown", "model", is_native_runtime=False
+        )
+        assert result is messages

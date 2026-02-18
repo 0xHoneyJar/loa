@@ -351,17 +351,42 @@ def filter_context(
 # --- Permissions Loader (BB-501: bridge enforcement to invocation path) ---
 
 _PERMISSIONS_CACHE: Optional[Dict[str, Any]] = None
+_PERMISSIONS_MTIME: float = 0.0  # Last-modified time for file-stat invalidation
+
+
+def invalidate_permissions_cache() -> None:
+    """Invalidate the permissions cache (BB-601).
+
+    Call this in tests or when model-permissions.yaml changes during a session.
+    """
+    global _PERMISSIONS_CACHE, _PERMISSIONS_MTIME
+    _PERMISSIONS_CACHE = None
+    _PERMISSIONS_MTIME = 0.0
 
 
 def _load_permissions() -> Dict[str, Any]:
-    """Load model-permissions.yaml with caching."""
-    global _PERMISSIONS_CACHE
+    """Load model-permissions.yaml with file-stat cache invalidation (BB-601).
+
+    The cache is invalidated when the file's mtime changes, supporting
+    long-running sessions where permissions may be updated.
+    """
+    global _PERMISSIONS_CACHE, _PERMISSIONS_MTIME
+
+    # Check file stat for invalidation
+    adapters_dir = Path(__file__).resolve().parents[3]  # .claude/
+    permissions_path = adapters_dir / "data" / "model-permissions.yaml"
+
+    if permissions_path.exists():
+        current_mtime = permissions_path.stat().st_mtime
+        if _PERMISSIONS_CACHE is not None and current_mtime == _PERMISSIONS_MTIME:
+            return _PERMISSIONS_CACHE
+        # File changed or first load — invalidate
+        if current_mtime != _PERMISSIONS_MTIME:
+            _PERMISSIONS_CACHE = None
+            _PERMISSIONS_MTIME = current_mtime
+
     if _PERMISSIONS_CACHE is not None:
         return _PERMISSIONS_CACHE
-
-    # Search relative to repo root (adapters dir is .claude/adapters/)
-    adapters_dir = Path(__file__).resolve().parents[2]  # .claude/
-    permissions_path = adapters_dir / "data" / "model-permissions.yaml"
 
     if not permissions_path.exists():
         logger.warning("model-permissions.yaml not found at %s", permissions_path)
