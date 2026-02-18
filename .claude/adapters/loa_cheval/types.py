@@ -33,6 +33,7 @@ class CompletionResult:
     model: str  # Actual model used (may differ from requested)
     latency_ms: int
     provider: str
+    interaction_id: Optional[str] = None  # Deep Research interaction ID for deduplication
 
 
 @dataclass

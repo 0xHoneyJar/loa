@@ -371,7 +371,7 @@ class TestRateLimiterRefill:
         with open(state_path, "r") as f:
             state = json.load(f)
         # Set last_update to 30 seconds ago (half a minute → 30 RPM refill)
-        state["last_update"] = time.monotonic() - 30
+        state["last_update"] = time.time() - 30
         with open(state_path, "w") as f:
             json.dump(state, f)
 

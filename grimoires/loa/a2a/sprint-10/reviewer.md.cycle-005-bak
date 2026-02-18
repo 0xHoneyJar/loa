@@ -1,0 +1,178 @@
+# Sprint 10 Implementation Report
+
+**Sprint**: Sprint 3 — Integration
+**Global ID**: sprint-10
+**Cycle**: cycle-005 (Run Bridge — Autonomous Excellence Loops with Grounded Truth)
+**Date**: 2026-02-12
+**Status**: Complete
+
+---
+
+## Tasks Completed
+
+### Task 3.1: GitHub Trail Script ✅
+
+**File**: `.claude/scripts/bridge-github-trail.sh` (~230 lines)
+
+**Acceptance Criteria**:
+- [x] `comment` subcommand: posts Bridgebuilder review as PR comment via `gh pr comment`
+- [x] Comment includes `<!-- bridge-iteration: {bridge_id}:{iteration} -->` marker for dedup
+- [x] `update-pr` subcommand: updates PR body with iteration summary table via `gh pr edit`
+- [x] `vision` subcommand: posts vision link as PR comment
+- [x] All subcommands accept `--pr` and `--bridge-id` flags
+- [x] Graceful degradation when `gh` not available (logs warning, returns 0)
+- [x] Sources `bootstrap.sh`
+
+---
+
+### Task 3.2: Bridgebuilder Lore-Aware Persona Extension ✅
+
+**File**: `.claude/skills/bridgebuilder-review/resources/BEAUVOIR.md`
+
+**Acceptance Criteria**:
+- [x] New "Lore Integration" section added to persona
+- [x] Instructions to load relevant lore from `.claude/data/lore/` at review time
+- [x] Use `short` field for inline references, `context` field for teaching moments
+- [x] Example mappings: circuit breaker → kaironic-time, multi-model → hounfour, session recovery → cheval
+- [x] Structured findings format documented: `<!-- bridge-findings-start/end -->` markers
+- [x] Finding template with severity, category, file, description, suggestion fields
+- [x] VISION finding type documented for speculative insights
+- [x] Existing persona content preserved unchanged
+
+---
+
+### Task 3.3: RTFM Integration ✅
+
+**Modified**: `.claude/scripts/bridge-orchestrator.sh`
+
+**Acceptance Criteria**:
+- [x] After loop termination, RTFM runs on GT index.md, README.md, protocol docs
+- [x] RTFM invoked via SIGNAL protocol for agent delegation
+- [x] On all PASS → continue to PR finalization
+- [x] On FAILURE → generate single documentation fix sprint, re-test (1 retry max)
+- [x] On second FAILURE → log warning, continue anyway (non-blocking)
+- [x] RTFM results recorded in bridge state (`finalization.rtfm_passed`)
+- [x] Configurable via `run_bridge.rtfm.enabled` and `max_fix_iterations`
+
+---
+
+### Task 3.4: `/run-bridge` Command and Skill Registration ✅
+
+**Files created**:
+- `.claude/commands/run-bridge.md`
+- `.claude/skills/run-bridge/index.yaml`
+- `.claude/skills/run-bridge/SKILL.md`
+
+**Acceptance Criteria**:
+- [x] Command file routes `/run-bridge` to the run-bridge skill
+- [x] index.yaml matches SDD §3.10: name, version, danger_level (high), triggers, inputs, outputs
+- [x] SKILL.md documents: input guardrails, argument parsing, orchestrator invocation, progress reporting
+- [x] SKILL.md references bridge-orchestrator.sh as the execution engine
+- [x] Danger level set to `high` (autonomous execution)
+- [x] Triggers include: `/run-bridge`, `bridge loop`, `excellence loop`, `iterative review`
+
+---
+
+### Task 3.5: Golden Path Bridge State Detection ✅
+
+**File modified**: `.claude/scripts/golden-path.sh`
+
+**Acceptance Criteria**:
+- [x] `golden_detect_bridge_state()` reads `.run/bridge-state.json`, returns state or "none"
+- [x] When state is ITERATING: reports iteration progress (N/depth, score, initial)
+- [x] When state is HALTED: reports halt reason and resume instructions
+- [x] When state is FINALIZING: reports finalization progress
+- [x] Function returns empty string when no bridge state file exists
+- [x] Does not break existing golden path detection (all existing tests still pass)
+
+---
+
+### Task 3.6: Configuration and Constraints ✅
+
+**Files modified**:
+- `.loa.config.yaml.example` — added `run_bridge:` section
+- `.claude/data/constraints.json` — added C-BRIDGE-001 through C-BRIDGE-005
+- `.claude/loa/CLAUDE.loa.md` — added Run Bridge section
+
+**Acceptance Criteria**:
+- [x] `run_bridge:` config section with all fields from SDD §6.1
+- [x] Config includes: enabled, defaults, timeouts, github_trail, ground_truth, vision_registry, rtfm, lore
+- [x] 5 new constraints added (C-BRIDGE-001 through C-BRIDGE-005)
+- [x] Constraints have unique IDs with category "bridge"
+- [x] CLAUDE.loa.md updated with Run Bridge section, bridge state recovery, component table
+- [x] `/run-bridge` added to Run Bridge commands list in workflow section
+
+---
+
+### Task 3.7: Lore Integration in Other Skills ✅
+
+**Files modified**:
+- `.claude/skills/discovering-requirements/SKILL.md` — lore reference for archetypes
+- `.claude/commands/loa.md` — lore reference for naming context + bridge state detection
+
+**Acceptance Criteria**:
+- [x] discovering-requirements SKILL.md references lore for philosophical framing during PRD creation
+- [x] `/loa` command references lore glossary for naming explanations
+- [x] References use `short` field for inline, `context` for detail when asked
+- [x] No forced or unnatural lore injection — references are contextually appropriate
+- [x] At least 3 skills total reference `.claude/data/lore/`: bridgebuilder, discovering-requirements, golden path
+
+---
+
+### Task 3.8: End-to-End Integration Tests ✅
+
+**Files created**:
+| File | Tests | Status |
+|------|-------|--------|
+| `tests/unit/bridge-github-trail.bats` | 11 | ✅ All passing |
+| `tests/unit/bridge-golden-path.bats` | 11 | ✅ All passing |
+| `evals/tasks/framework/golden-path-bridge-detection.yaml` | 1 | ✅ Created |
+| `evals/tasks/framework/vision-entries-traceability.yaml` | 1 | ✅ Created |
+
+**Total new Sprint 3 tests**: 22
+**Total all sprints**: 94 (25 lore + 11 GT + 21 state + 9 parser + 6 vision + 11 trail + 11 golden-path)
+
+---
+
+### Task 3.9: Version Bump and Final Changelog ✅
+
+**Acceptance Criteria**:
+- [x] Version remains 1.34.0 (all 3 sprints are one release)
+- [x] CHANGELOG entry covers all 6 functional requirements comprehensively
+- [x] README updated with `/run-bridge` in agents table and key features
+- [x] README feature table includes: Run Bridge, Grounded Truth, Lore KB, Vision Registry
+- [x] Release name: "Bridge Release"
+
+---
+
+## Files Created (Sprint 3)
+
+| File | Type | Lines |
+|------|------|-------|
+| `.claude/scripts/bridge-github-trail.sh` | Script | ~230 |
+| `.claude/skills/run-bridge/index.yaml` | Config | ~80 |
+| `.claude/skills/run-bridge/SKILL.md` | Docs | ~140 |
+| `.claude/commands/run-bridge.md` | Command | ~60 |
+| `tests/unit/bridge-github-trail.bats` | Test | ~140 |
+| `tests/unit/bridge-golden-path.bats` | Test | ~170 |
+| `evals/tasks/framework/golden-path-bridge-detection.yaml` | Eval | 16 |
+| `evals/tasks/framework/vision-entries-traceability.yaml` | Eval | 16 |
+
+## Files Modified (Sprint 3)
+
+| File | Change |
+|------|--------|
+| `.claude/skills/bridgebuilder-review/resources/BEAUVOIR.md` | Added Lore Integration + Structured Findings sections |
+| `.claude/scripts/golden-path.sh` | Added bridge state detection functions |
+| `.claude/scripts/bridge-orchestrator.sh` | Added RTFM integration and finalization tracking |
+| `.claude/skills/discovering-requirements/SKILL.md` | Added lore reference for philosophical framing |
+| `.claude/commands/loa.md` | Added bridge state detection and lore naming context |
+| `.loa.config.yaml.example` | Added `run_bridge:` configuration section |
+| `.claude/data/constraints.json` | Added 5 bridge constraints (C-BRIDGE-001–005) |
+| `.claude/loa/CLAUDE.loa.md` | Added Run Bridge section, updated workflow commands |
+| `README.md` | Added run-bridge agent, key features rows |
+| `CHANGELOG.md` | Comprehensive entry covering all 3 sprints |
+
+## Summary
+
+Sprint 3 completes the Run Bridge integration — wiring all components from Sprints 1 and 2 together with GitHub trail enforcement, lore-aware Bridgebuilder reviews, RTFM final gate, `/run-bridge` command registration, golden path state detection, configuration, constraints, and 94 total tests across all 3 sprints. The 1.34.0 Bridge Release is ready for review.

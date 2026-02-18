@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "active_cycle": "cycle-026",
-  "global_sprint_counter": 9,
+  "global_sprint_counter": 10,
   "cycles": [
     {
       "id": "cycle-025",
@@ -82,6 +82,12 @@
           "local_id": "sprint-5",
           "global_id": "sprint-9",
           "label": "Bridge Iteration — Metering Correctness and Test Coverage",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-6",
+          "global_id": "sprint-10",
+          "label": "Bridge Iteration 2 — Resilience Hardening and Test Correctness",
           "status": "completed"
         }
       ]

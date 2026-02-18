@@ -139,3 +139,94 @@ model_permissions:
       none when used as a remote model — no direct side effects. Trust
       asymmetry (high trust_level, none scopes) reflects the distinction
       between inherent model trustworthiness and operational permissions.
+
+  # -------------------------------------------------------------------------
+  # Google Gemini 2.5 Pro — Remote model, standard generation
+  # -------------------------------------------------------------------------
+  google:gemini-2.5-pro:
+    trust_level: standard
+    trust_scopes:
+      data_access: none
+      financial: none
+      delegation: none
+      model_selection: none
+      governance: none
+      external_communication: none
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      Standard Gemini model for generation tasks. Supports thinking/reasoning
+      traces via thinkingBudget config. All trust_scopes none — receives
+      prompts via API, returns text. No direct side effects.
+
+  # -------------------------------------------------------------------------
+  # Google Gemini 3 Pro — Remote model, advanced generation
+  # -------------------------------------------------------------------------
+  google:gemini-3-pro:
+    trust_level: standard
+    trust_scopes:
+      data_access: none
+      financial: none
+      delegation: none
+      model_selection: none
+      governance: none
+      external_communication: none
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      Next-gen Gemini model with thinkingLevel config format. All trust_scopes
+      none — standard remote model permissions.
+
+  # -------------------------------------------------------------------------
+  # Google Gemini 3 Flash — Remote model, fast generation
+  # -------------------------------------------------------------------------
+  google:gemini-3-flash:
+    trust_level: standard
+    trust_scopes:
+      data_access: none
+      financial: none
+      delegation: none
+      model_selection: none
+      governance: none
+      external_communication: none
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      Fast Gemini model for low-latency tasks. All trust_scopes none —
+      standard remote model permissions.
+
+  # -------------------------------------------------------------------------
+  # Google Deep Research Pro — Remote model, long-running research
+  # -------------------------------------------------------------------------
+  google:deep-research-pro:
+    trust_level: standard
+    trust_scopes:
+      data_access: none
+      financial: none
+      delegation: limited
+      model_selection: none
+      governance: none
+      external_communication: none
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      Deep Research via Interactions API. Long-running async operations with
+      polling. delegation: limited because the model autonomously searches and
+      synthesizes from web sources during research, effectively delegating the
+      information gathering task. All other scopes none.

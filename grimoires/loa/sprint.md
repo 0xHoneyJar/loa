@@ -2,7 +2,7 @@
 
 > Cycle: cycle-026 | PRD: grimoires/loa/prd.md | SDD: grimoires/loa/sdd.md
 > Source: [#365](https://github.com/0xHoneyJar/loa/issues/365)
-> Sprints: 5 | Estimated: ~1550 lines across 14 files (6 new, 8 modified) + bridge iteration
+> Sprints: 6 | Estimated: ~1550 lines across 14 files (6 new, 8 modified) + bridge iterations
 > Parallelism: Sprints 2 and 3 are independent after Sprint 1 completes; Sprint 4 runs after all
 > Flatline: Reviewed (2 HIGH_CONSENSUS integrated, 1 DISPUTED accepted, 6 BLOCKERS addressed)
 
@@ -704,6 +704,77 @@ Add docstring clarifying that the rate limiter is advisory (optimistic check), n
 - [x] `check()` method docstring notes non-atomic read (advisory only)
 - [x] `record()` method docstring notes atomic write
 - [x] Reference to BudgetEnforcer as the enforcing layer
+
+---
+
+## Sprint 6: Bridge Iteration 2 — Resilience Hardening and Test Correctness
+
+**Goal**: Address Bridgebuilder iteration 2 findings. Fix the test clock mismatch (BB-204), harden urllib fallback error handling (BB-210), wire interaction_id deduplication (BB-206), narrow exception handling in interaction persistence (BB-209), and add Google model permissions (BB-215).
+
+**Global Sprint ID**: sprint-10
+**Source**: Bridge iteration 2 findings (severity score 14.5)
+
+### Task 6.1: Fix rate limiter refill test clock source
+
+**File**: `.claude/adapters/tests/test_pricing_extended.py`
+**Finding**: BB-204 (HIGH)
+
+Replace `time.monotonic()` with `time.time()` in `test_refill_over_time()`. The test currently passes by coincidence because `time.time() >> time.monotonic()`.
+
+**Acceptance Criteria**:
+- [x] `time.monotonic() - 30` replaced with `time.time() - 30` in test_refill_over_time
+- [x] Test still passes with the correct clock source
+- [x] Grep confirms no remaining `time.monotonic()` usage in test files that interact with persisted state
+
+### Task 6.2: Add URLError and socket.timeout handling to http_post urllib fallback
+
+**File**: `.claude/adapters/loa_cheval/providers/base.py`
+**Finding**: BB-210 (MEDIUM)
+
+The urllib fallback catches HTTPError but not network-level errors. Add catches for URLError and socket.timeout.
+
+**Acceptance Criteria**:
+- [x] `urllib.error.URLError` caught and returns (503, error dict)
+- [x] `socket.timeout` caught and returns (504, error dict)
+- [x] Import `socket` at module level
+- [x] Add test for URLError handling in urllib fallback path
+- [x] Add test for socket.timeout handling in urllib fallback path
+
+### Task 6.3: Wire interaction_id through CompletionResult for budget deduplication
+
+**File**: `.claude/adapters/loa_cheval/types.py`, `.claude/adapters/loa_cheval/providers/google_adapter.py`
+**Finding**: BB-206 (MEDIUM)
+
+Add `interaction_id` field to `CompletionResult` and populate it in `_complete_deep_research()`.
+
+**Acceptance Criteria**:
+- [x] `interaction_id: Optional[str] = None` added to CompletionResult dataclass
+- [x] `_complete_deep_research()` sets interaction_id on the returned CompletionResult
+- [x] BudgetEnforcer.post_call() deduplication now functional (test with duplicate interaction_id)
+- [x] Existing tests still pass
+
+### Task 6.4: Narrow exception handling in _load_persisted_interactions
+
+**File**: `.claude/adapters/loa_cheval/providers/google_adapter.py`
+**Finding**: BB-209 (MEDIUM)
+
+Replace bare `except Exception` with specific exception types.
+
+**Acceptance Criteria**:
+- [x] Exception clause narrowed to `(json.JSONDecodeError, FileNotFoundError, OSError)`
+- [x] Existing tests still pass
+
+### Task 6.5: Add Google model entries to model-permissions.yaml
+
+**File**: `.claude/data/model-permissions.yaml`
+**Finding**: BB-215 (LOW)
+
+Add trust scope entries for Google/Gemini models.
+
+**Acceptance Criteria**:
+- [x] Entries added for `google:gemini-2.5-pro`, `google:gemini-3-pro`, `google:gemini-3-flash`, `google:deep-research-pro`
+- [x] Trust scopes set appropriately (data_access: none, financial: none for standard; delegation: limited for deep-research)
+- [x] YAML validates correctly
 
 ---
 

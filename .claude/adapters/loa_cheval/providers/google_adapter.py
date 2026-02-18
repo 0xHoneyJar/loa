@@ -240,6 +240,7 @@ class GoogleAdapter(ProviderAdapter):
                 model=request.model,
                 latency_ms=latency_ms,
                 provider=self.provider,
+                interaction_id=interaction_id,
             )
 
     def create_interaction(self, request, model_config, store=False):
@@ -781,7 +782,7 @@ def _load_persisted_interactions():
         if os.path.exists(_INTERACTIONS_FILE):
             with open(_INTERACTIONS_FILE, "r") as f:
                 return _json.load(f)
-    except Exception:
+    except (ValueError, FileNotFoundError, OSError):
         pass
     return {}
 
