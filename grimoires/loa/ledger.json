@@ -125,9 +125,10 @@
       "id": "cycle-bug-20260219-i367-ed7140",
       "label": "Bug Fix — Bridgebuilder ESM require() crash + stale model default",
       "type": "bugfix",
-      "status": "triaged",
+      "status": "completed",
       "source_issue": "https://github.com/0xHoneyJar/loa/issues/367",
       "created_at": "2026-02-19T02:15:00Z",
+      "completed_at": "2026-02-19T03:20:00Z",
       "sprints": ["sprint-bug-5"],
       "triage": "grimoires/loa/a2a/bug-20260219-i367-ed7140/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260219-i367-ed7140/sprint.md"
