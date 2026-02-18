@@ -126,6 +126,15 @@ DECISION_EXTRA_PATHS=$(yq eval '.ride.enrichment.decisions.extra_paths // []' .l
 TERM_MAX_TERMS=$(yq eval '.ride.enrichment.terminology.max_terms // 50' .loa.config.yaml 2>/dev/null || echo "50")
 ```
 
+### QMD Reality Context (Optional)
+
+During drift analysis, if `.claude/scripts/qmd-context-query.sh` exists and `qmd_context.enabled` is not `false`:
+
+1. Build query from module names being analyzed
+2. Run: `.claude/scripts/qmd-context-query.sh --query "<module_names>" --scope reality --budget 2000 --format text`
+3. Include output as additional context during drift comparison
+4. If script missing, disabled, or returns empty: proceed normally (graceful no-op)
+
 ---
 
 <attention_budget>

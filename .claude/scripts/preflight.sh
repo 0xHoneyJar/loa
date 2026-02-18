@@ -286,6 +286,20 @@ run_integrity_checks() {
         "${PROJECT_ROOT}/.claude/scripts/validate-commands.sh" || true  # Don't fail on warnings
     fi
 
+    # 8. QMD Context: Surface known issues for current skill
+    if [[ -x "${PROJECT_ROOT}/.claude/scripts/qmd-context-query.sh" ]]; then
+        local skill_context
+        skill_context=$("${PROJECT_ROOT}/.claude/scripts/qmd-context-query.sh" \
+            --query "${2:-preflight} configuration prerequisites" \
+            --scope notes \
+            --budget 1000 \
+            --format text 2>/dev/null) || skill_context=""
+        if [[ -n "${skill_context}" ]]; then
+            echo "Known issues context:" >&2
+            echo "${skill_context}" >&2
+        fi
+    fi
+
     echo "✓ Pre-flight integrity checks complete" >&2
     exit 0
 }

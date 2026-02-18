@@ -153,6 +153,19 @@ load_bridge_config() {
   fi
 }
 
+# Load QMD context for bridge review enrichment
+load_bridge_context() {
+  local query="${1:-}"
+  BRIDGE_CONTEXT=""
+  if [[ -n "$query" ]] && [[ -x "$PROJECT_ROOT/.claude/scripts/qmd-context-query.sh" ]]; then
+    BRIDGE_CONTEXT=$("$PROJECT_ROOT/.claude/scripts/qmd-context-query.sh" \
+      --query "$query" \
+      --scope grimoires \
+      --budget 2500 \
+      --format text 2>/dev/null) || BRIDGE_CONTEXT=""
+  fi
+}
+
 # =============================================================================
 # Preflight
 # =============================================================================

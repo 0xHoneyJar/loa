@@ -391,6 +391,11 @@ Before implementing:
 5. Read `grimoires/loa/sdd.md` for technical architecture
 6. Read `grimoires/loa/prd.md` for business requirements
 7. Quote requirements when implementing: `> From sprint.md: Task 1.2 requires...`
+8. If `.claude/scripts/qmd-context-query.sh` exists and `qmd_context.enabled` is not `false` in `.loa.config.yaml`:
+   - Build query from current task descriptions and target file names
+   - Run: `.claude/scripts/qmd-context-query.sh --query "<task_desc> <file_names>" --scope grimoires --budget 2000 --format text`
+   - Include output as advisory context for implementation decisions (sprint plan acceptance criteria remain source of truth)
+   - If script missing, disabled, or returns empty: proceed normally (graceful no-op)
 </grounding_requirements>
 
 <citation_requirements>

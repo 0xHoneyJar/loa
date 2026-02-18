@@ -313,6 +313,11 @@ Before reviewing:
 5. Read `grimoires/loa/a2a/sprint-N/reviewer.md` for implementation report
 6. Read `grimoires/loa/a2a/sprint-N/engineer-feedback.md` (if exists) for previous feedback
 7. Read actual implementation code—do not trust report alone
+8. If `.claude/scripts/qmd-context-query.sh` exists and `qmd_context.enabled` is not `false` in `.loa.config.yaml`:
+   - Build query from changed file names and sprint goal
+   - Run: `.claude/scripts/qmd-context-query.sh --query "<changed_files> <sprint_goal>" --scope grimoires --budget 1500 --format text`
+   - Include output as advisory context for review (acceptance criteria and code remain primary sources)
+   - If script missing, disabled, or returns empty: proceed normally (graceful no-op)
 </grounding_requirements>
 
 <citation_requirements>
