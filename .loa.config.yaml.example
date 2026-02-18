@@ -578,11 +578,28 @@ beads:
 # only override values you want to change here.
 #
 # Architecture: SDD §4.1.2 (Config Schema), §4.2 (Routing), §4.5 (Metering)
-# Feature flag: hounfour.flatline_routing controls Sprint 2 routing path
+# Feature flags and metering — Hounfour Model-Heterogeneous Agent Routing
 hounfour:
-  # Feature flag — controls whether Flatline uses Hounfour routing (Sprint 2)
+  # Top-level flag — controls whether Flatline uses Hounfour routing
   # or the legacy direct-call path. Set to true when ready to migrate.
   flatline_routing: false
+
+  # Per-subsystem feature flags (all default true — opt-out, not opt-in)
+  feature_flags:
+    google_adapter: true     # Enable Google provider adapter
+    deep_research: true      # Enable Deep Research models (Interactions API)
+    flatline_routing: false   # Route Flatline through Hounfour
+    metering: true           # Enable BudgetEnforcer cost tracking
+    thinking_traces: true    # Include thinking config in request bodies
+
+  # Metering — cost tracking and budget enforcement (SDD §4.3)
+  metering:
+    enabled: true
+    ledger_path: .run/cost-ledger.jsonl      # JSONL append-only cost ledger
+    budget:
+      daily_micro_usd: 500000000             # $500/day (500M micro-USD)
+      warn_at_percent: 80                    # Warn when spending exceeds this %
+      on_exceeded: downgrade                 # block | downgrade | warn
 
   # Provider registry — override endpoints, auth, or add new providers
   # Providers not listed here use system defaults from model-config.yaml

@@ -24,6 +24,8 @@ class PricingEntry:
     input_per_mtok: int  # micro-USD per 1M input tokens
     output_per_mtok: int  # micro-USD per 1M output tokens
     reasoning_per_mtok: int = 0  # micro-USD per 1M reasoning tokens
+    per_task_micro_usd: int = 0  # Flat per-task cost (Deep Research)
+    pricing_mode: str = "token"  # "token" | "task" | "hybrid"
 
 
 @dataclass
@@ -67,7 +69,26 @@ def calculate_total_cost(
     reasoning_tokens: int,
     pricing: PricingEntry,
 ) -> CostBreakdown:
-    """Calculate total cost for a completion in micro-USD."""
+    """Calculate total cost for a completion in micro-USD.
+
+    Handles three pricing modes:
+    - "token": Standard per-token pricing (default)
+    - "task": Flat per-task cost (e.g., Deep Research) — token counts ignored
+    - "hybrid": Token cost + flat per-task cost summed
+    """
+    if pricing.pricing_mode == "task":
+        # Flat per-task cost only — no token math
+        return CostBreakdown(
+            input_cost_micro=0,
+            output_cost_micro=0,
+            reasoning_cost_micro=0,
+            total_cost_micro=pricing.per_task_micro_usd,
+            remainder_input=0,
+            remainder_output=0,
+            remainder_reasoning=0,
+        )
+
+    # Token-based cost calculation (shared by "token" and "hybrid" modes)
     inp_cost, inp_rem = calculate_cost_micro(input_tokens, pricing.input_per_mtok)
     out_cost, out_rem = calculate_cost_micro(output_tokens, pricing.output_per_mtok)
 
@@ -78,11 +99,17 @@ def calculate_total_cost(
     else:
         reas_cost, reas_rem = 0, 0
 
+    token_total = inp_cost + out_cost + reas_cost
+
+    # Hybrid: add flat per-task cost on top of token cost
+    if pricing.pricing_mode == "hybrid":
+        token_total += pricing.per_task_micro_usd
+
     return CostBreakdown(
         input_cost_micro=inp_cost,
         output_cost_micro=out_cost,
         reasoning_cost_micro=reas_cost,
-        total_cost_micro=inp_cost + out_cost + reas_cost,
+        total_cost_micro=token_total,
         remainder_input=inp_rem,
         remainder_output=out_rem,
         remainder_reasoning=reas_rem,
@@ -141,4 +168,6 @@ def find_pricing(
         input_per_mtok=pricing.get("input_per_mtok", 0),
         output_per_mtok=pricing.get("output_per_mtok", 0),
         reasoning_per_mtok=pricing.get("reasoning_per_mtok", 0),
+        per_task_micro_usd=pricing.get("per_task_micro_usd", 0),
+        pricing_mode=pricing.get("pricing_mode", "token"),
     )

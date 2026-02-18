@@ -1,4 +1,4 @@
-"""Metering — cost ledger, pricing, and budget enforcement."""
+"""Metering — cost ledger, pricing, budget enforcement, and rate limiting."""
 
 from loa_cheval.metering.budget import (
     ALLOW,
@@ -24,6 +24,10 @@ from loa_cheval.metering.pricing import (
     calculate_total_cost,
     find_pricing,
 )
+from loa_cheval.metering.rate_limiter import (
+    TokenBucketLimiter,
+    create_limiter,
+)
 
 __all__ = [
     "ALLOW",
@@ -33,11 +37,13 @@ __all__ = [
     "DOWNGRADE",
     "PricingEntry",
     "RemainderAccumulator",
+    "TokenBucketLimiter",
     "WARN",
     "append_ledger",
     "calculate_cost_micro",
     "calculate_total_cost",
     "check_budget",
+    "create_limiter",
     "create_ledger_entry",
     "find_pricing",
     "read_daily_spend",

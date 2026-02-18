@@ -44,6 +44,7 @@ from loa_cheval.routing.resolver import (
 )
 from loa_cheval.providers import get_adapter
 from loa_cheval.types import ProviderConfig, ModelConfig
+from loa_cheval.metering.budget import BudgetEnforcer
 
 # Configure logging to stderr only
 logging.basicConfig(
@@ -153,16 +154,25 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
     if provider_name not in providers:
         raise ConfigError(f"Provider '{provider_name}' not configured")
 
+    # Feature flag: thinking_traces (Task 3.6)
+    flags = config.get("feature_flags", {})
+    thinking_enabled = flags.get("thinking_traces", True)
+
     prov = providers[provider_name]
     models_raw = prov.get("models", {})
     models = {}
     for model_id, model_data in models_raw.items():
+        extra = model_data.get("extra")
+        # Strip thinking config when thinking_traces flag is false
+        if extra and not thinking_enabled:
+            extra = {k: v for k, v in extra.items()
+                     if k not in ("thinking_level", "thinking_budget")}
         models[model_id] = ModelConfig(
             capabilities=model_data.get("capabilities", []),
             context_window=model_data.get("context_window", 128000),
             pricing=model_data.get("pricing"),
             api_mode=model_data.get("api_mode"),
-            extra=model_data.get("extra"),
+            extra=extra,
         )
 
     return ProviderConfig(
@@ -175,6 +185,25 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
         read_timeout=prov.get("read_timeout", 120.0),
         write_timeout=prov.get("write_timeout", 30.0),
     )
+
+
+def _check_feature_flags(hounfour: Dict[str, Any], provider: str, model_id: str) -> Optional[str]:
+    """Check feature flags. Returns error message if blocked, None if allowed.
+
+    Flags (all default true — opt-out):
+    - hounfour.google_adapter: blocks Google provider
+    - hounfour.deep_research: blocks Deep Research models
+    - hounfour.thinking_traces: suppresses thinking config
+    """
+    flags = hounfour.get("feature_flags", {})
+
+    if provider == "google" and not flags.get("google_adapter", True):
+        return "Google adapter is disabled (hounfour.feature_flags.google_adapter: false)"
+
+    if "deep-research" in model_id and not flags.get("deep_research", True):
+        return "Deep Research is disabled (hounfour.feature_flags.deep_research: false)"
+
+    return None
 
 
 def cmd_invoke(args: argparse.Namespace) -> int:
@@ -204,6 +233,12 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     # Native provider — should not reach model-invoke
     if resolved.provider == NATIVE_PROVIDER:
         print(_error_json("INVALID_CONFIG", f"Agent '{agent_name}' is bound to native runtime — use SKILL.md directly, not model-invoke"), file=sys.stderr)
+        return EXIT_CODES["INVALID_CONFIG"]
+
+    # Feature flag check (Task 3.6)
+    flag_error = _check_feature_flags(hounfour, resolved.provider, resolved.model_id)
+    if flag_error:
+        print(_error_json("INVALID_CONFIG", flag_error), file=sys.stderr)
         return EXIT_CODES["INVALID_CONFIG"]
 
     # Dry run — print resolved model and exit
@@ -288,14 +323,36 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             print(json.dumps(output), file=sys.stdout)
             return EXIT_CODES["INTERACTION_PENDING"]
 
+        # Budget hook: real enforcer when metering enabled, no-op otherwise (Task 3.2)
+        budget_hook = None
+        flags = hounfour.get("feature_flags", {})
+        metering_enabled = flags.get("metering", True)
+        if metering_enabled:
+            metering_config = hounfour.get("metering", {})
+            if metering_config.get("enabled", True):
+                ledger_path = metering_config.get("ledger_path", ".run/cost-ledger.jsonl")
+                budget_hook = BudgetEnforcer(
+                    config=hounfour,
+                    ledger_path=ledger_path,
+                    trace_id=f"tr-{agent_name}-{os.getpid()}",
+                )
+                logger.info("Budget enforcement active: ledger=%s", ledger_path)
+
         # Import retry logic if available
         try:
             from loa_cheval.providers.retry import invoke_with_retry
 
-            result = invoke_with_retry(adapter, request, hounfour)
+            result = invoke_with_retry(adapter, request, hounfour, budget_hook=budget_hook)
         except ImportError:
-            # Retry module not yet available (Sprint 1 incremental)
+            # Retry module not yet available — call directly with manual budget hooks
+            if budget_hook:
+                status = budget_hook.pre_call(request)
+                if status == "BLOCK":
+                    from loa_cheval.types import BudgetExceededError
+                    raise BudgetExceededError(spent=0, limit=0)
             result = adapter.complete(request)
+            if budget_hook:
+                budget_hook.post_call(result)
 
         # Output response to stdout (I/O contract: stdout = response only)
         if args.output_format == "json":
