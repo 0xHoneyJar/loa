@@ -1,18 +1,25 @@
 # =============================================================================
-# Per-Model Capability Constraints (Hounfour v6+ CapabilityScopedTrust vocabulary)
+# Per-Model Capability Constraints (Hounfour v7+ CapabilityScopedTrust vocabulary)
 # =============================================================================
-# trust_scopes: 6-dimensional trust model per loa-hounfour v6.0.0+
+# trust_scopes: 7-dimensional trust model per loa-hounfour v7.0.0+
 # trust_level: retained as backward-compatible summary field
 #
 # Dimensions: data_access, financial, delegation, model_selection,
-#             governance, external_communication
-# Values: high | medium | none
+#             governance, external_communication, context_access
+# Values: high | medium | none (+ limited for delegation)
+#
+# context_access (epistemic dimension, v7.0.0):
+#   Sub-fields: architecture, business_logic, security, lore
+#   Values: full | summary | redacted | none
+#   Controls what knowledge a model receives in its context window.
+#   Implements Ostrom Principle #1 applied to knowledge (not just action).
+#   Optional — defaults to all-full if missing (backward compatible).
 #
 # See: https://github.com/0xHoneyJar/loa-finn/issues/31 (Hounfour RFC)
 # See: https://github.com/0xHoneyJar/loa-hounfour/pull/1 (v6 trust_scopes)
-# Source: Bridgebuilder Deep Review Horizon 2
+# Source: Bridgebuilder Deep Review Parts I-III
 # Part of Loa Harness Engineering (cycle-011, issue #297)
-# Updated: cycle-026 sprint-4 (v7 Protocol Alignment)
+# Updated: cycle-026 sprint-9 (Epistemic Trust Scopes)
 # =============================================================================
 
 model_permissions:
@@ -28,6 +35,11 @@ model_permissions:
       model_selection: high
       governance: none
       external_communication: high
+      context_access:
+        architecture: full
+        business_logic: full
+        security: full
+        lore: full
     execution_mode: native_runtime
     capabilities:
       file_read: true
@@ -53,6 +65,11 @@ model_permissions:
       model_selection: none
       governance: none
       external_communication: none
+      context_access:
+        architecture: full
+        business_logic: redacted
+        security: none
+        lore: full
     execution_mode: remote_model
     capabilities:
       file_read: false
@@ -77,6 +94,11 @@ model_permissions:
       model_selection: none
       governance: none
       external_communication: none
+      context_access:
+        architecture: full
+        business_logic: redacted
+        security: none
+        lore: full
     execution_mode: remote_model
     capabilities:
       file_read: false
@@ -100,6 +122,11 @@ model_permissions:
       model_selection: none
       governance: none
       external_communication: none
+      context_access:
+        architecture: full
+        business_logic: full
+        security: redacted
+        lore: full
     execution_mode: remote_model
     capabilities:
       file_read: true
@@ -126,6 +153,11 @@ model_permissions:
       model_selection: none
       governance: none
       external_communication: none
+      context_access:
+        architecture: full
+        business_logic: full
+        security: redacted
+        lore: full
     execution_mode: remote_model
     capabilities:
       file_read: false
@@ -152,6 +184,11 @@ model_permissions:
       model_selection: none
       governance: none
       external_communication: none
+      context_access:
+        architecture: full
+        business_logic: redacted
+        security: none
+        lore: summary
     execution_mode: remote_model
     capabilities:
       file_read: false
@@ -175,6 +212,11 @@ model_permissions:
       model_selection: none
       governance: none
       external_communication: none
+      context_access:
+        architecture: full
+        business_logic: redacted
+        security: none
+        lore: full
     execution_mode: remote_model
     capabilities:
       file_read: false
@@ -182,8 +224,8 @@ model_permissions:
       command_execution: false
       network_access: false
     notes: >
-      Next-gen Gemini model with thinkingLevel config format. All trust_scopes
-      none — standard remote model permissions.
+      Next-gen Gemini model with thinkingLevel config format. Architecture-aware
+      reasoning with redacted business logic. All operational trust_scopes none.
 
   # -------------------------------------------------------------------------
   # Google Gemini 3 Flash — Remote model, fast generation
@@ -197,6 +239,11 @@ model_permissions:
       model_selection: none
       governance: none
       external_communication: none
+      context_access:
+        architecture: summary
+        business_logic: redacted
+        security: none
+        lore: summary
     execution_mode: remote_model
     capabilities:
       file_read: false
@@ -219,6 +266,11 @@ model_permissions:
       model_selection: none
       governance: none
       external_communication: none
+      context_access:
+        architecture: summary
+        business_logic: none
+        security: none
+        lore: summary
     execution_mode: remote_model
     capabilities:
       file_read: false

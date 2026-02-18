@@ -163,6 +163,25 @@ agents:
     requires:
       deep_research: required
 
+  # Jam geometry roles (cycle-026 sprint-9)
+  # Feature flag: hounfour.feature_flags.jam_geometry (default false)
+  jam-reviewer-claude:
+    model: native
+    requires:
+      native_runtime: true
+      thinking_traces: true
+  jam-reviewer-gpt:
+    model: reviewer
+    temperature: 0.3
+  jam-reviewer-kimi:
+    model: reasoning
+    temperature: 0.5
+    requires:
+      thinking_traces: preferred
+  jam-synthesizer:
+    model: cheap
+    temperature: 0.3
+
 # Routing
 routing:
   fallback:

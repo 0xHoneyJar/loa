@@ -1,4 +1,4 @@
-"""Routing — alias resolution, agent binding, chain walking, circuit breaker."""
+"""Routing — alias resolution, agent binding, chain walking, circuit breaker, context filtering."""
 
 from loa_cheval.routing.resolver import (
     NATIVE_ALIAS,
@@ -23,6 +23,11 @@ from loa_cheval.routing.circuit_breaker import (
     record_failure,
     record_success,
 )
+from loa_cheval.routing.context_filter import (
+    filter_context,
+    filter_message_content,
+    get_context_access,
+)
 
 __all__ = [
     "CLOSED",
@@ -33,6 +38,9 @@ __all__ = [
     "OPEN",
     "check_state",
     "cleanup_stale_files",
+    "filter_context",
+    "filter_message_content",
+    "get_context_access",
     "record_failure",
     "record_success",
     "resolve_alias",

@@ -1,10 +1,11 @@
-"""Trust scopes validation tests (Sprint 7, Task 7.1).
+"""Trust scopes validation tests (Sprint 7, Task 7.1; updated Sprint 9).
 
 Validates that model-permissions.yaml:
-- Parses all 6 trust_scopes dimensions for every model entry
+- Parses all 7 trust_scopes dimensions for every model entry
 - Contains expected scope values for each model
 - Enforces schema validity (no unknown dimensions, no invalid values)
 - Preserves backward-compatible trust_level field
+- Validates context_access epistemic dimension (v7.0.0, Sprint 9)
 
 Bridgebuilder Review Part II: "governance without enforcement is poetry."
 These tests enforce the Ostrom Principle #1 mapping — every registered
@@ -24,7 +25,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PERMISSIONS_PATH = REPO_ROOT / ".claude" / "data" / "model-permissions.yaml"
 
-# Valid trust_scopes dimensions (Hounfour v6+)
+# Valid trust_scopes dimensions — operational (Hounfour v6+)
 VALID_DIMENSIONS = {
     "data_access",
     "financial",
@@ -34,8 +35,18 @@ VALID_DIMENSIONS = {
     "external_communication",
 }
 
-# Valid scope values
+# Epistemic dimension (v7.0.0) — nested dict, not a string value
+EPISTEMIC_DIMENSION = "context_access"
+
+# All valid top-level keys in trust_scopes (operational + epistemic)
+ALL_VALID_DIMENSIONS = VALID_DIMENSIONS | {EPISTEMIC_DIMENSION}
+
+# Valid scope values for operational dimensions
 VALID_VALUES = {"high", "medium", "low", "none", "limited"}
+
+# Valid context_access sub-fields and values
+VALID_CONTEXT_ACCESS_FIELDS = {"architecture", "business_logic", "security", "lore"}
+VALID_CONTEXT_ACCESS_VALUES = {"full", "summary", "redacted", "none"}
 
 # Valid trust_level values (backward-compat summary field)
 VALID_TRUST_LEVELS = {"high", "medium", "low", "standard", "none"}
@@ -89,23 +100,47 @@ class TestTrustScopesSchema(unittest.TestCase):
         for model_id, entry in self.models.items():
             scopes = entry.get("trust_scopes", {})
             with self.subTest(model=model_id):
-                extra = set(scopes.keys()) - VALID_DIMENSIONS
+                extra = set(scopes.keys()) - ALL_VALID_DIMENSIONS
                 self.assertEqual(
                     extra,
                     set(),
                     f"Model '{model_id}' has unknown dimensions: {extra}",
                 )
 
-    def test_all_values_valid(self):
-        """All trust_scopes values are in the valid set."""
+    def test_all_operational_values_valid(self):
+        """All operational trust_scopes values are in the valid set."""
         for model_id, entry in self.models.items():
             scopes = entry.get("trust_scopes", {})
             with self.subTest(model=model_id):
                 for dim, value in scopes.items():
+                    if dim == EPISTEMIC_DIMENSION:
+                        continue  # context_access is a nested dict, tested separately
                     self.assertIn(
                         value,
                         VALID_VALUES,
                         f"Model '{model_id}' dimension '{dim}' has invalid value '{value}'",
+                    )
+
+    def test_context_access_when_present(self):
+        """If context_access exists, validate sub-fields and values."""
+        for model_id, entry in self.models.items():
+            scopes = entry.get("trust_scopes", {})
+            ctx = scopes.get(EPISTEMIC_DIMENSION)
+            if ctx is None:
+                continue  # Optional — backward compat
+            with self.subTest(model=model_id):
+                self.assertIsInstance(ctx, dict, f"context_access must be dict for '{model_id}'")
+                extra_fields = set(ctx.keys()) - VALID_CONTEXT_ACCESS_FIELDS
+                self.assertEqual(
+                    extra_fields,
+                    set(),
+                    f"Model '{model_id}' context_access has unknown fields: {extra_fields}",
+                )
+                for field, value in ctx.items():
+                    self.assertIn(
+                        value,
+                        VALID_CONTEXT_ACCESS_VALUES,
+                        f"Model '{model_id}' context_access.{field} has invalid value '{value}'",
                     )
 
     def test_backward_compat_trust_level_present(self):

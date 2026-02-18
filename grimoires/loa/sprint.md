@@ -222,7 +222,7 @@ The Bridgebuilder review Part I flags that 10 regression eval tasks consistently
 
 ---
 
-## Sprint 9: Epistemic Trust Scopes & Jam Geometry Architecture
+## Sprint 9: Epistemic Trust Scopes & Jam Geometry Architecture [COMPLETED]
 
 **Goal**: Implement the epistemic trust scopes proposed in Bridgebuilder Part III (context_access dimension controlling what models *know*), and design the Jam geometry architecture for multi-model parallel review with independent synthesis. The epistemic dimension is the mechanism that makes the Maroon collaboration geometry safe — agents can coordinate through shared state while being protected from each other's sensitive contexts.
 
@@ -235,17 +235,17 @@ The Bridgebuilder review Part I flags that 10 regression eval tasks consistently
 Add the `context_access` dimension to trust_scopes. This implements Ostrom Principle #1 applied to *knowledge* rather than *action*.
 
 **Acceptance Criteria**:
-- [ ] `context_access` added as 7th trust_scopes dimension with sub-fields:
+- [x] `context_access` added as 7th trust_scopes dimension with sub-fields:
   - `architecture`: full/summary/none — visibility into SDD, PRD, protocol docs
   - `business_logic`: full/redacted/none — visibility into implementation code
   - `security`: full/redacted/none — visibility into audit findings, vulnerability details
   - `lore`: full/summary/none — visibility into institutional knowledge
-- [ ] `claude-code:session` (native): full/full/full/full (unrestricted — it already has file access)
-- [ ] `openai:gpt-5.2` (remote reviewer): full/redacted/none/full (sees architecture + lore, not security details)
-- [ ] `google:deep-research-pro` (remote research): summary/none/none/summary (minimal context, focused on research task)
-- [ ] `google:gemini-3-pro` (remote reasoning): full/redacted/none/full (architecture-aware reasoning)
-- [ ] Schema JSON updated with `context_access` sub-schema
-- [ ] Backward compatible: `context_access` optional, defaults to all-full if missing
+- [x] `claude-code:session` (native): full/full/full/full (unrestricted — it already has file access)
+- [x] `openai:gpt-5.2` (remote reviewer): full/redacted/none/full (sees architecture + lore, not security details)
+- [x] `google:deep-research-pro` (remote research): summary/none/none/summary (minimal context, focused on research task)
+- [x] `google:gemini-3-pro` (remote reasoning): full/redacted/none/full (architecture-aware reasoning)
+- [x] Schema JSON updated with `context_access` sub-schema
+- [x] Backward compatible: `context_access` optional, defaults to all-full if missing
 
 ### Task 9.2: Implement epistemic scope filtering in request builder
 
@@ -254,32 +254,32 @@ Add the `context_access` dimension to trust_scopes. This implements Ostrom Princ
 When building a request for a remote model, filter the context (system prompt, appended context) based on the model's epistemic trust scopes.
 
 **Acceptance Criteria**:
-- [ ] `filter_context(messages, trust_scopes)` function filters message content based on `context_access` dimensions
-- [ ] `architecture: none` → strip SDD/PRD content from system messages
-- [ ] `architecture: summary` → replace full SDD with executive summary (first 500 chars + section headers)
-- [ ] `business_logic: redacted` → replace function bodies with signatures only (regex-based)
-- [ ] `security: none` → strip security audit findings, vulnerability markers, CVE references
-- [ ] `lore: summary` → include `short` fields only (not `context`)
-- [ ] Filtering is additive: messages not matching any filter category pass through unchanged
-- [ ] Filter applied in `cheval.py` *after* agent binding resolution, *before* adapter.complete()
-- [ ] Log filtered dimensions: `{event: "context_filtered", model: "...", dimensions: {"architecture": "redacted", ...}}`
-- [ ] No filtering for `native_runtime` models (they have file access anyway)
+- [x] `filter_context(messages, trust_scopes)` function filters message content based on `context_access` dimensions
+- [x] `architecture: none` → strip SDD/PRD content from system messages
+- [x] `architecture: summary` → replace full SDD with executive summary (first 500 chars + section headers)
+- [x] `business_logic: redacted` → replace function bodies with signatures only (regex-based)
+- [x] `security: none` → strip security audit findings, vulnerability markers, CVE references
+- [x] `lore: summary` → include `short` fields only (not `context`)
+- [x] Filtering is additive: messages not matching any filter category pass through unchanged
+- [x] Filter applied in `cheval.py` *after* agent binding resolution, *before* adapter.complete()
+- [x] Log filtered dimensions: `{event: "context_filtered", model: "...", dimensions: {"architecture": "redacted", ...}}`
+- [x] No filtering for `native_runtime` models (they have file access anyway)
 
 ### Task 9.3: Epistemic trust scopes tests
 
 **File**: `.claude/adapters/tests/test_epistemic_scopes.py` (new)
 
 **Acceptance Criteria**:
-- [ ] Test full access: all dimensions = full → no filtering applied
-- [ ] Test architecture: none → SDD/PRD content stripped from system messages
-- [ ] Test architecture: summary → truncated to headers + first paragraph
-- [ ] Test business_logic: redacted → function bodies replaced with `[redacted]`
-- [ ] Test security: none → CVE references, audit findings stripped
-- [ ] Test lore: summary → only `short` fields preserved
-- [ ] Test native_runtime models bypass filtering entirely
-- [ ] Test missing context_access → defaults to all-full (backward compat)
-- [ ] Test mixed dimensions: architecture: full + security: none → architecture preserved, security stripped
-- [ ] All tests use fixture messages with identifiable content for each category
+- [x] Test full access: all dimensions = full → no filtering applied
+- [x] Test architecture: none → SDD/PRD content stripped from system messages
+- [x] Test architecture: summary → truncated to headers + first paragraph
+- [x] Test business_logic: redacted → function bodies replaced with `[redacted]`
+- [x] Test security: none → CVE references, audit findings stripped
+- [x] Test lore: summary → only `short` fields preserved
+- [x] Test native_runtime models bypass filtering entirely
+- [x] Test missing context_access → defaults to all-full (backward compat)
+- [x] Test mixed dimensions: architecture: full + security: none → architecture preserved, security stripped
+- [x] All tests use fixture messages with identifiable content for each category
 
 ### Task 9.4: Design Jam geometry for multi-model review
 
@@ -288,18 +288,18 @@ When building a request for a remote model, filter the context (system prompt, a
 Design document for the Jam geometry proposal from Bridgebuilder Part III. This is a design artifact, not code — but it needs to be grounded in the existing infrastructure to be implementable.
 
 **Acceptance Criteria**:
-- [ ] Document the three-phase workflow: Divergent → Synthesis → Harmony
-- [ ] Divergent phase: Claude, GPT-5.2, Kimi-K2 review the same PR independently (use existing `cheval.py` infrastructure)
-- [ ] Synthesis phase: a *different* model (not one of the reviewers) synthesizes the three reviews
+- [x] Document the three-phase workflow: Divergent → Synthesis → Harmony
+- [x] Divergent phase: Claude, GPT-5.2, Kimi-K2 review the same PR independently (use existing `cheval.py` infrastructure)
+- [x] Synthesis phase: a *different* model (not one of the reviewers) synthesizes the three reviews
   - Identify disagreements, consensus findings, and unique insights from each
   - Synthesizer model selection: lowest trust_scopes model capable of text analysis (cost optimization)
-- [ ] Harmony phase: unified review posted with per-model attribution
-- [ ] Map to existing infrastructure: `ProviderAdapter` for divergent calls, `BudgetEnforcer` for cost tracking, `trust_scopes` for access control
-- [ ] Estimate cost per Jam review (3 divergent + 1 synthesis call, using current pricing)
-- [ ] Compare to current Seance geometry (1 model, 1 review): quality tradeoffs, cost tradeoffs
-- [ ] Reference: Miles Davis's second quintet (freedom within structure), academic peer review (independent reviewers + editor)
-- [ ] Identify prerequisite: epistemic trust scopes (Task 9.1-9.3) — reviewers need appropriate context_access
-- [ ] Identify Phase 0: use existing Flatline Protocol as scaffold (it already does parallel model calls)
+- [x] Harmony phase: unified review posted with per-model attribution
+- [x] Map to existing infrastructure: `ProviderAdapter` for divergent calls, `BudgetEnforcer` for cost tracking, `trust_scopes` for access control
+- [x] Estimate cost per Jam review (3 divergent + 1 synthesis call, using current pricing)
+- [x] Compare to current Seance geometry (1 model, 1 review): quality tradeoffs, cost tradeoffs
+- [x] Reference: Miles Davis's second quintet (freedom within structure), academic peer review (independent reviewers + editor)
+- [x] Identify prerequisite: epistemic trust scopes (Task 9.1-9.3) — reviewers need appropriate context_access
+- [x] Identify Phase 0: use existing Flatline Protocol as scaffold (it already does parallel model calls)
 
 ### Task 9.5: Update model-config.yaml with Jam geometry routing
 
@@ -308,22 +308,22 @@ Design document for the Jam geometry proposal from Bridgebuilder Part III. This 
 Add agent bindings for the Jam geometry roles.
 
 **Acceptance Criteria**:
-- [ ] `jam-reviewer-claude` agent binding: `model: native`, `requires: {thinking_traces: true}`
-- [ ] `jam-reviewer-gpt` agent binding: `model: reviewer` (openai:gpt-5.2)
-- [ ] `jam-reviewer-kimi` agent binding: `model: reasoning` (moonshot:kimi-k2-thinking)
-- [ ] `jam-synthesizer` agent binding: `model: cheap` (openai:gpt-4o-mini) — lowest cost for text synthesis
-- [ ] Each reviewer has appropriate `context_access` in model-permissions.yaml
-- [ ] Feature flag: `hounfour.feature_flags.jam_geometry: false` (opt-in, not default)
+- [x] `jam-reviewer-claude` agent binding: `model: native`, `requires: {thinking_traces: true}`
+- [x] `jam-reviewer-gpt` agent binding: `model: reviewer` (openai:gpt-5.2)
+- [x] `jam-reviewer-kimi` agent binding: `model: reasoning` (moonshot:kimi-k2-thinking)
+- [x] `jam-synthesizer` agent binding: `model: cheap` (anthropic:claude-sonnet-4-6) — lowest cost for text synthesis
+- [x] Each reviewer has appropriate `context_access` in model-permissions.yaml
+- [x] Feature flag: `hounfour.feature_flags.jam_geometry: false` (opt-in, not default)
 
 ### Task 9.6: Update BUTTERFREEZONE and Ground Truth
 
 Run finalization artifacts for the new sprint additions.
 
 **Acceptance Criteria**:
-- [ ] BUTTERFREEZONE.md regenerated with Phase 2 sprint context
-- [ ] `butterfreezone-validate.sh` passes (17/17+ checks)
-- [ ] Ground truth checksums updated
-- [ ] `invariants.yaml` checksummed in ground truth
+- [x] BUTTERFREEZONE.md regenerated with Phase 2 sprint context
+- [x] `butterfreezone-validate.sh` passes (17/17+ checks)
+- [x] Ground truth checksums updated
+- [x] `invariants.yaml` checksummed in ground truth
 
 ---
 
