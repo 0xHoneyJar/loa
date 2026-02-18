@@ -1,9 +1,10 @@
 # PRD: Hounfour Runtime Bridge — Model-Heterogeneous Agent Routing
 
 > Cycle: cycle-026 | Author: janitooor + Claude
-> Source: [#365](https://github.com/0xHoneyJar/loa/issues/365)
+> Source: [#365](https://github.com/0xHoneyJar/loa/issues/365), [#368](https://github.com/0xHoneyJar/loa/pull/368)
 > Priority: P1 (infrastructure — unlocks multi-model agent capabilities)
 > Flatline: Reviewed (4 HIGH_CONSENSUS integrated, 5 BLOCKERS addressed)
+> Phase 1.5 added: 2026-02-18 (Hounfour v7 Protocol Alignment)
 
 ## 1. Problem Statement
 
@@ -30,16 +31,21 @@ Loa's Hounfour subsystem has a complete model routing architecture — alias res
 
 ### Success Metrics
 
-| Metric | Target |
-|--------|--------|
-| `cheval.py --agent reviewing-code` invokes OpenAI GPT-5.2 | End-to-end pass |
-| `cheval.py --agent deep-researcher` invokes Gemini Deep Research | Returns cited report with DOIs |
-| `cheval.py --agent deep-thinker` invokes Gemini 3 Pro with `thinkingLevel: high` | Returns thinking trace + response |
-| Flatline Protocol runs through Hounfour (no manual API calls) | All 4 parallel calls route correctly |
-| TeamCreate teammate invokes `cheval.py` successfully | Tool output returned to agent |
-| Google adapter handles Gemini API errors gracefully | Correct exit codes, fallback to configured chain |
-| All existing tests pass (no regressions) | 100% pass rate |
-| Metering records cost for all external model calls | Ledger entries for every invocation |
+| Metric | Target | Phase |
+|--------|--------|-------|
+| `cheval.py --agent reviewing-code` invokes OpenAI GPT-5.2 | End-to-end pass | 1 |
+| `cheval.py --agent deep-researcher` invokes Gemini Deep Research | Returns cited report with DOIs | 1 |
+| `cheval.py --agent deep-thinker` invokes Gemini 3 Pro with `thinkingLevel: high` | Returns thinking trace + response | 1 |
+| Flatline Protocol runs through Hounfour (no manual API calls) | All 4 parallel calls route correctly | 1 |
+| TeamCreate teammate invokes `cheval.py` successfully | Tool output returned to agent | 1 |
+| Google adapter handles Gemini API errors gracefully | Correct exit codes, fallback to configured chain | 1 |
+| All existing tests pass (no regressions) | 100% pass rate | 1, 1.5 |
+| Metering records cost for all external model calls | Ledger entries for every invocation | 1 |
+| Ecosystem protocol versions match actual pins | 3/3 entries correct | 1.5 |
+| `model-permissions.yaml` uses trust_scopes (6-dimensional) | All 5 model entries migrated | 1.5 |
+| `model-config.schema.json` validates all provider types | Schema accepts `"google"` type | 1.5 |
+| `butterfreezone-validate.sh` passes (no proto_version warnings) | Zero warnings | 1.5 |
+| Hounfour v7 type mapping documented | 5 type correspondences cited | 1.5 |
 
 ## 3. User & Stakeholder Context
 
@@ -247,6 +253,177 @@ agents:
       thinking_traces: preferred
 ```
 
+### Phase 1.5 (Hounfour v7 Protocol Alignment — this cycle, post-MVP)
+
+> **Context**: loa-hounfour has evolved from v4.6.0 (declared in ecosystem) to v7.0.0 ("The
+> Composition-Aware Economic Protocol"). arrakis is already on v7.0.0. loa-finn is on v5.0.0.
+> Loa's own declarations and type vocabulary are stale by 3 major versions. Phase 1 activated
+> the runtime bridge; Phase 1.5 aligns the bridge with the current protocol.
+>
+> **FAANG parallel**: This is the "API versioning catch-up" pattern that every platform team
+> encounters. When Stripe migrated from API v1 to v3, they didn't touch the payment processing
+> core — they updated the type vocabulary, the schema declarations, and the inter-service
+> contracts. The runtime was already correct; the metadata was wrong. Same pattern here.
+>
+> Sources: [loa-hounfour CHANGELOG](https://github.com/0xHoneyJar/loa-hounfour/blob/main/CHANGELOG.md),
+> [arrakis PR #63](https://github.com/0xHoneyJar/arrakis/pull/63),
+> [loa-finn #66](https://github.com/0xHoneyJar/loa-finn/issues/66)
+
+#### FR-7: Ecosystem Protocol Version Alignment
+
+Update all ecosystem protocol version declarations from `loa-hounfour@4.6.0` to reflect the
+actual version each consumer is pinned to.
+
+**`.loa.config.yaml` ecosystem entries**:
+```yaml
+butterfreezone:
+  ecosystem:
+    - repo: 0xHoneyJar/loa-finn
+      protocol: loa-hounfour@5.0.0    # was @4.6.0 — pinned to e5b9f16
+    - repo: 0xHoneyJar/loa-hounfour
+      protocol: loa-hounfour@7.0.0    # was @4.6.0 — current release
+    - repo: 0xHoneyJar/arrakis
+      protocol: loa-hounfour@7.0.0    # was @4.6.0 — pinned to d091a3c
+```
+
+**BUTTERFREEZONE.md**: Regenerate via `butterfreezone-gen.sh` after config update. The
+`validate_protocol_version()` check will stop emitting staleness warnings.
+
+**Acceptance criteria**:
+- [ ] All 3 ecosystem protocol entries reflect actual pinned versions
+- [ ] `butterfreezone-validate.sh` passes with no `proto_version` warnings
+- [ ] BUTTERFREEZONE.md AGENT-CONTEXT block matches config
+
+#### FR-8: Trust Vocabulary Migration (trust_level → trust_scopes)
+
+Hounfour v6.0.0 replaced the flat `trust_level` field on `AgentIdentity` with
+`trust_scopes: CapabilityScopedTrust` — a 6-dimensional capability-scoped trust model.
+
+**6 trust dimensions**:
+| Dimension | Meaning |
+|-----------|---------|
+| `data_access` | What data can the agent read/write |
+| `financial` | Can the agent authorize spend |
+| `delegation` | Can the agent delegate to other agents |
+| `model_selection` | Can the agent choose which model to use |
+| `governance` | Can the agent participate in governance decisions |
+| `external_communication` | Can the agent communicate outside the system |
+
+**Files requiring migration**:
+
+1. **`.claude/data/model-permissions.yaml`** — Currently uses flat `trust_level: high|medium`.
+   Migrate to `trust_scopes` with per-dimension values:
+   ```yaml
+   claude-code:session:
+     trust_scopes:
+       data_access: high
+       financial: high      # Can authorize spend via BudgetEnforcer
+       delegation: high     # Can spawn TeamCreate teammates
+       model_selection: high # Can invoke any configured model
+       governance: none     # No governance participation (CLI tool)
+       external_communication: high  # Can call external APIs
+   openai:gpt-5.2:
+     trust_scopes:
+       data_access: none    # Receives document content only
+       financial: none
+       delegation: none
+       model_selection: none
+       governance: none
+       external_communication: none  # Read-only remote model
+   ```
+
+2. **`docs/architecture/capability-schema.md`** — Trust gradient section references
+   `hounfour_trust` mapping. Update to reference `trust_scopes` vocabulary:
+   - L1 (Tests Present) → basic scopes: `{data_access: read, financial: none, ...}`
+   - L2 (CI Verified) → verified scopes: add `model_selection: review_tier`
+   - L3 (Property-Based) → hardened scopes: add `delegation: supervised`
+   - L4 (Formal) → proven scopes: full scope access
+
+3. **`BUTTERFREEZONE.md`** — Regeneration picks up the new trust vocabulary from updated
+   sources. The existing `trust_level: L2-verified` declaration in AGENT-CONTEXT is Loa's
+   own trust level (not a hounfour `AgentIdentity` field) and remains valid as a simplified
+   representation. Add `trust_scopes_version: v6` metadata field to signal v6+ awareness.
+
+**Backward compatibility**: The trust gradient (L1-L4) remains as Loa's external interface.
+The `trust_scopes` mapping is the internal representation that aligns with hounfour v6+'s
+`CapabilityScopedTrust` type. Consumers that don't understand `trust_scopes` fall back to
+the L-level classification.
+
+**Acceptance criteria**:
+- [ ] `model-permissions.yaml` uses 6-dimensional `trust_scopes` for all 5 models
+- [ ] `capability-schema.md` trust gradient references `trust_scopes` vocabulary
+- [ ] BUTTERFREEZONE.md includes `trust_scopes_version` metadata
+
+#### FR-9: Provider Type Schema Fix
+
+The JSON schema at `.claude/schemas/model-config.schema.json` defines provider `type` as:
+```json
+"type": { "enum": ["openai", "anthropic", "openai_compat"] }
+```
+
+This is missing `"google"` — the provider type added in Phase 1 (cycle-026 sprint-1).
+This is a schema-code mismatch: the code works (GoogleAdapter handles `type: "google"`)
+but the validation schema would reject it.
+
+**Fix**: Add `"google"` to the provider type enum.
+
+**Acceptance criteria**:
+- [ ] Schema includes `"google"` in provider type enum
+- [ ] Schema validation passes for all entries in `model-config.yaml`
+
+#### FR-10: Hounfour v7 Type Awareness in Documentation
+
+Update documentation to reflect the v7 protocol's compositional model. The key v7 additions
+that affect how Loa understands the ecosystem:
+
+1. **`BridgeTransferSaga`** — Garcia-Molina saga pattern for cross-registry value transfer.
+   Loa doesn't instantiate these, but Bridgebuilder reviews should understand the pattern
+   when reviewing arrakis billing code that uses it.
+
+2. **`DelegationOutcome`** — Conflict resolution with dissent recording. Relevant to
+   Flatline Protocol's consensus/dispute classification (HIGH_CONSENSUS, DISPUTED).
+   Document the structural parallel.
+
+3. **`MonetaryPolicy`** — Minting-conservation coupling. Relevant to metering:
+   Loa's `RemainderAccumulator` pattern in `pricing.py` implements the same conservation
+   invariant. Document this equivalence.
+
+4. **`PermissionBoundary`** — MAY permission semantics with reporting and revocation.
+   Directly models the MAY rules in CLAUDE.loa.md's permission grants. Document this
+   as the formal type that Loa's textual permissions map to.
+
+5. **`GovernanceProposal`** — Weighted voting mechanism. Relevant to Flatline's
+   multi-model scoring where each model acts as a weighted voter.
+
+**Output**: Update `docs/architecture/capability-schema.md` with a "Hounfour v7 Type
+Mapping" section that documents how Loa's internal patterns correspond to hounfour protocol
+types. This is documentation, not code — but it makes the ecosystem legible to both humans
+and agents doing cross-repo reviews.
+
+**Acceptance criteria**:
+- [ ] capability-schema.md includes v7 type mapping section
+- [ ] Each mapping cites specific Loa code (file:line) and hounfour type
+
+#### FR-11: Lore and Cultural Alignment
+
+Update lore entries that reference specific hounfour concepts to reflect the v7 vocabulary:
+
+1. **`mibera/core.yaml` — hounfour entry**: Update context to mention the Composition-Aware
+   Economic Protocol (v7) as the current era of the hounfour.
+
+2. **Version-aware ecosystem narrative**: The `butterfreezone.culture` section in
+   `.loa.config.yaml` references "Hounfour" as a naming convention. No change needed there.
+   But the capability-schema.md should document the hounfour version lineage:
+   - v3.0.0: "Constitutional" — agent identity, billing, conversations
+   - v4.6.0: "Agent Economy" — performance, reputation, governance
+   - v5.0.0: "Multi-Model" — barrel decomposition, conservation properties
+   - v6.0.0: "Capability-Scoped Trust" — trust_scopes replaces trust_level
+   - v7.0.0: "Composition-Aware Economic Protocol" — sagas, delegation outcomes, monetary policy
+
+**Acceptance criteria**:
+- [ ] Lore entry updated with v7 context
+- [ ] Version lineage documented in capability-schema.md
+
 ### Phase 2 (Future — not this cycle)
 
 - **Grounding with Google Search**: Enable Gemini's `googleSearchRetrieval` tool for real-time web access with citation metadata
@@ -254,6 +431,9 @@ agents:
 - **Auto model selection**: Classify subtask type (research/reasoning/generation) and route to optimal model automatically
 - **Cost dashboard**: Per-teammate, per-agent cost rollup in metering ledger
 - **Gemini context caching**: Use cached content API for repeated context (construct knowledge bases)
+- **trust_scopes enforcement at runtime**: Currently documentation-level. Future: enforce trust_scopes during `resolve_execution()` — check that resolved model's trust dimensions meet agent's requirements
+- **Constraint evaluator builtins**: If Loa ever validates hounfour constraints locally, align with v7's 31 builtins (up from 10 in v3)
+- **BillingEntry protocol alignment**: Adopt hounfour's `BillingEntry` type via Strangler Fig pattern (as arrakis Sprint 255 did) for cross-system ledger compatibility
 
 ## 5. Technical & Non-Functional Requirements
 
@@ -336,7 +516,7 @@ Each flag independently enables its subsystem. `flatline_routing: false` preserv
 
 ## 6. Scope & Prioritization
 
-### In Scope (MVP)
+### In Scope — Phase 1 (MVP, completed)
 
 1. Google provider adapter (`GoogleAdapter`) with Gemini 2.5 + 3 support
 2. `thinkingLevel` and `thinkingBudget` parameter support
@@ -347,6 +527,15 @@ Each flag independently enables its subsystem. `flatline_routing: false` preserv
 7. Agent Teams documentation update (Template 4: Expert Swarm)
 8. Tests: unit tests for GoogleAdapter, integration tests for cheval.py, smoke tests for live API
 
+### In Scope — Phase 1.5 (v7 Protocol Alignment, this cycle)
+
+9. Ecosystem protocol version updates (FR-7)
+10. trust_level → trust_scopes migration in model-permissions and capability-schema (FR-8)
+11. Provider type schema fix for "google" (FR-9)
+12. Hounfour v7 type awareness documentation (FR-10)
+13. Lore and cultural alignment updates (FR-11)
+14. BUTTERFREEZONE.md regeneration
+
 ### Out of Scope
 
 - Google Search grounding (`googleSearchRetrieval` tool) — Phase 2
@@ -356,6 +545,9 @@ Each flag independently enables its subsystem. `flatline_routing: false` preserv
 - Gemini context caching — Phase 2
 - Changes to Claude Code's TeamCreate API (model parameter) — depends on upstream
 - Direct Gemini-as-agent (teammates must be Claude; external models are tools)
+- trust_scopes runtime enforcement — Phase 2 (documentation-only in Phase 1.5)
+- Constraint evaluator builtin alignment — Phase 2 (31 builtins, Loa doesn't evaluate locally)
+- BillingEntry Strangler Fig adoption — Phase 2 (arrakis pattern, not needed for Loa MVP)
 
 ### Explicit Non-Goals
 
@@ -391,6 +583,14 @@ Each flag independently enables its subsystem. `flatline_routing: false` preserv
 | Deep Research server-side data storage (privacy) | Document in config, user opt-in via agent binding |
 | Gemini preview models deprecated | Fallback chain to stable models |
 
+### Phase 1.5 Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| loa-finn upgrades to v7 before Loa ships, causing version mismatch | Low | Low | Version declarations are per-repo; update on next sync |
+| trust_scopes vocabulary evolves in v8+ | Low | Low | Loa's trust gradient (L1-L4) is an abstraction layer over hounfour scopes |
+| BUTTERFREEZONE consumers don't understand trust_scopes_version | Low | None | Backward-compatible: consumers ignore unknown fields (schema v1.0 contract) |
+
 ## 8. Architecture Notes (for SDD)
 
 ### Key Design Decisions
@@ -425,6 +625,7 @@ TeamCreate Teammate
 
 ## 9. Reference Links
 
+### Phase 1 (Runtime Bridge)
 - [Gemini Thinking mode docs](https://ai.google.dev/gemini-api/docs/thinking)
 - [Gemini Deep Research API docs](https://ai.google.dev/gemini-api/docs/deep-research)
 - [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing)
@@ -433,3 +634,18 @@ TeamCreate Teammate
 - Existing adapter code: `.claude/adapters/loa_cheval/providers/`
 - Hounfour config: `.claude/defaults/model-config.yaml`
 - Agent Teams reference: `.claude/loa/reference/agent-teams-reference.md`
+
+### Phase 1.5 (v7 Protocol Alignment)
+- [loa-hounfour v7.0.0 CHANGELOG](https://github.com/0xHoneyJar/loa-hounfour/blob/main/CHANGELOG.md)
+- [loa-hounfour MIGRATION.md](https://github.com/0xHoneyJar/loa-hounfour/blob/main/MIGRATION.md) (v6→v7 guide)
+- [loa-hounfour PR #1](https://github.com/0xHoneyJar/loa-hounfour/pull/1) — Protocol Types v3.0.0 (constitutional layer)
+- [loa-hounfour PR #2](https://github.com/0xHoneyJar/loa-hounfour/pull/2) — Agent Economy v4.6.0 (civilizational layer)
+- [arrakis PR #63](https://github.com/0xHoneyJar/arrakis/pull/63) — Billing implementation (v7.0.0 pinned)
+- [arrakis #62](https://github.com/0xHoneyJar/arrakis/issues/62) — Billing RFC (lot_invariant, micro-USD)
+- [loa-finn #66](https://github.com/0xHoneyJar/loa-finn/issues/66) — Launch readiness (v5.0.0 pinned)
+- [loa-finn #31](https://github.com/0xHoneyJar/loa-finn/issues/31) — Hounfour RFC (permission scape)
+- [loa #247](https://github.com/0xHoneyJar/loa/issues/247) — Ecosystem integration history
+- Capability schema: `docs/architecture/capability-schema.md`
+- Model permissions: `.claude/data/model-permissions.yaml`
+- Config schema: `.claude/schemas/model-config.schema.json`
+- Lore: `.claude/data/lore/mibera/core.yaml` (hounfour entry)

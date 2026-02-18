@@ -2,8 +2,8 @@
 
 > Cycle: cycle-026 | PRD: grimoires/loa/prd.md | SDD: grimoires/loa/sdd.md
 > Source: [#365](https://github.com/0xHoneyJar/loa/issues/365)
-> Sprints: 3 | Estimated: ~1400 lines across 12 files (6 new, 6 modified)
-> Parallelism: Sprints 2 and 3 are independent after Sprint 1 completes
+> Sprints: 4 | Estimated: ~1550 lines across 14 files (6 new, 8 modified)
+> Parallelism: Sprints 2 and 3 are independent after Sprint 1 completes; Sprint 4 runs after all
 > Flatline: Reviewed (2 HIGH_CONSENSUS integrated, 1 DISPUTED accepted, 6 BLOCKERS addressed)
 
 ## Sprint 1: GoogleAdapter — Standard Gemini Models
@@ -525,6 +525,101 @@ Add Template 4: Model-Heterogeneous Expert Swarm per PRD FR-5.
 
 ---
 
+---
+
+## Sprint 4: Hounfour v7 Protocol Alignment
+
+**Goal**: Align Loa's type vocabulary, ecosystem declarations, trust model, and documentation with loa-hounfour v7.0.0. The runtime bridge (Sprints 1-3) is operational; this sprint ensures the metadata and type vocabulary match the current protocol version across the ecosystem.
+
+**Global Sprint ID**: sprint-8
+
+### Task 4.1: Update ecosystem protocol versions
+
+**File**: `.loa.config.yaml`
+
+Update the 3 `butterfreezone.ecosystem[].protocol` entries to reflect actual pinned versions.
+
+**Acceptance Criteria**:
+- [x] `loa-finn` entry: `protocol: loa-hounfour@5.0.0` (was `@4.6.0`)
+- [x] `loa-hounfour` entry: `protocol: loa-hounfour@7.0.0` (was `@4.6.0`)
+- [x] `arrakis` entry: `protocol: loa-hounfour@7.0.0` (was `@4.6.0`)
+- [x] No other config sections changed
+
+### Task 4.2: Migrate model-permissions.yaml to trust_scopes
+
+**File**: `.claude/data/model-permissions.yaml`
+
+Replace flat `trust_level: high|medium` with 6-dimensional `trust_scopes` per SDD 11.5.2.
+
+**Acceptance Criteria**:
+- [x] All 5 model entries gain `trust_scopes` with 6 dimensions
+- [x] `claude-code:session`: high data_access, financial, delegation, model_selection, external_communication; none governance
+- [x] `openai:gpt-5.2`: all none (read-only remote model)
+- [x] `moonshot:kimi-k2-thinking`: all none (remote analysis)
+- [x] `qwen-local:qwen3-coder-next`: medium data_access; all others none
+- [x] `anthropic:claude-opus-4-6`: all none (remote model)
+- [x] `trust_level` retained as backward-compatible summary field alongside `trust_scopes`
+- [x] File header updated with "Hounfour v6+ CapabilityScopedTrust vocabulary"
+
+### Task 4.3: Fix provider type enum in schema
+
+**File**: `.claude/schemas/model-config.schema.json`
+
+Add `"google"` to the provider `type` enum.
+
+**Acceptance Criteria**:
+- [x] Provider type enum: `["openai", "anthropic", "openai_compat", "google"]`
+- [x] No other schema changes
+
+### Task 4.4: Update capability-schema.md with trust_scopes and v7 type mapping
+
+**File**: `docs/architecture/capability-schema.md`
+
+Three additions:
+1. Update trust gradient to show trust_scopes for each level
+2. Add "Hounfour v7 Type Mapping" section with Loa pattern correspondences
+3. Add "Hounfour Version Lineage" section
+
+**Acceptance Criteria**:
+- [x] Trust gradient section shows 6 trust_scopes dimensions for each L1-L4 level
+- [x] v7 type mapping table with 5 entries: BridgeTransferSaga, DelegationOutcome, MonetaryPolicy, PermissionBoundary, GovernanceProposal
+- [x] Each mapping cites specific Loa file:line and hounfour type
+- [x] Version lineage table: v3.0.0 through v7.0.0 with codenames and key additions
+
+### Task 4.5: Update lore entry for hounfour
+
+**File**: `.claude/data/lore/mibera/core.yaml`
+
+Extend the `hounfour` entry's `context` field with v7 era description.
+
+**Acceptance Criteria**:
+- [x] Context mentions v7.0.0 "Composition-Aware Economic Protocol"
+- [x] References saga patterns, delegation outcomes, monetary policy
+- [x] `source` field updated to `loa-hounfour@7.0.0`
+- [x] Existing fields (`id`, `term`, `short`, `tags`) unchanged or minimally updated
+- [x] Related entries unchanged
+
+### Task 4.6: Regenerate BUTTERFREEZONE.md
+
+Run `butterfreezone-gen.sh` to regenerate the project README from updated sources.
+
+**Acceptance Criteria**:
+- [x] BUTTERFREEZONE.md regenerated with updated ecosystem versions
+- [x] `butterfreezone-validate.sh` passes with zero failures and zero `proto_version` warnings
+- [x] AGENT-CONTEXT block reflects current state
+
+### Task 4.7: Validate all existing tests still pass
+
+Run the full test suite to ensure no regressions from documentation/schema changes.
+
+**Acceptance Criteria**:
+- [x] All adapter tests pass (353+ tests, 0 failures)
+- [x] All bats tests pass (unit + integration)
+- [x] `butterfreezone-validate.sh --strict` passes
+- [x] No new warnings in test output
+
+---
+
 ## Dependency Graph
 
 ```
@@ -532,10 +627,13 @@ Sprint 1 (GoogleAdapter core)
     │
     ├──── Sprint 2 (Deep Research)     [blocks on Task 1.1-1.5]
     │
-    └──── Sprint 3 (Metering + Flags)  [blocks on Task 1.1, 1.6, 1.7]
+    ├──── Sprint 3 (Metering + Flags)  [blocks on Task 1.1, 1.6, 1.7]
+    │
+    └──── Sprint 4 (v7 Protocol Alignment)  [blocks on Sprints 1-3 complete]
 ```
 
 Sprints 2 and 3 are parallelizable after Sprint 1 completes.
+Sprint 4 runs after all Phase 1 work is complete.
 
 ## Risk Assessment
 
@@ -550,6 +648,8 @@ Sprints 2 and 3 are parallelizable after Sprint 1 completes.
 ## Success Criteria
 
 All PRD success metrics pass:
+
+**Phase 1 (Sprints 1-3)**:
 1. `cheval.py --agent reviewing-code` invokes OpenAI GPT-5.2 (existing, validates routing)
 2. `cheval.py --agent deep-researcher` invokes Gemini Deep Research with cited output
 3. `cheval.py --agent deep-thinker` invokes Gemini 3 Pro with thinking traces
@@ -558,3 +658,11 @@ All PRD success metrics pass:
 6. Google adapter handles errors with correct exit codes
 7. All existing tests pass (no regressions)
 8. Metering records cost for all external model calls
+
+**Phase 1.5 (Sprint 4)**:
+9. Ecosystem protocol versions match actual pins (3/3 entries correct)
+10. `model-permissions.yaml` uses 6-dimensional trust_scopes for all 5 models
+11. `model-config.schema.json` validates `"google"` provider type
+12. `butterfreezone-validate.sh` passes with zero proto_version warnings
+13. Hounfour v7 type mapping documented with 5 type correspondences
+14. All existing tests still pass (zero regressions from documentation changes)

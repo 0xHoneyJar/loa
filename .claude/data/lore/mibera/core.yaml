@@ -82,16 +82,22 @@ entries:
 
   - id: hounfour
     term: "Hounfour"
-    short: "The temple where multiple model-spirits meet — the multi-model review space"
+    short: "The temple where multiple model-spirits meet — the multi-model orchestration space"
     context: |
       The hounfour (also peristyle) is the Vodou temple where ceremonies
       take place and multiple Loa spirits are invoked. In Loa framework,
-      the hounfour is the Flatline Protocol's multi-model review space
-      where Claude Opus and GPT are invoked simultaneously to review
-      planning documents. The adversarial cross-scoring (each model
-      scoring the other's suggestions) mirrors the ritual dynamic of
-      multiple spirits interacting through the same ceremonial space.
-    source: "Flatline Protocol design, Issue #292"
-    tags: [multi-model, naming, architecture]
+      the hounfour is the multi-model orchestration layer — from the
+      Flatline Protocol's adversarial review space to the loa_cheval
+      adapter's model-heterogeneous routing. In v7.0.0 ("Composition-Aware
+      Economic Protocol"), the hounfour gained saga patterns
+      (BridgeTransferSaga for atomic cross-model coordination),
+      delegation outcomes (DelegationOutcome for multi-agent consensus),
+      and monetary policy (MonetaryPolicy for conservation-invariant
+      cost tracking). The adversarial cross-scoring mirrors the ritual
+      dynamic of multiple spirits interacting through the same
+      ceremonial space, while the economic protocol ensures that the
+      temple's resources are conserved across all rituals.
+    source: "loa-hounfour@7.0.0, Flatline Protocol design, Issue #292"
+    tags: [multi-model, naming, architecture, economics]
     related: [glossary-flatline, cheval]
-    loa_mapping: "Flatline Protocol, loa_cheval multi-model routing"
+    loa_mapping: "Flatline Protocol, loa_cheval multi-model routing, BudgetEnforcer"

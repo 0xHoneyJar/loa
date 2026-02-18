@@ -75,7 +75,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["openai", "anthropic", "openai_compat"],
+          "enum": ["openai", "anthropic", "openai_compat", "google"],
           "description": "Provider API type"
         },
         "endpoint": {

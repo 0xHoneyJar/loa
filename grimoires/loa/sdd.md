@@ -3,6 +3,7 @@
 > Cycle: cycle-026 | Author: janitooor + Claude
 > Source PRD: `grimoires/loa/prd.md` ([#365](https://github.com/0xHoneyJar/loa/issues/365))
 > Flatline: Reviewed (5 HIGH_CONSENSUS integrated, 6 BLOCKERS addressed)
+> Phase 1.5 added: 2026-02-18 (Hounfour v7 Protocol Alignment)
 
 ## 1. Executive Summary
 
@@ -978,8 +979,223 @@ Requires `GOOGLE_API_KEY` env var. Skips gracefully if not set.
 | Sprint 1 | GoogleAdapter (standard models) + model config + provider registry + unit tests | None |
 | Sprint 2 | Deep Research adapter + non-blocking mode + concurrency + citation normalization | Sprint 1 |
 | Sprint 3 | Metering activation + pricing extension + Flatline routing + feature flags + integration tests | Sprint 1 |
+| Sprint 4 | Hounfour v7 Protocol Alignment (FR-7 through FR-11) | Sprints 1-3 (runtime bridge complete) |
 
 Sprints 2 and 3 are independent of each other and could run in parallel after Sprint 1 completes.
+Sprint 4 is a standalone alignment sprint that depends on the runtime bridge being operational.
+
+## 11.5 Phase 1.5 — Hounfour v7 Protocol Alignment Design
+
+### 11.5.1 Ecosystem Version Declarations (FR-7)
+
+**Files**: `.loa.config.yaml`, `BUTTERFREEZONE.md`
+
+The ecosystem version declarations use a `pkg@version` format consumed by
+`butterfreezone-validate.sh:validate_protocol_version()` (line 650). The function:
+1. Parses `pkg-name@declared_version` from config
+2. Checks `npm view @0xhoneyjar/${pkg_name} version` for live version
+3. Falls back to `gh api repos/0xHoneyJar/${pkg_name}/releases/latest`
+4. Emits WARN on mismatch (advisory only, never blocks)
+
+**Change**: Update 3 entries in `.loa.config.yaml` → `butterfreezone.ecosystem[].protocol`:
+
+```yaml
+# FROM:
+- repo: 0xHoneyJar/loa-finn
+  protocol: loa-hounfour@4.6.0      # stale — finn is pinned to e5b9f16 (v5.0.0)
+- repo: 0xHoneyJar/loa-hounfour
+  protocol: loa-hounfour@4.6.0      # stale — published v7.0.0
+- repo: 0xHoneyJar/arrakis
+  protocol: loa-hounfour@4.6.0      # stale — pinned to d091a3c (v7.0.0)
+
+# TO:
+- repo: 0xHoneyJar/loa-finn
+  protocol: loa-hounfour@5.0.0      # pinned to e5b9f16 (v5.0.0, Multi-Model Release)
+- repo: 0xHoneyJar/loa-hounfour
+  protocol: loa-hounfour@7.0.0      # current release (Composition-Aware Economic Protocol)
+- repo: 0xHoneyJar/arrakis
+  protocol: loa-hounfour@7.0.0      # pinned to d091a3c (v7.0.0 merge commit)
+```
+
+**Post-update**: Run `butterfreezone-gen.sh` to regenerate `BUTTERFREEZONE.md`.
+Run `butterfreezone-validate.sh` to verify zero `proto_version` warnings.
+
+### 11.5.2 Trust Scopes Migration (FR-8)
+
+**Files**: `.claude/data/model-permissions.yaml`, `docs/architecture/capability-schema.md`
+
+#### model-permissions.yaml
+
+The current file uses flat `trust_level: high|medium` for each model entry.
+Hounfour v6.0.0 replaced `AgentIdentity.trust_level` with `trust_scopes: CapabilityScopedTrust`.
+
+The 6 dimensions map to Loa's permission landscape as follows:
+
+| Dimension | Loa Meaning | claude-code:session | openai:gpt-5.2 | google:* (remote) |
+|-----------|-------------|--------------------|-----------------|--------------------|
+| `data_access` | Can read/write files | high | none | none |
+| `financial` | Can authorize spend | high (BudgetEnforcer) | none | none |
+| `delegation` | Can spawn agents | high (TeamCreate) | none | none |
+| `model_selection` | Can choose models | high (resolve_execution) | none | none |
+| `governance` | Can vote/decide | none (CLI, not governance) | none | none |
+| `external_communication` | Can call external APIs | high | none | none |
+
+For local models (like `qwen-local:qwen3-coder-next`) that have file access:
+
+| Dimension | Value | Reason |
+|-----------|-------|--------|
+| `data_access` | medium | Can read/write files but sandboxed |
+| `financial` | none | No budget authority |
+| `delegation` | none | Cannot spawn agents |
+| `model_selection` | none | Fixed model |
+| `governance` | none | No governance role |
+| `external_communication` | none | No network access |
+
+**Design decision**: Keep `trust_level` as a backward-compatible summary field alongside
+`trust_scopes`. Consumers that understand v6+ use `trust_scopes`; older consumers use
+`trust_level`. This matches hounfour's own migration pattern where additive fields coexist
+with deprecated ones until the next major version removes them.
+
+#### capability-schema.md
+
+The trust gradient (L1-L4) is Loa's abstraction — it maps to but is not identical to
+hounfour's `trust_scopes`. Update the gradient definition to show the scopes each level
+implies:
+
+```yaml
+trust_gradient:
+  L1:
+    name: "Tests Present"
+    trust_scopes:
+      data_access: read_only
+      financial: none
+      delegation: none
+      model_selection: basic    # cheap, fast_code pools only
+      governance: none
+      external_communication: none
+  L2:
+    name: "CI Verified"
+    trust_scopes:
+      data_access: read_only
+      financial: metered        # within budget limits
+      delegation: none
+      model_selection: standard # + reviewer pool
+      governance: none
+      external_communication: rate_limited
+  L3:
+    name: "Property-Based"
+    trust_scopes:
+      data_access: scoped       # within declared capability scopes
+      financial: metered
+      delegation: supervised    # can delegate but lead must approve
+      model_selection: full     # + reasoning pool
+      governance: observer      # can see but not vote
+      external_communication: rate_limited
+  L4:
+    name: "Formal"
+    trust_scopes:
+      data_access: full
+      financial: budgeted       # self-managed within allocation
+      delegation: autonomous    # can delegate freely
+      model_selection: full     # + architect pool
+      governance: voting        # can participate in decisions
+      external_communication: full
+```
+
+### 11.5.3 Provider Type Schema Fix (FR-9)
+
+**File**: `.claude/schemas/model-config.schema.json`
+
+The provider `type` enum is:
+```json
+"type": { "enum": ["openai", "anthropic", "openai_compat"] }
+```
+
+Add `"google"`:
+```json
+"type": { "enum": ["openai", "anthropic", "openai_compat", "google"] }
+```
+
+This is a schema-code alignment fix — the GoogleAdapter already handles `type: "google"`
+in the adapter registry, but the JSON Schema would reject it during validation.
+
+### 11.5.4 Hounfour v7 Type Mapping Documentation (FR-10)
+
+**File**: `docs/architecture/capability-schema.md` — new section
+
+This is documentation-only: no code changes. The mapping documents how Loa's internal
+patterns correspond to hounfour v7 protocol types, enabling cross-repo reviewers (including
+Bridgebuilder) to understand architectural parallels.
+
+| Hounfour v7 Type | Loa Pattern | File:Line | Structural Parallel |
+|-----------------|-------------|-----------|---------------------|
+| `BridgeTransferSaga` | `invoke_with_retry()` retry+fallback chain | `.claude/adapters/loa_cheval/providers/retry.py` | Both implement saga-like compensation: retry is "try next step", fallback is "compensate with alternate provider" |
+| `DelegationOutcome` | Flatline `consensus_summary` | `.claude/scripts/flatline-orchestrator.sh` | Both model multi-actor decision outcomes (unanimous/majority/deadlock maps to HIGH_CONSENSUS/DISPUTED/BLOCKER) |
+| `MonetaryPolicy` | `RemainderAccumulator` conservation | `.claude/adapters/loa_cheval/metering/pricing.py` | Both enforce monetary conservation invariants (micro-USD arithmetic, no floating-point loss) |
+| `PermissionBoundary` | MAY permission grants | `CLAUDE.loa.md` permission_grants section | Both model constrained experimentation: "you may do X if conditions Y" with reporting requirements |
+| `GovernanceProposal` | Flatline scoring consensus | `.claude/scripts/flatline-orchestrator.sh` | Both implement weighted multi-actor voting (each model is a weighted voter in Flatline) |
+
+### 11.5.5 Lore Update (FR-11)
+
+**File**: `.claude/data/lore/mibera/core.yaml` — update hounfour entry
+
+Current `context` references the hounfour as "the Flatline Protocol's multi-model review
+space." Extend with v7 era context:
+
+```yaml
+- id: hounfour
+  term: "Hounfour"
+  short: "The multi-model orchestration space"
+  context: >
+    The hounfour (also peristyle) is the Vodou temple where ceremonies
+    take place. In the Loa ecosystem, the hounfour is the runtime bridge
+    that routes agent invocations across providers — the space where models
+    meet. v7.0.0 ("The Composition-Aware Economic Protocol") extends the
+    hounfour with saga patterns for cross-registry transfers, delegation
+    outcomes for multi-actor conflict resolution, and monetary policy for
+    conservation invariants.
+  source: "loa-hounfour@7.0.0"
+  tags: [infrastructure, multi-model, economy]
+```
+
+**File**: `docs/architecture/capability-schema.md` — add version lineage section:
+
+```markdown
+## Hounfour Version Lineage
+
+| Version | Codename | Key Addition |
+|---------|----------|-------------|
+| v3.0.0 | Constitutional | Agent identity, billing, conversations |
+| v4.6.0 | Agent Economy | Performance, reputation, governance |
+| v5.0.0 | Multi-Model | Barrel decomposition, conservation properties |
+| v6.0.0 | Capability-Scoped Trust | trust_scopes replaces trust_level |
+| v7.0.0 | Composition-Aware Economic Protocol | Sagas, delegation outcomes, monetary policy |
+```
+
+### 11.5.6 BUTTERFREEZONE Regeneration
+
+After all file updates, regenerate BUTTERFREEZONE.md:
+
+```bash
+.claude/scripts/butterfreezone-gen.sh
+.claude/scripts/butterfreezone-validate.sh --strict
+```
+
+The regeneration will pick up:
+- Updated ecosystem protocol versions from `.loa.config.yaml`
+- Updated trust vocabulary from `model-permissions.yaml`
+- Updated architecture docs from `capability-schema.md`
+
+### 11.5.7 File Manifest — Phase 1.5
+
+| Path | Change Type | Description |
+|------|------------|-------------|
+| `.loa.config.yaml` | Modified | Update 3 ecosystem protocol versions |
+| `.claude/data/model-permissions.yaml` | Modified | trust_level → trust_scopes (6-dimensional) |
+| `.claude/schemas/model-config.schema.json` | Modified | Add "google" to provider type enum |
+| `docs/architecture/capability-schema.md` | Modified | trust_scopes gradient, v7 type mapping, version lineage |
+| `.claude/data/lore/mibera/core.yaml` | Modified | Update hounfour entry with v7 context |
+| `BUTTERFREEZONE.md` | Regenerated | Picks up all above changes |
 
 ## 12. Reference
 

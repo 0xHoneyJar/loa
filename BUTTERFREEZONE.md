@@ -9,15 +9,15 @@ ecosystem:
   - repo: 0xHoneyJar/loa-finn
     role: runtime
     interface: hounfour-router
-    protocol: loa-hounfour@4.6.0
+    protocol: loa-hounfour@5.0.0
   - repo: 0xHoneyJar/loa-hounfour
     role: protocol
     interface: npm-package
-    protocol: loa-hounfour@4.6.0
+    protocol: loa-hounfour@7.0.0
   - repo: 0xHoneyJar/arrakis
     role: distribution
     interface: jwt-auth
-    protocol: loa-hounfour@4.6.0
+    protocol: loa-hounfour@7.0.0
 capability_requirements:
   - filesystem: read
   - filesystem: write (scope: state)
@@ -42,24 +42,24 @@ The project exposes 15 key entry points across its public API surface.
 
 ### .claude/adapters
 
-- **_build_provider_config** — Build ProviderConfig from merged hounfour config. (`.claude/adapters/cheval.py:149`)
-- **_error_json** — Format error as JSON for stderr (SDD §4.2.2 Error Taxonomy). (`.claude/adapters/cheval.py:74`)
-- **_load_persona** — Load persona.md for the given agent with optional system merge (SDD §4.3.2). (`.claude/adapters/cheval.py:93`)
-- **cmd_invoke** — Main invocation: resolve agent → call provider → return response. (`.claude/adapters/cheval.py:177`)
-- **cmd_print_config** — Print effective merged config with source annotations. (`.claude/adapters/cheval.py:326`)
-- **cmd_validate_bindings** — Validate all agent bindings. (`.claude/adapters/cheval.py:337`)
-- **main** — CLI entry point. (`.claude/adapters/cheval.py:351`)
+- **_build_provider_config** — Build ProviderConfig from merged hounfour config. (`.claude/adapters/cheval.py:151`)
+- **_check_feature_flags** — Check feature flags. (`.claude/adapters/cheval.py:190`)
+- **_error_json** — Format error as JSON for stderr (SDD §4.2.2 Error Taxonomy). (`.claude/adapters/cheval.py:76`)
+- **_load_persona** — Load persona.md for the given agent with optional system merge (SDD §4.3.2). (`.claude/adapters/cheval.py:95`)
+- **cmd_cancel** — Cancel a Deep Research interaction. (`.claude/adapters/cheval.py:480`)
+- **cmd_invoke** — Main invocation: resolve agent → call provider → return response. (`.claude/adapters/cheval.py:209`)
+- **cmd_poll** — Poll a Deep Research interaction. (`.claude/adapters/cheval.py:436`)
+- **cmd_print_config** — Print effective merged config with source annotations. (`.claude/adapters/cheval.py:411`)
+- **cmd_validate_bindings** — Validate all agent bindings. (`.claude/adapters/cheval.py:422`)
+- **main** — CLI entry point. (`.claude/adapters/cheval.py:516`)
 
 ### .claude/adapters/loa_cheval/config
 
 - **LazyValue** — Deferred interpolation token. (`.claude/adapters/loa_cheval/config/interpolation.py:41`)
 - **_check_env_allowed** — Check if env var name is in the allowlist. (`.claude/adapters/loa_cheval/config/interpolation.py:122`)
 - **_check_file_allowed** — Validate and resolve a file path for secret reading. (`.claude/adapters/loa_cheval/config/interpolation.py:133`)
-- **_deep_merge** — Deep merge overlay into base. (`.claude/adapters/loa_cheval/config/loader.py:53`)
-- **_find_project_root** — Walk up from cwd to find project root (contains .loa.config.yaml or .claude/). (`.claude/adapters/loa_cheval/config/loader.py:64`)
 - **_get_credential_provider** — Get the credential provider chain (lazily initialized, thread-safe). (`.claude/adapters/loa_cheval/config/interpolation.py:192`)
 - **_matches_lazy_path** — Check if a dotted config key path matches any lazy path pattern. (`.claude/adapters/loa_cheval/config/interpolation.py:275`)
-- **_reset_credential_provider** — Reset credential provider cache. (`.claude/adapters/loa_cheval/config/interpolation.py:205`)
 
 ## Architecture
 <!-- provenance: DERIVED -->
@@ -147,7 +147,7 @@ Directory structure:
 |--------|-------|---------|---------------|
 | `docs/` | 5 | Documentation | \u2014 |
 | `evals/` | 1269 | Benchmarking and regression framework for the Loa agent development system. Ensures framework changes don't degrade agent behavior through | [evals/README.md](evals/README.md) |
-| `grimoires/` | 613 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
+| `grimoires/` | 622 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
 | `skills/` | 5112 | Specialized agent skills | \u2014 |
 | `tests/` | 149 | Test suites | \u2014 |
 
@@ -201,15 +201,15 @@ claude
 
 After install, you should see a `.claude/` directory, `grimoires/loa/`, and `.loa.config.yaml` in your repo. Run `/loa doctor` inside Claude Code to verify everything is healthy.
 <!-- ground-truth-meta
-head_sha: 380cc40d385be398b330c817691a6b66ef263010
-generated_at: 2026-02-18T00:11:04Z
+head_sha: 20fa3e3cb7fd3a1af9d4dc2bc730533652c7ef9d
+generated_at: 2026-02-18T01:49:42Z
 generator: butterfreezone-gen v1.0.0
 sections:
-  agent_context: c3baf19dece810b624bf1348b63ae55429c79e95f6fe41322745ef7bd9473609
-  capabilities: 7ac5066c6290b2bd238aba0cebe80e6c24d2c32ecc6b066842a065eb8c2300c1
+  agent_context: f8ea773f457ef2d8e0eec1de6db4e119a00029a333ec868a4ccdc42164eb6ec6
+  capabilities: 5368e84561930c6809f754d8c418e62793d3ee1abf21d0c3e944983a3cebf300
   architecture: 116f3296a49700fbee5e9cb0492e4f9aee0f9452b5c051a942ee4429278ab8d3
   interfaces: c0d2732b6ab7745352bd781f56f44f32b2f8f2cacef7234ceed3e8f09796c0f4
-  module_map: 0952b104f14818c2695aaa17f3f3b1999da4cda5609da2fbc044a0f83d8e954e
+  module_map: 7c94c36daa33990cbcaec8b9dbf801f1d747f4e08405f7bc88169ad3ede6c04e
   verification: daf2e10cceaf0ae2151e62a3699edf842e27e1707c476018406af1fd90b1c5c2
   agents: ca263d1e05fd123434a21ef574fc8d76b559d22060719640a1f060527ef6a0b6
   culture: f73380f93bb4fadf36ccc10d60fc57555914363fc90e4f15b4dc4eb92bd1640f
