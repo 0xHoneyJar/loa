@@ -154,14 +154,13 @@ export const LOA_EXCLUDE_PATTERNS = [
  */
 export function loadReviewIgnore(repoRoot) {
     const root = repoRoot ?? process.cwd();
-    const reviewignorePath = require("path").join(root, ".reviewignore");
+    const reviewignorePath = resolve(root, ".reviewignore");
     const basePatterns = [...LOA_EXCLUDE_PATTERNS];
     try {
-        const fs = require("fs");
-        if (!fs.existsSync(reviewignorePath)) {
+        if (!existsSync(reviewignorePath)) {
             return basePatterns;
         }
-        const content = fs.readFileSync(reviewignorePath, "utf-8");
+        const content = readFileSync(reviewignorePath, "utf-8");
         for (const rawLine of content.split("\n")) {
             const line = rawLine.trim();
             // Skip blank lines and comments
@@ -345,6 +344,7 @@ export function applyLoaTierExclusion(files, loaPatterns) {
 // calibration. These are intentionally conservative (over-estimate) to leave
 // headroom and avoid context-window overflows at runtime.
 export const TOKEN_BUDGETS = {
+    "claude-sonnet-4-6": { maxInput: 200_000, maxOutput: 8_192, coefficient: 0.25 },
     "claude-sonnet-4-5-20250929": { maxInput: 200_000, maxOutput: 8_192, coefficient: 0.25 },
     "claude-opus-4-6": { maxInput: 200_000, maxOutput: 8_192, coefficient: 0.25 },
     "gpt-5.2": { maxInput: 128_000, maxOutput: 4_096, coefficient: 0.23 },

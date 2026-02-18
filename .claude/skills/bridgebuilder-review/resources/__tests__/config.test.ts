@@ -154,7 +154,7 @@ describe("resolveConfig precedence", () => {
       {},
       { enabled: true, repos: ["test/repo"] },
     );
-    assert.equal(config.model, "claude-sonnet-4-5-20250929");
+    assert.equal(config.model, "claude-sonnet-4-6");
     assert.equal(provenance.model, "default");
   });
 
