@@ -5,7 +5,7 @@ const execFileAsync = promisify(execFile);
 /** Built-in defaults per PRD FR-4 (lowest priority). */
 const DEFAULTS = {
     repos: [],
-    model: "claude-sonnet-4-6",
+    model: "claude-opus-4-6",
     maxPrs: 10,
     maxFilesPerPr: 50,
     maxDiffBytes: 512_000,
