@@ -1,6 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { truncateFiles } from "../core/truncation.js";
+import { writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import {
+  truncateFiles,
+  loadReviewIgnore,
+  LOA_EXCLUDE_PATTERNS,
+  getTokenBudget,
+} from "../core/truncation.js";
 import type { PullRequestFile } from "../ports/git-provider.js";
 
 function file(
@@ -23,6 +31,92 @@ const defaultConfig = {
   maxDiffBytes: 100_000,
   maxFilesPerPr: 50,
 };
+
+describe("loadReviewIgnore", () => {
+  it("returns LOA_EXCLUDE_PATTERNS when no .reviewignore exists", () => {
+    const patterns = loadReviewIgnore("/nonexistent/path/that/does/not/exist");
+    assert.deepEqual(patterns, [...LOA_EXCLUDE_PATTERNS]);
+  });
+
+  it("merges .reviewignore patterns with LOA_EXCLUDE_PATTERNS", () => {
+    const tmpDir = join(tmpdir(), `loa-test-${Date.now()}`);
+    mkdirSync(tmpDir, { recursive: true });
+    try {
+      writeFileSync(join(tmpDir, ".reviewignore"), "custom-pattern\n*.log\n");
+      const patterns = loadReviewIgnore(tmpDir);
+      assert.ok(patterns.includes("custom-pattern"), "should include custom pattern");
+      assert.ok(patterns.includes("*.log"), "should include *.log pattern");
+      // Should also include all LOA defaults
+      for (const loa of LOA_EXCLUDE_PATTERNS) {
+        assert.ok(patterns.includes(loa), `should include LOA pattern: ${loa}`);
+      }
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("normalizes directory patterns (trailing / becomes /**)", () => {
+    const tmpDir = join(tmpdir(), `loa-test-${Date.now()}`);
+    mkdirSync(tmpDir, { recursive: true });
+    try {
+      writeFileSync(join(tmpDir, ".reviewignore"), "vendor/\nbuild/\n");
+      const patterns = loadReviewIgnore(tmpDir);
+      assert.ok(patterns.includes("vendor/**"), "should normalize vendor/ to vendor/**");
+      assert.ok(patterns.includes("build/**"), "should normalize build/ to build/**");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("skips blank lines and comments", () => {
+    const tmpDir = join(tmpdir(), `loa-test-${Date.now()}`);
+    mkdirSync(tmpDir, { recursive: true });
+    try {
+      writeFileSync(join(tmpDir, ".reviewignore"), "# A comment\n\nreal-pattern\n  \n# Another\n");
+      const patterns = loadReviewIgnore(tmpDir);
+      assert.ok(patterns.includes("real-pattern"), "should include real-pattern");
+      assert.ok(!patterns.includes("# A comment"), "should not include comments");
+      assert.ok(!patterns.includes(""), "should not include blank lines");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("avoids duplicate patterns", () => {
+    const tmpDir = join(tmpdir(), `loa-test-${Date.now()}`);
+    mkdirSync(tmpDir, { recursive: true });
+    try {
+      // .claude/** is already in LOA_EXCLUDE_PATTERNS
+      writeFileSync(join(tmpDir, ".reviewignore"), ".claude/**\ncustom\n");
+      const patterns = loadReviewIgnore(tmpDir);
+      const claudeCount = patterns.filter(p => p === ".claude/**").length;
+      assert.equal(claudeCount, 1, "should not duplicate .claude/**");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("getTokenBudget", () => {
+  it("returns correct budget for claude-sonnet-4-6", () => {
+    const budget = getTokenBudget("claude-sonnet-4-6");
+    assert.equal(budget.maxInput, 200_000);
+    assert.equal(budget.maxOutput, 8_192);
+    assert.equal(budget.coefficient, 0.25);
+  });
+
+  it("returns correct budget for claude-sonnet-4-5-20250929 (backward compat)", () => {
+    const budget = getTokenBudget("claude-sonnet-4-5-20250929");
+    assert.equal(budget.maxInput, 200_000);
+    assert.equal(budget.maxOutput, 8_192);
+  });
+
+  it("returns default budget for unknown model", () => {
+    const budget = getTokenBudget("unknown-model-xyz");
+    assert.equal(budget.maxInput, 100_000);
+    assert.equal(budget.maxOutput, 4_096);
+  });
+});
 
 describe("truncateFiles", () => {
   describe("excludePatterns", () => {

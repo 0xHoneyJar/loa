@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-026",
+  "active_cycle": null,
   "global_sprint_counter": 13,
   "cycles": [
     {
@@ -48,11 +48,14 @@
     {
       "id": "cycle-026",
       "label": "Hounfour Runtime Bridge — Model-Heterogeneous Agent Routing",
-      "status": "active",
+      "status": "archived",
       "created": "2026-02-18T00:00:00Z",
+      "archived": "2026-02-19T02:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-19-hounfour-runtime-bridge",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "source_issue": 365,
+      "pr": 368,
       "sprints": [
         {
           "local_id": "sprint-1",
@@ -100,15 +103,35 @@
           "local_id": "sprint-8",
           "global_id": "sprint-12",
           "label": "Cross-Repository Invariant Infrastructure & Eval Harness Fix",
-          "status": "in_progress"
+          "status": "completed"
         },
         {
           "local_id": "sprint-9",
           "global_id": "sprint-13",
           "label": "Epistemic Trust Scopes & Jam Geometry Architecture",
-          "status": "pending"
+          "status": "completed"
         }
-      ]
+      ],
+      "bridge": {
+        "id": "bridge-20260219-16e623",
+        "iterations": 4,
+        "findings_addressed": 11,
+        "score_trajectory": "1.0 → 0.25 → 0.05 → 0.0",
+        "tests_final": 526,
+        "flatline": true
+      }
+    },
+    {
+      "id": "cycle-bug-20260219-i367-ed7140",
+      "label": "Bug Fix — Bridgebuilder ESM require() crash + stale model default",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/367",
+      "created_at": "2026-02-19T02:15:00Z",
+      "completed_at": "2026-02-19T03:20:00Z",
+      "sprints": ["sprint-bug-5"],
+      "triage": "grimoires/loa/a2a/bug-20260219-i367-ed7140/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260219-i367-ed7140/sprint.md"
     }
   ]
 }
