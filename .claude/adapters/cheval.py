@@ -345,14 +345,20 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             result = invoke_with_retry(adapter, request, hounfour, budget_hook=budget_hook)
         except ImportError:
             # Retry module not yet available — call directly with manual budget hooks
+            # BB-405: ensure post_call runs on success, log on failure
             if budget_hook:
                 status = budget_hook.pre_call(request)
                 if status == "BLOCK":
                     from loa_cheval.types import BudgetExceededError
                     raise BudgetExceededError(spent=0, limit=0)
-            result = adapter.complete(request)
-            if budget_hook:
-                budget_hook.post_call(result)
+            result = None
+            try:
+                result = adapter.complete(request)
+            finally:
+                if budget_hook and result is not None:
+                    budget_hook.post_call(result)
+                elif budget_hook and result is None:
+                    logger.warning("budget_post_call_skipped reason=adapter_failure")
 
         # Output response to stdout (I/O contract: stdout = response only)
         if args.output_format == "json":

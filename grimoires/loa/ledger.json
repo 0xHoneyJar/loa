@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "active_cycle": "cycle-026",
-  "global_sprint_counter": 8,
+  "global_sprint_counter": 9,
   "cycles": [
     {
       "id": "cycle-025",
@@ -76,6 +76,12 @@
           "local_id": "sprint-4",
           "global_id": "sprint-8",
           "label": "Hounfour v7 Protocol Alignment",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-5",
+          "global_id": "sprint-9",
+          "label": "Bridge Iteration — Metering Correctness and Test Coverage",
           "status": "completed"
         }
       ]

@@ -2,7 +2,7 @@
 
 > Cycle: cycle-026 | PRD: grimoires/loa/prd.md | SDD: grimoires/loa/sdd.md
 > Source: [#365](https://github.com/0xHoneyJar/loa/issues/365)
-> Sprints: 4 | Estimated: ~1550 lines across 14 files (6 new, 8 modified)
+> Sprints: 5 | Estimated: ~1550 lines across 14 files (6 new, 8 modified) + bridge iteration
 > Parallelism: Sprints 2 and 3 are independent after Sprint 1 completes; Sprint 4 runs after all
 > Flatline: Reviewed (2 HIGH_CONSENSUS integrated, 1 DISPUTED accepted, 6 BLOCKERS addressed)
 
@@ -617,6 +617,93 @@ Run the full test suite to ensure no regressions from documentation/schema chang
 - [x] All bats tests pass (unit + integration)
 - [x] `butterfreezone-validate.sh --strict` passes
 - [x] No new warnings in test output
+
+---
+
+## Sprint 5: Bridge Iteration — Metering Correctness and Test Coverage
+
+**Goal**: Address Bridgebuilder findings from bridge-20260218-1402f0 iteration 1. Fix the cross-process clock bug in rate_limiter.py (BB-401), correct token estimation (BB-404), harden budget fallback (BB-405), clean dead code (BB-403), and add missing test coverage for financial arithmetic (BB-406).
+
+**Global Sprint ID**: sprint-9
+**Source**: Bridge iteration 1 findings (severity score 17.0)
+
+### Task 5.1: Fix time.monotonic() cross-process bug in rate_limiter.py
+
+**File**: `.claude/adapters/loa_cheval/metering/rate_limiter.py`
+**Finding**: BB-401 (HIGH)
+
+Replace `time.monotonic()` with `time.time()` for persisted state. Monotonic clock values are per-process and produce negative elapsed time when read by a different process.
+
+**Acceptance Criteria**:
+- [x] `time.monotonic()` replaced with `time.time()` in `_refill()` and `record()` for state persistence
+- [x] In-process interval measurement (if any) continues to use `time.monotonic()`
+- [x] Add cross-process test: subprocess writes state, parent reads and verifies non-negative refill
+- [x] Existing rate limiter tests still pass
+
+### Task 5.2: Fix token estimation using output content for input estimate
+
+**File**: `.claude/adapters/loa_cheval/providers/google_adapter.py`
+**Finding**: BB-404 (MEDIUM)
+
+When `usageMetadata` is missing, input tokens are estimated from output content. Should estimate from input messages instead.
+
+**Acceptance Criteria**:
+- [x] Input token estimation uses the original input messages (not output content)
+- [x] Output token estimation uses output content (unchanged)
+- [x] Safety-blocked responses: input estimated from messages, output = 0
+- [x] Add test for token estimation with missing usageMetadata
+- [x] Add test for safety-blocked response estimation
+
+### Task 5.3: Fix budget fallback path — ensure post_call on error
+
+**File**: `.claude/adapters/cheval.py`
+**Finding**: BB-405 (MEDIUM)
+
+The ImportError fallback path (when `invoke_with_retry` is unavailable) does `pre_call → complete() → post_call`. If `complete()` raises, `post_call` is never called.
+
+**Acceptance Criteria**:
+- [x] Fallback path wrapped in `try/finally` to ensure `post_call` runs on error
+- [x] Failed requests record zero cost (not missing cost)
+- [x] Add test for budget accounting on adapter failure in fallback path
+
+### Task 5.4: Remove dead code in google_adapter.py
+
+**File**: `.claude/adapters/loa_cheval/providers/google_adapter.py`
+**Finding**: BB-403 (LOW)
+
+Remove unused `_detect_http_client_for_get()` call in `poll_interaction()`.
+
+**Acceptance Criteria**:
+- [x] Unused `client = _detect_http_client_for_get()` call removed from `poll_interaction()`
+- [x] `_detect_http_client_for_get()` function definition retained if used by `_poll_get()`, removed otherwise
+- [x] No behavioral change — `_poll_get()` continues to work
+
+### Task 5.5: Add test coverage for RemainderAccumulator and overflow guard
+
+**File**: `.claude/adapters/tests/test_pricing_extended.py`
+**Finding**: BB-406 (MEDIUM)
+
+Add tests for the two untested financial arithmetic features.
+
+**Acceptance Criteria**:
+- [x] Test RemainderAccumulator carry behavior across multiple calls
+- [x] Test RemainderAccumulator with zero remainder (no carry)
+- [x] Test calculate_cost_micro with values near MAX_SAFE_PRODUCT boundary
+- [x] Test calculate_cost_micro with values exceeding MAX_SAFE_PRODUCT
+- [x] All new tests pass alongside existing tests
+
+### Task 5.6: Document rate limiter advisory semantics
+
+**File**: `.claude/adapters/loa_cheval/metering/rate_limiter.py`
+**Finding**: reframe-1 (REFRAME)
+
+Add docstring clarifying that the rate limiter is advisory (optimistic check), not enforcing. Budget enforcement is the hard gate.
+
+**Acceptance Criteria**:
+- [x] Module-level docstring explains advisory vs enforcing semantics
+- [x] `check()` method docstring notes non-atomic read (advisory only)
+- [x] `record()` method docstring notes atomic write
+- [x] Reference to BudgetEnforcer as the enforcing layer
 
 ---
 

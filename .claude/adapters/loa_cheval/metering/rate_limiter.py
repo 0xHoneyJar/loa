@@ -2,6 +2,14 @@
 
 Provides RPM (requests per minute) and TPM (tokens per minute) enforcement.
 State persisted to .run/.ratelimit-{provider}.json with flock protection.
+
+NOTE: This rate limiter is ADVISORY, not enforcing. The check() method uses a
+non-locking read — multiple concurrent processes may simultaneously pass the
+check and exceed the limit. For hard enforcement, use BudgetEnforcer which
+provides atomic check+reserve semantics via pre_call_atomic().
+
+Clock semantics: Persisted state uses time.time() (wall clock) for cross-process
+compatibility. In-process interval measurement uses time.monotonic().
 """
 
 from __future__ import annotations
@@ -41,13 +49,17 @@ class TokenBucketLimiter:
         self._state_dir = state_dir
 
     def check(self, provider: str, estimated_tokens: int = 0) -> bool:
-        """Check if a request is within rate limits.
+        """Check if a request is within rate limits (advisory, non-atomic).
 
         Returns True if the request can proceed, False if rate limited.
         Does NOT consume tokens — use record() after completion.
+
+        NOTE: This is a non-locking read. Multiple concurrent processes may
+        simultaneously see capacity and proceed, potentially exceeding the
+        limit. For hard enforcement, use BudgetEnforcer.pre_call_atomic().
         """
         state = self._read_state(provider)
-        now = time.monotonic()
+        now = time.time()
         state = self._refill(state, now)
 
         if state["requests_remaining"] <= 0:
@@ -67,6 +79,7 @@ class TokenBucketLimiter:
         """Record usage after a completed request.
 
         Atomically updates state file with flock protection.
+        Uses time.time() (wall clock) for cross-process state persistence.
         """
         state_path = self._state_path(provider)
         os.makedirs(self._state_dir, exist_ok=True)
@@ -84,7 +97,7 @@ class TokenBucketLimiter:
             else:
                 state = self._default_state()
 
-            now = time.monotonic()
+            now = time.time()
             state = self._refill(state, now)
 
             state["requests_remaining"] = max(0, state["requests_remaining"] - 1)
@@ -120,11 +133,14 @@ class TokenBucketLimiter:
         return state
 
     def _default_state(self) -> Dict[str, Any]:
-        """Fresh state with full buckets."""
+        """Fresh state with full buckets.
+
+        Uses time.time() for cross-process compatibility.
+        """
         return {
             "requests_remaining": self._rpm,
             "tokens_remaining": self._tpm,
-            "last_update": time.monotonic(),
+            "last_update": time.time(),
         }
 
     def _state_path(self, provider: str) -> str:

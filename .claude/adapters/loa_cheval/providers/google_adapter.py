@@ -170,8 +170,14 @@ class GoogleAdapter(ProviderAdapter):
             _raise_for_status(status, resp, self.provider)
 
         # Parse response (Task 1.4)
+        # Pass input text length for token estimation when usageMetadata is absent
+        input_text_len = sum(
+            len(m.get("content", "")) for m in request.messages
+            if isinstance(m.get("content"), str)
+        )
         return _parse_response(
-            resp, request.model, latency_ms, self.provider, model_config
+            resp, request.model, latency_ms, self.provider, model_config,
+            input_text_length=input_text_len,
         )
 
     def _complete_deep_research(self, request, model_config):
@@ -303,8 +309,6 @@ class GoogleAdapter(ProviderAdapter):
             # GET poll request
             url = self._build_url(interaction_id)
             try:
-                client = _detect_http_client_for_get()
-                # For polling, we need the full response, not just status
                 poll_status, poll_resp = _poll_get(
                     url, headers,
                     connect_timeout=5.0,
@@ -484,8 +488,9 @@ def _build_thinking_config(model_id, model_config):
 # --- Response Parsing (Task 1.4) ---
 
 
-def _parse_response(resp, model_id, latency_ms, provider, model_config):
-    # type: (Dict[str, Any], str, int, str, Any) -> CompletionResult
+def _parse_response(resp, model_id, latency_ms, provider, model_config,
+                    input_text_length=0):
+    # type: (Dict[str, Any], str, int, str, Any, int) -> CompletionResult
     """Parse Gemini generateContent response (SDD 4.1.5).
 
     Receives explicit model_id — no closure over request state.
@@ -569,15 +574,17 @@ def _parse_response(resp, model_id, latency_ms, provider, model_config):
             source="actual",
         )
     else:
-        # Conservative estimate (Flatline SKP-007)
+        # Conservative estimate (Flatline SKP-007, BB-404)
+        # Input estimated from input messages, output from response content
         logger.warning(
             "google_missing_usage model=%s using_estimate=true",
             model_id,
         )
-        est_input = int(len(content) / 3.5) if content else 0
+        est_input = int(input_text_length / 3.5) if input_text_length else 0
+        est_output = int(len(content) / 3.5) if content else 0
         usage = Usage(
             input_tokens=est_input,
-            output_tokens=int(len(content) / 3.5) if content else 0,
+            output_tokens=est_output,
             reasoning_tokens=0,
             source="estimated",
         )

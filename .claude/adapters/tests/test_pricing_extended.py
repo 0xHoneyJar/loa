@@ -609,3 +609,114 @@ class TestLedgerPricingMode:
         ]
         for field in required:
             assert field in entry, f"Missing field: {field}"
+
+
+# --- BB-406: RemainderAccumulator and overflow guard tests ---
+
+
+class TestRemainderAccumulator:
+    """Test RemainderAccumulator carry behavior (BB-406)."""
+
+    def test_carry_accumulates_across_calls(self):
+        """Remainders carry over and produce extra micro-USD when they reach 1M."""
+        from loa_cheval.metering.pricing import RemainderAccumulator
+
+        acc = RemainderAccumulator()
+        # Each call accumulates 500_000 remainder (half a micro-USD)
+        extra1 = acc.carry("input", 500_000)
+        assert extra1 == 0
+        assert acc.get("input") == 500_000
+
+        # Second call: 500_000 + 500_000 = 1_000_000 → carry 1 micro-USD
+        extra2 = acc.carry("input", 500_000)
+        assert extra2 == 1
+        assert acc.get("input") == 0  # Reset after carry
+
+    def test_carry_with_large_remainder(self):
+        """Large remainder carries multiple micro-USD."""
+        from loa_cheval.metering.pricing import RemainderAccumulator
+
+        acc = RemainderAccumulator()
+        extra = acc.carry("output", 2_500_000)
+        assert extra == 2
+        assert acc.get("output") == 500_000
+
+    def test_carry_zero_remainder(self):
+        """Zero remainder produces no carry and no accumulation."""
+        from loa_cheval.metering.pricing import RemainderAccumulator
+
+        acc = RemainderAccumulator()
+        extra = acc.carry("input", 0)
+        assert extra == 0
+        assert acc.get("input") == 0
+
+    def test_independent_scope_keys(self):
+        """Different scope keys accumulate independently."""
+        from loa_cheval.metering.pricing import RemainderAccumulator
+
+        acc = RemainderAccumulator()
+        acc.carry("input", 700_000)
+        acc.carry("output", 300_000)
+        assert acc.get("input") == 700_000
+        assert acc.get("output") == 300_000
+
+    def test_clear_resets_all(self):
+        """Clear removes all accumulated remainders."""
+        from loa_cheval.metering.pricing import RemainderAccumulator
+
+        acc = RemainderAccumulator()
+        acc.carry("input", 500_000)
+        acc.carry("output", 300_000)
+        acc.clear()
+        assert acc.get("input") == 0
+        assert acc.get("output") == 0
+
+
+class TestOverflowGuard:
+    """Test MAX_SAFE_PRODUCT overflow guard in calculate_cost_micro (BB-406)."""
+
+    def test_normal_calculation(self):
+        """Normal values produce correct cost and remainder."""
+        from loa_cheval.metering.pricing import calculate_cost_micro
+
+        # 1000 tokens at 3_000_000 micro-USD per million
+        # = 1000 * 3_000_000 / 1_000_000 = 3000 micro-USD ($0.003)
+        cost, remainder = calculate_cost_micro(1000, 3_000_000)
+        assert cost == 3000
+        assert remainder == 0
+
+    def test_remainder_from_division(self):
+        """Non-even division produces remainder."""
+        from loa_cheval.metering.pricing import calculate_cost_micro
+
+        # 7 tokens at 1_500_000 micro-USD per million = 0.0105 USD = 10 micro + 500000 rem
+        cost, remainder = calculate_cost_micro(7, 1_500_000)
+        assert cost == 10
+        assert remainder == 500_000
+
+    def test_near_max_safe_product(self):
+        """Values just below MAX_SAFE_PRODUCT succeed."""
+        from loa_cheval.metering.pricing import calculate_cost_micro, MAX_SAFE_PRODUCT
+
+        # tokens * price = MAX_SAFE_PRODUCT exactly
+        tokens = 9007199254740991  # 2^53 - 1
+        cost, remainder = calculate_cost_micro(tokens, 1)
+        assert cost == tokens // 1_000_000
+        assert remainder == tokens % 1_000_000
+
+    def test_overflow_raises(self):
+        """Values exceeding MAX_SAFE_PRODUCT raise ValueError."""
+        import pytest
+        from loa_cheval.metering.pricing import calculate_cost_micro
+
+        # tokens * price > 2^53 - 1
+        with pytest.raises(ValueError, match="BUDGET_OVERFLOW"):
+            calculate_cost_micro(10_000_000_000, 1_000_000_000)
+
+    def test_zero_tokens_zero_cost(self):
+        """Zero tokens always produce zero cost."""
+        from loa_cheval.metering.pricing import calculate_cost_micro
+
+        cost, remainder = calculate_cost_micro(0, 15_000_000)
+        assert cost == 0
+        assert remainder == 0
