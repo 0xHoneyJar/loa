@@ -24,7 +24,7 @@ Source: Three-part Bridgebuilder deep review identifying architectural advances 
 
 ---
 
-## Sprint 7: Test Coverage Hardening — Trust Scopes, Multi-Adapter & Invariant Verification
+## Sprint 7: Test Coverage Hardening — Trust Scopes, Multi-Adapter & Invariant Verification [COMPLETED]
 
 **Goal**: Fill the test gaps identified in the Bridgebuilder review. The existing test suite (14 Python files, ~4700 lines) is strong on individual components but weak on cross-cutting concerns: trust scopes have zero dedicated tests, budget+fallback integration is partial, multi-flag combinations are untested, and the conservation invariant is verified nowhere. This sprint closes those gaps.
 
@@ -37,14 +37,14 @@ Source: Three-part Bridgebuilder deep review identifying architectural advances 
 Trust scopes were migrated in Sprint 4 but have no validation tests. The 6-dimensional model maps directly to Ostrom's governance principles — and governance without enforcement is poetry.
 
 **Acceptance Criteria**:
-- [ ] Test `model-permissions.yaml` loads and parses all 6 dimensions for each model entry
-- [ ] Test `claude-code:session` has expected scopes (high data_access, financial, delegation, model_selection; none governance)
-- [ ] Test `openai:gpt-5.2` has all-none scopes (read-only remote model)
-- [ ] Test Google model entries (added Sprint 6) have correct scopes (data_access: none, delegation: limited for deep-research)
-- [ ] Test trust_scopes schema validation: reject unknown dimensions, reject invalid values (not in high/medium/low/none/limited)
-- [ ] Test backward compat: `trust_level` summary field still present alongside `trust_scopes`
-- [ ] Test all entries in model-permissions.yaml are covered (no model has scopes undefined)
-- [ ] Validate Ostrom Principle #1: every registered provider has a trust scope entry (boundary enforcement)
+- [x] Test `model-permissions.yaml` loads and parses all 6 dimensions for each model entry
+- [x] Test `claude-code:session` has expected scopes (high data_access, financial, delegation, model_selection; none governance)
+- [x] Test `openai:gpt-5.2` has all-none scopes (read-only remote model)
+- [x] Test Google model entries (added Sprint 6) have correct scopes (data_access: none, delegation: limited for deep-research)
+- [x] Test trust_scopes schema validation: reject unknown dimensions, reject invalid values (not in high/medium/low/none/limited)
+- [x] Test backward compat: `trust_level` summary field still present alongside `trust_scopes`
+- [x] Test all entries in model-permissions.yaml are covered (no model has scopes undefined)
+- [x] Validate Ostrom Principle #1: every registered provider has a trust scope entry (boundary enforcement)
 
 ### Task 7.2: Multi-flag feature flag combination tests
 
@@ -53,14 +53,14 @@ Trust scopes were migrated in Sprint 4 but have no validation tests. The 6-dimen
 Existing tests check individual flags. The Bridgebuilder review notes that real-world configurations involve multiple flags simultaneously, and the interaction between flags is untested.
 
 **Acceptance Criteria**:
-- [ ] Test all-flags-enabled (default) works end-to-end
-- [ ] Test `google_adapter: false` + `deep_research: true` — deep_research should be blocked (parent disabled)
-- [ ] Test `metering: false` + `google_adapter: true` — adapter works, no budget enforcement
-- [ ] Test `thinking_traces: false` + `google_adapter: true` — adapter works, no thinking config in request body
-- [ ] Test `flatline_routing: true` + `google_adapter: false` — Flatline falls back to non-Google providers
-- [ ] Test all-flags-disabled — no external calls, no metering, no thinking
-- [ ] Test flag precedence: config file vs environment variable override
-- [ ] All tests mocked (no live API)
+- [x] Test all-flags-enabled (default) works end-to-end
+- [x] Test `google_adapter: false` + `deep_research: true` — deep_research should be blocked (parent disabled)
+- [x] Test `metering: false` + `google_adapter: true` — adapter works, no budget enforcement
+- [x] Test `thinking_traces: false` + `google_adapter: true` — adapter works, no thinking config in request body
+- [x] Test `flatline_routing: true` + `google_adapter: false` — Flatline falls back to non-Google providers
+- [x] Test all-flags-disabled — no external calls, no metering, no thinking
+- [x] Test flag precedence: config file vs environment variable override
+- [x] All tests mocked (no live API)
 
 ### Task 7.3: Budget + fallback chain integration tests
 
@@ -69,14 +69,14 @@ Existing tests check individual flags. The Bridgebuilder review notes that real-
 Budget enforcement and fallback routing are tested independently but never together. The Bridgebuilder review identifies this as a critical gap: "What happens when a budget-exceeded model triggers fallback to a cheaper model?"
 
 **Acceptance Criteria**:
-- [ ] Test DOWNGRADE action triggers fallback chain walk
-- [ ] Test fallback candidate satisfies agent requires (native_runtime guard respected during downgrade)
-- [ ] Test downgrade from `google:gemini-3-pro` to `openai:gpt-4o-mini` via configured chain
-- [ ] Test downgrade impossible for `native_runtime: true` agents (cannot leave Claude Code)
-- [ ] Test BLOCK action returns exit code 6 without invoking any provider
-- [ ] Test WARN action allows invocation but logs warning
-- [ ] Test budget check uses daily_micro_usd from config, not hardcoded value
-- [ ] Test atomic pre_call + provider failure + post_call records zero cost (Sprint 5 fix verified end-to-end)
+- [x] Test DOWNGRADE action triggers fallback chain walk
+- [x] Test fallback candidate satisfies agent requires (native_runtime guard respected during downgrade)
+- [x] Test downgrade from `google:gemini-3-pro` to `openai:gpt-4o-mini` via configured chain
+- [x] Test downgrade impossible for `native_runtime: true` agents (cannot leave Claude Code)
+- [x] Test BLOCK action returns exit code 6 without invoking any provider
+- [x] Test WARN action allows invocation but logs warning
+- [x] Test budget check uses daily_micro_usd from config, not hardcoded value
+- [x] Test atomic pre_call + provider failure + post_call records zero cost (Sprint 5 fix verified end-to-end)
 
 ### Task 7.4: Conservation invariant property-based tests
 
@@ -85,14 +85,14 @@ Budget enforcement and fallback routing are tested independently but never toget
 The Bridgebuilder review identifies the conservation invariant as the most important architectural property in the system. It spans three layers (pricing → budget → ledger) but is tested nowhere as a cross-cutting property. This task implements property-based tests that verify the invariant holds across randomized inputs.
 
 **Acceptance Criteria**:
-- [ ] Property test: for any valid (tokens, price_per_mtok), `cost + remainder == tokens * price_per_mtok`
-- [ ] Property test: `RemainderAccumulator` across N random additions, `sum(yielded_costs) + accumulator.remainder == sum(raw_products)`
-- [ ] Property test: `create_ledger_entry()` + `calculate_total_cost()` round-trip preserves total (no precision loss)
-- [ ] Property test: sequence of `pre_call_atomic()` + `post_call()` never produces negative daily spend
-- [ ] Property test: hybrid pricing mode satisfies `total == token_cost + per_task_cost + remainder_carry`
-- [ ] Uses hypothesis library for property-based testing (add to test requirements if not present)
-- [ ] Minimum 100 examples per property, shrinking enabled for failure reproduction
-- [ ] Document the invariant being tested in each property's docstring (cite Bridgebuilder review Part II)
+- [x] Property test: for any valid (tokens, price_per_mtok), `cost + remainder == tokens * price_per_mtok`
+- [x] Property test: `RemainderAccumulator` across N random additions, `sum(yielded_costs) + accumulator.remainder == sum(raw_products)`
+- [x] Property test: `create_ledger_entry()` + `calculate_total_cost()` round-trip preserves total (no precision loss)
+- [x] Property test: sequence of `pre_call_atomic()` + `post_call()` never produces negative daily spend
+- [x] Property test: hybrid pricing mode satisfies `total == token_cost + per_task_cost + remainder_carry`
+- [x] Uses hypothesis library for property-based testing (add to test requirements if not present)
+- [x] Minimum 100 examples per property, shrinking enabled for failure reproduction
+- [x] Document the invariant being tested in each property's docstring (cite Bridgebuilder review Part II)
 
 ### Task 7.5: Google adapter recovery and edge case tests
 
@@ -101,14 +101,14 @@ The Bridgebuilder review identifies the conservation invariant as the most impor
 Extend the existing Google adapter tests with recovery edge cases identified in the review.
 
 **Acceptance Criteria**:
-- [ ] Test interaction persistence: create_interaction → crash (simulate) → resume polling from persisted state
-- [ ] Test interaction persistence: stale .dr-interactions.json with dead interaction → no hang
-- [ ] Test Deep Research cancellation after completion (idempotent, no error)
-- [ ] Test Deep Research unknown status in poll response → continue polling (not crash)
-- [ ] Test concurrent standard + Deep Research requests share the correct semaphore pools
-- [ ] Test API version override via `model_config.extra.api_version` → URL constructed correctly
-- [ ] Test auth mode: header (default) vs query param (legacy) → correct request format
-- [ ] Test max retries exhausted → final error surfaced (not swallowed by retry loop)
+- [x] Test interaction persistence: create_interaction → crash (simulate) → resume polling from persisted state
+- [x] Test interaction persistence: stale .dr-interactions.json with dead interaction → no hang
+- [x] Test Deep Research cancellation after completion (idempotent, no error)
+- [x] Test Deep Research unknown status in poll response → continue polling (not crash)
+- [x] Test concurrent standard + Deep Research requests share the correct semaphore pools
+- [x] Test API version override via `model_config.extra.api_version` → URL constructed correctly
+- [x] Test auth mode: header (default) vs query param (legacy) → correct request format
+- [x] Test max retries exhausted → final error surfaced (not swallowed by retry loop)
 
 ### Task 7.6: Cross-adapter routing integration tests
 
@@ -117,12 +117,12 @@ Extend the existing Google adapter tests with recovery edge cases identified in 
 Test that routing works correctly when multiple adapters are registered simultaneously.
 
 **Acceptance Criteria**:
-- [ ] Test agent binding resolution: `deep-researcher` → Google, `reviewing-code` → OpenAI, `native` → Claude Code
-- [ ] Test circuit breaker trip on Google → fallback to OpenAI for agents that don't require Google-specific capabilities
-- [ ] Test `validate_bindings()` catches missing provider for any configured agent
-- [ ] Test alias chain: `deep-thinker` → alias → `google:gemini-3-pro` → GoogleAdapter
-- [ ] Test adapter registry contains all 3 providers (openai, anthropic, google)
-- [ ] All tests mocked
+- [x] Test agent binding resolution: `deep-researcher` → Google, `reviewing-code` → OpenAI, `native` → Claude Code
+- [x] Test circuit breaker trip on Google → fallback to OpenAI for agents that don't require Google-specific capabilities
+- [x] Test `validate_bindings()` catches missing provider for any configured agent
+- [x] Test alias chain: `deep-thinker` → alias → `google:gemini-3-pro` → GoogleAdapter
+- [x] Test adapter registry contains all 3 providers (openai, anthropic, google)
+- [x] All tests mocked
 
 ---
 

@@ -94,7 +94,7 @@
           "local_id": "sprint-7",
           "global_id": "sprint-11",
           "label": "Test Coverage Hardening — Trust Scopes, Multi-Adapter & Invariant Verification",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "local_id": "sprint-8",
