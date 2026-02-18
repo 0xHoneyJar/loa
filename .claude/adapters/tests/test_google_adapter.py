@@ -831,6 +831,88 @@ class TestNormalizeCitations:
         assert len(urls) >= 1
 
 
+# --- Health Check Tests (Review F2) ---
+
+
+class TestHealthCheck:
+    """Test GoogleAdapter health_check method."""
+
+    @patch("loa_cheval.providers.google_adapter._detect_http_client_for_get")
+    def test_health_check_success(self, mock_detect):
+        """health_check returns True when status < 400."""
+        mock_client = MagicMock(return_value=200)
+        mock_detect.return_value = mock_client
+
+        adapter = GoogleAdapter(_make_google_config())
+        assert adapter.health_check() is True
+        mock_client.assert_called_once()
+
+    @patch("loa_cheval.providers.google_adapter._detect_http_client_for_get")
+    def test_health_check_failure(self, mock_detect):
+        """health_check returns False when status >= 400."""
+        mock_client = MagicMock(return_value=401)
+        mock_detect.return_value = mock_client
+
+        adapter = GoogleAdapter(_make_google_config())
+        assert adapter.health_check() is False
+
+    @patch("loa_cheval.providers.google_adapter._detect_http_client_for_get")
+    def test_health_check_exception(self, mock_detect):
+        """health_check returns False on exception."""
+        mock_detect.side_effect = RuntimeError("connection failed")
+
+        adapter = GoogleAdapter(_make_google_config())
+        assert adapter.health_check() is False
+
+    @patch("loa_cheval.providers.google_adapter._detect_http_client_for_get")
+    def test_health_check_url_construction(self, mock_detect):
+        """health_check calls models endpoint."""
+        mock_client = MagicMock(return_value=200)
+        mock_detect.return_value = mock_client
+
+        adapter = GoogleAdapter(_make_google_config())
+        adapter.health_check()
+
+        call_args = mock_client.call_args
+        url = call_args[0][0]
+        assert "models" in url
+        assert "generativelanguage.googleapis.com" in url
+
+
+# --- Poll GET Error Handling Tests (Review F1) ---
+
+
+class TestPollGetErrors:
+    """Test _poll_get resilience to non-HTTP errors."""
+
+    @patch("urllib.request.urlopen")
+    def test_poll_get_urllib_url_error(self, mock_urlopen):
+        """URLError (DNS failure, connection refused) → 503."""
+        import urllib.error
+
+        mock_urlopen.side_effect = urllib.error.URLError("Name resolution failed")
+
+        # Force urllib fallback by hiding httpx
+        with patch.dict("sys.modules", {"httpx": None}):
+            # Re-import to ensure clean import path
+            import importlib
+            import loa_cheval.providers.google_adapter as ga_mod
+            importlib.reload(ga_mod)
+            status, resp = ga_mod._poll_get("https://bad-host.invalid", {})
+            # Reload again to restore httpx availability
+            importlib.reload(ga_mod)
+
+        assert status == 503
+        assert "URLError" in resp["error"]["message"] or "Name resolution" in resp["error"]["message"]
+
+    @patch("loa_cheval.providers.google_adapter._poll_get")
+    def test_poll_get_returns_503_on_network_error(self, mock_poll):
+        """Verify poll callers handle 503 gracefully."""
+        mock_poll.return_value = (503, {"error": {"message": "URLError: connection refused"}})
+        status, resp = mock_poll("https://example.com", {})
+        assert status == 503
+
+
 # --- Interaction Persistence Tests (Flatline SKP-009) ---
 
 
@@ -853,3 +935,24 @@ class TestInteractionPersistence:
         data = _load_persisted_interactions()
         assert "interactions/test-1" in data
         assert data["interactions/test-1"]["model"] == "gemini-3-pro"
+
+    def test_persist_concurrent_safe(self, tmp_path, monkeypatch):
+        """Concurrent _persist_interaction calls don't corrupt data (Review CONCERN-5)."""
+        from loa_cheval.providers.google_adapter import (
+            _persist_interaction,
+            _load_persisted_interactions,
+        )
+        import loa_cheval.providers.google_adapter as ga_mod
+
+        test_file = str(tmp_path / ".dr-interactions.json")
+        monkeypatch.setattr(ga_mod, "_INTERACTIONS_FILE", test_file)
+
+        # Sequential writes simulating concurrent access
+        _persist_interaction("interactions/a", "gemini-3-pro")
+        _persist_interaction("interactions/b", "gemini-3-flash")
+
+        data = _load_persisted_interactions()
+        assert "interactions/a" in data
+        assert "interactions/b" in data
+        assert data["interactions/a"]["model"] == "gemini-3-pro"
+        assert data["interactions/b"]["model"] == "gemini-3-flash"

@@ -36,18 +36,19 @@ class FLockSemaphore:
         lock_dir: Directory for lock files (default: .run/)
     """
 
-    def __init__(self, name, max_concurrent=5, lock_dir=".run"):
-        # type: (str, int, str) -> None
+    def __init__(self, name, max_concurrent=5, lock_dir=".run", timeout=30.0):
+        # type: (str, int, str, float) -> None
         self.name = name
         self.max_concurrent = max_concurrent
         self.lock_dir = lock_dir
+        self.timeout = timeout
         self._held_fd = None  # type: Optional[int]
         self._held_slot = -1
         self._held_path = ""
 
     def __enter__(self):
         # type: () -> int
-        return self.acquire()
+        return self.acquire(timeout=self.timeout)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         # type: (object, object, object) -> None

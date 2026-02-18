@@ -89,9 +89,7 @@ class GoogleAdapter(ProviderAdapter):
             headers = {
                 "x-goog-api-key": auth,
             }
-            # Use http_post for GET-like request (minimal body)
-            # Actually, models.list is GET — use urllib/httpx directly
-            import json as _json
+            # models.list is GET — use urllib/httpx directly
             client = _detect_http_client_for_get()
             status = client(url, headers, connect_timeout=5.0, read_timeout=10.0)
             return status < 400
@@ -186,8 +184,11 @@ class GoogleAdapter(ProviderAdapter):
         max_poll_time = extra.get("max_poll_time_s", 600)
         store = extra.get("store", False)
 
-        # Concurrency control (Task 2.4)
-        with FLockSemaphore("google-deep-research", max_concurrent=3):
+        # Context window enforcement (Review CONCERN-2)
+        enforce_context_window(request, model_config)
+
+        # Concurrency control (Task 2.4) — extended timeout for DR queue depth
+        with FLockSemaphore("google-deep-research", max_concurrent=3, timeout=max_poll_time):
             # Create interaction
             interaction = self.create_interaction(
                 request, model_config, store=store,
@@ -737,22 +738,31 @@ _INTERACTIONS_FILE = ".run/.dr-interactions.json"
 
 def _persist_interaction(interaction_id, model):
     # type: (str, str) -> None
-    """Save interaction metadata for crash recovery."""
+    """Save interaction metadata for crash recovery (flock-protected)."""
+    import fcntl
+
     try:
-        data = {}  # type: Dict[str, Any]
-        if os.path.exists(_INTERACTIONS_FILE):
-            with open(_INTERACTIONS_FILE, "r") as f:
-                data = _json.load(f)
-
-        data[interaction_id] = {
-            "model": model,
-            "start_time": time.time(),
-            "pid": os.getpid(),
-        }
-
         os.makedirs(os.path.dirname(_INTERACTIONS_FILE) or ".", exist_ok=True)
-        with open(_INTERACTIONS_FILE, "w") as f:
-            _json.dump(data, f, indent=2)
+        lock_path = _INTERACTIONS_FILE + ".lock"
+
+        with open(lock_path, "w") as lock_f:
+            fcntl.flock(lock_f, fcntl.LOCK_EX)
+            try:
+                data = {}  # type: Dict[str, Any]
+                if os.path.exists(_INTERACTIONS_FILE):
+                    with open(_INTERACTIONS_FILE, "r") as f:
+                        data = _json.load(f)
+
+                data[interaction_id] = {
+                    "model": model,
+                    "start_time": time.time(),
+                    "pid": os.getpid(),
+                }
+
+                with open(_INTERACTIONS_FILE, "w") as f:
+                    _json.dump(data, f, indent=2)
+            finally:
+                fcntl.flock(lock_f, fcntl.LOCK_UN)
     except Exception:
         logger.warning("dr_persist_failed interaction=%s", interaction_id)
 
@@ -784,8 +794,15 @@ def _poll_get(url, headers, connect_timeout=5.0, read_timeout=30.0):
             write=10.0,
             pool=5.0,
         )
-        resp = httpx.get(url, headers=headers, timeout=timeout)
-        return resp.status_code, resp.json()
+        try:
+            resp = httpx.get(url, headers=headers, timeout=timeout)
+            return resp.status_code, resp.json()
+        except httpx.HTTPError as e:
+            logger.warning("poll_get_httpx_error url=%s error=%s", url, e)
+            return 503, {"error": {"message": str(e)}}
+        except (ValueError, _json.JSONDecodeError) as e:
+            logger.warning("poll_get_json_error url=%s error=%s", url, e)
+            return 503, {"error": {"message": "JSON decode error: %s" % e}}
     except ImportError:
         pass
 
@@ -804,6 +821,12 @@ def _poll_get(url, headers, connect_timeout=5.0, read_timeout=30.0):
             return e.code, _json.loads(body)
         except _json.JSONDecodeError:
             return e.code, {"error": {"message": body}}
+    except urllib.error.URLError as e:
+        logger.warning("poll_get_url_error url=%s reason=%s", url, e.reason)
+        return 503, {"error": {"message": "URLError: %s" % e.reason}}
+    except (OSError, _json.JSONDecodeError) as e:
+        logger.warning("poll_get_error url=%s error=%s", url, e)
+        return 503, {"error": {"message": str(e)}}
 
 
 # --- Health Check Helper ---
