@@ -1,0 +1,123 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 4,
+    "disputed_count": 0,
+    "low_value_count": 0,
+    "blocker_count": 5,
+    "model_agreement_percent": 100,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Real security/ops gap for anything beyond single-user local dev. Service account / scoped creds / rotation are common requirements for CI and shared agent runners. Moderate complexity (depends on Google SDK/auth flows), but high risk if ignored (credential leakage, overbroad access). Would benefit from concrete acceptance criteria (supported auth methods, precedence rules, storage/refresh behavior).",
+      "gpt_score": 780,
+      "opus_score": 820,
+      "delta": 40,
+      "average_score": 800,
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Critical: concurrent Bash invocations writing to a shared JSONL ledger and sharing circuit-breaker state is a classic corruption/race-condition trap. The PRD’s multi-teammate parallelism makes this a real, likely failure mode. Actionable: specify locking strategy (fcntl/flock), atomic append, per-process temp + merge, or move to sqlite; define circuit breaker scope (per-process vs shared). High ROI, low-to-moderate implementation cost.",
+      "gpt_score": 900,
+      "opus_score": 880,
+      "delta": 20,
+      "average_score": 890,
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-004",
+      "description": "Critical for a CLI-as-API integration. Without an exit code/stderr contract, autonomous teammates can’t reliably branch on failure modes (budget vs rate limit vs invalid args). Low effort to define a table and JSON error envelope; high operational ROI.",
+      "gpt_score": 880,
+      "opus_score": 750,
+      "delta": 130,
+      "average_score": 815,
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-008",
+      "description": "Real gap: budget enforcement semantics across parallel agents and long-running Deep Research are non-trivial (commit-at-create vs poll). Actionable to define when budget is checked, whether reservations are made, and fallback/abort behavior. Implementation complexity moderate (ledger + concurrency), but impact is high for cost control.",
+      "gpt_score": 760,
+      "opus_score": 760,
+      "delta": 0,
+      "average_score": 760,
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-002",
+      "concern": "Blocking-poll Deep Research inside a synchronous CLI risks timeouts, hung workflows, and poor UX without cancellation/resume semantics",
+      "severity": "CRITICAL",
+      "severity_score": 880,
+      "why_matters": "A 10–60 minute blocking call invoked from TeamCreate via Bash can stall an entire agent run, exceed CI/job time limits, and create orphaned server-side interactions (store:true) with no way to resume or cancel. This is a common failure mode in long-running tool calls.",
+      "location": "FR-3: Deep Research Adapter (blocking-poll); NFR Performance; Architecture Decision #2",
+      "recommendation": "Add cancellation (SIGINT handling), interaction ID persistence, resume support (poll existing interaction), and a max wall-clock budget per workflow. Provide progress logging to stderr and a non-blocking mode that returns an interaction handle.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-005",
+      "concern": "Cost/metering is not implementable as written due to TBD pricing and mismatched units (tokens vs per-task) across providers",
+      "severity": "HIGH",
+      "severity_score": 720,
+      "why_matters": "Success requires “Metering records cost for all external model calls” and budget enforcement, but Gemini 3 pricing is TBD and Deep Research is per-task micro-USD. Without a defined cost model and normalization, budgets will be wrong, enforcement will be inconsistent, and users may get surprise bills.",
+      "location": "FR-2 (pricing TBD); FR-3 (per_task_micro_usd); NFR Cost; Success Metrics (ledger entries)",
+      "recommendation": "Define a provider-agnostic cost interface supporting token-based and task-based billing, including unknown pricing behavior (e.g., record usage without cost, mark as ‘unpriced’). Add tests ensuring ledger entries are created even when price is unknown.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "Deep Research output contract is underspecified (citations/DOIs, structure, partial results) and may not reliably meet success metrics",
+      "severity": "CRITICAL",
+      "severity_score": 910,
+      "why_matters": "The PRD’s success metric requires “Returns cited report with DOIs”, but the adapter spec only says “extract output → content”. If the API returns mixed modalities (citations objects, links, tool outputs) or omits DOIs, downstream agents/tests will be flaky and the feature will be perceived as failing even when the API call succeeds.",
+      "location": "Section 2: Success Metrics; FR-3: Deep Research Adapter; Architecture Notes (I/O contract)",
+      "recommendation": "Define a strict normalized output schema for Deep Research (e.g., {summary, findings[], citations[] with DOI/URL/title, raw_text}), specify how to extract citations from the Interactions response, and define acceptance tests for citation presence/format plus behavior when citations are unavailable.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "Gemini message translation is oversimplified and likely to break on multi-part content, tool/function calls, images/files, and system+developer role semantics",
+      "severity": "HIGH",
+      "severity_score": 760,
+      "why_matters": "The PRD assumes canonical OpenAI-format messages map cleanly to Gemini parts/text and systemInstruction. Real traffic often includes structured content, multiple system messages, tool calls, JSON mode constraints, and attachments. Incorrect translation will cause silent prompt corruption and inconsistent model behavior.",
+      "location": "FR-1: Message format translation; Architecture Decision #3",
+      "recommendation": "Specify a complete canonical message model (roles, multi-part segments, tool calls, attachments) and implement a translation matrix with round-trip tests. Explicitly define precedence/merging rules for multiple system messages and developer instructions.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-004",
+      "concern": "Thinking traces handling is ambiguous and may violate provider policies or leak sensitive data into logs/ledgers",
+      "severity": "HIGH",
+      "severity_score": 740,
+      "why_matters": "The PRD expects “thinking trace + response” and says to extract thought parts into CompletionResult.thinking, but does not define storage/redaction. If thinking traces include sensitive prompt content, they may end up in stdout, logs, or persisted artifacts, creating security/privacy exposure and potentially conflicting with provider guidance on chain-of-thought handling.",
+      "location": "Success Metrics (thinking trace); FR-1 (extract thinking traces); Security section (no keys in logs, but nothing about traces)",
+      "recommendation": "Define a policy: whether thinking is returned by default, redaction rules, and where it may be stored. Add config flags to disable thinking capture, and ensure metering/logging never persists raw thinking unless explicitly enabled.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "prd",
+  "document": "grimoires/loa/prd.md",
+  "domain": " prd hounfour runtime bridge",
+  "execution": {
+    "mode": "hitl",
+    "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "run_id": null
+  },
+  "timestamp": "2026-02-17T22:48:29Z",
+  "metrics": {
+    "total_latency_ms": 222000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

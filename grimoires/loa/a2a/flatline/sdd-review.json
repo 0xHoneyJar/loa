@@ -1,0 +1,6 @@
+[flatline] Execution mode: hitl (reason: Simstim workflow active (.run/simstim-state.json state=RUNNING))
+[flatline] Document: grimoires/loa/sdd.md
+[flatline] Phase: sdd
+[flatline] Mode: hitl
+[flatline] Timeout: 300s
+[flatline] Budget: 300 cents

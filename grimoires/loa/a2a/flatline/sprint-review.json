@@ -1,0 +1,124 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 2,
+    "disputed_count": 1,
+    "low_value_count": 0,
+    "blocker_count": 6,
+    "model_agreement_percent": 90,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Real resilience gap: standard generateContent path lacks defined retry/backoff while polling has it, creating inconsistent failure behavior. Actionable to specify retryable status codes, max attempts, jitter, and idempotency guidance. High ROI/low effort and aligns with implied invoke_with_retry() reference.",
+      "gpt_score": 900,
+      "opus_score": 820,
+      "delta": 80,
+      "average_score": 860,
+      "would_integrate": true,
+      "agreement": "HIGH"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Cross-cutting architectural gap: without a defined HTTP client/timeout/pooling strategy, implementations will diverge and performance/reliability will vary. Actionable (pick requests/httpx, define sync/async stance, timeouts, retries integration, session lifecycle). Moderate effort but high leverage across all call sites.",
+      "gpt_score": 820,
+      "opus_score": 750,
+      "delta": 70,
+      "average_score": 785,
+      "would_integrate": true,
+      "agreement": "HIGH"
+    }
+  ],
+  "disputed": [
+    {
+      "id": "IMP-009",
+      "description": "Security/operability gap: logging is referenced but standards/redaction aren’t defined, risking leakage of prompts/keys/thinking traces. Actionable to define levels, sinks, structured vs plain, and explicit redaction rules. Moderate effort with high risk mitigation.",
+      "gpt_score": 740,
+      "opus_score": 420,
+      "delta": 320,
+      "average_score": 580,
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    }
+  ],
+  "low_value": [],
+  "blockers": [
+    {
+      "id": "SKP-003",
+      "concern": "Auth and endpoint assumptions are underspecified (API key header vs query param, endpoint base, v1 vs v1beta), risking subtle 401/403/404 failures across environments",
+      "severity": "HIGH",
+      "severity_score": 760,
+      "why_matters": "Google GenAI endpoints differ between products and versions; a small mismatch in base URL, path, or auth placement can cause persistent failures that look like config issues but are actually integration bugs.",
+      "location": "Sprint 1 Task 1.4 (URL pattern), Task 1.1 (health_check models.list), Sprint 2 Task 2.1 (pinned v1beta)",
+      "recommendation": "Centralize endpoint construction and versioning; add explicit config for base URL + API version; implement a startup self-test that verifies both models.list and generateContent against the same base.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-008",
+      "concern": "Concurrency and locking strategy (flock + PID stale detection + .run directory) is OS/filesystem sensitive and can deadlock or fail in CI/containers/NFS",
+      "severity": "HIGH",
+      "severity_score": 740,
+      "why_matters": "If locks fail or stale detection is wrong, calls may hang (TimeoutError) or exceed concurrency limits, causing rate limits and cascading failures. Also, 'no actual file locks in unit tests' risks untested real behavior.",
+      "location": "Sprint 2 Tasks 2.3, 2.4; Sprint 3 Tasks 3.3, 3.4, 3.5",
+      "recommendation": "Add an integration test that uses real flock on Linux; document unsupported filesystems; ensure .run directory creation/permissions; add lock acquisition metrics/logging and a manual unlock procedure.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-009",
+      "concern": "Deep Research polling/backoff and async lifecycle has many edge cases (lost interaction_id, transient 5xx, partial completion, cancellation semantics) but acceptance criteria focus on happy-path states",
+      "severity": "HIGH",
+      "severity_score": 720,
+      "why_matters": "Preview APIs often return transient errors or intermediate states; without robust retry and idempotency, users will see stuck jobs, duplicate charges, or irrecoverable pending interactions.",
+      "location": "Sprint 2 Tasks 2.1, 2.5; Sprint 3 ledger interaction_id support",
+      "recommendation": "Define a state machine with retries for poll calls (including 429/5xx); persist interaction metadata for recovery; make cancel idempotent; add tests for transient failures and unknown states.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-001",
+      "concern": "Gemini API surface/response schemas are assumed stable, but Sprint 1 hard-codes multiple fields (finishReason, usageMetadata, thought parts) that may differ by model/version/region",
+      "severity": "CRITICAL",
+      "severity_score": 900,
+      "why_matters": "If response fields differ (e.g., finishReason values, usageMetadata presence/shape, thought-part markers), parsing will misbehave (wrong errors, missing output, wrong usage), breaking downstream metering and Deep Research dependencies.",
+      "location": "Sprint 1 Tasks 1.4, 1.9; Sprint 3 metering depends on Usage correctness",
+      "recommendation": "Add schema-tolerant parsing with defensive defaults; validate against multiple real responses (at least 2.5 + 3) and document supported variants; add contract tests that fail loudly when unknown shapes appear.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "Message translation rejects array content blocks (images, tool_calls), but upstream callers may already emit these in the 'OpenAI canonical' format",
+      "severity": "CRITICAL",
+      "severity_score": 860,
+      "why_matters": "If any existing agents/tools produce multi-part content (common for tool calls or multimodal), the adapter will throw InvalidInputError and effectively make Google routing unusable for those flows.",
+      "location": "Sprint 1 Task 1.2 acceptance criteria: 'Array content blocks raise InvalidInputError'",
+      "recommendation": "Inventory current message producers; either implement minimal support for tool_calls (even if no-op) or gate Google provider selection earlier with a clear capability check and fallback routing.",
+      "source": "tertiary_skeptic"
+    },
+    {
+      "id": "SKP-007",
+      "concern": "Usage/metering correctness is fragile: usageMetadata may be missing, partial, or inconsistent (prompt vs candidates vs thoughts), leading to wrong cost and budget enforcement",
+      "severity": "CRITICAL",
+      "severity_score": 880,
+      "why_matters": "Sprint 3 budget enforcement and ledger accuracy depend on Usage. If usage is estimated or misparsed, budgets may block valid work or allow overspend; this is a core success metric.",
+      "location": "Sprint 1 Task 1.4 (Usage parsing); Sprint 3 Tasks 3.2, 3.3, 3.5",
+      "recommendation": "Define a strict Usage contract with validation; when usageMetadata absent, use conservative estimates and mark clearly; add integration tests that assert ledger entries and budget decisions under missing/partial usage.",
+      "source": "tertiary_skeptic"
+    }
+  ],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "full",
+  "phase": "sprint",
+  "document": "grimoires/loa/sprint.md",
+  "domain": " sprint 1 googleadapter standard",
+  "execution": {
+    "mode": "hitl",
+    "mode_reason": "Simstim workflow active (.run/simstim-state.json state=RUNNING)",
+    "run_id": null
+  },
+  "timestamp": "2026-02-17T23:37:48Z",
+  "metrics": {
+    "total_latency_ms": 239000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}
