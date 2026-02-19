@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "active_cycle": "cycle-030",
-  "global_sprint_counter": 24,
+  "global_sprint_counter": 26,
   "cycles": [
     {
       "id": "cycle-025",
@@ -263,7 +263,20 @@
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "source_issues": [380, 381, 382, 383, 384, 385, 386, 387, 388, 389, 390],
-      "sprints": []
+      "sprints": [
+        {
+          "local_id": "sprint-1",
+          "global_id": "sprint-25",
+          "label": "Bug Fixes + Auto-Install Infrastructure",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-2",
+          "global_id": "sprint-26",
+          "label": "/plan Entry Fixes + /feedback Visibility + Setup Auto-Fix",
+          "status": "completed"
+        }
+      ]
     }
   ]
 }
