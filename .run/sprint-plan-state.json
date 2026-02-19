@@ -1,39 +1,30 @@
 {
-  "plan_id": "plan-20260219-bridge-iter2",
-  "branch": "feat/cycle-027-qmd-integration",
+  "plan_id": "plan-20260219-c028sec",
+  "branch": "feat/cycle-028-security-hardening",
   "state": "JACKED_OUT",
   "timestamps": {
-    "started": "2026-02-19T01:30:00Z",
-    "last_activity": "2026-02-19T02:30:00Z"
+    "started": "2026-02-19T16:10:00Z",
+    "last_activity": "2026-02-19T18:45:00Z"
   },
   "sprints": {
-    "total": 2,
-    "completed": 2,
+    "total": 3,
+    "completed": 3,
     "current": null,
     "list": [
-      {
-        "id": "sprint-4",
-        "status": "completed",
-        "cycles": 1,
-        "files_changed": 2
-      },
-      {
-        "id": "sprint-5",
-        "status": "completed",
-        "cycles": 1,
-        "files_changed": 3
-      }
+      {"id": "sprint-1", "status": "completed", "cycles": 1},
+      {"id": "sprint-2", "status": "completed", "cycles": 1},
+      {"id": "sprint-3", "status": "completed", "cycles": 1}
     ]
   },
   "options": {
-    "from": 4,
-    "to": 5,
+    "from": 1,
+    "to": 3,
     "max_cycles": 20,
     "timeout_hours": 8
   },
   "metrics": {
-    "total_cycles": 2,
-    "total_files_changed": 5,
-    "total_findings_fixed": 0
+    "total_cycles": 3,
+    "total_files_changed": 17,
+    "total_findings_fixed": 7
   }
 }

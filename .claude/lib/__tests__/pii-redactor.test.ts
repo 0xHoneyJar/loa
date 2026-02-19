@@ -208,6 +208,53 @@ describe("PIIRedactor", () => {
     assert.equal(input.slice(emailMatch.position, emailMatch.position + emailMatch.length), "user@test.com");
   });
 
+  // ── FR-7: aws_secret Regex Tightening (cycle-028) ──
+
+  it("does NOT redact SHA-1 hex hashes as aws_secret", () => {
+    const redactor = createPIIRedactor();
+    const sha1 = "da39a3ee5e6b4b0d3255bfef95601890afd80709";
+    const { output, matches } = redactor.redact(`commit: ${sha1}`);
+    const awsSecretMatch = matches.some((m) => m.pattern === "aws_secret");
+    assert.ok(!awsSecretMatch, "SHA-1 hex hash should NOT be flagged as aws_secret");
+    assert.ok(output.includes(sha1) || output.includes("[REDACTED_HIGH_ENTROPY]"),
+      "SHA-1 should be preserved or caught only by entropy, not aws_secret");
+  });
+
+  it("does NOT redact git commit hashes as aws_secret", () => {
+    const redactor = createPIIRedactor();
+    const hash = "abc123def456789012345678901234567890abcd";
+    const { output, matches } = redactor.redact(`git show ${hash}`);
+    const awsSecretMatch = matches.some((m) => m.pattern === "aws_secret");
+    assert.ok(!awsSecretMatch, "Git commit hash should NOT be flagged as aws_secret");
+  });
+
+  it("does NOT redact uppercase hex-only strings as aws_secret", () => {
+    const redactor = createPIIRedactor();
+    const hexUpper = "ABCDEF0123456789ABCDEF0123456789ABCDEF01";
+    const { matches } = redactor.redact(`checksum: ${hexUpper}`);
+    const awsSecretMatch = matches.some((m) => m.pattern === "aws_secret");
+    assert.ok(!awsSecretMatch, "Uppercase hex-only string should NOT be flagged as aws_secret");
+  });
+
+  it("still detects real AWS secret access keys", () => {
+    const redactor = createPIIRedactor();
+    // AWS secrets are base64 and always contain non-hex chars (G-Z, /, +, =)
+    const awsSecret = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+    const { output, matches } = redactor.redact(`secret: ${awsSecret}`);
+    // Should be caught by aws_secret or generic_api_key
+    const detected = matches.some(
+      (m) => m.pattern === "aws_secret" || m.pattern === "generic_api_key",
+    );
+    assert.ok(detected, "Real AWS secret should be detected");
+    assert.ok(!output.includes(awsSecret), "Real AWS secret should be redacted");
+  });
+
+  it("aws_key_id pattern still works (AKIA prefix)", () => {
+    const redactor = createPIIRedactor();
+    const { output } = redactor.redact("key: AKIAIOSFODNN7EXAMPLE");
+    assert.ok(output.includes("[REDACTED_AWS_KEY]"), "AWS key ID should still be detected");
+  });
+
   // ── ReDoS Adversarial Regression ───────────────────
 
   it("completes within 100ms on 10KB adversarial input", () => {

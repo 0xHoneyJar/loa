@@ -1,3 +1,7 @@
+# Key material — prevent accidental commits (cycle-028 FR-1)
+tests/fixtures/*.pem
+tests/fixtures/*.key
+
 # Dependencies
 node_modules/
 .pnp

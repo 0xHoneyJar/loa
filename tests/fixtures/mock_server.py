@@ -34,18 +34,62 @@ from io import BytesIO
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
+try:
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.hazmat.primitives import serialization
+    _HAS_CRYPTO = True
+except ImportError:
+    import subprocess as _subprocess
+    _HAS_CRYPTO = False
+
 # Directory containing test fixtures
 FIXTURES_DIR = Path(__file__).parent
 
-# Load test keys
-PUBLIC_KEY_PATH = FIXTURES_DIR / "mock_public_key.pem"
-PRIVATE_KEY_PATH = FIXTURES_DIR / "mock_private_key.pem"
+
+def generate_test_keypair():
+    """Generate ephemeral RSA keypair for test use only.
+
+    Returns (private_pem_bytes, public_pem_bytes) tuple.
+    Keys are 2048-bit RSA, generated fresh each time the module loads.
+    Uses cryptography library if available, falls back to openssl subprocess.
+    """
+    if _HAS_CRYPTO:
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+        )
+        private_pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        public_pem = private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        return private_pem, public_pem
+    else:
+        # Fallback: use openssl command-line tool
+        result = _subprocess.run(
+            ['openssl', 'genpkey', '-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:2048'],
+            capture_output=True, check=True
+        )
+        private_pem = result.stdout
+        result = _subprocess.run(
+            ['openssl', 'pkey', '-pubout'],
+            input=private_pem, capture_output=True, check=True
+        )
+        public_pem = result.stdout
+        return private_pem, public_pem
+
+
+# Generate ephemeral test keys at module load time (cycle-028 FR-1)
+_PRIVATE_PEM, _PUBLIC_PEM = generate_test_keypair()
 
 
 def load_public_key():
-    """Load the mock public key."""
-    with open(PUBLIC_KEY_PATH, 'r') as f:
-        return f.read()
+    """Return the ephemeral mock public key as a string."""
+    return _PUBLIC_PEM.decode('utf-8')
 
 
 # Mock skill data
