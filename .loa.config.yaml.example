@@ -1617,3 +1617,61 @@ bridgebuilder:
   # Path to persona override (project-specific reviewer personality).
   # Falls back to built-in resources/BEAUVOIR.md if file not found.
   persona_path: "grimoires/bridgebuilder/BEAUVOIR.md"
+
+# =============================================================================
+# QMD Context Query — Unified context retrieval with three-tier fallback
+# =============================================================================
+# Controls the qmd-context-query.sh script that provides semantic search
+# across grimoires, skills, notes, and reality files.
+# Three-tier fallback: QMD (semantic) → CK (code knowledge) → grep (text)
+
+qmd_context:
+  # Master switch — set to false to disable all context injection
+  enabled: true
+
+  # Default token budget for context results (word_count × 1.3)
+  default_budget: 2000
+
+  # Timeout in seconds for each search tier
+  timeout_seconds: 5
+
+  # Scope definitions — map scope names to backend-specific paths
+  scopes:
+    grimoires:
+      qmd_collection: "loa-grimoire"
+      ck_path: ".ck/loa-grimoire/"
+      grep_paths:
+        - "grimoires/loa/"
+    skills:
+      qmd_collection: "loa-skills"
+      ck_path: ".ck/skills/"
+      grep_paths:
+        - ".claude/skills/"
+    notes:
+      qmd_collection: "loa-grimoire"
+      ck_path: ".ck/loa-grimoire/"
+      grep_paths:
+        - "grimoires/loa/NOTES.md"
+    reality:
+      qmd_collection: "loa-reality"
+      ck_path: ".ck/reality/"
+      grep_paths:
+        - "grimoires/loa/reality/"
+
+  # Per-skill budget overrides
+  skill_overrides:
+    implement:
+      budget: 2000
+      scope: grimoires
+    review_sprint:
+      budget: 1500
+      scope: grimoires
+    ride:
+      budget: 2000
+      scope: reality
+    run_bridge:
+      budget: 2500
+      scope: grimoires
+    gate0:
+      budget: 1000
+      scope: notes

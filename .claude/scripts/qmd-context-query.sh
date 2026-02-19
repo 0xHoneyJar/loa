@@ -33,6 +33,9 @@ BUDGET=2000
 FORMAT="json"
 TIMEOUT=5
 ENABLED=true
+SKILL=""
+BUDGET_EXPLICIT=false
+SCOPE_EXPLICIT=false
 
 # Resolved scope paths (populated by resolve_scope)
 QMD_COLLECTION=""
@@ -63,6 +66,7 @@ OPTIONS:
     --budget N        Token budget limit (default: 2000)
     --format FORMAT   Output format: json or text (default: json)
     --timeout N       Per-tier timeout in seconds (default: 5)
+    --skill NAME      Apply skill-specific overrides from config (e.g., implement, ride)
     --help            Show this help
 
 EXAMPLES:
@@ -81,10 +85,16 @@ parse_args() {
                 ;;
             --scope|-s)
                 SCOPE="$2"
+                SCOPE_EXPLICIT=true
                 shift 2
                 ;;
             --budget|-b)
                 BUDGET="$2"
+                BUDGET_EXPLICIT=true
+                shift 2
+                ;;
+            --skill)
+                SKILL="$2"
                 shift 2
                 ;;
             --format|-f)
@@ -156,18 +166,27 @@ load_config() {
 
     local cfg_budget
     cfg_budget=$(yq -r '.qmd_context.default_budget // ""' "$CONFIG_FILE" 2>/dev/null || echo "")
-    if [[ -n "$cfg_budget" && "$cfg_budget" != "null" ]]; then
-        # Only override if user didn't pass --budget explicitly
-        # (we use 2000 as sentinel — if it's still 2000, apply config default)
-        if [[ "$BUDGET" -eq 2000 ]]; then
-            BUDGET="$cfg_budget"
-        fi
+    if [[ -n "$cfg_budget" && "$cfg_budget" != "null" && "$BUDGET_EXPLICIT" == "false" ]]; then
+        BUDGET="$cfg_budget"
     fi
 
     local cfg_timeout
     cfg_timeout=$(yq -r '.qmd_context.timeout_seconds // ""' "$CONFIG_FILE" 2>/dev/null || echo "")
     if [[ -n "$cfg_timeout" && "$cfg_timeout" != "null" && "$TIMEOUT" -eq 5 ]]; then
         TIMEOUT="$cfg_timeout"
+    fi
+
+    # Skill-specific overrides (BB-415)
+    if [[ -n "$SKILL" ]]; then
+        local skill_budget skill_scope
+        skill_budget=$(yq -r ".qmd_context.skill_overrides.${SKILL}.budget // \"\"" "$CONFIG_FILE" 2>/dev/null || echo "")
+        skill_scope=$(yq -r ".qmd_context.skill_overrides.${SKILL}.scope // \"\"" "$CONFIG_FILE" 2>/dev/null || echo "")
+        if [[ -n "$skill_budget" && "$skill_budget" != "null" && "$BUDGET_EXPLICIT" == "false" ]]; then
+            BUDGET="$skill_budget"
+        fi
+        if [[ -n "$skill_scope" && "$skill_scope" != "null" && "$SCOPE_EXPLICIT" == "false" ]]; then
+            SCOPE="$skill_scope"
+        fi
     fi
 }
 
