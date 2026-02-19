@@ -4,10 +4,10 @@
   "slug": "test-vendor/team-skill",
   "version": "2.0.0",
   "registry": "default",
-  "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InRlc3Qta2V5LTAxIn0.eyJzdWIiOiJ1c3JfdGVzdDEyMyIsInNraWxsIjoidGVzdC12ZW5kb3IvdGVhbS1za2lsbCIsInZlcnNpb24iOiIyLjAuMCIsInRpZXIiOiJ0ZWFtIiwid2F0ZXJtYXJrIjoiYTFiMmMzZDRlNWY2ZzdoOGk5ajBrMWwybTNuNG81cDYiLCJsaWQiOiJsaWNfdGVzdDc4OSIsImlzcyI6Imh0dHBzOi8vYXBpLmxvYXNraWxscy5kZXYiLCJhdWQiOiJsb2Etc2tpbGxzLWNsaWVudCIsImlhdCI6MTc2NzI5MjkyNywiZXhwIjoxNzcyNDM3MzI3fQ.EaoeWKixpsgMpUo8EuvXYWx0a-9NmDxFsuJxfDYgZHWwhjoF2YOQF10P1M-nnqKtEEoL9jvDyNrWod5x1U8RwQ_DWrFmHzAwbvF0l4W4r3twmgkkUZgJ1rA6FH8Lx4L2Ua6grZgfmAWiCdT3Da_BgZN7ec4ZPBi9hFeatHpRM4C01--0jNdXjVGMXF0fPJkT6z6b5ezZFD677dYA-Oa2Y1vKy8NPRLpV2gsHVqS4Olk7A435DG_UZZkFQU6XybVqaBa_7pJznW5GytA739p-3cUxF2t9acdE_MWRloCMrMvhH0T35wpH8PO136Vvco1XPkKpTPCbUzTLbj1LE3bwXg",
+  "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InRlc3Qta2V5LTAxIn0.eyJzdWIiOiJ1c3JfdGVzdDEyMyIsInNraWxsIjoidGVzdC12ZW5kb3IvdGVhbS1za2lsbCIsInZlcnNpb24iOiIyLjAuMCIsInRpZXIiOiJ0ZWFtIiwid2F0ZXJtYXJrIjoiYTFiMmMzZDRlNWY2ZzdoOGk5ajBrMWwybTNuNG81cDYiLCJsaWQiOiJsaWNfdGVzdDc4OSIsImlzcyI6Imh0dHBzOi8vYXBpLmNvbnN0cnVjdHMubmV0d29yayIsImF1ZCI6ImxvYS1za2lsbHMtY2xpZW50IiwiaWF0IjoxNzcxNDc0NTM3LCJleHAiOjE3NzY2MjI1Mzd9.FsggTPuZjjubTlb8QPuRHHcQWwnYRQyJ-tIbUtCW9HnBmjfgvCNQssQxLrryFrlPmF6K0kPSBep3uTw34rNTn4XqchlZEfW7sZOc5bJjB6lpC-C__vYh0klKAkUCcO4jaK5GyY_mnZVTRbXuBeZ6VoeGcis32rywf1GXJqpUMH0Sr5_a0LOJLgwZoR3fqTgjUoHYnM1b6FRtGVwOgUuA8llwh9JiIWZamRXYAsxKpB3LSarH1_ypr1rmTW_mneZFYu0jJ_6WRXVvZRmVGM0zGGbA4QFsWKOpVQA0qXB0zOd3xqlZQNeovwtBS7eTna_R-9sSwR7kUqIhiCSdRJP5Uw",
   "tier": "team",
   "watermark": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
-  "issued_at": "2026-01-02T05:42:07Z",
-  "expires_at": "2026-03-02T18:42:07Z",
-  "offline_valid_until": "2026-03-05T18:42:07Z"
+  "issued_at": "2026-02-19T15:15:37Z",
+  "expires_at": "2026-04-20T04:15:37Z",
+  "offline_valid_until": "2026-04-23T04:15:37Z"
 }

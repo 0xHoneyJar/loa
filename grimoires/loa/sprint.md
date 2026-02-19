@@ -1,109 +1,196 @@
-# Sprint Plan: Bridge Iteration 2 — Boundary Hardening and Test Coverage
+# Sprint Plan: Security Hardening — Bridgebuilder Cross-Repository Findings
 
-> Cycle: cycle-027 | PRD: grimoires/loa/prd.md | SDD: grimoires/loa/sdd.md
-> Source: Bridge review bridge-20260219-7f28c4 iteration 1
-> Sprints: 2 | Team: 1 developer (AI-assisted)
-> Bridge: Iteration 2 of 3 — addressing 1 HIGH, 3 MEDIUM, 3 LOW findings
+> Cycle: cycle-028 | PRD: grimoires/loa/prd.md | SDD: grimoires/loa/sdd.md
+> Source: [#374](https://github.com/0xHoneyJar/loa/issues/374)
+> Sprints: 3 | Team: 1 developer (AI-assisted)
+> Flatline: PRD reviewed (3 HIGH_CONSENSUS, 6 BLOCKERS addressed), SDD reviewed (3 HIGH_CONSENSUS, 3 BLOCKERS addressed)
 
 ## Overview
 
-Two sprints addressing Bridgebuilder findings from iteration 1:
-
-1. **Sprint 1** (sprint-17): Security & correctness fixes — dead code, JSON escaping, input validation, symlink protection
-2. **Sprint 2** (sprint-18): Test coverage & documentation — injectable config, precedence tests, config cross-references
-
-Dependency: Sprint 1 → Sprint 2 (tests depend on code changes).
+7 security findings from Bridgebuilder cross-repository review, grouped into 3 sprints by dependency and complexity. No cross-sprint dependencies — each sprint is independently shippable.
 
 ---
 
-## Sprint 1: Security and Correctness Hardening (sprint-17)
+## Sprint 1: Key Material Removal + Binary Integrity (global sprint-19) ✅ REVIEW_APPROVED
 
-**Goal**: Address all HIGH and MEDIUM findings: wire or remove dead code, escape JSON fields, validate --skill input, prevent symlink traversal in grep tier.
+**Goal**: Eliminate committed key material and add supply-chain integrity verification.
 
-### Tasks
+**Findings**: FR-1 (Critical), FR-3 (High)
 
-#### BB-418: Wire load_bridge_context() into Orchestration Loop (high-1)
-- **Description**: The `load_bridge_context()` function at `bridge-orchestrator.sh:157-167` is defined but never called. Wire it into the iteration loop before the BRIDGEBUILDER_REVIEW signal, passing the current sprint goal as the query argument, so that QMD context is available during bridge reviews.
-- **Acceptance Criteria**:
-  - [x] `load_bridge_context()` is called in the orchestration loop before BRIDGEBUILDER_REVIEW
-  - [x] `BRIDGE_CONTEXT` variable is passed to the review signal handler
-  - [x] If QMD script is missing or disabled, `BRIDGE_CONTEXT` is empty (graceful no-op)
-  - [x] No regressions in bridge orchestrator tests
-- **Estimated Effort**: Small
-- **Finding**: high-1 (severity_weighted_score: 5)
+### Task 1.1: Remove Mock Private Key and Generate Ephemeral Keys ✅
 
-#### BB-419: Escape rel_path in Grep Tier JSON Construction (medium-1)
-- **Description**: At `qmd-context-query.sh:392`, `rel_path` is embedded directly into a JSON string without jq escaping. Add jq escaping for `rel_path` the same way `snippet` is escaped on line 384.
-- **Acceptance Criteria**:
-  - [x] `rel_path` is escaped via `jq -Rs` before JSON embedding
-  - [x] Filenames containing quotes, backslashes, or special characters produce valid JSON
-  - [x] Existing grep tier tests still pass
-  - [x] No silent data loss for valid results
-- **Estimated Effort**: Small
-- **Finding**: medium-1 (severity_weighted_score: 2)
+**File**: `tests/fixtures/mock_server.py`, `tests/fixtures/generate_test_licenses.py`
 
-#### BB-420: Validate --skill Argument with Regex (medium-2)
-- **Description**: At `qmd-context-query.sh:97-98`, the `--skill` argument is parsed with no validation. Add a regex check restricting skill names to `[a-z_-]+` before interpolation into yq selector.
-- **Acceptance Criteria**:
-  - [x] `--skill` value validated against `^[a-z_-]+$` regex after parsing
-  - [x] Invalid values silently reset to empty string
-  - [x] Valid skill names (implement, review_sprint, ride, run_bridge, gate0) pass validation
-  - [x] No regressions in existing tests
-- **Estimated Effort**: Small
-- **Finding**: medium-2 (severity_weighted_score: 2)
+- [x] Implement `generate_test_keypair()` function using `cryptography` library
+- [x] Update `mock_server.py` to use generated keys instead of loading from disk
+- [x] Update `generate_test_licenses.py` to import from `mock_server.py` or generate its own keypair
+- [x] Delete `tests/fixtures/mock_private_key.pem` and `tests/fixtures/mock_public_key.pem`
+- [x] Add `tests/fixtures/*.pem` and `tests/fixtures/*.key` to `.gitignore`
+- [x] Add allowlist entries to `.gitleaksignore` for historical commits
+- [x] Verify existing `secret-scanning.yml` workflow covers this key type
 
-#### BB-421: Prevent Symlink Traversal in Grep Tier (medium-3)
-- **Description**: At `qmd-context-query.sh:367-375`, `grep -r` follows symlinks by default, potentially bypassing the `realpath` + `PROJECT_ROOT` prefix check. Add per-file `realpath` validation for each grep match to ensure results stay within PROJECT_ROOT.
-- **Acceptance Criteria**:
-  - [x] Each grep match file has its `realpath` validated against PROJECT_ROOT prefix
-  - [x] Symlinks pointing outside PROJECT_ROOT are excluded from results
-  - [x] Non-symlink paths within PROJECT_ROOT continue to work
-  - [x] Existing grep tier tests still pass
-- **Estimated Effort**: Small
-- **Finding**: medium-3 (severity_weighted_score: 2)
+**Acceptance Criteria**:
+- `generate_test_keypair()` produces valid 2048-bit RSA keypair
+- `mock_server.py` starts successfully with generated keys
+- `generate_test_licenses.py` produces valid RS256 JWTs
+- `gitleaks detect` produces 0 alerts on the new commit
+- No `*.pem` or `*.key` files exist in `tests/fixtures/`
+- All existing tests that referenced the mock key continue to pass
+- Key rotation decision documented: mock key is zero-entropy (never real), history rewrite not required; `.gitleaksignore` scoped to exact commit/path with review note (Flatline IMP-002)
+
+### Task 1.2: Add SHA256 Verification for yq Binary Download ✅
+
+**File**: `evals/harness/Dockerfile.sandbox` (lines 29-39)
+
+- [x] Add `YQ_SHA256_AMD64` and `YQ_SHA256_ARM64` build args with actual checksums from v4.40.5 release
+- [x] Add `sha256sum -c` verification after `curl` download
+- [x] Add architecture-switch logic (`dpkg --print-architecture`)
+- [x] Add unsupported architecture fallback with `exit 1`
+- [x] Document checksum source and refresh procedure in comment
+
+**Acceptance Criteria**:
+- Dockerfile builds successfully on amd64 with correct checksum
+- Build fails if checksum is tampered (change one hex digit)
+- Comment documents where checksums were sourced and how to refresh
+- SHA256 values match: amd64=`0d6aaf1cf44a8d18fbc7ed0ef14f735a8df8d2e314c4cc0f0242d35c0a440c95`, arm64=`9431f0fa39a0af03a152d7fe19a86e42e9ff28d503ed4a70598f9261ec944a97`
 
 ---
 
-## Sprint 2: Test Coverage and Documentation (sprint-18)
+## Sprint 2: Detection & Validation Hardening (global sprint-20)
 
-**Goal**: Address all LOW findings: make CONFIG_FILE injectable for unit testing, add --skill override precedence test, add config cross-reference documentation.
+**Goal**: Harden credential health checks and reduce PII redaction false positives.
 
-### Tasks
+**Findings**: FR-2 (High), FR-7 (Medium)
 
-#### BB-422: Make CONFIG_FILE Injectable via Environment Variable (low-1)
-- **Description**: Extract `CONFIG_FILE` as an injectable environment variable (`QMD_CONFIG_FILE`) in `qmd-context-query.sh` to enable unit testing of the disabled config path. Update the no-op test to actually exercise the disabled path.
-- **Acceptance Criteria**:
-  - [x] Script respects `QMD_CONFIG_FILE` env var when set
-  - [x] Default behavior unchanged when env var unset
-  - [x] `test_disabled_returns_empty()` now exercises the real disabled config path
-  - [x] All existing 24 unit tests still pass
-- **Estimated Effort**: Small
-- **Finding**: low-1 (severity_weighted_score: 1)
+### Task 2.1: Harden Credential Health Checks
 
-#### BB-423: Add --skill Override Precedence Test (low-2)
-- **Description**: Add a test exercising the full priority chain: CLI `--budget` > skill override from config > config default > hardcoded default. Uses the `QMD_CONFIG_FILE` injection from BB-422.
-- **Acceptance Criteria**:
-  - [x] Test creates temp config with `skill_overrides.test.budget: 500` and `default_budget: 3000`
-  - [x] Test verifies `--skill test` (no explicit --budget) uses 500
-  - [x] Test verifies `--budget 100 --skill test` uses 100 (CLI wins)
-  - [x] All tests pass
-- **Estimated Effort**: Small
-- **Finding**: low-2 (severity_weighted_score: 1)
-- **Dependencies**: BB-422
+**File**: `.claude/adapters/loa_cheval/credentials/health.py`
 
-#### BB-424: Add Config Skill Override Cross-Reference Documentation (low-3)
-- **Description**: Add a comment above `skill_overrides` in `.loa.config.yaml.example` mapping each key to its skill invocation.
-- **Acceptance Criteria**:
-  - [x] Comment documents: implement → /implement, review_sprint → /review-sprint, ride → /ride, run_bridge → /run-bridge, gate0 → preflight.sh
-  - [x] Comment is concise and follows existing config style
-- **Estimated Effort**: Small
-- **Finding**: low-3 (severity_weighted_score: 1)
+- [ ] Add `FORMAT_RULES` dict with per-provider validation (OpenAI: `sk-` prefix, 48+ chars; Anthropic: `sk-ant-` prefix, 93+ chars; Moonshot: `unknown/weak_validation`)
+- [ ] Add `live` parameter to `check_credential()` (default `False`)
+- [ ] Implement format-only validation path (dry-run mode)
+- [ ] Add `_redact_credential_from_error()` helper for log redaction
+- [ ] Wrap live HTTP checks with redaction for Authorization/x-api-key headers
+- [ ] Disable urllib debug output during live checks
+- [ ] Update `check_all()` to pass through `live` parameter
+- [ ] Create `tests/test_health.py` with comprehensive test suite
 
-#### BB-425: Full Test Suite Validation
-- **Description**: Run all unit and integration tests, verify zero regressions.
-- **Acceptance Criteria**:
-  - [x] All unit tests pass (including new tests from BB-422, BB-423)
-  - [x] All integration tests pass
-  - [x] Total test count documented
-- **Estimated Effort**: Small
-- **Dependencies**: BB-422, BB-423, BB-424
+**Acceptance Criteria**:
+- Default `check_credential()` (no `live` arg) does NOT make HTTP requests
+- `live=True` makes HTTP requests with warning logged
+- Moonshot returns explicit `"unknown/weak_validation"` status
+- API key values NEVER appear in logs, stack traces, or exception dumps after both success and failure
+- Centralized log capture test: run health checks with sentinel secret values and grep test output to confirm zero leakage (Flatline SKP-007)
+- Format validation correctly accepts known-valid and rejects known-invalid keys per provider
+- All existing callers work unchanged (backward compatible — just safer defaults)
+
+### Task 2.2: Tighten `aws_secret` Regex Pattern
+
+**File**: `.claude/lib/security/pii-redactor.ts` (lines 67-70)
+
+- [ ] Replace broad regex with negative lookahead: `/\b(?![0-9a-fA-F]{40}\b)[A-Za-z0-9/+=]{40}\b/g`
+- [ ] Add false-positive tests: SHA-1 hex hashes, git commit hashes, hex-only strings
+- [ ] Add true-positive tests: known AWS secret access key format (e.g., `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`)
+- [ ] Verify existing `aws_key_id` pattern (`AKIA...`) is unaffected
+- [ ] Verify Shannon entropy detector continues as backup
+
+**Acceptance Criteria**:
+- SHA-1 hex hashes (`[0-9a-f]{40}`) are NOT redacted as `aws_secret`
+- Git commit hashes are NOT redacted as `aws_secret`
+- Real AWS secret access keys (containing `/`, `+`, or uppercase letters > F) ARE still detected
+- All existing pii-redactor tests pass unchanged
+- No ReDoS regression (adversarial test still passes within time limit)
+
+---
+
+## Sprint 3: Audit Integrity + State Verification + Eval Coverage (global sprint-21)
+
+**Goal**: Fix audit logger crash recovery, add state file HMAC verification, and complete eval fixture test coverage.
+
+**Findings**: FR-4 (High), FR-5 (Medium), FR-6 (Medium)
+
+### Task 3.1: Fix Audit Logger Crash Recovery Size Tracking
+
+**File**: `.claude/lib/security/audit-logger.ts`
+
+- [ ] Add `statSync` to `node:fs` imports
+- [ ] In `recoverFromCrash()`: replace `currentSize += line.length + 1` accumulation with `statSync(this.logPath).size` after rewriting valid lines
+- [ ] In `doAppend()`: replace `this.currentSize += line.length` with `this.currentSize += Buffer.byteLength(line, "utf-8")`
+- [ ] Add test: size accuracy after recovery (assert `currentSize === statSync().size`)
+- [ ] Add test: multi-byte UTF-8 entries (emoji/CJK data) — verify size accuracy after recovery
+- [ ] Add test: partial last line recovery — verify size equals file size of rewritten file
+
+**Acceptance Criteria**:
+- After crash recovery, `currentSize` exactly matches `fs.statSync().size`
+- Multi-byte UTF-8 entries (emoji, CJK) do not cause size drift
+- Partial last line is correctly truncated during recovery
+- All 15 existing audit-logger tests pass unchanged
+
+### Task 3.2: Add HMAC Verification for Run State Files
+
+**Files**: `.claude/scripts/run-state-verify.sh` (NEW)
+
+- [ ] Create `run-state-verify.sh` with subcommands: `init`, `sign`, `verify`, `cleanup`
+- [ ] Implement per-run key generation in `~/.claude/.run-keys/{run_id}.key` (mode 0600)
+- [ ] Implement JSON canonicalization via `jq -cS 'del(._hmac, ._key_id)'`
+- [ ] Implement HMAC-SHA256 signing and verification
+- [ ] Implement `verify_file_safety()` with:
+  - Hardcoded trusted base directory from `git rev-parse --show-toplevel`/.run
+  - Symlink detection (`-L` check)
+  - Ownership verification (current user uid)
+  - Permission verification (0600/0644)
+- [ ] Implement graceful degradation: missing key → exit 2 (unsigned), tampered → exit 1
+- [ ] Implement `cleanup --stale --max-age 7d` for orphaned keys
+- [ ] Create `tests/test_run_state_verify.sh` (bats or plain bash tests)
+  - Test sign + verify round-trip
+  - Test tampered content detection
+  - Test missing key handling (exit 2)
+  - Test symlink detection
+  - Test base directory enforcement
+  - Test JSON canonicalization (reformat + verify still passes)
+  - Test concurrent runs with different run_ids
+
+**Acceptance Criteria**:
+- `sign` adds `_hmac` and `_key_id` fields to state JSON
+- `verify` returns exit 0 for valid, exit 1 for tampered, exit 2 for unsigned
+- Symlink state files are rejected
+- State files outside `.run/` are rejected
+- Keys are per-run and isolated (no collision between concurrent runs)
+- Missing key does not crash — falls through to interactive recovery
+- Canonicalization handles whitespace/key-order variations
+
+### Task 3.3: Add refreshToken Test Coverage to Auth Eval Fixture
+
+**File**: `evals/fixtures/buggy-auth-ts/tests/auth.test.ts`
+
+- [ ] Add `describe('refreshToken', ...)` block with 4 tests:
+  - Token refresh after valid login
+  - Refresh with no token (no login)
+  - Refresh with expired token
+  - Token expiry update on refresh
+- [ ] Ensure tests align with eval fixture's intentional bug patterns (TOCTOU race is by design)
+
+**Acceptance Criteria**:
+- `refreshToken` has test coverage for all documented paths
+- All 4 new tests pass in single-threaded execution
+- Existing 3 describe blocks (register, login, validateToken) pass unchanged
+- Eval fixture's intentional bugs are NOT fixed — tests document observable behavior
+
+---
+
+## Risk Register
+
+| Risk | Sprint | Mitigation |
+|------|--------|------------|
+| `cryptography` library not available | Sprint 1 | Fallback to `openssl` subprocess (already in generate_test_licenses.py) |
+| Tightened aws_secret regex misses edge cases | Sprint 2 | Shannon entropy detector as backup; test with known AWS secrets |
+| Existing callers of `check_all(live=True)` break | Sprint 2 | Default changes to safe mode; callers opt-in to live explicitly |
+| `statSync()` edge case on empty file | Sprint 3 | Test with empty log file scenario |
+| HMAC key path collision | Sprint 3 | Per-run key with run_id in filename — no collision possible |
+
+## Dependencies
+
+- No cross-sprint dependencies
+- No external service dependencies
+- All fixes are independently testable and deployable
+- Sprint 1 → Sprint 2 → Sprint 3 is the recommended order but not required

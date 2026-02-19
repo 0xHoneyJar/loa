@@ -8,6 +8,7 @@ import json
 import base64
 import hashlib
 import os
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -23,6 +24,14 @@ except ImportError:
     HAS_CRYPTO = False
 
 FIXTURES_DIR = Path(__file__).parent
+
+# Import ephemeral key generation from mock_server (cycle-028 FR-1)
+# Use relative import when run as module, fallback to sys.path manipulation for script mode
+try:
+    from tests.fixtures.mock_server import generate_test_keypair
+except ImportError:
+    sys.path.insert(0, str(FIXTURES_DIR))
+    from mock_server import generate_test_keypair
 
 
 def base64url_encode(data: bytes) -> str:
@@ -84,7 +93,18 @@ def create_jwt(payload: dict, private_key_pem: bytes, private_key_path: str) -> 
     if HAS_CRYPTO:
         signature = sign_rs256_crypto(message, private_key_pem)
     else:
-        signature = sign_rs256_openssl(message, private_key_path)
+        # Write PEM to temp file for openssl subprocess (cycle-028 FR-1)
+        if private_key_path is None:
+            import tempfile as _tmpmod
+            with _tmpmod.NamedTemporaryFile(mode='wb', suffix='.pem', delete=False) as kf:
+                kf.write(private_key_pem)
+                private_key_path = kf.name
+            try:
+                signature = sign_rs256_openssl(message, private_key_path)
+            finally:
+                os.unlink(private_key_path)
+        else:
+            signature = sign_rs256_openssl(message, private_key_path)
 
     signature_b64 = base64url_encode(signature)
 
@@ -134,10 +154,9 @@ def create_license_file(
 
 
 def main():
-    # Load private key
-    private_key_path = FIXTURES_DIR / "mock_private_key.pem"
-    with open(private_key_path, 'rb') as f:
-        private_key_pem = f.read()
+    # Use ephemeral generated key (cycle-028 FR-1 — no more static PEM files)
+    private_key_pem, _ = generate_test_keypair()
+    private_key_path = None  # Not used when HAS_CRYPTO=True
 
     now = datetime.utcnow()
 
@@ -149,7 +168,7 @@ def main():
         expires_at=now + timedelta(days=30),
         offline_valid_until=now + timedelta(days=31),
         private_key_pem=private_key_pem,
-        private_key_path=str(private_key_path)
+        private_key_path=private_key_path
     )
     with open(FIXTURES_DIR / "valid_license.json", 'w') as f:
         json.dump(valid_license, f, indent=2)
@@ -163,7 +182,7 @@ def main():
         expires_at=now - timedelta(days=10),
         offline_valid_until=now - timedelta(days=9),
         private_key_pem=private_key_pem,
-        private_key_path=str(private_key_path)
+        private_key_path=private_key_path
     )
     with open(FIXTURES_DIR / "expired_license.json", 'w') as f:
         json.dump(expired_license, f, indent=2)
@@ -177,7 +196,7 @@ def main():
         expires_at=now - timedelta(hours=12),
         offline_valid_until=now + timedelta(hours=12),
         private_key_pem=private_key_pem,
-        private_key_path=str(private_key_path)
+        private_key_path=private_key_path
     )
     with open(FIXTURES_DIR / "grace_period_license.json", 'w') as f:
         json.dump(grace_license, f, indent=2)
@@ -200,7 +219,7 @@ def main():
         expires_at=now + timedelta(days=60),
         offline_valid_until=now + timedelta(days=63),  # 72 hours grace
         private_key_pem=private_key_pem,
-        private_key_path=str(private_key_path)
+        private_key_path=private_key_path
     )
     with open(FIXTURES_DIR / "team_license.json", 'w') as f:
         json.dump(team_license, f, indent=2)
@@ -214,7 +233,7 @@ def main():
         expires_at=now + timedelta(days=90),
         offline_valid_until=now + timedelta(days=97),  # 168 hours grace
         private_key_pem=private_key_pem,
-        private_key_path=str(private_key_path)
+        private_key_path=private_key_path
     )
     with open(FIXTURES_DIR / "enterprise_license.json", 'w') as f:
         json.dump(enterprise_license, f, indent=2)

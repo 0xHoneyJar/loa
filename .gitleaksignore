@@ -21,3 +21,9 @@ SECURITY-AUDIT-REPORT.md
 
 # Agent command documentation
 .claude/commands/*.md
+
+# Mock test keys — zero-entropy generated keys, not real secrets (cycle-028 FR-1, Flatline IMP-001)
+# History rewrite not required: keys are generated mocks with no access to any system.
+# Review note: if this entry is no longer needed after PEM deletion, it can be removed.
+tests/fixtures/mock_private_key.pem
+tests/fixtures/mock_public_key.pem

@@ -4,10 +4,10 @@
   "slug": "test-vendor/grace-skill",
   "version": "1.0.0",
   "registry": "default",
-  "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InRlc3Qta2V5LTAxIn0.eyJzdWIiOiJ1c3JfdGVzdDEyMyIsInNraWxsIjoidGVzdC12ZW5kb3IvZ3JhY2Utc2tpbGwiLCJ2ZXJzaW9uIjoiMS4wLjAiLCJ0aWVyIjoicHJvIiwid2F0ZXJtYXJrIjoiYTFiMmMzZDRlNWY2ZzdoOGk5ajBrMWwybTNuNG81cDYiLCJsaWQiOiJsaWNfdGVzdDc4OSIsImlzcyI6Imh0dHBzOi8vYXBpLmxvYXNraWxscy5kZXYiLCJhdWQiOiJsb2Etc2tpbGxzLWNsaWVudCIsImlhdCI6MTc2NzI5MjkyNywiZXhwIjoxNzY3MjEwMTI3fQ.jJfZgOB-PigeoB_7v6JaWh-lxwkdk5xpxBQ9PqfT03itJyKJVZqF_BhhK1DXQyfl6iELQKXwDVRCqii_pWnDU470K8Mv-0YAG60_YYsOjEDsp5zzyzrokxKJI_Bd1gIjRyBW0TAc_KKK_fVLI1ZiygRxW2w5UT-2YjgMqRr2iO2UkKIEG9zpvA8D5KU9xmjjZbmgYlcKXwhwPFEeLFo_EoFdlKu54SBtsgr-6GUBBWeEvCAYWLPZjx2ltGBpc69p-E9OLb4A-_J6vvBWWqqvoWwN28pluPF_JM1pOVSg-H7pyzD3fNYcVIFBH0oGq8Mq_timIlCez4i7Zq2SyEtSKw",
+  "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InRlc3Qta2V5LTAxIn0.eyJzdWIiOiJ1c3JfdGVzdDEyMyIsInNraWxsIjoidGVzdC12ZW5kb3IvZ3JhY2Utc2tpbGwiLCJ2ZXJzaW9uIjoiMS4wLjAiLCJ0aWVyIjoicHJvIiwid2F0ZXJtYXJrIjoiYTFiMmMzZDRlNWY2ZzdoOGk5ajBrMWwybTNuNG81cDYiLCJsaWQiOiJsaWNfdGVzdDc4OSIsImlzcyI6Imh0dHBzOi8vYXBpLmNvbnN0cnVjdHMubmV0d29yayIsImF1ZCI6ImxvYS1za2lsbHMtY2xpZW50IiwiaWF0IjoxNzcxNDc0NTM3LCJleHAiOjE3NzEzOTE3Mzd9.G0YvsvkGqSuIfgiX7-LKZJKKVoMpIzycompHRYozFYAlTPGH5HslkaTSqcFynsEMhneQcHj2c6GGUy2eqTZHz03vQ3kyZ--MJsRNw1NeskclxpHgFA07oZxqrHxujiX6mmqu9I_lssfcphnziH0bBnPu8zBXPOJPdaKGvn5QBJqQXe0HeLx-aPrUiSE_W4o4ajxzOuT76-yItd2-PKOu72Tmzge8eIYv_UfDRInKzLetRO5UTB2Nj0BV2cay_ykGxCqmza0BUq3MGLxIhEY1o9KdrkKO5gc5ex05A7z-lsMzdrOma7Tc2W-Y9PUU-Kp2qDkz-gI_lN1MgA0SM7fjHQ",
   "tier": "pro",
   "watermark": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
-  "issued_at": "2026-01-02T05:42:07Z",
-  "expires_at": "2026-01-01T06:42:07Z",
-  "offline_valid_until": "2026-01-02T06:42:07Z"
+  "issued_at": "2026-02-19T15:15:37Z",
+  "expires_at": "2026-02-18T16:15:37Z",
+  "offline_valid_until": "2026-02-19T16:15:37Z"
 }
