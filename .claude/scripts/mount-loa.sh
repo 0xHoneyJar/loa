@@ -179,6 +179,7 @@ SKIP_BEADS=false
 STEALTH_MODE=false
 FORCE_MODE=false
 NO_COMMIT=false
+NO_AUTO_INSTALL=false
 SUBMODULE_MODE=false
 
 # === Argument Parsing ===
@@ -366,16 +367,16 @@ auto_install_deps() {
     case "$os_type" in
       macos)
         if command -v brew &>/dev/null; then
-          brew install jq && log "jq installed" || warn "jq auto-install failed. Manual: brew install jq"
+          brew install jq && log "jq installed ✓" || warn "jq auto-install failed ✗. Manual: brew install jq"
         else
-          warn "jq not found. Install Homebrew first (https://brew.sh) then: brew install jq"
+          warn "jq not found ✗. Install Homebrew first (https://brew.sh) then: brew install jq"
         fi
         ;;
       linux-apt)
-        sudo apt-get install -y jq && log "jq installed" || warn "jq auto-install failed. Manual: sudo apt install jq"
+        sudo apt-get install -y jq && log "jq installed ✓" || warn "jq auto-install failed ✗. Manual: sudo apt install jq"
         ;;
       linux-yum)
-        sudo yum install -y jq && log "jq installed" || warn "jq auto-install failed. Manual: sudo yum install jq"
+        sudo yum install -y jq && log "jq installed ✓" || warn "jq auto-install failed ✗. Manual: sudo yum install jq"
         ;;
       *)
         warn "Unknown OS. Install jq manually: https://jqlang.github.io/jq/download/"
@@ -391,9 +392,9 @@ auto_install_deps() {
     case "$os_type" in
       macos)
         if command -v brew &>/dev/null; then
-          brew install yq && log "yq installed" || warn "yq auto-install failed. Manual: brew install yq"
+          brew install yq && log "yq installed ✓" || warn "yq auto-install failed ✗. Manual: brew install yq"
         else
-          warn "yq not found. Install: brew install yq (requires Homebrew)"
+          warn "yq not found ✗. Install: brew install yq (requires Homebrew)"
         fi
         ;;
       linux-apt|linux-yum)
@@ -406,9 +407,9 @@ auto_install_deps() {
         esac
         local yq_url="https://github.com/mikefarah/yq/releases/download/${yq_version}/yq_linux_${yq_arch}"
         if curl -fsSL "$yq_url" -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq; then
-          log "yq installed (${yq_version})"
+          log "yq installed ✓ (${yq_version})"
         else
-          warn "yq auto-install failed. Manual: https://github.com/mikefarah/yq#install"
+          warn "yq auto-install failed ✗. Manual: https://github.com/mikefarah/yq#install"
         fi
         ;;
       *)
