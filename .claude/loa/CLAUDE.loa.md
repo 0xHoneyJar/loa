@@ -1,4 +1,4 @@
-<!-- @loa-managed: true | version: 1.39.0 | hash: 7b9efbd6c0df204170f0176504da0ac11557bb5c6b7146db6738cb14d0b97b4cPLACEHOLDER -->
+<!-- @loa-managed: true | version: 1.39.0 | hash: fc41a851ab8ab9ac778f7542426b0891905b21aff4e8c0f077564cb9def0166ePLACEHOLDER -->
 <!-- WARNING: This file is managed by the Loa Framework. Do not edit directly. -->
 
 # Loa Framework Instructions
@@ -106,24 +106,24 @@ Grimoire and state file locations configurable via `.loa.config.yaml`. Overrides
 
 | Rule | Why |
 |------|-----|
-<!-- @constraint-generated: start process_compliance_never | hash:50ab7ca1149790d7 -->
+<!-- @constraint-generated: start process_compliance_never | hash:64c9a09343312a4d -->
 <!-- DO NOT EDIT — generated from .claude/data/constraints.json -->
-| NEVER write application code outside of `/implement` skill invocation | Code written outside `/implement` bypasses review and audit gates |
+| NEVER write application code outside of `/implement` skill invocation (OR when a construct with declared `workflow.gates` owns the current workflow) | Code written outside `/implement` bypasses review and audit gates |
 | NEVER use Claude's `TaskCreate`/`TaskUpdate` for sprint task tracking when beads (`br`) is available | Beads is the single source of truth for task lifecycle; TaskCreate is for session progress display only |
-| NEVER skip from sprint plan directly to implementation without `/run sprint-plan`, `/run sprint-N`, or `/bug` triage | `/run` wraps implement+review+audit in a cycle loop with circuit breaker. `/bug` produces a triage handoff that feeds directly into `/implement`. |
-| NEVER skip `/review-sprint` and `/audit-sprint` quality gates | These are the only validation that code meets acceptance criteria and security standards |
+| NEVER skip from sprint plan directly to implementation without `/run sprint-plan`, `/run sprint-N`, or `/bug` triage (OR when a construct with `workflow.gates` declares pipeline composition) | `/run` wraps implement+review+audit in a cycle loop with circuit breaker. `/bug` produces a triage handoff that feeds directly into `/implement`. |
+| NEVER skip `/review-sprint` and `/audit-sprint` quality gates (Yield when construct declares `review: skip` or `audit: skip`) | These are the only validation that code meets acceptance criteria and security standards |
 | NEVER use `/bug` for feature work that doesn't reference an observed failure | `/bug` bypasses PRD/SDD gates; feature work must go through `/plan` |
 <!-- @constraint-generated: end process_compliance_never -->
 ### ALWAYS Rules
 
 | Rule | Why |
 |------|-----|
-<!-- @constraint-generated: start process_compliance_always | hash:68a1c1c0eedf5225 -->
+<!-- @constraint-generated: start process_compliance_always | hash:345d40b9155bfc9c -->
 <!-- DO NOT EDIT — generated from .claude/data/constraints.json -->
 | ALWAYS use `/run sprint-plan`, `/run sprint-N`, or `/bug` for implementation | Ensures review+audit cycle with circuit breaker protection. `/bug` enforces the same cycle for bug fixes. |
 | ALWAYS create beads tasks from sprint plan before implementation (if beads available) | Tasks without beads tracking are invisible to cross-session recovery |
 | ALWAYS complete the full implement → review → audit cycle | Partial cycles leave unreviewed code in the codebase |
-| ALWAYS check for existing sprint plan before writing code | Prevents ad-hoc implementation without requirements traceability |
+| ALWAYS check for existing sprint plan before writing code (Yield when construct declares `sprint: skip`) | Prevents ad-hoc implementation without requirements traceability |
 | ALWAYS validate bug eligibility before `/bug` implementation | Prevents feature work from bypassing PRD/SDD gates via `/bug`. Must reference observed failure, regression, or stack trace. |
 <!-- @constraint-generated: end process_compliance_always -->
 ### Permission Grants (MAY Rules)

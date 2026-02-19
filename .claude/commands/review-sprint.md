@@ -27,6 +27,12 @@ context_files:
   - path: "grimoires/loa/sprint.md"
     required: true
     purpose: "Sprint tasks and acceptance criteria"
+    # Construct-aware: when a construct declares sprint: skip, sprint.md becomes
+    # optional — loaded if available but absence doesn't block. Read
+    # .run/construct-workflow.json to evaluate this condition.
+    skip_when:
+      construct_gate: "sprint"
+      gate_value: "skip"
   - path: "grimoires/loa/ledger.json"
     required: false
     purpose: "Sprint Ledger for ID resolution"

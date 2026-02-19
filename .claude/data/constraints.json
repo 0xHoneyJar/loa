@@ -12,6 +12,12 @@
         "claude-loa-md": "NEVER write application code outside of `/implement` skill invocation"
       },
       "why": "Code written outside `/implement` bypasses review and audit gates",
+      "construct_yield": {
+        "enabled": true,
+        "condition": "construct with workflow.gates is active",
+        "yield_text": "OR when a construct with declared `workflow.gates` owns the current workflow",
+        "yield_on_gates": ["implement"]
+      },
       "order": 0,
       "layers": [
         {
@@ -75,6 +81,12 @@
         "skill-md": "Implementation phases MUST use `/run sprint-plan`, `/run sprint-N`, or `/bug` — NEVER implement directly"
       },
       "why": "`/run` wraps implement+review+audit in a cycle loop with circuit breaker. `/bug` produces a triage handoff that feeds directly into `/implement`.",
+      "construct_yield": {
+        "enabled": true,
+        "condition": "construct with workflow.gates is active",
+        "yield_text": "OR when a construct with `workflow.gates` declares pipeline composition",
+        "yield_on_gates": ["implement"]
+      },
       "order": 2,
       "layers": [
         {
@@ -107,6 +119,12 @@
         "skill-md": "Do NOT use `/implement` without `/run` — `/run` provides the review→audit cycle"
       },
       "why": "These are the only validation that code meets acceptance criteria and security standards",
+      "construct_yield": {
+        "enabled": true,
+        "condition": "construct declares review: skip or audit: skip",
+        "yield_text": "Yield when construct declares `review: skip` or `audit: skip`",
+        "yield_on_gates": ["review", "audit"]
+      },
       "order": 3,
       "layers": [
         {
@@ -232,6 +250,12 @@
         "protocol": "Sprint plan exists ||| ALWAYS ||| `test -f grimoires/loa/sprint.md`"
       },
       "why": "Prevents ad-hoc implementation without requirements traceability",
+      "construct_yield": {
+        "enabled": true,
+        "condition": "construct declares sprint: skip",
+        "yield_text": "Yield when construct declares `sprint: skip`",
+        "yield_on_gates": ["sprint"]
+      },
       "order": 3,
       "layers": [
         {

@@ -19,6 +19,13 @@ def escape_pipes: gsub("\\|"; "\\|");
     else
       .rule_type + " " + .text
     end
+  ) as $base_rule
+| (
+    if .construct_yield and .construct_yield.enabled then
+      $base_rule + " (" + .construct_yield.yield_text + ")"
+    else
+      $base_rule
+    end
   ) as $rule
 | .why as $why
 | "| \($rule | escape_pipes) | \($why | escape_pipes) |"

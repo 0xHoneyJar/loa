@@ -242,7 +242,7 @@
           "local_id": "sprint-2",
           "global_id": "sprint-23",
           "label": "Constraint Yielding + Pre-flight Integration",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "local_id": "sprint-3",

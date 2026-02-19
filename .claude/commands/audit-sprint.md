@@ -60,11 +60,22 @@ pre_flight:
   - check: "file_exists"
     path: "grimoires/loa/a2a/$RESOLVED_SPRINT_ID/engineer-feedback.md"
     error: "Sprint has not been reviewed. Run /review-sprint $ARGUMENTS.sprint_id first."
+    # Construct-aware: when a construct declares review: skip, the review gate
+    # is bypassed and engineer-feedback.md won't exist. Read .run/construct-workflow.json
+    # to evaluate this condition.
+    skip_when:
+      construct_gate: "review"
+      gate_value: "skip"
 
   - check: "content_contains"
     path: "grimoires/loa/a2a/$RESOLVED_SPRINT_ID/engineer-feedback.md"
     pattern: "All good"
     error: "Sprint has not been approved by senior lead. Run /review-sprint $ARGUMENTS.sprint_id first."
+    # Construct-aware: when a construct declares review: skip, the "All good"
+    # approval check is bypassed. The construct's own workflow gates enforce quality.
+    skip_when:
+      construct_gate: "review"
+      gate_value: "skip"
 
   - check: "file_not_exists"
     path: "grimoires/loa/a2a/$RESOLVED_SPRINT_ID/COMPLETED"
