@@ -65,7 +65,8 @@ const BUILTIN_PATTERNS: PIIPattern[] = [
   },
   {
     name: "aws_secret",
-    regex: /\b[A-Za-z0-9/+=]{40}\b/g,
+    // Exclude hex-only 40-char strings (SHA-1 hashes, git commits) — cycle-028 FR-7
+    regex: /\b(?![0-9a-fA-F]{40}\b)[A-Za-z0-9/+=]{40}\b/g,
     replacement: "[REDACTED_AWS_SECRET]",
   },
   {

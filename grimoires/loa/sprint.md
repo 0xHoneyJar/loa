@@ -56,24 +56,24 @@
 
 ---
 
-## Sprint 2: Detection & Validation Hardening (global sprint-20)
+## Sprint 2: Detection & Validation Hardening (global sprint-20) ✅ REVIEW_APPROVED
 
 **Goal**: Harden credential health checks and reduce PII redaction false positives.
 
 **Findings**: FR-2 (High), FR-7 (Medium)
 
-### Task 2.1: Harden Credential Health Checks
+### Task 2.1: Harden Credential Health Checks ✅
 
 **File**: `.claude/adapters/loa_cheval/credentials/health.py`
 
-- [ ] Add `FORMAT_RULES` dict with per-provider validation (OpenAI: `sk-` prefix, 48+ chars; Anthropic: `sk-ant-` prefix, 93+ chars; Moonshot: `unknown/weak_validation`)
-- [ ] Add `live` parameter to `check_credential()` (default `False`)
-- [ ] Implement format-only validation path (dry-run mode)
-- [ ] Add `_redact_credential_from_error()` helper for log redaction
-- [ ] Wrap live HTTP checks with redaction for Authorization/x-api-key headers
-- [ ] Disable urllib debug output during live checks
-- [ ] Update `check_all()` to pass through `live` parameter
-- [ ] Create `tests/test_health.py` with comprehensive test suite
+- [x] Add `FORMAT_RULES` dict with per-provider validation (OpenAI: `sk-` prefix, 48+ chars; Anthropic: `sk-ant-` prefix, 93+ chars; Moonshot: `unknown/weak_validation`)
+- [x] Add `live` parameter to `check_credential()` (default `False`)
+- [x] Implement format-only validation path (dry-run mode)
+- [x] Add `_redact_credential_from_error()` helper for log redaction
+- [x] Wrap live HTTP checks with redaction for Authorization/x-api-key headers
+- [x] Disable urllib debug output during live checks
+- [x] Update `check_all()` to pass through `live` parameter
+- [x] Create `tests/test_health.py` with comprehensive test suite
 
 **Acceptance Criteria**:
 - Default `check_credential()` (no `live` arg) does NOT make HTTP requests
@@ -84,15 +84,15 @@
 - Format validation correctly accepts known-valid and rejects known-invalid keys per provider
 - All existing callers work unchanged (backward compatible — just safer defaults)
 
-### Task 2.2: Tighten `aws_secret` Regex Pattern
+### Task 2.2: Tighten `aws_secret` Regex Pattern ✅
 
 **File**: `.claude/lib/security/pii-redactor.ts` (lines 67-70)
 
-- [ ] Replace broad regex with negative lookahead: `/\b(?![0-9a-fA-F]{40}\b)[A-Za-z0-9/+=]{40}\b/g`
-- [ ] Add false-positive tests: SHA-1 hex hashes, git commit hashes, hex-only strings
-- [ ] Add true-positive tests: known AWS secret access key format (e.g., `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`)
-- [ ] Verify existing `aws_key_id` pattern (`AKIA...`) is unaffected
-- [ ] Verify Shannon entropy detector continues as backup
+- [x] Replace broad regex with negative lookahead: `/\b(?![0-9a-fA-F]{40}\b)[A-Za-z0-9/+=]{40}\b/g`
+- [x] Add false-positive tests: SHA-1 hex hashes, git commit hashes, hex-only strings
+- [x] Add true-positive tests: known AWS secret access key format (e.g., `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`)
+- [x] Verify existing `aws_key_id` pattern (`AKIA...`) is unaffected
+- [x] Verify Shannon entropy detector continues as backup
 
 **Acceptance Criteria**:
 - SHA-1 hex hashes (`[0-9a-f]{40}`) are NOT redacted as `aws_secret`
