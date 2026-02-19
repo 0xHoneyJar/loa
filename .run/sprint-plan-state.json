@@ -1,19 +1,19 @@
 {
-  "plan_id": "plan-20260219-c028sec",
-  "branch": "feat/cycle-028-security-hardening",
+  "plan_id": "plan-20260219-9cfe168c",
+  "branch": "feat/cycle-029-construct-workflow-yield",
   "state": "JACKED_OUT",
   "timestamps": {
-    "started": "2026-02-19T16:10:00Z",
-    "last_activity": "2026-02-19T18:45:00Z"
+    "started": "2026-02-19T21:00:00Z",
+    "last_activity": "2026-02-19T21:00:00Z"
   },
   "sprints": {
     "total": 3,
     "completed": 3,
     "current": null,
     "list": [
-      {"id": "sprint-1", "status": "completed", "cycles": 1},
-      {"id": "sprint-2", "status": "completed", "cycles": 1},
-      {"id": "sprint-3", "status": "completed", "cycles": 1}
+      {"id": "sprint-1", "global_id": "sprint-22", "status": "completed", "cycles": 1},
+      {"id": "sprint-2", "global_id": "sprint-23", "status": "completed", "cycles": 1},
+      {"id": "sprint-3", "global_id": "sprint-24", "status": "completed", "cycles": 1}
     ]
   },
   "options": {
@@ -24,7 +24,7 @@
   },
   "metrics": {
     "total_cycles": 3,
-    "total_files_changed": 17,
-    "total_findings_fixed": 7
+    "total_files_changed": 11,
+    "total_findings_fixed": 0
   }
 }

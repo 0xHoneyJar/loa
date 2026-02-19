@@ -18,12 +18,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-STATE_FILE="${REPO_ROOT}/.run/construct-workflow.json"
-AUDIT_LOG="${REPO_ROOT}/.run/audit.jsonl"
+STATE_FILE="${LOA_CONSTRUCT_STATE_FILE:-${REPO_ROOT}/.run/construct-workflow.json}"
+AUDIT_LOG="${LOA_CONSTRUCT_AUDIT_LOG:-${REPO_ROOT}/.run/audit.jsonl}"
 READER="${SCRIPT_DIR}/construct-workflow-read.sh"
 
 # Allowed pack path prefix (security invariant)
-PACKS_PREFIX="${REPO_ROOT}/.claude/constructs/packs/"
+# Env override for testing only — production uses repo-relative default
+PACKS_PREFIX="${LOA_PACKS_PREFIX:-${REPO_ROOT}/.claude/constructs/packs/}"
 
 # ── Helpers ────────────────────────────────────────────
 
