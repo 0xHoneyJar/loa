@@ -23,7 +23,7 @@ set -euo pipefail
 # =============================================================================
 
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-CONFIG_FILE="${PROJECT_ROOT}/.loa.config.yaml"
+CONFIG_FILE="${QMD_CONFIG_FILE:-${PROJECT_ROOT}/.loa.config.yaml}"
 QMD_SYNC="${PROJECT_ROOT}/.claude/scripts/qmd-sync.sh"
 
 # Defaults
@@ -163,7 +163,7 @@ load_config() {
     fi
 
     local cfg_enabled
-    cfg_enabled=$(yq -r '.qmd_context.enabled // true' "$CONFIG_FILE" 2>/dev/null || echo "true")
+    cfg_enabled=$(yq -r '.qmd_context.enabled' "$CONFIG_FILE" 2>/dev/null || echo "true")
     if [[ "$cfg_enabled" == "false" ]]; then
         ENABLED=false
         return

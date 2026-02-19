@@ -1658,7 +1658,13 @@ qmd_context:
       grep_paths:
         - "grimoires/loa/reality/"
 
-  # Per-skill budget overrides
+  # Per-skill budget and scope overrides
+  # Keys match the --skill argument passed by each SKILL.md integration:
+  #   implement      → /implement (implementing-tasks/SKILL.md)
+  #   review_sprint  → /review-sprint (reviewing-code/SKILL.md)
+  #   ride           → /ride (riding-codebase/SKILL.md)
+  #   run_bridge     → /run-bridge (bridge-orchestrator.sh)
+  #   gate0          → preflight.sh run_integrity_checks()
   skill_overrides:
     implement:
       budget: 2000
