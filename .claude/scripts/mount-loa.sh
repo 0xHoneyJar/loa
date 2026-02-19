@@ -324,8 +324,12 @@ preflight() {
 
   command -v git >/dev/null || err "git is required"
 
-  # Auto-install missing dependencies
-  auto_install_deps
+  # Auto-install missing dependencies (only when terminal is interactive)
+  if [[ -t 0 ]]; then
+    auto_install_deps
+  elif [[ "$NO_AUTO_INSTALL" != "true" ]]; then
+    log "Non-interactive mode detected — skipping auto-install (use --no-auto-install to silence)"
+  fi
 
   # Verify all required deps are now present
   command -v jq >/dev/null || err "jq is required. Auto-install failed. Manual: brew install jq (macOS) or apt install jq (Linux)"
@@ -406,7 +410,7 @@ auto_install_deps() {
           *) warn "Unknown arch for yq download"; return 0 ;;
         esac
         local yq_url="https://github.com/mikefarah/yq/releases/download/${yq_version}/yq_linux_${yq_arch}"
-        if curl -fsSL "$yq_url" -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq; then
+        if sudo curl -fsSL "$yq_url" -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq; then
           log "yq installed ✓ (${yq_version})"
         else
           warn "yq auto-install failed ✗. Manual: https://github.com/mikefarah/yq#install"
@@ -440,7 +444,9 @@ install_beads() {
     return 0
   fi
 
-  local br_installer=".claude/scripts/beads/install-br.sh"
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local br_installer="${script_dir}/beads/install-br.sh"
   if [[ -x "$br_installer" ]]; then
     step "Installing Beads CLI..."
     if "$br_installer"; then
