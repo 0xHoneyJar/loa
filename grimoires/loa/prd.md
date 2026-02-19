@@ -1,262 +1,307 @@
-# PRD: Construct-Aware Constraint Yielding
+# PRD: UX Redesign — Vercel-Grade Developer Experience (Phase 1)
 
-> Cycle: cycle-029 | Author: janitooor + Claude
-> Source: [#376](https://github.com/0xHoneyJar/loa/issues/376)
-> Related: [loa-constructs#129](https://github.com/0xHoneyJar/loa-constructs/issues/129)
-> Priority: P1 (framework architecture — enables construct ecosystem scaling)
+> Cycle: cycle-030 | Author: soju + Claude
+> Source: [#380](https://github.com/0xHoneyJar/loa/issues/380)-[#390](https://github.com/0xHoneyJar/loa/issues/390)
+> Related: [#332](https://github.com/0xHoneyJar/loa/issues/332) (game design), [#90](https://github.com/0xHoneyJar/loa/issues/90) (AskUserQuestion UX), [#343](https://github.com/0xHoneyJar/loa/issues/343) (progressive disclosure), [#379](https://github.com/0xHoneyJar/loa/issues/379) (construct trust)
+> Design Context: `grimoires/loa/context/ux-redesign-plan.md`
+> Priority: P0 (user-facing — directly impacts adoption and first impressions)
 
 ---
 
 ## 1. Problem Statement
 
-Loa's pipeline constraints (PRD → SDD → Sprint → Implement → Review → Audit) are enforced globally, forcing full-depth process on every task regardless of domain. A 26-line UI change (midi-interface #102) required PRD with 7 discovery phases, 2 GPT review rounds, sprint plan with 5 tasks, and 2 more review rounds — ~40% of the session was process, not code.
+Loa's installation and first-run experience creates unnecessary friction that undermines its value proposition. A real user (J Nova, Opus 4.5) reported:
 
-**The core issue**: Constructs already operate as self-contained expertise packages with their own workflows (Observer has 11 skills, Artisan has 14), but Loa's constraint system doesn't recognize this. When work touches the APP zone, constraints C-PROC-001/003/004 force the full pipeline regardless of whether a construct declares its own workflow.
+1. **Wrong error messages** — `mount-loa.sh` suggests `pip install yq` which contradicts docs; beads installer points to wrong repo; flock hint is wrong on macOS
+2. **10-16 manual commands** before first `/plan` — "time to first command: ~2 minutes" claim is 3-8x optimistic
+3. **Setup wizard that can't fix** — `/loa setup` validates but cannot install missing deps, forcing exit-fix-reenter loops
+4. **Silent failures** — beads installer silently fails, user discovers breakage only when `/run` mode fails later
 
-> Sources: loa#376 body, loa#376 comment-1 (zkSoju), loa-constructs#129 body
+The core issue: Loa adds friction ON TOP of the Claude Code installation burden. Users who already struggled to install Claude Code are asked to install more tools, run more commands, and debug more errors before reaching a productive flow state.
+
+> Sources: J Nova Discord feedback (2026-02-19), UX audit by 4 research agents, issues #380-#390
 
 ---
 
 ## 2. Vision
 
-**Loa's constraints yield when a construct declares workflow ownership.** The pipeline is a composable tool that constructs leverage for agentic backpressure, not a mandatory gate. Constructs compose the pipeline at their chosen depth via manifest declarations.
+**One command. Zero questions. Productive in 60 seconds.**
 
-### Three-Layer Architecture
+Loa's installation should feel like Vercel's — opinionated defaults that just work. The framework trusts that sensible defaults serve 90% of users. Power users customize after (Layer 2 in the progressive disclosure model from issue #343).
 
-| Layer | What | Always? |
-|-------|------|---------|
-| **Loa Runtime** | Hooks, beads, events, memory, guardrails, git safety, three-zone model | Always available |
-| **Loa Pipeline** | PRD → SDD → Sprint → Implement → Review → Audit | Opt-in at chosen depth |
-| **Construct Workflow** | Domain-specific skills, verification, state | Defined by construct |
+### Design Philosophy
 
-A construct doesn't choose "pipeline OR own workflow" — it **composes both**.
+| Principle | Application |
+|-----------|------------|
+| **Show, don't tell** | Value surfaces through experience, not feature lists |
+| **Tension-driven** | Capabilities revealed at moments of contrast (fun ↔ learn ↔ earn) |
+| **Progressive disclosure** | Layer 0 (invisible defaults) → Layer 1 (discoverable) → Layer 2 (customizable) → Layer 3 (composable) |
+| **Zero-config happy path** | One command installs everything with sensible defaults |
 
-> Sources: loa#376 comment-3 (zkSoju architecture), loa-constructs#129 comment-2 (refined model)
+> Sources: grimoires/loa/context/ux-redesign-plan.md, issue #332 (game design), issue #343 (progressive disclosure)
 
 ---
 
 ## 3. Goals & Success Metrics
 
-### G-1: Constraint System Reads Construct Workflow Declarations
-- Constraint enforcement checks whether an active construct declares workflow ownership before applying pipeline constraints
-- **Metric**: C-PROC-001/003/004/008 skip enforcement when construct with `workflow.gates` is active
+### G-1: Zero Misleading Error Messages
+- Every install hint is correct for the target platform
+- No silent failures — if something fails, it says what failed and what to do
+- **Metric**: 0 wrong install suggestions across macOS (Intel + ARM) and Linux (Ubuntu, Debian)
 
-### G-2: Review/Audit Skills Accept Generic Inputs
-- Review and audit skills accept acceptance criteria from any source (issue body, manifest, inline), not just sprint.md
-- **Metric**: `/review-sprint` and `/audit-sprint` work with construct-provided inputs, not only pipeline artifacts
+### G-2: Time-to-First-Plan Under 5 Commands
+- From clone/curl to first `/plan` completion in 5 or fewer user actions
+- Current state: 10-16 commands
+- **Metric**: Count of distinct user commands from `curl` to `/plan` response ≤ 5
 
-### G-3: Construct Manifest Supports Workflow Declaration
-- Pack manifests can declare `workflow` section with gates, depth, and verification method
-- **Metric**: Existing packs (Observer, Artisan) can retroactively declare their workflow depth
+### G-3: User Feedback Signal
+- Next user reports fewer friction points than J Nova
+- `/feedback` is discoverable at tension moments
+- **Metric**: Qualitative — subsequent user feedback submissions show reduced install friction
 
-### G-4: Pipeline Stages Become Composable
-- The hard chain audit→review ("All good" magic string) is replaced with configurable gate contracts
-- **Metric**: A construct can declare `audit: skip` and still reach COMPLETED state
+### G-4: Post-Mount Message Uses Golden Path
+- Post-mount output suggests `/plan` (golden path) not `/plan-and-analyze` (truename)
+- Single clear next-step instruction
+- **Metric**: Post-mount output contains exactly one next-step instruction using golden path command
 
 ---
 
 ## 4. User & Stakeholder Context
 
-### Primary Persona: Construct Author
-- Builds domain-specific expertise packages (FE/UI, BE/API, Data, Infra)
-- Wants to define workflow depth appropriate to their domain
-- Needs the Loa runtime (hooks, beads, guardrails) without the full pipeline overhead
+### Primary Persona: New Loa User (J Nova proxy)
+- Has Claude Code installed (already overcame that hurdle)
+- Wants to start building, not configuring
+- Expects AI to handle setup, not list manual steps
+- Mental model: "I'm using Claude" — doesn't yet think of themselves as a "Loa operator"
+- **Key frustration**: "I had errors of a missing dependency. Would rather AI just installed it for me."
 
-### Secondary Persona: Framework User (Loa default)
-- Uses Loa without constructs — the default pipeline applies
-- No change to their experience
-- The pipeline remains the default when no construct declares workflow ownership
+### Secondary Persona: Returning User
+- Has used Loa before, upgrading or reinstalling
+- Expects the process to be smoother than first time
+- Wants to verify their setup is current without starting from scratch
 
 ### Stakeholder: Maintainer (@janitooor)
-- Wants constructs to be peers, not subordinates to Loa's pipeline
-- Pipeline is a backpressure mechanism, not a quality gate hierarchy
-- Constructs that declare gates are trusted — they've earned trust by being installed, versioned, maintained
+- Wants adoption growth through reduced friction
+- Bridgebuilder will security-review the auto-install changes
+- Cares about install correctness across platforms
 
-> Sources: loa#376 comment-2 (zkSoju), loa#376 comment-4 (refined model)
+> Sources: J Nova Discord feedback, grimoires/loa/context/ux-redesign-plan.md (Persona section)
 
 ---
 
 ## 5. Functional Requirements
 
-### FR-1: Manifest Workflow Schema (Loa-side reader)
+### FR-1: Fix Wrong Install Hints (Tier 0 Bugs)
 
-**Note**: The manifest schema itself is defined in loa-constructs#129. This cycle implements the **Loa-side reader** that interprets the schema.
+Three install suggestions are incorrect and must be fixed:
 
-Loa must read and validate this manifest section:
+| Bug | File:Line | Current (Wrong) | Fix |
+|-----|-----------|-----------------|-----|
+| #380 | `mount-loa.sh:340` | `steveyegge/beads` repo URL | `Dicklesworthstone/beads_rust` or call `install-br.sh` |
+| #381 | `mount-loa.sh:321` | `pip install yq` suggestion | `brew install yq` / mikefarah/yq link |
+| #382 | `loa-doctor.sh:189` | `brew install util-linux` for flock | Correct macOS flock install method |
 
-```yaml
-workflow:
-  depth: light | standard | deep | full
-  app_zone_access: true | false
-  gates:
-    prd: skip | condense | full
-    sdd: skip | condense | full
-    sprint: skip | condense | full
-    implement: required
-    review: skip | visual | textual | both
-    audit: skip | lightweight | full
-  verification:
-    method: visual | tsc | build | test | manual
+**Acceptance Criteria**:
+- [ ] `mount-loa.sh:340` references correct beads_rust repo or delegates to `install-br.sh`
+- [ ] `mount-loa.sh:321` error message suggests only correct yq install methods (no pip)
+- [ ] `loa-doctor.sh:189` flock suggestion works on macOS
+- [ ] Each fix verified on macOS ARM64 (primary dev platform)
+
+### FR-2: Fix /plan Entry Flow Bugs (Tier 0 Bugs)
+
+Two bugs in the `/plan` command entry flow:
+
+| Bug | File:Line | Issue | Fix |
+|-----|-----------|-------|-----|
+| #383 | `plan.md:~93` | "What does Loa add?" falls through to planning with no re-entry prompt | Add follow-up confirmation after info block |
+| #384 | `plan.md:116-123` | 5th archetype (`schema.yaml`) silently truncated by 4-option AskUserQuestion limit | Reduce to 3 archetypes or redesign selection |
+
+**Acceptance Criteria**:
+- [ ] Selecting "What does Loa add?" shows info then asks "Ready to start?" before proceeding
+- [ ] All archetype files in `.claude/data/archetypes/` are accessible (none silently dropped)
+
+### FR-3: Auto-Installing Setup (`--auto-install`)
+
+Transform `mount-loa.sh` from "error on missing deps" to "install missing deps automatically."
+
+**Target experience**:
+```
+$ curl -fsSL loa.sh | bash
+  ✓ Detected macOS arm64
+  ✓ jq found (v1.7.1)
+  ✗ yq not found — installing mikefarah/yq... ✓ (v4.40.5)
+  ✓ git found (v2.43.0)
+  ✗ beads_rust not found — installing via cargo... ✓ (v0.4.2)
+  ✓ Mounted Loa v1.39.0
+
+  Start Claude Code and type /plan
 ```
 
-**Note on `condense`**: The reader accepts `condense` as a valid value for forward compatibility with loa-constructs#129, but treats it as `full` in this cycle with a logged advisory. Full condense behavior (auto-generating sprint from issue body) is a construct-side concern.
+**Auto-install behavior**:
+
+| Dependency | Detection | Install Method (macOS) | Install Method (Linux) | Fallback |
+|-----------|-----------|----------------------|----------------------|----------|
+| jq | `command -v jq` | `brew install jq` | `apt install jq` / `yum install jq` | Error with correct instructions |
+| yq (mikefarah) | `command -v yq && yq --version \| grep mikefarah` | `brew install yq` | Binary download from GitHub releases | Error with correct instructions |
+| git | `command -v git` | `xcode-select --install` | `apt install git` | Error — git is truly required |
+| beads_rust | `command -v br` | `cargo install beads_rust` (if cargo present) | Same | Warn and skip — optional tool |
+| Rust/cargo | `command -v cargo` | Skip if beads not needed | Skip | Info: "Install rustup for beads_rust" |
+
+**Constraints**:
+- `--auto-install` is the DEFAULT (opt-out with `--no-auto-install`)
+- Auto-install ONLY runs for missing deps, never upgrades existing
+- Each install attempt has a 60-second timeout
+- Failed auto-install falls back to correct manual instructions (never wrong ones)
+- beads_rust is treated as optional — warn on skip, don't error
 
 **Acceptance Criteria**:
-- [ ] Loa can read `workflow` from pack manifest.json
-- [ ] Missing `workflow` section means "use default pipeline" (backwards compatible)
-- [ ] Invalid values produce clear validation errors
-- [ ] `implement: required` is enforced — cannot be set to `skip`
-- [ ] `condense` is accepted but treated as `full` with advisory log
+- [ ] `mount-loa.sh` auto-installs jq, yq on macOS when missing
+- [ ] `mount-loa.sh` auto-installs jq, yq on Linux (apt-based) when missing
+- [ ] beads_rust install attempted if cargo present, skipped with warning if not
+- [ ] `--no-auto-install` flag preserves current error-and-stop behavior
+- [ ] Failed auto-install shows correct manual instructions (never wrong packages)
+- [ ] All auto-installs logged to stdout with ✓/✗ status
 
-### FR-2: Active Construct Detection
+### FR-4: Post-Mount Golden Path Message
 
-The system must determine whether a construct with declared workflow gates is currently handling work. Detection operates across three enforcement layers (see FR-3).
+Replace current post-mount output with golden path commands.
 
-**Mechanism**: When a skill is invoked, the loader knows which pack it came from. If that pack's `manifest.json` contains a `workflow` section, the construct is considered "workflow-active." This is a property of the skill loading context, not runtime heuristics.
+**Current** (`mounting-framework/SKILL.md:244-246`):
+```
+1. Run 'claude' to start Claude Code
+2. Issue '/ride' to analyze this codebase
+3. Or '/plan-and-analyze' for greenfield development
+```
 
-**State tracking**: A state marker (`.run/construct-workflow.json`) records the active construct and its gates during workflow execution. This enables pre-flight checks in command `.md` files to read the construct's declarations.
+**Target**:
+```
+✓ Loa mounted successfully.
 
-**Acceptance Criteria**:
-- [ ] Skill loader writes `.run/construct-workflow.json` when invoking a skill from a pack with `workflow` declaration
-- [ ] File contains: construct name, pack slug, gates, depth, timestamp
-- [ ] File is cleared when construct workflow completes or on session end
-- [ ] Missing file means "no construct active" (default pipeline applies)
-- [ ] Detection uses skill loading context (which pack loaded the skill) — not runtime heuristics
-
-### FR-3: Constraint Yielding Logic
-
-Constraints are enforced through three layers. Yielding must occur at each:
-
-**Layer 1 — Prompt-level (constraints.json → CLAUDE.md)**: Add `construct_yield` field to relevant constraints. The CLAUDE.md renderer includes the yield clause (e.g., "...OR when a construct with `workflow.gates` declares ownership").
-
-**Layer 2 — Pre-flight (command .md files)**: Command pre-flight checks read `.run/construct-workflow.json`. If present and the construct declares a gate as `skip`, the pre-flight check passes without requiring the corresponding artifact.
-
-**Layer 3 — Safety hooks**: No changes needed. Hooks protect System Zone and destructive operations, not pipeline flow.
-
-| Constraint | Current | With Construct Active |
-|-----------|---------|----------------------|
-| C-PROC-001 | No code outside `/implement` | No code outside `/implement` **OR construct-owned workflow** |
-| C-PROC-003 | No skip without `/run` or `/bug` | No skip without `/run`, `/bug`, **OR construct with `workflow.gates`** |
-| C-PROC-004 | No skip review/audit | Yield when construct declares `review: skip` or `audit: skip` |
-| C-PROC-008 | Always check sprint plan | Yield when construct declares `sprint: skip` |
+  Next: Start Claude Code and type /plan
+```
 
 **Acceptance Criteria**:
-- [ ] constraints.json modified with `construct_yield` field on C-PROC-001/003/004/008
-- [ ] CLAUDE.md rendering script includes yield clause in generated constraint tables
-- [ ] Command pre-flight checks in review-sprint.md and audit-sprint.md read construct-workflow.json
-- [ ] Yield only applies to the specific gate the construct skips — other constraints still enforced
-- [ ] Yield is logged to `.run/audit.jsonl` (observable via audit trail)
-- [ ] Default behavior unchanged when no construct is active
+- [ ] Post-mount output uses `/plan` (golden path) not `/plan-and-analyze` or `/ride`
+- [ ] Single next-step instruction — no multi-option confusion
+- [ ] No truename commands in user-facing output
 
-### FR-4: Configurable Gate Contracts for Review/Audit
+### FR-5: `/loa setup` Auto-Fix Capability
 
-Make the hard chain between review and audit configurable so constructs can compose at their declared depth. **This cycle focuses on gate configurability**, not full path generics (which require deeper refactoring deferred to a future cycle).
+Transform `/loa setup` from read-only validator to active fixer.
 
-| Current (pipeline-coupled) | This Cycle (construct-aware) | Future (fully generic) |
-|---------------------------|------------------------------|------------------------|
-| Hard gate on "All good" in `engineer-feedback.md` | Gate bypassed when construct declares `review: skip` | Accepts criteria from any source |
-| COMPLETED only via audit-sprint | COMPLETED available to construct workflows | Construct-declared completion signals |
-| Reads `sprint.md` for acceptance criteria | Unchanged (default path) | Accepts criteria from any source |
-| Output to `a2a/sprint-N/` | Unchanged (default path) | Configurable output paths |
+**Current behavior**: Shows ✓/✗ results, cannot install anything.
+**Target behavior**: Shows ✓/✗ results, then offers to fix ✗ items.
 
-**Acceptance Criteria**:
-- [ ] Review/audit commands detect active construct via `.run/construct-workflow.json` and read criteria from construct's declared source
-- [ ] Audit command's "All good" check is bypassed when construct declares `review: skip` (no engineer-feedback.md required)
-- [ ] COMPLETED marker creation is available to construct workflows, not only audit-sprint
-- [ ] Default behavior unchanged — without active construct, reads sprint.md as before
+```
+Setup Check Results
+═══════════════════
+✓ API Key configured
+✓ jq (v1.7.1)
+✗ yq — not found
+✓ git (v2.43.0)
+⚠ beads — not installed (optional)
 
-### FR-5: Construct Lifecycle Events
-
-When a construct workflow begins and ends, emit events for observability.
+Fix missing dependencies?
+> Yes, install yq (Recommended)
+> Skip — I'll install manually
+```
 
 **Acceptance Criteria**:
-- [ ] `construct.workflow.started` event emitted with construct name, declared depth, gates
-- [ ] `construct.workflow.completed` event emitted with outcome
-- [ ] Events are logged to audit trail (`.run/audit.jsonl`)
-- [ ] Other constructs can consume these events via the event bus
+- [ ] `/loa setup` can install missing jq, yq via Bash tool
+- [ ] `/loa setup` can install beads_rust if cargo is present
+- [ ] Each fix attempt shows progress and result
+- [ ] User must confirm before any install action (AskUserQuestion)
+- [ ] If all deps present, no fix prompt shown — clean pass
+
+### FR-6: `/feedback` at Tension Points
+
+Surface `/feedback` at moments of friction, not everywhere.
+
+| Touchpoint | Trigger | Message |
+|-----------|---------|---------|
+| `/loa doctor` finds issues | Health check has warnings/errors | "Something broken? `/feedback` reports it directly." |
+| User selects "Other" in AskUserQuestion | Broke out of structured options | "Options didn't fit? `/feedback` helps us improve." |
+| First-time `/loa` | Initial state, no PRD | Brief mention in 3-line welcome |
+
+**NOT** in: post-mount, post-setup, every help screen, every skill completion. That's noise.
+
+**Acceptance Criteria**:
+- [ ] `/feedback` mentioned in `/loa doctor` output when issues found
+- [ ] `/feedback` mentioned in first-time `/loa` initial state
+- [ ] `/feedback` NOT added to post-mount, post-setup, or every help screen
 
 ---
 
 ## 6. Technical & Non-Functional Requirements
 
-### NF-1: Backwards Compatibility
-- All existing workflows work unchanged when no construct is active
-- The default pipeline is preserved — this is additive, not a replacement
-- Existing constructs (Observer, Artisan) that don't declare `workflow` continue working as they do today
+### NF-1: Platform Coverage
+- macOS: Intel + ARM (Homebrew)
+- Linux: apt-based (Ubuntu, Debian) — primary
+- Linux: yum-based (RHEL, Fedora) — best-effort
+- Windows/WSL: not in scope
 
-### NF-2: Security — Trust Boundary
-- Only installed, versioned constructs can declare workflow gates
-- Runtime code cannot dynamically claim construct status to bypass constraints
-- Construct workflow declarations are validated at pack install time, not runtime
-- System Zone (`.claude/`) modifications remain blocked regardless of construct declarations
+### NF-2: Backwards Compatibility
+- `--no-auto-install` preserves current behavior exactly
+- Existing `.loa.config.yaml` files are not modified
+- No breaking changes to `/loa setup` for users who already have deps installed
 
-### NF-3: Auditability
-- Every constraint yield is logged with: constraint ID, construct name, gate declaration, timestamp
-- Audit trail shows what was skipped and why
-- No silent bypasses — yields are observable
+### NF-3: Security
+- Auto-install uses official package managers only (Homebrew, apt, cargo)
+- No piping random scripts to bash for individual deps
+- yq install verifies it's mikefarah/yq (not kislyuk Python yq)
+- beads_rust install via cargo (auditable, versioned)
 
-### NF-4: Fail-Closed
-- If construct detection fails (parse error, missing manifest), default to full pipeline
-- Ambiguous workflow declarations default to the more conservative option
-- This matches existing hook design (fail-open for hooks, fail-closed for constraints)
+### NF-4: Fail-Safe
+- If auto-install fails for any dep, continue with remaining deps
+- Never leave a partial install state — either dep is installed or user gets correct manual instructions
+- Failed beads install is a warning, not an error (beads is optional)
 
 ---
 
 ## 7. Scope & Prioritization
 
-### In Scope (This Cycle)
+### In Scope (Cycle-030)
 
-| Priority | Feature | Why |
-|----------|---------|-----|
-| P0 | FR-1: Manifest workflow reader | Foundation — everything else depends on reading the schema |
-| P0 | FR-2: Active construct detection | Foundation — constraint yielding needs this |
-| P0 | FR-3: Constraint yielding logic | Core value — the actual yielding behavior |
-| P1 | FR-4: Configurable gate contracts | Enables constructs to bypass review→audit chain |
-| P2 | FR-5: Lifecycle events | Observability — important but not blocking |
+| Priority | Feature | Issue(s) | Why |
+|----------|---------|----------|-----|
+| P0 | FR-1: Fix wrong install hints | #380, #381, #382 | Users hitting broken paths right now |
+| P0 | FR-2: Fix /plan entry flow bugs | #383, #384 | First command experience is broken |
+| P0 | FR-3: Auto-installing setup | #390 | Core DX improvement — largest time-to-value impact |
+| P1 | FR-4: Post-mount golden path | — | Small change, big clarity improvement |
+| P1 | FR-5: `/loa setup` auto-fix | #390 | Completes the zero-friction install story |
+| P2 | FR-6: `/feedback` at tension points | #388 | Feedback loop for continuous improvement |
 
-### Out of Scope
+### Deferred to Cycle-031
 
-| Item | Why | Where |
-|------|-----|-------|
-| Manifest schema definition | Construct-side concern | loa-constructs#129 |
-| Visual verification (deploy preview, screenshots) | Requires browser/deployment infra | Future cycle |
-| Cross-repo coordination layer | Multi-construct features | Future cycle |
-| Creating new domain-specific constructs (FE/UI, BE/API) | Construct authors build these | loa-constructs registry |
-| "condense" sprint generation from issue body | Requires construct-side implementation | loa-constructs#129 |
-| Golden path routing through construct manifests | v3 in the construct roadmap | Future cycle |
+| Feature | Issue(s) | Why Deferred |
+|---------|----------|-------------|
+| Free-text first plan flow | #386 | Requires SKILL.md redesign — different scope |
+| Post-completion highlights + steer | #385 | Requires `<post_completion>` sections in 3 SKILL.md files |
+| Sprint time estimation calibration | #387 | Template change — lower urgency |
+| Tool hesitancy fix | #389 | Zone model change — needs careful design |
+| Flatline auto-trigger default | — | Open question — needs user testing |
 
 ---
 
 ## 8. Risks & Dependencies
 
-### R-1: Schema Coordination (Medium)
-- **Risk**: Loa-side reader and loa-constructs#129 schema must agree
-- **Mitigation**: Define the reader to accept a superset; validate strictness can be added later
+### R-1: Homebrew Availability (Medium)
+- **Risk**: macOS users without Homebrew can't auto-install
+- **Mitigation**: Detect `brew` presence first; if missing, fall back to manual instructions with Homebrew install link
 
-### R-2: Constraint Escape Escalation (Low)
-- **Risk**: Construct workflow declarations could be abused to bypass all constraints
-- **Mitigation**: `implement: required` cannot be set to skip; System Zone always protected; construct must be installed (not runtime-injected)
+### R-2: cargo/Rust Not Present (Low)
+- **Risk**: beads_rust requires Rust toolchain, which most users won't have
+- **Mitigation**: Treat beads as optional; skip with informational warning; don't error
 
-### R-3: Backwards Compatibility Regression (Low)
-- **Risk**: Modifying constraint enforcement could break existing workflows
-- **Mitigation**: All changes are additive — default behavior only changes when a construct with `workflow` section is detected; comprehensive test coverage
+### R-3: yq Version Confusion (Medium)
+- **Risk**: User has kislyuk/yq (Python) installed, `command -v yq` succeeds but it's the wrong one
+- **Mitigation**: Verify with `yq --version | grep mikefarah` after detection; if wrong yq, offer to install correct one alongside
 
-### D-1: Dependency — loa-constructs#129
-- The manifest schema is defined in loa-constructs. This cycle implements the **reader**, not the schema.
-- If schema changes, the reader adapts — we validate loosely and tighten later.
+### R-4: Platform Detection Edge Cases (Low)
+- **Risk**: Unusual Linux distros (Arch, Alpine, NixOS) not covered by apt/yum
+- **Mitigation**: Fall back to correct manual instructions; don't attempt unknown package managers
 
----
-
-## 9. Domain Examples (Reference)
-
-For construct authors building on this infrastructure. **Note**: These are illustrative examples for future constructs. "direct" in the Data/Lore row maps to `implement: required` with all other gates set to `skip` — the construct still goes through an implement phase, it just has no planning or review overhead.
-
-| Construct Domain | PRD | SDD | Sprint | Implement | Review | Audit |
-|-----------------|-----|-----|--------|-----------|--------|-------|
-| **BE/API** | full | full | full | required | textual | full |
-| **FE/UI** | skip | skip | condense | required | visual | skip |
-| **FE/Data** | skip | skip | condense | required | tsc+build | lightweight |
-| **Infra** | full | full | full | required | both | full |
-| **Data/Lore** | skip | skip | skip | required | skip | skip |
-
-> Source: loa-constructs#129 body (domain examples table)
+### D-1: No External Dependencies
+- All changes are to Loa's own scripts and skill files
+- No upstream dependencies or API changes required
+- Bridgebuilder review will cover security of auto-install changes
