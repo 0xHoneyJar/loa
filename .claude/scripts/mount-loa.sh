@@ -327,8 +327,6 @@ preflight() {
   # Auto-install missing dependencies (only when terminal is interactive)
   if [[ -t 0 ]]; then
     auto_install_deps
-  elif [[ "$NO_AUTO_INSTALL" != "true" ]]; then
-    log "Non-interactive mode detected — skipping auto-install (use --no-auto-install to silence)"
   fi
 
   # Verify all required deps are now present
