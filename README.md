@@ -17,7 +17,7 @@ Version: 1.36.0
 
 ## What Is This?
 
-Loa is an agent-driven development framework for [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (Anthropic's official CLI). It adds 17 specialized AI agents, quality gates, persistent memory, and structured workflows on top of Claude Code. Works on macOS and Linux.
+Loa is an agent-driven development framework for [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (Anthropic's official CLI). It adds 17 specialized AI agents, quality gates, persistent memory, and structured workflows on top of Claude Code. Works on macOS and Linux. Created by [@janitooor](https://github.com/janitooor) at [The Honey Jar](https://0xhoneyjar.xyz).
 
 ### Why "Loa"?
 
@@ -176,6 +176,10 @@ Loa uses a **three-zone model** inspired by AWS Projen and Google's ADK:
 | **[CLAUDE.md](CLAUDE.md)** | Technical reference for Claude Code |
 | **[CHANGELOG.md](CHANGELOG.md)** | Version history |
 
+## Maintainer
+
+[@janitooor](https://github.com/janitooor)
+
 ## License
 
 [AGPL-3.0](LICENSE.md) — Use, modify, distribute freely. Network service deployments must release source code.
@@ -189,3 +193,6 @@ Commercial licenses are available for organizations that wish to use Loa without
 - [Changelog](CHANGELOG.md)
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)
 - [beads_rust](https://github.com/Dicklesworthstone/beads_rust)
+
+Ridden with [Loa](https://github.com/0xHoneyJar/loa)
+
