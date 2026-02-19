@@ -1,70 +1,49 @@
 {
   "phase": "sdd",
   "document": "grimoires/loa/sdd.md",
-  "timestamp": "2026-02-19T03:44:54Z",
-  "cycle": "cycle-028",
+  "cycle": "cycle-029",
+  "timestamp": "2026-02-19T20:30:00Z",
   "consensus_summary": {
     "high_consensus_count": 3,
     "disputed_count": 1,
     "low_value_count": 0,
-    "blocker_count": 3,
-    "model_agreement_percent": 90,
-    "confidence": "full"
+    "blocker_count": 0,
+    "model_agreement_percent": 78
   },
   "high_consensus": [
     {
-      "id": "IMP-001",
-      "description": "Rollback guidance for each finding — controlled rollout for production safety.",
-      "average_score": 750,
+      "id": "HC-1",
+      "title": "Activation integration gap — who calls activate?",
+      "description": "SDD defines construct-workflow-activate.sh but doesn't specify who calls it. No integration point between construct skill invocation and activation script.",
+      "scores": {"opus": 830, "gpt": 790},
+      "recommendation": "Add Section 3.1.1 specifying that construct SKILL.md files include activation preamble, consistent with beads sync pattern.",
       "integrated": true
     },
     {
-      "id": "IMP-002",
-      "description": "Resolve SHA256 placeholder with actual checksums from release page.",
-      "average_score": 905,
+      "id": "HC-2",
+      "title": "gates_required naming misleading",
+      "description": "gates_required reads as 'gates that are required' but actually means 'gates that must be non-skip for yield to apply'. Confusing semantics.",
+      "scores": {"opus": 780, "gpt": 720},
+      "recommendation": "Rename to yield_on_gates — reads as 'yield this constraint on these gates'.",
       "integrated": true
     },
     {
-      "id": "IMP-003",
-      "description": "Clarify HMAC key scope — per-run key, generation, invalidation, cleanup.",
-      "average_score": 825,
+      "id": "HC-3",
+      "title": "review-sprint.md sprint.md check is context_files, not pre-flight",
+      "description": "Section 3.6 shows skip_when on a pre_flight check for review-sprint.md, but the sprint.md dependency is actually in context_files (required: true), not pre_flight.",
+      "scores": {"opus": 760, "gpt": 730},
+      "recommendation": "Extend skip_when to work on context_files entries too. When condition met, treat file as optional.",
       "integrated": true
     }
   ],
   "disputed": [
     {
-      "id": "IMP-009",
-      "description": "JSON canonicalization for HMAC — overlaps with SKP-001.",
-      "average_score": 720,
-      "integrated": true,
-      "reason": "Addressed alongside SKP-001 blocker"
+      "id": "D-1",
+      "title": "24h staleness check may be too aggressive",
+      "description": "Section 8 proposes ignoring construct-workflow.json if >24h old. Long-running sessions could legitimately span >24h.",
+      "scores": {"opus": 650, "gpt": 380},
+      "resolution": "deferred — kept as-is with note that threshold is configurable in future"
     }
   ],
-  "blockers": [
-    {
-      "id": "SKP-001",
-      "concern": "HMAC over non-canonical JSON risks false failures and bypass",
-      "severity_score": 920,
-      "addressed": true,
-      "resolution": "Added section 3.5.2.1 with jq -cS canonicalization"
-    },
-    {
-      "id": "SKP-003",
-      "concern": "verify_file_safety base directory derived from provided path, not trusted root",
-      "severity_score": 880,
-      "addressed": true,
-      "resolution": "Fixed to use git rev-parse --show-toplevel/.run as hardcoded trusted base"
-    },
-    {
-      "id": "SKP-002",
-      "concern": "Key path is static but claimed ephemeral — concurrency issues",
-      "severity_score": 760,
-      "addressed": true,
-      "resolution": "Key path changed to per-run: ~/.claude/.run-keys/{run_id}.key"
-    }
-  ],
-  "metrics": {
-    "total_latency_ms": 218000,
-    "cost_cents": 44
-  }
+  "blockers": []
 }

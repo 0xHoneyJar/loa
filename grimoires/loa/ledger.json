@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-028",
-  "global_sprint_counter": 21,
+  "active_cycle": "cycle-029",
+  "global_sprint_counter": 24,
   "cycles": [
     {
       "id": "cycle-025",
@@ -194,8 +194,11 @@
     {
       "id": "cycle-028",
       "label": "Security Hardening — Bridgebuilder Cross-Repository Findings",
-      "status": "active",
+      "status": "archived",
       "created": "2026-02-19T15:00:00Z",
+      "archived": "2026-02-19T18:20:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-19-security-hardening-complete",
+      "pr": 377,
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "source_issue": 374,
@@ -217,6 +220,35 @@
           "global_id": "sprint-21",
           "label": "Audit Integrity + State Verification + Eval Coverage",
           "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "cycle-029",
+      "label": "Construct-Aware Constraint Yielding",
+      "status": "active",
+      "created": "2026-02-19T20:00:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "source_issue": 376,
+      "sprints": [
+        {
+          "local_id": "sprint-1",
+          "global_id": "sprint-22",
+          "label": "Manifest Reader + Workflow Activator",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-2",
+          "global_id": "sprint-23",
+          "label": "Constraint Yielding + Pre-flight Integration",
+          "status": "pending"
+        },
+        {
+          "local_id": "sprint-3",
+          "global_id": "sprint-24",
+          "label": "Lifecycle Events + Test Suite + Integration Verification",
+          "status": "pending"
         }
       ]
     }

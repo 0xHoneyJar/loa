@@ -1,99 +1,56 @@
 {
   "phase": "prd",
   "document": "grimoires/loa/prd.md",
-  "timestamp": "2026-02-19T03:33:35Z",
-  "cycle": "cycle-028",
+  "cycle": "cycle-029",
+  "timestamp": "2026-02-19T20:15:00Z",
   "consensus_summary": {
     "high_consensus_count": 3,
-    "disputed_count": 1,
+    "disputed_count": 2,
     "low_value_count": 0,
-    "blocker_count": 6,
-    "model_agreement_percent": 90,
-    "confidence": "full"
+    "blocker_count": 0,
+    "model_agreement_percent": 78
   },
   "high_consensus": [
     {
-      "id": "IMP-001",
-      "description": "Git history remediation — deleting file doesn't purge from history. Document filter-repo/BFG procedure or explain why not needed.",
-      "gpt_score": 920,
-      "opus_score": 720,
-      "average_score": 820,
+      "id": "HC-1",
+      "title": "Constraint enforcement is documentation, not code",
+      "description": "PRD assumes programmatic constraint enforcement (isConstructWorkflowActive function). Actual enforcement is through: (1) CLAUDE.md prompt instructions, (2) command pre-flight .md templates, (3) safety hooks. FR-2/FR-3 must specify which layer yielding occurs at.",
+      "scores": {"opus": 850, "gpt": 820},
+      "recommendation": "Rewrite FR-2/FR-3 to specify three enforcement layers: constraints.json gets construct_yield field for CLAUDE.md rendering, command .md files get conditional pre-flight checks, hooks unchanged.",
       "integrated": true
     },
     {
-      "id": "IMP-002",
-      "description": "HMAC needs explicit threat model and key lifecycle. Plain sha256 checksum provides no tamper resistance.",
-      "gpt_score": 860,
-      "opus_score": 880,
-      "average_score": 870,
+      "id": "HC-2",
+      "title": "condense in schema but out of scope",
+      "description": "FR-1 schema lists condense as gate value but Section 7 marks condense implementation as out of scope. Creates dead value in reader.",
+      "scores": {"opus": 780, "gpt": 740},
+      "recommendation": "Remove condense from this cycle's reader. Schema accepts it but treats as full with logged advisory. Full condense behavior deferred to loa-constructs#129.",
       "integrated": true
     },
     {
-      "id": "IMP-003",
-      "description": "Pre-commit/CI secret scanning as preventive control. .gitignore alone is not a secret-prevention mechanism.",
-      "gpt_score": 810,
-      "opus_score": 790,
-      "average_score": 800,
+      "id": "HC-3",
+      "title": "FR-4 assumes CLI flags, skills take sprint IDs",
+      "description": "FR-4 proposes --criteria-source parameter but review/audit are skill invocations taking sprint IDs, not CLI commands with flags.",
+      "scores": {"opus": 750, "gpt": 710},
+      "recommendation": "Replace --criteria-source with construct manifest detection. When review-sprint detects active construct, reads criteria from construct's declared source. No new CLI parameter.",
       "integrated": true
     }
   ],
   "disputed": [
     {
-      "id": "IMP-009",
-      "description": "Sprint sequencing detail in PRD",
-      "gpt_score": 430,
-      "opus_score": 830,
-      "average_score": 630,
-      "integrated": false,
-      "reason": "PRD intentionally avoids prescribing implementation order; sequencing belongs in sprint plan"
+      "id": "D-1",
+      "title": "FR-4 scope too large for this cycle",
+      "description": "6+ hard coupling points in review/audit skills. Full decoupling is substantial refactoring.",
+      "scores": {"opus": 720, "gpt": 380},
+      "resolution": "pending_user_decision"
+    },
+    {
+      "id": "D-2",
+      "title": "Data/Lore direct vs required inconsistency",
+      "description": "Section 9 shows implement: direct for Data/Lore but schema only allows implement: required.",
+      "scores": {"opus": 650, "gpt": 300},
+      "resolution": "pending_user_decision"
     }
   ],
-  "blockers": [
-    {
-      "id": "SKP-006",
-      "concern": "Checksum vs HMAC contradiction — plain sha256 provides no tamper resistance",
-      "severity_score": 920,
-      "addressed": true,
-      "resolution": "FR-5 updated to require HMAC-SHA256 with per-session key stored outside workspace"
-    },
-    {
-      "id": "SKP-001",
-      "concern": ".gitignore hides but doesn't prevent; history still has secrets",
-      "severity_score": 900,
-      "addressed": true,
-      "resolution": "FR-1 updated with git history remediation guidance and CI scanning gate"
-    },
-    {
-      "id": "SKP-003",
-      "concern": "Live checks need log/exception redaction guarantees",
-      "severity_score": 860,
-      "addressed": true,
-      "resolution": "FR-2 updated with explicit log redaction requirements and test assertions"
-    },
-    {
-      "id": "SKP-005",
-      "concern": "Audit logger recovery more complex than byte counting",
-      "severity_score": 760,
-      "addressed": true,
-      "resolution": "FR-4 updated with format invariants, exclusive file access, and comprehensive test cases"
-    },
-    {
-      "id": "SKP-007",
-      "concern": "Auto-resume TOCTOU/symlink/permission hardening",
-      "severity_score": 740,
-      "addressed": true,
-      "resolution": "FR-5 updated with file permission verification and symlink protection"
-    },
-    {
-      "id": "SKP-002",
-      "concern": "Format-only validation may give false assurance",
-      "severity_score": 720,
-      "addressed": true,
-      "resolution": "FR-2 updated with explicit 'unknown/weak_validation' status for Moonshot"
-    }
-  ],
-  "metrics": {
-    "total_latency_ms": 219000,
-    "cost_cents": 33
-  }
+  "blockers": []
 }

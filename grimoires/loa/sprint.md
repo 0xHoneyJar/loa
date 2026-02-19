@@ -1,196 +1,220 @@
-# Sprint Plan: Security Hardening — Bridgebuilder Cross-Repository Findings
+# Sprint Plan: Construct-Aware Constraint Yielding
 
-> Cycle: cycle-028 | PRD: grimoires/loa/prd.md | SDD: grimoires/loa/sdd.md
-> Source: [#374](https://github.com/0xHoneyJar/loa/issues/374)
+> Cycle: cycle-029 | PRD: grimoires/loa/prd.md | SDD: grimoires/loa/sdd.md
+> Source: [#376](https://github.com/0xHoneyJar/loa/issues/376)
 > Sprints: 3 | Team: 1 developer (AI-assisted)
-> Flatline: PRD reviewed (3 HIGH_CONSENSUS, 6 BLOCKERS addressed), SDD reviewed (3 HIGH_CONSENSUS, 3 BLOCKERS addressed)
+> Flatline: PRD reviewed (3 HC, 2 DISPUTED), SDD reviewed (3 HC, 1 DISPUTED)
 
 ## Overview
 
-7 security findings from Bridgebuilder cross-repository review, grouped into 3 sprints by dependency and complexity. No cross-sprint dependencies — each sprint is independently shippable.
+Implement construct-aware constraint yielding across Loa's three enforcement layers. Constructs with manifest `workflow` declarations can compose the pipeline at their chosen depth. 3 sprints ordered by dependency: foundation scripts → constraint integration → events + test suite.
 
 ---
 
-## Sprint 1: Key Material Removal + Binary Integrity (global sprint-19) ✅ REVIEW_APPROVED
+## Sprint 1: Manifest Reader + Workflow Activator (global sprint-22)
 
-**Goal**: Eliminate committed key material and add supply-chain integrity verification.
+**Goal**: Build the two foundation scripts that read construct manifests and manage workflow state. After this sprint, a construct pack can declare workflow gates and Loa can detect and track the active construct.
 
-**Findings**: FR-1 (Critical), FR-3 (High)
+**Dependencies**: None
 
-### Task 1.1: Remove Mock Private Key and Generate Ephemeral Keys ✅
+### Task 1.1: Manifest Workflow Reader Script
 
-**File**: `tests/fixtures/mock_server.py`, `tests/fixtures/generate_test_licenses.py`
+**File**: `.claude/scripts/construct-workflow-read.sh`
 
-- [x] Implement `generate_test_keypair()` function using `cryptography` library
-- [x] Update `mock_server.py` to use generated keys instead of loading from disk
-- [x] Update `generate_test_licenses.py` to import from `mock_server.py` or generate its own keypair
-- [x] Delete `tests/fixtures/mock_private_key.pem` and `tests/fixtures/mock_public_key.pem`
-- [x] Add `tests/fixtures/*.pem` and `tests/fixtures/*.key` to `.gitignore`
-- [x] Add allowlist entries to `.gitleaksignore` for historical commits
-- [x] Verify existing `secret-scanning.yml` workflow covers this key type
+**Description**: Create shell script that reads and validates the `workflow` section from a pack's manifest.json. Supports two modes: full read (outputs entire workflow JSON) and gate query (outputs specific gate value).
 
 **Acceptance Criteria**:
-- `generate_test_keypair()` produces valid 2048-bit RSA keypair
-- `mock_server.py` starts successfully with generated keys
-- `generate_test_licenses.py` produces valid RS256 JWTs
-- `gitleaks detect` produces 0 alerts on the new commit
-- No `*.pem` or `*.key` files exist in `tests/fixtures/`
-- All existing tests that referenced the mock key continue to pass
-- Key rotation decision documented: mock key is zero-entropy (never real), history rewrite not required; `.gitleaksignore` scoped to exact commit/path with review note (Flatline IMP-002)
+- [ ] Reads `workflow` section from manifest.json via jq
+- [ ] Exit 0 with valid workflow JSON on stdout when workflow section exists
+- [ ] Exit 1 when no workflow section (pack uses default pipeline)
+- [ ] Exit 2 on validation error (invalid gate values, implement: skip)
+- [ ] `--gate <name>` mode outputs single gate value
+- [ ] Validates all gate values against allowed sets (SDD Section 3.1 table)
+- [ ] `implement: required` enforced — cannot be set to `skip`
+- [ ] `condense` accepted but logged as advisory to stderr
+- [ ] Defaults applied for missing optional fields (depth: full, app_zone_access: false, etc.)
+- [ ] Fail-closed: any jq parse error → exit 1 (no workflow)
 
-### Task 1.2: Add SHA256 Verification for yq Binary Download ✅
+**Testing**: Tests in `tests/test_construct_workflow.sh` — valid manifest, missing workflow, implement:skip rejection, condense advisory, invalid values, missing fields with defaults.
 
-**File**: `evals/harness/Dockerfile.sandbox` (lines 29-39)
+### Task 1.2: Construct Workflow Activator Script
 
-- [x] Add `YQ_SHA256_AMD64` and `YQ_SHA256_ARM64` build args with actual checksums from v4.40.5 release
-- [x] Add `sha256sum -c` verification after `curl` download
-- [x] Add architecture-switch logic (`dpkg --print-architecture`)
-- [x] Add unsupported architecture fallback with `exit 1`
-- [x] Document checksum source and refresh procedure in comment
+**File**: `.claude/scripts/construct-workflow-activate.sh`
+
+**Description**: Manages `.run/construct-workflow.json` lifecycle. Four subcommands: `activate` (creates state file by calling the reader), `deactivate` (removes state file), `check` (returns current state), `gate` (returns specific gate value from active state).
 
 **Acceptance Criteria**:
-- Dockerfile builds successfully on amd64 with correct checksum
-- Build fails if checksum is tampered (change one hex digit)
-- Comment documents where checksums were sourced and how to refresh
-- SHA256 values match: amd64=`0d6aaf1cf44a8d18fbc7ed0ef14f735a8df8d2e314c4cc0f0242d35c0a440c95`, arm64=`9431f0fa39a0af03a152d7fe19a86e42e9ff28d503ed4a70598f9261ec944a97`
+- [ ] `activate --construct <name> --slug <slug> --manifest <path>` creates `.run/construct-workflow.json`
+- [ ] State file contains: construct, slug, manifest_path, activated_at, depth, app_zone_access, gates, verification
+- [ ] Activation calls `construct-workflow-read.sh` internally to validate manifest
+- [ ] Activation fails (exit 1) if reader returns no workflow, fails (exit 2) if validation error
+- [ ] `deactivate` removes `.run/construct-workflow.json`, exits 0 even if file doesn't exist
+- [ ] `deactivate --complete <sprint_id>` also creates COMPLETED marker at `grimoires/loa/a2a/<sprint_id>/COMPLETED`
+- [ ] `check` exits 0 with JSON on stdout when active, exit 1 when not
+- [ ] `gate <gate_name>` outputs gate value when active, exit 1 when not
+- [ ] Manifest path validated to be within `.claude/constructs/packs/` (security invariant)
+
+**Testing**: activate/deactivate lifecycle, check states, gate queries, invalid manifest path rejection, deactivate --complete marker creation.
+
+### Task 1.3: Activation Protocol Document
+
+**File**: `.claude/protocols/construct-workflow-activation.md`
+
+**Description**: Document the activation contract for construct SKILL.md authors. Specifies the preamble pattern: check manifest for workflow, call activate, do work, call deactivate.
+
+**Acceptance Criteria**:
+- [ ] Protocol document created with activation sequence (SDD Section 3.1.1)
+- [ ] Includes example preamble code for SKILL.md files
+- [ ] Documents all subcommands and their exit codes
+- [ ] References security invariants (installed packs only, fail-closed)
+
+**Testing**: Document review — no code test needed.
 
 ---
 
-## Sprint 2: Detection & Validation Hardening (global sprint-20) ✅ REVIEW_APPROVED
+## Sprint 2: Constraint Yielding + Pre-flight Integration (global sprint-23)
 
-**Goal**: Harden credential health checks and reduce PII redaction false positives.
+**Goal**: Wire construct awareness into the constraint enforcement layers. After this sprint, constraints.json contains yield metadata, CLAUDE.md renders yield clauses, and command pre-flights respect construct gate declarations.
 
-**Findings**: FR-2 (High), FR-7 (Medium)
+**Dependencies**: Sprint 1 (state file must exist for pre-flight checks to read)
 
-### Task 2.1: Harden Credential Health Checks ✅
+### Task 2.1: Constraint Data Model — Add `construct_yield` Field
 
-**File**: `.claude/adapters/loa_cheval/credentials/health.py`
+**File**: `.claude/data/constraints.json`
 
-- [x] Add `FORMAT_RULES` dict with per-provider validation (OpenAI: `sk-` prefix, 48+ chars; Anthropic: `sk-ant-` prefix, 93+ chars; Moonshot: `unknown/weak_validation`)
-- [x] Add `live` parameter to `check_credential()` (default `False`)
-- [x] Implement format-only validation path (dry-run mode)
-- [x] Add `_redact_credential_from_error()` helper for log redaction
-- [x] Wrap live HTTP checks with redaction for Authorization/x-api-key headers
-- [x] Disable urllib debug output during live checks
-- [x] Update `check_all()` to pass through `live` parameter
-- [x] Create `tests/test_health.py` with comprehensive test suite
+**Description**: Add `construct_yield` object to C-PROC-001, C-PROC-003, C-PROC-004, and C-PROC-008. Each gets `enabled`, `condition`, `yield_text`, and `yield_on_gates` fields per SDD Section 3.4.
 
 **Acceptance Criteria**:
-- Default `check_credential()` (no `live` arg) does NOT make HTTP requests
-- `live=True` makes HTTP requests with warning logged
-- Moonshot returns explicit `"unknown/weak_validation"` status
-- API key values NEVER appear in logs, stack traces, or exception dumps after both success and failure
-- Centralized log capture test: run health checks with sentinel secret values and grep test output to confirm zero leakage (Flatline SKP-007)
-- Format validation correctly accepts known-valid and rejects known-invalid keys per provider
-- All existing callers work unchanged (backward compatible — just safer defaults)
+- [ ] C-PROC-001 (`no_code_outside_implement`): yield_text added, yield_on_gates: `["implement"]`
+- [ ] C-PROC-003 (`no_skip_to_implementation`): yield_text added, yield_on_gates: `["implement"]`
+- [ ] C-PROC-004 (`no_skip_review_audit`): yield_text added, yield_on_gates: `["review", "audit"]`
+- [ ] C-PROC-008 (`check_sprint_plan`): yield_text added, yield_on_gates: `["sprint"]`
+- [ ] All other constraints unchanged
+- [ ] JSON validates with jq
 
-### Task 2.2: Tighten `aws_secret` Regex Pattern ✅
+**Testing**: jq validation, field presence checks, no regression on other constraints.
 
-**File**: `.claude/lib/security/pii-redactor.ts` (lines 67-70)
+### Task 2.2: Constraint Renderer — Yield Clause Rendering
 
-- [x] Replace broad regex with negative lookahead: `/\b(?![0-9a-fA-F]{40}\b)[A-Za-z0-9/+=]{40}\b/g`
-- [x] Add false-positive tests: SHA-1 hex hashes, git commit hashes, hex-only strings
-- [x] Add true-positive tests: known AWS secret access key format (e.g., `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`)
-- [x] Verify existing `aws_key_id` pattern (`AKIA...`) is unaffected
-- [x] Verify Shannon entropy detector continues as backup
+**Files**: `.claude/scripts/generate-constraints.sh` + `.claude/scripts/templates/claude-loa-md-table.jq`
+
+**Description**: Modify the jq rendering template to append yield_text in parentheses when `construct_yield.enabled` is true. The template `claude-loa-md-table.jq` currently renders `text_variants["claude-loa-md"]` or `rule_type + " " + text` — add a conditional branch that appends `(yield_text)` when `construct_yield.enabled` is present. The orchestrator `generate-constraints.sh` needs no structural changes since it already routes through the template.
 
 **Acceptance Criteria**:
-- SHA-1 hex hashes (`[0-9a-f]{40}`) are NOT redacted as `aws_secret`
-- Git commit hashes are NOT redacted as `aws_secret`
-- Real AWS secret access keys (containing `/`, `+`, or uppercase letters > F) ARE still detected
-- All existing pii-redactor tests pass unchanged
-- No ReDoS regression (adversarial test still passes within time limit)
+- [ ] `claude-loa-md-table.jq` modified: when `construct_yield.enabled`, appends `({yield_text})` to rendered rule text
+- [ ] Constraints WITHOUT `construct_yield` render identically to before (template backward compatible)
+- [ ] Hash-based change detection still works (idempotent regeneration)
+- [ ] `--dry-run` mode shows preview without modifying CLAUDE.md
+- [ ] Run `generate-constraints.sh` and verify `.claude/loa/CLAUDE.loa.md` output includes 4 yield clauses in constraint tables
+- [ ] `.claude/loa/CLAUDE.loa.md` regenerated with updated constraint tables (this is a deliverable of this task)
+
+**Testing**: Dry-run comparison, regeneration idempotency check, diff CLAUDE.loa.md before/after to verify only yield clause additions.
+
+### Task 2.3: audit-sprint.md Pre-flight — Construct-Aware Skip
+
+**File**: `.claude/commands/audit-sprint.md`
+
+**Description**: Add `skip_when` fields to the "All good" content check and the engineer-feedback.md file_exists check. When a construct declares `review: skip`, these pre-flight checks are skipped.
+
+**Acceptance Criteria**:
+- [ ] `file_exists` check for engineer-feedback.md has `skip_when: {construct_gate: "review", gate_value: "skip"}`
+- [ ] `content_contains` check for "All good" has `skip_when: {construct_gate: "review", gate_value: "skip"}`
+- [ ] Default behavior unchanged — without active construct, checks enforced as before
+- [ ] Comments in YAML explain the skip_when semantics
+
+**Testing**: Manual verification — read the YAML, confirm structure. Integration tested in Sprint 3.
+
+### Task 2.4: review-sprint.md Context Files — Construct-Aware Skip
+
+**File**: `.claude/commands/review-sprint.md`
+
+**Description**: Add `skip_when` to the sprint.md context_files entry. When a construct declares `sprint: skip`, sprint.md becomes optional (loaded if available, absence doesn't block).
+
+**Acceptance Criteria**:
+- [ ] `context_files` entry for sprint.md has `skip_when: {construct_gate: "sprint", gate_value: "skip"}`
+- [ ] Default behavior unchanged — without active construct, sprint.md still required
+- [ ] Comments explain that skip_when on context_files makes the file optional, not ignored
+
+**Testing**: Manual verification — read the YAML, confirm structure. Integration tested in Sprint 3.
 
 ---
 
-## Sprint 3: Audit Integrity + State Verification + Eval Coverage (global sprint-21) ✅ REVIEW_APPROVED
+## Sprint 3: Lifecycle Events + Test Suite + Integration Verification (global sprint-24)
 
-**Goal**: Fix audit logger crash recovery, add state file HMAC verification, and complete eval fixture test coverage.
+**Goal**: Add observability (lifecycle event logging) and comprehensive test coverage. Verify the full end-to-end flow: manifest → activate → constraint yield → pre-flight skip → deactivate.
 
-**Findings**: FR-4 (High), FR-5 (Medium), FR-6 (Medium)
+**Dependencies**: Sprint 1 + Sprint 2
 
-### Task 3.1: Fix Audit Logger Crash Recovery Size Tracking ✅
+### Task 3.1: Lifecycle Event Logging
 
-**File**: `.claude/lib/security/audit-logger.ts`
+**File**: `.claude/scripts/construct-workflow-activate.sh` (modify)
 
-- [x] Add `statSync` to `node:fs` imports
-- [x] In `recoverFromCrash()`: replace `currentSize += line.length + 1` accumulation with `statSync(this.logPath).size` after rewriting valid lines
-- [x] In `doAppend()`: replace `this.currentSize += line.length` with `this.currentSize += Buffer.byteLength(line, "utf-8")`
-- [x] Add test: size accuracy after recovery (assert `currentSize === statSync().size`)
-- [x] Add test: multi-byte UTF-8 entries (emoji/CJK data) — verify size accuracy after recovery
-- [x] Add test: partial last line recovery — verify size equals file size of rewritten file
+**Description**: Add audit.jsonl event logging to the activate and deactivate subcommands. Log `construct.workflow.started` on activate and `construct.workflow.completed` on deactivate with full context.
 
 **Acceptance Criteria**:
-- After crash recovery, `currentSize` exactly matches `fs.statSync().size`
-- Multi-byte UTF-8 entries (emoji, CJK) do not cause size drift
-- Partial last line is correctly truncated during recovery
-- All 15 existing audit-logger tests pass unchanged
+- [ ] `activate` appends `construct.workflow.started` event to `.run/audit.jsonl`
+- [ ] Event includes: timestamp, event name, construct name, depth, gates, constraints_yielded list
+- [ ] `constraints_yielded` computed by checking which C-PROC constraints would yield for the declared gates
+- [ ] `deactivate` appends `construct.workflow.completed` event to `.run/audit.jsonl`
+- [ ] Completed event includes: timestamp, event name, construct name, outcome, duration_seconds
+- [ ] Events follow existing audit.jsonl JSON-per-line format
 
-### Task 3.2: Add HMAC Verification for Run State Files ✅
+**Testing**: Activate with mock manifest, verify audit.jsonl contains both events with correct fields.
 
-**Files**: `.claude/scripts/run-state-verify.sh` (NEW)
+### Task 3.2: Comprehensive Test Suite
 
-- [x] Create `run-state-verify.sh` with subcommands: `init`, `sign`, `verify`, `cleanup`
-- [x] Implement per-run key generation in `~/.claude/.run-keys/{run_id}.key` (mode 0600)
-- [x] Implement JSON canonicalization via `jq -cS 'del(._hmac, ._key_id)'`
-- [x] Implement HMAC-SHA256 signing and verification
-- [x] Implement `verify_file_safety()` with:
-  - Hardcoded trusted base directory from `git rev-parse --show-toplevel`/.run
-  - Symlink detection (`-L` check)
-  - Ownership verification (current user uid)
-  - Permission verification (0600/0644)
-- [x] Implement graceful degradation: missing key → exit 2 (unsigned), tampered → exit 1
-- [x] Implement `cleanup --stale --max-age 7d` for orphaned keys
-- [x] Create `tests/test_run_state_verify.sh` (bats or plain bash tests)
-  - Test sign + verify round-trip
-  - Test tampered content detection
-  - Test missing key handling (exit 2)
-  - Test symlink detection
-  - Test base directory enforcement
-  - Test JSON canonicalization (reformat + verify still passes)
-  - Test concurrent runs with different run_ids
+**File**: `tests/test_construct_workflow.sh`
+
+**Description**: Complete test suite covering all FRs and NFs per SDD Section 6.2 test matrix. Uses plain bash test harness (same pattern as test_run_state_verify.sh).
 
 **Acceptance Criteria**:
-- `sign` adds `_hmac` and `_key_id` fields to state JSON
-- `verify` returns exit 0 for valid, exit 1 for tampered, exit 2 for unsigned
-- Symlink state files are rejected
-- State files outside `.run/` are rejected
-- Keys are per-run and isolated (no collision between concurrent runs)
-- Missing key does not crash — falls through to interactive recovery
-- Canonicalization handles whitespace/key-order variations
+- [ ] All 20 test cases from SDD Section 6.2 implemented
+- [ ] Tests use temp directories (no pollution of real .run/ or .claude/)
+- [ ] Mock manifests created in temp dir for each test scenario
+- [ ] Tests cover: reader validation, activator lifecycle, gate queries, constraint yield rendering, pre-flight skip_when, COMPLETED marker, default behavior, fail-closed
+- [ ] **Integration test cases included**: end-to-end flow with mock construct manifest declaring `review: skip`, `audit: skip` — validates reader → activate → state file → gate query → deactivate → cleanup → audit events
+- [ ] Integration tests verify: `construct-workflow-read.sh` validates correctly, `construct-workflow-activate.sh activate` creates state file with correct gates, `construct-workflow-activate.sh deactivate` removes state file, `.run/audit.jsonl` contains started+completed events
+- [ ] All tests pass: `bash tests/test_construct_workflow.sh` exits 0
+- [ ] No regression on existing tests: `bash tests/test_run_state_verify.sh` still passes
 
-### Task 3.3: Add refreshToken Test Coverage to Auth Eval Fixture ✅
-
-**File**: `evals/fixtures/buggy-auth-ts/tests/auth.test.ts`
-
-- [x] Add `describe('refreshToken', ...)` block with 4 tests:
-  - Token refresh after valid login
-  - Refresh with no token (no login)
-  - Refresh with expired token
-  - Token expiry update on refresh
-- [x] Ensure tests align with eval fixture's intentional bug patterns (TOCTOU race is by design)
-
-**Acceptance Criteria**:
-- `refreshToken` has test coverage for all documented paths
-- All 4 new tests pass in single-threaded execution
-- Existing 3 describe blocks (register, login, validateToken) pass unchanged
-- Eval fixture's intentional bugs are NOT fixed — tests document observable behavior
+**Testing**: Self-testing — the test suite IS the deliverable. Integration verification is included as test cases, not a separate manual step.
 
 ---
 
-## Risk Register
+## Risk Mitigation
 
 | Risk | Sprint | Mitigation |
 |------|--------|------------|
-| `cryptography` library not available | Sprint 1 | Fallback to `openssl` subprocess (already in generate_test_licenses.py) |
-| Tightened aws_secret regex misses edge cases | Sprint 2 | Shannon entropy detector as backup; test with known AWS secrets |
-| Existing callers of `check_all(live=True)` break | Sprint 2 | Default changes to safe mode; callers opt-in to live explicitly |
-| `statSync()` edge case on empty file | Sprint 3 | Test with empty log file scenario |
-| HMAC key path collision | Sprint 3 | Per-run key with run_id in filename — no collision possible |
+| generate-constraints.sh template change breaks output | 2 | Use `--dry-run` preview, diff against current CLAUDE.md |
+| skip_when YAML not interpreted correctly by Claude | 2 | Clear comments, integration test in Sprint 3 |
+| Stale construct-workflow.json left behind | 1 | Deactivation explicit + session-end cleanup + 24h staleness check |
+| Existing tests regress | 3 | Run full test suite before and after |
 
-## Dependencies
+## File Change Summary
 
-- No cross-sprint dependencies
-- No external service dependencies
-- All fixes are independently testable and deployable
-- Sprint 1 → Sprint 2 → Sprint 3 is the recommended order but not required
+| File | Action | Sprint |
+|------|--------|--------|
+| `.claude/scripts/construct-workflow-read.sh` | **NEW** | 1 |
+| `.claude/scripts/construct-workflow-activate.sh` | **NEW** | 1 |
+| `.claude/protocols/construct-workflow-activation.md` | **NEW** | 1 |
+| `.claude/data/constraints.json` | MODIFY | 2 |
+| `.claude/scripts/templates/claude-loa-md-table.jq` | MODIFY | 2 |
+| `.claude/scripts/generate-constraints.sh` | MODIFY (if needed) | 2 |
+| `.claude/loa/CLAUDE.loa.md` | REGENERATED (via generate-constraints.sh) | 2 |
+| `.claude/commands/audit-sprint.md` | MODIFY | 2 |
+| `.claude/commands/review-sprint.md` | MODIFY | 2 |
+| `.claude/scripts/construct-workflow-activate.sh` | MODIFY (add events) | 3 |
+| `tests/test_construct_workflow.sh` | **NEW** | 3 |
+
+**Total**: 4 new files, 6 modified files, 1 regenerated file.
+
+## Success Metrics
+
+| Metric | Target |
+|--------|--------|
+| New test count | 20+ (SDD Section 6.2 matrix) |
+| Existing test regression | 0 |
+| Constraints modified | 4 (C-PROC-001/003/004/008) |
+| New scripts | 2 (reader + activator) |
+| Commands modified | 2 (audit-sprint.md + review-sprint.md) |
+| Backwards compatibility | 100% — no behavior change without active construct |

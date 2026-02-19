@@ -1,218 +1,262 @@
-# PRD: Security Hardening — Bridgebuilder Cross-Repository Findings
+# PRD: Construct-Aware Constraint Yielding
 
-> Cycle: cycle-028 | Author: janitooor + Claude
-> Source: [#374](https://github.com/0xHoneyJar/loa/issues/374)
-> Priority: P1 (security — addresses concrete vulnerabilities in framework infrastructure)
-> Classification: Hardening cycle — no new features, only fixes to existing code
-> Flatline: Reviewed (3 HIGH_CONSENSUS integrated, 6 BLOCKERS addressed)
+> Cycle: cycle-029 | Author: janitooor + Claude
+> Source: [#376](https://github.com/0xHoneyJar/loa/issues/376)
+> Related: [loa-constructs#129](https://github.com/0xHoneyJar/loa-constructs/issues/129)
+> Priority: P1 (framework architecture — enables construct ecosystem scaling)
+
+---
 
 ## 1. Problem Statement
 
-A downstream Bridgebuilder review targeting Loa framework code surfaced 7 security findings across test fixtures, credential infrastructure, eval harness, audit logging, session continuity, and PII redaction. These range from critical (committed key material) to medium (false-positive regex, missing test coverage).
+Loa's pipeline constraints (PRD → SDD → Sprint → Implement → Review → Audit) are enforced globally, forcing full-depth process on every task regardless of domain. A 26-line UI change (midi-interface #102) required PRD with 7 discovery phases, 2 GPT review rounds, sprint plan with 5 tasks, and 2 more review rounds — ~40% of the session was process, not code.
 
-While none of these findings represent active exploitation vectors in production, they represent defense-in-depth gaps in framework infrastructure that could:
-- Train bad habits (committed private keys)
-- Leak credentials outside normal API call paths (health check HTTP requests)
-- Enable supply-chain compromise of eval environments (unsigned binary downloads)
-- Cause silent data loss in forensic audit trails (size tracking drift)
-- Allow privilege escalation through state file tampering (unverified auto-resume)
-- Miss auth vulnerabilities in eval fixtures (untested refreshToken)
-- Generate false-positive redactions in legitimate content (overly broad regex)
+**The core issue**: Constructs already operate as self-contained expertise packages with their own workflows (Observer has 11 skills, Artisan has 14), but Loa's constraint system doesn't recognize this. When work touches the APP zone, constraints C-PROC-001/003/004 force the full pipeline regardless of whether a construct declares its own workflow.
 
-> Sources: #374 (Bridgebuilder cross-repository review findings)
+> Sources: loa#376 body, loa#376 comment-1 (zkSoju), loa-constructs#129 body
 
-## 2. Goals & Success Metrics
+---
 
-### Goals
+## 2. Vision
 
-1. **Eliminate all committed key material** from the repository, prevent future occurrences via `.gitignore` patterns, add pre-commit/CI secret scanning as a preventive gate, and document git history remediation guidance.
-2. **Harden credential health checks** to avoid sending plaintext API keys through non-standard code paths, with explicit log/exception redaction guarantees.
-3. **Add integrity verification** for all binary downloads in the eval harness.
-4. **Fix audit logger crash recovery** to maintain exact byte-accurate size tracking.
-5. **Add integrity verification** to run mode state file auto-resume with explicit threat model, keyed HMAC (not plain checksum), and file permission hardening.
-6. **Complete test coverage** for auth eval fixture to cover the imported-but-untested `refreshToken` function.
-7. **Tighten PII redaction regex** for `aws_secret` to reduce false positives while maintaining detection of actual AWS secret access keys.
+**Loa's constraints yield when a construct declares workflow ownership.** The pipeline is a composable tool that constructs leverage for agentic backpressure, not a mandatory gate. Constructs compose the pipeline at their chosen depth via manifest declarations.
 
-### Success Metrics
+### Three-Layer Architecture
 
-| Metric | Target | Measurement |
-|--------|--------|-------------|
-| Findings addressed | 7/7 | All findings from #374 resolved |
-| Secret scanner clean | 0 alerts | `gitleaks detect` and GitHub secret scanning produce zero alerts |
-| CI secret scanning gate | Configured | `gitleaks` runs in CI or pre-commit hook on every push |
-| Test regressions | 0 | All existing tests continue to pass |
-| New test coverage | 100% of changes | Every code change accompanied by test |
-| False-positive reduction (aws_secret) | >90% reduction | Measured against corpus of SHA-1 hashes, JWT fragments, base64 config values |
+| Layer | What | Always? |
+|-------|------|---------|
+| **Loa Runtime** | Hooks, beads, events, memory, guardrails, git safety, three-zone model | Always available |
+| **Loa Pipeline** | PRD → SDD → Sprint → Implement → Review → Audit | Opt-in at chosen depth |
+| **Construct Workflow** | Domain-specific skills, verification, state | Defined by construct |
 
-## 3. User & Stakeholder Context
+A construct doesn't choose "pipeline OR own workflow" — it **composes both**.
 
-### Primary Persona: Loa Framework Maintainer
+> Sources: loa#376 comment-3 (zkSoju architecture), loa-constructs#129 comment-2 (refined model)
 
-The framework maintainer needs all security findings addressed without breaking existing functionality. Each fix must be independently verifiable and testable.
+---
 
-### Secondary Persona: Loa Developer
+## 3. Goals & Success Metrics
 
-Developers relying on PII redaction, audit logging, and credential health checks need these tools to work correctly — no false positives in redaction, no silent data loss in audit trails, no credential leakage through diagnostic code paths.
+### G-1: Constraint System Reads Construct Workflow Declarations
+- Constraint enforcement checks whether an active construct declares workflow ownership before applying pipeline constraints
+- **Metric**: C-PROC-001/003/004/008 skip enforcement when construct with `workflow.gates` is active
 
-### Tertiary Persona: Downstream Evaluator
+### G-2: Review/Audit Skills Accept Generic Inputs
+- Review and audit skills accept acceptance criteria from any source (issue body, manifest, inline), not just sprint.md
+- **Metric**: `/review-sprint` and `/audit-sprint` work with construct-provided inputs, not only pipeline artifacts
 
-Users running the eval harness need confidence that the sandbox image has not been tampered with via supply-chain attacks on unsigned binary downloads.
+### G-3: Construct Manifest Supports Workflow Declaration
+- Pack manifests can declare `workflow` section with gates, depth, and verification method
+- **Metric**: Existing packs (Observer, Artisan) can retroactively declare their workflow depth
 
-## 4. Functional Requirements
+### G-4: Pipeline Stages Become Composable
+- The hard chain audit→review ("All good" magic string) is replaced with configurable gate contracts
+- **Metric**: A construct can declare `audit: skip` and still reach COMPLETED state
 
-### FR-1: Remove Mock Private Key + Add `.gitignore` Patterns (Critical — Finding 1)
+---
 
-**File**: `tests/fixtures/mock_private_key.pem`
+## 4. User & Stakeholder Context
 
-Remove the 2048-bit RSA private key from the repository. Replace with a generated-at-test-time approach or a clearly-marked, zero-entropy placeholder.
+### Primary Persona: Construct Author
+- Builds domain-specific expertise packages (FE/UI, BE/API, Data, Infra)
+- Wants to define workflow depth appropriate to their domain
+- Needs the Loa runtime (hooks, beads, guardrails) without the full pipeline overhead
 
-- Delete `tests/fixtures/mock_private_key.pem` from the repository
-- Add `*.pem` and `*.key` patterns to `.gitignore` (targeted to `tests/fixtures/` path to avoid hiding legitimate key files elsewhere)
-- Update any tests that reference this fixture to generate ephemeral keys at test time
-- Verify `gitleaks detect` produces zero alerts after removal
-- **Git history remediation** (Flatline IMP-001): Document whether `git filter-repo` / BFG history rewrite is required. Since this is a mock key (zero entropy, no real secret), document that history rewrite is not required but the key should be added to the `.gitleaksignore` allowlist for the historical commit. If the key were real, a coordinated force-push with downstream notification would be mandatory.
-- **Preventive control** (Flatline IMP-003): Add `gitleaks` as a CI gate in the GitHub Actions workflow or as a pre-commit hook configuration. This prevents future secret commits at the source rather than relying on `.gitignore` (which only hides files, doesn't prevent explicit `git add -f`).
+### Secondary Persona: Framework User (Loa default)
+- Uses Loa without constructs — the default pipeline applies
+- No change to their experience
+- The pipeline remains the default when no construct declares workflow ownership
 
-### FR-2: Harden Credential Health Checks (High — Finding 2)
+### Stakeholder: Maintainer (@janitooor)
+- Wants constructs to be peers, not subordinates to Loa's pipeline
+- Pipeline is a backpressure mechanism, not a quality gate hierarchy
+- Constructs that declare gates are trusted — they've earned trust by being installed, versioned, maintained
 
-**File**: `.claude/adapters/loa_cheval/credentials/health.py`
+> Sources: loa#376 comment-2 (zkSoju), loa#376 comment-4 (refined model)
 
-The `check_credential()` function (lines 56-105) sends real HTTP requests with plaintext API key values to provider endpoints. While the intent is lightweight validation, the key travels through `urllib.request` where it is visible to:
-- Network proxy logs
-- Corporate TLS inspection
-- Python-level request interceptors
+---
 
-Harden by:
-- Adding a `--dry-run` / `dry_run` mode that validates key format only (prefix, length, character set) without making HTTP requests
-- Making dry-run the default; opt-in to live checks via explicit `--live` flag or `live=True` parameter
-- Adding format validation rules per provider (sourced from official docs, versioned):
-  - OpenAI: `sk-` prefix, 48+ chars
-  - Anthropic: `sk-ant-` prefix, 93+ chars
-  - Moonshot: return explicit `"unknown/weak_validation"` status (no stable format spec exists — Flatline SKP-002)
-- Logging a warning when live mode is used
-- **Log redaction guarantees** (Flatline SKP-003): When live mode is used, ensure API keys NEVER appear in logs, stack traces, or exception dumps. Disable `urllib` debug output. Wrap HTTP calls to redact `Authorization`/`x-api-key` headers from any error messages. Add tests that assert log output does not contain key material after both successful and failed health checks.
+## 5. Functional Requirements
 
-### FR-3: Add SHA256 Verification for yq Binary Download (High — Finding 3)
+### FR-1: Manifest Workflow Schema (Loa-side reader)
 
-**File**: `evals/harness/Dockerfile.sandbox` (lines 29-39)
+**Note**: The manifest schema itself is defined in loa-constructs#129. This cycle implements the **Loa-side reader** that interprets the schema.
 
-The yq binary is downloaded via `curl` without any integrity check. The base image is already digest-pinned (good), but the yq binary is not.
+Loa must read and validate this manifest section:
 
-- Add SHA256 checksums for both amd64 and arm64 binaries of yq v4.40.5
-- Verify checksum after download, fail build on mismatch
-- Document checksum source and refresh procedure in a comment
+```yaml
+workflow:
+  depth: light | standard | deep | full
+  app_zone_access: true | false
+  gates:
+    prd: skip | condense | full
+    sdd: skip | condense | full
+    sprint: skip | condense | full
+    implement: required
+    review: skip | visual | textual | both
+    audit: skip | lightweight | full
+  verification:
+    method: visual | tsc | build | test | manual
+```
 
-### FR-4: Fix Audit Logger Crash Recovery Size Tracking (High — Finding 4)
+**Note on `condense`**: The reader accepts `condense` as a valid value for forward compatibility with loa-constructs#129, but treats it as `full` in this cycle with a logged advisory. Full condense behavior (auto-generating sprint from issue body) is a construct-side concern.
 
-**File**: `.claude/lib/security/audit-logger.ts` (lines 274-326)
+**Acceptance Criteria**:
+- [ ] Loa can read `workflow` from pack manifest.json
+- [ ] Missing `workflow` section means "use default pipeline" (backwards compatible)
+- [ ] Invalid values produce clear validation errors
+- [ ] `implement: required` is enforced — cannot be set to `skip`
+- [ ] `condense` is accepted but treated as `full` with advisory log
 
-The `recoverFromCrash()` method reconstructs `currentSize` by summing `line.length + 1` for each valid line. This can drift from actual file size because:
-- `doAppend()` may use a different serialization (e.g., Buffer byte length vs. string character length for multi-byte UTF-8)
-- The `+1` for newline assumes single-byte `\n` but doesn't account for potential `\r\n` on Windows or multi-byte characters
+### FR-2: Active Construct Detection
 
-**Log file format invariants** (Flatline SKP-005): The audit log format is defined as UTF-8 encoded, newline-delimited JSON (`\n` only, no `\r\n`). Each line is a complete JSON object. These invariants must be enforced by both `doAppend()` and `recoverFromCrash()`.
+The system must determine whether a construct with declared workflow gates is currently handling work. Detection operates across three enforcement layers (see FR-3).
 
-Fix by:
-- Using `fs.statSync()` to get the actual file size after rewriting valid lines (most accurate approach — avoids all encoding/newline ambiguity)
-- Alternatively, using `Buffer.byteLength(line, 'utf-8') + 1` instead of `line.length + 1` for byte-accurate tracking
-- Recovery must run with exclusive file access (use `fs.openSync()` with appropriate flags) to prevent concurrent append during recovery
-- Adding tests for: ASCII-only content, multi-byte UTF-8 characters, partial last line, and size accuracy after recovery
-- Adding a test that verifies `currentSize` matches `fs.statSync().size` after recovery
+**Mechanism**: When a skill is invoked, the loader knows which pack it came from. If that pack's `manifest.json` contains a `workflow` section, the construct is considered "workflow-active." This is a property of the skill loading context, not runtime heuristics.
 
-### FR-5: Add Integrity Check to Session Continuity Auto-Resume (Medium — Finding 5)
+**State tracking**: A state marker (`.run/construct-workflow.json`) records the active construct and its gates during workflow execution. This enables pre-flight checks in command `.md` files to read the construct's declarations.
 
-**File**: `.claude/protocols/session-continuity.md` (lines 98-116)
+**Acceptance Criteria**:
+- [ ] Skill loader writes `.run/construct-workflow.json` when invoking a skill from a pack with `workflow` declaration
+- [ ] File contains: construct name, pack slug, gates, depth, timestamp
+- [ ] File is cleared when construct workflow completes or on session end
+- [ ] Missing file means "no construct active" (default pipeline applies)
+- [ ] Detection uses skill loading context (which pack loaded the skill) — not runtime heuristics
 
-The run mode state check reads `.run/sprint-plan-state.json` and auto-resumes autonomous execution if `state == "RUNNING"`. Any process that can write to this file can trigger autonomous mode without user consent.
+### FR-3: Constraint Yielding Logic
 
-**Threat model** (Flatline IMP-002, SKP-006): The threat is an untrusted local process writing a crafted state file to trigger autonomous execution. A plain sha256 checksum provides NO tamper resistance because the attacker can recompute it. Therefore:
+Constraints are enforced through three layers. Yielding must occur at each:
 
-Harden by:
-- Adding an HMAC-SHA256 field to the state file, keyed with a per-session secret stored in a permissions-restricted file (`~/.claude/.run-hmac-key`, mode 0600) created when `/run` initializes
-- The HMAC key is generated from `openssl rand -hex 32` at `/run` init time and is NOT stored inside the workspace `.run/` directory (which is writable by any workspace process)
-- Verifying the HMAC before auto-resuming; if verification fails, fall through to interactive recovery instead of auto-resume
-- **File permission hardening** (Flatline SKP-007): Verify `.run/sprint-plan-state.json` ownership matches current user, mode is 0600, and path does not traverse symlinks (use `O_NOFOLLOW` or `realpath` comparison)
-- Document the integrity check in the protocol (session-continuity.md update describes behavior, but enforcement is in runtime code per NFR-4)
+**Layer 1 — Prompt-level (constraints.json → CLAUDE.md)**: Add `construct_yield` field to relevant constraints. The CLAUDE.md renderer includes the yield clause (e.g., "...OR when a construct with `workflow.gates` declares ownership").
 
-### FR-6: Add refreshToken Test Coverage to Auth Eval Fixture (Medium — Finding 6)
+**Layer 2 — Pre-flight (command .md files)**: Command pre-flight checks read `.run/construct-workflow.json`. If present and the construct declares a gate as `skip`, the pre-flight check passes without requiring the corresponding artifact.
 
-**File**: `evals/fixtures/buggy-auth-ts/tests/auth.test.ts`
+**Layer 3 — Safety hooks**: No changes needed. Hooks protect System Zone and destructive operations, not pipeline flow.
 
-The test file imports `refreshToken` on line 1 but has zero test coverage for it. Only `register`, `login`, and `validateToken` are tested. This is an eval fixture (intentionally buggy code for eval testing), but the missing coverage is itself a gap the eval should surface.
+| Constraint | Current | With Construct Active |
+|-----------|---------|----------------------|
+| C-PROC-001 | No code outside `/implement` | No code outside `/implement` **OR construct-owned workflow** |
+| C-PROC-003 | No skip without `/run` or `/bug` | No skip without `/run`, `/bug`, **OR construct with `workflow.gates`** |
+| C-PROC-004 | No skip review/audit | Yield when construct declares `review: skip` or `audit: skip` |
+| C-PROC-008 | Always check sprint plan | Yield when construct declares `sprint: skip` |
 
-- Add a `describe('refreshToken', ...)` block with tests for:
-  - Token refresh after valid login
-  - Refresh with expired token
-  - Refresh with invalid token
-  - TOCTOU race condition (concurrent refresh attempts)
-- Ensure the tests align with the eval fixture's intentional bug patterns
+**Acceptance Criteria**:
+- [ ] constraints.json modified with `construct_yield` field on C-PROC-001/003/004/008
+- [ ] CLAUDE.md rendering script includes yield clause in generated constraint tables
+- [ ] Command pre-flight checks in review-sprint.md and audit-sprint.md read construct-workflow.json
+- [ ] Yield only applies to the specific gate the construct skips — other constraints still enforced
+- [ ] Yield is logged to `.run/audit.jsonl` (observable via audit trail)
+- [ ] Default behavior unchanged when no construct is active
 
-### FR-7: Tighten `aws_secret` Regex Pattern (Medium — Finding 7)
+### FR-4: Configurable Gate Contracts for Review/Audit
 
-**File**: `.claude/lib/security/pii-redactor.ts` (lines 67-70)
+Make the hard chain between review and audit configurable so constructs can compose at their declared depth. **This cycle focuses on gate configurability**, not full path generics (which require deeper refactoring deferred to a future cycle).
 
-The current pattern `/\b[A-Za-z0-9/+=]{40}\b/g` matches any 40-character base64 string. This produces false positives on:
-- SHA-1 hex hashes (40 chars, `[0-9a-f]`)
-- SHA-256 hex hash substrings
-- JWT token segments
-- Random configuration values
-- Git commit hashes
+| Current (pipeline-coupled) | This Cycle (construct-aware) | Future (fully generic) |
+|---------------------------|------------------------------|------------------------|
+| Hard gate on "All good" in `engineer-feedback.md` | Gate bypassed when construct declares `review: skip` | Accepts criteria from any source |
+| COMPLETED only via audit-sprint | COMPLETED available to construct workflows | Construct-declared completion signals |
+| Reads `sprint.md` for acceptance criteria | Unchanged (default path) | Accepts criteria from any source |
+| Output to `a2a/sprint-N/` | Unchanged (default path) | Configurable output paths |
 
-Tighten by:
-- Requiring the pattern to appear in proximity to an AWS context indicator (e.g., preceded by `aws_secret`, `AWS_SECRET_ACCESS_KEY`, or an `AKIA`-prefixed key ID within 5 lines)
-- Or restricting the character set more specifically: AWS secret keys always contain at least one `/` or `+` character (base64 encoding of binary data)
-- Adding an allowlist for known non-secret 40-char patterns (hex-only strings are never AWS secrets)
-- Adding tests with known false-positive examples to verify reduced false-positive rate
+**Acceptance Criteria**:
+- [ ] Review/audit commands detect active construct via `.run/construct-workflow.json` and read criteria from construct's declared source
+- [ ] Audit command's "All good" check is bypassed when construct declares `review: skip` (no engineer-feedback.md required)
+- [ ] COMPLETED marker creation is available to construct workflows, not only audit-sprint
+- [ ] Default behavior unchanged — without active construct, reads sprint.md as before
 
-## 5. Non-Functional Requirements
+### FR-5: Construct Lifecycle Events
 
-### NFR-1: No Breaking Changes
+When a construct workflow begins and ends, emit events for observability.
 
-All existing tests must continue to pass. Credential health check defaults change (dry-run by default), but existing callers can opt-in to live mode.
+**Acceptance Criteria**:
+- [ ] `construct.workflow.started` event emitted with construct name, declared depth, gates
+- [ ] `construct.workflow.completed` event emitted with outcome
+- [ ] Events are logged to audit trail (`.run/audit.jsonl`)
+- [ ] Other constructs can consume these events via the event bus
 
-### NFR-2: Backward Compatibility
+---
 
-- Existing credential health check callers get format-only validation by default (safer)
-- Existing PII redaction behavior must not lose detection of real AWS secrets
-- Audit logger recovery must produce identical behavior for ASCII-only log files
+## 6. Technical & Non-Functional Requirements
 
-### NFR-3: Test Coverage
+### NF-1: Backwards Compatibility
+- All existing workflows work unchanged when no construct is active
+- The default pipeline is preserved — this is additive, not a replacement
+- Existing constructs (Observer, Artisan) that don't declare `workflow` continue working as they do today
 
-Every code change must include corresponding test coverage. No untested fixes.
+### NF-2: Security — Trust Boundary
+- Only installed, versioned constructs can declare workflow gates
+- Runtime code cannot dynamically claim construct status to bypass constraints
+- Construct workflow declarations are validated at pack install time, not runtime
+- System Zone (`.claude/`) modifications remain blocked regardless of construct declarations
 
-### NFR-4: No System Zone Edits
+### NF-3: Auditability
+- Every constraint yield is logged with: constraint ID, construct name, gate declaration, timestamp
+- Audit trail shows what was skipped and why
+- No silent bypasses — yields are observable
 
-FR-5 (session-continuity.md) is in `.claude/protocols/` — a System Zone file. The fix must be implemented as a runtime check in the script that reads the state file, not as a direct edit to the protocol document. The protocol document update documents the new behavior but the enforcement is in code.
+### NF-4: Fail-Closed
+- If construct detection fails (parse error, missing manifest), default to full pipeline
+- Ambiguous workflow declarations default to the more conservative option
+- This matches existing hook design (fail-open for hooks, fail-closed for constraints)
 
-## 6. Scope & Prioritization
+---
+
+## 7. Scope & Prioritization
 
 ### In Scope (This Cycle)
 
-- All 7 findings from #374
-- Associated test coverage
-- `.gitignore` hardening for key material
+| Priority | Feature | Why |
+|----------|---------|-----|
+| P0 | FR-1: Manifest workflow reader | Foundation — everything else depends on reading the schema |
+| P0 | FR-2: Active construct detection | Foundation — constraint yielding needs this |
+| P0 | FR-3: Constraint yielding logic | Core value — the actual yielding behavior |
+| P1 | FR-4: Configurable gate contracts | Enables constructs to bypass review→audit chain |
+| P2 | FR-5: Lifecycle events | Observability — important but not blocking |
 
 ### Out of Scope
 
-- Rotating any actual API keys (that's an operational task, not a code change)
-- Replacing the eval sandbox container runtime
-- Refactoring the entire PII redactor
-- Adding new credential providers to health.py
-- General audit logger performance optimization (only fixing the size tracking bug)
+| Item | Why | Where |
+|------|-----|-------|
+| Manifest schema definition | Construct-side concern | loa-constructs#129 |
+| Visual verification (deploy preview, screenshots) | Requires browser/deployment infra | Future cycle |
+| Cross-repo coordination layer | Multi-construct features | Future cycle |
+| Creating new domain-specific constructs (FE/UI, BE/API) | Construct authors build these | loa-constructs registry |
+| "condense" sprint generation from issue body | Requires construct-side implementation | loa-constructs#129 |
+| Golden path routing through construct manifests | v3 in the construct roadmap | Future cycle |
 
-## 7. Risks & Dependencies
+---
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| Tightened aws_secret regex misses real secrets | Low | High | Test against corpus of known AWS secrets; keep Shannon entropy detector as backup |
-| Credential format validation rejects valid keys | Low | Medium | Research actual format specs; allow live-check escape hatch |
-| Mock key removal breaks tests | Low | Low | Generate ephemeral keys in test setup |
-| HMAC key lifecycle adds complexity | Medium | Low | Per-session key in `~/.claude/.run-hmac-key` (mode 0600); no rotation needed since key is ephemeral per `/run` session |
-| Dockerfile checksum becomes stale when yq updates | Medium | Low | Document refresh procedure in Dockerfile comment |
+## 8. Risks & Dependencies
 
-### Dependencies
+### R-1: Schema Coordination (Medium)
+- **Risk**: Loa-side reader and loa-constructs#129 schema must agree
+- **Mitigation**: Define the reader to accept a superset; validate strictness can be added later
 
-- `tests/fixtures/mock_private_key.pem` usage must be traced before deletion
-- `.claude/lib/security/audit-logger.ts` `doAppend()` method must be understood to ensure size tracking alignment
-- AWS secret key format documentation for regex tightening
-- yq v4.40.5 release checksums from GitHub releases page
+### R-2: Constraint Escape Escalation (Low)
+- **Risk**: Construct workflow declarations could be abused to bypass all constraints
+- **Mitigation**: `implement: required` cannot be set to skip; System Zone always protected; construct must be installed (not runtime-injected)
+
+### R-3: Backwards Compatibility Regression (Low)
+- **Risk**: Modifying constraint enforcement could break existing workflows
+- **Mitigation**: All changes are additive — default behavior only changes when a construct with `workflow` section is detected; comprehensive test coverage
+
+### D-1: Dependency — loa-constructs#129
+- The manifest schema is defined in loa-constructs. This cycle implements the **reader**, not the schema.
+- If schema changes, the reader adapts — we validate loosely and tighten later.
+
+---
+
+## 9. Domain Examples (Reference)
+
+For construct authors building on this infrastructure. **Note**: These are illustrative examples for future constructs. "direct" in the Data/Lore row maps to `implement: required` with all other gates set to `skip` — the construct still goes through an implement phase, it just has no planning or review overhead.
+
+| Construct Domain | PRD | SDD | Sprint | Implement | Review | Audit |
+|-----------------|-----|-----|--------|-----------|--------|-------|
+| **BE/API** | full | full | full | required | textual | full |
+| **FE/UI** | skip | skip | condense | required | visual | skip |
+| **FE/Data** | skip | skip | condense | required | tsc+build | lightweight |
+| **Infra** | full | full | full | required | both | full |
+| **Data/Lore** | skip | skip | skip | required | skip | skip |
+
+> Source: loa-constructs#129 body (domain examples table)
