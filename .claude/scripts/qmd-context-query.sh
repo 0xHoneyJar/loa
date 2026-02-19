@@ -95,8 +95,8 @@ parse_args() {
                 ;;
             --skill)
                 SKILL="$2"
-                # Validate skill name: lowercase letters, underscores, hyphens only
-                if [[ -n "$SKILL" ]] && ! [[ "$SKILL" =~ ^[a-z_-]+$ ]]; then
+                # Validate skill name: lowercase letters, digits, underscores, hyphens only
+                if [[ -n "$SKILL" ]] && ! [[ "$SKILL" =~ ^[a-z0-9_-]+$ ]]; then
                     echo "WARNING: Invalid --skill value '${SKILL}', ignoring" >&2
                     SKILL=""
                 fi
