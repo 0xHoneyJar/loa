@@ -1,6 +1,70 @@
-[flatline] Execution mode: hitl (reason: Simstim workflow active (.run/simstim-state.json state=RUNNING))
-[flatline] Document: grimoires/loa/sdd.md
-[flatline] Phase: sdd
-[flatline] Mode: hitl
-[flatline] Timeout: 300s
-[flatline] Budget: 300 cents
+{
+  "phase": "sdd",
+  "document": "grimoires/loa/sdd.md",
+  "timestamp": "2026-02-19T03:44:54Z",
+  "cycle": "cycle-028",
+  "consensus_summary": {
+    "high_consensus_count": 3,
+    "disputed_count": 1,
+    "low_value_count": 0,
+    "blocker_count": 3,
+    "model_agreement_percent": 90,
+    "confidence": "full"
+  },
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Rollback guidance for each finding — controlled rollout for production safety.",
+      "average_score": 750,
+      "integrated": true
+    },
+    {
+      "id": "IMP-002",
+      "description": "Resolve SHA256 placeholder with actual checksums from release page.",
+      "average_score": 905,
+      "integrated": true
+    },
+    {
+      "id": "IMP-003",
+      "description": "Clarify HMAC key scope — per-run key, generation, invalidation, cleanup.",
+      "average_score": 825,
+      "integrated": true
+    }
+  ],
+  "disputed": [
+    {
+      "id": "IMP-009",
+      "description": "JSON canonicalization for HMAC — overlaps with SKP-001.",
+      "average_score": 720,
+      "integrated": true,
+      "reason": "Addressed alongside SKP-001 blocker"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "SKP-001",
+      "concern": "HMAC over non-canonical JSON risks false failures and bypass",
+      "severity_score": 920,
+      "addressed": true,
+      "resolution": "Added section 3.5.2.1 with jq -cS canonicalization"
+    },
+    {
+      "id": "SKP-003",
+      "concern": "verify_file_safety base directory derived from provided path, not trusted root",
+      "severity_score": 880,
+      "addressed": true,
+      "resolution": "Fixed to use git rev-parse --show-toplevel/.run as hardcoded trusted base"
+    },
+    {
+      "id": "SKP-002",
+      "concern": "Key path is static but claimed ephemeral — concurrency issues",
+      "severity_score": 760,
+      "addressed": true,
+      "resolution": "Key path changed to per-run: ~/.claude/.run-keys/{run_id}.key"
+    }
+  ],
+  "metrics": {
+    "total_latency_ms": 218000,
+    "cost_cents": 44
+  }
+}

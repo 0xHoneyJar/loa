@@ -103,22 +103,22 @@
 
 ---
 
-## Sprint 3: Audit Integrity + State Verification + Eval Coverage (global sprint-21)
+## Sprint 3: Audit Integrity + State Verification + Eval Coverage (global sprint-21) ✅ REVIEW_APPROVED
 
 **Goal**: Fix audit logger crash recovery, add state file HMAC verification, and complete eval fixture test coverage.
 
 **Findings**: FR-4 (High), FR-5 (Medium), FR-6 (Medium)
 
-### Task 3.1: Fix Audit Logger Crash Recovery Size Tracking
+### Task 3.1: Fix Audit Logger Crash Recovery Size Tracking ✅
 
 **File**: `.claude/lib/security/audit-logger.ts`
 
-- [ ] Add `statSync` to `node:fs` imports
-- [ ] In `recoverFromCrash()`: replace `currentSize += line.length + 1` accumulation with `statSync(this.logPath).size` after rewriting valid lines
-- [ ] In `doAppend()`: replace `this.currentSize += line.length` with `this.currentSize += Buffer.byteLength(line, "utf-8")`
-- [ ] Add test: size accuracy after recovery (assert `currentSize === statSync().size`)
-- [ ] Add test: multi-byte UTF-8 entries (emoji/CJK data) — verify size accuracy after recovery
-- [ ] Add test: partial last line recovery — verify size equals file size of rewritten file
+- [x] Add `statSync` to `node:fs` imports
+- [x] In `recoverFromCrash()`: replace `currentSize += line.length + 1` accumulation with `statSync(this.logPath).size` after rewriting valid lines
+- [x] In `doAppend()`: replace `this.currentSize += line.length` with `this.currentSize += Buffer.byteLength(line, "utf-8")`
+- [x] Add test: size accuracy after recovery (assert `currentSize === statSync().size`)
+- [x] Add test: multi-byte UTF-8 entries (emoji/CJK data) — verify size accuracy after recovery
+- [x] Add test: partial last line recovery — verify size equals file size of rewritten file
 
 **Acceptance Criteria**:
 - After crash recovery, `currentSize` exactly matches `fs.statSync().size`
@@ -126,22 +126,22 @@
 - Partial last line is correctly truncated during recovery
 - All 15 existing audit-logger tests pass unchanged
 
-### Task 3.2: Add HMAC Verification for Run State Files
+### Task 3.2: Add HMAC Verification for Run State Files ✅
 
 **Files**: `.claude/scripts/run-state-verify.sh` (NEW)
 
-- [ ] Create `run-state-verify.sh` with subcommands: `init`, `sign`, `verify`, `cleanup`
-- [ ] Implement per-run key generation in `~/.claude/.run-keys/{run_id}.key` (mode 0600)
-- [ ] Implement JSON canonicalization via `jq -cS 'del(._hmac, ._key_id)'`
-- [ ] Implement HMAC-SHA256 signing and verification
-- [ ] Implement `verify_file_safety()` with:
+- [x] Create `run-state-verify.sh` with subcommands: `init`, `sign`, `verify`, `cleanup`
+- [x] Implement per-run key generation in `~/.claude/.run-keys/{run_id}.key` (mode 0600)
+- [x] Implement JSON canonicalization via `jq -cS 'del(._hmac, ._key_id)'`
+- [x] Implement HMAC-SHA256 signing and verification
+- [x] Implement `verify_file_safety()` with:
   - Hardcoded trusted base directory from `git rev-parse --show-toplevel`/.run
   - Symlink detection (`-L` check)
   - Ownership verification (current user uid)
   - Permission verification (0600/0644)
-- [ ] Implement graceful degradation: missing key → exit 2 (unsigned), tampered → exit 1
-- [ ] Implement `cleanup --stale --max-age 7d` for orphaned keys
-- [ ] Create `tests/test_run_state_verify.sh` (bats or plain bash tests)
+- [x] Implement graceful degradation: missing key → exit 2 (unsigned), tampered → exit 1
+- [x] Implement `cleanup --stale --max-age 7d` for orphaned keys
+- [x] Create `tests/test_run_state_verify.sh` (bats or plain bash tests)
   - Test sign + verify round-trip
   - Test tampered content detection
   - Test missing key handling (exit 2)
@@ -159,16 +159,16 @@
 - Missing key does not crash — falls through to interactive recovery
 - Canonicalization handles whitespace/key-order variations
 
-### Task 3.3: Add refreshToken Test Coverage to Auth Eval Fixture
+### Task 3.3: Add refreshToken Test Coverage to Auth Eval Fixture ✅
 
 **File**: `evals/fixtures/buggy-auth-ts/tests/auth.test.ts`
 
-- [ ] Add `describe('refreshToken', ...)` block with 4 tests:
+- [x] Add `describe('refreshToken', ...)` block with 4 tests:
   - Token refresh after valid login
   - Refresh with no token (no login)
   - Refresh with expired token
   - Token expiry update on refresh
-- [ ] Ensure tests align with eval fixture's intentional bug patterns (TOCTOU race is by design)
+- [x] Ensure tests align with eval fixture's intentional bug patterns (TOCTOU race is by design)
 
 **Acceptance Criteria**:
 - `refreshToken` has test coverage for all documented paths

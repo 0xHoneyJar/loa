@@ -16,6 +16,7 @@ import {
   mkdirSync,
   readFileSync,
   renameSync,
+  statSync,
   writeFileSync,
   fdatasyncSync,
   openSync,
@@ -175,7 +176,7 @@ export class AuditLogger {
       }
 
       this.previousHash = hash;
-      this.currentSize += line.length;
+      this.currentSize += Buffer.byteLength(line, "utf-8");
     } catch (err: unknown) {
       const error = err as NodeJS.ErrnoException;
       if (error.code === "ENOSPC") {
@@ -315,14 +316,12 @@ export class AuditLogger {
     }
 
     // Restore chain state from last valid entry
-    this.currentSize = 0;
     if (validLines.length > 0) {
       const lastEntry: AuditEntry = JSON.parse(validLines[validLines.length - 1]);
       this.previousHash = lastEntry.hash;
-      for (const line of validLines) {
-        this.currentSize += line.length + 1; // +1 for newline
-      }
     }
+    // Use statSync for accurate byte-level size (FR-4: fixes UTF-16 vs UTF-8 drift)
+    this.currentSize = existsSync(this.logPath) ? statSync(this.logPath).size : 0;
   }
 }
 

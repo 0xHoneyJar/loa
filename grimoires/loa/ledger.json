@@ -216,7 +216,7 @@
           "local_id": "sprint-3",
           "global_id": "sprint-21",
           "label": "Audit Integrity + State Verification + Eval Coverage",
-          "status": "pending"
+          "status": "completed"
         }
       ]
     }
