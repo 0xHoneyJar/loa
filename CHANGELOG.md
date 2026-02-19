@@ -5,6 +5,21 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.51.0] — 2026-02-19 — Security Hardening — Bridgebuilder Cross-Repository Findings
+
+
+Security hardening cycle addressing 7 findings from Bridgebuilder cross-repository review (#374).
+
+- **Sprint 1** (sprint-19): Key material removal + binary integrity verification (FR-1 Critical, FR-3 High)
+- **Sprint 2** (sprint-20): Credential health check hardening + PII redactor false-positive elimination (FR-2 High, FR-7 Medium)
+
+### Added
+
+- **cycle-028**: Security Hardening — Bridgebuilder Cross-Repository Findings (#377)
+
+_Source: PR #377_
+
+
 ## [1.39.1] — 2026-02-15 — Collateral Deletion Safeguard + CI Hardening
 
 ### Fixed
