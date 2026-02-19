@@ -31,6 +31,8 @@ This skill operates under **Managed Scaffolding**:
 | `src/`, `lib/`, `app/` | Read-only | App zone - requires user confirmation |
 
 **NEVER** suggest modifications to `.claude/`. Direct users to `.claude/overrides/` or `.loa.config.yaml`.
+
+Agents MAY proactively run read-only CLI tools (e.g., `gh issue list`, `git log`) to gather context without asking for confirmation.
 </zone_constraints>
 
 <integrity_precheck>
@@ -370,3 +372,55 @@ When making architectural choices:
 - Use diagrams or structured text to illustrate complex concepts
 - Provide concrete examples and sample code where helpful
 </communication_style>
+
+<post_completion>
+## Post-Completion Debrief
+
+After saving the SDD to `grimoires/loa/sdd.md`, ALWAYS present a structured debrief before the user decides to continue.
+
+### Debrief Structure
+
+Present the following in this exact order:
+
+1. **Confirmation**: "✓ SDD saved to grimoires/loa/sdd.md"
+
+2. **Key Decisions** (3-5 items): The most impactful architectural choices. Each decision should be one line: "• {choice made} (not {alternative rejected})"
+
+3. **Assumptions** (1-3 items): Things assumed true but not explicitly confirmed by the user. Each assumption should be falsifiable: "• {assumption} — if wrong, {consequence}"
+
+4. **Biggest Tradeoff** (1 item): The most consequential either/or decision. Format: "• Chose {A} over {B} — {reason}. Risk: {what could go wrong}"
+
+5. **Steer Prompt**: Use AskUserQuestion:
+
+```yaml
+question: "Anything to steer before sprint planning?"
+header: "Review"
+options:
+  - label: "Continue (Recommended)"
+    description: "Create the sprint plan now"
+  - label: "Adjust"
+    description: "Tell me what to change — I'll regenerate the SDD"
+  - label: "Stop here"
+    description: "Save progress — resume with /plan next time. Not what you expected? /feedback helps us fix it."
+multiSelect: false
+```
+
+### "Adjust" Flow
+
+When the user selects "Adjust":
+
+1. **Prompt**: "What would you like to change?" (free-text via AskUserQuestion "Other")
+2. **Scope**: Regenerate the SDD ONLY (not rerun the entire architecture phase)
+3. **Context preserved**: All prior interview answers, PRD, and design decisions are retained
+4. **Output**: After regeneration, re-present the debrief with updated decisions/assumptions/tradeoffs
+5. **Diff awareness**: If changes are small, note what changed: "Updated: {decision that changed}"
+6. **Loop limit**: Max 3 adjustment rounds before suggesting "Continue" more firmly
+
+### Constraints
+
+- Keep decisions to 3-5 items — not an exhaustive list
+- Each item is ONE line — no paragraphs
+- "Continue" is always the first option (recommended)
+- "Stop here" always includes /feedback mention
+- If Flatline will run next, add a one-line banner BEFORE the steer prompt: "Next: Multi-model review (~30 seconds)"
+</post_completion>

@@ -1,4 +1,4 @@
-# SDD: UX Redesign — Vercel-Grade Developer Experience (Phase 1)
+# SDD: UX Redesign — Vercel-Grade Developer Experience
 
 > Cycle: cycle-030 | Author: soju + Claude
 > Source PRD: `grimoires/loa/prd.md` (#380-#390)
@@ -8,9 +8,9 @@
 
 ## 1. Architecture Overview
 
-This cycle modifies **existing scripts and commands only** — no new architectural components. All changes are surgical fixes to the installation flow, dependency management, and command entry points.
+This cycle modifies **existing scripts, commands, and SKILL.md prompt files only** — no new architectural components, no new scripts, no config schema changes.
 
-### Modified Components
+### Phase 1 — Modified Components (COMPLETED)
 
 ```
 .claude/scripts/mount-loa.sh          ← FR-1 (bug fixes) + FR-3 (auto-install) + FR-4 (post-mount msg)
@@ -20,432 +20,574 @@ This cycle modifies **existing scripts and commands only** — no new architectu
 .claude/commands/loa.md               ← FR-6 (/feedback at tension points)
 ```
 
+### Phase 2 — Modified Components (NEW)
+
+```
+.claude/skills/discovering-requirements/SKILL.md  ← FR-7 (post_completion) + FR-11 (CLI permissions)
+.claude/skills/designing-architecture/SKILL.md    ← FR-7 (post_completion) + FR-11 (CLI permissions)
+.claude/skills/planning-sprints/SKILL.md          ← FR-7 (post_completion) + FR-9 (time calibration) + FR-11 (CLI permissions)
+.claude/skills/implementing-tasks/SKILL.md        ← FR-11 (zone table fix + CLI proactive-use)
+.claude/commands/plan.md                          ← FR-8 (free-text-first entry)
+```
+
 ### Unchanged Components
 
-- All SKILL.md files (deferred to cycle-031)
 - `.loa.config.yaml` schema
 - Beads, hooks, guardrails, Flatline
-- Three-zone model, constraint system
+- Three-zone model enforcement (hooks still enforce)
+- All scripts (no new scripts added)
 
 ---
 
-## 2. Detailed Design
+## 2. Phase 1 Detailed Design (COMPLETED)
 
-### 2.1 FR-1: Fix Wrong Install Hints
+Phase 1 designs were implemented in sprint-25 and sprint-26. See git history for `ca25a13..d5ded9c`. Summary:
 
-#### 2.1.1 Beads Repo URL (#380)
-
-**File**: `mount-loa.sh:326-349` (`install_beads()` function)
-
-**Current**:
-```bash
-local installer_url="https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh"
-```
-
-**Change**: Replace entire `install_beads()` function to delegate to `install-br.sh`:
-
-```bash
-install_beads() {
-  if [[ "$SKIP_BEADS" == "true" ]]; then
-    log "Skipping Beads installation (--skip-beads)"
-    return 0
-  fi
-
-  if command -v br &> /dev/null; then
-    local version=$(br --version 2>/dev/null || echo "unknown")
-    log "Beads CLI already installed: $version"
-    return 0
-  fi
-
-  local br_installer=".claude/scripts/beads/install-br.sh"
-  if [[ -x "$br_installer" ]]; then
-    step "Installing Beads CLI..."
-    if "$br_installer"; then
-      log "Beads CLI installed"
-    else
-      warn "Beads CLI installation failed (optional - /run mode requires it)"
-    fi
-  else
-    warn "Beads installer not found - skipping (optional)"
-  fi
-}
-```
-
-**Rationale**: `install-br.sh` already has correct logic (tries `cargo install beads_rust` from crates.io, then GitHub fallback at `Dicklesworthstone/beads_rust`). Delegating eliminates the wrong URL and centralizes install logic.
-
-#### 2.1.2 yq Install Suggestion (#381)
-
-**File**: `mount-loa.sh:321`
-
-**Current**:
-```bash
-command -v yq >/dev/null || err "yq is required (brew install yq / pip install yq)"
-```
-
-**Change**:
-```bash
-command -v yq >/dev/null || err "yq v4+ is required. Install: brew install yq (macOS) or see https://github.com/mikefarah/yq#install (Linux). WARNING: Do NOT use pip install yq — that is a different, incompatible tool."
-```
-
-#### 2.1.3 flock Hint (#382)
-
-**File**: `loa-doctor.sh:189`
-
-**Current**:
-```bash
-_doctor_add_suggestion "Install flock: brew install util-linux (macOS)"
-```
-
-**Change**:
-```bash
-_doctor_add_suggestion "Install flock: brew install flock (macOS) or apt install util-linux (Linux)"
-```
+| FR | What Changed | Files |
+|----|-------------|-------|
+| FR-1 | Fixed beads URL, yq hint, flock hint | mount-loa.sh, loa-doctor.sh |
+| FR-2 | Fixed "What does Loa add?" fall-through, archetype truncation | plan.md |
+| FR-3 | Added `auto_install_deps()` with OS detection | mount-loa.sh |
+| FR-4 | Single "Next: /plan" post-mount message | mount-loa.sh |
+| FR-5 | Added auto-fix step to /loa setup | loa-setup.md |
+| FR-6 | /feedback in first-time /loa + help output | loa.md |
 
 ---
 
-### 2.2 FR-2: Fix /plan Entry Flow Bugs
+## 3. Phase 2 Detailed Design (NEW)
 
-#### 2.2.1 "What does Loa add?" Fall-Through (#383)
+### 3.1 FR-7: Post-Completion Debrief
 
-**File**: `plan.md:55-95`
+Add a `<post_completion>` XML section to the end of each planning phase SKILL.md. All three follow the same template with phase-appropriate wording.
 
-**Current** (line 95):
-```
-Then continue to archetype selection. This step never blocks — it's informational only.
-```
+#### 3.1.1 Template (shared across all 3 skills)
 
-**Change**: Replace line 95 with:
+```xml
+<post_completion>
+## Post-Completion Debrief
 
-```
-After displaying the information, present a follow-up confirmation:
+After saving the artifact, ALWAYS present a structured debrief before the user decides to continue.
+
+### Debrief Structure
+
+Present the following in this exact order:
+
+1. **Confirmation**: "✓ {artifact} saved to {path}"
+
+2. **Key Decisions** (3-5 items): The most impactful choices made during this phase. Each decision should be one line: "• {choice made} (not {alternative rejected})"
+
+3. **Assumptions** (1-3 items): Things assumed true but not explicitly confirmed by the user. Each assumption should be falsifiable: "• {assumption} — if wrong, {consequence}"
+
+4. **Biggest Tradeoff** (1 item): The most consequential either/or decision. Format: "• Chose {A} over {B} — {reason}. Risk: {what could go wrong}"
+
+5. **Steer Prompt**: Use AskUserQuestion:
 
 ```yaml
-question: "Ready to start planning?"
-header: "Continue"
+question: "Anything to steer before {next_phase}?"
+header: "Review"
 options:
-  - label: "Let's go!"
-    description: "Start the planning process now"
-  - label: "Not yet"
-    description: "Exit — come back when ready"
+  - label: "Continue (Recommended)"
+    description: "{next_action_description}"
+  - label: "Adjust"
+    description: "Tell me what to change — I'll regenerate"
+  - label: "Stop here"
+    description: "Save progress — resume with /plan next time. Not what you expected? /feedback helps us fix it."
 multiSelect: false
 ```
 
-If user selects "Not yet", end the command with: "No problem. Run /plan when you're ready."
+### Constraints
+
+- Keep decisions to 3-5 items — not an exhaustive list
+- Each item is ONE line — no paragraphs
+- "Continue" is always the first option (recommended)
+- "Stop here" always includes /feedback mention (FR-10 tension point)
+- If Flatline will run next, add a one-line banner BEFORE the steer prompt: "Next: Multi-model review (~30 seconds)"
+
+### "Adjust" Flow (Flatline IMP-009)
+
+When the user selects "Adjust":
+
+1. **Prompt**: "What would you like to change?" (free-text via AskUserQuestion "Other")
+2. **Scope**: Regenerate the current artifact ONLY (not rerun the entire phase)
+3. **Context preserved**: All prior interview answers, context files, and phase state are retained
+4. **Output**: After regeneration, re-present the debrief with updated decisions/assumptions/tradeoffs
+5. **Diff awareness**: If changes are small, note what changed: "Updated: {decision that changed}"
+6. **Loop limit**: Max 3 adjustment rounds before suggesting "Continue" more firmly
+
+</post_completion>
 ```
 
-#### 2.2.2 Archetype Truncation (#384)
+#### 3.1.2 discovering-requirements/SKILL.md
 
-**File**: `plan.md:97-137`
+**Insert after**: The closing `</visual_communication>` tag (last XML section in file)
 
-**Current** (line 121):
-```
-# AskUserQuestion supports max 4 options, so use the first 4 files found
-```
+**Phase-specific values**:
+- `{artifact}`: "PRD"
+- `{path}`: "grimoires/loa/prd.md"
+- `{next_phase}`: "architecture"
+- `{next_action_description}`: "Design the system architecture now"
 
-**Change**: Replace the archetype selection approach. Instead of showing 4 archetypes as options, use 3 archetypes + make room for the "Other" auto-appended option:
+#### 3.1.3 designing-architecture/SKILL.md
 
-```
-Build AskUserQuestion options from discovered archetype files. Since AskUserQuestion has a maximum of 4 options (plus auto-appended "Other"), select the 3 most common archetypes:
+**Insert after**: The closing `</communication_style>` tag (last XML section in file)
 
-1. Read all `.claude/data/archetypes/*.yaml` files
-2. Sort by a `priority` field if present, otherwise alphabetically
-3. Take the first 3 files as options
-4. The 4th slot is reserved — leave it empty so "Other" (auto-appended) is the 4th visible option
+**Phase-specific values**:
+- `{artifact}`: "SDD"
+- `{path}`: "grimoires/loa/sdd.md"
+- `{next_phase}`: "sprint planning"
+- `{next_action_description}`: "Create the sprint plan now"
 
-If more than 3 archetypes exist, add a note in the 3rd option's description: "More archetypes available — select Other to describe your project."
-```
+#### 3.1.4 planning-sprints/SKILL.md
 
-**Note**: This is a stopgap. Cycle-031 replaces archetype selection entirely with free-text-first flow (issue #386).
+**Insert after**: The closing `</visual_communication>` tag (last XML section in file)
+
+**Phase-specific values**:
+- `{artifact}`: "Sprint Plan"
+- `{path}`: "grimoires/loa/sprint.md"
+- `{next_phase}`: "implementation"
+- `{next_action_description}`: "Start building with /build"
+
+**Additional note for sprint**: The steer prompt's "Continue" label should say "Start building" instead of "Continue" since this is the final planning phase.
 
 ---
 
-### 2.3 FR-3: Auto-Installing Setup
+### 3.2 FR-8: Free-Text-First /plan Entry
 
-**File**: `mount-loa.sh` — new function `auto_install_deps()` inserted between `preflight()` and `setup_remote()`
+Replace the archetype-selection flow in `plan.md` with a free-text-first flow. This is the most significant change in Phase 2.
 
-#### Function Design
+#### 3.2.1 Current Flow (plan.md:55-170)
 
-```bash
-auto_install_deps() {
-  if [[ "$NO_AUTO_INSTALL" == "true" ]]; then
-    log "Auto-install disabled (--no-auto-install)"
-    return 0
-  fi
+```
+Lines 55-109:  Use-case qualification gate
+  - First-time check (no PRD, no completed cycles)
+  - AskUserQuestion: "Let's go!" vs "What does Loa add?"
+  - If "What does Loa add?": show info block, then re-ask
 
-  local os_type
-  os_type=$(detect_os)  # "macos" | "linux-apt" | "linux-yum" | "unknown"
+Lines 111-158: Archetype selection
+  - Discover .claude/data/archetypes/*.yaml
+  - Present top 3 as AskUserQuestion options
+  - Seed NOTES.md with archetype risks
+  - Write archetype context to grimoires/loa/context/archetype.md
 
-  # --- jq ---
-  if ! command -v jq &>/dev/null; then
-    step "Installing jq..."
-    case "$os_type" in
-      macos)
-        if command -v brew &>/dev/null; then
-          brew install jq && log "✓ jq installed" || warn "jq auto-install failed. Manual: brew install jq"
-        else
-          warn "jq not found. Install Homebrew first (https://brew.sh) then: brew install jq"
-        fi
-        ;;
-      linux-apt)
-        sudo apt-get install -y jq && log "✓ jq installed" || warn "jq auto-install failed. Manual: sudo apt install jq"
-        ;;
-      linux-yum)
-        sudo yum install -y jq && log "✓ jq installed" || warn "jq auto-install failed. Manual: sudo yum install jq"
-        ;;
-      *)
-        warn "Unknown OS. Install jq manually: https://jqlang.github.io/jq/download/"
-        ;;
-    esac
-  else
-    log "✓ jq found ($(jq --version 2>/dev/null || echo 'unknown'))"
-  fi
-
-  # --- yq (mikefarah) ---
-  if ! command -v yq &>/dev/null; then
-    step "Installing yq (mikefarah)..."
-    case "$os_type" in
-      macos)
-        if command -v brew &>/dev/null; then
-          brew install yq && log "✓ yq installed" || warn "yq auto-install failed. Manual: brew install yq"
-        else
-          warn "yq not found. Install: brew install yq (requires Homebrew)"
-        fi
-        ;;
-      linux-apt|linux-yum)
-        # Direct binary download for Linux
-        local yq_version="v4.40.5"
-        local yq_arch
-        case "$(uname -m)" in
-          x86_64) yq_arch="amd64" ;;
-          aarch64|arm64) yq_arch="arm64" ;;
-          *) warn "Unknown arch for yq download"; return 0 ;;
-        esac
-        local yq_url="https://github.com/mikefarah/yq/releases/download/${yq_version}/yq_linux_${yq_arch}"
-        if curl -fsSL "$yq_url" -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq; then
-          log "✓ yq installed (${yq_version})"
-        else
-          warn "yq auto-install failed. Manual: https://github.com/mikefarah/yq#install"
-        fi
-        ;;
-      *)
-        warn "Unknown OS. Install yq manually: https://github.com/mikefarah/yq#install"
-        ;;
-    esac
-  else
-    # Verify it's mikefarah/yq, not kislyuk/yq
-    if yq --version 2>/dev/null | grep -qi "mikefarah"; then
-      log "✓ yq found (mikefarah $(yq --version 2>/dev/null))"
-    else
-      warn "Wrong yq detected (likely Python kislyuk/yq). Loa requires mikefarah/yq v4+."
-      warn "Install correct version: brew install yq (macOS) or https://github.com/mikefarah/yq#install"
-    fi
-  fi
-}
+Lines 160-169: Route to truename skill
 ```
 
-#### OS Detection Helper
-
-```bash
-detect_os() {
-  case "$(uname -s)" in
-    Darwin) echo "macos" ;;
-    Linux)
-      if command -v apt-get &>/dev/null; then
-        echo "linux-apt"
-      elif command -v yum &>/dev/null; then
-        echo "linux-yum"
-      else
-        echo "unknown"
-      fi
-      ;;
-    *) echo "unknown" ;;
-  esac
-}
-```
-
-#### Integration into Main Flow
-
-Current `preflight()` (lines 319-321) hard-errors on missing deps:
-```bash
-command -v jq >/dev/null || err "jq is required ..."
-command -v yq >/dev/null || err "yq is required ..."
-```
-
-**Change**: Replace these lines with a call to `auto_install_deps()`, then re-check:
-
-```bash
-# Auto-install missing dependencies
-auto_install_deps
-
-# Verify all required deps are now present
-command -v git >/dev/null || err "git is required"
-command -v jq >/dev/null || err "jq is required. Auto-install failed. Manual: brew install jq (macOS) or apt install jq (Linux)"
-command -v yq >/dev/null || err "yq v4+ is required. Auto-install failed. Manual: brew install yq (macOS) or https://github.com/mikefarah/yq#install"
-```
-
-#### New CLI Flag
-
-```bash
-# Add to argument parsing (near line 250)
---no-auto-install)
-  NO_AUTO_INSTALL=true
-  shift
-  ;;
-```
-
----
-
-### 2.4 FR-4: Post-Mount Golden Path Message
-
-**File**: `mount-loa.sh:1418-1446`
-
-**Current** (lines 1429-1433, 1442-1446):
-```bash
-info "  1. Run 'claude' to start Claude Code"
-info "  2. Run '/loa setup' to check dependencies"
-info "  3. Start planning with '/plan'"
-...
-log "  1. Start Claude Code:  claude"
-log "  2. Run setup wizard:   /loa setup"
-log "  3. Start planning:     /plan"
-```
-
-**Change**: Consolidate into single clear message:
-
-```bash
-echo ""
-log "✓ Loa mounted successfully."
-echo ""
-log "  Next: Start Claude Code and type /plan"
-echo ""
-```
-
-Remove the duplicate banner. Remove `/loa setup` from the happy path (it runs automatically if needed inside Claude Code). Single instruction.
-
----
-
-### 2.5 FR-5: `/loa setup` Auto-Fix
-
-**File**: `loa-setup.md`
-
-Insert new Step 2.5 between Step 2 (Display Results) and Step 3 (Interactive Configuration):
+#### 3.2.2 New Flow (replacement for lines 55-158)
 
 ```markdown
-### Step 2.5: Offer to Fix Missing Dependencies (NEW)
+### 3. First-Time Preamble (One-Time)
 
-If any required dependency has status `fail`:
+**Condition**: No PRD exists AND no completed cycles in ledger AND no `--from` override.
 
-1. Collect all failed dependencies into a list
-2. Present via AskUserQuestion:
+Display a brief, non-interactive preamble (3 lines max):
+
+```
+Loa guides you through structured planning: requirements → architecture → sprints.
+Multi-model review catches issues that single-model misses.
+Cross-session memory means you never start from scratch.
+```
+
+This displays ONCE. No AskUserQuestion. No gate. No "What does Loa add?" choice.
+The preamble is followed immediately by the free-text prompt.
+
+### 4. Free-Text Project Description
+
+**Condition**: Phase is "discovery" (no existing PRD).
+
+Present a free-text prompt via AskUserQuestion:
 
 ```yaml
-question: "Fix missing dependencies?"
-header: "Auto-fix"
+question: "Tell me about your project. What are you building, who is it for, and what problem does it solve?"
+header: "Your project"
 options:
-  - label: "Yes, install now (Recommended)"
-    description: "Install {list of missing deps} automatically"
-  - label: "Skip"
-    description: "I'll install manually later"
+  - label: "Describe my project"
+    description: "Type your project description in the text box below (select Other)"
+  - label: "I have context files ready"
+    description: "Skip to /plan-and-analyze — I've already put docs in grimoires/loa/context/"
 multiSelect: false
 ```
 
-3. If user selects "Yes":
-   - For each missing dep, run the appropriate install command via Bash tool:
-     - jq: `brew install jq` (macOS) or `sudo apt install jq` (Linux)
-     - yq: `brew install yq` (macOS) or download mikefarah binary (Linux)
-     - beads: Run `.claude/scripts/beads/install-br.sh`
-   - Show progress for each: "Installing jq... ✓"
-   - Re-run `loa-setup-check.sh` after to verify fixes
+**Note**: The real input comes via the "Other" free-text option (auto-appended by AskUserQuestion). The first option's description guides users to use it.
 
-4. If user selects "Skip", continue to Step 3.
+### 5. Process Free-Text Input
+
+When the user provides a description (via "Other" or "Describe my project"):
+
+**Input validation** (Flatline IMP-002):
+- If empty or <10 characters: reprompt with "Could you tell me more? A sentence or two about what you're building helps me plan better."
+- If <30 characters: accept but log a note that context is thin — Phase 0 interview will compensate
+- No entropy check needed — even "todo app" is valid input
+
+1. **Save description** to `grimoires/loa/context/user-description.md`:
+   ```markdown
+   # Project Description (from /plan)
+   > Auto-generated from user's initial project description.
+
+   {user's free-text input}
+   ```
+
+2. **Infer archetype** using the LLM (not keyword matching — Flatline SKP-003):
+   - Read all archetype YAML files from `.claude/data/archetypes/*.yaml`
+   - Present the list of archetype names + descriptions to the LLM along with the user's description
+   - Ask the LLM to classify: "Which archetype best matches this project? Reply with the filename or 'none'."
+   - If match found: silently load `context.risks` into `grimoires/loa/NOTES.md` under `## Known Risks`
+   - If multiple matches: merge risk checklists from all matching archetypes (Flatline IMP-003)
+   - If no match or low confidence: skip risk seeding (no error, no prompt)
+   - **Never show the archetype to the user** — it's internal scaffolding only
+   - Log the inferred archetype to `grimoires/loa/context/archetype-inference.md` for traceability
+
+3. **Route to** `/plan-and-analyze` — the description in context/ will be picked up by Phase 0 synthesis.
+
+When the user selects "I have context files ready":
+- Skip to `/plan-and-analyze` directly (current behavior for context-rich users).
+```
+
+#### 3.2.3 What Gets Removed
+
+| Lines | Content | Disposition |
+|-------|---------|-------------|
+| 55-109 | Use-case qualification gate | **Removed**. Preamble replaces it (non-interactive) |
+| 111-158 | Archetype selection UI | **Removed**. Archetype inferred silently from description |
+
+#### 3.2.4 What Stays Unchanged
+
+| Lines | Content | Why |
+|-------|---------|-----|
+| 1-53 | Header, state detection, `--from` handling | No changes needed |
+| 160-169 | Route to truename skill | Same routing table |
+| 170-264 | Phase chaining, arguments, examples | Examples updated to reflect new flow |
+
+#### 3.2.5 Updated Examples (replace lines 206-264)
+
+```markdown
+## Examples
+
+### Fresh Project
+```
+/plan
+
+Loa guides you through structured planning: requirements → architecture → sprints.
+Multi-model review catches issues that single-model misses.
+Cross-session memory means you never start from scratch.
+
+Tell me about your project. What are you building, who is it for,
+and what problem does it solve?
+
+> I'm building a data measurement platform for AI teams. It tracks
+> model performance, experiment lineage, and team velocity...
+
+✓ Saved description to grimoires/loa/context/user-description.md
+→ Running /plan-and-analyze
+
+[... plan-and-analyze Phase 0 synthesizes description ...]
+```
+
+### With Inline Context
+```
+/plan Build a REST API for user management with JWT auth and rate limiting
+
+✓ Saved description to grimoires/loa/context/user-description.md
+→ Running /plan-and-analyze with context
+```
+
+### Resume Mid-Planning
+```
+/plan
+
+Detecting planning state...
+  PRD: ✓ exists
+  SDD: not found
+
+Resuming from: Architecture Design
+→ Running /architect
+```
 ```
 
 ---
 
-### 2.6 FR-6: `/feedback` at Tension Points
+### 3.3 FR-9: Sprint Time Calibration
 
-**File**: `loa.md`
+Replace all 7 occurrences of "2.5 days" in `planning-sprints/SKILL.md` with scope-based sizing.
 
-#### Change 1: First-time `/loa` (initial state)
+#### 3.3.1 Replacement Table
 
-In the initial state output (when no PRD exists, no completed cycles), add to the navigation menu:
+All 7 occurrences of "2.5 days" or "2.5-day" in `planning-sprints/SKILL.md`. Use text search — do not rely on line numbers (Flatline SKP-004).
 
+| Search String | Replacement |
+|--------------|-------------|
+| "actionable sprint plan with 2.5-day sprints" (appears 2x: in `<objective>` and `<kernel_framework>`) | "actionable sprint plan with right-sized sprints" |
+| "DO NOT plan more than 2.5 days of work per sprint" (in sprint sizing guidance) | "DO NOT plan more than 10 tasks per sprint. Size sprints as SMALL (1-3 tasks), MEDIUM (4-6 tasks), or LARGE (7-10 tasks)" |
+| "Duration: 2.5 days with specific dates" (in per-sprint output section) | "Scope: SMALL / MEDIUM / LARGE (based on task count)" |
+| "Each sprint is feasible within 2.5 days" (appears 2x: in `<success_criteria>` sections) | "Each sprint is feasible as a single iteration" |
+| "Duration (2.5 days) with dates" (in `<output_format>`) | "Scope (SMALL/MEDIUM/LARGE) with task count" |
+
+#### 3.3.2 Sprint Output Format Change
+
+Current sprint template output (L410-420 area):
 ```
-Something unexpected? /feedback reports it directly.
+## Sprint N: {Title}
+Duration: 2.5 days
+Start: YYYY-MM-DD
+End: YYYY-MM-DD
 ```
 
-Add this as the last line before the "Next: /plan" instruction.
-
-#### Change 2: Add `/feedback` to `/loa --help`
-
-In the help output section, add `/feedback` to the visible command list (not just `--help-full`):
-
+New sprint template output:
 ```
-/feedback    Report issues or suggestions
+## Sprint N: {Title}
+Scope: {SMALL | MEDIUM | LARGE} ({N} tasks)
 ```
+
+No calendar dates. If the user needs time framing, the agent can add: "Estimated AI execution: ~1-2 hours" — but this is discretionary, not template-driven.
 
 ---
 
-## 3. Data Model
+### 3.4 FR-10: Tension-Driven /feedback Visibility
 
-No data model changes. All modifications are to scripts and command files.
+/feedback surfaces at 4 moments of friction only.
+
+#### 3.4.1 Tension Point 1: Post-Completion "Stop here" (via FR-7)
+
+Already integrated into the `<post_completion>` template (Section 3.1). The "Stop here" option description includes:
+```
+"Save progress — resume with /plan next time. Not what you expected? /feedback helps us fix it."
+```
+
+No additional file changes needed — FR-7 handles this.
+
+#### 3.4.2 Tension Point 2: /loa doctor warnings
+
+**File**: `loa.md` (already modified in Phase 1 to mention /feedback in initial state)
+
+Add to the health check / doctor output section. When health warnings are shown, append:
+```
+Something broken? /feedback reports it directly.
+```
+
+**Note**: Phase 1 already added /feedback to the first-time /loa initial state. This adds it to the doctor/health path specifically.
+
+#### 3.4.3 Tension Point 3: Flatline HIGH_CONSENSUS
+
+**File**: Flatline result presentation (handled by flatline-result-handler.sh or the reviewing skill)
+
+After auto-integrating HIGH_CONSENSUS findings, add:
+```
+Multi-model review working as designed. /feedback if you disagree.
+```
+
+This is a minor text addition to the Flatline result display logic. Implementation will locate the exact presentation point during the sprint.
+
+#### 3.4.4 Tension Point 4: First-time /loa
+
+Already implemented in Phase 1 (FR-6). No additional changes.
 
 ---
 
-## 4. Testing Strategy
+### 3.5 FR-11: Tool Hesitancy Fix
 
-### Unit Tests (Bash)
+Three changes to reduce agent over-caution.
+
+#### 3.5.1 Fix App Zone Permission (implementing-tasks/SKILL.md)
+
+Locate the `<zone_constraints>` section. Find the row containing `src/`, `lib/`, `app/` in the zone table.
+
+**Current**:
+```
+| `src/`, `lib/`, `app/` | Read-only | App zone - requires user confirmation |
+```
+
+**Change to**:
+```
+| `src/`, `lib/`, `app/` | Read/Write | App zone - implementation target |
+```
+
+**Rationale**: The implementing-tasks skill already writes code files freely via the Write tool. The zone table saying "Read-only" is vestigial and causes agent hesitancy. The hook enforcement (team-role-guard-write.sh) is the real guard — the zone table should reflect actual permissions.
+
+#### 3.5.2 Add CLI Proactive-Use Guidance (implementing-tasks/SKILL.md)
+
+Insert after the closing `</zone_constraints>` tag:
+
+```xml
+<cli_tool_permissions>
+## CLI Tool Usage
+
+Agents SHOULD proactively run CLI tools from the approved allowlist without asking (Flatline SKP-002):
+
+### Approved Read-Only Allowlist
+
+| Tool | Allowed Commands | Notes |
+|------|-----------------|-------|
+| `git` | `status`, `log`, `diff`, `branch`, `show` | Local only, no network |
+| `gh` | `issue list`, `issue view`, `pr list`, `pr view`, `pr checks` | Use `--json` + field filtering to avoid leaking secrets from PR bodies |
+| `npm`/`bun` | `test`, `run lint`, `run typecheck` | Build/check commands |
+| `cargo` | `check`, `test`, `clippy` | Build/check commands |
+
+### Require Confirmation
+
+| Operation Type | Examples |
+|---------------|----------|
+| Network writes | `git push`, `gh pr create`, `gh issue create` |
+| Deployments | `railway deploy`, `vercel deploy` |
+| Package mutations | `npm install`, `cargo add` |
+| Cloud CLIs | `aws`, `gcloud`, `az` (any operation) |
+| Destructive | `rm`, `git reset`, `git checkout -- .` |
+
+### Safety Rules
+
+- Use `--json` output and filter fields when available to avoid printing secrets
+- Never pipe CLI output to files without user confirmation
+- If a CLI command requires authentication and fails, report the error — do not retry or prompt for credentials
+</cli_tool_permissions>
+```
+
+#### 3.5.3 Add CLI Read-Only Permissions to Planning Skills
+
+Add a shorter version to the zone tables of the 3 planning SKILL.md files.
+
+**discovering-requirements/SKILL.md** — locate the zone_constraints section and append:
+
+```
+Agents MAY proactively run read-only CLI tools (e.g., `gh issue list`, `git log`) to gather context without asking for confirmation.
+```
+
+**designing-architecture/SKILL.md** — same addition to zone_constraints.
+
+**planning-sprints/SKILL.md** — same addition to zone_constraints.
+
+---
+
+## 4. Data Model
+
+No data model changes. One new file created during runtime:
+- `grimoires/loa/context/user-description.md` — auto-generated from free-text input in `/plan`
+
+---
+
+## 5. Testing Strategy
+
+### Automated Smoke Tests (Flatline IMP-001)
+
+These tests can be run as a post-implementation verification script:
+
+```bash
+#!/usr/bin/env bash
+# test-ux-phase2.sh — Automated smoke tests for Phase 2 changes
+set -euo pipefail
+errors=0
+
+# FR-7: Post-completion sections exist
+for skill in discovering-requirements designing-architecture planning-sprints; do
+  if ! grep -q '<post_completion>' ".claude/skills/$skill/SKILL.md"; then
+    echo "FAIL: $skill/SKILL.md missing <post_completion> section"
+    ((errors+=1))
+  fi
+done
+
+# FR-8: No archetype selection UI in plan.md
+if grep -qi 'archetype.*selection\|select.*archetype' .claude/commands/plan.md; then
+  echo "FAIL: plan.md still contains archetype selection UI"
+  ((errors+=1))
+fi
+
+# FR-8: Free-text prompt exists
+if ! grep -qi 'describe.*project\|tell me about' .claude/commands/plan.md; then
+  echo "FAIL: plan.md missing free-text project description prompt"
+  ((errors+=1))
+fi
+
+# FR-9: No "2.5 days" anywhere in sprint planning
+if grep -q '2\.5.day' ".claude/skills/planning-sprints/SKILL.md"; then
+  echo "FAIL: planning-sprints/SKILL.md still contains '2.5 days'"
+  ((errors+=1))
+fi
+
+# FR-9: Scope sizing present
+if ! grep -q 'SMALL.*MEDIUM.*LARGE\|SMALL/MEDIUM/LARGE' ".claude/skills/planning-sprints/SKILL.md"; then
+  echo "FAIL: planning-sprints/SKILL.md missing scope sizing (SMALL/MEDIUM/LARGE)"
+  ((errors+=1))
+fi
+
+# FR-11: Zone table corrected
+if grep -q 'Read-only.*App zone' ".claude/skills/implementing-tasks/SKILL.md"; then
+  echo "FAIL: implementing-tasks/SKILL.md still has Read-only App zone"
+  ((errors+=1))
+fi
+
+# FR-11: CLI permissions section exists
+if ! grep -q '<cli_tool_permissions>' ".claude/skills/implementing-tasks/SKILL.md"; then
+  echo "FAIL: implementing-tasks/SKILL.md missing <cli_tool_permissions> section"
+  ((errors+=1))
+fi
+
+echo "---"
+if [ "$errors" -eq 0 ]; then
+  echo "ALL SMOKE TESTS PASSED"
+else
+  echo "$errors TESTS FAILED"
+  exit 1
+fi
+```
+
+### Phase 2 Manual Tests
 
 | Test | What | How |
 |------|------|-----|
-| `detect_os()` | Returns correct OS identifier | Mock `uname`, verify output |
-| `auto_install_deps()` jq path | Attempts brew install on macOS when jq missing | Mock `command -v`, verify brew called |
-| `auto_install_deps()` yq verification | Detects wrong yq (kislyuk) | Mock yq --version output |
-| `install_beads()` delegation | Calls install-br.sh, not old URL | Verify no reference to steveyegge |
-
-### Integration Tests
-
-| Test | What | How |
-|------|------|-----|
-| `mount-loa.sh --no-auto-install` | Preserves current error behavior | Run with missing dep, verify error message |
-| `mount-loa.sh` with all deps | Clean pass, correct post-mount message | Run in test env with all deps present |
-| `/plan` welcome flow | "What does Loa add?" has re-entry prompt | Manual: select info, verify follow-up question |
-| `/plan` archetype truncation | No silent drops | Count options presented vs files in archetypes/ |
+| Post-completion debrief fires | All 3 phase skills show debrief after save | Manual: run /plan through all phases, verify debrief appears |
+| Steer prompt works | User can Continue, Adjust, or Stop | Manual: test each option |
+| Adjust flow | Regenerates artifact, preserves context, re-debriefs | Manual: select Adjust, provide change, verify regeneration |
+| Free-text-first flow | /plan shows description prompt, not archetype list | Manual: delete PRD, run /plan, verify free-text prompt |
+| Short input reprompt | <10 char input triggers reprompt | Manual: enter "app" in /plan, verify reprompt |
+| Archetype inference | Description with "REST API" infers rest-api archetype | Check NOTES.md for risk seeding; check archetype-inference.md log |
+| Context files shortcut | "I have context files" routes to /plan-and-analyze | Manual: select option, verify routing |
+| Sprint scope sizing | No "2.5 days" in sprint output | Run /sprint-plan, verify SMALL/MEDIUM/LARGE in output |
+| CLI proactive usage | Agent runs `gh issue list` without asking | During /implement, verify agent queries GitHub directly |
+| CLI safety | Agent asks before `gh pr create` | During /implement, verify confirmation prompt |
 
 ### Manual Verification Checklist
 
-- [ ] Fresh macOS install: `curl | bash` auto-installs jq, yq
-- [ ] Post-mount message shows only `/plan` (no truenames)
-- [ ] `/loa setup` offers to install missing deps
-- [ ] `/plan` "What does Loa add?" returns to confirmation
-- [ ] All 5 archetype files accessible (or 3+Other with note)
-- [ ] `/loa` initial state mentions `/feedback`
+- [ ] Fresh /plan: preamble shown once, free-text prompt appears
+- [ ] /plan with context: "I have context files" routes correctly
+- [ ] Short description (<10 chars): reprompt fires
+- [ ] After PRD creation: debrief with decisions/assumptions/tradeoff shown
+- [ ] After SDD creation: debrief shown, "Continue" leads to sprint planning
+- [ ] After Sprint creation: debrief shown, "Start building" option
+- [ ] Sprint output uses SMALL/MEDIUM/LARGE, no "2.5 days"
+- [ ] /feedback appears in "Stop here" option description
+- [ ] No /feedback in post-mount, post-setup, or generic help
+- [ ] archetype-inference.md created after /plan with description
 
 ---
 
-## 5. Security Considerations
+## 6. Security Considerations
 
-### Auto-Install Trust Chain
+### SKILL.md Modification Safety
 
-| Dep | Install Source | Trust Level |
-|-----|--------------|-------------|
-| jq | Homebrew / apt official repos | High — package manager verified |
-| yq | Homebrew or mikefarah GitHub releases | High — verified author, checksummed releases |
-| beads_rust | crates.io / Dicklesworthstone GitHub | Medium — community package, audited by Loa team |
+All Phase 2 changes are to prompt files (.md) in the System Zone (`.claude/`). These files:
+- Are version-controlled (changes visible in PR diff)
+- Don't execute code (they guide agent behavior)
+- Don't access external systems
+- Are reviewed by Bridgebuilder in the audit phase
 
-### Risks Mitigated
+### Zone Table Permission Change Risk
 
-- **No `sudo` on macOS**: Homebrew installs to user space, no elevation needed
-- **`sudo` on Linux**: Required for apt/yum. Only runs for system packages (jq, yq), not cargo packages
-- **No arbitrary script piping**: Individual dep installs use package managers, not `curl | bash` for each dep
-- **yq verification**: After install, verify it's mikefarah/yq to prevent supply chain confusion
+Changing App zone from "Read-only" to "Read/Write" in implementing-tasks SKILL.md:
+- **Actual risk**: None — the skill already writes files; table just matches reality
+- **Guard still active**: `team-role-guard-write.sh` hook enforces System Zone protection regardless of zone table text
+- **No escalation**: Change doesn't affect discovery/architecture skills (they remain read-only for app code)
+
+### CLI Permission Scope
+
+The new `<cli_tool_permissions>` section explicitly distinguishes read vs write:
+- Read-only operations (queries, status) — agent runs freely
+- Write operations (push, deploy, install) — agent asks first
+- This matches vanilla Claude Code behavior — we're removing Loa-specific over-restriction, not adding new permissions
 
 ---
 
-## 6. Rollback Plan
+## 7. Rollback Plan
 
 All changes are to `.claude/` files (System Zone). If issues arise:
 
-1. `git checkout .claude/scripts/mount-loa.sh` — reverts to current behavior
-2. `--no-auto-install` flag provides immediate opt-out without rollback
-3. No data migrations, no state changes, no config schema changes
+1. **Per-file rollback**: `git checkout main -- .claude/skills/{skill}/SKILL.md` reverts individual skills
+2. **Full rollback**: `git checkout main -- .claude/` reverts all System Zone changes
+3. **No state changes**: No `.loa.config.yaml` modifications, no data migrations
+4. **Post-completion sections are additive**: Removing them restores pre-Phase-2 behavior (no debrief, agent proceeds silently)
