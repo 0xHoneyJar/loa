@@ -5,6 +5,17 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.50.0] — 2026-02-19 — Broader QMD Integration Across Core Skills
+
+## Run Mode: Sprint Plan Complete
+
+### Added
+
+- **cycle-027**: Broader QMD Integration Across Core Skills (#373)
+
+_Source: PR #373_
+
+
 ## [1.39.1] — 2026-02-15 — Collateral Deletion Safeguard + CI Hardening
 
 ### Fixed
