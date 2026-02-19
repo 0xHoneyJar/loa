@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "bridge_id": "bridge-20260219-7f28c4",
-  "state": "ITERATING",
+  "state": "JACKED_OUT",
   "config": {
     "depth": 3,
     "mode": "full",
@@ -12,7 +12,7 @@
   },
   "timestamps": {
     "started": "2026-02-19T00:36:51Z",
-    "last_activity": "2026-02-19T01:30:00Z"
+    "last_activity": "2026-02-19T03:15:00Z"
   },
   "iterations": [
     {
@@ -52,33 +52,33 @@
     },
     {
       "iteration": 2,
-      "state": "in_progress",
+      "state": "completed",
       "sprint_plan_source": "findings",
-      "sprints_executed": 0,
+      "sprints_executed": 2,
       "bridgebuilder": {
-        "total_findings": 0,
+        "total_findings": 6,
         "by_severity": {
           "critical": 0,
           "high": 0,
           "medium": 0,
           "low": 0,
           "vision": 0,
-          "praise": 0
+          "praise": 6
         },
         "severity_weighted_score": 0,
-        "pr_comment_url": null
+        "pr_comment_url": "https://github.com/0xHoneyJar/loa/pull/373#issuecomment-3924232577"
       },
       "enrichment": {
-        "persona_loaded": false,
-        "persona_validation": "pending",
-        "findings_format": "unknown",
+        "persona_loaded": true,
+        "persona_validation": "passed",
+        "findings_format": "json_v2",
         "field_fill_rates": {
           "faang_parallel": 0,
           "metaphor": 0,
           "teachable_moment": 0,
           "connection": 0
         },
-        "praise_count": 0,
+        "praise_count": 6,
         "insights_size_bytes": 0,
         "redactions_applied": 0
       },
@@ -88,18 +88,18 @@
   ],
   "flatline": {
     "initial_score": 14,
-    "last_score": 14,
-    "consecutive_below_threshold": 0
+    "last_score": 0,
+    "consecutive_below_threshold": 1
   },
   "metrics": {
-    "total_sprints_executed": 3,
-    "total_files_changed": 13,
-    "total_findings_addressed": 0,
+    "total_sprints_executed": 5,
+    "total_files_changed": 18,
+    "total_findings_addressed": 7,
     "total_visions_captured": 0
   },
   "finalization": {
-    "ground_truth_updated": false,
-    "rtfm_passed": false,
-    "pr_url": null
+    "ground_truth_updated": true,
+    "rtfm_passed": true,
+    "pr_url": "https://github.com/0xHoneyJar/loa/pull/373"
   }
 }

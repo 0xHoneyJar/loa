@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "findings": [
+    {
+      "id": "praise-iter2-1",
+      "title": "Per-file realpath symlink check is defense-in-depth done right",
+      "severity": "PRAISE",
+      "category": "security",
+      "file": ".claude/scripts/qmd-context-query.sh:386-391",
+      "description": "The symlink traversal fix validates every individual file returned by grep, not just the root directory. This is the correct granularity -- directory-level checks are insufficient when grep -r follows symlinks to individual files. The || continue fallback on realpath failure is the correct defensive posture for unresolvable paths.",
+      "suggestion": "No changes needed.",
+      "praise": true,
+      "faang_parallel": "Google's build system (Blaze/Bazel) validates every input file's resolved path against the workspace boundary, not just the declared package path. Same principle: trust no symlink.",
+      "teachable_moment": "Path traversal checks must operate at the granularity of the actual file access, not the configured root. Every file touched by grep must be independently validated.",
+      "weight": 0
+    },
+    {
+      "id": "praise-iter2-2",
+      "title": "Audit cycle caught regex charset gap (gate0 rejection)",
+      "severity": "PRAISE",
+      "category": "process",
+      "file": ".claude/scripts/qmd-context-query.sh:99",
+      "description": "The initial --skill validation regex ^[a-z_-]+$ would have rejected 'gate0' because it lacked digits. The auditor caught this against real-world skill names, leading to a corrective commit (4b7112c) widening to ^[a-z0-9_-]+$. This is the implement-review-audit cycle functioning exactly as designed: each gate catches what the previous gate missed.",
+      "suggestion": "No changes needed. This is a model of the review-audit handoff working correctly.",
+      "praise": true,
+      "teachable_moment": "Validation regexes must be tested against the full corpus of real-world values, not just the values the developer remembers. Auditors see the system from the outside, which is why they catch boundary conditions that developers -- who are thinking about the mechanism -- miss.",
+      "weight": 0
+    },
+    {
+      "id": "praise-iter2-3",
+      "title": "QMD_CONFIG_FILE injection enabled testability and exposed a pre-existing bug",
+      "severity": "PRAISE",
+      "category": "testing",
+      "file": ".claude/scripts/qmd-context-query.sh:26",
+      "description": "Making CONFIG_FILE injectable via QMD_CONFIG_FILE environment variable simultaneously solved two problems: (1) the disabled-config test was a no-op because it could not override the internal variable, and (2) the act of writing the real test exposed BB-425, a pre-existing bug where yq's // operator treated boolean false as falsy, silently ignoring enabled: false. The fix (removing // true and using explicit string comparison) is the correct yq/jq idiom for boolean config values.",
+      "suggestion": "No changes needed. This is a textbook example of 'making code testable reveals bugs'.",
+      "praise": true,
+      "faang_parallel": "Netflix's 'configuration testing' principle: if a config value cannot be tested, it cannot be trusted. Making configuration injectable is the first step to making it verifiable.",
+      "teachable_moment": "The yq/jq // operator is the 'alternative' operator: false // default returns default because // treats false as falsy (same as null). For boolean configs, always read the raw value and compare strings in bash. The act of writing the test to verify this is how the bug was found.",
+      "weight": 0
+    },
+    {
+      "id": "praise-iter2-4",
+      "title": "Bridge context wiring completes the QMD integration story",
+      "severity": "PRAISE",
+      "category": "architecture",
+      "file": ".claude/scripts/bridge-orchestrator.sh:360-370",
+      "description": "load_bridge_context() is now wired into the iteration loop at the correct position (step 2c, between sprint execution and Bridgebuilder review). The sprint goal extraction from grimoires/loa/sprint.md provides a semantically meaningful query. The conditional context-size log provides observability without noise. The function's internal 2>/dev/null || BRIDGE_CONTEXT='' ensures QMD failures never break the orchestration loop.",
+      "suggestion": "No changes needed.",
+      "praise": true,
+      "teachable_moment": "Dead code that implies active functionality is a documentation lie. The fix -- wiring it in with correct placement and graceful degradation -- transforms a liability into an asset.",
+      "weight": 0
+    },
+    {
+      "id": "praise-iter2-5",
+      "title": "Config documentation cross-references close the discoverability gap",
+      "severity": "PRAISE",
+      "category": "documentation",
+      "file": ".loa.config.yaml.example:1661-1683",
+      "description": "The skill_overrides section now includes inline comments mapping each key to its skill invocation and source file. A developer encountering run_bridge: in the config can immediately trace it to /run-bridge (bridge-orchestrator.sh) without reading source code. The format is consistent with the file's existing documentation style.",
+      "suggestion": "No changes needed.",
+      "praise": true,
+      "teachable_moment": "When a config key's meaning depends on a value defined in a different file, a cross-reference comment saves the next engineer from a scavenger hunt. The best documentation is the one you find before you need to search.",
+      "weight": 0
+    },
+    {
+      "id": "observation-1",
+      "title": "Precedence tests verify correctness but not precision",
+      "severity": "INFO",
+      "category": "testing",
+      "file": ".claude/scripts/qmd-context-query-tests.sh:505-558",
+      "description": "The skill-override precedence tests verify that the script produces valid JSON with different budget configurations, but do not assert on the actual budget value applied. This is because the budget affects result quantity, which depends on corpus size. A --debug flag outputting resolved configuration would enable precise assertions in future iterations.",
+      "suggestion": "Consider adding a --dry-run or --debug flag in a future iteration that outputs the resolved budget/scope/timeout values, enabling tests to assert on exact configuration resolution. Not blocking -- the current tests adequately guard against priority-chain regressions.",
+      "teachable_moment": "Testing configuration resolution is most precise when the system can report its resolved state. Observable internals (debug output, metrics) are not just for operators -- they are for tests.",
+      "weight": 0
+    }
+  ],
+  "total": 6,
+  "by_severity": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "vision": 0,
+    "praise": 5,
+    "speculation": 0
+  },
+  "severity_weighted_score": 0
+}

@@ -178,7 +178,16 @@
           "label": "Test Coverage and Documentation (Bridge Iter 2)",
           "status": "completed"
         }
-      ]
+      ],
+      "pr": 373,
+      "bridge": {
+        "id": "bridge-20260219-7f28c4",
+        "iterations": 2,
+        "findings_addressed": 7,
+        "score_trajectory": "14 → 0",
+        "tests_final": 49,
+        "flatline": true
+      }
     }
   ]
 }
