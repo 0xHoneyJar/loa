@@ -92,7 +92,21 @@ Less useful for:
   → Projects with < 1 day of work
 ```
 
-Then continue to archetype selection. This step never blocks — it's informational only.
+After displaying the information, present a follow-up confirmation via AskUserQuestion:
+
+```yaml
+question: "Ready to start planning?"
+header: "Continue"
+options:
+  - label: "Let's go!"
+    description: "Start the planning process now"
+  - label: "Not yet"
+    description: "Exit — come back when ready"
+multiSelect: false
+```
+
+If user selects "Not yet", end the command with: "No problem. Run /plan when you're ready."
+If user selects "Let's go!", continue to archetype selection.
 
 ### 4. Archetype Selection (First-Time Projects Only)
 
@@ -110,7 +124,14 @@ for f in .claude/data/archetypes/*.yaml; do
 done
 ```
 
-Build AskUserQuestion options dynamically from the discovered files. For each archetype YAML, extract `name` as the label and `description` as the option description. This ensures new archetype files added to `.claude/data/archetypes/` are automatically discovered without modifying this command file.
+Build AskUserQuestion options from discovered archetype files. Since AskUserQuestion has a maximum of 4 options (plus auto-appended "Other"), select the **first 3** archetypes to leave room for "Other" as the 4th visible option:
+
+1. Read all `.claude/data/archetypes/*.yaml` files
+2. Sort by a `priority` field if present, otherwise alphabetically
+3. Take the first 3 files as options
+4. The 4th slot is reserved — leave it empty so "Other" (auto-appended) is the 4th visible option
+
+If more than 3 archetypes exist, add a note in the 3rd option's description: "More archetypes available — select Other to describe your project."
 
 ```yaml
 question: "What type of project are you building?"
@@ -118,7 +139,7 @@ header: "Archetype"
 options:
   # Dynamically built from .claude/data/archetypes/*.yaml
   # Each file becomes one option: name → label, description → description
-  # AskUserQuestion supports max 4 options, so use the first 4 files found
+  # Max 3 archetype options so "Other" is visible as the 4th option
 multiSelect: false
 ```
 

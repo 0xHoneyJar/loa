@@ -125,6 +125,9 @@ Power user commands:
   /audit-sprint N      Security audit specific sprint
   /run sprint-plan     Autonomous mode (overnight)
 
+Ad-hoc:
+  /feedback            Report issues or suggestions
+
 Diagnostics:
   /loa doctor          System health check
   /loa doctor --json   CI-friendly health check
@@ -388,6 +391,8 @@ The `/loa` command integrates with:
   └─────────────────────────────────────────────────────┘
 
   No PRD found. Ready to start planning.
+
+  Something unexpected? /feedback reports it directly.
 
   Next: /plan
   Gather requirements and plan your project.

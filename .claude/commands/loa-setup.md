@@ -38,6 +38,38 @@ Step 4 — Configuration
 
 Use ✓ for `pass`, ⚠ for `warn`, ✗ for `fail`.
 
+### Step 2.5: Offer to Fix Missing Dependencies
+
+If any required dependency has status `fail`:
+
+1. Collect all failed dependencies into a list
+2. Present via AskUserQuestion:
+
+```yaml
+question: "Fix missing dependencies?"
+header: "Auto-fix"
+options:
+  - label: "Yes, install now (Recommended)"
+    description: "Install {list of missing deps} automatically"
+  - label: "Skip"
+    description: "I'll install manually later"
+multiSelect: false
+```
+
+3. If user selects "Yes, install now":
+   - Detect OS: macOS (brew), Linux-apt (apt), Linux-yum (yum)
+   - For each missing dep, run the appropriate install command via Bash tool:
+     - jq: `brew install jq` (macOS) or `sudo apt install jq` (Linux)
+     - yq: `brew install yq` (macOS) or download mikefarah binary (Linux)
+     - beads: Run `.claude/scripts/beads/install-br.sh`
+   - Show progress for each: "Installing jq... ✓" or "Installing jq... ✗ (manual: brew install jq)"
+   - Re-run `.claude/scripts/loa-setup-check.sh` after to verify fixes
+   - Display updated results table
+
+4. If user selects "Skip", continue to Step 3.
+
+5. If all deps already pass, skip this step entirely (no prompt shown).
+
 ### Step 3: Interactive Configuration (skip if --check)
 
 If NOT in `--check` mode, present feature toggle configuration via AskUserQuestion:
