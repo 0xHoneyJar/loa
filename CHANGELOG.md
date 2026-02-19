@@ -5,6 +5,21 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.52.0] — 2026-02-19 — Construct-Aware Constraint Yielding
+
+
+Implements construct-aware constraint yielding across Loa's three enforcement layers. Constructs with manifest `workflow` declarations can now compose the pipeline at their chosen depth — constraints yield for gates the construct marks as `skip`, while `implement: required` remains non-negotiable.
+
+**Source**: [#376](https://github.com/0xHoneyJar/loa/issues/376)
+**Cycle**: cycle-029 | **Sprints**: 3 (global 22-24)
+
+### Added
+
+- **cycle-029**: Construct-Aware Constraint Yielding (#378)
+
+_Source: PR #378_
+
+
 ## [1.39.1] — 2026-02-15 — Collateral Deletion Safeguard + CI Hardening
 
 ### Fixed
