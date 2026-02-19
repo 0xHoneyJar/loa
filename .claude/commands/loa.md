@@ -93,6 +93,12 @@ The health line shows:
 - `⚠ 2 warnings — run /loa doctor` (yellow) — non-blocking issues
 - `✗ System unhealthy — run /loa doctor` (red) — blocking issues
 
+When warnings or issues are present (yellow or red), append after the health line:
+```
+Something broken? /feedback reports it directly.
+```
+Do NOT show this line when health is clean (green).
+
 ### Journey Bar
 
 The journey bar shows position in the golden path:

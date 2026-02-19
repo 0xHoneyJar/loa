@@ -149,6 +149,11 @@ echo "  Integrated: $integrated"
 echo "  Disputed (logged): $disputed"
 echo "  Blockers (logged): $blockers"
 
+if [[ "$integrated" -gt 0 ]]; then
+  echo ""
+  echo "Multi-model review working as designed. /feedback if you disagree."
+fi
+
 # Continue workflow
 ```
 
@@ -166,6 +171,8 @@ echo "  Blockers (logged): $blockers"
      GPT: 780 | Opus: 810 | Action: Auto-integrate? [Y/n]
   ```
 - If user approves, apply the improvement to the document
+- After auto-integrating HIGH_CONSENSUS items, display: "Multi-model review working as designed. /feedback if you disagree."
+  - Only show when at least 1 HIGH_CONSENSUS item was integrated (not on empty results)
 
 **DISPUTED items** (delta >300):
 - Present via AskUserQuestion with details:
