@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "findings": [
+    {
+      "id": "high-1",
+      "title": "Dead code: load_bridge_context() defined but never called",
+      "severity": "HIGH",
+      "category": "dead-code",
+      "file": ".claude/scripts/bridge-orchestrator.sh:157-167",
+      "description": "The load_bridge_context() function sets BRIDGE_CONTEXT but is never invoked from bridge_main() or any other function. The variable BRIDGE_CONTEXT is never read. This creates a maintenance illusion where the bridge appears to inject QMD context but actually does not.",
+      "suggestion": "Either wire load_bridge_context() into the iteration loop before SIGNAL:BRIDGEBUILDER_REVIEW (line 362), passing the sprint goal as the query argument, or remove the function entirely. Dead code that implies active functionality is worse than no code.",
+      "faang_parallel": "Google's Piper codebase enforces 'no dead code' via automated linting -- unused functions are flagged as errors because they mislead readers about system behavior",
+      "teachable_moment": "Dead code that implies an active capability is a form of documentation lie. It is worse than missing code because it creates false confidence.",
+      "weight": 5
+    },
+    {
+      "id": "medium-1",
+      "title": "Unescaped rel_path in JSON string construction (grep tier)",
+      "severity": "MEDIUM",
+      "category": "correctness",
+      "file": ".claude/scripts/qmd-context-query.sh:392",
+      "description": "The rel_path variable is embedded directly into a JSON string without jq escaping: results+=(\"{\\\"source\\\":\\\"${rel_path}\\\",...}\"). A filename containing double quotes, backslashes, or control characters would produce malformed JSON. While jq -s on line 399 catches this and falls back to [], it causes silent data loss for valid results.",
+      "suggestion": "Escape rel_path using jq the same way snippet is escaped on line 384: rel_path=$(printf '%s' \"$rel_path\" | jq -Rs '.' 2>/dev/null || echo '\"unknown\"') and strip the outer quotes before embedding.",
+      "metaphor": "Like building a bridge that handles rain but not hail -- the structure is sound, but an unexpected input shape causes silent failure rather than graceful handling.",
+      "teachable_moment": "When constructing JSON in bash, every variable interpolated into a JSON string must be jq-escaped. Using jq -Rs for escaping and jq -s for assembly is the defensive pattern.",
+      "weight": 2
+    },
+    {
+      "id": "medium-2",
+      "title": "Unsanitized --skill argument used in yq selector",
+      "severity": "MEDIUM",
+      "category": "security",
+      "file": ".claude/scripts/qmd-context-query.sh:97-98,182-183",
+      "description": "The --skill argument is parsed from CLI input (line 97-98) with no validation and interpolated directly into a yq JSON path selector (line 182-183). While yq's selector syntax is resistant to command injection, and the 2>/dev/null pattern swallows errors, this is a defense-in-depth gap. A --skill value containing brackets, dots, or special characters could cause unexpected yq behavior.",
+      "suggestion": "Add a validation regex after parsing --skill: if [[ -n \"$SKILL\" ]] && ! [[ \"$SKILL\" =~ ^[a-z_-]+$ ]]; then SKILL=\"\"; fi. This restricts skill names to lowercase letters, underscores, and hyphens, which matches the actual skill naming convention.",
+      "faang_parallel": "Stripe's API validates every path parameter against an allowlist regex before it reaches business logic -- even when the downstream system would reject malformed input",
+      "teachable_moment": "Input validation should happen at the boundary, not at the point of use. Even when downstream systems are tolerant, explicit validation at the entry point is defense-in-depth.",
+      "weight": 2
+    },
+    {
+      "id": "medium-3",
+      "title": "Grep tier follows symlinks, bypassing path traversal check",
+      "severity": "MEDIUM",
+      "category": "security",
+      "file": ".claude/scripts/qmd-context-query.sh:367-375",
+      "description": "The realpath + PROJECT_ROOT prefix check (lines 367-371) validates the directory path, but grep -r on line 375 follows symlinks within that directory by default. A symlink inside a valid scope path (e.g., grimoires/loa/evil -> /etc/) would pass the directory check but allow grep to search outside PROJECT_ROOT.",
+      "suggestion": "Add --no-messages -P (or use grep's -r with find that excludes symlinks) or, more simply, add the -L flag check: real_file=$(realpath \"$file\" 2>/dev/null) and verify it is still under PROJECT_ROOT before processing each match.",
+      "teachable_moment": "Path traversal checks must validate every file, not just the root directory. Symlinks are the classic bypass for directory-level checks.",
+      "weight": 2
+    },
+    {
+      "id": "low-1",
+      "title": "Disabled config test is a no-op with honest admission",
+      "severity": "LOW",
+      "category": "testing",
+      "file": ".claude/scripts/qmd-context-query-tests.sh:474-492",
+      "description": "test_disabled_returns_empty() cannot actually test the disabled path because CONFIG_FILE is internal to the script. It passes unconditionally with a comment 'verified by code inspection'. The integration test at qmd-context-integration-tests.sh:176-194 does exercise this path via cd to a temp dir with a disabled config.",
+      "suggestion": "Either extract CONFIG_FILE as an environment variable override (e.g., QMD_CONFIG_FILE) to make unit testing possible, or remove the no-op unit test and rely solely on the integration test. Honest no-op tests are better than false confidence, but they still cost maintenance attention.",
+      "teachable_moment": "When a unit test cannot test what it claims to test, the better design is to make the dependency injectable rather than to document the limitation.",
+      "weight": 1
+    },
+    {
+      "id": "low-2",
+      "title": "No test coverage for --skill override precedence chain",
+      "severity": "LOW",
+      "category": "testing",
+      "file": ".claude/scripts/qmd-context-query-tests.sh",
+      "description": "The priority chain (CLI --budget > skill override > config default > hardcoded default) in load_config() is implemented but untested. A regression that swaps the precedence of skill overrides and config defaults would go undetected.",
+      "suggestion": "Add a test that creates a temp config with qmd_context.skill_overrides.test.budget: 500 and qmd_context.default_budget: 3000, then runs with --skill test (no explicit --budget) and verifies the 500 value wins. This requires the CONFIG_FILE injection from low-1.",
+      "teachable_moment": "Priority chains are one of the most common sources of subtle regressions. Every distinct priority level should have a dedicated test case.",
+      "weight": 1
+    },
+    {
+      "id": "low-3",
+      "title": "Config skill override keys lack explicit documentation",
+      "severity": "LOW",
+      "category": "documentation",
+      "file": ".loa.config.yaml.example:1662-1677",
+      "description": "The skill_overrides keys (implement, review_sprint, ride, run_bridge, gate0) map to --skill argument values, but there is no comment documenting which skill invocation passes which key. A user adding a new skill integration would need to read both the config and the SKILL.md files to discover the mapping.",
+      "suggestion": "Add a comment above skill_overrides: '# Keys match the --skill argument passed by each SKILL.md integration: implement (/implement), review_sprint (/review-sprint), ride (/ride), run_bridge (/run-bridge), gate0 (preflight.sh)'",
+      "teachable_moment": "When a config key's meaning depends on a value defined in a different file, a cross-reference comment saves the next engineer from a scavenger hunt.",
+      "weight": 1
+    },
+    {
+      "id": "praise-1",
+      "title": "Three-tier fallback with invisible degradation is the right abstraction",
+      "severity": "PRAISE",
+      "category": "architecture",
+      "file": ".claude/scripts/qmd-context-query.sh:455-479",
+      "description": "The try_tiers() function implements progressive fallback where the caller never needs to know which tier served the result. Tier annotation is included in the output for observability but is not required by consumers. This is the exact pattern that Google Code Search, Stripe's internal search, and Netflix's metadata catalog converged on independently.",
+      "suggestion": "No changes needed -- this is exemplary architecture.",
+      "praise": true,
+      "faang_parallel": "Google's universal code search uses a similar tiered approach: semantic index first, trigram index second, brute-force scan last. The caller never knows which tier answered.",
+      "teachable_moment": "Build the unified interface before you need the second backend. The abstraction disciplines the contract that future backends must honor.",
+      "weight": 0
+    },
+    {
+      "id": "praise-2",
+      "title": "Non-breaking SKILL.md integrations with graceful no-op fallback",
+      "severity": "PRAISE",
+      "category": "integration",
+      "file": ".claude/skills/implementing-tasks/SKILL.md:394-398",
+      "description": "All three SKILL.md integrations follow the same pattern: conditional check for script existence and config enablement, advisory context injection, explicit graceful no-op if unavailable. This means the QMD integration can be rolled back by simply deleting the script or setting enabled: false, with zero impact on existing skill behavior.",
+      "suggestion": "No changes needed -- this is a model for how optional framework features should be integrated into skills.",
+      "praise": true,
+      "teachable_moment": "The best feature toggles are the ones where the 'off' path is indistinguishable from 'never existed'. This integration achieves that.",
+      "weight": 0
+    },
+    {
+      "id": "praise-3",
+      "title": "Token budget via greedy knapsack with correct integer arithmetic",
+      "severity": "PRAISE",
+      "category": "algorithm",
+      "file": ".claude/scripts/qmd-context-query.sh:434-448",
+      "description": "The jq reduce approach implements a greedy knapsack on score-sorted results with integer token estimation (ceil(words * 1.3) via the (words * 13 + 9) / 10 | floor pattern). This is both correct and efficient -- no floating point, no external dependencies, and the greedy approach is optimal when items are homogeneous.",
+      "suggestion": "No changes needed.",
+      "praise": true,
+      "metaphor": "Like packing a suitcase by putting the heaviest-scoring items in first and stopping when you reach the weight limit. Simple, effective, and the only algorithm that matters when your items are roughly the same size.",
+      "weight": 0
+    },
+    {
+      "id": "speculation-1",
+      "title": "Query templates per skill could improve retrieval quality",
+      "severity": "SPECULATION",
+      "category": "architecture",
+      "file": ".claude/skills/implementing-tasks/SKILL.md:395-396",
+      "description": "Currently, SKILL.md instructions tell the agent to 'build query from current task descriptions and target file names' -- the query quality depends entirely on the LLM's interpretation. Structured query templates (e.g., 'IMPLEMENT: {task_title} FILES: {file_list} ACCEPTANCE: {criteria}') could improve retrieval precision by giving the search backends more structured signal.",
+      "suggestion": "Consider adding query template definitions to the skill_overrides config (e.g., query_template: 'IMPLEMENT: {task} FILES: {files}') that the agent uses to construct the --query argument. This would make retrieval quality more deterministic across sessions.",
+      "speculation": true,
+      "teachable_moment": "The quality of a search system is limited by the quality of its queries. When the query is constructed by an LLM, providing a template improves consistency without removing flexibility.",
+      "weight": 0
+    }
+  ],
+  "total": 11,
+  "by_severity": {
+    "critical": 0,
+    "high": 1,
+    "medium": 3,
+    "low": 3,
+    "vision": 0,
+    "praise": 3,
+    "speculation": 1
+  },
+  "severity_weighted_score": 14
+}

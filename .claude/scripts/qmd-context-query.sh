@@ -95,6 +95,11 @@ parse_args() {
                 ;;
             --skill)
                 SKILL="$2"
+                # Validate skill name: lowercase letters, underscores, hyphens only
+                if [[ -n "$SKILL" ]] && ! [[ "$SKILL" =~ ^[a-z_-]+$ ]]; then
+                    echo "WARNING: Invalid --skill value '${SKILL}', ignoring" >&2
+                    SKILL=""
+                fi
                 shift 2
                 ;;
             --format|-f)
@@ -378,6 +383,13 @@ try_grep() {
             [[ -z "$file" ]] && continue
             [[ -f "$file" ]] || continue
 
+            # Per-file symlink traversal check: validate resolved path is within PROJECT_ROOT
+            local real_file
+            real_file=$(realpath "$file" 2>/dev/null) || continue
+            if [[ ! "$real_file" =~ ^"$PROJECT_ROOT" ]]; then
+                continue
+            fi
+
             local snippet
             snippet=$(grep -i -m1 "$pattern" "$file" 2>/dev/null | head -c 200 || echo "")
             # JSON-escape the snippet
@@ -386,8 +398,12 @@ try_grep() {
             snippet=${snippet#\"}
             snippet=${snippet%\"}
 
-            # Make source path relative to PROJECT_ROOT
+            # Make source path relative to PROJECT_ROOT and JSON-escape
             local rel_path="${file#"$PROJECT_ROOT"/}"
+            rel_path=$(printf '%s' "$rel_path" | jq -Rs '.' 2>/dev/null || echo '"unknown"')
+            # Strip outer quotes for embedding
+            rel_path=${rel_path#\"}
+            rel_path=${rel_path%\"}
 
             results+=("{\"source\":\"${rel_path}\",\"score\":0.5,\"content\":\"${snippet}\"}")
         done <<< "$matching_files"

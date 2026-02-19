@@ -357,19 +357,27 @@ bridge_main() {
       echo "SIGNAL:RUN_SPRINT_PLAN:$iteration"
     fi
 
-    # 2c: Bridgebuilder Review
+    # 2c: Load QMD context for review enrichment
+    local sprint_goal
+    sprint_goal=$(grep -m1 "^## Sprint" "$PROJECT_ROOT/grimoires/loa/sprint.md" 2>/dev/null | sed 's/^## //' || echo "bridge iteration $iteration")
+    load_bridge_context "$sprint_goal"
+
+    # 2d: Bridgebuilder Review
+    if [[ -n "$BRIDGE_CONTEXT" ]]; then
+      echo "[CONTEXT] QMD context loaded (${#BRIDGE_CONTEXT} bytes)"
+    fi
     echo "[REVIEW] Invoking Bridgebuilder review..."
     echo "SIGNAL:BRIDGEBUILDER_REVIEW:$iteration"
 
-    # 2d: Vision Capture
+    # 2e: Vision Capture
     echo "[VISION] Capturing VISION findings..."
     echo "SIGNAL:VISION_CAPTURE:$iteration"
 
-    # 2e: GitHub Trail
+    # 2f: GitHub Trail
     echo "[TRAIL] Posting to GitHub..."
     echo "SIGNAL:GITHUB_TRAIL:$iteration"
 
-    # 2f: Flatline Detection
+    # 2g: Flatline Detection
     echo "[FLATLINE] Checking flatline condition..."
     echo "SIGNAL:FLATLINE_CHECK:$iteration"
 
