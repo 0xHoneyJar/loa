@@ -1,262 +1,290 @@
-# PRD: Construct-Aware Constraint Yielding
+# PRD: Bridge Inquiry Infrastructure — Active Discovery, Research Mode & Temporal Lore
 
-> Cycle: cycle-029 | Author: janitooor + Claude
-> Source: [#376](https://github.com/0xHoneyJar/loa/issues/376)
-> Related: [loa-constructs#129](https://github.com/0xHoneyJar/loa-constructs/issues/129)
-> Priority: P1 (framework architecture — enables construct ecosystem scaling)
+> Cycle: cycle-030 | Author: zkSoju + Claude
+> Source: [PR #392 Post-Bridge Inquiry](https://github.com/0xHoneyJar/loa/pull/392) (Bridgebuilder architectural review)
+> Priority: P1 (infrastructure — enables ecosystem-scale insight production across bridge reviews)
 
 ---
 
 ## 1. Problem Statement
 
-Loa's pipeline constraints (PRD → SDD → Sprint → Implement → Review → Audit) are enforced globally, forcing full-depth process on every task regardless of domain. A 26-line UI change (midi-interface #102) required PRD with 7 discovery phases, 2 GPT review rounds, sprint plan with 5 tasks, and 2 more review rounds — ~40% of the session was process, not code.
+The Bridgebuilder review system produces its deepest insights when operating at the architectural timescale — connecting patterns across repositories, surfacing Ostrom-style governance parallels, and discovering structural isomorphisms between disparate systems. But today, these connections depend on **human memory or serendipity**. Five specific gaps limit the system's capacity for architectural inquiry:
 
-**The core issue**: Constructs already operate as self-contained expertise packages with their own workflows (Observer has 11 skills, Artisan has 14), but Loa's constraint system doesn't recognize this. When work touches the APP zone, constraints C-PROC-001/003/004 force the full pipeline regardless of whether a construct declares its own workflow.
+1. **No cross-repository pattern matching**: Before each bridge review, no automated step queries "what patterns in the other repos resemble the changes in this PR?" Connections that require holding loa, loa-hounfour, loa-freeside, and loa-finn in mind simultaneously are invisible to the agent.
 
-> Sources: loa#376 body, loa#376 comment-1 (zkSoju), loa-constructs#129 body
+2. **No research mode for bridge iterations**: The bridge loop is convergent by design (score must decrease). Architectural inquiry is divergent (understanding must increase). There is no iteration mode that explores connections without generating convergence-scored findings.
 
----
+3. **Vision Registry is passive**: 7 visions captured, 0 explored. The MAY permission exists ("MAY allocate time for Vision Registry exploration") but no automated mechanism surfaces relevant visions during bridge cycles.
 
-## 2. Vision
+4. **Multi-model review is QA-only**: The Flatline Protocol uses multi-model adversarial review for quality assurance. The same multi-model approach is not available for architectural inquiry — asking different models to find different kinds of connections (structural, historical, mathematical).
 
-**Loa's constraints yield when a construct declares workflow ownership.** The pipeline is a composable tool that constructs leverage for agentic backpressure, not a mandatory gate. Constructs compose the pipeline at their chosen depth via manifest declarations.
+5. **Lore entries are static**: 3 discovered patterns exist as YAML, but no metadata tracks how often or recently they're referenced. Patterns with lasting architectural significance are indistinguishable from one-off observations.
 
-### Three-Layer Architecture
+### Evidence
 
-| Layer | What | Always? |
-|-------|------|---------|
-| **Loa Runtime** | Hooks, beads, events, memory, guardrails, git safety, three-zone model | Always available |
-| **Loa Pipeline** | PRD → SDD → Sprint → Implement → Review → Audit | Opt-in at chosen depth |
-| **Construct Workflow** | Domain-specific skills, verification, state | Defined by construct |
-
-A construct doesn't choose "pipeline OR own workflow" — it **composes both**.
-
-> Sources: loa#376 comment-3 (zkSoju architecture), loa-constructs#129 comment-2 (refined model)
+- `bridge-orchestrator.sh`: EXPLORING state exists (v1.39.0) but is unused — the vision sprint pathway is stubbed but no cross-repo query runs pre-review
+- `grimoires/loa/visions/index.md`: 7 visions, 1 Exploring, 0 Proposed, 0 Implemented — the registry accumulates but never activates
+- `.claude/data/lore/discovered/patterns.yaml`: 3 entries, all from PR #324 — no lifecycle metadata, no reference tracking
+- `flatline-orchestrator.sh`: 4 parallel reviews (Primary/Secondary x review/skeptic) — no "inquiry" mode
+- `.loa.config.yaml` `butterfreezone.ecosystem`: 3 repos configured, but no pre-review cross-repo query exists
 
 ---
 
-## 3. Goals & Success Metrics
+## 2. Goals & Success Metrics
 
-### G-1: Constraint System Reads Construct Workflow Declarations
-- Constraint enforcement checks whether an active construct declares workflow ownership before applying pipeline constraints
-- **Metric**: C-PROC-001/003/004/008 skip enforcement when construct with `workflow.gates` is active
+### Goals
 
-### G-2: Review/Audit Skills Accept Generic Inputs
-- Review and audit skills accept acceptance criteria from any source (issue body, manifest, inline), not just sprint.md
-- **Metric**: `/review-sprint` and `/audit-sprint` work with construct-provided inputs, not only pipeline artifacts
+| # | Goal | Measurable Outcome |
+|---|------|---------------------|
+| G1 | Surface cross-repo patterns before each bridge review | Pre-review query returns >=1 structural connection for PRs touching shared patterns |
+| G2 | Enable divergent exploration within bridge loops | Research iterations generate SPECULATION findings without affecting convergence score |
+| G3 | Activate vision registry during bridge cycles | Relevant visions surfaced and explored when bridge review references captured themes |
+| G4 | Support multi-model architectural inquiry | Inquiry mode runs alongside or instead of adversarial QA, producing ensemble insights |
+| G5 | Track lore pattern lifecycle with temporal depth | Each lore entry accumulates reference count, recency, and cross-repo spread metadata |
 
-### G-3: Construct Manifest Supports Workflow Declaration
-- Pack manifests can declare `workflow` section with gates, depth, and verification method
-- **Metric**: Existing packs (Observer, Artisan) can retroactively declare their workflow depth
+### Success Metrics
 
-### G-4: Pipeline Stages Become Composable
-- The hard chain audit→review ("All good" magic string) is replaced with configurable gate contracts
-- **Metric**: A construct can declare `audit: skip` and still reach COMPLETED state
-
----
-
-## 4. User & Stakeholder Context
-
-### Primary Persona: Construct Author
-- Builds domain-specific expertise packages (FE/UI, BE/API, Data, Infra)
-- Wants to define workflow depth appropriate to their domain
-- Needs the Loa runtime (hooks, beads, guardrails) without the full pipeline overhead
-
-### Secondary Persona: Framework User (Loa default)
-- Uses Loa without constructs — the default pipeline applies
-- No change to their experience
-- The pipeline remains the default when no construct declares workflow ownership
-
-### Stakeholder: Maintainer (@janitooor)
-- Wants constructs to be peers, not subordinates to Loa's pipeline
-- Pipeline is a backpressure mechanism, not a quality gate hierarchy
-- Constructs that declare gates are trusted — they've earned trust by being installed, versioned, maintained
-
-> Sources: loa#376 comment-2 (zkSoju), loa#376 comment-4 (refined model)
+- Pre-review cross-repo query returns results for >=50% of bridge iterations on multi-repo ecosystems
+- At least 1 research iteration is exercised during a 3+ depth bridge run
+- Vision registry transitions at least 1 vision from Captured → Exploring → Proposed across 2 bridge cycles
+- Lore entries gain `references` and `last_seen` fields populated by bridge reviews
+- No regression in bridge convergence speed (research mode is additive, not replacing)
 
 ---
 
-## 5. Functional Requirements
+## 3. User & Stakeholder Context
 
-### FR-1: Manifest Workflow Schema (Loa-side reader)
+### Primary Persona: Bridgebuilder Agent
 
-**Note**: The manifest schema itself is defined in loa-constructs#129. This cycle implements the **Loa-side reader** that interprets the schema.
+The Bridgebuilder reviewing a PR. Currently limited to the diff + immediate context. With cross-repo queries, research mode, and vision activation, the Bridgebuilder can:
+- See structural parallels across the ecosystem before starting review
+- Spend one iteration exploring connections without convergence pressure
+- Check if captured visions are relevant to the current changes
+- Request multi-model ensemble for architectural (not just QA) analysis
 
-Loa must read and validate this manifest section:
+### Secondary Persona: Human Architect
 
+A developer reading bridge review comments on PRs. Currently sees findings + insights from a single model's perspective. With these enhancements:
+- Pre-review context section shows cross-repo connections discovered automatically
+- Research iteration insights are clearly labeled as exploratory (non-convergent)
+- Vision references link to the registry for deeper exploration
+- Multi-model inquiry produces richer, more diverse architectural analysis
+
+---
+
+## 4. Functional Requirements
+
+### FR-1: Cross-Repository Pattern Query
+
+Add a pre-review phase to the bridge orchestrator that queries ecosystem repos for structural parallels.
+
+**Algorithm:**
+1. Extract key patterns from the current PR diff (function signatures, module names, architectural patterns)
+2. For each configured ecosystem repo in `.loa.config.yaml` `butterfreezone.ecosystem`:
+   - Query that repo's reality files (`grimoires/loa/reality/`) via the existing QMD interface
+   - Search for structural matches (shared types, similar function signatures, parallel architecture)
+3. Compile matches into a structured context block injected into the Bridgebuilder prompt
+
+**Acceptance Criteria:**
+- New function `cross_repo_pattern_query()` in bridge orchestrator
+- Reads ecosystem config from `.loa.config.yaml`
+- Queries reality files (checksums.json, index.md) for each configured repo
+- Returns structured JSON with: `repo`, `pattern`, `similarity_type`, `file_path`
+- Graceful degradation: if a repo is unreachable or has no reality files, skip with warning
+- Results injected into Bridgebuilder review prompt under `<!-- cross-repo-context -->` markers
+- Configurable via `run_bridge.cross_repo_query.enabled` (default: true)
+
+### FR-2: Research Mode for Bridge Iterations
+
+Add an optional "research iteration" to the bridge loop that generates SPECULATION findings without affecting the convergence score.
+
+**Behavior:**
+1. After the first convergent iteration (not before — need baseline context), the orchestrator MAY insert a research iteration
+2. Research iterations:
+   - Generate findings with severity `SPECULATION` only (score weight: 0)
+   - Explore connections to lore, visions, and cross-repo patterns
+   - Expand the lore index with discovered patterns
+   - Are NOT counted toward flatline detection
+3. Research iteration output is saved to `.run/bridge-reviews/{bridge_id}-research-{N}.md`
+4. Maximum 1 research iteration per bridge run (configurable)
+
+**Acceptance Criteria:**
+- New state `RESEARCHING` in bridge orchestrator state machine (between ITERATING cycles)
+- Research iterations produce only SPECULATION-severity findings
+- Research iteration score is `N/A` — excluded from flatline trajectory
+- Bridge state file tracks `research_iterations_completed` count
+- Configurable via `run_bridge.research_mode.enabled` (default: false, opt-in)
+- Configurable via `run_bridge.research_mode.max_per_run` (default: 1)
+- Research iteration prompt includes cross-repo context (FR-1) and lore context
+
+### FR-3: Vision Registry Activation
+
+Add a "vision check" phase to bridge iterations that scans captured visions for relevance to the current PR.
+
+**Behavior:**
+1. Before each bridge review (after cross-repo query), scan `grimoires/loa/visions/index.md`
+2. For each vision with status `Captured` or `Exploring`:
+   - Compare vision tags against PR change categories
+   - Check if any vision themes appear in the diff or recent findings
+3. If a relevant vision is found:
+   - Include vision content in the research iteration prompt (FR-2)
+   - Update vision status to `Exploring` if currently `Captured`
+   - Record the reference in the vision entry (`Refs` count increment)
+4. After bridge cycle completes, if a vision was explored with substantive findings:
+   - Offer to promote vision to `Proposed` status
+
+**Acceptance Criteria:**
+- New function `check_relevant_visions()` in bridge orchestrator
+- Reads vision index and individual vision entries
+- Tag-based relevance matching (vision tags vs PR labels, file paths, finding categories)
+- Vision status transitions logged in bridge state file
+- Reference count incremented for each bridge cycle that references the vision
+- `update_vision_status()` in `bridge-vision-capture.sh` handles Captured → Exploring transition
+- Configurable via `run_bridge.vision_registry.activation_enabled` (default: true)
+
+### FR-4: Multi-Model Architectural Inquiry
+
+Extend the Flatline Protocol with an "inquiry" mode alongside the existing adversarial QA mode.
+
+**Behavior:**
+1. Inquiry mode runs 3 parallel queries (not adversarial — collaborative):
+   - **Structural model**: "What patterns in this change are isomorphic to patterns in [cross-repo context]?"
+   - **Historical model**: "What precedents in blue-chip open source projects parallel this approach?"
+   - **Governance model**: "What governance or economic implications does this architectural choice have?"
+2. Results are synthesized (not cross-scored) into an ensemble insight document
+3. Inquiry mode is triggered during research iterations (FR-2) or manually via `/flatline-review --inquiry`
+
+**Acceptance Criteria:**
+- New mode `inquiry` in flatline-orchestrator.sh (alongside existing `adversarial`)
+- 3 parallel queries with distinct prompts (structural, historical, governance)
+- Results synthesized into unified document (not scored/ranked like adversarial)
+- Output saved to `grimoires/loa/a2a/flatline/{phase}-inquiry.json`
+- Integrated into bridge research iterations when `run_bridge.research_mode.inquiry_enabled` is true
+- Manual trigger: `/flatline-review --inquiry [document]`
+- Uses configured models from `flatline_protocol.models` (primary + secondary)
+- Graceful fallback to 2 queries if only 2 models available
+
+### FR-5: Temporal Depth in Lore System
+
+Add lifecycle metadata to lore entries that tracks reference frequency, recency, and cross-repo spread.
+
+**Schema Extension:**
 ```yaml
-workflow:
-  depth: light | standard | deep | full
-  app_zone_access: true | false
-  gates:
-    prd: skip | condense | full
-    sdd: skip | condense | full
-    sprint: skip | condense | full
-    implement: required
-    review: skip | visual | textual | both
-    audit: skip | lightweight | full
-  verification:
-    method: visual | tsc | build | test | manual
+entries:
+  - id: graceful-degradation-cascade
+    term: "Graceful Degradation Cascade"
+    short: "..."
+    context: "..."
+    source: "..."
+    tags: [discovered, architecture]
+    # NEW: Temporal metadata
+    lifecycle:
+      created: "2026-02-14"
+      references: 3
+      last_seen: "2026-02-20"
+      seen_in:
+        - "bridge-20260214-e8fa94 / PR #324"
+        - "bridge-20260219-16e623 / PR #368"
+        - "bridge-20260220-5ac44d / PR #392"
+      repos: ["loa", "loa-hounfour"]
+      significance: "recurring"  # one-off | recurring | foundational
 ```
 
-**Note on `condense`**: The reader accepts `condense` as a valid value for forward compatibility with loa-constructs#129, but treats it as `full` in this cycle with a logged advisory. Full condense behavior (auto-generating sprint from issue body) is a construct-side concern.
+**Behavior:**
+1. During each bridge review, `lore-discover.sh` scans findings for lore term references
+2. When a lore term is referenced (by ID or term match in findings/insights):
+   - Increment `references` count
+   - Update `last_seen` to current date
+   - Append bridge reference to `seen_in` array
+   - Add repo to `repos` set if cross-repo reference
+3. Auto-classify significance:
+   - `one-off`: 1 reference
+   - `recurring`: 2-5 references
+   - `foundational`: 6+ references OR referenced in 3+ repos
 
-**Acceptance Criteria**:
-- [ ] Loa can read `workflow` from pack manifest.json
-- [ ] Missing `workflow` section means "use default pipeline" (backwards compatible)
-- [ ] Invalid values produce clear validation errors
-- [ ] `implement: required` is enforced — cannot be set to `skip`
-- [ ] `condense` is accepted but treated as `full` with advisory log
-
-### FR-2: Active Construct Detection
-
-The system must determine whether a construct with declared workflow gates is currently handling work. Detection operates across three enforcement layers (see FR-3).
-
-**Mechanism**: When a skill is invoked, the loader knows which pack it came from. If that pack's `manifest.json` contains a `workflow` section, the construct is considered "workflow-active." This is a property of the skill loading context, not runtime heuristics.
-
-**State tracking**: A state marker (`.run/construct-workflow.json`) records the active construct and its gates during workflow execution. This enables pre-flight checks in command `.md` files to read the construct's declarations.
-
-**Acceptance Criteria**:
-- [ ] Skill loader writes `.run/construct-workflow.json` when invoking a skill from a pack with `workflow` declaration
-- [ ] File contains: construct name, pack slug, gates, depth, timestamp
-- [ ] File is cleared when construct workflow completes or on session end
-- [ ] Missing file means "no construct active" (default pipeline applies)
-- [ ] Detection uses skill loading context (which pack loaded the skill) — not runtime heuristics
-
-### FR-3: Constraint Yielding Logic
-
-Constraints are enforced through three layers. Yielding must occur at each:
-
-**Layer 1 — Prompt-level (constraints.json → CLAUDE.md)**: Add `construct_yield` field to relevant constraints. The CLAUDE.md renderer includes the yield clause (e.g., "...OR when a construct with `workflow.gates` declares ownership").
-
-**Layer 2 — Pre-flight (command .md files)**: Command pre-flight checks read `.run/construct-workflow.json`. If present and the construct declares a gate as `skip`, the pre-flight check passes without requiring the corresponding artifact.
-
-**Layer 3 — Safety hooks**: No changes needed. Hooks protect System Zone and destructive operations, not pipeline flow.
-
-| Constraint | Current | With Construct Active |
-|-----------|---------|----------------------|
-| C-PROC-001 | No code outside `/implement` | No code outside `/implement` **OR construct-owned workflow** |
-| C-PROC-003 | No skip without `/run` or `/bug` | No skip without `/run`, `/bug`, **OR construct with `workflow.gates`** |
-| C-PROC-004 | No skip review/audit | Yield when construct declares `review: skip` or `audit: skip` |
-| C-PROC-008 | Always check sprint plan | Yield when construct declares `sprint: skip` |
-
-**Acceptance Criteria**:
-- [ ] constraints.json modified with `construct_yield` field on C-PROC-001/003/004/008
-- [ ] CLAUDE.md rendering script includes yield clause in generated constraint tables
-- [ ] Command pre-flight checks in review-sprint.md and audit-sprint.md read construct-workflow.json
-- [ ] Yield only applies to the specific gate the construct skips — other constraints still enforced
-- [ ] Yield is logged to `.run/audit.jsonl` (observable via audit trail)
-- [ ] Default behavior unchanged when no construct is active
-
-### FR-4: Configurable Gate Contracts for Review/Audit
-
-Make the hard chain between review and audit configurable so constructs can compose at their declared depth. **This cycle focuses on gate configurability**, not full path generics (which require deeper refactoring deferred to a future cycle).
-
-| Current (pipeline-coupled) | This Cycle (construct-aware) | Future (fully generic) |
-|---------------------------|------------------------------|------------------------|
-| Hard gate on "All good" in `engineer-feedback.md` | Gate bypassed when construct declares `review: skip` | Accepts criteria from any source |
-| COMPLETED only via audit-sprint | COMPLETED available to construct workflows | Construct-declared completion signals |
-| Reads `sprint.md` for acceptance criteria | Unchanged (default path) | Accepts criteria from any source |
-| Output to `a2a/sprint-N/` | Unchanged (default path) | Configurable output paths |
-
-**Acceptance Criteria**:
-- [ ] Review/audit commands detect active construct via `.run/construct-workflow.json` and read criteria from construct's declared source
-- [ ] Audit command's "All good" check is bypassed when construct declares `review: skip` (no engineer-feedback.md required)
-- [ ] COMPLETED marker creation is available to construct workflows, not only audit-sprint
-- [ ] Default behavior unchanged — without active construct, reads sprint.md as before
-
-### FR-5: Construct Lifecycle Events
-
-When a construct workflow begins and ends, emit events for observability.
-
-**Acceptance Criteria**:
-- [ ] `construct.workflow.started` event emitted with construct name, declared depth, gates
-- [ ] `construct.workflow.completed` event emitted with outcome
-- [ ] Events are logged to audit trail (`.run/audit.jsonl`)
-- [ ] Other constructs can consume these events via the event bus
+**Acceptance Criteria:**
+- Lore YAML schema extended with `lifecycle` block (backward-compatible: missing = defaults)
+- `lore-discover.sh` updated to record references during bridge reviews
+- New function `update_lore_reference()` handles increment logic
+- Significance auto-classification based on reference count and repo spread
+- Existing entries migrated lazily (lifecycle block added on first reference)
+- Query support: `memory-query.sh --lore --sort-by references` (top referenced patterns)
+- No breaking changes to existing lore consumers
 
 ---
 
-## 6. Technical & Non-Functional Requirements
+## 5. Technical & Non-Functional Requirements
 
-### NF-1: Backwards Compatibility
-- All existing workflows work unchanged when no construct is active
-- The default pipeline is preserved — this is additive, not a replacement
-- Existing constructs (Observer, Artisan) that don't declare `workflow` continue working as they do today
+### NF-1: Performance
 
-### NF-2: Security — Trust Boundary
-- Only installed, versioned constructs can declare workflow gates
-- Runtime code cannot dynamically claim construct status to bypass constraints
-- Construct workflow declarations are validated at pack install time, not runtime
-- System Zone (`.claude/`) modifications remain blocked regardless of construct declarations
+- Cross-repo query (FR-1) adds no more than 5s per configured repo (filesystem-based, no API calls)
+- Research iteration (FR-2) adds 1 iteration's worth of time (bounded by `per_iteration_hours`)
+- Vision check (FR-3) adds <1s (index scan + tag match)
+- Inquiry mode (FR-4) runs in parallel, bounded by existing flatline timeouts
+- Lore reference tracking (FR-5) adds <500ms per bridge review
 
-### NF-3: Auditability
-- Every constraint yield is logged with: constraint ID, construct name, gate declaration, timestamp
-- Audit trail shows what was skipped and why
-- No silent bypasses — yields are observable
+### NF-2: Backward Compatibility
 
-### NF-4: Fail-Closed
-- If construct detection fails (parse error, missing manifest), default to full pipeline
-- Ambiguous workflow declarations default to the more conservative option
-- This matches existing hook design (fail-open for hooks, fail-closed for constraints)
+- All features are opt-in or defaulted to non-breaking behavior
+- Cross-repo query and vision activation default to true (low cost, high value)
+- Research mode defaults to false (additive iteration, user must opt in)
+- Inquiry mode is manual-only unless explicitly enabled for research iterations
+- Existing lore entries work unchanged (lifecycle block is optional, added lazily)
+
+### NF-3: Determinism
+
+- Cross-repo query results are deterministic given same filesystem state
+- Research mode trigger is deterministic (after iteration 1, if enabled, if not already used)
+- Vision relevance matching is tag-based (deterministic for same tags)
+- Lore reference tracking is append-only and idempotent (same bridge ID = no duplicate)
+
+### NF-4: Graceful Degradation
+
+- If ecosystem repos are unreachable: skip cross-repo query, log warning
+- If no reality files exist for a repo: skip that repo
+- If vision registry is empty: skip vision check silently
+- If Flatline models are unavailable: skip inquiry mode, log warning
+- If lore files are corrupt: skip reference tracking, don't fail the bridge
 
 ---
 
-## 7. Scope & Prioritization
+## 6. Scope & Prioritization
 
-### In Scope (This Cycle)
+### In Scope (MVP)
 
-| Priority | Feature | Why |
-|----------|---------|-----|
-| P0 | FR-1: Manifest workflow reader | Foundation — everything else depends on reading the schema |
-| P0 | FR-2: Active construct detection | Foundation — constraint yielding needs this |
-| P0 | FR-3: Constraint yielding logic | Core value — the actual yielding behavior |
-| P1 | FR-4: Configurable gate contracts | Enables constructs to bypass review→audit chain |
-| P2 | FR-5: Lifecycle events | Observability — important but not blocking |
+| Priority | Feature | Rationale |
+|----------|---------|-----------|
+| P1 | FR-5: Temporal lore depth | Lowest risk, highest immediate value — enriches every future bridge review |
+| P1 | FR-3: Vision registry activation | Leverages existing infrastructure (70% done), enables vision lifecycle |
+| P2 | FR-1: Cross-repo pattern query | Core enabler for architectural insight, depends on ecosystem config |
+| P2 | FR-2: Research mode | New state machine state, depends on FR-1 and FR-3 for full value |
+| P3 | FR-4: Multi-model inquiry | Most complex, depends on FR-2 for integration point |
 
 ### Out of Scope
 
-| Item | Why | Where |
-|------|-----|-------|
-| Manifest schema definition | Construct-side concern | loa-constructs#129 |
-| Visual verification (deploy preview, screenshots) | Requires browser/deployment infra | Future cycle |
-| Cross-repo coordination layer | Multi-construct features | Future cycle |
-| Creating new domain-specific constructs (FE/UI, BE/API) | Construct authors build these | loa-constructs registry |
-| "condense" sprint generation from issue body | Requires construct-side implementation | loa-constructs#129 |
-| Golden path routing through construct manifests | v3 in the construct roadmap | Future cycle |
+- Cross-repo code analysis (reading actual source from other repos — only reality files)
+- Automatic lore entry creation from inquiry results (manual curation preserved)
+- Vision auto-promotion without human review (Proposed → Implemented requires human)
+- Flatline Protocol schema changes (inquiry mode uses same output format)
+- Changes to the convergent bridge loop mechanics (research mode is additive only)
 
 ---
 
-## 8. Risks & Dependencies
+## 7. Risks & Dependencies
 
-### R-1: Schema Coordination (Medium)
-- **Risk**: Loa-side reader and loa-constructs#129 schema must agree
-- **Mitigation**: Define the reader to accept a superset; validate strictness can be added later
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| Cross-repo reality files out of date | Stale pattern matches | Warn if reality file age >7 days |
+| Research mode overused | Slows bridge convergence | Default to off, max 1 per run |
+| Vision relevance matching too loose | Noisy vision activations | Tag-based matching with minimum 2-tag overlap |
+| Inquiry mode models disagree | Conflicting architectural insights | Synthesis (not scoring) — present all perspectives |
+| Lore reference tracking inflates counts | False significance classification | Deduplicate by bridge ID, require term match not substring |
 
-### R-2: Constraint Escape Escalation (Low)
-- **Risk**: Construct workflow declarations could be abused to bypass all constraints
-- **Mitigation**: `implement: required` cannot be set to skip; System Zone always protected; construct must be installed (not runtime-injected)
+### Dependencies
 
-### R-3: Backwards Compatibility Regression (Low)
-- **Risk**: Modifying constraint enforcement could break existing workflows
-- **Mitigation**: All changes are additive — default behavior only changes when a construct with `workflow` section is detected; comprehensive test coverage
-
-### D-1: Dependency — loa-constructs#129
-- The manifest schema is defined in loa-constructs. This cycle implements the **reader**, not the schema.
-- If schema changes, the reader adapts — we validate loosely and tighten later.
-
----
-
-## 9. Domain Examples (Reference)
-
-For construct authors building on this infrastructure. **Note**: These are illustrative examples for future constructs. "direct" in the Data/Lore row maps to `implement: required` with all other gates set to `skip` — the construct still goes through an implement phase, it just has no planning or review overhead.
-
-| Construct Domain | PRD | SDD | Sprint | Implement | Review | Audit |
-|-----------------|-----|-----|--------|-----------|--------|-------|
-| **BE/API** | full | full | full | required | textual | full |
-| **FE/UI** | skip | skip | condense | required | visual | skip |
-| **FE/Data** | skip | skip | condense | required | tsc+build | lightweight |
-| **Infra** | full | full | full | required | both | full |
-| **Data/Lore** | skip | skip | skip | required | skip | skip |
-
-> Source: loa-constructs#129 body (domain examples table)
+- `bridge-orchestrator.sh` (state machine extension for RESEARCHING)
+- `bridge-vision-capture.sh` (vision activation + reference counting)
+- `lore-discover.sh` (temporal metadata recording)
+- `flatline-orchestrator.sh` (inquiry mode addition)
+- `.loa.config.yaml` schema (new config keys for all features)
+- QMD interface / reality files (cross-repo query source)

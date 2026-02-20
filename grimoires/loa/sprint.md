@@ -1,220 +1,321 @@
-# Sprint Plan: Construct-Aware Constraint Yielding
+# Sprint Plan: Bridge Inquiry Infrastructure — Active Discovery, Research Mode & Temporal Lore
 
-> Cycle: cycle-029 | PRD: grimoires/loa/prd.md | SDD: grimoires/loa/sdd.md
-> Source: [#376](https://github.com/0xHoneyJar/loa/issues/376)
-> Sprints: 3 | Team: 1 developer (AI-assisted)
-> Flatline: PRD reviewed (3 HC, 2 DISPUTED), SDD reviewed (3 HC, 1 DISPUTED)
-
-## Overview
-
-Implement construct-aware constraint yielding across Loa's three enforcement layers. Constructs with manifest `workflow` declarations can compose the pipeline at their chosen depth. 3 sprints ordered by dependency: foundation scripts → constraint integration → events + test suite.
+> Cycle: cycle-030
+> PRD: [grimoires/loa/prd.md](grimoires/loa/prd.md)
+> SDD: [grimoires/loa/sdd.md](grimoires/loa/sdd.md)
+> Sprints: 6 (3 original provenance + 3 inquiry infrastructure)
+> Team: 1 agent (Claude)
 
 ---
 
-## Sprint 1: Manifest Reader + Workflow Activator (global sprint-22)
+## Sprint 1: Core Skills Manifest + Classification + Segmented Output [COMPLETED]
 
-**Goal**: Build the two foundation scripts that read construct manifests and manage workflow state. After this sprint, a construct pack can declare workflow gates and Loa can detect and track the active construct.
+## Sprint 2: AGENT-CONTEXT Enrichment + Validation + Tests [COMPLETED]
 
-**Dependencies**: None
-
-### Task 1.1: Manifest Workflow Reader Script
-
-**File**: `.claude/scripts/construct-workflow-read.sh`
-
-**Description**: Create shell script that reads and validates the `workflow` section from a pack's manifest.json. Supports two modes: full read (outputs entire workflow JSON) and gate query (outputs specific gate value).
-
-**Acceptance Criteria**:
-- [ ] Reads `workflow` section from manifest.json via jq
-- [ ] Exit 0 with valid workflow JSON on stdout when workflow section exists
-- [ ] Exit 1 when no workflow section (pack uses default pipeline)
-- [ ] Exit 2 on validation error (invalid gate values, implement: skip)
-- [ ] `--gate <name>` mode outputs single gate value
-- [ ] Validates all gate values against allowed sets (SDD Section 3.1 table)
-- [ ] `implement: required` enforced — cannot be set to `skip`
-- [ ] `condense` accepted but logged as advisory to stderr
-- [ ] Defaults applied for missing optional fields (depth: full, app_zone_access: false, etc.)
-- [ ] Fail-closed: any jq parse error → exit 1 (no workflow)
-
-**Testing**: Tests in `tests/test_construct_workflow.sh` — valid manifest, missing workflow, implement:skip rejection, condense advisory, invalid values, missing fields with defaults.
-
-### Task 1.2: Construct Workflow Activator Script
-
-**File**: `.claude/scripts/construct-workflow-activate.sh`
-
-**Description**: Manages `.run/construct-workflow.json` lifecycle. Four subcommands: `activate` (creates state file by calling the reader), `deactivate` (removes state file), `check` (returns current state), `gate` (returns specific gate value from active state).
-
-**Acceptance Criteria**:
-- [ ] `activate --construct <name> --slug <slug> --manifest <path>` creates `.run/construct-workflow.json`
-- [ ] State file contains: construct, slug, manifest_path, activated_at, depth, app_zone_access, gates, verification
-- [ ] Activation calls `construct-workflow-read.sh` internally to validate manifest
-- [ ] Activation fails (exit 1) if reader returns no workflow, fails (exit 2) if validation error
-- [ ] `deactivate` removes `.run/construct-workflow.json`, exits 0 even if file doesn't exist
-- [ ] `deactivate --complete <sprint_id>` also creates COMPLETED marker at `grimoires/loa/a2a/<sprint_id>/COMPLETED`
-- [ ] `check` exits 0 with JSON on stdout when active, exit 1 when not
-- [ ] `gate <gate_name>` outputs gate value when active, exit 1 when not
-- [ ] Manifest path validated to be within `.claude/constructs/packs/` (security invariant)
-
-**Testing**: activate/deactivate lifecycle, check states, gate queries, invalid manifest path rejection, deactivate --complete marker creation.
-
-### Task 1.3: Activation Protocol Document
-
-**File**: `.claude/protocols/construct-workflow-activation.md`
-
-**Description**: Document the activation contract for construct SKILL.md authors. Specifies the preamble pattern: check manifest for workflow, call activate, do work, call deactivate.
-
-**Acceptance Criteria**:
-- [ ] Protocol document created with activation sequence (SDD Section 3.1.1)
-- [ ] Includes example preamble code for SKILL.md files
-- [ ] Documents all subcommands and their exit codes
-- [ ] References security invariants (installed packs only, fail-closed)
-
-**Testing**: Document review — no code test needed.
+## Sprint 3: Bridge Iteration 1 — Idempotent Cache + Test Harness Polish (BB-5ac44d) [COMPLETED]
 
 ---
 
-## Sprint 2: Constraint Yielding + Pre-flight Integration (global sprint-23)
+## Sprint 4: Temporal Lore Depth + Vision Registry Activation (FR-5, FR-3)
 
-**Goal**: Wire construct awareness into the constraint enforcement layers. After this sprint, constraints.json contains yield metadata, CLAUDE.md renders yield clauses, and command pre-flights respect construct gate declarations.
+**Goal**: Extend lore entries with lifecycle metadata and activate the vision registry during bridge cycles. These are the highest-value, lowest-risk enhancements — they enrich every future bridge review.
 
-**Dependencies**: Sprint 1 (state file must exist for pre-flight checks to read)
+### Task 4.1: Lore lifecycle schema extension
 
-### Task 2.1: Constraint Data Model — Add `construct_yield` Field
-
-**File**: `.claude/data/constraints.json`
-
-**Description**: Add `construct_yield` object to C-PROC-001, C-PROC-003, C-PROC-004, and C-PROC-008. Each gets `enabled`, `condition`, `yield_text`, and `yield_on_gates` fields per SDD Section 3.4.
+**Description**: Extend the lore YAML schema in `.claude/data/lore/discovered/patterns.yaml` with an optional `lifecycle` block containing `created`, `references`, `last_seen`, `seen_in`, `repos`, and `significance` fields. Existing entries gain the block lazily on first reference.
 
 **Acceptance Criteria**:
-- [ ] C-PROC-001 (`no_code_outside_implement`): yield_text added, yield_on_gates: `["implement"]`
-- [ ] C-PROC-003 (`no_skip_to_implementation`): yield_text added, yield_on_gates: `["implement"]`
-- [ ] C-PROC-004 (`no_skip_review_audit`): yield_text added, yield_on_gates: `["review", "audit"]`
-- [ ] C-PROC-008 (`check_sprint_plan`): yield_text added, yield_on_gates: `["sprint"]`
-- [ ] All other constraints unchanged
-- [ ] JSON validates with jq
+- `lifecycle` block defined per SDD 3.5.1 schema
+- Missing `lifecycle` treated as defaults (references=0, significance=one-off)
+- Existing entries remain valid YAML without modification
+- `yq` can read and write lifecycle fields
 
-**Testing**: jq validation, field presence checks, no regression on other constraints.
+**Estimated Effort**: Small
 
-### Task 2.2: Constraint Renderer — Yield Clause Rendering
+### Task 4.2: Reference tracking function in lore-discover.sh
 
-**Files**: `.claude/scripts/generate-constraints.sh` + `.claude/scripts/templates/claude-loa-md-table.jq`
-
-**Description**: Modify the jq rendering template to append yield_text in parentheses when `construct_yield.enabled` is true. The template `claude-loa-md-table.jq` currently renders `text_variants["claude-loa-md"]` or `rule_type + " " + text` — add a conditional branch that appends `(yield_text)` when `construct_yield.enabled` is present. The orchestrator `generate-constraints.sh` needs no structural changes since it already routes through the template.
+**Description**: Implement `update_lore_reference()` function in `lore-discover.sh` per SDD 3.5.2. This function increments reference count, updates `last_seen`, appends to `seen_in`, and auto-classifies significance (one-off / recurring / foundational).
 
 **Acceptance Criteria**:
-- [ ] `claude-loa-md-table.jq` modified: when `construct_yield.enabled`, appends `({yield_text})` to rendered rule text
-- [ ] Constraints WITHOUT `construct_yield` render identically to before (template backward compatible)
-- [ ] Hash-based change detection still works (idempotent regeneration)
-- [ ] `--dry-run` mode shows preview without modifying CLAUDE.md
-- [ ] Run `generate-constraints.sh` and verify `.claude/loa/CLAUDE.loa.md` output includes 4 yield clauses in constraint tables
-- [ ] `.claude/loa/CLAUDE.loa.md` regenerated with updated constraint tables (this is a deliverable of this task)
+- `update_lore_reference(entry_id, bridge_id, repo_name, lore_file)` implemented
+- Idempotent: same bridge_id does not create duplicate `seen_in` entry
+- Significance auto-classification: 1 ref = one-off, 2-5 = recurring, 6+ or 3+ repos = foundational
+- All YAML writes use `yq -i` (no string concatenation)
+- Bridge ID and repo name validated against `[a-zA-Z0-9._-]`
 
-**Testing**: Dry-run comparison, regeneration idempotency check, diff CLAUDE.loa.md before/after to verify only yield clause additions.
+**Estimated Effort**: Medium
+**Dependencies**: Task 4.1
 
-### Task 2.3: audit-sprint.md Pre-flight — Construct-Aware Skip
+### Task 4.3: Reference scanning during bridge reviews
 
-**File**: `.claude/commands/audit-sprint.md`
-
-**Description**: Add `skip_when` fields to the "All good" content check and the engineer-feedback.md file_exists check. When a construct declares `review: skip`, these pre-flight checks are skipped.
+**Description**: Implement `scan_for_lore_references()` per SDD 3.5.3. After each bridge review, scan findings and insights for lore term matches (by ID or term) and call `update_lore_reference()` for each match.
 
 **Acceptance Criteria**:
-- [ ] `file_exists` check for engineer-feedback.md has `skip_when: {construct_gate: "review", gate_value: "skip"}`
-- [ ] `content_contains` check for "All good" has `skip_when: {construct_gate: "review", gate_value: "skip"}`
-- [ ] Default behavior unchanged — without active construct, checks enforced as before
-- [ ] Comments in YAML explain the skip_when semantics
+- Scans both `discovered/patterns.yaml` and `discovered/visions.yaml`
+- Matches by exact entry ID or case-insensitive term match
+- Integrates into bridge orchestrator finalization (after `SIGNAL:LORE_DISCOVERY`)
+- Non-blocking: failures logged but don't halt bridge
 
-**Testing**: Manual verification — read the YAML, confirm structure. Integration tested in Sprint 3.
+**Estimated Effort**: Medium
+**Dependencies**: Task 4.2
 
-### Task 2.4: review-sprint.md Context Files — Construct-Aware Skip
+### Task 4.4: Vision relevance checking
 
-**File**: `.claude/commands/review-sprint.md`
-
-**Description**: Add `skip_when` to the sprint.md context_files entry. When a construct declares `sprint: skip`, sprint.md becomes optional (loaded if available, absence doesn't block).
+**Description**: Implement `check_relevant_visions()` function per SDD 3.3.1. Scans `grimoires/loa/visions/index.md` for visions with tags overlapping the PR change categories. Returns list of relevant vision IDs.
 
 **Acceptance Criteria**:
-- [ ] `context_files` entry for sprint.md has `skip_when: {construct_gate: "sprint", gate_value: "skip"}`
-- [ ] Default behavior unchanged — without active construct, sprint.md still required
-- [ ] Comments explain that skip_when on context_files makes the file optional, not ignored
+- Reads vision index, filters by status (Captured or Exploring)
+- Extracts PR tags from diff file paths (architecture, security, constraints, multi-model, testing)
+- Minimum 2-tag overlap for relevance (configurable)
+- Returns vision IDs as newline-separated list
+- Empty index or no matches returns empty (graceful)
 
-**Testing**: Manual verification — read the YAML, confirm structure. Integration tested in Sprint 3.
+**Estimated Effort**: Medium
+
+### Task 4.5: Vision activation in bridge orchestrator
+
+**Description**: Integrate vision checking into bridge orchestrator pre-review phase. When relevant visions found: transition Captured → Exploring, increment reference count via `record_reference()`, include vision content in review context.
+
+**Acceptance Criteria**:
+- `SIGNAL:VISION_CHECK` emitted before each bridge review
+- `update_vision_status()` called for Captured → Exploring transitions
+- `record_reference()` called for each activated vision
+- Vision IDs recorded in bridge state (`visions_referenced` array)
+- Configurable via `run_bridge.vision_registry.activation_enabled` (default: true)
+
+**Estimated Effort**: Medium
+**Dependencies**: Task 4.4
+
+### Task 4.6: Memory query lore extension + tests
+
+**Description**: Extend `memory-query.sh` with `--lore` flags for querying lore entries by references, significance, and repo. Write unit tests for all Task 4.x features.
+
+**Acceptance Criteria**:
+- `memory-query.sh --lore` lists all lore entries
+- `memory-query.sh --lore --sort-by references` sorts by reference count desc
+- `memory-query.sh --lore --significance foundational` filters by significance
+- Unit test: reference tracking (increment, dedup, significance classification)
+- Unit test: vision relevance checking (tag overlap, status filtering)
+- All tests pass
+
+**Estimated Effort**: Medium
+**Dependencies**: Tasks 4.2, 4.4
 
 ---
 
-## Sprint 3: Lifecycle Events + Test Suite + Integration Verification (global sprint-24)
+## Sprint 5: Cross-Repository Pattern Query + Research Mode (FR-1, FR-2)
 
-**Goal**: Add observability (lifecycle event logging) and comprehensive test coverage. Verify the full end-to-end flow: manifest → activate → constraint yield → pre-flight skip → deactivate.
+**Goal**: Enable the bridge to discover cross-repo structural parallels and support divergent exploration iterations.
 
-**Dependencies**: Sprint 1 + Sprint 2
+### Task 5.1: Cross-repo pattern query script
 
-### Task 3.1: Lifecycle Event Logging
-
-**File**: `.claude/scripts/construct-workflow-activate.sh` (modify)
-
-**Description**: Add audit.jsonl event logging to the activate and deactivate subcommands. Log `construct.workflow.started` on activate and `construct.workflow.completed` on deactivate with full context.
+**Description**: Create `.claude/scripts/cross-repo-query.sh` per SDD 3.1. Extracts patterns from PR diff, resolves ecosystem repos (sibling directory → config override → GitHub API fallback), queries reality files, and outputs structured JSON matches.
 
 **Acceptance Criteria**:
-- [ ] `activate` appends `construct.workflow.started` event to `.run/audit.jsonl`
-- [ ] Event includes: timestamp, event name, construct name, depth, gates, constraints_yielded list
-- [ ] `constraints_yielded` computed by checking which C-PROC constraints would yield for the declared gates
-- [ ] `deactivate` appends `construct.workflow.completed` event to `.run/audit.jsonl`
-- [ ] Completed event includes: timestamp, event name, construct name, outcome, duration_seconds
-- [ ] Events follow existing audit.jsonl JSON-per-line format
+- Script accepts `--diff`, `--ecosystem`, `--output`, `--budget`, `--max-repos` flags
+- Repo resolution: sibling dir → config override → `REMOTE:` fallback
+- Pattern extraction from diff: function names, architectural keywords, protocol refs
+- Reality file queries via `qmd-context-query.sh` for local repos
+- AGENT-CONTEXT extraction via `butterfreezone-mesh.sh` for remote repos
+- JSON output per SDD 3.1.1 schema
+- 5s per-repo timeout, 15s total timeout
+- Graceful degradation: skip unreachable repos with warning
 
-**Testing**: Activate with mock manifest, verify audit.jsonl contains both events with correct fields.
+**Estimated Effort**: Large
 
-### Task 3.2: Comprehensive Test Suite
+### Task 5.2: Cross-repo integration in bridge orchestrator
 
-**File**: `tests/test_construct_workflow.sh`
-
-**Description**: Complete test suite covering all FRs and NFs per SDD Section 6.2 test matrix. Uses plain bash test harness (same pattern as test_run_state_verify.sh).
+**Description**: Add `SIGNAL:CROSS_REPO_QUERY` to bridge orchestrator pre-review phase. Cache results in `.run/cross-repo-context.json`. Inject matches into Bridgebuilder review prompt under `<!-- cross-repo-context -->` markers.
 
 **Acceptance Criteria**:
-- [ ] All 20 test cases from SDD Section 6.2 implemented
-- [ ] Tests use temp directories (no pollution of real .run/ or .claude/)
-- [ ] Mock manifests created in temp dir for each test scenario
-- [ ] Tests cover: reader validation, activator lifecycle, gate queries, constraint yield rendering, pre-flight skip_when, COMPLETED marker, default behavior, fail-closed
-- [ ] **Integration test cases included**: end-to-end flow with mock construct manifest declaring `review: skip`, `audit: skip` — validates reader → activate → state file → gate query → deactivate → cleanup → audit events
-- [ ] Integration tests verify: `construct-workflow-read.sh` validates correctly, `construct-workflow-activate.sh activate` creates state file with correct gates, `construct-workflow-activate.sh deactivate` removes state file, `.run/audit.jsonl` contains started+completed events
-- [ ] All tests pass: `bash tests/test_construct_workflow.sh` exits 0
-- [ ] No regression on existing tests: `bash tests/test_run_state_verify.sh` still passes
+- Signal emitted before each bridge review (after preflight)
+- Results cached per bridge run (refreshed if bridge_id changes)
+- Context injected into review prompt as markdown
+- `cross_repo_query` metrics recorded in bridge state
+- Configurable via `run_bridge.cross_repo_query.enabled` (default: true)
 
-**Testing**: Self-testing — the test suite IS the deliverable. Integration verification is included as test cases, not a separate manual step.
+**Estimated Effort**: Medium
+**Dependencies**: Task 5.1
+
+### Task 5.3: Research mode state machine extension
+
+**Description**: Add `RESEARCHING` state to bridge orchestrator per SDD 3.2.1. After iteration 1, if research mode enabled and not already used, transition to RESEARCHING. Research iterations produce SPECULATION-only findings with N/A score excluded from flatline.
+
+**Acceptance Criteria**:
+- `RESEARCHING` state in state machine (between ITERATING cycles)
+- Guard: max 1 research iteration per run (configurable)
+- Trigger: after iteration 1 (configurable via `trigger_after_iteration`)
+- Score exclusion: research iterations not counted in flatline trajectory
+- `SIGNAL:RESEARCH_ITERATION` emitted for skill layer
+- `research_iterations_completed` tracked in bridge state
+- State recovery: resume from RESEARCHING → skip to ITERATING
+
+**Estimated Effort**: Large
+**Dependencies**: Task 5.2
+
+### Task 5.4: Research iteration prompt composition
+
+**Description**: When `SIGNAL:RESEARCH_ITERATION` fires, compose a divergent exploration prompt including cross-repo context (FR-1), lore entries sorted by reference count (FR-5), and relevant visions (FR-3). Instruct the model to produce SPECULATION-only findings.
+
+**Acceptance Criteria**:
+- Prompt includes cross-repo context from `.run/cross-repo-context.json`
+- Prompt includes top lore entries (sorted by `lifecycle.references` desc)
+- Prompt includes relevant vision content from activated visions
+- Model instructed to produce only `severity: SPECULATION` findings
+- Output saved to `.run/bridge-reviews/{bridge_id}-research-{N}.md`
+- Lore discovery runs on research output
+
+**Estimated Effort**: Medium
+**Dependencies**: Tasks 5.2, 5.3
+
+### Task 5.5: Config schema + tests
+
+**Description**: Add `cross_repo_query` and `research_mode` config keys per SDD 4.1. Write unit tests for cross-repo query (pattern extraction, repo resolution) and research mode (state transitions, score exclusion).
+
+**Acceptance Criteria**:
+- Config keys added to `.loa.config.yaml.example`
+- Config validation: all new keys have documented defaults
+- Unit test: cross-repo pattern extraction from sample diff
+- Unit test: repo resolution (sibling, override, remote fallback)
+- Unit test: research mode state transitions (ITERATING → RESEARCHING → ITERATING)
+- Unit test: flatline score trajectory excludes research iterations
+- All tests pass
+
+**Estimated Effort**: Medium
+**Dependencies**: Tasks 5.1, 5.3
 
 ---
 
-## Risk Mitigation
+## Sprint 6: Multi-Model Inquiry Mode + Integration (FR-4)
 
-| Risk | Sprint | Mitigation |
-|------|--------|------------|
-| generate-constraints.sh template change breaks output | 2 | Use `--dry-run` preview, diff against current CLAUDE.md |
-| skip_when YAML not interpreted correctly by Claude | 2 | Clear comments, integration test in Sprint 3 |
-| Stale construct-workflow.json left behind | 1 | Deactivation explicit + session-end cleanup + 24h staleness check |
-| Existing tests regress | 3 | Run full test suite before and after |
+**Goal**: Extend Flatline Protocol with collaborative inquiry mode and integrate all features end-to-end.
 
-## File Change Summary
+### Task 6.1: Inquiry mode in flatline-orchestrator.sh
 
-| File | Action | Sprint |
-|------|--------|--------|
-| `.claude/scripts/construct-workflow-read.sh` | **NEW** | 1 |
-| `.claude/scripts/construct-workflow-activate.sh` | **NEW** | 1 |
-| `.claude/protocols/construct-workflow-activation.md` | **NEW** | 1 |
-| `.claude/data/constraints.json` | MODIFY | 2 |
-| `.claude/scripts/templates/claude-loa-md-table.jq` | MODIFY | 2 |
-| `.claude/scripts/generate-constraints.sh` | MODIFY (if needed) | 2 |
-| `.claude/loa/CLAUDE.loa.md` | REGENERATED (via generate-constraints.sh) | 2 |
-| `.claude/commands/audit-sprint.md` | MODIFY | 2 |
-| `.claude/commands/review-sprint.md` | MODIFY | 2 |
-| `.claude/scripts/construct-workflow-activate.sh` | MODIFY (add events) | 3 |
-| `tests/test_construct_workflow.sh` | **NEW** | 3 |
+**Description**: Add `inquiry` mode to flatline-orchestrator.sh per SDD 3.4. Runs 3 parallel collaborative queries (structural, historical, governance) and synthesizes results instead of cross-scoring.
 
-**Total**: 4 new files, 6 modified files, 1 regenerated file.
+**Acceptance Criteria**:
+- `--mode inquiry` flag accepted alongside existing `adversarial` mode
+- 3 parallel queries with distinct prompts per SDD 3.4.2
+- Uses configured primary/secondary models (alternating assignment)
+- Results synthesized into unified JSON per SDD 3.4.3 schema
+- Output saved to `grimoires/loa/a2a/flatline/{phase}-inquiry.json`
+- Existing content redaction applied to all inquiry outputs
+- Graceful fallback: 2 queries if only 2 models available
+- Budget bounded by `flatline_protocol.inquiry.budget_cents`
 
-## Success Metrics
+**Estimated Effort**: Large
 
-| Metric | Target |
-|--------|--------|
-| New test count | 20+ (SDD Section 6.2 matrix) |
-| Existing test regression | 0 |
-| Constraints modified | 4 (C-PROC-001/003/004/008) |
-| New scripts | 2 (reader + activator) |
-| Commands modified | 2 (audit-sprint.md + review-sprint.md) |
-| Backwards compatibility | 100% — no behavior change without active construct |
+### Task 6.2: Inquiry integration with research mode
+
+**Description**: When `run_bridge.research_mode.inquiry_enabled` is true and a research iteration fires, trigger inquiry mode via `SIGNAL:INQUIRY_MODE`. Feed cross-repo context and lore into inquiry prompts.
+
+**Acceptance Criteria**:
+- `SIGNAL:INQUIRY_MODE` triggers `flatline-orchestrator.sh --mode inquiry`
+- Cross-repo context injected as system context for all 3 queries
+- Inquiry results appended to research iteration output
+- Configurable via `run_bridge.research_mode.inquiry_enabled` (default: false)
+
+**Estimated Effort**: Medium
+**Dependencies**: Tasks 5.3, 6.1
+
+### Task 6.3: Manual inquiry via /flatline-review
+
+**Description**: Extend `/flatline-review` skill to accept `--inquiry` flag for manual invocation of inquiry mode on any document.
+
+**Acceptance Criteria**:
+- `/flatline-review --inquiry grimoires/loa/sdd.md` triggers inquiry mode
+- Argument parsing handles `--inquiry` alongside existing flags
+- Results displayed in same format as adversarial review (perspectives + synthesis)
+- Output saved to standard flatline output directory
+
+**Estimated Effort**: Small
+**Dependencies**: Task 6.1
+
+### Task 6.4: End-to-end integration test
+
+**Description**: Run a simulated bridge iteration that exercises all 5 features: cross-repo query → vision check → convergent review → research iteration → lore reference tracking.
+
+**Acceptance Criteria**:
+- Bridge state shows cross_repo_query metrics populated
+- Vision reference count incremented for relevant visions
+- Research iteration produces SPECULATION findings (score: N/A)
+- Lore entries gain lifecycle metadata after bridge review
+- Flatline trajectory only counts convergent iterations
+- All existing tests continue to pass
+
+**Estimated Effort**: Medium
+**Dependencies**: Tasks 6.2, 6.3
+
+### Task 6.5: Config documentation + validation
+
+**Description**: Update `.loa.config.yaml.example` with all new config keys, add validation in config loader, and document the feature enablement order.
+
+**Acceptance Criteria**:
+- All new config keys documented in `.loa.config.yaml.example` with comments
+- Config validation warns on invalid values (not fails — graceful)
+- Feature enablement order documented (FR-5 → FR-3 → FR-1 → FR-2 → FR-4)
+- NOTES.md updated with implementation summary
+
+**Estimated Effort**: Small
+**Dependencies**: Task 6.4
+
+---
+
+## Sprint 7: Bridge Iteration 2 — Pattern Noise Filtering + Trigger Semantics (BB-8ab2ce)
+
+**Goal**: Address 3 MEDIUM findings from Bridgebuilder review iteration 1 (bridge-20260220-8ab2ce). Research mode trigger semantics, cross-repo noise filtering, and config documentation.
+
+### Task 7.1: Fix research mode trigger guard semantics
+
+**Description**: The research mode guard in bridge-orchestrator.sh uses `$iteration -gt $research_trigger_after` which excludes single-iteration bridges. Change to `$iteration -ge $research_trigger_after` for inclusive semantics so that `trigger_after_iteration: 1` means "trigger after iteration 1 completes". Add inline comment documenting the semantic.
+
+**Acceptance Criteria**:
+- Guard changed from `-gt` to `-ge`
+- Inline comment: `# -ge: trigger_after_iteration=N means "fire after iteration N completes"`
+- Existing test_cross_repo_research.sh research mode tests still pass
+- New test: verify research mode fires when iteration == trigger_after_iteration
+
+**Estimated Effort**: Small
+
+### Task 7.2: Cross-repo pattern noise filtering
+
+**Description**: Add minimum pattern length filter and stop-words list to `extract_patterns()` in cross-repo-query.sh. Skip patterns shorter than 4 characters and filter common names like 'init', 'main', 'run', 'get', 'set', 'test', 'log', 'new'.
+
+**Acceptance Criteria**:
+- Patterns < 4 characters skipped
+- Stop-words list: init, main, run, get, set, test, log, new, add, del, put, err, cmd, ctx, buf, src, dst, tmp, fmt, cfg, env, req, res, msg, val, key, len, idx, num, str, var, arg, opt, max, min
+- Stop-words filtering applied after extraction, before repo queries
+- New test: verify short patterns and stop-words are excluded
+- Existing pattern extraction tests still pass
+
+**Estimated Effort**: Small
+
+### Task 7.3: Config documentation inline comments
+
+**Description**: Add inline YAML comments to `.loa.config.yaml.example` for all new run_bridge subsections, consolidating documentation. Add a short "Quick Start" comment block showing the three common configurations: minimal (convergence-only), standard (cross-repo + lore), and exploration (all features enabled).
+
+**Acceptance Criteria**:
+- Each config key has an inline comment explaining its purpose
+- "Quick Start" block at top of run_bridge section with 3 profiles
+- Feature enablement order documented in comments
+- Config schema test verifies all new keys present
+
+**Estimated Effort**: Small
+
+### Task 7.4: Regression test suite
+
+**Description**: Run all 6 existing test suites to verify zero regressions from Tasks 7.1-7.3. Add targeted tests for the two code changes.
+
+**Acceptance Criteria**:
+- test_butterfreezone_provenance.sh: all pass
+- test_construct_workflow.sh: all pass
+- test_cross_repo_research.sh: all pass (+ new research trigger test)
+- test_inquiry_integration.sh: all pass
+- test_lore_lifecycle.sh: all pass
+- test_run_state_verify.sh: all pass
+- New test: research mode fires on iteration == trigger value
+- New test: cross-repo stop-words filtered
+- 0 regressions
+
+**Estimated Effort**: Small

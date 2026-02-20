@@ -1085,6 +1085,12 @@ flatline_protocol:
       notebook_id: ""          # Your NotebookLM notebook ID
       timeout_ms: 30000        # Query timeout
 
+  # Inquiry mode (FR-4): Collaborative multi-model architectural inquiry
+  # Runs 3 parallel queries (structural, historical, governance) and synthesizes
+  inquiry:
+    budget_cents: 500            # Cost budget per inquiry invocation
+    # Perspectives use primary/secondary/tertiary models with rotating assignment
+
   # Adversarial cross-model dissent for quality gates (#224)
   # A second model reviews code that Claude already reviewed
   code_review:
@@ -1381,6 +1387,12 @@ run_bridge:
   # Master toggle — must be true to use /run-bridge
   enabled: false
 
+  # ── Quick Start Profiles ──
+  # Minimal (convergence only): enabled: true — all sub-features default false
+  # Standard (+ cross-repo + lore): also set cross_repo_query.enabled: true
+  # Exploration (all features):  also set research_mode.enabled: true,
+  #   research_mode.inquiry_enabled: true, vision_registry.activation_enabled: true
+
   # Default parameters
   defaults:
     # Maximum bridge iterations (1-5)
@@ -1421,6 +1433,8 @@ run_bridge:
     enabled: true
     # Auto-capture VISION findings from Bridgebuilder reviews
     auto_capture: true
+    # FR-3: Activate relevant visions during bridge cycles (scan for tag overlap)
+    activation_enabled: false
 
   # RTFM documentation gate (runs after loop termination)
   rtfm:
@@ -1470,6 +1484,28 @@ run_bridge:
       enabled: true
       # Block posting if secrets remain after redaction
       post_redaction_safety: true
+
+  # Cross-Repository Pattern Query (FR-1, v1.40.0)
+  # Discovers structural parallels across sibling repos before each bridge review.
+  # Resolution: sibling directory → config override → REMOTE: GitHub API fallback.
+  cross_repo_query:
+    enabled: false                  # Enable cross-repo pattern matching
+    # ecosystem:                    # Override auto-discovery of sibling repos
+    #   - /path/to/sibling-repo
+    #   - REMOTE:0xHoneyJar/loa-hounfour
+    budget: 2000                    # Token budget per repo query
+    max_repos: 5                    # Maximum repos to query per iteration
+    per_repo_timeout: 5             # Per-repo timeout (seconds)
+    timeout: 15                     # Total timeout for all queries (seconds)
+
+  # Research Mode (FR-2, v1.40.0) — Divergent Exploration Iterations
+  # After convergence iterations, optionally run a divergent exploration that
+  # produces SPECULATION-only findings excluded from flatline scoring.
+  research_mode:
+    enabled: false                  # Enable research mode
+    trigger_after_iteration: 1      # Fire after N convergent iterations complete
+    max_research_iterations: 1      # Maximum research iterations per bridge run
+    inquiry_enabled: false          # Also trigger multi-model inquiry (FR-4)
 
 # =============================================================================
 # Agent Teams Compatibility (v1.39.0)
