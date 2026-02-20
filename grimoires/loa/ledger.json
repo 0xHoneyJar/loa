@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-031",
-  "global_sprint_counter": 29,
+  "active_cycle": "cycle-032",
+  "global_sprint_counter": 37,
   "cycles": [
     {
       "id": "cycle-025",
@@ -227,13 +227,13 @@
       "id": "cycle-029",
       "label": "Construct-Aware Constraint Yielding",
       "status": "archived",
-      "archived": "2026-02-19T21:30:00Z",
-      "archive_path": "grimoires/loa/archive/2026-02-19-construct-aware-constraint-yielding",
-      "pr": 378,
       "created": "2026-02-19T20:00:00Z",
+      "archived": "2026-02-20T00:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-20-construct-aware-constraint-yielding",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "source_issue": 376,
+      "pr": 378,
       "sprints": [
         {
           "local_id": "sprint-1",
@@ -257,6 +257,70 @@
     },
     {
       "id": "cycle-030",
+      "label": "BUTTERFREEZONE Skill Provenance Segmentation",
+      "status": "archived",
+      "created": "2026-02-20T00:00:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "source_issue": 375,
+      "pr": 392,
+      "sprints": [
+        {
+          "local_id": "sprint-1",
+          "global_id": "sprint-25",
+          "label": "Core Skills Manifest + Classification + Segmented Output",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-2",
+          "global_id": "sprint-26",
+          "label": "AGENT-CONTEXT Enrichment + Validation + Tests",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-3",
+          "global_id": "sprint-27",
+          "label": "Bridge Iteration 1 — Idempotent Cache + Test Harness Polish",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-4",
+          "global_id": "sprint-28",
+          "label": "Temporal Lore Depth + Vision Registry Activation",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-5",
+          "global_id": "sprint-29",
+          "label": "Cross-Repository Pattern Query + Research Mode",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-6",
+          "global_id": "sprint-30",
+          "label": "Multi-Model Inquiry Mode + Integration",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-7",
+          "global_id": "sprint-31",
+          "label": "Bridge Iteration 2 — Pattern Noise Filtering + Trigger Semantics",
+          "status": "completed"
+        }
+      ],
+      "bridge": {
+        "id": "bridge-20260220-8ab2ce",
+        "iterations": 2,
+        "findings_addressed": 3,
+        "score_trajectory": "5 → 0",
+        "tests_final": 96,
+        "flatline": true
+      },
+      "archived": "2026-02-20T16:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-20-butterfreezone-provenance"
+    },
+    {
+      "id": "cycle-031",
       "label": "UX Redesign — Vercel-Grade Developer Experience",
       "status": "archived",
       "created": "2026-02-19T21:30:00Z",
@@ -264,45 +328,58 @@
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "pr": 391,
-      "source_issues": [380, 381, 382, 383, 384, 385, 386, 387, 388, 389, 390],
+      "source_issues": [
+        380,
+        381,
+        382,
+        383,
+        384,
+        385,
+        386,
+        387,
+        388,
+        389,
+        390
+      ],
       "sprints": [
         {
           "local_id": "sprint-1",
-          "global_id": "sprint-25",
+          "global_id": "sprint-32",
           "label": "Bug Fixes + Auto-Install Infrastructure",
           "status": "completed"
         },
         {
           "local_id": "sprint-2",
-          "global_id": "sprint-26",
+          "global_id": "sprint-33",
           "label": "/plan Entry Fixes + /feedback Visibility + Setup Auto-Fix",
           "status": "completed"
         },
         {
           "local_id": "sprint-3",
-          "global_id": "sprint-27",
+          "global_id": "sprint-34",
           "label": "Post-Completion Debrief + Sprint Calibration + Tool Hesitancy",
           "status": "completed"
         },
         {
           "local_id": "sprint-4",
-          "global_id": "sprint-28",
+          "global_id": "sprint-35",
           "label": "Free-Text /plan + /feedback at Tension Points + Smoke Tests",
           "status": "completed"
         }
       ]
     },
     {
-      "id": "cycle-031",
+      "id": "cycle-032",
       "label": "Interview Depth Configuration — Planning Backpressure",
       "status": "active",
       "created": "2026-02-20T00:30:00Z",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
+      "pr": 391,
       "sprints": [
         {
           "local_id": "sprint-1",
-          "global_id": "sprint-29",
+          "global_id": "sprint-36",
           "label": "Config Schema + Discovering-Requirements Backpressure",
           "status": "completed"
         }

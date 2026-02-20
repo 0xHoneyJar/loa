@@ -209,6 +209,70 @@ search_observations() {
         jq -s '.[] | {id, type, timestamp: .timestamp[0:10], summary: (.summary[0:100] + "...")}' 2>/dev/null || echo "[]"
 }
 
+# =============================================================================
+# Lore Query Functions (FR-5 — Temporal Lore Depth)
+# =============================================================================
+
+LORE_DIR="${LORE_DIR:-$PROJECT_ROOT/.claude/data/lore}"
+DISCOVERED_DIR="${DISCOVERED_DIR:-$LORE_DIR/discovered}"
+
+# List all lore entries with lifecycle metadata
+show_lore() {
+    local sort_by="${1:-id}"
+    local filter_significance="${2:-}"
+    local filter_repo="${3:-}"
+    local limit="${4:-20}"
+
+    local lore_files=("$DISCOVERED_DIR/patterns.yaml" "$DISCOVERED_DIR/visions.yaml")
+    local all_entries="[]"
+
+    for lf in "${lore_files[@]}"; do
+        [[ -f "$lf" ]] || continue
+        local entries
+        entries=$(yq -o=json '.entries // []' "$lf" 2>/dev/null) || continue
+        all_entries=$(echo "$all_entries" | jq --argjson new "$entries" '. + $new')
+    done
+
+    # Apply filters
+    if [[ -n "$filter_significance" ]]; then
+        all_entries=$(echo "$all_entries" | jq --arg sig "$filter_significance" \
+            '[.[] | select((.lifecycle.significance // "one-off") == $sig)]')
+    fi
+
+    if [[ -n "$filter_repo" ]]; then
+        all_entries=$(echo "$all_entries" | jq --arg repo "$filter_repo" \
+            '[.[] | select((.lifecycle.repos // []) | any(. == $repo))]')
+    fi
+
+    # Sort
+    case "$sort_by" in
+        references)
+            all_entries=$(echo "$all_entries" | jq 'sort_by(-(.lifecycle.references // 0))')
+            ;;
+        last_seen)
+            all_entries=$(echo "$all_entries" | jq 'sort_by(.lifecycle.last_seen // "0000") | reverse')
+            ;;
+        *)
+            all_entries=$(echo "$all_entries" | jq 'sort_by(.id)')
+            ;;
+    esac
+
+    # Apply limit
+    all_entries=$(echo "$all_entries" | jq --argjson lim "$limit" '.[:$lim]')
+
+    # Format output
+    echo "$all_entries" | jq '.[] | {
+        id,
+        term,
+        short,
+        references: (.lifecycle.references // 0),
+        last_seen: (.lifecycle.last_seen // "never"),
+        significance: (.lifecycle.significance // "one-off"),
+        repos: (.lifecycle.repos // []),
+        tags
+    }'
+}
+
 # Statistics
 show_stats() {
     if [[ ! -f "$OBSERVATIONS_FILE" ]] || [[ ! -s "$OBSERVATIONS_FILE" ]]; then
@@ -268,6 +332,9 @@ main() {
     local filter_session=""
     local obs_id=""
     local search_query=""
+    local lore_sort_by="id"
+    local lore_significance=""
+    local lore_repo=""
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -317,6 +384,22 @@ main() {
                 mode="stats"
                 shift
                 ;;
+            --lore)
+                mode="lore"
+                shift
+                ;;
+            --sort-by)
+                lore_sort_by="${2:-id}"
+                shift 2
+                ;;
+            --significance)
+                lore_significance="${2:-}"
+                shift 2
+                ;;
+            --repo)
+                lore_repo="${2:-}"
+                shift 2
+                ;;
             -h|--help)
                 usage
                 exit 0
@@ -333,6 +416,17 @@ main() {
                 ;;
         esac
     done
+
+    # Lore mode doesn't need observations file
+    if [[ "$mode" == "lore" ]]; then
+        local result
+        result=$(show_lore "$lore_sort_by" "$lore_significance" "$lore_repo" "$limit")
+        case "$output_format" in
+            table) output_as_table "$result" ;;
+            json|*) echo "$result" ;;
+        esac
+        return
+    fi
 
     # Check observations file exists
     check_observations_file

@@ -1,18 +1,19 @@
 {
   "schema_version": 1,
-  "bridge_id": "bridge-20260220-c95308",
+  "bridge_id": "bridge-20260220-8ab2ce",
   "state": "JACK_IN",
   "config": {
-    "depth": 3,
+    "depth": 5,
     "mode": "full",
     "flatline_threshold": 0.05,
     "per_sprint": false,
-    "branch": "feat/cycle-030-ux-redesign",
-    "repo": "0xHoneyJar/loa"
+    "branch": "feat/cycle-030-butterfreezone-provenance",
+    "repo": ""
   },
+  "pr": 392,
   "timestamps": {
-    "started": "2026-02-20T01:00:00Z",
-    "last_activity": "2026-02-20T01:00:00Z"
+    "started": "2026-02-20T13:00:00Z",
+    "last_activity": "2026-02-20T13:00:00Z"
   },
   "iterations": [],
   "flatline": {
@@ -25,11 +26,5 @@
     "total_files_changed": 0,
     "total_findings_addressed": 0,
     "total_visions_captured": 0
-  },
-  "finalization": {
-    "ground_truth_updated": false,
-    "rtfm_passed": false,
-    "pr_url": "https://github.com/0xHoneyJar/loa/pull/391",
-    "butterfreezone_generated": false
   }
 }

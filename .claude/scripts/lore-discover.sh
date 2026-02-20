@@ -32,8 +32,8 @@ PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
 # ─────────────────────────────────────────────────────────
 
 REVIEWS_DIR="${PROJECT_ROOT}/.run/bridge-reviews"
-LORE_DIR="${PROJECT_ROOT}/.claude/data/lore"
-DISCOVERED_DIR="${LORE_DIR}/discovered"
+LORE_DIR="${LORE_DIR:-${PROJECT_ROOT}/.claude/data/lore}"
+DISCOVERED_DIR="${DISCOVERED_DIR:-${LORE_DIR}/discovered}"
 OUTPUT_FILE="${DISCOVERED_DIR}/patterns.yaml"
 
 DRY_RUN=false
@@ -44,18 +44,29 @@ OVERWRITE=false
 # Argument Parsing
 # ─────────────────────────────────────────────────────────
 
+SCAN_REFERENCES=false
+SCAN_REVIEW_FILE=""
+SCAN_REPO_NAME=""
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --dry-run) DRY_RUN=true; shift ;;
         --bridge-id) BRIDGE_ID="$2"; shift 2 ;;
         --output) OUTPUT_FILE="$2"; shift 2 ;;
         --overwrite) OVERWRITE=true; shift ;;
+        --scan-references) SCAN_REFERENCES=true; shift ;;
+        --review-file) SCAN_REVIEW_FILE="$2"; shift 2 ;;
+        --repo-name) SCAN_REPO_NAME="$2"; shift 2 ;;
         -h|--help)
             echo "Usage: lore-discover.sh [--dry-run] [--bridge-id ID] [--output FILE] [--overwrite]"
-            echo "  --dry-run       Show candidates without writing"
-            echo "  --bridge-id ID  Extract from specific bridge only"
-            echo "  --output FILE   Write to specific file"
-            echo "  --overwrite     Overwrite output file instead of appending (destructive)"
+            echo "       lore-discover.sh --scan-references --bridge-id ID --review-file FILE [--repo-name NAME]"
+            echo "  --dry-run           Show candidates without writing"
+            echo "  --bridge-id ID      Extract from specific bridge only"
+            echo "  --output FILE       Write to specific file"
+            echo "  --overwrite         Overwrite output file instead of appending (destructive)"
+            echo "  --scan-references   Scan review for lore term references and update lifecycle"
+            echo "  --review-file FILE  Review file to scan (used with --scan-references)"
+            echo "  --repo-name NAME    Repository name for cross-repo tracking"
             exit 0
             ;;
         *) echo "Unknown argument: $1" >&2; exit 1 ;;
@@ -87,6 +98,148 @@ map_tags() {
     esac
 
     echo "[$tags]"
+}
+
+# ─────────────────────────────────────────────────────────
+# Lifecycle Reference Tracking (FR-5)
+# ─────────────────────────────────────────────────────────
+
+# Validate input contains only safe characters for YAML insertion
+validate_safe_id() {
+    local input="$1"
+    if [[ ! "$input" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+        echo "ERROR: Invalid characters in input: $input" >&2
+        return 1
+    fi
+}
+
+# Update lifecycle metadata for a lore entry when it's referenced in a bridge review.
+# Increments reference count, updates last_seen, appends to seen_in, and auto-classifies significance.
+# Args: $1=entry_id, $2=bridge_id, $3=repo_name, $4=lore_file
+update_lore_reference() {
+    local entry_id="$1"
+    local bridge_id="$2"
+    local repo_name="${3:-}"
+    local lore_file="$4"
+    local today
+    today=$(date -u +"%Y-%m-%d")
+
+    # Validate inputs
+    validate_safe_id "$entry_id" || return 1
+    validate_safe_id "$bridge_id" || return 1
+    if [[ -n "$repo_name" ]]; then
+        validate_safe_id "$repo_name" || return 1
+    fi
+
+    if [[ ! -f "$lore_file" ]]; then
+        echo "WARNING: Lore file not found: $lore_file" >&2
+        return 1
+    fi
+
+    # Check if yq is available
+    if ! command -v yq &>/dev/null; then
+        echo "WARNING: yq not found, skipping lifecycle update" >&2
+        return 0
+    fi
+
+    # Find the entry index
+    local idx
+    idx=$(yq ".entries | to_entries | .[] | select(.value.id == \"${entry_id}\") | .key" "$lore_file" 2>/dev/null) || true
+
+    if [[ -z "$idx" ]]; then
+        return 1  # Entry not found
+    fi
+
+    # Check for duplicate (idempotent: same bridge_id already recorded)
+    local already_seen
+    already_seen=$(yq ".entries[${idx}].lifecycle.seen_in[]? | select(. == \"*${bridge_id}*\")" "$lore_file" 2>/dev/null) || true
+    # More precise check: exact bridge_id substring match in seen_in entries
+    if [[ -n "$already_seen" ]]; then
+        return 0  # Idempotent: skip duplicate
+    fi
+    # Also check with grep for more reliable detection
+    local seen_entries
+    seen_entries=$(yq ".entries[${idx}].lifecycle.seen_in[]?" "$lore_file" 2>/dev/null) || true
+    if echo "$seen_entries" | grep -qF "$bridge_id" 2>/dev/null; then
+        return 0  # Idempotent: skip duplicate
+    fi
+
+    # Initialize lifecycle block if missing
+    yq -i ".entries[${idx}].lifecycle.created //= \"${today}\"" "$lore_file" 2>/dev/null || true
+    yq -i ".entries[${idx}].lifecycle.seen_in //= []" "$lore_file" 2>/dev/null || true
+    yq -i ".entries[${idx}].lifecycle.repos //= []" "$lore_file" 2>/dev/null || true
+
+    # Increment references
+    yq -i ".entries[${idx}].lifecycle.references = ((.entries[${idx}].lifecycle.references // 0) + 1)" "$lore_file"
+
+    # Update last_seen
+    yq -i ".entries[${idx}].lifecycle.last_seen = \"${today}\"" "$lore_file"
+
+    # Append bridge reference to seen_in
+    yq -i ".entries[${idx}].lifecycle.seen_in += [\"${bridge_id}\"]" "$lore_file"
+
+    # Add repo if not already present
+    if [[ -n "$repo_name" ]]; then
+        local repo_exists
+        repo_exists=$(yq ".entries[${idx}].lifecycle.repos[]? | select(. == \"${repo_name}\")" "$lore_file" 2>/dev/null) || true
+        if [[ -z "$repo_exists" ]]; then
+            yq -i ".entries[${idx}].lifecycle.repos += [\"${repo_name}\"]" "$lore_file"
+        fi
+    fi
+
+    # Auto-classify significance
+    local ref_count
+    ref_count=$(yq ".entries[${idx}].lifecycle.references" "$lore_file" 2>/dev/null) || ref_count=0
+    local repo_count
+    repo_count=$(yq ".entries[${idx}].lifecycle.repos | length" "$lore_file" 2>/dev/null) || repo_count=0
+
+    local significance="one-off"
+    if [[ "$ref_count" -ge 6 ]] || [[ "$repo_count" -ge 3 ]]; then
+        significance="foundational"
+    elif [[ "$ref_count" -ge 2 ]]; then
+        significance="recurring"
+    fi
+    yq -i ".entries[${idx}].lifecycle.significance = \"${significance}\"" "$lore_file"
+
+    echo "Updated $entry_id: refs=$ref_count, significance=$significance"
+}
+
+# Scan a review file for lore term references and update lifecycle metadata.
+# Args: $1=review_file, $2=bridge_id, $3=repo_name
+scan_for_lore_references() {
+    local review_file="$1"
+    local bridge_id="$2"
+    local repo_name="${3:-loa}"
+
+    if [[ ! -f "$review_file" ]]; then
+        echo "WARNING: Review file not found: $review_file" >&2
+        return 0
+    fi
+
+    local lore_files=("$DISCOVERED_DIR/patterns.yaml" "$DISCOVERED_DIR/visions.yaml")
+    local total_refs=0
+
+    for lore_file in "${lore_files[@]}"; do
+        [[ -f "$lore_file" ]] || continue
+
+        # Extract entry IDs and terms
+        local entries
+        entries=$(yq '.entries[]? | .id + "|" + .term' "$lore_file" 2>/dev/null) || continue
+
+        while IFS='|' read -r entry_id entry_term; do
+            [[ -z "$entry_id" ]] && continue
+
+            # Check if the review references this entry (by ID or term, case-insensitive)
+            if grep -qiF "$entry_id" "$review_file" 2>/dev/null || \
+               { [[ -n "$entry_term" ]] && grep -qiF "$entry_term" "$review_file" 2>/dev/null; }; then
+                if update_lore_reference "$entry_id" "$bridge_id" "$repo_name" "$lore_file" 2>/dev/null; then
+                    total_refs=$((total_refs + 1))
+                fi
+            fi
+        done <<< "$entries"
+    done
+
+    echo "Lore references updated: $total_refs"
 }
 
 # ─────────────────────────────────────────────────────────
@@ -337,6 +490,33 @@ append_with_dedup() {
 # ─────────────────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────
+# Reference Scanning Mode (early exit)
+# ─────────────────────────────────────────────────────────
+
+if [[ "$SCAN_REFERENCES" == "true" ]]; then
+    if [[ -z "$BRIDGE_ID" ]]; then
+        echo "ERROR: --bridge-id required with --scan-references" >&2
+        exit 1
+    fi
+
+    # Determine review file(s) to scan
+    if [[ -n "$SCAN_REVIEW_FILE" ]]; then
+        scan_for_lore_references "$SCAN_REVIEW_FILE" "$BRIDGE_ID" "$SCAN_REPO_NAME"
+    else
+        # Scan all review files for this bridge
+        local_files=$(find "$REVIEWS_DIR" -name "${BRIDGE_ID}*-full.md" 2>/dev/null || true)
+        if [[ -n "$local_files" ]]; then
+            while IFS= read -r rf; do
+                scan_for_lore_references "$rf" "$BRIDGE_ID" "$SCAN_REPO_NAME"
+            done <<< "$local_files"
+        else
+            echo "No review files found for bridge $BRIDGE_ID" >&2
+        fi
+    fi
+    exit 0
+fi
 
 if [[ ! -d "$REVIEWS_DIR" ]]; then
     echo "No bridge reviews found at $REVIEWS_DIR" >&2

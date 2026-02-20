@@ -120,6 +120,106 @@ record_reference() {
   fi
 }
 
+# =============================================================================
+# Vision Relevance Check (FR-3 — Vision Registry Activation)
+# =============================================================================
+
+# Extract PR-relevant tags from a diff file by mapping file paths to categories.
+# Output: space-separated tag list
+extract_pr_tags() {
+  local diff_file="$1"
+
+  if [[ ! -f "$diff_file" && "$diff_file" != "-" ]]; then
+    return
+  fi
+
+  local tags=()
+  local content
+  content=$(cat "$diff_file" 2>/dev/null || true)
+
+  # Map file path patterns to tags
+  echo "$content" | grep -oP '(?:^diff --git a/|^\+\+\+ b/)(.+)' 2>/dev/null | sed 's|diff --git a/||;s|+++ b/||' | sort -u | while read -r filepath; do
+    case "$filepath" in
+      *orchestrator*|*architect*|*bridge*)  echo "architecture" ;;
+      *security*|*redact*|*secret*|*audit*) echo "security" ;;
+      *constraint*|*permission*|*guard*)    echo "constraints" ;;
+      *flatline*|*multi-model*|*hounfour*)  echo "multi-model" ;;
+      *test*|*spec*)                        echo "testing" ;;
+      *lore*|*vision*|*memory*)             echo "philosophy" ;;
+      *construct*|*pack*)                   echo "orchestration" ;;
+    esac
+  done | sort -u
+}
+
+# Check visions for relevance to current PR changes.
+# Returns list of relevant vision IDs (one per line).
+# Args: $1=diff_file, $2=visions_dir (optional), $3=min_tag_overlap (optional)
+check_relevant_visions() {
+  local diff_file="$1"
+  local visions_dir="${2:-${PROJECT_ROOT}/grimoires/loa/visions}"
+  local min_tag_overlap="${3:-2}"
+  local index_file="${visions_dir}/index.md"
+
+  [[ -f "$index_file" ]] || return 0
+
+  # Extract PR tags from diff
+  local pr_tags_str
+  pr_tags_str=$(extract_pr_tags "$diff_file" 2>/dev/null || true)
+
+  if [[ -z "$pr_tags_str" ]]; then
+    return 0
+  fi
+
+  # Convert to array
+  local -a pr_tags
+  mapfile -t pr_tags <<< "$pr_tags_str"
+
+  # Parse index.md for Captured/Exploring visions
+  while IFS= read -r line; do
+    # Parse table row: | ID | Title | Source | Status | Tags | Refs |
+    local vid status tags_raw
+
+    vid=$(echo "$line" | awk -F'|' '{print $2}' | xargs)
+    status=$(echo "$line" | awk -F'|' '{print $5}' | xargs)
+    tags_raw=$(echo "$line" | awk -F'|' '{print $6}' | xargs)
+
+    # Only consider Captured or Exploring visions
+    [[ "$status" == "Captured" || "$status" == "Exploring" ]] || continue
+
+    # Parse vision tags (format: [tag1, tag2] or tag1, tag2)
+    local vision_tags
+    vision_tags=$(echo "$tags_raw" | tr -d '[]' | tr ',' '\n' | xargs -I{} echo {} | xargs)
+
+    # Count tag overlap
+    local overlap=0
+    for vtag in $vision_tags; do
+      for ptag in "${pr_tags[@]}"; do
+        if [[ "$vtag" == "$ptag" ]]; then
+          overlap=$((overlap + 1))
+        fi
+      done
+    done
+
+    if [[ $overlap -ge $min_tag_overlap ]]; then
+      echo "$vid"
+    fi
+  done < <(grep '^| vision-' "$index_file" 2>/dev/null || true)
+}
+
+# Early exit for vision relevance check mode
+if [[ "${1:-}" == "--check-relevant" ]]; then
+  shift
+  cr_diff="${1:-}"
+  cr_dir="${2:-${PROJECT_ROOT}/grimoires/loa/visions}"
+  cr_min="${3:-2}"
+  if [[ -z "$cr_diff" ]]; then
+    echo "Usage: bridge-vision-capture.sh --check-relevant <diff-file> [visions-dir] [min-overlap]" >&2
+    exit 2
+  fi
+  check_relevant_visions "$cr_diff" "$cr_dir" "$cr_min"
+  exit $?
+fi
+
 # Early exit for reference recording mode
 if [[ "${1:-}" == "--record-reference" ]]; then
   shift

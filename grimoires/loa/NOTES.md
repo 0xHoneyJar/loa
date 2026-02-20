@@ -4,11 +4,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Active Task** | Cycle-027: Broader QMD Integration Across Core Skills |
-| **Status** | Sprint 3 (sprint-16) — Configuration and Validation |
+| **Active Task** | Cycle-030: Bridge Inquiry Infrastructure |
+| **Status** | Sprint 6 (sprint-30) — Multi-Model Inquiry + Integration |
 | **Blocked By** | None |
-| **Next Action** | Complete sprint-16, create consolidated PR |
-| **Previous** | Cycle-026 archived (Hounfour Runtime Bridge) |
+| **Next Action** | Complete sprint-30, bridge finalization |
+| **Previous** | Cycle-029 archived; Sprints 4-5 (FR-5, FR-3, FR-1, FR-2) complete |
 
 ## Session Log
 

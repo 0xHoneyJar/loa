@@ -190,14 +190,39 @@ validate_agent_context() {
     done
 
     # Advisory checks for recommended fields (SDD §3.1.5)
-    for field in interfaces dependencies; do
-        if ! echo "$context_block" | grep -q "^${field}:" 2>/dev/null; then
-            log_warn "agent_context_ext" "AGENT-CONTEXT missing recommended field: $field" "missing: $field"
+    # Accept both flat "interfaces: [...]" and structured "interfaces:" formats
+    if ! echo "$context_block" | grep -q "^interfaces" 2>/dev/null; then
+        log_warn "agent_context_ext" "AGENT-CONTEXT missing recommended field: interfaces" "missing: interfaces"
+    fi
+
+    if ! echo "$context_block" | grep -q "^dependencies:" 2>/dev/null; then
+        log_warn "agent_context_ext" "AGENT-CONTEXT missing recommended field: dependencies" "missing: dependencies"
+    fi
+
+    # Advisory: check for structured interfaces format (v1.40+ / cycle-030)
+    if echo "$context_block" | grep -q "^interfaces:" 2>/dev/null; then
+        if echo "$context_block" | grep -q "^  core:" 2>/dev/null; then
+            log_pass "agent_context_structured" "AGENT-CONTEXT has structured interfaces (v1.40+)"
         fi
-    done
+    fi
 
     log_pass "agent_context" "AGENT-CONTEXT block valid (all required fields present)"
     return 0
+}
+
+# Check 2b: Core skills manifest (SDD cycle-030 §3.5)
+validate_core_skills_manifest() {
+    if [[ ! -f ".claude/data/core-skills.json" ]]; then
+        log_warn "core_skills_manifest" "core-skills.json not found — skill provenance will be flat" \
+            "Run /update-loa to generate"
+        return 0
+    fi
+    local count
+    count=$(jq '.skills | length' .claude/data/core-skills.json 2>/dev/null) || {
+        log_warn "core_skills_manifest" "core-skills.json invalid JSON" "parse error"
+        return 0
+    }
+    log_pass "core_skills_manifest" "core-skills.json valid (${count} skills)"
 }
 
 # Check 3: Provenance tags
@@ -716,6 +741,7 @@ main() {
     # Only run remaining checks if file exists
     if [[ -f "$FILE" ]]; then
         validate_agent_context || true
+        validate_core_skills_manifest || true
         validate_provenance || true
         validate_references || true
         validate_word_budget || true
