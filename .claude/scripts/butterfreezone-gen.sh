@@ -698,18 +698,54 @@ extract_agent_context() {
     [[ -f "go.mod" ]] && kf+=("go.mod")
     key_files=$(printf '%s' "[$(IFS=,; echo "${kf[*]}" | sed 's/,/, /g')]")
 
-    # Interfaces: top 5 skill commands or routes (SDD §2.6.1)
-    local iface_list=()
+    # Interfaces: structured by provenance with top-5 per group (SDD cycle-030 §3.4)
+    load_classification_cache
+    local core_ifaces=() project_ifaces=()
+    local has_construct_iface_groups=false
+    declare -A construct_iface_groups=()
+
     if [[ -d ".claude/skills" ]]; then
         while IFS= read -r d; do
             [[ -z "$d" ]] && continue
             local sname
             sname=$(basename "$d")
-            iface_list+=("/${sname}")
-            [[ ${#iface_list[@]} -ge 5 ]] && break
+            local prov
+            prov=$(classify_skill_provenance "$sname")
+            case "$prov" in
+                core)
+                    [[ ${#core_ifaces[@]} -lt 5 ]] && core_ifaces+=("/${sname}")
+                    ;;
+                construct:*)
+                    local pack="${prov#construct:}"
+                    has_construct_iface_groups=true
+                    local current="${construct_iface_groups[$pack]:-}"
+                    local count=0
+                    if [[ -n "$current" ]]; then
+                        count=$(echo "$current" | tr ',' '\n' | grep -c . 2>/dev/null) || count=0
+                    fi
+                    [[ $count -lt 5 ]] && construct_iface_groups[$pack]="${current:+${current}, }/${sname}"
+                    ;;
+                project)
+                    [[ ${#project_ifaces[@]} -lt 5 ]] && project_ifaces+=("/${sname}")
+                    ;;
+            esac
         done < <(find .claude/skills -maxdepth 1 -type d 2>/dev/null | sort | tail -n +2)
     fi
-    interfaces=$(printf '%s' "[$(IFS=,; echo "${iface_list[*]}" | sed 's/,/, /g')]")
+
+    # Format structured interfaces output
+    interfaces="interfaces:"
+    if [[ ${#core_ifaces[@]} -gt 0 ]]; then
+        interfaces="${interfaces}"$'\n'"  core: [$(IFS=,; echo "${core_ifaces[*]}" | sed 's/,/, /g')]"
+    fi
+    if [[ "$has_construct_iface_groups" == "true" ]]; then
+        interfaces="${interfaces}"$'\n'"  constructs:"
+        for pack in $(echo "${!construct_iface_groups[@]}" | tr ' ' '\n' | sort); do
+            interfaces="${interfaces}"$'\n'"    ${pack}: [${construct_iface_groups[$pack]}]"
+        done
+    fi
+    if [[ ${#project_ifaces[@]} -gt 0 ]]; then
+        interfaces="${interfaces}"$'\n'"  project: [$(IFS=,; echo "${project_ifaces[*]}" | sed 's/,/, /g')]"
+    fi
 
     # Dependencies: runtime requirements
     local dep_list=()
@@ -857,7 +893,7 @@ name: ${name}
 type: ${type}
 purpose: ${purpose}
 key_files: ${key_files}
-interfaces: ${interfaces}
+${interfaces}
 dependencies: ${deps}${ecosystem_block}${cap_req_block}
 version: ${version}
 trust_level: ${trust_tag}
