@@ -93,6 +93,77 @@ On ANY error during enhancement:
 - Continue with main skill execution
 </prompt_enhancement_prelude>
 
+<interview_config>
+## Interview Depth Configuration
+
+### Config Reading
+
+```bash
+interview_mode=$(yq eval '.interview.mode // "thorough"' .loa.config.yaml 2>/dev/null || echo "thorough")
+skill_mode=$(yq eval '.interview.per_skill.discovering-requirements // ""' .loa.config.yaml 2>/dev/null || echo "")
+[[ -n "$skill_mode" ]] && interview_mode="$skill_mode"
+
+pacing=$(yq eval '.interview.pacing // "sequential"' .loa.config.yaml 2>/dev/null || echo "sequential")
+discovery_style=$(yq eval '.interview.input_style.discovery_questions // "plain"' .loa.config.yaml 2>/dev/null || echo "plain")
+routing_style=$(yq eval '.interview.input_style.routing_gates // "structured"' .loa.config.yaml 2>/dev/null || echo "structured")
+confirmation_style=$(yq eval '.interview.input_style.confirmation // "structured"' .loa.config.yaml 2>/dev/null || echo "structured")
+no_infer=$(yq eval '.interview.backpressure.no_infer // true' .loa.config.yaml 2>/dev/null || echo "true")
+show_work=$(yq eval '.interview.backpressure.show_work // true' .loa.config.yaml 2>/dev/null || echo "true")
+gate_between=$(yq eval '.interview.phase_gates.between_phases // true' .loa.config.yaml 2>/dev/null || echo "true")
+gate_before_gen=$(yq eval '.interview.phase_gates.before_generation // true' .loa.config.yaml 2>/dev/null || echo "true")
+min_confirm=$(yq eval '.interview.backpressure.min_confirmation_questions // 1' .loa.config.yaml 2>/dev/null || echo "1")
+```
+
+### Mode Behavior Table
+
+| Mode | Questions/Phase | Pacing | Phase Gates | Gap Skipping |
+|------|----------------|--------|-------------|--------------|
+| `thorough` | 3-6 (scales down with context) | sequential | All ON | Suppressed: always ask `min_confirm` questions |
+| `minimal` | 1-2 | batch | `before_generation` only | Active: skip covered phases |
+
+### Input Style Resolution
+
+| Interaction Type | `structured` | `plain` |
+|-----------------|-------------|---------|
+| Routing gates | AskUserQuestion with options | "Continue, go back, or skip ahead?" |
+| Discovery questions | AskUserQuestion with suggested answers | Markdown question, user responds freely |
+| Confirmations | AskUserQuestion (Yes/Correct/Adjust) | "Is this accurate? [yes/corrections]" |
+
+### Question Pacing
+
+| Pacing | Behavior |
+|--------|----------|
+| `sequential` | Ask ONE question per turn. Wait for response. Then ask the next. |
+| `batch` | Present 3-6 numbered questions. User responds to all at once. |
+
+### Backpressure Protocol (CRITICAL)
+
+When `no_infer` is true (DEFAULT):
+
+**PROHIBITED:**
+- DO NOT answer your own questions
+- DO NOT proceed without explicit user input
+- DO NOT write "Based on common patterns..." or "Typically..." for requirements — that is inference. ASK.
+- DO NOT combine multiple phases into one response
+- DO NOT generate the output document in the same response as the last question
+- DO NOT skip phases because "the context seems sufficient"
+
+**REQUIRED:**
+- WAIT for user response after every question
+- Before asking, state: (1) What you KNOW (cited), (2) What you DON'T KNOW, (3) Why it matters
+- SEPARATE phases into distinct conversation turns
+- Enumerate assumptions with [ASSUMPTION] tags before proceeding
+
+### Construct Override (Future — RFC #379)
+
+Schema supports future construct manifest override:
+```json
+{ "workflow": { "interview": { "mode": "minimal", "trust_tier": "BACKTESTED" } } }
+```
+Precedence: Construct (if trust >= BACKTESTED) > per_skill config > global mode > default (thorough).
+**Not wired yet.** Extension point documented here for forward compatibility.
+</interview_config>
+
 # Discovering Requirements
 
 <objective>
@@ -244,7 +315,11 @@ Produce comprehensive PRD by:
 - DO cite sources: `> From vision.md:12: "exact quote"`
 - DO present understanding for confirmation before proceeding
 - DO ask for clarification on contradictions, not assumptions
-- DO limit questions to 2-3 per phase maximum
+- DO limit questions to the configured range per phase (thorough: 3-6, minimal: 1-2)
+- DO ask at least {min_confirm} confirmation question(s) per phase, even if context covers it
+- DO NOT infer answers to questions you have not asked
+- When pacing is "sequential": ask ONE question, wait for response, then ask the next
+- When pacing is "batch": present questions as a numbered list
 
 ## Verification
 PRD traces every requirement to either:
@@ -594,7 +669,7 @@ correct my understanding first?
 
 1. State what you know (with citation)
 2. State what's missing or unclear
-3. Ask focused question (max 2-3 per phase)
+3. Ask focused questions (respect configured range and pacing)
 
 **Example:**
 ```markdown
@@ -615,20 +690,25 @@ However, I didn't find specific success metrics.
 For each phase, follow this logic:
 
 ```
-IF phase fully covered by context:
+IF phase fully covered AND interview_mode == "minimal":
   → Summarize understanding with citations
-  → Ask: "Is this accurate? Any corrections?"
+  → Ask: "Is this accurate?" (1 confirmation, uses confirmation_style)
   → Move to next phase
+
+ELSE IF phase fully covered AND interview_mode == "thorough":
+  → Summarize understanding with citations
+  → Ask at least {min_confirm} questions: "Is this accurate?" +
+    "What am I missing about [specific aspect]?"
+  → DO NOT skip. Context coverage does not exempt from confirmation.
+  → Wait for response. Respect pacing setting.
 
 ELSE IF phase partially covered:
   → Summarize what's known (with citations)
-  → Ask only about gaps (max 2-3 questions)
-  → Move to next phase
+  → Ask about gaps (respect configured question range and pacing)
 
 ELSE IF phase not covered:
-  → Conduct full discovery for this phase
-  → Ask 2-3 questions at a time
-  → Iterate until complete
+  → Full discovery (respect configured question range and pacing)
+  → Iterate until user confirms phase is complete
 ```
 
 ### Phase 1: Problem & Vision
@@ -636,20 +716,91 @@ ELSE IF phase not covered:
 - Product vision and mission
 - Why now? Why you?
 
+#### Phase 1 Transition
+
+When `gate_between` is true:
+1. Summarize what was learned in this phase (3-5 bullets, cited)
+2. State what carries forward to the next phase
+3. Present transition:
+   - If `routing_style` == "structured": Use AskUserQuestion:
+     question: "Phase 1 complete. Ready for Phase 2: Goals & Success Metrics?"
+     header: "Phase 1"
+     options:
+       - label: "Continue"
+         description: "Move to Goals & Success Metrics"
+       - label: "Go back"
+         description: "Revisit this phase — I have corrections"
+       - label: "Skip ahead"
+         description: "Jump to PRD generation — enough context gathered"
+   - If `routing_style` == "plain":
+     "Phase 1: Problem & Vision complete. Moving to Phase 2: Goals & Success Metrics. Continue, go back, or skip ahead?"
+4. WAIT for response. DO NOT auto-continue.
+
+When `gate_between` is false:
+One-line transition: "Moving to Phase 2: Goals & Success Metrics."
+
 ### Phase 2: Goals & Success Metrics
 - Business objectives
 - Quantifiable success criteria
 - Timeline and milestones
+
+#### Phase 2 Transition
+
+When `gate_between` is true:
+1. Summarize what was learned in this phase (3-5 bullets, cited)
+2. State what carries forward to the next phase
+3. Present transition:
+   - If `routing_style` == "structured": Use AskUserQuestion:
+     question: "Phase 2 complete. Ready for Phase 3: User & Stakeholder Context?"
+     header: "Phase 2"
+     options:
+       - label: "Continue"
+         description: "Move to User & Stakeholder Context"
+       - label: "Go back"
+         description: "Revisit this phase — I have corrections"
+       - label: "Skip ahead"
+         description: "Jump to PRD generation — enough context gathered"
+   - If `routing_style` == "plain":
+     "Phase 2: Goals & Success Metrics complete. Moving to Phase 3: User & Stakeholder Context. Continue, go back, or skip ahead?"
+4. WAIT for response. DO NOT auto-continue.
+
+When `gate_between` is false:
+One-line transition: "Moving to Phase 3: User & Stakeholder Context."
 
 ### Phase 3: User & Stakeholder Context
 - Primary and secondary personas
 - User journey and pain points
 - Stakeholder requirements
 
+#### Phase 3 Transition
+
+When `gate_between` is true:
+1. Summarize what was learned in this phase (3-5 bullets, cited)
+2. State what carries forward to the next phase
+3. Present transition:
+   - If `routing_style` == "structured": Use AskUserQuestion:
+     question: "Phase 3 complete. Ready for Phase 4: Functional Requirements?"
+     header: "Phase 3"
+     options:
+       - label: "Continue"
+         description: "Move to Functional Requirements"
+       - label: "Go back"
+         description: "Revisit this phase — I have corrections"
+       - label: "Skip ahead"
+         description: "Jump to PRD generation — enough context gathered"
+   - If `routing_style` == "plain":
+     "Phase 3: User & Stakeholder Context complete. Moving to Phase 4: Functional Requirements. Continue, go back, or skip ahead?"
+4. WAIT for response. DO NOT auto-continue.
+
+When `gate_between` is false:
+One-line transition: "Moving to Phase 4: Functional Requirements."
+
 ### Phase 4: Functional Requirements
 - Core features and capabilities
 - User stories with acceptance criteria
 - Feature prioritization
+
+**Anti-Inference Directive**: When the user provides a feature list, DO NOT expand it with "you'll probably also need..." additions. If you believe something is missing, ASK: "I notice [X] isn't mentioned. Intentional, or should we add it?"
 
 #### EARS Notation (Optional)
 
@@ -664,22 +815,139 @@ For high-precision requirements, use EARS notation from
 
 **When to use EARS**: Security-critical features, regulatory compliance, complex triggers.
 
+#### Phase 4 Transition
+
+When `gate_between` is true:
+1. Summarize what was learned in this phase (3-5 bullets, cited)
+2. State what carries forward to the next phase
+3. Present transition:
+   - If `routing_style` == "structured": Use AskUserQuestion:
+     question: "Phase 4 complete. Ready for Phase 5: Technical & Non-Functional?"
+     header: "Phase 4"
+     options:
+       - label: "Continue"
+         description: "Move to Technical & Non-Functional"
+       - label: "Go back"
+         description: "Revisit this phase — I have corrections"
+       - label: "Skip ahead"
+         description: "Jump to PRD generation — enough context gathered"
+   - If `routing_style` == "plain":
+     "Phase 4: Functional Requirements complete. Moving to Phase 5: Technical & Non-Functional. Continue, go back, or skip ahead?"
+4. WAIT for response. DO NOT auto-continue.
+
+When `gate_between` is false:
+One-line transition: "Moving to Phase 5: Technical & Non-Functional."
+
 ### Phase 5: Technical & Non-Functional
 - Performance requirements
 - Security and compliance
 - Integration requirements
 - Technical constraints
 
+#### Phase 5 Transition
+
+When `gate_between` is true:
+1. Summarize what was learned in this phase (3-5 bullets, cited)
+2. State what carries forward to the next phase
+3. Present transition:
+   - If `routing_style` == "structured": Use AskUserQuestion:
+     question: "Phase 5 complete. Ready for Phase 6: Scope & Prioritization?"
+     header: "Phase 5"
+     options:
+       - label: "Continue"
+         description: "Move to Scope & Prioritization"
+       - label: "Go back"
+         description: "Revisit this phase — I have corrections"
+       - label: "Skip ahead"
+         description: "Jump to PRD generation — enough context gathered"
+   - If `routing_style` == "plain":
+     "Phase 5: Technical & Non-Functional complete. Moving to Phase 6: Scope & Prioritization. Continue, go back, or skip ahead?"
+4. WAIT for response. DO NOT auto-continue.
+
+When `gate_between` is false:
+One-line transition: "Moving to Phase 6: Scope & Prioritization."
+
 ### Phase 6: Scope & Prioritization
 - MVP definition
 - Phase 1 vs future scope
 - Out of scope (explicit)
+
+#### Phase 6 Transition
+
+When `gate_between` is true:
+1. Summarize what was learned in this phase (3-5 bullets, cited)
+2. State what carries forward to the next phase
+3. Present transition:
+   - If `routing_style` == "structured": Use AskUserQuestion:
+     question: "Phase 6 complete. Ready for Phase 7: Risks & Dependencies?"
+     header: "Phase 6"
+     options:
+       - label: "Continue"
+         description: "Move to Risks & Dependencies"
+       - label: "Go back"
+         description: "Revisit this phase — I have corrections"
+       - label: "Skip ahead"
+         description: "Jump to PRD generation — enough context gathered"
+   - If `routing_style` == "plain":
+     "Phase 6: Scope & Prioritization complete. Moving to Phase 7: Risks & Dependencies. Continue, go back, or skip ahead?"
+4. WAIT for response. DO NOT auto-continue.
+
+When `gate_between` is false:
+One-line transition: "Moving to Phase 7: Risks & Dependencies."
 
 ### Phase 7: Risks & Dependencies
 - Technical risks
 - Business risks
 - External dependencies
 - Mitigation strategies
+
+#### Phase 7 Transition
+
+When `gate_between` is true:
+1. Summarize what was learned in this phase (3-5 bullets, cited)
+2. State what carries forward to PRD generation
+3. Present transition:
+   - If `routing_style` == "structured": Use AskUserQuestion:
+     question: "Phase 7 complete. Ready for pre-generation review?"
+     header: "Phase 7"
+     options:
+       - label: "Continue"
+         description: "Move to pre-generation summary"
+       - label: "Go back"
+         description: "Revisit this phase — I have corrections"
+   - If `routing_style` == "plain":
+     "Phase 7: Risks & Dependencies complete. Moving to pre-generation review. Continue or go back?"
+4. WAIT for response. DO NOT auto-continue.
+
+When `gate_between` is false:
+One-line transition: "Moving to PRD generation."
+
+### Pre-Generation Gate
+
+When `gate_before_gen` is true:
+
+Present completeness summary:
+
+```
+Discovery Complete
+---
+Phases covered: {N}/7
+Questions asked: {count}
+Assumptions made: {count}
+
+Top assumptions (review before I generate):
+1. [ASSUMPTION] {description} — if wrong, {impact}
+2. [ASSUMPTION] {description} — if wrong, {impact}
+3. [ASSUMPTION] {description} — if wrong, {impact}
+
+Ready to generate PRD?
+```
+
+Use `routing_style` for the "Ready to generate?" prompt.
+DO NOT generate the PRD until the user explicitly confirms.
+
+When `gate_before_gen` is false:
+Proceed directly to generation with a one-line notice: "Generating PRD based on discovery."
 
 ## Phase 8: PRD Generation
 

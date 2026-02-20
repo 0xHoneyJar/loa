@@ -1,105 +1,35 @@
 {
   "schema_version": 1,
-  "bridge_id": "bridge-20260219-7f28c4",
-  "state": "JACKED_OUT",
+  "bridge_id": "bridge-20260220-c95308",
+  "state": "JACK_IN",
   "config": {
     "depth": 3,
     "mode": "full",
     "flatline_threshold": 0.05,
     "per_sprint": false,
-    "branch": "feat/cycle-027-qmd-integration",
-    "repo": ""
+    "branch": "feat/cycle-030-ux-redesign",
+    "repo": "0xHoneyJar/loa"
   },
   "timestamps": {
-    "started": "2026-02-19T00:36:51Z",
-    "last_activity": "2026-02-19T03:15:00Z"
+    "started": "2026-02-20T01:00:00Z",
+    "last_activity": "2026-02-20T01:00:00Z"
   },
-  "iterations": [
-    {
-      "iteration": 1,
-      "state": "completed",
-      "sprint_plan_source": "existing",
-      "sprints_executed": 3,
-      "bridgebuilder": {
-        "total_findings": 11,
-        "by_severity": {
-          "critical": 0,
-          "high": 1,
-          "medium": 3,
-          "low": 3,
-          "vision": 0,
-          "praise": 3
-        },
-        "severity_weighted_score": 14,
-        "pr_comment_url": "https://github.com/0xHoneyJar/loa/pull/373#issuecomment-3924045326"
-      },
-      "enrichment": {
-        "persona_loaded": true,
-        "persona_validation": "passed",
-        "findings_format": "json_v2",
-        "field_fill_rates": {
-          "faang_parallel": 0.43,
-          "metaphor": 0.29,
-          "teachable_moment": 1.0,
-          "connection": 0
-        },
-        "praise_count": 3,
-        "insights_size_bytes": 8500,
-        "redactions_applied": 0
-      },
-      "visions_captured": 0,
-      "started_at": "2026-02-19T00:36:51Z"
-    },
-    {
-      "iteration": 2,
-      "state": "completed",
-      "sprint_plan_source": "findings",
-      "sprints_executed": 2,
-      "bridgebuilder": {
-        "total_findings": 6,
-        "by_severity": {
-          "critical": 0,
-          "high": 0,
-          "medium": 0,
-          "low": 0,
-          "vision": 0,
-          "praise": 6
-        },
-        "severity_weighted_score": 0,
-        "pr_comment_url": "https://github.com/0xHoneyJar/loa/pull/373#issuecomment-3924232577"
-      },
-      "enrichment": {
-        "persona_loaded": true,
-        "persona_validation": "passed",
-        "findings_format": "json_v2",
-        "field_fill_rates": {
-          "faang_parallel": 0,
-          "metaphor": 0,
-          "teachable_moment": 0,
-          "connection": 0
-        },
-        "praise_count": 6,
-        "insights_size_bytes": 0,
-        "redactions_applied": 0
-      },
-      "visions_captured": 0,
-      "started_at": "2026-02-19T01:30:00Z"
-    }
-  ],
+  "iterations": [],
   "flatline": {
-    "initial_score": 14,
-    "last_score": 0,
-    "consecutive_below_threshold": 1
+    "initial_score": null,
+    "last_score": null,
+    "consecutive_below_threshold": 0
   },
   "metrics": {
-    "total_sprints_executed": 5,
-    "total_files_changed": 18,
-    "total_findings_addressed": 7,
+    "total_sprints_executed": 0,
+    "total_files_changed": 0,
+    "total_findings_addressed": 0,
     "total_visions_captured": 0
   },
   "finalization": {
-    "ground_truth_updated": true,
-    "rtfm_passed": true,
-    "pr_url": "https://github.com/0xHoneyJar/loa/pull/373"
+    "ground_truth_updated": false,
+    "rtfm_passed": false,
+    "pr_url": "https://github.com/0xHoneyJar/loa/pull/391",
+    "butterfreezone_generated": false
   }
 }

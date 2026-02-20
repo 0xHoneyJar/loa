@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-030",
-  "global_sprint_counter": 26,
+  "active_cycle": "cycle-031",
+  "global_sprint_counter": 29,
   "cycles": [
     {
       "id": "cycle-025",
@@ -258,10 +258,12 @@
     {
       "id": "cycle-030",
       "label": "UX Redesign — Vercel-Grade Developer Experience",
-      "status": "active",
+      "status": "archived",
       "created": "2026-02-19T21:30:00Z",
+      "archived": "2026-02-20T00:30:00Z",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
+      "pr": 391,
       "source_issues": [380, 381, 382, 383, 384, 385, 386, 387, 388, 389, 390],
       "sprints": [
         {
@@ -275,6 +277,34 @@
           "global_id": "sprint-26",
           "label": "/plan Entry Fixes + /feedback Visibility + Setup Auto-Fix",
           "status": "completed"
+        },
+        {
+          "local_id": "sprint-3",
+          "global_id": "sprint-27",
+          "label": "Post-Completion Debrief + Sprint Calibration + Tool Hesitancy",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-4",
+          "global_id": "sprint-28",
+          "label": "Free-Text /plan + /feedback at Tension Points + Smoke Tests",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "cycle-031",
+      "label": "Interview Depth Configuration — Planning Backpressure",
+      "status": "active",
+      "created": "2026-02-20T00:30:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": "sprint-1",
+          "global_id": "sprint-29",
+          "label": "Config Schema + Discovering-Requirements Backpressure",
+          "status": "pending"
         }
       ]
     }

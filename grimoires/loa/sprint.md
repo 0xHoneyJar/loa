@@ -1,8 +1,7 @@
-# Sprint Plan: UX Redesign — Vercel-Grade Developer Experience
+# Sprint Plan: Interview Depth Configuration — Planning Backpressure
 
-> Cycle: cycle-030 | PRD: grimoires/loa/prd.md | SDD: grimoires/loa/sdd.md
-> Source: [#380](https://github.com/0xHoneyJar/loa/issues/380)-[#390](https://github.com/0xHoneyJar/loa/issues/390)
-> Sprints: 4 (2 completed, 2 new) | Team: 1 developer (AI-assisted)
+> Cycle: cycle-031 | PRD: grimoires/loa/prd.md | SDD: grimoires/loa/sdd.md
+> Sprints: 1 (MVP — discovering-requirements only) | Team: 1 developer (AI-assisted)
 
 ---
 
@@ -10,249 +9,237 @@
 
 | Field | Value |
 |-------|-------|
-| **Total Sprints** | 4 (sprint-25, sprint-26 completed; sprint-27, sprint-28 new) |
-| **Phase 1 Scope** | ✅ Tier 0 bug fixes + auto-install + /plan entry fixes + /feedback visibility |
-| **Phase 2 Scope** | Post-completion debrief + free-text /plan + sprint time calibration + tool hesitancy fix |
-| **Success Metric** | All 3 phase SKILL.md files have `<post_completion>`; zero "2.5 days"; free-text-first /plan; smoke tests pass |
+| **Total Sprints** | 1 (sprint-29) |
+| **Scope** | Config schema + discovering-requirements SKILL.md backpressure |
+| **Files Modified** | 2 (`.loa.config.yaml.example`, `discovering-requirements/SKILL.md`) |
+| **Files Created** | 1 (`.claude/scripts/tests/test-interview-config.sh`) |
+| **Success Metric** | `<interview_config>` block exists; phase transition gates exist; no hardcoded "2-3 per phase maximum"; smoke tests pass |
 
 ---
 
-## Sprint 1: Bug Fixes + Auto-Install Infrastructure (COMPLETED — sprint-25)
+## Sprint 1: Config Schema + Discovering-Requirements Backpressure
 
-✅ Implemented in commit `ca25a13`. See git history for details.
+**Scope**: FR-1 (config schema), FR-2 (interview_config block), FR-3 (question limits), FR-4 (phase gates), FR-5 (pre-gen gate), FR-6 (backpressure protocol), FR-7 (anti-inference), FR-8 (conditional logic)
+**Scope size**: MEDIUM (8 tasks)
 
-**Tasks completed**: Fix beads URL (#380), fix yq hint (#381), fix flock hint (#382), auto-install deps, post-mount golden path message.
+### Task 1.1: Add `interview:` config schema to `.loa.config.yaml.example`
 
----
+**File**: `.loa.config.yaml.example`
+**Anchor**: After line 88 (after `plan_and_analyze.codebase_grounding` section, before `autonomous_agent` section)
 
-## Sprint 2: /plan Entry Fixes + /feedback + Setup Auto-Fix (COMPLETED — sprint-26)
+**Change**: Insert the `interview:` configuration section from SDD §2.1:
+- Section header comment with version tag `(v1.41.0)`
+- `mode: thorough` (default)
+- `per_skill:` commented-out examples
+- `input_style:` with `routing_gates: structured`, `discovery_questions: plain`, `confirmation: structured`
+- `pacing: sequential`
+- `phase_gates:` with `between_phases: true`, `before_generation: true`
+- `backpressure:` with `no_infer: true`, `show_work: true`, `min_confirmation_questions: 1`
+- Construct override comment referencing RFC #379
 
-✅ Implemented in commits `ca25a13..d5ded9c`. See git history for details.
+**Acceptance Criteria**:
+- [ ] `interview:` section exists between `plan_and_analyze` and `autonomous_agent`
+- [ ] `yq eval '.interview.mode' .loa.config.yaml.example` returns `thorough`
+- [ ] `yq eval '.interview.input_style.discovery_questions' .loa.config.yaml.example` returns `plain`
+- [ ] `per_skill:` examples are commented out (not active YAML)
+- [ ] Construct override comment references RFC #379
 
-**Tasks completed**: "What does Loa add?" re-entry (#383), archetype truncation (#384), /loa setup auto-fix (#390), /feedback in first-time /loa (#388).
-
----
-
-## Sprint 3: Post-Completion Debrief + Sprint Time Calibration + Tool Hesitancy
-
-**Scope**: FR-7 (post_completion), FR-9 (sprint time), FR-10 (tension-driven /feedback), FR-11 (tool hesitancy)
-**Scope size**: MEDIUM (6 tasks)
-
-### Task 3.1: Add `<post_completion>` to discovering-requirements/SKILL.md (#385)
+### Task 1.2: Add `<interview_config>` block to discovering-requirements/SKILL.md
 
 **File**: `.claude/skills/discovering-requirements/SKILL.md`
-**Anchor**: After the closing `</visual_communication>` tag (end of file)
+**Anchor**: After line 94 (`</prompt_enhancement_prelude>`)
 
-**Change**: Append the `<post_completion>` section from SDD §3.1.1 with PRD-specific values:
-- artifact: "PRD", path: "grimoires/loa/prd.md"
-- next_phase: "architecture"
-- Includes "Adjust" flow specification (regenerate artifact, preserve context, re-debrief)
+**Change**: Insert the `<interview_config>` XML-tagged section from SDD §2.2 containing 5 sub-sections:
+1. **Config Reading** — bash/yq snippet reading all interview settings with `// "default"` fallback (SDD §2.2.1)
+2. **Mode Behavior Table** — thorough vs minimal comparison table (SDD §2.2.2)
+3. **Input Style Resolution** — structured vs plain for routing/discovery/confirmation (SDD §2.2.3)
+4. **Question Pacing** — sequential vs batch behavior (SDD §2.2.4)
+5. **Backpressure Protocol** — PROHIBITED/REQUIRED lists from PRD FR-6 (SDD §2.2.5)
 
-**Acceptance Criteria**:
-- [ ] `<post_completion>` section exists after `</visual_communication>`
-- [ ] Debrief structure: Key Decisions (3-5), Assumptions (1-3), Biggest Tradeoff (1)
-- [ ] AskUserQuestion with Continue / Adjust / Stop here
-- [ ] "Stop here" includes /feedback mention
-- [ ] "Adjust" triggers regeneration with context preservation
-
-### Task 3.2: Add `<post_completion>` to designing-architecture/SKILL.md (#385)
-
-**File**: `.claude/skills/designing-architecture/SKILL.md`
-**Anchor**: After the closing `</communication_style>` tag (end of file)
-
-**Change**: Append the `<post_completion>` section with SDD-specific values:
-- artifact: "SDD", path: "grimoires/loa/sdd.md"
-- next_phase: "sprint planning"
+Skill name in yq per_skill path: `discovering-requirements`
 
 **Acceptance Criteria**:
-- [ ] `<post_completion>` section exists after `</communication_style>`
-- [ ] Same debrief structure as Task 3.1
-- [ ] AskUserQuestion with Continue / Adjust / Stop here
+- [ ] `<interview_config>` block exists after `</prompt_enhancement_prelude>`
+- [ ] Config reading bash snippet uses `yq eval` with `// "default"` fallback
+- [ ] Mode behavior table has `thorough` and `minimal` rows
+- [ ] PROHIBITED list includes all 6 items from PRD FR-6
+- [ ] REQUIRED list includes all 4 items from PRD FR-6
+- [ ] `</interview_config>` closing tag present
 
-### Task 3.3: Add `<post_completion>` to planning-sprints/SKILL.md (#385)
+### Task 1.3: Replace hardcoded question limit in `<kernel_framework>` (line 247)
 
-**File**: `.claude/skills/planning-sprints/SKILL.md`
-**Anchor**: After the closing `</visual_communication>` tag (end of file)
+**File**: `.claude/skills/discovering-requirements/SKILL.md`
 
-**Change**: Append the `<post_completion>` section with Sprint-specific values:
-- artifact: "Sprint Plan", path: "grimoires/loa/sprint.md"
-- next_phase: "implementation"
-- "Continue" label reads "Start building" (final planning phase)
-
-**Acceptance Criteria**:
-- [ ] `<post_completion>` section exists after `</visual_communication>`
-- [ ] "Continue" option label is "Start building" not "Continue"
-- [ ] Same debrief structure as Tasks 3.1-3.2
-
-### Task 3.4: Replace "2.5 days" with scope sizing in planning-sprints/SKILL.md (#387)
-
-**File**: `.claude/skills/planning-sprints/SKILL.md`
-
-**Change**: Find-and-replace all 7 occurrences per SDD §3.3.1:
-- "2.5-day sprints" → "right-sized sprints" (2 occurrences)
-- "2.5 days of work" → "10 tasks per sprint. Size as SMALL (1-3), MEDIUM (4-6), LARGE (7-10)"
-- "Duration: 2.5 days with specific dates" → "Scope: SMALL / MEDIUM / LARGE"
-- "feasible within 2.5 days" → "feasible as a single iteration" (2 occurrences)
-- "Duration (2.5 days) with dates" → "Scope (SMALL/MEDIUM/LARGE) with task count"
-
-**Acceptance Criteria**:
-- [ ] Zero occurrences of "2.5" in planning-sprints/SKILL.md
-- [ ] SMALL/MEDIUM/LARGE sizing present
-- [ ] No calendar date references in sprint template output
-
-### Task 3.5: Fix App zone + add CLI permissions in implementing-tasks/SKILL.md (#389)
-
-**File**: `.claude/skills/implementing-tasks/SKILL.md`
-
-**Change 1**: In `<zone_constraints>`, find the row with `src/`, `lib/`, `app/` and change "Read-only | App zone - requires user confirmation" to "Read/Write | App zone - implementation target"
-
-**Change 2**: After closing `</zone_constraints>`, insert the `<cli_tool_permissions>` section from SDD §3.5.2 (explicit allowlist with git, gh, npm/bun, cargo read-only commands + confirmation-required list)
-
-**Acceptance Criteria**:
-- [ ] App zone shows "Read/Write" in zone table
-- [ ] `<cli_tool_permissions>` section exists with explicit allowlist
-- [ ] Allowlist includes git, gh, npm/bun, cargo read-only commands
-- [ ] Destructive operations listed under "Require Confirmation"
-
-### Task 3.6: Add CLI read-only permissions to planning SKILL.md files (#389)
-
-**Files**: `discovering-requirements/SKILL.md`, `designing-architecture/SKILL.md`, `planning-sprints/SKILL.md`
-
-**Change**: In each file's `<zone_constraints>` section, append after the zone table:
+**Before** (line 247):
 ```
-Agents MAY proactively run read-only CLI tools (e.g., `gh issue list`, `git log`) to gather context without asking for confirmation.
+- DO limit questions to 2-3 per phase maximum
+```
+
+**After** (SDD §2.3, row 2):
+```
+- DO limit questions to the configured range per phase (thorough: 3-6, minimal: 1-2)
+- DO ask at least {min_confirm} confirmation question(s) per phase, even if context covers it
+- DO NOT infer answers to questions you have not asked
+- When pacing is "sequential": ask ONE question, wait for response, then ask the next
+- When pacing is "batch": present questions as a numbered list
 ```
 
 **Acceptance Criteria**:
-- [ ] All 3 planning SKILL.md files have CLI read-only permission statement
-- [ ] Statement is inside or immediately after `<zone_constraints>`
+- [ ] No occurrence of "2-3 per phase maximum" in SKILL.md
+- [ ] "configured range" language present in `<kernel_framework>`
+- [ ] Sequential and batch pacing instructions present
+
+### Task 1.4: Replace Phase 0.5 question limit (line 597)
+
+**File**: `.claude/skills/discovering-requirements/SKILL.md`
+
+**Before** (line 597):
+```
+3. Ask focused question (max 2-3 per phase)
+```
+
+**After** (SDD §2.3, row 3):
+```
+3. Ask focused questions (respect configured range and pacing)
+```
+
+**Acceptance Criteria**:
+- [ ] No occurrence of "max 2-3 per phase" in Phase 0.5 section
+- [ ] "configured range and pacing" language present
+
+### Task 1.5: Replace conditional phase logic (lines 613-632)
+
+**File**: `.claude/skills/discovering-requirements/SKILL.md`
+
+**Before** (lines 613-632): Three-branch IF/ELSE with "max 2-3 questions"
+
+**After** (SDD §2.6): Four-branch mode-aware logic:
+1. Phase fully covered AND mode == "minimal" → summarize + 1 confirmation → next
+2. Phase fully covered AND mode == "thorough" → summarize + min_confirm questions → DO NOT skip → wait
+3. Phase partially covered → summarize known + ask about gaps (respect range/pacing)
+4. Phase not covered → full discovery (respect range/pacing) → iterate until complete
+
+**Acceptance Criteria**:
+- [ ] Four-branch conditional logic present
+- [ ] `mode == "thorough"` branch enforces minimum confirmation questions
+- [ ] `mode == "minimal"` branch allows gap-skipping
+- [ ] Both branches reference "configured range and pacing"
+- [ ] No "max 2-3 questions" remaining in this section
+
+### Task 1.6: Add phase transition gates after Phases 1-7
+
+**File**: `.claude/skills/discovering-requirements/SKILL.md`
+
+**Change**: After each of the 7 phase headings (lines 634-682), insert the Phase Transition Gate template from SDD §2.4:
+- When `gate_between` is true: summarize (3-5 bullets, cited), state carryforward, present transition (structured AskUserQuestion or plain text per `routing_style`), WAIT for response
+- When `gate_between` is false: one-line transition
+
+Gates inserted after:
+- Phase 1: Problem & Vision (after line 637)
+- Phase 2: Goals & Success Metrics (after line 642)
+- Phase 3: User & Stakeholder Context (after line 647)
+- Phase 4: Functional Requirements (after line 666 — after EARS section)
+- Phase 5: Technical & Non-Functional (after line 671)
+- Phase 6: Scope & Prioritization (after line 676)
+- Phase 7: Risks & Dependencies (after line 682)
+
+**Note**: Line numbers are approximate — apply insertions top-to-bottom. After each insertion, subsequent line numbers shift.
+
+**Acceptance Criteria**:
+- [ ] 7 phase transition gate blocks exist (one per phase)
+- [ ] Each gate includes summary + carryforward + transition prompt + WAIT directive
+- [ ] Each gate has `gate_between` true/false conditional
+- [ ] Structured gates reference AskUserQuestion with Continue/Go back/Skip ahead
+- [ ] Plain gates use direct text "Continue, go back, or skip ahead?"
+
+### Task 1.7: Add anti-inference directive to Phase 4
+
+**File**: `.claude/skills/discovering-requirements/SKILL.md`
+**Anchor**: Inside or immediately after Phase 4 (Functional Requirements) section, before the Phase 4 transition gate
+
+**Change**: Insert PRD FR-7 directive (SDD §2.3, row 7):
+```
+When the user provides a feature list, DO NOT expand it with "you'll probably
+also need..." additions. If you believe something is missing, ASK:
+"I notice [X] isn't mentioned. Intentional, or should we add it?"
+```
+
+**Acceptance Criteria**:
+- [ ] Anti-inference directive present in Phase 4 section
+- [ ] Contains "you'll probably also need" as PROHIBITED example
+- [ ] Contains the "I notice [X] isn't mentioned" question template
+
+### Task 1.8: Add pre-generation gate before Phase 8
+
+**File**: `.claude/skills/discovering-requirements/SKILL.md`
+**Anchor**: Before line 684 (`## Phase 8: PRD Generation`)
+
+**Change**: Insert the Pre-Generation Gate from SDD §2.5:
+- When `gate_before_gen` is true: present completeness summary (phases covered, questions asked, assumptions with `[ASSUMPTION]` tags and consequences), ask "Ready to generate PRD?" using `routing_style`, DO NOT generate until user confirms
+- When `gate_before_gen` is false: proceed directly with one-line notice
+
+**Acceptance Criteria**:
+- [ ] Pre-generation gate block exists before Phase 8
+- [ ] `gate_before_gen` true/false conditional present
+- [ ] Assumption enumeration with `[ASSUMPTION]` tags
+- [ ] "DO NOT generate until user explicitly confirms" directive present
+- [ ] Phases covered count and questions asked count mentioned
+
+### Task 1.9: Create smoke test script
+
+**File**: `.claude/scripts/tests/test-interview-config.sh` (new file)
+
+**Change**: Create test script validating all structural changes from SDD §4.2:
+
+| Assertion | What to Check |
+|-----------|--------------|
+| `<interview_config>` block exists | `grep -q '<interview_config>' SKILL.md` |
+| Old question limit removed | `! grep -q '2-3 per phase maximum' SKILL.md` |
+| Config-aware limit present | `grep -q 'configured range' SKILL.md` |
+| Backpressure PROHIBITED block | `grep -q 'DO NOT answer your own questions' SKILL.md` |
+| Phase transition gate exists | `grep -q 'Phase Transition' SKILL.md` |
+| Pre-generation gate exists | `grep -q 'Pre-Generation Gate' SKILL.md` |
+| Anti-inference directive | `grep -q "you.ll probably also need" SKILL.md` |
+| Config example has interview | `grep -q 'interview:' .loa.config.yaml.example` |
+| yq defaults resolve | `yq eval '.interview.mode // "thorough"' .loa.config.yaml` returns non-empty |
+
+**Acceptance Criteria**:
+- [ ] Script exists at `.claude/scripts/tests/test-interview-config.sh`
+- [ ] Script is executable (`chmod +x`)
+- [ ] Uses `((errors+=1))` not `((errors++))` (set -e safety)
+- [ ] All 9 assertions pass after implementation
+- [ ] Existing `test-ux-phase2.sh` still passes (no regressions)
 
 ---
 
-## Sprint 4: Free-Text-First /plan Entry + Smoke Tests
+## Task Dependency Graph
 
-**Scope**: FR-8 (free-text /plan), FR-10 remaining tension points, automated tests
-**Scope size**: MEDIUM (5 tasks)
-
-### Task 4.1: Replace archetype selection with free-text flow in plan.md (#386)
-
-**File**: `.claude/commands/plan.md`
-
-**Change**: Replace the use-case qualification gate (lines ~55-109) and archetype selection (lines ~111-158) with the new flow from SDD §3.2.2:
-1. First-time preamble (3 lines, non-interactive, one-time)
-2. Free-text AskUserQuestion ("Tell me about your project...")
-3. Input validation (reprompt if <10 chars)
-4. Save to `grimoires/loa/context/user-description.md`
-5. LLM-based archetype inference (silent, logged to `archetype-inference.md`)
-6. Route to `/plan-and-analyze`
-
-Also update the Examples section (lines ~206-264) to show new flow.
-
-**LLM Archetype Inference Detail** (Flatline IMP-002, SKP-003):
-- The agent reads all archetype YAML files and the user's description
-- Classification prompt: "Given this project description and these archetypes, which archetype best matches? Reply with: `archetype: <filename>` and `confidence: high|medium|low`. If none fit, reply `archetype: none`."
-- Confidence threshold: Only seed risks if confidence is `high` or `medium`
-- Low confidence / none: Skip risk seeding silently (Phase 0 interview compensates)
-- Multi-match: If description matches multiple, merge risk checklists from all
-- Log format: `archetype-inference.md` contains archetype, confidence, rationale
-
-**Privacy** (Flatline SKP-004): Add `grimoires/loa/context/user-description.md` and `archetype-inference.md` to `.gitignore` to prevent accidental commit of user input.
-
-**Acceptance Criteria**:
-- [ ] No archetype selection AskUserQuestion in plan.md
-- [ ] Free-text prompt present: "Tell me about your project"
-- [ ] "I have context files ready" shortcut option present
-- [ ] Input <10 chars triggers reprompt
-- [ ] Description saved to `grimoires/loa/context/user-description.md`
-- [ ] `user-description.md` and `archetype-inference.md` in `.gitignore`
-- [ ] LLM archetype inference with confidence threshold (not keyword matching)
-- [ ] Inference logged to `grimoires/loa/context/archetype-inference.md`
-- [ ] First-time preamble: ≤3 lines, non-interactive
-- [ ] Returning users (existing PRD) see state-detection flow (no regression)
-
-### Task 4.2: Add /feedback to doctor warnings
-
-**File**: `.claude/commands/loa.md` (or inline in the `/loa` command's health check display logic)
-
-**Change**: When `/loa` displays health warnings from doctor output, append:
 ```
-Something broken? /feedback reports it directly.
+Task 1.1 (config schema)         ← independent, separate file
+Task 1.2 (interview_config)      ← independent, line 94
+Task 1.3 (kernel_framework)      ← independent, line 247
+Task 1.4 (Phase 0.5 limit)       ← independent, line 597
+Task 1.5 (conditional logic)     ← after 1.2 (same region), lines 613-632
+Task 1.6 (phase gates)           ← after 1.5 (line numbers shift), lines 634-682
+Task 1.7 (anti-inference)        ← after 1.6 (inside Phase 4 gate area)
+Task 1.8 (pre-gen gate)          ← after 1.7 (line numbers shift), before line 684
+Task 1.9 (smoke test)            ← after all above (validates everything)
 ```
 
-**Acceptance Criteria**:
-- [ ] /feedback message appears when health warnings are shown
-- [ ] /feedback NOT shown when health is clean
-
-### Task 4.3: Add /feedback to Flatline result display
-
-**File**: Flatline result presentation logic (locate the block that displays HIGH_CONSENSUS auto-integration)
-
-**Change**: After auto-integrating HIGH_CONSENSUS findings, append:
-```
-Multi-model review working as designed. /feedback if you disagree.
-```
-
-**Acceptance Criteria**:
-- [ ] /feedback message appears after Flatline auto-integration
-- [ ] Only shown when HIGH_CONSENSUS items are integrated (not on empty results)
-
-### Task 4.4: Create automated smoke test script
-
-**File**: `.claude/scripts/tests/test-ux-phase2.sh` (new file)
-
-**Change**: Implement the smoke test script from SDD §5 that validates:
-- `<post_completion>` exists in all 3 planning SKILL.md files
-- No archetype selection UI in plan.md
-- Free-text prompt exists in plan.md
-- No "2.5 days" in planning-sprints/SKILL.md
-- SMALL/MEDIUM/LARGE sizing present
-- App zone shows "Read/Write" in implementing-tasks/SKILL.md
-- `<cli_tool_permissions>` section exists
-
-**Acceptance Criteria**:
-- [ ] Script exists and is executable
-- [ ] All assertions pass after Phase 2 implementation
-- [ ] Script uses `((errors+=1))` not `((errors++))` (set -e safety)
-
-### Task 4.5: Run smoke tests + manual verification
-
-**Change**: Execute `test-ux-phase2.sh` and walk through the manual verification checklist below.
-
-**Manual Verification Checklist** (Flatline SKP-005 — inlined, not just referenced):
-1. Fresh /plan: preamble shown once, free-text prompt appears
-2. /plan with context: "I have context files" routes correctly
-3. Short description (<10 chars): reprompt fires
-4. After PRD creation: debrief with decisions/assumptions/tradeoff shown
-5. After SDD creation: debrief shown, "Continue" leads to sprint planning
-6. After Sprint creation: debrief shown, "Start building" option
-7. "Adjust" in debrief: regenerates artifact, preserves context, re-debriefs
-8. Sprint output uses SMALL/MEDIUM/LARGE, no "2.5 days"
-9. /feedback appears in "Stop here" option description
-10. No /feedback in post-mount, post-setup, or generic help
-11. `archetype-inference.md` created after /plan with description
-12. `user-description.md` and `archetype-inference.md` are gitignored
-
-**Acceptance Criteria**:
-- [ ] All automated smoke tests pass
-- [ ] All 12 manual checklist items verified
+**Implementation order**: 1.1, 1.2, 1.3, 1.4 (parallel-safe) → 1.5 → 1.6 → 1.7 → 1.8 → 1.9
 
 ---
 
-## Sprint Dependency Graph
+## Appendix C: Goal Traceability
 
-```
-Sprint 3 (SKILL.md modifications)
-  ├── Task 3.1-3.3: post_completion (independent, can parallelize)
-  ├── Task 3.4: sprint time (same file as 3.3, do after 3.3)
-  ├── Task 3.5: implementing-tasks zone + CLI (independent)
-  └── Task 3.6: planning SKILL.md CLI perms (can combine with 3.1-3.3)
-
-Sprint 4 (plan.md + testing)
-  ├── Task 4.1: free-text /plan (depends on Sprint 3 for context)
-  ├── Task 4.2-4.3: /feedback tension points (independent)
-  ├── Task 4.4: smoke tests (depends on 3.x + 4.1)
-  └── Task 4.5: verification (depends on all above)
-```
+| Goal | Sprint Coverage | Status |
+|------|----------------|--------|
+| G-1: Structural friction | Tasks 1.6, 1.8 (phase gates, pre-gen gate) | COVERED |
+| G-2: Question count scales | Tasks 1.3, 1.4, 1.5 (config-aware limits + mode logic) | COVERED |
+| G-3: No inference without asking | Tasks 1.2, 1.7 (backpressure protocol + anti-inference) | COVERED |
+| G-4: Configurable input style | Tasks 1.1, 1.2 (config schema + input style resolution) | COVERED |
+| G-5: Sequential pacing default | Tasks 1.1, 1.2 (config schema + pacing rules) | COVERED |
+| G-6: Forward-compatible | Task 1.1 (construct override comment) | COVERED (schema only) |
 
 ---
 
@@ -260,7 +247,7 @@ Sprint 4 (plan.md + testing)
 
 | Risk | Mitigation |
 |------|-----------|
-| SKILL.md prompt regression | Automated smoke tests (Task 4.4) catch structural issues; manual verification catches behavioral issues |
-| Free-text "Other" client inconsistency | Input validation handles empty/short input; "Describe my project" option provides non-Other path |
-| LLM archetype inference cost | Classification is a single lightweight LLM call; no external API needed |
-| Merge conflicts with main | All changes are on the same branch; PR will be reviewed as one unit |
+| Line numbers shift after each insertion | Apply modifications top-to-bottom per SDD §2.3 note |
+| Prose directives ignored by Claude | Accepted as best-effort. Iterate on language if needed. (PRD §8) |
+| Large SKILL.md becomes harder to maintain | All insertions are XML-tagged sections. No refactoring of existing content. |
+| Existing smoke tests regress | Task 1.9 includes running `test-ux-phase2.sh` as regression check |

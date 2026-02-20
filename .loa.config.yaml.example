@@ -87,6 +87,51 @@ plan_and_analyze:
     skip_on_ride_error: false
 
 # -----------------------------------------------------------------------------
+# Interview Depth Configuration (v1.41.0)
+# -----------------------------------------------------------------------------
+# Controls question depth, input style, and pacing across planning skills.
+# Default: thorough mode with sequential plain-text discovery questions.
+#
+# Construct override: Schema supports future construct manifest interview
+# overrides gated by trust tier (RFC #379). Not wired yet.
+interview:
+  # Mode: thorough | minimal
+  #   thorough: 3-6 questions/phase, mandatory phase gates, no inference
+  #   minimal: 1-2 questions/phase, skip covered phases, faster throughput
+  mode: thorough
+
+  # Per-skill overrides (optional — mode applies to all if omitted)
+  # per_skill:
+  #   discovering-requirements: thorough
+  #   designing-architecture: minimal
+  #   planning-sprints: thorough
+
+  # Input style — per interaction type
+  input_style:
+    # routing_gates: AskUserQuestion for phase transitions (Continue/Adjust/Stop)
+    routing_gates: structured    # structured | plain
+    # discovery_questions: plain text for domain exploration
+    discovery_questions: plain   # structured | plain
+    # confirmation: AskUserQuestion for understanding checks
+    confirmation: structured     # structured | plain
+
+  # Question pacing
+  #   sequential: one question per turn, wait for response (default for thorough)
+  #   batch: 3-6 numbered questions per turn, user responds freely
+  pacing: sequential   # sequential | batch
+
+  # Phase transition gates
+  phase_gates:
+    between_phases: true       # Require confirmation between discovery phases
+    before_generation: true    # Require confirmation before generating output doc
+
+  # Backpressure controls (anti-rushing for capable models)
+  backpressure:
+    no_infer: true             # Prohibit inferring answers to unasked questions
+    show_work: true            # Cite known vs unknown before asking
+    min_confirmation_questions: 1  # Min questions even for "covered" phases
+
+# -----------------------------------------------------------------------------
 # Autonomous Agent (v1.11.0)
 # -----------------------------------------------------------------------------
 autonomous_agent:
