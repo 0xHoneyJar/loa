@@ -38,11 +38,11 @@
 - Construct override comment referencing RFC #379
 
 **Acceptance Criteria**:
-- [ ] `interview:` section exists between `plan_and_analyze` and `autonomous_agent`
-- [ ] `yq eval '.interview.mode' .loa.config.yaml.example` returns `thorough`
-- [ ] `yq eval '.interview.input_style.discovery_questions' .loa.config.yaml.example` returns `plain`
-- [ ] `per_skill:` examples are commented out (not active YAML)
-- [ ] Construct override comment references RFC #379
+- [x] `interview:` section exists between `plan_and_analyze` and `autonomous_agent`
+- [x] `yq eval '.interview.mode' .loa.config.yaml.example` returns `thorough`
+- [x] `yq eval '.interview.input_style.discovery_questions' .loa.config.yaml.example` returns `plain`
+- [x] `per_skill:` examples are commented out (not active YAML)
+- [x] Construct override comment references RFC #379
 
 ### Task 1.2: Add `<interview_config>` block to discovering-requirements/SKILL.md
 
@@ -59,12 +59,12 @@
 Skill name in yq per_skill path: `discovering-requirements`
 
 **Acceptance Criteria**:
-- [ ] `<interview_config>` block exists after `</prompt_enhancement_prelude>`
-- [ ] Config reading bash snippet uses `yq eval` with `// "default"` fallback
-- [ ] Mode behavior table has `thorough` and `minimal` rows
-- [ ] PROHIBITED list includes all 6 items from PRD FR-6
-- [ ] REQUIRED list includes all 4 items from PRD FR-6
-- [ ] `</interview_config>` closing tag present
+- [x] `<interview_config>` block exists after `</prompt_enhancement_prelude>`
+- [x] Config reading bash snippet uses `yq eval` with `// "default"` fallback
+- [x] Mode behavior table has `thorough` and `minimal` rows
+- [x] PROHIBITED list includes all 6 items from PRD FR-6
+- [x] REQUIRED list includes all 4 items from PRD FR-6
+- [x] `</interview_config>` closing tag present
 
 ### Task 1.3: Replace hardcoded question limit in `<kernel_framework>` (line 247)
 
@@ -85,9 +85,9 @@ Skill name in yq per_skill path: `discovering-requirements`
 ```
 
 **Acceptance Criteria**:
-- [ ] No occurrence of "2-3 per phase maximum" in SKILL.md
-- [ ] "configured range" language present in `<kernel_framework>`
-- [ ] Sequential and batch pacing instructions present
+- [x] No occurrence of "2-3 per phase maximum" in SKILL.md
+- [x] "configured range" language present in `<kernel_framework>`
+- [x] Sequential and batch pacing instructions present
 
 ### Task 1.4: Replace Phase 0.5 question limit (line 597)
 
@@ -104,8 +104,8 @@ Skill name in yq per_skill path: `discovering-requirements`
 ```
 
 **Acceptance Criteria**:
-- [ ] No occurrence of "max 2-3 per phase" in Phase 0.5 section
-- [ ] "configured range and pacing" language present
+- [x] No occurrence of "max 2-3 per phase" in Phase 0.5 section
+- [x] "configured range and pacing" language present
 
 ### Task 1.5: Replace conditional phase logic (lines 613-632)
 
@@ -120,11 +120,11 @@ Skill name in yq per_skill path: `discovering-requirements`
 4. Phase not covered → full discovery (respect range/pacing) → iterate until complete
 
 **Acceptance Criteria**:
-- [ ] Four-branch conditional logic present
-- [ ] `mode == "thorough"` branch enforces minimum confirmation questions
-- [ ] `mode == "minimal"` branch allows gap-skipping
-- [ ] Both branches reference "configured range and pacing"
-- [ ] No "max 2-3 questions" remaining in this section
+- [x] Four-branch conditional logic present
+- [x] `mode == "thorough"` branch enforces minimum confirmation questions
+- [x] `mode == "minimal"` branch allows gap-skipping
+- [x] Both branches reference "configured range and pacing"
+- [x] No "max 2-3 questions" remaining in this section
 
 ### Task 1.6: Add phase transition gates after Phases 1-7
 
@@ -146,11 +146,11 @@ Gates inserted after:
 **Note**: Line numbers are approximate — apply insertions top-to-bottom. After each insertion, subsequent line numbers shift.
 
 **Acceptance Criteria**:
-- [ ] 7 phase transition gate blocks exist (one per phase)
-- [ ] Each gate includes summary + carryforward + transition prompt + WAIT directive
-- [ ] Each gate has `gate_between` true/false conditional
-- [ ] Structured gates reference AskUserQuestion with Continue/Go back/Skip ahead
-- [ ] Plain gates use direct text "Continue, go back, or skip ahead?"
+- [x] 7 phase transition gate blocks exist (one per phase)
+- [x] Each gate includes summary + carryforward + transition prompt + WAIT directive
+- [x] Each gate has `gate_between` true/false conditional
+- [x] Structured gates reference AskUserQuestion with Continue/Go back/Skip ahead
+- [x] Plain gates use direct text "Continue, go back, or skip ahead?"
 
 ### Task 1.7: Add anti-inference directive to Phase 4
 
@@ -165,9 +165,9 @@ also need..." additions. If you believe something is missing, ASK:
 ```
 
 **Acceptance Criteria**:
-- [ ] Anti-inference directive present in Phase 4 section
-- [ ] Contains "you'll probably also need" as PROHIBITED example
-- [ ] Contains the "I notice [X] isn't mentioned" question template
+- [x] Anti-inference directive present in Phase 4 section
+- [x] Contains "you'll probably also need" as PROHIBITED example
+- [x] Contains the "I notice [X] isn't mentioned" question template
 
 ### Task 1.8: Add pre-generation gate before Phase 8
 
@@ -179,11 +179,11 @@ also need..." additions. If you believe something is missing, ASK:
 - When `gate_before_gen` is false: proceed directly with one-line notice
 
 **Acceptance Criteria**:
-- [ ] Pre-generation gate block exists before Phase 8
-- [ ] `gate_before_gen` true/false conditional present
-- [ ] Assumption enumeration with `[ASSUMPTION]` tags
-- [ ] "DO NOT generate until user explicitly confirms" directive present
-- [ ] Phases covered count and questions asked count mentioned
+- [x] Pre-generation gate block exists before Phase 8
+- [x] `gate_before_gen` true/false conditional present
+- [x] Assumption enumeration with `[ASSUMPTION]` tags
+- [x] "DO NOT generate until user explicitly confirms" directive present
+- [x] Phases covered count and questions asked count mentioned
 
 ### Task 1.9: Create smoke test script
 
@@ -204,11 +204,11 @@ also need..." additions. If you believe something is missing, ASK:
 | yq defaults resolve | `yq eval '.interview.mode // "thorough"' .loa.config.yaml` returns non-empty |
 
 **Acceptance Criteria**:
-- [ ] Script exists at `.claude/scripts/tests/test-interview-config.sh`
-- [ ] Script is executable (`chmod +x`)
-- [ ] Uses `((errors+=1))` not `((errors++))` (set -e safety)
-- [ ] All 9 assertions pass after implementation
-- [ ] Existing `test-ux-phase2.sh` still passes (no regressions)
+- [x] Script exists at `.claude/scripts/tests/test-interview-config.sh`
+- [x] Script is executable (`chmod +x`)
+- [x] Uses `((errors+=1))` not `((errors++))` (set -e safety)
+- [x] All 9 assertions pass after implementation
+- [x] Existing `test-ux-phase2.sh` still passes (no regressions)
 
 ---
 
