@@ -309,11 +309,11 @@
         }
       ],
       "bridge": {
-        "id": "bridge-20260220-5ac44d",
+        "id": "bridge-20260220-8ab2ce",
         "iterations": 2,
         "findings_addressed": 3,
         "score_trajectory": "5 → 0",
-        "tests_final": 47,
+        "tests_final": 96,
         "flatline": true
       }
     }
