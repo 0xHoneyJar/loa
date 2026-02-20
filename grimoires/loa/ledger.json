@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "active_cycle": "cycle-030",
-  "global_sprint_counter": 27,
+  "global_sprint_counter": 30,
   "cycles": [
     {
       "id": "cycle-025",
@@ -282,6 +282,24 @@
           "global_id": "sprint-27",
           "label": "Bridge Iteration 1 — Idempotent Cache + Test Harness Polish",
           "status": "completed"
+        },
+        {
+          "local_id": "sprint-4",
+          "global_id": "sprint-28",
+          "label": "Temporal Lore Depth + Vision Registry Activation",
+          "status": "in_progress"
+        },
+        {
+          "local_id": "sprint-5",
+          "global_id": "sprint-29",
+          "label": "Cross-Repository Pattern Query + Research Mode",
+          "status": "pending"
+        },
+        {
+          "local_id": "sprint-6",
+          "global_id": "sprint-30",
+          "label": "Multi-Model Inquiry Mode + Integration",
+          "status": "pending"
         }
       ],
       "bridge": {
