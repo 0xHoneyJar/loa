@@ -1471,6 +1471,34 @@ run_bridge:
       # Block posting if secrets remain after redaction
       post_redaction_safety: true
 
+  # Cross-Repository Pattern Query (FR-1, v1.40.0)
+  cross_repo_query:
+    # Enable cross-repo pattern matching before each bridge review
+    enabled: false
+    # Ecosystem repos (optional override — auto-discovers sibling dirs if empty)
+    # ecosystem:
+    #   - /path/to/sibling-repo
+    #   - REMOTE:0xHoneyJar/loa-hounfour
+    # Token budget per repo query
+    budget: 2000
+    # Maximum repos to query per iteration
+    max_repos: 5
+    # Per-repo timeout in seconds
+    per_repo_timeout: 5
+    # Total timeout in seconds for all repo queries
+    timeout: 15
+
+  # Research Mode (FR-2, v1.40.0) — Divergent Exploration Iterations
+  research_mode:
+    # Enable research mode (optional divergent iteration)
+    enabled: false
+    # Trigger after this many convergent iterations
+    trigger_after_iteration: 1
+    # Maximum research iterations per bridge run
+    max_research_iterations: 1
+    # Enable inquiry mode during research (requires FR-4)
+    inquiry_enabled: false
+
 # =============================================================================
 # Agent Teams Compatibility (v1.39.0)
 # =============================================================================

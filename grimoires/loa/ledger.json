@@ -287,13 +287,13 @@
           "local_id": "sprint-4",
           "global_id": "sprint-28",
           "label": "Temporal Lore Depth + Vision Registry Activation",
-          "status": "in_progress"
+          "status": "completed"
         },
         {
           "local_id": "sprint-5",
           "global_id": "sprint-29",
           "label": "Cross-Repository Pattern Query + Research Mode",
-          "status": "pending"
+          "status": "in_progress"
         },
         {
           "local_id": "sprint-6",
