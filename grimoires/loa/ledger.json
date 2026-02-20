@@ -263,6 +263,7 @@
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "source_issue": 375,
+      "pr": 392,
       "sprints": [
         {
           "local_id": "sprint-1",
@@ -282,7 +283,15 @@
           "label": "Bridge Iteration 1 — Idempotent Cache + Test Harness Polish",
           "status": "completed"
         }
-      ]
+      ],
+      "bridge": {
+        "id": "bridge-20260220-5ac44d",
+        "iterations": 2,
+        "findings_addressed": 3,
+        "score_trajectory": "5 → 0",
+        "tests_final": 47,
+        "flatline": true
+      }
     }
   ]
 }
