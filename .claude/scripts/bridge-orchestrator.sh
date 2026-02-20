@@ -541,6 +541,53 @@ bridge_main() {
     # including cross-repo context, top lore entries, and relevant visions.
     echo "SIGNAL:RESEARCH_ITERATION:$((research_completed + 1))"
 
+    # Inquiry Mode (FR-4): If inquiry_enabled, trigger multi-model architectural inquiry
+    local inquiry_enabled
+    inquiry_enabled=$(yq '.run_bridge.research_mode.inquiry_enabled // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+    if [[ "$inquiry_enabled" == "true" ]] && [[ -x "$SCRIPT_DIR/flatline-orchestrator.sh" ]]; then
+      echo "[INQUIRY] Triggering multi-model architectural inquiry..."
+      echo "SIGNAL:INQUIRY_MODE:$((research_completed + 1))"
+
+      # Feed cross-repo context into inquiry if available
+      local cross_repo_cache="${PROJECT_ROOT}/.run/cross-repo-context.json"
+      local inquiry_context=""
+      if [[ -f "$cross_repo_cache" ]]; then
+        inquiry_context=$(mktemp "${TMPDIR:-/tmp}/bridge-inquiry-ctx.XXXXXX")
+        jq -r '.results[]? | "## \(.repo)\n\(.matches[]? | "- \(.pattern): \(.context)")"' \
+          "$cross_repo_cache" > "$inquiry_context" 2>/dev/null || true
+      fi
+
+      # Find the document for inquiry (sprint.md or sdd.md)
+      local inquiry_doc="${PROJECT_ROOT}/grimoires/loa/sprint.md"
+      if [[ ! -f "$inquiry_doc" ]]; then
+        inquiry_doc="${PROJECT_ROOT}/grimoires/loa/sdd.md"
+      fi
+
+      if [[ -f "$inquiry_doc" ]]; then
+        local inquiry_output
+        inquiry_output=$("$SCRIPT_DIR/flatline-orchestrator.sh" \
+          --doc "$inquiry_doc" \
+          --phase "sprint" \
+          --mode inquiry \
+          --json 2>/dev/null) || true
+
+        if [[ -n "$inquiry_output" ]]; then
+          local inquiry_findings
+          inquiry_findings=$(echo "$inquiry_output" | jq '.summary.total_findings // 0' 2>/dev/null) || inquiry_findings=0
+          echo "[INQUIRY] Inquiry produced $inquiry_findings findings"
+
+          # Record in bridge state
+          if command -v jq &>/dev/null && [[ -f "$BRIDGE_STATE_FILE" ]]; then
+            jq --argjson f "$inquiry_findings" \
+              '.metrics.inquiry_findings = ((.metrics.inquiry_findings // 0) + $f)' \
+              "$BRIDGE_STATE_FILE" > "$BRIDGE_STATE_FILE.tmp"
+            mv "$BRIDGE_STATE_FILE.tmp" "$BRIDGE_STATE_FILE"
+          fi
+        fi
+      fi
+      rm -f "$inquiry_context"
+    fi
+
     research_completed=$((research_completed + 1))
 
     # Record in bridge state

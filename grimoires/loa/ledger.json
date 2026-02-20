@@ -293,13 +293,13 @@
           "local_id": "sprint-5",
           "global_id": "sprint-29",
           "label": "Cross-Repository Pattern Query + Research Mode",
-          "status": "in_progress"
+          "status": "completed"
         },
         {
           "local_id": "sprint-6",
           "global_id": "sprint-30",
           "label": "Multi-Model Inquiry Mode + Integration",
-          "status": "pending"
+          "status": "in_progress"
         }
       ],
       "bridge": {

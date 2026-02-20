@@ -1085,6 +1085,12 @@ flatline_protocol:
       notebook_id: ""          # Your NotebookLM notebook ID
       timeout_ms: 30000        # Query timeout
 
+  # Inquiry mode (FR-4): Collaborative multi-model architectural inquiry
+  # Runs 3 parallel queries (structural, historical, governance) and synthesizes
+  inquiry:
+    budget_cents: 500            # Cost budget per inquiry invocation
+    # Perspectives use primary/secondary/tertiary models with rotating assignment
+
   # Adversarial cross-model dissent for quality gates (#224)
   # A second model reviews code that Claude already reviewed
   code_review:

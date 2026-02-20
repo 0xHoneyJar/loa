@@ -555,6 +555,206 @@ set_state() {
 # Phase 1: Parallel Reviews
 # =============================================================================
 
+# =============================================================================
+# Inquiry Mode (FR-4): Collaborative Multi-Model Architectural Inquiry
+# =============================================================================
+# Runs 3 parallel collaborative queries with distinct prompts:
+#   1. Structural — isomorphisms, patterns, design parallels
+#   2. Historical — precedents, evolution, prior art
+#   3. Governance — constraints, policies, Ostrom-like rules
+# Results are synthesized into a unified JSON output.
+
+run_inquiry() {
+    local doc="$1"
+    local phase="$2"
+    local context_file="$3"
+    local timeout="$4"
+    local budget="${5:-500}"
+
+    set_state "PHASE1"
+    log "Starting Inquiry Mode: 3 parallel collaborative queries"
+
+    local primary_model secondary_model tertiary_model
+    primary_model=$(get_model_primary)
+    secondary_model=$(get_model_secondary)
+    tertiary_model=$(get_model_tertiary)
+
+    # Assign models to perspectives (rotating for diversity)
+    local structural_model="$primary_model"
+    local historical_model="$secondary_model"
+    local governance_model="${tertiary_model:-$primary_model}"
+
+    # Read document content
+    local doc_content
+    doc_content=$(cat "$doc" 2>/dev/null | head -2000) || doc_content=""
+
+    # Read context if available
+    local extra_context=""
+    if [[ -n "$context_file" && -f "$context_file" && -s "$context_file" ]]; then
+        extra_context=$(cat "$context_file" 2>/dev/null | head -500) || extra_context=""
+    fi
+
+    # Build inquiry prompts
+    local structural_prompt="You are conducting a structural architectural inquiry.
+
+Analyze the following document for structural patterns, isomorphisms, and design parallels.
+Look for:
+- Recurring structural patterns across components
+- Isomorphisms between seemingly different subsystems
+- Design patterns that could be generalized or extracted
+- Architectural symmetries and asymmetries
+
+Document (${phase}):
+${doc_content}
+
+${extra_context:+Additional context:
+${extra_context}
+}
+Output your findings as JSON with this schema:
+{\"perspective\": \"structural\", \"findings\": [{\"pattern\": \"...\", \"description\": \"...\", \"confidence\": 0.0-1.0, \"connections\": [\"...\"]}]}"
+
+    local historical_prompt="You are conducting a historical architectural inquiry.
+
+Analyze the following document for historical precedents, evolutionary patterns, and prior art.
+Look for:
+- Historical software engineering precedents for the patterns used
+- How the architecture has evolved or could evolve
+- FAANG-scale parallels from industry practice
+- Anti-patterns that history has shown to fail
+
+Document (${phase}):
+${doc_content}
+
+${extra_context:+Additional context:
+${extra_context}
+}
+Output your findings as JSON with this schema:
+{\"perspective\": \"historical\", \"findings\": [{\"pattern\": \"...\", \"precedent\": \"...\", \"confidence\": 0.0-1.0, \"lesson\": \"...\"}]}"
+
+    local governance_prompt="You are conducting a governance architectural inquiry.
+
+Analyze the following document for governance structures, constraint patterns, and policy design.
+Look for:
+- Ostrom-like governance principles in the architecture
+- Constraint enforcement mechanisms and their completeness
+- Trust boundaries and their implications
+- Policy patterns that could be formalized or improved
+
+Document (${phase}):
+${doc_content}
+
+${extra_context:+Additional context:
+${extra_context}
+}
+Output your findings as JSON with this schema:
+{\"perspective\": \"governance\", \"findings\": [{\"pattern\": \"...\", \"description\": \"...\", \"confidence\": 0.0-1.0, \"principle\": \"...\"}]}"
+
+    # Write prompts to temp files for model invocation
+    local structural_input="$TEMP_DIR/inquiry-structural.txt"
+    local historical_input="$TEMP_DIR/inquiry-historical.txt"
+    local governance_input="$TEMP_DIR/inquiry-governance.txt"
+    echo "$structural_prompt" > "$structural_input"
+    echo "$historical_prompt" > "$historical_input"
+    echo "$governance_prompt" > "$governance_input"
+
+    # Output files
+    local structural_output="$TEMP_DIR/inquiry-structural-result.json"
+    local historical_output="$TEMP_DIR/inquiry-historical-result.json"
+    local governance_output="$TEMP_DIR/inquiry-governance-result.json"
+
+    # Launch 3 parallel queries
+    local pids=() labels=()
+
+    call_model "$structural_model" "review" "$structural_input" "$phase" "$context_file" "$timeout" > "$structural_output" 2>/dev/null &
+    pids+=($!); labels+=("structural($structural_model)")
+
+    call_model "$historical_model" "review" "$historical_input" "$phase" "$context_file" "$timeout" > "$historical_output" 2>/dev/null &
+    pids+=($!); labels+=("historical($historical_model)")
+
+    call_model "$governance_model" "review" "$governance_input" "$phase" "$context_file" "$timeout" > "$governance_output" 2>/dev/null &
+    pids+=($!); labels+=("governance($governance_model)")
+
+    # Wait for all queries
+    local failures=0
+    for i in "${!pids[@]}"; do
+        if ! wait "${pids[$i]}" 2>/dev/null; then
+            log "WARNING: Inquiry query failed: ${labels[$i]}"
+            failures=$((failures + 1))
+        else
+            log "Inquiry query complete: ${labels[$i]}"
+        fi
+    done
+
+    # Require at least 2 successful queries
+    local success_count=$(( ${#pids[@]} - failures ))
+    if [[ $success_count -lt 2 ]]; then
+        log "ERROR: Only $success_count of 3 inquiry queries succeeded (minimum 2 required)"
+        jq -n '{error: "insufficient_queries", success_count: '"$success_count"', required: 2}'
+        return 1
+    fi
+
+    # Aggregate costs
+    for f in "$structural_output" "$historical_output" "$governance_output"; do
+        if [[ -f "$f" && -s "$f" ]]; then
+            local cost
+            cost=$(jq '.cost_usd // 0' "$f" 2>/dev/null) || cost=0
+            TOTAL_COST=$(echo "$TOTAL_COST + ($cost * 100)" | bc 2>/dev/null || echo "$TOTAL_COST")
+        fi
+    done
+
+    set_state "CONSENSUS"
+
+    # Synthesize results
+    local structural_content="" historical_content="" governance_content=""
+    if [[ -f "$structural_output" && -s "$structural_output" ]]; then
+        structural_content=$(jq -r '.content // ""' "$structural_output" 2>/dev/null) || structural_content=""
+    fi
+    if [[ -f "$historical_output" && -s "$historical_output" ]]; then
+        historical_content=$(jq -r '.content // ""' "$historical_output" 2>/dev/null) || historical_content=""
+    fi
+    if [[ -f "$governance_output" && -s "$governance_output" ]]; then
+        governance_content=$(jq -r '.content // ""' "$governance_output" 2>/dev/null) || governance_content=""
+    fi
+
+    # Try to parse JSON from each response content
+    local structural_json historical_json governance_json
+    structural_json=$(echo "$structural_content" | jq '.' 2>/dev/null) || structural_json='{"perspective":"structural","findings":[],"raw":true}'
+    historical_json=$(echo "$historical_content" | jq '.' 2>/dev/null) || historical_json='{"perspective":"historical","findings":[],"raw":true}'
+    governance_json=$(echo "$governance_content" | jq '.' 2>/dev/null) || governance_json='{"perspective":"governance","findings":[],"raw":true}'
+
+    # Build unified synthesis
+    jq -n \
+        --argjson structural "$structural_json" \
+        --argjson historical "$historical_json" \
+        --argjson governance "$governance_json" \
+        --argjson queries_launched "${#pids[@]}" \
+        --argjson queries_succeeded "$success_count" \
+        --arg structural_model "$structural_model" \
+        --arg historical_model "$historical_model" \
+        --arg governance_model "$governance_model" \
+        '{
+            mode: "inquiry",
+            perspectives: {
+                structural: $structural,
+                historical: $historical,
+                governance: $governance
+            },
+            models: {
+                structural: $structural_model,
+                historical: $historical_model,
+                governance: $governance_model
+            },
+            summary: {
+                queries_launched: $queries_launched,
+                queries_succeeded: $queries_succeeded,
+                structural_findings: (($structural.findings // []) | length),
+                historical_findings: (($historical.findings // []) | length),
+                governance_findings: (($governance.findings // []) | length),
+                total_findings: ((($structural.findings // []) | length) + (($historical.findings // []) | length) + (($governance.findings // []) | length))
+            }
+        }'
+}
+
 run_phase1() {
     local doc="$1"
     local phase="$2"
@@ -1123,8 +1323,8 @@ main() {
     fi
 
     # Validate orchestrator mode
-    if [[ "$orchestrator_mode" != "review" && "$orchestrator_mode" != "red-team" ]]; then
-        error "Invalid mode: $orchestrator_mode (expected: review, red-team)"
+    if [[ "$orchestrator_mode" != "review" && "$orchestrator_mode" != "red-team" && "$orchestrator_mode" != "inquiry" ]]; then
+        error "Invalid mode: $orchestrator_mode (expected: review, red-team, inquiry)"
         exit 1
     fi
 
@@ -1295,6 +1495,68 @@ main() {
         log_trajectory "complete" "$final_result"
         echo "$final_result" | jq .
         log "Red team complete. Run ID: $rt_run_id, Cost: $TOTAL_COST cents"
+        exit 0
+    fi
+
+    # Mode dispatch: inquiry mode uses collaborative multi-model queries (FR-4)
+    if [[ "$orchestrator_mode" == "inquiry" ]]; then
+        local inq_run_id
+        inq_run_id="inq-$(date +%s)-$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+
+        local inq_budget
+        inq_budget=$(read_config '.flatline_protocol.inquiry.budget_cents' '500')
+
+        local inq_result
+        inq_result=$(run_inquiry "$doc" "$phase" "$context_file" "$DEFAULT_MODEL_TIMEOUT" "$inq_budget") || {
+            local inq_exit=$?
+            error "Inquiry mode failed (exit $inq_exit)"
+            exit $inq_exit
+        }
+
+        set_state "DONE"
+
+        local end_time
+        end_time=$(date +%s)
+        local total_latency_ms=$(( (end_time - START_TIME) * 1000 ))
+
+        local final_result
+        final_result=$(echo "$inq_result" | jq \
+            --arg phase "$phase" \
+            --arg doc "$doc" \
+            --arg domain "$domain" \
+            --arg mode "$execution_mode" \
+            --arg mode_reason "$mode_reason" \
+            --arg run_id "$inq_run_id" \
+            --arg orch_mode "inquiry" \
+            --argjson latency_ms "$total_latency_ms" \
+            --argjson cost_cents "$TOTAL_COST" \
+            --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '. + {
+                phase: $phase,
+                document: $doc,
+                domain: $domain,
+                orchestrator_mode: $orch_mode,
+                execution: {
+                    mode: $mode,
+                    mode_reason: $mode_reason,
+                    run_id: $run_id
+                },
+                timestamp: $timestamp,
+                metrics: (.metrics // {}) + {
+                    total_latency_ms: $latency_ms,
+                    cost_cents: $cost_cents,
+                    cost_usd: ($cost_cents / 100)
+                }
+            }')
+
+        # Save to output directory
+        local output_dir="$PROJECT_ROOT/grimoires/loa/a2a/flatline"
+        mkdir -p "$output_dir"
+        echo "$final_result" | jq . > "$output_dir/${phase}-inquiry.json"
+
+        log_trajectory "complete" "$final_result"
+        echo "$final_result" | jq .
+        log "Inquiry complete. Run ID: $inq_run_id, Cost: $TOTAL_COST cents"
         exit 0
     fi
 
