@@ -5,6 +5,20 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.54.0] — 2026-02-20 — UX Redesign + Interview Depth Configuration
+
+
+Complete UX redesign (cycle-030) plus interview depth configuration with planning backpressure (cycle-031). Addresses all 11 issues from the UX audit (#380-#390) and adds configurable interview depth to prevent Opus 4.6 from rushing through planning phases.
+
+### Phase 1 (cycle-030): Bug Fixes + Entry Flow (Sprints 25-26)
+
+### Added
+
+- **cycle-030/031**: UX Redesign + Interview Depth Configuration (#391)
+
+_Source: PR #391_
+
+
 ## [1.39.1] — 2026-02-15 — Collateral Deletion Safeguard + CI Hardening
 
 ### Fixed
