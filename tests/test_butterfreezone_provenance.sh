@@ -621,7 +621,7 @@ test_validation_warns_without_manifest
 
 echo ""
 echo "═══════════════════════════════════════════════════"
-echo "  Results: ${TESTS_PASSED}/${TESTS_RUN} passed, ${TESTS_FAILED} failed"
+echo "  Results: ${TESTS_RUN} tests, ${TESTS_PASSED} assertions, ${TESTS_FAILED} failures"
 echo "═══════════════════════════════════════════════════"
 echo ""
 

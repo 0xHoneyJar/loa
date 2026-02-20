@@ -1246,12 +1246,16 @@ EOF
 #   3. packs/<pack>/skills/ directory match → construct:<pack> (fallback)
 #   4. Otherwise → project
 
-# Cache: loaded once per generation run
+# Cache: loaded once per generation run (idempotent — BB-medium-1)
 _CORE_SKILLS_CACHE=""
 _CONSTRUCTS_META_CACHE=""
 _PACKS_DIR=".claude/constructs/packs"
+_CLASSIFICATION_CACHE_LOADED=false
 
 load_classification_cache() {
+    # Guard: skip if already loaded this run
+    [[ "$_CLASSIFICATION_CACHE_LOADED" == "true" ]] && return 0
+
     local core_file=".claude/data/core-skills.json"
     if [[ -f "$core_file" ]] && command -v jq &>/dev/null; then
         _CORE_SKILLS_CACHE=$(jq -r '.skills[]' "$core_file" 2>/dev/null | sort) || true
@@ -1267,6 +1271,8 @@ load_classification_cache() {
             "\(.key | split("/") | last)|\(.value.from_pack)"
         ' "$meta_file" 2>/dev/null) || true
     fi
+
+    _CLASSIFICATION_CACHE_LOADED=true
 }
 
 classify_skill_provenance() {
