@@ -152,6 +152,8 @@ Present results to user:
 **HIGH_CONSENSUS items** (score >700 both models):
 - These improvements have strong agreement
 - Consider integrating them directly
+- After integration, display: "Multi-model review working as designed. /feedback if you disagree."
+  (Only when at least 1 HIGH_CONSENSUS item was integrated)
 
 **DISPUTED items** (delta >300):
 - Models disagreed significantly

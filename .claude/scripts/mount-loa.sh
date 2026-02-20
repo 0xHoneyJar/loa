@@ -179,6 +179,7 @@ SKIP_BEADS=false
 STEALTH_MODE=false
 FORCE_MODE=false
 NO_COMMIT=false
+NO_AUTO_INSTALL=false
 SUBMODULE_MODE=false
 
 # === Argument Parsing ===
@@ -194,6 +195,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-beads)
       SKIP_BEADS=true
+      shift
+      ;;
+    --no-auto-install)
+      NO_AUTO_INSTALL=true
       shift
       ;;
     --force|-f)
@@ -230,6 +235,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --force, -f       Force remount without prompting"
       echo "  --stealth         Add state files to .gitignore"
       echo "  --skip-beads      Don't install/initialize Beads CLI"
+      echo "  --no-auto-install Don't auto-install missing dependencies (jq, yq)"
       echo "  --no-commit       Skip creating git commit after mount"
       echo ""
       echo "Submodule Mode Options:"
@@ -317,10 +323,110 @@ preflight() {
   fi
 
   command -v git >/dev/null || err "git is required"
-  command -v jq >/dev/null || err "jq is required (brew install jq / apt install jq)"
-  command -v yq >/dev/null || err "yq is required (brew install yq / pip install yq)"
+
+  # Auto-install missing dependencies (only when terminal is interactive)
+  if [[ -t 0 ]]; then
+    auto_install_deps
+  fi
+
+  # Verify all required deps are now present
+  command -v jq >/dev/null || err "jq is required. Auto-install failed. Manual: brew install jq (macOS) or apt install jq (Linux)"
+  command -v yq >/dev/null || err "yq v4+ is required. Auto-install failed. Manual: brew install yq (macOS) or https://github.com/mikefarah/yq#install"
 
   log "Pre-flight checks passed"
+}
+
+# === OS Detection Helper ===
+detect_os() {
+  case "$(uname -s)" in
+    Darwin) echo "macos" ;;
+    Linux)
+      if command -v apt-get &>/dev/null; then
+        echo "linux-apt"
+      elif command -v yum &>/dev/null; then
+        echo "linux-yum"
+      else
+        echo "unknown"
+      fi
+      ;;
+    *) echo "unknown" ;;
+  esac
+}
+
+# === Auto-Install Dependencies ===
+auto_install_deps() {
+  if [[ "$NO_AUTO_INSTALL" == "true" ]]; then
+    log "Auto-install disabled (--no-auto-install)"
+    return 0
+  fi
+
+  local os_type
+  os_type=$(detect_os)
+
+  # --- jq ---
+  if ! command -v jq &>/dev/null; then
+    step "Installing jq..."
+    case "$os_type" in
+      macos)
+        if command -v brew &>/dev/null; then
+          brew install jq && log "jq installed ✓" || warn "jq auto-install failed ✗. Manual: brew install jq"
+        else
+          warn "jq not found ✗. Install Homebrew first (https://brew.sh) then: brew install jq"
+        fi
+        ;;
+      linux-apt)
+        sudo apt-get install -y jq && log "jq installed ✓" || warn "jq auto-install failed ✗. Manual: sudo apt install jq"
+        ;;
+      linux-yum)
+        sudo yum install -y jq && log "jq installed ✓" || warn "jq auto-install failed ✗. Manual: sudo yum install jq"
+        ;;
+      *)
+        warn "Unknown OS. Install jq manually: https://jqlang.github.io/jq/download/"
+        ;;
+    esac
+  else
+    log "jq found ($(jq --version 2>/dev/null || echo 'unknown'))"
+  fi
+
+  # --- yq (mikefarah) ---
+  if ! command -v yq &>/dev/null; then
+    step "Installing yq (mikefarah)..."
+    case "$os_type" in
+      macos)
+        if command -v brew &>/dev/null; then
+          brew install yq && log "yq installed ✓" || warn "yq auto-install failed ✗. Manual: brew install yq"
+        else
+          warn "yq not found ✗. Install: brew install yq (requires Homebrew)"
+        fi
+        ;;
+      linux-apt|linux-yum)
+        local yq_version="v4.40.5"
+        local yq_arch
+        case "$(uname -m)" in
+          x86_64) yq_arch="amd64" ;;
+          aarch64|arm64) yq_arch="arm64" ;;
+          *) warn "Unknown arch for yq download"; return 0 ;;
+        esac
+        local yq_url="https://github.com/mikefarah/yq/releases/download/${yq_version}/yq_linux_${yq_arch}"
+        if sudo curl -fsSL "$yq_url" -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq; then
+          log "yq installed ✓ (${yq_version})"
+        else
+          warn "yq auto-install failed ✗. Manual: https://github.com/mikefarah/yq#install"
+        fi
+        ;;
+      *)
+        warn "Unknown OS. Install yq manually: https://github.com/mikefarah/yq#install"
+        ;;
+    esac
+  else
+    # Verify it's mikefarah/yq, not kislyuk/yq
+    if yq --version 2>/dev/null | grep -qi "mikefarah"; then
+      log "yq found (mikefarah $(yq --version 2>/dev/null))"
+    else
+      warn "Wrong yq detected (likely Python kislyuk/yq). Loa requires mikefarah/yq v4+."
+      warn "Install correct version: brew install yq (macOS) or https://github.com/mikefarah/yq#install"
+    fi
+  fi
 }
 
 # === Install Beads CLI ===
@@ -336,15 +442,18 @@ install_beads() {
     return 0
   fi
 
-  step "Installing Beads CLI..."
-  local installer_url="https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh"
-
-  if curl --output /dev/null --silent --head --fail "$installer_url"; then
-    curl -fsSL "$installer_url" | bash
-    log "Beads CLI installed"
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local br_installer="${script_dir}/beads/install-br.sh"
+  if [[ -x "$br_installer" ]]; then
+    step "Installing Beads CLI..."
+    if "$br_installer"; then
+      log "Beads CLI installed"
+    else
+      warn "Beads CLI installation failed (optional — /run mode requires it)"
+    fi
   else
-    warn "Beads installer not available - skipping"
-    return 0
+    warn "Beads installer not found — skipping (optional)"
   fi
 }
 
@@ -1419,30 +1528,12 @@ EOF
   local banner_script=".claude/scripts/upgrade-banner.sh"
   if [[ -x "$banner_script" ]]; then
     "$banner_script" "none" "$new_version" --mount
-  else
-    # Fallback: simple completion message
-    echo ""
-    log "======================================================================="
-    log "  Loa Successfully Mounted!"
-    log "======================================================================="
-    echo ""
-    info "Next steps:"
-    info "  1. Run 'claude' to start Claude Code"
-    info "  2. Run '/loa setup' to check dependencies"
-    info "  3. Start planning with '/plan'"
-    echo ""
   fi
 
-  warn "STRICT ENFORCEMENT: Direct edits to .claude/ will block agent execution."
-  warn "Use .claude/overrides/ for customizations."
   echo ""
-
-  # === Golden Path Next Steps ===
+  log "Loa mounted successfully."
   echo ""
-  log "Next steps:"
-  log "  1. Start Claude Code:  claude"
-  log "  2. Run setup wizard:   /loa setup"
-  log "  3. Start planning:     /plan"
+  log "  Next: Start Claude Code and type /plan"
   echo ""
 }
 

@@ -52,89 +52,80 @@ LOA-E001: Missing prerequisite
   Run /plan first (or /plan --from discovery).
 ```
 
-### 3. Use-Case Qualification (First-Time Projects Only)
+### 3. First-Time Preamble (One-Time)
 
-Before archetype selection, help new users understand if Loa is right for them. Only show this when:
-1. `grimoires/loa/prd.md` does NOT exist
-2. `grimoires/loa/ledger.json` has NO completed cycles
+**Condition**: No PRD exists AND no completed cycles in ledger AND no `--from` override.
 
-Present via AskUserQuestion:
+Display a brief, non-interactive preamble (3 lines max):
+
+```
+Loa guides you through structured planning: requirements → architecture → sprints.
+Multi-model review catches issues that single-model misses.
+Cross-session memory means you never start from scratch.
+```
+
+This displays ONCE. No AskUserQuestion. No gate. No "What does Loa add?" choice.
+The preamble is followed immediately by the free-text prompt.
+
+### 4. Free-Text Project Description
+
+**Condition**: Phase is "discovery" (no existing PRD).
+
+Present a free-text prompt via AskUserQuestion:
+
 ```yaml
-question: "Ready to plan your project with Loa?"
-header: "Welcome"
+question: "Tell me about your project. What are you building, who is it for, and what problem does it solve?"
+header: "Your project"
 options:
-  - label: "Let's go!"
-    description: "Start planning — I know what I want to build"
-  - label: "What does Loa add?"
-    description: "Show me what Loa provides over vanilla Claude Code"
+  - label: "Describe my project"
+    description: "Type your project description in the text box below (select Other)"
+  - label: "I have context files ready"
+    description: "Skip to /plan-and-analyze — I've already put docs in grimoires/loa/context/"
 multiSelect: false
 ```
 
-If user selects "What does Loa add?", display:
+**Note**: The real input comes via the "Other" free-text option (auto-appended by AskUserQuestion). The first option's description guides users to use it.
 
-```
-What Loa adds to Claude Code:
+#### 4a. Process Free-Text Input
 
-  Structured Planning     PRD → SDD → Sprint Plan → Implementation
-  Quality Gates           Code review + security audit on every sprint
-  Cross-Session Memory    NOTES.md persists learnings across sessions
-  Multi-Model Review      Flatline Protocol (Opus + GPT-5.2) on docs
-  Task Tracking           Beads CLI for sprint task lifecycle
-  Deployment Support      IaC, CI/CD, and production hardening
+When the user provides a description (via "Other" or "Describe my project"):
 
-Loa works best for:
-  ✓ Projects with 2+ weeks of development
-  ✓ Teams that want structured quality gates
-  ✓ Codebases that need architecture documentation
+**Input validation**:
+- If empty or <10 characters: reprompt with "Could you tell me more? A sentence or two about what you're building helps me plan better."
+- If <30 characters: accept but log a note that context is thin — Phase 0 interview will compensate
+- No entropy check needed — even "todo app" is valid input
 
-Less useful for:
-  → Quick scripts or one-off tasks
-  → Projects with < 1 day of work
-```
+1. **Save description** to `grimoires/loa/context/user-description.md`:
+   ```markdown
+   # Project Description (from /plan)
+   > Auto-generated from user's initial project description.
 
-Then continue to archetype selection. This step never blocks — it's informational only.
+   {user's free-text input}
+   ```
 
-### 4. Archetype Selection (First-Time Projects Only)
+2. **Infer archetype** using the LLM (not keyword matching):
+   - Read all archetype YAML files from `.claude/data/archetypes/*.yaml`
+   - Present the list of archetype names + descriptions along with the user's description
+   - Classify internally: "Which archetype best matches this project? Reply with the filename or 'none'."
+   - Confidence threshold: Only seed risks if confidence is `high` or `medium`
+   - If match found: silently load `context.risks` into `grimoires/loa/NOTES.md` under `## Known Risks`
+   - If multiple matches: merge risk checklists from all matching archetypes
+   - If no match or low confidence: skip risk seeding (no error, no prompt)
+   - **Never show the archetype to the user** — it's internal scaffolding only
+   - Log the inferred archetype to `grimoires/loa/context/archetype-inference.md`:
+     ```markdown
+     # Archetype Inference
+     - **Archetype**: {filename or "none"}
+     - **Confidence**: {high|medium|low}
+     - **Rationale**: {1-2 sentence explanation}
+     ```
 
-Before routing to discovery, check if this is a first-time project:
+3. **Route to** `/plan-and-analyze` — the description in context/ will be picked up by Phase 0 synthesis.
 
-1. Does `grimoires/loa/prd.md` exist? → If yes, **SKIP** archetypes.
-2. Does `grimoires/loa/ledger.json` have any completed cycles? → If yes, **SKIP**.
-3. If both conditions indicate a fresh project, **dynamically discover** archetypes:
+When the user selects "I have context files ready":
+- Skip to `/plan-and-analyze` directly (current behavior for context-rich users).
 
-```bash
-for f in .claude/data/archetypes/*.yaml; do
-  name=$(yq '.name' "$f")
-  desc=$(yq '.description' "$f")
-  echo "$name: $desc"
-done
-```
-
-Build AskUserQuestion options dynamically from the discovered files. For each archetype YAML, extract `name` as the label and `description` as the option description. This ensures new archetype files added to `.claude/data/archetypes/` are automatically discovered without modifying this command file.
-
-```yaml
-question: "What type of project are you building?"
-header: "Archetype"
-options:
-  # Dynamically built from .claude/data/archetypes/*.yaml
-  # Each file becomes one option: name → label, description → description
-  # AskUserQuestion supports max 4 options, so use the first 4 files found
-multiSelect: false
-```
-
-The user can select "Other" to skip and start from a blank slate. If no archetype files exist, skip this step entirely.
-
-On selection: read the archetype YAML, format its `context` fields into Markdown, and write to `grimoires/loa/context/archetype.md`. The context ingestion pipeline in `/plan-and-analyze` picks it up automatically.
-
-**Risk Seeding**: After writing `archetype.md`, also seed `grimoires/loa/NOTES.md` with domain-specific risks from the archetype:
-
-1. Extract `context.risks` from the selected archetype YAML
-2. If `grimoires/loa/NOTES.md` does not exist, create it with a `## Known Risks` section
-3. If `grimoires/loa/NOTES.md` exists but has no `## Known Risks` section, append it
-4. If `## Known Risks` already has content, **skip** (don't duplicate on re-selection)
-5. Each risk becomes a bullet point: `- **[Archetype: {name}]**: {risk}`
-
-This ensures domain knowledge persists across sessions. A developer starting sprint-3 of a REST API project sees OWASP risks in NOTES.md even if archetype selection happened weeks ago.
+**Privacy**: `user-description.md` and `archetype-inference.md` are automatically gitignored by the existing `grimoires/loa/context/*` pattern.
 
 ### 5. Route to Truename
 
@@ -188,36 +179,28 @@ options:
 ```
 /plan
 
-Detecting planning state...
-  PRD: not found
-  SDD: not found
-  Sprint: not found
+Loa guides you through structured planning: requirements → architecture → sprints.
+Multi-model review catches issues that single-model misses.
+Cross-session memory means you never start from scratch.
 
-Starting from: Requirements Discovery
+Tell me about your project. What are you building, who is it for,
+and what problem does it solve?
+
+> I'm building a data measurement platform for AI teams. It tracks
+> model performance, experiment lineage, and team velocity...
+
+✓ Saved description to grimoires/loa/context/user-description.md
 → Running /plan-and-analyze
 
-[... plan-and-analyze executes ...]
+[... plan-and-analyze Phase 0 synthesizes description ...]
+```
 
-PRD created. Continue to architecture design? [Y/n]
-> Y
+### With Inline Context
+```
+/plan Build a REST API for user management with JWT auth and rate limiting
 
-→ Running /architect
-
-[... architect executes ...]
-
-SDD created. Continue to sprint planning? [Y/n]
-> Y
-
-→ Running /sprint-plan
-
-[... sprint-plan executes ...]
-
-Planning complete!
-  ✓ PRD: grimoires/loa/prd.md
-  ✓ SDD: grimoires/loa/sdd.md
-  ✓ Sprint: grimoires/loa/sprint.md
-
-Next: /build
+✓ Saved description to grimoires/loa/context/user-description.md
+→ Running /plan-and-analyze with context
 ```
 
 ### Resume Mid-Planning
@@ -227,17 +210,7 @@ Next: /build
 Detecting planning state...
   PRD: ✓ exists
   SDD: not found
-  Sprint: not found
 
 Resuming from: Architecture Design
 → Running /architect
-```
-
-### With Context
-```
-/plan Build a REST API for user management with JWT auth and rate limiting
-
-Starting from: Requirements Discovery
-→ Running /plan-and-analyze with context:
-  "Build a REST API for user management with JWT auth and rate limiting"
 ```

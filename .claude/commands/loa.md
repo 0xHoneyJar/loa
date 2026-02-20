@@ -93,6 +93,12 @@ The health line shows:
 - `⚠ 2 warnings — run /loa doctor` (yellow) — non-blocking issues
 - `✗ System unhealthy — run /loa doctor` (red) — blocking issues
 
+When warnings or issues are present (yellow or red), append after the health line:
+```
+Something broken? /feedback reports it directly.
+```
+Do NOT show this line when health is clean (green).
+
 ### Journey Bar
 
 The journey bar shows position in the golden path:
@@ -124,6 +130,9 @@ Power user commands:
   /review-sprint N     Review specific sprint
   /audit-sprint N      Security audit specific sprint
   /run sprint-plan     Autonomous mode (overnight)
+
+Ad-hoc:
+  /feedback            Report issues or suggestions
 
 Diagnostics:
   /loa doctor          System health check
@@ -388,6 +397,8 @@ The `/loa` command integrates with:
   └─────────────────────────────────────────────────────┘
 
   No PRD found. Ready to start planning.
+
+  Something unexpected? /feedback reports it directly.
 
   Next: /plan
   Gather requirements and plan your project.

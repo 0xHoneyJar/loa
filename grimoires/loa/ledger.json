@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-030",
-  "global_sprint_counter": 31,
+  "active_cycle": "cycle-032",
+  "global_sprint_counter": 37,
   "cycles": [
     {
       "id": "cycle-025",
@@ -258,7 +258,7 @@
     {
       "id": "cycle-030",
       "label": "BUTTERFREEZONE Skill Provenance Segmentation",
-      "status": "active",
+      "status": "archived",
       "created": "2026-02-20T00:00:00Z",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
@@ -315,7 +315,75 @@
         "score_trajectory": "5 → 0",
         "tests_final": 96,
         "flatline": true
-      }
+      },
+      "archived": "2026-02-20T16:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-20-butterfreezone-provenance"
+    },
+    {
+      "id": "cycle-031",
+      "label": "UX Redesign — Vercel-Grade Developer Experience",
+      "status": "archived",
+      "created": "2026-02-19T21:30:00Z",
+      "archived": "2026-02-20T00:30:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "pr": 391,
+      "source_issues": [
+        380,
+        381,
+        382,
+        383,
+        384,
+        385,
+        386,
+        387,
+        388,
+        389,
+        390
+      ],
+      "sprints": [
+        {
+          "local_id": "sprint-1",
+          "global_id": "sprint-32",
+          "label": "Bug Fixes + Auto-Install Infrastructure",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-2",
+          "global_id": "sprint-33",
+          "label": "/plan Entry Fixes + /feedback Visibility + Setup Auto-Fix",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-3",
+          "global_id": "sprint-34",
+          "label": "Post-Completion Debrief + Sprint Calibration + Tool Hesitancy",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-4",
+          "global_id": "sprint-35",
+          "label": "Free-Text /plan + /feedback at Tension Points + Smoke Tests",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "cycle-032",
+      "label": "Interview Depth Configuration — Planning Backpressure",
+      "status": "active",
+      "created": "2026-02-20T00:30:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "pr": 391,
+      "sprints": [
+        {
+          "local_id": "sprint-1",
+          "global_id": "sprint-36",
+          "label": "Config Schema + Discovering-Requirements Backpressure",
+          "status": "completed"
+        }
+      ]
     }
   ]
 }

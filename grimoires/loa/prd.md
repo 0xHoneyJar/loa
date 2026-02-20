@@ -1,290 +1,247 @@
-# PRD: Bridge Inquiry Infrastructure — Active Discovery, Research Mode & Temporal Lore
+# PRD: Interview Depth Configuration — Planning Backpressure
 
-> Cycle: cycle-030 | Author: zkSoju + Claude
-> Source: [PR #392 Post-Bridge Inquiry](https://github.com/0xHoneyJar/loa/pull/392) (Bridgebuilder architectural review)
-> Priority: P1 (infrastructure — enables ecosystem-scale insight production across bridge reviews)
+> Cycle: cycle-031 | Author: soju + Claude
+> Predecessor: cycle-030 (UX Redesign — Vercel-Grade Developer Experience)
+> Related: [#379](https://github.com/0xHoneyJar/loa/issues/379) (construct trust), [#90](https://github.com/0xHoneyJar/loa/issues/90) (AskUserQuestion UX), [#343](https://github.com/0xHoneyJar/loa/issues/343) (progressive disclosure)
+> Design Context: `grimoires/loa/context/interview-depth-config.md`, `grimoires/loa/context/ux-redesign-plan.md`
+> Priority: P1 — directly impacts planning quality for all users
 
 ---
 
 ## 1. Problem Statement
 
-The Bridgebuilder review system produces its deepest insights when operating at the architectural timescale — connecting patterns across repositories, surfacing Ostrom-style governance parallels, and discovering structural isomorphisms between disparate systems. But today, these connections depend on **human memory or serendipity**. Five specific gaps limit the system's capacity for architectural inquiry:
+Opus 4.6 rushes through Loa's planning phases. It infers answers instead of asking, skips phases when context "seems sufficient," and generates PRDs in the same conversation turn as the last question. The result: users get a document that looks complete but wasn't properly interrogated.
 
-1. **No cross-repository pattern matching**: Before each bridge review, no automated step queries "what patterns in the other repos resemble the changes in this PR?" Connections that require holding loa, loa-hounfour, loa-freeside, and loa-finn in mind simultaneously are invisible to the agent.
+**The root causes:**
 
-2. **No research mode for bridge iterations**: The bridge loop is convergent by design (score must decrease). Architectural inquiry is divergent (understanding must increase). There is no iteration mode that explores connections without generating convergence-scored findings.
+1. **No configuration surface.** Question limits ("2-3 per phase max") are hardcoded in SKILL.md prose. There is zero user-facing control for interview depth, input style, or pacing.
 
-3. **Vision Registry is passive**: 7 visions captured, 0 explored. The MAY permission exists ("MAY allocate time for Vision Registry exploration") but no automated mechanism surfaces relevant visions during bridge cycles.
+2. **Gap-skipping logic is too aggressive.** When context files cover a phase, the agent silently moves on with a one-line "Is this accurate?" — no friction, no confirmation gate, no summary of what was understood.
 
-4. **Multi-model review is QA-only**: The Flatline Protocol uses multi-model adversarial review for quality assurance. The same multi-model approach is not available for architectural inquiry — asking different models to find different kinds of connections (structural, historical, mathematical).
+3. **No backpressure mechanism.** Nothing in the SKILL.md explicitly prohibits the agent from combining phases, inferring answers, or generating the output document in the same response as the last question. More capable models exploit this absence.
 
-5. **Lore entries are static**: 3 discovered patterns exist as YAML, but no metadata tracks how often or recently they're referenced. Patterns with lasting architectural significance are indistinguishable from one-off observations.
+4. **AskUserQuestion UI isn't always wanted.** Some users prefer typing freely over selecting from 4 predefined options. The structured widget constrains users who think holistically.
 
-### Evidence
-
-- `bridge-orchestrator.sh`: EXPLORING state exists (v1.39.0) but is unused — the vision sprint pathway is stubbed but no cross-repo query runs pre-review
-- `grimoires/loa/visions/index.md`: 7 visions, 1 Exploring, 0 Proposed, 0 Implemented — the registry accumulates but never activates
-- `.claude/data/lore/discovered/patterns.yaml`: 3 entries, all from PR #324 — no lifecycle metadata, no reference tracking
-- `flatline-orchestrator.sh`: 4 parallel reviews (Primary/Secondary x review/skeptic) — no "inquiry" mode
-- `.loa.config.yaml` `butterfreezone.ecosystem`: 3 repos configured, but no pre-review cross-repo query exists
+> Sources: JNova Discord feedback (2026-02-19), cycle-030 retrospective, `ux-redesign-plan.md` Open Question #1 ("Should /plan offer a speed toggle?")
 
 ---
 
-## 2. Goals & Success Metrics
+## 2. Vision
 
-### Goals
+**Planning should feel like a senior PM interview, not a form submission.**
 
-| # | Goal | Measurable Outcome |
-|---|------|---------------------|
-| G1 | Surface cross-repo patterns before each bridge review | Pre-review query returns >=1 structural connection for PRs touching shared patterns |
-| G2 | Enable divergent exploration within bridge loops | Research iterations generate SPECULATION findings without affecting convergence score |
-| G3 | Activate vision registry during bridge cycles | Relevant visions surfaced and explored when bridge review references captured themes |
-| G4 | Support multi-model architectural inquiry | Inquiry mode runs alongside or instead of adversarial QA, producing ensemble insights |
-| G5 | Track lore pattern lifecycle with temporal depth | Each lore entry accumulates reference count, recency, and cross-repo spread metadata |
+The agent walks every phase, shows its understanding, asks what it doesn't know, and waits for you to confirm before moving on. Rich context means fewer questions — not fewer phases. The friction is structural (every phase has a gate) not volumetric (always ask N questions regardless).
 
-### Success Metrics
-
-- Pre-review cross-repo query returns results for >=50% of bridge iterations on multi-repo ecosystems
-- At least 1 research iteration is exercised during a 3+ depth bridge run
-- Vision registry transitions at least 1 vision from Captured → Exploring → Proposed across 2 bridge cycles
-- Lore entries gain `references` and `last_seen` fields populated by bridge reviews
-- No regression in bridge convergence speed (research mode is additive, not replacing)
+Users who want speed can opt into minimal mode. Constructs that earn trust (RFC #379) can eventually declare their own interview depth. But the default experience is thorough.
 
 ---
 
-## 3. User & Stakeholder Context
+## 3. Goals & Success Criteria
 
-### Primary Persona: Bridgebuilder Agent
-
-The Bridgebuilder reviewing a PR. Currently limited to the diff + immediate context. With cross-repo queries, research mode, and vision activation, the Bridgebuilder can:
-- See structural parallels across the ecosystem before starting review
-- Spend one iteration exploring connections without convergence pressure
-- Check if captured visions are relevant to the current changes
-- Request multi-model ensemble for architectural (not just QA) analysis
-
-### Secondary Persona: Human Architect
-
-A developer reading bridge review comments on PRs. Currently sees findings + insights from a single model's perspective. With these enhancements:
-- Pre-review context section shows cross-repo connections discovered automatically
-- Research iteration insights are clearly labeled as exploratory (non-convergent)
-- Vision references link to the registry for deeper exploration
-- Multi-model inquiry produces richer, more diverse architectural analysis
+| Goal | Success Criteria |
+|------|-----------------|
+| G-1: Structural friction at planning stage | Agent never skips a discovery phase, even with rich context. Every phase gets at minimum a summary + confirmation. |
+| G-2: Question count scales with context | Rich context (LARGE assessment) produces fewer questions per phase. Empty context produces full discovery. Neither produces zero-question phases. |
+| G-3: No inference without asking | Agent does not write "Based on common patterns..." or "Typically..." for requirements. Gaps are asked, not filled. |
+| G-4: Configurable input style | Users can choose structured (AskUserQuestion) or plain text for discovery questions via `.loa.config.yaml`. |
+| G-5: Sequential pacing by default | Agent asks one question per turn, waits for response. Users can switch to batch pacing. |
+| G-6: Forward-compatible with constructs | Config schema shape supports future construct manifest `interview` overrides gated by trust tier. No runtime plumbing yet. |
 
 ---
 
-## 4. Functional Requirements
+## 4. User Personas
 
-### FR-1: Cross-Repository Pattern Query
+### Persona 1: New User (no context)
+- Arrives with little or no context files
+- Needs full 7-phase discovery interview
+- Benefits from sequential pacing — one question at a time, conversational
+- Default mode: `thorough`
 
-Add a pre-review phase to the bridge orchestrator that queries ecosystem repos for structural parallels.
+### Persona 2: Power User (rich context)
+- Provides extensive context files in `grimoires/loa/context/`
+- Wants the agent to confirm understanding, not re-ask what's documented
+- Still expects every phase to be walked — no silent skipping
+- Question count scales down, but structural gates remain
+- Default mode: `thorough` (friction comes from gates, not question count)
 
-**Algorithm:**
-1. Extract key patterns from the current PR diff (function signatures, module names, architectural patterns)
-2. For each configured ecosystem repo in `.loa.config.yaml` `butterfreezone.ecosystem`:
-   - Query that repo's reality files (`grimoires/loa/reality/`) via the existing QMD interface
-   - Search for structural matches (shared types, similar function signatures, parallel architecture)
-3. Compile matches into a structured context block injected into the Bridgebuilder prompt
+### Persona 3: Construct Operator (speed matters)
+- Working within a construct's defined workflow (UI fixes, bug triage, domain-specific pipelines)
+- Needs concise planning or to opt out of heavy phases entirely
+- Uses `mode: minimal` in config, or construct manifest declares interview depth
+- Future: BACKTESTED+ constructs can reduce friction automatically (RFC #379)
+- Default mode: `minimal` (via config or construct override)
 
-**Acceptance Criteria:**
-- New function `cross_repo_pattern_query()` in bridge orchestrator
-- Reads ecosystem config from `.loa.config.yaml`
-- Queries reality files (checksums.json, index.md) for each configured repo
-- Returns structured JSON with: `repo`, `pattern`, `similarity_type`, `file_path`
-- Graceful degradation: if a repo is unreachable or has no reality files, skip with warning
-- Results injected into Bridgebuilder review prompt under `<!-- cross-repo-context -->` markers
-- Configurable via `run_bridge.cross_repo_query.enabled` (default: true)
+---
 
-### FR-2: Research Mode for Bridge Iterations
+## 5. Functional Requirements
 
-Add an optional "research iteration" to the bridge loop that generates SPECULATION findings without affecting the convergence score.
+### FR-1: Interview Configuration Schema
 
-**Behavior:**
-1. After the first convergent iteration (not before — need baseline context), the orchestrator MAY insert a research iteration
-2. Research iterations:
-   - Generate findings with severity `SPECULATION` only (score weight: 0)
-   - Explore connections to lore, visions, and cross-repo patterns
-   - Expand the lore index with discovered patterns
-   - Are NOT counted toward flatline detection
-3. Research iteration output is saved to `.run/bridge-reviews/{bridge_id}-research-{N}.md`
-4. Maximum 1 research iteration per bridge run (configurable)
+Add `interview:` section to `.loa.config.yaml.example` with:
 
-**Acceptance Criteria:**
-- New state `RESEARCHING` in bridge orchestrator state machine (between ITERATING cycles)
-- Research iterations produce only SPECULATION-severity findings
-- Research iteration score is `N/A` — excluded from flatline trajectory
-- Bridge state file tracks `research_iterations_completed` count
-- Configurable via `run_bridge.research_mode.enabled` (default: false, opt-in)
-- Configurable via `run_bridge.research_mode.max_per_run` (default: 1)
-- Research iteration prompt includes cross-repo context (FR-1) and lore context
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `mode` | `thorough` \| `minimal` | `thorough` | Global interview depth |
+| `per_skill` | map | (empty) | Per-skill mode overrides |
+| `input_style.routing_gates` | `structured` \| `plain` | `structured` | Phase transitions use AskUserQuestion or plain text |
+| `input_style.discovery_questions` | `structured` \| `plain` | `plain` | Discovery questions use AskUserQuestion or plain text |
+| `input_style.confirmation` | `structured` \| `plain` | `structured` | Understanding confirmations use AskUserQuestion or plain text |
+| `pacing` | `sequential` \| `batch` | `sequential` | One question per turn vs numbered batch |
+| `phase_gates.between_phases` | boolean | `true` | Require confirmation between discovery phases |
+| `phase_gates.before_generation` | boolean | `true` | Require confirmation before generating output doc |
+| `backpressure.no_infer` | boolean | `true` | Prohibit inferring answers to unasked questions |
+| `backpressure.show_work` | boolean | `true` | Cite known vs unknown before asking |
+| `backpressure.min_confirmation_questions` | integer | `1` | Minimum questions per phase even when context covers it |
 
-### FR-3: Vision Registry Activation
+Config is read via `yq eval` with `// "default"` fallback pattern (same as existing `codebase_grounding` config). Missing config = thorough mode with all defaults.
 
-Add a "vision check" phase to bridge iterations that scans captured visions for relevance to the current PR.
+### FR-2: Interview Config Block in SKILL.md
 
-**Behavior:**
-1. Before each bridge review (after cross-repo query), scan `grimoires/loa/visions/index.md`
-2. For each vision with status `Captured` or `Exploring`:
-   - Compare vision tags against PR change categories
-   - Check if any vision themes appear in the diff or recent findings
-3. If a relevant vision is found:
-   - Include vision content in the research iteration prompt (FR-2)
-   - Update vision status to `Exploring` if currently `Captured`
-   - Record the reference in the vision entry (`Refs` count increment)
-4. After bridge cycle completes, if a vision was explored with substantive findings:
-   - Offer to promote vision to `Proposed` status
+Add `<interview_config>` XML section to `discovering-requirements/SKILL.md` containing:
+- Config reading via yq (bash snippet)
+- Mode behavior table (thorough vs minimal)
+- Input style resolution table
+- Question pacing rules
+- Backpressure protocol (PROHIBITED/REQUIRED lists)
+- Construct override documentation (future extension point)
 
-**Acceptance Criteria:**
-- New function `check_relevant_visions()` in bridge orchestrator
-- Reads vision index and individual vision entries
-- Tag-based relevance matching (vision tags vs PR labels, file paths, finding categories)
-- Vision status transitions logged in bridge state file
-- Reference count incremented for each bridge cycle that references the vision
-- `update_vision_status()` in `bridge-vision-capture.sh` handles Captured → Exploring transition
-- Configurable via `run_bridge.vision_registry.activation_enabled` (default: true)
+Insertion point: after `</prompt_enhancement_prelude>` (line 94).
 
-### FR-4: Multi-Model Architectural Inquiry
+### FR-3: Replace Hardcoded Question Limits
 
-Extend the Flatline Protocol with an "inquiry" mode alongside the existing adversarial QA mode.
+Replace "DO limit questions to 2-3 per phase maximum" with config-aware language:
+- Thorough mode: 3-6 questions per phase range, but scales down with context richness
+- Minimal mode: 1-2 questions per phase
+- Both modes: at least `min_confirmation_questions` per phase (floor of 1)
 
-**Behavior:**
-1. Inquiry mode runs 3 parallel queries (not adversarial — collaborative):
-   - **Structural model**: "What patterns in this change are isomorphic to patterns in [cross-repo context]?"
-   - **Historical model**: "What precedents in blue-chip open source projects parallel this approach?"
-   - **Governance model**: "What governance or economic implications does this architectural choice have?"
-2. Results are synthesized (not cross-scored) into an ensemble insight document
-3. Inquiry mode is triggered during research iterations (FR-2) or manually via `/flatline-review --inquiry`
+### FR-4: Phase Transition Gates
 
-**Acceptance Criteria:**
-- New mode `inquiry` in flatline-orchestrator.sh (alongside existing `adversarial`)
-- 3 parallel queries with distinct prompts (structural, historical, governance)
-- Results synthesized into unified document (not scored/ranked like adversarial)
-- Output saved to `grimoires/loa/a2a/flatline/{phase}-inquiry.json`
-- Integrated into bridge research iterations when `run_bridge.research_mode.inquiry_enabled` is true
-- Manual trigger: `/flatline-review --inquiry [document]`
-- Uses configured models from `flatline_protocol.models` (primary + secondary)
-- Graceful fallback to 2 queries if only 2 models available
+After each discovery phase (1-7), add a gate block:
+- Summarize what was learned (3-5 bullets, cited)
+- State what carries forward to next phase
+- Present transition prompt (structured or plain per config)
+- **Wait for response. Do not auto-continue.**
 
-### FR-5: Temporal Depth in Lore System
+When `gate_between` is false: one-line transition only.
 
-Add lifecycle metadata to lore entries that tracks reference frequency, recency, and cross-repo spread.
+### FR-5: Pre-Generation Gate
 
-**Schema Extension:**
-```yaml
-entries:
-  - id: graceful-degradation-cascade
-    term: "Graceful Degradation Cascade"
-    short: "..."
-    context: "..."
-    source: "..."
-    tags: [discovered, architecture]
-    # NEW: Temporal metadata
-    lifecycle:
-      created: "2026-02-14"
-      references: 3
-      last_seen: "2026-02-20"
-      seen_in:
-        - "bridge-20260214-e8fa94 / PR #324"
-        - "bridge-20260219-16e623 / PR #368"
-        - "bridge-20260220-5ac44d / PR #392"
-      repos: ["loa", "loa-hounfour"]
-      significance: "recurring"  # one-off | recurring | foundational
+Before Phase 8 (PRD Generation), present completeness summary:
+- Phases covered count
+- Questions asked/answered count
+- Top assumptions with `[ASSUMPTION]` tags and consequences
+- Explicit "Ready to generate PRD?" prompt
+- **Do not generate until user confirms.**
+
+### FR-6: Backpressure Protocol
+
+Explicit prose prohibitions added to SKILL.md:
+
+**PROHIBITED:**
+- Do not answer your own questions
+- Do not proceed without explicit user input
+- Do not write "Based on common patterns..." or "Typically..." for requirements
+- Do not combine multiple phases into one response
+- Do not generate the output document in the same response as the last question
+- Do not skip phases because "the context seems sufficient"
+
+**REQUIRED:**
+- Wait for user response after every question
+- Before asking, state: (1) what you know (cited), (2) what you don't know, (3) why it matters
+- Separate phases into distinct conversation turns
+- Enumerate assumptions with `[ASSUMPTION]` tags before proceeding
+
+### FR-7: Anti-Inference Directives (Phase-Specific)
+
+Phase 4 (Functional Requirements):
+- Do not expand user feature lists with "you'll probably also need..." additions
+- If something seems missing, ask: "I notice [X] isn't mentioned. Intentional, or should we add it?"
+
+### FR-8: Conditional Phase Logic Update
+
+Replace the existing three-branch IF/ELSE with mode-aware logic:
+- `thorough` + fully covered: summarize + ask at least `min_confirm` questions (no skipping)
+- `minimal` + fully covered: summarize + one confirmation (current behavior)
+- Partially covered: summarize known, ask about gaps (respect pacing)
+- Not covered: full discovery (respect pacing)
+
+### FR-9: Construct Override Schema (Forward-Compatible)
+
+Document in config comments and SKILL.md that construct manifests will eventually support:
+```json
+{ "workflow": { "interview": { "mode": "minimal", "trust_tier": "BACKTESTED" } } }
 ```
-
-**Behavior:**
-1. During each bridge review, `lore-discover.sh` scans findings for lore term references
-2. When a lore term is referenced (by ID or term match in findings/insights):
-   - Increment `references` count
-   - Update `last_seen` to current date
-   - Append bridge reference to `seen_in` array
-   - Add repo to `repos` set if cross-repo reference
-3. Auto-classify significance:
-   - `one-off`: 1 reference
-   - `recurring`: 2-5 references
-   - `foundational`: 6+ references OR referenced in 3+ repos
-
-**Acceptance Criteria:**
-- Lore YAML schema extended with `lifecycle` block (backward-compatible: missing = defaults)
-- `lore-discover.sh` updated to record references during bridge reviews
-- New function `update_lore_reference()` handles increment logic
-- Significance auto-classification based on reference count and repo spread
-- Existing entries migrated lazily (lifecycle block added on first reference)
-- Query support: `memory-query.sh --lore --sort-by references` (top referenced patterns)
-- No breaking changes to existing lore consumers
+Precedence chain: Construct (if trust >= BACKTESTED) > per_skill config > global mode > default.
+**No runtime plumbing in this cycle.** Schema shape only.
 
 ---
 
-## 5. Technical & Non-Functional Requirements
+## 6. Technical Constraints
 
-### NF-1: Performance
-
-- Cross-repo query (FR-1) adds no more than 5s per configured repo (filesystem-based, no API calls)
-- Research iteration (FR-2) adds 1 iteration's worth of time (bounded by `per_iteration_hours`)
-- Vision check (FR-3) adds <1s (index scan + tag match)
-- Inquiry mode (FR-4) runs in parallel, bounded by existing flatline timeouts
-- Lore reference tracking (FR-5) adds <500ms per bridge review
-
-### NF-2: Backward Compatibility
-
-- All features are opt-in or defaulted to non-breaking behavior
-- Cross-repo query and vision activation default to true (low cost, high value)
-- Research mode defaults to false (additive iteration, user must opt in)
-- Inquiry mode is manual-only unless explicitly enabled for research iterations
-- Existing lore entries work unchanged (lifecycle block is optional, added lazily)
-
-### NF-3: Determinism
-
-- Cross-repo query results are deterministic given same filesystem state
-- Research mode trigger is deterministic (after iteration 1, if enabled, if not already used)
-- Vision relevance matching is tag-based (deterministic for same tags)
-- Lore reference tracking is append-only and idempotent (same bridge ID = no duplicate)
-
-### NF-4: Graceful Degradation
-
-- If ecosystem repos are unreachable: skip cross-repo query, log warning
-- If no reality files exist for a repo: skip that repo
-- If vision registry is empty: skip vision check silently
-- If Flatline models are unavailable: skip inquiry mode, log warning
-- If lore files are corrupt: skip reference tracking, don't fail the bridge
+- **Config mechanism**: `yq eval` with `//` fallback defaults in SKILL.md bash snippets. Same pattern as `plan_and_analyze.codebase_grounding` (proven to work).
+- **Behavioral enforcement**: Prose-based only. No hooks, no scripts, no structural validation. Accepted as best-effort.
+- **Backward compatibility**: Missing `interview:` section in user's `.loa.config.yaml` resolves to all defaults via yq fallback. Zero breakage for existing users.
+- **AskUserQuestion constraints**: max 4 options (5th is auto "Other"), max 12-char headers, markdown previews single-select only. (From `ux-redesign-plan.md`)
 
 ---
 
-## 6. Scope & Prioritization
+## 7. Scope
 
-### In Scope (MVP)
+### In Scope (MVP — Sprint 5)
 
-| Priority | Feature | Rationale |
-|----------|---------|-----------|
-| P1 | FR-5: Temporal lore depth | Lowest risk, highest immediate value — enriches every future bridge review |
-| P1 | FR-3: Vision registry activation | Leverages existing infrastructure (70% done), enables vision lifecycle |
-| P2 | FR-1: Cross-repo pattern query | Core enabler for architectural insight, depends on ecosystem config |
-| P2 | FR-2: Research mode | New state machine state, depends on FR-1 and FR-3 for full value |
-| P3 | FR-4: Multi-model inquiry | Most complex, depends on FR-2 for integration point |
+| Item | File |
+|------|------|
+| Interview config schema | `.loa.config.yaml.example` |
+| `<interview_config>` block | `discovering-requirements/SKILL.md` |
+| Replace hardcoded question limits | `discovering-requirements/SKILL.md` |
+| Phase transition gates (Phases 1-7) | `discovering-requirements/SKILL.md` |
+| Pre-generation gate | `discovering-requirements/SKILL.md` |
+| Backpressure protocol | `discovering-requirements/SKILL.md` |
+| Anti-inference directives | `discovering-requirements/SKILL.md` |
+| Conditional phase logic update | `discovering-requirements/SKILL.md` |
+
+### Future (Sprint 6+)
+
+| Item | File |
+|------|------|
+| Same changes to `designing-architecture/SKILL.md` | designing-architecture/SKILL.md |
+| Same changes to `planning-sprints/SKILL.md` | planning-sprints/SKILL.md |
+| Smoke test for interview behavior | `.claude/scripts/tests/test-interview-config.sh` |
+| Construct runtime override plumbing | construct-workflow-read.sh + SKILL.md |
 
 ### Out of Scope
 
-- Cross-repo code analysis (reading actual source from other repos — only reality files)
-- Automatic lore entry creation from inquiry results (manual curation preserved)
-- Vision auto-promotion without human review (Proposed → Implemented requires human)
-- Flatline Protocol schema changes (inquiry mode uses same output format)
-- Changes to the convergent bridge loop mechanics (research mode is additive only)
+- Structural enforcement (hooks, scripts validating question count)
+- Runtime config hot-reload (agent reads config at skill start, not mid-phase)
+- AskUserQuestion UI changes (that's Claude Code's domain, not ours)
 
 ---
 
-## 7. Risks & Dependencies
+## 8. Risks & Dependencies
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Cross-repo reality files out of date | Stale pattern matches | Warn if reality file age >7 days |
-| Research mode overused | Slows bridge convergence | Default to off, max 1 per run |
-| Vision relevance matching too loose | Noisy vision activations | Tag-based matching with minimum 2-tag overlap |
-| Inquiry mode models disagree | Conflicting architectural insights | Synthesis (not scoring) — present all perspectives |
-| Lore reference tracking inflates counts | False significance classification | Deduplicate by bridge ID, require term match not substring |
+| Risk | Probability | Impact | Mitigation |
+|------|------------|--------|------------|
+| Claude ignores backpressure prose directives | Medium | Medium | Iterate on language. Accepted as best-effort. |
+| Config-reading yq snippets not followed by Claude | Low | High | Uses proven pattern from codebase_grounding. |
+| Thorough mode feels too slow for power users | Medium | Low | `mode: minimal` available. Question count scales with context. |
+| Future construct override creates precedence confusion | Low | Medium | Precedence chain documented in config comments. |
 
 ### Dependencies
 
-- `bridge-orchestrator.sh` (state machine extension for RESEARCHING)
-- `bridge-vision-capture.sh` (vision activation + reference counting)
-- `lore-discover.sh` (temporal metadata recording)
-- `flatline-orchestrator.sh` (inquiry mode addition)
-- `.loa.config.yaml` schema (new config keys for all features)
-- QMD interface / reality files (cross-repo query source)
+- `yq` v4+ installed (required by existing Loa workflows)
+- Cycle-030 changes landed (post-completion debrief, free-text-first /plan) — these are on the same branch
+
+---
+
+## 9. Source Tracing
+
+| Section | Sources |
+|---------|---------|
+| Problem Statement | JNova feedback, `ux-redesign-plan.md:93-131`, discovering-requirements/SKILL.md:247 |
+| Goals G-1 through G-3 | User interview (this session, Phase 2 + Phase 7) |
+| Goal G-4 | User interview (this session, Phase 1 Q1 — "configurable per-phase") |
+| Goal G-5 | User interview (this session, Phase 1 Q2 — "lean towards slower and thorough") |
+| Goal G-6 | User interview (this session, Phase 1 Q3 — RFC #379 reference) |
+| Persona 3 | User interview (this session, Phase 3 — "construct level with UI/bug fixes") |
+| FR-1 through FR-9 | `interview-depth-config.md` (context document) |
+| Risk tolerance | User interview (this session, Phase 7 — "accept as best-effort") |

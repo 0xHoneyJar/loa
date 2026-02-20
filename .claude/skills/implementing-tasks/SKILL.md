@@ -169,10 +169,41 @@ This skill operates under **Managed Scaffolding**:
 |------|------------|-------|
 | `.claude/` | NONE | System zone - never suggest edits |
 | `grimoires/loa/`, `.beads/` | Read/Write | State zone - project memory |
-| `src/`, `lib/`, `app/` | Read-only | App zone - requires user confirmation |
+| `src/`, `lib/`, `app/` | Read/Write | App zone - implementation target |
 
 **NEVER** suggest modifications to `.claude/`. Direct users to `.claude/overrides/` or `.loa.config.yaml`.
 </zone_constraints>
+
+<cli_tool_permissions>
+## CLI Tool Usage
+
+Agents SHOULD proactively run CLI tools from the approved allowlist without asking:
+
+### Approved Read-Only Allowlist
+
+| Tool | Allowed Commands | Notes |
+|------|-----------------|-------|
+| `git` | `status`, `log`, `diff`, `branch`, `show` | Local only, no network |
+| `gh` | `issue list`, `issue view`, `pr list`, `pr view`, `pr checks` | Use `--json` + field filtering to avoid leaking secrets from PR bodies |
+| `npm`/`bun` | `test`, `run lint`, `run typecheck` | Build/check commands |
+| `cargo` | `check`, `test`, `clippy` | Build/check commands |
+
+### Require Confirmation
+
+| Operation Type | Examples |
+|---------------|----------|
+| Network writes | `git push`, `gh pr create`, `gh issue create` |
+| Deployments | `railway deploy`, `vercel deploy` |
+| Package mutations | `npm install`, `cargo add` |
+| Cloud CLIs | `aws`, `gcloud`, `az` (any operation) |
+| Destructive | `rm`, `git reset`, `git checkout -- .` |
+
+### Safety Rules
+
+- Use `--json` output and filter fields when available to avoid printing secrets
+- Never pipe CLI output to files without user confirmation
+- If a CLI command requires authentication and fails, report the error — do not retry or prompt for credentials
+</cli_tool_permissions>
 
 <integrity_precheck>
 ## Integrity Pre-Check (MANDATORY)

@@ -1,321 +1,253 @@
-# Sprint Plan: Bridge Inquiry Infrastructure — Active Discovery, Research Mode & Temporal Lore
+# Sprint Plan: Interview Depth Configuration — Planning Backpressure
 
-> Cycle: cycle-030
-> PRD: [grimoires/loa/prd.md](grimoires/loa/prd.md)
-> SDD: [grimoires/loa/sdd.md](grimoires/loa/sdd.md)
-> Sprints: 6 (3 original provenance + 3 inquiry infrastructure)
-> Team: 1 agent (Claude)
+> Cycle: cycle-031 | PRD: grimoires/loa/prd.md | SDD: grimoires/loa/sdd.md
+> Sprints: 1 (MVP — discovering-requirements only) | Team: 1 developer (AI-assisted)
 
 ---
 
-## Sprint 1: Core Skills Manifest + Classification + Segmented Output [COMPLETED]
+## Executive Summary
 
-## Sprint 2: AGENT-CONTEXT Enrichment + Validation + Tests [COMPLETED]
-
-## Sprint 3: Bridge Iteration 1 — Idempotent Cache + Test Harness Polish (BB-5ac44d) [COMPLETED]
-
----
-
-## Sprint 4: Temporal Lore Depth + Vision Registry Activation (FR-5, FR-3)
-
-**Goal**: Extend lore entries with lifecycle metadata and activate the vision registry during bridge cycles. These are the highest-value, lowest-risk enhancements — they enrich every future bridge review.
-
-### Task 4.1: Lore lifecycle schema extension
-
-**Description**: Extend the lore YAML schema in `.claude/data/lore/discovered/patterns.yaml` with an optional `lifecycle` block containing `created`, `references`, `last_seen`, `seen_in`, `repos`, and `significance` fields. Existing entries gain the block lazily on first reference.
-
-**Acceptance Criteria**:
-- `lifecycle` block defined per SDD 3.5.1 schema
-- Missing `lifecycle` treated as defaults (references=0, significance=one-off)
-- Existing entries remain valid YAML without modification
-- `yq` can read and write lifecycle fields
-
-**Estimated Effort**: Small
-
-### Task 4.2: Reference tracking function in lore-discover.sh
-
-**Description**: Implement `update_lore_reference()` function in `lore-discover.sh` per SDD 3.5.2. This function increments reference count, updates `last_seen`, appends to `seen_in`, and auto-classifies significance (one-off / recurring / foundational).
-
-**Acceptance Criteria**:
-- `update_lore_reference(entry_id, bridge_id, repo_name, lore_file)` implemented
-- Idempotent: same bridge_id does not create duplicate `seen_in` entry
-- Significance auto-classification: 1 ref = one-off, 2-5 = recurring, 6+ or 3+ repos = foundational
-- All YAML writes use `yq -i` (no string concatenation)
-- Bridge ID and repo name validated against `[a-zA-Z0-9._-]`
-
-**Estimated Effort**: Medium
-**Dependencies**: Task 4.1
-
-### Task 4.3: Reference scanning during bridge reviews
-
-**Description**: Implement `scan_for_lore_references()` per SDD 3.5.3. After each bridge review, scan findings and insights for lore term matches (by ID or term) and call `update_lore_reference()` for each match.
-
-**Acceptance Criteria**:
-- Scans both `discovered/patterns.yaml` and `discovered/visions.yaml`
-- Matches by exact entry ID or case-insensitive term match
-- Integrates into bridge orchestrator finalization (after `SIGNAL:LORE_DISCOVERY`)
-- Non-blocking: failures logged but don't halt bridge
-
-**Estimated Effort**: Medium
-**Dependencies**: Task 4.2
-
-### Task 4.4: Vision relevance checking
-
-**Description**: Implement `check_relevant_visions()` function per SDD 3.3.1. Scans `grimoires/loa/visions/index.md` for visions with tags overlapping the PR change categories. Returns list of relevant vision IDs.
-
-**Acceptance Criteria**:
-- Reads vision index, filters by status (Captured or Exploring)
-- Extracts PR tags from diff file paths (architecture, security, constraints, multi-model, testing)
-- Minimum 2-tag overlap for relevance (configurable)
-- Returns vision IDs as newline-separated list
-- Empty index or no matches returns empty (graceful)
-
-**Estimated Effort**: Medium
-
-### Task 4.5: Vision activation in bridge orchestrator
-
-**Description**: Integrate vision checking into bridge orchestrator pre-review phase. When relevant visions found: transition Captured → Exploring, increment reference count via `record_reference()`, include vision content in review context.
-
-**Acceptance Criteria**:
-- `SIGNAL:VISION_CHECK` emitted before each bridge review
-- `update_vision_status()` called for Captured → Exploring transitions
-- `record_reference()` called for each activated vision
-- Vision IDs recorded in bridge state (`visions_referenced` array)
-- Configurable via `run_bridge.vision_registry.activation_enabled` (default: true)
-
-**Estimated Effort**: Medium
-**Dependencies**: Task 4.4
-
-### Task 4.6: Memory query lore extension + tests
-
-**Description**: Extend `memory-query.sh` with `--lore` flags for querying lore entries by references, significance, and repo. Write unit tests for all Task 4.x features.
-
-**Acceptance Criteria**:
-- `memory-query.sh --lore` lists all lore entries
-- `memory-query.sh --lore --sort-by references` sorts by reference count desc
-- `memory-query.sh --lore --significance foundational` filters by significance
-- Unit test: reference tracking (increment, dedup, significance classification)
-- Unit test: vision relevance checking (tag overlap, status filtering)
-- All tests pass
-
-**Estimated Effort**: Medium
-**Dependencies**: Tasks 4.2, 4.4
+| Field | Value |
+|-------|-------|
+| **Total Sprints** | 1 (sprint-29) |
+| **Scope** | Config schema + discovering-requirements SKILL.md backpressure |
+| **Files Modified** | 2 (`.loa.config.yaml.example`, `discovering-requirements/SKILL.md`) |
+| **Files Created** | 1 (`.claude/scripts/tests/test-interview-config.sh`) |
+| **Success Metric** | `<interview_config>` block exists; phase transition gates exist; no hardcoded "2-3 per phase maximum"; smoke tests pass |
 
 ---
 
-## Sprint 5: Cross-Repository Pattern Query + Research Mode (FR-1, FR-2)
+## Sprint 1: Config Schema + Discovering-Requirements Backpressure
 
-**Goal**: Enable the bridge to discover cross-repo structural parallels and support divergent exploration iterations.
+**Scope**: FR-1 (config schema), FR-2 (interview_config block), FR-3 (question limits), FR-4 (phase gates), FR-5 (pre-gen gate), FR-6 (backpressure protocol), FR-7 (anti-inference), FR-8 (conditional logic)
+**Scope size**: MEDIUM (8 tasks)
 
-### Task 5.1: Cross-repo pattern query script
+### Task 1.1: Add `interview:` config schema to `.loa.config.yaml.example`
 
-**Description**: Create `.claude/scripts/cross-repo-query.sh` per SDD 3.1. Extracts patterns from PR diff, resolves ecosystem repos (sibling directory → config override → GitHub API fallback), queries reality files, and outputs structured JSON matches.
+**File**: `.loa.config.yaml.example`
+**Anchor**: After line 88 (after `plan_and_analyze.codebase_grounding` section, before `autonomous_agent` section)
 
-**Acceptance Criteria**:
-- Script accepts `--diff`, `--ecosystem`, `--output`, `--budget`, `--max-repos` flags
-- Repo resolution: sibling dir → config override → `REMOTE:` fallback
-- Pattern extraction from diff: function names, architectural keywords, protocol refs
-- Reality file queries via `qmd-context-query.sh` for local repos
-- AGENT-CONTEXT extraction via `butterfreezone-mesh.sh` for remote repos
-- JSON output per SDD 3.1.1 schema
-- 5s per-repo timeout, 15s total timeout
-- Graceful degradation: skip unreachable repos with warning
-
-**Estimated Effort**: Large
-
-### Task 5.2: Cross-repo integration in bridge orchestrator
-
-**Description**: Add `SIGNAL:CROSS_REPO_QUERY` to bridge orchestrator pre-review phase. Cache results in `.run/cross-repo-context.json`. Inject matches into Bridgebuilder review prompt under `<!-- cross-repo-context -->` markers.
+**Change**: Insert the `interview:` configuration section from SDD §2.1:
+- Section header comment with version tag `(v1.41.0)`
+- `mode: thorough` (default)
+- `per_skill:` commented-out examples
+- `input_style:` with `routing_gates: structured`, `discovery_questions: plain`, `confirmation: structured`
+- `pacing: sequential`
+- `phase_gates:` with `between_phases: true`, `before_generation: true`
+- `backpressure:` with `no_infer: true`, `show_work: true`, `min_confirmation_questions: 1`
+- Construct override comment referencing RFC #379
 
 **Acceptance Criteria**:
-- Signal emitted before each bridge review (after preflight)
-- Results cached per bridge run (refreshed if bridge_id changes)
-- Context injected into review prompt as markdown
-- `cross_repo_query` metrics recorded in bridge state
-- Configurable via `run_bridge.cross_repo_query.enabled` (default: true)
+- [x] `interview:` section exists between `plan_and_analyze` and `autonomous_agent`
+- [x] `yq eval '.interview.mode' .loa.config.yaml.example` returns `thorough`
+- [x] `yq eval '.interview.input_style.discovery_questions' .loa.config.yaml.example` returns `plain`
+- [x] `per_skill:` examples are commented out (not active YAML)
+- [x] Construct override comment references RFC #379
 
-**Estimated Effort**: Medium
-**Dependencies**: Task 5.1
+### Task 1.2: Add `<interview_config>` block to discovering-requirements/SKILL.md
 
-### Task 5.3: Research mode state machine extension
+**File**: `.claude/skills/discovering-requirements/SKILL.md`
+**Anchor**: After line 94 (`</prompt_enhancement_prelude>`)
 
-**Description**: Add `RESEARCHING` state to bridge orchestrator per SDD 3.2.1. After iteration 1, if research mode enabled and not already used, transition to RESEARCHING. Research iterations produce SPECULATION-only findings with N/A score excluded from flatline.
+**Change**: Insert the `<interview_config>` XML-tagged section from SDD §2.2 containing 5 sub-sections:
+1. **Config Reading** — bash/yq snippet reading all interview settings with `// "default"` fallback (SDD §2.2.1)
+2. **Mode Behavior Table** — thorough vs minimal comparison table (SDD §2.2.2)
+3. **Input Style Resolution** — structured vs plain for routing/discovery/confirmation (SDD §2.2.3)
+4. **Question Pacing** — sequential vs batch behavior (SDD §2.2.4)
+5. **Backpressure Protocol** — PROHIBITED/REQUIRED lists from PRD FR-6 (SDD §2.2.5)
 
-**Acceptance Criteria**:
-- `RESEARCHING` state in state machine (between ITERATING cycles)
-- Guard: max 1 research iteration per run (configurable)
-- Trigger: after iteration 1 (configurable via `trigger_after_iteration`)
-- Score exclusion: research iterations not counted in flatline trajectory
-- `SIGNAL:RESEARCH_ITERATION` emitted for skill layer
-- `research_iterations_completed` tracked in bridge state
-- State recovery: resume from RESEARCHING → skip to ITERATING
-
-**Estimated Effort**: Large
-**Dependencies**: Task 5.2
-
-### Task 5.4: Research iteration prompt composition
-
-**Description**: When `SIGNAL:RESEARCH_ITERATION` fires, compose a divergent exploration prompt including cross-repo context (FR-1), lore entries sorted by reference count (FR-5), and relevant visions (FR-3). Instruct the model to produce SPECULATION-only findings.
+Skill name in yq per_skill path: `discovering-requirements`
 
 **Acceptance Criteria**:
-- Prompt includes cross-repo context from `.run/cross-repo-context.json`
-- Prompt includes top lore entries (sorted by `lifecycle.references` desc)
-- Prompt includes relevant vision content from activated visions
-- Model instructed to produce only `severity: SPECULATION` findings
-- Output saved to `.run/bridge-reviews/{bridge_id}-research-{N}.md`
-- Lore discovery runs on research output
+- [x] `<interview_config>` block exists after `</prompt_enhancement_prelude>`
+- [x] Config reading bash snippet uses `yq eval` with `// "default"` fallback
+- [x] Mode behavior table has `thorough` and `minimal` rows
+- [x] PROHIBITED list includes all 6 items from PRD FR-6
+- [x] REQUIRED list includes all 4 items from PRD FR-6
+- [x] `</interview_config>` closing tag present
 
-**Estimated Effort**: Medium
-**Dependencies**: Tasks 5.2, 5.3
+### Task 1.3: Replace hardcoded question limit in `<kernel_framework>` (line 247)
 
-### Task 5.5: Config schema + tests
+**File**: `.claude/skills/discovering-requirements/SKILL.md`
 
-**Description**: Add `cross_repo_query` and `research_mode` config keys per SDD 4.1. Write unit tests for cross-repo query (pattern extraction, repo resolution) and research mode (state transitions, score exclusion).
+**Before** (line 247):
+```
+- DO limit questions to 2-3 per phase maximum
+```
+
+**After** (SDD §2.3, row 2):
+```
+- DO limit questions to the configured range per phase (thorough: 3-6, minimal: 1-2)
+- DO ask at least {min_confirm} confirmation question(s) per phase, even if context covers it
+- DO NOT infer answers to questions you have not asked
+- When pacing is "sequential": ask ONE question, wait for response, then ask the next
+- When pacing is "batch": present questions as a numbered list
+```
 
 **Acceptance Criteria**:
-- Config keys added to `.loa.config.yaml.example`
-- Config validation: all new keys have documented defaults
-- Unit test: cross-repo pattern extraction from sample diff
-- Unit test: repo resolution (sibling, override, remote fallback)
-- Unit test: research mode state transitions (ITERATING → RESEARCHING → ITERATING)
-- Unit test: flatline score trajectory excludes research iterations
-- All tests pass
+- [x] No occurrence of "2-3 per phase maximum" in SKILL.md
+- [x] "configured range" language present in `<kernel_framework>`
+- [x] Sequential and batch pacing instructions present
 
-**Estimated Effort**: Medium
-**Dependencies**: Tasks 5.1, 5.3
+### Task 1.4: Replace Phase 0.5 question limit (line 597)
+
+**File**: `.claude/skills/discovering-requirements/SKILL.md`
+
+**Before** (line 597):
+```
+3. Ask focused question (max 2-3 per phase)
+```
+
+**After** (SDD §2.3, row 3):
+```
+3. Ask focused questions (respect configured range and pacing)
+```
+
+**Acceptance Criteria**:
+- [x] No occurrence of "max 2-3 per phase" in Phase 0.5 section
+- [x] "configured range and pacing" language present
+
+### Task 1.5: Replace conditional phase logic (lines 613-632)
+
+**File**: `.claude/skills/discovering-requirements/SKILL.md`
+
+**Before** (lines 613-632): Three-branch IF/ELSE with "max 2-3 questions"
+
+**After** (SDD §2.6): Four-branch mode-aware logic:
+1. Phase fully covered AND mode == "minimal" → summarize + 1 confirmation → next
+2. Phase fully covered AND mode == "thorough" → summarize + min_confirm questions → DO NOT skip → wait
+3. Phase partially covered → summarize known + ask about gaps (respect range/pacing)
+4. Phase not covered → full discovery (respect range/pacing) → iterate until complete
+
+**Acceptance Criteria**:
+- [x] Four-branch conditional logic present
+- [x] `mode == "thorough"` branch enforces minimum confirmation questions
+- [x] `mode == "minimal"` branch allows gap-skipping
+- [x] Both branches reference "configured range and pacing"
+- [x] No "max 2-3 questions" remaining in this section
+
+### Task 1.6: Add phase transition gates after Phases 1-7
+
+**File**: `.claude/skills/discovering-requirements/SKILL.md`
+
+**Change**: After each of the 7 phase headings (lines 634-682), insert the Phase Transition Gate template from SDD §2.4:
+- When `gate_between` is true: summarize (3-5 bullets, cited), state carryforward, present transition (structured AskUserQuestion or plain text per `routing_style`), WAIT for response
+- When `gate_between` is false: one-line transition
+
+Gates inserted after:
+- Phase 1: Problem & Vision (after line 637)
+- Phase 2: Goals & Success Metrics (after line 642)
+- Phase 3: User & Stakeholder Context (after line 647)
+- Phase 4: Functional Requirements (after line 666 — after EARS section)
+- Phase 5: Technical & Non-Functional (after line 671)
+- Phase 6: Scope & Prioritization (after line 676)
+- Phase 7: Risks & Dependencies (after line 682)
+
+**Note**: Line numbers are approximate — apply insertions top-to-bottom. After each insertion, subsequent line numbers shift.
+
+**Acceptance Criteria**:
+- [x] 7 phase transition gate blocks exist (one per phase)
+- [x] Each gate includes summary + carryforward + transition prompt + WAIT directive
+- [x] Each gate has `gate_between` true/false conditional
+- [x] Structured gates reference AskUserQuestion with Continue/Go back/Skip ahead
+- [x] Plain gates use direct text "Continue, go back, or skip ahead?"
+
+### Task 1.7: Add anti-inference directive to Phase 4
+
+**File**: `.claude/skills/discovering-requirements/SKILL.md`
+**Anchor**: Inside or immediately after Phase 4 (Functional Requirements) section, before the Phase 4 transition gate
+
+**Change**: Insert PRD FR-7 directive (SDD §2.3, row 7):
+```
+When the user provides a feature list, DO NOT expand it with "you'll probably
+also need..." additions. If you believe something is missing, ASK:
+"I notice [X] isn't mentioned. Intentional, or should we add it?"
+```
+
+**Acceptance Criteria**:
+- [x] Anti-inference directive present in Phase 4 section
+- [x] Contains "you'll probably also need" as PROHIBITED example
+- [x] Contains the "I notice [X] isn't mentioned" question template
+
+### Task 1.8: Add pre-generation gate before Phase 8
+
+**File**: `.claude/skills/discovering-requirements/SKILL.md`
+**Anchor**: Before line 684 (`## Phase 8: PRD Generation`)
+
+**Change**: Insert the Pre-Generation Gate from SDD §2.5:
+- When `gate_before_gen` is true: present completeness summary (phases covered, questions asked, assumptions with `[ASSUMPTION]` tags and consequences), ask "Ready to generate PRD?" using `routing_style`, DO NOT generate until user confirms
+- When `gate_before_gen` is false: proceed directly with one-line notice
+
+**Acceptance Criteria**:
+- [x] Pre-generation gate block exists before Phase 8
+- [x] `gate_before_gen` true/false conditional present
+- [x] Assumption enumeration with `[ASSUMPTION]` tags
+- [x] "DO NOT generate until user explicitly confirms" directive present
+- [x] Phases covered count and questions asked count mentioned
+
+### Task 1.9: Create smoke test script
+
+**File**: `.claude/scripts/tests/test-interview-config.sh` (new file)
+
+**Change**: Create test script validating all structural changes from SDD §4.2:
+
+| Assertion | What to Check |
+|-----------|--------------|
+| `<interview_config>` block exists | `grep -q '<interview_config>' SKILL.md` |
+| Old question limit removed | `! grep -q '2-3 per phase maximum' SKILL.md` |
+| Config-aware limit present | `grep -q 'configured range' SKILL.md` |
+| Backpressure PROHIBITED block | `grep -q 'DO NOT answer your own questions' SKILL.md` |
+| Phase transition gate exists | `grep -q 'Phase Transition' SKILL.md` |
+| Pre-generation gate exists | `grep -q 'Pre-Generation Gate' SKILL.md` |
+| Anti-inference directive | `grep -q "you.ll probably also need" SKILL.md` |
+| Config example has interview | `grep -q 'interview:' .loa.config.yaml.example` |
+| yq defaults resolve | `yq eval '.interview.mode // "thorough"' .loa.config.yaml` returns non-empty |
+
+**Acceptance Criteria**:
+- [x] Script exists at `.claude/scripts/tests/test-interview-config.sh`
+- [x] Script is executable (`chmod +x`)
+- [x] Uses `((errors+=1))` not `((errors++))` (set -e safety)
+- [x] All 9 assertions pass after implementation
+- [x] Existing `test-ux-phase2.sh` still passes (no regressions)
 
 ---
 
-## Sprint 6: Multi-Model Inquiry Mode + Integration (FR-4)
+## Task Dependency Graph
 
-**Goal**: Extend Flatline Protocol with collaborative inquiry mode and integrate all features end-to-end.
+```
+Task 1.1 (config schema)         ← independent, separate file
+Task 1.2 (interview_config)      ← independent, line 94
+Task 1.3 (kernel_framework)      ← independent, line 247
+Task 1.4 (Phase 0.5 limit)       ← independent, line 597
+Task 1.5 (conditional logic)     ← after 1.2 (same region), lines 613-632
+Task 1.6 (phase gates)           ← after 1.5 (line numbers shift), lines 634-682
+Task 1.7 (anti-inference)        ← after 1.6 (inside Phase 4 gate area)
+Task 1.8 (pre-gen gate)          ← after 1.7 (line numbers shift), before line 684
+Task 1.9 (smoke test)            ← after all above (validates everything)
+```
 
-### Task 6.1: Inquiry mode in flatline-orchestrator.sh
-
-**Description**: Add `inquiry` mode to flatline-orchestrator.sh per SDD 3.4. Runs 3 parallel collaborative queries (structural, historical, governance) and synthesizes results instead of cross-scoring.
-
-**Acceptance Criteria**:
-- `--mode inquiry` flag accepted alongside existing `adversarial` mode
-- 3 parallel queries with distinct prompts per SDD 3.4.2
-- Uses configured primary/secondary models (alternating assignment)
-- Results synthesized into unified JSON per SDD 3.4.3 schema
-- Output saved to `grimoires/loa/a2a/flatline/{phase}-inquiry.json`
-- Existing content redaction applied to all inquiry outputs
-- Graceful fallback: 2 queries if only 2 models available
-- Budget bounded by `flatline_protocol.inquiry.budget_cents`
-
-**Estimated Effort**: Large
-
-### Task 6.2: Inquiry integration with research mode
-
-**Description**: When `run_bridge.research_mode.inquiry_enabled` is true and a research iteration fires, trigger inquiry mode via `SIGNAL:INQUIRY_MODE`. Feed cross-repo context and lore into inquiry prompts.
-
-**Acceptance Criteria**:
-- `SIGNAL:INQUIRY_MODE` triggers `flatline-orchestrator.sh --mode inquiry`
-- Cross-repo context injected as system context for all 3 queries
-- Inquiry results appended to research iteration output
-- Configurable via `run_bridge.research_mode.inquiry_enabled` (default: false)
-
-**Estimated Effort**: Medium
-**Dependencies**: Tasks 5.3, 6.1
-
-### Task 6.3: Manual inquiry via /flatline-review
-
-**Description**: Extend `/flatline-review` skill to accept `--inquiry` flag for manual invocation of inquiry mode on any document.
-
-**Acceptance Criteria**:
-- `/flatline-review --inquiry grimoires/loa/sdd.md` triggers inquiry mode
-- Argument parsing handles `--inquiry` alongside existing flags
-- Results displayed in same format as adversarial review (perspectives + synthesis)
-- Output saved to standard flatline output directory
-
-**Estimated Effort**: Small
-**Dependencies**: Task 6.1
-
-### Task 6.4: End-to-end integration test
-
-**Description**: Run a simulated bridge iteration that exercises all 5 features: cross-repo query → vision check → convergent review → research iteration → lore reference tracking.
-
-**Acceptance Criteria**:
-- Bridge state shows cross_repo_query metrics populated
-- Vision reference count incremented for relevant visions
-- Research iteration produces SPECULATION findings (score: N/A)
-- Lore entries gain lifecycle metadata after bridge review
-- Flatline trajectory only counts convergent iterations
-- All existing tests continue to pass
-
-**Estimated Effort**: Medium
-**Dependencies**: Tasks 6.2, 6.3
-
-### Task 6.5: Config documentation + validation
-
-**Description**: Update `.loa.config.yaml.example` with all new config keys, add validation in config loader, and document the feature enablement order.
-
-**Acceptance Criteria**:
-- All new config keys documented in `.loa.config.yaml.example` with comments
-- Config validation warns on invalid values (not fails — graceful)
-- Feature enablement order documented (FR-5 → FR-3 → FR-1 → FR-2 → FR-4)
-- NOTES.md updated with implementation summary
-
-**Estimated Effort**: Small
-**Dependencies**: Task 6.4
+**Implementation order**: 1.1, 1.2, 1.3, 1.4 (parallel-safe) → 1.5 → 1.6 → 1.7 → 1.8 → 1.9
 
 ---
 
-## Sprint 7: Bridge Iteration 2 — Pattern Noise Filtering + Trigger Semantics (BB-8ab2ce)
+## Appendix C: Goal Traceability
 
-**Goal**: Address 3 MEDIUM findings from Bridgebuilder review iteration 1 (bridge-20260220-8ab2ce). Research mode trigger semantics, cross-repo noise filtering, and config documentation.
+| Goal | Sprint Coverage | Status |
+|------|----------------|--------|
+| G-1: Structural friction | Tasks 1.6, 1.8 (phase gates, pre-gen gate) | COVERED |
+| G-2: Question count scales | Tasks 1.3, 1.4, 1.5 (config-aware limits + mode logic) | COVERED |
+| G-3: No inference without asking | Tasks 1.2, 1.7 (backpressure protocol + anti-inference) | COVERED |
+| G-4: Configurable input style | Tasks 1.1, 1.2 (config schema + input style resolution) | COVERED |
+| G-5: Sequential pacing default | Tasks 1.1, 1.2 (config schema + pacing rules) | COVERED |
+| G-6: Forward-compatible | Task 1.1 (construct override comment) | COVERED (schema only) |
 
-### Task 7.1: Fix research mode trigger guard semantics
+---
 
-**Description**: The research mode guard in bridge-orchestrator.sh uses `$iteration -gt $research_trigger_after` which excludes single-iteration bridges. Change to `$iteration -ge $research_trigger_after` for inclusive semantics so that `trigger_after_iteration: 1` means "trigger after iteration 1 completes". Add inline comment documenting the semantic.
+## Risk Register
 
-**Acceptance Criteria**:
-- Guard changed from `-gt` to `-ge`
-- Inline comment: `# -ge: trigger_after_iteration=N means "fire after iteration N completes"`
-- Existing test_cross_repo_research.sh research mode tests still pass
-- New test: verify research mode fires when iteration == trigger_after_iteration
-
-**Estimated Effort**: Small
-
-### Task 7.2: Cross-repo pattern noise filtering
-
-**Description**: Add minimum pattern length filter and stop-words list to `extract_patterns()` in cross-repo-query.sh. Skip patterns shorter than 4 characters and filter common names like 'init', 'main', 'run', 'get', 'set', 'test', 'log', 'new'.
-
-**Acceptance Criteria**:
-- Patterns < 4 characters skipped
-- Stop-words list: init, main, run, get, set, test, log, new, add, del, put, err, cmd, ctx, buf, src, dst, tmp, fmt, cfg, env, req, res, msg, val, key, len, idx, num, str, var, arg, opt, max, min
-- Stop-words filtering applied after extraction, before repo queries
-- New test: verify short patterns and stop-words are excluded
-- Existing pattern extraction tests still pass
-
-**Estimated Effort**: Small
-
-### Task 7.3: Config documentation inline comments
-
-**Description**: Add inline YAML comments to `.loa.config.yaml.example` for all new run_bridge subsections, consolidating documentation. Add a short "Quick Start" comment block showing the three common configurations: minimal (convergence-only), standard (cross-repo + lore), and exploration (all features enabled).
-
-**Acceptance Criteria**:
-- Each config key has an inline comment explaining its purpose
-- "Quick Start" block at top of run_bridge section with 3 profiles
-- Feature enablement order documented in comments
-- Config schema test verifies all new keys present
-
-**Estimated Effort**: Small
-
-### Task 7.4: Regression test suite
-
-**Description**: Run all 6 existing test suites to verify zero regressions from Tasks 7.1-7.3. Add targeted tests for the two code changes.
-
-**Acceptance Criteria**:
-- test_butterfreezone_provenance.sh: all pass
-- test_construct_workflow.sh: all pass
-- test_cross_repo_research.sh: all pass (+ new research trigger test)
-- test_inquiry_integration.sh: all pass
-- test_lore_lifecycle.sh: all pass
-- test_run_state_verify.sh: all pass
-- New test: research mode fires on iteration == trigger value
-- New test: cross-repo stop-words filtered
-- 0 regressions
-
-**Estimated Effort**: Small
+| Risk | Mitigation |
+|------|-----------|
+| Line numbers shift after each insertion | Apply modifications top-to-bottom per SDD §2.3 note |
+| Prose directives ignored by Claude | Accepted as best-effort. Iterate on language if needed. (PRD §8) |
+| Large SKILL.md becomes harder to maintain | All insertions are XML-tagged sections. No refactoring of existing content. |
+| Existing smoke tests regress | Task 1.9 includes running `test-ux-phase2.sh` as regression check |

@@ -186,7 +186,7 @@ check_dependencies() {
         if type -t _dx_install_hint &>/dev/null; then
             _doctor_add_suggestion "Install flock: $(_dx_install_hint flock)"
         else
-            _doctor_add_suggestion "Install flock: brew install util-linux (macOS)"
+            _doctor_add_suggestion "Install flock: brew install flock (macOS) or apt install util-linux (Linux)"
         fi
         _DOCTOR_WARNINGS=$(( _DOCTOR_WARNINGS + 1 ))
     fi
