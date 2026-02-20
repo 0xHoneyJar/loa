@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-029",
-  "global_sprint_counter": 24,
+  "active_cycle": "cycle-030",
+  "global_sprint_counter": 26,
   "cycles": [
     {
       "id": "cycle-025",
@@ -226,11 +226,14 @@
     {
       "id": "cycle-029",
       "label": "Construct-Aware Constraint Yielding",
-      "status": "active",
+      "status": "archived",
       "created": "2026-02-19T20:00:00Z",
+      "archived": "2026-02-20T00:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-20-construct-aware-constraint-yielding",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "source_issue": 376,
+      "pr": 378,
       "sprints": [
         {
           "local_id": "sprint-1",
@@ -249,6 +252,29 @@
           "global_id": "sprint-24",
           "label": "Lifecycle Events + Test Suite + Integration Verification",
           "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "cycle-030",
+      "label": "BUTTERFREEZONE Skill Provenance Segmentation",
+      "status": "active",
+      "created": "2026-02-20T00:00:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "source_issue": 375,
+      "sprints": [
+        {
+          "local_id": "sprint-1",
+          "global_id": "sprint-25",
+          "label": "Core Skills Manifest + Classification + Segmented Output",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-2",
+          "global_id": "sprint-26",
+          "label": "AGENT-CONTEXT Enrichment + Validation + Tests",
+          "status": "pending"
         }
       ]
     }

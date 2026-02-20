@@ -25,7 +25,7 @@ capability_requirements:
   - git: read_write
   - shell: execute
   - github_api: read_write (scope: external)
-version: v1.45.2
+version: v1.49.0
 trust_level: L2-verified
 -->
 
@@ -43,15 +43,15 @@ The project exposes 15 key entry points across its public API surface.
 ### .claude/adapters
 
 - **_build_provider_config** — Build ProviderConfig from merged hounfour config. (`.claude/adapters/cheval.py:152`)
-- **_check_feature_flags** — Check feature flags. (`.claude/adapters/cheval.py:191`)
+- **_check_feature_flags** — Check feature flags. (`.claude/adapters/cheval.py:192`)
 - **_error_json** — Format error as JSON for stderr (SDD §4.2.2 Error Taxonomy). (`.claude/adapters/cheval.py:77`)
 - **_load_persona** — Load persona.md for the given agent with optional system merge (SDD §4.3.2). (`.claude/adapters/cheval.py:96`)
-- **cmd_cancel** — Cancel a Deep Research interaction. (`.claude/adapters/cheval.py:510`)
-- **cmd_invoke** — Main invocation: resolve agent → call provider → return response. (`.claude/adapters/cheval.py:210`)
-- **cmd_poll** — Poll a Deep Research interaction. (`.claude/adapters/cheval.py:466`)
-- **cmd_print_config** — Print effective merged config with source annotations. (`.claude/adapters/cheval.py:441`)
-- **cmd_validate_bindings** — Validate all agent bindings. (`.claude/adapters/cheval.py:452`)
-- **main** — CLI entry point. (`.claude/adapters/cheval.py:546`)
+- **cmd_cancel** — Cancel a Deep Research interaction. (`.claude/adapters/cheval.py:511`)
+- **cmd_invoke** — Main invocation: resolve agent → call provider → return response. (`.claude/adapters/cheval.py:211`)
+- **cmd_poll** — Poll a Deep Research interaction. (`.claude/adapters/cheval.py:467`)
+- **cmd_print_config** — Print effective merged config with source annotations. (`.claude/adapters/cheval.py:442`)
+- **cmd_validate_bindings** — Validate all agent bindings. (`.claude/adapters/cheval.py:453`)
+- **main** — CLI entry point. (`.claude/adapters/cheval.py:547`)
 
 ### .claude/adapters/loa_cheval/config
 
@@ -98,6 +98,7 @@ Directory structure:
 ./skills
 ./skills/legba
 ./tests
+./tests/__pycache__
 ./tests/e2e
 ./tests/edge-cases
 ./tests/fixtures
@@ -110,6 +111,8 @@ Directory structure:
 ## Interfaces
 <!-- provenance: DERIVED -->
 ### Skill Commands
+
+#### Loa Core
 
 - **/auditing-security** — Paranoid Cypherpunk Auditor
 - **/autonomous-agent** — Autonomous agent
@@ -146,15 +149,15 @@ Directory structure:
 | Module | Files | Purpose | Documentation |
 |--------|-------|---------|---------------|
 | `docs/` | 6 | Documentation | \u2014 |
-| `evals/` | 1269 | Benchmarking and regression framework for the Loa agent development system. Ensures framework changes don't degrade agent behavior through | [evals/README.md](evals/README.md) |
-| `grimoires/` | 642 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
+| `evals/` | 5819 | Benchmarking and regression framework for the Loa agent development system. Ensures framework changes don't degrade agent behavior through | [evals/README.md](evals/README.md) |
+| `grimoires/` | 742 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
 | `skills/` | 5112 | Specialized agent skills | \u2014 |
-| `tests/` | 150 | Test suites | \u2014 |
+| `tests/` | 153 | Test suites | \u2014 |
 
 ## Verification
 <!-- provenance: CODE-FACTUAL -->
 - Trust Level: **L2 — CI Verified**
-- 150 test files across 1 suite
+- 153 test files across 1 suite
 - CI/CD: GitHub Actions (10 workflows)
 - Security: SECURITY.md present
 
@@ -201,16 +204,16 @@ claude
 
 After install, you should see a `.claude/` directory, `grimoires/loa/`, and `.loa.config.yaml` in your repo. Run `/loa doctor` inside Claude Code to verify everything is healthy.
 <!-- ground-truth-meta
-head_sha: 781661db55c0d12218299b7a4b2d7baeb0c7a652
-generated_at: 2026-02-18T21:49:01Z
+head_sha: 118bd7f38bac1a53b536b2240ec4ed4bd18c89d6
+generated_at: 2026-02-19T23:53:54Z
 generator: butterfreezone-gen v1.0.0
 sections:
-  agent_context: f8ea773f457ef2d8e0eec1de6db4e119a00029a333ec868a4ccdc42164eb6ec6
-  capabilities: 555ccb971a852f04bbea1616c518a522b8b4a3b4274c61f0bfcd3ff69437888c
-  architecture: 116f3296a49700fbee5e9cb0492e4f9aee0f9452b5c051a942ee4429278ab8d3
-  interfaces: c0d2732b6ab7745352bd781f56f44f32b2f8f2cacef7234ceed3e8f09796c0f4
-  module_map: cc799f95d8ed427e34c433460ae0324fa0460ab18e2f6f7527cc34367173527a
-  verification: 3abc915e61bda5da9bf05014f8b02fb439a718a9f3ee58a5ec1dabb62ea75993
+  agent_context: 300b2a0a8e3e258bbd4569dfc13ee1de3eeb3e24c75068e57ea2fad647a1dd8c
+  capabilities: ab2576b1f2e7e8141f0e93e807d26ed2b7b155e21c96d787507a3ba933bb9795
+  architecture: 970c0549aa208f3f8e0063176776b3fd52798e8d19011897a6a22e6542c2e772
+  interfaces: 120e3b3a6d65d4939b251dd049f213e32254a91510d48457be2e4f1b3f7399d3
+  module_map: 1af4cdcc7448cad6a7108b3b24e06858b29115cee164dafe2f1f115083791882
+  verification: 5ab9bcdc8bdb6af8498b7d29e3bf052377112442dd8ede5376ae65382294a284
   agents: ca263d1e05fd123434a21ef574fc8d76b559d22060719640a1f060527ef6a0b6
   culture: f73380f93bb4fadf36ccc10d60fc57555914363fc90e4f15b4dc4eb92bd1640f
   quick_start: 3c38dc53bf2ec73cbbb5c372af747ffa7894538d360b1182566647c2940c58c7

@@ -1201,6 +1201,77 @@ $(if [[ -n "$arch" ]]; then printf '%s\n' "$arch"; fi)
 EOF
 }
 
+# ── Skill Provenance Classification ──────────────────────
+# Returns: "core" | "construct:<pack-slug>" | "project"
+#
+# Classification priority:
+#   1. core-skills.json match → core
+#   2. .constructs-meta.json from_pack match → construct:<pack>
+#   3. packs/<pack>/skills/ directory match → construct:<pack> (fallback)
+#   4. Otherwise → project
+
+# Cache: loaded once per generation run
+_CORE_SKILLS_CACHE=""
+_CONSTRUCTS_META_CACHE=""
+_PACKS_DIR=".claude/constructs/packs"
+
+load_classification_cache() {
+    local core_file=".claude/data/core-skills.json"
+    if [[ -f "$core_file" ]] && command -v jq &>/dev/null; then
+        _CORE_SKILLS_CACHE=$(jq -r '.skills[]' "$core_file" 2>/dev/null | sort) || true
+    fi
+
+    local meta_file=".claude/constructs/.constructs-meta.json"
+    if [[ -f "$meta_file" ]] && command -v jq &>/dev/null; then
+        # Filter out /tmp/ test entries, extract slug → from_pack mapping
+        _CONSTRUCTS_META_CACHE=$(jq -r '
+            .installed_skills | to_entries[] |
+            select(.key | startswith("/tmp/") | not) |
+            select(.value.from_pack != null) |
+            "\(.key | split("/") | last)|\(.value.from_pack)"
+        ' "$meta_file" 2>/dev/null) || true
+    fi
+}
+
+classify_skill_provenance() {
+    local slug="$1"
+
+    # Priority 1: Core skills manifest
+    if [[ -n "$_CORE_SKILLS_CACHE" ]]; then
+        if echo "$_CORE_SKILLS_CACHE" | grep -qx "$slug"; then
+            echo "core"
+            return 0
+        fi
+    fi
+
+    # Priority 2: Constructs metadata (from_pack)
+    if [[ -n "$_CONSTRUCTS_META_CACHE" ]]; then
+        local pack=""
+        pack=$(echo "$_CONSTRUCTS_META_CACHE" | { grep "^${slug}|" || true; } | cut -d'|' -f2 | head -1)
+        if [[ -n "$pack" ]]; then
+            echo "construct:${pack}"
+            return 0
+        fi
+    fi
+
+    # Priority 3: Packs directory fallback
+    if [[ -d "$_PACKS_DIR" ]]; then
+        local pack_match=""
+        pack_match=$(find "$_PACKS_DIR" -maxdepth 3 -type d -name "$slug" \
+            -path "*/skills/*" 2>/dev/null | head -1 || true)
+        if [[ -n "$pack_match" ]]; then
+            # Extract pack slug from path: .claude/constructs/packs/<pack>/skills/<slug>
+            local pack_slug
+            pack_slug=$(echo "$pack_match" | sed "s|${_PACKS_DIR}/||" | cut -d'/' -f1)
+            echo "construct:${pack_slug}"
+            return 0
+        fi
+    fi
+
+    # Priority 4: Default to project
+    echo "project"
+}
+
 extract_interfaces() {
     local tier="$1"
 
@@ -1254,9 +1325,16 @@ extract_interfaces() {
             2>/dev/null | head -10) || true
         [[ -n "$cli" ]] && found="${found}### CLI Commands\n\n${cli}\n\n"
 
-        # Shell skill commands — enhanced with SKILL.md descriptions (SDD §2.4.1)
+        # Shell skill commands — segmented by provenance (SDD cycle-030 §3.3)
         if [[ -d ".claude/skills" ]]; then
-            local skills=""
+            # Load classification cache once
+            load_classification_cache
+
+            local core_skills="" project_skills=""
+            local has_construct_groups=false
+            declare -A construct_groups=()
+            declare -A construct_versions=()
+
             while IFS= read -r d; do
                 [[ -z "$d" ]] && continue
                 local sname skill_desc heading_desc
@@ -1281,10 +1359,56 @@ extract_interfaces() {
                     skill_desc=$(echo "$sname" | sed 's/-/ /g' | sed 's/^./\U&/')
                 fi
 
-                skills="${skills}- **/${sname}** — ${skill_desc}\n"
+                local provenance_class
+                provenance_class=$(classify_skill_provenance "$sname")
+
+                local entry="- **/${sname}** — ${skill_desc}\n"
+
+                case "$provenance_class" in
+                    core)
+                        core_skills="${core_skills}${entry}"
+                        ;;
+                    construct:*)
+                        local pack="${provenance_class#construct:}"
+                        has_construct_groups=true
+                        construct_groups[$pack]="${construct_groups[$pack]:-}${entry}"
+                        # Load version if not cached
+                        if [[ -z "${construct_versions[$pack]:-}" ]]; then
+                            local manifest="${_PACKS_DIR}/${pack}/manifest.json"
+                            if [[ -f "$manifest" ]]; then
+                                construct_versions[$pack]=$(jq -r '.version // "?"' "$manifest" 2>/dev/null) || true
+                            fi
+                            [[ -z "${construct_versions[$pack]:-}" ]] && construct_versions[$pack]="?"
+                        fi
+                        ;;
+                    project)
+                        project_skills="${project_skills}${entry}"
+                        ;;
+                esac
             done < <(find .claude/skills -maxdepth 1 -type d 2>/dev/null | sort | tail -n +2)
 
-            [[ -n "$skills" ]] && found="${found}### Skill Commands\n\n$(printf '%b' "$skills")\n\n"
+            # Build segmented output — omit empty groups
+            local skills_output=""
+
+            if [[ -n "$core_skills" ]]; then
+                skills_output="${skills_output}#### Loa Core\n\n$(printf '%b' "$core_skills")\n"
+            fi
+
+            if [[ "$has_construct_groups" == "true" ]]; then
+                skills_output="${skills_output}#### Constructs\n\n"
+                for pack in $(echo "${!construct_groups[@]}" | tr ' ' '\n' | sort); do
+                    local ver="${construct_versions[$pack]:-?}"
+                    skills_output="${skills_output}**${pack}** (v${ver})\n${construct_groups[$pack]}\n"
+                done
+            fi
+
+            if [[ -n "$project_skills" ]]; then
+                skills_output="${skills_output}#### Project-Specific\n\n$(printf '%b' "$project_skills")\n"
+            fi
+
+            # Graceful degradation: if no classification data available,
+            # all skills would have been classified as "project" by default
+            [[ -n "$skills_output" ]] && found="${found}### Skill Commands\n\n$(printf '%b' "$skills_output")\n\n"
         fi
 
         ifaces=$(printf '%b' "$found")
