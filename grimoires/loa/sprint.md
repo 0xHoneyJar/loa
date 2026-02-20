@@ -259,3 +259,63 @@
 
 **Estimated Effort**: Small
 **Dependencies**: Task 6.4
+
+---
+
+## Sprint 7: Bridge Iteration 2 — Pattern Noise Filtering + Trigger Semantics (BB-8ab2ce)
+
+**Goal**: Address 3 MEDIUM findings from Bridgebuilder review iteration 1 (bridge-20260220-8ab2ce). Research mode trigger semantics, cross-repo noise filtering, and config documentation.
+
+### Task 7.1: Fix research mode trigger guard semantics
+
+**Description**: The research mode guard in bridge-orchestrator.sh uses `$iteration -gt $research_trigger_after` which excludes single-iteration bridges. Change to `$iteration -ge $research_trigger_after` for inclusive semantics so that `trigger_after_iteration: 1` means "trigger after iteration 1 completes". Add inline comment documenting the semantic.
+
+**Acceptance Criteria**:
+- Guard changed from `-gt` to `-ge`
+- Inline comment: `# -ge: trigger_after_iteration=N means "fire after iteration N completes"`
+- Existing test_cross_repo_research.sh research mode tests still pass
+- New test: verify research mode fires when iteration == trigger_after_iteration
+
+**Estimated Effort**: Small
+
+### Task 7.2: Cross-repo pattern noise filtering
+
+**Description**: Add minimum pattern length filter and stop-words list to `extract_patterns()` in cross-repo-query.sh. Skip patterns shorter than 4 characters and filter common names like 'init', 'main', 'run', 'get', 'set', 'test', 'log', 'new'.
+
+**Acceptance Criteria**:
+- Patterns < 4 characters skipped
+- Stop-words list: init, main, run, get, set, test, log, new, add, del, put, err, cmd, ctx, buf, src, dst, tmp, fmt, cfg, env, req, res, msg, val, key, len, idx, num, str, var, arg, opt, max, min
+- Stop-words filtering applied after extraction, before repo queries
+- New test: verify short patterns and stop-words are excluded
+- Existing pattern extraction tests still pass
+
+**Estimated Effort**: Small
+
+### Task 7.3: Config documentation inline comments
+
+**Description**: Add inline YAML comments to `.loa.config.yaml.example` for all new run_bridge subsections, consolidating documentation. Add a short "Quick Start" comment block showing the three common configurations: minimal (convergence-only), standard (cross-repo + lore), and exploration (all features enabled).
+
+**Acceptance Criteria**:
+- Each config key has an inline comment explaining its purpose
+- "Quick Start" block at top of run_bridge section with 3 profiles
+- Feature enablement order documented in comments
+- Config schema test verifies all new keys present
+
+**Estimated Effort**: Small
+
+### Task 7.4: Regression test suite
+
+**Description**: Run all 6 existing test suites to verify zero regressions from Tasks 7.1-7.3. Add targeted tests for the two code changes.
+
+**Acceptance Criteria**:
+- test_butterfreezone_provenance.sh: all pass
+- test_construct_workflow.sh: all pass
+- test_cross_repo_research.sh: all pass (+ new research trigger test)
+- test_inquiry_integration.sh: all pass
+- test_lore_lifecycle.sh: all pass
+- test_run_state_verify.sh: all pass
+- New test: research mode fires on iteration == trigger value
+- New test: cross-repo stop-words filtered
+- 0 regressions
+
+**Estimated Effort**: Small

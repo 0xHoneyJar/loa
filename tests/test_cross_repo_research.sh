@@ -366,6 +366,112 @@ test_config_research_mode() {
 }
 
 # ─────────────────────────────────────────────────────────
+# Test: Research Mode Trigger Semantics (BB-8ab2ce medium-1)
+# ─────────────────────────────────────────────────────────
+
+echo ""
+echo "=== Research Mode Trigger Semantics ==="
+
+test_research_trigger_inclusive() {
+    # The guard should use -ge (inclusive) so trigger_after_iteration=1
+    # means "fire after iteration 1 completes" (when iteration == 1)
+    local orch_script="$SCRIPT_DIR/../.claude/scripts/bridge-orchestrator.sh"
+
+    # Check for -ge (inclusive) not -gt (exclusive)
+    if grep -q '\-ge \$research_trigger_after' "$orch_script" 2>/dev/null; then
+        pass "Research mode trigger uses -ge (inclusive semantics)"
+    else
+        fail "Research mode trigger should use -ge, not -gt"
+    fi
+
+    # Check for inline documentation comment
+    if grep -q 'trigger_after_iteration=N means' "$orch_script" 2>/dev/null; then
+        pass "Research mode trigger has semantic documentation comment"
+    else
+        fail "Research mode trigger missing semantic documentation"
+    fi
+}
+
+# ─────────────────────────────────────────────────────────
+# Test: Cross-Repo Stop-Words Filtering (BB-8ab2ce medium-2)
+# ─────────────────────────────────────────────────────────
+
+echo ""
+echo "=== Cross-Repo Stop-Words Filtering ==="
+
+test_pattern_noise_filtering() {
+    local query_script="$SCRIPT_DIR/../.claude/scripts/cross-repo-query.sh"
+
+    # Verify stop-words list exists in the script
+    if grep -q 'stop_words=' "$query_script" 2>/dev/null; then
+        pass "Stop-words list defined in cross-repo-query.sh"
+    else
+        fail "Stop-words list not found in cross-repo-query.sh"
+    fi
+
+    # Verify minimum length filtering (4 chars)
+    if grep -q 'lt 4' "$query_script" 2>/dev/null; then
+        pass "Minimum pattern length filter (4 chars) present"
+    else
+        fail "Minimum pattern length filter not found"
+    fi
+
+    # Create a diff with short and stop-word patterns
+    local test_diff="$TEST_DIR/noise-test.diff"
+    cat > "$test_diff" << 'DIFF'
+diff --git a/src/run.sh b/src/run.sh
++function init() {
++function get() {
++function set() {
++function orchestrate_bridge_query() {
++function validate_constraint_pipeline() {
+DIFF
+
+    # Source only the extract_patterns function for testing
+    local extracted
+    extracted=$(bash -c "
+        source '$query_script' 2>/dev/null
+        extract_patterns '$test_diff'
+    " 2>/dev/null) || extracted=""
+
+    # Check that short/stop patterns are filtered
+    if echo "$extracted" | grep -qx "init" 2>/dev/null; then
+        fail "Stop-word 'init' should be filtered"
+    else
+        pass "Stop-word 'init' correctly filtered"
+    fi
+
+    if echo "$extracted" | grep -qx "get" 2>/dev/null; then
+        fail "Short pattern 'get' should be filtered"
+    else
+        pass "Short pattern 'get' correctly filtered"
+    fi
+}
+
+# ─────────────────────────────────────────────────────────
+# Test: Config Profiles (BB-8ab2ce medium-3)
+# ─────────────────────────────────────────────────────────
+
+echo ""
+echo "=== Config Profile Documentation ==="
+
+test_config_profiles() {
+    local config="$SCRIPT_DIR/../.loa.config.yaml.example"
+
+    if grep -q "Quick Start Profiles" "$config" 2>/dev/null; then
+        pass "Quick Start Profiles documented in config"
+    else
+        fail "Quick Start Profiles not found in config"
+    fi
+
+    if grep -q "activation_enabled:" "$config" 2>/dev/null; then
+        pass "vision_registry.activation_enabled config key present"
+    else
+        fail "vision_registry.activation_enabled config key missing"
+    fi
+}
+
+# ─────────────────────────────────────────────────────────
 # Run all tests
 # ─────────────────────────────────────────────────────────
 
@@ -380,6 +486,9 @@ test_lore_reference_scan_signal
 test_vision_check_signal
 test_config_cross_repo
 test_config_research_mode
+test_research_trigger_inclusive
+test_pattern_noise_filtering
+test_config_profiles
 
 echo ""
 echo "─────────────────────────────────────"

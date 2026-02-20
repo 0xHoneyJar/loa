@@ -529,7 +529,8 @@ bridge_main() {
     research_completed=$(jq '.metrics.research_iterations_completed // 0' "$BRIDGE_STATE_FILE" 2>/dev/null) || research_completed=0
   fi
 
-  if [[ "$research_mode_enabled" == "true" ]] && [[ $iteration -gt $research_trigger_after ]] && [[ $research_completed -lt $research_max ]]; then
+  # -ge: trigger_after_iteration=N means "fire after iteration N completes"
+  if [[ "$research_mode_enabled" == "true" ]] && [[ $iteration -ge $research_trigger_after ]] && [[ $research_completed -lt $research_max ]]; then
     echo ""
     echo "═══════════════════════════════════════════════════"
     echo "  RESEARCHING — Divergent Exploration"

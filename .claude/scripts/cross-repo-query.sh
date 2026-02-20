@@ -116,13 +116,29 @@ extract_patterns() {
         tr '/' '\n' | grep -vE '^(\.|src|lib|scripts|tests|index|utils)$' | \
         sort -u | head -10) || true
 
-    # Combine all patterns
+    # Stop-words: common short names that match everywhere
+    local stop_words="init main run get set test log new add del put err cmd ctx buf src dst tmp fmt cfg env req res msg val key len idx num str var arg opt max min"
+
+    # Combine all patterns, filter noise
     {
         echo "$func_names"
         echo "$arch_keywords"
         echo "$protocol_refs"
         echo "$path_keywords"
-    } | grep -v '^$' | sort -u | head -30
+    } | grep -v '^$' | sort -u | while IFS= read -r pat; do
+        # Skip patterns shorter than 4 characters
+        [[ ${#pat} -lt 4 ]] && continue
+        # Skip stop-words
+        local is_stop=false
+        for sw in $stop_words; do
+            if [[ "$pat" == "$sw" ]]; then
+                is_stop=true
+                break
+            fi
+        done
+        [[ "$is_stop" == "true" ]] && continue
+        echo "$pat"
+    done | head -30
 }
 
 # =============================================================================

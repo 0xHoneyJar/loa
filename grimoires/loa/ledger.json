@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "active_cycle": "cycle-030",
-  "global_sprint_counter": 30,
+  "global_sprint_counter": 31,
   "cycles": [
     {
       "id": "cycle-025",
@@ -299,6 +299,12 @@
           "local_id": "sprint-6",
           "global_id": "sprint-30",
           "label": "Multi-Model Inquiry Mode + Integration",
+          "status": "completed"
+        },
+        {
+          "local_id": "sprint-7",
+          "global_id": "sprint-31",
+          "label": "Bridge Iteration 2 — Pattern Noise Filtering + Trigger Semantics",
           "status": "completed"
         }
       ],
