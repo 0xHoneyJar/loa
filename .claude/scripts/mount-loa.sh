@@ -1560,7 +1560,7 @@ main() {
   if [[ "$SUBMODULE_MODE" == "true" ]]; then
     # Acquire mount lock (Flatline IMP-006)
     acquire_mount_lock
-    trap 'release_mount_lock' EXIT
+    trap 'release_mount_lock; _exit_handler' EXIT
 
     # Graceful degradation preflight (Task 1.4)
     if preflight_submodule_environment; then

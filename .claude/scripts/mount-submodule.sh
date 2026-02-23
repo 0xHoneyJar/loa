@@ -164,7 +164,15 @@ relocate_memory_stack() {
   local source_count target_count
   source_count=$(find "$source" -type f | wc -l)
 
-  if ! cp -r "$source"/* "$target"/ 2>/dev/null; then
+  # Handle empty directory (ADV-2)
+  if [[ "$source_count" -eq 0 ]]; then
+    rm -rf "$source"
+    rm -f "$migration_lock"
+    log "Memory Stack was empty, removed .loa/"
+    return 0
+  fi
+
+  if ! cp -r "$source"/. "$target"/ 2>/dev/null; then
     # Rollback: remove partial target
     rm -rf "$target"
     err "Memory Stack copy failed. Original data preserved at .loa/"
