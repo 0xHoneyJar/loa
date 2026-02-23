@@ -5,6 +5,17 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.55.0] — 2026-02-23 — Declarative Execution Router + Adaptive Multi-Pass
+
+## cycle-034: Declarative Execution Router + Adaptive Multi-Pass
+
+### Added
+
+- **cycle-034**: Declarative Execution Router + Adaptive Multi-Pass (#404)
+
+_Source: PR #404_
+
+
 ## [1.39.1] — 2026-02-15 — Collateral Deletion Safeguard + CI Hardening
 
 ### Fixed
