@@ -56,6 +56,7 @@ _read_mp_config() {
   local key="$1" default="$2"
   # Input guard: restrict keys to safe yq path characters (cycle-034, Bridge medium-1)
   # Prevents yq expression injection if future callers pass untrusted input
+  # Note: hyphens intentionally excluded — all config keys use underscores
   if [[ ! "$key" =~ ^[.a-zA-Z0-9_]+$ ]]; then
     echo "$default"
     return
