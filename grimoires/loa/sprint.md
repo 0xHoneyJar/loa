@@ -33,55 +33,55 @@
 
 ### Deliverables
 
-- [ ] `SUBMODULE_MODE=true` as default in `mount-loa.sh` → **[G1]**
-- [ ] `--vendored` flag for backward compatibility → **[G5]**
-- [ ] Missing symlinks added (hooks, data, reference, feedback-ontology, learnings) → **[G2]**
-- [ ] `.gitignore` collision resolved (`.loa/` → `.loa-cache/`) → **[G3]**
-- [ ] Graceful degradation preflight (auto-fallback to vendored) → **[G1, G5]**
-- [ ] Post-clone auto-init for uninitialized submodules → **[G1]**
-- [ ] Unit tests for default behavior, flags, and mode conflicts
+- [x] `SUBMODULE_MODE=true` as default in `mount-loa.sh` → **[G1]**
+- [x] `--vendored` flag for backward compatibility → **[G5]**
+- [x] Missing symlinks added (hooks, data, reference, feedback-ontology, learnings) → **[G2]**
+- [x] `.gitignore` collision resolved (`.loa/` → `.loa-cache/`) → **[G3]**
+- [x] Graceful degradation preflight (auto-fallback to vendored) → **[G1, G5]**
+- [x] Post-clone auto-init for uninitialized submodules → **[G1]**
+- [x] Unit tests for default behavior, flags, and mode conflicts
 
 ### Acceptance Criteria
 
-- [ ] Running `/mount` with no flags routes to `mount-submodule.sh` (submodule mode)
-- [ ] Running `/mount --vendored` routes to standard mode (800+ file copy)
-- [ ] Running `/mount --submodule` is a no-op (already default) with deprecation log
-- [ ] `.claude/hooks/`, `.claude/data/`, `.claude/loa/reference/`, `.claude/loa/feedback-ontology.yaml`, `.claude/loa/learnings/` are all symlinked after submodule mount
-- [ ] `.loa/` is NOT in `.gitignore` (submodule must be tracked)
-- [ ] `.loa-cache/` IS in `.gitignore` (Memory Stack new home)
-- [ ] Symlink entries (`.claude/scripts`, `.claude/protocols`, etc.) in `.gitignore`
-- [ ] `@.claude/loa/CLAUDE.loa.md` import resolves correctly through symlink chain
-- [ ] When git is unavailable, `/mount` falls back to vendored mode with warning
-- [ ] When symlinks are not supported, `/mount` falls back to vendored mode with warning
-- [ ] Fallback reason always recorded in `.loa-version.json` `fallback_reason` field (Flatline SKP-001)
-- [ ] Prominent summary printed: "Installation: submodule" or "Installation: vendored (fallback: <reason>)"
-- [ ] When `.loa/` exists as non-submodule (Memory Stack data), it auto-relocates to `.loa-cache/`
-- [ ] Memory Stack relocation uses copy-then-verify-then-switch with lock file (Flatline IMP-002)
-- [ ] Concurrent `/mount` operations prevented by lock file at `.claude/.mount-lock` (Flatline IMP-006)
-- [ ] All new tests pass; existing mount tests unbroken
+- [x] Running `/mount` with no flags routes to `mount-submodule.sh` (submodule mode)
+- [x] Running `/mount --vendored` routes to standard mode (800+ file copy)
+- [x] Running `/mount --submodule` is a no-op (already default) with deprecation log
+- [x] `.claude/hooks/`, `.claude/data/`, `.claude/loa/reference/`, `.claude/loa/feedback-ontology.yaml`, `.claude/loa/learnings/` are all symlinked after submodule mount
+- [x] `.loa/` is NOT in `.gitignore` (submodule must be tracked)
+- [x] `.loa-cache/` IS in `.gitignore` (Memory Stack new home)
+- [x] Symlink entries (`.claude/scripts`, `.claude/protocols`, etc.) in `.gitignore`
+- [x] `@.claude/loa/CLAUDE.loa.md` import resolves correctly through symlink chain
+- [x] When git is unavailable, `/mount` falls back to vendored mode with warning
+- [x] When symlinks are not supported, `/mount` falls back to vendored mode with warning
+- [x] Fallback reason always recorded in `.loa-version.json` `fallback_reason` field (Flatline SKP-001)
+- [x] Prominent summary printed: "Installation: submodule" or "Installation: vendored (fallback: <reason>)"
+- [x] When `.loa/` exists as non-submodule (Memory Stack data), it auto-relocates to `.loa-cache/`
+- [x] Memory Stack relocation uses copy-then-verify-then-switch with lock file (Flatline IMP-002)
+- [x] Concurrent `/mount` operations prevented by lock file at `.claude/.mount-lock` (Flatline IMP-006)
+- [x] All new tests pass; existing mount tests unbroken
 
 ### Technical Tasks
 
-- [ ] **Task 1.1**: Flip `SUBMODULE_MODE` default in `mount-loa.sh:183` from `false` to `true` → **[G1]**
+- [x] **Task 1.1**: Flip `SUBMODULE_MODE` default in `mount-loa.sh:183` from `false` to `true` → **[G1]**
   - Single line change: `SUBMODULE_MODE=true`
   - File: `.claude/scripts/mount-loa.sh`
   - Ref: SDD §3.1.1
 
-- [ ] **Task 1.2**: Add `--vendored` flag + deprecate `--submodule` → **[G5]**
+- [x] **Task 1.2**: Add `--vendored` flag + deprecate `--submodule` → **[G5]**
   - Add `--vendored)` case that sets `SUBMODULE_MODE=false`
   - Change `--submodule)` to no-op with deprecation log
   - Update help text to show submodule as default, vendored as opt-in
   - File: `.claude/scripts/mount-loa.sh` (lines 212-234)
   - Ref: SDD §3.1.2, §3.1.3
 
-- [ ] **Task 1.3**: Update mode conflict messages → **[G5]**
+- [x] **Task 1.3**: Update mode conflict messages → **[G5]**
   - Update `check_mode_conflicts()` error messages for inverted default
   - Standard→submodule blocked with migration hint
   - Submodule→vendored blocked with manual instructions
   - File: `.claude/scripts/mount-loa.sh` (lines 1310-1333)
   - Ref: SDD §3.1.4
 
-- [ ] **Task 1.4**: Add graceful degradation preflight + mount lock → **[G1, G5]**
+- [x] **Task 1.4**: Add graceful degradation preflight + mount lock → **[G1, G5]**
   - Implement `preflight_submodule_environment()` function
   - Check: git present, inside git repo, git version ≥ 1.8, symlink support, CI submodule state
   - Auto-fallback to vendored with clear warning on any failure
@@ -93,7 +93,7 @@
   - File: `.claude/scripts/mount-loa.sh`
   - Ref: SDD §3.1.5 (Flatline IMP-001, SKP-001, SKP-002, SKP-007, IMP-006)
 
-- [ ] **Task 1.5**: Add missing symlinks to `mount-submodule.sh` → **[G2]**
+- [x] **Task 1.5**: Add missing symlinks to `mount-submodule.sh` → **[G2]**
   - Add `.claude/hooks/` → `../.loa/.claude/hooks` symlink
   - Add `.claude/data/` → `../.loa/.claude/data` symlink
   - Add `.claude/loa/reference/` → `../../.loa/.claude/loa/reference` symlink
@@ -107,13 +107,13 @@
   - File: `.claude/scripts/mount-submodule.sh` (after line 322)
   - Ref: SDD §3.2.1-3.2.5 (Flatline IMP-002, SKP-003)
 
-- [ ] **Task 1.6**: Fix `.gitignore` collision + add symlink entries → **[G3]**
+- [x] **Task 1.6**: Fix `.gitignore` collision + add symlink entries → **[G3]**
   - Remove `.loa/` entry (line 75) — replace with `.loa-cache/`
   - Add symlink gitignore entries: `.claude/scripts`, `.claude/protocols`, `.claude/hooks`, `.claude/data`, `.claude/schemas`, `.claude/loa/CLAUDE.loa.md`, `.claude/loa/reference`, `.claude/loa/feedback-ontology.yaml`, `.claude/loa/learnings`
   - File: `.gitignore`
   - Ref: SDD §3.3.1, §3.3.2
 
-- [ ] **Task 1.7**: Unit tests for default flip, flags, preflight, symlinks → **[G1, G2]**
+- [x] **Task 1.7**: Unit tests for default flip, flags, preflight, symlinks → **[G1, G2]**
   - New test file: `.claude/scripts/tests/test-mount-submodule-default.bats`
   - Tests: `default_is_submodule`, `vendored_flag`, `submodule_flag_noop`, `mode_conflict_standard_to_sub`, `mode_conflict_sub_to_vendored`
   - Tests for preflight: `no_git_falls_back`, `no_symlinks_falls_back`
