@@ -9,7 +9,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PROMPTS_DIR="${SCRIPT_DIR}/../prompts/gpt-review/base"
-CONFIG_FILE=".loa.config.yaml"
+CONFIG_FILE="${CONFIG_FILE:-.loa.config.yaml}"
 MODEL_INVOKE="$SCRIPT_DIR/model-invoke"
 
 source "$SCRIPT_DIR/lib/normalize-json.sh"
@@ -59,6 +59,7 @@ load_config() {
   [[ -n "$v" && "$v" != "null" ]] && SYSTEM_ZONE_ALERT="$v"
   v=$(yq eval '.gpt_review.reasoning_mode // ""' "$CONFIG_FILE" 2>/dev/null || echo "")
   [[ -n "$v" && "$v" != "null" ]] && REASONING_MODE="$v"
+  return 0
 }
 
 detect_system_zone_changes() {

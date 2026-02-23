@@ -66,11 +66,11 @@ case "${1:-}" in
 
     case "$BEHAVIOR" in
       success)
-        response="${MOCK_CODEX_RESPONSE:-{\"verdict\":\"APPROVED\",\"summary\":\"All looks good\",\"findings\":[]}}"
+        _default_resp='{"verdict":"APPROVED","summary":"All looks good","findings":[]}'
+        response="${MOCK_CODEX_RESPONSE:-$_default_resp}"
         if [[ -n "$output_file" ]]; then
           echo "$response" > "$output_file"
         fi
-        echo "$response"
         exit "${MOCK_CODEX_EXIT_CODE:-0}"
         ;;
       fail)
@@ -85,7 +85,6 @@ case "${1:-}" in
         if [[ -n "$output_file" ]]; then
           echo "$bad" > "$output_file"
         fi
-        echo "$bad"
         exit 0
         ;;
       no_verdict)
@@ -93,7 +92,6 @@ case "${1:-}" in
         if [[ -n "$output_file" ]]; then
           echo "$nv" > "$output_file"
         fi
-        echo "$nv"
         exit 0
         ;;
       version_old)

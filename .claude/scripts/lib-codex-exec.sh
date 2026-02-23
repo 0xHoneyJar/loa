@@ -255,8 +255,9 @@ codex_exec_single() {
   printf '%s' "$prompt" > "$prompt_file"
 
   # Execute with timeout wrapping (Flatline IMP-004)
+  # stdout suppressed — output is captured via --output-last-message file
   local exit_code=0
-  timeout "$timeout_secs" "${cmd[@]}" < "$prompt_file" 2>/dev/null || exit_code=$?
+  timeout "$timeout_secs" "${cmd[@]}" < "$prompt_file" >/dev/null 2>/dev/null || exit_code=$?
 
   rm -f "$prompt_file"
 
