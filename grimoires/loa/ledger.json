@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-032",
-  "global_sprint_counter": 37,
+  "active_cycle": "cycle-033",
+  "global_sprint_counter": 40,
   "cycles": [
     {
       "id": "cycle-025",
@@ -371,8 +371,10 @@
     {
       "id": "cycle-032",
       "label": "Interview Depth Configuration — Planning Backpressure",
-      "status": "active",
+      "status": "archived",
       "created": "2026-02-20T00:30:00Z",
+      "archived": "2026-02-23T00:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-23-interview-depth-backpressure",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "pr": 391,
@@ -382,6 +384,35 @@
           "global_id": "sprint-36",
           "label": "Config Schema + Discovering-Requirements Backpressure",
           "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "cycle-033",
+      "label": "Codex CLI Integration for GPT Review",
+      "status": "active",
+      "created": "2026-02-23T00:00:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "source_issue": 400,
+      "sprints": [
+        {
+          "local_id": "sprint-1",
+          "global_id": "sprint-37",
+          "label": "Extraction + Codex Adapter (Foundation)",
+          "status": "pending"
+        },
+        {
+          "local_id": "sprint-2",
+          "global_id": "sprint-38",
+          "label": "Multi-Pass Reasoning Orchestrator",
+          "status": "pending"
+        },
+        {
+          "local_id": "sprint-3",
+          "global_id": "sprint-39",
+          "label": "Integration + Hardening",
+          "status": "pending"
         }
       ]
     }

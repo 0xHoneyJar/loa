@@ -1,253 +1,341 @@
-# Sprint Plan: Interview Depth Configuration — Planning Backpressure
+# Sprint Plan: Codex CLI Integration for GPT Review
 
-> Cycle: cycle-031 | PRD: grimoires/loa/prd.md | SDD: grimoires/loa/sdd.md
-> Sprints: 1 (MVP — discovering-requirements only) | Team: 1 developer (AI-assisted)
+> Cycle: cycle-033 | PRD: grimoires/loa/prd.md | SDD: grimoires/loa/sdd.md
+> Sprints: 3 | Team: 1 developer (AI-assisted)
+> Source: [#400](https://github.com/0xHoneyJar/loa/issues/400)
 
 ---
 
 ## Executive Summary
 
-| Field | Value |
-|-------|-------|
-| **Total Sprints** | 1 (sprint-29) |
-| **Scope** | Config schema + discovering-requirements SKILL.md backpressure |
-| **Files Modified** | 2 (`.loa.config.yaml.example`, `discovering-requirements/SKILL.md`) |
-| **Files Created** | 1 (`.claude/scripts/tests/test-interview-config.sh`) |
-| **Success Metric** | `<interview_config>` block exists; phase transition gates exist; no hardcoded "2-3 per phase maximum"; smoke tests pass |
+Replace direct curl-based API calls in `gpt-review-api.sh` (963 lines) with OpenAI Codex CLI (`codex exec`) as the primary execution backend. Introduces 4 extracted library files, a 3-pass reasoning sandwich orchestrator, and auth/security hardening. Targets ≤300 lines in the main script with full backward compatibility.
+
+**Total scope:** 3 sprints, ~15 tasks, MEDIUM complexity per sprint.
 
 ---
 
-## Sprint 1: Config Schema + Discovering-Requirements Backpressure
+## Sprint 1: Extraction + Codex Adapter (Foundation)
 
-**Scope**: FR-1 (config schema), FR-2 (interview_config block), FR-3 (question limits), FR-4 (phase gates), FR-5 (pre-gen gate), FR-6 (backpressure protocol), FR-7 (anti-inference), FR-8 (conditional logic)
-**Scope size**: MEDIUM (8 tasks)
+**Scope:** MEDIUM (6 tasks)
+**Sprint Goal:** Extract curl logic into a library, create the Codex exec adapter with capability detection, implement execution routing, and establish auth + security foundations.
 
-### Task 1.1: Add `interview:` config schema to `.loa.config.yaml.example`
+> Ground truth: SDD §3.1 (entry point), §3.2 (codex adapter), §3.4 (curl extraction), §3.5 (security)
 
-**File**: `.loa.config.yaml.example`
-**Anchor**: After line 88 (after `plan_and_analyze.codebase_grounding` section, before `autonomous_agent` section)
+### Deliverables
 
-**Change**: Insert the `interview:` configuration section from SDD §2.1:
-- Section header comment with version tag `(v1.41.0)`
-- `mode: thorough` (default)
-- `per_skill:` commented-out examples
-- `input_style:` with `routing_gates: structured`, `discovery_questions: plain`, `confirmation: structured`
-- `pacing: sequential`
-- `phase_gates:` with `between_phases: true`, `before_generation: true`
-- `backpressure:` with `no_infer: true`, `show_work: true`, `min_confirmation_questions: 1`
-- Construct override comment referencing RFC #379
+- [ ] `lib-curl-fallback.sh` — extracted curl/retry/parsing logic from current `gpt-review-api.sh`
+- [ ] `lib-security.sh` — auth management (env-only), secret redaction (jq-based), log filtering
+- [ ] `lib-codex-exec.sh` — capability detection, single `codex exec` invocation, workspace management
+- [ ] Refactored `gpt-review-api.sh` with `route_review()` execution router
+- [ ] `--fast` flag for single-pass codex mode
+- [ ] Test suite for routing, capabilities, auth, and redaction
 
-**Acceptance Criteria**:
-- [x] `interview:` section exists between `plan_and_analyze` and `autonomous_agent`
-- [x] `yq eval '.interview.mode' .loa.config.yaml.example` returns `thorough`
-- [x] `yq eval '.interview.input_style.discovery_questions' .loa.config.yaml.example` returns `plain`
-- [x] `per_skill:` examples are commented out (not active YAML)
-- [x] Construct override comment references RFC #379
+### Technical Tasks
 
-### Task 1.2: Add `<interview_config>` block to discovering-requirements/SKILL.md
+- [ ] **Task 1.1:** Extract curl logic → `lib-curl-fallback.sh` → **[G2, G7]**
+  - Move `call_api()`, `call_api_via_model_invoke()`, `normalize_json_response()`, `validate_agent_response()`, `parse_chat_completion()`, `parse_responses_api()` from `gpt-review-api.sh`
+  - Add double-source guard (`_LIB_CURL_FALLBACK_LOADED`)
+  - Preserve all retry logic (3 retries, exponential backoff)
+  - **Remove** config-file auth pattern; migrate to env-only auth (`OPENAI_API_KEY`) consistent with SDD env-only mandate (Flatline SKP-001 resolution). `lib-security.sh:ensure_codex_auth()` becomes the single auth path for both codex and curl.
+  - **AC:** Existing callers (review-sprint, audit-sprint) produce identical output
+  - **AC:** All exit codes (0-5) unchanged
+  - **AC:** `gpt-review-api.sh` sources `lib-curl-fallback.sh` and calls extracted functions
 
-**File**: `.claude/skills/discovering-requirements/SKILL.md`
-**Anchor**: After line 94 (`</prompt_enhancement_prelude>`)
+- [ ] **Task 1.2:** Create `lib-security.sh` → **[G7]**
+  - `ensure_codex_auth()`: Env-only auth (never calls `codex login`). Return 0 if `OPENAI_API_KEY` set, 1 otherwise (SDD §3.5, SKP-003 resolution)
+  - `redact_secrets()`: jq-based for JSON (redact string VALUES only, never keys), sed for text (SDD §3.5, SKP-004 resolution). Post-redaction structural diff: verify key count unchanged before/after (Flatline SKP-004 resolution). Load additional patterns from `flatline_protocol.secret_scanning.patterns`. Validate JSON integrity post-redaction.
+  - `redact_log_output()`: Filter stderr before logging
+  - `SENSITIVE_FILE_PATTERNS` deny list for output audit
+  - **AC:** API keys matching `sk-...` and `sk-ant-...` are replaced with `[REDACTED]`
+  - **AC:** JSON output remains valid after redaction
+  - **AC:** Config patterns with >200 char length are skipped with warning
 
-**Change**: Insert the `<interview_config>` XML-tagged section from SDD §2.2 containing 5 sub-sections:
-1. **Config Reading** — bash/yq snippet reading all interview settings with `// "default"` fallback (SDD §2.2.1)
-2. **Mode Behavior Table** — thorough vs minimal comparison table (SDD §2.2.2)
-3. **Input Style Resolution** — structured vs plain for routing/discovery/confirmation (SDD §2.2.3)
-4. **Question Pacing** — sequential vs batch behavior (SDD §2.2.4)
-5. **Backpressure Protocol** — PROHIBITED/REQUIRED lists from PRD FR-6 (SDD §2.2.5)
+- [ ] **Task 1.3:** Create `lib-codex-exec.sh` → **[G1, G2]**
+  - `CODEX_MIN_VERSION="0.1.0"` — minimum supported version; fail with actionable message if older (Flatline IMP-003)
+  - `codex_is_available()`: `command -v codex` + version check against `CODEX_MIN_VERSION`
+  - `detect_capabilities()`: Probe flags by running real no-op commands, parse stderr for "unknown option" (SDD §2.2, SKP-001 resolution). Version-pinned stderr expectations: document expected error format per `CODEX_MIN_VERSION` and add integration test validating probe against real binary (Flatline SKP-002 resolution). Cache to `/tmp/loa-codex-caps-<hash>-$$.json` (PID-scoped for concurrency, IMP-003)
+  - `codex_has_capability(flag)`: Read from cache
+  - `codex_exec_single()`: Execute single invocation with `--sandbox read-only`, `--ephemeral`, `--skip-git-repo-check`, `--output-last-message`. Wrap with `timeout` command (Flatline IMP-004)
+  - `parse_codex_output()`: Normalize output — try JSON, markdown-fenced JSON, greedy JSON extraction (SDD §3.2, IMP-007)
+  - `setup_review_workspace()` / `cleanup_workspace()`: Temp dir management
+  - Default mode: diff-only (no `--cd` to repo root). `--tool-access` flag enables sandboxed repo access: copy only allowed files (source code, configs — NOT `.env`, `.git/config`, `*.pem`, credentials) to a temp workspace, then `--cd <temp-workspace>`. Deny list becomes allow list. (SDD SKP-002 resolution + Flatline SKP-006 resolution)
+  - **AC:** `codex_is_available` returns 1 when codex not on PATH
+  - **AC:** Capabilities cached per version+PID, not re-probed per review
+  - **AC:** When `execution_mode=codex` and required flags missing, exit code 2 (hard fail)
+  - **AC:** When `execution_mode=auto` and codex fails, silent fallback to curl
 
-Skill name in yq per_skill path: `discovering-requirements`
+- [ ] **Task 1.4:** Implement `route_review()` in `gpt-review-api.sh` → **[G1, G3, G5]**
+  - Add `--fast` CLI flag parsing
+  - Read `gpt_review.execution_mode` from config (default: `auto`)
+  - Routing: Hounfour → Codex → curl (SDD §3.1)
+  - Source all 4 libraries at script top
+  - Remove extracted functions, replace with library calls
+  - Preserve all existing flags: `--expertise`, `--context`, `--content`, `--output`, `--iteration`, `--previous`, `--type`
+  - **AC:** `gpt-review-api.sh` line count ≤300 (measured by `wc -l`)
+  - **AC:** All 4 review types (code, prd, sdd, sprint) produce valid output via Codex path
+  - **AC:** `--fast` produces single-pass output conforming to `gpt-review-response.schema.json`
 
-**Acceptance Criteria**:
-- [x] `<interview_config>` block exists after `</prompt_enhancement_prelude>`
-- [x] Config reading bash snippet uses `yq eval` with `// "default"` fallback
-- [x] Mode behavior table has `thorough` and `minimal` rows
-- [x] PROHIBITED list includes all 6 items from PRD FR-6
-- [x] REQUIRED list includes all 4 items from PRD FR-6
-- [x] `</interview_config>` closing tag present
+- [ ] **Task 1.5:** Update `.loa.config.yaml.example` with new config → **[G5]**
+  - Add `execution_mode: auto` under `gpt_review`
+  - Add `reasoning_mode: multi-pass` under `gpt_review`
+  - Add `tool_access: false` under `gpt_review`
+  - Add `pass_budgets` section with defaults
+  - Document all new options with inline comments
+  - **AC:** Config example has all new options with descriptions
+  - **AC:** Existing config without new options still works (defaults)
 
-### Task 1.3: Replace hardcoded question limit in `<kernel_framework>` (line 247)
+- [ ] **Task 1.6:** Sprint 1 tests → **[G3, G7]**
+  - `test_routing.bats`: Hounfour route, codex route, curl fallback, execution_mode override
+  - `test_codex_adapter.bats`: Capability detection, cache, version probe
+  - `test_security.bats`: Auth (env present/absent, CI=true), redaction (API keys, custom patterns, JSON integrity), deny list
+  - `test_curl_fallback.bats`: Extraction parity — same input/output as pre-refactor
+  - Mock codex binary via `mock_codex.bash` on PATH
+  - Test fixtures: sample diff, sample PRD, mock responses
+  - **AC:** All bats tests pass
+  - **AC:** ≥15 test cases covering routing, auth, redaction, and fallback
 
-**File**: `.claude/skills/discovering-requirements/SKILL.md`
+### Dependencies
 
-**Before** (line 247):
-```
-- DO limit questions to 2-3 per phase maximum
-```
+- None (foundation sprint)
 
-**After** (SDD §2.3, row 2):
-```
-- DO limit questions to the configured range per phase (thorough: 3-6, minimal: 1-2)
-- DO ask at least {min_confirm} confirmation question(s) per phase, even if context covers it
-- DO NOT infer answers to questions you have not asked
-- When pacing is "sequential": ask ONE question, wait for response, then ask the next
-- When pacing is "batch": present questions as a numbered list
-```
+### Risks & Mitigation
 
-**Acceptance Criteria**:
-- [x] No occurrence of "2-3 per phase maximum" in SKILL.md
-- [x] "configured range" language present in `<kernel_framework>`
-- [x] Sequential and batch pacing instructions present
+| Risk | Mitigation |
+|------|------------|
+| Curl extraction introduces regressions | Before/after output comparison on real review |
+| Codex not available in test environment | Mock binary covers all test paths |
 
-### Task 1.4: Replace Phase 0.5 question limit (line 597)
+### Success Metrics
 
-**File**: `.claude/skills/discovering-requirements/SKILL.md`
-
-**Before** (line 597):
-```
-3. Ask focused question (max 2-3 per phase)
-```
-
-**After** (SDD §2.3, row 3):
-```
-3. Ask focused questions (respect configured range and pacing)
-```
-
-**Acceptance Criteria**:
-- [x] No occurrence of "max 2-3 per phase" in Phase 0.5 section
-- [x] "configured range and pacing" language present
-
-### Task 1.5: Replace conditional phase logic (lines 613-632)
-
-**File**: `.claude/skills/discovering-requirements/SKILL.md`
-
-**Before** (lines 613-632): Three-branch IF/ELSE with "max 2-3 questions"
-
-**After** (SDD §2.6): Four-branch mode-aware logic:
-1. Phase fully covered AND mode == "minimal" → summarize + 1 confirmation → next
-2. Phase fully covered AND mode == "thorough" → summarize + min_confirm questions → DO NOT skip → wait
-3. Phase partially covered → summarize known + ask about gaps (respect range/pacing)
-4. Phase not covered → full discovery (respect range/pacing) → iterate until complete
-
-**Acceptance Criteria**:
-- [x] Four-branch conditional logic present
-- [x] `mode == "thorough"` branch enforces minimum confirmation questions
-- [x] `mode == "minimal"` branch allows gap-skipping
-- [x] Both branches reference "configured range and pacing"
-- [x] No "max 2-3 questions" remaining in this section
-
-### Task 1.6: Add phase transition gates after Phases 1-7
-
-**File**: `.claude/skills/discovering-requirements/SKILL.md`
-
-**Change**: After each of the 7 phase headings (lines 634-682), insert the Phase Transition Gate template from SDD §2.4:
-- When `gate_between` is true: summarize (3-5 bullets, cited), state carryforward, present transition (structured AskUserQuestion or plain text per `routing_style`), WAIT for response
-- When `gate_between` is false: one-line transition
-
-Gates inserted after:
-- Phase 1: Problem & Vision (after line 637)
-- Phase 2: Goals & Success Metrics (after line 642)
-- Phase 3: User & Stakeholder Context (after line 647)
-- Phase 4: Functional Requirements (after line 666 — after EARS section)
-- Phase 5: Technical & Non-Functional (after line 671)
-- Phase 6: Scope & Prioritization (after line 676)
-- Phase 7: Risks & Dependencies (after line 682)
-
-**Note**: Line numbers are approximate — apply insertions top-to-bottom. After each insertion, subsequent line numbers shift.
-
-**Acceptance Criteria**:
-- [x] 7 phase transition gate blocks exist (one per phase)
-- [x] Each gate includes summary + carryforward + transition prompt + WAIT directive
-- [x] Each gate has `gate_between` true/false conditional
-- [x] Structured gates reference AskUserQuestion with Continue/Go back/Skip ahead
-- [x] Plain gates use direct text "Continue, go back, or skip ahead?"
-
-### Task 1.7: Add anti-inference directive to Phase 4
-
-**File**: `.claude/skills/discovering-requirements/SKILL.md`
-**Anchor**: Inside or immediately after Phase 4 (Functional Requirements) section, before the Phase 4 transition gate
-
-**Change**: Insert PRD FR-7 directive (SDD §2.3, row 7):
-```
-When the user provides a feature list, DO NOT expand it with "you'll probably
-also need..." additions. If you believe something is missing, ASK:
-"I notice [X] isn't mentioned. Intentional, or should we add it?"
-```
-
-**Acceptance Criteria**:
-- [x] Anti-inference directive present in Phase 4 section
-- [x] Contains "you'll probably also need" as PROHIBITED example
-- [x] Contains the "I notice [X] isn't mentioned" question template
-
-### Task 1.8: Add pre-generation gate before Phase 8
-
-**File**: `.claude/skills/discovering-requirements/SKILL.md`
-**Anchor**: Before line 684 (`## Phase 8: PRD Generation`)
-
-**Change**: Insert the Pre-Generation Gate from SDD §2.5:
-- When `gate_before_gen` is true: present completeness summary (phases covered, questions asked, assumptions with `[ASSUMPTION]` tags and consequences), ask "Ready to generate PRD?" using `routing_style`, DO NOT generate until user confirms
-- When `gate_before_gen` is false: proceed directly with one-line notice
-
-**Acceptance Criteria**:
-- [x] Pre-generation gate block exists before Phase 8
-- [x] `gate_before_gen` true/false conditional present
-- [x] Assumption enumeration with `[ASSUMPTION]` tags
-- [x] "DO NOT generate until user explicitly confirms" directive present
-- [x] Phases covered count and questions asked count mentioned
-
-### Task 1.9: Create smoke test script
-
-**File**: `.claude/scripts/tests/test-interview-config.sh` (new file)
-
-**Change**: Create test script validating all structural changes from SDD §4.2:
-
-| Assertion | What to Check |
-|-----------|--------------|
-| `<interview_config>` block exists | `grep -q '<interview_config>' SKILL.md` |
-| Old question limit removed | `! grep -q '2-3 per phase maximum' SKILL.md` |
-| Config-aware limit present | `grep -q 'configured range' SKILL.md` |
-| Backpressure PROHIBITED block | `grep -q 'DO NOT answer your own questions' SKILL.md` |
-| Phase transition gate exists | `grep -q 'Phase Transition' SKILL.md` |
-| Pre-generation gate exists | `grep -q 'Pre-Generation Gate' SKILL.md` |
-| Anti-inference directive | `grep -q "you.ll probably also need" SKILL.md` |
-| Config example has interview | `grep -q 'interview:' .loa.config.yaml.example` |
-| yq defaults resolve | `yq eval '.interview.mode // "thorough"' .loa.config.yaml` returns non-empty |
-
-**Acceptance Criteria**:
-- [x] Script exists at `.claude/scripts/tests/test-interview-config.sh`
-- [x] Script is executable (`chmod +x`)
-- [x] Uses `((errors+=1))` not `((errors++))` (set -e safety)
-- [x] All 9 assertions pass after implementation
-- [x] Existing `test-ux-phase2.sh` still passes (no regressions)
+- `gpt-review-api.sh` ≤ 300 lines
+- All existing callers produce identical output
+- ≥15 test cases passing
 
 ---
 
-## Task Dependency Graph
+## Sprint 2: Multi-Pass Reasoning Orchestrator
 
-```
-Task 1.1 (config schema)         ← independent, separate file
-Task 1.2 (interview_config)      ← independent, line 94
-Task 1.3 (kernel_framework)      ← independent, line 247
-Task 1.4 (Phase 0.5 limit)       ← independent, line 597
-Task 1.5 (conditional logic)     ← after 1.2 (same region), lines 613-632
-Task 1.6 (phase gates)           ← after 1.5 (line numbers shift), lines 634-682
-Task 1.7 (anti-inference)        ← after 1.6 (inside Phase 4 gate area)
-Task 1.8 (pre-gen gate)          ← after 1.7 (line numbers shift), before line 684
-Task 1.9 (smoke test)            ← after all above (validates everything)
-```
+**Scope:** MEDIUM (5 tasks)
+**Sprint Goal:** Implement the 3-pass reasoning sandwich orchestrator with per-pass context budgets, failure handling, and intermediate output persistence.
 
-**Implementation order**: 1.1, 1.2, 1.3, 1.4 (parallel-safe) → 1.5 → 1.6 → 1.7 → 1.8 → 1.9
+> Ground truth: SDD §3.3 (multipass), PRD FR3 (multi-pass reasoning sandwich)
+
+### Deliverables
+
+- [ ] `lib-multipass.sh` — 3-pass orchestration with budget enforcement
+- [ ] Pass-specific prompt builders (xhigh/high/xhigh)
+- [ ] Per-pass failure handling (degrade, retry, skip)
+- [ ] Intermediate pass files in `grimoires/loa/a2a/gpt-review/`
+- [ ] `reasoning_mode` config integration
+- [ ] Test suite for all pass success/failure combinations
+
+### Technical Tasks
+
+- [ ] **Task 2.1:** Create `lib-multipass.sh` core orchestrator → **[G6]**
+  - `run_multipass()`: 3-pass execution loop with intermediate capture
+  - Token budget constants: configurable via config + env override (SDD §3.3, IMP-001)
+  - `enforce_token_budget()`: Truncate with priority (findings > context > metadata)
+  - `estimate_token_count()`: Approximate token counting (chars/4 heuristic + `tiktoken` if available) for budget enforcement before codex invocation (Flatline IMP-001)
+  - `check_budget_overflow()`: Auto-switch to --fast if remaining time < pass_timeout (IMP-005)
+  - Per-pass timeout tracking with total budget (IMP-002). Wrap each `codex exec` invocation with `timeout(1)` command; configurable per-pass (`CODEX_PASS1_TIMEOUT`, etc.) with total ceiling (Flatline IMP-004)
+  - Intermediate output to `grimoires/loa/a2a/gpt-review/<type>-pass-{1,2,3}.json` (PID-suffixed in CI)
+  - CI concurrency isolation: use `$CI_JOB_ID` or `$$` prefix for all intermediate files and cache paths to prevent cross-job collisions (Flatline IMP-002)
+  - **AC:** 3 passes execute sequentially, each producing output
+  - **AC:** Token budgets enforced: Pass 1 output ≤4000, Pass 2 output ≤6000 tokens
+  - **AC:** `estimate_token_count()` returns within 10% of actual for English text
+  - **AC:** Budget overflow triggers auto-switch to single-pass with log warning
+  - **AC:** Each pass respects its `timeout` ceiling; total 3-pass time ≤ configured maximum
+
+- [ ] **Task 2.2:** Implement pass-specific prompt builders → **[G6]**
+  - `build_pass1_prompt()`: xhigh — "Think step-by-step about the full codebase structure, dependencies, and change surface area before summarizing"
+  - `build_pass2_prompt()`: high — "Focus on finding concrete issues efficiently. Do not over-analyze."
+  - `build_pass3_prompt()`: xhigh — "Carefully verify each finding. Check for false positives. Validate file:line references exist."
+  - `build_combined_prompt()`: For --fast single-pass mode (combines all three instructions)
+  - Prompts embed the reasoning depth guidance since `codex exec` has no compute tier flags (PRD IMP-009)
+  - **AC:** Each prompt includes the appropriate reasoning instruction
+  - **AC:** Combined prompt includes condensed versions of all three instructions
+  - **AC:** Document reviews use inline content; code reviews use file reference (when tool-access enabled)
+
+- [ ] **Task 2.3:** Implement per-pass failure handling → **[G7]**
+  - Pass 1 fails → fall back to single-pass (SDD §6.1, PRD IMP-002)
+  - Pass 2 fails → retry once, then exit 1
+  - Pass 3 fails → return Pass 2 output with `"verification": "skipped"` flag
+  - Rate limit (429) → exponential backoff (5s, 15s, 45s) then fail the pass
+  - `inject_verification_skipped()`: Add `verification` field to Pass 2 output
+  - All failures logged with pass number, error type, fallback action
+  - **AC:** Pass 1 failure degrades gracefully to single-pass (not error)
+  - **AC:** Pass 3 failure produces valid schema-conformant output
+  - **AC:** Rate limit backoff respects per-pass timeout
+
+- [ ] **Task 2.4:** Add `pass_metadata` to response → **[G4, G6]**
+  - Optional `pass_metadata` field: `passes_completed`, per-pass token counts, total duration, reasoning_mode
+  - Optional `verification` field: "passed" | "skipped" | null
+  - Backward-compatible with existing schema (new fields are optional)
+  - Secret redaction applied to all pass outputs before persistence (SDD §3.3)
+  - **AC:** Response includes `pass_metadata` when multi-pass is used
+  - **AC:** Existing schema validation still passes (additive fields)
+
+- [ ] **Task 2.5:** Sprint 2 tests → **[G3]**
+  - `test_multipass.bats`: All 3 passes succeed, Pass 1 fail → single-pass, Pass 2 fail → retry → error, Pass 3 fail → verification skipped
+  - Budget enforcement: oversized Pass 1 output gets truncated, context overflow triggers --fast
+  - Token estimation accuracy check
+  - Intermediate file creation and cleanup
+  - Mock codex returning different responses per pass
+  - **AC:** All bats tests pass
+  - **AC:** ≥12 test cases covering all pass/failure combinations
+
+### Dependencies
+
+- Sprint 1 complete (lib-codex-exec.sh, lib-security.sh, route_review required)
+
+### Risks & Mitigation
+
+| Risk | Mitigation |
+|------|------------|
+| Token budget too restrictive for large reviews | Budgets configurable via config/env |
+| 3x latency breaks autonomous run timeouts | --fast flag + budget overflow auto-switch |
+
+### Success Metrics
+
+- Multi-pass review produces findings with higher `file:line` rate than single-pass
+- All failure degradation paths work correctly
+- ≥12 test cases passing
 
 ---
+
+## Sprint 3: Integration + Hardening
+
+**Scope:** MEDIUM (4 tasks)
+**Sprint Goal:** End-to-end integration testing, backward compatibility verification, Hounfour coexistence, and final security audit.
+
+> Ground truth: SDD §7.3 (test matrix), §8 (security architecture), PRD G3-G5 (parity, schema, config compat)
+
+### Deliverables
+
+- [ ] End-to-end integration tests with mock codex
+- [ ] Backward compatibility verification (exit codes, output format, CLI flags)
+- [ ] Hounfour routing verification
+- [ ] Security audit (redaction, deny list, no leaked secrets)
+- [ ] E2E goal validation
+
+### Technical Tasks
+
+- [ ] **Task 3.1:** Integration tests → **[G3, G4, G5]**
+  - `test_integration.bats`: Full end-to-end: `gpt-review-api.sh` → routing → codex/curl → response → validation
+  - Test all 4 review types (code, prd, sdd, sprint) through codex path
+  - Test all 4 review types through curl fallback path
+  - Test Hounfour routing when `flatline_routing: true`
+  - Test `--fast` + `--tool-access` flag combinations
+  - Test iteration/re-review workflow (--iteration 2 --previous findings.json)
+  - Verify output file format matches pre-refactor output
+  - **AC:** All review types produce schema-valid output in all 3 execution modes
+  - **AC:** Exit codes match spec (0-5) across all paths
+  - **AC:** ≥20 integration test cases
+
+- [ ] **Task 3.2:** Backward compatibility verification → **[G3, G4, G5]**
+  - Run pre-refactor `gpt-review-api.sh` (from git) and post-refactor on same input
+  - Compare: exit codes, output schema conformance, verdict consistency
+  - Verify all existing flags work unchanged
+  - Verify callers need zero changes: check review-sprint, audit-sprint, flatline for any hardcoded assumptions
+  - Verify config without new options uses correct defaults
+  - **AC:** Pre/post output is schema-equivalent (same verdict for same input)
+  - **AC:** No caller script changes required
+  - **AC:** Line count: `gpt-review-api.sh` ≤ 300 lines (final verification)
+
+- [ ] **Task 3.3:** Security audit → **[G7]**
+  - Run all redaction tests with real API key patterns
+  - Verify no API keys in any output file (grep for `sk-` in `grimoires/loa/a2a/gpt-review/`)
+  - Verify JSON integrity post-redaction (all output files valid JSON)
+  - Verify `--tool-access` off by default (no repo-root access without explicit opt-in)
+  - Verify CI mode (`CI=true`) never attempts codex login
+  - Verify capability probe hard-fails for `execution_mode=codex` when flags missing
+  - Test with sensitive file patterns in mock output (`.env`, `*.pem`)
+  - **AC:** Zero secrets found in any persistent output file
+  - **AC:** All security invariants from SDD §8.2 verified by test
+  - **AC:** Deny list patterns trigger redaction in mock output
+
+- [ ] **Task 3.E2E:** End-to-End Goal Validation → **[G1-G7]**
+  - G1: `wc -l gpt-review-api.sh` ≤ 300
+  - G2: `grep -c 'curl ' gpt-review-api.sh` = 0 (in primary path; curl is in lib-curl-fallback.sh)
+  - G3: All 4 review types pass through codex path
+  - G4: All output conforms to `gpt-review-response.schema.json`
+  - G5: Config without new options works (all defaults)
+  - G6: Multi-pass findings include more `file:line` references than single-pass (measured on test content)
+  - G7: Remove codex from PATH → reviews still succeed via curl fallback
+  - **AC:** All 7 goals validated with evidence
+  - **P0 — Must Complete**
+
+### Dependencies
+
+- Sprint 1 and Sprint 2 complete
+
+### Risks & Mitigation
+
+| Risk | Mitigation |
+|------|------------|
+| Integration surface is large (3 modes × 4 types × 2 pass modes) | Structured test matrix covers critical paths |
+| Pre/post comparison may differ due to model non-determinism | Compare schema structure, not content |
+
+### Success Metrics
+
+- All 7 PRD goals validated
+- ≥20 integration test cases passing
+- Zero secrets in output files
+- Zero caller changes required
+
+---
+
+## Appendix A: Task Dependencies
+
+```mermaid
+graph TD
+    T1_1[1.1 Extract curl] --> T1_4[1.4 route_review]
+    T1_2[1.2 lib-security] --> T1_4
+    T1_3[1.3 lib-codex-exec] --> T1_4
+    T1_4 --> T1_6[1.6 Sprint 1 tests]
+    T1_5[1.5 Config update] --> T1_6
+
+    T1_4 --> T2_1[2.1 Multipass core]
+    T1_3 --> T2_1
+    T1_2 --> T2_1
+    T2_1 --> T2_2[2.2 Pass prompts]
+    T2_1 --> T2_3[2.3 Failure handling]
+    T2_1 --> T2_4[2.4 Pass metadata]
+    T2_2 --> T2_5[2.5 Sprint 2 tests]
+    T2_3 --> T2_5
+    T2_4 --> T2_5
+
+    T2_5 --> T3_1[3.1 Integration tests]
+    T2_5 --> T3_2[3.2 Backward compat]
+    T2_5 --> T3_3[3.3 Security audit]
+    T3_1 --> T3_E2E[3.E2E Goal validation]
+    T3_2 --> T3_E2E
+    T3_3 --> T3_E2E
+```
+
+## Appendix B: Risk Register
+
+| ID | Risk | Sprint | Probability | Impact | Mitigation |
+|----|------|--------|-------------|--------|------------|
+| R1 | Curl extraction regressions | 1 | Low | High | Before/after output comparison |
+| R2 | Codex not in test env | 1 | Medium | Low | Mock binary |
+| R3 | Token budgets too restrictive | 2 | Medium | Low | Configurable via config/env |
+| R4 | 3x latency in autonomous runs | 2 | Certain | Medium | --fast + auto-switch |
+| R5 | Integration test matrix too large | 3 | Low | Medium | Focus on critical paths |
+| R6 | Model non-determinism in comparison | 3 | High | Low | Compare schema, not content |
 
 ## Appendix C: Goal Traceability
 
-| Goal | Sprint Coverage | Status |
-|------|----------------|--------|
-| G-1: Structural friction | Tasks 1.6, 1.8 (phase gates, pre-gen gate) | COVERED |
-| G-2: Question count scales | Tasks 1.3, 1.4, 1.5 (config-aware limits + mode logic) | COVERED |
-| G-3: No inference without asking | Tasks 1.2, 1.7 (backpressure protocol + anti-inference) | COVERED |
-| G-4: Configurable input style | Tasks 1.1, 1.2 (config schema + input style resolution) | COVERED |
-| G-5: Sequential pacing default | Tasks 1.1, 1.2 (config schema + pacing rules) | COVERED |
-| G-6: Forward-compatible | Task 1.1 (construct override comment) | COVERED (schema only) |
+| Goal | Description | Contributing Tasks |
+|------|-------------|-------------------|
+| G1 | ≤300 lines in gpt-review-api.sh | 1.1, 1.3, 1.4, 3.E2E |
+| G2 | 0 curl calls in primary path | 1.1, 1.4, 3.E2E |
+| G3 | All 4 review types work | 1.4, 1.6, 2.5, 3.1, 3.2, 3.E2E |
+| G4 | Schema validation preserved | 2.4, 3.1, 3.2, 3.E2E |
+| G5 | Config compatibility | 1.4, 1.5, 3.1, 3.2, 3.E2E |
+| G6 | Review quality improvement | 2.1, 2.2, 3.E2E |
+| G7 | Graceful degradation | 1.1, 1.2, 1.3, 2.3, 3.3, 3.E2E |
 
 ---
 
-## Risk Register
-
-| Risk | Mitigation |
-|------|-----------|
-| Line numbers shift after each insertion | Apply modifications top-to-bottom per SDD §2.3 note |
-| Prose directives ignored by Claude | Accepted as best-effort. Iterate on language if needed. (PRD §8) |
-| Large SKILL.md becomes harder to maintain | All insertions are XML-tagged sections. No refactoring of existing content. |
-| Existing smoke tests regress | Task 1.9 includes running `test-ux-phase2.sh` as regression check |
+*Generated by Sprint Planner • Cycle: cycle-033 • Source: [#400](https://github.com/0xHoneyJar/loa/issues/400)*

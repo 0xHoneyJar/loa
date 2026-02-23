@@ -4,11 +4,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Active Task** | Cycle-030: Bridge Inquiry Infrastructure |
-| **Status** | Sprint 6 (sprint-30) — Multi-Model Inquiry + Integration |
+| **Active Task** | Cycle-033: Codex CLI Integration for GPT Review |
+| **Status** | PRD complete — ready for `/architect` |
 | **Blocked By** | None |
-| **Next Action** | Complete sprint-30, bridge finalization |
-| **Previous** | Cycle-029 archived; Sprints 4-5 (FR-5, FR-3, FR-1, FR-2) complete |
+| **Next Action** | `/architect` to create SDD |
+| **Previous** | Cycle-032 archived (Interview Depth Backpressure) |
 
 ## Session Log
 

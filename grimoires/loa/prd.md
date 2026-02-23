@@ -1,247 +1,354 @@
-# PRD: Interview Depth Configuration — Planning Backpressure
+# PRD: Codex CLI Integration for GPT Review
 
-> Cycle: cycle-031 | Author: soju + Claude
-> Predecessor: cycle-030 (UX Redesign — Vercel-Grade Developer Experience)
-> Related: [#379](https://github.com/0xHoneyJar/loa/issues/379) (construct trust), [#90](https://github.com/0xHoneyJar/loa/issues/90) (AskUserQuestion UX), [#343](https://github.com/0xHoneyJar/loa/issues/343) (progressive disclosure)
-> Design Context: `grimoires/loa/context/interview-depth-config.md`, `grimoires/loa/context/ux-redesign-plan.md`
-> Priority: P1 — directly impacts planning quality for all users
+> Cycle: cycle-033 | Author: soju + Claude
+> Predecessor: cycle-032 (Interview Depth Configuration — Planning Backpressure)
+> Source: [#400](https://github.com/0xHoneyJar/loa/issues/400) (Codex CLI upgrade proposal)
+> Design Context: Codebase grounding via `/gpt-review` system analysis (2026-02-23)
+> Priority: P2 — improves review infrastructure reliability and depth
 
 ---
 
 ## 1. Problem Statement
 
-Opus 4.6 rushes through Loa's planning phases. It infers answers instead of asking, skips phases when context "seems sufficient," and generates PRDs in the same conversation turn as the last question. The result: users get a document that looks complete but wasn't properly interrogated.
+`gpt-review-api.sh` is a ~500-line script that reimplements capabilities already provided by the Codex CLI runtime. The script manually handles:
 
-**The root causes:**
+1. **HTTP transport** — curl calls with config-file auth, header management, endpoint selection (Chat Completions vs Responses API)
+2. **Retry logic** — 3 retries with exponential backoff, error classification (429/5xx/401)
+3. **Response parsing** — JSON extraction from two different response formats (`choices[0].message.content` vs `output[].content[].text`)
+4. **Content truncation** — Token estimation (`bytes / 3`), priority-based file ranking, smart truncation
+5. **Dual API routing** — Chat Completions for documents, Responses API for Codex models
 
-1. **No configuration surface.** Question limits ("2-3 per phase max") are hardcoded in SKILL.md prose. There is zero user-facing control for interview depth, input style, or pacing.
+This is **accidental complexity**. `codex exec` provides transport, retry, response handling, and model-specific optimizations natively. The current architecture also prevents Loa from leveraging Codex's built-in file-reading tools, which would let the review model inspect code directly rather than reviewing a static content blob.
 
-2. **Gap-skipping logic is too aggressive.** When context files cover a phase, the agent silently moves on with a one-line "Is this accurate?" — no friction, no confirmation gate, no summary of what was understood.
-
-3. **No backpressure mechanism.** Nothing in the SKILL.md explicitly prohibits the agent from combining phases, inferring answers, or generating the output document in the same response as the last question. More capable models exploit this absence.
-
-4. **AskUserQuestion UI isn't always wanted.** Some users prefer typing freely over selecting from 4 predefined options. The structured widget constrains users who think holistically.
-
-> Sources: JNova Discord feedback (2026-02-19), cycle-030 retrospective, `ux-redesign-plan.md` Open Question #1 ("Should /plan offer a speed toggle?")
+> Sources: `gpt-review-api.sh` analysis, issue #400 feedback survey, [Codex CLI Reference](https://developers.openai.com/codex/cli/reference/)
 
 ---
 
 ## 2. Vision
 
-**Planning should feel like a senior PM interview, not a form submission.**
+A thinner review script that delegates execution to `codex exec` while Loa retains control over what matters: prompt construction, review schema, iteration logic, and multi-pass reasoning orchestration.
 
-The agent walks every phase, shows its understanding, asks what it doesn't know, and waits for you to confirm before moving on. Rich context means fewer questions — not fewer phases. The friction is structural (every phase has a gate) not volumetric (always ask N questions regardless).
-
-Users who want speed can opt into minimal mode. Constructs that earn trust (RFC #379) can eventually declare their own interview depth. But the default experience is thorough.
+The upgrade also enables a **reasoning sandwich pattern** — three `codex exec` passes per review with escalating/de-escalating reasoning depth — to improve review finding quality without uniform compute waste.
 
 ---
 
-## 3. Goals & Success Criteria
+## 3. Goals & Success Metrics
 
-| Goal | Success Criteria |
-|------|-----------------|
-| G-1: Structural friction at planning stage | Agent never skips a discovery phase, even with rich context. Every phase gets at minimum a summary + confirmation. |
-| G-2: Question count scales with context | Rich context (LARGE assessment) produces fewer questions per phase. Empty context produces full discovery. Neither produces zero-question phases. |
-| G-3: No inference without asking | Agent does not write "Based on common patterns..." or "Typically..." for requirements. Gaps are asked, not filled. |
-| G-4: Configurable input style | Users can choose structured (AskUserQuestion) or plain text for discovery questions via `.loa.config.yaml`. |
-| G-5: Sequential pacing by default | Agent asks one question per turn, waits for response. Users can switch to batch pacing. |
-| G-6: Forward-compatible with constructs | Config schema shape supports future construct manifest `interview` overrides gated by trust tier. No runtime plumbing yet. |
+| # | Goal | Metric | Target |
+|---|------|--------|--------|
+| G1 | Reduce accidental complexity | Lines in `gpt-review-api.sh` | ≤300 (≥40% reduction) |
+| G2 | Eliminate manual HTTP handling | curl calls in review path | 0 (in primary path) |
+| G3 | Feature parity | All 4 review types pass | code, prd, sdd, sprint |
+| G4 | Schema validation preserved | Review output conforms to `gpt-review-response.schema.json` | 100% |
+| G5 | Config compatibility | All `.loa.config.yaml` gpt_review settings work | No breaking changes |
+| G6 | Review quality improvement | Findings with `file:line` references | Higher rate than current (Codex tool-augmented) |
+| G7 | Graceful degradation | Fallback to curl when Codex CLI unavailable | Transparent to caller |
 
 ---
 
-## 4. User Personas
+## 4. User & Stakeholder Context
 
-### Persona 1: New User (no context)
-- Arrives with little or no context files
-- Needs full 7-phase discovery interview
-- Benefits from sequential pacing — one question at a time, conversational
-- Default mode: `thorough`
+### Primary Persona: Loa Framework User
 
-### Persona 2: Power User (rich context)
-- Provides extensive context files in `grimoires/loa/context/`
-- Wants the agent to confirm understanding, not re-ask what's documented
-- Still expects every phase to be walked — no silent skipping
-- Question count scales down, but structural gates remain
-- Default mode: `thorough` (friction comes from gates, not question count)
+Developers using `/gpt-review` directly or via the review/audit cycle (`/run sprint-N`). They expect:
+- Reviews to "just work" with their existing `OPENAI_API_KEY`
+- No new CLI dependencies required (fallback handles missing `codex`)
+- Same verdict types and output format
 
-### Persona 3: Construct Operator (speed matters)
-- Working within a construct's defined workflow (UI fixes, bug triage, domain-specific pipelines)
-- Needs concise planning or to opt out of heavy phases entirely
-- Uses `mode: minimal` in config, or construct manifest declares interview depth
-- Future: BACKTESTED+ constructs can reduce friction automatically (RFC #379)
-- Default mode: `minimal` (via config or construct override)
+### Secondary Persona: Framework Maintainer
+
+Maintains `gpt-review-api.sh` and related scripts. Benefits from:
+- Less code to maintain (no HTTP/retry logic)
+- Cleaner separation between prompt engineering and execution
+- Model upgrade path via `--model` flag
+
+> Sources: Issue #400 survey (5/5 rating, "A - Very comfortable"), existing user base
 
 ---
 
 ## 5. Functional Requirements
 
-### FR-1: Interview Configuration Schema
+### FR1: Codex Exec Primary Path
 
-Add `interview:` section to `.loa.config.yaml.example` with:
+Replace direct curl/API calls with `codex exec` as the primary execution method.
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `mode` | `thorough` \| `minimal` | `thorough` | Global interview depth |
-| `per_skill` | map | (empty) | Per-skill mode overrides |
-| `input_style.routing_gates` | `structured` \| `plain` | `structured` | Phase transitions use AskUserQuestion or plain text |
-| `input_style.discovery_questions` | `structured` \| `plain` | `plain` | Discovery questions use AskUserQuestion or plain text |
-| `input_style.confirmation` | `structured` \| `plain` | `structured` | Understanding confirmations use AskUserQuestion or plain text |
-| `pacing` | `sequential` \| `batch` | `sequential` | One question per turn vs numbered batch |
-| `phase_gates.between_phases` | boolean | `true` | Require confirmation between discovery phases |
-| `phase_gates.before_generation` | boolean | `true` | Require confirmation before generating output doc |
-| `backpressure.no_infer` | boolean | `true` | Prohibit inferring answers to unasked questions |
-| `backpressure.show_work` | boolean | `true` | Cite known vs unknown before asking |
-| `backpressure.min_confirmation_questions` | integer | `1` | Minimum questions per phase even when context covers it |
+**Content Passing Contract** (IMP-004):
+- **Code reviews**: Content file placed in a temp workspace directory. Codex reads it via built-in file tools (`--sandbox read-only` grants read access). The model MAY use grep/read to explore referenced files within the workspace. Pre-ranked priority truncation from `lib-content.sh` still applies to the *initial* content file — Codex tool reads supplement, not replace, this.
+- **Document reviews** (PRD/SDD/Sprint): Full document passed as prompt text (not file reference) since document reviews don't benefit from tool-augmented exploration.
+- **Determinism note**: Tool-augmented file reads make code review outputs less deterministic than blob-based reviews. This is acceptable — richer context is worth the variance.
 
-Config is read via `yq eval` with `// "default"` fallback pattern (same as existing `codebase_grounding` config). Missing config = thorough mode with all defaults.
+**Version Compatibility** (IMP-003, SKP-001):
+- On first invocation, probe `codex --version` and log the version
+- **Capability probes**: test critical flags (`--sandbox`, `--ephemeral`, `--output-last-message`) by running a no-op `codex exec` with each flag and checking exit codes
+- If any required flag is unsupported, fall back to curl with warning identifying the missing capability
+- Store detected capabilities in a session cache file (avoid re-probing per review within same session)
+- Minimum supported version: define after implementation testing (TBD in SDD)
 
-### FR-2: Interview Config Block in SKILL.md
+**Acceptance Criteria:**
+- `codex exec` invoked with `--sandbox read-only`, `--ephemeral`, `--skip-git-repo-check`
+- `--output-last-message` captures review response to file
+- `--model` set from config (`gpt_review.models.code` or `gpt_review.models.documents`)
+- System prompt passed via `codex exec` prompt construction
+- Content file accessible to Codex via workspace path
+- Version check on first use with graceful fallback on incompatible versions
 
-Add `<interview_config>` XML section to `discovering-requirements/SKILL.md` containing:
-- Config reading via yq (bash snippet)
-- Mode behavior table (thorough vs minimal)
-- Input style resolution table
-- Question pacing rules
-- Backpressure protocol (PROHIBITED/REQUIRED lists)
-- Construct override documentation (future extension point)
+### FR2: Curl Fallback Path
 
-Insertion point: after `</prompt_enhancement_prelude>` (line 94).
+Preserve direct curl as fallback when `codex` binary is not available.
 
-### FR-3: Replace Hardcoded Question Limits
+**Acceptance Criteria:**
+- Script detects `codex` availability at startup (`command -v codex`)
+- If unavailable, falls back to current curl-based implementation
+- Fallback logged to stderr: `"[gpt-review] codex not found, using direct API fallback"`
+- All existing curl logic retained but moved to fallback function
+- Config option `gpt_review.execution_mode: codex | curl | auto` (default: `auto`)
 
-Replace "DO limit questions to 2-3 per phase maximum" with config-aware language:
-- Thorough mode: 3-6 questions per phase range, but scales down with context richness
-- Minimal mode: 1-2 questions per phase
-- Both modes: at least `min_confirmation_questions` per phase (floor of 1)
+### FR3: Multi-Pass Reasoning Sandwich
 
-### FR-4: Phase Transition Gates
+Three-pass review architecture for deeper analysis.
 
-After each discovery phase (1-7), add a gate block:
-- Summarize what was learned (3-5 bullets, cited)
-- State what carries forward to next phase
-- Present transition prompt (structured or plain per config)
-- **Wait for response. Do not auto-continue.**
+**Pass Structure:**
 
-When `gate_between` is false: one-line transition only.
+| Pass | Purpose | Reasoning Depth | Codex Flags | Context Budget |
+|------|---------|----------------|-------------|----------------|
+| 1: Planning | Understand codebase context, identify review areas | Deep (xhigh) | `--sandbox read-only` — model reads files | Input: full content. Output: ≤4000 tokens (context summary) |
+| 2: Review | Execute review against findings from Pass 1 | Standard (high) | `--sandbox read-only` — focused finding detection | Input: Pass 1 summary + original content (truncated to 20k tokens if needed). Output: ≤6000 tokens (raw findings) |
+| 3: Verification | Validate findings, catch missed issues, produce final verdict | Deep (xhigh) | `--sandbox read-only` — final quality gate | Input: Pass 2 findings (≤6000 tokens). Output: final verdict JSON |
 
-### FR-5: Pre-Generation Gate
+**Context Management Between Passes** (IMP-001):
+- Each pass output has a **hard token budget** (see table above)
+- Pass 1→2 handoff: summarization instruction in Pass 1 prompt limits output to structured context summary
+- Pass 2→3 handoff: findings are structured JSON (naturally bounded)
+- If any pass output exceeds its budget, truncate with priority: findings > context > metadata
+- If total context for any pass exceeds model window, auto-switch to `--fast` mode with warning
 
-Before Phase 8 (PRD Generation), present completeness summary:
-- Phases covered count
-- Questions asked/answered count
-- Top assumptions with `[ASSUMPTION]` tags and consequences
-- Explicit "Ready to generate PRD?" prompt
-- **Do not generate until user confirms.**
+**Pass-Level Failure Handling** (IMP-002):
+- Each pass has independent timeout (inherited from `gpt_review.timeout_seconds`)
+- If Pass 1 fails: fall back to single-pass mode (Pass 2 with original content, no context summary)
+- If Pass 2 fails: retry once, then return error (no partial results)
+- If Pass 3 fails: return Pass 2 output as-is with `"verification": "skipped"` flag
+- Rate limit (429) on any pass: exponential backoff (5s, 15s, 45s), then fail the pass
+- All pass failures logged with pass number, error type, and fallback action taken
 
-### FR-6: Backpressure Protocol
+**Reasoning Depth via Prompts** (IMP-009):
+- `codex exec` does not expose compute tier flags — reasoning depth is **prompt-guided only**
+- Pass 1 (xhigh equivalent): system prompt instructs "Think step-by-step about the full codebase structure, dependencies, and change surface area before summarizing"
+- Pass 2 (high equivalent): system prompt instructs "Focus on finding concrete issues efficiently. Do not over-analyze."
+- Pass 3 (xhigh equivalent): system prompt instructs "Carefully verify each finding. Check for false positives. Validate file:line references exist."
+- This is a **best-effort** approach — actual reasoning depth depends on model behavior, not guaranteed tiers
 
-Explicit prose prohibitions added to SKILL.md:
+**Acceptance Criteria:**
+- Pass 1 output (context summary) feeds into Pass 2 prompt
+- Pass 2 output (raw findings) feeds into Pass 3 prompt
+- Pass 3 produces the final verdict conforming to `gpt-review-response.schema.json`
+- Each pass uses `--output-last-message` for intermediate capture
+- `--fast` flag skips to single-pass mode (Pass 2 only, with combined prompt)
+- Context budgets enforced between passes with deterministic truncation
+- Pass-level failures degrade gracefully (never block the entire review)
 
-**PROHIBITED:**
-- Do not answer your own questions
-- Do not proceed without explicit user input
-- Do not write "Based on common patterns..." or "Typically..." for requirements
-- Do not combine multiple phases into one response
-- Do not generate the output document in the same response as the last question
-- Do not skip phases because "the context seems sufficient"
+### FR4: Authentication Auto-Detection
 
-**REQUIRED:**
-- Wait for user response after every question
-- Before asking, state: (1) what you know (cited), (2) what you don't know, (3) why it matters
-- Separate phases into distinct conversation turns
-- Enumerate assumptions with `[ASSUMPTION]` tags before proceeding
+Seamless auth regardless of user's Codex CLI setup.
 
-### FR-7: Anti-Inference Directives (Phase-Specific)
+**Auth Security Hardening** (SKP-002):
+- **Non-interactive guarantee**: Auth flow MUST NOT prompt for interactive input. If `codex login` requires a prompt, skip directly to env var fallback.
+- **Log redaction**: All stderr/stdout output from auth commands MUST be filtered through a redaction function that strips patterns matching API key formats (`sk-...`, `sk-ant-...`). Applied before any logging.
+- **CI-safe mode**: When `CI=true` or `NONINTERACTIVE=true` env var is set, skip `codex login` entirely — use `OPENAI_API_KEY` direct pass-through only.
+- **Credential storage audit**: `codex login --with-api-key` may write credentials to `~/.codex/` or similar. With `--ephemeral`, verify no credential files persist. If they do, warn and clean up.
+- **Precedence order**: (1) Existing codex auth → (2) `OPENAI_API_KEY` pipe to `codex login` → (3) Direct curl with `OPENAI_API_KEY`
 
-Phase 4 (Functional Requirements):
-- Do not expand user feature lists with "you'll probably also need..." additions
-- If something seems missing, ask: "I notice [X] isn't mentioned. Intentional, or should we add it?"
+**Acceptance Criteria:**
+- Try existing `codex` auth state first (no-op if already authenticated)
+- If Codex auth fails, pipe `OPENAI_API_KEY` via `printenv OPENAI_API_KEY | codex login --with-api-key`
+- If both fail, fall back to curl path (which uses `OPENAI_API_KEY` directly)
+- Auth errors produce clear user-facing messages with redacted key values
+- No interactive prompts in any auth path
+- CI environments use direct env var pass-through only
 
-### FR-8: Conditional Phase Logic Update
+### FR5: Hounfour Routing Preservation
 
-Replace the existing three-branch IF/ELSE with mode-aware logic:
-- `thorough` + fully covered: summarize + ask at least `min_confirm` questions (no skipping)
-- `minimal` + fully covered: summarize + one confirmation (current behavior)
-- Partially covered: summarize known, ask about gaps (respect pacing)
-- Not covered: full discovery (respect pacing)
+Maintain model-invoke as an alternative routing option.
 
-### FR-9: Construct Override Schema (Forward-Compatible)
+**Acceptance Criteria:**
+- Config option `hounfour.flatline_routing: true` still routes through `model-invoke`
+- `codex exec` path used only when Hounfour routing is disabled
+- Route selection: Hounfour enabled → model-invoke, else → codex exec → curl fallback
+- No behavioral change for users with `flatline_routing: true`
 
-Document in config comments and SKILL.md that construct manifests will eventually support:
-```json
-{ "workflow": { "interview": { "mode": "minimal", "trust_tier": "BACKTESTED" } } }
+### FR6: Output Schema Validation
+
+Review responses validated against the existing schema.
+
+**Acceptance Criteria:**
+- `--output-schema` flag used with `gpt-review-response.schema.json` if supported for final model output
+- If `--output-schema` only validates tool output (not model response), post-hoc validation retained
+- Response parsing extracts from `--output-last-message` file
+- All existing verdict types preserved: SKIPPED, APPROVED, CHANGES_REQUIRED, DECISION_NEEDED
+
+### FR7: Configuration Surface
+
+New config options in `.loa.config.yaml`.
+
+```yaml
+gpt_review:
+  enabled: true
+  execution_mode: auto        # codex | curl | auto (NEW)
+  reasoning_mode: multi-pass  # multi-pass | single-pass (NEW)
+  timeout_seconds: 300
+  max_iterations: 3
+  models:
+    documents: "gpt-5.2"
+    code: "gpt-5.2-codex"
+  phases:
+    prd: true
+    sdd: true
+    sprint: true
+    implementation: true
 ```
-Precedence chain: Construct (if trust >= BACKTESTED) > per_skill config > global mode > default.
-**No runtime plumbing in this cycle.** Schema shape only.
 
 ---
 
-## 6. Technical Constraints
+## 6. Technical & Non-Functional Requirements
 
-- **Config mechanism**: `yq eval` with `//` fallback defaults in SKILL.md bash snippets. Same pattern as `plan_and_analyze.codebase_grounding` (proven to work).
-- **Behavioral enforcement**: Prose-based only. No hooks, no scripts, no structural validation. Accepted as best-effort.
-- **Backward compatibility**: Missing `interview:` section in user's `.loa.config.yaml` resolves to all defaults via yq fallback. Zero breakage for existing users.
-- **AskUserQuestion constraints**: max 4 options (5th is auto "Other"), max 12-char headers, markdown previews single-select only. (From `ux-redesign-plan.md`)
+### NFR1: Latency
+
+- Single-pass mode (--fast): Comparable to current curl approach
+- Multi-pass mode (default): ≤3x current latency (3 sequential codex exec calls)
+- Timeout per pass: inherited from `gpt_review.timeout_seconds` (default 300s per pass)
+
+### NFR2: Dependency Management
+
+- `codex` CLI is a **soft dependency** — absence triggers fallback, not failure
+- No new npm/pip/system dependencies required for fallback path
+- Installation guidance in help text: `"Install Codex CLI: npm install -g @openai/codex"`
+
+### NFR3: Security
+
+- API key never appears in process arguments (piped via stdin for `codex login`)
+- `--sandbox read-only` prevents any file modifications during review
+- `--ephemeral` prevents session data from persisting
+- System Zone detection preserved in all execution paths
+
+**Codex File Access Threat Model** (SKP-005):
+- `codex exec` is invoked with `--cd <repo-root>` to restrict workspace to repository root only
+- **Deny list**: Codex workspace MUST NOT include paths outside the repo. The `--cd` flag scopes reads to repo root.
+- **In-repo sensitive files**: Add `.env`, `.env.*`, `*.pem`, `*.key`, `credentials.json`, `.npmrc` to a deny pattern list. If Codex output contains content matching these file paths, redact the content in the output before persistence.
+- **Secret pattern redaction**: Apply the same secret scanning patterns from `flatline_protocol.secret_scanning.patterns` to all Codex output before writing to findings files. Matches are replaced with `[REDACTED]`.
+- **Output audit**: All Codex `--output-last-message` files are scanned for secret patterns before being parsed as review results.
+- **Safe defaults**: If `--cd` flag is unavailable in the detected Codex version, fall back to curl (do not run Codex with unrestricted workspace access).
+
+### NFR4: Observability
+
+- Each pass logs: model, duration, token usage (if available from `--json` events)
+- Pass progression logged: `"[gpt-review] Pass 1/3: Planning (xhigh)..."`
+- Intermediate outputs saved: `grimoires/loa/a2a/gpt-review/<type>-pass-{1,2,3}.json`
+
+### NFR5: Backward Compatibility
+
+- All existing `gpt-review-api.sh` exit codes preserved (0-5)
+- All existing `--expertise`, `--context`, `--content`, `--output`, `--iteration`, `--previous` flags preserved
+- Callers (review-sprint, audit-sprint, flatline) require zero changes
 
 ---
 
 ## 7. Scope
 
-### In Scope (MVP — Sprint 5)
+### In Scope (This Cycle)
 
-| Item | File |
-|------|------|
-| Interview config schema | `.loa.config.yaml.example` |
-| `<interview_config>` block | `discovering-requirements/SKILL.md` |
-| Replace hardcoded question limits | `discovering-requirements/SKILL.md` |
-| Phase transition gates (Phases 1-7) | `discovering-requirements/SKILL.md` |
-| Pre-generation gate | `discovering-requirements/SKILL.md` |
-| Backpressure protocol | `discovering-requirements/SKILL.md` |
-| Anti-inference directives | `discovering-requirements/SKILL.md` |
-| Conditional phase logic update | `discovering-requirements/SKILL.md` |
-
-### Future (Sprint 6+)
-
-| Item | File |
-|------|------|
-| Same changes to `designing-architecture/SKILL.md` | designing-architecture/SKILL.md |
-| Same changes to `planning-sprints/SKILL.md` | planning-sprints/SKILL.md |
-| Smoke test for interview behavior | `.claude/scripts/tests/test-interview-config.sh` |
-| Construct runtime override plumbing | construct-workflow-read.sh + SKILL.md |
+1. `codex exec` primary execution path in `gpt-review-api.sh`
+2. Curl fallback path (refactored from current implementation)
+3. Multi-pass reasoning sandwich (3 passes with intermediate output)
+4. `--fast` flag for single-pass mode
+5. Auth auto-detection (codex auth → env var pipe → curl fallback)
+6. Hounfour routing preserved as config option
+7. Config additions: `execution_mode`, `reasoning_mode`
+8. Tests covering all execution paths
 
 ### Out of Scope
 
-- Structural enforcement (hooks, scripts validating question count)
-- Runtime config hot-reload (agent reads config at skill start, not mid-phase)
-- AskUserQuestion UI changes (that's Claude Code's domain, not ours)
+- **Model upgrade to gpt-5.3-codex**: Speculative timeline; design for clean upgrade path only
+- **Streaming support**: Not in Codex CLI MVP scope either
+- **Codex session resumption for multi-iteration reviews**: Future enhancement
+- **Reasoning tier CLI flags**: Not exposed by `codex exec`; handled via prompt engineering
+- **Changes to review prompt content**: Prompt *structure* changes (multi-pass), not *substance*
 
 ---
 
 ## 8. Risks & Dependencies
 
-| Risk | Probability | Impact | Mitigation |
-|------|------------|--------|------------|
-| Claude ignores backpressure prose directives | Medium | Medium | Iterate on language. Accepted as best-effort. |
-| Config-reading yq snippets not followed by Claude | Low | High | Uses proven pattern from codebase_grounding. |
-| Thorough mode feels too slow for power users | Medium | Low | `mode: minimal` available. Question count scales with context. |
-| Future construct override creates precedence confusion | Low | Medium | Precedence chain documented in config comments. |
+| # | Risk | Severity | Probability | Mitigation |
+|---|------|----------|-------------|------------|
+| R1 | Codex CLI not installed on user machines | Medium | High | Curl fallback, clear install guidance |
+| R2 | Multi-pass 3x latency in autonomous runs | High | Certain | `--fast` flag, config toggle, per-pass timeout |
+| R3 | `--output-schema` validates tool output not model response | Medium | Medium | Post-hoc JSON validation as backup |
+| R4 | Codex exec output format changes between versions | Medium | Low | Version detection + capability probing at startup (IMP-003), graceful fallback |
+| R5 | Auth state conflicts (codex login vs env var) | Low | Low | Auto-detect with clear precedence order |
+| R6 | Intermediate pass output grows context beyond limits | Medium | Medium | Hard token budgets per pass with deterministic truncation (IMP-001), auto-switch to --fast on overflow |
+| R7 | Hounfour + Codex exec config interaction complexity | Low | Low | Clear precedence: Hounfour > Codex > curl |
 
-### Dependencies
+### External Dependencies
 
-- `yq` v4+ installed (required by existing Loa workflows)
-- Cycle-030 changes landed (post-completion debrief, free-text-first /plan) — these are on the same branch
+| Dependency | Type | Status |
+|------------|------|--------|
+| `codex` CLI (npm `@openai/codex`) | Soft (optional) | GA, stable |
+| OpenAI API key | Hard (required) | Existing requirement |
+| `gpt-5.2-codex` model | Hard (primary) | Available |
+| `gpt-5.3-codex` model | Soft (future) | Not yet available |
 
 ---
 
-## 9. Source Tracing
+## 9. Architecture Sketch
 
-| Section | Sources |
-|---------|---------|
-| Problem Statement | JNova feedback, `ux-redesign-plan.md:93-131`, discovering-requirements/SKILL.md:247 |
-| Goals G-1 through G-3 | User interview (this session, Phase 2 + Phase 7) |
-| Goal G-4 | User interview (this session, Phase 1 Q1 — "configurable per-phase") |
-| Goal G-5 | User interview (this session, Phase 1 Q2 — "lean towards slower and thorough") |
-| Goal G-6 | User interview (this session, Phase 1 Q3 — RFC #379 reference) |
-| Persona 3 | User interview (this session, Phase 3 — "construct level with UI/bug fixes") |
-| FR-1 through FR-9 | `interview-depth-config.md` (context document) |
-| Risk tolerance | User interview (this session, Phase 7 — "accept as best-effort") |
+```
+┌─────────────────────────────────────────┐
+│         gpt-review-api.sh               │
+│  ┌───────────────────────────────────┐  │
+│  │  Prompt Construction (unchanged)  │  │
+│  │  • build_first_review_prompt()    │  │
+│  │  • build_user_prompt()            │  │
+│  │  • build_re_review_prompt()       │  │
+│  └──────────────┬────────────────────┘  │
+│                 │                        │
+│  ┌──────────────▼────────────────────┐  │
+│  │       Execution Router            │  │
+│  │  Hounfour? → model-invoke         │  │
+│  │  Codex?    → codex_exec_review()  │  │
+│  │  Fallback  → call_api() [curl]    │  │
+│  └──────────────┬────────────────────┘  │
+│                 │                        │
+│  ┌──────────────▼────────────────────┐  │
+│  │   Multi-Pass Orchestrator         │  │
+│  │  Pass 1: Planning (xhigh prompt)  │  │
+│  │  Pass 2: Review (high prompt)     │  │
+│  │  Pass 3: Verify (xhigh prompt)    │  │
+│  │  --fast: Pass 2 only (combined)   │  │
+│  └──────────────┬────────────────────┘  │
+│                 │                        │
+│  ┌──────────────▼────────────────────┐  │
+│  │   Response Validation             │  │
+│  │  • Schema validation              │  │
+│  │  • Verdict extraction             │  │
+│  │  • Output persistence             │  │
+│  └───────────────────────────────────┘  │
+└─────────────────────────────────────────┘
+```
+
+---
+
+## 10. Open Questions (Resolved During Discovery)
+
+| # | Question | Resolution | Phase |
+|---|----------|------------|-------|
+| Q1 | Archive cycle-032 or continue? | Archive, start cycle-033 | Phase 0 |
+| Q2 | Problem framing: simplification vs depth? | Accidental complexity reduction (confirmed) | Phase 1 |
+| Q3 | gpt-5.3-codex timeline? | Speculative — design for 5.2-codex | Phase 1 |
+| Q4 | Dual API path vs unified codex exec? | Codex primary, curl fallback | Phase 4 |
+| Q5 | Hounfour routing coexistence? | Keep both options via config | Phase 4 |
+| Q6 | Reasoning tier implementation? | Multi-pass codex calls (3 passes) | Phase 5 |
+| Q7 | Auth mechanism? | Auto-detect: codex auth → env var → curl | Phase 5 |
+| Q8 | MVP scope? | Full vision: codex + reasoning + fallback | Phase 6 |
+| Q9 | Multi-pass latency? | Default multi-pass, --fast for single-pass | Phase 7 |
+
+---
+
+*Generated by `/plan-and-analyze` • Cycle: cycle-033 • Source: [#400](https://github.com/0xHoneyJar/loa/issues/400)*

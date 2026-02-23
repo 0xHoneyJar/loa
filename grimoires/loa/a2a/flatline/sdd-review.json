@@ -1,49 +1,44 @@
 {
   "phase": "sdd",
   "document": "grimoires/loa/sdd.md",
-  "cycle": "cycle-029",
-  "timestamp": "2026-02-19T20:30:00Z",
+  "cycle": "cycle-033",
+  "timestamp": "2026-02-23T05:25:04Z",
   "consensus_summary": {
-    "high_consensus_count": 3,
-    "disputed_count": 1,
+    "high_consensus_count": 6,
+    "disputed_count": 0,
     "low_value_count": 0,
-    "blocker_count": 0,
-    "model_agreement_percent": 78
+    "blocker_count": 4,
+    "model_agreement_percent": 100
   },
-  "high_consensus": [
+  "high_consensus_integrated": ["IMP-001", "IMP-002", "IMP-003", "IMP-004", "IMP-005", "IMP-007"],
+  "blockers": [
     {
-      "id": "HC-1",
-      "title": "Activation integration gap — who calls activate?",
-      "description": "SDD defines construct-workflow-activate.sh but doesn't specify who calls it. No integration point between construct skill invocation and activation script.",
-      "scores": {"opus": 830, "gpt": 790},
-      "recommendation": "Add Section 3.1.1 specifying that construct SKILL.md files include activation preamble, consistent with beads sync pattern.",
-      "integrated": true
+      "id": "SKP-001",
+      "concern": "Capability probing brittle",
+      "severity_score": 910,
+      "resolution": "accepted_partially",
+      "rationale": "Improved probe to parse stderr. Hard fail for execution_mode=codex, silent fallback for auto."
     },
     {
-      "id": "HC-2",
-      "title": "gates_required naming misleading",
-      "description": "gates_required reads as 'gates that are required' but actually means 'gates that must be non-skip for yield to apply'. Confusing semantics.",
-      "scores": {"opus": 780, "gpt": 720},
-      "recommendation": "Rename to yield_on_gates — reads as 'yield this constraint on these gates'.",
-      "integrated": true
+      "id": "SKP-002",
+      "concern": "Repo-root access enables secret reading",
+      "severity_score": 950,
+      "resolution": "accepted_fully",
+      "rationale": "Diff-only by default. New --tool-access flag for opt-in repo-root access."
     },
     {
-      "id": "HC-3",
-      "title": "review-sprint.md sprint.md check is context_files, not pre-flight",
-      "description": "Section 3.6 shows skip_when on a pre_flight check for review-sprint.md, but the sprint.md dependency is actually in context_files (required: true), not pre_flight.",
-      "scores": {"opus": 760, "gpt": 730},
-      "recommendation": "Extend skip_when to work on context_files entries too. When condition met, treat file as optional.",
-      "integrated": true
-    }
-  ],
-  "disputed": [
+      "id": "SKP-003",
+      "concern": "Auth flow assumptions about codex login",
+      "severity_score": 760,
+      "resolution": "accepted",
+      "rationale": "Never call codex login. Env-based auth only."
+    },
     {
-      "id": "D-1",
-      "title": "24h staleness check may be too aggressive",
-      "description": "Section 8 proposes ignoring construct-workflow.json if >24h old. Long-running sessions could legitimately span >24h.",
-      "scores": {"opus": 650, "gpt": 380},
-      "resolution": "deferred — kept as-is with note that threshold is configurable in future"
+      "id": "SKP-004",
+      "concern": "sed-based redaction corrupts JSON",
+      "severity_score": 720,
+      "resolution": "accepted",
+      "rationale": "jq-based redaction for JSON, sed for text. Post-redaction JSON validation."
     }
-  ],
-  "blockers": []
+  ]
 }
