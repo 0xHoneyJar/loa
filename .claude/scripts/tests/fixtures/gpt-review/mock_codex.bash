@@ -47,6 +47,23 @@ case "${1:-}" in
       esac
     done
 
+    # Multi-pass state tracking: increment call counter and load per-call overrides
+    if [[ -n "${MOCK_CODEX_STATE_DIR:-}" ]]; then
+      count_file="$MOCK_CODEX_STATE_DIR/call-count"
+      if [[ -f "$count_file" ]]; then
+        call_num=$(($(cat "$count_file") + 1))
+      else
+        call_num=1
+      fi
+      echo "$call_num" > "$count_file"
+      # Per-call behavior override
+      behav_file="$MOCK_CODEX_STATE_DIR/behavior-${call_num}"
+      [[ -f "$behav_file" ]] && BEHAVIOR=$(cat "$behav_file")
+      # Per-call response override
+      resp_file="$MOCK_CODEX_STATE_DIR/response-${call_num}.json"
+      [[ -f "$resp_file" ]] && MOCK_CODEX_RESPONSE=$(cat "$resp_file")
+    fi
+
     case "$BEHAVIOR" in
       success)
         response="${MOCK_CODEX_RESPONSE:-{\"verdict\":\"APPROVED\",\"summary\":\"All looks good\",\"findings\":[]}}"

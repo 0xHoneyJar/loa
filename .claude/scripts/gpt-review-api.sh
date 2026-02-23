@@ -19,6 +19,7 @@ source "$SCRIPT_DIR/lib-content.sh"
 source "$SCRIPT_DIR/lib-security.sh"
 source "$SCRIPT_DIR/lib-codex-exec.sh"
 source "$SCRIPT_DIR/lib-curl-fallback.sh"
+source "$SCRIPT_DIR/lib-multipass.sh"
 
 declare -A DEFAULT_MODELS=(["prd"]="gpt-5.2" ["sdd"]="gpt-5.2" ["sprint"]="gpt-5.2" ["code"]="gpt-5.2-codex")
 declare -A PHASE_KEYS=(["prd"]="prd" ["sdd"]="sdd" ["sprint"]="sprint" ["code"]="implementation")
@@ -56,6 +57,8 @@ load_config() {
   [[ -n "$v" && "$v" != "null" ]] && DEFAULT_MAX_REVIEW_TOKENS="$v"
   v=$(yq eval '.gpt_review.system_zone_alert // ""' "$CONFIG_FILE" 2>/dev/null || echo "")
   [[ -n "$v" && "$v" != "null" ]] && SYSTEM_ZONE_ALERT="$v"
+  v=$(yq eval '.gpt_review.reasoning_mode // ""' "$CONFIG_FILE" 2>/dev/null || echo "")
+  [[ -n "$v" && "$v" != "null" ]] && REASONING_MODE="$v"
 }
 
 detect_system_zone_changes() {
@@ -84,9 +87,10 @@ build_re_review_prompt() {
   printf '%s%s' "$sp" "$rp"
 }
 
-# Execution Router (SDD §3.1): Hounfour → Codex → curl
+# Execution Router (SDD §3.1): Hounfour → Codex (multi/single) → curl
 route_review() {
   local model="$1" sys="$2" usr="$3" timeout="$4" fast="${5:-false}" ta="${6:-false}"
+  local rm="${7:-single-pass}" rtype="${8:-code}"
   local em="auto"
   [[ -f "$CONFIG_FILE" ]] && command -v yq &>/dev/null && {
     local c; c=$(yq eval '.gpt_review.execution_mode // "auto"' "$CONFIG_FILE" 2>/dev/null || echo "auto")
@@ -103,6 +107,23 @@ route_review() {
     local ce=0; codex_is_available || ce=$?
     if [[ $ce -eq 0 ]]; then
       local ws of; ws=$(setup_review_workspace "" "$ta"); of=$(mktemp "${ws}/out-$$.XXXXXX")
+      # Route 2a: Multi-pass (SDD §3.3)
+      if [[ "$rm" == "multi-pass" && "$fast" != "true" ]]; then
+        local me=0; run_multipass "$sys" "$usr" "$model" "$ws" "$timeout" "$of" "$rtype" "$ta" || me=$?
+        if [[ $me -eq 0 && -s "$of" ]]; then
+          local result; result=$(cat "$of"); cleanup_workspace "$ws"
+          if echo "$result" | jq -e '.verdict' &>/dev/null; then
+            echo "$result"; return 0
+          fi; log "WARNING: multipass output invalid, falling back to single-pass"
+        else
+          cleanup_workspace "$ws"
+          [[ "$em" == "codex" ]] && { error "Codex multipass failed (exit $me)"; return 2; }
+          log "WARNING: multipass failed (exit $me), falling back to single-pass codex"
+        fi
+        # Re-create workspace for single-pass fallback
+        ws=$(setup_review_workspace "" "$ta"); of=$(mktemp "${ws}/out-$$.XXXXXX")
+      fi
+      # Route 2b: Single-pass codex
       local cp; cp=$(printf '%s\n\n---\n\n## CONTENT TO REVIEW:\n\n%s\n\n---\n\nRespond with valid JSON only. Include "verdict": "APPROVED"|"CHANGES_REQUIRED"|"DECISION_NEEDED".' "$sys" "$usr")
       local ee=0; codex_exec_single "$cp" "$model" "$of" "$ws" "$timeout" || ee=$?
       if [[ $ee -eq 0 && -s "$of" ]]; then
@@ -160,6 +181,7 @@ main() {
   ensure_codex_auth || { error "OPENAI_API_KEY not set"; exit 4; }
   command -v jq &>/dev/null || { error "jq required"; exit 2; }
 
+  REASONING_MODE="${GPT_REVIEW_REASONING_MODE:-single-pass}"
   MAX_ITERATIONS="$DEFAULT_MAX_ITERATIONS"; load_config
   if [[ "$iter" -gt "$MAX_ITERATIONS" ]]; then
     log "Iteration $iter exceeds max ($MAX_ITERATIONS) - auto-approving"
@@ -189,7 +211,7 @@ main() {
   [[ -n "$szw" ]] && pc=">>> ${szw}"$'\n\n'"${pc}"
   local up; up=$(build_user_prompt "$ctf" "$pc")
 
-  local resp; resp=$(route_review "$model" "$sp" "$up" "$timeout" "$fast" "$ta")
+  local resp; resp=$(route_review "$model" "$sp" "$up" "$timeout" "$fast" "$ta" "$REASONING_MODE" "$rt")
   resp=$(echo "$resp" | jq --arg i "$iter" '. + {iteration: ($i | tonumber)}')
   [[ -n "$szw" ]] && resp=$(echo "$resp" | jq '. + {system_zone_detected: true}')
   resp=$(echo "$resp" | tr -d '\033' | tr -d '\000-\010\013\014\016-\037')
