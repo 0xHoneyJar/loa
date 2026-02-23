@@ -54,6 +54,12 @@ fi
 
 _read_mp_config() {
   local key="$1" default="$2"
+  # Input guard: restrict keys to safe yq path characters (cycle-034, Bridge medium-1)
+  # Prevents yq expression injection if future callers pass untrusted input
+  if [[ ! "$key" =~ ^[.a-zA-Z0-9_]+$ ]]; then
+    echo "$default"
+    return
+  fi
   if [[ -f "${CONFIG_FILE:-.loa.config.yaml}" ]] && command -v yq &>/dev/null; then
     local v; v=$(yq eval "$key // \"\"" "${CONFIG_FILE:-.loa.config.yaml}" 2>/dev/null) || v=""
     [[ -n "$v" && "$v" != "null" ]] && { echo "$v"; return; }
@@ -233,9 +239,18 @@ classify_complexity() {
   lines_changed=$(echo "$content" | grep -cE '^\+[^+]|^-[^-]' 2>/dev/null) || lines_changed=0
 
   # Security-sensitive path check (never-single-pass denylist)
-  local -a security_paths=(".claude/" "lib-security" "auth" "credentials" "secrets" ".env")
+  # Segment-anchored patterns prevent false positives (cycle-034, Bridge medium-2)
+  # e.g. "auth/" matches but "authorization/" does not; ".env" matches but "environment.ts" does not
+  local -a security_patterns=(
+    '/\.claude/'              # .claude/ directory
+    '/lib-security(/| )'      # lib-security directory
+    '/auth(/| )'              # auth/ directory (not authorization/)
+    '/credentials(/| |\.)'    # credentials dir or file
+    '/secrets(/| |\.)'        # secrets dir or file
+    '/\.env( |\.|$)'          # .env file (not environment.ts)
+  )
   local pattern
-  for pattern in "${security_paths[@]}"; do
+  for pattern in "${security_patterns[@]}"; do
     if echo "$content" | grep -qE "^diff --git.*${pattern}"; then
       security_hit=true
       break

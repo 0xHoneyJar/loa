@@ -264,3 +264,73 @@ _mock_diff() {
   # Default is true when env var not set
   [ "$adaptive" = "true" ]
 }
+
+# =============================================================================
+# Bridge medium-1: _read_mp_config input guard
+# =============================================================================
+
+@test "_read_mp_config: valid dotted key accepted" {
+  cat > "$CONFIG_FILE" << 'YAML'
+gpt_review:
+  multipass:
+    adaptive: true
+YAML
+  local result; result=$(_read_mp_config '.gpt_review.multipass.adaptive' 'fallback')
+  [ "$result" = "true" ]
+}
+
+@test "_read_mp_config: unsafe key with shell chars rejected" {
+  local result; result=$(_read_mp_config '; rm -rf /' 'safe_default')
+  [ "$result" = "safe_default" ]
+}
+
+@test "_read_mp_config: unsafe key with parens rejected" {
+  local result; result=$(_read_mp_config '.foo | select(.bar)' 'safe_default')
+  [ "$result" = "safe_default" ]
+}
+
+@test "_read_mp_config: unsafe key with quotes rejected" {
+  local result; result=$(_read_mp_config '.foo"bar' 'safe_default')
+  [ "$result" = "safe_default" ]
+}
+
+# =============================================================================
+# Bridge medium-2: Segment-anchored security path patterns
+# =============================================================================
+
+@test "classify_complexity: false positive — authorization/ not matched by auth pattern" {
+  local diff; diff=$(_mock_diff 2 20 "src/authorization/README.md")
+  local result; result=$(classify_complexity "$diff")
+  # authorization/ should NOT trigger security path, so small diff → low
+  [ "$result" = "low" ]
+}
+
+@test "classify_complexity: false positive — environment.ts not matched by .env pattern" {
+  local diff; diff=$(_mock_diff 2 20 "lib/environment.ts")
+  local result; result=$(classify_complexity "$diff")
+  [ "$result" = "low" ]
+}
+
+@test "classify_complexity: true positive — .env file still detected" {
+  local diff; diff=$(_mock_diff 2 20 ".env")
+  local result; result=$(classify_complexity "$diff")
+  [ "$result" = "high" ]
+}
+
+@test "classify_complexity: true positive — .env.local still detected" {
+  local diff; diff=$(_mock_diff 2 20 ".env.local")
+  local result; result=$(classify_complexity "$diff")
+  [ "$result" = "high" ]
+}
+
+@test "classify_complexity: true positive — auth/ directory still detected" {
+  local diff; diff=$(_mock_diff 2 20 "src/auth/middleware.ts")
+  local result; result=$(classify_complexity "$diff")
+  [ "$result" = "high" ]
+}
+
+@test "classify_complexity: true positive — secrets/ directory still detected" {
+  local diff; diff=$(_mock_diff 2 20 "config/secrets/prod.yaml")
+  local result; result=$(classify_complexity "$diff")
+  [ "$result" = "high" ]
+}

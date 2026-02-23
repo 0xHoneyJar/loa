@@ -182,40 +182,49 @@ _backend_codex() {
   local model="$1" sys="$2" usr="$3" timeout="$4"
   local fast="${5:-false}" ta="${6:-false}" rm="${7:-single-pass}" rtype="${8:-code}"
   local route_idx="${9:-0}"
-  local ws of
-  ws=$(setup_review_workspace "" "$ta")
-  of=$(mktemp "${ws}/out-$$.XXXXXX")
 
   # Check multi-pass capability from route table
   local caps="${_RT_CAPABILITIES[$route_idx]:-}"
   local has_multipass=false
   [[ "$caps" == *"multi_pass"* ]] && has_multipass=true
 
+  # Single workspace lifecycle — reuse across multipass/single-pass (cycle-034, Bridge medium-3)
+  local ws of
+  ws=$(setup_review_workspace "" "$ta")
+
+  # Try multipass if conditions met
   if [[ "$rm" == "multi-pass" && "$fast" != "true" && "$has_multipass" == "true" ]]; then
+    of=$(mktemp "${ws}/out-mp-$$.XXXXXX")
     local me=0
     run_multipass "$sys" "$usr" "$model" "$ws" "$timeout" "$of" "$rtype" "$ta" || me=$?
     if [[ $me -eq 0 && -s "$of" ]]; then
-      local result; result=$(cat "$of"); cleanup_workspace "$ws"
+      local result; result=$(cat "$of")
       if echo "$result" | jq -e '.verdict' &>/dev/null; then
+        cleanup_workspace "$ws"
         echo "$result"; return 0
       fi
+      log "WARNING: multipass returned non-verdict output, falling back to single-pass codex"
+    else
+      log "WARNING: multipass failed (exit=$me), falling back to single-pass codex"
     fi
-    cleanup_workspace "$ws"
-    log "WARNING: multipass failed, falling back to single-pass codex"
-    ws=$(setup_review_workspace "" "$ta"); of=$(mktemp "${ws}/out-$$.XXXXXX")
+    # Fall through to single-pass using same workspace
   elif [[ "$rm" == "multi-pass" && "$has_multipass" != "true" ]]; then
     log "WARNING: Backend 'codex' lacks multi_pass capability; downgrading to single-pass"
   fi
 
-  # Single-pass codex
+  # Single-pass codex (also serves as multipass fallback)
+  of=$(mktemp "${ws}/out-sp-$$.XXXXXX")
   local cp
   cp=$(printf '%s\n\n---\n\n## CONTENT TO REVIEW:\n\n%s\n\n---\n\nRespond with valid JSON only. Include "verdict": "APPROVED"|"CHANGES_REQUIRED"|"DECISION_NEEDED".' "$sys" "$usr")
   local ee=0
   codex_exec_single "$cp" "$model" "$of" "$ws" "$timeout" || ee=$?
   if [[ $ee -eq 0 && -s "$of" ]]; then
-    local raw; raw=$(cat "$of"); cleanup_workspace "$ws"
+    local raw; raw=$(cat "$of")
     local pr; pr=$(parse_codex_output "$raw" 2>/dev/null) || pr=""
-    if [[ -n "$pr" ]]; then echo "$pr"; return 0; fi
+    if [[ -n "$pr" ]]; then
+      cleanup_workspace "$ws"
+      echo "$pr"; return 0
+    fi
   fi
   cleanup_workspace "$ws"
   return 1

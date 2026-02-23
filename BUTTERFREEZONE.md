@@ -151,7 +151,7 @@ Directory structure:
 |--------|-------|---------|---------------|
 | `docs/` | 6 | Documentation | \u2014 |
 | `evals/` | 5818 | Benchmarking and regression framework for the Loa agent development system. Ensures framework changes don't degrade agent behavior through | [evals/README.md](evals/README.md) |
-| `grimoires/` | 766 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
+| `grimoires/` | 1186 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
 | `skills/` | 5112 | Specialized agent skills | \u2014 |
 | `tests/` | 157 | Test suites | \u2014 |
 
@@ -205,15 +205,15 @@ claude
 
 After install, you should see a `.claude/` directory, `grimoires/loa/`, and `.loa.config.yaml` in your repo. Run `/loa doctor` inside Claude Code to verify everything is healthy.
 <!-- ground-truth-meta
-head_sha: ef6d9a5a0e9d6129d7b1f2f6b8db0ded346c85ca
-generated_at: 2026-02-23T05:49:22Z
+head_sha: de5f265bb16c79a0e0b8c1041608c01c0b9a1617
+generated_at: 2026-02-23T11:43:45Z
 generator: butterfreezone-gen v1.0.0
 sections:
   agent_context: 7ce878156319ae96e1ab2bd9ab83f2aa74c990757707381a1a2a2fbfa0474d8d
   capabilities: ab2576b1f2e7e8141f0e93e807d26ed2b7b155e21c96d787507a3ba933bb9795
   architecture: 970c0549aa208f3f8e0063176776b3fd52798e8d19011897a6a22e6542c2e772
   interfaces: 120e3b3a6d65d4939b251dd049f213e32254a91510d48457be2e4f1b3f7399d3
-  module_map: d1483f454a49dc7ba7d8e12b42b53c194e4869cb45753917bd2a5bdc878b8bf5
+  module_map: 2dd55606e33ef746f7aae228122df754181c8227530e631b73ff2f28d5c05f33
   verification: d63acadb827c33f47a4a75a8bbb9634a0063078c6650a0ce009957ef49666bf0
   agents: ca263d1e05fd123434a21ef574fc8d76b559d22060719640a1f060527ef6a0b6
   culture: f73380f93bb4fadf36ccc10d60fc57555914363fc90e4f15b4dc4eb92bd1640f
