@@ -440,21 +440,30 @@
           "local_id": "sprint-1",
           "global_id": "sprint-41",
           "label": "Core Route Table Infrastructure",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "local_id": "sprint-2",
           "global_id": "sprint-42",
           "label": "Adaptive Multi-Pass + Token Estimation",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "local_id": "sprint-3",
           "global_id": "sprint-43",
           "label": "Polish + Hardening",
-          "status": "pending"
+          "status": "completed"
         }
-      ]
+      ],
+      "bridge": {
+        "id": "bridge-20260223-b6180e",
+        "iterations": 2,
+        "findings_addressed": 3,
+        "score_trajectory": "3 → 0",
+        "tests_final": 122,
+        "flatline": true
+      },
+      "pr": 404
     }
   ]
 }
