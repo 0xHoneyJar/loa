@@ -1,0 +1,46 @@
+{
+  "gpt_review": {
+    "execution_mode": "auto",
+    "routes": [
+      {
+        "backend": "hounfour",
+        "when": ["has_api_key", "model_available"],
+        "fail_mode": "fallthrough",
+        "timeout": 120,
+        "retries": 2
+      },
+      {
+        "backend": "codex",
+        "when": ["has_api_key"],
+        "fail_mode": "hard_fail",
+        "timeout": 300,
+        "retries": 1
+      }
+    ],
+    "multipass": {
+      "enabled": true,
+      "adaptive": true,
+      "thresholds": {
+        "low_risk_areas": 3,
+        "high_risk_areas": 6,
+        "low_scope_tokens": 500,
+        "high_scope_tokens": 2000
+      },
+      "budgets": {
+        "pass1_input": 20000,
+        "pass1_output": 8000,
+        "pass2_input": 15000,
+        "pass2_output": 6000,
+        "overflow_pct": 1.5
+      }
+    }
+  },
+  "flatline_protocol": {
+    "enabled": true,
+    "auto_trigger": true,
+    "models": {
+      "primary": "opus",
+      "secondary": "gpt-5.2"
+    }
+  }
+}

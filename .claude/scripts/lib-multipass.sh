@@ -106,7 +106,17 @@ except:
     fi
   fi
 
-  # Fallback: chars/4 heuristic (within ~10% for English)
+  # Tier 2: hybrid word+char heuristic (calibrated ≤15% mean, ≤25% p95 error)
+  # Pure word-count (~1.33 tok/word) underestimates for code (~2.2 tok/word).
+  # Blending words*1.1 + chars/7 accounts for punctuation tokens in code/JSON/YAML.
+  local word_count
+  word_count=$(printf '%s' "$text" | wc -w) || word_count=0
+  if [[ "$word_count" -gt 0 ]]; then
+    echo $(( word_count * 11 / 10 + (char_count + 6) / 7 ))
+    return 0
+  fi
+
+  # Tier 3: chars/4 heuristic (fallback for empty word-count edge case)
   echo $(( (char_count + 3) / 4 ))
 }
 
@@ -207,10 +217,83 @@ inject_verification_skipped() {
 }
 
 # =============================================================================
+# Complexity Classification (cycle-034, SDD §3.3.1)
+# =============================================================================
+
+# Classify change complexity using deterministic diff signals.
+# Args: user_content (the diff/review content)
+# Returns: "low" | "medium" | "high" to stdout
+classify_complexity() {
+  local content="$1"
+
+  local files_changed=0 lines_changed=0 security_hit=false
+
+  # Count files and lines from diff markers
+  files_changed=$(echo "$content" | grep -c '^diff --git' 2>/dev/null) || files_changed=0
+  lines_changed=$(echo "$content" | grep -cE '^\+[^+]|^-[^-]' 2>/dev/null) || lines_changed=0
+
+  # Security-sensitive path check (never-single-pass denylist)
+  local -a security_paths=(".claude/" "lib-security" "auth" "credentials" "secrets" ".env")
+  local pattern
+  for pattern in "${security_paths[@]}"; do
+    if echo "$content" | grep -qE "^diff --git.*${pattern}"; then
+      security_hit=true
+      break
+    fi
+  done
+
+  # Classify
+  if [[ "$security_hit" == "true" ]]; then
+    echo "high"
+  elif [[ $files_changed -gt 15 || $lines_changed -gt 2000 ]]; then
+    echo "high"
+  elif [[ $files_changed -gt 3 || $lines_changed -gt 200 ]]; then
+    echo "medium"
+  else
+    echo "low"
+  fi
+}
+
+# Reclassify after Pass 1 using model signals.
+# Requires BOTH signals to agree for single-pass (PRD FR-2.1).
+# Args: det_level pass1_output
+# Returns: "low" | "medium" | "high" to stdout
+reclassify_with_model_signals() {
+  local det_level="$1" pass1_output="$2"
+
+  local risk_areas scope_tokens
+  risk_areas=$(echo "$pass1_output" | jq -r '.complexity.risk_area_count // .risk_areas // 0' 2>/dev/null) || risk_areas=0
+  scope_tokens=$(estimate_token_count "$pass1_output")
+
+  # Configurable thresholds
+  local low_risk high_risk low_scope high_scope
+  low_risk=$(_read_mp_config '.gpt_review.multipass.thresholds.low_risk_areas' 3)
+  high_risk=$(_read_mp_config '.gpt_review.multipass.thresholds.high_risk_areas' 6)
+  low_scope=$(_read_mp_config '.gpt_review.multipass.thresholds.low_scope_tokens' 500)
+  high_scope=$(_read_mp_config '.gpt_review.multipass.thresholds.high_scope_tokens' 2000)
+
+  local model_level="medium"
+  if [[ $risk_areas -le $low_risk && $scope_tokens -le $low_scope ]]; then
+    model_level="low"
+  elif [[ $risk_areas -gt $high_risk || $scope_tokens -gt $high_scope ]]; then
+    model_level="high"
+  fi
+
+  # Dual-signal matrix: single-pass requires BOTH signals low
+  if [[ "$det_level" == "low" && "$model_level" == "low" ]]; then
+    echo "low"
+  elif [[ "$det_level" == "high" || "$model_level" == "high" ]]; then
+    echo "high"
+  else
+    echo "medium"
+  fi
+}
+
+# =============================================================================
 # Main Orchestrator (Task 2.1)
 # =============================================================================
 
-# Execute 3-pass reasoning sandwich review.
+# Execute 3-pass reasoning sandwich review (with adaptive classification).
 # Args: system user model workspace timeout output_file review_type [tool_access]
 # Returns: 0 on success, 1 on failure
 # Outputs: final review JSON to output_file
@@ -231,7 +314,22 @@ run_multipass() {
   local total_budget=$(( timeout * 3 ))  # Total budget = 3x single-pass timeout
   local pass_timeout="$timeout"
 
-  echo "[multipass] Starting 3-pass review (model=$model, budget=${total_budget}s)" >&2
+  # Adaptive classification (cycle-034, SDD §3.3.2)
+  # GPT_REVIEW_ADAPTIVE env var overrides config (Task 3.4)
+  local adaptive="true"
+  if [[ -n "${GPT_REVIEW_ADAPTIVE:-}" ]]; then
+    [[ "${GPT_REVIEW_ADAPTIVE}" == "0" ]] && adaptive="false" || adaptive="true"
+  else
+    adaptive=$(_read_mp_config '.gpt_review.multipass.adaptive' 'true')
+  fi
+
+  local det_level=""
+  if [[ "$adaptive" == "true" ]]; then
+    det_level=$(classify_complexity "$user")
+    echo "[multipass] Adaptive mode: det_level=$det_level" >&2
+  fi
+
+  echo "[multipass] Starting 3-pass review (model=$model, budget=${total_budget}s, adaptive=$adaptive)" >&2
 
   # === Pass 1: Planning (xhigh) ===
   echo "[multipass] Pass 1/3: Planning (deep context analysis)..." >&2
@@ -267,6 +365,29 @@ run_multipass() {
   local p1_elapsed=$(( SECONDS - total_start ))
   local p1_tokens; p1_tokens=$(estimate_token_count "$p1_output")
   echo "[multipass] Pass 1 complete: ${p1_elapsed}s, ~${p1_tokens} tokens" >&2
+
+  # Adaptive decision: reclassify with model signals (cycle-034)
+  if [[ "$adaptive" == "true" && -n "$det_level" ]]; then
+    local final_level
+    final_level=$(reclassify_with_model_signals "$det_level" "$p1_output")
+    echo "[multipass] Adaptive reclassification: det=$det_level → final=$final_level" >&2
+
+    if [[ "$final_level" == "low" ]]; then
+      # Low complexity → return Pass 1 output as combined review
+      echo "[multipass] Adaptive: low complexity — returning Pass 1 as single-pass" >&2
+      local p1_review
+      p1_review=$(echo "$p1_output" | jq --argjson e "$p1_elapsed" \
+        '. + {"pass_metadata": {"passes_completed": 1, "mode": "adaptive-single-pass", "complexity": "low", "total_elapsed_s": $e}}' 2>/dev/null) || p1_review="$p1_output"
+      redact_secrets "$p1_review" "json" > "$output_file"
+      return 0
+    elif [[ "$final_level" == "high" ]]; then
+      # High complexity → use extended budgets for Pass 2
+      echo "[multipass] Adaptive: high complexity — using extended budgets" >&2
+      PASS2_INPUT_BUDGET=$(_read_mp_config '.gpt_review.multipass.budgets.high_complexity.pass2_input' 30000)
+      PASS2_OUTPUT_BUDGET=$(_read_mp_config '.gpt_review.multipass.budgets.high_complexity.pass2_output' 10000)
+    fi
+    # medium → standard 3-pass (no changes)
+  fi
 
   # Check budget before Pass 2
   if ! check_budget_overflow "$p1_elapsed" "$pass_timeout" "$total_budget"; then

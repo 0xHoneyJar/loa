@@ -1,0 +1,40 @@
+diff --git a/lib-route-table.sh b/lib-route-table.sh
+index abc1234..def5678 100644
+--- a/lib-route-table.sh
++++ b/lib-route-table.sh
+@@ -45,6 +45,28 @@ validate_route_table() {
+   local errors=0
+   local count="${#_RT_BACKENDS[@]}"
+
++  # Check array length consistency (SKP-002)
++  local expected=$count
++  for arr in _RT_CONDITIONS _RT_CAPABILITIES _RT_FAIL_MODES _RT_TIMEOUTS _RT_RETRIES; do
++    local -n ref="$arr"
++    if [[ ${#ref[@]} -ne $expected ]]; then
++      error "Array $arr has ${#ref[@]} elements, expected $expected"
++      errors=$((errors + 1))
++    fi
++  done
++
+   if [[ $count -eq 0 ]]; then
+     error "Route table is empty — no routes defined"
+     errors=$((errors + 1))
+@@ -120,7 +142,7 @@ execute_route_table() {
+       if [[ "$fail_mode" == "hard_fail" ]]; then
+         error "Backend '$backend' failed with hard_fail — aborting"
+-        return 2
++        [[ $be -eq 0 ]] && be=1
++        return $be
+       fi
+       continue
+     fi
+diff --git a/gpt-review-api.sh b/gpt-review-api.sh
+--- a/gpt-review-api.sh
++++ b/gpt-review-api.sh
+@@ -5,6 +5,7 @@
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ source "$SCRIPT_DIR/lib-gpt-review.sh"
++source "$SCRIPT_DIR/lib-route-table.sh"
+
+ # Main entry point for GPT review
+ route_review() {

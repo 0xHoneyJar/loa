@@ -1,0 +1,49 @@
+# Route table configuration for GPT review pipeline
+gpt_review:
+  execution_mode: auto
+  route_schema: 1
+
+  routes:
+    - backend: hounfour
+      when:
+        - has_api_key
+        - model_available
+      fail_mode: fallthrough
+      timeout: 120
+      retries: 2
+      capabilities:
+        - streaming
+        - function_calling
+
+    - backend: codex
+      when:
+        - has_api_key
+      fail_mode: hard_fail
+      timeout: 300
+      retries: 1
+      capabilities:
+        - code_review
+        - security_scan
+
+    - backend: curl
+      when: []
+      fail_mode: hard_fail
+      timeout: 60
+      retries: 0
+
+  multipass:
+    enabled: true
+    adaptive: true
+    max_passes: 3
+    budgets:
+      pass1_input: 20000
+      pass1_output: 8000
+      pass2_input: 15000
+      overflow_pct: 1.5
+
+  security:
+    redact_secrets: true
+    patterns:
+      - "AKIA[0-9A-Z]{16}"
+      - "ghp_[A-Za-z0-9_]{36}"
+      - "eyJ[A-Za-z0-9_-]*\\.[A-Za-z0-9_-]*"
