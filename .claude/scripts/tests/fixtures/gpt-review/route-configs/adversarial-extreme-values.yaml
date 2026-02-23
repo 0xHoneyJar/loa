@@ -1,0 +1,10 @@
+gpt_review:
+  enabled: true
+  route_schema: 1
+  routes:
+    - backend: curl
+      when:
+        - always
+      fail_mode: hard_fail
+      timeout: 999999
+      retries: 999

@@ -1,44 +1,40 @@
 {
   "phase": "sdd",
   "document": "grimoires/loa/sdd.md",
-  "cycle": "cycle-033",
-  "timestamp": "2026-02-23T05:25:04Z",
+  "cycle": "cycle-034",
+  "timestamp": "2026-02-23T13:30:00Z",
   "consensus_summary": {
-    "high_consensus_count": 6,
-    "disputed_count": 0,
+    "high_consensus_count": 3,
+    "disputed_count": 1,
     "low_value_count": 0,
-    "blocker_count": 4,
-    "model_agreement_percent": 100
+    "blocker_count": 2,
+    "model_agreement_percent": 90
   },
-  "high_consensus_integrated": ["IMP-001", "IMP-002", "IMP-003", "IMP-004", "IMP-005", "IMP-007"],
+  "high_consensus_integrated": ["IMP-001", "IMP-002", "IMP-004"],
+  "disputed": [
+    {
+      "id": "IMP-008",
+      "description": "Claims SDD contains corrupted placeholders/template artifacts in code examples",
+      "gpt_score": 980,
+      "opus_score": 620,
+      "resolution": "rejected",
+      "rationale": "False positive — no {{DOCUMENT_CONTENT}} or template markers exist in the SDD. The Flatline orchestrator's injection markers were misidentified by the skeptic as being in the document itself. Verified via grep: zero matches for '{{' in sdd.md."
+    }
+  ],
   "blockers": [
     {
       "id": "SKP-001",
-      "concern": "Capability probing brittle",
-      "severity_score": 910,
-      "resolution": "accepted_partially",
-      "rationale": "Improved probe to parse stderr. Hard fail for execution_mode=codex, silent fallback for auto."
+      "concern": "Document contains templating artifacts that would break scripts",
+      "severity_score": 950,
+      "resolution": "rejected",
+      "rationale": "False positive — same root cause as IMP-008. The SDD contains valid bash code in markdown fences. Zero '{{' template markers found in the file. The skeptic conflated the Flatline orchestrator's template injection with the document content."
     },
     {
       "id": "SKP-002",
-      "concern": "Repo-root access enables secret reading",
-      "severity_score": 950,
-      "resolution": "accepted_fully",
-      "rationale": "Diff-only by default. New --tool-access flag for opt-in repo-root access."
-    },
-    {
-      "id": "SKP-003",
-      "concern": "Auth flow assumptions about codex login",
-      "severity_score": 760,
-      "resolution": "accepted",
-      "rationale": "Never call codex login. Env-based auth only."
-    },
-    {
-      "id": "SKP-004",
-      "concern": "sed-based redaction corrupts JSON",
+      "concern": "Custom route parsing silently ignored when yq missing",
       "severity_score": 720,
       "resolution": "accepted",
-      "rationale": "jq-based redaction for JSON, sed for text. Post-redaction JSON validation."
+      "rationale": "Addressed by IMP-004 integration — init_route_table() now uses grep to detect custom routes in config, and fails-closed (exit 2) when yq is missing. Override available via LOA_ALLOW_DEFAULTS_WITHOUT_YQ=1."
     }
   ]
 }

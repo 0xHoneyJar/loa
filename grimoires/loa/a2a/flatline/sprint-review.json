@@ -1,44 +1,69 @@
 {
   "phase": "sprint",
   "document": "grimoires/loa/sprint.md",
-  "cycle": "cycle-033",
-  "timestamp": "2026-02-23T05:30:00Z",
+  "cycle": "cycle-034",
+  "timestamp": "2026-02-23T14:30:00Z",
   "consensus_summary": {
-    "high_consensus_count": 4,
-    "disputed_count": 0,
+    "high_consensus_count": 5,
+    "disputed_count": 2,
     "low_value_count": 0,
-    "blocker_count": 4,
-    "model_agreement_percent": 100
+    "blocker_count": 5,
+    "model_agreement_percent": 80
   },
-  "high_consensus_integrated": ["IMP-001", "IMP-002", "IMP-003", "IMP-004"],
+  "high_consensus_integrated": ["IMP-001", "IMP-003", "IMP-004", "IMP-006", "IMP-009"],
+  "disputed": [
+    {
+      "id": "IMP-002",
+      "description": "Concurrency/locking for bash globals — over-scoped for CLI tool",
+      "gpt_score": 420,
+      "opus_score": 820,
+      "resolution": "rejected",
+      "rationale": "SDD already documents single-process assumption (Flatline IMP-001 from SDD review). Bash CLI tool is short-lived, not a daemon. Adding locking is disproportionate complexity."
+    },
+    {
+      "id": "IMP-010",
+      "description": "Adversarial YAML security negative tests",
+      "gpt_score": 840,
+      "opus_score": 450,
+      "resolution": "accepted",
+      "rationale": "Security negative tests are low-cost, high-value. Added as Task 1.10 with adversarial YAML fixtures."
+    }
+  ],
   "blockers": [
     {
       "id": "SKP-001",
-      "concern": "Auth inconsistency: Task 1.1 preserves config-file auth but SDD mandates env-only (SKP-003 resolution)",
+      "concern": "yq v4 dependency — single point of failure with escape hatch",
       "severity_score": 900,
-      "resolution": "accepted_fully",
-      "rationale": "Remove config-file auth from lib-curl-fallback.sh extraction. Env-only auth everywhere via lib-security.sh:ensure_codex_auth()."
+      "resolution": "accepted",
+      "rationale": "Addressed by IMP-003 (yq version detection), LOA_ALLOW_DEFAULTS_WITHOUT_YQ illegal in CI, and explicit yq v4 check in Task 1.2."
     },
     {
       "id": "SKP-002",
-      "concern": "Capability probe brittleness: detect_capabilities() relies on stderr parsing which varies across codex versions",
+      "concern": "Parallel arrays can desynchronize",
+      "severity_score": 860,
+      "resolution": "accepted",
+      "rationale": "Addressed by atomic _rt_append_route() helper and _rt_validate_array_lengths() invariant check in Task 1.1."
+    },
+    {
+      "id": "SKP-003",
+      "concern": "Condition parsing whitespace/empty token handling",
       "severity_score": 720,
       "resolution": "accepted",
-      "rationale": "Add version-pinned stderr expectations + integration test that validates probe against real codex binary."
+      "rationale": "Addressed by whitespace trimming and empty-token rejection in _evaluate_conditions() in Task 1.3."
     },
     {
-      "id": "SKP-004",
-      "concern": "Redaction corruption risk: jq walk() may drop fields if pattern matches structural keys",
+      "id": "SKP-005",
+      "concern": "Timeout/retry semantics can cause runaway execution",
+      "severity_score": 740,
+      "resolution": "accepted",
+      "rationale": "Addressed by bounds clamping (timeout 1-600s, retries 0-5), global max attempts cap (10), and explicit retry policy definition in Task 1.3."
+    },
+    {
+      "id": "SKP-010",
+      "concern": "Security posture under-specified for untrusted YAML",
       "severity_score": 760,
       "resolution": "accepted",
-      "rationale": "Redact only string VALUES, never keys. Add post-redaction structural diff to verify no key loss."
-    },
-    {
-      "id": "SKP-006",
-      "concern": "Tool-access workspace security: --cd repo-root with --tool-access exposes entire working tree including .env, .git/config",
-      "severity_score": 880,
-      "resolution": "accepted",
-      "rationale": "Pre-flight sandbox: copy only allowed files to temp workspace, run codex there. Deny list becomes allow list."
+      "rationale": "Addressed by adversarial YAML security tests (Task 1.10), registry validation before execution, and bounds clamping on timeout/retries."
     }
   ]
 }

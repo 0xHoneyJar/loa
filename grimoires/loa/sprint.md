@@ -1,341 +1,421 @@
-# Sprint Plan: Codex CLI Integration for GPT Review
+# Sprint Plan: Declarative Execution Router + Adaptive Multi-Pass
 
-> Cycle: cycle-033 | PRD: grimoires/loa/prd.md | SDD: grimoires/loa/sdd.md
-> Sprints: 3 | Team: 1 developer (AI-assisted)
-> Source: [#400](https://github.com/0xHoneyJar/loa/issues/400)
-
----
-
-## Executive Summary
-
-Replace direct curl-based API calls in `gpt-review-api.sh` (963 lines) with OpenAI Codex CLI (`codex exec`) as the primary execution backend. Introduces 4 extracted library files, a 3-pass reasoning sandwich orchestrator, and auth/security hardening. Targets ≤300 lines in the main script with full backward compatibility.
-
-**Total scope:** 3 sprints, ~15 tasks, MEDIUM complexity per sprint.
+> Cycle: cycle-034
+> PRD: `grimoires/loa/prd.md`
+> SDD: `grimoires/loa/sdd.md`
+> Team: 1 AI developer
+> Sprint duration: 1 sprint per session
 
 ---
 
-## Sprint 1: Extraction + Codex Adapter (Foundation)
+## Sprint Overview
 
-**Scope:** MEDIUM (6 tasks)
-**Sprint Goal:** Extract curl logic into a library, create the Codex exec adapter with capability detection, implement execution routing, and establish auth + security foundations.
+| Sprint | Global ID | Label | Goal |
+|--------|-----------|-------|------|
+| sprint-1 | sprint-41 | Core Route Table Infrastructure | Replace imperative router with declarative route table |
+| sprint-2 | sprint-42 | Adaptive Multi-Pass + Token Estimation | Dynamic pass count + word-count estimation tier |
+| sprint-3 | sprint-43 | Polish + Hardening | Capability caching, JSON fallback, result contract tests, CI policy |
 
-> Ground truth: SDD §3.1 (entry point), §3.2 (codex adapter), §3.4 (curl extraction), §3.5 (security)
+**MVP**: Sprint 1 delivers the declarative router. Sprint 2 delivers adaptive multi-pass. Sprint 3 is hardening.
 
-### Deliverables
-
-- [ ] `lib-curl-fallback.sh` — extracted curl/retry/parsing logic from current `gpt-review-api.sh`
-- [ ] `lib-security.sh` — auth management (env-only), secret redaction (jq-based), log filtering
-- [ ] `lib-codex-exec.sh` — capability detection, single `codex exec` invocation, workspace management
-- [ ] Refactored `gpt-review-api.sh` with `route_review()` execution router
-- [ ] `--fast` flag for single-pass codex mode
-- [ ] Test suite for routing, capabilities, auth, and redaction
-
-### Technical Tasks
-
-- [ ] **Task 1.1:** Extract curl logic → `lib-curl-fallback.sh` → **[G2, G7]**
-  - Move `call_api()`, `call_api_via_model_invoke()`, `normalize_json_response()`, `validate_agent_response()`, `parse_chat_completion()`, `parse_responses_api()` from `gpt-review-api.sh`
-  - Add double-source guard (`_LIB_CURL_FALLBACK_LOADED`)
-  - Preserve all retry logic (3 retries, exponential backoff)
-  - **Remove** config-file auth pattern; migrate to env-only auth (`OPENAI_API_KEY`) consistent with SDD env-only mandate (Flatline SKP-001 resolution). `lib-security.sh:ensure_codex_auth()` becomes the single auth path for both codex and curl.
-  - **AC:** Existing callers (review-sprint, audit-sprint) produce identical output
-  - **AC:** All exit codes (0-5) unchanged
-  - **AC:** `gpt-review-api.sh` sources `lib-curl-fallback.sh` and calls extracted functions
-
-- [ ] **Task 1.2:** Create `lib-security.sh` → **[G7]**
-  - `ensure_codex_auth()`: Env-only auth (never calls `codex login`). Return 0 if `OPENAI_API_KEY` set, 1 otherwise (SDD §3.5, SKP-003 resolution)
-  - `redact_secrets()`: jq-based for JSON (redact string VALUES only, never keys), sed for text (SDD §3.5, SKP-004 resolution). Post-redaction structural diff: verify key count unchanged before/after (Flatline SKP-004 resolution). Load additional patterns from `flatline_protocol.secret_scanning.patterns`. Validate JSON integrity post-redaction.
-  - `redact_log_output()`: Filter stderr before logging
-  - `SENSITIVE_FILE_PATTERNS` deny list for output audit
-  - **AC:** API keys matching `sk-...` and `sk-ant-...` are replaced with `[REDACTED]`
-  - **AC:** JSON output remains valid after redaction
-  - **AC:** Config patterns with >200 char length are skipped with warning
-
-- [ ] **Task 1.3:** Create `lib-codex-exec.sh` → **[G1, G2]**
-  - `CODEX_MIN_VERSION="0.1.0"` — minimum supported version; fail with actionable message if older (Flatline IMP-003)
-  - `codex_is_available()`: `command -v codex` + version check against `CODEX_MIN_VERSION`
-  - `detect_capabilities()`: Probe flags by running real no-op commands, parse stderr for "unknown option" (SDD §2.2, SKP-001 resolution). Version-pinned stderr expectations: document expected error format per `CODEX_MIN_VERSION` and add integration test validating probe against real binary (Flatline SKP-002 resolution). Cache to `/tmp/loa-codex-caps-<hash>-$$.json` (PID-scoped for concurrency, IMP-003)
-  - `codex_has_capability(flag)`: Read from cache
-  - `codex_exec_single()`: Execute single invocation with `--sandbox read-only`, `--ephemeral`, `--skip-git-repo-check`, `--output-last-message`. Wrap with `timeout` command (Flatline IMP-004)
-  - `parse_codex_output()`: Normalize output — try JSON, markdown-fenced JSON, greedy JSON extraction (SDD §3.2, IMP-007)
-  - `setup_review_workspace()` / `cleanup_workspace()`: Temp dir management
-  - Default mode: diff-only (no `--cd` to repo root). `--tool-access` flag enables sandboxed repo access: copy only allowed files (source code, configs — NOT `.env`, `.git/config`, `*.pem`, credentials) to a temp workspace, then `--cd <temp-workspace>`. Deny list becomes allow list. (SDD SKP-002 resolution + Flatline SKP-006 resolution)
-  - **AC:** `codex_is_available` returns 1 when codex not on PATH
-  - **AC:** Capabilities cached per version+PID, not re-probed per review
-  - **AC:** When `execution_mode=codex` and required flags missing, exit code 2 (hard fail)
-  - **AC:** When `execution_mode=auto` and codex fails, silent fallback to curl
-
-- [ ] **Task 1.4:** Implement `route_review()` in `gpt-review-api.sh` → **[G1, G3, G5]**
-  - Add `--fast` CLI flag parsing
-  - Read `gpt_review.execution_mode` from config (default: `auto`)
-  - Routing: Hounfour → Codex → curl (SDD §3.1)
-  - Source all 4 libraries at script top
-  - Remove extracted functions, replace with library calls
-  - Preserve all existing flags: `--expertise`, `--context`, `--content`, `--output`, `--iteration`, `--previous`, `--type`
-  - **AC:** `gpt-review-api.sh` line count ≤300 (measured by `wc -l`)
-  - **AC:** All 4 review types (code, prd, sdd, sprint) produce valid output via Codex path
-  - **AC:** `--fast` produces single-pass output conforming to `gpt-review-response.schema.json`
-
-- [ ] **Task 1.5:** Update `.loa.config.yaml.example` with new config → **[G5]**
-  - Add `execution_mode: auto` under `gpt_review`
-  - Add `reasoning_mode: multi-pass` under `gpt_review`
-  - Add `tool_access: false` under `gpt_review`
-  - Add `pass_budgets` section with defaults
-  - Document all new options with inline comments
-  - **AC:** Config example has all new options with descriptions
-  - **AC:** Existing config without new options still works (defaults)
-
-- [ ] **Task 1.6:** Sprint 1 tests → **[G3, G7]**
-  - `test_routing.bats`: Hounfour route, codex route, curl fallback, execution_mode override
-  - `test_codex_adapter.bats`: Capability detection, cache, version probe
-  - `test_security.bats`: Auth (env present/absent, CI=true), redaction (API keys, custom patterns, JSON integrity), deny list
-  - `test_curl_fallback.bats`: Extraction parity — same input/output as pre-refactor
-  - Mock codex binary via `mock_codex.bash` on PATH
-  - Test fixtures: sample diff, sample PRD, mock responses
-  - **AC:** All bats tests pass
-  - **AC:** ≥15 test cases covering routing, auth, redaction, and fallback
-
-### Dependencies
-
-- None (foundation sprint)
-
-### Risks & Mitigation
-
-| Risk | Mitigation |
-|------|------------|
-| Curl extraction introduces regressions | Before/after output comparison on real review |
-| Codex not available in test environment | Mock binary covers all test paths |
-
-### Success Metrics
-
-- `gpt-review-api.sh` ≤ 300 lines
-- All existing callers produce identical output
-- ≥15 test cases passing
+**Risk**: Sprint 1 is the highest-risk sprint (core routing refactor). Sprints 2-3 are additive.
 
 ---
 
-## Sprint 2: Multi-Pass Reasoning Orchestrator
+## Sprint 1: Core Route Table Infrastructure
 
-**Scope:** MEDIUM (5 tasks)
-**Sprint Goal:** Implement the 3-pass reasoning sandwich orchestrator with per-pass context budgets, failure handling, and intermediate output persistence.
+**Goal**: Replace the 56-line imperative `route_review()` with a declarative route table. All routing decisions driven by YAML configuration. Zero behavioral change for existing users.
 
-> Ground truth: SDD §3.3 (multipass), PRD FR3 (multi-pass reasoning sandwich)
+**Global ID**: sprint-41
 
-### Deliverables
+### Tasks
 
-- [ ] `lib-multipass.sh` — 3-pass orchestration with budget enforcement
-- [ ] Pass-specific prompt builders (xhigh/high/xhigh)
-- [ ] Per-pass failure handling (degrade, retry, skip)
-- [ ] Intermediate pass files in `grimoires/loa/a2a/gpt-review/`
-- [ ] `reasoning_mode` config integration
-- [ ] Test suite for all pass success/failure combinations
+#### Task 1.1: Create lib-route-table.sh — Data Structures + Defaults
 
-### Technical Tasks
+**Description**: Create `.claude/scripts/lib-route-table.sh` with parallel array data structures (`_RT_BACKENDS`, `_RT_CONDITIONS`, `_RT_CAPABILITIES`, `_RT_FAIL_MODES`, `_RT_TIMEOUTS`, `_RT_RETRIES`), associative array registries (`_CONDITION_REGISTRY`, `_BACKEND_REGISTRY`), and the default route table loader (`_rt_load_defaults()`).
 
-- [ ] **Task 2.1:** Create `lib-multipass.sh` core orchestrator → **[G6]**
-  - `run_multipass()`: 3-pass execution loop with intermediate capture
-  - Token budget constants: configurable via config + env override (SDD §3.3, IMP-001)
-  - `enforce_token_budget()`: Truncate with priority (findings > context > metadata)
-  - `estimate_token_count()`: Approximate token counting (chars/4 heuristic + `tiktoken` if available) for budget enforcement before codex invocation (Flatline IMP-001)
-  - `check_budget_overflow()`: Auto-switch to --fast if remaining time < pass_timeout (IMP-005)
-  - Per-pass timeout tracking with total budget (IMP-002). Wrap each `codex exec` invocation with `timeout(1)` command; configurable per-pass (`CODEX_PASS1_TIMEOUT`, etc.) with total ceiling (Flatline IMP-004)
-  - Intermediate output to `grimoires/loa/a2a/gpt-review/<type>-pass-{1,2,3}.json` (PID-suffixed in CI)
-  - CI concurrency isolation: use `$CI_JOB_ID` or `$$` prefix for all intermediate files and cache paths to prevent cross-job collisions (Flatline IMP-002)
-  - **AC:** 3 passes execute sequentially, each producing output
-  - **AC:** Token budgets enforced: Pass 1 output ≤4000, Pass 2 output ≤6000 tokens
-  - **AC:** `estimate_token_count()` returns within 10% of actual for English text
-  - **AC:** Budget overflow triggers auto-switch to single-pass with log warning
-  - **AC:** Each pass respects its `timeout` ceiling; total 3-pass time ≤ configured maximum
+**Acceptance Criteria**:
+- [ ] File exists at `.claude/scripts/lib-route-table.sh`
+- [ ] All 6 parallel arrays declared
+- [ ] Both associative array registries declared
+- [ ] `_rt_load_defaults()` loads hounfour → codex → curl cascade matching cycle-033 behavior
+- [ ] `register_builtin_conditions()` maps 4 condition names to functions
+- [ ] `register_builtin_backends()` maps 3 backend names to wrapper functions
+- [ ] Backend wrappers (`_backend_hounfour`, `_backend_codex`, `_backend_curl`) call existing library functions
+- [ ] No `eval` or dynamic function construction
+- [ ] `_rt_validate_array_lengths()` asserts all `_RT_*` arrays have identical length before execution (Flatline SKP-002: parallel array desync guard)
+- [ ] All append operations go through `_rt_append_route()` helper that atomically appends to all 6 arrays (Flatline SKP-002)
 
-- [ ] **Task 2.2:** Implement pass-specific prompt builders → **[G6]**
-  - `build_pass1_prompt()`: xhigh — "Think step-by-step about the full codebase structure, dependencies, and change surface area before summarizing"
-  - `build_pass2_prompt()`: high — "Focus on finding concrete issues efficiently. Do not over-analyze."
-  - `build_pass3_prompt()`: xhigh — "Carefully verify each finding. Check for false positives. Validate file:line references exist."
-  - `build_combined_prompt()`: For --fast single-pass mode (combines all three instructions)
-  - Prompts embed the reasoning depth guidance since `codex exec` has no compute tier flags (PRD IMP-009)
-  - **AC:** Each prompt includes the appropriate reasoning instruction
-  - **AC:** Combined prompt includes condensed versions of all three instructions
-  - **AC:** Document reviews use inline content; code reviews use file reference (when tool-access enabled)
+**Effort**: Medium
+**Dependencies**: None
 
-- [ ] **Task 2.3:** Implement per-pass failure handling → **[G7]**
-  - Pass 1 fails → fall back to single-pass (SDD §6.1, PRD IMP-002)
-  - Pass 2 fails → retry once, then exit 1
-  - Pass 3 fails → return Pass 2 output with `"verification": "skipped"` flag
-  - Rate limit (429) → exponential backoff (5s, 15s, 45s) then fail the pass
-  - `inject_verification_skipped()`: Add `verification` field to Pass 2 output
-  - All failures logged with pass number, error type, fallback action
-  - **AC:** Pass 1 failure degrades gracefully to single-pass (not error)
-  - **AC:** Pass 3 failure produces valid schema-conformant output
-  - **AC:** Rate limit backoff respects per-pass timeout
+#### Task 1.2: Implement parse_route_table() + validate_route_table()
 
-- [ ] **Task 2.4:** Add `pass_metadata` to response → **[G4, G6]**
-  - Optional `pass_metadata` field: `passes_completed`, per-pass token counts, total duration, reasoning_mode
-  - Optional `verification` field: "passed" | "skipped" | null
-  - Backward-compatible with existing schema (new fields are optional)
-  - Secret redaction applied to all pass outputs before persistence (SDD §3.3)
-  - **AC:** Response includes `pass_metadata` when multi-pass is used
-  - **AC:** Existing schema validation still passes (additive fields)
+**Description**: YAML parser using `yq eval` to populate parallel arrays from `.loa.config.yaml`. Schema validation with fail-closed for custom routes, fail-open for defaults. Schema version check (rejects `route_schema > 1`). yq-missing detection with `LOA_ALLOW_DEFAULTS_WITHOUT_YQ` override (Flatline IMP-004).
 
-- [ ] **Task 2.5:** Sprint 2 tests → **[G3]**
-  - `test_multipass.bats`: All 3 passes succeed, Pass 1 fail → single-pass, Pass 2 fail → retry → error, Pass 3 fail → verification skipped
-  - Budget enforcement: oversized Pass 1 output gets truncated, context overflow triggers --fast
-  - Token estimation accuracy check
-  - Intermediate file creation and cleanup
-  - Mock codex returning different responses per pass
-  - **AC:** All bats tests pass
-  - **AC:** ≥12 test cases covering all pass/failure combinations
+**Acceptance Criteria**:
+- [ ] `parse_route_table()` reads YAML routes into `_RT_*` arrays
+- [ ] Falls back to `_rt_load_defaults()` when no `gpt_review.routes` in config
+- [ ] Rejects `route_schema > 1` with clear upgrade message
+- [ ] `validate_route_table()` checks: backend required + registered, when non-empty, fail_mode enum, at least one route, max routes policy (10)
+- [ ] Fail-closed: custom routes with errors → exit 2
+- [ ] Fail-open: no custom routes → use defaults with log
+- [ ] yq-missing + config has routes → fail-closed (exit 2) unless `LOA_ALLOW_DEFAULTS_WITHOUT_YQ=1`
+- [ ] yq v3 vs v4 detection: check `yq --version` for v4+ and reject v3 with clear error message (Flatline IMP-003)
+- [ ] `LOA_ALLOW_DEFAULTS_WITHOUT_YQ` illegal in CI (`CI=true`) — always fail-closed (Flatline SKP-001)
+- [ ] Per-route `timeout` and `retries` fields parsed with validation bounds: timeout 1-600s, retries 0-5 (Flatline IMP-002, SKP-005)
+- [ ] Canonical YAML schema example included as comment block in lib-route-table.sh header (Flatline IMP-004)
 
-### Dependencies
+**Effort**: Medium
+**Dependencies**: Task 1.1
 
-- Sprint 1 complete (lib-codex-exec.sh, lib-security.sh, route_review required)
+#### Task 1.3: Implement execute_route_table() + _evaluate_conditions()
 
-### Risks & Mitigation
+**Description**: The main execution loop that replaces imperative routing. Iterates routes in order, evaluates AND conditions, calls backend, validates result, handles fallthrough/hard_fail. Per-route timeout and retry support (Flatline IMP-002).
 
-| Risk | Mitigation |
-|------|------------|
-| Token budget too restrictive for large reviews | Budgets configurable via config/env |
-| 3x latency breaks autonomous run timeouts | --fast flag + budget overflow auto-switch |
+**Acceptance Criteria**:
+- [ ] `execute_route_table()` iterates routes, first success wins
+- [ ] `_evaluate_conditions()` implements AND logic over comma-separated condition names with whitespace trimming and empty-token rejection (Flatline SKP-003)
+- [ ] Unknown conditions evaluate as false for defaults, validation error for custom routes (fail-closed) (Flatline SKP-003)
+- [ ] Per-route timeout overrides global timeout (clamped to 1-600s)
+- [ ] Per-route retries with `[route-table] retry N/M` logging (clamped to 0-5)
+- [ ] Global max attempts cap: `_RT_MAX_TOTAL_ATTEMPTS` (default 10) — stops iteration if total attempts across all routes exceeds cap (Flatline SKP-005)
+- [ ] Retry policy: retries apply to non-zero exit AND invalid JSON output; timeouts count as non-zero exit (Flatline SKP-005)
+- [ ] Backend result validated via `validate_review_result()`
+- [ ] `fallthrough` continues to next route; `hard_fail` returns exit 2
+- [ ] All routes exhausted → exit 2
+- [ ] Each attempt logged: `[route-table] trying backend=X, conditions=[Y], result=success|fail`
 
-### Success Metrics
+**Effort**: Medium
+**Dependencies**: Task 1.1, Task 1.2
 
-- Multi-pass review produces findings with higher `file:line` rate than single-pass
-- All failure degradation paths work correctly
-- ≥12 test cases passing
+#### Task 1.4: Implement validate_review_result()
 
----
+**Description**: Shared backend result contract gate (PRD FR-1.8). Checks JSON validity, required `verdict` field with enum, minimum length, and `findings` array type.
 
-## Sprint 3: Integration + Hardening
+**Acceptance Criteria**:
+- [ ] Returns 0 for valid result, 1 for invalid
+- [ ] Checks: JSON validity via `jq empty`, `verdict` exists and is one of `APPROVED|CHANGES_REQUIRED|DECISION_NEEDED|SKIPPED`, length ≥ 20, `findings` is array if present
+- [ ] Verdict-to-exit-code truth table defined and tested (Flatline IMP-006):
+  - `APPROVED` → exit 0 (pipeline continues)
+  - `CHANGES_REQUIRED` → exit 0 (pipeline continues, findings surfaced)
+  - `DECISION_NEEDED` → exit 0 (pipeline continues, flagged for human)
+  - `SKIPPED` → exit 0 (pipeline continues, logged as no-review)
+  - Invalid/missing verdict → exit 1 (fallthrough to next route)
+- [ ] Logs specific warning for each validation failure
+- [ ] Backend returning exit 0 + garbage is treated as failure (fallthrough)
 
-**Scope:** MEDIUM (4 tasks)
-**Sprint Goal:** End-to-end integration testing, backward compatibility verification, Hounfour coexistence, and final security audit.
+**Effort**: Small
+**Dependencies**: None
 
-> Ground truth: SDD §7.3 (test matrix), §8 (security architecture), PRD G3-G5 (parity, schema, config compat)
+#### Task 1.5: Implement init_route_table() + log_route_table() + _rt_apply_execution_mode()
 
-### Deliverables
+**Description**: Single initialization entrypoint (idempotent, clears previous state per Flatline IMP-001). Config-to-code tracing (PRD G6). Execution mode filter for legacy `execution_mode` config key.
 
-- [x] End-to-end integration tests with mock codex
-- [x] Backward compatibility verification (exit codes, output format, CLI flags)
-- [x] Hounfour routing verification
-- [x] Security audit (redaction, deny list, no leaked secrets)
-- [x] E2E goal validation
+**Acceptance Criteria**:
+- [ ] `init_route_table()` clears `_RT_*` arrays before populating (idempotency)
+- [ ] Calls register → parse → CI opt-in check → validate in sequence
+- [ ] CI opt-in: custom routes in CI require `LOA_CUSTOM_ROUTES=1`
+- [ ] `log_route_table()` emits effective route table + SHA-256 hash to stderr
+- [ ] `_rt_apply_execution_mode()` filters routes for `codex` and `curl` modes
+- [ ] `auto` mode leaves table unmodified
+- [ ] `codex` mode keeps codex (hard_fail) + curl
+- [ ] `curl` mode keeps curl only (hard_fail)
 
-### Technical Tasks
+**Effort**: Medium
+**Dependencies**: Task 1.2, Task 1.3
 
-- [x] **Task 3.1:** Integration tests → **[G3, G4, G5]**
-  - `test_integration.bats`: Full end-to-end: `gpt-review-api.sh` → routing → codex/curl → response → validation
-  - Test all 4 review types (code, prd, sdd, sprint) through codex path
-  - Test all 4 review types through curl fallback path
-  - Test Hounfour routing when `flatline_routing: true`
-  - Test `--fast` + `--tool-access` flag combinations
-  - Test iteration/re-review workflow (--iteration 2 --previous findings.json)
-  - Verify output file format matches pre-refactor output
-  - **AC:** All review types produce schema-valid output in all 3 execution modes
-  - **AC:** Exit codes match spec (0-5) across all paths
-  - **AC:** ≥20 integration test cases
+#### Task 1.6: Legacy Router Kill-Switch (Flatline IMP-001)
 
-- [x] **Task 3.2:** Backward compatibility verification → **[G3, G4, G5]**
-  - Run pre-refactor `gpt-review-api.sh` (from git) and post-refactor on same input
-  - Compare: exit codes, output schema conformance, verdict consistency
-  - Verify all existing flags work unchanged
-  - Verify callers need zero changes: check review-sprint, audit-sprint, flatline for any hardcoded assumptions
-  - Verify config without new options uses correct defaults
-  - **AC:** Pre/post output is schema-equivalent (same verdict for same input)
-  - **AC:** No caller script changes required
-  - **AC:** Line count: `gpt-review-api.sh` ≤ 300 lines (final verification)
+**Description**: Add `LOA_LEGACY_ROUTER=1` env var that bypasses the declarative route table and uses the cycle-033 imperative `route_review()` implementation. Critical for production rollback if subtle regressions are discovered post-deployment.
 
-- [x] **Task 3.3:** Security audit → **[G7]**
-  - Run all redaction tests with real API key patterns
-  - Verify no API keys in any output file (grep for `sk-` in `grimoires/loa/a2a/gpt-review/`)
-  - Verify JSON integrity post-redaction (all output files valid JSON)
-  - Verify `--tool-access` off by default (no repo-root access without explicit opt-in)
-  - Verify CI mode (`CI=true`) never attempts codex login
-  - Verify capability probe hard-fails for `execution_mode=codex` when flags missing
-  - Test with sensitive file patterns in mock output (`.env`, `*.pem`)
-  - **AC:** Zero secrets found in any persistent output file
-  - **AC:** All security invariants from SDD §8.2 verified by test
-  - **AC:** Deny list patterns trigger redaction in mock output
+**Acceptance Criteria**:
+- [ ] When `LOA_LEGACY_ROUTER=1`, `route_review()` uses the original imperative implementation
+- [ ] Legacy implementation preserved in `_route_review_legacy()` function
+- [ ] Log line emitted: `[route-table] using legacy router (LOA_LEGACY_ROUTER=1)`
+- [ ] Test verifying legacy router produces identical output to declarative router for default config
+- [ ] Documented in lib-route-table.sh header comments
 
-- [x] **Task 3.E2E:** End-to-End Goal Validation → **[G1-G7]**
-  - G1: `wc -l gpt-review-api.sh` ≤ 300
-  - G2: `grep -c 'curl ' gpt-review-api.sh` = 0 (in primary path; curl is in lib-curl-fallback.sh)
-  - G3: All 4 review types pass through codex path
-  - G4: All output conforms to `gpt-review-response.schema.json`
-  - G5: Config without new options works (all defaults)
-  - G6: Multi-pass findings include more `file:line` references than single-pass (measured on test content)
-  - G7: Remove codex from PATH → reviews still succeed via curl fallback
-  - **AC:** All 7 goals validated with evidence
-  - **P0 — Must Complete**
+**Effort**: Small
+**Dependencies**: Task 1.5
 
-### Dependencies
+#### Task 1.7: Refactor route_review() in gpt-review-api.sh
 
-- Sprint 1 and Sprint 2 complete
+**Description**: Replace the 56-line imperative `route_review()` with ~15 lines that: (1) `source lib-route-table.sh`, (2) call `init_route_table()`, (3) apply `execution_mode` filter, (4) `log_route_table()`, (5) `execute_route_table()`. Behavioral equivalence with cycle-033. Includes `LOA_LEGACY_ROUTER` check at top.
 
-### Risks & Mitigation
+**Acceptance Criteria**:
+- [ ] `route_review()` reduced from 56 to ~15 lines
+- [ ] `source lib-route-table.sh` added near top of gpt-review-api.sh
+- [ ] Zero imperative backend-selection logic remains (G1)
+- [ ] Default behavior (no config) identical to cycle-033
+- [ ] `execution_mode` override still works (auto/codex/curl)
+- [ ] Both `execution_mode` and `routes` present → `routes` wins with warning
+- [ ] Configuration precedence matrix enforced (Flatline IMP-009): `LOA_LEGACY_ROUTER` > `LOA_CUSTOM_ROUTES` > `execution_mode` > `routes` > defaults
 
-| Risk | Mitigation |
-|------|------------|
-| Integration surface is large (3 modes × 4 types × 2 pass modes) | Structured test matrix covers critical paths |
-| Pre/post comparison may differ due to model non-determinism | Compare schema structure, not content |
+**Effort**: Medium
+**Dependencies**: Task 1.5, Task 1.6
 
-### Success Metrics
+#### Task 1.8: Golden Tests for Backend Selection Sequences
 
-- All 7 PRD goals validated
-- ≥20 integration test cases passing
-- Zero secrets in output files
-- Zero caller changes required
+**Description**: Behavioral equivalence tests (PRD FR-1.10) asserting exact backend selection sequences for 7 representative scenarios. Uses mock backends via stub functions.
 
----
+**Acceptance Criteria**:
+- [ ] Tests in `.claude/scripts/tests/test-gpt-review-route-table.bats`
+- [ ] 7 golden tests: all available, hounfour fails, full cascade, curl only, codex hard fail, invalid JSON, empty table
+- [ ] Each test asserts exact sequence of attempted backends via log inspection
+- [ ] Mock backends return configurable success/failure
+- [ ] All 7 tests pass
 
-## Appendix A: Task Dependencies
+**Effort**: Medium
+**Dependencies**: Task 1.7
 
-```mermaid
-graph TD
-    T1_1[1.1 Extract curl] --> T1_4[1.4 route_review]
-    T1_2[1.2 lib-security] --> T1_4
-    T1_3[1.3 lib-codex-exec] --> T1_4
-    T1_4 --> T1_6[1.6 Sprint 1 tests]
-    T1_5[1.5 Config update] --> T1_6
+#### Task 1.9: Route Table Parser Tests
 
-    T1_4 --> T2_1[2.1 Multipass core]
-    T1_3 --> T2_1
-    T1_2 --> T2_1
-    T2_1 --> T2_2[2.2 Pass prompts]
-    T2_1 --> T2_3[2.3 Failure handling]
-    T2_1 --> T2_4[2.4 Pass metadata]
-    T2_2 --> T2_5[2.5 Sprint 2 tests]
-    T2_3 --> T2_5
-    T2_4 --> T2_5
+**Description**: Unit tests for `parse_route_table()` and `validate_route_table()` with YAML fixture files.
 
-    T2_5 --> T3_1[3.1 Integration tests]
-    T2_5 --> T3_2[3.2 Backward compat]
-    T2_5 --> T3_3[3.3 Security audit]
-    T3_1 --> T3_E2E[3.E2E Goal validation]
-    T3_2 --> T3_E2E
-    T3_3 --> T3_E2E
-```
+**Acceptance Criteria**:
+- [ ] Tests in `.claude/scripts/tests/test-gpt-review-route-table.bats` (same file)
+- [ ] 9 parser tests: valid 3 routes, empty routes, unknown backend, unknown condition, schema v2, max routes exceeded, missing when, invalid fail_mode, duplicate backend
+- [ ] YAML fixture files in `.claude/scripts/tests/fixtures/gpt-review/route-configs/`
+- [ ] All 9 tests pass
+- [ ] All 117 existing tests still pass (regression)
 
-## Appendix B: Risk Register
+**Effort**: Medium
+**Dependencies**: Task 1.7
 
-| ID | Risk | Sprint | Probability | Impact | Mitigation |
-|----|------|--------|-------------|--------|------------|
-| R1 | Curl extraction regressions | 1 | Low | High | Before/after output comparison |
-| R2 | Codex not in test env | 1 | Medium | Low | Mock binary |
-| R3 | Token budgets too restrictive | 2 | Medium | Low | Configurable via config/env |
-| R4 | 3x latency in autonomous runs | 2 | Certain | Medium | --fast + auto-switch |
-| R5 | Integration test matrix too large | 3 | Low | Medium | Focus on critical paths |
-| R6 | Model non-determinism in comparison | 3 | High | Low | Compare schema, not content |
+#### Task 1.10: Adversarial YAML Security Tests (Flatline IMP-010, SKP-010)
 
-## Appendix C: Goal Traceability
+**Description**: Negative security tests with adversarial YAML fixture files to verify no injection, no eval, and safe handling of untrusted config values.
 
-| Goal | Description | Contributing Tasks |
-|------|-------------|-------------------|
-| G1 | ≤300 lines in gpt-review-api.sh | 1.1, 1.3, 1.4, 3.E2E |
-| G2 | 0 curl calls in primary path | 1.1, 1.4, 3.E2E |
-| G3 | All 4 review types work | 1.4, 1.6, 2.5, 3.1, 3.2, 3.E2E |
-| G4 | Schema validation preserved | 2.4, 3.1, 3.2, 3.E2E |
-| G5 | Config compatibility | 1.4, 1.5, 3.1, 3.2, 3.E2E |
-| G6 | Review quality improvement | 2.1, 2.2, 3.E2E |
-| G7 | Graceful degradation | 1.1, 1.2, 1.3, 2.3, 3.3, 3.E2E |
+**Acceptance Criteria**:
+- [ ] Adversarial YAML fixtures: shell injection in backend name, command substitution in condition name, extreme timeout (999999), extreme retries (999), YAML anchors/aliases, multiline strings in field values
+- [ ] All adversarial fixtures handled safely (rejected or clamped, never executed)
+- [ ] Backend names validated against registry before any function call
+- [ ] Condition names validated against registry before any function call
+- [ ] Timeout/retry values clamped to bounds (1-600s, 0-5)
+- [ ] Tests in `test-gpt-review-route-table.bats`
+
+**Effort**: Small
+**Dependencies**: Task 1.9
 
 ---
 
-*Generated by Sprint Planner • Cycle: cycle-033 • Source: [#400](https://github.com/0xHoneyJar/loa/issues/400)*
+## Sprint 2: Adaptive Multi-Pass + Token Estimation
+
+**Goal**: Multi-pass review depth adapts to change complexity. Simple changes get 1 pass; complex changes get 3. Token estimation improved with word-count tier.
+
+**Global ID**: sprint-42
+
+### Tasks
+
+#### Task 2.1: Implement classify_complexity()
+
+**Description**: Deterministic complexity classifier in `lib-multipass.sh` using diff signals: files changed, lines changed, security-sensitive path denylist.
+
+**Acceptance Criteria**:
+- [ ] Function in `lib-multipass.sh` returning "low" | "medium" | "high"
+- [ ] Counts files changed from `diff --git` markers
+- [ ] Counts lines changed from `+`/`-` markers
+- [ ] Security-sensitive denylist: `.claude/`, `lib-security`, `auth`, `credentials`, `secrets`, `.env`
+- [ ] Security hit → always "high"
+- [ ] >15 files OR >2000 lines → "high"
+- [ ] >3 files OR >200 lines → "medium"
+- [ ] Otherwise → "low"
+
+**Effort**: Small
+**Dependencies**: Sprint 1
+
+#### Task 2.2: Implement reclassify_with_model_signals()
+
+**Description**: Post-Pass-1 reclassifier combining deterministic signals with model-produced complexity. Single-pass requires BOTH signals low (PRD FR-2.1 dual-signal matrix).
+
+**Acceptance Criteria**:
+- [ ] Function in `lib-multipass.sh` taking `det_level` and `pass1_output`
+- [ ] Extracts `risk_area_count` and estimates scope tokens from Pass 1 output
+- [ ] Reads configurable thresholds from `.gpt_review.multipass.thresholds.*`
+- [ ] Model level: risk_areas ≤ low_risk AND scope ≤ low_scope → "low"; risk_areas > high_risk OR scope > high_scope → "high"; else "medium"
+- [ ] Dual-signal: BOTH low → "low"; EITHER high → "high"; else "medium"
+- [ ] Missing complexity field defaults to "medium" (never single-pass)
+
+**Effort**: Small
+**Dependencies**: Task 2.1
+
+#### Task 2.3: Modify run_multipass() for Adaptive Flow
+
+**Description**: Integrate adaptive classification into the existing 3-pass orchestrator. When `multipass.adaptive: true` (default), classify before deciding pass count. Pass 1 always runs. Decision between Pass 1 and Pass 2.
+
+**Acceptance Criteria**:
+- [ ] Reads `adaptive` config key (default true)
+- [ ] If `adaptive: false` → unchanged 3-pass behavior
+- [ ] If adaptive: calls `classify_complexity()` before Pass 1
+- [ ] After Pass 1: calls `reclassify_with_model_signals()` for final level
+- [ ] `low` → returns Pass 1 output as combined review
+- [ ] `high` → uses extended budgets from config for Pass 2
+- [ ] `medium` → standard 3-pass
+- [ ] Extended budgets configurable: `pass2_input` (default 30000), `pass2_output` (default 10000)
+
+**Effort**: Medium
+**Dependencies**: Task 2.1, Task 2.2
+
+#### Task 2.4: Update estimate_token_count() — Word-Count Tier
+
+**Description**: Insert word-count tier between tiktoken (Tier 1) and chars/4 (Tier 3) in `lib-multipass.sh`. Uses `wc -w * 4/3` formula.
+
+**Acceptance Criteria**:
+- [ ] Tier 2 inserted between existing Tier 1 and Tier 3
+- [ ] Formula: `(word_count * 4 + 2) / 3` (integer arithmetic)
+- [ ] Falls through to chars/4 only if `wc -w` returns 0
+- [ ] No new dependencies (wc is always available)
+
+**Effort**: Small
+**Dependencies**: Sprint 1
+
+#### Task 2.5: Token Estimation Benchmark Corpus
+
+**Description**: Create ≥10 code sample files with pre-computed tiktoken token counts. Test asserts word-count tier mean error ≤15% and p95 ≤25%.
+
+**Acceptance Criteria**:
+- [ ] Fixture files in `.claude/scripts/tests/fixtures/gpt-review/token-corpus/`
+- [ ] ≥10 code samples: mix of bash, Python, JavaScript, JSON, prose
+- [ ] Each sample has companion `.tokens` file with tiktoken count
+- [ ] Test in `test-gpt-review-adaptive.bats` computes mean and p95 error
+- [ ] Mean error ≤15%, p95 ≤25% for word-count tier
+
+**Effort**: Medium
+**Dependencies**: Task 2.4
+
+#### Task 2.6: Adaptive Multi-Pass Tests
+
+**Description**: Tests for `classify_complexity()`, `reclassify_with_model_signals()`, and the adaptive flow in `run_multipass()`.
+
+**Acceptance Criteria**:
+- [ ] Tests in `.claude/scripts/tests/test-gpt-review-adaptive.bats`
+- [ ] 6 tests: small diff both low (1 pass), large diff det high (3 pass), security path (3 pass), det low model high (3 pass), det high model low (3 pass), adaptive disabled (3 pass)
+- [ ] Mock diff content with known file/line counts
+- [ ] Mock Pass 1 output with known complexity fields
+- [ ] All 6 tests pass
+
+**Effort**: Medium
+**Dependencies**: Task 2.3
+
+---
+
+## Sprint 3: Polish + Hardening
+
+**Goal**: Optimize capability detection, add JSON extraction fallback, add result contract tests, enforce CI policy constraints. Full regression verification.
+
+**Global ID**: sprint-43
+
+### Tasks
+
+#### Task 3.1: Optimize detect_capabilities() — Cached Help Text
+
+**Description**: Hoist `codex exec --help` call above the flag-probing loop in `lib-codex-exec.sh`. Single subprocess call instead of N calls.
+
+**Acceptance Criteria**:
+- [ ] `codex exec --help` called exactly once per `detect_capabilities()` invocation
+- [ ] Help text stored in local variable, grep'd per flag
+- [ ] Existing cache file logic unchanged
+- [ ] Existing test coverage still passes
+
+**Effort**: Small
+**Dependencies**: Sprint 1
+
+#### Task 3.2: Add Python3 JSON Decoder Fallback
+
+**Description**: Add `json.JSONDecoder().raw_decode()` fallback between greedy regex (Tier 3) and error return (Tier 4) in `parse_codex_output()` in `lib-codex-exec.sh`.
+
+**Acceptance Criteria**:
+- [ ] Tier 3.5 added: Python3 raw_decode for arbitrary nesting
+- [ ] Only invoked when python3 is available
+- [ ] Falls through gracefully when python3 missing
+- [ ] Output validated with `jq empty` before returning
+- [ ] No functional change when greedy regex already succeeds
+
+**Effort**: Small
+**Dependencies**: Sprint 1
+
+#### Task 3.3: Result Contract Tests
+
+**Description**: Unit tests for `validate_review_result()` covering all validation paths.
+
+**Acceptance Criteria**:
+- [ ] 7 tests: valid approved, valid changes required, missing verdict, invalid verdict, too short, invalid JSON, findings not array
+- [ ] Tests in `test-gpt-review-route-table.bats`
+- [ ] All 7 tests pass
+
+**Effort**: Small
+**Dependencies**: Sprint 1 (Task 1.4)
+
+#### Task 3.4: CI Policy Constraints
+
+**Description**: Enforce `LOA_CUSTOM_ROUTES=1` requirement in CI. Add `GPT_REVIEW_ADAPTIVE` env var override for adaptive multi-pass.
+
+**Acceptance Criteria**:
+- [ ] When `CI=true` and custom routes detected, default blocks unless `LOA_CUSTOM_ROUTES=1`
+- [ ] `GPT_REVIEW_ADAPTIVE=0` disables adaptive multi-pass regardless of config
+- [ ] `GPT_REVIEW_ADAPTIVE=1` enables adaptive regardless of config
+- [ ] Unset → uses config value
+- [ ] Test coverage for both env var overrides
+
+**Effort**: Small
+**Dependencies**: Sprint 1, Sprint 2
+
+#### Task 3.5: Full Integration Verification
+
+**Description**: Run all existing tests to verify zero regression. Document any test modifications needed.
+
+**Acceptance Criteria**:
+- [ ] All 117 existing tests from cycle-033 pass
+- [ ] All new tests from Sprints 1-3 pass
+- [ ] Zero test modifications to existing tests
+- [ ] If any existing test needs modification, document reason and get approval
+
+**Effort**: Small
+**Dependencies**: All previous tasks
+
+---
+
+## Risk Register
+
+| Risk | Sprint | Mitigation |
+|------|--------|------------|
+| Route table parse error breaks routing | 1 | Fail-closed for custom, fail-open for defaults. Golden tests. Kill-switch via `LOA_LEGACY_ROUTER=1` (IMP-001). |
+| Parallel array desync | 1 | Atomic `_rt_append_route()` helper + `_rt_validate_array_lengths()` invariant check (SKP-002). |
+| Adaptive classification too aggressive | 2 | Dual-signal requires BOTH agreement. Denylist for security paths. |
+| yq v4 not available or wrong version | 1 | Version detection (v3 vs v4), fail-closed + env override, `LOA_ALLOW_DEFAULTS_WITHOUT_YQ` illegal in CI (IMP-003, SKP-001). |
+| Existing tests break | 3 | Sprint 3 dedicated to regression verification |
+| Backend result contract too strict | 1 | Conservative thresholds (20 char min), iterative tuning |
+| Runaway retries/timeouts | 1 | Bounds: timeout 1-600s, retries 0-5, global max attempts cap 10 (SKP-005). |
+| Untrusted YAML in CI | 1 | Adversarial security tests, registry validation before execution, clamped bounds (SKP-010). |
+| Config precedence confusion | 1 | Explicit precedence matrix documented + tested (IMP-009). |
+
+## Flatline Sprint Review Integration
+
+Flatline Protocol reviewed this sprint plan with 80% model agreement.
+
+**HIGH_CONSENSUS integrated (5)**:
+- IMP-001 (avg 880): Legacy router kill-switch via `LOA_LEGACY_ROUTER=1` → Task 1.6
+- IMP-003 (avg 770): yq v3/v4 version detection → Task 1.2
+- IMP-004 (avg 830): Canonical YAML schema example in lib-route-table.sh → Task 1.2
+- IMP-006 (avg 865): Verdict-to-exit-code truth table → Task 1.4
+- IMP-009 (avg 795): Configuration precedence matrix → Task 1.7
+
+**DISPUTED resolved (2)**:
+- IMP-002 (GPT 420, Opus 820): Rejected — concurrency/locking over-scoped for bash CLI tool. SDD already documents single-process assumption.
+- IMP-010 (GPT 840, Opus 450): Accepted — adversarial YAML security tests added → Task 1.10
+
+**BLOCKERS addressed (5)**:
+- SKP-001 (900): Addressed by IMP-003 (yq version pinning) + `LOA_ALLOW_DEFAULTS_WITHOUT_YQ` illegal in CI → Task 1.2
+- SKP-002 (860): Addressed by `_rt_append_route()` atomic helper + `_rt_validate_array_lengths()` invariant → Task 1.1
+- SKP-003 (720): Addressed by whitespace trimming + empty-token rejection in `_evaluate_conditions()` → Task 1.3
+- SKP-005 (740): Addressed by bounds clamping (timeout 1-600s, retries 0-5) + global max attempts cap → Task 1.3
+- SKP-010 (760): Addressed by adversarial YAML security tests + registry validation → Task 1.10
+
+## Definition of Done
+
+- All acceptance criteria checked
+- All new code has test coverage
+- All 117 existing tests pass without modification
+- Sprint review + audit cycle passed
+- No new security vulnerabilities introduced

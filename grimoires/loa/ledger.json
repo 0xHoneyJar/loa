@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-033",
-  "global_sprint_counter": 40,
+  "active_cycle": "cycle-034",
+  "global_sprint_counter": 43,
   "cycles": [
     {
       "id": "cycle-025",
@@ -390,8 +390,10 @@
     {
       "id": "cycle-033",
       "label": "Codex CLI Integration for GPT Review",
-      "status": "active",
+      "status": "archived",
       "created": "2026-02-23T00:00:00Z",
+      "archived": "2026-02-23T12:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-23-codex-cli-integration",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "source_issue": 400,
@@ -424,6 +426,35 @@
         "flatline": true
       },
       "pr": 401
+    },
+    {
+      "id": "cycle-034",
+      "label": "Declarative Execution Router + Adaptive Multi-Pass",
+      "status": "active",
+      "created": "2026-02-23T12:00:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "source_issue": 403,
+      "sprints": [
+        {
+          "local_id": "sprint-1",
+          "global_id": "sprint-41",
+          "label": "Core Route Table Infrastructure",
+          "status": "pending"
+        },
+        {
+          "local_id": "sprint-2",
+          "global_id": "sprint-42",
+          "label": "Adaptive Multi-Pass + Token Estimation",
+          "status": "pending"
+        },
+        {
+          "local_id": "sprint-3",
+          "global_id": "sprint-43",
+          "label": "Polish + Hardening",
+          "status": "pending"
+        }
+      ]
     }
   ]
 }

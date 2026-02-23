@@ -1,354 +1,398 @@
-# PRD: Codex CLI Integration for GPT Review
+# PRD: Declarative Execution Router + Adaptive Multi-Pass Review
 
-> Cycle: cycle-033 | Author: soju + Claude
-> Predecessor: cycle-032 (Interview Depth Configuration — Planning Backpressure)
-> Source: [#400](https://github.com/0xHoneyJar/loa/issues/400) (Codex CLI upgrade proposal)
-> Design Context: Codebase grounding via `/gpt-review` system analysis (2026-02-23)
-> Priority: P2 — improves review infrastructure reliability and depth
+> Cycle: cycle-034 | Author: soju + Claude
+> Predecessor: cycle-033 (Codex CLI Integration for GPT Review)
+> Source: [#403](https://github.com/0xHoneyJar/loa/issues/403) (Bridgebuilder review findings)
+> Design Context: Bridgebuilder review of [PR #401](https://github.com/0xHoneyJar/loa/pull/401)
+> Priority: P1 — architectural maturation of review pipeline from cycle-033
 
 ---
 
 ## 1. Problem Statement
 
-`gpt-review-api.sh` is a ~500-line script that reimplements capabilities already provided by the Codex CLI runtime. The script manually handles:
+Cycle-033 introduced a 3-tier execution router (`route_review()` in `gpt-review-api.sh:91-147`) that cascades through Hounfour → Codex → curl. The implementation is functional and well-tested (117 tests, bridge flatlined at 0), but the control flow is **imperative** — a 56-line if/else cascade that hard-codes backend selection logic, condition checking, and fallback semantics in bash.
 
-1. **HTTP transport** — curl calls with config-file auth, header management, endpoint selection (Chat Completions vs Responses API)
-2. **Retry logic** — 3 retries with exponential backoff, error classification (429/5xx/401)
-3. **Response parsing** — JSON extraction from two different response formats (`choices[0].message.content` vs `output[].content[].text`)
-4. **Content truncation** — Token estimation (`bytes / 3`), priority-based file ranking, smart truncation
-5. **Dual API routing** — Chat Completions for documents, Responses API for Codex models
+This creates three problems:
 
-This is **accidental complexity**. `codex exec` provides transport, retry, response handling, and model-specific optimizations natively. The current architecture also prevents Loa from leveraging Codex's built-in file-reading tools, which would let the review model inspect code directly rather than reviewing a static content blob.
+1. **Operator rigidity**: Adding, removing, or reordering backends requires modifying `route_review()` — a critical function where bugs have high blast radius. Operators cannot customize routing without code changes.
 
-> Sources: `gpt-review-api.sh` analysis, issue #400 feedback survey, [Codex CLI Reference](https://developers.openai.com/codex/cli/reference/)
+2. **Fixed review depth**: The multi-pass sandwich always runs 3 passes (xhigh→high→xhigh) regardless of change complexity. A 50-line single-file fix gets the same 3 Codex invocations as a 5,000-line, 40-file refactor. This wastes API budget on simple changes and may under-review complex ones.
+
+3. **Token estimation drift**: The chars/4 fallback heuristic in `estimate_token_count()` can be 40-50% wrong for code with heavy punctuation, causing budget enforcement to make incorrect truncation decisions.
+
+> Sources: PR #401 Bridgebuilder review [Part 2](https://github.com/0xHoneyJar/loa/pull/401#issuecomment-3943330704), [Part 3](https://github.com/0xHoneyJar/loa/pull/401#issuecomment-3943331305)
 
 ---
 
 ## 2. Vision
 
-A thinner review script that delegates execution to `codex exec` while Loa retains control over what matters: prompt construction, review schema, iteration logic, and multi-pass reasoning orchestration.
+A review pipeline where **routing is data, not code** — operators configure execution backends, conditions, and fallback behavior in `.loa.config.yaml`, and the pipeline adapts review depth to content complexity. Configuration becomes a first-class, diffable, auditable artifact.
 
-The upgrade also enables a **reasoning sandwich pattern** — three `codex exec` passes per review with escalating/de-escalating reasoning depth — to improve review finding quality without uniform compute waste.
+**FAANG parallel**: Envoy Proxy replaced hand-coded service routing with declarative YAML configuration. The effect: operators changed traffic routing without deploying code, and routing rules entered version control alongside application config.
 
 ---
 
 ## 3. Goals & Success Metrics
 
-| # | Goal | Metric | Target |
-|---|------|--------|--------|
-| G1 | Reduce accidental complexity | Lines in `gpt-review-api.sh` | ≤300 (≥40% reduction) |
-| G2 | Eliminate manual HTTP handling | curl calls in review path | 0 (in primary path) |
-| G3 | Feature parity | All 4 review types pass | code, prd, sdd, sprint |
-| G4 | Schema validation preserved | Review output conforms to `gpt-review-response.schema.json` | 100% |
-| G5 | Config compatibility | All `.loa.config.yaml` gpt_review settings work | No breaking changes |
-| G6 | Review quality improvement | Findings with `file:line` references | Higher rate than current (Codex tool-augmented) |
-| G7 | Graceful degradation | Fallback to curl when Codex CLI unavailable | Transparent to caller |
+### G1: Declarative Execution Router
+**Metric**: Zero imperative backend-selection logic in `route_review()`. All routing decisions driven by YAML configuration.
+**Acceptance**: `route_review()` reduced from 56 lines of if/else to a generic loop over a parsed route table.
+
+### G2: Adaptive Multi-Pass
+**Metric**: Pass count varies based on Pass 1 complexity analysis. Simple changes get 1 pass; complex changes get 3.
+**Acceptance**: A test demonstrating that a small diff triggers single-pass mode while a large diff triggers 3-pass mode.
+
+### G3: Token Estimation Accuracy (Flatline IMP-009)
+**Metric**: Mean estimation error ≤15% for code content (currently up to 50% with chars/4). Measured as p95 ≤25%.
+**Acceptance**: Word-count fallback tier reduces estimation error against a **benchmark corpus** of ≥10 code samples with pre-computed tiktoken token counts. Test asserts mean error ≤15% and p95 ≤25% across the corpus.
+
+### G4: Technical Quality Improvements
+**Metric**: Capability detection caches help text; JSON extraction handles arbitrary nesting.
+**Acceptance**: Tests pass for deeply nested JSON; capability detection makes exactly 1 subprocess call.
+
+### G5: Backward Compatibility (Flatline SKP-002)
+**Metric**: Zero regression in existing 117 tests. Behavioral equivalence at failure boundaries.
+**Acceptance**: All existing tests pass without modification. Users with no `gpt_review.routes` config get identical behavior to cycle-033. **Golden tests** assert exact backend selection sequences, exit codes, and logging for representative failure modes (backend unavailable, invalid JSON, auth error, timeout).
+
+### G6: Config-to-Code Tracing (Flatline IMP-006)
+**Metric**: Every routing decision can be traced from YAML config to executed code path.
+**Acceptance**: Startup logs the effective route table (backend names, conditions, fail modes) and its SHA-256 hash. Each backend attempt logs `[route-table] trying backend=X, conditions=[Y,Z], result=success|fail`.
 
 ---
 
-## 4. User & Stakeholder Context
+## 4. Functional Requirements
 
-### Primary Persona: Loa Framework User
+### FR-1: Declarative Routing Table (P0)
 
-Developers using `/gpt-review` directly or via the review/audit cycle (`/run sprint-N`). They expect:
-- Reviews to "just work" with their existing `OPENAI_API_KEY`
-- No new CLI dependencies required (fallback handles missing `codex`)
-- Same verdict types and output format
+#### FR-1.1: YAML Schema
 
-### Secondary Persona: Framework Maintainer
+```yaml
+# .loa.config.yaml
+gpt_review:
+  enabled: true
+  routes:
+    - backend: hounfour
+      when:
+        - flatline_routing_enabled
+        - model_invoke_available
+      capabilities: [agent_binding, metering, trust_scopes]
+      fail_mode: fallthrough  # fallthrough | hard_fail
 
-Maintains `gpt-review-api.sh` and related scripts. Benefits from:
-- Less code to maintain (no HTTP/retry logic)
-- Cleaner separation between prompt engineering and execution
-- Model upgrade path via `--model` flag
+    - backend: codex
+      when:
+        - codex_available
+      capabilities: [sandbox, ephemeral, multi_pass, tool_access]
+      fail_mode: fallthrough
 
-> Sources: Issue #400 survey (5/5 rating, "A - Very comfortable"), existing user base
+    - backend: curl
+      when: [always]
+      capabilities: [basic]
+      fail_mode: hard_fail  # last resort — failure is terminal
+```
 
----
+- `backend`: identifies which execution function to call
+- `when`: list of condition names that must ALL be true (AND logic)
+- `capabilities`: metadata for downstream decision-making (e.g., multi-pass only if backend has `multi_pass`)
+- `fail_mode`: `fallthrough` continues to next route on failure; `hard_fail` returns error immediately
 
-## 5. Functional Requirements
+#### FR-1.2: Condition Registry
 
-### FR1: Codex Exec Primary Path
+Conditions are named boolean functions registered at startup:
 
-Replace direct curl/API calls with `codex exec` as the primary execution method.
+| Condition | Implementation |
+|-----------|---------------|
+| `flatline_routing_enabled` | `is_flatline_routing_enabled()` from lib-curl-fallback.sh |
+| `model_invoke_available` | `[[ -x "$MODEL_INVOKE" ]]` |
+| `codex_available` | `codex_is_available` from lib-codex-exec.sh (exit 0) |
+| `always` | Built-in, always true |
 
-**Content Passing Contract** (IMP-004):
-- **Code reviews**: Content file placed in a temp workspace directory. Codex reads it via built-in file tools (`--sandbox read-only` grants read access). The model MAY use grep/read to explore referenced files within the workspace. Pre-ranked priority truncation from `lib-content.sh` still applies to the *initial* content file — Codex tool reads supplement, not replace, this.
-- **Document reviews** (PRD/SDD/Sprint): Full document passed as prompt text (not file reference) since document reviews don't benefit from tool-augmented exploration.
-- **Determinism note**: Tool-augmented file reads make code review outputs less deterministic than blob-based reviews. This is acceptable — richer context is worth the variance.
+New conditions can be added by registering a function name in a bash associative array.
 
-**Version Compatibility** (IMP-003, SKP-001):
-- On first invocation, probe `codex --version` and log the version
-- **Capability probes**: test critical flags (`--sandbox`, `--ephemeral`, `--output-last-message`) by running a no-op `codex exec` with each flag and checking exit codes
-- If any required flag is unsupported, fall back to curl with warning identifying the missing capability
-- Store detected capabilities in a session cache file (avoid re-probing per review within same session)
-- Minimum supported version: define after implementation testing (TBD in SDD)
+#### FR-1.3: Backend Registry
 
-**Acceptance Criteria:**
-- `codex exec` invoked with `--sandbox read-only`, `--ephemeral`, `--skip-git-repo-check`
-- `--output-last-message` captures review response to file
-- `--model` set from config (`gpt_review.models.code` or `gpt_review.models.documents`)
-- System prompt passed via `codex exec` prompt construction
-- Content file accessible to Codex via workspace path
-- Version check on first use with graceful fallback on incompatible versions
+Backends are named execution functions:
 
-### FR2: Curl Fallback Path
+| Backend | Function | Library |
+|---------|----------|---------|
+| `hounfour` | `call_api_via_model_invoke` | lib-curl-fallback.sh |
+| `codex` | Codex exec path (single or multi-pass) | lib-codex-exec.sh |
+| `curl` | `call_api` | lib-curl-fallback.sh |
 
-Preserve direct curl as fallback when `codex` binary is not available.
+#### FR-1.4: Schema Validation (Flatline IMP-001)
 
-**Acceptance Criteria:**
-- Script detects `codex` availability at startup (`command -v codex`)
-- If unavailable, falls back to current curl-based implementation
-- Fallback logged to stderr: `"[gpt-review] codex not found, using direct API fallback"`
-- All existing curl logic retained but moved to fallback function
-- Config option `gpt_review.execution_mode: codex | curl | auto` (default: `auto`)
+Route table MUST be validated at parse time with strict rules:
 
-### FR3: Multi-Pass Reasoning Sandwich
+| Rule | Behavior on Violation |
+|------|----------------------|
+| `backend` is required string, must be in backend registry | Hard error, exit 2 |
+| `when` is required non-empty array of strings | Hard error, exit 2 |
+| `fail_mode` is optional, must be `fallthrough` or `hard_fail` | Default `fallthrough`, warn |
+| At least one route must exist | Hard error, exit 2 |
+| Last route should be `hard_fail` (advisory) | Warning only |
+| Condition names must be in condition registry | Treat as `false`, warn |
+| No duplicate backend names | Warning only (first wins) |
 
-Three-pass review architecture for deeper analysis.
+When custom routes are present and invalid: **fail-closed** (hard error, non-zero exit).
+When no custom routes present: **fail-open** (use built-in defaults, log reason).
 
-**Pass Structure:**
+#### FR-1.5: Schema Version (Flatline IMP-005)
 
-| Pass | Purpose | Reasoning Depth | Codex Flags | Context Budget |
-|------|---------|----------------|-------------|----------------|
-| 1: Planning | Understand codebase context, identify review areas | Deep (xhigh) | `--sandbox read-only` — model reads files | Input: full content. Output: ≤4000 tokens (context summary) |
-| 2: Review | Execute review against findings from Pass 1 | Standard (high) | `--sandbox read-only` — focused finding detection | Input: Pass 1 summary + original content (truncated to 20k tokens if needed). Output: ≤6000 tokens (raw findings) |
-| 3: Verification | Validate findings, catch missed issues, produce final verdict | Deep (xhigh) | `--sandbox read-only` — final quality gate | Input: Pass 2 findings (≤6000 tokens). Output: final verdict JSON |
-
-**Context Management Between Passes** (IMP-001):
-- Each pass output has a **hard token budget** (see table above)
-- Pass 1→2 handoff: summarization instruction in Pass 1 prompt limits output to structured context summary
-- Pass 2→3 handoff: findings are structured JSON (naturally bounded)
-- If any pass output exceeds its budget, truncate with priority: findings > context > metadata
-- If total context for any pass exceeds model window, auto-switch to `--fast` mode with warning
-
-**Pass-Level Failure Handling** (IMP-002):
-- Each pass has independent timeout (inherited from `gpt_review.timeout_seconds`)
-- If Pass 1 fails: fall back to single-pass mode (Pass 2 with original content, no context summary)
-- If Pass 2 fails: retry once, then return error (no partial results)
-- If Pass 3 fails: return Pass 2 output as-is with `"verification": "skipped"` flag
-- Rate limit (429) on any pass: exponential backoff (5s, 15s, 45s), then fail the pass
-- All pass failures logged with pass number, error type, and fallback action taken
-
-**Reasoning Depth via Prompts** (IMP-009):
-- `codex exec` does not expose compute tier flags — reasoning depth is **prompt-guided only**
-- Pass 1 (xhigh equivalent): system prompt instructs "Think step-by-step about the full codebase structure, dependencies, and change surface area before summarizing"
-- Pass 2 (high equivalent): system prompt instructs "Focus on finding concrete issues efficiently. Do not over-analyze."
-- Pass 3 (xhigh equivalent): system prompt instructs "Carefully verify each finding. Check for false positives. Validate file:line references exist."
-- This is a **best-effort** approach — actual reasoning depth depends on model behavior, not guaranteed tiers
-
-**Acceptance Criteria:**
-- Pass 1 output (context summary) feeds into Pass 2 prompt
-- Pass 2 output (raw findings) feeds into Pass 3 prompt
-- Pass 3 produces the final verdict conforming to `gpt-review-response.schema.json`
-- Each pass uses `--output-last-message` for intermediate capture
-- `--fast` flag skips to single-pass mode (Pass 2 only, with combined prompt)
-- Context budgets enforced between passes with deterministic truncation
-- Pass-level failures degrade gracefully (never block the entire review)
-
-### FR4: Authentication Auto-Detection
-
-Seamless auth regardless of user's Codex CLI setup.
-
-**Auth Security Hardening** (SKP-002):
-- **Non-interactive guarantee**: Auth flow MUST NOT prompt for interactive input. If `codex login` requires a prompt, skip directly to env var fallback.
-- **Log redaction**: All stderr/stdout output from auth commands MUST be filtered through a redaction function that strips patterns matching API key formats (`sk-...`, `sk-ant-...`). Applied before any logging.
-- **CI-safe mode**: When `CI=true` or `NONINTERACTIVE=true` env var is set, skip `codex login` entirely — use `OPENAI_API_KEY` direct pass-through only.
-- **Credential storage audit**: `codex login --with-api-key` may write credentials to `~/.codex/` or similar. With `--ephemeral`, verify no credential files persist. If they do, warn and clean up.
-- **Precedence order**: (1) Existing codex auth → (2) `OPENAI_API_KEY` pipe to `codex login` → (3) Direct curl with `OPENAI_API_KEY`
-
-**Acceptance Criteria:**
-- Try existing `codex` auth state first (no-op if already authenticated)
-- If Codex auth fails, pipe `OPENAI_API_KEY` via `printenv OPENAI_API_KEY | codex login --with-api-key`
-- If both fail, fall back to curl path (which uses `OPENAI_API_KEY` directly)
-- Auth errors produce clear user-facing messages with redacted key values
-- No interactive prompts in any auth path
-- CI environments use direct env var pass-through only
-
-### FR5: Hounfour Routing Preservation
-
-Maintain model-invoke as an alternative routing option.
-
-**Acceptance Criteria:**
-- Config option `hounfour.flatline_routing: true` still routes through `model-invoke`
-- `codex exec` path used only when Hounfour routing is disabled
-- Route selection: Hounfour enabled → model-invoke, else → codex exec → curl fallback
-- No behavioral change for users with `flatline_routing: true`
-
-### FR6: Output Schema Validation
-
-Review responses validated against the existing schema.
-
-**Acceptance Criteria:**
-- `--output-schema` flag used with `gpt-review-response.schema.json` if supported for final model output
-- If `--output-schema` only validates tool output (not model response), post-hoc validation retained
-- Response parsing extracts from `--output-last-message` file
-- All existing verdict types preserved: SKIPPED, APPROVED, CHANGES_REQUIRED, DECISION_NEEDED
-
-### FR7: Configuration Surface
-
-New config options in `.loa.config.yaml`.
+Route table includes a version field for forward compatibility:
 
 ```yaml
 gpt_review:
-  enabled: true
-  execution_mode: auto        # codex | curl | auto (NEW)
-  reasoning_mode: multi-pass  # multi-pass | single-pass (NEW)
-  timeout_seconds: 300
-  max_iterations: 3
-  models:
-    documents: "gpt-5.2"
-    code: "gpt-5.2-codex"
-  phases:
-    prd: true
-    sdd: true
-    sprint: true
-    implementation: true
+  route_schema: 1  # Semantic version for route table format
+  routes: [...]
 ```
 
+Parser rejects `route_schema > 1` with a clear upgrade message.
+
+#### FR-1.6: Default Config
+
+When no `gpt_review.routes` key exists in config, the router uses a built-in default that exactly matches cycle-033 behavior:
+
+```
+hounfour (fallthrough) → codex (fallthrough) → curl (hard_fail)
+```
+
+This ensures **zero breaking changes** for existing installations.
+
+#### FR-1.7: `execution_mode` Override
+
+The existing `gpt_review.execution_mode` config key (`auto`, `codex`, `curl`) continues to work as a shorthand:
+- `curl`: filters routes to only `curl` backend
+- `codex`: filters routes to only `codex` and `curl` backends, `codex` in hard_fail mode
+- `auto`: uses full route table
+
+If both `execution_mode` and `routes` are specified, `routes` takes precedence.
+
+#### FR-1.8: Backend Result Contract (Flatline IMP-002)
+
+All backends must return output that passes `validate_review_result()`:
+
+| Check | Requirement |
+|-------|-------------|
+| JSON validity | `jq empty` succeeds |
+| Required field | `.verdict` exists and is one of `APPROVED`, `CHANGES_REQUIRED`, `DECISION_NEEDED` |
+| Minimum length | Response ≥ 20 characters |
+| Schema compliance | `.findings` is array if present |
+
+A backend that returns exit 0 but fails validation is treated as **failure** (fallthrough to next route).
+
+#### FR-1.9: Capability Gating (Flatline IMP-007)
+
+When multi-pass mode is requested, the router checks the selected backend's `capabilities` array:
+- If backend has `multi_pass` → execute multi-pass
+- If backend lacks `multi_pass` → downgrade to single-pass with warning
+- If no backend with `multi_pass` is available → use combined prompt on selected backend
+
+Capability checks happen AFTER route selection, not during. The router selects the first available backend, then the multipass orchestrator checks capabilities.
+
+#### FR-1.10: Golden Tests (Flatline IMP-004)
+
+Add behavioral equivalence tests that assert the exact sequence of attempted backends for representative scenarios:
+
+| Scenario | Expected Sequence |
+|----------|------------------|
+| All backends available | `hounfour` (success) |
+| Hounfour fails, codex available | `hounfour` (fail) → `codex` (success) |
+| Hounfour + codex fail | `hounfour` (fail) → `codex` (fail) → `curl` (success) |
+| `execution_mode: curl` | `curl` (success) |
+| `execution_mode: codex`, codex unavailable | `codex` (hard fail) |
+| Backend returns invalid JSON | Backend (fail validation) → next route |
+| Empty route table after filtering | Hard error, exit 2 |
+
+### FR-2: Adaptive Multi-Pass (P1)
+
+#### FR-2.1: Dual-Signal Complexity Classification (Flatline IMP-003)
+
+Classification uses BOTH deterministic diff signals AND model-produced complexity analysis. Single-pass mode requires agreement from both signals.
+
+**Deterministic signals** (computed before any API call):
+
+| Signal | Source | Low Threshold | High Threshold |
+|--------|--------|---------------|----------------|
+| Files changed | `git diff --stat` | ≤3 files | >15 files |
+| Lines changed | `git diff --stat` | ≤200 lines | >2000 lines |
+| Security-sensitive paths | denylist match | 0 matches | any match → never single-pass |
+
+**Model signals** (from Pass 1 output):
+
+| Signal | Source | Low Threshold | High Threshold |
+|--------|--------|---------------|----------------|
+| Risk areas | Pass 1 `risk_area_count` | ≤3 | >6 |
+| Scope tokens | Pass 1 output size | ≤500 tokens | >2000 tokens |
+
+**Classification matrix**:
+
+| Deterministic | Model | Result |
+|---------------|-------|--------|
+| Low | Low | `low` → single-pass |
+| Low | Medium/High | `medium` → 3-pass |
+| Medium/High | Low | `medium` → 3-pass |
+| Medium/High | Medium | `medium` → 3-pass |
+| Any | High | `high` → 3-pass with extended budgets |
+| Security-sensitive | Any | `high` → always 3-pass |
+
+#### FR-2.2: Configuration
+
+```yaml
+gpt_review:
+  multipass:
+    adaptive: true  # false = always 3-pass (cycle-033 behavior)
+    thresholds:
+      low_risk_areas: 3
+      low_scope_tokens: 500
+      high_risk_areas: 6
+      high_scope_tokens: 2000
+    budgets:
+      high_complexity:
+        pass2_input: 30000   # up from default 20000
+        pass2_output: 10000  # up from default 6000
+```
+
+#### FR-2.3: Pass 1 Schema Extension
+
+Pass 1 prompt already asks for `scope_analysis, dependency_map, risk_areas, test_gaps`. Add a structured complexity field:
+
+```json
+{
+  "complexity": {
+    "risk_area_count": 5,
+    "files_affected": 12,
+    "scope_category": "medium"
+  }
+}
+```
+
+If Pass 1 doesn't return a valid complexity field, default to `medium` (3-pass).
+
+### FR-3: Token Estimation Improvement (P2)
+
+#### FR-3.1: Three-Tier Estimation
+
+```
+Tier 1: tiktoken (python3, ≤5% error)
+Tier 2: word-count heuristic (~1.33 tokens/word, ≤15% error for code)
+Tier 3: chars/4 heuristic (≤10% error for English, up to 50% for code)
+```
+
+The word-count tier uses `wc -w` with a multiplier:
+```bash
+echo $(( (word_count * 4 + 2) / 3 ))  # ~1.33 tokens per word
+```
+
+### FR-4: Capability Detection Optimization (P2)
+
+#### FR-4.1: Cache Help Text
+
+`detect_capabilities()` should invoke `codex exec --help` exactly once, cache the output, and grep against it for each flag:
+
+```bash
+local help_text
+help_text=$(codex exec --help 2>&1) || true
+
+for flag in "${_CODEX_PROBE_FLAGS[@]}"; do
+  # grep against $help_text, not a fresh subprocess
+done
+```
+
+### FR-5: Robust JSON Extraction (P2)
+
+#### FR-5.1: Python3 JSON Decoder Fallback
+
+After the regex-based greedy extraction (2-level nesting) fails, try `python3 -c` with `json.JSONDecoder().raw_decode()`:
+
+```bash
+greedy=$(printf '%s' "$raw" | python3 -c "
+import json, sys
+s = sys.stdin.read()
+idx = s.index('{')
+obj, _ = json.JSONDecoder().raw_decode(s[idx:])
+print(json.dumps(obj))
+" 2>/dev/null) || greedy=""
+```
+
+This handles arbitrary nesting depth and is correct by construction.
+
 ---
 
-## 6. Technical & Non-Functional Requirements
+## 5. Non-Functional Requirements
 
-### NFR1: Latency
+### NFR-1: Backward Compatibility
+All 117 existing tests must pass without modification. The default route table must produce identical behavior to cycle-033's imperative router.
 
-- Single-pass mode (--fast): Comparable to current curl approach
-- Multi-pass mode (default): ≤3x current latency (3 sequential codex exec calls)
-- Timeout per pass: inherited from `gpt_review.timeout_seconds` (default 300s per pass)
+### NFR-2: Performance
+Route table parsing happens once at startup (not per-review). YAML is parsed via `yq` and cached in bash associative arrays.
 
-### NFR2: Dependency Management
+### NFR-3: Security
+- No new secret patterns introduced
+- Route conditions must not evaluate arbitrary code (named functions only, no `eval`)
+- Env-only auth boundary unchanged
 
-- `codex` CLI is a **soft dependency** — absence triggers fallback, not failure
-- No new npm/pip/system dependencies required for fallback path
-- Installation guidance in help text: `"Install Codex CLI: npm install -g @openai/codex"`
-
-### NFR3: Security
-
-- API key never appears in process arguments (piped via stdin for `codex login`)
-- `--sandbox read-only` prevents any file modifications during review
-- `--ephemeral` prevents session data from persisting
-- System Zone detection preserved in all execution paths
-
-**Codex File Access Threat Model** (SKP-005):
-- `codex exec` is invoked with `--cd <repo-root>` to restrict workspace to repository root only
-- **Deny list**: Codex workspace MUST NOT include paths outside the repo. The `--cd` flag scopes reads to repo root.
-- **In-repo sensitive files**: Add `.env`, `.env.*`, `*.pem`, `*.key`, `credentials.json`, `.npmrc` to a deny pattern list. If Codex output contains content matching these file paths, redact the content in the output before persistence.
-- **Secret pattern redaction**: Apply the same secret scanning patterns from `flatline_protocol.secret_scanning.patterns` to all Codex output before writing to findings files. Matches are replaced with `[REDACTED]`.
-- **Output audit**: All Codex `--output-last-message` files are scanned for secret patterns before being parsed as review results.
-- **Safe defaults**: If `--cd` flag is unavailable in the detected Codex version, fall back to curl (do not run Codex with unrestricted workspace access).
-
-### NFR4: Observability
-
-- Each pass logs: model, duration, token usage (if available from `--json` events)
-- Pass progression logged: `"[gpt-review] Pass 1/3: Planning (xhigh)..."`
-- Intermediate outputs saved: `grimoires/loa/a2a/gpt-review/<type>-pass-{1,2,3}.json`
-
-### NFR5: Backward Compatibility
-
-- All existing `gpt-review-api.sh` exit codes preserved (0-5)
-- All existing `--expertise`, `--context`, `--content`, `--output`, `--iteration`, `--previous` flags preserved
-- Callers (review-sprint, audit-sprint, flatline) require zero changes
+### NFR-4: Testability
+Each new component must be independently testable:
+- Route table parser: test with fixture YAML files
+- Condition registry: test each condition in isolation
+- Adaptive multi-pass: test complexity classification with mock Pass 1 outputs
+- Token estimation: test against known code samples with pre-computed token counts
 
 ---
 
-## 7. Scope
+## 6. Scope & Prioritization
 
-### In Scope (This Cycle)
+### In Scope (MVP)
 
-1. `codex exec` primary execution path in `gpt-review-api.sh`
-2. Curl fallback path (refactored from current implementation)
-3. Multi-pass reasoning sandwich (3 passes with intermediate output)
-4. `--fast` flag for single-pass mode
-5. Auth auto-detection (codex auth → env var pipe → curl fallback)
-6. Hounfour routing preserved as config option
-7. Config additions: `execution_mode`, `reasoning_mode`
-8. Tests covering all execution paths
+| Priority | Feature | Risk |
+|----------|---------|------|
+| P0 | Declarative routing table (FR-1) | Medium — core refactor |
+| P1 | Adaptive multi-pass (FR-2) | Low — extends existing |
+| P2 | Token estimation improvement (FR-3) | Low — additive |
+| P2 | Capability detection optimization (FR-4) | Low — constant-factor |
+| P2 | Robust JSON extraction (FR-5) | Low — additive |
 
 ### Out of Scope
 
-- **Model upgrade to gpt-5.3-codex**: Speculative timeline; design for clean upgrade path only
-- **Streaming support**: Not in Codex CLI MVP scope either
-- **Codex session resumption for multi-iteration reviews**: Future enhancement
-- **Reasoning tier CLI flags**: Not exposed by `codex exec`; handled via prompt engineering
-- **Changes to review prompt content**: Prompt *structure* changes (multi-pass), not *substance*
+- **Custom condition expressions**: FR-1.2 uses named functions, not arbitrary expression evaluation. Custom conditions require code changes.
+- **Multi-backend parallelism**: Routes are tried sequentially (first success wins). Parallel execution across backends is deferred.
+- **Auth boundary refactor**: The Hounfour vs shell-level auth relationship is documented but not changed. Reconciliation deferred to a future Hounfour protocol cycle.
+- **Declarative prompt templates**: Prompt construction remains in code. Only routing is declarative.
+- **Cost tracking integration**: Per-pass cost attribution via Freeside metering is noted as a future direction but not implemented here.
 
 ---
 
-## 8. Risks & Dependencies
+## 7. Risks & Dependencies
 
-| # | Risk | Severity | Probability | Mitigation |
-|---|------|----------|-------------|------------|
-| R1 | Codex CLI not installed on user machines | Medium | High | Curl fallback, clear install guidance |
-| R2 | Multi-pass 3x latency in autonomous runs | High | Certain | `--fast` flag, config toggle, per-pass timeout |
-| R3 | `--output-schema` validates tool output not model response | Medium | Medium | Post-hoc JSON validation as backup |
-| R4 | Codex exec output format changes between versions | Medium | Low | Version detection + capability probing at startup (IMP-003), graceful fallback |
-| R5 | Auth state conflicts (codex login vs env var) | Low | Low | Auto-detect with clear precedence order |
-| R6 | Intermediate pass output grows context beyond limits | Medium | Medium | Hard token budgets per pass with deterministic truncation (IMP-001), auto-switch to --fast on overflow |
-| R7 | Hounfour + Codex exec config interaction complexity | Low | Low | Clear precedence: Hounfour > Codex > curl |
+### R1: YAML Parsing Reliability (Flatline SKP-001)
+**Risk**: `yq` must be available. Config parsing errors could silently fall back to defaults. YAML edge cases (empty arrays, nulls, anchors, multiline strings) are common and hard to handle safely in bash.
+**Mitigation**: Strict schema validation via `validate_route_table()`. **Fail-closed** when custom routes are present (hard error, non-zero exit). **Fail-open** only when no custom routes exist (use built-in defaults). Emit explicit `using default routes because: <reason>` log line. Test against multiple yq v4 minor versions and YAML edge cases.
 
-### External Dependencies
+### R2: Condition Function Injection
+**Risk**: If condition names are evaluated dynamically, an attacker could inject function names.
+**Mitigation**: Condition registry is a fixed associative array populated at source time. Only registered condition names are accepted. Unknown conditions are treated as false with a warning.
 
-| Dependency | Type | Status |
-|------------|------|--------|
-| `codex` CLI (npm `@openai/codex`) | Soft (optional) | GA, stable |
-| OpenAI API key | Hard (required) | Existing requirement |
-| `gpt-5.2-codex` model | Hard (primary) | Available |
-| `gpt-5.3-codex` model | Soft (future) | Not yet available |
+### R3: Adaptive Multi-Pass Model Compliance (Flatline SKP-004)
+**Risk**: Pass 1 may not return the expected `complexity` field if the model ignores schema instructions. Prompt injection in diff content could game the classifier.
+**Mitigation**: **Dual-signal classification** — do NOT base pass reduction solely on model output. Require BOTH deterministic signals from the diff itself (files changed, lines changed, presence of security-sensitive paths) AND model-produced complexity field to enter single-pass mode. Add injection-resistant parsing (strict JSON extraction + schema validation). Maintain a `never-single-pass` denylist for critical file patterns (`.claude/`, `lib-security.sh`, auth modules).
 
----
+### R3.1: Failure Semantics (Flatline SKP-003)
+**Risk**: In bash, commands can return success while producing unusable output (empty JSON, truncated response, schema mismatch). If the router treats that as success, it delivers garbage. If it treats too many cases as failure, it cascades to curl unnecessarily.
+**Mitigation**: Standardize **backend result contract**: required fields (`verdict`), minimum length, JSON validity, schema compliance. Implement a shared `validate_review_result()` gate that determines success/failure consistently across all backends. Document and test fallthrough behavior for invalid, empty, or schema-noncompliant output.
 
-## 9. Architecture Sketch
+### R3.2: Supply-Chain Risk in CI (Flatline SKP-006)
+**Risk**: If an attacker modifies `.loa.config.yaml` (or compromised repo does), they can force expensive routes, disable fallbacks, or create configurations that hang.
+**Mitigation**: Policy constraints: max routes (default 10), max total attempts, max total time per review. Allow/deny lists for backends in CI. Require explicit opt-in for non-default routing in CI via `LOA_CUSTOM_ROUTES=1` environment variable. Log effective route table hash at startup for auditability.
 
-```
-┌─────────────────────────────────────────┐
-│         gpt-review-api.sh               │
-│  ┌───────────────────────────────────┐  │
-│  │  Prompt Construction (unchanged)  │  │
-│  │  • build_first_review_prompt()    │  │
-│  │  • build_user_prompt()            │  │
-│  │  • build_re_review_prompt()       │  │
-│  └──────────────┬────────────────────┘  │
-│                 │                        │
-│  ┌──────────────▼────────────────────┐  │
-│  │       Execution Router            │  │
-│  │  Hounfour? → model-invoke         │  │
-│  │  Codex?    → codex_exec_review()  │  │
-│  │  Fallback  → call_api() [curl]    │  │
-│  └──────────────┬────────────────────┘  │
-│                 │                        │
-│  ┌──────────────▼────────────────────┐  │
-│  │   Multi-Pass Orchestrator         │  │
-│  │  Pass 1: Planning (xhigh prompt)  │  │
-│  │  Pass 2: Review (high prompt)     │  │
-│  │  Pass 3: Verify (xhigh prompt)    │  │
-│  │  --fast: Pass 2 only (combined)   │  │
-│  └──────────────┬────────────────────┘  │
-│                 │                        │
-│  ┌──────────────▼────────────────────┐  │
-│  │   Response Validation             │  │
-│  │  • Schema validation              │  │
-│  │  • Verdict extraction             │  │
-│  │  • Output persistence             │  │
-│  └───────────────────────────────────┘  │
-└─────────────────────────────────────────┘
-```
+### R4: Dependency on cycle-033
+**Risk**: This cycle modifies files created in cycle-033. If PR #401 is not merged, this cycle's changes will conflict.
+**Mitigation**: Branch from `feat/cycle-033-codex-integration` or from `main` after PR #401 merges.
 
 ---
 
-## 10. Open Questions (Resolved During Discovery)
+## 8. Technical Constraints
 
-| # | Question | Resolution | Phase |
-|---|----------|------------|-------|
-| Q1 | Archive cycle-032 or continue? | Archive, start cycle-033 | Phase 0 |
-| Q2 | Problem framing: simplification vs depth? | Accidental complexity reduction (confirmed) | Phase 1 |
-| Q3 | gpt-5.3-codex timeline? | Speculative — design for 5.2-codex | Phase 1 |
-| Q4 | Dual API path vs unified codex exec? | Codex primary, curl fallback | Phase 4 |
-| Q5 | Hounfour routing coexistence? | Keep both options via config | Phase 4 |
-| Q6 | Reasoning tier implementation? | Multi-pass codex calls (3 passes) | Phase 5 |
-| Q7 | Auth mechanism? | Auto-detect: codex auth → env var → curl | Phase 5 |
-| Q8 | MVP scope? | Full vision: codex + reasoning + fallback | Phase 6 |
-| Q9 | Multi-pass latency? | Default multi-pass, --fast for single-pass | Phase 7 |
-
----
-
-*Generated by `/plan-and-analyze` • Cycle: cycle-033 • Source: [#400](https://github.com/0xHoneyJar/loa/issues/400)*
+- **Shell only**: All changes are in bash scripts (`.claude/scripts/`). No new languages or runtimes.
+- **yq v4+ required**: Route table parsing uses `yq eval` with array iteration.
+- **python3 optional**: Used for tiktoken (Tier 1) and JSON decoder fallback (FR-5). Absence degrades gracefully.
+- **Existing library structure**: Changes to `lib-codex-exec.sh`, `lib-curl-fallback.sh`, `lib-multipass.sh`, and `gpt-review-api.sh`. New library: `lib-route-table.sh`.
+- **Test framework**: bats-core for all new tests.

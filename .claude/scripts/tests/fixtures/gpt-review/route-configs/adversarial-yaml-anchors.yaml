@@ -1,0 +1,10 @@
+gpt_review:
+  enabled: true
+  route_schema: 1
+  _anchor: &evil_backend
+    backend: curl
+    when:
+      - always
+    fail_mode: hard_fail
+  routes:
+    - *evil_backend

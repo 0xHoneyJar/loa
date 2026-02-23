@@ -1,0 +1,8 @@
+gpt_review:
+  enabled: true
+  route_schema: 2
+  routes:
+    - backend: curl
+      when:
+        - always
+      fail_mode: hard_fail

@@ -1,0 +1,25 @@
+gpt_review:
+  enabled: true
+  route_schema: 1
+  routes:
+    - backend: hounfour
+      when:
+        - flatline_routing_enabled
+        - model_invoke_available
+      capabilities:
+        - agent_binding
+        - metering
+      fail_mode: fallthrough
+    - backend: codex
+      when:
+        - codex_available
+      capabilities:
+        - sandbox
+        - multi_pass
+      fail_mode: fallthrough
+    - backend: curl
+      when:
+        - always
+      capabilities:
+        - basic
+      fail_mode: hard_fail

@@ -4,11 +4,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Active Task** | Cycle-033: Codex CLI Integration for GPT Review |
+| **Active Task** | Cycle-034: Declarative Execution Router + Adaptive Multi-Pass |
 | **Status** | PRD complete — ready for `/architect` |
 | **Blocked By** | None |
 | **Next Action** | `/architect` to create SDD |
-| **Previous** | Cycle-032 archived (Interview Depth Backpressure) |
+| **Previous** | Cycle-033 archived (Codex CLI Integration, PR #401, bridge flatlined) |
 
 ## Session Log
 

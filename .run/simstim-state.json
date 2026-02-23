@@ -1,11 +1,11 @@
 {
-  "simstim_id": "simstim-20260223-c033cx",
+  "simstim_id": "simstim-20260223-c034dr",
   "schema_version": 1,
   "state": "RUNNING",
   "phase": "implementation",
   "timestamps": {
-    "started": "2026-02-23T05:01:00Z",
-    "last_activity": "2026-02-23T05:48:00Z"
+    "started": "2026-02-23T12:00:00Z",
+    "last_activity": "2026-02-23T15:00:00Z"
   },
   "phases": {
     "preflight": "completed",
@@ -22,57 +22,36 @@
   "artifacts": {
     "prd": {
       "path": "grimoires/loa/prd.md",
-      "checksum": "sha256:144c10d10decf0f7910b74fc56d194075c33bd27575716ec5288cd1f769042e7"
+      "checksum": "sha256:a4fcbbbd131bbec275682ceb5c3b2928ed26739813799ba7dd722db3c58fd3a5"
     },
     "sdd": {
       "path": "grimoires/loa/sdd.md",
-      "checksum": "sha256:89fdd7b52ef6dcc7926159af044a64b426fc8976dfea86e097e7b2f28db17061"
+      "checksum": "sha256:fd8a1b4879e6e5d8f5df4625a8059d71f12cafbcd66f08c00f84155fabd94ef1"
     },
     "sprint": {
       "path": "grimoires/loa/sprint.md",
-      "checksum": "sha256:da3c47a506fa367fac990f5c36edd14e0b92f845da48cd098c88cfa684767613"
+      "checksum": "sha256:c20210b9c890c90833925d1301719938fba0cc1b290c3ea2dde535094b5c3401"
     }
   },
   "flatline_results": {
-    "prd": {
-      "high_consensus": 5,
-      "disputed": 0,
-      "blockers": 5,
-      "integrated": ["IMP-001", "IMP-002", "IMP-003", "IMP-004", "IMP-009"],
-      "blocker_resolutions": {
-        "SKP-001": "accepted_partially",
-        "SKP-002": "accepted_fully",
-        "SKP-003": "overridden",
-        "SKP-004": "overridden",
-        "SKP-005": "accepted_fully"
-      }
-    },
     "sdd": {
-      "high_consensus": 6,
-      "disputed": 0,
-      "blockers": 4,
-      "integrated": ["IMP-001", "IMP-002", "IMP-003", "IMP-004", "IMP-005", "IMP-007"],
-      "blocker_resolutions": {
-        "SKP-001": "accepted_partially",
-        "SKP-002": "accepted_fully",
-        "SKP-003": "accepted",
-        "SKP-004": "accepted"
-      }
+      "high_consensus_integrated": 3,
+      "disputed_rejected": 1,
+      "blockers_accepted": 1,
+      "blockers_rejected": 1
     },
     "sprint": {
-      "high_consensus": 4,
-      "disputed": 0,
-      "blockers": 4,
-      "integrated": ["IMP-001", "IMP-002", "IMP-003", "IMP-004"],
-      "blocker_resolutions": {
-        "SKP-001": "accepted_fully",
-        "SKP-002": "accepted",
-        "SKP-004": "accepted",
-        "SKP-006": "accepted"
-      }
+      "high_consensus_integrated": 5,
+      "disputed_accepted": 1,
+      "disputed_rejected": 1,
+      "blockers_accepted": 5,
+      "blockers_rejected": 0
     }
   },
-  "cycle": "cycle-033",
-  "title": "Codex CLI Integration for GPT Review",
-  "implementation_mode": "run-bridge"
+  "ledger": {
+    "sprints_registered": 3,
+    "global_ids": ["sprint-41", "sprint-42", "sprint-43"]
+  },
+  "cycle": "cycle-034",
+  "title": "Declarative Execution Router + Adaptive Multi-Pass"
 }

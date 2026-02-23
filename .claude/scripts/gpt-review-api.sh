@@ -20,6 +20,7 @@ source "$SCRIPT_DIR/lib-security.sh"
 source "$SCRIPT_DIR/lib-codex-exec.sh"
 source "$SCRIPT_DIR/lib-curl-fallback.sh"
 source "$SCRIPT_DIR/lib-multipass.sh"
+source "$SCRIPT_DIR/lib-route-table.sh"
 
 declare -A DEFAULT_MODELS=(["prd"]="gpt-5.2" ["sdd"]="gpt-5.2" ["sprint"]="gpt-5.2" ["code"]="gpt-5.2-codex")
 declare -A PHASE_KEYS=(["prd"]="prd" ["sdd"]="sdd" ["sprint"]="sprint" ["code"]="implementation")
@@ -88,8 +89,8 @@ build_re_review_prompt() {
   printf '%s%s' "$sp" "$rp"
 }
 
-# Execution Router (SDD §3.1): Hounfour → Codex (multi/single) → curl
-route_review() {
+# Legacy Execution Router (cycle-033): preserved for LOA_LEGACY_ROUTER=1 kill-switch
+_route_review_legacy() {
   local model="$1" sys="$2" usr="$3" timeout="$4" fast="${5:-false}" ta="${6:-false}"
   local rm="${7:-single-pass}" rtype="${8:-code}"
   local em="auto"
@@ -97,18 +98,15 @@ route_review() {
     local c; c=$(yq eval '.gpt_review.execution_mode // "auto"' "$CONFIG_FILE" 2>/dev/null || echo "auto")
     [[ -n "$c" && "$c" != "null" ]] && em="$c"
   }
-  # Route 1: Hounfour
   if [[ "$em" != "curl" ]] && is_flatline_routing_enabled && [[ -x "$MODEL_INVOKE" ]]; then
     local r me=0; r=$(call_api_via_model_invoke "$model" "$sys" "$usr" "$timeout") || me=$?
     [[ $me -eq 0 ]] && { echo "$r"; return 0; }
     log "WARNING: model-invoke failed (exit $me), trying next backend"
   fi
-  # Route 2: Codex
   if [[ "$em" != "curl" ]]; then
     local ce=0; codex_is_available || ce=$?
     if [[ $ce -eq 0 ]]; then
       local ws of; ws=$(setup_review_workspace "" "$ta"); of=$(mktemp "${ws}/out-$$.XXXXXX")
-      # Route 2a: Multi-pass (SDD §3.3)
       if [[ "$rm" == "multi-pass" && "$fast" != "true" ]]; then
         local me=0; run_multipass "$sys" "$usr" "$model" "$ws" "$timeout" "$of" "$rtype" "$ta" || me=$?
         if [[ $me -eq 0 && -s "$of" ]]; then
@@ -121,10 +119,8 @@ route_review() {
           [[ "$em" == "codex" ]] && { error "Codex multipass failed (exit $me)"; return 2; }
           log "WARNING: multipass failed (exit $me), falling back to single-pass codex"
         fi
-        # Re-create workspace for single-pass fallback
         ws=$(setup_review_workspace "" "$ta"); of=$(mktemp "${ws}/out-$$.XXXXXX")
       fi
-      # Route 2b: Single-pass codex
       local cp; cp=$(printf '%s\n\n---\n\n## CONTENT TO REVIEW:\n\n%s\n\n---\n\nRespond with valid JSON only. Include "verdict": "APPROVED"|"CHANGES_REQUIRED"|"DECISION_NEEDED".' "$sys" "$usr")
       local ee=0; codex_exec_single "$cp" "$model" "$of" "$ws" "$timeout" || ee=$?
       if [[ $ee -eq 0 && -s "$of" ]]; then
@@ -142,8 +138,46 @@ route_review() {
       error "Codex unavailable (exit $ce), execution_mode=codex (hard fail)"; return 2
     fi
   fi
-  # Route 3: curl fallback
   call_api "$model" "$sys" "$usr" "$timeout"
+}
+
+# Execution Router (SDD §3.2): Declarative route table
+# Precedence (IMP-009): LOA_LEGACY_ROUTER > LOA_CUSTOM_ROUTES > execution_mode > routes > defaults
+route_review() {
+  local model="$1" sys="$2" usr="$3" timeout="$4" fast="${5:-false}" ta="${6:-false}"
+  local rm="${7:-single-pass}" rtype="${8:-code}"
+
+  # Kill-switch (Flatline IMP-001): bypass declarative router
+  if [[ "${LOA_LEGACY_ROUTER:-}" == "1" ]]; then
+    log "[route-table] using legacy router (LOA_LEGACY_ROUTER=1)"
+    _route_review_legacy "$model" "$sys" "$usr" "$timeout" "$fast" "$ta" "$rm" "$rtype"
+    return $?
+  fi
+
+  # Initialize route table (once per invocation)
+  init_route_table "$CONFIG_FILE" || return $?
+
+  # Apply execution_mode filter if set (routes take precedence with warning)
+  local em="auto"
+  [[ -f "$CONFIG_FILE" ]] && command -v yq &>/dev/null && {
+    local c; c=$(yq eval '.gpt_review.execution_mode // "auto"' "$CONFIG_FILE" 2>/dev/null || echo "auto")
+    [[ -n "$c" && "$c" != "null" ]] && em="$c"
+  }
+  [[ "$em" != "auto" ]] && _rt_apply_execution_mode "$em"
+
+  # Log effective table
+  log_route_table
+
+  # Execute
+  local rc=0
+  execute_route_table "$model" "$sys" "$usr" "$timeout" "$fast" "$ta" "$rm" "$rtype" || rc=$?
+
+  # Backward compat: execution_mode=codex failures must return exit 2 (hard fail)
+  if [[ $rc -ne 0 && "$em" == "codex" ]]; then
+    error "execution_mode=codex — hard fail (exit 2)"
+    return 2
+  fi
+  return $rc
 }
 
 usage() {
