@@ -37,10 +37,10 @@ _LIB_CURL_FALLBACK_LOADED="true"
 
 # Ensure lib-security.sh is loaded (for ensure_codex_auth)
 if [[ "${_LIB_SECURITY_LOADED:-}" != "true" ]]; then
-  local _lib_dir
   _lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   # shellcheck source=lib-security.sh
   source "$_lib_dir/lib-security.sh"
+  unset _lib_dir
 fi
 
 # =============================================================================
@@ -281,7 +281,7 @@ call_api() {
         ;;
       *)
         echo "ERROR: API returned HTTP $http_code" >&2
-        echo "[gpt-review-api] Response: $response" >&2
+        echo "[gpt-review-api] Response (truncated): ${response:0:200}" >&2
         return 1
         ;;
     esac

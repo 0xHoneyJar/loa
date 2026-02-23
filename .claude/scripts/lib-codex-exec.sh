@@ -43,10 +43,10 @@ _LIB_CODEX_EXEC_LOADED="true"
 # =============================================================================
 
 if [[ "${_LIB_SECURITY_LOADED:-}" != "true" ]]; then
-  local _lib_dir
   _lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   # shellcheck source=lib-security.sh
   source "$_lib_dir/lib-security.sh"
+  unset _lib_dir
 fi
 
 # =============================================================================
@@ -131,7 +131,7 @@ detect_capabilities() {
   # Hash version for cache key
   local version_hash
   version_hash=$(echo "$version_output" | md5sum | cut -c1-8)
-  local cache_file="${_CODEX_CACHE_DIR}/loa-codex-caps-${version_hash}-$$.json"
+  local cache_file="${_CODEX_CACHE_DIR}/loa-codex-caps-${version_hash}.json"
 
   # Return cached if exists
   if [[ -f "$cache_file" ]]; then
@@ -308,9 +308,9 @@ parse_codex_output() {
     return 0
   fi
 
-  # 3. Greedy JSON extraction: extract JSON object substring
+  # 3. Greedy JSON extraction: extract JSON object substring (supports 2 levels of nesting)
   local greedy
-  greedy=$(echo "$raw" | grep -oP '\{(?:[^{}]|\{[^{}]*\})*\}' 2>/dev/null | head -1) || greedy=""
+  greedy=$(echo "$raw" | grep -oP '\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}' 2>/dev/null | head -1) || greedy=""
   if [[ -n "$greedy" ]] && echo "$greedy" | jq empty 2>/dev/null; then
     echo "$greedy" | jq '.'
     return 0

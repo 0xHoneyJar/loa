@@ -75,10 +75,11 @@ teardown() {
   [ $? -eq 0 ]
 }
 
-@test "detect_capabilities: cache is PID-scoped" {
+@test "detect_capabilities: cache is version-scoped" {
   local cache_file
   cache_file=$(detect_capabilities)
-  [[ "$cache_file" == *"-$$.json" ]]
+  # Cache key is version hash (8 chars), not PID-scoped — avoids accumulating temp files
+  [[ "$cache_file" == *"/loa-codex-caps-"*".json" ]]
 }
 
 @test "detect_capabilities: returns cached file on second call" {

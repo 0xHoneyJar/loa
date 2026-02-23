@@ -181,9 +181,7 @@ _redact_json() {
   jq_filter+=' else . end)'
 
   local redacted
-  redacted=$(echo "$content" | jq "$jq_filter" 2>/dev/null)
-
-  if [[ $? -ne 0 ]] || [[ -z "$redacted" ]]; then
+  if ! redacted=$(echo "$content" | jq "$jq_filter" 2>/dev/null) || [[ -z "$redacted" ]]; then
     echo "[gpt-review-security] ERROR: jq redaction failed, returning original" >&2
     echo "$content"
     return 1
@@ -255,8 +253,8 @@ is_sensitive_file() {
         esac
         ;;
       *)
-        # Exact match — match against basename or full path
-        if [[ "$basename" == "$pattern" ]] || [[ "$filepath" == *"$pattern"* ]]; then
+        # Exact match — match against basename or path suffix
+        if [[ "$basename" == "$pattern" ]] || [[ "$filepath" == *"/$pattern" ]]; then
           return 0
         fi
         ;;
