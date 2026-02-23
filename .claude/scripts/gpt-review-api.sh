@@ -134,7 +134,8 @@ Options:
   --iteration <N>      Review iteration (1=first, 2+=re-review)
   --previous <file>    Previous findings JSON (for iteration > 1)
   --output <file>      Write JSON response to file
-  --fast               Single-pass mode    --tool-access        Repo-root file access for Codex
+  --fast               Single-pass mode
+  --tool-access        Repo-root file access for Codex
 Environment: OPENAI_API_KEY (required, env var only)
 USAGE
 }
