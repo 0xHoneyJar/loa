@@ -414,7 +414,16 @@
           "label": "Integration + Hardening",
           "status": "completed"
         }
-      ]
+      ],
+      "bridge": {
+        "id": "bridge-20260223-33d02a",
+        "iterations": 3,
+        "findings_addressed": 10,
+        "score_trajectory": "22 → 8 → 0",
+        "tests_final": 117,
+        "flatline": true
+      },
+      "pr": 401
     }
   ]
 }
