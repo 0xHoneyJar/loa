@@ -1496,6 +1496,31 @@ verify_mount() {
     errors=$((errors + 1))
   fi
 
+  # Check 1b: Symlink health (submodule mode) — Task 3.4, cycle-035 sprint-3
+  if [[ -f "$VERSION_FILE" ]]; then
+    local install_mode
+    install_mode=$(jq -r '.installation_mode // "standard"' "$VERSION_FILE" 2>/dev/null)
+    if [[ "$install_mode" == "submodule" ]]; then
+      local symlink_ok=true
+      for sl in .claude/scripts .claude/protocols .claude/hooks .claude/data .claude/schemas; do
+        if [[ -L "$sl" && -e "$sl" ]]; then
+          : # symlink exists and resolves
+        elif [[ -d "$sl" && ! -L "$sl" ]]; then
+          : # real directory (vendored) — ok
+        else
+          symlink_ok=false
+          break
+        fi
+      done
+      if [[ "$symlink_ok" == "true" ]]; then
+        checks+=('{"name":"symlinks","status":"pass","detail":"Submodule symlinks healthy"}')
+      else
+        checks+=('{"name":"symlinks","status":"warn","detail":"Submodule symlinks need repair. Run: .loa/.claude/scripts/mount-submodule.sh --reconcile"}')
+        warnings=$((warnings + 1))
+      fi
+    fi
+  fi
+
   # Check 2: Configuration
   if [[ -f ".loa.config.yaml" ]]; then
     checks+=('{"name":"config","status":"pass","detail":".loa.config.yaml created"}')

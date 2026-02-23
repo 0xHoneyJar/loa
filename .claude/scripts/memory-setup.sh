@@ -14,7 +14,8 @@ set -euo pipefail
 # =============================================================================
 
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-LOA_DIR="${PROJECT_ROOT}/.loa"
+# Memory Stack relocated from .loa/ to .loa-cache/ to avoid submodule collision (cycle-035)
+LOA_DIR="${PROJECT_ROOT}/.loa-cache"
 CONFIG_FILE="${PROJECT_ROOT}/.loa.config.yaml"
 SETTINGS_FILE="${PROJECT_ROOT}/.claude/settings.json"
 MEMORY_ADMIN="${PROJECT_ROOT}/.claude/scripts/memory-admin.sh"
@@ -97,7 +98,7 @@ check_dependencies() {
     else
         log_warn "sentence-transformers not installed"
         echo ""
-        echo -e "    Install with: ${BOLD}python3 -m venv .loa/venv && .loa/venv/bin/pip install sentence-transformers${NC}"
+        echo -e "    Install with: ${BOLD}python3 -m venv .loa-cache/venv && .loa-cache/venv/bin/pip install sentence-transformers${NC}"
         echo ""
         all_ok=false
     fi
@@ -315,7 +316,7 @@ Options:
 
 This script:
   1. Checks required dependencies (Python, sentence-transformers, SQLite)
-  2. Initializes the memory database (.loa/memory.db)
+  2. Initializes the memory database (.loa-cache/memory.db)
   3. Tests the embedding service
   4. Optionally enables features in configuration
 

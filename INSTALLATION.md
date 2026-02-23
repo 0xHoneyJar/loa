@@ -264,7 +264,7 @@ cargo install ck-search
 
 # Or manual setup
 pip install sentence-transformers
-mkdir -p .loa
+mkdir -p .loa-cache
 ```
 
 **Configuration** (add to `.loa.config.yaml`):
@@ -635,6 +635,68 @@ git checkout --theirs .claude/
 # Keep your changes for grimoires/loa/
 git checkout --ours grimoires/loa/
 ```
+
+## CI/CD Configuration
+
+When using submodule mode in CI/CD environments, you must ensure the submodule is initialized. Without `--recurse-submodules`, the `.loa/` directory will be empty and Loa will not function.
+
+### GitHub Actions
+
+```yaml
+# .github/workflows/ci.yml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive   # Required for Loa submodule
+          # fetch-depth: 0       # Optional: full history for git describe
+
+      # Loa symlinks are recreated automatically on mount
+      - name: Verify Loa
+        run: |
+          ls .loa/.claude/scripts/  # Verify submodule is populated
+```
+
+### GitLab CI
+
+```yaml
+# .gitlab-ci.yml
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive  # Required for Loa submodule
+
+build:
+  script:
+    - ls .loa/.claude/scripts/  # Verify submodule is populated
+```
+
+### Shallow Clones
+
+Shallow clones (`--depth 1`) work with submodules. Combine both flags:
+
+```bash
+git clone --depth 1 --recurse-submodules https://github.com/your-org/your-repo.git
+```
+
+In GitHub Actions:
+
+```yaml
+- uses: actions/checkout@v4
+  with:
+    submodules: recursive
+    fetch-depth: 1  # Shallow clone + submodule works
+```
+
+### Post-Clone Recovery
+
+If a clone was made without `--recurse-submodules`, initialize manually:
+
+```bash
+git submodule update --init .loa
+```
+
+Loa's mount script also auto-detects uninitialized submodules and runs this automatically when `/mount` is invoked.
 
 ## Uninstalling Loa
 

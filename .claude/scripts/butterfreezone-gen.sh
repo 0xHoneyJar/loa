@@ -682,6 +682,13 @@ extract_agent_context() {
     fi
     [[ -z "$version" || "$version" == "null" ]] && version="unknown"
 
+    # Installation mode: detect from .loa-version.json (Task 3.4, cycle-035 sprint-3)
+    local install_mode="unknown"
+    if [[ -f ".loa-version.json" ]] && command -v jq &>/dev/null; then
+        install_mode=$(jq -r '.installation_mode // "unknown"' .loa-version.json 2>/dev/null) || true
+    fi
+    [[ -z "$install_mode" || "$install_mode" == "null" ]] && install_mode="unknown"
+
     # Purpose: use shared multi-strategy extraction (SDD §2.6.2)
     purpose=$(extract_project_description)
 
@@ -896,6 +903,7 @@ key_files: ${key_files}
 ${interfaces}
 dependencies: ${deps}${ecosystem_block}${cap_req_block}
 version: ${version}
+installation_mode: ${install_mode}
 trust_level: ${trust_tag}
 -->
 EOF

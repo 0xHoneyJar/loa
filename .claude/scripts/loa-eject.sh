@@ -402,10 +402,179 @@ preflight() {
   log "Pre-flight checks passed"
 }
 
+# === Detect Installation Mode (Task 3.5, cycle-035 sprint-3) ===
+
+detect_installation_mode() {
+  if [[ ! -f "$VERSION_FILE" ]]; then
+    echo "standard"
+    return
+  fi
+  local mode
+  mode=$(jq -r '.installation_mode // "standard"' "$VERSION_FILE" 2>/dev/null) || true
+  echo "${mode:-standard}"
+}
+
+# === Submodule Eject (Task 3.5, cycle-035 sprint-3) ===
+# Converts submodule installation to vendored by:
+# 1. Copying framework files from .loa/.claude/ into .claude/ (replacing symlinks)
+# 2. Deinitializing the git submodule
+# 3. Updating .loa-version.json to standard mode
+
+eject_submodule() {
+  local submodule_path
+  submodule_path=$(jq -r '.submodule.path // ".loa"' "$VERSION_FILE" 2>/dev/null) || true
+  submodule_path="${submodule_path:-.loa}"
+
+  if [[ ! -d "$submodule_path/.claude" ]]; then
+    err "Submodule at $submodule_path does not contain .claude/ directory. Cannot eject."
+  fi
+
+  step "Ejecting from submodule mode..."
+
+  # === Phase 1: Replace symlinks with real copies ===
+  step "Replacing symlinks with real files..."
+  local replaced=0
+
+  # Directory symlinks: scripts, protocols, hooks, data, schemas
+  for dir_link in scripts protocols hooks data schemas; do
+    local link_path=".claude/${dir_link}"
+    if [[ -L "$link_path" ]]; then
+      local target
+      target=$(readlink "$link_path")
+      if [[ "$DRY_RUN" == "true" ]]; then
+        step "[dry-run] Would replace symlink: $link_path"
+      else
+        rm -f "$link_path"
+        if [[ -d "${submodule_path}/.claude/${dir_link}" ]]; then
+          cp -r "${submodule_path}/.claude/${dir_link}" "$link_path"
+          log "  Replaced: $link_path (symlink -> real directory)"
+          ((replaced++)) || true
+        fi
+      fi
+    fi
+  done
+
+  # File symlinks under .claude/loa/
+  for loa_item in CLAUDE.loa.md reference learnings feedback-ontology.yaml; do
+    local link_path=".claude/loa/${loa_item}"
+    if [[ -L "$link_path" ]]; then
+      if [[ "$DRY_RUN" == "true" ]]; then
+        step "[dry-run] Would replace symlink: $link_path"
+      else
+        rm -f "$link_path"
+        local src="${submodule_path}/.claude/loa/${loa_item}"
+        if [[ -e "$src" ]]; then
+          cp -r "$src" "$link_path"
+          log "  Replaced: $link_path"
+          ((replaced++)) || true
+        fi
+      fi
+    fi
+  done
+
+  # Per-skill symlinks
+  if [[ -d ".claude/skills" ]]; then
+    for skill_link in .claude/skills/*/; do
+      skill_link="${skill_link%/}"
+      if [[ -L "$skill_link" ]]; then
+        local skill_name
+        skill_name=$(basename "$skill_link")
+        if [[ "$DRY_RUN" == "true" ]]; then
+          step "[dry-run] Would replace skill symlink: $skill_name"
+        else
+          rm -f "$skill_link"
+          if [[ -d "${submodule_path}/.claude/skills/${skill_name}" ]]; then
+            cp -r "${submodule_path}/.claude/skills/${skill_name}" "$skill_link"
+            log "  Replaced skill: $skill_name"
+            ((replaced++)) || true
+          fi
+        fi
+      fi
+    done
+  fi
+
+  # Per-command symlinks
+  if [[ -d ".claude/commands" ]]; then
+    for cmd_link in .claude/commands/*.md; do
+      if [[ -L "$cmd_link" ]]; then
+        local cmd_name
+        cmd_name=$(basename "$cmd_link")
+        if [[ "$DRY_RUN" == "true" ]]; then
+          step "[dry-run] Would replace command symlink: $cmd_name"
+        else
+          rm -f "$cmd_link"
+          if [[ -f "${submodule_path}/.claude/commands/${cmd_name}" ]]; then
+            cp "${submodule_path}/.claude/commands/${cmd_name}" "$cmd_link"
+            log "  Replaced command: $cmd_name"
+            ((replaced++)) || true
+          fi
+        fi
+      fi
+    done
+  fi
+
+  # Settings symlinks
+  for config_file in settings.json settings.local.json checksums.json; do
+    local link_path=".claude/${config_file}"
+    if [[ -L "$link_path" ]]; then
+      if [[ "$DRY_RUN" == "true" ]]; then
+        step "[dry-run] Would replace symlink: $link_path"
+      else
+        rm -f "$link_path"
+        if [[ -f "${submodule_path}/.claude/${config_file}" ]]; then
+          cp "${submodule_path}/.claude/${config_file}" "$link_path"
+          log "  Replaced: $link_path"
+          ((replaced++)) || true
+        fi
+      fi
+    fi
+  done
+
+  log "Replaced $replaced symlinks with real files"
+
+  # === Phase 2: Deinit submodule ===
+  if [[ "$DRY_RUN" == "true" ]]; then
+    step "[dry-run] Would deinit submodule: $submodule_path"
+    step "[dry-run] Would remove submodule entry from .gitmodules"
+  else
+    step "Deinitializing submodule..."
+    git submodule deinit -f "$submodule_path" 2>/dev/null || warn "submodule deinit returned non-zero"
+    git rm -f "$submodule_path" 2>/dev/null || warn "git rm submodule returned non-zero"
+    rm -rf ".git/modules/${submodule_path}" 2>/dev/null || true
+    rm -rf "$submodule_path" 2>/dev/null || true
+    # Remove .gitmodules if empty
+    if [[ -f ".gitmodules" ]] && [[ ! -s ".gitmodules" ]]; then
+      rm -f ".gitmodules"
+    fi
+    log "Submodule removed: $submodule_path"
+  fi
+
+  # === Phase 3: Update version manifest ===
+  if [[ "$DRY_RUN" == "true" ]]; then
+    step "[dry-run] Would update .loa-version.json to standard mode"
+  else
+    if [[ -f "$VERSION_FILE" ]]; then
+      local tmp
+      tmp=$(mktemp)
+      jq '.installation_mode = "standard" | del(.submodule)' "$VERSION_FILE" > "$tmp"
+      mv "$tmp" "$VERSION_FILE"
+      log "Updated $VERSION_FILE: installation_mode = standard"
+    fi
+  fi
+}
+
 # === Main Eject Process ===
 
 eject_files() {
   log "Starting eject process..."
+
+  # === 0. Detect installation mode and handle submodule (Task 3.5) ===
+  local install_mode
+  install_mode=$(detect_installation_mode)
+  if [[ "$install_mode" == "submodule" ]]; then
+    step "Detected submodule installation mode"
+    eject_submodule
+  fi
 
   # === 1. Create Backup ===
   step "Creating backup..."

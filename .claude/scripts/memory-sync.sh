@@ -21,7 +21,8 @@ source "$SCRIPT_DIR/bootstrap.sh"
 
 MEMORY_ADMIN="${PROJECT_ROOT}/.claude/scripts/memory-admin.sh"
 NOTES_FILE=$(get_notes_path)
-SYNC_STATE_FILE="${PROJECT_ROOT}/.loa/sync_state.json"
+# Memory Stack relocated from .loa/ to .loa-cache/ to avoid submodule collision (cycle-035)
+SYNC_STATE_FILE="${PROJECT_ROOT}/.loa-cache/sync_state.json"
 TRAJECTORY_DIR=$(get_trajectory_dir)
 
 # Colors
