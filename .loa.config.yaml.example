@@ -87,64 +87,6 @@ plan_and_analyze:
     skip_on_ride_error: false
 
 # -----------------------------------------------------------------------------
-# GPT Review Configuration (v1.42.0 — cycle-033)
-# -----------------------------------------------------------------------------
-# Controls GPT cross-model review behavior, execution backend routing,
-# and multi-pass reasoning configuration.
-gpt_review:
-  enabled: true                    # Global enable/disable for auto-triggered reviews
-
-  # Execution backend: codex | curl | auto (default: auto)
-  # auto: Try Codex CLI first, fall back to curl on failure
-  # codex: Codex CLI only — hard fail if unavailable
-  # curl: Direct OpenAI API via curl only — skip Codex entirely
-  execution_mode: auto
-
-  # Reasoning mode: multi-pass | single-pass (default: multi-pass)
-  # multi-pass: 3-pass reasoning sandwich (xhigh/high/xhigh) — deeper analysis
-  # single-pass: Single codex invocation — faster, lower quality
-  # Override per-invocation with --fast flag (forces single-pass)
-  reasoning_mode: multi-pass
-
-  # Enable repo-root file access for Codex (default: false)
-  # When false (recommended): review content passed as inline diff only
-  # When true: Codex gets --cd <repo-root> with allow-list file copying
-  # Override per-invocation with --tool-access flag
-  tool_access: false
-
-  # Per-pass token budgets for multi-pass mode
-  # Tokens are estimated as chars/4 (with tiktoken if available)
-  pass_budgets:
-    pass1_output: 4000             # Max tokens for Pass 1 (planning) output
-    pass2_input: 20000             # Max tokens for Pass 2 input (full context)
-    pass2_output: 6000             # Max tokens for Pass 2 (review) output
-    pass3_input: 6000              # Max tokens for Pass 3 input (findings)
-
-  # Per-pass timeouts (seconds) — wraps each codex exec with timeout(1)
-  pass_timeouts:
-    pass1: 120                     # Pass 1 (xhigh reasoning) timeout
-    pass2: 90                      # Pass 2 (high reasoning) timeout
-    pass3: 120                     # Pass 3 (xhigh verification) timeout
-    total: 360                     # Total ceiling for all 3 passes
-
-  # Review phases — enable/disable per review type
-  phases:
-    prd: true
-    sdd: true
-    sprint: true
-    implementation: true
-
-  # Model overrides (default: gpt-5.2 for docs, gpt-5.2-codex for code)
-  # models:
-  #   documents: gpt-5.2
-  #   code: gpt-5.2-codex
-
-  # timeout_seconds: 300           # Per-call timeout (default: 300)
-  # max_iterations: 3              # Auto-approve after N iterations
-  # max_review_tokens: 30000       # Content budget (tokens)
-  # system_zone_alert: true        # Elevated scrutiny for .claude/ changes
-
-# -----------------------------------------------------------------------------
 # Interview Depth Configuration (v1.41.0)
 # -----------------------------------------------------------------------------
 # Controls question depth, input style, and pacing across planning skills.
