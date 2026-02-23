@@ -1737,8 +1737,10 @@ Detailed specifications for complex behaviors:
 Bash utilities for deterministic operations:
 
 **Core Scripts**:
-- `.claude/scripts/mount-loa.sh` - One-command install onto existing repo
-- `.claude/scripts/update.sh` - Framework updates with migration gates
+- `.claude/scripts/mount-loa.sh` - One-command install (submodule mode by default, `--vendored` for legacy)
+- `.claude/scripts/mount-submodule.sh` - Submodule-specific mount logic with symlink creation
+- `.claude/scripts/update-loa.sh` - Unified update (submodule: fetch+checkout, vendored: delegates to update.sh)
+- `.claude/scripts/update.sh` - Framework updates with migration gates (vendored mode)
 - `.claude/scripts/check-loa.sh` - CI validation script (integrity, schema, zones)
 - `.claude/scripts/detect-drift.sh` - Code vs documentation drift detection
 - `.claude/scripts/validate-change-plan.sh` - Pre-implementation change validation

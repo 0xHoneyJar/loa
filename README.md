@@ -28,8 +28,11 @@ In William Gibson's Sprawl trilogy, Loa are AI entities that "ride" humans throu
 **Prerequisites**: [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (Anthropic's CLI for Claude), Git, jq, [yq v4+](https://github.com/mikefarah/yq). See **[INSTALLATION.md](INSTALLATION.md)** for full details.
 
 ```bash
-# Install (one command, any existing repo)
+# Install (one command, any existing repo — adds Loa as git submodule)
 curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash
+
+# Or pin to a specific version
+curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash -s -- --tag v1.39.0
 
 # Start Claude Code
 claude
@@ -42,7 +45,7 @@ claude
 /ship      # Deploy and archive
 ```
 
-After install, you should see a `.claude/` directory, `grimoires/loa/`, and `.loa.config.yaml` in your repo. Run `/loa doctor` inside Claude Code to verify everything is healthy.
+After install, you should see `.loa/` (submodule), `.claude/` (symlinks), `grimoires/loa/`, and `.loa.config.yaml` in your repo. Run `/loa doctor` inside Claude Code to verify everything is healthy.
 
 Not sure where you are? `/loa` shows your current state, health, and next step.
 

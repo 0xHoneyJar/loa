@@ -52,6 +52,9 @@ VERSION_FILE=".loa-version.json"
 CONFIG_FILE=".loa.config.yaml"
 FORCE_MODE=false
 NO_COMMIT=false
+CHECK_SYMLINKS=false
+RECONCILE_SYMLINKS=false
+SOURCE_ONLY=false
 
 # === Argument Parsing ===
 while [[ $# -gt 0 ]]; do
@@ -76,6 +79,19 @@ while [[ $# -gt 0 ]]; do
       NO_COMMIT=true
       shift
       ;;
+    --check-symlinks)
+      CHECK_SYMLINKS=true
+      shift
+      ;;
+    --reconcile)
+      RECONCILE_SYMLINKS=true
+      shift
+      ;;
+    --source-only)
+      # Allow sourcing this script for its functions without running main
+      SOURCE_ONLY=true
+      shift
+      ;;
     -h|--help)
       echo "Usage: mount-submodule.sh [OPTIONS]"
       echo ""
@@ -87,6 +103,8 @@ while [[ $# -gt 0 ]]; do
       echo "  --ref <ref>       Loa ref to pin to (commit, branch, or tag)"
       echo "  --force, -f       Force remount without prompting"
       echo "  --no-commit       Skip creating git commit after mount"
+      echo "  --check-symlinks  Check symlink health (no changes)"
+      echo "  --reconcile       Check and fix symlink health"
       echo "  -h, --help        Show this help message"
       echo ""
       echo "Examples:"
@@ -125,6 +143,32 @@ yq_read() {
   else
     yq -r "${path} // \"${default}\"" "$file" 2>/dev/null
   fi
+}
+
+# === Memory Stack Path Utility (Task 2.3 — cycle-035 sprint-2) ===
+# Returns the canonical Memory Stack path, checking both new (.loa-cache/)
+# and legacy (.loa/) locations. Reusable across scripts.
+# Returns: path on stdout, exit 0 if found, exit 1 if no Memory Stack exists.
+get_memory_stack_path() {
+  local project_root="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+
+  # Priority 1: New location (.loa-cache/) — post-migration
+  if [[ -d "${project_root}/.loa-cache" ]]; then
+    echo "${project_root}/.loa-cache"
+    return 0
+  fi
+
+  # Priority 2: Legacy location (.loa/) — only if NOT a git submodule
+  if [[ -d "${project_root}/.loa" ]]; then
+    if [[ -f "${project_root}/.gitmodules" ]] && grep -q ".loa" "${project_root}/.gitmodules" 2>/dev/null; then
+      # .loa/ is a submodule, not Memory Stack data
+      return 1
+    fi
+    echo "${project_root}/.loa"
+    return 0
+  fi
+
+  return 1
 }
 
 # === Memory Stack Relocation (Flatline IMP-002) ===
@@ -742,8 +786,159 @@ update_gitignore_for_submodule() {
   log ".gitignore updated for submodule mode"
 }
 
+# === Verify and Reconcile Symlinks (Task 2.6 — cycle-035 sprint-2) ===
+# Authoritative symlink manifest. Detects dangling, removes stale, recreates from manifest.
+# Uses canonical path resolver (realpath) to avoid CWD assumptions (Flatline SKP-002).
+# Returns: 0 if all healthy, 1 if issues were found (and fixed in reconcile mode).
+verify_and_reconcile_symlinks() {
+  local reconcile="${1:-true}"  # true = fix issues, false = check only
+  local repo_root
+  repo_root=$(get_repo_root)
+
+  local submodule="${SUBMODULE_PATH:-.loa}"
+  local fixed=0
+  local dangling=0
+  local stale=0
+  local ok=0
+
+  # Authoritative symlink manifest: link_path -> target_path (relative from link parent)
+  # Phase 1: Directory symlinks
+  local -a dir_symlinks=(
+    ".claude/scripts:../${submodule}/.claude/scripts"
+    ".claude/protocols:../${submodule}/.claude/protocols"
+    ".claude/hooks:../${submodule}/.claude/hooks"
+    ".claude/data:../${submodule}/.claude/data"
+    ".claude/schemas:../${submodule}/.claude/schemas"
+  )
+
+  # Phase 2: File/nested symlinks
+  local -a file_symlinks=(
+    ".claude/loa/CLAUDE.loa.md:../../${submodule}/.claude/loa/CLAUDE.loa.md"
+    ".claude/loa/reference:../../${submodule}/.claude/loa/reference"
+    ".claude/loa/learnings:../../${submodule}/.claude/loa/learnings"
+    ".claude/loa/feedback-ontology.yaml:../../${submodule}/.claude/loa/feedback-ontology.yaml"
+    ".claude/settings.json:../${submodule}/.claude/settings.json"
+    ".claude/checksums.json:../${submodule}/.claude/checksums.json"
+  )
+
+  # Phase 3: Per-skill symlinks (dynamic)
+  local -a skill_symlinks=()
+  if [[ -d "${repo_root}/${submodule}/.claude/skills" ]]; then
+    for skill_dir in "${repo_root}/${submodule}"/.claude/skills/*/; do
+      if [[ -d "$skill_dir" ]]; then
+        local skill_name
+        skill_name=$(basename "$skill_dir")
+        skill_symlinks+=(".claude/skills/${skill_name}:../../${submodule}/.claude/skills/${skill_name}")
+      fi
+    done
+  fi
+
+  # Per-command symlinks (dynamic)
+  local -a cmd_symlinks=()
+  if [[ -d "${repo_root}/${submodule}/.claude/commands" ]]; then
+    for cmd_file in "${repo_root}/${submodule}"/.claude/commands/*.md; do
+      if [[ -f "$cmd_file" ]]; then
+        local cmd_name
+        cmd_name=$(basename "$cmd_file")
+        cmd_symlinks+=(".claude/commands/${cmd_name}:../../${submodule}/.claude/commands/${cmd_name}")
+      fi
+    done
+  fi
+
+  # Combine all manifests
+  local -a all_symlinks=("${dir_symlinks[@]}" "${file_symlinks[@]}" "${skill_symlinks[@]}" "${cmd_symlinks[@]}")
+
+  step "Verifying ${#all_symlinks[@]} symlinks..."
+
+  for entry in "${all_symlinks[@]}"; do
+    local link_path="${entry%%:*}"
+    local target="${entry#*:}"
+    local full_link="${repo_root}/${link_path}"
+
+    if [[ -L "$full_link" ]]; then
+      # Check if dangling
+      if [[ ! -e "$full_link" ]]; then
+        dangling=$((dangling + 1))
+        warn "  DANGLING: $link_path"
+        if [[ "$reconcile" == "true" ]]; then
+          rm -f "$full_link"
+          local parent_dir
+          parent_dir=$(dirname "$full_link")
+          mkdir -p "$parent_dir"
+          ln -sf "$target" "$full_link"
+          fixed=$((fixed + 1))
+          log "  FIXED: $link_path"
+        fi
+      else
+        ok=$((ok + 1))
+      fi
+    elif [[ -e "$full_link" ]]; then
+      # Exists but not a symlink — skip (user-owned file)
+      ok=$((ok + 1))
+    else
+      # Missing entirely
+      stale=$((stale + 1))
+      warn "  MISSING: $link_path"
+      if [[ "$reconcile" == "true" ]]; then
+        local parent_dir
+        parent_dir=$(dirname "$full_link")
+        mkdir -p "$parent_dir"
+        # Only create if target exists in submodule
+        local resolved_target
+        resolved_target=$(cd "$(dirname "$full_link")" 2>/dev/null && realpath -m "$target" 2>/dev/null || echo "")
+        if [[ -n "$resolved_target" && -e "$resolved_target" ]]; then
+          ln -sf "$target" "$full_link"
+          fixed=$((fixed + 1))
+          log "  CREATED: $link_path"
+        fi
+      fi
+    fi
+  done
+
+  # Summary
+  echo ""
+  log "Symlink health: ${ok} ok, ${dangling} dangling, ${stale} missing, ${fixed} fixed"
+
+  if [[ $((dangling + stale)) -gt 0 && "$reconcile" != "true" ]]; then
+    return 1
+  fi
+  return 0
+}
+
+# === Check Symlinks Subcommand (Task 2.6) ===
+# Standalone health check: mount-submodule.sh --check-symlinks
+check_symlinks_subcommand() {
+  echo ""
+  log "======================================================================="
+  log "  Symlink Health Check"
+  log "======================================================================="
+  echo ""
+  verify_and_reconcile_symlinks "false"
+  local result=$?
+  if [[ $result -eq 0 ]]; then
+    log "All symlinks healthy."
+  else
+    warn "Symlink issues detected. Run with --reconcile to fix."
+  fi
+  exit $result
+}
+
 # === Main ===
 main() {
+  # Route to subcommands
+  if [[ "$SOURCE_ONLY" == "true" ]]; then
+    return 0
+  fi
+  if [[ "$CHECK_SYMLINKS" == "true" ]]; then
+    check_symlinks_subcommand
+  fi
+  if [[ "$RECONCILE_SYMLINKS" == "true" ]]; then
+    echo ""
+    log "Reconciling symlinks..."
+    verify_and_reconcile_symlinks "true"
+    exit $?
+  fi
+
   echo ""
   log "======================================================================="
   log "  Loa Framework Mount (Submodule Mode)"

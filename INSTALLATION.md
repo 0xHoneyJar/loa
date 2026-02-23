@@ -1,14 +1,16 @@
 # Installation Guide
 
-Loa can be installed in two ways: **mounting onto an existing repository** (recommended) or **cloning the template**.
+Loa can be installed in three ways: **submodule mode** (default, recommended), **cloning the template** (new projects), or **vendored mode** (legacy).
 
 **Time to first command**: ~2 minutes (one-liner install) | ~5 minutes (manual install with optional tools)
 
 ## Contents
 
 - [Prerequisites](#prerequisites)
-- [Method 1: Mount onto Existing Repository](#method-1-mount-onto-existing-repository-recommended) (you want to adopt loa in an existing project)
+- [Method 1: Submodule Mode](#method-1-submodule-mode-default) (recommended - adds Loa as git submodule)
 - [Method 2: Clone Template](#method-2-clone-template) (start a new project from scratch using loa)
+- [Method 3: Vendored Mode](#method-3-vendored-mode-legacy) (legacy - copies files into .claude/)
+- [Migrating from Vendored to Submodule](#migrating-from-vendored-to-submodule)
 - [Verify Installation](#verify-installation)
 - [Post-Install Enhancements](#post-install-enhancements) (optional tools that extend Loa)
 - [Ownership Model](#ownership-model-v1150)
@@ -49,9 +51,9 @@ yq --version   # Should show "mikefarah/yq"
 git --version
 ```
 
-## Method 1: Mount onto Existing Repository (Recommended)
+## Method 1: Submodule Mode (Default)
 
-Mount Loa onto any existing git repository. This is the **sidecar pattern** - Loa rides alongside your project.
+Adds Loa as a git submodule at `.loa/`, with symlinks from `.claude/` into the submodule. This provides version isolation, easy updates, and clean separation of framework from project code.
 
 ### One-Line Install
 
@@ -59,42 +61,51 @@ Mount Loa onto any existing git repository. This is the **sidecar pattern** - Lo
 curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash
 ```
 
+This automatically uses submodule mode. The installer handles git submodule setup, symlink creation, and configuration.
+
 ### Manual Install
 
 ```bash
 # 1. Navigate to your project
 cd your-existing-project
 
-# 2. Add Loa remote (if loa-upstream already exists, skip this step)
-git remote add loa-upstream https://github.com/0xHoneyJar/loa.git
-git fetch loa-upstream main
+# 2. Add Loa as submodule
+git submodule add -b main https://github.com/0xHoneyJar/loa.git .loa
 
-# 3. Pull System Zone only
-git checkout loa-upstream/main -- .claude
+# 3. Pin to a specific version (recommended)
+cd .loa && git checkout v1.39.0 && cd ..
 
-# 4. Create State Zone
-mkdir -p grimoires/loa/{context,discovery,a2a/trajectory}
+# 4. Run the submodule mount script
+.loa/.claude/scripts/mount-submodule.sh --force
 
-# 5. Initialize config (copy the example file and customize)
-cp .loa.config.yaml.example .loa.config.yaml
-
-# 6. Start Claude Code
+# 5. Start Claude Code
 claude
 ```
 
-> **Note**: The `.beads/` directory is only needed if you install beads_rust (see [Post-Install Enhancements](#post-install-enhancements)). The one-line installer creates it automatically.
+### Pin to Specific Version
+
+```bash
+# Pin to tag
+mount-loa.sh --tag v1.39.0
+
+# Pin to specific commit
+mount-loa.sh --ref abc1234
+```
 
 ### What Gets Installed
 
 ```
 your-project/
-├── .claude/                    # System Zone (framework-managed)
-│   ├── skills/                 # 17 agent skills
-│   ├── commands/               # Slash commands
-│   ├── protocols/              # Framework protocols
-│   ├── scripts/                # Helper scripts
-│   └── overrides/              # Your customizations (preserved on updates)
-├── grimoires/loa/               # State Zone (project memory)
+├── .loa/                       # Git submodule (Loa framework source)
+│   └── .claude/                # Framework files (source of truth)
+├── .claude/                    # Symlinks into .loa/.claude/
+│   ├── skills/ -> ../.loa/.claude/skills/
+│   ├── commands/ -> ../.loa/.claude/commands/
+│   ├── scripts/ -> ../.loa/.claude/scripts/
+│   ├── protocols/ -> ../.loa/.claude/protocols/
+│   ├── hooks/ -> ../.loa/.claude/hooks/
+│   └── overrides/              # Your customizations (NOT a symlink)
+├── grimoires/loa/              # State Zone (project memory)
 │   ├── NOTES.md                # Structured agentic memory
 │   ├── a2a/trajectory/         # Agent trajectory logs
 │   └── ...                     # Your project docs
@@ -102,6 +113,8 @@ your-project/
 ├── .loa-version.json           # Version manifest
 └── .loa.config.yaml            # Your configuration
 ```
+
+> **Note**: `.claude/overrides/` is a real directory you own. Everything else in `.claude/` is a symlink to the submodule.
 
 ## Method 2: Clone Template
 
@@ -122,9 +135,46 @@ git commit -m "Initial commit from Loa template"
 claude
 ```
 
+## Method 3: Vendored Mode (Legacy)
+
+Copies framework files directly into `.claude/`. Use this only if your environment does not support git submodules or symlinks.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash -s -- --vendored
+```
+
+Or manually:
+
+```bash
+mount-loa.sh --vendored
+```
+
+> **Note**: Vendored mode is maintained for backward compatibility. New installations should use submodule mode (the default).
+
+## Migrating from Vendored to Submodule
+
+If you have an existing vendored installation, migrate with one command:
+
+```bash
+# Preview migration (dry run - no changes)
+mount-loa.sh --migrate-to-submodule
+
+# Execute migration
+mount-loa.sh --migrate-to-submodule --apply
+```
+
+The migration:
+1. Classifies files as FRAMEWORK, USER_MODIFIED, or USER_OWNED
+2. Creates a timestamped backup at `.claude.backup.{timestamp}/`
+3. Removes vendored files and adds Loa as a submodule
+4. Creates symlinks and restores user-owned files
+5. Commits the migration
+
+**Rollback**: `git checkout <pre-migration-commit>` restores the exact pre-migration state.
+
 ## Verify Installation
 
-After either install method, verify everything is working:
+After any install method, verify everything is working:
 
 ```bash
 # 1. Check that the files exist in your repo

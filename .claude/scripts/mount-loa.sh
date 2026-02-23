@@ -181,6 +181,8 @@ FORCE_MODE=false
 NO_COMMIT=false
 NO_AUTO_INSTALL=false
 SUBMODULE_MODE=true
+MIGRATE_TO_SUBMODULE=false
+MIGRATE_APPLY=false
 
 # === Argument Parsing ===
 while [[ $# -gt 0 ]]; do
@@ -207,6 +209,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-commit)
       NO_COMMIT=true
+      shift
+      ;;
+    --migrate-to-submodule)
+      MIGRATE_TO_SUBMODULE=true
+      shift
+      ;;
+    --apply)
+      MIGRATE_APPLY=true
       shift
       ;;
     --submodule)
@@ -250,10 +260,17 @@ while [[ $# -gt 0 ]]; do
       echo "  --no-auto-install Don't auto-install missing dependencies (jq, yq)"
       echo "  --no-commit       Skip creating git commit after mount"
       echo ""
+      echo "Migration:"
+      echo "  --migrate-to-submodule  Migrate vendored install to submodule mode"
+      echo "                          Default: dry-run (shows classification report)"
+      echo "  --apply                 Execute the migration (use with --migrate-to-submodule)"
+      echo ""
       echo "Examples:"
       echo "  mount-loa.sh                          # Submodule mode (default)"
       echo "  mount-loa.sh --tag v1.39.0            # Submodule pinned to tag"
       echo "  mount-loa.sh --vendored               # Legacy vendored mode"
+      echo "  mount-loa.sh --migrate-to-submodule   # Dry-run migration report"
+      echo "  mount-loa.sh --migrate-to-submodule --apply  # Execute migration"
       echo ""
       echo "Recovery install (when /update is broken):"
       echo "  curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash -s -- --force"
@@ -1003,12 +1020,17 @@ apply_stealth() {
     local gitignore=".gitignore"
     touch "$gitignore"
 
-    local entries=("grimoires/loa/" ".beads/" ".loa-version.json" ".loa.config.yaml")
-    for entry in "${entries[@]}"; do
+    # Core entries (4)
+    local core_entries=("grimoires/loa/" ".beads/" ".loa-version.json" ".loa.config.yaml")
+    # Doc entries (10) — framework-generated docs that stealth mode hides
+    local doc_entries=("PROCESS.md" "CHANGELOG.md" "INSTALLATION.md" "CONTRIBUTING.md" "SECURITY.md" "LICENSE.md" "BUTTERFREEZONE.md" ".reviewignore" ".trufflehog.yaml" ".gitleaksignore")
+    local all_entries=("${core_entries[@]}" "${doc_entries[@]}")
+
+    for entry in "${all_entries[@]}"; do
       grep -qxF "$entry" "$gitignore" 2>/dev/null || echo "$entry" >> "$gitignore"
     done
 
-    log "Stealth mode applied"
+    log "Stealth mode applied (${#all_entries[@]} entries)"
   fi
 }
 
@@ -1554,8 +1576,331 @@ verify_mount() {
 # Non-fatal error display (doesn't exit)
 err_msg() { echo -e "${RED}[loa]${NC} $*"; }
 
+# === Migrate to Submodule (Task 2.1 — cycle-035 sprint-2) ===
+# Converts a vendored (.claude/ direct) installation to submodule mode.
+# Default is dry-run (shows classification report only). Use --apply to execute.
+# Workflow: detect mode → require clean tree → backup → classify → git rm → submodule add → symlinks → restore → commit
+migrate_to_submodule() {
+  local dry_run=true
+  if [[ "$MIGRATE_APPLY" == "true" ]]; then
+    dry_run=false
+  fi
+
+  echo ""
+  log "======================================================================="
+  log "  Loa Migration: Vendored → Submodule"
+  if [[ "$dry_run" == "true" ]]; then
+    log "  Mode: DRY RUN (no changes will be made)"
+  else
+    log "  Mode: APPLY (changes will be committed)"
+  fi
+  log "======================================================================="
+  echo ""
+
+  # Step 1: Detect current mode
+  if [[ ! -f "$VERSION_FILE" ]]; then
+    err "No .loa-version.json found. Is Loa installed?"
+  fi
+
+  local current_mode
+  current_mode=$(jq -r '.installation_mode // "standard"' "$VERSION_FILE" 2>/dev/null)
+  if [[ "$current_mode" == "submodule" ]]; then
+    log "Already in submodule mode. Nothing to migrate."
+    exit 0
+  fi
+
+  log "Current installation mode: $current_mode (vendored)"
+
+  # Step 2: Require clean working tree
+  if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
+    err "Working tree is dirty. Please commit or stash changes first:
+  git stash
+Then re-run:
+  mount-loa.sh --migrate-to-submodule${MIGRATE_APPLY:+ --apply}"
+  fi
+
+  # Step 3: Discovery phase — classify files
+  step "Classifying .claude/ files..."
+  local framework_files=()
+  local user_modified_files=()
+  local user_owned_files=()
+
+  # User-owned paths that must be preserved
+  local -a user_owned_patterns=(".claude/overrides" ".claude/commands" ".claude/settings.local.json")
+  # Config file preserved at root level
+  local preserved_root=(".loa.config.yaml" "CLAUDE.md")
+
+  # Classify each file under .claude/
+  while IFS= read -r -d '' file; do
+    local relpath="${file#./}"
+    local is_user_owned=false
+
+    # Check against user-owned patterns
+    for pattern in "${user_owned_patterns[@]}"; do
+      if [[ "$relpath" == "$pattern"* ]]; then
+        is_user_owned=true
+        break
+      fi
+    done
+
+    if [[ "$is_user_owned" == "true" ]]; then
+      user_owned_files+=("$relpath")
+    elif [[ -f "$CHECKSUMS_FILE" ]]; then
+      # Check if file checksum matches framework checksum
+      local expected_hash actual_hash
+      expected_hash=$(jq -r --arg f "$relpath" '.files[$f] // ""' "$CHECKSUMS_FILE" 2>/dev/null)
+      if [[ -n "$expected_hash" && "$expected_hash" != "null" ]]; then
+        actual_hash=$(sha256sum "$file" | cut -d' ' -f1)
+        if [[ "$expected_hash" == "$actual_hash" ]]; then
+          framework_files+=("$relpath")
+        else
+          user_modified_files+=("$relpath")
+        fi
+      else
+        framework_files+=("$relpath")
+      fi
+    else
+      # No checksums available — treat as framework
+      framework_files+=("$relpath")
+    fi
+  done < <(find .claude -type f -print0 | sort -z)
+
+  # Print classification report
+  echo ""
+  info "=== Classification Report ==="
+  echo ""
+  info "FRAMEWORK files (${#framework_files[@]}) — will be removed (replaced by submodule):"
+  for f in "${framework_files[@]}"; do
+    echo "    $f"
+  done
+  echo ""
+
+  if [[ ${#user_modified_files[@]} -gt 0 ]]; then
+    warn "USER_MODIFIED files (${#user_modified_files[@]}) — backed up for review:"
+    for f in "${user_modified_files[@]}"; do
+      echo "    $f"
+    done
+    echo ""
+  fi
+
+  info "USER_OWNED files (${#user_owned_files[@]}) — will be preserved:"
+  for f in "${user_owned_files[@]}"; do
+    echo "    $f"
+  done
+  echo ""
+
+  info "Root files preserved: ${preserved_root[*]}"
+  echo ""
+
+  if [[ "$dry_run" == "true" ]]; then
+    echo ""
+    log "======================================================================="
+    log "  DRY RUN COMPLETE — No changes made"
+    log "  To execute: mount-loa.sh --migrate-to-submodule --apply"
+    log "======================================================================="
+    echo ""
+    exit 0
+  fi
+
+  # === APPLY MODE ===
+
+  # Step 4: Create timestamped backup
+  local backup_dir=".claude.backup.$(date +%s)"
+  step "Creating backup at $backup_dir/..."
+  cp -r .claude "$backup_dir"
+  log "Backup created: $backup_dir/"
+
+  # Step 5: Save user-owned files to temp
+  local tmp_restore
+  tmp_restore=$(mktemp -d)
+  for f in "${user_owned_files[@]}"; do
+    local dest_dir
+    dest_dir=$(dirname "$tmp_restore/$f")
+    mkdir -p "$dest_dir"
+    cp "$f" "$tmp_restore/$f"
+  done
+
+  # Save user-modified files to backup
+  for f in "${user_modified_files[@]}"; do
+    local dest_dir
+    dest_dir=$(dirname "$backup_dir/$f")
+    mkdir -p "$dest_dir"
+    cp "$f" "$backup_dir/$f" 2>/dev/null || true
+  done
+
+  # Step 6: Remove framework files from git
+  step "Removing vendored .claude/ from git tracking..."
+  git rm -rf --cached .claude/ >/dev/null 2>&1 || true
+  rm -rf .claude/
+
+  # Step 7: Add submodule
+  step "Adding Loa as submodule at .loa/..."
+  git submodule add -b "$LOA_BRANCH" "$LOA_REMOTE_URL" .loa
+
+  # Step 8: Run mount-submodule.sh logic (create symlinks)
+  local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+  # Create .claude directory and symlinks manually
+  # (We can't exec mount-submodule.sh because we need to continue after)
+  mkdir -p .claude
+
+  # Symlink directories
+  local SUBMODULE_PATH=".loa"
+  for dir in scripts protocols hooks data schemas; do
+    if [[ -d "$SUBMODULE_PATH/.claude/$dir" ]]; then
+      ln -sf "../$SUBMODULE_PATH/.claude/$dir" ".claude/$dir"
+    fi
+  done
+
+  # Symlink skills
+  mkdir -p .claude/skills
+  if [[ -d "$SUBMODULE_PATH/.claude/skills" ]]; then
+    for skill_dir in "$SUBMODULE_PATH"/.claude/skills/*/; do
+      if [[ -d "$skill_dir" ]]; then
+        local skill_name=$(basename "$skill_dir")
+        ln -sf "../../$SUBMODULE_PATH/.claude/skills/$skill_name" ".claude/skills/$skill_name"
+      fi
+    done
+  fi
+
+  # Symlink commands
+  mkdir -p .claude/commands
+  if [[ -d "$SUBMODULE_PATH/.claude/commands" ]]; then
+    for cmd_file in "$SUBMODULE_PATH"/.claude/commands/*.md; do
+      if [[ -f "$cmd_file" ]]; then
+        local cmd_name=$(basename "$cmd_file")
+        ln -sf "../../$SUBMODULE_PATH/.claude/commands/$cmd_name" ".claude/commands/$cmd_name"
+      fi
+    done
+  fi
+
+  # Symlink loa directory files
+  mkdir -p .claude/loa
+  if [[ -f "$SUBMODULE_PATH/.claude/loa/CLAUDE.loa.md" ]]; then
+    ln -sf "../../$SUBMODULE_PATH/.claude/loa/CLAUDE.loa.md" ".claude/loa/CLAUDE.loa.md"
+  fi
+  if [[ -d "$SUBMODULE_PATH/.claude/loa/reference" ]]; then
+    ln -sf "../../$SUBMODULE_PATH/.claude/loa/reference" ".claude/loa/reference"
+  fi
+  if [[ -d "$SUBMODULE_PATH/.claude/loa/learnings" ]]; then
+    ln -sf "../../$SUBMODULE_PATH/.claude/loa/learnings" ".claude/loa/learnings"
+  fi
+  if [[ -f "$SUBMODULE_PATH/.claude/loa/feedback-ontology.yaml" ]]; then
+    ln -sf "../../$SUBMODULE_PATH/.claude/loa/feedback-ontology.yaml" ".claude/loa/feedback-ontology.yaml"
+  fi
+
+  # Symlink settings files
+  for config_file in settings.json checksums.json; do
+    if [[ -f "$SUBMODULE_PATH/.claude/$config_file" ]]; then
+      ln -sf "../$SUBMODULE_PATH/.claude/$config_file" ".claude/$config_file"
+    fi
+  done
+
+  # Step 9: Restore user-owned files
+  step "Restoring user-owned files..."
+  mkdir -p .claude/overrides
+  for f in "${user_owned_files[@]}"; do
+    if [[ -f "$tmp_restore/$f" ]]; then
+      local dest_dir
+      dest_dir=$(dirname "$f")
+      mkdir -p "$dest_dir"
+      cp "$tmp_restore/$f" "$f"
+      log "  Restored: $f"
+    fi
+  done
+  rm -rf "$tmp_restore"
+
+  # Step 10: Update .loa-version.json
+  step "Updating version manifest..."
+  local submodule_commit=""
+  local framework_version=""
+  if [[ -d ".loa" ]]; then
+    submodule_commit=$(cd .loa && git rev-parse HEAD)
+    framework_version=$(cd .loa && git describe --tags --always 2>/dev/null || echo "unknown")
+  fi
+
+  cat > "$VERSION_FILE" << EOF
+{
+  "framework_version": "$framework_version",
+  "schema_version": 2,
+  "installation_mode": "submodule",
+  "submodule": {
+    "path": ".loa",
+    "ref": "$LOA_BRANCH",
+    "commit": "$submodule_commit"
+  },
+  "last_sync": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "zones": {
+    "system": ".claude",
+    "submodule": ".loa/.claude",
+    "state": ["grimoires/loa", ".beads"],
+    "app": ["src", "lib", "app"]
+  },
+  "migrated_from": "vendored",
+  "migration_timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "migration_backup": "$backup_dir"
+}
+EOF
+
+  # Step 11: Update .gitignore
+  local gitignore=".gitignore"
+  touch "$gitignore"
+  local symlink_entries=(
+    ".claude/scripts"
+    ".claude/protocols"
+    ".claude/hooks"
+    ".claude/data"
+    ".claude/schemas"
+    ".claude/loa/CLAUDE.loa.md"
+    ".claude/loa/reference"
+    ".claude/loa/feedback-ontology.yaml"
+    ".claude/loa/learnings"
+    ".claude/settings.json"
+    ".claude/checksums.json"
+  )
+  if ! grep -q "LOA SUBMODULE SYMLINKS" "$gitignore" 2>/dev/null; then
+    echo "" >> "$gitignore"
+    echo "# LOA SUBMODULE SYMLINKS (added by migrate-to-submodule)" >> "$gitignore"
+  fi
+  for entry in "${symlink_entries[@]}"; do
+    grep -qxF "$entry" "$gitignore" 2>/dev/null || echo "$entry" >> "$gitignore"
+  done
+
+  # Step 12: Commit
+  step "Committing migration..."
+  git add .gitmodules .loa .claude "$VERSION_FILE" "$gitignore" 2>/dev/null || true
+  git commit -m "chore(loa): migrate from vendored to submodule mode
+
+- Converted .claude/ from vendored files to symlinks into .loa/ submodule
+- Backup created at $backup_dir/
+- ${#user_owned_files[@]} user-owned files preserved
+- ${#user_modified_files[@]} user-modified files backed up
+- Rollback: git checkout $(git rev-parse HEAD~1)
+
+Generated by Loa mount-loa.sh --migrate-to-submodule" --no-verify 2>/dev/null || {
+    warn "Auto-commit failed. Please commit manually."
+  }
+
+  echo ""
+  log "======================================================================="
+  log "  Migration Complete: Vendored → Submodule"
+  log "======================================================================="
+  echo ""
+  info "Backup: $backup_dir/"
+  info "Rollback: git checkout $(git rev-parse HEAD~1 2>/dev/null || echo '<previous-commit>')"
+  info "User-owned files: ${#user_owned_files[@]} preserved"
+  info "User-modified files: ${#user_modified_files[@]} backed up"
+  echo ""
+}
+
 # === Main ===
 main() {
+  # Route to migration if requested
+  if [[ "$MIGRATE_TO_SUBMODULE" == "true" ]]; then
+    migrate_to_submodule
+    exit 0
+  fi
+
   # Route to submodule mode (default)
   if [[ "$SUBMODULE_MODE" == "true" ]]; then
     # Acquire mount lock (Flatline IMP-006)
