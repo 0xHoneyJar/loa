@@ -1,0 +1,15 @@
+{
+  "verdict": "CHANGES_REQUIRED",
+  "summary": "Authentication middleware needs improvement",
+  "findings": [
+    {
+      "severity": "high",
+      "title": "JWT_SECRET from env without fallback",
+      "description": "process.env.JWT_SECRET could be undefined",
+      "file": "src/main.ts",
+      "line": 14,
+      "suggestion": "Add runtime validation for JWT_SECRET"
+    }
+  ],
+  "confidence": 0.85
+}
