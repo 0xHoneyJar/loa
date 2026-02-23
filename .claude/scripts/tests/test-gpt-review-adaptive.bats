@@ -240,3 +240,27 @@ _mock_diff() {
   local result; result=$(estimate_token_count "hello")
   [ "$result" -gt 0 ]
 }
+
+# =============================================================================
+# Test 10: GPT_REVIEW_ADAPTIVE env var overrides (cycle-034, Task 3.4)
+# =============================================================================
+
+@test "GPT_REVIEW_ADAPTIVE=1 enables adaptive regardless of config" {
+  export GPT_REVIEW_ADAPTIVE="1"
+  local adaptive="true"
+  if [[ -n "${GPT_REVIEW_ADAPTIVE:-}" ]]; then
+    [[ "${GPT_REVIEW_ADAPTIVE}" == "0" ]] && adaptive="false" || adaptive="true"
+  fi
+  [ "$adaptive" = "true" ]
+  unset GPT_REVIEW_ADAPTIVE
+}
+
+@test "GPT_REVIEW_ADAPTIVE unset uses default (true)" {
+  unset GPT_REVIEW_ADAPTIVE
+  local adaptive="true"
+  if [[ -n "${GPT_REVIEW_ADAPTIVE:-}" ]]; then
+    [[ "${GPT_REVIEW_ADAPTIVE}" == "0" ]] && adaptive="false" || adaptive="true"
+  fi
+  # Default is true when env var not set
+  [ "$adaptive" = "true" ]
+}

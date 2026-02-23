@@ -141,17 +141,16 @@ detect_capabilities() {
 
   local capabilities="{}"
 
+  # Hoist help text above loop — single subprocess call instead of N (cycle-034, Task 3.1)
+  local help_text
+  help_text=$(codex exec --help 2>&1) || help_text=""
+
   for flag in "${_CODEX_PROBE_FLAGS[@]}"; do
     local supported="true"
-    local probe_stderr
 
-    # Probe: run codex with --help and grep for the flag, or try the flag
-    # with a minimal invocation and check stderr
-    probe_stderr=$(codex exec --help 2>&1) || true
-
-    if echo "$probe_stderr" | grep -qiE "(unknown option|unrecognized|invalid).*${flag}"; then
+    if echo "$help_text" | grep -qiE "(unknown option|unrecognized|invalid).*${flag}"; then
       supported="false"
-    elif ! echo "$probe_stderr" | grep -q -- "$flag"; then
+    elif ! echo "$help_text" | grep -q -- "$flag"; then
       # Flag not mentioned in help — mark as unknown (assume supported)
       supported="true"
     fi
@@ -314,6 +313,27 @@ parse_codex_output() {
   if [[ -n "$greedy" ]] && echo "$greedy" | jq empty 2>/dev/null; then
     echo "$greedy" | jq '.'
     return 0
+  fi
+
+  # 3.5. Python3 raw_decode fallback for arbitrary nesting (cycle-034, Task 3.2)
+  if command -v python3 &>/dev/null; then
+    local py_extracted
+    py_extracted=$(python3 -c '
+import json, sys
+raw = sys.stdin.read()
+idx = raw.find("{")
+if idx == -1:
+    sys.exit(1)
+try:
+    obj, end = json.JSONDecoder().raw_decode(raw, idx)
+    print(json.dumps(obj))
+except (json.JSONDecodeError, ValueError):
+    sys.exit(1)
+' <<< "$raw" 2>/dev/null) || py_extracted=""
+    if [[ -n "$py_extracted" ]] && echo "$py_extracted" | jq empty 2>/dev/null; then
+      echo "$py_extracted" | jq '.'
+      return 0
+    fi
   fi
 
   # 4. All extraction methods failed

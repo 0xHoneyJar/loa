@@ -311,7 +311,9 @@ _get_backend_sequence() {
   [ "$status" -eq 2 ]
 }
 
-@test "parser: missing when rejected in validation (custom)" {
+@test "parser: missing when is valid (unconditional match)" {
+  # Missing 'when' or 'when: []' both produce empty conditions = unconditional match
+  # This is intentional: custom routes should support unconditional backends
   register_builtin_conditions
   register_builtin_backends
   _RT_BACKENDS=(); _RT_CONDITIONS=(); _RT_CAPABILITIES=()
@@ -320,7 +322,7 @@ _get_backend_sequence() {
   parse_route_table "$ROUTE_CONFIGS_DIR/missing-when.yaml"
   local status=0
   validate_route_table "true" > "$OUT_FILE" 2>"$ERR_FILE" || status=$?
-  [ "$status" -eq 2 ]
+  [ "$status" -eq 0 ]
 }
 
 @test "parser: invalid fail_mode rejected in validation (custom)" {
@@ -568,6 +570,60 @@ _get_backend_sequence() {
   init_route_table "$CONFIG_FILE" > "$OUT_FILE" 2>"$ERR_FILE" || status=$?
   [ "$status" -eq 0 ]
   [ ${#_RT_BACKENDS[@]} -eq 3 ]
+}
+
+# =============================================================================
+# CI Policy Constraints (cycle-034, Task 3.4)
+# =============================================================================
+
+@test "CI policy: custom routes without LOA_CUSTOM_ROUTES=1 fall back to defaults" {
+  register_builtin_conditions
+  register_builtin_backends
+
+  # Write custom routes config
+  cat > "$CONFIG_FILE" << 'YAML'
+gpt_review:
+  route_schema: 1
+  routes:
+    - backend: curl
+      when: []
+      fail_mode: hard_fail
+YAML
+
+  export CI="true"
+  unset LOA_CUSTOM_ROUTES
+
+  local status=0
+  init_route_table "$CONFIG_FILE" > "$OUT_FILE" 2>"$ERR_FILE" || status=$?
+  [ "$status" -eq 0 ]
+  # Should fall back to 3 default routes (not the 1 custom route)
+  [ ${#_RT_BACKENDS[@]} -eq 3 ]
+  unset CI
+}
+
+@test "CI policy: custom routes with LOA_CUSTOM_ROUTES=1 are accepted" {
+  register_builtin_conditions
+  register_builtin_backends
+
+  cat > "$CONFIG_FILE" << 'YAML'
+gpt_review:
+  route_schema: 1
+  routes:
+    - backend: curl
+      when: []
+      fail_mode: hard_fail
+YAML
+
+  export CI="true"
+  export LOA_CUSTOM_ROUTES="1"
+
+  local status=0
+  init_route_table "$CONFIG_FILE" > "$OUT_FILE" 2>"$ERR_FILE" || status=$?
+  [ "$status" -eq 0 ]
+  # Should use the 1 custom route
+  [ ${#_RT_BACKENDS[@]} -eq 1 ]
+  [ "${_RT_BACKENDS[0]}" = "curl" ]
+  unset CI LOA_CUSTOM_ROUTES
 }
 
 @test "global max attempts: stops after _RT_MAX_TOTAL_ATTEMPTS" {

@@ -370,10 +370,9 @@ validate_route_table() {
       errors=$((errors + 1))
     fi
 
-    # Conditions must be non-empty
+    # Conditions: empty = unconditional (always match), non-empty = validate each
     if [[ -z "$conditions" ]]; then
-      error "Route $i: 'when' must be non-empty"
-      errors=$((errors + 1))
+      : # Empty conditions = unconditional match (valid)
     else
       # Validate each condition name (with whitespace trimming per SKP-003)
       IFS=',' read -ra conds <<< "$conditions"
