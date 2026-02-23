@@ -299,7 +299,7 @@ call_api() {
 
   if [[ -z "$content_response" ]]; then
     echo "ERROR: No content in API response" >&2
-    echo "[gpt-review-api] Full response: $response" >&2
+    echo "[gpt-review-api] Response (truncated): ${response:0:200}" >&2
     return 5
   fi
 

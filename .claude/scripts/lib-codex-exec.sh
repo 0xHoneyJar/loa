@@ -24,7 +24,7 @@
 #
 # Design decisions:
 #   - Version-pinned minimum (Flatline IMP-003): CODEX_MIN_VERSION
-#   - PID-scoped capability cache (SDD IMP-003): /tmp/loa-codex-caps-<hash>-$$.json
+#   - Version-scoped capability cache (SDD IMP-003): /tmp/loa-codex-caps-<hash>.json
 #   - Diff-only default (SDD SKP-002): no --cd to repo root
 #   - timeout(1) wrapping (Flatline IMP-004): configurable per invocation
 #   - Probe with stderr parsing (SDD SKP-001): version-pinned expectations
@@ -122,7 +122,7 @@ codex_is_available() {
 
 # Detect which flags the installed codex version supports.
 # Probes by running codex with each flag and checking stderr for errors.
-# Results cached to /tmp/loa-codex-caps-<version_hash>-$$.json (PID-scoped).
+# Results cached to /tmp/loa-codex-caps-<version_hash>.json (version-scoped).
 # Returns: 0 on success, writes cache file path to stdout
 detect_capabilities() {
   local version_output
