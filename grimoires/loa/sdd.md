@@ -1,454 +1,246 @@
-# SDD: Declarative Execution Router + Adaptive Multi-Pass Review
+# SDD: Minimal Footprint by Default — Submodule-First Installation
 
-> Cycle: cycle-034 | Author: soju + Claude
-> Source PRD: `grimoires/loa/prd.md` ([#403](https://github.com/0xHoneyJar/loa/issues/403))
-> Predecessor: cycle-033 SDD (Codex CLI Integration — 3-tier imperative router)
-> Design Context: Bridgebuilder review of [PR #401](https://github.com/0xHoneyJar/loa/pull/401)
+> Cycle: cycle-035 | Author: soju + Claude (Bridgebuilder)
+> Source PRD: `grimoires/loa/prd.md` ([#402](https://github.com/0xHoneyJar/loa/issues/402))
+> Predecessor: cycle-034 SDD (Declarative Execution Router + Adaptive Multi-Pass)
+> Design Context: Bridgebuilder review of [Issue #402](https://github.com/0xHoneyJar/loa/issues/402#issuecomment-3944873665)
 
 ---
 
 ## 1. Executive Summary
 
-This SDD refactors the GPT review execution pipeline from imperative control flow to declarative configuration. The 56-line if/else cascade in `route_review()` (gpt-review-api.sh:91-147) becomes a generic loop over a YAML-defined route table. The multi-pass orchestrator gains adaptive depth based on dual-signal complexity classification. Supporting improvements include a word-count token estimation tier, cached capability detection, a shared backend result contract, and a Python3 JSON decoder fallback.
+This SDD flips Loa's default installation mode from vendored (800+ files copied into `.claude/`) to git submodule (single reference at `.loa/` with symlinks). The infrastructure already exists — `mount-submodule.sh` is 619 lines and fully functional. The work is: (1) flip the default in `mount-loa.sh`, (2) resolve the `.loa/` path collision between Memory Stack and submodule, (3) expand stealth mode from 4 gitignore entries to comprehensive coverage, and (4) add migration tooling.
 
-**Architecture principle**: Configuration as code. Routing decisions move from bash logic into `.loa.config.yaml`, making them diffable, auditable, and operator-customizable without code changes. The runtime loop is generic — it doesn't know what backends exist, only how to evaluate conditions and try routes in order.
+**Critical correction from PRD**: The PRD proposed `.claude/loa` as the submodule mount point. This **breaks** the `@.claude/loa/CLAUDE.loa.md` import in `CLAUDE.md` (line 1). The `@`-import resolves to `.claude/loa/CLAUDE.loa.md` as a file path — if `.claude/loa` were the submodule root (the Loa repo), that file would be at `.claude/loa/.claude/loa/CLAUDE.loa.md` (nested), not where the import expects it. The correct design keeps the submodule at `.loa/` (mount-submodule.sh's existing `SUBMODULE_PATH`, line 50) and uses symlinks to bridge into `.claude/`. This is exactly what `create_symlinks()` (mount-submodule.sh:260-359) already implements.
 
-**Scope boundary**: Only routing and multi-pass depth are declarative. Prompt construction, security policy, and API interaction remain in code.
+**Architecture principle**: The submodule IS the framework. Symlinks project its structure into `.claude/` where Claude Code expects it. User-owned files (settings.json, commands/, overrides/) live directly in `.claude/`, never symlinked. Memory Stack relocates from `.loa/` to `.loa-cache/` to clear the collision.
+
+**Scope boundary**: Default flip + collision resolution + stealth expansion + migration. No changes to runtime behavior, skill execution, or Claude Code interaction patterns.
 
 ---
 
 ## 2. System Architecture
 
-### 2.1 Component Diagram
+### 2.1 Installation Mode Comparison
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│ gpt-review-api.sh (entry point)                                  │
-│                                                                  │
-│  main() → load_config() → route_review()                         │
-│                                │                                 │
-│                                ▼                                 │
-│  ┌─────────────────────────────────────────────────────────────┐ │
-│  │              lib-route-table.sh (NEW)                        │ │
-│  │                                                             │ │
-│  │  parse_route_table()     → _ROUTE_TABLE[] arrays            │ │
-│  │  validate_route_table()  → fail-closed / fail-open          │ │
-│  │  register_condition()    → _CONDITION_REGISTRY{}             │ │
-│  │  register_backend()      → _BACKEND_REGISTRY{}              │ │
-│  │  evaluate_route()        → try conditions, call backend     │ │
-│  │  execute_route_table()   → main loop (first success wins)   │ │
-│  │  validate_review_result()→ backend result contract          │ │
-│  │  log_route_table()       → startup tracing                  │ │
-│  └──────────┬───────────────────────────────┬──────────────────┘ │
-│             │                               │                    │
-│      ┌──────▼──────┐   ┌──────────────┐   ┌▼─────────────────┐  │
-│      │ Conditions   │   │ Backends     │   │ Result Contract  │  │
-│      │ Registry     │   │ Registry     │   │ (shared gate)    │  │
-│      │ (assoc arr)  │   │ (assoc arr)  │   │                  │  │
-│      └──────────────┘   └──────┬───────┘   └──────────────────┘  │
-│                                │                                 │
-│      ┌─────────────────────────┼────────────────────┐            │
-│      ▼                         ▼                    ▼            │
-│  ┌──────────┐  ┌───────────────────────┐  ┌────────────────┐    │
-│  │ Hounfour │  │ Codex                 │  │ curl           │    │
-│  │ backend  │  │ (multi/single pass)   │  │ fallback       │    │
-│  │          │  │                       │  │                │    │
-│  │ lib-curl │  │ lib-codex-exec.sh     │  │ lib-curl       │    │
-│  │ fallback │  │ lib-multipass.sh      │  │ fallback.sh    │    │
-│  └──────────┘  └───────────────────────┘  └────────────────┘    │
-└──────────────────────────────────────────────────────────────────┘
+VENDORED (current default)          SUBMODULE (new default)
+──────────────────────────          ───────────────────────
+.claude/                            .loa/                     ← git submodule (Loa repo)
+├── scripts/      (800+ files)      │ └── .claude/
+├── skills/       (copied)          │     ├── scripts/
+├── protocols/    (copied)          │     ├── skills/
+├── hooks/        (copied)          │     ├── protocols/
+├── data/         (copied)          │     ├── hooks/
+├── schemas/      (copied)          │     ├── data/
+├── loa/          (copied)          │     ├── schemas/
+├── settings.json (user)            │     └── loa/
+├── commands/     (user)            .claude/
+└── overrides/    (user)            ├── scripts    → ../.loa/.claude/scripts     (symlink)
+                                    ├── skills/    → per-skill symlinks          (symlinks)
+                                    ├── protocols  → ../.loa/.claude/protocols   (symlink)
+                                    ├── hooks      → ../.loa/.claude/hooks       (symlink)
+                                    ├── data       → ../.loa/.claude/data        (symlink)
+                                    ├── schemas    → ../.loa/.claude/schemas     (symlink)
+                                    ├── loa/       (real dir, files symlinked)
+                                    │   └── CLAUDE.loa.md → ../../.loa/.claude/loa/CLAUDE.loa.md
+                                    ├── settings.json      (user-owned, NOT symlinked)
+                                    ├── commands/          (user-owned, NOT symlinked)
+                                    └── overrides/         (user-owned, NOT symlinked)
 ```
 
-### 2.2 Data Flow
+### 2.2 File Ownership Model
+
+| Owner | Tracked | Examples |
+|-------|---------|----------|
+| **User** | Yes | `CLAUDE.md`, `.loa.config.yaml`, `.claude/settings.json`, `.claude/commands/`, `.gitmodules` |
+| **Submodule** | Via reference | `.loa/` (all framework content) |
+| **Symlinks** | Gitignored | `.claude/scripts`, `.claude/skills/*`, `.claude/protocols`, etc. |
+| **State** | Gitignored | `grimoires/`, `.beads/`, `.ck/`, `.run/`, `.loa-cache/` |
+
+### 2.3 @-Import Resolution Chain
+
+The critical path that constrains submodule placement:
 
 ```
-1. main() parses CLI args, calls load_config()
-2. load_config() reads .loa.config.yaml including gpt_review.routes
-3. route_review() calls init_route_table()
-   a. parse_route_table() reads YAML routes into bash arrays
-   b. validate_route_table() checks schema (fail-closed if custom, fail-open if absent)
-   c. register_conditions() populates condition registry with named functions
-   d. register_backends() populates backend registry with named functions
-   e. log_route_table() emits effective config + SHA-256 hash to stderr
-4. route_review() calls execute_route_table(model, sys, usr, timeout, ...)
-   a. For each route in order:
-      i.   Evaluate all conditions in `when` array (AND logic)
-      ii.  If all true → call backend function
-      iii. validate_review_result() checks output
-      iv.  If valid → return result
-      v.   If invalid or backend error → check fail_mode
-           - fallthrough → log, continue to next route
-           - hard_fail → return error immediately
-   b. If no route succeeds → return error (exit 2)
-5. Multipass orchestrator checks backend capabilities before choosing mode
-6. Result flows back through main() for enrichment (iteration, redaction)
+CLAUDE.md line 1:  @.claude/loa/CLAUDE.loa.md
+                   │
+                   ▼
+.claude/loa/CLAUDE.loa.md  (symlink, created by mount-submodule.sh:329)
+                   │
+                   ▼ resolves to
+../../.loa/.claude/loa/CLAUDE.loa.md  (real file inside submodule)
+                   │
+                   = .loa/.claude/loa/CLAUDE.loa.md  (from project root)
 ```
 
-### 2.3 Execution Mode Compatibility
+This chain works because:
+1. `.claude/loa/` is a real directory (not a symlink itself), created at mount-submodule.sh:326
+2. `CLAUDE.loa.md` inside it is a symlink into the submodule
+3. The `../../` traversal from `.claude/loa/` reaches project root, then `.loa/` enters the submodule
 
-The existing `execution_mode` config key maps to route table filtering:
+If the submodule were at `.claude/loa` instead:
+- `.claude/loa/` would BE the submodule root (Loa repo)
+- `CLAUDE.loa.md` is NOT at the Loa repo root — it's at `.claude/loa/CLAUDE.loa.md` within the repo
+- So the @-import would resolve to `.claude/loa/CLAUDE.loa.md` → Loa repo root has no such file
+- The actual file would be at `.claude/loa/.claude/loa/CLAUDE.loa.md` — unreachable by the @-import
 
-| `execution_mode` | Route Table Behavior |
-|-------------------|---------------------|
-| `auto` (default) | Full route table, unmodified |
-| `codex` | Filter to `codex` + `curl` only; `codex` set to `hard_fail` |
-| `curl` | Filter to `curl` only |
+**Decision: Submodule stays at `.loa/`** (D-012 updated from PRD's `.claude/loa`).
 
-When both `execution_mode` and `routes` are present, `routes` takes precedence (with warning).
+### 2.4 `.loa/` Path Collision Resolution
+
+| Component | Current Path | New Path | Rationale |
+|-----------|-------------|----------|-----------|
+| Git submodule | `.loa/` (mount-submodule.sh:50) | `.loa/` (unchanged) | Already correct |
+| Memory Stack | `.loa/` (gitignored) | `.loa-cache/` (gitignored) | Clears collision |
+| .gitignore | `.loa/` on line 75 | REMOVED (submodule tracked) | Submodule must be visible to git |
+
+The collision resolution is: Memory Stack moves, submodule stays.
 
 ---
 
 ## 3. Component Design
 
-### 3.1 lib-route-table.sh (NEW)
+### 3.1 mount-loa.sh — Default Flip
 
-New library sourced by `gpt-review-api.sh`. Contains all route table logic.
+**File**: `.claude/scripts/mount-loa.sh` (~1540 lines)
 
-#### 3.1.1 Data Structures
+#### 3.1.1 SUBMODULE_MODE Default (line 183)
 
 ```bash
-# Route table — parallel arrays (bash 4.0+ associative arrays for registries)
-declare -a _RT_BACKENDS=()       # ("hounfour" "codex" "curl")
-declare -a _RT_CONDITIONS=()     # ("flatline_routing_enabled,model_invoke_available" "codex_available" "always")
-declare -a _RT_CAPABILITIES=()   # ("agent_binding,metering,trust_scopes" "sandbox,ephemeral,multi_pass,tool_access" "basic")
-declare -a _RT_FAIL_MODES=()     # ("fallthrough" "fallthrough" "hard_fail")
-declare -a _RT_TIMEOUTS=()       # ("" "" "") — per-route timeout overrides (Flatline IMP-002)
-declare -a _RT_RETRIES=()        # ("0" "0" "0") — per-route retry counts (Flatline IMP-002)
+# Before:
+SUBMODULE_MODE=false
 
-# Registries — associative arrays
-declare -A _CONDITION_REGISTRY=() # (["always"]="_cond_always" ["codex_available"]="codex_is_available" ...)
-declare -A _BACKEND_REGISTRY=()   # (["hounfour"]="_backend_hounfour" ["codex"]="_backend_codex" ...)
+# After:
+SUBMODULE_MODE=true
 ```
 
-Using parallel arrays instead of a single nested structure because:
-- Bash has no nested data types
-- Parallel arrays are O(1) index access
-- Condition and capability lists are comma-delimited strings split at evaluation time
+Single line change. This makes `/mount` (without flags) route to `mount-submodule.sh` via `route_to_submodule()` (line 1336).
 
-#### 3.1.2 parse_route_table()
+#### 3.1.2 Flag Inversion (lines 212-214)
 
 ```bash
-# Parse YAML route table into parallel arrays.
-# Args: config_file
-# Returns: 0 on success, 2 on parse error
-# Side effects: populates _RT_* arrays
-parse_route_table() {
-  local config_file="${1:-$CONFIG_FILE}"
+# Before:
+--submodule)
+  SUBMODULE_MODE=true
+  shift
+  ;;
 
-  # Check for custom routes
-  local route_count
-  route_count=$(yq eval '.gpt_review.routes | length // 0' "$config_file" 2>/dev/null) || route_count=0
+# After:
+--vendored)
+  SUBMODULE_MODE=false
+  shift
+  ;;
+```
 
-  if [[ "$route_count" -eq 0 ]]; then
-    # No custom routes — use built-in defaults (cycle-033 behavior)
-    _rt_load_defaults
-    log "Using default route table (no gpt_review.routes in config)"
-    return 0
+Add `--vendored` as the opt-in for standard mode. Keep `--submodule` as a no-op (already the default) with deprecation log.
+
+#### 3.1.3 Help Text Update (lines 227-234)
+
+```bash
+echo "Installation Modes:"
+echo "  (default)         Submodule mode - adds Loa as git submodule at .loa/"
+echo "  --vendored        Standard mode - copies files into .claude/ (legacy)"
+echo ""
+echo "Submodule Mode Options:"
+echo "  --branch <name>   Loa branch to use (default: main)"
+echo "  --tag <tag>       Loa tag to pin to"
+echo "  --ref <ref>       Loa ref to pin to"
+echo ""
+echo "Standard (Vendored) Mode Options:"
+echo "  --branch <name>   Loa branch to use (default: main)"
+```
+
+#### 3.1.4 Mode Conflict Messages (lines 1310-1333)
+
+Update error messages for the inverted default:
+
+```bash
+check_mode_conflicts() {
+  if [[ -f "$VERSION_FILE" ]]; then
+    local current_mode=$(jq -r '.installation_mode // "standard"' "$VERSION_FILE" 2>/dev/null)
+
+    if [[ "$SUBMODULE_MODE" == "true" ]] && [[ "$current_mode" == "standard" ]]; then
+      err "Loa is installed in vendored (standard) mode. Cannot switch to submodule mode.
+To migrate: /mount --migrate-to-submodule
+To keep vendored: /mount --vendored"
+    fi
+
+    if [[ "$SUBMODULE_MODE" == "false" ]] && [[ "$current_mode" == "submodule" ]]; then
+      err "Loa is installed in submodule mode. Cannot switch to vendored mode.
+To switch modes:
+  1. Remove the submodule: git submodule deinit -f .loa && git rm -f .loa
+  2. Remove symlinks from .claude/ (preserve settings.json, commands/, overrides/)
+  3. Remove .loa-version.json
+  4. Run: /mount --vendored"
+    fi
   fi
-
-  # Check schema version
-  local schema_ver
-  schema_ver=$(yq eval '.gpt_review.route_schema // 1' "$config_file" 2>/dev/null) || schema_ver=1
-  if [[ "$schema_ver" -gt 1 ]]; then
-    error "Route table schema version $schema_ver not supported (max: 1). Upgrade Loa."
-    return 2
-  fi
-
-  # Parse each route
-  local i
-  for ((i = 0; i < route_count; i++)); do
-    local backend when caps fail_mode
-    backend=$(yq eval ".gpt_review.routes[$i].backend // \"\"" "$config_file")
-    when=$(yq eval ".gpt_review.routes[$i].when | join(\",\")" "$config_file" 2>/dev/null) || when=""
-    caps=$(yq eval ".gpt_review.routes[$i].capabilities | join(\",\")" "$config_file" 2>/dev/null) || caps=""
-    fail_mode=$(yq eval ".gpt_review.routes[$i].fail_mode // \"fallthrough\"" "$config_file")
-
-    _RT_BACKENDS+=("$backend")
-    _RT_CONDITIONS+=("$when")
-    _RT_CAPABILITIES+=("$caps")
-    _RT_FAIL_MODES+=("$fail_mode")
-  done
 }
 ```
 
-#### 3.1.3 validate_route_table()
+### 3.1.5 Graceful Degradation Preflight (Flatline IMP-001, SKP-001, SKP-002)
 
-Implements fail-closed for custom routes, fail-open for defaults (PRD FR-1.4):
+Before routing to submodule or vendored mode, add environment preflight checks. If submodule prerequisites fail, **automatically fall back to vendored mode** with a clear warning — never leave the user unable to install.
 
 ```bash
-# Validate parsed route table against schema rules.
-# Args: is_custom ("true" if user-defined routes)
-# Returns: 0 on valid, 2 on hard error
-validate_route_table() {
-  local is_custom="${1:-false}"
-  local errors=0 warnings=0
+# Add to mount-loa.sh, called before route_to_submodule():
+preflight_submodule_environment() {
+  local can_submodule=true
+  local reasons=()
 
-  # R3.2: Policy constraint — max routes
-  local max_routes="${_RT_MAX_ROUTES:-10}"
-  if [[ ${#_RT_BACKENDS[@]} -gt $max_routes ]]; then
-    error "Route table exceeds max routes ($max_routes)"
-    return 2
+  # Check 1: git present and working
+  if ! command -v git &>/dev/null; then
+    can_submodule=false
+    reasons+=("git not found in PATH")
   fi
 
-  # Must have at least one route
-  if [[ ${#_RT_BACKENDS[@]} -eq 0 ]]; then
-    error "Route table is empty"
-    return 2
+  # Check 2: inside a git repository
+  if ! git rev-parse --git-dir &>/dev/null 2>&1; then
+    can_submodule=false
+    reasons+=("not inside a git repository")
   fi
 
-  local i
-  for ((i = 0; i < ${#_RT_BACKENDS[@]}; i++)); do
-    local backend="${_RT_BACKENDS[$i]}"
-    local conditions="${_RT_CONDITIONS[$i]}"
-    local fail_mode="${_RT_FAIL_MODES[$i]}"
-
-    # Backend required and must be registered
-    if [[ -z "$backend" ]]; then
-      error "Route $i: backend is required"
-      ((errors++))
-    elif [[ -z "${_BACKEND_REGISTRY[$backend]:-}" ]]; then
-      error "Route $i: unknown backend '$backend'"
-      ((errors++))
+  # Check 3: submodule support (git version >= 1.8.5 for submodule add)
+  if command -v git &>/dev/null; then
+    local git_ver
+    git_ver=$(git --version | grep -oE '[0-9]+\.[0-9]+' | head -1)
+    if [[ "$(printf '%s\n' "1.8" "$git_ver" | sort -V | head -1)" != "1.8" ]]; then
+      can_submodule=false
+      reasons+=("git version too old for submodule support")
     fi
+  fi
 
-    # Conditions must be non-empty
-    if [[ -z "$conditions" ]]; then
-      error "Route $i: 'when' must be non-empty array"
-      ((errors++))
+  # Check 4: symlink support (write test symlink, check it works)
+  if [[ "$can_submodule" == "true" ]]; then
+    local test_link=".claude/.symlink-test-$$"
+    local test_target=".claude"
+    if ! ln -sf "$test_target" "$test_link" 2>/dev/null; then
+      can_submodule=false
+      reasons+=("symlinks not supported (ln -sf failed)")
     else
-      IFS=',' read -ra conds <<< "$conditions"
-      for cond in "${conds[@]}"; do
-        if [[ -z "${_CONDITION_REGISTRY[$cond]:-}" ]]; then
-          log "WARNING: Route $i: unknown condition '$cond' (will evaluate as false)"
-          ((warnings++))
-        fi
-      done
+      rm -f "$test_link" 2>/dev/null
     fi
-
-    # Fail mode validation
-    if [[ "$fail_mode" != "fallthrough" && "$fail_mode" != "hard_fail" ]]; then
-      log "WARNING: Route $i: invalid fail_mode '$fail_mode', defaulting to fallthrough"
-      _RT_FAIL_MODES[$i]="fallthrough"
-    fi
-  done
-
-  # Advisory: last route should be hard_fail
-  local last_idx=$(( ${#_RT_FAIL_MODES[@]} - 1 ))
-  if [[ "${_RT_FAIL_MODES[$last_idx]}" != "hard_fail" ]]; then
-    log "WARNING: Last route is not hard_fail — all routes could fall through silently"
   fi
 
-  # Fail-closed for custom routes with errors
-  if [[ $errors -gt 0 && "$is_custom" == "true" ]]; then
-    error "Custom route table has $errors error(s) — aborting (fail-closed)"
-    return 2
-  fi
-
-  return 0
-}
-```
-
-#### 3.1.4 Condition Registry
-
-Built-in conditions registered at source time:
-
-```bash
-_cond_always() { return 0; }
-_cond_flatline_routing_enabled() { is_flatline_routing_enabled; }
-_cond_model_invoke_available() { [[ -x "${MODEL_INVOKE:-}" ]]; }
-_cond_codex_available() { codex_is_available; }
-
-register_builtin_conditions() {
-  _CONDITION_REGISTRY=(
-    ["always"]="_cond_always"
-    ["flatline_routing_enabled"]="_cond_flatline_routing_enabled"
-    ["model_invoke_available"]="_cond_model_invoke_available"
-    ["codex_available"]="_cond_codex_available"
-  )
-}
-```
-
-**Security**: Conditions are looked up by name in a fixed associative array. Unknown names evaluate as false. No `eval`, no dynamic function construction, no user-supplied code execution.
-
-#### 3.1.5 Backend Registry
-
-```bash
-# Backend execution functions.
-# Each takes: model sys usr timeout fast tool_access reasoning_mode review_type route_idx
-# Each returns: 0 + JSON on stdout (success), non-zero (failure)
-
-_backend_hounfour() {
-  local model="$1" sys="$2" usr="$3" timeout="$4"
-  call_api_via_model_invoke "$model" "$sys" "$usr" "$timeout"
-}
-
-_backend_codex() {
-  local model="$1" sys="$2" usr="$3" timeout="$4"
-  local fast="${5:-false}" ta="${6:-false}" rm="${7:-single-pass}" rtype="${8:-code}"
-  local route_idx="${9:-0}"
-  local ws of
-  ws=$(setup_review_workspace "" "$ta")
-  of=$(mktemp "${ws}/out-$$.XXXXXX")
-
-  # Check multi-pass capability from route table
-  local caps="${_RT_CAPABILITIES[$route_idx]:-}"
-  local has_multipass=false
-  [[ "$caps" == *"multi_pass"* ]] && has_multipass=true
-
-  if [[ "$rm" == "multi-pass" && "$fast" != "true" && "$has_multipass" == "true" ]]; then
-    local me=0
-    run_multipass "$sys" "$usr" "$model" "$ws" "$timeout" "$of" "$rtype" "$ta" || me=$?
-    if [[ $me -eq 0 && -s "$of" ]]; then
-      local result; result=$(cat "$of"); cleanup_workspace "$ws"
-      if echo "$result" | jq -e '.verdict' &>/dev/null; then
-        echo "$result"; return 0
-      fi
+  # Check 5: CI submodule init status (detect shallow/partial clones)
+  if [[ "${CI:-}" == "true" ]] && [[ "$can_submodule" == "true" ]]; then
+    if [[ -f ".gitmodules" ]] && ! git submodule status &>/dev/null 2>&1; then
+      warn "CI environment detected with uninitialized submodules"
+      warn "Running: git submodule update --init"
+      git submodule update --init 2>/dev/null || {
+        can_submodule=false
+        reasons+=("submodule init failed in CI")
+      }
     fi
-    cleanup_workspace "$ws"
-    log "WARNING: multipass failed, falling back to single-pass codex"
-    ws=$(setup_review_workspace "" "$ta"); of=$(mktemp "${ws}/out-$$.XXXXXX")
-  elif [[ "$rm" == "multi-pass" && "$has_multipass" != "true" ]]; then
-    log "WARNING: Backend 'codex' lacks multi_pass capability; downgrading to single-pass"
   fi
 
-  # Single-pass codex
-  local cp
-  cp=$(printf '%s\n\n---\n\n## CONTENT TO REVIEW:\n\n%s\n\n---\n\nRespond with valid JSON only. Include "verdict": "APPROVED"|"CHANGES_REQUIRED"|"DECISION_NEEDED".' "$sys" "$usr")
-  local ee=0
-  codex_exec_single "$cp" "$model" "$of" "$ws" "$timeout" || ee=$?
-  if [[ $ee -eq 0 && -s "$of" ]]; then
-    local raw; raw=$(cat "$of"); cleanup_workspace "$ws"
-    local pr; pr=$(parse_codex_output "$raw" 2>/dev/null) || pr=""
-    if [[ -n "$pr" ]]; then echo "$pr"; return 0; fi
-  fi
-  cleanup_workspace "$ws"
-  return 1
-}
-
-_backend_curl() {
-  local model="$1" sys="$2" usr="$3" timeout="$4"
-  call_api "$model" "$sys" "$usr" "$timeout"
-}
-
-register_builtin_backends() {
-  _BACKEND_REGISTRY=(
-    ["hounfour"]="_backend_hounfour"
-    ["codex"]="_backend_codex"
-    ["curl"]="_backend_curl"
-  )
-}
-```
-
-#### 3.1.6 execute_route_table()
-
-The main loop — replaces the imperative `route_review()`:
-
-```bash
-# Execute route table: try each route in order, first success wins.
-# Args: model sys usr timeout fast tool_access reasoning_mode review_type
-# Returns: 0 + JSON on stdout (success), 2 (all routes failed)
-execute_route_table() {
-  local model="$1" sys="$2" usr="$3" timeout="$4"
-  local fast="${5:-false}" ta="${6:-false}" rm="${7:-single-pass}" rtype="${8:-code}"
-
-  local i
-  for ((i = 0; i < ${#_RT_BACKENDS[@]}; i++)); do
-    local backend="${_RT_BACKENDS[$i]}"
-    local conditions="${_RT_CONDITIONS[$i]}"
-    local fail_mode="${_RT_FAIL_MODES[$i]}"
-    local route_timeout="${_RT_TIMEOUTS[$i]:-$timeout}"  # Per-route timeout (IMP-002)
-    local route_retries="${_RT_RETRIES[$i]:-0}"           # Per-route retries (IMP-002)
-    local func="${_BACKEND_REGISTRY[$backend]:-}"
-
-    # Evaluate conditions (AND logic)
-    if ! _evaluate_conditions "$conditions"; then
-      log "[route-table] skipping backend=$backend (conditions not met)"
-      continue
-    fi
-
-    log "[route-table] trying backend=$backend, conditions=[$conditions], result=pending"
-
-    # Call backend (with per-route timeout and retries)
-    local result="" be=0 attempt=0
-    while [[ $attempt -le $route_retries ]]; do
-      [[ $attempt -gt 0 ]] && log "[route-table] retry $attempt/$route_retries for backend=$backend"
-      result=$("$func" "$model" "$sys" "$usr" "$route_timeout" "$fast" "$ta" "$rm" "$rtype" "$i") || be=$?
-      [[ $be -eq 0 && -n "$result" ]] && break
-      ((attempt++))
-      be=1
+  if [[ "$can_submodule" == "false" ]]; then
+    warn "Cannot use submodule mode:"
+    for reason in "${reasons[@]}"; do
+      warn "  - $reason"
     done
-
-    if [[ $be -eq 0 && -n "$result" ]]; then
-      # Validate result contract
-      if validate_review_result "$result"; then
-        log "[route-table] trying backend=$backend, conditions=[$conditions], result=success"
-        echo "$result"
-        return 0
-      else
-        log "[route-table] trying backend=$backend, conditions=[$conditions], result=fail (invalid output)"
-      fi
-    else
-      log "[route-table] trying backend=$backend, conditions=[$conditions], result=fail (exit $be)"
-    fi
-
-    # Check fail_mode
-    if [[ "$fail_mode" == "hard_fail" ]]; then
-      error "Backend '$backend' failed with hard_fail — aborting"
-      return 2
-    fi
-    # fallthrough → continue to next route
-  done
-
-  error "All routes exhausted — no backend returned a valid result"
-  return 2
-}
-```
-
-#### 3.1.7 validate_review_result() (PRD FR-1.8)
-
-Shared gate checking backend output validity:
-
-```bash
-# Validate backend output against result contract.
-# Args: json_string
-# Returns: 0 if valid, 1 if invalid
-validate_review_result() {
-  local result="$1"
-
-  # Minimum length
-  if [[ ${#result} -lt 20 ]]; then
-    log "WARNING: validate_review_result: response too short (${#result} chars)"
-    return 1
-  fi
-
-  # JSON validity
-  if ! echo "$result" | jq empty 2>/dev/null; then
-    log "WARNING: validate_review_result: invalid JSON"
-    return 1
-  fi
-
-  # Required field: verdict
-  local verdict
-  verdict=$(echo "$result" | jq -r '.verdict // empty' 2>/dev/null)
-  if [[ -z "$verdict" ]]; then
-    log "WARNING: validate_review_result: missing 'verdict' field"
-    return 1
-  fi
-
-  # Verdict enum
-  case "$verdict" in
-    APPROVED|CHANGES_REQUIRED|DECISION_NEEDED|SKIPPED) ;;
-    *)
-      log "WARNING: validate_review_result: invalid verdict '$verdict'"
-      return 1
-      ;;
-  esac
-
-  # findings must be array if present
-  local findings_type
-  findings_type=$(echo "$result" | jq -r 'if has("findings") then (.findings | type) else "absent" end' 2>/dev/null)
-  if [[ "$findings_type" != "absent" && "$findings_type" != "array" ]]; then
-    log "WARNING: validate_review_result: 'findings' must be array, got '$findings_type'"
+    warn "Falling back to vendored (standard) mode"
+    SUBMODULE_MODE=false
     return 1
   fi
 
@@ -456,653 +248,804 @@ validate_review_result() {
 }
 ```
 
-#### 3.1.8 log_route_table() (PRD G6)
+This addresses SKP-001 (submodule-first assumes git everywhere) and SKP-002 (symlink fragility) by making the default **best-effort submodule, guaranteed-fallback vendored**.
 
-Config-to-code tracing at startup:
+### 3.2 mount-submodule.sh — Missing Symlinks
 
-```bash
-# Log effective route table for auditability.
-# Emits: backend names, conditions, fail modes, SHA-256 hash.
-log_route_table() {
-  local table_str=""
-  local i
-  for ((i = 0; i < ${#_RT_BACKENDS[@]}; i++)); do
-    local line="${_RT_BACKENDS[$i]}:[${_RT_CONDITIONS[$i]}]:${_RT_FAIL_MODES[$i]}"
-    table_str+="$line;"
-  done
+**File**: `.claude/scripts/mount-submodule.sh` (619 lines)
 
-  local hash
-  hash=$(printf '%s' "$table_str" | sha256sum | cut -d' ' -f1)
+The existing `create_symlinks()` (lines 260-359) handles skills, commands, scripts, protocols, schemas, and loa/CLAUDE.loa.md. Missing from the current implementation:
 
-  log "[route-table] effective routes: ${table_str}"
-  log "[route-table] hash: sha256:${hash:0:16}"
-}
-```
-
-#### 3.1.9 Default Route Table
-
-Built-in default matching cycle-033 behavior:
+#### 3.2.1 Missing `.claude/hooks/` Symlink
 
 ```bash
-_rt_load_defaults() {
-  _RT_BACKENDS=("hounfour" "codex" "curl")
-  _RT_CONDITIONS=("flatline_routing_enabled,model_invoke_available" "codex_available" "always")
-  _RT_CAPABILITIES=("agent_binding,metering,trust_scopes" "sandbox,ephemeral,multi_pass,tool_access" "basic")
-  _RT_FAIL_MODES=("fallthrough" "fallthrough" "hard_fail")
-}
-```
-
-#### 3.1.10 Execution Mode Filter
-
-```bash
-# Apply execution_mode filter to route table.
-# Args: mode (auto|codex|curl)
-_rt_apply_execution_mode() {
-  local mode="$1"
-  [[ "$mode" == "auto" ]] && return 0
-
-  local -a new_backends=() new_conditions=() new_caps=() new_modes=()
-  local i
-  for ((i = 0; i < ${#_RT_BACKENDS[@]}; i++)); do
-    local b="${_RT_BACKENDS[$i]}"
-    case "$mode" in
-      curl)
-        [[ "$b" == "curl" ]] && {
-          new_backends+=("$b"); new_conditions+=("${_RT_CONDITIONS[$i]}")
-          new_caps+=("${_RT_CAPABILITIES[$i]}"); new_modes+=("hard_fail")
-        }
-        ;;
-      codex)
-        [[ "$b" == "codex" || "$b" == "curl" ]] && {
-          new_backends+=("$b"); new_conditions+=("${_RT_CONDITIONS[$i]}")
-          new_caps+=("${_RT_CAPABILITIES[$i]}")
-          [[ "$b" == "codex" ]] && new_modes+=("hard_fail") || new_modes+=("${_RT_FAIL_MODES[$i]}")
-        }
-        ;;
-    esac
-  done
-
-  _RT_BACKENDS=("${new_backends[@]}")
-  _RT_CONDITIONS=("${new_conditions[@]}")
-  _RT_CAPABILITIES=("${new_caps[@]}")
-  _RT_FAIL_MODES=("${new_modes[@]}")
-}
-```
-
-#### 3.1.11 init_route_table()
-
-Single initialization entrypoint called from route_review().
-
-**Concurrency model** (Flatline IMP-001): `init_route_table()` is idempotent — calling it multiple times overwrites the same global arrays. It assumes single-process execution (one `gpt-review-api.sh` invocation per workspace). Parallel CI jobs using the same workspace must serialize invocations externally or use separate workspaces. The function is NOT thread-safe in the bash sense (no locking on globals), but this is acceptable because `gpt-review-api.sh` is a short-lived CLI tool, not a long-running daemon.
-
-```bash
-# Initialize the full route table: parse, register, validate.
-# Idempotent: safe to call multiple times (overwrites global state).
-# Single-process assumption: no cross-process locking.
-# Args: config_file
-# Returns: 0 on success, 2 on fatal error
-init_route_table() {
-  local config_file="${1:-$CONFIG_FILE}"
-
-  # Clear any previous state (idempotency)
-  _RT_BACKENDS=(); _RT_CONDITIONS=(); _RT_CAPABILITIES=(); _RT_FAIL_MODES=()
-
-  # Register built-in conditions and backends
-  register_builtin_conditions
-  register_builtin_backends
-
-  # Detect custom routes — with yq availability check (Flatline IMP-004)
-  local is_custom="false"
-  if [[ -f "$config_file" ]]; then
-    # Cheap grep check: does config mention gpt_review routes?
-    if grep -q 'gpt_review:' "$config_file" 2>/dev/null && \
-       grep -q '  routes:' "$config_file" 2>/dev/null; then
-      if ! command -v yq &>/dev/null; then
-        # Config has routes but yq is missing — fail-closed
-        error "Config file has gpt_review.routes but yq is not installed."
-        error "Install yq v4+ to use custom routes, or remove the routes section."
-        error "Override with LOA_ALLOW_DEFAULTS_WITHOUT_YQ=1 to use defaults."
-        if [[ "${LOA_ALLOW_DEFAULTS_WITHOUT_YQ:-}" != "1" ]]; then
-          return 2
-        fi
-        log "WARNING: LOA_ALLOW_DEFAULTS_WITHOUT_YQ=1 set — using defaults despite config"
-      else
-        local rc
-        rc=$(yq eval '.gpt_review.routes | length // 0' "$config_file" 2>/dev/null) || rc=0
-        [[ "$rc" -gt 0 ]] && is_custom="true"
-      fi
-    fi
-  fi
-
-  parse_route_table "$config_file" || return $?
-
-  # Check CI opt-in for custom routes
-  if [[ "$is_custom" == "true" && "${CI:-}" == "true" && "${LOA_CUSTOM_ROUTES:-}" != "1" ]]; then
-    log "WARNING: Custom routes in CI require LOA_CUSTOM_ROUTES=1 — using defaults"
-    _RT_BACKENDS=(); _RT_CONDITIONS=(); _RT_CAPABILITIES=(); _RT_FAIL_MODES=()
-    _rt_load_defaults
-    is_custom="false"
-  fi
-
-  # Validate
-  validate_route_table "$is_custom" || return $?
-}
-```
-
-### 3.2 Refactored route_review() (gpt-review-api.sh)
-
-The imperative 56-line `route_review()` is replaced with:
-
-```bash
-# Execution Router (SDD §3.2): Declarative route table
-route_review() {
-  local model="$1" sys="$2" usr="$3" timeout="$4" fast="${5:-false}" ta="${6:-false}"
-  local rm="${7:-single-pass}" rtype="${8:-code}"
-
-  # Initialize route table (once per invocation)
-  init_route_table "$CONFIG_FILE"
-
-  # Apply execution_mode filter if set
-  local em="auto"
-  [[ -f "$CONFIG_FILE" ]] && command -v yq &>/dev/null && {
-    local c; c=$(yq eval '.gpt_review.execution_mode // "auto"' "$CONFIG_FILE" 2>/dev/null || echo "auto")
-    [[ -n "$c" && "$c" != "null" ]] && em="$c"
-  }
-  [[ "$em" != "auto" ]] && _rt_apply_execution_mode "$em"
-
-  # Log effective table
-  log_route_table
-
-  # Execute
-  execute_route_table "$model" "$sys" "$usr" "$timeout" "$fast" "$ta" "$rm" "$rtype"
-}
-```
-
-**Target**: ~15 lines of declarative orchestration replacing 56 lines of imperative logic.
-
-### 3.3 Adaptive Multi-Pass (lib-multipass.sh)
-
-#### 3.3.1 Dual-Signal Complexity Classifier
-
-New function added to lib-multipass.sh:
-
-```bash
-# Classify change complexity using deterministic diff signals.
-# Args: user_content (the diff/review content)
-# Returns: "low" | "medium" | "high" to stdout
-classify_complexity() {
-  local content="$1"
-
-  local files_changed=0 lines_changed=0 security_hit=false
-
-  # Count files and lines from diff markers
-  files_changed=$(echo "$content" | grep -c '^diff --git' 2>/dev/null) || files_changed=0
-  lines_changed=$(echo "$content" | grep -cE '^\+[^+]|^-[^-]' 2>/dev/null) || lines_changed=0
-
-  # Security-sensitive path check (never-single-pass denylist)
-  local -a security_paths=(".claude/" "lib-security" "auth" "credentials" "secrets" ".env")
-  for pattern in "${security_paths[@]}"; do
-    if echo "$content" | grep -qE "^diff --git.*${pattern}"; then
-      security_hit=true
-      break
-    fi
-  done
-
-  # Classify
-  if [[ "$security_hit" == "true" ]]; then
-    echo "high"
-  elif [[ $files_changed -gt 15 || $lines_changed -gt 2000 ]]; then
-    echo "high"
-  elif [[ $files_changed -gt 3 || $lines_changed -gt 200 ]]; then
-    echo "medium"
-  else
-    echo "low"
-  fi
-}
-```
-
-```bash
-# Reclassify after Pass 1 using model signals.
-# Requires BOTH signals to agree for single-pass (PRD FR-2.1).
-# Args: det_level pass1_output
-# Returns: "low" | "medium" | "high" to stdout
-reclassify_with_model_signals() {
-  local det_level="$1" pass1_output="$2"
-
-  local risk_areas scope_tokens
-  risk_areas=$(echo "$pass1_output" | jq -r '.complexity.risk_area_count // .risk_areas // 0' 2>/dev/null) || risk_areas=0
-  scope_tokens=$(estimate_token_count "$pass1_output")
-
-  # Configurable thresholds
-  local low_risk high_risk low_scope high_scope
-  low_risk=$(_read_mp_config '.gpt_review.multipass.thresholds.low_risk_areas' 3)
-  high_risk=$(_read_mp_config '.gpt_review.multipass.thresholds.high_risk_areas' 6)
-  low_scope=$(_read_mp_config '.gpt_review.multipass.thresholds.low_scope_tokens' 500)
-  high_scope=$(_read_mp_config '.gpt_review.multipass.thresholds.high_scope_tokens' 2000)
-
-  local model_level="medium"
-  if [[ $risk_areas -le $low_risk && $scope_tokens -le $low_scope ]]; then
-    model_level="low"
-  elif [[ $risk_areas -gt $high_risk || $scope_tokens -gt $high_scope ]]; then
-    model_level="high"
-  fi
-
-  # Dual-signal matrix: single-pass requires BOTH signals low
-  if [[ "$det_level" == "low" && "$model_level" == "low" ]]; then
-    echo "low"
-  elif [[ "$det_level" == "high" || "$model_level" == "high" ]]; then
-    echo "high"
-  else
-    echo "medium"
-  fi
-}
-```
-
-#### 3.3.2 Modified run_multipass()
-
-The adaptive flow integrates into the existing orchestrator:
-
-```
-run_multipass():
-  1. Check adaptive config (.gpt_review.multipass.adaptive, default true)
-  2. If adaptive disabled → existing 3-pass behavior (unchanged)
-  3. If adaptive enabled:
-     a. classify_complexity(user_content) → det_level
-     b. Run Pass 1 (unchanged)
-     c. reclassify_with_model_signals(det_level, p1_output) → final_level
-     d. If final_level == "low" → return Pass 1 output as combined review
-     e. If final_level == "high" → use extended budgets for Pass 2
-     f. If final_level == "medium" → standard 3-pass
-  4. All fallback paths unchanged (budget overflow, pass failure)
-```
-
-The key insight: Pass 1 always runs (it produces the context map). The adaptive decision happens between Pass 1 and Pass 2. This means we never skip planning — we only skip the full review + verification when the content is clearly simple.
-
-#### 3.3.3 Extended Budgets for High Complexity
-
-When `final_level == "high"`, read overrides from config:
-
-```bash
-if [[ "$final_level" == "high" ]]; then
-  PASS2_INPUT_BUDGET=$(_read_mp_config '.gpt_review.multipass.budgets.high_complexity.pass2_input' 30000)
-  PASS2_OUTPUT_BUDGET=$(_read_mp_config '.gpt_review.multipass.budgets.high_complexity.pass2_output' 10000)
+# Add after schemas symlink (line 322):
+step "Linking hooks directory..."
+if [[ -d "$SUBMODULE_PATH/.claude/hooks" ]]; then
+  safe_symlink ".claude/hooks" "../$SUBMODULE_PATH/.claude/hooks"
+  log "  Linked: .claude/hooks/"
 fi
 ```
 
-### 3.4 Token Estimation (lib-multipass.sh)
-
-#### 3.4.1 Word-Count Tier
-
-Insert between tiktoken (Tier 1) and chars/4 (Tier 3):
+#### 3.2.2 Missing `.claude/data/` Symlink
 
 ```bash
-estimate_token_count() {
-  local text="$1"
-  local char_count=${#text}
+# Add after hooks symlink:
+step "Linking data directory..."
+if [[ -d "$SUBMODULE_PATH/.claude/data" ]]; then
+  safe_symlink ".claude/data" "../$SUBMODULE_PATH/.claude/data"
+  log "  Linked: .claude/data/"
+fi
+```
 
-  # Tier 1: tiktoken (within 5% accuracy)
-  if command -v python3 &>/dev/null; then
-    local tk_count
-    tk_count=$(printf '%s' "${text:0:400000}" | python3 -c "
-import sys
-try:
-    import tiktoken
-    enc = tiktoken.encoding_for_model('gpt-4')
-    print(len(enc.encode(sys.stdin.read())))
-except:
-    print(-1)
-" 2>/dev/null) || tk_count="-1"
-    if [[ "$tk_count" != "-1" && "$tk_count" -gt 0 ]]; then
-      echo "$tk_count"
-      return 0
-    fi
+#### 3.2.3 Missing `.claude/loa/reference/` Symlinks
+
+The current code (line 329) only symlinks `CLAUDE.loa.md`. The `.claude/loa/reference/` directory also needs linking:
+
+```bash
+# Add after CLAUDE.loa.md symlink (line 331):
+if [[ -d "$SUBMODULE_PATH/.claude/loa/reference" ]]; then
+  safe_symlink ".claude/loa/reference" "../../$SUBMODULE_PATH/.claude/loa/reference"
+  log "  Linked: .claude/loa/reference/"
+fi
+
+# Also link feedback-ontology.yaml and learnings/
+if [[ -f "$SUBMODULE_PATH/.claude/loa/feedback-ontology.yaml" ]]; then
+  safe_symlink ".claude/loa/feedback-ontology.yaml" "../../$SUBMODULE_PATH/.claude/loa/feedback-ontology.yaml"
+  log "  Linked: .claude/loa/feedback-ontology.yaml"
+fi
+
+if [[ -d "$SUBMODULE_PATH/.claude/loa/learnings" ]]; then
+  safe_symlink ".claude/loa/learnings" "../../$SUBMODULE_PATH/.claude/loa/learnings"
+  log "  Linked: .claude/loa/learnings/"
+fi
+```
+
+#### 3.2.4 Preflight Fix (lines 131-166)
+
+The `preflight()` function checks for existing `.loa/` directory at line 156-158. When Memory Stack has written to `.loa/`, this check would block submodule creation. Add a Memory Stack migration step:
+
+```bash
+# In preflight(), after detecting .loa/ exists:
+if [[ -d ".loa" ]] && [[ ! -f ".loa/.git" ]]; then
+  # .loa/ exists but is NOT a submodule — likely Memory Stack data
+  warn "Found existing .loa/ directory (not a submodule)"
+  step "Relocating Memory Stack data to .loa-cache/..."
+
+  # Flatline SKP-003: Use atomic mv, not cp+rm, to prevent data loss
+  if [[ -d ".loa-cache" ]]; then
+    err "Both .loa/ and .loa-cache/ exist. Cannot auto-migrate.
+Please manually resolve:
+  mv .loa-cache .loa-cache.old
+  mv .loa .loa-cache"
   fi
 
-  # Tier 2: word-count heuristic (~1.33 tokens/word, ≤15% mean error for code)
-  local word_count
-  word_count=$(printf '%s' "$text" | wc -w) || word_count=0
-  if [[ "$word_count" -gt 0 ]]; then
-    echo $(( (word_count * 4 + 2) / 3 ))
+  # Atomic move (same filesystem = rename, no data copy)
+  if mv .loa .loa-cache 2>/dev/null; then
+    log "Memory Stack relocated to .loa-cache/ (atomic move)"
+  else
+    # Cross-filesystem: fall back to rsync with verification
+    if command -v rsync &>/dev/null; then
+      rsync -a --include='.*' .loa/ .loa-cache/ || {
+        err "Memory Stack relocation failed (rsync error). Aborting."
+      }
+      # Verify file count matches
+      local src_count dst_count
+      src_count=$(find .loa -type f 2>/dev/null | wc -l)
+      dst_count=$(find .loa-cache -type f 2>/dev/null | wc -l)
+      if [[ "$src_count" != "$dst_count" ]]; then
+        err "Memory Stack relocation verification failed: $src_count source files, $dst_count destination files. Aborting."
+      fi
+      rm -rf .loa
+      log "Memory Stack relocated to .loa-cache/ (rsync + verified)"
+    else
+      err "Cannot relocate .loa/ to .loa-cache/ (mv failed, rsync not available).
+Please manually: mv .loa .loa-cache"
+    fi
+  fi
+fi
+```
+
+#### 3.2.5 Post-Clone Auto-Init (Flatline IMP-002)
+
+When a user clones without `--recurse-submodules`, the `.loa/` directory exists but is empty. Detect this and auto-initialize:
+
+```bash
+# Add to mount-submodule.sh preflight() or as standalone recovery function:
+auto_init_submodule() {
+  # Check if .gitmodules references .loa but it's uninitialized
+  if [[ -f ".gitmodules" ]] && grep -q 'path = .loa' .gitmodules 2>/dev/null; then
+    if [[ ! -f ".loa/.git" ]] && [[ ! -d ".loa/.claude" ]]; then
+      warn "Submodule .loa/ appears uninitialized (missing .git marker)"
+      step "Auto-initializing submodule..."
+      git submodule update --init .loa || {
+        err "Failed to initialize submodule. Run manually:
+  git submodule update --init .loa"
+      }
+      log "Submodule initialized"
+
+      # Recreate symlinks (they don't survive clone)
+      step "Recreating symlinks..."
+      create_symlinks
+      log "Symlinks recreated"
+    fi
+  fi
+}
+```
+
+This also applies after `git clone` in CI — the mount script (or a post-checkout hook) detects the uninitialized state and self-heals.
+
+### 3.3 .gitignore — Collision Resolution + Stealth Expansion
+
+**File**: `.gitignore` (222 lines)
+
+#### 3.3.1 Remove `.loa/` from Default Gitignore (line 75)
+
+```diff
+-# Memory stack
+-.loa/
++# Memory stack (relocated from .loa/ to avoid submodule collision)
++.loa-cache/
+```
+
+The `.loa/` entry MUST be removed because git submodules at `.loa/` need to be tracked. Memory Stack's new home `.loa-cache/` takes its place.
+
+#### 3.3.2 Add Symlink Gitignore Entries
+
+Symlinks created by `mount-submodule.sh` should be gitignored (they're recreated on clone):
+
+```gitignore
+# Submodule symlinks (recreated by mount-submodule.sh)
+.claude/scripts
+.claude/protocols
+.claude/hooks
+.claude/data
+.claude/schemas
+.claude/loa/CLAUDE.loa.md
+.claude/loa/reference
+.claude/loa/feedback-ontology.yaml
+.claude/loa/learnings
+```
+
+**Note**: `.claude/skills/` uses per-skill symlinks (not a directory symlink), so individual skill symlinks are gitignored by the existing `.claude/skills/*/` pattern or need explicit entries.
+
+### 3.4 apply_stealth() — Comprehensive Expansion
+
+**File**: `.claude/scripts/mount-loa.sh`, lines 985-1009
+
+Current `apply_stealth()` adds only 4 entries. Expand to comprehensive coverage:
+
+```bash
+apply_stealth() {
+  local mode="standard"
+
+  if [[ "$STEALTH_MODE" == "true" ]]; then
+    mode="stealth"
+  elif [[ -f "$CONFIG_FILE" ]]; then
+    mode=$(yq_read "$CONFIG_FILE" '.persistence_mode' "standard")
+  fi
+
+  if [[ "$mode" == "stealth" ]]; then
+    step "Applying stealth mode..."
+
+    local gitignore=".gitignore"
+    touch "$gitignore"
+
+    # Core state (always gitignored in stealth)
+    local entries=(
+      "grimoires/loa/"
+      ".beads/"
+      ".loa-version.json"
+      ".loa.config.yaml"
+    )
+
+    # Root documents (generated, gitignored in stealth)
+    local doc_entries=(
+      "PROCESS.md"
+      "CHANGELOG.md"
+      "INSTALLATION.md"
+      "CONTRIBUTING.md"
+      "SECURITY.md"
+      "LICENSE.md"
+      "BUTTERFREEZONE.md"
+      ".reviewignore"
+      ".trufflehog.yaml"
+      ".gitleaksignore"
+    )
+
+    for entry in "${entries[@]}" "${doc_entries[@]}"; do
+      grep -qxF "$entry" "$gitignore" 2>/dev/null || echo "$entry" >> "$gitignore"
+    done
+
+    log "Stealth mode applied (${#entries[@]} core + ${#doc_entries[@]} doc entries)"
+  fi
+}
+```
+
+### 3.5 Memory Stack Relocation
+
+All references to `.loa/` as Memory Stack storage must update to `.loa-cache/`.
+
+**Affected files** (identified via grep for `.loa/` path references excluding mount scripts):
+
+| File | Change |
+|------|--------|
+| `.claude/scripts/mount-loa.sh` | `.loa/` gitignore reference in comments |
+| Any memory/embedding scripts | Path constant from `.loa/` to `.loa-cache/` |
+
+**Auto-detection**: On first access, if `.loa-cache/` doesn't exist but `.loa/` does and contains Memory Stack data (not a submodule), auto-migrate:
+
+```bash
+# memory-stack-path.sh (utility function sourced by memory scripts)
+# Flatline SKP-003: Use atomic mv, verify before delete, never swallow errors
+get_memory_stack_path() {
+  local new_path=".loa-cache"
+  local old_path=".loa"
+
+  # Already using new path
+  if [[ -d "$new_path" ]]; then
+    echo "$new_path"
     return 0
   fi
 
-  # Tier 3: chars/4 heuristic (fallback for empty word-count edge case)
-  echo $(( (char_count + 3) / 4 ))
-}
-```
-
-The word-count tier is better than chars/4 for code because:
-- Code has many non-word characters (braces, operators, punctuation) that inflate char count
-- Tokenizers align more closely with word boundaries than character boundaries
-- The 1.33 multiplier is calibrated for mixed prose/code content
-
-### 3.5 Capability Detection (lib-codex-exec.sh)
-
-#### 3.5.1 Cached Help Text
-
-Replace the per-flag `codex exec --help` invocation with a single call:
-
-```bash
-detect_capabilities() {
-  # ... version hash + cache file logic unchanged ...
-
-  local capabilities="{}"
-
-  # Single help text invocation (was: one per flag in the loop)
-  local help_text
-  help_text=$(codex exec --help 2>&1) || help_text=""
-
-  for flag in "${_CODEX_PROBE_FLAGS[@]}"; do
-    local supported="true"
-    if echo "$help_text" | grep -qiE "(unknown option|unrecognized|invalid).*${flag}"; then
-      supported="false"
-    elif ! echo "$help_text" | grep -q -- "$flag"; then
-      supported="true"
-    fi
-    capabilities=$(echo "$capabilities" | jq --arg f "$flag" --arg s "$supported" '. + {($f): ($s == "true")}')
-  done
-
-  # ... metadata + write cache unchanged ...
-}
-```
-
-**Change**: The existing code already calls `codex exec --help` in the loop body but does so per iteration. The fix is to hoist the call above the loop. The cache file logic is unchanged.
-
-### 3.6 JSON Extraction Fallback (lib-codex-exec.sh)
-
-#### 3.6.1 Python3 raw_decode Tier
-
-Add between the greedy regex (Tier 3) and the error return (Tier 4) in `parse_codex_output()`:
-
-```bash
-  # Tier 3: Greedy regex (2-level nesting) — unchanged
-  # ...
-
-  # Tier 3.5: Python3 raw_decode (arbitrary nesting, correct by construction)
-  if command -v python3 &>/dev/null; then
-    local decoded
-    decoded=$(printf '%s' "$raw" | python3 -c "
-import json, sys
-s = sys.stdin.read()
-try:
-    idx = s.index('{')
-    obj, _ = json.JSONDecoder().raw_decode(s[idx:])
-    print(json.dumps(obj))
-except (ValueError, json.JSONDecodeError):
-    sys.exit(1)
-" 2>/dev/null) || decoded=""
-    if [[ -n "$decoded" ]] && echo "$decoded" | jq empty 2>/dev/null; then
-      echo "$decoded" | jq '.'
+  # Old path exists and is NOT a submodule — migrate atomically
+  if [[ -d "$old_path" ]] && [[ ! -f "$old_path/.git" ]]; then
+    if mv "$old_path" "$new_path" 2>/dev/null; then
+      echo "$new_path"
       return 0
     fi
+    # mv failed (cross-filesystem) — do NOT auto-migrate with cp
+    # Surface the error so the user can resolve it
+    echo >&2 "WARNING: Cannot auto-migrate Memory Stack from $old_path to $new_path"
+    echo >&2 "Please manually: mv $old_path $new_path"
+    echo "$old_path"  # Use old path as fallback
+    return 0
   fi
 
-  # Tier 4: All extraction methods failed — unchanged
+  # Fresh install
+  mkdir -p "$new_path"
+  echo "$new_path"
+}
 ```
 
-Note: `normalize-json.sh` already has a Python3 raw_decode path. The `parse_codex_output()` function in lib-codex-exec.sh is kept separate because it's the Codex-specific normalization path, while `normalize_json_response()` is the Hounfour/model-invoke path. Both now share the same Python3 fallback technique.
+### 3.6 /mount --migrate-to-submodule
+
+New migration subcommand added to `mount-loa.sh` argument parser.
+
+**Workflow** (Flatline SKP-004: discovery phase + dry-run + clean working tree):
+
+```
+0. PRE-CHECKS (Flatline SKP-004)
+   └── Require clean working tree (git status --porcelain empty)
+      └── If dirty → exit "Commit or stash changes before migration"
+   └── Create dedicated migration branch: git checkout -b loa/migrate-to-submodule
+
+1. Detect current mode from .loa-version.json
+   └── If already submodule → exit "Already in submodule mode"
+   └── If not standard → exit "Unknown mode"
+
+2. DISCOVERY PHASE (Flatline SKP-004)
+   └── Build framework file manifest from .loa-version.json checksums
+   └── Classify .claude/ files:
+       ├── FRAMEWORK: matches known framework file hashes → will be removed
+       ├── USER_MODIFIED: framework file with different hash → FLAGGED for review
+       └── USER_OWNED: settings.json, commands/, overrides/ → preserved
+   └── If --dry-run: output classification report and exit
+   └── Display plan and require confirmation
+
+3. Create backup
+   └── .claude.backup.{timestamp}/ ← cp -r .claude/
+   └── chmod 0700 on backup directory
+
+4. Remove framework files from git tracking
+   └── Only remove files classified as FRAMEWORK in discovery phase
+   └── USER_MODIFIED files: warn and offer choice (keep/remove/backup)
+   └── git rm --cached (not -r; enumerate specific paths from manifest)
+
+5. Add submodule
+   └── git submodule add $LOA_REMOTE_URL .loa
+   └── git submodule update --init .loa
+
+6. Create symlinks via create_symlinks()
+
+7. Restore user-owned files from backup if needed
+
+8. Update .loa-version.json
+   └── installation_mode: "submodule"
+   └── submodule_path: ".loa"
+
+9. Update .gitignore
+
+10. Commit on migration branch
+    └── Commit message includes file counts and classification summary
+
+11. Report summary with rollback instructions:
+    └── "To undo: git checkout main && git branch -D loa/migrate-to-submodule"
+    └── "Backup at: .claude.backup.{timestamp}/"
+```
+
+**Estimated size**: ~180 lines as a new function in `mount-loa.sh`.
+
+### 3.7 /loa Status Boundary Report (FR-5)
+
+Enhance the `/loa` skill to detect installation mode and display footprint:
+
+```
+Loa Framework v1.40.0
+────────────────────────────
+Installation: submodule (.loa/ @ abc1234)
+Mode: standard | Cycle: 035 | Sprint: 44
+
+Repository Footprint:
+  Tracked (yours):     5 files
+  Submodule (Loa):     1 reference → 823 files
+  Gitignored (state):  147 files
+
+  Your files:
+    CLAUDE.md
+    .loa.config.yaml
+    .claude/settings.json
+    .claude/commands/my-command.md
+    .gitmodules
+```
+
+Implementation reads `.loa-version.json` for mode detection, runs `git ls-files` for tracked count, and `git submodule status` for submodule info.
+
+### 3.8 /update-loa Submodule Support (FR-7, Flatline IMP-004)
+
+When `installation_mode == "submodule"` in `.loa-version.json`:
+
+```bash
+# In update-loa skill:
+if [[ "$install_mode" == "submodule" ]]; then
+  cd .loa
+  git fetch origin
+  # If tag specified: git checkout $tag
+  # If branch tracking: git pull origin $branch
+  cd ..
+  git add .loa
+  # Verify and reconcile symlinks (IMP-004)
+  verify_and_reconcile_symlinks
+fi
+```
+
+#### 3.8.1 Symlink Verify/Reconcile Algorithm (Flatline IMP-004)
+
+After any submodule update, internal paths may change. Define a reconciliation algorithm:
+
+```bash
+# verify_and_reconcile_symlinks()
+# Checks every expected symlink, removes dangling, recreates missing.
+# Returns: 0 if all healthy, 1 if reconciliation was needed.
+
+verify_and_reconcile_symlinks() {
+  local reconciled=0
+
+  # Expected symlinks manifest (authoritative list)
+  local -a expected_dirs=(
+    ".claude/scripts:../.loa/.claude/scripts"
+    ".claude/protocols:../.loa/.claude/protocols"
+    ".claude/hooks:../.loa/.claude/hooks"
+    ".claude/data:../.loa/.claude/data"
+    ".claude/schemas:../.loa/.claude/schemas"
+  )
+
+  local -a expected_files=(
+    ".claude/loa/CLAUDE.loa.md:../../.loa/.claude/loa/CLAUDE.loa.md"
+    ".claude/loa/reference:../../.loa/.claude/loa/reference"
+    ".claude/loa/feedback-ontology.yaml:../../.loa/.claude/loa/feedback-ontology.yaml"
+    ".claude/loa/learnings:../../.loa/.claude/loa/learnings"
+  )
+
+  # Phase 1: Check and fix directory symlinks
+  for entry in "${expected_dirs[@]}"; do
+    local link="${entry%%:*}"
+    local target="${entry#*:}"
+
+    if [[ -L "$link" ]]; then
+      # Symlink exists — check if target resolves
+      if [[ ! -e "$link" ]]; then
+        warn "Dangling symlink: $link → $(readlink "$link")"
+        rm -f "$link"
+        safe_symlink "$link" "$target"
+        log "Reconciled: $link"
+        ((reconciled++))
+      fi
+    elif [[ ! -e "$link" ]]; then
+      # Missing entirely — create
+      safe_symlink "$link" "$target"
+      log "Created missing: $link"
+      ((reconciled++))
+    fi
+    # If it's a real directory (vendored), leave it alone
+  done
+
+  # Phase 2: Check file/nested symlinks
+  for entry in "${expected_files[@]}"; do
+    local link="${entry%%:*}"
+    local target="${entry#*:}"
+
+    if [[ -L "$link" ]] && [[ ! -e "$link" ]]; then
+      rm -f "$link"
+      safe_symlink "$link" "$target"
+      log "Reconciled: $link"
+      ((reconciled++))
+    elif [[ ! -e "$link" ]] && [[ -e "${target}" ]]; then
+      mkdir -p "$(dirname "$link")"
+      safe_symlink "$link" "$target"
+      log "Created missing: $link"
+      ((reconciled++))
+    fi
+  done
+
+  # Phase 3: Check per-skill symlinks
+  if [[ -d ".loa/.claude/skills" ]]; then
+    for skill_dir in .loa/.claude/skills/*/; do
+      local skill_name=$(basename "$skill_dir")
+      local link=".claude/skills/$skill_name"
+      local target="../../.loa/.claude/skills/$skill_name"
+
+      if [[ -L "$link" ]] && [[ ! -e "$link" ]]; then
+        rm -f "$link"
+        safe_symlink "$link" "$target"
+        log "Reconciled skill: $skill_name"
+        ((reconciled++))
+      elif [[ ! -e "$link" ]]; then
+        safe_symlink "$link" "$target"
+        log "Created missing skill: $skill_name"
+        ((reconciled++))
+      fi
+    done
+  fi
+
+  if [[ $reconciled -gt 0 ]]; then
+    log "Reconciliation complete: $reconciled symlinks fixed"
+    return 1
+  fi
+  return 0
+}
+```
+
+This runs after every `/update-loa` and can also be invoked standalone for mount health checks.
+
+### 3.9 15-Script Compatibility Audit
+
+Scripts that reference `installation_mode` or check for submodule/standard mode:
+
+| Script | Reference | Change Needed |
+|--------|-----------|---------------|
+| `mount-loa.sh` | `SUBMODULE_MODE` flag, mode detection | Yes (§3.1) |
+| `mount-submodule.sh` | `SUBMODULE_PATH`, symlink creation | Yes (§3.2) |
+| `update-loa.sh` | Mode detection for update strategy | Yes (§3.8) |
+| `loa-eject.sh` | Mode detection for cleanup | Update eject flow for submodule |
+| `verify-mount.sh` | Checks file existence | Add symlink verification |
+| `golden-path.sh` | `/loa` status display | Yes (§3.7) |
+| `butterfreezone-gen.sh` | Installation mode in output | Update label |
+| `beads-health.sh` | Checks `.claude/scripts` exists | Works via symlink |
+| `ground-truth-gen.sh` | Reads `.claude/` structure | Works via symlink |
+| `run-mode-ice.sh` | Branch safety | No change needed |
+| `bridge-orchestrator.sh` | Uses scripts via path | Works via symlink |
+| `flatline-orchestrator.sh` | Uses scripts via path | Works via symlink |
+| `config-path-resolver.sh` | Path resolution | No change needed |
+| `memory-query.sh` | Memory Stack path | Update to `.loa-cache/` |
+| `check-permissions.sh` | Permission validation | No change needed |
+
+**Key insight**: Most scripts access framework content via `.claude/scripts/` paths. Since symlinks make these resolve transparently, the majority need NO changes. The compatibility surface is smaller than it appears.
 
 ---
 
-## 4. Configuration Schema
+## 4. Data Architecture
 
-### 4.1 New Config Keys
+### 4.1 .loa-version.json
 
-```yaml
-gpt_review:
-  enabled: true
+Existing schema, no changes:
 
-  # Schema version for route table format (FR-1.5)
-  route_schema: 1
-
-  # Declarative route table (FR-1.1)
-  routes:
-    - backend: hounfour
-      when: [flatline_routing_enabled, model_invoke_available]
-      capabilities: [agent_binding, metering, trust_scopes]
-      fail_mode: fallthrough
-      timeout: 300           # per-route timeout override (Flatline IMP-002)
-      retries: 0             # per-route retry count (Flatline IMP-002)
-
-    - backend: codex
-      when: [codex_available]
-      capabilities: [sandbox, ephemeral, multi_pass, tool_access]
-      fail_mode: fallthrough
-      timeout: 120
-      retries: 0
-
-    - backend: curl
-      when: [always]
-      capabilities: [basic]
-      fail_mode: hard_fail
-      timeout: 300
-      retries: 3             # curl backend retries (existing behavior)
-
-  # Legacy execution mode shorthand (FR-1.7)
-  execution_mode: auto  # auto | codex | curl
-
-  # Adaptive multi-pass (FR-2)
-  multipass:
-    adaptive: true  # false = always 3-pass
-    thresholds:
-      low_risk_areas: 3
-      low_scope_tokens: 500
-      high_risk_areas: 6
-      high_scope_tokens: 2000
-    budgets:
-      high_complexity:
-        pass2_input: 30000
-        pass2_output: 10000
-
-  # Policy constraints (R3.2)
-  policy:
-    max_routes: 10
-    max_attempts: 10
-    require_custom_routes_opt_in: false  # true in CI via LOA_CUSTOM_ROUTES env
+```json
+{
+  "installation_mode": "submodule",
+  "submodule_path": ".loa",
+  "version": "1.40.0",
+  "commit": "abc1234",
+  "installed_at": "2026-02-24T12:00:00Z"
+}
 ```
 
-### 4.2 CI Environment Variables
+### 4.2 .gitmodules
 
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `LOA_CUSTOM_ROUTES` | Opt-in for non-default routing in CI | unset (custom routes blocked in CI) |
-| `GPT_REVIEW_ADAPTIVE` | Override adaptive multi-pass | unset (uses config) |
+Created automatically by `git submodule add`:
+
+```ini
+[submodule ".loa"]
+    path = .loa
+    url = https://github.com/0xHoneyJar/loa.git
+```
+
+### 4.3 Configuration Changes
+
+No new config keys required. Existing `.loa.config.yaml` works identically in both modes. The `persistence_mode: stealth` key already controls stealth behavior — the expansion (§3.4) just makes it more comprehensive.
 
 ---
 
 ## 5. Security Architecture
 
-### 5.1 Condition Registry (R2)
+### 5.1 Symlink Traversal Prevention
 
-- Conditions are a **closed set** of named functions in a bash associative array
-- Unknown condition names evaluate as `false` (not as error, not as `eval`)
-- No user-supplied expressions, no dynamic function construction
-- Registered at source time, not at config parse time
+`safe_symlink()` (mount-submodule.sh:248-258) validates that symlink targets stay within the repository. The `validate_symlink_target()` function (lines 220-243) uses `realpath` to resolve paths and checks they're under the project root:
 
-### 5.2 Route Table Supply Chain (R3.2)
+```bash
+validate_symlink_target() {
+  local target="$1"
+  local resolved
+  resolved=$(cd "$(dirname "$target")" 2>/dev/null && pwd -P)/$(basename "$target")
+  local repo_root
+  repo_root=$(git rev-parse --show-toplevel)
 
-- Policy constraints enforced: max routes (10), max attempts (10)
-- CI opt-in via `LOA_CUSTOM_ROUTES=1` environment variable
-- Effective route table SHA-256 hash logged at startup
-- Route table hash can be pinned in CI for reproducibility
+  if [[ "$resolved" != "$repo_root"* ]]; then
+    err "Symlink target escapes repository: $target → $resolved"
+    return 1
+  fi
+  return 0
+}
+```
 
-### 5.3 Backend Result Contract (FR-1.8)
+**No changes needed** — this protection already covers the `.loa/` submodule path.
 
-All backends pass through `validate_review_result()`:
-- JSON validity (jq empty)
-- Required `verdict` field with enum constraint
-- Minimum length (20 chars)
-- Array type check on `findings` if present
+### 5.2 Submodule Supply Chain Integrity (Flatline SKP-005)
 
-A backend returning exit 0 with garbage output is treated as failure (fallthrough), not success.
+The `LOA_REMOTE_URL` (mount-submodule.sh:46) defaults to `https://github.com/0xHoneyJar/loa.git`. URL verification alone is insufficient — a compromised upstream or DNS interception could serve malicious content.
 
-### 5.4 Auth Boundary
+**Integrity model**:
 
-No changes to auth model. `ensure_codex_auth()` checks `OPENAI_API_KEY` env-only. No new secrets introduced.
+1. **URL verification**: Confirm .gitmodules URL matches expected origin
+2. **Commit recording**: `.loa-version.json` records expected commit hash at install time
+3. **Update verification**: `/update-loa` compares current submodule HEAD against recorded hash before accepting changes
+4. **Tag pinning**: Default to tagged releases, not branch HEAD
 
----
+```bash
+verify_submodule_integrity() {
+  local expected_url="https://github.com/0xHoneyJar/loa.git"
 
-## 6. File Inventory
+  # Check 1: URL verification
+  local actual_url
+  actual_url=$(git config --file .gitmodules submodule..loa.url 2>/dev/null)
+  if [[ "$actual_url" != "$expected_url" ]]; then
+    warn "Submodule URL mismatch:"
+    warn "  Expected: $expected_url"
+    warn "  Actual:   $actual_url"
+    warn "This may indicate the submodule has been retargeted."
+    return 1
+  fi
 
-### 6.1 New Files
+  # Check 2: Commit hash verification against .loa-version.json
+  if [[ -f "$VERSION_FILE" ]]; then
+    local expected_commit recorded_commit
+    recorded_commit=$(jq -r '.commit // empty' "$VERSION_FILE" 2>/dev/null)
+    if [[ -n "$recorded_commit" ]]; then
+      local actual_commit
+      actual_commit=$(cd .loa && git rev-parse HEAD 2>/dev/null)
+      if [[ "$actual_commit" != "$recorded_commit"* ]]; then
+        warn "Submodule commit mismatch:"
+        warn "  Recorded: $recorded_commit"
+        warn "  Actual:   $actual_commit"
+        warn "Run /update-loa to update the recorded commit."
+        # Note: mismatch is a warning, not a block — user may have manually updated
+      fi
+    fi
+  fi
 
-| File | Purpose | Lines (est.) |
-|------|---------|-------------|
-| `.claude/scripts/lib-route-table.sh` | Route table parser, registries, executor, result contract | ~300 |
-| `.claude/scripts/tests/test-gpt-review-route-table.bats` | Route table unit tests + golden tests | ~250 |
-| `.claude/scripts/tests/test-gpt-review-adaptive.bats` | Adaptive multi-pass tests | ~150 |
-| `.claude/scripts/tests/fixtures/gpt-review/route-configs/` | YAML fixture files for route table tests | ~10 files |
-| `.claude/scripts/tests/fixtures/gpt-review/token-corpus/` | Benchmark corpus for token estimation (≥10 samples) | ~10 files |
+  # Check 3: Signed tag verification (optional, if gpg is available)
+  if command -v gpg &>/dev/null; then
+    local current_tag
+    current_tag=$(cd .loa && git describe --exact-match --tags HEAD 2>/dev/null) || true
+    if [[ -n "$current_tag" ]]; then
+      if cd .loa && git verify-tag "$current_tag" &>/dev/null 2>&1; then
+        log "Submodule tag $current_tag: signature verified"
+      fi
+      cd ..
+    fi
+  fi
 
-### 6.2 Modified Files
+  return 0
+}
+```
 
-| File | Change | Risk |
-|------|--------|------|
-| `.claude/scripts/gpt-review-api.sh` | Replace `route_review()` body (~56 → ~15 lines), add `source lib-route-table.sh` | **Medium** — core routing path |
-| `.claude/scripts/lib-multipass.sh` | Add `classify_complexity()`, `reclassify_with_model_signals()`, modify `run_multipass()` adaptive branch, update `estimate_token_count()` | **Medium** — multi-pass behavior |
-| `.claude/scripts/lib-codex-exec.sh` | Optimize `detect_capabilities()` (hoist help text), add Python3 fallback to `parse_codex_output()` | **Low** — additive |
-| `.claude/scripts/tests/test-gpt-review-routing.bats` | Add golden tests for backend selection sequences | **Low** — test-only |
+On `/update-loa`, after fetching new content:
+- Record new commit hash in `.loa-version.json`
+- Log the previous and new commit for auditability
+- Run `verify_and_reconcile_symlinks()` (§3.8.1)
 
-### 6.3 Unchanged Files
+### 5.3 Migration Backup
 
-| File | Why Unchanged |
-|------|---------------|
-| `lib-security.sh` | No security policy changes |
-| `lib-curl-fallback.sh` | Backend functions called via registry, source unchanged |
-| `lib/normalize-json.sh` | Already has Python3 raw_decode |
-| `.loa.config.yaml` | No changes needed (defaults match cycle-033 behavior) |
+`--migrate-to-submodule` creates a timestamped backup before any changes. The backup captures the entire `.claude/` directory including user-owned files. Permissions: `0700` on backup directory.
 
----
+### 5.4 Mode Conflict Detection
 
-## 7. Test Strategy
-
-### 7.1 Golden Tests (PRD FR-1.10)
-
-Behavioral equivalence tests asserting exact backend selection sequences:
-
-| Test | Scenario | Expected Sequence |
-|------|----------|-------------------|
-| `golden_all_available` | All backends available | `hounfour` (success) |
-| `golden_hounfour_fail` | Hounfour fails, codex OK | `hounfour` (fail) → `codex` (success) |
-| `golden_full_cascade` | Hounfour + codex fail | `hounfour` (fail) → `codex` (fail) → `curl` (success) |
-| `golden_curl_only` | execution_mode=curl | `curl` (success) |
-| `golden_codex_hard_fail` | execution_mode=codex, codex down | `codex` (hard fail, exit 2) |
-| `golden_invalid_json` | Backend returns garbage | backend (fail validation) → next |
-| `golden_empty_table` | All routes filtered out | exit 2 |
-
-Implementation: Mock backends via env vars and stub functions in test fixtures.
-
-### 7.2 Route Table Parser Tests
-
-| Test | Input | Expected |
-|------|-------|----------|
-| `valid_3_routes` | Standard YAML | Parse succeeds, 3 entries |
-| `empty_routes` | No routes key | Defaults loaded |
-| `unknown_backend` | backend: "nonexistent" | Custom fail-closed (exit 2) |
-| `unknown_condition` | when: ["fake"] | Warning, evaluates as false |
-| `schema_v2` | route_schema: 2 | Rejected with upgrade message |
-| `max_routes_exceeded` | 11 routes | Rejected (max 10) |
-| `missing_when` | when: [] | Custom fail-closed (exit 2) |
-| `invalid_fail_mode` | fail_mode: "retry" | Warning, defaults to fallthrough |
-| `duplicate_backend` | Two hounfour entries | Warning, first wins |
-
-### 7.3 Adaptive Multi-Pass Tests
-
-| Test | Input | Expected |
-|------|-------|----------|
-| `small_diff_both_low` | 2 files, 50 lines + low model signals | 1 pass (low) |
-| `large_diff_det_high` | 20 files, 3000 lines | 3 passes (high) |
-| `security_path` | .claude/ in diff | 3 passes (always high) |
-| `det_low_model_high` | 2 files + high risk_areas | 3 passes (medium) |
-| `det_high_model_low` | 20 files + low risk_areas | 3 passes (medium) |
-| `adaptive_disabled` | adaptive: false | Always 3 passes |
-
-### 7.4 Token Estimation Benchmark
-
-10+ code samples with pre-computed tiktoken counts. Test asserts:
-- Word-count tier mean error ≤15%
-- Word-count tier p95 error ≤25%
-- Chars/4 tier included for comparison (expected ~40% error for code)
-
-### 7.5 Result Contract Tests
-
-| Test | Input | Expected |
-|------|-------|----------|
-| `valid_approved` | `{"verdict":"APPROVED","summary":"good review"}` | Pass |
-| `valid_changes` | `{"verdict":"CHANGES_REQUIRED","findings":[...]}` | Pass |
-| `missing_verdict` | `{"summary":"..."}` | Fail |
-| `invalid_verdict` | `{"verdict":"PASS"}` | Fail |
-| `too_short` | `{"verdict":"APPROVED"}` | Fail (< 20 chars) |
-| `invalid_json` | `not json` | Fail |
-| `findings_not_array` | `{"verdict":"APPROVED","findings":"string"}` | Fail |
-
-### 7.6 Regression Suite
-
-All 117 existing tests from cycle-033 must pass without modification:
-- `test-gpt-review-routing.bats` (13 tests)
-- `test-gpt-review-codex-adapter.bats`
-- `test-gpt-review-multipass.bats`
-- `test-gpt-review-security.bats`
-- `test-gpt-review-integration.bats`
+Existing `check_mode_conflicts()` (mount-loa.sh:1310-1333) prevents accidental mode switches. The only change is updating error messages to reflect the inverted default (§3.1.4). The detection mechanism itself is unchanged.
 
 ---
 
-## 8. Migration & Backward Compatibility
+## 6. Testing Strategy
 
-### 8.1 Zero-Config Migration
+### 6.1 Unit Tests
 
-Users with no `gpt_review.routes` in `.loa.config.yaml` get identical behavior:
-1. `parse_route_table()` detects no custom routes
-2. `_rt_load_defaults()` loads the cycle-033 cascade
-3. `execute_route_table()` produces the same sequence: hounfour → codex → curl
+**New file**: `.claude/scripts/tests/test-mount-submodule-default.bats`
 
-### 8.2 execution_mode Compatibility
+| Test | Scenario | Assertion |
+|------|----------|-----------|
+| `default_is_submodule` | Run mount-loa.sh with no flags | `SUBMODULE_MODE == true` |
+| `vendored_flag` | Run with `--vendored` | `SUBMODULE_MODE == false` |
+| `submodule_flag_noop` | Run with `--submodule` | `SUBMODULE_MODE == true` (no-op, deprecation log) |
+| `mode_conflict_standard_to_sub` | Existing standard install, no flag | Error with migration hint |
+| `mode_conflict_sub_to_vendored` | Existing submodule install, `--vendored` | Error with instructions |
 
-The legacy `execution_mode` key continues to work:
-1. If only `execution_mode` is set → applied as route table filter
-2. If both `execution_mode` and `routes` are set → `routes` wins (with log warning)
-3. If neither → default table
+### 6.2 Symlink Verification Tests
 
-### 8.3 Adaptive Multi-Pass Default
+**New file**: `.claude/scripts/tests/test-mount-symlinks.bats`
 
-`multipass.adaptive` defaults to `true`. Users who want cycle-033 behavior (always 3-pass) can set `adaptive: false`.
+| Test | Scenario | Assertion |
+|------|----------|-----------|
+| `scripts_symlink` | After submodule mount | `.claude/scripts` → `../.loa/.claude/scripts` |
+| `protocols_symlink` | After submodule mount | `.claude/protocols` → `../.loa/.claude/protocols` |
+| `hooks_symlink` | After submodule mount | `.claude/hooks` → `../.loa/.claude/hooks` |
+| `data_symlink` | After submodule mount | `.claude/data` → `../.loa/.claude/data` |
+| `schemas_symlink` | After submodule mount | `.claude/schemas` → `../.loa/.claude/schemas` |
+| `claude_loa_md_symlink` | After submodule mount | `.claude/loa/CLAUDE.loa.md` resolves |
+| `reference_symlink` | After submodule mount | `.claude/loa/reference/` resolves |
+| `at_import_resolves` | After submodule mount | `@.claude/loa/CLAUDE.loa.md` file exists |
+| `user_files_not_symlinked` | After submodule mount | `settings.json` is real file |
+| `overrides_not_symlinked` | After submodule mount | `.claude/overrides/` is real dir |
+
+### 6.3 Stealth Mode Tests
+
+**New file**: `.claude/scripts/tests/test-stealth-expansion.bats`
+
+| Test | Scenario | Assertion |
+|------|----------|-----------|
+| `stealth_core_entries` | Apply stealth | 4 core entries in .gitignore |
+| `stealth_doc_entries` | Apply stealth | 10 doc entries in .gitignore |
+| `stealth_idempotent` | Apply stealth twice | No duplicate entries |
+| `standard_no_docs` | Apply standard mode | Doc entries NOT added |
+
+### 6.4 Migration Tests
+
+**New file**: `.claude/scripts/tests/test-migration.bats`
+
+| Test | Scenario | Assertion |
+|------|----------|-----------|
+| `migration_creates_backup` | Migrate standard→submodule | `.claude.backup.*` exists |
+| `migration_preserves_settings` | Migrate with settings.json | settings.json survives |
+| `migration_preserves_commands` | Migrate with custom commands | commands/ survives |
+| `migration_preserves_overrides` | Migrate with overrides | overrides/ survives |
+| `migration_already_submodule` | Migrate when already submodule | Exit with message |
+| `migration_dry_run` | Migrate with --dry-run | No files changed |
+
+### 6.5 Memory Stack Relocation Tests
+
+| Test | Scenario | Assertion |
+|------|----------|-----------|
+| `memory_stack_new_path` | Fresh install | `.loa-cache/` used |
+| `memory_stack_auto_migrate` | Old `.loa/` with data | Data moved to `.loa-cache/` |
+| `memory_stack_submodule_safe` | `.loa/` is submodule | No migration attempted |
+
+### 6.6 Gitignore Tests
+
+| Test | Scenario | Assertion |
+|------|----------|-----------|
+| `loa_dir_not_gitignored` | After submodule mount | `.loa/` NOT in .gitignore |
+| `loa_cache_gitignored` | After submodule mount | `.loa-cache/` in .gitignore |
+| `symlinks_gitignored` | After submodule mount | `.claude/scripts` in .gitignore |
 
 ---
 
-## 9. Technical Risks & Mitigation
+## 7. Deployment & Rollout
 
-| Risk | Severity | Mitigation |
-|------|----------|------------|
-| yq v4 not available | Medium | `parse_route_table` checks for yq, falls back to defaults |
-| Bash 4.0 associative arrays not available | Low | Already required by existing code (bash-version-guard.sh) |
-| Route table parse error in production | Medium | Fail-closed for custom routes, fail-open for defaults |
-| Adaptive classification too aggressive (skips reviews) | Medium | Dual-signal requires BOTH det+model agreement for single-pass |
-| Python3 not available for Tier 2 token estimation | None | Word-count uses `wc -w` (always available), Python only for Tier 1 |
-| Backend returns exit 0 with empty output | Low | validate_review_result checks length + JSON + verdict |
+### 7.1 Version Bump
+
+This is a **minor version bump** (v1.40.0): the change is backward-compatible via `--vendored`, and existing installations continue to work without modification.
+
+### 7.2 Rollout Strategy
+
+1. **Phase 1**: Ship with `SUBMODULE_MODE=true` as default
+2. **Phase 2**: Update documentation (INSTALLATION.md, README.md, PROCESS.md)
+3. **Phase 3**: Test on THJ internal repos (hub-interface, temple)
+4. **Phase 4**: Announce migration path for existing users
+
+### 7.3 Rollback
+
+If submodule-first causes issues:
+- Revert `SUBMODULE_MODE=true` → `false` (single line)
+- Users who already installed with submodule continue to work
+- No data loss in either direction
 
 ---
 
-## 10. Sprint Decomposition Guidance
+## 8. Sprint Allocation
 
-Suggested sprint structure for implementation:
+### Sprint 1 (P0 — Foundation, ~190 lines changed)
 
-**Sprint 1: Core Route Table Infrastructure**
-- lib-route-table.sh (parse, validate, registries, execute, log)
-- Refactor route_review() in gpt-review-api.sh
-- validate_review_result() shared gate
-- Golden tests for backend selection sequences
-- Route table parser tests
+| Task | File | Lines (est.) |
+|------|------|-------------|
+| Flip `SUBMODULE_MODE` default | mount-loa.sh:183 | 1 |
+| Add `--vendored` flag | mount-loa.sh:212-214 | 8 |
+| Update help text | mount-loa.sh:227-234 | 15 |
+| Update mode conflict messages | mount-loa.sh:1310-1333 | 20 |
+| Add missing symlinks (hooks, data, reference) | mount-submodule.sh:300+ | 35 |
+| Fix preflight Memory Stack detection | mount-submodule.sh:131-166 | 20 |
+| .gitignore collision fix (.loa → .loa-cache) | .gitignore:75 | 5 |
+| Symlink gitignore entries | .gitignore | 12 |
+| Unit tests (default, flags, conflicts) | test-mount-submodule-default.bats | ~80 |
 
-**Sprint 2: Adaptive Multi-Pass + Token Estimation**
-- classify_complexity() + reclassify_with_model_signals()
-- Modify run_multipass() for adaptive flow
-- Word-count tier in estimate_token_count()
-- Token estimation benchmark corpus
-- Adaptive multi-pass tests
+### Sprint 2 (P1 — Migration + Polish, ~490 lines new/changed)
 
-**Sprint 3: Polish + Hardening**
-- Capability detection optimization (hoist help text)
-- Python3 JSON decoder fallback in parse_codex_output()
-- Result contract tests
-- CI policy constraints (LOA_CUSTOM_ROUTES opt-in)
-- Integration verification (all 117 existing tests pass)
+| Task | File | Lines (est.) |
+|------|------|-------------|
+| `--migrate-to-submodule` command | mount-loa.sh (new function) | ~120 |
+| apply_stealth() expansion | mount-loa.sh:985-1009 | 30 |
+| Memory Stack relocation utility | mount-submodule.sh or new file | 40 |
+| /loa status boundary report | golden-path.sh or loa skill | 50 |
+| /update-loa submodule support | update-loa skill | 40 |
+| Documentation updates | INSTALLATION.md, README.md, PROCESS.md | 100 |
+| Migration tests | test-migration.bats | ~60 |
+| Stealth tests | test-stealth-expansion.bats | ~50 |
+
+### Sprint 3 (P1 — Hardening, ~305 lines new/changed)
+
+| Task | File | Lines (est.) |
+|------|------|-------------|
+| Symlink verification tests | test-mount-symlinks.bats | ~100 |
+| Memory Stack relocation tests | test suite | ~40 |
+| Gitignore tests | test suite | ~30 |
+| Submodule URL verification | mount-submodule.sh or update-loa | 25 |
+| 15-script compatibility audit | Various | ~50 |
+| loa-eject.sh submodule support | loa-eject.sh | 40 |
+| CI/CD documentation | INSTALLATION.md | 20 |
+
+---
+
+## 9. Risks and Mitigations
+
+| Risk | Severity | Likelihood | Mitigation |
+|------|----------|------------|------------|
+| `@.claude/loa/CLAUDE.loa.md` breaks | CRITICAL | ZERO (design verified) | Submodule at `.loa/` preserves symlink chain (§2.3) |
+| Users unfamiliar with submodules | MEDIUM | HIGH | Docs, `/loa` status, error messages with instructions |
+| CI without `--recurse-submodules` | HIGH | MEDIUM | Document in INSTALLATION.md, add to CI examples |
+| Memory Stack data loss during relocation | LOW | LOW | Auto-detect + copy before remove (§3.5) |
+| Windows symlink issues | MEDIUM | LOW | Already handled by mount-submodule.sh (`safe_symlink`) |
+| Existing `.loa/` directory blocks submodule add | MEDIUM | MEDIUM | Preflight auto-relocates Memory Stack (§3.2.4) |
+
+---
+
+## 10. Resolved Design Decisions
+
+| ID | Decision | Alternatives Considered | Rationale |
+|----|----------|------------------------|-----------|
+| D-012 | Submodule at `.loa/` (not `.claude/loa`) | `.claude/loa` (PRD proposal) | @-import chain breaks with `.claude/loa` (§2.3) |
+| D-013 | Memory Stack at `.loa-cache/` (project-local) | `~/.cache/loa/` (user-global) | Multi-project isolation |
+| D-014 | `--vendored` flag for backward compat | `--standard`, `--copy` | "Vendored" is the industry term for bundled dependencies |
+| D-015 | Root docs gitignored in stealth | Always gitignored | Non-stealth users may want docs committed |
+
+---
+
+## 11. Dependency Map
+
+```
+Sprint 1 (Foundation)
+  ├── mount-loa.sh default flip (§3.1)
+  ├── mount-submodule.sh missing symlinks (§3.2)
+  ├── .gitignore collision fix (§3.3)
+  └── Unit tests (§6.1)
+
+Sprint 2 (Migration + Polish)
+  ├── Migration command (§3.6)     ← depends on Sprint 1
+  ├── Stealth expansion (§3.4)
+  ├── Memory Stack relocation (§3.5)
+  ├── /loa status (§3.7)
+  ├── /update-loa (§3.8)
+  └── Documentation
+
+Sprint 3 (Hardening)
+  ├── Symlink verification (§6.2)  ← depends on Sprint 1
+  ├── 15-script audit (§3.9)      ← depends on Sprint 2
+  ├── loa-eject update
+  └── CI/CD documentation
+```

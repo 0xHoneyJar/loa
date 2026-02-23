@@ -127,6 +127,78 @@ yq_read() {
   fi
 }
 
+# === Memory Stack Relocation (Flatline IMP-002) ===
+# Safely relocates .loa/ Memory Stack data to .loa-cache/ before submodule add
+relocate_memory_stack() {
+  local source=".loa"
+  local target=".loa-cache"
+  local migration_lock="${target}/.migration-lock"
+
+  if [[ ! -d "$source" ]]; then
+    return 0  # Nothing to relocate
+  fi
+
+  # Skip if it's already a git submodule
+  if [[ -f ".gitmodules" ]] && grep -q "$source" .gitmodules 2>/dev/null; then
+    return 0  # Already a submodule, not Memory Stack data
+  fi
+
+  step "Relocating Memory Stack from .loa/ to .loa-cache/..."
+
+  # Check for concurrent migration
+  if [[ -f "$migration_lock" ]]; then
+    local lock_pid
+    lock_pid=$(cat "$migration_lock" 2>/dev/null || echo "")
+    if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
+      err "Memory Stack migration already in progress (PID: $lock_pid)."
+    fi
+    warn "Stale migration lock found. Removing."
+    rm -f "$migration_lock"
+  fi
+
+  # Create target and lock
+  mkdir -p "$target"
+  echo "$$" > "$migration_lock"
+
+  # Copy-then-verify-then-switch (Flatline IMP-002)
+  local source_count target_count
+  source_count=$(find "$source" -type f | wc -l)
+
+  if ! cp -r "$source"/* "$target"/ 2>/dev/null; then
+    # Rollback: remove partial target
+    rm -rf "$target"
+    err "Memory Stack copy failed. Original data preserved at .loa/"
+  fi
+
+  target_count=$(find "$target" -type f -not -name ".migration-lock" | wc -l)
+
+  if [[ "$source_count" -ne "$target_count" ]]; then
+    # Rollback: remove partial target
+    rm -f "$migration_lock"
+    rm -rf "$target"
+    err "Memory Stack verification failed (source: $source_count files, target: $target_count files). Original data preserved at .loa/"
+  fi
+
+  # Verification passed — remove source
+  rm -rf "$source"
+  rm -f "$migration_lock"
+
+  log "Memory Stack relocated: .loa/ -> .loa-cache/ ($source_count files)"
+}
+
+# === Auto-Init Submodule (post-clone recovery) ===
+auto_init_submodule() {
+  if [[ -f ".gitmodules" ]] && grep -q "$SUBMODULE_PATH" .gitmodules 2>/dev/null; then
+    if [[ ! -d "$SUBMODULE_PATH/.claude" ]]; then
+      step "Initializing uninitialized submodule..."
+      git submodule update --init "$SUBMODULE_PATH" || {
+        err "Failed to initialize submodule. Run: git submodule update --init $SUBMODULE_PATH"
+      }
+      log "Submodule initialized"
+    fi
+  fi
+}
+
 # === Pre-flight Checks ===
 preflight() {
   log "Running pre-flight checks..."
@@ -135,6 +207,12 @@ preflight() {
   if ! git rev-parse --git-dir > /dev/null 2>&1; then
     err "Not a git repository. Initialize with 'git init' first."
   fi
+
+  # Relocate Memory Stack if .loa/ contains non-submodule data (Flatline IMP-002)
+  relocate_memory_stack
+
+  # Auto-init submodule if already registered but not initialized
+  auto_init_submodule
 
   # Check if standard mount already exists
   if [[ -f "$VERSION_FILE" ]]; then
@@ -154,7 +232,9 @@ preflight() {
 
   # Check for existing .claude directory (non-symlink)
   if [[ -d ".claude" ]] && [[ ! -L ".claude" ]]; then
-    err ".claude/ directory exists and is not a symlink. Run mount-loa.sh for standard mode."
+    # Allow .claude/ to exist if it contains user-owned files (overrides, config)
+    # Just warn instead of erroring — create_symlinks handles merging
+    warn ".claude/ directory exists and is not a symlink. Existing files will be preserved."
   fi
 
   # Check for required tools
@@ -321,13 +401,45 @@ create_symlinks() {
     log "  Linked: .claude/schemas/"
   fi
 
-  # === Loa Directory (CLAUDE.loa.md) ===
+  # === Hooks Directory Symlink (Task 1.5) ===
+  step "Linking hooks directory..."
+  if [[ -d "$SUBMODULE_PATH/.claude/hooks" ]]; then
+    safe_symlink ".claude/hooks" "../$SUBMODULE_PATH/.claude/hooks"
+    log "  Linked: .claude/hooks/"
+  fi
+
+  # === Data Directory Symlink (Task 1.5) ===
+  step "Linking data directory..."
+  if [[ -d "$SUBMODULE_PATH/.claude/data" ]]; then
+    safe_symlink ".claude/data" "../$SUBMODULE_PATH/.claude/data"
+    log "  Linked: .claude/data/"
+  fi
+
+  # === Loa Directory (CLAUDE.loa.md + reference + learnings + feedback-ontology) ===
   step "Linking loa directory..."
   mkdir -p .claude/loa
   if [[ -f "$SUBMODULE_PATH/.claude/loa/CLAUDE.loa.md" ]]; then
     # MED-004 FIX: Use safe_symlink with validation
     safe_symlink ".claude/loa/CLAUDE.loa.md" "../../$SUBMODULE_PATH/.claude/loa/CLAUDE.loa.md"
     log "  Linked: .claude/loa/CLAUDE.loa.md"
+  fi
+
+  # === Loa Reference Directory (Task 1.5) ===
+  if [[ -d "$SUBMODULE_PATH/.claude/loa/reference" ]]; then
+    safe_symlink ".claude/loa/reference" "../../$SUBMODULE_PATH/.claude/loa/reference"
+    log "  Linked: .claude/loa/reference/"
+  fi
+
+  # === Loa Learnings Directory (Task 1.5) ===
+  if [[ -d "$SUBMODULE_PATH/.claude/loa/learnings" ]]; then
+    safe_symlink ".claude/loa/learnings" "../../$SUBMODULE_PATH/.claude/loa/learnings"
+    log "  Linked: .claude/loa/learnings/"
+  fi
+
+  # === Loa Feedback Ontology (Task 1.5) ===
+  if [[ -f "$SUBMODULE_PATH/.claude/loa/feedback-ontology.yaml" ]]; then
+    safe_symlink ".claude/loa/feedback-ontology.yaml" "../../$SUBMODULE_PATH/.claude/loa/feedback-ontology.yaml"
+    log "  Linked: .claude/loa/feedback-ontology.yaml"
   fi
 
   # === Settings and other root files ===
@@ -574,6 +686,54 @@ Generated by Loa mount-submodule.sh"
   log "Created commit"
 }
 
+# === Update .gitignore for Submodule Mode (Task 1.6) ===
+update_gitignore_for_submodule() {
+  step "Updating .gitignore for submodule mode..."
+
+  local gitignore=".gitignore"
+  touch "$gitignore"
+
+  # Symlink entries — these are created by mount-submodule.sh and should not be tracked
+  local symlink_entries=(
+    ".claude/scripts"
+    ".claude/protocols"
+    ".claude/hooks"
+    ".claude/data"
+    ".claude/schemas"
+    ".claude/loa/CLAUDE.loa.md"
+    ".claude/loa/reference"
+    ".claude/loa/feedback-ontology.yaml"
+    ".claude/loa/learnings"
+    ".claude/settings.json"
+    ".claude/checksums.json"
+  )
+
+  # Memory Stack at .loa-cache/ (relocated from .loa/)
+  local state_entries=(
+    ".loa-cache/"
+  )
+
+  # Add header if not present
+  if ! grep -q "LOA SUBMODULE SYMLINKS" "$gitignore" 2>/dev/null; then
+    echo "" >> "$gitignore"
+    echo "# LOA SUBMODULE SYMLINKS (added by mount-submodule.sh)" >> "$gitignore"
+    echo "# Symlinks to .loa/ submodule — recreated on mount" >> "$gitignore"
+  fi
+
+  # Add each entry if not already present
+  for entry in "${symlink_entries[@]}" "${state_entries[@]}"; do
+    grep -qxF "$entry" "$gitignore" 2>/dev/null || echo "$entry" >> "$gitignore"
+  done
+
+  # Remove .loa/ from gitignore if present (submodule must be tracked)
+  if grep -q "^\.loa/$" "$gitignore" 2>/dev/null; then
+    sed -i '/^\.loa\/$/d' "$gitignore"
+    log "  Removed .loa/ from .gitignore (submodule must be tracked)"
+  fi
+
+  log ".gitignore updated for submodule mode"
+}
+
 # === Main ===
 main() {
   echo ""
@@ -587,6 +747,7 @@ main() {
   preflight
   add_submodule
   create_symlinks
+  update_gitignore_for_submodule
   create_claude_md
   create_config
   create_manifest

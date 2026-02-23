@@ -180,7 +180,7 @@ STEALTH_MODE=false
 FORCE_MODE=false
 NO_COMMIT=false
 NO_AUTO_INSTALL=false
-SUBMODULE_MODE=false
+SUBMODULE_MODE=true
 
 # === Argument Parsing ===
 while [[ $# -gt 0 ]]; do
@@ -210,7 +210,12 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --submodule)
-      SUBMODULE_MODE=true
+      # Deprecated: submodule is now the default (cycle-035)
+      warn "--submodule is deprecated (submodule mode is now the default). This flag is a no-op."
+      shift
+      ;;
+    --vendored)
+      SUBMODULE_MODE=false
       shift
       ;;
     --tag)
@@ -227,10 +232,17 @@ while [[ $# -gt 0 ]]; do
       echo "Usage: mount-loa.sh [OPTIONS]"
       echo ""
       echo "Installation Modes:"
-      echo "  (default)         Standard mode - copies files into .claude/"
-      echo "  --submodule       Submodule mode - adds Loa as git submodule at .loa/"
+      echo "  (default)         Submodule mode - adds Loa as git submodule at .loa/"
+      echo "  --vendored        Vendored mode - copies files into .claude/ (legacy)"
       echo ""
-      echo "Standard Mode Options:"
+      echo "Submodule Mode Options (default):"
+      echo "  --branch <name>   Loa branch to track (default: main)"
+      echo "  --tag <tag>       Pin to specific Loa tag (e.g., v1.15.0)"
+      echo "  --ref <ref>       Pin to specific ref (commit, branch, or tag)"
+      echo "  --force, -f       Force remount without prompting"
+      echo "  --no-commit       Skip creating git commit after mount"
+      echo ""
+      echo "Vendored Mode Options (--vendored):"
       echo "  --branch <name>   Loa branch to use (default: main)"
       echo "  --force, -f       Force remount without prompting"
       echo "  --stealth         Add state files to .gitignore"
@@ -238,18 +250,10 @@ while [[ $# -gt 0 ]]; do
       echo "  --no-auto-install Don't auto-install missing dependencies (jq, yq)"
       echo "  --no-commit       Skip creating git commit after mount"
       echo ""
-      echo "Submodule Mode Options:"
-      echo "  --submodule       Use submodule installation mode"
-      echo "  --branch <name>   Loa branch to track (default: main)"
-      echo "  --tag <tag>       Pin to specific Loa tag (e.g., v1.15.0)"
-      echo "  --ref <ref>       Pin to specific ref (commit, branch, or tag)"
-      echo "  --force, -f       Force remount without prompting"
-      echo "  --no-commit       Skip creating git commit after mount"
-      echo ""
       echo "Examples:"
-      echo "  mount-loa.sh                          # Standard mode, main branch"
-      echo "  mount-loa.sh --submodule              # Submodule mode, main branch"
-      echo "  mount-loa.sh --submodule --tag v1.15.0  # Submodule pinned to tag"
+      echo "  mount-loa.sh                          # Submodule mode (default)"
+      echo "  mount-loa.sh --tag v1.39.0            # Submodule pinned to tag"
+      echo "  mount-loa.sh --vendored               # Legacy vendored mode"
       echo ""
       echo "Recovery install (when /update is broken):"
       echo "  curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash -s -- --force"
@@ -1314,21 +1318,113 @@ check_mode_conflicts() {
     local current_mode=$(jq -r '.installation_mode // "standard"' "$VERSION_FILE" 2>/dev/null)
 
     if [[ "$SUBMODULE_MODE" == "true" ]] && [[ "$current_mode" == "standard" ]]; then
-      err "Loa is installed in standard mode. Cannot switch to submodule mode.
-To switch modes:
+      err "Loa is installed in vendored (standard) mode. Cannot switch directly to submodule.
+To migrate:
+  mount-loa.sh --migrate-to-submodule
+Or to force-switch manually:
   1. Run '/loa eject' to eject from current installation
   2. Remove .claude/ and .loa-version.json
-  3. Run mount-loa.sh --submodule"
+  3. Run mount-loa.sh (submodule is now the default)"
     fi
 
     if [[ "$SUBMODULE_MODE" == "false" ]] && [[ "$current_mode" == "submodule" ]]; then
-      err "Loa is installed in submodule mode. Cannot switch to standard mode.
-To switch modes:
+      err "Loa is installed in submodule mode. Cannot switch to vendored mode.
+To switch manually:
   1. Remove the submodule: git submodule deinit -f .loa && git rm -f .loa
   2. Remove symlinks: rm -rf .claude
   3. Remove .loa-version.json and .loa.config.yaml
-  4. Run mount-loa.sh"
+  4. Run mount-loa.sh --vendored"
     fi
+  fi
+}
+
+# === Mount Lock (Flatline IMP-006) ===
+MOUNT_LOCK_FILE=".claude/.mount-lock"
+
+acquire_mount_lock() {
+  if [[ -f "$MOUNT_LOCK_FILE" ]]; then
+    local lock_pid
+    lock_pid=$(cat "$MOUNT_LOCK_FILE" 2>/dev/null || echo "")
+    if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
+      err "Another /mount operation is in progress (PID: $lock_pid).
+Wait for it to complete or remove $MOUNT_LOCK_FILE manually."
+    fi
+    warn "Stale mount lock found (PID $lock_pid not running). Removing."
+    rm -f "$MOUNT_LOCK_FILE"
+  fi
+  mkdir -p "$(dirname "$MOUNT_LOCK_FILE")"
+  echo "$$" > "$MOUNT_LOCK_FILE"
+}
+
+release_mount_lock() {
+  rm -f "$MOUNT_LOCK_FILE"
+}
+
+# === Graceful Degradation Preflight (Task 1.4) ===
+# Checks environment for submodule compatibility. Returns 0 if OK, 1 if fallback needed.
+# On fallback, sets FALLBACK_REASON for recording in .loa-version.json.
+FALLBACK_REASON=""
+
+preflight_submodule_environment() {
+  # Check 1: git available
+  if ! command -v git >/dev/null 2>&1; then
+    FALLBACK_REASON="git_not_available"
+    warn "git is not installed. Falling back to vendored mode."
+    return 1
+  fi
+
+  # Check 2: inside a git repo
+  if ! git rev-parse --git-dir >/dev/null 2>&1; then
+    FALLBACK_REASON="not_git_repo"
+    warn "Not inside a git repository. Falling back to vendored mode."
+    return 1
+  fi
+
+  # Check 3: git version >= 1.8 (submodule support)
+  local git_version
+  git_version=$(git version | sed 's/git version //' | cut -d. -f1-2)
+  local git_major git_minor
+  git_major=$(echo "$git_version" | cut -d. -f1)
+  git_minor=$(echo "$git_version" | cut -d. -f2)
+  if [[ "$git_major" -lt 1 ]] || { [[ "$git_major" -eq 1 ]] && [[ "$git_minor" -lt 8 ]]; }; then
+    FALLBACK_REASON="git_version_too_old"
+    warn "git version $git_version is too old (requires >= 1.8). Falling back to vendored mode."
+    return 1
+  fi
+
+  # Check 4: symlink support
+  local test_link=".claude/.symlink-test-$$"
+  mkdir -p .claude
+  if ! ln -sf /dev/null "$test_link" 2>/dev/null; then
+    FALLBACK_REASON="symlinks_not_supported"
+    warn "Filesystem does not support symlinks. Falling back to vendored mode."
+    return 1
+  fi
+  rm -f "$test_link"
+
+  # Check 5: CI with uninitialized submodule (Flatline SKP-007)
+  if [[ "${CI:-}" == "true" ]] && [[ -f ".gitmodules" ]] && grep -q ".loa" .gitmodules 2>/dev/null; then
+    if [[ ! -d ".loa/.claude" ]]; then
+      err "CI environment detected with uninitialized submodule.
+Add this to your CI config before Loa commands:
+  git submodule update --init --recursive
+Or set in GitHub Actions:
+  - uses: actions/checkout@v4
+    with:
+      submodules: true"
+    fi
+  fi
+
+  return 0
+}
+
+# Record fallback reason in .loa-version.json (Flatline SKP-001)
+record_fallback_reason() {
+  local reason="$1"
+  local version_file="$VERSION_FILE"
+  if [[ -f "$version_file" ]]; then
+    local tmp_file="${version_file}.tmp"
+    jq --arg reason "$reason" '.fallback_reason = $reason' "$version_file" > "$tmp_file" && mv "$tmp_file" "$version_file"
   fi
 }
 
@@ -1460,16 +1556,31 @@ err_msg() { echo -e "${RED}[loa]${NC} $*"; }
 
 # === Main ===
 main() {
-  # Route to submodule mode if requested
+  # Route to submodule mode (default)
   if [[ "$SUBMODULE_MODE" == "true" ]]; then
-    echo ""
-    log "======================================================================="
-    log "  Loa Framework Mount (Submodule Mode)"
-    log "======================================================================="
-    echo ""
-    check_mode_conflicts
-    route_to_submodule
-    exit 0  # Should not reach here (exec above)
+    # Acquire mount lock (Flatline IMP-006)
+    acquire_mount_lock
+    trap 'release_mount_lock' EXIT
+
+    # Graceful degradation preflight (Task 1.4)
+    if preflight_submodule_environment; then
+      echo ""
+      log "======================================================================="
+      log "  Loa Framework Mount (Submodule Mode)"
+      log "======================================================================="
+      echo ""
+      check_mode_conflicts
+      route_to_submodule
+      exit 0  # Should not reach here (exec above)
+    else
+      # Fallback to vendored mode
+      warn "======================================================================="
+      warn "  Falling back to vendored mode (reason: $FALLBACK_REASON)"
+      warn "======================================================================="
+      echo ""
+      SUBMODULE_MODE=false
+      # Fallback reason will be recorded after manifest creation below
+    fi
   fi
 
   echo ""
@@ -1491,6 +1602,12 @@ main() {
   init_url_registry
   create_config
   create_manifest
+
+  # Record fallback reason if we auto-fell back from submodule (Flatline SKP-001)
+  if [[ -n "${FALLBACK_REASON:-}" ]]; then
+    record_fallback_reason "$FALLBACK_REASON"
+  fi
+
   generate_checksums
   init_beads
   apply_stealth
@@ -1531,6 +1648,12 @@ EOF
   fi
 
   echo ""
+  # Print installation mode summary (Flatline SKP-001)
+  if [[ -n "${FALLBACK_REASON:-}" ]]; then
+    warn "Installation: vendored (fallback: $FALLBACK_REASON)"
+  else
+    log "Installation: vendored"
+  fi
   log "Loa mounted successfully."
   echo ""
   log "  Next: Start Claude Code and type /plan"

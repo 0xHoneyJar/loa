@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "active_cycle": null,
-  "global_sprint_counter": 43,
+  "active_cycle": "cycle-035",
+  "global_sprint_counter": 46,
   "cycles": [
     {
       "id": "cycle-025",
@@ -466,6 +466,36 @@
         "flatline": true
       },
       "pr": 404
+    },
+    {
+      "id": "cycle-035",
+      "label": "Minimal Footprint by Default — Submodule-First Installation",
+      "status": "active",
+      "created": "2026-02-24T12:00:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "source_issue": 402,
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": "sprint-1",
+          "global_id": "sprint-44",
+          "label": "Foundation — Default Flip + Symlinks + Gitignore",
+          "status": "pending"
+        },
+        {
+          "local_id": "sprint-2",
+          "global_id": "sprint-45",
+          "label": "Migration + Polish",
+          "status": "pending"
+        },
+        {
+          "local_id": "sprint-3",
+          "global_id": "sprint-46",
+          "label": "Hardening + E2E Validation",
+          "status": "pending"
+        }
+      ]
     }
   ]
 }

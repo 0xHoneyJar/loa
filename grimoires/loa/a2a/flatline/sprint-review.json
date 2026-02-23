@@ -1,69 +1,92 @@
 {
   "phase": "sprint",
   "document": "grimoires/loa/sprint.md",
-  "cycle": "cycle-034",
-  "timestamp": "2026-02-23T14:30:00Z",
+  "cycle": "cycle-035",
+  "timestamp": "2026-02-24T13:22:00Z",
   "consensus_summary": {
-    "high_consensus_count": 5,
-    "disputed_count": 2,
+    "high_consensus_count": 3,
+    "disputed_count": 0,
     "low_value_count": 0,
-    "blocker_count": 5,
-    "model_agreement_percent": 80
+    "blocker_count": 6,
+    "model_agreement_percent": 100,
+    "confidence": "full"
   },
-  "high_consensus_integrated": ["IMP-001", "IMP-003", "IMP-004", "IMP-006", "IMP-009"],
-  "disputed": [
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Add explicit, stepwise rollback instructions per sprint with concrete commands and decision points.",
+      "gpt_score": 820,
+      "opus_score": 780,
+      "average_score": 800,
+      "integrated": true,
+      "sprint_section": "Per-sprint rollback sections added"
+    },
     {
       "id": "IMP-002",
-      "description": "Concurrency/locking for bash globals — over-scoped for CLI tool",
-      "gpt_score": 420,
-      "opus_score": 820,
-      "resolution": "rejected",
-      "rationale": "SDD already documents single-process assumption (Flatline IMP-001 from SDD review). Bash CLI tool is short-lived, not a daemon. Adding locking is disproportionate complexity."
+      "description": "Strengthen Memory Stack migration with verification method, failure modes, dependency checks, and atomicity guarantees.",
+      "gpt_score": 900,
+      "opus_score": 870,
+      "average_score": 885,
+      "integrated": true,
+      "sprint_section": "Task 1.5 acceptance criteria expanded, Task 2.3 acceptance criteria expanded"
     },
     {
-      "id": "IMP-010",
-      "description": "Adversarial YAML security negative tests",
-      "gpt_score": 840,
-      "opus_score": 450,
-      "resolution": "accepted",
-      "rationale": "Security negative tests are low-cost, high-value. Added as Task 1.10 with adversarial YAML fixtures."
+      "id": "IMP-006",
+      "description": "Add lock/idempotency guarantee for concurrent /mount operations to prevent state corruption.",
+      "gpt_score": 760,
+      "opus_score": 810,
+      "average_score": 785,
+      "integrated": true,
+      "sprint_section": "Task 1.4 acceptance criteria expanded"
     }
   ],
+  "disputed": [],
   "blockers": [
     {
-      "id": "SKP-001",
-      "concern": "yq v4 dependency — single point of failure with escape hatch",
-      "severity_score": 900,
-      "resolution": "accepted",
-      "rationale": "Addressed by IMP-003 (yq version detection), LOA_ALLOW_DEFAULTS_WITHOUT_YQ illegal in CI, and explicit yq v4 check in Task 1.2."
+      "id": "SKP-007",
+      "concern": "CI/CD behavior inconsistent; documentation alone may not prevent failures",
+      "severity_score": 740,
+      "disposition": "addressed",
+      "resolution": "Task 1.4 preflight includes CI detection + auto-init. Task 3.6 adds CI examples. Sprint 1 acceptance criteria updated to include CI guard."
     },
     {
-      "id": "SKP-002",
-      "concern": "Parallel arrays can desynchronize",
-      "severity_score": 860,
-      "resolution": "accepted",
-      "rationale": "Addressed by atomic _rt_append_route() helper and _rt_validate_array_lengths() invariant check in Task 1.1."
+      "id": "SKP-001",
+      "concern": "Silent fallback to vendored may undermine submodule-first goal",
+      "severity_score": 900,
+      "disposition": "addressed",
+      "resolution": "Task 1.4 updated: always record reason-for-fallback in .loa-version.json, print prominent warning. Success metric updated to track fallback rate."
     },
     {
       "id": "SKP-003",
-      "concern": "Condition parsing whitespace/empty token handling",
-      "severity_score": 720,
-      "resolution": "accepted",
-      "rationale": "Addressed by whitespace trimming and empty-token rejection in _evaluate_conditions() in Task 1.3."
+      "concern": "Memory Stack relocation risks data loss/corruption",
+      "severity_score": 840,
+      "disposition": "addressed_by_IMP-002",
+      "resolution": "Task 1.5 and 2.3 acceptance criteria strengthened: copy-then-verify-then-switch, lock file, rollback on failure."
+    },
+    {
+      "id": "SKP-004",
+      "concern": "Migration command complexity and irreversibility risk",
+      "severity_score": 920,
+      "disposition": "addressed",
+      "resolution": "Task 2.1 updated: default to --dry-run, require --apply for execution. Rollback command documented. Test matrix for edge cases in Task 2.8."
     },
     {
       "id": "SKP-005",
-      "concern": "Timeout/retry semantics can cause runaway execution",
-      "severity_score": 740,
-      "resolution": "accepted",
-      "rationale": "Addressed by bounds clamping (timeout 1-600s, retries 0-5), global max attempts cap (10), and explicit retry policy definition in Task 1.3."
+      "concern": "Supply chain integrity controls underspecified",
+      "severity_score": 760,
+      "disposition": "addressed",
+      "resolution": "Task 2.5 acceptance criteria expanded: allowlist expected remote URL, enforce HTTPS, fail closed in CI with --require-submodule."
     },
     {
-      "id": "SKP-010",
-      "concern": "Security posture under-specified for untrusted YAML",
-      "severity_score": 760,
-      "resolution": "accepted",
-      "rationale": "Addressed by adversarial YAML security tests (Task 1.10), registry validation before execution, and bounds clamping on timeout/retries."
+      "id": "SKP-002",
+      "concern": "Symlink fragility across platforms and repo layouts",
+      "severity_score": 870,
+      "disposition": "addressed",
+      "resolution": "Task 2.6 updated: canonical path resolver. Task 3.1 tests expanded: different CWDs, nested repo paths. Sprint 2 adds 'symlink health' subcommand."
     }
-  ]
+  ],
+  "metrics": {
+    "total_latency_ms": 214000,
+    "cost_cents": 0
+  }
 }

@@ -1,40 +1,102 @@
 {
   "phase": "sdd",
   "document": "grimoires/loa/sdd.md",
-  "cycle": "cycle-034",
-  "timestamp": "2026-02-23T13:30:00Z",
+  "cycle": "cycle-035",
+  "timestamp": "2026-02-24T13:16:37Z",
   "consensus_summary": {
     "high_consensus_count": 3,
-    "disputed_count": 1,
+    "disputed_count": 2,
     "low_value_count": 0,
-    "blocker_count": 2,
-    "model_agreement_percent": 90
+    "blocker_count": 5,
+    "model_agreement_percent": 80,
+    "confidence": "full"
   },
-  "high_consensus_integrated": ["IMP-001", "IMP-002", "IMP-004"],
+  "high_consensus": [
+    {
+      "id": "IMP-001",
+      "description": "Add explicit preflight checks (git present, repo initialized, worktree clean) with clear error messages and fallback to vendored mode.",
+      "gpt_score": 880,
+      "opus_score": 920,
+      "average_score": 900,
+      "integrated": true,
+      "sdd_section": "3.1 (new §3.1.5 Graceful Degradation)"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Mount script detects uninitialized submodule after clone, runs submodule init/update, then recreates symlinks.",
+      "gpt_score": 910,
+      "opus_score": 880,
+      "average_score": 895,
+      "integrated": true,
+      "sdd_section": "3.2 (new §3.2.5 Post-Clone Auto-Init)"
+    },
+    {
+      "id": "IMP-004",
+      "description": "Define verify/reconcile algorithm for symlinks after update (detect dangling/stale, remove, recreate from manifest, report).",
+      "gpt_score": 820,
+      "opus_score": 830,
+      "average_score": 825,
+      "integrated": true,
+      "sdd_section": "3.8 (expanded verify_symlinks)"
+    }
+  ],
   "disputed": [
     {
+      "id": "IMP-006",
+      "description": "Migration dry-run output format and automated rollback/restore procedure.",
+      "gpt_score": 860,
+      "opus_score": 520,
+      "delta": 340,
+      "disposition": "pending_user_review"
+    },
+    {
       "id": "IMP-008",
-      "description": "Claims SDD contains corrupted placeholders/template artifacts in code examples",
-      "gpt_score": 980,
-      "opus_score": 620,
-      "resolution": "rejected",
-      "rationale": "False positive — no {{DOCUMENT_CONTENT}} or template markers exist in the SDD. The Flatline orchestrator's injection markers were misidentified by the skeptic as being in the document itself. Verified via grep: zero matches for '{{' in sdd.md."
+      "description": "Windows symlink detection and fail-fast behavior.",
+      "gpt_score": 520,
+      "opus_score": 850,
+      "delta": 330,
+      "disposition": "pending_user_review"
     }
   ],
   "blockers": [
     {
       "id": "SKP-001",
-      "concern": "Document contains templating artifacts that would break scripts",
-      "severity_score": 950,
-      "resolution": "rejected",
-      "rationale": "False positive — same root cause as IMP-008. The SDD contains valid bash code in markdown fences. Zero '{{' template markers found in the file. The skeptic conflated the Flatline orchestrator's template injection with the document content."
+      "concern": "Submodule-first assumes git + submodules available everywhere",
+      "severity_score": 920,
+      "disposition": "addressed_by_IMP-001",
+      "resolution": "Graceful degradation: preflight detects missing git/submodule support, auto-falls back to vendored with warning"
     },
     {
       "id": "SKP-002",
-      "concern": "Custom route parsing silently ignored when yq missing",
-      "severity_score": 720,
-      "resolution": "accepted",
-      "rationale": "Addressed by IMP-004 integration — init_route_table() now uses grep to detect custom routes in config, and fails-closed (exit 2) when yq is missing. Override available via LOA_ALLOW_DEFAULTS_WITHOUT_YQ=1."
+      "concern": "Symlink fragility across platforms",
+      "severity_score": 880,
+      "disposition": "addressed_by_IMP-004_and_preflight",
+      "resolution": "Symlink preflight check + verify/reconcile on every mount and update. Vendored fallback for symlink-hostile environments."
+    },
+    {
+      "id": "SKP-003",
+      "concern": "Memory Stack relocation risks data loss",
+      "severity_score": 760,
+      "disposition": "integrated",
+      "resolution": "Changed cp+rm to mv (atomic) with verification. Errors surfaced, not swallowed."
+    },
+    {
+      "id": "SKP-004",
+      "concern": "Migration uses destructive git operations",
+      "severity_score": 740,
+      "disposition": "integrated",
+      "resolution": "Added provenance discovery phase and dry-run requirement to migration workflow."
+    },
+    {
+      "id": "SKP-005",
+      "concern": "Submodule supply-chain integrity",
+      "severity_score": 790,
+      "disposition": "integrated",
+      "resolution": "Added commit hash recording in .loa-version.json with verification on update."
     }
-  ]
+  ],
+  "metrics": {
+    "total_latency_ms": 214000,
+    "cost_cents": 0
+  }
 }
