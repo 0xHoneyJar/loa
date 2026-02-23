@@ -212,15 +212,15 @@ Replace direct curl-based API calls in `gpt-review-api.sh` (963 lines) with Open
 
 ### Deliverables
 
-- [ ] End-to-end integration tests with mock codex
-- [ ] Backward compatibility verification (exit codes, output format, CLI flags)
-- [ ] Hounfour routing verification
-- [ ] Security audit (redaction, deny list, no leaked secrets)
-- [ ] E2E goal validation
+- [x] End-to-end integration tests with mock codex
+- [x] Backward compatibility verification (exit codes, output format, CLI flags)
+- [x] Hounfour routing verification
+- [x] Security audit (redaction, deny list, no leaked secrets)
+- [x] E2E goal validation
 
 ### Technical Tasks
 
-- [ ] **Task 3.1:** Integration tests → **[G3, G4, G5]**
+- [x] **Task 3.1:** Integration tests → **[G3, G4, G5]**
   - `test_integration.bats`: Full end-to-end: `gpt-review-api.sh` → routing → codex/curl → response → validation
   - Test all 4 review types (code, prd, sdd, sprint) through codex path
   - Test all 4 review types through curl fallback path
@@ -232,7 +232,7 @@ Replace direct curl-based API calls in `gpt-review-api.sh` (963 lines) with Open
   - **AC:** Exit codes match spec (0-5) across all paths
   - **AC:** ≥20 integration test cases
 
-- [ ] **Task 3.2:** Backward compatibility verification → **[G3, G4, G5]**
+- [x] **Task 3.2:** Backward compatibility verification → **[G3, G4, G5]**
   - Run pre-refactor `gpt-review-api.sh` (from git) and post-refactor on same input
   - Compare: exit codes, output schema conformance, verdict consistency
   - Verify all existing flags work unchanged
@@ -242,7 +242,7 @@ Replace direct curl-based API calls in `gpt-review-api.sh` (963 lines) with Open
   - **AC:** No caller script changes required
   - **AC:** Line count: `gpt-review-api.sh` ≤ 300 lines (final verification)
 
-- [ ] **Task 3.3:** Security audit → **[G7]**
+- [x] **Task 3.3:** Security audit → **[G7]**
   - Run all redaction tests with real API key patterns
   - Verify no API keys in any output file (grep for `sk-` in `grimoires/loa/a2a/gpt-review/`)
   - Verify JSON integrity post-redaction (all output files valid JSON)
@@ -254,7 +254,7 @@ Replace direct curl-based API calls in `gpt-review-api.sh` (963 lines) with Open
   - **AC:** All security invariants from SDD §8.2 verified by test
   - **AC:** Deny list patterns trigger redaction in mock output
 
-- [ ] **Task 3.E2E:** End-to-End Goal Validation → **[G1-G7]**
+- [x] **Task 3.E2E:** End-to-End Goal Validation → **[G1-G7]**
   - G1: `wc -l gpt-review-api.sh` ≤ 300
   - G2: `grep -c 'curl ' gpt-review-api.sh` = 0 (in primary path; curl is in lib-curl-fallback.sh)
   - G3: All 4 review types pass through codex path
