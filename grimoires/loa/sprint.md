@@ -300,34 +300,34 @@ If Sprint 2 changes cause issues:
 
 ### Deliverables
 
-- [ ] Symlink verification test suite → **[G1, G2]**
-- [ ] Memory Stack relocation test suite → **[G3]**
-- [ ] Gitignore correctness test suite → **[G3]**
-- [ ] 15-script compatibility audit with fixes → **[G1]**
-- [ ] `loa-eject.sh` submodule mode support → **[G5]**
-- [ ] CI/CD documentation and examples → **[G1]**
-- [ ] End-to-end goal validation
+- [x] Symlink verification test suite → **[G1, G2]**
+- [x] Memory Stack relocation test suite → **[G3]**
+- [x] Gitignore correctness test suite → **[G3]**
+- [x] 15-script compatibility audit with fixes → **[G1]**
+- [x] `loa-eject.sh` submodule mode support → **[G5]**
+- [x] CI/CD documentation and examples → **[G1]**
+- [x] End-to-end goal validation
 
 ### Acceptance Criteria
 
-- [ ] 10 symlink tests pass (scripts, protocols, hooks, data, schemas, CLAUDE.loa.md, reference, @-import resolves, user files NOT symlinked, overrides NOT symlinked)
-- [ ] 3 Memory Stack tests pass (new path used, auto-migrate from old path, submodule safe)
-- [ ] 3 Gitignore tests pass (`.loa/` NOT gitignored, `.loa-cache/` gitignored, symlinks gitignored)
-- [ ] All 15 scripts from SDD §3.9 audited; those needing changes updated
-- [ ] `loa-eject.sh` handles submodule mode: deinit submodule, remove symlinks, copy files to `.claude/`
-- [ ] INSTALLATION.md has GitHub Actions and GitLab CI examples for submodule clone
-- [ ] All PRD goals (G1-G5) validated end-to-end
+- [x] 10 symlink tests pass (scripts, protocols, hooks, data, schemas, CLAUDE.loa.md, reference, @-import resolves, user files NOT symlinked, overrides NOT symlinked)
+- [x] 3 Memory Stack tests pass (new path used, auto-migrate from old path, submodule safe)
+- [x] 3 Gitignore tests pass (`.loa/` NOT gitignored, `.loa-cache/` gitignored, symlinks gitignored)
+- [x] All 15 scripts from SDD §3.9 audited; those needing changes updated
+- [x] `loa-eject.sh` handles submodule mode: deinit submodule, remove symlinks, copy files to `.claude/`
+- [x] INSTALLATION.md has GitHub Actions and GitLab CI examples for submodule clone
+- [x] All PRD goals (G1-G5) validated end-to-end
 
 ### Technical Tasks
 
-- [ ] **Task 3.1**: Symlink verification test suite → **[G1, G2]**
+- [x] **Task 3.1**: Symlink verification test suite → **[G1, G2]**
   - New file: `.claude/scripts/tests/test-mount-symlinks.bats`
   - 10 tests: `scripts_symlink`, `protocols_symlink`, `hooks_symlink`, `data_symlink`, `schemas_symlink`, `claude_loa_md_symlink`, `reference_symlink`, `at_import_resolves`, `user_files_not_symlinked`, `overrides_not_symlinked`
   - Each test verifies symlink exists and target resolves
   - ~100 lines
   - Ref: SDD §6.2
 
-- [ ] **Task 3.2**: Memory Stack relocation tests → **[G3]**
+- [x] **Task 3.2**: Memory Stack relocation tests → **[G3]**
   - Tests: `memory_stack_new_path`, `memory_stack_auto_migrate`, `memory_stack_submodule_safe`
   - Verify `.loa-cache/` used for fresh installs
   - Verify auto-migration from non-submodule `.loa/`
@@ -335,12 +335,12 @@ If Sprint 2 changes cause issues:
   - ~40 lines
   - Ref: SDD §6.5
 
-- [ ] **Task 3.3**: Gitignore correctness tests → **[G3]**
+- [x] **Task 3.3**: Gitignore correctness tests → **[G3]**
   - Tests: `loa_dir_not_gitignored`, `loa_cache_gitignored`, `symlinks_gitignored`
   - ~30 lines
   - Ref: SDD §6.6
 
-- [ ] **Task 3.4**: 15-script compatibility audit → **[G1]**
+- [x] **Task 3.4**: 15-script compatibility audit → **[G1]**
   - Audit scripts from SDD §3.9 table:
     - `mount-loa.sh` (done in Sprint 1), `mount-submodule.sh` (done in Sprint 1)
     - `update-loa.sh` (done in Sprint 2), `golden-path.sh` (done in Sprint 2)
@@ -351,14 +351,14 @@ If Sprint 2 changes cause issues:
   - ~50 lines of changes across affected scripts
   - Ref: SDD §3.9
 
-- [ ] **Task 3.5**: Update `loa-eject.sh` for submodule mode → **[G5]**
+- [x] **Task 3.5**: Update `loa-eject.sh` for submodule mode → **[G5]**
   - Detect installation mode from `.loa-version.json`
   - If submodule: deinit submodule → remove `.loa/` → remove symlinks → copy framework files to `.claude/` → update mode to `standard`
   - If standard: existing behavior unchanged
   - ~40 lines
   - File: `.claude/scripts/loa-eject.sh`
 
-- [ ] **Task 3.6**: CI/CD documentation → **[G1]**
+- [x] **Task 3.6**: CI/CD documentation → **[G1]**
   - Add to INSTALLATION.md:
     - GitHub Actions example with `--recurse-submodules`
     - GitLab CI example with `GIT_SUBMODULE_STRATEGY: recursive`
@@ -366,7 +366,7 @@ If Sprint 2 changes cause issues:
   - ~20 lines
   - Ref: PRD US-5, SDD §7.1
 
-- [ ] **Task 3.7**: End-to-End Goal Validation → **[G1, G2, G3, G4, G5]**
+- [x] **Task 3.7**: End-to-End Goal Validation → **[G1, G2, G3, G4, G5]**
   - Validate each PRD goal:
     - **G1** (Submodule default): Fresh `/mount` uses submodule
     - **G2** (≤5 tracked files): Count tracked framework files after mount
