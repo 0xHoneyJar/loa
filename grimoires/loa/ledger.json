@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-038",
+  "active_cycle": null,
   "cycles": [
     {
       "id": "cycle-036",
@@ -59,8 +59,10 @@
     {
       "id": "cycle-038",
       "label": "Organizational Memory Sovereignty — Three-Zone State Architecture",
-      "status": "active",
+      "status": "archived",
       "created": "2026-02-24T21:00:00Z",
+      "archived": "2026-02-25T12:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-25-organizational-memory-sovereignty",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "sprints": [
@@ -74,31 +76,31 @@
           "local_id": 2,
           "global_id": 58,
           "label": "Migration Script + Mount Integration",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "local_id": 3,
           "global_id": 59,
           "label": "Redaction Pipeline",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "local_id": 4,
           "global_id": 60,
           "label": "Trajectory Archive + Import",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "local_id": 5,
           "global_id": 61,
           "label": "Memory Pipeline Activation",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "local_id": 6,
           "global_id": 62,
           "label": "Federated Learning Exchange",
-          "status": "pending"
+          "status": "completed"
         }
       ]
     }
