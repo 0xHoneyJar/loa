@@ -1,8 +1,0 @@
-sprint-9 completed 2026-02-18
-cycle: cycle-026
-local: sprint-5
-title: Bridge Iteration — Metering Correctness and Test Coverage
-reviewer: APPROVE (engineer-feedback.md)
-auditor: APPROVED (auditor-sprint-feedback.md)
-tests: 363 passed, 9 skipped, 0 failed
-source: bridge-20260218-1402f0 iteration 1

@@ -169,6 +169,22 @@ grimoires/loa/analytics/*
 grimoires/loa/research/*
 !grimoires/loa/research/README.md
 
+# Ground truth (generated codebase analysis, project-specific)
+grimoires/loa/ground-truth/*
+!grimoires/loa/ground-truth/README.md
+
+# Vision registry (speculative insights captured per-project)
+grimoires/loa/visions/entries/*
+!grimoires/loa/visions/entries/.gitkeep
+grimoires/loa/visions/index.md
+
+# Feedback files (developer feedback, project-specific)
+grimoires/loa/feedback/*
+!grimoires/loa/feedback/README.md
+
+# Invariants (generated per-project)
+grimoires/loa/invariants.yaml
+
 # Public grimoires (project-specific outputs, not template content)
 # Only README.md files and research documents are tracked
 # Research documents contain reusable framework insights
