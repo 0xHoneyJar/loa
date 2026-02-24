@@ -264,7 +264,7 @@ cargo install ck-search
 
 # Or manual setup
 pip install sentence-transformers
-mkdir -p .loa-cache
+mkdir -p .loa-state
 ```
 
 **Configuration** (add to `.loa.config.yaml`):

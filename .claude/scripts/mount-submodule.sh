@@ -146,15 +146,15 @@ yq_read() {
 }
 
 # === Memory Stack Path Utility (Task 2.3 — cycle-035 sprint-2) ===
-# Returns the canonical Memory Stack path, checking both new (.loa-cache/)
+# Returns the canonical Memory Stack path, checking both new (.loa-state/)
 # and legacy (.loa/) locations. Reusable across scripts.
 # Returns: path on stdout, exit 0 if found, exit 1 if no Memory Stack exists.
 get_memory_stack_path() {
   local project_root="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 
-  # Priority 1: New location (.loa-cache/) — post-migration
-  if [[ -d "${project_root}/.loa-cache" ]]; then
-    echo "${project_root}/.loa-cache"
+  # Priority 1: New location (.loa-state/) — post-migration
+  if [[ -d "${project_root}/.loa-state" ]]; then
+    echo "${project_root}/.loa-state"
     return 0
   fi
 
@@ -172,10 +172,10 @@ get_memory_stack_path() {
 }
 
 # === Memory Stack Relocation (Flatline IMP-002) ===
-# Safely relocates .loa/ Memory Stack data to .loa-cache/ before submodule add
+# Safely relocates .loa/ Memory Stack data to .loa-state/ before submodule add
 relocate_memory_stack() {
   local source=".loa"
-  local target=".loa-cache"
+  local target=".loa-state"
   local migration_lock="${target}/.migration-lock"
 
   if [[ ! -d "$source" ]]; then
@@ -187,7 +187,7 @@ relocate_memory_stack() {
     return 0  # Already a submodule, not Memory Stack data
   fi
 
-  step "Relocating Memory Stack from .loa/ to .loa-cache/..."
+  step "Relocating Memory Stack from .loa/ to .loa-state/..."
 
   # Check for concurrent migration
   if [[ -f "$migration_lock" ]]; then
@@ -235,7 +235,7 @@ relocate_memory_stack() {
   rm -rf "$source"
   rm -f "$migration_lock"
 
-  log "Memory Stack relocated: .loa/ -> .loa-cache/ ($source_count files)"
+  log "Memory Stack relocated: .loa/ -> .loa-state/ ($source_count files)"
 }
 
 # === Auto-Init Submodule (post-clone recovery) ===
@@ -389,7 +389,14 @@ safe_symlink() {
   ln -sf "$target" "$source"
 }
 
+# === Authoritative Symlink Manifest (DRY — Bridgebuilder Tension 1) ===
+# Sourced from shared library: lib/symlink-manifest.sh
+# To add a new symlink target, change ONLY the library file — all consumers inherit.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/lib/symlink-manifest.sh"
+
 # === Create Symlinks ===
+# Consumes get_symlink_manifest() — single source of truth for symlink topology.
 create_symlinks() {
   step "Creating symlinks from .claude/ to submodule..."
 
@@ -399,110 +406,60 @@ create_symlinks() {
   fi
 
   # Create .claude directory structure
-  mkdir -p .claude
+  mkdir -p .claude .claude/skills .claude/commands .claude/loa
 
-  # === Skills Symlinks ===
-  step "Linking skills..."
-  mkdir -p .claude/skills
-  if [[ -d "$SUBMODULE_PATH/.claude/skills" ]]; then
-    for skill_dir in "$SUBMODULE_PATH"/.claude/skills/*/; do
-      if [[ -d "$skill_dir" ]]; then
-        local skill_name=$(basename "$skill_dir")
-        # MED-004 FIX: Use safe_symlink with validation
-        safe_symlink ".claude/skills/$skill_name" "../../$SUBMODULE_PATH/.claude/skills/$skill_name"
-        log "  Linked skill: $skill_name"
-      fi
-    done
-  fi
+  # Load authoritative manifest
+  get_symlink_manifest "$SUBMODULE_PATH"
 
-  # === Commands Symlinks ===
-  step "Linking commands..."
-  mkdir -p .claude/commands
-  if [[ -d "$SUBMODULE_PATH/.claude/commands" ]]; then
-    for cmd_file in "$SUBMODULE_PATH"/.claude/commands/*.md; do
-      if [[ -f "$cmd_file" ]]; then
-        local cmd_name=$(basename "$cmd_file")
-        # MED-004 FIX: Use safe_symlink with validation
-        safe_symlink ".claude/commands/$cmd_name" "../../$SUBMODULE_PATH/.claude/commands/$cmd_name"
-        log "  Linked command: $cmd_name"
-      fi
-    done
-  fi
-
-  # === Scripts Directory Symlink ===
-  step "Linking scripts directory..."
-  if [[ -d "$SUBMODULE_PATH/.claude/scripts" ]]; then
+  # Phase 1: Directory symlinks
+  step "Linking directories..."
+  for entry in "${MANIFEST_DIR_SYMLINKS[@]}"; do
+    local link_path="${entry%%:*}"
+    local target="${entry#*:}"
     # MED-004 FIX: Use safe_symlink with validation
-    safe_symlink ".claude/scripts" "../$SUBMODULE_PATH/.claude/scripts"
-    log "  Linked: .claude/scripts/"
-  fi
-
-  # === Protocols Directory Symlink ===
-  step "Linking protocols directory..."
-  if [[ -d "$SUBMODULE_PATH/.claude/protocols" ]]; then
-    # MED-004 FIX: Use safe_symlink with validation
-    safe_symlink ".claude/protocols" "../$SUBMODULE_PATH/.claude/protocols"
-    log "  Linked: .claude/protocols/"
-  fi
-
-  # === Schemas Directory Symlink ===
-  step "Linking schemas directory..."
-  if [[ -d "$SUBMODULE_PATH/.claude/schemas" ]]; then
-    # MED-004 FIX: Use safe_symlink with validation
-    safe_symlink ".claude/schemas" "../$SUBMODULE_PATH/.claude/schemas"
-    log "  Linked: .claude/schemas/"
-  fi
-
-  # === Hooks Directory Symlink (Task 1.5) ===
-  step "Linking hooks directory..."
-  if [[ -d "$SUBMODULE_PATH/.claude/hooks" ]]; then
-    safe_symlink ".claude/hooks" "../$SUBMODULE_PATH/.claude/hooks"
-    log "  Linked: .claude/hooks/"
-  fi
-
-  # === Data Directory Symlink (Task 1.5) ===
-  step "Linking data directory..."
-  if [[ -d "$SUBMODULE_PATH/.claude/data" ]]; then
-    safe_symlink ".claude/data" "../$SUBMODULE_PATH/.claude/data"
-    log "  Linked: .claude/data/"
-  fi
-
-  # === Loa Directory (CLAUDE.loa.md + reference + learnings + feedback-ontology) ===
-  step "Linking loa directory..."
-  mkdir -p .claude/loa
-  if [[ -f "$SUBMODULE_PATH/.claude/loa/CLAUDE.loa.md" ]]; then
-    # MED-004 FIX: Use safe_symlink with validation
-    safe_symlink ".claude/loa/CLAUDE.loa.md" "../../$SUBMODULE_PATH/.claude/loa/CLAUDE.loa.md"
-    log "  Linked: .claude/loa/CLAUDE.loa.md"
-  fi
-
-  # === Loa Reference Directory (Task 1.5) ===
-  if [[ -d "$SUBMODULE_PATH/.claude/loa/reference" ]]; then
-    safe_symlink ".claude/loa/reference" "../../$SUBMODULE_PATH/.claude/loa/reference"
-    log "  Linked: .claude/loa/reference/"
-  fi
-
-  # === Loa Learnings Directory (Task 1.5) ===
-  if [[ -d "$SUBMODULE_PATH/.claude/loa/learnings" ]]; then
-    safe_symlink ".claude/loa/learnings" "../../$SUBMODULE_PATH/.claude/loa/learnings"
-    log "  Linked: .claude/loa/learnings/"
-  fi
-
-  # === Loa Feedback Ontology (Task 1.5) ===
-  if [[ -f "$SUBMODULE_PATH/.claude/loa/feedback-ontology.yaml" ]]; then
-    safe_symlink ".claude/loa/feedback-ontology.yaml" "../../$SUBMODULE_PATH/.claude/loa/feedback-ontology.yaml"
-    log "  Linked: .claude/loa/feedback-ontology.yaml"
-  fi
-
-  # === Settings and other root files ===
-  step "Linking settings files..."
-  for config_file in settings.json settings.local.json checksums.json; do
-    if [[ -f "$SUBMODULE_PATH/.claude/$config_file" ]]; then
-      # MED-004 FIX: Use safe_symlink with validation
-      safe_symlink ".claude/$config_file" "../$SUBMODULE_PATH/.claude/$config_file"
-      log "  Linked: .claude/$config_file"
-    fi
+    safe_symlink "$link_path" "$target"
+    log "  Linked: ${link_path}/"
   done
+
+  # Phase 2: File/nested symlinks
+  step "Linking files..."
+  for entry in "${MANIFEST_FILE_SYMLINKS[@]}"; do
+    local link_path="${entry%%:*}"
+    local target="${entry#*:}"
+    local parent_dir
+    parent_dir=$(dirname "$link_path")
+    mkdir -p "$parent_dir"
+    safe_symlink "$link_path" "$target"
+    log "  Linked: ${link_path}"
+  done
+
+  # Phase 3: Per-skill symlinks (dynamic from manifest)
+  step "Linking skills..."
+  for entry in "${MANIFEST_SKILL_SYMLINKS[@]}"; do
+    local link_path="${entry%%:*}"
+    local target="${entry#*:}"
+    local skill_name
+    skill_name=$(basename "$link_path")
+    safe_symlink "$link_path" "$target"
+    log "  Linked skill: $skill_name"
+  done
+
+  # Phase 4: Per-command symlinks (dynamic from manifest)
+  step "Linking commands..."
+  for entry in "${MANIFEST_CMD_SYMLINKS[@]}"; do
+    local link_path="${entry%%:*}"
+    local target="${entry#*:}"
+    local cmd_name
+    cmd_name=$(basename "$link_path")
+    safe_symlink "$link_path" "$target"
+    log "  Linked command: $cmd_name"
+  done
+
+  # Also link settings.local.json if it exists (not in manifest — optional file)
+  if [[ -f "$SUBMODULE_PATH/.claude/settings.local.json" ]]; then
+    safe_symlink ".claude/settings.local.json" "../$SUBMODULE_PATH/.claude/settings.local.json"
+    log "  Linked: .claude/settings.local.json"
+  fi
 
   # === Create overrides directory (user-owned) ===
   mkdir -p .claude/overrides
@@ -730,6 +687,8 @@ To update: git submodule update --remote $SUBMODULE_PATH
 
 Generated by Loa mount-submodule.sh"
 
+  # --no-verify: Framework install commits only touch tooling (symlinks, manifests, .gitignore).
+  # User pre-commit hooks (lint, typecheck, test) target app code and would fail on framework-only changes.
   git commit -m "$commit_msg" --no-verify 2>/dev/null || {
     warn "Failed to create commit"
     return 1
@@ -760,9 +719,10 @@ update_gitignore_for_submodule() {
     ".claude/checksums.json"
   )
 
-  # Memory Stack at .loa-cache/ (relocated from .loa/)
+  # State and backup entries (not symlinks but must be gitignored)
   local state_entries=(
-    ".loa-cache/"
+    ".loa-state/"
+    ".claude.backup.*"
   )
 
   # Add header if not present
@@ -801,52 +761,9 @@ verify_and_reconcile_symlinks() {
   local stale=0
   local ok=0
 
-  # Authoritative symlink manifest: link_path -> target_path (relative from link parent)
-  # Phase 1: Directory symlinks
-  local -a dir_symlinks=(
-    ".claude/scripts:../${submodule}/.claude/scripts"
-    ".claude/protocols:../${submodule}/.claude/protocols"
-    ".claude/hooks:../${submodule}/.claude/hooks"
-    ".claude/data:../${submodule}/.claude/data"
-    ".claude/schemas:../${submodule}/.claude/schemas"
-  )
-
-  # Phase 2: File/nested symlinks
-  local -a file_symlinks=(
-    ".claude/loa/CLAUDE.loa.md:../../${submodule}/.claude/loa/CLAUDE.loa.md"
-    ".claude/loa/reference:../../${submodule}/.claude/loa/reference"
-    ".claude/loa/learnings:../../${submodule}/.claude/loa/learnings"
-    ".claude/loa/feedback-ontology.yaml:../../${submodule}/.claude/loa/feedback-ontology.yaml"
-    ".claude/settings.json:../${submodule}/.claude/settings.json"
-    ".claude/checksums.json:../${submodule}/.claude/checksums.json"
-  )
-
-  # Phase 3: Per-skill symlinks (dynamic)
-  local -a skill_symlinks=()
-  if [[ -d "${repo_root}/${submodule}/.claude/skills" ]]; then
-    for skill_dir in "${repo_root}/${submodule}"/.claude/skills/*/; do
-      if [[ -d "$skill_dir" ]]; then
-        local skill_name
-        skill_name=$(basename "$skill_dir")
-        skill_symlinks+=(".claude/skills/${skill_name}:../../${submodule}/.claude/skills/${skill_name}")
-      fi
-    done
-  fi
-
-  # Per-command symlinks (dynamic)
-  local -a cmd_symlinks=()
-  if [[ -d "${repo_root}/${submodule}/.claude/commands" ]]; then
-    for cmd_file in "${repo_root}/${submodule}"/.claude/commands/*.md; do
-      if [[ -f "$cmd_file" ]]; then
-        local cmd_name
-        cmd_name=$(basename "$cmd_file")
-        cmd_symlinks+=(".claude/commands/${cmd_name}:../../${submodule}/.claude/commands/${cmd_name}")
-      fi
-    done
-  fi
-
-  # Combine all manifests
-  local -a all_symlinks=("${dir_symlinks[@]}" "${file_symlinks[@]}" "${skill_symlinks[@]}" "${cmd_symlinks[@]}")
+  # Load authoritative manifest (DRY — single source of truth)
+  get_symlink_manifest "$submodule" "$repo_root"
+  local -a all_symlinks=("${MANIFEST_DIR_SYMLINKS[@]}" "${MANIFEST_FILE_SYMLINKS[@]}" "${MANIFEST_SKILL_SYMLINKS[@]}" "${MANIFEST_CMD_SYMLINKS[@]}")
 
   step "Verifying ${#all_symlinks[@]} symlinks..."
 

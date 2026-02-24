@@ -180,7 +180,8 @@ teardown() {
 }
 
 @test "symlink manifest includes all 5 directory symlinks" {
-    run grep -A30 "dir_symlinks=(" "$SUBMODULE_SCRIPT"
+    local manifest_lib="${SCRIPT_DIR}/lib/symlink-manifest.sh"
+    run grep -A30 "MANIFEST_DIR_SYMLINKS=(" "$manifest_lib"
     echo "$output" | grep -q ".claude/scripts"
     echo "$output" | grep -q ".claude/protocols"
     echo "$output" | grep -q ".claude/hooks"
@@ -189,7 +190,8 @@ teardown() {
 }
 
 @test "symlink manifest includes loa file symlinks" {
-    run grep -A20 "file_symlinks=(" "$SUBMODULE_SCRIPT"
+    local manifest_lib="${SCRIPT_DIR}/lib/symlink-manifest.sh"
+    run grep -A20 "MANIFEST_FILE_SYMLINKS=(" "$manifest_lib"
     echo "$output" | grep -q "CLAUDE.loa.md"
     echo "$output" | grep -q "reference"
     echo "$output" | grep -q "feedback-ontology"
@@ -200,18 +202,18 @@ teardown() {
 # Task 3.2: Memory Stack Relocation Tests — 3 tests
 # =============================================================================
 
-@test "memory_stack_new_path: fresh install uses .loa-cache/" {
+@test "memory_stack_new_path: fresh install uses .loa-state/" {
     # Verify mount-submodule.sh has get_memory_stack_path function
     run grep -c "get_memory_stack_path()" "$SUBMODULE_SCRIPT"
     [ "$status" -eq 0 ]
     [ "${output}" -ge 1 ]
 
-    # Verify the function prioritizes .loa-cache/ over .loa/
+    # Verify the function prioritizes .loa-state/ over .loa/
     run grep -A10 "get_memory_stack_path()" "$SUBMODULE_SCRIPT"
-    echo "$output" | grep -q ".loa-cache"
+    echo "$output" | grep -q ".loa-state"
 }
 
-@test "memory_stack_auto_migrate: relocate_memory_stack moves data from .loa/ to .loa-cache/" {
+@test "memory_stack_auto_migrate: relocate_memory_stack moves data from .loa/ to .loa-state/" {
     # Verify relocate_memory_stack function exists and handles migration
     run grep -c "relocate_memory_stack()" "$SUBMODULE_SCRIPT"
     [ "$status" -eq 0 ]
@@ -242,10 +244,30 @@ teardown() {
     [ "$output" = "0" ]
 }
 
-@test "loa_cache_gitignored: .loa-cache/ IS in .gitignore" {
+@test "loa_state_gitignored: .loa-state/ IS in .gitignore" {
     local gitignore="${SCRIPT_DIR}/../../.gitignore"
-    run grep "^\.loa-cache/" "$gitignore"
+    run grep "^\.loa-state/" "$gitignore"
     [ "$status" -eq 0 ]
+}
+
+@test "backup_gitignored: .claude.backup.* IS in .gitignore" {
+    local gitignore="${SCRIPT_DIR}/../../.gitignore"
+    run grep "^\.claude\.backup\.\*$" "$gitignore"
+    [ "$status" -eq 0 ]
+}
+
+@test "manifest_single_source: shared library exists and is sourced by mount-submodule.sh" {
+    # Verify the shared manifest library exists
+    [ -f "${SCRIPT_DIR}/lib/symlink-manifest.sh" ]
+
+    # Verify mount-submodule.sh sources the library (not inline)
+    run grep "source.*lib/symlink-manifest.sh" "$SUBMODULE_SCRIPT"
+    [ "$status" -eq 0 ]
+
+    # Verify verify_and_reconcile_symlinks does NOT have inline manifest arrays
+    # (it should call get_symlink_manifest instead)
+    run bash -c "sed -n '/verify_and_reconcile_symlinks/,/^}/p' '$SUBMODULE_SCRIPT' | grep -c 'local -a dir_symlinks'"
+    [ "$output" = "0" ]
 }
 
 @test "symlinks_gitignored: update_gitignore_for_submodule includes symlink entries" {

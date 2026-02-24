@@ -432,103 +432,51 @@ eject_submodule() {
   step "Ejecting from submodule mode..."
 
   # === Phase 1: Replace symlinks with real copies ===
+  # Uses authoritative manifest (DRY — Bridgebuilder Tension 1)
   step "Replacing symlinks with real files..."
   local replaced=0
 
-  # Directory symlinks: scripts, protocols, hooks, data, schemas
-  for dir_link in scripts protocols hooks data schemas; do
-    local link_path=".claude/${dir_link}"
+  # Source shared symlink manifest
+  local _script_dir
+  _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  source "${_script_dir}/lib/symlink-manifest.sh"
+  get_symlink_manifest "$submodule_path" "$(pwd)"
+
+  # Iterate all manifest entries — replace symlinks with real copies
+  for entry in "${MANIFEST_DIR_SYMLINKS[@]}" "${MANIFEST_FILE_SYMLINKS[@]}" "${MANIFEST_SKILL_SYMLINKS[@]}" "${MANIFEST_CMD_SYMLINKS[@]}"; do
+    local link_path="${entry%%:*}"
     if [[ -L "$link_path" ]]; then
-      local target
-      target=$(readlink "$link_path")
+      # Resolve the real source path in the submodule
+      local real_src
+      real_src=$(readlink -f "$link_path" 2>/dev/null || true)
       if [[ "$DRY_RUN" == "true" ]]; then
         step "[dry-run] Would replace symlink: $link_path"
       else
         rm -f "$link_path"
-        if [[ -d "${submodule_path}/.claude/${dir_link}" ]]; then
-          cp -r "${submodule_path}/.claude/${dir_link}" "$link_path"
-          log "  Replaced: $link_path (symlink -> real directory)"
+        if [[ -n "$real_src" && -e "$real_src" ]]; then
+          cp -r "$real_src" "$link_path"
+          log "  Replaced: $link_path (symlink -> real copy)"
           ((replaced++)) || true
         fi
       fi
     fi
   done
 
-  # File symlinks under .claude/loa/
-  for loa_item in CLAUDE.loa.md reference learnings feedback-ontology.yaml; do
-    local link_path=".claude/loa/${loa_item}"
-    if [[ -L "$link_path" ]]; then
-      if [[ "$DRY_RUN" == "true" ]]; then
-        step "[dry-run] Would replace symlink: $link_path"
-      else
-        rm -f "$link_path"
-        local src="${submodule_path}/.claude/loa/${loa_item}"
-        if [[ -e "$src" ]]; then
-          cp -r "$src" "$link_path"
-          log "  Replaced: $link_path"
-          ((replaced++)) || true
-        fi
+  # Also check settings.local.json (not in manifest — user-owned extension)
+  if [[ -L ".claude/settings.local.json" ]]; then
+    local real_src
+    real_src=$(readlink -f ".claude/settings.local.json" 2>/dev/null || true)
+    if [[ "$DRY_RUN" == "true" ]]; then
+      step "[dry-run] Would replace symlink: .claude/settings.local.json"
+    else
+      rm -f ".claude/settings.local.json"
+      if [[ -n "$real_src" && -e "$real_src" ]]; then
+        cp "$real_src" ".claude/settings.local.json"
+        log "  Replaced: .claude/settings.local.json"
+        ((replaced++)) || true
       fi
     fi
-  done
-
-  # Per-skill symlinks
-  if [[ -d ".claude/skills" ]]; then
-    for skill_link in .claude/skills/*/; do
-      skill_link="${skill_link%/}"
-      if [[ -L "$skill_link" ]]; then
-        local skill_name
-        skill_name=$(basename "$skill_link")
-        if [[ "$DRY_RUN" == "true" ]]; then
-          step "[dry-run] Would replace skill symlink: $skill_name"
-        else
-          rm -f "$skill_link"
-          if [[ -d "${submodule_path}/.claude/skills/${skill_name}" ]]; then
-            cp -r "${submodule_path}/.claude/skills/${skill_name}" "$skill_link"
-            log "  Replaced skill: $skill_name"
-            ((replaced++)) || true
-          fi
-        fi
-      fi
-    done
   fi
-
-  # Per-command symlinks
-  if [[ -d ".claude/commands" ]]; then
-    for cmd_link in .claude/commands/*.md; do
-      if [[ -L "$cmd_link" ]]; then
-        local cmd_name
-        cmd_name=$(basename "$cmd_link")
-        if [[ "$DRY_RUN" == "true" ]]; then
-          step "[dry-run] Would replace command symlink: $cmd_name"
-        else
-          rm -f "$cmd_link"
-          if [[ -f "${submodule_path}/.claude/commands/${cmd_name}" ]]; then
-            cp "${submodule_path}/.claude/commands/${cmd_name}" "$cmd_link"
-            log "  Replaced command: $cmd_name"
-            ((replaced++)) || true
-          fi
-        fi
-      fi
-    done
-  fi
-
-  # Settings symlinks
-  for config_file in settings.json settings.local.json checksums.json; do
-    local link_path=".claude/${config_file}"
-    if [[ -L "$link_path" ]]; then
-      if [[ "$DRY_RUN" == "true" ]]; then
-        step "[dry-run] Would replace symlink: $link_path"
-      else
-        rm -f "$link_path"
-        if [[ -f "${submodule_path}/.claude/${config_file}" ]]; then
-          cp "${submodule_path}/.claude/${config_file}" "$link_path"
-          log "  Replaced: $link_path"
-          ((replaced++)) || true
-        fi
-      fi
-    fi
-  done
 
   log "Replaced $replaced symlinks with real files"
 

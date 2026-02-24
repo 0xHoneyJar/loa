@@ -22,8 +22,8 @@ set -euo pipefail
 # =============================================================================
 
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-# Memory Stack relocated from .loa/ to .loa-cache/ to avoid submodule collision (cycle-035)
-LOA_DIR="${PROJECT_ROOT}/.loa-cache"
+# Memory Stack relocated from .loa/ to .loa-state/ to avoid submodule collision (cycle-035)
+LOA_DIR="${PROJECT_ROOT}/.loa-state"
 DB_FILE="${LOA_DIR}/memory.db"
 EMBED_SCRIPT="${PROJECT_ROOT}/.claude/hooks/memory-utils/embed.py"
 CONFIG_FILE="${PROJECT_ROOT}/.loa.config.yaml"

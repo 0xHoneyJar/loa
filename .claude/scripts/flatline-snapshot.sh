@@ -453,6 +453,8 @@ commit_snapshot() {
 
     local commit_args=()
     if ! is_git_hooks_enabled; then
+        # --no-verify: Flatline snapshot commits are framework-internal state (a2a/ artifacts).
+        # Only applied when user has explicitly disabled git hooks via config.
         commit_args+=("--no-verify")
         warn "Git hooks disabled for snapshot commit"
     fi

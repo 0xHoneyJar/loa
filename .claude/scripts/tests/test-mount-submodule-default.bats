@@ -127,34 +127,46 @@ teardown() {
 # Task 1.5: Missing symlinks in mount-submodule.sh
 # =============================================================================
 
-@test "mount-submodule.sh links hooks directory" {
-    run grep "hooks" "$SUBMODULE_SCRIPT"
+@test "manifest includes hooks directory" {
+    local manifest_lib="${SCRIPT_DIR}/lib/symlink-manifest.sh"
+    run grep "hooks" "$manifest_lib"
     [ "$status" -eq 0 ]
-    echo "$output" | grep -q "safe_symlink.*hooks"
+    echo "$output" | grep -q ".claude/hooks"
 }
 
-@test "mount-submodule.sh links data directory" {
-    run grep "data" "$SUBMODULE_SCRIPT"
+@test "manifest includes data directory" {
+    local manifest_lib="${SCRIPT_DIR}/lib/symlink-manifest.sh"
+    run grep "data" "$manifest_lib"
     [ "$status" -eq 0 ]
-    echo "$output" | grep -q "safe_symlink.*data"
+    echo "$output" | grep -q ".claude/data"
 }
 
-@test "mount-submodule.sh links loa/reference directory" {
-    run grep "reference" "$SUBMODULE_SCRIPT"
+@test "manifest includes loa/reference directory" {
+    local manifest_lib="${SCRIPT_DIR}/lib/symlink-manifest.sh"
+    run grep "reference" "$manifest_lib"
     [ "$status" -eq 0 ]
-    echo "$output" | grep -q "safe_symlink.*reference"
+    echo "$output" | grep -q "reference"
 }
 
-@test "mount-submodule.sh links loa/learnings directory" {
-    run grep "learnings" "$SUBMODULE_SCRIPT"
+@test "manifest includes loa/learnings directory" {
+    local manifest_lib="${SCRIPT_DIR}/lib/symlink-manifest.sh"
+    run grep "learnings" "$manifest_lib"
     [ "$status" -eq 0 ]
-    echo "$output" | grep -q "safe_symlink.*learnings"
+    echo "$output" | grep -q "learnings"
 }
 
-@test "mount-submodule.sh links feedback-ontology.yaml" {
-    run grep "feedback-ontology" "$SUBMODULE_SCRIPT"
+@test "manifest includes feedback-ontology.yaml" {
+    local manifest_lib="${SCRIPT_DIR}/lib/symlink-manifest.sh"
+    run grep "feedback-ontology" "$manifest_lib"
     [ "$status" -eq 0 ]
-    echo "$output" | grep -q "safe_symlink.*feedback-ontology"
+    echo "$output" | grep -q "feedback-ontology"
+}
+
+@test "create_symlinks calls safe_symlink in loop" {
+    # Verify create_symlinks iterates the manifest and calls safe_symlink
+    run grep -A30 "create_symlinks()" "$SUBMODULE_SCRIPT"
+    echo "$output" | grep -q "get_symlink_manifest"
+    echo "$output" | grep -q "safe_symlink"
 }
 
 @test "Memory Stack relocation function exists" {
@@ -180,9 +192,9 @@ teardown() {
 # Task 1.6: .gitignore fixes
 # =============================================================================
 
-@test ".gitignore has .loa-cache/ not .loa/" {
+@test ".gitignore has .loa-state/ not .loa/" {
     local gitignore="${SCRIPT_DIR}/../../.gitignore"
-    run grep "^\.loa-cache/" "$gitignore"
+    run grep "^\.loa-state/" "$gitignore"
     [ "$status" -eq 0 ]
 }
 

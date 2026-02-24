@@ -70,10 +70,14 @@ temp/
 # Must be preserved locally for resume capability but not committed
 .run/
 
-# Loa Memory Stack state (relocated from .loa/ in v1.39.0)
+# Framework migration/eject backups (created by mount-loa.sh, update.sh, loa-eject.sh)
+# Timestamped directories that should never be committed
+.claude.backup.*
+
+# Loa Memory Stack persistent state (renamed from .loa-cache/ in cycle-035)
 # Contains vector database, embeddings, QMD indexes - machine-specific
-# Note: .loa/ is no longer gitignored — it is the submodule path
-.loa-cache/
+# Semantics: NOT a cache (not ephemeral) — this is persistent local state
+.loa-state/
 
 # User context files (discovery inputs, uploaded docs, extracted content)
 # These are user-specific inputs that should never be committed
