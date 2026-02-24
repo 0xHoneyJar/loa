@@ -129,9 +129,27 @@
           "global_id": 65,
           "label": "Final Polish — Bridge Iteration 3",
           "status": "completed"
+        },
+        {
+          "local_id": 4,
+          "global_id": 66,
+          "label": "Metacognition — Confidence-Weighted Enrichment",
+          "status": "pending"
+        },
+        {
+          "local_id": 5,
+          "global_id": 67,
+          "label": "Persona Provenance + Review Pluralism Foundation",
+          "status": "pending"
+        },
+        {
+          "local_id": 6,
+          "global_id": 68,
+          "label": "Ecosystem Context Integration — Pass 0 Prototype",
+          "status": "pending"
         }
       ]
     }
   ],
-  "global_sprint_counter": 65
+  "global_sprint_counter": 68
 }
