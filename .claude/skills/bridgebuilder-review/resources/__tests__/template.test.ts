@@ -425,5 +425,57 @@ describe("PRReviewTemplate", () => {
       const { userPrompt } = template.buildEnrichmentPrompt(sampleFindings, item, "persona");
       assert.ok(!userPrompt.includes("Reviewed with:"), "Should NOT include attribution");
     });
+
+    it("includes ecosystem context when patterns provided", () => {
+      const template = new PRReviewTemplate(mockGitProvider(), mockHasher(), mockConfig());
+      const item = {
+        owner: "o", repo: "r",
+        pr: { number: 1, title: "Fix", headSha: "h", baseBranch: "main", labels: [], author: "dev" },
+        files: [],
+        hash: "h",
+      };
+      const ecosystemContext = {
+        patterns: [
+          { repo: "core/auth", pr: 99, pattern: "JWT rotation", connection: "Same token lifecycle pattern" },
+          { repo: "shared/utils", pattern: "Error boundary", connection: "Consistent error handling" },
+        ],
+        lastUpdated: "2026-02-25T12:00:00Z",
+      };
+
+      const { userPrompt } = template.buildEnrichmentPrompt(sampleFindings, item, "persona", undefined, undefined, ecosystemContext);
+      assert.ok(userPrompt.includes("Ecosystem Context"), "Should include ecosystem context section");
+      assert.ok(userPrompt.includes("core/auth#99"), "Should include repo with PR ref");
+      assert.ok(userPrompt.includes("JWT rotation"), "Should include pattern");
+      assert.ok(userPrompt.includes("Same token lifecycle pattern"), "Should include connection");
+      assert.ok(userPrompt.includes("shared/utils"), "Should include second repo without PR ref");
+      assert.ok(userPrompt.includes("Do not fabricate"), "Should include grounding instruction");
+    });
+
+    it("omits ecosystem context when patterns array is empty", () => {
+      const template = new PRReviewTemplate(mockGitProvider(), mockHasher(), mockConfig());
+      const item = {
+        owner: "o", repo: "r",
+        pr: { number: 1, title: "Fix", headSha: "h", baseBranch: "main", labels: [], author: "dev" },
+        files: [],
+        hash: "h",
+      };
+      const emptyContext = { patterns: [], lastUpdated: "2026-02-25T12:00:00Z" };
+
+      const { userPrompt } = template.buildEnrichmentPrompt(sampleFindings, item, "persona", undefined, undefined, emptyContext);
+      assert.ok(!userPrompt.includes("Ecosystem Context"), "Should NOT include ecosystem context for empty patterns");
+    });
+
+    it("omits ecosystem context when undefined", () => {
+      const template = new PRReviewTemplate(mockGitProvider(), mockHasher(), mockConfig());
+      const item = {
+        owner: "o", repo: "r",
+        pr: { number: 1, title: "Fix", headSha: "h", baseBranch: "main", labels: [], author: "dev" },
+        files: [],
+        hash: "h",
+      };
+
+      const { userPrompt } = template.buildEnrichmentPrompt(sampleFindings, item, "persona", undefined, undefined, undefined);
+      assert.ok(!userPrompt.includes("Ecosystem Context"), "Should NOT include ecosystem context when undefined");
+    });
   });
 });

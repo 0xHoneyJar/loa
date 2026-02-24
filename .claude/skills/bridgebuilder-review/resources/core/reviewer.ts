@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { GitProviderError } from "../ports/git-provider.js";
 import type { IGitProvider } from "../ports/git-provider.js";
 import { LLMProviderError } from "../ports/llm-provider.js";
@@ -15,6 +16,7 @@ import type {
   ReviewError,
   RunSummary,
   PersonaMetadata,
+  EcosystemContext,
 } from "./types.js";
 import {
   truncateFiles,
@@ -75,6 +77,7 @@ function isTokenRejection(err: unknown): boolean {
 
 export class ReviewPipeline {
   private readonly personaMetadata: PersonaMetadata;
+  private ecosystemContext: EcosystemContext | undefined;
 
   constructor(
     private readonly template: PRReviewTemplate,
@@ -89,6 +92,57 @@ export class ReviewPipeline {
     private readonly now: () => number = Date.now,
   ) {
     this.personaMetadata = ReviewPipeline.parsePersonaMetadata(persona);
+  }
+
+  /**
+   * Load ecosystem context from the configured JSON file path.
+   * Validates structure; silently ignores missing/malformed files.
+   */
+  static loadEcosystemContext(
+    filePath: string | undefined,
+    logger: ILogger,
+  ): EcosystemContext | undefined {
+    if (!filePath) return undefined;
+
+    try {
+      const raw = readFileSync(filePath, "utf-8");
+      const parsed = JSON.parse(raw);
+
+      if (
+        !parsed.patterns ||
+        !Array.isArray(parsed.patterns) ||
+        typeof parsed.lastUpdated !== "string"
+      ) {
+        logger.warn("Ecosystem context file has invalid structure", { filePath });
+        return undefined;
+      }
+
+      // Validate each pattern entry has required fields
+      const validPatterns = parsed.patterns.filter(
+        (p: unknown): p is { repo: string; pattern: string; connection: string; pr?: number } =>
+          p != null &&
+          typeof p === "object" &&
+          typeof (p as Record<string, unknown>).repo === "string" &&
+          typeof (p as Record<string, unknown>).pattern === "string" &&
+          typeof (p as Record<string, unknown>).connection === "string",
+      );
+
+      if (validPatterns.length === 0) {
+        logger.warn("Ecosystem context file has no valid patterns", { filePath });
+        return undefined;
+      }
+
+      logger.info("Loaded ecosystem context", {
+        filePath,
+        patternCount: validPatterns.length,
+        lastUpdated: parsed.lastUpdated,
+      });
+
+      return { patterns: validPatterns, lastUpdated: parsed.lastUpdated };
+    } catch {
+      // File missing or unreadable — not an error, just no context
+      return undefined;
+    }
   }
 
   /**
@@ -142,6 +196,12 @@ export class ReviewPipeline {
 
     // Load persisted context
     await this.context.load();
+
+    // Load ecosystem context for enrichment (Pass 0 prototype — Task 6.4)
+    this.ecosystemContext = ReviewPipeline.loadEcosystemContext(
+      this.config.ecosystemContextPath,
+      this.logger,
+    );
 
     // Resolve review items
     const items = await this.template.resolveItems();
@@ -848,7 +908,7 @@ export class ReviewPipeline {
     const pass2Start = this.now();
 
     const { systemPrompt: enrichmentSystem, userPrompt: enrichmentUser } =
-      this.template.buildEnrichmentPrompt(findingsJSON, item, this.persona, truncationContext, this.personaMetadata);
+      this.template.buildEnrichmentPrompt(findingsJSON, item, this.persona, truncationContext, this.personaMetadata, this.ecosystemContext);
 
     this.logger.info("Pass 2: Enrichment review", {
       owner, repo, pr: pr.number,

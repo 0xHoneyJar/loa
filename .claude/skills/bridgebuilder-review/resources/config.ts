@@ -58,6 +58,7 @@ export interface YamlConfig {
   loa_aware?: boolean;
   persona?: string;
   review_mode?: "two-pass" | "single-pass";
+  ecosystem_context_path?: string;
 }
 
 export interface EnvVars {
@@ -268,6 +269,9 @@ async function loadYamlConfig(): Promise<YamlConfig> {
             config.review_mode = value;
           }
           break;
+        case "ecosystem_context_path":
+          config.ecosystem_context_path = value;
+          break;
       }
     }
 
@@ -431,6 +435,9 @@ export async function resolveConfig(
       ? { personaFilePath: yaml.persona_path }
       : {}),
     ...(cliArgs.forceFullReview ? { forceFullReview: true } : {}),
+    ...(yaml.ecosystem_context_path != null
+      ? { ecosystemContextPath: yaml.ecosystem_context_path }
+      : {}),
     reviewMode:
       cliArgs.reviewMode ??
       (env.LOA_BRIDGE_REVIEW_MODE === "two-pass" || env.LOA_BRIDGE_REVIEW_MODE === "single-pass"

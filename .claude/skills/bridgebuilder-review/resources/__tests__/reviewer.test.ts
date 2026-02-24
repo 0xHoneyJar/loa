@@ -1,7 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, unlinkSync, mkdtempSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { ReviewPipeline } from "../core/reviewer.js";
 import { PRReviewTemplate } from "../core/template.js";
@@ -1405,6 +1406,84 @@ describe("ReviewPipeline", () => {
       assert.equal(summary.reviewed, 1);
       assert.equal(result.personaId, undefined, "Single-pass should not include personaId");
       assert.equal(result.personaHash, undefined, "Single-pass should not include personaHash");
+    });
+  });
+
+  describe("ecosystem context (Sprint 68)", () => {
+    it("loadEcosystemContext returns undefined for missing file", () => {
+      const result = ReviewPipeline.loadEcosystemContext(
+        "/nonexistent/path/ecosystem.json",
+        mockLogger(),
+      );
+      assert.equal(result, undefined);
+    });
+
+    it("loadEcosystemContext returns undefined for undefined path", () => {
+      const result = ReviewPipeline.loadEcosystemContext(undefined, mockLogger());
+      assert.equal(result, undefined);
+    });
+
+    it("loadEcosystemContext validates structure and filters invalid patterns", () => {
+      const dir = mkdtempSync(join(tmpdir(), "bb-eco-"));
+      const filePath = join(dir, "ecosystem.json");
+
+      writeFileSync(filePath, JSON.stringify({
+        patterns: [
+          { repo: "valid/repo", pattern: "Pattern A", connection: "Connection A" },
+          { repo: "valid/repo2", pr: 42, pattern: "Pattern B", connection: "Connection B" },
+          { missing: "fields" },
+          { repo: "no-connection", pattern: "P" },
+        ],
+        lastUpdated: "2026-02-25T12:00:00Z",
+      }));
+
+      try {
+        const result = ReviewPipeline.loadEcosystemContext(filePath, mockLogger());
+        assert.ok(result, "Should return context for valid file");
+        assert.equal(result!.patterns.length, 2, "Should filter to only valid patterns");
+        assert.equal(result!.patterns[0].repo, "valid/repo");
+        assert.equal(result!.patterns[1].pr, 42);
+        assert.equal(result!.lastUpdated, "2026-02-25T12:00:00Z");
+      } finally {
+        unlinkSync(filePath);
+      }
+    });
+
+    it("loadEcosystemContext returns undefined for invalid JSON", () => {
+      const dir = mkdtempSync(join(tmpdir(), "bb-eco-"));
+      const filePath = join(dir, "bad.json");
+
+      writeFileSync(filePath, "not valid json {{{");
+
+      try {
+        const result = ReviewPipeline.loadEcosystemContext(filePath, mockLogger());
+        assert.equal(result, undefined, "Should return undefined for invalid JSON");
+      } finally {
+        unlinkSync(filePath);
+      }
+    });
+
+    it("loadEcosystemContext warns on missing lastUpdated", () => {
+      const dir = mkdtempSync(join(tmpdir(), "bb-eco-"));
+      const filePath = join(dir, "no-date.json");
+
+      writeFileSync(filePath, JSON.stringify({
+        patterns: [{ repo: "r", pattern: "p", connection: "c" }],
+      }));
+
+      const warns: string[] = [];
+      const logger: ILogger = {
+        ...mockLogger(),
+        warn: (msg: string) => { warns.push(msg); },
+      };
+
+      try {
+        const result = ReviewPipeline.loadEcosystemContext(filePath, logger);
+        assert.equal(result, undefined, "Should return undefined when lastUpdated missing");
+        assert.ok(warns.some((w) => w.includes("invalid structure")), "Should warn about invalid structure");
+      } finally {
+        unlinkSync(filePath);
+      }
     });
   });
 

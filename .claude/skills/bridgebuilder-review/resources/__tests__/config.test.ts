@@ -582,6 +582,26 @@ describe("resolveConfig repoRoot integration", () => {
   });
 });
 
+describe("resolveConfig ecosystemContextPath", () => {
+  it("passes through ecosystem_context_path from YAML", async () => {
+    const { config } = await resolve(
+      {},
+      {},
+      { enabled: true, repos: ["test/repo"], ecosystem_context_path: ".claude/data/ecosystem.json" },
+    );
+    assert.equal(config.ecosystemContextPath, ".claude/data/ecosystem.json");
+  });
+
+  it("ecosystemContextPath undefined when not in YAML", async () => {
+    const { config } = await resolve(
+      {},
+      {},
+      { enabled: true, repos: ["test/repo"] },
+    );
+    assert.equal(config.ecosystemContextPath, undefined);
+  });
+});
+
 describe("resolveConfig reviewMode precedence", () => {
   it("defaults to two-pass when no override", async () => {
     const { config, provenance } = await resolve(

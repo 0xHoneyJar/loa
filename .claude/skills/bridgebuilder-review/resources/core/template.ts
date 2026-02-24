@@ -6,6 +6,7 @@ import type {
   TruncationResult,
   ProgressiveTruncationResult,
   PersonaMetadata,
+  EcosystemContext,
 } from "./types.js";
 import { truncateFiles } from "./truncation.js";
 
@@ -346,6 +347,7 @@ export class PRReviewTemplate {
     persona: string,
     truncationContext?: { filesExcluded: number; totalFiles: number },
     personaMetadata?: PersonaMetadata,
+    ecosystemContext?: EcosystemContext,
   ): PromptPair {
     const systemPrompt = this.buildSystemPrompt(persona);
 
@@ -383,6 +385,21 @@ export class PRReviewTemplate {
       lines.push("- **Confidence 0.4–0.8**: Balance teaching with verification — confirm the analysis before elaborating");
       lines.push("- **Confidence < 0.4**: Focus on verification — investigate whether this is a real issue before teaching");
       lines.push("- **No confidence**: Treat as moderate confidence (0.5)");
+    }
+
+    // Ecosystem context hints (Pass 0 prototype — Task 6.2)
+    if (ecosystemContext && ecosystemContext.patterns.length > 0) {
+      lines.push("");
+      lines.push("## Ecosystem Context (Cross-Repository Patterns)");
+      lines.push("");
+      lines.push("The following patterns from related repositories may inform your enrichment:");
+      lines.push("");
+      for (const p of ecosystemContext.patterns) {
+        const prRef = p.pr != null ? `#${p.pr}` : "";
+        lines.push(`- **${p.repo}${prRef}**: ${p.pattern} — _${p.connection}_`);
+      }
+      lines.push("");
+      lines.push("> Use these as context for connections and teachable moments. Do not fabricate cross-repo links.");
     }
 
     lines.push("");

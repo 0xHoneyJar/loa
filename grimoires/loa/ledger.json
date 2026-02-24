@@ -134,19 +134,19 @@
           "local_id": 4,
           "global_id": 66,
           "label": "Metacognition — Confidence-Weighted Enrichment",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "local_id": 5,
           "global_id": 67,
           "label": "Persona Provenance + Review Pluralism Foundation",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "local_id": 6,
           "global_id": 68,
           "label": "Ecosystem Context Integration — Pass 0 Prototype",
-          "status": "pending"
+          "status": "completed"
         }
       ]
     }

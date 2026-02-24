@@ -29,6 +29,8 @@ export interface BridgebuilderConfig {
   forceFullReview?: boolean;
   /** Review mode: two-pass (convergence + enrichment) or single-pass (legacy). */
   reviewMode: "two-pass" | "single-pass";
+  /** Path to ecosystem context JSON file for cross-repo pattern hints (Pass 0 prototype). */
+  ecosystemContextPath?: string;
 }
 
 export interface ReviewItem {
@@ -140,6 +142,12 @@ export interface PersonaMetadata {
   id: string;
   version: string;
   hash: string;
+}
+
+/** Cross-repository pattern hints for enrichment context (Pass 0 prototype). */
+export interface EcosystemContext {
+  patterns: Array<{ repo: string; pr?: number; pattern: string; connection: string }>;
+  lastUpdated: string;
 }
 
 /** Token estimate broken down by component for calibration logging. */
