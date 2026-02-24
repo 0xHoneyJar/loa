@@ -1,6 +1,6 @@
 import type { IGitProvider } from "../ports/git-provider.js";
 import type { IHasher } from "../ports/hasher.js";
-import type { BridgebuilderConfig, ReviewItem, ProgressiveTruncationResult } from "./types.js";
+import type { BridgebuilderConfig, ReviewItem, TruncationResult, ProgressiveTruncationResult } from "./types.js";
 export interface PromptPair {
     systemPrompt: string;
     userPrompt: string;
@@ -38,6 +38,25 @@ export declare class PRReviewTemplate {
      * Deterministic mapping from truncation output to prompt variables.
      */
     buildPromptFromTruncation(item: ReviewItem, persona: string, truncResult: ProgressiveTruncationResult, loaBanner?: string): PromptPair;
+    /**
+     * Build convergence system prompt: injection hardening + analytical instructions only.
+     * No persona — Pass 1 focuses entirely on finding quality (SDD 3.1).
+     */
+    buildConvergenceSystemPrompt(): string;
+    /**
+     * Build convergence user prompt: PR metadata + diffs + findings-only format instructions.
+     * Reuses the existing PR metadata/diff rendering but replaces the output format section (SDD 3.2).
+     */
+    buildConvergenceUserPrompt(item: ReviewItem, truncated: TruncationResult): string;
+    /**
+     * Build convergence user prompt from progressive truncation result (SDD 3.2 + 3.7 binding).
+     */
+    buildConvergenceUserPromptFromTruncation(item: ReviewItem, truncResult: ProgressiveTruncationResult, loaBanner?: string): string;
+    /**
+     * Build enrichment prompt: persona + condensed PR metadata + Pass 1 findings (SDD 3.3).
+     * No full diff — Pass 2 enriches findings with educational depth.
+     */
+    buildEnrichmentPrompt(findingsJSON: string, item: ReviewItem, persona: string): PromptPair;
     private buildUserPrompt;
     private formatIncludedFile;
 }

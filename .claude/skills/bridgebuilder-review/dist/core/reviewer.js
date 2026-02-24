@@ -1,6 +1,6 @@
 import { GitProviderError } from "../ports/git-provider.js";
 import { LLMProviderError } from "../ports/llm-provider.js";
-import { progressiveTruncate, getTokenBudget, } from "./truncation.js";
+import { truncateFiles, progressiveTruncate, getTokenBudget, } from "./truncation.js";
 const CRITICAL_PATTERN = /\b(critical|security vulnerability|sql injection|xss|secret leak|must fix)\b/i;
 const REFUSAL_PATTERN = /\b(I cannot|I'm unable|I can't|as an AI|I apologize)\b/i;
 /** Patterns that indicate an LLM token rejection (Task 1.8). */
@@ -164,6 +164,10 @@ export class ReviewPipeline {
                         });
                     }
                 }
+            }
+            // Two-pass gate: route to processItemTwoPass() when configured (SDD 3.4)
+            if (this.config.reviewMode === "two-pass") {
+                return this.processItemTwoPass(item, effectiveItem, incrementalBanner);
             }
             // Step 4: Build prompt (includes truncation + Loa filtering)
             const { systemPrompt, userPrompt, allExcluded, loaBanner } = this.template.buildPromptWithMeta(effectiveItem, this.persona);
@@ -430,6 +434,387 @@ export class ReviewPipeline {
     }
     errorResult(item, error) {
         return { item, posted: false, skipped: false, error };
+    }
+    /**
+     * Extract findings JSON from content enclosed in bridge-findings markers (SDD 3.5).
+     * Returns the raw JSON string or null if markers/JSON are missing or malformed.
+     */
+    extractFindingsJSON(content) {
+        const startMarker = "<!-- bridge-findings-start -->";
+        const endMarker = "<!-- bridge-findings-end -->";
+        const startIdx = content.indexOf(startMarker);
+        const endIdx = content.indexOf(endMarker);
+        if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
+            return null;
+        }
+        const block = content.slice(startIdx + startMarker.length, endIdx).trim();
+        // Strip markdown code fences if present
+        const jsonStr = block.replace(/^```json?\s*\n?/, "").replace(/\n?```\s*$/, "");
+        try {
+            const parsed = JSON.parse(jsonStr);
+            if (!parsed.findings || !Array.isArray(parsed.findings)) {
+                return null;
+            }
+            return jsonStr;
+        }
+        catch {
+            return null;
+        }
+    }
+    /**
+     * Validate that Pass 2 preserved all findings from Pass 1 (SDD 3.6, FR-2.4).
+     * Checks: same count, same IDs, same severities.
+     */
+    validateFindingPreservation(pass1JSON, pass2JSON) {
+        try {
+            const pass1 = JSON.parse(pass1JSON);
+            const pass2 = JSON.parse(pass2JSON);
+            if (pass1.findings.length !== pass2.findings.length) {
+                return false;
+            }
+            const pass1Ids = new Set(pass1.findings.map((f) => f.id));
+            const pass2Ids = new Set(pass2.findings.map((f) => f.id));
+            if (pass1Ids.size !== pass2Ids.size)
+                return false;
+            for (const id of pass1Ids) {
+                if (!pass2Ids.has(id))
+                    return false;
+            }
+            for (const f1 of pass1.findings) {
+                const f2 = pass2.findings.find((f) => f.id === f1.id);
+                if (!f2 || f2.severity !== f1.severity)
+                    return false;
+            }
+            return true;
+        }
+        catch {
+            return false;
+        }
+    }
+    /**
+     * Fallback: wrap Pass 1 findings in minimal valid review format (SDD 3.7, FR-2.7).
+     * Used when Pass 2 fails or modifies findings.
+     */
+    async finishWithUnenrichedOutput(item, pass1InputTokens, pass1OutputTokens, pass1Duration, findingsJSON, pass1Content) {
+        const { owner, repo, pr } = item;
+        const body = [
+            "## Summary",
+            "",
+            `Analytical review of ${owner}/${repo}#${pr.number}. Enrichment pass was unavailable; findings are unenriched.`,
+            "",
+            "## Findings",
+            "",
+            "<!-- bridge-findings-start -->",
+            "```json",
+            findingsJSON,
+            "```",
+            "<!-- bridge-findings-end -->",
+            "",
+            "## Callouts",
+            "",
+            "_Enrichment unavailable for this review._",
+        ].join("\n");
+        const sanitized = this.sanitizer.sanitize(body);
+        const event = classifyEvent(sanitized.sanitizedContent);
+        if (!sanitized.safe && this.config.sanitizerMode === "strict") {
+            return this.errorResult(item, makeError("E_SANITIZER_BLOCKED", "Review blocked by sanitizer in strict mode", "sanitizer", "permanent", false));
+        }
+        // Re-check guard
+        let recheck = false;
+        try {
+            recheck = await this.poster.hasExistingReview(owner, repo, pr.number, pr.headSha);
+        }
+        catch {
+            try {
+                recheck = await this.poster.hasExistingReview(owner, repo, pr.number, pr.headSha);
+            }
+            catch {
+                return this.skipResult(item, "recheck_failed");
+            }
+        }
+        if (recheck) {
+            return this.skipResult(item, "already_reviewed_recheck");
+        }
+        if (this.config.dryRun) {
+            this.logger.info("Dry run — unenriched review not posted", {
+                owner, repo, pr: pr.number, event, bodyLength: body.length,
+            });
+        }
+        else {
+            await this.poster.postReview({
+                owner, repo, prNumber: pr.number, headSha: pr.headSha,
+                body: sanitized.sanitizedContent, event,
+            });
+        }
+        const result = {
+            item,
+            posted: !this.config.dryRun,
+            skipped: false,
+            inputTokens: pass1InputTokens,
+            outputTokens: pass1OutputTokens,
+            pass1Output: pass1Content,
+            pass1Tokens: { input: pass1InputTokens, output: pass1OutputTokens, duration: pass1Duration },
+        };
+        await this.context.finalizeReview(item, result);
+        return result;
+    }
+    /**
+     * Two-pass review flow: convergence (analytical) then enrichment (persona) (SDD 3.4).
+     * Pass 1 produces findings JSON; Pass 2 enriches with educational depth.
+     * Pass 2 failure is always safe — falls back to Pass 1 unenriched output.
+     */
+    async processItemTwoPass(item, effectiveItem, incrementalBanner) {
+        const { owner, repo, pr } = item;
+        // ═══════════════════════════════════════════════
+        // PASS 1: Convergence (no persona, analytical only)
+        // ═══════════════════════════════════════════════
+        const pass1Start = this.now();
+        const convergenceSystem = this.template.buildConvergenceSystemPrompt();
+        const truncated = truncateFiles(effectiveItem.files, this.config);
+        // Handle all-files-excluded by Loa filtering
+        if (truncated.allExcluded) {
+            this.logger.info("All files excluded by Loa filtering", {
+                owner, repo, pr: pr.number,
+            });
+            if (!this.config.dryRun) {
+                await this.poster.postReview({
+                    owner, repo, prNumber: pr.number, headSha: pr.headSha,
+                    body: "All changes in this PR are Loa framework files. No application code changes to review. Override with `loa_aware: false` to review framework changes.",
+                    event: "COMMENT",
+                });
+            }
+            return this.skipResult(item, "all_files_excluded");
+        }
+        // Build convergence user prompt using TruncationResult
+        let convergenceUser = this.template.buildConvergenceUserPrompt(effectiveItem, truncated);
+        if (incrementalBanner) {
+            convergenceUser = `${incrementalBanner}\n\n${convergenceUser}`;
+        }
+        // Token estimation + progressive truncation
+        const { coefficient } = getTokenBudget(this.config.model);
+        const systemTokens = Math.ceil(convergenceSystem.length * coefficient);
+        const userTokens = Math.ceil(convergenceUser.length * coefficient);
+        const estimatedTokens = systemTokens + userTokens;
+        this.logger.info("Pass 1: Prompt estimate", {
+            owner, repo, pr: pr.number,
+            estimatedTokens, systemTokens, userTokens,
+            budget: this.config.maxInputTokens, model: this.config.model,
+        });
+        let finalConvergenceSystem = convergenceSystem;
+        let finalConvergenceUser = convergenceUser;
+        if (estimatedTokens > this.config.maxInputTokens) {
+            this.logger.info("Pass 1: Token budget exceeded, attempting progressive truncation", {
+                owner, repo, pr: pr.number, estimatedTokens, budget: this.config.maxInputTokens,
+            });
+            const truncResult = progressiveTruncate(effectiveItem.files, this.config.maxInputTokens, this.config.model, convergenceSystem.length, 2000);
+            if (!truncResult.success) {
+                return this.skipResult(item, "prompt_too_large_after_truncation");
+            }
+            finalConvergenceUser = this.template.buildConvergenceUserPromptFromTruncation(effectiveItem, truncResult, truncated.loaBanner);
+        }
+        // LLM Call 1: Convergence
+        this.logger.info("Pass 1: Convergence review", { owner, repo, pr: pr.number });
+        let pass1Response;
+        try {
+            pass1Response = await this.llm.generateReview({
+                systemPrompt: finalConvergenceSystem,
+                userPrompt: finalConvergenceUser,
+                maxOutputTokens: this.config.maxOutputTokens,
+            });
+        }
+        catch (llmErr) {
+            if (isTokenRejection(llmErr)) {
+                const retryBudget = Math.floor(this.config.maxInputTokens * 0.85);
+                const retryResult = progressiveTruncate(effectiveItem.files, retryBudget, this.config.model, finalConvergenceSystem.length, 2000);
+                if (!retryResult.success) {
+                    return this.skipResult(item, "prompt_too_large_after_truncation");
+                }
+                const retryUser = this.template.buildConvergenceUserPromptFromTruncation(effectiveItem, retryResult, truncated.loaBanner);
+                pass1Response = await this.llm.generateReview({
+                    systemPrompt: finalConvergenceSystem,
+                    userPrompt: retryUser,
+                    maxOutputTokens: this.config.maxOutputTokens,
+                });
+            }
+            else {
+                throw llmErr;
+            }
+        }
+        const pass1Duration = this.now() - pass1Start;
+        // Extract findings JSON from Pass 1
+        const findingsJSON = this.extractFindingsJSON(pass1Response.content);
+        if (!findingsJSON) {
+            this.logger.warn("Pass 1 produced no parseable findings, falling back to single-pass validation", {
+                owner, repo, pr: pr.number,
+            });
+            // If Pass 1 content is still a valid review format, use it directly
+            if (isValidResponse(pass1Response.content)) {
+                return this.finishWithPass1AsReview(item, pass1Response, pass1Duration);
+            }
+            return this.skipResult(item, "invalid_llm_response");
+        }
+        this.logger.info("Pass 1 complete", {
+            owner, repo, pr: pr.number,
+            duration: pass1Duration,
+            inputTokens: pass1Response.inputTokens,
+            outputTokens: pass1Response.outputTokens,
+        });
+        // ═══════════════════════════════════════════════
+        // PASS 2: Enrichment (persona loaded, no full diff)
+        // ═══════════════════════════════════════════════
+        const pass2Start = this.now();
+        const { systemPrompt: enrichmentSystem, userPrompt: enrichmentUser } = this.template.buildEnrichmentPrompt(findingsJSON, item, this.persona);
+        this.logger.info("Pass 2: Enrichment review", {
+            owner, repo, pr: pr.number,
+            enrichmentInputChars: enrichmentUser.length,
+        });
+        let pass2Response;
+        try {
+            pass2Response = await this.llm.generateReview({
+                systemPrompt: enrichmentSystem,
+                userPrompt: enrichmentUser,
+                maxOutputTokens: this.config.maxOutputTokens,
+            });
+        }
+        catch (enrichErr) {
+            this.logger.warn("Pass 2 failed, using Pass 1 unenriched output", {
+                owner, repo, pr: pr.number,
+                error: enrichErr instanceof Error ? enrichErr.message : String(enrichErr),
+            });
+            return this.finishWithUnenrichedOutput(item, pass1Response.inputTokens, pass1Response.outputTokens, pass1Duration, findingsJSON, pass1Response.content);
+        }
+        const pass2Duration = this.now() - pass2Start;
+        // FR-2.4: Validate finding preservation
+        const pass2FindingsJSON = this.extractFindingsJSON(pass2Response.content);
+        if (pass2FindingsJSON) {
+            const preserved = this.validateFindingPreservation(findingsJSON, pass2FindingsJSON);
+            if (!preserved) {
+                this.logger.warn("Pass 2 modified findings, using Pass 1 output", {
+                    owner, repo, pr: pr.number,
+                });
+                return this.finishWithUnenrichedOutput(item, pass1Response.inputTokens, pass1Response.outputTokens, pass1Duration, findingsJSON, pass1Response.content);
+            }
+        }
+        // Validate combined output
+        if (!isValidResponse(pass2Response.content)) {
+            this.logger.warn("Pass 2 invalid response, using Pass 1 output", {
+                owner, repo, pr: pr.number,
+            });
+            return this.finishWithUnenrichedOutput(item, pass1Response.inputTokens, pass1Response.outputTokens, pass1Duration, findingsJSON, pass1Response.content);
+        }
+        this.logger.info("Pass 2 complete", {
+            owner, repo, pr: pr.number,
+            duration: pass2Duration,
+            inputTokens: pass2Response.inputTokens,
+            outputTokens: pass2Response.outputTokens,
+            totalDuration: pass1Duration + pass2Duration,
+        });
+        // Steps 7-9: Standard post-processing using Pass 2 enriched output
+        const sanitized = this.sanitizer.sanitize(pass2Response.content);
+        if (!sanitized.safe && this.config.sanitizerMode === "strict") {
+            return this.errorResult(item, makeError("E_SANITIZER_BLOCKED", "Review blocked by sanitizer in strict mode", "sanitizer", "permanent", false));
+        }
+        if (!sanitized.safe) {
+            this.logger.warn("Sanitizer redacted content", {
+                owner, repo, pr: pr.number,
+                redactions: sanitized.redactedPatterns?.length ?? 0,
+            });
+        }
+        const body = sanitized.sanitizedContent;
+        const event = classifyEvent(sanitized.sanitizedContent);
+        // Re-check guard
+        let recheck = false;
+        try {
+            recheck = await this.poster.hasExistingReview(owner, repo, pr.number, pr.headSha);
+        }
+        catch {
+            try {
+                recheck = await this.poster.hasExistingReview(owner, repo, pr.number, pr.headSha);
+            }
+            catch {
+                return this.skipResult(item, "recheck_failed");
+            }
+        }
+        if (recheck) {
+            return this.skipResult(item, "already_reviewed_recheck");
+        }
+        if (this.config.dryRun) {
+            this.logger.info("Dry run — two-pass review not posted", {
+                owner, repo, pr: pr.number, event, bodyLength: body.length,
+            });
+        }
+        else {
+            await this.poster.postReview({
+                owner, repo, prNumber: pr.number, headSha: pr.headSha, body, event,
+            });
+        }
+        const result = {
+            item,
+            posted: !this.config.dryRun,
+            skipped: false,
+            inputTokens: pass1Response.inputTokens + pass2Response.inputTokens,
+            outputTokens: pass1Response.outputTokens + pass2Response.outputTokens,
+            pass1Output: pass1Response.content,
+            pass1Tokens: { input: pass1Response.inputTokens, output: pass1Response.outputTokens, duration: pass1Duration },
+            pass2Tokens: { input: pass2Response.inputTokens, output: pass2Response.outputTokens, duration: pass2Duration },
+        };
+        await this.context.finalizeReview(item, result);
+        this.logger.info("Two-pass review complete", {
+            owner, repo, pr: pr.number, event,
+            posted: result.posted,
+            pass1Tokens: result.pass1Tokens,
+            pass2Tokens: result.pass2Tokens,
+        });
+        return result;
+    }
+    /**
+     * Handle case where Pass 1 content is a valid review (has Summary+Findings)
+     * but findings couldn't be extracted as JSON. Use it directly as the review.
+     */
+    async finishWithPass1AsReview(item, pass1Response, pass1Duration) {
+        const { owner, repo, pr } = item;
+        const sanitized = this.sanitizer.sanitize(pass1Response.content);
+        if (!sanitized.safe && this.config.sanitizerMode === "strict") {
+            return this.errorResult(item, makeError("E_SANITIZER_BLOCKED", "Review blocked by sanitizer in strict mode", "sanitizer", "permanent", false));
+        }
+        const body = sanitized.sanitizedContent;
+        const event = classifyEvent(body);
+        let recheck = false;
+        try {
+            recheck = await this.poster.hasExistingReview(owner, repo, pr.number, pr.headSha);
+        }
+        catch {
+            try {
+                recheck = await this.poster.hasExistingReview(owner, repo, pr.number, pr.headSha);
+            }
+            catch {
+                return this.skipResult(item, "recheck_failed");
+            }
+        }
+        if (recheck) {
+            return this.skipResult(item, "already_reviewed_recheck");
+        }
+        if (this.config.dryRun) {
+            this.logger.info("Dry run — pass1-as-review not posted", {
+                owner, repo, pr: pr.number, event, bodyLength: body.length,
+            });
+        }
+        else {
+            await this.poster.postReview({
+                owner, repo, prNumber: pr.number, headSha: pr.headSha, body, event,
+            });
+        }
+        const result = {
+            item,
+            posted: !this.config.dryRun,
+            skipped: false,
+            inputTokens: pass1Response.inputTokens,
+            outputTokens: pass1Response.outputTokens,
+            pass1Output: pass1Response.content,
+            pass1Tokens: { input: pass1Response.inputTokens, output: pass1Response.outputTokens, duration: pass1Duration },
+        };
+        await this.context.finalizeReview(item, result);
+        return result;
     }
     buildSummary(runId, startTime, results) {
         return {

@@ -29,6 +29,8 @@ export interface BridgebuilderConfig {
     personaFilePath?: string;
     /** Force full review even when incremental context is available (V3-1). */
     forceFullReview?: boolean;
+    /** Review mode: two-pass (convergence + enrichment) or single-pass (legacy). */
+    reviewMode: "two-pass" | "single-pass";
 }
 export interface ReviewItem {
     owner: string;
@@ -45,6 +47,12 @@ export interface ReviewError {
     retryable: boolean;
     source: "github" | "llm" | "sanitizer" | "pipeline";
 }
+/** Token metrics for a single LLM pass. */
+export interface PassTokenMetrics {
+    input: number;
+    output: number;
+    duration: number;
+}
 export interface ReviewResult {
     item: ReviewItem;
     posted: boolean;
@@ -53,6 +61,12 @@ export interface ReviewResult {
     inputTokens?: number;
     outputTokens?: number;
     error?: ReviewError;
+    /** Raw Pass 1 response content (for observability — FR-5.2). */
+    pass1Output?: string;
+    /** Token metrics for convergence pass (two-pass mode only). */
+    pass1Tokens?: PassTokenMetrics;
+    /** Token metrics for enrichment pass (two-pass mode only). */
+    pass2Tokens?: PassTokenMetrics;
 }
 export interface RunSummary {
     reviewed: number;

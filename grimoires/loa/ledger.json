@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": null,
+  "active_cycle": "cycle-039",
   "cycles": [
     {
       "id": "cycle-036",
@@ -104,6 +104,23 @@
         }
       ]
     }
+    ,
+    {
+      "id": "cycle-039",
+      "label": "Two-Pass Bridge Review — Decouple Convergence from Enrichment",
+      "status": "active",
+      "created": "2026-02-25T12:30:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 63,
+          "label": "Two-Pass Bridge Review Pipeline",
+          "status": "pending"
+        }
+      ]
+    }
   ],
-  "global_sprint_counter": 62
+  "global_sprint_counter": 63
 }

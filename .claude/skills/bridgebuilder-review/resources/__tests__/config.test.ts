@@ -282,6 +282,7 @@ describe("formatEffectiveConfig", () => {
       maxInputTokens: "cli" as const,
       maxOutputTokens: "yaml" as const,
       maxDiffBytes: "default" as const,
+      reviewMode: "default" as const,
     };
     const output = formatEffectiveConfig(config, provenance);
 
@@ -535,6 +536,31 @@ describe("resolveRepoRoot", () => {
   });
 });
 
+// --- reviewMode (cycle-039: two-pass review) ---
+
+describe("parseCLIArgs --review-mode flag", () => {
+  it("parses --review-mode two-pass", () => {
+    const args = parseCLIArgs(["--review-mode", "two-pass"]);
+    assert.equal(args.reviewMode, "two-pass");
+  });
+
+  it("parses --review-mode single-pass", () => {
+    const args = parseCLIArgs(["--review-mode", "single-pass"]);
+    assert.equal(args.reviewMode, "single-pass");
+  });
+
+  it("rejects invalid --review-mode value", () => {
+    assert.throws(() => parseCLIArgs(["--review-mode", "invalid"]), /Must be "two-pass" or "single-pass"/);
+  });
+
+  it("parses --review-mode with other flags", () => {
+    const args = parseCLIArgs(["--dry-run", "--review-mode", "single-pass", "--repo", "a/b"]);
+    assert.equal(args.reviewMode, "single-pass");
+    assert.equal(args.dryRun, true);
+    assert.deepEqual(args.repos, ["a/b"]);
+  });
+});
+
 describe("resolveConfig repoRoot integration", () => {
   it("config includes repoRoot from resolveRepoRoot", async () => {
     const { config } = await resolve(
@@ -553,5 +579,57 @@ describe("resolveConfig repoRoot integration", () => {
     );
     // In a git repo, should auto-detect
     assert.ok(config.repoRoot !== undefined, "Should auto-detect repoRoot");
+  });
+});
+
+describe("resolveConfig reviewMode precedence", () => {
+  it("defaults to two-pass when no override", async () => {
+    const { config, provenance } = await resolve(
+      {},
+      {},
+      { enabled: true, repos: ["test/repo"] },
+    );
+    assert.equal(config.reviewMode, "two-pass");
+    assert.equal(provenance.reviewMode, "default");
+  });
+
+  it("CLI reviewMode overrides all", async () => {
+    const { config, provenance } = await resolve(
+      { reviewMode: "single-pass" },
+      { LOA_BRIDGE_REVIEW_MODE: "two-pass" },
+      { enabled: true, repos: ["test/repo"], review_mode: "two-pass" },
+    );
+    assert.equal(config.reviewMode, "single-pass");
+    assert.equal(provenance.reviewMode, "cli");
+  });
+
+  it("env reviewMode overrides yaml and default", async () => {
+    const { config, provenance } = await resolve(
+      {},
+      { LOA_BRIDGE_REVIEW_MODE: "single-pass" },
+      { enabled: true, repos: ["test/repo"], review_mode: "two-pass" },
+    );
+    assert.equal(config.reviewMode, "single-pass");
+    assert.equal(provenance.reviewMode, "env");
+  });
+
+  it("yaml reviewMode overrides default", async () => {
+    const { config, provenance } = await resolve(
+      {},
+      {},
+      { enabled: true, repos: ["test/repo"], review_mode: "single-pass" },
+    );
+    assert.equal(config.reviewMode, "single-pass");
+    assert.equal(provenance.reviewMode, "yaml");
+  });
+
+  it("ignores invalid env reviewMode values", async () => {
+    const { config, provenance } = await resolve(
+      {},
+      { LOA_BRIDGE_REVIEW_MODE: "invalid-mode" },
+      { enabled: true, repos: ["test/repo"] },
+    );
+    assert.equal(config.reviewMode, "two-pass");
+    assert.equal(provenance.reviewMode, "default");
   });
 });

@@ -12,6 +12,7 @@ export interface CLIArgs {
     exclude?: string[];
     forceFullReview?: boolean;
     repoRoot?: string;
+    reviewMode?: "two-pass" | "single-pass";
 }
 export interface YamlConfig {
     enabled?: boolean;
@@ -30,12 +31,14 @@ export interface YamlConfig {
     max_runtime_minutes?: number;
     loa_aware?: boolean;
     persona?: string;
+    review_mode?: "two-pass" | "single-pass";
 }
 export interface EnvVars {
     BRIDGEBUILDER_REPOS?: string;
     BRIDGEBUILDER_MODEL?: string;
     BRIDGEBUILDER_DRY_RUN?: string;
     BRIDGEBUILDER_REPO_ROOT?: string;
+    LOA_BRIDGE_REVIEW_MODE?: string;
 }
 /**
  * Parse CLI arguments from process.argv.
@@ -73,6 +76,7 @@ export interface ConfigProvenance {
     maxInputTokens: ConfigSource;
     maxOutputTokens: ConfigSource;
     maxDiffBytes: ConfigSource;
+    reviewMode: ConfigSource;
 }
 /**
  * Format effective config for logging (secrets redacted).

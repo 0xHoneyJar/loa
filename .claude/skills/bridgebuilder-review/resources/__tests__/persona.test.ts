@@ -22,6 +22,7 @@ function mockConfig(overrides?: Partial<BridgebuilderConfig>): BridgebuilderConf
     excludePatterns: [],
     sanitizerMode: "default" as const,
     maxRuntimeMinutes: 30,
+    reviewMode: "single-pass" as const,
     ...overrides,
   };
 }

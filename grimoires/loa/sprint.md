@@ -1,373 +1,194 @@
-# Sprint Plan: Organizational Memory Sovereignty (cycle-038)
+# Sprint Plan: Two-Pass Bridge Review (cycle-039)
 
 ## Overview
 
-**PRD:** grimoires/loa/prd.md v1.1
-**SDD:** grimoires/loa/sdd.md v1.1
-**Sprints:** 6 (dependency-ordered)
-**Scope:** FR-1 through FR-5 + learning exchange schema
+**PRD:** grimoires/loa/prd.md v1.0
+**SDD:** grimoires/loa/sdd.md v1.0
+**Sprints:** 1 (single sprint, all changes internal to bridgebuilder-review skill)
+**Scope:** FR-1 through FR-5
 
 ---
 
-## Sprint 1: State-Dir Resolution Foundation (global sprint-57)
+## Sprint 1: Two-Pass Bridge Review Pipeline (global sprint-63)
 
-**Goal**: Extend `path-lib.sh` with state-dir resolution, create state directory structure, add conformance test. This is the foundation for all other sprints.
+**Goal**: Split the single-LLM-call bridge review into two sequential passes (convergence + enrichment) with fallback safety and full test coverage.
 
-### Task 1: Add state-dir resolution to path-lib.sh (FR-1 — High) ✅
-**File**: `.claude/scripts/path-lib.sh`
-**Change**: Add `_DEFAULT_STATE_DIR`, `LOA_STATE_DIR` resolution in `_read_config_paths()`, new getters: `get_state_dir()`, `get_state_beads_dir()`, `get_state_ck_dir()`, `get_state_run_dir()`, `get_state_memory_dir()`, `get_state_trajectory_dir()`
-**AC**:
-- [x] Resolution priority: `$LOA_STATE_DIR` env > `paths.state_dir` config > `.loa-state` default
-- [x] Absolute paths: rejected by default with error; allowed when `LOA_ALLOW_ABSOLUTE_STATE=1` is set (for containers/CI with mounted volumes)
-- [x] When `LOA_ALLOW_ABSOLUTE_STATE=1`, validate path exists and is writable; log warning acknowledging absolute path usage
-- [x] `detect_state_layout()` returns layout version from `.loa-version.json`
-- [ ] Backward compat: when layout v1, getters fall back to legacy paths *(deferred — Sprint 2 migration)*
+**Scope**: MEDIUM (6 tasks)
 
-### Task 2: Create and initialize .loa-version.json schema (FR-1 — High) ✅
-**File**: `.claude/scripts/path-lib.sh` + `.claude/schemas/loa-version.schema.json`
-**Change**: Define `.loa-version.json` schema with `state_layout_version` field. Add `init_version_file()` to path-lib.sh that creates the file with version 1 for fresh installs and version 2 for new state-dir installs. `ensure_state_structure()` calls this.
-**AC**:
-- [x] Schema: `{ "state_layout_version": 1|2, "created": "ISO8601", "last_migration": "ISO8601|null" }`
-- [x] Fresh install (no legacy dirs): creates with `state_layout_version: 2`
-- [x] Legacy detected (old dirs exist, no version file): creates with `state_layout_version: 1`
-- [x] `detect_state_layout()` reads this file; returns 0 if missing/malformed (treat as unknown)
-- [x] File created atomically (write to temp, rename)
+### Deliverables
 
-### Task 3: Add ensure_state_structure() to path-lib.sh (FR-1 — Medium) ✅
-**File**: `.claude/scripts/path-lib.sh`
-**Change**: Add `ensure_state_structure()` function that creates full `.loa-state/` hierarchy and initializes version file
-**AC**:
-- [x] Creates: `beads/`, `ck/`, `run/bridge-reviews`, `run/mesh-cache`, `memory/archive`, `memory/sessions`, `trajectory/current`, `trajectory/archive`
-- [x] Calls `init_version_file()` to ensure `.loa-version.json` exists
-- [x] Idempotent: safe to call multiple times
+- [ ] `types.ts` extended with `reviewMode` config field and pass-level token tracking on `ReviewResult`
+- [ ] `config.ts` resolves `reviewMode` through the existing 5-level precedence chain (CLI > env > YAML > auto-detect > default)
+- [ ] `template.ts` has convergence-only prompt builders (no persona) and enrichment prompt builder (persona + findings JSON, no diff)
+- [ ] `reviewer.ts` has `processItemTwoPass()` with Pass 1 → Pass 2 flow, finding preservation guard, and fallback to unenriched output
+- [ ] All existing tests pass unchanged
+- [ ] New tests cover two-pass flow, prompt construction, finding preservation validation, fallback paths, and config resolution
 
-### Task 4: Add `append_jsonl()` locking utility (SDD 3.2.1 — Medium) ✅
-**File**: `.claude/scripts/path-lib.sh`
-**Change**: Add `append_jsonl()` function implementing flock-based advisory locking for concurrent JSONL writers per SDD Section 3.2.1
-**AC**:
-- [x] `append_jsonl FILE LINE` — acquires flock on `FILE.lock`, appends LINE with newline, releases lock
-- [x] Uses `flock -w 5` with 5-second timeout; returns error on timeout
-- [x] O_APPEND mode for atomic kernel-level appends
-- [x] Lock file created alongside data file (e.g., `observations.jsonl.lock`)
-- [x] Usable by memory-writer.sh, trajectory writer, and any concurrent JSONL producer
+### Acceptance Criteria
 
-### Task 5: Conformance test (FR-1 — Medium) ✅
-**File**: `tests/unit/test-state-path-conformance.sh`
-**Change**: Create test that verifies no script uses hardcoded `.beads/`, `.run/`, `.ck/` outside resolution layer
-**AC**:
-- [x] Allowlist: `path-lib.sh`, `migrate-state-layout.sh`, `bootstrap.sh`, test files, docs
-- [x] Scans `.claude/scripts/*.sh` AND `.claude/hooks/*.sh` (expanded scope per SKP-004)
-- [x] Ignores comments (lines starting with `#`) to reduce false positives
-- [x] Positive check: scripts that source path-lib.sh must use `get_state_*` functions (not raw paths)
-- [x] Exit 0 on pass, exit 1 with file:line on failure
+- [ ] AC-1: Two-pass mode is the default (`reviewMode: "two-pass"`) — from PRD FR-4.1: `review_mode: "two-pass" | "single-pass"` (default: `"two-pass"`)
+- [ ] AC-2: Pass 1 system prompt contains `INJECTION_HARDENING` but NOT persona content — from PRD FR-1.3, FR-1.4, FR-1.5
+- [ ] AC-3: Pass 1 output format requests ONLY findings JSON inside `<!-- bridge-findings-start/end -->` markers — from PRD FR-1.1, FR-1.2
+- [ ] AC-4: Pass 2 receives findings JSON + condensed PR metadata (file list, no diffs) + full persona — from PRD FR-2.1, FR-2.2, FR-2.3; SDD 3.3
+- [ ] AC-5: Pass 2 failure (LLM error, timeout, invalid response) falls back to Pass 1 unenriched output — from PRD FR-2.7; SDD 5.2
+- [ ] AC-6: Finding preservation guard rejects if Pass 2 changes finding count, IDs, or severities — from PRD FR-2.4; SDD 3.6
+- [ ] AC-7: `reviewMode: "single-pass"` in config runs the existing single-pass path unchanged — from PRD FR-3.5
+- [ ] AC-8: Combined Pass 2 output passes `isValidResponse()` check (`## Summary` + `## Findings`) — from PRD FR-3.3
+- [ ] AC-9: Combined output parseable by `bridge-findings-parser.sh` (v2 JSON format) — from PRD FR-3.4
+- [ ] AC-10: `ReviewResult` includes `pass1Tokens` and `pass2Tokens` for observability — from PRD FR-5.1; SDD 3.9
+- [ ] AC-11: Config resolves `review_mode` from CLI (`--review-mode`), env (`LOA_BRIDGE_REVIEW_MODE`), YAML (`bridgebuilder.review_mode`), default (`"two-pass"`) — from PRD FR-4.1 through FR-4.4
+- [ ] AC-12: All existing reviewer, template, config, and integration tests pass without modification — from PRD non-goal: "preserve existing architecture"
 
-### Task 6: Add state_dir to config example (FR-1 — Low) ✅
-**File**: `.loa.config.yaml.example`
-**Change**: Add `state_dir: .loa-state` under `paths:` section. Add `trajectory.archive`, `memory.bootstrap`, `migration`, and `redaction` config blocks.
-**AC**:
-- [x] All new config keys documented with comments
-- [x] Default values match SDD v1.1 specification
-- [x] `LOA_ALLOW_ABSOLUTE_STATE` documented with use case (containers/CI)
+### Technical Tasks
 
-### Task 7: Unit tests for path-lib.sh extensions (FR-1 — Medium) ✅
-**File**: `tests/unit/test-path-lib-state.sh`
-**Change**: Test state-dir resolution with env var, config, and default scenarios
-**AC**:
-- [x] Test: env var takes precedence over config
-- [x] Test: config takes precedence over default
-- [x] Test: absolute path rejected by default (exit code + error message)
-- [x] Test: absolute path accepted when `LOA_ALLOW_ABSOLUTE_STATE=1`
-- [x] Test: `ensure_state_structure()` creates all expected dirs
-- [x] Test: `detect_state_layout()` returns correct version (v1 legacy, v2 new, 0 missing)
-- [x] Test: `.loa-version.json` created correctly for fresh vs legacy scenarios
-- [x] Test: `append_jsonl()` writes atomically with lock
-- [x] Test: `append_jsonl()` handles concurrent callers (background processes)
+- [ ] **Task 1.1**: Extend `types.ts` — add `reviewMode` to `BridgebuilderConfig`, add `pass1Output`, `pass1Tokens`, `pass2Tokens` to `ReviewResult` → **[G-1, G-3]**
+  - File: `.claude/skills/bridgebuilder-review/resources/core/types.ts`
+  - Add `reviewMode: "two-pass" | "single-pass"` to `BridgebuilderConfig` interface
+  - Add `pass1Output?: string` to `ReviewResult` for observability (FR-5.2)
+  - Add `pass1Tokens?: { input: number; output: number; duration: number }` to `ReviewResult`
+  - Add `pass2Tokens?: { input: number; output: number; duration: number }` to `ReviewResult`
+  - **AC**: AC-10
 
----
+- [ ] **Task 1.2**: Extend `config.ts` — add `reviewMode` resolution through 5-level precedence → **[G-3]**
+  - File: `.claude/skills/bridgebuilder-review/resources/config.ts`
+  - Add `review_mode?: "two-pass" | "single-pass"` to `YamlConfig` interface
+  - Add `reviewMode?: string` to `CLIArgs` and `--review-mode` parsing in `parseCLIArgs()`
+  - Add `LOA_BRIDGE_REVIEW_MODE?: string` to `EnvVars` interface
+  - Resolve in `resolveConfig()`: `cliArgs.reviewMode ?? env.LOA_BRIDGE_REVIEW_MODE ?? yaml.review_mode ?? DEFAULTS.reviewMode`
+  - Add to `DEFAULTS`: `reviewMode: "two-pass" as const`
+  - Add `reviewMode` to `formatEffectiveConfig()` output
+  - Add `reviewMode` to `ConfigProvenance` interface
+  - **AC**: AC-1, AC-7, AC-11
 
-## Sprint 2: Migration Script + Mount Integration (global sprint-58)
+- [ ] **Task 1.3**: Add convergence and enrichment prompt builders to `template.ts` → **[G-1, G-2]**
+  - File: `.claude/skills/bridgebuilder-review/resources/core/template.ts`
+  - Add `CONVERGENCE_INSTRUCTIONS` constant — analytical-only review instructions requesting findings JSON only, no persona, no enrichment fields (SDD 3.1)
+  - Add `buildConvergenceSystemPrompt(): string` — returns `INJECTION_HARDENING + CONVERGENCE_INSTRUCTIONS` (SDD 3.1)
+  - Add `buildConvergenceUserPrompt(item: ReviewItem, truncated: TruncationResult): string` — reuses PR metadata + file diff rendering from `buildUserPrompt()`, replaces "Expected Response Format" with convergence-specific format requesting only `<!-- bridge-findings-start/end -->` JSON (SDD 3.2)
+  - Add `buildConvergenceUserPromptFromTruncation(item: ReviewItem, truncResult: ProgressiveTruncationResult, loaBanner?: string): string` — same convergence format but built from progressive truncation result (SDD 3.2)
+  - Add `buildEnrichmentPrompt(findingsJSON: string, item: ReviewItem, persona: string): PromptPair` — system prompt uses existing `buildSystemPrompt(persona)`, user prompt contains condensed PR metadata (file list with stats, NO diffs) + Pass 1 findings JSON + enrichment instructions (add educational fields, generate prose, preserve all findings) (SDD 3.3)
+  - **AC**: AC-2, AC-3, AC-4
 
-**Goal**: Create the state layout migration script and integrate with mount-submodule.sh. Users can consolidate scattered state after this sprint.
+- [ ] **Task 1.4**: Implement two-pass flow in `reviewer.ts` → **[G-1, G-2, G-3]**
+  - File: `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`
+  - Add `extractFindingsJSON(content: string): string | null` — parses findings block from `<!-- bridge-findings-start/end -->` markers, strips code fences, validates JSON has `findings` array, returns JSON string or null (SDD 3.5)
+  - Add `validateFindingPreservation(pass1JSON: string, pass2JSON: string): boolean` — checks same finding count, same IDs (order-independent via Set comparison), same severities; returns false on any mismatch (SDD 3.6)
+  - Add `finishWithUnenrichedOutput(item: ReviewItem, pass1Response: ReviewResponse, findingsJSON: string): Promise<ReviewResult>` — wraps Pass 1 findings in minimal valid review format (`## Summary` + `## Findings` with markers + `## Callouts`), continues through sanitize + post path (SDD 3.7)
+  - Add `processItemTwoPass(item, effectiveItem, incrementalBanner, loaBanner): Promise<ReviewResult>` — full two-pass flow:
+    - Pass 1: build convergence prompt → progressive truncation → LLM call 1 → extract findings → save pass1 output
+    - Pass 2: build enrichment prompt → LLM call 2 → validate finding preservation → on any failure, fall back to `finishWithUnenrichedOutput()`
+    - Populate `pass1Tokens`, `pass2Tokens`, `pass1Output` on result
+  - Modify `processItem()` — add gate: `if (this.config.reviewMode === "two-pass") return this.processItemTwoPass(...)` before existing single-pass code (SDD 3.4)
+  - **AC**: AC-5, AC-6, AC-8, AC-9, AC-10
 
-### Task 1: Create migrate-state-layout.sh (FR-5 — High)
-**File**: `.claude/scripts/migrate-state-layout.sh`
-**Change**: New script implementing copy-verify-switch migration with platform-aware compat modes, journal-based crash recovery, and robust locking
-**AC**:
-- [ ] `--dry-run` (default): shows what would move with file counts and sizes
-- [ ] `--apply`: executes migration with verification
-- [ ] `--compat-mode auto|resolution|symlink|copy`: platform-aware selection
-- [ ] Robust locking: use `flock` where available, fall back to `mkdir`-based lock; lock file at repo root `.loa-migration.lock` (NOT inside migration target)
-- [ ] Lock includes PID, hostname, timestamp; stale lock detection (process not running → safe to override with warning)
-- [ ] Journal-based crash recovery: write journal marker (`.loa-state/.migration-journal`) before each source move; on restart, resume from journal position (per SDD 3.7)
-- [ ] Verification: sha256 checksums of copied files (not just file counts); byte-size comparison as fast pre-check
-- [ ] Atomic cutover: stage to `.loa-state/.migration-staging/` temp dir, then rename into place
-- [ ] Rollback: on verification failure, remove staged copies; original sources untouched until verified
-- [ ] Trap on EXIT: release lock + cleanup partial staging dir
-- [ ] Platform detection: tests symlink support in temp dir
-- [ ] Sources: `.beads/` → `beads/`, `.ck/` → `ck/`, `.run/` → `run/`, `grimoires/loa/memory/` → `memory/`
-- [ ] Updates `.loa-version.json` with `state_layout_version: 2` on success
-- [ ] SQLite files (beads): verify integrity with `sqlite3 DB "PRAGMA integrity_check"` after copy
+- [ ] **Task 1.5**: Create test fixtures for pass validation → **[G-1]**
+  - Directory: `.claude/skills/bridgebuilder-review/resources/__tests__/fixtures/`
+  - Create `pass1-valid-findings.txt` — well-formed Pass 1 output with `<!-- bridge-findings-start -->` / `<!-- bridge-findings-end -->` markers containing valid findings JSON with 3 findings (CRITICAL, MEDIUM, PRAISE)
+  - Create `pass1-no-markers.txt` — prose-only Pass 1 output without bridge-findings markers (should cause fallback)
+  - Create `pass2-enriched-valid.txt` — valid combined enriched output with `## Summary`, enriched findings JSON (same 3 IDs + educational fields), `## Findings`, `## Callouts`
+  - Create `pass2-finding-added.txt` — Pass 2 output with 4 findings (one extra) — should fail preservation check
+  - Create `pass2-severity-changed.txt` — Pass 2 output with same 3 IDs but one severity changed from MEDIUM to HIGH — should fail preservation check
+  - **AC**: AC-6, AC-9
 
-### Task 2: Update mount-submodule.sh for state structure (FR-1 — Medium)
-**File**: `.claude/scripts/mount-submodule.sh`
-**Change**: After grimoire structure creation, call `ensure_state_structure()`. Check layout version and prompt for migration if old layout detected.
-**AC**:
-- [ ] Calls `ensure_state_structure()` after grimoire setup
-- [ ] Detects layout v1 with old dirs present → prints migration suggestion
-- [ ] Does NOT auto-migrate (prompt only)
+- [ ] **Task 1.6**: Add unit and integration tests for two-pass pipeline → **[G-1, G-2, G-3]**
+  - Files: `.claude/skills/bridgebuilder-review/resources/__tests__/reviewer.test.ts`, `template.test.ts`, `config.test.ts`
+  - **reviewer.test.ts** additions:
+    - Test: two-pass mode calls LLM twice (mock LLM tracks call count)
+    - Test: single-pass mode calls LLM once (config `reviewMode: "single-pass"`)
+    - Test: `extractFindingsJSON()` parses valid findings block from fixture
+    - Test: `extractFindingsJSON()` returns null for missing markers
+    - Test: `extractFindingsJSON()` returns null for invalid JSON
+    - Test: `validateFindingPreservation()` passes when only enrichment fields added
+    - Test: `validateFindingPreservation()` fails on count mismatch
+    - Test: `validateFindingPreservation()` fails on ID change
+    - Test: `validateFindingPreservation()` fails on severity reclassification
+    - Test: Pass 2 LLM failure falls back to unenriched output (mock LLM throws on second call)
+    - Test: Pass 2 finding modification falls back to unenriched output
+    - Test: fallback output passes `isValidResponse()` check
+    - Test: `ReviewResult` includes `pass1Tokens` and `pass2Tokens` in two-pass mode
+  - **template.test.ts** additions:
+    - Test: `buildConvergenceSystemPrompt()` contains INJECTION_HARDENING
+    - Test: `buildConvergenceSystemPrompt()` does NOT contain persona text
+    - Test: `buildConvergenceUserPrompt()` includes file diffs
+    - Test: `buildConvergenceUserPrompt()` requests findings JSON output format only
+    - Test: `buildEnrichmentPrompt()` includes persona in system prompt
+    - Test: `buildEnrichmentPrompt()` includes findings JSON in user prompt
+    - Test: `buildEnrichmentPrompt()` includes file list but NOT file diffs/patches
+    - Test: `buildEnrichmentPrompt()` instructs not to add/remove/reclassify findings
+  - **config.test.ts** additions:
+    - Test: default `reviewMode` is `"two-pass"`
+    - Test: CLI `--review-mode single-pass` overrides default
+    - Test: env `LOA_BRIDGE_REVIEW_MODE` overrides default
+    - Test: YAML `review_mode: single-pass` overrides default
+    - Test: CLI takes precedence over env and YAML
+  - Run full test suite to confirm zero regressions
+  - **AC**: AC-1 through AC-12
 
-### Task 3: Update .gitignore management (FR-1 — Low)
-**File**: `.claude/scripts/mount-loa.sh` (stealth mode section)
-**Change**: Replace 5 separate gitignore entries with single `.loa-state/` entry
-**AC**:
-- [ ] Stealth mode adds `.loa-state/` to gitignore
-- [ ] During migration grace period, old entries kept alongside
-- [ ] After successful migration (layout v2), old entries can be cleaned
+### Task 1.E2E: End-to-End Goal Validation
 
-### Task 4: Migration tests (FR-5 — Medium)
-**File**: `tests/unit/test-migrate-state-layout.sh`
-**Change**: Test migration scenarios: dry-run, apply, rollback on failure, platform detection, crash recovery
-**AC**:
-- [ ] Test: dry-run shows correct plan without moving files
-- [ ] Test: apply moves files and verifies checksums (not just counts)
-- [ ] Test: simulated failure triggers rollback (staged copies removed, originals intact)
-- [ ] Test: flock/mkdir lock prevents concurrent migration
-- [ ] Test: stale lock (dead PID) detected and overridden with warning
-- [ ] Test: journal-based resume after interrupted migration
-- [ ] Test: compat mode auto-detection works
-- [ ] Test: SQLite integrity verified after copy
-- [ ] Test: symlinks and file permissions preserved during migration
+- [ ] Verify G-1 (finding quality): Two-pass convergence prompt allocates full cognitive budget to analysis — system prompt contains analytical instructions only, no persona or enrichment objectives
+- [ ] Verify G-2 (enrichment quality): Enrichment prompt receives dedicated persona context with findings pre-identified — persona in system prompt, findings JSON + condensed metadata in user prompt
+- [ ] Verify G-3 (output compatibility): Combined output passes `isValidResponse()`, parseable by `bridge-findings-parser.sh`, contains `## Summary` + `## Findings`
+- [ ] Verify G-4 (architecture preservation): No changes to findings parser, GitHub trail, convergence scorer, persona file, or any downstream consumer
+- [ ] Run full existing test suite — zero regressions
 
----
+### Dependencies
 
-## Sprint 3: Redaction Pipeline (global sprint-59)
+- Task 1.1 (types) blocks Task 1.2 (config) and Task 1.4 (reviewer) — type definitions needed first
+- Task 1.3 (template) blocks Task 1.4 (reviewer) — prompt builders consumed by processItemTwoPass
+- Task 1.5 (fixtures) blocks Task 1.6 (tests) — test data needed before test code
+- Task 1.4 (reviewer) blocks Task 1.6 (tests) — implementation under test
 
-**Goal**: Create the shared fail-closed redaction pipeline used by trajectory export, memory bootstrap, and learning proposals.
+### Risks & Mitigation
 
-### Task 1: Create redact-export.sh (FR-3/FR-4 — High)
-**File**: `.claude/scripts/redact-export.sh`
-**Change**: New script implementing three-tier detection (BLOCK/REDACT/FLAG), allowlist sentinel protection with strict parsing, entropy analysis with defined algorithm, and fail-closed semantics
-**AC**:
-- [ ] Reads stdin, writes stdout (pipe-friendly)
-- [ ] Exit 0: clean content; Exit 1: blocked (BLOCK finding); Exit 2: error
-- [ ] `--strict` flag (default true): fail-closed
-- [ ] `--audit-file PATH`: writes JSON audit report
-- [ ] `--allow-pattern REGEX`: operator override for false positives (logged to audit)
-- [ ] `REDACT_ALLOWLIST_FILE` config: file of patterns to skip (one regex per line)
-- [ ] Input validation: reject binary content (NUL bytes), enforce 50MB max, UTF-8 only
-- [ ] BLOCK rules: AWS keys (`AKIA`), GitHub PATs (`ghp_/gho_/ghs_/ghr_`), JWTs (`eyJ`), Bearer tokens, private keys, `sk-` keys, Slack webhooks, Stripe keys (`sk_live_/pk_live_`), Twilio SIDs, SendGrid keys
-- [ ] REDACT rules: absolute paths (Unix/Windows/tilde), emails, `.env` assignments, IPv4 addresses
-- [ ] FLAG rules: token/password params, high-entropy strings
-- [ ] Entropy detection: Shannon entropy, min 20 chars, threshold ≥4.5 bits/char, skip known safe patterns (sha256 hashes, UUIDs)
-- [ ] Allowlist sentinel protection: strict format `<!-- redact-allow:CATEGORY -->...<!-- /redact-allow -->`, BLOCK rules ALWAYS override sentinels (sentinels only protect REDACT/FLAG), no nesting allowed, malformed sentinels treated as plain text
-- [ ] Post-redaction safety check: scan output for missed `ghp_`, `gho_`, `AKIA`, `eyJ`, `sk_live_` prefixes; block on any match
+| Risk | Mitigation |
+|------|-----------|
+| Pass 2 LLM adds/removes findings despite instructions | `validateFindingPreservation()` guard with automatic fallback to Pass 1 output (SDD 3.6) |
+| Two-pass mode subtly changes output format | Integration test comparing structure against `isValidResponse()` + findings parser (AC-8, AC-9) |
+| Config precedence regression | Existing config tests remain unchanged; new tests cover `reviewMode` at all 4 resolution levels (AC-12) |
+| Existing tests break from type changes | `reviewMode` has default value in DEFAULTS; `pass1Tokens`/`pass2Tokens`/`pass1Output` are optional fields (AC-12) |
 
-### Task 2: Create redaction test fixtures (FR-3 — Medium)
-**Files**: `tests/fixtures/redaction/` (10 files)
-**Change**: Create test fixtures for each detection category including bypass attempts
-**AC**:
-- [ ] `aws-key.txt`: BLOCK expected
-- [ ] `github-pat.txt`: BLOCK expected
-- [ ] `jwt.txt`: BLOCK expected
-- [ ] `slack-webhook.txt`: BLOCK expected (new pattern)
-- [ ] `abs-path.txt`: REDACT expected
-- [ ] `email.txt`: REDACT expected
-- [ ] `clean.txt`: PASS expected
-- [ ] `allowlisted.txt`: PASS (sentinel protected REDACT content)
-- [ ] `sentinel-bypass-attempt.txt`: BLOCK expected (sentinel wrapping a secret — sentinels don't override BLOCK)
-- [ ] `high-entropy.txt`: FLAG expected (random base64 string ≥20 chars)
+### Success Metrics
 
-### Task 3: Redaction pipeline tests (FR-3 — Medium)
-**File**: `tests/unit/test-redact-export.sh`
-**Change**: Test each detection rule against fixtures, test fail-closed behavior, test allowlist, test operator override, test sentinel security
-**AC**:
-- [ ] Each fixture produces expected exit code
-- [ ] BLOCK findings halt output (no stdout on exit 1)
-- [ ] REDACT findings replace with `<redacted-*>` placeholders
-- [ ] Allowlisted content preserved through redaction (REDACT/FLAG only)
-- [ ] Sentinel-wrapped BLOCK content is STILL blocked (sentinels don't override BLOCK)
-- [ ] Nested sentinels treated as plain text (not honored)
-- [ ] Malformed sentinels treated as plain text (not honored)
-- [ ] `--allow-pattern` overrides specific patterns with audit log entry
-- [ ] Audit file written with correct finding counts
-- [ ] Post-redaction check catches any missed patterns
-- [ ] Binary input rejected (exit 2)
-- [ ] Input >50MB rejected (exit 2)
-- [ ] Entropy detection: triggers on random base64 ≥20 chars, ignores sha256 hashes and UUIDs
-- [ ] Operator override logged to audit file
+- All existing tests pass with zero modification
+- 13 new reviewer tests + 8 new template tests + 5 new config tests = 26 new test cases
+- Combined output parseable by `bridge-findings-parser.sh`
 
 ---
 
-## Sprint 4: Trajectory Archive + Import (global sprint-60)
-
-**Goal**: Create trajectory export/import scripts and integrate with /archive-cycle.
-
-### Task 1: Create trajectory-export.sh (FR-3 — High)
-**File**: `.claude/scripts/trajectory-export.sh`
-**Change**: New script that exports trajectory JSONL to portable format with redaction, supporting streaming for large files
-**AC**:
-- [ ] `--cycle CYCLE_ID` required parameter
-- [ ] Collects all JSONL from `trajectory/current/` using `get_state_trajectory_dir()`
-- [ ] Runs content through `redact-export.sh` (fail-closed)
-- [ ] Streaming mode: for exports >10MB, process per-entry through redaction (not load all into memory)
-- [ ] Builds export with schema_version, summary, entries, redaction_report
-- [ ] Trajectory entry schema validation: `timestamp` (ISO8601), `phase` (enum), `content` (string), `session_id` (optional)
-- [ ] Compression: gzip by default (configurable)
-- [ ] Size check against `trajectory.archive.max_export_size_mb`
-- [ ] `--git-commit` opt-in: stages file for git (warns about LFS for >5MB)
-- [ ] Moves processed JSONL to `trajectory/current/exported-{cycle}/`
-- [ ] Writes output to `trajectory/archive/{cycle_id}.json.gz`
-- [ ] Uses `append_jsonl()` for any JSONL writes
-
-### Task 2: Create trajectory-import.sh (FR-3 — Medium)
-**File**: `.claude/scripts/trajectory-import.sh`
-**Change**: New script that imports exported trajectory files
-**AC**:
-- [ ] Accepts `.json` or `.json.gz` files
-- [ ] Validates `schema_version: 1`
-- [ ] Extracts entries into `trajectory/current/imported-{cycle}-{date}.jsonl`
-- [ ] Reports import count
-
-### Task 3: Integrate with /archive-cycle (FR-3 — Medium)
-**Change**: Update archive-cycle workflow to trigger trajectory export at cycle boundary
-**AC**:
-- [ ] After copying artifacts, calls `trajectory-export.sh --cycle $CYCLE_ID`
-- [ ] Respects `trajectory.archive.git_commit` config
-- [ ] Non-blocking: export failure logged but doesn't block archive
-
-### Task 4: Update compact-trajectory.sh retention (FR-3 — Low)
-**File**: `.claude/scripts/compact-trajectory.sh`
-**Change**: Add archive retention enforcement — delete exports >365d from `trajectory/archive/`
-**AC**:
-- [ ] Scans `trajectory/archive/` for files older than retention_days
-- [ ] Filesystem delete only (no git history rewriting)
-- [ ] Respects existing retention_days config
-
----
-
-## Sprint 5: Memory Pipeline Activation (global sprint-61) ✅
-
-**Goal**: Activate the dormant memory pipeline with deterministic bootstrap and updated query paths.
-
-### Task 1: Create memory-bootstrap.sh (FR-2 — High) ✅
-**File**: `.claude/scripts/memory-bootstrap.sh`
-**Change**: New script extracting observations from 4 deterministic sources
-**AC**:
-- [x] Source 1: trajectory `phase: "cite"` or `phase: "learning"` entries
-- [x] Source 2: flatline HIGH_CONSENSUS findings from `*-review.json`
-- [x] Source 3: sprint feedback (auditor + engineer) structured findings
-- [x] Source 4: bridge findings (CRITICAL + HIGH severity)
-- [x] Default: writes to `observations-staged.jsonl`
-- [x] `--import`: runs redaction, merges staged into `observations.jsonl`
-- [x] Quality gates: confidence ≥0.7, content hash dedup, min 10 chars, category validation
-- [x] Sampling report: counts per source + 3 sample entries displayed
-- [x] `--source SOURCE`: bootstrap from single source only
-- [x] Uses `append_jsonl()` for all JSONL writes (concurrent-safe)
-
-### Task 2: Update memory-writer.sh hook (FR-2 — Medium) ✅
-**File**: `.claude/hooks/memory-writer.sh`
-**Change**: Use `get_state_memory_dir()` from path-lib.sh instead of hardcoded path, use `append_jsonl()` for concurrent safety
-**AC**:
-- [x] Sources `path-lib.sh` for path resolution
-- [x] Writes to `$(get_state_memory_dir)/observations.jsonl` via `append_jsonl()`
-- [x] Falls back to legacy path if path-lib not available
-
-### Task 3: Update memory-query.sh (FR-2 — Medium) ✅
-**File**: `.claude/scripts/memory-query.sh`
-**Change**: Use `get_state_memory_dir()` for observation file location
-**AC**:
-- [x] Sources `path-lib.sh` for path resolution
-- [x] Reads from `$(get_state_memory_dir)/observations.jsonl`
-- [x] Progressive disclosure unchanged: `--index` <50, `--summary` <200, `--full` <500
-
-### Task 4: Memory bootstrap tests (FR-2 — Medium) ✅
-**File**: `tests/unit/test-memory-bootstrap.sh`
-**Change**: Test extraction from each source, quality gates, staging/import flow
-**AC**:
-- [x] Test: trajectory extraction picks only cite/learning phases
-- [x] Test: flatline extraction picks only high_consensus items
-- [x] Test: quality gate rejects low-confidence entries
-- [x] Test: content hash dedup prevents duplicates
-- [x] Test: --import runs redaction and appends to observations.jsonl
-- [x] Test: blocked content prevents import (fail-closed)
-
----
-
-## Sprint 6: Federated Learning Exchange (global sprint-62)
-
-**Goal**: Define the learning exchange schema and update /propose-learning for upstream flow.
-
-### Task 1: Create learning-exchange schema (FR-4 — High)
-**File**: `.claude/schemas/learning-exchange.schema.json`
-**Change**: JSON Schema for privacy-safe learning exchange format
-**AC**:
-- [x] Schema validates: learning_id pattern, category enum, confidence range, privacy fields
-- [x] `privacy.contains_file_paths`, `privacy.contains_secrets`, `privacy.contains_pii` all `const: false`
-- [x] `quality_gates`: depth, reusability, trigger_clarity, verification (1-10)
-- [x] `redaction_report`: rules_applied, items_redacted, items_blocked
-
-### Task 2: Update /propose-learning skill (FR-4 — High)
-**Change**: Update the propose-learning skill to use learning-exchange schema and redaction pipeline
-**AC**:
-- [x] Generates `.loa-learning-proposal.yaml` in schema-compliant format
-- [x] Runs content through `redact-export.sh` before output
-- [x] Validates against `learning-exchange.schema.json`
-- [x] Includes `redaction_report` field
-- [x] Quality gates enforced: depth ≥7, reusability ≥7, trigger_clarity ≥6, verification ≥6
-
-### Task 3: Downstream learning import in update-loa.sh (FR-4 — Medium)
-**File**: `.claude/scripts/update-loa.sh`
-**Change**: After submodule update, check for new upstream learnings and import to local memory
-**AC**:
-- [x] Checks `.claude/data/upstream-learnings/` for new `.yaml` files
-- [x] Validates against learning-exchange schema
-- [x] Imports valid learnings into local `observations.jsonl` via `append_jsonl()`
-- [x] Logs import count to trajectory
-
-### Task 4: Learning exchange integration tests (FR-4 — Medium)
-**File**: `tests/unit/test-learning-exchange.sh`
-**Change**: Test schema validation, redaction, quality gates
-**AC**:
-- [x] Test: valid learning passes schema validation
-- [x] Test: learning with file paths blocked by redaction
-- [x] Test: learning below quality gates rejected
-- [x] Test: import from upstream learnings works
-
----
-
-## Dependency Graph
+## Appendix A: Task Dependencies
 
 ```
-Sprint 1 (Foundation)
-  │
-  ├──→ Sprint 2 (Migration)
-  │
-  │    Sprint 3 (Redaction) ← standalone
-  │      │
-  ├──→ Sprint 4 (Trajectory) ← depends on 1 + 3
-  │      │
-  ├──→ Sprint 5 (Memory) ← depends on 1 + 3
-  │      │
-  └──→ Sprint 6 (Learning Exchange) ← depends on 3 + 5
+Task 1.1 (types) ──┬──→ Task 1.2 (config)
+                    │
+                    └──→ Task 1.4 (reviewer)
+                              ↑
+Task 1.3 (template) ─────────┘
+                              │
+Task 1.5 (fixtures) ──→ Task 1.6 (tests)
+                              ↑
+                    Task 1.4 ─┘
 ```
 
-**Parallelization opportunity:** Sprints 2 and 3 can run in parallel after Sprint 1 completes. Sprints 4 and 5 can run in parallel after Sprint 3 completes.
+## Appendix B: File Change Map
 
----
+| File | Change | Lines (est.) |
+|------|--------|-------------|
+| `resources/core/types.ts` | Add fields to 2 interfaces | +15 |
+| `resources/config.ts` | Add reviewMode resolution | +30 |
+| `resources/core/template.ts` | Add 4 new methods + 1 constant | +120 |
+| `resources/core/reviewer.ts` | Add 4 new methods + gate in processItem | +180 |
+| `resources/__tests__/fixtures/` | 5 new test fixture files | +100 |
+| `resources/__tests__/reviewer.test.ts` | 13 new test cases | +200 |
+| `resources/__tests__/template.test.ts` | 8 new test cases | +120 |
+| `resources/__tests__/config.test.ts` | 5 new test cases | +60 |
+| **Total** | | **~825 lines** |
 
-## Flatline Sprint Integration Log
+## Appendix C: Goal Traceability
 
-All 10 findings from Flatline Sprint review integrated:
-
-| ID | Score | Finding | Integration |
-|----|-------|---------|-------------|
-| SKP-001 | 900 | Absolute path rejection breaks containers/CI | Sprint 1 Task 1: Added `LOA_ALLOW_ABSOLUTE_STATE` opt-in |
-| SKP-002 | 880 | Migration verification insufficient (file count only) | Sprint 2 Task 1: sha256 checksums, SQLite integrity, atomic staging |
-| SKP-003 | 760 | PID lock fragile, can deadlock | Sprint 2 Task 1: flock/mkdir-based locking, stale detection, lock outside target |
-| SKP-004 | 720 | Conformance test scope too narrow | Sprint 1 Task 5: Expanded to hooks dir, positive check for getter usage, comment ignore |
-| SKP-005 | 790 | Redaction false positive/negative risk | Sprint 3 Task 1: Operator override, allowlist file, defined threat model per SDD |
-| SKP-006 | 840 | Allowlist sentinel bypass vector | Sprint 3 Task 1: BLOCK overrides sentinel, no nesting, strict format, bypass tests |
-| IMP-001 | 855 | Migration needs journal/resume for interrupted runs | Sprint 2 Task 1: Journal-based crash recovery per SDD 3.7 |
-| IMP-002 | 810 | .loa-version.json undefined but referenced | Sprint 1 Task 2: New task — schema + initialization logic |
-| IMP-003 | 805 | Entropy detection needs algorithm/threshold | Sprint 3 Task 1: Shannon entropy, min 20 chars, ≥4.5 bits/char threshold |
-| IMP-004 | 805 | JSONL concurrent writers need locking | Sprint 1 Task 4: New task — `append_jsonl()` with flock |
+| Goal ID | Goal (from PRD Section 2) | Contributing Tasks |
+|---------|---------------------------|--------------------|
+| G-1 | Improve finding quality — more precise severity classification, fewer false positives, deeper code analysis | 1.1, 1.3, 1.4, 1.5, 1.6, 1.E2E |
+| G-2 | Improve enrichment quality — richer FAANG parallels, more specific metaphors, deeper teachable moments | 1.3, 1.4, 1.6, 1.E2E |
+| G-3 | Maintain output compatibility — combined output identical to current format | 1.1, 1.2, 1.4, 1.6, 1.E2E |
+| G-4 | Preserve existing architecture — no changes to findings parser, GitHub trail, convergence scorer | 1.E2E |

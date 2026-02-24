@@ -18,6 +18,7 @@ const DEFAULTS = {
     excludePatterns: [],
     sanitizerMode: "default",
     maxRuntimeMinutes: 30,
+    reviewMode: "two-pass",
 };
 /**
  * Parse CLI arguments from process.argv.
@@ -79,6 +80,13 @@ export function parseCLIArgs(argv) {
         }
         else if (arg === "--repo-root" && i + 1 < argv.length) {
             args.repoRoot = argv[++i];
+        }
+        else if (arg === "--review-mode" && i + 1 < argv.length) {
+            const mode = argv[++i];
+            if (mode !== "two-pass" && mode !== "single-pass") {
+                throw new Error(`Invalid --review-mode value: ${mode}. Must be "two-pass" or "single-pass".`);
+            }
+            args.reviewMode = mode;
         }
     }
     return args;
@@ -209,6 +217,11 @@ async function loadYamlConfig() {
                     break;
                 case "persona":
                     config.persona = value;
+                    break;
+                case "review_mode":
+                    if (value === "two-pass" || value === "single-pass") {
+                        config.review_mode = value;
+                    }
                     break;
             }
         }
@@ -353,7 +366,21 @@ export async function resolveConfig(cliArgs, env, yamlConfig) {
             ? { personaFilePath: yaml.persona_path }
             : {}),
         ...(cliArgs.forceFullReview ? { forceFullReview: true } : {}),
+        reviewMode: cliArgs.reviewMode ??
+            (env.LOA_BRIDGE_REVIEW_MODE === "two-pass" || env.LOA_BRIDGE_REVIEW_MODE === "single-pass"
+                ? env.LOA_BRIDGE_REVIEW_MODE
+                : undefined) ??
+            yaml.review_mode ??
+            DEFAULTS.reviewMode,
     };
+    // Track reviewMode provenance
+    const reviewModeSource = cliArgs.reviewMode
+        ? "cli"
+        : env.LOA_BRIDGE_REVIEW_MODE === "two-pass" || env.LOA_BRIDGE_REVIEW_MODE === "single-pass"
+            ? "env"
+            : yaml.review_mode
+                ? "yaml"
+                : "default";
     const provenance = {
         repos: reposSource,
         model: modelSource,
@@ -361,6 +388,7 @@ export async function resolveConfig(cliArgs, env, yamlConfig) {
         maxInputTokens: maxInputTokensSource,
         maxOutputTokens: maxOutputTokensSource,
         maxDiffBytes: maxDiffBytesSource,
+        reviewMode: reviewModeSource,
     };
     return { config, provenance };
 }
@@ -400,6 +428,7 @@ export function formatEffectiveConfig(config, provenance) {
         `max_output_tokens=${config.maxOutputTokens}${outputSrc}, ` +
         `max_diff_bytes=${config.maxDiffBytes}${diffSrc}, ` +
         `dry_run=${config.dryRun}${drySrc}, sanitizer_mode=${config.sanitizerMode}${prFilter}` +
-        `${personaInfo}${excludeInfo}`);
+        `${personaInfo}${excludeInfo}` +
+        `, review_mode=${config.reviewMode}${p ? ` (${p.reviewMode})` : ""}`);
 }
 //# sourceMappingURL=config.js.map

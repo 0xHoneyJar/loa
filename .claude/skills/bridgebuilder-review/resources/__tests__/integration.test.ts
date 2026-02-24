@@ -81,6 +81,7 @@ function makeConfig(overrides?: Partial<BridgebuilderConfig>): BridgebuilderConf
     excludePatterns: [],
     sanitizerMode: "default",
     maxRuntimeMinutes: 30,
+    reviewMode: "single-pass" as const,
     ...overrides,
   };
 }
