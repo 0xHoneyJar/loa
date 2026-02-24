@@ -1,0 +1,2 @@
+Contact the development team at dev@company.com for support.
+You can also reach admin@internal-tools.io for infrastructure questions.

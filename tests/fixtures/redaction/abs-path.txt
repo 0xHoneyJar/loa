@@ -1,0 +1,3 @@
+The configuration file is located at /home/developer/projects/myapp/config.yaml
+You can also find logs at ~/logs/application.log
+Windows users should check C:\Users\admin\AppData\Local\config

@@ -1,0 +1,3 @@
+Notification webhook for the team channel:
+See: hooks.slack.com/services/T0123ABCDE/B0123ABCDE/
+Send a POST request to trigger alerts.

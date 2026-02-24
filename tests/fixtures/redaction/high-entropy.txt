@@ -1,0 +1,3 @@
+Some normal text here, followed by a suspicious string:
+xK9mQ2vR7pL4wN8jF5hB3tY6uC1aE0sD
+This random-looking token might be a credential.

@@ -1,0 +1,5 @@
+Trying to hide a secret inside a sentinel:
+<!-- redact-allow:config -->
+AKIAIOSFODNN7EXAMPLE
+<!-- /redact-allow -->
+This should still be blocked because BLOCK overrides sentinels.
