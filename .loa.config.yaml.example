@@ -68,7 +68,14 @@ paths:
 #     source: .loa/grimoire/BEAUVOIR.md
 #     output: SOUL.md    # At workspace root
 
-# Environment Variable Overrides:
+  # State directory (default: .loa-state) — v2.0.0
+  # Consolidated state zone: beads, ck, run, memory, trajectory
+  # All scripts use get_state_*() getters from path-lib.sh
+  state_dir: .loa-state
+
+# Environment Variable Overrides (updated for state-dir):
+# - LOA_STATE_DIR: Override state directory path
+# - LOA_ALLOW_ABSOLUTE_STATE=1: Allow absolute paths for state_dir (containers/CI)
 # - LOA_GRIMOIRE_DIR: Override grimoire path
 # - LOA_BEADS_DIR: Override beads path
 # - LOA_SOUL_SOURCE: Override soul source path
@@ -864,6 +871,61 @@ memory:
       - Read
       - Glob
       - Grep
+
+# -----------------------------------------------------------------------------
+# Trajectory Archive (v2.0.0 / cycle-038)
+# -----------------------------------------------------------------------------
+trajectory:
+  archive:
+    # Maximum export size in MB before LFS warning
+    max_export_size_mb: 50
+    # Auto-compress exports (gzip)
+    compress: true
+    # Opt-in: commit trajectory exports to git
+    git_commit: false
+    # Retention: delete exports older than this many days
+    retention_days: 365
+
+# -----------------------------------------------------------------------------
+# Memory Bootstrap (v2.0.0 / cycle-038)
+# -----------------------------------------------------------------------------
+memory_bootstrap:
+  # Sources for deterministic bootstrap
+  sources:
+    trajectory: true
+    flatline: true
+    feedback: true
+    bridge: true
+  # Quality gates
+  quality:
+    min_confidence: 0.7
+    min_content_length: 10
+    dedup: true
+
+# -----------------------------------------------------------------------------
+# Redaction Pipeline (v2.0.0 / cycle-038)
+# -----------------------------------------------------------------------------
+redaction:
+  # Fail-closed by default
+  strict: true
+  # Operator override allowlist file (one pattern per line)
+  # allowlist_file: .loa-redact-allowlist
+  # Override specific rules (for known false positives)
+  override_rules: []
+  # Input limits
+  max_input_size_mb: 50
+  # Entropy detection threshold (Shannon bits/char)
+  entropy_threshold: 4.5
+  entropy_min_length: 20
+
+# -----------------------------------------------------------------------------
+# Migration (v2.0.0 / cycle-038)
+# -----------------------------------------------------------------------------
+migration:
+  # Compatibility mode: auto | resolution | symlink | copy
+  compat_mode: auto
+  # Lock timeout in seconds
+  lock_timeout: 30
 
 # -----------------------------------------------------------------------------
 # Destructive Command Guard (v1.28.0)

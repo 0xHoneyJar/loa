@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# path-lib.sh - Configurable path resolution for grimoires
-# Version: 1.0.0
+# path-lib.sh - Configurable path resolution for grimoires and state
+# Version: 2.0.0
 #
 # Provides centralized path resolution with config support and validation.
 # Sourced by bootstrap.sh, which should be sourced by all Loa scripts.
@@ -18,19 +18,22 @@
 #   LOA_BEADS_DIR     - Override beads directory
 #   LOA_SOUL_SOURCE   - Override soul source path
 #   LOA_SOUL_OUTPUT   - Override soul output path
+#   LOA_STATE_DIR     - Override state directory
+#   LOA_ALLOW_ABSOLUTE_STATE - Set to "1" to permit absolute LOA_STATE_DIR paths
 # path-lib: exempt
 
 # =============================================================================
 # Constants
 # =============================================================================
 
-_PATH_LIB_VERSION="1.0.0"
+_PATH_LIB_VERSION="2.0.0"
 
 # Defaults (match current hardcoded behavior for backward compatibility)
 _DEFAULT_GRIMOIRE="grimoires/loa"
 _DEFAULT_BEADS=".beads"
 _DEFAULT_SOUL_SOURCE="grimoires/loa/BEAUVOIR.md"
 _DEFAULT_SOUL_OUTPUT="grimoires/loa/SOUL.md"
+_DEFAULT_STATE_DIR=".loa-state"
 
 # =============================================================================
 # Internal State
@@ -61,6 +64,14 @@ _init_path_lib() {
 
   # Inherit from environment if already set (parent script passed values)
   if [[ -n "${LOA_GRIMOIRE_DIR:-}" ]]; then
+    # Resolve state dir from env or use default
+    if [[ -n "${LOA_STATE_DIR:-}" ]]; then
+      if ! _resolve_state_dir_from_env; then
+        return 1
+      fi
+    else
+      export LOA_STATE_DIR="${PROJECT_ROOT}/${_DEFAULT_STATE_DIR}"
+    fi
     # Validate inherited paths
     if ! _validate_paths; then
       return 1
@@ -75,7 +86,9 @@ _init_path_lib() {
       return 1
     fi
   else
-    _use_defaults
+    if ! _use_defaults; then
+      return 1
+    fi
   fi
 
   # Validate all paths
@@ -92,6 +105,37 @@ _use_defaults() {
   export LOA_BEADS_DIR="${PROJECT_ROOT}/${_DEFAULT_BEADS}"
   export LOA_SOUL_SOURCE="${PROJECT_ROOT}/${_DEFAULT_SOUL_SOURCE}"
   export LOA_SOUL_OUTPUT="${PROJECT_ROOT}/${_DEFAULT_SOUL_OUTPUT}"
+  # State dir: env var takes precedence over default
+  if [[ -n "${LOA_STATE_DIR:-}" ]]; then
+    if ! _resolve_state_dir_from_env; then
+      return 1
+    fi
+  else
+    export LOA_STATE_DIR="${PROJECT_ROOT}/${_DEFAULT_STATE_DIR}"
+  fi
+}
+
+_resolve_state_dir_from_env() {
+  # Validate and resolve LOA_STATE_DIR from environment variable
+  if [[ "$LOA_STATE_DIR" == /* ]]; then
+    # Absolute path — requires opt-in
+    if [[ "${LOA_ALLOW_ABSOLUTE_STATE:-}" != "1" ]]; then
+      echo "ERROR: LOA_STATE_DIR is absolute but LOA_ALLOW_ABSOLUTE_STATE is not set: $LOA_STATE_DIR" >&2
+      return 1
+    fi
+    if [[ ! -d "$LOA_STATE_DIR" ]]; then
+      echo "ERROR: LOA_STATE_DIR does not exist: $LOA_STATE_DIR" >&2
+      return 1
+    fi
+    if [[ ! -w "$LOA_STATE_DIR" ]]; then
+      echo "ERROR: LOA_STATE_DIR is not writable: $LOA_STATE_DIR" >&2
+      return 1
+    fi
+  else
+    # Relative path — prepend PROJECT_ROOT
+    export LOA_STATE_DIR="${PROJECT_ROOT}/${LOA_STATE_DIR}"
+  fi
+  return 0
 }
 
 _use_legacy_paths() {
@@ -201,6 +245,43 @@ _read_config_paths() {
     export LOA_SOUL_OUTPUT="${PROJECT_ROOT}/${soul_output_raw}"
   else
     export LOA_SOUL_OUTPUT="${PROJECT_ROOT}/${_DEFAULT_SOUL_OUTPUT}"
+  fi
+
+  # Read state directory path
+  # Priority: LOA_STATE_DIR env var > config paths.state_dir > default
+  if [[ -n "${LOA_STATE_DIR:-}" ]]; then
+    # Env var already set — validate it
+    if [[ "$LOA_STATE_DIR" == /* ]]; then
+      if [[ "${LOA_ALLOW_ABSOLUTE_STATE:-}" != "1" ]]; then
+        echo "ERROR: LOA_STATE_DIR is absolute but LOA_ALLOW_ABSOLUTE_STATE is not set: $LOA_STATE_DIR" >&2
+        return 1
+      fi
+      # Validate absolute path exists and is writable
+      if [[ ! -d "$LOA_STATE_DIR" ]]; then
+        echo "ERROR: LOA_STATE_DIR does not exist: $LOA_STATE_DIR" >&2
+        return 1
+      fi
+      if [[ ! -w "$LOA_STATE_DIR" ]]; then
+        echo "ERROR: LOA_STATE_DIR is not writable: $LOA_STATE_DIR" >&2
+        return 1
+      fi
+    else
+      # Relative path — prepend PROJECT_ROOT
+      export LOA_STATE_DIR="${PROJECT_ROOT}/${LOA_STATE_DIR}"
+    fi
+  else
+    local state_dir_raw
+    state_dir_raw=$(yq -e '.paths.state_dir // ""' "$CONFIG_FILE" 2>/dev/null) || true
+
+    if [[ -n "$state_dir_raw" && "$state_dir_raw" != "null" ]]; then
+      if [[ "$state_dir_raw" == /* ]]; then
+        echo "ERROR: paths.state_dir must be relative, got: $state_dir_raw" >&2
+        return 1
+      fi
+      export LOA_STATE_DIR="${PROJECT_ROOT}/${state_dir_raw}"
+    else
+      export LOA_STATE_DIR="${PROJECT_ROOT}/${_DEFAULT_STATE_DIR}"
+    fi
   fi
 
   return 0
@@ -335,6 +416,119 @@ get_beauvoir_path() {
 get_soul_output_path() {
   _init_path_lib || return 1
   echo "$LOA_SOUL_OUTPUT"
+}
+
+# =============================================================================
+# Public API - State Directory Getters
+# =============================================================================
+
+get_state_dir() {
+  _init_path_lib || return 1
+  echo "${LOA_STATE_DIR}"
+}
+
+get_state_beads_dir() {
+  _init_path_lib || return 1
+  echo "${LOA_STATE_DIR}/beads"
+}
+
+get_state_ck_dir() {
+  _init_path_lib || return 1
+  echo "${LOA_STATE_DIR}/ck"
+}
+
+get_state_run_dir() {
+  _init_path_lib || return 1
+  echo "${LOA_STATE_DIR}/run"
+}
+
+get_state_memory_dir() {
+  _init_path_lib || return 1
+  echo "${LOA_STATE_DIR}/memory"
+}
+
+get_state_trajectory_dir() {
+  _init_path_lib || return 1
+  echo "${LOA_STATE_DIR}/trajectory"
+}
+
+# =============================================================================
+# Public API - State Layout Detection
+# =============================================================================
+
+detect_state_layout() {
+  local version_file="${PROJECT_ROOT}/.loa-version.json"
+  if [[ -f "$version_file" ]]; then
+    local ver
+    ver=$(jq -r '.state_layout_version // 0' "$version_file" 2>/dev/null) || true
+    if [[ "$ver" =~ ^[0-9]+$ ]]; then
+      echo "$ver"
+    else
+      echo "0"
+    fi
+  else
+    echo "0"
+  fi
+}
+
+init_version_file() {
+  local version_file="${PROJECT_ROOT}/.loa-version.json"
+  if [[ -f "$version_file" ]]; then
+    return 0  # Already exists
+  fi
+
+  local layout_version=2
+  # Detect legacy: if old scattered dirs exist, this is layout v1
+  if [[ -d "${PROJECT_ROOT}/.beads" || -d "${PROJECT_ROOT}/.run" || -d "${PROJECT_ROOT}/.ck" ]]; then
+    layout_version=1
+  fi
+
+  local tmp_file="${version_file}.tmp.$$"
+  local timestamp
+  timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  cat > "$tmp_file" <<EOF
+{
+  "state_layout_version": ${layout_version},
+  "created": "${timestamp}",
+  "last_migration": null
+}
+EOF
+  mv "$tmp_file" "$version_file"
+}
+
+# =============================================================================
+# Public API - State Structure Management
+# =============================================================================
+
+ensure_state_structure() {
+  _init_path_lib || return 1
+  local sd
+  sd=$(get_state_dir) || return 1
+  mkdir -p "${sd}/beads" "${sd}/ck" "${sd}/run/bridge-reviews" "${sd}/run/mesh-cache"
+  mkdir -p "${sd}/memory/archive" "${sd}/memory/sessions"
+  mkdir -p "${sd}/trajectory/current" "${sd}/trajectory/archive"
+  # Initialize version file
+  init_version_file
+}
+
+# =============================================================================
+# Public API - Atomic JSONL Append
+# =============================================================================
+
+append_jsonl() {
+  local file="$1" entry="$2"
+  if [[ -z "$file" || -z "$entry" ]]; then
+    echo "ERROR: append_jsonl requires file and entry arguments" >&2
+    return 1
+  fi
+  local lockfile="${file}.lock"
+  (
+    if ! flock -w 5 200; then
+      echo "WARN: Could not acquire lock for $file after 5s" >&2
+      return 1
+    fi
+    printf '%s\n' "$entry" >> "$file"
+  ) 200>"$lockfile"
 }
 
 # =============================================================================
