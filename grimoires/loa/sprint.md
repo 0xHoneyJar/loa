@@ -301,37 +301,37 @@
 **File**: `.claude/schemas/learning-exchange.schema.json`
 **Change**: JSON Schema for privacy-safe learning exchange format
 **AC**:
-- [ ] Schema validates: learning_id pattern, category enum, confidence range, privacy fields
-- [ ] `privacy.contains_file_paths`, `privacy.contains_secrets`, `privacy.contains_pii` all `const: false`
-- [ ] `quality_gates`: depth, reusability, trigger_clarity, verification (1-10)
-- [ ] `redaction_report`: rules_applied, items_redacted, items_blocked
+- [x] Schema validates: learning_id pattern, category enum, confidence range, privacy fields
+- [x] `privacy.contains_file_paths`, `privacy.contains_secrets`, `privacy.contains_pii` all `const: false`
+- [x] `quality_gates`: depth, reusability, trigger_clarity, verification (1-10)
+- [x] `redaction_report`: rules_applied, items_redacted, items_blocked
 
 ### Task 2: Update /propose-learning skill (FR-4 — High)
 **Change**: Update the propose-learning skill to use learning-exchange schema and redaction pipeline
 **AC**:
-- [ ] Generates `.loa-learning-proposal.yaml` in schema-compliant format
-- [ ] Runs content through `redact-export.sh` before output
-- [ ] Validates against `learning-exchange.schema.json`
-- [ ] Includes `redaction_report` field
-- [ ] Quality gates enforced: depth ≥7, reusability ≥7, trigger_clarity ≥6, verification ≥6
+- [x] Generates `.loa-learning-proposal.yaml` in schema-compliant format
+- [x] Runs content through `redact-export.sh` before output
+- [x] Validates against `learning-exchange.schema.json`
+- [x] Includes `redaction_report` field
+- [x] Quality gates enforced: depth ≥7, reusability ≥7, trigger_clarity ≥6, verification ≥6
 
 ### Task 3: Downstream learning import in update-loa.sh (FR-4 — Medium)
 **File**: `.claude/scripts/update-loa.sh`
 **Change**: After submodule update, check for new upstream learnings and import to local memory
 **AC**:
-- [ ] Checks `.claude/data/upstream-learnings/` for new `.yaml` files
-- [ ] Validates against learning-exchange schema
-- [ ] Imports valid learnings into local `observations.jsonl` via `append_jsonl()`
-- [ ] Logs import count to trajectory
+- [x] Checks `.claude/data/upstream-learnings/` for new `.yaml` files
+- [x] Validates against learning-exchange schema
+- [x] Imports valid learnings into local `observations.jsonl` via `append_jsonl()`
+- [x] Logs import count to trajectory
 
 ### Task 4: Learning exchange integration tests (FR-4 — Medium)
 **File**: `tests/unit/test-learning-exchange.sh`
 **Change**: Test schema validation, redaction, quality gates
 **AC**:
-- [ ] Test: valid learning passes schema validation
-- [ ] Test: learning with file paths blocked by redaction
-- [ ] Test: learning below quality gates rejected
-- [ ] Test: import from upstream learnings works
+- [x] Test: valid learning passes schema validation
+- [x] Test: learning with file paths blocked by redaction
+- [x] Test: learning below quality gates rejected
+- [x] Test: import from upstream learnings works
 
 ---
 

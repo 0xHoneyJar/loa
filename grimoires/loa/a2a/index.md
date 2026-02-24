@@ -9,7 +9,7 @@
 | Sprint 3 | 59 | COMPLETED | — |
 | Sprint 4 | 60 | COMPLETED | — |
 | Sprint 5 | 61 | COMPLETED | — |
-| Sprint 6 | 62 | IN_REVIEW | — |
+| Sprint 6 | 62 | REVIEW_APPROVED | — |
 
 ## Cycle 037: Bridgebuilder Deep Review — Architectural Fixes
 
