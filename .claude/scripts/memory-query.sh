@@ -26,7 +26,17 @@ fi
 
 # Configuration
 PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
-MEMORY_DIR="$PROJECT_ROOT/grimoires/loa/memory"
+
+# Resolve memory directory via path-lib (with fallback to legacy path)
+if type get_state_memory_dir &>/dev/null; then
+    MEMORY_DIR=$(get_state_memory_dir 2>/dev/null) || MEMORY_DIR="$PROJECT_ROOT/grimoires/loa/memory"
+elif [[ -f "$SCRIPT_DIR/path-lib.sh" ]]; then
+    source "$SCRIPT_DIR/path-lib.sh" 2>/dev/null && {
+        MEMORY_DIR=$(get_state_memory_dir 2>/dev/null) || MEMORY_DIR="$PROJECT_ROOT/grimoires/loa/memory"
+    }
+else
+    MEMORY_DIR="$PROJECT_ROOT/grimoires/loa/memory"
+fi
 OBSERVATIONS_FILE="$MEMORY_DIR/observations.jsonl"
 
 # =============================================================================
