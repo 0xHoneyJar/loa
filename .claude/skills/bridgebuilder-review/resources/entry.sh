@@ -10,5 +10,14 @@ SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Bash 4.0+ version guard
 source "${SKILL_DIR}/../../scripts/bash-version-guard.sh"
 
+# Source .env files for API keys (ANTHROPIC_API_KEY etc.) — issue #395
+# set -a exports all sourced variables; set +a restores default behavior
+if [[ -f .env ]]; then
+  set -a; source .env; set +a
+fi
+if [[ -f .env.local ]]; then
+  set -a; source .env.local; set +a
+fi
+
 # Run compiled TypeScript via Node (no npx tsx — SKP-002)
 exec node "${SKILL_DIR}/dist/main.js" "$@"

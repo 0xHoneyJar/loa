@@ -91,9 +91,12 @@ async function autoDetectRepo() {
         const { stdout } = await execFileAsync("git", ["remote", "-v"], {
             timeout: 5_000,
         });
-        // Match first line: origin	git@github.com:owner/repo.git (fetch)
-        // or:               origin	https://github.com/owner/repo.git (fetch)
-        const match = stdout.match(/(?:github\.com)[:/]([^/\s]+)\/([^/\s.]+?)(?:\.git)?\s/);
+        const lines = stdout.split("\n");
+        const ghPattern = /(?:github\.com)[:/]([^/\s]+)\/([^/\s.]+?)(?:\.git)?\s/;
+        // Prefer "origin" remote — avoids picking framework remote alphabetically (#395)
+        const originLine = lines.find((l) => l.startsWith("origin\t") && l.includes("(fetch)"));
+        const targetLine = originLine ?? lines.find((l) => l.includes("(fetch)"));
+        const match = targetLine?.match(ghPattern);
         if (match) {
             return { owner: match[1], repo: match[2] };
         }

@@ -1020,8 +1020,8 @@ apply_stealth() {
     local gitignore=".gitignore"
     touch "$gitignore"
 
-    # Core entries (4)
-    local core_entries=("grimoires/loa/" ".beads/" ".loa-version.json" ".loa.config.yaml")
+    # Core entries (5) — .ck/ is regenerable semantic search cache (#393)
+    local core_entries=("grimoires/loa/" ".beads/" ".loa-version.json" ".loa.config.yaml" ".ck/")
     # Doc entries (10) — framework-generated docs that stealth mode hides
     local doc_entries=("PROCESS.md" "CHANGELOG.md" "INSTALLATION.md" "CONTRIBUTING.md" "SECURITY.md" "LICENSE.md" "BUTTERFREEZONE.md" ".reviewignore" ".trufflehog.yaml" ".gitleaksignore")
     local all_entries=("${core_entries[@]}" "${doc_entries[@]}")

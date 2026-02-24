@@ -17,6 +17,20 @@ README.md merge=ours
 CHANGELOG.md merge=ours
 
 # =============================================================================
+# STATE ZONE FILES (grimoires/)
+# =============================================================================
+# These files are project-specific planning artifacts in the State Zone.
+# /update-loa merges upstream which uses the same paths for its own dev cycles.
+# merge=ours prevents upstream PRD/SDD/sprint files from overwriting yours.
+# See: Three-Zone Model in CLAUDE.loa.md — grimoires/ is user-owned state.
+
+grimoires/loa/prd.md merge=ours
+grimoires/loa/sdd.md merge=ours
+grimoires/loa/sprint.md merge=ours
+grimoires/loa/NOTES.md merge=ours
+grimoires/loa/ledger.json merge=ours
+
+# =============================================================================
 # CI/CD WORKFLOW FILES
 # =============================================================================
 # GitHub Actions workflow files require the `workflow` OAuth scope to push.
