@@ -79,7 +79,13 @@ curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts
 
 This automatically uses submodule mode. The installer handles git submodule setup, symlink creation, and configuration.
 
-> **Security note**: Piping curl to bash executes remote code without prior inspection. This is standard practice for developer tools (Homebrew, Rust, nvm) but carries inherent supply-chain risk. For higher-assurance installs, use the [manual install](#manual-install) or [verify after install](#verify-installation). Pin to a release tag with `--tag v1.39.0` to avoid running unreleased code.
+> **Security note**: Piping curl to bash executes remote code without prior inspection. This is standard practice for developer tools (Homebrew, Rust, nvm) but carries inherent supply-chain risk. For higher-assurance installs, download and inspect first:
+> ```bash
+> curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh -o mount-loa.sh
+> less mount-loa.sh  # inspect the script
+> bash mount-loa.sh  # run after review
+> ```
+> Or use the [manual install](#manual-install), [verify after install](#verify-installation), or pin to a release tag with `--tag v1.39.0`.
 
 ### Manual Install
 

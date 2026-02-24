@@ -46,10 +46,18 @@ jobs:
       # PINNING: SHA verified against actions/checkout v4.3.1 tag
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
+      # PINNING: bats-core v1.13.0 — commit SHA verified after clone
       - name: Install bats-core v1.13.0
         run: |
           git clone --branch v1.13.0 --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
-          sudo /tmp/bats-core/install.sh /usr/local
+          cd /tmp/bats-core
+          expected="d6a46f2cc2d3025ee3ffb59991c6d93ef903e339"
+          actual=$(git rev-parse HEAD)
+          if [ "$actual" != "$expected" ]; then
+            echo "ERROR: bats-core commit SHA mismatch — expected $expected, got $actual"
+            exit 1
+          fi
+          sudo ./install.sh /usr/local
           bats --version
 
       - name: Install yq v4.52.4 (pinned + checksum verified)
@@ -61,13 +69,13 @@ jobs:
       - name: Run framework unit tests
         run: |
           if [ -d tests/unit ]; then
-            count=$(ls tests/unit/*.bats 2>/dev/null | wc -l)
+            count=$(find tests/unit -maxdepth 1 -name '*.bats' -type f | wc -l)
             if [ "$count" -eq 0 ]; then
               echo "ERROR: tests/unit/ exists but contains no .bats files"
               exit 1
             fi
             echo "Running $count test files from tests/unit/ ..."
-            bats tests/unit/*.bats
+            bats tests/unit/
           else
             echo "WARNING: tests/unit/ directory not found — skipping"
           fi
@@ -75,13 +83,13 @@ jobs:
       - name: Run script tests
         run: |
           if [ -d .claude/scripts/tests ]; then
-            count=$(ls .claude/scripts/tests/*.bats 2>/dev/null | wc -l)
+            count=$(find .claude/scripts/tests -maxdepth 1 -name '*.bats' -type f | wc -l)
             if [ "$count" -eq 0 ]; then
               echo "ERROR: .claude/scripts/tests/ exists but contains no .bats files"
               exit 1
             fi
             echo "Running $count test files from .claude/scripts/tests/ ..."
-            bats .claude/scripts/tests/*.bats
+            bats .claude/scripts/tests/
           else
             echo "WARNING: .claude/scripts/tests/ directory not found — skipping"
           fi
