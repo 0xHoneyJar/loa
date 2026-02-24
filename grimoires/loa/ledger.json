@@ -475,7 +475,6 @@
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "source_issue": 402,
-      "sdd": "grimoires/loa/sdd.md",
       "sprints": [
         {
           "local_id": "sprint-1",
@@ -523,7 +522,7 @@
           "local_id": "sprint-8",
           "global_id": "sprint-51",
           "label": "Excellence Hardening — Bridgebuilder Part 8 Findings",
-          "status": "planned"
+          "status": "completed"
         }
       ],
       "bridge": [
