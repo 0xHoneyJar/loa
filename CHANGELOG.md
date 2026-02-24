@@ -5,6 +5,17 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.56.0] — 2026-02-24 — Minimal Footprint by Default — Submodule-First Installation
+
+## cycle-035: Minimal Footprint by Default — Submodule-First Installation
+
+### Added
+
+- **cycle-035**: Minimal Footprint by Default — Submodule-First Installation (#406)
+
+_Source: PR #406_
+
+
 ## [1.39.1] — 2026-02-15 — Collateral Deletion Safeguard + CI Hardening
 
 ### Fixed
