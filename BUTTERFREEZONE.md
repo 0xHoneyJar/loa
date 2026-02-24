@@ -152,15 +152,15 @@ Directory structure:
 |--------|-------|---------|---------------|
 | `docs/` | 6 | Documentation | \u2014 |
 | `evals/` | 5818 | Benchmarking and regression framework for the Loa agent development system. Ensures framework changes don't degrade agent behavior through | [evals/README.md](evals/README.md) |
-| `grimoires/` | 1228 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
+| `grimoires/` | 1181 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
 | `skills/` | 5112 | Specialized agent skills | \u2014 |
-| `tests/` | 157 | Test suites | \u2014 |
+| `tests/` | 173 | Test suites | \u2014 |
 
 ## Verification
 <!-- provenance: CODE-FACTUAL -->
 - Trust Level: **L2 — CI Verified**
-- 157 test files across 1 suite
-- CI/CD: GitHub Actions (10 workflows)
+- 173 test files across 1 suite
+- CI/CD: GitHub Actions (11 workflows)
 - Security: SECURITY.md present
 
 ## Agents
@@ -207,16 +207,16 @@ claude
 /ship      # Deploy and archive
 ```
 <!-- ground-truth-meta
-head_sha: 247c8152575cc256cc86cc1c09f1b7e7707004f8
-generated_at: 2026-02-23T23:24:51Z
+head_sha: 5e4c6862deb39363a35267fcb5dbcbb8ecae17da
+generated_at: 2026-02-24T22:09:30Z
 generator: butterfreezone-gen v1.0.0
 sections:
   agent_context: 2181e030ad7c26375787c2779116509418c11f8dd4cd51c7cbd38d655dbcdf96
   capabilities: ab2576b1f2e7e8141f0e93e807d26ed2b7b155e21c96d787507a3ba933bb9795
   architecture: 970c0549aa208f3f8e0063176776b3fd52798e8d19011897a6a22e6542c2e772
   interfaces: 120e3b3a6d65d4939b251dd049f213e32254a91510d48457be2e4f1b3f7399d3
-  module_map: de9ac14970d59fe5be9acec26bd459ef57023f11a27e5786edc87237f4657a03
-  verification: d63acadb827c33f47a4a75a8bbb9634a0063078c6650a0ce009957ef49666bf0
+  module_map: 4f7fa494388ebc110ff0bbd2a08fe512564990c055b817be80e20e03ce75495a
+  verification: 85c2afac25c1915b6471530e2acb8f8520283212da0d3df57ffcbc057a07b175
   agents: ca263d1e05fd123434a21ef574fc8d76b559d22060719640a1f060527ef6a0b6
   culture: f73380f93bb4fadf36ccc10d60fc57555914363fc90e4f15b4dc4eb92bd1640f
   quick_start: cfc39883247017c36dd2e9c3f44459a761d8b9e278b85a54584164db643a95ab

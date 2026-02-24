@@ -1,194 +1,117 @@
-# Sprint Plan: Two-Pass Bridge Review (cycle-039)
+# Sprint Plan: Two-Pass Bridge Review — Excellence Hardening (cycle-039, Bridge Iteration 2)
 
 ## Overview
 
 **PRD:** grimoires/loa/prd.md v1.0
 **SDD:** grimoires/loa/sdd.md v1.0
-**Sprints:** 1 (single sprint, all changes internal to bridgebuilder-review skill)
-**Scope:** FR-1 through FR-5
+**Source:** Bridgebuilder Review Iteration 1 (bridge-20260225-23e5c4)
+**Sprints:** 1 (single sprint addressing all 6 actionable findings)
+**Scope:** 3 MEDIUM + 3 LOW findings from bridge review
 
 ---
 
-## Sprint 1: Two-Pass Bridge Review Pipeline (global sprint-63)
+## Sprint 2: Excellence Hardening — Post-Processing Dedup + Correctness Fixes (global sprint-64)
 
-**Goal**: Split the single-LLM-call bridge review into two sequential passes (convergence + enrichment) with fallback safety and full test coverage.
+**Goal**: Address all 6 actionable Bridgebuilder findings from iteration 1 — extract shared post-processing method, add category preservation, consolidate prompt duplication, return parsed JSON, fix fallback gap, and wire test fixtures.
 
 **Scope**: MEDIUM (6 tasks)
 
 ### Deliverables
 
-- [x] `types.ts` extended with `reviewMode` config field and pass-level token tracking on `ReviewResult`
-- [x] `config.ts` resolves `reviewMode` through the existing 5-level precedence chain (CLI > env > YAML > auto-detect > default)
-- [x] `template.ts` has convergence-only prompt builders (no persona) and enrichment prompt builder (persona + findings JSON, no diff)
-- [x] `reviewer.ts` has `processItemTwoPass()` with Pass 1 → Pass 2 flow, finding preservation guard, and fallback to unenriched output
-- [x] All existing tests pass unchanged
-- [x] New tests cover two-pass flow, prompt construction, finding preservation validation, fallback paths, and config resolution
+- [ ] `reviewer.ts` has shared `postAndFinalize()` method replacing 4 duplicate post-processing paths
+- [ ] `validateFindingPreservation()` checks category preservation in addition to count, IDs, severities
+- [ ] `template.ts` convergence user prompt methods consolidated (shared rendering helpers)
+- [ ] `extractFindingsJSON()` returns `{ raw, parsed }` eliminating triple-parse
+- [ ] Pass 2 missing findings markers triggers explicit fallback to unenriched output
+- [ ] Test fixtures loaded via `fs.readFileSync` in test suite (or removed if redundant)
 
 ### Acceptance Criteria
 
-- [x] AC-1: Two-pass mode is the default (`reviewMode: "two-pass"`) — from PRD FR-4.1: `review_mode: "two-pass" | "single-pass"` (default: `"two-pass"`)
-- [x] AC-2: Pass 1 system prompt contains `INJECTION_HARDENING` but NOT persona content — from PRD FR-1.3, FR-1.4, FR-1.5
-- [x] AC-3: Pass 1 output format requests ONLY findings JSON inside `<!-- bridge-findings-start/end -->` markers — from PRD FR-1.1, FR-1.2
-- [x] AC-4: Pass 2 receives findings JSON + condensed PR metadata (file list, no diffs) + full persona — from PRD FR-2.1, FR-2.2, FR-2.3; SDD 3.3
-- [x] AC-5: Pass 2 failure (LLM error, timeout, invalid response) falls back to Pass 1 unenriched output — from PRD FR-2.7; SDD 5.2
-- [x] AC-6: Finding preservation guard rejects if Pass 2 changes finding count, IDs, or severities — from PRD FR-2.4; SDD 3.6
-- [x] AC-7: `reviewMode: "single-pass"` in config runs the existing single-pass path unchanged — from PRD FR-3.5
-- [x] AC-8: Combined Pass 2 output passes `isValidResponse()` check (`## Summary` + `## Findings`) — from PRD FR-3.3
-- [x] AC-9: Combined output parseable by `bridge-findings-parser.sh` (v2 JSON format) — from PRD FR-3.4
-- [x] AC-10: `ReviewResult` includes `pass1Tokens` and `pass2Tokens` for observability — from PRD FR-5.1; SDD 3.9
-- [x] AC-11: Config resolves `review_mode` from CLI (`--review-mode`), env (`LOA_BRIDGE_REVIEW_MODE`), YAML (`bridgebuilder.review_mode`), default (`"two-pass"`) — from PRD FR-4.1 through FR-4.4
-- [x] AC-12: All existing reviewer, template, config, and integration tests pass without modification — from PRD non-goal: "preserve existing architecture"
+- [ ] AC-1: Post-processing flow (sanitize → recheck → dryRun → post → finalize) exists in exactly ONE method
+- [ ] AC-2: `finishWithUnenrichedOutput`, `finishWithPass1AsReview`, and tail of `processItemTwoPass` all delegate to shared method
+- [ ] AC-3: Single-pass `processItem` also delegates to the shared post-processing method
+- [ ] AC-4: `validateFindingPreservation()` returns false when Pass 2 changes a finding's category
+- [ ] AC-5: New test: category-changed fixture fails validation
+- [ ] AC-6: Convergence user prompt rendering logic exists in one place (shared helpers or single method)
+- [ ] AC-7: `extractFindingsJSON()` returns `{ raw: string; parsed: FindingsPayload } | null`
+- [ ] AC-8: Callers of `extractFindingsJSON()` use `.parsed` instead of re-parsing
+- [ ] AC-9: When `extractFindingsJSON()` returns null for Pass 2 AND `isValidResponse()` passes, system falls back to unenriched output
+- [ ] AC-10: Test fixtures are loaded from disk in at least one test case per fixture file
+- [ ] AC-11: All existing 164 tests pass with zero modification
+- [ ] AC-12: No changes to downstream consumers (findings parser, GitHub trail, convergence scorer)
 
 ### Technical Tasks
 
-- [x] **Task 1.1**: Extend `types.ts` — add `reviewMode` to `BridgebuilderConfig`, add `pass1Output`, `pass1Tokens`, `pass2Tokens` to `ReviewResult` → **[G-1, G-3]**
-  - File: `.claude/skills/bridgebuilder-review/resources/core/types.ts`
-  - Add `reviewMode: "two-pass" | "single-pass"` to `BridgebuilderConfig` interface
-  - Add `pass1Output?: string` to `ReviewResult` for observability (FR-5.2)
-  - Add `pass1Tokens?: { input: number; output: number; duration: number }` to `ReviewResult`
-  - Add `pass2Tokens?: { input: number; output: number; duration: number }` to `ReviewResult`
-  - **AC**: AC-10
-
-- [x] **Task 1.2**: Extend `config.ts` — add `reviewMode` resolution through 5-level precedence → **[G-3]**
-  - File: `.claude/skills/bridgebuilder-review/resources/config.ts`
-  - Add `review_mode?: "two-pass" | "single-pass"` to `YamlConfig` interface
-  - Add `reviewMode?: string` to `CLIArgs` and `--review-mode` parsing in `parseCLIArgs()`
-  - Add `LOA_BRIDGE_REVIEW_MODE?: string` to `EnvVars` interface
-  - Resolve in `resolveConfig()`: `cliArgs.reviewMode ?? env.LOA_BRIDGE_REVIEW_MODE ?? yaml.review_mode ?? DEFAULTS.reviewMode`
-  - Add to `DEFAULTS`: `reviewMode: "two-pass" as const`
-  - Add `reviewMode` to `formatEffectiveConfig()` output
-  - Add `reviewMode` to `ConfigProvenance` interface
-  - **AC**: AC-1, AC-7, AC-11
-
-- [x] **Task 1.3**: Add convergence and enrichment prompt builders to `template.ts` → **[G-1, G-2]**
-  - File: `.claude/skills/bridgebuilder-review/resources/core/template.ts`
-  - Add `CONVERGENCE_INSTRUCTIONS` constant — analytical-only review instructions requesting findings JSON only, no persona, no enrichment fields (SDD 3.1)
-  - Add `buildConvergenceSystemPrompt(): string` — returns `INJECTION_HARDENING + CONVERGENCE_INSTRUCTIONS` (SDD 3.1)
-  - Add `buildConvergenceUserPrompt(item: ReviewItem, truncated: TruncationResult): string` — reuses PR metadata + file diff rendering from `buildUserPrompt()`, replaces "Expected Response Format" with convergence-specific format requesting only `<!-- bridge-findings-start/end -->` JSON (SDD 3.2)
-  - Add `buildConvergenceUserPromptFromTruncation(item: ReviewItem, truncResult: ProgressiveTruncationResult, loaBanner?: string): string` — same convergence format but built from progressive truncation result (SDD 3.2)
-  - Add `buildEnrichmentPrompt(findingsJSON: string, item: ReviewItem, persona: string): PromptPair` — system prompt uses existing `buildSystemPrompt(persona)`, user prompt contains condensed PR metadata (file list with stats, NO diffs) + Pass 1 findings JSON + enrichment instructions (add educational fields, generate prose, preserve all findings) (SDD 3.3)
-  - **AC**: AC-2, AC-3, AC-4
-
-- [x] **Task 1.4**: Implement two-pass flow in `reviewer.ts` → **[G-1, G-2, G-3]**
+- [ ] **Task 2.1**: Extract shared `postAndFinalize()` method in `reviewer.ts` → **[medium-1]**
   - File: `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`
-  - Add `extractFindingsJSON(content: string): string | null` — parses findings block from `<!-- bridge-findings-start/end -->` markers, strips code fences, validates JSON has `findings` array, returns JSON string or null (SDD 3.5)
-  - Add `validateFindingPreservation(pass1JSON: string, pass2JSON: string): boolean` — checks same finding count, same IDs (order-independent via Set comparison), same severities; returns false on any mismatch (SDD 3.6)
-  - Add `finishWithUnenrichedOutput(item: ReviewItem, pass1Response: ReviewResponse, findingsJSON: string): Promise<ReviewResult>` — wraps Pass 1 findings in minimal valid review format (`## Summary` + `## Findings` with markers + `## Callouts`), continues through sanitize + post path (SDD 3.7)
-  - Add `processItemTwoPass(item, effectiveItem, incrementalBanner, loaBanner): Promise<ReviewResult>` — full two-pass flow:
-    - Pass 1: build convergence prompt → progressive truncation → LLM call 1 → extract findings → save pass1 output
-    - Pass 2: build enrichment prompt → LLM call 2 → validate finding preservation → on any failure, fall back to `finishWithUnenrichedOutput()`
-    - Populate `pass1Tokens`, `pass2Tokens`, `pass1Output` on result
-  - Modify `processItem()` — add gate: `if (this.config.reviewMode === "two-pass") return this.processItemTwoPass(...)` before existing single-pass code (SDD 3.4)
-  - **AC**: AC-5, AC-6, AC-8, AC-9, AC-10
+  - Extract the repeated sanitize → recheck-guard-with-retry → dryRun → post → finalize sequence into a shared private method
+  - Signature: `private async postAndFinalize(item: ReviewItem, body: string, result: Partial<ReviewResult>): Promise<ReviewResult>`
+  - Replace the 4 copies: `finishWithUnenrichedOutput` (lines 645-698), `finishWithPass1AsReview` (lines 988-1035), `processItemTwoPass` tail (lines 910-974), and single-pass `processItem` (lines 400-492)
+  - Each caller builds its own `body` string and `result` fields, then delegates to `postAndFinalize`
+  - **AC**: AC-1, AC-2, AC-3, AC-11
 
-- [x] **Task 1.5**: Create test fixtures for pass validation → **[G-1]**
-  - Directory: `.claude/skills/bridgebuilder-review/resources/__tests__/fixtures/`
-  - Create `pass1-valid-findings.txt` — well-formed Pass 1 output with `<!-- bridge-findings-start -->` / `<!-- bridge-findings-end -->` markers containing valid findings JSON with 3 findings (CRITICAL, MEDIUM, PRAISE)
-  - Create `pass1-no-markers.txt` — prose-only Pass 1 output without bridge-findings markers (should cause fallback)
-  - Create `pass2-enriched-valid.txt` — valid combined enriched output with `## Summary`, enriched findings JSON (same 3 IDs + educational fields), `## Findings`, `## Callouts`
-  - Create `pass2-finding-added.txt` — Pass 2 output with 4 findings (one extra) — should fail preservation check
-  - Create `pass2-severity-changed.txt` — Pass 2 output with same 3 IDs but one severity changed from MEDIUM to HIGH — should fail preservation check
-  - **AC**: AC-6, AC-9
+- [ ] **Task 2.2**: Add category preservation to `validateFindingPreservation()` → **[medium-2]**
+  - File: `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`
+  - After the severity check loop (line 604), add: `if (f2.category !== f1.category) return false;`
+  - Create new test fixture: `pass2-category-changed.md` — same 3 findings as pass1-valid-findings.json but with F003 category changed from "test-coverage" to "quality"
+  - Add test: `validateFindingPreservation rejects category reclassification`
+  - **AC**: AC-4, AC-5, AC-11
 
-- [x] **Task 1.6**: Add unit and integration tests for two-pass pipeline → **[G-1, G-2, G-3]**
-  - Files: `.claude/skills/bridgebuilder-review/resources/__tests__/reviewer.test.ts`, `template.test.ts`, `config.test.ts`
-  - **reviewer.test.ts** additions:
-    - Test: two-pass mode calls LLM twice (mock LLM tracks call count)
-    - Test: single-pass mode calls LLM once (config `reviewMode: "single-pass"`)
-    - Test: `extractFindingsJSON()` parses valid findings block from fixture
-    - Test: `extractFindingsJSON()` returns null for missing markers
-    - Test: `extractFindingsJSON()` returns null for invalid JSON
-    - Test: `validateFindingPreservation()` passes when only enrichment fields added
-    - Test: `validateFindingPreservation()` fails on count mismatch
-    - Test: `validateFindingPreservation()` fails on ID change
-    - Test: `validateFindingPreservation()` fails on severity reclassification
-    - Test: Pass 2 LLM failure falls back to unenriched output (mock LLM throws on second call)
-    - Test: Pass 2 finding modification falls back to unenriched output
-    - Test: fallback output passes `isValidResponse()` check
-    - Test: `ReviewResult` includes `pass1Tokens` and `pass2Tokens` in two-pass mode
-  - **template.test.ts** additions:
-    - Test: `buildConvergenceSystemPrompt()` contains INJECTION_HARDENING
-    - Test: `buildConvergenceSystemPrompt()` does NOT contain persona text
-    - Test: `buildConvergenceUserPrompt()` includes file diffs
-    - Test: `buildConvergenceUserPrompt()` requests findings JSON output format only
-    - Test: `buildEnrichmentPrompt()` includes persona in system prompt
-    - Test: `buildEnrichmentPrompt()` includes findings JSON in user prompt
-    - Test: `buildEnrichmentPrompt()` includes file list but NOT file diffs/patches
-    - Test: `buildEnrichmentPrompt()` instructs not to add/remove/reclassify findings
-  - **config.test.ts** additions:
-    - Test: default `reviewMode` is `"two-pass"`
-    - Test: CLI `--review-mode single-pass` overrides default
-    - Test: env `LOA_BRIDGE_REVIEW_MODE` overrides default
-    - Test: YAML `review_mode: single-pass` overrides default
-    - Test: CLI takes precedence over env and YAML
-  - Run full test suite to confirm zero regressions
-  - **AC**: AC-1 through AC-12
+- [ ] **Task 2.3**: Consolidate convergence user prompt methods in `template.ts` → **[medium-3]**
+  - File: `.claude/skills/bridgebuilder-review/resources/core/template.ts`
+  - Extract shared rendering logic into private helpers:
+    - `private renderPRMetadata(item: ReviewItem): string[]` — PR header, labels, etc.
+    - `private renderExcludedFiles(excluded: Array<{filename: string; stats: string}>): string[]`
+    - `private renderConvergenceFormat(): string[]` — the "Expected Response Format" section
+  - Refactor `buildConvergenceUserPrompt()` and `buildConvergenceUserPromptFromTruncation()` to use shared helpers
+  - Only the file iteration differs (TruncationResult.included vs ProgressiveTruncationResult.files)
+  - **AC**: AC-6, AC-11
 
-### Task 1.E2E: End-to-End Goal Validation
+- [ ] **Task 2.4**: Return `{ raw, parsed }` from `extractFindingsJSON()` → **[low-1]**
+  - File: `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`
+  - Change return type from `string | null` to `{ raw: string; parsed: { findings: Array<{ id: string; severity: string; category: string; [key: string]: unknown }> } } | null`
+  - Return `{ raw: jsonStr, parsed }` instead of discarding the parsed object
+  - Update both callers in `processItemTwoPass()` to use `.raw` for string operations and `.parsed` for validation
+  - Update `validateFindingPreservation()` to accept parsed objects directly instead of re-parsing
+  - **AC**: AC-7, AC-8, AC-11
 
-- [x] Verify G-1 (finding quality): Two-pass convergence prompt allocates full cognitive budget to analysis — system prompt contains analytical instructions only, no persona or enrichment objectives
-- [x] Verify G-2 (enrichment quality): Enrichment prompt receives dedicated persona context with findings pre-identified — persona in system prompt, findings JSON + condensed metadata in user prompt
-- [x] Verify G-3 (output compatibility): Combined output passes `isValidResponse()`, parseable by `bridge-findings-parser.sh`, contains `## Summary` + `## Findings`
-- [x] Verify G-4 (architecture preservation): No changes to findings parser, GitHub trail, convergence scorer, persona file, or any downstream consumer
-- [x] Run full existing test suite — zero regressions
+- [ ] **Task 2.5**: Fix Pass 2 missing markers fallback → **[low-2]**
+  - File: `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`
+  - At lines 876-888: when `pass2FindingsJSON` is null (markers missing or malformed), explicitly fall back to unenriched output BEFORE the `isValidResponse` check
+  - Logic: if `extractFindingsJSON(pass2Response.content)` returns null → `this.finishWithUnenrichedOutput(...)` (because Pass 2 lost the structured findings)
+  - Add test: Pass 2 produces valid prose (has ## Summary + ## Findings) but no `<!-- bridge-findings-start/end -->` markers → system falls back to unenriched output
+  - **AC**: AC-9, AC-11
+
+- [ ] **Task 2.6**: Wire test fixtures to test suite → **[low-3]**
+  - Files: `.claude/skills/bridgebuilder-review/resources/__tests__/reviewer.test.ts`, fixture files
+  - Add fixture-loading tests that read from disk:
+    - Load `pass1-valid-findings.json` → verify `extractFindingsJSON()` parses correctly
+    - Load `pass2-enriched-valid.md` → verify `extractFindingsJSON()` extracts enriched findings
+    - Load `pass2-findings-added.md` → verify `validateFindingPreservation()` returns false
+    - Load `pass2-severity-changed.md` → verify `validateFindingPreservation()` returns false
+    - Load `pass1-malformed.txt` → verify `extractFindingsJSON()` returns null
+  - Use `import { readFileSync } from 'fs'` and `import { join } from 'path'`
+  - **AC**: AC-10, AC-11
+
+### Task 2.E2E: End-to-End Goal Validation
+
+- [ ] Run full test suite — all 164+ existing tests pass, new tests pass
+- [ ] Verify `processItem` single-pass path still works end-to-end (delegating to `postAndFinalize`)
+- [ ] Verify `processItemTwoPass` happy path still works (delegating to `postAndFinalize`)
+- [ ] Verify fallback paths: Pass 2 failure, finding modification, missing markers all fall back correctly
 
 ### Dependencies
 
-- Task 1.1 (types) blocks Task 1.2 (config) and Task 1.4 (reviewer) — type definitions needed first
-- Task 1.3 (template) blocks Task 1.4 (reviewer) — prompt builders consumed by processItemTwoPass
-- Task 1.5 (fixtures) blocks Task 1.6 (tests) — test data needed before test code
-- Task 1.4 (reviewer) blocks Task 1.6 (tests) — implementation under test
+- Task 2.1 (postAndFinalize) should be done first — it touches the most code
+- Task 2.4 (extractFindingsJSON return type) should be done before Task 2.5 (fallback fix) — parsed result used in fallback logic
+- Task 2.2 (category preservation) and Task 2.3 (template consolidation) are independent
+- Task 2.6 (fixture wiring) depends on Task 2.2 (new fixture) and Task 2.4 (return type change)
 
 ### Risks & Mitigation
 
 | Risk | Mitigation |
 |------|-----------|
-| Pass 2 LLM adds/removes findings despite instructions | `validateFindingPreservation()` guard with automatic fallback to Pass 1 output (SDD 3.6) |
-| Two-pass mode subtly changes output format | Integration test comparing structure against `isValidResponse()` + findings parser (AC-8, AC-9) |
-| Config precedence regression | Existing config tests remain unchanged; new tests cover `reviewMode` at all 4 resolution levels (AC-12) |
-| Existing tests break from type changes | `reviewMode` has default value in DEFAULTS; `pass1Tokens`/`pass2Tokens`/`pass1Output` are optional fields (AC-12) |
-
-### Success Metrics
-
-- All existing tests pass with zero modification
-- 13 new reviewer tests + 8 new template tests + 5 new config tests = 26 new test cases
-- Combined output parseable by `bridge-findings-parser.sh`
-
----
-
-## Appendix A: Task Dependencies
-
-```
-Task 1.1 (types) ──┬──→ Task 1.2 (config)
-                    │
-                    └──→ Task 1.4 (reviewer)
-                              ↑
-Task 1.3 (template) ─────────┘
-                              │
-Task 1.5 (fixtures) ──→ Task 1.6 (tests)
-                              ↑
-                    Task 1.4 ─┘
-```
-
-## Appendix B: File Change Map
-
-| File | Change | Lines (est.) |
-|------|--------|-------------|
-| `resources/core/types.ts` | Add fields to 2 interfaces | +15 |
-| `resources/config.ts` | Add reviewMode resolution | +30 |
-| `resources/core/template.ts` | Add 4 new methods + 1 constant | +120 |
-| `resources/core/reviewer.ts` | Add 4 new methods + gate in processItem | +180 |
-| `resources/__tests__/fixtures/` | 5 new test fixture files | +100 |
-| `resources/__tests__/reviewer.test.ts` | 13 new test cases | +200 |
-| `resources/__tests__/template.test.ts` | 8 new test cases | +120 |
-| `resources/__tests__/config.test.ts` | 5 new test cases | +60 |
-| **Total** | | **~825 lines** |
-
-## Appendix C: Goal Traceability
-
-| Goal ID | Goal (from PRD Section 2) | Contributing Tasks |
-|---------|---------------------------|--------------------|
-| G-1 | Improve finding quality — more precise severity classification, fewer false positives, deeper code analysis | 1.1, 1.3, 1.4, 1.5, 1.6, 1.E2E |
-| G-2 | Improve enrichment quality — richer FAANG parallels, more specific metaphors, deeper teachable moments | 1.3, 1.4, 1.6, 1.E2E |
-| G-3 | Maintain output compatibility — combined output identical to current format | 1.1, 1.2, 1.4, 1.6, 1.E2E |
-| G-4 | Preserve existing architecture — no changes to findings parser, GitHub trail, convergence scorer | 1.E2E |
+| `postAndFinalize` extraction breaks subtle behavior differences | Each caller currently has identical post-processing; verify with existing test suite |
+| Category preservation breaks existing tests | Existing fixtures don't test categories; only new fixture exercises this path |
+| Template helper extraction changes prompt output | Compare rendered prompts before/after with snapshot tests |
+| `extractFindingsJSON` return type change cascades | Only 2 callers exist in `processItemTwoPass`; update both simultaneously |

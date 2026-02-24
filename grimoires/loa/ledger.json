@@ -103,8 +103,7 @@
           "status": "completed"
         }
       ]
-    }
-    ,
+    },
     {
       "id": "cycle-039",
       "label": "Two-Pass Bridge Review — Decouple Convergence from Enrichment",
@@ -118,9 +117,15 @@
           "global_id": 63,
           "label": "Two-Pass Bridge Review Pipeline",
           "status": "completed"
+        },
+        {
+          "local_id": 2,
+          "global_id": 64,
+          "label": "Excellence Hardening — Bridge Iteration 2",
+          "status": "in_progress"
         }
       ]
     }
   ],
-  "global_sprint_counter": 63
+  "global_sprint_counter": 64
 }

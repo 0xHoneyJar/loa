@@ -1,5 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { ReviewPipeline } from "../core/reviewer.js";
 import { PRReviewTemplate } from "../core/template.js";
 import { BridgebuilderContext } from "../core/context.js";
@@ -960,6 +963,212 @@ describe("ReviewPipeline", () => {
       assert.ok(postedBody.includes("## Summary"), "Enriched output should have Summary");
       assert.ok(postedBody.includes("## Findings"), "Enriched output should have Findings");
       assert.ok(!postedBody.includes("Enrichment unavailable"), "Should NOT be the fallback");
+    });
+
+    it("falls back when Pass 2 reclassifies category", async () => {
+      let callCount = 0;
+      const categoryChangedContent = [
+        "## Summary", "", "Review.", "",
+        "## Findings", "",
+        "<!-- bridge-findings-start -->",
+        "```json",
+        JSON.stringify({
+          schema_version: 1,
+          findings: [
+            { id: "F001", title: "Issue", severity: "HIGH", category: "correctness", file: "src/app.ts:1", description: "d", suggestion: "s" },
+            { id: "F002", title: "Good", severity: "PRAISE", category: "quality", file: "src/app.ts:5", description: "d", suggestion: "s" },
+          ],
+        }),
+        "```",
+        "<!-- bridge-findings-end -->",
+        "", "## Callouts", "", "- Ok.",
+      ].join("\n");
+
+      let postedBody = "";
+      const pipeline = buildPipeline({
+        config: { reviewMode: "two-pass" },
+        llm: {
+          generateReview: async () => {
+            callCount++;
+            if (callCount === 1) {
+              return { content: VALID_PASS1_CONTENT, inputTokens: 500, outputTokens: 200, model: "test" };
+            }
+            return { content: categoryChangedContent, inputTokens: 100, outputTokens: 300, model: "test" };
+          },
+        },
+        poster: {
+          postReview: async (input) => { postedBody = input.body; return true; },
+        },
+      });
+      const summary = await pipeline.run("run-cat-change");
+      assert.equal(summary.reviewed, 1);
+      assert.ok(postedBody.includes("Enrichment unavailable"), "Should fall back when category reclassified");
+    });
+
+    it("falls back when Pass 2 has valid prose but no findings markers", async () => {
+      let callCount = 0;
+      const noMarkersContent = [
+        "## Summary",
+        "",
+        "This is a valid-looking review with proper headings.",
+        "",
+        "## Findings",
+        "",
+        "Here are the findings in prose form without any JSON markers.",
+        "- F001: Some issue was found",
+        "- F002: Some good thing was found",
+        "",
+        "## Callouts",
+        "",
+        "- Good architecture overall.",
+      ].join("\n");
+
+      let postedBody = "";
+      const pipeline = buildPipeline({
+        config: { reviewMode: "two-pass" },
+        llm: {
+          generateReview: async () => {
+            callCount++;
+            if (callCount === 1) {
+              return { content: VALID_PASS1_CONTENT, inputTokens: 500, outputTokens: 200, model: "test" };
+            }
+            return { content: noMarkersContent, inputTokens: 100, outputTokens: 300, model: "test" };
+          },
+        },
+        poster: {
+          postReview: async (input) => { postedBody = input.body; return true; },
+        },
+      });
+      const summary = await pipeline.run("run-no-markers");
+      assert.equal(summary.reviewed, 1);
+      assert.ok(postedBody.includes("Enrichment unavailable"), "Should fall back when findings markers missing from Pass 2");
+      assert.ok(postedBody.includes("bridge-findings-start"), "Fallback should preserve structured findings from Pass 1");
+    });
+  });
+
+  describe("fixture-based tests", () => {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const fixturesDir = join(__dirname, "fixtures");
+
+    it("extractFindingsJSON parses pass1-valid-findings.json fixture", async () => {
+      const fixtureContent = readFileSync(join(fixturesDir, "pass1-valid-findings.json"), "utf-8");
+      // Use a two-pass pipeline to exercise extractFindingsJSON via the public flow
+      let callCount = 0;
+      const pipeline = buildPipeline({
+        config: { reviewMode: "two-pass" },
+        llm: {
+          generateReview: async () => {
+            callCount++;
+            if (callCount === 1) {
+              return { content: fixtureContent, inputTokens: 500, outputTokens: 200, model: "test" };
+            }
+            // Return valid enriched version of the fixture
+            const enriched = [
+              "## Summary", "", "Enriched review.", "",
+              "## Findings", "", fixtureContent, "",
+              "## Callouts", "", "- Good.",
+            ].join("\n");
+            return { content: enriched, inputTokens: 100, outputTokens: 300, model: "test" };
+          },
+        },
+      });
+      const summary = await pipeline.run("run-fixture-p1");
+      // Should successfully extract and process — not skip
+      assert.equal(summary.reviewed, 1);
+    });
+
+    it("extractFindingsJSON returns null for pass1-malformed.txt fixture", async () => {
+      const fixtureContent = readFileSync(join(fixturesDir, "pass1-malformed.txt"), "utf-8");
+      const pipeline = buildPipeline({
+        config: { reviewMode: "two-pass" },
+        llm: {
+          generateReview: async () => ({
+            content: fixtureContent,
+            inputTokens: 100,
+            outputTokens: 50,
+            model: "test",
+          }),
+        },
+      });
+      const summary = await pipeline.run("run-fixture-malformed");
+      // Malformed content should result in skip (no valid findings and no valid response)
+      assert.equal(summary.skipped, 1);
+    });
+
+    it("validateFindingPreservation rejects pass2-findings-added.md fixture", async () => {
+      const pass1Content = readFileSync(join(fixturesDir, "pass1-valid-findings.json"), "utf-8");
+      const pass2Content = readFileSync(join(fixturesDir, "pass2-findings-added.md"), "utf-8");
+      let callCount = 0;
+      let postedBody = "";
+      const pipeline = buildPipeline({
+        config: { reviewMode: "two-pass" },
+        llm: {
+          generateReview: async () => {
+            callCount++;
+            if (callCount === 1) {
+              return { content: pass1Content, inputTokens: 500, outputTokens: 200, model: "test" };
+            }
+            return { content: pass2Content, inputTokens: 100, outputTokens: 300, model: "test" };
+          },
+        },
+        poster: {
+          postReview: async (input) => { postedBody = input.body; return true; },
+        },
+      });
+      const summary = await pipeline.run("run-fixture-added");
+      assert.equal(summary.reviewed, 1);
+      assert.ok(postedBody.includes("Enrichment unavailable"), "Should fall back when Pass 2 adds findings");
+    });
+
+    it("validateFindingPreservation rejects pass2-severity-changed.md fixture", async () => {
+      const pass1Content = readFileSync(join(fixturesDir, "pass1-valid-findings.json"), "utf-8");
+      const pass2Content = readFileSync(join(fixturesDir, "pass2-severity-changed.md"), "utf-8");
+      let callCount = 0;
+      let postedBody = "";
+      const pipeline = buildPipeline({
+        config: { reviewMode: "two-pass" },
+        llm: {
+          generateReview: async () => {
+            callCount++;
+            if (callCount === 1) {
+              return { content: pass1Content, inputTokens: 500, outputTokens: 200, model: "test" };
+            }
+            return { content: pass2Content, inputTokens: 100, outputTokens: 300, model: "test" };
+          },
+        },
+        poster: {
+          postReview: async (input) => { postedBody = input.body; return true; },
+        },
+      });
+      const summary = await pipeline.run("run-fixture-severity");
+      assert.equal(summary.reviewed, 1);
+      assert.ok(postedBody.includes("Enrichment unavailable"), "Should fall back when Pass 2 changes severity");
+    });
+
+    it("validateFindingPreservation rejects pass2-category-changed.md fixture", async () => {
+      const pass1Content = readFileSync(join(fixturesDir, "pass1-valid-findings.json"), "utf-8");
+      const pass2Content = readFileSync(join(fixturesDir, "pass2-category-changed.md"), "utf-8");
+      let callCount = 0;
+      let postedBody = "";
+      const pipeline = buildPipeline({
+        config: { reviewMode: "two-pass" },
+        llm: {
+          generateReview: async () => {
+            callCount++;
+            if (callCount === 1) {
+              return { content: pass1Content, inputTokens: 500, outputTokens: 200, model: "test" };
+            }
+            return { content: pass2Content, inputTokens: 100, outputTokens: 300, model: "test" };
+          },
+        },
+        poster: {
+          postReview: async (input) => { postedBody = input.body; return true; },
+        },
+      });
+      const summary = await pipeline.run("run-fixture-category");
+      assert.equal(summary.reviewed, 1);
+      assert.ok(postedBody.includes("Enrichment unavailable"), "Should fall back when Pass 2 changes category");
     });
   });
 });

@@ -208,6 +208,57 @@ export class PRReviewTemplate {
   }
 
   /**
+   * Render PR metadata header lines (shared between convergence prompt variants).
+   */
+  private renderPRMetadata(item: ReviewItem): string[] {
+    const { owner, repo, pr } = item;
+    const lines: string[] = [];
+    lines.push(`## Pull Request: ${owner}/${repo}#${pr.number}`);
+    lines.push(`**Title**: ${pr.title}`);
+    lines.push(`**Author**: ${pr.author}`);
+    lines.push(`**Base**: ${pr.baseBranch}`);
+    lines.push(`**Head SHA**: ${pr.headSha}`);
+    if (pr.labels.length > 0) {
+      lines.push(`**Labels**: ${pr.labels.join(", ")}`);
+    }
+    lines.push("");
+    return lines;
+  }
+
+  /**
+   * Render excluded files with stats (shared between prompt variants).
+   */
+  private renderExcludedFiles(excluded: Array<{ filename: string; stats: string }>): string[] {
+    const lines: string[] = [];
+    for (const entry of excluded) {
+      lines.push(`### ${entry.filename} [TRUNCATED]`);
+      lines.push(entry.stats);
+      lines.push("");
+    }
+    return lines;
+  }
+
+  /**
+   * Render convergence-specific "Expected Response Format" section.
+   */
+  private renderConvergenceFormat(): string[] {
+    return [
+      "## Expected Response Format",
+      "",
+      "Output ONLY the following structure:",
+      "",
+      "<!-- bridge-findings-start -->",
+      "```json",
+      '{ "schema_version": 1, "findings": [...] }',
+      "```",
+      "<!-- bridge-findings-end -->",
+      "",
+      "Each finding: { id, title, severity, category, file, description, suggestion }",
+      "Severity values: CRITICAL, HIGH, MEDIUM, LOW, PRAISE, SPECULATION, REFRAME",
+    ];
+  }
+
+  /**
    * Build convergence user prompt: PR metadata + diffs + findings-only format instructions.
    * Reuses the existing PR metadata/diff rendering but replaces the output format section (SDD 3.2).
    */
@@ -215,7 +266,6 @@ export class PRReviewTemplate {
     item: ReviewItem,
     truncated: TruncationResult,
   ): string {
-    const { owner, repo, pr } = item;
     const lines: string[] = [];
 
     if (truncated.loaBanner) {
@@ -228,15 +278,7 @@ export class PRReviewTemplate {
       lines.push("");
     }
 
-    lines.push(`## Pull Request: ${owner}/${repo}#${pr.number}`);
-    lines.push(`**Title**: ${pr.title}`);
-    lines.push(`**Author**: ${pr.author}`);
-    lines.push(`**Base**: ${pr.baseBranch}`);
-    lines.push(`**Head SHA**: ${pr.headSha}`);
-    if (pr.labels.length > 0) {
-      lines.push(`**Labels**: ${pr.labels.join(", ")}`);
-    }
-    lines.push("");
+    lines.push(...this.renderPRMetadata(item));
 
     const totalFiles = truncated.included.length + truncated.excluded.length;
     lines.push(`## Files Changed (${totalFiles} files)`);
@@ -246,24 +288,8 @@ export class PRReviewTemplate {
       lines.push(this.formatIncludedFile(file));
     }
 
-    for (const entry of truncated.excluded) {
-      lines.push(`### ${entry.filename} [TRUNCATED]`);
-      lines.push(entry.stats);
-      lines.push("");
-    }
-
-    lines.push("## Expected Response Format");
-    lines.push("");
-    lines.push("Output ONLY the following structure:");
-    lines.push("");
-    lines.push("<!-- bridge-findings-start -->");
-    lines.push("```json");
-    lines.push('{ "schema_version": 1, "findings": [...] }');
-    lines.push("```");
-    lines.push("<!-- bridge-findings-end -->");
-    lines.push("");
-    lines.push("Each finding: { id, title, severity, category, file, description, suggestion }");
-    lines.push("Severity values: CRITICAL, HIGH, MEDIUM, LOW, PRAISE, SPECULATION, REFRAME");
+    lines.push(...this.renderExcludedFiles(truncated.excluded));
+    lines.push(...this.renderConvergenceFormat());
 
     return lines.join("\n");
   }
@@ -276,7 +302,6 @@ export class PRReviewTemplate {
     truncResult: ProgressiveTruncationResult,
     loaBanner?: string,
   ): string {
-    const { owner, repo, pr } = item;
     const lines: string[] = [];
 
     if (loaBanner) {
@@ -288,15 +313,7 @@ export class PRReviewTemplate {
       lines.push("");
     }
 
-    lines.push(`## Pull Request: ${owner}/${repo}#${pr.number}`);
-    lines.push(`**Title**: ${pr.title}`);
-    lines.push(`**Author**: ${pr.author}`);
-    lines.push(`**Base**: ${pr.baseBranch}`);
-    lines.push(`**Head SHA**: ${pr.headSha}`);
-    if (pr.labels.length > 0) {
-      lines.push(`**Labels**: ${pr.labels.join(", ")}`);
-    }
-    lines.push("");
+    lines.push(...this.renderPRMetadata(item));
 
     const totalFiles = truncResult.files.length + truncResult.excluded.length;
     lines.push(`## Files Changed (${totalFiles} files)`);
@@ -306,24 +323,8 @@ export class PRReviewTemplate {
       lines.push(this.formatIncludedFile(file));
     }
 
-    for (const entry of truncResult.excluded) {
-      lines.push(`### ${entry.filename} [TRUNCATED]`);
-      lines.push(entry.stats);
-      lines.push("");
-    }
-
-    lines.push("## Expected Response Format");
-    lines.push("");
-    lines.push("Output ONLY the following structure:");
-    lines.push("");
-    lines.push("<!-- bridge-findings-start -->");
-    lines.push("```json");
-    lines.push('{ "schema_version": 1, "findings": [...] }');
-    lines.push("```");
-    lines.push("<!-- bridge-findings-end -->");
-    lines.push("");
-    lines.push("Each finding: { id, title, severity, category, file, description, suggestion }");
-    lines.push("Severity values: CRITICAL, HIGH, MEDIUM, LOW, PRAISE, SPECULATION, REFRAME");
+    lines.push(...this.renderExcludedFiles(truncResult.excluded));
+    lines.push(...this.renderConvergenceFormat());
 
     return lines.join("\n");
   }

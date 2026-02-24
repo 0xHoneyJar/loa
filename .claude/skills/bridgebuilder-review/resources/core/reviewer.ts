@@ -397,100 +397,11 @@ export class ReviewPipeline {
         return this.skipResult(item, "invalid_llm_response");
       }
 
-      // Step 8: Sanitize output
-      const sanitized = this.sanitizer.sanitize(response.content);
-
-      if (!sanitized.safe && this.config.sanitizerMode === "strict") {
-        this.logger.error("Sanitizer blocked review in strict mode", {
-          owner,
-          repo,
-          pr: pr.number,
-          redactions: sanitized.redactedPatterns?.length ?? 0,
-        });
-        return this.errorResult(
-          item,
-          makeError(
-            "E_SANITIZER_BLOCKED",
-            "Review blocked by sanitizer in strict mode",
-            "sanitizer",
-            "permanent",
-            false,
-          ),
-        );
-      }
-
-      if (!sanitized.safe) {
-        this.logger.warn("Sanitizer redacted content", {
-          owner,
-          repo,
-          pr: pr.number,
-          redactions: sanitized.redactedPatterns?.length ?? 0,
-        });
-      }
-
-      // Marker is appended by the poster adapter — do not duplicate here
-      const body = sanitized.sanitizedContent;
-      const event = classifyEvent(sanitized.sanitizedContent);
-
-      // Step 9a: Re-check guard (race condition mitigation) with retry
-      let recheck = false;
-      try {
-        recheck = await this.poster.hasExistingReview(owner, repo, pr.number, pr.headSha);
-      } catch {
-        // Retry once — this is the last gate before posting
-        try {
-          recheck = await this.poster.hasExistingReview(owner, repo, pr.number, pr.headSha);
-        } catch {
-          // Both attempts failed — conservative: skip to avoid duplicate
-          return this.skipResult(item, "recheck_failed");
-        }
-      }
-      if (recheck) {
-        return this.skipResult(item, "already_reviewed_recheck");
-      }
-
-      // Step 9b: Post review (or dry-run)
-      if (this.config.dryRun) {
-        this.logger.info("Dry run — review not posted", {
-          owner,
-          repo,
-          pr: pr.number,
-          event,
-          bodyLength: body.length,
-        });
-      } else {
-        await this.poster.postReview({
-          owner,
-          repo,
-          prNumber: pr.number,
-          headSha: pr.headSha,
-          body,
-          event,
-        });
-      }
-
-      // Finalize context
-      const result: ReviewResult = {
-        item,
-        posted: !this.config.dryRun,
-        skipped: false,
-        inputTokens: response.inputTokens,
-        outputTokens: response.outputTokens,
-      };
-
-      await this.context.finalizeReview(item, result);
-
-      this.logger.info("Review complete", {
-        owner,
-        repo,
-        pr: pr.number,
-        event,
-        posted: result.posted,
+      // Steps 8-9: Shared post-processing (sanitize → recheck → post → finalize)
+      return this.postAndFinalize(item, response.content, {
         inputTokens: response.inputTokens,
         outputTokens: response.outputTokens,
       });
-
-      return result;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       const reviewError = this.classifyError(err, message);
@@ -546,10 +457,77 @@ export class ReviewPipeline {
   }
 
   /**
-   * Extract findings JSON from content enclosed in bridge-findings markers (SDD 3.5).
-   * Returns the raw JSON string or null if markers/JSON are missing or malformed.
+   * Shared post-processing: sanitize → recheck guard (with retry) → dry-run gate → post → finalize.
+   * All review completion paths delegate here to avoid duplication (medium-1).
    */
-  private extractFindingsJSON(content: string): string | null {
+  private async postAndFinalize(
+    item: ReviewItem,
+    body: string,
+    resultFields: Omit<ReviewResult, "item" | "posted" | "skipped">,
+  ): Promise<ReviewResult> {
+    const { owner, repo, pr } = item;
+
+    const sanitized = this.sanitizer.sanitize(body);
+
+    if (!sanitized.safe && this.config.sanitizerMode === "strict") {
+      return this.errorResult(
+        item,
+        makeError("E_SANITIZER_BLOCKED", "Review blocked by sanitizer in strict mode", "sanitizer", "permanent", false),
+      );
+    }
+
+    if (!sanitized.safe) {
+      this.logger.warn("Sanitizer redacted content", {
+        owner, repo, pr: pr.number,
+        redactions: sanitized.redactedPatterns?.length ?? 0,
+      });
+    }
+
+    const sanitizedBody = sanitized.sanitizedContent;
+    const event = classifyEvent(sanitizedBody);
+
+    // Re-check guard (race condition mitigation) with retry
+    let recheck = false;
+    try {
+      recheck = await this.poster.hasExistingReview(owner, repo, pr.number, pr.headSha);
+    } catch {
+      try {
+        recheck = await this.poster.hasExistingReview(owner, repo, pr.number, pr.headSha);
+      } catch {
+        return this.skipResult(item, "recheck_failed");
+      }
+    }
+    if (recheck) {
+      return this.skipResult(item, "already_reviewed_recheck");
+    }
+
+    if (this.config.dryRun) {
+      this.logger.info("Dry run — review not posted", {
+        owner, repo, pr: pr.number, event, bodyLength: sanitizedBody.length,
+      });
+    } else {
+      await this.poster.postReview({
+        owner, repo, prNumber: pr.number, headSha: pr.headSha,
+        body: sanitizedBody, event,
+      });
+    }
+
+    const result: ReviewResult = {
+      item,
+      posted: !this.config.dryRun,
+      skipped: false,
+      ...resultFields,
+    };
+
+    await this.context.finalizeReview(item, result);
+    return result;
+  }
+
+  /**
+   * Extract findings JSON from content enclosed in bridge-findings markers (SDD 3.5).
+   * Returns { raw, parsed } or null if markers/JSON are missing or malformed.
+   */
+  private extractFindingsJSON(content: string): { raw: string; parsed: { findings: Array<{ id: string; severity: string; category: string; [key: string]: unknown }> } } | null {
     const startMarker = "<!-- bridge-findings-start -->";
     const endMarker = "<!-- bridge-findings-end -->";
 
@@ -570,7 +548,7 @@ export class ReviewPipeline {
       if (!parsed.findings || !Array.isArray(parsed.findings)) {
         return null;
       }
-      return jsonStr;
+      return { raw: jsonStr, parsed };
     } catch {
       return null;
     }
@@ -578,30 +556,28 @@ export class ReviewPipeline {
 
   /**
    * Validate that Pass 2 preserved all findings from Pass 1 (SDD 3.6, FR-2.4).
-   * Checks: same count, same IDs, same severities.
+   * Checks: same count, same IDs, same severities, same categories.
    */
   private validateFindingPreservation(
-    pass1JSON: string,
-    pass2JSON: string,
+    pass1Findings: { findings: Array<{ id: string; severity: string; category: string; [key: string]: unknown }> },
+    pass2Findings: { findings: Array<{ id: string; severity: string; category: string; [key: string]: unknown }> },
   ): boolean {
     try {
-      const pass1 = JSON.parse(pass1JSON);
-      const pass2 = JSON.parse(pass2JSON);
-
-      if (pass1.findings.length !== pass2.findings.length) {
+      if (pass1Findings.findings.length !== pass2Findings.findings.length) {
         return false;
       }
 
-      const pass1Ids = new Set(pass1.findings.map((f: { id: string }) => f.id));
-      const pass2Ids = new Set(pass2.findings.map((f: { id: string }) => f.id));
+      const pass1Ids = new Set(pass1Findings.findings.map((f) => f.id));
+      const pass2Ids = new Set(pass2Findings.findings.map((f) => f.id));
       if (pass1Ids.size !== pass2Ids.size) return false;
       for (const id of pass1Ids) {
         if (!pass2Ids.has(id)) return false;
       }
 
-      for (const f1 of pass1.findings) {
-        const f2 = pass2.findings.find((f: { id: string }) => f.id === f1.id);
+      for (const f1 of pass1Findings.findings) {
+        const f2 = pass2Findings.findings.find((f) => f.id === f1.id);
         if (!f2 || f2.severity !== f1.severity) return false;
+        if (f2.category !== f1.category) return false;
       }
 
       return true;
@@ -642,60 +618,12 @@ export class ReviewPipeline {
       "_Enrichment unavailable for this review._",
     ].join("\n");
 
-    const sanitized = this.sanitizer.sanitize(body);
-    const event = classifyEvent(sanitized.sanitizedContent);
-
-    if (!sanitized.safe && this.config.sanitizerMode === "strict") {
-      return this.errorResult(
-        item,
-        makeError(
-          "E_SANITIZER_BLOCKED",
-          "Review blocked by sanitizer in strict mode",
-          "sanitizer",
-          "permanent",
-          false,
-        ),
-      );
-    }
-
-    // Re-check guard
-    let recheck = false;
-    try {
-      recheck = await this.poster.hasExistingReview(owner, repo, pr.number, pr.headSha);
-    } catch {
-      try {
-        recheck = await this.poster.hasExistingReview(owner, repo, pr.number, pr.headSha);
-      } catch {
-        return this.skipResult(item, "recheck_failed");
-      }
-    }
-    if (recheck) {
-      return this.skipResult(item, "already_reviewed_recheck");
-    }
-
-    if (this.config.dryRun) {
-      this.logger.info("Dry run — unenriched review not posted", {
-        owner, repo, pr: pr.number, event, bodyLength: body.length,
-      });
-    } else {
-      await this.poster.postReview({
-        owner, repo, prNumber: pr.number, headSha: pr.headSha,
-        body: sanitized.sanitizedContent, event,
-      });
-    }
-
-    const result: ReviewResult = {
-      item,
-      posted: !this.config.dryRun,
-      skipped: false,
+    return this.postAndFinalize(item, body, {
       inputTokens: pass1InputTokens,
       outputTokens: pass1OutputTokens,
       pass1Output: pass1Content,
       pass1Tokens: { input: pass1InputTokens, output: pass1OutputTokens, duration: pass1Duration },
-    };
-
-    await this.context.finalizeReview(item, result);
-    return result;
+    });
   }
 
   /**
@@ -819,8 +747,8 @@ export class ReviewPipeline {
     const pass1Duration = this.now() - pass1Start;
 
     // Extract findings JSON from Pass 1
-    const findingsJSON = this.extractFindingsJSON(pass1Response.content);
-    if (!findingsJSON) {
+    const pass1Extracted = this.extractFindingsJSON(pass1Response.content);
+    if (!pass1Extracted) {
       this.logger.warn("Pass 1 produced no parseable findings, falling back to single-pass validation", {
         owner, repo, pr: pr.number,
       });
@@ -830,6 +758,8 @@ export class ReviewPipeline {
       }
       return this.skipResult(item, "invalid_llm_response");
     }
+
+    const { raw: findingsJSON, parsed: pass1Parsed } = pass1Extracted;
 
     this.logger.info("Pass 1 complete", {
       owner, repo, pr: pr.number,
@@ -873,9 +803,9 @@ export class ReviewPipeline {
     const pass2Duration = this.now() - pass2Start;
 
     // FR-2.4: Validate finding preservation
-    const pass2FindingsJSON = this.extractFindingsJSON(pass2Response.content);
-    if (pass2FindingsJSON) {
-      const preserved = this.validateFindingPreservation(findingsJSON, pass2FindingsJSON);
+    const pass2Extracted = this.extractFindingsJSON(pass2Response.content);
+    if (pass2Extracted) {
+      const preserved = this.validateFindingPreservation(pass1Parsed, pass2Extracted.parsed);
       if (!preserved) {
         this.logger.warn("Pass 2 modified findings, using Pass 1 output", {
           owner, repo, pr: pr.number,
@@ -885,6 +815,15 @@ export class ReviewPipeline {
           pass1Duration, findingsJSON, pass1Response.content,
         );
       }
+    } else {
+      // Pass 2 lost the structured findings markers — fall back to preserve them
+      this.logger.warn("Pass 2 missing findings markers, using Pass 1 output", {
+        owner, repo, pr: pr.number,
+      });
+      return this.finishWithUnenrichedOutput(
+        item, pass1Response.inputTokens, pass1Response.outputTokens,
+        pass1Duration, findingsJSON, pass1Response.content,
+      );
     }
 
     // Validate combined output
@@ -906,72 +845,14 @@ export class ReviewPipeline {
       totalDuration: pass1Duration + pass2Duration,
     });
 
-    // Steps 7-9: Standard post-processing using Pass 2 enriched output
-    const sanitized = this.sanitizer.sanitize(pass2Response.content);
-
-    if (!sanitized.safe && this.config.sanitizerMode === "strict") {
-      return this.errorResult(
-        item,
-        makeError("E_SANITIZER_BLOCKED", "Review blocked by sanitizer in strict mode", "sanitizer", "permanent", false),
-      );
-    }
-
-    if (!sanitized.safe) {
-      this.logger.warn("Sanitizer redacted content", {
-        owner, repo, pr: pr.number,
-        redactions: sanitized.redactedPatterns?.length ?? 0,
-      });
-    }
-
-    const body = sanitized.sanitizedContent;
-    const event = classifyEvent(sanitized.sanitizedContent);
-
-    // Re-check guard
-    let recheck = false;
-    try {
-      recheck = await this.poster.hasExistingReview(owner, repo, pr.number, pr.headSha);
-    } catch {
-      try {
-        recheck = await this.poster.hasExistingReview(owner, repo, pr.number, pr.headSha);
-      } catch {
-        return this.skipResult(item, "recheck_failed");
-      }
-    }
-    if (recheck) {
-      return this.skipResult(item, "already_reviewed_recheck");
-    }
-
-    if (this.config.dryRun) {
-      this.logger.info("Dry run — two-pass review not posted", {
-        owner, repo, pr: pr.number, event, bodyLength: body.length,
-      });
-    } else {
-      await this.poster.postReview({
-        owner, repo, prNumber: pr.number, headSha: pr.headSha, body, event,
-      });
-    }
-
-    const result: ReviewResult = {
-      item,
-      posted: !this.config.dryRun,
-      skipped: false,
+    // Steps 7-9: Shared post-processing (sanitize → recheck → post → finalize)
+    return this.postAndFinalize(item, pass2Response.content, {
       inputTokens: pass1Response.inputTokens + pass2Response.inputTokens,
       outputTokens: pass1Response.outputTokens + pass2Response.outputTokens,
       pass1Output: pass1Response.content,
       pass1Tokens: { input: pass1Response.inputTokens, output: pass1Response.outputTokens, duration: pass1Duration },
       pass2Tokens: { input: pass2Response.inputTokens, output: pass2Response.outputTokens, duration: pass2Duration },
-    };
-
-    await this.context.finalizeReview(item, result);
-
-    this.logger.info("Two-pass review complete", {
-      owner, repo, pr: pr.number, event,
-      posted: result.posted,
-      pass1Tokens: result.pass1Tokens,
-      pass2Tokens: result.pass2Tokens,
     });
-
-    return result;
   }
 
   /**
@@ -983,56 +864,12 @@ export class ReviewPipeline {
     pass1Response: { content: string; inputTokens: number; outputTokens: number },
     pass1Duration: number,
   ): Promise<ReviewResult> {
-    const { owner, repo, pr } = item;
-
-    const sanitized = this.sanitizer.sanitize(pass1Response.content);
-
-    if (!sanitized.safe && this.config.sanitizerMode === "strict") {
-      return this.errorResult(
-        item,
-        makeError("E_SANITIZER_BLOCKED", "Review blocked by sanitizer in strict mode", "sanitizer", "permanent", false),
-      );
-    }
-
-    const body = sanitized.sanitizedContent;
-    const event = classifyEvent(body);
-
-    let recheck = false;
-    try {
-      recheck = await this.poster.hasExistingReview(owner, repo, pr.number, pr.headSha);
-    } catch {
-      try {
-        recheck = await this.poster.hasExistingReview(owner, repo, pr.number, pr.headSha);
-      } catch {
-        return this.skipResult(item, "recheck_failed");
-      }
-    }
-    if (recheck) {
-      return this.skipResult(item, "already_reviewed_recheck");
-    }
-
-    if (this.config.dryRun) {
-      this.logger.info("Dry run — pass1-as-review not posted", {
-        owner, repo, pr: pr.number, event, bodyLength: body.length,
-      });
-    } else {
-      await this.poster.postReview({
-        owner, repo, prNumber: pr.number, headSha: pr.headSha, body, event,
-      });
-    }
-
-    const result: ReviewResult = {
-      item,
-      posted: !this.config.dryRun,
-      skipped: false,
+    return this.postAndFinalize(item, pass1Response.content, {
       inputTokens: pass1Response.inputTokens,
       outputTokens: pass1Response.outputTokens,
       pass1Output: pass1Response.content,
       pass1Tokens: { input: pass1Response.inputTokens, output: pass1Response.outputTokens, duration: pass1Duration },
-    };
-
-    await this.context.finalizeReview(item, result);
-    return result;
+    });
   }
 
   private buildSummary(
