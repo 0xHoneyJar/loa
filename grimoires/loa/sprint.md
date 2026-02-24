@@ -19,12 +19,15 @@
 | sprint-5 | sprint-48 | Installation Documentation Excellence | Pros/cons comparison across all install methods in README, INSTALLATION.md, and PROCESS.md |
 | sprint-6 | sprint-49 | Portability + Security Hardening | Fix readlink -f macOS incompatibility, harden Agent Teams zone guard against symlink bypass, add migration feasibility validation |
 | sprint-7 | sprint-50 | Construct Manifest Extension Point | Prototype construct-level manifest declarations for ecosystem extensibility |
+| sprint-8 | sprint-51 | Excellence Hardening — Bridgebuilder Part 8 Findings | Fix all Part 8 findings: path traversal, schema-runtime gap, PID lock, jq perf, fork-friendly config |
 
 **Sprints 1-5**: COMPLETED. Bridge review flatlined at 0.4 (3.0 → 0.4). All 131+ tests passing.
 
-**Sprints 6-7**: Address Bridgebuilder deep review findings (Parts 4-5, PR #406) to eliminate all identified issues before merge.
+**Sprints 6-7**: COMPLETED. Bridge review flatlined at 0.5 (3.0 → 0.4 → 0.5). All 112 tests passing.
 
-**Source**: Bridgebuilder Deep Review (bridge-20260224-b4e7f1) — Findings high-1, medium-1, medium-2, low-1
+**Sprint 8**: Address Bridgebuilder Part 8 code review findings (all 7 findings regardless of severity). Aiming for excellence.
+
+**Source**: Bridgebuilder Code Review Part 8 ([Issue #402](https://github.com/0xHoneyJar/loa/issues/402#issuecomment-3948715877)) — Findings F-001 through F-007
 
 ---
 
@@ -271,13 +274,206 @@ Construct manifest support is fully additive. Removing the discovery/merge code 
 
 ---
 
-## Risk Register (Sprints 6-7)
+## Sprint 8: Excellence Hardening — Bridgebuilder Part 8 Findings
+
+**Goal**: Address all 7 findings from the Bridgebuilder Part 8 code review regardless of severity. Zero tolerance for known imperfections. Aiming for excellence.
+
+**Global ID**: sprint-51
+**Scope**: MEDIUM (7 tasks)
+**Source**: Bridgebuilder Code Review Part 8 ([Issue #402](https://github.com/0xHoneyJar/loa/issues/402#issuecomment-3948715877))
+
+### Deliverables
+
+- [ ] Path traversal validation catches trailing `..` → **[F-001]**
+- [ ] Construct manifest schema enforces `.claude/` prefix at JSON Schema level → **[F-002]**
+- [ ] Migration lock uses `flock` with PID fallback → **[F-003]**
+- [ ] Dead logic removed from feasibility check → **[F-004]**
+- [ ] Construct manifest jq invocations batched to O(1) → **[F-005]**
+- [ ] Remote allowlist configurable via `.loa.config.yaml` → **[F-006]**
+- [ ] Schema-runtime alignment test validates both reject the same inputs → **[F-007]**
+
+### Acceptance Criteria
+
+- [ ] Path `".claude/constructs/.."` is rejected by `_validate_and_add_construct_entry()` — test proves it
+- [ ] JSON Schema for construct manifest has `"pattern": "^\\.claude/"` on link properties
+- [ ] `relocate_memory_stack()` uses `flock` when available, falls back to PID+timestamp for stale detection
+- [ ] Line 1684 of `mount-loa.sh` simplified — no redundant condition
+- [ ] Construct manifest parsing uses a single `jq` call with `@tsv` output instead of per-entry forks
+- [ ] `update-loa.sh` reads `update.allowed_remotes` from `.loa.config.yaml` with hardcoded default fallback
+- [ ] A test verifies that the schema and runtime validation agree on boundary enforcement for at least 3 invalid inputs
+- [ ] All 112 existing tests pass (zero regression)
+- [ ] New tests cover all 7 findings
+
+### Technical Tasks
+
+- [ ] **Task 8.1**: Fix path traversal blind spot → **[F-001, LOW]**
+  - File: `.claude/scripts/lib/symlink-manifest.sh:198`
+  - Add trailing `..` check: `|| [[ "$link" == *.. ]]`
+  - Also switch to allowlist pattern: add a positive-match regex `^\.claude/[a-zA-Z0-9_-]+(/[a-zA-Z0-9_.-]+)*$` as the primary validation, keeping the deny patterns as defense-in-depth
+  - New test in `test-construct-manifest.bats`: verify `.claude/constructs/..` is rejected
+  - **FAANG parallel**: CVE-2021-21300 in Git — path traversal through symlinks. Kubernetes admission controllers use allowlists, not deny-lists.
+
+- [ ] **Task 8.2**: Add schema-level link prefix enforcement → **[F-002, LOW]**
+  - File: `.claude/schemas/construct-manifest.schema.json`
+  - Add `"pattern": "^\\.claude/"` to both `link` properties (directories and files)
+  - Add `"not": {"pattern": "\\.\\."}` to reject `..` in link paths at schema level
+  - Also add `"not": {"pattern": "^/"}` to reject absolute paths in target properties
+  - This makes the schema a first line of defense matching the runtime validation
+  - **FAANG parallel**: Google's Protocol Buffers and Stripe's OpenAPI specs enforce constraints at schema level. The schema is a contract, not just documentation.
+
+- [ ] **Task 8.3**: Replace PID-based lock with flock → **[F-003, MEDIUM]**
+  - File: `.claude/scripts/mount-submodule.sh` — `relocate_memory_stack()` function
+  - Implementation:
+    ```bash
+    if command -v flock &>/dev/null; then
+      exec 200>"$migration_lock"
+      if ! flock -n 200; then
+        err "Memory Stack migration already in progress."
+      fi
+    else
+      # Fallback: PID + epoch timestamp for stale detection (>1 hour = stale)
+      if [[ -f "$migration_lock" ]]; then
+        local lock_info lock_pid lock_time
+        lock_info=$(cat "$migration_lock" 2>/dev/null || echo "")
+        lock_pid="${lock_info%%:*}"
+        lock_time="${lock_info##*:}"
+        local now; now=$(date +%s)
+        if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
+          if [[ -n "$lock_time" ]] && (( now - lock_time < 3600 )); then
+            err "Migration in progress (PID: $lock_pid, started $(( (now - lock_time) / 60 ))m ago)."
+          fi
+          warn "Stale lock (PID $lock_pid, >1h old). Removing."
+        fi
+        rm -f "$migration_lock"
+      fi
+      echo "$$:$(date +%s)" > "$migration_lock"
+    fi
+    ```
+  - `flock` releases automatically on process death — no PID recycling risk
+  - Fallback uses PID + timestamp — a 1-hour staleness threshold prevents false-positive blocks
+  - **FAANG parallel**: Redis switched from PID files to `flock`. PostgreSQL's `postmaster.pid` uses PID + data directory + start time for the same reason.
+
+- [ ] **Task 8.4**: Remove dead logic in feasibility check → **[F-004, LOW]**
+  - File: `.claude/scripts/mount-loa.sh:1684`
+  - Simplify from:
+    ```bash
+    if [[ "$feasibility_pass" == "true" ]] || [[ ${#feasibility_failures[@]} -eq 0 ]]; then
+    ```
+  - To:
+    ```bash
+    if [[ "$feasibility_pass" == "true" ]]; then
+    ```
+  - The two conditions are logically equivalent — `feasibility_pass` is only set to `"false"` when a failure is added to the array. Keeping both creates ambiguity for future maintainers.
+  - **FAANG parallel**: Google's readability reviews. "Code is read far more often than it's written. Remove anything that makes the reader think harder than necessary."
+
+- [ ] **Task 8.5**: Batch jq invocations for construct manifests → **[F-005, LOW]**
+  - File: `.claude/scripts/lib/symlink-manifest.sh:151-170`
+  - Replace the per-entry jq loop with a single batched call:
+    ```bash
+    # Parse all directory entries in one jq call
+    jq -r '(.symlinks.directories // [])[] | [.link, .target] | @tsv' "$manifest_file" 2>/dev/null |
+    while IFS=$'\t' read -r link target; do
+      _validate_and_add_construct_entry "$link" "$target" "$pack_name" "$repo_root"
+    done
+
+    # Parse all file entries in one jq call
+    jq -r '(.symlinks.files // [])[] | [.link, .target] | @tsv' "$manifest_file" 2>/dev/null |
+    while IFS=$'\t' read -r link target; do
+      _validate_and_add_construct_entry "$link" "$target" "$pack_name" "$repo_root"
+    done
+    ```
+  - Reduces from `1 + 2N` jq invocations to exactly 2 (regardless of N)
+  - **Note**: The `while read` loop runs in a subshell due to the pipe. Since `_validate_and_add_construct_entry` appends to `MANIFEST_CONSTRUCT_SYMLINKS` (a global array), we need to collect entries via process substitution or a temp file instead:
+    ```bash
+    while IFS=$'\t' read -r link target; do
+      _validate_and_add_construct_entry "$link" "$target" "$pack_name" "$repo_root"
+    done < <(jq -r '(.symlinks.directories // [])[] | [.link, .target] | @tsv' "$manifest_file" 2>/dev/null)
+    ```
+  - Process substitution `< <(...)` keeps the while loop in the current shell, preserving global array writes.
+  - **FAANG parallel**: The "N+1 query problem" from every ORM. Netflix's build system: "every $() is a fork, every fork is ~5ms."
+
+- [ ] **Task 8.6**: Make remote allowlist configurable → **[F-006, LOW]**
+  - File: `.claude/scripts/update-loa.sh:44-48`
+  - Read from `.loa.config.yaml` with hardcoded default:
+    ```bash
+    # Load custom allowed remotes from config, fall back to hardcoded defaults
+    ALLOWED_REMOTES=()
+    if command -v yq &>/dev/null && [[ -f "$CONFIG_FILE" ]]; then
+      local custom_remotes
+      custom_remotes=$(yq_read "$CONFIG_FILE" '.update.allowed_remotes[]' '' 2>/dev/null) || true
+      if [[ -n "$custom_remotes" ]]; then
+        while IFS= read -r remote; do
+          [[ -n "$remote" ]] && ALLOWED_REMOTES+=("$remote")
+        done <<< "$custom_remotes"
+      fi
+    fi
+    # Default if no config or empty
+    if [[ ${#ALLOWED_REMOTES[@]} -eq 0 ]]; then
+      ALLOWED_REMOTES=(
+        "https://github.com/0xHoneyJar/loa.git"
+        "https://github.com/0xHoneyJar/loa"
+        "git@github.com:0xHoneyJar/loa.git"
+      )
+    fi
+    ```
+  - Add `.loa.config.yaml.example` entry:
+    ```yaml
+    # update:
+    #   allowed_remotes:    # Override for forks/mirrors (default: 0xHoneyJar/loa)
+    #     - "https://github.com/your-org/loa.git"
+    #     - "git@github.com:your-org/loa.git"
+    ```
+  - **FAANG parallel**: Terraform's `.terraformrc` for registry overrides, Go's `GOPROXY` env var. Preserves default security posture while enabling fork-friendly configuration.
+
+- [ ] **Task 8.7**: Schema-runtime alignment test → **[F-007, SPECULATION → TEST]**
+  - File: `.claude/scripts/tests/test-construct-manifest.bats` (new tests)
+  - Verify that schema and runtime validation agree on at least 3 invalid inputs:
+    1. Link outside `.claude/` → both should reject
+    2. Link with `..` traversal → both should reject
+    3. Link with absolute path → both should reject
+  - If `ajv` or `jsonschema` CLI is available, validate against schema; otherwise skip schema test with `[SKIP]` annotation
+  - This ensures the two validation layers don't drift as the manifest evolves
+  - **FAANG parallel**: loa-hounfour's TypeBox → JSON Schema generation + conformance vectors. The gold standard: types, schemas, and runtime share a single source of truth.
+
+### Dependencies
+
+- Sprint 7 complete (construct manifest exists to be improved)
+- All 112 existing tests passing
+
+### Risks & Mitigation
+
+| Risk | Sprint | Severity | Mitigation |
+|------|--------|----------|------------|
+| `flock` unavailable on some systems | 8 | LOW | PID+timestamp fallback with 1-hour staleness threshold |
+| Process substitution `< <(...)` not available in sh | 8 | LOW | All scripts use `#!/usr/bin/env bash` — bash4+ guaranteed |
+| Schema pattern change breaks valid manifests | 8 | LOW | Pattern matches exactly what runtime allows — `.claude/` prefix. No valid manifest broken. |
+| `yq` API differences (mikefarah vs jq-like) | 8 | LOW | `yq_read()` helper already handles both variants |
+
+### Rollback
+
+Every task is independently revertible. Tasks 8.1-8.2 are additive validations. Task 8.3 preserves fallback behavior. Task 8.4 is a simplification. Task 8.5 is a performance optimization that produces identical output. Task 8.6 preserves defaults when no config exists. Task 8.7 is test-only.
+
+### Success Metrics
+
+- All 7 Bridgebuilder Part 8 findings addressed
+- Path `.claude/constructs/..` rejected in both schema and runtime
+- Migration lock uses `flock` on Linux systems
+- `jq` invocation count reduced from `1+2N` to `2` per manifest
+- Fork users can configure remote allowlist without patching framework
+- All 112+ existing tests pass + new tests pass
+- Zero regression, zero new security vulnerabilities
+
+---
+
+## Risk Register (All Sprints)
 
 | Risk | Sprint | Severity | Mitigation |
 |------|--------|----------|------------|
 | macOS eject fails silently | 6 | HIGH | Replace `readlink -f` with `get_canonical_path()` — 3-tier fallback chain |
 | Agent Teams symlink bypass | 6 | MEDIUM | Dual-path checking + `.loa/.claude/` protection |
+| PID recycling in migration lock | 8 | MEDIUM | `flock` with PID+timestamp fallback |
 | Construct manifest path escape | 7 | MEDIUM | Boundary enforcement + sanitization |
+| Schema-runtime validation drift | 8 | LOW | Alignment test validates both reject same inputs |
 | yq unavailable on target system | 7 | LOW | grep/awk fallback for simple YAML |
 | Migration dry-run network timeout | 6 | LOW | 5-second timeout, skip in CI |
 
@@ -289,13 +485,20 @@ Construct manifest support is fully additive. Removing the discovery/merge code 
 | medium-1 | MEDIUM | Construct packs can't declare symlink requirements | 7 | 7.1-7.5 |
 | medium-2 | MEDIUM | Agent Teams zone guard doesn't resolve symlinks | 6 | 6.2 |
 | low-1 | LOW | Migration dry-run doesn't validate feasibility | 6 | 6.3 |
+| F-001 | LOW | Path traversal misses trailing `..` | 8 | 8.1 |
+| F-002 | LOW | Schema doesn't enforce `.claude/` prefix on link | 8 | 8.2 |
+| F-003 | **MEDIUM** | PID-based lock susceptible to recycling | 8 | 8.3 |
+| F-004 | LOW | Dead logic / redundant condition in feasibility | 8 | 8.4 |
+| F-005 | LOW | O(n²) jq invocations per construct manifest | 8 | 8.5 |
+| F-006 | LOW | Hardcoded remote allowlist blocks fork users | 8 | 8.6 |
+| F-007 | SPECULATION | Schema-runtime validation gap | 8 | 8.7 |
 
 ## Definition of Done
 
 - All acceptance criteria checked
 - All new code has test coverage
-- Existing 131+ test suite unbroken (zero regression)
+- Existing 112+ test suite unbroken (zero regression)
 - Sprint review + audit cycle passed
 - No new security vulnerabilities introduced
-- All Bridgebuilder deep review findings (high-1, medium-1, medium-2, low-1) addressed
+- All Bridgebuilder findings (Parts 4-5: high-1, medium-1, medium-2, low-1; Part 8: F-001 through F-007) addressed
 - Vision-008 advanced from Captured → Exploring
