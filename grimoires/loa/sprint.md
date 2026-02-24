@@ -245,51 +245,51 @@
 
 ---
 
-## Sprint 5: Memory Pipeline Activation (global sprint-61)
+## Sprint 5: Memory Pipeline Activation (global sprint-61) ✅
 
 **Goal**: Activate the dormant memory pipeline with deterministic bootstrap and updated query paths.
 
-### Task 1: Create memory-bootstrap.sh (FR-2 — High)
+### Task 1: Create memory-bootstrap.sh (FR-2 — High) ✅
 **File**: `.claude/scripts/memory-bootstrap.sh`
 **Change**: New script extracting observations from 4 deterministic sources
 **AC**:
-- [ ] Source 1: trajectory `phase: "cite"` or `phase: "learning"` entries
-- [ ] Source 2: flatline HIGH_CONSENSUS findings from `*-review.json`
-- [ ] Source 3: sprint feedback (auditor + engineer) structured findings
-- [ ] Source 4: bridge findings (CRITICAL + HIGH severity)
-- [ ] Default: writes to `observations-staged.jsonl`
-- [ ] `--import`: runs redaction, merges staged into `observations.jsonl`
-- [ ] Quality gates: confidence ≥0.7, content hash dedup, min 10 chars, category validation
-- [ ] Sampling report: counts per source + 3 sample entries displayed
-- [ ] `--source SOURCE`: bootstrap from single source only
-- [ ] Uses `append_jsonl()` for all JSONL writes (concurrent-safe)
+- [x] Source 1: trajectory `phase: "cite"` or `phase: "learning"` entries
+- [x] Source 2: flatline HIGH_CONSENSUS findings from `*-review.json`
+- [x] Source 3: sprint feedback (auditor + engineer) structured findings
+- [x] Source 4: bridge findings (CRITICAL + HIGH severity)
+- [x] Default: writes to `observations-staged.jsonl`
+- [x] `--import`: runs redaction, merges staged into `observations.jsonl`
+- [x] Quality gates: confidence ≥0.7, content hash dedup, min 10 chars, category validation
+- [x] Sampling report: counts per source + 3 sample entries displayed
+- [x] `--source SOURCE`: bootstrap from single source only
+- [x] Uses `append_jsonl()` for all JSONL writes (concurrent-safe)
 
-### Task 2: Update memory-writer.sh hook (FR-2 — Medium)
+### Task 2: Update memory-writer.sh hook (FR-2 — Medium) ✅
 **File**: `.claude/hooks/memory-writer.sh`
 **Change**: Use `get_state_memory_dir()` from path-lib.sh instead of hardcoded path, use `append_jsonl()` for concurrent safety
 **AC**:
-- [ ] Sources `path-lib.sh` for path resolution
-- [ ] Writes to `$(get_state_memory_dir)/observations.jsonl` via `append_jsonl()`
-- [ ] Falls back to legacy path if path-lib not available
+- [x] Sources `path-lib.sh` for path resolution
+- [x] Writes to `$(get_state_memory_dir)/observations.jsonl` via `append_jsonl()`
+- [x] Falls back to legacy path if path-lib not available
 
-### Task 3: Update memory-query.sh (FR-2 — Medium)
+### Task 3: Update memory-query.sh (FR-2 — Medium) ✅
 **File**: `.claude/scripts/memory-query.sh`
 **Change**: Use `get_state_memory_dir()` for observation file location
 **AC**:
-- [ ] Sources `path-lib.sh` for path resolution
-- [ ] Reads from `$(get_state_memory_dir)/observations.jsonl`
-- [ ] Progressive disclosure unchanged: `--index` <50, `--summary` <200, `--full` <500
+- [x] Sources `path-lib.sh` for path resolution
+- [x] Reads from `$(get_state_memory_dir)/observations.jsonl`
+- [x] Progressive disclosure unchanged: `--index` <50, `--summary` <200, `--full` <500
 
-### Task 4: Memory bootstrap tests (FR-2 — Medium)
+### Task 4: Memory bootstrap tests (FR-2 — Medium) ✅
 **File**: `tests/unit/test-memory-bootstrap.sh`
 **Change**: Test extraction from each source, quality gates, staging/import flow
 **AC**:
-- [ ] Test: trajectory extraction picks only cite/learning phases
-- [ ] Test: flatline extraction picks only high_consensus items
-- [ ] Test: quality gate rejects low-confidence entries
-- [ ] Test: content hash dedup prevents duplicates
-- [ ] Test: --import runs redaction and appends to observations.jsonl
-- [ ] Test: blocked content prevents import (fail-closed)
+- [x] Test: trajectory extraction picks only cite/learning phases
+- [x] Test: flatline extraction picks only high_consensus items
+- [x] Test: quality gate rejects low-confidence entries
+- [x] Test: content hash dedup prevents duplicates
+- [x] Test: --import runs redaction and appends to observations.jsonl
+- [x] Test: blocked content prevents import (fail-closed)
 
 ---
 
