@@ -72,6 +72,10 @@ export interface ReviewResult {
   pass2Tokens?: PassTokenMetrics;
   /** Confidence statistics from Pass 1 findings (two-pass mode only). */
   pass1ConfidenceStats?: { min: number; max: number; mean: number; count: number };
+  /** Persona identity for provenance tracking (two-pass mode only). */
+  personaId?: string;
+  /** SHA-256 hash of persona content for integrity verification. */
+  personaHash?: string;
 }
 
 export interface RunSummary {
@@ -129,6 +133,13 @@ export interface ProgressiveTruncationResult {
   totalBytes: number;
   disclaimer?: string;
   tokenEstimate?: TokenEstimateBreakdown;
+}
+
+/** Persona identity and version for provenance tracking. */
+export interface PersonaMetadata {
+  id: string;
+  version: string;
+  hash: string;
 }
 
 /** Token estimate broken down by component for calibration logging. */

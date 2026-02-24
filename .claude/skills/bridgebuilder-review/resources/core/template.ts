@@ -5,6 +5,7 @@ import type {
   ReviewItem,
   TruncationResult,
   ProgressiveTruncationResult,
+  PersonaMetadata,
 } from "./types.js";
 import { truncateFiles } from "./truncation.js";
 
@@ -344,6 +345,7 @@ export class PRReviewTemplate {
     item: ReviewItem,
     persona: string,
     truncationContext?: { filesExcluded: number; totalFiles: number },
+    personaMetadata?: PersonaMetadata,
   ): PromptPair {
     const systemPrompt = this.buildSystemPrompt(persona);
 
@@ -409,6 +411,11 @@ export class PRReviewTemplate {
     lines.push("   - Rich prose with FAANG parallels and architectural insights");
     lines.push("   - `## Findings` containing the enriched JSON inside <!-- bridge-findings-start/end --> markers");
     lines.push("   - `## Callouts` (positive observations)");
+
+    if (personaMetadata) {
+      lines.push("");
+      lines.push(`5. **Attribution**: Include this line at the very end of the review: \`*Reviewed with: ${personaMetadata.id} v${personaMetadata.version}*\``);
+    }
 
     return { systemPrompt, userPrompt: lines.join("\n") };
   }

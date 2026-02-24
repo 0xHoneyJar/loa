@@ -398,5 +398,32 @@ describe("PRReviewTemplate", () => {
       assert.ok(userPrompt.includes("teachable_moment"));
       assert.ok(userPrompt.includes("connection"));
     });
+
+    it("includes attribution instruction when personaMetadata provided", () => {
+      const template = new PRReviewTemplate(mockGitProvider(), mockHasher(), mockConfig());
+      const item = {
+        owner: "o", repo: "r",
+        pr: { number: 1, title: "Fix", headSha: "h", baseBranch: "main", labels: [], author: "dev" },
+        files: [],
+        hash: "h",
+      };
+      const personaMetadata = { id: "bridgebuilder", version: "1.0.0", hash: "abc123" };
+
+      const { userPrompt } = template.buildEnrichmentPrompt(sampleFindings, item, "persona", undefined, personaMetadata);
+      assert.ok(userPrompt.includes("Reviewed with: bridgebuilder v1.0.0"), "Should include attribution");
+    });
+
+    it("omits attribution instruction when personaMetadata not provided", () => {
+      const template = new PRReviewTemplate(mockGitProvider(), mockHasher(), mockConfig());
+      const item = {
+        owner: "o", repo: "r",
+        pr: { number: 1, title: "Fix", headSha: "h", baseBranch: "main", labels: [], author: "dev" },
+        files: [],
+        hash: "h",
+      };
+
+      const { userPrompt } = template.buildEnrichmentPrompt(sampleFindings, item, "persona");
+      assert.ok(!userPrompt.includes("Reviewed with:"), "Should NOT include attribution");
+    });
   });
 });

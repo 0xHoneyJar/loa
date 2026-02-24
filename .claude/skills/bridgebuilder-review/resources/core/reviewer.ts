@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { GitProviderError } from "../ports/git-provider.js";
 import type { IGitProvider } from "../ports/git-provider.js";
 import { LLMProviderError } from "../ports/llm-provider.js";
@@ -13,6 +14,7 @@ import type {
   ReviewResult,
   ReviewError,
   RunSummary,
+  PersonaMetadata,
 } from "./types.js";
 import {
   truncateFiles,
@@ -72,6 +74,8 @@ function isTokenRejection(err: unknown): boolean {
 }
 
 export class ReviewPipeline {
+  private readonly personaMetadata: PersonaMetadata;
+
   constructor(
     private readonly template: PRReviewTemplate,
     private readonly context: BridgebuilderContext,
@@ -83,7 +87,25 @@ export class ReviewPipeline {
     private readonly persona: string,
     private readonly config: BridgebuilderConfig,
     private readonly now: () => number = Date.now,
-  ) {}
+  ) {
+    this.personaMetadata = ReviewPipeline.parsePersonaMetadata(persona);
+  }
+
+  /**
+   * Parse persona frontmatter to extract identity metadata.
+   * Expected format: <!-- persona-version: X | agent: Y -->
+   * Fallback: { id: "unknown", version: "0.0.0", hash: sha256(content) }
+   */
+  static parsePersonaMetadata(content: string): PersonaMetadata {
+    const hash = createHash("sha256").update(content.trim()).digest("hex");
+    const match = content.match(
+      /<!--\s*persona-version:\s*([^\s|]+)\s*\|\s*agent:\s*([^\s>]+)/,
+    );
+    if (match) {
+      return { id: match[2], version: match[1], hash };
+    }
+    return { id: "unknown", version: "0.0.0", hash };
+  }
 
   async run(runId: string): Promise<RunSummary> {
     const startTime = new Date().toISOString();
@@ -826,7 +848,7 @@ export class ReviewPipeline {
     const pass2Start = this.now();
 
     const { systemPrompt: enrichmentSystem, userPrompt: enrichmentUser } =
-      this.template.buildEnrichmentPrompt(findingsJSON, item, this.persona, truncationContext);
+      this.template.buildEnrichmentPrompt(findingsJSON, item, this.persona, truncationContext, this.personaMetadata);
 
     this.logger.info("Pass 2: Enrichment review", {
       owner, repo, pr: pr.number,
@@ -904,6 +926,8 @@ export class ReviewPipeline {
       pass1Tokens: { input: pass1Response.inputTokens, output: pass1Response.outputTokens, duration: pass1Duration },
       pass2Tokens: { input: pass2Response.inputTokens, output: pass2Response.outputTokens, duration: pass2Duration },
       pass1ConfidenceStats,
+      personaId: this.personaMetadata.id,
+      personaHash: this.personaMetadata.hash,
     });
   }
 

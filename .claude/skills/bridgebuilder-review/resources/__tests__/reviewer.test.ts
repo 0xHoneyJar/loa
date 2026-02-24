@@ -1325,6 +1325,89 @@ describe("ReviewPipeline", () => {
     });
   });
 
+  describe("persona provenance (Sprint 67)", () => {
+    it("parses persona with valid frontmatter", () => {
+      const metadata = ReviewPipeline.parsePersonaMetadata(
+        "<!-- persona-version: 1.0.0 | agent: bridgebuilder -->\n# Bridgebuilder\nContent here.",
+      );
+      assert.equal(metadata.id, "bridgebuilder");
+      assert.equal(metadata.version, "1.0.0");
+      assert.ok(metadata.hash.length === 64, "Should be a SHA-256 hex digest");
+    });
+
+    it("defaults to unknown/0.0.0 when no frontmatter", () => {
+      const metadata = ReviewPipeline.parsePersonaMetadata(
+        "# Just a persona\nNo frontmatter here.",
+      );
+      assert.equal(metadata.id, "unknown");
+      assert.equal(metadata.version, "0.0.0");
+      assert.ok(metadata.hash.length === 64, "Should still compute hash");
+    });
+
+    it("two-pass ReviewResult includes personaId and personaHash", async () => {
+      let callCount = 0;
+      const pass1 = [
+        "<!-- bridge-findings-start -->",
+        "```json",
+        JSON.stringify({
+          schema_version: 1,
+          findings: [
+            { id: "F001", title: "Issue", severity: "HIGH", category: "security", file: "f:1", description: "d", suggestion: "s" },
+          ],
+        }),
+        "```",
+        "<!-- bridge-findings-end -->",
+      ].join("\n");
+
+      const pass2 = [
+        "## Summary", "", "Review.", "",
+        "## Findings", "",
+        "<!-- bridge-findings-start -->",
+        "```json",
+        JSON.stringify({
+          schema_version: 1,
+          findings: [
+            { id: "F001", title: "Issue", severity: "HIGH", category: "security", file: "f:1", description: "d", suggestion: "s", faang_parallel: "Google" },
+          ],
+        }),
+        "```",
+        "<!-- bridge-findings-end -->",
+        "", "## Callouts", "", "- Good.",
+      ].join("\n");
+
+      const pipeline = buildPipeline({
+        config: { reviewMode: "two-pass" },
+        llm: {
+          generateReview: async () => {
+            callCount++;
+            if (callCount === 1) {
+              return { content: pass1, inputTokens: 500, outputTokens: 200, model: "test" };
+            }
+            return { content: pass2, inputTokens: 100, outputTokens: 300, model: "test" };
+          },
+        },
+      });
+      const summary = await pipeline.run("run-persona");
+      const result = summary.results[0];
+      assert.equal(summary.reviewed, 1);
+      // The default persona is "You are a code reviewer." — no frontmatter
+      assert.equal(result.personaId, "unknown");
+      assert.ok(result.personaHash, "Should have personaHash");
+      assert.ok(result.personaHash!.length === 64, "Hash should be SHA-256");
+    });
+
+    it("single-pass ReviewResult does NOT include personaId", async () => {
+      const pipeline = buildPipeline({
+        config: { reviewMode: "single-pass" },
+      });
+      const summary = await pipeline.run("run-sp-persona");
+      const result = summary.results[0];
+      assert.equal(summary.reviewed, 1);
+      assert.equal(result.personaId, undefined, "Single-pass should not include personaId");
+      assert.equal(result.personaHash, undefined, "Single-pass should not include personaHash");
+    });
+  });
+
   describe("fixture-based tests", () => {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = dirname(__filename);
