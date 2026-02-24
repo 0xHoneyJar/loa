@@ -6,7 +6,7 @@
 |--------|-----------|--------|-------|
 | Sprint 1 | 57 | COMPLETED | — |
 | Sprint 2 | 58 | COMPLETED | — |
-| Sprint 3 | 59 | IN_PROGRESS | IMPLEMENT |
+| Sprint 3 | 59 | COMPLETED | — |
 | Sprint 4 | 60 | PENDING | — |
 | Sprint 5 | 61 | PENDING | — |
 | Sprint 6 | 62 | PENDING | — |
