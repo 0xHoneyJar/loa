@@ -459,6 +459,9 @@ export class ReviewPipeline {
   /**
    * Shared post-processing: sanitize → recheck guard (with retry) → dry-run gate → post → finalize.
    * All review completion paths delegate here to avoid duplication (medium-1).
+   *
+   * resultFields may include pass1Output, pass1Tokens, and pass2Tokens — these are
+   * populated by two-pass callers only. Single-pass callers pass inputTokens/outputTokens only.
    */
   private async postAndFinalize(
     item: ReviewItem,
@@ -548,7 +551,19 @@ export class ReviewPipeline {
       if (!parsed.findings || !Array.isArray(parsed.findings)) {
         return null;
       }
-      return { raw: jsonStr, parsed };
+      // Runtime validation: filter findings with non-string required fields
+      const validated = parsed.findings.filter(
+        (f: unknown): f is { id: string; severity: string; category: string; [key: string]: unknown } =>
+          f != null &&
+          typeof f === "object" &&
+          typeof (f as Record<string, unknown>).id === "string" &&
+          typeof (f as Record<string, unknown>).severity === "string" &&
+          typeof (f as Record<string, unknown>).category === "string",
+      );
+      if (validated.length === 0) {
+        return null;
+      }
+      return { raw: jsonStr, parsed: { ...parsed, findings: validated } };
     } catch {
       return null;
     }
@@ -685,6 +700,7 @@ export class ReviewPipeline {
 
     let finalConvergenceSystem = convergenceSystem;
     let finalConvergenceUser = convergenceUser;
+    let truncationContext: { filesExcluded: number; totalFiles: number } | undefined;
 
     if (estimatedTokens > this.config.maxInputTokens) {
       this.logger.info("Pass 1: Token budget exceeded, attempting progressive truncation", {
@@ -702,6 +718,11 @@ export class ReviewPipeline {
       if (!truncResult.success) {
         return this.skipResult(item, "prompt_too_large_after_truncation");
       }
+
+      truncationContext = {
+        filesExcluded: truncResult.excluded.length,
+        totalFiles: effectiveItem.files.length,
+      };
 
       finalConvergenceUser = this.template.buildConvergenceUserPromptFromTruncation(
         effectiveItem, truncResult, truncated.loaBanner,
@@ -729,6 +750,11 @@ export class ReviewPipeline {
         if (!retryResult.success) {
           return this.skipResult(item, "prompt_too_large_after_truncation");
         }
+
+        truncationContext = {
+          filesExcluded: retryResult.excluded.length,
+          totalFiles: effectiveItem.files.length,
+        };
 
         const retryUser = this.template.buildConvergenceUserPromptFromTruncation(
           effectiveItem, retryResult, truncated.loaBanner,
@@ -775,7 +801,7 @@ export class ReviewPipeline {
     const pass2Start = this.now();
 
     const { systemPrompt: enrichmentSystem, userPrompt: enrichmentUser } =
-      this.template.buildEnrichmentPrompt(findingsJSON, item, this.persona);
+      this.template.buildEnrichmentPrompt(findingsJSON, item, this.persona, truncationContext);
 
     this.logger.info("Pass 2: Enrichment review", {
       owner, repo, pr: pr.number,

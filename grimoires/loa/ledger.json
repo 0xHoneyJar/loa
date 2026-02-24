@@ -123,9 +123,15 @@
           "global_id": 64,
           "label": "Excellence Hardening — Bridge Iteration 2",
           "status": "completed"
+        },
+        {
+          "local_id": 3,
+          "global_id": 65,
+          "label": "Final Polish — Bridge Iteration 3",
+          "status": "in_progress"
         }
       ]
     }
   ],
-  "global_sprint_counter": 64
+  "global_sprint_counter": 65
 }

@@ -337,6 +337,7 @@ export class PRReviewTemplate {
     findingsJSON: string,
     item: ReviewItem,
     persona: string,
+    truncationContext?: { filesExcluded: number; totalFiles: number },
   ): PromptPair {
     const systemPrompt = this.buildSystemPrompt(persona);
 
@@ -352,6 +353,11 @@ export class PRReviewTemplate {
     lines.push("### Files in this PR");
     for (const f of item.files) {
       lines.push(`- ${f.filename} (${f.status}, +${f.additions} -${f.deletions})`);
+    }
+
+    if (truncationContext && truncationContext.filesExcluded > 0) {
+      lines.push("");
+      lines.push(`> **Note**: ${truncationContext.filesExcluded} of ${truncationContext.totalFiles} files were reviewed by stats only due to token budget constraints in Pass 1.`);
     }
 
     lines.push("");

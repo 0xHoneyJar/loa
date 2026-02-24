@@ -1,117 +1,63 @@
-# Sprint Plan: Two-Pass Bridge Review — Excellence Hardening (cycle-039, Bridge Iteration 2)
+# Sprint Plan: Two-Pass Bridge Review — Final Polish (cycle-039, Bridge Iteration 3)
 
 ## Overview
 
 **PRD:** grimoires/loa/prd.md v1.0
 **SDD:** grimoires/loa/sdd.md v1.0
-**Source:** Bridgebuilder Review Iteration 1 (bridge-20260225-23e5c4)
-**Sprints:** 1 (single sprint addressing all 6 actionable findings)
-**Scope:** 3 MEDIUM + 3 LOW findings from bridge review
+**Source:** Bridgebuilder Review Iteration 2 (bridge-20260225-23e5c4)
+**Sprints:** 1 (single sprint addressing all 4 LOW findings)
+**Scope:** 4 LOW findings — refinement-level improvements
 
 ---
 
-## Sprint 2: Excellence Hardening — Post-Processing Dedup + Correctness Fixes (global sprint-64)
+## Sprint 3: Final Polish — Runtime Validation, Test Coverage, Observability (global sprint-65)
 
-**Goal**: Address all 6 actionable Bridgebuilder findings from iteration 1 — extract shared post-processing method, add category preservation, consolidate prompt duplication, return parsed JSON, fix fallback gap, and wire test fixtures.
+**Goal**: Address all 4 remaining LOW findings from bridge iteration 2 — add runtime validation to extractFindingsJSON, add two-pass sanitizer/recheck tests, document single-pass pass1Output behavior, and add truncation context to enrichment prompt.
 
-**Scope**: MEDIUM (6 tasks)
+**Scope**: LOW (4 tasks)
 
 ### Deliverables
 
-- [x] `reviewer.ts` has shared `postAndFinalize()` method replacing 4 duplicate post-processing paths
-- [x] `validateFindingPreservation()` checks category preservation in addition to count, IDs, severities
-- [x] `template.ts` convergence user prompt methods consolidated (shared rendering helpers)
-- [x] `extractFindingsJSON()` returns `{ raw, parsed }` eliminating triple-parse
-- [x] Pass 2 missing findings markers triggers explicit fallback to unenriched output
-- [x] Test fixtures loaded via `fs.readFileSync` in test suite (or removed if redundant)
+- [x] `extractFindingsJSON()` validates each finding has string-typed id, severity, category at runtime
+- [x] Two-pass sanitizer-warn and recheck-fail tests added
+- [x] Single-pass pass1Output behavior documented (or populated for consistency)
+- [x] Enrichment prompt includes truncation context note when progressive truncation was applied
 
 ### Acceptance Criteria
 
-- [x] AC-1: Post-processing flow (sanitize → recheck → dryRun → post → finalize) exists in exactly ONE method
-- [x] AC-2: `finishWithUnenrichedOutput`, `finishWithPass1AsReview`, and tail of `processItemTwoPass` all delegate to shared method
-- [x] AC-3: Single-pass `processItem` also delegates to the shared post-processing method
-- [x] AC-4: `validateFindingPreservation()` returns false when Pass 2 changes a finding's category
-- [x] AC-5: New test: category-changed fixture fails validation
-- [x] AC-6: Convergence user prompt rendering logic exists in one place (shared helpers or single method)
-- [x] AC-7: `extractFindingsJSON()` returns `{ raw: string; parsed: FindingsPayload } | null`
-- [x] AC-8: Callers of `extractFindingsJSON()` use `.parsed` instead of re-parsing
-- [x] AC-9: When `extractFindingsJSON()` returns null for Pass 2 AND `isValidResponse()` passes, system falls back to unenriched output
-- [x] AC-10: Test fixtures are loaded from disk in at least one test case per fixture file
-- [x] AC-11: All existing 164 tests pass with zero modification
-- [x] AC-12: No changes to downstream consumers (findings parser, GitHub trail, convergence scorer)
+- [x] AC-1: `extractFindingsJSON()` filters out findings where id, severity, or category are not strings
+- [x] AC-2: New test: findings with non-string id/severity/category are filtered before returning
+- [x] AC-3: Two-pass pipeline test exercises sanitizer warn-and-continue path (sanitized.safe=false, mode≠strict)
+- [x] AC-4: Two-pass pipeline test exercises recheck-fail path (hasExistingReview throws twice)
+- [x] AC-5: Single-pass pass1Output is either documented as two-pass-only or populated
+- [x] AC-6: Enrichment prompt includes truncation note when Pass 1 used progressive truncation
+- [x] AC-7: All existing 378 tests pass with zero modification
+- [x] AC-8: No changes to downstream consumers
 
 ### Technical Tasks
 
-- [x] **Task 2.1**: Extract shared `postAndFinalize()` method in `reviewer.ts` → **[medium-1]**
+- [x] **Task 3.1**: Add runtime validation to `extractFindingsJSON()` → **[low-1]**
   - File: `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`
-  - Extract the repeated sanitize → recheck-guard-with-retry → dryRun → post → finalize sequence into a shared private method
-  - Signature: `private async postAndFinalize(item: ReviewItem, body: string, result: Partial<ReviewResult>): Promise<ReviewResult>`
-  - Replace the 4 copies: `finishWithUnenrichedOutput` (lines 645-698), `finishWithPass1AsReview` (lines 988-1035), `processItemTwoPass` tail (lines 910-974), and single-pass `processItem` (lines 400-492)
-  - Each caller builds its own `body` string and `result` fields, then delegates to `postAndFinalize`
-  - **AC**: AC-1, AC-2, AC-3, AC-11
+  - After JSON.parse, filter findings: `parsed.findings.filter(f => typeof f.id === 'string' && typeof f.severity === 'string' && typeof f.category === 'string')`
+  - Return null if filtered list is empty
+  - Add test: findings with non-string fields are filtered out
+  - **AC**: AC-1, AC-2, AC-7
 
-- [x] **Task 2.2**: Add category preservation to `validateFindingPreservation()` → **[medium-2]**
+- [x] **Task 3.2**: Add two-pass sanitizer/recheck tests → **[low-3]**
+  - File: `.claude/skills/bridgebuilder-review/resources/__tests__/reviewer.test.ts`
+  - Add test: two-pass pipeline with sanitizer returning safe=false in non-strict mode → review still posted
+  - Add test: two-pass pipeline with recheck failing twice → returns skip result
+  - **AC**: AC-3, AC-4, AC-7
+
+- [x] **Task 3.3**: Document single-pass pass1Output behavior → **[low-2]**
   - File: `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`
-  - After the severity check loop (line 604), add: `if (f2.category !== f1.category) return false;`
-  - Create new test fixture: `pass2-category-changed.md` — same 3 findings as pass1-valid-findings.json but with F003 category changed from "test-coverage" to "quality"
-  - Add test: `validateFindingPreservation rejects category reclassification`
-  - **AC**: AC-4, AC-5, AC-11
+  - Add JSDoc comment on postAndFinalize noting that pass1Output/pass1Tokens/pass2Tokens are two-pass-only fields
+  - This is documentation, not a code change — the current behavior is correct
+  - **AC**: AC-5, AC-7
 
-- [x] **Task 2.3**: Consolidate convergence user prompt methods in `template.ts` → **[medium-3]**
-  - File: `.claude/skills/bridgebuilder-review/resources/core/template.ts`
-  - Extract shared rendering logic into private helpers:
-    - `private renderPRMetadata(item: ReviewItem): string[]` — PR header, labels, etc.
-    - `private renderExcludedFiles(excluded: Array<{filename: string; stats: string}>): string[]`
-    - `private renderConvergenceFormat(): string[]` — the "Expected Response Format" section
-  - Refactor `buildConvergenceUserPrompt()` and `buildConvergenceUserPromptFromTruncation()` to use shared helpers
-  - Only the file iteration differs (TruncationResult.included vs ProgressiveTruncationResult.files)
-  - **AC**: AC-6, AC-11
-
-- [x] **Task 2.4**: Return `{ raw, parsed }` from `extractFindingsJSON()` → **[low-1]**
-  - File: `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`
-  - Change return type from `string | null` to `{ raw: string; parsed: { findings: Array<{ id: string; severity: string; category: string; [key: string]: unknown }> } } | null`
-  - Return `{ raw: jsonStr, parsed }` instead of discarding the parsed object
-  - Update both callers in `processItemTwoPass()` to use `.raw` for string operations and `.parsed` for validation
-  - Update `validateFindingPreservation()` to accept parsed objects directly instead of re-parsing
-  - **AC**: AC-7, AC-8, AC-11
-
-- [x] **Task 2.5**: Fix Pass 2 missing markers fallback → **[low-2]**
-  - File: `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`
-  - At lines 876-888: when `pass2FindingsJSON` is null (markers missing or malformed), explicitly fall back to unenriched output BEFORE the `isValidResponse` check
-  - Logic: if `extractFindingsJSON(pass2Response.content)` returns null → `this.finishWithUnenrichedOutput(...)` (because Pass 2 lost the structured findings)
-  - Add test: Pass 2 produces valid prose (has ## Summary + ## Findings) but no `<!-- bridge-findings-start/end -->` markers → system falls back to unenriched output
-  - **AC**: AC-9, AC-11
-
-- [x] **Task 2.6**: Wire test fixtures to test suite → **[low-3]**
-  - Files: `.claude/skills/bridgebuilder-review/resources/__tests__/reviewer.test.ts`, fixture files
-  - Add fixture-loading tests that read from disk:
-    - Load `pass1-valid-findings.json` → verify `extractFindingsJSON()` parses correctly
-    - Load `pass2-enriched-valid.md` → verify `extractFindingsJSON()` extracts enriched findings
-    - Load `pass2-findings-added.md` → verify `validateFindingPreservation()` returns false
-    - Load `pass2-severity-changed.md` → verify `validateFindingPreservation()` returns false
-    - Load `pass1-malformed.txt` → verify `extractFindingsJSON()` returns null
-  - Use `import { readFileSync } from 'fs'` and `import { join } from 'path'`
-  - **AC**: AC-10, AC-11
-
-### Task 2.E2E: End-to-End Goal Validation
-
-- [x] Run full test suite — all 164+ existing tests pass, new tests pass
-- [x] Verify `processItem` single-pass path still works end-to-end (delegating to `postAndFinalize`)
-- [x] Verify `processItemTwoPass` happy path still works (delegating to `postAndFinalize`)
-- [x] Verify fallback paths: Pass 2 failure, finding modification, missing markers all fall back correctly
-
-### Dependencies
-
-- Task 2.1 (postAndFinalize) should be done first — it touches the most code
-- Task 2.4 (extractFindingsJSON return type) should be done before Task 2.5 (fallback fix) — parsed result used in fallback logic
-- Task 2.2 (category preservation) and Task 2.3 (template consolidation) are independent
-- Task 2.6 (fixture wiring) depends on Task 2.2 (new fixture) and Task 2.4 (return type change)
-
-### Risks & Mitigation
-
-| Risk | Mitigation |
-|------|-----------|
-| `postAndFinalize` extraction breaks subtle behavior differences | Each caller currently has identical post-processing; verify with existing test suite |
-| Category preservation breaks existing tests | Existing fixtures don't test categories; only new fixture exercises this path |
-| Template helper extraction changes prompt output | Compare rendered prompts before/after with snapshot tests |
-| `extractFindingsJSON` return type change cascades | Only 2 callers exist in `processItemTwoPass`; update both simultaneously |
+- [x] **Task 3.4**: Add truncation context to enrichment prompt → **[low-4]**
+  - File: `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts` (processItemTwoPass)
+  - File: `.claude/skills/bridgebuilder-review/resources/core/template.ts` (buildEnrichmentPrompt)
+  - When progressive truncation was applied in Pass 1, pass truncation metadata to the enrichment prompt
+  - Add a note like: "Note: N files were reviewed by stats only due to token budget constraints."
+  - **AC**: AC-6, AC-7

@@ -1044,6 +1044,66 @@ describe("ReviewPipeline", () => {
       assert.ok(postedBody.includes("Enrichment unavailable"), "Should fall back when findings markers missing from Pass 2");
       assert.ok(postedBody.includes("bridge-findings-start"), "Fallback should preserve structured findings from Pass 1");
     });
+
+    it("two-pass sanitizer warn-and-continue posts redacted review in default mode", async () => {
+      let callCount = 0;
+      let posted = false;
+      const pipeline = buildPipeline({
+        config: { reviewMode: "two-pass", sanitizerMode: "default" },
+        llm: {
+          generateReview: async () => {
+            callCount++;
+            if (callCount === 1) {
+              return { content: VALID_PASS1_CONTENT, inputTokens: 500, outputTokens: 200, model: "test" };
+            }
+            return { content: VALID_PASS2_CONTENT, inputTokens: 100, outputTokens: 300, model: "test" };
+          },
+        },
+        sanitizer: {
+          sanitize: () => ({
+            safe: false,
+            sanitizedContent: VALID_PASS2_CONTENT,
+            redactedPatterns: ["api_key"],
+          }),
+        },
+        poster: {
+          postReview: async () => { posted = true; return true; },
+        },
+      });
+      const summary = await pipeline.run("run-2p-sanitizer-warn");
+      assert.equal(summary.reviewed, 1);
+      assert.ok(posted, "Should still post when sanitizer warns in default mode");
+    });
+
+    it("two-pass recheck-fail returns skip when hasExistingReview throws twice", async () => {
+      let llmCallCount = 0;
+      let recheckCallCount = 0;
+      const pipeline = buildPipeline({
+        config: { reviewMode: "two-pass" },
+        llm: {
+          generateReview: async () => {
+            llmCallCount++;
+            if (llmCallCount === 1) {
+              return { content: VALID_PASS1_CONTENT, inputTokens: 500, outputTokens: 200, model: "test" };
+            }
+            return { content: VALID_PASS2_CONTENT, inputTokens: 100, outputTokens: 300, model: "test" };
+          },
+        },
+        poster: {
+          hasExistingReview: async () => {
+            recheckCallCount++;
+            // First call is the initial check (step 2) — return false (no existing review)
+            if (recheckCallCount === 1) return false;
+            // Subsequent calls are the recheck in postAndFinalize — throw
+            throw new Error("GitHub API unavailable");
+          },
+          postReview: async () => true,
+        },
+      });
+      const summary = await pipeline.run("run-2p-recheck-fail");
+      assert.equal(summary.skipped, 1);
+      assert.equal(summary.results[0].skipReason, "recheck_failed");
+    });
   });
 
   describe("fixture-based tests", () => {
