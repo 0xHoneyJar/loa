@@ -1681,7 +1681,7 @@ Then re-run:
       feasibility_failures+=("No write permission to $dir/")
     fi
   done
-  if [[ "$feasibility_pass" == "true" ]] || [[ ${#feasibility_failures[@]} -eq 0 ]]; then
+  if [[ "$feasibility_pass" == "true" ]]; then
     log "  [PASS] Write permissions"
   fi
 

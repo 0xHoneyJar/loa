@@ -189,20 +189,35 @@ relocate_memory_stack() {
 
   step "Relocating Memory Stack from .loa/ to .loa-state/..."
 
-  # Check for concurrent migration
-  if [[ -f "$migration_lock" ]]; then
-    local lock_pid
-    lock_pid=$(cat "$migration_lock" 2>/dev/null || echo "")
-    if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
-      err "Memory Stack migration already in progress (PID: $lock_pid)."
-    fi
-    warn "Stale migration lock found. Removing."
-    rm -f "$migration_lock"
-  fi
-
-  # Create target and lock
+  # Create target directory for lock file
   mkdir -p "$target"
-  echo "$$" > "$migration_lock"
+
+  # Acquire migration lock — prefer flock, fall back to PID+timestamp (F-003)
+  # flock releases automatically on process death — no PID recycling risk.
+  # Fallback uses PID + epoch timestamp — 1-hour staleness threshold prevents false-positive blocks.
+  if command -v flock &>/dev/null; then
+    exec 200>"$migration_lock"
+    if ! flock -n 200; then
+      err "Memory Stack migration already in progress."
+    fi
+  else
+    # Fallback: PID + epoch timestamp for stale detection (>1 hour = stale)
+    if [[ -f "$migration_lock" ]]; then
+      local lock_info lock_pid lock_time
+      lock_info=$(cat "$migration_lock" 2>/dev/null || echo "")
+      lock_pid="${lock_info%%:*}"
+      lock_time="${lock_info##*:}"
+      local now; now=$(date +%s)
+      if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
+        if [[ -n "$lock_time" ]] && (( now - lock_time < 3600 )); then
+          err "Migration in progress (PID: $lock_pid, started $(( (now - lock_time) / 60 ))m ago)."
+        fi
+        warn "Stale lock (PID $lock_pid, >1h old). Removing."
+      fi
+      rm -f "$migration_lock"
+    fi
+    echo "$$:$(date +%s)" > "$migration_lock"
+  fi
 
   # Copy-then-verify-then-switch (Flatline IMP-002)
   local source_count target_count

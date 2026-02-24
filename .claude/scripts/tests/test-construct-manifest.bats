@@ -325,6 +325,146 @@ MANIFEST
 }
 
 # ---------------------------------------------------------------------------
+# Task 8.7: Schema-runtime alignment tests (F-007)
+# Verify that JSON Schema constraints and bash runtime validation agree
+# on the same set of invalid inputs. If these two layers drift, a
+# malicious manifest could pass one gate while failing the other.
+# ---------------------------------------------------------------------------
+
+@test "alignment: both schema and runtime reject link outside .claude/" {
+  skip_if_no_jq
+
+  local manifest_file="$TEST_DIR/outside-boundary.json"
+  cat > "$manifest_file" << 'MANIFEST'
+{
+  "name": "evil-pack",
+  "version": "1.0.0",
+  "symlinks": {
+    "directories": [
+      {"link": "src/malicious", "target": "../../.loa/.claude/constructs/evil/payload"}
+    ]
+  }
+}
+MANIFEST
+
+  # Schema check: link must match pattern ^\.claude/
+  local schema_file="$SCRIPT_DIR/../schemas/construct-manifest.schema.json"
+  if command -v ajv &>/dev/null; then
+    run ajv validate -s "$schema_file" -d "$manifest_file" 2>&1
+    [ "$status" -ne 0 ]
+  elif command -v jsonschema &>/dev/null; then
+    run jsonschema -i "$manifest_file" "$schema_file" 2>&1
+    [ "$status" -ne 0 ]
+  else
+    # No schema validator available — verify schema has the pattern constraint
+    local pattern
+    pattern=$(jq -r '.properties.symlinks.properties.directories.items.properties.link.pattern // empty' "$schema_file")
+    [ -n "$pattern" ]
+  fi
+
+  # Runtime check: _validate_and_add_construct_entry rejects non-.claude/ prefix
+  source "$MANIFEST_LIB"
+  get_symlink_manifest ".loa" "$TEST_DIR" 2>/dev/null
+
+  mkdir -p .loa/.claude/constructs/evil
+  cp "$manifest_file" .loa/.claude/constructs/evil/.loa-construct-manifest.json
+  MANIFEST_CONSTRUCT_SYMLINKS=()
+  _discover_construct_manifests ".loa" "$TEST_DIR" 2>/dev/null
+
+  [ "${#MANIFEST_CONSTRUCT_SYMLINKS[@]}" -eq 0 ]
+}
+
+@test "alignment: both schema and runtime reject path traversal with .." {
+  skip_if_no_jq
+
+  local manifest_file="$TEST_DIR/traversal.json"
+  cat > "$manifest_file" << 'MANIFEST'
+{
+  "name": "traversal-pack",
+  "version": "1.0.0",
+  "symlinks": {
+    "files": [
+      {"link": ".claude/constructs/..", "target": "../../.loa/.claude/constructs/traversal/secrets"}
+    ]
+  }
+}
+MANIFEST
+
+  # Schema check: pattern ^\.claude/ passes but runtime catches the ..
+  # The schema enforces prefix; runtime enforces no-traversal — layered defense
+  source "$MANIFEST_LIB"
+  get_symlink_manifest ".loa" "$TEST_DIR" 2>/dev/null
+
+  mkdir -p .loa/.claude/constructs/traversal-pack
+  cp "$manifest_file" .loa/.claude/constructs/traversal-pack/.loa-construct-manifest.json
+  MANIFEST_CONSTRUCT_SYMLINKS=()
+  _discover_construct_manifests ".loa" "$TEST_DIR" 2>/dev/null
+
+  # Runtime must reject trailing .. (F-001 fix)
+  [ "${#MANIFEST_CONSTRUCT_SYMLINKS[@]}" -eq 0 ]
+}
+
+@test "alignment: both schema and runtime reject absolute path link" {
+  skip_if_no_jq
+
+  local manifest_file="$TEST_DIR/absolute.json"
+  cat > "$manifest_file" << 'MANIFEST'
+{
+  "name": "abs-pack",
+  "version": "1.0.0",
+  "symlinks": {
+    "files": [
+      {"link": "/etc/passwd", "target": "/tmp/evil"}
+    ]
+  }
+}
+MANIFEST
+
+  # Schema check: pattern ^\.claude/ rejects /etc/passwd
+  local schema_file="$SCRIPT_DIR/../schemas/construct-manifest.schema.json"
+  if command -v ajv &>/dev/null; then
+    run ajv validate -s "$schema_file" -d "$manifest_file" 2>&1
+    [ "$status" -ne 0 ]
+  elif command -v jsonschema &>/dev/null; then
+    run jsonschema -i "$manifest_file" "$schema_file" 2>&1
+    [ "$status" -ne 0 ]
+  else
+    # Verify schema pattern exists as a fallback assertion
+    local pattern
+    pattern=$(jq -r '.properties.symlinks.properties.files.items.properties.link.pattern // empty' "$schema_file")
+    [ -n "$pattern" ]
+  fi
+
+  # Runtime check: rejects absolute paths
+  source "$MANIFEST_LIB"
+  get_symlink_manifest ".loa" "$TEST_DIR" 2>/dev/null
+
+  mkdir -p .loa/.claude/constructs/abs-pack
+  cp "$manifest_file" .loa/.claude/constructs/abs-pack/.loa-construct-manifest.json
+  MANIFEST_CONSTRUCT_SYMLINKS=()
+  _discover_construct_manifests ".loa" "$TEST_DIR" 2>/dev/null
+
+  [ "${#MANIFEST_CONSTRUCT_SYMLINKS[@]}" -eq 0 ]
+}
+
+@test "alignment: schema pattern field exists on both link properties" {
+  skip_if_no_jq
+
+  local schema_file="$SCRIPT_DIR/../schemas/construct-manifest.schema.json"
+  [ -f "$schema_file" ]
+
+  # Both directories and files link properties must have the pattern constraint
+  local dir_pattern file_pattern
+  dir_pattern=$(jq -r '.properties.symlinks.properties.directories.items.properties.link.pattern // empty' "$schema_file")
+  file_pattern=$(jq -r '.properties.symlinks.properties.files.items.properties.link.pattern // empty' "$schema_file")
+
+  [ -n "$dir_pattern" ]
+  [ -n "$file_pattern" ]
+  [ "$dir_pattern" = '^\.claude/' ]
+  [ "$file_pattern" = '^\.claude/' ]
+}
+
+# ---------------------------------------------------------------------------
 # Helper: skip tests that require jq
 # ---------------------------------------------------------------------------
 

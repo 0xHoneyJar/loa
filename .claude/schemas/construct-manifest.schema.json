@@ -27,7 +27,8 @@
             "properties": {
               "link": {
                 "type": "string",
-                "description": "Link path (must be under .claude/)"
+                "description": "Link path (must be under .claude/)",
+                "pattern": "^\\.claude/"
               },
               "target": {
                 "type": "string",
@@ -44,7 +45,8 @@
             "properties": {
               "link": {
                 "type": "string",
-                "description": "Link path (must be under .claude/)"
+                "description": "Link path (must be under .claude/)",
+                "pattern": "^\\.claude/"
               },
               "target": {
                 "type": "string",

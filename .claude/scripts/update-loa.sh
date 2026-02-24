@@ -41,11 +41,21 @@ REQUIRE_VERIFIED_ORIGIN=false
 NO_COMMIT=false
 
 # Expected remote URL allowlist (Flatline SKP-005)
-ALLOWED_REMOTES=(
-  "https://github.com/0xHoneyJar/loa.git"
-  "https://github.com/0xHoneyJar/loa"
-  "git@github.com:0xHoneyJar/loa.git"
-)
+# Configurable via .loa.config.yaml update.allowed_remotes[] for fork users (F-006)
+ALLOWED_REMOTES=()
+if command -v yq &>/dev/null && [[ -f ".loa.config.yaml" ]]; then
+  while IFS= read -r remote; do
+    [[ -n "$remote" ]] && ALLOWED_REMOTES+=("$remote")
+  done < <(yq '.update.allowed_remotes[]' .loa.config.yaml 2>/dev/null || true)
+fi
+# Default if no config or empty
+if [[ ${#ALLOWED_REMOTES[@]} -eq 0 ]]; then
+  ALLOWED_REMOTES=(
+    "https://github.com/0xHoneyJar/loa.git"
+    "https://github.com/0xHoneyJar/loa"
+    "git@github.com:0xHoneyJar/loa.git"
+  )
+fi
 
 # === Argument Parsing ===
 while [[ $# -gt 0 ]]; do

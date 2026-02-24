@@ -148,26 +148,19 @@ _parse_construct_manifest() {
     return 0
   fi
 
-  # Parse directory symlinks
-  local dir_count
-  dir_count=$(jq -r '.symlinks.directories // [] | length' "$manifest_file" 2>/dev/null) || dir_count=0
-  local i
-  for ((i=0; i<dir_count; i++)); do
-    local link target
-    link=$(jq -r ".symlinks.directories[$i].link" "$manifest_file" 2>/dev/null)
-    target=$(jq -r ".symlinks.directories[$i].target" "$manifest_file" 2>/dev/null)
+  # Parse directory symlinks — batched jq via process substitution (F-005)
+  # Reduces from 1+2N jq forks to exactly 2 regardless of entry count.
+  # Process substitution keeps while loop in current shell, preserving global array writes.
+  while IFS=$'\t' read -r link target; do
+    [[ -n "$link" ]] || continue
     _validate_and_add_construct_entry "$link" "$target" "$pack_name" "$repo_root"
-  done
+  done < <(jq -r '(.symlinks.directories // [])[] | [.link, .target] | @tsv' "$manifest_file" 2>/dev/null)
 
-  # Parse file symlinks
-  local file_count
-  file_count=$(jq -r '.symlinks.files // [] | length' "$manifest_file" 2>/dev/null) || file_count=0
-  for ((i=0; i<file_count; i++)); do
-    local link target
-    link=$(jq -r ".symlinks.files[$i].link" "$manifest_file" 2>/dev/null)
-    target=$(jq -r ".symlinks.files[$i].target" "$manifest_file" 2>/dev/null)
+  # Parse file symlinks — same batched pattern
+  while IFS=$'\t' read -r link target; do
+    [[ -n "$link" ]] || continue
     _validate_and_add_construct_entry "$link" "$target" "$pack_name" "$repo_root"
-  done
+  done < <(jq -r '(.symlinks.files // [])[] | [.link, .target] | @tsv' "$manifest_file" 2>/dev/null)
 
   # Validate requires (dependency check)
   local req_count
@@ -195,7 +188,8 @@ _validate_and_add_construct_entry() {
   fi
 
   # Validation 2: Path sanitization — reject .. traversals in link path
-  if [[ "$link" == *../* ]] || [[ "$link" == */../* ]]; then
+  # Covers: leading ../, mid-path /../, and trailing /.. (F-001)
+  if [[ "$link" == *../* ]] || [[ "$link" == */../* ]] || [[ "$link" == *.. ]]; then
     echo "[symlink-manifest] REJECTED: Construct '$pack_name' link '$link' contains path traversal" >&2
     return 0
   fi

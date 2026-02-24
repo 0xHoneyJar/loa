@@ -144,6 +144,16 @@ autonomous_agent:
     hard_limit_tokens: 150000
 
 # -----------------------------------------------------------------------------
+# Update Configuration (v1.39.0)
+# -----------------------------------------------------------------------------
+# Controls /update-loa behavior including supply chain verification.
+# update:
+#   # Override remote URL allowlist for forks/mirrors (default: 0xHoneyJar/loa)
+#   allowed_remotes:
+#     - "https://github.com/your-org/loa.git"
+#     - "git@github.com:your-org/loa.git"
+
+# -----------------------------------------------------------------------------
 # Workspace Cleanup (v1.23.0)
 # -----------------------------------------------------------------------------
 # Archives previous cycle artifacts when starting fresh /simstim or /autonomous
