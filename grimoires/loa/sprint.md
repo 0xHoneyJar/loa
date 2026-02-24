@@ -17,31 +17,31 @@
 
 ### Deliverables
 
-- [ ] `types.ts` extended with `reviewMode` config field and pass-level token tracking on `ReviewResult`
-- [ ] `config.ts` resolves `reviewMode` through the existing 5-level precedence chain (CLI > env > YAML > auto-detect > default)
-- [ ] `template.ts` has convergence-only prompt builders (no persona) and enrichment prompt builder (persona + findings JSON, no diff)
-- [ ] `reviewer.ts` has `processItemTwoPass()` with Pass 1 → Pass 2 flow, finding preservation guard, and fallback to unenriched output
-- [ ] All existing tests pass unchanged
-- [ ] New tests cover two-pass flow, prompt construction, finding preservation validation, fallback paths, and config resolution
+- [x] `types.ts` extended with `reviewMode` config field and pass-level token tracking on `ReviewResult`
+- [x] `config.ts` resolves `reviewMode` through the existing 5-level precedence chain (CLI > env > YAML > auto-detect > default)
+- [x] `template.ts` has convergence-only prompt builders (no persona) and enrichment prompt builder (persona + findings JSON, no diff)
+- [x] `reviewer.ts` has `processItemTwoPass()` with Pass 1 → Pass 2 flow, finding preservation guard, and fallback to unenriched output
+- [x] All existing tests pass unchanged
+- [x] New tests cover two-pass flow, prompt construction, finding preservation validation, fallback paths, and config resolution
 
 ### Acceptance Criteria
 
-- [ ] AC-1: Two-pass mode is the default (`reviewMode: "two-pass"`) — from PRD FR-4.1: `review_mode: "two-pass" | "single-pass"` (default: `"two-pass"`)
-- [ ] AC-2: Pass 1 system prompt contains `INJECTION_HARDENING` but NOT persona content — from PRD FR-1.3, FR-1.4, FR-1.5
-- [ ] AC-3: Pass 1 output format requests ONLY findings JSON inside `<!-- bridge-findings-start/end -->` markers — from PRD FR-1.1, FR-1.2
-- [ ] AC-4: Pass 2 receives findings JSON + condensed PR metadata (file list, no diffs) + full persona — from PRD FR-2.1, FR-2.2, FR-2.3; SDD 3.3
-- [ ] AC-5: Pass 2 failure (LLM error, timeout, invalid response) falls back to Pass 1 unenriched output — from PRD FR-2.7; SDD 5.2
-- [ ] AC-6: Finding preservation guard rejects if Pass 2 changes finding count, IDs, or severities — from PRD FR-2.4; SDD 3.6
-- [ ] AC-7: `reviewMode: "single-pass"` in config runs the existing single-pass path unchanged — from PRD FR-3.5
-- [ ] AC-8: Combined Pass 2 output passes `isValidResponse()` check (`## Summary` + `## Findings`) — from PRD FR-3.3
-- [ ] AC-9: Combined output parseable by `bridge-findings-parser.sh` (v2 JSON format) — from PRD FR-3.4
-- [ ] AC-10: `ReviewResult` includes `pass1Tokens` and `pass2Tokens` for observability — from PRD FR-5.1; SDD 3.9
-- [ ] AC-11: Config resolves `review_mode` from CLI (`--review-mode`), env (`LOA_BRIDGE_REVIEW_MODE`), YAML (`bridgebuilder.review_mode`), default (`"two-pass"`) — from PRD FR-4.1 through FR-4.4
-- [ ] AC-12: All existing reviewer, template, config, and integration tests pass without modification — from PRD non-goal: "preserve existing architecture"
+- [x] AC-1: Two-pass mode is the default (`reviewMode: "two-pass"`) — from PRD FR-4.1: `review_mode: "two-pass" | "single-pass"` (default: `"two-pass"`)
+- [x] AC-2: Pass 1 system prompt contains `INJECTION_HARDENING` but NOT persona content — from PRD FR-1.3, FR-1.4, FR-1.5
+- [x] AC-3: Pass 1 output format requests ONLY findings JSON inside `<!-- bridge-findings-start/end -->` markers — from PRD FR-1.1, FR-1.2
+- [x] AC-4: Pass 2 receives findings JSON + condensed PR metadata (file list, no diffs) + full persona — from PRD FR-2.1, FR-2.2, FR-2.3; SDD 3.3
+- [x] AC-5: Pass 2 failure (LLM error, timeout, invalid response) falls back to Pass 1 unenriched output — from PRD FR-2.7; SDD 5.2
+- [x] AC-6: Finding preservation guard rejects if Pass 2 changes finding count, IDs, or severities — from PRD FR-2.4; SDD 3.6
+- [x] AC-7: `reviewMode: "single-pass"` in config runs the existing single-pass path unchanged — from PRD FR-3.5
+- [x] AC-8: Combined Pass 2 output passes `isValidResponse()` check (`## Summary` + `## Findings`) — from PRD FR-3.3
+- [x] AC-9: Combined output parseable by `bridge-findings-parser.sh` (v2 JSON format) — from PRD FR-3.4
+- [x] AC-10: `ReviewResult` includes `pass1Tokens` and `pass2Tokens` for observability — from PRD FR-5.1; SDD 3.9
+- [x] AC-11: Config resolves `review_mode` from CLI (`--review-mode`), env (`LOA_BRIDGE_REVIEW_MODE`), YAML (`bridgebuilder.review_mode`), default (`"two-pass"`) — from PRD FR-4.1 through FR-4.4
+- [x] AC-12: All existing reviewer, template, config, and integration tests pass without modification — from PRD non-goal: "preserve existing architecture"
 
 ### Technical Tasks
 
-- [ ] **Task 1.1**: Extend `types.ts` — add `reviewMode` to `BridgebuilderConfig`, add `pass1Output`, `pass1Tokens`, `pass2Tokens` to `ReviewResult` → **[G-1, G-3]**
+- [x] **Task 1.1**: Extend `types.ts` — add `reviewMode` to `BridgebuilderConfig`, add `pass1Output`, `pass1Tokens`, `pass2Tokens` to `ReviewResult` → **[G-1, G-3]**
   - File: `.claude/skills/bridgebuilder-review/resources/core/types.ts`
   - Add `reviewMode: "two-pass" | "single-pass"` to `BridgebuilderConfig` interface
   - Add `pass1Output?: string` to `ReviewResult` for observability (FR-5.2)
@@ -49,7 +49,7 @@
   - Add `pass2Tokens?: { input: number; output: number; duration: number }` to `ReviewResult`
   - **AC**: AC-10
 
-- [ ] **Task 1.2**: Extend `config.ts` — add `reviewMode` resolution through 5-level precedence → **[G-3]**
+- [x] **Task 1.2**: Extend `config.ts` — add `reviewMode` resolution through 5-level precedence → **[G-3]**
   - File: `.claude/skills/bridgebuilder-review/resources/config.ts`
   - Add `review_mode?: "two-pass" | "single-pass"` to `YamlConfig` interface
   - Add `reviewMode?: string` to `CLIArgs` and `--review-mode` parsing in `parseCLIArgs()`
@@ -60,7 +60,7 @@
   - Add `reviewMode` to `ConfigProvenance` interface
   - **AC**: AC-1, AC-7, AC-11
 
-- [ ] **Task 1.3**: Add convergence and enrichment prompt builders to `template.ts` → **[G-1, G-2]**
+- [x] **Task 1.3**: Add convergence and enrichment prompt builders to `template.ts` → **[G-1, G-2]**
   - File: `.claude/skills/bridgebuilder-review/resources/core/template.ts`
   - Add `CONVERGENCE_INSTRUCTIONS` constant — analytical-only review instructions requesting findings JSON only, no persona, no enrichment fields (SDD 3.1)
   - Add `buildConvergenceSystemPrompt(): string` — returns `INJECTION_HARDENING + CONVERGENCE_INSTRUCTIONS` (SDD 3.1)
@@ -69,7 +69,7 @@
   - Add `buildEnrichmentPrompt(findingsJSON: string, item: ReviewItem, persona: string): PromptPair` — system prompt uses existing `buildSystemPrompt(persona)`, user prompt contains condensed PR metadata (file list with stats, NO diffs) + Pass 1 findings JSON + enrichment instructions (add educational fields, generate prose, preserve all findings) (SDD 3.3)
   - **AC**: AC-2, AC-3, AC-4
 
-- [ ] **Task 1.4**: Implement two-pass flow in `reviewer.ts` → **[G-1, G-2, G-3]**
+- [x] **Task 1.4**: Implement two-pass flow in `reviewer.ts` → **[G-1, G-2, G-3]**
   - File: `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`
   - Add `extractFindingsJSON(content: string): string | null` — parses findings block from `<!-- bridge-findings-start/end -->` markers, strips code fences, validates JSON has `findings` array, returns JSON string or null (SDD 3.5)
   - Add `validateFindingPreservation(pass1JSON: string, pass2JSON: string): boolean` — checks same finding count, same IDs (order-independent via Set comparison), same severities; returns false on any mismatch (SDD 3.6)
@@ -81,7 +81,7 @@
   - Modify `processItem()` — add gate: `if (this.config.reviewMode === "two-pass") return this.processItemTwoPass(...)` before existing single-pass code (SDD 3.4)
   - **AC**: AC-5, AC-6, AC-8, AC-9, AC-10
 
-- [ ] **Task 1.5**: Create test fixtures for pass validation → **[G-1]**
+- [x] **Task 1.5**: Create test fixtures for pass validation → **[G-1]**
   - Directory: `.claude/skills/bridgebuilder-review/resources/__tests__/fixtures/`
   - Create `pass1-valid-findings.txt` — well-formed Pass 1 output with `<!-- bridge-findings-start -->` / `<!-- bridge-findings-end -->` markers containing valid findings JSON with 3 findings (CRITICAL, MEDIUM, PRAISE)
   - Create `pass1-no-markers.txt` — prose-only Pass 1 output without bridge-findings markers (should cause fallback)
@@ -90,7 +90,7 @@
   - Create `pass2-severity-changed.txt` — Pass 2 output with same 3 IDs but one severity changed from MEDIUM to HIGH — should fail preservation check
   - **AC**: AC-6, AC-9
 
-- [ ] **Task 1.6**: Add unit and integration tests for two-pass pipeline → **[G-1, G-2, G-3]**
+- [x] **Task 1.6**: Add unit and integration tests for two-pass pipeline → **[G-1, G-2, G-3]**
   - Files: `.claude/skills/bridgebuilder-review/resources/__tests__/reviewer.test.ts`, `template.test.ts`, `config.test.ts`
   - **reviewer.test.ts** additions:
     - Test: two-pass mode calls LLM twice (mock LLM tracks call count)
@@ -126,11 +126,11 @@
 
 ### Task 1.E2E: End-to-End Goal Validation
 
-- [ ] Verify G-1 (finding quality): Two-pass convergence prompt allocates full cognitive budget to analysis — system prompt contains analytical instructions only, no persona or enrichment objectives
-- [ ] Verify G-2 (enrichment quality): Enrichment prompt receives dedicated persona context with findings pre-identified — persona in system prompt, findings JSON + condensed metadata in user prompt
-- [ ] Verify G-3 (output compatibility): Combined output passes `isValidResponse()`, parseable by `bridge-findings-parser.sh`, contains `## Summary` + `## Findings`
-- [ ] Verify G-4 (architecture preservation): No changes to findings parser, GitHub trail, convergence scorer, persona file, or any downstream consumer
-- [ ] Run full existing test suite — zero regressions
+- [x] Verify G-1 (finding quality): Two-pass convergence prompt allocates full cognitive budget to analysis — system prompt contains analytical instructions only, no persona or enrichment objectives
+- [x] Verify G-2 (enrichment quality): Enrichment prompt receives dedicated persona context with findings pre-identified — persona in system prompt, findings JSON + condensed metadata in user prompt
+- [x] Verify G-3 (output compatibility): Combined output passes `isValidResponse()`, parseable by `bridge-findings-parser.sh`, contains `## Summary` + `## Findings`
+- [x] Verify G-4 (architecture preservation): No changes to findings parser, GitHub trail, convergence scorer, persona file, or any downstream consumer
+- [x] Run full existing test suite — zero regressions
 
 ### Dependencies
 
