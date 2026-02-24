@@ -250,24 +250,9 @@ _read_config_paths() {
   # Read state directory path
   # Priority: LOA_STATE_DIR env var > config paths.state_dir > default
   if [[ -n "${LOA_STATE_DIR:-}" ]]; then
-    # Env var already set — validate it
-    if [[ "$LOA_STATE_DIR" == /* ]]; then
-      if [[ "${LOA_ALLOW_ABSOLUTE_STATE:-}" != "1" ]]; then
-        echo "ERROR: LOA_STATE_DIR is absolute but LOA_ALLOW_ABSOLUTE_STATE is not set: $LOA_STATE_DIR" >&2
-        return 1
-      fi
-      # Validate absolute path exists and is writable
-      if [[ ! -d "$LOA_STATE_DIR" ]]; then
-        echo "ERROR: LOA_STATE_DIR does not exist: $LOA_STATE_DIR" >&2
-        return 1
-      fi
-      if [[ ! -w "$LOA_STATE_DIR" ]]; then
-        echo "ERROR: LOA_STATE_DIR is not writable: $LOA_STATE_DIR" >&2
-        return 1
-      fi
-    else
-      # Relative path — prepend PROJECT_ROOT
-      export LOA_STATE_DIR="${PROJECT_ROOT}/${LOA_STATE_DIR}"
+    # Env var already set — delegate validation to shared helper
+    if ! _resolve_state_dir_from_env; then
+      return 1
     fi
   else
     local state_dir_raw
@@ -307,6 +292,20 @@ _validate_paths() {
     physical_path=$(realpath -P -m "$LOA_GRIMOIRE_DIR" 2>/dev/null) || true
     if [[ -n "$physical_path" && ! "$physical_path" == "$PROJECT_ROOT"* ]]; then
       echo "ERROR: Symlink resolves outside workspace: $LOA_GRIMOIRE_DIR -> $physical_path" >&2
+      ((errors++)) || true
+    fi
+  fi
+
+  # Validate state dir doesn't escape workspace (Sprint 1 audit MEDIUM fix)
+  # Only for relative paths resolved to absolute — skip for explicit absolute paths
+  # with LOA_ALLOW_ABSOLUTE_STATE opt-in (those are intentionally outside workspace)
+  if [[ "${LOA_ALLOW_ABSOLUTE_STATE:-}" != "1" ]]; then
+    local canonical_state
+    canonical_state=$(realpath -m "$LOA_STATE_DIR" 2>/dev/null) || true
+    if [[ -n "$canonical_state" && ! "$canonical_state" == "$PROJECT_ROOT"* ]]; then
+      echo "ERROR: State dir escapes workspace: $LOA_STATE_DIR" >&2
+      echo "  Resolved to: $canonical_state" >&2
+      echo "  Workspace:   $PROJECT_ROOT" >&2
       ((errors++)) || true
     fi
   fi

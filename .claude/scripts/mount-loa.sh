@@ -527,6 +527,20 @@ sync_zones() {
   mkdir -p .beads
   touch .beads/.gitkeep
 
+  # Initialize consolidated state structure (.loa-state/) if path-lib available
+  local _script_dir_sync
+  _script_dir_sync="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if [[ -f "${_script_dir_sync}/bootstrap.sh" ]]; then
+    (
+      export PROJECT_ROOT
+      PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+      source "${_script_dir_sync}/bootstrap.sh" 2>/dev/null || true
+      if command -v ensure_state_structure &>/dev/null; then
+        ensure_state_structure 2>/dev/null || true
+      fi
+    )
+  fi
+
   log "Zones synced"
 }
 
@@ -1020,8 +1034,9 @@ apply_stealth() {
     local gitignore=".gitignore"
     touch "$gitignore"
 
-    # Core entries (5) — .ck/ is regenerable semantic search cache (#393)
-    local core_entries=("grimoires/loa/" ".beads/" ".loa-version.json" ".loa.config.yaml" ".ck/")
+    # Core entries — .ck/ is regenerable semantic search cache (#393)
+    # .loa-state/ consolidates state after migration; old entries kept during grace period
+    local core_entries=("grimoires/loa/" ".beads/" ".loa-version.json" ".loa.config.yaml" ".ck/" ".loa-state/" ".run/")
     # Doc entries (10) — framework-generated docs that stealth mode hides
     local doc_entries=("PROCESS.md" "CHANGELOG.md" "INSTALLATION.md" "CONTRIBUTING.md" "SECURITY.md" "LICENSE.md" "BUTTERFREEZONE.md" ".reviewignore" ".trufflehog.yaml" ".gitleaksignore")
     local all_entries=("${core_entries[@]}" "${doc_entries[@]}")

@@ -665,9 +665,40 @@ EOF
     log "Created NOTES.md"
   fi
 
-  # Create .beads directory
+  # Create .beads directory (legacy — kept for backward compat)
   mkdir -p .beads
   touch .beads/.gitkeep
+
+  # Initialize consolidated state structure (.loa-state/)
+  local SCRIPT_DIR_LOCAL
+  SCRIPT_DIR_LOCAL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if [[ -f "${SCRIPT_DIR_LOCAL}/bootstrap.sh" ]]; then
+    (
+      export PROJECT_ROOT
+      PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+      source "${SCRIPT_DIR_LOCAL}/bootstrap.sh"
+      if command -v ensure_state_structure &>/dev/null; then
+        ensure_state_structure
+        log "State structure initialized (.loa-state/)"
+      fi
+
+      # Detect old layout and suggest migration
+      if command -v detect_state_layout &>/dev/null; then
+        local layout_ver
+        layout_ver=$(detect_state_layout)
+        if [[ "$layout_ver" == "1" ]]; then
+          echo ""
+          warn "Legacy state layout detected (v1)."
+          info "State is scattered across .beads/, .ck/, .run/"
+          info "To consolidate into .loa-state/, run:"
+          echo ""
+          echo "  .claude/scripts/migrate-state-layout.sh --dry-run"
+          echo "  .claude/scripts/migrate-state-layout.sh --apply"
+          echo ""
+        fi
+      fi
+    )
+  fi
 
   log "State Zone initialized"
 }
