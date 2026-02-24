@@ -416,28 +416,28 @@ Sprint 3 is verification-only — no rollback needed. Test files and documentati
 
 ### Deliverables
 
-- [ ] Single authoritative symlink manifest read by all 4 code paths → **[Tension 1]**
-- [ ] `.loa-cache/` renamed to `.loa-state/` across entire codebase → **[Tension 3]**
-- [ ] All `--no-verify` commits documented with architectural rationale → **[Tension 4, low-3]**
-- [ ] PID-based lock scope documented as local-filesystem-safe → **[low-1]**
-- [ ] Migration backup directories auto-added to `.gitignore` → **[low-2]**
-- [ ] Tests updated for renamed paths + manifest refactor
+- [x] Single authoritative symlink manifest read by all 4 code paths → **[Tension 1]**
+- [x] `.loa-cache/` renamed to `.loa-state/` across entire codebase → **[Tension 3]**
+- [x] All `--no-verify` commits documented with architectural rationale → **[Tension 4, low-3]**
+- [x] PID-based lock scope documented as local-filesystem-safe → **[low-1]**
+- [x] Migration backup directories auto-added to `.gitignore` → **[low-2]**
+- [x] Tests updated for renamed paths + manifest refactor
 
 ### Acceptance Criteria
 
-- [ ] Symlink manifest defined in ONE place: a `get_symlink_manifest()` function in `mount-submodule.sh` that returns the authoritative list
-- [ ] `create_symlinks()`, `verify_and_reconcile_symlinks()`, `migrate_to_submodule()`, and `eject_submodule()` all call `get_symlink_manifest()` instead of maintaining independent lists
-- [ ] Adding a new symlink target requires changing only `get_symlink_manifest()` — no other code paths
-- [ ] All references to `.loa-cache/` replaced with `.loa-state/` across scripts, tests, docs, .gitignore
-- [ ] Every `--no-verify` in `.claude/scripts/` has a preceding comment: `# --no-verify: <architectural rationale>`
-- [ ] `acquire_mount_lock()` has a comment: `# NOTE: PID-based locking is local-filesystem-safe only. Not atomic on NFS/network filesystems.`
-- [ ] `migrate_to_submodule()` adds `.claude.backup.*` to `.gitignore` as part of migration
-- [ ] All 79 existing tests pass (renamed paths update test fixtures)
-- [ ] New test: `manifest_is_single_source_of_truth` — verifies create and verify use same manifest
+- [x] Symlink manifest defined in ONE place: a `get_symlink_manifest()` function in `mount-submodule.sh` that returns the authoritative list
+- [x] `create_symlinks()`, `verify_and_reconcile_symlinks()`, `migrate_to_submodule()`, and `eject_submodule()` all call `get_symlink_manifest()` instead of maintaining independent lists
+- [x] Adding a new symlink target requires changing only `get_symlink_manifest()` — no other code paths
+- [x] All references to `.loa-cache/` replaced with `.loa-state/` across scripts, tests, docs, .gitignore
+- [x] Every `--no-verify` in `.claude/scripts/` has a preceding comment: `# --no-verify: <architectural rationale>`
+- [x] `acquire_mount_lock()` has a comment: `# NOTE: PID-based locking is local-filesystem-safe only. Not atomic on NFS/network filesystems.`
+- [x] `migrate_to_submodule()` adds `.claude.backup.*` to `.gitignore` as part of migration
+- [x] All 79 existing tests pass (renamed paths update test fixtures)
+- [x] New test: `manifest_is_single_source_of_truth` — verifies create and verify use same manifest
 
 ### Technical Tasks
 
-- [ ] **Task 4.1**: Extract symlink manifest to single source of truth → **[Tension 1]**
+- [x] **Task 4.1**: Extract symlink manifest to single source of truth → **[Tension 1]**
   - Create `get_symlink_manifest()` function in `mount-submodule.sh` that returns 3 arrays:
     - `dir_symlinks`: directory-level symlinks (scripts, protocols, hooks, data, schemas)
     - `file_symlinks`: file/nested symlinks (CLAUDE.loa.md, reference, learnings, feedback-ontology.yaml, settings.json, checksums.json)
@@ -450,7 +450,7 @@ Sprint 3 is verification-only — no rollback needed. Test files and documentati
   - **FAANG parallel**: Google's Blaze/Bazel uses single BUILD files as authoritative manifests; Kubernetes uses CRDs. Same principle — one declaration, multiple consumers.
   - Files: `.claude/scripts/mount-submodule.sh`, `.claude/scripts/mount-loa.sh`, `.claude/scripts/loa-eject.sh`
 
-- [ ] **Task 4.2**: Rename `.loa-cache/` to `.loa-state/` → **[Tension 3]**
+- [x] **Task 4.2**: Rename `.loa-cache/` to `.loa-state/` → **[Tension 3]**
   - **Rationale**: "Cache" implies ephemeral/regenerable content. Memory Stack data (observations, session continuity, decision logs) is persistent user state. Naming should reflect semantics.
   - Update `get_memory_stack_path()` in `mount-submodule.sh` (~line 148): check `.loa-state/` then fallback to `.loa-cache/` (migration path)
   - Update `relocate_memory_stack()` target path
@@ -462,7 +462,7 @@ Sprint 3 is verification-only — no rollback needed. Test files and documentati
   - Add migration: if `.loa-cache/` exists and `.loa-state/` does not, auto-rename on next mount
   - Files: `.claude/scripts/mount-submodule.sh`, `.claude/scripts/mount-loa.sh`, `.gitignore`, `INSTALLATION.md`
 
-- [ ] **Task 4.3**: Document all `--no-verify` exceptions → **[Tension 4, low-3]**
+- [x] **Task 4.3**: Document all `--no-verify` exceptions → **[Tension 4, low-3]**
   - Add architectural rationale comments before every `--no-verify` in `.claude/scripts/`:
     - `mount-submodule.sh:733`: `# --no-verify: hooks are being installed by this commit; pre-commit hooks reference paths that don't exist yet`
     - `mount-loa.sh:1175`: `# --no-verify: initial framework installation; hooks are symlinks being created by this operation`
@@ -474,7 +474,7 @@ Sprint 3 is verification-only — no rollback needed. Test files and documentati
   - **Principle**: Document the exception, don't normalize it. Future developers should understand WHY each bypass exists.
   - Files: `.claude/scripts/mount-submodule.sh`, `.claude/scripts/mount-loa.sh`, `.claude/scripts/update-loa.sh`, `.claude/scripts/update.sh`, `.claude/scripts/flatline-snapshot.sh`
 
-- [ ] **Task 4.4**: Document PID-based lock scope → **[low-1]**
+- [x] **Task 4.4**: Document PID-based lock scope → **[low-1]**
   - Add comment at `acquire_mount_lock()` in `mount-loa.sh` (~line 1358):
     ```
     # NOTE: PID-based locking is local-filesystem-safe only (uses kill -0 for stale detection).
@@ -485,12 +485,12 @@ Sprint 3 is verification-only — no rollback needed. Test files and documentati
   - Same for `.loa-cache/.migration-lock` in `mount-submodule.sh`
   - Files: `.claude/scripts/mount-loa.sh`, `.claude/scripts/mount-submodule.sh`
 
-- [ ] **Task 4.5**: Auto-gitignore migration backup directories → **[low-2]**
+- [x] **Task 4.5**: Auto-gitignore migration backup directories → **[low-2]**
   - In `migrate_to_submodule()`, after creating the backup directory, add `.claude.backup.*` to `.gitignore`
   - Use existing idempotent pattern: `grep -qxF '.claude.backup.*' .gitignore || echo '.claude.backup.*' >> .gitignore`
   - File: `.claude/scripts/mount-loa.sh` (~line 1770)
 
-- [ ] **Task 4.6**: Tests for manifest refactor + renamed paths
+- [x] **Task 4.6**: Tests for manifest refactor + renamed paths
   - Update test fixtures: replace `.loa-cache` with `.loa-state` in all test files
   - New test: `manifest_single_source` — call `get_symlink_manifest()` and verify output matches expected topology
   - New test: `loa_cache_migration` — verify `.loa-cache/` auto-renames to `.loa-state/` on mount
@@ -532,24 +532,24 @@ Tasks 4.3, 4.4, 4.5 are comment/gitignore-only — no functional rollback needed
 
 ### Deliverables
 
-- [ ] INSTALLATION.md: Comprehensive comparison table with pros/cons for all 3 methods
-- [ ] README.md: Quick comparison in Quick Start section
-- [ ] PROCESS.md: Updated Mount section with installation mode awareness
-- [ ] Decision flowchart guiding users to the right installation method
+- [x] INSTALLATION.md: Comprehensive comparison table with pros/cons for all 3 methods
+- [x] README.md: Quick comparison in Quick Start section
+- [x] PROCESS.md: Updated Mount section with installation mode awareness
+- [x] Decision flowchart guiding users to the right installation method
 
 ### Acceptance Criteria
 
-- [ ] INSTALLATION.md has a "Choosing Your Installation Method" section with comparison table
-- [ ] Each method lists: when to use, pros, cons, and what gets installed
-- [ ] README.md Quick Start section includes brief comparison (3-line table)
-- [ ] PROCESS.md Mount section mentions installation modes and links to INSTALLATION.md
-- [ ] CI/CD section in INSTALLATION.md includes submodule-specific requirements per provider
-- [ ] Uninstall section updated for submodule mode (git submodule deinit)
-- [ ] All internal documentation links verified working
+- [x] INSTALLATION.md has a "Choosing Your Installation Method" section with comparison table
+- [x] Each method lists: when to use, pros, cons, and what gets installed
+- [x] README.md Quick Start section includes brief comparison (3-line table)
+- [x] PROCESS.md Mount section mentions installation modes and links to INSTALLATION.md
+- [x] CI/CD section in INSTALLATION.md includes submodule-specific requirements per provider
+- [x] Uninstall section updated for submodule mode (git submodule deinit)
+- [x] All internal documentation links verified working
 
 ### Technical Tasks
 
-- [ ] **Task 5.1**: Add "Choosing Your Installation Method" to INSTALLATION.md
+- [x] **Task 5.1**: Add "Choosing Your Installation Method" to INSTALLATION.md
   - Insert after Prerequisites, before Method 1
   - Create comparison table:
 
@@ -570,7 +570,7 @@ Tasks 4.3, 4.4, 4.5 are comment/gitignore-only — no functional rollback needed
     - "Environment without git submodules or symlinks?" → Vendored
   - File: `INSTALLATION.md`
 
-- [ ] **Task 5.2**: Update README.md Quick Start with brief comparison
+- [x] **Task 5.2**: Update README.md Quick Start with brief comparison
   - Add a short comparison after the install command:
     ```
     > **Three ways to install**: Submodule mode (default, recommended), clone template (new projects), or vendored mode (legacy).
@@ -580,7 +580,7 @@ Tasks 4.3, 4.4, 4.5 are comment/gitignore-only — no functional rollback needed
   - Ensure version badge reflects current version
   - File: `README.md`
 
-- [ ] **Task 5.3**: Update PROCESS.md Mount section
+- [x] **Task 5.3**: Update PROCESS.md Mount section
   - Update the "Mount (`/mount`)" section (~line 1095-1122) to mention installation modes
   - Add note about submodule being the default since v1.39.0
   - Add `/mount --vendored` as explicit legacy option
@@ -588,7 +588,7 @@ Tasks 4.3, 4.4, 4.5 are comment/gitignore-only — no functional rollback needed
   - Update helper scripts section (~line 1740) descriptions
   - File: `PROCESS.md`
 
-- [ ] **Task 5.4**: Update Uninstall section for submodule mode
+- [x] **Task 5.4**: Update Uninstall section for submodule mode
   - Current uninstall in INSTALLATION.md assumes vendored mode
   - Add submodule-specific uninstall:
     ```bash

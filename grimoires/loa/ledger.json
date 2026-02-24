@@ -499,15 +499,24 @@
           "local_id": "sprint-4",
           "global_id": "sprint-47",
           "label": "Bridgebuilder Code Quality — DRY Manifest + Naming + Safety",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "local_id": "sprint-5",
           "global_id": "sprint-48",
           "label": "Installation Documentation Excellence",
-          "status": "pending"
+          "status": "completed"
         }
-      ]
+      ],
+      "bridge": {
+        "id": "bridge-20260224-b4e7f1",
+        "iterations": 1,
+        "findings_addressed": 8,
+        "score_trajectory": "3.0 → 0.4",
+        "tests_final": 52,
+        "flatline": true
+      },
+      "pr": 406
     }
   ]
 }

@@ -30,10 +30,11 @@ Captured → Exploring → Proposed → Implemented
 | vision-005 | Pre-Swarm Research Planning (`/plan-research`) | #344 / soju+loa feedback | Captured | orchestration, token-efficiency | 0 |
 | vision-006 | Symbiotic Layer — Convergence Detection & Intent Modeling | #344 / soju+loa feedback | Captured | orchestration, ux, philosophy | 0 |
 | vision-007 | Operator Skill Curve & Progressive Orchestration Disclosure | #344 / soju+loa feedback | Captured | orchestration, ux | 0 |
+| vision-008 | Manifest as Declarative Configuration | bridge-20260224-b4e7f1 / PR #406 | Captured | architecture, manifest | 0 |
 
 ## Statistics
 
-- Total captured: 7
+- Total captured: 8
 - Exploring: 1
 - Proposed: 0
 - Implemented: 0
