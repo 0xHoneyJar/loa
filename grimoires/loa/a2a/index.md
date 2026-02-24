@@ -5,7 +5,7 @@
 | Sprint | Global ID | Status | Phase |
 |--------|-----------|--------|-------|
 | Sprint 1 | 57 | COMPLETED | — |
-| Sprint 2 | 58 | PENDING | — |
+| Sprint 2 | 58 | COMPLETED | — |
 | Sprint 3 | 59 | PENDING | — |
 | Sprint 4 | 60 | PENDING | — |
 | Sprint 5 | 61 | PENDING | — |
