@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "active_cycle": "cycle-035",
-  "global_sprint_counter": 48,
+  "global_sprint_counter": 50,
   "cycles": [
     {
       "id": "cycle-025",
@@ -506,6 +506,18 @@
           "global_id": "sprint-48",
           "label": "Installation Documentation Excellence",
           "status": "completed"
+        },
+        {
+          "local_id": "sprint-6",
+          "global_id": "sprint-49",
+          "label": "Portability + Security Hardening",
+          "status": "in_progress"
+        },
+        {
+          "local_id": "sprint-7",
+          "global_id": "sprint-50",
+          "label": "Construct Manifest Extension Point",
+          "status": "in_progress"
         }
       ],
       "bridge": {

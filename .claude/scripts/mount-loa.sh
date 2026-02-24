@@ -1652,6 +1652,72 @@ Then re-run:
   mount-loa.sh --migrate-to-submodule${MIGRATE_APPLY:+ --apply}"
   fi
 
+  # Step 2.5: Feasibility validation (Bridgebuilder finding low-1)
+  # Like Terraform plan validates feasibility before showing execution plan,
+  # check prerequisites before spending time on file classification.
+  step "Validating migration feasibility..."
+  local feasibility_pass=true
+  local feasibility_failures=()
+
+  # Check 2.5.1: Disk space — submodule clone needs ~50MB
+  local available_kb
+  available_kb=$(df -k . 2>/dev/null | tail -1 | awk '{print $4}') || true
+  if [[ -n "$available_kb" ]] && [[ "$available_kb" =~ ^[0-9]+$ ]]; then
+    if [[ "$available_kb" -lt 102400 ]]; then
+      feasibility_pass=false
+      feasibility_failures+=("Insufficient disk space: $(( available_kb / 1024 ))MB available, ~100MB recommended")
+    else
+      log "  [PASS] Disk space: $(( available_kb / 1024 ))MB available"
+    fi
+  else
+    log "  [SKIP] Disk space check unavailable"
+  fi
+
+  # Check 2.5.2: Write permissions — verify we can write where needed
+  local write_check_dirs=("." ".claude")
+  for dir in "${write_check_dirs[@]}"; do
+    if [[ -d "$dir" ]] && [[ ! -w "$dir" ]]; then
+      feasibility_pass=false
+      feasibility_failures+=("No write permission to $dir/")
+    fi
+  done
+  if [[ "$feasibility_pass" == "true" ]] || [[ ${#feasibility_failures[@]} -eq 0 ]]; then
+    log "  [PASS] Write permissions"
+  fi
+
+  # Check 2.5.3: Network reachability — can we fetch the submodule?
+  if [[ "$dry_run" == "true" ]]; then
+    local remote_url="${LOA_REMOTE_URL:-https://github.com/0xHoneyJar/loa.git}"
+    if timeout 5 git ls-remote "$remote_url" HEAD &>/dev/null 2>&1; then
+      log "  [PASS] Remote reachable: $remote_url"
+    else
+      feasibility_pass=false
+      feasibility_failures+=("Cannot reach remote: $remote_url (timeout 5s)")
+    fi
+  fi
+
+  # Check 2.5.4: Submodule path conflicts
+  if [[ -d ".loa" ]] && [[ -f ".loa/.git" ]]; then
+    log "  [PASS] .loa/ already a submodule (will reuse)"
+  elif [[ -d ".loa" ]]; then
+    warn "  [WARN] .loa/ exists but is not a submodule — will be relocated"
+  else
+    log "  [PASS] .loa/ path available"
+  fi
+
+  # Report feasibility results
+  if [[ "$feasibility_pass" == "false" ]]; then
+    echo ""
+    warn "Feasibility check FAILED:"
+    for failure in "${feasibility_failures[@]}"; do
+      warn "  ✗ $failure"
+    done
+    echo ""
+    err "Migration cannot proceed. Fix the above issues and retry."
+  fi
+  log "Feasibility validation passed"
+  echo ""
+
   # Step 3: Discovery phase — classify files
   step "Classifying .claude/ files..."
   local framework_files=()

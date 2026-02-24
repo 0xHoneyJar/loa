@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Loa Construct Manifest",
+  "description": "Declares symlink requirements for a construct pack. Extends the core symlink manifest (lib/symlink-manifest.sh) without modifying it. Like Kubernetes CRDs extending the API or npm peerDependencies.",
+  "type": "object",
+  "required": ["name", "version"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Construct pack name (must match directory name)",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version of the construct",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "symlinks": {
+      "type": "object",
+      "description": "Symlink declarations for this construct",
+      "properties": {
+        "directories": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["link", "target"],
+            "properties": {
+              "link": {
+                "type": "string",
+                "description": "Link path (must be under .claude/)"
+              },
+              "target": {
+                "type": "string",
+                "description": "Target path relative to repo root"
+              }
+            }
+          }
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["link", "target"],
+            "properties": {
+              "link": {
+                "type": "string",
+                "description": "Link path (must be under .claude/)"
+              },
+              "target": {
+                "type": "string",
+                "description": "Target path relative to repo root"
+              }
+            }
+          }
+        }
+      }
+    },
+    "requires": {
+      "type": "array",
+      "description": "Paths that must exist before this construct's symlinks are created",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

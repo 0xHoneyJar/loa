@@ -11,6 +11,8 @@
 | sprint-3 | sprint-46 | **COMPLETED** | [reviewer.md](sprint-46/reviewer.md), [engineer-feedback.md](sprint-46/engineer-feedback.md), [auditor-sprint-feedback.md](sprint-46/auditor-sprint-feedback.md), [COMPLETED](sprint-46/COMPLETED) |
 | sprint-4 | sprint-47 | **COMPLETED** | [reviewer.md](sprint-47/reviewer.md), [engineer-feedback.md](sprint-47/engineer-feedback.md), [auditor-sprint-feedback.md](sprint-47/auditor-sprint-feedback.md), [COMPLETED](sprint-47/COMPLETED) |
 | sprint-5 | sprint-48 | **COMPLETED** | [reviewer.md](sprint-48/reviewer.md), [engineer-feedback.md](sprint-48/engineer-feedback.md), [auditor-sprint-feedback.md](sprint-48/auditor-sprint-feedback.md), [COMPLETED](sprint-48/COMPLETED) |
+| sprint-6 | sprint-49 | **IN_PROGRESS** | [reviewer.md](sprint-49/reviewer.md) |
+| sprint-7 | sprint-50 | **IN_PROGRESS** | [reviewer.md](sprint-50/reviewer.md) |
 
 ## Bridge Review
 

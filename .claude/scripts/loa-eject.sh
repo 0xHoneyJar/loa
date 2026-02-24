@@ -436,10 +436,11 @@ eject_submodule() {
   step "Replacing symlinks with real files..."
   local replaced=0
 
-  # Source shared symlink manifest
+  # Source shared symlink manifest and cross-platform compat layer
   local _script_dir
   _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   source "${_script_dir}/lib/symlink-manifest.sh"
+  source "${_script_dir}/compat-lib.sh"
   get_symlink_manifest "$submodule_path" "$(pwd)"
 
   # Iterate all manifest entries — replace symlinks with real copies
@@ -448,7 +449,9 @@ eject_submodule() {
     if [[ -L "$link_path" ]]; then
       # Resolve the real source path in the submodule
       local real_src
-      real_src=$(readlink -f "$link_path" 2>/dev/null || true)
+      # Use get_canonical_path() from compat-lib.sh for macOS portability (high-1)
+      # readlink -f is GNU coreutils only; macOS BSD readlink lacks -f flag
+      real_src=$(get_canonical_path "$link_path" 2>/dev/null || true)
       if [[ "$DRY_RUN" == "true" ]]; then
         step "[dry-run] Would replace symlink: $link_path"
       else
@@ -465,7 +468,8 @@ eject_submodule() {
   # Also check settings.local.json (not in manifest — user-owned extension)
   if [[ -L ".claude/settings.local.json" ]]; then
     local real_src
-    real_src=$(readlink -f ".claude/settings.local.json" 2>/dev/null || true)
+    # Use get_canonical_path() from compat-lib.sh for macOS portability (high-1)
+    real_src=$(get_canonical_path ".claude/settings.local.json" 2>/dev/null || true)
     if [[ "$DRY_RUN" == "true" ]]; then
       step "[dry-run] Would replace symlink: .claude/settings.local.json"
     else
