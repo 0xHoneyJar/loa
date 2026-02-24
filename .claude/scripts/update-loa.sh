@@ -154,6 +154,40 @@ Expected one of:
   log "Supply chain integrity verified"
 }
 
+# === Ledger Schema Migration Check ===
+# After submodule update, compare upstream vs local schema_version.
+# Warns when upstream has a newer schema — advisory only (no hard fail).
+check_ledger_schema() {
+  local upstream_ledger="$SUBMODULE_PATH/grimoires/loa/ledger.json"
+  local local_ledger="grimoires/loa/ledger.json"
+
+  # Skip if either file doesn't exist
+  [[ -f "$upstream_ledger" ]] || return 0
+  [[ -f "$local_ledger" ]] || return 0
+
+  local upstream_version local_version
+  upstream_version=$(jq -r '.schema_version // 0' "$upstream_ledger" 2>/dev/null) || {
+    warn "Unable to parse schema_version from upstream ledger ($upstream_ledger)"
+    return 0
+  }
+  local_version=$(jq -r '.schema_version // 0' "$local_ledger" 2>/dev/null) || {
+    warn "Unable to parse schema_version from local ledger ($local_ledger)"
+    return 0
+  }
+
+  # Validate both versions are non-negative integers
+  if ! [[ "$upstream_version" =~ ^[0-9]+$ ]] || ! [[ "$local_version" =~ ^[0-9]+$ ]]; then
+    warn "Ledger schema_version is not an integer (upstream=$upstream_version, local=$local_version) — skipping check"
+    return 0
+  fi
+
+  if [[ "$upstream_version" -gt "$local_version" ]]; then
+    warn "Ledger schema migration available (v${local_version} → v${upstream_version})."
+    warn "Your ledger data is preserved (merge=ours) but the schema format may need updating."
+    warn "Run: /ledger migrate"
+  fi
+}
+
 # === Submodule Update ===
 update_submodule() {
   step "Updating Loa submodule..."
@@ -226,6 +260,9 @@ update_submodule() {
       fi
     fi
   fi
+
+  # === Ledger Schema Migration Check ===
+  check_ledger_schema
 
   # Commit if requested
   if [[ "$NO_COMMIT" != "true" ]]; then

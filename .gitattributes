@@ -32,6 +32,9 @@ grimoires/loa/prd.md merge=ours
 grimoires/loa/sdd.md merge=ours
 grimoires/loa/sprint.md merge=ours
 grimoires/loa/NOTES.md merge=ours
+# Note: ledger.json is schema-owned operational state (not user-authored prose).
+# merge=ours preserves your cycle/sprint data but may skip upstream schema migrations.
+# update-loa.sh warns when upstream schema_version exceeds local — run /ledger migrate.
 grimoires/loa/ledger.json merge=ours
 
 # =============================================================================

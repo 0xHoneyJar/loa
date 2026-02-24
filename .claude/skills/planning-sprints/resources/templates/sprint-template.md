@@ -58,6 +58,11 @@
 - {Any dependencies on previous sprints or external factors}
 - None (first sprint)
 
+### Security Considerations
+- **Trust boundaries**: {Which inputs are trusted? Which come from external sources?}
+- **External dependencies**: {New dependencies added? Pinning strategy? Integrity verification?}
+- **Sensitive data**: {API keys, credentials, PII involved? How are they protected?}
+
 ### Risks & Mitigation
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|------------|
