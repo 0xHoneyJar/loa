@@ -113,6 +113,17 @@ create_archive() {
   
   # Generate changelog
   "$SCRIPT_DIR/generate-changelog.sh" --cycle "$cycle" --file "${archive_path}/CHANGELOG.md" 2>/dev/null || true
+
+  # Export trajectory at cycle boundary (non-blocking)
+  local traj_git_flag=""
+  if [[ -f "$CONFIG_FILE" ]] && command -v yq >/dev/null 2>&1; then
+    local traj_git_commit
+    traj_git_commit=$(yq eval '.trajectory.archive.git_commit // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+    [[ "$traj_git_commit" == "true" ]] && traj_git_flag="--git-commit"
+  fi
+  "$SCRIPT_DIR/trajectory-export.sh" --cycle "cycle-$(printf '%03d' "$cycle")" ${traj_git_flag:+$traj_git_flag} 2>/dev/null || {
+    echo "[WARN] Trajectory export failed (non-blocking)" >&2
+  }
   
   # Write archive metadata
   cat > "${archive_path}/.archive-meta.json" << EOF

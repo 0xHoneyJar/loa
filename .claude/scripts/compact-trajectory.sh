@@ -145,10 +145,56 @@ done < <(find "${TRAJECTORY_DIR}" -name "*.jsonl.gz" -type f -print0 2>/dev/null
 echo ""
 echo "Purged: ${PURGE_COUNT} archives"
 
+# Phase 3: Purge old trajectory exports from state-dir archive
+echo ""
+echo "=== Phase 3: Purge Old Trajectory Exports ==="
+echo ""
+
+EXPORT_PURGE_COUNT=0
+
+# Resolve state-dir trajectory archive (if path-lib available)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STATE_ARCHIVE_DIR=""
+if [[ -f "$SCRIPT_DIR/path-lib.sh" ]]; then
+    source "$SCRIPT_DIR/path-lib.sh" 2>/dev/null && {
+        STATE_ARCHIVE_DIR=$(get_state_trajectory_dir 2>/dev/null)/archive || true
+    }
+fi
+
+# Fallback to default location
+if [[ -z "$STATE_ARCHIVE_DIR" || ! -d "$STATE_ARCHIVE_DIR" ]]; then
+    STATE_ARCHIVE_DIR="${PROJECT_ROOT}/.loa-state/trajectory/archive"
+fi
+
+if [[ -d "$STATE_ARCHIVE_DIR" ]]; then
+    while IFS= read -r -d '' file; do
+        file_age_days=$(( ($(date +%s) - $(stat -c %Y "${file}" 2>/dev/null || stat -f %m "${file}" 2>/dev/null)) / 86400 ))
+
+        if [[ ${file_age_days} -gt ${ARCHIVE_DAYS} ]]; then
+            file_size=$(stat -c %s "${file}" 2>/dev/null || stat -f %z "${file}" 2>/dev/null)
+
+            echo "Purging export: $(basename "${file}") (${file_age_days} days old)"
+
+            if [[ "${DRY_RUN}" == "false" ]]; then
+                rm "${file}"
+                echo "  → Deleted (freed $(( file_size / 1024 )) KB)"
+            else
+                echo "  [DRY RUN] Would delete"
+            fi
+
+            ((EXPORT_PURGE_COUNT++))
+        fi
+    done < <(find "${STATE_ARCHIVE_DIR}" -maxdepth 1 \( -name "*.json" -o -name "*.json.gz" \) -type f -print0 2>/dev/null || true)
+fi
+
+echo ""
+echo "Purged exports: ${EXPORT_PURGE_COUNT} files"
+
 echo ""
 echo "=== Summary ==="
 echo "  Compressed: ${COMPRESS_COUNT} files"
-echo "  Purged: ${PURGE_COUNT} files"
+echo "  Purged (legacy): ${PURGE_COUNT} files"
+echo "  Purged (exports): ${EXPORT_PURGE_COUNT} files"
 
 if [[ "${DRY_RUN}" == "false" ]] && [[ ${COMPRESS_COUNT} -gt 0 ]]; then
     echo "  Space saved: $(( (TOTAL_SIZE_BEFORE - TOTAL_SIZE_AFTER) / 1024 )) KB"
