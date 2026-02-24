@@ -79,6 +79,8 @@ curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts
 
 This automatically uses submodule mode. The installer handles git submodule setup, symlink creation, and configuration.
 
+> **Security note**: Piping curl to bash executes remote code without prior inspection. This is standard practice for developer tools (Homebrew, Rust, nvm) but carries inherent supply-chain risk. For higher-assurance installs, use the [manual install](#manual-install) or [verify after install](#verify-installation). Pin to a release tag with `--tag v1.39.0` to avoid running unreleased code.
+
 ### Manual Install
 
 ```bash
@@ -205,6 +207,27 @@ claude
 A healthy system shows all green checks. Any issues include structured error codes (LOA-E001+) with fix instructions. If the health check fails, see [Troubleshooting](#troubleshooting).
 
 > `/loa doctor` is a slash command typed inside the Claude Code interactive session, not a shell command. All `/` commands in this guide work the same way.
+
+### Integrity Verification (Optional)
+
+After installation, verify that framework files match the expected checksums from the pinned version:
+
+```bash
+# Compare local checksums against the release tag
+cd .loa && git diff --stat HEAD  # Should show no changes if pinned correctly
+
+# Verify the submodule commit matches the expected tag
+cd .loa && git describe --tags --exact-match 2>/dev/null || echo "Not on a tagged release"
+
+# For vendored installs: validate checksums file
+cat .claude/checksums.json | jq '.files | length'  # Should match expected file count
+```
+
+If you used the one-line curl installer without `--tag`, you can verify what was installed by checking the git log of the submodule:
+
+```bash
+cd .loa && git log --oneline -1
+```
 
 ## Post-Install Enhancements
 

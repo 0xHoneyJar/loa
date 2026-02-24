@@ -1,0 +1,67 @@
+# =============================================================================
+# BATS Shell Tests
+# =============================================================================
+# Runs BATS test suites for shell scripts and framework infrastructure.
+# Two test directories:
+#   - tests/unit/           — Framework unit tests (58 files)
+#   - .claude/scripts/tests/ — Script-level tests (20 files)
+#
+# Triggers on changes to shell scripts, test files, or this workflow.
+
+name: BATS Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.claude/scripts/**/*.sh'
+      - '.claude/scripts/tests/**'
+      - 'tests/unit/**'
+      - 'tests/run-unit-tests.sh'
+      - '.github/workflows/bats-tests.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.claude/scripts/**/*.sh'
+      - '.claude/scripts/tests/**'
+      - 'tests/unit/**'
+      - 'tests/run-unit-tests.sh'
+      - '.github/workflows/bats-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  bats:
+    name: Shell Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install bats-core
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bats
+
+      - name: Install yq
+        run: |
+          wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          chmod +x /usr/local/bin/yq
+
+      - name: Run framework unit tests
+        run: |
+          if [ -d tests/unit ] && ls tests/unit/*.bats >/dev/null 2>&1; then
+            echo "Running tests/unit/ ..."
+            bats tests/unit/*.bats
+          else
+            echo "No tests found in tests/unit/"
+          fi
+
+      - name: Run script tests
+        run: |
+          if ls .claude/scripts/tests/*.bats >/dev/null 2>&1; then
+            echo "Running .claude/scripts/tests/ ..."
+            bats .claude/scripts/tests/*.bats
+          else
+            echo "No tests found in .claude/scripts/tests/"
+          fi

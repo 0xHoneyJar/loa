@@ -23,6 +23,10 @@ CHANGELOG.md merge=ours
 # /update-loa merges upstream which uses the same paths for its own dev cycles.
 # merge=ours prevents upstream PRD/SDD/sprint files from overwriting yours.
 # See: Three-Zone Model in CLAUDE.loa.md — grimoires/ is user-owned state.
+#
+# To check what upstream changed (opt-in to improvements):
+#   git diff main..loa/main -- grimoires/loa/prd.md
+#   git diff main..loa/main -- grimoires/loa/sdd.md
 
 grimoires/loa/prd.md merge=ours
 grimoires/loa/sdd.md merge=ours

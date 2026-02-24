@@ -77,6 +77,8 @@ temp/
 # Loa Memory Stack persistent state (renamed from .loa-cache/ in cycle-035)
 # Contains vector database, embeddings, QMD indexes - machine-specific
 # Semantics: NOT a cache (not ephemeral) — this is persistent local state
+# Note: .loa/ is the submodule path (tracked). .loa-state/ is local state (ignored).
+# Migration from old .loa/ data dir is handled by mount-submodule.sh:relocate_memory_stack()
 .loa-state/
 
 # User context files (discovery inputs, uploaded docs, extracted content)
