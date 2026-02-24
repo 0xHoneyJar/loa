@@ -47,9 +47,11 @@ claude
 
 After install, you should see `.loa/` (submodule), `.claude/` (symlinks), `grimoires/loa/`, and `.loa.config.yaml` in your repo. Run `/loa doctor` inside Claude Code to verify everything is healthy.
 
+> **Three ways to install**: Submodule mode (default, recommended for existing projects), clone template (new projects), or vendored mode (legacy — no symlink support). See **[INSTALLATION.md](INSTALLATION.md#choosing-your-installation-method)** for the full comparison.
+
 Not sure where you are? `/loa` shows your current state, health, and next step.
 
-New project? See **[INSTALLATION.md](INSTALLATION.md)** to clone the template. For detailed setup, optional tools (beads, ck), and configuration, start there too.
+New project? See **[INSTALLATION.md](INSTALLATION.md#method-2-clone-template)** to clone the template. For detailed setup, optional tools (beads, ck), and configuration, start there too.
 
 ## Why Loa?
 

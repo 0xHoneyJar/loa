@@ -51,6 +51,22 @@ yq --version   # Should show "mikefarah/yq"
 git --version
 ```
 
+## Choosing Your Installation Method
+
+| Factor | Submodule (Default) | Clone Template | Vendored (Legacy) |
+|--------|--------------------|-----------------|--------------------|
+| **Best for** | Existing projects | New projects from scratch | No git submodule/symlink support |
+| **Framework updates** | `git submodule update` or `/update-loa` | `git pull` from upstream | `/update-loa` (full copy) |
+| **Tracked files added** | ~5 (submodule ref + config) | 800+ (full framework) | 800+ (full framework) |
+| **Separation** | Clean — framework in `.loa/`, symlinks in `.claude/` | Mixed — framework files in your tree | Mixed — copied into `.claude/` |
+| **Version pinning** | `cd .loa && git checkout v1.39.0` | Standard git tags | Manual update script |
+| **CI/CD setup** | Needs `--recurse-submodules` | Nothing extra | Nothing extra |
+| **Symlink support** | Required | Not needed | Not needed |
+| **Disk footprint** | ~2 MB (shared .loa/) | Full repo clone | ~2 MB (copied) |
+| **Recommended?** | Yes | Yes (new projects only) | Only if submodules unavailable |
+
+**Our recommendation**: Use **Submodule Mode** for existing projects (Method 1) or **Clone Template** for brand new projects (Method 2). Vendored mode exists for environments without submodule/symlink support (rare).
+
 ## Method 1: Submodule Mode (Default)
 
 Adds Loa as a git submodule at `.loa/`, with symlinks from `.claude/` into the submodule. This provides version isolation, easy updates, and clean separation of framework from project code.
@@ -700,21 +716,51 @@ Loa's mount script also auto-detects uninitialized submodules and runs this auto
 
 ## Uninstalling Loa
 
-To completely remove Loa from your project:
+### Submodule Mode (Default)
 
 ```bash
-# Remove the framework (System Zone)
+# 1. Remove symlinks (these point into .loa/)
 rm -rf .claude/
 
-# Remove state files (optional — contains your project memory and docs)
-rm -rf grimoires/loa/ .beads/ .loa-version.json .loa.config.yaml
+# 2. Remove the submodule
+git submodule deinit -f .loa
+git rm -f .loa
+rm -rf .git/modules/.loa  # Clean submodule cache
 
-# Remove from git tracking
+# 3. Remove state files (optional — contains your project memory and docs)
+rm -rf grimoires/loa/ .beads/ .loa-state/ .loa-version.json .loa.config.yaml
+
+# 4. Commit the removal
+git commit -m "chore: remove Loa framework (submodule)"
+```
+
+### Vendored Mode (Legacy)
+
+```bash
+# 1. Remove the framework (System Zone)
+rm -rf .claude/
+
+# 2. Remove state files (optional — contains your project memory and docs)
+rm -rf grimoires/loa/ .beads/ .loa-state/ .loa-version.json .loa.config.yaml
+
+# 3. Remove from git tracking
 git rm -r --cached .claude/ grimoires/loa/ .loa-version.json .loa.config.yaml 2>/dev/null
-git commit -m "chore: remove Loa framework"
+git commit -m "chore: remove Loa framework (vendored)"
 
-# Remove the upstream remote (if mounted)
+# 4. Remove the upstream remote (if mounted)
 git remote remove loa-upstream 2>/dev/null
+```
+
+### Using /loa-eject (Recommended)
+
+The safest way to uninstall is `/loa-eject`, which creates a backup before removing:
+
+```bash
+# Preview what will be removed
+/loa-eject --dry-run
+
+# Execute with backup
+/loa-eject
 ```
 
 > **Note**: Your application code (`src/`, `lib/`, etc.) is never touched by Loa and remains unaffected.

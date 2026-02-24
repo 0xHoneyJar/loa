@@ -1096,15 +1096,24 @@ For existing codebases that need Loa analysis without going through the full dis
 
 **Goal**: Install Loa framework onto an existing repository
 
+**Installation Modes** (since v1.39.0):
+
+| Mode | Command | Description |
+|------|---------|-------------|
+| **Submodule** (default) | `/mount` | Adds `.loa/` submodule, creates symlinks in `.claude/` |
+| **Vendored** (legacy) | `/mount --vendored` | Copies framework into `.claude/` directly |
+
+> Submodule mode is the default since v1.39.0. See [INSTALLATION.md](INSTALLATION.md#choosing-your-installation-method) for the full comparison of installation methods.
+
 **When to Use**:
 - Setting up Loa on an existing codebase
 - After cloning a repository you want to analyze
 - As an alternative to the curl one-liner
 
-**Process**:
-1. Verifies git repository and dependencies
-2. Configures upstream remote for updates
-3. Installs System Zone (`.claude/`)
+**Process** (submodule mode):
+1. Verifies git repository, dependencies, and symlink support
+2. Adds Loa as git submodule at `.loa/`
+3. Creates symlinks from `.claude/` into `.loa/.claude/`
 4. Initializes State Zone (`grimoires/loa/`)
 5. Generates checksums for integrity verification
 6. Creates user config if not present
@@ -1112,7 +1121,8 @@ For existing codebases that need Loa analysis without going through the full dis
 
 **Command**:
 ```bash
-/mount
+/mount                    # Submodule mode (default)
+/mount --vendored         # Legacy vendored mode
 /mount --stealth          # Don't commit framework files
 /mount --skip-beads       # Skip beads_rust initialization
 ```
