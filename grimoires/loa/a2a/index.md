@@ -14,14 +14,36 @@
 | sprint-6 | sprint-49 | **COMPLETED** | [reviewer.md](sprint-49/reviewer.md), [engineer-feedback.md](sprint-49/engineer-feedback.md), [auditor-sprint-feedback.md](sprint-49/auditor-sprint-feedback.md), [COMPLETED](sprint-49/COMPLETED) |
 | sprint-7 | sprint-50 | **COMPLETED** | [reviewer.md](sprint-50/reviewer.md), [engineer-feedback.md](sprint-50/engineer-feedback.md), [auditor-sprint-feedback.md](sprint-50/auditor-sprint-feedback.md), [COMPLETED](sprint-50/COMPLETED) |
 
-## Bridge Review
+## Bridge Reviews
 
-- **Bridge ID**: bridge-20260224-b4e7f1
+### Bridge 1 (bridge-20260224-b4e7f1)
 - **Iterations**: 1 (flatline reached)
 - **Findings**: 4 PRAISE, 2 LOW, 1 SPECULATION, 1 REFRAME
 - **Score Trajectory**: 3.0 → 0.4
 - **PR Comment**: [PR #406 comment](https://github.com/0xHoneyJar/loa/pull/406#issuecomment-3948260479)
 - **Vision Captured**: vision-008 (Manifest as Declarative Configuration)
+
+### Bridge 2 (bridge-20260224-a92446)
+- **Iterations**: 1 (flatline — two consecutive near-zero iterations)
+- **Findings**: 4 PRAISE, 1 LOW, 1 SPECULATION
+- **Score Trajectory**: 3.0 → 0.4 → 0.5 (flatline)
+- **PR Comment**: [PR #406 comment](https://github.com/0xHoneyJar/loa/pull/406#issuecomment-3948554000)
+- **Sprints**: sprint-49 (portability + security), sprint-50 (construct manifest)
+- **Tests**: 112/112 passing (30 new + 82 regression)
+
+## Sprint 50 (sprint-7): Construct Manifest Extension Point
+
+- **Implementation**: Complete (5/5 tasks)
+- **Review**: PASS — all 5 acceptance criteria verified
+- **Audit**: APPROVED — 0 CRITICAL, 0 HIGH, 0 MEDIUM, 1 LOW (target path trust boundary)
+- **112/112 tests passing** (13 new construct manifest + 17 sprint-49 + 82 regression)
+
+## Sprint 49 (sprint-6): Portability + Security Hardening
+
+- **Implementation**: Complete (5/5 tasks)
+- **Review**: PASS — all 5 acceptance criteria verified
+- **Audit**: APPROVED — 0 CRITICAL, 0 HIGH, 0 MEDIUM, 1 LOW (case-insensitive fs edge case)
+- **99/99 tests passing** (6 eject + 11 zone guard + 82 regression)
 
 ## Sprint 48 (sprint-5): Installation Documentation Excellence
 

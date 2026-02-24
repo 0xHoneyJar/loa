@@ -520,14 +520,24 @@
           "status": "completed"
         }
       ],
-      "bridge": {
-        "id": "bridge-20260224-b4e7f1",
-        "iterations": 1,
-        "findings_addressed": 8,
-        "score_trajectory": "3.0 → 0.4",
-        "tests_final": 52,
-        "flatline": true
-      },
+      "bridge": [
+        {
+          "id": "bridge-20260224-b4e7f1",
+          "iterations": 1,
+          "findings_addressed": 8,
+          "score_trajectory": "3.0 → 0.4",
+          "tests_final": 52,
+          "flatline": true
+        },
+        {
+          "id": "bridge-20260224-a92446",
+          "iterations": 1,
+          "findings_addressed": 4,
+          "score_trajectory": "3.0 → 0.4 → 0.5",
+          "tests_final": 112,
+          "flatline": true
+        }
+      ],
       "pr": 406
     }
   ]
