@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "active_cycle": "cycle-038",
+  "cycles": [
+    {
+      "id": "cycle-036",
+      "label": "Quick-Win User Experience Fixes",
+      "status": "archived",
+      "created": "2026-02-24T00:00:00Z",
+      "archived": "2026-02-24T08:40:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-24-cycle-036-quick-win-ux",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 52,
+          "label": "All Quick Wins",
+          "status": "completed"
+        },
+        {
+          "local_id": 2,
+          "global_id": 53,
+          "label": "Bridgebuilder Findings — Excellence Hardening",
+          "status": "completed"
+        },
+        {
+          "local_id": 3,
+          "global_id": 54,
+          "label": "CI Hardening — Bridge Iteration 2",
+          "status": "completed"
+        },
+        {
+          "local_id": 4,
+          "global_id": 55,
+          "label": "CI Integrity — Bridge Iteration 3",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "cycle-037",
+      "label": "Bridgebuilder Deep Review — Architectural Fixes",
+      "status": "archived",
+      "created": "2026-02-24T08:40:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 56,
+          "label": "All Architectural Fixes",
+          "status": "completed"
+        }
+      ],
+      "archived": "2026-02-24T21:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-24-bridgebuilder-architectural-fixes"
+    },
+    {
+      "id": "cycle-038",
+      "label": "Organizational Memory Sovereignty — Three-Zone State Architecture",
+      "status": "active",
+      "created": "2026-02-24T21:00:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 57,
+          "label": "State-Dir Resolution Foundation",
+          "status": "completed"
+        },
+        {
+          "local_id": 2,
+          "global_id": 58,
+          "label": "Migration Script + Mount Integration",
+          "status": "pending"
+        },
+        {
+          "local_id": 3,
+          "global_id": 59,
+          "label": "Redaction Pipeline",
+          "status": "pending"
+        },
+        {
+          "local_id": 4,
+          "global_id": 60,
+          "label": "Trajectory Archive + Import",
+          "status": "pending"
+        },
+        {
+          "local_id": 5,
+          "global_id": 61,
+          "label": "Memory Pipeline Activation",
+          "status": "pending"
+        },
+        {
+          "local_id": 6,
+          "global_id": 62,
+          "label": "Federated Learning Exchange",
+          "status": "pending"
+        }
+      ]
+    }
+  ],
+  "global_sprint_counter": 62
+}
