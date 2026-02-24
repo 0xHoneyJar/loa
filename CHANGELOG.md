@@ -5,6 +5,21 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.57.0] — 2026-02-24 — Quick-Win UX Fixes
+
+
+6 surgical quick-win fixes improving user experience, plus 3 bridge iterations of excellence hardening.
+
+### Sprint 52: Quick-Win UX Fixes
+- State Zone Merge Protection (#405)
+
+### Added
+
+- **cycle-036**: Quick-Win UX Fixes (#407)
+
+_Source: PR #407_
+
+
 ## [1.39.1] — 2026-02-15 — Collateral Deletion Safeguard + CI Hardening
 
 ### Fixed
