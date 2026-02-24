@@ -152,7 +152,7 @@ Directory structure:
 |--------|-------|---------|---------------|
 | `docs/` | 6 | Documentation | \u2014 |
 | `evals/` | 5818 | Benchmarking and regression framework for the Loa agent development system. Ensures framework changes don't degrade agent behavior through | [evals/README.md](evals/README.md) |
-| `grimoires/` | 1102 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
+| `grimoires/` | 1228 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
 | `skills/` | 5112 | Specialized agent skills | \u2014 |
 | `tests/` | 157 | Test suites | \u2014 |
 
@@ -207,15 +207,15 @@ claude
 /ship      # Deploy and archive
 ```
 <!-- ground-truth-meta
-head_sha: f68e8541d56388cfbba022b71a3d1963ae4a9d3c
-generated_at: 2026-02-24T08:04:01Z
+head_sha: 247c8152575cc256cc86cc1c09f1b7e7707004f8
+generated_at: 2026-02-23T23:24:51Z
 generator: butterfreezone-gen v1.0.0
 sections:
   agent_context: 2181e030ad7c26375787c2779116509418c11f8dd4cd51c7cbd38d655dbcdf96
   capabilities: ab2576b1f2e7e8141f0e93e807d26ed2b7b155e21c96d787507a3ba933bb9795
   architecture: 970c0549aa208f3f8e0063176776b3fd52798e8d19011897a6a22e6542c2e772
   interfaces: 120e3b3a6d65d4939b251dd049f213e32254a91510d48457be2e4f1b3f7399d3
-  module_map: 9c9a8c56b268e2e1380db9ab279495c03648d8a121344d9b197bb5236721c330
+  module_map: de9ac14970d59fe5be9acec26bd459ef57023f11a27e5786edc87237f4657a03
   verification: d63acadb827c33f47a4a75a8bbb9634a0063078c6650a0ce009957ef49666bf0
   agents: ca263d1e05fd123434a21ef574fc8d76b559d22060719640a1f060527ef6a0b6
   culture: f73380f93bb4fadf36ccc10d60fc57555914363fc90e4f15b4dc4eb92bd1640f
