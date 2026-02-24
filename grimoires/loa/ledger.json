@@ -511,13 +511,13 @@
           "local_id": "sprint-6",
           "global_id": "sprint-49",
           "label": "Portability + Security Hardening",
-          "status": "in_progress"
+          "status": "completed"
         },
         {
           "local_id": "sprint-7",
           "global_id": "sprint-50",
           "label": "Construct Manifest Extension Point",
-          "status": "in_progress"
+          "status": "completed"
         }
       ],
       "bridge": {
