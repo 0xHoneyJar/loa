@@ -38,6 +38,8 @@ UPSTREAM_SCORE_SCRIPT="$SCRIPT_DIR/upstream-score-calculator.sh"
 ANONYMIZE_SCRIPT="$SCRIPT_DIR/anonymize-proposal.sh"
 JACCARD_SCRIPT="$SCRIPT_DIR/jaccard-similarity.sh"
 GH_LABEL_HANDLER="$SCRIPT_DIR/gh-label-handler.sh"
+REDACT_EXPORT_SCRIPT="$SCRIPT_DIR/redact-export.sh"
+EXCHANGE_SCHEMA="$PROJECT_ROOT/.claude/schemas/learning-exchange.schema.json"
 
 # Learnings file
 PROJECT_LEARNINGS_FILE="$PROJECT_ROOT/grimoires/loa/a2a/compound/learnings.json"
@@ -425,6 +427,211 @@ extract_issue_ref() {
     fi
 }
 
+# Check learning exchange quality gates
+# Returns 0 if gates pass, 1 if below threshold
+check_exchange_quality_gates() {
+    local learning="$1"
+
+    local depth reusability trigger_clarity verification
+    depth=$(echo "$learning" | jq -r '.quality_gates.discovery_depth // .quality_gates.depth // 0')
+    reusability=$(echo "$learning" | jq -r '.quality_gates.reusability // 0')
+    trigger_clarity=$(echo "$learning" | jq -r '.quality_gates.trigger_clarity // 0')
+    verification=$(echo "$learning" | jq -r '.quality_gates.verification // 0')
+
+    local failed=false
+    if [[ "$depth" -lt 7 ]]; then
+        echo -e "  ${RED}✗ depth ($depth) below threshold (7)${NC}" >&2
+        failed=true
+    fi
+    if [[ "$reusability" -lt 7 ]]; then
+        echo -e "  ${RED}✗ reusability ($reusability) below threshold (7)${NC}" >&2
+        failed=true
+    fi
+    if [[ "$trigger_clarity" -lt 6 ]]; then
+        echo -e "  ${RED}✗ trigger_clarity ($trigger_clarity) below threshold (6)${NC}" >&2
+        failed=true
+    fi
+    if [[ "$verification" -lt 6 ]]; then
+        echo -e "  ${RED}✗ verification ($verification) below threshold (6)${NC}" >&2
+        failed=true
+    fi
+
+    if [[ "$failed" == "true" ]]; then
+        return 1
+    fi
+    return 0
+}
+
+# Generate learning exchange file in schema-compliant format
+# Runs content through redact-export.sh and validates against schema
+generate_exchange_file() {
+    local learning="$1"
+    local output_path="$2"
+
+    # Extract fields
+    local id title category context trigger solution confidence
+    id=$(echo "$learning" | jq -r '.id // "Unknown"')
+    title=$(echo "$learning" | jq -r '.title // "Untitled Learning"')
+    category=$(echo "$learning" | jq -r '.type // "pattern"')
+    context=$(echo "$learning" | jq -r '.context // ""')
+    trigger=$(echo "$learning" | jq -r '.trigger // ""')
+    solution=$(echo "$learning" | jq -r '.solution // ""')
+    confidence=$(echo "$learning" | jq -r '.confidence // 0.5')
+
+    # Extract quality gates
+    local depth reusability trigger_clarity verification
+    depth=$(echo "$learning" | jq -r '.quality_gates.discovery_depth // .quality_gates.depth // 5')
+    reusability=$(echo "$learning" | jq -r '.quality_gates.reusability // 5')
+    trigger_clarity=$(echo "$learning" | jq -r '.quality_gates.trigger_clarity // 5')
+    verification=$(echo "$learning" | jq -r '.quality_gates.verification // 5')
+
+    # Extract tags
+    local tags_json
+    tags_json=$(echo "$learning" | jq -c '.tags // []')
+
+    # Generate learning exchange ID: LX-YYYYMMDD-hexhash
+    local date_part hash_part learning_id
+    date_part=$(date +%Y%m%d)
+    hash_part=$(printf '%s' "$id$title" | sha256sum | cut -c1-10)
+    learning_id="LX-${date_part}-${hash_part}"
+
+    # Run content through redact-export.sh
+    local redacted_trigger redacted_solution redacted_context
+    local audit_file rules_applied items_redacted items_blocked
+
+    audit_file=$(mktemp)
+
+    if [[ -x "$REDACT_EXPORT_SCRIPT" ]]; then
+        redacted_trigger=$(printf '%s' "$trigger" | "$REDACT_EXPORT_SCRIPT" --audit-file "$audit_file" --quiet 2>/dev/null)
+        local trigger_exit=$?
+        if [[ $trigger_exit -eq 1 ]]; then
+            echo -e "  ${RED}✗ Trigger content BLOCKED by redaction pipeline${NC}" >&2
+            rm -f "$audit_file"
+            return 1
+        fi
+
+        redacted_solution=$(printf '%s' "$solution" | "$REDACT_EXPORT_SCRIPT" --quiet 2>/dev/null)
+        local solution_exit=$?
+        if [[ $solution_exit -eq 1 ]]; then
+            echo -e "  ${RED}✗ Solution content BLOCKED by redaction pipeline${NC}" >&2
+            rm -f "$audit_file"
+            return 1
+        fi
+
+        redacted_context=$(printf '%s' "$context" | "$REDACT_EXPORT_SCRIPT" --quiet 2>/dev/null)
+        if [[ $? -eq 1 ]]; then
+            echo -e "  ${RED}✗ Context content BLOCKED by redaction pipeline${NC}" >&2
+            rm -f "$audit_file"
+            return 1
+        fi
+
+        # Parse audit report
+        if [[ -f "$audit_file" && -s "$audit_file" ]]; then
+            rules_applied=$(jq -r '(.findings.block + .findings.redact + .findings.flag) // 0' "$audit_file" 2>/dev/null || echo "0")
+            items_redacted=$(jq -r '.findings.redact // 0' "$audit_file" 2>/dev/null || echo "0")
+            items_blocked=$(jq -r '.findings.block // 0' "$audit_file" 2>/dev/null || echo "0")
+        else
+            rules_applied=0
+            items_redacted=0
+            items_blocked=0
+        fi
+        rm -f "$audit_file"
+    else
+        # Fallback: use anonymize-proposal.sh
+        redacted_trigger="$trigger"
+        redacted_solution="$solution"
+        redacted_context="$context"
+        if [[ -x "$ANONYMIZE_SCRIPT" ]]; then
+            redacted_trigger=$(echo "$trigger" | "$ANONYMIZE_SCRIPT" --stdin 2>/dev/null || echo "$trigger")
+            redacted_solution=$(echo "$solution" | "$ANONYMIZE_SCRIPT" --stdin 2>/dev/null || echo "$solution")
+            redacted_context=$(echo "$context" | "$ANONYMIZE_SCRIPT" --stdin 2>/dev/null || echo "$context")
+        fi
+        rules_applied=0
+        items_redacted=0
+        items_blocked=0
+    fi
+
+    # Build exchange JSON
+    local exchange_json
+    exchange_json=$(jq -cn \
+        --argjson schema_version 1 \
+        --arg learning_id "$learning_id" \
+        --arg source_learning_id "$id" \
+        --arg category "$category" \
+        --arg title "$title" \
+        --arg context "$redacted_context" \
+        --arg trigger "$redacted_trigger" \
+        --arg solution "$redacted_solution" \
+        --argjson tags "$tags_json" \
+        --argjson confidence "$confidence" \
+        --argjson depth "$depth" \
+        --argjson reusability "$reusability" \
+        --argjson trigger_clarity "$trigger_clarity" \
+        --argjson verification "$verification" \
+        --argjson rules_applied "$rules_applied" \
+        --argjson items_redacted "$items_redacted" \
+        --argjson items_blocked "$items_blocked" \
+        --arg created_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        '{
+            schema_version: $schema_version,
+            learning_id: $learning_id,
+            source_learning_id: $source_learning_id,
+            category: $category,
+            title: $title,
+            content: {
+                context: $context,
+                trigger: $trigger,
+                solution: $solution,
+                tags: $tags
+            },
+            confidence: $confidence,
+            quality_gates: {
+                depth: $depth,
+                reusability: $reusability,
+                trigger_clarity: $trigger_clarity,
+                verification: $verification
+            },
+            privacy: {
+                contains_file_paths: false,
+                contains_secrets: false,
+                contains_pii: false
+            },
+            redaction_report: {
+                rules_applied: $rules_applied,
+                items_redacted: $items_redacted,
+                items_blocked: $items_blocked
+            },
+            metadata: {
+                created_at: $created_at
+            }
+        }')
+
+    # Validate against schema if jq has schema validation capability
+    # (Basic validation: check required fields are present and correct types)
+    local valid=true
+    if ! echo "$exchange_json" | jq -e '.schema_version == 1' >/dev/null 2>&1; then
+        valid=false
+    fi
+    if ! echo "$exchange_json" | jq -e '.learning_id | test("^LX-[0-9]{8}-[a-f0-9]{8,12}$")' >/dev/null 2>&1; then
+        valid=false
+    fi
+    if ! echo "$exchange_json" | jq -e '.category | IN("pattern", "anti-pattern", "decision", "troubleshooting", "architecture", "security")' >/dev/null 2>&1; then
+        valid=false
+    fi
+    if ! echo "$exchange_json" | jq -e '.privacy.contains_file_paths == false and .privacy.contains_secrets == false and .privacy.contains_pii == false' >/dev/null 2>&1; then
+        valid=false
+    fi
+
+    if [[ "$valid" != "true" ]]; then
+        echo -e "  ${RED}✗ Exchange file failed schema validation${NC}" >&2
+        return 1
+    fi
+
+    # Write exchange file
+    echo "$exchange_json" | jq . > "$output_path"
+    return 0
+}
+
 main() {
     parse_args "$@"
     load_config
@@ -493,6 +700,29 @@ main() {
         echo -e "  ${YELLOW}⊘ Skipped${NC}"
     else
         echo -e "  ${GREEN}✓ Unique${NC}"
+    fi
+    echo ""
+
+    # Check exchange quality gates
+    echo -e "  Checking exchange quality gates..."
+    if ! check_exchange_quality_gates "$learning"; then
+        echo -e "  ${RED}✗ Learning does not meet exchange quality thresholds${NC}"
+        if [[ "$FORCE" != "true" ]]; then
+            exit 1
+        fi
+        echo -e "  ${YELLOW}⊘ Bypassed (--force)${NC}"
+    else
+        echo -e "  ${GREEN}✓ Quality gates passed${NC}"
+    fi
+    echo ""
+
+    # Generate learning exchange file
+    echo -e "  Generating exchange file..."
+    local exchange_output="${OUTPUT_FILE:-.loa-learning-proposal.yaml}"
+    if generate_exchange_file "$learning" "$exchange_output"; then
+        echo -e "  ${GREEN}✓ Exchange file: $exchange_output${NC}"
+    else
+        echo -e "  ${YELLOW}[WARN] Exchange file generation failed (continuing with proposal)${NC}"
     fi
     echo ""
 

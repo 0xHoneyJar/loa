@@ -131,7 +131,13 @@ emit_entry() {
     return
   fi
 
-  # Quality gate: min confidence (using awk for float comparison)
+  # Quality gate: min confidence
+  # LOW-001 FIX: Validate confidence is numeric before awk interpolation
+  # to prevent code injection via crafted trajectory entries (e.g., "0.8+system(\"id\")")
+  if [[ ! "$confidence" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+    TOTAL_REJECTED=$((TOTAL_REJECTED + 1))
+    return
+  fi
   if ! awk "BEGIN{exit !($confidence >= $MIN_CONFIDENCE)}" 2>/dev/null; then
     TOTAL_REJECTED=$((TOTAL_REJECTED + 1))
     return
