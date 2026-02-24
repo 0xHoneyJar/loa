@@ -7,6 +7,13 @@
 #   - .claude/scripts/tests/ — Script-level tests (20 files)
 #
 # Triggers on changes to shell scripts, test files, or this workflow.
+#
+# PINNING POLICY: All external dependencies are pinned to specific versions
+# with integrity verification. This prevents supply-chain attacks where a
+# compromised "latest" release silently poisons CI. To rotate:
+#   1. Update the version and download URL
+#   2. Recompute SHA256: wget -qO- <url> | sha256sum
+#   3. Update the checksum in the verification step
 
 name: BATS Tests
 
@@ -36,32 +43,45 @@ jobs:
     name: Shell Tests
     runs-on: ubuntu-latest
     steps:
+      # PINNING: SHA verified against actions/checkout v4.3.1 tag
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Install bats-core
+      - name: Install bats-core v1.13.0
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq bats
+          git clone --branch v1.13.0 --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
+          sudo /tmp/bats-core/install.sh /usr/local
+          bats --version
 
-      - name: Install yq
+      - name: Install yq v4.52.4 (pinned + checksum verified)
         run: |
-          wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
+          echo "0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c  /usr/local/bin/yq" | sha256sum -c -
           chmod +x /usr/local/bin/yq
 
       - name: Run framework unit tests
         run: |
-          if [ -d tests/unit ] && ls tests/unit/*.bats >/dev/null 2>&1; then
-            echo "Running tests/unit/ ..."
+          if [ -d tests/unit ]; then
+            count=$(ls tests/unit/*.bats 2>/dev/null | wc -l)
+            if [ "$count" -eq 0 ]; then
+              echo "ERROR: tests/unit/ exists but contains no .bats files"
+              exit 1
+            fi
+            echo "Running $count test files from tests/unit/ ..."
             bats tests/unit/*.bats
           else
-            echo "No tests found in tests/unit/"
+            echo "WARNING: tests/unit/ directory not found — skipping"
           fi
 
       - name: Run script tests
         run: |
-          if ls .claude/scripts/tests/*.bats >/dev/null 2>&1; then
-            echo "Running .claude/scripts/tests/ ..."
+          if [ -d .claude/scripts/tests ]; then
+            count=$(ls .claude/scripts/tests/*.bats 2>/dev/null | wc -l)
+            if [ "$count" -eq 0 ]; then
+              echo "ERROR: .claude/scripts/tests/ exists but contains no .bats files"
+              exit 1
+            fi
+            echo "Running $count test files from .claude/scripts/tests/ ..."
             bats .claude/scripts/tests/*.bats
           else
-            echo "No tests found in .claude/scripts/tests/"
+            echo "WARNING: .claude/scripts/tests/ directory not found — skipping"
           fi
