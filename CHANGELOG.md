@@ -5,6 +5,21 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.58.0] — 2026-02-24 — Organizational Memory Sovereignty — Three-Zone State Architecture
+
+
+Complete implementation of cycle-038: **Organizational Memory Sovereignty — Three-Zone State Architecture**. 6 sprints, all reviewed and audited.
+
+- **Sprint 1** (sprint-57): State-Dir Resolution Foundation — `path-lib.sh` extensions with `get_state_*()` getters, `append_jsonl()` locking, `ensure_state_structure()`, conformance tests
+- **Sprint 2** (sprint-58): Migration Script — `migrate-state-layout.sh` with copy-verify-switch, journal-based crash recovery, platform-aware compat modes
+
+### Added
+
+- **cycle-038**: Organizational Memory Sovereignty — Three-Zone State Architecture (#410)
+
+_Source: PR #410_
+
+
 ## [1.39.1] — 2026-02-15 — Collateral Deletion Safeguard + CI Hardening
 
 ### Fixed
