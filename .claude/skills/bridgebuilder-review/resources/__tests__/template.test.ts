@@ -218,6 +218,13 @@ describe("PRReviewTemplate", () => {
       assert.ok(prompt.includes("bridge-findings-start"));
     });
 
+    it("mentions optional confidence field", () => {
+      const template = new PRReviewTemplate(mockGitProvider(), mockHasher(), mockConfig());
+      const prompt = template.buildConvergenceSystemPrompt();
+      assert.ok(prompt.includes("confidence"), "Should mention confidence");
+      assert.ok(prompt.includes("0.0-1.0") || prompt.includes("calibrated"), "Should include calibration guidance");
+    });
+
     it("does NOT include enrichment task instructions", () => {
       const template = new PRReviewTemplate(mockGitProvider(), mockHasher(), mockConfig());
       const prompt = template.buildConvergenceSystemPrompt();
@@ -334,6 +341,46 @@ describe("PRReviewTemplate", () => {
       const { userPrompt } = template.buildEnrichmentPrompt(sampleFindings, item, "persona");
       assert.ok(userPrompt.includes("Preserve all findings exactly"));
       assert.ok(userPrompt.includes("DO NOT add, remove, or reclassify"));
+    });
+
+    it("includes confidence guidance when findings have confidence", () => {
+      const template = new PRReviewTemplate(mockGitProvider(), mockHasher(), mockConfig());
+      const item = {
+        owner: "o", repo: "r",
+        pr: { number: 1, title: "Fix", headSha: "h", baseBranch: "main", labels: [], author: "dev" },
+        files: [],
+        hash: "h",
+      };
+      const findingsWithConf = JSON.stringify({
+        schema_version: 1,
+        findings: [
+          { id: "F001", title: "Test", severity: "HIGH", category: "security", file: "f:1", description: "d", suggestion: "s", confidence: 0.9 },
+        ],
+      });
+
+      const { userPrompt } = template.buildEnrichmentPrompt(findingsWithConf, item, "persona");
+      assert.ok(userPrompt.includes("Confidence-Aware Enrichment Depth"), "Should include confidence section");
+      assert.ok(userPrompt.includes("Confidence > 0.8"), "Should include high confidence guidance");
+      assert.ok(userPrompt.includes("Confidence < 0.4"), "Should include low confidence guidance");
+    });
+
+    it("omits confidence guidance when no findings have confidence", () => {
+      const template = new PRReviewTemplate(mockGitProvider(), mockHasher(), mockConfig());
+      const item = {
+        owner: "o", repo: "r",
+        pr: { number: 1, title: "Fix", headSha: "h", baseBranch: "main", labels: [], author: "dev" },
+        files: [],
+        hash: "h",
+      };
+      const findingsWithoutConf = JSON.stringify({
+        schema_version: 1,
+        findings: [
+          { id: "F001", title: "Test", severity: "HIGH", category: "security", file: "f:1", description: "d", suggestion: "s" },
+        ],
+      });
+
+      const { userPrompt } = template.buildEnrichmentPrompt(findingsWithoutConf, item, "persona");
+      assert.ok(!userPrompt.includes("Confidence-Aware Enrichment Depth"), "Should NOT include confidence section");
     });
 
     it("requests enrichment fields", () => {

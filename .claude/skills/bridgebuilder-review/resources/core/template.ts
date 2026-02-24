@@ -38,6 +38,11 @@ DO NOT include:
 Output ONLY a structured findings JSON block inside <!-- bridge-findings-start --> and <!-- bridge-findings-end --> markers.
 
 Each finding must include: id, title, severity, category, file, description, suggestion.
+Optionally include: confidence (number 0.0-1.0) — your calibrated confidence that this is a real issue.
+  - 1.0 = certain this is a real issue
+  - 0.5 = moderate confidence
+  - 0.1 = uncertain but worth flagging
+  - Omit if you have no strong signal either way.
 DO NOT include: faang_parallel, metaphor, teachable_moment, connection fields.`;
 
 export class PRReviewTemplate {
@@ -253,8 +258,9 @@ export class PRReviewTemplate {
       "```",
       "<!-- bridge-findings-end -->",
       "",
-      "Each finding: { id, title, severity, category, file, description, suggestion }",
+      "Each finding: { id, title, severity, category, file, description, suggestion, confidence? }",
       "Severity values: CRITICAL, HIGH, MEDIUM, LOW, PRAISE, SPECULATION, REFRAME",
+      "Optional: confidence (0.0-1.0) — your calibrated confidence in each finding",
     ];
   }
 
@@ -365,6 +371,18 @@ export class PRReviewTemplate {
     lines.push("");
     lines.push(findingsJSON);
 
+    // Confidence-aware depth guidance (Task 4.3): only render when findings have confidence
+    if (this.findingsHaveConfidence(findingsJSON)) {
+      lines.push("");
+      lines.push("## Confidence-Aware Enrichment Depth");
+      lines.push("");
+      lines.push("Findings include confidence scores from the analytical pass. Allocate enrichment depth proportionally:");
+      lines.push("- **Confidence > 0.8**: Focus on deep teaching — FAANG parallels, metaphors, architecture connections");
+      lines.push("- **Confidence 0.4–0.8**: Balance teaching with verification — confirm the analysis before elaborating");
+      lines.push("- **Confidence < 0.4**: Focus on verification — investigate whether this is a real issue before teaching");
+      lines.push("- **No confidence**: Treat as moderate confidence (0.5)");
+    }
+
     lines.push("");
     lines.push("## Your Task");
     lines.push("");
@@ -393,6 +411,21 @@ export class PRReviewTemplate {
     lines.push("   - `## Callouts` (positive observations)");
 
     return { systemPrompt, userPrompt: lines.join("\n") };
+  }
+
+  /**
+   * Check if findings JSON contains at least one finding with a confidence value.
+   */
+  private findingsHaveConfidence(findingsJSON: string): boolean {
+    try {
+      const parsed = JSON.parse(findingsJSON);
+      if (!parsed.findings || !Array.isArray(parsed.findings)) return false;
+      return parsed.findings.some(
+        (f: Record<string, unknown>) => typeof f.confidence === "number",
+      );
+    } catch {
+      return false;
+    }
   }
 
   private buildUserPrompt(

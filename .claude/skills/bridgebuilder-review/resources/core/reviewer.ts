@@ -530,7 +530,7 @@ export class ReviewPipeline {
    * Extract findings JSON from content enclosed in bridge-findings markers (SDD 3.5).
    * Returns { raw, parsed } or null if markers/JSON are missing or malformed.
    */
-  private extractFindingsJSON(content: string): { raw: string; parsed: { findings: Array<{ id: string; severity: string; category: string; [key: string]: unknown }> } } | null {
+  private extractFindingsJSON(content: string): { raw: string; parsed: { findings: Array<{ id: string; severity: string; category: string; confidence?: number; [key: string]: unknown }> } } | null {
     const startMarker = "<!-- bridge-findings-start -->";
     const endMarker = "<!-- bridge-findings-end -->";
 
@@ -552,14 +552,25 @@ export class ReviewPipeline {
         return null;
       }
       // Runtime validation: filter findings with non-string required fields
-      const validated = parsed.findings.filter(
-        (f: unknown): f is { id: string; severity: string; category: string; [key: string]: unknown } =>
-          f != null &&
-          typeof f === "object" &&
-          typeof (f as Record<string, unknown>).id === "string" &&
-          typeof (f as Record<string, unknown>).severity === "string" &&
-          typeof (f as Record<string, unknown>).category === "string",
-      );
+      const validated = parsed.findings
+        .filter(
+          (f: unknown): f is { id: string; severity: string; category: string; [key: string]: unknown } =>
+            f != null &&
+            typeof f === "object" &&
+            typeof (f as Record<string, unknown>).id === "string" &&
+            typeof (f as Record<string, unknown>).severity === "string" &&
+            typeof (f as Record<string, unknown>).category === "string",
+        )
+        .map((f) => {
+          // Normalize confidence: valid number in [0, 1] or strip invalid values
+          const raw = (f as Record<string, unknown>).confidence;
+          if (typeof raw === "number" && raw >= 0 && raw <= 1) {
+            return { ...f, confidence: raw };
+          }
+          // Strip invalid confidence — destructure to omit, return rest
+          const { confidence: _dropped, ...rest } = f as Record<string, unknown>;
+          return rest as typeof f;
+        });
       if (validated.length === 0) {
         return null;
       }
@@ -787,11 +798,25 @@ export class ReviewPipeline {
 
     const { raw: findingsJSON, parsed: pass1Parsed } = pass1Extracted;
 
+    // Compute confidence statistics from Pass 1 findings (Task 4.4)
+    const confidenceValues = pass1Parsed.findings
+      .filter((f): f is typeof f & { confidence: number } => typeof f.confidence === "number")
+      .map((f) => f.confidence);
+    const pass1ConfidenceStats = confidenceValues.length > 0
+      ? {
+          min: Math.min(...confidenceValues),
+          max: Math.max(...confidenceValues),
+          mean: +(confidenceValues.reduce((a, b) => a + b, 0) / confidenceValues.length).toFixed(3),
+          count: confidenceValues.length,
+        }
+      : undefined;
+
     this.logger.info("Pass 1 complete", {
       owner, repo, pr: pr.number,
       duration: pass1Duration,
       inputTokens: pass1Response.inputTokens,
       outputTokens: pass1Response.outputTokens,
+      confidenceStats: pass1ConfidenceStats ?? null,
     });
 
     // ═══════════════════════════════════════════════
@@ -878,6 +903,7 @@ export class ReviewPipeline {
       pass1Output: pass1Response.content,
       pass1Tokens: { input: pass1Response.inputTokens, output: pass1Response.outputTokens, duration: pass1Duration },
       pass2Tokens: { input: pass2Response.inputTokens, output: pass2Response.outputTokens, duration: pass2Duration },
+      pass1ConfidenceStats,
     });
   }
 

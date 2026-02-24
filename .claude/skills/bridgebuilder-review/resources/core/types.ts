@@ -70,6 +70,8 @@ export interface ReviewResult {
   pass1Tokens?: PassTokenMetrics;
   /** Token metrics for enrichment pass (two-pass mode only). */
   pass2Tokens?: PassTokenMetrics;
+  /** Confidence statistics from Pass 1 findings (two-pass mode only). */
+  pass1ConfidenceStats?: { min: number; max: number; mean: number; count: number };
 }
 
 export interface RunSummary {

@@ -1106,6 +1106,225 @@ describe("ReviewPipeline", () => {
     });
   });
 
+  describe("confidence pipeline (Sprint 66)", () => {
+    const FINDINGS_WITH_CONFIDENCE = [
+      "<!-- bridge-findings-start -->",
+      "```json",
+      JSON.stringify({
+        schema_version: 1,
+        findings: [
+          { id: "F001", title: "Issue", severity: "HIGH", category: "security", file: "src/app.ts:1", description: "d", suggestion: "s", confidence: 0.9 },
+          { id: "F002", title: "Good", severity: "PRAISE", category: "quality", file: "src/app.ts:5", description: "d", suggestion: "s", confidence: 0.7 },
+          { id: "F003", title: "Maybe", severity: "LOW", category: "style", file: "src/app.ts:10", description: "d", suggestion: "s", confidence: 0.3 },
+        ],
+      }),
+      "```",
+      "<!-- bridge-findings-end -->",
+    ].join("\n");
+
+    function makePass2WithConfidence(findings: Array<Record<string, unknown>>): string {
+      return [
+        "## Summary", "", "Review.", "",
+        "## Findings", "",
+        "<!-- bridge-findings-start -->",
+        "```json",
+        JSON.stringify({ schema_version: 1, findings }),
+        "```",
+        "<!-- bridge-findings-end -->",
+        "", "## Callouts", "", "- Ok.",
+      ].join("\n");
+    }
+
+    it("parses confidence values from Pass 1 and includes stats in result", async () => {
+      let callCount = 0;
+      const pass2Findings = [
+        { id: "F001", title: "Issue", severity: "HIGH", category: "security", file: "src/app.ts:1", description: "d", suggestion: "s", confidence: 0.9, faang_parallel: "Google" },
+        { id: "F002", title: "Good", severity: "PRAISE", category: "quality", file: "src/app.ts:5", description: "d", suggestion: "s", confidence: 0.7, metaphor: "Well-oiled" },
+        { id: "F003", title: "Maybe", severity: "LOW", category: "style", file: "src/app.ts:10", description: "d", suggestion: "s", confidence: 0.3 },
+      ];
+      const pipeline = buildPipeline({
+        config: { reviewMode: "two-pass" },
+        llm: {
+          generateReview: async () => {
+            callCount++;
+            if (callCount === 1) {
+              return { content: FINDINGS_WITH_CONFIDENCE, inputTokens: 500, outputTokens: 200, model: "test" };
+            }
+            return { content: makePass2WithConfidence(pass2Findings), inputTokens: 100, outputTokens: 300, model: "test" };
+          },
+        },
+      });
+      const summary = await pipeline.run("run-conf-stats");
+      const result = summary.results[0];
+      assert.equal(summary.reviewed, 1);
+      assert.ok(result.pass1ConfidenceStats, "Should have pass1ConfidenceStats");
+      assert.equal(result.pass1ConfidenceStats!.min, 0.3);
+      assert.equal(result.pass1ConfidenceStats!.max, 0.9);
+      assert.equal(result.pass1ConfidenceStats!.count, 3);
+      assert.ok(result.pass1ConfidenceStats!.mean > 0.6 && result.pass1ConfidenceStats!.mean < 0.7);
+    });
+
+    it("silently drops invalid confidence values (negative, >1, string)", async () => {
+      let callCount = 0;
+      const invalidConfidenceFindings = [
+        "<!-- bridge-findings-start -->",
+        "```json",
+        JSON.stringify({
+          schema_version: 1,
+          findings: [
+            { id: "F001", title: "Issue", severity: "HIGH", category: "security", file: "f:1", description: "d", suggestion: "s", confidence: -0.5 },
+            { id: "F002", title: "Good", severity: "PRAISE", category: "quality", file: "f:2", description: "d", suggestion: "s", confidence: 1.5 },
+            { id: "F003", title: "Low", severity: "LOW", category: "style", file: "f:3", description: "d", suggestion: "s", confidence: "high" },
+            { id: "F004", title: "Ok", severity: "MEDIUM", category: "perf", file: "f:4", description: "d", suggestion: "s", confidence: 0.8 },
+          ],
+        }),
+        "```",
+        "<!-- bridge-findings-end -->",
+      ].join("\n");
+
+      const pass2 = makePass2WithConfidence([
+        { id: "F001", title: "Issue", severity: "HIGH", category: "security", file: "f:1", description: "d", suggestion: "s" },
+        { id: "F002", title: "Good", severity: "PRAISE", category: "quality", file: "f:2", description: "d", suggestion: "s" },
+        { id: "F003", title: "Low", severity: "LOW", category: "style", file: "f:3", description: "d", suggestion: "s" },
+        { id: "F004", title: "Ok", severity: "MEDIUM", category: "perf", file: "f:4", description: "d", suggestion: "s", confidence: 0.8 },
+      ]);
+
+      const pipeline = buildPipeline({
+        config: { reviewMode: "two-pass" },
+        llm: {
+          generateReview: async () => {
+            callCount++;
+            if (callCount === 1) {
+              return { content: invalidConfidenceFindings, inputTokens: 500, outputTokens: 200, model: "test" };
+            }
+            return { content: pass2, inputTokens: 100, outputTokens: 300, model: "test" };
+          },
+        },
+      });
+      const summary = await pipeline.run("run-conf-invalid");
+      const result = summary.results[0];
+      assert.equal(summary.reviewed, 1);
+      // Only F004 has valid confidence (0.8)
+      assert.ok(result.pass1ConfidenceStats, "Should have stats from valid confidence values");
+      assert.equal(result.pass1ConfidenceStats!.count, 1);
+      assert.equal(result.pass1ConfidenceStats!.min, 0.8);
+      assert.equal(result.pass1ConfidenceStats!.max, 0.8);
+    });
+
+    it("omits confidence stats when no findings have confidence", async () => {
+      let callCount = 0;
+      const noConfFindings = [
+        "<!-- bridge-findings-start -->",
+        "```json",
+        JSON.stringify({
+          schema_version: 1,
+          findings: [
+            { id: "F001", title: "Issue", severity: "HIGH", category: "security", file: "f:1", description: "d", suggestion: "s" },
+            { id: "F002", title: "Good", severity: "PRAISE", category: "quality", file: "f:2", description: "d", suggestion: "s" },
+          ],
+        }),
+        "```",
+        "<!-- bridge-findings-end -->",
+      ].join("\n");
+
+      const pass2 = makePass2WithConfidence([
+        { id: "F001", title: "Issue", severity: "HIGH", category: "security", file: "f:1", description: "d", suggestion: "s" },
+        { id: "F002", title: "Good", severity: "PRAISE", category: "quality", file: "f:2", description: "d", suggestion: "s" },
+      ]);
+
+      const pipeline = buildPipeline({
+        config: { reviewMode: "two-pass" },
+        llm: {
+          generateReview: async () => {
+            callCount++;
+            if (callCount === 1) {
+              return { content: noConfFindings, inputTokens: 500, outputTokens: 200, model: "test" };
+            }
+            return { content: pass2, inputTokens: 100, outputTokens: 300, model: "test" };
+          },
+        },
+      });
+      const summary = await pipeline.run("run-conf-none");
+      const result = summary.results[0];
+      assert.equal(summary.reviewed, 1);
+      assert.equal(result.pass1ConfidenceStats, undefined, "Should not have stats when no findings have confidence");
+    });
+
+    it("mixed findings: stats computed from available confidence values only", async () => {
+      let callCount = 0;
+      const mixedFindings = [
+        "<!-- bridge-findings-start -->",
+        "```json",
+        JSON.stringify({
+          schema_version: 1,
+          findings: [
+            { id: "F001", title: "Issue", severity: "HIGH", category: "security", file: "f:1", description: "d", suggestion: "s", confidence: 0.9 },
+            { id: "F002", title: "Good", severity: "PRAISE", category: "quality", file: "f:2", description: "d", suggestion: "s" },
+            { id: "F003", title: "Maybe", severity: "LOW", category: "style", file: "f:3", description: "d", suggestion: "s", confidence: 0.5 },
+          ],
+        }),
+        "```",
+        "<!-- bridge-findings-end -->",
+      ].join("\n");
+
+      const pass2 = makePass2WithConfidence([
+        { id: "F001", title: "Issue", severity: "HIGH", category: "security", file: "f:1", description: "d", suggestion: "s", confidence: 0.9 },
+        { id: "F002", title: "Good", severity: "PRAISE", category: "quality", file: "f:2", description: "d", suggestion: "s" },
+        { id: "F003", title: "Maybe", severity: "LOW", category: "style", file: "f:3", description: "d", suggestion: "s", confidence: 0.5 },
+      ]);
+
+      const pipeline = buildPipeline({
+        config: { reviewMode: "two-pass" },
+        llm: {
+          generateReview: async () => {
+            callCount++;
+            if (callCount === 1) {
+              return { content: mixedFindings, inputTokens: 500, outputTokens: 200, model: "test" };
+            }
+            return { content: pass2, inputTokens: 100, outputTokens: 300, model: "test" };
+          },
+        },
+      });
+      const summary = await pipeline.run("run-conf-mixed");
+      const result = summary.results[0];
+      assert.equal(summary.reviewed, 1);
+      assert.ok(result.pass1ConfidenceStats);
+      assert.equal(result.pass1ConfidenceStats!.count, 2, "Only 2 findings have confidence");
+      assert.equal(result.pass1ConfidenceStats!.min, 0.5);
+      assert.equal(result.pass1ConfidenceStats!.max, 0.9);
+    });
+
+    it("preservation guard passes when confidence differs between Pass 1 and Pass 2", async () => {
+      let callCount = 0;
+      // Pass 2 changes confidence values but preserves id/severity/category
+      const pass2 = makePass2WithConfidence([
+        { id: "F001", title: "Issue", severity: "HIGH", category: "security", file: "src/app.ts:1", description: "d", suggestion: "s", confidence: 0.95 },
+        { id: "F002", title: "Good", severity: "PRAISE", category: "quality", file: "src/app.ts:5", description: "d", suggestion: "s", confidence: 0.6 },
+        { id: "F003", title: "Maybe", severity: "LOW", category: "style", file: "src/app.ts:10", description: "d", suggestion: "s" },
+      ]);
+
+      let postedBody = "";
+      const pipeline = buildPipeline({
+        config: { reviewMode: "two-pass" },
+        llm: {
+          generateReview: async () => {
+            callCount++;
+            if (callCount === 1) {
+              return { content: FINDINGS_WITH_CONFIDENCE, inputTokens: 500, outputTokens: 200, model: "test" };
+            }
+            return { content: pass2, inputTokens: 100, outputTokens: 300, model: "test" };
+          },
+        },
+        poster: {
+          postReview: async (input) => { postedBody = input.body; return true; },
+        },
+      });
+      const summary = await pipeline.run("run-conf-preserve");
+      assert.equal(summary.reviewed, 1);
+      assert.ok(!postedBody.includes("Enrichment unavailable"), "Should NOT fall back — confidence is not a preserved attribute");
+    });
+  });
+
   describe("fixture-based tests", () => {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = dirname(__filename);
