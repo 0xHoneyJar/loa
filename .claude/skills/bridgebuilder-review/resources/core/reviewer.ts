@@ -21,7 +21,9 @@ import type {
   EnrichmentOptions,
 } from "./types.js";
 import { FindingsBlockSchema } from "./schemas.js";
+import type { ValidatedFinding } from "./schemas.js";
 import { Pass1Cache, computeCacheKey } from "./cache.js";
+import { extractEcosystemPatterns, updateEcosystemContext } from "./ecosystem.js";
 import {
   truncateFiles,
   progressiveTruncate,
@@ -174,6 +176,33 @@ export class ReviewPipeline {
       return { id: match[2], version: match[1], hash };
     }
     return { id: "unknown", version: "0.0.0", hash };
+  }
+
+  /**
+   * Post-bridge hook: extract high-quality patterns from findings and update ecosystem context (AC-7).
+   * Orchestrates extractEcosystemPatterns() + updateEcosystemContext().
+   * Called by run-bridge finalization after each bridge iteration.
+   */
+  static async updateEcosystemFromFindings(
+    findings: ValidatedFinding[],
+    repo: string,
+    pr: number,
+    contextPath: string,
+    logger: ILogger,
+  ): Promise<void> {
+    const patterns = extractEcosystemPatterns(findings, repo, pr);
+    if (patterns.length === 0) {
+      logger.info("No ecosystem-worthy patterns found in findings", { repo, pr });
+      return;
+    }
+
+    logger.info("Extracted ecosystem patterns from findings", {
+      repo,
+      pr,
+      patternCount: patterns.length,
+    });
+
+    await updateEcosystemContext(contextPath, patterns, logger);
   }
 
   async run(runId: string): Promise<RunSummary> {

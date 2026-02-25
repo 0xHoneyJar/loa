@@ -1,0 +1,47 @@
+{
+  "patterns": [
+    {
+      "repo": "loa-hounfour",
+      "pr": 29,
+      "pattern": "Decision engine constitutional constraints",
+      "connection": "Constitutional AI patterns applied to decision engines ensure governance constraints are embedded in the architecture, not just policy."
+    },
+    {
+      "repo": "loa-hounfour",
+      "pr": 22,
+      "pattern": "Protocol schema with preservation guards",
+      "connection": "Schema-level preservation guards prevent protocol drift by making backward-incompatible changes structurally impossible."
+    },
+    {
+      "repo": "loa-freeside",
+      "pr": 62,
+      "pattern": "Conservation invariant BigInt precision",
+      "connection": "Financial conservation invariants enforced via BigInt arithmetic eliminate floating-point precision loss in token accounting."
+    },
+    {
+      "repo": "loa-freeside",
+      "pr": 90,
+      "pattern": "Ostrom governance in billing infrastructure",
+      "connection": "Elinor Ostrom's commons governance principles applied to billing infrastructure create self-regulating resource allocation."
+    },
+    {
+      "repo": "loa-dixie",
+      "pr": 5,
+      "pattern": "Conviction voting for knowledge governance",
+      "connection": "Conviction voting mechanisms adapted for knowledge curation allow community-weighted quality signals to emerge over time."
+    },
+    {
+      "repo": "loa",
+      "pr": 411,
+      "pattern": "Two-pass cognitive architecture for review",
+      "connection": "Separating convergence from enrichment allocates full cognitive budget to each task, improving both finding quality and educational depth."
+    },
+    {
+      "repo": "loa-finn",
+      "pr": 80,
+      "pattern": "Conway Automaton identity comparison",
+      "connection": "Cellular automaton patterns for identity comparison enable emergent consensus without centralized identity authorities."
+    }
+  ],
+  "lastUpdated": "2026-02-25T12:30:00Z"
+}

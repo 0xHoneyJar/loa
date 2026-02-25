@@ -178,3 +178,30 @@ export interface TokenEstimateBreakdown {
   diffs: number;
   total: number;
 }
+
+/**
+ * Ecosystem pattern extracted from bridge findings (Sprint 71 — dynamic ecosystem context).
+ * Extends the static pattern shape with provenance fields for traceability.
+ */
+export interface EcosystemPattern {
+  repo: string;
+  pr: number;
+  pattern: string;
+  connection: string;
+  extractedFrom: string;
+  confidence: number | undefined;
+}
+
+/**
+ * Persona registry entry for the persona marketplace (Sprint 71 — schema primitives).
+ * Defines the identity and metadata for a review persona.
+ * The full persona marketplace is future work; these types formalize the slot architecture.
+ */
+export interface PersonaRegistryEntry {
+  name: string;
+  version: string;
+  hash: string;
+  description: string;
+  dimensions: string[];
+  voiceSamples?: string[];
+}
